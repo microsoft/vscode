@@ -44,6 +44,21 @@ suite('Radio', () => {
 		await new Promise<void>(resolve => targetWindow.requestAnimationFrame(() => targetWindow.requestAnimationFrame(() => resolve())));
 	}
 
+	test('an optional empty selection stays keyboard reachable and selecting the first option emits a change', () => {
+		const radio = createRadio({ className: 'segmented', allowNoSelection: true, arrowKeyBehavior: 'focus', items: [{ text: 'Low' }, { text: 'High' }] });
+		const selected: number[] = [];
+		disposables.add(radio.onDidSelect(index => selected.push(index)));
+		radio.focusActiveItem();
+		const initial = radio.optionElements.map(element => ({ checked: element.getAttribute('aria-checked'), tabIndex: element.tabIndex, focused: element === mainWindow.document.activeElement }));
+		radio.optionElements[0].click();
+		assert.deepStrictEqual({
+			initial, selected, checked: radio.optionElements.map(element => element.getAttribute('aria-checked')),
+		}, {
+			initial: [{ checked: 'false', tabIndex: 0, focused: true }, { checked: 'false', tabIndex: -1, focused: false }],
+			selected: [0], checked: ['true', 'false'],
+		});
+	});
+
 	for (const highContrast of [false, true]) {
 		test(`segmented controls share rounded rectangles and a neutral selected fill${highContrast ? ' in high contrast' : ''}`, async () => {
 			const radio = createRadio({ className: 'segmented', items: [{ text: 'Low' }, { text: 'Medium', isActive: true }, { text: 'High' }] });
@@ -111,7 +126,7 @@ suite('Radio', () => {
 		const indicator = radio.domNode.querySelector<HTMLElement>('.monaco-radio-selection')!;
 		const aligned = (index: number) => {
 			const option = radio.optionElements[index];
-			return indicator.style.transform === `translate(${option.offsetLeft}px, ${option.offsetTop}px)`
+			return indicator.style.translate === `${option.offsetLeft}px ${option.offsetTop}px`
 				&& indicator.style.width === `${option.offsetWidth}px`
 				&& indicator.style.height === `${option.offsetHeight}px`;
 		};
@@ -148,6 +163,20 @@ suite('Radio', () => {
 			sameRow: true,
 			replaced: { rows: [['One', 'Two']], breaks: 0, multiRow: false },
 		});
+	});
+
+	test('press feedback shrinks the selection in place wherever it is', async () => {
+		const radio = createRadio({ className: 'segmented', items: ['None', 'Low', 'Medium', 'High', 'Max'].map(text => ({ text, isActive: text === 'Max' })) });
+		radio.domNode.style.width = '320px';
+		radio.domNode.parentElement!.classList.add('monaco-reduce-motion');
+		await nextFrame(radio);
+		const indicator = radio.domNode.querySelector<HTMLElement>('.monaco-radio-selection')!;
+		indicator.style.scale = '0.5';
+		const center = (element: HTMLElement) => {
+			const bounds = element.getBoundingClientRect();
+			return { x: Math.round(bounds.x + bounds.width / 2), y: Math.round(bounds.y + bounds.height / 2) };
+		};
+		assert.deepStrictEqual(center(indicator), center(radio.optionElements[4]));
 	});
 
 	test('segmented motion uses a short slide and respects reduced motion', async () => {

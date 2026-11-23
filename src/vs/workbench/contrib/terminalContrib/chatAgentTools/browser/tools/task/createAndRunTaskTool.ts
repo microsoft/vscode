@@ -253,7 +253,7 @@ export class CreateAndRunTaskTool implements IToolImpl {
 		}
 
 		const confirmationMessage = new MarkdownString()
-			.appendText(localize('createTask', "Task '{0}' will be created in '{1}' and run with this command:", task.label, workspaceFolder.fsPath))
+			.appendText(localize('createTaskInWorkspace', "Task '{0}' will be created in '{1}' and run with this command:", task.label, workspaceFolder.fsPath))
 			.appendCodeblock('shell', [task.command, ...(task.args ?? [])].join(' '));
 
 		return {

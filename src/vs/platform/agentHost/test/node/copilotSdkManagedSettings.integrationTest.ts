@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { CopilotClient } from '@github/copilot-sdk';
+import { RuntimeConnection, CopilotClient } from '@microsoft/copilot-sdk';
 import { existsSync } from 'fs';
 import { mkdir, mkdtemp, rm, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
@@ -26,14 +26,18 @@ suite('Copilot SDK - managed settings', function () {
 		home = await mkdtemp(join(tmpdir(), 'copilot-managed-settings-'));
 		client = new CopilotClient({
 			mode: 'empty',
-			baseDirectory: home,
-			useLoggedInUser: false,
-			env: createCopilotCliEnvironment(createIsolatedProviderEnvironment(home, {
-				PATH: process.env.PATH,
-				SystemRoot: process.env.SystemRoot,
-				WINDIR: process.env.WINDIR,
-				COPILOT_TELEMETRY_ENABLED: 'false',
-			})),
+			runtime: RuntimeConnection.forSpawnedStdio({
+				baseDirectory: home,
+				env: createCopilotCliEnvironment(createIsolatedProviderEnvironment(home, {
+					PATH: process.env.PATH,
+					SystemRoot: process.env.SystemRoot,
+					WINDIR: process.env.WINDIR,
+					COPILOT_TELEMETRY_ENABLED: 'false',
+				})),
+			}),
+			github: {
+				useLoggedInUser: false,
+			},
 		});
 		await client.start();
 	});
@@ -115,6 +119,36 @@ suite('Copilot SDK - managed settings', function () {
 					fusionTier: { overridable: true, source: 'server' },
 				},
 				warnings: ['server.contextTier', 'server.effortLevel'],
+			},
+			{
+				name: 'reports a configured Fusion tier beside the legacy Auto tier it supersedes',
+				layers: [
+					{ source: 'device', settings: { fusionTier: { overridable: 'max' } } },
+					{ source: 'server', settings: { autoTier: 'intelligence' } },
+				],
+				values: { autoTier: 'intelligence', fusionTier: 'max' },
+				meta: {
+					autoTier: { overridable: false, source: 'server' },
+					fusionTier: { overridable: true, source: 'device' },
+				},
+				warnings: [],
+			},
+			{
+				name: 'reports an unmanaged Fusion tier as overridable',
+				layers: [{ source: 'server', settings: { fusionTier: 'unmanaged', autoTier: 'intelligence' } }],
+				values: { autoTier: 'intelligence', fusionTier: 'unmanaged' },
+				meta: {
+					autoTier: { overridable: false, source: 'server' },
+					fusionTier: { overridable: true, source: 'server' },
+				},
+				warnings: [],
+			},
+			{
+				name: 'ignores the retired Ensemble tier key',
+				layers: [{ source: 'server', settings: { ensembleTier: 'high' } }],
+				values: undefined,
+				meta: undefined,
+				warnings: ['server.ensembleTier'],
 			},
 			{
 				name: 'does not turn options without a managed model into global defaults',

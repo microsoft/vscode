@@ -40,6 +40,18 @@ interface ISuite {
 	readonly id: string;
 	readonly label: string;
 	readonly file: string;
+	/**
+	 * Runs the tests of the file in this many processes (--testShard of the test runner), each with its
+	 * own Agent Host server. The longest suites would otherwise keep running long after the others.
+	 */
+	readonly parts?: number;
+	/** The part of the tests of the file that this process runs, as <index>/<total>. */
+	readonly testShard?: string;
+}
+
+interface IShard {
+	readonly index: number;
+	readonly total: number;
 }
 
 interface IRunResult {
@@ -56,26 +68,31 @@ interface IObservedSurface {
 	readonly actions: readonly string[];
 }
 
+// The longest suites first, so that the parallel workers start them first.
 const suites: readonly ISuite[] = [
+	{
+		id: 'copilot',
+		label: 'Copilot',
+		file: 'src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts',
+		parts: 2,
+	},
 	{
 		id: 'conformance',
 		label: 'Conformance',
 		file: 'src/vs/platform/agentHost/test/node/e2e/conformance/agentHostConformance.integrationTest.ts',
+		parts: 2,
 	},
 	{
 		id: 'claude',
 		label: 'Claude',
 		file: 'src/vs/platform/agentHost/test/node/e2e/providers/claudeAgentHostE2E.integrationTest.ts',
+		parts: 2,
 	},
 	{
 		id: 'codex',
 		label: 'Codex',
 		file: 'src/vs/platform/agentHost/test/node/e2e/providers/codexAgentHostE2E.integrationTest.ts',
-	},
-	{
-		id: 'copilot',
-		label: 'Copilot',
-		file: 'src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts',
+		parts: 2,
 	},
 	{
 		id: 'copilot-otel',
@@ -89,14 +106,43 @@ const suites: readonly ISuite[] = [
 	},
 ];
 
+/**
+ * The processes that run the given suites: one per suite, or one per part of a suite with parts.
+ */
+function suiteProcesses(selected: readonly ISuite[]): readonly ISuite[] {
+	return selected.flatMap(suite => {
+		const parts = suite.parts ?? 1;
+		return parts === 1 ? [suite] : Array.from({ length: parts }, (_, index) => ({
+			...suite,
+			id: `${suite.id}-${index + 1}`,
+			label: `${suite.label} (${index + 1}/${parts})`,
+			testShard: `${index + 1}/${parts}`,
+		}));
+	});
+}
+
 async function main(): Promise<void> {
 	validateEnvironment();
 	const { getAgentHostTestProfile } = await import('../../../src/vs/platform/agentHost/test/node/agentHostTestProfile.ts');
 	console.log(`Agent Host test profile: ${getAgentHostTestProfile()} (${process.env['AGENT_HOST_TEST_PROFILE_REASON'] ?? 'default'})`);
-	const { jobs, storage, forwardedArgs } = parseArguments(process.argv.slice(2));
+	const { jobs, storage, runList, shard, forwardedArgs } = parseArguments(process.argv.slice(2));
+	const listed = suiteProcesses(runList === undefined ? suites : listedSuites(runList));
+	if (listed.length === 0) {
+		console.log(`None of the ${suites.length} Agent Host E2E suites is listed in ${runList}.`);
+		return;
+	}
+	// Shards take the processes of the listed suites in turn, so a short list can leave a shard without any.
+	const selectedSuites = shard ? listed.filter((_, index) => index % shard.total === shard.index - 1) : listed;
+	if (shard) {
+		if (selectedSuites.length === 0) {
+			console.log(`Agent Host E2E shard ${shard.index}/${shard.total} has none of the ${listed.length} processes of the selected suites.`);
+			return;
+		}
+		console.log(`Agent Host E2E shard ${shard.index}/${shard.total}: ${selectedSuites.map(suite => suite.label).join(', ')}`);
+	}
 	await prepareTestRuntime();
 	if (storage !== 'disk') {
-		runStoragePasses(storage, jobs, forwardedArgs);
+		runStoragePasses(storage, jobs, shard, runList === undefined ? forwardedArgs : [...forwardedArgs, '--runList', runList]);
 		return;
 	}
 	const storageBacking = process.env['AGENT_HOST_E2E_STORAGE_BACKING'] ?? 'disk';
@@ -112,16 +158,17 @@ async function main(): Promise<void> {
 	}
 
 	const startedAt = process.hrtime.bigint();
-	const surfaceOutputs = prepareSurfaceOutputs();
+	const surfaceOutputs = prepareSurfaceOutputs(selectedSuites);
 	const results: IRunResult[] = [];
+	const workerCount = Math.min(jobs, selectedSuites.length);
 	let nextSuite = 0;
 
-	const stopResourceDiagnostics = startResourceDiagnostics(jobs);
+	const stopResourceDiagnostics = startResourceDiagnostics(workerCount);
 	try {
-		const workers = Array.from({ length: jobs }, async () => {
-			while (nextSuite < suites.length) {
+		const workers = Array.from({ length: workerCount }, async () => {
+			while (nextSuite < selectedSuites.length) {
 				const suiteIndex = nextSuite++;
-				const suite = suites[suiteIndex];
+				const suite = selectedSuites[suiteIndex];
 				results[suiteIndex] = await runSuite(suite, forwardedArgs, surfaceOutputs.get(suite.id));
 			}
 		});
@@ -136,7 +183,7 @@ async function main(): Promise<void> {
 	}
 
 	const durationSeconds = elapsedSeconds(startedAt);
-	console.log(`\nAgent Host E2E suites completed in ${durationSeconds.toFixed(1)}s (${jobs} parallel ${jobs === 1 ? 'worker' : 'workers'}).`);
+	console.log(`\nAgent Host E2E suites completed in ${durationSeconds.toFixed(1)}s (${workerCount} parallel ${workerCount === 1 ? 'worker' : 'workers'}).`);
 	for (const result of results) {
 		console.log(`  ${result.succeeded ? 'PASS' : 'FAIL'} ${result.suite.label}: ${result.durationSeconds.toFixed(1)}s`);
 	}
@@ -146,10 +193,10 @@ async function main(): Promise<void> {
 	}
 }
 
-function runStoragePasses(storage: 'tmpfs' | 'split', jobs: number, args: readonly string[]): void {
+function runStoragePasses(storage: 'tmpfs' | 'split', jobs: number, shard: IShard | undefined, args: readonly string[]): void {
 	const environment: NodeJS.ProcessEnv = { ...process.env, VSCODE_SKIP_PRELAUNCH: '1' };
 	delete environment.ELECTRON_RUN_AS_NODE;
-	const runnerArgs = [__filename, '--storage', 'disk', '--jobs', String(jobs)];
+	const runnerArgs = [__filename, '--storage', 'disk', '--jobs', String(jobs), ...(shard ? ['--shard', `${shard.index}/${shard.total}`] : [])];
 	const failedPasses: string[] = [];
 	const tmpfs = spawnSync('bash', [
 		join(__dirname, 'tmpfs.sh'),
@@ -244,11 +291,13 @@ function validateEnvironment(): void {
 	}
 }
 
-function parseArguments(args: readonly string[]): { jobs: number; storage: StorageMode; forwardedArgs: readonly string[] } {
+function parseArguments(args: readonly string[]): { jobs: number; storage: StorageMode; runList: string | undefined; shard: IShard | undefined; forwardedArgs: readonly string[] } {
 	const forwardedArgs: string[] = [];
 	let requestedJobs: string | undefined = process.env['AGENT_HOST_E2E_JOBS'];
+	let requestedShard: string | undefined;
 	const linuxCI = process.platform === 'linux' && (process.env['CI'] === 'true' || process.env['TF_BUILD']?.toLowerCase() === 'true');
 	let requestedStorage = process.env['AGENT_HOST_E2E_STORAGE'] ?? (linuxCI ? 'split' : 'disk');
+	let runList: string | undefined;
 
 	for (let index = 0; index < args.length; index++) {
 		const argument = args[index];
@@ -263,18 +312,33 @@ function parseArguments(args: readonly string[]): { jobs: number; storage: Stora
 			}
 		} else if (argument.startsWith('--jobs=')) {
 			requestedJobs = argument.slice('--jobs='.length);
+		} else if (argument === '--runList') {
+			runList = args[++index];
+			if (!runList) {
+				throw new Error('--runList requires a value');
+			}
+		} else if (argument.startsWith('--runList=')) {
+			runList = argument.slice('--runList='.length);
+		} else if (argument === '--shard') {
+			requestedShard = args[++index];
+			if (!requestedShard) {
+				throw new Error('--shard requires a value');
+			}
+		} else if (argument.startsWith('--shard=')) {
+			requestedShard = argument.slice('--shard='.length);
 		} else {
 			forwardedArgs.push(argument);
 		}
 	}
 
-	const ownedArguments = ['--run', '--runGlob', '--glob', '--runGrep', '--testSplit'];
+	const ownedArguments = ['--run', '--runGlob', '--glob', '--runGrep', '--testSplit', '--testShard'];
 	const conflictingArgument = forwardedArgs.find(argument => ownedArguments.some(owned => argument === owned || argument.startsWith(`${owned}=`)));
 	if (conflictingArgument) {
 		throw new Error(`${conflictingArgument} is managed by the Agent Host E2E runner`);
 	}
 
-	const defaultJobs = Math.min(suites.length, availableParallelism?.() ?? cpus().length);
+	const processCount = suiteProcesses(suites).length;
+	const defaultJobs = Math.min(processCount, availableParallelism?.() ?? cpus().length);
 	const jobs = requestedJobs === undefined ? defaultJobs : Number(requestedJobs);
 	if (!Number.isInteger(jobs) || jobs < 1) {
 		throw new Error(`Invalid Agent Host E2E worker count: ${requestedJobs}`);
@@ -285,7 +349,36 @@ function parseArguments(args: readonly string[]): { jobs: number; storage: Stora
 	if (requestedStorage !== 'disk' && process.platform !== 'linux') {
 		throw new Error('Agent Host tmpfs storage requires Linux');
 	}
-	return { jobs: Math.min(jobs, suites.length), storage: requestedStorage, forwardedArgs };
+	return { jobs: Math.min(jobs, processCount), storage: requestedStorage, runList: runList === undefined ? undefined : resolve(runList), shard: requestedShard === undefined ? undefined : parseShard(requestedShard), forwardedArgs };
+}
+
+/**
+ * The suites whose files a `--runList` file lists, one per line, as the unit test runners read it:
+ * `src/vs/a.integrationTest.ts` names the suite of that file.
+ */
+function listedSuites(runList: string): readonly ISuite[] {
+	const normalize = (file: string) => file.trim().replace(/\\/g, '/').replace(/^src\//, '').replace(/\.ts$/, '.js');
+	const listed = new Set(readFileSync(runList, 'utf8').split(/\r?\n/).filter(line => line.trim().length > 0).map(normalize));
+	const selected = suites.filter(suite => listed.has(normalize(suite.file)));
+	if (selected.length > 0) {
+		console.log(`Running the ${selected.length} of ${suites.length} Agent Host E2E suites listed in ${runList}: ${selected.map(suite => suite.label).join(', ')}`);
+	}
+	return selected;
+}
+
+/**
+ * Parses a `--shard` value of the form `<index>/<total>`, e.g. `1/2`. Shards take the processes of the suites
+ * in turn.
+ */
+function parseShard(value: string): IShard {
+	const match = /^(?<index>\d+)\/(?<total>\d+)$/.exec(value.trim());
+	const index = Number(match?.groups?.index);
+	const total = Number(match?.groups?.total);
+	const processCount = suiteProcesses(suites).length;
+	if (!match || index < 1 || index > total || total > processCount) {
+		throw new Error(`Invalid Agent Host E2E shard: ${value}. Expected <index>/<total> with 1 <= index <= total <= ${processCount}, for example 1/2.`);
+	}
+	return { index, total };
 }
 
 async function prepareTestRuntime(): Promise<void> {
@@ -293,20 +386,23 @@ async function prepareTestRuntime(): Promise<void> {
 	delete environment.ELECTRON_RUN_AS_NODE;
 
 	mkdirSync(join(repoRoot, '.build', 'crashes'), { recursive: true });
+	const { getPnpmCommand } = await import('../../../build/lib/pnpm.ts');
+	const pnpm = getPnpmCommand();
 	if (!existsSync(join(repoRoot, 'node_modules'))) {
-		runSync(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['install'], environment);
+		runSync(pnpm.command, [...pnpm.args, 'install'], environment, pnpm.shell);
 	}
 	const { shouldDownloadElectron } = await import('../../../build/lib/electronVersion.ts');
 	if (shouldDownloadElectron(repoRoot, environment)) {
-		runSync(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['run', 'electron'], environment);
+		runSync(pnpm.command, [...pnpm.args, 'run', 'electron'], environment, pnpm.shell);
 	}
 }
 
-function runSync(command: string, args: readonly string[], environment: NodeJS.ProcessEnv): void {
+function runSync(command: string, args: readonly string[], environment: NodeJS.ProcessEnv, shell = false): void {
 	const result = spawnSync(command, args, {
 		cwd: repoRoot,
 		env: environment,
 		stdio: 'inherit',
+		shell,
 	});
 	if (result.error) {
 		throw result.error;
@@ -328,7 +424,7 @@ async function runSuite(suite: ISuite, forwardedArgs: readonly string[], surface
 	delete environment.ELECTRON_RUN_AS_NODE;
 
 	return new Promise(resolveResult => {
-		const testArguments = ['--run', suite.file, ...suiteArguments(forwardedArgs, suite)];
+		const testArguments = ['--run', suite.file, ...(suite.testShard ? ['--testShard', suite.testShard] : []), ...suiteArguments(forwardedArgs, suite)];
 		const child = process.platform === 'win32'
 			? spawn(join(process.env['SYSTEMROOT'] ?? 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe'), [
 				'-NoLogo',
@@ -382,7 +478,9 @@ async function runSuite(suite: ISuite, forwardedArgs: readonly string[], surface
 }
 
 function extractFailureDetails(output: string): string | undefined {
-	const lines = output.split(/\r?\n/);
+	// The suite's output is printed in full before the details, so CI commands in it, such as
+	// annotations, must not repeat.
+	const lines = output.split(/\r?\n/).filter(line => !/^(::[a-z-]+[ :]|##(vso)?\[)/.test(line.replace(/\x1b\[[0-9;]*m/g, '')));
 	for (let index = lines.length - 1; index >= 0; index--) {
 		const line = lines[index].replace(/\x1b\[[0-9;]*m/g, '').trim();
 		if (/^\d+ failing$/.test(line)) {
@@ -390,7 +488,7 @@ function extractFailureDetails(output: string): string | undefined {
 		}
 	}
 
-	const trimmed = output.trim();
+	const trimmed = lines.join('\n').trim();
 	return trimmed.length > 0 ? `${trimmed}\n` : undefined;
 }
 
@@ -415,7 +513,7 @@ function suiteArguments(args: readonly string[], suite: ISuite): readonly string
 	return result;
 }
 
-function prepareSurfaceOutputs(): ReadonlyMap<string, string> {
+function prepareSurfaceOutputs(selectedSuites: readonly ISuite[]): ReadonlyMap<string, string> {
 	if (process.env['AGENT_HOST_RECORD_PROTOCOL_SURFACE'] !== '1') {
 		return new Map();
 	}
@@ -425,7 +523,7 @@ function prepareSurfaceOutputs(): ReadonlyMap<string, string> {
 	const extension = extname(combinedOutput);
 	const stem = basename(combinedOutput, extension);
 	const outputs = new Map<string, string>();
-	for (const suite of suites) {
+	for (const suite of selectedSuites) {
 		const output = join(dirname(combinedOutput), `${stem}-${suite.id}${extension}`);
 		rmSync(output, { force: true });
 		outputs.set(suite.id, output);

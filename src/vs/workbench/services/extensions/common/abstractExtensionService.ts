@@ -652,7 +652,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 
 		for (let attempt = 1; ; attempt++) {
 			try {
-				return this._resolveAuthorityWithLogging(remoteAuthority);
+				return await this._resolveAuthorityWithLogging(remoteAuthority);
 			} catch (err) {
 				if (RemoteAuthorityResolverError.isNoResolverFound(err)) {
 					// There is no point in retrying if there is no resolver found

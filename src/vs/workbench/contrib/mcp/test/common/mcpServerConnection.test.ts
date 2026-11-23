@@ -6,12 +6,13 @@
 import * as assert from 'assert';
 import { raceTimeout, timeout } from '../../../../../base/common/async.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, observableValue, waitForState } from '../../../../../base/common/observable.js';
 import { upcast } from '../../../../../base/common/types.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogger, ILoggerService, LogLevel, NullLogger } from '../../../../../platform/log/common/log.js';
+import { McpServerPolicyValues } from '../../../../../platform/mcp/common/allowedMcpServers.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { IOutputService } from '../../../../services/output/common/output.js';
@@ -29,6 +30,7 @@ class TestMcpHostDelegate extends Disposable implements IMcpHostDelegate {
 	private _canStartValue = true;
 
 	priority = 0;
+	resolvePolicyVariables = async () => ({});
 
 	constructor() {
 		super();
@@ -136,6 +138,63 @@ suite('Workbench - MCP - ServerConnection', () => {
 		});
 	}
 
+	test('start forwards explicit policy values without requiring a resolution call', async () => {
+		const host: IMcpHostDelegate = delegate;
+		const policyValues: McpServerPolicyValues = { '${NODE}/bin/node': '/host/bin/node' };
+		const received: (McpServerPolicyValues | undefined)[] = [];
+		host.resolvePolicyVariables = async () => {
+			throw new Error('start must not depend on a prior resolution call');
+		};
+		host.start = (_collection, _definition, _launch, options) => {
+			received.push(options?.policyValues);
+			return transport;
+		};
+		const connection = store.add(instantiationService.createInstance(
+			McpServerConnection, collection, serverDefinition, host, serverDefinition.launch,
+			new NullLogger(), false, store.add(new McpTaskManager()),
+		));
+
+		const starting = connection.start({}, policyValues);
+		transport.setConnectionState({ state: McpConnectionState.Kind.Running });
+		const state = await starting;
+		await waitForHandler(connection);
+		assert.deepStrictEqual({ state: state.state, received }, { state: McpConnectionState.Kind.Running, received: [policyValues] });
+	});
+
+	test('resolution does not supply hidden policy state to a start or restart', async () => {
+		const host: IMcpHostDelegate = delegate;
+		const resolvedValues: McpServerPolicyValues = { '${NODE}/bin/node': '/resolved/bin/node' };
+		const received: (McpServerPolicyValues | undefined)[] = [];
+		let currentTransport = transport;
+		host.resolvePolicyVariables = async () => resolvedValues;
+		host.start = (_collection, _definition, _launch, options) => {
+			received.push(options?.policyValues);
+			currentTransport = store.add(new TestMcpMessageTransport());
+			return currentTransport;
+		};
+		const connection = store.add(instantiationService.createInstance(
+			McpServerConnection, collection, serverDefinition, host, serverDefinition.launch,
+			new NullLogger(), false, store.add(new McpTaskManager()),
+		));
+		const suppliedValues: McpServerPolicyValues[] = [{ '${NODE}/bin/node': '/checked/bin/node' }, {}];
+		const results: { resolved: McpServerPolicyValues; beforeStart: McpConnectionState.Kind; started: McpConnectionState.Kind }[] = [];
+		for (const policyValues of suppliedValues) {
+			const resolved = await connection.resolvePolicyVariables(['${NODE}/bin/node']);
+			const beforeStart = connection.state.get().state;
+			const previousHandler = connection.handler.get();
+			const starting = connection.start({}, policyValues);
+			currentTransport.setConnectionState({ state: McpConnectionState.Kind.Running });
+			const state = await starting;
+			await waitForState(connection.handler, handler => !!handler && handler !== previousHandler);
+			results.push({ resolved, beforeStart, started: state.state });
+			await connection.stop();
+		}
+		assert.deepStrictEqual({ results, received }, {
+			results: suppliedValues.map(() => ({ resolved: resolvedValues, beforeStart: McpConnectionState.Kind.Stopped, started: McpConnectionState.Kind.Running })),
+			received: suppliedValues,
+		});
+	});
+
 	test('should start and set state to Running when transport succeeds', async () => {
 		// Create server connection
 		const connection = instantiationService.createInstance(
@@ -151,7 +210,7 @@ suite('Workbench - MCP - ServerConnection', () => {
 		store.add(connection);
 
 		// Start the connection
-		const startPromise = connection.start({});
+		const startPromise = connection.start({}, {});
 
 		// Simulate successful connection
 		transport.setConnectionState({ state: McpConnectionState.Kind.Running });
@@ -181,7 +240,7 @@ suite('Workbench - MCP - ServerConnection', () => {
 		store.add(connection);
 
 		// Start the connection
-		const state = await connection.start({});
+		const state = await connection.start({}, {});
 
 		assert.strictEqual(state.state, McpConnectionState.Kind.Error);
 		assert.ok(state.message);
@@ -193,7 +252,7 @@ suite('Workbench - MCP - ServerConnection', () => {
 				McpServerConnection, collection, serverDefinition, delegate, serverDefinition.launch,
 				new NullLogger(), false, store.add(new McpTaskManager()),
 			));
-			const pending = [connection.start({}), connection.start({})];
+			const pending = [connection.start({}, {}), connection.start({}, {})];
 			if (action === 'dispose') {
 				connection.dispose();
 			} else {
@@ -218,7 +277,7 @@ suite('Workbench - MCP - ServerConnection', () => {
 			return transport;
 		};
 		connection.dispose();
-		const state = await raceTimeout(connection.start({}), 1000);
+		const state = await raceTimeout(connection.start({}, {}), 1000);
 		assert.deepStrictEqual({ state: state?.state, launches }, {
 			state: McpConnectionState.Kind.Stopped,
 			launches: 0,
@@ -240,7 +299,7 @@ suite('Workbench - MCP - ServerConnection', () => {
 		store.add(connection);
 
 		// Start the connection
-		const startPromise = connection.start({});
+		const startPromise = connection.start({}, {});
 
 		// Simulate error in transport
 		transport.setConnectionState({
@@ -268,7 +327,7 @@ suite('Workbench - MCP - ServerConnection', () => {
 		store.add(connection);
 
 		// Start the connection
-		const startPromise = connection.start({});
+		const startPromise = connection.start({}, {});
 		transport.setConnectionState({ state: McpConnectionState.Kind.Running });
 		await startPromise;
 
@@ -294,10 +353,10 @@ suite('Workbench - MCP - ServerConnection', () => {
 		store.add(connection);
 
 		// Start the connection
-		const startPromise1 = connection.start({});
+		const startPromise1 = connection.start({}, {});
 
 		// Try to start again while starting
-		const startPromise2 = connection.start({});
+		const startPromise2 = connection.start({}, {});
 
 		// Simulate successful connection
 		transport.setConnectionState({ state: McpConnectionState.Kind.Running });
@@ -329,7 +388,7 @@ suite('Workbench - MCP - ServerConnection', () => {
 		);
 
 		// Start the connection
-		const startPromise = connection.start({});
+		const startPromise = connection.start({}, {});
 		transport.setConnectionState({ state: McpConnectionState.Kind.Running });
 		await startPromise;
 
@@ -365,7 +424,7 @@ suite('Workbench - MCP - ServerConnection', () => {
 		store.add(connection);
 
 		// Start the connection
-		const startPromise = connection.start({});
+		const startPromise = connection.start({}, {});
 
 		// Simulate log message from transport
 		transport.simulateLog('Test log message');
@@ -401,7 +460,7 @@ suite('Workbench - MCP - ServerConnection', () => {
 
 		const message = 'error: failed to open file `/test-for-sandbox/.git`: Read-only file system (os error 30)';
 		const sandboxBlock = Event.toPromise(connection.onPotentialSandboxBlock);
-		const startPromise = connection.start({});
+		const startPromise = connection.start({}, {});
 
 		transport.simulateLog(message);
 		transport.setConnectionState({ state: McpConnectionState.Kind.Running });
@@ -438,7 +497,7 @@ suite('Workbench - MCP - ServerConnection', () => {
 
 		const message = 'error: failed to open file `/test-for-sandbox/.testfile`: Read-only file system (os error 30)';
 		const sandboxBlock = Event.toPromise(connection.onPotentialSandboxBlock);
-		const startPromise = connection.start({});
+		const startPromise = connection.start({}, {});
 
 		transport.simulateLog(message);
 		transport.setConnectionState({ state: McpConnectionState.Kind.Running });
@@ -475,7 +534,7 @@ suite('Workbench - MCP - ServerConnection', () => {
 
 		const message = 'error: Read-only file system (os error 30) at path "/test-for-sandbox/.testfile"';
 		const sandboxBlock = Event.toPromise(connection.onPotentialSandboxBlock);
-		const startPromise = connection.start({});
+		const startPromise = connection.start({}, {});
 
 		transport.simulateLog(message);
 		transport.setConnectionState({ state: McpConnectionState.Kind.Running });
@@ -511,7 +570,7 @@ suite('Workbench - MCP - ServerConnection', () => {
 		store.add(connection);
 
 		const sandboxBlock = Event.toPromise(connection.onPotentialSandboxBlock);
-		const startPromise = connection.start({});
+		const startPromise = connection.start({}, {});
 
 		transport.simulateLog('No matching config rule, denying: api.example.com:443.');
 		transport.setConnectionState({ state: McpConnectionState.Kind.Running });
@@ -543,7 +602,7 @@ suite('Workbench - MCP - ServerConnection', () => {
 		store.add(connection);
 
 		// Start the connection
-		const startPromise = connection.start({});
+		const startPromise = connection.start({}, {});
 
 		// Transition to error state
 		const errorState: McpConnectionState = {
@@ -559,7 +618,7 @@ suite('Workbench - MCP - ServerConnection', () => {
 		transport.setConnectionState({ state: McpConnectionState.Kind.Stopped });
 
 		// Transition back to running state
-		const startPromise2 = connection.start({});
+		const startPromise2 = connection.start({}, {});
 		transport.setConnectionState({ state: McpConnectionState.Kind.Running });
 		state = await startPromise2;
 		assert.deepStrictEqual(state, { state: McpConnectionState.Kind.Running });
@@ -583,7 +642,7 @@ suite('Workbench - MCP - ServerConnection', () => {
 		store.add(connection);
 
 		// First cycle
-		let startPromise = connection.start({});
+		let startPromise = connection.start({}, {});
 		transport.setConnectionState({ state: McpConnectionState.Kind.Running });
 		await startPromise;
 
@@ -591,7 +650,7 @@ suite('Workbench - MCP - ServerConnection', () => {
 		assert.deepStrictEqual(connection.state.get(), { state: McpConnectionState.Kind.Stopped });
 
 		// Second cycle
-		startPromise = connection.start({});
+		startPromise = connection.start({}, {});
 		transport.setConnectionState({ state: McpConnectionState.Kind.Running });
 		await startPromise;
 

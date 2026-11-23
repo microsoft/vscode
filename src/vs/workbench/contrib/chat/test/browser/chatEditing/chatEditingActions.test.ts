@@ -12,6 +12,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { CodeEditorWidget } from '../../../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
+import { EditorContextKeys } from '../../../../../../editor/common/editorContextKeys.js';
 import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -36,6 +37,25 @@ import { MockChatWidgetService } from '../widget/mockChatWidget.js';
 
 suite('Chat editing actions', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('Enter edits a focused transcript request but not controls in an editor hover', () => {
+		const enterHash = decodeKeybinding(KeyCode.Enter, OperatingSystem.Windows)!.getHashCode();
+		const rule = KeybindingsRegistry.getDefaultKeybindingsForOS(OperatingSystem.Windows)
+			.find(rule => rule.keybinding?.getHashCode() === enterHash && rule.command === 'workbench.action.chat.editRequests');
+		assert.ok(rule?.when);
+		const context = (hoverFocused: boolean): IContext => ({
+			getValue: <T extends ContextKeyValue>(key: string) => ({
+				[ChatContextKeys.inChatSession.key]: true,
+				[EditorContextKeys.textInputFocus.key]: false,
+				[EditorContextKeys.hoverFocused.key]: hoverFocused,
+				[ChatContextKeys.readOnly.key]: false,
+			})[key] as T | undefined
+		});
+		assert.deepStrictEqual({
+			transcript: rule.when.evaluate(context(false)),
+			hover: rule.when.evaluate(context(true)),
+		}, { transcript: true, hover: false });
+	});
 
 	test('Delete actions do not run while a native input is focused', () => {
 		const deleteHash = decodeKeybinding(KeyCode.Delete, OperatingSystem.Windows)!.getHashCode();

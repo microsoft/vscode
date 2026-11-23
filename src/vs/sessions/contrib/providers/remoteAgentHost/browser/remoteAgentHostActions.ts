@@ -5,7 +5,7 @@
 
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
-import { Action } from '../../../../../base/common/actions.js';
+import { toAction } from '../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { cloudSandboxAddress } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { isCancellationError } from '../../../../../base/common/errors.js';
@@ -25,9 +25,10 @@ import { SnippetController2 } from '../../../../../editor/contrib/snippet/browse
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { addWebSocketRemoteAgentHostEntry, IRemoteAgentHostService, parseRemoteAgentHostInput, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostInputValidationError, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { addWebSocketRemoteAgentHostEntry, IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { parseRemoteAgentHostInput, RemoteAgentHostInputValidationError } from '../../../../../platform/agentHost/common/remoteAgentHostAddress.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { computeSSHConnectionKey, ISSHRemoteAgentHostService, isSSHHostKeyDeniedError, SSHAuthMethod, type ISSHAgentHostConfig, type ISSHResolvedConfig } from '../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
+import { computeSSHConnectionKey, ISSHRemoteAgentHostService, isSSHHostKeyDeniedError, SSHAuthMethod, type ISSHAgentHostConfig, type ISSHResolvedConfig, type SSHAgentHostConnectionRequest } from '../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { isTunnelHosted, ITunnelAgentHostService, TUNNEL_ADDRESS_PREFIX, type ITunnelInfo } from '../../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { IWSLRemoteAgentHostService, WSL_INSTALL_DOCS_URL, type IWSLDistro } from '../../../../../platform/agentHost/common/wslRemoteAgentHost.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -39,32 +40,21 @@ import { IRemoteTunnelService, TunnelStatus } from '../../../../../platform/remo
 import { IAuthenticationService } from '../../../../../workbench/services/authentication/common/authentication.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
-import { SessionsCategories } from '../../../../common/categories.js';
-import { categorizeSSHConnectError, logSSHConnectAttempt } from '../../../../common/sessionsTelemetry.js';
-import { SessionWorkspacePickerGroupContext } from '../../../../common/contextkeys.js';
-import { Menus } from '../../../../browser/menus.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { IAgentHostSessionsProvider, isAgentHostProvider } from '../../../../common/agentHostSessionsProvider.js';
-import { runServerUpgrade } from './remoteHostOptions.js';
-import { IConnectionDiagnosticsService } from './connectionDiagnostics.js';
-import { SESSION_WORKSPACE_GROUP_REMOTE } from '../../../../services/sessions/common/session.js';
-import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
+import { SessionsCategories } from '../../../../../workbench/contrib/sessions/common/categories.js';
+import { categorizeSSHConnectError, logSSHConnectAttempt } from '../../../../../workbench/contrib/sessions/common/sessionsTelemetry.js';
+import { SessionWorkspacePickerGroupContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
+import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { IAgentHostSessionsProvider, isAgentHostProvider } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
+import { confirmTunnelDeletion, getRemoteHostUpgradeMethod, runServerUpgrade } from '../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/remoteHostOptions.js';
+import { IConnectionDiagnosticsService } from '../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/connectionDiagnostics.js';
+import { SESSION_WORKSPACE_GROUP_REMOTE } from '../../../../../workbench/services/sessions/common/session.js';
+import { ISessionsPartService } from '../../../../../workbench/services/sessions/browser/sessionsPartService.js';
 import { ConnectMissionControlEnvironmentCommand } from '../../../../../workbench/contrib/chat/browser/remoteAgentHost/missionControlEnvironmentActions.js';
+import { GitHubEnvironmentsAvailableContext, GitHubEnvironmentsEnabledSettingId } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-
-/** Action / command IDs registered by this file. */
-export const RemoteAgentHostCommandIds = {
-	addRemoteAgentHost: 'sessions.remoteAgentHost.add',
-	connectViaSSH: 'workbench.action.sessions.connectViaSSH',
-	addNewSSHHost: 'workbench.action.sessions.addNewSSHHost',
-	configureSSHHosts: 'workbench.action.sessions.configureSSHHosts',
-	connectViaTunnel: 'workbench.action.sessions.connectViaTunnel',
-	connectViaMissionControl: 'workbench.action.sessions.connectViaMissionControl',
-	connectViaWSL: 'workbench.action.sessions.connectViaWSL',
-	manageRemoteAgentHosts: 'workbench.action.sessions.manageRemoteAgentHosts',
-	updateRemoteAgentHost: 'workbench.action.sessions.updateRemoteAgentHost',
-} as const;
+import { RemoteAgentHostCommandIds } from '../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/remoteAgentHostCommandIds.js';
 
 registerAction2(class extends Action2 {
 	constructor() {
@@ -144,9 +134,9 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: RemoteAgentHostCommandIds.connectViaMissionControl,
-			title: localize2('connectMissionControlHost', "Environments"),
+			title: localize2('connectMissionControlHost', "GitHub Environments..."),
 			icon: Codicon.remote,
-			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.not('config.chat.disableAIFeatures'), ContextKeyExpr.equals(`config.${RemoteAgentHostsEnabledSettingId}`, true)),
+			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.not('config.chat.disableAIFeatures'), ContextKeyExpr.equals(`config.${RemoteAgentHostsEnabledSettingId}`, true), ContextKeyExpr.equals(`config.${GitHubEnvironmentsEnabledSettingId}`, true), GitHubEnvironmentsAvailableContext),
 		});
 	}
 
@@ -177,6 +167,7 @@ interface ISSHAuthMethodPickItem extends IQuickPickItem {
 
 /**
  * Parse a free-form SSH connection string of the form `[user@]host[:port]`.
+ * The host follows the last `@`, because user names can contain `@` and host names can't.
  * Returns `undefined` for empty or invalid input.
  */
 export function parseSSHHostInput(value: string): { host: string; username?: string; port?: number } | undefined {
@@ -184,7 +175,7 @@ export function parseSSHHostInput(value: string): { host: string; username?: str
 	if (!trimmed) {
 		return undefined;
 	}
-	const atIdx = trimmed.indexOf('@');
+	const atIdx = trimmed.lastIndexOf('@');
 	if (atIdx === 0 || atIdx === trimmed.length - 1) {
 		return undefined;
 	}
@@ -229,7 +220,7 @@ function validateSSHHostInput(value: string): string | undefined {
 	if (!v) {
 		return localize('sshHostEmpty', "Enter an SSH host.");
 	}
-	const atIdx = v.indexOf('@');
+	const atIdx = v.lastIndexOf('@');
 	if (atIdx === 0) {
 		return localize('sshUsernameMissingInHost', "Enter a username before '@'.");
 	}
@@ -424,20 +415,10 @@ async function connectToConfiguredSSHHost(
 	const port = resolvedConfig.port !== 22 ? resolvedConfig.port : undefined;
 	const suggestedName = hostAlias;
 
-	// Pass through the first resolved IdentityFile (if any) as the explicit
-	// key. The main process is responsible for de-duplicating against its
-	// default-key scan, so we don't need to filter here.
 	const defaultKeyPath = resolvedConfig.identityFile[0];
 
 	if (username) {
-		const config: ISSHAgentHostConfig = {
-			host,
-			port,
-			username,
-			authMethod: SSHAuthMethod.Agent,
-			privateKeyPath: defaultKeyPath,
-			identityAgent: resolvedConfig.identityAgent,
-			agentForward: resolvedConfig.forwardAgent || undefined,
+		const config: SSHAgentHostConnectionRequest = {
 			name: suggestedName,
 			sshConfigHost: hostAlias,
 		};
@@ -575,7 +556,7 @@ async function promptForCredentialsAndConnect(
 
 export async function connectWithProgress(
 	accessor: ServicesAccessor,
-	config: ISSHAgentHostConfig,
+	config: SSHAgentHostConnectionRequest,
 	displayHost: string,
 ): Promise<string | undefined> {
 	const sshService = accessor.get(ISSHRemoteAgentHostService);
@@ -669,8 +650,9 @@ async function promptForRemoteFolder(
 		return;
 	}
 
+	provider.showInEnvironmentPicker?.();
 	await sessionsService.openNewSession();
-	sessionsPartService.getSessionView(sessionsService.activeSession.get()?.sessionId)?.selectWorkspace(folderUri, { providerId: provider.id });
+	sessionsPartService.getActiveSessionView()?.selectWorkspace(folderUri, { providerId: provider.id });
 }
 
 registerAction2(class extends Action2 {
@@ -678,7 +660,8 @@ registerAction2(class extends Action2 {
 		super({
 			id: RemoteAgentHostCommandIds.connectViaSSH,
 			title: localize2('connectViaSSH', "Connect to Remote Agent Host via SSH"),
-			shortTitle: localize2('connectViaSSHShort', "SSH"),
+			shortTitle: localize2('connectViaSSHShort', "SSH..."),
+			tooltip: localize2('connectViaSSHTooltip', "Connect to a computer over SSH"),
 			category: SessionsCategories.Sessions,
 			f1: true,
 			icon: Codicon.remote,
@@ -907,9 +890,11 @@ async function promptToConnectViaTunnel(
 		.filter(tunnel => !isHostedTunnel(tunnel))
 		.map(tunnel => ({
 			label: tunnel.name,
-			description: tunnel.hostConnectionCount > 0
-				? localize('tunnelPickOnline', "{0} · Online", tunnel.tunnelId)
-				: localize('tunnelPickOffline', "{0} · Offline", tunnel.tunnelId),
+			description: tunnel.hostConnectionCount === undefined
+				? localize('tunnelPickUnknown', "{0} · Status unknown", tunnel.tunnelId)
+				: tunnel.hostConnectionCount > 0
+					? localize('tunnelPickOnline', "{0} · Online", tunnel.tunnelId)
+					: localize('tunnelPickOffline', "{0} · Offline", tunnel.tunnelId),
 			buttons: tunnelService.canDeleteTunnels ? [deleteTunnelButton] : undefined,
 			tunnel,
 		}));
@@ -1017,13 +1002,7 @@ async function promptToConnectViaTunnel(
 			tunnelPicker.ignoreFocusOut = true;
 			let keepOpen = true;
 			try {
-				const confirmation = await dialogService.confirm({
-					type: 'warning',
-					message: localize('tunnelDeleteConfirmation', "Are you sure you want to delete dev tunnel '{0}'?", event.item.tunnel.name),
-					detail: localize('tunnelDeleteDetail', "The tunnel may be recreated if a machine starts hosting it again."),
-					primaryButton: localize('tunnelDeleteButton', "&&Delete"),
-				});
-				if (!confirmation.confirmed) {
+				if (!await confirmTunnelDeletion(dialogService, event.item.tunnel.name)) {
 					return;
 				}
 				if (isHostedTunnel(event.item.tunnel)) {
@@ -1120,30 +1099,7 @@ async function promptForTunnelFolder(
 
 	const tunnelAddress = `${TUNNEL_ADDRESS_PREFIX}${tunnel.tunnelId}`;
 
-	// The provider is created by TunnelAgentHostContribution when the
-	// tunnel is cached (via onDidChangeTunnels / _reconcileProviders).
-	const provider = sessionsProvidersService.getProviders().find((p): p is IAgentHostSessionsProvider => isAgentHostProvider(p) && p.remoteAddress === tunnelAddress);
-	if (!provider) {
-		return;
-	}
-
-	// Use the provider's existing browse action to show the folder picker
-	const browseAction = provider.browseActions[0];
-	if (!browseAction) {
-		return;
-	}
-
-	const workspace = await browseAction.run();
-	if (!workspace) {
-		return;
-	}
-	const folderUri = workspace.folders[0]?.root;
-	if (!folderUri) {
-		return;
-	}
-
-	sessionsService.openNewSession();
-	sessionsPartService.getSessionView(sessionsService.activeSession.get()?.sessionId)?.selectWorkspace(folderUri, { providerId: provider.id });
+	await promptForRemoteFolder(tunnelAddress, sessionsProvidersService, sessionsService, sessionsPartService);
 }
 
 registerAction2(class extends Action2 {
@@ -1151,10 +1107,11 @@ registerAction2(class extends Action2 {
 		super({
 			id: RemoteAgentHostCommandIds.connectViaTunnel,
 			title: localize2('connectViaTunnel', "Connect to Remote Agent Host via Dev Tunnel"),
-			shortTitle: localize2('connectViaTunnelShort', "Tunnels"),
+			shortTitle: localize2('connectViaTunnelShort', "Dev Tunnels..."),
+			tooltip: localize2('connectViaTunnelTooltip', "Connect to a computer shared through a dev tunnel"),
 			category: SessionsCategories.Sessions,
 			f1: true,
-			icon: Codicon.cloud,
+			icon: Codicon.remote,
 			precondition: ContextKeyExpr.equals(`config.${RemoteAgentHostsEnabledSettingId}`, true),
 			menu: {
 				id: Menus.SessionWorkspaceManage,
@@ -1189,13 +1146,11 @@ async function promptToConnectViaWSL(
 	const instantiationService = accessor.get(IInstantiationService);
 	const logService = accessor.get(ILogService);
 
-	const installAction = new Action(
-		'wsl.openDocs',
-		localize('wslInstallDocsAction', "Install WSL"),
-		undefined,
-		true,
-		() => openerService.open(URI.parse(WSL_INSTALL_DOCS_URL)),
-	);
+	const installAction = toAction({
+		id: 'wsl.openDocs',
+		label: localize('wslInstallDocsAction', "Install WSL"),
+		run: () => openerService.open(URI.parse(WSL_INSTALL_DOCS_URL)),
+	});
 
 	if (!(await wslService.isWSLAvailable())) {
 		notificationService.notify({
@@ -1315,27 +1270,7 @@ async function promptForWSLFolder(
 	const sessionsPartService = accessor.get(ISessionsPartService);
 
 	const wslAddress = `wsl:${distro}`;
-	const provider = sessionsProvidersService.getProviders().find((p): p is IAgentHostSessionsProvider => isAgentHostProvider(p) && p.remoteAddress === wslAddress);
-	if (!provider) {
-		return;
-	}
-
-	const browseAction = provider.browseActions[0];
-	if (!browseAction) {
-		return;
-	}
-
-	const workspace = await browseAction.run();
-	if (!workspace) {
-		return;
-	}
-	const folderUri = workspace.folders[0]?.root;
-	if (!folderUri) {
-		return;
-	}
-
-	sessionsService.openNewSession();
-	sessionsPartService.getSessionView(sessionsService.activeSession.get()?.sessionId)?.selectWorkspace(folderUri, { providerId: provider.id });
+	await promptForRemoteFolder(wslAddress, sessionsProvidersService, sessionsService, sessionsPartService);
 }
 
 registerAction2(class extends Action2 {
@@ -1344,6 +1279,7 @@ registerAction2(class extends Action2 {
 			id: RemoteAgentHostCommandIds.connectViaWSL,
 			title: localize2('connectViaWSL', "Connect to Remote Agent Host via WSL"),
 			shortTitle: localize2('connectViaWSLShort', "WSL..."),
+			tooltip: localize2('connectViaWSLTooltip', "Run sessions in a WSL distribution on this computer"),
 			category: SessionsCategories.Sessions,
 			f1: true,
 			icon: Codicon.terminalLinux,
@@ -1371,12 +1307,12 @@ registerAction2(class extends Action2 {
 });
 
 /**
- * Force-update a remote agent host server that rejected our protocol
- * version because it is running an old build. Connecting to such a host
- * leaves it in the `incompatible` state; when the host was spawned by a
- * VS Code CLI willing to receive upgrade signals it advertises an upgrade
- * method, which this command invokes via the shared {@link runServerUpgrade}
- * flow. Exposed in the command palette so the update is reachable without
+ * Update the server of a remote agent host through its hosting VS Code CLI.
+ * A host that rejected our protocol version because it runs an old build
+ * advertises an upgrade method in the rejection, a connected host in its
+ * `initialize` result while a newer build is available. This command invokes that method via the shared
+ * {@link runServerUpgrade} flow, which asks first unless the host rejected our protocol version.
+ * Exposed in the command palette so the update is reachable without
  * first opening the host's options quickpick.
  */
 registerAction2(class extends Action2 {
@@ -1395,6 +1331,8 @@ registerAction2(class extends Action2 {
 		const quickInputService = accessor.get(IQuickInputService);
 		const notificationService = accessor.get(INotificationService);
 		const instantiationService = accessor.get(IInstantiationService);
+		const remoteAgentHostService = accessor.get(IRemoteAgentHostService);
+		const productService = accessor.get(IProductService);
 
 		const remoteHosts = sessionsProvidersService.getProviders()
 			.filter(isAgentHostProvider)
@@ -1403,20 +1341,20 @@ registerAction2(class extends Action2 {
 		const upgradable = remoteHosts
 			.map(provider => {
 				const status = provider.connectionStatus?.get();
-				if (!RemoteAgentHostConnectionStatus.isIncompatible(status)) {
-					return undefined;
+				if (RemoteAgentHostConnectionStatus.isIncompatible(status)) {
+					incompatibleCount++;
 				}
-				incompatibleCount++;
-				return status.vscodeUpgradeMethod ? { provider, method: status.vscodeUpgradeMethod } : undefined;
+				const method = getRemoteHostUpgradeMethod(status, remoteAgentHostService.getConnection(provider.remoteAddress!), productService);
+				return method ? { provider, method } : undefined;
 			})
 			.filter((entry): entry is { provider: IAgentHostSessionsProvider; method: string } => !!entry);
 
 		if (upgradable.length === 0) {
-			// Distinguish "nothing is incompatible" from "incompatible hosts exist
-			// but none was spawned by a VS Code CLI that can update it in place".
+			// Distinguish incompatible hosts, which need a manual update, from
+			// hosts that weren't spawned by a VS Code CLI that can update them in place.
 			notificationService.info(incompatibleCount > 0
 				? localize('updateRemoteAgentHost.noneUpgradable', "No remote agent hosts can be updated from here. Incompatible hosts must be updated manually, then reconnected.")
-				: localize('updateRemoteAgentHost.none', "No remote agent hosts need updating."));
+				: localize('updateRemoteAgentHost.none', "No remote agent hosts can be updated from here."));
 			return;
 		}
 

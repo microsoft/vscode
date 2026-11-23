@@ -175,7 +175,7 @@ The render promise must resolve only when the fixture represents its named state
 - Supply deterministic display data through existing services/options, such as a single custom thinking phrase. A seeded random generator alone does not make labels independent of render order or async callback order.
 - Use bounded, condition-based waits that throw on failure, not fixed sleeps or extra frames that silently accept an incomplete state.
 
-Design fixtures as **state + local inputs + an explicit readiness condition**. Supply local account icons instead of letting a mock fall back to a live avatar URL, and await decoding; `waitForFixtureCondition` polls native browser frames while preserving the virtual clock. Prefer shared DOM spinners over animated SVG backgrounds: ancestor CSS cannot stop animations inside an image.
+Design fixtures as **state + local inputs + an explicit readiness condition**. Supply local account icons instead of letting a mock fall back to a live avatar URL, and await decoding; `waitForFixtureCondition` polls native browser frames while preserving the virtual clock. To wait for DOM state, such as an element, class, attribute or text appearing, use `waitForFixtureDomCondition`, which re-checks the condition after each DOM mutation; a condition that never holds fails at the explorer's fixture timeout. Prefer shared DOM spinners over animated SVG backgrounds: ancestor CSS cannot stop animations inside an image.
 
 Fixtures that depend on native browser image decoding or resize/scroll callbacks can use `virtualTime: { enabled: false }` and explicitly await those operations. Virtual JavaScript time does not advance the browser's image decoder or layout pipeline.
 
@@ -369,6 +369,22 @@ Fixtures cannot trigger CSS `:hover`, and DOM focus is only deterministic throug
 - When JavaScript also reacts to hover (for example `mouseover` listeners), dispatch a `mouseover` on the element as well as adding `.hovered`.
 
 `src/vs/sessions/contrib/sessions/test/browser/sessionsListFixtureUtils.ts` renders `interaction: { hovered, focused, selected }` this way.
+
+#### Validate the interaction-state matrix
+
+Do not validate hover, focus, selection, and open state only in isolation. Add the combined states that determine CSS precedence:
+
+- keyboard focus plus pointer hover;
+- open/expanded/pressed plus hover;
+- selected/checked plus hover;
+- disabled plus hover;
+- a hovered parent with a focused, hovered, or open nested action.
+
+Use `.hovered` only as the deterministic proxy for the target actually under the pointer; a modality class such as `.mouse-navigation` must not fabricate hover on a stale focused row. Focus the real production element through `ctx.focus()` and use native/component state for persistent semantics (`aria-expanded`, `aria-pressed`, or `HTMLDetailsElement.open`).
+
+Load every production stylesheet that participates in boundary ownership. For virtualized trees, inspect the element that actually paints the ring (often `.monaco-tl-row`, not `.monaco-list-row`). For components with inset pseudo-elements, verify the pseudo-element paints only its intended fill and does not create a second outline.
+
+Render normal Dark/Light as well as HC Dark/Light whenever an HC selector excludes states from a shared hover selector; otherwise a fix for a solid HC boundary can accidentally remove normal-theme hover feedback. If keyboard focus intentionally opens a tooltip or rich hover, use the production hover service and wait for that content instead of suppressing it with a null service.
 
 ## Multiple Fixture Variants
 

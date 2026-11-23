@@ -68,6 +68,7 @@ function getSessionToolNames(supportsWorkspaceChange: boolean): readonly Session
 		SessionServerToolName.GetCurrentSession,
 		...(supportsWorkspaceChange ? [SessionServerToolName.SetWorkspace] : []),
 		SessionServerToolName.CreateSession,
+		SessionServerToolName.ArchiveChat,
 		SessionServerToolName.SendMessage,
 		SessionServerToolName.GetSessionContext,
 		SessionServerToolName.DeleteSession,
@@ -354,6 +355,7 @@ export function defineServerToolsTests(context: IAgentHostE2ETestContext): void 
 						label: 'Agent Host guide',
 						isArtifact: false,
 						link: 'https://example.com/agent-host',
+						origin: { chat: session.chatUri, turnId: 'turn-artifact-add' },
 					},
 					{
 						chat: defaultChatChannel(session.sessionUri),
@@ -361,6 +363,7 @@ export function defineServerToolsTests(context: IAgentHostE2ETestContext): void 
 						label: 'Agent Host report',
 						isArtifact: true,
 						uri: 'file:///agent-host-report.md',
+						origin: { chat: session.chatUri, turnId: 'turn-artifact-add' },
 					},
 				],
 			});

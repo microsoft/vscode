@@ -135,6 +135,11 @@ export const customAgentAttributes: Record<string, IAttributeDefinition> = {
 			{ name: 'max' },
 		],
 	},
+	[PromptHeaderAttributes.modelPolicy]: {
+		type: 'scalar',
+		description: localize('promptHeader.agent.modelPolicy', 'Controls whether the configured model list is preferred or required.'),
+		enums: [{ name: 'preferred' }, { name: 'required' }],
+	},
 	[PromptHeaderAttributes.tools]: {
 		type: ['scalar', 'sequence'],
 		description: localize('promptHeader.agent.tools', 'The set of tools that the custom agent has access to.'),
@@ -468,6 +473,13 @@ export const knownGithubCopilotTools = [
 	{ name: SpecedToolAliases.edit, description: localize('githubCopilot.edit', 'Edit files') },
 	{ name: SpecedToolAliases.search, description: localize('githubCopilot.search', 'Search files') },
 	{ name: SpecedToolAliases.agent, description: localize('githubCopilot.agent', 'Use subagents') },
+	{ name: SpecedToolAliases.web, description: localize('githubCopilot.web', 'Fetch URLs and search the web') },
+	{ name: SpecedToolAliases.todo, description: localize('githubCopilot.todo', 'Manage task lists') },
+];
+
+export const knownGithubCopilotToolNamespaces = [
+	{ name: 'github/*', description: localize('githubCopilot.githubTools', 'Use GitHub tools') },
+	{ name: 'playwright/*', description: localize('githubCopilot.playwrightTools', 'Use browser automation tools') },
 ];
 
 export interface IValueEntry {

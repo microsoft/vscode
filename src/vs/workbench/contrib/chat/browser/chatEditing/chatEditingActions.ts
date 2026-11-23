@@ -179,7 +179,10 @@ registerAction2(class AcceptAction extends WorkingSetAction {
 				group: 'navigation',
 			}, {
 				id: MenuId.ChatEditingWidgetModifiedFilesToolbar,
-				when: ContextKeyExpr.equals(chatEditingWidgetFileStateContextKey.key, ModifiedFileEntryState.Modified),
+				when: ContextKeyExpr.and(
+					ContextKeyExpr.equals(chatEditingWidgetFileStateContextKey.key, ModifiedFileEntryState.Modified),
+					ContextKeyExpr.or(ChatContextKeys.inChatSessionWorkingSet.negate(), ChatContextKeys.sessionWorkingSetReviewEnabled),
+				),
 				order: 0,
 				group: 'navigation'
 			}],
@@ -213,6 +216,7 @@ registerAction2(class DiscardAction extends WorkingSetAction {
 				when: ContextKeyExpr.and(
 					ContextKeyExpr.equals(chatEditingWidgetFileStateContextKey.key, ModifiedFileEntryState.Modified),
 					ContextKeyExpr.or(ChatContextKeys.inChatSessionWorkingSet.negate(), ChatContextKeys.sessionWorkingSetHasUndo),
+					ContextKeyExpr.or(ChatContextKeys.inChatSessionWorkingSet.negate(), ChatContextKeys.sessionWorkingSetReviewEnabled),
 				),
 				order: 1,
 				group: 'navigation'
@@ -691,7 +695,7 @@ registerAction2(class EditAction extends Action2 {
 			icon: Codicon.edit,
 			keybinding: {
 				primary: KeyCode.Enter,
-				when: ContextKeyExpr.and(ChatContextKeys.inChatSession, EditorContextKeys.textInputFocus.negate(), ChatContextKeys.readOnly.negate()),
+				when: ContextKeyExpr.and(ChatContextKeys.inChatSession, EditorContextKeys.textInputFocus.negate(), EditorContextKeys.hoverFocused.negate(), ChatContextKeys.readOnly.negate()),
 				weight: KeybindingWeight.WorkbenchContrib,
 			},
 			menu: [

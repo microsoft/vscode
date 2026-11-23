@@ -405,15 +405,15 @@ function readLineBreaks(range: Range, lineDomNode: HTMLDivElement, lineContent: 
 	return breakOffsets;
 }
 
-function discoverBreaks(range: Range, spans: HTMLSpanElement[], charOffsets: number[], spanStartOffsets: number[], low: number, lowRects: DOMRectList | null, high: number, highRects: DOMRectList | null, result: number[]): void {
+function discoverBreaks(range: Range, spans: HTMLSpanElement[], charOffsets: number[], spanStartOffsets: number[], low: number, lowTop: number | null, high: number, highTop: number | null, result: number[]): void {
 	if (low === high) {
 		return;
 	}
 
-	lowRects = lowRects || readClientRect(range, spans, charOffsets[low], charOffsets[low + 1], spanStartOffsets);
-	highRects = highRects || readClientRect(range, spans, charOffsets[high], charOffsets[high + 1], spanStartOffsets);
+	lowTop = lowTop ?? readLineTop(range, spans, charOffsets, spanStartOffsets, low);
+	highTop = highTop ?? readLineTop(range, spans, charOffsets, spanStartOffsets, high);
 
-	if (Math.abs(lowRects[0].top - highRects[0].top) <= 0.1) {
+	if (Math.abs(lowTop - highTop) <= 0.1) {
 		// same line
 		return;
 	}
@@ -426,9 +426,30 @@ function discoverBreaks(range: Range, spans: HTMLSpanElement[], charOffsets: num
 	}
 
 	const mid = low + ((high - low) / 2) | 0;
-	const midRects = readClientRect(range, spans, charOffsets[mid], charOffsets[mid + 1], spanStartOffsets);
-	discoverBreaks(range, spans, charOffsets, spanStartOffsets, low, lowRects, mid, midRects, result);
-	discoverBreaks(range, spans, charOffsets, spanStartOffsets, mid, midRects, high, highRects, result);
+	const midTop = readLineTop(range, spans, charOffsets, spanStartOffsets, mid);
+	discoverBreaks(range, spans, charOffsets, spanStartOffsets, low, lowTop, mid, midTop, result);
+	discoverBreaks(range, spans, charOffsets, spanStartOffsets, mid, midTop, high, highTop, result);
+}
+
+/**
+ * The top of the line that the character at `charIndex` is on. Whitespace that the browser collapses
+ * where a line wraps, such as a space in a span of its own next to injected text that only reserves
+ * horizontal space, has no client rects. It stays on the line of the character before it.
+ */
+function readLineTop(range: Range, spans: HTMLSpanElement[], charOffsets: number[], spanStartOffsets: number[], charIndex: number): number {
+	for (let i = charIndex; i >= 0; i--) {
+		const rects = readClientRect(range, spans, charOffsets[i], charOffsets[i + 1], spanStartOffsets);
+		if (rects.length > 0) {
+			return rects[0].top;
+		}
+	}
+	for (let i = charIndex + 1; i < charOffsets.length - 1; i++) {
+		const rects = readClientRect(range, spans, charOffsets[i], charOffsets[i + 1], spanStartOffsets);
+		if (rects.length > 0) {
+			return rects[0].top;
+		}
+	}
+	throw new Error('No character of the line has client rects');
 }
 
 function readClientRect(range: Range, spans: HTMLSpanElement[], startOffset: number, endOffset: number, spanStartOffsets: number[]): DOMRectList {
@@ -437,10 +458,13 @@ function readClientRect(range: Range, spans: HTMLSpanElement[], startOffset: num
 		range.setEnd(spans[(endOffset / Constants.SPAN_MODULO_LIMIT) | 0].firstChild!, endOffset % Constants.SPAN_MODULO_LIMIT);
 		return range.getClientRects();
 	}
-	const startSpanIndex = findSpanIndex(spanStartOffsets, startOffset);
-	const endSpanIndex = findSpanIndex(spanStartOffsets, endOffset);
-	range.setStart(spans[startSpanIndex].firstChild!, startOffset - spanStartOffsets[startSpanIndex]);
-	range.setEnd(spans[endSpanIndex].firstChild!, endOffset - spanStartOffsets[endSpanIndex]);
+	// A character lies within the text of a single span. Ending the range in the span of the next
+	// character instead would take in the spans between them, such as those of injected text that only
+	// reserves horizontal space, whose boxes do not sit where the text does.
+	const spanIndex = findSpanIndex(spanStartOffsets, startOffset);
+	const text = spans[spanIndex].firstChild!;
+	range.setStart(text, startOffset - spanStartOffsets[spanIndex]);
+	range.setEnd(text, endOffset - spanStartOffsets[spanIndex]);
 	return range.getClientRects();
 }
 

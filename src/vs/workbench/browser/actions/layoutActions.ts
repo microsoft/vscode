@@ -22,7 +22,7 @@ import { IPaneCompositePartService } from '../../services/panecomposite/browser/
 import { ToggleAuxiliaryBarAction } from '../parts/auxiliarybar/auxiliaryBarActions.js';
 import { TogglePanelAction } from '../parts/panel/panelActions.js';
 import { ICommandService } from '../../../platform/commands/common/commands.js';
-import { AuxiliaryBarVisibleContext, PanelAlignmentContext, PanelVisibleContext, SideBarVisibleContext, FocusedViewContext, InEditorZenModeContext, IsMainEditorCenteredLayoutContext, MainEditorAreaVisibleContext, IsMainWindowFullscreenContext, PanelPositionContext, IsAuxiliaryWindowFocusedContext, IsSessionsWindowContext, TitleBarStyleContext, IsAuxiliaryWindowContext, CustomMenuBarVisibleContext } from '../../common/contextkeys.js';
+import { AuxiliaryBarVisibleContext, PanelAlignmentContext, PanelVisibleContext, SideBarVisibleContext, FocusedViewContext, InEditorZenModeContext, IsMainEditorCenteredLayoutContext, MainEditorAreaVisibleContext, ChatPartVisibleContext, EditorAreaHiddenByChatContext, IsMainWindowFullscreenContext, PanelPositionContext, IsAuxiliaryWindowFocusedContext, IsSessionsWindowContext, TitleBarStyleContext, IsAuxiliaryWindowContext, EditorPartMultipleEditorGroupsContext, AuxiliaryBarMaximizedContext, CustomMenuBarVisibleContext, LayoutModeContext } from '../../common/contextkeys.js';
 import { Codicon } from '../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
@@ -253,11 +253,15 @@ MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 
 // --- Toggle Editor Visibility
 
-registerAction2(class extends Action2 {
+const EDITOR_AREA_CHAT_CASE = ContextKeyExpr.or(ChatPartVisibleContext, EditorAreaHiddenByChatContext);
+
+class ToggleEditorVisibilityAction extends Action2 {
+
+	static readonly ID = 'workbench.action.toggleEditorVisibility';
 
 	constructor() {
 		super({
-			id: 'workbench.action.toggleEditorVisibility',
+			id: ToggleEditorVisibilityAction.ID,
 			title: {
 				...localize2('toggleEditor', "Toggle Editor Area Visibility"),
 				mnemonicTitle: localize({ key: 'miShowEditorArea', comment: ['&& denotes a mnemonic'] }, "Show &&Editor Area"),
@@ -265,13 +269,64 @@ registerAction2(class extends Action2 {
 			category: Categories.View,
 			f1: true,
 			toggled: MainEditorAreaVisibleContext,
-			// the workbench grid currently prevents us from supporting panel maximization with non-center panel alignment
-			precondition: ContextKeyExpr.and(IsAuxiliaryWindowFocusedContext.toNegated(), ContextKeyExpr.or(PanelAlignmentContext.isEqualTo('center'), PanelPositionContext.notEqualsTo('bottom')))
+			precondition: ContextKeyExpr.and(
+				IsAuxiliaryWindowFocusedContext.toNegated(),
+				ContextKeyExpr.or(
+					EDITOR_AREA_CHAT_CASE,
+					// the workbench grid currently prevents us from supporting panel maximization with non-center panel alignment
+					ContextKeyExpr.or(PanelAlignmentContext.isEqualTo('center'), PanelPositionContext.notEqualsTo('bottom'))
+				)
+			),
+			menu: {
+				id: MenuId.MenubarAppearanceMenu,
+				group: '2_workbench_layout',
+				order: 6,
+				when: ContextKeyExpr.and(EDITOR_AREA_CHAT_CASE, IsSessionsWindowContext.negate())
+			}
 		});
 	}
 
 	run(accessor: ServicesAccessor): void {
-		accessor.get(IWorkbenchLayoutService).toggleMaximizedPanel();
+		const layoutService = accessor.get(IWorkbenchLayoutService);
+		if (layoutService.isEditorHiddenByChat() || layoutService.isVisible(Parts.CHAT_PART)) {
+			layoutService.setEditorHiddenByChat(!layoutService.isEditorHiddenByChat());
+		} else {
+			layoutService.toggleMaximizedPanel();
+		}
+	}
+}
+registerAction2(ToggleEditorVisibilityAction);
+
+/**
+ * Hides the editor area while the chat part shows, from the toolbar of the watermark of its only editor group once that group
+ * is empty: the group's own toolbar does not show while it is the only one.
+ */
+registerAction2(class HideEditorAreaForChatAction extends Action2 {
+
+	static readonly ID = 'workbench.action.hideEditorAreaForChat';
+
+	constructor() {
+		super({
+			id: HideEditorAreaForChatAction.ID,
+			title: localize2('hideEditorAreaForChat', "Hide Editor Area"),
+			icon: Codicon.close,
+			f1: false,
+			precondition: ChatPartVisibleContext,
+			menu: {
+				id: MenuId.EditorGroupWatermarkToolbar,
+				group: 'navigation',
+				order: 10,
+				// Not while the secondary side bar is maximized, over the editor area
+				when: ContextKeyExpr.and(ChatPartVisibleContext, IsSessionsWindowContext.negate(), IsAuxiliaryWindowContext.negate(), EditorPartMultipleEditorGroupsContext.negate(), AuxiliaryBarMaximizedContext.negate())
+			}
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		const layoutService = accessor.get(IWorkbenchLayoutService);
+		if (layoutService.isVisible(Parts.CHAT_PART)) {
+			layoutService.setEditorHiddenByChat(true);
+		}
 	}
 });
 
@@ -304,6 +359,7 @@ export class ToggleSidebarVisibilityAction extends Action2 {
 			},
 			category: Categories.View,
 			f1: true,
+			precondition: LayoutModeContext.negate(),
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyMod.CtrlCmd | KeyCode.KeyB

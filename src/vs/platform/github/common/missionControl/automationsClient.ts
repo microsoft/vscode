@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { ApiRequestOptions } from '../client/request.js';
 import { pathSegment, repositoryPath, withQuery } from '../client/routing.js';
-import { parse, SchemaError } from '../client/schema.js';
+import { SchemaError, parse } from '../client/schema.js';
 import { RepositoryRef } from '../client/types.js';
-import { AutomationDetail, AutomationSummary, AutomationToolDefinition, AutomationToolGroup, AutomationTriggerDefinition, AutomationTriggerFieldDefinition, CreateAutomationRequest, CreateAutomationTaskRequest, CreateAutomationTaskResponse, EditAutomationRequest, GetAutomationOptions, IAutomationsClient, ListAutomationsOptions, ListRepoAutomationsResponse } from './automations.js';
+import { AutomationDetail, AutomationRepositoryConfiguration, AutomationSummary, AutomationToolDefinition, AutomationToolGroup, AutomationTriggerDefinition, AutomationTriggerFieldDefinition, CreateAutomationRequest, CreateAutomationTaskRequest, CreateAutomationTaskResponse, EditAutomationRequest, GetAutomationOptions, IAutomationsClient, ListAutomationsOptions, ListRepoAutomationsResponse } from './automations.js';
 import { PaginatedResponse } from './missionControl.js';
 import { MissionControlClient, paginated, parseUser } from './missionControlClient.js';
 import { ListTasksResponse, TaskListOptions } from './tasks.js';
@@ -16,7 +17,7 @@ import { parseListTasksResponse } from './tasksClient.js';
 export class AutomationsClient implements IAutomationsClient {
 	constructor(private readonly _client: MissionControlClient) { }
 
-	list(repository: RepositoryRef, signal: AbortSignal, options?: ListAutomationsOptions): Promise<PaginatedResponse<ListRepoAutomationsResponse>> {
+	list(repository: RepositoryRef, cancellationToken: CancellationToken, options?: ListAutomationsOptions): Promise<PaginatedResponse<ListRepoAutomationsResponse>> {
 		const { query, ...requestOptions } = options ?? {};
 		return this._client.requestPages(
 			{
@@ -26,7 +27,7 @@ export class AutomationsClient implements IAutomationsClient {
 				expectedStatus: 200,
 				options: requestOptions,
 			},
-			signal,
+			cancellationToken,
 			response => paginated(response, parseListAutomationsResponse(response.data)),
 			pages => ({
 				...pages[pages.length - 1],
@@ -38,7 +39,7 @@ export class AutomationsClient implements IAutomationsClient {
 		);
 	}
 
-	get(repository: RepositoryRef, automationId: string, signal: AbortSignal, options?: GetAutomationOptions): Promise<AutomationDetail> {
+	get(repository: RepositoryRef, automationId: string, cancellationToken: CancellationToken, options?: GetAutomationOptions): Promise<AutomationDetail> {
 		const { query, ...requestOptions } = options ?? {};
 		return this._client.request({
 			domain: 'automations',
@@ -46,10 +47,20 @@ export class AutomationsClient implements IAutomationsClient {
 			path: withQuery(automationPath(repository, automationId), { ...query }),
 			expectedStatus: 200,
 			options: requestOptions,
-		}, signal, response => parseAutomationDetail(response.data, automationId));
+		}, cancellationToken, response => parseAutomationDetail(response.data, automationId));
 	}
 
-	create(repository: RepositoryRef, request: CreateAutomationRequest, signal: AbortSignal, options?: ApiRequestOptions): Promise<AutomationDetail> {
+	getConfiguration(repository: RepositoryRef, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<AutomationRepositoryConfiguration> {
+		return this._client.request({
+			domain: 'automations',
+			method: 'GET',
+			path: `${repositoryPath(repository)}/automations/configuration`,
+			expectedStatus: 200,
+			options,
+		}, cancellationToken, response => parseAutomationRepositoryConfiguration(response.data));
+	}
+
+	create(repository: RepositoryRef, request: CreateAutomationRequest, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<AutomationDetail> {
 		return this._client.request({
 			domain: 'automations',
 			method: 'POST',
@@ -57,10 +68,10 @@ export class AutomationsClient implements IAutomationsClient {
 			body: request,
 			expectedStatus: 201,
 			options,
-		}, signal, response => parseAutomationDetail(response.data));
+		}, cancellationToken, response => parseAutomationDetail(response.data));
 	}
 
-	update(repository: RepositoryRef, automationId: string, request: EditAutomationRequest, signal: AbortSignal, options?: ApiRequestOptions): Promise<AutomationDetail> {
+	update(repository: RepositoryRef, automationId: string, request: EditAutomationRequest, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<AutomationDetail> {
 		return this._client.request({
 			domain: 'automations',
 			method: 'PATCH',
@@ -68,10 +79,10 @@ export class AutomationsClient implements IAutomationsClient {
 			body: request,
 			expectedStatus: 200,
 			options,
-		}, signal, response => parseAutomationDetail(response.data, automationId));
+		}, cancellationToken, response => parseAutomationDetail(response.data, automationId));
 	}
 
-	delete(repository: RepositoryRef, automationId: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<void> {
+	delete(repository: RepositoryRef, automationId: string, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<void> {
 		return this._client.request({
 			domain: 'automations',
 			method: 'DELETE',
@@ -79,10 +90,10 @@ export class AutomationsClient implements IAutomationsClient {
 			expectedStatus: 204,
 			responseBody: 'none',
 			options,
-		}, signal, () => { });
+		}, cancellationToken, () => { });
 	}
 
-	dispatch(repository: RepositoryRef, automationId: string, request: CreateAutomationTaskRequest, signal: AbortSignal, options?: ApiRequestOptions): Promise<CreateAutomationTaskResponse> {
+	dispatch(repository: RepositoryRef, automationId: string, request: CreateAutomationTaskRequest, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<CreateAutomationTaskResponse> {
 		return this._client.request({
 			domain: 'automations',
 			method: 'POST',
@@ -90,10 +101,10 @@ export class AutomationsClient implements IAutomationsClient {
 			body: request,
 			expectedStatus: 202,
 			options,
-		}, signal, response => parseCreateAutomationTaskResponse(response.data));
+		}, cancellationToken, response => parseCreateAutomationTaskResponse(response.data));
 	}
 
-	listRuns(automationId: string, signal: AbortSignal, options?: TaskListOptions): Promise<PaginatedResponse<ListTasksResponse>> {
+	listRuns(automationId: string, cancellationToken: CancellationToken, options?: TaskListOptions): Promise<PaginatedResponse<ListTasksResponse>> {
 		const { query, ...requestOptions } = options ?? {};
 		return this._client.requestPages(
 			{
@@ -103,7 +114,7 @@ export class AutomationsClient implements IAutomationsClient {
 				expectedStatus: 200,
 				options: requestOptions,
 			},
-			signal,
+			cancellationToken,
 			response => {
 				const data = parseListTasksResponse(response.data);
 				if (data.tasks.some(task => task.automation_id !== automationId)) {
@@ -118,24 +129,24 @@ export class AutomationsClient implements IAutomationsClient {
 		);
 	}
 
-	listTools(signal: AbortSignal, options?: ApiRequestOptions): Promise<readonly AutomationToolGroup[]> {
+	listTools(cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<readonly AutomationToolGroup[]> {
 		return this._client.request({
 			domain: 'automations',
 			method: 'GET',
 			path: '/automations/tools',
 			expectedStatus: 200,
 			options,
-		}, signal, response => parseToolGroups(response.data));
+		}, cancellationToken, response => parseToolGroups(response.data));
 	}
 
-	listTriggers(signal: AbortSignal, options?: ApiRequestOptions): Promise<readonly AutomationTriggerDefinition[]> {
+	listTriggers(cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<readonly AutomationTriggerDefinition[]> {
 		return this._client.request({
 			domain: 'automations',
 			method: 'GET',
 			path: '/automations/triggers',
 			expectedStatus: 200,
 			options,
-		}, signal, response => Array.isArray(response.data)
+		}, cancellationToken, response => Array.isArray(response.data)
 			? parseTriggerDefinitions(response.data)
 			: parse.object({ triggers: parseTriggerDefinitions })(response.data).triggers);
 	}
@@ -144,6 +155,13 @@ export class AutomationsClient implements IAutomationsClient {
 function automationPath(repository: RepositoryRef, automationId: string): string {
 	return `${repositoryPath(repository)}/automations/${pathSegment(automationId)}`;
 }
+
+const parseAutomationRepositoryConfiguration = parse.object<AutomationRepositoryConfiguration>({
+	automations_enabled: parse.boolean,
+	can_manage_automations: parse.boolean,
+	allow_read_access_triggers: parse.boolean,
+	require_trigger_scoped_writes: parse.boolean,
+});
 
 const parseOwnership = parse.oneOf('user', 'repository');
 const parseWriteScope = parse.oneOf('trigger', 'repository');

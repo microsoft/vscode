@@ -115,6 +115,13 @@
 	box-shadow: calc(var(--modern-ui-connected-tab-shoulder-radius) / -2) calc(var(--modern-ui-connected-tab-shoulder-radius) / 2) 0 calc(var(--modern-ui-connected-tab-shoulder-radius) / 2) var(--modern-ui-connected-tab-surface);
 }
 
+/* The panel frame owns the leading edge of the first connected tab. */
+.agent-sessions-workbench.modern-ui-tabs.modern-ui-connected-editor-tabs:not(.phone-layout) .part.panel.bottom.panel-labels > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:first-child:not(.icon).checked > .active-item-indicator {
+	border-start-start-radius: 0;
+	border-inline-start-color: transparent;
+	background-clip: border-box;
+}
+
 .agent-sessions-workbench.modern-ui-tabs.modern-ui-connected-editor-tabs:not(.phone-layout) .part.panel.bottom.panel-labels > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:first-child:not(.icon).checked > .active-item-indicator::before {
 	content: none;
 }

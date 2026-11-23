@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import * as dom from '../../../../../../base/browser/dom.js';
 import { renderAsPlaintext } from '../../../../../../base/browser/markdownRenderer.js';
 import { renderLabelWithIcons } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
@@ -28,22 +29,21 @@ import { getCompactCodicon } from '../../chatIcons.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { requiresCopilotAgentHost, IManagedSettingsService } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
-import { AgentHostAllowSignedOutWhenUsableSettingId } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IsSessionsWindowContext } from '../../../../../common/contextkeys.js';
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IAgentSdkSetupService } from '../../../../../services/agentHost/browser/agentSdkSetupService.js';
-import { canInitializeCodexWithoutGitHub, ICodexAccountService } from '../../../../../services/agentHost/browser/codexAccountService.js';
 import { IChatSessionsService, SessionType } from '../../../common/chatSessionsService.js';
 import { getChatSessionTelemetryContext } from '../../../common/chatService/chatServiceTelemetry.js';
 import { ILanguageModelsService } from '../../../common/languageModels.js';
 import { AgentSessionProviders, AgentSessionTarget, getAgentSessionProvider, getAgentSessionProviderDescription, getAgentSessionProviderIcon, getAgentSessionProviderName, isFirstPartyAgentSessionProvider } from '../../agentSessions/agentSessions.js';
-import { canInitializeSessionTypeOnSelection, getSessionTypeAvailability, getSessionTypePickerAvailability, getSessionTypeUnavailableDescription, getSessionTypeUnavailableHover, SessionTypeAvailability } from '../../agentSessions/sessionTypeAvailability.js';
+import { getSessionTypeAvailability, getSessionTypePickerAvailability, getSessionTypeUnavailableDescription, getSessionTypeUnavailableHover, SessionTypeAvailability } from '../../agentSessions/sessionTypeAvailability.js';
 import { hasAgentSdkSetupForSessionType } from '../../agentSessions/agentHost/agentHostSdkSetupNotification.js';
 import { ChatConfiguration, CopilotHarnessIntroductionMode, getCopilotHarnessIntroductionMode, getDefaultNewChatSessionType, isVisibleEditorChatSessionType, recordUserSelectedSessionType } from '../../../common/constants.js';
 import { IChatHarnessSwitchFeedbackSurveyService } from '../../feedbackSurvey/chatHarnessSwitchFeedbackSurveyService.js';
 import { ChatInputPickerActionViewItem, IChatInputPickerOptions } from './chatInputPickerActionItem.js';
 import { ISessionTypePickerDelegate } from '../../chat.js';
 import { IActionProvider } from '../../../../../../base/browser/ui/dropdown/dropdown.js';
+import { ILocalChatAvailabilityService } from '../../../common/localChatAvailability.js';
 
 
 export interface ISessionTypeItem {
@@ -139,7 +139,7 @@ export function createSessionTypePickerAction(
 }
 
 /**
- * Returns picker availability using the signed-out Agent Host setting for every chat surface.
+ * Returns picker availability for every chat surface.
  */
 export function getConfiguredSessionTypePickerAvailability(
 	type: AgentSessionTarget,
@@ -148,20 +148,17 @@ export function getConfiguredSessionTypePickerAvailability(
 	chatEntitlementService: IChatEntitlementService,
 	languageModelsService: ILanguageModelsService,
 	agentSdkSetupService: IAgentSdkSetupService,
-	codexAccountService: ICodexAccountService,
 	managedSettingsService: IManagedSettingsService,
 ): SessionTypeAvailability {
 	if (type === AgentSessionProviders.Local && requiresCopilotAgentHost(managedSettingsService, configurationService)) {
 		return SessionTypeAvailability.DisabledByPolicy;
 	}
-	const allowSignedOutWhenUsable = configurationService.getValue<boolean>(AgentHostAllowSignedOutWhenUsableSettingId) === true;
+
 	const hasAgentSdkSetup = hasAgentSdkSetupForSessionType(agentSdkSetupService.setups, type);
-	const canInitializeWithoutGitHub = type === AgentSessionProviders.AgentHostCodex && canInitializeCodexWithoutGitHub(codexAccountService.account);
 	return getSessionTypePickerAvailability(
 		type,
-		getSessionTypeAvailability(chatSessionsService, chatEntitlementService, languageModelsService, type, allowSignedOutWhenUsable),
-		allowSignedOutWhenUsable,
-		canInitializeSessionTypeOnSelection(chatEntitlementService.entitlement, allowSignedOutWhenUsable, hasAgentSdkSetup, canInitializeWithoutGitHub),
+		getSessionTypeAvailability(chatSessionsService, chatEntitlementService, languageModelsService, type),
+		hasAgentSdkSetup,
 	);
 }
 
@@ -193,9 +190,9 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IAgentHostEnablementService private readonly agentHostEnablementService: IAgentHostEnablementService,
 		@IAgentSdkSetupService protected readonly agentSdkSetupService: IAgentSdkSetupService,
-		@ICodexAccountService protected readonly codexAccountService: ICodexAccountService,
 		@IChatHarnessSwitchFeedbackSurveyService private readonly harnessSwitchFeedbackSurveyService: IChatHarnessSwitchFeedbackSurveyService,
 		@IManagedSettingsService private readonly managedSettingsService: IManagedSettingsService,
+		@ILocalChatAvailabilityService private readonly localChatAvailabilityService: ILocalChatAvailabilityService,
 	) {
 
 		const actionProvider: IActionWidgetDropdownActionProvider = {
@@ -211,7 +208,6 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 						this.chatEntitlementService,
 						this.languageModelsService,
 						this.agentSdkSetupService,
-						this.codexAccountService,
 						this.managedSettingsService,
 					);
 					actions.push(createSessionTypePickerAction(
@@ -250,7 +246,7 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 
 		super(action, sessionTargetPickerOptions, pickerOptions, actionWidgetService, keybindingService, contextKeyService, telemetryService);
 
-		this._isSessionsWindow = IsSessionsWindowContext.getValue(contextKeyService) === true;
+		this._isSessionsWindow = IsSessionsWindowContext.getValue(contextKeyService) === true || ChatContextKeys.inSessionsChat.getValue(contextKeyService) === true;
 
 		if (this.delegate.onDidChangeActiveSessionProvider) {
 			this._register(this.delegate.onDidChangeActiveSessionProvider(() => {
@@ -279,10 +275,11 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 			}
 		}));
 
-		// The managed sandbox floor is delivered by managed settings, not configuration, so it needs
-		// its own subscription to keep the visible harness list in sync.
+		// The managed sandbox floor is delivered by managed settings, not configuration, and a feature hides local chats
+		// without changing the configuration, so they need their own subscription to keep the visible harness list in sync.
 		this._register(autorun(reader => {
 			this.agentHostEnablementService.managedSandboxEnforced.read(reader);
+			this.localChatAvailabilityService.hidden.read(reader);
 			this._updateAgentSessionItems();
 			if (this.element) {
 				this.renderLabel(this.element);
@@ -306,7 +303,7 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 		this._promptForCopilotToLocalSwitch(previousTarget, sessionTypeItem.type);
 
 		if (!this._isSessionsWindow) {
-			recordUserSelectedSessionType(this.storageService, this.configurationService, this.chatSessionsService, this.workspaceContextService.getWorkspace(), sessionTypeItem.type, this.agentHostEnablementService.enabled.get());
+			recordUserSelectedSessionType(this.storageService, this.configurationService, this.chatSessionsService, this.workspaceContextService.getWorkspace(), sessionTypeItem.type, this.agentHostEnablementService.enabled.get(), this.localChatAvailabilityService.hidden.get());
 		}
 
 		if (this.delegate.setActiveSessionProvider) {
@@ -441,11 +438,11 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 	 * {@link AgentSessionProviders.Local}.
 	 */
 	protected _getDefaultSessionType(): AgentSessionTarget {
-		return getDefaultNewChatSessionType(this.configurationService, this.chatSessionsService, this.storageService, this.workspaceContextService.getWorkspace(), this.agentHostEnablementService.enabled.get(), undefined, this.agentHostEnablementService.managedSandboxEnforced.get(), requiresCopilotAgentHost(this.managedSettingsService, this.configurationService)) as AgentSessionTarget;
+		return getDefaultNewChatSessionType(this.configurationService, this.chatSessionsService, this.storageService, this.workspaceContextService.getWorkspace(), this.agentHostEnablementService.enabled.get(), { localChatHidden: this.localChatAvailabilityService.hidden.get() }, this.agentHostEnablementService.managedSandboxEnforced.get(), requiresCopilotAgentHost(this.managedSettingsService, this.configurationService)) as AgentSessionTarget;
 	}
 
 	protected _isVisible(type: AgentSessionTarget): boolean {
-		return isVisibleEditorChatSessionType(type, this.configurationService, this.chatSessionsService, this.workspaceContextService.getWorkspace(), this.agentHostEnablementService.managedSandboxEnforced.get(), this.agentHostEnablementService.enabled.get(), requiresCopilotAgentHost(this.managedSettingsService, this.configurationService));
+		return isVisibleEditorChatSessionType(type, this.configurationService, this.chatSessionsService, this.workspaceContextService.getWorkspace(), this.agentHostEnablementService.managedSandboxEnforced.get(), this.agentHostEnablementService.enabled.get(), requiresCopilotAgentHost(this.managedSettingsService, this.configurationService), this.localChatAvailabilityService.hidden.get());
 	}
 
 	protected _isSessionTypeEnabled(type: AgentSessionTarget): boolean {

@@ -6,9 +6,10 @@
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../nls.js';
 import { type IAgentHostChatContribution, type IAgentHostChatContributionContext, type IIncomingRequest, type IncomingRequestDisposition, type IOutgoingTurn, type ISendContribution } from '../../../common/agentHostChatContributionsService.js';
-import { AgentMergeConfigKey, agentMergeRootConfigSchema, readAgentMergeFolderState, withAgentMergeFolderState } from '../../../common/agentMerge.js';
+import { readAgentMergeFolderState, withAgentMergeFolderState } from '../../../common/agentMerge.js';
 import { readPullRequestChatMeta } from '../../../common/meta/agentPullRequestOperationMeta.js';
 import { IAgentConfigurationService } from '../../agentConfigurationService.js';
+import { isAgentMergeEnabled } from '../../agentMergeConfiguration.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../agentHostStateManager.js';
 import { resolveGitHubStateFolder } from '../../agentHostBranchChangesetScope.js';
 
@@ -27,7 +28,7 @@ export class PullRequestChatContribution extends Disposable implements IAgentHos
 
 	onIncomingRequest(request: IIncomingRequest): IncomingRequestDisposition | undefined {
 		const options = readPullRequestChatMeta(request.message);
-		if (options?.agentMerge && !this._configurationService.getRootValue(agentMergeRootConfigSchema, AgentMergeConfigKey.Enabled)) {
+		if (options?.agentMerge && !isAgentMergeEnabled(this._configurationService)) {
 			return {
 				kind: 'reject',
 				error: { errorType: 'invalidParams', message: localize('agentHost.pullRequestChat.agentMergeDisabled', "Agent Merge is disabled in the host configuration.") },

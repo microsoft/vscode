@@ -3,19 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { mergeArrayPages } from '../client/pagination.js';
 import { ApiPaginationOptions, ApiRequestOptions } from '../client/request.js';
 import { numberSegment, pathSegment, repositoryPath, withQuery } from '../client/routing.js';
 import { parse } from '../client/schema.js';
 import { PageOptions, RepositoryRef } from '../client/types.js';
-import { RepositoryIdentity } from './core.js';
-import { CoreClient, parseAccount, parseChangedFile, parseRepositoryIdentity, repositoryIdentitySchema } from './coreClient.js';
-import { Branch, BranchProtection, Commit, Comparison, CreateRepositoryRequest, ForkRepositoryRequest, IRepositoriesClient, ListRepositoriesOptions, ListRulesetsOptions, Repository, RepositoryRuleset } from './repositories.js';
+import { Connection, CursorOptions, RepositoryIdentity } from './core.js';
+import { CoreClient, cursorVariables, parseAccount, parseChangedFile, parseConnection, parseRepositoryIdentity, repositoryIdentitySchema } from './coreClient.js';
+import { Branch, BranchProtection, Commit, Comparison, CreateRepositoryRequest, ForkRepositoryRequest, IRepositoriesClient, ListRepositoriesOptions, ListRulesetsOptions, Repository, RepositoryAssignableUser, RepositoryCommitAuthor, RepositoryRuleset, RepositoryRulesetNode, RepositoryViewerInfo } from './repositories.js';
 
 export class RepositoriesClient implements IRepositoriesClient {
 	constructor(private readonly _client: CoreClient) { }
 
-	async get(repository: RepositoryRef, signal: AbortSignal, options?: ApiRequestOptions): Promise<Repository> {
+	async get(repository: RepositoryRef, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<Repository> {
 		return this._client.request({
 			domain: 'repositories',
 			method: 'GET',
@@ -23,10 +24,10 @@ export class RepositoriesClient implements IRepositoriesClient {
 			authentication: 'optional',
 			expectedStatus: 200,
 			options
-		}, signal, parseRepository);
+		}, cancellationToken, parseRepository);
 	}
 
-	async getById(repositoryId: number, signal: AbortSignal, options?: ApiRequestOptions): Promise<Repository> {
+	async getById(repositoryId: number, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<Repository> {
 		return this._client.request({
 			domain: 'repositories',
 			method: 'GET',
@@ -34,10 +35,56 @@ export class RepositoriesClient implements IRepositoriesClient {
 			authentication: 'optional',
 			expectedStatus: 200,
 			options
-		}, signal, parseRepository);
+		}, cancellationToken, parseRepository);
 	}
 
-	async listForAuthenticatedUser(signal: AbortSignal, options?: ListRepositoriesOptions): Promise<readonly Repository[]> {
+	async getViewerInfo(repository: RepositoryRef, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<RepositoryViewerInfo | null> {
+		return this._client.graphql(
+			'repositories',
+			repositoryViewerQuery,
+			{ owner: repository.owner, name: repository.repo },
+			cancellationToken,
+			data => parseRepositoryViewerResponse(data).repository,
+			options
+		);
+	}
+
+	async listRulesetConnection(repository: RepositoryRef, cancellationToken: CancellationToken, options?: ApiPaginationOptions<CursorOptions>): Promise<Connection<RepositoryRulesetNode> | null> {
+		const { query = {}, ...requestOptions } = options ?? {};
+		return this._client.graphqlPages(
+			'repositories',
+			repositoryRulesetsQuery,
+			{ owner: repository.owner, name: repository.repo, ...cursorVariables(query) },
+			cancellationToken,
+			data => parseRepositoryRulesetsResponse(data).repository?.rulesets ?? null,
+			requestOptions
+		);
+	}
+
+	async listAssignableUsers(repository: RepositoryRef, cancellationToken: CancellationToken, options?: ApiPaginationOptions<CursorOptions>): Promise<Connection<RepositoryAssignableUser> | null> {
+		const { query = {}, ...requestOptions } = options ?? {};
+		return this._client.graphqlPages(
+			'repositories',
+			repositoryAssignableUsersQuery,
+			{ owner: repository.owner, name: repository.repo, ...cursorVariables(query) },
+			cancellationToken,
+			data => parseRepositoryAssignableUsersResponse(data).repository?.assignableUsers ?? null,
+			requestOptions
+		);
+	}
+
+	async getCommitAuthor(repository: RepositoryRef, ref: string, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<RepositoryCommitAuthor | null> {
+		return this._client.graphql(
+			'repositories',
+			repositoryCommitAuthorQuery,
+			{ owner: repository.owner, name: repository.repo, expression: ref },
+			cancellationToken,
+			data => parseRepositoryCommitAuthorResponse(data).repository?.object?.author ?? null,
+			options
+		);
+	}
+
+	async listForAuthenticatedUser(cancellationToken: CancellationToken, options?: ListRepositoriesOptions): Promise<readonly Repository[]> {
 		const { query, ...requestOptions } = options ?? {};
 		return this._client.requestPages({
 			domain: 'repositories',
@@ -46,10 +93,10 @@ export class RepositoriesClient implements IRepositoriesClient {
 			authentication: 'required',
 			expectedStatus: 200,
 			options: requestOptions
-		}, signal, parseRepositories, mergeArrayPages);
+		}, cancellationToken, parseRepositories, mergeArrayPages);
 	}
 
-	async listForUser(username: string, signal: AbortSignal, options?: ApiPaginationOptions<PageOptions>): Promise<readonly RepositoryIdentity[]> {
+	async listForUser(username: string, cancellationToken: CancellationToken, options?: ApiPaginationOptions<PageOptions>): Promise<readonly RepositoryIdentity[]> {
 		const { query, ...requestOptions } = options ?? {};
 		return this._client.requestPages({
 			domain: 'repositories',
@@ -58,10 +105,10 @@ export class RepositoriesClient implements IRepositoriesClient {
 			authentication: 'optional',
 			expectedStatus: 200,
 			options: requestOptions
-		}, signal, parseRepositoryIdentities, mergeArrayPages);
+		}, cancellationToken, parseRepositoryIdentities, mergeArrayPages);
 	}
 
-	async listForOrganization(org: string, signal: AbortSignal, options?: ApiPaginationOptions<PageOptions>): Promise<readonly RepositoryIdentity[]> {
+	async listForOrganization(org: string, cancellationToken: CancellationToken, options?: ApiPaginationOptions<PageOptions>): Promise<readonly RepositoryIdentity[]> {
 		const { query, ...requestOptions } = options ?? {};
 		return this._client.requestPages({
 			domain: 'repositories',
@@ -70,10 +117,10 @@ export class RepositoriesClient implements IRepositoriesClient {
 			authentication: 'optional',
 			expectedStatus: 200,
 			options: requestOptions
-		}, signal, parseRepositoryIdentities, mergeArrayPages);
+		}, cancellationToken, parseRepositoryIdentities, mergeArrayPages);
 	}
 
-	async create(request: CreateRepositoryRequest, signal: AbortSignal, options?: ApiRequestOptions): Promise<Repository> {
+	async create(request: CreateRepositoryRequest, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<Repository> {
 		return this._client.request({
 			domain: 'repositories',
 			method: 'POST',
@@ -82,10 +129,10 @@ export class RepositoriesClient implements IRepositoriesClient {
 			body: request,
 			expectedStatus: 201,
 			options
-		}, signal, parseRepository);
+		}, cancellationToken, parseRepository);
 	}
 
-	async fork(repository: RepositoryRef, request: ForkRepositoryRequest, signal: AbortSignal, options?: ApiRequestOptions): Promise<Repository> {
+	async fork(repository: RepositoryRef, request: ForkRepositoryRequest, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<Repository> {
 		return this._client.request({
 			domain: 'repositories',
 			method: 'POST',
@@ -94,10 +141,10 @@ export class RepositoriesClient implements IRepositoriesClient {
 			body: request,
 			expectedStatus: 202,
 			options
-		}, signal, parseRepository);
+		}, cancellationToken, parseRepository);
 	}
 
-	async listBranches(repository: RepositoryRef, signal: AbortSignal, options?: ApiPaginationOptions<PageOptions>): Promise<readonly Branch[]> {
+	async listBranches(repository: RepositoryRef, cancellationToken: CancellationToken, options?: ApiPaginationOptions<PageOptions>): Promise<readonly Branch[]> {
 		const { query, ...requestOptions } = options ?? {};
 		return this._client.requestPages({
 			domain: 'repositories',
@@ -106,10 +153,10 @@ export class RepositoriesClient implements IRepositoriesClient {
 			authentication: 'optional',
 			expectedStatus: 200,
 			options: requestOptions
-		}, signal, parseBranches, mergeArrayPages);
+		}, cancellationToken, parseBranches, mergeArrayPages);
 	}
 
-	async getBranch(repository: RepositoryRef, branch: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<Branch> {
+	async getBranch(repository: RepositoryRef, branch: string, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<Branch> {
 		return this._client.request({
 			domain: 'repositories',
 			method: 'GET',
@@ -117,10 +164,10 @@ export class RepositoriesClient implements IRepositoriesClient {
 			authentication: 'optional',
 			expectedStatus: 200,
 			options
-		}, signal, parseBranch);
+		}, cancellationToken, parseBranch);
 	}
 
-	async getBranchProtection(repository: RepositoryRef, branch: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<BranchProtection> {
+	async getBranchProtection(repository: RepositoryRef, branch: string, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<BranchProtection> {
 		return this._client.request({
 			domain: 'repositories',
 			method: 'GET',
@@ -128,10 +175,10 @@ export class RepositoriesClient implements IRepositoriesClient {
 			authentication: 'required',
 			expectedStatus: 200,
 			options
-		}, signal, parseBranchProtection);
+		}, cancellationToken, parseBranchProtection);
 	}
 
-	async listRulesets(repository: RepositoryRef, signal: AbortSignal, options?: ListRulesetsOptions): Promise<readonly RepositoryRuleset[]> {
+	async listRulesets(repository: RepositoryRef, cancellationToken: CancellationToken, options?: ListRulesetsOptions): Promise<readonly RepositoryRuleset[]> {
 		const { query, ...requestOptions } = options ?? {};
 		return this._client.requestPages({
 			domain: 'repositories',
@@ -140,10 +187,10 @@ export class RepositoriesClient implements IRepositoriesClient {
 			authentication: 'optional',
 			expectedStatus: 200,
 			options: requestOptions
-		}, signal, parseRulesets, mergeArrayPages);
+		}, cancellationToken, parseRulesets, mergeArrayPages);
 	}
 
-	async getRuleset(repository: RepositoryRef, rulesetId: number, signal: AbortSignal, options?: ApiRequestOptions): Promise<RepositoryRuleset> {
+	async getRuleset(repository: RepositoryRef, rulesetId: number, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<RepositoryRuleset> {
 		return this._client.request({
 			domain: 'repositories',
 			method: 'GET',
@@ -151,10 +198,10 @@ export class RepositoriesClient implements IRepositoriesClient {
 			authentication: 'optional',
 			expectedStatus: 200,
 			options
-		}, signal, parseRuleset);
+		}, cancellationToken, parseRuleset);
 	}
 
-	async getCommit(repository: RepositoryRef, ref: string, signal: AbortSignal, options?: ApiPaginationOptions<PageOptions>): Promise<Commit> {
+	async getCommit(repository: RepositoryRef, ref: string, cancellationToken: CancellationToken, options?: ApiPaginationOptions<PageOptions>): Promise<Commit> {
 		const { query, ...requestOptions } = options ?? {};
 		return this._client.requestPages(
 			{
@@ -165,7 +212,7 @@ export class RepositoriesClient implements IRepositoriesClient {
 				expectedStatus: 200,
 				options: requestOptions
 			},
-			signal,
+			cancellationToken,
 			parseCommit,
 			pages => ({
 				...pages[pages.length - 1],
@@ -174,7 +221,7 @@ export class RepositoriesClient implements IRepositoriesClient {
 		);
 	}
 
-	async compare(repository: RepositoryRef, base: string, head: string, signal: AbortSignal, options?: ApiPaginationOptions<PageOptions>): Promise<Comparison> {
+	async compare(repository: RepositoryRef, base: string, head: string, cancellationToken: CancellationToken, options?: ApiPaginationOptions<PageOptions>): Promise<Comparison> {
 		const { query, ...requestOptions } = options ?? {};
 		return this._client.requestPages(
 			{
@@ -185,7 +232,7 @@ export class RepositoriesClient implements IRepositoriesClient {
 				expectedStatus: 200,
 				options: requestOptions
 			},
-			signal,
+			cancellationToken,
 			parseComparison,
 			pages => ({
 				...pages[0],
@@ -304,5 +351,100 @@ const parseBranchProtection = parse.object<BranchProtection>({
 	})),
 	required_conversation_resolution: parse.optional(parse.object({
 		enabled: parse.boolean
+	})),
+});
+
+const repositoryViewerQuery = `query RepositoryViewerInfo($owner: String!, $name: String!) {
+	repository(owner: $owner, name: $name) {
+		defaultBranchRef { name }
+		viewerPermission
+	}
+}`;
+
+const repositoryRulesetsQuery = `query RepositoryRulesets($owner: String!, $name: String!, $first: Int = 100, $after: String) {
+	repository(owner: $owner, name: $name) {
+		rulesets(includeParents: true, first: $first, after: $after) {
+			nodes {
+				name target enforcement
+				rules(type: PULL_REQUEST) { totalCount }
+				conditions { refName { include exclude } }
+			}
+			pageInfo { endCursor hasNextPage }
+		}
+	}
+}`;
+
+const repositoryAssignableUsersQuery = `query RepositoryAssignableUsers($owner: String!, $name: String!, $first: Int = 100, $after: String) {
+	repository(owner: $owner, name: $name) {
+		assignableUsers(first: $first, after: $after) {
+			nodes { id login name email avatarUrl }
+			pageInfo { endCursor hasNextPage }
+		}
+	}
+}`;
+
+const repositoryCommitAuthorQuery = `query RepositoryCommitAuthor($owner: String!, $name: String!, $expression: String!) {
+	repository(owner: $owner, name: $name) {
+		object(expression: $expression) {
+			... on Commit {
+				author { name email avatarUrl user { id login } }
+			}
+		}
+	}
+}`;
+
+const parseRepositoryViewerResponse = parse.object({
+	repository: parse.nullable(parse.object<RepositoryViewerInfo>({
+		defaultBranchRef: parse.nullable(parse.object({
+			name: parse.nonEmptyString
+		})),
+		viewerPermission: parse.nullable(parse.oneOf('ADMIN', 'MAINTAIN', 'WRITE', 'TRIAGE', 'READ')),
+	})),
+});
+
+const parseRepositoryRulesetsResponse = parse.object({
+	repository: parse.nullable(parse.object({
+		rulesets: parse.nullable(parseConnection(parse.object<RepositoryRulesetNode>({
+			name: parse.string,
+			target: parse.nullable(parse.string),
+			enforcement: parse.string,
+			rules: parse.nullable(parse.object({
+				totalCount: parse.nonNegativeInteger
+			})),
+			conditions: parse.nullable(parse.object({
+				refName: parse.nullable(parse.object({
+					include: parse.strings,
+					exclude: parse.strings
+				})),
+			})),
+		}))),
+	})),
+});
+
+const parseRepositoryAssignableUsersResponse = parse.object({
+	repository: parse.nullable(parse.object({
+		assignableUsers: parseConnection(parse.object<RepositoryAssignableUser>({
+			id: parse.nonEmptyString,
+			login: parse.nonEmptyString,
+			name: parse.nullable(parse.string),
+			email: parse.string,
+			avatarUrl: parse.string,
+		})),
+	})),
+});
+
+const parseRepositoryCommitAuthorResponse = parse.object({
+	repository: parse.nullable(parse.object({
+		object: parse.nullable(parse.object({
+			author: parse.optional(parse.nullable(parse.object<RepositoryCommitAuthor>({
+				name: parse.nullable(parse.string),
+				email: parse.nullable(parse.string),
+				avatarUrl: parse.string,
+				user: parse.nullable(parse.object({
+					id: parse.nonEmptyString,
+					login: parse.nonEmptyString
+				})),
+			}))),
+		})),
 	})),
 });

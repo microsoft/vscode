@@ -32,8 +32,12 @@ import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../../browser/e
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
 import { EditorExtensions, IEditorFactoryRegistry, IEditorSerializer } from '../../../../common/editor.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
+import { isPhoneLayout } from '../../../../browser/parts/sessions/mobileLayout.js';
+import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
+import { IsPhoneLayoutContext } from '../../../../common/contextkeys.js';
 import { SYNCED_CUSTOMIZATION_SCHEME } from '../../../../services/agentHost/common/agentHostFileSystemService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IWorkbenchExtensionManagementService } from '../../../../services/extensionManagement/common/extensionManagement.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { AICustomizationSources, getCustomizationMigrationHintDismissedStorageKey, IAICustomizationMarketplaceOpenTarget, IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
@@ -48,8 +52,10 @@ import { ICustomizationMigrationTelemetryService } from '../../common/promptSynt
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
 import { IChatWidgetService } from '../chat.js';
 import { AgentPluginItemKind } from '../agentPluginEditor/agentPluginItems.js';
+import { getPluginManagedByOrganizationMessage, isPluginRequiredByPolicy } from '../agentPluginActions.js';
 import {
 	AI_CUSTOMIZATION_ITEM_DISABLED_KEY,
+	AI_CUSTOMIZATION_ITEM_PLUGIN_REQUIRED_KEY,
 	AI_CUSTOMIZATION_ITEM_PLUGIN_URI_KEY,
 	AI_CUSTOMIZATION_ITEM_STORAGE_KEY,
 	AI_CUSTOMIZATION_ITEM_TYPE_KEY,
@@ -64,11 +70,14 @@ import {
 	AICustomizationSource,
 	DELETE_AI_CUSTOMIZATION_ID,
 	resolveAICustomizationManagementOpenEditorTarget,
+	assertAICustomizationManagementSupported,
 } from './aiCustomizationManagement.js';
 import { AICustomizationManagementEditor, CopilotConnectorDetailOpenResult } from './aiCustomizationManagementEditor.js';
 import { AICustomizationManagementEditorInput } from './aiCustomizationManagementEditorInput.js';
+import { CUSTOM_AGENT_HOOK_ITEM_KEY_PREFIX } from './aiCustomizationItemSource.js';
 import './customizationMarketplace.contribution.js';
 import './customizationMigrationAccessibility.js';
+import './chatCustomizations.contribution.js';
 import { CustomizationMigrationResultToolContribution } from './customizationMigrationResultTool.js';
 
 //#region Telemetry
@@ -105,7 +114,11 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 
 //#region Editor Serializer
 
-class AICustomizationManagementEditorInputSerializer implements IEditorSerializer {
+export class AICustomizationManagementEditorInputSerializer implements IEditorSerializer {
+
+	constructor(
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
+	) { }
 
 	canSerialize(editorInput: EditorInput): boolean {
 		return editorInput instanceof AICustomizationManagementEditorInput;
@@ -115,7 +128,10 @@ class AICustomizationManagementEditorInputSerializer implements IEditorSerialize
 		return '';
 	}
 
-	deserialize(instantiationService: IInstantiationService): AICustomizationManagementEditorInput {
+	deserialize(instantiationService: IInstantiationService): AICustomizationManagementEditorInput | undefined {
+		if (isPhoneLayout(this.layoutService)) {
+			return undefined;
+		}
 		return AICustomizationManagementEditorInput.getOrCreate();
 	}
 }
@@ -137,6 +153,7 @@ type AICustomizationContext = {
 	uri: URI | string;
 	name?: string;
 	promptType?: PromptsType;
+	source?: AICustomizationSource;
 	storage?: PromptsStorage;
 	skipMarketplaceUninstall?: boolean;
 	[key: string]: unknown;
@@ -165,7 +182,8 @@ function extractSource(context: AICustomizationContext): AICustomizationSource |
 	if (URI.isUri(context) || typeof context === 'string') {
 		return undefined;
 	}
-	return context.storage;
+	// The item list passes `source`; the discovery page passes `storage`.
+	return context.source ?? context.storage;
 }
 
 /**
@@ -337,7 +355,9 @@ registerAction2(class extends Action2 {
 		if (source === AICustomizationSources.plugin) {
 			const agentPluginService = accessor.get(IAgentPluginService);
 			const plugin = agentPluginService.plugins.get().find(p => isEqualOrParent(uri, p.uri));
-			if (plugin) {
+			if (plugin && isPluginRequiredByPolicy(plugin)) {
+				await dialogService.info(getPluginManagedByOrganizationMessage());
+			} else if (plugin) {
 				const result = await dialogService.confirm({
 					message: localize('cannotDeletePluginItem', "This item is provided by the plugin '{0}'", plugin.label),
 					detail: localize('cannotDeletePluginItemDetail', "Individual components from a plugin cannot be removed separately. Would you like to uninstall the entire plugin?"),
@@ -361,6 +381,13 @@ registerAction2(class extends Action2 {
 		}
 
 		// Confirm deletion
+		if (isHook && itemId?.startsWith(CUSTOM_AGENT_HOOK_ITEM_KEY_PREFIX)) {
+			await dialogService.info(
+				localize('cannotDeleteCustomAgentHook', "Cannot Delete Custom Agent Hook"),
+				localize('cannotDeleteCustomAgentHookDetail', "This hook is declared in the custom agent file '{0}'. Open the file and remove it from the 'hooks' header.", fileName)
+			);
+			return;
+		}
 		const hookInfo = isHook && itemId ? parseHookItemId(itemId) : undefined;
 		const hookName = typeof context !== 'string' && !URI.isUri(context) ? context.name : undefined;
 		const message = isSkill
@@ -574,6 +601,10 @@ registerAction2(class extends Action2 {
 		if (!plugin) {
 			return;
 		}
+		if (isPluginRequiredByPolicy(plugin)) {
+			await dialogService.info(getPluginManagedByOrganizationMessage());
+			return;
+		}
 
 		const result = await dialogService.confirm({
 			message: localize('confirmUninstallPlugin', "This item is provided by the plugin '{0}'", plugin.label),
@@ -587,30 +618,49 @@ registerAction2(class extends Action2 {
 	}
 });
 
+const WHEN_ITEM_PLUGIN_IS_REQUIRED = ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_PLUGIN_REQUIRED_KEY, true);
+
 MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
 	command: { id: UNINSTALL_PLUGIN_AI_CUSTOMIZATION_ID, title: localize('uninstallPlugin', "Uninstall Plugin"), icon: Codicon.trash },
 	group: 'inline',
 	order: 10,
-	when: WHEN_ITEM_IS_PLUGIN,
+	when: ContextKeyExpr.and(WHEN_ITEM_IS_PLUGIN, WHEN_ITEM_PLUGIN_IS_REQUIRED.negate()),
 });
 
 MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
 	command: { id: UNINSTALL_PLUGIN_AI_CUSTOMIZATION_ID, title: localize('uninstallPlugin', "Uninstall Plugin") },
 	group: '4_modify',
 	order: 1,
-	when: WHEN_ITEM_IS_PLUGIN,
+	when: ContextKeyExpr.and(WHEN_ITEM_IS_PLUGIN, WHEN_ITEM_PLUGIN_IS_REQUIRED.negate()),
+});
+
+// A plugin the organization requires keeps a visible, disabled Uninstall Plugin action that explains why.
+MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
+	command: { id: UNINSTALL_PLUGIN_AI_CUSTOMIZATION_ID, title: localize('uninstallPlugin', "Uninstall Plugin"), tooltip: getPluginManagedByOrganizationMessage(), icon: Codicon.trash, precondition: ContextKeyExpr.false() },
+	group: 'inline',
+	order: 10,
+	when: ContextKeyExpr.and(WHEN_ITEM_IS_PLUGIN, WHEN_ITEM_PLUGIN_IS_REQUIRED),
+});
+
+MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
+	command: { id: UNINSTALL_PLUGIN_AI_CUSTOMIZATION_ID, title: localize('uninstallPlugin', "Uninstall Plugin"), precondition: ContextKeyExpr.false() },
+	group: '4_modify',
+	order: 1,
+	when: ContextKeyExpr.and(WHEN_ITEM_IS_PLUGIN, WHEN_ITEM_PLUGIN_IS_REQUIRED),
 });
 
 // Show Plugin action - navigates to the parent plugin detail page
-const SHOW_PLUGIN_AI_CUSTOMIZATION_ID = 'aiCustomizationManagement.showPlugin';
+const SHOW_PLUGIN_AI_CUSTOMIZATION_ID = AICustomizationManagementCommands.ShowPlugin;
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: SHOW_PLUGIN_AI_CUSTOMIZATION_ID,
 			title: localize2('showPlugin', "Show Plugin"),
+			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, IsPhoneLayoutContext.negate()),
 		});
 	}
 	async run(accessor: ServicesAccessor, context: AICustomizationContext): Promise<void> {
+		assertAICustomizationManagementSupported(accessor.get(IWorkbenchLayoutService));
 		const agentPluginService = accessor.get(IAgentPluginService);
 		const editorService = accessor.get(IEditorService);
 
@@ -644,7 +694,7 @@ MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
 	command: { id: SHOW_PLUGIN_AI_CUSTOMIZATION_ID, title: localize('showPlugin', "Show Plugin") },
 	group: '1_open',
 	order: 2,
-	when: WHEN_ITEM_IS_PLUGIN,
+	when: ContextKeyExpr.and(WHEN_ITEM_IS_PLUGIN, ChatContextKeys.enabled, IsPhoneLayoutContext.negate()),
 });
 
 // Disable item action
@@ -754,17 +804,18 @@ registerAction2(class extends Action2 {
 			title: localize2('openAICustomizations', "Open Customizations"),
 			shortTitle: localize2('aiCustomizations', "Customizations"),
 			category: CHAT_CATEGORY,
-			precondition: ChatContextKeys.enabled,
+			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, IsPhoneLayoutContext.negate()),
 			f1: true,
 		});
 	}
 
 	async run(accessor: ServicesAccessor, target?: AICustomizationManagementOpenEditorTarget): Promise<void> {
+		assertAICustomizationManagementSupported(accessor.get(IWorkbenchLayoutService));
 		const editorService = accessor.get(IEditorService);
 		const chatWidgetService = accessor.get(IChatWidgetService);
 		const harnessService = accessor.get(ICustomizationHarnessService);
 		const widget = chatWidgetService.lastFocusedWidget;
-		const { section, revealUri, sessionResource, showDiscover, searchQuery, migration, migrationCategory, migrationHint } = resolveAICustomizationManagementOpenEditorTarget(
+		const { section, revealUri, sessionResource, hasExplicitSessionResource, showDiscover, searchQuery, migration, migrationCategory, migrationHint } = resolveAICustomizationManagementOpenEditorTarget(
 			target,
 			widget?.input.pendingDelegationTarget,
 			widget?.viewModel?.sessionResource,
@@ -778,18 +829,19 @@ registerAction2(class extends Action2 {
 		}
 
 		const input = AICustomizationManagementEditorInput.getOrCreate();
+		const workspaceService = accessor.get(IAICustomizationWorkspaceService);
+		workspaceService.setActiveSessionResource?.(hasExplicitSessionResource ? sessionResource : undefined);
+		const targetLabels = workspaceService.activeTargetLabels?.get();
 		input.setTargetLabels(
-			harnessService.getActiveDescriptor().label,
-			accessor.get(IAICustomizationWorkspaceService).activeProjectLabel.get(),
+			targetLabels?.harness ?? harnessService.getActiveDescriptor().label,
+			targetLabels?.workspace ?? workspaceService.activeProjectLabel.get(),
+			targetLabels?.environment,
 		);
 		const pane = await editorService.openEditor(input, { pinned: true });
 		if (migration && pane instanceof AICustomizationManagementEditor) {
 			await pane.startCustomizationMigration(migrationCategory, migrationHint?.migrationFlowId);
 		} else if (showDiscover && pane instanceof AICustomizationManagementEditor) {
-			pane.showWelcomePage();
-			if (searchQuery !== undefined) {
-				pane.setSearchQuery(searchQuery);
-			}
+			pane.showDiscover(searchQuery);
 		} else if (section && pane instanceof AICustomizationManagementEditor) {
 			if (pane.selectSectionById(section)) {
 				if (searchQuery !== undefined) {
@@ -805,7 +857,7 @@ registerAction2(class extends Action2 {
 
 //#region Actions
 
-class AICustomizationManagementActionsContribution extends Disposable implements IWorkbenchContribution {
+export class AICustomizationManagementActionsContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.aiCustomizationManagementActions';
 	private readonly chatCustomizationExtensionNotInstalledContext: IContextKey<boolean>;
@@ -871,26 +923,33 @@ class AICustomizationManagementActionsContribution extends Disposable implements
 					id: AICustomizationManagementCommands.OpenMarketplace,
 					title: localize2('openMarketplace', "Open Marketplace"),
 					category: CHAT_CATEGORY,
-					precondition: ChatContextKeys.enabled,
+					precondition: ContextKeyExpr.and(ChatContextKeys.enabled, IsPhoneLayoutContext.negate()),
 				});
 			}
 
 			async run(accessor: ServicesAccessor, target?: AICustomizationManagementSection | IAICustomizationMarketplaceOpenTarget): Promise<void> {
+				assertAICustomizationManagementSupported(accessor.get(IWorkbenchLayoutService));
+				if (accessor.get(IChatEntitlementService).sentiment.hidden) {
+					return;
+				}
 				const editorService = accessor.get(IEditorService);
 				const input = AICustomizationManagementEditorInput.getOrCreate();
-				const pane = await editorService.openEditor(input, { pinned: true });
+				const preserveFocus = typeof target !== 'string' && target?.preserveFocus;
+				const pane = await editorService.openEditor(input, { pinned: true, preserveFocus });
 				if (pane instanceof AICustomizationManagementEditor) {
 					const section = typeof target === 'string' ? target : target?.section ?? AICustomizationManagementSection.McpServers;
-					if (typeof target !== 'string' && target?.connectorName) {
+					if (typeof target !== 'string' && target?.mcpServer) {
+						await pane.showMcpMarketplaceDetail(target.mcpServer.name, target.mcpServer.registryUrl, preserveFocus);
+					} else if (typeof target !== 'string' && target?.connectorName) {
 						const result = await pane.showCopilotConnectorDetail(target.connectorName, target.connectorDisplayName);
 						if (result === CopilotConnectorDetailOpenResult.NotFound) {
 							throw new Error(`Copilot connector '${target.connectorDisplayName ?? target.connectorName}' is not available`);
 						}
 					} else {
 						const sourceId = typeof target === 'string' ? undefined : target?.sourceId;
-						pane.selectSectionById(section, { showMarketplace: true, marketplaceSourceId: sourceId });
+						pane.selectSectionById(section, { showMarketplace: true, marketplaceSourceId: sourceId, preserveFocus });
 						if (typeof target !== 'string' && target?.searchQuery !== undefined) {
-							pane.setSearchQuery(target.searchQuery);
+							pane.setSearchQuery(target.searchQuery, preserveFocus);
 						}
 					}
 				}
@@ -904,12 +963,13 @@ class AICustomizationManagementActionsContribution extends Disposable implements
 					id: AICustomizationManagementCommands.GenerateDebugReport,
 					title: localize2('generateDebugReport', "Generate Customization Debug Report"),
 					category: Categories.Developer,
-					precondition: ChatContextKeys.enabled,
+					precondition: ContextKeyExpr.and(ChatContextKeys.enabled, IsPhoneLayoutContext.negate()),
 					f1: true,
 				});
 			}
 
 			async run(accessor: ServicesAccessor): Promise<void> {
+				assertAICustomizationManagementSupported(accessor.get(IWorkbenchLayoutService));
 				const editorService = accessor.get(IEditorService);
 				// Open the customizations editor if not already open
 				const input = AICustomizationManagementEditorInput.getOrCreate();

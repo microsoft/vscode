@@ -16,12 +16,13 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ConfigurationTarget } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IContextKeyChangeEvent, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { USLayoutResolvedKeybinding } from '../../../../../platform/keybinding/common/usLayoutResolvedKeybinding.js';
 import { MockContextKeyService, MockKeybindingService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { INotificationService, NotificationMessage } from '../../../../../platform/notification/common/notification.js';
 import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { getIconRegistry } from '../../../../../platform/theme/common/iconRegistry.js';
 import { IWorkspaceContextService, WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
 import { EditorGroupWatermark } from '../../../../browser/parts/editor/editorGroupWatermark.js';
@@ -34,12 +35,18 @@ suite('EditorGroupWatermark', () => {
 	let configurationService: TestConfigurationService;
 	let instantiationService: ReturnType<typeof workbenchInstantiationService>;
 	let keybindings: Map<string, ResolvedKeybinding>;
+	let keybindingLookups: string[];
 	let keybindingsChanged: Emitter<void>;
 	let workbenchState: WorkbenchState;
 	let chatEnabled: boolean;
 	let executedCommands: string[];
 	let commandError: Error | undefined;
 	let notificationReceived: Emitter<NotificationMessage>;
+	let contextChanged: Emitter<IContextKeyChangeEvent>;
+
+	function changeContext(...keys: string[]): void {
+		contextChanged.fire({ affectsSome: affected => keys.some(key => affected.has(key)), allKeysContainedIn: () => false });
+	}
 
 	function keybinding(keyCode: KeyCode): ResolvedKeybinding {
 		return new USLayoutResolvedKeybinding([new KeyCodeChord(!isMacintosh, false, false, isMacintosh, keyCode)], OS);
@@ -60,7 +67,13 @@ suite('EditorGroupWatermark', () => {
 
 	function pressKey(target: HTMLElement, key: string, keyCode: number): void {
 		for (const type of [EventType.KEY_DOWN, EventType.KEY_UP]) {
-			target.dispatchEvent(new KeyboardEvent(type, { key, keyCode, bubbles: true, cancelable: true }));
+			const event = new KeyboardEvent(type, { key, code: key === ' ' ? 'Space' : key, bubbles: true, cancelable: true });
+			// StandardKeyboardEvent reads the legacy keyCode, which some constructors ignore.
+			Object.defineProperties(event, {
+				keyCode: { value: keyCode },
+				which: { value: keyCode },
+			});
+			target.dispatchEvent(event);
 		}
 	}
 
@@ -76,6 +89,7 @@ suite('EditorGroupWatermark', () => {
 			['workbench.action.showCommands', keybinding(KeyCode.KeyP)],
 			['workbench.action.openSettings', keybinding(KeyCode.Comma)],
 		]);
+		keybindingLookups = [];
 		workbenchState = WorkbenchState.FOLDER;
 		chatEnabled = true;
 		executedCommands = [];
@@ -98,9 +112,14 @@ suite('EditorGroupWatermark', () => {
 		});
 		instantiationService.stub(IKeybindingService, new class extends MockKeybindingService {
 			override get onDidUpdateKeybindings() { return keybindingsChanged.event; }
-			override lookupKeybinding(id: string) { return keybindings.get(id); }
+			override lookupKeybinding(id: string) {
+				keybindingLookups.push(id);
+				return keybindings.get(id);
+			}
 		});
+		contextChanged = disposables.add(new Emitter<IContextKeyChangeEvent>());
 		instantiationService.stub(IContextKeyService, new class extends MockContextKeyService {
+			override get onDidChangeContext() { return contextChanged.event; }
 			override contextMatchesRules() { return chatEnabled; }
 		});
 		instantiationService.stub(IWorkspaceContextService, new class extends TestContextService {
@@ -133,17 +152,19 @@ suite('EditorGroupWatermark', () => {
 		]);
 	});
 
-	test('uses consistent Chat and Settings glyphs and a command-picker glyph distinct from Terminal', () => {
+	test('uses expected default glyphs for watermark shortcuts', () => {
 		const registry = getIconRegistry();
 
 		assert.deepStrictEqual({
 			chat: registry.getIcon('watermark-chat')?.defaults,
 			commands: registry.getIcon('watermark-commands')?.defaults,
+			debug: registry.getIcon('watermark-debug')?.defaults,
 			settings: registry.getIcon('watermark-settings')?.defaults,
 			terminal: registry.getIcon('watermark-terminal')?.defaults,
 		}, {
 			chat: Codicon.chatSparkle,
 			commands: Codicon.listSelection,
+			debug: Codicon.run,
 			settings: Codicon.settings,
 			terminal: Codicon.terminal,
 		});
@@ -156,6 +177,29 @@ suite('EditorGroupWatermark', () => {
 		}
 
 		assert.deepStrictEqual(executedCommands, ['workbench.action.chat.open', 'workbench.action.showCommands', 'workbench.action.openSettings']);
+	});
+
+	test('renders each shortcut as a single interactive anchor without nested anchors', () => {
+		render();
+
+		assert.deepStrictEqual({
+			anchors: container.querySelectorAll('.watermark-box a').length,
+			nestedAnchors: container.querySelectorAll('.watermark-box a a').length,
+			actionLabels: [...container.querySelectorAll('.watermark-box .action-label')].map(label => label.matches('a.watermark-entry[role="button"]')),
+		}, {
+			anchors: 3,
+			nestedAnchors: 0,
+			actionLabels: [true, true, true],
+		});
+	});
+
+	test('clicking shortcut contents executes the command exactly once per click', () => {
+		render();
+		for (const selector of ['.watermark-icon', '.watermark-label', '.watermark-keybinding']) {
+			container.querySelector<HTMLElement>(`.watermark-entry ${selector}`)!.click();
+		}
+
+		assert.deepStrictEqual(executedCommands, Array(3).fill('workbench.action.chat.open'));
 	});
 
 	test('exposes accessible button labels and a keyboard-reachable toolbar', () => {
@@ -243,11 +287,59 @@ suite('EditorGroupWatermark', () => {
 		});
 	});
 
+	test('looks up each shortcut keybinding once per update', () => {
+		render();
+		keybindingLookups = [];
+		keybindingsChanged.fire();
+
+		assert.deepStrictEqual(keybindingLookups, [
+			'workbench.action.chat.open',
+			'workbench.action.showCommands',
+			'workbench.action.openSettings',
+		]);
+	});
+
 	test('keeps chat hidden when its context condition does not match', () => {
 		chatEnabled = false;
 		render();
 
 		assert.deepStrictEqual(rows().map(row => row.label), ['Show All Commands', 'Open Settings']);
+	});
+
+	test('hides and restores chat when its context condition changes after rendering', () => {
+		render();
+		chatEnabled = false;
+		changeContext('chatSetupHidden');
+		const disabledLabels = rows().map(row => row.label);
+		chatEnabled = true;
+		changeContext('chatSetupHidden');
+
+		assert.deepStrictEqual({ disabledLabels, enabledLabels: rows().map(row => row.label) }, {
+			disabledLabels: ['Show All Commands', 'Open Settings'],
+			enabledLabels: ['Open Chat', 'Show All Commands', 'Open Settings'],
+		});
+	});
+
+	test('drops chat cached from a previous session once its context condition no longer matches', () => {
+		instantiationService.get(IStorageService).store('editorGroupWatermark.whenConditions', JSON.stringify({ 'workbench.action.chat.open': true }), StorageScope.PROFILE, StorageTarget.MACHINE);
+		chatEnabled = false;
+		render();
+		const cachedLabels = rows().map(row => row.label);
+		changeContext('chatSetupDisabledInWorkspace');
+
+		assert.deepStrictEqual({ cachedLabels, labels: rows().map(row => row.label) }, {
+			cachedLabels: ['Open Chat', 'Show All Commands', 'Open Settings'],
+			labels: ['Show All Commands', 'Open Settings'],
+		});
+	});
+
+	test('does not re-render for context changes that keep the visible shortcuts unchanged', () => {
+		render();
+		const before = [...container.querySelectorAll('.watermark-entry')];
+		changeContext('someUnrelatedKey');
+		changeContext('chatSetupHidden');
+
+		assert.deepStrictEqual([...container.querySelectorAll('.watermark-entry')].map((row, index) => row === before[index]), [true, true, true]);
 	});
 
 	test('respects the tips setting when disabled and re-enabled', async () => {

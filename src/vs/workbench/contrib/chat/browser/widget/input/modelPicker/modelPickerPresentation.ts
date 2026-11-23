@@ -15,6 +15,18 @@ export function isAutoModel(model: ILanguageModelChatMetadataAndIdentifier): boo
 	return isAutoLanguageModel(model);
 }
 
+/** Whether the model is a model router, which picks the chat's model from the routes in its file. */
+export function isModelRouter(model: ILanguageModelChatMetadataAndIdentifier): boolean {
+	return model.metadata.modelRouterRoutes !== undefined;
+}
+
+export function isPendingLegacyAutoModel(model: ILanguageModelChatMetadataAndIdentifier | undefined, languageModelsService: ILanguageModelsService, liveCatalog?: readonly ILanguageModelChatMetadataAndIdentifier[]): boolean {
+	return !!model && isAutoModel(model) && !model.metadata.autoModelFusion
+		&& !isUserProvidedModel(model, languageModelsService)
+		&& !languageModelsService.getLanguageModelIds().includes(model.identifier)
+		&& !liveCatalog?.some(candidate => candidate.identifier === model.identifier);
+}
+
 /**
  * Whether the model is a Copilot CLI HydraFusion research preview (HydraFusion or HydraFusion Max).
  * Fusion offers them among its tiers; otherwise HydraFusion is a model of its own, with
@@ -22,6 +34,10 @@ export function isAutoModel(model: ILanguageModelChatMetadataAndIdentifier): boo
  */
 export function isHydraFusionModel(model: ILanguageModelChatMetadataAndIdentifier): boolean {
 	return model.metadata.modelGroup?.id === COPILOT_CLI_AGENT_PROVIDER_ID && isCopilotHydraFusionModelId(model.metadata.id);
+}
+
+export function isModelComparisonSupported(model: ILanguageModelChatMetadataAndIdentifier): boolean {
+	return !!model.metadata.autoModelFusion || !isAutoModel(model) && !isHydraFusionModel(model);
 }
 
 /** The label of a HydraFusion model as one of HydraFusion's own tiers, outside Fusion. */
@@ -46,17 +62,22 @@ export function getFusionTierLabel(auto: ILanguageModelChatMetadata | undefined,
 
 /**
  * The badge of a routing model at the given effort level. Copilot Fusion's names that
- * level's discount, else "Research preview", so it shows which levels a promotion covers.
+ * level's discount, if any, so it shows which levels a promotion covers.
  * Other routing models keep their own detail.
  */
 export function getRoutingModelBadge(metadata: ILanguageModelChatMetadata, tier: unknown): string | undefined {
 	if (!metadata.autoModelFusion) {
 		return metadata.detail;
 	}
-	const discountPercent = ILanguageModelChatMetadata.getAutoTierDiscountPercent(metadata, tier);
+	const discountPercent = getFusionDiscountPercent(metadata, tier);
 	return discountPercent !== undefined
 		? localize('chat.modelPicker.fusionTierDiscountBadge', "{0}% discount", discountPercent)
-		: localize('chat.modelPicker.fusionResearchPreviewBadge', "Research preview");
+		: undefined;
+}
+
+/** The discount Copilot Fusion offers at the given effort level, if any. Undefined for other models. */
+export function getFusionDiscountPercent(metadata: ILanguageModelChatMetadata, tier: unknown): number | undefined {
+	return metadata.autoModelFusion ? ILanguageModelChatMetadata.getAutoTierDiscountPercent(metadata, tier) : undefined;
 }
 
 /** Whether the plan offers built-in HydraFusion only as an upgrade, never as a choice. */

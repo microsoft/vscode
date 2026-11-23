@@ -6,12 +6,15 @@
 import { $, addDisposableListener, append, clearNode, EventType, getWindow } from '../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { Gesture, EventType as TouchEventType } from '../../../../../base/browser/touch.js';
+import { Button } from '../../../../../base/browser/ui/button/button.js';
+import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../nls.js';
 import { MIN_HOST_WIDTH } from './promptTimelineLayout.js';
-import { PromptDiffStat, PromptFileDiff, PromptTick, IPromptScrollLayout } from './promptTimelineModel.js';
+import { PromptDiffStat, PromptFileDiff, PromptTick, IPromptScrollLayout, promptTickEquals } from './promptTimelineModel.js';
 import { IPromptReviewFileEvent, IPromptTimelineRail } from './promptTimelineRail.js';
 import './media/promptTimeline.css';
 
@@ -24,6 +27,7 @@ import './media/promptTimeline.css';
 const MAX_REST_DOTS = 50;
 /** Never sample below this: two dots are the fewest that can still span the session's start and end. */
 const MIN_REST_DOTS = 2;
+const WHEEL_GESTURE_GAP_MS = 120;
 /**
  * Resting-dot geometry, mirrored from the `--prompt-timeline-gutter-*` variables in
  * `promptTimeline.css` so {@link restDotCount} can size the column without measuring it (which would
@@ -130,6 +134,11 @@ export class PromptTimelineGutterRail extends Disposable implements IPromptTimel
 	private _focusRow = 0;
 	/** Which of that row's two buttons holds it. */
 	private _focusColumn: RowColumn = 'jump';
+	private _loadOlder: (() => Promise<void>) | undefined;
+	private _loadingOlder: (() => Promise<void>) | undefined;
+	private _olderButton: Button | undefined;
+	private _loadingFromButton = false;
+	private _historyError: HTMLElement | undefined;
 
 	private readonly _onDidSelect = this._register(new Emitter<string>());
 	readonly onDidSelect: Event<string> = this._onDidSelect.event;
@@ -165,6 +174,33 @@ export class PromptTimelineGutterRail extends Disposable implements IPromptTimel
 
 		this._list = append(this._domNode, $('.prompt-timeline-gutter-panel'));
 		this._list.id = panelId;
+		this._register(addDisposableListener(this._list, EventType.SCROLL, () => {
+			if (this._loadOlder || this._loadingFromButton) {
+				this._updateOlderHistoryChevron();
+			}
+		}));
+		let lastWheelTime = -Infinity;
+		let pagedInGesture = false;
+		this._register(addDisposableListener(this._list, 'wheel', e => {
+			if (e.timeStamp - lastWheelTime > WHEEL_GESTURE_GAP_MS || e.deltaY > 0) {
+				pagedInGesture = false;
+			}
+			lastWheelTime = e.timeStamp;
+			if (!pagedInGesture && this._loadOlder && e.deltaY < 0 && !e.ctrlKey && !e.shiftKey && this._atHistoryStart()) {
+				pagedInGesture = true;
+				void this._requestOlder();
+			}
+		}));
+		let touchY: number | undefined;
+		this._register(addDisposableListener(this._list, 'touchstart', (e: TouchEvent) => {
+			touchY = e.touches.length === 1 ? e.touches[0].clientY : undefined;
+		}, { passive: true }));
+		this._register(addDisposableListener(this._list, 'touchmove', (e: TouchEvent) => {
+			if (touchY !== undefined && e.touches.length === 1 && e.touches[0].clientY > touchY && this._atHistoryStart()) {
+				touchY = undefined;
+				void this._requestOlder();
+			}
+		}, { passive: true }));
 
 		// Mouse: reveal while the pointer is over the rail subtree. The rail element is
 		// pointer-transparent (its children opt back in), so `mouseenter` never fires on it — bubble
@@ -202,6 +238,10 @@ export class PromptTimelineGutterRail extends Disposable implements IPromptTimel
 				event.preventDefault();
 				event.stopPropagation();
 				this._toggleOpen();
+			} else if (event.keyCode === KeyCode.UpArrow && this._open && this._rows.length === 0) {
+				event.preventDefault();
+				event.stopPropagation();
+				void this._requestOlder();
 			}
 		}));
 
@@ -234,6 +274,101 @@ export class PromptTimelineGutterRail extends Disposable implements IPromptTimel
 			this._open = true;
 			this._updateRevealed();
 			this._focusActiveRow();
+			if (!this._rows.length) {
+				void this._requestOlder();
+			}
+		}
+	}
+
+	setOlderHistoryLoader(loadOlder: (() => Promise<void>) | undefined): void {
+		if (this._loadOlder !== loadOlder) {
+			this._loadOlder = loadOlder;
+			if (loadOlder && !this._olderButton) {
+				this._olderButton = this._createOlderButton();
+			}
+			if (loadOlder && this._loadingOlder !== loadOlder) {
+				this._loadingFromButton = false;
+				this._setOlderButtonLoading(false);
+			}
+			this._historyError?.remove();
+			this._historyError = undefined;
+			this._rest.classList.toggle('has-older-prompts', !!loadOlder);
+			this._rest.ariaDescription = loadOlder ? localize('promptTimeline.gutter.olderPromptsHint', "Press Up Arrow on the first prompt to load earlier prompts.") : null;
+			this._updateOlderHistoryChevron();
+		}
+	}
+
+	private _createOlderButton(): Button {
+		const label = localize('promptTimeline.gutter.loadEarlier', "Load Earlier Prompts");
+		const button = this._register(new Button(this._list, { ariaLabel: label, title: label }));
+		button.element.classList.add('prompt-timeline-gutter-older');
+		this._list.prepend(button.element);
+		this._register(addDisposableListener(button.element, EventType.FOCUS, () => {
+			this._open = true;
+			this._updateRevealed();
+		}));
+		this._register(button.onDidClick(() => {
+			button.focus();
+			void this._requestOlder(true);
+		}));
+		this._register(button.onDidEscape(() => this._close()));
+		return button;
+	}
+
+	private _setOlderButtonLoading(loading: boolean): void {
+		const button = this._olderButton;
+		if (button) {
+			const icon = renderIcon(loading ? Codicon.ellipsis : Codicon.chevronUpCompact);
+			icon.ariaHidden = 'true';
+			button.element.replaceChildren(icon);
+			button.element.ariaBusy = String(loading);
+			button.enabled = !loading;
+		}
+	}
+
+	private _atHistoryStart(): boolean {
+		return this._list.scrollTop <= 1;
+	}
+
+	private _updateOlderHistoryChevron(): void {
+		// The final cursor can disappear before all the prompts from that page have been inserted.
+		const hasOlder = !!this._loadOlder || (this._loadingFromButton && !!this._olderButton?.hasFocus());
+		const show = hasOlder && this._atHistoryStart();
+		if (!show && this._olderButton?.hasFocus()) {
+			const target = hasOlder ? this._cell(this._focusRow, this._focusColumn) : this._rows[0]?.jump;
+			(target ?? this._rest).focus({ preventScroll: true });
+		}
+		this._list.classList.toggle('has-older-prompts', hasOlder);
+		this._list.classList.toggle('show-older-prompts-chevron', show);
+	}
+
+	private async _requestOlder(fromButton = false): Promise<void> {
+		const load = this._loadOlder;
+		if (!load || this._loadingOlder === load || (!this._open && !this._hovering)) {
+			return;
+		}
+		this._loadingOlder = load;
+		this._loadingFromButton = fromButton;
+		this._setOlderButtonLoading(true);
+		this._historyError?.remove();
+		this._historyError = undefined;
+		try {
+			await load();
+		} catch {
+			if (load === this._loadOlder && !this._store.isDisposed && (this._open || this._hovering)) {
+				this._historyError = $('span.prompt-timeline-gutter-error', { role: 'status' });
+				this._list.prepend(this._historyError);
+				this._historyError.textContent = localize('promptTimeline.gutter.historyError', "Could not load earlier prompts. Try again.");
+			}
+		} finally {
+			if (this._loadingOlder === load) {
+				this._loadingOlder = undefined;
+				this._loadingFromButton = false;
+				if (!this._store.isDisposed) {
+					this._setOlderButtonLoading(false);
+					this._updateOlderHistoryChevron();
+				}
+			}
 		}
 	}
 
@@ -383,8 +518,8 @@ export class PromptTimelineGutterRail extends Disposable implements IPromptTimel
 		if (!container) {
 			return;
 		}
-		const top = container.offsetTop;
-		const bottom = top + container.offsetHeight;
+		const top = index === 0 && this._loadOlder ? 0 : container.offsetTop;
+		const bottom = container.offsetTop + container.offsetHeight;
 		const viewTop = this._list.scrollTop;
 		const viewBottom = viewTop + this._list.clientHeight;
 		if (top < viewTop) {
@@ -401,6 +536,31 @@ export class PromptTimelineGutterRail extends Disposable implements IPromptTimel
 		if (this._railHeight <= 0) {
 			this._railHeight = this._domNode.clientHeight;
 		}
+		const start = this._rows.length && ticks.length > this._rows.length ? ticks.findIndex(t => t.requestId === this._rows[0].tick.requestId) : -1;
+		if (start >= 0 && this._rows.every((r, i) => r.tick.requestId === ticks[start + i]?.requestId)) {
+			const first = this._rows[0].container;
+			const showButtonPage = start > 0 && this._loadingFromButton && this._olderButton?.hasFocus() && this._atHistoryStart();
+			const preserveScroll = start > 0 && !showButtonPage && (this._open || this._hovering);
+			const relativeTop = preserveScroll ? first.offsetTop - this._list.scrollTop : 0;
+			this._setPreview(-1);
+			const prefix = ticks.slice(0, start).map(t => this._createRow(t));
+			if (prefix.length) {
+				first.before(...prefix.map(r => r.container));
+				this._rows.unshift(...prefix);
+				this._focusRow += start;
+			}
+			for (let i = this._rows.length; i < ticks.length; i++) {
+				const row = this._createRow(ticks[i]);
+				this._list.appendChild(row.container);
+				this._rows.push(row);
+			}
+			this._renderDots(ticks.length);
+			if (showButtonPage) {
+				this._list.scrollTop = 0;
+			} else if (preserveScroll) {
+				this._list.scrollTop = first.offsetTop - relativeTop;
+			}
+		}
 		const sameStructure = ticks.length === this._rows.length
 			&& ticks.every((t, i) => this._rows[i]?.tick.requestId === t.requestId);
 		if (sameStructure) {
@@ -409,7 +569,9 @@ export class PromptTimelineGutterRail extends Disposable implements IPromptTimel
 			const focusedCell = this._isLiveCell(doc.activeElement) ? doc.activeElement : undefined;
 			// Only the stats changed (streaming edits); update them in place so focus/hover are kept.
 			for (let i = 0; i < ticks.length; i++) {
-				this._renderRow(this._rows[i], ticks[i]);
+				if (!promptTickEquals(this._rows[i].tick, ticks[i])) {
+					this._renderRow(this._rows[i], ticks[i]);
+				}
 			}
 			// A prompt whose first edit just landed gains a diff button; re-apply the tab stops so it
 			// joins the roving order (and so a stop never lands on one that went away).
@@ -425,51 +587,52 @@ export class PromptTimelineGutterRail extends Disposable implements IPromptTimel
 		}
 
 		this._rowDisposables.clear();
+		for (const row of this._rows) {
+			row.container.remove();
+		}
 		this._rows.length = 0;
 		this._previewIndex = -1;
 		this._previewBand = -1;
-		clearNode(this._list);
 		// The resting dots preview how many prompts the flyout holds and where the transcript is.
 		this._renderDots(ticks.length);
 
 		for (const tick of ticks) {
-			// The row is a plain container, not a button: it holds two independent targets, and a
-			// button may not nest inside a button.
-			const container = append(this._list, $('.prompt-timeline-gutter-row'));
-			const jump = append(container, $<HTMLButtonElement>('button.prompt-timeline-gutter-row-jump'));
-			jump.tabIndex = -1;
-			const label = append(jump, $('span.prompt-timeline-gutter-row-label'));
-			const diff = append(container, $<HTMLButtonElement>('button.prompt-timeline-gutter-row-diff'));
-			diff.tabIndex = -1;
-			const stat = append(diff, $('span.prompt-timeline-gutter-row-stat'));
-			const entry: IRowEntry = { tick, container, jump, diff, label, stat };
-			this._renderRow(entry, tick);
-			const requestId = tick.requestId;
-			// Both targets collapse the disclosure so it does not linger over the transcript (a pointer
-			// still resting on the rail keeps it revealed, as hover always has). Jumping returns focus
-			// to the handle; reviewing leaves it alone, for the diff editor to take.
-			this._rowDisposables.add(addDisposableListener(jump, EventType.CLICK, () => {
-				this._onDidSelect.fire(requestId);
-				this._close();
-			}));
-			this._rowDisposables.add(addDisposableListener(diff, EventType.CLICK, () => {
-				this._onDidReview.fire(entry.tick);
-				this._close(/*restoreFocus*/ false);
-			}));
-			for (const [button, column] of [[jump, 'jump'], [diff, 'diff']] as const) {
-				this._rowDisposables.add(addDisposableListener(button, EventType.FOCUS, () => {
-					// Keyboard-focusing a row (e.g. Tab in from the handle) counts as opening the disclosure.
-					this._open = true;
-					this._updateRevealed();
-					this._updateTabStops(this._rows.indexOf(entry), column);
-				}));
-			}
+			const entry = this._createRow(tick);
+			this._list.appendChild(entry.container);
 			this._rows.push(entry);
 		}
 
 		const activeIndex = this._rows.findIndex(r => r.tick.requestId === this._activeRequestId);
 		this._updateTabStops(activeIndex >= 0 ? activeIndex : 0, 'jump');
 		this._updateActiveClasses();
+	}
+
+	private _createRow(tick: PromptTick): IRowEntry {
+		const container = $('.prompt-timeline-gutter-row');
+		const jump = append(container, $<HTMLButtonElement>('button.prompt-timeline-gutter-row-jump'));
+		jump.tabIndex = -1;
+		const label = append(jump, $('span.prompt-timeline-gutter-row-label'));
+		const diff = append(container, $<HTMLButtonElement>('button.prompt-timeline-gutter-row-diff'));
+		diff.tabIndex = -1;
+		const stat = append(diff, $('span.prompt-timeline-gutter-row-stat'));
+		const entry: IRowEntry = { tick, container, jump, diff, label, stat };
+		this._renderRow(entry, tick);
+		this._rowDisposables.add(addDisposableListener(jump, EventType.CLICK, () => {
+			this._onDidSelect.fire(entry.tick.requestId);
+			this._close();
+		}));
+		this._rowDisposables.add(addDisposableListener(diff, EventType.CLICK, () => {
+			this._onDidReview.fire(entry.tick);
+			this._close(/*restoreFocus*/ false);
+		}));
+		for (const [button, column] of [[jump, 'jump'], [diff, 'diff']] as const) {
+			this._rowDisposables.add(addDisposableListener(button, EventType.FOCUS, () => {
+				this._open = true;
+				this._updateRevealed();
+				this._updateTabStops(this._rows.indexOf(entry), column);
+			}));
+		}
+		return entry;
 	}
 
 	private _renderRow(entry: IRowEntry, tick: PromptTick): void {
@@ -541,6 +704,9 @@ export class PromptTimelineGutterRail extends Disposable implements IPromptTimel
 	private _focusCell(rowIndex: number, column: RowColumn): void {
 		this._updateTabStops(rowIndex, column);
 		this._cell(this._focusRow, this._focusColumn)?.focus();
+		if (this._loadOlder && this._focusRow === 0) {
+			this._list.scrollTop = 0;
+		}
 	}
 
 	/**
@@ -561,12 +727,28 @@ export class PromptTimelineGutterRail extends Disposable implements IPromptTimel
 		}
 		const activeElement = getWindow(this._domNode).document.activeElement;
 		const currentIndex = this._rows.findIndex(r => r.jump === activeElement || r.diff === activeElement);
+		if (event.keyCode === KeyCode.Enter) {
+			// Activate the row button here: unhandled, Enter reaches workbench keybindings scoped to the
+			// chat widget (e.g. editing requests), which consume it before the button's native click.
+			if (currentIndex !== -1) {
+				event.preventDefault();
+				event.stopPropagation();
+				const row = this._rows[currentIndex];
+				(row.jump === activeElement ? row.jump : row.diff).click();
+			}
+			return;
+		}
 		const currentColumn: RowColumn = this._rows[currentIndex]?.diff === activeElement ? 'diff' : 'jump';
 		let nextIndex = currentIndex;
 		let nextColumn = currentColumn;
 		switch (event.keyCode) {
 			case KeyCode.DownArrow: nextIndex = Math.min(this._rows.length - 1, currentIndex + 1); break;
-			case KeyCode.UpArrow: nextIndex = Math.max(0, currentIndex - 1); break;
+			case KeyCode.UpArrow:
+				if (currentIndex === 0) {
+					void this._requestOlder();
+				}
+				nextIndex = Math.max(0, currentIndex - 1);
+				break;
 			case KeyCode.Home: nextIndex = 0; break;
 			case KeyCode.End: nextIndex = this._rows.length - 1; break;
 			case KeyCode.RightArrow: nextColumn = 'diff'; break;

@@ -206,13 +206,13 @@ export function stableStringify(value: unknown): string {
 		return 'undefined';
 	}
 	try {
-		return _stableStringify(value, new WeakSet());
+		return _stableStringify(value, new Set());
 	} catch {
 		return '';
 	}
 }
 
-function _stableStringify(value: unknown, seen: WeakSet<object>): string {
+function _stableStringify(value: unknown, seen: Set<object>): string {
 	if (value === null || typeof value !== 'object') {
 		return JSON.stringify(value) ?? 'null';
 	}

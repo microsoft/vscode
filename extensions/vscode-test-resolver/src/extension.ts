@@ -24,6 +24,11 @@ let outputChannel: vscode.OutputChannel;
 
 const SLOWED_DOWN_CONNECTION_DELAY = 800;
 const agentHostBridgeConnectionTokenEnvironmentVariable = 'VSCODE_AGENT_HOST_BRIDGE_CONNECTION_TOKEN';
+/**
+ * A shell command that starts a Linux server in WSL with its own data and log directories, to which the resolver appends
+ * its server arguments. When set on Windows, the resolver also resolves `wsl+<distribution>` authorities with it.
+ */
+const wslServerCommandEnvironmentVariable = 'TESTRESOLVER_WSL_SERVER_COMMAND';
 
 function isExpectedSocketCloseError(error: NodeJS.ErrnoException): boolean {
 	return error.code === 'ECONNRESET' || error.code === 'EPIPE' || error.code === 'ECONNABORTED';
@@ -90,6 +95,7 @@ export function activate(context: vscode.ExtensionContext) {
 			throw vscode.RemoteAuthorityResolverError.TemporarilyNotAvailable('Not available right now');
 		}
 		const connectionToken = String(crypto.randomInt(0xffffffffff));
+		const wslDistribution = authority.startsWith('wsl+') ? authority.substring('wsl+'.length) : undefined;
 
 		// eslint-disable-next-line no-async-promise-executor
 		const serverPromise = new Promise<vscode.ResolvedAuthority>(async (res, rej) => {
@@ -120,7 +126,13 @@ export function activate(context: vscode.ExtensionContext) {
 						const match = lastProgressLine.match(/Extension host agent listening on (\d+)/);
 						if (match) {
 							isResolved = true;
-							res(new vscode.ResolvedAuthority('127.0.0.1', parseInt(match[1], 10), connectionToken)); // success!
+							const port = parseInt(match[1], 10);
+							if (wslDistribution) {
+								// WSL forwards a new Linux listener to the Windows localhost only after a moment.
+								waitForLocalPort(port).then(() => res(new vscode.ResolvedAuthority('127.0.0.1', port, connectionToken)), rej);
+							} else {
+								res(new vscode.ResolvedAuthority('127.0.0.1', port, connectionToken)); // success!
+							}
 						}
 						lastProgressLine = '';
 					} else if (chr === CharCode.Backspace) {
@@ -151,15 +163,18 @@ export function activate(context: vscode.ExtensionContext) {
 			const env = getNewEnv();
 			const remoteDataDir = process.env['TESTRESOLVER_DATA_FOLDER'] || path.join(os.homedir(), `${serverDataFolderName || dataFolderName}-testresolver`);
 			const logsDir = process.env['TESTRESOLVER_LOGS_FOLDER'];
-			if (logsDir) {
+			// The WSL server command sets the Linux data and log directories.
+			if (logsDir && !wslDistribution) {
 				commandArgs.push('--logsPath', logsDir);
 			}
 			const logLevel = process.env['TESTRESOLVER_LOG_LEVEL'];
 			if (logLevel) {
 				commandArgs.push('--log', logLevel);
 			}
-			outputChannel.appendLine(`Using data folder at ${remoteDataDir}`);
-			commandArgs.push('--server-data-dir', remoteDataDir);
+			if (!wslDistribution) {
+				outputChannel.appendLine(`Using data folder at ${remoteDataDir}`);
+				commandArgs.push('--server-data-dir', remoteDataDir);
+			}
 
 			commandArgs.push('--connection-token', connectionToken);
 
@@ -194,7 +209,11 @@ export function activate(context: vscode.ExtensionContext) {
 				env[agentHostBridgeConnectionTokenEnvironmentVariable] = agentHostBridgeToken;
 			}
 
-			if (!commit) { // dev mode
+			if (wslDistribution) {
+				const wsl = path.join(process.env['SystemRoot'] ?? 'C:\\Windows', 'System32', 'wsl.exe');
+				outputChannel.appendLine(`Launching server in WSL ${wslDistribution}: ${commandArgs.join(' ')}`);
+				extHostProcess = cp.spawn(wsl, ['--distribution', wslDistribution, '--exec', 'sh', '-c', `${process.env[wslServerCommandEnvironmentVariable]} "$@"`, 'sh', ...commandArgs], { env });
+			} else if (!commit) { // dev mode
 				const serverCommand = process.platform === 'win32' ? 'code-server.bat' : 'code-server.sh';
 				const vscodePath = path.resolve(path.join(context.extensionPath, '..', '..'));
 				const serverCommandPath = path.join(vscodePath, 'scripts', serverCommand);
@@ -373,25 +392,35 @@ export function activate(context: vscode.ExtensionContext) {
 		});
 	}
 
+	const resolve = (authority: string): Thenable<vscode.ResolverResult> => {
+		return vscode.window.withProgress({
+			location: vscode.ProgressLocation.Notification,
+			title: 'Open TestResolver Remote ([details](command:vscode-testresolver.showLog))',
+			cancellable: false
+		}, async (progress) => {
+			const rr = await doResolve(authority, progress);
+			rr.tunnelFeatures = getTunnelFeatures();
+			return rr;
+		});
+	};
+
 	const authorityResolverDisposable = vscode.workspace.registerRemoteAuthorityResolver('test', {
 		async getCanonicalURI(uri: vscode.Uri): Promise<vscode.Uri> {
 			return vscode.Uri.file(uri.path);
 		},
-		resolve(_authority: string): Thenable<vscode.ResolverResult> {
-			return vscode.window.withProgress({
-				location: vscode.ProgressLocation.Notification,
-				title: 'Open TestResolver Remote ([details](command:vscode-testresolver.showLog))',
-				cancellable: false
-			}, async (progress) => {
-				const rr = await doResolve(_authority, progress);
-				rr.tunnelFeatures = getTunnelFeatures();
-				return rr;
-			});
-		},
+		resolve,
 		tunnelFactory,
 		showCandidatePort
 	});
 	context.subscriptions.push(authorityResolverDisposable);
+
+	if (process.platform === 'win32' && process.env[wslServerCommandEnvironmentVariable]) {
+		context.subscriptions.push(vscode.workspace.registerRemoteAuthorityResolver('wsl', {
+			resolve,
+			tunnelFactory,
+			showCandidatePort
+		}));
+	}
 
 	context.subscriptions.push(vscode.commands.registerCommand('vscode-testresolver.newWindow', () => {
 		return vscode.commands.executeCommand('vscode.newWindow', { remoteAuthority: 'test+test' });
@@ -543,6 +572,22 @@ function sleep(ms: number): Promise<void> {
 	return new Promise(resolve => {
 		setTimeout(resolve, ms);
 	});
+}
+
+async function waitForLocalPort(port: number): Promise<void> {
+	const deadline = Date.now() + 30_000;
+	while (!await new Promise<boolean>(resolve => {
+		const socket = net.createConnection({ host: '127.0.0.1', port }, () => {
+			socket.destroy();
+			resolve(true);
+		});
+		socket.on('error', () => resolve(false));
+	})) {
+		if (Date.now() > deadline) {
+			throw vscode.RemoteAuthorityResolverError.NotAvailable(`Port ${port} is not reachable on 127.0.0.1`, true);
+		}
+		await sleep(250);
+	}
 }
 
 function getConfiguration<T>(id: string): T | undefined {

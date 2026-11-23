@@ -21,30 +21,27 @@ export function computeDiffCounts(originalText: string, modifiedText: string, ti
 		maxComputationTimeMs: timeoutMs,
 		computeMoves: false,
 	};
-	const result = diffComputer.computeDiff(originalLines, modifiedLines, options);
+	const result = diffComputer.computeDiffWithRawChanges(originalLines, modifiedLines, options);
 
 	let added = 0;
 	let removed = 0;
-	for (const change of result.changes) {
+	for (const change of result.diff.changes) {
 		removed += change.original.length;
 		added += change.modified.length;
 	}
 
 	const originalLineStarts = getLineStarts(originalText);
 	const modifiedLineStarts = getLineStarts(modifiedText);
-	const toChanges = (diff: typeof result) => diff.changes.flatMap(change => {
-		const rangeMappings = change.innerChanges ?? [change.toRangeMapping2(originalLines, modifiedLines)];
-		return rangeMappings.map(mapping => ({
-			startOffset: getOffset(mapping.originalRange, originalLineStarts, false),
-			endOffsetExclusive: getOffset(mapping.originalRange, originalLineStarts, true),
-			newText: modifiedText.substring(
-				getOffset(mapping.modifiedRange, modifiedLineStarts, false),
-				getOffset(mapping.modifiedRange, modifiedLineStarts, true),
-			),
-		}));
-	});
+	const toChanges = (diff: typeof result) => diff.rawChanges.map(mapping => ({
+		startOffset: getOffset(mapping.originalRange, originalLineStarts, false),
+		endOffsetExclusive: getOffset(mapping.originalRange, originalLineStarts, true),
+		newText: modifiedText.substring(
+			getOffset(mapping.modifiedRange, modifiedLineStarts, false),
+			getOffset(mapping.modifiedRange, modifiedLineStarts, true),
+		),
+	}));
 	let changes = toChanges(result);
-	let hitTimeout = result.hitTimeout;
+	let hitTimeout = result.diff.hitTimeout;
 	let offset = 0;
 	const reconstructed: string[] = [];
 	for (const change of changes) {
@@ -54,13 +51,13 @@ export function computeDiffCounts(originalText: string, modifiedText: string, ti
 	reconstructed.push(originalText.substring(offset));
 	if (reconstructed.join('') !== modifiedText) {
 		// Only repeat the diff when whitespace ignored by the line counts is needed for attribution.
-		const characterResult = diffComputer.computeDiff(originalLines, modifiedLines, {
+		const characterResult = diffComputer.computeDiffWithRawChanges(originalLines, modifiedLines, {
 			...options,
 			ignoreTrimWhitespace: false,
 			maxComputationTimeMs: timeoutMs === 0 ? 0 : Math.max(1, timeoutMs - stopwatch.elapsed()),
 		});
 		changes = toChanges(characterResult);
-		hitTimeout = characterResult.hitTimeout;
+		hitTimeout = characterResult.diff.hitTimeout;
 	}
 	return { added, removed, changes, hitTimeout };
 }

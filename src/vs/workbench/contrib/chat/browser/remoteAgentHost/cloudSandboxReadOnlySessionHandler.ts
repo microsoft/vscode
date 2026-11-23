@@ -7,7 +7,7 @@
 
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { constObservable, IObservable } from '../../../../../base/common/observable.js';
@@ -18,10 +18,12 @@ import { getAgentHostChatId } from '../../../../../platform/agentHost/common/age
 import { ICloudSandboxApiService, isCloudSandboxPlaceholderTitle } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { ChatState } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IReplayedSession, IReplayedTaskHistory } from '../../../../../platform/agentHost/common/taskEventReplay.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { activeTurnToProgress, messageToRequestOrigin, messageToVariableData, rewriteAgentHostLinkTarget, turnsToHistory } from '../agentSessions/agentHost/stateToProgressAdapter.js';
+import { resolveAgentHostToolResultImage } from '../agentSessions/agentHost/agentHostToolResultImages.js';
 import { IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem } from '../../common/chatSessionsService.js';
-import { CHAT_SUBAGENT_RESOURCE_QUERY_PARAM } from '../../common/constants.js';
+import { CHAT_SUBAGENT_RESOURCE_QUERY_PARAM, ChatConfiguration } from '../../common/constants.js';
 
 const LOG_PREFIX = '[CloudSandboxReadOnly]';
 
@@ -30,6 +32,7 @@ export interface ICloudSandboxReadOnlyConfig {
 	readonly taskId: string;
 	/** Resolve the owning task when several sessions share this environment's provider. */
 	readonly getTaskId?: (resource: URI) => string | undefined;
+	readonly getSessionId?: (resource: URI) => string | undefined;
 	/** Chat participant id. Matches the live handler, where `agentId === sessionType`. */
 	readonly agentId: string;
 	/** Sanitized agent-host authority used to rewrite resource URIs in history. */
@@ -50,8 +53,13 @@ export class ReadOnlyChatSession extends Disposable implements IChatSession {
 		readonly history: readonly IChatSessionHistoryItem[],
 		readonly title: string | undefined,
 		readonly isReadOnly: IObservable<boolean>,
+		onDispose?: () => void,
+		readonly olderHistoryUnavailable?: IObservable<boolean>,
 	) {
 		super();
+		if (onDispose) {
+			this._register(toDisposable(onDispose));
+		}
 	}
 
 	override dispose(): void {
@@ -64,14 +72,16 @@ export class ReadOnlyChatSession extends Disposable implements IChatSession {
 export class CloudSandboxReadOnlySessionHandler extends Disposable implements IChatSessionContentProvider {
 
 	private readonly _isReadOnly = constObservable(true);
-	private readonly _workingDirectories = new ResourceMap<URI | undefined>();
+	private readonly _chatContexts = new ResourceMap<{ chat: ChatState | undefined; directory: URI | undefined }>();
 
 	constructor(
 		private readonly _config: ICloudSandboxReadOnlyConfig,
 		@ICloudSandboxApiService private readonly _apiService: ICloudSandboxApiService,
 		@ILogService private readonly _logService: ILogService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
+		this._register(toDisposable(() => this._chatContexts.clear()));
 	}
 
 	async provideChatSessionContent(sessionResource: URI, token: CancellationToken, diagnosticId?: string, onCachedSession?: (session: IChatSession) => void, hasHistory = false): Promise<IChatSession> {
@@ -99,7 +109,8 @@ export class CloudSandboxReadOnlySessionHandler extends Disposable implements IC
 	}
 
 	private _findSession(resource: URI, history: IReplayedTaskHistory | undefined): IReplayedSession | undefined {
-		return history?.sessions.find(session => AgentSession.id(URI.parse(session.session)) === AgentSession.id(resource));
+		const sessionId = this._config.getSessionId?.(resource) ?? AgentSession.id(resource);
+		return history?.sessions.find(session => AgentSession.id(URI.parse(session.session)) === sessionId);
 	}
 
 	private _getChatResource(resource: URI, session: IReplayedSession): string | undefined {
@@ -124,6 +135,7 @@ export class CloudSandboxReadOnlySessionHandler extends Disposable implements IC
 			throw new Error(localize('cloudSandbox.incompleteHistoryRefresh', "The latest recorded conversation is unavailable or incomplete."));
 		}
 		if (!session) {
+			this._chatContexts.delete(sessionResource);
 			// A newly created task may not have recorded a conversation yet.
 			this._logService.warn(`${LOG_PREFIX} No persisted history for session ${sessionId} in task ${taskId} (replayed sessions: [${replayed?.sessions.map(s => s.session).join(', ') ?? 'none'}]); opening an empty read-only session.`);
 			return new ReadOnlyChatSession(sessionResource, [], undefined, this._isReadOnly);
@@ -134,9 +146,11 @@ export class CloudSandboxReadOnlySessionHandler extends Disposable implements IC
 			throw new Error(localize('cloudSandbox.chatHistoryMissing', "Recorded history for this conversation is unavailable."));
 		}
 		const directory = (chat?.workingDirectories ?? session.state.workingDirectories)?.[0];
-		this._workingDirectories.set(sessionResource, directory ? URI.parse(directory) : undefined);
+		const context = { chat, directory: directory ? URI.parse(directory) : undefined };
+		this._chatContexts.set(sessionResource, context);
+		const showHookFailures = this._configurationService.getValue<boolean>(ChatConfiguration.HooksShowWarnings) === true;
 		const history: IChatSessionHistoryItem[] = chat
-			? turnsToHistory(URI.parse(session.session), chat.turns, this._config.agentId, this._config.connectionAuthority)
+			? turnsToHistory(URI.parse(session.session), chat.turns, this._config.agentId, this._config.connectionAuthority, undefined, undefined, undefined, undefined, undefined, undefined, undefined, showHookFailures)
 			: [];
 
 		// Recorded active turns remain settled until a live snapshot can resume them.
@@ -157,6 +171,8 @@ export class CloudSandboxReadOnlySessionHandler extends Disposable implements IC
 					active,
 					this._config.connectionAuthority,
 					sessionResource.authority,
+					undefined, undefined, undefined, undefined, undefined,
+					showHookFailures,
 				),
 				participant: this._config.agentId,
 			});
@@ -179,12 +195,20 @@ export class CloudSandboxReadOnlySessionHandler extends Disposable implements IC
 		}
 
 		this._logService.info(`${LOG_PREFIX} Opened ${sessionResource.toString()} read-only with ${history.length} history item(s) from ${chat?.turns.length ?? 0} turn(s); chats=[${[...session.chats.keys()].join(', ')}], default=${session.defaultChat}.`);
-		const title = session.state.chats.find(summary => summary.resource === chatResource)?.title
-			|| (chatResource === session.defaultChat ? session.state.title : undefined);
-		return new ReadOnlyChatSession(sessionResource, history, title && !isCloudSandboxPlaceholderTitle(title, sessionResource) ? title : undefined, this._isReadOnly);
+		const title = chatResource === session.defaultChat
+			? session.state.title
+			: session.state.chats.find(summary => summary.resource === chatResource)?.title;
+		return new ReadOnlyChatSession(sessionResource, history, title && !isCloudSandboxPlaceholderTitle(title, sessionResource) ? title : undefined, this._isReadOnly, () => {
+			if (this._chatContexts.get(sessionResource) === context) {
+				this._chatContexts.delete(sessionResource);
+			}
+		}, constObservable(!!replayed?.truncated || chat?.turnsNextCursor !== undefined));
 	}
 
 	resolveChatResponseUri(resource: URI, href: string, kind: 'link' | 'image'): string {
-		return rewriteAgentHostLinkTarget(href, this._config.connectionAuthority, undefined, kind === 'image' ? this._workingDirectories.get(resource) : undefined);
+		const context = this._chatContexts.get(resource);
+		const resolve = (target: string) => rewriteAgentHostLinkTarget(target, this._config.connectionAuthority, undefined, kind === 'image' || kind === 'link' ? context?.directory : undefined);
+		const resolved = resolve(href);
+		return (kind === 'image' ? resolveAgentHostToolResultImage(context?.chat, resolved, resolve) : undefined) ?? resolved;
 	}
 }

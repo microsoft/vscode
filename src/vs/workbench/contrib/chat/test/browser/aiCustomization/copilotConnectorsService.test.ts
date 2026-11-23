@@ -4,36 +4,39 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { SinonSpy, spy } from 'sinon';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { IDefaultAccount } from '../../../../../../base/common/defaultAccount.js';
 import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter } from '../../../../../../base/common/event.js';
-import { DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/virtualScheduling/index.js';
-import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IConfigurationChangeEvent } from '../../../../../../platform/configuration/common/configuration.js';
-import { AccountClient } from '../../../../../../platform/github/common/account/accountClient.js';
-import { IGitHubAccountClient } from '../../../../../../platform/github/common/account/account.js';
-import { GitHubService } from '../../../../../../platform/github/common/githubService.js';
-import { GitHubAuthorizationContext, GitHubCredentialChange, GitHubRequestError } from '../../../../../../platform/github/common/githubTypes.js';
-import { ConnectorCatalog, ConnectorPlugin } from '../../../../../../platform/github/common/connectors/connectors.js';
-import { createConnectorPlugin } from '../../../../../../platform/github/test/common/connectorsFixtures.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { CustomizationMarketplaceMediaType } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import { IApiRequestProvider } from '../../../../../../platform/github/common/client/request.js';
 import { CustomizationMarketplaceConfiguration } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
+import { IGitHubAccountClient } from '../../../../../../platform/github/common/account/account.js';
+import { AccountClient } from '../../../../../../platform/github/common/account/accountClient.js';
+import { ConnectorCatalog, ConnectorPlugin } from '../../../../../../platform/github/common/connectors/connectors.js';
+import { GitHubService } from '../../../../../../platform/github/common/githubService.js';
+import { GitHubAuthorizationContext, GitHubCredentialChange, GitHubRequestError } from '../../../../../../platform/github/common/githubTypes.js';
+import { createConnectorPlugin } from '../../../../../../platform/github/test/common/connectorsFixtures.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import product from '../../../../../../platform/product/common/product.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
-import { NullTelemetryService, NullTelemetryServiceShape } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
+import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
+import { TestDataTelemetryService } from '../../../../../../platform/telemetry/test/common/testTelemetryService.js';
 import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
-import { IWorkbenchGitHubService } from '../../../../../services/github/common/githubService.js';
+import { IWorkbenchGitHubService, toGitHubAuthorizationContext } from '../../../../../services/github/common/githubService.js';
 import { CopilotConnectorsMarketplaceProvider, CopilotConnectorsService } from '../../../browser/aiCustomization/copilotConnectorsService.js';
-import { CustomizationMarketplaceMediaType } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 
 function catalogResponse(
 	status: ConnectorPlugin['connection']['status'],
@@ -64,22 +67,12 @@ function catalogResponse(
 	};
 }
 
-class TestTelemetryService extends NullTelemetryServiceShape {
-	readonly events: { readonly name: string; readonly data: Record<string, unknown> }[] = [];
-
-	override publicLog2(eventName?: string, data?: Record<string, unknown>): void {
-		if (eventName && data) {
-			this.events.push({ name: eventName, data });
-		}
-	}
-}
-
 suite('CopilotConnectorsService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createFixture(responses: Array<{ readonly status?: number; readonly body?: unknown; readonly ready?: Promise<void>; readonly headers?: Record<string, string> }>, enabled = true, enterprise = false) {
-		const requestLifetime = store.add(new DisposableStore());
+	function createFixture(responses: Array<{ readonly status?: number; readonly body?: unknown; readonly ready?: Promise<void> | (() => Promise<void>); readonly headers?: Record<string, string> }>, enabled = true, enterprise = false) {
 		const requests: Array<{ readonly type: string | undefined; readonly url: string; readonly data: string | undefined }> = [];
+		const requestSpies = new Map<IApiRequestProvider, SinonSpy<Parameters<IApiRequestProvider['request']>, ReturnType<IApiRequestProvider['request']>>>();
 		const requestTokens: CancellationToken[] = [];
 		const authorizationHeaders: (string | undefined)[] = [];
 		const validators: (string | null)[] = [];
@@ -96,7 +89,7 @@ suite('CopilotConnectorsService', () => {
 		const accountChanged = store.add(new Emitter<IDefaultAccount | null>());
 		const sessionsChanged = store.add(new Emitter<{ providerId: string; label: string; event: AuthenticationSessionsChangeEvent }>());
 		const initialSession: AuthenticationSession = {
-			id: 'session', accessToken: 'test-token', account: { id: 'account', label: 'octocat' }, scopes: ['read:user', 'write:plugin_gateway_connections'],
+			id: 'session', accessToken: 'test-token', account: { id: 'account', label: 'octocat' }, scopes: ['read:user', 'user:email', 'write:plugin_gateway_connections'],
 		};
 		let sessions = [initialSession];
 		const defaultAccountService = new class extends mock<IDefaultAccountService>() {
@@ -164,25 +157,25 @@ suite('CopilotConnectorsService', () => {
 				return true;
 			}
 		}();
-		const telemetryService = new TestTelemetryService();
+		const telemetryService = new TestDataTelemetryService();
 		const grants: GitHubAuthorizationContext[] = [];
 		const leases = { acquired: 0, released: 0 };
 		const invalidatedGrants = store.add(new Emitter<GitHubCredentialChange>());
 		const engine = store.add(new GitHubService({
 			connectorsApiBaseUri: productService.defaultChatAgent.mcpConnectorsUrl,
-			fetch: async (input, options) => {
+			fetch: async (input, options, fetchToken) => {
 				const url = String(input);
 				if (url === 'https://api.github.com/user') {
 					return Response.json({ id: 101 });
 				}
-				assert.ok(options?.signal);
+				assert.ok(options);
 				requests.push({ type: options.method, url, data: typeof options.body === 'string' ? options.body : undefined });
-				requestTokens.push(CancellationToken.fromAbortSignal(options.signal, requestLifetime));
+				requestTokens.push(fetchToken);
 				authorizationHeaders.push(new Headers(options.headers).get('Authorization') ?? undefined);
 				validators.push(new Headers(options.headers).get('If-None-Match'));
 				const response = responses.shift() ?? {};
 				if (response.ready) {
-					await response.ready;
+					await (typeof response.ready === 'function' ? response.ready() : response.ready);
 				}
 				const body = response.body === undefined ? '' : JSON.stringify(response.body);
 				return new Response(response.status === 204 || response.status === 304 ? null : body, { status: response.status ?? 200, headers: response.headers });
@@ -193,8 +186,11 @@ suite('CopilotConnectorsService', () => {
 			getToken: context => sessions.find(session => session.id === context.sessionId && session.account.id === context.accountId)?.accessToken,
 		}));
 		const gitHubService = new class extends mock<IWorkbenchGitHubService>() {
-			override async acquireAccountApiClient(authorization: GitHubAuthorizationContext, signal: AbortSignal): Promise<IGitHubAccountClient> {
-				signal.throwIfAborted();
+			override async acquireAccountApiClient(...args: Parameters<IWorkbenchGitHubService['acquireAccountApiClient']>): Promise<IGitHubAccountClient> {
+				assert.ok(args.length === 3);
+				const [providerId, session, cancellationToken] = args;
+				const authorization = toGitHubAuthorizationContext(providerId, session);
+				CancellationToken.throwIfCanceled(cancellationToken);
 				grants.push(authorization);
 				if (!sessions.some(session => session.id === authorization.sessionId && session.account.id === authorization.accountId)) {
 					throw new GitHubRequestError('The selected session is unavailable', 'authentication');
@@ -202,6 +198,12 @@ suite('CopilotConnectorsService', () => {
 				const reference = scope.acquireClient({
 					authorization, apiBaseUri: 'https://api.github.com', graphQlUri: 'https://api.github.com/graphql',
 				});
+				const provider = reference.object.connectors!;
+				if (!requestSpies.has(provider)) {
+					const requestSpy = spy(provider, 'request');
+					store.add(toDisposable(() => requestSpy.restore()));
+					requestSpies.set(provider, requestSpy);
+				}
 				leases.acquired++;
 				return new AccountClient(authorization, reference.object, toDisposable(() => { reference.dispose(); leases.released++; }));
 			}
@@ -219,6 +221,7 @@ suite('CopilotConnectorsService', () => {
 		));
 		return {
 			service, requests, requestTokens, authorizationHeaders, opened, configurationService, authenticationCalls, consentCalls, signInCalls, authenticationService, defaultAccountService,
+			get apiRequests() { return [...requestSpies.values()].flatMap(requestSpy => requestSpy.getCalls().map(call => call.args[0])); },
 			gitHubService, grants, leases, validators,
 			invalidateClient: () => invalidatedGrants.fire({ providerId: 'github', sessionIds: ['session'] }),
 			initialAccount, initialSession, accountChanged, sessionsChanged, reconciliations, reconciliationNames, agentHostService, telemetryService,
@@ -332,10 +335,12 @@ suite('CopilotConnectorsService', () => {
 	test('bounds a stalled acquisition and disposes a client that arrives after timeout', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const fixture = createFixture([]);
 		const pending = new DeferredPromise<IGitHubAccountClient>();
-		const started = new DeferredPromise<{ authorization: GitHubAuthorizationContext; signal: AbortSignal }>();
+		const started = new DeferredPromise<{ providerId: string; session: AuthenticationSession; cancellationToken: CancellationToken }>();
 		const acquire = fixture.gitHubService.acquireAccountApiClient;
-		fixture.gitHubService.acquireAccountApiClient = async (authorization, signal) => {
-			void started.complete({ authorization, signal });
+		fixture.gitHubService.acquireAccountApiClient = async (...args) => {
+			assert.ok(args.length === 3);
+			const [providerId, session, cancellationToken] = args;
+			void started.complete({ providerId, session, cancellationToken });
 			return pending.p;
 		};
 		const start = Date.now();
@@ -343,10 +348,10 @@ suite('CopilotConnectorsService', () => {
 		const request = await started.p;
 		await rejected;
 		const elapsed = Date.now() - start;
-		const late = await acquire(request.authorization, new AbortController().signal);
+		const late = await acquire(request.providerId, request.session, CancellationToken.None);
 		await pending.complete(late);
 		await timeout(0);
-		assert.deepStrictEqual({ elapsed, aborted: request.signal.aborted, requests: fixture.requests, leases: fixture.leases }, {
+		assert.deepStrictEqual({ elapsed, aborted: request.cancellationToken.isCancellationRequested, requests: fixture.requests, leases: fixture.leases }, {
 			elapsed: 30_000, aborted: true, requests: [], leases: { acquired: 1, released: 1 },
 		});
 	}));
@@ -563,7 +568,7 @@ suite('CopilotConnectorsService', () => {
 		const unavailable = createFixture([], true, true);
 		await unavailable.service.refresh(CancellationToken.None);
 
-		const snapshot = (telemetry: TestTelemetryService) => telemetry.events.find(event => event.name === 'copilotConnectors.catalogSnapshot')?.data;
+		const snapshot = (telemetry: TestDataTelemetryService) => telemetry.events.find(event => event.name === 'copilotConnectors.catalogSnapshot')?.data;
 		assert.deepStrictEqual({
 			scoped: snapshot(scoped.telemetryService),
 			unscoped: snapshot(unscoped.telemetryService),
@@ -669,7 +674,7 @@ suite('CopilotConnectorsService', () => {
 			connectors: connectors.map(connector => connector.name),
 		}, {
 			signIn: [[]],
-			consent: [['github', ['read:user', 'write:plugin_gateway_connections'], { account: { id: 'account', label: 'octocat' } }]],
+			consent: [['github', ['read:user', 'user:email', 'write:plugin_gateway_connections'], { account: { id: 'account', label: 'octocat' } }]],
 			defaultSession: 'session',
 			authorizationRequired: false,
 			connectors: ['mail'],
@@ -711,7 +716,7 @@ suite('CopilotConnectorsService', () => {
 			defaultSession: fixture.defaultAccountService.currentDefaultAccount?.sessionId,
 			connectors: connectors.map(connector => connector.name),
 		}, {
-			consent: [['github', ['read:user', 'write:plugin_gateway_connections'], { account: { id: 'account', label: 'octocat' } }]],
+			consent: [['github', ['read:user', 'user:email', 'write:plugin_gateway_connections'], { account: { id: 'account', label: 'octocat' } }]],
 			authorization: ['Bearer authorized-token'],
 			authorizationRequired: false,
 			defaultSession: 'session',
@@ -765,7 +770,7 @@ suite('CopilotConnectorsService', () => {
 			status: fixture.service.connectors[0]?.connectionStatus,
 		}, {
 			browse: { consent: 0, authorizationRequired: false },
-			consent: [['github', ['read:user', 'read:plugin_gateway_connections', 'write:plugin_gateway_connections'], { account: { id: 'account', label: 'octocat' } }]],
+			consent: [['github', ['read:user', 'read:plugin_gateway_connections', 'user:email', 'write:plugin_gateway_connections'], { account: { id: 'account', label: 'octocat' } }]],
 			authorization: ['Bearer test-token', 'Bearer test-token', 'Bearer authorized-token', 'Bearer test-token'],
 			status: 'connected',
 		});
@@ -784,6 +789,52 @@ suite('CopilotConnectorsService', () => {
 		assert.deepStrictEqual({ consent: fixture.consentCalls, reconciliations: fixture.reconciliationNames }, {
 			consent: [['github', ['read:user', 'user:email', 'write:plugin_gateway_connections'], { account: { id: 'account', label: 'octocat' } }]],
 			reconciliations: ['workiqmcp'],
+		});
+	});
+
+	test('a connector session that covers a narrow default session but not the forwarded Copilot credential scopes does not satisfy authorization', async () => {
+		const fixture = createFixture([]);
+		fixture.setSessions([
+			{ ...fixture.initialSession, scopes: ['user:email'] },
+			{ ...fixture.initialSession, id: 'copilot-session', accessToken: 'copilot-token', scopes: ['read:user', 'user:email', 'repo', 'workflow'] },
+			{ ...fixture.initialSession, id: 'partial-session', accessToken: 'partial-token', scopes: ['user:email', 'write:plugin_gateway_connections'] },
+		]);
+		const authorized = await fixture.service.authorize(CancellationToken.None);
+		assert.deepStrictEqual({ consent: fixture.consentCalls, authorized: authorized.id }, {
+			consent: [['github', ['user:email', 'read:user', 'repo', 'workflow', 'write:plugin_gateway_connections'], { account: { id: 'account', label: 'octocat' } }]],
+			authorized: 'authorized-session',
+		});
+	});
+
+	test('a connector session that grants the Copilot scopes but drops scopes of the forwarded credential does not satisfy authorization', async () => {
+		// A narrow default session once produced a Connector session without `repo`. The Agent Host never forwards it
+		// in place of the account's Copilot credential, so it must not count as authorized. Equally narrow credentials
+		// may each be forwarded, so the new session keeps the scopes of all of them.
+		const fixture = createFixture([]);
+		fixture.setSessions([
+			{ ...fixture.initialSession, scopes: ['user:email'] },
+			{ ...fixture.initialSession, id: 'copilot-session', accessToken: 'copilot-token', scopes: ['read:user', 'user:email', 'repo', 'workflow'] },
+			{ ...fixture.initialSession, id: 'codespace-session', accessToken: 'codespace-token', scopes: ['codespace', 'read:user', 'repo', 'user:email'] },
+			{ ...fixture.initialSession, id: 'narrow-connector-session', accessToken: 'narrow-connector-token', scopes: ['user:email', 'read:user', 'write:plugin_gateway_connections'] },
+		]);
+		const authorized = await fixture.service.authorize(CancellationToken.None);
+		assert.deepStrictEqual({ consent: fixture.consentCalls, authorized: authorized.id }, {
+			consent: [['github', ['user:email', 'read:user', 'repo', 'workflow', 'codespace', 'write:plugin_gateway_connections'], { account: { id: 'account', label: 'octocat' } }]],
+			authorized: 'authorized-session',
+		});
+	});
+
+	test('a connector session that keeps the forwarded Copilot credential scopes satisfies authorization without consent', async () => {
+		const fixture = createFixture([]);
+		fixture.setSessions([
+			{ ...fixture.initialSession, scopes: ['user:email'] },
+			{ ...fixture.initialSession, id: 'copilot-session', accessToken: 'copilot-token', scopes: ['read:user', 'user:email', 'repo', 'workflow'] },
+			{ ...fixture.initialSession, id: 'full-connector-session', accessToken: 'full-connector-token', scopes: ['read:user', 'user:email', 'repo', 'workflow', 'write:plugin_gateway_connections'] },
+		]);
+		const authorized = await fixture.service.authorize(CancellationToken.None);
+		assert.deepStrictEqual({ consent: fixture.consentCalls, authorized: authorized.id }, {
+			consent: [],
+			authorized: 'full-connector-session',
 		});
 	});
 
@@ -1274,8 +1325,16 @@ suite('CopilotConnectorsService', () => {
 			{ body: catalogResponse('connected') },
 		]);
 		await fixture.service.connect('mail', CancellationToken.None);
-		assert.deepStrictEqual({ methods: fixture.requests.map(request => request.type), opened: fixture.opened, status: fixture.service.connectors[0].connectionStatus }, {
+		assert.deepStrictEqual({
+			methods: fixture.requests.map(request => request.type), opened: fixture.opened, status: fixture.service.connectors[0].connectionStatus,
+			metadata: fixture.apiRequests.map(request => ({ caller: request.options?.caller, priority: request.options?.priority })),
+		}, {
 			methods: ['GET', 'PUT', 'GET'], opened: [], status: 'connected',
+			metadata: [
+				{ caller: 'copilotConnectors.query', priority: undefined },
+				{ caller: 'copilotConnectors.connect', priority: undefined },
+				{ caller: 'copilotConnectors.query', priority: 'mutationReconciliation' },
+			],
 		});
 	});
 
@@ -1289,6 +1348,73 @@ suite('CopilotConnectorsService', () => {
 		assert.deepStrictEqual({ methods: fixture.requests.map(request => request.type), opened: fixture.opened, status: fixture.service.connectors[0].connectionStatus }, {
 			methods: ['GET', 'PUT', 'GET'], opened: [], status: 'connected',
 		});
+	});
+
+	for (const phase of ['before consent', 'while polling']) {
+		test(`a same-account session change ${phase} does not abandon the connection`, async () => {
+			const reached = new DeferredPromise<void>();
+			const response = new DeferredPromise<void>();
+			const ready = () => { void reached.complete(); return response.p; };
+			const consent = { body: { status: 'Unauthenticated', provisioning_state: 'Succeeded', consent_link: 'https://github.com/settings/copilot/connectors/mail' } };
+			const fixture = createFixture(phase === 'before consent' ? [
+				{ body: catalogResponse('not_connected'), ready },
+				{ body: catalogResponse('not_connected') },
+				consent,
+				{ body: catalogResponse('connected') },
+			] : [
+				{ body: catalogResponse('not_connected') },
+				consent,
+				{ body: catalogResponse('pending'), ready },
+				{ body: catalogResponse('connected') },
+			]);
+			const connect = fixture.service.connect('mail', CancellationToken.None);
+			await reached.p;
+			fixture.sessionsChanged.fire({ providerId: 'github', label: 'GitHub', event: { added: undefined, removed: undefined, changed: [fixture.initialSession] } });
+			await response.complete();
+			await connect;
+			assert.deepStrictEqual({ methods: fixture.requests.map(request => request.type), opened: fixture.opened, status: fixture.service.connectors[0]?.connectionStatus }, {
+				methods: phase === 'before consent' ? ['GET', 'GET', 'PUT', 'GET'] : ['GET', 'PUT', 'GET', 'GET'],
+				opened: ['https://github.com/settings/copilot/connectors/mail'],
+				status: 'connected',
+			});
+		});
+	}
+
+	test('an account switch while polling still cancels the connection', async () => {
+		const reached = new DeferredPromise<void>();
+		const response = new DeferredPromise<void>();
+		const fixture = createFixture([
+			{ body: catalogResponse('not_connected') },
+			{ body: { status: 'Unauthenticated', provisioning_state: 'Succeeded', consent_link: 'https://github.com/settings/copilot/connectors/mail' } },
+			{ body: catalogResponse('pending'), ready: () => { void reached.complete(); return response.p; } },
+			{ body: catalogResponse('connected') },
+		]);
+		const connect = assert.rejects(fixture.service.connect('mail', CancellationToken.None), isCancellationError);
+		await reached.p;
+		fixture.setSessions([{ ...fixture.initialSession, id: 'other-session', account: { id: 'other-account', label: 'other' } }]);
+		fixture.setAccount({ ...fixture.initialAccount, accountName: 'other', sessionId: 'other-session' });
+		await response.complete();
+		await connect;
+		assert.deepStrictEqual(fixture.requests.map(request => request.type), ['GET', 'PUT', 'GET']);
+	});
+
+	test('cancelling while waiting for browser authorization stops polling', async () => {
+		const reached = new DeferredPromise<void>();
+		const fixture = createFixture([
+			{ body: catalogResponse('not_connected') },
+			{ body: { status: 'Unauthenticated', provisioning_state: 'Succeeded', consent_link: 'https://github.com/settings/copilot/connectors/mail' } },
+			{ body: catalogResponse('pending'), ready: () => { void reached.complete(); return Promise.resolve(); } },
+			{ body: catalogResponse('connected') },
+		]);
+		const cancellation = store.add(new CancellationTokenSource());
+		const connect = assert.rejects(fixture.service.connect('mail', cancellation.token), isCancellationError);
+		await reached.p;
+		await timeout(50);
+
+		cancellation.cancel();
+		await connect;
+
+		assert.deepStrictEqual(fixture.requests.map(request => request.type), ['GET', 'PUT', 'GET']);
 	});
 
 	function connectionResponse(status: ConnectorPlugin['connection']['status']): { readonly body: ConnectorCatalog } {
@@ -1504,6 +1630,7 @@ suite('CopilotConnectorsService', () => {
 
 		assert.deepStrictEqual({
 			requests: fixture.requests.map(request => ({ type: request.type, url: request.url })),
+			metadata: fixture.apiRequests.map(request => ({ caller: request.options?.caller, priority: request.options?.priority })),
 			status: fixture.service.connectors[0]?.connectionStatus,
 			disconnected,
 			reconciliations: fixture.reconciliations.length,
@@ -1524,6 +1651,11 @@ suite('CopilotConnectorsService', () => {
 			}],
 			status: 'not_connected',
 			disconnected: ['mail'],
+			metadata: [
+				{ caller: 'copilotConnectors.query', priority: undefined },
+				{ caller: 'copilotConnectors.disconnect', priority: undefined },
+				{ caller: 'copilotConnectors.query', priority: 'mutationReconciliation' },
+			],
 			reconciliations: 2,
 			telemetry: [{
 				name: 'copilotConnectors.catalogSnapshot',

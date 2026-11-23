@@ -36,6 +36,7 @@ import { MergeGroupMode, IMergeGroupOptions } from '../../../services/editor/com
 import { addDisposableListener, EventType, EventHelper, Dimension, scheduleAtNextAnimationFrame, findParentWithClass, clearNode, DragAndDropObserver, isMouseEvent, getWindow, ModifierKeyEmitter, $, isHTMLElement, getTotalWidth, getContentWidth } from '../../../../base/browser/dom.js';
 import { localize } from '../../../../nls.js';
 import { CONNECTED_EDITOR_TABS_SELECTOR, IEditorGroupMenuIds, IEditorGroupsView, EditorServiceImpl, IEditorGroupView, IInternalEditorOpenOptions, IEditorPartsView, prepareMoveCopyEditors } from './editor.js';
+import { PART_GRID_TOP_STRIP_CLASS } from './partGridClass.js';
 import { CloseEditorTabAction, CloseOtherEditorTabsInGroupAction, UnpinEditorAction } from './editorActions.js';
 import { assertReturnsAllDefined, assertReturnsDefined } from '../../../../base/common/types.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
@@ -53,12 +54,14 @@ import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { ITreeViewsDnDService } from '../../../../editor/common/services/treeViewsDndService.js';
 import { DraggedTreeItemsIdentifier } from '../../../../editor/common/services/treeViewsDnd.js';
 import { IEditorResolverService } from '../../../services/editor/common/editorResolverService.js';
+import { IModelService } from '../../../../editor/common/services/model.js';
 import { IEditorTitleControlDimensions } from './editorTitleControl.js';
 import { StickyEditorGroupModel, UnstickyEditorGroupModel } from '../../../common/editor/filteredEditorGroupModel.js';
 import { IReadonlyEditorGroupModel } from '../../../common/editor/editorGroupModel.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { BugIndicatingError } from '../../../../base/common/errors.js';
 import { applyDragImage } from '../../../../base/browser/ui/dnd/dnd.js';
+import { getEditorsTransferVeto, getGroupTransferVeto } from './editorTransferVeto.js';
 
 interface IEditorInputLabel {
 	readonly editor: EditorInput;
@@ -170,8 +173,9 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		@IEditorResolverService editorResolverService: IEditorResolverService,
 		@IHostService hostService: IHostService,
 		@IMenuService menuService: IMenuService,
+		@IModelService modelService: IModelService,
 	) {
-		super(parent, editorPartsView, groupsView, groupView, tabsModel, menuIds, breadcrumbsInHeader, useModernUITabs, contextMenuService, instantiationService, contextKeyService, keybindingService, notificationService, quickInputService, themeService, editorResolverService, hostService, menuService);
+		super(parent, editorPartsView, groupsView, groupView, tabsModel, menuIds, breadcrumbsInHeader, useModernUITabs, contextMenuService, instantiationService, contextKeyService, keybindingService, notificationService, quickInputService, themeService, editorResolverService, hostService, menuService, modelService);
 
 		// Resolve the correct path library for the OS we are on
 		// If we are connected to remote, this accounts for the
@@ -256,7 +260,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		this.titleContainer = parent;
 
 		// Tabs and Actions Container (are on a single row with flex side-by-side)
-		this.tabsAndActionsContainer = $('.tabs-and-actions-container');
+		this.tabsAndActionsContainer = $(`.tabs-and-actions-container.${PART_GRID_TOP_STRIP_CLASS}`);
 		this.titleContainer.appendChild(this.tabsAndActionsContainer);
 
 		this.stickyTabsBackground = $('.sticky-tabs-background', { 'aria-hidden': true });
@@ -446,6 +450,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 				this.editorService.openEditor({
 					resource: undefined,
+					untitledOrigin: 'tabBarDoubleClick',
 					options: {
 						pinned: true,
 						index: this.groupView.count, // always at the end
@@ -504,7 +509,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 				tabsContainer.classList.add('scroll');
 
 				// Return if the target is not on the tabs container
-				if (e.target !== tabsContainer) {
+				if (!this.isDropAfterLastTabTarget(e, tabsContainer)) {
 					return;
 				}
 
@@ -544,7 +549,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 				this.updateDropFeedback(tabsContainer, false, e);
 				tabsContainer.classList.remove('scroll');
 
-				if (e.target === tabsContainer) {
+				if (this.isDropAfterLastTabTarget(e, tabsContainer)) {
 					const isGroupTransfer = this.groupTransfer.hasData(DraggedEditorGroupIdentifier.prototype);
 					this.onDrop(e, isGroupTransfer ? this.groupView.count : this.tabsModel.count, tabsContainer);
 				}
@@ -581,7 +586,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 			// Figure out scrolling direction but ignore it if too subtle
 			let tabSwitchDirection: number;
-			if (e.deltaX + e.deltaY < - MultiEditorTabsControl.MOUSE_WHEEL_DISTANCE_THRESHOLD) {
+			if (e.deltaX + e.deltaY < -MultiEditorTabsControl.MOUSE_WHEEL_DISTANCE_THRESHOLD) {
 				tabSwitchDirection = -1;
 			} else if (e.deltaX + e.deltaY > MultiEditorTabsControl.MOUSE_WHEEL_DISTANCE_THRESHOLD) {
 				tabSwitchDirection = 1;
@@ -1382,20 +1387,19 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 					return; // drag to open in new window is disabled
 				}
 
-				const auxiliaryEditorPart = await this.maybeCreateAuxiliaryEditorPartAt(e, tab);
-				if (!auxiliaryEditorPart) {
-					return;
-				}
+				// Only the dragged editors are asked whether they can go: others of the group stay where they are
+				const editors = draggedEditors.map(editor => editor.identifier.editor);
+				const copy = this.isCopyIntoOtherGroup(lastDragEvent ?? e, editors[0]);
+				await this.transferToNewWindowAt(e, tab, target => getEditorsTransferVeto(editors, this.groupView.id, target, { copy }), targetGroup => {
+					const editorsWithOptions = prepareMoveCopyEditors(this.groupView, editors);
+					if (copy) {
+						this.groupView.copyEditors(editorsWithOptions, targetGroup);
+					} else {
+						this.groupView.moveEditors(editorsWithOptions, targetGroup);
+					}
 
-				const targetGroup = auxiliaryEditorPart.activeGroup;
-				const editorsWithOptions = prepareMoveCopyEditors(this.groupView, draggedEditors.map(editor => editor.identifier.editor));
-				if (this.isMoveOperation(lastDragEvent ?? e, targetGroup.id, draggedEditors[0].identifier.editor)) {
-					this.groupView.moveEditors(editorsWithOptions, targetGroup);
-				} else {
-					this.groupView.copyEditors(editorsWithOptions, targetGroup);
-				}
-
-				targetGroup.focus();
+					targetGroup.focus();
+				});
 			},
 
 			onDrop: e => {
@@ -1438,6 +1442,14 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		return false;
 	}
 
+	/**
+	 * Whether dragging over the event's target drops after the last tab: the empty space of the tabs container and the
+	 * add tab button after the last tab.
+	 */
+	private isDropAfterLastTabTarget(e: DragEvent, tabsContainer: HTMLElement): boolean {
+		return e.target === tabsContainer || (!!this.addTabContainer && isHTMLElement(e.target) && this.addTabContainer.contains(e.target));
+	}
+
 	private updateDropFeedback(element: HTMLElement, isDND: boolean, e: DragEvent, tabIndex?: number): void {
 		const isTab = (typeof tabIndex === 'number');
 
@@ -1446,7 +1458,8 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			if (isTab) {
 				dropTarget = this.computeDropTarget(e, tabIndex, element);
 			} else {
-				dropTarget = { leftElement: element.lastElementChild as HTMLElement, rightElement: undefined };
+				// The add tab button follows the last tab in the container
+				dropTarget = { leftElement: this.getLastTab(), rightElement: undefined };
 			}
 		} else {
 			dropTarget = undefined;
@@ -1901,9 +1914,15 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 		// Set border BOTTOM if theme defined color
 		if (isActive) {
-			const activeTabBorderColorBottom = this.getColor(isGroupActive ? TAB_ACTIVE_BORDER : TAB_UNFOCUSED_ACTIVE_BORDER);
+			const activeTabBorderBottom = this.theme.getColor(isGroupActive ? TAB_ACTIVE_BORDER : TAB_UNFOCUSED_ACTIVE_BORDER);
+			const activeTabBorderColorBottom = activeTabBorderBottom?.toString();
 			tabContainer.classList.toggle('tab-border-bottom', !!activeTabBorderColorBottom);
-			tabContainer.style.setProperty('--tab-border-bottom-color', activeTabBorderColorBottom ?? '');
+			// A theme whose active tab border has the editor's background color, at any opacity, joins the tab to its editor:
+			// with connected tabs, it joins the surface the tab flows into, which a part whose editors have a surface of their
+			// own sets.
+			const editorBackgroundColor = this.theme.getColor(editorBackground);
+			const joinsEditor = !!activeTabBorderBottom && !!editorBackgroundColor && activeTabBorderBottom.rgba.r === editorBackgroundColor.rgba.r && activeTabBorderBottom.rgba.g === editorBackgroundColor.rgba.g && activeTabBorderBottom.rgba.b === editorBackgroundColor.rgba.b;
+			tabContainer.style.setProperty('--tab-border-bottom-color', joinsEditor ? `var(--modern-ui-connected-tab-surface, ${activeTabBorderColorBottom})` : activeTabBorderColorBottom ?? '');
 		}
 
 		// Set border TOP if theme defined color
@@ -1947,6 +1966,9 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 					tabContainer.classList.add('dirty-border-top');
 					tabContainer.style.setProperty('--tab-dirty-border-top-color', modifiedBorderColor);
+				} else {
+					tabContainer.classList.remove('dirty-border-top');
+					tabContainer.style.removeProperty('--tab-dirty-border-top-color');
 				}
 			} else {
 				tabContainer.classList.remove('dirty-border-top');
@@ -2113,7 +2135,10 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		// need to proceed with the layout without wrapping because even
 		// if wrapping is enabled in settings, there are cases where
 		// wrapping is disabled (e.g. due to space constraints)
+		// The wrapping layout measures the tabs without the Add Tab control following the last tab, see below
+		this.tabsAndActionsContainer?.classList.remove('add-tab-follows-last-tab');
 		const tabsWrapMultiLine = this.doLayoutTabsWrapping(dimensions);
+		this.layoutAddTabWithLastTab(tabsWrapMultiLine);
 		const top = this.getTabAtIndex(0)?.offsetTop;
 		const bottom = tabsWrapMultiLine && this.addTabContainer && !this.addTabContainer.classList.contains('hidden') ? this.addTabContainer.offsetTop : this.getLastTab()?.offsetTop;
 		this.forEachTab((_editor, _index, tab) => {
@@ -2196,11 +2221,11 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		const actionPadding = Number.parseFloat(style.getPropertyValue('--modern-ui-tab-action-fit-padding')) || 28;
 		const currentActionPadding = Number.parseFloat(tab.classList.contains('tab-actions-left') ? style.paddingLeft : style.paddingRight);
 		const intrinsicWidth = hasPersistentAction ? width + Math.max(0, actionPadding - currentActionPadding) : width;
-		/* eslint-disable no-restricted-syntax -- IconLabel exposes its root, but not its text-layout elements. */
+		/* eslint-disable eslint-js/no-restricted-syntax -- IconLabel exposes its root, but not its text-layout elements. */
 		const label = tab.querySelector<HTMLElement>('.tab-label');
 		const name = label?.querySelector<HTMLElement>('.monaco-icon-name-container');
 		const labelContainer = label?.querySelector<HTMLElement>('.monaco-icon-label-container');
-		/* eslint-enable no-restricted-syntax */
+		/* eslint-enable eslint-js/no-restricted-syntax */
 		const nameWidth = name ? Number.parseFloat(targetWindow.getComputedStyle(name).width) : 0;
 		const adornmentWidth = label && labelContainer ? Number.parseFloat(targetWindow.getComputedStyle(label).width) - Number.parseFloat(targetWindow.getComputedStyle(labelContainer).width) : 0;
 		const borderWidth = Number.parseFloat(style.borderLeftWidth) + Number.parseFloat(style.borderRightWidth);
@@ -2367,6 +2392,42 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		return tabsWrapMultiLine;
 	}
 
+	/**
+	 * When wrapped tabs leave the Add Tab control alone on the last row, moves the last tab down next to it, so that the
+	 * control never forms a row of its own. This needs the last tab, the control and the editor toolbar to fit on one
+	 * row; otherwise the control stays on its own row. Applied after the wrapping layout, which it does not change.
+	 */
+	private layoutAddTabWithLastTab(tabsWrapMultiLine: boolean): void {
+		const [tabsAndActionsContainer, tabsContainer, editorToolbarsContainer] = [this.tabsAndActionsContainer, this.tabsContainer, this.editorToolbarsContainer];
+		const addTabContainer = this.addTabContainer;
+		const lastTab = this.getLastTab();
+		if (!tabsWrapMultiLine || !tabsAndActionsContainer || !tabsContainer || !editorToolbarsContainer || !addTabContainer || addTabContainer.classList.contains('hidden') || !lastTab || lastTab.offsetTop === addTabContainer.offsetTop) {
+			return;
+		}
+
+		// Without following, the last tab has just its gutter as end margin
+		const gutter = Number.parseFloat(getWindow(lastTab).getComputedStyle(lastTab).marginInlineEnd) || 0;
+		// Fit tabs of the modern UI shrink to make room, see their maximum width
+		const modernFit = lastTab.classList.contains('sizing-fit') && !!this.parent.closest('.modern-ui-tabs');
+		const tabWidth = modernFit ? Math.min(lastTab.offsetWidth, MultiEditorTabsControl.TAB_WIDTH.shrink) : lastTab.offsetWidth;
+		const rowWidth = tabWidth + gutter * 2 + addTabContainer.offsetWidth + editorToolbarsContainer.offsetWidth;
+		if (rowWidth > Math.min(tabsContainer.offsetWidth, getContentWidth(tabsAndActionsContainer))) {
+			return;
+		}
+
+		tabsAndActionsContainer.classList.add('add-tab-follows-last-tab');
+		if (lastTab.offsetTop !== addTabContainer.offsetTop) {
+			tabsAndActionsContainer.classList.remove('add-tab-follows-last-tab'); // they still do not fit on one row
+			return;
+		}
+
+		// The tab before the last tab now ends its row
+		const tabs: HTMLElement[] = [];
+		this.forEachTab((_editor, _index, tab) => tabs.push(tab));
+		const lastInRow = tabs.map((tab, index) => index === tabs.length - 1 || tabs[index + 1].offsetTop !== tab.offsetTop);
+		tabs.forEach((tab, index) => tab.classList.toggle('last-in-row', lastInRow[index]));
+	}
+
 	private updateWrappedAddTabAlignment(tabsWrapMultiLine: boolean): void {
 		const addTabContainer = this.addTabContainer;
 		const editorToolbarsContainer = this.editorToolbarsContainer;
@@ -2484,6 +2545,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			const targetWindow = getWindow(activeTabFill);
 			overflowEdge.style.setProperty('--modern-ui-connected-tab-border', targetWindow.getComputedStyle(activeTab).getPropertyValue('--modern-ui-connected-tab-border'));
 			const edgeStyle = targetWindow.getComputedStyle(assertReturnsDefined(activeTabFill.nextElementSibling));
+			overflowEdge.classList.toggle('connected-tab-square-left', edgeStyle.borderTopLeftRadius === '0px');
 			overflowEdge.style.setProperty('--modern-ui-connected-tab-overflow-top-border', edgeStyle.borderTopColor);
 			overflowEdge.style.setProperty('--modern-ui-connected-tab-overflow-top-background', edgeStyle.backgroundImage);
 			// DOM rectangles include CSS zoom; scroll offsets and viewport widths do not.
@@ -2613,11 +2675,15 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 	private clearConnectedTabClipping(): void {
 		clearConnectedTabClipping(this.connectedTabBounds?.tab, this.connectedTabOverflowEdge);
+		this.connectedTabOverflowEdge?.classList.remove('connected-tab-square-left');
 		this.connectedTabOverflowEdge?.style.removeProperty('--modern-ui-connected-tab-border');
 		this.connectedTabOverflowEdge?.style.removeProperty('--modern-ui-connected-tab-overflow-top-border');
 		this.connectedTabOverflowEdge?.style.removeProperty('--modern-ui-connected-tab-overflow-top-background');
 		this.connectedTabBounds = undefined;
-		this.forEachTab((_editor, _index, tab) => tab.style.removeProperty('clip-path'));
+		this.forEachTab((_editor, _index, tab) => {
+			tab.style.removeProperty('clip-path');
+			tab.classList.remove('connected-tab-add-clipped');
+		});
 	}
 
 	private updateConnectedTabClipping(scrollLeft: number): void {
@@ -2636,8 +2702,9 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			});
 			if (this.connectedTabBounds) {
 				const activeLeft = this.connectedTabBounds.tab.getBoundingClientRect().left;
+				const leftShoulderFits = activeLeft - this.connectedTabBounds.shoulderExtent * scale >= addBounds.right;
 				const viewportLeft = rtl
-					? Math.max(this.connectedTabBounds.viewportLeft, ((activeLeft < viewportEdge ? viewportEdge : addBounds.right) - tabsBounds.left) / scale)
+					? Math.max(this.connectedTabBounds.viewportLeft, ((leftShoulderFits ? addBounds.right : viewportEdge) - tabsBounds.left) / scale)
 					: this.connectedTabBounds.viewportLeft;
 				const viewportRight = rtl ? this.tabsContainer.offsetWidth : (addBounds.left - tabsBounds.left) / scale;
 				this.connectedTabBounds.overflowEdge.style.left = `${viewportLeft}px`;
@@ -2646,7 +2713,11 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			}
 			const shoulderInset = 'calc(-1 * (var(--modern-ui-connected-tab-shoulder-radius) + var(--vscode-strokeThickness)))';
 			for (const { tab, clipped } of clipping) {
-				tab.style.clipPath = clipped > 0 ? `inset(calc(-1 * var(--vscode-strokeThickness)) ${rtl ? shoulderInset : `${clipped}px`} calc(-1 * var(--vscode-strokeThickness)) ${rtl ? `${clipped}px` : shoulderInset})` : '';
+				// Retain the natural shoulder only when it fits entirely before Add Tab.
+				const shoulderFits = tab.classList.contains('active') && this.connectedTabBounds && clipped + this.connectedTabBounds.shoulderExtent <= shoulderSpace;
+				const inset = clipped - (shoulderFits ? shoulderSpace : 0);
+				tab.style.clipPath = clipped > 0 ? `inset(calc(-1 * var(--vscode-strokeThickness)) ${rtl ? shoulderInset : `${inset}px`} calc(-1 * var(--vscode-strokeThickness)) ${rtl ? `${inset}px` : shoulderInset})` : '';
+				tab.classList.toggle('connected-tab-add-clipped', clipped > 0);
 			}
 		} else {
 			if (this.connectedTabBounds) {
@@ -2655,7 +2726,10 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 				this.connectedTabBounds.overflowEdge.style.right = `${this.tabsContainer ? this.tabsContainer.offsetWidth - viewportRight : 0}px`;
 				updateConnectedTabClipping({ ...this.connectedTabBounds, viewportRight }, scrollLeft);
 			}
-			this.forEachTab((_editor, _index, tab) => tab.style.removeProperty('clip-path'));
+			this.forEachTab((_editor, _index, tab) => {
+				tab.style.removeProperty('clip-path');
+				tab.classList.remove('connected-tab-add-clipped');
+			});
 		}
 	}
 
@@ -2741,8 +2815,18 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			if (Array.isArray(data) && data.length > 0) {
 				const sourceGroup = this.editorPartsView.getGroup(data[0].identifier);
 				if (sourceGroup) {
+					const copy = !this.isMoveOperation(e, sourceGroup.id);
+
+					// Into another part only when all its editors can go there, before anything is merged or focused
+					const veto = sourceGroup.groupsView !== this.groupsView ? getGroupTransferVeto(sourceGroup, this.groupView.id, { copy }) : undefined;
+					if (veto) {
+						this.groupTransfer.clearData(DraggedEditorGroupIdentifier.prototype);
+						this.editorPartsView.showTransferVeto(veto);
+						return;
+					}
+
 					const mergeGroupOptions: IMergeGroupOptions = { index: targetEditorIndex };
-					if (!this.isMoveOperation(e, sourceGroup.id)) {
+					if (copy) {
 						mergeGroupOptions.mode = MergeGroupMode.COPY_EDITORS;
 					}
 

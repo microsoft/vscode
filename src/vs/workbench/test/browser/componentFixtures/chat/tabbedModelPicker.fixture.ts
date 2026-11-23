@@ -12,6 +12,7 @@ import { constObservable, observableValue } from '../../../../../base/common/obs
 import { extUri } from '../../../../../base/common/resources.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { isDefined } from '../../../../../base/common/types.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { localize } from '../../../../../nls.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
@@ -37,6 +38,8 @@ import { IUpdateService, StateType } from '../../../../../platform/update/common
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { ILocalModelService } from '../../../../services/agentHost/common/localModelService.js';
+import { getOrganizationSupportActionTooltip } from '../../../../services/policies/common/organizationSupport.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { ITerminalService } from '../../../../contrib/terminal/browser/terminal.js';
 import { ChatContextKeys } from '../../../../contrib/chat/common/actions/chatContextKeys.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelProviderDescriptor, ILanguageModelsService, IModelControlEntry } from '../../../../contrib/chat/common/languageModels.js';
@@ -49,8 +52,10 @@ import { createLocalModelPickerPresentation } from '../../../../contrib/chat/bro
 import { SessionType } from '../../../../contrib/chat/common/chatSessionsService.js';
 import { IModelPickerComparison } from '../../../../contrib/chat/browser/widget/input/modelPicker/modelPickerComparison.js';
 import { IModelPickerProviderPlaceholder } from '../../../../contrib/chat/browser/widget/input/modelPicker/modelPickerTabs.js';
+import { IAgentModelPreferences } from '../../../../contrib/chat/common/promptSyntax/languageProviders/promptModelResolver.js';
 import { NullLanguageModelsService } from '../../../../contrib/chat/test/common/languageModels.js';
 import { TestChatEntitlementService } from '../../../common/workbenchTestServices.js';
+import { TestEditorService } from '../../workbenchTestServices.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../fixtureUtils.js';
 
 import '../../../../contrib/chat/browser/widget/media/chat.css';
@@ -203,6 +208,10 @@ const GOOGLE_MODELS = [
 	createModel('gemini-2-flash', 'Gemini 2 Flash', { vendor: 'google', isBYOK: true }),
 ];
 
+/** More added providers than the tab bar has room for, none with a recognised icon. */
+const OVERFLOWING_PROVIDER_MODELS = ['cerebras', 'deepseek', 'fireworks', 'groq', 'mistral', 'openrouter', 'perplexity', 'together']
+	.map(vendor => createModel(`${vendor}-chat`, `${vendor.charAt(0).toUpperCase()}${vendor.slice(1)} Chat`, { vendor, isBYOK: true }));
+
 /** A model the provider also offers at a second speed, named by an id suffix. */
 const SPEED_VARIANT_MODELS = [
 	createModel('example-2.5', 'Example 2.5', { category: 'powerful', priceCategory: 'high', costs: true }),
@@ -238,6 +247,24 @@ const HYDRA_FUSION_MAX_MODEL: ILanguageModelChatMetadataAndIdentifier = (() => {
 	const model = createModel('hydrafusion-max', 'HydraFusion Max', { vendor: 'agent-host-copilotcli', isBYOK: true, modelGroupId: 'copilotcli', detail: 'Research preview' });
 	return { ...model, metadata: { ...model.metadata, tooltip: 'HydraFusion Max routes the first eligible turn and may use multiple models.' } };
 })();
+/**
+ * The Copilot agent host's Auto model with Fusion enabled: it is listed as Copilot Fusion,
+ * offers the provider's effort levels, and carries a 10% discount.
+ */
+const COPILOT_FUSION_MODEL: ILanguageModelChatMetadataAndIdentifier = (() => {
+	const model = createModel('auto', 'Copilot Fusion', {
+		vendor: 'agent-host-copilotcli', isBYOK: true, modelGroupId: 'copilot',
+		effortTitle: 'Effort Level',
+		effortValues: ['balance', 'hydrafusion', 'hydrafusion-max'],
+		effortLabels: ['Standard', 'High', 'Max'],
+		effortDescriptions: ['Routes each request to a capable model.', 'Plans and verifies with several models.', 'Spends the most effort on hard tasks.'],
+		effortDefault: 'balance',
+	});
+	return { ...model, metadata: { ...model.metadata, autoModelFusion: true, autoModelProviderTiers: true, autoModelDiscountPercent: 10 } };
+})();
+const COPILOT_FUSION_MODELS = [COPILOT_FUSION_MODEL, ...RELAYED_MODELS.slice(1)];
+/** Copilot Fusion without a discount, which it marks as recommended instead. */
+const COPILOT_FUSION_FULL_PRICE_MODELS = [{ ...COPILOT_FUSION_MODEL, metadata: { ...COPILOT_FUSION_MODEL.metadata, autoModelDiscountPercent: undefined } }, ...RELAYED_MODELS.slice(1)];
 const ALL_MODELS = [...COPILOT_ONLY_MODELS, ...OLLAMA_MODELS];
 
 const GB = 1024 ** 3;
@@ -431,6 +458,8 @@ interface IPickerFixtureOptions {
 	readonly providerPlaceholders?: readonly IModelPickerProviderPlaceholder[];
 	/** Starts on this destination, matched against the tab label. */
 	readonly initialTabLabel?: string;
+	/** Opens the menu listing the provider tabs the tab bar has no room for. */
+	readonly openTabOverflow?: boolean;
 	/** Overrides the models offered, e.g. to show the picker without any added models. */
 	readonly models?: readonly ILanguageModelChatMetadataAndIdentifier[];
 	/** Opens search, which replaces the tab strip with the filter field. */
@@ -443,6 +472,8 @@ interface IPickerFixtureOptions {
 	readonly controlModels?: IStringDictionary<IModelControlEntry>;
 	/** The plan the account is on, which decides whether locked models offer upgrade or admin. */
 	readonly entitlement?: ChatEntitlement;
+	/** The organization's help page, which admin-locked models link to instead of GitHub's settings. */
+	readonly organizationSupportUrl?: string;
 	/** Settings to apply per model identifier, so rows can show what they were tuned to. */
 	readonly configured?: IStringDictionary<IStringDictionary<unknown>>;
 	readonly comparison?: IModelPickerComparison;
@@ -454,6 +485,8 @@ interface IPickerFixtureOptions {
 	readonly pendingStops?: readonly string[];
 	/** Opens the "On This Device" tab at this family's detail page, as the show-details command does. */
 	readonly openLocalModelDetails?: string;
+	/** The models a custom agent prefers or requires, which narrow the list and explain it in the footer. */
+	readonly agentModelPreferences?: IAgentModelPreferences;
 }
 
 export async function renderPicker(context: ComponentFixtureContext, options: IPickerFixtureOptions = {}): Promise<void> {
@@ -472,6 +505,7 @@ export async function renderPicker(context: ComponentFixtureContext, options: IP
 		colorTheme: context.theme,
 		additionalServices: registration => {
 			registerWorkbenchServices(registration);
+			registration.defineInstance(IEditorService, disposableStore.add(new TestEditorService()));
 			if (options.managedDefaultModel !== undefined) {
 				const configurationService = new class extends TestConfigurationService {
 					override inspect<T>(key: string): IConfigurationValue<T> {
@@ -536,9 +570,9 @@ export async function renderPicker(context: ComponentFixtureContext, options: IP
 	}
 	let pickerContext: ITabbedModelPickerContext = {
 		comparison: options.comparison,
+		agentModelPreferences: options.agentModelPreferences,
 		models: [...options.models ?? ALL_MODELS, ...options.localModels?.families.map(family => createOnDeviceModel(family, options.onDeviceThinking?.[family.familyId])).filter(isDefined) ?? []],
 		selectedModelId: options.selectedModelId ?? 'copilot/gpt-5-5',
-		recentModelIds: ['copilot/gpt-5-3-codex', 'copilot/gemini-3-5-flash'],
 		pinnedModelIds: options.pinnedModelIds ?? ['copilot/claude-sonnet-5'],
 		controlModels: options.controlModels ?? CONTROL_MODELS,
 		configurationAccess,
@@ -559,6 +593,7 @@ export async function renderPicker(context: ComponentFixtureContext, options: IP
 			show: true,
 			currentVSCodeVersion: '1.100.0',
 			manageSettingsUrl: 'https://github.com/settings/copilot',
+			organizationSupport: options.organizationSupportUrl ? { url: options.organizationSupportUrl, tooltip: getOrganizationSupportActionTooltip(options.organizationSupportUrl) } : undefined,
 			updateStateType: StateType.Idle,
 		},
 		onUnavailableLinkClick: () => { },
@@ -600,6 +635,14 @@ export async function renderPicker(context: ComponentFixtureContext, options: IP
 			.find(candidate => candidate.ariaLabel === options.initialTabLabel);
 		tab?.click();
 		await new Promise(resolve => setTimeout(resolve, 50));
+	}
+
+	if (options.openTabOverflow) {
+		const overflow = container.querySelector<HTMLElement>('.chat-model-picker-tabbar [data-id="overflow"]');
+		if (!overflow || overflow.style.display === 'none') {
+			throw new Error('The provider tabs did not overflow the tab bar');
+		}
+		overflow.click();
 	}
 
 	if (options.openLocalModelDetails) {
@@ -794,6 +837,17 @@ export default defineThemedFixtureGroup({ path: 'chat/input/tabbedModelPicker' }
 			},
 		}),
 	}),
+	PickerAnchoredAgentRequiredModels: defineComponentFixture({
+		render: context => renderPicker(context, {
+			anchored: true,
+			anchorRight: true,
+			models: COPILOT_MODELS.filter(model => model.metadata.id === 'claude-sonnet-5' || model.metadata.id === 'gpt-5-3-codex'),
+			selectedModelId: 'copilot/claude-sonnet-5',
+			pinnedModelIds: [],
+			controlModels: { ...CONTROL_MODELS, 'gpt-5-3-codex': { label: 'GPT-5.3-Codex', exists: true, demoted: true } },
+			agentModelPreferences: { models: ['Claude Sonnet 5', 'GPT-5.3-Codex'], required: true, source: { name: 'Reviewer', uri: URI.file('/workspace/.github/agents/reviewer.agent.md') } },
+		}),
+	}),
 	PickerAnchoredAutoSelected: defineComponentFixture({
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 		render: context => renderPicker(context, { anchored: true, selectedModelId: AUTO_MODEL.identifier }),
@@ -837,6 +891,19 @@ export default defineThemedFixtureGroup({ path: 'chat/input/tabbedModelPicker' }
 		render: context => renderPicker(context, {
 			models: [...ALL_MODELS, ...OPENAI_MODELS, ...ANTHROPIC_MODELS, ...GOOGLE_MODELS],
 			initialTabLabel: 'Ollama',
+		}),
+	}),
+	/** The selected model's provider comes last, so its tab takes a place on the bar from one that fits. */
+	PickerWithOverflowingProviders: defineComponentFixture({
+		render: context => renderPicker(context, {
+			models: [...ALL_MODELS, ...OPENAI_MODELS, ...OVERFLOWING_PROVIDER_MODELS],
+			selectedModelId: 'together/together-chat',
+		}),
+	}),
+	PickerProvidersOverflowMenu: defineComponentFixture({
+		render: context => renderPicker(context, {
+			models: [...ALL_MODELS, ...OPENAI_MODELS, ...OVERFLOWING_PROVIDER_MODELS],
+			openTabOverflow: true,
 		}),
 	}),
 	PickerAddedModelsPinned: defineComponentFixture({
@@ -904,6 +971,19 @@ export default defineThemedFixtureGroup({ path: 'chat/input/tabbedModelPicker' }
 	PickerWithHydraFusion: defineComponentFixture({
 		render: context => renderPicker(context, { models: [...RELAYED_MODELS, HYDRA_FUSION_MODEL], selectedModelId: 'agent-host-copilotcli/gpt-5-5', entitlement: ChatEntitlement.Pro }),
 	}),
+	/** Copilot Fusion leads the list on a row twice as tall, a line beneath its name saying what it does and its discount in a pill bordered by the Copilot brand gradient. */
+	PickerWithCopilotFusionDiscount: defineComponentFixture({
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		render: context => renderPicker(context, { models: COPILOT_FUSION_MODELS, selectedModelId: 'agent-host-copilotcli/gpt-5-5', entitlement: ChatEntitlement.Pro }),
+	}),
+	PickerCopilotFusionSelected: defineComponentFixture({
+		render: context => renderPicker(context, { models: COPILOT_FUSION_MODELS, selectedModelId: COPILOT_FUSION_MODEL.identifier, entitlement: ChatEntitlement.Pro }),
+	}),
+	/** Copilot Fusion with no discount is badged Recommended, in the same pill bordered by the Copilot brand gradient. */
+	PickerWithCopilotFusionRecommended: defineComponentFixture({
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		render: context => renderPicker(context, { models: COPILOT_FUSION_FULL_PRICE_MODELS, selectedModelId: 'agent-host-copilotcli/gpt-5-5', entitlement: ChatEntitlement.Pro }),
+	}),
 	/** HydraFusion's details, with Default and Max as its tiers, before either is chosen. */
 	PickerHydraFusionDetails: defineComponentFixture({
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
@@ -930,6 +1010,9 @@ export default defineThemedFixtureGroup({ path: 'chat/input/tabbedModelPicker' }
 	}),
 	PickerLockedModelsBusiness: defineComponentFixture({
 		render: context => renderPicker(context, { models: COPILOT_ONLY_MODELS, controlModels: CONTROL_MODELS_WITH_LOCKED, entitlement: ChatEntitlement.Business }),
+	}),
+	PickerLockedModelsBusinessWithSupport: defineComponentFixture({
+		render: context => renderPicker(context, { models: COPILOT_ONLY_MODELS, controlModels: CONTROL_MODELS_WITH_LOCKED, entitlement: ChatEntitlement.Business, organizationSupportUrl: 'https://example.com/copilot-help' }),
 	}),
 	PickerBadges: defineComponentFixture({
 		render: context => renderPicker(context, { models: [AUTO_MODEL, ...COPILOT_NOTICE_MODELS], expandOther: true }),

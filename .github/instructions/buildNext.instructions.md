@@ -45,16 +45,16 @@ grep -l "serverLicense" out-vscode-reh-web-test/vs/code/browser/workbench/workbe
 
 ### Fast Non-Watch Incremental Builds
 
-`npm run build-fast` stores its last successful input state in `.build/build-fast/state.json`. It uses scoped Git deltas plus content hashes for currently dirty/untracked inputs, so a repeated invocation can skip every build lane without running a watcher or scanning all source files.
+`pnpm run build-fast` stores its last successful input state in `.build/build-fast/state.json`. It uses scoped Git deltas plus content hashes for currently dirty/untracked inputs, so a repeated invocation can skip every build lane without running a watcher or scanning all source files.
 
-- The npm script enters `build-fast.ts` directly so warm builds do not load the bundler, localization plugins, or other full-build tooling.
+- The package script enters `build-fast.ts` directly so warm builds do not load the bundler, localization plugins, or other full-build tooling.
 - Client changes are transpiled/copied/deleted at file granularity.
 - Built-in extension/media and Copilot builds run only when their inputs change. The extension lane uses the existing `transpile-extensions` task instead of type-checking every extension; Copilot's `compile` script is already an esbuild development bundle.
 - Extension transpilation follows each project's module setting and NodeNext package scope rather than assuming CommonJS; ESM language servers and extensions must remain loadable.
 - Extension outputs use the configured `outDir` and omit declaration-only inputs, matching the conventional compiler's output paths.
-- `npm run build-fast -- --client-only` refreshes only client output, including on a cold worktree. It runs the client prerequisites but never builds extensions or Copilot.
+- `pnpm run build-fast --client-only` refreshes only client output, including on a cold worktree. It runs the client prerequisites but never builds extensions or Copilot.
 - Missing, incompatible, or invalid state falls back to a full build of the selected lanes.
-- `npm run build-fast -- --force` forces all selected lanes to rebuild and refreshes state; it can be combined with `--client-only`.
+- `pnpm run build-fast --force` forces all selected lanes to rebuild and refreshes state; it can be combined with `--client-only`.
 - Each lane retains its own successful input snapshot. A client-only invocation does not advance extension or Copilot state, so a later default invocation still builds their pending changes.
 - State is invalidated before outputs change and published only after every selected lane succeeds. If inputs change during the build, the pre-build snapshot is saved so late changes are rebuilt on the next run.
 - The fast client and extension JavaScript lanes do not type-check. Extension media retains its existing type checks; keep explicit compile/type-check and CI workflows for validating the other projects.
@@ -65,6 +65,7 @@ In [build/gulpfile.vscode.ts](../../build/gulpfile.vscode.ts), the `core-ci` tas
 - `runEsbuildTranspile()` → transpile command
 - `runEsbuildBundle()` → bundle command
 
+PR CI runs `core-ci-pr` instead, which shares the steps of `core-ci` up to and including the transpile to `out-build` but skips the full set of minified product bundles. The build-script tests separately check the desktop startup entry in memory. Only the product builds run `core-ci`.
 Desktop, server, server-web, and standalone web packaging use the same `runEsbuildBundle()` helper. Minified bundles enable `--minify --mangle-privates --nls`. Local server and web builds generate API proposal names and the shared build date explicitly instead of compiling an intermediate production tree.
 
 The canonical production entry points and product/built-in-extension injection live in [build/next/index.ts](../../build/next/index.ts); curated resource lists and copied-script minification live in [resources.ts](../../build/next/resources.ts). Build targets and bootstrap entry points are shared with packaging through [build/lib/esbuild.ts](../../build/lib/esbuild.ts), so package metadata is injected into the same files the bundler emits. Gulp still orchestrates compilation, extension builds, packaging, and translations; there is no separate legacy production bundle/minify chain.
@@ -90,6 +91,12 @@ Focused coverage uses the production options for helper-free entries, service de
 ```bash
 node --test build/next/test/bundle.test.ts build/next/test/nls-sourcemap.test.ts
 ```
+
+### Desktop startup script encoding
+
+The minified `vs/workbench/workbench.desktop.main.js` must not contain a decoded character above U+00FF. A single such character, even in a retained comment or an unused feature's regex literal, makes Blink widen and rehash the startup script. Use `\uXXXX` escapes in source regexes when needed. Latin-1 characters are fine; translated strings, stylesheets and source maps are not subject to a source-wide ASCII ban.
+
+`build/next/test/bundle.test.ts` checks the real desktop JavaScript entry with production esbuild options in PR CI, without packaging CSS or writing a product build. Minified desktop builds also check the final JavaScript after NLS, private-field and source-map URL rewriting. Errors include the code point, generated location and original source location when mapped.
 
 ### Production SVG Optimization
 
@@ -227,7 +234,7 @@ This repairs production debugging/source publication, not startup performance.
 node build/next/index.ts bundle --nls --target server-web --out out-vscode-reh-web-min
 
 # Package it (uses gulp task)
-npm run gulp vscode-reh-web-darwin-arm64-min
+pnpm run gulp vscode-reh-web-darwin-arm64-min
 
 # Run server
 ./vscode-server-darwin-arm64-web/bin/code-server-oss --connection-token dev-token
@@ -356,7 +363,7 @@ Two categories of corruption:
 
 **Plugin interaction:** Both the NLS plugin and `fileContentMapperPlugin` register `onLoad({ filter: /\.ts$/ })`. In esbuild, the first `onLoad` to return non-`undefined` wins. The NLS plugin is `unshift`ed (runs first), so files with NLS calls skip `fileContentMapperPlugin`. This is safe in practice since `product.ts` (which has `BUILD->INSERT_PRODUCT_CONFIGURATION`) has no localize calls.
 
-### Still Broken — Full Production Build (`npm run gulp vscode-min`)
+### Still Broken — Full Production Build (`pnpm run gulp vscode-min`)
 
 **Symptom:** Source maps are totally broken in the minified production build. E.g. a breakpoint at `src/vs/editor/browser/editorExtensions.ts` line 308 resolves to `src/vs/editor/common/cursor/cursorMoveCommands.ts` line 732 — a completely different file. This is **cross-file** mapping corruption, not just column drift.
 
@@ -392,7 +399,7 @@ Two categories of corruption:
 
 **How to reproduce:**
 ```bash
-npm run gulp vscode-min
+pnpm run gulp vscode-min
 # Open out-vscode-min/ in a debugger, set breakpoints in editor files
 # Observe breakpoints resolve to wrong files
 ```

@@ -5,7 +5,6 @@
 
 import assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ConfigurationTarget } from '../../../configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
@@ -16,22 +15,15 @@ import { AgentNetworkDomainSettingId } from '../../common/settings.js';
 
 suite('AgentNetworkFilterService', () => {
 
-	let disposables: DisposableStore;
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let configService: TestConfigurationService;
 
 	setup(() => {
-		disposables = new DisposableStore();
 		configService = new TestConfigurationService();
 		configService.setUserConfiguration(AgentNetworkDomainSettingId.NetworkFilter, true);
 		configService.setUserConfiguration(AgentNetworkDomainSettingId.AllowedNetworkDomains, []);
 		configService.setUserConfiguration(AgentNetworkDomainSettingId.DeniedNetworkDomains, []);
 	});
-
-	teardown(() => {
-		disposables.dispose();
-	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	async function createService(): Promise<AgentNetworkFilterService> {
 		const service = new AgentNetworkFilterService(configService);

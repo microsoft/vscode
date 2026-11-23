@@ -7,8 +7,9 @@ import { Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { IObservable, IReader } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ISession } from '../../../../../workbench/services/sessions/common/session.js';
 import { DesktopOwnerCompositionStore } from './desktopOwnerCompositionStore.js';
+import { IShownChat } from '../../../../../workbench/services/sessions/common/sessionPane.js';
 
 /**
  * Shared controller state that desktop layout strategies read/coordinate
@@ -32,8 +33,12 @@ export interface IDesktopLayoutContext {
 	chatLayoutActive(reader?: IReader): boolean;
 	chatLayoutSuspended(reader?: IReader): boolean;
 	readonly sharedChatLayout: boolean;
-	ownerKeyFor(session: IActiveSession, reader?: IReader): URI | undefined;
-	compositionKeyFor(session: IActiveSession, reader?: IReader): URI | undefined;
+	/** The session and chat the main window shows, from its host. */
+	shownByMainWindow(reader?: IReader): IShownChat | undefined;
+	/** The session the main window shows, from its host. */
+	readonly mainWindowSession: IObservable<ISession | undefined>;
+	ownerKeyFor(shown: IShownChat, reader?: IReader): URI | undefined;
+	compositionKeyFor(shown: IShownChat, reader?: IReader): URI | undefined;
 	readonly compositionStore: DesktopOwnerCompositionStore;
 }
 
@@ -50,8 +55,8 @@ export interface IDesktopLayoutContext {
  * Shared mechanics (the managed-tabs reconcile pipeline + editor-area collapse and the Existing
  * Editor-visibility-profile storage) live in non-strategy coordinator classes in this
  * folder — see `desktopDockedTabsCoordinator.ts`, `desktopDetailPanelCoordinator.ts`, and
- * `desktopVisibilityProfileStore.ts`. The shared detail coordinator owns only content selection
- * and context publication; each lifecycle strategy owns Auxiliary Bar visibility. The shared mechanics are owned by
+ * `desktopVisibilityProfileStore.ts`. The shared detail coordinator retains content selection,
+ * context publication, and transient hide state; each lifecycle strategy decides Auxiliary Bar visibility. The shared mechanics are owned by
  * {@link import('./desktopExistingSessionStrategy.js').DesktopExistingSessionStrategy}
  * (the docked-tabs coordinator, since its reconcile pipeline is shared across the New→Existing
  * submit transition) or by the controller (the visibility-profile store, since it backs one

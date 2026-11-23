@@ -4,8 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { ChatRequest, LanguageModelChat } from 'vscode';
+// eslint-disable-next-line local/code-no-restricted-zone-imports -- Pre-existing layering violation found when the zone check started resolving extensionless imports.
 import { CacheableRequest, SQLiteCache } from '../../../../../test/base/cache';
+// eslint-disable-next-line local/code-no-restricted-zone-imports -- Pre-existing layering violation found when the zone check started resolving extensionless imports.
 import { TestingCacheSalts } from '../../../../../test/base/salts';
+// eslint-disable-next-line local/code-no-restricted-zone-imports -- Pre-existing layering violation found when the zone check started resolving extensionless imports.
 import { CurrentTestRunInfo } from '../../../../../test/base/simulationContext';
 import { TokenizerType } from '../../../../util/common/tokenizer';
 import { SequencerByKey } from '../../../../util/vs/base/common/async';

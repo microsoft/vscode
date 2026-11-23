@@ -7,7 +7,8 @@
 import { EventEmitter } from 'events';
 EventEmitter.defaultMaxListeners = 100;
 
-import es from 'event-stream';
+import duplexer from 'duplexer';
+import { through, merge } from './lib/streams.ts';
 import fancyLog from 'fancy-log';
 import * as fs from 'fs';
 import glob from 'glob';
@@ -23,6 +24,7 @@ import { createTsgoStream, spawnTsgo } from './lib/tsgo.ts';
 import { getCompilerOptionsFromTsConfig } from './lib/tsconfigUtils.ts';
 import * as util from './lib/util.ts';
 import watcher from './lib/watch/index.ts';
+import { BuildLifecycle } from './lib/buildEvents.ts';
 
 const root = path.dirname(import.meta.dirname);
 const commit = getVersion(root);
@@ -30,21 +32,10 @@ const commit = getVersion(root);
 // Tracks active extension compilations to emit aggregate
 // "Starting compilation" / "Finished compilation" messages
 // that the problem matcher in tasks.json relies on.
-let activeExtensionCompilations = 0;
-
-function onExtensionCompilationStart(): void {
-	if (activeExtensionCompilations === 0) {
-		fancyLog('Starting compilation');
-	}
-	activeExtensionCompilations++;
-}
-
-function onExtensionCompilationEnd(): void {
-	activeExtensionCompilations--;
-	if (activeExtensionCompilations === 0) {
-		fancyLog('Finished compilation');
-	}
-}
+const extensionCompilation = new BuildLifecycle(
+	() => fancyLog('Starting compilation'),
+	() => fancyLog('Finished compilation'),
+);
 
 // To save 250ms for each gulp startup, we are caching the result here
 // const compilations = glob.sync('**/tsconfig.json', {
@@ -93,7 +84,6 @@ const compilations = [
 
 	'.vscode/extensions/vscode-selfhost-test-provider/tsconfig.json',
 	'.vscode/extensions/vscode-selfhost-import-aid/tsconfig.json',
-	'.vscode/extensions/vscode-extras/tsconfig.json',
 	'.vscode/extensions/vscode-pr-pinger/tsconfig.json',
 ];
 
@@ -137,7 +127,7 @@ export function createExtensionTasks(tsconfigFile: string, repoRoot = root) {
 		const compilation = tsb.create(absolutePath, overrideOptions, { verbose: false, transpileOnly, transpileWithEsbuild: true }, err => reporter(err.toString()));
 
 		const pipeline = function () {
-			const input = es.through();
+			const input = through();
 			const tsFilter = filter(['**/*.{ts,mts,cts}', '!**/lib/lib*.d.{ts,mts,cts}', '!**/node_modules/**'], { restore: true, dot: true });
 			const output = input
 				.pipe(plumber({
@@ -150,7 +140,7 @@ export function createExtensionTasks(tsconfigFile: string, repoRoot = root) {
 				.pipe(tsFilter)
 				.pipe(util.loadSourcemaps())
 				.pipe(compilation())
-				.pipe(build ? util.stripSourceMappingURL() : es.through())
+				.pipe(build ? util.stripSourceMappingURL() : through())
 				.pipe(sourcemaps.write('.', {
 					sourceMappingURL: !build ? undefined : f => `${baseUrl}/${f.relative}.map`,
 					addComment: !!build,
@@ -161,7 +151,7 @@ export function createExtensionTasks(tsconfigFile: string, repoRoot = root) {
 				.pipe(tsFilter.restore)
 				.pipe(reporter.end(!!emitError));
 
-			return es.duplex(input, output);
+			return duplexer(input, output);
 		};
 
 		// add src-stream for project files
@@ -181,7 +171,7 @@ export function createExtensionTasks(tsconfigFile: string, repoRoot = root) {
 	const transpileTask = task.define(`transpile-extension:${name}`, task.series(cleanTask, () => {
 		const pipeline = createPipeline(false, true, true);
 		const nonts = gulp.src(src, srcOpts).pipe(filter(['**', '!**/*.{ts,mts,cts}'], { dot: true }));
-		const input = es.merge(nonts, pipeline.tsProjectSrc());
+		const input = merge(nonts, pipeline.tsProjectSrc());
 
 		return input
 			.pipe(pipeline())
@@ -198,28 +188,28 @@ export function createExtensionTasks(tsconfigFile: string, repoRoot = root) {
 
 	const watchTask = task.define(`watch-extension:${name}`, task.series(cleanTask, () => {
 		const nonts = gulp.src(src, srcOpts).pipe(filter(['**', '!**/*.{ts,mts,cts}'], { dot: true }));
-		const watchInput = watcher(src, { ...srcOpts, ...{ readDelay: 200 } });
+		const watchInput = watcher(path.relative(repoRoot, src).split(path.sep).join('/'), { ...srcOpts, ...{ readDelay: 200 } });
 		const watchNonTs = watchInput.pipe(filter(['**', '!**/*.{ts,mts,cts}'], { dot: true })).pipe(gulp.dest(out));
 		const tsgoStream = watchInput.pipe(util.debounce(() => {
-			onExtensionCompilationStart();
+			const onExtensionCompilationEnd = extensionCompilation.start();
 			const stream = createTsgoStream(absolutePath, { taskName: 'extensions' }, () => rewriteTsgoSourceMappingUrlsIfNeeded(false, out, baseUrl));
 			// Wrap in a result stream that always emits 'end' (even on
 			// error) so the debounce resets to idle and can process future
 			// file changes. Errors from tsgo (e.g. type errors causing a
 			// non-zero exit code) are already reported by spawnTsgo's
 			// runReporter, so swallowing the stream error is safe.
-			const result = es.through();
+			const result = through();
 			stream.on('end', () => {
 				onExtensionCompilationEnd();
 				result.emit('end');
 			});
 			stream.on('error', () => {
-				onExtensionCompilationEnd();
+				onExtensionCompilationEnd(true);
 				result.emit('end');
 			});
 			return result;
 		}, 200));
-		const watchStream = es.merge(nonts.pipe(gulp.dest(out)), watchNonTs, tsgoStream);
+		const watchStream = merge(nonts.pipe(gulp.dest(out)), watchNonTs, tsgoStream);
 
 		return watchStream;
 	}));
@@ -286,10 +276,15 @@ export const compileNativeExtensionsBuildTask = task.define('compile-native-exte
 task.task(compileNativeExtensionsBuildTask);
 
 /**
- * Compiles the built-in copilot extension for the build.
- * Used by non-CI local builds where copilot is not downloaded as a VSIX.
+ * Compiles the built-in Copilot extension for the build, with the files that its `.vscodeignore`
+ * selects (see {@link ext.packageCopilotExtensionStream}). The platform Compile jobs run it on its own (see
+ * `build/azure-pipelines/copilot/builtin-steps.yml`), and the local builds with the other built-in
+ * extensions.
  */
-export const compileCopilotExtensionBuildTask = task.define('compile-copilot-extension-build', () => ext.packageCopilotExtensionStream().pipe(gulp.dest('.build')));
+export const compileCopilotExtensionBuildTask = task.define('compile-copilot-extension-build', task.series(
+	util.rimraf('.build/extensions/copilot'),
+	task.define('bundle-copilot-extension-build', () => ext.packageCopilotExtensionStream().pipe(gulp.dest('.build')))
+));
 task.task(compileCopilotExtensionBuildTask);
 
 /**

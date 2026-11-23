@@ -34,7 +34,7 @@ type Coverage = Record<MetricName, ICoverageMetric>;
 
 const providerPackages = [
 	'@anthropic-ai/claude-agent-sdk',
-	'@github/copilot-sdk',
+	'@microsoft/copilot-sdk',
 	'@openai/codex',
 ];
 
@@ -105,7 +105,7 @@ function validateEnvironment(): void {
 
 	const missingPackages = providerPackages.filter(packageName => !existsSync(join(repoRoot, 'node_modules', ...packageName.split('/'))));
 	if (missingPackages.length > 0) {
-		throw new Error(`Agent host E2E coverage requires all provider dependencies; run npm install to add ${missingPackages.join(', ')}`);
+		throw new Error(`Agent host E2E coverage requires all provider dependencies; run pnpm install to add ${missingPackages.join(', ')}`);
 	}
 }
 

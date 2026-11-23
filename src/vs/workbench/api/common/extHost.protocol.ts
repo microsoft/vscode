@@ -32,6 +32,7 @@ import { EditSuggestionId } from '../../../editor/common/textModelEditSource.js'
 import { ISerializedModelContentChangedEvent } from '../../../editor/common/textModelEvents.js';
 import { IAccessibilityInformation } from '../../../platform/accessibility/common/accessibility.js';
 import { ILocalizedString } from '../../../platform/action/common/action.js';
+import { ArtifactActionDescriptor, ArtifactAutomationConfiguration, ArtifactAutomationOption, ArtifactAutomationRequest, ArtifactCodeResult, ArtifactContributionView, ArtifactDetails, ArtifactMainPresentation, ArtifactPreparation, ArtifactPrompt, ArtifactReconciliation, ArtifactRun } from '../../../platform/artifactIntegrations/common/artifactIntegration.js';
 import { ConfigurationTarget, IConfigurationChange, IConfigurationData, IConfigurationOverrides } from '../../../platform/configuration/common/configuration.js';
 import { LinkPresentationKind } from '../../../platform/dataChannel/common/dataChannel.js';
 import { ConfigurationScope } from '../../../platform/configuration/common/configurationRegistry.js';
@@ -39,9 +40,16 @@ import { IEditorOptions, ViewColumn } from '../../../platform/editor/common/edit
 import { IExtensionIdWithVersion } from '../../../platform/extensionManagement/common/extensionStorage.js';
 import { ExtensionIdentifier, IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import * as files from '../../../platform/files/common/files.js';
+import { PageOptions, RepositoryRef } from '../../../platform/github/common/client/types.js';
+import { Connection } from '../../../platform/github/common/core/core.js';
+import { CreatePullRequestRequest, ListPullRequestsOptions, PullRequestSummary } from '../../../platform/github/common/core/pullRequests.js';
+import { Branch, CreateRepositoryRequest, ListRepositoriesOptions, Repository, RepositoryAssignableUser, RepositoryCommitAuthor, RepositoryRulesetNode, RepositoryViewerInfo } from '../../../platform/github/common/core/repositories.js';
+import { RepositorySearchItem } from '../../../platform/github/common/core/search.js';
+import { User } from '../../../platform/github/common/core/users.js';
 import { ResourceLabelFormatter } from '../../../platform/label/common/label.js';
 import { ILoggerOptions, ILoggerResource, LogLevel } from '../../../platform/log/common/log.js';
 import { IMarkerData } from '../../../platform/markers/common/markers.js';
+import { McpServerPolicyValues } from '../../../platform/mcp/common/allowedMcpServers.js';
 import { IProgressOptions, IProgressStep } from '../../../platform/progress/common/progress.js';
 import { NotificationTelemetryId } from '../../../platform/notification/common/notificationTelemetry.js';
 import * as quickInput from '../../../platform/quickinput/common/quickInput.js';
@@ -109,6 +117,16 @@ export type IconPathDto =
 	| UriComponents
 	| { light: UriComponents; dark: UriComponents }
 	| ThemeIcon;
+
+export interface IWorkspaceFolderLocationDto {
+	uri: UriComponents;
+	name: string;
+}
+
+export interface IWorkspaceFolderLocationsDto {
+	folder: UriComponents;
+	locations: IWorkspaceFolderLocationDto[];
+}
 
 export interface IWorkspaceData extends IStaticWorkspaceData {
 	folders: { uri: UriComponents; name: string; index: number }[];
@@ -531,6 +549,7 @@ export interface IInlineCompletionChangeHintDto {
 export interface MainThreadLanguageFeaturesShape extends IDisposable {
 	$unregister(handle: number): void;
 	$registerDocumentSymbolProvider(handle: number, selector: IDocumentFilterDto[], label: string): void;
+	$registerStructuralDiffProvider(handle: number, selector: IDocumentFilterDto[]): void;
 	$registerCodeLensSupport(handle: number, selector: IDocumentFilterDto[], eventHandle: number | undefined): void;
 	$emitCodeLensEvent(eventHandle: number, event?: any): void;
 	$registerDefinitionSupport(handle: number, selector: IDocumentFilterDto[]): void;
@@ -600,8 +619,12 @@ export interface MainThreadLanguagesShape extends IDisposable {
 	$changeLanguage(resource: UriComponents, languageId: string): Promise<void>;
 	$tokensAtPosition(resource: UriComponents, position: IPosition): Promise<undefined | { type: StandardTokenType; range: IRange }>;
 	$computeFullSyntaxHighlighting(source: string, languageId: string): Promise<ISyntaxHighlightingResultDto>;
-	$setLanguageStatus(handle: number, status: ILanguageStatus): void;
+	$setLanguageStatus(handle: number, status: ILanguageStatusDto): void;
 	$removeLanguageStatus(handle: number): void;
+}
+
+export interface ILanguageStatusDto extends Omit<ILanguageStatus, 'detail'> {
+	readonly detail: string;
 }
 
 export interface ISyntaxHighlightingTokenDto {
@@ -617,6 +640,7 @@ export interface ISyntaxHighlightingResultDto {
 
 export interface MainThreadMessageOptions {
 	source?: { identifier: ExtensionIdentifier; label: string };
+	notificationId?: string;
 	modal?: boolean;
 	detail?: string;
 	useCustom?: boolean;
@@ -637,6 +661,7 @@ export interface MainThreadOutputServiceShape extends IDisposable {
 export interface IProgressOptionsDto extends Omit<IProgressOptions, 'title' | 'legacyExtensionLinkParsing' | 'telemetry'> {
 	readonly title?: string;
 	readonly telemetryId?: NotificationTelemetryId;
+	readonly notificationId?: string;
 }
 
 export interface IProgressStepDto extends Omit<IProgressStep, 'message'> {
@@ -1274,10 +1299,19 @@ export interface ExtHostManagedSocketsShape {
 }
 
 export interface MainThreadBrowserTunnelProxyShape extends IDisposable {
+	/** Opens a TCP connection on the network of the agent host with the given connection authority. */
+	$openNetworkConnection(authority: string, host: string, port: number): Promise<number>;
+	/** Resolves the next chunk, or `undefined` at EOF. At most one read is pending per connection. */
+	$readNetworkConnection(id: number): Promise<VSBuffer | undefined>;
+	/** Resolves once the agent host connection has accepted the data. */
+	$writeNetworkConnection(id: number, data: VSBuffer): Promise<void>;
+	/** Half-closes the connection once previously written data has been delivered. */
+	$endNetworkConnection(id: number): Promise<void>;
+	$closeNetworkConnection(id: number): void;
 }
 
 export interface ExtHostBrowserTunnelProxyShape {
-	/** Starts (or returns the running) proxy whose connections use the remote network with this authority. */
+	/** Starts (or returns the running) proxy whose connections use the network with this authority: the window's remote or an agent host. */
 	$acquireNetworkProxy(authority: string): Promise<ITunnelProxyInfo>;
 	$releaseNetworkProxy(authority: string): void;
 }
@@ -1994,6 +2028,8 @@ export interface ResourceTrustRequestOptionsDto {
 }
 
 export interface MainThreadWorkspaceShape extends IDisposable {
+	/** Starts resolving, and keeping current, the locations of the workspace folders. */
+	$getWorkspaceFolderLocations(): void;
 	$startFileSearch(includeFolder: UriComponents | null, options: IFileQueryBuilderOptions, token: CancellationToken): Promise<UriComponents[] | null>;
 	$startTextSearch(query: search.IPatternInfo, folder: UriComponents | null, options: ITextQueryBuilderOptions, requestId: number, token: CancellationToken): Promise<ITextSearchComplete | null>;
 	$checkExists(folders: readonly UriComponents[], includes: string[], token: CancellationToken): Promise<boolean>;
@@ -2199,6 +2235,7 @@ export interface SCMArtifactDto {
 export interface MainThreadSCMShape extends IDisposable {
 	$registerSourceControl(handle: number, parentHandle: number | undefined, id: string, label: string, rootUri: UriComponents | undefined, iconPath: IconPathDto | undefined, isHidden: boolean | undefined, inputBoxDocumentUri: UriComponents): Promise<void>;
 	$updateSourceControl(handle: number, features: SCMProviderFeatures): Promise<void>;
+	$setSourceControlsHidden(changes: [handle: number, isHidden: boolean][]): Promise<void>;
 	$unregisterSourceControl(handle: number): Promise<void>;
 
 	$registerGroups(sourceControlHandle: number, groups: [number /*handle*/, string /*id*/, string /*label*/, SCMGroupFeatures, /* multiDiffEditorEnableViewChanges */ boolean][], splices: SCMRawResourceSplices[]): Promise<void>;
@@ -2363,6 +2400,95 @@ export interface MainThreadTimelineShape extends IDisposable {
 	 */
 	$emitTimelineChangeEvent(source: string, uris: UriComponents[] | undefined): void;
 	$emitWorkspaceTimelineChangeEvent(source: string): void;
+}
+
+export interface ChatArtifactIntegrationStateDto {
+	readonly revision: number;
+	readonly view: ArtifactContributionView;
+}
+
+export interface ChatArtifactActionDto extends ArtifactActionDescriptor {
+	readonly canReconcile: boolean;
+	readonly executionScope?: 'resource' | 'resourceAndWorkspace';
+}
+
+export type ChatArtifactResourceMatchDto =
+	| { readonly kind: 'matched'; readonly resource: UriComponents; readonly key: string; readonly credentialScope: string }
+	| { readonly kind: 'authenticationRequired'; readonly reason: string; readonly main: ArtifactMainPresentation };
+
+export interface ChatArtifactActionContextDto {
+	readonly runId: string;
+	readonly source: 'manual' | 'automation';
+	/** Who started the run: a person, an agent through its tools, or an automation rule. */
+	readonly initiator: 'user' | 'agent' | 'automation';
+	readonly optionId?: string;
+	readonly input?: string;
+}
+
+export type ChatArtifactAutomationRequestDto = Omit<ArtifactAutomationRequest, 'input'> & { readonly input?: string };
+
+export type ChatArtifactRunDto = Pick<ArtifactRun, 'id' | 'actionId' | 'source' | 'state' | 'reason' | 'createdAt' | 'updatedAt' | 'optionId' | 'generation' | 'occurrenceKey' | 'dispatched' | 'indeterminate'>;
+
+export interface ChatArtifactAutomationSnapshotDto {
+	readonly revision: number;
+	readonly configuration: Omit<ArtifactAutomationConfiguration, 'enabledAt' | 'grants' | 'disabledBy'> & { readonly enabledAt: Readonly<Record<string, number>> };
+	readonly state: { readonly revision: number; readonly value?: string };
+	readonly runs: readonly ChatArtifactRunDto[];
+}
+
+export type ChatArtifactActionResultDto =
+	| Omit<Extract<ArtifactCodeResult, { readonly kind: 'completed' }>, 'result'>
+	| Extract<ArtifactCodeResult, { readonly kind: 'skipped' }>;
+
+export interface ChatArtifactIntegrationProviderMetadataDto {
+	readonly label: string;
+	readonly description?: string;
+	readonly groupLabel?: string;
+	readonly automationOptions: readonly ArtifactAutomationOption[];
+	readonly canSignIn: boolean;
+}
+
+export interface RemoteAgentHostDto {
+	readonly extensionId: string;
+	readonly extensionDisplayName: string;
+	readonly name: string;
+	readonly address: string;
+	readonly connectionToken?: string;
+}
+
+export interface MainThreadRemoteAgentHostsShape extends IDisposable {
+	$registerRemoteAgentHost(handle: number, host: RemoteAgentHostDto): void;
+	$unregisterRemoteAgentHost(handle: number): void;
+}
+
+export interface MainThreadChatArtifactIntegrationsShape extends IDisposable {
+	$registerProvider(handle: number, id: string, metadata: ChatArtifactIntegrationProviderMetadataDto): void;
+	$unregisterProvider(handle: number): void;
+	$onDidChangeProvider(handle: number): void;
+	$onDidChangeIntegration(handle: number, state: ChatArtifactIntegrationStateDto): void;
+	$onDidChangeDetails(handle: number, details: ArtifactDetails): void;
+	$runAutomation(handle: number, request: ChatArtifactAutomationRequestDto): Promise<ChatArtifactRunDto>;
+	$writeAutomationState(handle: number, expectedRevision: number, value: string): Promise<ChatArtifactAutomationSnapshotDto>;
+	$reconcileAutomationRun(handle: number, runId: string): Promise<void>;
+	$disableAutomation(handle: number, optionId: string, expectedRevision: number, reason: string): Promise<void>;
+}
+
+export interface ExtHostChatArtifactIntegrationsShape {
+	$match(handle: number, resource: UriComponents, token: CancellationToken): Promise<ChatArtifactResourceMatchDto | undefined>;
+	$signIn(handle: number, resource: UriComponents, token: CancellationToken): Promise<void>;
+	$createIntegration(providerHandle: number, handle: number, resource: UriComponents, token: CancellationToken): Promise<{ readonly state: ChatArtifactIntegrationStateDto; readonly actions: readonly ChatArtifactActionDto[]; readonly initialDetails: Readonly<Record<string, { readonly details: ArtifactDetails; readonly canLoadMore: boolean }>> }>;
+	$disposeIntegration(handle: number): void;
+	$acquireDetails(resourceHandle: number, detailsHandle: number, detailsId: string): Promise<{ readonly details: ArtifactDetails; readonly canLoadMore: boolean }>;
+	$loadMoreDetails(detailsHandle: number, token: CancellationToken): Promise<void>;
+	$runItemAction(detailsHandle: number, itemId: string, actionId: string, token: CancellationToken): Promise<void>;
+	$disposeDetails(detailsHandle: number): void;
+	$prepareAction(handle: number, actionId: string, context: ChatArtifactActionContextDto, token: CancellationToken): Promise<{ readonly kind: 'ready' } | { readonly kind: 'skip'; readonly reason: string }>;
+	$runAction(handle: number, actionId: string, context: ChatArtifactActionContextDto, token: CancellationToken): Promise<ChatArtifactActionResultDto | undefined>;
+	$providePrompt(handle: number, actionId: string, context: ChatArtifactActionContextDto, token: CancellationToken): Promise<ArtifactPreparation<ArtifactPrompt>>;
+	$reconcileAction(handle: number, actionId: string, runId: string, token: CancellationToken): Promise<ArtifactReconciliation>;
+	$activateAutomation(resourceHandle: number, handle: number, snapshot: ChatArtifactAutomationSnapshotDto, token: CancellationToken): Promise<void>;
+	$onDidChangeAutomation(handle: number, snapshot: ChatArtifactAutomationSnapshotDto): void;
+	$disposeAutomation(handle: number): void;
 }
 
 export interface HoverWithId extends languages.Hover {
@@ -2540,6 +2666,7 @@ export interface ExtHostTreeViewsShape {
 export interface ExtHostWorkspaceShape {
 	$initializeWorkspace(workspace: IWorkspaceData | null, trusted: boolean): void;
 	$acceptWorkspaceData(workspace: IWorkspaceData | null): void;
+	$acceptWorkspaceFolderLocations(data: IWorkspaceFolderLocationsDto[]): void;
 	$handleTextSearchResult(result: search.IRawFileMatch2, requestId: number): void;
 	$onDidGrantWorkspaceTrust(): void;
 	$onDidChangeWorkspaceTrustedFolders(): void;
@@ -2985,6 +3112,7 @@ export interface IDocumentDropEditDto {
 
 export interface ExtHostLanguageFeaturesShape {
 	$provideDocumentSymbols(handle: number, resource: UriComponents, token: CancellationToken): Promise<languages.DocumentSymbol[] | undefined>;
+	$provideStructuralDiff(handle: number, originalResource: UriComponents, originalVersion: number, modifiedResource: UriComponents, modifiedVersion: number, context: languages.StructuralDiffContext, token: CancellationToken): Promise<languages.StructuralDiff | undefined>;
 	$provideCodeLenses(handle: number, resource: UriComponents, token: CancellationToken): Promise<ICodeLensListDto | undefined>;
 	$resolveCodeLens(handle: number, symbol: ICodeLensDto, token: CancellationToken): Promise<ICodeLensDto | undefined>;
 	$releaseCodeLenses(handle: number, id: number): void;
@@ -3259,10 +3387,11 @@ export interface ExtHostShareShape {
 export interface ExtHostTaskShape {
 	$provideTasks(handle: number, validTypes: { [key: string]: boolean }): Promise<tasks.ITaskSetDTO>;
 	$resolveTask(handle: number, taskDTO: tasks.ITaskDTO): Promise<tasks.ITaskDTO | undefined>;
-	$onDidStartTask(execution: tasks.ITaskExecutionDTO, terminalId: number, resolvedDefinition: tasks.ITaskDefinitionDTO): void;
+	$onWillStartTask(taskId: string, startId?: string): void;
+	$onDidStartTask(execution: tasks.ITaskExecutionDTO, terminalId: number, resolvedDefinition: tasks.ITaskDefinitionDTO, startId?: string): void;
 	$onDidStartTaskProcess(value: tasks.ITaskProcessStartedDTO): void;
 	$onDidEndTaskProcess(value: tasks.ITaskProcessEndedDTO): void;
-	$OnDidEndTask(execution: tasks.ITaskExecutionDTO): void;
+	$OnDidEndTask(execution: tasks.ITaskExecutionDTO, startId?: string): void;
 	$onDidStartTaskProblemMatchers(status: tasks.ITaskProblemMatcherStartedDto): void;
 	$onDidEndTaskProblemMatchers(status: tasks.ITaskProblemMatcherEndedDto): void;
 	$resolveVariables(workspaceFolder: UriComponents, toResolve: { process?: { name: string; cwd?: string }; variables: string[] }): Promise<{ process?: string; variables: { [key: string]: string } }>;
@@ -3393,6 +3522,64 @@ export interface ExtHostWindowShape {
 	$onDidChangeWindowFocus(value: boolean): void;
 	$onDidChangeWindowActive(value: boolean): void;
 	$onDidChangeActiveNativeWindowHandle(handle: string | undefined): void;
+}
+
+/** Internal GitHub module error category; cancellation is reported separately. */
+export type GitHubErrorCodeDto = 'authentication' | 'authorization' | 'notFound' | 'validation' | 'rateLimit' | 'network' | 'timeout' | 'server' | 'invalidResponse' | 'disposed' | 'unknown';
+
+export interface IGitHubErrorDto {
+	readonly code: GitHubErrorCodeDto;
+	readonly message: string;
+	readonly status?: number;
+}
+
+/** Operation result; failures are values so their code and status survive RPC without response bodies. */
+export type GitHubResultDto<T> =
+	| { readonly kind: 'ok'; readonly value: T }
+	| { readonly kind: 'error'; readonly error: IGitHubErrorDto }
+	| { readonly kind: 'canceled' };
+
+export interface IGitHubGistFileDto {
+	readonly content: string;
+	readonly isBinary: boolean;
+	readonly truncated: boolean;
+}
+
+export interface IGitHubGistDto {
+	readonly id: string;
+	readonly htmlUrl: string;
+	readonly files: readonly IGitHubGistFileDto[];
+}
+
+export interface IGitHubCreateGistDto {
+	readonly public?: boolean;
+	readonly files: { readonly [fileName: string]: { readonly content: string } };
+}
+
+/**
+ * Client leases are identified by extension-host-generated handles so that a release can be sent for an
+ * acquisition whose reply was lost or cancelled. Releasing an unknown or already released handle is a no-op.
+ */
+export interface MainThreadGitHubShape extends IDisposable {
+	/** Binds a session of the `github` authentication provider (GitHub.com). */
+	$getClient(handle: number, extensionId: string, sessionId: string, token: CancellationToken): Promise<GitHubResultDto<void>>;
+	$getAnonymousClient(handle: number, extensionId: string, token: CancellationToken): Promise<GitHubResultDto<void>>;
+	$releaseClient(handle: number): void;
+	$getGist(handle: number, gistId: string, token: CancellationToken): Promise<GitHubResultDto<IGitHubGistDto>>;
+	$createGist(handle: number, gist: IGitHubCreateGistDto, token: CancellationToken): Promise<GitHubResultDto<IGitHubGistDto>>;
+	$getGitHubUser(handle: number, token: CancellationToken): Promise<GitHubResultDto<User>>;
+	$getGitHubRepository(handle: number, repository: RepositoryRef, token: CancellationToken): Promise<GitHubResultDto<Repository>>;
+	$listGitHubRepositories(handle: number, query: ListRepositoriesOptions['query'], token: CancellationToken): Promise<GitHubResultDto<readonly Repository[]>>;
+	$searchGitHubRepositories(handle: number, query: string, token: CancellationToken): Promise<GitHubResultDto<readonly RepositorySearchItem[]>>;
+	$listGitHubBranches(handle: number, repository: RepositoryRef, query: PageOptions | undefined, token: CancellationToken): Promise<GitHubResultDto<readonly Branch[]>>;
+	$createGitHubRepository(handle: number, request: CreateRepositoryRequest, token: CancellationToken): Promise<GitHubResultDto<Repository>>;
+	$forkGitHubRepository(handle: number, repository: RepositoryRef, token: CancellationToken): Promise<GitHubResultDto<Repository>>;
+	$listGitHubPullRequests(handle: number, repository: RepositoryRef, query: ListPullRequestsOptions['query'], token: CancellationToken): Promise<GitHubResultDto<readonly PullRequestSummary[]>>;
+	$createGitHubPullRequest(handle: number, repository: RepositoryRef, request: CreatePullRequestRequest, token: CancellationToken): Promise<GitHubResultDto<PullRequestSummary>>;
+	$getGitHubRepositoryViewerInfo(handle: number, repository: RepositoryRef, token: CancellationToken): Promise<GitHubResultDto<RepositoryViewerInfo | null>>;
+	$listGitHubRulesetConnection(handle: number, repository: RepositoryRef, after: string | undefined, maxPages: number | undefined, token: CancellationToken): Promise<GitHubResultDto<Connection<RepositoryRulesetNode> | null>>;
+	$listGitHubAssignableUsers(handle: number, repository: RepositoryRef, token: CancellationToken): Promise<GitHubResultDto<Connection<RepositoryAssignableUser> | null>>;
+	$getGitHubCommitAuthor(handle: number, repository: RepositoryRef, ref: string, token: CancellationToken): Promise<GitHubResultDto<RepositoryCommitAuthor | null>>;
 }
 
 export type PowerSystemIdleState = 'active' | 'idle' | 'locked' | 'unknown';
@@ -3714,6 +3901,8 @@ export interface IStartMcpOptions {
 export interface ExtHostMcpShape {
 	$substituteVariables(workspaceFolder: UriComponents | undefined, value: McpServerLaunch.Serialized): Promise<McpServerLaunch.Serialized>;
 	$expandEnvironmentVariables(launch: McpServerLaunch.Serialized, expansion: McpServerEnvironmentVariableExpansion): Promise<McpServerLaunch.Serialized>;
+	/** Expands matcher strings on the executing host; the client must still enforce allow/deny rules using the returned values. */
+	$resolveMcpPolicyVariables(values: readonly string[]): Promise<McpServerPolicyValues>;
 	$resolveMcpLaunch(collectionId: string, label: string): Promise<McpServerLaunch.Serialized | undefined>;
 	$startMcp(id: number, opts: IStartMcpOptions): void;
 	$stopMcp(id: number): void;
@@ -3810,6 +3999,12 @@ export interface ITestControllerPatch {
 	capabilities?: TestControllerCapability;
 }
 
+export type TestRunUpdate =
+	| { type: 'tests'; tests: ITestItem.Serialized[] }
+	| { type: 'state'; taskId: string; testId: string; state: TestResultState; duration?: number }
+	| { type: 'messages'; taskId: string; testId: string; messages: ITestMessage.Serialized[] }
+	| { type: 'output'; taskId: string; output: string | VSBuffer; location?: ILocationDto; testId?: string };
+
 export interface MainThreadTestingShape {
 	// --- test lifecycle:
 
@@ -3839,6 +4034,9 @@ export interface MainThreadTestingShape {
 
 
 	// --- test run handling:
+
+	/** Applies ordered test run updates sent in a single message. */
+	$applyTestRunUpdates(controllerId: string, runId: string, updates: SerializableObjectWithBuffers<TestRunUpdate[]>): void;
 
 	/** Request by an extension to run tests. */
 	$runTests(req: ResolvedTestRunRequest, token: CancellationToken): Promise<string>;
@@ -4033,6 +4231,11 @@ export interface GitDiffChangeDto extends GitChangeDto {
 	readonly deletions: number;
 }
 
+export interface GitCommitOptionsDto {
+	readonly noVerify?: boolean;
+	readonly signCommit?: boolean;
+}
+
 export interface GitRemoteDto {
 	readonly name: string;
 	readonly fetchUrl?: string;
@@ -4077,6 +4280,7 @@ export interface ExtHostGitExtensionShape {
 	$getRepositoryState(handle: number): Promise<GitRepositoryStateDto | undefined>;
 	$diffBetweenWithStats(handle: number, ref1: string, ref2: string, path?: string): Promise<GitDiffChangeDto[]>;
 	$diffBetweenWithStats2(handle: number, ref: string, path?: string): Promise<GitDiffChangeDto[]>;
+	$commitFiles(handle: number, files: UriComponents[], message: string, options?: GitCommitOptionsDto): Promise<void>;
 }
 
 // --- proxy identifiers
@@ -4142,6 +4346,7 @@ export const MainContext = {
 	MainThreadTask: createProxyIdentifier<MainThreadTaskShape>('MainThreadTask'),
 	MainThreadWindow: createProxyIdentifier<MainThreadWindowShape>('MainThreadWindow'),
 	MainThreadPower: createProxyIdentifier<MainThreadPowerShape>('MainThreadPower'),
+	MainThreadGitHub: createProxyIdentifier<MainThreadGitHubShape>('MainThreadGitHub'),
 	MainThreadLabelService: createProxyIdentifier<MainThreadLabelServiceShape>('MainThreadLabelService'),
 	MainThreadNotebook: createProxyIdentifier<MainThreadNotebookShape>('MainThreadNotebook'),
 	MainThreadNotebookDocuments: createProxyIdentifier<MainThreadNotebookDocumentsShape>('MainThreadNotebookDocumentsShape'),
@@ -4154,6 +4359,7 @@ export const MainContext = {
 	MainThreadManagedSockets: createProxyIdentifier<MainThreadManagedSocketsShape>('MainThreadManagedSockets'),
 	MainThreadBrowserTunnelProxy: createProxyIdentifier<MainThreadBrowserTunnelProxyShape>('MainThreadBrowserTunnelProxy'),
 	MainThreadTimeline: createProxyIdentifier<MainThreadTimelineShape>('MainThreadTimeline'),
+	MainThreadChatArtifactIntegrations: createProxyIdentifier<MainThreadChatArtifactIntegrationsShape>('MainThreadChatArtifactIntegrations'),
 	MainThreadTesting: createProxyIdentifier<MainThreadTestingShape>('MainThreadTesting'),
 	MainThreadLocalization: createProxyIdentifier<MainThreadLocalizationShape>('MainThreadLocalizationShape'),
 	MainThreadMcp: createProxyIdentifier<MainThreadMcpShape>('MainThreadMcpShape'),
@@ -4169,6 +4375,7 @@ export const MainContext = {
 	MainThreadChatContext: createProxyIdentifier<MainThreadChatContextShape>('MainThreadChatContext'),
 	MainThreadChatDebug: createProxyIdentifier<MainThreadChatDebugShape>('MainThreadChatDebug'),
 	MainThreadBrowsers: createProxyIdentifier<MainThreadBrowsersShape>('MainThreadBrowsers'),
+	MainThreadRemoteAgentHosts: createProxyIdentifier<MainThreadRemoteAgentHostsShape>('MainThreadRemoteAgentHosts'),
 };
 
 export const ExtHostContext = {
@@ -4243,6 +4450,7 @@ export const ExtHostContext = {
 	ExtHostBrowserTunnelProxy: createProxyIdentifier<ExtHostBrowserTunnelProxyShape>('ExtHostBrowserTunnelProxy'),
 	ExtHostAuthentication: createProxyIdentifier<ExtHostAuthenticationShape>('ExtHostAuthentication'),
 	ExtHostTimeline: createProxyIdentifier<ExtHostTimelineShape>('ExtHostTimeline'),
+	ExtHostChatArtifactIntegrations: createProxyIdentifier<ExtHostChatArtifactIntegrationsShape>('ExtHostChatArtifactIntegrations'),
 	ExtHostTesting: createProxyIdentifier<ExtHostTestingShape>('ExtHostTesting'),
 	ExtHostTelemetry: createProxyIdentifier<ExtHostTelemetryShape>('ExtHostTelemetry'),
 	ExtHostMeteredConnection: createProxyIdentifier<ExtHostMeteredConnectionShape>('ExtHostMeteredConnection'),

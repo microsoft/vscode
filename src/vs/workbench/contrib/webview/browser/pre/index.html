@@ -5,7 +5,7 @@
 	<meta charset="UTF-8">
 
 	<meta http-equiv="Content-Security-Policy"
-		content="default-src 'none'; script-src 'sha256-7cKy9iQfWRXcgRS74x6I4q5cRDkv8nQz51jecqMmQ5w=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
+		content="default-src 'none'; script-src 'sha256-mJlW7V1HtPghR7DIVKkjtQB+P4WPEn1mv458ONAbG60=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
 
 	<!-- Disable pinch zooming -->
 	<meta name="viewport"
@@ -135,8 +135,13 @@
 				max-height: 100%;
 			}
 
-			a, a code {
+			a {
 				color: var(--vscode-textLink-foreground);
+			}
+
+			a code {
+				color: var(--vscode-textPreformat-foreground);
+				text-decoration: underline;
 			}
 
 			p > a {
@@ -164,6 +169,7 @@
 			}
 
 			pre code {
+				background-color: transparent;
 				padding: 0;
 			}
 
@@ -739,6 +745,40 @@
 			return e.keyCode === 116;
 		}
 
+		// #region Mouse activity forwarding
+		const handleMouseMove = (() => {
+			/** @type {{ x: number; y: number } | undefined} */
+			let lastPosition;
+			/** @type {import('../webviewMessages').FromWebviewMessage['did-mouse-move'] | undefined} */
+			let pendingEvent;
+			let scheduled = false;
+
+			return (/** @type {MouseEvent} */ event) => {
+				if (!event.isTrusted || (lastPosition?.x === event.screenX && lastPosition.y === event.screenY)) {
+					return;
+				}
+				lastPosition = { x: event.screenX, y: event.screenY };
+				pendingEvent = { screenX: event.screenX, screenY: event.screenY };
+				if (scheduled) {
+					return;
+				}
+				scheduled = true;
+				window.requestAnimationFrame(() => {
+					scheduled = false;
+					const event = pendingEvent;
+					pendingEvent = undefined;
+					if (!event) {
+						return;
+					}
+					hostMessaging.postMessage('did-mouse-move', {
+						screenX: event.screenX,
+						screenY: event.screenY,
+					});
+				});
+			};
+		})();
+		// #endregion Mouse activity forwarding
+
 		let isHandlingScroll = false;
 
 		/**
@@ -920,6 +960,7 @@
 		// Also forward events before the contents of the webview have loaded
 		window.addEventListener('keydown', handleInnerKeydown);
 		window.addEventListener('keyup', handleInnerKeyup);
+		window.addEventListener('mousemove', handleMouseMove, true);
 		window.addEventListener('dragenter', handleInnerDragStartEvent);
 		window.addEventListener('dragover', handleInnerDragEvent);
 		window.addEventListener('drag', handleInnerDragEvent);
@@ -1033,6 +1074,7 @@
 				newFrame.title = data.title;
 				newFrame.setAttribute('id', 'pending-frame');
 				newFrame.setAttribute('frameborder', '0');
+				newFrame.allowFullscreen = !!options.allowFullscreen;
 
 				const sandboxRules = new Set(['allow-same-origin', 'allow-pointer-lock']);
 				if (options.allowScripts) {
@@ -1044,7 +1086,11 @@
 				}
 				newFrame.setAttribute('sandbox', Array.from(sandboxRules).join(' '));
 
-				const allowRules = ['cross-origin-isolated;', 'autoplay;', 'local-network-access;'];
+				const allowRules = ['cross-origin-isolated;', 'autoplay;'];
+				const supportedFeatures = /** @type {HTMLIFrameElement & { featurePolicy?: { features(): string[] } }} */ (newFrame).featurePolicy?.features();
+				if (supportedFeatures?.includes('local-network-access')) {
+					allowRules.push('local-network-access;');
+				}
 				if (!isFirefox && options.allowScripts) {
 					allowRules.push('clipboard-read;', 'clipboard-write;');
 				}
@@ -1073,6 +1119,11 @@
 
 					// Workaround for https://bugs.chromium.org/p/chromium/issues/detail?id=978325
 					setTimeout(() => {
+						// If the frame is no longer mounted, loading has stopped
+						if (!newFrame.parentElement) {
+							return;
+						}
+
 						contentDocument.open();
 						contentDocument.write(newDocument);
 						contentDocument.close();
@@ -1103,6 +1154,11 @@
 					}, 10);
 				} else {
 					assertIsDefined(newFrame.contentWindow).addEventListener('DOMContentLoaded', e => {
+						// If the frame is no longer mounted, loading has stopped
+						if (!newFrame.parentElement) {
+							return;
+						}
+
 						const contentDocument = e.target ? (/** @type {HTMLDocument} */ (e.target)) : undefined;
 						onFrameLoaded(assertIsDefined(contentDocument));
 					});
@@ -1150,7 +1206,9 @@
 							const postSize = () => {
 								hostMessaging.postMessage('updated-intrinsic-content-size', {
 									width: docEl.offsetWidth,
-									height: docEl.offsetHeight
+									height: options.includeHorizontalScrollbarInContentHeight
+										? Math.ceil(docEl.getBoundingClientRect().height + Math.max(0, contentWindow.innerHeight - docEl.clientHeight))
+										: docEl.offsetHeight
 								});
 							};
 
@@ -1170,17 +1228,28 @@
 				 * @param {HTMLIFrameElement} newFrame
 				 */
 				function hookupOnLoadHandlers(newFrame) {
+					// If the frame is no longer mounted, loading has stopped
+					if (!newFrame.parentElement) {
+						return;
+					}
+
 					clearTimeout(loadTimeout);
 					loadTimeout = undefined;
 					loadTimeout = setTimeout(() => {
 						clearTimeout(loadTimeout);
 						loadTimeout = undefined;
+						if (!newFrame.parentElement) {
+							return;
+						}
 						onLoad(assertIsDefined(newFrame.contentDocument), assertIsDefined(newFrame.contentWindow));
 					}, 200);
 
 					const contentWindow = assertIsDefined(newFrame.contentWindow);
 
 					contentWindow.addEventListener('load', function (e) {
+						if (!newFrame.parentElement) {
+							return;
+						}
 						const contentDocument = /** @type {Document} */ (e.target);
 
 						if (loadTimeout) {
@@ -1195,6 +1264,7 @@
 					contentWindow.addEventListener('auxclick', handleAuxClick);
 					contentWindow.addEventListener('keydown', handleInnerKeydown);
 					contentWindow.addEventListener('keyup', handleInnerKeyup);
+					contentWindow.addEventListener('mousemove', handleMouseMove, true);
 					contentWindow.addEventListener('contextmenu', e => {
 						if (e.defaultPrevented) {
 							// Extension code has already handled this event
@@ -1283,8 +1353,16 @@
 					return;
 				}
 				const contentDocument = assertIsDefined(target.contentDocument);
+				// Commands invoked from host menus run while focus is outside the webview, and browsers
+				// such as Chrome reject native clipboard commands in an unfocused document.
+				if (!contentDocument.hasFocus()) {
+					target.contentWindow?.focus();
+				}
 				const lastFocused = lastFocusedElements.get(contentDocument);
-				if ((contentDocument.activeElement === contentDocument.body || contentDocument.activeElement === contentDocument.documentElement)
+				const selection = contentDocument.getSelection();
+				// Restoring focus to an input would discard a selection in non-focusable content.
+				if ((!selection || selection.isCollapsed)
+					&& (contentDocument.activeElement === contentDocument.body || contentDocument.activeElement === contentDocument.documentElement)
 					&& lastFocused?.isConnected && lastFocused.ownerDocument === contentDocument) {
 					lastFocused.focus({ preventScroll: true });
 				}

@@ -3,6 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { isSafari } from '../../../base/common/platform.js';
+import { raceCancellationError } from '../../../base/common/async.js';
+import { CancellationToken } from '../../../base/common/cancellation.js';
 import { ILogService } from '../../log/common/log.js';
 
 /** Parses JSON using the caller's domain error for invalid syntax, without exposing response content. */
@@ -18,12 +21,12 @@ export function parseResponseJson<T>(body: string, errorFactory: () => Error): T
 export async function readBoundedResponse(
 	response: Response,
 	maximumBytes: number,
-	signal: AbortSignal,
+	cancellationToken: CancellationToken,
 	logService?: ILogService,
 ): Promise<{ readonly bytes: Uint8Array; readonly truncated: boolean }> {
 	const limit = Math.max(0, maximumBytes);
 	if (!response.body) {
-		signal.throwIfAborted();
+		CancellationToken.throwIfCanceled(cancellationToken);
 		return { bytes: new Uint8Array(), truncated: false };
 	}
 	const reader = response.body.getReader();
@@ -32,8 +35,9 @@ export async function readBoundedResponse(
 	let complete = false;
 	try {
 		while (true) {
-			const result = await readResponseChunk(reader, signal);
-			signal.throwIfAborted();
+			CancellationToken.throwIfCanceled(cancellationToken);
+			const result = await raceCancellationError(reader.read(), cancellationToken);
+			CancellationToken.throwIfCanceled(cancellationToken);
 			if (result.done) {
 				complete = true;
 				break;
@@ -56,26 +60,11 @@ export async function readBoundedResponse(
 		if (!complete) {
 			cancelResponseBody(reader, logService);
 		}
-		reader.releaseLock();
+		// releaseLock() can hang WebKit (regressed by https://bugs.webkit.org/show_bug.cgi?id=309882), and the body is already finished or cancelled.
+		if (!isSafari) {
+			reader.releaseLock();
+		}
 	}
-}
-
-function readResponseChunk(reader: ReadableStreamDefaultReader<Uint8Array>, signal: AbortSignal): Promise<ReadableStreamReadResult<Uint8Array>> {
-	signal.throwIfAborted();
-	return new Promise((resolve, reject) => {
-		const onAbort = () => reject(signal.reason);
-		signal.addEventListener('abort', onAbort, { once: true });
-		void reader.read().then(
-			result => {
-				signal.removeEventListener('abort', onAbort);
-				resolve(result);
-			},
-			error => {
-				signal.removeEventListener('abort', onAbort);
-				reject(error);
-			},
-		);
-	});
 }
 
 export function cancelResponseBody(body: { cancel(): Promise<void> }, logService?: ILogService): void {

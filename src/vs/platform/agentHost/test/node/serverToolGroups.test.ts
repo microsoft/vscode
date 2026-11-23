@@ -57,6 +57,7 @@ suite('serverToolGroups display', () => {
 			send: display('send_message'),
 			context: display('get_session_context'),
 			del: display('delete_session'),
+			archive: display('archive_chat', undefined, true),
 		}, {
 			list: { displayName: 'List Sessions', invocation: 'List sessions', past: undefined },
 			current: { displayName: 'Get Current Session', invocation: 'Get current session', past: undefined },
@@ -67,6 +68,7 @@ suite('serverToolGroups display', () => {
 			send: { displayName: 'Send Message', invocation: 'Send message', past: undefined },
 			context: { displayName: 'Get Session Context', invocation: 'Read session context', past: undefined },
 			del: { displayName: 'Delete Session', invocation: 'Deleting session', past: 'Deleted session' },
+			archive: { displayName: 'Archive Chat', invocation: 'Archiving chat', past: 'Archived chat' },
 		});
 	});
 

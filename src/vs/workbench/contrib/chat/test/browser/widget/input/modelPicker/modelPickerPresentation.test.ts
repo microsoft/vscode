@@ -59,7 +59,7 @@ suite('ModelPickerPresentation', () => {
 	});
 
 	test('Fusion names HydraFusion by the provider tier it offers, without renaming Auto or changing runtime values', () => {
-		const fusion: ILanguageModelChatMetadataAndIdentifier['metadata'] = { ...model('copilot/auto', 'auto').metadata, autoModelFusion: { balanceUsesHydraFusion: false }, configurationSchema: { properties: { tier: { type: 'string', enum: ['balance', 'hydrafusion', 'hydrafusion-max'], enumItemLabels: ['Standard', 'High', 'Max'] } } } };
+		const fusion: ILanguageModelChatMetadataAndIdentifier['metadata'] = { ...model('copilot/auto', 'auto').metadata, autoModelFusion: true, configurationSchema: { properties: { tier: { type: 'string', enum: ['balance', 'hydrafusion', 'hydrafusion-max'], enumItemLabels: ['Standard', 'High', 'Max'] } } } };
 		const withoutHydraFusionTier: ILanguageModelChatMetadataAndIdentifier['metadata'] = { ...fusion, configurationSchema: { properties: { tier: { type: 'string', enum: ['balance'] } } } };
 		assert.deepStrictEqual({
 			fusion: ['balance', 'hydrafusion', 'hydrafusion-max'].map(getFusionAutoModeTierLabel),

@@ -7,6 +7,7 @@ import assert from 'assert';
 import * as sinon from 'sinon';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
@@ -97,24 +98,66 @@ suite('ChatUtilityModelService', () => {
 
 	test('holds back a rate limited model for its retry guidance (even zero), 60 seconds by default, and at most 15 minutes', async () => {
 		const clock = sinon.useFakeTimers({ toFake: ['Date'] });
-		try {
-			const send = (prompt: string) => service.sendRequest(request(prompt), CancellationToken.None).then(() => 'ok', () => 'failed');
-			const outcomes = [await send('rate-limited:90000'), await send('held back')];
-			clock.tick(90_000);
-			outcomes.push(await send('rate-limited'));
-			clock.tick(59_999);
-			outcomes.push(await send('held back'));
-			clock.tick(1);
-			outcomes.push(await send('rate-limited:86400000'));
-			clock.tick(15 * 60_000);
-			outcomes.push(await send('recovered'), await send('rate-limited:0'), await send('retried immediately'));
+		store.add(toDisposable(() => clock.restore()));
+		const send = (prompt: string) => service.sendRequest(request(prompt), CancellationToken.None).then(() => 'ok', () => 'failed');
+		const outcomes = [await send('rate-limited:90000'), await send('held back')];
+		clock.tick(90_000);
+		outcomes.push(await send('rate-limited'));
+		clock.tick(59_999);
+		outcomes.push(await send('held back'));
+		clock.tick(1);
+		outcomes.push(await send('rate-limited:86400000'));
+		clock.tick(15 * 60_000);
+		outcomes.push(await send('recovered'), await send('rate-limited:0'), await send('retried immediately'));
 
-			assert.deepStrictEqual({ outcomes, sent: sent.map(s => s.prompt) }, {
-				outcomes: ['failed', 'failed', 'failed', 'failed', 'failed', 'ok', 'failed', 'ok'],
-				sent: ['rate-limited:90000', 'rate-limited', 'rate-limited:86400000', 'recovered', 'rate-limited:0', 'retried immediately'],
-			});
-		} finally {
-			clock.restore();
+		assert.deepStrictEqual({ outcomes, sent: sent.map(s => s.prompt) }, {
+			outcomes: ['failed', 'failed', 'failed', 'failed', 'failed', 'ok', 'failed', 'ok'],
+			sent: ['rate-limited:90000', 'rate-limited', 'rate-limited:86400000', 'recovered', 'rate-limited:0', 'retried immediately'],
+		});
+	});
+
+	test('rechecks title relevance after waiting behind the background limiter', async () => {
+		for (const prompt of ['b1', 'b2', 'b3']) {
+			held.set(prompt, new DeferredPromise());
 		}
+		const started = ['b1', 'b2', 'b3'].map(prompt => service.sendRequest(request(prompt, { background: true }), CancellationToken.None));
+		let visible = true;
+		const queued = service.sendRequest(request('offscreen title', { background: true, isRelevant: () => visible }), CancellationToken.None);
+		visible = false;
+		for (const deferred of held.values()) {
+			deferred.complete();
+		}
+		await Promise.all(started);
+		assert.deepStrictEqual({ result: await queued, sent: sent.map(request => request.prompt) }, { result: undefined, sent: ['b1', 'b2', 'b3'] });
+	});
+
+	test('cancels a started visibility-limited title when its last caller leaves', async () => {
+		const completion = new DeferredPromise<void>();
+		held.set('title', completion);
+		const cancellation = store.add(new CancellationTokenSource());
+		const result = service.sendRequest(request('title', { background: true, isRelevant: () => true }), cancellation.token);
+		await timeout(0);
+		cancellation.cancel();
+		const cancelled = await result;
+		completion.complete();
+		assert.deepStrictEqual({ cancelled, sent: sent.map(request => request.prompt) }, { cancelled: undefined, sent: ['title'] });
+	});
+
+	test('a second visible caller keeps a shared queued title relevant', async () => {
+		for (const prompt of ['b1', 'b2', 'b3']) {
+			held.set(prompt, new DeferredPromise());
+		}
+		const started = ['b1', 'b2', 'b3'].map(prompt => service.sendRequest(request(prompt, { background: true }), CancellationToken.None));
+		const cancellation = store.add(new CancellationTokenSource());
+		const first = service.sendRequest(request('shared title', { background: true, key: 'title', isRelevant: () => false }), cancellation.token);
+		const second = service.sendRequest(request('shared title', { background: true, key: 'title', isRelevant: () => true }), CancellationToken.None);
+		cancellation.cancel();
+		for (const deferred of held.values()) {
+			deferred.complete();
+		}
+		await Promise.all(started);
+		assert.deepStrictEqual({ results: await Promise.all([first, second]), sent: sent.map(request => request.prompt) }, {
+			results: ['Answer to shared title', 'Answer to shared title'], sent: ['b1', 'b2', 'b3', 'shared title'],
+		});
 	});
 });

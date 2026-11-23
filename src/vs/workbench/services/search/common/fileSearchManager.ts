@@ -11,7 +11,7 @@ import * as glob from '../../../../base/common/glob.js';
 import * as resources from '../../../../base/common/resources.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { URI } from '../../../../base/common/uri.js';
-import { IFileMatch, IFileSearchProviderStats, IFolderQuery, ISearchCompleteStats, IFileQuery, QueryGlobTester, resolvePatternsForProvider, hasSiblingFn, excludeToGlobPattern, DEFAULT_MAX_SEARCH_RESULTS } from './search.js';
+import { IFileMatch, IFileSearchProviderStats, IFolderQuery, ISearchCompleteStats, IFileQuery, QueryGlobTester, resolvePatternsForProvider, resolveExcludePatternsForProvider, hasSiblingFn, excludeToGlobPattern, DEFAULT_MAX_SEARCH_RESULTS } from './search.js';
 import { FileSearchProviderFolderOptions, FileSearchProvider2, FileSearchProviderOptions } from './searchExtTypes.js';
 import { OldFileSearchProviderConverter } from './searchExtConversionTypes.js';
 import { FolderQuerySearchTree } from './folderQuerySearchTree.js';
@@ -192,12 +192,12 @@ class FileSearchEngine {
 		const includes = resolvePatternsForProvider(this.config.includePattern, fq.includePattern);
 		let excludePattern = fq.excludePattern?.map(e => ({
 			folder: e.folder,
-			patterns: resolvePatternsForProvider(this.config.excludePattern, e.pattern)
+			patterns: resolveExcludePatternsForProvider(this.config.excludePattern, e.pattern)
 		}));
 		if (!excludePattern?.length) {
 			excludePattern = [{
 				folder: undefined,
-				patterns: resolvePatternsForProvider(this.config.excludePattern, undefined)
+				patterns: resolveExcludePatternsForProvider(this.config.excludePattern, undefined)
 			}];
 		}
 		const excludes = excludeToGlobPattern(excludePattern);
@@ -253,7 +253,7 @@ class FileSearchEngine {
 		const self = this;
 		const filePattern = this.filePattern;
 		const ignoreGlobCase = this.config.ignoreGlobCase;
-		function matchDirectory(entries: IDirectoryEntry[]) {
+		function matchDirectory(entries: IDirectoryEntry[], isParentExcluded: boolean) {
 			const hasSibling = hasSiblingFn(() => entries.map(entry => entry.basename));
 			for (let i = 0, n = entries.length; i < n; i++) {
 				const entry = entries[i];
@@ -263,13 +263,20 @@ class FileSearchEngine {
 				// If the user searches for the exact file name, we adjust the glob matching
 				// to ignore filtering by siblings because the user seems to know what they
 				// are searching for and we want to include the result in that case anyway
-				if (queryTester.matchesExcludesSync(relativePath, basename, !strings.equals(filePattern, basename, ignoreGlobCase) ? hasSibling : undefined)) {
+				const sub = pathToEntries[relativePath];
+				const { isExcluded, isVisited } = glob.evaluateExcludeTreeEntry(queryTester, {
+					path: relativePath,
+					basename,
+					isDirectory: !!sub,
+					isParentExcluded,
+					hasSibling: !strings.equals(filePattern, basename, ignoreGlobCase) ? hasSibling : undefined,
+				});
+				if (!isVisited) {
 					continue;
 				}
 
-				const sub = pathToEntries[relativePath];
 				if (sub) {
-					matchDirectory(sub);
+					matchDirectory(sub, isExcluded);
 				} else {
 					if (strings.equals(relativePath, filePattern, ignoreGlobCase)) {
 						continue; // ignore file if its path matches with the file pattern because that is already matched above
@@ -283,7 +290,7 @@ class FileSearchEngine {
 				}
 			}
 		}
-		matchDirectory(rootEntries);
+		matchDirectory(rootEntries, false);
 	}
 
 	private matchFile(onResult: (result: IInternalFileMatch) => void, candidate: IInternalFileMatch): void {

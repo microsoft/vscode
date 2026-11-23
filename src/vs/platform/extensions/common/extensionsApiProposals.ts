@@ -60,6 +60,9 @@ const _allApiProposals = {
 	canonicalUriProvider: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.canonicalUriProvider.d.ts',
 	},
+	chatArtifactIntegrations: {
+		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.chatArtifactIntegrations.d.ts',
+	},
 	chatContextProvider: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.chatContextProvider.d.ts',
 	},
@@ -135,6 +138,9 @@ const _allApiProposals = {
 	contribChatEditorInlineGutterMenu: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.contribChatEditorInlineGutterMenu.d.ts',
 	},
+	contribChatResources: {
+		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.contribChatResources.d.ts',
+	},
 	contribCommentEditorActionsMenu: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.contribCommentEditorActionsMenu.d.ts',
 	},
@@ -203,6 +209,9 @@ const _allApiProposals = {
 	},
 	contribStatusBarItems: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.contribStatusBarItems.d.ts',
+	},
+	contribTitleBar: {
+		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.contribTitleBar.d.ts',
 	},
 	contribViewContainerTitle: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.contribViewContainerTitle.d.ts',
@@ -393,6 +402,9 @@ const _allApiProposals = {
 	notebookVariableProvider: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.notebookVariableProvider.d.ts',
 	},
+	notificationTelemetry: {
+		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.notificationTelemetry.d.ts',
+	},
 	portsAttributes: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.portsAttributes.d.ts',
 	},
@@ -407,6 +419,9 @@ const _allApiProposals = {
 	},
 	quickPickSortByLabel: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.quickPickSortByLabel.d.ts',
+	},
+	remoteAgentHost: {
+		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.remoteAgentHost.d.ts',
 	},
 	remoteCodingAgents: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.remoteCodingAgents.d.ts',
@@ -446,6 +461,9 @@ const _allApiProposals = {
 	},
 	statusBarItemTooltip: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.statusBarItemTooltip.d.ts',
+	},
+	structuralDiff: {
+		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.structuralDiff.d.ts',
 	},
 	tabInputMultiDiff: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.tabInputMultiDiff.d.ts',
@@ -516,9 +534,6 @@ const _allApiProposals = {
 	textSearchProvider2: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.textSearchProvider2.d.ts',
 	},
-	timeline: {
-		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.timeline.d.ts',
-	},
 	tokenInformation: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.tokenInformation.d.ts',
 	},
@@ -548,6 +563,9 @@ const _allApiProposals = {
 	},
 	valueSelectionInQuickPick: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.valueSelectionInQuickPick.d.ts',
+	},
+	workspaceFolderLocations: {
+		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.workspaceFolderLocations.d.ts',
 	},
 	workspaceTrust: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.workspaceTrust.d.ts',

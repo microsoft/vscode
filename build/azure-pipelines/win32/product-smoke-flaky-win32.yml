@@ -11,7 +11,8 @@ parameters:
     type: object
   # Windows unit and integration iterations are too slow to run all of them
   # sequentially in one job within its timeout. Each test type is split across
-  # parallel jobs by odd and even iteration number instead.
+  # parallel jobs by odd and even iteration number instead. Linux splits its unit
+  # iterations the same way (see ../linux/product-smoke-flaky-linux.yml).
   - name: iterationShards
     type: object
     default: [odd, even]
@@ -43,7 +44,15 @@ jobs:
             # ever runs, turning it into one argument per file under the sources
             # directory and blowing past the command-line length limit, which
             # truncates and corrupts the trailing -xr!.git switch.
-            exec { 7z.exe a -tzip "$(Build.ArtifactStagingDirectory)\repo.zip" "$(Build.SourcesDirectory)\*" "-xr!.git" }
+            # 7-Zip stores the junctions of pnpm's node_modules as copies of their targets, which
+            # breaks module resolution, so they are recorded, removed and created again in the
+            # test jobs (see ../common/workspaceLinks.ts).
+            exec { node build/azure-pipelines/common/workspaceLinks.ts save "$(Build.SourcesDirectory)" "$(Build.SourcesDirectory)\.build\workspace-links.json" }
+            try {
+              exec { 7z.exe a -tzip "$(Build.ArtifactStagingDirectory)\repo.zip" "$(Build.SourcesDirectory)\*" "-xr!.git" }
+            } finally {
+              exec { node build/azure-pipelines/common/workspaceLinks.ts restore "$(Build.SourcesDirectory)" "$(Build.SourcesDirectory)\.build\workspace-links.json" }
+            }
           displayName: Archive built workspace for reuse by test jobs
       archiveAppSteps:
         - powershell: |
@@ -76,9 +85,9 @@ jobs:
           platform: windows
           arch: x64
           testName: unit-${{ shard }}
-          # Fits 10 Electron and 10 node.js iterations at their 15 minute step
-          # timeout, plus job setup.
-          timeoutInMinutes: 330
+          # Fits 10 Electron and 10 node.js iterations at their 20 and 15 minute
+          # step timeouts, plus job setup.
+          timeoutInMinutes: 370
           artifactPrefix: smoke-flaky-windows-x64
           artifacts:
             - name: repo
@@ -91,6 +100,9 @@ jobs:
                 7z.exe x $(Pipeline.Workspace)\smoke-flaky-windows-x64-repo\repo.zip -o"$(Build.SourcesDirectory)" -y
                 if ($LASTEXITCODE -ne 0) { throw "7z extract of repo.zip failed with exit code $LASTEXITCODE" }
               displayName: Extract built workspace
+          setupSteps:
+            - powershell: node build/azure-pipelines/common/workspaceLinks.ts restore "$(Build.SourcesDirectory)" "$(Build.SourcesDirectory)\.build\workspace-links.json"
+              displayName: Restore the folder links of the built workspace
           testSteps:
             # Template expressions have no arithmetic, so an iteration's parity is
             # read from its last digit. The odd shard keeps odd iterations and the
@@ -102,12 +114,12 @@ jobs:
                     VSCODE_SKIP_PRELAUNCH: '1'
                   displayName: "🧪 Unit test iteration ${{ i }}/${{ length(parameters.iterations) }} (Electron)"
                   continueOnError: true
-                  timeoutInMinutes: 15
+                  timeoutInMinutes: 20
             - ${{ each i in parameters.iterations }}:
               - ${{ if xor(eq(shard, 'even'), or(endsWith(format('{0}', i), '1'), endsWith(format('{0}', i), '3'), endsWith(format('{0}', i), '5'), endsWith(format('{0}', i), '7'), endsWith(format('{0}', i), '9'))) }}:
                 - powershell: |
                     New-Item -ItemType Directory -Force -Path .build\crashes | Out-Null
-                    npm run test-node -- --build
+                    pnpm run test-node --build
                   displayName: "🧪 Unit test iteration ${{ i }}/${{ length(parameters.iterations) }} (node.js)"
                   continueOnError: true
                   timeoutInMinutes: 15
@@ -144,6 +156,9 @@ jobs:
                 7z.exe x $(Pipeline.Workspace)\smoke-flaky-windows-x64-server\server.zip -o"$(Agent.BuildDirectory)" -y
                 if ($LASTEXITCODE -ne 0) { throw "7z extract of server.zip failed with exit code $LASTEXITCODE" }
               displayName: Extract built workspace, app and server
+          setupSteps:
+            - powershell: node build/azure-pipelines/common/workspaceLinks.ts restore "$(Build.SourcesDirectory)" "$(Build.SourcesDirectory)\.build\workspace-links.json"
+              displayName: Restore the folder links of the built workspace
           testSteps:
             - ${{ each i in parameters.iterations }}:
               # Template expressions have no arithmetic, so an iteration's parity
@@ -225,10 +240,13 @@ jobs:
               7z.exe x $(Pipeline.Workspace)\smoke-flaky-windows-x64-app\app.zip -o"$(Agent.BuildDirectory)" -y
               if ($LASTEXITCODE -ne 0) { throw "7z extract of app.zip failed with exit code $LASTEXITCODE" }
             displayName: Extract built workspace and app
+        setupSteps:
+          - powershell: node build/azure-pipelines/common/workspaceLinks.ts restore "$(Build.SourcesDirectory)" "$(Build.SourcesDirectory)\.build\workspace-links.json"
+            displayName: Restore the folder links of the built workspace
         testSteps:
           - ${{ each i in parameters.iterations }}:
             - powershell: |
-                npm run smoketest-no-compile -- --tracing --build "$(agent.builddirectory)\VSCode-win32-$(VSCODE_ARCH)"
+                pnpm run smoketest-no-compile --tracing --build "$(agent.builddirectory)\VSCode-win32-$(VSCODE_ARCH)"
                 $status = $LASTEXITCODE
                 if ($status -ne 0 -and (Test-Path .build\logs\smoke-tests-electron)) {
                   Move-Item .build\logs\smoke-tests-electron ".build\logs\failed-iteration-${{ i }}"

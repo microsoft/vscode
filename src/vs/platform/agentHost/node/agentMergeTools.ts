@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { disposableTimeout, Queue, raceCancellationError } from '../../../base/common/async.js';
-import { CancellationTokenSource } from '../../../base/common/cancellation.js';
-import { Event } from '../../../base/common/event.js';
-import { Disposable, DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
+import { Queue, disposableTimeout, raceCancellationError } from '../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource, cancelOnDispose } from '../../../base/common/cancellation.js';
+import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
 import { IGitHubAccountClient } from '../../github/common/account/account.js';
 import { ApiRequestOptions } from '../../github/common/client/request.js';
 import { WorkflowJob, WorkflowRun } from '../../github/common/core/actions.js';
-import { IGitHubClient } from '../../github/common/githubService.js';
 import { GitHubWorkflowRerunOptions, PullRequestReplyAndResolveResult } from '../../github/common/githubPullRequestMutationService.js';
 import { PullRequestCheck, PullRequestRef, PullRequestSnapshot } from '../../github/common/githubPullRequestService.js';
+import { IGitHubClient } from '../../github/common/githubService.js';
 import { GitHubRequestError } from '../../github/common/githubTransport.js';
+import { isUnreportedCheckSuite } from '../../github/common/pullRequestRequiredChecks.js';
 import { ILogService } from '../../log/common/log.js';
 import { AgentMergeAction, AgentMergeConfiguration, AgentMergeSessionOverrides, classifyAgentMergeRequiredChecks, isAgentMergeFeedbackAuthor, readAgentMergeFolderState } from '../common/agentMerge.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
@@ -35,7 +35,7 @@ export interface IAgentMergeTurnContext {
 	readonly actions: readonly AgentMergeAction[];
 	readonly configuration: AgentMergeConfiguration;
 	readonly snapshot: PullRequestSnapshot;
-	readonly signal: AbortSignal;
+	readonly cancellationToken: CancellationToken;
 	readonly commentWatermark: string;
 	/** Keeps turn completion waiting for an in-flight reply's publication outcome. */
 	readonly trackReviewReply: (reply: Promise<PullRequestReplyAndResolveResult>) => void;
@@ -49,7 +49,7 @@ export interface IAgentMergeTurnContext {
 export class AgentMergeTools extends Disposable implements IAgentMergeToolAccessor {
 
 	private readonly _evidence = this._register(new AgentMergeCIEvidenceStore());
-	private readonly _abort = new AbortController();
+	private readonly _disposeToken = cancelOnDispose(this._store);
 	private readonly _reads = this._register(new Queue<string>());
 
 	constructor(
@@ -61,7 +61,6 @@ export class AgentMergeTools extends Disposable implements IAgentMergeToolAccess
 		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
 	) {
 		super();
-		this._register(toDisposable(() => this._abort.abort(new Error('Agent Merge tools disposed.'))));
 	}
 
 	isEnabled(): boolean {
@@ -90,16 +89,21 @@ export class AgentMergeTools extends Disposable implements IAgentMergeToolAccess
 		const original = this._requireTurnAction(session, 'fixCI');
 		const request = parseAgentMergeCIRequest(input);
 		const lifetime = new DisposableStore();
-		const timeout = new AbortController();
-		lifetime.add(disposableTimeout(() => timeout.abort(new Error('CI diagnostic read exceeded its three-minute time limit.')), 180_000));
-		const context = { ...original, signal: AbortSignal.any([original.signal, this._abort.signal, timeout.signal]) };
-		const cancellation = lifetime.add(new CancellationTokenSource());
-		lifetime.add(Event.once(Event.fromDOMEventEmitter(context.signal, 'abort'))(() => cancellation.cancel()));
+		const timeout = lifetime.add(new CancellationTokenSource());
+		const context = { ...original, cancellationToken: CancellationToken.any([original.cancellationToken, this._disposeToken, timeout.token], lifetime) };
+		let timeoutError: Error | undefined;
+		lifetime.add(disposableTimeout(() => {
+			if (!context.cancellationToken.isCancellationRequested) {
+				timeoutError = new Error('CI diagnostic read exceeded its three-minute time limit.');
+				timeout.cancel();
+			}
+		}, 180_000));
 		try {
-			context.signal.throwIfAborted();
-			return await raceCancellationError(this._reads.queue(() => this._readFailedCI(context, request)), cancellation.token);
+			CancellationToken.throwIfCanceled(context.cancellationToken);
+			return await raceCancellationError(this._reads.queue(() => this._readFailedCI(context, request, original.cancellationToken)), context.cancellationToken);
 		} catch (error) {
-			const failure = context.signal.aborted ? context.signal.reason : error;
+			const failure = timeoutError ?? (this._disposeToken.isCancellationRequested && !original.cancellationToken.isCancellationRequested
+				? new Error('Agent Merge tools disposed.') : error);
 			this._logService.warn(`[AgentMergeTools] CI diagnostic read failed: session=${session}, turn=${original.turnId}`, failure);
 			throw failure;
 		} finally {
@@ -107,13 +111,13 @@ export class AgentMergeTools extends Disposable implements IAgentMergeToolAccess
 		}
 	}
 
-	private async _readFailedCI(context: IAgentMergeTurnContext, request: AgentMergeCIRequest): Promise<string> {
+	private async _readFailedCI(context: IAgentMergeTurnContext, request: AgentMergeCIRequest, retentionToken: CancellationToken): Promise<string> {
 		this._assertCurrentCIContext(context);
 		const scope = ciScope(context);
 		const page = request.cursor ? this._evidence.resolve(request.cursor, scope) : { request };
 		await this._validateCIHead(context);
 		const result = (page.request.mode ?? 'summary') === 'summary'
-			? await this._readCISummary(context, page.request.jobId, page.summaryOffset ?? 0, page.signature)
+			? await this._readCISummary(context, retentionToken, page.request.jobId, page.summaryOffset ?? 0, page.signature)
 			: await this._readCIEvidence(context, page.request);
 		this._assertCurrentCIContext(context);
 		if (ciJsonBytes(result) > agentMergeCIResponseBytes) {
@@ -125,11 +129,9 @@ export class AgentMergeTools extends Disposable implements IAgentMergeToolAccess
 	private async _validateCIHead(context: IAgentMergeTurnContext): Promise<void> {
 		const lifetime = new DisposableStore();
 		try {
-			const cancellation = lifetime.add(new CancellationTokenSource());
-			lifetime.add(Event.once(Event.fromDOMEventEmitter(context.signal, 'abort'))(() => cancellation.cancel()));
-			context.signal.throwIfAborted();
+			CancellationToken.throwIfCanceled(context.cancellationToken);
 			const subscription = lifetime.add(context.client.pullRequests.subscribePullRequest(context.ref, { core: true, priority: 'interactive' }));
-			await subscription.refresh('core', cancellation.token, { authoritative: true });
+			await subscription.refresh('core', context.cancellationToken, { authoritative: true });
 			const core = subscription.resource.snapshot.get().core;
 			if (core.status !== 'ready' || !core.complete || core.value?.headSha !== context.headSha || core.value.state !== 'open') {
 				throw new Error('CI evidence is stale or unavailable: the authorized pull request head could not be confirmed.');
@@ -141,7 +143,7 @@ export class AgentMergeTools extends Disposable implements IAgentMergeToolAccess
 	}
 
 	private _assertCurrentCIContext(context: IAgentMergeTurnContext): void {
-		context.signal.throwIfAborted();
+		CancellationToken.throwIfCanceled(context.cancellationToken);
 		const current = this._requireTurnAction(context.chat, 'fixCI');
 		if (ciScope(current) !== ciScope(context) || !current.configuration.fixCI) {
 			throw new Error('The CI diagnostic authorization changed during this read.');
@@ -150,7 +152,7 @@ export class AgentMergeTools extends Disposable implements IAgentMergeToolAccess
 
 	private async _ciRuns(context: IAgentMergeTurnContext): Promise<readonly WorkflowRun[]> {
 		const ids = new Set(failedRequiredChecks(context).map(workflowRunId));
-		const runs = await getWorkflowRuns(context.apiClient, context.ref, context.headSha, context.signal);
+		const runs = await getWorkflowRuns(context.apiClient, context.ref, context.headSha, context.cancellationToken);
 		this._assertCurrentCIContext(context);
 		return runs.filter(run => ids.has(String(run.id)) && run.head_sha === context.headSha);
 	}
@@ -159,7 +161,7 @@ export class AgentMergeTools extends Disposable implements IAgentMergeToolAccess
 		if (!hasKnownRunAttempt(run)) {
 			return [];
 		}
-		const { jobs } = await context.apiClient.actions.listJobsForAttempt(context.ref, run.id, run.run_attempt, context.signal, {
+		const { jobs } = await context.apiClient.actions.listJobsForAttempt(context.ref, run.id, run.run_attempt, context.cancellationToken, {
 			caller: 'agentHost.agentMerge', maxPages: 100, query: { per_page: 100 },
 		});
 		this._assertCurrentCIContext(context);
@@ -197,7 +199,7 @@ export class AgentMergeTools extends Disposable implements IAgentMergeToolAccess
 		};
 	}
 
-	private async _readCISummary(context: IAgentMergeTurnContext, jobId: string | undefined, offset: number, expectedSignature: string | undefined): Promise<object> {
+	private async _readCISummary(context: IAgentMergeTurnContext, retentionToken: CancellationToken, jobId: string | undefined, offset: number, expectedSignature: string | undefined): Promise<object> {
 		const scope = ciScope(context);
 		const authorizedChecks = failedRequiredChecks(context);
 		const checks = jobId ? [] : authorizedChecks;
@@ -234,7 +236,9 @@ export class AgentMergeTools extends Disposable implements IAgentMergeToolAccess
 			let evidenceId: string | undefined;
 			if (index < checks.length) {
 				const check = checks[index];
-				const annotations = check.type === 'checkRun' ? await context.apiClient.checks.listAnnotations(context.ref, Number(check.id), context.signal, {
+				// A check suite that reported no check run has no check run ID to read annotations by.
+				const unreported = isUnreportedCheckSuite(check);
+				const annotations = check.type === 'checkRun' && !unreported ? await context.apiClient.checks.listAnnotations(context.ref, Number(check.id), context.cancellationToken, {
 					caller: 'agentHost.agentMerge', maxPages: 100, query: { per_page: 100 },
 				}) : [];
 				const shown = annotations.slice(0, 3).map(annotation => ({
@@ -248,10 +252,11 @@ export class AgentMergeTools extends Disposable implements IAgentMergeToolAccess
 					runAttempt: run && hasKnownRunAttempt(run) ? run.run_attempt : null,
 					annotationLimit: annotations.length > shown.length || annotations.some(annotation => (annotation.message?.length ?? 0) > 300 || (annotation.raw_details?.length ?? 0) > 0)
 						? 'Annotation detail limit: only three bounded annotation summaries are exposed; additional annotation content is unavailable through this tool.' : null,
-					logAvailability: !run ? 'No workflow run is available for this check on the authorized head.'
-						: !hasKnownRunAttempt(run) ? 'The workflow attempt is unknown. Pinned log evidence is unavailable.'
-							: jobs.some(candidate => candidate.run.id === run.id) ? 'See corresponding job entries.'
-								: 'No failed jobs are available for this workflow attempt.',
+					logAvailability: unreported ? 'This check suite failed without reporting a check run, so it has no logs or annotations. A GitHub Actions workflow does that when it fails to start, such as with an invalid workflow file.'
+						: !run ? 'No workflow run is available for this check on the authorized head.'
+							: !hasKnownRunAttempt(run) ? 'The workflow attempt is unknown. Pinned log evidence is unavailable.'
+								: jobs.some(candidate => candidate.run.id === run.id) ? 'See corresponding job entries.'
+									: 'No failed jobs are available for this workflow attempt.',
 				};
 			} else {
 				const { run, job, runAttempt } = jobs[index - checks.length];
@@ -262,14 +267,14 @@ export class AgentMergeTools extends Disposable implements IAgentMergeToolAccess
 						break;
 					}
 					try {
-						const log = await context.client.mutations.downloadWorkflowJobLog(context.ref, String(job.id), context.signal);
+						const log = await context.client.mutations.downloadWorkflowJobLog(context.ref, String(job.id), context.cancellationToken);
 						this._assertCurrentCIContext(context);
-						entry = this._evidence.tryAdd(scope, runAttempt, job, log, context.signal, retainedEvidence);
+						entry = this._evidence.tryAdd(scope, runAttempt, job, log, context.cancellationToken, retentionToken, retainedEvidence);
 						if (!entry) {
 							break;
 						}
 					} catch (error) {
-						context.signal.throwIfAborted();
+						CancellationToken.throwIfCanceled(context.cancellationToken);
 						if (!(error instanceof GitHubRequestError)) {
 							throw error;
 						}
@@ -338,7 +343,7 @@ export class AgentMergeTools extends Disposable implements IAgentMergeToolAccess
 			threadId,
 			body: attributedBody,
 			resolve,
-		}, context.signal);
+		}, context.cancellationToken);
 		context.trackReviewReply(reply);
 		const result = await reply;
 		this._logService.info(`[AgentMergeTools] Review thread reply completed: session=${session}, turn=${context.turnId}, replyOutcome=${result.reply.outcome}, resolved=${result.resolved}`);
@@ -359,7 +364,7 @@ export class AgentMergeTools extends Disposable implements IAgentMergeToolAccess
 		if (failedChecks.length === 0) {
 			throw new Error('The workflow run is not associated with a failed required check in this Agent Merge turn.');
 		}
-		const runs = await getWorkflowRuns(context.apiClient, context.ref, context.headSha, context.signal);
+		const runs = await getWorkflowRuns(context.apiClient, context.ref, context.headSha, context.cancellationToken);
 		const run = runs.find(candidate => String(candidate.id) === runId && candidate.head_sha === context.headSha);
 		if (!run) {
 			throw new Error('The workflow run is no longer available for this pull request head.');
@@ -392,7 +397,7 @@ export class AgentMergeTools extends Disposable implements IAgentMergeToolAccess
 			});
 		}
 		this._logService.info(`[AgentMergeTools] Rerunning failed workflow: session=${session}, turn=${context.turnId}, failedJobsOnly=${failedJobsOnly}, currentAttempt=${runAttempt}`);
-		const result = await context.client.mutations.rerunWorkflow(context.ref, options, context.signal);
+		const result = await context.client.mutations.rerunWorkflow(context.ref, options, context.cancellationToken);
 		this._logService.info(`[AgentMergeTools] Workflow rerun requested: session=${session}, turn=${context.turnId}, outcome=${result.outcome}`);
 		return JSON.stringify({ outcome: result.outcome, run: result.value });
 	}
@@ -437,7 +442,8 @@ function failedRequiredChecks(context: IAgentMergeTurnContext, deferredCheckIds 
 	return checks?.kind === 'ready' ? checks.failed.filter(check => !deferredCheckIds.has(check.id)) : [];
 }
 
-function workflowRunId(check: PullRequestCheck): string | undefined {
+/** The workflow run that reported a check, by the run ID in its details URL. */
+export function workflowRunId(check: PullRequestCheck): string | undefined {
 	return /\/actions\/runs\/(?<runId>\d+)/.exec(check.detailsUrl ?? '')?.groups?.runId;
 }
 
@@ -450,8 +456,8 @@ function hasKnownRunAttempt(run: WorkflowRun): run is WorkflowRun & { readonly r
 }
 
 /** Reads the complete bounded workflow inventory used by CI evidence and deferred reruns. */
-export async function getWorkflowRuns(client: IGitHubAccountClient, ref: PullRequestRef, headSha: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<readonly WorkflowRun[]> {
-	const { workflow_runs } = await client.actions.listRuns(ref, signal, {
+export async function getWorkflowRuns(client: IGitHubAccountClient, ref: PullRequestRef, headSha: string, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<readonly WorkflowRun[]> {
+	const { workflow_runs } = await client.actions.listRuns(ref, cancellationToken, {
 		caller: 'agentHost.agentMerge', ...options, maxPages: 100, query: { head_sha: headSha, per_page: 100 },
 	});
 	return workflow_runs;

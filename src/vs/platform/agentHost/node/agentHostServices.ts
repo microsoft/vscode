@@ -4,6 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { SyncDescriptor } from '../../instantiation/common/descriptors.js';
+import { ArtifactIntegrationRegistry, IArtifactIntegrationRegistry } from '../../artifactIntegrations/common/artifactIntegrationRegistry.js';
+import { AgentHostArtifactEventService, IAgentHostArtifactEventService } from './artifactIntegrations/agentHostArtifactRuntime.js';
+import { AgentHostArtifactIntegrationDirectory, IAgentHostArtifactIntegrationDirectory } from './artifactIntegrations/agentHostArtifactIntegrationDirectory.js';
 import { ServiceCollection } from '../../instantiation/common/serviceCollection.js';
 import { ICopilotHomeService } from '../../environment/common/copilotHome.js';
 import { CopilotHomeService } from '../../environment/node/copilotHomeService.js';
@@ -25,9 +28,12 @@ import { IAgentHostChatContributions } from '../common/agentHostChatContribution
 import { IAgentHostCheckpointService } from '../common/agentHostCheckpointService.js';
 import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
 import { IAgentHostSessionStateStore } from '../common/agentHostSessionStateStore.js';
+import { ISessionSandboxPathService, SessionSandboxPathService } from './sessionSandboxPathService.js';
+import { IWorkspaceSandboxPathService, WorkspaceSandboxPathService } from './workspaceSandboxPathService.js';
 import { IAgentHostReviewService } from '../common/agentHostReviewService.js';
 import { IAgentHostSubscriptionService } from '../common/agentHostSubscriptionService.js';
 import { CopilotApiService, ICopilotApiService } from './shared/copilotApiService.js';
+import { CopilotAccountService, ICopilotAccountService } from './copilot/copilotAccountService.js';
 import { AgentHostUtilityModelService, IAgentHostUtilityModelService } from './agentHostUtilityModelService.js';
 import { AgentHostFileMonitorService, IAgentHostFileMonitorService } from './agentHostFileMonitorService.js';
 import { AgentHostGitService } from './agentHostGitService.js';
@@ -48,6 +54,7 @@ import { AgentHostChangesetSubscriptionService } from './agentHostChangesetSubsc
 import { AgentHostChatContributions } from './agentHostChatContributionsService.js';
 import { AgentHostChatOwnershipService, IAgentHostChatOwnershipService } from './agentHostChatOwnershipService.js';
 import { AgentHostDatabase, IAgentHostDatabase } from './agentHostDatabase.js';
+import { AgentHostFileEditCoordinator, IAgentHostFileEditCoordinator } from './agentHostFileEditCoordinator.js';
 import { AgentSessionRegistry, IAgentSessionRegistry } from './agentSessionRegistry.js';
 import { AgentHostCheckpointService } from './agentHostCheckpointService.js';
 import { AgentHostCompletions, IAgentHostCompletions } from './agentHostCompletions.js';
@@ -101,6 +108,9 @@ export function registerAgentHostCoreServices(services: ServiceCollection, input
 		: ':memory:';
 	services.set(IAgentHostDatabase, inputs.orchestratorDatabase ?? new SyncDescriptor(AgentHostDatabase, [databasePath]));
 	services.set(IAgentSessionRegistry, new SyncDescriptor(AgentSessionRegistry));
+	services.set(IArtifactIntegrationRegistry, new SyncDescriptor(ArtifactIntegrationRegistry));
+	services.set(IAgentHostArtifactEventService, new SyncDescriptor(AgentHostArtifactEventService));
+	services.set(IAgentHostArtifactIntegrationDirectory, new SyncDescriptor(AgentHostArtifactIntegrationDirectory));
 	services.set(IAgentHostFileMonitorService, new SyncDescriptor(AgentHostFileMonitorService));
 	services.set(INetworkDiagnosticsService, new SyncDescriptor(NetworkDiagnosticsService));
 	services.set(IDiffComputeService, new SyncDescriptor(NodeWorkerDiffComputeService));
@@ -112,6 +122,8 @@ export function registerAgentHostCoreServices(services: ServiceCollection, input
 	services.set(ICopilotApiService, inputs.copilotApiService ?? new SyncDescriptor(CopilotApiService, [inputs.fetchFn]));
 	services.set(IAgentHostCustomizationEnablementService, new SyncDescriptor(AgentHostCustomizationEnablementService));
 	services.set(IAgentHostSessionStateStore, new SyncDescriptor(AgentHostSessionStateStore, [SESSION_STATE_MIRROR_FLUSH_DELAY]));
+	services.set(ISessionSandboxPathService, new SyncDescriptor(SessionSandboxPathService));
+	services.set(IWorkspaceSandboxPathService, new SyncDescriptor(WorkspaceSandboxPathService));
 	services.set(IAgentHostGitStateService, new SyncDescriptor(AgentHostGitStateService));
 	services.set(IAgentHostCheckpointService, new SyncDescriptor(AgentHostCheckpointService));
 	services.set(IAgentHostPromptCache, new SyncDescriptor(AgentHostPromptCache));
@@ -122,11 +134,12 @@ export function registerAgentHostCoreServices(services: ServiceCollection, input
 	services.set(IAgentHostChatOwnershipService, new SyncDescriptor(AgentHostChatOwnershipService));
 	services.set(IAgentHostSubscriptionService, new SyncDescriptor(AgentHostSubscriptionService));
 	services.set(IAgentHostChangesetOperationService, new SyncDescriptor(AgentHostChangesetOperationService));
+	services.set(IAgentHostFileEditCoordinator, new SyncDescriptor(AgentHostFileEditCoordinator));
 	services.set(IAgentHostReviewService, new SyncDescriptor(AgentHostReviewService));
 	services.set(IAgentHostChangesetService, new SyncDescriptor(AgentHostChangesetService));
 	services.set(IAgentHostCompletions, new SyncDescriptor(AgentHostCompletions));
 	services.set(IAgentHostResourceProviders, new SyncDescriptor(AgentHostResourceProviders));
-	services.set(IAgentHostWorktreeDiskUsageService, new SyncDescriptor(AgentHostWorktreeDiskUsageService));
+	services.set(IAgentHostWorktreeDiskUsageService, new SyncDescriptor(AgentHostWorktreeDiskUsageService, [undefined]));
 	services.set(IAgentHostTerminalManager, new SyncDescriptor(AgentHostTerminalManager));
 	services.set(IAgentHostSessionPromptService, new SyncDescriptor(AgentHostSessionPromptService));
 	services.set(IAgentHostChatContributions, new SyncDescriptor(AgentHostChatContributions));
@@ -154,6 +167,7 @@ export interface IAgentHostHostServiceInputs {
 
 export function registerAgentHostHostServices(services: ServiceCollection, inputs: IAgentHostHostServiceInputs): void {
 	services.set(ICopilotHomeService, new SyncDescriptor(CopilotHomeService));
+	services.set(ICopilotAccountService, new SyncDescriptor(CopilotAccountService));
 	services.set(IDevContainerAgentHostMainService, new SyncDescriptor(RemoteDevContainerAgentHostService));
 	services.set(ISandboxHelperService, new SyncDescriptor(SandboxHelperService));
 	services.set(IAgentHostGitService, new SyncDescriptor(AgentHostGitService));

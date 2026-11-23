@@ -168,10 +168,11 @@ export interface IFileService {
 	 * Moves the file/folder to a new path identified by the resource.
 	 *
 	 * The optional parameter overwrite can be set to replace an existing file at the location.
+	 * Atomic moves require a provider with `FileAtomicRename` support and never fall back to copying or deleting the target.
 	 *
 	 * Emits a `FileOperation.MOVE` file operation event when successful.
 	 */
-	move(source: URI, target: URI, overwrite?: boolean): Promise<IFileStatWithMetadata>;
+	move(source: URI, target: URI, overwrite?: boolean, options?: { readonly atomic?: boolean }): Promise<IFileStatWithMetadata>;
 
 	/**
 	 * Find out if a move operation is possible given the arguments. No changes on disk will
@@ -672,7 +673,12 @@ export const enum FileSystemProviderCapabilities {
 	/**
 	 * Provider support to append to files.
 	 */
-	FileAppend = 1 << 19
+	FileAppend = 1 << 19,
+
+	/**
+	 * Provider supports renaming files without deleting the target first or falling back to copying.
+	 */
+	FileAtomicRename = 1 << 20
 }
 
 export interface IFileSystemProvider {
@@ -690,9 +696,10 @@ export interface IFileSystemProvider {
 	delete(resource: URI, opts: IFileDeleteOptions): Promise<void>;
 
 	rename(from: URI, to: URI, opts: IFileOverwriteOptions): Promise<void>;
+	renameFileAtomic?(from: URI, to: URI, opts: IFileOverwriteOptions): Promise<void>;
 	copy?(from: URI, to: URI, opts: IFileOverwriteOptions): Promise<void>;
 
-	readFile?(resource: URI): Promise<Uint8Array>;
+	readFile?(resource: URI, opts?: IFileAtomicReadOptions, token?: CancellationToken): Promise<Uint8Array>;
 	writeFile?(resource: URI, content: Uint8Array, opts: IFileWriteOptions): Promise<void>;
 
 	readFileStream?(resource: URI, opts: IFileReadStreamOptions, token: CancellationToken): ReadableStreamEvents<Uint8Array>;
@@ -706,7 +713,12 @@ export interface IFileSystemProvider {
 }
 
 export interface IFileSystemProviderWithFileReadWriteCapability extends IFileSystemProvider {
-	readFile(resource: URI): Promise<Uint8Array>;
+
+	/**
+	 * @param opts are only passed when the provider has the `FileAtomicRead` capability.
+	 * @param token is cancelled when the contents are no longer needed.
+	 */
+	readFile(resource: URI, opts?: IFileAtomicReadOptions, token?: CancellationToken): Promise<Uint8Array>;
 	writeFile(resource: URI, content: Uint8Array, opts: IFileWriteOptions): Promise<void>;
 }
 
@@ -734,8 +746,17 @@ export function hasFileCloneCapability(provider: IFileSystemProvider): provider 
 	return !!(provider.capabilities & FileSystemProviderCapabilities.FileClone);
 }
 
+export interface IFileRealpathOptions {
+
+	/**
+	 * Report a failure to resolve links as an error, instead of returning a
+	 * path that may still contain links.
+	 */
+	readonly strict?: boolean;
+}
+
 export interface IFileSystemProviderWithFileRealpathCapability extends IFileSystemProvider {
-	realpath(resource: URI): Promise<string>;
+	realpath(resource: URI, options?: IFileRealpathOptions): Promise<string>;
 }
 
 export function hasFileRealpathCapability(provider: IFileSystemProvider): provider is IFileSystemProviderWithFileRealpathCapability {
@@ -762,7 +783,7 @@ export function hasFileReadStreamCapability(provider: IFileSystemProvider): prov
 }
 
 export interface IFileSystemProviderWithFileAtomicReadCapability extends IFileSystemProvider {
-	readFile(resource: URI, opts?: IFileAtomicReadOptions): Promise<Uint8Array>;
+	readFile(resource: URI, opts?: IFileAtomicReadOptions, token?: CancellationToken): Promise<Uint8Array>;
 	enforceAtomicReadFile?(resource: URI): boolean;
 }
 
@@ -794,6 +815,15 @@ export interface IFileSystemProviderWithFileAtomicDeleteCapability extends IFile
 
 export function hasFileAtomicDeleteCapability(provider: IFileSystemProvider): provider is IFileSystemProviderWithFileAtomicDeleteCapability {
 	return !!(provider.capabilities & FileSystemProviderCapabilities.FileAtomicDelete);
+}
+
+export interface IFileSystemProviderWithFileAtomicRenameCapability extends IFileSystemProvider {
+	/** Renames files atomically or rejects without modifying either file when unsupported. */
+	renameFileAtomic(from: URI, to: URI, opts: IFileOverwriteOptions): Promise<void>;
+}
+
+export function hasFileAtomicRenameCapability(provider: IFileSystemProvider): provider is IFileSystemProviderWithFileAtomicRenameCapability {
+	return !!(provider.capabilities & FileSystemProviderCapabilities.FileAtomicRename);
 }
 
 export interface IFileSystemProviderWithReadonlyCapability extends IFileSystemProvider {

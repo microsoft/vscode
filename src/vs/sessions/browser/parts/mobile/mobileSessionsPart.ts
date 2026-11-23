@@ -5,9 +5,9 @@
 
 import { Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { Part } from '../../../../workbench/browser/part.js';
-import { SessionsPart } from '../sessionsPart.js';
-import { clearAgentsPartCardStyles } from '../agentsPartCard.js';
-import { isPhoneLayout } from './mobileLayout.js';
+import { SessionsPart } from '../../../../workbench/browser/parts/sessions/sessionsPart.js';
+import { clearAgentsPartCardStyles } from '../../../../workbench/browser/parts/sessions/agentsPartCard.js';
+import { isPhoneLayout } from '../../../../workbench/browser/parts/sessions/mobileLayout.js';
 
 /**
  * Mobile variant of SessionsPart.
@@ -50,7 +50,7 @@ export class MobileSessionsPart extends SessionsPart {
 
 		// Full dimensions - no card margins or session-bar subtraction.
 		const { contentSize } = this.layoutContents(width, height);
-		this._gridWidget?.layout(contentSize.width, contentSize.height, top, left, true);
+		this.layoutContent(contentSize.width, contentSize.height, top, left, { phoneLayout: true, gap: undefined });
 		Part.prototype.layout.call(this, width, height, top, left);
 	}
 }

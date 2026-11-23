@@ -10,20 +10,20 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { BrowserViewUri } from '../../../../platform/browserView/common/browserViewUri.js';
-import { BrowserViewSharingState, INavigateOptions, IBrowserEditorViewState, IBrowserViewWorkbenchService, BrowserViewEditorId, IBrowserViewModel } from './browserView.js';
+import { BrowserViewSharingState, INavigateOptions, IBrowserEditorViewState, IBrowserViewSessionRequest, IBrowserViewWorkbenchService, BrowserViewEditorId, IBrowserViewModel } from './browserView.js';
 import { EditorInputCapabilities, GroupIdentifier, IEditorSerializer, IMoveResult, IUntypedEditorInput, Verbosity } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { TAB_ACTIVE_FOREGROUND } from '../../../common/theme.js';
 import { localize } from '../../../../nls.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { hasKey } from '../../../../base/common/types.js';
+import { hasKey, isObject, isString } from '../../../../base/common/types.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { logBrowserOpen } from '../../../../platform/browserView/common/browserViewTelemetry.js';
 import { LRUCachedFunction } from '../../../../base/common/cache.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { IBrowserViewNetwork, isBrowserViewAssociatedResourceNavigation } from '../../../../platform/browserView/common/browserView.js';
+import { BrowserViewStorageScope, getBrowserViewPathComparer, IBrowserViewNetwork, isBrowserViewAssociatedResourceNavigation, remoteUrlToFileUrl, splitUrlSuffix, toBrowserViewSessionOptions } from '../../../../platform/browserView/common/browserView.js';
 
 const LOADING_SPINNER_SVG = (color: string | undefined) => `
 	<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="16" height="16">
@@ -39,14 +39,47 @@ const LOADING_SPINNER_SVG = (color: string | undefined) => `
  */
 const MAX_TITLE_LENGTH = 30;
 
-/**
- * JSON-serializable type used during browser state serialization/deserialization
- */
+/** Data used to create and serialize a browser editor input. */
 export interface IBrowserEditorInputData extends IBrowserEditorViewState {
 	readonly id: string;
 	readonly associatedResource?: URI;
-	/** Whether the tab came from the default localhost link opener. Not serialized. */
-	readonly isDefaultLinkOpen?: boolean;
+}
+
+/**
+ * Reads browser view state saved or carried in editor options by any build,
+ * ignoring values this build does not understand.
+ */
+export function reviveBrowserEditorViewState(value: object | undefined): IBrowserEditorViewState {
+	const state: { readonly [K in keyof IBrowserEditorViewState]?: unknown } = value ?? {};
+	return {
+		url: isString(state.url) ? state.url : undefined,
+		title: isString(state.title) ? state.title : undefined,
+		favicon: isString(state.favicon) ? state.favicon : undefined,
+		session: reviveBrowserViewSession(state.session),
+		...(state.isDefaultLinkOpen === true ? { isDefaultLinkOpen: true } : {}),
+	};
+}
+
+/** A session this build cannot read is resolved again when the view is created, like a missing one. */
+function reviveBrowserViewSession(session: unknown): IBrowserViewSessionRequest | undefined {
+	if (!isObject(session)) {
+		return undefined;
+	}
+	const { scope, affinity, network } = session as { scope?: unknown; affinity?: unknown; network?: unknown };
+	const revivedAffinity = isString(affinity) ? affinity : undefined;
+	const authority = isObject(network) ? (network as { readonly authority?: unknown }).authority : undefined;
+	const revivedNetwork = isString(authority) ? { authority } : undefined;
+	switch (scope) {
+		case undefined:
+			return { ...(revivedAffinity !== undefined ? { affinity: revivedAffinity } : {}), ...(revivedNetwork ? { network: revivedNetwork } : {}) };
+		case BrowserViewStorageScope.Global:
+		case BrowserViewStorageScope.Workspace:
+		case BrowserViewStorageScope.Ephemeral:
+		case BrowserViewStorageScope.Agent:
+			return toBrowserViewSessionOptions(scope, revivedAffinity, revivedNetwork);
+		default:
+			return undefined;
+	}
 }
 
 /**
@@ -89,7 +122,6 @@ export class BrowserEditorInput extends EditorInput {
 		options: IBrowserEditorInputData,
 		private _resolveModel: () => Promise<IBrowserViewModel>,
 		@IThemeService private readonly themeService: IThemeService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IBrowserViewWorkbenchService private readonly browserViewWorkbenchService: IBrowserViewWorkbenchService,
 	) {
@@ -152,14 +184,29 @@ export class BrowserEditorInput extends EditorInput {
 		return this._associatedResource;
 	}
 
-	/**
-	 * The remote network this view was opened for, or `undefined` for the
-	 * local network. A view that cannot use it (global storage, or proxying
-	 * disabled) uses the local network; compare with the model's network. A
-	 * network whose proxy fails to start fails the view instead.
-	 */
+	/** The saved session request, which may differ from the model's session under current restrictions, such as a host that cannot proxy browsers. A network whose proxy fails to start fails the view instead. */
+	get session(): IBrowserViewSessionRequest | undefined {
+		return this._initialData.session;
+	}
+
+	/** The remote network this tab was requested to open on, or `undefined` for the local network. Fixed by the saved session, unlike {@link activeNetwork}. */
 	get network(): IBrowserViewNetwork | undefined {
-		return this._initialData.network ?? undefined;
+		const session = this._initialData.session;
+		return session?.scope === BrowserViewStorageScope.Global ? undefined : session?.network;
+	}
+
+	/** The network the page actually runs on, which may be the local network the requested {@link network} fell back to. Falls back to the request before the model resolves. */
+	get activeNetwork(): IBrowserViewNetwork | undefined {
+		return this.model ? this.model.network : this.network;
+	}
+
+	/** Whether navigating to {@link target} keeps the page on the {@link associatedResource}, apart from its query and fragment. */
+	isAssociatedResourceNavigation(target: string): boolean {
+		if (!this._associatedResource) {
+			return false;
+		}
+		const network = this.activeNetwork;
+		return isBrowserViewAssociatedResourceNavigation(this._associatedResource, target, network, getBrowserViewPathComparer(network && this.browserViewWorkbenchService.getNetworkFileSystem(network).caseSensitive));
 	}
 
 	get url(): string | undefined {
@@ -196,7 +243,7 @@ export class BrowserEditorInput extends EditorInput {
 			this._initialData = {
 				id: this._id,
 				url: destination,
-				network: this._initialData.network,
+				session: this._initialData.session,
 			};
 			this._onDidChangeLabel.fire();
 		}
@@ -340,31 +387,22 @@ export class BrowserEditorInput extends EditorInput {
 	override copy(): EditorInput {
 		logBrowserOpen(this.telemetryService, 'copyToNewWindow');
 
-		return this.instantiationService.invokeFunction((accessor) => {
-			const browserViewWorkbenchService = accessor.get(IBrowserViewWorkbenchService);
-			return browserViewWorkbenchService.getOrCreateLazy({
-				id: generateUuid(),
-				url: this.url,
-				title: this.title,
-				favicon: this.favicon,
-				network: this._initialData.network,
-				associatedResource: this._associatedResource
-			});
+		return this.browserViewWorkbenchService.getOrCreateLazy({
+			id: generateUuid(),
+			url: this.url,
+			title: this.title,
+			favicon: this.favicon,
+			session: this._initialData.session,
+			associatedResource: this._associatedResource
 		});
 	}
 
 	override toUntyped(): IUntypedEditorInput {
-		const viewState: IBrowserEditorViewState = {
-			url: this.url,
-			title: this.title,
-			favicon: this.favicon,
-			network: this._initialData.network,
-		};
 		return {
 			resource: this.preferredResource,
 			options: {
 				override: BrowserEditorInput.EDITOR_ID,
-				viewState
+				viewState: this.getViewState()
 			}
 		};
 	}
@@ -376,9 +414,10 @@ export class BrowserEditorInput extends EditorInput {
 
 		const currentUrl = this.url;
 		let renamedUrl = currentUrl;
-		if (currentUrl && isBrowserViewAssociatedResourceNavigation(this._associatedResource, currentUrl)) {
-			const currentResource = URI.parse(currentUrl);
-			renamedUrl = target.with({ query: currentResource.query, fragment: currentResource.fragment }).toString();
+		if (currentUrl && this.isAssociatedResourceNavigation(currentUrl)) {
+			// Map the target to the URL the page displays first, then carry over the page's query and fragment as written.
+			const { query, fragment } = splitUrlSuffix(currentUrl);
+			renamedUrl = splitUrlSuffix(remoteUrlToFileUrl(this.activeNetwork, target.toString())).base + query + fragment;
 		}
 		return {
 			editor: {
@@ -386,10 +425,8 @@ export class BrowserEditorInput extends EditorInput {
 				options: {
 					override: BrowserEditorInput.EDITOR_ID,
 					viewState: {
+						...this.getViewState(),
 						url: renamedUrl,
-						title: this.title,
-						favicon: this.favicon,
-						network: this._initialData.network,
 					}
 				}
 			}
@@ -413,7 +450,7 @@ export class BrowserEditorInput extends EditorInput {
 				url: this._model.url,
 				title: this._model.title,
 				favicon: this._model.favicon,
-				network: this._initialData.network,
+				session: this._initialData.session,
 			};
 			this._model.dispose();
 			this._model = undefined;
@@ -424,10 +461,16 @@ export class BrowserEditorInput extends EditorInput {
 		return {
 			id: this._id,
 			associatedResource: this._associatedResource,
+			...this.getViewState(),
+		};
+	}
+
+	private getViewState(): IBrowserEditorViewState {
+		return {
 			url: this.url,
 			title: this.title,
 			favicon: this.favicon,
-			network: this._initialData.network,
+			session: this.session,
 		};
 	}
 }
@@ -448,14 +491,15 @@ export class BrowserEditorSerializer implements IEditorSerializer {
 	deserialize(instantiationService: IInstantiationService, serializedEditor: string): EditorInput | undefined {
 		try {
 			const data: IBrowserEditorInputData = JSON.parse(serializedEditor);
+			const { url, title, favicon, session } = reviveBrowserEditorViewState(data);
 			return instantiationService.invokeFunction((accessor) => {
 				const browserViewWorkbenchService = accessor.get(IBrowserViewWorkbenchService);
 				return browserViewWorkbenchService.getOrCreateLazy({
 					id: data.id,
-					url: data.url,
-					title: data.title,
-					favicon: data.favicon,
-					network: data.network,
+					url,
+					title,
+					favicon,
+					session,
 					associatedResource: URI.revive(data.associatedResource)
 				});
 			});

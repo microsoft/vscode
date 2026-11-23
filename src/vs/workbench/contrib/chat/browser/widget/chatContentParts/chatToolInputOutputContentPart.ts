@@ -124,8 +124,8 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 			titleEl.root,
 			title,
 			subtitle,
+			{ markdownRenderOptions: getChatMarkdownRenderOptions(), renderFileWidgets: true, parentSessionResource: context.element.sessionResource.toString() },
 		));
-		this._titlePart.setOptions({ markdownRenderOptions: getChatMarkdownRenderOptions(), renderFileWidgets: true });
 		const spacer = document.createElement('span');
 		spacer.style.flexGrow = '1';
 
