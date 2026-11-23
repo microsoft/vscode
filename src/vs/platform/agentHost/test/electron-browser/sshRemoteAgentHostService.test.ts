@@ -31,7 +31,7 @@ import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService, IWo
 
 import { ISharedProcessService } from '../../../ipc/electron-browser/services.js';
 import { IQuickInputService } from '../../../quickinput/common/quickInput.js';
-import { addSSHRemoteAgentHostEntry, IRemoteAgentHostService, readSSHRemoteAgentHostEntries, RemoteAgentHostAutoConnectSettingId, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId, RemoteAgentHostsSettingId, type IRawRemoteAgentHostEntry, type IRemoteAgentHostConnectionFactory, type IRemoteAgentHostConnectionInfo } from '../../common/remoteAgentHostService.js';
+import { addSSHRemoteAgentHostEntry, getEntryAddress, IRemoteAgentHostService, readSSHRemoteAgentHostEntries, RemoteAgentHostAutoConnectSettingId, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId, RemoteAgentHostsSettingId, type IRawRemoteAgentHostEntry, type IRemoteAgentHostConnectionFactory, type IRemoteAgentHostConnectionInfo } from '../../common/remoteAgentHostService.js';
 import type { IAgentConnection } from '../../common/agentService.js';
 import { AHP_UNSUPPORTED_PROTOCOL_VERSION, JsonRpcErrorCodes, ProtocolError, ReconnectResultType, isJsonRpcRequest, type JsonRpcRequest, type ProtocolMessage } from '../../common/state/sessionProtocol.js';
 import { IRemoteAgentHostLocationPreferenceService, type RemoteAgentHostLocationPreference } from '../../common/remoteAgentHostLocationPreference.js';
@@ -474,6 +474,10 @@ class MockRemoteAgentHostService extends Disposable {
 		return toDisposable(() => this._factories.delete(factory.kind));
 	}
 
+	getFactory(kind: RemoteAgentHostEntryType): IRemoteAgentHostConnectionFactory | undefined {
+		return this._factories.get(kind);
+	}
+
 	reconnect(address: string, userInitiated = true): void {
 		if (this._pendingConnections.has(address)) {
 			return;
@@ -863,6 +867,35 @@ suite('SSHRemoteAgentHostService (renderer)', () => {
 			disconnectCalls: mainService.disconnectCalls,
 		}, {
 			stored: [],
+			disconnectCalls: ['ssh:remote.example'],
+		});
+	});
+
+	test('disconnect keeping the entry stops dialing it until cleared, then dials it as user-initiated', async () => {
+		const connectPromise = service.connect(sampleConfig);
+		await awaitClientThenResolve(0);
+		await connectPromise;
+		const factory = remoteAgentHostService.getFactory(RemoteAgentHostEntryType.SSH)!;
+		const snapshot = () => ({
+			connectable: factory.entries.get().map(getEntryAddress),
+			disconnected: service.disconnectedEntries.get().map(getEntryAddress),
+			stored: readSSHRemoteAgentHostEntries(sshStorageService).map(getEntryAddress),
+		});
+
+		await service.disconnect('ssh:remote.example', { keepEntry: true });
+		const afterDisconnect = snapshot();
+		service.clearDisconnected('ssh:remote.example');
+		const entry = factory.entries.get()[0];
+
+		assert.deepStrictEqual({
+			afterDisconnect,
+			afterClear: snapshot(),
+			pendingInitiation: factory.getPendingConnectionInitiation?.(entry),
+			disconnectCalls: mainService.disconnectCalls,
+		}, {
+			afterDisconnect: { connectable: [], disconnected: ['ssh:remote.example'], stored: ['ssh:remote.example'] },
+			afterClear: { connectable: ['ssh:remote.example'], disconnected: [], stored: ['ssh:remote.example'] },
+			pendingInitiation: true,
 			disconnectCalls: ['ssh:remote.example'],
 		});
 	});

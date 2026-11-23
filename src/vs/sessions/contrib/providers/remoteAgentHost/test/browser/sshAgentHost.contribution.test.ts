@@ -8,6 +8,7 @@ import { DeferredPromise, timeout } from '../../../../../../base/common/async.js
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { observableValue } from '../../../../../../base/common/observable.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -45,6 +46,7 @@ suite('SSHAgentHostContribution reconnect ownership', () => {
 			connection: { type: RemoteAgentHostEntryType.SSH, address: 'ssh:machine', sshConfigHost: 'machine', hostName: 'machine.example' },
 		}];
 		const calls: { address: string; userInitiated: boolean | undefined }[] = [];
+		const disconnectedEntries = observableValue<readonly IRemoteAgentHostEntry[]>('disconnectedEntries', []);
 		const remote = new class extends mock<IRemoteAgentHostService>() {
 			override readonly onDidChangeConfiguredEntries = entriesChanged.event;
 			override readonly onDidChangeConnections = connectionsChanged.event;
@@ -65,15 +67,30 @@ suite('SSHAgentHostContribution reconnect ownership', () => {
 		}();
 		const instantiation = store.add(new TestInstantiationService());
 		instantiation.stub(IRemoteAgentHostService, remote);
-		instantiation.stub(ISSHRemoteAgentHostService, {
-			disconnect: async () => { },
-		});
+		instantiation.stub(ISSHRemoteAgentHostService, new class extends mock<ISSHRemoteAgentHostService>() {
+			override readonly disconnectedEntries = disconnectedEntries;
+			override async disconnect(host: string, options?: { readonly keepEntry?: boolean }): Promise<void> {
+				const entry = [...entries, ...disconnectedEntries.get()].find(candidate => getEntryAddress(candidate) === host);
+				entries = entries.filter(candidate => candidate !== entry);
+				disconnectedEntries.set(disconnectedEntries.get().filter(candidate => candidate !== entry).concat(options?.keepEntry && entry ? [entry] : []), undefined);
+				entriesChanged.fire();
+			}
+			override clearDisconnected(address: string): void {
+				const entry = disconnectedEntries.get().find(candidate => getEntryAddress(candidate) === address);
+				if (entry) {
+					entries = [...entries, entry];
+					disconnectedEntries.set(disconnectedEntries.get().filter(candidate => candidate !== entry), undefined);
+					entriesChanged.fire();
+				}
+			}
+		}());
 		instantiation.stub(IConfigurationService, configuration);
 		instantiation.stub(ILogService, store.add(new NullLogService()));
 		instantiation.stub(ISessionsProvidersService, {});
 		instantiation.stub(INotificationService, new TestNotificationService());
 		instantiation.stub(ITelemetryService, NullTelemetryService);
 		const providers = new Map<string, IEntryDrivenProviderOptions>();
+		const providerStates = new Map<string, { status?: RemoteAgentHostConnectionStatus; unpublished: boolean }>();
 		let reconciliations = 0;
 		const contribution = store.add(instantiation.createInstance(class extends SSHAgentHostContribution {
 			protected override _reconcile(): void {
@@ -82,28 +99,32 @@ suite('SSHAgentHostContribution reconnect ownership', () => {
 			}
 
 			protected override _createProvider(address: string, name: string, options: IEntryDrivenProviderOptions) {
+				const state: { status?: RemoteAgentHostConnectionStatus; unpublished: boolean } = { unpublished: false };
 				const provider = new class extends mock<RemoteAgentHostSessionsProvider>() {
 					override get defaultLabel(): string { return name; }
-					override setConnectionStatus(): void { }
-					override unpublishCachedSessions(): void { }
+					override setConnectionStatus(status: RemoteAgentHostConnectionStatus): void { state.status = status; }
+					override unpublishCachedSessions(): void { state.unpublished = true; }
 				}();
 				const resources = new DisposableStore();
 				this._providerStores.set(address, resources);
 				this._providerInstances.set(address, provider);
 				providers.set(address, options);
+				providerStates.set(address, state);
 				resources.add(toDisposable(() => {
 					this._providerInstances.delete(address);
 					providers.delete(address);
+					providerStates.delete(address);
 				}));
 				return provider;
 			}
 		}));
 		const provider = providers.get('ssh:machine');
-		assert.ok(provider?.connectOnDemand && provider.disconnectOnDemand);
+		assert.ok(provider?.connectOnDemand && provider.disconnectOnDemand && provider.removeOnDemand);
 		return {
-			calls, connectionsChanged, entriesChanged, configuration, contribution, remote,
+			calls, connectionsChanged, entriesChanged, configuration, contribution, remote, disconnectedEntries, providerStates,
 			connect: provider.connectOnDemand,
 			disconnect: provider.disconnectOnDemand,
+			remove: provider.removeOnDemand,
 			getReconciliations: () => reconciliations,
 			fireConfigurationChange: (key: string) => configuration.onDidChangeConfigurationEmitter.fire(new class extends mock<IConfigurationChangeEvent>() {
 				override affectsConfiguration(section: string): boolean { return section === key; }
@@ -168,14 +189,46 @@ suite('SSHAgentHostContribution reconnect ownership', () => {
 	test('removing a cancelled host cannot revive it on a later event or timer', () => runWithFakedTimers({}, async () => {
 		const harness = createHarness(true, async () => { throw new CancellationError(); });
 		await assert.rejects(harness.connect(), CancellationError);
-		await harness.disconnect();
+		await harness.remove();
 		harness.connectionsChanged.fire();
 		await timeout(180_000);
+		const providers = [...harness.providerStates.keys()];
 		harness.contribution.dispose();
 
-		assert.deepStrictEqual({ calls: harness.calls, entries: harness.remote.configuredEntries }, {
+		assert.deepStrictEqual({ calls: harness.calls, entries: harness.remote.configuredEntries, disconnected: harness.disconnectedEntries.get(), providers }, {
 			calls: [{ address: 'ssh:machine', userInitiated: true }],
 			entries: [],
+			disconnected: [],
+			providers: [],
+		});
+	}));
+
+	test('disconnecting keeps an offline provider without sessions that only an explicit connect dials again', () => runWithFakedTimers({}, async () => {
+		const harness = createHarness(true, async () => { });
+		await harness.connect();
+		await harness.disconnect();
+		harness.connectionsChanged.fire();
+		harness.fireConfigurationChange(RemoteAgentHostAutoConnectSettingId);
+		await timeout(180_000);
+		const afterDisconnect = {
+			calls: harness.calls.slice(),
+			entries: harness.remote.configuredEntries.map(getEntryAddress),
+			provider: { ...harness.providerStates.get('ssh:machine') },
+		};
+
+		await harness.connect();
+		harness.contribution.dispose();
+
+		assert.deepStrictEqual({ afterDisconnect, afterConnect: { calls: harness.calls, entries: harness.remote.configuredEntries.map(getEntryAddress) } }, {
+			afterDisconnect: {
+				calls: [{ address: 'ssh:machine', userInitiated: true }],
+				entries: [],
+				provider: { status: RemoteAgentHostConnectionStatus.disconnected, unpublished: true },
+			},
+			afterConnect: {
+				calls: [{ address: 'ssh:machine', userInitiated: true }, { address: 'ssh:machine', userInitiated: true }],
+				entries: ['ssh:machine'],
+			},
 		});
 	}));
 
