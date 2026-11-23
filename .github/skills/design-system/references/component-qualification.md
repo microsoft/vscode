@@ -24,6 +24,7 @@ These are granularity comparisons, not a requirement to reproduce another librar
 | Topic | Implementations, variants, and parts kept together |
 | --- | --- |
 | Button | [Button and ButtonBar](../../../../src/vs/base/browser/ui/button/button.ts), icon-only and description variants, split-button behavior, and menu-button triggers |
+| Copy button | [CopyButton](../../../../src/vs/base/browser/ui/button/copyButton.ts) and [CopyFeedback](../../../../src/vs/base/browser/ui/button/copyFeedback.ts), a distinct success-feedback and announcement contract for copy actions |
 | Toolbar | [ActionBar](../../../../src/vs/base/browser/ui/actionbar/actionbar.ts) and [ToolBar](../../../../src/vs/base/browser/ui/toolbar/toolbar.ts), including secondary actions and overflow |
 | Text field | [InputBox and HistoryInputBox](../../../../src/vs/base/browser/ui/inputbox/inputBox.ts), multiline sizing, and [FindInput](../../../../src/vs/base/browser/ui/findinput/findInput.ts) as a search composition |
 | Label | [HighlightedLabel](../../../../src/vs/base/browser/ui/highlightedlabel/highlightedLabel.ts), [IconLabel](../../../../src/vs/base/browser/ui/iconLabel/iconLabel.ts), and [ResourceLabels](../../../../src/vs/workbench/browser/labels.ts) for URI-aware specialization |
