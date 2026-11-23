@@ -649,6 +649,34 @@ export function compareItemsByFuzzyScore<T>(itemA: T, itemB: T, query: IPrepared
 	const itemScoreA = scoreItemFuzzy(itemA, query, allowNonContiguousMatches, accessor, cache);
 	const itemScoreB = scoreItemFuzzy(itemB, query, allowNonContiguousMatches, accessor, cache);
 
+	return compareItemScores(itemA, itemB, itemScoreA, itemScoreB, query, accessor);
+}
+
+/**
+ * Creates a comparator that orders items like {@link compareItemsByFuzzyScore}, but scores
+ * every item only once. Use it for a single sort only: items and query must not change while
+ * it is in use.
+ */
+export function createItemsByFuzzyScoreComparator<T>(query: IPreparedQuery, allowNonContiguousMatches: boolean, accessor: IItemAccessor<T>, cache: FuzzyScorerCache): (itemA: T, itemB: T) => number {
+	if (!query.normalized) {
+		return (itemA, itemB) => compareItemsByFuzzyScore(itemA, itemB, query, allowNonContiguousMatches, accessor, cache);
+	}
+
+	const itemScores = new Map<T, IItemScore>();
+	const getItemScore = (item: T) => {
+		let itemScore = itemScores.get(item);
+		if (itemScore === undefined) {
+			itemScore = scoreItemFuzzy(item, query, allowNonContiguousMatches, accessor, cache);
+			itemScores.set(item, itemScore);
+		}
+
+		return itemScore;
+	};
+
+	return (itemA, itemB) => compareItemScores(itemA, itemB, getItemScore(itemA), getItemScore(itemB), query, accessor);
+}
+
+function compareItemScores<T>(itemA: T, itemB: T, itemScoreA: IItemScore, itemScoreB: IItemScore, query: IPreparedQuery, accessor: IItemAccessor<T>): number {
 	const scoreA = itemScoreA.score;
 	const scoreB = itemScoreB.score;
 
