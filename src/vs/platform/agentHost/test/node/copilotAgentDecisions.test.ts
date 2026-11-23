@@ -70,7 +70,7 @@ suite('CopilotAgent.askDecisions', () => {
 		assert.deepStrictEqual(asked, ['host', 'limited', 'other'], 'the rate-limited account\'s second call never reached the runtime');
 	});
 
-	test('a router with errors keeps its picker row, with a warning', () => {
+	test('a router with errors or a route it cannot use keeps its picker row, with a warning', () => {
 		const withRows = (CopilotAgent.prototype as unknown as { _withModelRouterRows(this: unknown, models: readonly IAgentModelInfo[]): readonly IAgentModelInfo[] })._withModelRouterRows;
 		const good = parseModelRouter('version: 1\ndescription: Good.\nswitching: auto\nroutes:\n  - model: a\n    when: A.\n  - model: b\n    when: B.\n', 'good.model-router.yaml');
 		// Only one of this router's models is available, so it has nothing to switch between.
@@ -84,7 +84,7 @@ suite('CopilotAgent.askDecisions', () => {
 		const rows = withRows.call({ id: 'copilotcli', _modelRouterCatalog: { value: { snapshot: { files } } } }, models).slice(2);
 		assert.deepStrictEqual(rows.map(row => [row.id, readModelRouterDescription(row) !== undefined, readAgentModelNoticesMeta(row).rowWarning, readAgentModelRouterRoutesMeta(row).map(route => route.model), readAgentModelRouterSwitchingMeta(row)]), [
 			['model-router:good', true, undefined, ['A', 'B'], 'auto'],
-			['model-router:lone', true, undefined, ['A'], undefined],
+			['model-router:lone', true, 'Route 2 (gone) is skipped: none of its models are available on this account.', ['A'], undefined],
 			['model-router:bad', true, 'bad.model-router.yaml has errors: Add `version: 1`.', [], undefined],
 		]);
 		assert.strictEqual(withRows.call({ id: 'copilotcli', _modelRouterCatalog: { value: { snapshot: { files: [] } } } }, models), models, 'unchanged without routers');

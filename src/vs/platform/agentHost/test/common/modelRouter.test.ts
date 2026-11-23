@@ -370,14 +370,15 @@ suite('modelRouter', () => {
 				{ models: ['c'], when: 'C.', examples: [], contextSize: 'long' },
 				{ models: ['gone'], when: 'D.', examples: [] },
 			];
+			const summarize = (candidate: IModelRouter) => summarizeModelRouterRoutes(candidate, resolveModelRouter(candidate, models).routes);
 			// The routes are added to the router's row beside what it already carries.
-			const row = { ...model('row'), _meta: withAgentModelRouterRoutesMeta({ other: 1 }, summarizeModelRouterRoutes(router(routes), models)) };
+			const row = { ...model('row'), _meta: withAgentModelRouterRoutesMeta({ other: 1 }, summarize(router(routes))) };
 			assert.deepStrictEqual({
 				chosen: readAgentModelRouterRoutesMeta(row),
 				kept: row._meta?.other,
-				effortOff: summarizeModelRouterRoutes(router(routes, 'off'), models),
+				effortOff: summarize(router(routes, 'off')),
 				// Effort is chosen with the route, so it is not chosen when one route is left.
-				oneRoute: summarizeModelRouterRoutes(router(routes.slice(1, 2)), models),
+				oneRoute: summarize(router(routes.slice(1, 2))),
 				// A row from another host lists only what reads as a route.
 				malformed: readAgentModelRouterRoutesMeta({ ...model('row'), _meta: { 'vscode.chat.modelRouterRoutes': [{ model: 'A', effort: 3, contextTokens: -1 }, { name: 'x' }, 'y'] } }),
 				otherModel: readAgentModelRouterRoutesMeta(model('row')),
@@ -411,10 +412,15 @@ suite('modelRouter', () => {
 				{ models: ['b'], when: 'E.', examples: [], name: 'a' },
 			]);
 			const result = resolveModelRouter(named, [model('a'), model('b')]);
-			assert.deepStrictEqual({ routes: result.routes.map(resolved => [resolved.route.name, resolved.model.id]), diagnostics: messages(result.diagnostics) }, {
+			assert.deepStrictEqual({ routes: result.routes.map(resolved => [resolved.route.name, resolved.model.id]), diagnostics: messages(result.diagnostics), skipped: result.skipped }, {
 				routes: [['feature', 'a'], ['bug-fix', 'a'], [undefined, 'a']],
 				diagnostics: [
 					'Route `bug-fix` uses `a` because `gone` is not available.',
+					'Route `quick` (gone) is skipped: none of its models are available on this account.',
+					'Route `a` is skipped: `a` is the name of one route and the model of another.',
+				],
+				// A route that falls back to a later model is still used, so only the other two are named.
+				skipped: [
 					'Route `quick` (gone) is skipped: none of its models are available on this account.',
 					'Route `a` is skipped: `a` is the name of one route and the model of another.',
 				],
