@@ -9,6 +9,7 @@ import { workspace, commands, window, Uri, WorkspaceEdit, Range, TextDocument, e
 import * as cp from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
+import * as sinon from 'sinon';
 import type { GitExtension, API, Repository } from '../api/git';
 import { Status } from '../api/git.constants';
 import { eventToPromise } from '../util';
@@ -319,5 +320,50 @@ suite('git smoke test', function () {
 
 		assert.strictEqual(repository.state.workingTreeChanges.length, 0);
 		assert.strictEqual(repository.state.indexChanges.length, 0);
+	});
+
+	test('only prompts to save dirty files that Git can commit', async function () {
+		const ignoredName = 'ignored-before-commit.txt';
+		const ignoredFile = file(ignoredName);
+		const excludeFile = file('.git/info/exclude');
+		const originalExclude = fs.existsSync(excludeFile) ? fs.readFileSync(excludeFile, 'utf8') : undefined;
+		fs.appendFileSync(excludeFile, `\n/${ignoredName}\n/app.js\n`);
+		fs.writeFileSync(ignoredFile, 'on disk');
+		const ignored = await open(ignoredName);
+		const tracked = await open('app.js');
+		const prompt = sinon.stub(window, 'showWarningMessage').resolves(undefined);
+		try {
+			await type(ignored, ' unsaved');
+			await type(tracked, '\n// commit this change');
+			await tracked.save();
+			await repository.status();
+
+			const message = 'commit with an ignored dirty editor';
+			repository.inputBox.value = message;
+			await commands.executeCommand('git.commitAll', repository.rootUri);
+			sinon.assert.notCalled(prompt);
+			assert.strictEqual((await repository.log({ maxEntries: 1 }))[0].message, message);
+			assert(ignored.isDirty);
+			assert.strictEqual(fs.readFileSync(ignoredFile, 'utf8'), 'on disk');
+
+			await type(tracked, '\n// still unsaved');
+			await commands.executeCommand('git.commitAll', repository.rootUri);
+			sinon.assert.calledOnce(prompt);
+			assert.match(prompt.firstCall.args[0], /app\.js/);
+		} finally {
+			prompt.restore();
+			for (const document of [ignored, tracked]) {
+				if (document.isDirty) {
+					await window.showTextDocument(document);
+					await commands.executeCommand('workbench.action.files.revert');
+				}
+			}
+			fs.rmSync(ignoredFile);
+			if (originalExclude === undefined) {
+				fs.rmSync(excludeFile);
+			} else {
+				fs.writeFileSync(excludeFile, originalExclude);
+			}
+		}
 	});
 });

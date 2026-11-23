@@ -2412,6 +2412,10 @@ export class CommandCenter {
 				if (promptToSaveFilesBeforeCommit === 'staged' || repository.indexGroup.resourceStates.length > 0) {
 					documents = documents
 						.filter(d => repository.indexGroup.resourceStates.some(s => pathEquals(s.resourceUri.fsPath, d.uri.fsPath)));
+				} else if (documents.length > 0) {
+					// Keep the save prompt when Git cannot check the paths, for example in a submodule.
+					const ignored = await repository.checkIgnore(documents.map(d => d.uri.fsPath)).catch(() => new Set<string>());
+					documents = documents.filter(d => !ignored.has(d.uri.fsPath));
 				}
 
 				if (documents.length > 0) {
