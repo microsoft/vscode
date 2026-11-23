@@ -9,7 +9,7 @@ import { CopilotClient, RuntimeConnection, type CopilotClientOptions, type Copil
 import { constants as fsConstants } from 'fs';
 import * as fs from 'fs/promises';
 import * as os from 'os';
-import { CancelablePromise, createCancelablePromise, DeferredPromise, Delayer, disposableTimeout, Limiter, Promises, raceCancellationError, raceTimeout, Sequencer, SequencerByKey, Throttler, timeout } from '../../../../base/common/async.js';
+import { CancelablePromise, createCancelablePromise, DeferredPromise, Delayer, disposableTimeout, Limiter, Promises, raceCancellation, raceCancellationError, raceTimeout, Sequencer, SequencerByKey, Throttler, timeout } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { arrayEquals, structuralEquals } from '../../../../base/common/equals.js';
 import { CancellationError, getErrorCode, getErrorMessage, isCancellationError } from '../../../../base/common/errors.js';
@@ -4623,7 +4623,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		// The model a custom agent names is where the model picker starts. A router picked after it routes, as a model picked after it runs.
 		const customAgentName = request.agent && await this._readCustomAgentName(request.agent.uri);
 		const snapshot = await catalog.whenSettled(token);
-		const models = context.credentials ? await this._getTurnModels(chat, context.credentials, token) : this._models.get();
+		const models = context.credentials ? await this._getTurnModels(chat, context.credentials, token) : await this._getHostTurnModels(token);
 		const file = findModelRouter(snapshot, chat, request.selection.id);
 		const resolution = await this._modelRouter.resolve({
 			chat: chatKey,
@@ -4677,6 +4677,19 @@ export class CopilotAgent extends Disposable implements IAgent {
 			}
 		}
 		return this.getModelsForCredentials(credentials, token);
+	}
+
+	/**
+	 * The host's published models for routing. Before the first refresh lands the list is empty, and
+	 * during an invalidating one it belongs to a superseded credential, so wait for it as
+	 * `_validateModelSelection` does; otherwise a router finds none of its models and keeps the chat's.
+	 */
+	private async _getHostTurnModels(token: CancellationToken): Promise<readonly IAgentModelInfo[]> {
+		const refresh = this._invalidatingModelRefresh ?? (this._capiModels.length ? undefined : this._modelRefreshInFlight);
+		if (refresh) {
+			await raceCancellation(refresh, token);
+		}
+		return this._models.get();
 	}
 
 	async askDecisions(request: IAgentDecisionsRequest, credentials: IAgentHostCredentialSource | undefined, token: CancellationToken): Promise<IAgentDecisionsResult> {
