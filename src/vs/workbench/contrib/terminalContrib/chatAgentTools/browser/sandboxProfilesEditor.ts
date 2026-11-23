@@ -128,6 +128,7 @@ export class SandboxProfilesEditor extends EditorPane {
 	private _root!: HTMLElement;
 	private _splitView: SplitView<number> | undefined;
 	private _list!: WorkbenchList<IProfileRow>;
+	private _newProfileButton!: Button;
 	private _header!: HTMLElement;
 	private _body!: HTMLElement;
 	private _nameInput: InputBox | undefined;
@@ -159,7 +160,7 @@ export class SandboxProfilesEditor extends EditorPane {
 	protected override createEditor(parent: HTMLElement): void {
 		this._root = dom.append(parent, $('.sandbox-profiles-editor'));
 		const sidebarView = dom.append(this._root, $('.sidebar-view'));
-		const newProfile = this._register(new Button(dom.append(sidebarView, $('.new-profile-button')), defaultButtonStyles));
+		const newProfile = this._newProfileButton = this._register(new Button(dom.append(sidebarView, $('.new-profile-button')), defaultButtonStyles));
 		newProfile.label = localize('new', "New Profile");
 		this._register(newProfile.onDidClick(() => this._createProfile()));
 		this._list = this._register(this._instantiationService.createInstance(WorkbenchList<IProfileRow>, 'SandboxProfiles', dom.append(sidebarView, $('.profiles-list')),
@@ -220,7 +221,11 @@ export class SandboxProfilesEditor extends EditorPane {
 
 	override focus(): void {
 		// Like the Profiles editor, focus the selected profile in the list rather than its name field.
-		this._list.domFocus();
+		if (this._list.length) {
+			this._list.domFocus();
+		} else {
+			this._newProfileButton.focus();
+		}
 	}
 
 	override async setInput(input: SandboxProfilesInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
@@ -271,7 +276,7 @@ export class SandboxProfilesEditor extends EditorPane {
 		const showInUse = async (hosts: readonly string[]) => {
 			await this._dialogs.info(
 				localize('deleteInUse', "Sandbox profile '{0}' can't be deleted because it is in use.", row.name),
-				localize('deleteInUseDetail', "It is assigned to these remote environments: {0}. Choose another profile or Host Default for them in Remote Environments, then delete it.", hosts.join(', ')),
+				localize('deleteInUseDetail', "It is assigned to these remote environments: {0}. Choose another profile or Default for them in Remote Environments, then delete it.", hosts.join(', ')),
 			);
 		};
 		const hosts = input.hostsUsingProfile(row.id);

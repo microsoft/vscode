@@ -553,7 +553,7 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 						const supported = assigned !== undefined;
 						const library = supported ? readSandboxProfiles(this.storage) : [];
 						const options: SandboxProfileOption[] = [{ kind: 'default' }, ...library.map(profile => ({ kind: 'assign' as const, profile }))];
-						const items: ISelectOptionItem[] = [{ text: localize('remotes.defaultSandboxProfile', "Host Default") }, ...library.map(profile => ({ text: profile.name }))];
+						const items: ISelectOptionItem[] = [{ text: localize('remotes.defaultSandboxProfile', "Default") }, ...library.map(profile => ({ text: profile.name }))];
 						let selected = assigned ? options.findIndex(option => option.kind === 'assign' && option.profile.id === assigned.id) : 0;
 						if (assigned && selected === -1) {
 							// Assigned from another device: keep showing it, and offer to save it to this machine's profiles.

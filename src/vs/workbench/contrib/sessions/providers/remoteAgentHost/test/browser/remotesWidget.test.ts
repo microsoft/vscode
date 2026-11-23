@@ -2068,11 +2068,11 @@ suite('RemotesWidget', () => {
 		assert.deepStrictEqual({
 			listed, assigned, cleared: laptop.values[AgentHostSandboxConfigKey.SandboxProfile], disconnected, unsupported: state('ssh:build'), connections: model.connectionChanges,
 		}, {
-			listed: { disabled: false, dimmed: false, title: '', options: ['Host Default', 'Strict'], selected: 'Host Default' },
+			listed: { disabled: false, dimmed: false, title: '', options: ['Default', 'Strict'], selected: 'Default' },
 			assigned: { id: 'strict', name: 'Strict', sandbox: { allowNetwork: false } },
 			cleared: {},
-			disconnected: { disabled: true, dimmed: true, title: '', options: ['Host Default'], selected: 'Host Default' },
-			unsupported: { disabled: true, dimmed: true, title: '', options: ['Host Default'], selected: 'Host Default' },
+			disconnected: { disabled: true, dimmed: true, title: '', options: ['Default'], selected: 'Default' },
+			unsupported: { disabled: true, dimmed: true, title: '', options: ['Default'], selected: 'Default' },
 			connections: [],
 		});
 	});
@@ -2092,7 +2092,7 @@ suite('RemotesWidget', () => {
 		first.addHost('tunnel:laptop', host);
 		assert.deepStrictEqual({ connected, disconnected, reconnected: state() }, {
 			connected: { disabled: false, selected: 'Strict (on host)', label: 'Sandbox profile for Laptop' },
-			disconnected: { disabled: true, selected: 'Host Default', label: 'Sandbox profile for Laptop. Connect to Laptop to see or choose one.' },
+			disconnected: { disabled: true, selected: 'Default', label: 'Sandbox profile for Laptop. Connect to Laptop to see or choose one.' },
 			reconnected: { disabled: false, selected: 'Strict (on host)', label: 'Sandbox profile for Laptop' },
 		});
 	});
@@ -2119,9 +2119,9 @@ suite('RemotesWidget', () => {
 		const savedByB = { state: state(deviceB), library: readSandboxProfiles(deviceB.storageService).map(profile => [profile.id, profile.name, profile.settings[AgentSandboxSettingId.AgentSandboxAllowNetwork]]), host: (host.values[AgentHostSandboxConfigKey.SandboxProfile] as { id: string }).id };
 		choose(deviceB, 'Open');
 		assert.deepStrictEqual({ seenByB, savedByB, seenByA: state(deviceA), host: (host.values[AgentHostSandboxConfigKey.SandboxProfile] as { id: string }).id }, {
-			seenByB: { options: ['Host Default', 'Open', SeparatorSelectOption.text, 'Strict (on host)', 'Save "Strict" to My Profiles'], selected: 'Strict (on host)' },
-			savedByB: { state: { options: ['Host Default', 'Open', 'Strict'], selected: 'Strict' }, library: [['open', 'Open', true], ['strict', 'Strict', false]], host: 'strict' },
-			seenByA: { options: ['Host Default', 'Strict', SeparatorSelectOption.text, 'Open (on host)', 'Save "Open" to My Profiles'], selected: 'Open (on host)' },
+			seenByB: { options: ['Default', 'Open', SeparatorSelectOption.text, 'Strict (on host)', 'Save "Strict" to My Profiles'], selected: 'Strict (on host)' },
+			savedByB: { state: { options: ['Default', 'Open', 'Strict'], selected: 'Strict' }, library: [['open', 'Open', true], ['strict', 'Strict', false]], host: 'strict' },
+			seenByA: { options: ['Default', 'Strict', SeparatorSelectOption.text, 'Open (on host)', 'Save "Open" to My Profiles'], selected: 'Open (on host)' },
 			host: 'open',
 		});
 	});

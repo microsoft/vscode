@@ -50,10 +50,10 @@ export const sandboxProfileGroups = [
 ] as const;
 
 /**
- * Edits this machine's sandbox profile library like the Profiles editor: the library starts
- * with a Default profile copied from the current sandbox settings, New Profile creates and
- * saves another, and valid changes are saved automatically. Assigning profiles to hosts
- * happens in Remote Environments; saving a profile updates the connected hosts it is assigned to.
+ * Edits this machine's sandbox profile library like the Profiles editor: New Profile creates
+ * and saves a profile from the current sandbox settings, and valid changes are saved
+ * automatically. Assigning profiles to hosts happens in Remote Environments; saving a
+ * profile updates the connected hosts it is assigned to.
  */
 export class SandboxProfilesInput extends EditorInput implements IModalEditorOptionsProvider {
 	static readonly ID = 'workbench.input.sandboxProfiles';
@@ -92,10 +92,6 @@ export class SandboxProfilesInput extends EditorInput implements IModalEditorOpt
 	) {
 		super();
 		watchSandboxProfiles(this._storage, this._store, () => this._onDidChangeLibrary());
-		if (!this.profiles.length) {
-			// Start the library with a copy of the current sandbox settings, which the user can then edit.
-			writeSandboxProfiles(this._storage, [{ id: generateUuid(), name: localize('defaultProfileName', "Default"), settings: this._currentSettings() }]);
-		}
 		this.select(this.profiles[0]);
 	}
 

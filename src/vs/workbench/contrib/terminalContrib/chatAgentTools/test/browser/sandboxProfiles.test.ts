@@ -55,15 +55,13 @@ suite('Sandbox profiles editor', () => {
 		return input.draft;
 	}
 
-	test('starts with a Default profile from current settings; New Profile saves another to this machine only', async () => {
+	test('starts empty; New Profile saves a profile from current settings to this machine only', async () => {
 		const { storage, config, open } = setup();
 		const input = open();
-		const initial = { selected: draft(input).name, profiles: input.profiles.map(p => [p.name, p.settings[domains]]) };
-		// Editing Default changes only the profile, not the user's settings.
-		draft(input).settings[domains] = ['default-edit.example'];
-		await input.save();
+		const initial = { selected: input.draft, profiles: input.profiles.length };
 		input.createProfile();
 		const created = { name: draft(input).name, saved: input.profiles.map(p => p.name), dirty: input.isDirty() };
+		// Editing a profile changes only the profile, not the user's settings.
 		const list = draft(input).settings[domains];
 		assert.ok(Array.isArray(list));
 		list.push('new.example');
@@ -81,8 +79,8 @@ suite('Sandbox profiles editor', () => {
 			synced: storage.keys(StorageScope.APPLICATION_SHARED, StorageTarget.USER).length + storage.keys(StorageScope.PROFILE, StorageTarget.USER).length,
 			settings: config.getValue(domains),
 		}, {
-			initial: { selected: 'Default', profiles: [['Default', ['original.example']]] },
-			created: { name: 'sandbox_profile_1', saved: ['Default', 'sandbox_profile_1'], dirty: false },
+			initial: { selected: undefined, profiles: 0 },
+			created: { name: 'sandbox_profile_1', saved: ['sandbox_profile_1'], dirty: false },
 			next: 'sandbox_profile_1',
 			otherWindow: ['Remote', ['original.example', 'new.example']],
 			machineScoped: true,
@@ -109,7 +107,7 @@ suite('Sandbox profiles editor', () => {
 		assert.deepStrictEqual({ pending, saved, invalid: { dirty: input.isDirty(), library: readSandboxProfiles(storage).map(p => p.name) } }, {
 			pending: { dirty: false, library: ['original.example'] },
 			saved: { dirty: false, library: ['edited.example'], host: ['edited.example'] },
-			invalid: { dirty: true, library: ['Default', 'Strict'] },
+			invalid: { dirty: true, library: ['Strict'] },
 		});
 	}));
 
@@ -124,7 +122,7 @@ suite('Sandbox profiles editor', () => {
 		input.select(local);
 		draft(input).name = 'Renamed';
 		await input.save();
-		assert.deepStrictEqual(open().profiles.map(p => [p.id, p.name]), [[input.profiles[0].id, 'Default'], [local.id, 'Renamed'], [input.profiles[2].id, 'sandbox_profile_1']]);
+		assert.deepStrictEqual(open().profiles.map(p => [p.id, p.name]), [[local.id, 'Renamed'], [input.profiles[1].id, 'sandbox_profile_1']]);
 	});
 
 	test('saving pushes the edit to connected hosts using the profile, not to other or disconnected hosts', async () => {
@@ -170,8 +168,8 @@ suite('Sandbox profiles editor', () => {
 		const unassigned = { deleted: input.deleteProfile(strict.id), library: readSandboxProfiles(storage).map(p => p.name), selected: input.draft?.name };
 		hosts.offline = offline;
 		assert.deepStrictEqual({ inUse, unassigned, offlineCopy: readHostSandboxProfile(offline)?.name }, {
-			inUse: { hosts: ['build'], deleted: false, library: ['Default', 'Strict'] },
-			unassigned: { deleted: true, library: ['Default'], selected: 'Default' },
+			inUse: { hosts: ['build'], deleted: false, library: ['Strict'] },
+			unassigned: { deleted: true, library: [], selected: undefined },
 			// Only connected hosts are checked; a host that was disconnected keeps using its own copy.
 			offlineCopy: 'Strict',
 		});
@@ -190,7 +188,7 @@ suite('Sandbox profiles editor', () => {
 		assignHostSandboxProfile(build, undefined);
 		otherWindow.deleteProfile(strict.id);
 		editor.flush();
-		assert.deepStrictEqual({ library: readSandboxProfiles(storage).map(p => p.name), host: readHostSandboxProfile(build), selected: editor.draft?.name }, { library: ['Default'], host: null, selected: 'Default' });
+		assert.deepStrictEqual({ library: readSandboxProfiles(storage).map(p => p.name), host: readHostSandboxProfile(build), selected: editor.draft?.name }, { library: [], host: null, selected: undefined });
 	});
 
 	test('invalid JSON text is an unsaved change that blocks saving until fixed or discarded', async () => {
@@ -205,7 +203,7 @@ suite('Sandbox profiles editor', () => {
 		assert.deepStrictEqual({ invalid, reverted: { dirty: input.isDirty(), text: input.invalidText(key), error: input.saveError }, library: readSandboxProfiles(storage).map(p => p.name) }, {
 			invalid: { dirty: true, text: '{ "readwritePaths": [', error: true },
 			reverted: { dirty: false, text: undefined, error: undefined },
-			library: ['Default', 'Strict'],
+			library: ['Strict'],
 		});
 	});
 
@@ -225,9 +223,11 @@ suite('Sandbox profiles editor', () => {
 
 	test('a name taken or freed in another window updates whether a kept edit is saved', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const { storage, open } = setup();
-		const editor = open();
 		const other = open();
+		const edited = await create(other, 'Edited');
 		const conflicting = await create(other, 'Other');
+		const editor = open();
+		editor.select(edited);
 		draft(editor).name = 'Strict';
 		editor.changed();
 		other.select(conflicting);
