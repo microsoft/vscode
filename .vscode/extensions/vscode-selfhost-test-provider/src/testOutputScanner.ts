@@ -41,7 +41,6 @@ export interface ITestStartEvent {
 	title: string;
 	fullTitle: string;
 	file: string;
-	currentRetry: number;
 	speed: string;
 }
 

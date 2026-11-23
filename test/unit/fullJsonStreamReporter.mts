@@ -18,7 +18,10 @@ const {
  * on failure. Specifically, the mocha json-stream does not include unmangled
  * expected versus actual results.
  *
- * Writes a superset of the data that json-stream normally would.
+ * It also writes when each test starts, and the coverage events of the runner.
+ * For a test, it writes the title, full title and duration, but not the file,
+ * speed or current retry that json-stream writes. Mocha keeps the current retry
+ * private.
  */
 export default class FullJsonStreamReporter extends mocha.reporters.Base {
 	private lastEvent: Promise<void> | undefined;
@@ -62,7 +65,5 @@ export default class FullJsonStreamReporter extends mocha.reporters.Base {
 const clean = (test: mocha.Test) => ({
 	title: test.title,
 	fullTitle: test.fullTitle(),
-	duration: test.duration,
-	// public in mocha, but protected in its type package
-	currentRetry: (test as unknown as { currentRetry(): number }).currentRetry()
+	duration: test.duration
 });
