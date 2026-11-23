@@ -510,8 +510,10 @@ suite('SessionCustomizationDiscovery', () => {
 		const helper = await seed('/home/.copilot/agents/helper.agent.md', '---\nname: helper\nhooks:\n  sessionStart:\n    - type: command\n      bash: echo hi\n---\nBody');
 		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [workspace], userHome, inMemoryPathToUri));
 		let changes = 0;
-		disposables.add(discovery.onDidChange(() => changes++));
+		const changeListener = discovery.onDidChange(() => changes++);
 		configurationService.updateRootConfig({ [AgentHostHooksEnabledConfigKey]: false });
+		// The seeded files' change events can arrive once discovery watches their folders.
+		changeListener.dispose();
 		const client = hookDiscoveryClient(async () => ({
 			hooks: [
 				{ id: 'repository', hookType: 'sessionStart', origin: 'repository', projectPath: workspace.fsPath, definitionFileUri: URI.file('/workspace/.github/hooks/a.json').toString(), enabled: true },

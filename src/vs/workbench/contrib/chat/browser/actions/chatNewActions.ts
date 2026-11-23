@@ -119,8 +119,15 @@ async function runNewChatCommand(accessor: ServicesAccessor, args: unknown[]): P
 
 	// For the Chat view, such as from its title, a host that replaces it may start the new chat itself: once it shows, so that
 	// a request that follows, such as of Run Prompt in New Chat, goes to it. Without one, New Chat runs as it always did.
-	if ((!actionContext || isChatViewTitleActionContext(actionContext)) && chatViewHostService.replaced.get() && await chatViewHostService.newChat()) {
-		return;
+	if (!actionContext || isChatViewTitleActionContext(actionContext)) {
+		if (chatViewHostService.replaced.get()) {
+			if (await chatViewHostService.newChat()) {
+				return;
+			}
+		} else if (chatViewHostService.chatsOpenElsewhere.get() && await chatViewHostService.newChat(undefined, { ownChat: true })) {
+			// While the chats open elsewhere, such as in editors, the Chat view's own new chat shows its composer, also in place of one it shows
+			return;
+		}
 	}
 
 	// Context from toolbar or lastFocusedWidget

@@ -1088,7 +1088,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[ChatConfiguration.BtwTipEnabled]: {
 			type: 'boolean',
-			default: false,
+			default: true,
 			tags: ['experimental'],
 			experiment: { mode: 'startup' },
 			markdownDescription: nls.localize('chat.btwTip.enabled', "Controls whether the Agents Window shows a tip about using `/btw` to ask side questions."),

@@ -60,7 +60,9 @@ export class SelectBoxNative extends Disposable implements ISelectBoxDelegate {
 		}));
 
 		this._register(dom.addStandardDisposableListener(this.selectElement, 'change', (e) => {
-			this.selectElement.title = e.target.value;
+			if (!this.selectBoxOptions.hideSelectedOptionHover) {
+				this.selectElement.title = e.target.value;
+			}
 			this._onDidSelect.fire({
 				index: e.target.selectedIndex,
 				selected: e.target.value
@@ -122,7 +124,7 @@ export class SelectBoxNative extends Disposable implements ISelectBoxDelegate {
 		}
 
 		this.selectElement.selectedIndex = this.selected;
-		if ((this.selected < this.options.length) && typeof this.options[this.selected].text === 'string') {
+		if (!this.selectBoxOptions.hideSelectedOptionHover && (this.selected < this.options.length) && typeof this.options[this.selected].text === 'string') {
 			this.selectElement.title = this.options[this.selected].text;
 		} else {
 			this.selectElement.title = '';
