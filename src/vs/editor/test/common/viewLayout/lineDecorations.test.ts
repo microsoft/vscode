@@ -63,6 +63,40 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 		]);
 	});
 
+	test('empty width only decorations are kept, empty regular ones are not', () => {
+		const result = LineDecoration.filter([
+			new InlineDecoration(new Range(4, 3, 4, 3), 'spacer', InlineDecorationType.WidthOnly),
+			new InlineDecoration(new Range(4, 3, 4, 3), 'regular', InlineDecorationType.Regular),
+		], 4, 1, 500);
+
+		assert.deepStrictEqual(result, [
+			new LineDecoration(3, 3, 'spacer', InlineDecorationType.WidthOnly),
+		]);
+	});
+
+	test('width only decorations come before other decorations at the same position', () => {
+		const decorations = [
+			new LineDecoration(3, 3, 'regular', InlineDecorationType.Regular),
+			new LineDecoration(3, 3, 'after', InlineDecorationType.After),
+			new LineDecoration(3, 3, 'spacer', InlineDecorationType.WidthOnly),
+			new LineDecoration(3, 3, 'before', InlineDecorationType.Before),
+		];
+		decorations.sort(LineDecoration.compare);
+
+		assert.deepStrictEqual(decorations.map(d => d.className), ['spacer', 'before', 'after', 'regular']);
+	});
+
+	test('width only decorations are not turned into pseudo elements', () => {
+		const result = LineDecorationsNormalizer.normalize('abc', [
+			new LineDecoration(2, 2, 'spacer', InlineDecorationType.WidthOnly),
+		]);
+
+		// Metadata stays `0`: unlike a before or after decoration, this is the injected content itself.
+		assert.deepStrictEqual(result, [
+			new DecorationSegment(1, 0, 'spacer', 0),
+		]);
+	});
+
 	test('ViewLineParts', () => {
 
 		assert.deepStrictEqual(LineDecorationsNormalizer.normalize('abcabcabcabcabcabcabcabcabcabc', [

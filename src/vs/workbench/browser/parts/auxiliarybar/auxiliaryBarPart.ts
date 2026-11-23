@@ -28,12 +28,13 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { AbstractPaneCompositePart, CompositeBarPosition } from '../paneCompositePart.js';
 import { ActionsOrientation } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { IPaneCompositeBarOptions } from '../paneCompositeBar.js';
-import { IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
+import { IMenuService, MenuId, SubmenuItemAction } from '../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { getContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { VisibleViewContainersTracker } from '../visibleViewContainersTracker.js';
 import { Extensions } from '../../panecomposite.js';
+import { IToolBarResponsiveBehaviorOptions } from '../../../../base/browser/ui/toolbar/toolbar.js';
 
 interface IAuxiliaryBarPartConfiguration {
 	position: ActivityBarPosition;
@@ -95,7 +96,7 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 		@IExtensionService extensionService: IExtensionService,
 		@ICommandService private commandService: ICommandService,
 		@IMenuService menuService: IMenuService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IConfigurationService configurationService: IConfigurationService
 	) {
 		super(
 			Parts.AUXILIARYBAR_PART,
@@ -126,6 +127,7 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 			contextKeyService,
 			extensionService,
 			menuService,
+			configurationService,
 		);
 
 		// Track visible view containers for auto-hide
@@ -150,13 +152,24 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 	private onDidChangeAutoHideViewContainers(e: { before: number; after: number }): void {
 		// Only update if auto-hide is enabled and composite bar would show
 		const autoHide = this.configurationService.getValue<boolean>(LayoutSettings.ACTIVITY_BAR_AUTO_HIDE);
-		if (autoHide && (this.configuration.position === ActivityBarPosition.TOP || this.configuration.position === ActivityBarPosition.BOTTOM)) {
+		if (autoHide && this.configuration.position !== ActivityBarPosition.HIDDEN) {
 			const visibleBefore = e.before > 1;
 			const visibleAfter = e.after > 1;
 			if (visibleBefore !== visibleAfter) {
 				this.onDidChangeActivityBarLocation();
 			}
 		}
+	}
+
+	protected override getToolbarResponsiveBehavior(): IToolBarResponsiveBehaviorOptions {
+		return {
+			enabled: true,
+			kind: 'all',
+			minItems: 0,
+			overflowFrom: 'start',
+			actionMinWidth: 22,
+			getActionMinWidth: action => action instanceof SubmenuItemAction && action.item.isSplitButton ? 36 : undefined,
+		};
 	}
 
 	private resolveConfiguration(): IAuxiliaryBarPartConfiguration {
@@ -264,19 +277,11 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 			return false;
 		}
 
-		// Check if auto-hide is enabled and there's only one visible view container
-		// while the activity bar is configured to be top or bottom.
-		if (this.configuration.position === ActivityBarPosition.TOP || this.configuration.position === ActivityBarPosition.BOTTOM) {
-			const autoHide = this.configurationService.getValue<boolean>(LayoutSettings.ACTIVITY_BAR_AUTO_HIDE);
-			if (autoHide) {
-				// Use visible composite count from the composite bar if available (considers pinned state),
-				// otherwise fall back to the tracker's count (based on active view descriptors).
-				// Note: We access paneCompositeBar directly to avoid circular calls with getVisiblePaneCompositeIds()
-				const visibleCount = this.visibleViewContainersTracker.visibleCount;
-				if (visibleCount <= 1) {
-					return false;
-				}
-			}
+		// Auto-hide applies irrespective of the activity bar location
+		// (including the default one) when there is only one visible view container.
+		const autoHide = this.configurationService.getValue<boolean>(LayoutSettings.ACTIVITY_BAR_AUTO_HIDE);
+		if (autoHide && this.visibleViewContainersTracker.visibleCount <= 1) {
+			return false;
 		}
 
 		return true;

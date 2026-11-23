@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { ChatDebugHookResult, ChatDebugLogLevel, IChatDebugEvent, IChatDebugResolvedEventContent, IChatDebugService } from '../../contrib/chat/common/chatDebugService.js';
@@ -15,7 +15,7 @@ import { Proxied } from '../../services/extensions/common/proxyIdentifier.js';
 @extHostNamedCustomer(MainContext.MainThreadChatDebug)
 export class MainThreadChatDebug extends Disposable implements MainThreadChatDebugShape {
 	private readonly _proxy: Proxied<ExtHostChatDebugShape>;
-	private readonly _providerDisposables = new Map<number, DisposableStore>();
+	private readonly _providerDisposables = this._register(new DisposableMap<number, DisposableStore>());
 	private readonly _activeSessionResources = new Map<number, URI>();
 	private readonly _coreEventForwarder = this._register(new MutableDisposable());
 
@@ -26,6 +26,11 @@ export class MainThreadChatDebug extends Disposable implements MainThreadChatDeb
 	) {
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostChatDebug);
+	}
+
+	override dispose(): void {
+		this._activeSessionResources.clear();
+		super.dispose();
 	}
 
 	$subscribeToCoreDebugEvents(): void {
@@ -78,16 +83,14 @@ export class MainThreadChatDebug extends Disposable implements MainThreadChatDeb
 
 		// Register a lazy fetcher so historical sessions are loaded from the
 		// extension only when the debug panel home page first needs them.
-		this._chatDebugService.registerAvailableSessionsFetcher(async (token) => {
+		disposables.add(this._chatDebugService.registerAvailableSessionsFetcher(async (token) => {
 			const entries = await this._proxy.$getAvailableDebugSessionResources(handle, token);
 			return entries.map(e => ({ uri: URI.revive(e.uri), title: e.title }));
-		});
+		}));
 	}
 
 	$unregisterChatDebugLogProvider(handle: number): void {
-		const disposables = this._providerDisposables.get(handle);
-		disposables?.dispose();
-		this._providerDisposables.delete(handle);
+		this._providerDisposables.deleteAndDispose(handle);
 		this._activeSessionResources.delete(handle);
 	}
 

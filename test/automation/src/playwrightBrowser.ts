@@ -7,14 +7,19 @@ import * as playwright from '@playwright/test';
 import { ChildProcess, spawn } from 'child_process';
 import { join } from 'path';
 import * as fs from 'fs';
+import { tmpdir } from 'os';
 import { URI } from 'vscode-uri';
 import { Logger, measureAndLog } from './logger';
 import type { LaunchOptions } from './code';
-import { PlaywrightDriver } from './playwrightDriver';
+import { PlaywrightDriver, saveOrDeleteNetLog } from './playwrightDriver';
 
 const root = join(__dirname, '..', '..', '..');
 
 let port = 9000;
+let netLogCounter = 1;
+
+// A workbench load logs about 80 MB, so this keeps a whole load while bounding a runaway log.
+const NET_LOG_MAX_SIZE_MB = 200;
 
 export async function launch(options: LaunchOptions): Promise<{ serverProcess: ChildProcess; driver: PlaywrightDriver }> {
 
@@ -22,11 +27,11 @@ export async function launch(options: LaunchOptions): Promise<{ serverProcess: C
 	const { serverProcess, endpoint } = await launchServer(options);
 
 	// Launch browser
-	const { browser, context, page, pageLoadedPromise } = await launchBrowser(options, endpoint);
+	const { browser, context, page, pageLoadedPromise, videoStartedAt, netLogPath } = await launchBrowser(options, endpoint);
 
 	return {
 		serverProcess,
-		driver: new PlaywrightDriver(browser, context, page, serverProcess, pageLoadedPromise, options)
+		driver: new PlaywrightDriver(browser, context, page, serverProcess, pageLoadedPromise, options, videoStartedAt, netLogPath)
 	};
 }
 
@@ -45,6 +50,7 @@ async function launchServer(options: LaunchOptions) {
 		'--disable-telemetry',
 		'--disable-experiments',
 		'--disable-workspace-trust',
+		'--force-disable-user-env',
 		`--port=${port++}`,
 		'--enable-smoke-test-driver',
 		'--accept-server-license-terms',
@@ -100,10 +106,19 @@ async function launchBrowser(options: LaunchOptions, endpoint: string) {
 
 	const playwrightImpl = options.playwright ?? playwright;
 	const [browserType, browserChannel] = (options.browser ?? 'chromium').split('-');
+
+	// Windows Chromium only: record a network log so that a workbench module request
+	// failing with `ERR_CONNECTION_REFUSED` on `localhost` can be root caused. The log
+	// is written outside of the logs folder and the driver only keeps a compressed copy
+	// when the workbench did not restore (see `PlaywrightDriver.close`).
+	const netLogPath = process.platform === 'win32' && browserType === 'chromium'
+		? join(tmpdir(), `vscode-smoke-netlog-${process.pid}-${netLogCounter++}.json`)
+		: undefined;
 	const browser = await measureAndLog(() => playwrightImpl[browserType as unknown as 'chromium' | 'webkit' | 'firefox'].launch({
 		headless: headless ?? false,
 		timeout: 0,
 		channel: browserChannel,
+		args: netLogPath ? [`--log-net-log=${netLogPath}`, `--net-log-max-size-mb=${NET_LOG_MAX_SIZE_MB}`] : undefined,
 	}), 'playwright#launch', logger);
 
 	browser.on('disconnected', () => logger.log(`Playwright: browser disconnected`));
@@ -128,20 +143,36 @@ async function launchBrowser(options: LaunchOptions, endpoint: string) {
 		}
 	}
 
+	// Recording is per page and starts when the page is created, so sample the
+	// origin here rather than at context creation: tracing startup above can take
+	// long enough to visibly skew offsets measured against it.
+	const videoStartedAt = options.videosPath ? Date.now() : undefined;
 	const page = await measureAndLog(() => context.newPage(), 'context.newPage()', logger);
-	await measureAndLog(() => page.setViewportSize({ width: 1440, height: 900 }), 'page.setViewportSize', logger);
+	// Match the recording canvas while recording, so the capture has no empty
+	// margins; keep the established size otherwise so smoke runs are unchanged.
+	const viewport = options.videosPath ? { width: 1920, height: 1080 } : { width: 1440, height: 900 };
+	await measureAndLog(() => page.setViewportSize(viewport), 'page.setViewportSize', logger);
+
+	// Always log failed requests and console errors/warnings (even without
+	// `--verbose`) so that hard-to-reproduce startup stalls can be root caused
+	// from CI logs. A stalled or aborted module fetch can prevent the workbench
+	// from rendering (e.g. `.monaco-workbench` never appears) without producing
+	// a page error, crash or HTTP error response, making it otherwise invisible.
+	context.on('requestfailed', e => logger.log(`Playwright (Browser): context.on('requestfailed') [${e.failure()?.errorText} for ${e.url()}]`));
+	page.on('requestfailed', e => logger.log(`Playwright (Browser): page.on('requestfailed') [${e.failure()?.errorText} for ${e.url()}]`));
+	page.on('console', e => {
+		if (options.verbose || e.type() === 'error' || e.type() === 'warning') {
+			logger.log(`Playwright (Browser): window.on('console') [${e.text()}]`);
+		}
+	});
 
 	if (options.verbose) {
 		context.on('page', () => logger.log(`Playwright (Browser): context.on('page')`));
-		context.on('requestfailed', e => logger.log(`Playwright (Browser): context.on('requestfailed') [${e.failure()?.errorText} for ${e.url()}]`));
-
-		page.on('console', e => logger.log(`Playwright (Browser): window.on('console') [${e.text()}]`));
 		page.on('dialog', () => logger.log(`Playwright (Browser): page.on('dialog')`));
 		page.on('domcontentloaded', () => logger.log(`Playwright (Browser): page.on('domcontentloaded')`));
 		page.on('load', () => logger.log(`Playwright (Browser): page.on('load')`));
 		page.on('popup', () => logger.log(`Playwright (Browser): page.on('popup')`));
 		page.on('framenavigated', () => logger.log(`Playwright (Browser): page.on('framenavigated')`));
-		page.on('requestfailed', e => logger.log(`Playwright (Browser): page.on('requestfailed') [${e.failure()?.errorText} for ${e.url()}]`));
 	}
 
 	page.on('pageerror', async (error) => logger.log(`Playwright (Browser) ERROR: page error: ${error}`));
@@ -171,9 +202,22 @@ async function launchBrowser(options: LaunchOptions, endpoint: string) {
 	const gotoPromise = measureAndLog(() => page.goto(url), 'page.goto()', logger);
 	const pageLoadedPromise = page.waitForLoadState('load');
 
-	await gotoPromise;
+	try {
+		await gotoPromise;
+	} catch (error) {
+		// No driver will close this browser, so keep its network log here
+		if (netLogPath) {
+			try {
+				await browser.close();
+			} catch {
+				// Ignore
+			}
+			await measureAndLog(() => saveOrDeleteNetLog(netLogPath, options.logsPath, true, logger), 'saveOrDeleteNetLog()', logger).catch(e => logger.log(`Error saving network log (${e})`));
+		}
+		throw error;
+	}
 
-	return { browser, context, page, pageLoadedPromise };
+	return { browser, context, page, pageLoadedPromise, videoStartedAt, netLogPath };
 }
 
 function waitForEndpoint(server: ChildProcess, logger: Logger): Promise<string> {

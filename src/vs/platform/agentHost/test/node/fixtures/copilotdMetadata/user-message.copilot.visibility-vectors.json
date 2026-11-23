@@ -1,0 +1,133 @@
+{
+  "$comment": "Conformance vectors for the copilot.visibility presentation hint on Message._meta. See ../user-message.md.",
+  "key": "copilot.visibility",
+  "carrier": "Message._meta",
+  "tests": [
+    {
+      "name": "set: stamps internal and preserves source",
+      "op": "set",
+      "input": {
+        "message": {
+          "text": "context",
+          "origin": { "kind": "tool" },
+          "_meta": { "copilot.source": "skill-pdf" }
+        },
+        "visibility": "internal"
+      },
+      "expected": {
+        "message": {
+          "text": "context",
+          "origin": { "kind": "tool" },
+          "_meta": {
+            "copilot.source": "skill-pdf",
+            "copilot.visibility": "internal"
+          }
+        }
+      }
+    },
+    {
+      "name": "extract: returns internal",
+      "op": "extract",
+      "input": {
+        "message": {
+          "text": "context",
+          "origin": { "kind": "tool" },
+          "_meta": { "copilot.visibility": "internal" }
+        }
+      },
+      "expected": { "visibility": "internal" }
+    },
+    {
+      "name": "extract: absent visibility returns null",
+      "op": "extract",
+      "input": {
+        "message": {
+          "text": "hello",
+          "origin": { "kind": "user" }
+        }
+      },
+      "expected": { "visibility": null }
+    },
+    {
+      "name": "extract: empty visibility returns null",
+      "op": "extract",
+      "input": {
+        "message": {
+          "text": "hello",
+          "origin": { "kind": "user" },
+          "_meta": { "copilot.visibility": "" }
+        }
+      },
+      "expected": { "visibility": null }
+    },
+    {
+      "name": "extract: unknown visibility returns null",
+      "op": "extract",
+      "input": {
+        "message": {
+          "text": "hello",
+          "origin": { "kind": "user" },
+          "_meta": { "copilot.visibility": "future" }
+        }
+      },
+      "expected": { "visibility": null }
+    },
+    {
+      "name": "extract: non-string visibility returns null",
+      "op": "extract",
+      "input": {
+        "message": {
+          "text": "hello",
+          "origin": { "kind": "user" },
+          "_meta": { "copilot.visibility": false }
+        }
+      },
+      "expected": { "visibility": null }
+    },
+    {
+      "name": "wireShape: internal is a flat Message metadata key",
+      "op": "wireShape",
+      "input": {
+        "message": {
+          "text": "context",
+          "origin": { "kind": "systemNotification" }
+        },
+        "visibility": "internal"
+      },
+      "expected": {
+        "json": {
+          "text": "context",
+          "origin": { "kind": "systemNotification" },
+          "_meta": { "copilot.visibility": "internal" }
+        }
+      }
+    },
+    {
+      "name": "projectFromSdk: sourced runtime input is internal",
+      "op": "projectFromSdk",
+      "input": {
+        "source": "jit-instruction",
+        "isAutopilotContinuation": false
+      },
+      "expected": { "visibility": "internal" }
+    },
+    {
+      "name": "projectFromSdk: direct user input omits visibility",
+      "op": "projectFromSdk",
+      "input": {
+        "source": null,
+        "isAutopilotContinuation": false
+      },
+      "expected": { "visibility": null }
+    },
+    {
+      "name": "projectFromSdk: scheduled prompt omits visibility",
+      "op": "projectFromSdk",
+      "input": {
+        "source": "schedule-42",
+        "isAutopilotContinuation": false
+      },
+      "expected": { "visibility": null }
+    }
+  ]
+}

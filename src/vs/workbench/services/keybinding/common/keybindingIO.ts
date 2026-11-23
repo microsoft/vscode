@@ -13,6 +13,7 @@ export interface IUserKeybindingItem {
 	command: string | null;
 	commandArgs?: unknown;
 	when: ContextKeyExpression | undefined;
+	systemWide: boolean;
 	_sourceKey: string | undefined; /** captures `key` field from `keybindings.json`; `this.keybinding !== null` implies `_sourceKey !== null` */
 }
 
@@ -39,6 +40,12 @@ export class KeybindingIO {
 			out.writeLine();
 			out.write(`                                     "args": ${JSON.stringify(item.commandArgs)}`);
 		}
+		// Copied into the user's keybindings, a default system-wide keybinding would register always, regardless of `when`.
+		if (item.systemWide && !item.isDefault) {
+			out.write(',');
+			out.writeLine();
+			out.write(`                                     "systemWide": true`);
+		}
 		out.write(' }');
 	}
 
@@ -55,11 +62,15 @@ export class KeybindingIO {
 		const commandArgs = 'args' in input && typeof input.args !== 'undefined'
 			? input.args
 			: undefined;
+		const systemWide = 'systemWide' in input && typeof input.systemWide === 'boolean'
+			? input.systemWide
+			: false;
 		return {
 			keybinding,
 			command,
 			commandArgs,
 			when,
+			systemWide,
 			_sourceKey: 'key' in input && typeof input.key === 'string' ? input.key : undefined,
 		};
 	}

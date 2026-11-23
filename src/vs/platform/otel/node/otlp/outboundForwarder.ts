@@ -6,7 +6,9 @@
 import type * as http from 'http';
 import type * as https from 'https';
 import { Queue } from '../../../../base/common/async.js';
+import { getErrorCode } from '../../../../base/common/errors.js';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { dirname } from '../../../../base/common/path.js';
 import { URL } from 'url';
 import { promises as fs } from 'fs';
 import { ILogService } from '../../../log/common/log.js';
@@ -87,6 +89,7 @@ export class OtlpHttpForwarder extends Disposable implements IOutboundForwarder 
 	constructor(
 		private readonly _options: IOtlpHttpForwarderOptions,
 		private readonly _logService: ILogService,
+		private readonly _fetchFn?: typeof globalThis.fetch,
 	) {
 		super();
 		this._resolvedEndpoint = resolveOtlpTracesEndpoint(_options.endpoint);
@@ -108,6 +111,23 @@ export class OtlpHttpForwarder extends Disposable implements IOutboundForwarder 
 
 	private async _sendOnce(body: Buffer, contentType: string): Promise<void> {
 		try {
+			if (this._fetchFn) {
+				const response = await this._fetchFn(this._resolvedEndpoint, {
+					method: 'POST',
+					headers: {
+						'content-type': contentType,
+						'content-length': String(body.length),
+						...(this._options.headers ?? {}),
+					},
+					body: Uint8Array.from(body).buffer,
+					signal: AbortSignal.timeout(this._options.timeoutMs ?? 10_000),
+				});
+				await response.arrayBuffer();
+				if (!response.ok) {
+					throw new Error(`upstream returned HTTP ${response.status}`);
+				}
+				return;
+			}
 			const url = new URL(this._resolvedEndpoint);
 			const isHttps = url.protocol === 'https:';
 			const mod = isHttps ? await import('https') : await import('http');
@@ -175,6 +195,7 @@ function postOnce(mod: typeof http | typeof https, options: IPostOptions, body: 
 
 export interface IFileForwarderOptions {
 	readonly filePath: string;
+	readonly createParentDirectories?: boolean;
 }
 
 /**
@@ -209,11 +230,23 @@ export class FileForwarder extends Disposable implements IOutboundForwarder {
 	}
 
 	private async _append(lines: string): Promise<void> {
+		if (this._options.createParentDirectories) {
+			try {
+				await fs.mkdir(dirname(this._options.filePath), { recursive: true });
+			} catch (error) {
+				this._logFailure('mkdir', error);
+				return;
+			}
+		}
 		try {
 			await fs.appendFile(this._options.filePath, lines, { encoding: 'utf8' });
-		} catch (err) {
-			this._logService.warn(`[agentHost-otel] file forward to ${this._options.filePath} failed: ${err instanceof Error ? err.message : String(err)}`);
+		} catch (error) {
+			this._logFailure('append', error);
 		}
+	}
+
+	private _logFailure(operation: 'mkdir' | 'append', error: unknown): void {
+		this._logService.warn(`[agentHost-otel] file ${operation} failed (code=${getErrorCode(error) ?? 'unknown'})`);
 	}
 }
 

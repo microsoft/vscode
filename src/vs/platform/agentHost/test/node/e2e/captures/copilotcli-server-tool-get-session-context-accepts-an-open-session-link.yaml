@@ -1,0 +1,54 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly "LINK_READY".
+    response:
+      content: LINK_READY
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly "LINK_READY".
+        - role: assistant
+          content: LINK_READY
+        - role: user
+          content: Call get_session_context exactly once with session "agent-host-session://copilotcli/e2e-server-tools-context-link", then reply exactly "read".
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: get_session_context
+          input:
+            session: agent-host-session://copilotcli/e2e-server-tools-context-link
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly "LINK_READY".
+        - role: assistant
+          content: LINK_READY
+        - role: user
+          content: Call get_session_context exactly once with session "agent-host-session://copilotcli/e2e-server-tools-context-link", then reply exactly "read".
+        - role: assistant
+          content:
+            - type: tool_use
+              name: get_session_context
+              input:
+                session: agent-host-session://copilotcli/e2e-server-tools-context-link
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: '{"session":"copilotcli:/e2e-server-tools-context-link","openLink":"agent-host-session://copilotcli/e2e-server-tools-context-link","detail":"summary","transcript":[{"turn":1,"state":"complete","user":"Reply exactly \"LINK_READY\".","assistant":"LINK_READY"},{"turn":2,"state":"inProgress","user":"Call get_session_context exactly once with session \"agent-host-session://copilotcli/e2e-server-tools-context-link\", then reply exactly \"read\"."}],"hasMoreHistory":false,"truncated":false}'
+    response:
+      content: read
+      stopReason: end_turn

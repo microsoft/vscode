@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { convertToolCallResult } from '../../../node/claude/clientTools/claudeClientToolResult.js';
-import { ToolResultContentType, type ToolCallResult, type ToolResultContent } from '../../../common/state/protocol/channels-session/state.js';
+import { ToolResultContentType, type ToolCallResult, type ToolResultContent } from '../../../common/state/protocol/channels-chat/state.js';
 
 function makeResult(over: Partial<ToolCallResult>): ToolCallResult {
 	return {
@@ -35,6 +35,14 @@ suite('claudeClientToolResult / convertToolCallResult', () => {
 			content: [{ type: ToolResultContentType.Text, text: 'failed' }],
 		}), 'tu_2');
 		assert.strictEqual(out.isError, true);
+	});
+
+	test('error result without content surfaces the error message as text', () => {
+		const out = convertToolCallResult(makeResult({
+			success: false,
+			error: { message: 'boom' },
+		}), 'tu_2b');
+		assert.deepStrictEqual(out, { content: [{ type: 'text', text: 'boom' }], isError: true });
 	});
 
 	test('image embedded resource → MCP image block (field rename + repackage)', () => {

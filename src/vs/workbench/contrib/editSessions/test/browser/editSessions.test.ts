@@ -51,6 +51,7 @@ import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/
 import { UriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentityService.js';
 import { IWorkspaceIdentityService, WorkspaceIdentityService } from '../../../../services/workspaces/common/workspaceIdentityService.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { testIWorkspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
 
 const folderName = 'test-folder';
 const folderUri = URI.file(`/${folderName}`);
@@ -114,7 +115,7 @@ suite('Edit session sync', () => {
 		instantiationService.stub(IConfigurationService, new TestConfigurationService({ workbench: { experimental: { editSessions: { enabled: true } } } }));
 		instantiationService.stub(IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() {
 			override getWorkspace() {
-				return {
+				return testIWorkspace({
 					id: 'workspace-id',
 					folders: [{
 						uri: folderUri,
@@ -122,7 +123,7 @@ suite('Edit session sync', () => {
 						index: 0,
 						toResource: (relativePath: string) => joinPath(folderUri, relativePath)
 					}]
-				};
+				});
 			}
 			override getWorkbenchState() {
 				return WorkbenchState.FOLDER;
@@ -180,6 +181,7 @@ suite('Edit session sync', () => {
 	});
 
 	suiteTeardown(() => {
+		editSessionsContribution.dispose();
 		disposables.dispose();
 	});
 
@@ -215,6 +217,99 @@ suite('Edit session sync', () => {
 
 		// Verify edit session was correctly applied
 		assert.equal((await fileService.readFile(fileUri)).value.toString(), fileContents);
+	});
+
+	test('Path traversal in edit session is blocked (posix)', async function () {
+		const escapedUri = joinPath(folderUri, '..', 'PROBE_escape');
+		const editSession = {
+			version: 1,
+			folders: [
+				{
+					name: folderName,
+					workingChanges: [
+						{
+							relativeFilePath: '../../PROBE_escape',
+							fileType: FileType.File,
+							contents: 'escaped',
+							type: ChangeType.Addition
+						}
+					]
+				}
+			]
+		};
+
+		const readStub = sandbox.stub().returns({ content: JSON.stringify(editSession), ref: '0' });
+		instantiationService.stub(IEditSessionsStorageService, 'read', readStub);
+
+		await fileService.createFolder(folderUri);
+		await editSessionsContribution.resumeEditSession();
+
+		assert.strictEqual(await fileService.exists(escapedUri), false);
+	});
+
+	test('Path traversal in edit session is blocked (windows-style backslash)', async function () {
+		const escapedUri = joinPath(folderUri, '..', 'PROBE_escape_win');
+		const editSession = {
+			version: 1,
+			folders: [
+				{
+					name: folderName,
+					workingChanges: [
+						{
+							relativeFilePath: '..\\..\\PROBE_escape_win',
+							fileType: FileType.File,
+							contents: 'escaped',
+							type: ChangeType.Addition
+						}
+					]
+				}
+			]
+		};
+
+		const readStub = sandbox.stub().returns({ content: JSON.stringify(editSession), ref: '0' });
+		instantiationService.stub(IEditSessionsStorageService, 'read', readStub);
+
+		await fileService.createFolder(folderUri);
+		await editSessionsContribution.resumeEditSession();
+
+		assert.strictEqual(await fileService.exists(escapedUri), false);
+	});
+
+	test('Valid change is applied while traversal sibling is blocked', async function () {
+		const validFileUri = joinPath(folderUri, 'dir1', 'README.md');
+		const escapedUri = joinPath(folderUri, '..', 'PROBE_escape_mixed');
+		const fileContents = '# readme';
+		const editSession = {
+			version: 1,
+			folders: [
+				{
+					name: folderName,
+					workingChanges: [
+						{
+							relativeFilePath: 'dir1/README.md',
+							fileType: FileType.File,
+							contents: fileContents,
+							type: ChangeType.Addition
+						},
+						{
+							relativeFilePath: '../../PROBE_escape_mixed',
+							fileType: FileType.File,
+							contents: 'escaped',
+							type: ChangeType.Addition
+						}
+					]
+				}
+			]
+		};
+
+		const readStub = sandbox.stub().returns({ content: JSON.stringify(editSession), ref: '0' });
+		instantiationService.stub(IEditSessionsStorageService, 'read', readStub);
+
+		await fileService.createFolder(folderUri);
+		await editSessionsContribution.resumeEditSession();
+
+		assert.strictEqual((await fileService.readFile(validFileUri)).value.toString(), fileContents);
+		assert.strictEqual(await fileService.exists(escapedUri), false);
 	});
 
 	test('Edit session not stored if there are no edits', async function () {

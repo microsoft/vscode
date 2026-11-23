@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi, type Mock } from 'vitest';
 import { Event } from '../../../../util/vs/base/common/event';
 import { GenAiAttr, GenAiOperationName, GenAiProviderName, GenAiTokenType, StdAttr } from '../genAiAttributes';
 import { GenAiMetrics } from '../genAiMetrics';
 import { resolveOTelConfig } from '../otelConfig';
 import type { IOTelService } from '../otelService';
 
-function createMockOTelService(): IOTelService & { recordMetric: ReturnType<typeof vi.fn>; incrementCounter: ReturnType<typeof vi.fn> } {
+function createMockOTelService(): IOTelService & { recordMetric: Mock; incrementCounter: Mock } {
 	const config = resolveOTelConfig({ env: {}, extensionVersion: '1.0.0', sessionId: 'test' });
 	return {
 		_serviceBrand: undefined!,
@@ -72,6 +72,40 @@ describe('GenAiMetrics', () => {
 		});
 	});
 
+	it('recordTimeToFirstChunk records the GenAI streaming histogram with response model', () => {
+		const otel = createMockOTelService();
+
+		GenAiMetrics.recordTimeToFirstChunk(otel, 0.45, {
+			operationName: GenAiOperationName.CHAT,
+			providerName: GenAiProviderName.GITHUB,
+			requestModel: 'gpt-4o',
+			responseModel: 'gpt-4o-2024-08-06',
+		});
+
+		expect(otel.recordMetric).toHaveBeenCalledWith('gen_ai.client.operation.time_to_first_chunk', 0.45, {
+			[GenAiAttr.OPERATION_NAME]: 'chat',
+			[GenAiAttr.PROVIDER_NAME]: 'github',
+			[GenAiAttr.REQUEST_MODEL]: 'gpt-4o',
+			[GenAiAttr.RESPONSE_MODEL]: 'gpt-4o-2024-08-06',
+		});
+	});
+
+	it('recordTimePerOutputChunk records the GenAI inter-chunk histogram', () => {
+		const otel = createMockOTelService();
+
+		GenAiMetrics.recordTimePerOutputChunk(otel, 0.02, {
+			operationName: GenAiOperationName.CHAT,
+			providerName: GenAiProviderName.GITHUB,
+			requestModel: 'gpt-4o',
+		});
+
+		expect(otel.recordMetric).toHaveBeenCalledWith('gen_ai.client.operation.time_per_output_chunk', 0.02, {
+			[GenAiAttr.OPERATION_NAME]: 'chat',
+			[GenAiAttr.PROVIDER_NAME]: 'github',
+			[GenAiAttr.REQUEST_MODEL]: 'gpt-4o',
+		});
+	});
+
 	it('recordToolCallCount increments counter', () => {
 		const otel = createMockOTelService();
 
@@ -124,5 +158,52 @@ describe('GenAiMetrics', () => {
 		expect(attrs).not.toHaveProperty(GenAiAttr.RESPONSE_MODEL);
 		expect(attrs).not.toHaveProperty(StdAttr.SERVER_ADDRESS);
 		expect(attrs).not.toHaveProperty(StdAttr.ERROR_TYPE);
+	});
+
+	it('recordCloudOperation records count and duration', () => {
+		const otel = createMockOTelService();
+
+		GenAiMetrics.recordCloudOperation(otel, 'createSession', true, 1200);
+
+		expect(otel.incrementCounter).toHaveBeenCalledWith('copilot_chat.cloud.operation.count', 1, {
+			operation: 'createSession',
+			success: true,
+		});
+		expect(otel.recordMetric).toHaveBeenCalledWith('copilot_chat.cloud.operation.duration', 1200, {
+			operation: 'createSession',
+		});
+	});
+
+	it('recordCloudOperation omits the duration histogram when no duration is provided', () => {
+		const otel = createMockOTelService();
+
+		GenAiMetrics.recordCloudOperation(otel, 'followUp', false);
+
+		expect(otel.incrementCounter).toHaveBeenCalledWith('copilot_chat.cloud.operation.count', 1, {
+			operation: 'followUp',
+			success: false,
+		});
+		expect(otel.recordMetric).not.toHaveBeenCalled();
+	});
+
+	it('incrementCloudError increments the guardrail counter with operation and error type', () => {
+		const otel = createMockOTelService();
+
+		GenAiMetrics.incrementCloudError(otel, 'fetchSessionList', 'http_500');
+
+		expect(otel.incrementCounter).toHaveBeenCalledWith('copilot_chat.cloud.error.count', 1, {
+			operation: 'fetchSessionList',
+			[StdAttr.ERROR_TYPE]: 'http_500',
+		});
+	});
+
+	it('incrementCloudSessionCount records the partner agent', () => {
+		const otel = createMockOTelService();
+
+		GenAiMetrics.incrementCloudSessionCount(otel, 'copilot');
+
+		expect(otel.incrementCounter).toHaveBeenCalledWith('copilot_chat.cloud.session.count', 1, {
+			partner_agent: 'copilot',
+		});
 	});
 });

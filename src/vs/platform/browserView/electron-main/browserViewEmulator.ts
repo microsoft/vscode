@@ -21,7 +21,9 @@ import { ICDPConnection } from '../common/cdp/types.js';
 export class BrowserViewEmulator extends Disposable {
 
 	private _device: IBrowserDeviceProfile | undefined;
+	private _elementSelectionActive = false;
 	private readonly _defaultUserAgent: string;
+	private _baseUserAgent: string;
 	private _lastLayout = { containerWidth: 1024, containerHeight: 768, scale: 1, hostZoom: 1 };
 	private _lastApplied: { viewportWidth: number; viewportHeight: number; scale: number; hostZoom: number; mobile: boolean } | undefined;
 
@@ -34,6 +36,7 @@ export class BrowserViewEmulator extends Disposable {
 	) {
 		super();
 		this._defaultUserAgent = this.browser.webContents.getUserAgent();
+		this._baseUserAgent = this._defaultUserAgent;
 
 		// Chromium may reset emulation on cross-process navigation.
 		const onNavigate = () => {
@@ -50,13 +53,31 @@ export class BrowserViewEmulator extends Disposable {
 		return this._device;
 	}
 
+	get emulatedScaleFactor(): number {
+		if (!this._lastLayout) {
+			return 1;
+		}
+		return this._lastLayout.scale * this._lastLayout.hostZoom;
+	}
+
+	/**
+	 * Sets the user agent used when no device profile overrides it.
+	 * Pass `undefined` to restore the default Electron user agent.
+	 */
+	setBaseUserAgent(userAgent: string | undefined): void {
+		this._baseUserAgent = userAgent || this._defaultUserAgent;
+		if (!this._device?.userAgent && this.browser.webContents.getUserAgent() !== this._baseUserAgent) {
+			this.browser.webContents.setUserAgent(this._baseUserAgent);
+		}
+	}
+
 	async setDevice(device: IBrowserDeviceProfile | undefined): Promise<void> {
 		const prev = this._device;
 		this._device = device;
 
 		const nextUA = device?.userAgent;
 		if (prev?.userAgent !== nextUA) {
-			this.browser.webContents.setUserAgent(nextUA ?? this._defaultUserAgent);
+			this.browser.webContents.setUserAgent(nextUA ?? this._baseUserAgent);
 		}
 
 		if (prev && !device && this.isSafeToApplyEmulation()) {
@@ -70,6 +91,18 @@ export class BrowserViewEmulator extends Disposable {
 		}
 
 		this._onDidChange.fire(device);
+	}
+
+	async setElementSelectionActive(active: boolean): Promise<void> {
+		if (this._elementSelectionActive === active) {
+			return;
+		}
+		this._elementSelectionActive = active;
+		await this._applyTouchAndMedia();
+	}
+
+	private get _shouldEmitTouchEventsForMouse(): boolean {
+		return !!this._device?.mobile && !this._elementSelectionActive;
 	}
 
 	/**
@@ -138,14 +171,15 @@ export class BrowserViewEmulator extends Disposable {
 		}
 		const device = this._device;
 		const mobile = !!this._device?.mobile;
+		const emitTouchEventsForMouse = this._shouldEmitTouchEventsForMouse;
 		try {
 			await this.browser.debugger.sendCommandRaw('Emulation.setTouchEmulationEnabled', { enabled: mobile, maxTouchPoints: mobile ? 5 : 1 });
-			if (this.device !== device) { return; } // Bail if device changed while we were awaiting
+			if (this.device !== device || emitTouchEventsForMouse !== this._shouldEmitTouchEventsForMouse) { return; } // Bail if emulation changed while we were awaiting
 
 			await this.browser.debugger.sendCommandRaw('Emulation.setEmulatedMedia', { features: this._device ? [{ name: 'pointer', value: mobile ? 'coarse' : 'fine' }] : [] });
-			if (this.device !== device) { return; } // Bail if device changed while we were awaiting
+			if (this.device !== device || emitTouchEventsForMouse !== this._shouldEmitTouchEventsForMouse) { return; } // Bail if emulation changed while we were awaiting
 
-			await this.browser.debugger.sendCommandRaw('Emulation.setEmitTouchEventsForMouse', { enabled: mobile });
+			await this.browser.debugger.sendCommandRaw('Emulation.setEmitTouchEventsForMouse', { enabled: emitTouchEventsForMouse });
 		} catch (err) {
 			this.logService.error('[BrowserViewEmulator] _applyTouchAndMedia failed', err);
 		}
@@ -194,8 +228,60 @@ export class BrowserViewEmulator extends Disposable {
 				const ua = p.userAgent || undefined;
 				return this.setDevice({ ...this._device, userAgent: ua }).then(() => ({}));
 			}
+			case 'Input.dispatchMouseEvent':
+			case 'Input.dispatchDragEvent':
+			case 'Input.synthesizeScrollGesture':
+			case 'Input.synthesizePinchGesture':
+			case 'Input.synthesizeTapGesture':
+			case 'Input.dispatchTouchEvent':
+				this._scaleInputCoordinates(params);
+				return undefined; // let the event pass through with the modified parameters
 			default:
 				return undefined;
+		}
+	}
+
+	/**
+	 * Scale any coordinate-bearing fields on a CDP `Input.*` params object in
+	 * place so screen-space coordinates map onto the emulated viewport. Handles
+	 * point coordinates (`x` / `y`), mouse wheel deltas (`deltaX` / `deltaY`),
+	 * scroll distances (`xDistance` / `yDistance`) and touch points.
+	 */
+	private _scaleInputCoordinates(params: unknown): void {
+		const scale = this.emulatedScaleFactor;
+		const p = (params ?? {}) as {
+			x?: number;
+			y?: number;
+			deltaX?: number;
+			deltaY?: number;
+			xDistance?: number;
+			yDistance?: number;
+			touchPoints?: { x: number; y: number }[];
+		};
+		if (p.x) {
+			p.x *= scale;
+		}
+		if (p.y) {
+			p.y *= scale;
+		}
+		if (p.deltaX) {
+			p.deltaX *= scale;
+		}
+		if (p.deltaY) {
+			p.deltaY *= scale;
+		}
+		if (p.xDistance) {
+			p.xDistance *= scale;
+		}
+		if (p.yDistance) {
+			p.yDistance *= scale;
+		}
+		if (Array.isArray(p.touchPoints)) {
+			p.touchPoints = p.touchPoints.map((t) => ({
+				...t,
+				x: t.x * scale,
+				y: t.y * scale,
+			}));
 		}
 	}
 }

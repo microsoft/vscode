@@ -4,133 +4,589 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { VSBuffer } from '../../../../base/common/buffer.js';
+import { DeferredPromise, raceTimeout } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
-import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { FileService } from '../../../files/common/fileService.js';
-import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../log/common/log.js';
+import { SYNCED_CUSTOMIZATION_SCHEME } from '../../common/agentHostCustomizationUri.js';
+import type { ISessionDatabase } from '../../common/sessionDataService.js';
+import { createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
+import { MCP_SKILLS_METADATA_KEY, type ICachedMcpSkill } from '../../node/shared/mcpSkillCache.js';
 import { CompletionItemKind } from '../../common/state/protocol/commands.js';
-import { MessageAttachmentKind } from '../../common/state/protocol/state.js';
-import { CustomizationStatus, type CustomizationRef } from '../../common/state/sessionState.js';
+import { ActionType } from '../../common/state/sessionActions.js';
+import { buildDefaultChatUri, CustomizationLoadStatus, CustomizationType, MessageAttachmentKind, SessionStatus, type Customization, type McpServerCustomization, type DirectoryCustomization, type PluginCustomization, type PromptCustomization, type SkillCustomization } from '../../common/state/sessionState.js';
+import { CustomizationEnablementKind, McpServerStatus } from '../../common/state/protocol/state.js';
 import { AgentHostCompletions, CompletionTriggerCharacter } from '../../node/agentHostCompletions.js';
 import { AgentHostSkillCompletionProvider } from '../../node/agentHostSkillCompletionProvider.js';
+import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { CopilotSlashCommandCompletionProvider } from '../../node/copilot/copilotSlashCommandCompletionProvider.js';
 import { MockAgent } from './mockAgent.js';
+import { buildMcpResourceUri } from '../../common/mcpResourceUri.js';
+import { withMcpServerDisplayNameMeta } from '../../common/meta/mcpCustomizationMeta.js';
+import { withRuntimePluginEnablement, type IRuntimePluginEnablement } from '../../common/meta/pluginEnablementMeta.js';
+import { createTestAgentChatContext } from './agentChatContextTestUtils.js';
 
 suite('AgentHostSkillCompletionProvider', () => {
 
-	const disposables = new DisposableStore();
-	let fileService: FileService;
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	setup(() => {
-		fileService = disposables.add(new FileService(new NullLogService()));
-		const memoryProvider = disposables.add(new InMemoryFileSystemProvider());
-		disposables.add(fileService.registerProvider(Schemas.inMemory, memoryProvider));
-	});
+	type SkillOptions = Pick<SkillCustomization, 'disableModelInvocation' | 'disableUserInvocation' | 'enabled'>;
 
-	teardown(() => disposables.clear());
-	ensureNoDisposablesAreLeakedInTestSuite();
-
-	function pluginRoot(path: string): URI {
-		return URI.from({ scheme: Schemas.inMemory, path });
-	}
-
-	function customization(root: URI, nonce?: string): CustomizationRef {
+	function skill(name: string, description?: string, options?: SkillOptions): SkillCustomization {
 		return {
-			uri: root.toString(),
-			displayName: root.path,
-			...(nonce !== undefined ? { nonce } : {}),
+			type: CustomizationType.Skill,
+			id: `file:///skills/${name}/SKILL.md`,
+			uri: `file:///skills/${name}/SKILL.md`,
+			name,
+			...(description !== undefined ? { description } : {}),
+			...options,
 		};
 	}
 
-	async function writeSkill(root: URI, name: string, content: string): Promise<URI> {
-		const skillDirectory = URI.joinPath(root, 'skills', name);
-		await fileService.createFolder(skillDirectory);
-		const skillUri = URI.joinPath(skillDirectory, 'SKILL.md');
-		await fileService.writeFile(skillUri, VSBuffer.fromString(content));
-		return skillUri;
+	function prompt(name: string): PromptCustomization {
+		return {
+			type: CustomizationType.Prompt,
+			id: `file:///prompts/${name}.md`,
+			uri: `file:///prompts/${name}.md`,
+			name,
+		};
 	}
 
-	function createProvider(agent: MockAgent): AgentHostSkillCompletionProvider {
+	function plugin(name: string, children?: readonly (SkillCustomization | PromptCustomization)[], enabled = true): PluginCustomization {
+		return {
+			type: CustomizationType.Plugin,
+			id: `file:///plugins/${name}`,
+			uri: `file:///plugins/${name}`,
+			name,
+			...(enabled ? {} : {
+				// TODO: Step 2 selects the persisted enablement scope.
+				enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }],
+			}),
+			load: { kind: CustomizationLoadStatus.Loaded },
+			...(children ? { children: [...children] } : {}),
+		};
+	}
+
+	function syncedPlugin(name: string, children?: readonly (SkillCustomization | PromptCustomization)[]): PluginCustomization {
+		return {
+			...plugin(name, children),
+			id: `${SYNCED_CUSTOMIZATION_SCHEME}:/plugins/${name}`,
+			uri: `${SYNCED_CUSTOMIZATION_SCHEME}:/plugins/${name}`,
+		};
+	}
+
+	/** A skill with an explicit URI, so the same logical skill can be modelled at two different locations. */
+	function skillAt(name: string, uri: string, description?: string, options?: SkillOptions): SkillCustomization {
+		return {
+			type: CustomizationType.Skill,
+			id: uri,
+			uri,
+			name,
+			...(description !== undefined ? { description } : {}),
+			...options,
+		};
+	}
+
+	function directory(name: string, uri: string, children: readonly SkillCustomization[]): DirectoryCustomization {
+		return {
+			type: CustomizationType.Directory,
+			id: uri,
+			uri,
+			name,
+			enabled: true,
+			contents: CustomizationType.Skill,
+			writable: false,
+			load: { kind: CustomizationLoadStatus.Loaded },
+			children: [...children],
+		};
+	}
+
+	function createProvider(agent: MockAgent | undefined, database: ISessionDatabase = disposables.add(new TestSessionDatabase())): AgentHostSkillCompletionProvider {
 		return disposables.add(new AgentHostSkillCompletionProvider(
 			() => agent,
-			fileService,
-			new NullLogService(),
-			'/user',
+			async session => ({ chat: URI.parse(buildDefaultChatUri(session)), context: createTestAgentChatContext(session, session) }),
+			createSessionDataService(database),
 		));
 	}
 
 	async function run(provider: AgentHostSkillCompletionProvider, text: string, offset = text.length) {
-		return provider.provideCompletionItems({ kind: CompletionItemKind.UserMessage, channel: 'mock:/session', text, offset }, CancellationToken.None);
+		return provider.provideCompletionItems({ kind: CompletionItemKind.UserMessage, channel: 'mock:/session', text, offset }, { chat: undefined }, CancellationToken.None);
 	}
 
 	test('announces slash as a trigger character', () => {
-		const completions = disposables.add(new AgentHostCompletions(new NullLogService()));
-		const provider = disposables.add(new AgentHostSkillCompletionProvider(() => undefined, fileService, new NullLogService(), '/user'));
+		const completions = disposables.add(new AgentHostCompletions(new NullLogService(), disposables.add(new AgentHostStateManager(new NullLogService()))));
+		const provider = createProvider(undefined);
 		disposables.add(completions.registerProvider(provider));
 		assert.deepStrictEqual([...completions.triggerCharacters], [CompletionTriggerCharacter.Slash]);
 	});
 
-	test('returns global customization skills with frontmatter metadata and trailing space', async () => {
-		const root = pluginRoot('/global-plugin');
-		const skillUri = await writeSkill(root, 'agent-host-docs', [
-			'---',
-			'name: Agent Host Docs',
-			'description: Use this skill when working on Agent Host code',
-			'---',
-			'Body',
-		].join('\n'));
+	test('complete skills from a plugin', async () => {
 		const agent = new MockAgent('mock');
-		agent.customizations = [customization(root, '1')];
+		agent.getSessionCustomizations = async () => [
+			plugin('my-skill', [skill('agent-host-docs', 'Use this skill when working on Agent Host code')]),
+		];
 		const provider = createProvider(agent);
 
 		const result = await run(provider, '/');
 
 		assert.deepStrictEqual(result, [{
-			insertText: '/agent-host-docs ',
+			insertText: '/my-skill:agent-host-docs ',
 			rangeStart: 0,
 			rangeEnd: 1,
 			attachment: {
-				type: MessageAttachmentKind.Simple,
-				label: '/agent-host-docs',
+				type: MessageAttachmentKind.Resource,
+				uri: 'file:///skills/agent-host-docs/SKILL.md',
+				label: '/my-skill:agent-host-docs',
+				displayKind: 'skill',
 				_meta: {
-					uri: skillUri.toString(),
-					name: 'agent-host-docs',
-					displayName: 'Agent Host Docs',
 					description: 'Use this skill when working on Agent Host code',
 				},
 			},
 		}]);
 	});
 
-	test('preserves session-effective order and appends global-only customizations', async () => {
-		const sessionRoot = pluginRoot('/session-plugin');
-		await writeSkill(sessionRoot, 'session-skill', '---\nname: Session Skill\n---\nBody');
-		const globalRoot = pluginRoot('/global-plugin');
-		await writeSkill(globalRoot, 'global-skill', '---\nname: Global Skill\n---\nBody');
-
-		const sessionCustomization = customization(sessionRoot, 'session');
-		const globalCustomization = customization(globalRoot, 'global');
+	test('offers the skills the session published without waiting for the agent to resolve them', async () => {
+		const logService = new NullLogService();
+		const stateManager = disposables.add(new AgentHostStateManager(logService));
+		const session = 'mock:/session';
+		stateManager.createSession({ resource: session, provider: 'mock', title: 't', status: SessionStatus.Idle, createdAt: '2026-01-01T00:00:00Z', modifiedAt: '2026-01-01T00:00:00Z', defaultChat: buildDefaultChatUri(session) });
+		stateManager.dispatchServerAction(session, { type: ActionType.SessionCustomizationsChanged, customizations: [plugin('my-plugin', [skill('review', 'Review a change')])] });
 		const agent = new MockAgent('mock');
-		agent.customizations = [globalCustomization];
-		agent.getSessionCustomizations = async () => [{ customization: sessionCustomization, enabled: true, status: CustomizationStatus.Loaded }];
+		const resolving = new DeferredPromise<readonly Customization[]>();
+		agent.getSessionCustomizations = () => resolving.p;
+		const completions = disposables.add(new AgentHostCompletions(logService, stateManager));
+		disposables.add(completions.registerProvider(createProvider(agent)));
+
+		const result = await raceTimeout(completions.completions({ kind: CompletionItemKind.UserMessage, channel: session, text: '/', offset: 1 }, CancellationToken.None), 1000);
+		resolving.complete([]);
+
+		assert.deepStrictEqual(result?.items.map(item => item.insertText), ['/my-plugin:review ']);
+	});
+
+	test('carries a skill argument hint into the completion metadata', async () => {
+		const agent = new MockAgent('mock');
+		agent.getSessionCustomizations = async () => [
+			directory('.copilot', 'file:///home/.copilot/skills', [
+				{ ...skillAt('design-prep', 'file:///home/.copilot/skills/design-prep/SKILL.md', 'Prep a design'), _meta: { 'vscode.skill.argumentHint': '<problem and repo> [offline]' } },
+				skillAt('no-hint', 'file:///home/.copilot/skills/no-hint/SKILL.md', 'No hint'),
+			]),
+		];
 		const provider = createProvider(agent);
 
 		const result = await run(provider, '/');
 
-		assert.deepStrictEqual(result.map(item => item.insertText), ['/session-skill ', '/global-skill ']);
+		assert.deepStrictEqual(result.map(item => item.attachment?._meta), [
+			{
+				description: 'Prep a design',
+				argumentHint: '<problem and repo> [offline]',
+			},
+			{
+				description: 'No hint',
+			},
+		]);
 	});
 
-	test('lets session customization state suppress a duplicate global customization', async () => {
-		const root = pluginRoot('/duplicate-plugin');
-		await writeSkill(root, 'disabled-skill', '---\nname: Disabled Skill\n---\nBody');
-		const ref = customization(root, '1');
+	test('represents a skill with a custom resource URI without metadata', async () => {
 		const agent = new MockAgent('mock');
-		agent.customizations = [ref];
-		agent.getSessionCustomizations = async () => [{ customization: ref, enabled: false, status: CustomizationStatus.Loaded }];
+		agent.getSessionCustomizations = async () => [
+			directory('skills', 'custom-skills:/catalog', [skillAt('review', 'custom-skills:/review/SKILL.md')]),
+		];
+		assert.deepStrictEqual(await run(createProvider(agent), '/'), [{
+			insertText: '/review ', rangeStart: 0, rangeEnd: 1,
+			attachment: { type: MessageAttachmentKind.Resource, uri: 'custom-skills:/review/SKILL.md', label: '/review', displayKind: 'skill' },
+		}]);
+	});
+
+	test('filters user-disabled and disabled skills without filtering model-disabled skills', async () => {
+		const agent = new MockAgent('mock');
+		agent.getSessionCustomizations = async () => [
+			plugin('plugin', [
+				skill('default'),
+				skill('model-disabled', undefined, { disableModelInvocation: true }),
+				skill('user-disabled', undefined, { disableUserInvocation: true }),
+			]),
+			directory('.github', 'file:///ws/.github/skills', [
+				skillAt('disabled', 'file:///ws/.github/skills/disabled/SKILL.md', undefined, { enabled: false }),
+				skillAt('visible', 'file:///ws/.github/skills/visible/SKILL.md'),
+			]),
+		];
+		const provider = createProvider(agent);
+
+		const result = await run(provider, '/');
+
+		assert.deepStrictEqual(result.map(item => item.insertText), [
+			'/plugin:default ',
+			'/plugin:model-disabled ',
+			'/visible ',
+		]);
+	});
+
+	test('merges runtime and published skills without reintroducing hidden skills', async () => {
+		const logService = new NullLogService();
+		const stateManager = disposables.add(new AgentHostStateManager(logService));
+		const session = 'copilotcli:/abc';
+		stateManager.createSession({ resource: session, provider: 'copilotcli', title: 't', status: SessionStatus.Idle, createdAt: '2026-01-01T00:00:00Z', modifiedAt: '2026-01-01T00:00:00Z', defaultChat: buildDefaultChatUri(session) });
+		const hidden = skill('hidden', undefined, { disableUserInvocation: true, disableModelInvocation: false });
+		const modelDisabled = skill('model-disabled', undefined, { disableModelInvocation: true });
+		const visible = skill('visible');
+		const published = [plugin('plugin', [hidden, modelDisabled, visible])];
+		stateManager.dispatchServerAction(session, { type: ActionType.SessionCustomizationsChanged, customizations: published });
+
+		const agent = new MockAgent('copilotcli');
+		agent.getSessionCustomizations = async () => published;
+		const completions = disposables.add(new AgentHostCompletions(logService, stateManager));
+		disposables.add(completions.registerProvider(createProvider(agent)));
+		disposables.add(completions.registerProvider(new CopilotSlashCommandCompletionProvider('copilotcli', {
+			getRuntimeSlashCommands: async () => ['plugin:hidden', 'plugin:model-disabled', 'plugin:visible', 'runtime-only']
+				.map(name => ({ name, description: name, kind: 'skill' as const, allowDuringAgentExecution: true })),
+			getSessionCustomizations: async () => published,
+		})));
+		const complete = async () => (await completions.completions({ kind: CompletionItemKind.UserMessage, channel: session, text: '/', offset: 1 }, CancellationToken.None)).items
+			.filter(item => item.attachment._meta?.action === undefined)
+			.map(item => ({ insertText: item.insertText, type: item.attachment.type }));
+
+		const initial = await complete();
+		const invocationFlags = { disableUserInvocation: hidden.disableUserInvocation, disableModelInvocation: hidden.disableModelInvocation };
+		stateManager.dispatchServerAction(session, {
+			type: ActionType.SessionCustomizationsChanged,
+			customizations: [plugin('plugin', [skill('hidden', undefined, { disableModelInvocation: false }), modelDisabled, visible])],
+		});
+		const afterEnablingUserInvocation = await complete();
+
+		assert.deepStrictEqual({ initial, invocationFlags, afterEnablingUserInvocation }, {
+			initial: [
+				{ insertText: '/plugin:model-disabled ', type: MessageAttachmentKind.Resource },
+				{ insertText: '/plugin:visible ', type: MessageAttachmentKind.Resource },
+				{ insertText: '/runtime-only ', type: MessageAttachmentKind.Simple },
+			],
+			invocationFlags: { disableUserInvocation: true, disableModelInvocation: false },
+			afterEnablingUserInvocation: [
+				{ insertText: '/plugin:hidden ', type: MessageAttachmentKind.Resource },
+				{ insertText: '/plugin:model-disabled ', type: MessageAttachmentKind.Resource },
+				{ insertText: '/plugin:visible ', type: MessageAttachmentKind.Resource },
+				{ insertText: '/runtime-only ', type: MessageAttachmentKind.Simple },
+			],
+		});
+	});
+
+	test('offers enabled user-invocable MCP skills by their published server-prefixed names', async () => {
+		const resource = buildMcpResourceUri('opaque-mcp-channel:skills', 'skill://server/friendly/SKILL.md', 'Friendly Skill');
+		const mcpSkill = (name: string, options?: SkillOptions): SkillCustomization => skillAt(name, resource, 'Skill description', options);
+		const server = (name: string, children: SkillCustomization[], enabled = true): McpServerCustomization => ({
+			type: CustomizationType.McpServer, id: `mcp:${name}`, uri: `mcp-config:/${name}`, name,
+			state: { kind: McpServerStatus.Ready }, children,
+			enablement: [{ kind: CustomizationEnablementKind.Session, enabled }],
+			_meta: withMcpServerDisplayNameMeta(undefined, 'Friendly Server'),
+		});
+		const agent = new MockAgent('mock');
+		agent.getSessionCustomizations = async () => [
+			server('top', [
+				mcpSkill('top:friendly'),
+				mcpSkill('top:disabled', { enabled: false }),
+				mcpSkill('top:hidden', { disableUserInvocation: true }),
+			]),
+			{ ...plugin('plugin'), children: [server('nested', [mcpSkill('nested:skill')])] },
+			server('disabled', [mcpSkill('disabled:skill')], false),
+			{ ...plugin('disabled-plugin', undefined, false), children: [server('disabled-parent', [mcpSkill('disabled-parent:skill')])] },
+			server('model-hidden', [mcpSkill('model-hidden:skill', { disableModelInvocation: true })]),
+		];
+		const provider = createProvider(agent);
+
+		const summarize = async (text: string) => (await run(provider, text)).map(item => ({ insertText: item.insertText, attachment: item.attachment }));
+		const expected = (name: string) => ({
+			insertText: `/${name} `,
+			attachment: { type: MessageAttachmentKind.Resource, uri: resource, label: `/${name}`, displayKind: 'skill', _meta: { description: 'Skill description (MCP: Friendly Server)' } },
+		});
+		assert.deepStrictEqual({ all: await summarize('/'), top: await summarize('/top:') }, {
+			all: [expected('top:friendly'), expected('nested:skill'), expected('model-hidden:skill')],
+			top: [expected('top:friendly')],
+		});
+	});
+
+	suite('cached MCP skills', () => {
+		const rawUri = 'agent-discovery://server/friendly/SKILL.md';
+		class CacheDatabase extends TestSessionDatabase {
+			readCalls = 0;
+			failRead = false;
+			override async getMetadata(key: string): Promise<string | undefined> {
+				if (key === MCP_SKILLS_METADATA_KEY) {
+					this.readCalls++;
+					if (this.failRead) {
+						throw new Error('Read failed');
+					}
+				}
+				return super.getMetadata(key);
+			}
+		}
+
+		function server(name: string, children?: SkillCustomization[], enabled = true): McpServerCustomization {
+			return {
+				type: CustomizationType.McpServer, id: name, uri: name, name, state: { kind: McpServerStatus.Stopped },
+				_meta: withMcpServerDisplayNameMeta(undefined, 'Friendly Server'),
+				...(children === undefined ? {} : { children }),
+				...(enabled ? {} : { enablement: [{ kind: CustomizationEnablementKind.Session, enabled: false }] }),
+			};
+		}
+
+		function cachedSkill(name: string, options?: Partial<Pick<ICachedMcpSkill, 'enabled' | 'userInvocable'>>): ICachedMcpSkill {
+			return { name, description: 'Skill description', userInvocable: true, enabled: true, uri: rawUri, ...options };
+		}
+
+		test('offers cached top-level and plugin-child skills exactly like live skills without publishing children', async () => {
+			const database = disposables.add(new CacheDatabase());
+			await database.setMetadata(MCP_SKILLS_METADATA_KEY, JSON.stringify({ top: [cachedSkill('top:friendly')], nested: [cachedSkill('nested:skill')] }));
+			const agent = new MockAgent('mock');
+			const top = server('top');
+			const nested = server('nested');
+			let customizations = [top, { ...plugin('plugin'), children: [nested] }];
+			agent.getSessionCustomizations = async () => customizations;
+			const provider = createProvider(agent, database);
+			const cached = await run(provider, '/');
+			const unpublished = [top.children, nested.children];
+			customizations = [
+				server('top', [skillAt('top:friendly', rawUri, 'Skill description')]),
+				{ ...plugin('plugin'), children: [server('nested', [skillAt('nested:skill', rawUri, 'Skill description')])] },
+			];
+			const live = await run(provider, '/');
+			const expected = ['top:friendly', 'nested:skill'].map(name => ({
+				insertText: `/${name} `, rangeStart: 0, rangeEnd: 1,
+				attachment: {
+					type: MessageAttachmentKind.Resource, uri: 'agent-discovery://server/friendly/SKILL.md', label: `/${name}`, displayKind: 'skill',
+					_meta: { description: 'Skill description (MCP: Friendly Server)' },
+				},
+			}));
+			assert.deepStrictEqual({ cached, live, unpublished, reads: database.readCalls }, { cached: expected, live: expected, unpublished: [undefined, undefined], reads: 1 });
+		});
+
+		for (const empty of [false, true]) {
+			test(`ignores cached skills once live children are ${empty ? 'empty' : 'present'}`, async () => {
+				const database = disposables.add(new CacheDatabase());
+				await database.setMetadata(MCP_SKILLS_METADATA_KEY, JSON.stringify({ fs: [cachedSkill('fs:stale')], nested: [cachedSkill('nested:stale')] }));
+				const agent = new MockAgent('mock');
+				agent.getSessionCustomizations = async () => [
+					server('fs', empty ? [] : [skillAt('fs:live', rawUri)]),
+					{ ...plugin('plugin'), children: [server('nested', empty ? [] : [skillAt('nested:live', rawUri)])] },
+				];
+				const items = await run(createProvider(agent, database), '/');
+				assert.deepStrictEqual({ items: items.map(item => item.insertText), reads: database.readCalls }, { items: empty ? [] : ['/fs:live ', '/nested:live '], reads: 0 });
+			});
+		}
+
+		test('uses cache only for servers whose skills are still undiscovered', async () => {
+			const database = disposables.add(new CacheDatabase());
+			await database.setMetadata(MCP_SKILLS_METADATA_KEY, JSON.stringify({ fs: [cachedSkill('fs:stale')], nested: [cachedSkill('nested:skill')] }));
+			const agent = new MockAgent('mock');
+			agent.getSessionCustomizations = async () => [server('fs', []), { ...plugin('plugin'), children: [server('nested')] }];
+			const items = await run(createProvider(agent, database), '/');
+			assert.deepStrictEqual({ items: items.map(item => item.insertText), reads: database.readCalls }, { items: ['/nested:skill '], reads: 1 });
+		});
+
+		test('excludes disabled and non-invocable cached skills, disabled servers and disabled parent plugins', async () => {
+			const database = disposables.add(new CacheDatabase());
+			await database.setMetadata(MCP_SKILLS_METADATA_KEY, JSON.stringify({
+				top: [cachedSkill('top:visible'), cachedSkill('top:disabled', { enabled: false }), cachedSkill('top:hidden', { userInvocable: false })],
+				disabled: [cachedSkill('disabled:skill')], parent: [cachedSkill('parent:skill')], child: [cachedSkill('child:skill')], removed: [cachedSkill('removed:skill')],
+			}));
+			const agent = new MockAgent('mock');
+			agent.getSessionCustomizations = async () => [
+				server('top'), server('disabled', undefined, false),
+				{ ...plugin('disabled-plugin', undefined, false), children: [server('parent')] },
+				{ ...plugin('enabled-plugin'), children: [server('child', undefined, false)] },
+			];
+			const items = await run(createProvider(agent, database), '/');
+			assert.deepStrictEqual(items.map(item => item.insertText), ['/top:visible ']);
+		});
+
+		test('keeps live completions when the cache cannot be read', async () => {
+			const database = disposables.add(new CacheDatabase());
+			database.failRead = true;
+			const agent = new MockAgent('mock');
+			agent.getSessionCustomizations = async () => [server('fs'), directory('.github', 'file:///skills', [skill('local')])];
+			const items = await run(createProvider(agent, database), '/');
+			assert.deepStrictEqual({ items: items.map(item => item.insertText), reads: database.readCalls }, { items: ['/local '], reads: 1 });
+		});
+
+		test('reads the latest cached snapshot on each completion request', async () => {
+			const database = disposables.add(new CacheDatabase());
+			const agent = new MockAgent('mock');
+			agent.getSessionCustomizations = async () => [server('fs')];
+			const provider = createProvider(agent, database);
+			await database.setMetadata(MCP_SKILLS_METADATA_KEY, JSON.stringify({ fs: [cachedSkill('fs:first')] }));
+			const first = await run(provider, '/');
+			await database.setMetadata(MCP_SKILLS_METADATA_KEY, JSON.stringify({ fs: [cachedSkill('fs:second')] }));
+			const second = await run(provider, '/');
+			assert.deepStrictEqual({ first: first.map(item => item.insertText), second: second.map(item => item.insertText), reads: database.readCalls }, {
+				first: ['/fs:first '], second: ['/fs:second '], reads: 2,
+			});
+		});
+	});
+
+	test('complete skills from a plugin with the same name as the skill', async () => {
+		const agent = new MockAgent('mock');
+		agent.getSessionCustomizations = async () => [
+			plugin('monitor-pr', [skill('monitor-pr', 'Use this skill when working with PRs')]),
+		];
+		const provider = createProvider(agent);
+
+		const result = await run(provider, '/');
+
+		assert.deepStrictEqual(result, [{
+			insertText: '/monitor-pr ',
+			rangeStart: 0,
+			rangeEnd: 1,
+			attachment: {
+				type: MessageAttachmentKind.Resource,
+				uri: 'file:///skills/monitor-pr/SKILL.md',
+				label: '/monitor-pr',
+				displayKind: 'skill',
+				_meta: {
+					description: 'Use this skill when working with PRs',
+				},
+			},
+		}]);
+	});
+
+	test('complete skills from a synced plugin without plugin prefix', async () => {
+		const agent = new MockAgent('mock');
+		agent.getSessionCustomizations = async () => [
+			syncedPlugin('skills-bundle', [skill('monitor-pr', 'Use this skill when working with PRs')]),
+		];
+		const provider = createProvider(agent);
+
+		const result = await run(provider, '/');
+
+		assert.deepStrictEqual(result, [{
+			insertText: '/monitor-pr ',
+			rangeStart: 0,
+			rangeEnd: 1,
+			attachment: {
+				type: MessageAttachmentKind.Resource,
+				uri: 'file:///skills/monitor-pr/SKILL.md',
+				label: '/monitor-pr',
+				displayKind: 'skill',
+				_meta: {
+					description: 'Use this skill when working with PRs',
+				},
+			},
+		}]);
+	});
+
+	test('de-duplicates the same skill discovered via the synced bundle and the on-disk scan', async () => {
+		const agent = new MockAgent('mock');
+		agent.getSessionCustomizations = async () => [
+			syncedPlugin('VS Code Synced Data', [skillAt('flaky-smoke-tests', 'vscode-synced-customization:/plugins/bundle/skills/flaky-smoke-tests/SKILL.md', 'Diagnose flaky tests')]),
+			directory('.github', 'file:///ws/.github/skills', [skillAt('flaky-smoke-tests', 'file:///ws/.github/skills/flaky-smoke-tests/SKILL.md', 'Diagnose flaky tests')]),
+		];
+		const provider = createProvider(agent);
+
+		const result = await run(provider, '/');
+
+		assert.deepStrictEqual(result.map(item => item.insertText), ['/flaky-smoke-tests ']);
+	});
+
+	test('keeps two different skills that share a short name but have different descriptions', async () => {
+		const agent = new MockAgent('mock');
+		agent.getSessionCustomizations = async () => [
+			directory('.copilot', 'file:///home/.copilot/skills', [skillAt('update-skills', 'file:///home/.copilot/skills/update-skills/SKILL.md', 'Personal update-skills')]),
+			directory('.github', 'file:///ws/.github/skills', [skillAt('update-skills', 'file:///ws/.github/skills/update-skills/SKILL.md', 'Workspace update-skills')]),
+		];
+		const provider = createProvider(agent);
+
+		const result = await run(provider, '/');
+
+		assert.deepStrictEqual(result.map(item => item.insertText), ['/update-skills ', '/update-skills ']);
+	});
+
+	// Known limitation of the core fix: two distinct same-named skills that both omit a description
+	// produce the same identity key and collapse to one. There is no reachability loss (a bare `/X`
+	// resolves to exactly one skill at the CLI regardless); Option B disambiguates via a qualified insert.
+	test('collapses two same-named description-less skills (core-fix limitation, see Option B)', async () => {
+		const agent = new MockAgent('mock');
+		agent.getSessionCustomizations = async () => [
+			directory('.copilot', 'file:///home/.copilot/skills', [skillAt('update-skills', 'file:///home/.copilot/skills/update-skills/SKILL.md')]),
+			directory('.github', 'file:///ws/.github/skills', [skillAt('update-skills', 'file:///ws/.github/skills/update-skills/SKILL.md')]),
+		];
+		const provider = createProvider(agent);
+
+		const result = await run(provider, '/');
+
+		assert.deepStrictEqual(result.map(item => item.insertText), ['/update-skills ']);
+	});
+
+	test('keeps same-named skills contributed by two different plugins', async () => {
+		const agent = new MockAgent('mock');
+		agent.getSessionCustomizations = async () => [
+			plugin('plugin-a', [skillAt('review', 'file:///plugins/plugin-a/skills/review/SKILL.md')]),
+			plugin('plugin-b', [skillAt('review', 'file:///plugins/plugin-b/skills/review/SKILL.md')]),
+		];
+		const provider = createProvider(agent);
+
+		const result = await run(provider, '/');
+
+		assert.deepStrictEqual(result.map(item => item.insertText).sort(), ['/plugin-a:review ', '/plugin-b:review ']);
+	});
+
+	test('flattens skill children in session-effective order and ignores non-skill children', async () => {
+		const agent = new MockAgent('mock');
+		agent.getSessionCustomizations = async () => [
+			plugin('first', [skill('session-skill'), prompt('ignored-prompt')]),
+			plugin('second', [skill('global-skill')]),
+		];
+		const provider = createProvider(agent);
+
+		const result = await run(provider, '/');
+
+		assert.deepStrictEqual(result.map(item => item.insertText), ['/first:session-skill ', '/second:global-skill ']);
+	});
+
+	test('ignores disabled customization containers', async () => {
+		const agent = new MockAgent('mock');
+		agent.getSessionCustomizations = async () => [
+			plugin('disabled', [skill('hidden-skill')], false),
+			plugin('enabled', [skill('visible-skill')]),
+		];
+		const provider = createProvider(agent);
+
+		const result = await run(provider, '/');
+
+		assert.deepStrictEqual(result.map(item => item.insertText), ['/enabled:visible-skill ']);
+	});
+
+	test('offers skills of runtime plugins waiting for session start when the user intends them enabled', async () => {
+		function runtimePlugin(name: string, runtime: Partial<IRuntimePluginEnablement>, load: PluginCustomization['load'] = { kind: CustomizationLoadStatus.Loading }): PluginCustomization {
+			return {
+				...plugin(name, [skill(`${name}-skill`)], runtime.effectiveEnabled === true),
+				load,
+				_meta: withRuntimePluginEnablement(undefined, { provider: 'mock', plugin: `${name}@marketplace`, globalEnabled: true, repositorySupported: true, ...runtime }),
+			};
+		}
+		const agent = new MockAgent('mock');
+		agent.getSessionCustomizations = async () => [
+			runtimePlugin('pending', {}),
+			runtimePlugin('pending-globally-disabled', { globalEnabled: false }),
+			runtimePlugin('pending-repository-enabled', { globalEnabled: false, repositoryEnabled: true }),
+			runtimePlugin('pending-repository-disabled', { repositoryEnabled: false }),
+			runtimePlugin('pending-repository-inherited', { repositoryEnabled: null }),
+			runtimePlugin('pending-managed-disabled', { managedDesiredEnabled: false }),
+			runtimePlugin('inventory-unavailable', {}, { kind: CustomizationLoadStatus.Error, message: 'unavailable' }),
+			runtimePlugin('settled-disabled', { effectiveEnabled: false }, { kind: CustomizationLoadStatus.Loaded }),
+			runtimePlugin('settled-enabled', { effectiveEnabled: true }, { kind: CustomizationLoadStatus.Loaded }),
+		];
+		const provider = createProvider(agent);
+
+		const result = await run(provider, '/');
+
+		assert.deepStrictEqual(result.map(item => item.insertText), [
+			'/pending:pending-skill ',
+			'/pending-repository-enabled:pending-repository-enabled-skill ',
+			'/pending-repository-inherited:pending-repository-inherited-skill ',
+			'/settled-enabled:settled-enabled-skill ',
+		]);
+	});
+
+	test('returns an empty list when the agent has no session customizations hook', async () => {
+		const agent = new MockAgent('mock');
 		const provider = createProvider(agent);
 
 		const result = await run(provider, '/');
@@ -138,35 +594,107 @@ suite('AgentHostSkillCompletionProvider', () => {
 		assert.deepStrictEqual(result, []);
 	});
 
-	test('filters by leading slash token and replaces only that token', async () => {
-		const root = pluginRoot('/filter-plugin');
-		await writeSkill(root, 'alpha', 'Alpha');
-		await writeSkill(root, 'beta', 'Beta');
+	test('filters skills by the typed slash prefix and replaces only that token', async () => {
 		const agent = new MockAgent('mock');
-		agent.customizations = [customization(root, '1')];
+		agent.getSessionCustomizations = async () => [plugin('skills', [skill('alpha'), skill('beta')])];
 		const provider = createProvider(agent);
 
-		const result = await run(provider, '/b extra', 2);
+		const result = await run(provider, '/skills:b extra', '/skills:b'.length);
 
-		assert.deepStrictEqual(result.map(item => ({ insertText: item.insertText, rangeStart: item.rangeStart, rangeEnd: item.rangeEnd })), [{
-			insertText: '/beta ',
-			rangeStart: 0,
-			rangeEnd: 2,
-		}]);
+		assert.deepStrictEqual(result.map(item => ({ insertText: item.insertText, rangeStart: item.rangeStart, rangeEnd: item.rangeEnd })), [
+			{ insertText: '/skills:beta ', rangeStart: 0, rangeEnd: 9 },
+		]);
 	});
 
-	test('clears cached skill metadata when customizations change', async () => {
-		const root = pluginRoot('/cached-plugin');
-		const skillUri = await writeSkill(root, 'cached-skill', '---\nname: First Name\n---\nBody');
+	test('fuzzy matches skills by the typed slash token', async () => {
 		const agent = new MockAgent('mock');
-		agent.customizations = [customization(root)];
+		agent.getSessionCustomizations = async () => [plugin('skills', [skill('fix-ci'), skill('other')])];
 		const provider = createProvider(agent);
 
-		assert.deepStrictEqual((await run(provider, '/'))[0].attachment._meta?.displayName, 'First Name');
+		const result = await run(provider, '/ci');
 
-		await fileService.writeFile(skillUri, VSBuffer.fromString('---\nname: Second Name\n---\nBody'));
-		agent.fireCustomizationsChange();
+		assert.deepStrictEqual(result.map(item => item.insertText), ['/skills:fix-ci ']);
+	});
 
-		assert.deepStrictEqual((await run(provider, '/'))[0].attachment._meta?.displayName, 'Second Name');
+	test('filters skills by an in-message slash prefix and replaces only that token', async () => {
+		const agent = new MockAgent('mock');
+		agent.getSessionCustomizations = async () => [plugin('skills', [skill('alpha'), skill('beta')])];
+		const provider = createProvider(agent);
+		const text = 'use /skills:b extra';
+
+		const result = await run(provider, text, text.indexOf('/skills:b') + '/skills:b'.length);
+
+		assert.deepStrictEqual(result.map(item => ({ insertText: item.insertText, rangeStart: item.rangeStart, rangeEnd: item.rangeEnd })), [
+			{ insertText: '/skills:beta ', rangeStart: 4, rangeEnd: 13 },
+		]);
+	});
+
+	test('returns skills for a slash token after whitespace', async () => {
+		const agent = new MockAgent('mock');
+		agent.getSessionCustomizations = async () => [plugin('skills', [skill('alpha'), skill('beta')])];
+		const provider = createProvider(agent);
+		const text = 'use /';
+
+		const result = await run(provider, text);
+
+		assert.deepStrictEqual(result.map(item => ({ insertText: item.insertText, rangeStart: item.rangeStart, rangeEnd: item.rangeEnd })), [
+			{ insertText: '/skills:alpha ', rangeStart: 4, rangeEnd: 5 },
+			{ insertText: '/skills:beta ', rangeStart: 4, rangeEnd: 5 },
+		]);
+	});
+
+	test('filters skills by the text before the cursor when a slash is typed before existing text', async () => {
+		const agent = new MockAgent('mock');
+		agent.getSessionCustomizations = async () => [plugin('pstack', [skill('poteto-mode'), skill('review')])];
+		const provider = createProvider(agent);
+		const draft = `Let's rebase, get Astra 6 review and address it.`;
+
+		const afterSlash = await run(provider, `/${draft}`, 1);
+		const afterPrefix = await run(provider, `/pot${draft}`, '/pot'.length);
+
+		assert.deepStrictEqual({
+			afterSlash: afterSlash.map(item => ({ insertText: item.insertText, rangeStart: item.rangeStart, rangeEnd: item.rangeEnd })),
+			afterPrefix: afterPrefix.map(item => ({ insertText: item.insertText, rangeStart: item.rangeStart, rangeEnd: item.rangeEnd })),
+		}, {
+			afterSlash: [
+				{ insertText: '/pstack:poteto-mode ', rangeStart: 0, rangeEnd: 1 },
+				{ insertText: '/pstack:review ', rangeStart: 0, rangeEnd: 1 },
+			],
+			afterPrefix: [
+				{ insertText: '/pstack:poteto-mode ', rangeStart: 0, rangeEnd: '/pot'.length },
+			],
+		});
+	});
+
+	test('does not complete slash tokens embedded in non-whitespace text', async () => {
+		const agent = new MockAgent('mock');
+		agent.getSessionCustomizations = async () => [plugin('skills', [skill('alpha')])];
+		const provider = createProvider(agent);
+
+		const result = await run(provider, 'foo/bar', 'foo/bar'.length);
+
+		assert.deepStrictEqual(result, []);
+	});
+
+	test('returns an empty list when the cursor is past an in-message slash token', async () => {
+		const agent = new MockAgent('mock');
+		agent.getSessionCustomizations = async () => [plugin('skills', [skill('cached-skill')])];
+		const provider = createProvider(agent);
+		const text = 'use /skills:cached-skill trailing';
+
+		const result = await run(provider, text, text.indexOf('trailing'));
+
+		assert.deepStrictEqual(result, []);
+	});
+
+	test('returns an empty list when the cursor is past the leading slash token', async () => {
+		const agent = new MockAgent('mock');
+		agent.getSessionCustomizations = async () => [plugin('skills', [skill('cached-skill')])];
+		const provider = createProvider(agent);
+		const text = '/skills:cached-skill trailing';
+
+		const result = await run(provider, text, text.indexOf('trailing'));
+
+		assert.deepStrictEqual(result, []);
 	});
 });

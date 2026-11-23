@@ -9,11 +9,13 @@ import { derived, observableValue } from '../../../../../base/common/observable.
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { IContextMenuService, IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
+import { ICustomizationMarketplaceService } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IListService, ListService } from '../../../../../platform/list/browser/listService.js';
 import { IWorkspace, IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
-import { IAICustomizationWorkspaceService, IStorageSourceFilter } from '../../../../contrib/chat/common/aiCustomizationWorkspaceService.js';
+import { IAICustomizationWorkspaceService } from '../../../../contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { ICustomizationHarnessService, IHarnessDescriptor, createVSCodeHarnessDescriptor } from '../../../../contrib/chat/common/customizationHarnessService.js';
+import { emptyCustomizationMarketplaceInstallationSnapshot, ICustomizationMarketplaceInstallService } from '../../../../contrib/chat/common/customizationMarketplaceInstallService.js';
 import { IAgentPluginService } from '../../../../contrib/chat/common/plugins/agentPluginService.js';
 import { IChatSessionsService } from '../../../../contrib/chat/common/chatSessionsService.js';
 import { getChatSessionType, LocalChatSessionUri } from '../../../../contrib/chat/common/model/chatUri.js';
@@ -32,14 +34,11 @@ import { isEqual } from '../../../../../base/common/resources.js';
 // Ensure color registrations are loaded
 import '../../../../../platform/theme/common/colors/inputColors.js';
 import '../../../../../platform/theme/common/colors/listColors.js';
+import { testIWorkspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
 
 // ============================================================================
 // Mock helpers
 // ============================================================================
-
-const defaultFilter: IStorageSourceFilter = {
-	sources: [PromptsStorage.local, PromptsStorage.user, PromptsStorage.extension, PromptsStorage.plugin],
-};
 
 interface IFixtureInstructionFile {
 	readonly promptPath: IPromptPath;
@@ -54,6 +53,7 @@ function createMockPromptsService(instructionFiles: IFixtureInstructionFile[], a
 		override readonly onDidChangeSlashCommands = Event.None;
 		override readonly onDidChangeSkills = Event.None;
 		override readonly onDidChangeInstructions = Event.None;
+		override readonly onDidChangeAgentInstructions = Event.None;
 		override readonly onDidChangeHooks = Event.None;
 		override getDisabledPromptFiles(): ResourceSet { return new ResourceSet(); }
 		override async listPromptFiles(type: PromptsType) {
@@ -63,6 +63,7 @@ function createMockPromptsService(instructionFiles: IFixtureInstructionFile[], a
 			return [];
 		}
 		override async listAgentInstructions() { return agentInstructionFiles; }
+		override async listPromptFilesForStorage() { return []; }
 		override async getCustomAgents() { return []; }
 		override async findAgentSkills() { return []; }
 		override async getPromptSlashCommands() { return []; }
@@ -112,13 +113,12 @@ function createMockWorkspaceService(): IAICustomizationWorkspaceService {
 		override readonly activeProjectRoot = activeProjectRoot;
 		override readonly hasOverrideProjectRoot = observableValue('hasOverride', false);
 		override getActiveProjectRoot() { return URI.file('/workspace'); }
-		override getStorageSourceFilter() { return defaultFilter; }
 		override getSkillUIIntegrations() { return new Map(); }
 	}();
 }
 
 function createMockHarnessService(): ICustomizationHarnessService {
-	const descriptor = createVSCodeHarnessDescriptor([PromptsStorage.extension]);
+	const descriptor = createVSCodeHarnessDescriptor();
 	const activeSessionResource = observableValue<URI>('activeSessionResource', LocalChatSessionUri.getNewSessionUri());
 	const activeHarness = derived(reader => getChatSessionType(activeSessionResource.read(reader)));
 	return new class extends mock<ICustomizationHarnessService>() {
@@ -126,7 +126,6 @@ function createMockHarnessService(): ICustomizationHarnessService {
 		override readonly activeHarness = activeHarness;
 		override readonly availableHarnesses = observableValue<readonly IHarnessDescriptor[]>('harnesses', [descriptor]);
 		override findHarnessById(id: string) { return id === descriptor.id ? descriptor : undefined; }
-		override getStorageSourceFilter() { return defaultFilter; }
 		override getActiveDescriptor() { return descriptor; }
 		override setActiveSession(sessionResource: URI) { activeSessionResource.set(sessionResource, undefined); }
 		override getSessionResourceForHarness() { return activeSessionResource.get(); }
@@ -138,7 +137,7 @@ function createMockWorkspaceContextService(): IWorkspaceContextService {
 	return new class extends mock<IWorkspaceContextService>() {
 		override readonly onDidChangeWorkspaceFolders = Event.None;
 		override getWorkspace(): IWorkspace {
-			return { id: 'test', folders: [] };
+			return testIWorkspace({ id: 'test', folders: [] });
 		}
 	}();
 }
@@ -177,6 +176,14 @@ async function renderInstructionsTab(ctx: ComponentFixtureContext, instructionFi
 			reg.defineInstance(IPromptsService, createMockPromptsService(instructionFiles, agentInstructionFiles));
 			reg.defineInstance(IAICustomizationWorkspaceService, createMockWorkspaceService());
 			reg.defineInstance(ICustomizationHarnessService, createMockHarnessService());
+			reg.defineInstance(ICustomizationMarketplaceInstallService, new class extends mock<ICustomizationMarketplaceInstallService>() {
+				override readonly onDidChange = Event.None;
+				override readonly installations = observableValue('marketplaceInstallations', emptyCustomizationMarketplaceInstallationSnapshot);
+			}());
+			reg.defineInstance(ICustomizationMarketplaceService, new class extends mock<ICustomizationMarketplaceService>() {
+				override readonly sources = [];
+				override readonly onDidChangeSources = Event.None;
+			}());
 			reg.defineInstance(IWorkspaceContextService, createMockWorkspaceContextService());
 			reg.defineInstance(IChatSessionsService, new class extends mock<IChatSessionsService>() {
 				override readonly onDidChangeCustomizations = Event.None;

@@ -24,6 +24,24 @@ export interface IBreadcrumbsService {
 	register(group: GroupIdentifier, widget: BreadcrumbsWidget): IDisposable;
 
 	getWidget(group: GroupIdentifier): BreadcrumbsWidget | undefined;
+
+	/** Fires with the group whose editor type dropdown was shown or hidden. */
+	readonly onDidChangeEditorTypeControl: Event<GroupIdentifier>;
+
+	registerEditorTypeControl(group: GroupIdentifier, control: IBreadcrumbsEditorTypeControl): IDisposable;
+
+	/** The editor type dropdown of the group's breadcrumbs, while it is shown. */
+	getEditorTypeControl(group: GroupIdentifier): IBreadcrumbsEditorTypeControl | undefined;
+}
+
+/**
+ * The dropdown at the end of the breadcrumbs that switches between the editors
+ * that can open the active file, e.g. "Text Editor" and "Markdown Editor".
+ */
+export interface IBreadcrumbsEditorTypeControl {
+	readonly element: HTMLElement;
+	/** Fires when the user opens the dropdown's menu. */
+	readonly onDidOpen: Event<void>;
 }
 
 
@@ -32,6 +50,10 @@ export class BreadcrumbsService implements IBreadcrumbsService {
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _map = new Map<number, BreadcrumbsWidget>();
+	private readonly _editorTypeControls = new Map<number, IBreadcrumbsEditorTypeControl>();
+
+	private readonly _onDidChangeEditorTypeControl = new Emitter<GroupIdentifier>();
+	readonly onDidChangeEditorTypeControl = this._onDidChangeEditorTypeControl.event;
 
 	register(group: number, widget: BreadcrumbsWidget): IDisposable {
 		if (this._map.has(group)) {
@@ -45,6 +67,23 @@ export class BreadcrumbsService implements IBreadcrumbsService {
 
 	getWidget(group: number): BreadcrumbsWidget | undefined {
 		return this._map.get(group);
+	}
+
+	registerEditorTypeControl(group: GroupIdentifier, control: IBreadcrumbsEditorTypeControl): IDisposable {
+		this._editorTypeControls.set(group, control);
+		this._onDidChangeEditorTypeControl.fire(group);
+		return {
+			dispose: () => {
+				if (this._editorTypeControls.get(group) === control) {
+					this._editorTypeControls.delete(group);
+					this._onDidChangeEditorTypeControl.fire(group);
+				}
+			}
+		};
+	}
+
+	getEditorTypeControl(group: GroupIdentifier): IBreadcrumbsEditorTypeControl | undefined {
+		return this._editorTypeControls.get(group);
 	}
 }
 
@@ -73,6 +112,8 @@ export abstract class BreadcrumbsConfig<T> {
 	static readonly SymbolSortOrder = BreadcrumbsConfig._stub<'position' | 'name' | 'type'>('breadcrumbs.symbolSortOrder');
 	static readonly SymbolPathSeparator = BreadcrumbsConfig._stub<string>('breadcrumbs.symbolPathSeparator');
 	static readonly Icons = BreadcrumbsConfig._stub<boolean>('breadcrumbs.icons');
+	static readonly ShowEditorType = BreadcrumbsConfig._stub<boolean>('breadcrumbs.showEditorType');
+	static readonly ShowInUntitledFiles = BreadcrumbsConfig._stub<boolean>('breadcrumbs.showInUntitledFiles');
 	static readonly TitleScrollbarSizing = BreadcrumbsConfig._stub<IEditorPartOptions['titleScrollbarSizing']>('workbench.editor.titleScrollbarSizing');
 	static readonly TitleScrollbarVisibility = BreadcrumbsConfig._stub<IEditorPartOptions['titleScrollbarVisibility']>('workbench.editor.titleScrollbarVisibility');
 
@@ -126,7 +167,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			description: localize('enabled', "Enable/disable navigation breadcrumbs."),
 			type: 'boolean',
 			default: true,
-			agentsWindow: { default: false },
+			agentsWindow: { default: true },
 		},
 		'breadcrumbs.filePath': {
 			description: localize('filepath', "Controls whether and how file paths are shown in the breadcrumbs view."),
@@ -166,6 +207,17 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			description: localize('icons', "Render breadcrumb items with icons."),
 			type: 'boolean',
 			default: true
+		},
+		'breadcrumbs.showEditorType': {
+			markdownDescription: localize('showEditorType', "Controls whether the breadcrumbs bar shows a dropdown to switch between the editors that can open the current file (for example the text editor and a custom editor). The dropdown only appears when a more specialized editor is available."),
+			type: 'boolean',
+			default: true,
+			tags: ['experimental']
+		},
+		'breadcrumbs.showInUntitledFiles': {
+			description: localize('showInUntitledFiles', "Controls whether breadcrumbs are shown for untitled files."),
+			type: 'boolean',
+			default: false
 		},
 		'breadcrumbs.symbolPathSeparator': {
 			description: localize('symbolPathSeparator', "The separator used when copying the breadcrumb symbol path."),

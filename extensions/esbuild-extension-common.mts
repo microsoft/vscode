@@ -21,7 +21,7 @@ function resolveBaseOptions(config: ExtensionRunConfig): esbuild.BuildOptions {
 		treeShaking: true,
 		sourcemap: true,
 		target: ['es2024'],
-		external: ['vscode'],
+		external: ['vscode', '@vscode/internal-github'],
 		format: config.format ?? 'cjs',
 		logOverride: {
 			'import-is-undefined': 'error',

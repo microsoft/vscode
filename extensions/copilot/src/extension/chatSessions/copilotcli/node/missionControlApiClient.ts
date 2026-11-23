@@ -43,8 +43,7 @@ export interface McSessionCreateResult {
  * Authentication options for Mission Control requests.
  *
  * Mission Control endpoints write to the `/agents/sessions` API family, which
- * requires a permissive GitHub token (same scope as the Copilot Coding Agent
- * job dispatch endpoint). Callers pass `createIfNone` to surface an interactive
+ * requires a permissive GitHub token. Callers pass `createIfNone` to surface an interactive
  * sign-in prompt when no permissive session is available.
  */
 export interface McAuthOptions {
@@ -55,18 +54,16 @@ export interface McAuthOptions {
 /**
  * HTTP client for the Mission Control agent-session API.
  *
- * Wraps the four endpoints used by the Copilot CLI `/remote` command:
+ * Wraps the three endpoints used by the Copilot CLI `/remote` command:
  *  - `POST   /agents/sessions`                         — create session
  *  - `POST   /agents/sessions/{id}/events`             — submit events (+ ack completed commands)
  *  - `GET    /agents/sessions/{id}/commands`           — poll for steering commands
- *  - `DELETE /agents/sessions/{id}`                    — tear down session
  *
  * All requests are routed through {@link IFetcherService} so proxy, custom CA,
  * and telemetry configuration are applied consistently. Authentication uses a
  * permissive GitHub session (fetched on each call to pick up token refreshes);
  * when no permissive session exists and interactive prompting is disabled the
- * call throws {@link PermissiveAuthRequiredError}, mirroring the pattern used
- * by `IOctoKitService.postCopilotAgentJob`.
+ * call throws {@link PermissiveAuthRequiredError}.
  */
 export class MissionControlApiClient {
 
@@ -167,30 +164,9 @@ export class MissionControlApiClient {
 	}
 
 	/**
-	 * Tear down a Mission Control session. Best-effort: failures are swallowed
-	 * so `/remote off` always completes locally even if the server is unreachable.
-	 */
-	async deleteSession(sessionId: string): Promise<void> {
-		try {
-			const { url, headers } = await this._buildRequest(`${SESSIONS_PATH}/${sessionId}`, {});
-			await this._fetcherService.fetch(url, {
-				callSite: 'copilotcli.mc.deleteSession',
-				// FetchOptions.method is typed narrowly (GET/POST/PUT) but the
-				// underlying fetcher forwards any string, so DELETE works at runtime.
-				method: 'DELETE' as 'POST',
-				headers,
-				timeout: REQUEST_TIMEOUT_MS,
-			});
-		} catch (err) {
-			this._logService.warn(`[MissionControlApiClient] deleteSession error: ${err}`);
-		}
-	}
-
-	/**
 	 * Build the absolute URL and auth headers for an MC request.
 	 *
-	 * Auth strategy follows `IOctoKitService.postCopilotAgentJob`: request a
-	 * permissive GitHub session, optionally with an interactive upgrade prompt.
+	 * Request a permissive GitHub session, optionally with an interactive upgrade prompt.
 	 * If no session is available and prompting is disabled, throw
 	 * {@link PermissiveAuthRequiredError} so callers can render a dedicated UX.
 	 *

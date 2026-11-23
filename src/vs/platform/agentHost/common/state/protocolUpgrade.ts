@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { UnsupportedProtocolVersionErrorData } from './protocol/errors.js';
+import type { Mutable } from '../../../../base/common/types.js';
 
 /**
  * Name of the JSON-RPC method that, when invoked on an agent host spawned
@@ -11,9 +12,11 @@ import type { UnsupportedProtocolVersionErrorData } from './protocol/errors.js';
  * restart the running server if a newer build is available.
  *
  * Servers advertise this method through {@link UnsupportedProtocolVersionErrorMeta.vscodeUpgradeMethod}
- * in the `_meta` payload of an `UnsupportedProtocolVersion` error so the
- * client can offer an "Update server" action without hard-coding the method
- * name on the renderer side.
+ * in the `_meta` payload of an `UnsupportedProtocolVersion` error, and through
+ * the `vscode.upgradeMethod` capability in the `initialize` result `_meta`
+ * (see `common/meta/agentHostUpgradeMeta.ts`), so the client can offer an
+ * "Update server" action without hard-coding the method name on the
+ * renderer side.
  */
 export const VSCODE_UPGRADE_METHOD = '_vscodeUpgrade' as const;
 
@@ -79,4 +82,29 @@ export interface UnsupportedProtocolVersionErrorMeta {
  */
 export interface UnsupportedProtocolVersionErrorDataEx extends UnsupportedProtocolVersionErrorData {
 	readonly _meta?: UnsupportedProtocolVersionErrorMeta;
+}
+
+/**
+ * Reads the well-known {@link UnsupportedProtocolVersionErrorMeta} from the open
+ * `_meta` bag on an `UnsupportedProtocolVersion` error's data payload. `data` is
+ * the raw, untrusted `ProtocolError.data` (typed `unknown`); this validates that
+ * it carries a `_meta` object with a string {@link
+ * UnsupportedProtocolVersionErrorMeta.vscodeUpgradeMethod} and returns
+ * `undefined` otherwise. Always read the upgrade `_meta` through this helper
+ * rather than casting the error data to a shape that includes `_meta`.
+ */
+export function readUnsupportedProtocolVersionErrorMeta(data: unknown): UnsupportedProtocolVersionErrorMeta | undefined {
+	if (!data || typeof data !== 'object') {
+		return undefined;
+	}
+	const meta = (data as Record<string, unknown>)['_meta'];
+	if (!meta || typeof meta !== 'object' || Array.isArray(meta)) {
+		return undefined;
+	}
+	const raw = meta as Record<string, unknown>;
+	const result: Mutable<UnsupportedProtocolVersionErrorMeta> = {};
+	if (typeof raw['vscodeUpgradeMethod'] === 'string') {
+		result.vscodeUpgradeMethod = raw['vscodeUpgradeMethod'];
+	}
+	return Object.keys(result).length > 0 ? result : undefined;
 }

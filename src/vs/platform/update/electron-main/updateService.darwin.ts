@@ -8,7 +8,6 @@ import { CancellationToken } from '../../../base/common/cancellation.js';
 import { memoize } from '../../../base/common/decorators.js';
 import { Event } from '../../../base/common/event.js';
 import { hash } from '../../../base/common/hash.js';
-import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { IEnvironmentMainService } from '../../environment/electron-main/environmentMainService.js';
 import { ILifecycleMainService, IRelaunchHandler, IRelaunchOptions } from '../../lifecycle/electron-main/lifecycleMainService.js';
@@ -17,25 +16,45 @@ import { IProductService } from '../../product/common/productService.js';
 import { asJson, IRequestService } from '../../request/common/request.js';
 import { IApplicationStorageMainService } from '../../storage/electron-main/storageMainService.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
-import { AvailableForDownload, IUpdate, State, StateType, UpdateType } from '../common/update.js';
+import { AvailableForDownload, ENABLE_EARLY_STAGING_SETTING, IQuitAndInstallOptions, IUpdate, State, StateType, UpdateType } from '../common/update.js';
 import { IMeteredConnectionService } from '../../meteredConnection/common/meteredConnection.js';
 import { AbstractUpdateService, createUpdateURL, getUpdateRequestHeaders, IUpdateURLOptions, UpdateErrorClassification } from './abstractUpdateService.js';
 
-export class DarwinUpdateService extends AbstractUpdateService implements IRelaunchHandler {
+export interface IDarwinUpdateHost {
+	readonly onError: Event<string>;
+	readonly onCheckingForUpdate: Event<void>;
+	readonly onUpdateNotAvailable: Event<void>;
+	readonly onUpdateAvailable: Event<void>;
+	readonly onUpdateDownloaded: Event<IUpdate>;
+	registerEarlyStaging(enabled: boolean): void;
+	setFeedURL(url: string, headers: Record<string, string> | undefined): void;
+	checkForUpdates(): void;
+	quitAndInstall(): void;
+}
 
-	private readonly disposables = new DisposableStore();
-
-	@memoize private get onRawError(): Event<string> { return Event.fromNodeEventEmitter(electron.autoUpdater, 'error', (_, message) => message); }
-	@memoize private get onRawCheckingForUpdate(): Event<void> { return Event.fromNodeEventEmitter<void>(electron.autoUpdater, 'checking-for-update'); }
-	@memoize private get onRawUpdateNotAvailable(): Event<void> { return Event.fromNodeEventEmitter<void>(electron.autoUpdater, 'update-not-available'); }
-	@memoize private get onRawUpdateAvailable(): Event<void> { return Event.fromNodeEventEmitter(electron.autoUpdater, 'update-available'); }
-	@memoize private get onRawUpdateDownloaded(): Event<IUpdate> {
-		return Event.fromNodeEventEmitter(electron.autoUpdater, 'update-downloaded', (_, version: string, productVersion: string, releaseDate: Date | number) => ({
+function createElectronHost(): IDarwinUpdateHost {
+	return {
+		onError: Event.fromNodeEventEmitter(electron.autoUpdater, 'error', (_, message: string) => message),
+		onCheckingForUpdate: Event.fromNodeEventEmitter<void>(electron.autoUpdater, 'checking-for-update'),
+		onUpdateNotAvailable: Event.fromNodeEventEmitter<void>(electron.autoUpdater, 'update-not-available'),
+		onUpdateAvailable: Event.fromNodeEventEmitter<void>(electron.autoUpdater, 'update-available'),
+		onUpdateDownloaded: Event.fromNodeEventEmitter(electron.autoUpdater, 'update-downloaded', (_, version: string, productVersion: string, releaseDate: Date | number) => ({
 			version,
 			productVersion,
-			timestamp: releaseDate instanceof Date ? releaseDate.getTime() || undefined : releaseDate
-		}));
-	}
+			timestamp: releaseDate instanceof Date ? releaseDate.getTime() || undefined : releaseDate,
+		})),
+		registerEarlyStaging: enabled => electron.systemPreferences.registerDefaults({ SquirrelMacEnableEarlyStaging: enabled }),
+		setFeedURL: (url, headers) => electron.autoUpdater.setFeedURL({ url, headers }),
+		checkForUpdates: () => electron.autoUpdater.checkForUpdates(),
+		quitAndInstall: () => electron.autoUpdater.quitAndInstall(),
+	};
+}
+
+export class DarwinUpdateService extends AbstractUpdateService implements IRelaunchHandler {
+
+	private earlyStagingDefault: boolean | undefined;
+
+	@memoize protected get host(): IDarwinUpdateHost { return createElectronHost(); }
 
 	constructor(
 		@ILifecycleMainService lifecycleMainService: ILifecycleMainService,
@@ -71,11 +90,28 @@ export class DarwinUpdateService extends AbstractUpdateService implements IRelau
 	protected override async initialize(): Promise<void> {
 		await super.initialize();
 
-		this.onRawError(this.onError, this, this.disposables);
-		this.onRawCheckingForUpdate(this.onCheckingForUpdate, this, this.disposables);
-		this.onRawUpdateAvailable(this.onUpdateAvailable, this, this.disposables);
-		this.onRawUpdateDownloaded(this.onUpdateDownloaded, this, this.disposables);
-		this.onRawUpdateNotAvailable(this.onUpdateNotAvailable, this, this.disposables);
+		this.host.onError(this.onError, this, this._store);
+		this.host.onCheckingForUpdate(this.onCheckingForUpdate, this, this._store);
+		this.host.onUpdateAvailable(this.onUpdateAvailable, this, this._store);
+		this.host.onUpdateDownloaded(this.onUpdateDownloaded, this, this._store);
+		this.host.onUpdateNotAvailable(this.onUpdateNotAvailable, this, this._store);
+	}
+
+	override async setEarlyStagingDefault(enabled: boolean): Promise<void> {
+		this.logService.trace('update#setEarlyStagingDefault', { enabled });
+		this.earlyStagingDefault = enabled;
+	}
+
+	private isEarlyStagingEnabled(): boolean {
+		const { policyValue, userValue, defaultValue } = this.configurationService.inspect<boolean>(ENABLE_EARLY_STAGING_SETTING);
+		if (typeof policyValue === 'boolean') {
+			return policyValue;
+		}
+		if (typeof userValue === 'boolean') {
+			return userValue;
+		}
+
+		return this.earlyStagingDefault ?? defaultValue ?? false;
 	}
 
 	private onCheckingForUpdate(): void {
@@ -86,6 +122,11 @@ export class DarwinUpdateService extends AbstractUpdateService implements IRelau
 		this.telemetryService.publicLog2<{ messageHash: string }, UpdateErrorClassification>('update:error', { messageHash: String(hash(String(err))) });
 		this.logService.error('UpdateService error:', err);
 
+		// Only react while actively checking/downloading; a late error must not clobber Disabled or Ready.
+		if (this.state.type !== StateType.CheckingForUpdates && this.state.type !== StateType.Downloading && this.state.type !== StateType.Overwriting) {
+			return;
+		}
+
 		// only show message when explicitly checking for updates
 		const message = (this.state.type === StateType.CheckingForUpdates && this.state.explicit) ? err : undefined;
 		this.setState(State.Idle(UpdateType.Archive, message));
@@ -95,9 +136,15 @@ export class DarwinUpdateService extends AbstractUpdateService implements IRelau
 		const assetID = this.productService.darwinUniversalAssetId ?? (process.arch === 'x64' ? 'darwin' : 'darwin-arm64');
 		const url = createUpdateURL(this.productService.updateUrl!, assetID, quality, commit, options);
 		const headers = getUpdateRequestHeaders(this.productService.version);
+		const earlyStaging = this.isEarlyStagingEnabled();
 		try {
-			this.logService.trace('update#buildUpdateFeedUrl - setting feed URL for Electron autoUpdater', { url, assetID, quality, commit, headers });
-			electron.autoUpdater.setFeedURL({ url, headers });
+			this.host.registerEarlyStaging(earlyStaging);
+		} catch (e) {
+			this.logService.error('Failed to update SquirrelMacEnableEarlyStaging default', e);
+		}
+		try {
+			this.logService.trace('update#buildUpdateFeedUrl - setting feed URL for Electron autoUpdater', { url, assetID, quality, commit, headers, earlyStaging });
+			this.host.setFeedURL(url, headers);
 		} catch (e) {
 			// application is very likely not signed
 			this.logService.error('Failed to set update feed URL', e);
@@ -130,7 +177,7 @@ export class DarwinUpdateService extends AbstractUpdateService implements IRelau
 		}
 
 		this.logService.trace('update#doCheckForUpdates - using Electron autoUpdater', { url, explicit, background });
-		electron.autoUpdater.checkForUpdates();
+		this.host.checkForUpdates();
 	}
 
 	/**
@@ -198,15 +245,15 @@ export class DarwinUpdateService extends AbstractUpdateService implements IRelau
 		// Rebuild feed URL and trigger download via Electron's auto-updater
 		this.buildUpdateFeedUrl(this.quality!, state.update.version, { internalOrg: this.getInternalOrg() });
 		this.setState(State.CheckingForUpdates(true));
-		electron.autoUpdater.checkForUpdates();
+		this.host.checkForUpdates();
 	}
 
-	protected override doQuitAndInstall(): void {
-		this.logService.trace('update#quitAndInstall(): running raw#quitAndInstall()');
-		electron.autoUpdater.quitAndInstall();
-	}
-
-	dispose(): void {
-		this.disposables.dispose();
+	protected override doQuitAndInstall(options?: IQuitAndInstallOptions): void {
+		// TODO(deepak1556): in Squirrel.Mac, (1) pass `options?.relaunchInBackground` so ShipIt
+		// launches with `NSWorkspaceLaunchWithoutActivation`, and (2) extend ShipIt's `Updating`
+		// IOPMAssertion transaction to cover the helper spawn so the sleep assertion is tied to
+		// the exact install+relaunch lifetime without external timers.
+		this.logService.trace('update#quitAndInstall(): running raw#quitAndInstall()', { unattended: options?.unattended, relaunchInBackground: options?.relaunchInBackground });
+		this.host.quitAndInstall();
 	}
 }

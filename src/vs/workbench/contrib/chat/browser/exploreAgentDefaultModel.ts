@@ -31,4 +31,4 @@ export class ExploreAgentDefaultModel extends DefaultModelContribution {
 	}
 }
 
-registerWorkbenchContribution2(ExploreAgentDefaultModel.ID, ExploreAgentDefaultModel, WorkbenchPhase.BlockRestore);
+registerWorkbenchContribution2(ExploreAgentDefaultModel.ID, ExploreAgentDefaultModel, WorkbenchPhase.AfterRestored);

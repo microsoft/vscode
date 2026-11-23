@@ -15,7 +15,7 @@ import type { ITelemetryService } from '../../../../platform/telemetry/common/te
 import type { IFetcherService } from '../../../../platform/networking/common/fetcherService';
 import type { IChatDebugFileLoggerService } from '../../../../platform/chat/common/chatDebugFileLoggerService';
 import type { IRunCommandExecutionService } from '../../../../platform/commands/common/runCommandExecutionService';
-import { CancellationTokenSource } from '../../../../util/vs/base/common/cancellation';
+import { CancellationToken, CancellationTokenSource } from '../../../../util/vs/base/common/cancellation';
 import { LanguageModelTextPart } from '../../../../vscodeTypes';
 import { ToolName } from '../../common/toolNames';
 import { ToolRegistry } from '../../common/toolsRegistry';
@@ -168,20 +168,6 @@ describe('SessionStoreSqlTool', () => {
 			expect(extractText(result)).toContain('Results:');
 		});
 
-		it('routes standup action correctly', async () => {
-			const { tool } = createToolInstance();
-			const cts = new CancellationTokenSource();
-
-			const result = await tool.invoke(
-				makeOptions({ action: 'standup', description: 'Generate standup' }),
-				cts.token,
-			);
-
-			const text = extractText(result);
-			// Standup should return either session data or an error — not a SQL result
-			expect(text).not.toContain('Blocked SQL');
-		});
-
 		it('routes reindex action correctly', async () => {
 			const { tool, debugLogService } = createToolInstance();
 			(debugLogService.listSessionIds as any).mockResolvedValue([]);
@@ -221,7 +207,7 @@ describe('SessionStoreSqlTool', () => {
 		});
 
 		it('blocks side-effecting and unsafe statements', async () => {
-			const { tool } = createToolInstance();
+			const { tool, store } = createToolInstance();
 			const cts = new CancellationTokenSource();
 
 			const unsafe = [
@@ -234,6 +220,8 @@ describe('SessionStoreSqlTool', () => {
 				'BEGIN',
 				'COMMIT',
 				'ROLLBACK',
+				'SAVEPOINT injected',
+				'RELEASE injected',
 			];
 
 			for (const sql of unsafe) {
@@ -243,6 +231,8 @@ describe('SessionStoreSqlTool', () => {
 				);
 				expect(extractText(result)).toContain('Blocked SQL');
 			}
+			expect(store.executeReadOnly).not.toHaveBeenCalled();
+			expect(store.executeReadOnlyFallback).not.toHaveBeenCalled();
 		});
 
 		it('rejects statements that do not start with SELECT or WITH', async () => {
@@ -316,6 +306,25 @@ describe('SessionStoreSqlTool', () => {
 	});
 
 	describe('local query', () => {
+		it.each([false, true])('surfaces enforcement errors without an unsafe retry (cloud enabled: %s)', async cloudEnabled => {
+			const services = createMockServices();
+			vi.mocked(services.configService.getNonExtensionConfig).mockReturnValue(cloudEnabled);
+			vi.mocked(services.tokenManager.getCopilotToken).mockRejectedValue(new Error('Cloud unavailable'));
+			vi.mocked(services.store.executeReadOnly).mockImplementation(() => {
+				throw new Error('Local session SQL queries require SQLite authorizer support');
+			});
+			const { tool, store } = createToolInstance(services);
+
+			const result = await tool.invoke(
+				makeOptions({ query: 'SELECT * FROM sessions', description: 'test' }),
+				CancellationToken.None,
+			);
+
+			expect(extractText(result)).toContain('Error: Local session SQL queries require SQLite authorizer support');
+			expect(store.executeReadOnly).toHaveBeenCalledExactlyOnceWith('SELECT * FROM sessions');
+			expect(store.executeReadOnlyFallback).not.toHaveBeenCalled();
+		});
+
 		it('returns formatted results', async () => {
 			const { tool } = createToolInstance();
 			const cts = new CancellationTokenSource();
@@ -416,12 +425,6 @@ describe('SessionStoreSqlTool', () => {
 			const { tool } = createToolInstance();
 			const cts = new CancellationTokenSource();
 
-			const standup = tool.prepareInvocation(
-				{ input: { action: 'standup', description: 'test' } } as any,
-				cts.token,
-			);
-			expect(standup.invocationMessage).toContain('standup');
-
 			const reindex = tool.prepareInvocation(
 				{ input: { action: 'reindex', description: 'test' } } as any,
 				cts.token,
@@ -497,6 +500,8 @@ describe('SessionStoreSqlTool', () => {
 				'### Cost Tips',
 				'usage_input_tokens', 'usage_output_tokens', 'usage_model',
 				'agent_name',
+				`'VS Code Chat'`,
+				`'GitHub Copilot Chat'`,
 				'assistant.usage',
 				'local SQLite',
 				'chat.sessionSync.enabled',

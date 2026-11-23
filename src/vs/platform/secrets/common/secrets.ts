@@ -150,7 +150,10 @@ export class BaseSecretStorageService extends Disposable implements ISecretStora
 				);
 			} catch (e) {
 				this._logService.error(e);
-				this.delete(key);
+				const fullKey = secretStorageKey(key);
+				this._logService.trace('[secrets] deleting invalid secret for key:', fullKey);
+				this.removeValueFromStorage(key, fullKey, storageService);
+				this._logService.trace('[secrets] deleted invalid secret for key:', fullKey);
 				return undefined;
 			}
 		});
@@ -182,8 +185,7 @@ export class BaseSecretStorageService extends Disposable implements ISecretStora
 
 			const fullKey = secretStorageKey(key);
 			this._logService.trace('[secrets] deleting secret for key:', fullKey);
-			const scope = this.useSharedStorage(key) ? StorageScope.APPLICATION_SHARED : StorageScope.APPLICATION;
-			storageService.remove(fullKey, scope);
+			this.removeValueFromStorage(key, fullKey, storageService);
 			this._logService.trace('[secrets] deleted secret for key:', fullKey);
 		});
 	}
@@ -204,6 +206,11 @@ export class BaseSecretStorageService extends Disposable implements ISecretStora
 			return storageService.get(fullKey, StorageScope.APPLICATION_SHARED);
 		}
 		return storageService.get(fullKey, StorageScope.APPLICATION);
+	}
+
+	private removeValueFromStorage(key: string, fullKey: string, storageService: IStorageService): void {
+		const scope = this.useSharedStorage(key) ? StorageScope.APPLICATION_SHARED : StorageScope.APPLICATION;
+		storageService.remove(fullKey, scope);
 	}
 
 	private setValueInStorage(key: string, fullKey: string, value: string, storageService: IStorageService): void {

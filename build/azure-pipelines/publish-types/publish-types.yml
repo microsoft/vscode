@@ -6,14 +6,15 @@ trigger:
 
 pr: none
 
+variables:
+  - name: Codeql.SkipTaskAutoInjection
+    value: true
+
 pool:
   vmImage: ubuntu-latest
 
 steps:
-  - task: NodeTool@0
-    inputs:
-      versionSource: fromFile
-      versionFilePath: .nvmrc
+  - template: ../common/setup-node.yml@self
 
   - bash: |
       TAG_VERSION=$(git describe --tags `git rev-list --tags --max-count=1`)
@@ -31,17 +32,20 @@ steps:
       fi
     displayName: Check 1.999.0 tag
 
+  - template: ../common/install-pnpm.yml@self
+
   - bash: |
       # Install build dependencies
-      (cd build && npm ci)
+      (cd build && pnpm install --frozen-lockfile)
       node build/azure-pipelines/publish-types/check-version.ts
     displayName: Check version
 
   - bash: |
+      export -n GITHUB_TOKEN
       git config --global user.email "vscode@microsoft.com"
       git config --global user.name "VSCode"
 
-      git clone https://$(GITHUB_TOKEN)@github.com/DefinitelyTyped/DefinitelyTyped.git --depth=1
+      git clone https://github.com/DefinitelyTyped/DefinitelyTyped.git --depth=1
       node build/azure-pipelines/publish-types/update-types.ts
 
       TAG_VERSION=$(git describe --tags `git rev-list --tags --max-count=1`)
@@ -53,9 +57,12 @@ steps:
       git status
       git checkout -b "vscode-types-$TAG_VERSION"
       git commit -m "VS Code $TAG_VERSION Extension API"
-      git push origin "vscode-types-$TAG_VERSION"
+      GIT_AUTH_HEADER="Authorization: Basic $(printf 'x-access-token:%s' "$GITHUB_TOKEN" | base64 -w0)" \
+        git --config-env=http.https://github.com/DefinitelyTyped/DefinitelyTyped.git.extraheader=GIT_AUTH_HEADER push origin "vscode-types-$TAG_VERSION"
 
     displayName: Push update to DefinitelyTyped
+    env:
+      GITHUB_TOKEN: $(GITHUB_TOKEN)
 
   - bash: |
       TAG_VERSION=$(git describe --tags `git rev-list --tags --max-count=1`)

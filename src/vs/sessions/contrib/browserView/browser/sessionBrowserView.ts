@@ -4,13 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableMap, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Emitter } from '../../../../base/common/event.js';
+import { URI } from '../../../../base/common/uri.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { IBrowserViewWorkbenchService } from '../../../../workbench/contrib/browserView/common/browserView.js';
 import { BrowserEditorInput } from '../../../../workbench/contrib/browserView/common/browserEditorInput.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { ISession } from '../../../services/sessions/common/session.js';
+import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { getFocusedSessionChatSource, IFocusedSessionHostService } from '../../../../workbench/services/sessions/browser/sessionHost.js';
+import { ISession } from '../../../../workbench/services/sessions/common/session.js';
 import { runOnChange } from '../../../../base/common/observable.js';
 
 export class SessionBrowserViewController extends Disposable implements IWorkbenchContribution {
@@ -25,6 +28,7 @@ export class SessionBrowserViewController extends Disposable implements IWorkben
 
 	constructor(
 		@ISessionsManagementService private readonly _sessionManagementService: ISessionsManagementService,
+		@IFocusedSessionHostService private readonly _focusedSessionHostService: IFocusedSessionHostService,
 		@IBrowserViewWorkbenchService private readonly _browserViewService: IBrowserViewWorkbenchService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
@@ -47,6 +51,42 @@ export class SessionBrowserViewController extends Disposable implements IWorkben
 					this._attachLifecycle(editor);
 				}
 			}
+		}));
+
+		// Restrict the window's contextual browser views to those owned by the
+		// active session (or those with no known owning session).
+		const onDidChangeActiveSession = this._register(new Emitter<void>());
+		this._register(runOnChange(getFocusedSessionChatSource(this._focusedSessionHostService).session, () => onDidChangeActiveSession.fire()));
+		this._register(this._browserViewService.registerContextualFilter({
+			include: (input, context) => {
+				const tracked = this._trackedInputs.get(input.id);
+				const ownerId = input.model?.owner.type === 'agent' ? input.model.owner.sessionId : tracked?.session.resource.toString();
+				if (!ownerId) {
+					return true; // no owning session known
+				}
+				const owningSession = resolveBrowserOwnerSession(this._sessionManagementService, ownerId)?.session ?? tracked?.session;
+				if (!owningSession) {
+					return true; // owning chat/session no longer known; don't hide it
+				}
+				const activeSession = context.activeSessionId ? resolveBrowserOwnerSession(this._sessionManagementService, context.activeSessionId)?.session : this._focusedSessionHostService.focusedHost.read(undefined).session.read(undefined);
+				return activeSession?.sessionId === owningSession.sessionId;
+			},
+			onDidChange: onDidChangeActiveSession.event,
+		}));
+
+		// Only open a browser tab automatically when its owning session is the active session.
+		this._register(this._browserViewService.registerOpenHandler({
+			shouldOpenEditor: (_input, owner) => {
+				if (owner.type !== 'agent') {
+					return true; // no owning session known; open in the active session
+				}
+				const owningSession = resolveBrowserOwnerSession(this._sessionManagementService, owner.sessionId)?.session;
+				if (!owningSession) {
+					return true; // owning chat/session no longer known; open in the active session
+				}
+				const activeSession = this._focusedSessionHostService.focusedHost.read(undefined).session.read(undefined);
+				return owningSession.sessionId === activeSession?.sessionId;
+			},
 		}));
 
 		// Force-destroy browser views when sessions are removed.
@@ -73,7 +113,7 @@ export class SessionBrowserViewController extends Disposable implements IWorkben
 			return;
 		}
 
-		const session = this._sessionManagementService.activeSession.read(undefined);
+		const session = this._focusedSessionHostService.focusedHost.read(undefined).session.read(undefined);
 		if (!session) {
 			return; // no session, no lifecycle management needed
 		}
@@ -89,7 +129,7 @@ export class SessionBrowserViewController extends Disposable implements IWorkben
 		}));
 
 		store.add(input.onBeforeDispose(e => {
-			const activeSession = this._sessionManagementService.activeSession.read(undefined);
+			const activeSession = this._focusedSessionHostService.focusedHost.read(undefined).session.read(undefined);
 
 			// If the input is being disposed, but we are not currently in the owning session,
 			// assume a session swap is happening and do not actually dispose the browser yet.
@@ -103,4 +143,21 @@ export class SessionBrowserViewController extends Disposable implements IWorkben
 			this._trackedInputs.deleteAndDispose(input.id);
 		}));
 	}
+}
+
+/**
+ * Resolves a browser view owner id (the *chat* resource string the browser
+ * tools stamp onto `IBrowserViewOwner.sessionId`) to that resource and the
+ * `ISession` that owns it. A session's browsers can be opened from any of its
+ * chats (main, peer, or subagent), so this looks up the owning session across
+ * all chats rather than comparing against the session's own resource directly.
+ */
+export function resolveBrowserOwnerSession(sessionsManagementService: ISessionsManagementService, ownerId: string): { readonly resource: URI; readonly session: ISession | undefined } | undefined {
+	let resource: URI;
+	try {
+		resource = URI.parse(ownerId);
+	} catch {
+		return undefined;
+	}
+	return { resource, session: sessionsManagementService.getSessionForChatResource(resource)?.session ?? sessionsManagementService.getSession(resource) };
 }

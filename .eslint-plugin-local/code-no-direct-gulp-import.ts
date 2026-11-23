@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as eslint from 'eslint';
+import type { Context, CreateRule, RuleMeta, Visitor } from '@oxlint/plugins';
 import { normalize } from 'path';
 import { createImportRuleListener } from './utils.ts';
 
@@ -14,17 +14,17 @@ function isGulpModule(name: string): boolean {
 	return name === 'gulp' || name.startsWith('gulp-');
 }
 
-export default new class implements eslint.Rule.RuleModule {
+export default new class implements CreateRule {
 
-	readonly meta: eslint.Rule.RuleMetaData = {
+	readonly meta: RuleMeta = {
 		messages: {
 			notAllowed: 'Importing \'{{module}}\' directly is not allowed. Import from \'./gulp-facade\' (or relative path to build/gulp-facade) instead.'
 		},
 		schema: false
 	};
 
-	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
-		const filename = normalize(context.getFilename());
+	create(context: Context): Visitor {
+		const filename = normalize(context.filename);
 		if (filename === FACADE_PATH) {
 			return {};
 		}

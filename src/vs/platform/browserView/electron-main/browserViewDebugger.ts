@@ -4,10 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter } from '../../../base/common/event.js';
+import { DeferredPromise } from '../../../base/common/async.js';
 import { Disposable, DisposableMap, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
-import { ILogService } from '../../log/common/log.js';
 import { CDPEvent, CDPTargetInfo, ICDPConnection } from '../common/cdp/types.js';
 import { BrowserView } from './browserView.js';
+import { readBrowserViewAccessibilityTree, type IBrowserViewAccessibilityTree } from './browserViewAccessibility.js';
+import { IBrowserViewDialog, IBrowserViewDialogResponse } from '../common/browserView.js';
 
 /**
  * Intercepts a CDP command before it is forwarded to the Electron debugger.
@@ -54,29 +56,44 @@ export class BrowserViewDebugger extends Disposable {
 	private readonly _onTargetInfoChanged = this._register(new Emitter<CDPTargetInfo>());
 	/** Fired when targetInfo for a known target changes (e.g. title/url update). */
 	readonly onTargetInfoChanged = this._onTargetInfoChanged.event;
+	private readonly _onDidDetachFrame = this._register(new Emitter<void>());
+	readonly onDidDetachFrame = this._onDidDetachFrame.event;
 
 	/** Whether any attached debugger session has paused JavaScript execution. */
 	private _isPaused = false;
 	get isPaused(): boolean { return this._isPaused; }
 
-	private _targetId: string | undefined;
-	get targetId(): string | undefined { return this._targetId; }
+	readonly targetId: string;
 
 	private readonly _messageHandler: (event: Electron.Event, method: string, params: unknown, sessionId?: string) => void;
 	private readonly _electronDebugger: Electron.Debugger;
 	private readonly _interceptors = new Set<CDPCommandInterceptor>();
+	private _isDisposed = false;
+	private _dialogEvaluationBarrier: DeferredPromise<void> | undefined;
 
 	constructor(
-		private readonly view: BrowserView,
-		readonly logService: ILogService
+		private readonly view: BrowserView
 	) {
 		super();
 
 		this._electronDebugger = view.webContents.debugger;
+		this.targetId = view.webContents.getOrCreateDevToolsTargetId();
 
 		this._messageHandler = (_event: Electron.Event, method: string, params: unknown, sessionId?: string) => {
 			this.routeCDPEvent(method, params, sessionId);
 		};
+		this._register(view.dialogs.onDidChangeDialog(dialog => {
+			this.updateDialogEvaluationBarrier(dialog);
+			for (const session of this._sessions.values()) {
+				this.emitDialogOpening(session, dialog);
+			}
+		}));
+		this.updateDialogEvaluationBarrier(view.dialogs.pendingDialog);
+		this._register(view.dialogs.onDidCloseDialog(({ dialog, response }) => {
+			for (const session of this._sessions.values()) {
+				this.emitDialogClosed(session, dialog, response);
+			}
+		}));
 	}
 
 	/**
@@ -85,11 +102,7 @@ export class BrowserViewDebugger extends Disposable {
 	 * Works for both the root page and sub-targets.
 	 */
 	async attach(): Promise<ICDPConnection> {
-		if (!this._targetId) {
-			const targetInfo = await this.getTargetInfo();
-			this._targetId = targetInfo.targetId;
-		}
-		return this.attachToTarget(this._targetId);
+		return this.attachToTarget(this.targetId);
 	}
 
 	async attachToTarget(targetId: string): Promise<ICDPConnection> {
@@ -112,6 +125,37 @@ export class BrowserViewDebugger extends Disposable {
 		return result.targetInfo;
 	}
 
+	private emitDialogOpening(session: DebugSession, dialog: IBrowserViewDialog | undefined): void {
+		if (session.targetId !== this.targetId || !dialog || dialog.type === 'login') {
+			return;
+		}
+		session.emitEvent({
+			method: 'Page.javascriptDialogOpening', params: {
+				type: dialog.type, message: dialog.message ?? '', defaultPrompt: dialog.defaultPrompt ?? '', url: dialog.origin, hasBrowserHandler: true,
+			}, sessionId: session.sessionId
+		});
+	}
+
+	private emitDialogClosed(session: DebugSession, dialog: IBrowserViewDialog, response: IBrowserViewDialogResponse): void {
+		if (session.targetId !== this.targetId || dialog.type === 'login') {
+			return;
+		}
+		session.emitEvent({
+			method: 'Page.javascriptDialogClosed', params: {
+				result: response.accept, userInput: response.promptText ?? '',
+			}, sessionId: session.sessionId
+		});
+	}
+
+	async getAccessibilityTree(): Promise<IBrowserViewAccessibilityTree> {
+		this.ensureAttached();
+		return readBrowserViewAccessibilityTree((method, params) => this._electronDebugger.sendCommand(method, params));
+	}
+
+	async enableFrameEvents(): Promise<void> {
+		await this.sendCommandRaw('Page.enable');
+	}
+
 	/**
 	 * Send a CDP command. Handles Electron-specific workarounds in a single place.
 	 */
@@ -128,8 +172,36 @@ export class BrowserViewDebugger extends Disposable {
 		if (method === 'Emulation.setDeviceMetricsOverride') {
 			return Promise.resolve({});
 		}
-
+		if (method === 'Runtime.evaluate' || method === 'Runtime.callFunctionOn') {
+			return this.evaluateAfterDialogs(method, params, sessionId);
+		}
 		return this.sendCommandRaw(method, params, sessionId);
+	}
+
+	private updateDialogEvaluationBarrier(dialog: IBrowserViewDialog | undefined): void {
+		if (dialog && dialog.type !== 'login') {
+			if (!this._dialogEvaluationBarrier) {
+				this._dialogEvaluationBarrier = new DeferredPromise<void>();
+				this._dialogEvaluationBarrier.p.catch(() => { /* callers observe debugger disposal */ });
+			}
+		} else {
+			this._dialogEvaluationBarrier?.complete();
+			this._dialogEvaluationBarrier = undefined;
+		}
+	}
+
+	private async waitForDialogs(): Promise<void> {
+		while (this._dialogEvaluationBarrier) {
+			await this._dialogEvaluationBarrier.p;
+		}
+	}
+
+	private async evaluateAfterDialogs(method: string, params: unknown, sessionId: string | undefined): Promise<unknown> {
+		await this.waitForDialogs();
+		const result = await this.sendCommandRaw(method, params, sessionId);
+		// An evaluation already in flight can finish while a dialog in another renderer is still queued.
+		await this.waitForDialogs();
+		return result;
 	}
 
 	/**
@@ -139,14 +211,7 @@ export class BrowserViewDebugger extends Disposable {
 	 */
 	sendCommandRaw(method: string, params?: unknown, sessionId?: string): Promise<unknown> {
 		this.ensureAttached();
-		const resultPromise = this._electronDebugger.sendCommand(method, params, sessionId);
-
-		// Electron overrides dialog behavior — manually dismiss open dialogs.
-		if (method === 'Page.handleJavaScriptDialog') {
-			this.view.webContents.emit('-cancel-dialogs');
-		}
-
-		return resultPromise;
+		return this._electronDebugger.sendCommand(method, params, sessionId);
 	}
 
 	/**
@@ -160,6 +225,12 @@ export class BrowserViewDebugger extends Disposable {
 	}
 
 	private ensureAttached(): void {
+		if (this._isDisposed) {
+			throw new Error('Browser view debugger is disposed');
+		}
+		if (this.view.webContents.isDestroyed()) {
+			throw new Error('Browser view is destroyed');
+		}
 		if (this._electronDebugger.isAttached()) {
 			return;
 		}
@@ -200,12 +271,20 @@ export class BrowserViewDebugger extends Disposable {
 	 * Route a CDP event from the Electron debugger.
 	 */
 	private routeCDPEvent(method: string, params: unknown, sessionId?: string): void {
+		if (method === 'Page.frameDetached') {
+			this._onDidDetachFrame.fire();
+		}
+		// The per-tab queue publishes dialog events in presentation order, including bridged prompts.
+		// beforeunload never shows a dialog: `will-prevent-unload` always lets the page unload.
+		if (method === 'Page.javascriptDialogOpening' || method === 'Page.javascriptDialogClosed') {
+			return;
+		}
 		if (method === 'Target.attachedToTarget') {
 			const p = params as { sessionId: string; targetInfo: CDPTargetInfo; waitingForDebugger: boolean };
 			this.registerSession(p.sessionId, p.targetInfo, p.waitingForDebugger, sessionId);
 		} else if (method === 'Target.detachedFromTarget') {
 			const p = params as { sessionId: string };
-			this._sessions.deleteAndDispose(p.sessionId);
+			this.closeSession(p.sessionId);
 		} else if (method === 'Target.targetDestroyed') {
 			const p = params as { targetId: string };
 			this.destroyTarget(p.targetId);
@@ -213,6 +292,9 @@ export class BrowserViewDebugger extends Disposable {
 			const p = params as { targetInfo: CDPTargetInfo };
 			if (this._knownTargets.has(p.targetInfo.targetId)) {
 				this._knownTargets.set(p.targetInfo.targetId, p.targetInfo);
+				this._onTargetInfoChanged.fire(p.targetInfo);
+			} else if (p.targetInfo.targetId === this.targetId) {
+				// The page target isn't in _knownTargets, but its URL and title still change on navigation.
 				this._onTargetInfoChanged.fire(p.targetInfo);
 			}
 		} else if (method === 'Debugger.paused') {
@@ -240,7 +322,7 @@ export class BrowserViewDebugger extends Disposable {
 			}
 		}
 		for (const sessionId of toDispose) {
-			this._sessions.deleteAndDispose(sessionId);
+			this.closeSession(sessionId);
 		}
 
 		if (this._knownTargets.delete(targetId)) {
@@ -249,7 +331,7 @@ export class BrowserViewDebugger extends Disposable {
 	}
 
 	private registerSession(sessionId: string, targetInfo: CDPTargetInfo, waitingForDebugger: boolean, parentSessionId: string | undefined): DebugSession {
-		if (!this._knownTargets.has(targetInfo.targetId) && targetInfo.targetId !== this._targetId) {
+		if (!this._knownTargets.has(targetInfo.targetId) && targetInfo.targetId !== this.targetId) {
 			this._knownTargets.set(targetInfo.targetId, targetInfo);
 			this._onTargetDiscovered.fire(targetInfo);
 		}
@@ -260,14 +342,33 @@ export class BrowserViewDebugger extends Disposable {
 
 		const session = new DebugSession(parentSessionId, sessionId, targetInfo.targetId, this);
 		this._sessions.set(sessionId, session);
-		session.onClose(() => this._sessions.deleteAndDispose(sessionId));
+		const closeListener = session.onClose(() => {
+			closeListener.dispose();
+			if (this._sessions.deleteAndLeak(sessionId) !== session) {
+				return;
+			}
+			if (this._isDisposed || this.view.webContents.isDestroyed() || !this._electronDebugger.isAttached()) {
+				return;
+			}
+			void this._electronDebugger.sendCommand(
+				'Target.detachFromTarget',
+				{ sessionId },
+				parentSessionId
+			).catch(() => { });
+		});
 
 		this._onSessionCreated.fire({ session, waitingForDebugger });
 
 		return session;
 	}
 
+	private closeSession(sessionId: string): void {
+		this._sessions.deleteAndLeak(sessionId)?.dispose();
+	}
+
 	override dispose(): void {
+		this._isDisposed = true;
+		this._dialogEvaluationBarrier?.error(new Error('Browser view debugger is disposed'));
 		this.detachElectronDebugger();
 		super.dispose();
 	}

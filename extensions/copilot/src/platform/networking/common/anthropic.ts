@@ -84,28 +84,11 @@ export interface ContextManagementResponse {
 }
 
 /**
- * Interleaved thinking is supported by:
- * - Claude Sonnet 4.5 (claude-sonnet-4-5-* or claude-sonnet-4.5-*)
- * - Claude Sonnet 4 (claude-sonnet-4-*)
- * - Claude Haiku 4.5 (claude-haiku-4-5-* or claude-haiku-4.5-*)
- * - Claude Opus 4.5 (claude-opus-4-5-* or claude-opus-4.5-*)
- * @param modelId The model ID to check
- * @returns true if the model supports interleaved thinking
- */
-export function modelSupportsInterleavedThinking(modelId: string): boolean {
-	// Normalize: lowercase and replace dots with dashes so "4.5" matches "4-5"
-	const normalized = modelId.toLowerCase().replace(/\./g, '-');
-	return normalized.startsWith('claude-sonnet-4-5') ||
-		normalized.startsWith('claude-sonnet-4') ||
-		normalized.startsWith('claude-haiku-4-5') ||
-		normalized.startsWith('claude-opus-4-5');
-}
-
-/**
  * Memory is supported by:
+ * - Claude Fable 5
  * - Claude Haiku 4.5
  * - Claude Sonnet 4 / 4.5 / 4.6
- * - Claude Opus 4 / 4.1 / 4.5 / 4.6
+ * - Claude Opus 4 / 4.1 / 4.5 / 4.6 / 4.7 / 4.8
  *
  * Accepts either an id string, a {@link LanguageModelChat}, or an
  * {@link IChatEndpoint} — when given an endpoint/chat the model **family**
@@ -117,10 +100,13 @@ export function modelSupportsMemory(model: LanguageModelChat | IChatEndpoint | s
 	const family = typeof model === 'string' ? model : model.family;
 	const matches = (s: string) => {
 		const n = s.toLowerCase().replace(/\./g, '-');
-		return n.startsWith('claude-haiku-4-5') ||
+		return n.startsWith('claude-fable-5') ||
+			n.startsWith('claude-haiku-4-5') ||
 			n.startsWith('claude-sonnet-4-6') ||
 			n.startsWith('claude-sonnet-4-5') ||
 			n.startsWith('claude-sonnet-4') ||
+			n.startsWith('claude-opus-4-8') ||
+			n.startsWith('claude-opus-4-7') ||
 			n.startsWith('claude-opus-4-6') ||
 			n.startsWith('claude-opus-4-5') ||
 			n.startsWith('claude-opus-4-1') ||
@@ -147,7 +133,8 @@ export function isAnthropicContextEditingEnabled(
 /**
  * The extended (1 hour) prompt cache TTL is available on all active Claude
  * models via `cache_control: { type: 'ephemeral', ttl: '1h' }`
- * - Claude Opus 4.5 / 4.6 / 4.7 (incl. 1M variants)
+ * - Claude Fable 5
+ * - Claude Opus 4.5 / 4.6 / 4.7 / 4.8 (incl. 1M variants)
  * - Claude Sonnet 4.5 / 4.6
  * - Claude Haiku 4.5
  *
@@ -161,7 +148,9 @@ export function modelSupportsExtendedCacheTtl(model: LanguageModelChat | IChatEn
 	const family = typeof model === 'string' ? model : model.family;
 	const matches = (s: string) => {
 		const n = s.toLowerCase().replace(/\./g, '-');
-		return n.startsWith('claude-opus-4-7') ||
+		return n.startsWith('claude-fable-5') ||
+			n.startsWith('claude-opus-4-8') ||
+			n.startsWith('claude-opus-4-7') ||
 			n.startsWith('claude-opus-4-6') ||
 			n.startsWith('claude-opus-4-5') ||
 			n.startsWith('claude-sonnet-4-6') ||

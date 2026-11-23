@@ -724,6 +724,12 @@ export class MouseTargetFactory {
 			offset -= ctx.layoutInfo.lineNumbersWidth;
 
 			// On the line decorations
+			if (!res.isAfterLines && !request.target.classList.contains('cldr')) {
+				// No line decoration (see `LinesDecorationsOverlay`) is under the mouse, so behave like a click on the content left of the text
+				const lineNumber = pos.lineNumber;
+				const column = ctx.isRtl(lineNumber) ? ctx.viewModel.getLineMaxColumn(lineNumber) : ctx.viewModel.getLineMinColumn(lineNumber);
+				return request.fulfillContentEmpty(new Position(lineNumber, column), { isAfterLines: false });
+			}
 			return request.fulfillMargin(MouseTargetType.GUTTER_LINE_DECORATIONS, pos, res.range, detail);
 		}
 		return null;
@@ -770,14 +776,17 @@ export class MouseTargetFactory {
 				return request.fulfillContentEmpty(pos, detail);
 			}
 		} else {
-			if (ctx.viewLinesGpu) {
-				const lineNumber = ctx.getLineNumberAtVerticalOffset(request.mouseVerticalOffset);
-				if (ctx.viewModel.getLineLength(lineNumber) === 0) {
-					const lineWidth = ctx.getLineWidth(lineNumber);
-					const detail = createEmptyContentDataInLines(request.mouseContentHorizontalOffset - lineWidth);
-					return request.fulfillContentEmpty(new Position(lineNumber, 1), detail);
-				}
+			// The event targets the `.view-lines` container itself. This always happens with the GPU renderer,
+			// and with the DOM renderer at a sub-pixel edge of the lines, where the browser hit tests at whole
+			// pixels while the mouse offset still maps into a line. An empty line has no text to hit test
+			const lineNumber = ctx.getLineNumberAtVerticalOffset(request.mouseVerticalOffset);
+			if (ctx.viewModel.getLineLength(lineNumber) === 0) {
+				const lineWidth = ctx.getLineWidth(lineNumber);
+				const detail = createEmptyContentDataInLines(request.mouseContentHorizontalOffset - lineWidth);
+				return request.fulfillContentEmpty(new Position(lineNumber, 1), detail);
+			}
 
+			if (ctx.viewLinesGpu) {
 				const lineWidth = ctx.getLineWidth(lineNumber);
 				const isRtl = ctx.isRtl(lineNumber);
 				if (isRtl) {
@@ -1133,12 +1142,13 @@ function shadowCaretRangeFromPoint(shadowRoot: ShadowRoot, x: number, y: number)
 
 		// And its font (the computed shorthand font property might be empty, see #3217)
 		const elWindow = dom.getWindow(el);
-		const fontStyle = elWindow.getComputedStyle(el, null).getPropertyValue('font-style');
-		const fontVariant = elWindow.getComputedStyle(el, null).getPropertyValue('font-variant');
-		const fontWeight = elWindow.getComputedStyle(el, null).getPropertyValue('font-weight');
-		const fontSize = elWindow.getComputedStyle(el, null).getPropertyValue('font-size');
-		const lineHeight = elWindow.getComputedStyle(el, null).getPropertyValue('line-height');
-		const fontFamily = elWindow.getComputedStyle(el, null).getPropertyValue('font-family');
+		const computedStyle = elWindow.getComputedStyle(el, null);
+		const fontStyle = computedStyle.getPropertyValue('font-style');
+		const fontVariant = computedStyle.getPropertyValue('font-variant');
+		const fontWeight = computedStyle.getPropertyValue('font-weight');
+		const fontSize = computedStyle.getPropertyValue('font-size');
+		const lineHeight = computedStyle.getPropertyValue('line-height');
+		const fontFamily = computedStyle.getPropertyValue('font-family');
 		const font = `${fontStyle} ${fontVariant} ${fontWeight} ${fontSize}/${lineHeight} ${fontFamily}`;
 
 		// And also its txt content

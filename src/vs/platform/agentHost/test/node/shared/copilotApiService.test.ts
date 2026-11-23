@@ -4,17 +4,41 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as sinon from 'sinon';
 import type Anthropic from '@anthropic-ai/sdk';
+import { DeferredPromise } from '../../../../../base/common/async.js';
+import { Emitter } from '../../../../../base/common/event.js';
 import { Iterable } from '../../../../../base/common/iterator.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { COPILOT_API_ERROR_STATUS_STREAMING, CopilotApiError, CopilotApiService, type FetchFunction } from '../../../node/shared/copilotApiService.js';
+import { createTestGitHubEndpointService } from '../testGitHubEndpointService.js';
 import { NullLogService } from '../../../../log/common/log.js';
 import { IProductService } from '../../../../product/common/productService.js';
 import product from '../../../../product/common/product.js';
+import { captureCopilotTelemetryContext, toCopilotTelemetryData } from '../../../node/shared/copilotSkuTelemetry.js';
+import { ITelemetryData, ITelemetryService } from '../../../../telemetry/common/telemetry.js';
+import { NullTelemetryService, NullTelemetryServiceShape, TelemetryTrustedValue } from '../../../../telemetry/common/telemetryUtils.js';
+import type { IAgentHostGitHubTelemetryContext, TelemetryMeasurements, TelemetryProps } from '../../../node/agentHostRestrictedTelemetry.js';
 
 // #region Test Helpers
 
 const testProductService: IProductService = { _serviceBrand: undefined, ...product };
+
+class DiscoveryTelemetryService extends NullTelemetryServiceShape {
+	readonly events: { name: string | undefined; data?: ITelemetryData }[] = [];
+
+	override publicLog2(name?: string, data?: ITelemetryData): void {
+		this.events.push({ name, data });
+	}
+}
+
+class UtilityTelemetryService extends DiscoveryTelemetryService {
+	readonly ghEvents: { context: IAgentHostGitHubTelemetryContext; name: string; properties?: TelemetryProps; measurements?: TelemetryMeasurements }[] = [];
+
+	sendGHTelemetryEventForContext(context: IAgentHostGitHubTelemetryContext, name: string, properties?: TelemetryProps, measurements?: TelemetryMeasurements): void {
+		this.ghEvents.push({ context, name, properties, measurements });
+	}
+}
 
 function sseLines(...lines: string[]): Uint8Array {
 	return new TextEncoder().encode(lines.join('\n') + '\n');
@@ -49,11 +73,16 @@ function getText(msg: Anthropic.Message): string {
 		.join('');
 }
 
-function tokenResponse(overrides?: Record<string, unknown>): Response {
+function hasMapKey(target: object, key: unknown): boolean {
+	return Reflect.ownKeys(target).some(property => {
+		const value: unknown = Reflect.get(target, property);
+		return value instanceof Map && value.has(key);
+	});
+}
+
+function userResponse(overrides?: Record<string, unknown>): Response {
 	return new Response(JSON.stringify({
-		token: 'copilot-tok-abc',
-		expires_at: Date.now() / 1000 + 3600,
-		refresh_in: 1800,
+		endpoints: { api: 'https://api.githubcopilot.com' },
 		...overrides,
 	}), { status: 200 });
 }
@@ -84,21 +113,17 @@ function modelsResponse(models: object[]): Response {
 	});
 }
 
-function createService(fetchImpl: FetchFunction): CopilotApiService {
-	return new CopilotApiService(fetchImpl, new NullLogService(), testProductService);
-}
-
 type CapturedRequest = { url: string; init: RequestInit | undefined };
 
 function routingFetch(
 	messageResponse: (captured: CapturedRequest) => Response,
-	tokenOverrides?: Record<string, unknown>,
+	userOverrides?: Record<string, unknown>,
 ): { fetch: FetchFunction; captured: () => CapturedRequest } {
 	let lastCapture: CapturedRequest = { url: '', init: undefined };
 	const impl: FetchFunction = async (input, init) => {
 		const url = getUrl(input);
-		if (url.includes('/token') || url.includes('/copilot_internal')) {
-			return tokenResponse(tokenOverrides);
+		if (url.endsWith('/copilot_internal/user')) {
+			return userResponse(userOverrides);
 		}
 		lastCapture = { url, init };
 		return messageResponse(lastCapture);
@@ -114,43 +139,753 @@ const baseRequest = {
 	stream: false as const,
 };
 
-function streamService(chunks: Uint8Array[], tokenOverrides?: Record<string, unknown>): CopilotApiService {
-	const { fetch: fetchFn } = routingFetch(() => sseResponse(chunks), tokenOverrides);
-	return createService(fetchFn);
-}
-
 // #endregion
 
 suite('CopilotApiService', () => {
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function createService(fetchImpl: FetchFunction, enterpriseUri?: string, telemetryService: ITelemetryService = NullTelemetryService): CopilotApiService {
+		return disposables.add(new CopilotApiService(fetchImpl, new NullLogService(), testProductService, createTestGitHubEndpointService(enterpriseUri), telemetryService));
+	}
+
+	suite('discovery telemetry', () => {
+		teardown(() => sinon.restore());
+
+		test('reports actual discovery, trigger, returned metadata and previous cache age without cache-hit events', async () => {
+			const clock = sinon.useFakeTimers({ now: 1_000_000, toFake: ['Date'] });
+			const telemetry = new DiscoveryTelemetryService();
+			let requests = 0;
+			const service = createService(async () => {
+				requests++;
+				clock.tick(25);
+				const response = userResponse({
+					access_type_sku: requests === 1 ? 'no_access' : 'free_limited_copilot',
+					analytics_tracking_id: 'analytics',
+				});
+				response.headers.set('x-github-request-id', 'D3ED:ABCD:1234');
+				return response;
+			}, undefined, telemetry);
+			await service.resolveCopilotSku('private-token');
+			clock.tick(1000);
+			await service.resolveCopilotSku('private-token');
+			await service.refreshCopilotUser('private-token', 'analytics', 'free_limited_copilot');
+			clock.tick(26 * 60 * 1000);
+			await service.resolveCopilotSku('private-token');
+
+			const common = {
+				outcome: 'published', durationMs: 25, httpStatus: 200,
+				gitHubRequestId: 'D3ED:ABCD:1234', copilotTrackingId: 'analytics',
+			};
+			assert.deepStrictEqual({ requests, events: telemetry.events }, {
+				requests: 3,
+				events: [
+					{ name: 'agentHost.copilotAccountDiscovery', data: { ...common, trigger: 'initial', copilotSku: 'no_access' } },
+					{
+						name: 'agentHost.copilotAccountDiscovery', data: {
+							...common, trigger: 'entitlementChange', copilotSku: 'free_limited_copilot', previousSku: 'no_access', cacheAgeMs: 1000,
+						}
+					},
+					{
+						name: 'agentHost.copilotAccountDiscovery', data: {
+							...common, trigger: 'cacheRefresh', copilotSku: 'free_limited_copilot', previousSku: 'free_limited_copilot', cacheAgeMs: 26 * 60 * 1000,
+						}
+					},
+				],
+			});
+		});
+
+		for (const failure of ['http', 'network', 'body']) {
+			test(`reports bounded ${failure} failure metadata without bodies, errors, credentials or invalid request IDs`, async () => {
+				sinon.useFakeTimers({ now: 1_000_000, toFake: ['Date'] });
+				const telemetry = new DiscoveryTelemetryService();
+				const service = createService(async () => {
+					if (failure === 'network') {
+						throw new Error('private-error-content');
+					}
+					return new Response('private-response-content', {
+						status: failure === 'http' ? 503 : 200,
+						headers: { 'x-github-request-id': failure === 'http' ? 'D3ED:FAILED:1' : 'https://private.example/user' },
+					});
+				}, undefined, telemetry);
+				await assert.rejects(service.resolveCopilotSku('private-token'));
+				assert.deepStrictEqual(telemetry.events, [{
+					name: 'agentHost.copilotAccountDiscovery',
+					data: {
+						trigger: 'initial', outcome: 'failed', durationMs: 0,
+						...(failure !== 'network' ? { httpStatus: failure === 'http' ? 503 : 200 } : {}),
+						...(failure === 'http' ? { gitHubRequestId: 'D3ED:FAILED:1' } : {}),
+					},
+				}]);
+			});
+		}
+
+		test('does not send discovery events after service disposal', async () => {
+			sinon.useFakeTimers({ now: 1_000_000, toFake: ['Date'] });
+			const telemetry = new DiscoveryTelemetryService();
+			const response = new DeferredPromise<Response>();
+			const started = new DeferredPromise<void>();
+			let requests = 0;
+			const service = createService(async () => {
+				if (++requests === 1) {
+					return userResponse({ access_type_sku: 'no_access', analytics_tracking_id: 'analytics' });
+				}
+				started.complete();
+				return response.p;
+			}, undefined, telemetry);
+			await service.resolveCopilotSku('private-token');
+			const refreshing = service.refreshCopilotUser('private-token', 'analytics', 'free');
+			await started.p;
+			service.dispose();
+			response.complete(userResponse({ access_type_sku: 'free', analytics_tracking_id: 'analytics' }));
+			await refreshing;
+			assert.deepStrictEqual(telemetry.events, [{
+				name: 'agentHost.copilotAccountDiscovery',
+				data: { trigger: 'initial', outcome: 'published', durationMs: 0, copilotSku: 'no_access', copilotTrackingId: 'analytics', httpStatus: 200 },
+			}]);
+		});
+	});
+
+	suite('account telemetry context', () => {
+		teardown(() => sinon.restore());
+
+		test('revalidates changed entitlements without copying client values or affecting another token', async () => {
+			let requests = 0;
+			const service = createService(async () => {
+				requests++;
+				return userResponse({ access_type_sku: requests <= 2 ? 'no_access' : 'server-sku', analytics_tracking_id: 'analytics' });
+			});
+			await service.resolveCopilotSku('token-a');
+			await service.resolveCopilotSku('token-b');
+			const read = service.captureCopilotTelemetryContext('token-a');
+			await service.refreshCopilotUser('token-a', 'another-account', 'free');
+			await service.refreshCopilotUser('token-a', 'analytics', 'no_access');
+			const before = { requests, context: read() };
+			await Promise.all([
+				service.refreshCopilotUser('token-a', 'analytics', 'free'),
+				service.refreshCopilotUser('token-a', 'analytics', 'free'),
+			]);
+			assert.deepStrictEqual({ before, requests, context: read(), other: service.getCachedCopilotSku('token-b') }, {
+				before: { requests: 2, context: { copilotSku: 'no_access', copilotTrackingId: 'analytics' } },
+				requests: 3,
+				context: { copilotSku: 'server-sku', copilotTrackingId: 'analytics' },
+				other: 'no_access',
+			});
+		});
+
+		test('keeps identity but clears stale SKU after an entitlement refresh fails', async () => {
+			const refresh = new DeferredPromise<Response>();
+			let requests = 0;
+			const service = createService(async () => ++requests === 1
+				? userResponse({ access_type_sku: 'no_access', analytics_tracking_id: 'analytics' })
+				: refresh.p);
+			await service.resolveCopilotSku('token');
+			const read = service.captureCopilotTelemetryContext('token');
+			const work = service.refreshCopilotUser('token', 'analytics', 'free');
+			const pending = await service.resolveCopilotSku('token');
+			refresh.complete(new Response('Unavailable', { status: 503 }));
+			await assert.rejects(work);
+			assert.deepStrictEqual({ pending, after: read() }, {
+				pending: 'no_access', after: { copilotSku: undefined, copilotTrackingId: 'analytics' },
+			});
+		});
+
+		for (const entitlementStartsFirst of [false, true]) {
+			for (const entitlementFinishesFirst of [false, true]) {
+				test(`entitlement cache writes supersede ordinary refresh: starts first ${entitlementStartsFirst}, finishes first ${entitlementFinishesFirst}`, async () => {
+					const clock = sinon.useFakeTimers({ now: Date.now(), toFake: ['Date'] });
+					const telemetry = new DiscoveryTelemetryService();
+					const normalResponse = new DeferredPromise<Response>();
+					const entitlementResponse = new DeferredPromise<Response>();
+					let requests = 0;
+					const service = createService(async () => {
+						if (++requests === 1) {
+							return userResponse({ access_type_sku: 'no_access', analytics_tracking_id: 'analytics' });
+						}
+						return (requests === 2) === entitlementStartsFirst ? entitlementResponse.p : normalResponse.p;
+					}, undefined, telemetry);
+					await service.resolveCopilotSku('token');
+					const read = service.captureCopilotTelemetryContext('token');
+					clock.tick(26 * 60 * 1000);
+					let normal: Promise<string | undefined>;
+					let entitlement: Promise<void>;
+					if (entitlementStartsFirst) {
+						entitlement = service.refreshCopilotUser('token', 'analytics', 'free');
+						normal = service.resolveCopilotSku('token');
+					} else {
+						normal = service.resolveCopilotSku('token');
+						entitlement = service.refreshCopilotUser('token', 'analytics', 'free');
+					}
+					if (entitlementFinishesFirst) {
+						entitlementResponse.complete(userResponse({ access_type_sku: 'free', analytics_tracking_id: 'refreshed-analytics', restricted_telemetry: false }));
+						await entitlement;
+						normalResponse.complete(userResponse({ access_type_sku: 'no_access', analytics_tracking_id: 'analytics', restricted_telemetry: true }));
+						await normal;
+					} else {
+						normalResponse.complete(userResponse({ access_type_sku: 'no_access', analytics_tracking_id: 'analytics', restricted_telemetry: true }));
+						await normal;
+						entitlementResponse.complete(userResponse({ access_type_sku: 'free', analytics_tracking_id: 'refreshed-analytics', restricted_telemetry: false }));
+						await entitlement;
+					}
+					assert.deepStrictEqual({
+						requests,
+						sku: service.getCachedCopilotSku('token'),
+						trackingId: read()?.copilotTrackingId,
+						restrictedTelemetry: (await service.resolveRestrictedTelemetryContext('token')).restrictedTelemetryEnabled,
+						outcomes: telemetry.events.slice(1).map(event => ({ trigger: event.data?.trigger, outcome: event.data?.outcome, sku: event.data?.copilotSku })),
+					}, {
+						requests: 3,
+						sku: 'free',
+						trackingId: 'refreshed-analytics',
+						restrictedTelemetry: false,
+						outcomes: entitlementFinishesFirst ? [
+							{ trigger: 'entitlementChange', outcome: 'published', sku: 'free' },
+							{ trigger: 'cacheRefresh', outcome: 'superseded', sku: 'no_access' },
+						] : [
+							{ trigger: 'cacheRefresh', outcome: 'superseded', sku: 'no_access' },
+							{ trigger: 'entitlementChange', outcome: 'published', sku: 'free' },
+						],
+					});
+				});
+			}
+		}
+
+		test('superseded ordinary refresh does not return an expired entry while an entitlement refresh is pending', async () => {
+			const clock = sinon.useFakeTimers({ now: Date.now(), toFake: ['Date'] });
+			try {
+				const normalResponse = new DeferredPromise<Response>();
+				const entitlementResponse = new DeferredPromise<Response>();
+				let requests = 0;
+				const service = createService(async () => {
+					if (++requests === 1) {
+						return userResponse({ access_type_sku: 'no_access', analytics_tracking_id: 'analytics' });
+					}
+					return requests === 2 ? entitlementResponse.p : normalResponse.p;
+				});
+				await service.resolveCopilotSku('token');
+				clock.tick(26 * 60 * 1000);
+				const entitlement = service.refreshCopilotUser('token', 'analytics', 'free');
+				const normal = service.resolveCopilotSku('token');
+				// The cached entry expires while both refreshes are in flight.
+				clock.tick(5 * 60 * 1000);
+				normalResponse.complete(userResponse({ access_type_sku: 'business', analytics_tracking_id: 'analytics' }));
+				const normalSku = await normal;
+				entitlementResponse.complete(userResponse({ access_type_sku: 'free', analytics_tracking_id: 'analytics' }));
+				await entitlement;
+				assert.deepStrictEqual({ normalSku, cachedSku: service.getCachedCopilotSku('token') }, { normalSku: 'business', cachedSku: 'free' });
+			} finally {
+				clock.restore();
+			}
+		});
+
+		test('rejected entitlement refresh permanently invalidates the captured account context', async () => {
+			let status = 200;
+			const service = createService(async () => status === 200
+				? userResponse({ access_type_sku: 'no_access', analytics_tracking_id: 'analytics' })
+				: new Response('Rejected', { status }));
+			await service.resolveCopilotSku('token');
+			const old = service.captureCopilotTelemetryContext('token');
+			status = 403;
+			await assert.rejects(service.refreshCopilotUser('token', 'analytics', 'free'));
+			status = 200;
+			await service.resolveCopilotSku('token');
+			assert.deepStrictEqual({ old: old(), fresh: service.captureCopilotTelemetryContext('token')() }, {
+				old: undefined, fresh: { copilotSku: 'no_access', copilotTrackingId: 'analytics' },
+			});
+		});
+
+		test('maps account properties only at emission without leaking internal names or refreshing credentials', async () => {
+			let requests = 0;
+			let current = true;
+			const service = createService(async () => {
+				requests++;
+				return userResponse({ access_type_sku: 'sku-a', analytics_tracking_id: 'analytics-a' });
+			});
+			const context = captureCopilotTelemetryContext(service, 'token-a', () => current);
+			const undiscovered = toCopilotTelemetryData(context);
+			await service.resolveCopilotSku('token-a');
+			const emitted = toCopilotTelemetryData(context);
+			current = false;
+			const invalidated = toCopilotTelemetryData(context);
+			assert.deepStrictEqual({ undiscovered, emitted, invalidated, absent: toCopilotTelemetryData(undefined), requests }, {
+				undiscovered: { copilotSku: undefined },
+				emitted: { copilotSku: 'sku-a', 'common.copilotTrackingId': 'analytics-a' },
+				invalidated: { copilotSku: undefined },
+				absent: undefined,
+				requests: 1,
+			});
+		});
+
+		test('captures late discovery without extra requests and isolates tokens and credential generations', async () => {
+			const discovery = new DeferredPromise<Response>();
+			let requests = 0;
+			const service = createService(async () => { requests++; return discovery.p; });
+			let current = true;
+			const context = captureCopilotTelemetryContext(service, 'token-a', () => current);
+			const other = captureCopilotTelemetryContext(service, 'token-b', () => true);
+			const before = { ...context };
+			const resolving = service.resolveCopilotSku('token-a');
+			discovery.complete(userResponse({ access_type_sku: 'sku-a', analytics_tracking_id: 'analytics-a' }));
+			await resolving;
+			const after = { ...context };
+			current = false;
+			assert.deepStrictEqual({ before, after, obsolete: { ...context }, other: { ...other }, requests }, {
+				before: { copilotSku: undefined, copilotTrackingId: undefined },
+				after: { copilotSku: 'sku-a', copilotTrackingId: 'analytics-a' },
+				obsolete: { copilotSku: undefined, copilotTrackingId: undefined },
+				other: { copilotSku: undefined, copilotTrackingId: undefined },
+				requests: 1,
+			});
+		});
+
+		test('expires SKU without losing account identity and clears both on disposal', async () => {
+			const clock = sinon.useFakeTimers({ now: Date.now(), toFake: ['Date'] });
+			let revision = 0;
+			const service = createService(async () => userResponse({
+				access_type_sku: `sku-${++revision}`, analytics_tracking_id: `analytics-${revision}`,
+			}));
+			const read = service.captureCopilotTelemetryContext('token-a');
+			await service.resolveCopilotSku('token-a');
+			const first = read();
+			clock.tick(26 * 60 * 1000);
+			await service.resolveCopilotSku('token-a');
+			const refreshed = read();
+			clock.tick(30 * 60 * 1000);
+			const expired = read();
+			const expiredSku = service.getCachedCopilotSku('token-a');
+			const requestsAfterRead = revision;
+			await service.resolveCopilotSku('token-a');
+			service.dispose();
+			assert.deepStrictEqual({ first, refreshed, expired, expiredSku, requestsAfterRead, disposed: read() }, {
+				first: { copilotSku: 'sku-1', copilotTrackingId: 'analytics-1' },
+				refreshed: { copilotSku: 'sku-2', copilotTrackingId: 'analytics-2' },
+				expired: { copilotSku: undefined, copilotTrackingId: 'analytics-2' },
+				expiredSku: undefined,
+				requestsAfterRead: 2,
+				disposed: undefined,
+			});
+		});
+
+		test('retains the edit-time identity through expired-cache refresh failure and recovery', async () => {
+			const clock = sinon.useFakeTimers({ now: Date.now(), toFake: ['Date'] });
+			let unavailable = false;
+			let requests = 0;
+			const service = createService(async () => {
+				requests++;
+				return unavailable ? new Response('Unavailable', { status: 503 })
+					: userResponse({ access_type_sku: 'sku-a', analytics_tracking_id: 'analytics-a' });
+			});
+			const context = captureCopilotTelemetryContext(service, 'token-a', () => true);
+			await service.resolveCopilotSku('token-a');
+			clock.tick(31 * 60 * 1000);
+			const editTrackingId = context.copilotTrackingId;
+			const expired = toCopilotTelemetryData(context);
+			unavailable = true;
+			await assert.rejects(() => service.resolveCopilotSku('token-a'));
+			const failed = toCopilotTelemetryData(context);
+			const failedSku = service.getCachedCopilotSku('token-a');
+			unavailable = false;
+			await service.resolveCopilotSku('token-a');
+			assert.deepStrictEqual({ editTrackingId, expired, failed, failedSku, recovered: toCopilotTelemetryData(context), requests }, {
+				editTrackingId: 'analytics-a',
+				expired: { copilotSku: undefined, 'common.copilotTrackingId': 'analytics-a' },
+				failed: { copilotSku: undefined, 'common.copilotTrackingId': 'analytics-a' },
+				failedSku: undefined,
+				recovered: { copilotSku: 'sku-a', 'common.copilotTrackingId': 'analytics-a' },
+				requests: 3,
+			});
+		});
+
+		for (const trackingId of ['analytics-a', undefined]) {
+			test(`handles expired discovery failure before any telemetry reader is captured (tracking ID: ${trackingId})`, async () => {
+				const clock = sinon.useFakeTimers({ now: Date.now(), toFake: ['Date'] });
+				let unavailable = false;
+				let requests = 0;
+				const service = createService(async () => {
+					requests++;
+					return unavailable ? new Response('Unavailable', { status: 503 })
+						: userResponse({ access_type_sku: 'sku-a', analytics_tracking_id: trackingId });
+				});
+				await service.resolveCopilotSku('token-a');
+				clock.tick(31 * 60 * 1000);
+				unavailable = true;
+				await assert.rejects(() => service.resolveCopilotSku('token-a'));
+				await assert.rejects(() => service.resolveCopilotSku('token-a'));
+				const retained = hasMapKey(service, 'token-a');
+				const read = service.captureCopilotTelemetryContext('token-a');
+				const afterFailure = read();
+				const requestsAfterRead = requests;
+				unavailable = false;
+				await service.resolveCopilotSku('token-a');
+				assert.deepStrictEqual({ retained, afterFailure, requestsAfterRead, recovered: read() }, {
+					retained: trackingId !== undefined,
+					afterFailure: trackingId ? { copilotSku: undefined, copilotTrackingId: trackingId } : undefined,
+					requestsAfterRead: 3,
+					recovered: trackingId ? { copilotSku: 'sku-a', copilotTrackingId: trackingId } : { copilotSku: 'sku-a' },
+				});
+			});
+		}
+
+		for (const refreshKind of ['cache', 'entitlement'] as const) {
+			for (const replacement of ['none', 'published', 'cleared'] as const) {
+				for (const status of [401, 403]) {
+					test(`attributes deferred CAPI rejection after ${refreshKind} refresh failure (${status}, replacement: ${replacement})`, async () => {
+						const clock = sinon.useFakeTimers({ now: Date.now(), toFake: ['Date'] });
+						const started = new DeferredPromise<void>();
+						const response = new DeferredPromise<Response>();
+						let discoveryStatus = 200;
+						let trackingId = 'analytics-a';
+						const service = createService(async input => {
+							if (getUrl(input).endsWith('/copilot_internal/user')) {
+								return discoveryStatus === 200
+									? userResponse({ access_type_sku: 'sku-a', analytics_tracking_id: trackingId })
+									: new Response('Unavailable', { status: discoveryStatus });
+							}
+							started.complete();
+							return response.p;
+						});
+						await service.resolveCopilotSku('token-a');
+						const read = service.captureCopilotTelemetryContext('token-a');
+						const rejected = assert.rejects(service.models('token-a'), error => error instanceof CopilotApiError && error.status === status);
+						await started.p;
+						try {
+							discoveryStatus = 503;
+							if (refreshKind === 'cache') {
+								clock.tick(31 * 60 * 1000);
+								await assert.rejects(() => service.resolveCopilotSku('token-a'));
+							} else {
+								await assert.rejects(() => service.refreshCopilotUser('token-a', trackingId, 'sku-b'));
+							}
+							const afterFailure = read();
+							if (replacement !== 'none') {
+								discoveryStatus = 200;
+								trackingId = 'analytics-new';
+								await service.resolveCopilotSku('token-a');
+								if (replacement === 'cleared') {
+									discoveryStatus = 503;
+									clock.tick(31 * 60 * 1000);
+									await assert.rejects(() => service.resolveCopilotSku('token-a'));
+								}
+							}
+							response.complete(new Response('Rejected', { status }));
+							await rejected;
+							const afterRejection = read();
+							discoveryStatus = 200;
+							await service.resolveCopilotSku('token-a');
+							assert.deepStrictEqual({
+								afterFailure, afterRejection, old: read(), fresh: service.captureCopilotTelemetryContext('token-a')(),
+							}, {
+								afterFailure: { copilotSku: undefined, copilotTrackingId: 'analytics-a' },
+								afterRejection: replacement === 'none' ? undefined : {
+									copilotSku: replacement === 'published' ? 'sku-a' : undefined,
+									copilotTrackingId: 'analytics-new',
+								},
+								old: replacement === 'none' ? undefined : { copilotSku: 'sku-a', copilotTrackingId: 'analytics-new' },
+								fresh: { copilotSku: 'sku-a', copilotTrackingId: trackingId },
+							});
+						} finally {
+							response.complete(new Response('Rejected', { status }));
+							await rejected;
+						}
+					});
+				}
+			}
+		}
+
+		for (const status of [401, 403]) {
+			test(`invalidates expired account identity on discovery rejection (${status})`, async () => {
+				const clock = sinon.useFakeTimers({ now: Date.now(), toFake: ['Date'] });
+				let rejected = false;
+				const service = createService(async () => rejected ? new Response('Rejected', { status })
+					: userResponse({ access_type_sku: 'sku-a', analytics_tracking_id: 'analytics-a' }));
+				await service.resolveCopilotSku('token-a');
+				const read = service.captureCopilotTelemetryContext('token-a');
+				clock.tick(31 * 60 * 1000);
+				rejected = true;
+				await assert.rejects(() => service.resolveCopilotSku('token-a'));
+				rejected = false;
+				await service.resolveCopilotSku('token-a');
+				assert.deepStrictEqual({ old: read(), fresh: service.captureCopilotTelemetryContext('token-a')() }, {
+					old: undefined, fresh: { copilotSku: 'sku-a', copilotTrackingId: 'analytics-a' },
+				});
+			});
+		}
+
+		test('does not retain an old identity when successful rediscovery omits it', async () => {
+			const clock = sinon.useFakeTimers({ now: Date.now(), toFake: ['Date'] });
+			let trackingId: string | undefined = 'analytics-a';
+			const service = createService(async () => userResponse({ access_type_sku: 'sku-a', analytics_tracking_id: trackingId }));
+			await service.resolveCopilotSku('token-a');
+			const read = service.captureCopilotTelemetryContext('token-a');
+			clock.tick(31 * 60 * 1000);
+			trackingId = undefined;
+			await service.resolveCopilotSku('token-a');
+			const fresh = read();
+			clock.tick(31 * 60 * 1000);
+			assert.deepStrictEqual({ fresh, expired: read() }, { fresh: { copilotSku: 'sku-a' }, expired: undefined });
+		});
+
+		test('credential-generation guards and separate tokens still isolate expired identity', async () => {
+			const clock = sinon.useFakeTimers({ now: Date.now(), toFake: ['Date'] });
+			let current = true;
+			const service = createService(async () => userResponse({ access_type_sku: 'sku-a', analytics_tracking_id: 'analytics-a' }));
+			const context = captureCopilotTelemetryContext(service, 'token-a', () => current);
+			const other = captureCopilotTelemetryContext(service, 'token-b', () => true);
+			await service.resolveCopilotSku('token-a');
+			clock.tick(31 * 60 * 1000);
+			const expired = toCopilotTelemetryData(context);
+			current = false;
+			assert.deepStrictEqual({ expired, invalidated: toCopilotTelemetryData(context), other: toCopilotTelemetryData(other) }, {
+				expired: { copilotSku: undefined, 'common.copilotTrackingId': 'analytics-a' },
+				invalidated: { copilotSku: undefined },
+				other: { copilotSku: undefined },
+			});
+		});
+
+		test('endpoint changes invalidate expired identity and cannot revive the old reader', async () => {
+			const clock = sinon.useFakeTimers({ now: Date.now(), toFake: ['Date'] });
+			const changed = disposables.add(new Emitter<void>());
+			let trackingId = 'analytics-a';
+			const service = disposables.add(new CopilotApiService(
+				async () => userResponse({ access_type_sku: 'sku', analytics_tracking_id: trackingId }),
+				new NullLogService(), testProductService,
+				{ ...createTestGitHubEndpointService(), onDidChange: changed.event }, NullTelemetryService,
+			));
+			await service.resolveCopilotSku('token');
+			const read = service.captureCopilotTelemetryContext('token');
+			clock.tick(31 * 60 * 1000);
+			changed.fire();
+			trackingId = 'analytics-b';
+			await service.resolveCopilotSku('token');
+			assert.deepStrictEqual({ old: read(), fresh: service.captureCopilotTelemetryContext('token')() }, {
+				old: undefined, fresh: { copilotSku: 'sku', copilotTrackingId: 'analytics-b' },
+			});
+		});
+
+		test('rejected credentials cannot revive an old context after rediscovery', async () => {
+			let rejected = false;
+			const service = createService(async () => rejected
+				? new Response('Unauthorized', { status: 401 })
+				: userResponse({ access_type_sku: 'sku-a', analytics_tracking_id: 'analytics-a' }));
+			const oldContext = service.captureCopilotTelemetryContext('token-a');
+			await service.resolveCopilotSku('token-a');
+			rejected = true;
+			await assert.rejects(() => service.models('token-a'));
+			const rejectedContext = oldContext();
+			rejected = false;
+			await service.resolveCopilotSku('token-a');
+			assert.deepStrictEqual({ rejectedContext, old: oldContext(), fresh: service.captureCopilotTelemetryContext('token-a')() }, {
+				rejectedContext: undefined, old: undefined,
+				fresh: { copilotSku: 'sku-a', copilotTrackingId: 'analytics-a' },
+			});
+		});
+
+		test('omits unavailable or malformed tracking IDs without inventing an account identity', async () => {
+			const contexts = [];
+			for (const analytics_tracking_id of [undefined, '', '   ', 123, null]) {
+				const service = createService(async () => userResponse({ access_type_sku: 'sku-a', analytics_tracking_id }));
+				await service.resolveCopilotSku('token-a');
+				contexts.push(service.captureCopilotTelemetryContext('token-a')());
+			}
+			assert.deepStrictEqual(contexts, Array.from({ length: 5 }, () => ({ copilotSku: 'sku-a' })));
+		});
+	});
+
+	function streamService(chunks: Uint8Array[], tokenOverrides?: Record<string, unknown>): CopilotApiService {
+		const { fetch: fetchFn } = routingFetch(() => sseResponse(chunks), tokenOverrides);
+		return createService(fetchFn);
+	}
+
+	test('derives restricted telemetry context from user discovery without minting a Copilot token', async () => {
+		const requests: string[] = [];
+		const service = createService(async input => {
+			const url = getUrl(input);
+			requests.push(new URL(url).pathname);
+			if (url.endsWith('/copilot_internal/user')) {
+				return new Response(JSON.stringify({
+					login: 'octocat',
+					copilotignore_enabled: true,
+					restricted_telemetry: true,
+					analytics_tracking_id: 'tracking-id',
+					organization_login_list: ['external-org'],
+					endpoints: { api: 'https://api.githubcopilot.com', telemetry: 'https://telemetry.example' },
+				}), { status: 200 });
+			}
+			throw new Error(`Unexpected request: ${url}`);
+		});
+
+		assert.deepStrictEqual({
+			context: await service.resolveRestrictedTelemetryContext('gh-token'),
+			requests,
+		}, {
+			context: {
+				restrictedTelemetryEnabled: true,
+				trackingId: 'tracking-id',
+				telemetryEndpoint: 'https://telemetry.example',
+				isInternal: false,
+				userName: 'octocat',
+				isVscodeTeamMember: false,
+				copilotIgnoreEnabled: true,
+			},
+			requests: ['/copilot_internal/user'],
+		});
+	});
+
+	test('disables restricted telemetry for internal and VS Code team accounts even when server sets restricted_telemetry', async () => {
+		const service = createService(async input => {
+			const url = getUrl(input);
+			if (url.endsWith('/copilot_internal/user')) {
+				return new Response(JSON.stringify({
+					login: 'octocat',
+					copilotignore_enabled: true,
+					restricted_telemetry: true,
+					analytics_tracking_id: 'tracking-id',
+					organization_login_list: ['microsoft', 'Visual-Studio-Code'],
+					endpoints: { api: 'https://api.githubcopilot.com', telemetry: 'https://telemetry.example' },
+				}), { status: 200 });
+			}
+			throw new Error(`Unexpected request: ${url}`);
+		});
+
+		assert.deepStrictEqual(await service.resolveRestrictedTelemetryContext('gh-token'), {
+			restrictedTelemetryEnabled: false,
+			trackingId: 'tracking-id',
+			telemetryEndpoint: undefined,
+			isInternal: true,
+			userName: 'octocat',
+			isVscodeTeamMember: true,
+			copilotIgnoreEnabled: true,
+		});
+	});
+
+	test('emits onDidRefreshCopilotUser when discovery cache refreshes', async () => {
+		const clock = sinon.useFakeTimers({ now: 1_000_000, toFake: ['Date'] });
+		try {
+			let restrictedTelemetry = true;
+			const service = createService(async input => {
+				const url = getUrl(input);
+				if (url.endsWith('/copilot_internal/user')) {
+					return userResponse({
+						login: 'octocat',
+						restricted_telemetry: restrictedTelemetry,
+						analytics_tracking_id: 'tracking-id',
+						endpoints: { api: 'https://api.githubcopilot.com', telemetry: 'https://telemetry.example' },
+					});
+				}
+				throw new Error(`Unexpected request: ${url}`);
+			});
+			const refreshed: { githubToken: string; restrictedTelemetryEnabled: boolean }[] = [];
+			disposables.add(service.onDidRefreshCopilotUser(e => refreshed.push({
+				githubToken: e.githubToken,
+				restrictedTelemetryEnabled: e.context.restrictedTelemetryEnabled,
+			})));
+
+			await service.resolveRestrictedTelemetryContext('gh-token');
+			clock.tick(26 * 60 * 1000);
+			restrictedTelemetry = false;
+			await service.resolveRestrictedTelemetryContext('gh-token');
+
+			assert.deepStrictEqual(refreshed, [
+				{ githubToken: 'gh-token', restrictedTelemetryEnabled: true },
+				{ githubToken: 'gh-token', restrictedTelemetryEnabled: false },
+			]);
+		} finally {
+			clock.restore();
+		}
+	});
+
+	test('keeps restricted telemetry disabled when user discovery does not opt in', async () => {
+		const service = createService(async input => {
+			const url = getUrl(input);
+			if (url.endsWith('/copilot_internal/user')) {
+				return new Response(JSON.stringify({
+					restricted_telemetry: false,
+					analytics_tracking_id: 'tracking-id',
+					endpoints: { telemetry: 'https://telemetry.example' },
+				}), { status: 200 });
+			}
+			throw new Error(`Unexpected request: ${url}`);
+		});
+
+		assert.deepStrictEqual(await service.resolveRestrictedTelemetryContext('gh-token'), {
+			restrictedTelemetryEnabled: false,
+			trackingId: 'tracking-id',
+			telemetryEndpoint: undefined,
+			isInternal: false,
+			userName: undefined,
+			isVscodeTeamMember: false,
+			copilotIgnoreEnabled: undefined,
+		});
+	});
+
+	test('recognizes all internal organization login aliases from user discovery', async () => {
+		const contexts = await Promise.all(['github', 'microsoft', 'ms-copilot', 'MicrosoftCopilot'].map(async organization => {
+			const service = createService(async input => {
+				const url = getUrl(input);
+				if (url.endsWith('/copilot_internal/user')) {
+					return userResponse({ organization_login_list: [organization] });
+				}
+				throw new Error(`Unexpected request: ${url}`);
+			});
+			return service.resolveRestrictedTelemetryContext(`gh-token-${organization}`);
+		}));
+
+		assert.deepStrictEqual(contexts.map(context => ({
+			isInternal: context.isInternal,
+			isVscodeTeamMember: context.isVscodeTeamMember,
+		})), [
+			{ isInternal: true, isVscodeTeamMember: false },
+			{ isInternal: true, isVscodeTeamMember: false },
+			{ isInternal: true, isVscodeTeamMember: false },
+			{ isInternal: true, isVscodeTeamMember: false },
+		]);
+	});
+
+	test('recognizes staff without an internal organization', async () => {
+		const service = createService(async input => {
+			const url = getUrl(input);
+			if (url.endsWith('/copilot_internal/user')) {
+				return userResponse({ is_staff: true });
+			}
+			throw new Error(`Unexpected request: ${url}`);
+		});
+
+		const context = await service.resolveRestrictedTelemetryContext('gh-token');
+		assert.deepStrictEqual({
+			isInternal: context.isInternal,
+			isVscodeTeamMember: context.isVscodeTeamMember,
+		}, {
+			isInternal: true,
+			isVscodeTeamMember: false,
+		});
+	});
 
 	// #region Endpoint Discovery
 
 	suite('Endpoint Discovery', () => {
 
 		test('runs endpoint discovery on first request', async () => {
-			let mintCount = 0;
+			let discoveryCount = 0;
 			const service = createService(async (input) => {
 				const url = getUrl(input);
 				if (url.includes('/copilot_internal')) {
-					mintCount++;
-					return tokenResponse();
+					discoveryCount++;
+					return userResponse();
 				}
 				return anthropicResponse([{ type: 'text', text: 'hi' }]);
 			});
 
 			await service.messages('gh-tok', baseRequest);
-			assert.strictEqual(mintCount, 1);
+			assert.strictEqual(discoveryCount, 1);
 		});
 
 		test('reuses cached endpoint discovery for consecutive calls with same github token', async () => {
-			let mintCount = 0;
+			let discoveryCount = 0;
 			const service = createService(async (input) => {
 				const url = getUrl(input);
 				if (url.includes('/copilot_internal')) {
-					mintCount++;
-					return tokenResponse();
+					discoveryCount++;
+					return userResponse();
 				}
 				return anthropicResponse([{ type: 'text', text: 'hi' }]);
 			});
@@ -158,33 +893,33 @@ suite('CopilotApiService', () => {
 			await service.messages('gh-tok', baseRequest);
 			await service.messages('gh-tok', baseRequest);
 			await service.messages('gh-tok', baseRequest);
-			assert.strictEqual(mintCount, 1);
+			assert.strictEqual(discoveryCount, 1);
 		});
 
 		test('re-discovers endpoints when the github token changes', async () => {
-			let mintCount = 0;
+			let discoveryCount = 0;
 			const service = createService(async (input) => {
 				const url = getUrl(input);
 				if (url.includes('/copilot_internal')) {
-					mintCount++;
-					return tokenResponse();
+					discoveryCount++;
+					return userResponse();
 				}
 				return anthropicResponse([{ type: 'text', text: 'hi' }]);
 			});
 
 			await service.messages('gh-tok-A', baseRequest);
 			await service.messages('gh-tok-B', baseRequest);
-			assert.strictEqual(mintCount, 2);
+			assert.strictEqual(discoveryCount, 2);
 		});
 
 		test('invalidates cached endpoint discovery on 401 from messages so the next call re-discovers', async () => {
-			let mintCount = 0;
+			let discoveryCount = 0;
 			let messageCallCount = 0;
 			const service = createService(async (input) => {
 				const url = getUrl(input);
 				if (url.includes('/copilot_internal')) {
-					mintCount++;
-					return tokenResponse();
+					discoveryCount++;
+					return userResponse();
 				}
 				messageCallCount++;
 				if (messageCallCount === 1) {
@@ -195,17 +930,36 @@ suite('CopilotApiService', () => {
 
 			await assert.rejects(() => service.messages('gh-tok', baseRequest));
 			await service.messages('gh-tok', baseRequest);
-			assert.strictEqual(mintCount, 2);
+			assert.strictEqual(discoveryCount, 2);
+		});
+
+		test('releases a rejected credential key while invalidating its captured SKU reader', async () => {
+			const token = 'rejected-gh-token';
+			const service = createService(async input => getUrl(input).includes('/copilot_internal')
+				? userResponse({ access_type_sku: 'sku-a' })
+				: new Response('unauthorized', { status: 401, statusText: 'Unauthorized' }));
+			await service.resolveCopilotSku(token);
+			const capturedContext = service.captureCopilotTelemetryContext(token);
+
+			await assert.rejects(() => service.messages(token, baseRequest));
+
+			assert.deepStrictEqual({
+				capturedSku: capturedContext()?.copilotSku,
+				retainedAsMapKey: hasMapKey(service, token),
+			}, {
+				capturedSku: undefined,
+				retainedAsMapKey: false,
+			});
 		});
 
 		test('invalidates cached endpoint discovery on 403 from models so the next call re-discovers', async () => {
-			let mintCount = 0;
+			let discoveryCount = 0;
 			let modelsCallCount = 0;
 			const service = createService(async (input) => {
 				const url = getUrl(input);
 				if (url.includes('/copilot_internal')) {
-					mintCount++;
-					return tokenResponse();
+					discoveryCount++;
+					return userResponse();
 				}
 				modelsCallCount++;
 				if (modelsCallCount === 1) {
@@ -216,23 +970,23 @@ suite('CopilotApiService', () => {
 
 			await assert.rejects(() => service.models('gh-tok'));
 			await service.models('gh-tok');
-			assert.strictEqual(mintCount, 2);
+			assert.strictEqual(discoveryCount, 2);
 		});
 
 		test('does not re-discover when the cache is still warm for the same token', async () => {
-			let mintCount = 0;
+			let discoveryCount = 0;
 			const service = createService(async (input) => {
 				const url = getUrl(input);
 				if (url.includes('/copilot_internal')) {
-					mintCount++;
-					return tokenResponse({ expires_at: Date.now() / 1000 + 7200 });
+					discoveryCount++;
+					return userResponse();
 				}
 				return anthropicResponse([{ type: 'text', text: 'hi' }]);
 			});
 
 			await service.messages('gh-tok', baseRequest);
 			await service.messages('gh-tok', baseRequest);
-			assert.strictEqual(mintCount, 1);
+			assert.strictEqual(discoveryCount, 1);
 		});
 
 		test('uses endpoints.api from the /copilot_internal/user response as the CAPI base', async () => {
@@ -244,6 +998,33 @@ suite('CopilotApiService', () => {
 
 			await service.messages('gh-tok', baseRequest);
 			assert.strictEqual(captured().url, 'https://custom.copilot.example.com/v1/messages');
+		});
+
+		test('reuses endpoint discovery when resolving GitHub login and Copilot SKU', async () => {
+			let discoveryCount = 0;
+			const service = createService(async input => {
+				const url = getUrl(input);
+				if (url.includes('/copilot_internal/user')) {
+					discoveryCount++;
+					return new Response(JSON.stringify({
+						login: 'octocat',
+						access_type_sku: 'copilot_for_business_seat',
+						endpoints: { api: 'https://custom.copilot.example.com' },
+					}), { status: 200 });
+				}
+				throw new Error(`Unexpected URL: ${url}`);
+			});
+
+			const apiEndpoint = await service.resolveApiEndpoint('gh-tok');
+			const login = await service.resolveUserLogin('gh-tok');
+			const copilotSku = await service.resolveCopilotSku('gh-tok');
+
+			assert.deepStrictEqual({ apiEndpoint, login, copilotSku, discoveryCount }, {
+				apiEndpoint: 'https://custom.copilot.example.com',
+				login: 'octocat',
+				copilotSku: 'copilot_for_business_seat',
+				discoveryCount: 1,
+			});
 		});
 
 		test('falls back to default API base when endpoints.api is missing', async () => {
@@ -263,7 +1044,7 @@ suite('CopilotApiService', () => {
 				if (url.includes('/copilot_internal')) {
 					const headers = init?.headers as Record<string, string>;
 					capturedAuthHeader = headers?.['Authorization'];
-					return tokenResponse();
+					return userResponse();
 				}
 				return anthropicResponse([{ type: 'text', text: 'ok' }]);
 			});
@@ -272,11 +1053,46 @@ suite('CopilotApiService', () => {
 			assert.strictEqual(capturedAuthHeader, 'Bearer my-secret-gh-token');
 		});
 
-		test('throws on 403 from endpoint discovery', async () => {
-			const service = createService(async () => new Response('{"message":"Not authorized"}', { status: 403, statusText: 'Forbidden' }));
+		test('routes endpoint discovery to the GitHub Enterprise host when configured', async () => {
+			let discoveryUrl: string | undefined;
+			const service = createService(async (input) => {
+				const url = getUrl(input);
+				if (url.includes('/copilot_internal')) {
+					discoveryUrl = url;
+					return userResponse();
+				}
+				return anthropicResponse([{ type: 'text', text: 'ok' }]);
+			}, 'https://acme.ghe.com');
+
+			await service.messages('gh-tok', baseRequest);
+			assert.strictEqual(discoveryUrl, 'https://api.acme.ghe.com/copilot_internal/user');
+		});
+
+		test('preserves authentication errors from endpoint discovery', async () => {
+			const service = createService(async () => new Response('{"message":"Bad credentials"}', { status: 401, statusText: 'Unauthorized' }));
 			await assert.rejects(
 				() => service.messages('bad-tok', baseRequest),
-				(err: Error) => err.message.includes('Copilot endpoint discovery failed: 403'),
+				(err: Error) => {
+					assert.deepStrictEqual({
+						isCopilotApiError: err instanceof CopilotApiError,
+						status: err instanceof CopilotApiError ? err.status : undefined,
+						message: err.message,
+						envelope: err instanceof CopilotApiError ? err.envelope : undefined,
+					}, {
+						isCopilotApiError: true,
+						status: 401,
+						message: 'Copilot endpoint discovery failed: 401 Unauthorized — {"message":"Bad credentials"}',
+						envelope: {
+							type: 'error',
+							error: {
+								type: 'api_error',
+								message: '{"message":"Bad credentials"}',
+							},
+							request_id: null,
+						},
+					});
+					return true;
+				},
 			);
 		});
 
@@ -289,13 +1105,13 @@ suite('CopilotApiService', () => {
 		});
 
 		test('does not double-discover when concurrent requests race on first call', async () => {
-			let mintCount = 0;
+			let discoveryCount = 0;
 			const service = createService(async (input) => {
 				const url = getUrl(input);
 				if (url.includes('/copilot_internal')) {
-					mintCount++;
+					discoveryCount++;
 					await new Promise(r => setTimeout(r, 10)); // ensure overlap
-					return tokenResponse();
+					return userResponse();
 				}
 				return anthropicResponse([{ type: 'text', text: 'ok' }]);
 			});
@@ -304,17 +1120,17 @@ suite('CopilotApiService', () => {
 				service.messages('gh-tok', baseRequest),
 				service.messages('gh-tok', baseRequest),
 			]);
-			assert.strictEqual(mintCount, 1);
+			assert.strictEqual(discoveryCount, 1);
 		});
 
 		test('in-flight discovery dedup spans concurrent messages + models calls', async () => {
-			let mintCount = 0;
+			let discoveryCount = 0;
 			const service = createService(async (input) => {
 				const url = getUrl(input);
 				if (url.includes('/copilot_internal')) {
-					mintCount++;
+					discoveryCount++;
 					await new Promise(r => setTimeout(r, 10));
-					return tokenResponse();
+					return userResponse();
 				}
 				if (url.includes('/models')) {
 					return modelsResponse([]);
@@ -326,7 +1142,7 @@ suite('CopilotApiService', () => {
 				service.messages('gh-tok', baseRequest),
 				service.models('gh-tok'),
 			]);
-			assert.strictEqual(mintCount, 1);
+			assert.strictEqual(discoveryCount, 1);
 		});
 
 		test('error from endpoint discovery does not include the github token', async () => {
@@ -341,25 +1157,25 @@ suite('CopilotApiService', () => {
 			const service = createService(async (input) => {
 				const url = getUrl(input);
 				if (url.includes('/copilot_internal')) {
-					return tokenResponse({ token: 'super-secret-copilot-token-xyz' });
+					return userResponse();
 				}
 				return new Response('rate limited', { status: 429, statusText: 'Too Many Requests' });
 			});
 			await assert.rejects(
 				() => service.messages('super-secret-gh-token-xyz', baseRequest),
-				(err: Error) => !err.message.includes('super-secret-copilot-token-xyz') && !err.message.includes('super-secret-gh-token-xyz'),
+				(err: Error) => !err.message.includes('super-secret-gh-token-xyz'),
 			);
 		});
 
 		test('discovers independently for concurrent requests with different github tokens', async () => {
-			const minted: string[] = [];
+			const authorizationHeaders: string[] = [];
 			const service = createService(async (input, init) => {
 				const url = getUrl(input);
 				if (url.includes('/copilot_internal')) {
 					const auth = (init?.headers as Record<string, string>)?.['Authorization'] ?? '';
-					minted.push(auth);
+					authorizationHeaders.push(auth);
 					await new Promise(r => setTimeout(r, 10)); // ensure overlap
-					return tokenResponse();
+					return userResponse();
 				}
 				return anthropicResponse([{ type: 'text', text: 'ok' }]);
 			});
@@ -368,9 +1184,87 @@ suite('CopilotApiService', () => {
 				service.messages('gh-tok-A', baseRequest),
 				service.messages('gh-tok-B', baseRequest),
 			]);
-			assert.strictEqual(minted.length, 2);
-			assert.ok(minted.some(h => h.includes('gh-tok-A')));
-			assert.ok(minted.some(h => h.includes('gh-tok-B')));
+			assert.strictEqual(authorizationHeaders.length, 2);
+			assert.ok(authorizationHeaders.some(header => header.includes('gh-tok-A')));
+			assert.ok(authorizationHeaders.some(header => header.includes('gh-tok-B')));
+		});
+
+		suite('CAPI URL override (VSCODE_AGENT_HOST_CAPI_URL_OVERRIDE)', () => {
+			const ENV = 'VSCODE_AGENT_HOST_CAPI_URL_OVERRIDE';
+			const SMOKE_TEST_ENV = 'VSCODE_SMOKE_TEST_PROXY_HEADER';
+			let saved: string | undefined;
+			let savedSmokeTestEnv: string | undefined;
+
+			setup(() => {
+				saved = process.env[ENV];
+				savedSmokeTestEnv = process.env[SMOKE_TEST_ENV];
+				delete process.env[SMOKE_TEST_ENV];
+			});
+			teardown(() => {
+				if (saved === undefined) {
+					delete process.env[ENV];
+				} else {
+					process.env[ENV] = saved;
+				}
+				if (savedSmokeTestEnv === undefined) {
+					delete process.env[SMOKE_TEST_ENV];
+				} else {
+					process.env[SMOKE_TEST_ENV] = savedSmokeTestEnv;
+				}
+			});
+
+			test('a loopback override skips discovery and routes CAPI at the override', async () => {
+				process.env[ENV] = 'http://127.0.0.1:12345';
+				let discoveryHit = false;
+				const service = createService(async (input) => {
+					const url = getUrl(input);
+					if (url.includes('/copilot_internal')) {
+						discoveryHit = true;
+						return userResponse();
+					}
+					return anthropicResponse([{ type: 'text', text: 'ok' }]);
+				});
+
+				await service.messages('gh-secret', baseRequest);
+
+				assert.strictEqual(discoveryHit, false, 'discovery must be skipped for a loopback override');
+			});
+
+			test('the reserved smoke-test host skips discovery only with the proxy marker', async () => {
+				process.env[ENV] = 'http://vscode-smoke.test:12345';
+				process.env[SMOKE_TEST_ENV] = 'test-marker';
+				let discoveryHit = false;
+				const service = createService(async (input) => {
+					const url = getUrl(input);
+					if (url.includes('/copilot_internal')) {
+						discoveryHit = true;
+						return userResponse();
+					}
+					return anthropicResponse([{ type: 'text', text: 'ok' }]);
+				});
+
+				await service.messages('gh-secret', baseRequest);
+
+				assert.strictEqual(discoveryHit, false, 'the smoke-test override must skip endpoint discovery');
+			});
+
+			test('a non-loopback override is ignored and normal discovery runs (no token leak)', async () => {
+				process.env[ENV] = 'https://evil.example.com';
+				process.env[SMOKE_TEST_ENV] = 'test-marker';
+				let discoveryHit = false;
+				const service = createService(async (input) => {
+					const url = getUrl(input);
+					if (url.includes('/copilot_internal')) {
+						discoveryHit = true;
+						return userResponse();
+					}
+					return anthropicResponse([{ type: 'text', text: 'ok' }]);
+				});
+
+				await service.messages('gh-secret', baseRequest);
+
+				assert.strictEqual(discoveryHit, true, 'a non-loopback override must be ignored so the token is never sent to it');
+			});
 		});
 	});
 
@@ -414,6 +1308,175 @@ suite('CopilotApiService', () => {
 			const body = JSON.parse(captured().init?.body as string);
 
 			assert.strictEqual(body.max_tokens, 8192);
+		});
+
+		test('sends utility maxTokens as max_tokens in the body', async () => {
+			let capturedBody: string | undefined;
+			const service = createService(async (input, init) => {
+				const url = getUrl(input);
+				if (url.includes('/copilot_internal')) {
+					return userResponse();
+				}
+				if (url.endsWith('/models')) {
+					return modelsResponse([{ id: 'gpt-4o-mini-model', capabilities: { family: 'gpt-4o-mini' } }]);
+				}
+				capturedBody = init?.body as string;
+				return new Response(JSON.stringify({ choices: [{ message: { content: 'Generated title' } }] }), { status: 200 });
+			});
+
+			await service.utilityChatCompletion('gh-tok', {
+				messages: [{ role: 'user', content: 'Generate a title' }],
+				maxTokens: 32,
+				telemetry: { source: 'title' },
+			});
+
+			assert.strictEqual(JSON.parse(capturedBody ?? '{}').max_tokens, 32);
+		});
+
+		test('uses the GitHub OAuth token directly for utility completions', async () => {
+			const requests: Array<{ url: string; authorization: string | undefined }> = [];
+			const service = createService(async (input, init) => {
+				const url = getUrl(input);
+				requests.push({ url, authorization: (init?.headers as Record<string, string> | undefined)?.['Authorization'] });
+				if (url.endsWith('/models')) {
+					return modelsResponse([{ id: 'gpt-4o-mini-model', capabilities: { family: 'gpt-4o-mini' } }]);
+				}
+				return new Response(JSON.stringify({ choices: [{ message: { content: 'Generated title' } }] }), { status: 200 });
+			});
+
+			await service.utilityChatCompletion('gh-oauth-token', {
+				messages: [{ role: 'user', content: 'Generate a title' }],
+				telemetry: { source: 'title' },
+			});
+
+			assert.deepStrictEqual(requests.map(request => ({
+				path: new URL(request.url).pathname,
+				authorization: request.authorization,
+			})), [
+				{ path: '/copilot_internal/user', authorization: 'Bearer gh-oauth-token' },
+				{ path: '/models', authorization: 'Bearer gh-oauth-token' },
+				{ path: '/chat/completions', authorization: 'Bearer gh-oauth-token' },
+			]);
+		});
+
+		test('utility auth failure rediscovers endpoints and utility model', async () => {
+			let userCount = 0;
+			let modelsCount = 0;
+			let completionCount = 0;
+			const service = createService(async input => {
+				const url = getUrl(input);
+				if (url.endsWith('/copilot_internal/user')) {
+					userCount++;
+					return userResponse();
+				}
+				if (url.endsWith('/models')) {
+					modelsCount++;
+					return modelsResponse([{ id: 'gpt-4o-mini-model', capabilities: { family: 'gpt-4o-mini' } }]);
+				}
+				completionCount++;
+				return completionCount === 1
+					? new Response('Unauthorized', { status: 401, statusText: 'Unauthorized' })
+					: new Response(JSON.stringify({ choices: [{ message: { content: 'Generated title' } }] }), { status: 200 });
+			});
+			const request = { messages: [{ role: 'user' as const, content: 'Generate a title' }], telemetry: { source: 'title' as const } };
+
+			await assert.rejects(() => service.utilityChatCompletion('gh-oauth-token', request));
+			await service.utilityChatCompletion('gh-oauth-token', request);
+
+			assert.deepStrictEqual({ userCount, modelsCount, completionCount }, {
+				userCount: 2,
+				modelsCount: 2,
+				completionCount: 2,
+			});
+		});
+
+		test('reports utility completion telemetry on both streams without content', async () => {
+			const clock = sinon.useFakeTimers({ now: 1_000_000, toFake: ['Date'] });
+			try {
+				const telemetry = new UtilityTelemetryService();
+				const requestIds: string[] = [];
+				const service = createService(async (input, init) => {
+					const url = getUrl(input);
+					if (url.endsWith('/copilot_internal/user')) {
+						return userResponse({
+							analytics_tracking_id: 'tracking-1',
+							restricted_telemetry: true,
+							endpoints: { api: 'https://api.githubcopilot.com', telemetry: 'https://telemetry.example/' },
+						});
+					}
+					if (url.endsWith('/models')) {
+						return modelsResponse([{ id: 'gpt-4o-mini-model', capabilities: { family: 'gpt-4o-mini' } }]);
+					}
+					requestIds.push((init?.headers as Record<string, string>)['X-Request-Id']);
+					clock.tick(40);
+					const response = requestIds.length === 1
+						? new Response(JSON.stringify({
+							model: 'gpt-4o-mini-2024-07-18',
+							choices: [{ message: { content: 'Generated title' }, finish_reason: 'stop' }],
+							usage: { prompt_tokens: 12, completion_tokens: 3, total_tokens: 15, prompt_tokens_details: { cached_tokens: 4 }, completion_tokens_details: { reasoning_tokens: 1 } },
+						}), { status: 200 })
+						: new Response('Server error', { status: 500, statusText: 'Internal Server Error' });
+					response.headers.set('x-github-request-id', 'D3ED:ABCD:1234');
+					response.headers.set('x-copilot-service-request-id', requestIds.length === 1 ? 'service-1' : 'not a token');
+					return response;
+				}, undefined, telemetry);
+				const request = { messages: [{ role: 'user' as const, content: 'Generate a title' }], telemetry: { source: 'title' as const, agentSessionId: 'session-1' } };
+
+				await service.utilityChatCompletion('gh-tok', request);
+				await assert.rejects(() => service.utilityChatCompletion('gh-tok', request));
+
+				const properties = { source: 'title', initiatorType: 'agent', requestKind: 'conversation-background', gitHubRequestId: 'D3ED:ABCD:1234' };
+				const success = { ...properties, outcome: 'success', reason: 'stop', requestId: requestIds[0], copilotServiceRequestId: 'service-1' };
+				const failure = { ...properties, outcome: 'error', requestId: requestIds[1] };
+				const successMeasurements = { isBYOK: -1, httpStatus: 200, promptTokenCount: 12, promptCacheTokenCount: 4, completionTokens: 3, tokenCount: 15, reasoningTokens: 1, timeToComplete: 40 };
+				const failureMeasurements = { isBYOK: -1, httpStatus: 500, timeToComplete: 40 };
+				const context = { trackingId: 'tracking-1', telemetryEndpoint: 'https://telemetry.example/telemetry' };
+				assert.deepStrictEqual({
+					events: telemetry.events.filter(event => event.name === 'agentHost.utilityModelCall'),
+					ghEvents: telemetry.ghEvents,
+				}, {
+					events: [
+						{ name: 'agentHost.utilityModelCall', data: { ...success, ...successMeasurements, agentSessionId: 'session-1', model: new TelemetryTrustedValue('gpt-4o-mini-model'), modelInvoked: new TelemetryTrustedValue('gpt-4o-mini-2024-07-18') } },
+						{ name: 'agentHost.utilityModelCall', data: { ...failure, ...failureMeasurements, agentSessionId: 'session-1', model: new TelemetryTrustedValue('gpt-4o-mini-model') } },
+					],
+					ghEvents: [
+						{ context, name: 'agentHost.utilityModelCall', properties: { ...success, conversationId: 'session-1', model: 'gpt-4o-mini-model', modelInvoked: 'gpt-4o-mini-2024-07-18' }, measurements: successMeasurements },
+						{ context, name: 'agentHost.utilityModelCall', properties: { ...failure, conversationId: 'session-1', model: 'gpt-4o-mini-model' }, measurements: failureMeasurements },
+					],
+				});
+			} finally {
+				clock.restore();
+			}
+		});
+
+		test('attributes utility telemetry to the sending account and skips calls that fail before sending', async () => {
+			const telemetry = new UtilityTelemetryService();
+			const service = createService(async (input, init) => {
+				const url = getUrl(input);
+				const token = (init?.headers as Record<string, string> | undefined)?.['Authorization']?.replace('Bearer ', '');
+				if (url.endsWith('/copilot_internal/user')) {
+					return userResponse({
+						analytics_tracking_id: `tracking-${token}`,
+						endpoints: { api: 'https://api.githubcopilot.com', telemetry: 'https://telemetry.example' },
+					});
+				}
+				if (url.endsWith('/models')) {
+					return modelsResponse(token === 'gh-a' ? [{ id: 'gpt-4o-mini-model', capabilities: { family: 'gpt-4o-mini' } }] : []);
+				}
+				return new Response(JSON.stringify({ choices: [{ message: { content: 'Generated title' } }] }), { status: 200 });
+			}, undefined, telemetry);
+			const request = { messages: [{ role: 'user' as const, content: 'Generate a title' }], telemetry: { source: 'title' as const } };
+
+			await service.utilityChatCompletion('gh-a', request);
+			await assert.rejects(() => service.utilityChatCompletion('gh-b', request), /No CAPI model available/);
+
+			assert.deepStrictEqual({
+				events: telemetry.events.filter(event => event.name === 'agentHost.utilityModelCall').map(event => event.data?.outcome),
+				ghEvents: telemetry.ghEvents.map(event => ({ context: event.context, outcome: event.properties?.outcome })),
+			}, {
+				events: ['success'],
+				ghEvents: [{ context: { trackingId: 'tracking-gh-a', telemetryEndpoint: undefined }, outcome: 'success' }],
+			});
 		});
 
 		test('non-streaming sends stream=false in the body', async () => {
@@ -463,7 +1526,8 @@ suite('CopilotApiService', () => {
 
 			assert.strictEqual(headers['Content-Type'], 'application/json');
 			assert.strictEqual(headers['Authorization'], 'Bearer gh-tok');
-			assert.strictEqual(headers['OpenAI-Intent'], 'conversation');
+			assert.strictEqual(headers['OpenAI-Intent'], 'messages-proxy');
+			assert.strictEqual(headers['X-Interaction-Type'], 'messages-proxy');
 			assert.ok(headers['X-Request-Id'], 'should have a request id');
 			assert.ok(headers['X-GitHub-Api-Version'], 'CAPIClient should inject API version');
 			assert.ok(headers['VScode-SessionId'], 'CAPIClient should inject session id');
@@ -535,7 +1599,26 @@ suite('CopilotApiService', () => {
 			assert.strictEqual(headers['Authorization'], 'Bearer gh-tok');
 			assert.strictEqual(headers['Content-Type'], 'application/json');
 			assert.notStrictEqual(headers['X-Request-Id'], 'attacker-id');
-			assert.strictEqual(headers['OpenAI-Intent'], 'conversation');
+			assert.strictEqual(headers['OpenAI-Intent'], 'messages-proxy');
+		});
+
+		test('suppressIntegrationId opt-in controls the Copilot-Integration-Id header', async () => {
+			const { fetch: fetchFn, captured } = routingFetch(
+				() => anthropicResponse([{ type: 'text', text: 'ok' }]),
+			);
+			const service = createService(fetchFn);
+
+			// Default (no opt-in): @vscode/copilot-api derives and sends the header.
+			await service.messages('gh-tok', baseRequest);
+			const withHeader = captured().init?.headers as Record<string, string>;
+
+			// Opt-in: the header is omitted entirely so CAPI authorizes against
+			// the token's real entitlement instead of the derived integration id.
+			await service.messages('gh-tok', baseRequest, { suppressIntegrationId: true });
+			const suppressed = captured().init?.headers as Record<string, string>;
+
+			assert.ok(withHeader['Copilot-Integration-Id'], 'integration id should be present by default');
+			assert.strictEqual(suppressed['Copilot-Integration-Id'], undefined, 'integration id should be suppressed when opted in');
 		});
 	});
 
@@ -946,13 +2029,13 @@ suite('CopilotApiService', () => {
 			);
 		});
 
-		test('does not mint a token before throwing', async () => {
-			let mintCount = 0;
+		test('does not discover endpoints before throwing', async () => {
+			let discoveryCount = 0;
 			const service = createService(async (input) => {
 				const url = getUrl(input);
 				if (url.includes('/copilot_internal')) {
-					mintCount++;
-					return tokenResponse();
+					discoveryCount++;
+					return userResponse();
 				}
 				return new Response('{}', { status: 200 });
 			});
@@ -960,7 +2043,7 @@ suite('CopilotApiService', () => {
 			await assert.rejects(
 				() => service.countTokens('gh-tok', { model: 'claude-sonnet-4-5', messages: [{ role: 'user', content: 'hi' }] }),
 			);
-			assert.strictEqual(mintCount, 0);
+			assert.strictEqual(discoveryCount, 0);
 		});
 	});
 
@@ -975,7 +2058,7 @@ suite('CopilotApiService', () => {
 			const service = createService(async (input) => {
 				const url = getUrl(input);
 				if (url.includes('/copilot_internal')) {
-					return tokenResponse();
+					return userResponse();
 				}
 				urls.push(url);
 				if (urls.length === 1) {
@@ -992,20 +2075,20 @@ suite('CopilotApiService', () => {
 			assert.ok(urls[1].endsWith('/v1/messages'));
 		});
 
-		test('both modes share the same cached copilot token', async () => {
-			let mintCount = 0;
+		test('both modes share the same cached endpoint discovery', async () => {
+			let discoveryCount = 0;
 			const service = createService(async (input) => {
 				const url = getUrl(input);
 				if (url.includes('/copilot_internal')) {
-					mintCount++;
-					return tokenResponse();
+					discoveryCount++;
+					return userResponse();
 				}
 				return anthropicResponse([{ type: 'text', text: 'ok' }]);
 			});
 
 			await service.messages('gh-tok', baseRequest);
 			await service.messages('gh-tok', baseRequest);
-			assert.strictEqual(mintCount, 1);
+			assert.strictEqual(discoveryCount, 1);
 		});
 	});
 
@@ -1244,25 +2327,24 @@ suite('CopilotApiService', () => {
 			const service = createService(async (input) => {
 				const url = getUrl(input);
 				if (url.includes('/copilot_internal')) {
-					return tokenResponse({ token: 'super-secret-copilot-token-xyz' });
+					return userResponse();
 				}
 				return new Response('rate limited', { status: 429, statusText: 'Too Many Requests' });
 			});
 
 			const err = await captureCopilotApiError(service.messages('super-secret-gh-token-xyz', baseRequest));
 			const serialized = JSON.stringify({ message: err.message, envelope: err.envelope });
-			assert.ok(!serialized.includes('super-secret-copilot-token-xyz'));
-			assert.ok(!serialized.includes('super-secret-gh-token-xyz'));
+			assert.strictEqual(serialized.includes('super-secret-gh-token-xyz'), false);
 		});
 
-		test('401 still invalidates the cached token (regression)', async () => {
-			let mintCount = 0;
+		test('401 still invalidates cached endpoint discovery', async () => {
+			let discoveryCount = 0;
 			let next401 = true;
 			const service = createService(async (input) => {
 				const url = getUrl(input);
 				if (url.includes('/copilot_internal')) {
-					mintCount++;
-					return tokenResponse();
+					discoveryCount++;
+					return userResponse();
 				}
 				if (next401) {
 					next401 = false;
@@ -1273,7 +2355,7 @@ suite('CopilotApiService', () => {
 
 			await captureCopilotApiError(service.messages('gh-tok', baseRequest));
 			await service.messages('gh-tok', baseRequest);
-			assert.strictEqual(mintCount, 2);
+			assert.strictEqual(discoveryCount, 2);
 		});
 	});
 
@@ -1289,7 +2371,7 @@ suite('CopilotApiService', () => {
 			const service = createService(async (input, init) => {
 				const url = getUrl(input);
 				if (url.includes('/copilot_internal')) {
-					return tokenResponse();
+					return userResponse();
 				}
 				capturedSignal = init?.signal as AbortSignal;
 				return anthropicResponse([{ type: 'text', text: 'ok' }]);
@@ -1305,7 +2387,7 @@ suite('CopilotApiService', () => {
 			const service = createService(async (input, init) => {
 				const url = getUrl(input);
 				if (url.includes('/copilot_internal')) {
-					return tokenResponse();
+					return userResponse();
 				}
 				capturedSignal = init?.signal as AbortSignal;
 				return modelsResponse([]);
@@ -1315,20 +2397,20 @@ suite('CopilotApiService', () => {
 			assert.strictEqual(capturedSignal, controller.signal);
 		});
 
-		test('does not forward AbortSignal to the shared token mint fetch', async () => {
+		test('does not forward AbortSignal to shared endpoint discovery', async () => {
 			const controller = new AbortController();
-			let mintSignal: AbortSignal | undefined;
+			let discoverySignal: AbortSignal | undefined;
 			const service = createService(async (input, init) => {
 				const url = getUrl(input);
 				if (url.includes('/copilot_internal')) {
-					mintSignal = init?.signal as AbortSignal;
-					return tokenResponse();
+					discoverySignal = init?.signal as AbortSignal;
+					return userResponse();
 				}
 				return anthropicResponse([{ type: 'text', text: 'ok' }]);
 			});
 
 			await service.messages('gh-tok', baseRequest, { signal: controller.signal });
-			assert.strictEqual(mintSignal, undefined);
+			assert.strictEqual(discoverySignal, undefined);
 		});
 
 		test('cancels the underlying SSE stream when the consumer breaks early', async () => {
@@ -1346,7 +2428,7 @@ suite('CopilotApiService', () => {
 			const service = createService(async (input) => {
 				const url = getUrl(input);
 				if (url.includes('/copilot_internal')) {
-					return tokenResponse();
+					return userResponse();
 				}
 				return new Response(body, { status: 200, headers: { 'Content-Type': 'text/event-stream' } });
 			});
@@ -1376,7 +2458,7 @@ suite('CopilotApiService', () => {
 			const service = createService(async (input) => {
 				const url = getUrl(input);
 				if (url.includes('/copilot_internal')) {
-					return tokenResponse();
+					return userResponse();
 				}
 				return new Response(body, { status: 200, headers: { 'Content-Type': 'text/event-stream' } });
 			});
@@ -1400,7 +2482,7 @@ suite('CopilotApiService', () => {
 			const service = createService(async (input) => {
 				const url = getUrl(input);
 				if (url.includes('/copilot_internal')) {
-					return tokenResponse();
+					return userResponse();
 				}
 				return new Response(body, { status: 200, headers: { 'Content-Type': 'text/event-stream' } });
 			});
@@ -1424,7 +2506,7 @@ suite('CopilotApiService', () => {
 			const service = createService(async (input) => {
 				const url = getUrl(input);
 				if (url.includes('/copilot_internal')) {
-					return tokenResponse();
+					return userResponse();
 				}
 				return modelsResponse(fakeModels);
 			});
@@ -1437,7 +2519,7 @@ suite('CopilotApiService', () => {
 			const service = createService(async (input) => {
 				const url = getUrl(input);
 				if (url.includes('/copilot_internal')) {
-					return tokenResponse();
+					return userResponse();
 				}
 				return new Response(JSON.stringify({}), { status: 200 });
 			});
@@ -1451,7 +2533,7 @@ suite('CopilotApiService', () => {
 			const service = createService(async (input, init) => {
 				const url = getUrl(input);
 				if (url.includes('/copilot_internal')) {
-					return tokenResponse();
+					return userResponse();
 				}
 				capturedAuthHeader = (init?.headers as Record<string, string>)?.['Authorization'];
 				return modelsResponse([]);
@@ -1465,7 +2547,7 @@ suite('CopilotApiService', () => {
 			const service = createService(async (input) => {
 				const url = getUrl(input);
 				if (url.includes('/copilot_internal')) {
-					return tokenResponse();
+					return userResponse();
 				}
 				return new Response('forbidden', { status: 403, statusText: 'Forbidden' });
 			});
@@ -1478,13 +2560,13 @@ suite('CopilotApiService', () => {
 			);
 		});
 
-		test('reuses cached token across messages and models calls', async () => {
-			let mintCount = 0;
+		test('reuses cached endpoint discovery across messages and models calls', async () => {
+			let discoveryCount = 0;
 			const service = createService(async (input) => {
 				const url = getUrl(input);
 				if (url.includes('/copilot_internal')) {
-					mintCount++;
-					return tokenResponse();
+					discoveryCount++;
+					return userResponse();
 				}
 				if (url.includes('/models')) {
 					return modelsResponse([]);
@@ -1494,7 +2576,7 @@ suite('CopilotApiService', () => {
 
 			await service.messages('gh-tok', baseRequest);
 			await service.models('gh-tok');
-			assert.strictEqual(mintCount, 1);
+			assert.strictEqual(discoveryCount, 1);
 		});
 
 		test('routes to the models endpoint URL', async () => {
@@ -1510,7 +2592,7 @@ suite('CopilotApiService', () => {
 			const service = createService(async (input, init) => {
 				const url = getUrl(input);
 				if (url.includes('/copilot_internal')) {
-					return tokenResponse();
+					return userResponse();
 				}
 				capturedHeaders = init?.headers as Record<string, string>;
 				return modelsResponse([]);
@@ -1520,6 +2602,23 @@ suite('CopilotApiService', () => {
 				headers: { 'Authorization': 'Bearer attacker-token' },
 			});
 			assert.strictEqual(capturedHeaders?.['Authorization'], 'Bearer gh-tok');
+		});
+
+		test('suppressIntegrationId opt-in controls the Copilot-Integration-Id header', async () => {
+			const { fetch: fetchFn, captured } = routingFetch(() => modelsResponse([]));
+			const service = createService(fetchFn);
+
+			// Default (no opt-in): @vscode/copilot-api derives and sends the header.
+			await service.models('gh-tok');
+			const withHeader = captured().init?.headers as Record<string, string>;
+
+			// Opt-in: the header is omitted entirely so CAPI authorizes against
+			// the token's real entitlement instead of the derived integration id.
+			await service.models('gh-tok', { suppressIntegrationId: true });
+			const suppressed = captured().init?.headers as Record<string, string>;
+
+			assert.ok(withHeader['Copilot-Integration-Id'], 'integration id should be present by default');
+			assert.strictEqual(suppressed['Copilot-Integration-Id'], undefined, 'integration id should be suppressed when opted in');
 		});
 	});
 

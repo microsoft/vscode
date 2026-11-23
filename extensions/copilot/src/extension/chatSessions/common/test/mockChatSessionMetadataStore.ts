@@ -6,7 +6,6 @@
 import type * as vscode from 'vscode';
 import { IChatSessionMetadataStore, RepositoryProperties, RequestDetails, WorkspaceFolderEntry } from '../chatSessionMetadataStore';
 import { ChatSessionWorktreeProperties } from '../chatSessionWorktreeService';
-import { IWorkspaceInfo } from '../workspaceInfo';
 
 export class MockChatSessionMetadataStore implements IChatSessionMetadataStore {
 	getMetadataFileUri(sessionId: string): vscode.Uri {
@@ -16,7 +15,6 @@ export class MockChatSessionMetadataStore implements IChatSessionMetadataStore {
 
 	private readonly _worktreeProperties = new Map<string, ChatSessionWorktreeProperties>();
 	private readonly _workspaceFolders = new Map<string, WorkspaceFolderEntry>();
-	private readonly _additionalWorkspaces = new Map<string, IWorkspaceInfo[]>();
 	private readonly _firstUserMessages = new Map<string, string>();
 	private readonly _customTitles = new Map<string, string>();
 	private readonly _requestDetails = new Map<string, RequestDetails[]>();
@@ -25,7 +23,6 @@ export class MockChatSessionMetadataStore implements IChatSessionMetadataStore {
 	async deleteSessionMetadata(sessionId: string): Promise<void> {
 		this._worktreeProperties.delete(sessionId);
 		this._workspaceFolders.delete(sessionId);
-		this._additionalWorkspaces.delete(sessionId);
 		this._firstUserMessages.delete(sessionId);
 		this._customTitles.delete(sessionId);
 		this._requestDetails.delete(sessionId);
@@ -64,14 +61,6 @@ export class MockChatSessionMetadataStore implements IChatSessionMetadataStore {
 
 	async getSessionWorkspaceFolderEntry(sessionId: string): Promise<WorkspaceFolderEntry | undefined> {
 		return undefined;
-	}
-
-	async getAdditionalWorkspaces(sessionId: string): Promise<IWorkspaceInfo[]> {
-		return this._additionalWorkspaces.get(sessionId) ?? [];
-	}
-
-	async setAdditionalWorkspaces(sessionId: string, workspaces: IWorkspaceInfo[]): Promise<void> {
-		this._additionalWorkspaces.set(sessionId, workspaces);
 	}
 
 	async getSessionFirstUserMessage(sessionId: string): Promise<string | undefined> {
@@ -127,10 +116,6 @@ export class MockChatSessionMetadataStore implements IChatSessionMetadataStore {
 		if (folder) {
 			this._workspaceFolders.set(targetSessionId, folder);
 		}
-		const additional = this._additionalWorkspaces.get(sourceSessionId);
-		if (additional) {
-			this._additionalWorkspaces.set(targetSessionId, additional);
-		}
 		const firstMsg = this._firstUserMessages.get(sourceSessionId);
 		if (firstMsg) {
 			this._firstUserMessages.set(targetSessionId, firstMsg);
@@ -139,6 +124,10 @@ export class MockChatSessionMetadataStore implements IChatSessionMetadataStore {
 
 	async setSessionOrigin(sessionId: string): Promise<void> {
 		this._sessionOrigins.set(sessionId, 'vscode');
+	}
+
+	setSessionOriginForTest(sessionId: string, origin: 'vscode' | 'other'): void {
+		this._sessionOrigins.set(sessionId, origin);
 	}
 
 	async getSessionOrigin(sessionId: string): Promise<'vscode' | 'other'> {

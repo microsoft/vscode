@@ -44,7 +44,7 @@ const isMobilePlatform = isMobile;
  * Phone and tablet classifications are gated on a mobile OS; desktop
  * browsers and Electron always report `desktop` regardless of width.
  */
-function classifyViewport(width: number): ViewportClass {
+export function classifyViewport(width: number): ViewportClass {
 	if (!isMobilePlatform) {
 		return 'desktop';
 	}
@@ -83,17 +83,38 @@ export class SessionsLayoutPolicy extends Disposable {
 	/** Current viewport class derived from the most recent `update()` call. */
 	readonly viewportClass: IObservable<ViewportClass> = this._viewportClass;
 
+	/**
+	 * Whether the agents window uses the desktop layout (editor spans the
+	 * detail panel as a docked auxiliary bar). Fixed by the workbench selected at
+	 * startup. Never active on phone, which has its own mobile layout.
+	 */
+	private _desktop = false;
+
+	get isDesktop(): boolean {
+		return this._desktop && this._viewportClass.get() !== 'phone';
+	}
+
+	/** Set once at startup from the selected workbench before the first layout. */
+	setDesktop(value: boolean): void {
+		this._desktop = value;
+	}
+
 	/** `true` when the viewport class is `phone`. */
 	readonly isPhoneLayout: IObservable<boolean> = derived(this, reader => {
 		return this._viewportClass.read(reader) === 'phone';
 	});
 
-	constructor() {
+	/** An entry point may fix the viewport class instead of deriving it from the container width. */
+	constructor(private readonly fixedViewportClass?: ViewportClass) {
 		super();
 
 		this.isIOS = isIOS;
 		this.isAndroid = isAndroid;
 		this.isTouchDevice = Gesture.isTouchDevice();
+
+		if (fixedViewportClass) {
+			this._viewportClass.set(fixedViewportClass, undefined);
+		}
 	}
 
 	/**
@@ -104,7 +125,7 @@ export class SessionsLayoutPolicy extends Disposable {
 	 * @param height Container height in pixels (reserved for future use).
 	 */
 	update(width: number, _height: number): void {
-		const next = classifyViewport(width);
+		const next = this.fixedViewportClass ?? classifyViewport(width);
 		if (this._viewportClass.get() !== next) {
 			this._viewportClass.set(next, undefined);
 		}

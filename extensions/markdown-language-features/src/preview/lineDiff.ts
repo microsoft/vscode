@@ -9,6 +9,7 @@ import type { MarkdownPreviewChangeIndicator, MarkdownPreviewInnerChange, Markdo
 interface LineChanges {
 	readonly added: readonly number[];
 	readonly deleted: readonly number[];
+	readonly changedLineRanges: readonly ChangedLineRange[];
 	readonly originalToModified: readonly number[];
 	readonly modifiedToOriginal: readonly number[];
 	readonly originalInnerChanges: readonly MarkdownPreviewInnerChange[];
@@ -21,7 +22,7 @@ interface LineMappings {
 	readonly modifiedToOriginal: number[];
 }
 
-type ChangedLineRange = Pick<vscode.TextDiffChange, 'originalRange' | 'modifiedRange'>;
+export type ChangedLineRange = Pick<vscode.TextDiffChange, 'originalRange' | 'modifiedRange'>;
 
 export class MarkdownPreviewLineDiffProvider {
 
@@ -53,6 +54,10 @@ export class MarkdownPreviewLineDiffProvider {
 		const innerChanges = changes.modifiedInnerChanges;
 		const changeIndicators = options?.includeChangeIndicators === false ? [] : changes.changeIndicators;
 		return added.length || innerChanges.length || changeIndicators.length ? { added, innerChanges, changeIndicators } : undefined;
+	}
+
+	public async getChangedLineRanges(): Promise<readonly ChangedLineRange[]> {
+		return (await this.#getLineChanges()).changedLineRanges;
 	}
 
 	public async translateOriginalLineToModified(line: number): Promise<number> {
@@ -119,11 +124,7 @@ async function computeLineChanges(originalDocument: vscode.TextDocument, modifie
 			mappings.modifiedToOriginal[i] = clampLine(origStart, originalLineCount);
 		}
 
-		// Collect change indicators for deletions and modifications
-		const origChangedCount = origEnd - origStart;
-		if (origChangedCount > 0) {
-			changedLineRanges.push(change);
-		}
+		changedLineRanges.push(change);
 
 		// Collect inner changes (character-level changes within modified lines)
 		if (change.innerChanges) {
@@ -140,10 +141,11 @@ async function computeLineChanges(originalDocument: vscode.TextDocument, modifie
 	// Map unchanged lines after the last change
 	fillUnchangedLineMappings(mappings, lastOriginalEnd, originalLineCount, lastModifiedEnd, modifiedLineCount);
 	fillMissingLineMappings(mappings);
-	const splitChangedLineRanges = splitChangedLineRangesByMarkdownBlocks(changedLineRanges, originalDocument, modifiedDocument);
+	const indicatorRanges = changedLineRanges.filter(range => range.originalRange.end.line > range.originalRange.start.line);
+	const splitChangedLineRanges = splitChangedLineRangesByMarkdownBlocks(indicatorRanges, originalDocument, modifiedDocument);
 	const changeIndicators = createChangeIndicators(splitChangedLineRanges, originalDocument, modifiedDocument, originalInnerChanges, modifiedInnerChanges);
 
-	return { added, deleted, originalInnerChanges, modifiedInnerChanges, changeIndicators, ...mappings };
+	return { added, deleted, changedLineRanges, originalInnerChanges, modifiedInnerChanges, changeIndicators, ...mappings };
 }
 
 function createChangeIndicators(ranges: readonly ChangedLineRange[], originalDocument: vscode.TextDocument, modifiedDocument: vscode.TextDocument, originalInnerChanges: readonly MarkdownPreviewInnerChange[], modifiedInnerChanges: readonly MarkdownPreviewInnerChange[]): MarkdownPreviewChangeIndicator[] {

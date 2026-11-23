@@ -131,14 +131,15 @@ export class Client implements IChannelClient, IDisposable {
 		const disposable = toDisposable(() => result.cancel());
 		this.activeRequests.add(disposable);
 
-		result.finally(() => {
+		const cleanup = () => {
 			cancellationTokenListener.dispose();
 			this.activeRequests.delete(disposable);
 
 			if (this.activeRequests.size === 0 && this.disposeDelayer) {
 				this.disposeDelayer.trigger(() => this.disposeClient());
 			}
-		});
+		};
+		result.then(cleanup, cleanup);
 
 		return result;
 	}

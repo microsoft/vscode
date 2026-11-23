@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { InstantiationType, registerSingleton } from '../../instantiation/common/extensions.js';
-import { ISandboxDependencyStatus, ISandboxHelperService, IWindowsMxcFilesystemPolicy } from '../common/sandboxHelperService.js';
+import { ISandboxDependencyStatus, ISandboxHelperService } from '../common/sandboxHelperService.js';
 
 class NullSandboxHelperService implements ISandboxHelperService {
 	declare readonly _serviceBrand: undefined;
@@ -15,16 +15,9 @@ class NullSandboxHelperService implements ISandboxHelperService {
 		// or block sandbox flows on an unavailable host-side capability.
 		return {
 			bubblewrapInstalled: true,
+			bubblewrapUsable: true,
 			socatInstalled: true,
 		};
-	}
-
-	async getWindowsMxcFilesystemPolicy(): Promise<IWindowsMxcFilesystemPolicy | undefined> {
-		return undefined;
-	}
-
-	async getWindowsMxcEnvironment(): Promise<string[] | undefined> {
-		return undefined;
 	}
 }
 

@@ -15,6 +15,8 @@ export enum BrowserOverlayType {
 	Hover = 'hover',
 	Dialog = 'dialog',
 	Notification = 'notification',
+	/** The screenshot tool's selection overlay, which shows the page's last screenshot underneath without pausing it visibly. */
+	ScreenshotTool = 'screenshotTool',
 	Unknown = 'unknown'
 }
 
@@ -29,9 +31,31 @@ const OVERLAY_DEFINITIONS: ReadonlyArray<{ className: string; type: BrowserOverl
 	{ className: 'monaco-modal-editor-block', type: BrowserOverlayType.Dialog },
 	{ className: 'notifications-center', type: BrowserOverlayType.Notification },
 	{ className: 'notification-toast-container', type: BrowserOverlayType.Notification },
+	{ className: 'spotlight-overlay', type: BrowserOverlayType.Unknown },
+	{ className: 'screenshot-tool-overlay', type: BrowserOverlayType.ScreenshotTool },
+	// The markup of a screenshot covers pages like a dialog.
+	{ className: 'screenshot-annotation-editor', type: BrowserOverlayType.Dialog },
+	{ className: 'part-grid-motion', type: BrowserOverlayType.Unknown },
 	// Context view is very generic, so treat the content as unknown
 	{ className: 'context-view', type: BrowserOverlayType.Unknown }
 ];
+
+const HIT_TEST_EXCLUDED_CLASSES = [
+	// Transparent full-screen layers that context menus and action widgets render to capture clicks.
+	// They sit in higher z-index stacking contexts above other UI, but are not tracked overlays,
+	// so hit-testing must skip them to find the overlay actually painted underneath.
+	'context-view-block',
+
+	// Webview overlay elements exist in their own DOM structure and are positioned dynamically,
+	// so they interfere with hit-testing because they are not descendants of the tracked overlay.
+	// Ignore them and depend on the element the webview is anchored to for overlay detection.
+	'webview',
+	'webview-overlay-content'
+];
+
+function isExcludedFromOverlayHitTest(element: Element): boolean {
+	return HIT_TEST_EXCLUDED_CLASSES.some(className => element.classList.contains(className));
+}
 
 export const IBrowserOverlayManager = createDecorator<IBrowserOverlayManager>('browserOverlayManager');
 
@@ -98,14 +122,14 @@ export class BrowserOverlayManager extends Disposable implements IBrowserOverlay
 			this._overlayCollections.set(overlayDefinition.className, {
 				type: overlayDefinition.type,
 				// We need dynamic collections for overlay detection, using getElementsByClassName is intentional here
-				// eslint-disable-next-line no-restricted-syntax
+				// eslint-disable-next-line eslint-js/no-restricted-syntax
 				collection: this.targetWindow.document.getElementsByClassName(overlayDefinition.className)
 			});
 		}
 
 		// Initialize live collection for shadow root hosts
 		// We need dynamic collections for overlay detection, using getElementsByClassName is intentional here
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		this._shadowRootHostCollection = this.targetWindow.document.getElementsByClassName('shadow-root-host');
 
 		// Setup structural observer to watch for element additions/removals
@@ -161,7 +185,7 @@ export class BrowserOverlayManager extends Disposable implements IBrowserOverlay
 					cache = [];
 					for (const overlayDefinition of OVERLAY_DEFINITIONS) {
 						// We need to query shadow roots for overlay detection, using querySelectorAll is intentional here
-						// eslint-disable-next-line no-restricted-syntax
+						// eslint-disable-next-line eslint-js/no-restricted-syntax
 						const elements = shadowRoot.querySelectorAll(`.${overlayDefinition.className}`);
 						for (const element of elements) {
 							cache.push({ element: element as HTMLElement, type: overlayDefinition.type });
@@ -248,8 +272,10 @@ export class BrowserOverlayManager extends Disposable implements IBrowserOverlay
 		const elementRect = getDomNodePagePosition(element);
 		const overlappingOverlays: IBrowserOverlayInfo[] = [];
 
+		const overlays = Array.from(this.overlays());
+
 		// Check against all precomputed overlay rectangles
-		for (const overlay of this.overlays()) {
+		for (const overlay of overlays) {
 			// Skip overlays that are ancestors of the target element,
 			// e.g., the modal editor backdrop when the browser is inside the modal
 			if (overlay.element.contains(element)) {
@@ -258,15 +284,11 @@ export class BrowserOverlayManager extends Disposable implements IBrowserOverlay
 			const overlayRect = this.getRect(overlay.element);
 			const overlapCenter = getOverlappingRectangleCenterPoint(elementRect, overlayRect);
 			if (overlapCenter) {
-				// z-index check. If the overlay isn't the topmost element, ignore it
-				// (the overlay either doesn't cover the element, or is also covered by another overlay).
 				const clientX = overlapCenter.x - this.targetWindow.scrollX;
 				const clientY = overlapCenter.y - this.targetWindow.scrollY;
-				let elementAtPoint = this.targetWindow.document.elementFromPoint(clientX, clientY);
-				// Account for shadow roots
-				if (elementAtPoint?.shadowRoot && !overlay.element.contains(elementAtPoint)) {
-					elementAtPoint = elementAtPoint.shadowRoot.elementFromPoint(clientX, clientY);
-				}
+				// Only report this overlay if it's the one actually painted at
+				// the sample point (a z-index check via hit-testing).
+				const elementAtPoint = this.getTopmostElementAt(clientX, clientY);
 				if (elementAtPoint && overlay.element.contains(elementAtPoint)) {
 					overlappingOverlays.push({
 						type: overlay.type,
@@ -277,6 +299,33 @@ export class BrowserOverlayManager extends Disposable implements IBrowserOverlay
 		}
 
 		return overlappingOverlays;
+	}
+
+	private getTopmostElementAt(clientX: number, clientY: number): Element | null {
+		const topmostAt = (root: DocumentOrShadowRoot): Element | null => {
+			// Fast path: `elementFromPoint` returns only the single topmost hit and
+			// avoids the array allocation of `elementsFromPoint`. This runs on every
+			// overlay state change, which can fire frequently, so favor it whenever the
+			// topmost hit is a real element we care about.
+			const elementAtPoint = root.elementFromPoint(clientX, clientY);
+			if (elementAtPoint && !isExcludedFromOverlayHitTest(elementAtPoint)) {
+				return elementAtPoint;
+			}
+			// Slow path: the topmost hit is an excluded overlay (or there was no hit).
+			// Walk the full front-to-back hit list and return the first element
+			// that is not excluded, i.e. the overlay actually painted beneath it.
+			return root.elementsFromPoint(clientX, clientY)
+				.find(el => !isExcludedFromOverlayHitTest(el)) ?? null;
+		};
+
+		const elementAtPoint = topmostAt(this.targetWindow.document);
+		// Neither `elementFromPoint` nor `elementsFromPoint` pierces shadow DOM, so when
+		// the topmost element hosts a shadow root, re-run the hit-test inside it to find
+		// the overlay rendered within (e.g. context views that use shadow DOM).
+		if (elementAtPoint?.shadowRoot) {
+			return topmostAt(elementAtPoint.shadowRoot);
+		}
+		return elementAtPoint;
 	}
 
 	private stopTrackingElements(): void {

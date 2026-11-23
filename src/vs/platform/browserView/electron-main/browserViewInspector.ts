@@ -4,17 +4,34 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from '../../../base/common/event.js';
-import { Disposable, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
-import { IElementData, IBrowserViewTheme } from '../common/browserView.js';
-import { ICDPConnection } from '../common/cdp/types.js';
+import { disposableTimeout } from '../../../base/common/async.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
+import { BrowserElementSelectionMode, IBrowserElementCommentsUpdate, IBrowserElementSelectionOptions, IBrowserElementSelectionState, IElementData, IBrowserViewTheme, IBrowserViewRect, IBrowserViewPreloadLocalizedStrings } from '../common/browserView.js';
+import { CDPTargetInfo, ICDPConnection } from '../common/cdp/types.js';
 import type { BrowserView } from './browserView.js';
 import { BrowserViewFrameInspector } from './browserViewFrameInspector.js';
+import { localize } from '../../../nls.js';
+
+const localizedStrings: IBrowserViewPreloadLocalizedStrings = {
+	addComment: localize('browserView.addComment', "Add Comment"),
+	addCommentPlaceholder: localize('browserView.addCommentPlaceholder', "Add a comment"),
+	commentOnSelectedElement: localize('browserView.commentOnSelectedElement', "Comment on selected element"),
+	elementComment: localize('browserView.elementComment', "Element comment {0}"),
+	elementCommentWithBody: localize('browserView.elementCommentWithBody', "Element comment {0}: {1}"),
+	emptyElementComment: localize('browserView.emptyElementComment', "Empty element comment {0}"),
+	removeComment: localize('browserView.removeComment', "Remove Comment"),
+	removeElementComment: localize('browserView.removeElementComment', "Remove element comment"),
+};
 
 interface IActiveSelection extends IDisposable {
+	options: IBrowserElementSelectionOptions;
 }
+
+interface IActiveAreaSelection extends IDisposable { }
 
 export interface IElementHandle extends IDisposable {
 	addToChat(): Promise<void>;
+	addComment(): void;
 	highlight(): Promise<void>;
 	hideHighlight(): Promise<void>;
 }
@@ -47,17 +64,46 @@ export class BrowserViewInspector extends Disposable {
 
 	private readonly _onDidSelectElement = this._register(new Emitter<IElementData>());
 	readonly onDidSelectElement: Event<IElementData> = this._onDidSelectElement.event;
+	private readonly _onDidRemoveElementComment = this._register(new Emitter<string>());
+	readonly onDidRemoveElementComment = this._onDidRemoveElementComment.event;
 
-	private readonly _onDidChangeElementSelectionActive = this._register(new Emitter<boolean>());
-	readonly onDidChangeElementSelectionActive: Event<boolean> = this._onDidChangeElementSelectionActive.event;
+	private readonly _onDidChangeElementSelectionState = this._register(new Emitter<IBrowserElementSelectionState>());
+	readonly onDidChangeElementSelectionState: Event<IBrowserElementSelectionState> = this._onDidChangeElementSelectionState.event;
 
-	private _elementSelectionActive = false;
-	get isElementSelectionActive(): boolean { return this._elementSelectionActive; }
+	get isElementSelectionActive(): boolean { return !!this._activeSelection.value; }
+	get elementSelectionState(): IBrowserElementSelectionState {
+		return {
+			active: this.isElementSelectionActive,
+			options: this._activeSelection.value?.options ?? {}
+		};
+	}
 
 	private readonly _activeSelection = this._register(new MutableDisposable<IActiveSelection>());
+	private _inspectionOperation: Promise<void> = Promise.resolve();
 	private _theme: IBrowserViewTheme = {};
 
+	// Area selection — drag-to-select a rectangle on the top frame.
+	// `onDidPickArea` fires exactly once per session, terminating it.
+	// The rectangle is undefined when the picker is cancelled (ESC, zero-area drag,
+	// external toggle off, navigation, or supersession by element selection).
+	// Consumers should listen to this single event instead of trying to reconcile
+	// rect vs. activation events across the IPC boundary — those two events travel
+	// through separate channels and can be delivered out of order.
+	private readonly _onDidPickArea = this._register(new Emitter<IBrowserViewRect | undefined>());
+	readonly onDidPickArea: Event<IBrowserViewRect | undefined> = this._onDidPickArea.event;
+
+	private readonly _onDidChangeAreaSelectionActive = this._register(new Emitter<boolean>());
+	readonly onDidChangeAreaSelectionActive: Event<boolean> = this._onDidChangeAreaSelectionActive.event;
+
+	private _areaSelectionActive = false;
+	get isAreaSelectionActive(): boolean { return this._areaSelectionActive; }
+
+	private readonly _activeAreaSelection = this._register(new MutableDisposable<IActiveAreaSelection>());
+
 	private readonly _registry = this._register(new FrameInspectorRegistry());
+	private _attachPromise: Promise<void> | undefined;
+	private readonly _adoptionTimedOut = new WeakSet<Electron.WebFrameMain>();
+	private readonly _sessionListeners = this._register(new DisposableMap<ICDPConnection, DisposableStore>());
 
 	constructor(private readonly browser: BrowserView) {
 		super();
@@ -70,46 +116,130 @@ export class BrowserViewInspector extends Disposable {
 		// Navigation destroys preload overlays and CDP state
 		const onNavigated = () => {
 			this._activeSelection.clear();
+			this._activeAreaSelection.clear();
+			this._registry.pruneRetiredFrames();
 		};
 		webContents.on('did-navigate', onNavigated);
 		this._register({ dispose: () => webContents.removeListener('did-navigate', onNavigated) });
 
 		// Preload ready — the key correlation point between WebFrameMain and CDP target
 		const onIpcMessage = (_event: Electron.Event, channel: string, ...args: unknown[]) => {
-			if (channel !== 'vscode:browserView:preloadReady') {
-				return;
-			}
 			const senderFrame = (_event as { senderFrame?: Electron.WebFrameMain }).senderFrame;
-			if (!senderFrame) {
-				return;
-			}
-			const frameToken = args[0] as string;
-			if (!frameToken) {
-				return;
-			}
+			if (channel === 'vscode:browserView:preloadReady') {
+				if (!senderFrame) {
+					return;
+				}
+				const frameToken = args[0] as string;
+				if (!frameToken) {
+					return;
+				}
 
-			// Apply theme immediately regardless of inspector state
-			senderFrame.postMessage('vscode:browserView:setTheme', this._theme);
+				// Apply theme immediately regardless of inspector state
+				senderFrame.postMessage('vscode:browserView:setTheme', this._theme);
+				senderFrame.postMessage('vscode:browserView:setLocalizedStrings', localizedStrings);
 
-			this._registry.notifyFrameReady(senderFrame, frameToken);
+				// A new document gets its own chance to adopt.
+				this._adoptionTimedOut.delete(senderFrame);
+				this._registry.notifyFrameReady(senderFrame, frameToken);
+
+				// If area selection was activated before the main-frame preload
+				// finished wiring up its IPC listeners (e.g. right after a
+				// navigation), the original `startAreaPicker` postMessage was
+				// dropped. Replay it now so the picker actually appears instead
+				// of leaving the model reporting active with no visible overlay.
+				if (senderFrame === webContents.mainFrame && this._activeAreaSelection.value) {
+					try {
+						senderFrame.postMessage('vscode:browserView:startAreaPicker', undefined);
+					} catch {
+						// Frame may be gone — ignore.
+					}
+				}
+			} else if (channel === 'vscode:browserView:areaPicked') {
+				// Area selection is scoped to the top frame — the user-drawn
+				// rectangle is in main-frame viewport coordinates.
+				if (senderFrame !== webContents.mainFrame) {
+					return;
+				}
+				const rect = args[0] as IBrowserViewRect | undefined;
+				const validRect = rect && rect.width > 0 && rect.height > 0 ? rect : undefined;
+				this._finishAreaPick(validRect);
+			} else if (channel === 'vscode:browserView:areaPickStopped') {
+				if (senderFrame !== webContents.mainFrame) {
+					return;
+				}
+				this._finishAreaPick(undefined);
+			}
 		};
 		webContents.on('ipc-message', onIpcMessage);
 		this._register({ dispose: () => webContents.removeListener('ipc-message', onIpcMessage) });
 
-		// Cross-origin (OOPIF) targets get their own session — watch it for contexts
-		this._register(this.browser.debugger.onTargetDiscovered(async ({ targetId, type }) => {
-			if (type === 'iframe') {
-				try {
-					const session = await this.browser.debugger.attachToTarget(targetId);
-					this._watchSession(session);
-				} catch {
-					return;
-				}
-			}
-		}));
+	}
 
-		// Attach the main debugger session and watch it for contexts
-		this.browser.debugger.attach().then(conn => this._watchSession(conn)).catch(() => { });
+	/**
+	 * Attaches the debugger on first use. Runtime.enable makes the page detectable by bot protection,
+	 * so this is deferred until a feature needs frame inspectors, and stays attached afterwards.
+	 */
+	private _ensureAttached(): Promise<void> {
+		if (this._store.isDisposed) {
+			return Promise.resolve();
+		}
+		this._attachPromise ??= this._attach();
+		return this._attachPromise;
+	}
+
+	private async _attach(): Promise<void> {
+		// Detach events from before the attach can't be replayed, so drop frames that already went away.
+		this._registry.pruneRetiredFrames();
+		// Cross-origin (OOPIF) targets get their own session — watch it for contexts.
+		// Targets discovered before this point never fire again, so replay the known ones.
+		const watchTarget = async ({ targetId, type }: CDPTargetInfo) => {
+			if (type !== 'iframe' || this._store.isDisposed) {
+				return;
+			}
+			try {
+				this._watchSession(await this.browser.debugger.attachToTarget(targetId));
+			} catch {
+				return;
+			}
+		};
+		this._register(this.browser.debugger.onTargetDiscovered(watchTarget));
+		for (const targetInfo of this.browser.debugger.knownTargets.values()) {
+			void watchTarget(targetInfo);
+		}
+
+		try {
+			this._watchSession(await this.browser.debugger.attach());
+		} catch {
+			// Best effort.
+		}
+	}
+
+	/** Resolves the inspector for a frame, waiting briefly if its preload is ready but not yet matched to a CDP context (e.g. right after the first attach). */
+	private async _getFrameInspector(frame: Electron.WebFrameMain): Promise<BrowserViewFrameInspector | undefined> {
+		await this._ensureAttached();
+		const existing = this._registry.getByFrame(frame);
+		if (existing || this._store.isDisposed || this._adoptionTimedOut.has(frame) || !this._registry.isPendingFrame(frame)) {
+			return existing;
+		}
+		const store = new DisposableStore();
+		try {
+			await new Promise<void>(resolve => {
+				store.add(this._registry.onDidAdopt(adopted => {
+					if (adopted.frame === frame) {
+						resolve();
+					}
+				}));
+				store.add(disposableTimeout(resolve, 1000));
+			});
+		} finally {
+			store.dispose();
+		}
+		const adopted = this._registry.getByFrame(frame);
+		if (!adopted) {
+			// Don't stall every later lookup on a frame that already failed to adopt.
+			this._adoptionTimedOut.add(frame);
+		}
+		return adopted;
 	}
 
 	/**
@@ -120,7 +250,12 @@ export class BrowserViewInspector extends Disposable {
 	 * and each cross-origin target session (sees only its own frame).
 	 */
 	private _watchSession(session: ICDPConnection): void {
-		this._register(session.onEvent(async event => {
+		if (this._store.isDisposed || this._sessionListeners.has(session)) {
+			return;
+		}
+		const listeners = new DisposableStore();
+		this._sessionListeners.set(session, listeners);
+		listeners.add(session.onEvent(async event => {
 			if (event.method === 'Runtime.executionContextCreated') {
 				const context = (event.params as {
 					context: {
@@ -145,7 +280,7 @@ export class BrowserViewInspector extends Disposable {
 					}) as { result: { value?: string } };
 
 					const token = result.value;
-					if (!token) {
+					if (!token || listeners.isDisposed) {
 						return;
 					}
 
@@ -164,9 +299,10 @@ export class BrowserViewInspector extends Disposable {
 			}
 		}));
 
-		Event.once(session.onClose)(() => {
+		listeners.add(Event.once(session.onClose)(() => {
+			this._sessionListeners.deleteAndDispose(session);
 			this._registry.disposeBySession(session);
-		});
+		}));
 
 		// Enable Runtime + Page to start receiving context and frame events
 		session.sendCommand('Runtime.enable').catch(() => { });
@@ -178,8 +314,12 @@ export class BrowserViewInspector extends Disposable {
 	 * Wires its events to this orchestrator.
 	 */
 	private _onInspectorAdopted(inspector: BrowserViewFrameInspector): void {
-		inspector.onDidInspectElement(async nodeData => {
-			this._activeSelection.clear();
+		const listeners = new DisposableStore();
+		listeners.add(Event.once(inspector.onWillDispose)(() => listeners.dispose()));
+		listeners.add(inspector.onDidInspectElement(async nodeData => {
+			if (!this._activeSelection.value?.options?.continuous) {
+				this._activeSelection.clear();
+			}
 			try {
 				const offset = await this._getFrameOffsetInPage(inspector.frame);
 				nodeData = this._offsetElementData(nodeData, offset);
@@ -187,16 +327,22 @@ export class BrowserViewInspector extends Disposable {
 				// Best effort.
 			}
 			this._onDidSelectElement.fire(nodeData);
-		});
+		}));
+		listeners.add(inspector.onDidRemoveElementComment(elementId => this._onDidRemoveElementComment.fire(elementId)));
 
 		// When a frame's preload stops picking, stop all other frames too
-		inspector.onDidStopPicking(() => {
+		listeners.add(inspector.onDidStopPicking(() => {
 			this._activeSelection.clear();
-		});
+		}));
 
 		// If element selection is currently active, start it on the new frame
 		if (this._activeSelection.value) {
-			inspector.startInspection().catch(() => { });
+			void this._queueInspectionOperation(async () => {
+				const activeSelection = this._activeSelection.value;
+				if (activeSelection) {
+					await inspector.startInspection(activeSelection.options);
+				}
+			}).catch(() => { });
 		}
 
 		inspector.setTheme(this._theme);
@@ -204,6 +350,16 @@ export class BrowserViewInspector extends Disposable {
 
 	setTheme(theme: IBrowserViewTheme): void {
 		this._theme = theme;
+		// Frames that are not adopted yet (the debugger may never attach) still run the preload.
+		for (const frame of this._registry.pendingFrames) {
+			if (!frame.detached && !frame.isDestroyed()) {
+				try {
+					frame.postMessage('vscode:browserView:setTheme', theme);
+				} catch {
+					// The frame went away.
+				}
+			}
+		}
 		// Broadcast to all known inspectors
 		for (const inspector of this._registry.inspectors) {
 			inspector.setTheme(theme);
@@ -213,52 +369,188 @@ export class BrowserViewInspector extends Disposable {
 	/**
 	 * Toggle element selection mode across all frames.
 	 */
-	async toggleElementSelection(enabled?: boolean): Promise<void> {
-		const newEnabled = enabled ?? !this._elementSelectionActive;
-		if (newEnabled === this._elementSelectionActive) {
-			return;
-		}
-
+	async toggleElementSelection(enabled?: boolean, options: IBrowserElementSelectionOptions = {}): Promise<void> {
+		const newEnabled = enabled ?? !this.isElementSelectionActive;
 		if (!newEnabled) {
 			this._activeSelection.clear();
 			return;
 		}
+		// Element and area selection are mutually exclusive — enabling one
+		// cancels the other so both pickers never overlay the page at once.
+		this._activeAreaSelection.clear();
 
-		const start = () => Promise.all([...this._registry.inspectors].map(i => i.startInspection()));
-		const stop = () => Promise.all([...this._registry.inspectors].map(i => i.stopInspection()));
+		const activeSelection = this._activeSelection.value;
+		const updatedOptions = activeSelection ? { ...activeSelection.options, ...options } : { mode: BrowserElementSelectionMode.Select, ...options };
+
+		if (activeSelection) {
+			activeSelection.options = updatedOptions;
+			// Publish the new options before awaiting so the renderer's next click sees them.
+			this._onDidChangeElementSelectionState.fire({ active: true, options: updatedOptions });
+			try {
+				await this._startInspection(activeSelection, updatedOptions);
+			} catch {
+				if (this._activeSelection.value === activeSelection && activeSelection.options === updatedOptions) {
+					this._activeSelection.clear();
+				}
+			}
+			return;
+		}
 
 		const selection: IActiveSelection = {
+			options: updatedOptions,
 			dispose: () => {
 				if (this._activeSelection.value === selection) {
-					this._elementSelectionActive = false;
-					this._onDidChangeElementSelectionActive.fire(false);
 					this._activeSelection.clearAndLeak();
-					void stop().catch(() => { });
+					this._onDidChangeElementSelectionState.fire({ active: false, options: selection.options });
+					void this._queueInspectionOperation(async () => {
+						await this.browser.emulator.setElementSelectionActive(false);
+						await Promise.all([...this._registry.inspectors].map(i => i.stopInspection()));
+					}).catch(() => { });
 				}
 			}
 		};
 		this._activeSelection.value = selection;
+		// Report active before the (possibly slow) first attach so a second click toggles it off instead of re-enabling.
+		this._onDidChangeElementSelectionState.fire({ active: true, options: updatedOptions });
+		try {
+			await this._startInspection(selection, updatedOptions);
+		} catch {
+			if (this._activeSelection.value === selection && selection.options === updatedOptions) {
+				this._activeSelection.clear();
+			}
+		}
+	}
+
+	private async _startInspection(selection: IActiveSelection, options: IBrowserElementSelectionOptions): Promise<void> {
+		// The selection is already registered, so cancellation during attach is caught by the identity check below.
+		await this._ensureAttached();
+		await this._queueInspectionOperation(async () => {
+			if (this._activeSelection.value !== selection || selection.options !== options) {
+				return;
+			}
+			await Promise.all([...this._registry.inspectors].map(i => i.startInspection(options)));
+			if (this._activeSelection.value === selection && selection.options === options) {
+				await this.browser.emulator.setElementSelectionActive(true);
+			}
+		});
+	}
+
+	private _queueInspectionOperation(operation: () => Promise<void>): Promise<void> {
+		const result = this._inspectionOperation.then(operation);
+		this._inspectionOperation = result.catch(() => { });
+		return result;
+	}
+
+	setElementComments(update: IBrowserElementCommentsUpdate): void {
+		for (const inspector of this._registry.inspectors) {
+			inspector.setElementComments(update);
+		}
+	}
+
+	/**
+	 * Toggle drag-to-select area picking on the top frame only.
+	 * The picker reports the literal user-drawn rectangle (or `undefined` on cancellation)
+	 * via {@link onDidPickArea}; no DOM elements are inspected.
+	 */
+	async toggleAreaSelection(enabled?: boolean): Promise<void> {
+		const newEnabled = enabled ?? !this._areaSelectionActive;
+		if (newEnabled === this._areaSelectionActive) {
+			return;
+		}
+
+		if (!newEnabled) {
+			this._activeAreaSelection.clear();
+			return;
+		}
+
+		// Element and area selection are mutually exclusive — enabling one
+		// cancels the other so both pickers never overlay the page at once.
+		this._activeSelection.clear();
+
+		const mainFrame = this.browser.webContents.mainFrame;
+		const start = () => { mainFrame.postMessage('vscode:browserView:startAreaPicker', undefined); };
+		const stop = () => { try { mainFrame.postMessage('vscode:browserView:stopAreaPicker', undefined); } catch { /* frame may be gone */ } };
+
+		const selection: IActiveAreaSelection = {
+			dispose: () => {
+				// External cancellation (toggleAreaSelection(false), navigation, element
+				// selection takeover). The IPC-driven termination paths use clearAndLeak
+				// inside `_finishAreaPick`, so reaching here means the picker is still
+				// running in the page and we need to tell it to stop.
+				stop();
+				this._finishAreaPick(undefined);
+			}
+		};
+		this._activeAreaSelection.value = selection;
 
 		try {
-			await start();
-			if (this._activeSelection.value === selection) {
-				this._elementSelectionActive = true;
-				this._onDidChangeElementSelectionActive.fire(true);
+			start();
+			if (this._activeAreaSelection.value === selection) {
+				this._areaSelectionActive = true;
+				this._onDidChangeAreaSelectionActive.fire(true);
 			}
 		} catch {
-			this._activeSelection.clear();
+			this._activeAreaSelection.clear();
+		}
+	}
+
+	/**
+	 * Terminate the current area-pick session, firing `onDidPickArea` exactly once.
+	 * No-op if no session is active. Uses `clearAndLeak` to avoid recursing into
+	 * the IActiveSelection.dispose path.
+	 */
+	private _finishAreaPick(rect: IBrowserViewRect | undefined): void {
+		if (!this._areaSelectionActive && !this._activeAreaSelection.value) {
+			return;
+		}
+		const wasActive = this._areaSelectionActive;
+		this._areaSelectionActive = false;
+		this._activeAreaSelection.clearAndLeak();
+		this._onDidPickArea.fire(rect);
+		if (wasActive) {
+			this._onDidChangeAreaSelectionActive.fire(false);
 		}
 	}
 
 	/**
 	 * Resolve a handle to an element. Routes to the correct frame inspector.
 	 */
-	getElementHandle(id: string, frame: Electron.WebFrameMain): IElementHandle | undefined {
-		return this._registry.getByFrame(frame)?.getElementHandle(id);
+	async getElementHandle(id: string, frame: Electron.WebFrameMain): Promise<IElementHandle | undefined> {
+		const handle = (await this._getFrameInspector(frame))?.getElementHandle(id);
+		if (!handle) {
+			return undefined;
+		}
+		let commentRequested = false;
+		return {
+			addToChat: () => handle.addToChat(),
+			addComment: () => {
+				if (commentRequested) {
+					return;
+				}
+				commentRequested = true;
+				setTimeout(() => {
+					this._activeAreaSelection.clear();
+					this._activeSelection.clear();
+					void this._queueInspectionOperation(async () => {
+						if (!this.browser.webContents.isDestroyed()) {
+							this.browser.webContents.focus();
+							handle.addComment();
+						}
+					});
+				}, 0);
+			},
+			highlight: () => handle.highlight(),
+			hideHighlight: () => handle.hideHighlight(),
+			dispose: () => {
+				if (!commentRequested) {
+					handle.dispose();
+				}
+			}
+		};
 	}
 
 	async getVisualViewportScale(frame: Electron.WebFrameMain = this.browser.webContents.mainFrame): Promise<number> {
-		return this._registry.getByFrame(frame)?.getVisualViewportScale() ?? 1;
+		return await (await this._getFrameInspector(frame))?.getVisualViewportScale() ?? 1;
 	}
 
 	/**
@@ -364,11 +656,30 @@ class FrameInspectorRegistry extends Disposable {
 		return this._byFrame.get(frame);
 	}
 
+	get pendingFrames(): Iterable<Electron.WebFrameMain> { return this._pendingFrames.values(); }
+
+	/** Whether the frame's preload is ready and waiting for its CDP context. */
+	isPendingFrame(frame: Electron.WebFrameMain): boolean {
+		for (const pendingFrame of this._pendingFrames.values()) {
+			if (pendingFrame === frame) {
+				return true;
+			}
+		}
+		return false;
+	}
+
 	/**
 	 * Called when a preload script signals readiness with a token.
 	 * If a matching CDP context was already discovered, adopts immediately.
 	 */
 	notifyFrameReady(frame: Electron.WebFrameMain, token: string): void {
+		this.pruneRetiredFrames();
+		// A frame only has one live preload; a newer token supersedes its older ones.
+		for (const [oldToken, oldFrame] of this._pendingFrames) {
+			if (oldFrame === frame && oldToken !== token) {
+				this._pendingFrames.delete(oldToken);
+			}
+		}
 		const pending = this._pendingSessions.get(token);
 		if (pending) {
 			this._pendingSessions.delete(token);
@@ -392,6 +703,15 @@ class FrameInspectorRegistry extends Disposable {
 		}
 	}
 
+	/** Drops pending preload entries for frames that were removed or destroyed, which nothing else consumes while CDP is unattached. */
+	pruneRetiredFrames(): void {
+		for (const [token, frame] of this._pendingFrames) {
+			if (frame.detached || frame.isDestroyed()) {
+				this._pendingFrames.delete(token);
+			}
+		}
+	}
+
 	/** Dispose the inspector owning the given CDP frameId, if any. Also cleans pending entries. */
 	disposeByFrameId(frameId: string): void {
 		this._byFrameId.get(frameId)?.dispose();
@@ -401,12 +721,7 @@ class FrameInspectorRegistry extends Disposable {
 				this._pendingSessions.delete(token);
 			}
 		}
-		// Remove any pending frame entries whose frame is now detached/destroyed
-		for (const [token, frame] of this._pendingFrames) {
-			if (frame.detached || frame.isDestroyed()) {
-				this._pendingFrames.delete(token);
-			}
-		}
+		this.pruneRetiredFrames();
 	}
 
 	/** Dispose all inspectors whose connection is the given session and clear related pending state. */
@@ -448,7 +763,7 @@ class FrameInspectorRegistry extends Disposable {
 		}
 		sessionSet.add(inspector);
 
-		inspector.onWillDispose(() => {
+		Event.once(inspector.onWillDispose)(() => {
 			this._all.delete(inspector);
 			this._byFrame.delete(frame);
 			this._byFrameId.delete(frameId);

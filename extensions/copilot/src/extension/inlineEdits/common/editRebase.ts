@@ -42,6 +42,14 @@ export interface NesRebaseConfigs {
 	 * but explicit {@link NesRebaseConfigs} objects must provide this value.
 	 */
 	readonly maxImperfectAgreementLength: number;
+	/**
+	 * When enabled, the cache serving layer salvages a cached suggestion whose
+	 * strict rebase failed *only* because the user re-typed a line's leading
+	 * indentation differently than the model predicted, re-anchoring the model's
+	 * still-valid content as a clean at-cursor insertion. This is consumed by the
+	 * NES cache (see `tryRebaseCacheEntry`), not by {@link tryRebase} itself.
+	 */
+	readonly reanchorContentOnIndentationMismatch?: boolean;
 }
 
 export class EditDataWithIndex implements IEditData<EditDataWithIndex> {

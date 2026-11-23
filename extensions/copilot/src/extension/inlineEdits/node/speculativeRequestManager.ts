@@ -65,6 +65,8 @@ export interface ScheduledSpeculativeRequest {
  * Owns the lifecycle of NES speculative requests:
  *
  * - the in-flight `pending` speculative (the bet on a specific post-accept document state)
+ * - the `claimed` speculatives, already picked up by a `getNextEdit` caller but kept
+ *   discoverable so concurrent callers join them instead of duplicating the request
  * - the `scheduled` speculative deferred until its originating stream completes
  *
  * Centralizes cancellation with typed reasons so every triggered cancellation
@@ -75,6 +77,16 @@ export class SpeculativeRequestManager extends Disposable {
 
 	private _pending: SpeculativePendingRequest | null = null;
 	private _scheduled: ScheduledSpeculativeRequest | null = null;
+
+	/**
+	 * Speculatives that a `getNextEdit` caller has claimed and is awaiting.
+	 *
+	 * They stay discoverable here until they settle so that *concurrent* callers for the
+	 * same post-edit state join the same request instead of issuing a duplicate one. Keyed
+	 * by request identity: several may be in flight at once (e.g. one per document), and
+	 * evicting one on the arrival of another would reintroduce the duplicate-request bug.
+	 */
+	private readonly _claimed = new Map<StatelessNextEditRequest<CachedOrRebasedEdit>, SpeculativePendingRequest>();
 
 	constructor(private readonly _logger: ILogger) {
 		super();
@@ -92,9 +104,39 @@ export class SpeculativeRequestManager extends Disposable {
 		this._pending = req;
 	}
 
-	/** Detaches the pending speculative without cancelling — caller is consuming it. */
-	consumePending(): void {
+	/**
+	 * Detaches the pending speculative without cancelling — the caller is consuming it —
+	 * and keeps it discoverable via {@link findClaimed} until it settles.
+	 */
+	claimPending(): void {
+		const p = this._pending;
+		if (!p) {
+			return;
+		}
 		this._pending = null;
+		this._claimed.set(p.request, p);
+		// Release once the request settles, whatever the outcome.
+		//
+		// Deliberately `then(fn, fn)` and not `finally(fn)`: `setResultError` rejects
+		// `result`, and `finally` returns a *derived* promise that re-raises that rejection.
+		// Nothing holds that derived promise, so it would surface as an unhandled rejection
+		// even though the joining caller already awaits (and handles) `result` itself.
+		// `then(fn, fn)` consumes the rejection instead.
+		p.request.result.then(() => this._releaseClaimed(p), () => this._releaseClaimed(p));
+	}
+
+	/** Returns the first claimed speculative matching `predicate`, if any. */
+	findClaimed(predicate: (req: SpeculativePendingRequest) => boolean): SpeculativePendingRequest | undefined {
+		for (const claimed of this._claimed.values()) {
+			if (predicate(claimed)) {
+				return claimed;
+			}
+		}
+		return undefined;
+	}
+
+	private _releaseClaimed(req: SpeculativePendingRequest): void {
+		this._claimed.delete(req.request);
 	}
 
 	schedule(s: ScheduledSpeculativeRequest): void {
@@ -139,6 +181,7 @@ export class SpeculativeRequestManager extends Disposable {
 		if (this._pending?.docId === docId) {
 			this._cancelPending(SpeculativeCancelReason.DocumentClosed);
 		}
+		this.invalidateClaimed(SpeculativeCancelReason.DocumentClosed, req => req.docId === docId);
 	}
 
 	/**
@@ -181,6 +224,32 @@ export class SpeculativeRequestManager extends Disposable {
 			return;
 		}
 		this._pending = null;
+		this._cancelRequest(p, reason);
+	}
+
+	/**
+	 * Hard invalidation for claimed speculatives.
+	 *
+	 * Claimed speculatives deliberately survive the "nobody will want this anymore" reasons
+	 * ({@link SpeculativeCancelReason.Replaced}, `Superseded`, `Rejected`, `IgnoredDismissed`,
+	 * trajectory divergence): they have a live consumer awaiting them, and their lifetime is
+	 * already governed by `liveDependentants` plus that consumer's cancellation token.
+	 *
+	 * They must not survive reasons that invalidate the *result itself* — a cleared cache, a
+	 * closed document, or disposal — since a later caller could otherwise join a request built
+	 * on now-stale state.
+	 */
+	invalidateClaimed(reason: SpeculativeCancelReason, filter?: (req: SpeculativePendingRequest) => boolean): void {
+		for (const claimed of [...this._claimed.values()]) {
+			if (filter && !filter(claimed)) {
+				continue;
+			}
+			this._claimed.delete(claimed.request);
+			this._cancelRequest(claimed, reason);
+		}
+	}
+
+	private _cancelRequest(p: SpeculativePendingRequest, reason: SpeculativeCancelReason): void {
 		const headerRequestId = p.request.headerRequestId;
 		this._logger.trace(`cancelling speculative request: ${reason} (headerRequestId=${headerRequestId})`);
 		p.request.logContext.addLog(`speculative request cancelled: ${reason}`);
@@ -194,6 +263,7 @@ export class SpeculativeRequestManager extends Disposable {
 
 	override dispose(): void {
 		this.cancelAll(SpeculativeCancelReason.Disposed);
+		this.invalidateClaimed(SpeculativeCancelReason.Disposed);
 		super.dispose();
 	}
 }

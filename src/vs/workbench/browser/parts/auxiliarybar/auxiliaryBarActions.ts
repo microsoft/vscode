@@ -9,8 +9,7 @@ import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../plat
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
-import { alert } from '../../../../base/browser/ui/aria/aria.js';
-import { AuxiliaryBarMaximizedContext, AuxiliaryBarVisibleContext, IsAuxiliaryWindowContext } from '../../../common/contextkeys.js';
+import { AuxiliaryBarMaximizeHiddenContext, AuxiliaryBarMaximizedContext, ChatPartVisibleContext, AuxiliaryBarVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, SecondarySideBarVisibleContext } from '../../../common/contextkeys.js';
 import { ViewContainerLocation, ViewContainerLocationToString } from '../../../common/views.js';
 import { ActivityBarPosition, IWorkbenchLayoutService, LayoutSettings, Parts } from '../../../services/layout/browser/layoutService.js';
 import { IPaneCompositePartService } from '../../../services/panecomposite/browser/panecomposite.js';
@@ -37,7 +36,7 @@ export class ToggleAuxiliaryBarAction extends Action2 {
 			id: ToggleAuxiliaryBarAction.ID,
 			title: ToggleAuxiliaryBarAction.LABEL,
 			toggled: {
-				condition: AuxiliaryBarVisibleContext,
+				condition: SecondarySideBarVisibleContext,
 				title: localize('closeSecondarySideBar', 'Hide Secondary Side Bar'),
 				icon: closeIcon,
 				mnemonicTitle: localize({ key: 'miCloseSecondarySideBar', comment: ['&& denotes a mnemonic'] }, "&&Secondary Side Bar"),
@@ -61,23 +60,15 @@ export class ToggleAuxiliaryBarAction extends Action2 {
 				{
 					id: MenuId.MenubarAppearanceMenu,
 					group: '2_workbench_layout',
-					order: 2
+					order: 2,
+					when: IsSessionsWindowContext.negate()
 				}
 			]
 		});
 	}
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
-		const layoutService = accessor.get(IWorkbenchLayoutService);
-		const isCurrentlyVisible = layoutService.isVisible(Parts.AUXILIARYBAR_PART);
-
-		layoutService.setPartHidden(isCurrentlyVisible, Parts.AUXILIARYBAR_PART);
-
-		// Announce visibility change to screen readers
-		const alertMessage = isCurrentlyVisible
-			? localize('auxiliaryBarHidden', "Secondary Side Bar hidden")
-			: localize('auxiliaryBarVisible', "Secondary Side Bar shown");
-		alert(alertMessage);
+		accessor.get(IWorkbenchLayoutService).toggleSecondarySideBar();
 	}
 }
 
@@ -215,6 +206,12 @@ registerAction2(class extends SwitchCompositeViewAction {
 
 // --- Maximized Mode
 
+/**
+ * Whether the secondary side bar may be maximized: not while the chat part is shown, and not while a view container opts out.
+ * This narrows the rule that keyed on the chat part being enabled: a chat part that is only registered is not in use.
+ */
+const CAN_MAXIMIZE = ContextKeyExpr.and(ChatPartVisibleContext.negate(), AuxiliaryBarMaximizeHiddenContext.negate());
+
 class MaximizeAuxiliaryBar extends Action2 {
 
 	static readonly ID = 'workbench.action.maximizeAuxiliaryBar';
@@ -226,7 +223,8 @@ class MaximizeAuxiliaryBar extends Action2 {
 			tooltip: localize('maximizeAuxiliaryBarTooltip', "Maximize Secondary Side Bar"),
 			category: Categories.View,
 			f1: true,
-			precondition: AuxiliaryBarMaximizedContext.negate(),
+			// Maximizing the secondary side bar would take the space of the chat area while it is shown, and a view container can opt out
+			precondition: ContextKeyExpr.and(AuxiliaryBarMaximizedContext.negate(), CAN_MAXIMIZE),
 		});
 	}
 
@@ -276,6 +274,8 @@ class ToggleMaximizedAuxiliaryBar extends Action2 {
 			title: localize2('toggleMaximizedAuxiliaryBar', 'Toggle Maximized Secondary Side Bar'),
 			tooltip: localize('maximizeAuxiliaryBarTooltip2', "Maximize Secondary Side Bar"),
 			f1: true,
+			// While the chat area is shown it only restores a maximized secondary side bar
+			precondition: ContextKeyExpr.or(CAN_MAXIMIZE, AuxiliaryBarMaximizedContext),
 			category: Categories.View,
 			icon: maximizeIcon,
 			toggled: {
@@ -286,6 +286,8 @@ class ToggleMaximizedAuxiliaryBar extends Action2 {
 				id: MenuId.AuxiliaryBarTitle,
 				group: 'navigation',
 				order: 1,
+				// Restore stays while it is maximized, also where its view container does not offer to maximize it
+				when: ContextKeyExpr.or(CAN_MAXIMIZE, AuxiliaryBarMaximizedContext),
 			}
 		});
 	}

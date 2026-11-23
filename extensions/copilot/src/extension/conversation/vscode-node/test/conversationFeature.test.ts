@@ -21,7 +21,6 @@ import { IInstantiationService } from '../../../../util/vs/platform/instantiatio
 import { IMergeConflictService } from '../../../git/common/mergeConflictService';
 import { TestMergeConflictServiceImpl } from '../../../git/vscode/mergeConflictServiceImpl';
 import { IIntentService, IntentService } from '../../../intents/node/intentService';
-import { INewWorkspacePreviewContentManager, NewWorkspacePreviewContentManagerImpl } from '../../../intents/node/newIntent';
 import { createExtensionTestingServices } from '../../../test/vscode-node/services';
 import { ConversationFeature } from '../conversationFeature';
 
@@ -33,7 +32,6 @@ suite('Conversation feature test suite', function () {
 	function createAccessor() {
 		const testingServiceCollection = createExtensionTestingServices();
 		testingServiceCollection.define(ICombinedEmbeddingIndex, new SyncDescriptor(VSCodeCombinedIndexImpl, [/*useRemoteCache*/ false]));
-		testingServiceCollection.define(INewWorkspacePreviewContentManager, new SyncDescriptor(NewWorkspacePreviewContentManagerImpl));
 		testingServiceCollection.define(IGitCommitMessageService, new NoopGitCommitMessageService());
 		testingServiceCollection.define(IDevContainerConfigurationService, new FailingDevContainerConfigurationService());
 		testingServiceCollection.define(IIntentService, new SyncDescriptor(IntentService));

@@ -20,16 +20,13 @@ import { isDisposable } from '../../../util/vs/base/common/lifecycle';
 import { autorunIterableDelta } from '../../../util/vs/base/common/observableInternal';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
 import { getContributedToolName, getToolName, mapContributedToolNamesInSchema, mapContributedToolNamesInString, ToolName } from '../common/toolNames';
-import { ICopilotTool, ICopilotToolExtension, modelSpecificToolApplies, ToolRegistry } from '../common/toolsRegistry';
+import { ICopilotTool, modelSpecificToolApplies, ToolRegistry } from '../common/toolsRegistry';
 import { BaseToolsService } from '../common/toolsService';
 
 export class ToolsService extends BaseToolsService {
 	declare _serviceBrand: undefined;
 
 	private readonly _copilotTools: Lazy<Map<ToolName, ICopilotTool<unknown>>>;
-
-	// Extensions to override definitions for existing tools.
-	private readonly _toolExtensions: Lazy<Map<ToolName, ICopilotToolExtension<unknown>>>;
 
 	private _connectedModelSpecificTools = false;
 
@@ -95,7 +92,6 @@ export class ToolsService extends BaseToolsService {
 	) {
 		super(logService);
 		this._copilotTools = new Lazy(() => new Map(ToolRegistry.getTools().map(t => [t.toolName, _instantiationService.createInstance(t)] as const)));
-		this._toolExtensions = new Lazy(() => new Map(ToolRegistry.getToolExtensions().map(t => [t.toolName, _instantiationService.createInstance(t)] as const)));
 	}
 
 	private getModelSpecificTools() {
@@ -137,10 +133,12 @@ export class ToolsService extends BaseToolsService {
 			parentTraceContext,
 			attributes: {
 				[GenAiAttr.OPERATION_NAME]: GenAiOperationName.EXECUTE_TOOL,
+				...(chatSessionId ? { [GenAiAttr.CONVERSATION_ID]: chatSessionId } : {}),
 				[GenAiAttr.TOOL_NAME]: String(name),
 				[GenAiAttr.TOOL_TYPE]: isMcpTool ? GenAiToolType.EXTENSION : GenAiToolType.FUNCTION,
 				[GenAiAttr.TOOL_CALL_ID]: (options as { chatStreamToolCallId?: string }).chatStreamToolCallId ?? '',
 				...(toolInfo?.description ? { [GenAiAttr.TOOL_DESCRIPTION]: toolInfo.description } : {}),
+				...(chatSessionId ? { [CopilotChatAttr.SESSION_ID]: chatSessionId } : {}),
 				...(chatSessionId ? { [CopilotChatAttr.CHAT_SESSION_ID]: chatSessionId } : {}),
 				...(parentChatSessionId ? { [CopilotChatAttr.PARENT_CHAT_SESSION_ID]: parentChatSessionId } : {}),
 				...(debugLogLabel ? { [CopilotChatAttr.DEBUG_LOG_LABEL]: debugLogLabel } : {}),
@@ -306,6 +304,15 @@ export class ToolsService extends BaseToolsService {
 					return false;
 				}
 
+				// For changed_files_tool, disable experimentally for gemini-3.
+				if (
+					tool.name === ToolName.GetScmChanges
+					&& endpoint.family.toLowerCase().includes('gemini-3')
+					&& !this._configurationService.getExperimentBasedConfig(ConfigKey.EnableGemini3GetChangedFilesTool, this._experimentationService)
+				) {
+					return false;
+				}
+
 				// For read_file_tool, disable experimentally for gpt-5.5.
 				if (
 					tool.name === ToolName.ReadFile
@@ -335,12 +342,6 @@ export class ToolsService extends BaseToolsService {
 					}
 				}
 
-				// 3. If this tool is neither enabled nor disabled, then consumer didn't have opportunity to enable/disable it.
-				// This can happen when a tool is added during another tool call (e.g. installExt tool installs an extension that contributes tools).
-				if (toolPickerSelection === undefined && tool.tags.includes('extension_installed_by_tool')) {
-					return true;
-				}
-
 				// Tool was enabled via tool picker
 				if (toolPickerSelection === true) {
 					return true;
@@ -360,11 +361,6 @@ export class ToolsService extends BaseToolsService {
 				const owned = override?.tool || this.getCopilotTool(toolName);
 				if (owned?.alternativeDefinition) {
 					resultTool = owned.alternativeDefinition(resultTool, endpoint);
-				}
-
-				const extension = this._toolExtensions.value.get(toolName);
-				if (extension?.alternativeDefinition) {
-					resultTool = extension.alternativeDefinition(resultTool, endpoint);
 				}
 
 				return resultTool;

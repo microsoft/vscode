@@ -13,11 +13,11 @@ import { IDomainService } from '../../../endpoint/common/domainService';
 import { IEnvService } from '../../../env/common/envService';
 import { NullBaseOctoKitService } from '../../../github/common/nullOctokitServiceImpl';
 import { ILogService } from '../../../log/common/logService';
-import { FetchOptions, IAbortController, IFetcherService, PaginationOptions, Response, WebSocketConnection } from '../../../networking/common/fetcherService';
+import { FetchOptions, IAbortController, IFetcherService, IHeaders, PaginationOptions, Response, WebSocketConnection } from '../../../networking/common/fetcherService';
 import { ITelemetryService } from '../../../telemetry/common/telemetry';
 import { createFakeResponse } from '../../../test/node/fetcher';
 import { createPlatformServices, ITestingServicesAccessor } from '../../../test/node/services';
-import { CopilotToken, createTestExtendedTokenInfo, isErrorEnvelope, isStandardErrorEnvelope, isTokenEnvelope, validateTokenEnvelope } from '../../common/copilotToken';
+import { CopilotToken, createTestExtendedTokenInfo, isErrorEnvelope, isStandardErrorEnvelope, validateTokenEnvelope } from '../../common/copilotToken';
 import { BaseCopilotTokenManager, CopilotTokenManagerFromGitHubToken } from '../../node/copilotTokenManager';
 
 // This is a fake version of CopilotTokenManagerFromGitHubToken.
@@ -232,6 +232,22 @@ describe('Copilot token unit tests', function () {
 		});
 	});
 
+	it('rate limiting honors Retry-After', async function () {
+		const fetcher = new RateLimitedFetcherService();
+		const testingServiceCollection = createPlatformServices();
+		testingServiceCollection.define(IFetcherService, fetcher);
+		accessor = disposables.add(testingServiceCollection.createTestingAccessor());
+
+		const tokenManager = accessor.get(IInstantiationService).createInstance(CopilotTokenManagerFromGitHubToken, 'valid', 'valid-user');
+		const result = await tokenManager.checkCopilotToken();
+
+		expect(result).toEqual({
+			kind: 'failure',
+			reason: 'RateLimited',
+			retryAfterMs: 120_000,
+		});
+	});
+
 	it('HTTP 401 unauthorized', async function () {
 		const fetcher = new HttpStatusFetcherService(401);
 
@@ -249,53 +265,6 @@ describe('Copilot token unit tests', function () {
 });
 
 describe('Token envelope validators', function () {
-	it('isTokenEnvelope returns true for valid token', function () {
-		const validToken = {
-			token: 'test-token',
-			expires_at: 1234567890,
-			refresh_in: 300,
-			sku: 'free_limited_copilot',
-			individual: true,
-			blackbird_clientside_indexing: false,
-			code_quote_enabled: false,
-			code_review_enabled: false,
-			codesearch: false,
-			copilotignore_enabled: false,
-			public_suggestions: 'enabled',
-			telemetry: 'enabled',
-		};
-		expect(isTokenEnvelope(validToken)).toBe(true);
-	});
-
-	it('isTokenEnvelope returns true when limited_user_quotas and limited_user_reset_date are null', function () {
-		// Enterprise/paid users get null for these fields
-		const validToken = {
-			token: 'test-token',
-			expires_at: 1234567890,
-			refresh_in: 300,
-			sku: 'free_limited_copilot',
-			individual: true,
-			blackbird_clientside_indexing: false,
-			code_quote_enabled: false,
-			code_review_enabled: false,
-			codesearch: false,
-			copilotignore_enabled: false,
-			public_suggestions: 'enabled',
-			telemetry: 'enabled',
-			limited_user_quotas: null,
-			limited_user_reset_date: null,
-		};
-		expect(isTokenEnvelope(validToken)).toBe(true);
-	});
-
-	it('isTokenEnvelope returns false for missing required fields', function () {
-		expect(isTokenEnvelope({})).toBe(false);
-		expect(isTokenEnvelope({ token: 'test' })).toBe(false);
-		expect(isTokenEnvelope({ token: 'test', expires_at: 123 })).toBe(false);
-		expect(isTokenEnvelope(null)).toBe(false);
-		expect(isTokenEnvelope(undefined)).toBe(false);
-	});
-
 	it('isErrorEnvelope returns true for valid error envelope', function () {
 		const validError = {
 			can_signup_for_limited: false,
@@ -333,6 +302,27 @@ describe('Token envelope validators', function () {
 	});
 
 	describe('validateTokenEnvelope', function () {
+		it('returns valid when limited_user_quotas and limited_user_reset_date are null', function () {
+			// Enterprise/paid users get null for these fields
+			const validToken = {
+				token: 'test-token',
+				expires_at: 1234567890,
+				refresh_in: 300,
+				sku: 'free_limited_copilot',
+				individual: true,
+				blackbird_clientside_indexing: false,
+				code_quote_enabled: false,
+				code_review_enabled: false,
+				codesearch: false,
+				copilotignore_enabled: false,
+				public_suggestions: 'enabled',
+				telemetry: 'enabled',
+				limited_user_quotas: null,
+				limited_user_reset_date: null,
+			};
+			expect(validateTokenEnvelope(validToken).valid).toBe(true);
+		});
+
 		it('returns strict strategy for fully valid token envelope', function () {
 			const validToken = {
 				token: 'test-token',
@@ -699,5 +689,34 @@ class HttpStatusFetcherService extends StaticFetcherService {
 	override async fetch(url: string, options: FetchOptions): Promise<Response> {
 		this.requests.set(url, options);
 		return createFakeResponse(this.status, {});
+	}
+}
+
+class RateLimitedFetcherService extends StaticFetcherService {
+	constructor() {
+		super({});
+	}
+
+	override async fetch(url: string, options: FetchOptions): Promise<Response> {
+		this.requests.set(url, options);
+		return Response.fromText(
+			429,
+			'Too Many Requests',
+			new TestHeaders({ 'retry-after': '120' }),
+			JSON.stringify({ message: 'rate limited' }),
+			'test-stub',
+		);
+	}
+}
+
+class TestHeaders implements IHeaders {
+	constructor(private readonly headers: Record<string, string>) { }
+
+	get(name: string): string | null {
+		return this.headers[name.toLowerCase()] ?? null;
+	}
+
+	*[Symbol.iterator](): Iterator<[string, string]> {
+		yield* Object.entries(this.headers);
 	}
 }

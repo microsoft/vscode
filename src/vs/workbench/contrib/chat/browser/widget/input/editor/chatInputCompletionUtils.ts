@@ -3,10 +3,46 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { fuzzyScore, FuzzyScoreOptions, fuzzyScoreGracefulAggressive } from '../../../../../../../base/common/filters.js';
+import { InternalSuggestOptions } from '../../../../../../../editor/common/config/editorOptions.js';
 import { Position } from '../../../../../../../editor/common/core/position.js';
 import { Range } from '../../../../../../../editor/common/core/range.js';
 import { IWordAtPosition, getWordAtText } from '../../../../../../../editor/common/core/wordHelper.js';
 import { ITextModel } from '../../../../../../../editor/common/model.js';
+
+export const attachedContextCompletionSortText = '\u0000';
+export const attachedContextCompletionAdditionalTriggerCharacters = [':', '-'] as const;
+
+export function getAttachedContextCompletionSortText(score: number): string {
+	return `${attachedContextCompletionSortText}${(0x7FFFFFFF - score).toString(16).padStart(8, '0')}`;
+}
+
+export function getPromptSlashCommandFilterText(name: string): string | undefined {
+	const command = `/${name}`;
+	const displayCommand = name.includes(':') ? `/${name.replace(/:/g, ' ')}` : undefined;
+	const skillName = name.slice(name.lastIndexOf(':') + 1);
+	const wordSuffixes = [...skillName.matchAll(/-(?=[^-])/g)].map(match => `/${skillName.slice(match.index + 1)}`);
+	return displayCommand || wordSuffixes.length ? [...wordSuffixes, command, displayCommand].filter(Boolean).join(' ') : undefined;
+}
+
+export function getAttachedContextCompletionMatch(typedWord: string, leader: string, name: string, kind: string, suggestOptions: InternalSuggestOptions): { filterText: string; score: number } | undefined {
+	if (!typedWord) {
+		return { filterText: typedWord, score: 0 };
+	}
+
+	const searchableText = `${leader}${name} ${leader}attachment:${name} ${name} ${kind}`;
+	const scoreFn = suggestOptions.filterGraceful ? fuzzyScoreGracefulAggressive : fuzzyScore;
+	const score = scoreFn(
+		typedWord,
+		typedWord.toLowerCase(),
+		0,
+		searchableText,
+		searchableText.toLowerCase(),
+		0,
+		{ ...FuzzyScoreOptions.default, firstMatchCanBeWeak: !suggestOptions.matchOnWordStartOnly }
+	);
+	return score ? { filterText: typedWord, score: score[0] } : undefined;
+}
 
 export function escapeForCharClass(text: string): string {
 	return text.replace(/[-\\^\]]/g, '\\$&');
@@ -16,6 +52,10 @@ export interface IChatCompletionRangeResult {
 	insert: Range;
 	replace: Range;
 	varWord: IWordAtPosition | null;
+}
+
+export function getCompletionRangeWord(rangeResult: IChatCompletionRangeResult): string | undefined {
+	return rangeResult.varWord?.word.slice(0, rangeResult.insert.endColumn - rangeResult.insert.startColumn);
 }
 
 export function computeCompletionRanges(model: ITextModel, position: Position, reg: RegExp, onlyOnWordStart = false): IChatCompletionRangeResult | undefined {
@@ -73,8 +113,8 @@ export function isAtTriggerCharacterToken(model: ITextModel, position: Position,
 	// start-of-line) up to the cursor.
 	const wsIdx = beforeCursor.search(/\s\S*$/);
 	const token = wsIdx >= 0 ? beforeCursor.slice(wsIdx + 1) : beforeCursor;
-	if (token.length === 0) {
-		return false;
+	if (token.length > 0 && triggerCharacters.includes(token[0])) {
+		return true;
 	}
-	return triggerCharacters.includes(token[0]);
+	return triggerCharacters.includes('/') && /^\s*\//.test(beforeCursor);
 }

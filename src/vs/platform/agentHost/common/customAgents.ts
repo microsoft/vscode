@@ -3,35 +3,44 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { URI } from '../../../base/common/uri.js';
-import type { CustomizationAgentRef, SessionCustomization } from './state/protocol/state.js';
+import { isEqualOrParent } from '../../../base/common/resources.js';
+import { URI } from '../../../base/common/uri.js';
+import { isCustomizationEnabled } from './customizationEnablement.js';
+import { CustomizationType, type AgentCustomization, type ClientPluginCustomization, type Customization } from './state/protocol/state.js';
 
 /**
  * Computes the effective set of selectable custom agents for a session.
  *
- * Custom agents are contributed exclusively by
- * {@link SessionCustomization.agents} — only the agent host populates that
- * field after parsing each customization. Disabled session customizations
- * are skipped; customizations with an absent `agents` field are treated as
- * "unknown" (e.g. the host has not finished parsing yet) and skipped, while
- * an empty array means "no agents contributed" and is respected.
+ * Custom agents live as {@link CustomizationType.Agent | `Agent`} entries
+ * in each container customization's {@link Customization.children | `children`}
+ * array. Only the agent host populates `children` (after parsing the
+ * container). Disabled containers are skipped; containers with an absent
+ * `children` field are treated as "unknown" (e.g. the host has not finished
+ * parsing yet) and skipped, while an empty array means "no children
+ * contributed" and is respected.
  *
- * The picker is keyed on the agent's stable {@link CustomizationAgentRef.uri};
+ * The picker is keyed on the agent's stable {@link AgentCustomization.uri};
  * duplicates within the session's customization list are coalesced.
  */
 export function getEffectiveAgents(
-	sessionCustomizations: readonly SessionCustomization[] | undefined,
-): readonly CustomizationAgentRef[] {
-	const seen = new Map<string, CustomizationAgentRef>();
+	sessionCustomizations: readonly Customization[] | undefined,
+): readonly AgentCustomization[] {
+	const seen = new Map<string, AgentCustomization>();
 	if (sessionCustomizations) {
-		for (const customization of sessionCustomizations) {
-			if (customization.enabled === false || !customization.agents) {
+		for (const container of sessionCustomizations) {
+			if (container.type === CustomizationType.McpServer) {
 				continue;
 			}
-			for (const agent of customization.agents) {
-				const key = agent.uri.toString();
+			if ((container.type === CustomizationType.Plugin && !isCustomizationEnabled(container)) || (container.type === CustomizationType.Directory && !container.enabled) || !container.children) {
+				continue;
+			}
+			for (const child of container.children) {
+				if (child.type !== CustomizationType.Agent) {
+					continue;
+				}
+				const key = child.uri.toString();
 				if (!seen.has(key)) {
-					seen.set(key, agent);
+					seen.set(key, child);
 				}
 			}
 		}
@@ -39,6 +48,25 @@ export function getEffectiveAgents(
 	const result = [...seen.values()];
 	result.sort((a, b) => a.name.localeCompare(b.name) || a.uri.toString().localeCompare(b.uri.toString()));
 	return result;
+}
+
+/**
+ * Filters draft agents by their published plugin container enablement.
+ * Unmatched agents remain selectable because they may be loose agents or precede
+ * their plugin ref during a client update.
+ */
+export function getEffectiveClientAgents(
+	clientCustomizations: readonly ClientPluginCustomization[] | undefined,
+	clientAgents: readonly AgentCustomization[],
+): readonly AgentCustomization[] {
+	if (!clientCustomizations || clientCustomizations.length === 0) {
+		return clientAgents;
+	}
+	return clientAgents.filter(agent => {
+		const agentUri = URI.parse(agent.uri);
+		const plugin = clientCustomizations.find(candidate => isEqualOrParent(agentUri, URI.parse(candidate.uri)));
+		return !plugin || isCustomizationEnabled(plugin);
+	});
 }
 
 /**
@@ -63,10 +91,10 @@ export function agentHostAgentPickerStorageKey(resourceScheme: string): string {
  * sessions-layer `ISessionAgentRef` both provide URI strings.
  */
 export function resolveAgentHostAgent(
-	agents: readonly CustomizationAgentRef[],
+	agents: readonly AgentCustomization[],
 	sessionAgentUri: URI | string | undefined,
 	storedAgentUri: string | undefined,
-): CustomizationAgentRef | undefined {
+): AgentCustomization | undefined {
 	if (sessionAgentUri !== undefined) {
 		const sessionStr = typeof sessionAgentUri === 'string' ? sessionAgentUri : sessionAgentUri.toString();
 		const match = agents.find(a => a.uri === sessionStr);

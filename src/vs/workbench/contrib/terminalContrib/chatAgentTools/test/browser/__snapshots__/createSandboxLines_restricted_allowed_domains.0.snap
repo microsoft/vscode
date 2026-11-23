@@ -1,0 +1,53 @@
+{
+  "sandboxMode": "on-network-restricted",
+  "allowToRunUnsandboxedCommands": true,
+  "retryWithAllowNetworkRequests": true,
+  "networkDomains": {
+    "allowedDomains": [
+      "github.com",
+      "registry.npmjs.org"
+    ],
+    "deniedDomains": []
+  }
+}
+----
+{
+  "requestUnsandboxedExecution": {
+    "type": "boolean",
+    "description": "Request that this command run outside the terminal sandbox. Only set this when the command clearly needs unsandboxed access. The user will be prompted before the command runs unsandboxed."
+  },
+  "requestUnsandboxedExecutionReason": {
+    "type": "string",
+    "description": "A short explanation of why this command must run outside the terminal sandbox. Only provide this when requestUnsandboxedExecution is true."
+  },
+  "requestAllowNetwork": {
+    "type": "boolean",
+    "description": "Request that this command remain in the terminal sandbox but run with unrestricted network access. Only set this when the command clearly needs network access but the required network access was blocked. The user will be prompted before network restrictions are relaxed."
+  },
+  "requestAllowNetworkReason": {
+    "type": "string",
+    "description": "A short explanation of why this sandboxed command needs unrestricted network access. Only provide this when requestAllowNetwork is true."
+  },
+  "requestFileValidationCheck": {
+    "type": "array",
+    "description": "Sandbox write access checks to perform before running the command. Provide the file paths that the command needs to write.",
+    "items": {
+      "type": "string"
+    }
+  },
+  "requestFileValidationCheckReason": {
+    "type": "string",
+    "description": "A short explanation of why this sandboxed command needs these file paths. Only provide this when requestFileValidationCheck is not empty."
+  }
+}
+----
+
+Sandboxing:
+- Commands run inside a sandbox by default. The sandbox restricts two things independently: the filesystem and the network.
+- Filesystem: read-only outside the workspace and $TMPDIR, which stay read-write. Parts of $HOME are hidden for privacy, but common developer tools (git, package managers, language toolchains) still work because their $HOME config and cache paths are automatically made readable.
+- Use $TMPDIR for temporary files; /tmp may not be writable. On macOS and Linux the TMPDIR env var is set to a writable path.
+- If a command needs sandboxed write access to specific file paths outside workspace, pass requestFileValidationCheck with those paths. VS Code checks sandbox access before execution and returns Access Denied without running the command when access is unavailable.
+- Network: only these domains are reachable in the sandbox: github.com, registry.npmjs.org. Other domains fail unless requestAllowNetwork=true is set.
+- To get more access (each prompts the user — never ask the user for permission yourself):
+  - Need a blocked domain? Set requestAllowNetwork=true and provide requestAllowNetworkReason. This keeps the filesystem sandbox in place and only relaxes the network, so prefer it for network-only needs. Do this proactively when network use is obvious (git fetch/pull/push/clone; npm/yarn/pnpm/pip/cargo/go/brew installs; curl; wget), or reactively after a network failure (e.g. 'Network request failed', HTTP code 403).
+  - Need filesystem or other access the sandbox blocks? Set requestUnsandboxedExecution=true and provide requestUnsandboxedExecutionReason. This grants full filesystem AND network access by removing all sandbox protection, so for network-only needs prefer requestAllowNetwork and use this only when filesystem (or other non-network) access is also blocked. Do this proactively when it clearly needs it (writing/deleting files outside the workspace and $TMPDIR like $HOME, /usr, /etc; installing to system locations; elevated privileges), or reactively after a sandbox failure (e.g. 'Operation not permitted').

@@ -1,0 +1,676 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import assert from 'assert';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { constObservable } from '../../../../base/common/observable.js';
+import { hasKey } from '../../../../base/common/types.js';
+import { upcastPartial } from '../../../../base/test/common/mock.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { URI } from '../../../../base/common/uri.js';
+import { isEqual } from '../../../../base/common/resources.js';
+import { ILabelService, type ResourceLabelFormatter } from '../../../label/common/label.js';
+import { IPathService, type IResourcePathProvider } from '../../../path/common/pathService.js';
+import { AgentHostConnectionsService } from '../../browser/agentHostConnectionsService.js';
+import { AMBIENT_AGENT_HOST_AUTHORITY } from '../../common/agentHostConnectionsService.js';
+import type { IAgentConnection, IAgentHostService } from '../../common/agentService.js';
+import { ChangesetKind } from '../../common/changesetUri.js';
+import type { IRemoteAgentHostConnectionInfo, IRemoteAgentHostService } from '../../common/remoteAgentHostService.js';
+import { AGENT_HOST_SCHEME, agentHostAuthority, createAgentHostResourceUriMapper, createEditorRemoteAgentHostResourceUriMapper, type IAgentHostResourceUriMapper, identityAgentHostResourceUriMapper } from '../../common/agentHostUri.js';
+import { remoteAgentHostSessionTypeId } from '../../common/agentHostSessionType.js';
+import { PathStyle } from '../../common/state/protocol/common/commands.js';
+import { INotification } from '../../common/state/sessionActions.js';
+import { SessionSummary } from '../../common/state/sessionState.js';
+
+/** A connection stand-in identified by a `marker` so equality checks read clearly. */
+function fakeConnection(marker: string, pathStyle?: PathStyle): IAgentConnection {
+	return {
+		marker,
+		initializeResult: constObservable({
+			protocolVersion: '1.0.0',
+			serverSeq: 0,
+			snapshots: [],
+			...(pathStyle === undefined ? {} : { environment: { pathStyle } }),
+		}),
+	} as unknown as IAgentConnection;
+}
+
+suite('AgentHostConnectionsService', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function createService(
+		remoteConnections: readonly IRemoteAgentHostConnectionInfo[],
+		remoteByAddress: Map<string, IAgentConnection>,
+		options?: { ambientResourceUris?: IAgentHostResourceUriMapper; ambientPathStyle?: PathStyle },
+	): { service: AgentHostConnectionsService; ambient: IAgentConnection; pathProvider: IResourcePathProvider; registeredFormatters: ResourceLabelFormatter[]; fireRemoteChange: () => void; notifications: Emitter<INotification> } {
+		const onRemoteChange = store.add(new Emitter<void>());
+		const notifications = store.add(new Emitter<INotification>());
+
+		const agentHostService = {
+			...fakeConnection('ambient', options?.ambientPathStyle),
+			onAgentHostStart: Event.None,
+			onAgentHostExit: Event.None,
+			onDidNotification: notifications.event,
+			resourceUris: options?.ambientResourceUris ?? identityAgentHostResourceUriMapper,
+		} as unknown as IAgentHostService;
+
+		const remoteAgentHostService = {
+			onDidChangeConnections: onRemoteChange.event,
+			get connections() { return remoteConnections; },
+			getConnection: (address: string) => remoteByAddress.get(address),
+			getConnectionByAuthority: (authority: string) => {
+				for (const info of remoteConnections) {
+					if (toAuthority(info.address) === authority) {
+						return remoteByAddress.get(info.address);
+					}
+				}
+				return undefined;
+			},
+		} as unknown as IRemoteAgentHostService;
+
+		let pathProvider!: IResourcePathProvider;
+		const pathService = upcastPartial<IPathService>({
+			registerPathProvider: (scheme, provider) => {
+				assert.strictEqual(scheme, AGENT_HOST_SCHEME);
+				pathProvider = provider;
+				return Disposable.None;
+			},
+		});
+		const registeredFormatters: ResourceLabelFormatter[] = [];
+		const labelService = upcastPartial<ILabelService>({
+			registerFormatter: formatter => {
+				if (hasKey(formatter, { scheme: true })) {
+					registeredFormatters.push(formatter);
+				}
+				return Disposable.None;
+			},
+		});
+		const service = store.add(new AgentHostConnectionsService(agentHostService, remoteAgentHostService, pathService, labelService));
+		return { service, ambient: agentHostService as unknown as IAgentConnection, pathProvider, registeredFormatters, fireRemoteChange: () => onRemoteChange.fire(), notifications };
+	}
+
+	// Mirror agentHostAuthority for the simple alphanumeric/host cases used here.
+	function toAuthority(address: string): string {
+		return /^[a-zA-Z0-9]+$/.test(address) ? address : address.replaceAll(':', '__');
+	}
+
+	function info(address: string, name: string, pathStyle?: PathStyle): IRemoteAgentHostConnectionInfo {
+		return { address, name, clientId: `id-${address}`, status: { kind: 'connected' }, pathStyle };
+	}
+
+	test('enumerates [ambient, ...remotes] and resolves by authority/address', () => {
+		const remoteConn = fakeConnection('remote-host');
+		const byAddress = new Map<string, IAgentConnection>([['example.com:8080', remoteConn]]);
+		const { service, ambient } = createService([info('example.com:8080', 'My Remote')], byAddress);
+
+		const snapshot = service.connections.map(c => ({
+			authority: c.authority,
+			address: c.address,
+			name: c.name,
+			isAmbient: c.isAmbient,
+			connection: c.connection,
+		}));
+
+		assert.deepStrictEqual(snapshot, [
+			{ authority: AMBIENT_AGENT_HOST_AUTHORITY, address: undefined, name: 'Local', isAmbient: true, connection: ambient },
+			{ authority: 'example.com__8080', address: 'example.com:8080', name: 'My Remote', isAmbient: false, connection: remoteConn },
+		]);
+
+		assert.strictEqual(service.ambientConnection, ambient);
+		assert.strictEqual(service.getConnectionByAuthority(AMBIENT_AGENT_HOST_AUTHORITY), ambient);
+		assert.strictEqual(service.getConnectionByAuthority('example.com__8080'), remoteConn);
+		assert.strictEqual(service.getConnectionByAddress('example.com:8080'), remoteConn);
+		assert.strictEqual(service.getConnectionByAddress('missing'), undefined);
+	});
+
+	test('forwards remote connection changes', () => {
+		const { service, fireRemoteChange } = createService([], new Map());
+		let fired = 0;
+		store.add(service.onDidChangeConnections(() => fired++));
+
+		fireRemoteChange();
+
+		assert.strictEqual(fired, 1);
+	});
+
+	test('resolves the ambient editor-remote authority without claiming another host', () => {
+		const remoteAuthority = 'wsl+Ubuntu';
+		const authority = agentHostAuthority(`vscode-remote://${remoteAuthority}`);
+		const other = fakeConnection('other-host');
+		const { service, ambient } = createService([info('other', 'Other')], new Map([['other', other]]), {
+			ambientResourceUris: createEditorRemoteAgentHostResourceUriMapper(remoteAuthority, authority),
+		});
+
+		assert.deepStrictEqual([
+			service.getConnectionByAuthority(AMBIENT_AGENT_HOST_AUTHORITY),
+			service.getConnectionByAuthority(authority),
+			service.getConnectionByAuthority('other'),
+			service.getConnectionByAuthority(agentHostAuthority('vscode-remote://wsl+Other')),
+		], [ambient, ambient, other, undefined]);
+	});
+
+	test('provides path semantics for mixed remote authorities and the ambient resource authority', async () => {
+		const windows = fakeConnection('windows', PathStyle.Posix);
+		const linux = fakeConnection('linux', PathStyle.Posix);
+		const absent = fakeConnection('absent');
+		const { service, ambient, pathProvider } = createService([
+			info('windows', 'Windows', PathStyle.Windows),
+			info('linux', 'Linux', PathStyle.Posix),
+			info('absent', 'Absent'),
+		], new Map([
+			['windows', windows],
+			['linux', linux],
+			['absent', absent],
+		]), {
+			ambientResourceUris: createAgentHostResourceUriMapper('ambient-remote'),
+			ambientPathStyle: PathStyle.Posix,
+		});
+
+		assert.deepStrictEqual({
+			windows: (await pathProvider.getPath(URI.from({ scheme: AGENT_HOST_SCHEME, authority: 'windows', path: '/' })))?.sep,
+			linux: (await pathProvider.getPath(URI.from({ scheme: AGENT_HOST_SCHEME, authority: 'linux', path: '/' })))?.sep,
+			ambient: (await pathProvider.getPath(URI.from({ scheme: AGENT_HOST_SCHEME, authority: 'ambient-remote', path: '/' })))?.sep,
+			absent: await pathProvider.getPath(URI.from({ scheme: AGENT_HOST_SCHEME, authority: 'absent', path: '/' })),
+			unknown: await pathProvider.getPath(URI.from({ scheme: AGENT_HOST_SCHEME, authority: 'unknown', path: '/' })),
+			ambientAlias: service.getConnectionByAuthority('ambient-remote'),
+		}, {
+			windows: '\\',
+			linux: '/',
+			ambient: '/',
+			absent: undefined,
+			unknown: undefined,
+			ambientAlias: ambient,
+		});
+	});
+
+	test('registers the ambient label formatter from negotiated path style', () => {
+		const { registeredFormatters } = createService([], new Map(), { ambientPathStyle: PathStyle.Windows });
+
+		assert.deepStrictEqual(registeredFormatters.map(formatter => ({
+			authority: formatter.authority,
+			formatting: formatter.formatting,
+		})), [{
+			authority: AMBIENT_AGENT_HOST_AUTHORITY,
+			formatting: {
+				label: '${path}',
+				separator: '\\',
+				normalizeDriveLetter: true,
+			},
+		}]);
+	});
+
+	test('peer chat selections resolve to the parent session without a fragment', () => {
+		const { service } = createService([info('myhost', 'Remote')], new Map([['myhost', fakeConnection('remote')]]));
+		assert.deepStrictEqual([
+			service.resolveSessionResourceIdentity(URI.parse('agent-host-copilotcli:/parent#peer'))?.backendSession.toString(),
+			service.resolveSessionResourceIdentity(URI.parse('remote-myhost-copilotcli:/parent#peer'))?.backendSession.toString(),
+		], ['copilotcli:/parent', 'copilotcli:/parent']);
+	});
+
+	test('resolveSessionResource maps local and remote schemes to connections', () => {
+		const remoteConn = fakeConnection('remote-host');
+		const byAddress = new Map<string, IAgentConnection>([['myhost', remoteConn]]);
+		const { service, ambient } = createService([info('myhost', 'My Remote')], byAddress);
+
+		const local = service.resolveSessionResource(URI.parse('agent-host-copilotcli:/abc123'));
+		assert.strictEqual(local?.connection, ambient);
+		assert.strictEqual(local?.connectionAuthority, AMBIENT_AGENT_HOST_AUTHORITY);
+		assert.strictEqual(local?.backendSession.toString(), 'copilotcli:/abc123');
+
+		const remote = service.resolveSessionResource(URI.parse('remote-myhost-copilotcli:/xyz789'));
+		assert.strictEqual(remote?.connection, remoteConn);
+		assert.strictEqual(remote?.connectionAuthority, 'myhost');
+		assert.strictEqual(remote?.backendSession.toString(), 'copilotcli:/xyz789');
+
+		// Non-agent-host scheme and unknown remote authority resolve to undefined.
+		assert.strictEqual(service.resolveSessionResource(URI.parse('vscode-chat-editor:/foo')), undefined);
+		assert.strictEqual(service.resolveSessionResource(URI.parse('remote-unknown-copilotcli:/foo')), undefined);
+	});
+
+	test('maps backend resources back through local and remote connection policy', () => {
+		const { service } = createService([info('remote', 'Remote')], new Map());
+		assert.deepStrictEqual([
+			service.getSessionResource(URI.parse('codex:/external'))?.toString(),
+			service.getSessionResource(URI.parse('codex:/external'), 'remote')?.toString(),
+		], ['agent-host-codex:/external', 'remote-remote-codex:/external']);
+	});
+
+	test('resolves a catalog alias to an exact execution and releases only the alias', () => {
+		const { service } = createService([], new Map());
+		const backend = URI.parse('host-session://owner/session?revision=one');
+		const canonical = service.registerSessionResource(backend, 'remote', 'copilot');
+		const resource = URI.parse('cloud-sandbox-task:/task');
+		const registration = store.add(service.registerSessionResourceAlias(resource, backend, 'remote', 'copilot'));
+		const resolved = service.resolveSessionResourceIdentity(resource.with({ fragment: 'peer' }));
+		registration.dispose();
+		assert.deepStrictEqual({
+			resolved: [resolved?.connectionAuthority, resolved?.backendSession.toString()],
+			after: service.resolveSessionResourceIdentity(resource),
+			canonical: service.findSessionResource(backend, 'remote')?.toString(),
+		}, { resolved: ['remote', backend.toString()], after: undefined, canonical: canonical.toString() });
+	});
+
+	test('forgets removed backend identities only on their owning connection after alias release', async () => {
+		const remoteNotifications = store.add(new Emitter<INotification>());
+		const remote = upcastPartial<IAgentConnection>({ onDidNotification: remoteNotifications.event });
+		const { service, notifications } = createService([info('remote', 'Remote')], new Map([['remote', remote]]));
+		const backend = URI.parse('host-session://owner/session?revision=one');
+		const local = service.registerSessionResource(backend, undefined, 'copilot');
+		const remoteResource = service.registerSessionResource(backend, 'remote', 'codex');
+		const alias = URI.parse('cloud-sandbox-task:/task');
+		const registration = store.add(service.registerSessionResourceAlias(alias, backend, 'remote', 'codex'));
+		let changes = 0;
+		store.add(service.onDidChangeSessionResolution(() => changes++));
+		remoteNotifications.fire({ type: 'root/sessionRemoved', channel: 'ahp-root://', session: backend.toString() });
+		await Promise.resolve();
+		registration.dispose();
+		remoteNotifications.fire({ type: 'root/sessionRemoved', channel: 'ahp-root://', session: backend.toString() });
+		await Promise.resolve();
+		const afterRemote = {
+			remote: service.findSessionResource(backend, 'remote'),
+			alias: service.resolveSessionResourceIdentity(alias),
+			remoteAdvertised: service.resolveSessionResourceIdentity(remoteResource)?.backendSessionIsAdvertised,
+			local: service.findSessionResource(backend)?.toString(),
+			changes,
+		};
+		notifications.fire({ type: 'root/sessionRemoved', channel: 'ahp-root://', session: backend.toString() });
+		await Promise.resolve();
+		assert.deepStrictEqual({
+			afterRemote,
+			local: service.findSessionResource(backend),
+			localAdvertised: service.resolveSessionResourceIdentity(local)?.backendSessionIsAdvertised,
+			changes,
+		}, {
+			afterRemote: { remote: undefined, alias: undefined, remoteAdvertised: undefined, local: local.toString(), changes: 2 },
+			local: undefined, localAdvertised: undefined, changes: 3,
+		});
+	});
+
+	for (const republished of [false, true]) {
+		test(`keeps owner-held aliases routable after backend removal (republished: ${republished})`, async () => {
+			const { service, notifications } = createService([], new Map());
+			const backend = URI.parse('host-session://owner/session?revision=one');
+			const canonical = service.registerSessionResource(backend, undefined, 'copilot');
+			const alias = URI.parse('cloud-sandbox-task:/task');
+			const registration = store.add(service.registerSessionResourceAlias(alias, backend, AMBIENT_AGENT_HOST_AUTHORITY, 'copilot'));
+			notifications.fire({ type: 'root/sessionRemoved', channel: 'ahp-root://', session: backend.toString() });
+			await Promise.resolve();
+			const afterRemoval = {
+				frontend: service.findSessionResource(backend),
+				backend: service.resolveSessionResourceIdentity(alias)?.backendSession,
+				canonicalAdvertised: service.resolveSessionResourceIdentity(canonical)?.backendSessionIsAdvertised,
+			};
+			if (republished) {
+				notifications.fire({ type: 'root/sessionAdded', channel: 'ahp-root://', summary: upcastPartial<SessionSummary>({ resource: backend.toString(), provider: 'copilot' }) });
+			}
+			const afterPublication = {
+				frontend: service.findSessionResource(backend),
+				backend: service.resolveSessionResourceIdentity(alias)?.backendSession,
+			};
+			registration.dispose();
+			assert.deepStrictEqual({
+				afterRemoval,
+				afterPublication,
+				afterRelease: service.findSessionResource(backend),
+				alias: service.resolveSessionResourceIdentity(alias),
+			}, {
+				afterRemoval: { frontend: alias, backend, canonicalAdvertised: undefined },
+				afterPublication: { frontend: alias, backend },
+				afterRelease: republished ? canonical : undefined,
+				alias: undefined,
+			});
+		});
+	}
+
+	test('releases multiple owner-held aliases without restoring an unpublished canonical identity', async () => {
+		const { service, notifications } = createService([], new Map());
+		const backend = URI.parse('host-session://owner/session?revision=one');
+		const first = URI.parse('cloud-sandbox-task:/first');
+		const second = URI.parse('cloud-sandbox-task:/second');
+		const firstRegistration = store.add(service.registerSessionResourceAlias(first, backend, AMBIENT_AGENT_HOST_AUTHORITY, 'copilot'));
+		const secondRegistration = store.add(service.registerSessionResourceAlias(second, backend, AMBIENT_AGENT_HOST_AUTHORITY, 'copilot'));
+		notifications.fire({ type: 'root/sessionRemoved', channel: 'ahp-root://', session: backend.toString() });
+		await Promise.resolve();
+		firstRegistration.dispose();
+		secondRegistration.dispose();
+		assert.deepStrictEqual({
+			frontend: service.findSessionResource(backend),
+			first: service.resolveSessionResourceIdentity(first),
+			second: service.resolveSessionResourceIdentity(second),
+		}, { frontend: undefined, first: undefined, second: undefined });
+	});
+
+	test('repeated draft creation and backend removal does not retain identity mappings', async () => {
+		const { service, notifications } = createService([], new Map());
+		const accepted = URI.parse('ahp-session:/accepted');
+		const acceptedResource = service.registerSessionResource(accepted, undefined, 'copilot');
+		const retainedMappings: boolean[] = [];
+		for (let i = 0; i < 36; i++) {
+			const backend = URI.parse(`ahp-session:/draft-${i}`);
+			notifications.fire({ type: 'root/sessionAdded', channel: 'ahp-root://', summary: upcastPartial<SessionSummary>({ resource: backend.toString(), provider: 'copilot' }) });
+			const resource = service.findSessionResource(backend)!;
+			notifications.fire({ type: 'root/sessionRemoved', channel: 'ahp-root://', session: backend.toString() });
+			await Promise.resolve();
+			retainedMappings.push(service.findSessionResource(backend) !== undefined || service.resolveSessionResourceIdentity(resource)?.backendSessionIsAdvertised === true);
+		}
+		assert.deepStrictEqual({ retainedMappings, accepted: service.findSessionResource(accepted) }, { retainedMappings: Array(36).fill(false), accepted: acceptedResource });
+	});
+
+	for (const registration of ['notification', 'explicit'] as const) {
+		test(`keeps a removed identity registered again before cleanup (${registration})`, async () => {
+			const { service, notifications } = createService([], new Map());
+			const backend = URI.parse('host-session://owner/session?revision=one');
+			const resource = service.registerSessionResource(backend, undefined, 'copilot');
+			notifications.fire({ type: 'root/sessionRemoved', channel: 'ahp-root://', session: backend.toString() });
+			if (registration === 'notification') {
+				notifications.fire({ type: 'root/sessionAdded', channel: 'ahp-root://', summary: upcastPartial<SessionSummary>({ resource: backend.toString(), provider: 'copilot' }) });
+			} else {
+				service.registerSessionResource(backend);
+			}
+			await Promise.resolve();
+			const afterRegistration = service.findSessionResource(backend);
+			notifications.fire({ type: 'root/sessionRemoved', channel: 'ahp-root://', session: backend.toString() });
+			await Promise.resolve();
+			assert.deepStrictEqual({
+				afterRegistration,
+				afterRemoval: service.findSessionResource(backend),
+			}, { afterRegistration: resource, afterRemoval: undefined });
+		});
+	}
+
+	test('resolves mixed legacy and standard identities by provider on the owning connection', () => {
+		const { service } = createService([], new Map());
+		const resources = [
+			[URI.parse('copilotcli:/old'), 'copilotcli'],
+			[URI.parse('ahp-session:/new-copilot'), 'copilotcli'],
+			[URI.parse('ahp-session:/new-codex'), 'codex'],
+			[URI.parse('claude:/same-id'), 'claude'],
+			[URI.parse('codex:/same-id'), 'codex'],
+		] as const;
+		const local = resources.map(([backend, provider]) => service.registerSessionResource(backend, AMBIENT_AGENT_HOST_AUTHORITY, provider));
+		const remote = service.registerSessionResource(URI.parse('ahp-session:/remote-codex'), 'myhost', 'codex');
+		store.add(service.registerSessionResolutionPolicy('myhost', { connectionAddress: 'myhost' }));
+		assert.deepStrictEqual({
+			local: local.map(resource => [resource.toString(), service.resolveSessionResourceIdentity(resource.with({ fragment: 'peer' }))?.backendSession.toString()]),
+			remote: [remote.toString(), service.resolveSessionResourceIdentity(remote)?.backendSession.toString()],
+		}, {
+			local: resources.map(([backend, provider]) => [`agent-host-${provider}:${backend.path}`, backend.toString()]),
+			remote: ['remote-myhost-codex:/remote-codex', 'ahp-session:/remote-codex'],
+		});
+	});
+
+	test('declines reverse mapping for an unknown remote authority', () => {
+		const { service } = createService([], new Map());
+		assert.strictEqual(service.getSessionResource(URI.parse('codex:/external'), 'unknown'), undefined);
+	});
+
+	test('lookup does not claim a backend identity and uses exact advertised records when available', () => {
+		const { service } = createService([], new Map());
+		const legacy = URI.parse('codex:/same');
+		const standard = URI.parse('ahp-session:/same');
+		const before = [
+			service.getSessionResource(legacy)?.toString(),
+			service.getSessionResource(standard),
+			service.findSessionResource(legacy),
+		];
+		const advertised = service.registerSessionResource(standard, undefined, 'codex');
+		assert.deepStrictEqual({
+			before,
+			standard: service.getSessionResource(standard)?.toString(),
+			legacy: service.getSessionResource(legacy),
+			backend: service.resolveSessionResourceIdentity(advertised)?.backendSession.toString(),
+		}, { before: ['agent-host-codex:/same', undefined, undefined], standard: advertised.toString(), legacy: undefined, backend: standard.toString() });
+	});
+
+	for (const authority of [AMBIENT_AGENT_HOST_AUTHORITY, 'myhost']) {
+		for (const aliased of [false, true]) {
+			test(`preserves complete host-advertised session identity (${authority}, alias: ${aliased})`, () => {
+				const connection = fakeConnection('remote-host');
+				const byAddress = new Map([['myhost', connection]]);
+				const { service, ambient } = createService([info('myhost', 'My Remote')], byAddress);
+				if (aliased) {
+					store.add(service.registerSessionResolutionPolicy(authority, {
+						sessionSchemeAlias: { ui: 'copilot', backend: 'host-session' },
+					}));
+				}
+				const advertised = URI.parse('host-session://tenant.example/opaque/session%20key?revision=7#default');
+				const resource = service.registerSessionResource(advertised, authority);
+				const resolved = service.resolveSessionResource(resource);
+				assert.deepStrictEqual({
+					resource: resource.toString(),
+					backend: resolved?.backendSession.toString(),
+					connection: resolved?.connection,
+				}, {
+					resource: advertised.with({ scheme: `${authority === AMBIENT_AGENT_HOST_AUTHORITY ? 'agent-host-' : 'remote-myhost-'}${aliased ? 'copilot' : 'host-session'}` }).toString(),
+					backend: advertised.toString(),
+					connection: authority === AMBIENT_AGENT_HOST_AUTHORITY ? ambient : connection,
+				});
+				byAddress.clear();
+				assert.strictEqual(service.resolveSessionResourceIdentity(resource)?.backendSession.toString(), advertised.toString());
+				assert.strictEqual(service.getSessionResource(advertised, authority)?.toString(), resource.with({ fragment: '' }).toString());
+			});
+
+			test(`reverse mapping preserves parent resolution for peer selections (${authority}, alias: ${aliased})`, () => {
+				const connection = fakeConnection('remote-host');
+				const byAddress = new Map([['myhost', connection]]);
+				const { service, ambient } = createService([info('myhost', 'My Remote')], byAddress);
+				if (aliased) {
+					store.add(service.registerSessionResolutionPolicy(authority, {
+						sessionSchemeAlias: { ui: 'copilot', backend: 'codex' },
+					}));
+				}
+				const backend = URI.parse('codex:/external');
+				const resource = service.getSessionResource(backend, authority)!;
+				const selectedPeer = resource.with({ fragment: 'peer-chat' });
+				const selectedSubagent = resource.with({ query: 'subagentChatResource=ahp-chat%3A%2Fchild', fragment: 'child' });
+				const resolved = service.resolveSessionResource(selectedPeer);
+				const resolvedSubagent = service.resolveSessionResource(selectedSubagent);
+				const advertisedStandard = URI.parse('ahp-session:/standard-parent');
+				const advertisedResource = service.registerSessionResource(advertisedStandard, authority, aliased ? 'copilot' : 'codex');
+				const advertisedSubagent = advertisedResource.with({ query: 'subagentChatResource=ahp-chat%3A%2Fchild', fragment: 'child' });
+				const resolvedAdvertisedSubagent = service.resolveSessionResourceIdentity(advertisedSubagent);
+				assert.deepStrictEqual({
+					resource: resource.toString(),
+					backend: resolved?.backendSession.toString(),
+					subagentBackend: resolvedSubagent?.backendSession.toString(),
+					advertisedSubagentBackend: resolvedAdvertisedSubagent?.backendSession.toString(),
+					advertisedSubagentIsAdvertised: resolvedAdvertisedSubagent?.backendSessionIsAdvertised,
+					connection: resolved?.connection,
+				}, {
+					resource: `${authority === AMBIENT_AGENT_HOST_AUTHORITY ? 'agent-host-' : 'remote-myhost-'}${aliased ? 'copilot' : 'codex'}:/external`,
+					backend: backend.toString(),
+					subagentBackend: backend.toString(),
+					advertisedSubagentBackend: advertisedStandard.toString(),
+					advertisedSubagentIsAdvertised: true,
+					connection: authority === AMBIENT_AGENT_HOST_AUTHORITY ? ambient : connection,
+				});
+				byAddress.clear();
+				assert.strictEqual(service.resolveSessionResourceIdentity(selectedPeer)?.backendSession.toString(), backend.toString());
+			});
+
+			test(`declines opaque identities instead of silently changing the target (${authority}, alias: ${aliased})`, () => {
+				const { service } = createService([info('myhost', 'My Remote')], new Map([['myhost', fakeConnection('remote')]]));
+				if (aliased) {
+					store.add(service.registerSessionResolutionPolicy(authority, {
+						sessionSchemeAlias: { ui: 'copilot', backend: 'codex' },
+					}));
+				}
+				assert.deepStrictEqual([
+					'codex://tenant.example/session',
+					'codex:/session?revision=7',
+					'codex:/session#default',
+					'codex://tenant.example/opaque/session%20key?revision=7#default',
+				].map(value => service.getSessionResource(URI.parse(value), authority)), [undefined, undefined, undefined, undefined]);
+			});
+		}
+	}
+
+	test('applies provider session resolution policy', () => {
+		const remoteConn = fakeConnection('remote-host');
+		const byAddress = new Map<string, IAgentConnection>([['myhost', remoteConn]]);
+		const { service } = createService([info('myhost', 'My Remote')], byAddress);
+		let resolutionChanges = 0;
+		store.add(service.onDidChangeSessionResolution(() => resolutionChanges++));
+
+		const registration = store.add(service.registerSessionResolutionPolicy('myhost', {
+			sessionSchemeAlias: { ui: 'copilot', backend: 'ahp-session' },
+			defaultChangesetKind: ChangesetKind.Session,
+		}));
+		const mapped = service.resolveSessionResource(URI.parse('remote-myhost-copilot:/xyz789'));
+		registration.dispose();
+		const restored = service.resolveSessionResource(URI.parse('remote-myhost-copilot:/xyz789'));
+
+		assert.deepStrictEqual({
+			mapped: {
+				backendSession: mapped?.backendSession.toString(),
+				defaultChangesetKind: mapped?.defaultChangesetKind,
+			},
+			restored: {
+				backendSession: restored?.backendSession.toString(),
+				defaultChangesetKind: restored?.defaultChangesetKind,
+			},
+			resolutionChanges,
+		}, {
+			mapped: {
+				backendSession: 'ahp-session:/xyz789',
+				defaultChangesetKind: ChangesetKind.Session,
+			},
+			restored: {
+				backendSession: 'copilot:/xyz789',
+				defaultChangesetKind: undefined,
+			},
+			resolutionChanges: 2,
+		});
+	});
+
+	test('resolves remote session identity while disconnected', () => {
+		const { service } = createService([info('myhost', 'My Remote')], new Map());
+		store.add(service.registerSessionResolutionPolicy('myhost', {
+			sessionSchemeAlias: { ui: 'copilot', backend: 'ahp-session' },
+			defaultChangesetKind: ChangesetKind.Session,
+		}));
+
+		const resource = URI.parse('remote-myhost-copilot:/xyz789');
+		const identity = service.resolveSessionResourceIdentity(resource);
+
+		assert.deepStrictEqual({
+			identity: identity && {
+				connectionAuthority: identity.connectionAuthority,
+				backendSession: identity.backendSession.toString(),
+				defaultChangesetKind: identity.defaultChangesetKind,
+			},
+			resolution: service.resolveSessionResource(resource),
+		}, {
+			identity: {
+				connectionAuthority: 'myhost',
+				backendSession: 'ahp-session:/xyz789',
+				defaultChangesetKind: ChangesetKind.Session,
+			},
+			resolution: undefined,
+		});
+	});
+
+	test('retains provider-owned connection identity after the connection catalog entry is removed', () => {
+		const address = 'cloudsandbox:env-1';
+		const authority = agentHostAuthority(address);
+		const connection = fakeConnection('cloud-host');
+		const connections = [info(address, 'Cloud')];
+		const byAddress = new Map([[address, connection]]);
+		const { service } = createService(connections, byAddress);
+		const registration = store.add(service.registerSessionResolutionPolicy(authority, {
+			connectionAddress: address,
+			sessionSchemeAlias: { ui: 'copilot', backend: 'host-session-v2' },
+		}));
+		const resource = URI.from({ scheme: remoteAgentHostSessionTypeId(authority, 'copilot'), path: '/session-1' });
+		assert.strictEqual(service.resolveSessionResource(resource)?.connection, connection);
+		connections.length = 0;
+		byAddress.clear();
+
+		const identity = service.resolveSessionResourceIdentity(resource);
+		const resolution = service.resolveSessionResource(resource);
+		registration.dispose();
+		assert.deepStrictEqual({
+			identity: identity && {
+				connectionAddress: identity.connectionAddress,
+				connectionAuthority: identity.connectionAuthority,
+				backendSession: identity.backendSession.toString(),
+			},
+			resolution,
+			identityAfterProviderRemoval: service.resolveSessionResourceIdentity(resource),
+		}, {
+			identity: {
+				connectionAddress: address,
+				connectionAuthority: authority,
+				backendSession: 'host-session-v2:/session-1',
+			},
+			resolution: undefined,
+			identityAfterProviderRemoval: undefined,
+		});
+	});
+
+	test('batched session registrations fire one resolution change and sync registrations still fire each', () => {
+		const { service } = createService([info('myhost', 'Remote')], new Map([['myhost', fakeConnection('remote')]]));
+		let fired = 0;
+		store.add(service.onDidChangeSessionResolution(() => fired++));
+
+		service.registerSessionResource(URI.parse('copilotcli:/single'), undefined, 'copilotcli');
+		const afterSingle = fired;
+		const seenInside: (URI | undefined)[] = [];
+		service.batchSessionResolutionChanges(() => {
+			for (let i = 0; i < 100; i++) {
+				service.registerSessionResource(URI.parse(`copilotcli:/s${i}`), undefined, 'copilotcli');
+			}
+			service.batchSessionResolutionChanges(() => service.registerSessionResource(URI.parse('copilotcli:/nested'), 'myhost', 'copilotcli'));
+			seenInside.push(service.findSessionResource(URI.parse('copilotcli:/s99')));
+			assert.strictEqual(fired, afterSingle);
+		});
+		service.batchSessionResolutionChanges(() => service.registerSessionResource(URI.parse('copilotcli:/s1'), undefined, 'copilotcli'));
+
+		assert.deepStrictEqual({ afterSingle, fired, seenInside: seenInside.map(String) }, { afterSingle: 1, fired: 2, seenInside: ['agent-host-copilotcli:/s99'] });
+	});
+
+	test('batch resets and still fires once when the batched function throws', () => {
+		const { service } = createService([info('myhost', 'Remote')], new Map([['myhost', fakeConnection('remote')]]));
+		let fired = 0;
+		store.add(service.onDidChangeSessionResolution(() => fired++));
+
+		let error: unknown;
+		try {
+			service.batchSessionResolutionChanges(() => {
+				service.registerSessionResource(URI.parse('copilotcli:/before-throw'), undefined, 'copilotcli');
+				throw new Error('boom');
+			});
+		} catch (e) {
+			error = e;
+		}
+		const afterBatch = fired;
+		service.registerSessionResource(URI.parse('copilotcli:/after'), undefined, 'copilotcli');
+
+		assert.deepStrictEqual({ error: (error as Error).message, afterBatch, fired }, { error: 'boom', afterBatch: 1, fired: 2 });
+	});
+
+	test('findSessionResource matches the exact backend identity and authority', () => {
+		const { service } = createService([info('myhost', 'Remote')], new Map([['myhost', fakeConnection('remote')]]));
+		const backends = ['copilotcli:/Abc', 'copilotcli:/abc', 'claude:/Abc', 'copilotcli:/frag#peer', 'copilotcli:/q?x=1'].map(value => URI.parse(value));
+		const registered: { backend: URI; authority: string; resource: URI }[] = [];
+		for (const backend of backends) {
+			for (const authority of [AMBIENT_AGENT_HOST_AUTHORITY, 'myhost']) {
+				registered.push({ backend, authority, resource: service.registerSessionResource(backend, authority, backend.scheme) });
+			}
+		}
+		const referenceFind = (backend: URI, authority: string) => registered.find(entry => entry.authority === authority && isEqual(entry.backend, backend))?.resource.with({ fragment: '' }).toString();
+		const probes = [...backends, URI.parse('copilotcli:/ABC'), URI.parse('copilotcli:/missing'), URI.parse('copilotcli:/frag'), URI.parse('copilotcli:/frag#other')];
+		const actual: (string | undefined)[] = [];
+		const expected: (string | undefined)[] = [];
+		for (const probe of probes) {
+			for (const authority of [AMBIENT_AGENT_HOST_AUTHORITY, 'myhost', 'unknown']) {
+				actual.push(service.findSessionResource(probe, authority)?.toString());
+				expected.push(referenceFind(probe, authority));
+			}
+		}
+		assert.deepStrictEqual(actual, expected);
+	});
+});

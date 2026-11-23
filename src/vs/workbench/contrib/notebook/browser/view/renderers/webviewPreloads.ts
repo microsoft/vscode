@@ -91,7 +91,7 @@ declare function __import(path: string): Promise<any>;
 
 async function webviewPreloads(ctx: PreloadContext) {
 
-	/* eslint-disable no-restricted-globals, no-restricted-syntax */
+	/* eslint-disable no-restricted-globals, eslint-js/no-restricted-syntax */
 
 	// The use of global `window` should be fine in this context, even
 	// with aux windows. This code is running from within an `iframe`
@@ -657,7 +657,8 @@ async function webviewPreloads(ctx: PreloadContext) {
 				}
 
 				// if the node is not scrollable, we can continue. We don't check the computed style always as it's expensive
-				if (window.getComputedStyle(node).overflowY === 'hidden' || window.getComputedStyle(node).overflowY === 'visible') {
+				const overflowY = window.getComputedStyle(node).overflowY;
+				if (overflowY === 'hidden' || overflowY === 'visible') {
 					continue;
 				}
 

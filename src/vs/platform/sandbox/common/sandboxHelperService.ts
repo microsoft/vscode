@@ -9,17 +9,14 @@ export const ISandboxHelperService = createDecorator<ISandboxHelperService>('san
 
 export interface ISandboxDependencyStatus {
 	readonly bubblewrapInstalled: boolean;
+	readonly bubblewrapUsable: boolean;
 	readonly socatInstalled: boolean;
-}
-
-export interface IWindowsMxcFilesystemPolicy {
-	readonly readonlyPaths: string[];
-	readonly readwritePaths: string[];
+	readonly bubblewrapError?: string;
+	readonly dependencyInstallCommand?: string;
+	readonly apparmorRestrictsUnprivilegedUserNamespaces?: boolean;
 }
 
 export interface ISandboxHelperService {
 	readonly _serviceBrand: undefined;
 	checkSandboxDependencies(): Promise<ISandboxDependencyStatus | undefined>;
-	getWindowsMxcFilesystemPolicy(): Promise<IWindowsMxcFilesystemPolicy | undefined>;
-	getWindowsMxcEnvironment(): Promise<string[] | undefined>;
 }

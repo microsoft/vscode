@@ -5,7 +5,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IMatch, matchesFuzzy } from './filters';
+import { emptyMatches, IMatch, matchesFuzzy } from './filters';
 import { ltrim } from './strings';
 import { ThemeIcon } from './themables';
 
@@ -104,6 +104,10 @@ export function matchesFuzzyIconAware(query: string, target: IParsedLabelWithIco
 
 	// match on value without icon
 	const matches = matchesFuzzy(query, wordToMatchAgainstWithoutIconsTrimmed, enableSeparateSubstringMatching);
+
+	if (matches === emptyMatches) {
+		return matches;
+	}
 
 	// Map matches back to offsets with icon and trimming
 	if (matches) {

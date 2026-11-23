@@ -269,6 +269,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 	}
 
 	$releaseNotebookCellStatusBarItems(cacheId: number): void {
+		this._statusBarCache.get(cacheId, 0)?.dispose();
 		this._statusBarCache.delete(cacheId);
 	}
 
@@ -291,6 +292,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 			ExtHostNotebookController._convertNotebookRegistrationData(extension, registration)
 		);
 		return toDisposable(() => {
+			this._notebookSerializer.delete(handle);
 			this._notebookProxy.$unregisterNotebookSerializer(handle);
 		});
 	}
@@ -459,7 +461,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 							finalMatchedTargets.add(uri);
 						});
 					}).catch(err => {
-						// temporary fix for https://github.com/microsoft/vscode/issues/205044: don't show notebook results for remotehub repos.
+						// don't show notebook results for remotehub repos.
 						if (err.code === 'ENOENT') {
 							console.warn(`Could not find notebook search results, ignoring notebook results.`);
 							return {

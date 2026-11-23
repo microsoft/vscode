@@ -14,10 +14,8 @@ type XtermTerminal = pkg.Terminal;
 const { Terminal: XtermTerminal } = pkg;
 
 suite('AgentHostHeadlessTerminal', () => {
-	const disposables = new DisposableStore();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	teardown(() => disposables.clear());
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function createTerminal(cols = 80, rows = 24): AgentHostHeadlessTerminal {
 		return disposables.add(new AgentHostHeadlessTerminal({
@@ -58,6 +56,17 @@ suite('AgentHostHeadlessTerminal', () => {
 		await terminal.writePtyData('\x1b[0c'); // DA1
 		await terminal.writePtyData('\x1b[>c'); // DA2
 		await terminal.writePtyData('\x1b[>0c'); // DA2
+
+		assert.deepStrictEqual(responses, []);
+	});
+
+	test('does not answer OSC color queries', async () => {
+		const terminal = createTerminal();
+		const responses: string[] = [];
+		disposables.add(terminal.onResponseData(data => responses.push(data)));
+
+		await terminal.writePtyData('\x1b]10;?\x1b\\');
+		await terminal.writePtyData('\x1b]11;?\x1b\\');
 
 		assert.deepStrictEqual(responses, []);
 	});

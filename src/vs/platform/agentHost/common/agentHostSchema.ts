@@ -4,10 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../nls.js';
+import { ChatExternalSessionsMode, DEFAULT_EDIT_AUTO_APPROVE_PATTERNS, type ChatEditAutoApprovePatterns, type IChatSensitiveEditLocation } from '../../chat/common/chatSettings.js';
+import type { IMcpServerConfiguration } from '../../mcp/common/mcpPlatformTypes.js';
 import { TelemetryConfiguration, TelemetryLevel } from '../../telemetry/common/telemetry.js';
-import { SessionConfigKey } from './sessionConfigKeys.js';
+import { telemetryLevelToAgentHostValue } from './agentHostTelemetry.js';
+import { SessionConfigKey, type SessionSandboxEnabled } from './sessionConfigKeys.js';
+import { MissionControlUseLocalCredentialsConfigKey } from './missionControlEnvironment.js';
+import type { IShellInitScript } from './shellInitScript.js';
 import type { SessionConfigPropertySchema, SessionConfigSchema } from './state/protocol/commands.js';
 import { JsonRpcErrorCodes, ProtocolError } from './state/sessionProtocol.js';
+import { ModelRouterEnabledConfigKey } from './modelRouterConfig.js';
 
 // ---- Schema builder --------------------------------------------------------
 
@@ -188,12 +194,14 @@ export function createSchema<D extends SchemaDefinition>(definition: D): ISchema
 type AssertValidator = (value: unknown, path: string) => void;
 
 function buildAssert(schema: SessionConfigPropertySchema): AssertValidator {
-	if (schema.type === 'object' && schema.properties) {
+	if (schema.type === 'object' && (schema.properties || schema.additionalProperties)) {
 		const propAsserts: Record<string, AssertValidator> = {};
-		for (const key of Object.keys(schema.properties)) {
-			propAsserts[key] = buildAssert(schema.properties[key] as SessionConfigPropertySchema);
+		const properties = schema.properties ?? {};
+		for (const key of Object.keys(properties)) {
+			propAsserts[key] = buildAssert(properties[key] as SessionConfigPropertySchema);
 		}
 		const required = new Set(schema.required ?? []);
+		const additionalAssert = schema.additionalProperties ? buildAssert(schema.additionalProperties as SessionConfigPropertySchema) : undefined;
 		return (value, path) => {
 			if (typeof value !== 'object' || value === null || Array.isArray(value)) {
 				throw invalidParams(path, 'object', value);
@@ -208,6 +216,13 @@ function buildAssert(schema: SessionConfigPropertySchema): AssertValidator {
 					continue;
 				}
 				propAsserts[key](obj[key], childPath);
+			}
+			if (additionalAssert) {
+				for (const key of Object.keys(obj)) {
+					if (!Object.hasOwn(propAsserts, key)) {
+						additionalAssert(obj[key], joinPath(path, key));
+					}
+				}
 			}
 		};
 	}
@@ -259,38 +274,107 @@ function safeStringify(value: unknown): string {
 
 // ---- Platform-owned schema -------------------------------------------------
 
-export type AutoApproveLevel = 'default' | 'autoApprove' | 'autopilot';
+export type AutoApproveLevel = 'default' | 'assisted' | 'autoApprove';
 
-export type SessionMode = 'interactive' | 'plan';
+export type SessionMode = 'interactive' | 'plan' | 'autopilot';
 
+/** Additive permission lists with deny-before-ask-before-allow precedence. */
 export interface IPermissionsValue {
 	readonly allow: readonly string[];
 	readonly deny: readonly string[];
+	readonly ask?: readonly string[];
 }
 
 const permissionsProperty = schemaProperty<IPermissionsValue>({
 	type: 'object',
 	title: localize('agentHost.sessionConfig.permissions', "Permissions"),
-	description: localize('agentHost.sessionConfig.permissionsDescription', "Per-tool session permissions. Updated automatically when approving a tool \"in this Session\"."),
+	description: localize('agentHost.sessionConfig.permissionsDescription', "Permission rules: a tool name or Tool(specifier), e.g. Shell(npm run *), WebFetch(example.com), WebFetch(example.com/docs/*), Read(./src/**), Edit(./docs/**), Mcp(server), or Mcp(server/tool). Shell specifiers support wildcards, /regex/flags, and commandLine:<specifier> for the full command line. Deny rules reject matching calls; ask rules require confirmation before allow rules or implicit defaults. Updated automatically when approving \"in this Session\" or \"Always Allow\"."),
 	properties: {
 		allow: {
 			type: 'array',
-			title: localize('agentHost.sessionConfig.permissions.allow', "Allowed tools"),
+			title: localize('agentHost.sessionConfig.permissions.allow', "Allowed permission rules"),
 			items: {
 				type: 'string',
-				title: localize('agentHost.sessionConfig.permissions.toolName', "Tool name"),
+				title: localize('agentHost.sessionConfig.permissions.rule', "Permission rule"),
 			},
 		},
 		deny: {
 			type: 'array',
-			title: localize('agentHost.sessionConfig.permissions.deny', "Denied tools"),
+			title: localize('agentHost.sessionConfig.permissions.deny', "Denied permission rules"),
 			items: {
 				type: 'string',
-				title: localize('agentHost.sessionConfig.permissions.toolName', "Tool name"),
+				title: localize('agentHost.sessionConfig.permissions.rule', "Permission rule"),
+			},
+		},
+		ask: {
+			type: 'array',
+			title: localize('agentHost.sessionConfig.permissions.ask', "Permission Rules Requiring Confirmation"),
+			items: {
+				type: 'string',
+				title: localize('agentHost.sessionConfig.permissions.rule', "Permission rule"),
 			},
 		},
 	},
 	default: { allow: [], deny: [] },
+	sessionMutable: true,
+	chatMutable: true,
+});
+
+/**
+ * Scripts the client generated for this session, sourced before every built-in
+ * shell tool command (see `common/shellInitScript.ts`). Written by the
+ * workbench and consumed by the Copilot provider; `readOnly` because no user
+ * edits it directly, `sessionMutable` because the selected Python environment
+ * can change while a session is live. The value is transient and omitted from
+ * persisted session config.
+ *
+ * Deliberately has no `default`: an absent value means "nothing to apply",
+ * which must stay distinguishable from an explicit empty array (clear).
+ */
+const shellInitScriptsProperty = schemaProperty<readonly IShellInitScript[]>({
+	type: 'array',
+	title: localize('agentHost.sessionConfig.shellInitScripts', "Shell Init Script"),
+	description: localize('agentHost.sessionConfig.shellInitScriptsDescription', "A script sourced before each built-in shell tool command."),
+	items: {
+		type: 'object',
+		title: localize('agentHost.sessionConfig.shellInitScripts.item', "Shell Init Script"),
+		properties: {
+			shell: {
+				type: 'string',
+				title: localize('agentHost.sessionConfig.shellInitScripts.shell', "Shell"),
+				enum: ['bash', 'powershell'],
+			},
+			script: {
+				type: 'string',
+				title: localize('agentHost.sessionConfig.shellInitScripts.script', "Script"),
+			},
+		},
+		required: ['shell', 'script'],
+	},
+	readOnly: true,
+	sessionMutable: true,
+});
+
+const sensitiveEditLocationsProperty = schemaProperty<readonly IChatSensitiveEditLocation[]>({
+	type: 'array',
+	title: localize('agentHost.sessionConfig.sensitiveEditLocations', "Sensitive Edit Locations"),
+	description: localize('agentHost.sessionConfig.sensitiveEditLocationsDescription', "Workspace-relative customization locations whose edits always require confirmation."),
+	items: {
+		type: 'object',
+		title: localize('agentHost.sessionConfig.sensitiveEditLocations.item', "Sensitive Edit Location"),
+		properties: {
+			path: {
+				type: 'string',
+				title: localize('agentHost.sessionConfig.sensitiveEditLocations.path', "Path"),
+			},
+			isDirectory: {
+				type: 'boolean',
+				title: localize('agentHost.sessionConfig.sensitiveEditLocations.isDirectory', "Directory"),
+			},
+		},
+		required: ['path', 'isDirectory'],
+	},
+	readOnly: true,
 	sessionMutable: true,
 });
 
@@ -303,42 +387,86 @@ const permissionsProperty = schemaProperty<IPermissionsValue>({
  * provider-specific properties.
  */
 export const platformSessionSchema = createSchema({
+	[SessionConfigKey.SandboxEnabled]: schemaProperty<SessionSandboxEnabled>({
+		type: 'string',
+		title: localize('agentHost.sessionConfig.sandboxEnabled', "Sandbox"),
+		description: localize('agentHost.sessionConfig.sandboxEnabledDescription', "Sandbox behavior for this session. Default follows the global setting."),
+		enum: ['default', 'on', 'off'],
+		sessionMutable: true,
+		chatMutable: true,
+	}),
 	[SessionConfigKey.AutoApprove]: schemaProperty<AutoApproveLevel>({
 		type: 'string',
 		title: localize('agentHost.sessionConfig.autoApprove', "Approvals"),
 		description: localize('agentHost.sessionConfig.autoApproveDescription', "Tool approval behavior for this session"),
-		enum: ['default', 'autoApprove', 'autopilot'],
+		enum: ['default', 'assisted', 'autoApprove'],
 		enumLabels: [
-			localize('agentHost.sessionConfig.autoApprove.default', "Default Approvals"),
-			localize('agentHost.sessionConfig.autoApprove.bypass', "Bypass Approvals"),
-			localize('agentHost.sessionConfig.autoApprove.autopilot', "Autopilot (Preview)"),
+			localize('agentHost.sessionConfig.autoApprove.default', "Manual permissions"),
+			localize('agentHost.sessionConfig.autoApprove.assisted', "Assisted permissions"),
+			localize('agentHost.sessionConfig.autoApprove.bypass', "Allow all"),
 		],
 		enumDescriptions: [
-			localize('agentHost.sessionConfig.autoApprove.defaultDescription', "Copilot uses your configured settings"),
-			localize('agentHost.sessionConfig.autoApprove.bypassDescription', "All tool calls are auto-approved"),
-			localize('agentHost.sessionConfig.autoApprove.autopilotDescription', "Autonomously iterates from start to finish"),
+			localize('agentHost.sessionConfig.autoApprove.defaultDescription', "Asks when approval settings don't apply"),
+			localize('agentHost.sessionConfig.autoApprove.assistedDescription', "Evaluates risk before running tools"),
+			localize('agentHost.sessionConfig.autoApprove.bypassDescription', "Runs tool calls without asking"),
 		],
 		default: 'default',
 		sessionMutable: true,
+		chatMutable: true,
 	}),
 	[SessionConfigKey.Permissions]: permissionsProperty,
 	[SessionConfigKey.Mode]: schemaProperty<SessionMode>({
 		type: 'string',
 		title: localize('agentHost.sessionConfig.mode', "Agent Mode"),
 		description: localize('agentHost.sessionConfig.modeDescription', "How the agent should approach this turn"),
-		enum: ['interactive', 'plan'],
+		enum: ['interactive', 'plan', 'autopilot'],
 		enumLabels: [
 			localize('agentHost.sessionConfig.mode.interactive', "Interactive"),
 			localize('agentHost.sessionConfig.mode.plan', "Plan"),
+			localize('agentHost.sessionConfig.mode.autopilot', "Autopilot"),
 		],
 		enumDescriptions: [
-			localize('agentHost.sessionConfig.mode.interactiveDescription', "Ask for input and approval for each action"),
-			localize('agentHost.sessionConfig.mode.planDescription', "Generate a plan first, then choose how to execute it"),
+			localize('agentHost.sessionConfig.mode.interactiveDescription', "Step-by-step collaboration"),
+			localize('agentHost.sessionConfig.mode.planDescription', "Plan first, execute when ready"),
+			localize('agentHost.sessionConfig.mode.autopilotDescription', "Works autonomously within permissions"),
 		],
 		default: 'interactive',
 		sessionMutable: true,
+		chatMutable: true,
 	}),
+	[SessionConfigKey.ShellInitScripts]: shellInitScriptsProperty,
+	[SessionConfigKey.SensitiveEditLocations]: sensitiveEditLocationsProperty,
 });
+
+/**
+ * Rewrites a legacy `autoApprove='autopilot'` config value — used before
+ * Autopilot moved from the `autoApprove` axis onto the orthogonal `mode`
+ * axis — into the current two-axis shape:
+ *
+ *  - `autoApprove='autopilot'` + `mode='plan'`  → `mode='plan'`, `autoApprove='default'`
+ *    (legacy `plan` took precedence over autopilot when resolving the SDK mode).
+ *  - `autoApprove='autopilot'` + any other mode → `mode='autopilot'`, `autoApprove='default'`.
+ *
+ * Returns a shallow copy with the migration applied, or the original
+ * reference unchanged when no legacy value is present. Safe to call on
+ * `undefined`.
+ *
+ * Without this, a session persisted (or a "remembered" picker value seeded)
+ * with `autoApprove='autopilot'` would fail the new schema's enum validation
+ * and silently fall back to `default`, downgrading the session from
+ * autonomous Autopilot to manual per-tool confirmation.
+ */
+export function migrateLegacyAutopilotConfig<T extends Record<string, unknown> | undefined>(config: T): T {
+	if (!config || config[SessionConfigKey.AutoApprove] !== 'autopilot') {
+		return config;
+	}
+	const migrated: Record<string, unknown> = { ...config };
+	if (migrated[SessionConfigKey.Mode] !== 'plan') {
+		migrated[SessionConfigKey.Mode] = 'autopilot' satisfies SessionMode;
+	}
+	migrated[SessionConfigKey.AutoApprove] = 'default' satisfies AutoApproveLevel;
+	return migrated as T;
+}
 
 /**
  * Root (agent host) config properties owned by the platform itself.
@@ -352,31 +480,340 @@ export const platformSessionSchema = createSchema({
  */
 export const AgentHostTelemetryLevelConfigKey = 'telemetryLevel';
 
+/** Whether Agent Host edit attribution telemetry is enabled. */
+export const AgentHostEditTelemetryEnabledConfigKey = 'editTelemetryEnabled';
+
+/** Legacy Copilot Chat debug switch that disables `request.repoInfo` collection. */
+export const AgentHostDisableRepoInfoTelemetryConfigKey = 'disableRepoInfoTelemetry';
+
+/** VS Code setting forwarded into {@link AgentHostDisableRepoInfoTelemetryConfigKey}. */
+export const DISABLE_REPO_INFO_TELEMETRY_SETTING_ID = 'chat.advanced.debug.disableRepoInfoTelemetry';
+
+/** Whether extension-provided BYOK models are enabled. */
+export const AgentHostByokModelsEnabledConfigKey = 'byokModelsEnabled';
+/** Shared default for the root config and mirrored workbench setting. */
+export const AgentHostByokModelsEnabledDefault = true;
+
+/**
+ * Root config key mirrored from `chat.utilitySmallModel`: a `${vendor}/${id}`
+ * model that overrides the default model for host utility flows such as title
+ * and pull request generation. Empty uses the default behavior.
+ */
+export const AgentHostUtilitySmallModelConfigKey = 'utilitySmallModel';
+
+/**
+ * Root config key mirrored from `chat.byokUtilityModelDefault`: the default
+ * utility model when the chat's selected main agent model is BYOK.
+ */
+export const AgentHostByokUtilityModelDefaultConfigKey = 'byokUtilityModelDefault';
+
+/** Values of {@link AgentHostByokUtilityModelDefaultConfigKey}; keep in sync with `BYOKUtilityModelDefault` in the chat contribution. */
+export const AgentHostByokUtilityModelDefaults = ['none', 'mainAgent', 'copilot'] as const;
+export type AgentHostByokUtilityModelDefault = typeof AgentHostByokUtilityModelDefaults[number];
+
+/**
+ * Root config key forwarded from the renderer carrying the experiment-aware
+ * value of `chat.agentHost.codexAgent.enabled`. The host registers the Codex
+ * provider when this is `true`; disabling requires an agent host restart.
+ */
+export const AgentHostCodexEnabledConfigKey = 'codexAgentEnabled';
+
+/** Root config key carrying the effective edit auto-approve patterns. */
+export const AgentHostEditAutoApprovePatternsConfigKey = 'editAutoApprovePatterns';
+
 /**
  * Root config key forwarded from the renderer when VS Code's
- * `chat.sessionSync.enabled` setting changes. Controls the `remote` flag
- * passed to the copilot-sdk `CopilotClientOptions`.
+ * `chat.tools.terminal.enableAutoApprove` setting changes. Controls whether
+ * agent-host shell permission checks may apply terminal auto-approve rules.
  */
-export const AgentHostSessionSyncEnabledConfigKey = 'sessionSyncEnabled';
+export const AgentHostTerminalAutoApproveEnabledConfigKey = 'terminalAutoApproveEnabled';
 
 /**
- * The VS Code setting ID for session sync. Defined here so the platform
- * layer (renderer-side forwarding) can reference it without importing from
- * `workbench/contrib/chat`.
+ * The VS Code setting ID for terminal auto approve enablement. Defined here so
+ * renderer-side agent-host clients can forward it without importing from
+ * workbench terminal contributions.
  */
-export const SESSION_SYNC_ENABLED_SETTING_ID = 'chat.sessionSync.enabled';
+export const TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID = 'chat.tools.terminal.enableAutoApprove';
+
+/** The VS Code setting ID for global auto approve enablement. */
+export const GLOBAL_AUTO_APPROVE_SETTING_ID = 'chat.tools.global.autoApprove';
+
+/** The VS Code setting ID for per-tool auto-approval eligibility. */
+export const ELIGIBLE_FOR_AUTO_APPROVAL_SETTING_ID = 'chat.tools.eligibleForAutoApproval';
+
+/**
+ * Root config key forwarded from the renderer when VS Code's
+ * `chat.tools.global.autoApprove` setting changes. When `true`, the global
+ * auto-approve ("approve everything") setting is enabled and the agent host
+ * treats every tool call as auto-approved — equivalent to a session running
+ * with Allow all.
+ */
+export const AgentHostGlobalAutoApproveEnabledConfigKey = 'globalAutoApproveEnabled';
+/** Whether managed policy forbids elevated session auto-approval modes. */
+export const AgentHostAutoApprovePolicyRestrictedConfigKey = 'autoApprovePolicyRestricted';
+
+/**
+ * Root config key forwarded from the renderer's `chat.permissions.assisted.instructions`
+ * setting: user-authored guidance for the reviewer that decides which tool calls run
+ * without confirmation under Assisted permissions. Empty uses the default guidance.
+ */
+export const AgentHostAssistedApprovalInstructionsConfigKey = 'assistedApprovalInstructions';
+
+/**
+ * Root config key forwarded from the renderer when VS Code's `chat.autoReply`
+ * setting changes. When `true`, the agent host auto-answers `ask_user`
+ * questions instead of blocking on the user — the user is treated as
+ * unavailable and the agent is told to use its best judgment, mirroring the
+ * behavior of `autopilot` mode.
+ */
+export const AgentHostAutoReplyEnabledConfigKey = 'autoReplyEnabled';
+
+export const AgentHostAutoReplyAnswer = 'The user is not available to answer your question. Choose a pragmatic option best aligned with the context of the request.';
+
+export const AgentHostWorkspaceTrustConfigKey = 'workspaceTrust';
+
+/**
+ * Root config key forwarded from the renderer's `chat.useHooks` setting. When
+ * `false`, Copilot sessions launch without the hooks VS Code controls:
+ * repository hooks, custom agent hooks, and the plugin hooks VS Code runs
+ * itself. VS Code's own SDK callbacks are unaffected.
+ */
+export const AgentHostHooksEnabledConfigKey = 'hooksEnabled';
+
+export interface IAgentHostWorkspaceTrust {
+	readonly enabled: boolean;
+	readonly trustedUris: readonly string[];
+}
+
+/** Root config key forwarded from the renderer for automatic OS system proxy discovery. */
+export const AgentHostSystemProxyEnabledConfigKey = 'systemProxyEnabled';
+
+/** Root config key forwarded from the renderer for the GitHub MCP server. */
+export const AgentHostGitHubMcpServerEnabledConfigKey = 'githubMcpServerEnabled';
+
+/** Root config key forwarded from the renderer for GitHub's Computer Use plugin. */
+export const AgentHostComputerUseEnabledConfigKey = 'computerUseEnabled';
+
+/** Root config key forwarded from the renderer for GitHub's Browser Use plugin. */
+export const AgentHostBrowserUseEnabledConfigKey = 'browserUseEnabled';
+
+/** Root config key forwarded from the renderer for cached MCP tool routing. */
+export const AgentHostMcpToolRoutingEnabledConfigKey = 'mcpToolRoutingEnabled';
+
+/** Root config key forwarded from the renderer for the configured MCP Gallery service URL. */
+export const AgentHostMcpGalleryServiceUrlConfigKey = 'mcpGalleryServiceUrl';
+
+/** Host-persisted server identities explicitly approved for MCP sampling in all sessions. */
+export const AgentHostMcpSamplingAllowedServersConfigKey = 'mcpSamplingAllowedServers';
+
+/** Host-persisted per-server decisions for loading and using MCP-served skills. */
+export const AgentHostMcpSkillsServerApprovalsConfigKey = 'mcpSkillsServerApprovals';
+
+/** Host-persisted per-extension-identity decisions for privileged capabilities. */
+export const AgentHostExtensionPermissionApprovalsConfigKey = 'extensionPermissionApprovals';
+
+/** Root config key forwarded from the renderer for Copilot connector discovery. */
+export const AgentHostMcpConnectorsEnabledConfigKey = 'mcpConnectorsEnabled';
+
+/** Root config key forwarded from the renderer enabling the runtime's `MCP_SKILLS` feature. */
+export const AgentHostMcpSkillsEnabledConfigKey = 'mcpSkillsEnabled';
+
+/**
+ * Independently synchronized proxy settings retain their VS Code `http.*`
+ * names, matching other flat namespaced root keys such as `agentMerge.*`.
+ */
+export const AgentHostProxyConfigKey = {
+	Proxy: 'http.proxy',
+	ProxyKerberosServicePrincipal: 'http.proxyKerberosServicePrincipal',
+	NoProxy: 'http.noProxy',
+	ProxySupport: 'http.proxySupport',
+	SystemCertificates: 'http.systemCertificates',
+	SystemCertificatesNode: 'http.systemCertificatesNode',
+} as const;
+
+const agentHostProxyConfigDefinition = {
+	[AgentHostProxyConfigKey.Proxy]: schemaProperty<string>({
+		type: 'string',
+		title: localize('agentHost.config.httpProxy.title', "HTTP Proxy"),
+		description: localize('agentHost.config.httpProxy.description', "The proxy URL used by network requests from the Agent Host."),
+	}),
+	[AgentHostProxyConfigKey.ProxyKerberosServicePrincipal]: schemaProperty<string>({
+		type: 'string',
+		title: localize('agentHost.config.httpProxyKerberosServicePrincipal.title', "HTTP Proxy Kerberos Service Principal"),
+		description: localize('agentHost.config.httpProxyKerberosServicePrincipal.description', "The Kerberos service principal used to authenticate with the HTTP proxy."),
+	}),
+	[AgentHostProxyConfigKey.NoProxy]: schemaProperty<string[]>({
+		type: 'array',
+		title: localize('agentHost.config.httpNoProxy.title', "HTTP No Proxy"),
+		description: localize('agentHost.config.httpNoProxy.description', "Domain names that bypass the configured HTTP proxy."),
+		items: { type: 'string', title: localize('agentHost.config.httpNoProxy.item.title', "Domain") },
+		default: [],
+	}),
+	[AgentHostProxyConfigKey.ProxySupport]: schemaProperty<'off' | 'on' | 'fallback' | 'override'>({
+		type: 'string',
+		title: localize('agentHost.config.httpProxySupport.title', "HTTP Proxy Support"),
+		description: localize('agentHost.config.httpProxySupport.description', "Controls whether network requests from the Agent Host use the resolved proxy."),
+		enum: ['off', 'on', 'fallback', 'override'],
+		enumDescriptions: [
+			localize('agentHost.config.httpProxySupport.off', "Disable proxy support."),
+			localize('agentHost.config.httpProxySupport.on', "Enable proxy support."),
+			localize('agentHost.config.httpProxySupport.fallback', "Enable proxy support, falling back to request options when no proxy is found."),
+			localize('agentHost.config.httpProxySupport.override', "Enable proxy support, overriding request options."),
+		],
+		default: 'override',
+	}),
+	[AgentHostProxyConfigKey.SystemCertificates]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.httpSystemCertificates.title', "HTTP System Certificates"),
+		description: localize('agentHost.config.httpSystemCertificates.description', "Whether network requests from the Agent Host trust CA certificates loaded from the OS."),
+		default: true,
+	}),
+	[AgentHostProxyConfigKey.SystemCertificatesNode]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.httpSystemCertificatesNode.title', "HTTP System Certificates Node"),
+		description: localize('agentHost.config.httpSystemCertificatesNode.description', "Whether the Agent Host loads system certificates using Node.js built-in support."),
+	}),
+};
+export const agentHostProxyConfigSchema = createSchema(agentHostProxyConfigDefinition);
+
+/** Root config key selecting the automatic title generation strategy for new sessions. */
+export const AgentHostTitleGenerationConfigKey = 'titleGeneration';
+
+/** Legacy boolean root config keys, still read for clients that predate {@link AgentHostTitleGenerationConfigKey}. */
+export const AgentHostActiveAgentTitleGenerationConfigKey = 'activeAgentTitleGeneration';
+export const AgentHostDeferredTitleGenerationConfigKey = 'deferredTitleGeneration';
+
+/**
+ * Strategies selectable for new sessions:
+ * - `utility`: a utility model names chats immediately.
+ * - `activeAgent`: the active agent names chats through `rename_chat`.
+ * - `agentReview`: the host seeds a title and refines it with a utility model after the first
+ *   response, and a soft reminder lets the active agent rename the chat when that title no longer fits.
+ */
+export const AgentHostTitleGenerationStrategies = ['utility', 'activeAgent', 'agentReview'] as const;
+export type AgentHostSelectableTitleGenerationStrategy = typeof AgentHostTitleGenerationStrategies[number];
+
+/** `deferred` is `agentReview` without the reminder; it is kept for existing sessions and the legacy boolean key. */
+export type AgentHostTitleGenerationStrategy = AgentHostSelectableTitleGenerationStrategy | 'deferred';
+
+/** Root config key controlling rich-link guidance for Markdown plan documents. */
+export const AgentHostMarkdownPlanRichLinksEnabledConfigKey = 'markdownPlanRichLinksEnabled';
+
+/** Root config key controlling the initial workspace file-name snapshot in Copilot chats. */
+export const AgentHostWorkspaceSnapshotEnabledConfigKey = 'workspaceSnapshotEnabled';
+
+/** Root config key controlling agent session creation, messaging, and recursion limits. */
+export const AgentHostAgentOrchestrationLimitsConfigKey = 'agentOrchestrationLimits';
+export type AgentHostAgentOrchestrationLimits = 'on' | 'off';
+
+/** Root config key controlling whether agents can choose a model's reasoning effort and context size in `create_session`, and how they find the models and options. */
+export const AgentHostSessionModelOptionsConfigKey = 'sessionModelOptions';
+export const agentHostSessionModelOptionsValues = ['off', 'inline', 'tool'] as const;
+export type AgentHostSessionModelOptions = typeof agentHostSessionModelOptionsValues[number];
+
+/** Root config key forwarded from the renderer for the artifact tools and their instruction. */
+export const AgentHostArtifactToolsConfigKey = 'artifactTools';
+export const AgentHostChatResourcesConfigKey = 'chatResources';
+export const AgentHostArtifactIntegrationsConfigKey = 'artifactIntegrations';
+export const AgentHostGitHubArtifactIgnoredChecksConfigKey = 'githubArtifactMarkReadyIgnoredChecks';
+
+/** Root config key controlling Canvas extensions in Copilot sessions. */
+export const AgentHostCanvasesEnabledConfigKey = 'canvasesEnabled';
+
+export const AgentHostAhpJsonlLoggingEnabledConfigKey = 'ahpJsonlLoggingEnabled';
+
+/** Root config key controlling automatic pull request association for the checked-out branch. */
+export const AgentHostAutoAttachPullRequestsConfigKey = 'autoAttachPullRequests';
+
+/** Root config key controlling whether the host shares identical read-only git commands and caps how many run at once. */
+export const AgentHostGitCoalesceReadsConfigKey = 'gitCoalesceReads';
+
+/**
+ * Root config key forwarded from the renderer's
+ * `chat.agentHost.experimental.overlapProviderPreparation` setting. When
+ * `true`, a provider that implements `IAgentChats.prepareTurn` prepares its
+ * session while the turn-start checkpoint is captured, instead of after it.
+ */
+export const AgentHostOverlapProviderPreparationConfigKey = 'overlapProviderPreparation';
+
+/**
+ * Root config key forwarded from the renderer's
+ * `chat.agentHost.experimental.prewarmSessions` setting. When `true`, a new
+ * Copilot draft starts its SDK session and MCP servers before the first send.
+ */
+export const AgentHostPrewarmSessionsConfigKey = 'prewarmSessions';
+export const AgentHostKeepAwakeConfigKey = 'keepAwakeWhileWorking';
+
+export const enum AgentHostKeepAwakeMode {
+	Never = 'never',
+	Always = 'always',
+	WhenPluggedIn = 'whenPluggedIn',
+}
+
+export const agentHostKeepAwakeConfiguration = {
+	type: 'string' as const,
+	enum: [AgentHostKeepAwakeMode.Never, AgentHostKeepAwakeMode.Always, AgentHostKeepAwakeMode.WhenPluggedIn],
+	enumDescriptions: [
+		localize('agentHost.config.keepAwake.never', "Allow idle sleep while a chat is working."),
+		localize('agentHost.config.keepAwake.always', "Prevent idle sleep while a chat is working, even on battery power."),
+		localize('agentHost.config.keepAwake.whenPluggedIn', "Prevent idle sleep only while the host is plugged in. On Linux desktop, the power source is unavailable, so this option allows idle sleep."),
+	],
+	default: AgentHostKeepAwakeMode.WhenPluggedIn,
+};
+
+export const AgentHostShowExternalSessionsConfigKey = 'showExternalSessions';
+
+export { ChatExternalSessionsMode as AgentHostExternalSessionsMode };
+
+/** Root config key controlling automatic archival of inactive sessions with merged pull requests. */
+export const AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey = 'autoArchiveMergedSessionsAfterDays';
+
+/** Root config key controlling permanent deletion of automatically archived sessions with merged pull requests. */
+export const AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey = 'autoDeleteArchivedMergedSessionsAfterDays';
+
+/** Root config key disabling implicit terminal auto-approval defaults without changing explicit permissions. */
+export const AgentHostTerminalIgnoreDefaultAutoApproveRulesConfigKey = 'terminalIgnoreDefaultAutoApproveRules';
+
+/** A VS Code terminal rule consumed by legacy managed-settings policy translation. */
+export interface IAgentHostTerminalAutoApproveRule {
+	readonly approve: boolean;
+	readonly matchCommandLine?: boolean;
+}
+
+/** A VS Code terminal rule value, including null overrides. */
+export type AgentHostTerminalAutoApproveRuleValue = boolean | null | IAgentHostTerminalAutoApproveRule;
+/** VS Code terminal rules used by legacy managed-settings policy translation. */
+export type AgentHostTerminalAutoApproveRules = Record<string, AgentHostTerminalAutoApproveRuleValue>;
+
+/**
+ * The VS Code setting IDs for terminal auto approve rules. Defined here so
+ * renderer-side agent-host clients can read them without importing from
+ * workbench terminal contributions.
+ */
+export const TERMINAL_AUTO_APPROVE_SETTING_ID = 'chat.tools.terminal.autoApprove';
+export const TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID = 'chat.tools.terminal.ignoreDefaultAutoApproveRules';
+
+/** VS Code URL auto-approve setting ID, shared with renderer-side clients without a workbench dependency. */
+export const URL_AUTO_APPROVE_SETTING_ID = 'chat.tools.urls.autoApprove';
+
+/**
+ * Root config key holding agent-host-level MCP server definitions.
+ *
+ * The value is a map of server name → {@link IMcpServerConfiguration}
+ * (the same `servers` shape used by `mcp.json`). These servers are
+ * exposed to every session created by the host, merged with any
+ * plugin-provided MCP servers when launching the copilot-sdk client.
+ */
+export const AgentHostMcpServersConfigKey = 'mcpServers';
+
+/**
+ * Map of server name → MCP server configuration, as stored in the
+ * {@link AgentHostMcpServersConfigKey} root config value.
+ */
+export type AgentHostMcpServers = Record<string, IMcpServerConfiguration>;
 
 export function telemetryLevelToAgentHostConfigValue(telemetryLevel: TelemetryLevel): TelemetryConfiguration {
-	switch (telemetryLevel) {
-		case TelemetryLevel.NONE:
-			return TelemetryConfiguration.OFF;
-		case TelemetryLevel.CRASH:
-			return TelemetryConfiguration.CRASH;
-		case TelemetryLevel.ERROR:
-			return TelemetryConfiguration.ERROR;
-		case TelemetryLevel.USAGE:
-			return TelemetryConfiguration.ON;
-	}
+	return telemetryLevelToAgentHostValue(telemetryLevel);
 }
 
 export function agentHostConfigValueToTelemetryLevel(value: unknown): TelemetryLevel | undefined {
@@ -394,8 +831,92 @@ export function agentHostConfigValueToTelemetryLevel(value: unknown): TelemetryL
 	}
 }
 
+/**
+ * Field descriptors for a single MCP server entry, shared by the stdio and
+ * http shapes. The agent-host config schema has no `oneOf`, so both variants'
+ * fields are described together; `type` selects which fields apply
+ * (`stdio` uses `command`/`args`/`env`/`cwd`, `http` uses `url`/`headers`).
+ */
+const mcpServerConfigProperties: Record<string, SessionConfigPropertySchema> = {
+	type: {
+		type: 'string',
+		title: localize('agentHost.config.mcpServers.type.title', "Server Type"),
+		description: localize('agentHost.config.mcpServers.type.description', "The transport used to reach the server: `stdio` for a local command, `http` for a remote endpoint."),
+		enum: ['stdio', 'http'],
+	},
+	command: {
+		type: 'string',
+		title: localize('agentHost.config.mcpServers.command.title', "Command"),
+		description: localize('agentHost.config.mcpServers.command.description', "For `stdio` servers, the executable to spawn."),
+	},
+	args: {
+		type: 'array',
+		title: localize('agentHost.config.mcpServers.args.title', "Arguments"),
+		description: localize('agentHost.config.mcpServers.args.description', "For `stdio` servers, the arguments passed to the command."),
+		items: { type: 'string', title: localize('agentHost.config.mcpServers.arg.title', "Argument") },
+	},
+	env: {
+		type: 'object',
+		title: localize('agentHost.config.mcpServers.env.title', "Environment"),
+		description: localize('agentHost.config.mcpServers.env.description', "For `stdio` servers, environment variables set on the spawned process."),
+	},
+	cwd: {
+		type: 'string',
+		title: localize('agentHost.config.mcpServers.cwd.title', "Working Directory"),
+		description: localize('agentHost.config.mcpServers.cwd.description', "For `stdio` servers, the working directory the command runs in."),
+	},
+	url: {
+		type: 'string',
+		title: localize('agentHost.config.mcpServers.url.title', "URL"),
+		description: localize('agentHost.config.mcpServers.url.description', "For `http` servers, the endpoint URL of the MCP server."),
+	},
+	headers: {
+		type: 'object',
+		title: localize('agentHost.config.mcpServers.headers.title', "Headers"),
+		description: localize('agentHost.config.mcpServers.headers.description', "For `http` servers, HTTP headers sent with every request."),
+	},
+};
+
+/**
+ * Documents the value shape of the {@link AgentHostMcpServersConfigKey} map.
+ *
+ * The config value is a map of server name → server config. The schema
+ * language has no `additionalProperties`, so the per-entry shape is attached
+ * under a placeholder key (`<serverName>`) rather than at the map level —
+ * this keeps the field descriptions discoverable without the runtime
+ * validator mistaking a real server named e.g. `command` for the `command`
+ * field. Real entries (keyed by actual server names) are passed through.
+ */
+const mcpServersValueProperties: Record<string, SessionConfigPropertySchema> = {
+	'<serverName>': {
+		type: 'object',
+		title: localize('agentHost.config.mcpServers.entry.title', "MCP Server"),
+		description: localize('agentHost.config.mcpServers.entry.description', "A single MCP server entry. The property key is the server name."),
+		properties: mcpServerConfigProperties,
+	},
+};
+
 export const platformRootSchema = createSchema({
+	...agentHostProxyConfigDefinition,
+	[MissionControlUseLocalCredentialsConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.localCredentials.title', "Use Local Credentials"),
+		description: localize('agentHost.config.localCredentials.description', "Use this host's GitHub and Copilot credentials for same-account Mission Control sessions."),
+		readOnly: true,
+	}),
+	[AgentHostAhpJsonlLoggingEnabledConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.ahpJsonlLogging.title', "AHP Transport Logging"),
+		description: localize('agentHost.config.ahpJsonlLogging.description', "Capture Mission Control AHP transport messages on the host."),
+		readOnly: true,
+	}),
 	[SessionConfigKey.Permissions]: permissionsProperty,
+	[AgentHostDisableRepoInfoTelemetryConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.disableRepoInfoTelemetry.title', "Disable Repository Information Telemetry"),
+		description: localize('agentHost.config.disableRepoInfoTelemetry.description', "Whether repository information telemetry is disabled for Agent Host sessions."),
+		default: false,
+	}),
 	[AgentHostTelemetryLevelConfigKey]: schemaProperty<TelemetryConfiguration>({
 		type: 'string',
 		title: localize('agentHost.config.telemetryLevel.title', "Telemetry Level"),
@@ -403,10 +924,349 @@ export const platformRootSchema = createSchema({
 		enum: [TelemetryConfiguration.ON, TelemetryConfiguration.ERROR, TelemetryConfiguration.CRASH, TelemetryConfiguration.OFF],
 		default: TelemetryConfiguration.ON,
 	}),
-	[AgentHostSessionSyncEnabledConfigKey]: schemaProperty<boolean>({
+	[AgentHostEditTelemetryEnabledConfigKey]: schemaProperty<boolean>({
 		type: 'boolean',
-		title: localize('agentHost.config.sessionSyncEnabled.title', "Session Sync"),
-		description: localize('agentHost.config.sessionSyncEnabled.description', "Whether remote session sync is enabled for the copilot-sdk CLI."),
+		title: localize('agentHost.config.editTelemetryEnabled.title', "Edit Telemetry"),
+		description: localize('agentHost.config.editTelemetryEnabled.description', "Whether edit attribution telemetry is enabled for Agent Host sessions."),
+		default: true,
+	}),
+	[AgentHostByokModelsEnabledConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.byokModelsEnabled.title', "BYOK Models"),
+		description: localize('agentHost.config.byokModelsEnabled.description', "Whether extension-provided BYOK models are enabled."),
+		default: AgentHostByokModelsEnabledDefault,
+	}),
+	[AgentHostUtilitySmallModelConfigKey]: schemaProperty<string>({
+		type: 'string',
+		title: localize('agentHost.config.utilitySmallModel.title', "Utility Model"),
+		description: localize('agentHost.config.utilitySmallModel.description', "The `vendor/id` of a BYOK model that overrides the default model for utility flows such as title and pull request generation. Empty uses the default behavior."),
+		default: '',
+	}),
+	[AgentHostByokUtilityModelDefaultConfigKey]: schemaProperty<AgentHostByokUtilityModelDefault>({
+		type: 'string',
+		title: localize('agentHost.config.byokUtilityModelDefault.title', "BYOK Utility Model Default"),
+		description: localize('agentHost.config.byokUtilityModelDefault.description', "The default model for utility flows when the chat's selected main agent model is a BYOK model. A configured utility model takes precedence."),
+		enum: [...AgentHostByokUtilityModelDefaults],
+		enumDescriptions: [
+			localize('agentHost.config.byokUtilityModelDefault.none', "Do not use a default utility model."),
+			localize('agentHost.config.byokUtilityModelDefault.mainAgent', "Use the selected BYOK main agent model."),
+			localize('agentHost.config.byokUtilityModelDefault.copilot', "Use the default GitHub Copilot utility model."),
+		],
+		default: 'copilot',
+	}),
+	[AgentHostCodexEnabledConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.codexAgentEnabled.title', "Codex Agent"),
+		description: localize('agentHost.config.codexAgentEnabled.description', "Whether the Codex provider is enabled."),
 		default: false,
 	}),
+	[AgentHostTerminalAutoApproveEnabledConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.terminalAutoApproveEnabled.title', "Terminal Auto Approve"),
+		description: localize('agentHost.config.terminalAutoApproveEnabled.description', "Whether terminal auto-approve rules forwarded by the connected client are allowed to apply to agent-host shell permission requests."),
+		default: true,
+	}),
+	[AgentHostGlobalAutoApproveEnabledConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.globalAutoApproveEnabled.title', "Global Auto Approve"),
+		description: localize('agentHost.config.globalAutoApproveEnabled.description', "Whether VS Code's global auto-approve setting is enabled. When `true`, every tool call is auto-approved, equivalent to a session using Allow all."),
+		default: false,
+	}),
+	[AgentHostAutoApprovePolicyRestrictedConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.autoApprovePolicyRestricted', "Auto Approve Policy Restricted"),
+		default: false,
+		readOnly: true,
+	}),
+	[AgentHostAssistedApprovalInstructionsConfigKey]: schemaProperty<string>({
+		type: 'string',
+		title: localize('agentHost.config.assistedApprovalInstructions.title', "Assisted Permissions Instructions"),
+		description: localize('agentHost.config.assistedApprovalInstructions.description', "User-authored instructions for the reviewer that decides which tool calls run without confirmation under Assisted permissions. Empty uses the default guidance."),
+		default: '',
+	}),
+	[AgentHostWorkspaceTrustConfigKey]: schemaProperty<IAgentHostWorkspaceTrust>({
+		type: 'object',
+		title: localize('agentHost.config.workspaceTrust', "Workspace Trust"),
+		properties: {
+			enabled: { type: 'boolean', title: localize('agentHost.config.workspaceTrust.enabled', "Enabled") },
+			trustedUris: {
+				type: 'array',
+				title: localize('agentHost.config.workspaceTrust.trustedUris', "Trusted Folders"),
+				items: { type: 'string', title: localize('agentHost.config.workspaceTrust.uri', "Folder URI") },
+			},
+		},
+		required: ['enabled', 'trustedUris'],
+		readOnly: true,
+	}),
+	[AgentHostHooksEnabledConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.hooksEnabled.title', "Hooks"),
+		description: localize('agentHost.config.hooksEnabled.description', "Whether VS Code's `chat.useHooks` setting allows hooks. When `false`, Copilot sessions run no repository hooks, custom agent hooks, or plugin hooks that VS Code runs itself."),
+		default: true,
+	}),
+	[AgentHostAutoReplyEnabledConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.autoReplyEnabled.title', "Auto Reply"),
+		description: localize('agentHost.config.autoReplyEnabled.description', "Whether VS Code's auto-reply setting is enabled. When `true`, `ask_user` questions are auto-answered instead of blocking on the user, mirroring autopilot mode."),
+		default: false,
+	}),
+	[AgentHostSystemProxyEnabledConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.systemProxyEnabled.title', "System Proxy Discovery"),
+		description: localize('agentHost.config.systemProxyEnabled.description', "Whether Copilot sessions automatically discover and use the operating system's proxy configuration."),
+		default: true,
+	}),
+	[AgentHostGitHubMcpServerEnabledConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.githubMcpServerEnabled.title', "GitHub MCP Server"),
+		description: localize('agentHost.config.githubMcpServerEnabled.description', "Whether agent sessions include a GitHub MCP server by default."),
+		default: true,
+	}),
+	[AgentHostComputerUseEnabledConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.computerUseEnabled.title', "Computer Use"),
+		description: localize('agentHost.config.computerUseEnabled.description', "Whether local Copilot agent sessions on macOS and Windows offer GitHub's Computer Use plugin."),
+		default: false,
+	}),
+	[AgentHostBrowserUseEnabledConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.browserUseEnabled.title', "Browser Use"),
+		description: localize('agentHost.config.browserUseEnabled.description', "Whether local Copilot agent sessions offer GitHub's Browser Use plugin."),
+		default: false,
+	}),
+	[AgentHostMcpToolRoutingEnabledConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.mcpToolRoutingEnabled.title', "MCP Tool Routing"),
+		description: localize('agentHost.config.mcpToolRoutingEnabled.description', "Whether Copilot agent sessions use cached MCP tool metadata for routing."),
+		default: false,
+	}),
+	[AgentHostMcpGalleryServiceUrlConfigKey]: schemaProperty<string>({
+		type: 'string',
+		title: localize('agentHost.config.mcpGalleryServiceUrl.title', "MCP Gallery Service URL"),
+		description: localize('agentHost.config.mcpGalleryServiceUrl.description', "The MCP Gallery service URL configured in VS Code. The agent host downloads MCP server details for installation from this gallery itself, including when it is on a private network. Empty when no gallery is configured."),
+		default: '',
+	}),
+	[AgentHostMcpSamplingAllowedServersConfigKey]: schemaProperty<string[]>({
+		type: 'array',
+		title: localize('agentHost.config.mcpSamplingAllowedServers.title', "MCP Sampling Allowed Servers"),
+		description: localize('agentHost.config.mcpSamplingAllowedServers.description', "MCP server identities whose sampling requests are automatically approved in all sessions on this agent host. Approvals include known configuration and source identity, or the exact server name when no other identity is available. Remove an entry to require confirmation again. This does not approve its tool calls."),
+		items: { type: 'string', title: localize('agentHost.config.mcpSamplingAllowedServers.item', "MCP Server Identity") },
+		default: [],
+	}),
+	[AgentHostMcpSkillsServerApprovalsConfigKey]: schemaProperty<Record<string, 'allow' | 'deny'>>({
+		type: 'object',
+		title: localize('agentHost.config.mcpSkillsServerApprovals.title', "MCP Skills Server Approvals"),
+		description: localize('agentHost.config.mcpSkillsServerApprovals.description', "Per-server-identity decisions for loading and using MCP-served skills in all sessions on this agent host. Identities include known server configuration and source, or the exact server name when no other identity is available. Remove an entry to ask again. This does not approve ordinary tool permission requests."),
+		additionalProperties: { type: 'string', title: localize('agentHost.config.mcpSkillsServerApprovals.entry', "MCP Server Skills Decision"), enum: ['allow', 'deny'] },
+		default: {},
+	}),
+	[AgentHostExtensionPermissionApprovalsConfigKey]: schemaProperty<Record<string, 'allow' | 'deny'>>({
+		type: 'object',
+		title: localize('agentHost.config.extensionPermissionApprovals.title', "Extension Permission Approvals"),
+		description: localize('agentHost.config.extensionPermissionApprovals.description', "Per-extension-identity decisions for letting Copilot extensions load with privileged capabilities, such as registering hooks, or read sensitive environment variables, in all sessions on this agent host. Identities include the extension name and the requested capabilities or variable names. Decisions about a project's extensions to read sensitive environment variables are never stored. Remove an entry to ask again."),
+		additionalProperties: { type: 'string', title: localize('agentHost.config.extensionPermissionApprovals.entry', "Extension Permission Decision"), enum: ['allow', 'deny'] },
+		default: {},
+	}),
+	[AgentHostActiveAgentTitleGenerationConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.activeAgentTitleGeneration.title', "Active Agent Title Generation"),
+		description: localize('agentHost.config.activeAgentTitleGeneration.description', "Whether the active agent names sessions and chats with rename tools instead of immediate utility-model title generation. Deferred title generation takes precedence. Changes apply to new sessions."),
+		default: false,
+	}),
+	[AgentHostDeferredTitleGenerationConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.deferredTitleGeneration.title', "Deferred Title Generation"),
+		description: localize('agentHost.config.deferredTitleGeneration.description', "Seed titles immediately and refine them in the background if the first response turn completes successfully, without asking the active agent to name chats. Explicit rename tools remain available. Overrides active agent title generation for new sessions; existing sessions and their chats retain their strategy."),
+		default: false,
+	}),
+	[AgentHostTitleGenerationConfigKey]: schemaProperty<AgentHostSelectableTitleGenerationStrategy>({
+		type: 'string',
+		title: localize('agentHost.config.titleGeneration.title', "Title Generation"),
+		description: localize('agentHost.config.titleGeneration.description', "Controls how new sessions and chats get an automatic title. Takes precedence over the legacy active agent and deferred title generation keys. Changes apply to new sessions; existing sessions and their chats retain their strategy."),
+		enum: [...AgentHostTitleGenerationStrategies],
+		enumDescriptions: [
+			localize('agentHost.config.titleGeneration.utility', "A utility model generates titles immediately."),
+			localize('agentHost.config.titleGeneration.activeAgent', "The active agent names sessions and chats with rename tools."),
+			localize('agentHost.config.titleGeneration.agentReview', "Seed titles immediately, refine them in the background after the first response turn completes successfully, and remind the active agent that it may rename a chat when the generated title is inaccurate or no longer reflects the user's goal."),
+		],
+		default: 'utility',
+	}),
+	[AgentHostMcpConnectorsEnabledConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.mcpConnectorsEnabled.title', "Copilot Connectors"),
+		description: localize('agentHost.config.mcpConnectorsEnabled.description', "Whether Copilot agent sessions expose MCP servers provided by connected Copilot Connectors."),
+		default: false,
+	}),
+	[AgentHostMcpSkillsEnabledConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.mcpSkillsEnabled.title', "MCP Skills"),
+		description: localize('agentHost.config.mcpSkillsEnabled.description', "Whether Copilot agent sessions discover and use skills served by MCP servers. Changes apply to new sessions."),
+		default: true,
+	}),
+	[AgentHostMarkdownPlanRichLinksEnabledConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.markdownPlanRichLinks.title', "Markdown Plan Rich Links"),
+		description: localize('agentHost.config.markdownPlanRichLinks.description', "Whether agents receive guidance for using rich links and running task markers in Markdown plan documents."),
+		default: false,
+	}),
+	[AgentHostWorkspaceSnapshotEnabledConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.workspaceSnapshot.title', "Initial Workspace Snapshot"),
+		description: localize('agentHost.config.workspaceSnapshot.description', "Whether the first turn of a new Copilot chat includes a bounded file-name snapshot of its working directories."),
+		default: false,
+	}),
+	[AgentHostAgentOrchestrationLimitsConfigKey]: schemaProperty<AgentHostAgentOrchestrationLimits>({
+		type: 'string',
+		title: localize('agentHost.config.agentOrchestrationLimits.title', "Agent Orchestration Limits"),
+		description: localize('agentHost.config.agentOrchestrationLimits.description', "Controls creation, messaging, and recursion safety limits for Agent Host session tools."),
+		enum: ['on', 'off'],
+		enumDescriptions: [
+			localize('agentHost.config.agentOrchestrationLimits.on', "Enforce agent orchestration safety limits."),
+			localize('agentHost.config.agentOrchestrationLimits.off', "Do not enforce agent orchestration safety limits."),
+		],
+		default: 'on',
+	}),
+	[AgentHostSessionModelOptionsConfigKey]: schemaProperty<AgentHostSessionModelOptions>({
+		type: 'string',
+		title: localize('agentHost.config.sessionModelOptions.title', "Session Model Options"),
+		description: localize('agentHost.config.sessionModelOptions.description', "Controls whether agents can choose a model's reasoning effort and context size in `create_session`, and how they find the models and options."),
+		enum: [...agentHostSessionModelOptionsValues],
+		enumDescriptions: [
+			localize('agentHost.config.sessionModelOptions.off', "Agents choose only a model in `create_session`."),
+			localize('agentHost.config.sessionModelOptions.inline', "Agents can also choose a reasoning effort and context size, and `create_session` lists the models and their options when the agent loads it through tool search."),
+			localize('agentHost.config.sessionModelOptions.tool', "Agents can also choose a reasoning effort and context size, and list the models and their options with `list_models`."),
+		],
+		default: 'off',
+	}),
+	[AgentHostArtifactToolsConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.artifactTools.title', "Artifact Tools"),
+		description: localize('agentHost.config.artifactTools.description', "Whether agents can record artifacts — pull requests, issues, commits, websites, files and other resources — with the artifact tools."),
+		default: false,
+	}),
+	[AgentHostChatResourcesConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.chatResources.title', "Chat Resources"),
+		description: localize('agentHost.config.chatResources.description', "Whether agents can choose how the chat shows the files they record, such as above the chat input."),
+		default: false,
+	}),
+	[AgentHostArtifactIntegrationsConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.artifactIntegrations.title', "Artifact Integrations"),
+		description: localize('agentHost.config.artifactIntegrations.description', "Enables live artifact state, actions, and opt-in automation instead of Agent Merge. Saved automation choices are preserved when switching."),
+		default: false,
+	}),
+	[AgentHostGitHubArtifactIgnoredChecksConfigKey]: schemaProperty<readonly string[]>({
+		type: 'array',
+		title: localize('agentHost.config.githubArtifactIgnoredChecks.title', "Checks Excluded from Automatic Mark Ready"),
+		description: localize('agentHost.config.githubArtifactIgnoredChecks.description', "Check-name patterns that do not need to pass before a pull request artifact is automatically marked ready."),
+		items: { type: 'string', title: localize('agentHost.config.githubArtifactIgnoredChecks.item', "Check Name Pattern") },
+		default: [],
+	}),
+	[AgentHostCanvasesEnabledConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.canvases.title', "Canvases"),
+		description: localize('agentHost.config.canvases.description', "Whether Copilot sessions can use Canvas extensions to present interactive content."),
+		default: false,
+	}),
+	[AgentHostAutoAttachPullRequestsConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.autoAttachPullRequests.title', "Automatic Pull Request Association"),
+		description: localize('agentHost.config.autoAttachPullRequests.description', "Whether the Agent Host automatically discovers and associates a pull request for the currently checked-out branch. When disabled, only pull requests recorded as artifacts or explicitly associated by session actions are considered."),
+		default: true,
+	}),
+	[AgentHostGitCoalesceReadsConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.gitCoalesceReads.title', "Share Git Reads"),
+		description: localize('agentHost.config.gitCoalesceReads.description', "Whether the Agent Host shares one process between identical read-only git commands that run at the same time, and limits how many read-only git commands run at once."),
+		default: false,
+	}),
+	[ModelRouterEnabledConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.modelRouterEnabled.title', "Model Routers"),
+		description: localize('agentHost.config.modelRouterEnabled.description', "Whether model routers from ~/.agents/model-routers are offered as Copilot models."),
+		default: false,
+	}),
+	[AgentHostOverlapProviderPreparationConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.overlapProviderPreparation.title', "Overlap Provider Preparation"),
+		description: localize('agentHost.config.overlapProviderPreparation.description', "Whether agents prepare their session for a turn while the turn-start checkpoint is captured, instead of after it."),
+		default: false,
+	}),
+	[AgentHostPrewarmSessionsConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.prewarmSessions.title', "Prewarm Sessions"),
+		description: localize('agentHost.config.prewarmSessions.description', "Whether new Copilot chats start their runtime and MCP servers before the first message."),
+		default: true,
+	}),
+	[AgentHostKeepAwakeConfigKey]: schemaProperty<AgentHostKeepAwakeMode>({
+		...agentHostKeepAwakeConfiguration,
+		title: localize('agentHost.config.keepAwake.title', "Keep Awake While Working"),
+		description: localize('agentHost.config.keepAwake.description', "Controls when this Agent Host prevents idle sleep while a chat is working. The display can turn off and explicit sleep is not inhibited."),
+	}),
+	[AgentHostShowExternalSessionsConfigKey]: schemaProperty<ChatExternalSessionsMode>({
+		type: 'string',
+		title: localize('agentHost.config.showExternalSessions.title', "Show External Agent Sessions"),
+		description: localize('agentHost.config.showExternalSessions.description', "Controls whether sessions created outside the Agent Host are included in the session catalog."),
+		enum: [ChatExternalSessionsMode.None, ChatExternalSessionsMode.Recent, ChatExternalSessionsMode.Last24Hours, ChatExternalSessionsMode.Last7Days, ChatExternalSessionsMode.Last30Days],
+		enumDescriptions: [
+			localize('agentHost.config.showExternalSessions.none', "Do not show external sessions."),
+			localize('agentHost.config.showExternalSessions.recent', "Show the 2 most recently updated external sessions from the last 7 days, hiding any that are older than your 2 newest local sessions."),
+			localize('agentHost.config.showExternalSessions.last24Hours', "Show external sessions updated in the last 24 hours."),
+			localize('agentHost.config.showExternalSessions.last7Days', "Show external sessions updated in the last 7 days."),
+			localize('agentHost.config.showExternalSessions.last30Days', "Show external sessions updated in the last 30 days."),
+		],
+		default: ChatExternalSessionsMode.None,
+	}),
+	[AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey]: schemaProperty<number>({
+		type: 'number',
+		title: localize('agentHost.config.autoArchiveMergedSessionsAfterDays.title', "Auto-Archive Merged Sessions"),
+		description: localize('agentHost.config.autoArchiveMergedSessionsAfterDays.description', "Number of inactive days after which a session with a merged pull request is automatically archived. Zero disables automatic archival."),
+		default: 0,
+	}),
+	[AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey]: schemaProperty<number>({
+		type: 'number',
+		title: localize('agentHost.config.autoDeleteArchivedMergedSessionsAfterDays.title', "Auto-Delete Archived Merged Sessions"),
+		description: localize('agentHost.config.autoDeleteArchivedMergedSessionsAfterDays.description', "Number of days after automatic archival before a session with a merged pull request is permanently deleted. Zero disables permanent deletion."),
+		default: 0,
+	}),
+	[AgentHostEditAutoApprovePatternsConfigKey]: schemaProperty<ChatEditAutoApprovePatterns>({
+		type: 'object',
+		title: localize('agentHost.config.editAutoApprovePatterns.title', "Edit Auto Approve Patterns"),
+		description: localize('agentHost.config.editAutoApprovePatterns.description', "Effective edit auto-approve patterns forwarded by the connected client for agent-host write permission checks."),
+		default: DEFAULT_EDIT_AUTO_APPROVE_PATTERNS,
+	}),
+	[AgentHostTerminalIgnoreDefaultAutoApproveRulesConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.terminalIgnoreDefaultAutoApproveRules.title', "Ignore Default Terminal Auto Approve Rules"),
+		description: localize('agentHost.config.terminalIgnoreDefaultAutoApproveRules.description', "Ignore implicit terminal auto-approve rules and use only explicit permission rules."),
+		default: false,
+	}),
+	[AgentHostMcpServersConfigKey]: schemaProperty<AgentHostMcpServers>({
+		type: 'object',
+		title: localize('agentHost.config.mcpServers.title', "MCP Servers"),
+		description: localize('agentHost.config.mcpServers.description', "Agent-host-level MCP servers exposed to every session, keyed by server name. Each value is a server configuration (see `<serverName>`)."),
+		properties: mcpServersValueProperties,
+		default: {},
+	}),
 });
+
+/**
+ * Root config keys the connected client re-pushes on every connect and
+ * reconnect, and which gate permission prompts or policy restrictions.
+ *
+ * These must NOT be restored from `agent-host-config.json` on startup. Their
+ * persisted value is a snapshot of one client's settings, so reviving it would
+ * re-grant approvals that a user, workspace, or policy tightened while the host
+ * was stopped. Falling back to the schema default until the client republishes
+ * is the fail-safe direction.
+ */
+export const clientOwnedApprovalRootConfigKeys: ReadonlySet<string> = new Set([
+	AgentHostGlobalAutoApproveEnabledConfigKey,
+	AgentHostAutoApprovePolicyRestrictedConfigKey,
+	AgentHostTerminalAutoApproveEnabledConfigKey,
+	AgentHostEditAutoApprovePatternsConfigKey,
+	AgentHostAutoReplyEnabledConfigKey,
+	AgentHostWorkspaceTrustConfigKey,
+	AgentHostAssistedApprovalInstructionsConfigKey,
+]);

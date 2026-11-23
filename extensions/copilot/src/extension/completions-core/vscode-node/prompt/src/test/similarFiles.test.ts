@@ -9,14 +9,13 @@ import { FixedWindowSizeJaccardMatcher, computeScore } from '../snippetInclusion
 import { ScoredSnippetMarker, SortOptions, splitIntoWords } from '../snippetInclusion/selectRelevance';
 import {
 	SimilarFilesOptions,
-	conservativeFilesOptions,
 	defaultCppSimilarFilesOptions,
 	defaultSimilarFilesOptions,
 	getSimilarSnippets,
 	nullSimilarFilesOptions,
 } from '../snippetInclusion/similarFiles';
 import { SnippetWithProviderInfo } from '../snippetInclusion/snippets';
-import { initializeTokenizers } from '../tokenization';
+import { ensureTokenizersLoaded } from '../tokenization';
 
 async function retrieveAllSnippetsWithJaccardScore(
 	objectDoc: SimilarFileInfo,
@@ -52,7 +51,7 @@ async function findBestJaccardMatch(
 
 suite('selectRelevance Test Suite', function () {
 	setup(async function () {
-		await initializeTokenizers;
+		await ensureTokenizersLoaded();
 	});
 
 	test('findBestJaccardMatch computes correct score of two single lines', async function () {
@@ -410,11 +409,17 @@ suite('Test getSimilarSnippets function', function () {
 	];
 
 	setup(async function () {
-		await initializeTokenizers;
+		await ensureTokenizersLoaded();
 	});
 
 	test('Returns correct snippet in conservative mode', async function () {
-		const options: SimilarFilesOptions = conservativeFilesOptions;
+		const options: SimilarFilesOptions = {
+			...defaultSimilarFilesOptions,
+			snippetLength: 10,
+			threshold: 0.3,
+			maxTopSnippets: 1,
+			maxSnippetsPerFile: 1,
+		};
 
 		const snippetLocations = (await getSimilarSnippets(doc, similarFiles, options)).map(snippet => [
 			snippet.startLine,
@@ -445,6 +450,86 @@ suite('Test getSimilarSnippets function', function () {
 		]);
 		const correctSnippetLocations: number[][] = [];
 		assert.deepStrictEqual(snippetLocations, correctSnippetLocations);
+	});
+	test('Preserves each source document uri when relativePath collides (multi-root)', async function () {
+		// Two neighbor files from different workspace roots that reduce to the SAME
+		// relativePath. A snippet's provenance must come from its distinct `uri`, not the
+		// shared `relativePath`, otherwise a multi-root workspace can conflate the two.
+		const collidingRelativePath = 'shared/util';
+		const filesSharingRelativePath: SimilarFileInfo[] = [
+			{
+				relativePath: collidingRelativePath,
+				uri: 'file:///root-a/shared/util',
+				source: dedent`
+					A
+						B
+						C
+						H
+					X
+						Y
+						Z
+					`,
+			},
+			{
+				relativePath: collidingRelativePath,
+				uri: 'file:///root-b/shared/util',
+				source: dedent`
+			  D
+				  H
+			  `,
+			},
+		];
+
+		const snippets = await getSimilarSnippets(doc, filesSharingRelativePath, defaultSimilarFilesOptions);
+
+		// Both files contribute a snippet; correlate each by a token unique to its source
+		// ('X' only exists in root-a) and assert the uri is its true origin, not conflated.
+		const provenance = snippets
+			.map(s => ({ uri: s.uri, relativePath: s.relativePath, fromRootA: s.snippet.includes('X') }))
+			.sort((a, b) => a.uri.localeCompare(b.uri));
+		assert.deepStrictEqual(provenance, [
+			{ uri: 'file:///root-a/shared/util', relativePath: collidingRelativePath, fromRootA: true },
+			{ uri: 'file:///root-b/shared/util', relativePath: collidingRelativePath, fromRootA: false },
+		]);
+	});
+	test('Carries isFromRelatedFile provenance from the source file onto its snippets', async function () {
+		// The related-vs-open-tab classification is decided once at the source and rides on
+		// each snippet, so consumers never have to re-classify snippets by URI.
+		const taggedFiles: SimilarFileInfo[] = [
+			{
+				relativePath: 'openTab',
+				uri: 'file:///root/openTab',
+				isFromRelatedFile: false,
+				source: dedent`
+					A
+						B
+						C
+						H
+					X
+						Y
+						Z
+					`,
+			},
+			{
+				relativePath: 'related',
+				uri: 'file:///root/related',
+				isFromRelatedFile: true,
+				source: dedent`
+			  D
+				  H
+			  `,
+			},
+		];
+
+		const snippets = await getSimilarSnippets(doc, taggedFiles, defaultSimilarFilesOptions);
+
+		const flagByUri = snippets
+			.map(s => ({ uri: s.uri, isFromRelatedFile: s.isFromRelatedFile }))
+			.sort((a, b) => a.uri.localeCompare(b.uri));
+		assert.deepStrictEqual(flagByUri, [
+			{ uri: 'file:///root/openTab', isFromRelatedFile: false },
+			{ uri: 'file:///root/related', isFromRelatedFile: true },
+		]);
 	});
 });
 

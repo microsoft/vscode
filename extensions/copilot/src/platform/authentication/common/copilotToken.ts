@@ -102,6 +102,18 @@ export class CopilotToken {
 		return this._info.organization_list || [];
 	}
 
+	/** Returns the legacy CLS experiment user kind, preserving the known-organization precedence. */
+	get userKind(): string {
+		// Do not add org mapping.
+		const knownOrganizations = [
+			'a5db0bcaae94032fe715fb34a5e4bce2',
+			'7184f66dfcee98cb5f08a1cb936d5225',
+			'faef89d9169d5eacf1d8c8dde3412e37',
+			'4535c7beffc844b46bb1ed4aa04d759a',
+		];
+		return knownOrganizations.find(org => this.organizationList.includes(org)) ?? '';
+	}
+
 	/**
 	 * Returns the list of organization logins that provide Copilot access to the user.
 	 * These are the organizations through which the user has a Copilot subscription (Business/Enterprise).
@@ -272,21 +284,6 @@ export class CopilotToken {
 }
 
 /**
- * Details of the user's telemetry consent status we get from the server during token retrieval.
- *
- * `unconfigured` is a transitional state for pre-GA that indicates the user is in the Technical Preview
- * and needs to be asked about telemetry consent client-side. It can be removed post-GA as the server
- * will never return it again.
- *
- * `enabled` indicates that they agreed to full telemetry.
- *
- * `disabled` indicates that they opted out of full telemetry so we can only send the core messages
- * that users cannot opt-out of.
- *
- */
-export type UserTelemetryChoice = 'enabled' | 'disabled';
-
-/**
  * A notification we get from the server during token retrieval. Needs to be presented to the user.
  * Used for both success notifications (user_notification) and error notifications (error_details).
  */
@@ -322,6 +319,7 @@ export interface Endpoints {
 	'origin-tracker'?: string;
 	proxy?: string;
 	telemetry?: string;
+	exp?: string;
 }
 
 //#endregion
@@ -431,6 +429,7 @@ const tokenEnvelopeValidator = vObj({
 		'origin-tracker': vString(),
 		proxy: vString(),
 		telemetry: vString(),
+		exp: vString(),
 	}),
 	enterprise_list: vNullable(vArray(vNumber())),
 	limited_user_quotas: vNullable(vObj({
@@ -501,10 +500,6 @@ export function validateTokenEnvelope(obj: unknown): TokenValidationResult {
 	};
 }
 
-export function isTokenEnvelope(obj: unknown): obj is TokenEnvelope {
-	return validateTokenEnvelope(obj).valid;
-}
-
 export function isErrorEnvelope(obj: unknown): obj is ErrorEnvelope {
 	return errorEnvelopeValidator.validate(obj).error === undefined;
 }
@@ -515,12 +510,6 @@ export function isStandardErrorEnvelope(obj: unknown): obj is StandardErrorEnvel
 
 //#endregion
 
-
-/**
- * Combined response type from the /copilot_internal/v2/token endpoint.
- * Can be either a success (TokenEnvelope) or error (ErrorEnvelope) response.
- */
-export type CopilotTokenResponse = TokenEnvelope | ErrorEnvelope | StandardErrorEnvelope;
 
 /**
  * A server response containing the user info for the copilot user from the /copilot_internal/user endpoint
@@ -618,19 +607,10 @@ export const enum TokenErrorNotificationId {
 	ServerError = 'server_error'
 }
 
-/**
- * Notification IDs that appear in user_notification on success responses.
- */
-export type SuccessNotificationId =
-	| 'subscription_trial_ending'
-	| 'subscription_trial_ended'
-	| 'subscription_ending'
-	| 'free_over_limits'
-	| 'codespaces_demo_welcome'
-	| `copilot_seat_added_${number}`;
-
 export type TokenError = {
 	reason: TokenErrorReason;
+	/** Milliseconds the caller should wait before retrying a rate-limited request. */
+	retryAfterMs?: number;
 	notification_id?: TokenErrorNotificationId | string;
 	message?: string;
 	/** URL for action button to help user resolve the error. */

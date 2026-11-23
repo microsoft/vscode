@@ -3,10 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import KeyvSqlite from '@keyv/sqlite';
 import { exec } from 'child_process';
 import fs from 'fs';
-import Keyv from 'keyv';
+import { DatabaseSync } from 'node:sqlite';
 import { EventEmitter } from 'node:stream';
 import path from 'path';
 import { promisify } from 'util';
@@ -18,12 +17,94 @@ import { CurrentTestRunInfo } from './simulationContext';
 const compress = promisify(zlib.brotliCompress);
 const decompress = promisify(zlib.brotliDecompress);
 
+/**
+ * Yield to the libuv event loop.
+ *
+ * The previous `@keyv/sqlite` store was backed by the asynchronous `sqlite3`
+ * driver, so every individual store operation resolved on a later loop tick.
+ * Some consumers rely on that boundary: e.g. the panel multi-file edit flow
+ * applies one code block's edits while the next code block's code-mapper request
+ * is awaiting its cached response, so the next request is built against the
+ * already-edited document. `node:sqlite`'s `DatabaseSync` is synchronous, so we
+ * reintroduce the async boundary on every store operation to preserve that
+ * interleaving (and thus compatibility with the recorded cache).
+ */
+function yieldEventLoop(): Promise<void> {
+	return new Promise<void>(resolve => setImmediate(resolve));
+}
+
 const DefaultCachePath = process.env.VITEST ? path.resolve(__dirname, '..', 'simulation', 'cache') : path.resolve(__dirname, '..', 'test', 'simulation', 'cache');
 
 async function getGitRoot(cwd: string): Promise<string> {
 	const execAsync = promisify(exec);
 	const { stdout } = await execAsync('git rev-parse --show-toplevel', { cwd });
 	return stdout.trim();
+}
+
+/**
+ * Minimal key/value store backed by Node's built-in `node:sqlite` module.
+ *
+ * It is wire-compatible with the on-disk format previously produced by
+ * `keyv` + `@keyv/sqlite` so that the committed simulation cache databases
+ * keep working: rows live in a `keyv` table, keys are namespaced as
+ * `keyv:<key>` and values are stored as `{"value":<string>}` JSON.
+ */
+class SqliteKeyValueStore {
+	private static readonly NAMESPACE = 'keyv';
+
+	private readonly db: DatabaseSync;
+
+	constructor(filePath: string) {
+		this.db = new DatabaseSync(filePath);
+		this.db.exec('PRAGMA busy_timeout = 5000');
+		this.db.exec('CREATE TABLE IF NOT EXISTS keyv(key VARCHAR(255) PRIMARY KEY, value TEXT )');
+	}
+
+	private _namespacedKey(key: string): string {
+		return `${SqliteKeyValueStore.NAMESPACE}:${key}`;
+	}
+
+	private static _decodeJsonBufferValue(value: string): string {
+		if (value.startsWith(':base64:')) {
+			return value.slice(':base64:'.length);
+		}
+		if (value.startsWith(':')) {
+			return value.slice(1);
+		}
+		return value;
+	}
+
+	async get(key: string): Promise<string | undefined> {
+		await yieldEventLoop();
+		const row = this.db.prepare('SELECT value FROM keyv WHERE key = ?').get(this._namespacedKey(key)) as { value: string } | undefined;
+		if (!row) {
+			return undefined;
+		}
+		return SqliteKeyValueStore._decodeJsonBufferValue(JSON.parse(row.value).value as string);
+	}
+
+	async set(key: string, value: string): Promise<void> {
+		await yieldEventLoop();
+		this.db.prepare('INSERT OR REPLACE INTO keyv (key, value) VALUES (?, ?)').run(this._namespacedKey(key), JSON.stringify({ value }));
+	}
+
+	async has(key: string): Promise<boolean> {
+		await yieldEventLoop();
+		const row = this.db.prepare('SELECT 1 FROM keyv WHERE key = ?').get(this._namespacedKey(key));
+		return row !== undefined;
+	}
+
+	*keys(): IterableIterator<string> {
+		const prefix = `${SqliteKeyValueStore.NAMESPACE}:`;
+		const rows = this.db.prepare('SELECT key FROM keyv').all() as { key: string }[];
+		for (const row of rows) {
+			yield row.key.startsWith(prefix) ? row.key.slice(prefix.length) : row.key;
+		}
+	}
+
+	async disconnect(): Promise<void> {
+		this.db.close();
+	}
 }
 
 export class Cache extends EventEmitter {
@@ -36,11 +117,11 @@ export class Cache extends EventEmitter {
 	private readonly layersPath: string;
 	private readonly externalLayersPath?: string;
 
-	private readonly base: Keyv;
-	private readonly layers: Map<string, Keyv>;
-	private activeLayer: Promise<Keyv> | undefined;
+	private readonly base: SqliteKeyValueStore;
+	private readonly layers: Map<string, SqliteKeyValueStore>;
+	private activeLayer: Promise<SqliteKeyValueStore> | undefined;
 
-	private gcBase: Keyv | undefined;
+	private gcBase: SqliteKeyValueStore | undefined;
 	private gcBaseKeys: Set<string> | undefined;
 
 	constructor(cachePath = DefaultCachePath) {
@@ -59,7 +140,7 @@ export class Cache extends EventEmitter {
 		}
 
 		fs.mkdirSync(this.layersPath, { recursive: true });
-		this.base = new Keyv(new KeyvSqlite(path.join(this.cachePath, 'base.sqlite')));
+		this.base = new SqliteKeyValueStore(path.join(this.cachePath, 'base.sqlite'));
 
 		this.layers = new Map();
 		let layerFiles = fs.readdirSync(this.layersPath)
@@ -75,7 +156,7 @@ export class Cache extends EventEmitter {
 
 		for (const layerFile of layerFiles) {
 			const name = path.basename(layerFile, path.extname(layerFile));
-			this.layers.set(name, new Keyv(new KeyvSqlite(layerFile)));
+			this.layers.set(name, new SqliteKeyValueStore(layerFile));
 		}
 	}
 
@@ -103,9 +184,8 @@ export class Cache extends EventEmitter {
 		// GC mode in progress
 		if (this.gcBase && this.gcBaseKeys) {
 			if (!this.gcBaseKeys.has(key)) {
-				if (await this.gcBase.set(key, data)) {
-					this.gcBaseKeys.add(key);
-				}
+				await this.gcBase.set(key, data);
+				this.gcBaseKeys.add(key);
 			}
 		}
 
@@ -160,8 +240,8 @@ export class Cache extends EventEmitter {
 		const keys = new Map<string, string>();
 		const result = new Map<string, string[]>();
 
-		const checkDatabase = async (name: string, database: Keyv) => {
-			for await (const [key] of database.store.iterator()) {
+		const checkDatabase = async (name: string, database: SqliteKeyValueStore) => {
+			for (const key of database.keys()) {
 				if (result.has(key)) {
 					result.get(key)!.push(name);
 				} else if (keys.has(key)) {
@@ -190,7 +270,7 @@ export class Cache extends EventEmitter {
 		}
 
 		this.gcBaseKeys = new Set<string>();
-		this.gcBase = new Keyv(new KeyvSqlite(path.join(this.cachePath, '_base.sqlite')));
+		this.gcBase = new SqliteKeyValueStore(path.join(this.cachePath, '_base.sqlite'));
 	}
 
 	async gcEnd(): Promise<void> {
@@ -231,7 +311,7 @@ export class Cache extends EventEmitter {
 		this.gcBaseKeys = undefined;
 	}
 
-	private async _getActiveLayerDatabase(): Promise<Keyv> {
+	private async _getActiveLayerDatabase(): Promise<SqliteKeyValueStore> {
 		if (!this.activeLayer) {
 			this.activeLayer = (async () => {
 				const execAsync = promisify(exec);
@@ -261,7 +341,7 @@ export class Cache extends EventEmitter {
 
 				// Create a new layer database
 				const uuid = generateUuid();
-				const activeLayer = new Keyv(new KeyvSqlite(path.join(activeLayerPath, `${uuid}.sqlite`)));
+				const activeLayer = new SqliteKeyValueStore(path.join(activeLayerPath, `${uuid}.sqlite`));
 				this.layers.set(uuid, activeLayer);
 				return activeLayer;
 			})();

@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -15,7 +15,7 @@ import { MockContextKeyService } from '../../../../../../platform/keybinding/tes
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { IChatService } from '../../../../chat/common/chatService/chatService.js';
-import { ITerminalInstance, ITerminalService } from '../../../../terminal/browser/terminal.js';
+import { IAhpTerminalCommandSource, IChatTerminalOutputSource, IChatTerminalToolProgressPart, ITerminalInstance, ITerminalService } from '../../../../terminal/browser/terminal.js';
 import { TerminalChatService } from '../../browser/terminalChatService.js';
 
 /**
@@ -28,14 +28,15 @@ function listenerCount(emitter: Emitter<any>): number {
 }
 
 suite('TerminalChatService', () => {
-	const store = new DisposableStore();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	let service: TerminalChatService;
+	let instantiationService: TestInstantiationService;
 	let onDidDisposeSessionEmitter: Emitter<{ readonly sessionResources: readonly URI[]; readonly reason: 'cleared' }>;
 
 	setup(() => {
 		onDidDisposeSessionEmitter = store.add(new Emitter());
 
-		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IStorageService, store.add(new InMemoryStorageService()));
 		instantiationService.stub(IContextKeyService, new MockContextKeyService());
@@ -51,12 +52,6 @@ suite('TerminalChatService', () => {
 
 		service = store.add(instantiationService.createInstance(TerminalChatService));
 	});
-
-	teardown(() => {
-		store.clear();
-	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('registerTerminalInstanceWithToolSession does not accumulate onDidDisposeSession listeners when re-registering the same instance (#309906)', () => {
 		const onInstanceDisposed = store.add(new Emitter<ITerminalInstance>());
@@ -102,4 +97,112 @@ suite('TerminalChatService', () => {
 		assert.strictEqual(listenersAfterSecond, listenersAfterFirst, 're-registering the same (instance, id) pair should not add a new listener');
 		assert.strictEqual(service.getToolSessionIdForInstance(instance), 'tool-session-a');
 	});
+
+	test('registerOutputSource notifies every matching progress part directly', () => {
+		const notifiedPartIndices: number[] = [];
+		const targetSessionId = 'tool-session-target';
+		for (let index = 0; index < 50; index++) {
+			const partSessionId = index === 25 || index === 26 ? targetSessionId : `tool-session-${index}`;
+			store.add(service.registerProgressPart(new class extends mock<IChatTerminalToolProgressPart>() {
+				override readonly elementIndex = index;
+				override readonly contentIndex = 0;
+				override readonly terminalToolSessionId = partSessionId;
+
+				override didRegisterOutputSource(terminalToolSessionId: string): void {
+					if (terminalToolSessionId === partSessionId) {
+						notifiedPartIndices.push(index);
+					}
+				}
+			}()));
+		}
+		const source: IChatTerminalOutputSource = {
+			onDidChange: Event.None,
+			output: 'output',
+			outputPosition: { generation: 0, start: 0 },
+			hasExited: false,
+			exitCode: undefined,
+		};
+
+		store.add(service.registerOutputSource(targetSessionId, source));
+
+		assert.deepStrictEqual({
+			notifiedPartIndices,
+			registeredSource: service.getOutputSource(targetSessionId),
+		}, {
+			notifiedPartIndices: [25, 26],
+			registeredSource: source,
+		});
+	});
+
+	test('continueInBackground notifies every matching progress part', () => {
+		const markedPartIndices: number[] = [];
+		const targetSessionId = 'tool-session-target';
+		for (let index = 0; index < 50; index++) {
+			const sessionId = index === 25 || index === 26 ? targetSessionId : `tool-session-${index}`;
+			store.add(service.registerProgressPart(new class extends mock<IChatTerminalToolProgressPart>() {
+				override readonly elementIndex = index;
+				override readonly contentIndex = 0;
+				override readonly terminalToolSessionId = sessionId;
+
+				override markContinuedInBackground(): void {
+					markedPartIndices.push(index);
+				}
+			}()));
+		}
+		const eventSessionIds: string[] = [];
+		store.add(service.onDidContinueInBackground(sessionId => eventSessionIds.push(sessionId)));
+
+		service.continueInBackground(targetSessionId);
+
+		assert.deepStrictEqual({
+			markedPartIndices,
+			eventSessionIds,
+		}, {
+			markedPartIndices: [25, 26],
+			eventSessionIds: [targetSessionId],
+		});
+	});
+
+	test('getTerminalInstanceByToolSessionId waits for pending AHP terminal creation', async () => {
+		const pendingTerminal = new DeferredPromise<ITerminalInstance>();
+		const instance = { instanceId: 3 } as ITerminalInstance;
+		store.add(service.registerAhpCommandSource(
+			'tool-session-a',
+			{ dispose() { } } as IAhpTerminalCommandSource,
+			pendingTerminal.p,
+		));
+
+		let resolved = false;
+		const lookup = service.getTerminalInstanceByToolSessionId('tool-session-a').then(instance => {
+			resolved = true;
+			return instance;
+		});
+		await Promise.resolve();
+		const resolvedBeforeCreation = resolved;
+
+		await pendingTerminal.complete(instance);
+
+		assert.deepStrictEqual({
+			resolvedBeforeCreation,
+			instance: await lookup,
+		}, {
+			resolvedBeforeCreation: false,
+			instance,
+		});
+	});
+
+	test('getTerminalInstanceByToolSessionId handles failed AHP terminal creation', async () => {
+		const pendingTerminal = new DeferredPromise<ITerminalInstance>();
+		store.add(service.registerAhpCommandSource(
+			'tool-session-a',
+			{ dispose() { } } as IAhpTerminalCommandSource,
+			pendingTerminal.p,
+		));
+
+		const lookup = service.getTerminalInstanceByToolSessionId('tool-session-a');
+		await pendingTerminal.error(new Error('terminal creation failed'));
+
+		assert.strictEqual(await lookup, undefined);
+	});
+
 });

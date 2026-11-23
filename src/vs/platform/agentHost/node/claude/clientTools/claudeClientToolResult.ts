@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
-import { ToolResultContentType, type ToolCallResult, type ToolResultContent, type ToolResultEmbeddedResourceContent } from '../../../common/state/protocol/channels-session/state.js';
+import { ToolResultContentType, type ToolCallResult, type ToolResultContent, type ToolResultEmbeddedResourceContent } from '../../../common/state/protocol/channels-chat/state.js';
 
 /**
  * Stable URI scheme used when an `EmbeddedResource` content block must be
@@ -35,6 +35,10 @@ const CLAUDE_CLIENT_RESOURCE_SCHEME = 'claude-client';
 export function convertToolCallResult(result: ToolCallResult, toolUseId: string): CallToolResult {
 	const blocks = result.content ?? [];
 	const content = blocks.map((block, index) => convertBlock(block, toolUseId, index));
+	if (content.length === 0 && result.error?.message) {
+		// Without content the SDK reports a generic "Unknown error"; surface the real message.
+		content.push({ type: 'text', text: result.error.message });
+	}
 	const out: CallToolResult = { content };
 	if (result.structuredContent !== undefined) {
 		out.structuredContent = result.structuredContent;

@@ -41,6 +41,7 @@ import { SelectionsOverlay } from './viewParts/selections/selections.js';
 import { ViewCursors } from './viewParts/viewCursors/viewCursors.js';
 import { ViewZones } from './viewParts/viewZones/viewZones.js';
 import { WhitespaceOverlay } from './viewParts/whitespace/whitespace.js';
+import { WordWrapIndicatorOverlay } from './viewParts/wordWrapIndicator/wordWrapIndicator.js';
 import { IEditorConfiguration } from '../common/config/editorConfiguration.js';
 import { EditorOption } from '../common/config/editorOptions.js';
 import { Position } from '../common/core/position.js';
@@ -220,6 +221,7 @@ export class View extends ViewEventHandler {
 		contentViewOverlays.addDynamicOverlay(new IndentGuidesOverlay(this._context));
 		contentViewOverlays.addDynamicOverlay(new DecorationsOverlay(this._context));
 		contentViewOverlays.addDynamicOverlay(new WhitespaceOverlay(this._context));
+		contentViewOverlays.addDynamicOverlay(new WordWrapIndicatorOverlay(this._context));
 
 		const marginViewOverlays = new MarginViewOverlays(this._context);
 		this._viewParts.push(marginViewOverlays);
@@ -300,7 +302,7 @@ export class View extends ViewEventHandler {
 		this._applyLayout();
 
 		// Pointer handler
-		this._pointerHandler = this._register(new PointerHandler(this._context, this._viewController, this._createPointerHandlerHelper()));
+		this._pointerHandler = this._register(new PointerHandler(this._context, this._viewController, this._createPointerHandlerHelper(margin.getDomNode().domNode)));
 	}
 
 	private _instantiateEditContext(): AbstractEditContext {
@@ -375,9 +377,10 @@ export class View extends ViewEventHandler {
 		return laneModel;
 	}
 
-	private _createPointerHandlerHelper(): IPointerHandlerHelper {
+	private _createPointerHandlerHelper(marginDomNode: HTMLElement): IPointerHandlerHelper {
 		return {
 			viewDomNode: this.domNode.domNode,
+			marginDomNode,
 			linesContentDomNode: this._linesContent.domNode,
 			viewLinesDomNode: this._viewLines.getDomNode().domNode,
 			viewLinesGpu: this._viewLinesGpu,

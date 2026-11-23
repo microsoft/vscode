@@ -1,0 +1,26 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.chat-editor-relative {
+	position: relative;
+}
+
+.chat-editor-relative > .chat-loading-overlay {
+	position: absolute;
+	inset: 0;
+	z-index: 100;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	pointer-events: none;
+	color: var(--vscode-editor-foreground);
+}
+
+.chat-editor-relative > .chat-loading-overlay > .chat-loading-content {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+	background-color: var(--vscode-editor-background);
+}

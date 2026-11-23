@@ -25,6 +25,7 @@ const rootTempDir = new Lazy(() => {
 
 export const instanceTempDir = new Lazy(() => {
 	const dir = path.join(rootTempDir.value, makeRandomHexString(20));
+	// eslint-disable-next-line local/code-no-sync-fs -- getTempFile callers immediately pass paths to tsserver; publishing the Lazy directory before mkdir completes would race its first use.
 	fs.mkdirSync(dir, { recursive: true });
 	return dir;
 });

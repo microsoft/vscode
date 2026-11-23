@@ -97,39 +97,6 @@ interface FuzzMatch {
 	fuzz: Fuzz;
 }
 
-export function assemble_changes(
-	orig: Record<string, string | null>,
-	updatedFiles: Record<string, string | null>,
-): Commit {
-	const commit: Commit = { changes: {} };
-	for (const [p, newContent] of Object.entries(updatedFiles)) {
-		const oldContent = orig[p];
-		if (oldContent === newContent) {
-			continue;
-		}
-		if (oldContent !== undefined && newContent !== undefined) {
-			commit.changes[p] = {
-				type: ActionType.UPDATE,
-				oldContent,
-				newContent,
-			};
-		} else if (newContent !== undefined) {
-			commit.changes[p] = {
-				type: ActionType.ADD,
-				newContent,
-			};
-		} else if (oldContent !== undefined) {
-			commit.changes[p] = {
-				type: ActionType.DELETE,
-				oldContent,
-			};
-		} else {
-			throw new Error('Unexpected state in assemble_changes');
-		}
-	}
-	return commit;
-}
-
 // -----------------------------------------------------------------------------
 // Patch‑related structures
 // -----------------------------------------------------------------------------
@@ -923,27 +890,6 @@ export async function load_files(
 		}
 	}
 	return orig;
-}
-
-export function apply_commit(
-	commit: Commit,
-	writeFn: (p: string, c: string) => void,
-	removeFn: (p: string) => void,
-): void {
-	for (const [p, change] of Object.entries(commit.changes)) {
-		if (change.type === ActionType.DELETE) {
-			removeFn(p);
-		} else if (change.type === ActionType.ADD) {
-			writeFn(p, change.newContent ?? '');
-		} else if (change.type === ActionType.UPDATE) {
-			if (change.movePath) {
-				writeFn(change.movePath, change.newContent ?? '');
-				removeFn(p);
-			} else {
-				writeFn(p, change.newContent ?? '');
-			}
-		}
-	}
 }
 
 export async function processPatch(

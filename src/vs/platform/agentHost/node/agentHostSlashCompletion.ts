@@ -3,40 +3,59 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { matchesFuzzy2 } from '../../../base/common/filters.js';
+
 /**
  * A leading slash token in a user-message input.
  */
 export interface ILeadingSlashToken {
-	/** The token including the leading slash. */
-	readonly token: string;
-	/** The typed token text after the slash. */
+	/** The token text between the slash and the cursor, used to filter completions. */
 	readonly typed: string;
-	/** The start offset of the token range to replace. */
+	/** The offset of the slash, where the replaced range starts. */
 	readonly rangeStart: number;
-	/** The end offset of the token range to replace. */
+	/** The cursor offset, where the replaced range ends so text after the cursor is kept. */
 	readonly rangeEnd: number;
 }
 
 /**
- * Extracts the leading `/word` token from the input, where the token is the
- * run of non-whitespace characters starting at offset 0. Returns `undefined`
- * if the input does not start with `/` or the cursor is past the token.
+ * Extracts the `/word` token before the cursor when the slash is at the start
+ * of the input.
  */
 export function extractLeadingSlashToken(text: string, offset: number): ILeadingSlashToken | undefined {
-	if (text.length === 0 || text.charCodeAt(0) !== 0x2f /* / */) {
+	const token = extractWhitespaceDelimitedSlashToken(text, offset);
+	return token?.rangeStart === 0 ? token : undefined;
+}
+
+/**
+ * Extracts the `/word` token before the cursor when the slash is either at
+ * the start of the input or immediately follows whitespace.
+ */
+export function extractWhitespaceDelimitedSlashToken(text: string, offset: number): ILeadingSlashToken | undefined {
+	if (offset < 0 || offset > text.length) {
 		return undefined;
 	}
-	let end = 1;
-	while (end < text.length) {
-		const ch = text.charCodeAt(end);
-		if (ch === 0x20 /* space */ || ch === 0x09 /* tab */ || ch === 0x0a /* \n */ || ch === 0x0d /* \r */) {
-			break;
-		}
-		end++;
+
+	let start = offset;
+	while (start > 0 && !isSlashTokenWhitespace(text.charCodeAt(start - 1))) {
+		start--;
 	}
-	if (offset < 0 || offset > end) {
+	if (start >= offset || text.charCodeAt(start) !== 0x2f /* / */) {
 		return undefined;
 	}
-	const token = text.slice(0, end);
-	return { token, typed: token.slice(1), rangeStart: 0, rangeEnd: end };
+
+	return { typed: text.slice(start + 1, offset), rangeStart: start, rangeEnd: offset };
+}
+
+/**
+ * Tests whether a slash completion name fuzzy matches the typed token text.
+ */
+export function matchesSlashCompletion(typed: string, name: string): boolean {
+	if (typed.length === 0 || name.toLowerCase().startsWith(typed.toLowerCase())) {
+		return true;
+	}
+	return typed.length > 1 && matchesFuzzy2(typed, name) !== null;
+}
+
+function isSlashTokenWhitespace(ch: number): boolean {
+	return ch === 0x20 /* space */ || ch === 0x09 /* tab */ || ch === 0x0a /* \n */ || ch === 0x0d /* \r */;
 }

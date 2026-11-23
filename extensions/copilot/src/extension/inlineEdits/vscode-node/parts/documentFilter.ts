@@ -6,8 +6,29 @@
 import { NotebookDocument, TextDocument } from 'vscode';
 import { ConfigKey, IConfigurationService } from '../../../../platform/configuration/common/configurationService';
 import { IIgnoreService } from '../../../../platform/ignore/common/ignoreService';
-import { isNotebookCellOrNotebookChatInput } from '../../../../util/common/notebooks';
+import { Schemas } from '../../../../util/vs/base/common/network';
 import { derived } from '../../../../util/vs/base/common/observableInternal';
+
+/**
+ * Schemes of documents that next edit suggestions never track. Users don't type in them, and their
+ * content changes would show up as misleading recent edits in other documents' prompts.
+ *
+ * Every other scheme is tracked: under unification, next edit suggestions replace ghost text, which
+ * served any document whose scheme its own ignore list doesn't cover.
+ */
+const ignoredSchemes = new Set<string>([
+	'output', // output pane (tracking it would log about itself in a loop)
+	'search-editor',
+	'comment',
+	'git',
+	Schemas.chatEditingSnapshotScheme,
+	Schemas.chatEditingModel,
+	'chat-editing-notebook-snapshot-model',
+	Schemas.vscodeChatCodeBlock,
+	Schemas.vscodeChatCodeCompareBlock,
+	Schemas.vscodeChatInput,
+	'vscode-chat-terminal-output',
+]);
 
 export class DocumentFilter {
 	private readonly _enabledLanguagesObs;
@@ -22,11 +43,10 @@ export class DocumentFilter {
 	}
 
 	public async isTrackingEnabled(document: TextDocument | NotebookDocument): Promise<boolean> {
-		// this should filter out documents coming from output pane, git fs, etc.
-		if (!['file', 'untitled'].includes(document.uri.scheme) && !isNotebookCellOrNotebookChatInput(document.uri)) {
+		if (ignoredSchemes.has(document.uri.scheme)) {
 			return false;
 		}
-		if (isTextDocument(document) && !this._isGhostTextEnabled(document.languageId)) {
+		if (isTextDocument(document) && !this.isLanguageEnabled(document.languageId)) {
 			return false;
 		}
 		if (await this._ignoreService.isCopilotIgnored(document.uri)) {
@@ -35,7 +55,11 @@ export class DocumentFilter {
 		return true;
 	}
 
-	private _isGhostTextEnabled(languageId: string): boolean {
+	/**
+	 * Whether Copilot inline suggestions (inline completions and next edit suggestions) are
+	 * enabled for the given language according to the per-language `github.copilot.enable` setting.
+	 */
+	public isLanguageEnabled(languageId: string): boolean {
 		const enabledLanguages = this._enabledLanguages.get();
 		return enabledLanguages.get(languageId) ?? (
 			enabledLanguages.get('*')! ||

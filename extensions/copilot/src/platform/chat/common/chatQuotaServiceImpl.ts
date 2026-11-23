@@ -29,7 +29,7 @@ export class ChatQuotaService extends Disposable implements IChatQuotaService {
 	) {
 		super();
 		this._rateLimitInfo = { session: undefined, weekly: undefined };
-		this._register(this._authService.onDidAuthenticationChange(() => {
+		this._register(this._authService.onDidCopilotTokenChange(() => {
 			this._processUserInfoQuotaSnapshot(this._authService.copilotToken?.quotaInfo);
 		}));
 	}
@@ -70,7 +70,7 @@ export class ChatQuotaService extends Disposable implements IChatQuotaService {
 	setLastCopilotUsage(totalNanoAiu: number, turnId: string): void {
 		// Convert nano-AIUs to AIC credits: 1 AIC = 1_000_000_000 nano-AIU
 		const aic = totalNanoAiu / 1_000_000_000;
-		if (aic > 0) {
+		if (aic >= 0) {
 			this._turnCredits.set(turnId, (this._turnCredits.get(turnId) ?? 0) + aic);
 		}
 	}

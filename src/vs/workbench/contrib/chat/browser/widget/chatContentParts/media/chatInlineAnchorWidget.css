@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.chat-inline-anchor-widget {
+.chat-inline-anchor-widget,
+.chat-codeblock-pill-widget {
 	border: 0.5px solid var(--vscode-chat-requestBorder, var(--vscode-input-background, transparent));
 	border-radius: 4px;
 	margin: 0 1px;
@@ -15,7 +16,8 @@
 	font-size: var(--vscode-chat-font-size-body-s);
 }
 
-.chat-inline-anchor-widget .icon-label {
+.chat-inline-anchor-widget .icon-label,
+.chat-codeblock-pill-widget .icon-label {
 	padding: 0 3px;
 
 	.label-suffix {
@@ -31,11 +33,13 @@
 	color: inherit;
 }
 
-.chat-inline-anchor-widget:hover {
+.chat-inline-anchor-widget:hover,
+.chat-codeblock-pill-widget:hover {
 	background-color: var(--vscode-list-hoverBackground);
 }
 
-.chat-inline-anchor-widget .icon {
+.chat-inline-anchor-widget .icon,
+.chat-codeblock-pill-widget .icon {
 	vertical-align: middle;
 	line-height: 1em;
 	font-size: 90% !important;
@@ -44,7 +48,11 @@
 	top: 0 !important;
 }
 
-.show-file-icons.chat-inline-anchor-widget .icon::before {
+.show-file-icons.chat-inline-anchor-widget .icon::before,
+.show-file-icons.chat-codeblock-pill-widget .icon::before {
+	--file-icon-mask-position: center;
+	--file-icon-mask-size: contain;
+
 	display: inline-block;
 	line-height: 100%;
 	overflow: hidden;
@@ -81,4 +89,14 @@
 
 .chat-inline-references-link-style .chat-inline-anchor-widget .icon-label {
 	padding: 0;
+}
+
+.chat-inline-anchor-widget.chat-markdown-preview-link,
+.interactive-item-container .value .rendered-markdown .chat-inline-anchor-widget.chat-markdown-preview-link {
+	color: var(--vscode-textLink-foreground);
+}
+
+.interactive-item-container .value .rendered-markdown .chat-inline-anchor-widget.chat-markdown-preview-link:hover,
+.interactive-item-container .value .rendered-markdown .chat-inline-anchor-widget.chat-markdown-preview-link:active {
+	color: var(--vscode-textLink-activeForeground);
 }

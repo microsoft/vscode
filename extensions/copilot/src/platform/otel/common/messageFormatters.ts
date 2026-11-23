@@ -459,3 +459,73 @@ export function toToolDefinitions(tools: ReadonlyArray<{
 	}
 	return out.length > 0 ? out : undefined;
 }
+
+// Tool-definition JSON is multi-MB and reused across many telemetry/OTel sites
+// per LLM round, often byte-identical across consecutive agent-loop rounds.
+// Intern by array reference (WeakMap) plus a single-slot last-string cache so
+// content-equal serializations from distinct refs collapse to one instance.
+
+const toolDefsJsonByRef = new WeakMap<object, string>();
+const toolsRawJsonByRef = new WeakMap<object, string>();
+let lastToolDefsJson: string | undefined;
+let lastToolsRawJson: string | undefined;
+
+function internToolDefsString(s: string): string {
+	if (lastToolDefsJson !== undefined && lastToolDefsJson === s) {
+		return lastToolDefsJson;
+	}
+	lastToolDefsJson = s;
+	return s;
+}
+
+function internToolsRawString(s: string): string {
+	if (lastToolsRawJson !== undefined && lastToolsRawJson === s) {
+		return lastToolsRawJson;
+	}
+	lastToolsRawJson = s;
+	return s;
+}
+
+/**
+ * Return the OTel-normalized JSON string for a tools array, memoized so all
+ * telemetry/span sites within (and across consecutive identical rounds of) an
+ * LLM call share a single string instance. Returns `undefined` if no
+ * normalized tools would be emitted.
+ */
+export function stringifyToolDefinitionsForOTel(tools: Parameters<typeof toToolDefinitions>[0]): string | undefined {
+	if (!tools || tools.length === 0) {
+		return undefined;
+	}
+	const cached = toolDefsJsonByRef.get(tools);
+	if (cached !== undefined) {
+		return cached;
+	}
+	const defs = toToolDefinitions(tools);
+	if (!defs) {
+		return undefined;
+	}
+	const s = internToolDefsString(JSON.stringify(defs));
+	toolDefsJsonByRef.set(tools, s);
+	return s;
+}
+
+/**
+ * Return `JSON.stringify(tools)` memoized by array reference, with a
+ * single-slot content intern so consecutive rounds producing identical content
+ * share one string instance. Used for telemetry sinks that consume the raw
+ * tools shape rather than the OTel-normalized one. Mirrors `JSON.stringify`
+ * exactly: returns `'[]'` for an empty array and `undefined` only when
+ * `tools` itself is `undefined`.
+ */
+export function stringifyToolsRawForTelemetry(tools: ReadonlyArray<unknown> | undefined): string | undefined {
+	if (!tools) {
+		return undefined;
+	}
+	const cached = toolsRawJsonByRef.get(tools);
+	if (cached !== undefined) {
+		return cached;
+	}
+	const s = internToolsRawString(JSON.stringify(tools));
+	toolsRawJsonByRef.set(tools, s);
+	return s;
+}

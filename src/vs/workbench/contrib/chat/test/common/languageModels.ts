@@ -116,13 +116,6 @@ export class NullLanguageModelsService implements ILanguageModelsService {
 
 	async migrateLanguageModelsProviderGroup(languageModelsProviderGroup: ILanguageModelsProviderGroup): Promise<void> { }
 
-	getRecentlyUsedModelIds(): string[] {
-		return [];
-	}
-
-	addToRecentlyUsedList(): void { }
-	clearRecentlyUsedList(): void { }
-
 	getPinnedModelIds(): string[] { return []; }
 	pinModel(_modelIdentifier: string): void { }
 	unpinModel(_modelIdentifier: string): void { }
@@ -131,6 +124,7 @@ export class NullLanguageModelsService implements ILanguageModelsService {
 	isModelHidden(_modelIdentifier: string): boolean { return false; }
 	isGroupHidden(_vendor: string, _groupName: string): boolean { return false; }
 	setModelHidden(_modelIdentifier: string, _hidden: boolean): void { }
+	setModelsHidden(_modelIdentifiers: readonly string[], _hidden: boolean): void { }
 	setGroupHidden(_vendor: string, _groupName: string, _hidden: boolean): void { }
 	getHiddenModelIds(): string[] { return []; }
 

@@ -39,15 +39,16 @@ export interface IChatWidgetHistoryService {
 	readonly onDidChangeHistory: Event<ChatHistoryChange>;
 
 	clearHistory(): void;
-	getHistory(location: ChatAgentLocation): readonly IChatModelInputState[];
-	append(location: ChatAgentLocation, history: IChatModelInputState): void;
+	getHistory(location: ChatAgentLocation, historyKey?: string): readonly IChatModelInputState[];
+	append(location: ChatAgentLocation, history: IChatModelInputState, historyKey?: string): void;
+	moveHistory(location: ChatAgentLocation, fromHistoryKey: string, toHistoryKey: string): void;
 }
 
 interface IChatHistory {
 	history?: { [providerId: string]: IChatModelInputState[] };
 }
 
-export type ChatHistoryChange = { kind: 'append'; entry: IChatModelInputState } | { kind: 'clear' };
+export type ChatHistoryChange = { kind: 'append'; location: ChatAgentLocation; historyKey: string | undefined; entry: IChatModelInputState } | { kind: 'move'; location: ChatAgentLocation; fromHistoryKey: string; toHistoryKey: string } | { kind: 'clear' };
 
 export const ChatInputHistoryMaxEntries = 40;
 
@@ -78,8 +79,8 @@ export class ChatWidgetHistoryService extends Disposable implements IChatWidgetH
 		}));
 	}
 
-	getHistory(location: ChatAgentLocation): IChatModelInputState[] {
-		const key = this.getKey(location);
+	getHistory(location: ChatAgentLocation, historyKey?: string): IChatModelInputState[] {
+		const key = this.getKey(location, historyKey);
 		const history = this.viewState.history?.[key] ?? [];
 		return history.map(entry => this.migrateHistoryEntry(entry));
 	}
@@ -133,18 +134,39 @@ export class ChatWidgetHistoryService extends Disposable implements IChatWidgetH
 		};
 	}
 
-	private getKey(location: ChatAgentLocation): string {
+	private getKey(location: ChatAgentLocation, historyKey?: string): string {
 		// Preserve history for panel by continuing to use the same old provider id. Use the location as a key for other chat locations.
-		return location === ChatAgentLocation.Chat ? CHAT_PROVIDER_ID : location;
+		const locationKey = location === ChatAgentLocation.Chat ? CHAT_PROVIDER_ID : location;
+		return historyKey === undefined ? locationKey : `${locationKey}:${historyKey}`;
 	}
 
-	append(location: ChatAgentLocation, history: IChatModelInputState): void {
+	append(location: ChatAgentLocation, history: IChatModelInputState, historyKey?: string): void {
 		this.viewState.history ??= {};
 
-		const key = this.getKey(location);
-		this.viewState.history[key] = this.getHistory(location).concat(history).slice(-ChatInputHistoryMaxEntries);
+		const key = this.getKey(location, historyKey);
+		this.viewState.history[key] = this.getHistory(location, historyKey).concat(history).slice(-ChatInputHistoryMaxEntries);
 		this.changed = true;
-		this._onDidChangeHistory.fire({ kind: 'append', entry: history });
+		this._onDidChangeHistory.fire({ kind: 'append', location, historyKey, entry: history });
+	}
+
+	moveHistory(location: ChatAgentLocation, fromHistoryKey: string, toHistoryKey: string): void {
+		if (fromHistoryKey === toHistoryKey) {
+			return;
+		}
+
+		const fromHistory = this.getHistory(location, fromHistoryKey);
+		if (fromHistory.length === 0) {
+			return;
+		}
+
+		this.viewState.history ??= {};
+
+		const fromKey = this.getKey(location, fromHistoryKey);
+		const toKey = this.getKey(location, toHistoryKey);
+		this.viewState.history[toKey] = this.getHistory(location, toHistoryKey).concat(fromHistory).slice(-ChatInputHistoryMaxEntries);
+		delete this.viewState.history[fromKey];
+		this.changed = true;
+		this._onDidChangeHistory.fire({ kind: 'move', location, fromHistoryKey, toHistoryKey });
 	}
 
 	clearHistory(): void {
@@ -161,9 +183,10 @@ export class ChatHistoryNavigator extends Disposable {
 	private _currentIndex: number;
 	private _history: readonly IChatModelInputState[];
 	private _overlay: (IChatModelInputState | undefined)[] = [];
+	private _historyKey: string | undefined;
 
 	public get values() {
-		return this.chatWidgetHistoryService.getHistory(this.location);
+		return this.chatWidgetHistoryService.getHistory(this.location, this._historyKey);
 	}
 
 	constructor(
@@ -171,13 +194,16 @@ export class ChatHistoryNavigator extends Disposable {
 		@IChatWidgetHistoryService private readonly chatWidgetHistoryService: IChatWidgetHistoryService
 	) {
 		super();
-		this._history = this.chatWidgetHistoryService.getHistory(this.location);
+		this._history = this.chatWidgetHistoryService.getHistory(this.location, this._historyKey);
 		this._currentIndex = this._history.length;
 
 		this._register(this.chatWidgetHistoryService.onDidChangeHistory(e => {
 			if (e.kind === 'append') {
+				if (e.location !== this.location || e.historyKey !== this._historyKey) {
+					return;
+				}
 				const prevLength = this._history.length;
-				this._history = this.chatWidgetHistoryService.getHistory(this.location);
+				this._history = this.chatWidgetHistoryService.getHistory(this.location, this._historyKey);
 				const newLength = this._history.length;
 
 				// If this append operation adjusted all history entries back, move our index back too
@@ -194,8 +220,26 @@ export class ChatHistoryNavigator extends Disposable {
 				this._history = [];
 				this._currentIndex = 0;
 				this._overlay = [];
+			} else if (e.kind === 'move') {
+				if (e.location !== this.location || (e.fromHistoryKey !== this._historyKey && e.toHistoryKey !== this._historyKey)) {
+					return;
+				}
+				this._history = this.chatWidgetHistoryService.getHistory(this.location, this._historyKey);
+				this._currentIndex = this._history.length;
+				this._overlay = [];
 			}
 		}));
+	}
+
+	public setHistoryKey(historyKey: string | undefined) {
+		if (this._historyKey === historyKey) {
+			return;
+		}
+
+		this._historyKey = historyKey;
+		this._history = this.chatWidgetHistoryService.getHistory(this.location, this._historyKey);
+		this._currentIndex = this._history.length;
+		this._overlay = [];
 	}
 
 	public isAtEnd() {
@@ -242,7 +286,7 @@ export class ChatHistoryNavigator extends Disposable {
 		this._currentIndex = this._history.length;
 
 		if (!entriesEqual(this._history.at(-1), entry)) {
-			this.chatWidgetHistoryService.append(this.location, entry);
+			this.chatWidgetHistoryService.append(this.location, entry, this._historyKey);
 		}
 	}
 }

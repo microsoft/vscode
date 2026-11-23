@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type * as vscode from 'vscode';
-import { Remote } from '../vscode/git';
+// eslint-disable-next-line local/code-layering -- Pre-existing layering violation found when the zone check started resolving extensionless imports.
+import { Remote, Repository } from '../vscode/git';
 
 interface GitConfigSection {
 	name: string;
@@ -101,4 +102,14 @@ export function toGitUri(uri: vscode.Uri, ref: string, options: GitUriOptions = 
 	}
 
 	return uri.with({ scheme: options.scheme ?? 'git', path, query: JSON.stringify(params) });
+}
+
+/**
+ * Returns the configured upstream remote of `repository` (e.g. the `origin` whose URL `git push` would target),
+ * or `undefined` when the current HEAD has no upstream or the remote can't be resolved.
+ */
+export function getUpstreamRemote(repository: Repository): Remote | undefined {
+	const remoteName = repository.state.HEAD?.upstream?.remote;
+	if (!remoteName) { return undefined; }
+	return repository.state.remotes.find(r => r.name === remoteName);
 }

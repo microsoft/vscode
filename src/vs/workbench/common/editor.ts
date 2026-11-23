@@ -152,6 +152,13 @@ export interface IEditorPane extends IComposite {
 	readonly onDidChangeSizeConstraints: Event<{ width: number; height: number } | undefined>;
 
 	/**
+	 * Whether the editor renders its own title. A group that holds only
+	 * this editor then does not show its title area, and editors opened
+	 * from it go to the main part of its window rather than beside it.
+	 */
+	readonly providesTitle?: boolean;
+
+	/**
 	 * The context key service for this editor. Should be overridden by
 	 * editors that have their own ScopedContextKeyService
 	 */
@@ -175,6 +182,9 @@ export interface IEditorPane extends IComposite {
 	 * `IEditorOptions.viewState` to be applied when opening.
 	 */
 	getViewState(): object | undefined;
+
+	/** An optional instantiation service scoped to the editor pane. */
+	readonly scopedInstantiationService?: IInstantiationService;
 
 	/**
 	 * An optional method to return the current selection in
@@ -488,7 +498,17 @@ export interface IUntitledTextResourceEditorInput extends IBaseTextResourceEdito
 	 * - they will not ask for a file path when saving but use the associated path
 	 */
 	readonly resource: URI | undefined;
+
+	/**
+	 * Where the untitled editor is created from. Only used for telemetry.
+	 */
+	readonly untitledOrigin?: UntitledTextEditorOrigin;
 }
+
+/**
+ * Where a new untitled text editor is created from. Only used for telemetry.
+ */
+export type UntitledTextEditorOrigin = 'newFileCommand' | 'tabBarDoubleClick' | 'emptyGroupDoubleClick' | 'newTabButton' | 'extensionApi' | 'chat';
 
 /**
  * A resource side by side editor input shows 2 editors side by side but
@@ -566,6 +586,14 @@ export interface IResourceMultiDiffEditorInput extends IBaseUntypedEditorInput {
 	 * Whether the editor should be serialized and stored for subsequent sessions.
 	 */
 	readonly isTransient?: boolean;
+
+	/**
+	 * Whether the editor offers a list of the changed files alongside the diffs.
+	 * Defaults to `true`. When `false`, the editor has no file list: it is not
+	 * shown, cannot be toggled or focused, and the diffs keep the order of their
+	 * source. Use it for editors whose host shows the changed files in another way.
+	 */
+	readonly showFileList?: boolean;
 }
 
 export interface IMultiDiffEditorResource extends IResourceDiffEditorInput {
@@ -859,9 +887,34 @@ export const enum EditorInputCapabilities {
 
 	/**
 	 * Signals that the editor must be opened in a modal editor
-	 * part, overriding the `workbench.editor.useModal` setting.
+	 * part. This is honored unless the user has explicitly opted
+	 * out of modal editors via `workbench.editor.useModal: 'off'`.
 	 */
-	RequiresModal = 1 << 11
+	RequiresModal = 1 << 11,
+
+	/**
+	 * Signals that the editor is exempt from the opened editors
+	 * limit (`workbench.editor.limit`): it never counts towards the
+	 * limit and is never auto-closed to satisfy it.
+	 */
+	ExcludeFromEditorLimit = 1 << 12,
+
+	/**
+	 * Signals that the editor cannot be closed through standard user
+	 * initiated close actions, such as the tab close button, middle
+	 * click, or close commands. Callers with an explicit lifecycle
+	 * requirement can force the editor to close.
+	 */
+	CannotClose = 1 << 13,
+
+	/**
+	 * Signals that the editor renders its own title, as its pane does
+	 * (`IEditorPane.providesTitle`), such as a view shown as an editor.
+	 * A group that holds it, other than in the main part of its window,
+	 * hands editors opened in it without a group of their own to that
+	 * main part, also while another editor is active in the group.
+	 */
+	ProvidesTitle = 1 << 14
 }
 
 export type IUntypedEditorInput = IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput | IResourceDiffEditorInput | IResourceMultiDiffEditorInput | IResourceSideBySideEditorInput | IResourceMergeEditorInput;
@@ -938,6 +991,19 @@ export function isDiffEditorInput(editor: unknown): editor is IDiffEditorInput {
 	const candidate = editor as IDiffEditorInput | undefined;
 
 	return isEditorInput(candidate?.modified) && isEditorInput(candidate?.original);
+}
+
+export interface IEditorInputWithDiffResources extends EditorInput {
+	readonly diffResources: {
+		readonly original: URI;
+		readonly modified: URI;
+	};
+}
+
+export function isEditorInputWithDiffResources(editor: unknown): editor is IEditorInputWithDiffResources {
+	const candidate = editor as IEditorInputWithDiffResources | undefined;
+
+	return URI.isUri(candidate?.diffResources?.original) && URI.isUri(candidate.diffResources.modified);
 }
 
 export interface IUntypedFileEditorInput extends ITextResourceEditorInput {
@@ -1251,6 +1317,7 @@ interface IEditorPartConfiguration {
 	scrollToSwitchTabs?: boolean;
 	highlightModifiedTabs?: boolean;
 	tabActionLocation?: 'left' | 'right';
+	tabActionReserveSpace?: boolean;
 	tabActionCloseVisibility?: boolean;
 	tabActionUnpinVisibility?: boolean;
 	showTabIndex?: boolean;
@@ -1293,6 +1360,7 @@ interface IEditorPartConfiguration {
 
 export interface IEditorPartOptions extends DeepRequiredNonNullable<IEditorPartConfiguration> {
 	hasIcons: boolean;
+	showBreadcrumbs?: boolean;
 }
 
 export interface IEditorPartOptionsChangeEvent {

@@ -21,7 +21,7 @@ import { EditorPart, IEditorPartUIState } from './editorPart.js';
 import { IAuxiliaryTitlebarPart } from '../titlebar/titlebarPart.js';
 import { WindowTitle } from '../titlebar/windowTitle.js';
 import { IAuxiliaryWindowOpenOptions, IAuxiliaryWindowService } from '../../../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
-import { GroupDirection, GroupsOrder, IAuxiliaryEditorPart, GroupActivationReason } from '../../../services/editor/common/editorGroupsService.js';
+import { GroupsOrder, IAuxiliaryEditorPart, GroupActivationReason } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { IWorkbenchLayoutService, Parts, shouldShowCustomTitleBar } from '../../../services/layout/browser/layoutService.js';
@@ -33,10 +33,11 @@ import { localize, localize2 } from '../../../../nls.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { IsAuxiliaryWindowContext, IsAuxiliaryWindowFocusedContext, IsCompactTitleBarContext } from '../../../common/contextkeys.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
-import { GroupIdentifier } from '../../../common/editor.js';
 
 export interface IAuxiliaryEditorPartOpenOptions extends IAuxiliaryWindowOpenOptions {
 	readonly state?: IEditorPartUIState;
+	/** A compact window stays compact when it is split (e.g. a chat with a document beside it), instead of leaving compact mode. */
+	readonly compactAllowsSplit?: boolean;
 }
 
 export interface ICreateAuxiliaryEditorPartResult {
@@ -128,6 +129,7 @@ export class AuxiliaryEditorPart {
 		const disposables = new DisposableStore();
 
 		let compact = Boolean(options?.compact);
+		const compactAllowsSplit = Boolean(options?.compactAllowsSplit);
 
 		function computeEditorPartHeightOffset(): number {
 			let editorPartHeightOffset = 0;
@@ -179,7 +181,7 @@ export class AuxiliaryEditorPart {
 			compact = newCompact;
 			auxiliaryWindow.updateOptions({ compact });
 			titlebarPart?.updateOptions({ compact });
-			editorPart.updateOptions({ compact });
+			editorPart.updateOptions({ compact, compactAllowsSplit });
 
 			const oldStatusbarVisible = statusbarVisible;
 			statusbarVisible = !compact && that.configurationService.getValue<boolean>(AuxiliaryEditorPart.STATUS_BAR_VISIBILITY) !== false;
@@ -197,7 +199,7 @@ export class AuxiliaryEditorPart {
 		auxiliaryWindow.container.appendChild(editorPartContainer);
 
 		const editorPart = disposables.add(this.instantiationService.createInstance(AuxiliaryEditorPartImpl, auxiliaryWindow.window.vscodeWindowId, this.editorPartsView, options?.state, label));
-		editorPart.updateOptions({ compact });
+		editorPart.updateOptions({ compact, compactAllowsSplit });
 		disposables.add(this.editorPartsView.registerPart(editorPart));
 		editorPart.create(editorPartContainer);
 
@@ -307,7 +309,9 @@ export class AuxiliaryEditorPart {
 		}));
 
 		disposables.add(editorPart.onDidAddGroup(group => {
-			updateCompact(false); // leave compact mode when a group is added
+			if (!compactAllowsSplit) {
+				updateCompact(false); // leave compact mode when a group is added
+			}
 
 			disposables.add(group.onDidActiveEditorChange(() => {
 				if (group.count > 1) {
@@ -335,7 +339,10 @@ export class AuxiliaryEditorPart {
 	}
 }
 
-class AuxiliaryEditorPartImpl extends EditorPart implements IAuxiliaryEditorPart {
+/**
+ * The editor part of an auxiliary window, which {@link AuxiliaryEditorPart} creates. Exported for tests only.
+ */
+export class AuxiliaryEditorPartImpl extends EditorPart implements IAuxiliaryEditorPart {
 
 	private static COUNTER = 1;
 
@@ -345,6 +352,10 @@ class AuxiliaryEditorPartImpl extends EditorPart implements IAuxiliaryEditorPart
 	private readonly optionsDisposable = this._register(new MutableDisposable());
 
 	private isCompact = false;
+	private _compactAllowsSplit = false;
+
+	/** Whether the window stays compact when split; restored with the window. */
+	get compactAllowsSplit(): boolean { return this._compactAllowsSplit; }
 
 	constructor(
 		windowId: number,
@@ -370,13 +381,15 @@ class AuxiliaryEditorPartImpl extends EditorPart implements IAuxiliaryEditorPart
 		super.handleContextKeys();
 	}
 
-	updateOptions(options: { compact: boolean }): void {
+	updateOptions(options: { compact: boolean; compactAllowsSplit?: boolean }): void {
 		this.isCompact = options.compact;
+		this._compactAllowsSplit = !!options.compactAllowsSplit;
 
 		if (options.compact) {
 			if (!this.optionsDisposable.value) {
 				this.optionsDisposable.value = this.enforcePartOptions({
 					showTabs: 'none',
+					showBreadcrumbs: false,
 					closeEmptyGroups: true
 				});
 			}
@@ -385,14 +398,14 @@ class AuxiliaryEditorPartImpl extends EditorPart implements IAuxiliaryEditorPart
 		}
 	}
 
-	override addGroup(location: IEditorGroupView | GroupIdentifier, direction: GroupDirection, groupToCopy?: IEditorGroupView): IEditorGroupView {
-		if (this.isCompact) {
+	override getAddGroupLocation(location: IEditorGroupView): IEditorGroupView {
+		if (this.isCompact && !this._compactAllowsSplit) {
 			// When in compact mode, we prefer to open groups in the main part
 			// as compact mode is typically meant for showing just 1 editor.
-			location = this.editorPartsView.mainPart.activeGroup;
+			return this.editorPartsView.mainPart.activeGroup;
 		}
 
-		return super.addGroup(location, direction, groupToCopy);
+		return location;
 	}
 
 	override removeGroup(group: number | IEditorGroupView, preserveFocus?: boolean): void {
@@ -440,56 +453,27 @@ class AuxiliaryEditorPartImpl extends EditorPart implements IAuxiliaryEditorPart
 		return; // disabled, auxiliary editor part state is tracked outside
 	}
 
-	close(): boolean {
-		return this.doClose(true /* merge all confirming editors to main part */);
+	close(options?: { preserveFocus?: boolean }): boolean {
+		return this.doClose(true /* merge all confirming editors to main part */, options);
 	}
 
-	private doClose(mergeConfirmingEditorsToMainPart: boolean): boolean {
+	private doClose(mergeConfirmingEditorsToMainPart: boolean, options?: { preserveFocus?: boolean }): boolean {
 		let result = true;
 		if (mergeConfirmingEditorsToMainPart) {
 
 			// First close all editors that are non-confirming
 			for (const group of this.groups) {
-				group.closeAllEditors({ excludeConfirming: true });
+				group.closeAllEditors({ excludeConfirming: true, force: true });
 			}
 
 			// Then merge remaining to main part
-			result = this.mergeGroupsToMainPart();
+			result = this.mergeGroupsToMainPart(undefined, options);
 			if (!result) {
 				return false; // Do not close when editors could not be merged back
 			}
 		}
 
 		this._onWillClose.fire();
-
-		return result;
-	}
-
-	private mergeGroupsToMainPart(): boolean {
-		if (!this.groups.some(group => group.count > 0)) {
-			return true; // skip if we have no editors opened
-		}
-
-		// Find the most recent group that is not locked
-		let targetGroup: IEditorGroupView | undefined = undefined;
-		for (const group of this.editorPartsView.mainPart.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE)) {
-			if (!group.isLocked) {
-				targetGroup = group;
-				break;
-			}
-		}
-
-		if (!targetGroup) {
-			targetGroup = this.editorPartsView.mainPart.addGroup(this.editorPartsView.mainPart.activeGroup, this.partOptions.openSideBySideDirection === 'right' ? GroupDirection.RIGHT : GroupDirection.DOWN);
-		}
-
-		const result = this.mergeAllGroups(targetGroup, {
-			// Try to reduce the impact of closing the auxiliary window
-			// as much as possible by not changing existing editors
-			// in the main window.
-			preserveExistingIndex: true
-		});
-		targetGroup.focus();
 
 		return result;
 	}

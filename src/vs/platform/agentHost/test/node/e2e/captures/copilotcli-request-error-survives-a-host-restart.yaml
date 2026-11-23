@@ -1,0 +1,60 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly "READY".
+    response:
+      content: READY
+      stopReason: end_turn
+  - method: POST
+    path: /v1/messages
+    response:
+      status: 500
+      headers:
+        content-type: application/json
+        x-request-id: agent-host-e2e-error
+      body: '{"type":"error","error":{"type":"api_error","message":"deterministic Agent Host E2E failure"}}'
+  - method: POST
+    path: /v1/messages
+    response:
+      status: 500
+      headers:
+        content-type: application/json
+        x-request-id: agent-host-e2e-error
+      body: '{"type":"error","error":{"type":"api_error","message":"deterministic Agent Host E2E failure"}}'
+  - method: POST
+    path: /v1/messages
+    response:
+      status: 500
+      headers:
+        content-type: application/json
+        x-request-id: agent-host-e2e-error
+      body: '{"type":"error","error":{"type":"api_error","message":"deterministic Agent Host E2E failure"}}'
+  - method: POST
+    path: /v1/messages
+    response:
+      status: 500
+      headers:
+        content-type: application/json
+        x-request-id: agent-host-e2e-error
+      body: '{"type":"error","error":{"type":"api_error","message":"deterministic Agent Host E2E failure"}}'
+  - method: POST
+    path: /v1/messages
+    response:
+      status: 500
+      headers:
+        content-type: application/json
+        x-request-id: agent-host-e2e-error
+      body: '{"type":"error","error":{"type":"api_error","message":"deterministic Agent Host E2E failure"}}'
+  - method: POST
+    path: /v1/messages
+    response:
+      status: 500
+      headers:
+        content-type: application/json
+        x-request-id: agent-host-e2e-error
+      body: '{"type":"error","error":{"type":"api_error","message":"deterministic Agent Host E2E failure"}}'

@@ -5,16 +5,16 @@
 
 import { localize } from '../../../../nls.js';
 import { URI } from '../../../../base/common/uri.js';
-import { IDisposable, Disposable, dispose } from '../../../../base/common/lifecycle.js';
+import { IDisposable, Disposable, dispose, toDisposable } from '../../../../base/common/lifecycle.js';
 import { posix, sep, win32 } from '../../../../base/common/path.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry, IWorkbenchContribution } from '../../../common/contributions.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
 import { IWorkspaceContextService, IWorkspace, isWorkspace, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceIdentifier, toWorkspaceIdentifier, WORKSPACE_EXTENSION, isUntitledWorkspace, isTemporaryWorkspace } from '../../../../platform/workspace/common/workspace.js';
-import { basenameOrAuthority, basename, joinPath, dirname } from '../../../../base/common/resources.js';
+import { basenameOrAuthority, basename, dirname, joinPath } from '../../../../base/common/resources.js';
 import { tildify, getPathLabel } from '../../../../base/common/labels.js';
-import { ILabelService, ResourceLabelFormatter, ResourceLabelFormatting, IFormatterChangeEvent, Verbosity } from '../../../../platform/label/common/label.js';
+import { ILabelService, ResourceLabelFormatter, ResourceLabelFormatting, IFormatterChangeEvent, Verbosity, ResourceLabelTemplateFormatter, IWorkspaceLabelDecorator } from '../../../../platform/label/common/label.js';
 import { ExtensionsRegistry } from '../../extensions/common/extensionsRegistry.js';
 import { match } from '../../../../base/common/glob.js';
 import { ILifecycleService, LifecyclePhase } from '../../lifecycle/common/lifecycle.js';
@@ -26,6 +26,8 @@ import { IRemoteAgentService } from '../../remote/common/remoteAgentService.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { Memento } from '../../../common/memento.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
+import { ResourceLabelTemplate } from './resourceLabelTemplate.js';
 
 const resourceLabelFormattersExtPoint = ExtensionsRegistry.registerExtensionPoint<ResourceLabelFormatter[]>({
 	extensionPoint: 'resourceLabelFormatters',
@@ -129,14 +131,34 @@ interface IStoredFormatters {
 	i?: number;
 }
 
+interface IHomeFormatterRegistration {
+	readonly formatter: ResourceLabelTemplateFormatter;
+	readonly template: ResourceLabelTemplate;
+}
+
+interface IResolvedHomeFormatter {
+	readonly home: URI;
+	readonly formatting: ResourceLabelFormatting;
+	readonly literalLabel: boolean;
+	readonly homeLength: number;
+	readonly authorityLength: number;
+}
+
+function isTemplateFormatter(formatter: ResourceLabelFormatter | ResourceLabelTemplateFormatter): formatter is ResourceLabelTemplateFormatter {
+	return URI.isUri(formatter.home);
+}
+
 export class LabelService extends Disposable implements ILabelService {
 
 	declare readonly _serviceBrand: undefined;
 
 	private formatters: ResourceLabelFormatter[];
+	private homeFormatters: IHomeFormatterRegistration[] = [];
 
 	private readonly _onDidChangeFormatters = this._register(new Emitter<IFormatterChangeEvent>({ leakWarningThreshold: 400, leakWarningName: 'LabelService._onDidChangeFormatters' }));
 	readonly onDidChangeFormatters = this._onDidChangeFormatters.event;
+
+	private readonly workspaceLabelDecorators: IWorkspaceLabelDecorator[] = [];
 
 	private readonly storedFormattersMemento: Memento<IStoredFormatters>;
 	private readonly storedFormatters: IStoredFormatters;
@@ -150,6 +172,7 @@ export class LabelService extends Disposable implements ILabelService {
 		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService,
 		@IStorageService storageService: IStorageService,
 		@ILifecycleService lifecycleService: ILifecycleService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 	) {
 		super();
 
@@ -178,36 +201,111 @@ export class LabelService extends Disposable implements ILabelService {
 		this.userHome = await this.pathService.userHome();
 	}
 
-	findFormatting(resource: URI): ResourceLabelFormatting | undefined {
-		let bestResult: ResourceLabelFormatter | undefined;
+	getUriHome(resource: URI): URI | undefined {
+		const formatter = this.findHomeFormatter(resource);
+		return formatter?.home;
+	}
 
-		for (const formatter of this.formatters) {
-			if (formatter.scheme === resource.scheme) {
-				if (!formatter.authority && (!bestResult || formatter.priority)) {
-					bestResult = formatter;
-					continue;
-				}
+	private findHomeFormatter(resource: URI): IResolvedHomeFormatter | undefined {
+		let bestResult = this.findStaticHomeFormatter(resource);
+		let bestResultIsTemplate = false;
+		for (const registration of this.homeFormatters) {
+			const formatter = registration.formatter;
+			if (formatter.home.scheme !== resource.scheme ||
+				(formatter.home.authority && formatter.home.authority.toLowerCase() !== resource.authority.toLowerCase())) {
+				continue;
+			}
+			const templateMatch = registration.template.match(resource, this.uriIdentityService.extUri);
+			if (!templateMatch) {
+				continue;
+			}
+			const formatting = formatter.formatting({ resource, home: templateMatch.home, parameters: templateMatch.parameters });
+			if (!formatting) {
+				continue;
+			}
 
-				if (!formatter.authority) {
-					continue;
-				}
-
-				if (match(formatter.authority, resource.authority, { ignoreCase: true }) &&
-					(
-						!bestResult?.authority ||
-						formatter.authority.length > bestResult.authority.length ||
-						((formatter.authority.length === bestResult.authority.length) && formatter.priority)
-					)
-				) {
-					bestResult = formatter;
-				}
+			const result: IResolvedHomeFormatter = {
+				home: templateMatch.home,
+				formatting,
+				literalLabel: true,
+				homeLength: templateMatch.home.path.length,
+				authorityLength: formatter.home.authority.length,
+			};
+			if (!bestResult ||
+				result.homeLength > bestResult.homeLength ||
+				(result.homeLength === bestResult.homeLength && result.authorityLength > bestResult.authorityLength) ||
+				(result.homeLength === bestResult.homeLength && result.authorityLength === bestResult.authorityLength && !bestResultIsTemplate)
+			) {
+				bestResult = result;
+				bestResultIsTemplate = true;
 			}
 		}
+		return bestResult;
+	}
 
-		return bestResult ? bestResult.formatting : undefined;
+	private findStaticHomeFormatter(resource: URI): IResolvedHomeFormatter | undefined {
+		let bestResult: IResolvedHomeFormatter | undefined;
+		for (const formatter of this.formatters) {
+			if (!formatter.home || formatter.scheme !== resource.scheme ||
+				(formatter.authority && !match(formatter.authority, resource.authority, { ignoreCase: true })) ||
+				!this.uriIdentityService.extUri.isEqualOrParent(resource, resource.with({ path: formatter.home }))) {
+				continue;
+			}
+
+			const result: IResolvedHomeFormatter = {
+				home: resource.with({ path: formatter.home, query: null, fragment: null }),
+				formatting: formatter.formatting,
+				literalLabel: false,
+				homeLength: formatter.home.length,
+				authorityLength: formatter.authority?.length ?? 0,
+			};
+			if (!bestResult ||
+				result.homeLength > bestResult.homeLength ||
+				(result.homeLength === bestResult.homeLength && result.authorityLength > bestResult.authorityLength) ||
+				(result.homeLength === bestResult.homeLength && result.authorityLength === bestResult.authorityLength && formatter.priority)
+			) {
+				bestResult = result;
+			}
+		}
+		return bestResult;
+	}
+
+	findFormatting(resource: URI): ResourceLabelFormatting | undefined {
+		let bestResult: ResourceLabelFormatter | undefined;
+		for (const formatter of this.formatters) {
+			if (formatter.home || formatter.scheme !== resource.scheme) {
+				continue;
+			}
+			if (!formatter.authority && (!bestResult || formatter.priority)) {
+				bestResult = formatter;
+				continue;
+			}
+			if (!formatter.authority) {
+				continue;
+			}
+			if (match(formatter.authority, resource.authority, { ignoreCase: true }) &&
+				(
+					!bestResult?.authority ||
+					formatter.authority.length > bestResult.authority.length ||
+					((formatter.authority.length === bestResult.authority.length) && formatter.priority)
+				)
+			) {
+				bestResult = formatter;
+			}
+		}
+		return bestResult?.formatting;
 	}
 
 	getUriLabel(resource: URI, options: { relative?: boolean; noPrefix?: boolean; separator?: '/' | '\\'; appendWorkspaceSuffix?: boolean } = {}): string {
+		const homeFormatter = options.noPrefix ? undefined : this.findHomeFormatter(resource);
+		if (homeFormatter) {
+			const separator = options.separator ?? homeFormatter.formatting.separator;
+			const homeWithResourceCasing = homeFormatter.home.with({ path: resource.path.slice(0, homeFormatter.home.path.length) });
+			const path = this.uriIdentityService.extUri.relativePath(homeWithResourceCasing, resource);
+			const label = homeFormatter.literalLabel ? homeFormatter.formatting.label : this.formatUri(homeFormatter.home, homeFormatter.formatting);
+			return path ? `${label}${separator}${this.adjustPathSeparators(path, separator)}` : label;
+		}
+
 		let formatting = this.findFormatting(resource);
 		if (formatting && options.separator) {
 			// mixin separator if defined from the outside
@@ -306,7 +404,7 @@ export class LabelService extends Disposable implements ILabelService {
 		return pathLib.basename(label);
 	}
 
-	getWorkspaceLabel(workspace: IWorkspace | IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI, options?: { verbose: Verbosity }): string {
+	getWorkspaceLabel(workspace: IWorkspace | IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI, options?: { verbose?: Verbosity; withLocation?: boolean }): string {
 		if (isWorkspace(workspace)) {
 			const identifier = toWorkspaceIdentifier(workspace);
 			if (isSingleFolderWorkspaceIdentifier(identifier) || isWorkspaceIdentifier(identifier)) {
@@ -318,12 +416,12 @@ export class LabelService extends Disposable implements ILabelService {
 
 		// Workspace: Single Folder (as URI)
 		if (URI.isUri(workspace)) {
-			return this.doGetSingleFolderWorkspaceLabel(workspace, options);
+			return this.withFolderLocation(workspace, this.doGetSingleFolderWorkspaceLabel(workspace, options), options);
 		}
 
 		// Workspace: Single Folder (as workspace identifier)
 		if (isSingleFolderWorkspaceIdentifier(workspace)) {
-			return this.doGetSingleFolderWorkspaceLabel(workspace.uri, options);
+			return this.withFolderLocation(workspace.uri, this.doGetSingleFolderWorkspaceLabel(workspace.uri, options), options);
 		}
 
 		// Workspace: Multi Root
@@ -334,7 +432,7 @@ export class LabelService extends Disposable implements ILabelService {
 		return '';
 	}
 
-	private doGetWorkspaceLabel(workspaceUri: URI, options?: { verbose: Verbosity }): string {
+	private doGetWorkspaceLabel(workspaceUri: URI, options?: { verbose?: Verbosity }): string {
 
 		// Workspace: Untitled
 		if (isUntitledWorkspace(workspaceUri, this.environmentService)) {
@@ -373,7 +471,34 @@ export class LabelService extends Disposable implements ILabelService {
 		return this.appendWorkspaceSuffix(label, workspaceUri);
 	}
 
-	private doGetSingleFolderWorkspaceLabel(folderUri: URI, options?: { verbose: Verbosity }): string {
+	private withFolderLocation(folderUri: URI, label: string, options?: { withLocation?: boolean }): string {
+		const location = options?.withLocation ? this.getFolderLocationLabel(folderUri) : undefined;
+		return location ? localize('workspaceLabelWithLocation', "{0} ({1})", label, location) : label;
+	}
+
+	getFolderLocationLabel(folder: URI): string | undefined {
+		for (const decorator of this.workspaceLabelDecorators) {
+			const label = decorator.getFolderLocationLabel(folder);
+			if (label) {
+				return label;
+			}
+		}
+		return undefined;
+	}
+
+	registerWorkspaceLabelDecorator(decorator: IWorkspaceLabelDecorator): IDisposable {
+		this.workspaceLabelDecorators.push(decorator);
+		const changeListener = decorator.onDidChange(folder => this._onDidChangeFormatters.fire({ scheme: folder.scheme }));
+		return toDisposable(() => {
+			changeListener.dispose();
+			const index = this.workspaceLabelDecorators.indexOf(decorator);
+			if (index !== -1) {
+				this.workspaceLabelDecorators.splice(index, 1);
+			}
+		});
+	}
+
+	private doGetSingleFolderWorkspaceLabel(folderUri: URI, options?: { verbose?: Verbosity }): string {
 		let label: string;
 		switch (options?.verbose) {
 			case Verbosity.LONG:
@@ -433,15 +558,36 @@ export class LabelService extends Disposable implements ILabelService {
 		return this.registerFormatter(formatter);
 	}
 
-	registerFormatter(formatter: ResourceLabelFormatter): IDisposable {
-		this.formatters.push(formatter);
-		this._onDidChangeFormatters.fire({ scheme: formatter.scheme });
+	registerFormatter(formatter: ResourceLabelFormatter | ResourceLabelTemplateFormatter): IDisposable {
+		let homeRegistration: IHomeFormatterRegistration | undefined;
+		let scheme: string;
+		if (isTemplateFormatter(formatter)) {
+			homeRegistration = this.createTemplateFormatterRegistration(formatter);
+			this.homeFormatters.push(homeRegistration);
+			scheme = formatter.home.scheme;
+		} else {
+			this.formatters.push(formatter);
+			scheme = formatter.scheme;
+		}
+		this._onDidChangeFormatters.fire({ scheme });
+		const changeListener = homeRegistration?.formatter.onDidChangeFormatting(() => this._onDidChangeFormatters.fire({ scheme }));
 
 		return {
 			dispose: () => {
+				changeListener?.dispose();
 				this.formatters = this.formatters.filter(f => f !== formatter);
-				this._onDidChangeFormatters.fire({ scheme: formatter.scheme });
+				if (homeRegistration) {
+					this.homeFormatters = this.homeFormatters.filter(candidate => candidate !== homeRegistration);
+				}
+				this._onDidChangeFormatters.fire({ scheme });
 			}
+		};
+	}
+
+	private createTemplateFormatterRegistration(formatter: ResourceLabelTemplateFormatter): IHomeFormatterRegistration {
+		return {
+			formatter,
+			template: new ResourceLabelTemplate(formatter.home),
 		};
 	}
 

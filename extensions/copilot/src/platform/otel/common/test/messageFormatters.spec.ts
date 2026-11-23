@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { describe, expect, it } from 'vitest';
-import { collectSystemTextsFromRequestBody, extractTextFromContent, normalizeProviderMessages, toInputMessages, toOutputMessages, toSystemInstructions, toToolDefinitions, truncateForOTel } from '../messageFormatters';
+import { describe, expect, it, vi } from 'vitest';
+import { collectSystemTextsFromRequestBody, extractTextFromContent, normalizeProviderMessages, stringifyToolDefinitionsForOTel, stringifyToolsRawForTelemetry, toInputMessages, toOutputMessages, toSystemInstructions, toToolDefinitions, truncateForOTel } from '../messageFormatters';
 
 describe('toInputMessages', () => {
 	it('converts a simple text message', () => {
@@ -494,6 +494,82 @@ describe('toToolDefinitions', () => {
 
 	it('returns undefined for undefined input', () => {
 		expect(toToolDefinitions(undefined)).toBeUndefined();
+	});
+});
+
+describe('stringifyToolDefinitionsForOTel', () => {
+	it('returns undefined for empty / undefined input', () => {
+		expect(stringifyToolDefinitionsForOTel(undefined)).toBeUndefined();
+		expect(stringifyToolDefinitionsForOTel([])).toBeUndefined();
+	});
+
+	it('skips re-stringification on repeated calls with the same array reference', () => {
+		const tools = [{ name: 'readFile_byref_' + Math.random(), description: 'd', inputSchema: { type: 'object' } }];
+		stringifyToolDefinitionsForOTel(tools); // prime the WeakMap
+		const spy = vi.spyOn(JSON, 'stringify');
+		try {
+			const a = stringifyToolDefinitionsForOTel(tools);
+			const b = stringifyToolDefinitionsForOTel(tools);
+			expect(spy).not.toHaveBeenCalled();
+			expect(a).toBe(b);
+			expect(JSON.parse(a!)).toEqual([{ type: 'function', name: tools[0].name, description: 'd', parameters: { type: 'object' } }]);
+		} finally {
+			spy.mockRestore();
+		}
+	});
+
+	it('content-interns across distinct references (one stringify per new ref, same instance returned)', () => {
+		const unique = 'readFile_intern_' + Math.random();
+		const t1 = [{ name: unique, description: 'd', inputSchema: { type: 'object' } }];
+		const t2 = [{ name: unique, description: 'd', inputSchema: { type: 'object' } }];
+		const a = stringifyToolDefinitionsForOTel(t1);
+		const spy = vi.spyOn(JSON, 'stringify');
+		try {
+			const b = stringifyToolDefinitionsForOTel(t2);
+			// Distinct ref forces one new JSON.stringify; intern then collapses the result.
+			expect(spy).toHaveBeenCalledTimes(1);
+			expect(Object.is(a, b)).toBe(true);
+		} finally {
+			spy.mockRestore();
+		}
+	});
+});
+
+describe('stringifyToolsRawForTelemetry', () => {
+	it('mirrors JSON.stringify for empty / undefined input', () => {
+		expect(stringifyToolsRawForTelemetry(undefined)).toBeUndefined();
+		expect(stringifyToolsRawForTelemetry([])).toBe('[]');
+	});
+
+	it('skips re-stringification on repeated calls with the same array reference', () => {
+		const tools = [{ type: 'function', name: 'raw_byref_' + Math.random() }];
+		const expected = JSON.stringify(tools);
+		stringifyToolsRawForTelemetry(tools); // prime the WeakMap
+		const spy = vi.spyOn(JSON, 'stringify');
+		try {
+			const a = stringifyToolsRawForTelemetry(tools);
+			const b = stringifyToolsRawForTelemetry(tools);
+			expect(spy).not.toHaveBeenCalled();
+			expect(a).toBe(expected);
+			expect(a).toBe(b);
+		} finally {
+			spy.mockRestore();
+		}
+	});
+
+	it('content-interns across distinct references (one stringify per new ref, same instance returned)', () => {
+		const unique = 'raw_intern_' + Math.random();
+		const t1 = [{ type: 'function', name: unique }];
+		const t2 = [{ type: 'function', name: unique }];
+		const a = stringifyToolsRawForTelemetry(t1);
+		const spy = vi.spyOn(JSON, 'stringify');
+		try {
+			const b = stringifyToolsRawForTelemetry(t2);
+			expect(spy).toHaveBeenCalledTimes(1);
+			expect(Object.is(a, b)).toBe(true);
+		} finally {
+			spy.mockRestore();
+		}
 	});
 });
 

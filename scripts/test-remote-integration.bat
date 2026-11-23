@@ -3,13 +3,17 @@ setlocal
 
 pushd %~dp0\..
 
+:: TODO(deepak1556): Remove this once we bump to node containing fix for https://github.com/nodejs/node/issues/63638.
+for /f "delims=" %%i in ('node -p "require('fs').realpathSync.native(require('os').tmpdir())"') do set "TMP=%%i"
+set "TEMP=%TMP%"
+
 IF "%~1" == "" (
 	set AUTHORITY=vscode-remote://test+test/
 	:: backward to forward slashed
 	set EXT_PATH=%CD:\=/%/extensions
 
 	:: Download nodejs executable for remote
-	call npm run gulp node
+	call pnpm run gulp node
 ) else (
 	set AUTHORITY=%1
 	set EXT_PATH=%2

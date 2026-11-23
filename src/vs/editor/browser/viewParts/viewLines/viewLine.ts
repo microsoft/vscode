@@ -6,6 +6,7 @@
 import * as browser from '../../../../base/browser/browser.js';
 import { FastDomNode, createFastDomNode } from '../../../../base/browser/fastDomNode.js';
 import * as platform from '../../../../base/common/platform.js';
+import * as strings from '../../../../base/common/strings.js';
 import { IVisibleLine } from '../../view/viewLayer.js';
 import { RangeUtil } from './rangeUtil.js';
 import { StringBuilder } from '../../../common/core/stringBuilder.js';
@@ -169,7 +170,9 @@ export class ViewLine implements IVisibleLine {
 			options.fontLigatures !== EditorFontLigatures.OFF,
 			selectionsOnLine,
 			lineData.textDirection,
-			options.verticalScrollbarSize
+			options.verticalScrollbarSize,
+			false,
+			options.useTwoCellFullwidthCharacters
 		);
 
 		if (this._renderedViewLine && this._renderedViewLine.input.equals(renderLineInput)) {
@@ -585,8 +588,8 @@ class RenderedViewLine implements IRenderedViewLine {
 	}
 
 	protected _readPixelOffset(domNode: FastDomNode<HTMLElement>, lineNumber: number, column: number, context: DomReadingContext): number {
-		if (this.input.isLTR && this._characterMapping.length === 0) {
-			// This line has no content
+		if (this.input.isLTR && this.input.lineContent.length === 0) {
+			// This line has no content, but it might contain inline decorations
 			if (this._containsForeignElements === ForeignElementType.None) {
 				// We can assume the line is really empty
 				return 0;
@@ -599,14 +602,11 @@ class RenderedViewLine implements IRenderedViewLine {
 				// We have foreign elements before the (empty) line
 				return this.getWidth(context);
 			}
-			// We have foreign elements before & after the (empty) line
-			const readingTarget = this._getReadingTarget(domNode);
-			if (readingTarget.firstChild) {
-				context.markDidDomLayout();
-				return (<HTMLSpanElement>readingTarget.firstChild).offsetWidth;
-			} else {
-				return 0;
-			}
+			// We have foreign elements before & after the (empty) line.
+			// The cursor sits at the left edge of the first after decoration.
+			const firstAfterIndex = this._characterMapping.getDomPosition(column).partIndex;
+			const r = RangeUtil.readHorizontalRangeForElement(this._getReadingTarget(domNode), firstAfterIndex, context);
+			return r ? r.left : 0;
 		}
 
 		if (this._pixelOffsetCache !== null) {
@@ -641,6 +641,25 @@ class RenderedViewLine implements IRenderedViewLine {
 		}
 
 		const domPosition = this._characterMapping.getDomPosition(column);
+
+		if (this.input.useTwoCellFullwidthCharacters) {
+			const target = this._getReadingTarget(domNode);
+			// The first branch needs the left edge of the character to the right
+			if (strings.isFullWidthCharacter(this.input.lineContent.charCodeAt(column - 1))) {
+				const r = RangeUtil.readHorizontalRangeForElement(target, domPosition.partIndex, context);
+				if (r) {
+					return r.left;
+				}
+			}
+			// The second branch needs the right edge of the character to the left.
+			else if (strings.isFullWidthCharacter(this.input.lineContent.charCodeAt(column - 2))) {
+				const previousDomPosition = this._characterMapping.getDomPosition(column - 1);
+				const r = RangeUtil.readHorizontalRangeForElement(target, previousDomPosition.partIndex, context);
+				if (r) {
+					return r.left + r.width;
+				}
+			}
+		}
 
 		const r = RangeUtil.readHorizontalRanges(this._getReadingTarget(domNode), domPosition.partIndex, domPosition.charIndex, domPosition.partIndex, domPosition.charIndex, context);
 		if (!r || r.length === 0) {

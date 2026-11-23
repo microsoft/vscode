@@ -3,12 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { getImageDimensions } from '../../../util/common/imageUtils';
+
 type ImageTelemetrySource = 'clipboard' | 'screenshot' | 'file' | 'url' | 'unknown';
 
 export interface ImageTelemetryMeasurements {
 	imageCount: number;
 	totalImageBytes: number;
 	maxImageBytes: number;
+	maxImageWidth: number;
+	maxImageHeight: number;
+	maxImagePixels: number;
+	totalImagePixels: number;
 	imagePngCount: number;
 	imageJpegCount: number;
 	imageGifCount: number;
@@ -24,25 +30,28 @@ export interface ImageTelemetryMeasurements {
 interface ImageTelemetryInput {
 	mimeType?: string;
 	byteLength?: number;
+	dimensions?: ImageTelemetryDimensions;
 	source?: ImageTelemetrySource;
+}
+
+interface ImageTelemetryDimensions {
+	width: number;
+	height: number;
 }
 
 interface MessageWithContent {
 	content?: unknown;
 }
 
-interface ReferenceWithValue {
-	id?: unknown;
-	value?: unknown;
-}
-
-const screenshotVariableId = 'screenshot-focused-window';
-
 function createEmptyImageTelemetryMeasurements(): ImageTelemetryMeasurements {
 	return {
 		imageCount: 0,
 		totalImageBytes: 0,
 		maxImageBytes: 0,
+		maxImageWidth: 0,
+		maxImageHeight: 0,
+		maxImagePixels: 0,
+		totalImagePixels: 0,
 		imagePngCount: 0,
 		imageJpegCount: 0,
 		imageGifCount: 0,
@@ -85,36 +94,13 @@ export function getImageTelemetryMeasurementsFromMessages(messages: readonly Mes
 	return measurements;
 }
 
-export function getImageTelemetryMeasurementsFromReferences(references: readonly ReferenceWithValue[] | undefined): ImageTelemetryMeasurements {
-	const measurements = createEmptyImageTelemetryMeasurements();
-
-	for (const reference of references ?? []) {
-		const value = asRecord(reference.value);
-		if (!value) {
-			continue;
-		}
-
-		const mimeType = getStringProperty(value, 'mimeType');
-		if (!mimeType?.toLowerCase().startsWith('image/')) {
-			continue;
-		}
-
-		addImageTelemetryInput(measurements, {
-			mimeType,
-			byteLength: getByteLength(value.data) ?? getByteLength(value.value),
-			source: getImageSourceFromReference(reference, value),
-		});
-	}
-
-	return measurements;
-}
-
 function addImageTelemetryInput(measurements: ImageTelemetryMeasurements, input: ImageTelemetryInput): void {
 	measurements.imageCount++;
 
 	const byteLength = input.byteLength ?? 0;
 	measurements.totalImageBytes += byteLength;
 	measurements.maxImageBytes = Math.max(measurements.maxImageBytes, byteLength);
+	addImageDimensions(measurements, input.dimensions);
 
 	switch (normalizeMimeType(input.mimeType)) {
 		case 'png':
@@ -164,8 +150,37 @@ function getImageTelemetryInputFromUrl(url: string, mediaType: string | undefine
 	return {
 		mimeType: mediaType ?? match[1],
 		byteLength: getBase64ByteLength(match[2]),
+		dimensions: getImageDimensionsFromDataUrl(url),
 		source: 'unknown',
 	};
+}
+
+function addImageDimensions(measurements: ImageTelemetryMeasurements, dimensions: ImageTelemetryDimensions | undefined): void {
+	if (!dimensions || !isValidDimension(dimensions.width) || !isValidDimension(dimensions.height)) {
+		return;
+	}
+
+	const pixels = dimensions.width * dimensions.height;
+	if (!Number.isFinite(pixels) || pixels <= 0) {
+		return;
+	}
+
+	measurements.maxImageWidth = Math.max(measurements.maxImageWidth, dimensions.width);
+	measurements.maxImageHeight = Math.max(measurements.maxImageHeight, dimensions.height);
+	measurements.maxImagePixels = Math.max(measurements.maxImagePixels, pixels);
+	measurements.totalImagePixels += pixels;
+}
+
+function isValidDimension(value: number): boolean {
+	return Number.isFinite(value) && value > 0;
+}
+
+function getImageDimensionsFromDataUrl(url: string): ImageTelemetryDimensions | undefined {
+	try {
+		return getImageDimensions(url);
+	} catch {
+		return undefined;
+	}
 }
 
 function normalizeMimeType(mimeType: string | undefined): 'png' | 'jpeg' | 'gif' | 'webp' | 'unknown' {
@@ -185,22 +200,6 @@ function normalizeMimeType(mimeType: string | undefined): 'png' | 'jpeg' | 'gif'
 	}
 }
 
-function getImageSourceFromReference(reference: ReferenceWithValue, value: Record<string, unknown>): ImageTelemetrySource {
-	if (value.isPasted === true) {
-		return 'clipboard';
-	}
-	if (value.isURL === true) {
-		return 'url';
-	}
-	if (reference.id === screenshotVariableId || value.id === screenshotVariableId) {
-		return 'screenshot';
-	}
-	if (value.isURL === false) {
-		return 'file';
-	}
-	return 'unknown';
-}
-
 function getBase64ByteLength(base64Data: string): number {
 	const trimmed = base64Data.trim();
 	let padding = 0;
@@ -210,19 +209,6 @@ function getBase64ByteLength(base64Data: string): number {
 		padding = 1;
 	}
 	return Math.max(0, Math.floor(trimmed.length * 3 / 4) - padding);
-}
-
-function getByteLength(value: unknown): number | undefined {
-	if (value instanceof ArrayBuffer) {
-		return value.byteLength;
-	}
-	if (ArrayBuffer.isView(value)) {
-		return value.byteLength;
-	}
-
-	const objectValue = asRecord(value);
-	const byteLength = objectValue?.byteLength;
-	return typeof byteLength === 'number' && Number.isFinite(byteLength) && byteLength >= 0 ? byteLength : undefined;
 }
 
 function getObjectProperty(value: unknown, property: string): Record<string, unknown> | undefined {

@@ -16,7 +16,7 @@ import { IEditorService, MODAL_GROUP } from '../../../services/editor/common/edi
 import { IUserDataProfileService } from '../../../services/userDataProfile/common/userDataProfile.js';
 import { equals } from '../../../../base/common/objects.js';
 import { IRange } from '../../../../editor/common/core/range.js';
-import { JSONVisitor, visit } from '../../../../base/common/json.js';
+import { JSONVisitor, setObjectProperty, visit } from '../../../../base/common/json.js';
 import { ITextModel } from '../../../../editor/common/model.js';
 import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
@@ -44,6 +44,10 @@ export class LanguageModelsConfigurationService extends Disposable implements IL
 
 	private languageModelsProviderGroups: LanguageModelsProviderGroups = [];
 
+	/** Resolved once the first config-file load attempt completes; assigned exactly once in the ctor. Rejections are swallowed so consumers can treat readiness as "first load attempted". */
+	private readonly _whenReady: Promise<void>;
+	get whenReady(): Promise<void> { return this._whenReady; }
+
 	constructor(
 		@IFileService private readonly fileService: IFileService,
 		@ITextFileService private readonly textFileService: ITextFileService,
@@ -55,7 +59,7 @@ export class LanguageModelsConfigurationService extends Disposable implements IL
 	) {
 		super();
 		this.modelsConfigurationFile = userDataProfileService.currentProfile.languageModelsResource;
-		this.updateLanguageModelsConfiguration();
+		this._whenReady = this.updateLanguageModelsConfiguration().catch(() => { /* swallow: readiness signals "attempted", not "succeeded" */ });
 		// Watch the parent folder for reliable change detection across platforms (especially Windows
 		// where `fs.watch` on individual files can miss in-place writes).
 		this._register(fileService.watch(uriIdentityService.extUri.dirname(this.modelsConfigurationFile)));
@@ -244,7 +248,7 @@ export function parseLanguageModelsProviderGroups(model: ITextModel): LanguageMo
 		if (Array.isArray(currentParent)) {
 			(currentParent as unknown[]).push(value);
 		} else if (currentProperty !== null) {
-			(currentParent as Record<string, unknown>)[currentProperty] = value;
+			setObjectProperty(currentParent as Record<string, unknown>, currentProperty, value);
 		}
 	}
 

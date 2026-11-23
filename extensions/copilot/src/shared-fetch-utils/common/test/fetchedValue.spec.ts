@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { FetchedValue, FetchedValueOptions } from '../fetchedValue';
 import { FetchBlockedError } from '../fetchTypes';
 
@@ -32,6 +32,10 @@ describe('FetchedValue', () => {
 		fetchCount = 0;
 		nextToken = { value: 'token-1', expiresAt: Date.now() + 60_000 };
 		fetchedValue = createFetchedValue();
+	});
+
+	afterEach(() => {
+		vi.useRealTimers();
 	});
 
 	it('value is undefined before first resolve', () => {
@@ -113,13 +117,119 @@ describe('FetchedValue', () => {
 	});
 
 	it('FetchBlockedError propagates when no cached value exists', async () => {
+		vi.useFakeTimers();
+		vi.setSystemTime(100);
+		let blockedFetchCount = 0;
 		const fv = new FetchedValue<TestToken>({
-			fetch: async () => { throw new FetchBlockedError('blocked', 5000); },
+			fetch: async () => {
+				blockedFetchCount++;
+				throw new FetchBlockedError('blocked', 5000);
+			},
 			isStale: () => true,
 		});
 
 		await expect(fv.resolve()).rejects.toThrow('blocked');
+		vi.advanceTimersByTime(4999);
+		await expect(fv.resolve()).rejects.toThrow('blocked');
+		expect(blockedFetchCount).toBe(1);
+
+		vi.advanceTimersByTime(1);
+		await expect(fv.resolve()).rejects.toThrow('blocked');
+		expect(blockedFetchCount).toBe(2);
 		expect(fv.value).toBeUndefined();
+	});
+
+	it('uses the configured retry delay for other errors', async () => {
+		vi.useFakeTimers();
+		vi.setSystemTime(100);
+		let failedFetchCount = 0;
+		const fv = new FetchedValue<TestToken>({
+			fetch: async () => {
+				failedFetchCount++;
+				throw new Error('network failure');
+			},
+			isStale: () => true,
+			getRetryAfterMs: () => 5000,
+		});
+
+		await expect(fv.resolve()).rejects.toThrow('network failure');
+		vi.advanceTimersByTime(4999);
+		await expect(fv.resolve()).rejects.toThrow('network failure');
+		expect(failedFetchCount).toBe(1);
+
+		vi.advanceTimersByTime(1);
+		await expect(fv.resolve()).rejects.toThrow('network failure');
+		expect(failedFetchCount).toBe(2);
+	});
+
+	it('configured retry delays suppress retries without hiding failures behind a cached value', async () => {
+		vi.useFakeTimers();
+		vi.setSystemTime(100);
+		let shouldFail = false;
+		let fetchCount = 0;
+		const fv = new FetchedValue<TestToken>({
+			fetch: async () => {
+				fetchCount++;
+				if (shouldFail) {
+					throw new Error('signed out');
+				}
+				return nextToken;
+			},
+			isStale: () => true,
+			getRetryAfterMs: () => 5000,
+		});
+
+		await expect(fv.resolve()).resolves.toBe(nextToken);
+		shouldFail = true;
+		await expect(fv.resolve()).rejects.toThrow('signed out');
+		await expect(fv.resolve()).rejects.toThrow('signed out');
+		expect(fetchCount).toBe(2);
+
+		vi.advanceTimersByTime(5000);
+		await expect(fv.resolve()).rejects.toThrow('signed out');
+		expect(fetchCount).toBe(3);
+	});
+
+	it('force bypasses a blocked failure and invalidate clears it', async () => {
+		let shouldFail = true;
+		let blockedFetchCount = 0;
+		const fv = new FetchedValue<TestToken>({
+			fetch: async () => {
+				blockedFetchCount++;
+				if (shouldFail) {
+					throw new FetchBlockedError('blocked', 5000);
+				}
+				return nextToken;
+			},
+			isStale: () => true,
+		});
+
+		await expect(fv.resolve()).rejects.toThrow('blocked');
+		shouldFail = false;
+		await expect(fv.resolve(true)).resolves.toBe(nextToken);
+		expect(blockedFetchCount).toBe(2);
+
+		fv.invalidate();
+		expect(fv.value).toBeUndefined();
+	});
+
+	it('invalidate prevents an older in-flight fetch from repopulating the cache', async () => {
+		let resolveFirst: ((value: TestToken) => void) | undefined;
+		const firstFetch = new Promise<TestToken>(resolve => resolveFirst = resolve);
+		const newToken = { value: 'token-2', expiresAt: Date.now() + 60_000 };
+		let fetchCount = 0;
+		const fv = new FetchedValue<TestToken>({
+			fetch: () => ++fetchCount === 1 ? firstFetch : Promise.resolve(newToken),
+			isStale: () => false,
+		});
+
+		const firstResolve = fv.resolve();
+		fv.invalidate();
+		await expect(fv.resolve()).resolves.toBe(newToken);
+		resolveFirst!(nextToken);
+		await expect(firstResolve).resolves.toBe(nextToken);
+
+		expect(fv.value).toBe(newToken);
 	});
 
 	it('dispose prevents further resolves', async () => {

@@ -20,6 +20,7 @@ export class StaticGitHubAuthenticationService extends BaseAuthenticationService
 		@IConfigurationService configurationService: IConfigurationService
 	) {
 		super(logService, tokenStore, tokenManager, configurationService);
+		tokenStore.authenticationState = 'signedIn';
 
 		const that = this;
 		this._anyGitHubSession = tokenProvider ? {
@@ -72,7 +73,7 @@ export class StaticGitHubAuthenticationService extends BaseAuthenticationService
 
 	setCopilotToken(token: CopilotToken): void {
 		this._tokenStore.copilotToken = token;
-		this.fireAuthenticationChange('setCopilotToken');
+		this.fireCopilotTokenChange('setCopilotToken');
 	}
 
 

@@ -72,7 +72,7 @@ interface IFlowTriggerOptions {
 	/**
 	 * The specific auth provider to use for the flow.
 	 */
-	signInProvider?: GitHubSocialSignInProvider;
+	signInProvider?: GitHubOAuthSignInProvider;
 	/**
 	 * Extra parameters to include in the OAuth flow.
 	 */
@@ -228,6 +228,7 @@ class UrlHandlerFlow implements IFlow {
 		logger.info(`Trying without local server... (${scopes})`);
 		return await window.withProgress<string>({
 			location: ProgressLocation.Notification,
+			notificationId: 'githubAuthentication.signIn.browser',
 			title: l10n.t({
 				message: 'Signing in to {0}...',
 				args: [baseUri.authority],
@@ -239,7 +240,7 @@ class UrlHandlerFlow implements IFlow {
 			const codeVerifier = generateRandomString(64);
 			const codeChallenge = await generateCodeChallenge(codeVerifier);
 
-			const promise = uriHandler.waitForCode(logger, scopes, nonce, token);
+			const promise = uriHandler.waitForCode(logger, scopes, nonce, token, baseUri);
 
 			const searchParams = new URLSearchParams([
 				['client_id', Config.gitHubClientId],
@@ -318,6 +319,7 @@ class LocalServerFlow implements IFlow {
 		logger.info(`Trying with local server... (${scopes})`);
 		return await window.withProgress<string>({
 			location: ProgressLocation.Notification,
+			notificationId: 'githubAuthentication.signIn.browser',
 			title: l10n.t({
 				message: 'Signing in to {0}...',
 				args: [baseUri.authority],
@@ -460,6 +462,7 @@ class DeviceCodeFlow implements IFlow {
 	): Promise<string> {
 		return await window.withProgress<string>({
 			location: ProgressLocation.Notification,
+			notificationId: 'githubAuthentication.signIn.deviceCode',
 			cancellable: true,
 			title: l10n.t({
 				message: 'Open [{0}]({0}) in a new tab and paste your one-time code: {1}',
@@ -661,13 +664,22 @@ export function getFlows(query: IFlowQuery) {
 }
 
 /**
- * Social authentication providers for GitHub
+ * Sign-in providers that can be selected when creating a GitHub session.
  */
-export const enum GitHubSocialSignInProvider {
+export const enum GitHubSignInProvider {
 	Google = 'google',
 	Apple = 'apple',
+	Microsoft = 'microsoft',
 }
 
-export function isSocialSignInProvider(provider: unknown): provider is GitHubSocialSignInProvider {
-	return provider === GitHubSocialSignInProvider.Google || provider === GitHubSocialSignInProvider.Apple;
+/**
+ * The subset of {@link GitHubSignInProvider} that GitHub's own OAuth authorize
+ * endpoint understands as a `provider=` parameter. Microsoft is deliberately
+ * excluded: it is brokered by VS Code through a token exchange and never
+ * reaches an authorize URL.
+ */
+export type GitHubOAuthSignInProvider = GitHubSignInProvider.Google | GitHubSignInProvider.Apple;
+
+export function isSignInProvider(provider: unknown): provider is GitHubSignInProvider {
+	return provider === GitHubSignInProvider.Google || provider === GitHubSignInProvider.Apple || provider === GitHubSignInProvider.Microsoft;
 }

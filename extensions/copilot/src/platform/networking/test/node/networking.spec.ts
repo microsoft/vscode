@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { RequestType } from '@vscode/copilot-api';
+import { RequestType, type RequestMetadata } from '@vscode/copilot-api';
 import assert from 'assert';
 import { suite, test } from 'vitest';
 import { Event } from '../../../../util/vs/base/common/event';
@@ -11,7 +11,7 @@ import { IInstantiationService } from '../../../../util/vs/platform/instantiatio
 import { createFakeResponse } from '../../../test/node/fetcher';
 import { createPlatformServices } from '../../../test/node/services';
 import { FetchOptions, IAbortController, IFetcherService, PaginationOptions, Response, WebSocketConnection } from '../../common/fetcherService';
-import { postRequest } from '../../common/networking';
+import { IEndpoint, isCAPIEndpoint, isCAPIRequestMetadata, postRequest } from '../../common/networking';
 
 suite('Networking test Suite', function () {
 
@@ -100,5 +100,30 @@ suite('Networking test Suite', function () {
 		});
 
 		assert.strictEqual('Authorization' in headerBuffer!, false);
+	});
+});
+
+suite('isCAPIRequestMetadata / isCAPIEndpoint', function () {
+
+	const capiMetadata: RequestMetadata = { type: RequestType.ChatCompletions };
+
+	function endpointWith(urlOrRequestMetadata: string | RequestMetadata): IEndpoint {
+		return { urlOrRequestMetadata } as unknown as IEndpoint;
+	}
+
+	test('isCAPIRequestMetadata is false for a literal URL string', function () {
+		assert.strictEqual(isCAPIRequestMetadata('https://api.example.com/v1/chat'), false);
+	});
+
+	test('isCAPIRequestMetadata is true for RequestMetadata routed through CAPI', function () {
+		assert.strictEqual(isCAPIRequestMetadata(capiMetadata), true);
+	});
+
+	test('isCAPIEndpoint is false for an endpoint fetched from a literal URL (BYOK)', function () {
+		assert.strictEqual(isCAPIEndpoint(endpointWith('https://api.example.com/v1/chat')), false);
+	});
+
+	test('isCAPIEndpoint is true for an endpoint routed through CAPI', function () {
+		assert.strictEqual(isCAPIEndpoint(endpointWith(capiMetadata)), true);
 	});
 });

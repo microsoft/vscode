@@ -6,7 +6,6 @@ import { packageJson } from '../../../../../platform/env/common/packagejson';
 import { createServiceIdentifier } from '../../../../../util/common/services';
 import { ServicesAccessor } from '../../../../../util/vs/platform/instantiation/common/instantiation';
 import { CopilotConfigPrefix } from './constants';
-import { Filter } from './experiments/filters';
 import { Emitter, Event } from './util/event';
 
 export { packageJson };
@@ -75,6 +74,21 @@ export const ConfigKey = {
 	UseSplitContextPrompt: 'internal.useSplitContextPrompt',
 };
 
+/**
+ * Settings that must only be read from user (global) scope, ignoring workspace/folder values.
+ * Prevents workspace-level override attacks via malicious .vscode/settings.json.
+ */
+export const userScopeOnlyKeys = new Set<ConfigKeyType>([
+	ConfigKey.DebugOverrideCapiUrl,
+	ConfigKey.DebugOverrideCapiUrlLegacy,
+	ConfigKey.DebugTestOverrideCapiUrl,
+	ConfigKey.DebugTestOverrideCapiUrlLegacy,
+	ConfigKey.DebugOverrideProxyUrl,
+	ConfigKey.DebugOverrideProxyUrlLegacy,
+	ConfigKey.DebugTestOverrideProxyUrl,
+	ConfigKey.DebugTestOverrideProxyUrlLegacy,
+]);
+
 export type ConfigKeyType = string;
 
 // How to determine where to terminate the completion to the current block.
@@ -132,12 +146,6 @@ export abstract class ConfigProvider implements ICompletionsConfigProvider {
 	abstract dumpForTelemetry(): { [key: string]: string };
 	abstract onDidChangeCopilotSettings: Event<ConfigProvider>;
 
-	// The language server receives workspace configuration *after* it is fully initialized, which creates a race
-	// condition where an incoming request immediately after initialization might have the default values. Awaiting
-	// this promise allows consumers to ensure that the configuration is ready before using it.
-	requireReady(): Promise<void> {
-		return Promise.resolve();
-	}
 }
 
 /** Provides only the default values, ignoring the user's settings.
@@ -361,8 +369,6 @@ export type EditorInfo = NameAndVersion & {
 };
 
 export type EditorPluginInfo = NameAndVersion;
-
-export type EditorPluginFilter = { filter: Filter; value: string; isVersion?: boolean };
 
 export function formatNameAndVersion({ name, version }: NameAndVersion): string {
 	return `${name}/${version}`;

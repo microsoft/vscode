@@ -6,18 +6,24 @@
 // IPC channel transport for the agent host protocol. Wraps an `IChannel`
 // (typically obtained via `IRemoteAgentConnection.getChannel('agentHost')`)
 // to satisfy the same `IClientTransport` interface as `WebSocketClientTransport`,
-// so the existing `RemoteAgentHostProtocolClient` can be reused unchanged.
+// so the existing `AgentHostProtocolClient` can be reused unchanged.
 //
 // The server-side counterpart (`AgentHostChannel`) opens an AHP WebSocket
 // upstream to the local agent host process and pipes raw JSON frames over
 // the IPC channel.
 
+import { DeferredPromise } from '../../../base/common/async.js';
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import type { IChannel } from '../../../base/parts/ipc/common/ipc.js';
+import { AhpJsonlLogger, getAhpLogByteLength } from '../common/ahpJsonlLogger.js';
+import { AgentHostClientConnectionKind } from '../common/agentHostTelemetry.js';
+import type { IAgentHostIpcConnectionOptions } from '../common/agentService.js';
 import type { AhpServerNotification, JsonRpcResponse, ProtocolMessage } from '../common/state/sessionProtocol.js';
-import type { IClientTransport } from '../common/state/sessionTransport.js';
+import { parseProtocolMessage, type IClientTransport } from '../common/state/sessionTransport.js';
 import { MALFORMED_FRAMES_FORCE_CLOSE_THRESHOLD, MALFORMED_FRAMES_LOG_CAP } from '../common/transportConstants.js';
+
+const REDACTED_TOKEN = '<redacted>';
 
 /**
  * Wraps an {@link IChannel} as an {@link IClientTransport} for the agent
@@ -27,7 +33,7 @@ import { MALFORMED_FRAMES_FORCE_CLOSE_THRESHOLD, MALFORMED_FRAMES_LOG_CAP } from
  * Wire shape:
  * - `listen('frame')` → emits each upstream JSON frame as a string.
  * - `listen('close')` → fires when the upstream connection closes.
- * - `call('connect')` → opens the upstream connection; resolves when ready.
+ * - `call('connect', { env, debugEnv }?)` → supplies server-owned launch overrides and opens the upstream connection.
  * - `call('send', frame)` → forwards a JSON frame upstream.
  */
 export class AgentHostIpcChannelTransport extends Disposable implements IClientTransport {
@@ -38,11 +44,17 @@ export class AgentHostIpcChannelTransport extends Disposable implements IClientT
 	private readonly _onClose = this._register(new Emitter<void>());
 	readonly onClose = this._onClose.event;
 
+	private readonly _closed = new DeferredPromise<void>();
 	private _isOpen = false;
 	private _closeFired = false;
 	private _malformedFrames = 0;
 
-	constructor(private readonly _channel: IChannel) {
+	constructor(
+		private readonly _channel: IChannel,
+		private readonly _ahpLogger?: AhpJsonlLogger,
+		readonly clientConnectionKind = AgentHostClientConnectionKind.Unknown,
+		private readonly _resolveConnectionOptions?: () => Promise<IAgentHostIpcConnectionOptions | undefined>,
+	) {
 		super();
 	}
 
@@ -51,14 +63,15 @@ export class AgentHostIpcChannelTransport extends Disposable implements IClientT
 	}
 
 	async connect(): Promise<void> {
-		if (this._store.isDisposed) {
-			throw new Error('Transport is disposed');
-		}
+		this._throwIfClosed();
+		const options = await Promise.race([this._resolveConnectionOptions?.(), this._closed.p]);
+		this._throwIfClosed();
 		// Subscribe before connecting so we don't miss any frames the upstream
 		// host emits between open and our listener attaching.
 		this._register(this._channel.listen<string>('frame')(text => this._handleFrame(text)));
 		this._register(this._channel.listen<void>('close')(() => this._fireClose()));
-		await this._channel.call('connect');
+		await Promise.race([this._channel.call('connect', options), this._closed.p]);
+		this._throwIfClosed();
 		this._isOpen = true;
 	}
 
@@ -70,7 +83,9 @@ export class AgentHostIpcChannelTransport extends Disposable implements IClientT
 		}
 		// Fire-and-forget. The channel call resolves asynchronously; failures
 		// are surfaced via the close event from the server side.
-		this._channel.call('send', JSON.stringify(message)).catch(() => this._fireClose());
+		const text = JSON.stringify(message);
+		this._logFrame(message, 'c2s', text);
+		this._channel.call('send', text).catch(() => this._fireClose());
 	}
 
 	override dispose(): void {
@@ -85,7 +100,7 @@ export class AgentHostIpcChannelTransport extends Disposable implements IClientT
 	private _handleFrame(text: string): void {
 		let message: ProtocolMessage;
 		try {
-			message = JSON.parse(text) as ProtocolMessage;
+			message = parseProtocolMessage(text);
 		} catch (err) {
 			this._malformedFrames++;
 			if (this._malformedFrames <= MALFORMED_FRAMES_LOG_CAP) {
@@ -101,7 +116,21 @@ export class AgentHostIpcChannelTransport extends Disposable implements IClientT
 			}
 			return;
 		}
+		this._logFrame(message, 's2c', text);
 		this._onMessage.fire(message);
+	}
+
+	private _logFrame(message: object, direction: 'c2s' | 's2c', text: string): void {
+		this._ahpLogger?.log(redactAuthenticationToken(message), direction, getAhpLogByteLength(text));
+	}
+
+	private _throwIfClosed(): void {
+		if (this._store.isDisposed) {
+			throw new Error('Transport is disposed');
+		}
+		if (this._closeFired) {
+			throw new Error('Transport is closed');
+		}
 	}
 
 	private _fireClose(): void {
@@ -110,6 +139,21 @@ export class AgentHostIpcChannelTransport extends Disposable implements IClientT
 		}
 		this._closeFired = true;
 		this._isOpen = false;
+		this._closed.complete();
 		this._onClose.fire();
 	}
+}
+
+function redactAuthenticationToken(message: object): object {
+	const candidate = message as { readonly method?: unknown; readonly params?: unknown };
+	if (candidate.method !== 'authenticate' || typeof candidate.params !== 'object' || candidate.params === null) {
+		return message;
+	}
+
+	const params = candidate.params as Record<string, unknown>;
+	if (typeof params.token !== 'string') {
+		return message;
+	}
+
+	return { ...candidate, params: { ...params, token: REDACTED_TOKEN } };
 }

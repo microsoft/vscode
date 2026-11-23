@@ -20,7 +20,8 @@ export const PR_SCHEME = 'copilot-pr';
 export interface PRContentUriParams {
 	owner: string;
 	repo: string;
-	prNumber: number;
+	/** Present for PR-backed diffs; omitted for branch-compare diffs (PR-less tasks). */
+	prNumber?: number;
 	fileName: string;
 	commitSha: string;
 	isBase: boolean; // true for left side, false for right side
@@ -106,7 +107,7 @@ export class PRContentProvider extends Disposable implements vscode.TextDocument
 		try {
 			this.logService.trace(
 				`[${PRContentProvider.ID}] Fetching ${params.isBase ? 'base' : 'head'} content for ${params.fileName} ` +
-				`from ${params.owner}/${params.repo}#${params.prNumber} at ${params.commitSha}`
+				`from ${params.owner}/${params.repo}${params.prNumber !== undefined ? `#${params.prNumber}` : ''} at ${params.commitSha}`
 			);
 
 			// Fetch file content from GitHub

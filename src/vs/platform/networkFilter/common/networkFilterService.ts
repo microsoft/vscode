@@ -6,22 +6,31 @@
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { LRUCache } from '../../../base/common/map.js';
+import { matchesScheme, Schemas } from '../../../base/common/network.js';
 import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { ISandboxNetworkRestrictions } from '../../sandbox/common/sandboxSettingsResolutionHelper.js';
 import { extractDomainFromUri, isDomainAllowed } from './domainMatcher.js';
 import { AgentNetworkDomainSettingId } from './settings.js';
 
 export const IAgentNetworkFilterService = createDecorator<IAgentNetworkFilterService>('agentNetworkFilterService');
+
+function isFilteredNetworkScheme(uri: URI): boolean {
+	return matchesScheme(uri, Schemas.http)
+		|| matchesScheme(uri, Schemas.https)
+		|| matchesScheme(uri, 'ws')
+		|| matchesScheme(uri, 'wss');
+}
 
 /**
  * Service that filters network requests made by agent tools (fetch tool,
  * integrated browser) based on the configured allowed/denied domain lists.
  *
  * Filtering is active for all callers when the `chat.agent.networkFilter` setting
- * is enabled.
- * When both domain lists are empty, all domains are denied.
+ * is enabled. Copilot browser calls can additionally supply resolved sandbox restrictions.
+ * When both domain lists are empty, all domains are denied outside sandboxing.
  * When a domain appears on the denied list it is always blocked, even if it
  * also matches an entry on the allowed list.
  */
@@ -31,10 +40,15 @@ export interface IAgentNetworkFilterService {
 	/**
 	 * Extracts the domain from a URI and checks it against the configured
 	 * allowed/denied domain filter.
-	 * File URIs and URIs without an authority always pass.
+	 * File URIs and unfiltered schemes without an authority always pass.
 	 * @returns `true` if the URI's domain is allowed, `false` if blocked.
 	 */
-	isUriAllowed(uri: URI): boolean;
+	isUriAllowed(uri: URI, restrictions?: ISandboxNetworkRestrictions): boolean;
+
+	/**
+	 * Returns whether network filtering is currently enabled.
+	 */
+	isEnabled(restrictions?: ISandboxNetworkRestrictions): boolean;
 
 	/**
 	 * Formats an error message for a blocked URI based on the current filter configuration.
@@ -87,20 +101,30 @@ export class AgentNetworkFilterService extends Disposable implements IAgentNetwo
 		this.domainCache.clear();
 	}
 
-	isUriAllowed(uri: URI): boolean {
+	isUriAllowed(uri: URI, restrictions?: ISandboxNetworkRestrictions): boolean {
 		// When domain filtering is inactive, allow all requests.
-		if (!this.shouldFilter()) {
+		if (!this.isEnabled(restrictions)) {
 			return true;
 		}
 
-		// File URIs and URIs without authority always pass
-		if (uri.scheme === 'file' || !uri.authority) {
+		// File URIs and unfiltered schemes without authority always pass
+		if (matchesScheme(uri, Schemas.file)
+			|| (!uri.authority && !isFilteredNetworkScheme(uri))) {
 			return true;
+		}
+
+		if (restrictions?.sandboxEnabled && !restrictions.allowNetwork) {
+			return false;
 		}
 
 		const domain = extractDomainFromUri(uri);
 		if (!domain) {
-			return true;
+			return !isFilteredNetworkScheme(uri);
+		}
+
+		if (restrictions) {
+			const allowed = restrictions.sandboxEnabled && restrictions.allowedDomains.length === 0 ? ['*'] : restrictions.allowedDomains;
+			return isDomainAllowed(domain, allowed, restrictions.deniedDomains);
 		}
 
 		let result = this.domainCache.get(domain);
@@ -111,10 +135,9 @@ export class AgentNetworkFilterService extends Disposable implements IAgentNetwo
 
 		return result;
 	}
-	// Determines whether network filtering should be applied for a given request
-	// based on the global network filter setting.
-	private shouldFilter(): boolean {
-		return this.networkFilterEnabled;
+
+	isEnabled(restrictions?: ISandboxNetworkRestrictions): boolean {
+		return this.networkFilterEnabled || restrictions?.sandboxEnabled === true;
 	}
 
 	formatError(uri: URI): string {
@@ -127,4 +150,14 @@ export class AgentNetworkFilterService extends Disposable implements IAgentNetwo
 			AgentNetworkDomainSettingId.DeniedNetworkDomains,
 		);
 	}
+}
+
+export function createSandboxNetworkFilter(service: IAgentNetworkFilterService, restrictions: ISandboxNetworkRestrictions): IAgentNetworkFilterService {
+	return {
+		_serviceBrand: undefined,
+		onDidChange: service.onDidChange,
+		isUriAllowed: uri => service.isUriAllowed(uri, restrictions),
+		isEnabled: () => service.isEnabled(restrictions),
+		formatError: uri => service.formatError(uri),
+	};
 }

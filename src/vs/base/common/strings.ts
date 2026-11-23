@@ -108,7 +108,11 @@ export function truncate(value: string, maxLength: number, suffix = Ellipsis): s
 		return value;
 	}
 
-	return `${value.substr(0, maxLength)}${suffix}`;
+	if (maxLength > 0 && isHighSurrogate(value.charCodeAt(maxLength - 1)) && isLowSurrogate(value.charCodeAt(maxLength))) {
+		maxLength--;
+	}
+
+	return `${value.substring(0, maxLength)}${suffix}`;
 }
 
 export function truncateMiddle(value: string, maxLength: number, suffix = Ellipsis): string {
@@ -116,10 +120,18 @@ export function truncateMiddle(value: string, maxLength: number, suffix = Ellips
 		return value;
 	}
 
-	const prefixLength = Math.ceil(maxLength / 2) - suffix.length / 2;
-	const suffixLength = Math.floor(maxLength / 2) - suffix.length / 2;
+	let prefixLength = Math.floor(Math.ceil(maxLength / 2) - suffix.length / 2);
+	const suffixLength = Math.ceil(Math.floor(maxLength / 2) - suffix.length / 2);
+	let suffixStart = value.length - suffixLength;
 
-	return `${value.substr(0, prefixLength)}${suffix}${value.substr(value.length - suffixLength)}`;
+	if (isHighSurrogate(value.charCodeAt(prefixLength - 1)) && isLowSurrogate(value.charCodeAt(prefixLength))) {
+		prefixLength--;
+	}
+	if (isHighSurrogate(value.charCodeAt(suffixStart - 1)) && isLowSurrogate(value.charCodeAt(suffixStart))) {
+		suffixStart++;
+	}
+
+	return `${value.substring(0, prefixLength)}${suffix}${value.substring(suffixStart)}`;
 }
 
 /**
@@ -388,7 +400,10 @@ export function compareSubstringIgnoreCase(a: string, b: string, aStart: number 
 
 		if (codeA >= 128 || codeB >= 128) {
 			// not ASCII letters -> fallback to lower-casing strings
-			return compareSubstring(a.toLowerCase(), b.toLowerCase(), aStart, aEnd, bStart, bEnd);
+			return compare(
+				a.substring(aStart, aEnd).toLowerCase(),
+				b.substring(bStart, bEnd).toLowerCase()
+			);
 		}
 
 		// mapper lower-case ascii letter onto upper-case varinats
@@ -693,6 +708,16 @@ export function containsUnusualLineTerminators(str: string): boolean {
 	return UNUSUAL_LINE_TERMINATORS.test(str);
 }
 
+/**
+ * Replaces control, format (such as bidirectional overrides and zero-width
+ * characters) and line or paragraph separator characters with visible
+ * `\u{…}` escapes, so displayed text cannot hide characters, break a line,
+ * or reorder how it reads.
+ */
+export function escapeControlAndFormatCharacters(str: string): string {
+	return str.replace(/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/gu, character => `\\u{${character.codePointAt(0)?.toString(16)}}`);
+}
+
 export function isFullWidthCharacter(charCode: number): boolean {
 	// Do a cheap trick to better support wrapping of wide characters, treat them as 2 columns
 	// http://jrgraphix.net/research/unicode_blocks.php
@@ -915,13 +940,15 @@ export function fuzzyContains(target: string, query: string): boolean {
 		return false; // impossible for query to be contained in target
 	}
 
-	const queryLen = query.length;
 	const targetLower = target.toLowerCase();
+	const queryLower = query.toLowerCase();
+	// toLowerCase() can change a string's length (e.g. \u0130 -> i\u0307), so iterate over the lowered query.
+	const queryLen = queryLower.length;
 
 	let index = 0;
 	let lastIndexOf = -1;
 	while (index < queryLen) {
-		const indexOf = targetLower.indexOf(query[index], lastIndexOf + 1);
+		const indexOf = targetLower.indexOf(queryLower[index], lastIndexOf + 1);
 		if (indexOf < 0) {
 			return false;
 		}

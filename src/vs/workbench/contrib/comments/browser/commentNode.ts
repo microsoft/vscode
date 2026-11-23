@@ -9,6 +9,7 @@ import * as languages from '../../../../editor/common/languages.js';
 import { ActionsOrientation, ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { Action, IAction, Separator, ActionRunner } from '../../../../base/common/actions.js';
 import { Disposable, DisposableStore, IReference, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { TimeoutTimer } from '../../../../base/common/async.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { IMarkdownRendererExtraOptions, IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
 import { IRenderedMarkdown } from '../../../../base/browser/markdownRenderer.js';
@@ -57,13 +58,18 @@ class CommentsActionRunner extends ActionRunner {
 	}
 }
 
+/**
+ * The width of its container that the editor of a comment that is being edited leaves free, for its padding.
+ */
+const COMMENT_EDITOR_HORIZONTAL_INSET = 14;
+
 export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 	private _domNode: HTMLElement;
 	private _body: HTMLElement;
 	private _avatar: HTMLElement;
 	private readonly _md: MutableDisposable<IRenderedMarkdown> = this._register(new MutableDisposable());
 	private _plainText: HTMLElement | undefined;
-	private _clearTimeout: Timeout | null;
+	private readonly _focusClearTimer = this._register(new TimeoutTimer());
 
 	private _editAction: Action | null = null;
 	private _commentEditContainer: HTMLElement | null = null;
@@ -149,7 +155,6 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 
 		this._domNode.setAttribute('aria-label', `${comment.userName}, ${this.commentBodyValue}`);
 		this._domNode.setAttribute('role', 'treeitem');
-		this._clearTimeout = null;
 
 		this._register(dom.addDisposableListener(this._domNode, dom.EventType.CLICK, () => this.isEditing || this._onDidClick.fire(this)));
 		this._register(dom.addDisposableListener(this._domNode, dom.EventType.CONTEXT_MENU, e => {
@@ -422,6 +427,8 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		}
 
 		this._reactionActionsContainer = dom.append(commentDetailsContainer, dom.$('div.comment-reactions'));
+		// Without reactions to show, only the reaction picker is shown.
+		this._reactionActionsContainer.classList.toggle('picker-only', !reactions.length);
 		this._reactionsActionBar.value = new ActionBar(this._reactionActionsContainer, {
 			actionViewItemProvider: (action, options) => {
 				if (action.id === ToggleReactionsAction.ID) {
@@ -497,11 +504,11 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 			this._commentEditor.setPosition(new Position(lastLine, lastColumn));
 		}
 		this.pendingEdit = undefined;
-		this._commentEditor.layout({ width: container.clientWidth - 14, height: this._editorHeight });
+		this._commentEditor.layout({ width: container.clientWidth - COMMENT_EDITOR_HORIZONTAL_INSET, height: this._editorHeight });
 		this._commentEditor.focus();
 
 		dom.scheduleAtNextAnimationFrame(dom.getWindow(editContainer), () => {
-			this._commentEditor!.layout({ width: container.clientWidth - 14, height: this._editorHeight });
+			this._commentEditor!.layout({ width: container.clientWidth - COMMENT_EDITOR_HORIZONTAL_INSET, height: this._editorHeight });
 			this._commentEditor!.focus();
 		});
 
@@ -577,13 +584,35 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 	}
 
 	layout(widthInPixel?: number) {
-		const editorWidth = widthInPixel !== undefined ? widthInPixel - 72 /* - margin and scrollbar*/ : (this._commentEditor?.getLayoutInfo().width ?? 0);
-		this._commentEditor?.layout({ width: editorWidth, height: this._editorHeight });
+		if (this._commentEditor) {
+			const editorWidth = this.getCommentEditorWidth(this._commentEditor, widthInPixel);
+			this._commentEditor.layout({ width: editorWidth, height: this._editorHeight });
+			// The comment wraps at the editor's width, so the height that fits it can change with the width.
+			if (widthInPixel !== undefined && this.calculateEditorHeight()) {
+				this._commentEditor.layout({ width: editorWidth, height: this._editorHeight });
+			}
+		}
 		const scrollWidth = this._body.scrollWidth;
 		const width = dom.getContentWidth(this._body);
 		const scrollHeight = this._body.scrollHeight;
 		const height = dom.getContentHeight(this._body) + 4;
 		this._scrollableElement.setScrollDimensions({ width, scrollWidth, height, scrollHeight });
+	}
+
+	/**
+	 * The width to lay out the editor of a comment that is being edited at, for a thread of the given width. Like when
+	 * it's created, the editor fills its container, which has already been laid out at the thread's width.
+	 */
+	private getCommentEditorWidth(commentEditor: SimpleCommentEditor, widthInPixel: number | undefined): number {
+		if (widthInPixel === undefined) {
+			return commentEditor.getLayoutInfo().width;
+		}
+		const containerWidth = commentEditor.getContainerDomNode().clientWidth;
+		if (containerWidth > 0) {
+			return containerWidth - COMMENT_EDITOR_HORIZONTAL_INSET;
+		}
+		// The container isn't rendered, so there is nothing to measure.
+		return widthInPixel - 72 /* - margin and scrollbar*/;
 	}
 
 	public async switchToEditMode() {
@@ -730,16 +759,8 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 
 	focus() {
 		this.domNode.focus();
-		if (!this._clearTimeout) {
-			this.domNode.classList.add('focus');
-			this._clearTimeout = setTimeout(() => {
-				this.domNode.classList.remove('focus');
-			}, 3000);
-		}
-	}
-
-	override dispose(): void {
-		super.dispose();
+		this.domNode.classList.add('focus');
+		this._focusClearTimer.setIfNotSet(() => this.domNode.classList.remove('focus'), 3000);
 	}
 }
 

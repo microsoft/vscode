@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { resolvePackageDirectory } from '../esbuild-common.mts';
 import { run } from '../esbuild-extension-common.mts';
+import { updateMarkdownEditorManifestFiles } from './scripts/updateMarkdownEditorPackageJson.mts';
 
 const srcDir = path.join(import.meta.dirname, 'src');
 const outDir = path.join(import.meta.dirname, 'dist', 'browser');
@@ -13,7 +15,7 @@ const outDir = path.join(import.meta.dirname, 'dist', 'browser');
  * Copy the language server worker main file to the output directory.
  */
 async function copyServerWorkerMain(outDir: string): Promise<void> {
-	const srcPath = path.join(import.meta.dirname, 'node_modules', 'vscode-markdown-languageserver', 'dist', 'browser', 'workerMain.js');
+	const srcPath = path.join(resolvePackageDirectory(import.meta.dirname, 'vscode-markdown-languageserver'), 'dist', 'browser', 'workerMain.js');
 	const destPath = path.join(outDir, 'serverWorkerMain.js');
 	await fs.promises.copyFile(srcPath, destPath);
 }
@@ -25,6 +27,7 @@ run({
 	},
 	srcDir,
 	outdir: outDir,
+	beforeBuild: () => updateMarkdownEditorManifestFiles('write'),
 	additionalOptions: {
 		tsconfig: path.join(import.meta.dirname, 'tsconfig.browser.json'),
 	},

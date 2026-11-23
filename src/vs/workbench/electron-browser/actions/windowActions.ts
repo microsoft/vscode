@@ -17,7 +17,8 @@ import { getIconClasses } from '../../../editor/common/services/getIconClasses.j
 import { ICommandHandler } from '../../../platform/commands/common/commands.js';
 import { ServicesAccessor } from '../../../platform/instantiation/common/instantiation.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
-import { INativeHostService } from '../../../platform/native/common/native.js';
+import { INativeHostService, FocusMode } from '../../../platform/native/common/native.js';
+import { IHostService } from '../../services/host/browser/host.js';
 import { Codicon } from '../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from '../../../platform/workspace/common/workspace.js';
@@ -28,7 +29,7 @@ import { KeybindingWeight } from '../../../platform/keybinding/common/keybinding
 import { isMacintosh } from '../../../base/common/platform.js';
 import { getActiveWindow } from '../../../base/browser/dom.js';
 import { IOpenedAuxiliaryWindow, IOpenedMainWindow, isOpenedAuxiliaryWindow } from '../../../platform/window/common/window.js';
-import { IsAuxiliaryWindowContext, IsAuxiliaryWindowFocusedContext, IsWindowAlwaysOnTopContext } from '../../common/contextkeys.js';
+import { IsAuxiliaryWindowContext, IsWindowAlwaysOnTopContext } from '../../common/contextkeys.js';
 import { isAuxiliaryWindow, mainWindow } from '../../../base/browser/window.js';
 import { ContextKeyExpr } from '../../../platform/contextkey/common/contextkey.js';
 
@@ -299,7 +300,8 @@ abstract class BaseSwitchWindow extends Action2 {
 				windowId: window.id,
 				label: window.title,
 				ariaLabel: window.dirty ? localize('windowDirtyAriaLabel', "{0}, window with unsaved changes", window.title) : window.title,
-				iconClasses: getIconClasses(modelService, languageService, resource, fileKind),
+				iconPath: window.iconPath ? { dark: window.iconPath } : undefined,
+				iconClasses: window.iconPath ? undefined : getIconClasses(modelService, languageService, resource, fileKind),
 				description: (currentWindowId === window.id) ? localize('current', "Current Window") : undefined,
 				buttons: window.dirty ? [this.closeDirtyWindowAction] : currentWindowId === window.id ? [this.closeActiveWindowAction] : [this.closeWindowAction]
 			};
@@ -406,6 +408,30 @@ export class SwitchToMainWindowAction extends Action2 {
 	}
 }
 
+export class FocusWindowAction extends Action2 {
+
+	static readonly ID = 'workbench.action.focusWindow';
+
+	constructor() {
+		super({
+			id: FocusWindowAction.ID,
+			title: localize2('focusWindow', "Focus Window"),
+			f1: true
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const hostService = accessor.get(IHostService);
+
+		// Bring the current window to the foreground and focus it. `FocusMode.Force` is used because
+		// the application may not be active (for example when this runs from a system-wide keybinding
+		// while another app owns OS focus). This makes it usable as the first step of a `runCommands`
+		// chain that reveals the window before running a command which surfaces UI in it (e.g. Quick
+		// Open).
+		await hostService.focus(getActiveWindow(), { mode: FocusMode.Force });
+	}
+}
+
 function canRunNativeTabsHandler(accessor: ServicesAccessor): boolean {
 	if (!isMacintosh) {
 		return false;
@@ -471,18 +497,12 @@ export class ToggleWindowAlwaysOnTopAction extends Action2 {
 		super({
 			id: ToggleWindowAlwaysOnTopAction.ID,
 			title: localize2('toggleWindowAlwaysOnTop', "Toggle Window Always on Top"),
-			f1: true,
-			precondition: IsAuxiliaryWindowFocusedContext
+			f1: true
 		});
 	}
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
 		const nativeHostService = accessor.get(INativeHostService);
-
-		const targetWindow = getActiveWindow();
-		if (!isAuxiliaryWindow(targetWindow.window)) {
-			return; // Currently, we only support toggling always on top for auxiliary windows
-		}
 
 		return nativeHostService.toggleWindowAlwaysOnTop({ targetWindowId: getActiveWindow().vscodeWindowId });
 	}

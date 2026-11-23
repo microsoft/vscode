@@ -9,6 +9,19 @@ import { createServiceIdentifier } from '../../../util/common/services';
 
 export const ISessionStore = createServiceIdentifier<ISessionStore>('ISessionStore');
 
+/**
+ * Options controlling how the {@link ISessionStore} backing database is opened.
+ */
+export interface SessionStoreOptions {
+	/**
+	 * Whether the database file lives on a remote/network filesystem (e.g. an
+	 * SSH-Remote workspace). When set, the store avoids WAL mode and uses a
+	 * rollback journal with a longer busy timeout, since network filesystems do
+	 * not provide the POSIX locking guarantees WAL relies on.
+	 */
+	readonly remote?: boolean;
+}
+
 // ── Row types (same as copilot-agent-runtime SessionStore) ──────────────────────
 
 /**
@@ -142,9 +155,9 @@ export interface ISessionStore {
 
 	/**
 	 * Execute a read-only SQL query.
-	 * When SQLite authorizer support is available (Node.js 24.2+), enforces read-only at the
-	 * engine level. When unavailable, runs the prepared statement without engine enforcement —
-	 * callers MUST validate the SQL (e.g. allowlist to SELECT/WITH + blocklist) before calling.
+	 * Enforces read-only at the engine level using SQLite authorizer support (Node.js 24.10+).
+	 * Throws before preparing the query if authorizer support is unavailable or installation fails.
+	 * Callers must not retry user- or model-supplied SQL without enforcement.
 	 */
 	executeReadOnly(sql: string): Record<string, unknown>[];
 

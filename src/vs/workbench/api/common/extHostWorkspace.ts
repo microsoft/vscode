@@ -5,7 +5,7 @@
 
 import { delta as arrayDelta, mapArrayOrNot } from '../../../base/common/arrays.js';
 import { AsyncIterableProducer, Barrier } from '../../../base/common/async.js';
-import { CancellationToken } from '../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { AsyncEmitter, Emitter, Event } from '../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
 import { StopWatch } from '../../../base/common/stopwatch.js';
@@ -32,7 +32,7 @@ import { IURITransformerService } from './extHostUriTransformerService.js';
 import { IFileQueryBuilderOptions, ISearchPatternBuilder, ITextQueryBuilderOptions } from '../../services/search/common/queryBuilder.js';
 import { IRawFileMatch2, ITextSearchResult, resultIsMatch } from '../../services/search/common/search.js';
 import type * as vscode from 'vscode';
-import { ExtHostWorkspaceShape, IRelativePatternDto, IWorkspaceData, MainContext, MainThreadMessageOptions, MainThreadMessageServiceShape, MainThreadTelemetryShape, MainThreadWorkspaceShape } from './extHost.protocol.js';
+import { ExtHostWorkspaceShape, IRelativePatternDto, IWorkspaceData, IWorkspaceFolderLocationsDto, MainContext, MainThreadMessageOptions, MainThreadMessageServiceShape, MainThreadTelemetryShape, MainThreadWorkspaceShape } from './extHost.protocol.js';
 import { revive } from '../../../base/common/marshalling.js';
 import { AuthInfo, Credentials } from '../../../platform/request/common/request.js';
 import { ExcludeSettingOptions, TextSearchContext2, TextSearchMatch2 } from '../../services/search/common/searchExtTypes.js';
@@ -84,6 +84,7 @@ function ignorePathCasing(uri: URI, extHostFileSystemInfo: IExtHostFileSystemInf
 interface MutableWorkspaceFolder extends vscode.WorkspaceFolder {
 	name: string;
 	index: number;
+	locations?: readonly vscode.WorkspaceFolderLocation[];
 }
 
 interface QueryOptions<T> {
@@ -117,7 +118,7 @@ class ExtHostWorkspaceImpl extends Workspace {
 		if (previousConfirmedWorkspace) {
 			folders.forEach((folderData, index) => {
 				const folderUri = URI.revive(folderData.uri);
-				const existingFolder = ExtHostWorkspaceImpl._findFolder(previousUnconfirmedWorkspace || previousConfirmedWorkspace, folderUri, extHostFileSystemInfo);
+				const existingFolder = ExtHostWorkspaceImpl.findFolder(previousUnconfirmedWorkspace || previousConfirmedWorkspace, folderUri, extHostFileSystemInfo);
 
 				if (existingFolder) {
 					existingFolder.name = folderData.name;
@@ -141,7 +142,7 @@ class ExtHostWorkspaceImpl extends Workspace {
 		return { workspace, added, removed };
 	}
 
-	private static _findFolder(workspace: ExtHostWorkspaceImpl, folderUriToFind: URI, extHostFileSystemInfo: IExtHostFileSystemInfo): MutableWorkspaceFolder | undefined {
+	static findFolder(workspace: ExtHostWorkspaceImpl, folderUriToFind: URI, extHostFileSystemInfo: IExtHostFileSystemInfo): MutableWorkspaceFolder | undefined {
 		for (let i = 0; i < workspace.folders.length; i++) {
 			const folder = workspace.workspaceFolders[i];
 			if (isFolderEqual(folder.uri, folderUriToFind, extHostFileSystemInfo)) {
@@ -197,6 +198,9 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 
 	private readonly _onDidChangeWorkspace = new Emitter<vscode.WorkspaceFoldersChangeEvent>();
 	readonly onDidChangeWorkspace: Event<vscode.WorkspaceFoldersChangeEvent> = this._onDidChangeWorkspace.event;
+
+	private readonly _onDidChangeWorkspaceFolderLocations = new Emitter<vscode.WorkspaceFolderLocationsChangeEvent>({ onWillAddFirstListener: () => this._proxy.$getWorkspaceFolderLocations() });
+	readonly onDidChangeWorkspaceFolderLocations: Event<vscode.WorkspaceFolderLocationsChangeEvent> = this._onDidChangeWorkspaceFolderLocations.event;
 
 	private readonly _onDidGrantWorkspaceTrust = new Emitter<void>();
 	readonly onDidGrantWorkspaceTrust: Event<void> = this._onDidGrantWorkspaceTrust.event;
@@ -490,6 +494,31 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 		}));
 	}
 
+	$acceptWorkspaceFolderLocations(data: IWorkspaceFolderLocationsDto[]): void {
+		const workspace = this._unconfirmedWorkspace || this._confirmedWorkspace;
+		if (!workspace) {
+			return;
+		}
+
+		const changed: vscode.WorkspaceFolder[] = [];
+		for (const { folder, locations } of data) {
+			const existing = ExtHostWorkspaceImpl.findFolder(workspace, URI.revive(folder), this._extHostFileSystemInfo);
+			if (!existing) {
+				continue;
+			}
+			const revived = locations.map(l => ({ uri: URI.revive(l.uri), name: l.name }));
+			const previous = existing.locations;
+			if (!previous || previous.length !== revived.length || previous.some((l, i) => l.name !== revived[i].name || l.uri.toString() !== revived[i].uri.toString())) {
+				existing.locations = Object.freeze(revived);
+				changed.push(existing);
+			}
+		}
+
+		if (changed.length) {
+			this._onDidChangeWorkspaceFolderLocations.fire(Object.freeze({ workspaceFolders: Object.freeze(changed) }));
+		}
+	}
+
 	// --- search ---
 
 	/**
@@ -639,13 +668,29 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 		queryOptions: QueryOptions<IFileQueryBuilderOptions>[] | undefined,
 		token: CancellationToken
 	): Promise<vscode.Uri[]> {
+		// Ensure the token is recognized by the RPC protocol. Tokens from extension
+		// bundles may use a different CancellationToken module and fail the instanceof
+		// check in isCancellationToken(), causing them to be serialized (without
+		// functions) rather than handled as cancellation signals.
+		let tokenToUse = token;
+		let linkedSource: CancellationTokenSource | undefined;
+		if (!CancellationToken.isCancellationToken(token)) {
+			linkedSource = new CancellationTokenSource();
+			const foreignToken = token as unknown as Partial<CancellationToken>;
+			if (typeof foreignToken.onCancellationRequested === 'function') {
+				foreignToken.onCancellationRequested(() => linkedSource!.cancel());
+			}
+			tokenToUse = linkedSource.token;
+		}
+
 		const result = await Promise.all(queryOptions?.map(option => this._proxy.$startFileSearch(
 			option.folder ?? null,
 			option.options,
-			token).then(data => Array.isArray(data) ? data.map(d => URI.revive(d)) : [])
+			tokenToUse).then(data => Array.isArray(data) ? data.map(d => URI.revive(d)) : [])
 		) ?? []);
 
 		const flatResult = result.flat();
+		linkedSource?.dispose();
 
 		// Dedupe entries in a flat array
 		const extUri = new ExtUri(uri => ignorePathCasing(uri, this._extHostFileSystemInfo));
