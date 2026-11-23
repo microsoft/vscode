@@ -11,6 +11,7 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { IAuxiliaryWindowService } from '../../../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { IWorkbenchLayoutService, LayoutSettings, ModernUIDensity, ModernUIEditorTabStyle } from '../../../services/layout/browser/layoutService.js';
+import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { DEFAULT_SCROLLBAR_SIZE, setGlobalDefaultScrollbarSize } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { COMPACT_NOTIFICATION_ROW_HEIGHT, DEFAULT_NOTIFICATION_ROW_HEIGHT, setNotificationRowHeight } from '../../../browser/parts/notifications/notificationsViewer.js';
@@ -114,6 +115,7 @@ export class ModernUIContribution extends Disposable implements IWorkbenchContri
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IAuxiliaryWindowService private readonly auxiliaryWindowService: IAuxiliaryWindowService,
+		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 	) {
 		super();
 
@@ -215,18 +217,21 @@ export class ModernUIContribution extends Disposable implements IWorkbenchContri
 	}
 
 	override dispose(): void {
-		// Remove the class this contribution added so it leaves no DOM state behind.
-		for (const container of this.layoutService.containers) {
-			container.classList.remove(MODERN_UI_CLASS);
-			container.classList.remove(MODERN_UI_COMPACT_CLASS);
-			container.classList.remove(MODERN_UI_TABS_CLASS);
-			container.classList.remove(CONNECTED_EDITOR_TABS_CLASS);
-			container.classList.remove(MODERN_UI_NOTIFICATIONS_DIALOGS_CLASS);
-			container.classList.remove(MODERN_UI_UPPERCASE_VIEW_HEADERS_CLASS);
+		// Remove the class this contribution added so it leaves no DOM state behind, but not as the window closes: restyling
+		// the workbench and laying out its notifications again would only delay closing it.
+		if (!this.lifecycleService.willShutdown) {
+			for (const container of this.layoutService.containers) {
+				container.classList.remove(MODERN_UI_CLASS);
+				container.classList.remove(MODERN_UI_COMPACT_CLASS);
+				container.classList.remove(MODERN_UI_TABS_CLASS);
+				container.classList.remove(CONNECTED_EDITOR_TABS_CLASS);
+				container.classList.remove(MODERN_UI_NOTIFICATIONS_DIALOGS_CLASS);
+				container.classList.remove(MODERN_UI_UPPERCASE_VIEW_HEADERS_CLASS);
+			}
+			setGlobalDefaultScrollbarSize(DEFAULT_SCROLLBAR_SIZE);
+			setNotificationRowHeight(DEFAULT_NOTIFICATION_ROW_HEIGHT);
+			setGlobalPaneHeaderSize(DEFAULT_PANE_HEADER_SIZE);
 		}
-		setGlobalDefaultScrollbarSize(DEFAULT_SCROLLBAR_SIZE);
-		setNotificationRowHeight(DEFAULT_NOTIFICATION_ROW_HEIGHT);
-		setGlobalPaneHeaderSize(DEFAULT_PANE_HEADER_SIZE);
 		super.dispose();
 	}
 }

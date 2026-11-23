@@ -6,7 +6,7 @@ The Agents window opts into a shared chat renderer for **explicit, closed `vscod
 
 The agent supplies content, data, and composition. VS Code owns every component's implementation and appearance: the agent picks semantic variants, such as a positive tone, and the stylesheet maps them to registered theme colors, the chart palette, and the design-system spacing, radius, and type roles. Nothing in a block is evaluated. Tags and quoted literal attributes are the whole language; expressions, imports, scripts, HTML, classes, and styles are rejected.
 
-The `chat.nativeComponents.enabled` setting defaults to `false` and is experimental. While it is off, or AI features are disabled, these blocks display as source code; changing either setting updates existing responses without reloading. Ordinary code fences, user messages, annotated file edits, filtered responses, and other chat surfaces keep their existing behavior. Providers need no new protocol response type: the original Markdown remains the persisted, copied, and exported response.
+The `chat.nativeComponents.enabled` setting defaults to `true` and is experimental. While it is off, or AI features are disabled, these blocks display as source code; changing either setting updates existing responses without reloading. Ordinary code fences, user messages, annotated file edits, filtered responses, and other chat surfaces keep their existing behavior. Providers need no new protocol response type: the original Markdown remains the persisted, copied, and exported response.
 
 This is independent of HTML previews. `vscode-ui` and `html-preview` each have their own language, setting, renderer, and fallback, and enabling one does not affect the other.
 
@@ -35,7 +35,7 @@ The built-in [vscode-ui skill](../../../../skills/vscode-ui/SKILL.md) provides o
 
 ## Try it
 
-Enable `chat.nativeComponents.enabled`, then ask an agent to answer with a `vscode-ui` fence, or invoke the built-in `/vscode-ui` skill:
+With `chat.nativeComponents.enabled` on (the default), ask an agent to answer with a `vscode-ui` fence, or invoke the built-in `/vscode-ui` skill:
 
 > Compare the full and incremental build times as a native visual, with the key numbers, a bar chart, and how you measured them.
 
@@ -78,7 +78,7 @@ To see the fallback, change `<BarChart` and `</BarChart>` to `<Chart` and `</Cha
 | Scenario | Expected result | Coverage |
 | --- | --- | --- |
 | Response visual | The components render inline between the surrounding Markdown; no frame is created; the source keeps the exact original text. | Unit |
-| Rendering preference | With `chat.nativeComponents.enabled` at its default (`false`), or after turning it off while a transcript is visible, blocks show source. Turning it on renders them without a reload. `chat.disableAIFeatures` has the same effect. Changing `chat.htmlPreview.enabled` changes nothing here. Surfaces that did not opt in stay source-only. | Chat-list unit |
+| Rendering preference | With `chat.nativeComponents.enabled` at its default (`true`), blocks render as visuals. After turning it off, also while a transcript is visible, blocks show source. Turning it on again renders them without a reload. `chat.disableAIFeatures` has the same effect. Changing `chat.htmlPreview.enabled` changes nothing here. Surfaces that did not opt in stay source-only. | Chat-list unit |
 | Ordinary code, user prompt, filtered response, annotated file | Remains code; no visual is created. | Unit |
 | Streaming | No visual before a real closing fence, including a response stopped mid-block. A closed block renders while the explanation after it streams, and is not rebuilt by later updates: an expanded disclosure and the source toggle stay as they are. | Unit |
 | Fences | Backtick and tilde fences of at least three characters work, with an optional `v1`; a short or mismatched closing fence does not. | Unit |
@@ -93,6 +93,6 @@ To see the fallback, change `<BarChart` and `</BarChart>` to `<Chart` and `</Cha
 | Themes | Light, dark, and both high-contrast themes; switching theme while a visual is shown updates it, because every color is a theme variable. | Fixture screenshots + manual for the live switch |
 | Accessibility | Tab reaches the visual and draws a focus ring around it; a click inside it draws none. Disclosures toggle with Enter or Space; a screen reader finds a table with column headers, a chart as a table of labelled values, and named tone icons. The Accessible View shows the text alternative where the visual renders, also inside a list item or a block quote, and the source elsewhere, such as in a filtered response. Accessibility Help documents the feature only while it is enabled. | Unit + manual screen reader |
 | Find | A match in prose is highlighted there and leaves the visual alone. A match in the markup reveals the source without taking focus from Find. Text that appears in both the markup and the rendered visual is never highlighted inside the visual. | Chat-list + Find unit |
-| Authoring guidance | `/vscode-ui` is not offered by default. It appears across discovery, slash commands, file listings, and harness forwarding while the setting and AI features are on, and disappears when either is off or the renderer is absent. | Built-in discovery unit |
+| Authoring guidance | `/vscode-ui` is offered by default. It appears across discovery, slash commands, file listings, and harness forwarding while the setting and AI features are on, and disappears when either is off or the renderer is absent. | Built-in discovery unit |
 | Restored conversation | Reopen a session whose response contains a visual: the persisted Markdown renders again. | Manual |
 | Phone | With the setting on, blocks show source and the skill is not offered. | Skill-gating unit + manual |

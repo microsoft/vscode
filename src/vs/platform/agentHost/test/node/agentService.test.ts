@@ -4347,6 +4347,15 @@ suite('AgentService (node dispatcher)', () => {
 		});
 	});
 
+	test('shutdown asks the git service to report its telemetry before the host flushes the collector', async () => {
+		const calls: string[] = [];
+		const gitService = createNoopGitService();
+		gitService.flushTelemetry = () => { calls.push('git telemetry flushed'); };
+		const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, nullSessionDataService, { _serviceBrand: undefined } as IProductService, gitService));
+		await localService.shutdown();
+		assert.deepStrictEqual(calls, ['git telemetry flushed']);
+	});
+
 	for (const operation of ['resolveSessionConfig', 'createSession'] as const) {
 		test(`${operation} resolves provider and worktree configuration concurrently`, async () => {
 			const workingDirectory = URI.file('/workspace/repo');
@@ -23971,6 +23980,7 @@ suite('AgentService (node dispatcher)', () => {
 				hasUncommittedChanges: async () => false,
 				createStash: async () => { },
 				commitAll: async () => { },
+				commit: async () => { },
 				mergeBranch: async () => '',
 				restore: async () => { },
 				hasUpstream: async () => false,
@@ -24016,7 +24026,7 @@ suite('AgentService (node dispatcher)', () => {
 			assert.deepStrictEqual(calls, [workingDirectory.fsPath, workingDirectory.fsPath]);
 			assert.deepStrictEqual(
 				getStateManager(localService).getSessionState(session.toString())?._meta,
-				withSessionInitiator(withWorkingDirectoryScopeId(withWorkingDirectoryKey(withSessionExternal({ git: gitState }, false), workingDirectory.toString()), [workingDirectory.toString()]), { name: 'vscode' }),
+				withSessionInitiator(withWorkingDirectoryScopeId(withWorkingDirectoryKey(withSessionExternal({ git: { ...gitState, baseBranchFullName: 'main' } }, false), workingDirectory.toString()), [workingDirectory.toString()]), { name: 'vscode' }),
 			);
 		});
 
@@ -24090,6 +24100,7 @@ suite('AgentService (node dispatcher)', () => {
 				hasUncommittedChanges: async () => false,
 				createStash: async () => { },
 				commitAll: async () => { },
+				commit: async () => { },
 				mergeBranch: async () => '',
 				hasUpstream: async () => false,
 				fetch: async () => { },
@@ -24272,7 +24283,7 @@ suite('AgentService (node dispatcher)', () => {
 				assert.deepStrictEqual(calls, [workingDirectory.fsPath]);
 				assert.deepStrictEqual(
 					getStateManager(localService).getSessionState(session.toString())?._meta,
-					{ git: gitState },
+					{ git: { ...gitState, baseBranchFullName: 'main' } },
 				);
 			});
 
@@ -32867,6 +32878,13 @@ suite('AgentService (node dispatcher)', () => {
 
 			await assert.rejects(() => svc.setChatWorkspace(session, peer, { kind: 'folder', folder: sessionScratch, isolation: 'folder' }), ownScratchFolderRefusal);
 			await assert.rejects(() => svc.createChat(session, created, { workspace: { kind: 'folder', folder: sessionScratch, isolation: 'folder' } }), ownScratchFolderRefusal);
+			const toolAccessor = (svc as unknown as { _createSessionServerToolAccessor(): IAgentServiceSessionServerToolAccessor })._createSessionServerToolAccessor();
+			await assert.rejects(() => toolAccessor.prepareChatWorkingDirectory(session, sessionScratch, { isolation: 'folder' }), ownScratchFolderRefusal);
+			const differentlyCased = URI.file('/home/.copilot/CHATS/s-a');
+			if (extUriBiasedIgnorePathCase.isEqual(differentlyCased, sessionScratch)) {
+				await assert.rejects(() => toolAccessor.prepareChatWorkingDirectory(session, differentlyCased, { isolation: 'folder' }), ownScratchFolderRefusal);
+				await assert.rejects(() => toolAccessor.prepareChatWorkingDirectory(session, joinPath(differentlyCased, 'sub'), { isolation: 'folder' }), /a chat's own scratch folder; pick No Workspace/);
+			}
 
 			assert.deepStrictEqual({ ...await snapshot(), primary: before.session?.[0], createdListed: getStateManager(svc).getSessionState(session.toString())?.chats.some(entry => entry.resource === created.toString()) }, { ...before, primary: sessionScratch.toString(), createdListed: false });
 		});
@@ -44789,6 +44807,39 @@ suite('AgentService (node dispatcher)', () => {
 			);
 		}));
 
+		test('a provisional session its provider materialized before any turn, as opening a canvas does, is not GC-disposed', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			class MaterializingAgent extends MockAgent {
+				private readonly _onDidMaterializeChat = new Emitter<IAgentMaterializeChatEvent>();
+				override readonly onDidMaterializeChat = this._onDidMaterializeChat.event;
+				override readonly chats: IAgentChats = withChatOverrides(getChatSurface(this), base => ({
+					createChat: (chat, context, options) => createProvisionalChat(base, chat, context, options),
+				}));
+				materialize(session: URI): void {
+					this._onDidMaterializeChat.fire({ chat: URI.parse(buildDefaultChatUri(session)), workingDirectories: undefined, project: undefined });
+				}
+				override dispose(): void {
+					this._onDidMaterializeChat.dispose();
+					super.dispose();
+				}
+			}
+			const agent = new MaterializingAgent('copilot');
+			disposables.add(toDisposable(() => agent.dispose()));
+			registerTestAgentProvider(service, agent);
+			const session = await service.createSession({ legacyChatUris: true, provider: agent.id });
+			service.addSubscriber(session, 'client-1');
+			const draftBeforeMaterialize = getStateManager(service).isUnusedDraft(session.toString());
+			agent.materialize(session);
+
+			service.unsubscribe(session, 'client-1');
+			await timeout(30_000);
+
+			assert.deepStrictEqual({
+				draftBeforeMaterialize,
+				draftAfterMaterialize: getStateManager(service).isUnusedDraft(session.toString()),
+				disposals: agent.disposeSessionCalls.length,
+			}, { draftBeforeMaterialize: true, draftAfterMaterialize: false, disposals: 0 });
+		}));
+
 		test('a session with at least one turn is not GC-disposed', () => {
 			return runWithFakedTimers({ useFakeTimers: true }, async () => {
 				registerTestAgentProvider(service, copilotAgent);
@@ -46625,13 +46676,22 @@ suite('AgentService (node dispatcher)', () => {
 			}, {
 				replacesFirst: true,
 				turns: [
-					{ replaced: true, notice: [{ kind: 'disabled', iconId: 'git-pull-request', heading: 'Automatically Repair disabled for Example' }] },
+					{ replaced: true, notice: [{ kind: 'disabled', iconId: 'git-pull-request', heading: '**Automatically Repair disabled** for Example' }] },
 					{ replaced: false, notice: [] },
-					{ replaced: false, notice: [{ kind: 'enabled', iconId: 'git-pull-request', heading: 'Automatically Repair enabled for Example' }] },
+					{ replaced: false, notice: [{ kind: 'enabled', iconId: 'git-pull-request', heading: '**Automatically Repair enabled** for Example' }] },
 				],
 				persisted: [{ current: true, anchor: undefined }, { current: true, anchor: 'human-turn' }],
 				sent: [],
 			});
+		});
+
+		test('names the agent that turned automation off by its harness', async () => {
+			const f = await createArtifactAutomation();
+			await f.model.configure('test.automation', 0, { repair: true });
+			await f.model.configure('test.automation', 1, { repair: false }, { kind: 'agent', chat: f.chat });
+			await timeout(0);
+			const headings = f.stateManager.getChatState(f.chat)!.turns.flatMap(turn => turn.responseParts.map(part => part.kind === ResponsePartKind.SystemNotification && typeof part.content === 'string' ? part.content.split('\n')[0] : undefined));
+			assert.deepStrictEqual(headings, ['Agent copilot **disabled Automatically Repair** for Example']);
 		});
 
 		test('notices merged while a turn runs merge into an earlier notice as a whole', async () => {

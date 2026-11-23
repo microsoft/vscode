@@ -8,8 +8,9 @@ import { IChatSessionsService, isAgentHostTarget, isRemoteAgentHostTarget, local
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { IWorkspace, IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
-import { isVirtualWorkspace } from '../../../../platform/workspace/common/virtualWorkspace.js';
+import { hasVirtualWorkspaceContent, isVirtualWorkspace } from '../../../../platform/workspace/common/virtualWorkspace.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { ICommandMetadata } from '../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { ChatEntitlementContextKeys } from '../../../services/chat/common/chatEntitlementService.js';
 import { IsAuxiliaryWindowContext, IsSessionsWindowContext } from '../../../common/contextkeys.js';
@@ -68,6 +69,13 @@ export const enum BYOKUtilityModelDefault {
 	Copilot = 'copilot',
 }
 
+/** Where a session opens when selected in the sessions of the Chat view: {@link ChatConfiguration.ChatViewSessionsOpenChatIn}. */
+export enum ChatViewSessionsOpenChatIn {
+	ChatPanel = 'chatPanel',
+	ChatArea = 'chatArea',
+	EditorArea = 'editorArea',
+}
+
 export enum ChatConfiguration {
 	PluginsEnabled = 'chat.plugins.enabled',
 	PluginLocations = 'chat.pluginLocations',
@@ -75,6 +83,7 @@ export enum ChatConfiguration {
 	ExtraMarketplaces = 'chat.plugins.extraMarketplaces',
 	EnabledPlugins = 'chat.plugins.enabledPlugins',
 	AgentEnabled = 'chat.agent.enabled',
+	HooksShowWarnings = 'chat.hooks.showWarnings',
 	ChatViewSessionsListEnabled = 'chat.viewSessions.sessionsList.enabled',
 	AgentsPickerInAttachContextMenu = 'sessions.chat.experimental.agentsPickerInAttachContextMenu',
 	/** Desktop only: lets chat attach a screenshot of the window of another app. */
@@ -96,7 +105,6 @@ export enum ChatConfiguration {
 	UnifiedAgentsBar = 'chat.unifiedAgentsBar.enabled',
 	AgentSessionProjectionEnabled = 'chat.agentSessionProjection.enabled',
 	ShowExternalAgentSessions = 'chat.agentSessions.showExternal',
-	OpenSessionsInEditor = 'chat.agentSessions.openInEditor',
 	AutoMarkAsDoneMergedSessionsAfterDays = 'chat.agentSessions.autoMarkAsDoneMergedSessionsAfterDays',
 	AutoDeleteMarkedAsDoneMergedSessionsAfterDays = 'chat.agentSessions.autoDeleteMarkedAsDoneMergedSessionsAfterDays',
 	ExtensionToolsEnabled = 'chat.extensionTools.enabled',
@@ -134,7 +142,7 @@ export enum ChatConfiguration {
 	SessionSyncExcludeRepositories = 'chat.sessionSync.excludeRepositories',
 	ChatViewSessionsGrouping = 'chat.viewSessions.grouping',
 	ChatViewSessionsOrientation = 'chat.viewSessions.orientation',
-	ChatViewSessionsOpenInChatPart = 'chat.viewSessions.openInChatPart',
+	ChatViewSessionsOpenChatIn = 'chat.viewSessions.openChatIn',
 	ChatViewProgressBadgeEnabled = 'chat.viewProgressBadge.enabled',
 	ChatContextUsageEnabled = 'chat.contextUsage.enabled',
 	Verbose = 'chat.verbose',
@@ -161,8 +169,6 @@ export enum ChatConfiguration {
 	WelcomePageAgentsWindowGraphic = 'chat.welcomePage.agentsWindowGraphic',
 	WelcomePageAgentsWindowSectionStyle = 'chat.welcomePage.agentsWindowSectionStyle',
 	TitleBarOpenInAgentsWindowEnabled = 'chat.titleBar.openInAgentsWindow.enabled',
-	TitleBarOpenInAgentsWindowRichHover = 'chat.titleBar.openInAgentsWindow.richHover',
-	TitleBarOpenInAgentsWindowRichHoverOnClick = 'chat.titleBar.openInAgentsWindow.richHoverOnClick',
 	OpenInAgentsWindowTransferDraft = 'chat.experimental.openInAgentsWindow.transferDraft',
 	AgentsParallelWorkBannerEnabled = 'chat.agentsParallelWorkBanner.enabled',
 	AgentsWindowBannerEnabled = 'chat.agentsWindowBanner.enabled',
@@ -235,23 +241,20 @@ export const enum ChatClosedPromoNotification {
 	CopilotIconPopup = 'copilotIconPopup',
 }
 
-/** The graphic that explains the Agents window above the Agents window button on the Welcome page. */
+/** The graphic that explains the Agents window on the Welcome page. */
 export const enum AgentsWindowGraphicVariant {
 	None = 'none',
-	/** The editor window and the Agents window side by side. */
+	/** The editor window and the Agents window side by side, above the Agents window button. */
 	WindowComparison = 'windowComparison',
-	/** Editor windows for several projects become one Agents window. */
-	ManyWindowsToOne = 'manyWindowsToOne',
-	/** {@link ManyWindowsToOne} when more than one editor window is open, and {@link WindowComparison} otherwise. */
-	Auto = 'auto',
+	/** A banner at the top of the page that describes the Agents window next to a drawing of it, with a button that opens it. */
+	Banner = 'banner',
 }
 
 export function getAgentsWindowGraphicVariant(configurationService: IConfigurationService): AgentsWindowGraphicVariant {
 	const variant = configurationService.getValue<AgentsWindowGraphicVariant>(ChatConfiguration.WelcomePageAgentsWindowGraphic);
 	switch (variant) {
 		case AgentsWindowGraphicVariant.WindowComparison:
-		case AgentsWindowGraphicVariant.ManyWindowsToOne:
-		case AgentsWindowGraphicVariant.Auto:
+		case AgentsWindowGraphicVariant.Banner:
 			return variant;
 		default:
 			return AgentsWindowGraphicVariant.None;
@@ -259,34 +262,9 @@ export function getAgentsWindowGraphicVariant(configurationService: IConfigurati
 }
 
 /**
- * What hovering or focusing the title bar's Agents window button shows to users who are new to the Agents window.
- * Each hover card is named after the graphic it shows, like the values of {@link AgentsWindowGraphicVariant}.
+ * How the {@link AgentsWindowGraphicVariant.WindowComparison} graphic, its captions and the Agents window button are set apart
+ * from the rest of the Welcome page. The {@link AgentsWindowGraphicVariant.Banner} sets itself apart.
  */
-export const enum OpenInAgentsTitleBarHoverVariant {
-	/** A simple tooltip, and the button grows to show its label. */
-	None = 'none',
-	/** A hover card with the {@link AgentsWindowGraphicVariant.ManyWindowsToOne} graphic, and the button stays an icon. */
-	ManyWindowsToOne = 'manyWindowsToOne',
-	/** A hover card with the {@link AgentsWindowGraphicVariant.WindowComparison} graphic, and the button stays an icon. */
-	WindowComparison = 'windowComparison',
-}
-
-/**
- * Reads the graphic of the hover card that the title bar's Agents window button shows to users who are new to the Agents window,
- * or `undefined` for a simple tooltip, the setting's default {@link OpenInAgentsTitleBarHoverVariant.None}.
- */
-export function getOpenInAgentsTitleBarHoverCardDesign(configurationService: IConfigurationService): AgentsWindowGraphicVariant.ManyWindowsToOne | AgentsWindowGraphicVariant.WindowComparison | undefined {
-	switch (configurationService.getValue<OpenInAgentsTitleBarHoverVariant>(ChatConfiguration.TitleBarOpenInAgentsWindowRichHover)) {
-		case OpenInAgentsTitleBarHoverVariant.ManyWindowsToOne:
-			return AgentsWindowGraphicVariant.ManyWindowsToOne;
-		case OpenInAgentsTitleBarHoverVariant.WindowComparison:
-			return AgentsWindowGraphicVariant.WindowComparison;
-		default:
-			return undefined;
-	}
-}
-
-/** How the Agents window graphic, its captions and the Agents window button are set apart from the rest of the Welcome page. */
 export const enum AgentsWindowSectionStyle {
 	None = 'none',
 	/** A subtle surface around the section, like the walkthrough tiles. */
@@ -582,7 +560,8 @@ export function isNewChatSessionTypeUsable(
 	if (managedPolicyRequiresAgentHost && sessionType === localChatSessionType) {
 		return false;
 	}
-	if (chatSessionsService.getChatSessionContribution(sessionType)?.hideFromSessionTypePicker) {
+	const contribution = chatSessionsService.getChatSessionContribution(sessionType);
+	if (contribution?.hideFromSessionTypePicker) {
 		return false;
 	}
 	if (sessionType === localChatSessionType) {
@@ -591,10 +570,10 @@ export function isNewChatSessionTypeUsable(
 	if (isAgentHostTarget(sessionType)) {
 		// Remote agent hosts are per-window; require that this window registered the host's contribution.
 		return agentHostEnabled
-			&& (!isRemoteAgentHostTarget(sessionType) || !!chatSessionsService.getChatSessionContribution(sessionType))
+			&& (!isRemoteAgentHostTarget(sessionType) || !!contribution)
 			&& !isLocalAgentHostSessionTypeDisabledByPolicy(sessionType, configurationService)
-			// Of the local harnesses, only Copilot can work on a virtual workspace's files.
-			&& (!isVirtualWorkspace(workspace) || !sessionType.startsWith(LOCAL_AGENT_HOST_SCHEME_PREFIX) || sessionType === SessionType.AgentHostCopilot);
+			// In workspaces with virtual folders, defer to contribution visibility for non-Copilot harnesses.
+			&& (!!contribution || !sessionType.startsWith(LOCAL_AGENT_HOST_SCHEME_PREFIX) || sessionType === SessionType.AgentHostCopilot || !hasVirtualWorkspaceContent(workspace));
 	}
 	return isVisibleEditorChatSessionType(sessionType, configurationService, chatSessionsService, workspace, managedSandboxEnforced);
 }
@@ -863,6 +842,24 @@ export const OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID = 'workbench.action.open
 export const OPEN_AGENTS_WINDOW_COMMAND_ID = 'workbench.action.openAgentsWindow';
 /** Shows the Agents Launcher, a small floating composer that starts agent sessions in the background. */
 export const AGENTS_LAUNCHER_COMMAND_ID = 'workbench.action.agentsLauncher';
+/** The arguments of {@link AGENTS_LAUNCHER_COMMAND_ID}, an `IAgentsLauncherOptions`, for completion in `keybindings.json`. */
+export const AGENTS_LAUNCHER_COMMAND_METADATA: ICommandMetadata = {
+	description: localize('agentsLauncher.description', "Shows or hides the Agents Launcher"),
+	args: [{
+		name: 'options',
+		isOptional: true,
+		schema: {
+			type: 'object',
+			properties: {
+				workspace: {
+					type: 'string',
+					enum: [''],
+					description: localize('agentsLauncher.workspace', "The workspace the launcher starts in. An empty string starts a chat without a workspace, as picking Chat in its workspace picker does. When omitted, the launcher keeps its workspace."),
+				},
+			},
+		},
+	}],
+};
 /** Attaches a screenshot of the window of another app to chat. Desktop only; its keybinding can be made system-wide. */
 export const ATTACH_APP_WINDOW_SCREENSHOT_COMMAND_ID = 'workbench.action.chat.attachAppWindowScreenshot';
 export { AGENTS_WINDOW_TOTAL_SESSIONS_STORAGE_KEY } from '../../../../platform/chat/common/agentsWindowInvitation.js';

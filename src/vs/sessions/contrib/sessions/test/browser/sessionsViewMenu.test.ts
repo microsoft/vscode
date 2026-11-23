@@ -19,6 +19,7 @@ import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { extUriBiasedIgnorePathCase } from '../../../../../base/common/resources.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { isICommandActionToggleInfo } from '../../../../../platform/action/common/action.js';
 import { ActionWidgetService, IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
 import { getActionBarActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
@@ -992,16 +993,21 @@ suite('Sessions - View Menu', () => {
 		});
 	});
 
-	for (const { source, section } of ['toolbar', 'context menu'].flatMap(source =>
-		[SessionInboxSection.ReadyForYou, SessionInboxSection.Working, SessionInboxSection.OnHold].map(section => ({ source, section })))) {
-		test(`Acknowledge from the ${source} quietly moves an already-read active ${section} session to Acknowledged and returns on activity`, async () => {
+	for (const { source, section, acknowledgedExpanded, hasOther, unrelatedSelection } of ['toolbar', 'context menu', 'toolbar click'].flatMap(source => [
+		...(source === 'toolbar click' ? [] : [SessionInboxSection.ReadyForYou, SessionInboxSection.Working, SessionInboxSection.OnHold].map(section => ({ source, section, acknowledgedExpanded: false, hasOther: true, unrelatedSelection: false }))),
+		...[true, false].map(hasOther => ({ source, section: SessionInboxSection.ReadyForYou, acknowledgedExpanded: true, hasOther, unrelatedSelection: false })),
+		...(source === 'toolbar click' ? [{ source, section: SessionInboxSection.ReadyForYou, acknowledgedExpanded: true, hasOther: true, unrelatedSelection: true }] : []),
+	])) {
+		test(`Acknowledge from the ${source} quietly moves an already-read active ${section} session to ${acknowledgedExpanded ? 'expanded' : 'collapsed'} Acknowledged with ${hasOther ? 'another' : 'no other'} Inbox item${unrelatedSelection ? ' preserving unrelated selection' : ''} and returns on activity`, async () => {
 			const built = buildTestSession({ id: 'first', title: 'First', isRead: true, status: section === SessionInboxSection.Working ? SessionStatus.InProgress : SessionStatus.Completed });
 			const other = buildTestSession({ id: 'second', title: 'Second', isRead: false }).session;
+			const existingAcknowledged = buildTestSession({ id: 'acknowledged', title: 'Already Acknowledged' }).session;
 			const session = built.session;
 			const activeSession = constObservable({ ...session, activeChat: session.mainChat });
-			const harness = createListHarness(store, [session, other], { activeSession });
+			const harness = createListHarness(store, [session, ...(hasOther ? [other] : []), existingAcknowledged], { activeSession });
 			const model = store.add(harness.instantiationService.createInstance(SessionsListModelService));
 			harness.instantiationService.stub(ISessionsListModelService, model);
+			model.setInboxState([existingAcknowledged], 'done');
 			if (section === SessionInboxSection.OnHold) {
 				model.setInboxState([session], 'hold');
 			}
@@ -1024,22 +1030,28 @@ suite('Sessions - View Menu', () => {
 				showContextMenu: (delegate: IContextMenuDelegate) => { shown = delegate; },
 			});
 			let grouping = SessionsGrouping.Inbox;
+			let opened = 0;
 			const container = harness.createContainer();
 			const list = store.add(harness.instantiationService.createInstance(TestSessionsList, container, {
-				grouping: () => grouping, sorting: () => SessionsSorting.Created, onSessionOpen: () => { },
+				grouping: () => grouping, sorting: () => SessionsSorting.Created, onSessionOpen: () => { opened++; },
 			}));
 			list.layout(600, 400);
 			list.setItemCollapsed({ section }, false);
-			list.setSelectedItems([{ session: session.resource }]);
-			list.setFocusedItem({ session: session.resource });
+			list.setItemCollapsed({ section: SessionInboxSection.Acknowledged }, !acknowledgedExpanded);
+			list.setSelectedItems(unrelatedSelection ? [{ session: other.resource }, { session: existingAcknowledged.resource }] : [{ session: session.resource }]);
+			list.setFocusedItem({ session: source === 'toolbar click' ? existingAcknowledged.resource : session.resource });
 			list.focus();
 			const row = list.getItemRow({ session: session.resource })!;
 			await retry(async () => assert.ok(row.querySelector('.session-title-toolbar [aria-label^="Acknowledge"]')), 10, 100);
 			const button = row.querySelector<HTMLElement>('.session-title-toolbar [aria-label^="Acknowledge"]')!;
-			button.focus();
-			assert.strictEqual(getActiveElement(), button);
-			button.dispatchEvent(new KeyboardEvent('keyup', { key: 'Tab', keyCode: 9, bubbles: true }));
-			if (source === 'toolbar') {
+			if (source !== 'toolbar click') {
+				button.focus();
+				assert.strictEqual(getActiveElement(), button);
+				button.dispatchEvent(new KeyboardEvent('keyup', { key: 'Tab', keyCode: 9, bubbles: true }));
+			}
+			if (source === 'toolbar click') {
+				button.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+			} else if (source === 'toolbar') {
 				button.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
 				button.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', keyCode: 13, bubbles: true }));
 			} else {
@@ -1049,11 +1061,16 @@ suite('Sessions - View Menu', () => {
 				const action = shown.getActions().find(action => action.id === ACKNOWLEDGE_INBOX_SESSION_COMMAND_ID)!;
 				await shown.actionRunner!.run(action, shown.getActionsContext?.());
 			}
-			await retry(async () => assert.deepStrictEqual(list.getVisibleSessions().map(session => session.sessionId), [other.sessionId]), 10, 100);
+			await retry(async () => assert.deepStrictEqual(list.getVisibleSessions().map(session => session.sessionId).sort(), [
+				...(hasOther ? [other.sessionId] : []), ...(acknowledgedExpanded ? [session.sessionId, existingAcknowledged.sessionId] : []),
+			].sort()), 10, 100);
 			const acknowledged = model.getInboxState(session)?.kind;
 			const acknowledgedCategory = list.getItemRow({ section: SessionInboxSection.Acknowledged })?.getAttribute('aria-label');
 			const stillActive = activeSession.get().sessionId;
 			const keyboardFocusRetained = list.element.contains(getActiveElement());
+			const focusedSessions = list.getVisibleSessions().filter(session => list.getItemRow({ session: session.resource })?.classList.contains('focused')).map(session => session.sessionId);
+			const emptyInboxFocused = list.getItemRow({ section: SessionInboxSection.ReadyForYou })?.classList.contains('focused');
+			const selectedSessions = list.getVisibleSessions().filter(session => list.getItemRow({ session: session.resource })?.getAttribute('aria-selected') === 'true').map(session => session.sessionId);
 			grouping = SessionsGrouping.Workspace;
 			list.update();
 			const availableElsewhere = list.getVisibleSessions().includes(session);
@@ -1062,11 +1079,12 @@ suite('Sessions - View Menu', () => {
 			built.status.set(SessionStatus.Completed, undefined);
 			list.update();
 			assert.deepStrictEqual({
-				acknowledged, acknowledgedCategory, notices, stillActive, keyboardFocusRetained, availableElsewhere, resurfaced: list.getVisibleSessions().includes(session),
+				acknowledged, acknowledgedCategory, notices, stillActive, keyboardFocusRetained, focusedSessions, emptyInboxFocused, selectedSessions, opened, availableElsewhere, resurfaced: list.getVisibleSessions().includes(session),
 				read: session.isRead.get(), otherRead: other.isRead.get(), archived: session.isArchived.get(),
 				providerActions: { read: harness.managementService.readSessions, archived: harness.managementService.archived, cancelled: harness.managementService.cancelled, deleted: harness.managementService.deleted },
 			}, {
-				acknowledged: 'done', acknowledgedCategory: 'Acknowledged, 1', notices: [], stillActive: session.sessionId, keyboardFocusRetained: true, availableElsewhere: true, resurfaced: true,
+				acknowledged: 'done', acknowledgedCategory: 'Acknowledged, 2', notices: [], stillActive: session.sessionId, keyboardFocusRetained: true,
+				focusedSessions: hasOther ? [other.sessionId] : [], selectedSessions: [...(hasOther ? [other.sessionId] : []), ...(unrelatedSelection ? [existingAcknowledged.sessionId] : [])], emptyInboxFocused: !hasOther, opened: 0, availableElsewhere: true, resurfaced: true,
 				read: true, otherRead: false, archived: false,
 				providerActions: { read: [], archived: [], cancelled: [], deleted: [] },
 			});
@@ -1281,10 +1299,10 @@ suite('Sessions - View Menu', () => {
 		const model = store.add(harness.instantiationService.createInstance(SessionsListModelService));
 		harness.instantiationService.stub(ISessionsListModelService, model);
 		harness.instantiationService.stub(IViewsService, upcastPartial<IViewsService>({}), 'getViewWithId', () => undefined);
-		let choice: number | undefined;
+		let choice: string | undefined;
 		let input: string | undefined = undefined;
 		const validation: (string | undefined | null)[] = [];
-		harness.instantiationService.stub(IQuickInputService, upcastPartial<IQuickInputService>({}), 'pick', async (items: IQuickPickItem[]) => choice === undefined ? undefined : items[choice]);
+		harness.instantiationService.stub(IQuickInputService, upcastPartial<IQuickInputService>({}), 'pick', async (items: IQuickPickItem[]) => items.find(item => item.label === choice));
 		harness.instantiationService.stub(IQuickInputService, 'input', async (options: IInputOptions) => {
 			for (const value of ['not a date', '2000-01-01 09:00', '2099-02-30 09:00', '2099-12-01 09:00']) {
 				const result = await options.validateInput!(value);
@@ -1295,11 +1313,11 @@ suite('Sessions - View Menu', () => {
 		const run = () => CommandsRegistry.getCommand('sessionsViewPane.inboxSnooze')!.handler(harness.instantiationService, session);
 		await run();
 		const cancelled = model.getInboxState(session);
-		choice = 1;
+		choice = 'Tomorrow Morning';
 		const now = new Date();
 		await run();
 		const timed = model.getInboxState(session);
-		choice = 4;
+		choice = 'Pick a Date and Time...';
 		await run();
 		const cancelledCustom = model.getInboxState(session);
 		input = '2099-12-01 09:00';
@@ -1312,6 +1330,23 @@ suite('Sessions - View Menu', () => {
 			validation: [true, true, true, false, true, true, true, false], archived: false,
 		});
 	});
+
+	for (const minutes of [10, 30]) {
+		test(`inbox snooze for ${minutes} minutes applies the deadline to every selected session`, () => runWithFakedTimers({ useFakeTimers: true, startTime: new Date(2026, 10, 20, 23, 55).getTime() }, async () => {
+			const sessions = ['first', 'second'].map(id => buildTestSession({ id, title: id }).session);
+			const harness = createListHarness(store, sessions);
+			const model = store.add(harness.instantiationService.createInstance(SessionsListModelService));
+			harness.instantiationService.stub(ISessionsListModelService, model);
+			harness.instantiationService.stub(IViewsService, upcastPartial<IViewsService>({}), 'getViewWithId', () => undefined);
+			harness.instantiationService.stub(IQuickInputService, upcastPartial<IQuickInputService>({}), 'pick', async (items: IQuickPickItem[]) => items.find(item => item.label === `In ${minutes} Minutes`));
+			const until = Date.now() + minutes * 60 * 1000;
+			await CommandsRegistry.getCommand('sessionsViewPane.inboxSnooze')!.handler(harness.instantiationService, sessions);
+			assert.deepStrictEqual(sessions.map(session => ({ state: model.getInboxState(session), archived: session.isArchived.get() })), sessions.map(() => ({
+				state: { kind: 'snoozed', until },
+				archived: false,
+			})));
+		}));
+	}
 
 	test('application filter command opens the registered Sessions view, and uses an embedded one only without it', async () => {
 		const run = async (registered: boolean, embedded: boolean) => {

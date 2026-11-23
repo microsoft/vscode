@@ -233,14 +233,13 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 
 	protected createAddTabControl(parent: HTMLElement, menuId: MenuId, before?: HTMLElement, onDidChangeVisibility?: () => void): HTMLElement {
 		const context: IEditorCommandsContext = { groupId: this.groupView.id };
-		// The new tab button of the workbench (not the Agents window) lists the recent entry first and makes it the default entry.
-		const isNewTabButton = menuId === MenuId.EditorTabsBarAddTab;
+		const recentFirst = this.menuIds?.tabsBarAddTabRecentFirst === true;
 		const control = this._register(this.instantiationService.createInstance(EditorAddTabControl, parent, menuId, this.contextKeyService, {
 			before,
 			keybindingProvider: action => this.getKeybinding(action),
 			context,
-			recentFirst: isNewTabButton,
-			defaultEntry: isNewTabButton
+			recentFirst,
+			defaultEntry: recentFirst
 		}));
 		if (onDidChangeVisibility) {
 			this._register(control.onDidChangeVisibility(onDidChangeVisibility));

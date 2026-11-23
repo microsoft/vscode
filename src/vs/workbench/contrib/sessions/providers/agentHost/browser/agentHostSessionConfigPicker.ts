@@ -52,7 +52,7 @@ import { IViewsService } from '../../../../../services/views/common/viewsService
 import { AgentWorkbenchLayout, ISessionsHostLayoutService } from '../../../../../services/sessions/browser/sessionsHostLayoutService.js';
 import { getNewSessionRepositoryConfigGroup, Menus } from '../../../browser/menus.js';
 import { DevContainerWorktreeEnabledSettingId, isDevContainerWorktreeEnabled } from '../../../common/devContainerAgentHostService.js';
-import { SessionIdContext, SessionProviderIdContext, IsPhoneLayoutContext, IsQuickChatSessionContext, SessionUsesExperimentalComposerLayoutContext } from '../../../common/contextkeys.js';
+import { SessionIdContext, SessionProviderIdContext, IsPhoneLayoutContext, IsQuickChatSessionContext, NewSessionFolderPickerOffersNewWorktreeContext, SessionUsesExperimentalComposerLayoutContext } from '../../../common/contextkeys.js';
 import { IWorkbenchLayoutService } from '../../../../../services/layout/browser/layoutService.js';
 import { reportNewChatPickerClosed } from '../../../browser/newChatPickerTelemetry.js';
 import { NEW_WORKTREE_LABEL } from '../../../browser/chat/branchPicker.js';
@@ -2045,6 +2045,8 @@ export class AgentHostSessionConfigPickerContribution extends Disposable impleme
 					when: ContextKeyExpr.and(
 						ChatContextKeys.enabled,
 						workspaceScoped ? IsQuickChatSessionContext.negate() : undefined,
+						// Where the composer offers New Worktree itself, its isolation picker would offer it a second time
+						property === workspace.isolation?.key ? NewSessionFolderPickerOffersNewWorktreeContext.negate() : undefined,
 						SessionIdContext.isEqualTo(session.sessionId),
 					),
 				}));

@@ -19,7 +19,7 @@ import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quic
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { extUri, extUriIgnorePathCase, IExtUri } from '../../../../../base/common/resources.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
-import { IFolderLocation, IResolvedFolderLocation, IWorkspaceFolderLocationService } from '../../../../../platform/workspace/common/folderLocations.js';
+import { IFolderLocation, IResolvedFolderLocation, IWorkspaceFolderLocationProvider, IWorkspaceFolderLocationService } from '../../../../../platform/workspace/common/folderLocations.js';
 import { IWorkspaceContextService, Workspace, WorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
 import { resolveOnboardingTarget } from '../../../onboarding/browser/spotlight/onboardingTarget.js';
 import { ISpotlightPayload } from '../../../onboarding/browser/spotlight/spotlightTypes.js';
@@ -30,6 +30,13 @@ import { IStatusbarEntry, IStatusbarService, StatusbarAlignment } from '../../..
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IWorkspaceEditingService } from '../../../../services/workspaces/common/workspaceEditing.js';
 import { FolderLocationStatusBarContribution, RETURN_TO_PRIMARY_FOLDER_LOCATION_COMMAND_ID, SWITCH_FOLDER_LOCATION_COMMAND_ID } from '../../browser/folderLocationStatusBar.js';
+import { toDisposable } from '../../../../../base/common/lifecycle.js';
+import { mock } from '../../../../../base/test/common/mock.js';
+import { FileService } from '../../../../../platform/files/common/fileService.js';
+import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { UriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentityService.js';
+import { TestContextService } from '../../../../test/common/workbenchTestServices.js';
+import { WorkspaceFolderLocationService } from '../../../../services/workspaces/common/workspaceFolderLocationService.js';
 
 function identityFake(getWorkspace: () => Workspace) {
 	return {
@@ -564,6 +571,53 @@ suite('FolderLocationStatusBarContribution', () => {
 					{ label: 'Worktrees', check: 'blank', submenu: ['Alternate'] },
 					{ label: 'Cloud', check: 'blank', submenu: undefined },
 					{ label: 'project', check: 'check', submenu: undefined },
+				]);
+			} finally {
+				anchor.remove();
+			}
+		});
+
+		test('names the row of each provider\'s locations as the provider names them, with no name of its own for any kind of location', async () => {
+			const anchor = mainWindow.document.body.appendChild(mainWindow.document.createElement('div'));
+			anchor.id = 'status.workspace.folderLocation';
+			try {
+				type ListItem = { label: string; submenuActions?: { label: string }[] };
+				const workspace = new Workspace('id', [new WorkspaceFolder({ uri: primary, name: 'project', index: 0 })], false, null, () => false, undefined, primary);
+				const contextService = new TestContextService(workspace);
+				const labelService = new class extends mock<ILabelService>() {
+					override registerWorkspaceLabelDecorator() { return toDisposable(() => { }); }
+				}();
+				const uriIdentityService = ds.add(new UriIdentityService(ds.add(new FileService(new NullLogService()))));
+				const folderLocationService = ds.add(new WorkspaceFolderLocationService(uriIdentityService, contextService, labelService));
+				const provider = (id: string, label: string, locations: IFolderLocation[]): IWorkspaceFolderLocationProvider => ({
+					id,
+					label,
+					provideLocations: async () => locations,
+					resolveLocation: async (_primary, uri) => locations.find(candidate => extUri.isEqual(candidate.uri, uri)),
+				});
+				ds.add(folderLocationService.registerProvider(provider('worktrees', 'Worktrees', [{ uri: alternate, label: 'Alternate' }])));
+				ds.add(folderLocationService.registerProvider(provider('copies', 'Cloud Copies', [{ uri: URI.file('/work/copy'), label: 'Copy' }])));
+				let rows: ListItem[] = [];
+				let delegate!: { onSelect(item: unknown): void; onHide(): void };
+				const widget = {
+					show: (_user: string, _preview: boolean, _items: ListItem[], shownDelegate: typeof delegate) => { delegate = shownDelegate; },
+					focusItemById: () => { },
+					updateItems: (items: ListItem[]) => { rows = items; queueMicrotask(() => delegate.onHide()); },
+					hide: () => delegate.onHide()
+				};
+				const accessor = {
+					get: (id: unknown) => id === IWorkspaceContextService ? contextService
+						: id === IWorkspaceFolderLocationService ? folderLocationService
+							: id === IUriIdentityService ? uriIdentityService
+								: id === IActionWidgetService ? widget
+									: id === IWorkspaceEditingService ? { setFolderLocation: async () => { } } : undefined
+				} as unknown as ServicesAccessor;
+				await CommandsRegistry.getCommand(SWITCH_FOLDER_LOCATION_COMMAND_ID)!.handler(accessor, 'status.workspace.folderLocation');
+
+				assert.deepStrictEqual(rows.map(row => ({ label: row.label, submenu: row.submenuActions?.map(action => action.label) })), [
+					{ label: 'Worktrees', submenu: ['Alternate'] },
+					{ label: 'Cloud Copies', submenu: ['Copy'] },
+					{ label: 'project', submenu: undefined },
 				]);
 			} finally {
 				anchor.remove();

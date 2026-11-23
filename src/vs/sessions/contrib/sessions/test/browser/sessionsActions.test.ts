@@ -54,6 +54,7 @@ import { ISessionsRecentWorkspacesService } from '../../../../../workbench/contr
 import { type IOpenNewSessionOptions, type IOpenNewSessionResult, type IOpenSessionOptions, type IOpenSessionsOptions, ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionWorkspace, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { ICreateNewSessionOptions, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISideChatPlacementService } from '../../../../../workbench/contrib/sessions/browser/sideChatPlacement.js';
 import { VisibleSessions } from '../../../../../workbench/services/sessions/browser/visibleSessions.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 
@@ -647,6 +648,7 @@ suite('Sessions - Actions', () => {
 				return pendingRead.p;
 			}
 		});
+		instantiationService.stub(ISideChatPlacementService, { _serviceBrand: undefined, inSidePane: constObservable(false) });
 
 		const result = CommandsRegistry.getCommand('sessionsViewPane.markAllNestedRead')?.handler(instantiationService, sessions);
 

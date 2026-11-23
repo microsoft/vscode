@@ -39,6 +39,11 @@ export interface ISubmenuItem {
 	order?: number;
 	isSelection?: boolean;
 	/**
+	 * Toolbars that let users hide their items always show this item and do not offer to hide it,
+	 * as if it were one of their `alwaysShownItems`.
+	 */
+	isAlwaysShown?: boolean;
+	/**
 	 * A split button shows the first action
 	 * as primary action and the rest of the
 	 * actions in a dropdown.
@@ -53,12 +58,17 @@ export interface ISubmenuItem {
 		 * Will update the primary action based
 		 * on the action that was last run.
 		 */
-		togglePrimaryAction: true;
+		togglePrimaryAction?: true;
 		/**
 		 * Restricts which submenu commands can become the primary action.
 		 * Running an eligible command outside the submenu also updates the primary action.
 		 */
 		primaryActionIds?: readonly string[];
+		/**
+		 * Omits the primary action from the dropdown, which then only lists
+		 * the other actions, such as the options of a primary toggle action.
+		 */
+		excludePrimaryActionFromDropdown?: true;
 	};
 }
 

@@ -198,6 +198,15 @@
 	margin-bottom: 0;
 }
 
+.spotlight-callout-description a {
+	color: var(--vscode-textLink-foreground);
+}
+
+.spotlight-callout-description a:hover,
+.spotlight-callout-description a:active {
+	color: var(--vscode-textLink-activeForeground);
+}
+
 .spotlight-callout-footer {
 	display: flex;
 	align-items: center;

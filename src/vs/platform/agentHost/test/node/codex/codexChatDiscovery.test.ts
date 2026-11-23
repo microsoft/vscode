@@ -30,6 +30,7 @@ import { readCodexSessionModel } from '../../../common/meta/codexSessionModel.js
 import { buildNonPtyShellTerminalUri } from '../../../common/nonPtyShellTerminalUri.js';
 import { IAgentHostOTelService } from '../../../common/otel/agentHostOTelService.js';
 import { ISessionDataService } from '../../../common/sessionDataService.js';
+import { AgentHostFileEditCoordinator, IAgentHostFileEditCoordinator } from '../../../node/agentHostFileEditCoordinator.js';
 import { buildDefaultChatUri, ResponsePartKind, ToolCallStatus, ToolResultContentType } from '../../../common/state/sessionState.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../../node/agentConfigurationService.js';
 import { IAgentHostCustomizationEnablementService } from '../../../node/agentHostCustomizationEnablementService.js';
@@ -173,6 +174,7 @@ function createHarness(store: DisposableStore, sessionData = createSessionDataSe
 	instantiation.stub(IFileService, files);
 	instantiation.stub(IAgentConfigurationService, config);
 	instantiation.stub(ISessionDataService, sessionData);
+	instantiation.stub(IAgentHostFileEditCoordinator, store.add(new AgentHostFileEditCoordinator()));
 	instantiation.stub(ICopilotApiService, { models: async () => [] });
 	instantiation.stub(ICodexProxyService, {});
 	instantiation.stub(IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE);

@@ -7,10 +7,11 @@ import { localize } from '../../../../nls.js';
 import { Extensions as ConfigurationExtensions, ConfigurationScope, IConfigurationNode, IConfigurationPropertySchema, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { SESSIONS_LIST_INDENT_ITEMS_SETTING, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING } from './views/sessionsList.js';
+import { SESSIONS_LIST_CANVASES_SECTION_SETTING, SESSIONS_LIST_INDENT_ITEMS_SETTING, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING } from './views/sessionsList.js';
 import { SESSIONS_MARK_AS_DONE_CONFETTI_SETTING } from '../../../../platform/chat/common/sessionArchiveActions.js';
 import { AutomationSessionsListMode, ExternalSessionApplicationBadgeMode, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SESSIONS_LIST_INBOX_AUTO_ADVANCE_SETTING, SESSIONS_LIST_INBOX_ENABLED_SETTING, SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING, USE_WORKTREE_SETTING } from '../common/sessionConfig.js';
 import { IStringDictionary } from '../../../../base/common/collections.js';
+import product from '../../../../platform/product/common/product.js';
 
 /** The settings of the sessions list and of the sessions it opens. */
 export const sessionsListConfigurationProperties = {
@@ -24,19 +25,20 @@ export const sessionsListConfigurationProperties = {
 	[SESSIONS_LIST_INBOX_ENABLED_SETTING]: {
 		type: 'boolean',
 		tags: ['experimental'],
-		description: localize('sessions.list.inboxEnabled', "Shows a toggle on the Sessions list to open Inbox Mode. Turning the toggle off restores the previous grouping. Disabling this setting also leaves Inbox Mode."),
+		description: localize('sessions.list.inboxEnabled', "Shows a toggle on the Sessions list to open Inbox Mode and keeps session attention up to date even outside Inbox Mode. Turning the toggle off restores the previous grouping. Disabling this setting also leaves Inbox Mode."),
 		default: false,
 	},
 	[SESSIONS_LIST_INBOX_AUTO_ADVANCE_SETTING]: {
 		type: 'string',
 		tags: ['accessibility'],
-		enum: ['auto', 'on', 'off'],
+		enum: ['auto', 'on', 'off', 'newSession'],
 		enumDescriptions: [
-			localize('sessions.list.inboxAutoAdvance.auto', "Automatically move to the next Inbox session after sending a reply, unless a screen reader is attached."),
-			localize('sessions.list.inboxAutoAdvance.on', "Always move to the next Inbox session after sending a reply."),
-			localize('sessions.list.inboxAutoAdvance.off', "Stay in the current session after sending a reply."),
+			localize('sessions.list.inboxAutoAdvance.auto', "Automatically move to the next Inbox session after sending a reply or approving a request, unless a screen reader is attached."),
+			localize('sessions.list.inboxAutoAdvance.on', "Always move to the next Inbox session after sending a reply or approving a request."),
+			localize('sessions.list.inboxAutoAdvance.off', "Stay in the current session after sending a reply or approving a request."),
+			localize('sessions.list.inboxAutoAdvance.newSession', "Open New Session and focus its chat input after sending a reply or approving a request."),
 		],
-		description: localize('sessions.list.inboxAutoAdvance', "Controls whether sending a reply in an Inbox session opens the next visible Inbox session, or focuses the Inbox heading when none remain."),
+		description: localize('sessions.list.inboxAutoAdvance', "Controls where focus moves after sending a reply or approving a request in an Inbox session: the next visible Inbox session (or the Inbox heading when none remain), the current session, or the New Session chat input."),
 		default: 'auto',
 	},
 	[SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING]: {
@@ -97,11 +99,18 @@ export const sessionsListConfigurationProperties = {
 		description: localize('sessions.list.showAutomationSessions', "Controls when automation sessions automatically also appear in the sessions list. They always remain in Automations. Use Show in Sessions List or Hide from Sessions List in a session's context menu to override this for that session."),
 		default: AutomationSessionsListMode.AfterReply,
 	},
+	[SESSIONS_LIST_CANVASES_SECTION_SETTING]: {
+		type: 'boolean',
+		tags: ['experimental'],
+		description: localize('sessions.list.canvasesSection', "Controls whether canvases pinned to the sidebar are listed in a Canvases section, whose New Canvas action starts a session with a canvas without sending a message. Pinned canvases otherwise follow the navigation shortcuts."),
+		default: false,
+		experiment: { mode: 'auto' }
+	},
 	[SESSIONS_LIST_INDENT_ITEMS_SETTING]: {
 		type: 'boolean',
 		tags: ['experimental', 'advanced'],
 		description: localize('sessions.list.indentItems', "Controls whether sessions and other rows in the sessions list are indented below their section header to show the list's hierarchy."),
-		default: true,
+		default: product.quality !== 'stable',
 		experiment: { mode: 'auto' }
 	},
 	[SESSIONS_MARK_AS_DONE_CONFETTI_SETTING]: {

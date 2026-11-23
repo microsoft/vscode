@@ -10,13 +10,16 @@ import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { AGENT_BUILTIN_CUSTOMIZATION_SCHEME, AGENT_BUILTIN_SKILL_SCHEME } from '../../common/agentHostCustomizationUri.js';
 import { MODEL_ROUTER_FOLDER } from '../../common/modelRouter.js';
+import { ModelRouterSkillName } from '../../common/modelRouterConfig.js';
 import { CustomizationType } from '../../common/state/protocol/state.js';
 import { CustomizationLoadStatus, customizationId, type DirectoryCustomization } from '../../common/state/sessionState.js';
 import { AhpErrorCodes, ContentEncoding, ProtocolError, type ResourceReadResult } from '../../common/state/sessionProtocol.js';
 import type { IAgentHostResourceProvider } from '../agentHostResourceProviders.js';
 
 const troubleshootName = 'troubleshoot';
-const modelRouterName = 'model-router';
+
+/** Names of the skills {@link createCopilotSkillProvider} serves. */
+export const copilotHostSkillNames: ReadonlySet<string> = new Set([troubleshootName, ModelRouterSkillName]);
 const skillsDirectory = URI.from({ scheme: AGENT_BUILTIN_CUSTOMIZATION_SCHEME, path: '/skills' });
 const troubleshootUri = URI.from({ scheme: AGENT_BUILTIN_SKILL_SCHEME, path: '/troubleshoot/SKILL.md' });
 const modelRouterUri = URI.from({ scheme: AGENT_BUILTIN_SKILL_SCHEME, path: '/model-router/SKILL.md' });
@@ -31,7 +34,7 @@ function troubleshootDescriptor() {
 
 function modelRouterDescriptor() {
 	return {
-		name: modelRouterName,
+		name: ModelRouterSkillName,
 		description: localize('copilot.builtinModelRouter.description', "Create, edit, clean up or fix a model router: a .model-router.yaml file that picks the model for a chat from routes the user writes. Checks every edit with check_model_router."),
 		userInvocable: true,
 	};
@@ -70,7 +73,7 @@ export function createCopilotSkillProvider(sdkConversationId: string, copilotHom
 	return {
 		listSkills: () => isModelRouterEnabled() ? [troubleshootDescriptor(), modelRouterDescriptor()] : [troubleshootDescriptor()],
 		readSkill: (name, { signal }) => {
-			if (name === modelRouterName) {
+			if (name === ModelRouterSkillName) {
 				return isModelRouterEnabled()
 					? modelRouterSkillContent
 						.replace('{{COPILOT_MODEL_ROUTERS}}', () => joinPath(copilotHome, MODEL_ROUTER_FOLDER).fsPath)
@@ -370,7 +373,7 @@ ${modelRouterExample}
 ## Routes that route well
 
 - The decision model sees the user's message and a few facts about it, never the code. So in \`when\`, describe **the work a request involves**, not just its topic: "Building or changing things over many steps, such as …" routes far better than "Planning and design". Name concrete kinds of requests, and add 2 or 3 \`examples\` in the user's own words, including short ones like "prototype this".
-- The facts the decision is given besides the message: what is attached (how many images, documents, selections and so on, and how many lines are selected), Plan mode, the custom agent the user chose (one that names its own model is not routed at all), the workspace's name and GitHub repository, how many files have uncommitted changes when there are ten or more, whether the branch has an open pull request, and each model's cost and context window. A \`when\` can refer to them, such as "Anything sent in Plan mode", "Requests with an image attached" or "Work on a tree with many changed files". Autopilot mode is told only to a router whose \`when\`, examples or top-level \`guidance\` name it.
+- The facts the decision is given besides the message: what is attached (how many images, documents, selections and so on, and how many lines are selected), Plan mode, the custom agent the user chose (choosing one that names its own model puts the chat on that model; the router routes again once the user picks it after the agent), the workspace's name and GitHub repository, how many files have uncommitted changes when there are ten or more, whether the branch has an open pull request, and each model's cost and context window. A \`when\` can refer to them, such as "Anything sent in Plan mode", "Requests with an image attached" or "Work on a tree with many changed files". Autopilot mode is told only to a router whose \`when\`, examples or top-level \`guidance\` name it.
 - The first route is used when the router can't tell which route fits that first message; a later message it can't place leaves the chat on its route. Put there the model the user wants in that case: usually their strongest everyday model, not the cheapest. Short messages often start long investigations, so don't put a catch-all route for "explanations" or "questions" first.
 - With \`switching: auto\`, put short hand-off replies in the examples of the route that should do the work, such as "fix it (after finding the cause)" or "do that and open a PR" under the building route. On their own they read like quick chores.
 - A message can ask for two kinds of work, such as "brainstorm this, then build it" or "find the cause and fix it". The decision can go either way on those, so say where they go: in the \`when\` of the route that should take them ("…, including when the message also asks to build the result"), or as a rule in the top-level \`guidance\`.
@@ -410,7 +413,7 @@ ${modelRouterNamedRoutesExample}
 - \`name\` (optional) is what the chat shows for the route: lowercase letters, digits and single hyphens, each used once. Routes with a name may use the same model, for example the same model at two effort levels.
 - \`guidance\` on a route (optional, at most 4000 characters) is given to the chat's main agent, not to the decision model. Write it as instructions for that kind of work: the steps to take, and the skills and custom agents to use, by name. The agent already has the user's skills and custom agents, so naming one is enough; a custom agent runs on the model its own file names, else the chat's.
 - A chat has the guidance of the route it is on. With \`switching: first-turn\` that is the route of its first routed message. With \`switching: auto\`, a chat that moves to another route gets that route's guidance in place of the earlier one. A router chosen in a chat that already has messages brings the guidance of the route it picks.
-- One route is enough when it has \`guidance\`. Nothing is decided for a router with one route, so it does not choose an effort either: give the route an \`effort\` when the user wants one.
+- One route is enough when it has \`guidance\`. Nothing is decided for a router with one route, so the route needs no \`when\`, and the router does not choose an effort either: give the route an \`effort\` when the user wants one.
 - The router's own \`guidance\`, at the top of the file, is different: it is for the routing decision.
 
 ## YAML rules

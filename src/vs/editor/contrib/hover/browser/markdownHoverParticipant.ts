@@ -48,6 +48,7 @@ export class MarkdownHover implements IHoverPart {
 		public readonly isBeforeContent: boolean,
 		public readonly ordinal: number,
 		public readonly source: HoverSource | undefined = undefined,
+		public readonly copyContent?: string | null,
 	) { }
 
 	public isValidForHoverAnchor(anchor: HoverAnchor): boolean {
@@ -159,7 +160,7 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 			}
 
 			const range = new Range(anchor.range.startLineNumber, startColumn, anchor.range.startLineNumber, endColumn);
-			result.push(new MarkdownHover(this, range, asArray(hoverMessage), isBeforeContent, index++));
+			result.push(new MarkdownHover(this, range, asArray(hoverMessage), isBeforeContent, index++, undefined, d.options.hoverMessageCopyContent));
 		}
 
 		return result;
@@ -210,6 +211,10 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 
 	public getAccessibleContent(hoverPart: MarkdownHover): string {
 		return this._renderedHoverParts?.getAccessibleContent(hoverPart) ?? '';
+	}
+
+	public getCopyContent(hoverPart: MarkdownHover): string {
+		return this._renderedHoverParts?.getCopyContent(hoverPart) ?? '';
 	}
 
 	public doesMarkdownHoverAtIndexSupportVerbosityAction(index: number, action: HoverVerbosityAction): boolean {
@@ -390,6 +395,10 @@ class MarkdownRenderedHoverParts implements IRenderedHoverParts<MarkdownHover> {
 		const hoverElementInnerText = renderedHoverPart.hoverElement.innerText;
 		const accessibleContent = hoverElementInnerText.replace(/[^\S\n\r]+/gu, ' ');
 		return accessibleContent;
+	}
+
+	public getCopyContent(hoverPart: MarkdownHover): string | undefined {
+		return hoverPart.copyContent ?? this.getAccessibleContent(hoverPart);
 	}
 
 	public doesMarkdownHoverAtIndexSupportVerbosityAction(index: number, action: HoverVerbosityAction): boolean {
