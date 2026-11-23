@@ -9,14 +9,16 @@ import { Toggle } from '../../../../../base/browser/ui/toggle/toggle.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Color } from '../../../../../base/common/color.js';
+import { Emitter } from '../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { defaultToggleStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
+import { TestThemeService } from '../../../../../platform/theme/test/common/testThemeService.js';
 import '../../../../browser/media/style.css';
 import '../../../../browser/media/floatingPanels.css';
 import '../../../modernUI/browser/media/editorBorder.css';
 import '../../browser/media/gettingStarted.css';
-import { updateGettingStartedFocusOutlineRadius } from '../../browser/gettingStartedFocusOutline.js';
+import { GettingStartedFocusOutline, updateGettingStartedFocusOutlineRadius } from '../../browser/gettingStartedFocusOutline.js';
 
 suite('Getting started focus styles', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -139,6 +141,37 @@ suite('Getting started focus styles', () => {
 				{ elementRadius: '0px', radius: ['0px', '0px', '0px', '0px'] },
 				{ elementRadius: '0px', radius: ['0px', '0px', '0px', '0px'] },
 				{ elementRadius: '0px', radius: ['0px', '0px', '7px 4px', '7px 4px'] },
+			]);
+		});
+
+		test(`document focus outline refreshes when sizes or themes change in ${theme}`, () => {
+			const container = append(mainWindow.document.body, $(`.monaco-workbench.modern-ui.floating-panels.${theme}`));
+			store.add(toDisposable(() => container.remove()));
+			container.style.cssText = '--vscode-strokeThickness: 1px; --vscode-editorArea-cornerRadius: 0px;';
+			const editor = append(append(container, $('.monaco-grid-view')), $('.part.editor'));
+			editor.style.cssText = 'position: relative; width: 400px; height: 300px; border: 1px solid transparent; box-sizing: border-box;';
+			const content = append(editor, $('.content'));
+			content.style.cssText = 'position: absolute; inset: 0;';
+			const document = append(content, $('.gettingStartedContainer', { tabindex: 0 }));
+			document.style.cssText = 'position: absolute; top: 32px; right: 0; bottom: 3px; left: 0;';
+			const onDidChangeSizes = store.add(new Emitter<void>());
+			const themeService = new TestThemeService();
+			const focusOutline = store.add(new GettingStartedFocusOutline(document, { onDidChangeSizes: onDidChangeSizes.event }, themeService));
+			focusOutline.update();
+			const readRadius = () => document.style.getPropertyValue('--getting-started-focus-outline-radius');
+
+			const states = [readRadius()];
+			container.style.setProperty('--vscode-editorArea-cornerRadius', '16px');
+			onDidChangeSizes.fire();
+			states.push(readRadius());
+			container.style.setProperty('--vscode-editorArea-cornerRadius', '8px');
+			themeService.fireThemeChange();
+			states.push(readRadius());
+
+			assert.deepStrictEqual(states, [
+				'0px 0px 0px 0px / 0px 0px 0px 0px',
+				'0px 0px 15px 15px / 0px 0px 12px 12px',
+				'0px 0px 7px 7px / 0px 0px 4px 4px',
 			]);
 		});
 

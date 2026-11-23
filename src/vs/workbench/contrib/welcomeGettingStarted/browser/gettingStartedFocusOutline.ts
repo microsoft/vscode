@@ -3,7 +3,35 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { getWindow, scheduleAtNextAnimationFrame } from '../../../../base/browser/dom.js';
+import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { ISizeService } from '../../../../platform/theme/common/sizeService.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { getPartOverlayCornerRadius } from '../../../browser/part.js';
+
+/** Refreshes the Welcome focus outline when size tokens or themes change the editor card's corners without a layout. */
+export class GettingStartedFocusOutline extends Disposable {
+	private readonly pendingUpdate = this._register(new MutableDisposable());
+
+	constructor(
+		private readonly container: HTMLElement,
+		sizeService: Pick<ISizeService, 'onDidChangeSizes'>,
+		themeService: Pick<IThemeService, 'onDidColorThemeChange'>,
+	) {
+		super();
+		const update = () => {
+			this.update();
+			// Auxiliary windows receive cloned theme styles in a later mutation-observer callback.
+			this.pendingUpdate.value = scheduleAtNextAnimationFrame(getWindow(this.container), () => this.update());
+		};
+		this._register(sizeService.onDidChangeSizes(update));
+		this._register(themeService.onDidColorThemeChange(update));
+	}
+
+	update(): void {
+		updateGettingStartedFocusOutlineRadius(this.container);
+	}
+}
 
 /** Keeps the Welcome focus outline aligned with the editor card's exposed corners. */
 export function updateGettingStartedFocusOutlineRadius(container: HTMLElement): void {
