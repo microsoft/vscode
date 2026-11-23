@@ -16556,6 +16556,8 @@ export class AgentService extends Disposable implements IAgentService {
 				} catch (error) {
 					this._logService.error(error, '[AgentService] Failed to flush session state before shutdown');
 				}
+				// The shutdown callers flush telemetry right after this returns, which unloads the collector before the git service is disposed.
+				this._gitService.flushTelemetry?.();
 				await this._orchestratorDatabase.close();
 				this._downloadProgressInterest.clear();
 			}
