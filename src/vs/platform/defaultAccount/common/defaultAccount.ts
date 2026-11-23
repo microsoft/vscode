@@ -74,13 +74,14 @@ export interface IDefaultAccountProvider {
 
 	/**
 	 * Remembers a Microsoft account as the default account. The choice is stored for the application: this window's
-	 * default account is updated before the returned promise resolves, and other windows read it when they next
-	 * update their default account. Does nothing when the Microsoft default account is not enabled.
+	 * default account is updated before the returned promise resolves, and other open windows update when they see
+	 * the stored choice change. Does nothing when the Microsoft default account is not enabled.
 	 */
 	rememberMicrosoftAccount(account: { readonly id: string; readonly label: string }): Promise<void>;
 
 	/**
-	 * Forgets the remembered Microsoft account. Resolves once this window's default account has been updated.
+	 * Forgets the remembered Microsoft account. The choice is stored for the application: this window's default account
+	 * is updated before the returned promise resolves, and other open windows update when they see the stored choice change.
 	 */
 	forgetMicrosoftAccount(): Promise<void>;
 }
@@ -113,13 +114,14 @@ export interface IDefaultAccountService {
 
 	/**
 	 * Remembers a Microsoft account as the default account. The choice is stored for the application: this window's
-	 * default account is updated before the returned promise resolves, and other windows read it when they next
-	 * update their default account. Does nothing when the Microsoft default account is not enabled.
+	 * default account is updated before the returned promise resolves, and other open windows update when they see
+	 * the stored choice change. Does nothing when the Microsoft default account is not enabled.
 	 */
 	rememberMicrosoftAccount(account: { readonly id: string; readonly label: string }): Promise<void>;
 
 	/**
-	 * Forgets the remembered Microsoft account. Resolves once this window's default account has been updated.
+	 * Forgets the remembered Microsoft account. The choice is stored for the application: this window's default account
+	 * is updated before the returned promise resolves, and other open windows update when they see the stored choice change.
 	 */
 	forgetMicrosoftAccount(): Promise<void>;
 

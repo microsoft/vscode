@@ -24,7 +24,6 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IDefaultAccountProvider, IDefaultAccountRefreshOptions, IDefaultAccountService, IManagedSettingsCompatibilityError, MANAGED_SETTINGS_UPDATE_REQUIRED_ERROR_CODE, ManagedSettingsFetchStatus } from '../../../../platform/defaultAccount/common/defaultAccount.js';
-import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IFileManagedSettingsService, INativeManagedSettingsService, ManagedSettingsChannel, ManagedSettingsData, resolveForceRemoteSettingsRefresh } from '../../../../platform/policy/common/copilotManagedSettings.js';
@@ -71,8 +70,8 @@ export const enum DefaultAccountStatus {
 
 export const CONTEXT_DEFAULT_ACCOUNT_STATE = new RawContextKey<string>('defaultAccountStatus', DefaultAccountStatus.Uninitialized);
 const CACHED_POLICY_DATA_KEY = 'defaultAccount.cachedPolicyData';
-/** The key under which the remembered Microsoft account is stored as an account preference. It is not an extension id. */
-const MICROSOFT_DEFAULT_ACCOUNT_PREFERENCE_ID = 'vscode.copilot-default-account';
+/** Holds the label of the remembered Microsoft account. Kept apart from the account preferences of the authentication service for now. */
+const MICROSOFT_ACCOUNT_KEY = 'defaultAccount.microsoftAccount';
 const ACCOUNT_DATA_POLL_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
 const MANAGED_SETTINGS_REQUEST_TIMEOUT_MS = 5000;
 
@@ -495,13 +494,20 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 		}));
 
 		this._register(this.authenticationExtensionsService.onDidChangeAccountPreference(async e => {
-			const followed = e.providerId === MICROSOFT_DEFAULT_ACCOUNT_PROVIDER_ID
-				? this.isMicrosoftDefaultAccountEnabled() && e.extensionIds.includes(ExtensionIdentifier.toKey(MICROSOFT_DEFAULT_ACCOUNT_PREFERENCE_ID))
-				: e.providerId === this.getDefaultAccountAuthenticationProvider().id;
-			if (!followed) {
+			const defaultAccountProvider = this.getDefaultAccountAuthenticationProvider();
+			if (e.providerId !== defaultAccountProvider.id) {
 				return;
 			}
 			this.logService.debug('[DefaultAccount] Account preference changed for default account provider, updating default account');
+			this.updateDefaultAccount();
+		}));
+
+		// The stored choice is followed wherever it was changed. This window's own remember and forget also await the update, and both coincide in one throttled run.
+		this._register(this.onDidChangeRememberedMicrosoftAccount(() => {
+			if (!this.isMicrosoftDefaultAccountEnabled()) {
+				return;
+			}
+			this.logService.debug('[DefaultAccount] Remembered Microsoft account changed, updating default account');
 			this.updateDefaultAccount();
 		}));
 
@@ -1712,13 +1718,33 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 		if (!this.isMicrosoftDefaultAccountEnabled()) {
 			return;
 		}
-		this.authenticationExtensionsService.updateAccountPreference(MICROSOFT_DEFAULT_ACCOUNT_PREFERENCE_ID, MICROSOFT_DEFAULT_ACCOUNT_PROVIDER_ID, account);
+		this.storeRememberedMicrosoftAccountLabel(account.label);
 		await this.updateDefaultAccount();
 	}
 
 	async forgetMicrosoftAccount(): Promise<void> {
-		this.authenticationExtensionsService.removeAccountPreference(MICROSOFT_DEFAULT_ACCOUNT_PREFERENCE_ID, MICROSOFT_DEFAULT_ACCOUNT_PROVIDER_ID);
+		this.removeRememberedMicrosoftAccountLabel();
 		await this.updateDefaultAccount();
+	}
+
+	// The remembered Microsoft account is stored, read, removed and watched by the four members below only.
+	// They are the only place that names its storage key and scope, so that moving it elsewhere changes just these.
+
+	private storeRememberedMicrosoftAccountLabel(accountLabel: string): void {
+		this.storageService.store(MICROSOFT_ACCOUNT_KEY, accountLabel, StorageScope.APPLICATION, StorageTarget.MACHINE);
+	}
+
+	private removeRememberedMicrosoftAccountLabel(): void {
+		this.storageService.remove(MICROSOFT_ACCOUNT_KEY, StorageScope.APPLICATION);
+	}
+
+	private get rememberedMicrosoftAccountLabel(): string | undefined {
+		return this.storageService.get(MICROSOFT_ACCOUNT_KEY, StorageScope.APPLICATION);
+	}
+
+	/** Fires when the remembered account changed. */
+	private get onDidChangeRememberedMicrosoftAccount(): Event<unknown> {
+		return this.storageService.onDidChangeValue(StorageScope.APPLICATION, MICROSOFT_ACCOUNT_KEY, this._store);
 	}
 
 	private isMicrosoftDefaultAccountEnabled(): boolean {
@@ -1728,7 +1754,7 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 	/** Whether a Microsoft default account or a remembered Microsoft account exists, so that Microsoft provider changes can affect the default account. */
 	private hasMicrosoftDefaultAccountState(): boolean {
 		return this.defaultAccount?.authenticationProvider.id === MICROSOFT_DEFAULT_ACCOUNT_PROVIDER_ID
-			|| !!this.authenticationExtensionsService.getAccountPreference(MICROSOFT_DEFAULT_ACCOUNT_PREFERENCE_ID, MICROSOFT_DEFAULT_ACCOUNT_PROVIDER_ID);
+			|| !!this.rememberedMicrosoftAccountLabel;
 	}
 
 	/** Whether the registration or unregistration of the given authentication provider affects the default account. */
@@ -1742,7 +1768,7 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 	 * Throws when the sessions of the Microsoft provider cannot be read.
 	 */
 	private async getMicrosoftDefaultAccount(): Promise<IDefaultAccountData | undefined> {
-		const accountLabel = this.authenticationExtensionsService.getAccountPreference(MICROSOFT_DEFAULT_ACCOUNT_PREFERENCE_ID, MICROSOFT_DEFAULT_ACCOUNT_PROVIDER_ID);
+		const accountLabel = this.rememberedMicrosoftAccountLabel;
 		if (!accountLabel) {
 			return undefined;
 		}
