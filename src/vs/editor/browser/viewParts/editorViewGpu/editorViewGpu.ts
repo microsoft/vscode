@@ -344,6 +344,7 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 				this._syncModel();
 				this._fillLines(start, end);
 			},
+			canOverscan: dpr => this._canOverscan(dpr),
 		};
 		this._minimapPainter = new EditorViewMinimapPainter(surfaceHost);
 		this._overviewRulerPainter = new EditorViewOverviewRulerPainter(surfaceHost);
@@ -1502,13 +1503,7 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 	 * scroll. See the README.
 	 */
 	private _placeCanvas(scrollTop: number, height: number, dpr: number): { top: number; height: number } {
-		const editorView = this._editorView;
-		// A transform of whole CSS pixels moves the canvas by whole device pixels
-		// only at an integer ratio, and only a renderer that skips unchanged
-		// frames gains from the margin.
-		const overscan = this._overscan && this._incrementalRendering && Number.isInteger(dpr)
-			&& !!editorView?.supportsSurfaces && !!editorView.presentNextFrame;
-		const margin = overscan ? Math.ceil(height / 4) : 0;
+		const margin = this._canOverscan(dpr) ? Math.ceil(height / 4) : 0;
 		const previous = this._canvasPlacement;
 		let top: number;
 		if (previous && previous.margin === margin && scrollTop >= previous.top && scrollTop <= previous.top + 2 * margin) {
@@ -1522,6 +1517,19 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 		}
 		this._canvasPlacement = { top: margin > 0 ? Math.max(0, Math.round(top)) : scrollTop, margin };
 		return { top: this._canvasPlacement.top, height: height + 2 * margin };
+	}
+
+	/**
+	 * Whether a canvas at device pixel ratio `dpr`, the editor's or the
+	 * minimap's, scrolls by compositor (`editor.experimental.editorViewOverscan`).
+	 */
+	private _canOverscan(dpr: number): boolean {
+		const editorView = this._editorView;
+		// A transform of whole CSS pixels moves a canvas by whole device pixels
+		// only at an integer ratio, and only a renderer that skips unchanged
+		// frames gains from the margin.
+		return this._overscan && this._incrementalRendering && Number.isInteger(dpr)
+			&& !!editorView?.supportsSurfaces && !!editorView.presentNextFrame;
 	}
 
 	public prepareRender(ctx: RenderingContext): void {

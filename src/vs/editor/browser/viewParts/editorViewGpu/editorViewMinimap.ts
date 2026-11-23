@@ -49,6 +49,10 @@ export class EditorViewMinimapPainter implements IMinimapPainter {
 		return !this._failed && view?.supportsSurfaces === true && view.renderMinimap !== undefined;
 	}
 
+	public canOverscan(pixelRatio: number): boolean {
+		return this._host.canOverscan(pixelRatio);
+	}
+
 	/** Forget the state a replaced renderer retained, including its surface. */
 	public reset(): void {
 		this._surface.reset();

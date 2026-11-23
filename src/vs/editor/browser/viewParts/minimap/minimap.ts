@@ -59,7 +59,10 @@ export interface IMinimapPainterDecoration {
 
 /** One minimap frame for an {@link IMinimapPainter}. Lengths are canvas pixels. */
 export interface IMinimapPainterFrame {
-	/** Canvas backing-store size. */
+	/**
+	 * Canvas backing-store size. The canvas is taller than the minimap when it
+	 * paints lines beyond the visible ones; see {@link IMinimapPainter.canOverscan}.
+	 */
 	readonly width: number;
 	readonly height: number;
 	readonly lineHeight: number;
@@ -96,6 +99,12 @@ export interface IMinimapPainter {
 	/** Fires when {@link canPaint} may have changed. */
 	readonly onDidChangeCanPaint: Event<void>;
 	readonly canPaint: boolean;
+	/**
+	 * Whether the minimap may paint a quarter of its rows beyond the visible
+	 * ones, above and below them, and scroll within them by moving the canvas
+	 * instead of painting it, at device pixel ratio `pixelRatio`.
+	 */
+	canOverscan(pixelRatio: number): boolean;
 	/**
 	 * Paint `frame` into `canvas`. Returns `false` when it cannot this frame;
 	 * the minimap then paints with its 2D canvases.
@@ -585,24 +594,37 @@ class RenderData {
 	constructor(
 		renderedLayout: MinimapLayout,
 		imageData: ImageData | null,
-		lines: MinimapLine[]
+		lines: MinimapLine[],
+		/** The line `lines` start at, before the layout's when a painter painted lines beyond it. */
+		linesStartLineNumber: number = renderedLayout.startLineNumber
 	) {
 		this.renderedLayout = renderedLayout;
 		this._imageData = imageData;
 		this._renderedLines = new RenderedLinesCollection({
 			createLine: () => MinimapLine.INVALID
 		});
-		this._renderedLines._set(renderedLayout.startLineNumber, lines);
+		this._renderedLines._set(linesStartLineNumber, lines);
 	}
 
 	/**
 	 * Check if the current RenderData matches accurately the new desired layout and no painting is needed.
 	 */
 	public linesEquals(layout: MinimapLayout): boolean {
-		if (!this.scrollEquals(layout)) {
-			return false;
-		}
+		return this.scrollEquals(layout) && this._linesValid();
+	}
 
+	/**
+	 * Whether the lines from `startLineNumber` to `endLineNumber` are the lines
+	 * rendered last, none of which changed since.
+	 */
+	public paintedLinesEquals(startLineNumber: number, endLineNumber: number): boolean {
+		const { rendLineNumberStart, lines } = this._renderedLines._get();
+		return rendLineNumberStart === startLineNumber
+			&& rendLineNumberStart + lines.length - 1 === endLineNumber
+			&& this._linesValid();
+	}
+
+	private _linesValid(): boolean {
 		const tmp = this._renderedLines._get();
 		const lines = tmp.lines;
 		for (let i = 0, len = lines.length; i < len; i++) {
@@ -1389,6 +1411,14 @@ class InnerMinimap extends Disposable {
 	private readonly _painter: IMinimapPainter | undefined;
 	/** Where {@link _painter} paints, in the slot of `_canvas`. */
 	private readonly _painterCanvas: FastDomNode<HTMLCanvasElement> | null = null;
+	/** Clips {@link _painterCanvas}, which can be taller than the minimap, to the minimap's rows. */
+	private readonly _painterClip: FastDomNode<HTMLElement> | null = null;
+	/**
+	 * The rows {@link _painterCanvas} paints: from line `top`, below 1 for rows
+	 * of top padding, the minimap's rows and `margin` more above and below
+	 * them. `undefined` until it paints.
+	 */
+	private _painterPlacement: { top: number; margin: number } | undefined;
 	/** Whether {@link _painter} paints the characters and highlights. */
 	private _paintsWithPainter = false;
 	/** Whether the painter's picture may be stale apart from line content and decorations. */
@@ -1426,11 +1456,18 @@ class InnerMinimap extends Disposable {
 		this._domNode.appendChild(this._canvas);
 
 		if (painter) {
+			this._painterClip = createFastDomNode(document.createElement('div'));
+			this._painterClip.setPosition('absolute');
+			this._painterClip.setLeft(0);
+			this._painterClip.setTop(0);
+			this._painterClip.domNode.style.overflow = 'hidden';
+			this._painterClip.setDisplay('none');
 			this._painterCanvas = createFastDomNode(document.createElement('canvas'));
 			this._painterCanvas.setPosition('absolute');
 			this._painterCanvas.setLeft(0);
-			this._painterCanvas.setDisplay('none');
-			this._domNode.appendChild(this._painterCanvas);
+			this._painterCanvas.setTop(0);
+			this._painterClip.appendChild(this._painterCanvas);
+			this._domNode.appendChild(this._painterClip);
 		}
 
 		this._decorationsCanvas = createFastDomNode(document.createElement('canvas'));
@@ -1652,9 +1689,10 @@ class InnerMinimap extends Disposable {
 		this._canvas.domNode.width = this._model.options.canvasInnerWidth;
 		this._canvas.domNode.height = this._model.options.canvasInnerHeight;
 
-		// The painter sizes its canvas's backing store when it paints.
+		// The painter sizes its canvas's backing store, and the canvas's height
+		// with the rows it paints, when it paints.
+		this._painterClip?.setWidth(this._model.options.canvasOuterWidth);
 		this._painterCanvas?.setWidth(this._model.options.canvasOuterWidth);
-		this._painterCanvas?.setHeight(this._model.options.canvasOuterHeight);
 		this._painterInvalidated = true;
 
 		this._decorationsCanvas.setWidth(this._model.options.canvasOuterWidth);
@@ -1819,15 +1857,25 @@ class InnerMinimap extends Disposable {
 		}
 		this._setPaintsWithPainter(true);
 
+		const sampling = this._model.getSampling();
+		const rows = Math.floor(options.canvasInnerHeight / options.minimapLineHeight);
+		// A minimap as tall as the editor shows all its lines, so it never scrolls.
+		const margin = !options.minimapHeightIsEditorHeight && painter.canOverscan(options.pixelRatio) ? Math.ceil(rows / 4) : 0;
+		const previous = this._painterPlacement;
+		const top = this._placePainterCanvas(layout, rows, margin);
+		const startLineNumber = Math.max(1, top);
+		const endLineNumber = margin > 0 ? Math.min(this._model.getLineCount(), top + rows + 2 * margin - 1) : layout.endLineNumber;
+		const topPaddingLineCount = startLineNumber - top;
+
 		const lastRenderData = this._lastRenderData;
 		const linesEqual = lastRenderData !== null
-			&& lastRenderData.linesEquals(layout)
-			&& lastRenderData.renderedLayout.topPaddingLineCount === layout.topPaddingLineCount;
+			&& previous?.top === top && previous.margin === margin
+			&& lastRenderData.paintedLinesEquals(startLineNumber, endLineNumber);
 		const invalidated = this._painterInvalidated || !linesEqual;
 		const tokensColorTracker = this._model.tokensColorTracker;
 		const painted = painter.paint(canvas.domNode, {
 			width: options.canvasInnerWidth,
-			height: options.canvasInnerHeight,
+			height: options.canvasInnerHeight + 2 * margin * options.minimapLineHeight,
 			lineHeight: options.minimapLineHeight,
 			charWidth: options.minimapCharWidth,
 			fontScale: options.fontScale,
@@ -1839,12 +1887,12 @@ class InnerMinimap extends Disposable {
 			defaultForeground: tokensColorTracker.getColor(ColorId.DefaultForeground),
 			selectionColor: this._selectionColor,
 			tabSize: this._model.getOptions().tabSize,
-			startLineNumber: layout.startLineNumber,
-			endLineNumber: layout.endLineNumber,
-			topPaddingLineCount: layout.topPaddingLineCount,
-			sampling: this._model.getSampling(),
+			startLineNumber,
+			endLineNumber,
+			topPaddingLineCount,
+			sampling,
 			// The painter keeps the decorations of the lines it last painted.
-			decorations: this._renderDecorations || invalidated ? this._getPainterDecorations(layout) : undefined,
+			decorations: this._renderDecorations || invalidated ? this._getPainterDecorations(startLineNumber, endLineNumber) : undefined,
 			invalidated,
 		});
 		if (!painted) {
@@ -1859,14 +1907,61 @@ class InnerMinimap extends Disposable {
 			lines = lastRenderData._get().lines;
 		} else {
 			lines = [];
-			let dy = layout.topPaddingLineCount * options.minimapLineHeight;
-			for (let lineNumber = layout.startLineNumber; lineNumber <= layout.endLineNumber; lineNumber++) {
+			let dy = topPaddingLineCount * options.minimapLineHeight;
+			for (let lineNumber = startLineNumber; lineNumber <= endLineNumber; lineNumber++) {
 				lines.push(new MinimapLine(dy));
 				dy += options.minimapLineHeight;
 			}
 		}
-		this._lastRenderData = new RenderData(layout, null, lines);
+		this._lastRenderData = new RenderData(layout, null, lines, startLineNumber);
 		return true;
+	}
+
+	/**
+	 * Place {@link _painterCanvas} for `layout`, which shows `rows` rows, and
+	 * return the line its first row shows, below 1 for rows of top padding.
+	 * With a `margin`, the canvas paints that many rows more above and below
+	 * and keeps its place while the minimap's rows stay within them: frames
+	 * that only scroll then paint nothing, and moving the canvas shows the
+	 * margin. Once the minimap leaves them, the canvas leaves the whole margin
+	 * ahead of the scroll.
+	 */
+	private _placePainterCanvas(layout: MinimapLayout, rows: number, margin: number): number {
+		const options = this._model.options;
+		const visibleTop = layout.startLineNumber - layout.topPaddingLineCount;
+		const previous = this._painterPlacement;
+		let top: number;
+		if (previous && previous.margin === margin && visibleTop >= previous.top && visibleTop <= previous.top + 2 * margin) {
+			top = previous.top;
+		} else if (!previous || previous.margin !== margin) {
+			top = visibleTop - margin;
+		} else if (visibleTop > previous.top) {
+			top = visibleTop;
+		} else {
+			top = visibleTop - 2 * margin;
+		}
+		// Rows of padding above the first line are painted only while they show.
+		top = Math.max(top, Math.min(visibleTop, 1));
+		this._painterPlacement = { top, margin };
+
+		// Rows are whole device pixels, so the compositor moves the picture
+		// without resampling it.
+		const lineHeight = options.minimapLineHeight;
+		const pixelRatio = options.pixelRatio;
+		const canvas = this._painterCanvas!;
+		canvas.setHeight((options.canvasInnerHeight + 2 * margin * lineHeight) / pixelRatio);
+		const offset = (top - visibleTop) * lineHeight / pixelRatio;
+		canvas.domNode.style.transform = offset === 0 ? '' : `translate3d(0px, ${offset}px, 0px)`;
+		// Below its last whole row, the minimap shows no line but its background,
+		// so a margin's row must not show there: the clip ends at that row and
+		// its border paints the rest.
+		const clip = this._painterClip!;
+		const shown = margin > 0 ? rows * lineHeight : options.canvasInnerHeight;
+		const rest = options.canvasInnerHeight - shown;
+		const { r, g, b, a } = options.backgroundColor;
+		clip.setHeight(shown / pixelRatio);
+		clip.domNode.style.borderBottom = rest > 0 ? `${rest / pixelRatio}px solid rgba(${r}, ${g}, ${b}, ${a / 255})` : '';
+		return top;
 	}
 
 	private _setPaintsWithPainter(paints: boolean): void {
@@ -1881,7 +1976,7 @@ class InnerMinimap extends Disposable {
 		this._renderDecorations = true;
 		this._painterInvalidated = true;
 		this._canvas.setDisplay(paints ? 'none' : '');
-		this._painterCanvas?.setDisplay(paints ? '' : 'none');
+		this._painterClip?.setDisplay(paints ? '' : 'none');
 		if (paints) {
 			this._buffers = null;
 		} else if (this._painterCanvas) {
@@ -1889,9 +1984,9 @@ class InnerMinimap extends Disposable {
 		}
 	}
 
-	private _getPainterDecorations(layout: MinimapLayout): IMinimapPainterDecoration[] {
+	private _getPainterDecorations(startLineNumber: number, endLineNumber: number): IMinimapPainterDecoration[] {
 		const result: IMinimapPainterDecoration[] = [];
-		for (const decoration of this._model.getMinimapViewDecorationsInViewport(layout.startLineNumber, layout.endLineNumber)) {
+		for (const decoration of this._model.getMinimapViewDecorationsInViewport(startLineNumber, endLineNumber)) {
 			const minimapOptions = <ModelDecorationMinimapOptions>decoration.options.minimap;
 			const color = minimapOptions.getColor(this._theme.value);
 			if (color && !color.isTransparent()) {

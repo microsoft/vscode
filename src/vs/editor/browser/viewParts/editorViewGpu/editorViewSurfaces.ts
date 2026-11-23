@@ -15,6 +15,11 @@ export interface IEditorViewSurfaceHost {
 	readonly onDidChangeEditorView: Event<void>;
 	/** Bring the renderer's 0-based view lines `[start, end)` up to date with the view model. */
 	syncLines(start: number, end: number): void;
+	/**
+	 * Whether a canvas at device pixel ratio `dpr` may draw beyond what it
+	 * shows and scroll by compositor; see the README.
+	 */
+	canOverscan(dpr: number): boolean;
 }
 
 export function packColor(color: Color): number {
