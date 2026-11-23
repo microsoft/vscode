@@ -6123,7 +6123,8 @@ export class CopilotAgentSession extends Disposable {
 				continue;
 			}
 			const instanceId = projection.canvas.instanceId;
-			if (this._deferredCanvasCloseInstanceIds.has(instanceId)) {
+			// Applying the closes settled those the runtime had open, or never restored; both stay closed.
+			if (this._deferredCanvasCloseInstanceIds.has(instanceId) || this._settledDeferredCanvasCloseInstanceIds.has(instanceId)) {
 				this._canvasByInstanceId.delete(instanceId);
 				continue;
 			}
@@ -6190,17 +6191,30 @@ export class CopilotAgentSession extends Disposable {
 			return;
 		}
 		let reopened: Awaited<ReturnType<CopilotSession['rpc']['canvas']['open']>> | undefined;
+		// A runtime that just launched can list a canvas before its extension registers it, which the change reports.
+		const registryChanged = Event.toPromise(Event.any(Event.signal(wrapper.onExtensionsLoaded), Event.signal(wrapper.onCanvasRegistryChanged)));
 		try {
-			reopened = await raceTimeout(wrapper.session.rpc.canvas.open({
-				extensionId,
-				canvasId,
-				instanceId,
-				...(projection.input !== undefined ? { input: projection.input } : {}),
-			}), this._controlPlaneRpcTimeoutMs);
-		} catch (error) {
-			this._reportCanvasHostOpen('restore', extension, stopwatch, this._store.isDisposed ? 'cancelled' : this._extensionConsentDenialFor(extensionId) ? 'consentDenied' : getCanvasOpenFailure(error) ?? 'error', askedForConsent());
-			this._logService.warn(`[Copilot:${this.sessionId}] Failed to reopen a restored canvas: ${getErrorMessage(error)}`);
-			return;
+			for (let attempt = 0; ; attempt++) {
+				try {
+					reopened = await raceTimeout(wrapper.session.rpc.canvas.open({
+						extensionId,
+						canvasId,
+						instanceId,
+						...(projection.input !== undefined ? { input: projection.input } : {}),
+					}), this._controlPlaneRpcTimeoutMs);
+					break;
+				} catch (error) {
+					if (attempt === 0 && getCanvasOpenFailure(error) === 'unavailable' && await raceTimeout(registryChanged.then(() => true), this._controlPlaneRpcTimeoutMs)
+						&& !this._store.isDisposed && this._wrapper === wrapper && this._isCurrentCanvasProjection(projection)) {
+						continue;
+					}
+					this._reportCanvasHostOpen('restore', extension, stopwatch, this._store.isDisposed ? 'cancelled' : this._extensionConsentDenialFor(extensionId) ? 'consentDenied' : getCanvasOpenFailure(error) ?? 'error', askedForConsent());
+					this._logService.warn(`[Copilot:${this.sessionId}] Failed to reopen a restored canvas: ${getErrorMessage(error)}`);
+					return;
+				}
+			}
+		} finally {
+			registryChanged.cancel();
 		}
 		this._reportCanvasHostOpen('restore', extension, stopwatch, reopened ? 'opened' : 'timeout', askedForConsent());
 		if (!reopened) {

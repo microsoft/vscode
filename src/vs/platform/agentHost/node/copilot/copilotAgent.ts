@@ -426,7 +426,7 @@ export function resolveCopilotMcpServerInfo(definition: IMcpServerDefinition, pl
 }
 
 /** A canvas operation that runs in a chat's queue. */
-type CopilotCanvasChatOperation = 'listSessionCanvases' | 'openSessionCanvas' | 'restoreCanvases';
+type CopilotCanvasChatOperation = 'listSessionCanvases' | 'openSessionCanvas' | 'closeSessionCanvas' | 'restoreCanvases';
 
 /**
  * In-memory chat reservation created by {@link IAgentChats.createChat} and
@@ -3660,7 +3660,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	async closeSessionCanvas(session: URI, request: IAgentCanvasCloseRequest, chat: URI, operationContext: AgentChatOperationContext): Promise<void> {
-		let context = this._resolveSessionCanvasChatContext(session, chat, operationContext);
+		let context = this._resolveSessionCanvasChatContext(session, chat, operationContext, 'closeSessionCanvas');
 		const continuity = this._releasedCanvasContinuity(context) ?? this._claimedReleasedCanvasContinuity(context);
 		if (continuity) {
 			this._closeReleasedCanvas(continuity, request.resource);
@@ -3675,7 +3675,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			return;
 		}
 		await restoration;
-		context = this._resolveSessionCanvasChatContext(session, chat, operationContext);
+		context = this._resolveSessionCanvasChatContext(session, chat, operationContext, 'closeSessionCanvas');
 		liveSession = context.target;
 		if (liveSession && isEqual(liveSession.ownerSessionUri, session)) {
 			await liveSession.closeCanvas(request);
@@ -3732,8 +3732,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	/**
 	 * A workspace-less draft chat can list its canvases and open one, which starts it, so a canvas can be its first
-	 * content. Any other operation, or a draft with a workspace, whose first send creates its worktree, requires a chat
-	 * that has already started.
+	 * content. Such a chat stays a draft until its first send, also after a restart, so restoring the canvases it had
+	 * open starts it as well, and closing one only forgets it. Any other operation, or a draft with a workspace, whose
+	 * first send creates its worktree, requires a chat that has already started.
 	 */
 	private _resolveSessionCanvasChatContext(session: URI, chat: URI, operationContext: AgentChatOperationContext, operation?: CopilotCanvasChatOperation): IResolvedCopilotChatContext {
 		const context = this._resolveChatContext(chat, operationContext);
@@ -3742,7 +3743,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			throw new Error(`Canvas operation targeted a chat outside session '${session.toString()}'.`);
 		}
 		const provisional = this._provisionalSessions.get(context.provisionalKey);
-		if (provisional && isEqual(provisional.chat, chat) && !((operation === 'openSessionCanvas' || operation === 'listSessionCanvases') && provisional.workspaceless)) {
+		if (provisional && isEqual(provisional.chat, chat) && !(operation !== undefined && provisional.workspaceless)) {
 			throw new Error('Canvas operation requires an initialized Copilot chat.');
 		}
 		return context;
@@ -8155,23 +8156,36 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * session, or uses the one launched before the send ({@link _warmChat})
 	 * when it still matches, then persists and announces it. The caller holds
 	 * the chat's queue.
+	 *
+	 * A chat that opened canvases before its first send was materialized then,
+	 * but stays a draft on disk until that send. When its runtime was released
+	 * with canvases open, the launch takes them over, as a resume would.
 	 */
 	private async _materializeProvisional(context: IResolvedCopilotChatContext, resolvedWorkingDirectories: readonly URI[] | undefined, stageRecorder: IAgentProviderSendStageRecorder | undefined, send?: { readonly token?: CancellationToken; readonly operationContext?: URI | IAgentChatContext }): Promise<CopilotAgentSession> {
 		const provisional = this._provisionalSessions.get(context.provisionalKey);
 		if (!provisional) {
 			throw new Error(`Cannot materialize unknown provisional session: ${context.provisionalKey}`);
 		}
-		const early = await this._takeEarlyLaunch(provisional, context, resolvedWorkingDirectories, send?.token);
-		const operationContext = send?.operationContext;
-		if (operationContext && !URI.isUri(operationContext)) {
-			if (early.launch || early.discardReason) {
-				operationContext.reportPrewarmedSession?.(early.discardReason, early.claim);
-			} else if (!provisional.isEphemeral) {
-				operationContext.reportPrewarmSkipped?.(provisional.warmSkipReason ?? 'notRequested');
+		const releasedContinuity = this._canvasHandoffs.has(provisional.chat) ? undefined : this._claimReleasedCanvasContinuity(provisional.chat, provisional.sdkSessionId, context.ownerSession);
+		let materialized: CopilotAgentSession | undefined;
+		try {
+			const early = await this._takeEarlyLaunch(provisional, context, resolvedWorkingDirectories, send?.token);
+			const operationContext = send?.operationContext;
+			if (operationContext && !URI.isUri(operationContext)) {
+				if (early.launch || early.discardReason) {
+					operationContext.reportPrewarmedSession?.(early.discardReason, early.claim);
+				} else if (!provisional.isEphemeral) {
+					operationContext.reportPrewarmSkipped?.(provisional.warmSkipReason ?? 'notRequested');
+				}
+			}
+			const launch = early.launch ?? await this._launchProvisional(provisional, resolvedWorkingDirectories, stageRecorder, false, send?.token);
+			materialized = await this._completeProvisionalMaterialization(provisional, launch, resolvedWorkingDirectories, stageRecorder);
+			return materialized;
+		} finally {
+			if (releasedContinuity) {
+				this._settleReleasedCanvasContinuity(releasedContinuity, materialized);
 			}
 		}
-		const launch = early.launch ?? await this._launchProvisional(provisional, resolvedWorkingDirectories, stageRecorder, false, send?.token);
-		return this._completeProvisionalMaterialization(provisional, launch, resolvedWorkingDirectories, stageRecorder);
 	}
 
 	/**
@@ -8552,6 +8566,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 	/** Why an early launch no longer matches the launch its first send would run, or `undefined` when it still does. */
 	private async _earlyLaunchStaleReason(provisional: IProvisionalSession, early: ICopilotEarlyLaunch, context: IResolvedCopilotChatContext, workingDirectories: readonly URI[] | undefined, token: CancellationToken | undefined): Promise<string | undefined> {
 		const session = early.launch.session;
+		// Only a runtime created with the released canvases can take them over, and one launched early never is.
+		if (this._claimedReleasedCanvasContinuities.has(provisional.chat.toString())) {
+			return 'canvasContinuity';
+		}
 		// The reservation has no stored working directory, so the refresh reason
 		// cannot see a moved primary directory; compare it explicitly.
 		if (workingDirectories?.[0] && !isEqual(workingDirectories[0], session.workingDirectory)) {
