@@ -22,14 +22,14 @@ import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IOpenerService, OpenOptions } from '../../../../../../platform/opener/common/opener.js';
 import { IWorkbenchContribution } from '../../../../../common/contributions.js';
 import { ACTIVE_GROUP, SIDE_GROUP } from '../../../../../services/editor/common/editorService.js';
+import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { IPathService } from '../../../../../services/path/common/pathService.js';
 import { IChatRequestOriginService } from '../../../common/chatRequestOrigin.js';
 import { ChatSessionStatus, IChatSessionItem, IChatSessionsService } from '../../../common/chatSessionsService.js';
-import { ChatConfiguration } from '../../../common/constants.js';
 import { getChatSessionType } from '../../../common/model/chatUri.js';
 import { ChatViewPaneTarget, IChatWidgetService } from '../../chat.js';
 import { getAgentChangesSummary } from '../agentSessionsModel.js';
-import { shouldRevealSessionEditor } from '../agentSessionsOpener.js';
+import { opensSessionsInEditors, shouldRevealSessionEditor } from '../agentSessionsOpener.js';
 import { ISessionSummaryHoverData } from '../sessionSummaryHover.js';
 import { ISessionSummaryHoverService } from '../sessionSummaryHoverService.js';
 
@@ -66,6 +66,7 @@ export class AgentHostOpenSessionLinkOpenerContribution extends Disposable imple
 		@IPathService pathService: IPathService,
 		@IAgentHostConnectionsService private readonly _connectionsService: IAgentHostConnectionsService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 	) {
 		super();
 		this._register(openerService.registerOpener({
@@ -132,7 +133,7 @@ export class AgentHostOpenSessionLinkOpenerContribution extends Disposable imple
 		const clientResource = await this._withoutDefaultChatFragment(linkedResource);
 		await this._chatSessionsService.activateChatSessionItemProvider(getChatSessionType(clientResource));
 		const openToSide = options?.openToSide === true;
-		if (!openToSide && this._configurationService.getValue<boolean>(ChatConfiguration.OpenSessionsInEditor)) {
+		if (!openToSide && opensSessionsInEditors(this._configurationService, this._environmentService)) {
 			const widget = await this._chatWidgetService.openSession(clientResource, ACTIVE_GROUP, {
 				...options?.editorOptions,
 				revealIfOpened: shouldRevealSessionEditor(this._chatWidgetService, clientResource),

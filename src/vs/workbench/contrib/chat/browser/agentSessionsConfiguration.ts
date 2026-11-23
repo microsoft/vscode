@@ -14,9 +14,10 @@ import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurati
 import product from '../../../../platform/product/common/product.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { ConfigurationKeyValuePairs, Extensions as WorkbenchConfigurationExtensions, IConfigurationMigrationRegistry } from '../../../common/configuration.js';
-import { AGENT_SESSION_CLEANUP_SETTINGS_TAG, ChatConfiguration, CopilotHarnessIntroductionMode, DEFAULT_AGENTS_HANDOFF_TIP_DELAY_SECONDS } from '../common/constants.js';
+import { AGENT_SESSION_CLEANUP_SETTINGS_TAG, ChatConfiguration, ChatViewSessionsOpenChatIn, CopilotHarnessIntroductionMode, DEFAULT_AGENTS_HANDOFF_TIP_DELAY_SECONDS } from '../common/constants.js';
 
 const legacyAutoArchiveMergedSessionsAfterDaysSetting = 'chat.agentSessions.autoArchiveMergedSessionsAfterDays';
+const legacyOpenSessionsInEditorSetting = 'chat.agentSessions.openInEditor';
 const legacyAutoDeleteArchivedMergedSessionsAfterDaysSetting = 'chat.agentSessions.autoDeleteArchivedMergedSessionsAfterDays';
 
 export const agentsWindowHandoffConfigurationProperties = {
@@ -162,6 +163,15 @@ Registry.as<IConfigurationMigrationRegistry>(WorkbenchConfigurationExtensions.Co
 	key: 'sessions.automations.showSharedByOthers',
 	includeApplication: true,
 	migrateFn: () => ({ value: undefined }),
+}, {
+	key: legacyOpenSessionsInEditorSetting,
+	migrateFn: (value, accessor) => {
+		const pairs: ConfigurationKeyValuePairs = [[legacyOpenSessionsInEditorSetting, { value: undefined }]];
+		if (value === true && accessor(ChatConfiguration.ChatViewSessionsOpenChatIn) === undefined) {
+			pairs.push([ChatConfiguration.ChatViewSessionsOpenChatIn, { value: ChatViewSessionsOpenChatIn.EditorArea }]);
+		}
+		return pairs;
+	},
 }, {
 	key: legacyAutoArchiveMergedSessionsAfterDaysSetting,
 	includeApplication: true,

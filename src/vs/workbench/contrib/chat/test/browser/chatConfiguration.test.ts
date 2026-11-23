@@ -9,7 +9,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { AgentHostConfigurationSyncScope, ConfigurationScope, Extensions as ConfigurationExtensions, getConfigurationExperimentName, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { ConfigurationMigration, Extensions as WorkbenchConfigurationExtensions, IConfigurationMigrationRegistry } from '../../../../common/configuration.js';
-import { ChatConfiguration } from '../../common/constants.js';
+import { ChatConfiguration, ChatViewSessionsOpenChatIn } from '../../common/constants.js';
 import { CustomizationMarketplaceConfiguration } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IConfigurationService, IConfigurationValue } from '../../../../../platform/configuration/common/configuration.js';
 import { chatProgressConfigurationProperties, legacyChatThinkingConfigurationProperties } from '../../browser/chatProgressConfiguration.js';
@@ -457,6 +457,20 @@ suite('Chat configuration', () => {
 		assert.deepStrictEqual(await legacyAutoArchiveMigration?.migrateFn(15, () => 30), [
 			['chat.agentSessions.autoArchiveMergedSessionsAfterDays', { value: undefined }],
 		]);
+	});
+
+	test('migrates opening sessions in editors to opening the chats of sessions in the editor area, unless where they open is already set', async () => {
+		const key = 'chat.agentSessions.openInEditor';
+		const migration = migrations.find(migration => migration.key === key);
+		assert.deepStrictEqual({
+			enabled: await migration?.migrateFn(true, () => undefined),
+			enabledWithOpenChatInSet: await migration?.migrateFn(true, () => ChatViewSessionsOpenChatIn.ChatArea),
+			disabled: await migration?.migrateFn(false, () => undefined),
+		}, {
+			enabled: [[key, { value: undefined }], [ChatConfiguration.ChatViewSessionsOpenChatIn, { value: ChatViewSessionsOpenChatIn.EditorArea }]],
+			enabledWithOpenChatInSet: [[key, { value: undefined }]],
+			disabled: [[key, { value: undefined }]],
+		});
 	});
 
 	test('migrates the auto delete archived setting to auto delete marked as done', async () => {
