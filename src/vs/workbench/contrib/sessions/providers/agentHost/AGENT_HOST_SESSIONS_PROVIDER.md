@@ -117,7 +117,7 @@ Local and per-address remote frontend summary caches use a separate generation f
 
 ## Session adaptation
 
-Sandboxed Copilot Agent Host sessions with Canvas enabled request read/write access to the shared `<COPILOT_HOME>/extension-data/` directory, subject to sandbox policy. This default does not grant the parent Copilot home or the extension source directories.
+Sandboxed Copilot Agent Host sessions with Canvas enabled request read/write access to the shared `<COPILOT_HOME>/extension-data/` directory, subject to sandbox policy. When the launch configuration grants that path, the host creates it before SDK create or resume so the first canvas save works on a fresh Copilot home. This default does not grant the parent Copilot home or the extension source directories.
 
 `AgentHostSessionAdapter` is the stable `ISession` facade for a committed Agent Host session. It:
 
