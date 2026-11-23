@@ -18978,11 +18978,15 @@ suite('CopilotAgent', () => {
 		afterTest(() => disposeAgent(agent));
 		const initiallyRequired = copilotRequired();
 		const initiallyReady = agent.isReadyForAutomation(undefined);
-		modelSnapshots.fire([{ vendor: 'gemini', id: 'gemini-2.5-pro', modelIdentifier: 'gemini/Gemini/gemini-2.5-pro' }]);
-		await waitForState(agent.models, models => models.length === 1);
+		modelSnapshots.fire([
+			{ vendor: 'gemini', id: 'gemini-2.5-pro', modelIdentifier: 'gemini/Gemini/gemini-2.5-pro' },
+			{ vendor: 'openai', id: 'gpt-5', modelIdentifier: 'openai/OpenAI/gpt-5', supportedReasoningEfforts: ['low', 'medium', 'high'], defaultReasoningEffort: 'medium' },
+		]);
+		await waitForState(agent.models, models => models.length === 2);
 		const optionalWithByok = copilotRequired();
-		const selectedModel = { id: agent.models.get()[0].id };
+		const [selectedModel, selectedEffortModel] = agent.models.get().map(model => ({ id: model.id }));
 		const readyWithByok = agent.isReadyForAutomation(selectedModel);
+		const readyWithByokEffort = agent.isReadyForAutomation(selectedEffortModel);
 		const copilotStillBlocked = !agent.isReadyForAutomation({ id: 'gpt-4o' });
 		modelSnapshots.fire([]);
 		await waitForState(agent.models, models => models.length === 0);
@@ -18994,16 +18998,20 @@ suite('CopilotAgent', () => {
 			requiredAfterHide,
 			initiallyReady,
 			readyWithByok,
+			readyWithByokEffort,
 			copilotStillBlocked,
 			readyAfterHide: agent.isReadyForAutomation(selectedModel),
+			readyWithEffortAfterHide: agent.isReadyForAutomation(selectedEffortModel),
 		}, {
 			initiallyRequired: true,
 			optionalWithByok: false,
 			requiredAfterHide: true,
 			initiallyReady: false,
 			readyWithByok: true,
+			readyWithByokEffort: true,
 			copilotStillBlocked: true,
 			readyAfterHide: false,
+			readyWithEffortAfterHide: false,
 		});
 	});
 
