@@ -130,6 +130,8 @@ export class SpotlightOverlay extends Disposable {
 
 	private _target: HTMLElement | undefined;
 	private _options: ISpotlightShowOptions = {};
+	/** The last shown step's target and focus target. Kept through `hide()`, so teardown can tell spotlight focus from focus elsewhere. */
+	private _lastTargets: readonly HTMLElement[] = [];
 	private _hasShown = false;
 	private _backdropVisible = true;
 	private _previousFocus: HTMLElement | undefined;
@@ -190,7 +192,7 @@ export class SpotlightOverlay extends Disposable {
 			this._register(button.onDidEscape(() => this._onDidSkip.fire(OnboardingDismissReason.EscapeKey)));
 		}
 
-		// Keyboard handling on the callout: Esc ends the tour, focus is trapped within.
+		// Keyboard handling on the callout: Esc ends the tour, Tab moves between the callout and the target.
 		this._register(addDisposableListener(this._callout, EventType.KEY_DOWN, e => this._onKeyDown(e)));
 
 		this._register({ dispose: () => this._restoreFocus() });
@@ -207,6 +209,7 @@ export class SpotlightOverlay extends Disposable {
 
 		this._target = target;
 		this._options = options;
+		this._lastTargets = options.focusTarget ? [target, options.focusTarget.element] : [target];
 		// Re-showing for a replaced target must not take focus from where the user works in a non-modal spotlight.
 		const keepFocus = !!options.preserveFocus && this._isFocusElsewhere();
 		this.setPrimaryActionEnabled(true);
@@ -341,8 +344,9 @@ export class SpotlightOverlay extends Disposable {
 	/**
 	 * Shows or hides the dim backdrop around the highlight. The highlight ring and callout are unaffected.
 	 * Without the backdrop the spotlight is non-modal: it blocks no clicks, leaves Escape outside the
-	 * spotlight to the rest of the window, and does not pull focus back when its target is replaced or
-	 * the tour ends while the user works elsewhere. Takes effect the next time a step is shown.
+	 * spotlight to the rest of the window, lets Tab leave the spotlight, and does not pull focus back
+	 * when its target is replaced or the tour ends while the user works elsewhere. Takes effect the next
+	 * time a step is shown.
 	 */
 	setBackdropVisible(visible: boolean): void {
 		this._backdropVisible = visible;
@@ -597,11 +601,15 @@ export class SpotlightOverlay extends Disposable {
 		}
 
 		if (event.equals(KeyCode.Tab) || event.equals(KeyMod.Shift | KeyCode.Tab)) {
-			this._trapFocus(event);
+			this._moveFocus(event);
 		}
 	}
 
-	private _trapFocus(event: StandardKeyboardEvent): void {
+	/**
+	 * Moves focus between the spotlighted target and the callout, which are far apart in DOM order.
+	 * With the backdrop it wraps around as a focus trap; without it, Tab leaves the spotlight at either end.
+	 */
+	private _moveFocus(event: StandardKeyboardEvent): void {
 		const focusable = this._collectFocusable();
 		if (focusable.length === 0) {
 			return;
@@ -617,8 +625,13 @@ export class SpotlightOverlay extends Disposable {
 		if (currentIndex === -1) {
 			nextIndex = event.shiftKey ? focusable.length - 1 : 0;
 		} else {
-			const delta = event.shiftKey ? -1 : 1;
-			nextIndex = (currentIndex + delta + focusable.length) % focusable.length;
+			nextIndex = currentIndex + (event.shiftKey ? -1 : 1);
+			if (nextIndex < 0 || nextIndex >= focusable.length) {
+				if (!this._backdropVisible) {
+					return;
+				}
+				nextIndex = (nextIndex + focusable.length) % focusable.length;
+			}
 		}
 
 		event.preventDefault();
@@ -635,7 +648,7 @@ export class SpotlightOverlay extends Disposable {
 	}
 
 	/**
-	 * The focusable elements participating in the focus trap, in DOM order: the
+	 * The focusable elements that Tab moves between, in DOM order: the
 	 * spotlighted target (when it is interactive or the Next button is hidden), then any
 	 * interactive content in the (possibly markdown) description, then the visible
 	 * action buttons. Including the target keeps the spotlighted control
@@ -688,7 +701,7 @@ export class SpotlightOverlay extends Disposable {
 		if (this._backdropVisible || !isHTMLElement(active) || active === active.ownerDocument.body) {
 			return false;
 		}
-		return !this._root.contains(active) && !this._target?.contains(active) && !this._options.focusTarget?.element.contains(active);
+		return !this._root.contains(active) && !this._lastTargets.some(element => element.contains(active));
 	}
 
 	private _restoreFocus(): void {

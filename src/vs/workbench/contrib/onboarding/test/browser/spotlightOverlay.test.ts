@@ -677,6 +677,67 @@ suite('SpotlightOverlay', () => {
 		});
 	});
 
+	test('without the backdrop Tab moves between the target and the callout but can leave the spotlight', () => {
+		const container = createContainer();
+		const overlay = disposables.add(new SpotlightOverlay(container, FakeResizeObserver));
+		const target = createTarget(container, 100, 100, 80, 30);
+		const targetButton = $('button');
+		target.appendChild(targetButton);
+		const [, , next] = getButtons(container);
+		const tab = (element: HTMLElement, shiftKey: boolean) => {
+			element.focus();
+			const event = new KeyboardEvent('keydown', { key: 'Tab', shiftKey, bubbles: true, cancelable: true });
+			Object.defineProperty(event, 'keyCode', { get: () => 9 });
+			element.dispatchEvent(event);
+			const active = mainWindow.document.activeElement;
+			return { prevented: event.defaultPrevented, focused: active === targetButton ? 'target' : active?.textContent };
+		};
+		overlay.setBackdropVisible(false);
+		overlay.show(target, content(), { allowTargetInteraction: true });
+
+		assert.deepStrictEqual({
+			tabFromTarget: tab(targetButton, false),
+			shiftTabFromTarget: tab(targetButton, true),
+			tabFromLastButton: tab(next, false),
+		}, {
+			tabFromTarget: { prevented: true, focused: 'End Tour' },
+			shiftTabFromTarget: { prevented: false, focused: 'target' },
+			tabFromLastButton: { prevented: false, focused: 'Next' },
+		});
+	});
+
+	for (const owner of ['target', 'focusTarget'] as const) {
+		test(`without the backdrop restores the previous focus when the tour ends from its ${owner}`, () => {
+			const container = createContainer();
+			const previous = $('input');
+			container.appendChild(previous);
+			previous.focus();
+			const overlay = disposables.add(new SpotlightOverlay(container, FakeResizeObserver));
+			const target = createTarget(container, 100, 100, 80, 30);
+			const targetButton = $('button');
+			target.appendChild(targetButton);
+			const focusInput = $('input.test-spotlight-focus-target');
+			container.appendChild(focusInput);
+			const skipReasons: OnboardingDismissReason[] = [];
+			disposables.add(overlay.onDidSkip(reason => skipReasons.push(reason)));
+			overlay.setBackdropVisible(false);
+
+			overlay.show(target, content(), owner === 'target'
+				? { allowTargetInteraction: true }
+				: { hideNext: true, focusTarget: { element: focusInput, focus: () => focusInput.focus() } });
+			const focused = owner === 'target' ? targetButton : focusInput;
+			focused.focus();
+			focused.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true, cancelable: true }));
+			overlay.hide();
+			overlay.dispose();
+
+			assert.deepStrictEqual({ skipReasons, previousFocused: mainWindow.document.activeElement === previous }, {
+				skipReasons: [OnboardingDismissReason.EscapeKey],
+				previousFocused: true,
+			});
+		});
+	}
+
 	test('highlights additional elements together with the target and keeps focus in them when the callout is clicked', async () => {
 		const container = createContainer();
 		const overlay = disposables.add(new SpotlightOverlay(container, FakeResizeObserver as unknown as typeof ResizeObserver));
