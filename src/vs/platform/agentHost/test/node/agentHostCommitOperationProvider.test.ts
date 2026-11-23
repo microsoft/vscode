@@ -97,6 +97,34 @@ suite('AgentHostCommitOperationContribution', () => {
 		});
 	});
 
+	test('advertises commit on the branch changeset when working on the base branch without outgoing commits', () => {
+		const provider = createContribution();
+		const onBaseBranch: ISessionGitState = { branchName: 'main', baseBranchName: 'main', upstreamBranchName: 'origin/main', outgoingChanges: 0, uncommittedChanges: 1 };
+		const branchOperations = (gitState: ISessionGitState) => provider.getOperations({ sessionKey, changesetUri: branchChangesetUri, changesetKind: ChangesetKind.Branch, gitState }).map(op => op.id);
+
+		const actual = {
+			onBaseBranch: branchOperations(onBaseBranch),
+			sessionChangeset: provider.getOperations({ sessionKey, changesetUri: sessionChangesetUri, changesetKind: ChangesetKind.Session, gitState: onBaseBranch }).map(op => op.id),
+			withOutgoingCommits: branchOperations({ ...onBaseBranch, outgoingChanges: 1 }),
+			withoutUpstream: branchOperations({ ...onBaseBranch, upstreamBranchName: undefined, outgoingChanges: undefined }),
+			upstreamOnOtherRemote: branchOperations({ ...onBaseBranch, upstreamBranchName: 'upstream/main' }),
+			withoutUncommittedChanges: branchOperations({ ...onBaseBranch, uncommittedChanges: 0 }),
+			onOtherBranch: branchOperations({ ...onBaseBranch, branchName: 'feature/test', upstreamBranchName: 'origin/feature/test' }),
+			detachedHead: branchOperations({ ...onBaseBranch, branchName: undefined, isDetachedHead: true }),
+		};
+
+		assert.deepStrictEqual(actual, {
+			onBaseBranch: ['commit'],
+			sessionChangeset: [],
+			withOutgoingCommits: [],
+			withoutUpstream: [],
+			upstreamOnOtherRemote: [],
+			withoutUncommittedChanges: [],
+			onOtherBranch: [],
+			detachedHead: [],
+		});
+	});
+
 	test('does not advertise commit on a worktree branch changeset without a pull request', () => {
 		const provider = createContribution('worktree');
 
