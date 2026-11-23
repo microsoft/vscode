@@ -5,9 +5,10 @@
 
 import assert from 'assert';
 import * as sinon from 'sinon';
-import { DeferredPromise } from '../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
-import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { isCancellationError } from '../../../../../base/common/errors.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { constObservable } from '../../../../../base/common/observable.js';
 import { basename, isEqual } from '../../../../../base/common/resources.js';
@@ -15,6 +16,7 @@ import { isObject } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { runWithFakedTimers } from '../../../../../base/test/common/virtualScheduling/index.js';
 import { fromAgentHostUri, toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IStat } from '../../../../../platform/files/common/files.js';
@@ -114,9 +116,18 @@ suite('Sessions - Set Chat Background tool', () => {
 			backgroundService,
 			themeService,
 			writeFile: (resource: URI, content: string) => fileService.writeFile(resource, VSBuffer.fromString(content)),
-			/** Invokes the tool from the test chat, or without a chat context when `withContext` is false. */
-			invoke: async (parameters: Record<string, unknown>, withContext = true): Promise<IInvokeResult> => {
-				const result = await tool.invoke({ callId: 'call', toolId: 'tool', parameters, context: withContext ? { sessionResource: chatResource } : undefined }, async () => 0, { report: () => { } }, CancellationToken.None);
+			/**
+			 * Invokes the tool from the test chat: rendered in its chat view, run headlessly by an agent host,
+			 * which passes the originating chat without a chat context, or outside any chat.
+			 */
+			invoke: async (parameters: Record<string, unknown>, caller: 'chatView' | 'headless' | 'none' = 'chatView', token = CancellationToken.None): Promise<IInvokeResult> => {
+				const result = await tool.invoke({
+					callId: 'call',
+					toolId: 'tool',
+					parameters,
+					originatingChatResource: caller === 'headless' ? chatResource : undefined,
+					context: caller === 'chatView' ? { sessionResource: chatResource } : undefined,
+				}, async () => 0, { report: () => { } }, token);
 				const part = result.content[0];
 				assert.ok(part?.kind === 'text');
 				return result.toolResultError
@@ -188,11 +199,13 @@ suite('Sessions - Set Chat Background tool', () => {
 			existingImageOnly: modelDescription.includes('does not generate images'),
 			persistentScope: modelDescription.includes('persist across chats for the active color scheme'),
 			preservesLayout: modelDescription.includes('Omitting layout keeps the current layout'),
+			appliesAfterWrites: modelDescription.includes('never in the same parallel batch'),
 			designGuidance: /getThemeColors|Pattern option|Atmospheric option|palette/.test(modelDescription),
 		}, {
 			existingImageOnly: true,
 			persistentScope: true,
 			preservesLayout: true,
+			appliesAfterWrites: true,
 			designGuidance: false,
 		});
 	});
@@ -331,6 +344,20 @@ suite('Sessions - Set Chat Background tool', () => {
 		});
 	});
 
+	test('resolves the paths of a headless call against the working directory of the chat that made it', async () => {
+		const workingDirectory = URI.from({ scheme: AGENT_HOST_SCHEME, authority: 'host', path: '/home/me/project', query: '_ah=meta' });
+		const t = setup(workingDirectory);
+		await t.writeFile(workingDirectory.with({ path: '/home/me/project/assets/bg.webp' }), 'image:800x600');
+
+		const relative = await t.invoke({ image: 'assets/bg.webp' }, 'headless');
+		const absolute = await t.invoke({ image: '/home/me/project/assets/bg.webp' }, 'headless');
+
+		assert.deepStrictEqual([relative, absolute].map(result => result.error ?? (result.output as { background: unknown }).background), [
+			{ kind: 'image', image: '<store>/bg-<hash>.webp', layout: 'repeat', width: 800, height: 600 },
+			{ kind: 'image', image: '<store>/bg-<hash>.webp', layout: 'repeat', width: 800, height: 600 },
+		]);
+	});
+
 	test('preserves remote Windows drive and UNC image identities', async () => {
 		const t = setup(toAgentHostUri(URI.from({ scheme: Schemas.file, path: '/C:/work' }), 'host'));
 		const drive = URI.from({ scheme: Schemas.file, path: '/C:/work/drive.png' });
@@ -393,6 +420,77 @@ suite('Sessions - Set Chat Background tool', () => {
 		});
 	});
 
+	test('applies a layout passed with a Koi preset and ignores it for other presets', async () => {
+		const t = setup();
+		const results = [];
+		for (const parameters of [{ preset: 'koi-dark', layout: 'center' }, { preset: 'codicons', layout: 'stretch' }, { preset: 'none', layout: 'stretch' }]) {
+			results.push(await t.invoke(parameters));
+		}
+
+		const ignored = '"layout" was ignored because only images and the Koi presets have a layout.';
+		assert.deepStrictEqual({
+			results: results.map(({ error, message, output }) => error ?? { message, output }),
+			layout: t.backgroundService.getBackgroundImageLayout(),
+		}, {
+			results: [{
+				message: 'Set the chat background to Koi Dark',
+				output: { colorScheme: 'dark', background: { kind: 'koi-dark', layout: 'center' }, previous: { kind: 'none' } },
+			}, {
+				message: 'Set the chat background to Codicons',
+				output: { colorScheme: 'dark', background: { kind: 'codicons' }, previous: { kind: 'koi-dark', layout: 'center' }, note: ignored },
+			}, {
+				message: 'Removed the chat background',
+				output: { colorScheme: 'dark', background: { kind: 'none' }, previous: { kind: 'codicons' }, note: ignored },
+			}],
+			layout: 'center',
+		});
+	});
+
+	test('waits for an image that another tool is still writing', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const t = setup();
+		await t.fileService.createFolder(URI.file('/work'));
+		const pending = t.invoke({ image: 'generated.png' });
+		// The image appears during the wait and grows until its write finishes.
+		for (const content of ['image', 'image:64', 'image:64x64']) {
+			await timeout(100);
+			await t.writeFile(URI.file('/work/generated.png'), content);
+		}
+		const result = await pending;
+
+		assert.deepStrictEqual(result.error ?? result.output, {
+			colorScheme: 'dark',
+			background: { kind: 'image', image: '<store>/generated-<hash>.png', layout: 'repeat', width: 64, height: 64 },
+			previous: { kind: 'none' },
+		});
+	}));
+
+	test('stops waiting for an image that does not appear in time or when the call is cancelled', () => runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 1_000 }, async () => {
+		const t = setup();
+		await t.fileService.createFolder(URI.file('/work'));
+		const start = Date.now();
+		const timedOut = await t.invoke({ image: 'missing.png' });
+		const waitedSeconds = Math.round((Date.now() - start) / 1000);
+
+		const cancellation = disposables.add(new CancellationTokenSource());
+		const cancelled = t.invoke({ image: 'missing.png' }, 'chatView', cancellation.token).then(() => undefined, (error: unknown) => error);
+		await timeout(1_000);
+		const cancelledAt = Date.now();
+		cancellation.cancel();
+		const cancellationError = await cancelled;
+
+		assert.deepStrictEqual({
+			timedOut: timedOut.error,
+			waitedSeconds,
+			cancelled: isCancellationError(cancellationError),
+			waitedAfterCancellation: Date.now() - cancelledAt,
+		}, {
+			timedOut: `${URI.file('/work/missing.png').fsPath} does not exist.`,
+			waitedSeconds: 10,
+			cancelled: true,
+			waitedAfterCancellation: 0,
+		});
+	}));
+
 	test('rejects invalid requests with actionable errors and leaves the background unchanged', async () => {
 		const t = setup();
 		await t.writeFile(URI.file('/work/notes.txt'), 'text');
@@ -406,19 +504,18 @@ suite('Sessions - Set Chat Background tool', () => {
 			{ preset: 'stars' },
 			{ layout: 'cover' },
 			{ image: 'a.png', preset: 'none' },
-			{ preset: 'codicons', layout: 'center' },
 			{ layout: 'center' },
 			{ image: 'https://example.com/a.png' },
 			{ image: '~/Pictures/a.png' },
 			{ image: 'notes.txt' },
-			{ image: 'missing.png' },
+			{ image: 'missing/image.png' },
 			{ image: 'folder.png' },
 			{ image: 'broken.png' },
 		]) {
 			errors.push((await t.invoke(parameters)).error);
 		}
-		errors.push((await t.invoke({ image: 'relative.png' }, false)).error);
-		errors.push((await t.invoke({ image: URI.file('/remote/only.png').fsPath }, false)).error);
+		errors.push((await t.invoke({ image: 'relative.png' }, 'none')).error);
+		errors.push((await t.invoke({ image: URI.file('/remote/only.png').fsPath }, 'none')).error);
 
 		assert.deepStrictEqual({
 			errors,
@@ -431,12 +528,11 @@ suite('Sessions - Set Chat Background tool', () => {
 				'"preset" must be one of: codicons, koi-light, koi-dark, none.',
 				'"layout" must be one of: repeat, stretch, center, top, top-right, top-left, bottom, bottom-right, bottom-left, left, right.',
 				'Pass either "image" or "preset", not both.',
-				'"layout" applies only to images; omit it when passing "preset".',
 				'There is no background image to lay out. Pass "image" together with "layout".',
 				'"image" must be a file path. Save images from the web to a file first.',
 				'Expand "~" to an absolute path.',
 				'".txt" images are not supported. Use one of: avif, bmp, gif, ico, jpeg, jpg, png, svg, webp.',
-				`${URI.file('/work/missing.png').fsPath} does not exist.`,
+				`${URI.file('/work/missing/image.png').fsPath} does not exist.`,
 				`${URI.file('/work/folder.png').fsPath} is a folder, not an image file.`,
 				`${URI.file('/work/broken.png').fsPath} is not a valid png image.`,
 				'"relative.png" is relative, but this chat has no working directory. Pass an absolute path.',
