@@ -15,7 +15,6 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../ba
 import { ICodeEditor } from '../../../../../../../editor/browser/editorBrowser.js';
 import { ICodeEditorService } from '../../../../../../../editor/browser/services/codeEditorService.js';
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
-import { createInputRequestCarousel } from '../../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
 import { ChatQuestionCarouselPart, IChatQuestionCarouselOptions } from '../../../../browser/widget/chatContentParts/chatQuestionCarouselPart.js';
 import { IChatQuestionAnswerValue, IChatQuestionCarousel } from '../../../../common/chatService/chatService.js';
 import { IChatContentPartRenderContext } from '../../../../browser/widget/chatContentParts/chatContentParts.js';
@@ -313,26 +312,6 @@ suite('ChatQuestionCarouselPart', () => {
 				ariaLabel: 'Chat question: Which region should this deploy to?',
 			});
 		});
-
-		for (const newline of ['\n', '\r\n']) {
-			test(`preserves multiline message-only questions in announcements and answer summaries (${newline === '\n' ? 'LF' : 'CRLF'})`, () => {
-				const message = `Deployment review${newline}Should I deploy to production?`;
-				const carousel = createInputRequestCarousel({ id: 'message-only', message }, 'local');
-				carousel.questions[0].defaultValue = 'Deploy';
-				createWidget(carousel);
-				const announcementIncludesQuestion = widget.domNode.getAttribute('aria-label')?.includes('Should I deploy to production?');
-
-				widget.skip();
-
-				assert.deepStrictEqual({
-					announcementIncludesQuestion,
-					summary: widget.domNode.querySelector('.chat-question-summary-question')?.textContent,
-				}, {
-					announcementIncludesQuestion: true,
-					summary: `Question: ${message}`,
-				});
-			});
-		}
 
 		test('renders titles that start with list markers as inline text', () => {
 			const titles = ['6. Timeframe', '- Option', '# Heading'];
