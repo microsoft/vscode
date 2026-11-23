@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { ResourceTree } from '../../common/resourceTree.js';
+import { IResourceNode, ResourceTree } from '../../common/resourceTree.js';
 import { URI } from '../../common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
@@ -77,15 +77,24 @@ suite('ResourceTree', function () {
 	test('deleting a child does not remove a folder that has its own element', function () {
 		const tree = new ResourceTree<string, null>(null);
 
-		tree.add(URI.file('/foo'), 'foo');
-		tree.add(URI.file('/foo/file.txt'), 'file');
+		tree.add(URI.file('/a/foo'), 'foo');
+		tree.add(URI.file('/a/foo/x/file.txt'), 'file');
+		tree.add(URI.file('/b/bar.txt'), 'bar');
 
-		assert.strictEqual(tree.delete(URI.file('/foo/file.txt')), 'file');
+		const deleted = [tree.delete(URI.file('/a/foo/x/file.txt')), tree.delete(URI.file('/b/bar.txt'))];
 
-		const foo = tree.root.get('foo');
-		assert(foo);
-		assert.strictEqual(foo.element, 'foo');
-		assert.strictEqual(foo.childrenCount, 0);
-		assert.deepStrictEqual(ResourceTree.collect(tree.root), ['foo']);
+		// Empty folders without an element of their own are still pruned, up to the first folder that has one.
+		assert.deepStrictEqual({ deleted, nodes: describeNodes(tree.root), collected: ResourceTree.collect(tree.root) }, {
+			deleted: ['file', 'bar'],
+			nodes: ['/a', '/a/foo: foo'],
+			collected: ['foo'],
+		});
 	});
 });
+
+function describeNodes(node: IResourceNode<string, null>): string[] {
+	return [...node.children].flatMap(child => [
+		typeof child.element === 'undefined' ? child.relativePath : `${child.relativePath}: ${child.element}`,
+		...describeNodes(child),
+	]);
+}
