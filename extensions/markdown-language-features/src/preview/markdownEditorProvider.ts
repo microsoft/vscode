@@ -30,6 +30,10 @@ import { completionApi, MarkdownEditorLanguageFeatures } from './markdownEditorL
 import { MarkdownEditorImagePaste } from './markdownEditorImagePaste';
 import { MarkdownEditorNavigation } from './markdownEditorNavigation';
 import { MarkdownEditorSessionTelemetry, type MarkdownEditorViewState } from './markdownEditorTelemetry';
+import { MAX_SCANNED_DOCUMENT_LENGTH, scanMarkdownFeatures } from './markdownDocumentFeatures';
+
+/** Delay before a new Markdown editor's document is scanned for telemetry, to stay off the open path. */
+const FEATURE_SCAN_DELAY_MS = 2_000;
 import type { TelemetryReporter } from '../telemetryReporter';
 
 export interface MarkdownCodeBlockEditorApiV1 {
@@ -772,13 +776,19 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 			visible: webviewPanel.visible,
 			focused: webviewPanel.active && vscode.window.state.focused,
 		});
+		const textLength = document.getText().length;
 		const session = new MarkdownEditorSessionTelemetry(this.#telemetryReporter, {
 			scheme: document.uri.scheme,
-			textLength: document.getText().length,
+			textLength,
 			mode: readonly ? 'read' : 'edit',
 			viewState: getViewState(),
 		});
 		this.#telemetrySessions.add(session);
+		// Off the open path: scan the text as opened after the editor has opened, and only documents small enough to scan quickly.
+		const openedText = textLength < MAX_SCANNED_DOCUMENT_LENGTH ? document.getText() : undefined;
+		const featureScan = openedText !== undefined
+			? setTimeout(() => session.setDocumentFeatures(scanMarkdownFeatures(openedText)), FEATURE_SCAN_DELAY_MS)
+			: undefined;
 		if (document.uri.scheme === 'untitled') {
 			// Links the session with the untitled document funnel of the workbench
 			Promise.resolve(vscode.commands.executeCommand<string | undefined>('_workbench.getUntitledDocumentId', document.uri)).then(
@@ -792,6 +802,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 		return {
 			session,
 			dispose: () => {
+				clearTimeout(featureScan);
 				disposeAll(listeners);
 				this.#telemetrySessions.delete(session);
 				session.end('closed');
