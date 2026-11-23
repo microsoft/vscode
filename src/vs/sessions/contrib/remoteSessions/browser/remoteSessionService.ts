@@ -51,6 +51,14 @@ type RemoteSessionsProvider = IAgentHostSessionsProvider & { readonly remoteAddr
 const maxRemoteSessionCreations = 500;
 const maxRemoteSessionDepth = 10;
 
+/**
+ * Labels a directory on its host without formatting it for this client: its path, or `//authority/path` for a UNC
+ * directory. A URI path never starts with `//` without an authority, so the label identifies the directory.
+ */
+function getDirectoryLabel(directory: URI): string {
+	return directory.authority ? `//${directory.authority}${directory.path}` : directory.path;
+}
+
 export class RemoteSessionService implements IRemoteSessionService {
 	declare readonly _serviceBrand: undefined;
 
@@ -93,15 +101,14 @@ export class RemoteSessionService implements IRemoteSessionService {
 		const provider = options.hostId !== undefined
 			? providers.find(provider => provider.id === options.hostId)
 			: requested?.scheme === AGENT_HOST_SCHEME ? providers.find(provider => agentHostAuthority(provider.remoteAddress) === requested.authority) : undefined;
-		let workspace = requested;
-		if (requested && provider) {
-			if (requested.scheme !== AGENT_HOST_SCHEME) {
-				workspace = provider.mapAgentHostResource(requested);
-			} else if (requested.authority === agentHostAuthority(provider.remoteAddress)) {
-				// Mapping through the host's connection names the directory that creation inspects; a wrapper's display path could name another one.
-				const uris = this.connectionsService.getConnectionByAddress(provider.remoteAddress)?.resourceUris;
-				workspace = uris ? uris.fromAgentHost(uris.toAgentHost(requested)) : requested;
-			}
+		let workspace: string | undefined;
+		if (requested?.scheme === AGENT_HOST_SCHEME) {
+			// Only the host's own connection decodes its URIs; creation fails for a URI of another host or an unavailable one.
+			const uris = provider && requested.authority === agentHostAuthority(provider.remoteAddress)
+				? this.connectionsService.getConnectionByAddress(provider.remoteAddress)?.resourceUris : undefined;
+			workspace = uris ? getDirectoryLabel(uris.toAgentHost(requested)) : requested.path;
+		} else if (requested) {
+			workspace = getDirectoryLabel(requested);
 		}
 		return { host: provider && this.getHostName(provider, providers), pinnedBy, workspace };
 	}

@@ -6,9 +6,7 @@
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
-import { Schemas } from '../../../../base/common/network.js';
 import { localize } from '../../../../nls.js';
-import { ILabelService } from '../../../../platform/label/common/label.js';
 import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress } from '../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { IRemoteSessionHostName, IRemoteSessionService, parseCreateRemoteSessionOptions, remoteSessionToolsWhen } from '../common/remoteSessions.js';
 import { assertRemoteSessionCaller } from './remoteSessionSource.js';
@@ -53,7 +51,6 @@ export class ListAgentHostsTool implements IToolImpl {
 export class CreateRemoteSessionTool implements IToolImpl {
 	constructor(
 		@IRemoteSessionService private readonly remoteSessionsService: IRemoteSessionService,
-		@ILabelService private readonly labelService: ILabelService,
 	) { }
 
 	getToolData(): IToolData {
@@ -126,11 +123,8 @@ export class CreateRemoteSessionTool implements IToolImpl {
 				? localize('remoteSessions.create.confirmationContainer', "Start this task in {0} on {1}? The new session can send messages back to this chat.", host.label, host.containerHost)
 				: localize('remoteSessions.create.confirmationHost', "Start this task on {0}? The new session can send messages back to this chat.", host.label));
 		message.appendText(`\n\n${options.prompt}`);
-		const workspace = destination.workspace;
-		// A host's paths are formatted like that host's; a `file:` URI without a host is shown verbatim, since the client's formatting does not apply to it.
-		const workspaceLabel = workspace && (workspace.scheme === Schemas.file ? workspace.path : this.labelService.getUriLabel(workspace));
-		message.appendText(`\n\n${options.workspace && workspaceLabel
-			? localize('remoteSessions.create.workspace', "Workspace: {0} ({1})", workspaceLabel, options.workspace.isolation)
+		message.appendText(`\n\n${options.workspace && destination.workspace !== undefined
+			? localize('remoteSessions.create.workspace', "Workspace: {0} ({1})", destination.workspace, options.workspace.isolation)
 			: localize('remoteSessions.create.noWorkspace', "No workspace or files are inherited from this session.")}`);
 		if (options.model) {
 			message.appendText(`\n\n${localize('remoteSessions.create.model', "Model: {0}/{1}", options.model.provider, options.model.id)}`);

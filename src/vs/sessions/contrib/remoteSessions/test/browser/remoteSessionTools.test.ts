@@ -10,9 +10,8 @@ import { URI } from '../../../../../base/common/uri.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { IAgentHostConnectionsService, IAgentHostSessionResolution } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { buildOpenSessionLinkUri } from '../../../../../platform/agentHost/common/openSessionLink.js';
-import { AGENT_HOST_SCHEME, toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
+import { toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { IAgentConnection, IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agentService.js';
-import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
@@ -92,18 +91,14 @@ suite('RemoteSessionTools', () => {
 		const service = new class extends mock<IRemoteSessionService>() {
 			override listHosts(): readonly IRemoteSessionHost[] { return []; }
 			override getRequestedDestination(options: ICreateRemoteSessionOptions) {
-				return { host: options.hostId !== undefined ? hostNames.get(options.hostId) : undefined, pinnedBy: options.hostId, workspace: options.workspace?.uri };
+				return { host: options.hostId !== undefined ? hostNames.get(options.hostId) : undefined, pinnedBy: options.hostId, workspace: options.workspace?.uri.path };
 			}
 			override async createSession(options: ICreateRemoteSessionOptions, source: URI, requestId: string, token: CancellationToken) {
 				calls.push({ options, source, requestId, token });
 				return result;
 			}
 		}();
-		// Formats like a client whose own conventions must not apply to paths on other hosts.
-		const labels = new class extends mock<ILabelService>() {
-			override getUriLabel(uri: URI) { return uri.scheme === AGENT_HOST_SCHEME ? uri.path : 'client-formatted'; }
-		}();
-		return { calls, create: new CreateRemoteSessionTool(service, labels), list: new ListAgentHostsTool(service) };
+		return { calls, create: new CreateRemoteSessionTool(service), list: new ListAgentHostsTool(service) };
 	}
 
 	test('registers non-workspace tools gated by AI, remote host and remote tool or Dev Container handoff enablement', () => {

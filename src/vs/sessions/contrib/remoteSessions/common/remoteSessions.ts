@@ -109,10 +109,10 @@ export interface IRemoteSessionDestination {
 	/** The host ID or workspace authority that pins the host, also when that host is not available; undefined when placement selects it. */
 	readonly pinnedBy?: string;
 	/**
-	 * The workspace directory that creation inspects: an Agent Host URI of its host, whose path is the decoded
-	 * directory, or a `file:` URI when no host is pinned, whose path is the only lossless label.
+	 * A lossless label of the workspace directory on its host: its path, prefixed with `//authority` when it has one,
+	 * decoded through the pinned host's connection, so it names the directory that creation inspects.
 	 */
-	readonly workspace?: URI;
+	readonly workspace?: string;
 }
 
 export const IRemoteSessionService = createDecorator<IRemoteSessionService>('remoteSessionService');

@@ -574,34 +574,40 @@ suite('RemoteSessionService', () => {
 		const localContainer = Object.assign(new RemoteProvider('container-1'), { label: 'Dev Container 3', devContainerEnvironmentHost: LocalDevContainerEnvironmentHost });
 		const remoteContainer = Object.assign(new RemoteProvider('container-2'), { label: 'Dev Container 4', devContainerEnvironmentHost: build.remoteAddress });
 		const { service } = setup([build, localContainer, remoteContainer]);
-		const describe = (input: object) => {
-			const { host, pinnedBy, workspace } = service.getRequestedDestination(parseCreateRemoteSessionOptions({ prompt: 'Run tests', ...input }));
-			return { host, pinnedBy, workspace: workspace?.toString() };
-		};
+		const describe = (input: object) => service.getRequestedDestination(parseCreateRemoteSessionOptions({ prompt: 'Run tests', ...input }));
 		const containerWorkspace = remoteContainer.mapAgentHostResource(URI.file('/workspaces/ubuntu'));
 		// A wrapper that displays one path while its metadata names another directory.
 		const misleading = toAgentHostContentUri(URI.file('/workspaces/other'), agentHostAuthority(remoteContainer.remoteAddress), URI.file('/workspaces/demo'));
 		const unavailableWorkspace = toAgentHostUri(URI.file('/repo'), 'gone-host');
+		// A POSIX directory whose name contains a backslash, and a UNC directory: neither may be formatted for this client.
+		const backslash = remoteContainer.mapAgentHostResource(URI.from({ scheme: 'file', path: '/workspaces/a\\b' }));
+		const unc = remoteContainer.mapAgentHostResource(URI.from({ scheme: 'file', authority: 'server-a', path: '/share/repo' }));
 		assert.deepStrictEqual({
 			byId: describe({ hostId: build.id }),
 			localContainer: describe({ hostId: localContainer.id }),
 			remoteContainerByWorkspace: describe({ workspace: { uri: containerWorkspace.toString() } }),
 			misleadingWorkspace: describe({ workspace: { uri: misleading.toString() } }).workspace,
+			backslashWorkspace: describe({ workspace: { uri: backslash.toString() } }).workspace,
+			uncWorkspace: describe({ workspace: { uri: unc.toString() } }).workspace,
 			fileOnPinnedHost: describe({ hostId: build.id, workspace: { uri: 'file:///home/user/project' } }).workspace,
 			otherHostsWorkspace: describe({ hostId: build.id, workspace: { uri: containerWorkspace.toString() } }).workspace,
 			automatic: describe({ workspace: { uri: 'file:///home/user/project' } }),
+			automaticUnc: describe({ workspace: { uri: 'file://server-a/share/repo' } }).workspace,
 			unknownId: describe({ hostId: 'agenthost-missing' }),
 			unknownAuthority: describe({ workspace: { uri: unavailableWorkspace.toString() } }),
 		}, {
 			byId: { host: { label: 'build' }, pinnedBy: build.id, workspace: undefined },
 			localContainer: { host: { label: 'Dev Container 3', containerHost: 'This Computer' }, pinnedBy: localContainer.id, workspace: undefined },
-			remoteContainerByWorkspace: { host: { label: 'Dev Container 4', containerHost: 'build' }, pinnedBy: agentHostAuthority(remoteContainer.remoteAddress), workspace: containerWorkspace.toString() },
-			misleadingWorkspace: remoteContainer.mapAgentHostResource(URI.file('/workspaces/other')).toString(),
-			fileOnPinnedHost: build.mapAgentHostResource(URI.file('/home/user/project')).toString(),
-			otherHostsWorkspace: containerWorkspace.toString(),
-			automatic: { host: undefined, pinnedBy: undefined, workspace: URI.file('/home/user/project').toString() },
+			remoteContainerByWorkspace: { host: { label: 'Dev Container 4', containerHost: 'build' }, pinnedBy: agentHostAuthority(remoteContainer.remoteAddress), workspace: '/workspaces/ubuntu' },
+			misleadingWorkspace: '/workspaces/other',
+			backslashWorkspace: '/workspaces/a\\b',
+			uncWorkspace: '//server-a/share/repo',
+			fileOnPinnedHost: '/home/user/project',
+			otherHostsWorkspace: '/workspaces/ubuntu',
+			automatic: { host: undefined, pinnedBy: undefined, workspace: '/home/user/project' },
+			automaticUnc: '//server-a/share/repo',
 			unknownId: { host: undefined, pinnedBy: 'agenthost-missing', workspace: undefined },
-			unknownAuthority: { host: undefined, pinnedBy: 'gone-host', workspace: unavailableWorkspace.toString() },
+			unknownAuthority: { host: undefined, pinnedBy: 'gone-host', workspace: '/repo' },
 		});
 	});
 
