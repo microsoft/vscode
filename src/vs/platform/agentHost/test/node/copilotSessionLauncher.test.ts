@@ -5,6 +5,7 @@
 
 import type { CopilotClient, CopilotSession, PermissionHandler, PermissionRequest, ResumeSessionOptions, CreateSessionOptions, Tool, Verbosity } from '@microsoft/copilot-sdk';
 import assert from 'assert';
+import { existsSync, mkdirSync, renameSync, writeFileSync } from 'fs';
 import { CopilotMcpServerLogs, mcpDiagnosticEntryToLogRecord } from '../../node/copilot/copilotMcpServerLogs.js';
 import type { IOtlpLogRecord } from '../../common/otlp/otlpLogEmitter.js';
 import { mkdir, mkdtemp, realpath, rm, symlink } from 'fs/promises';
@@ -3213,6 +3214,48 @@ suite('CopilotSessionLauncher canvas config', () => {
 
 		await assert.rejects(() => launcher.launch(plan, testRuntime), /Extension SDK path is unavailable/);
 	});
+
+	for (const kind of ['create', 'resume'] as const) {
+		test(`prepares fresh canvas storage before SDK ${kind} only when granted`, async () => {
+			const home = URI.file(await mkdtemp(URI.joinPath(URI.file(homedir()), '.vscode-canvas-test-').fsPath));
+			try {
+				const directory = URI.joinPath(home, 'extension-data');
+				const canvas = URI.joinPath(directory, 'test-canvas');
+				const session = upcastPartial<CopilotSession>({
+					sessionId: 'canvas-storage', on: () => () => { }, disconnect: async () => { },
+					rpc: upcastPartial<CopilotSession['rpc']>({
+						agent: upcastPartial<CopilotSession['rpc']['agent']>(emptyAgentCatalog),
+						options: upcastPartial({ update: async () => ({ success: true }) }),
+					}),
+				});
+				const launcher = createTestLauncher(undefined, { [AgentHostCanvasesEnabledConfigKey]: true }, undefined, undefined, undefined, undefined, undefined, undefined, home);
+				for (const granted of [false, true]) {
+					const client = returningSession(session, () => {
+						assert.strictEqual(existsSync(directory.fsPath), granted);
+						if (granted) {
+							mkdirSync(canvas.fsPath);
+							writeFileSync(URI.joinPath(canvas, 'state.tmp').fsPath, '{}');
+							renameSync(URI.joinPath(canvas, 'state.tmp').fsPath, URI.joinPath(canvas, 'state.json').fsPath);
+						}
+					});
+					const base = {
+						client, sessionId: session.sessionId, extensionSdkPath: '/copilot-sdk',
+						workingDirectory: testWorkingDirectory, resolvedAgentName: undefined,
+						snapshot: { discoveredAgents: [], additionalRootInstructions: [], tools: [], plugins: [], mcpServers: {} },
+						activeClientToolSet: new ActiveClientToolSet(), shellManager: undefined,
+						githubCredentials: CopilotGitHubSessionCredentials.fromToken(undefined),
+					};
+					store.add(await launcher.launch(kind === 'create' ? { ...base, kind, model: undefined } : { ...base, kind, fallback: { model: undefined } }, {
+						...testRuntime,
+						getLaunchSandboxConfig: () => ({ enabled: true, userPolicy: { filesystem: { readwritePaths: granted ? [directory.fsPath] : [] } } }),
+					}));
+				}
+				assert.ok(existsSync(URI.joinPath(canvas, 'state.json').fsPath));
+			} finally {
+				await rm(home.fsPath, { recursive: true, force: true });
+			}
+		});
+	}
 
 	test('does not request canvas extensions or rendering for ephemeral sessions', async () => {
 		let captured: Parameters<CopilotClient['createSession']>[0] | undefined;
