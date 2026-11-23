@@ -2336,6 +2336,36 @@ suite('EditorGroupsService', () => {
 		});
 	});
 
+	test('pane visibility handlers run only when effective group visibility changes', async () => {
+		const [part] = await createPart();
+		const rootGroup = part.activeGroup;
+		const rightGroup = part.addGroup(rootGroup, GroupDirection.RIGHT);
+		const pane = await rootGroup.openEditor(createTestFileEditorInput(URI.file('foo/root'), TEST_EDITOR_INPUT_ID));
+		assert.ok(pane instanceof EditorPane);
+
+		const sandbox = createSandbox();
+		disposables.add(toDisposable(() => sandbox.restore()));
+		const visibility = sandbox.spy(pane, 'setVisible');
+
+		part.applyLayout({ groups: [{}, {}], orientation: GroupOrientation.VERTICAL });
+		part.setVisible(true);
+		part.arrangeGroups(GroupsArrangement.MAXIMIZE, rightGroup);
+		part.setVisible(false);
+		part.setVisible(true);
+		part.setVisible(false);
+		part.toggleMaximizeGroup();
+		part.setVisible(true);
+		part.applyLayout({ groups: [{}, {}], orientation: GroupOrientation.HORIZONTAL });
+
+		assert.deepStrictEqual({
+			visible: pane.isVisible(),
+			visibilityChanges: visibility.args
+		}, {
+			visible: true,
+			visibilityChanges: [[false], [true]]
+		});
+	});
+
 	test('restoring a saved maximized layout hides its inactive groups panes', async () => {
 		const [part, instantiationService] = await createPart();
 		const rootGroup = part.activeGroup;

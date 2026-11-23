@@ -520,6 +520,10 @@ export class EditorPanes extends Disposable {
 	}
 
 	setVisible(visible: boolean): void {
+		if (this.visible === visible) {
+			return;
+		}
+
 		this.visible = visible;
 		this.safeRun(() => this._activeEditorPane?.setVisible(visible));
 	}

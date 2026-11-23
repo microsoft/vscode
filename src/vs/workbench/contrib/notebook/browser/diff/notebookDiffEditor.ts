@@ -50,6 +50,7 @@ import { DiffEditorHeightCalculatorService, IDiffEditorHeightCalculatorService }
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { NotebookInlineDiffWidget } from './inlineDiff/notebookInlineDiffWidget.js';
 import { IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { onUnexpectedError } from '../../../../../base/common/errors.js';
 
 const $ = DOM.$;
 
@@ -118,6 +119,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 	private readonly diffEditorCalcuator: IDiffEditorHeightCalculatorService;
 	private readonly _modifiedResourceDisposableStore = this._register(new DisposableStore());
 	private inlineDiffWidget: NotebookInlineDiffWidget | undefined;
+	private inlineDiffRestorePending = false;
 
 	get textModel() {
 		return this._model?.modified.notebook;
@@ -298,6 +300,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		}
 
 		if (this._inlineView) {
+			this.inlineDiffRestorePending = false;
 			this.layout(this._lastLayoutProperties?.dimension, this._lastLayoutProperties?.position);
 			this.inlineDiffWidget?.show(this.input as NotebookDiffEditorInput, this._model?.modified.notebook, this._model?.original.notebook, this._options as INotebookEditorOptions | undefined);
 		} else {
@@ -488,6 +491,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 
 		if (this._inlineView) {
 			this._listViewContainer.style.display = 'none';
+			this.inlineDiffRestorePending = false;
 			this.inlineDiffWidget?.show(input, model.modified.notebook, model.original.notebook, options);
 		} else {
 			this._listViewContainer.style.display = 'block';
@@ -528,6 +532,17 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		super.setVisible(visible);
 		if (!visible) {
 			this.inlineDiffWidget?.hide();
+			this.inlineDiffRestorePending = true;
+		} else {
+			this.restoreInlineDiffWidget();
+		}
+	}
+
+	private restoreInlineDiffWidget(): void {
+		const dimension = this._lastLayoutProperties?.dimension;
+		if (this.inlineDiffRestorePending && this.isVisible() && this._inlineView && this.inlineDiffWidget && this.input && this._model && dimension && dimension.width > 0 && dimension.height > 0) {
+			this.inlineDiffRestorePending = false;
+			this.inlineDiffWidget.show(this.input as NotebookDiffEditorInput, this._model.modified.notebook, this._model.original.notebook, this._options as INotebookEditorOptions | undefined).catch(onUnexpectedError);
 		}
 	}
 
@@ -995,6 +1010,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		}
 
 		this._lastLayoutProperties = { dimension, position };
+		this.restoreInlineDiffWidget();
 
 		this._eventDispatcher?.emit([new NotebookDiffLayoutChangedEvent({ width: true, fontInfo: true }, this.getLayoutInfo())]);
 	}
