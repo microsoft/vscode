@@ -96,7 +96,7 @@ export function getRepositoryFromUrl(url: string): { owner: string; repo: string
 	}
 
 	// Generic SSH URI: ssh://[user@]host[:port]/owner/repo[.git]
-	match = /^ssh:\/\/(?:[^@]+@)?([^/:]+)(?::\d+)?\/([^/]+)\/([^/]+?)(\.git)?$/i.exec(url);
+	match = /^ssh:\/\/(?:[^@]+@)?(\[[^\]]+\]|[^/:]+)(?::\d+)?\/([^/]+)\/([^/]+?)(\.git)?$/i.exec(url);
 	if (match) {
 		try {
 			return { owner: match[2], repo: match[3], baseUrl: `https://${new URL(url).hostname}` };
