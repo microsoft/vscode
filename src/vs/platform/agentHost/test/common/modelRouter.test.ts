@@ -310,7 +310,7 @@ suite('modelRouter', () => {
 				unknown: undefined,
 			});
 			const result = resolveModelRouter(router([{ models: ['opus'], when: 'A.', examples: [] }, { models: ['claude', 'lab', 'max', 'pro'], when: 'B.', examples: [] }]), models);
-			assert.deepStrictEqual({ routes: result.routes.map(r => [r.model.id, r.reference]), diagnostics: messages(result.diagnostics) }, {
+			assert.deepStrictEqual({ routes: result.routes.map(r => [r.model.id, r.reference]), diagnostics: messages(result.diagnostics), skipped: result.skipped }, {
 				routes: [['claude-opus-5.5', 'opus'], ['acme-pro-2', 'pro']],
 				diagnostics: [
 					'Route 2: `claude` matches more than one model family; use one of `claude-opus`, `claude-sonnet`.',
@@ -318,6 +318,8 @@ suite('modelRouter', () => {
 					'Route 2: acme-max-1 is disabled by policy.',
 					'Route 2 uses `pro` because `claude` is not available.',
 				],
+				// The route found a model it can use, so its row has nothing to say about the others.
+				skipped: [],
 			});
 		});
 
@@ -328,6 +330,10 @@ suite('modelRouter', () => {
 			const result = resolveModelRouter(router([{ models: ['anthropic/claude-haiku-4-5'], when: 'A.', examples: [] }, { models: ['b'], when: 'B.', examples: [] }]), models);
 			assert.deepStrictEqual(result.routes.map(r => r.model.id), ['b']);
 			assert.ok(result.diagnostics[0].message.includes('`anthropic/Work/claude-haiku-4-5`, `anthropic/Home/claude-haiku-4-5`'));
+			// The route is left out, and what its row says names the ids that tell the two models apart.
+			assert.deepStrictEqual(result.skipped, [
+				'Route 1: `anthropic/claude-haiku-4-5` matches more than one model; use one of `anthropic/Work/claude-haiku-4-5`, `anthropic/Home/claude-haiku-4-5`. Route 1 (anthropic/claude-haiku-4-5) is skipped: none of its models are available on this account.',
+			]);
 		});
 
 		test('uses fallbacks, skips policy-disabled and missing models, and never picks routing models', () => {

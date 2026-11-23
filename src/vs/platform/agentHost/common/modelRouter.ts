@@ -892,7 +892,7 @@ export interface IModelRouterResolution {
 	/** Usable routes, in the router's order. The first is the fallback. */
 	readonly routes: readonly IResolvedModelRoute[];
 	readonly diagnostics: readonly IModelRouterDiagnostic[];
-	/** Why each route that is left out is left out. These warnings are also in `diagnostics`. */
+	/** Why each route that is left out is left out, with what is wrong with the models it names. These warnings are also in `diagnostics`. */
 	readonly skipped: readonly string[];
 }
 
@@ -909,8 +909,8 @@ export function resolveModelRouter(router: IModelRouter, models: readonly IAgent
 	const diagnostics: IModelRouterDiagnostic[] = [];
 	const warning = diagnosticReporter(diagnostics, ModelRouterDiagnosticSeverity.Warning);
 	const skipped: string[] = [];
-	const skip = (message: string) => {
-		skipped.push(message);
+	const skip = (message: string, reasons: readonly string[] = []) => {
+		skipped.push([...reasons, message].join(' '));
 		warning(message);
 	};
 	const routable = models.filter(isRoutableModel);
@@ -919,6 +919,12 @@ export function resolveModelRouter(router: IModelRouter, models: readonly IAgent
 	const merged = new Map<string, IModelRouterRoute[]>();
 	router.routes.forEach((route, index) => {
 		const label = modelRouterRouteLabel(route, index);
+		// Why a model the route names cannot be used, which is said with the route when it is left out.
+		const unusable: string[] = [];
+		const unusableModel = (message: string) => {
+			unusable.push(message);
+			warning(message);
+		};
 		let match: { model: IAgentModelInfo; reference: string } | undefined;
 		for (const reference of route.models) {
 			const result = matchModelReference(routable, reference);
@@ -926,24 +932,24 @@ export function resolveModelRouter(router: IModelRouter, models: readonly IAgent
 				continue;
 			}
 			if (result.kind === 'experimental') {
-				warning(`${label}: \`${reference}\` matches only experimental models, which a family never picks; use the id of one, such as ${result.models.map(model => `\`${readAgentModelByokIdentifier(model) ?? model.id}\``).join(', ')}.`);
+				unusableModel(`${label}: \`${reference}\` matches only experimental models, which a family never picks; use the id of one, such as ${result.models.map(model => `\`${readAgentModelByokIdentifier(model) ?? model.id}\``).join(', ')}.`);
 				continue;
 			}
 			if (result.kind === 'ambiguous') {
-				warning(result.families
+				unusableModel(result.families
 					? `${label}: \`${reference}\` matches more than one model family; use one of ${result.families.map(family => `\`${family}\``).join(', ')}.`
 					: `${label}: \`${reference}\` matches more than one model; use one of ${result.models.map(model => `\`${readAgentModelByokIdentifier(model) ?? model.id}\``).join(', ')}.`);
 				continue;
 			}
 			if (result.model.policyState === PolicyState.Disabled) {
-				warning(`${label}: ${result.model.name} is disabled by policy.`);
+				unusableModel(`${label}: ${result.model.name} is disabled by policy.`);
 				continue;
 			}
 			match = { model: result.model, reference };
 			break;
 		}
 		if (!match) {
-			skip(`${label} (${route.models.join(', ')}) is skipped: none of its models are available on this account.`);
+			skip(`${label} (${route.models.join(', ')}) is skipped: none of its models are available on this account.`, unusable);
 			return;
 		}
 		// A route without a name is its model, so a second one that lands on the same model has nothing to add.
