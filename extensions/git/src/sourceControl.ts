@@ -4,87 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as path from 'path';
-import { Disposable, l10n, LogOutputChannel, ProgressLocation, scm, SourceControl, SourceControlResourceGroup, ThemeIcon, Uri, window, workspace } from 'vscode';
-import { ActionButton } from './actionButton';
+import { Disposable, l10n, LogOutputChannel, scm, SourceControl, SourceControlResourceGroup, ThemeIcon, Uri, workspace } from 'vscode';
 import { GitArtifactProvider } from './artifactProvider';
-import { OperationKind } from './operation';
-import { CommitCommandsCenter } from './postCommitCommands';
 import { GitQuickDiffProvider, StagedResourceQuickDiffProvider } from './quickDiffProvider';
-import { IRemoteSourcePublisherRegistry } from './remotePublisher';
 import type { GitResourceGroup, IRepositoryResolver, Repository, Resource } from './repository';
-import { StatusBarCommands } from './statusbar';
-import { debounceEvent, dispose, EmptyDisposable, eventToPromise, filterEvent, IDisposable, isCopilotWorktreeFolder, onceEvent } from './util';
+import { dispose, filterEvent, isCopilotWorktreeFolder } from './util';
 import { Status } from './api/git.constants';
 
-class ProgressManager {
-
-	private enabled = false;
-	private disposable: IDisposable = EmptyDisposable;
-	private readonly disposables: IDisposable[] = [];
-
-	constructor(private readonly repository: Repository, private readonly sourceControl: SourceControl) {
-		const onDidChange = filterEvent(workspace.onDidChangeConfiguration, e => e.affectsConfiguration('git', Uri.file(this.repository.root)));
-		onDidChange(_ => this.updateEnablement(), null, this.disposables);
-		this.updateEnablement();
-
-		if (!workspace.isAgentSessionsWorkspace) {
-			this.repository.onDidChangeOperations(() => {
-				// Disable input box when the commit operation is running
-				this.sourceControl.inputBox.enabled = !this.repository.operations.isRunning(OperationKind.Commit);
-			}, null, this.disposables);
-		}
-	}
-
-	private updateEnablement(): void {
-		const config = workspace.getConfiguration('git', Uri.file(this.repository.root));
-		const showProgress = config.get<boolean>('showProgress') === true && !workspace.isAgentSessionsWorkspace;
-
-		if (showProgress) {
-			this.enable();
-		} else {
-			this.disable();
-		}
-	}
-
-	private enable(): void {
-		if (this.enabled) {
-			return;
-		}
-
-		const start = onceEvent(filterEvent(this.repository.onDidChangeOperations, () => this.repository.operations.shouldShowProgress()));
-		const end = onceEvent(filterEvent(debounceEvent(this.repository.onDidChangeOperations, 300), () => !this.repository.operations.shouldShowProgress()));
-
-		const setup = () => {
-			this.disposable = start(() => {
-				const promise = eventToPromise(end).then(() => setup());
-				window.withProgress({ location: ProgressLocation.SourceControl }, () => promise);
-			});
-		};
-
-		setup();
-		this.enabled = true;
-	}
-
-	private disable(): void {
-		if (!this.enabled) {
-			return;
-		}
-
-		this.disposable.dispose();
-		this.disposable = EmptyDisposable;
-		this.enabled = false;
-	}
-
-	dispose(): void {
-		this.disable();
-		dispose(this.disposables);
-	}
-}
-
 /**
- * Owns every `vscode.scm` object of a repository and copies the repository
- * model into them. Disposing it removes the repository from the Source
- * Control view without disposing the repository.
+ * Owns the source control of a repository, with its resource groups, input
+ * box and providers, and copies the repository model into them. Disposing it
+ * removes the repository from the Source Control view without disposing the
+ * repository.
  */
 export class GitSourceControl implements Disposable {
 
@@ -108,9 +39,7 @@ export class GitSourceControl implements Disposable {
 
 	constructor(
 		private readonly repository: Repository,
-		commitCommandCenter: CommitCommandsCenter,
 		repositoryResolver: IRepositoryResolver,
-		remoteSourcePublisherRegistry: IRemoteSourcePublisherRegistry,
 		logger: LogOutputChannel
 	) {
 		// Parent source control. Repositories opened in the Sessions app
@@ -208,20 +137,6 @@ export class GitSourceControl implements Disposable {
 		this.disposables.push(indexGroup);
 		this.disposables.push(workingTreeGroup);
 		this.disposables.push(untrackedGroup);
-
-		const statusBar = new StatusBarCommands(repository, this.sourceControl, remoteSourcePublisherRegistry);
-		this.disposables.push(statusBar);
-		const updateStatusBarCommands = () => this.sourceControl.statusBarCommands = this._isHidden || repository.isWarm ? [] : statusBar.commands;
-		statusBar.onDidChange(updateStatusBarCommands, null, this.disposables);
-		updateStatusBarCommands();
-
-		const actionButton = new ActionButton(repository, this.sourceControl, commitCommandCenter, logger);
-		this.disposables.push(actionButton);
-		actionButton.onDidChange(() => this.sourceControl.actionButton = actionButton.button, this, this.disposables);
-		this.sourceControl.actionButton = actionButton.button;
-
-		const progressManager = new ProgressManager(repository, this.sourceControl);
-		this.disposables.push(progressManager);
 
 		const onDidChangeCountBadge = filterEvent(workspace.onDidChangeConfiguration, e => e.affectsConfiguration('git.countBadge', root));
 		onDidChangeCountBadge(this.updateCount, this, this.disposables);

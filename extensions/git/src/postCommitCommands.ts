@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Command, commands, Disposable, Event, EventEmitter, Memento, SourceControl, Uri, workspace, l10n } from 'vscode';
+import { Command, commands, Disposable, Event, EventEmitter, Memento, Uri, workspace, l10n } from 'vscode';
 import type { PostCommitCommandsProvider } from './api/git';
 import { IRepositoryResolver, Repository } from './repository';
 import { ApiRepository } from './api/api1';
@@ -118,26 +118,26 @@ export class CommitCommandsCenter {
 			});
 	}
 
-	getPrimaryCommand(sourceControl: SourceControl | undefined): Command {
-		const allCommands = this.getSecondaryCommands(sourceControl).map(c => c).flat();
+	getPrimaryCommand(): Command {
+		const allCommands = this.getSecondaryCommands().map(c => c).flat();
 		const commandFromStorage = allCommands.find(c => c.arguments?.length === 2 && c.arguments[1] === this.getPostCommitCommandStringFromStorage());
 		const commandFromSetting = allCommands.find(c => c.arguments?.length === 2 && c.arguments[1] === this.getPostCommitCommandStringFromSetting());
 
-		return commandFromStorage ?? commandFromSetting ?? this.getCommitCommands(sourceControl)[0];
+		return commandFromStorage ?? commandFromSetting ?? this.getCommitCommands()[0];
 	}
 
-	getSecondaryCommands(sourceControl: SourceControl | undefined): Command[][] {
+	getSecondaryCommands(): Command[][] {
 		const commandGroups: Command[][] = [];
 
 		for (const provider of this.postCommitCommandsProviderRegistry.getPostCommitCommandsProviders()) {
 			const commands = provider.getCommands(new ApiRepository(this.repository));
 			commandGroups.push((commands ?? []).map(c => {
-				return { command: 'git.commit', title: c.title, tooltip: c.tooltip, arguments: [sourceControl, c.command] };
+				return { command: 'git.commit', title: c.title, tooltip: c.tooltip, arguments: [this.repository.sourceControl, c.command] };
 			}));
 		}
 
 		if (commandGroups.length > 0) {
-			commandGroups.splice(0, 0, this.getCommitCommands(sourceControl));
+			commandGroups.splice(0, 0, this.getCommitCommands());
 		}
 
 		return commandGroups;
@@ -153,7 +153,7 @@ export class CommitCommandsCenter {
 			if (command === undefined) {
 				// Commit WAS NOT initiated using the action button (ex: keybinding, toolbar action,
 				// command palette) so we have to honour the default post commit command (memento/setting).
-				const primaryCommand = this.getPrimaryCommand(this.repository.sourceControl);
+				const primaryCommand = this.getPrimaryCommand();
 				command = primaryCommand.arguments?.length === 2 ? primaryCommand.arguments[1] : null;
 			}
 
@@ -175,7 +175,7 @@ export class CommitCommandsCenter {
 		return `postCommitCommand:${this.repository.root}`;
 	}
 
-	private getCommitCommands(sourceControl: SourceControl | undefined): Command[] {
+	private getCommitCommands(): Command[] {
 		const config = workspace.getConfiguration('git', Uri.file(this.repository.root));
 
 		// Branch protection
@@ -203,8 +203,8 @@ export class CommitCommandsCenter {
 		}
 
 		return [
-			{ command: 'git.commit', title: l10n.t('{0} Commit', icon ?? '$(check)'), tooltip, arguments: [sourceControl, null] },
-			{ command: 'git.commitAmend', title: l10n.t('{0} Commit (Amend)', icon ?? '$(check)'), tooltip, arguments: [sourceControl, null] },
+			{ command: 'git.commit', title: l10n.t('{0} Commit', icon ?? '$(check)'), tooltip, arguments: [this.repository.sourceControl, null] },
+			{ command: 'git.commitAmend', title: l10n.t('{0} Commit (Amend)', icon ?? '$(check)'), tooltip, arguments: [this.repository.sourceControl, null] },
 		];
 	}
 

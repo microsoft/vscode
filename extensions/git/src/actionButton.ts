@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Command, Disposable, Event, EventEmitter, SourceControl, SourceControlActionButton, Uri, workspace, l10n, LogOutputChannel } from 'vscode';
+import { Command, Disposable, Event, EventEmitter, SourceControlActionButton, Uri, workspace, l10n, LogOutputChannel } from 'vscode';
 import type { Branch } from './api/git';
 import { RefType, Status } from './api/git.constants';
 import { OperationKind } from './operation';
@@ -62,7 +62,6 @@ export class ActionButton {
 
 	constructor(
 		private readonly repository: Repository,
-		private readonly sourceControl: SourceControl,
 		private readonly postCommitCommandCenter: CommitCommandsCenter,
 		private readonly logger: LogOutputChannel) {
 		this._state = {
@@ -148,7 +147,7 @@ export class ActionButton {
 				command: 'git.commit',
 				title: l10n.t('{0} Continue', '$(check)'),
 				tooltip: this.state.isCommitInProgress ? l10n.t('Continuing Rebase...') : l10n.t('Continue Rebase'),
-				arguments: [this.sourceControl, null]
+				arguments: [this.repository.sourceControl, null]
 			};
 		}
 
@@ -158,7 +157,7 @@ export class ActionButton {
 				command: 'git.commit',
 				title: l10n.t('{0} Continue', '$(check)'),
 				tooltip: this.state.isCommitInProgress ? l10n.t('Continuing Merge...') : l10n.t('Continue Merge'),
-				arguments: [this.sourceControl, null]
+				arguments: [this.repository.sourceControl, null]
 			};
 		}
 
@@ -168,12 +167,12 @@ export class ActionButton {
 				command: 'git.commit',
 				title: l10n.t('{0} Commit', '$(check)'),
 				tooltip: this.state.isCommitInProgress ? l10n.t('Committing Changes...') : l10n.t('Commit Changes'),
-				arguments: [this.sourceControl, null]
+				arguments: [this.repository.sourceControl, null]
 			};
 		}
 
 		// Commit
-		return this.postCommitCommandCenter.getPrimaryCommand(this.sourceControl);
+		return this.postCommitCommandCenter.getPrimaryCommand();
 	}
 
 	private getCommitActionButtonSecondaryCommands(): Command[][] {
@@ -194,7 +193,7 @@ export class ActionButton {
 
 		// Commit
 		const commandGroups: Command[][] = [];
-		for (const commands of this.postCommitCommandCenter.getSecondaryCommands(this.sourceControl)) {
+		for (const commands of this.postCommitCommandCenter.getSecondaryCommands()) {
 			commandGroups.push(commands.map(c => {
 				return { command: c.command, title: c.title, tooltip: c.tooltip, arguments: c.arguments };
 			}));
@@ -224,7 +223,7 @@ export class ActionButton {
 					(this.repository.HEAD?.name ?
 						l10n.t({ message: 'Publish Branch "{0}"', args: [this.state.HEAD?.name], comment: ['{Locked="Branch"}', 'Do not translate "Branch" as it is a git term'] }) :
 						l10n.t({ message: 'Publish Branch', comment: ['{Locked="Branch"}', 'Do not translate "Branch" as it is a git term'] })),
-				arguments: [this.sourceControl],
+				arguments: [this.repository.sourceControl],
 			},
 			enabled: !this.state.isCheckoutInProgress && !this.state.isSyncInProgress
 		};
@@ -250,7 +249,7 @@ export class ActionButton {
 				tooltip: this.state.isSyncInProgress ?
 					l10n.t('Synchronizing Changes...')
 					: this.repository.syncTooltip,
-				arguments: [this.sourceControl],
+				arguments: [this.repository.sourceControl],
 			},
 			enabled: !this.state.isCheckoutInProgress && !this.state.isSyncInProgress
 		};

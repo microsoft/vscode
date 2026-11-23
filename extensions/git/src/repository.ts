@@ -12,6 +12,7 @@ import * as os from 'os';
 import * as path from 'path';
 import picomatch from 'picomatch';
 import { CancellationError, CancellationToken, CancellationTokenSource, Command, commands, CustomExecution, Disposable, Event, EventEmitter, FileDecoration, l10n, LogLevel, LogOutputChannel, Memento, ProcessExecution, ProgressLocation, ProgressOptions, RelativePattern, ShellExecution, SourceControl, SourceControlInputBox, SourceControlInputBoxValidation, SourceControlInputBoxValidationType, SourceControlResourceDecorations, SourceControlResourceGroup, SourceControlResourceState, TabInputNotebookDiff, TabInputTextDiff, TabInputTextMultiDiff, Task, TaskPanelKind, TaskRevealKind, TaskRunOn, tasks, ThemeColor, Uri, window, workspace, WorkspaceEdit, WorkspaceFolder } from 'vscode';
+import { ActionButton } from './actionButton';
 import { ApiRepository } from './api/api1';
 import type { Branch, BranchQuery, Change, CommitOptions, DiffChange, FetchOptions, LogOptions, Ref, Remote, RepositoryKind } from './api/git';
 import { ForcePushMode, GitErrorCodes, RefType, Status } from './api/git.constants';
@@ -24,13 +25,14 @@ import { Operation, OperationKind, OperationManager, OperationResult } from './o
 import { CommitCommandsCenter, IPostCommitCommandsProviderRegistry } from './postCommitCommands';
 import { IPushErrorHandlerRegistry } from './pushError';
 import { IRemoteSourcePublisherRegistry } from './remotePublisher';
+import { StatusBarCommands } from './statusbar';
 import { toGitUri } from './uri';
-import { anyEvent, combinedDisposable, dispose, EmptyDisposable, eventToPromise, filterEvent, find, getCommitShortHash, IDisposable, isDescendant, isLinuxSnap, isRemote, isWindows, Limiter, pathEquals, relativePath } from './util';
+import { anyEvent, combinedDisposable, debounceEvent, dispose, EmptyDisposable, eventToPromise, filterEvent, find, getCommitShortHash, IDisposable, isDescendant, isLinuxSnap, isRemote, isWindows, Limiter, onceEvent, pathEquals, relativePath } from './util';
 import { IFileWatcher, watch } from './watch';
 import { ISourceControlHistoryItemDetailsProviderRegistry } from './historyItemDetailsProvider';
+import { GitArtifactProvider } from './artifactProvider';
 import { RepositoryCache } from './repositoryCache';
 import { GitSourceControl } from './sourceControl';
-import type { GitArtifactProvider } from './artifactProvider';
 import { getSafeNotificationMessage } from './notification';
 import { resolveWorktreeIncludePaths, sanitizeWorktreeIncludePatterns } from './worktreeInclude';
 import { createWorktreeSymlink, filterWorktreeSymlinkFolders, getWorktreeSymlinkFolderCandidates, type WorktreeSymlinkStatus } from './worktreeSymlink';
@@ -361,6 +363,71 @@ interface GitResourceGroups {
 	workingTreeGroup?: Resource[];
 }
 
+class ProgressManager {
+
+	private enabled = false;
+	private disposable: IDisposable = EmptyDisposable;
+	private readonly disposables: IDisposable[] = [];
+
+	constructor(private repository: Repository) {
+		const onDidChange = filterEvent(workspace.onDidChangeConfiguration, e => e.affectsConfiguration('git', Uri.file(this.repository.root)));
+		onDidChange(_ => this.updateEnablement(), null, this.disposables);
+		this.updateEnablement();
+
+		if (!workspace.isAgentSessionsWorkspace) {
+			this.repository.onDidChangeOperations(() => {
+				// Disable input box when the commit operation is running
+				this.repository.sourceControl.inputBox.enabled = !this.repository.operations.isRunning(OperationKind.Commit);
+			}, null, this.disposables);
+		}
+	}
+
+	private updateEnablement(): void {
+		const config = workspace.getConfiguration('git', Uri.file(this.repository.root));
+		const showProgress = config.get<boolean>('showProgress') === true && !workspace.isAgentSessionsWorkspace;
+
+		if (showProgress) {
+			this.enable();
+		} else {
+			this.disable();
+		}
+	}
+
+	private enable(): void {
+		if (this.enabled) {
+			return;
+		}
+
+		const start = onceEvent(filterEvent(this.repository.onDidChangeOperations, () => this.repository.operations.shouldShowProgress()));
+		const end = onceEvent(filterEvent(debounceEvent(this.repository.onDidChangeOperations, 300), () => !this.repository.operations.shouldShowProgress()));
+
+		const setup = () => {
+			this.disposable = start(() => {
+				const promise = eventToPromise(end).then(() => setup());
+				window.withProgress({ location: ProgressLocation.SourceControl }, () => promise);
+			});
+		};
+
+		setup();
+		this.enabled = true;
+	}
+
+	private disable(): void {
+		if (!this.enabled) {
+			return;
+		}
+
+		this.disposable.dispose();
+		this.disposable = EmptyDisposable;
+		this.enabled = false;
+	}
+
+	dispose(): void {
+		this.disable();
+		dispose(this.disposables);
+	}
+}
+
 class FileEventLogger {
 
 	private eventDisposable: IDisposable = EmptyDisposable;
@@ -683,7 +750,8 @@ export class Repository implements Disposable {
 			this.onDidRunOperation as Event<unknown>) as Event<void>;
 	}
 
-	private readonly _sourceControl: GitSourceControl;
+	// Set by attachSourceControl, which the constructor calls
+	private _sourceControl!: GitSourceControl;
 	private sourceControlDisposables: IDisposable[] = [];
 	get sourceControl(): SourceControl { return this._sourceControl.sourceControl; }
 	get sourceControlResourceGroups(): SourceControlResourceGroup[] { return this._sourceControl.sourceControlResourceGroups; }
@@ -916,14 +984,14 @@ export class Repository implements Disposable {
 		this.commitCommandCenter = new CommitCommandsCenter(globalState, this, postCommitCommandsProviderRegistry);
 		this.disposables.push(this.commitCommandCenter);
 
-		this._sourceControl = this.attachSourceControl();
+		this.attachSourceControl();
 	}
 
 	/**
-	 * Creates the source control, and the file watchers, auto fetch and configuration listeners that keep the model
-	 * current. For now, only the constructor calls it.
+	 * Creates the source control with its status bar commands, action button and progress, and the file watchers,
+	 * auto fetch and configuration listeners that keep the model current. For now, only the constructor calls it.
 	 */
-	private attachSourceControl(): GitSourceControl {
+	private attachSourceControl(): void {
 		const root = Uri.file(this.repository.root);
 
 		const repositoryWatcher = workspace.createFileSystemWatcher(new RelativePattern(root, '**'));
@@ -956,13 +1024,13 @@ export class Repository implements Disposable {
 		this.sourceControlDisposables.push(new FileEventLogger(onRepositoryWorkingTreeFileChange, onRepositoryDotGitFileChange, this.logger));
 
 		// Created after the file watchers, as before, so that their watch requests are not queued behind the source control's
-		const sourceControl = new GitSourceControl(this, this.commitCommandCenter, this.repositoryResolver, this.remoteSourcePublisherRegistry, this.logger);
-		this.sourceControlDisposables.push(sourceControl);
+		this._sourceControl = new GitSourceControl(this, this.repositoryResolver, this.logger);
+		this.sourceControlDisposables.push(this._sourceControl);
 
 		workspace.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('git.mergeEditor')) {
 				this.mergeGroup.resourceStates = this.mergeGroup.resourceStates.map(r => r.clone());
-				sourceControl.update();
+				this._sourceControl.update();
 			}
 		}, undefined, this.sourceControlDisposables);
 
@@ -986,7 +1054,18 @@ export class Repository implements Disposable {
 			this.sourceControlDisposables.push(trustDisposable);
 		}
 
-		return sourceControl;
+		const statusBar = new StatusBarCommands(this, this.remoteSourcePublisherRegistry);
+		this.sourceControlDisposables.push(statusBar);
+		statusBar.onDidChange(() => this.sourceControl.statusBarCommands = statusBar.commands, null, this.sourceControlDisposables);
+		this.sourceControl.statusBarCommands = statusBar.commands;
+
+		const actionButton = new ActionButton(this, this.commitCommandCenter, this.logger);
+		this.sourceControlDisposables.push(actionButton);
+		actionButton.onDidChange(() => this.sourceControl.actionButton = actionButton.button, this, this.sourceControlDisposables);
+		this.sourceControl.actionButton = actionButton.button;
+
+		const progressManager = new ProgressManager(this);
+		this.sourceControlDisposables.push(progressManager);
 	}
 
 	/**
