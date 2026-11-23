@@ -122,6 +122,8 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	private readonly model: EditorGroupModel;
 
 	private active: boolean | undefined;
+	private partVisible = true;
+	private gridVisible = true;
 	private editorOpenOperation: object | undefined;
 	get isOpeningEditor(): boolean { return this.editorOpenOperation !== undefined; }
 
@@ -940,9 +942,15 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	}
 
 	private onDidVisibilityChange(visible: boolean): void {
+		this.partVisible = visible;
 
 		// Forward to active editor pane
-		this.editorPane.setVisible(visible);
+		this.editorPane.setVisible(this.partVisible && this.gridVisible);
+	}
+
+	setVisible(visible: boolean): void {
+		this.gridVisible = visible;
+		this.editorPane.setVisible(this.partVisible && this.gridVisible);
 	}
 
 	private onDidGainFocus(): void {

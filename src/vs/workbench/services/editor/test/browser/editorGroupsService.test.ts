@@ -29,6 +29,8 @@ import { isEqual } from '../../../../../base/common/resources.js';
 import { CloseAllEditorGroupsAction } from '../../../../browser/parts/editor/editorActions.js';
 import { IWorkbenchLayoutService, Parts, Position } from '../../../layout/browser/layoutService.js';
 import { ActiveEditorContext } from '../../../../common/contextkeys.js';
+import { EditorPane } from '../../../../browser/parts/editor/editorPane.js';
+import { EditorActivation } from '../../../../../platform/editor/common/editor.js';
 
 suite('EditorGroupsService', () => {
 
@@ -2281,6 +2283,69 @@ suite('EditorGroupsService', () => {
 
 		assert.deepStrictEqual(maximizedValue, false);
 		maxiizeGroupEventDisposable.dispose();
+	});
+
+	test('maximizing another group hides the active editor pane until restored', async () => {
+		const [part] = await createPart();
+		const rootGroup = part.activeGroup;
+		const rightGroup = part.addGroup(rootGroup, GroupDirection.RIGHT);
+		const rootPane = await rootGroup.openEditor(createTestFileEditorInput(URI.file('foo/root'), TEST_EDITOR_INPUT_ID));
+		const rightPane = await rightGroup.openEditor(createTestFileEditorInput(URI.file('foo/right'), TEST_EDITOR_INPUT_ID));
+		assert.ok(rootPane instanceof EditorPane);
+		assert.ok(rightPane);
+
+		const sandbox = createSandbox();
+		disposables.add(toDisposable(() => sandbox.restore()));
+		const visibility = sandbox.spy(rootPane, 'setVisible');
+
+		part.arrangeGroups(GroupsArrangement.MAXIMIZE, rightGroup);
+		const maximized = [rootPane.isVisible(), rightPane.isVisible()];
+		part.toggleMaximizeGroup();
+
+		assert.deepStrictEqual({
+			maximized,
+			restored: [rootPane.isVisible(), rightPane.isVisible()],
+			visibilityChanges: visibility.args
+		}, {
+			maximized: [false, true],
+			restored: [true, true],
+			visibilityChanges: [[false], [true]]
+		});
+	});
+
+	test('editor pane visibility requires both the part and group to be visible', async () => {
+		const [part] = await createPart();
+		const rootGroup = part.activeGroup;
+		const rightGroup = part.addGroup(rootGroup, GroupDirection.RIGHT);
+		const pane = await rootGroup.openEditor(createTestFileEditorInput(URI.file('foo/root'), TEST_EDITOR_INPUT_ID));
+		assert.ok(pane);
+
+		const visibility: boolean[] = [];
+		part.arrangeGroups(GroupsArrangement.MAXIMIZE, rightGroup);
+		part.setVisible(false);
+		part.setVisible(true);
+		visibility.push(pane.isVisible());
+		part.setVisible(false);
+		part.toggleMaximizeGroup();
+		visibility.push(pane.isVisible());
+		part.setVisible(true);
+		visibility.push(pane.isVisible());
+
+		assert.deepStrictEqual(visibility, [false, false, true]);
+	});
+
+	test('opening a pane in a hidden group preserves its visibility', async () => {
+		const [part] = await createPart();
+		const rootGroup = part.activeGroup;
+		const rightGroup = part.addGroup(rootGroup, GroupDirection.RIGHT);
+		part.arrangeGroups(GroupsArrangement.MAXIMIZE, rightGroup);
+
+		const pane = await rootGroup.openEditor(createTestFileEditorInput(URI.file('foo/root'), TEST_EDITOR_INPUT_ID), { preserveFocus: true, activation: EditorActivation.PRESERVE });
+		assert.ok(pane);
+		const hidden = pane.isVisible();
+		part.toggleMaximizeGroup();
+
+		assert.deepStrictEqual([hidden, pane.isVisible()], [false, true]);
 	});
 
 	test('transient editors - basics', async () => {

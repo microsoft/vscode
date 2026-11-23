@@ -83,6 +83,7 @@ export class EditorPanes extends Disposable {
 	private _activeEditorPane: EditorPane | null = null;
 	get activeEditorPane(): IVisibleEditorPane | null { return this._activeEditorPane as IVisibleEditorPane | null; }
 
+	private visible = true;
 	private readonly editorPanes: EditorPane[] = [];
 	private readonly mapEditorPaneToPendingSetInput = new Map<EditorPane, Promise<void>>();
 
@@ -341,8 +342,8 @@ export class EditorPanes extends Disposable {
 		this.editorPanesParent.appendChild(container);
 		show(container);
 
-		// Indicate to editor that it is now visible
-		editorPane.setVisible(true);
+		// Apply the group's visibility to the editor
+		editorPane.setVisible(this.visible);
 
 		// Layout
 		if (this.pagePosition) {
@@ -519,6 +520,7 @@ export class EditorPanes extends Disposable {
 	}
 
 	setVisible(visible: boolean): void {
+		this.visible = visible;
 		this.safeRun(() => this._activeEditorPane?.setVisible(visible));
 	}
 
