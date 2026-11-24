@@ -13,6 +13,7 @@ import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { NullHoverService } from '../../../../../../platform/hover/test/browser/nullHoverService.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
@@ -156,6 +157,46 @@ suite('Connector presentation', () => {
 			},
 			withoutHomepage: undefined,
 			cleared: undefined,
+		});
+	});
+
+	test('detail fact links share a stable hover group isolated from other details', () => {
+		const container = DOM.append(document.body, DOM.$('.connector-detail-test'));
+		disposables.add(toDisposable(() => container.remove()));
+		const service = new class extends mock<ICopilotConnectorsService>() {
+			override readonly onDidChange = Event.None;
+		}();
+		const groups: (string | undefined)[] = [];
+		const hoverService = new class extends mock<IHoverService>() {
+			override setupDelayedHover(...args: Parameters<IHoverService['setupDelayedHover']>) {
+				groups.push(args[2]?.groupId);
+				return toDisposable(() => { });
+			}
+		}();
+		const createDetail = () => disposables.add(new EmbeddedConnectorDetail(
+			container, () => { }, service, new class extends mock<INotificationService>() { }(), new class extends mock<IOpenerService>() { }(), hoverService,
+		));
+		const input = { ...connector('connected'), homepage: 'https://example.com/' };
+		const detail = createDetail();
+		detail.setInput(input);
+		const initial = groups.splice(0);
+		detail.setInput(input);
+		const rerendered = groups.splice(0);
+		createDetail().setInput(input);
+		const other = groups.splice(0);
+
+		assert.deepStrictEqual({
+			initialCount: initial.length,
+			grouped: !!initial[0] && initial.every(group => group === initial[0]),
+			stable: rerendered,
+			otherCount: other.length,
+			isolated: !!other[0] && other[0] !== initial[0] && other.every(group => group === other[0]),
+		}, {
+			initialCount: 2,
+			grouped: true,
+			stable: initial,
+			otherCount: 2,
+			isolated: true,
 		});
 	});
 

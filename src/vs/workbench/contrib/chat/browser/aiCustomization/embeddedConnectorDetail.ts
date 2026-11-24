@@ -10,6 +10,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../../base/
 import { getErrorMessage, isCancellationError } from '../../../../../base/common/errors.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
 import { CustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
@@ -77,6 +78,7 @@ export class EmbeddedConnectorDetail extends Disposable {
 	private readonly otherInfoFactsEl: HTMLElement;
 	private readonly emptyEl: HTMLElement;
 	private readonly renderDisposables = this._register(new DisposableStore());
+	private readonly factHoverGroupId = generateUuid();
 	private readonly narrowLayoutUpdate = this._register(new MutableDisposable());
 	private readonly actionCancellation = this._register(new MutableDisposable<CancellationTokenSource>());
 	private current: ICopilotConnector | undefined;
@@ -282,6 +284,7 @@ export class EmbeddedConnectorDetail extends Disposable {
 			target: uri,
 			onOpen: target => void this.openExternal(target),
 			hoverService: this.hoverService,
+			hoverGroupId: this.factHoverGroupId,
 		}, this.renderDisposables);
 		return true;
 	}
