@@ -74,6 +74,17 @@ class ProgressManager {
 	}
 }
 
+export interface GitSourceControlOptions {
+	/**
+	 * Whether the repository is the one of a workspace folder location that a switch of the folder shows.
+	 */
+	readonly isFolderLocation: boolean;
+	/**
+	 * The commit message that the input box starts with, such as the one it had when the repository was detached.
+	 */
+	readonly commitMessage: string | undefined;
+}
+
 /**
  * The view model of a repository: owns its source control, with its resource groups, input box and providers, and
  * writes the repository model into them when the repository reports a change. Disposing it removes the repository
@@ -84,9 +95,6 @@ export class GitSourceControl implements Disposable {
 	readonly sourceControl: SourceControl;
 	get inputBox(): SourceControlInputBox { return this.sourceControl.inputBox; }
 	readonly artifactProvider: GitArtifactProvider;
-
-	private _isHidden: boolean;
-	get isHidden(): boolean { return this._isHidden; }
 
 	/**
 	 * The root of the repository that this source control is shown under, if any.
@@ -105,13 +113,16 @@ export class GitSourceControl implements Disposable {
 		repositoryResolver: IRepositoryResolver,
 		remoteSourcePublisherRegistry: IRemoteSourcePublisherRegistry,
 		commitCommandsCenter: CommitCommandsCenter,
-		logger: LogOutputChannel
+		logger: LogOutputChannel,
+		options: GitSourceControlOptions
 	) {
 		// Parent source control. Repositories opened in the Sessions app
 		// don't use the parent/child relationship and it is expected for
 		// a worktree repository to be opened while the main repository
-		// is closed.
-		const parentRoot = workspace.isAgentSessionsWorkspace
+		// is closed. The repository of a workspace folder location has no
+		// parent either: a switch of the folder detaches the repository of
+		// the location it leaves, which closes the ones shown under it.
+		const parentRoot = workspace.isAgentSessionsWorkspace || options.isFolderLocation
 			? undefined
 			: repository.kind === 'submodule'
 				? repository.dotGit.superProjectPath
@@ -132,18 +143,8 @@ export class GitSourceControl implements Disposable {
 					: new ThemeIcon('worktree')
 				: new ThemeIcon('repo');
 
-		// Hidden
-		// This is a temporary solution to hide:
-		// * repositories in the empty window
-		// * worktrees created by Copilot when the main repository
-		//   is opened. Users can still manually open the worktree
-		//   from the Repositories view.
-		this._isHidden = workspace.workspaceFolders === undefined ||
-			(repository.kind === 'worktree' &&
-				isCopilotWorktreeFolder(repository.root) && parent !== undefined);
-
 		const root = Uri.file(repository.root);
-		this.sourceControl = scm.createSourceControl('git', 'Git', root, icon, this._isHidden || repository.isWarm, parent);
+		this.sourceControl = scm.createSourceControl('git', 'Git', root, icon, parent);
 		this.sourceControl.contextValue = repository.kind;
 		const activeRepositoryRoot = repository.dotGit.isBare ? repository.dotGit.commonPath : parentRoot;
 		this.sourceControl.activeRepositoryName = repository.kind === 'worktree' && activeRepositoryRoot
@@ -160,6 +161,9 @@ export class GitSourceControl implements Disposable {
 
 		this.sourceControl.acceptInputCommand = { command: 'git.commit', title: l10n.t('Commit'), arguments: [this.sourceControl] };
 		this.sourceControl.inputBox.validateInput = (text, position) => repository.validateInput(text, position);
+		if (options.commitMessage !== undefined) {
+			this.sourceControl.inputBox.value = options.commitMessage;
+		}
 
 		this.disposables.push(this.sourceControl);
 
@@ -208,8 +212,6 @@ export class GitSourceControl implements Disposable {
 		repository.onDidChangeResources(this.updateResourceStates, this, this.disposables);
 		this.updateResourceStates();
 
-		repository.onDidChangeWarm(this.setWarm, this, this.disposables);
-
 		// Shows or clears the validation warning of a repository with too many changes
 		repository.onDidCheckStatusLimit(() => this.sourceControl.inputBox.validateInput = this.sourceControl.inputBox.validateInput, null, this.disposables);
 
@@ -227,20 +229,10 @@ export class GitSourceControl implements Disposable {
 
 		if (!workspace.isAgentSessionsWorkspace) {
 			// Disable input box when the commit operation is running
-			repository.onDidChangeOperations(() => this.sourceControl.inputBox.enabled = !repository.operations.isRunning(OperationKind.Commit), null, this.disposables);
+			const updateInputBoxEnablement = () => this.sourceControl.inputBox.enabled = !repository.operations.isRunning(OperationKind.Commit);
+			repository.onDidChangeOperations(updateInputBoxEnablement, null, this.disposables);
+			updateInputBoxEnablement();
 		}
-	}
-
-	/**
-	 * Hides or shows the source control as the one of a warm repository, see {@link Repository.isWarm}.
-	 */
-	private setWarm(isWarm: boolean): void {
-		if (!isWarm) {
-			// A repository is shown as the one of a workspace folder's current location, so even a worktree that is
-			// hidden when its main repository is open (see the constructor) is shown
-			this._isHidden = false;
-		}
-		this.sourceControl.isHidden = this._isHidden || isWarm;
 	}
 
 	private updateResourceStates(): void {

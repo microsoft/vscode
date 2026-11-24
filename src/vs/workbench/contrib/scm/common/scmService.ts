@@ -439,10 +439,6 @@ export class SCMService implements ISCMService {
 		let bestMatchLength = Number.POSITIVE_INFINITY;
 
 		for (const repository of this.repositories) {
-			if (repository.provider.isHidden.get()) {
-				continue;
-			}
-
 			const root = repository.provider.rootUri;
 
 			if (!root) {

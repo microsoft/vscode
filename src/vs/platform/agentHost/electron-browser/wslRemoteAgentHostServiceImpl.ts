@@ -237,42 +237,46 @@ class WSLConnectionFactory extends Disposable implements IRemoteAgentHostConnect
 			throw new Error(`WSL factory cannot create a ${entry.connection.type} connection.`);
 		}
 
-		const address = getEntryAddress(entry);
-		let stagedConnection = this._stagedConfigurations.get(address);
-		this._stagedConfigurations.delete(address);
-		let config = stagedConnection ?? {
+		const { config, userInitiated } = await this._resolveDial(getEntryAddress(entry), {
 			distro: entry.connection.distro,
 			name: entry.name,
 			remoteAgentHostCommand: this._getRemoteAgentHostCommand(),
-		};
-		let userInitiated = config.userInitiated ?? options.userInitiated;
-		if (!userInitiated) {
-			try {
-				await this._ensureDistroIsRunning(config.distro);
-			} catch (err) {
-				const userStagedConnection = this._stagedConfigurations.get(address);
-				if (!userStagedConnection) {
-					throw err;
-				}
-				this._stagedConfigurations.delete(address);
-				stagedConnection = userStagedConnection;
-				config = stagedConnection;
-				userInitiated = config.userInitiated ?? options.userInitiated;
-			}
-			// A user action may have arrived while the background precondition ran.
-			const userStagedConnection = this._stagedConfigurations.get(address);
-			if (userStagedConnection) {
-				this._stagedConfigurations.delete(address);
-				stagedConnection = userStagedConnection;
-				config = stagedConnection;
-				userInitiated = config.userInitiated ?? options.userInitiated;
-			}
-		}
+		}, options);
 
 		// A fresh protocol client must not attach to a relay that may already be initialized.
 		const result = await this._mainService.connect({ ...config, userInitiated });
 		this._logService.trace(`[WSLRemoteAgentHost] WSL relay established, connectionId=${result.connectionId}`);
 		return this._setupConnection(result, config.remoteAgentHostCommand);
+	}
+
+	/**
+	 * Resolves the configuration of a dial and whether a user requested it. Connecting to a stopped
+	 * distribution starts it, which only an explicit user action may do: an automatic dial fails with
+	 * {@link AgentHostTransportFailureReason.HostNotRunning} instead. This is the one place that decides
+	 * whether a dial may start a stopped distribution.
+	 */
+	private async _resolveDial(address: string, defaultConfig: IWSLAgentHostConfig, options: IRemoteAgentHostConnectOptions): Promise<{ readonly config: IWSLAgentHostConfig; readonly userInitiated: boolean }> {
+		const resolve = (fallback: IWSLAgentHostConfig) => {
+			const config = this._takeStagedConfiguration(address) ?? fallback;
+			return { config, userInitiated: (config.userInitiated ?? options.userInitiated) || !!options.hasUserJoined?.() };
+		};
+		const dial = resolve(defaultConfig);
+		if (dial.userInitiated) {
+			return dial;
+		}
+		const runningDistros = await this._mainService.listRunningDistros();
+		// A user may connect while the check runs, either staging a configuration or joining this dial.
+		const current = resolve(dial.config);
+		if (!current.userInitiated && !runningDistros.includes(current.config.distro)) {
+			throw new NonReconnectableTransportError(`WSL distro '${current.config.distro}' is not running.`, AgentHostTransportFailureReason.HostNotRunning);
+		}
+		return current;
+	}
+
+	private _takeStagedConfiguration(address: string): IWSLAgentHostConfig | undefined {
+		const config = this._stagedConfigurations.get(address);
+		this._stagedConfigurations.delete(address);
+		return config;
 	}
 
 	private _createEntry(distro: string, name: string): IRemoteAgentHostEntry {
@@ -312,13 +316,6 @@ class WSLConnectionFactory extends Disposable implements IRemoteAgentHostConnect
 				distro,
 			},
 		}));
-	}
-
-	private async _ensureDistroIsRunning(distro: string): Promise<void> {
-		const runningDistros = await this._mainService.listRunningDistros();
-		if (!runningDistros.includes(distro)) {
-			throw new NonReconnectableTransportError(`WSL distro '${distro}' is not running.`, AgentHostTransportFailureReason.HostNotRunning);
-		}
 	}
 
 	private _setupConnection(result: IWSLConnectResult, remoteAgentHostCommand: string | undefined): IRemoteAgentHostCreatedConnection {

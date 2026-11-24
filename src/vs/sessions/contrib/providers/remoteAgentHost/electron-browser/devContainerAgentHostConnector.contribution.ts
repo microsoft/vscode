@@ -24,7 +24,7 @@ import { AgentHostClientConnectionKind } from '../../../../../platform/agentHost
 import { AgentHostAhpJsonlLoggingSettingId, IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
 import { AhpJsonlLogger } from '../../../../../platform/agentHost/common/ahpJsonlLogger.js';
 import { AgentHostClientProxy } from '../../../../../platform/agentHost/browser/agentHostClientProxy.js';
-import { DEV_CONTAINER_AGENT_HOST_CHANNEL, DevContainerAgentHostSource, DevContainerConnectStage, DevContainerEnvironmentVolumeLookupTimeoutMs, IDevContainerAgentHostConfig, IDevContainerAgentHostConnectFailure, IDevContainerAgentHostMainService, IDevContainerAgentHostOutput, IDevContainerAgentHostSandboxSupport, IDevContainerAgentHostUserStateReport } from '../../../../../platform/agentHost/common/devContainerAgentHost.js';
+import { DEV_CONTAINER_AGENT_HOST_CHANNEL, DevContainerAgentHostSource, DevContainerConnectStage, DevContainerEnvironmentVolumeLookupTimeoutMs, IDevContainerAgentHostConfig, IDevContainerAgentHostConnectFailure, IDevContainerAgentHostMainService, IDevContainerAgentHostOutput, IDevContainerAgentHostSandboxSupport, IDevContainerAgentHostUserStateReport, isValidDevContainerConnectionName } from '../../../../../platform/agentHost/common/devContainerAgentHost.js';
 import { findDevContainerSample } from '../../../../../platform/agentHost/common/devContainerSamples.js';
 import { devContainerEnvironmentImage, findDevContainerEnvironment, isLocalDevContainerEnvironment } from '../../../../../platform/agentHost/common/devContainerEnvironments.js';
 import { areDevContainerEnvironmentsEnabled, areDevContainerSamplesEnabled, DevContainerAgentHostEnabledSettingId, DevContainerEnvironmentsEnabledSettingId, DevContainerHandoffEnabledSettingId, DevContainerIdleTimeoutSettingId, DevContainerSamplesEnabledSettingId, DevContainerStateVolumeEnabledSettingId, DevContainerWorktreeEnabledSettingId, IDevContainerAgentHostConnection, IDevContainerAgentHostConnectionOptions, IDevContainerAgentHostConnector, IDevContainerAgentHostService } from '../../../../../workbench/contrib/sessions/common/devContainerAgentHostService.js';
@@ -393,12 +393,17 @@ class DevContainerOutputWriter extends Disposable {
 		this._connectionIds.add(connectionId);
 		this._channelId = getDevContainerOutputChannel(workspaceUri, label);
 
-		this._append(localize('devContainerOutputStarting', "\n--- Starting Dev Container for {0} ---\n", description));
+		this.appendHeading(description);
 		this._register(mainService.onDidOutput(output => {
 			if (this._connectionIds.has(output.connectionId)) {
 				this._append(output.data);
 			}
 		}));
+	}
+
+	/** Marks where the output of starting the Dev Container begins. */
+	appendHeading(description: string): void {
+		this._append(localize('devContainerOutputStarting', "\n--- Starting Dev Container for {0} ---\n", description));
 	}
 
 	addConnection(connectionId: string): void {
@@ -567,8 +572,15 @@ export class DevContainerAgentHostConnector extends Disposable implements IDevCo
 			|| (environment && sourceEntry ? localize('devContainerEnvironment.connectionName', "Dev Container on {0}", sourceEntry.name)
 				: localEnvironment ? localize('devContainerEnvironment.localConnectionName', "Dev Container on This Computer")
 					: sourceEntry ? `${basename(workspaceUri)} Dev Container (${sourceEntry.name})` : `${basename(workspaceUri)} Dev Container`);
+		// The host and the log name an environment as it is currently renamed, read on every connect to follow later renames.
+		// A rename the host would reject, e.g., with a NUL character, falls back to the environment's name, so it cannot block connecting.
+		const hostName = () => {
+			const renamed = environment ? this._remoteAgentHostService.getDisplayNameOverride(address) : undefined;
+			return renamed !== undefined && isValidDevContainerConnectionName(renamed) ? renamed : name;
+		};
+		let heading = environment ? hostName() : workspaceUri.fsPath;
 		const connectionStore = new DisposableStore();
-		const outputWriter = connectionStore.add(new DevContainerOutputWriter(mainService, connectionId, workspaceUri, this._getOutputLabel(workspaceUri), environment ? name : workspaceUri.fsPath, this._outputService));
+		const outputWriter = connectionStore.add(new DevContainerOutputWriter(mainService, connectionId, workspaceUri, this._getOutputLabel(workspaceUri), heading, this._outputService));
 		// Whether each connection keeps user state on a volume.
 		const connectionIds = new Map<string, boolean>();
 		const failureStages = new Map<string, DevContainerConnectStage>();
@@ -630,7 +642,7 @@ export class DevContainerAgentHostConnector extends Disposable implements IDevCo
 			let result = await connect({
 				connectionId,
 				...source,
-				name,
+				name: hostName(),
 				resume: options?.resume ?? true,
 				...(options?.sandboxEnabled !== undefined ? { sandboxEnabled: options.sandboxEnabled } : {}),
 			}, false);
@@ -662,11 +674,17 @@ export class DevContainerAgentHostConnector extends Disposable implements IDevCo
 
 				const reconnectConnectionId = generateUuid();
 				outputWriter.addConnection(reconnectConnectionId);
+				const reconnectName = hostName();
+				// After a rename, the output that follows is headed with the new name.
+				if (environment && reconnectName !== heading) {
+					heading = reconnectName;
+					outputWriter.appendHeading(heading);
+				}
 				try {
 					result = await connect({
 						connectionId: reconnectConnectionId,
 						...source,
-						name,
+						name: reconnectName,
 						resume: false,
 						...(options?.sandboxEnabled !== undefined ? { sandboxEnabled: options.sandboxEnabled } : {}),
 					}, true);
@@ -707,7 +725,8 @@ export class DevContainerAgentHostConnector extends Disposable implements IDevCo
 			};
 			return {
 				address,
-				name: result.name,
+				// Not the renamed name the host echoes, which would become the default name and outlast clearing the rename.
+				name,
 				hostWorkspaceFolder: result.hostWorkspaceFolder,
 				repository: result.repository,
 				volumeOnLocalDockerEngine,

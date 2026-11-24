@@ -63,7 +63,7 @@ const nullGitStateService: IAgentHostGitStateService = {
 	async refreshSessionGitState() { },
 	getMaterializedWorktreeMeta() { return undefined; },
 	async setFolderGitState() { },
-	async resolveSessionBaseBranchName() { return undefined; },
+	async resolveSessionBaseBranchRef() { return undefined; },
 	async setSessionGitHubState() { },
 	async recordSessionMerge() { },
 	async attachSessionGitHubPullRequest() { },

@@ -102,3 +102,16 @@ export interface IDefaultAccount {
 	readonly enterprise: boolean;
 	readonly entitlementsData?: IEntitlementsData | null;
 }
+
+/** The fields of a default account that identify its GitHub account and the authentication session to use for it. */
+export type IGitHubDefaultAccount = Pick<IDefaultAccount, 'authenticationProvider' | 'accountName' | 'sessionId' | 'enterprise'>;
+
+/**
+ * Returns the default account as a GitHub account, or `undefined` when there is no default account. Every default
+ * account is a GitHub account, so this returns the account it is given. Code that makes GitHub requests for the default
+ * account reads it through here, so that a default account that is not a GitHub account would yield `undefined` too.
+ * Callers that handle a missing default account differently from that case must check the account itself.
+ */
+export function asGitHubAccount(account: IDefaultAccount | null | undefined): IGitHubDefaultAccount | undefined {
+	return account ?? undefined;
+}
