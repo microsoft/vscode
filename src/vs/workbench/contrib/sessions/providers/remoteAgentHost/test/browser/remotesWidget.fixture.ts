@@ -60,6 +60,10 @@ const failedSSH: ICustomizationRemote = { ...remotes[0], canDelete: true, connec
 const troubleshooting: Record<string, { readonly remote: ICustomizationRemote; readonly info: IRemoteTroubleshootingInfo }> = {
 	SSHAuthentication: { remote: failedSSH, info: sshInfo },
 	SSHHostKey: { remote: { ...failedSSH, lastConnectionError: 'Host key verification failed: the host key for build.example.com changed' }, info: sshInfo },
+	SSHRemoteSetup: {
+		remote: { ...failedSSH, lastConnectionError: 'Timed out waiting for the newly spawned agent host to register itself after 10135ms (deadline 10000ms)' },
+		info: { ssh: { ...sshInfo.ssh, hasSavedHostKey: false, remoteLog: '.vscode-server-insiders/cli/agent-host-insider.log' } },
+	},
 	SSHConnected: { remote: { ...remotes[0], canUpdateServer: true }, info: { ...sshInfo, versions: { server: { ...serverVersion, current: true }, client: clientVersion, update: 'available' } } },
 	WSLStopped: {
 		remote: { id: 'wsl:Ubuntu', kind: 'wsl', name: 'Ubuntu', detail: 'Ubuntu-24.04', canRemove: false, availability: 'offline', startsOnConnect: true, unavailableReason: 'This distribution is stopped.', connectionStatus: RemoteAgentHostConnectionStatus.disconnected },
@@ -324,6 +328,10 @@ export default defineThemedFixtureGroup({ path: 'sessions/remotes/' }, {
 	TroubleshootSSHHostKey: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: context => render(context, 900, OperatingSystem.Linux, false, [], false, undefined, false, { height: 900, troubleshoot: troubleshooting.SSHHostKey }),
+	}),
+	TroubleshootSSHRemoteSetup: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: context => render(context, 900, OperatingSystem.Linux, false, [], false, undefined, false, { height: 900, troubleshoot: troubleshooting.SSHRemoteSetup }),
 	}),
 	TroubleshootSSHConnected: defineComponentFixture({
 		labels: { kind: 'screenshot' },

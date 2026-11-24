@@ -8,7 +8,7 @@ import { DeferredPromise } from '../../../../base/common/async.js';
 import { createSingleCallFunction } from '../../../../base/common/functional.js';
 import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
-import { derived, IObservable, runOnChange } from '../../../../base/common/observable.js';
+import { derived, IObservable, runOnChange, waitForState } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IRange } from '../../../../editor/common/core/range.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -25,6 +25,8 @@ import { changeMatchesResource, getActiveResourceCandidates } from './agentFeedb
 import { IAgentFeedbackContext, AGENT_FEEDBACK_NEW_SESSION_RESOURCE, INavigableSessionComment, IAcceptFeedbackOptions, IAgentFeedbackChangeEvent, IAgentFeedbackNavigationBearing, IAgentFeedbackNavigationChangeEvent, IAgentFeedbackCommentRevealEvent, IAgentFeedbackAddedEvent, IAgentFeedbackConvertedEvent, IAgentFeedbackReplyAddedEvent, IAgentFeedbackSubmittedEvent, ISubmitFeedbackOptions, IAgentFeedbackService } from '../../../../workbench/contrib/sessions/browser/agentFeedback.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { IChatWidget, IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
+import { ResponseModelState } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { IChatResponseModel } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IFeedbackPullRequest } from '../../../../platform/agentHost/common/meta/agentFeedbackAnnotations.js';
 import { ICodeReviewSuggestion } from '../../../../workbench/contrib/sessions/browser/codeReviewService.js';
@@ -803,31 +805,60 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 	 * in which case awaiting {@link IChatWidget.acceptInput} would only resolve
 	 * once that queued request eventually runs — the feedback items must move to
 	 * the submitted state right away.
+	 *
+	 * If the request is then never sent, or its response fails, the feedback is
+	 * made submittable again.
 	 */
 	private _sendActOnFeedbackRequest(widget: IChatWidget, sessionResource: URI, options?: ISubmitFeedbackOptions, cleanup?: () => void): Promise<boolean> {
 		const submitted = new DeferredPromise<boolean>();
 		const cleanupOnce = cleanup && createSingleCallFunction(cleanup);
+		let submittedFeedbackIds: ReadonlySet<string> = new Set();
 
 		widget.acceptInput(options?.query ?? '/act-on-feedback', {
 			onRequestAccepted: () => {
 				cleanupOnce?.();
-				this.markFeedbackSubmitted(sessionResource, options?.feedbackIds);
+				submittedFeedbackIds = this.markFeedbackSubmitted(sessionResource, options?.feedbackIds);
 				options?.onRequestAccepted?.();
 				submitted.complete(true);
 			}
-		}).then(() => {
+		}).then(async response => {
 			cleanupOnce?.();
 			submitted.complete(false);
+			// A queued request that is dropped before it runs resolves without a response.
+			if (!response || await hasResponseFailed(response)) {
+				this._restoreSubmittedFeedback(sessionResource, submittedFeedbackIds);
+			}
 		}, err => {
 			this._logService.error('[AgentFeedback] Failed to submit feedback', err);
 			cleanupOnce?.();
 			submitted.complete(false);
+			this._restoreSubmittedFeedback(sessionResource, submittedFeedbackIds);
 		});
 
 		return submitted.p;
 	}
 
-	markFeedbackSubmitted(sessionResource: URI, feedbackIds?: readonly string[]): void {
+	/**
+	 * Moves feedback that a failed request submitted back to the accepted state,
+	 * so that it can be submitted again. Feedback the agent has resolved, or that
+	 * was removed in the meantime, is left alone. Only Agent Host sessions keep
+	 * submitted feedback in the submitted state: other providers resolve it on
+	 * submission, which also resolves its pull request review threads, so it is
+	 * not reopened.
+	 */
+	private _restoreSubmittedFeedback(sessionResource: URI, feedbackIds: ReadonlySet<string>): void {
+		if (!feedbackIds.size) {
+			return;
+		}
+		const backend = this._backendForSession(sessionResource);
+		for (const item of backend.getItems(sessionResource)) {
+			if (feedbackIds.has(item.id) && item.state === AgentFeedbackState.Submitted) {
+				backend.upsert({ ...item, state: AgentFeedbackState.Accepted });
+			}
+		}
+	}
+
+	markFeedbackSubmitted(sessionResource: URI, feedbackIds?: readonly string[]): ReadonlySet<string> {
 		const backend = this._backendForSession(sessionResource);
 		const feedbackItems = backend.getItems(sessionResource);
 		const selectedFeedbackIds = feedbackIds ? new Set(feedbackIds) : undefined;
@@ -860,7 +891,7 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 		}
 
 		if (!submitted.length) {
-			return;
+			return new Set();
 		}
 
 		for (const item of submitted) {
@@ -875,5 +906,13 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 			prReviewCount,
 			replyCount,
 		});
+
+		return new Set(submitted.map(item => item.id));
 	}
+}
+
+/** Waits for a sent request's response to finish and returns whether it failed. */
+async function hasResponseFailed(response: IChatResponseModel): Promise<boolean> {
+	await waitForState(response.isIncomplete, isIncomplete => !isIncomplete);
+	return response.state === ResponseModelState.Failed;
 }

@@ -1331,8 +1331,13 @@ export interface ISessionGitState {
 	readonly isDetachedHead?: boolean;
 	/** Base branch the work targets (e.g. `main`). */
 	readonly baseBranchName?: string;
-	/** Base branch exactly as recorded for the session (e.g. `origin/main`), as Branch Changes describes it. {@link baseBranchName} is the same branch without its remote prefix. */
-	readonly baseBranchFullName?: string;
+	/**
+	 * Full ref of the base branch Branch Changes compares against and describes (`refs/heads/...` or
+	 * `refs/remotes/...`, e.g. `refs/remotes/origin/main`): the base recorded for the session, a short name recorded
+	 * earlier as the ref it resolves to; without a recorded base, the default branch's remote-tracking branch when it
+	 * exists, else the default branch. {@link baseBranchName} is the branch it names, without its remote.
+	 */
+	readonly baseBranchRef?: string;
 	/** Upstream tracking branch (e.g. `origin/feature`). */
 	readonly upstreamBranchName?: string;
 	/**
@@ -1539,7 +1544,7 @@ export function parseSessionGitState(value: unknown): ISessionGitState | undefin
 		branchName?: string;
 		isDetachedHead?: boolean;
 		baseBranchName?: string;
-		baseBranchFullName?: string;
+		baseBranchRef?: string;
 		upstreamBranchName?: string;
 		defaultBranchName?: string;
 		defaultRemoteBranchName?: string;
@@ -1556,7 +1561,7 @@ export function parseSessionGitState(value: unknown): ISessionGitState | undefin
 	if (typeof raw['branchName'] === 'string') { result.branchName = raw['branchName']; }
 	if (typeof raw['isDetachedHead'] === 'boolean') { result.isDetachedHead = raw['isDetachedHead']; }
 	if (typeof raw['baseBranchName'] === 'string') { result.baseBranchName = raw['baseBranchName']; }
-	if (typeof raw['baseBranchFullName'] === 'string') { result.baseBranchFullName = raw['baseBranchFullName']; }
+	if (typeof raw['baseBranchRef'] === 'string') { result.baseBranchRef = raw['baseBranchRef']; }
 	if (typeof raw['upstreamBranchName'] === 'string') { result.upstreamBranchName = raw['upstreamBranchName']; }
 	if (typeof raw['defaultBranchName'] === 'string') { result.defaultBranchName = raw['defaultBranchName']; }
 	if (typeof raw['defaultRemoteBranchName'] === 'string') { result.defaultRemoteBranchName = raw['defaultRemoteBranchName']; }

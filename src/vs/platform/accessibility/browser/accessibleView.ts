@@ -74,6 +74,7 @@ export const enum AccessibleViewProviderId {
 	ChatPetAchievements = 'chatPetAchievements',
 	/** Shared by the jump game's accessibility help and current-state view. */
 	ChatPetJumpGame = 'chatPetJumpGame',
+	ChatPlanNudge = 'chatPlanNudge',
 }
 
 export const enum AccessibleViewType {

@@ -857,7 +857,7 @@ suite('WorktreeIsolation', () => {
 			branchDefault: 'main',
 			branchEnum: ['main'],
 			startPoint: 'main',
-			diffBaseBranch: 'main',
+			diffBaseBranch: 'refs/heads/main',
 		});
 	});
 
@@ -895,6 +895,34 @@ suite('WorktreeIsolation', () => {
 			commitTreeCalls: [[repoRoot, 'snapshot-tree', undefined, 'Initialize isolated worktree', { useInternalIdentity: true }]],
 			startPoint: 'snapshot-commit',
 			diffBaseBranch: 'main',
+		});
+	});
+
+	test('records the selected remote branch as the full base ref when the repository has no default branch', async () => {
+		const gitService = createGitService();
+		gitService.getDefaultBranch2 = async () => undefined;
+		gitService.getBranch = async (_root, name) => name === 'origin/feature'
+			? { ref: `refs/remotes/${name}`, name, remote: 'origin', kind: GitRefType.RemoteHead }
+			: undefined;
+		const isolation = createIsolation(disposables, { gitService });
+
+		await isolation.resolveWorkingDirectory({
+			sessionUri,
+			sessionId,
+			workingDirectory: repoRoot,
+			config: {
+				[SessionConfigKey.Isolation]: 'worktree',
+				[SessionConfigKey.Branch]: 'origin/feature',
+			},
+			prompt: 'do a thing',
+		});
+
+		assert.deepStrictEqual({
+			startPoint: addWorktreeCalls[0]?.commitish,
+			diffBaseBranch: await db.getMetadata(META_DIFF_BASE_BRANCH),
+		}, {
+			startPoint: 'origin/feature',
+			diffBaseBranch: 'refs/remotes/origin/feature',
 		});
 	});
 
@@ -936,7 +964,7 @@ suite('WorktreeIsolation', () => {
 			operations,
 		}, {
 			startPoint: 'origin/main',
-			diffBaseBranch: 'main',
+			diffBaseBranch: 'refs/heads/main',
 			operations: ['resolve:origin/main', 'fetch:origin:refs/remotes/origin/main', 'add:origin/main'],
 		});
 	});
@@ -1077,7 +1105,7 @@ suite('WorktreeIsolation', () => {
 			fetched: [{ branch: 'upstream/feature/pr', timeout: 60_000 }, { branch: 'upstream/main', timeout: 60_000 }],
 			addWorktreeArgs: [{ commitish: 'upstream/feature/pr', newBranchName: 'agents/pr-42-s1', track: true }],
 			branchName: 'agents/pr-42-s1',
-			diffBaseBranch: 'upstream/main',
+			diffBaseBranch: 'refs/remotes/upstream/main',
 		});
 	});
 
@@ -1387,7 +1415,7 @@ suite('WorktreeIsolation', () => {
 			diffBaseBranch: await db.getMetadata(META_DIFF_BASE_BRANCH),
 		}, {
 			startPoint: 'feature',
-			diffBaseBranch: 'origin/main',
+			diffBaseBranch: 'refs/remotes/origin/main',
 		});
 	});
 
@@ -2403,7 +2431,7 @@ suite('WorktreeIsolation', () => {
 		gitService.getRepositoryRoot = async () => worktreeCheckout;
 		gitService.getWorktreeRoots = async () => [repoRoot, worktreeCheckout];
 		gitService.getCurrentBranch = async () => 'agents/adopted';
-		gitService.getDefaultBranch = async () => ({ name: 'main', startPoint: 'main' });
+		gitService.getDefaultBranch2 = async () => localBranch('main', 'origin/main');
 		const isolation = createIsolation(disposables, { gitService });
 
 		const recorded = await isolation.adoptExistingWorktreeMetadata(sessionUri, worktreeCheckout);
@@ -2421,7 +2449,7 @@ suite('WorktreeIsolation', () => {
 			branchName: 'agents/adopted',
 			path: worktreeCheckout.toString(),
 			repositoryRoot: repoRoot.toString(),
-			diffBaseBranch: 'main',
+			diffBaseBranch: 'refs/remotes/origin/main',
 			project: { uri: repoRoot.toString(), displayName: basename(repoRoot) },
 		});
 	});

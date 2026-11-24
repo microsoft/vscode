@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { ISCMViewService, ISCMRepository, ISCMService, ISCMViewVisibleRepositoryChangeEvent, ISCMMenus, ISCMProvider, ISCMRepositorySortKey, ISCMRepositorySelectionMode } from '../common/scm.js';
+import { ISCMViewService, ISCMRepository, ISCMService, ISCMViewVisibleRepositoryChangeEvent, ISCMMenus, ISCMProvider, ISCMRepositorySortKey, ISCMRepositorySelectionMode, ISCMRepositoryNotice } from '../common/scm.js';
 import { Iterable } from '../../../../base/common/iterator.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { SCMMenus } from './menus.js';
@@ -402,9 +402,9 @@ export class SCMViewService implements ISCMViewService {
 						}
 						repositoryView.selectionIndex = index;
 					});
-
-					this._onDidChangeRepositories.fire({ added, removed: Iterable.empty() });
 				}
+
+				this._onDidChangeRepositories.fire({ added, removed: Iterable.empty() });
 
 				this.didSelectRepository = false;
 				return;
@@ -459,7 +459,35 @@ export class SCMViewService implements ISCMViewService {
 		}
 	}
 
+	private readonly repositoryNotices = new Map<ISCMRepository, ISettableObservable<ISCMRepositoryNotice | undefined>>();
+
+	private getRepositoryNoticeObservable(repository: ISCMRepository): ISettableObservable<ISCMRepositoryNotice | undefined> {
+		let notice = this.repositoryNotices.get(repository);
+		if (!notice) {
+			notice = observableValue<ISCMRepositoryNotice | undefined>(this, undefined);
+			this.repositoryNotices.set(repository, notice);
+		}
+		return notice;
+	}
+
+	getRepositoryNotice(repository: ISCMRepository): IObservable<ISCMRepositoryNotice | undefined> {
+		return this.getRepositoryNoticeObservable(repository);
+	}
+
+	setRepositoryNotice(repository: ISCMRepository, notice: ISCMRepositoryNotice): IDisposable {
+		const observable = this.getRepositoryNoticeObservable(repository);
+		observable.set(notice, undefined);
+		return toDisposable(() => {
+			if (observable.get() === notice) {
+				observable.set(undefined, undefined);
+			}
+		});
+	}
+
 	private onDidRemoveRepository(repository: ISCMRepository): void {
+		this.repositoryNotices.get(repository)?.set(undefined, undefined);
+		this.repositoryNotices.delete(repository);
+
 		if (!this.didFinishLoadingRepositories.get()) {
 			this.eventuallyFinishLoading();
 		}
