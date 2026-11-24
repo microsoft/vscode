@@ -41,14 +41,6 @@ export type HttpFetchFn = (request: HttpRequest) => Promise<HttpResponse>;
  */
 export type FetchMiddleware = (next: HttpFetchFn) => HttpFetchFn;
 
-/**
- * Minimal interface for checking window activity state. Compatible with
- * `IEnvService` without depending on it directly.
- */
-export interface WindowStateProvider {
-	readonly isActive: boolean;
-}
-
 export class FetchBlockedError extends Error {
 	constructor(message: string, readonly retryAfterMs: number) {
 		super(message);
