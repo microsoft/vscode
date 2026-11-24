@@ -140,7 +140,7 @@ class EditorEditTask extends ModelEditTask {
 		// Check that the editor is still for the wanted model. It might have changed in the
 		// meantime and that means we cannot use the editor anymore (instead we perform the edit through the model)
 		if (!this._canUseEditor()) {
-			super.apply();
+			super.apply(reason);
 			return;
 		}
 
@@ -158,7 +158,7 @@ class EditorEditTask extends ModelEditTask {
 						});
 					}
 				}
-				snippetCtrl.apply(snippetEdits, { undoStopBefore: false, undoStopAfter: false });
+				snippetCtrl.apply(snippetEdits, { undoStopBefore: false, undoStopAfter: false, reason });
 
 			} else {
 				// normal edit
@@ -326,7 +326,7 @@ export class BulkTextEdits {
 				);
 				this._undoRedoService.pushElement(multiModelEditStackElement, this._undoRedoGroup, this._undoRedoSource);
 				for (const task of tasks) {
-					task.apply();
+					task.apply(reason);
 					this._progress.report(undefined);
 					resources.push(task.model.uri);
 				}

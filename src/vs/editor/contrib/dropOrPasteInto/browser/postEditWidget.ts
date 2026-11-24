@@ -28,6 +28,7 @@ import { DocumentDropEdit, DocumentPasteEdit } from '../../../common/languages.j
 import { TrackedRangeStickiness } from '../../../common/model.js';
 import { CodeEditorStateFlag, EditorStateCancellationTokenSource } from '../../editorState/browser/editorState.js';
 import { createCombinedWorkspaceEdit } from './edit.js';
+import { TextModelEditSource } from '../../../common/textModelEditSource.js';
 import { PasteEditSession } from './pasteEditSession.js';
 import './postEditWidget.css';
 
@@ -163,6 +164,7 @@ export class PostEditWidgetManager<T extends DocumentPasteEdit | DocumentDropEdi
 		private readonly _visibleContext: RawContextKey<boolean>,
 		private readonly _showCommand: ShowCommand,
 		private readonly _getAdditionalActions: () => readonly IAction[],
+		private readonly _editReason: TextModelEditSource,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IBulkEditService private readonly _bulkEditService: IBulkEditService,
 		@INotificationService private readonly _notificationService: INotificationService,
@@ -240,7 +242,7 @@ export class PostEditWidgetManager<T extends DocumentPasteEdit | DocumentDropEdi
 		let editResult: IBulkEditResult;
 		let editRange: Range | null;
 		try {
-			editResult = await this._bulkEditService.apply(combinedWorkspaceEdit, { editor: this._editor, token });
+			editResult = await this._bulkEditService.apply(combinedWorkspaceEdit, { editor: this._editor, reason: this._editReason, token });
 			editRange = model.getDecorationRange(editTrackingDecoration[0]);
 		} catch (e) {
 			return handleError(e, localize('applyError', "Error applying edit '{0}':\n{1}", edit.title, toErrorMessage(e)));
