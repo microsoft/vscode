@@ -385,14 +385,15 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 		const plugins: PluginMeta[] = [];
 		const expandPromises: Promise<readonly ICustomizationItem[]>[] = [];
 
-		const snapshot = this.getCustomizations(sessionResource);
+		const snapshot = this._customAgentsService.getCustomizations(sessionResource);
+		const draftPlugins = new Set(this.getDraftCustomizations(snapshot));
 		const customizations = await this._customAgentsService.resolveRuntimePluginEnablement?.(sessionResource, snapshot) ?? snapshot;
 		if (token.isCancellationRequested) {
 			return [];
 		}
 
 		const directoryCustomizations = [];
-		for (const sessionCustomization of customizations) {
+		for (const sessionCustomization of [...customizations, ...draftPlugins]) {
 			if (isDirectoryCustomization(sessionCustomization)) {
 				directoryCustomizations.push(sessionCustomization);
 			} else if (sessionCustomization.type === CustomizationType.McpServer) {
@@ -428,11 +429,13 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 					pluginLabel: isBundleItem ? undefined : item.name,
 				} satisfies PluginMeta;
 				plugins.push(pluginMeta);
-				expandPromises.push(pluginUri ? this._expandPluginContents(pluginMeta, token) : Promise.resolve([]));
+				expandPromises.push(sessionCustomization.children !== undefined
+					? Promise.resolve(this.toPluginChildItems(pluginMeta, sessionCustomization.children))
+					: pluginUri && draftPlugins.has(sessionCustomization) ? this._expandPluginContents(pluginMeta, token) : Promise.resolve([]));
 			}
 		}
 
-		// Expand each plugin directory in parallel to discover individual skills, agents, instructions, and prompts inside.
+		// Resolve published children and scan only unpublished draft plugin directories.
 		const expansions = await Promise.all(expandPromises);
 
 		if (token.isCancellationRequested) {
@@ -452,7 +455,7 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 					scope: p.isBundleItem ? enriched.scope : p.item.scope,
 					status: p.status,
 					statusMessage: p.statusMessage,
-					enabled: p.enabled,
+					enabled: p.enabled === false || enriched.enabled === false ? false : p.enabled,
 					disabledReason: p.disabledReason,
 				});
 			}
@@ -610,7 +613,8 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 				extensionIdsByUri.set(file.uri, id);
 			}
 		}
-		const containers = this.getCustomizations(sessionResource).filter((candidate): candidate is PluginCustomization | DirectoryCustomization =>
+		const sessionCustomizations = this._customAgentsService.getCustomizations(sessionResource);
+		const containers = [...sessionCustomizations, ...this.getDraftCustomizations(sessionCustomizations)].filter((candidate): candidate is PluginCustomization | DirectoryCustomization =>
 			candidate.type !== CustomizationType.McpServer
 			&& (candidate.type === CustomizationType.Plugin ? isCustomizationEnabled(candidate) : candidate.enabled));
 		const drafts = this._draftCustomAgents?.get() ?? [];
@@ -695,18 +699,41 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 		});
 	}
 
-	private getCustomizations(sessionResource: URI): readonly Customization[] {
-		const sessionCustomizations = this._customAgentsService.getCustomizations(sessionResource);
+	private getDraftCustomizations(sessionCustomizations: readonly Customization[]): readonly PluginCustomization[] {
 		const draftCustomizations = this._draftCustomizations?.get() ?? [];
 		if (draftCustomizations.length === 0) {
-			return sessionCustomizations;
+			return [];
 		}
 
 		const sessionKeys = new Set(sessionCustomizations.filter(customization => customization.type === CustomizationType.Plugin && customization.clientId === this._connection.clientId).map(customization => `${customization.type}:${customization.id}`));
-		return [
-			...sessionCustomizations,
-			...draftCustomizations.filter(customization => !sessionKeys.has(`${customization.type}:${customization.id}`)).map(customization => ({ ...customization, clientId: this._connection.clientId })),
-		];
+		return draftCustomizations.filter(customization => !sessionKeys.has(`${customization.type}:${customization.id}`)).map(customization => ({ ...customization, clientId: this._connection.clientId }));
+	}
+
+	private toPluginChildItems(plugin: PluginMeta, children: readonly ChildCustomization[]): ICustomizationItem[] {
+		const items: ICustomizationItem[] = [];
+		for (const child of children) {
+			if (!toPromptsType(child.type)) {
+				continue;
+			}
+			const item = this.toDirectoryChildItem(child, plugin.item.source, plugin.isBundleItem ? undefined : plugin.item.scope, plugin.delivery !== undefined);
+			if (!item) {
+				continue;
+			}
+			const enriched = plugin.isBundleItem ? this._applySyncedOrigin(item) : item;
+			items.push({
+				...enriched,
+				itemKey: enriched.itemKey ?? child.id,
+				scope: plugin.isBundleItem ? enriched.scope : plugin.item.scope,
+				status: plugin.status,
+				statusMessage: plugin.statusMessage,
+				enabled: plugin.enabled !== false && item.enabled !== false,
+				disabledReason: plugin.disabledReason,
+				delivery: plugin.delivery,
+				pluginUri: plugin.isBundleItem ? undefined : plugin.item.uri,
+				pluginLabel: plugin.isBundleItem ? undefined : plugin.pluginLabel,
+			});
+		}
+		return items;
 	}
 
 	/**
