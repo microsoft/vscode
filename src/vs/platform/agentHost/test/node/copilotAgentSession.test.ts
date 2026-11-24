@@ -6467,6 +6467,48 @@ suite('CopilotAgentSession', () => {
 			replacement.session.dispose();
 		});
 
+		test('restores a canvas whose client answers its consent after the restore deadline, and reports a restore an opened event already showed as opened', async () => {
+			const results = [];
+			for (const scenario of ['late consent answer', 'opened event before the open resolves'] as const) {
+				const { handoff } = await takeCanvasesFromPreviousRuntime({ ...preview, url: 'https://example.test/previous' });
+				const otherAnswer = new DeferredPromise<PermissionRequestResult>();
+				const replacement = await createAgentSession(disposables, {
+					resume: true,
+					canvasHandoff: handoff,
+					controlPlaneRpcTimeoutMs: 20,
+					configureMockSession: mock => {
+						mock.extensions.push({ id: preview.extensionId, name: 'preview', source: 'project', status: 'dormant' });
+						mock.onCanvasOpen = async () => {
+							await otherAnswer.p;
+							if (scenario === 'opened event before the open resolves') {
+								mock.fire('session.canvas.opened', { ...preview, url: 'https://example.test/event' });
+							}
+							return { ...preview, url: 'https://example.test/reopened' };
+						};
+					},
+				});
+				void replacement.runtime.handlePermissionRequest({ kind: 'extension-permission-access', extensionName: 'user:pr-health', capabilities: ['register hooks'] }).then(result => otherAnswer.complete(result));
+				assert.strictEqual(replacement.session.adoptCanvasHandoff(handoff), true);
+				await timeout(0);
+				const request = { canvasId: preview.canvasId, extensionId: preview.extensionId, instanceId: preview.instanceId };
+				const asked = await replacement.session.openCanvas(request);
+				if (scenario === 'late consent answer') {
+					// The person answers after the restore's bounded wait would have ended.
+					await timeout(60);
+				}
+				const opened = asked.kind === 'consentRequired'
+					? await replacement.session.openCanvas(request, { kind: 'consent', consentId: asked.consent.id, optionId: AgentExtensionConsentOption.NotNow })
+					: asked;
+				results.push({ scenario, opened, url: summarizeCanvasSignals(replacement.signals).states.at(-1)?.url, desynchronized: replacement.session.requiresControlPlaneResync });
+				replacement.session.dispose();
+			}
+
+			assert.deepStrictEqual(results, [
+				{ scenario: 'late consent answer', opened: { kind: 'opened' }, url: 'https://example.test/reopened', desynchronized: false },
+				{ scenario: 'opened event before the open resolves', opened: { kind: 'opened' }, url: 'https://example.test/event', desynchronized: false },
+			]);
+		});
+
 		test('reopens a restoring canvas a client opens with its input, unless it was closed while the open waited for consent', async () => {
 			const input = { path: '/logs/events.jsonl' };
 			const results = [];

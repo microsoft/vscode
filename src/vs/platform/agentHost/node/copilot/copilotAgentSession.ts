@@ -1541,6 +1541,8 @@ export class CopilotAgentSession extends Disposable {
 	/** Extension consent requests waiting for the user's decision, by consent ID. */
 	private readonly _extensionConsentGates = new Map<string, IExtensionConsentGate>();
 	private readonly _onDidAddExtensionConsentGate = this._register(new Emitter<void>());
+	/** Fires when a client or a turn is shown an extension consent request. */
+	private readonly _onDidShowExtensionConsent = this._register(new Emitter<void>());
 	/**
 	 * Extensions this runtime did not allow to load, by name. The runtime keeps a person's No, and the extension stays failed,
 	 * until it is replaced, so asking again needs a new runtime.
@@ -5609,6 +5611,7 @@ export class CopilotAgentSession extends Disposable {
 				const unattended = this._unattendedExtensionConsent();
 				if (!unattended) {
 					gate.presentedToClient = true;
+					this._onDidShowExtensionConsent.fire();
 					operation.consentShown = true;
 					this._noteExtensionConsentShown(gate.consent.extensionName);
 					this._canvasConsentOpens.set(canvasConsentOpenKey(gate.consent.id, operation.request.instanceId), operation);
@@ -6216,20 +6219,21 @@ export class CopilotAgentSession extends Disposable {
 		}
 		let reopened: Awaited<ReturnType<CopilotSession['rpc']['canvas']['open']>> | undefined;
 		// A runtime that just launched can list a canvas before its extension registers it, which a change reports. Other
-		// extensions report changes too, so each change allows another attempt until one deadline.
+		// extensions report changes too, so each change allows another attempt until one deadline. Time a person spends
+		// answering a consent request the restore waits for does not count.
+		const request: IAgentCanvasOpenRequest = { extensionId, canvasId, instanceId };
+		const consentWait = { ms: 0 };
 		const deadline = Date.now() + this._controlPlaneRpcTimeoutMs;
 		while (true) {
 			const registryChanged = Event.toPromise(Event.any(Event.signal(wrapper.onExtensionsLoaded), Event.signal(wrapper.onCanvasRegistryChanged)));
 			try {
-				reopened = await raceTimeout(wrapper.session.rpc.canvas.open({
-					extensionId,
-					canvasId,
-					instanceId,
+				reopened = await this._awaitRestoringCanvasOpen(wrapper.session.rpc.canvas.open({
+					...request,
 					...(projection.input !== undefined ? { input: projection.input } : {}),
-				}), this._controlPlaneRpcTimeoutMs);
+				}), request, extension, consentWait);
 				break;
 			} catch (error) {
-				const remaining = deadline - Date.now();
+				const remaining = deadline + consentWait.ms - Date.now();
 				if (getCanvasOpenFailure(error) === 'unavailable' && remaining > 0 && await raceTimeout(registryChanged.then(() => true), remaining)
 					&& !this._store.isDisposed && this._wrapper === wrapper && this._isCurrentCanvasProjection(projection)) {
 					continue;
@@ -6247,12 +6251,51 @@ export class CopilotAgentSession extends Disposable {
 			this._logService.warn(`[Copilot:${this.sessionId}] Reopening a restored canvas did not finish within ${this._controlPlaneRpcTimeoutMs}ms`);
 			return { kind: 'failed', failure: 'unavailable' };
 		}
-		// Events received during the request, such as a close, supersede its result.
-		if (this._store.isDisposed || this._wrapper !== wrapper || !this._isCurrentCanvasProjection(projection)) {
+		// Events received during the request, such as a close, supersede its result. An opened event of the same lifetime
+		// already projected the canvas, which counts as opened.
+		const current = this._canvasByInstanceId.get(instanceId);
+		if (this._store.isDisposed || this._wrapper !== wrapper || !current || !isEqual(current.resource, projection.resource)) {
 			return { kind: 'failed', failure: 'dismissed' };
 		}
-		this._projectOpenedCanvas(reopened);
+		if (this._isCurrentCanvasProjection(projection)) {
+			this._projectOpenedCanvas(reopened);
+		}
 		return { kind: 'opened' };
+	}
+
+	/**
+	 * Waits for a restore's open, bounded like other control-plane requests while nobody is asked the consent it waits
+	 * for. While a client or a turn shows that request, waits for the answer, then for a new bounded wait. Adds the time
+	 * spent asking to `consentWait`. Resolves `undefined` when the bounded wait ends first.
+	 */
+	private async _awaitRestoringCanvasOpen<T>(open: Promise<T>, request: IAgentCanvasOpenRequest, extension: CanvasOpenExtension | undefined, consentWait: { ms: number }): Promise<T | undefined> {
+		const settled = open.then(value => ({ value }));
+		// An open that fails after the bounded wait ended is reported by nobody.
+		settled.catch(() => undefined);
+		while (true) {
+			const shown = [...this._extensionConsentGates.values()].find(gate => !gate.decision.isSettled && (gate.presentedToClient || gate.confirmingInTurn) && this._canvasOpenWaitsFor(request, extension, gate));
+			if (shown) {
+				const stopwatch = StopWatch.create();
+				const result = await Promise.race([settled, shown.decision.p.then(() => undefined)]);
+				consentWait.ms += stopwatch.elapsed();
+				if (result) {
+					return result.value;
+				}
+				continue;
+			}
+			const showing = Event.toPromise(this._onDidShowExtensionConsent.event);
+			try {
+				const result = await raceTimeout(Promise.race([settled, showing.then(() => 'shown' as const)]), this._controlPlaneRpcTimeoutMs);
+				if (result === undefined) {
+					return undefined;
+				}
+				if (result !== 'shown') {
+					return result.value;
+				}
+			} finally {
+				showing.cancel();
+			}
+		}
 	}
 
 	private _flushDeferredCanvasCloses(wrapper: CopilotSessionWrapper): Promise<void> {
@@ -10739,6 +10782,7 @@ export class CopilotAgentSession extends Disposable {
 		const { displayName: name, extensionName, items } = gate.consent;
 		const environment = gate.consent.kind === 'environment';
 		gate.confirmingInTurn = true;
+		this._onDidShowExtensionConsent.fire();
 		const result = await this._confirmEphemerally(turn, AgentHostExtensionPermissionApprovalsConfigKey, gate.identity, {
 			toolName: environment ? 'extension_env_consent' : 'extension_permission_consent',
 			displayName: localize('extensionPermissionConsentDisplayName', "Extensions"),
