@@ -1712,9 +1712,6 @@ importers:
       '@vscode/extension-telemetry':
         specifier: ^0.9.8
         version: 0.9.8(tslib@2.8.1)
-      keytar:
-        specifier: file:./packageMocks/keytar
-        version: file:extensions/microsoft-authentication/packageMocks/keytar
       vscode-tas-client:
         specifier: ^0.1.84
         version: 0.1.84
