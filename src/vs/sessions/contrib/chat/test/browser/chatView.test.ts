@@ -29,6 +29,7 @@ import { ExtensionIdentifier } from '../../../../../platform/extensions/common/e
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { NullHoverService } from '../../../../../platform/hover/test/browser/nullHoverService.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ConfigurationTarget } from '../../../../../platform/configuration/common/configuration.js';
 import { IChatSessionHistoryStatus } from '../../../../../platform/chat/common/chatSessionHistory.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -43,11 +44,11 @@ import { ChatInputNoticeVariant, ChatInputNoticeWidget } from '../../../../../wo
 import { renderChatInputPickerSplit } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerActionItem.js';
 import { isChatInputStackSlotShowing } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputStack.js';
 import { ChatOpenDiagnosticsService } from '../../../../../workbench/contrib/chat/common/chatOpenDiagnosticsService.js';
-import { ElicitationState, IChatModelReference, IChatService, IChatToolInvocation, ResponseModelState } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { ElicitationState, IChatElicitationRequest, IChatMcpAuthenticationRequiredServer, IChatModelReference, IChatService, IChatToolInvocation, ResponseModelState } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatServiceImpl.js';
 import { ChatSessionsService } from '../../../../../workbench/contrib/chat/browser/chatSessions/chatSessions.contribution.js';
 import { IChatSession } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { ChatAgentLocation, ChatModeKind, ChatPermissionLevel } from '../../../../../workbench/contrib/chat/common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { ChatModel, ChatResponseModel, IChatModel, IChatModelInputState, IChatProgressResponseContent, IChatRequestModel, IInputModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { ChatModelStore, IStartSessionProps } from '../../../../../workbench/contrib/chat/common/model/chatModelStore.js';
 import { ModelSelectionReason } from '../../../../../workbench/contrib/chat/common/modelSelection.js';
@@ -75,7 +76,7 @@ import { ISessionsChatBackground, ISessionsChatBackgroundService } from '../../.
 import { DefaultChatViewFactory } from '../../../../../workbench/contrib/sessions/browser/chat/defaultChatViewFactory.js';
 import { defaultNewSessionPresentation } from '../../../../../workbench/contrib/sessions/browser/chat/defaultNewSessionPresentation.js';
 import { AGENTS_CENTERED_CONTENT_MAX_WIDTH } from '../../../../../workbench/contrib/sessions/common/layoutConstants.js';
-import { ChatView, EXPERIMENTAL_SESSION_CHAT_INPUT_TRAILING_SPACE, findInitialTranscriptContextEntry, getChatRespondent, getInputOnlyProgressMessage, getInputOnlyResponseState, getInputOnlyResponseText, IInputOnlyStatus, needsConversationForInput, findTranscriptContextEntry, getSessionChatItemHorizontalPadding, getSessionComparisonRequestSummary, getTranscriptProgress, isFocusChatPillsKeyDown, NewChatView, shouldRenderRunningSessionSecondaryToolbar, shouldShowSessionChatTip, shouldShowTranscriptPreparationCompletion, shouldShowTranscriptPreparationProgress } from '../../../../../workbench/contrib/sessions/browser/chat/chatView.js';
+import { ChatView, EXPERIMENTAL_SESSION_CHAT_INPUT_TRAILING_SPACE, findInitialTranscriptContextEntry, getChatRespondent, getInputOnlyProgressMessage, getInputOnlyResponseState, getInputOnlyResponseText, IInputOnlyStatus, findTranscriptContextEntry, getSessionChatItemHorizontalPadding, getSessionComparisonRequestSummary, getTranscriptProgress, isFocusChatPillsKeyDown, NewChatView, shouldRenderRunningSessionSecondaryToolbar, shouldShowSessionChatTip, shouldShowTranscriptPreparationCompletion, shouldShowTranscriptPreparationProgress } from '../../../../../workbench/contrib/sessions/browser/chat/chatView.js';
 import { SessionsChatViewStateService } from '../../../../../workbench/contrib/sessions/browser/chat/chatViewStateService.js';
 import { NewChatInSessionWidget } from '../../../../../workbench/contrib/sessions/browser/chat/newChatInSessionWidget.js';
 import { NestedChatWorkspaceControls } from '../../../../../workbench/contrib/sessions/browser/chat/nestedChatWorkspacePicker.js';
@@ -1008,42 +1009,80 @@ suite('Sessions - Chat View', () => {
 		});
 	});
 
-	test('shows the conversation only for input that is not shown above the input', () => {
-		const waitingTool = (title: string | undefined) => ({ kind: 'toolInvocation', presentation: undefined, toolId: 'editFile', source: { type: 'internal' }, state: constObservable({ type: IChatToolInvocation.StateKind.WaitingForConfirmation, confirmationMessages: title ? { title } : undefined }) }) as unknown as IChatToolInvocation;
-		const model = (pending: boolean, tools: IChatToolInvocation[], parts: object[] = []) => ({
-			lastRequestObs: constObservable({
-				response: {
-					isPendingConfirmation: constObservable(pending ? { startedWaitingAt: 0 } : undefined),
-					pendingToolInvocations: constObservable(tools),
-					response: { value: parts },
-				},
-			}),
-		}) as unknown as IChatModel;
-		const needsConversation = (chatModel: IChatModel | undefined, carousel = true) => needsConversationForInput(chatModel, carousel, undefined);
-
-		assert.deepStrictEqual({
-			noModel: needsConversation(undefined),
-			notWaiting: needsConversation(model(false, [], [{ kind: 'confirmation' }])),
-			approvalInCarousel: needsConversation(model(true, [waitingTool('Allow edit?')])),
-			approvalWithCarouselDisabled: needsConversation(model(true, [waitingTool('Allow edit?')]), false),
-			approvalWithoutTitle: needsConversation(model(true, [waitingTool(undefined)])),
-			question: needsConversation(model(true, [], [{ kind: 'questionCarousel' }])),
-			confirmation: needsConversation(model(true, [], [{ kind: 'confirmation' }])),
-			answeredConfirmation: needsConversation(model(true, [], [{ kind: 'confirmation', isUsed: true }, { kind: 'questionCarousel' }])),
-			planReview: needsConversation(model(true, [], [{ kind: 'planReview' }])),
-			elicitation: needsConversation(model(true, [], [{ kind: 'elicitation2', state: constObservable(ElicitationState.Pending) }])),
-		}, {
-			noModel: false,
-			notWaiting: false,
-			approvalInCarousel: false,
-			approvalWithCarouselDisabled: true,
-			approvalWithoutTitle: true,
-			question: false,
-			confirmation: true,
-			answeredConfirmation: false,
-			planReview: true,
-			elicitation: true,
+	function createInputOnlyConversationGate(parts: IChatProgressResponseContent[] = []): {
+		response: ChatResponseModel;
+		currentModel: ISettableObservable<IChatModel | undefined>;
+		enabled: ISettableObservable<boolean>;
+		configuration: TestConfigurationService;
+		needsConversation: IObservable<boolean>;
+	} {
+		const response: ChatResponseModel = disposables.add(new ChatResponseModel({
+			responseContent: parts, session: createChatModel(URI.parse('test:/input-parity')), requestId: 'input', codeBlockInfos: undefined,
+		}));
+		const request: IChatRequestModel = upcastPartial<IChatRequestModel>({ response });
+		const model: IChatModel = upcastPartial<IChatModel>({ lastRequestObs: constObservable(request) });
+		const currentModel: ISettableObservable<IChatModel | undefined> = observableValue('currentModel', model);
+		const enabled: ISettableObservable<boolean> = observableValue('inputOnlyEnabled', true);
+		const configuration: TestConfigurationService = new TestConfigurationService({ [ChatConfiguration.ToolConfirmationCarousel]: true });
+		disposables.add(configuration.onDidChangeConfigurationEmitter);
+		const view: { _createInputOnlyNeedsConversation(model: IObservable<IChatModel | undefined>): IObservable<boolean> } = Object.assign(Object.create(ChatView.prototype), {
+			_inputOnlyEnabled: enabled, configurationService: configuration,
 		});
+		const needsConversation: IObservable<boolean> = view._createInputOnlyNeedsConversation(currentModel);
+		return { response, currentModel, enabled, configuration, needsConversation };
+	}
+
+	test('input-only views retain shared question controls and expose transcript-only input actions', (): void => {
+		const tool: IChatToolInvocation = upcastPartial<IChatToolInvocation>({
+			kind: 'toolInvocation', toolId: 'editFile', source: { type: 'internal' },
+			state: constObservable({ type: IChatToolInvocation.StateKind.WaitingForConfirmation, confirmationMessages: { title: 'Allow edit?' } }),
+		});
+		const elicitation: IChatElicitationRequest = upcastPartial<IChatElicitationRequest>({
+			kind: 'elicitation2', title: '', state: constObservable(ElicitationState.Pending),
+		});
+		const cases: { name: string; parts: IChatProgressResponseContent[]; expanded: boolean }[] = [
+			{ name: 'question form', parts: [{ kind: 'questionCarousel', questions: [{ id: 'name', type: 'text', title: 'Name', required: true }], allowSkip: true }], expanded: false },
+			{ name: 'carousel approval', parts: [tool], expanded: false },
+			{ name: 'untitled approval', parts: [{ ...tool, state: constObservable({ type: IChatToolInvocation.StateKind.WaitingForConfirmation }) }], expanded: true },
+			{ name: 'untitled confirmation', parts: [{ kind: 'confirmation', title: '', message: 'Continue?', data: {} }], expanded: true },
+			{ name: 'answered confirmation', parts: [{ kind: 'confirmation', title: 'Continue?', message: '', data: {}, isUsed: true }], expanded: false },
+			{ name: 'untitled elicitation', parts: [elicitation], expanded: true },
+			{ name: 'hidden elicitation', parts: [{ ...elicitation, isHidden: constObservable(true) }], expanded: false },
+			{ name: 'settled elicitation', parts: [{ ...elicitation, state: constObservable(ElicitationState.Accepted) }], expanded: false },
+			{ name: 'plan review', parts: [{ kind: 'planReview', title: 'Review', content: '', actions: [], canProvideFeedback: true }], expanded: true },
+		];
+		assert.deepStrictEqual(cases.map(({ name, parts }): { name: string; expanded: boolean } => ({
+			name, expanded: createInputOnlyConversationGate(parts).needsConversation.get(),
+		})), cases.map(({ name, expanded }): { name: string; expanded: boolean } => ({ name, expanded })));
+	});
+
+	test('input-only views react to new controls, carousel settings, authentication and response replacement', async (): Promise<void> => {
+		const tool: IChatToolInvocation = upcastPartial<IChatToolInvocation>({
+			kind: 'toolInvocation', toolId: 'editFile', source: { type: 'internal' },
+			state: constObservable({ type: IChatToolInvocation.StateKind.WaitingForConfirmation, confirmationMessages: { title: 'Allow edit?' } }),
+		});
+		const { response, currentModel, enabled, configuration, needsConversation } = createInputOnlyConversationGate([tool]);
+		const states: boolean[] = [];
+		disposables.add(autorun((reader: IReader): void => { states.push(needsConversation.read(reader)); }));
+		for (const carouselEnabled of [false, true]) {
+			await configuration.setUserConfiguration(ChatConfiguration.ToolConfirmationCarousel, carouselEnabled);
+			configuration.onDidChangeConfigurationEmitter.fire({
+				affectsConfiguration: (key: string): boolean => key === ChatConfiguration.ToolConfirmationCarousel,
+				affectedKeys: new Set([ChatConfiguration.ToolConfirmationCarousel]), source: ConfigurationTarget.USER,
+				change: { keys: [ChatConfiguration.ToolConfirmationCarousel], overrides: [] },
+			});
+		}
+		response.updateContent({ kind: 'confirmation', title: '', message: 'Continue?', data: {} });
+		response.complete();
+		response.setResult({ errorDetails: { message: 'Choose how to continue', confirmationButtons: [{ label: 'Retry', data: {} }] } });
+		response.setResult({});
+		const servers: ISettableObservable<readonly IChatMcpAuthenticationRequiredServer[]> = observableValue('servers', [{ id: 'test', name: 'Test', resource: 'test:/server' }]);
+		response.updateContent({ kind: 'mcpAuthenticationRequired', sessionResource: URI.parse('test:/input-parity'), servers, isUsed: false });
+		servers.set([], undefined);
+		currentModel.set(undefined, undefined);
+		response.setResult({ errorDetails: { message: 'Old response', confirmationButtons: [{ label: 'Retry', data: {} }] } });
+		enabled.set(false, undefined);
+		assert.deepStrictEqual(states, [false, true, false, true, false, true, false, true, false]);
 	});
 
 	test('summarizes only the exact comparison evaluator chat, or its legacy main chat', () => {

@@ -801,21 +801,21 @@ suite('AgentSessionsDataSource', () => {
 		});
 
 		for (const activeStatus of [ChatSessionStatus.InProgress, ChatSessionStatus.NeedsInput]) {
-			test(`capped grouping collapses history when only a pinned session is active (${activeStatus})`, () => {
-				let status = activeStatus;
+			test(`capped grouping collapses history when only a pinned session is active (${activeStatus})`, (): void => {
+				let status: ChatSessionStatus = activeStatus;
 				const pinned: IAgentSession = {
 					...createMockSession({ id: 'pinned', isPinned: true, startTime: 1 }),
-					get status() { return status; },
+					get status(): ChatSessionStatus { return status; },
 				};
-				const history = Array.from({ length: 5 }, (_, index) => createMockSession({
+				const history: IAgentSession[] = Array.from({ length: 5 }, (_, index: number): IAgentSession => createMockSession({
 					id: `history-${index}`, startTime: 10 - index,
 				}));
-				const dataSource = disposables.add(new AgentSessionsDataSource(
+				const dataSource: AgentSessionsDataSource = disposables.add(new AgentSessionsDataSource(
 					createMockFilter({ groupBy: AgentSessionsGrouping.Capped }), new AgentSessionsSorter(),
 				));
-				const model = createMockModel([...history, pinned]);
-				const snapshot = () => {
-					const result = Array.from(dataSource.getChildren(model));
+				const model: IAgentSessionsModel = createMockModel([...history, pinned]);
+				const snapshot = (): { visible: string[]; more: string[] | undefined } => {
+					const result: AgentSessionListItem[] = Array.from(dataSource.getChildren(model));
 					return {
 						visible: result.filter(isAgentSession).map(session => session.label),
 						more: getSectionsFromResult(result).find(section => section.section === AgentSessionSection.More)?.sessions.map(session => session.label),
@@ -846,12 +846,12 @@ suite('AgentSessionsDataSource', () => {
 			const filter: IAgentSessionsFilter = createMockFilter({ groupBy: AgentSessionsGrouping.Capped });
 			const dataSource: AgentSessionsDataSource = disposables.add(new AgentSessionsDataSource(filter, new AgentSessionsSorter()));
 			const model: IAgentSessionsModel = createMockModel([...history, ...active]);
-			for (let turn: number = 0; turn < 100; turn++) {
-				status = turn === 99 ? ChatSessionStatus.Completed : turn % 2 === 0 ? ChatSessionStatus.InProgress : ChatSessionStatus.NeedsInput;
+			for (const nextStatus of [ChatSessionStatus.InProgress, ChatSessionStatus.NeedsInput, ChatSessionStatus.InProgress, ChatSessionStatus.NeedsInput, ChatSessionStatus.Completed]) {
+				status = nextStatus;
 				const result: AgentSessionListItem[] = Array.from(dataSource.getChildren(model));
 				const visible: string[] = result.filter(isAgentSession).map((session: IAgentSession): string => session.label);
 				const historyCount: number = getSectionsFromResult(result).reduce((count: number, section: IAgentSessionSection): number => count + section.sessions.length, 0);
-				assert.deepStrictEqual({ visible, historyCount }, turn === 99
+				assert.deepStrictEqual({ visible, historyCount }, status === ChatSessionStatus.Completed
 					? { visible: ['Session history-0', 'Session history-1', 'Session history-2'], historyCount: 1001 }
 					: { visible: ['Session active-0', 'Session active-1', 'Session active-2', 'Session active-3'], historyCount: 1000 });
 			}
