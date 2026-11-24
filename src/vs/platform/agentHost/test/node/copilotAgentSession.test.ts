@@ -27663,6 +27663,148 @@ Use the attached image as context.
 			});
 		});
 
+		/** Each streamed or whole text and reasoning part, with its deltas folded in, as `scope: kind content`. */
+		const streamedFusionTranscript = (signals: readonly AgentSignal[]) => {
+			const parts = new Map<string, { scope: string; kind: string; content: string }>();
+			for (const signal of signals) {
+				if (signal.kind !== 'action') {
+					continue;
+				}
+				const action = signal.action;
+				if (action.type === ActionType.ChatResponsePart && (action.part.kind === ResponsePartKind.Markdown || action.part.kind === ResponsePartKind.Reasoning)) {
+					parts.set(action.part.id, { scope: signal.parentToolCallId ?? 'root', kind: action.part.kind === ResponsePartKind.Markdown ? 'text' : 'reasoning', content: action.part.content });
+				} else if (action.type === ActionType.ChatDelta || action.type === ActionType.ChatReasoning) {
+					const part = parts.get(action.partId);
+					if (part) {
+						part.content += action.content;
+					}
+				}
+			}
+			return [...parts.values()].map(part => `${part.scope}: ${part.kind} ${part.content}`);
+		};
+		const critiqueDraft = { ...fusionTestData.started, phaseId: 'phase-1', phaseKind: 'draft', pattern: 'critique' } as const;
+		const critiqueCritic = { ...fusionTestData.started, phaseId: 'phase-2', phaseKind: 'critic', role: 'critic', conversationScope: 'review', pattern: 'critique' } as const;
+		const critiqueRevision = { ...fusionTestData.started, phaseId: 'phase-3', phaseKind: 'revision', pattern: 'critique' } as const;
+		/** A staged phase's model call as the runtime streams it: provisional deltas, then its provisional whole reasoning and message. */
+		const streamFusionModelCall = (mockSession: MockCopilotSession, phase: SessionEventPayload<'assistant.fusion_phase_started'>['data'], messageId: string, reasoning: readonly string[], text: readonly string[]) => {
+			const fusion = { fusionId: phase.fusionId, phaseId: phase.phaseId, phaseKind: phase.phaseKind, role: phase.role, conversationScope: phase.conversationScope, syntheticModel: 'hydrafusion', policy: 'standard', pattern: 'critique' };
+			const provisional = { ephemeral: true } as const;
+			for (const deltaContent of reasoning) {
+				mockSession.fire('assistant.reasoning_delta', { reasoningId: `${messageId}-reasoning`, deltaContent, fusion }, provisional);
+			}
+			mockSession.fire('assistant.message_start', { messageId, fusion }, provisional);
+			for (const deltaContent of text) {
+				mockSession.fire('assistant.message_delta', { messageId, deltaContent, fusion }, provisional);
+			}
+			mockSession.fire('assistant.reasoning', { reasoningId: `${messageId}-reasoning`, content: reasoning.join(''), fusion }, provisional);
+			mockSession.fire('assistant.message', { messageId, content: text.join(''), reasoningText: reasoning.join(''), fusion }, provisional);
+			return { messageId, content: text.join(''), reasoningText: reasoning.join(''), fusion: { ...fusion, commitId: 'commit-1' } };
+		};
+
+		test('a revised critique streams its draft\'s reasoning and its revision in the revision chat; only the revised answer reaches the response', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('fusion-turn');
+			const draft = critiqueDraft;
+			const critic = critiqueCritic;
+			const revision = critiqueRevision;
+
+			mockSession.fire('assistant.fusion_phase_started', draft);
+			streamFusionModelCall(mockSession, draft, 'draft-answer', ['Weighing ', 'the race'], ['Draft ', 'answer']);
+			const draftStream = streamedFusionTranscript(signals);
+			const draftThinkingEnded = signals.some(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatReasoning && signal.action.duration !== undefined);
+			mockSession.fire('assistant.fusion_phase_completed', { ...fusionTestData.phaseCompleted, ...draft });
+			mockSession.fire('assistant.fusion_phase_started', critic);
+			streamFusionModelCall(mockSession, critic, 'critique', ['Checking'], ['{"assessment":"revise"}']);
+			mockSession.fire('assistant.fusion_phase_completed', { ...fusionTestData.phaseCompleted, ...critic, content: JSON.stringify({ assessment: 'revise', feedback: 'Read the field once.' }) });
+			mockSession.fire('assistant.fusion_phase_started', revision);
+			const committed = streamFusionModelCall(mockSession, revision, 'revised-answer', ['Fixing'], ['Revised ', 'answer']);
+			mockSession.fire('assistant.fusion_phase_completed', { ...fusionTestData.phaseCompleted, ...revision });
+			mockSession.fire('assistant.message', committed);
+			mockSession.fire('session.fusion_completed', { ...fusionTestData.completed, pattern: 'critique', finalSourcePhaseId: 'phase-3' });
+			mockSession.fire('session.idle', {});
+
+			assert.deepStrictEqual({ draftStream, draftThinkingEnded, transcript: streamedFusionTranscript(signals) }, {
+				draftStream: ['root: reasoning Weighing the race'],
+				draftThinkingEnded: true,
+				transcript: [
+					'root: reasoning Weighing the race',
+					'fusion:fusion-1:phase-2: text **Changes requested**\n\nRead the field once.',
+					'fusion:fusion-1:phase-3: reasoning Fixing',
+					'fusion:fusion-1:phase-3: text Revised answer',
+					'root: text Revised answer',
+				],
+			});
+		});
+
+		test('an approved critique draft streams its reasoning once and shows its committed answer once', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('fusion-turn');
+			const draft = critiqueDraft;
+			const critic = critiqueCritic;
+
+			mockSession.fire('assistant.fusion_phase_started', draft);
+			const committed = streamFusionModelCall(mockSession, draft, 'draft-answer', ['Weighing ', 'the race'], ['Draft ', 'answer']);
+			mockSession.fire('assistant.fusion_phase_completed', { ...fusionTestData.phaseCompleted, ...draft });
+			mockSession.fire('assistant.fusion_phase_started', critic);
+			streamFusionModelCall(mockSession, critic, 'critique', ['Checking'], ['{"assessment":"approve"}']);
+			mockSession.fire('assistant.fusion_phase_completed', { ...fusionTestData.phaseCompleted, ...critic, content: JSON.stringify({ assessment: 'approve', feedback: 'Correct.' }) });
+			mockSession.fire('assistant.message', committed);
+			mockSession.fire('session.fusion_completed', { ...fusionTestData.completed, pattern: 'critique' });
+			mockSession.fire('session.idle', {});
+
+			assert.deepStrictEqual(streamedFusionTranscript(signals), [
+				'root: reasoning Weighing the race',
+				'fusion:fusion-1:phase-2: text **Approved**\n\nCorrect.',
+				'root: text Draft answer',
+			]);
+		});
+
+		test('a rejected main pass streams only its reasoning; the repair streams each model call into its chat once', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('fusion-turn');
+			const provisional = { ephemeral: true } as const;
+			const solverRound = (phase: SessionEventPayload<'assistant.fusion_phase_started'>['data'], toolCallId: string, work: string, answer: string, commitId?: string) => {
+				const fusion = { ...liveFusion(phase.phaseId, commitId), phaseKind: phase.phaseKind, role: phase.role, conversationScope: phase.conversationScope };
+				const options = commitId ? undefined : provisional;
+				if (!commitId) {
+					mockSession.fire('assistant.reasoning_delta', { reasoningId: `${toolCallId}-reasoning`, deltaContent: `Planning ${toolCallId}`, fusion }, provisional);
+					mockSession.fire('assistant.message_delta', { messageId: `${toolCallId}-work`, deltaContent: work, fusion }, provisional);
+				}
+				mockSession.fire('assistant.message', { messageId: `${toolCallId}-work`, content: work, reasoningText: `Planning ${toolCallId}`, toolRequests: [{ toolCallId, name: 'view', arguments: {} }], fusion }, options);
+				mockSession.fire('tool.execution_start', { toolCallId, toolName: 'view', arguments: { path: '/workspace/a.ts' }, fusion }, options);
+				mockSession.fire('tool.execution_complete', { toolCallId, success: true, result: { content: 'x' }, fusion }, options);
+				if (!commitId) {
+					mockSession.fire('assistant.message_delta', { messageId: `${toolCallId}-answer`, deltaContent: answer, fusion }, provisional);
+				}
+				mockSession.fire('assistant.message', { messageId: `${toolCallId}-answer`, content: answer, fusion }, options);
+			};
+			const judge = { ...fusionTestData.started, phaseId: 'phase-2', phaseKind: 'judge', role: 'judge', conversationScope: 'review' } as const;
+			const repair = { ...fusionTestData.started, phaseId: 'phase-3', phaseKind: 'repair' } as const;
+
+			mockSession.fire('session.fusion_resolved', fusionTestData.resolved);
+			mockSession.fire('assistant.fusion_phase_started', fusionMainPassTestData.started);
+			solverRound(fusionMainPassTestData.started, 'tc-draft', 'Checking the parser', 'Draft answer');
+			mockSession.fire('assistant.fusion_phase_completed', fusionMainPassTestData.phaseCompleted);
+			mockSession.fire('assistant.fusion_phase_started', judge);
+			mockSession.fire('assistant.fusion_phase_completed', { ...fusionTestData.phaseCompleted, ...judge, content: '{"score":2,"rationale":"Misses empty input"}' });
+			mockSession.fire('assistant.fusion_phase_started', repair);
+			solverRound(repair, 'tc-fix', 'Fixing empty input', 'Final answer');
+			mockSession.fire('assistant.fusion_phase_completed', { ...fusionTestData.phaseCompleted, ...repair });
+			solverRound(repair, 'tc-fix', 'Fixing empty input', 'Final answer', 'commit-1');
+			mockSession.fire('session.fusion_completed', { ...fusionTestData.completed, finalSourcePhaseId: 'phase-3' });
+			mockSession.fire('session.idle', {});
+
+			assert.deepStrictEqual(streamedFusionTranscript(signals), [
+				'root: reasoning Planning tc-draft',
+				'root: text Checking the parser',
+				'fusion:fusion-1:phase-2: text **Score: 2/5**\n\nMisses empty input',
+				'fusion:fusion-1:phase-3: reasoning Planning tc-fix',
+				'fusion:fusion-1:phase-3: text Fixing empty input',
+				'fusion:fusion-1:phase-3: text Final answer',
+				'root: text Final answer',
+			]);
+		});
+
 		test('all provisional Fusion message chunks are shown and only the committed answer is replayed', async () => {
 			const { session, mockSession, signals } = await createAgentSession(disposables);
 			session.resetTurnState('fusion-turn');
