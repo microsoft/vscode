@@ -1195,13 +1195,13 @@ suite('AgentHostTelemetryReporter', () => {
 		const reporter = new AgentHostTelemetryReporter(service);
 		const base = { provider: 'copilotcli', session, owner: session, turnId: 'turn-1' };
 
-		reporter.skillInvoked({ ...base, sdkEventId: 'e1', trigger: 'agent-invoked', isSubagentInvocation: false, telemetryContext: { copilotSku: 'sku-a' } });
-		reporter.skillInvoked({ ...base, sdkEventId: 'e2', trigger: 'something-new', isSubagentInvocation: true });
+		reporter.skillInvoked({ ...base, sdkEventId: 'e1', trigger: 'agent-invoked', isSubagentInvocation: false, skillSource: 'custom', skillOrigin: 'vscode', skillName: 'commit', telemetryContext: { copilotSku: 'sku-a' } });
+		reporter.skillInvoked({ ...base, sdkEventId: 'e2', trigger: 'something-new', isSubagentInvocation: true, skillSource: 'project', skillOrigin: 'other', skillName: undefined });
 
 		const chatSessionId = getTelemetryChatSessionId(session);
 		assert.deepStrictEqual(service.standardEvents, [
-			{ eventName: 'agentHost.skillInvoked', data: { copilotSku: 'sku-a', provider: 'copilotcli', agentSessionId: 'abc', chatSessionId, turnId: 'turn-1', sdkEventId: 'e1', trigger: 'agent-invoked', isSubagentInvocation: false } },
-			{ eventName: 'agentHost.skillInvoked', data: { provider: 'copilotcli', agentSessionId: 'abc', chatSessionId, turnId: 'turn-1', sdkEventId: 'e2', trigger: 'unknown', isSubagentInvocation: true } },
+			{ eventName: 'agentHost.skillInvoked', data: { copilotSku: 'sku-a', provider: 'copilotcli', agentSessionId: 'abc', chatSessionId, turnId: 'turn-1', sdkEventId: 'e1', trigger: 'agent-invoked', isSubagentInvocation: false, skillSource: 'custom', skillOrigin: 'vscode', skillName: 'commit' } },
+			{ eventName: 'agentHost.skillInvoked', data: { provider: 'copilotcli', agentSessionId: 'abc', chatSessionId, turnId: 'turn-1', sdkEventId: 'e2', trigger: 'unknown', isSubagentInvocation: true, skillSource: 'project', skillOrigin: 'other', skillName: undefined } },
 		]);
 	});
 

@@ -260,15 +260,20 @@ export class RemoteGitHubEnvironmentSharingService extends Disposable implements
 		}
 		if (result) {
 			// The environment replaces the remote in the GitHub environment list once the remote is disconnected.
-			void this._environmentService.refresh(CancellationToken.None).catch(error => {
+			const refresh = this._environmentService.refresh(CancellationToken.None).catch(error => {
 				if (!isCancellationError(error)) {
 					this._logService.warn('[RemoteGitHubEnvironments] Failed to refresh GitHub environments after keeping a remote shared', error);
 				}
 			});
-			if (share.environmentId !== undefined) {
+			const environmentId = share.environmentId;
+			if (environmentId !== undefined) {
+				// New sessions on the remote can only move to the environment before the remote disconnects once it is discovered, which takes this refresh if sharing started recently.
+				if (!this._environmentService.hosts.get().some(host => host.id === environmentId)) {
+					await raceTimeout(refresh, 5000);
+				}
 				for (const handler of [...this._keepSharingHandlers]) {
 					try {
-						handler(address, share.environmentId);
+						handler(address, environmentId);
 					} catch (error) {
 						this._logService.error('[RemoteGitHubEnvironments] Failed to continue sessions through a kept GitHub environment', error);
 					}
@@ -452,7 +457,7 @@ export class RemoteGitHubEnvironmentSharingService extends Disposable implements
 		}
 		let registration;
 		try {
-			registration = await connection.registerGitHubEnvironment(session.account.id, session.accessToken);
+			registration = await connection.registerGitHubEnvironment(session.account.id, session.accessToken, this._getEnvironmentName(address));
 		} catch (error) {
 			// The host withdraws a failed registration, which must not look like another client stopped sharing.
 			const share = this._stored.get().get(address);
@@ -468,6 +473,18 @@ export class RemoteGitHubEnvironmentSharingService extends Disposable implements
 		}
 		// The host reports its new status before it responds.
 		this._setStored(address, createStoredShare(session.account.id, registration.environmentId, connection.gitHubEnvironment.get()?.instanceId));
+	}
+
+	/**
+	 * The name this window shows for a remote, so that its GitHub environment is listed under the same name. WSL agent
+	 * hosts name themselves after their distribution and computer, which tells them apart in other applications.
+	 */
+	private _getEnvironmentName(address: string): string | undefined {
+		const entry = this._remoteAgentHostService.getEntryByAddress(address);
+		if (!entry || entry.connection.type === RemoteAgentHostEntryType.WSL) {
+			return undefined;
+		}
+		return (this._remoteAgentHostService.getDisplayNameOverride(address) ?? entry.name).trim() || undefined;
 	}
 
 	private async _unregister(address: string, accountId: string): Promise<void> {

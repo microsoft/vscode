@@ -100,7 +100,8 @@
 	overflow-wrap: anywhere;
 }
 
-.remotes-run-question {
+.remotes-run-question,
+.remotes-recovery-heading {
 	font-size: var(--vscode-fontSize-heading3);
 	font-weight: var(--vscode-fontWeight-semiBold);
 	color: var(--vscode-foreground);
@@ -305,7 +306,9 @@
 .remotes-widget .remotes-hide-activity .remotes-activity-column,
 .remotes-widget .remotes-hide-activity .monaco-table-th[data-col-index='2'],
 .remotes-widget .remotes-hide-system .remotes-system-column,
-.remotes-widget .remotes-hide-system .monaco-table-th[data-col-index='3'] {
+.remotes-widget .remotes-hide-system .monaco-table-th[data-col-index='3'],
+.remotes-widget .remotes-hide-sandbox-profile .remotes-sandboxProfile-column,
+.remotes-widget .remotes-hide-sandbox-profile .monaco-table-th[data-col-index='5'] {
 	display: none;
 }
 
@@ -615,6 +618,9 @@
 }
 
 .remotes-details-body {
+	/* The scrollable element scrolls this body, so it must not grow past its viewport. */
+	box-sizing: border-box;
+	height: 100%;
 	padding-inline-start: var(--vscode-spacing-size320);
 	padding-bottom: var(--vscode-spacing-size160);
 }
@@ -657,7 +663,8 @@
 	padding-top: 0;
 }
 
-.remotes-details-actions > .monaco-button {
+.remotes-details-actions > .monaco-button,
+.remotes-recovery-command-row > .monaco-button {
 	width: auto;
 }
 
@@ -770,6 +777,52 @@
 	gap: var(--vscode-spacing-size60);
 }
 
+.remotes-recovery-heading {
+	margin: 0 0 var(--vscode-spacing-size80);
+}
+
+.remotes-recovery-next {
+	margin-top: var(--vscode-spacing-size240);
+}
+
+.remotes-environment-details .remotes-recovery-next > :first-child {
+	margin-top: 0;
+}
+
+.remotes-details-footer[hidden] {
+	display: none;
+}
+
+.remotes-recovery-command {
+	margin-block: var(--vscode-spacing-size120);
+}
+
+.remotes-environment-details .remotes-recovery-command-label {
+	margin: 0 0 var(--vscode-spacing-size40);
+}
+
+.remotes-recovery-command-row {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: var(--vscode-spacing-size80);
+}
+
+.remotes-recovery-command-row > code {
+	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size60);
+	border-radius: var(--vscode-cornerRadius-small);
+	background-color: var(--vscode-textPreformat-background);
+	color: var(--vscode-textPreformat-foreground);
+	font-family: var(--monaco-monospace-font);
+	overflow-wrap: anywhere;
+}
+
+.remotes-recovery-support {
+	margin-top: var(--vscode-spacing-size240);
+	padding-top: var(--vscode-spacing-size200);
+	border-top: var(--vscode-strokeThickness) solid var(--vscode-widget-border, var(--vscode-panel-border));
+}
+
 .remotes-task-identity-detail {
 	display: grid;
 	grid-template-columns: minmax(0, max-content) minmax(0, 1fr);
@@ -781,7 +834,8 @@
 	overflow-wrap: anywhere;
 }
 
-.remotes-widget .remotes-github-environment {
+.remotes-widget .remotes-github-environment,
+.remotes-widget .remotes-server-update {
 	display: flex;
 	flex-shrink: 0;
 	color: var(--vscode-descriptionForeground);
@@ -865,6 +919,7 @@
 
 .remotes-widget .remotes-group-count[hidden],
 .remotes-widget .remotes-github-environment[hidden],
+.remotes-widget .remotes-server-update[hidden],
 .remotes-widget .remotes-empty-signin[hidden],
 .remotes-widget .remotes-signin-progress[hidden],
 .remotes-widget .remotes-refresh-warning[hidden],
@@ -873,4 +928,36 @@
 .remotes-widget .remotes-name-detail[hidden],
 .remotes-widget .remotes-empty-actions[hidden] {
 	display: none;
+}
+
+.remotes-widget .remotes-sandboxProfile-column.remotes-cell-action-hidden .remotes-sandbox-profile-picker {
+	display: none;
+}
+
+.remotes-widget .remotes-sandbox-profile-picker {
+	width: 100%;
+	max-width: 220px;
+	min-width: 0;
+}
+
+.remotes-widget .remotes-sandbox-profile-picker.disabled {
+	opacity: 0.6;
+}
+
+/* A disabled select swallows pointer events; let the picker receive them so its hover explains why. */
+.remotes-widget .remotes-sandbox-profile-picker.disabled .monaco-select-box {
+	pointer-events: none;
+}
+
+.remotes-widget .remotes-sandboxProfile-column .monaco-select-box {
+	width: 100%;
+	height: 22px;
+	/* Reserve the chevron's space so long names end in an ellipsis instead of running under it. */
+	padding: 0 var(--vscode-spacing-size240) 0 var(--vscode-spacing-size60);
+	border-radius: var(--vscode-cornerRadius-small);
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+	font: inherit;
+	cursor: pointer;
 }

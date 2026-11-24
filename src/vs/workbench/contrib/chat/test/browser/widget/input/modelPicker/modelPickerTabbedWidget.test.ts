@@ -1617,6 +1617,19 @@ suite('TabbedModelPicker', () => {
 		});
 	});
 
+	for (const required of [false, true]) {
+		test(`agent ${required ? 'required' : 'preferred'} models ${required ? 'are all listed' : 'keep the shortlist'} when the picker opens`, () => {
+			const older = model('example-5.5');
+			const newer = model('example-5.6');
+			const { popup } = createPicker({
+				models: [older, newer],
+				selectedModelId: newer.identifier,
+				agentModelPreferences: { models: [older.metadata.id, newer.metadata.id], required },
+			});
+			assert.deepStrictEqual(listRows(popup), required ? ['example-5.6', 'example-5.5'] : ['example-5.6', 'Other Models']);
+		});
+	}
+
 	test('preferred models do not show a required-model explanation', () => {
 		const { popup } = createPicker({ agentModelPreferences: { models: ['First'], required: false } });
 		assert.strictEqual(popup.querySelector('.chat-model-picker-agent-notice'), null);
@@ -2936,6 +2949,24 @@ suite('TabbedModelPicker', () => {
 			afterNewRouter: { role: 'menuitem', created: 1, visible: false },
 			copilot: ['Auto', '--', 'First', 'Fixed', 'Fourth', 'Second', 'Third'],
 			found: [{ title: 'Daily', badge: 'Routers', description: '' }],
+		});
+	});
+
+	test('a model router with a warning shows it on its row, and beside its description in its Details', () => {
+		const daily = routerModel('Daily', 'First to build, Second for quick questions.');
+		const warning = 'Route 2 (gone) is skipped.';
+		const warned: ILanguageModelChatMetadataAndIdentifier = { ...daily, metadata: { ...daily.metadata, statusIcon: Codicon.warning, warningText: { modelRouter: warning } } };
+		const { popup } = createPicker({ models: [...copilotModels, warned], selectedModelId: warned.identifier });
+		const row = Array.from(popup.querySelectorAll('.chat-model-picker-tabbed .monaco-list-row .detail'), detail => detail.textContent).filter(Boolean);
+		openDetails(popup, 'Daily');
+		assert.deepStrictEqual({
+			row,
+			description: element(popup, '.chat-model-card-description').textContent,
+			warning: element(popup, '.chat-model-card .chat-model-hover-warning-text').textContent,
+		}, {
+			row: [warning],
+			description: 'First to build, Second for quick questions.',
+			warning,
 		});
 	});
 

@@ -200,6 +200,9 @@ export const CanvasesEnabledSettingId = 'chat.canvases.enabled';
 /** Configuration key controlling automatic pull request association for the checked-out branch. */
 export const AgentHostAutoAttachPullRequestsSettingId = 'chat.agentHost.experimental.autoAttachPullRequests';
 
+/** Configuration key controlling whether the host shares identical read-only git commands and caps how many run at once. */
+export const AgentHostGitCoalesceReadsSettingId = 'chat.agentHost.git.coalesceReads';
+
 /** Configuration key controlling whether providers prepare a turn alongside the turn-start checkpoint. */
 export const AgentHostOverlapProviderPreparationSettingId = 'chat.agentHost.experimental.overlapProviderPreparation';
 
@@ -1623,8 +1626,10 @@ export interface IAgentConnection {
 	 * Registers the host as a GitHub environment owned by the given GitHub
 	 * account, using that account's credential. Registering again refreshes
 	 * the credential. Requires the `vscode.githubEnvironment` capability.
+	 * @param name The client's name for the host, which a host that supports it
+	 * uses for a new registration.
 	 */
-	registerGitHubEnvironment?(accountId: string, credential: string): Promise<IAgentHostGitHubEnvironmentRegistration>;
+	registerGitHubEnvironment?(accountId: string, credential: string, name?: string): Promise<IAgentHostGitHubEnvironmentRegistration>;
 	unregisterGitHubEnvironment?(accountId: string): Promise<void>;
 
 	// ---- Filesystem operations ----------------------------------------------

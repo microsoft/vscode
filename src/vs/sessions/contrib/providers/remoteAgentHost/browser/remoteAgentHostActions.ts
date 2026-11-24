@@ -47,7 +47,7 @@ import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.j
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { IAgentHostSessionsProvider, isAgentHostProvider } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
-import { confirmTunnelDeletion, runServerUpgrade } from '../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/remoteHostOptions.js';
+import { confirmTunnelDeletion, getRemoteHostUpgradeMethod, runServerUpgrade } from '../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/remoteHostOptions.js';
 import { IConnectionDiagnosticsService } from '../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/connectionDiagnostics.js';
 import { SESSION_WORKSPACE_GROUP_REMOTE } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionsPartService } from '../../../../../workbench/services/sessions/browser/sessionsPartService.js';
@@ -1307,12 +1307,12 @@ registerAction2(class extends Action2 {
 });
 
 /**
- * Force-update a remote agent host server that rejected our protocol
- * version because it is running an old build. Connecting to such a host
- * leaves it in the `incompatible` state; when the host was spawned by a
- * VS Code CLI willing to receive upgrade signals it advertises an upgrade
- * method, which this command invokes via the shared {@link runServerUpgrade}
- * flow. Exposed in the command palette so the update is reachable without
+ * Update the server of a remote agent host through its hosting VS Code CLI.
+ * A host that rejected our protocol version because it runs an old build
+ * advertises an upgrade method in the rejection, a connected host in its
+ * `initialize` result while a newer build is available. This command invokes that method via the shared
+ * {@link runServerUpgrade} flow, which asks first unless the host rejected our protocol version.
+ * Exposed in the command palette so the update is reachable without
  * first opening the host's options quickpick.
  */
 registerAction2(class extends Action2 {
@@ -1331,6 +1331,8 @@ registerAction2(class extends Action2 {
 		const quickInputService = accessor.get(IQuickInputService);
 		const notificationService = accessor.get(INotificationService);
 		const instantiationService = accessor.get(IInstantiationService);
+		const remoteAgentHostService = accessor.get(IRemoteAgentHostService);
+		const productService = accessor.get(IProductService);
 
 		const remoteHosts = sessionsProvidersService.getProviders()
 			.filter(isAgentHostProvider)
@@ -1339,20 +1341,20 @@ registerAction2(class extends Action2 {
 		const upgradable = remoteHosts
 			.map(provider => {
 				const status = provider.connectionStatus?.get();
-				if (!RemoteAgentHostConnectionStatus.isIncompatible(status)) {
-					return undefined;
+				if (RemoteAgentHostConnectionStatus.isIncompatible(status)) {
+					incompatibleCount++;
 				}
-				incompatibleCount++;
-				return status.vscodeUpgradeMethod ? { provider, method: status.vscodeUpgradeMethod } : undefined;
+				const method = getRemoteHostUpgradeMethod(status, remoteAgentHostService.getConnection(provider.remoteAddress!), productService);
+				return method ? { provider, method } : undefined;
 			})
 			.filter((entry): entry is { provider: IAgentHostSessionsProvider; method: string } => !!entry);
 
 		if (upgradable.length === 0) {
-			// Distinguish "nothing is incompatible" from "incompatible hosts exist
-			// but none was spawned by a VS Code CLI that can update it in place".
+			// Distinguish incompatible hosts, which need a manual update, from
+			// hosts that weren't spawned by a VS Code CLI that can update them in place.
 			notificationService.info(incompatibleCount > 0
 				? localize('updateRemoteAgentHost.noneUpgradable', "No remote agent hosts can be updated from here. Incompatible hosts must be updated manually, then reconnected.")
-				: localize('updateRemoteAgentHost.none', "No remote agent hosts need updating."));
+				: localize('updateRemoteAgentHost.none', "No remote agent hosts can be updated from here."));
 			return;
 		}
 

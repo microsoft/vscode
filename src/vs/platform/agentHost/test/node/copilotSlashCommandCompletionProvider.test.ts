@@ -1163,6 +1163,36 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 			);
 		});
 
+		test('inserts terminal MCP choices without submitting when draft text follows the cursor', async () => {
+			const gated = new CopilotSlashCommandCompletionProvider('copilotcli', {
+				getRuntimeSlashCommands: async () => [{
+					name: 'mcp',
+					description: 'Manage MCP servers',
+					kind: 'builtin',
+					allowDuringAgentExecution: false,
+					input: { hint: '[list]', choices: [{ name: 'list', description: 'List MCP servers' }] },
+				}],
+				getSessionCustomizations: async () => [],
+			});
+
+			const items = await gated.provideCompletionItems({
+				kind: CompletionItemKind.UserMessage,
+				channel: session,
+				text: `/mLet's go`,
+				offset: '/m'.length,
+			}, { chat: undefined }, CancellationToken.None);
+
+			assert.deepStrictEqual(items.map(item => ({
+				insertText: item.insertText,
+				rangeStart: item.rangeStart,
+				rangeEnd: item.rangeEnd,
+				submitOnAccept: item.attachment._meta?.submitOnAccept === true,
+			})), [
+				{ insertText: '/mcp ', rangeStart: 0, rangeEnd: 2, submitOnAccept: false },
+				{ insertText: '/mcp list ', rangeStart: 0, rangeEnd: 2, submitOnAccept: false },
+			]);
+		});
+
 		test('includes a bare command item when a choice has an empty name', async () => {
 			const gated = new CopilotSlashCommandCompletionProvider('copilotcli', {
 				isRubberDuckEnabled: () => true,
@@ -1243,9 +1273,9 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 			};
 		}
 
-		function syncedPlugin(name: string, children?: readonly SkillCustomization[]): PluginCustomization {
+		function syncedPlugin(name: string, children?: readonly SkillCustomization[], enabled = true): PluginCustomization {
 			return {
-				...plugin(name, children),
+				...plugin(name, children, enabled),
 				id: `${SYNCED_CUSTOMIZATION_SCHEME}:/plugins/${name}`,
 				uri: `${SYNCED_CUSTOMIZATION_SCHEME}:/plugins/${name}`,
 			};
@@ -1374,20 +1404,21 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 			assert.deepStrictEqual(runtimeOnly(items).map(i => i.insertText), ['/my-skill ']);
 		});
 
-		test('treats skills inside disabled containers as unknown', async () => {
+		test('does not reintroduce skills inside disabled containers', async () => {
 			const provider = createProvider(
 				[{ name: 'my-plugin:my-skill', description: 'Runtime skill', kind: 'skill', allowDuringAgentExecution: true }],
 				[plugin('my-plugin', [skill('my-skill')], false)],
 			);
 			const items = await run(provider, '/');
-			assert.deepStrictEqual(runtimeOnly(items).map(i => i.insertText), ['/my-plugin:my-skill ']);
+			assert.deepStrictEqual(runtimeOnly(items), []);
 		});
 
-		test('treats user-disabled and disabled skill children as unknown', async () => {
+		test('does not reintroduce user-disabled and disabled skill children', async () => {
 			const provider = createProvider(
 				[
-					{ name: 'my-plugin:user-disabled', description: 'Runtime skill', kind: 'skill', allowDuringAgentExecution: true },
+					{ name: 'MY-PLUGIN:USER-DISABLED', aliases: ['hidden-alias'], description: 'Runtime skill', kind: 'skill', allowDuringAgentExecution: true },
 					{ name: 'my-plugin:disabled', description: 'Runtime skill', kind: 'skill', allowDuringAgentExecution: true },
+					{ name: 'runtime-only', description: 'Runtime-only skill', kind: 'skill', allowDuringAgentExecution: true },
 				],
 				[plugin('my-plugin', [
 					skill('user-disabled', undefined, { disableUserInvocation: true }),
@@ -1395,12 +1426,61 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 				])],
 			);
 
-			const items = await run(provider, '/');
+			const names = async (text: string) => runtimeOnly(await run(provider, text)).map(item => item.insertText);
+			assert.deepStrictEqual({
+				leading: await names('/'),
+				inline: await names('use /'),
+				hiddenAlias: await names('/hidden-alias'),
+			}, {
+				leading: ['/runtime-only '],
+				inline: ['/runtime-only '],
+				hiddenAlias: [],
+			});
+		});
 
-			assert.deepStrictEqual(runtimeOnly(items).map(item => item.insertText), [
-				'/my-plugin:disabled ',
-				'/my-plugin:user-disabled ',
+		test('does not reintroduce hidden synced skills when their bare names are reserved', async () => {
+			const provider = createProvider(
+				[
+					{ name: 'VS Code Synced Data:plan', description: 'Hidden skill', kind: 'skill', allowDuringAgentExecution: true },
+					{ name: 'VS Code Synced Data:triage', description: 'Hidden skill', kind: 'skill', allowDuringAgentExecution: true },
+					{ name: 'VS Code Synced Data:disabled', description: 'Disabled skill', kind: 'skill', allowDuringAgentExecution: true },
+					{ name: 'Disabled Bundle:skill', description: 'Disabled plugin skill', kind: 'skill', allowDuringAgentExecution: true },
+					{ name: 'triage', description: 'Built-in command', kind: 'builtin', allowDuringAgentExecution: true },
+					{ name: 'VS Code Synced Data:runtime-only', description: 'Runtime-only skill', kind: 'skill', allowDuringAgentExecution: true },
+				],
+				[
+					syncedPlugin('VS Code Synced Data', [
+						skill('plan', undefined, { disableUserInvocation: true }),
+						skill('triage', undefined, { disableUserInvocation: true }),
+						skill('disabled', undefined, { enabled: false }),
+					]),
+					syncedPlugin('Disabled Bundle', [skill('skill')], false),
+				],
+			);
+			assert.deepStrictEqual(runtimeOnly(await run(provider, '/')).map(item => item.insertText), [
+				'/triage ',
+				'/VS Code Synced Data:runtime-only ',
 			]);
+		});
+
+		test('does not reintroduce a disambiguated hidden plugin-root skill', async () => {
+			const provider = createProvider(
+				[
+					{ name: 'review', description: 'Hidden skill', kind: 'skill', allowDuringAgentExecution: true },
+					{ name: 'review:review', description: 'Hidden skill', kind: 'skill', allowDuringAgentExecution: true },
+					{ name: 'other:review', description: 'Another skill', kind: 'skill', allowDuringAgentExecution: true },
+				],
+				[plugin('review', [skill('review', undefined, { disableUserInvocation: true })])],
+			);
+			assert.deepStrictEqual(runtimeOnly(await run(provider, '/')).map(item => item.insertText), ['/other:review ']);
+		});
+
+		test('keeps non-skill commands whose names match hidden skills', async () => {
+			const provider = createProvider(
+				[{ name: 'review', description: 'Built-in command', kind: 'builtin', allowDuringAgentExecution: true }],
+				[plugin('review', [skill('review', undefined, { disableUserInvocation: true })])],
+			);
+			assert.deepStrictEqual(runtimeOnly(await run(provider, '/')).map(item => item.insertText), ['/review ']);
 		});
 
 		test('hides internal MCP skill commands and excludes MCP skills from management arguments', async () => {

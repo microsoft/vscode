@@ -339,6 +339,7 @@ export interface ICustomizationItem {
 	 * Relevant for prompt / skill and custom agents
 	 */
 	readonly userInvocable?: boolean;
+	readonly argumentHint?: string;
 	/** Optional inline/context-menu actions specific to this item. */
 	readonly actions?: readonly ICustomizationItemAction[];
 }
@@ -450,6 +451,12 @@ export interface ICustomizationItemProvider {
 	provideSourceFolders?(sessionResource: URI, type: PromptsType, token: CancellationToken): Promise<readonly ICustomizationSourceFolder[] | undefined>;
 
 	/**
+	 * Provide messages about the customizations of the given type as a whole, such as
+	 * files that failed to load, shown above the section's list rather than as items.
+	 */
+	provideSectionNotices?(sessionResource: URI, type: PromptsType, token: CancellationToken): Promise<readonly ICustomizationSectionNotice[] | undefined>;
+
+	/**
 	 * Returns the readiness of the most recent source-folder discovery for this session.
 	 * Providers that do not expose this treat a completed empty result as authoritative.
 	 */
@@ -462,6 +469,17 @@ export interface ICustomizationItemProvider {
 }
 
 export type CustomizationSourceFolderReadiness = 'loading' | 'ready' | 'unavailable';
+
+/**
+ * A message about a section's customizations as a whole, such as files that failed to load.
+ */
+export interface ICustomizationSectionNotice {
+	readonly severity: 'warning' | 'error';
+	/** Short summary, such as "Some hook files could not be loaded". */
+	readonly title: string;
+	/** Details, one per line. */
+	readonly message: string;
+}
 
 /**
  * A directory where new customization files of a given type can be created.
@@ -803,6 +821,7 @@ export class CustomizationHarnessServiceBase implements ICustomizationHarnessSer
 					type: item.type as PromptsType.prompt | PromptsType.skill,
 					name: item.pluginUri ? getCanonicalPluginCommandId({ uri: item.pluginUri, label: item.pluginLabel }, item.name) : item.name,
 					description: item.description,
+					argumentHint: item.argumentHint,
 					userInvocable: item.userInvocable ?? true,
 					storage: narrowStorage,
 					sessionTypes: [sessionType],
@@ -871,6 +890,7 @@ export class CustomizationHarnessServiceBase implements ICustomizationHarnessSer
 			return {
 				...command,
 				userInvocable: parsedPromptFile.header?.userInvocable ?? command.userInvocable,
+				argumentHint: parsedPromptFile.header?.argumentHint ?? command.argumentHint,
 				parsedPromptFile,
 			};
 		}

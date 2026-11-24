@@ -108,11 +108,7 @@ suite('AgentHostPullRequestOperationContribution', () => {
 				modifiedAt: new Date(1).toISOString(),
 				workingDirectories: ['file:///repo'],
 			};
-			if (sessionAgentMergeEnabled) {
-				stateManager.restoreSession(session, [], creationTimeChatStorageResource);
-			} else {
-				stateManager.createSession(session);
-			}
+			stateManager.restoreSession(session, [], creationTimeChatStorageResource);
 			stateManager.setSessionConfig('agent:/session', {
 				schema: { type: 'object', properties: {} },
 				values: {
@@ -139,7 +135,7 @@ suite('AgentHostPullRequestOperationContribution', () => {
 		));
 	}
 
-	test('records a pull request created through the session action as an artifact', async () => {
+	test('records a pull request created through the session action as an artifact whose origin is the creating chat unless it has one', async () => {
 		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 		stateManager.createSession({
 			resource: 'agent:/session',
@@ -151,17 +147,16 @@ suite('AgentHostPullRequestOperationContribution', () => {
 			workingDirectories: ['file:///repo'],
 			defaultChat: buildDefaultChatUri('agent:/session'),
 		});
+		const chat = buildDefaultChatUri('agent:/session');
 		const database = new TestSessionDatabase();
-		const reference: ISessionArtifact = {
-			id: 'existing-reference',
-			type: SessionArtifactType.PullRequest,
-			label: 'Referenced PR',
-			isArtifact: false,
-			link: 'https://github.com/microsoft/vscode/pull/123',
-			isGitHub: true,
-		};
-		stateManager.setSessionMeta('agent:/session', withSessionArtifacts(undefined, [reference]));
-		await database.setMetadata(SESSION_ARTIFACTS_KEY, stringifySessionArtifacts([reference]));
+		const existing = (number: number, isArtifact: boolean, origin?: ISessionArtifact['origin']): ISessionArtifact => ({
+			id: `existing-${number}`, type: SessionArtifactType.PullRequest, label: `PR ${number}`, isArtifact,
+			link: `https://github.com/microsoft/vscode/pull/${number}`, isGitHub: true, ...(origin ? { origin } : {}),
+		});
+		const agentOrigin = { chat, turnId: 'agent-turn' };
+		const before = [existing(123, false), existing(125, true), existing(126, true, agentOrigin)];
+		stateManager.setSessionMeta('agent:/session', withSessionArtifacts(undefined, before));
+		await database.setMetadata(SESSION_ARTIFACTS_KEY, stringifySessionArtifacts(before));
 		const telemetry = new CapturingTelemetryService();
 		const contribution = disposables.add(new AgentHostPullRequestOperationContribution(
 			stateManager,
@@ -174,71 +169,38 @@ suite('AgentHostPullRequestOperationContribution', () => {
 			new AgentHostTelemetryReporter(telemetry),
 		));
 
-		await contribution.recordCreatedPullRequest({
+		const record = (number: number, title?: string) => contribution.recordCreatedPullRequest({
 			sessionKey: 'agent:/session',
 			ownerUri: 'agent:/session',
-			pullRequestUrl: 'https://github.com/microsoft/vscode/pull/123',
-			pullRequestNumber: 123,
-			pullRequestTitle: 'Improve archive nudges',
+			pullRequestUrl: `https://github.com/microsoft/vscode/pull/${number}`,
+			pullRequestNumber: number,
+			...(title ? { pullRequestTitle: title } : {}),
 			branchName: 'feature/test',
 		});
-		await contribution.recordCreatedPullRequest({
-			sessionKey: 'agent:/session',
-			ownerUri: 'agent:/session',
-			pullRequestUrl: 'https://github.com/microsoft/vscode/pull/124',
-			pullRequestNumber: 124,
-			branchName: 'feature/test',
-		});
-		await contribution.recordCreatedPullRequest({
-			sessionKey: 'agent:/session',
-			ownerUri: 'agent:/session',
-			pullRequestUrl: 'https://github.com/microsoft/vscode/pull/123',
-			pullRequestNumber: 123,
-			pullRequestTitle: 'Improve archive nudges',
-			branchName: 'feature/test',
-		});
+		const ids = [await record(123, 'Improve archive nudges'), await record(124), await record(123, 'Improve archive nudges'), await record(125), await record(126)];
 
 		const liveArtifacts = readSessionArtifacts(stateManager.getSessionState('agent:/session')?._meta);
 		const persistedArtifacts = parseSessionArtifacts(await database.getMetadata(SESSION_ARTIFACTS_KEY)).artifacts;
 		const recorded = { provider: 'copilot', agentSessionId: 'session', turnId: undefined, toolCallId: undefined, source: 'createPullRequestAction', kind: SessionArtifactType.PullRequest, category: 'artifact', isGitHub: true, batchSize: 1 };
+		const entry = (number: number, label: string, origin: ISessionArtifact['origin']) => ({
+			chat, type: SessionArtifactType.PullRequest, label, isArtifact: true, link: `https://github.com/microsoft/vscode/pull/${number}`, isGitHub: true, origin,
+		});
+		// A promoted reference and a repeat recording without an origin get the creating chat; an existing origin is kept.
+		const expected = [entry(123, 'Improve archive nudges', { chat }), entry(125, 'PR 125', { chat }), entry(126, 'PR 126', agentOrigin), entry(124, '', { chat })];
 		assert.deepStrictEqual({
+			ids: ids.map(id => id === ids[1] ? 'new' : id),
 			live: liveArtifacts.map(({ id: _id, ...artifact }) => artifact),
 			persisted: persistedArtifacts.map(({ id: _id, ...artifact }) => artifact),
 			recorded: telemetry.events.filter(event => event.eventName === 'agentHost.artifactRecorded').map(event => event.data),
 		}, {
-			live: [{
-				chat: buildDefaultChatUri('agent:/session'),
-				type: SessionArtifactType.PullRequest,
-				label: 'Improve archive nudges',
-				isArtifact: true,
-				link: 'https://github.com/microsoft/vscode/pull/123',
-				isGitHub: true,
-			}, {
-				chat: buildDefaultChatUri('agent:/session'),
-				type: SessionArtifactType.PullRequest,
-				label: '',
-				isArtifact: true,
-				link: 'https://github.com/microsoft/vscode/pull/124',
-				isGitHub: true,
-			}],
-			persisted: [{
-				chat: buildDefaultChatUri('agent:/session'),
-				type: SessionArtifactType.PullRequest,
-				label: 'Improve archive nudges',
-				isArtifact: true,
-				link: 'https://github.com/microsoft/vscode/pull/123',
-				isGitHub: true,
-			}, {
-				chat: buildDefaultChatUri('agent:/session'),
-				type: SessionArtifactType.PullRequest,
-				label: '',
-				isArtifact: true,
-				link: 'https://github.com/microsoft/vscode/pull/124',
-				isGitHub: true,
-			}],
+			ids: ['existing-123', 'new', 'existing-123', 'existing-125', 'existing-126'],
+			live: expected,
+			persisted: expected,
 			recorded: [
 				{ ...recorded, outcome: 'promoted' },
 				{ ...recorded, outcome: 'added' },
+				{ ...recorded, outcome: 'alreadyRecorded' },
+				{ ...recorded, outcome: 'alreadyRecorded' },
 				{ ...recorded, outcome: 'alreadyRecorded' },
 			],
 		});
@@ -305,7 +267,7 @@ suite('AgentHostPullRequestOperationContribution', () => {
 			defaultScopeOperations: operationsFor(defaultScopeOwner),
 			peerScopeOperations: operationsFor(peerScopeOwner),
 		}, {
-			artifacts: [{ chat: peerChat, type: SessionArtifactType.PullRequest, label: 'Tools change', isArtifact: true, link: 'https://github.com/contoso/tools/pull/7', isGitHub: true }],
+			artifacts: [{ chat: peerChat, type: SessionArtifactType.PullRequest, label: 'Tools change', isArtifact: true, link: 'https://github.com/contoso/tools/pull/7', isGitHub: true, origin: { chat: peerChat } }],
 			recordedGitHubStates: [[peerScopeOwner, { pullRequestUrls: ['https://github.com/contoso/tools/pull/7'], associatedPullRequestUrls: ['https://github.com/contoso/tools/pull/7'], pullRequestBranchName: 'feature/tools' }]],
 			defaultScopeOperations: ['pr-mark-ready'],
 			peerScopeOperations: ['pr-merge'],
@@ -360,6 +322,7 @@ suite('AgentHostPullRequestOperationContribution', () => {
 				isArtifact: true,
 				link: 'https://github.com/microsoft/vscode/pull/8',
 				isGitHub: true,
+				origin: { chat: peerChat },
 			},
 		]);
 	});
@@ -427,17 +390,22 @@ suite('AgentHostPullRequestOperationContribution', () => {
 		});
 	});
 
-	test('does not advertise PR operations for folder sessions with outgoing changes', () => {
+	test('advertises PR operations for folder sessions only while outgoing changes cannot be synced', () => {
 		const provider = createContribution(undefined, 'folder');
-
-		const operations = provider.getOperations({
+		const operationIdsFor = (upstreamBranchName: string | undefined) => provider.getOperations({
 			sessionKey: 'agent:/session',
-			gitState: { ...githubBranchWithUncommittedChanges, uncommittedChanges: 0, outgoingChanges: 2 },
+			gitState: { ...githubBranchWithUncommittedChanges, uncommittedChanges: 0, outgoingChanges: 2, upstreamBranchName },
 			changesetKind: ChangesetKind.Branch,
 			changesetUri: '',
-		});
+		})?.map(op => op.id);
 
-		assert.deepStrictEqual(operations, undefined);
+		assert.deepStrictEqual({
+			withUpstream: operationIdsFor('origin/feature/test'),
+			withoutUpstream: operationIdsFor(undefined),
+		}, {
+			withUpstream: undefined,
+			withoutUpstream: ['create-pr', PREPARE_PULL_REQUEST_OPERATION_ID],
+		});
 	});
 
 	test('does not advertise PR operations without GitHub branch changes', () => {

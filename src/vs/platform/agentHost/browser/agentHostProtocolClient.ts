@@ -2416,11 +2416,11 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		return result?.delivered === true;
 	}
 
-	async registerGitHubEnvironment(accountId: string, credential: string): Promise<IAgentHostGitHubEnvironmentRegistration> {
+	async registerGitHubEnvironment(accountId: string, credential: string, name?: string): Promise<IAgentHostGitHubEnvironmentRegistration> {
 		if (!this._gitHubEnvironment.get()) {
 			throw new Error('This agent host does not support GitHub environment registration.');
 		}
-		const result = await this._sendExtensionRequest(RegisterGitHubEnvironmentExtensionMethod, { accountId, credential });
+		const result = await this._sendExtensionRequest(RegisterGitHubEnvironmentExtensionMethod, { accountId, credential, ...(name ? { name } : {}) });
 		if (typeof result?.name !== 'string' || (result.environmentId !== undefined && typeof result.environmentId !== 'string')) {
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Agent Host returned an invalid GitHub environment registration');
 		}
@@ -3367,11 +3367,12 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	/**
 	 * Trigger the CLI-managed upgrade flow for this agent host using the
 	 * method name advertised by the server (typically
-	 * {@link VSCODE_UPGRADE_METHOD}). Callable before {@link connect} has
-	 * completed — typically used when the host has just rejected our
-	 * `initialize` with an `UnsupportedProtocolVersion` error. The
-	 * transport stays open after the rejection, so the extension request
-	 * rides over it without a special out-of-band path.
+	 * {@link VSCODE_UPGRADE_METHOD}). Connected clients send it like any other
+	 * request. It is also callable before {@link connect} has completed,
+	 * typically when the host has just rejected our `initialize` with an
+	 * `UnsupportedProtocolVersion` error. The transport stays open after the
+	 * rejection, so the extension request rides over it without a special
+	 * out-of-band path.
 	 *
 	 * The result mirrors the CLI's HTTP response: ok flag, whether the
 	 * upgrade is needed / started, running/latest commits.

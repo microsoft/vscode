@@ -416,6 +416,10 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		itemProvider.setDraftCustomAgents(ambientScope.customAgents);
 		// Only the Copilot runtime runs the hooks declared in custom agent files.
 		itemProvider.setListsCustomAgentHooks(agent.provider === 'copilotcli');
+		// Only the local agent host shares the client's file system, and only Copilot reads hooks from the same kind of files.
+		if (this._isLocalAgentHost && agent.provider === 'copilotcli') {
+			itemProvider.listHooksNotRunning(() => this._workspaceContextService.getWorkspace().folders.map(folder => folder.uri));
+		}
 		itemProvider.setDraftCustomizations(ambientScope.customizations);
 		const marketplaceInstallProvider = agent.provider === 'copilotcli'
 			? store.add(this._instantiationService.createInstance(

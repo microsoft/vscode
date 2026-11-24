@@ -1722,7 +1722,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			return;
 		}
 		if (this.chatPhoneInputPresenter.enabled.get()) {
-			this._showCombinedPhonePickerSheet();
+			this._showCombinedPhonePickerSheet('model');
 			return;
 		}
 		this.modelWidget?.show();
@@ -1756,7 +1756,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	public openModePicker(anchor?: HTMLElement): void {
 		if (this.chatPhoneInputPresenter.enabled.get()) {
-			this._showCombinedPhonePickerSheet();
+			this._showCombinedPhonePickerSheet('mode');
 			return;
 		}
 		if (this.modeWidget?.isConnected) {
@@ -1777,11 +1777,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 	}
 
-	private _showCombinedPhonePickerSheet(): void {
+	private _showCombinedPhonePickerSheet(initialSection: 'mode' | 'model'): void {
 		const target = this.inputActionsToolbar.getElement();
 		this.chatPhoneInputPresenter
 			.showCombinedModeAndModelSheet(target, {
 				kind: 'delegates',
+				initialSection,
 				modeDelegate: this._createModePickerDelegate(),
 				modelDelegate: this._createModelPickerDelegate(),
 			})
@@ -2746,17 +2747,35 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			&& gateInfo.reason === AccountPolicyGateUnsatisfiedReason.ManagedSettingsRefresh;
 	}
 
+	/**
+	 * The same custom agent can change its ID, e.g. from a synced copy to its source file while an agent host session starts.
+	 * Agent names are not unique, so only a single custom agent with the removed agent's name counts as its replacement.
+	 */
+	private findReplacementCustomAgent(removed: IChatMode, modes: IChatModes): IChatMode | undefined {
+		if (removed.isBuiltin) {
+			return undefined;
+		}
+		const sameName = modes.custom.filter(mode => mode.name.get() === removed.name.get());
+		return sameName.length === 1 ? sameName[0] : undefined;
+	}
+
 	private validateCurrentChatMode() {
 		// The refresh gate blocks AI use; it must not replace the user's persisted agent selection.
 		if (this.isManagedSettingsRefreshBlocked) {
 			return;
 		}
 		const currentMode = this._currentModeObservable.get();
-		const validMode = this._currentChatModesObservable.get().findModeById(currentMode.id);
+		const modes = this._currentChatModesObservable.get();
+		const validMode = modes.findModeById(currentMode.id) ?? this.findReplacementCustomAgent(currentMode, modes);
 		const isAgentModeEnabled = this.configurationService.getValue<boolean>(ChatConfiguration.AgentEnabled);
 		const storeFallback = !this._getSavedAgentHostMode();
 		if (!validMode) {
 			this.setChatMode(isAgentModeEnabled ? ChatModeKind.Agent : ChatModeKind.Ask, storeFallback);
+			return;
+		}
+		if (validMode.id !== currentMode.id) {
+			// Store the new ID, so that syncing from the input model does not bring back the old one.
+			this.setChatMode(validMode.id);
 			return;
 		}
 		if (validMode.kind !== currentMode.kind) {
@@ -4071,7 +4090,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.historyNavigationBackwardsEnablement = historyNavigationBackwardsEnablement;
 		this.historyNavigationForewardsEnablement = historyNavigationForwardsEnablement;
 
-		const options: IEditorConstructionOptions = getSimpleEditorOptions(this.configurationService);
+		const options: IEditorConstructionOptions = {
+			...getSimpleEditorOptions(this.configurationService),
+			// Monaco measures the font during construction, before the live font-size binding runs.
+			...getChatInputEditorMetrics(this.options.inputEditorOptions, this.chatLayoutService.fontSize.get()),
+		};
 		options.overflowWidgetsDomNode = this.options.editorOverflowWidgetsDomNode;
 		options.pasteAs = EditorOptions.pasteAs.defaultValue;
 		options.readOnly = false;
@@ -4093,6 +4116,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			showStatusBar: false,
 			insertMode: 'insert',
 			fitWidthToDetails: true,
+			reopenOnDelete: true,
 		};
 		options.scrollbar = this.options.renderStyle === 'compact'
 			? { ...(options.scrollbar ?? {}), vertical: 'hidden' }
@@ -4109,7 +4133,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._inputEditor = this._register(scopedInstantiationService.createInstance(CodeEditorWidget, this._inputEditorElement, options, editorOptions));
 		this._register(this.bindInputEditorFontSize());
 		this._register(bindChatInputInlineSuggestions(this._inputEditor, this.configurationService));
-		this._register(bindSandboxPlaceholder(this._inputEditor, () => (!this.inline && this.options.inputPlaceholder) || widget.viewModel?.inputPlaceholder, this.sandboxToggleChecked));
+		// Same precedence as the widget's placeholder: the host's, then the selected agent's hint, then the session's.
+		this._register(bindSandboxPlaceholder(this._inputEditor, () => (!this.inline && this.options.inputPlaceholder) || this.currentModeObs.get().argumentHint?.get() || widget.viewModel?.inputPlaceholder, this.sandboxToggleChecked));
 		this.updateInputEditorFontFamily();
 		this._register(addDisposableListener(this._inputEditorElement, dom.EventType.PASTE, e => this.handleTerminalCommandPaste(e), true));
 

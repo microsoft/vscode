@@ -3,16 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import './media/openInAgents.css';
-import { $, addDisposableListener, append, EventLike, EventType, getWindow } from '../../../../../base/browser/dom.js';
+import { $, addDisposableListener, append, EventType } from '../../../../../base/browser/dom.js';
 import { BaseActionViewItem, IBaseActionViewItemOptions } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
-import { IHoverWidget, IManagedHover } from '../../../../../base/browser/ui/hover/hover.js';
+import { IManagedHover } from '../../../../../base/browser/ui/hover/hover.js';
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
-import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
-import { IAction, toAction } from '../../../../../base/common/actions.js';
+import { IAction } from '../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { isCancellationError } from '../../../../../base/common/errors.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
-import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
@@ -46,12 +44,12 @@ import { IChatSessionsService, isAgentHostTarget, isLocalAgentHostTarget, Sessio
 import { IChatViewTitleActionContext } from '../../common/actions/chatActions.js';
 import { getChatSessionType, isUntitledChatSession } from '../../common/model/chatUri.js';
 import { ChatInputNotificationSeverity, IChatInputNotificationService } from '../../browser/widget/input/chatInputNotificationService.js';
-import { AGENTS_LAUNCHER_COMMAND_ID, OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID, OPEN_AGENTS_WINDOW_PRECONDITION, OPEN_AGENTS_WINDOW_COMMAND_ID, ChatAgentLocation, ChatConfiguration, CopilotHarnessIntroductionMode, getCopilotHarnessIntroductionMode, getOpenInAgentsTitleBarHoverCardDesign } from '../../common/constants.js';
+import { AGENTS_LAUNCHER_COMMAND_ID, AGENTS_LAUNCHER_COMMAND_METADATA, OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID, OPEN_AGENTS_WINDOW_PRECONDITION, OPEN_AGENTS_WINDOW_COMMAND_ID, ChatAgentLocation, ChatConfiguration, CopilotHarnessIntroductionMode, getCopilotHarnessIntroductionMode } from '../../common/constants.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { logExperimentTrigger, logSettingExperimentTrigger } from '../../../../../platform/telemetry/common/experimentTrigger.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { AgentsWindowOpenSource, isAgentsWindowOpenSource } from '../../../../../platform/window/common/window.js';
+import { AgentsWindowOpenSource, IAgentsLauncherOptions, isAgentsWindowOpenSource } from '../../../../../platform/window/common/window.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { EditorResourceAccessor, SideBySideEditor } from '../../../../common/editor.js';
@@ -68,8 +66,7 @@ import { isEqual } from '../../../../../base/common/resources.js';
 import { CopilotHarnessIntroductionButtonVariant, copilotHarnessIntroductionButtonVariants, CopilotHarnessIntroductionCopyVariant, copilotHarnessIntroductionCopyVariants, copilotHarnessIntroductionFeedbackCommandId, copilotHarnessIntroductionLearnMoreCommandId, getCopilotHarnessIntroductionContent } from '../../browser/agentSessions/copilotHarnessIntroduction.js';
 import { isNewConversation } from '../../browser/widget/input/chatInputModelUtils.js';
 import { AgentsWindowUsage } from '../../common/agentsWindowUsage.js';
-import { AgentsWindowGraphicDesign } from '../../browser/agentSessions/agentsWindowGraphic.js';
-import { AgentsWindowHoverCard } from '../../browser/agentSessions/agentsWindowHoverCard.js';
+import { registerAgentsWindowTreatments } from '../../browser/agentSessions/agentsWindowTreatments.js';
 import { IAgentHostEditorActivityService } from './agentHostEditorActivity.js';
 
 const OPEN_WORKSPACE_IN_AGENTS_WINDOW_TITLE = localize2('openWorkspaceInAgentsWindow', "Open in Agents");
@@ -289,12 +286,13 @@ export class AgentsLauncherAction extends Action2 {
 			category: CHAT_CATEGORY,
 			precondition: ContextKeyExpr.and(OPEN_AGENTS_WINDOW_PRECONDITION, ChatContextKeys.enabled),
 			f1: true,
+			metadata: AGENTS_LAUNCHER_COMMAND_METADATA,
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
+	async run(accessor: ServicesAccessor, options?: IAgentsLauncherOptions): Promise<void> {
 		ensureAgentModeEnabled(accessor.get(IConfigurationService));
-		await accessor.get(INativeHostService).showAgentsLauncher();
+		await accessor.get(INativeHostService).showAgentsLauncher(options);
 	}
 }
 
@@ -418,34 +416,20 @@ export class OpenChatSessionInAgentsWindowAction extends Action2 {
 }
 
 /**
- * Users who have created fewer sessions in the Agents window than this are new to it,
- * and can see the hover card selected by {@link ChatConfiguration.TitleBarOpenInAgentsWindowRichHover}.
- */
-const RICH_HOVER_MAX_CREATED_SESSIONS = 2;
-
-/**
  * Renders the "Open in Agents" titlebar entry as an icon-only button that
- * expands to reveal a label on hover / keyboard focus. Users who are new to the
- * Agents window can see a hover card that explains it instead of a simple tooltip,
- * and with {@link ChatConfiguration.TitleBarOpenInAgentsWindowRichHoverOnClick},
- * activating the button opens that card instead of the Agents window.
+ * expands to reveal a label on hover / keyboard focus.
  */
 class OpenWorkspaceInAgentsTitleBarWidget extends BaseActionViewItem {
 
 	private static readonly LABEL_TREATMENT = 'chatOpenInAgentsTitleBarLabel';
 	private static readonly EXPAND_ON_HOVER_TREATMENT = 'chatOpenInAgentsTitleBarExpandOnHover';
 	private readonly treatments = this._register(new MutableDisposable());
-	private readonly hoverCard = this._register(new MutableDisposable<AgentsWindowHoverCard>());
-	/** The hover card shown by activating the button, with focus in it. */
-	private readonly focusedHoverCard = this._register(new MutableDisposable<IHoverWidget>());
 	private readonly usage: AgentsWindowUsage;
 	private labelElement: HTMLElement | undefined;
 	private hover: IManagedHover | undefined;
-	private hoverText = '';
 	private treatmentLabel: string | undefined;
 	private treatmentsResolved = false;
 	private expansionTreatmentResolved = false;
-	private expandOnHover = true;
 	private isHovered = false;
 
 	constructor(
@@ -468,9 +452,6 @@ class OpenWorkspaceInAgentsTitleBarWidget extends BaseActionViewItem {
 			this.updateLabel();
 		}));
 		this._register(configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(ChatConfiguration.TitleBarOpenInAgentsWindowRichHover)) {
-				this.updateLabel();
-			}
 			if (e.affectsConfiguration(AGENTS_WINDOW_TITLE_BAR_ICONS_SETTING)) {
 				this.updateIcon();
 			}
@@ -481,19 +462,6 @@ class OpenWorkspaceInAgentsTitleBarWidget extends BaseActionViewItem {
 		return this.usage.createdSessionCount === 0;
 	}
 
-	private get isNewToAgentsWindow(): boolean {
-		return this.usage.createdSessionCount < RICH_HOVER_MAX_CREATED_SESSIONS;
-	}
-
-	/**
-	 * The graphic of the hover card that explains the Agents window to this user, or `undefined` for a simple tooltip.
-	 * Users who aren't new to the Agents window always see a simple tooltip. The card replaces the growing label,
-	 * so while it shows, the label and expansion treatments have no visible effect and are neither applied nor triggered.
-	 */
-	private get hoverCardDesign(): AgentsWindowGraphicDesign | undefined {
-		return this.isNewToAgentsWindow ? getOpenInAgentsTitleBarHoverCardDesign(this.configurationService) : undefined;
-	}
-
 	override render(container: HTMLElement): void {
 		super.render(container);
 
@@ -501,22 +469,18 @@ class OpenWorkspaceInAgentsTitleBarWidget extends BaseActionViewItem {
 		container.setAttribute('role', 'button');
 		this._register(addDisposableListener(container, EventType.MOUSE_ENTER, () => {
 			this.isHovered = true;
-			this.logRichHoverExperimentTrigger();
 			this.logExpansionExperimentTrigger();
 		}));
 		this._register(addDisposableListener(container, EventType.MOUSE_LEAVE, () => {
 			this.isHovered = false;
 		}));
-		// The managed hover also shows on keyboard focus
-		this._register(addDisposableListener(container, EventType.FOCUS, () => this.logRichHoverExperimentTrigger()));
 		this._register(registerAgentsWindowTreatments<boolean>(
 			[OpenWorkspaceInAgentsTitleBarWidget.EXPAND_ON_HOVER_TREATMENT],
 			'OpenWorkspaceInAgentsTitleBarWidget',
 			([expandOnHover]) => {
 				this.expansionTreatmentResolved = true;
-				this.expandOnHover = expandOnHover ?? true;
 				this.logExpansionExperimentTrigger();
-				this.updateGrowth();
+				container.classList.toggle('expand-on-hover', expandOnHover ?? true);
 			},
 			this.assignmentService,
 			this.logService,
@@ -563,142 +527,25 @@ class OpenWorkspaceInAgentsTitleBarWidget extends BaseActionViewItem {
 		}
 	}
 
-	/**
-	 * Logged in every arm when a user who is new to the Agents window hovers or focuses the button,
-	 * which is when the simple tooltip or the hover card can show.
-	 */
-	private logRichHoverExperimentTrigger(): void {
-		if (this.isNewToAgentsWindow) {
-			logSettingExperimentTrigger(this.telemetryService, ChatConfiguration.TitleBarOpenInAgentsWindowRichHover);
-		}
-	}
-
 	private logExpansionExperimentTrigger(): void {
-		if (this.isHovered && this.expansionTreatmentResolved && this.hoverCardDesign === undefined) {
+		if (this.isHovered && this.expansionTreatmentResolved) {
 			logExperimentTrigger(this.telemetryService, OpenWorkspaceInAgentsTitleBarWidget.EXPAND_ON_HOVER_TREATMENT);
 		}
-	}
-
-	/**
-	 * While the hover card shows, the button stays an icon: it neither grows on pointer hover
-	 * (`expand-on-hover`) nor reveals its label on keyboard focus (`no-grow`).
-	 */
-	private updateGrowth(): void {
-		const showsHoverCard = this.hoverCardDesign !== undefined;
-		this.element?.classList.toggle('expand-on-hover', this.expandOnHover && !showsHoverCard);
-		this.element?.classList.toggle('no-grow', showsHoverCard);
 	}
 
 	protected override updateLabel(): void {
 		if (!this.element || !this.labelElement) {
 			return;
 		}
-		const eligible = this.isEligible && this.hoverCardDesign === undefined;
+		const eligible = this.isEligible;
 		if (eligible && this.treatmentsResolved) {
 			logExperimentTrigger(this.telemetryService, OpenWorkspaceInAgentsTitleBarWidget.LABEL_TREATMENT);
 		}
 		const treatmentLabel = eligible ? this.treatmentLabel : undefined;
 		this.labelElement.textContent = treatmentLabel ?? this.action.label;
-		this.hoverText = this.keybindingService.appendKeybinding(treatmentLabel ?? localize('openInAgentsHover', "Open in Agents Window"), OPEN_AGENTS_WINDOW_COMMAND_ID);
-		this.element.setAttribute('aria-label', this.hoverText);
-		this.updateGrowth();
-		this.updateHover();
-	}
-
-	private updateHover(): void {
-		if (!this.hover) {
-			return;
-		}
-		const design = this.hoverCardDesign;
-		if (!design) {
-			this.focusedHoverCard.clear();
-			this.hoverCard.clear();
-			this.hover.update(this.hoverText);
-			return;
-		}
-		const element = this.getHoverCard(design).element;
-		this.hover.update({ element: () => element, contentOwnsPadding: true });
-	}
-
-	private getHoverCard(design: AgentsWindowGraphicDesign): AgentsWindowHoverCard {
-		let card = this.hoverCard.value;
-		if (card?.design !== design) {
-			this.focusedHoverCard.clear();
-			card = new AgentsWindowHoverCard({
-				design,
-				onOpen: () => {
-					this.hover?.hide();
-					this.focusedHoverCard.clear();
-					void this.actionRunner.run(this.action, this._context);
-				},
-			});
-			this.hoverCard.value = card;
-		}
-		return card;
-	}
-
-	/**
-	 * While the button shows a hover card, activating it, by click, tap or keyboard, logs the trigger of
-	 * {@link ChatConfiguration.TitleBarOpenInAgentsWindowRichHoverOnClick} in every arm. When that setting is enabled,
-	 * it then toggles the card instead of opening the Agents window. Otherwise, the action runs as usual.
-	 */
-	override getActionToRun(event: EventLike & { readonly altKey?: boolean; readonly shiftKey?: boolean }): IAction {
-		const design = this.hoverCardDesign;
-		if (design === undefined) {
-			return super.getActionToRun(event);
-		}
-		return toAction({
-			id: this.action.id,
-			label: this.action.label,
-			enabled: this.action.enabled,
-			run: (context: unknown) => {
-				logSettingExperimentTrigger(this.telemetryService, ChatConfiguration.TitleBarOpenInAgentsWindowRichHoverOnClick);
-				if (this.configurationService.getValue<boolean>(ChatConfiguration.TitleBarOpenInAgentsWindowRichHoverOnClick) === true) {
-					this.toggleFocusedHoverCard(design);
-					return;
-				}
-				return this.action.run(context);
-			},
-		});
-	}
-
-	private toggleFocusedHoverCard(design: AgentsWindowGraphicDesign): void {
-		if (this.focusedHoverCard.value && !this.focusedHoverCard.value.isDisposed) {
-			this.focusedHoverCard.clear();
-			return;
-		}
-		if (!this.element) {
-			return;
-		}
-		const trigger = this.element;
-		const card = this.getHoverCard(design);
-		this.hover?.hide();
-		const cardListeners = new DisposableStore();
-		// Shown like the managed hover shows the card, but with focus in it.
-		const hover = this.hoverService.showInstantHover({
-			content: card.element,
-			target: trigger,
-			additionalClasses: ['managed-hover-content-owns-padding'],
-			position: { hoverPosition: HoverPosition.BELOW },
-			appearance: { showPointer: true, compact: true, skipFadeInAnimation: true },
-			trapFocus: true,
-			onDidHide: () => cardListeners.dispose(),
-		}, true);
-		if (!hover) {
-			cardListeners.dispose();
-			return;
-		}
-		this.focusedHoverCard.value = hover;
-		cardListeners.add(card.onDidEscape(() => this.focusedHoverCard.clear()));
-		// The hover service closes the hover on a mousedown that bubbles to the document, but toolbar actions stop
-		// theirs, so close it on any mousedown outside the card. The button's own click toggles the card.
-		cardListeners.add(addDisposableListener(getWindow(trigger).document, EventType.MOUSE_DOWN, e => {
-			const path = e.composedPath();
-			if (!path.includes(card.element) && !path.includes(trigger)) {
-				this.focusedHoverCard.clear();
-			}
-		}, true));
-		card.focus();
+		const hoverText = this.keybindingService.appendKeybinding(treatmentLabel ?? localize('openInAgentsHover', "Open in Agents Window"), OPEN_AGENTS_WINDOW_COMMAND_ID);
+		this.element.setAttribute('aria-label', hoverText);
+		this.hover?.update(hoverText);
 	}
 }
 
@@ -724,52 +571,6 @@ export class OpenWorkspaceInAgentsContribution extends Disposable implements IWo
 			return instantiationService.createInstance(OpenWorkspaceInAgentsTitleBarWidget, action, options);
 		}, undefined));
 	}
-}
-
-export function registerAgentsWindowTreatments<T extends string | number | boolean = string>(
-	treatments: readonly string[],
-	logPrefix: string,
-	onChange: (values: readonly (T | undefined)[]) => void,
-	assignmentService: IWorkbenchAssignmentService,
-	logService: ILogService,
-	isValid: (value: T, name: string) => boolean = value => typeof value === 'string' && value.trim().length > 0,
-): IDisposable {
-	const store = new DisposableStore();
-	let treatmentRequest = 0;
-	let hasResolved = false;
-	const getTreatmentValue = (name: string, value: T | undefined): T | undefined => {
-		if (value === undefined || isValid(value, name)) {
-			return value;
-		}
-		logService.warn(`[${logPrefix}] Ignoring invalid ${name} treatment`);
-		return undefined;
-	};
-	const update = async (): Promise<void> => {
-		const request = ++treatmentRequest;
-		let values: (T | undefined)[];
-		try {
-			values = await Promise.all(treatments.map(name => assignmentService.getTreatment<T>(name)));
-		} catch (error) {
-			if (store.isDisposed || request !== treatmentRequest) {
-				return;
-			}
-			if (!isCancellationError(error)) {
-				logService.warn(`[${logPrefix}] Failed to resolve treatments`, error);
-			}
-			if (hasResolved) {
-				return;
-			}
-			values = treatments.map(() => undefined);
-		}
-		if (store.isDisposed || request !== treatmentRequest) {
-			return;
-		}
-		hasResolved = true;
-		onChange(values.map((value, index) => getTreatmentValue(treatments[index], value)));
-	};
-	store.add(assignmentService.onDidRefetchAssignments(() => void update()));
-	void update();
-	return store;
 }
 
 type CopilotHarnessIntroductionLifecycleEvent = {

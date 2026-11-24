@@ -1639,6 +1639,69 @@ suite('Artifact Integrations', () => {
 		}, { submissions: 1, recovered: [first.id], runs: [['failed', false], ['cancelled', false]] });
 	}));
 
+	async function restartWithUncertainPrompt(store: DisposableStore, archived: boolean, progress: ArtifactPromptState, beforeWrite?: (state: ArtifactIntegrationState) => Promise<void>) {
+		const action: ArtifactAction = { id: 'act', label: 'Analyse', iconId: 'search', kind: 'prompt', prepare: async () => ({ kind: 'ready', value: { text: 'Analyse' } }) };
+		const firstStore = store.add(new DisposableStore());
+		const first = fixture(firstStore, action);
+		const reference = firstStore.add(await first.service.acquireArtifact('session', artifact.id));
+		await reference.object.configure('test', 0, { automatic: true });
+		await first.bindings[0].automation!.runAutomation({ optionId: 'automatic', actionId: 'act', configurationRevision: 1, occurrenceKey: 'first', reason: 'Due' });
+		await waitForState(first.service.ledger.state, state => state.runs[0]?.state === 'submitted');
+		first.progress.set({ kind: 'indeterminate', reason: 'The turn is missing' }, undefined);
+		await waitForState(first.service.ledger.state, state => state.runs[0]?.indeterminate === true);
+		await first.service.whenIdle();
+		firstStore.dispose();
+		await first.service.whenIdle();
+
+		const writtenStates: string[] = [];
+		first.storage.beforeWrite = async value => {
+			const state: ArtifactIntegrationState = JSON.parse(value);
+			writtenStates.push(state.runs[0].state);
+			await beforeWrite?.(state);
+		};
+		const restarted = fixture(store, action, first.storage);
+		restarted.session.set({ ...restarted.session.get(), archived }, undefined);
+		restarted.progress.set(progress, undefined);
+		await restarted.service.initialize();
+		return { restarted, writtenStates };
+	}
+
+	for (const { name, archived, progress, expected } of [
+		{ name: 'keeps a prompt whose turn is gone uncertain without cancelling it', archived: true, progress: { kind: 'indeterminate', reason: 'The turn is missing' }, expected: { cancellations: [0], writtenStates: [], run: { state: 'interrupted', indeterminate: true } } },
+		{ name: 'revokes a prompt its chat confirms is still queued in an archived session', archived: true, progress: { kind: 'queued' }, expected: { cancellations: [1], writtenStates: ['submitted', 'cancelled'], run: { state: 'cancelled', indeterminate: false } } },
+		{ name: 'records a prompt its chat confirms is running as certain', archived: false, progress: { kind: 'running', turnId: 'recovered-turn' }, expected: { cancellations: [0], writtenStates: ['running'], run: { state: 'running', indeterminate: false } } },
+	] satisfies { name: string; archived: boolean; progress: ArtifactPromptState; expected: unknown }[]) {
+		test(`reconciling an uncertain automated prompt after restart ${name}`, () => run(async store => {
+			const { restarted, writtenStates } = await restartWithUncertainPrompt(store, archived, progress);
+			await timeout(0);
+			await restarted.service.whenIdle();
+			const { state, indeterminate } = restarted.service.ledger.state.get().runs[0];
+			assert.deepStrictEqual({
+				cancellations: restarted.handles.map(handle => handle.cancelCalls),
+				writtenStates, run: { state, indeterminate },
+			}, expected);
+		}));
+	}
+
+	test('tracking loss reported while a recovered running state is being saved still leaves the prompt uncertain', () => run(async store => {
+		const saving = new DeferredPromise<void>();
+		const saved = new DeferredPromise<void>();
+		const { restarted } = await restartWithUncertainPrompt(store, false, { kind: 'running', turnId: 'recovered-turn' }, async state => {
+			if (state.runs[0].state === 'running') {
+				void saving.complete();
+				await saved.p;
+			}
+		});
+		await saving.p;
+		restarted.progress.set({ kind: 'indeterminate', reason: 'The turn is missing' }, undefined);
+		await timeout(0);
+		await saved.complete();
+		await timeout(0);
+		await restarted.service.whenIdle();
+		const { state, indeterminate } = restarted.service.ledger.state.get().runs[0];
+		assert.deepStrictEqual({ state, indeterminate }, { state: 'interrupted', indeterminate: true });
+	}));
+
 	for (const kind of ['prompt', 'code'] as const) {
 		test(`restart preserves ${kind} recovery when the original action was removed`, () => run(async store => {
 			const firstStore = store.add(new DisposableStore());
@@ -1749,6 +1812,68 @@ suite('Artifact Integrations', () => {
 		f.session.set({ ...f.session.get(), artifacts: [{ ...artifact, origin: { chat: 'replacement-chat' } }] }, undefined);
 		const reopened = store.add(await f.service.acquireArtifact('session', artifact.id));
 		assert.deepStrictEqual(reopened.object.snapshot.get().artifact.origin, artifact.origin);
+	}));
+
+	test('a binding stored without an origin captures the first origin when reopened, unless its account changed', () => run(async store => {
+		const f = fixture(store, codeAction, new MemoryStorage(), { ...artifact, origin: undefined });
+		const first = store.add(await f.service.acquireArtifact('session', artifact.id));
+		await first.object.configure('test', 0, { automatic: false });
+		first.dispose();
+		await f.service.whenIdle();
+		const storedOrigin = () => f.service.ledger.state.get().bindings[0].artifact.origin;
+		f.session.set({ ...f.session.get(), artifacts: [artifact] }, undefined);
+		f.setCredentialScope('account-b');
+		const otherAccount = store.add(await f.service.acquireArtifact('session', artifact.id));
+		const afterOtherAccount = storedOrigin();
+		otherAccount.dispose();
+		await f.service.whenIdle();
+		f.setCredentialScope('account-a');
+		const reopened = store.add(await f.service.acquireArtifact('session', artifact.id));
+		await f.service.whenIdle();
+		const adopted = { snapshot: reopened.object.snapshot.get().artifact.origin, binding: f.bindings.at(-1)?.context.artifact.origin, stored: storedOrigin() };
+		reopened.dispose();
+		await f.service.whenIdle();
+		f.session.set({ ...f.session.get(), artifacts: [{ ...artifact, origin: { chat: 'replacement-chat' } }] }, undefined);
+		const replaced = store.add(await f.service.acquireArtifact('session', artifact.id));
+		assert.deepStrictEqual({ afterOtherAccount, adopted, kept: replaced.object.snapshot.get().artifact.origin }, {
+			afterOtherAccount: undefined,
+			adopted: { snapshot: artifact.origin, binding: artifact.origin, stored: artifact.origin },
+			kept: artifact.origin,
+		});
+	}));
+
+	test('an acquired artifact that gains its first origin is bound again once its runs settle, and keeps that origin', () => run(async store => {
+		const started = new DeferredPromise<void>();
+		const release = new DeferredPromise<void>();
+		const action: ArtifactAction = {
+			...codeAction,
+			prepare: async () => ({ kind: 'ready', value: { run: async () => { void started.complete(); await release.p; return { kind: 'completed', summary: 'Done' }; } } }),
+		};
+		const f = fixture(store, action, new MemoryStorage(), { ...artifact, origin: undefined });
+		const reference = store.add(await f.service.acquireArtifact('session', artifact.id));
+		await reference.object.invoke('test', 'act', 'chat', 'request');
+		await started.p;
+		f.session.set({ ...f.session.get(), artifacts: [artifact] }, undefined);
+		await timeout(0);
+		const whileRunning = f.bindings.map(binding => binding.context.artifact.origin);
+		await release.complete();
+		await waitForState(reference.object.snapshot, snapshot => !!snapshot.artifact.origin && snapshot.contributions[0]?.view.availability.kind === 'available');
+		f.session.set({ ...f.session.get(), artifacts: [{ ...artifact, origin: { chat: 'replacement-chat' } }] }, undefined);
+		await timeout(0);
+		await f.service.whenIdle();
+		assert.deepStrictEqual({
+			whileRunning,
+			runs: reference.object.snapshot.get().runs.map(run => run.state),
+			bindings: f.bindings.map(binding => binding.context.artifact.origin),
+			snapshot: reference.object.snapshot.get().artifact.origin,
+			stored: f.service.ledger.state.get().bindings[0].artifact.origin,
+		}, {
+			whileRunning: [undefined],
+			runs: ['completed'],
+			bindings: [undefined, artifact.origin],
+			snapshot: artifact.origin,
+			stored: artifact.origin,
+		});
 	}));
 
 	test('history is paged independently of the bounded live snapshot', () => run(async store => {

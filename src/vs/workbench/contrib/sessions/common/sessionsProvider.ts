@@ -380,6 +380,18 @@ export interface IDeleteChatOptions {
  * A logical sessions provider owns creation targets and may use internal, connection-bound backends for existing sessions.
  * Both implement this contract; only logical providers advertise workspace and session creation choices.
  */
+/**
+ * An unlisted quick chat whose first content will be a canvas. It lists the canvases it can open without being started,
+ * and opening one starts it as a session titled after the canvas. Disposing it before a canvas opens, or a canvas that
+ * does not open, leaves nothing behind.
+ */
+export interface ISessionsProviderCanvasDraft extends IDisposable {
+	/** The canvas types the draft can open; `undefined` when its extensions did not settle in time. */
+	readonly canvases: Promise<SessionCanvasDefinitionSnapshot>;
+	/** Opens one instance of `canvas` in the draft and resolves to the committed session once the provider lists it. */
+	open(canvas: ISessionCanvasDefinition, instanceId: string): Promise<ISession>;
+}
+
 export interface ISessionsProvider {
 	readonly sessionConfig?: ISessionConfigProvider;
 	/** The checked state of the terminal sandbox toggle for this chat, when the provider offers one. */
@@ -691,6 +703,12 @@ export interface ISessionsProvider {
 	/** Open or focus one stable instance of a registered canvas type. */
 	openCanvas?(sessionId: string, chatResource: URI, canvas: Pick<ISessionCanvasDefinition, 'canvasId' | 'extensionId'>, instanceId: string, options?: ICanvasOpenOptions): Promise<void>;
 
+	/**
+	 * Create an unlisted quick chat, of a session type that runs canvases, that can start a session with a canvas
+	 * instead of a message. See {@link ISessionsProviderCanvasDraft}.
+	 */
+	createCanvasDraft?(): ISessionsProviderCanvasDraft;
+
 	/** Close one live canvas of a chat, notifying the extension that provides it. */
 	closeCanvas?(sessionId: string, chatResource: URI, canvas: ISessionCanvas): Promise<void>;
 
@@ -704,8 +722,9 @@ export interface ISessionsProvider {
 	/**
 	 * Observe the live canvases of a chat whether or not its session is active, unlike
 	 * {@link IChat.canvases}. `undefined` while membership is unknown. Holding the
-	 * reference may keep the session resident. Returns `undefined` when the provider
-	 * cannot resolve the chat.
+	 * reference may keep the session resident, and contributes this client to the session
+	 * as showing it would, so a chat whose runtime was released can restore its canvases.
+	 * Returns `undefined` when the provider cannot resolve the chat.
 	 */
 	observeChatCanvases?(sessionId: string, chatResource: URI): IReference<IObservable<readonly ISessionCanvas[] | undefined>> | undefined;
 
@@ -796,6 +815,9 @@ export interface ISessionsProvider {
 	 * @param sessionId The ID of the session to archive.
 	 */
 	archiveSession(sessionId: string): Promise<void>;
+
+	/** Archives a batch with one settled outcome per input, allowing the provider to merge session-change notifications. */
+	archiveSessions?(sessionIds: readonly string[]): Promise<readonly PromiseSettledResult<void>[]>;
 
 	/** Permanently imports an external session without sending a message or changing its identity. */
 	importSession?(sessionId: string): Promise<void>;

@@ -508,6 +508,7 @@ export class SessionsView extends ViewPane {
 				return requests;
 			}),
 			sectionRowHeight: this.presentation.sectionRowHeight,
+			titleOnlyQuickChatRowHeight: this.presentation.titleOnlyQuickChatRowHeight,
 			overrideStyles: this.getLocationBasedColors().listOverrideStyles,
 			grouping: () => this.grouping,
 			sorting: () => this.currentSorting,

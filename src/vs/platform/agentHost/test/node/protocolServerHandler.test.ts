@@ -31,6 +31,7 @@ import { supportsAgentHostAutomationHistory, supportsAgentHostAutomationHistoryD
 import { readAgentHostAhpLogDirectory } from '../../common/meta/agentHostDebugLogsMeta.js';
 import { readAgentHostAuthenticationEncryption } from '../../common/meta/agentHostAuthenticationEncryption.js';
 import { supportsAgentHostSessionMove } from '../../common/meta/agentHostSessionMoveMeta.js';
+import { readAgentHostBuild, readAgentHostUpgradeMethod } from '../../common/meta/agentHostUpgradeMeta.js';
 import { readChatInputState, withChatInputState } from '../../common/meta/agentHostChatInputState.js';
 import { readAgentSandboxCertificate, withAgentSandboxCertificate, type IAgentSandboxCertificateStatus } from '../../common/meta/agentSandboxCertificate.js';
 import { readSessionInitiator, withSessionInitiator } from '../../common/meta/agentSessionInitiatorMeta.js';
@@ -1388,6 +1389,41 @@ suite('ProtocolServerHandler', () => {
 		transport.dispose();
 	});
 
+	test('initialize advertises the upgrade method and build to direct clients only when a managing CLI is present', () => {
+		const originalEnv = process.env.VSCODE_AGENT_HOST_MANAGEMENT_SOCKET;
+		disposables.add(toDisposable(() => {
+			if (originalEnv === undefined) {
+				delete process.env.VSCODE_AGENT_HOST_MANAGEMENT_SOCKET;
+			} else {
+				process.env.VSCODE_AGENT_HOST_MANAGEMENT_SOCKET = originalEnv;
+			}
+		}));
+		const build = { commit: 'host-commit', quality: 'insider', date: '2026-11-19T00:00:00.000Z' };
+		const buildServer = disposables.add(new MockProtocolServer());
+		disposables.add(new ProtocolServerHandler(
+			agentService, stateManager, buildServer, { build },
+			disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
+			managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService,
+			new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver,
+		));
+		const advertised = (clientId: string, relay: boolean) => {
+			const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, relay ? clientId : undefined));
+			buildServer.simulateConnection(transport);
+			transport.simulateMessage(request(1, 'initialize', { protocolVersions: [PROTOCOL_VERSION], clientId }));
+			const { result } = findResponse(transport.sent, 1) as { result: InitializeResult };
+			transport.simulateClose();
+			return { method: readAgentHostUpgradeMethod(result), build: readAgentHostBuild(result), serverInfo: result.serverInfo?.name };
+		};
+		delete process.env.VSCODE_AGENT_HOST_MANAGEMENT_SOCKET;
+		const withoutCli = advertised('client-without-cli', false);
+		process.env.VSCODE_AGENT_HOST_MANAGEMENT_SOCKET = '/tmp/mock-supervisor.sock';
+		assert.deepStrictEqual({ withoutCli, direct: advertised('client-direct', false), relay: advertised('client-relay', true) }, {
+			withoutCli: { method: undefined, build: undefined, serverInfo: 'vscode-agent-host' },
+			direct: { method: '_vscodeUpgrade', build, serverInfo: 'vscode-agent-host' },
+			relay: { method: undefined, build: undefined, serverInfo: 'vscode-agent-host' },
+		});
+	});
+
 	test('_vscodeUpgrade RPC returns MethodNotFound when no supervisor is available', async () => {
 		const transport = new MockProtocolTransport();
 		server.simulateConnection(transport);
@@ -1819,8 +1855,8 @@ suite('ProtocolServerHandler', () => {
 		const githubEnvironment: IProtocolServerGitHubEnvironment = {
 			get status() { return status; },
 			onDidChangeStatus: onDidChangeStatus.event,
-			async register(accountId, credential) {
-				calls.push(`register ${accountId} ${credential}`);
+			async register(accountId, credential, name) {
+				calls.push(`register ${accountId} ${credential} ${name}`);
 				setStatus({ instanceId: 'instance', registration: { accountId, environmentId: 'environment', name: 'Remote' } });
 				return { environmentId: 'environment', name: 'Remote' };
 			},
@@ -1856,7 +1892,7 @@ suite('ProtocolServerHandler', () => {
 			const responses = [];
 			for (const message of [
 				request(2, RegisterGitHubEnvironmentExtensionMethod, { accountId: 'account', credential: '' }),
-				request(3, RegisterGitHubEnvironmentExtensionMethod, { accountId: 'account', credential: 'token' }),
+				request(3, RegisterGitHubEnvironmentExtensionMethod, { accountId: 'account', credential: 'token', name: 'nov16' }),
 				request(4, UnregisterGitHubEnvironmentExtensionMethod, { accountId: 'account' }),
 			]) {
 				const response = waitForResponse(transport, responses.length + 2);
@@ -1888,7 +1924,7 @@ suite('ProtocolServerHandler', () => {
 				{ connection: 'relay roots', ...unserved, responses: [notFound, notFound, notFound] },
 				{ connection: 'relay transport', ...unserved, responses: [denied, denied, denied] },
 			],
-			calls: ['register account token', 'unregister account'],
+			calls: ['register account token nov16', 'unregister account'],
 		});
 	});
 

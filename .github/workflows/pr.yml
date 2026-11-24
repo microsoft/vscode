@@ -19,7 +19,6 @@ concurrency:
 
 permissions:
   contents: read
-  pull-requests: read
 
 env:
   VSCODE_QUALITY: 'oss'
@@ -62,6 +61,9 @@ jobs:
   changes:
     name: Detect Changes
     runs-on: &linux-runner ${{ (github.event_name == 'merge_group' || startsWith(github.base_ref, 'release/')) && 'vscode-large-runners-ubuntu-8-core-merge-queue' || 'vscode-large-runners-ubuntu-8-core' }}
+    permissions:
+      contents: read
+      pull-requests: read
     outputs:
       # The commit of the base branch that a merge group forks from (see the Find the base step).
       merge-group-base: ${{ steps.base.outputs.merge-group-base }}
@@ -283,7 +285,6 @@ jobs:
     # actions: read finds and downloads the workspace image (see .github/workflows/workspace_image/README.md)
     permissions:
       contents: read
-      pull-requests: read
       actions: read
     outputs:
       checks-failed: ${{ steps.failed-checks.outputs.failed }}
@@ -444,7 +445,7 @@ jobs:
       # core-ci-pr skips the minified bundles that only the product build uses.
       - name: Compile
         id: compile
-        run: pnpm exec npm-run-all2 -lp core-ci-pr valid-layers-check define-class-fields-check vscode-dts-compile-check tsec-compile-check test-build-scripts check-mobile-boundary
+        run: pnpm exec npm-run-all2 -lp core-ci-pr valid-layers-check define-class-fields-check vscode-dts-compile-check tsec-compile-check typecheck-test-unit test-build-scripts check-mobile-boundary
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -590,6 +591,7 @@ jobs:
   # requests, which a broken ripple must not block (see the Check ripple step of Detect Changes).
   ripple:
     name: Ripple
+    permissions: {}
     needs: changes
     if: ${{ !cancelled() && needs.changes.outputs.ripple-changed == 'true' }}
     runs-on: *linux-runner
@@ -628,7 +630,6 @@ jobs:
     # actions: read finds and downloads the workspace image (see .github/workflows/workspace_image/README.md)
     permissions:
       contents: read
-      pull-requests: read
       actions: read
     uses: ./.github/workflows/pr-linux-test.yml
     with:
@@ -688,7 +689,6 @@ jobs:
     # actions: read finds and downloads the workspace image (see .github/workflows/workspace_image/README.md)
     permissions:
       contents: read
-      pull-requests: read
       actions: read
     uses: ./.github/workflows/pr-win32-test.yml
     with:
@@ -1105,6 +1105,7 @@ jobs:
   # Every job of this workflow must be listed in needs.
   pr-gate:
     name: PR Gate
+    permissions: {}
     needs:
       - changes
       - compile

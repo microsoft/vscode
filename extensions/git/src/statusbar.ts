@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, Command, EventEmitter, Event, workspace, Uri, l10n } from 'vscode';
+import { Disposable, Command, EventEmitter, Event, workspace, Uri, l10n, SourceControl } from 'vscode';
 import { Repository } from './repository';
 import { anyEvent, dispose, filterEvent } from './util';
 import type { Branch, RemoteSourcePublisher } from './api/git';
@@ -30,7 +30,7 @@ class CheckoutStatusBar {
 		this._onDidChange.fire();
 	}
 
-	constructor(private repository: Repository) {
+	constructor(private repository: Repository, private readonly sourceControl: SourceControl) {
 		this._state = {
 			isCheckoutRunning: false,
 			isCommitRunning: false,
@@ -56,7 +56,7 @@ class CheckoutStatusBar {
 			command,
 			tooltip: `${label}, ${this.getTooltip()}`,
 			title: `${this.getIcon()} ${label}`,
-			arguments: [this.repository.sourceControl]
+			arguments: [this.sourceControl]
 		};
 	}
 
@@ -77,9 +77,9 @@ class CheckoutStatusBar {
 					return '$(lock)';
 				case this.repository.mergeInProgress || !!this.repository.rebaseCommit:
 					return '$(git-branch-conflicts)';
-				case this.repository.indexGroup.resourceStates.length > 0:
+				case this.repository.indexChanges.length > 0:
 					return '$(git-branch-staged-changes)';
-				case this.repository.workingTreeGroup.resourceStates.length + this.repository.untrackedGroup.resourceStates.length > 0:
+				case this.repository.workingTreeChanges.length + this.repository.untrackedChanges.length > 0:
 					return '$(git-branch-changes)';
 				default:
 					return '$(git-branch)';
@@ -151,7 +151,7 @@ class SyncStatusBar {
 		this._onDidChange.fire();
 	}
 
-	constructor(private repository: Repository, private remoteSourcePublisherRegistry: IRemoteSourcePublisherRegistry) {
+	constructor(private repository: Repository, private readonly sourceControl: SourceControl, private remoteSourcePublisherRegistry: IRemoteSourcePublisherRegistry) {
 		this._state = {
 			enabled: true,
 			isCheckoutRunning: false,
@@ -228,7 +228,7 @@ class SyncStatusBar {
 				command,
 				title: `$(cloud-upload)`,
 				tooltip,
-				arguments: [this.repository.sourceControl]
+				arguments: [this.sourceControl]
 			};
 		}
 
@@ -276,7 +276,7 @@ class SyncStatusBar {
 			command,
 			title: [icon, text].join(' ').trim(),
 			tooltip,
-			arguments: [this.repository.sourceControl]
+			arguments: [this.sourceControl]
 		};
 	}
 
@@ -293,14 +293,14 @@ export class StatusBarCommands {
 	private checkoutStatusBar: CheckoutStatusBar;
 	private disposables: Disposable[] = [];
 
-	constructor(private readonly repository: Repository, remoteSourcePublisherRegistry: IRemoteSourcePublisherRegistry) {
-		this.syncStatusBar = new SyncStatusBar(repository, remoteSourcePublisherRegistry);
-		this.checkoutStatusBar = new CheckoutStatusBar(repository);
+	constructor(repository: Repository, private readonly sourceControl: SourceControl, remoteSourcePublisherRegistry: IRemoteSourcePublisherRegistry) {
+		this.syncStatusBar = new SyncStatusBar(repository, sourceControl, remoteSourcePublisherRegistry);
+		this.checkoutStatusBar = new CheckoutStatusBar(repository, sourceControl);
 		this.onDidChange = anyEvent(this.syncStatusBar.onDidChange, this.checkoutStatusBar.onDidChange);
 	}
 
 	get commands(): Command[] {
-		if (this.repository.isHidden) {
+		if (this.sourceControl.isHidden) {
 			return [];
 		}
 

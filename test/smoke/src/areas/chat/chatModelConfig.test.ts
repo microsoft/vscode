@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { Application, Chat, Logger } from '../../../../automation';
-import { dumpFailureDiagnostics, getCopilotSmokeTestEnv, getMockLlmServerPath, installAllHandlers, latestUserInputCarriesTag, MOCK_CONFIG_MODEL_DEFAULT_LABEL, MOCK_CONFIG_MODEL_DEFAULT_SECTIONS, MockLlmServer, preseedChatExtensionEnablement } from '../../utils';
+import { dumpFailureDiagnostics, getCopilotSmokeTestEnv, getMockLlmServerPath, installAllHandlers, latestUserInputCarriesTag, MOCK_CONFIG_MODEL_DEFAULT_LABEL, MOCK_CONFIG_MODEL_DEFAULT_SECTIONS, MockLlmServer, openLocalChatInChatView, preseedChatExtensionEnablement } from '../../utils';
 
 /**
  * A chat request captured by the mock LLM server, exposed via
@@ -226,9 +226,7 @@ export function setup(logger: Logger) {
 				// override is applied on the agent request path). Select the local
 				// harness explicitly since the panel default is Agent Host Copilot
 				// when the agent host is enabled.
-				const previousSessionResource = await chat.getChatViewSessionResource();
-				await app.workbench.quickaccess.runCommand('smoketest.openLocalChat');
-				await chat.waitForNewLocalChatViewSession(previousSessionResource, 600);
+				await openLocalChatInChatView(app);
 
 				// Retry the warm-up send until the model actually replies, which
 				// confirms copilot-chat is active and the panel is usable.

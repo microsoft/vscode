@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { raceTimeout, RunOnceScheduler } from '../../../../../../base/common/async.js';
+import { Limiter, raceTimeout, RunOnceScheduler, SequencerByKey } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { isPassiveRelayConnection } from '../../../../../../platform/agentHost/common/meta/relayConnectionMeta.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
@@ -51,7 +51,7 @@ import { IChatWidgetService } from '../../../../chat/browser/chat.js';
 import { IChatService } from '../../../../chat/common/chatService/chatService.js';
 import { IChatSessionsService } from '../../../../chat/common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../../../chat/common/languageModels.js';
-import { IAgentHostAutoConnect, IAgentHostConnectProgress, IAgentHostConnectionLabels, IAgentHostGroup, LocalAgentHostRegistration } from '../../../common/agentHostSessionsProvider.js';
+import { IAgentHostAutoConnect, IAgentHostConnectProgress, IAgentHostConnectionLabels, IAgentHostGroup, IAgentHostPredecessor, IAgentHostSuccessor, LocalAgentHostRegistration } from '../../../common/agentHostSessionsProvider.js';
 import { buildAgentHostSessionWorkspace, readBranchProtectionPatterns } from '../../../common/agentHostSessionWorkspace.js';
 import { DevContainerIdleTimeoutSettingId } from '../../../common/devContainerAgentHostService.js';
 import { IGitHubInfo, IChat, isActiveSessionStatus, ISession, ISessionEnvironment, SessionStatus, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_REMOTE } from '../../../../../services/sessions/common/session.js';
@@ -122,6 +122,8 @@ export interface IRemoteAgentHostSessionsProviderConfig {
 	readonly hostDescription?: IObservable<string>;
 	readonly localRegistration?: IObservable<LocalAgentHostRegistration | undefined>;
 	readonly isVisibleInEnvironmentPicker?: IObservable<boolean>;
+	readonly successor?: IObservable<IAgentHostSuccessor | undefined>;
+	readonly predecessor?: IObservable<IAgentHostPredecessor | undefined>;
 	/** Overrides the stable host key for account-scoped picker preferences. */
 	readonly pickerVisibilityKey?: string;
 	readonly removeLabel?: string;
@@ -232,6 +234,8 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 	readonly localRegistration?: IObservable<LocalAgentHostRegistration | undefined>;
 	readonly isVisibleInEnvironmentPicker?: IObservable<boolean>;
 	readonly showInEnvironmentPicker: () => void;
+	readonly successor?: IObservable<IAgentHostSuccessor | undefined>;
+	readonly predecessor?: IObservable<IAgentHostPredecessor | undefined>;
 	readonly removeLabel?: string;
 	readonly canRemove?: boolean;
 	readonly disconnectLabel?: string;
@@ -241,6 +245,8 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 	private readonly _automationStore: ReconnectableAgentHostAutomationStore;
 
 	private readonly _activitySources = new WeakMap<AgentHostSessionAdapter, { readonly source: 'host' } | { readonly source: 'discovery'; readonly modifiedTime: number }>();
+	/** Keeps an overlapping archive and unarchive of a session in order, since both await Dev Container work. */
+	private readonly _sessionArchiveSequencer = new SequencerByKey<string>();
 	private readonly _connectionStatus = observableValue<RemoteAgentHostConnectionStatus>('connectionStatus', RemoteAgentHostConnectionStatus.disconnected);
 	private readonly _readOnly: IObservable<boolean>;
 	readonly connectionStatus: IObservable<RemoteAgentHostConnectionStatus> = this._connectionStatus;
@@ -300,6 +306,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 	private _devContainerIdleSince: number | undefined;
 	private _devContainerIdleCheckRunning = false;
 	private _devContainerArchiveOperations = 0;
+	private readonly _devContainerArchiveLimiter = this._register(new Limiter<void>(1));
 	private readonly _devContainerIdleScheduler = this._register(new RunOnceScheduler(() => {
 		void this._stopDevContainerIfIdle().catch(error =>
 			this._logService.error(`[${this.id}] Failed to stop idle Dev Container.`, error));
@@ -396,6 +403,8 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		this.connectionLabels = config.connectionLabels;
 		this.hostDescription = config.hostDescription;
 		this.localRegistration = config.localRegistration;
+		this.successor = config.successor;
+		this.predecessor = config.predecessor;
 		const pickerVisibility = this._register(new RemoteAgentHostPickerVisibility(storageService));
 		const pickerKey = config.pickerVisibilityKey ?? getRemoteAgentHostPickerKey(config.preferenceKey ?? config.address);
 		const manageRemotes = observableConfigValue(ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, true, this._configurationService);
@@ -500,25 +509,40 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 	}
 
 	override async archiveSession(sessionId: string): Promise<void> {
+		if (!this._setPendingNewSessionArchived(sessionId, true)) {
+			await this._sessionArchiveSequencer.queue(sessionId, () => this._archiveSession(sessionId));
+		}
+	}
+
+	override async unarchiveSession(sessionId: string): Promise<void> {
+		if (!this._setPendingNewSessionArchived(sessionId, false)) {
+			await this._sessionArchiveSequencer.queue(sessionId, () => this._unarchiveSession(sessionId));
+		}
+	}
+
+	private async _archiveSession(sessionId: string): Promise<void> {
 		if (!this._hasSession(sessionId)) {
 			return;
 		}
-		if (this._devContainerLifecycle) {
-			await this._ensureDevContainerConnection();
-			await this._setDevContainerSessionArchived(sessionId, true);
-			if (this._hasUnarchivedDevContainerSession(sessionId)) {
-				this._scheduleDevContainerStopIfIdle();
-				return;
-			}
-			this._devContainerIdleScheduler.cancel();
-			// Stop rather than remove: the container holds the archived session's Agent Host state.
-			if (await this._devContainerLifecycle.stop()) {
-				await this._setDetachedWorktreeArchived(sessionId, true);
-			} else {
-				this._devContainerIdleSince = undefined;
-				this._scheduleDevContainerStopIfIdle();
-			}
-			return;
+		const devContainerLifecycle = this._devContainerLifecycle;
+		if (devContainerLifecycle) {
+			// Serialize through teardown so optimistic sibling flags cannot stop a host awaiting confirmation.
+			return this._devContainerArchiveLimiter.queue(async () => {
+				await this._ensureDevContainerConnection();
+				await this._setDevContainerSessionArchived(sessionId, true);
+				if (this._hasUnarchivedDevContainerSession(sessionId)) {
+					this._scheduleDevContainerStopIfIdle();
+					return;
+				}
+				this._devContainerIdleScheduler.cancel();
+				// Stop rather than remove: the container holds the archived session's Agent Host state.
+				if (await devContainerLifecycle.stop()) {
+					await this._setDetachedWorktreeArchived(sessionId, true);
+				} else {
+					this._devContainerIdleSince = undefined;
+					this._scheduleDevContainerStopIfIdle();
+				}
+			});
 		}
 		if (!this.connection) {
 			return;
@@ -529,7 +553,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		}
 	}
 
-	override async unarchiveSession(sessionId: string): Promise<void> {
+	private async _unarchiveSession(sessionId: string): Promise<void> {
 		if (!this._hasSession(sessionId)) {
 			return;
 		}

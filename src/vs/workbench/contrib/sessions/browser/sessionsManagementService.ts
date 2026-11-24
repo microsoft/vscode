@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { raceCancellationError } from '../../../../base/common/async.js';
+import { disposableTimeout, Limiter, raceCancellationError } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
 import { isErrorWithActions, toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable, IReference } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { IArtifactModel } from '../../../../platform/artifactIntegrations/common/artifactIntegration.js';
-import { IObservable, ISettableObservable, observableValue } from '../../../../base/common/observable.js';
+import { derived, IObservable, ISettableObservable, observableValue, recomputeInitiallyAndOnChange, waitForState } from '../../../../base/common/observable.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { URI } from '../../../../base/common/uri.js';
 import { hasKey } from '../../../../base/common/types.js';
@@ -23,17 +23,20 @@ import { ChatAgentLocation } from '../../chat/common/constants.js';
 import { IChatWidgetHistoryService } from '../../chat/common/widget/chatWidgetHistoryService.js';
 import { dedupeMigratedCopilotCliSessions } from '../../chat/browser/copilotCliEventsUri.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
-import { IChatDeletedEvent, ISessionCanvasClosedEvent, ISessionChatMoveTarget, ICreateNewChatInSessionOptions, ICreateNewSessionOptions, ICreateNewSessionSlotOptions, IDeferredNewSessionRequestOptions, INewSessionDraftSlot, INewSessionRequestAcceptedEvent, INewSessionRequestDispatchedEvent, INewSessionRequestEndedEvent, IManagedSessionWorktree, IMarkSessionReadOptions, IProviderSessionType, ISendRequestOptions, ISendRequestSentEvent, ISessionChange, ISessionsChangeEvent, ISessionsManagementService, NewSessionRequestOptions, WorkspaceNotTrustedError, getSessionChatOfResource } from '../common/sessionsManagement.js';
+import { ICanvasSessionDraft, IChatDeletedEvent, ISessionCanvasClosedEvent, ISessionChatMoveTarget, ICreateNewChatInSessionOptions, ICreateNewSessionOptions, ICreateNewSessionSlotOptions, IDeferredNewSessionRequestOptions, INewSessionDraftSlot, INewSessionRequestAcceptedEvent, INewSessionRequestDispatchedEvent, INewSessionRequestEndedEvent, IManagedSessionWorktree, IMarkSessionReadOptions, IProviderSessionType, ISendRequestOptions, ISendRequestSentEvent, ISessionChange, ISessionsChangeEvent, ISessionsManagementService, NewSessionRequestOptions, WorkspaceNotTrustedError, getSessionChatOfResource } from '../common/sessionsManagement.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from './sessionsProvidersService.js';
 import { IChatMovedEvent, IDeleteChatOptions, type IForkChatOptions, type INestedChatWorkspace, IPreparedNewSession, NestedChatWorkspaceError, SessionMoveRefusedError, ISessionChangeEvent, ISessionChangesetOperationInvokedEvent, ISessionCreationTarget, type ISessionReplacedEvent, ISessionsProvider, type ISessionsProviderCreateSessionOptions, type SessionResourceResolveReason } from '../common/sessionsProvider.js';
 import { ChatModelSource, IChat, ISession, ISessionCanvas, ISessionCanvasDefinition, ISessionWorkspace, ISideChatSelection, isActiveSessionStatus, SESSION_WORKSPACE_GROUP_REMOTE, SessionStatus, ISessionType, type SessionCanvasDefinitionSnapshot, getChatHarness } from '../../../services/sessions/common/session.js';
-import type { ICanvasOpenOptions } from '../../../common/canvasReference.js';
+import type { ICanvasOpenOptions, ICanvasReference } from '../../../common/canvasReference.js';
+import { getCanvasDefinitionInstanceId } from '../../canvases/common/canvas.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { localize } from '../../../../nls.js';
 
 /** Storage key for the last session type used to create a quick chat. */
 const LAST_USED_QUICK_CHAT_SESSION_TYPE_STORAGE_KEY = 'sessions.quickChat.lastUsedSessionType';
+/** How long a session started with a canvas waits for its chat to publish the canvas, which a close can supersede. */
+const CANVAS_PUBLICATION_TIMEOUT_MS = 10_000;
 
 /** The operations of {@link SessionsManagementService} a {@link NewSessionDraftSlot} delegates to. */
 interface INewSessionDraftSlotOperations {
@@ -446,7 +449,8 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	}
 
 	getSessionForChatResource(resource: URI): { session: ISession; chat: IChat } | undefined {
-		for (const session of this._getAllSessions()) {
+		// The first request can use a chat before its provider publishes the session.
+		for (const session of [...this._getAllSessions(), ...this.getInFlightNewSessionRequests()]) {
 			const chat = getSessionChatOfResource(session, resource, this.uriIdentityService.extUri);
 			if (chat) {
 				return { session, chat };
@@ -953,13 +957,16 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		if (isNewSessionRequest && !provider.sessionTypes.some(type => type.id === session.sessionType)) {
 			throw new Error(localize('newSession.typeUnavailable', "{0} is no longer available for new sessions. Choose an available agent to try again.", provider.label));
 		}
-		const inFlightRequest = isNewSessionRequest ? this.trackInFlightNewSessionRequest(session, options) : undefined;
+		const inFlightRequest = new MutableDisposable<IDisposable>();
+		if (isNewSessionRequest) {
+			inFlightRequest.value = this.trackInFlightNewSessionRequest(session, options);
+		}
 
 		if (options.background) {
 			const ownership = this._acceptNewSessionRequest(session, session, true);
 			let started: ISession | undefined;
 			let error: unknown;
-			void this._prepareAndSendNewChatRequestInBackground(provider, session, options, ownership)
+			void this._prepareAndSendNewChatRequestInBackground(provider, session, options, ownership, inFlightRequest)
 				.then(startedSession => { started = startedSession; })
 				.catch(e => {
 					error = e;
@@ -972,7 +979,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 					}
 				})
 				.finally(() => {
-					inFlightRequest?.dispose();
+					inFlightRequest.dispose();
 					if (ownership) {
 						this._endNewSessionRequest(ownership, true, started, error);
 					}
@@ -989,6 +996,9 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			const newSessionConfig = provider.getNewSessionConfig ? await provider.getNewSessionConfig(session.sessionId) : undefined;
 			const draft = session;
 			({ provider, session } = await this._prepareNewSessionForSend(provider, session, requestActivity, true, options.query));
+			if (session !== draft) {
+				inFlightRequest.value = this.trackInFlightNewSessionRequest(session, options);
+			}
 
 			// The session is graduating into the list (being sent),
 			// so the provider keeps owning it — just drop the pointer, do not delete.
@@ -1025,7 +1035,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			throw e;
 		} finally {
 			requestActivity.dispose();
-			inFlightRequest?.dispose();
+			inFlightRequest.dispose();
 			if (ownership) {
 				this._endNewSessionRequest(ownership, false, started, error);
 			}
@@ -1403,12 +1413,15 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		super.dispose();
 	}
 
-	private async _prepareAndSendNewChatRequestInBackground(provider: ISessionsProvider, session: ISession, options: ISendRequestOptions, ownership: INewSessionOwnership | undefined): Promise<ISession | undefined> {
+	private async _prepareAndSendNewChatRequestInBackground(provider: ISessionsProvider, session: ISession, options: ISendRequestOptions, ownership: INewSessionOwnership | undefined, inFlightRequest: MutableDisposable<IDisposable>): Promise<ISession | undefined> {
 		let graduatingProvider = provider;
 		let graduatingSession = session;
 		try {
 			const newSessionConfig = provider.getNewSessionConfig ? await provider.getNewSessionConfig(session.sessionId) : undefined;
 			({ provider: graduatingProvider, session: graduatingSession } = await this._prepareNewSessionForSend(provider, session, undefined, false, options.query));
+			if (graduatingSession !== session) {
+				inFlightRequest.value = this.trackInFlightNewSessionRequest(graduatingSession, options);
+			}
 			return await this._sendNewChatRequestInBackground(graduatingProvider, graduatingSession, options, newSessionConfig, CancellationToken.None, ownership);
 		} catch (error) {
 			graduatingProvider.deleteNewSession(graduatingSession.sessionId);
@@ -1567,6 +1580,52 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	}
 
 	async archiveSession(session: ISession): Promise<void> {
+		await this._cancelSessionRequests(session);
+		await this._getProvider(session)?.archiveSession(session.sessionId);
+		this._onDidArchiveSession.fire(session);
+	}
+
+	async archiveSessions(sessions: readonly ISession[]): Promise<readonly PromiseSettledResult<void>[]> {
+		const store = new DisposableStore();
+		const limiter = store.add(new Limiter<void>(4));
+		try {
+			const results = await Promise.allSettled(sessions.map(session => limiter.queue(() => this._cancelSessionRequests(session))));
+			const byProvider = new Map<ISessionsProvider, { session: ISession; index: number }[]>();
+			for (const [index, session] of sessions.entries()) {
+				if (results[index].status === 'rejected') {
+					continue;
+				}
+				const provider = this._getProvider(session);
+				if (!provider) {
+					results[index] = { status: 'rejected', reason: new Error(localize('sessions.archiveProviderUnavailable', "The session provider is unavailable.")) };
+					continue;
+				}
+				const entries = byProvider.get(provider) ?? [];
+				entries.push({ session, index });
+				byProvider.set(provider, entries);
+			}
+			const batches = [...byProvider];
+			const batchResults = await Promise.allSettled(batches.map(([provider, entries]) => provider.archiveSessions
+				? provider.archiveSessions(entries.map(({ session }) => session.sessionId))
+				: Promise.allSettled(entries.map(({ session }) => limiter.queue(() => provider.archiveSession(session.sessionId))))));
+			for (const [batchIndex, [, entries]] of batches.entries()) {
+				const batch = batchResults[batchIndex];
+				for (const [entryIndex, { index }] of entries.entries()) {
+					results[index] = batch.status === 'fulfilled' ? batch.value[entryIndex] : batch;
+				}
+			}
+			for (const [index, session] of sessions.entries()) {
+				if (results[index].status === 'fulfilled') {
+					this._onDidArchiveSession.fire(session);
+				}
+			}
+			return results;
+		} finally {
+			store.dispose();
+		}
+	}
+
+	private async _cancelSessionRequests(session: ISession): Promise<void> {
 		const activeChats = session.chats.get().filter(chat => isActiveSessionStatus(chat.status.get()));
 		if (activeChats.length === 0 && isActiveSessionStatus(session.status.get())) {
 			await this._cancelChatRequest(session.mainChat.get());
@@ -1574,8 +1633,6 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		for (const chat of activeChats) {
 			await this._cancelChatRequest(chat);
 		}
-		await this._getProvider(session)?.archiveSession(session.sessionId);
-		this._onDidArchiveSession.fire(session);
 	}
 
 	getSessionWorktreeDiskUsage(session: ISession, token?: CancellationToken): Promise<number | undefined> {
@@ -1887,6 +1944,71 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			throw new Error(localize('sessions.openCanvas.unsupported', "Opening canvases is not supported for this session."));
 		}
 		await provider.openCanvas(session.sessionId, chat.resource, canvas, instanceId, options);
+	}
+
+	createCanvasDraft(): ICanvasSessionDraft {
+		const provider = this.sessionsProvidersService.getProviders().find(candidate => candidate.supportsQuickChats && candidate.createCanvasDraft);
+		if (!provider?.createCanvasDraft) {
+			throw new Error(localize('sessions.createCanvasDraft.unsupported', "Starting a session with a canvas is not supported."));
+		}
+		const draft = provider.createCanvasDraft();
+		return {
+			canvases: draft.canvases,
+			open: async canvas => {
+				const instanceId = getCanvasDefinitionInstanceId(canvas);
+				const session = await draft.open(canvas, instanceId);
+				return this._awaitPublishedCanvas(session, instanceId);
+			},
+			dispose: () => draft.dispose(),
+		};
+	}
+
+	/**
+	 * Resolves to the canvas `instanceId` once the main chat of `session`, which is not shown yet, publishes it, or to
+	 * `undefined` when this service is disposed first.
+	 */
+	private async _awaitPublishedCanvas(session: ISession, instanceId: string): Promise<IReference<ICanvasReference> | undefined> {
+		const disposed = this._disposeCts.token;
+		if (disposed.isCancellationRequested) {
+			return undefined;
+		}
+		const chat = session.mainChat.get();
+		// A chat publishes its canvases only while it is observed, and this session is not shown yet. The canvases stay
+		// observed until the caller releases the reference, so that the caller can still read them, for example to pin one.
+		const observation = new DisposableStore();
+		const observeCanvases = chat.observeCanvases?.();
+		if (observeCanvases) {
+			observation.add(observeCanvases);
+		}
+		if (chat.canvases) {
+			observation.add(recomputeInitiallyAndOnChange(chat.canvases));
+		}
+		const timedOut = observableValue(this, false);
+		const timer = disposableTimeout(() => timedOut.set(true, undefined), CANVAS_PUBLICATION_TIMEOUT_MS);
+		try {
+			const { canvas: opened } = await waitForState(
+				derived(reader => ({ canvas: chat.canvases?.read(reader)?.find(candidate => candidate.instanceId === instanceId), timedOut: timedOut.read(reader) })),
+				(state): state is { canvas: ISessionCanvas; timedOut: boolean } => state.canvas !== undefined,
+				state => state.timedOut && new Error(localize('sessions.canvasDraft.notPublished', "The canvas closed before it finished opening.")),
+				disposed,
+			);
+			if (disposed.isCancellationRequested) {
+				observation.dispose();
+				return undefined;
+			}
+			return {
+				object: { providerId: session.providerId, session: session.resource, chat: chat.resource, canvas: opened.resource },
+				dispose: () => observation.dispose(),
+			};
+		} catch (error) {
+			observation.dispose();
+			if (disposed.isCancellationRequested) {
+				return undefined;
+			}
+			throw error;
+		} finally {
+			timer.dispose();
+		}
 	}
 
 	async closeCanvas(session: ISession, chat: IChat, canvas: ISessionCanvas): Promise<void> {

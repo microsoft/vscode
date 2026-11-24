@@ -160,7 +160,7 @@ function appendCanvasSubmenu(menu: MenuId, when: ContextKeyExpression | undefine
 	});
 }
 
-interface IDiscoverCanvasEntry {
+export interface IDiscoverCanvasEntry {
 	readonly key: string;
 	readonly commandId: string;
 	readonly title: string;
@@ -168,8 +168,8 @@ interface IDiscoverCanvasEntry {
 	readonly run: (accessor: ServicesAccessor) => Promise<void>;
 }
 
-/** Entries that help find or author canvases, offered whenever the active chat supports canvases. */
-const discoverCanvasEntries: readonly IDiscoverCanvasEntry[] = [{
+/** Entries that help find or author canvases, offered whenever the active chat supports canvases and by New Canvas. */
+export const discoverCanvasEntries: readonly IDiscoverCanvasEntry[] = [{
 	key: 'discover:create',
 	commandId: CREATE_SESSION_CANVAS_COMMAND_ID,
 	title: localize('sessionCanvases.createCanvas', "Create a Canvas..."),

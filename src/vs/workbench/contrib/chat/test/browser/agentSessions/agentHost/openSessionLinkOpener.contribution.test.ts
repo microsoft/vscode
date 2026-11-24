@@ -21,6 +21,7 @@ import { ChatSummary, SessionState } from '../../../../../../../platform/agentHo
 import { ILinkPresentationProvider, ILinkPresentationProviderRegistration, ILinkPresentationService } from '../../../../../../../platform/dataChannel/common/dataChannel.js';
 import { IOpener, IOpenerService } from '../../../../../../../platform/opener/common/opener.js';
 import { ACTIVE_GROUP, SIDE_GROUP } from '../../../../../../services/editor/common/editorService.js';
+import { IWorkbenchEnvironmentService } from '../../../../../../services/environment/common/environmentService.js';
 import { IPathService } from '../../../../../../services/path/common/pathService.js';
 import { AgentHostOpenSessionLinkOpenerContribution } from '../../../../browser/agentSessions/agentHost/openSessionLinkOpener.contribution.js';
 import { ISessionSummaryHoverService } from '../../../../browser/agentSessions/sessionSummaryHoverService.js';
@@ -65,6 +66,7 @@ suite('AgentHostOpenSessionLinkOpenerContribution', () => {
 						override resolveSessionResource() { return undefined; }
 					}(),
 					new TestConfigurationService(),
+					upcastPartial<IWorkbenchEnvironmentService>({ isSessionsWindow: false }),
 				));
 
 				assert.ok(opener);
@@ -88,7 +90,7 @@ suite('AgentHostOpenSessionLinkOpenerContribution', () => {
 		}
 	}
 
-	test('opens session links in an editor when chat.agentSessions.openInEditor is enabled, revealing an existing editor like a file', async () => {
+	test('opens session links in an editor when chat.viewSessions.openChatIn is editorArea, revealing an existing editor like a file', async () => {
 		const backend = URI.parse('ahp-session:/session');
 		const client = URI.parse('agent-host-copilotcli:/session');
 		const results: Record<string, unknown> = {};
@@ -130,7 +132,8 @@ suite('AgentHostOpenSessionLinkOpenerContribution', () => {
 					override findSessionResource(): URI | undefined { return client; }
 					override resolveSessionResource() { return undefined; }
 				}(),
-				new TestConfigurationService({ chat: { agentSessions: { openInEditor: true } } }),
+				new TestConfigurationService({ chat: { viewSessions: { openChatIn: 'editorArea' } } }),
+				upcastPartial<IWorkbenchEnvironmentService>({ isSessionsWindow: false }),
 			);
 			try {
 				assert.ok(opener);
@@ -190,6 +193,7 @@ suite('AgentHostOpenSessionLinkOpenerContribution', () => {
 			new class extends mock<IPathService>() { }(),
 			connections,
 			new TestConfigurationService(),
+			upcastPartial<IWorkbenchEnvironmentService>({ isSessionsWindow: false }),
 		));
 		assert.ok(opener);
 		const result = await opener.open(URI.parse(buildOpenSessionLinkUri(backend, 'peer', undefined, 'other-host')));
@@ -217,6 +221,7 @@ suite('AgentHostOpenSessionLinkOpenerContribution', () => {
 				override resolveSessionResource() { return undefined; }
 			}(),
 			new TestConfigurationService(),
+			upcastPartial<IWorkbenchEnvironmentService>({ isSessionsWindow: false }),
 		));
 		assert.ok(opener);
 		assert.deepStrictEqual({
@@ -259,6 +264,7 @@ suite('AgentHostOpenSessionLinkOpenerContribution', () => {
 				new class extends mock<IPathService>() { }(),
 				connections,
 				new TestConfigurationService(),
+				upcastPartial<IWorkbenchEnvironmentService>({ isSessionsWindow: false }),
 			));
 			await opener!.open(URI.parse(buildOpenSessionLinkUri(backend, defaultChat)));
 			await opener!.open(URI.parse(buildOpenSessionLinkUri(backend, defaultId)));
@@ -316,6 +322,7 @@ suite('AgentHostOpenSessionLinkOpenerContribution', () => {
 			new class extends mock<IPathService>() { }(),
 			connections,
 			new TestConfigurationService(),
+			upcastPartial<IWorkbenchEnvironmentService>({ isSessionsWindow: false }),
 		));
 		const root = store.add(providers.get('workbench.agentSessionLinkPresentation')!.createLinkPresentationWatcher(URI.parse(buildOpenSessionLinkUri(backend))));
 		const peer = store.add(providers.get('workbench.agentChatLinkPresentation')!.createLinkPresentationWatcher(URI.parse(buildOpenSessionLinkUri(backend, 'peer'))));
@@ -368,6 +375,7 @@ suite('AgentHostOpenSessionLinkOpenerContribution', () => {
 			new class extends mock<IPathService>() { },
 			new class extends mock<IAgentHostConnectionsService>() { },
 			new TestConfigurationService(),
+			upcastPartial<IWorkbenchEnvironmentService>({ isSessionsWindow: false }),
 		));
 
 		assert.ok(registeredOpener, 'expected an opener service opener to be registered');
@@ -450,6 +458,7 @@ suite('AgentHostOpenSessionLinkOpenerContribution', () => {
 			new class extends mock<IPathService>() { },
 			new class extends mock<IAgentHostConnectionsService>() { override resolveSessionResource() { return undefined; } }(),
 			new TestConfigurationService(),
+			upcastPartial<IWorkbenchEnvironmentService>({ isSessionsWindow: false }),
 		));
 
 		assert.ok(registeredOpener);
@@ -492,6 +501,7 @@ suite('AgentHostOpenSessionLinkOpenerContribution', () => {
 			new class extends mock<IPathService>() { },
 			new class extends mock<IAgentHostConnectionsService>() { },
 			new TestConfigurationService(),
+			upcastPartial<IWorkbenchEnvironmentService>({ isSessionsWindow: false }),
 		));
 
 		const opened = await requestOriginService.open({

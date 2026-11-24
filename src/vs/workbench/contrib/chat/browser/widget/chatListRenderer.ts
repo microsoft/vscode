@@ -48,6 +48,7 @@ import { ServiceCollection } from '../../../../../platform/instantiation/common/
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IMarkdownRenderer } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
+import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { isDark } from '../../../../../platform/theme/common/theme.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
@@ -134,6 +135,7 @@ import { ChatExternalEditContentPart } from './chatContentParts/chatExternalEdit
 import { ChatToolInvocationPart } from './chatContentParts/toolInvocationParts/chatToolInvocationPart.js';
 import { ChatImageGenerationBatchPart } from './chatContentParts/chatImageGenerationBatchPart.js';
 import { ChatInlineAttachmentRenderer, ChatMarkdownDecorationsRenderer } from './chatContentParts/chatMarkdownDecorationsRenderer.js';
+import { ChatInputSessionLinkDetector, linkSessionMentions } from './input/editor/chatInputSessionLinkProvider.js';
 import { getInlineRequestAttachments, recoverAttachmentMentions } from '../../common/attachments/chatInlineAttachments.js';
 import { ChatEditorOptions } from './chatOptions.js';
 import { ChatInputNotificationWidget } from './input/chatInputNotificationWidget.js';
@@ -1054,6 +1056,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	private _onDidChangeVisibility = this._register(new Emitter<boolean>());
 
 	private readonly _inlineTextModels: InlineTextModelCollection;
+	private readonly _sessionLinkDetector: ChatInputSessionLinkDetector;
 	private readonly _thinkingTitles: ChatThinkingTitleController;
 	private readonly layoutTrace: ChatLayoutTrace;
 	private readonly pendingHeightUpdates = this._register(new DisposableMap<IChatListItemTemplate, IPendingChatItemHeightUpdate>());
@@ -1077,6 +1080,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IConfigurationService private readonly configService: IConfigurationService,
 		@ILogService private readonly logService: ILogService,
+		@IProductService productService: IProductService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IThemeService private readonly themeService: IThemeService,
 		@ICommandService private readonly commandService: ICommandService,
@@ -1091,6 +1095,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		@INotificationService private readonly notificationService: INotificationService,
 	) {
 		super();
+		this._sessionLinkDetector = new ChatInputSessionLinkDetector(productService.urlProtocol, logService);
 		this._register(this.scheduledRequestActionRunner.onDidRun(event => {
 			if (event.error) {
 				this.notificationService.error(event.error);
@@ -3479,7 +3484,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	private getRequestMarkdown(element: IChatRequestViewModel, explicitFileOrImageVariables = element.variables.filter(isExplicitFileOrImageVariableEntry), inlineAttachmentParts?: ReadonlySet<number>): MarkdownString | undefined {
 		const markdown = isChatFollowup(element.message)
 			? new MarkdownString(element.message.message)
-			: this.markdownDecorationsRenderer.convertParsedRequestToMarkdown(element.sessionResource, this.getRenderedRequestMessage(element.message, element.variables), inlineAttachmentParts);
+			: this.markdownDecorationsRenderer.convertParsedRequestToMarkdown(element.sessionResource, linkSessionMentions(this.getRenderedRequestMessage(element.message, element.variables), this._sessionLinkDetector), inlineAttachmentParts);
 		const attachmentSummary = !element.messageText.trim() && !explicitFileOrImageVariables.length
 			? getExplicitFileOrImageAttachmentSummary(element.variables)
 			: undefined;
@@ -5459,7 +5464,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			} else if (content.kind === 'confirmation') {
 				return this.renderConfirmation(context, content, templateData);
 			} else if (content.kind === 'warning') {
-				return this.instantiationService.createInstance(ChatErrorContentPart, ChatErrorLevel.Warning, content.content, content, this.chatContentMarkdownRenderer);
+				return this.instantiationService.createInstance(ChatErrorContentPart, content.isError ? ChatErrorLevel.Error : ChatErrorLevel.Warning, content.content, content, this.chatContentMarkdownRenderer);
 			} else if (content.kind === 'info') {
 				return this.instantiationService.createInstance(ChatErrorContentPart, ChatErrorLevel.Info, content.content, content, this.chatContentMarkdownRenderer);
 			} else if (content.kind === 'hook') {

@@ -1,8 +1,8 @@
 {
   "name": "code-oss-dev",
-  "version": "1.148.0",
+  "version": "1.149.0",
   "packageManager": "pnpm@12.16.0",
-  "distro": "c6f1b48a8bcc09f14249469ccea38361ccb65685",
+  "distro": "8d776751f96e7726cf67d97f7f00fbc95a505f57",
   "nativeBuild": {
     "runtime": "electron",
     "target": "43.8.10",
@@ -21,7 +21,7 @@
     "test": "node -e \"console.error('Run a test script from the scripts folder, for example: ./scripts/test.sh --run <file>.'); process.exit(1)\"",
     "test-browser": "pnpm exec playwright install && node test/unit/browser/index.js",
     "test-browser-no-install": "node test/unit/browser/index.js",
-    "test-node": "mocha test/unit/node/index.js --delay --ui=tdd --exit",
+    "test-node": "mocha test/unit/node/index.ts --delay --ui=tdd --exit",
     "test-extension": "vscode-test",
     "test-build-scripts": "pnpm -C build run test",
     "test-agent-host-e2e": "node test/integration/agentHost/runner.ts",
@@ -36,6 +36,7 @@
     "build-fast": "node build/next/build-fast.ts",
     "build-fast-extensions": "pnpm run gulp copy-codicons compile-extensions compile-extension-media",
     "typecheck-client": "tsc --project ./src/tsconfig.json --noEmit --skipLibCheck",
+    "typecheck-test-unit": "tsc --project test/unit/tsconfig.json",
     "codex:gen-protocol": "node build/codex/generate-protocol.mjs",
     "codex:check-protocol": "node build/codex/check-protocol-sync.ts",
     "agent-host:generate-copilot-meta": "node build/agentHost/generateCopilotMetadata.ts",
@@ -113,7 +114,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.82.0",
     "@devcontainers/cli": "0.88.0",
-    "@microsoft/copilot-sdk": "2.0.1",
+    "@microsoft/copilot-sdk": "2.0.2-unstable.45286541461.g05667ac",
     "@hpke/core": "^1.9.0",
     "@microsoft/1ds-core-js": "^3.2.13",
     "@microsoft/1ds-post-js": "^3.2.13",
@@ -127,7 +128,7 @@
     "@vscode/codicons": "^0.0.46-51",
     "@vscode/copilot-api": "^0.5.2",
     "@vscode/deviceid": "^0.1.1",
-    "@vscode/diff": "0.0.2-145",
+    "@vscode/diff": "0.0.2-154",
     "@vscode/fs-copyfile": "2.0.0",
     "@vscode/iconv-lite-umd": "0.7.1",
     "@vscode/native-watchdog": "^1.4.6",
@@ -202,7 +203,6 @@
     "@types/vscode-notebook-renderer": "^1.72.0",
     "@types/wicg-file-system-access": "^2023.10.7",
     "@types/windows-foreground-love": "^0.3.0",
-    "@types/winreg": "^1.2.30",
     "@types/ws": "^8.18.1",
     "@types/yauzl": "^2.10.0",
     "@types/yazl": "^2.4.2",
@@ -215,9 +215,7 @@
     "@vscode/telemetry-extractor": "^1.20.5",
     "@vscode/test-cli": "^0.0.6",
     "@vscode/test-electron": "^2.4.0",
-    "@vscode/test-web": "^0.0.81",
     "@webgpu/types": "^0.1.66",
-    "ansi-colors": "^3.2.3",
     "asar": "^3.0.3",
     "buffer": "^5.7.1",
     "c8": "^9.1.0",
@@ -242,7 +240,6 @@
     "gulp-rename": "^1.2.0",
     "gulp-replace": "^0.5.4",
     "gulp-sourcemaps": "^3.0.0",
-    "husky": "^0.13.1",
     "innosetup": "^6.4.1",
     "js-yaml": "^4.2.0",
     "json-schema-to-typescript": "16.0.0",
@@ -281,5 +278,5 @@
   "optionalDependencies": {
     "windows-foreground-love": "0.6.1"
   },
-  "copilotRuntimeVersion": "1.0.114"
+  "copilotRuntimeVersion": "1.0.114-unstable.r45286541461.g05667ac"
 }

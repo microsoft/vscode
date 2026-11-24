@@ -21,6 +21,7 @@ import { getLanguageModelDisplayNameWithSubscriptionSource } from '../../../../c
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from '../../../../common/languageModels.js';
 import { IModelPickerComparison } from './modelPickerComparison.js';
 import { IChatInputPickerOptions } from '../chatInputPickerActionItem.js';
+import { getModelRouterWarning } from './modelPickerItemPrimitives.js';
 import { IModelConfigurationAccess } from './modelPickerModelConfig.js';
 import { IModelPickerOpenOptions, ModelPickerWidget } from './modelPickerWidget.js';
 import { IAgentModelPreferences } from '../../../../common/promptSyntax/languageProviders/promptModelResolver.js';
@@ -32,6 +33,8 @@ export interface IModelPickerPresentationOptions {
 	readonly showUnavailableFeatured: boolean;
 	readonly showAutoModel: boolean;
 	readonly showModelIcon: boolean;
+	/** Use one labeled trigger for a picker that presents model and configuration together. */
+	readonly singleButton?: boolean;
 }
 
 export interface IModelPickerDelegate {
@@ -262,8 +265,9 @@ export class ModelPickerActionItem extends BaseActionViewItem {
 		if (selectedModel) {
 			label = localize('chat.modelPicker.selectedModelHover', "{0} • {1}", label, this._pickerWidget.fusionDisplayName ?? getLanguageModelDisplayNameWithSubscriptionSource(selectedModel));
 		}
-		if (statusIcon && tooltip) {
-			label = localize('chat.modelPicker.selectedModelStatusHover', "{0} • {1}", label, tooltip);
+		const status = selectedModel && getModelRouterWarning(selectedModel) || tooltip;
+		if (statusIcon && status) {
+			label = localize('chat.modelPicker.selectedModelStatusHover', "{0} • {1}", label, status);
 		}
 		const organizationDefaultDescription = this._pickerWidget.organizationDefaultDescription;
 		const hover = organizationDefaultDescription

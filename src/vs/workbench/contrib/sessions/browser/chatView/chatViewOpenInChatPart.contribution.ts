@@ -52,7 +52,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			enumDescriptions: [
 				localize('chat.viewSessions.openChatIn.chatPanel', "Open the chat of a session in the Chat view."),
 				localize('chat.viewSessions.openChatIn.chatArea', "Open the chat of a session in the chat area beside the Chat view, which then shows only its sessions. Applies while {0} is `sideBySide`.", '`#chat.viewSessions.orientation#`'),
-				localize('chat.viewSessions.openChatIn.editorArea', "Open the chat of a session as an editor in the editor area. A chat that is already open is revealed instead of opened again."),
+				localize('chat.viewSessions.openChatIn.editorArea', "Open the chat of a session as an editor in the editor area, also from a session link. A chat that is already open is revealed instead of opened again."),
 			],
 			default: ChatViewSessionsOpenChatIn.ChatPanel,
 			tags: ['experimental'],
@@ -178,6 +178,13 @@ export class ChatViewOpenInChatPartContribution extends Disposable implements IW
 					return shownSession && this._sessionsManagementService.getSessionForChatResource(shownSession.resource);
 				});
 				reader.store.add(this._shownChatService.bind(shown, { override: true, priority: 1 }));
+				// The chat that the first request of the Chat view's new chat commits moves to an editor that stays open, also of a new chat
+				// revealed before its request, such as by Run Prompt in New Chat
+				reader.store.add(runOnChange(this._chatViewHostService.shownSession, shownSession => {
+					if (shownSession?.reason === 'commit' && !isUntitledChatSession(shownSession.resource) && this._chatViewHostService.chatViewHosts.read(undefined)) {
+						this._chatWidgetService.openSession(shownSession.resource, ACTIVE_GROUP, { pinned: true }).catch(onUnexpectedError);
+					}
+				}));
 				// A chat that shows in an editor is read, as one that shows in the Chat view is
 				const readMarker = new ShownChatReadMarker(this._sessionsManagementService, extUri);
 				reader.store.add(autorun(reader => {
@@ -195,10 +202,18 @@ export class ChatViewOpenInChatPartContribution extends Disposable implements IW
 		this._register(autorun(reader => {
 			if (enabled.read(reader)) {
 				reader.store.add(sessionsRuntime.enable({ viewIds: [ChatViewId] }));
-				// The chats show in the chat part, so the Chat view shows only its sessions, except while it hosts a chat that the chat
-				// part leaves to it, such as a local chat: the seam owns that rule.
-				reader.store.add(this._chatViewHostService.register({ sessionsOnly: true }));
-				// No local chats, which the chat part does not show: as with the sessions list of the Chat view, whose chats are those of sessions
+			}
+		}));
+		// The chats show in the chat part or in editors, so the Chat view shows only its sessions, except while it hosts a chat that the
+		// chat part leaves to it, such as a local chat: the seam owns that rule.
+		const sessionsOnly = derived(this, reader => {
+			const setting = openChatIn.read(reader);
+			return (setting === ChatViewSessionsOpenChatIn.ChatArea || setting === ChatViewSessionsOpenChatIn.EditorArea) && orientation.read(reader) !== 'stacked' && chatAvailable.read(reader);
+		});
+		this._register(autorun(reader => {
+			if (sessionsOnly.read(reader)) {
+				reader.store.add(this._chatViewHostService.register({ chatsOpenElsewhere: true }));
+				// No local chats, which the chat part and editors of sessions do not show: as with the sessions list of the Chat view, whose chats are those of sessions
 				reader.store.add(this._localChatAvailabilityService.hide());
 			}
 		}));
