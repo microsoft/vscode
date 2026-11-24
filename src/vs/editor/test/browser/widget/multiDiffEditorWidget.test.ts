@@ -7,6 +7,7 @@ import assert from 'assert';
 import sinon from 'sinon';
 import { Dimension } from '../../../../base/browser/dom.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
+import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { Emitter, Event, ValueWithChangeEvent } from '../../../../base/common/event.js';
 import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, waitForState } from '../../../../base/common/observable.js';
@@ -367,14 +368,18 @@ suite('MultiDiffEditorWidget', () => {
 	});
 
 	/**
-	 * Shows a file below a small one in a widget of 800x300 pixels once their diffs are computed, and scrolls to the file.
+	 * Shows a file below a small one in a widget of 800x300 pixels, and scrolls to the file. Their diffs are computed
+	 * before, unless the caller computes them later.
 	 */
-	async function showFileBelowAnother(originalContent: string, modifiedContent: string, options: { readonly renderSideBySide?: boolean; readonly diffWordWrap?: 'on' | 'off'; readonly editorOptions?: IDiffEditorOptions } = {}) {
+	async function showFileBelowAnother(originalContent: string, modifiedContent: string, options: { readonly renderSideBySide?: boolean; readonly diffWordWrap?: 'on' | 'off'; readonly editorOptions?: IDiffEditorOptions; readonly computeDiffsLater?: boolean } = {}) {
+		const diffProviderFactory = new DelayedDiffProviderFactoryService();
 		const services = new ServiceCollection();
 		services.set(IAccessibilitySignalService, new class extends mock<IAccessibilitySignalService>() { }());
 		services.set(IActionViewItemService, new NullActionViewItemService());
-		services.set(IEditorProgressService, new class extends mock<IEditorProgressService>() { }());
-		services.set(IDiffProviderFactoryService, new TestDiffProviderFactoryService());
+		services.set(IEditorProgressService, new class extends mock<IEditorProgressService>() {
+			override show() { return emptyProgressRunner; }
+		}());
+		services.set(IDiffProviderFactoryService, diffProviderFactory);
 		services.set(IStorageService, disposables.add(new InMemoryStorageService()));
 		services.set(IMenuService, new class extends mock<IMenuService>() {
 			override createMenu(): IMenu {
@@ -412,15 +417,24 @@ suite('MultiDiffEditorWidget', () => {
 			viewModel.dispose();
 			models.flat().forEach(model => model.dispose());
 		}));
-		await waitForState(viewModel.items, items => items.length === 2);
-		for (const item of viewModel.items.get()) {
-			await waitForState(item.diffEditorViewModel.isDiffUpToDate, value => value);
+		const computeDiffs = async () => {
+			diffProviderFactory.computeDiffs();
+			await waitForState(viewModel.items, items => items.length === 2);
+			for (const item of viewModel.items.get()) {
+				await waitForState(item.diffEditorViewModel.isDiffUpToDate, value => value);
+			}
+		};
+		if (options.computeDiffsLater) {
+			// A view model shows its items without their diffs after a second.
+			await waitForState(viewModel.items, items => items.length === 2);
+		} else {
+			await computeDiffs();
 		}
 		widget.setViewModel(viewModel);
 		const resource = { original: models[1][0].uri, modified: models[1][1].uri };
 		widget.reveal(resource, { highlight: false });
 		await waitForState(widget.getLayoutDebugState(), state => state.items[1]?.hasTemplate === true);
-		return { widget, resource };
+		return { widget, resource, computeDiffs };
 	}
 
 	/** Returns whether a position is in the visible part of an editor's content. */
@@ -428,6 +442,11 @@ suite('MultiDiffEditorWidget', () => {
 		const left = editor.getOffsetForColumn(position.lineNumber, position.column);
 		return editor.getVisibleRanges().some(range => range.containsPosition(position))
 			&& editor.getScrollLeft() <= left && left <= editor.getScrollLeft() + editor.getLayoutInfo().contentWidth;
+	}
+
+	/** Returns the ranges that reveals highlight in an editor. */
+	function getHighlights(editor: ICodeEditor): Range[] {
+		return editor.getModel()!.getAllDecorations().filter(decoration => decoration.options.description === 'symbol-navigate-action-highlight').map(decoration => decoration.range);
 	}
 
 	test('reveals a range far into a file by scrolling the list, so that later layouts keep it visible', async () => {
@@ -484,10 +503,49 @@ suite('MultiDiffEditorWidget', () => {
 			// Without a side, the range refers to the original document, whose line 150 is line 350 of the modified one.
 			widget.reveal(resource, { range: new Range(150, 1, 150, 9), highlight: true });
 
+			assert.deepStrictEqual({ highlights: getHighlights(editor), visible: isVisible(editor, new Position(350, 1)) }, { highlights: [new Range(350, 1, 350, 12)], visible: true });
+		} finally {
+			widget.setViewModel(undefined);
+		}
+	});
+
+	test('reveals a range once the diff of its file is computed, unless another reveal supersedes it', () => runWithFakedTimers({}, async () => {
+		const lines = Array.from({ length: 300 }, (_, index) => `line ${index + 1}`);
+		const modifiedLines = [
+			...Array.from({ length: 200 }, (_, index) => `inserted ${index + 1}`),
+			...lines.map((line, index) => index === 149 || index === 249 ? `changed ${index + 1}` : line),
+		];
+		const { widget, resource, computeDiffs } = await showFileBelowAnother(lines.join('\n'), modifiedLines.join('\n'), { renderSideBySide: false, computeDiffsLater: true });
+
+		try {
+			const editor = widget.tryGetCodeEditor(resource.modified)!.editor;
+			// Only the diff tells that the line 150 of the original document is line 350 of the modified one.
+			widget.reveal(resource, { range: new Range(250, 1, 250, 9), highlight: true });
+			widget.reveal(resource, { range: new Range(150, 1, 150, 9), highlight: true });
+			await computeDiffs();
+			// The reveal continues after the transaction that sets the diff.
+			await timeout(0);
+
+			assert.deepStrictEqual({ highlights: getHighlights(editor), visible: isVisible(editor, new Position(350, 1)) }, { highlights: [new Range(350, 1, 350, 12)], visible: true });
+		} finally {
+			widget.setViewModel(undefined);
+		}
+	}));
+
+	test('reveals deleted text of an inline diff in the view zone that shows it', async () => {
+		const lines = Array.from({ length: 400 }, (_, index) => `line ${index + 1}`);
+		// The modified editor shows the deleted lines 101 to 300 in a view zone, which ends where its line 101 starts.
+		const { widget, resource } = await showFileBelowAnother(lines.join('\n'), [...lines.slice(0, 100), ...lines.slice(300)].join('\n'), { renderSideBySide: false });
+
+		try {
+			const editor = widget.tryGetCodeEditor(resource.modified)!.editor;
+			widget.reveal(resource, { range: new Range(200, 1, 200, 9), highlight: false });
+			const lineHeight = editor.getOption(EditorOption.lineHeight);
+			const top = editor.getTopForLineNumber(101) - (301 - 200) * lineHeight;
+
 			assert.deepStrictEqual({
-				highlights: editor.getModel()!.getAllDecorations().filter(decoration => decoration.options.description === 'symbol-navigate-action-highlight').map(decoration => decoration.range),
-				visible: isVisible(editor, new Position(350, 1)),
-			}, { highlights: [new Range(350, 1, 350, 12)], visible: true });
+				showsDeletedLine: editor.getScrollTop() <= top && top + lineHeight <= editor.getScrollTop() + editor.getLayoutInfo().height,
+			}, { showsDeletedLine: true });
 		} finally {
 			widget.setViewModel(undefined);
 		}
@@ -999,5 +1057,28 @@ class PendingDiffProviderFactoryService implements IDiffProviderFactoryService {
 				return new Promise(() => { });
 			}
 		}();
+	}
+}
+
+/** Computes diffs like {@link TestDiffProviderFactoryService}, once {@link computeDiffs} is called. */
+class DelayedDiffProviderFactoryService implements IDiffProviderFactoryService {
+	declare readonly _serviceBrand: undefined;
+
+	private readonly _diffProviderFactory = new TestDiffProviderFactoryService();
+	private readonly _canComputeDiffs = new DeferredPromise<void>();
+
+	computeDiffs(): void {
+		this._canComputeDiffs.complete();
+	}
+
+	createDiffProvider(): IDocumentDiffProvider {
+		const diffProvider = this._diffProviderFactory.createDiffProvider();
+		return {
+			onDidChange: diffProvider.onDidChange,
+			computeDiff: async (original, modified, options, cancellationToken) => {
+				await this._canComputeDiffs.p;
+				return diffProvider.computeDiff(original, modified, options, cancellationToken);
+			},
+		};
 	}
 }

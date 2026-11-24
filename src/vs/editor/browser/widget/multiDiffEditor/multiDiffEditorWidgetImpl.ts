@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Dimension, h } from '../../../../base/browser/dom.js';
+import { CancellationToken, cancelOnDispose } from '../../../../base/common/cancellation.js';
 import { arrayEqualsC } from '../../../../base/common/equals.js';
-import { BugIndicatingError } from '../../../../base/common/errors.js';
-import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
-import { IObservable, IReader, ITransaction, autorun, autorunWithStore, constObservable, derived, derivedOpts, mapObservableArrayCached, observableValue, transaction } from '../../../../base/common/observable.js';
+import { BugIndicatingError, onUnexpectedError } from '../../../../base/common/errors.js';
+import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { IObservable, IReader, ITransaction, autorun, autorunWithStore, constObservable, derived, derivedOpts, mapObservableArrayCached, observableValue, transaction, waitForState } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { ContextKeyValue, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -302,6 +303,12 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 			this._applyPendingScrollState();
 		}));
 
+		this._register(autorun(reader => {
+			this._viewModel.read(reader);
+			// A range waits for the diff of its file only in the view model that has the file.
+			this._pendingRangeReveal.clear();
+		}));
+
 		_element.replaceChildren(this._elements.root);
 		this._register(toDisposable(() => {
 			_element.replaceChildren();
@@ -457,11 +464,9 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 		}
 		const viewItem = viewItems[index];
 		this._viewModel.get()!.activeDiffItem.setCache(viewItem.viewModel, undefined);
+		this._pendingRangeReveal.clear();
 
-		let scrollTop = 0;
-		for (let i = 0; i < index; i++) {
-			scrollTop += viewItems[i].contentHeight.get() + this._spaceBetweenPx.get();
-		}
+		const scrollTop = this._getItemTop(index);
 		this._logger.log('reveal', {
 			file: viewItem.getLabel(),
 			index,
@@ -470,29 +475,81 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 		});
 		this._scrollView.setLogicalScrollPosition(scrollTop);
 
-		const template = viewItem.template.get();
-		if (template && options?.range) {
-			let side: 'original' | 'modified' = options.side ?? (viewItem.viewModel.originalUri ? 'original' : 'modified');
-			let range = options.range;
-			if (side === 'original' && !template.editor.renderSideBySide) {
-				// An inline diff shows the original document where the modified document has it.
-				const mappings = template.editor.getDiffComputationResult()?.changes2 ?? [];
-				range = Range.plusRange(translatePosition(range.getStartPosition(), mappings), translatePosition(range.getEndPosition(), mappings));
-				side = 'modified';
-			}
-			// An item keeps its full height in the list, which scrolls its editor to the part in the viewport, so the list
-			// rather than the editor scrolls to the range. It does not scroll above the item.
-			const viewportHeight = this._scrollView.layout.get().contentViewport.length;
-			this._scrollView.setLogicalScrollPosition(Math.max(scrollTop, scrollTop + template.getPositionOffset(side, range.getStartPosition()) - viewportHeight / 2));
-			const scrollLeft = template.revealRangeHorizontally(side, range);
-			if (scrollLeft !== undefined) {
-				// All items share the horizontal scroll position.
-				this._scrollView.setScrollPosition({ scrollLeft });
-			}
-			if (options.highlight) {
-				highlightRange(side === 'original' ? template.editor.getOriginalEditor() : template.editor.getModifiedEditor(), range);
-			}
+		if (!options?.range) {
+			return;
 		}
+		if (viewItem.viewModel.diffEditorViewModel.isDiffUpToDate.get()) {
+			this._revealRange(viewItem, options);
+		} else {
+			// The diff decides where a range shows, for example by hiding unchanged regions, so the range is revealed once the
+			// diff is computed.
+			const store = new DisposableStore();
+			this._pendingRangeReveal.value = store;
+			this._revealRangeOnceDiffIsComputed(viewItem, options, cancelOnDispose(store)).catch(onUnexpectedError);
+		}
+	}
+
+	private async _revealRangeOnceDiffIsComputed(viewItem: VirtualizedViewItem, options: RevealOptions, token: CancellationToken): Promise<void> {
+		await waitForState(viewItem.viewModel.diffEditorViewModel.isDiffUpToDate, isDiffUpToDate => isDiffUpToDate, undefined, token);
+		// This continues after the transaction that sets the diff, in which the editors show the diff.
+		if (!token.isCancellationRequested) {
+			this._pendingRangeReveal.clear();
+			this._revealRange(viewItem, options);
+		}
+	}
+
+	/** Scrolls the list to the range of an item, if the item shows its editor. */
+	private _revealRange(viewItem: VirtualizedViewItem, options: RevealOptions): void {
+		const index = this._viewItems.get().indexOf(viewItem);
+		const template = viewItem.template.get();
+		if (!options.range || index === -1 || !template) {
+			return;
+		}
+		let side: 'original' | 'modified' = options.side ?? (viewItem.viewModel.originalUri ? 'original' : 'modified');
+		let range = options.range;
+		if (side === 'original' && !template.editor.renderSideBySide) {
+			// An inline diff shows the original document where the modified document has it, except for deleted text.
+			const mappings = template.editor.getDiffComputationResult()?.changes2 ?? [];
+			const modifiedRange = Range.plusRange(translatePosition(range.getStartPosition(), mappings), translatePosition(range.getEndPosition(), mappings));
+			if (modifiedRange.isEmpty() && !range.isEmpty()) {
+				// Deleted text shows in view zones of the modified editor, whose lines the hidden original editor aligns with.
+				// The modified editor can neither reveal nor highlight a range in them.
+				this._scrollToItemOffset(index, template.getPositionOffset('original', range.getStartPosition()));
+				return;
+			}
+			range = modifiedRange;
+			side = 'modified';
+		}
+		this._scrollToItemOffset(index, template.getPositionOffset(side, range.getStartPosition()));
+		const scrollLeft = template.revealRangeHorizontally(side, range);
+		if (scrollLeft !== undefined) {
+			// All items share the horizontal scroll position.
+			this._scrollView.setScrollPosition({ scrollLeft });
+		}
+		if (options.highlight) {
+			highlightRange(side === 'original' ? template.editor.getOriginalEditor() : template.editor.getModifiedEditor(), range);
+		}
+	}
+
+	/**
+	 * Scrolls the list to put an offset from the top of an item in the middle of the viewport, but not above the item. An
+	 * item keeps its full height in the list, which scrolls its editor to the part in the viewport, so the list rather than
+	 * the editor scrolls to a range.
+	 */
+	private _scrollToItemOffset(index: number, offset: number): void {
+		const itemTop = this._getItemTop(index);
+		const viewportHeight = this._scrollView.layout.get().contentViewport.length;
+		this._scrollView.setLogicalScrollPosition(Math.max(itemTop, itemTop + offset - viewportHeight / 2));
+	}
+
+	/** Returns the offset of an item from the top of the list. */
+	private _getItemTop(index: number): number {
+		const viewItems = this._viewItems.get();
+		let top = 0;
+		for (let i = 0; i < index; i++) {
+			top += viewItems[i].contentHeight.get() + this._spaceBetweenPx.get();
+		}
+		return top;
 	}
 
 	public getViewState(): IMultiDiffEditorViewState {
@@ -531,6 +588,9 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 	private _pendingScrollState: { top?: number; left?: number } | undefined;
 	private _hasAppliedPendingScrollState = false;
 	private _lastPendingScrollDimensions: { readonly width: number; readonly height: number; readonly scrollWidth: number; readonly scrollHeight: number } | undefined;
+
+	/** A range to reveal once the diff of its file is computed. */
+	private readonly _pendingRangeReveal = this._register(new MutableDisposable<DisposableStore>());
 
 	public setViewState(viewState: IMultiDiffEditorViewState, tx?: ITransaction): void {
 		if (this._logger.isEnabled) {
