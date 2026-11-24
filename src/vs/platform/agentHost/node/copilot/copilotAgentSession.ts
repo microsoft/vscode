@@ -6082,7 +6082,8 @@ export class CopilotAgentSession extends Disposable {
 				continue;
 			}
 			const instanceId = projection.canvas.instanceId;
-			if (this._deferredCanvasCloseInstanceIds.has(instanceId)) {
+			// Applying the closes settled those the runtime had open, or never restored; both stay closed.
+			if (this._deferredCanvasCloseInstanceIds.has(instanceId) || this._settledDeferredCanvasCloseInstanceIds.has(instanceId)) {
 				this._canvasByInstanceId.delete(instanceId);
 				continue;
 			}
@@ -6149,17 +6150,31 @@ export class CopilotAgentSession extends Disposable {
 			return;
 		}
 		let reopened: Awaited<ReturnType<CopilotSession['rpc']['canvas']['open']>> | undefined;
-		try {
-			reopened = await raceTimeout(wrapper.session.rpc.canvas.open({
-				extensionId,
-				canvasId,
-				instanceId,
-				...(projection.input !== undefined ? { input: projection.input } : {}),
-			}), this._controlPlaneRpcTimeoutMs);
-		} catch (error) {
-			this._reportCanvasHostOpen('restore', extension, stopwatch, this._store.isDisposed ? 'cancelled' : this._extensionConsentDenialFor(extensionId) ? 'consentDenied' : getCanvasOpenFailure(error) ?? 'error', askedForConsent());
-			this._logService.warn(`[Copilot:${this.sessionId}] Failed to reopen a restored canvas: ${getErrorMessage(error)}`);
-			return;
+		// A runtime that just launched can list a canvas before its extension registers it, which a change reports. Other
+		// extensions report changes too, so each change allows another attempt until one deadline.
+		const deadline = Date.now() + this._controlPlaneRpcTimeoutMs;
+		while (true) {
+			const registryChanged = Event.toPromise(Event.any(Event.signal(wrapper.onExtensionsLoaded), Event.signal(wrapper.onCanvasRegistryChanged)));
+			try {
+				reopened = await raceTimeout(wrapper.session.rpc.canvas.open({
+					extensionId,
+					canvasId,
+					instanceId,
+					...(projection.input !== undefined ? { input: projection.input } : {}),
+				}), this._controlPlaneRpcTimeoutMs);
+				break;
+			} catch (error) {
+				const remaining = deadline - Date.now();
+				if (getCanvasOpenFailure(error) === 'unavailable' && remaining > 0 && await raceTimeout(registryChanged.then(() => true), remaining)
+					&& !this._store.isDisposed && this._wrapper === wrapper && this._isCurrentCanvasProjection(projection)) {
+					continue;
+				}
+				this._reportCanvasHostOpen('restore', extension, stopwatch, this._store.isDisposed ? 'cancelled' : this._extensionConsentDenialFor(extensionId) ? 'consentDenied' : getCanvasOpenFailure(error) ?? 'error', askedForConsent());
+				this._logService.warn(`[Copilot:${this.sessionId}] Failed to reopen a restored canvas: ${getErrorMessage(error)}`);
+				return;
+			} finally {
+				registryChanged.cancel();
+			}
 		}
 		this._reportCanvasHostOpen('restore', extension, stopwatch, reopened ? 'opened' : 'timeout', askedForConsent());
 		if (!reopened) {
