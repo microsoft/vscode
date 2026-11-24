@@ -15,7 +15,7 @@ import { CopilotCliVSCodeAssignmentContextKey } from '../common/copilotCliConfig
 import { logSettingExperimentTrigger } from '../../telemetry/common/experimentTrigger.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { getSessionRelatedPullRequestUrls, isAhpChatChannel, ISessionGitHubState, ISessionWithDefaultChat, readFolderGitHubState, readFolderScopeGitState, readSessionGitData, readSessionGitHubData, readSessionGitState, readSessionSourceControlState, SessionLifecycle, SessionSourceControlOutcome, withInitialSessionPullRequest, withMostRecentRelatedSessionPullRequest, withMostRecentSessionPullRequest, withFolderGitHubState, withFolderScopeGitState, withSessionGitState, withSessionSourceControlState, type ISessionGitState, type ISessionSourceControlState, type SessionSummaryMeta } from '../common/state/sessionState.js';
-import { IAgentHostGitService, resolveDiffBaseBranchName } from '../common/agentHostGitService.js';
+import { IAgentHostGitService, toBaseBranchName } from '../common/agentHostGitService.js';
 import { ActionType } from '../common/state/sessionActions.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentHostSessionStateStore, SessionStateMirrorFlush } from '../common/agentHostSessionStateStore.js';
@@ -472,7 +472,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 			try {
 				this._logService.trace(`[AgentHostGitStateService][refreshSessionGitState] Refreshing git state for ${sessionKey}, ${workingDirectory?.fsPath}`);
 
-				const baseBranchFullName = await this._resolveSessionBaseBranchFullName(sessionKey);
+				const baseBranchFullName = await this.resolveSessionBaseBranchFullName(sessionKey);
 				const gitState = await this._readGitState(workingDirectory, baseBranchFullName, forced);
 				const currentWorkingDirectory = this._getStateForGitScope(sessionKey)?.workingDirectories?.[0];
 				const primaryWorkingDirectoryChanged = initialPrimaryWorkingDirectory === undefined
@@ -588,7 +588,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 	 * its remote prefix and the state carries as recorded in {@link ISessionGitState.baseBranchFullName}.
 	 */
 	private async _computeGitState(workingDirectory: URI, baseBranchFullName: string | undefined): Promise<ISessionGitState | undefined> {
-		const gitState = await this._gitService.getSessionGitState(workingDirectory, resolveDiffBaseBranchName(baseBranchFullName, undefined));
+		const gitState = await this._gitService.getSessionGitState(workingDirectory, toBaseBranchName(baseBranchFullName));
 		const fullName = baseBranchFullName || gitState?.baseBranchName;
 		return gitState && fullName !== undefined ? { ...gitState, baseBranchFullName: fullName } : gitState;
 	}
@@ -644,7 +644,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 			return { pending: [], unmatched: [...urls] };
 		}
 		const workingDirectory = URI.parse(workingDirectoryString);
-		const baseBranchFullName = await this._resolveSessionBaseBranchFullName(chat);
+		const baseBranchFullName = await this.resolveSessionBaseBranchFullName(chat);
 		let gitState: ISessionGitState | undefined;
 		try {
 			gitState = await this._computeGitState(workingDirectory, baseBranchFullName);
@@ -755,7 +755,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 				const chatEntries = valid.filter(entry => entry.chat === chat);
 				const { workingDirectory, branchName, owner, repo } = chatEntries[0];
 				const directory = URI.parse(workingDirectory);
-				const baseBranchFullName = await this._resolveSessionBaseBranchFullName(chat);
+				const baseBranchFullName = await this.resolveSessionBaseBranchFullName(chat);
 				let gitState: ISessionGitState | undefined;
 				try {
 					gitState = await this._computeGitState(directory, baseBranchFullName);
@@ -964,12 +964,8 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 		});
 	}
 
-	async resolveSessionBaseBranchName(sessionKey: string): Promise<string | undefined> {
-		return resolveDiffBaseBranchName(await this._resolveSessionBaseBranchFullName(sessionKey), undefined);
-	}
-
 	/** Resolves the base branch recorded for `sessionKey` exactly as recorded (e.g. `origin/main`), falling back to the one its Git state names. */
-	private async _resolveSessionBaseBranchFullName(sessionKey: string): Promise<string | undefined> {
+	async resolveSessionBaseBranchFullName(sessionKey: string): Promise<string | undefined> {
 		const state = this._getStateForGitScope(sessionKey);
 		const gitStateBaseBranch = this.getSessionGitState(sessionKey)?.baseBranchName;
 		const isSessionFolder = resolveGitHubStateFolder(this._stateManager, sessionKey).isSessionFolder;

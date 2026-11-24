@@ -1679,7 +1679,7 @@ suite('AgentHostGitStateService', () => {
 		await h.service.setFolderGitState(SESSION, [replacement], { branchName: 'feature-b', baseBranchName: 'main' });
 		await h.db.setMetadata(META_DIFF_BASE_BRANCH, 'origin/release-A');
 
-		const resolved = await Promise.all([main, peer, SESSION].map(key => h.service.resolveSessionBaseBranchName(key)));
+		const resolved = await Promise.all([main, peer, SESSION].map(key => h.service.resolveSessionBaseBranchFullName(key)));
 		await h.service.refreshSessionGitState(main, undefined);
 		await h.service.refreshSessionGitState(peer, undefined);
 		await h.service.refreshSessionGitState(SESSION, undefined);
@@ -1705,7 +1705,7 @@ suite('AgentHostGitStateService', () => {
 		await h.stateStore.writeMetadata(session, URI.parse(peer), { [META_DIFF_BASE_BRANCH]: 'origin/peer-base' }, SessionStateMirrorFlush.Immediate);
 		await h.stateStore.writeMetadata(session, session, { [META_DIFF_BASE_BRANCH]: 'origin/session-base' }, SessionStateMirrorFlush.Immediate);
 
-		const resolved = await Promise.all([peer, SESSION].map(key => h.service.resolveSessionBaseBranchName(key)));
+		const resolved = await Promise.all([peer, SESSION].map(key => h.service.resolveSessionBaseBranchFullName(key)));
 		await h.service.refreshSessionGitState(peer, undefined);
 		await h.service.associateRecordedPullRequests(peer, ['https://github.com/microsoft/vscode/pull/7']);
 		await h.whenStateStoreIdle();
@@ -1716,7 +1716,7 @@ suite('AgentHostGitStateService', () => {
 			chatState: await h.centralDatabase.readSessionState(peer),
 			load: await h.stateStore.load(URI.parse(peer)).then(() => 'loaded', (error: Error) => error.message),
 		}, {
-			resolved: ['peer-base', 'session-base'],
+			resolved: ['origin/peer-base', 'origin/session-base'],
 			chatRecord: undefined,
 			chatState: undefined,
 			load: `${peer} is a chat, not a session`,
@@ -1741,7 +1741,7 @@ suite('AgentHostGitStateService', () => {
 		await h.service.setFolderGitState(SESSION, [replacement], { branchName: 'feature-b', baseBranchName: 'main' });
 		await peerDb.setMetadata(META_DIFF_BASE_BRANCH, '');
 
-		assert.deepStrictEqual(await Promise.all([peer, main].map(key => h.service.resolveSessionBaseBranchName(key))), ['main', 'release-A']);
+		assert.deepStrictEqual(await Promise.all([peer, main].map(key => h.service.resolveSessionBaseBranchFullName(key))), ['main', 'origin/release-A']);
 	}));
 
 	test('uses the persisted pull request base branch for a pull request session', () => runWithFakedTimers({ useFakeTimers: true }, async () => {

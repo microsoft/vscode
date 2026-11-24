@@ -14,28 +14,22 @@ import { ISessionFileDiff, ISessionGitState } from './state/sessionState.js';
 /**
  * Provider-agnostic session-database metadata key under which agents
  * persist the branch they want git-driven diffs anchored to. Read by
- * {@link IAgentHostChangesetService} when computing per-session file diffs; absent
- * or cleared value falls back to the detected base branch, then HEAD.
+ * {@link IAgentHostChangesetService} when computing per-session file diffs,
+ * which compare against it exactly as recorded (`main` and `origin/main` are
+ * different bases); absent or cleared value falls back to the detected base
+ * branch, then HEAD.
  */
 export const META_DIFF_BASE_BRANCH = 'agentHost.diffBaseBranch';
 
 /**
- * Resolves the Branch Changes base-branch **name** from its two sources, in
- * precedence order: the agent-persisted {@link META_DIFF_BASE_BRANCH} metadata
- * value, then the session git state's detected base branch. Returns `undefined`
- * when neither is available (callers then anchor the diff at `HEAD`).
- *
- * Shared by {@link IAgentHostChangesetService} and the review service so both
- * pick the same base branch.
+ * Returns the name a recorded base branch has on its remote, as Create PR and
+ * Merge target it: `origin/main` and `refs/remotes/origin/main` become `main`.
+ * Branch Changes compares against the recorded base itself.
  */
-export function resolveDiffBaseBranchName(persistedBaseBranch: string | undefined, sessionGitStateBaseBranch: string | undefined): string | undefined {
-	const branchName = persistedBaseBranch || sessionGitStateBaseBranch;
-	if (!branchName) {
-		return undefined;
-	}
-	return branchName
-		.replace(/^refs\/remotes\/origin\//, '')
-		.replace(/^origin\//, '');
+export function toBaseBranchName(baseBranch: string | undefined): string | undefined {
+	return baseBranch
+		?.replace(/^refs\/remotes\/origin\//, '')
+		.replace(/^origin\//, '') || undefined;
 }
 
 /** Selects the session's default base, preferring the default branch's upstream over its local name. */
@@ -62,8 +56,9 @@ export interface IComputeSessionFileDiffsOptions {
 	 */
 	readonly sessionUri: string;
 	/**
-	 * The branch to diff against. Typically the worktree's start-point
-	 * branch (for worktree sessions) or the repository's default branch.
+	 * The branch to diff against, used exactly as given (e.g. `origin/main`
+	 * or `main`). Typically the worktree's start-point branch (for worktree
+	 * sessions) or the repository's default branch.
 	 * When undefined or unresolvable, the diff is taken against `HEAD`,
 	 * which surfaces uncommitted work but no committed-on-branch work.
 	 */

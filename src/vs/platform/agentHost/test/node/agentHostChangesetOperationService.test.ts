@@ -113,7 +113,7 @@ class TestGitStateService implements IAgentHostGitStateService {
 	}
 	getMaterializedWorktreeMeta(_sessionKey: string, _branchName: string): undefined { return undefined; }
 	async setFolderGitState(): Promise<void> { }
-	async resolveSessionBaseBranchName(): Promise<string | undefined> { return undefined; }
+	async resolveSessionBaseBranchFullName(): Promise<string | undefined> { return undefined; }
 
 	async getSessionGitHubState(_sessionKey: string): Promise<ISessionGitHubState | undefined> {
 		return undefined;

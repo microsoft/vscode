@@ -19,7 +19,7 @@ import { AgentSession } from '../common/agent.js';
 import { AgentHostCreatePullRequestOperationId, type IChangesetOperationHandler } from '../common/agentHostChangesetOperationService.js';
 import { buildConversationContext } from '../common/agentHostConversationContext.js';
 import { captureCredentialSource, type IAgentHostCredentialSource } from '../common/agentHostCredentials.js';
-import { IAgentHostGitService, parseUpstreamBranchName } from '../common/agentHostGitService.js';
+import { IAgentHostGitService, parseUpstreamBranchName, toBaseBranchName } from '../common/agentHostGitService.js';
 import { getWorkingDirectoryKey } from '../common/agentHostWorkingDirectories.js';
 import { readAgentMergeFolderState, withAgentMergeFolderState } from '../common/agentMerge.js';
 import { parseChangesetUri, parseFolderChangesetOwnerUri } from '../common/changesetUri.js';
@@ -112,7 +112,8 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		private readonly _autoMergeMethod: PullRequestMergeMethod | undefined,
 		private readonly _enableAgentMerge: boolean,
 		private readonly _getSessionState: (sessionKey: string) => ISessionWithDefaultChat | undefined,
-		private readonly _resolveBaseBranchName: (sessionKey: string) => Promise<string | undefined>,
+		/** Resolves the base branch exactly as recorded (e.g. `origin/main`), which Branch Changes compares against. */
+		private readonly _resolveBaseBranch: (sessionKey: string) => Promise<string | undefined>,
 		private readonly _onPullRequestCreated: PullRequestCreatedHandler,
 		@IAgentHostAuthenticationService private readonly _authenticationService: IAgentHostAuthenticationService,
 		@IAgentHostGitService private readonly _gitService: IAgentHostGitService,
@@ -135,7 +136,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		source = this.captureCredentialSource(params, source);
 		return this._withClient(params, token, source, async client => {
 			const expectedContext = readPullRequestValidationMeta(params);
-			const { sessionUri, sourceUri, ownerUri, conversationState, conversationChat, workingDirectory, gitHubState, branchName, baseBranchName, preparationContext } = await this._resolveContext(params, token, expectedContext, source);
+			const { sessionUri, sourceUri, ownerUri, conversationState, conversationChat, workingDirectory, gitHubState, branchName, baseBranchName, diffBaseBranch, preparationContext } = await this._resolveContext(params, token, expectedContext, source);
 			if (expectedContext) {
 				return {};
 			}
@@ -148,7 +149,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 				capabilities = { autoMergeAllowed: false, mergeMethods: [] };
 			}
 			this._throwIfCancelled(token);
-			const branchChanges = await this._getBranchChanges(workingDirectory, sourceUri, baseBranchName, token);
+			const branchChanges = await this._getBranchChanges(workingDirectory, sourceUri, diffBaseBranch, token);
 			let title = '';
 			let description = '';
 			let generationError: string | undefined;
@@ -271,7 +272,8 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		const workingDirectory = URI.parse(workingDirectoryStr);
 		// The session's saved Git state describes the session folder only.
 		const storedGitState = gitHubFolder.isSessionFolder ? readSessionGitState(sessionState._meta) : undefined;
-		const effectiveBaseBranch = await this._resolveBaseBranchName(scope.sourceUri);
+		const recordedBaseBranch = await this._resolveBaseBranch(scope.sourceUri);
+		const effectiveBaseBranch = toBaseBranchName(recordedBaseBranch);
 
 		const currentGitState = await this._gitService.getSessionGitState(workingDirectory, effectiveBaseBranch);
 		if (expectedContext && (!currentGitState?.branchName || currentGitState.isDetachedHead || currentGitState.hasGitHubRemote === false)) {
@@ -288,6 +290,8 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		if (!baseBranchName) {
 			throw new ProtocolError(JsonRpcErrorCodes.InternalError, `Could not determine base branch for ${workingDirectory}`);
 		}
+		// The pull request targets the branch name; its changes are the Branch Changes, compared against the recorded base.
+		const diffBaseBranch = recordedBaseBranch ?? baseBranchName;
 
 		const repositoryOwner = currentGitState?.githubOwner ?? gitHubState?.owner;
 		const repositoryName = currentGitState?.githubRepo ?? gitHubState?.repo;
@@ -327,7 +331,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 
 		return {
 			sessionUri, sourceUri: scope.sourceUri, ownerUri: parsed.ownerUri, isSessionGitHubFolder: gitHubFolder.isSessionFolder,
-			sessionState, conversationState, conversationChat: conversation?.chat, workingDirectory, effectiveBaseBranch, gitState, branchName, baseBranchName, authToken,
+			sessionState, conversationState, conversationChat: conversation?.chat, workingDirectory, effectiveBaseBranch, diffBaseBranch, gitState, branchName, baseBranchName, authToken,
 			gitHubState: repository, preparationContext,
 		};
 	}
@@ -362,7 +366,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		this._validateAgentMergeAvailable(options);
 		this._validateAutopilotAvailable(options);
 		const context = await this._resolveContext(params, token, submitted?.expectedContext, source);
-		const { sessionUri, sourceUri, ownerUri, sessionState, conversationState, conversationChat, workingDirectory, gitHubState, effectiveBaseBranch, baseBranchName, authToken } = context;
+		const { sessionUri, sourceUri, ownerUri, sessionState, conversationState, conversationChat, workingDirectory, gitHubState, effectiveBaseBranch, baseBranchName, diffBaseBranch, authToken } = context;
 		let { gitState, branchName } = context;
 		if (submitted?.autoMergeMethod) {
 			const capabilities = await this._getRepositoryMergeSettings(client, gitHubState.owner, gitHubState.repo, token);
@@ -421,7 +425,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		}
 		this._throwIfCancelled(token);
 
-		const branchChanges = await this._getBranchChanges(workingDirectory, sourceUri, baseBranchName, token);
+		const branchChanges = await this._getBranchChanges(workingDirectory, sourceUri, diffBaseBranch, token);
 
 		const githubHeadOwner = gitState?.githubHeadOwner;
 		const upstreamBranch = githubHeadOwner ? parseUpstreamBranchName(gitState?.upstreamBranchName) : undefined;
@@ -495,8 +499,8 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		return await this._finalize(created, false, sessionUri, ownerUri, conversationChat, gitHubState.owner, gitHubState.repo, branchName, client, token, options, source);
 	}
 
-	private async _getBranchChanges(workingDirectory: URI, sessionUri: string, baseBranchName: string, token: CancellationToken): Promise<readonly ISessionFileDiff[]> {
-		const branchChanges = await this._gitService.computeSessionFileDiffs(workingDirectory, { sessionUri, baseBranch: baseBranchName });
+	private async _getBranchChanges(workingDirectory: URI, sessionUri: string, baseBranch: string, token: CancellationToken): Promise<readonly ISessionFileDiff[]> {
+		const branchChanges = await this._gitService.computeSessionFileDiffs(workingDirectory, { sessionUri, baseBranch });
 		this._throwIfCancelled(token);
 		if (branchChanges === undefined) {
 			throw new ProtocolError(JsonRpcErrorCodes.InternalError, localize('agentHost.changeset.pr.computeChangesFailed', "Could not compute branch changes to create a pull request."));

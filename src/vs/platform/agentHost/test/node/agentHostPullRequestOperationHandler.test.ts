@@ -25,7 +25,7 @@ import { RequestFetch } from '../../../github/common/types.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE } from '../../common/agent.js';
-import type { IDefaultBranch, IPushOptions } from '../../common/agentHostGitService.js';
+import type { IComputeSessionFileDiffsOptions, IDefaultBranch, IPushOptions } from '../../common/agentHostGitService.js';
 import { IAgentHostSessionStateStore } from '../../common/agentHostSessionStateStore.js';
 import { getWorkingDirectoryKey, getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
 import { AgentMergeConfigKey, readAgentMergeSessionState, type AgentMergeConfiguration, type AgentMergeControllerState, type AgentMergeSessionOverrides } from '../../common/agentMerge.js';
@@ -95,6 +95,7 @@ class TestBranchNameGenerator implements IAgentBranchNameGenerator {
 class TestGitService extends TestAgentHostGitService {
 	readonly calls: string[] = [];
 	readonly requestedBaseBranches: Array<string | undefined> = [];
+	readonly diffBaseBranches: Array<string | undefined> = [];
 	readonly workingDirectories: string[] = [];
 	readonly pushOptions: IPushOptions[] = [];
 	uncommitted = false;
@@ -140,8 +141,9 @@ class TestGitService extends TestAgentHostGitService {
 		this.requestedBaseBranches.push(baseBranchName);
 		return this.createdBranch ? this.gitStateAfterBranchCreation : this.gitState;
 	}
-	override async computeSessionFileDiffs(): Promise<readonly ISessionFileDiff[] | undefined> {
+	override async computeSessionFileDiffs(_workingDirectory: URI, options: IComputeSessionFileDiffsOptions): Promise<readonly ISessionFileDiff[] | undefined> {
 		this.calls.push('computeSessionFileDiffs');
+		this.diffBaseBranches.push(options.baseBranch);
 		return this.branchChanges;
 	}
 }
@@ -1494,6 +1496,22 @@ suite('AgentHostPullRequestOperationHandler', () => {
 				'createPullRequest:false',
 			],
 			createdEvents: ['agent:/session:https://github.com/microsoft/vscode/pull/123'],
+		});
+	});
+
+	test('computes the changes against the recorded base and targets its branch on the remote', async () => {
+		const gitService = new TestGitService();
+		const gitHubClient = new TestGitHubClient();
+		const { handler, session } = setup(disposables, gitService, gitHubClient, { baseBranch: 'origin/release' });
+
+		await handler.invoke({ channel: buildSessionChangesetUri(session.toString()), operationId: AgentHostPullRequestOperationHandler.OPERATION_CREATE_PR }, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			diffBaseBranches: gitService.diffBaseBranches,
+			pullRequestBase: gitHubClient.lastBase,
+		}, {
+			diffBaseBranches: ['origin/release'],
+			pullRequestBase: 'release',
 		});
 	});
 

@@ -80,8 +80,12 @@ export interface IAgentHostGitStateService {
 	/** Publishes and persists Git state for a chat's destination before its workspace changes. */
 	setFolderGitState(sessionKey: string, workingDirectories: readonly string[], gitState: ISessionGitState | undefined): Promise<void>;
 
-	/** Resolves the canonical base branch for a session, preferring the persisted `META_DIFF_BASE_BRANCH` for both isolation modes. */
-	resolveSessionBaseBranchName(sessionKey: string): Promise<string | undefined>;
+	/**
+	 * Resolves the base branch of a session exactly as recorded (e.g. `origin/main`), preferring the persisted
+	 * `META_DIFF_BASE_BRANCH` for both isolation modes. Branch Changes compares against it; `toBaseBranchName`
+	 * gives the branch Create PR and Merge target.
+	 */
+	resolveSessionBaseBranchFullName(sessionKey: string): Promise<string | undefined>;
 
 	/**
 	 * Returns the GitHub state of the folder a session, chat channel or folder

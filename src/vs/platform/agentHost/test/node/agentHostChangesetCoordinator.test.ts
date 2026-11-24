@@ -2194,7 +2194,7 @@ class TestGitStateService extends Disposable implements IAgentHostGitStateServic
 	}
 	getMaterializedWorktreeMeta(_sessionKey: string, _branchName: string): undefined { return undefined; }
 	async setFolderGitState(): Promise<void> { }
-	async resolveSessionBaseBranchName(): Promise<string | undefined> { return undefined; }
+	async resolveSessionBaseBranchFullName(): Promise<string | undefined> { return undefined; }
 	async setSessionGitHubState(_sessionKey: string, _state: ISessionGitHubState): Promise<void> { }
 	async recordSessionMerge(_sessionKey: string, _commit?: string): Promise<void> { }
 	async attachSessionGitHubPullRequest(_sessionKey: string): Promise<void> { }

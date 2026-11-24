@@ -6,10 +6,10 @@
 import assert from 'assert';
 import { tmpdir } from 'os';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { AgentHostGitService, canRestageOntoIndexCopy, formatGitError, getRemoteTrackingRef, GitCheckoutProgressParser, isRetryableWorktreeRemovalError, parseChangedPaths, parseDefaultBranchRef, parseDefaultRemoteBranchRef, parseFetchRemoteUrls, parseGitDiffRawNumstat, parseGitHubRepoFromRemote, parseGitStatusV2, parseGitWorktrees, parseHasGitHubRemote, parseSingleLsTreeEntry, parseUntrackedPaths, selectDefaultPushRemote, summarizeStderrForError } from '../../node/agentHostGitService.js';
+import { AgentHostGitService, canRestageOntoIndexCopy, formatGitError, GitCheckoutProgressParser, isRetryableWorktreeRemovalError, parseChangedPaths, parseDefaultBranchRef, parseDefaultRemoteBranchRef, parseFetchRemoteUrls, parseGitDiffRawNumstat, parseGitHubRepoFromRemote, parseGitStatusV2, parseGitWorktrees, parseHasGitHubRemote, parseSingleLsTreeEntry, parseUntrackedPaths, selectDefaultPushRemote, summarizeStderrForError } from '../../node/agentHostGitService.js';
 import { buildGitBlobUri } from '../../node/gitDiffContent.js';
 import { URI } from '../../../../base/common/uri.js';
-import { Branch, EMPTY_TREE_OBJECT, getBranchCompletions, GitRefType, IRefQuery, resolveDiffBaseBranchName } from '../../common/agentHostGitService.js';
+import { Branch, EMPTY_TREE_OBJECT, getBranchCompletions, GitRefType, IRefQuery, toBaseBranchName } from '../../common/agentHostGitService.js';
 import { needsSessionGitStateRefresh } from '../../common/state/sessionState.js';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
@@ -391,26 +391,6 @@ suite('AgentHostGitService', () => {
 			assert.deepStrictEqual({ before, after: after?.fsPath, probes }, {
 				before: [undefined, undefined], after: directory.fsPath, probes: 2,
 			});
-		});
-	});
-
-	test('maps branches and GitHub pull request refs to origin tracking refs', () => {
-		assert.deepStrictEqual({
-			branch: getRemoteTrackingRef('feature'),
-			pullRequest: getRemoteTrackingRef('refs/pull/42/head'),
-		}, {
-			branch: {
-				branchName: 'feature',
-				remoteBranch: 'origin/feature',
-				remoteRef: 'refs/remotes/origin/feature',
-				sourceRef: 'refs/heads/feature',
-			},
-			pullRequest: {
-				branchName: 'pull/42/head',
-				remoteBranch: 'origin/pull/42/head',
-				remoteRef: 'refs/remotes/origin/pull/42/head',
-				sourceRef: 'refs/pull/42/head',
-			},
 		});
 	});
 
@@ -978,20 +958,11 @@ suite('AgentHostGitService', () => {
 		});
 	});
 
-	suite('resolveDiffBaseBranchName', () => {
-		test('prefers the persisted base branch, then git state, then undefined', () => {
+	suite('toBaseBranchName', () => {
+		test('drops only the origin remote prefix', () => {
 			assert.deepStrictEqual(
-				[
-					resolveDiffBaseBranchName('persisted', 'gitState'),
-					resolveDiffBaseBranchName(undefined, 'gitState'),
-					resolveDiffBaseBranchName('persisted', undefined),
-					resolveDiffBaseBranchName('origin/main', undefined),
-					resolveDiffBaseBranchName('refs/remotes/origin/release', undefined),
-					resolveDiffBaseBranchName(undefined, undefined),
-					resolveDiffBaseBranchName('', 'origin/main'),
-					resolveDiffBaseBranchName('', undefined),
-				],
-				['persisted', 'gitState', 'persisted', 'main', 'release', undefined, 'main', undefined],
+				['origin/main', 'refs/remotes/origin/release', 'main', 'upstream/main', '', undefined].map(baseBranch => toBaseBranchName(baseBranch)),
+				['main', 'release', 'main', 'upstream/main', undefined, undefined],
 			);
 		});
 	});

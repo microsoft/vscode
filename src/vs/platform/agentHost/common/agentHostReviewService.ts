@@ -27,8 +27,8 @@ export function buildReviewedRefName(sanitizedSessionId: string): string {
  *
  * All operations are keyed on the Branch Changes baseline (the merge-base of
  * `HEAD` and the session's base branch). The `baseBranch` argument is the
- * already-resolved base-branch **name** (see `resolveDiffBaseBranchName`),
- * shared with the changeset service so both agree on the baseline.
+ * base branch exactly as recorded (e.g. `origin/main`), shared with the
+ * changeset service so both agree on the baseline.
  *
  * Operations are no-ops when the working directory is not inside a git
  * repository; a future milestone will add a non-git fallback (see the

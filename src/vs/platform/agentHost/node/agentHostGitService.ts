@@ -949,19 +949,16 @@ export class AgentHostGitService extends Disposable implements IAgentHostGitServ
 
 	/**
 	 * Resolves the merge-base commit-ish the Branch Changes baseline is anchored
-	 * on. With a base branch, prefers the corresponding `origin/<base>`
-	 * remote-tracking ref when it exists so branch changes match a PR-style
-	 * comparison even if the local base branch is stale. Without a usable base,
-	 * falls back to `HEAD` (surfaces uncommitted work but no committed-on-branch
-	 * work). For empty repos with no `HEAD`, falls back to the empty-tree object.
-	 * Always resolves to a commit-ish (never `undefined`) once the repository
-	 * root is known.
+	 * on: the merge-base of `HEAD` and `baseBranch`, used exactly as given.
+	 * Without a usable base, falls back to `HEAD` (surfaces uncommitted work but
+	 * no committed-on-branch work). For empty repos with no `HEAD`, falls back
+	 * to the empty-tree object. Always resolves to a commit-ish (never
+	 * `undefined`) once the repository root is known.
 	 */
 	private async _resolveBranchMergeBaseCommit(repositoryRoot: URI, baseBranch?: string): Promise<string> {
 		let mergeBaseCommit: string | undefined;
 		if (baseBranch) {
-			const resolvedBase = await this._resolveRemoteTrackingBranch(repositoryRoot, baseBranch) ?? baseBranch;
-			mergeBaseCommit = (await this._runGit(repositoryRoot, ['merge-base', 'HEAD', resolvedBase]))?.trim();
+			mergeBaseCommit = (await this._runGit(repositoryRoot, ['merge-base', 'HEAD', baseBranch]))?.trim();
 		}
 		if (!mergeBaseCommit) {
 			mergeBaseCommit = (await this._runGit(repositoryRoot, ['rev-parse', 'HEAD']))?.trim();
@@ -1055,28 +1052,6 @@ export class AgentHostGitService extends Disposable implements IAgentHostGitServ
 		return await this._runGit(repositoryRoot, ['add', '-A', `--pathspec-from-file=${pathspecFile.fsPath}`, '--pathspec-file-nul'], {
 			env: { ...env, GIT_LITERAL_PATHSPECS: '1' },
 		}) !== undefined;
-	}
-
-	private async _resolveRemoteTrackingBranch(repositoryRoot: URI, branch: string, fetchIfMissing = false): Promise<string | undefined> {
-		const trackingRef = getRemoteTrackingRef(branch);
-		if (!trackingRef) {
-			return undefined;
-		}
-		const { branchName, remoteBranch, remoteRef, sourceRef } = trackingRef;
-		const output = await this._runGit(repositoryRoot, ['show-ref', '--verify', '--quiet', remoteRef]);
-		if (output !== undefined) {
-			return remoteBranch;
-		}
-		if (!fetchIfMissing || branchName === 'HEAD' || /^[0-9a-f]{40}$/i.test(branchName)) {
-			return undefined;
-		}
-
-		this._logService.info(`[AgentHostGitService] Fetching tracked branch '${branchName}' from origin.`);
-		await this._runGit(repositoryRoot, ['fetch', '--no-tags', 'origin', `${sourceRef}:${remoteRef}`], {
-			timeout: 60_000,
-			throwOnError: true,
-		});
-		return remoteBranch;
 	}
 
 	/**
@@ -1807,26 +1782,6 @@ function isSpawnEnoentError(error: unknown): boolean {
 
 function isCheckoutBlockedByLocalChanges(stderr: string): boolean {
 	return /(?:local changes to the following files|untracked working tree files) would be overwritten by checkout:/i.test(stderr);
-}
-
-export function getRemoteTrackingRef(branch: string): { branchName: string; remoteBranch: string; remoteRef: string; sourceRef: string } | undefined {
-	const pullRequestRef = /^refs\/pull\/(?<number>\d+)\/head$/.exec(branch);
-	const branchName = pullRequestRef?.groups
-		? `pull/${pullRequestRef.groups.number}/head`
-		: branch
-			.replace(/^refs\/remotes\/origin\//, '')
-			.replace(/^origin\//, '')
-			.replace(/^refs\/heads\//, '');
-	if (branchName.startsWith('refs/')) {
-		return undefined;
-	}
-	const remoteBranch = `origin/${branchName}`;
-	return {
-		branchName,
-		remoteBranch,
-		remoteRef: `refs/remotes/${remoteBranch}`,
-		sourceRef: pullRequestRef ? branch : `refs/heads/${branchName}`,
-	};
 }
 
 /**

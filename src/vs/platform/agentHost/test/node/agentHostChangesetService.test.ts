@@ -62,7 +62,7 @@ const TEST_GIT_STATE_SERVICE: IAgentHostGitStateService = {
 	getSessionGitState: session => testGitStates.get(session),
 	getMaterializedWorktreeMeta: () => undefined,
 	setFolderGitState: async () => { },
-	resolveSessionBaseBranchName: async session => testGitStates.get(session)?.baseBranchName,
+	resolveSessionBaseBranchFullName: async session => testGitStates.get(session)?.baseBranchName,
 	setSessionGitHubState: async () => { },
 	recordSessionMerge: async () => { },
 	attachSessionGitHubPullRequest: async () => { },
@@ -2901,7 +2901,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 				diffBases,
 			}, {
 				descriptions: ['feature → origin/release', 'feature → origin/release'],
-				diffBases: ['release'],
+				diffBases: ['origin/release'],
 			});
 		});
 	}
