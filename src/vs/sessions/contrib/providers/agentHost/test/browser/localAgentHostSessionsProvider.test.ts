@@ -2069,25 +2069,29 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const subagent = { ...parent, session: parent.session.with({ fragment: 'subagent/call-1' }), summary: 'Subagent' };
 		const parentResource = URI.parse('agent-host-copilotcli:/parent');
 		const fragmentResource = parentResource.with({ fragment: 'subagent/call-1' });
-		const lookUp = (provider: LocalAgentHostSessionsProvider) => ({
+		const lookUp = (provider: LocalAgentHostSessionsProvider, sessionIds: string[]) => ({
 			listed: provider.getAllSessions().map(session => session.resource.toString()).sort(),
 			parent: provider.getSession(parentResource)?.resource.toString(),
 			fragment: provider.getSession(fragmentResource)?.resource.toString(),
+			// Session-id routing ignores fragments, so both ids route to the row cached last.
+			routed: sessionIds.map(sessionId => provider.getBackendSessionResource(sessionId)?.toString()),
 		});
 		const results = [];
 		for (const removed of [subagent, parent]) {
 			agentHost.listSessions = async () => [subagent, parent];
 			const provider = createProvider(disposables, agentHost);
 			await timeout(0);
-			const before = lookUp(provider);
+			const sessionIds = [parentResource, fragmentResource].map(resource => provider.getSession(resource)!.sessionId);
+			const before = lookUp(provider, sessionIds);
 			agentHost.fireNotification({ channel: 'ahp-root://', type: NotificationType.SessionRemoved, session: removed.session.toString() });
-			results.push({ before, after: lookUp(provider) });
+			results.push({ before, after: lookUp(provider, sessionIds) });
 		}
 
-		const both = { listed: [parentResource.toString(), fragmentResource.toString()], parent: parentResource.toString(), fragment: fragmentResource.toString() };
+		const fragmentBackend = subagent.session.toString();
+		const both = { listed: [parentResource.toString(), fragmentResource.toString()], parent: parentResource.toString(), fragment: fragmentResource.toString(), routed: [fragmentBackend, fragmentBackend] };
 		assert.deepStrictEqual(results, [
-			{ before: both, after: { listed: [parentResource.toString()], parent: parentResource.toString(), fragment: undefined } },
-			{ before: both, after: { listed: [fragmentResource.toString()], parent: undefined, fragment: fragmentResource.toString() } },
+			{ before: both, after: { listed: [parentResource.toString()], parent: parentResource.toString(), fragment: undefined, routed: [undefined, undefined] } },
+			{ before: both, after: { listed: [fragmentResource.toString()], parent: undefined, fragment: fragmentResource.toString(), routed: [fragmentBackend, fragmentBackend] } },
 		]);
 	}));
 
