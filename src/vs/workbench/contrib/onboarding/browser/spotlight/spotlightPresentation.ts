@@ -3,12 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { timeout } from '../../../../../base/common/async.js';
+import { raceCancellation, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
+import { Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { IConfigurationService, isConfigured } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { logSettingExperimentTrigger } from '../../../../../platform/telemetry/common/experimentTrigger.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
@@ -16,7 +18,7 @@ import { IHostService } from '../../../../services/host/browser/host.js';
 import { IOnboardingPresentation, IOnboardingRunContext } from '../../common/onboardingPresentation.js';
 import { IOnboardingRunResult, IOnboardingScenario, OnboardingDismissReason, OnboardingOutcome } from '../../common/onboardingScenario.js';
 import { IOnboardingSequenceStep, IOnboardingSequenceStepContext, IOnboardingSequenceStepPresentation, IOnboardingSequenceStepResult } from '../../common/onboardingSequence.js';
-import { IOnboardingTarget, hasOnboardingTargetSelection, onDidSelectOnboardingTarget, resolveOnboardingTarget } from './onboardingTarget.js';
+import { IOnboardingTarget, hasOnboardingTargetSelection, isVisibleOnboardingTarget, onDidSelectOnboardingTarget, resolveOnboardingTarget } from './onboardingTarget.js';
 import { ISpotlightContent, SpotlightOverlay } from './spotlightOverlay.js';
 import { ISpotlightPayload, ISpotlightStep, SpotlightMissingTargetBehavior, SPOTLIGHT_BACKDROP_CONFIG, SPOTLIGHT_CLOSE_BUTTON_CONFIG, SPOTLIGHT_PRESENTATION_KIND } from './spotlightTypes.js';
 
@@ -41,9 +43,11 @@ type StepEnd =
  * Renders {@link ISpotlightPayload} scenarios: it dims and blocks the window
  * (including the native window controls) unless {@link SPOTLIGHT_BACKDROP_CONFIG}
  * is disabled, which leaves the rest of the window interactive. It walks the
- * steps and shows an anchored callout for each. Implements the
- * engine's {@link IOnboardingPresentation} contract so the scenario engine can
- * drive it without knowing anything about spotlights.
+ * steps and shows an anchored callout for each. A step never shows over a modal
+ * dialog: it hides while one is open and comes back when the last one closes,
+ * unless it advanced, its target is gone or its `when` no longer holds.
+ * Implements the engine's {@link IOnboardingPresentation} contract so the
+ * scenario engine can drive it without knowing anything about spotlights.
  */
 export class SpotlightPresentation extends Disposable implements IOnboardingPresentation, IOnboardingSequenceStepPresentation {
 
@@ -56,6 +60,7 @@ export class SpotlightPresentation extends Disposable implements IOnboardingPres
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IDialogService private readonly dialogService: IDialogService,
 	) {
 		super();
 	}
@@ -67,6 +72,10 @@ export class SpotlightPresentation extends Disposable implements IOnboardingPres
 
 	async runStep(sequenceStep: IOnboardingSequenceStep, context: IOnboardingSequenceStepContext): Promise<IOnboardingSequenceStepResult> {
 		const step = sequenceStep.payload as ISpotlightStep;
+		await this._waitForNoDialog(context.cancellationToken);
+		if (context.cancellationToken.isCancellationRequested) {
+			return { action: 'abort', shown: false };
+		}
 		if (step.when && !this.contextKeyService.contextMatchesRules(step.when)) {
 			return { action: 'skipStep', shown: false };
 		}
@@ -174,6 +183,11 @@ export class SpotlightPresentation extends Disposable implements IOnboardingPres
 			while (index >= 0 && index < stepCount && !aborted) {
 				const step = steps[index];
 
+				await this._waitForNoDialog(targetResolutionCancellation.token);
+				if (aborted) {
+					break;
+				}
+
 				if (step.when && !this.contextKeyService.contextMatchesRules(step.when)) {
 					skippedStepIndexes.add(index);
 					index += direction;
@@ -263,6 +277,12 @@ export class SpotlightPresentation extends Disposable implements IOnboardingPres
 		overlay.setTitleCloseButton(this.configurationService.getValue<boolean>(SPOTLIGHT_CLOSE_BUTTON_CONFIG) === true);
 		if (backdrop) {
 			this.hostService.setWindowDimmed(targetWindow, true);
+			// A custom dialog dims the window while it shows and clears the dimming when it closes.
+			store.add(this.dialogService.onDidShowDialog(() => {
+				if (!this.dialogService.hasDialog) {
+					this.hostService.setWindowDimmed(targetWindow, true);
+				}
+			}));
 			store.add(toDisposable(() => this.hostService.setWindowDimmed(targetWindow, false)));
 		}
 
@@ -271,6 +291,18 @@ export class SpotlightPresentation extends Disposable implements IOnboardingPres
 		// has settled, including position-only shifts that ResizeObserver misses.
 		store.add(this.layoutService.onDidLayoutContainer(() => overlay.scheduleLayout()));
 		return overlay;
+	}
+
+	/** Waits until no modal dialog is showing or queued, as a spotlight never shows over one. */
+	private async _waitForNoDialog(cancellationToken: CancellationToken): Promise<void> {
+		while (this.dialogService.hasDialog && !cancellationToken.isCancellationRequested) {
+			const store = new DisposableStore();
+			try {
+				await raceCancellation(Event.toPromise(this.dialogService.onDidShowDialog, store), cancellationToken);
+			} finally {
+				store.dispose();
+			}
+		}
 	}
 
 	private async _resolveTarget(targetWindow: Window, targetId: string, targetScope: string | undefined, cancellationToken: CancellationToken, behavior?: SpotlightMissingTargetBehavior): Promise<IOnboardingTarget | undefined> {
@@ -344,6 +376,10 @@ export class SpotlightPresentation extends Disposable implements IOnboardingPres
 					return end;
 				}
 				overlay.hide();
+				// A step whose context changed, for example in a dialog, moves on rather than coming back.
+				if (step.when && !this.contextKeyService.contextMatchesRules(step.when)) {
+					return { action: 'missingTarget' };
+				}
 				stepContext = { ...context, onDidShow: undefined };
 				const replacement = await this._resolveTarget(context.targetWindow, step.targetId, context.targetScope, cancellation.token, step.missingTarget);
 				if (!replacement) {
@@ -404,25 +440,11 @@ export class SpotlightPresentation extends Disposable implements IOnboardingPres
 		stepStore.add(overlay.onDidLoseTarget(() => done({ action: 'missingTarget' })));
 		stepStore.add(context.onAbort(() => done({ action: 'abort' })));
 
-		const hasSelection = hasOnboardingTargetSelection(target.element);
-		const selectedContent = hasSelection ? step.selectedContent : undefined;
-		const content: ISpotlightContent = {
-			title: selectedContent?.title ?? step.title,
-			description: selectedContent?.description ?? step.description,
-			onDidClickLink: step.onDidClickLink,
-			nextButtonLabel: step.primaryAction?.label ?? step.nextButtonLabel,
-			endTourLabel: step.endTourLabel,
-			stepIndex: index,
-			stepCount,
-			canGoBack,
-			isLastStep,
-			showEndTour: !!step.primaryAction || step.endTourLabel !== undefined,
-			focusEndTour: step.focusEndTour,
-		};
-
-		const openTarget = step.openTarget === 'ifUnselected' ? !hasSelection : step.openTarget;
+		// The latest selection waiting for acceptance, which a dialog such as a trust prompt can decide.
+		let pendingSelection: Promise<boolean> | undefined;
 		if (step.advanceOnTargetSelection) {
 			stepStore.add((target.onDidSelect ?? onDidSelectOnboardingTarget(target.element))(async accepted => {
+				pendingSelection = accepted;
 				try {
 					if (await accepted) {
 						done({ action: 'next', via: 'condition' });
@@ -430,6 +452,25 @@ export class SpotlightPresentation extends Disposable implements IOnboardingPres
 				} catch (error) {
 					onUnexpectedError(error);
 					done({ action: 'abort' });
+				} finally {
+					if (pendingSelection === accepted) {
+						pendingSelection = undefined;
+					}
+				}
+			}));
+		}
+
+		const advanceWhen = step.advanceWhen;
+		const advanceIfSatisfied = () => {
+			if (advanceWhen && this.contextKeyService.contextMatchesRules(advanceWhen)) {
+				done({ action: 'next', via: 'condition' });
+			}
+		};
+		if (advanceWhen) {
+			const keys = new Set(advanceWhen.keys());
+			stepStore.add(this.contextKeyService.onDidChangeContext(event => {
+				if (event.affectsSome(keys)) {
+					advanceIfSatisfied();
 				}
 			}));
 		}
@@ -440,42 +481,96 @@ export class SpotlightPresentation extends Disposable implements IOnboardingPres
 		if (!isConfigured(closeButtonSetting) && closeButtonSetting.policyValue === undefined && closeButtonSetting.memoryValue === undefined) {
 			logSettingExperimentTrigger(this.telemetryService, SPOTLIGHT_CLOSE_BUTTON_CONFIG);
 		}
-		overlay.show(target.element, content, {
-			placement: step.placement,
-			allowTargetInteraction: step.allowTargetInteraction,
-			advanceOnTargetClick: step.advanceOnTargetClick,
-			onDidActivateTarget: target.onDidActivate,
-			focusTarget: target.focusTarget,
-			hideNext: step.primaryAction ? false : step.advanceWhen ? true : step.hideNext,
-			targetOverlayVisible: openTarget,
-			additionalElements: target.additionalElements,
-			padding: step.padding,
-			preserveFocus,
-		});
-		context.onDidShow?.();
-		step.onDidShow?.();
 
-		if (step.advanceWhen) {
-			const keys = new Set(step.advanceWhen.keys());
-			const advanceIfSatisfied = () => {
-				if (this.contextKeyService.contextMatchesRules(step.advanceWhen)) {
-					done({ action: 'next', via: 'condition' });
-				}
+		let rendered = false;
+		const render = async (renderPreserveFocus: boolean) => {
+			const hasSelection = hasOnboardingTargetSelection(target.element);
+			const selectedContent = hasSelection ? step.selectedContent : undefined;
+			const content: ISpotlightContent = {
+				title: selectedContent?.title ?? step.title,
+				description: selectedContent?.description ?? step.description,
+				onDidClickLink: step.onDidClickLink,
+				nextButtonLabel: step.primaryAction?.label ?? step.nextButtonLabel,
+				endTourLabel: step.endTourLabel,
+				stepIndex: index,
+				stepCount,
+				canGoBack,
+				isLastStep,
+				showEndTour: !!step.primaryAction || step.endTourLabel !== undefined,
+				focusEndTour: step.focusEndTour,
 			};
-			stepStore.add(this.contextKeyService.onDidChangeContext(event => {
-				if (event.affectsSome(keys)) {
-					advanceIfSatisfied();
-				}
-			}));
-			advanceIfSatisfied();
-		}
-
-		if (openTarget && !ended) {
-			try {
-				await target.open?.(cancellation.token);
-			} catch (error) {
-				onUnexpectedError(error);
+			const openTarget = step.openTarget === 'ifUnselected' ? !hasSelection : step.openTarget;
+			overlay.show(target.element, content, {
+				placement: step.placement,
+				allowTargetInteraction: step.allowTargetInteraction,
+				advanceOnTargetClick: step.advanceOnTargetClick,
+				onDidActivateTarget: target.onDidActivate,
+				focusTarget: target.focusTarget,
+				hideNext: step.primaryAction ? false : step.advanceWhen ? true : step.hideNext,
+				targetOverlayVisible: openTarget,
+				additionalElements: target.additionalElements,
+				padding: step.padding,
+				preserveFocus: renderPreserveFocus,
+			});
+			if (actionStarted) {
+				overlay.setPrimaryActionEnabled(false);
 			}
+			if (!rendered) {
+				rendered = true;
+				context.onDidShow?.();
+				step.onDidShow?.();
+			}
+			advanceIfSatisfied();
+
+			if (openTarget && !ended) {
+				try {
+					await target.open?.(cancellation.token);
+				} catch (error) {
+					onUnexpectedError(error);
+				}
+			}
+		};
+
+		// A modal dialog hides the step, which keeps listening so the dialog's outcome can still advance it.
+		let suspended = false;
+		let resumeRequest = 0;
+		const suspend = () => {
+			if (!ended && !suspended) {
+				suspended = true;
+				overlay.hide();
+			}
+		};
+		const resume = async () => {
+			const request = ++resumeRequest;
+			// Let the dialog's outcome settle, so a step that is about to advance does not flash first.
+			await pendingSelection?.catch(() => undefined);
+			await this._waitForTargetReady(context.targetWindow, target.element);
+			if (ended || request !== resumeRequest || this.dialogService.hasDialog) {
+				return;
+			}
+			suspended = false;
+			advanceIfSatisfied();
+			if (ended) {
+				return;
+			}
+			if ((step.when && !this.contextKeyService.contextMatchesRules(step.when)) || !isVisibleOnboardingTarget(context.targetWindow, target.element)) {
+				done({ action: 'missingTarget' });
+				return;
+			}
+			// Without the backdrop, a restored step leaves focus where the dialog returned it outside the spotlight.
+			await render(rendered || preserveFocus);
+		};
+		stepStore.add(this.dialogService.onWillShowDialog(suspend));
+		stepStore.add(this.dialogService.onDidShowDialog(() => {
+			if (suspended && !this.dialogService.hasDialog) {
+				void resume();
+			}
+		}));
+
+		if (this.dialogService.hasDialog) {
+			suspend();
+		} else {
+			await render(preserveFocus);
 		}
 
 		return result;

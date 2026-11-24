@@ -36,6 +36,7 @@ import { NewSessionOnboardingHandoffContext } from '../../../../common/agentsWin
 import { AutomationsTourContribution } from '../../browser/automationsTourContribution.js';
 import { AUTOMATIONS_TOUR_ID, createAutomationsTour } from '../../browser/tours/automationsTour.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
+import { TestDialogService } from '../../../../../platform/dialogs/test/common/testDialogService.js';
 
 suite('AutomationsTour', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -134,7 +135,7 @@ suite('AutomationsTour', () => {
 			const layout = new class extends TestLayoutService {
 				override getContainer() { return mainWindow.document.body; }
 			}();
-			const presentation = disposables.add(new SpotlightPresentation(layout, new TestHostService(), context, new TestConfigurationService(), NullTelemetryService));
+			const presentation = disposables.add(new SpotlightPresentation(layout, new TestHostService(), context, new TestConfigurationService(), NullTelemetryService, new TestDialogService()));
 			const shown = new DeferredPromise<void>();
 			const result = presentation.run(createAutomationsTour(), {
 				targetWindow: mainWindow, onAbort: Event.None, onDidShow: () => { void shown.complete(); },

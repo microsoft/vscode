@@ -47,6 +47,7 @@ import { ChatMode, IChatMode, IChatModes } from '../../../common/chatModes.js';
 import { CHAT_ATTACH_CONTEXT_ACTION_ID, ChatConfiguration } from '../../../common/constants.js';
 import { CustomAgentUsage } from '../../../common/customAgentUsage.js';
 import { PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
+import { TestDialogService } from '../../../../../../platform/dialogs/test/common/testDialogService.js';
 
 suite('AgentPickerSpotlight', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -355,7 +356,7 @@ suite('AgentPickerSpotlight', () => {
 			const layout = new class extends TestLayoutService {
 				override getContainer() { return mainWindow.document.body; }
 			}();
-			const presentation = store.add(new SpotlightPresentation(layout, new TestHostService(), context, new TestConfigurationService(), NullTelemetryService));
+			const presentation = store.add(new SpotlightPresentation(layout, new TestHostService(), context, new TestConfigurationService(), NullTelemetryService, new TestDialogService()));
 			const shown = new DeferredPromise<void>();
 			const result = presentation.run(scenario, { targetWindow: mainWindow, onAbort: Event.None, onDidShow: () => { void shown.complete(); } });
 			await shown.p;

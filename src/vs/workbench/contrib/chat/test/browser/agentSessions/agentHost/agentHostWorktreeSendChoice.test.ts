@@ -52,6 +52,7 @@ import { ChatSubmitRequestHandlerService, ChatSubmitRequestOutcome, IChatSubmitR
 import { ChatContextKeys } from '../../../../common/actions/chatContextKeys.js';
 import { SessionType } from '../../../../common/chatSessionsService.js';
 import { ChatConfiguration } from '../../../../common/constants.js';
+import { TestDialogService } from '../../../../../../../platform/dialogs/test/common/testDialogService.js';
 
 /** The user's answer in the callout; `abort` where it ends without one, as where it cannot show. */
 type Answer = 'useWorktree' | 'continue' | 'escape' | 'abort';
@@ -182,7 +183,7 @@ suite('Agent host Work in Parallel choice on send', () => {
 			const layout = new class extends TestLayoutService {
 				override getContainer() { return mainWindow.document.body; }
 			}();
-			disposables.add(onboardingPresentationRegistry.register(disposables.add(new SpotlightPresentation(layout, new TestHostService(), contextKeyService, new TestConfigurationService(), NullTelemetryService))));
+			disposables.add(onboardingPresentationRegistry.register(disposables.add(new SpotlightPresentation(layout, new TestHostService(), contextKeyService, new TestConfigurationService(), NullTelemetryService, new TestDialogService()))));
 		} else {
 			instantiationService.stub(IOnboardingScenarioService, upcastPartial<IOnboardingScenarioService>({
 				runScenario: (id: string) => running ??= run(id).finally(() => { running = undefined; }),

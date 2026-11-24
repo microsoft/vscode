@@ -114,6 +114,7 @@ import '../../../../../base/browser/ui/codicons/codiconStyles.js';
 import '../../../../../workbench/browser/media/style.css';
 import '../../../../../workbench/contrib/chat/browser/widget/media/chat.css';
 import '../../../../../workbench/contrib/sessions/browser/parts/media/sessionsGridContent.css';
+import { TestDialogService } from '../../../../../platform/dialogs/test/common/testDialogService.js';
 
 /** The part of the active session `_recreateOnProviderChange` actually reads. */
 interface IActiveDraft {
@@ -5790,7 +5791,7 @@ suite('NewChatWidget', () => {
 						const layout = new class extends TestLayoutService {
 							override getContainer() { return mainWindow.document.body; }
 						}();
-						store.add(onboardingPresentationRegistry.register(store.add(new SpotlightPresentation(layout, new TestHostService(), contextKeyService, new TestConfigurationService(), NullTelemetryService))));
+						store.add(onboardingPresentationRegistry.register(store.add(new SpotlightPresentation(layout, new TestHostService(), contextKeyService, new TestConfigurationService(), NullTelemetryService, new TestDialogService()))));
 						const provider = store.add(new CalloutSendChoiceProvider(onboarding));
 						const worktreeSendChoiceService = new NewSessionWorktreeSendChoiceService();
 						store.add(worktreeSendChoiceService.registerProvider(provider));
@@ -5892,7 +5893,7 @@ suite('NewChatWidget', () => {
 						const layout = new class extends TestLayoutService {
 							override getContainer() { return mainWindow.document.body; }
 						}();
-						store.add(onboardingPresentationRegistry.register(store.add(new SpotlightPresentation(layout, new TestHostService(), contextKeyService, new TestConfigurationService(), NullTelemetryService))));
+						store.add(onboardingPresentationRegistry.register(store.add(new SpotlightPresentation(layout, new TestHostService(), contextKeyService, new TestConfigurationService(), NullTelemetryService, new TestDialogService()))));
 						const provider = store.add(new CalloutSendChoiceProvider(onboarding));
 						const worktreeSendChoiceService = new NewSessionWorktreeSendChoiceService();
 						store.add(worktreeSendChoiceService.registerProvider(provider));

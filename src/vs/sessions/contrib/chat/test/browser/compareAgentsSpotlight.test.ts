@@ -29,6 +29,7 @@ import { CompareAgentsSpotlight, COMPARE_AGENTS_SPOTLIGHT_ID } from '../../../..
 import { SessionComparisonModelSelection } from '../../../../../workbench/contrib/sessions/browser/chat/sessionComparisonModelSelection.js';
 import { COMPARE_AGENTS_SHOW_SPOTLIGHT_SETTING } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
+import { TestDialogService } from '../../../../../platform/dialogs/test/common/testDialogService.js';
 
 suite('CompareAgentsSpotlight', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -139,7 +140,7 @@ suite('CompareAgentsSpotlight', () => {
 			const layout = new class extends TestLayoutService {
 				override getContainer() { return mainWindow.document.body; }
 			}();
-			const presentation = store.add(new SpotlightPresentation(layout, new TestHostService(), contextKeys, new TestConfigurationService(), NullTelemetryService));
+			const presentation = store.add(new SpotlightPresentation(layout, new TestHostService(), contextKeys, new TestConfigurationService(), NullTelemetryService, new TestDialogService()));
 			const shown = new DeferredPromise<void>();
 			const result = presentation.run(onboardingScenarioRegistry.getScenario(COMPARE_AGENTS_SPOTLIGHT_ID)!, {
 				targetWindow: mainWindow, onAbort: Event.None, onDidShow: () => { void shown.complete(); },

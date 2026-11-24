@@ -489,6 +489,7 @@ suite('AgentsWindowInvitationOnboarding', () => {
 			const presentation = store.add(new SpotlightPresentation(
 				new class extends TestLayoutService { override getContainer(): HTMLElement { return container; } }(),
 				new TestHostService(), h.context, h.configuration, NullTelemetryService,
+				new TestDialogService(),
 			));
 			const shown = new DeferredPromise<void>();
 			h.setPresentation({
@@ -758,6 +759,7 @@ suite('AgentsWindowInvitationOnboarding', () => {
 			const presentation = store.add(new SpotlightPresentation(
 				new class extends TestLayoutService { override getContainer(): HTMLElement { return container; } }(),
 				new TestHostService(), h.context, h.configuration, NullTelemetryService,
+				new TestDialogService(),
 			));
 			let shown = false;
 			let cancelled = false;
@@ -826,6 +828,7 @@ suite('AgentsWindowInvitationOnboarding', () => {
 		const presentation = store.add(new SpotlightPresentation(
 			new class extends TestLayoutService { override getContainer(): HTMLElement { return container; } }(),
 			new TestHostService(), h.context, h.configuration, NullTelemetryService,
+			new TestDialogService(),
 		));
 		const steps: { title: string | undefined; description: string | undefined; action: string | null; primary: boolean }[] = [];
 		h.setPresentation({
@@ -887,6 +890,7 @@ suite('AgentsWindowInvitationOnboarding', () => {
 			const presentation = store.add(new SpotlightPresentation(
 				new class extends TestLayoutService { override getContainer(): HTMLElement { return container; } }(),
 				new TestHostService(), h.context, h.configuration, NullTelemetryService,
+				new TestDialogService(),
 			));
 			const steps: { title: string | undefined; action: string | null; primary: boolean; interactive: boolean; clickable: boolean }[] = [];
 			h.setPresentation({

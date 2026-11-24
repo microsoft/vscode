@@ -1269,6 +1269,7 @@ suite('SessionArchiveNudge', () => {
 			store.add(new ContextKeyService(context.configuration)),
 			context.configuration,
 			NullTelemetryService,
+			new TestDialogService(),
 		));
 		context.onboarding.setPresentation({
 			kind: presentation.kind,
