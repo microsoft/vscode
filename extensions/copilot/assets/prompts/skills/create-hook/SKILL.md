@@ -6,7 +6,7 @@ disable-model-invocation: true
 ---
 Related skill: `agent-customization`. Load and follow **hooks.md** for template and principles.
 
-Guide the user to create a hook in `.github/hooks/`.
+Guide the user to create a hook in the GitHub Copilot hooks format, either for the repository in `.github/hooks/` at the root of the git repository or for the user in `~/.copilot/hooks/`. Use `"version": 1` and the camelCase event names from the [GitHub Copilot hooks reference](https://docs.github.com/en/copilot/reference/hooks-reference), and take input and output fields from that reference.
 
 ## Extract from Conversation
 First, review the conversation history. If the user has been expressing concerns about agent behavior (e.g., "don't run this command", "always check before doing X", "inject this context"), generalize that into a hook. Extract:
@@ -16,12 +16,12 @@ First, review the conversation history. If the user has been expressing concerns
 
 ## Clarify if Needed
 If no clear policy need emerges from the conversation, clarify:
-- What event should trigger this hook? (e.g. PreToolUse, SessionStart, Stop)
+- What event should trigger this hook? (e.g. preToolUse, sessionStart, agentStop)
 - Should it block, warn, or inject context?
 - Does it need a companion script?
 
 ## Path Conventions
-- Hook commands and companion scripts run with `cwd` defaulting to the workspace root (when a workspace folder is available); otherwise `cwd` falls back to the user home directory. Relative paths resolve from `cwd`. Absolute paths are fine when intentional — just be deliberate about which you use.
+- Check the reference for the directory hook commands run in, and which directory relative paths resolve from. Absolute paths are fine when intentional — just be deliberate about which you use.
 - Do not use environment variables for pathing. The only exception is plugin-provided environment variables in hooks shipped as part of an agent plugin; never use environment variables for pathing outside of a plugin context.
 
 ## Iterate

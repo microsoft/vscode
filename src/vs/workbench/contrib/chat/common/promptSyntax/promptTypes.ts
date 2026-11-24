@@ -16,6 +16,11 @@ const SKILL_DOCUMENTATION_URL = 'https://aka.ms/vscode-agent-skills';
 // TODO: update link when available
 const HOOK_DOCUMENTATION_URL = 'https://aka.ms/vscode-chat-hooks';
 
+/**
+ * Published reference for the GitHub Copilot hooks format, the format new hooks are created in.
+ */
+export const COPILOT_HOOKS_REFERENCE_URL = 'https://docs.github.com/en/copilot/reference/hooks-reference';
+
 export function getDocumentationUrl(type: PromptsType): string {
 	switch (type) {
 		case PromptsType.prompt:

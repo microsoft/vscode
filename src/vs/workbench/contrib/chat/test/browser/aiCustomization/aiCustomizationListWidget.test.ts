@@ -895,9 +895,12 @@ suite('aiCustomizationListWidget', () => {
 			},
 		};
 
+		let activeDescriptor = descriptor;
+
 		setup(() => {
 			disposables = new DisposableStore();
 			instaService = workbenchInstantiationService({}, disposables);
+			activeDescriptor = descriptor;
 
 			instaService.stub(IPromptsService, {
 				onDidChangeCustomAgents: Event.None,
@@ -937,7 +940,7 @@ suite('aiCustomizationListWidget', () => {
 				activeHarness,
 				availableHarnesses: observableValue('test', [descriptor]),
 				setActiveSession: () => { },
-				getActiveDescriptor: () => descriptor,
+				getActiveDescriptor: () => activeDescriptor,
 				findHarnessById: (id) => id === descriptor.id ? descriptor : undefined,
 				registerExternalHarness: () => ({ dispose() { } }),
 			});
@@ -969,6 +972,7 @@ suite('aiCustomizationListWidget', () => {
 				getCount: () => observableValue('test', 0),
 				getPluginCount: () => observableValue('test', 0),
 				getSectionNotices: () => observableValue('test', [] as readonly never[]),
+				whenSectionLoaded: async () => { },
 				getActiveItemSource: () => ({ onDidAICustomizationItemsChange: Event.None, fetchProviderItems: async () => [], fetchAICustomizationItems: async () => [], fetchSourceFolders: async () => [], fetchSectionNotices: async () => [], sessionResource: activeSessionResource.get(), dispose() { } }),
 			});
 		});
@@ -998,6 +1002,21 @@ suite('aiCustomizationListWidget', () => {
 					{ label: 'New Agent (User)', enabled: true, target: 'user' },
 				],
 				events: [{ type: PromptsType.agent, target: 'user' }],
+			});
+		});
+
+		test('a harness that hides generation can keep it for listed types', async () => {
+			activeDescriptor = { ...descriptor, hideGenerateButton: true, showGenerateButtonFor: [PromptsType.hook] };
+			const widget = disposables.add(instaService.createInstance(AICustomizationListWidget));
+			const labels: Record<string, string[]> = {};
+			for (const section of [AICustomizationManagementSection.Agents, AICustomizationManagementSection.Hooks]) {
+				await widget.setSection(section);
+				labels[section] = widget.getCreateActions().map(action => action.label);
+			}
+
+			assert.deepStrictEqual(labels, {
+				[AICustomizationManagementSection.Agents]: ['New Agent (User)'],
+				[AICustomizationManagementSection.Hooks]: ['Generate with AI', 'New Hook'],
 			});
 		});
 

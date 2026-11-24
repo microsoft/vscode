@@ -58,6 +58,7 @@ export async function generateCustomizationDebugReport(
 		lines.push(`  hasDisableProvider: ${!!activeDescriptor.syncProvider}`);
 		lines.push(`  hiddenSections: ${activeDescriptor.hiddenSections ? `[${activeDescriptor.hiddenSections.join(', ')}]` : '(none)'}`);
 		lines.push(`  hideGenerateButton: ${activeDescriptor.hideGenerateButton ?? false}`);
+		lines.push(`  showGenerateButtonFor: ${activeDescriptor.showGenerateButtonFor?.join(', ') ?? 'none'}`);
 		lines.push(`  requiredAgentId: ${activeDescriptor.requiredAgentId ?? '(none)'}`);
 	}
 	lines.push('');
@@ -304,6 +305,7 @@ function appendAllHarnesses(lines: string[], harnessService: ICustomizationHarne
 		lines.push(`    hasDisableProvider: ${!!h.syncProvider}`);
 		lines.push(`    hiddenSections: ${h.hiddenSections ? `[${h.hiddenSections.join(', ')}]` : '(none)'}`);
 		lines.push(`    hideGenerateButton: ${h.hideGenerateButton ?? false}`);
+		lines.push(`    showGenerateButtonFor: ${h.showGenerateButtonFor?.join(', ') ?? 'none'}`);
 		lines.push(`    pluginActions: ${h.pluginActions?.length ?? 0}`);
 		if (h.pluginActions) {
 			for (const a of h.pluginActions) {

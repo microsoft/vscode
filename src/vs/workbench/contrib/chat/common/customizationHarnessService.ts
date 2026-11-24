@@ -198,6 +198,11 @@ export interface IHarnessDescriptor {
 	 */
 	readonly hideGenerateButton?: boolean;
 	/**
+	 * Customization types that keep the "Generate with AI" button even when
+	 * {@link hideGenerateButton} is `true`.
+	 */
+	readonly showGenerateButtonFor?: readonly PromptsType[];
+	/**
 	 * Per-section overrides for the create button behavior.
 	 *
 	 * A `commandId` entry replaces the button entirely with a command invocation.

@@ -1,77 +1,38 @@
-# [Hooks (.json)](https://code.visualstudio.com/docs/copilot/customization/hooks)
+# [Hooks (.json)](https://docs.github.com/en/copilot/reference/hooks-reference)
 
 Deterministic lifecycle automation for agent sessions. Use hooks to enforce policy, automate validation, and inject runtime context.
+
+Create hooks in the GitHub Copilot hooks format described in the published [GitHub Copilot hooks reference](https://docs.github.com/en/copilot/reference/hooks-reference). Load that reference before writing a hook: it is the source for event names, the fields of each hook entry, the input a hook receives, and the output it can return. Do not rely on memory or on other hook formats.
 
 ## Locations
 
 | Path | Scope |
 |------|-------|
-| `.github/hooks/*.json` | Workspace (team-shared) |
-| `.claude/settings.local.json` | Workspace local (not committed) |
-| `.claude/settings.json` | Workspace |
-| `~/.claude/settings.json` | User profile |
+| `.github/hooks/*.json` at the root of the git repository | Repository (team-shared). The repository root is not always the open folder. |
+| `~/.copilot/hooks/*.json` | User |
 
-Hooks from all configured locations are collected and executed; workspace and user hooks do not override each other.
-
-## Hook Events
-
-| Event | Trigger |
-|------|-------|
-| `SessionStart` | First prompt of a new agent session |
-| `UserPromptSubmit` | User submits a prompt |
-| `PreToolUse` | Before tool invocation |
-| `PostToolUse` | After successful tool invocation |
-| `PreCompact` | Before context compaction |
-| `SubagentStart` | Subagent starts |
-| `SubagentStop` | Subagent ends |
-| `Stop` | Agent session ends |
+Never create or edit hook files in `.claude` folders; those belong to Claude Code.
 
 ## Configuration Format
 
+Use `"version": 1` and the native camelCase event names from the reference (for example `preToolUse`), not PascalCase names such as `PreToolUse`. A PascalCase event name is read as a different, deprecated format whose input and output differ, so the hook can load and silently do nothing.
+
 ```json
 {
+  "version": 1,
   "hooks": {
-    "PreToolUse": [
+    "preToolUse": [
       {
         "type": "command",
-        "command": "./scripts/validate-tool.sh",
-        "timeout": 15
+        "bash": "./scripts/check-tool.sh",
+        "powershell": "./scripts/check-tool.ps1"
       }
     ]
   }
 }
 ```
 
-Each hook command supports:
-- `type` (must be `command`)
-- `command` (default)
-- `windows`, `linux`, `osx` (platform overrides)
-- `cwd`, `env`, `timeout`
-
-## Input / Output Contract
-
-Hooks receive JSON on stdin and can return JSON on stdout.
-
-- Common output: `continue`, `stopReason`, `systemMessage`
-- `PreToolUse` permissions are read from `hookSpecificOutput.permissionDecision` (`allow` | `ask` | `deny`)
-- `PostToolUse` output can block further processing with `decision: block`
-
-`PreToolUse` example output:
-
-```json
-{
-  "hookSpecificOutput": {
-    "hookEventName": "PreToolUse",
-    "permissionDecision": "ask",
-    "permissionDecisionReason": "Needs user confirmation"
-  }
-}
-```
-
-Exit codes:
-- `0` success
-- `2` blocking error
-- Other values produce non-blocking warnings
+Take every field name, input field and output field from the reference, and confirm them there for the event you use.
 
 ## Hooks vs Other Customizations
 
@@ -87,7 +48,7 @@ Use hooks when behavior must be guaranteed (for example: block dangerous command
 1. Keep hooks small and auditable
 2. Validate and sanitize hook inputs
 3. Avoid hardcoded secrets in scripts
-4. Prefer workspace hooks for team policy, user hooks for personal automation
+4. Prefer repository hooks for team policy, user hooks for personal automation
 
 ## Anti-patterns
 
