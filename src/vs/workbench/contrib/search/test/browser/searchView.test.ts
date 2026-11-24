@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import * as sinon from 'sinon';
-import { DeferredPromise } from '../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { extUri } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -77,28 +77,41 @@ suite('Search View - folder location change', () => {
 	const folder = URI.file('/repo');
 	const worktree = URI.file('/repo.worktrees/feature');
 
-	function createView(options: { query?: string; visible?: boolean; searchedFolders?: URI[]; neverSearched?: boolean; currentFolder?: URI }) {
-		const { query = 'needle', visible = true, currentFolder = folder } = options;
+	function createView(options: { query?: string; visible?: boolean; searchedFolders?: URI[]; neverSearched?: boolean; currentFolder?: URI; validation?: Promise<void> }) {
+		const { query = 'needle', visible = true } = options;
 		const searchedFolders = options.neverSearched ? undefined : options.searchedFolders ?? [worktree];
 		const triggerQueryChange = sinon.spy((_options?: TriggerQueryChangeOptions) => { });
 		const refreshAndUpdateCount = sinon.spy(async () => { });
 		const cancelSearch = sinon.spy();
-		const state = { visible };
+		const onQueryTriggered = sinon.spy();
+		const state = { visible, currentFolder: options.currentFolder ?? folder };
 		const view: {
 			onDidChangeFolderLocation(): void;
 			onVisibilityChanged(visible: boolean): Promise<void>;
 			onSearchResultsChanged(): Promise<void>;
+			_onQueryChanged(preserveFocus: boolean): void;
+			replaceSearchModel(searchModel: object, asyncResults: Promise<ISearchComplete>): Promise<void>;
 		} = Object.assign(Object.create(SearchView.prototype), {
-			searchWidget: { searchInput: { getValue: () => query } },
+			searchWidget: {
+				searchInput: { getValue: () => query, inputBox: { isInputValid: () => true }, getRegex: () => false, getWholeWords: () => false, getCaseSensitive: () => false },
+				getNotebookFilters: () => ({ markupInput: true, markupPreview: true, codeInput: true, codeOutput: true }),
+				getReplaceValue: () => '',
+			},
+			inputPatternExcludes: { getValue: () => '', useExcludesAndIgnoreFiles: () => true },
+			inputPatternIncludes: { getValue: () => '', onlySearchInOpenEditors: () => false, onlySearchInChangedFiles: () => false },
+			instantiationService: { invokeFunction: () => [] },
+			queryBuilder: { text: () => ({ folderQueries: [] }) },
+			validateQuery: () => options.validation ?? Promise.resolve(),
 			viewletVisible: { set: () => { } },
-			viewModel: { searchResult: { toggleHighlights: () => { } }, cancelSearch, cancelAISearch: () => { } },
-			contextService: { getWorkspace: () => ({ folders: [{ uri: currentFolder }] }) },
+			viewModel: { searchResult: { toggleHighlights: () => { } }, cancelSearch, cancelAISearch: () => { }, isReplaceActive: () => false },
+			contextService: { getWorkspace: () => ({ folders: [{ uri: state.currentFolder }] }) },
 			uriIdentityService: { extUri },
 			isVisible: () => state.visible,
 			configurationService: { getValue: () => ({ searchView: { semanticSearchBehavior: SemanticSearchBehavior.Auto } }) },
 			logService: { info: () => { } },
 			triggerQueryChange,
 			refreshAndUpdateCount,
+			onQueryTriggered,
 			changedWhileHidden: false,
 			searchedFolders,
 		});
@@ -106,7 +119,11 @@ suite('Search View - folder location change', () => {
 			state.visible = value;
 			return view.onVisibilityChanged(value);
 		};
-		return { view, triggerQueryChange, refreshAndUpdateCount, cancelSearch, setVisible };
+		const moveTo = (uri: URI) => {
+			state.currentFolder = uri;
+			view.onDidChangeFolderLocation();
+		};
+		return { view, triggerQueryChange, refreshAndUpdateCount, cancelSearch, onQueryTriggered, setVisible, moveTo };
 	}
 
 	test('reruns the query right away when the view is visible and the search ran in another folder', () => {
@@ -145,5 +162,46 @@ suite('Search View - folder location change', () => {
 			reruns: [[{ shouldKeepAIResults: false, shouldUpdateAISearch: true }]],
 			redraws: 0
 		});
+	});
+
+	test('drops a query of the previous location that is still validating, and reruns', async () => {
+		async function run(move: boolean) {
+			const validation = new DeferredPromise<void>();
+			const { view, triggerQueryChange, onQueryTriggered, moveTo } = createView({ neverSearched: true, currentFolder: worktree, validation: validation.p });
+			view._onQueryChanged(true);
+			if (move) {
+				moveTo(folder);
+			}
+			await validation.complete();
+			await timeout(0);
+			return { reruns: triggerQueryChange.args, searches: onQueryTriggered.callCount };
+		}
+
+		assert.deepStrictEqual({ moved: await run(true), notMoved: await run(false) }, {
+			moved: { reruns: [[{ shouldKeepAIResults: false, shouldUpdateAISearch: true }]], searches: 0 },
+			notMoved: { reruns: [], searches: 1 }
+		});
+	});
+
+	test('reruns results opened from Quick Search after the location changes', async () => {
+		const { view, triggerQueryChange, moveTo } = createView({ neverSearched: true, currentFolder: worktree });
+		Object.assign(view, {
+			progressService: { withProgress: () => { } },
+			getProgressLocation: () => 'workbench.view.search',
+			_refreshResultsScheduler: { schedule: () => { } },
+			_register: <T>(disposable: T) => disposable,
+			searchViewModelWorkbenchService: {},
+			tree: { setInput: () => { } },
+			onSearchResultsChanged: async () => { },
+			refreshInputs: () => { },
+			onSearchComplete: async () => { },
+			expandIfSingularResult: async () => { },
+		});
+		const quickSearchModel = { searchResult: { query: { folderQueries: [{ folder: worktree }] } }, onSearchResultChanged: () => ({ dispose: () => { } }) };
+
+		await view.replaceSearchModel(quickSearchModel, Promise.resolve({ results: [], messages: [] }));
+		moveTo(folder);
+
+		assert.deepStrictEqual(triggerQueryChange.args, [[{ shouldKeepAIResults: false, shouldUpdateAISearch: true }]]);
 	});
 });

@@ -441,7 +441,7 @@ export class SearchView extends ViewPane {
 	}
 
 	private onDidChangeFolderLocation(): void {
-		if (!this.searchWidget?.searchInput?.getValue() || !this.isSearchedInOtherFolders()) {
+		if (!this.searchWidget?.searchInput?.getValue() || !this.isOtherThanCurrentFolders(this.searchedFolders)) {
 			return;
 		}
 		if (this.isVisible()) {
@@ -454,15 +454,15 @@ export class SearchView extends ViewPane {
 	}
 
 	/**
-	 * Whether the last search ran in other workspace folders than the current ones, for example
-	 * before the Folder Location changed. `false` when nothing has been searched yet.
+	 * Whether `folders`, which a search ran in, are other than the current workspace folders, for example
+	 * because the Folder Location changed since. `false` when nothing has been searched yet.
 	 */
-	private isSearchedInOtherFolders(): boolean {
-		if (!this.searchedFolders) {
+	private isOtherThanCurrentFolders(folders: URI[] | undefined): boolean {
+		if (!folders) {
 			return false;
 		}
 		const current = this.contextService.getWorkspace().folders;
-		return this.searchedFolders.length !== current.length || this.searchedFolders.some((folder, index) => !this.uriIdentityService.extUri.isEqual(folder, current[index].uri));
+		return folders.length !== current.length || folders.some((folder, index) => !this.uriIdentityService.extUri.isEqual(folder, current[index].uri));
 	}
 
 	/**
@@ -514,6 +514,8 @@ export class SearchView extends ViewPane {
 		// this call will also dispose of the old model
 		this.searchViewModelWorkbenchService.searchModel = searchModel;
 		this.viewModel = searchModel;
+		// Quick Search queries the workspace folders themselves
+		this.searchedFolders = searchModel.searchResult.query?.folderQueries.map(folderQuery => folderQuery.folder);
 		this.tree.setInput(this.viewModel.searchResult);
 
 		await this.onSearchResultsChanged();
@@ -1739,18 +1741,27 @@ export class SearchView extends ViewPane {
 			return;
 		}
 
+		const searchedFolders = this.searchedFolders = folderResources.map(folder => folder.uri);
 		this.validateQuery(query).then(() => {
+			// The Folder Location changed while validating: the query is for the previous location, and a rerun is under way or pending
+			if (this.isOtherThanCurrentFolders(searchedFolders)) {
+				return;
+			}
+
 			if (!shouldKeepAIResults && shouldUpdateAISearch && this.tree.hasNode(this.searchResult.aiTextSearchResult)) {
 				this.tree.collapse(this.searchResult.aiTextSearchResult);
 			}
 
-			this.searchedFolders = folderResources.map(folder => folder.uri);
 			this.onQueryTriggered(query, options, excludePatternText, includePatternText, triggeredOnType, shouldKeepAIResults, shouldUpdateAISearch);
 
 			if (!preserveFocus) {
 				this.searchWidget.focus(false, undefined, true); // focus back to input field
 			}
-		}, onQueryValidationError);
+		}, err => {
+			if (!this.isOtherThanCurrentFolders(searchedFolders)) {
+				onQueryValidationError(err);
+			}
+		});
 	}
 
 	private validateQuery(query: ITextQuery): Promise<void> {
