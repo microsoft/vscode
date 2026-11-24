@@ -6314,7 +6314,6 @@ suite('AgentSideEffects', () => {
 			}, { status: ToolCallStatus.PendingConfirmation, permissions: [] });
 		});
 
-		for (const approved of [false, true]) {
 			test('Assisted confirmation respects an explicit saved Read Allow rule', async () => {
 	const workingDirectory = URI.file(resolve('/workspace'));
 	const readPath = resolve('outside-assisted-read.txt');
@@ -6376,6 +6375,69 @@ suite('AgentSideEffects', () => {
 
 	assert.deepStrictEqual(agent.respondToPermissionCalls, [
 		{ requestId: 'tc-assisted-read', approved: true },
+	]);
+});
+test('Assisted confirmation respects an exact saved Edit Allow rule for protected writes', async () => {
+	const workingDirectory = URI.file(resolve('/workspace'));
+	const target = URI.joinPath(workingDirectory, '.mcp.json').fsPath;
+
+	setupSession(workingDirectory.toString());
+
+	stateManager.setSessionConfig(sessionUri.toString(), {
+		schema: { type: 'object', properties: {} },
+		values: {
+			permissions: {
+				allow: [pathRule('Edit', target, false)!],
+				deny: [],
+				ask: [],
+			},
+		},
+	});
+
+	startTurn('turn-1');
+	disposables.add(sideEffects.registerProgressListener(agent));
+
+	agent.fireProgress({
+		kind: 'action',
+		resource: URI.parse(defaultChatUri),
+		action: chatToolCallStart('turn-1', 'tc-assisted-protected-write', 'write', 'Write'),
+	});
+
+	agent.fireProgress({
+		kind: 'pending_confirmation',
+		chat: URI.parse(defaultChatUri),
+		requiresUserConfirmation: true,
+		state: {
+			status: ToolCallStatus.PendingConfirmation,
+			toolCallId: 'tc-assisted-protected-write',
+			toolName: 'write',
+			displayName: 'Write',
+			invocationMessage: 'Edit MCP configuration',
+			confirmationTitle: 'Edit protected file?',
+		},
+		permissionKind: AgentPermissionKind.Write,
+		permissionPath: target,
+	});
+
+	const result = await waitForState(stateManager, () => {
+		if (agent.respondToPermissionCalls.length > 0) {
+			return 'approved';
+		}
+
+		const part = stateManager.getSessionState(defaultChatUri)?.activeTurn?.responseParts.find(
+			part => part.kind === ResponsePartKind.ToolCall &&
+				part.toolCall.toolCallId === 'tc-assisted-protected-write'
+		);
+
+		return part?.kind === ResponsePartKind.ToolCall &&
+			part.toolCall.status === ToolCallStatus.PendingConfirmation
+			? 'prompted'
+			: undefined;
+	});
+
+	assert.strictEqual(result, 'approved');
+	assert.deepStrictEqual(agent.respondToPermissionCalls, [
+		{ requestId: 'tc-assisted-protected-write', approved: true },
 	]);
 });
 
@@ -6487,6 +6549,7 @@ test('Assisted confirmation does not let session Allow All bypass the reviewer',
 	assert.strictEqual(toolCall.status, ToolCallStatus.PendingConfirmation);
 	assert.deepStrictEqual(agent.respondToPermissionCalls, []);
 });
+for (const approved of [false, true]) {
 			test(`Assisted confirmation requirements override workspace edit auto-approval (${approved})`, async () => {
 				const workingDirectory = URI.file(resolve('/workspace'));
 				setupSession(workingDirectory.toString());
