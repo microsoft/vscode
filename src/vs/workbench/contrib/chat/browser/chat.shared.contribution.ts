@@ -76,7 +76,7 @@ import { ChatService } from '../common/chatService/chatServiceImpl.js';
 import { chatNetworkDomainConfigurationMigrations, chatNetworkDomainConfigurationProperties } from './chatNetworkConfiguration.js';
 import { IChatSessionsService } from '../common/chatSessionsService.js';
 import { ChatSideChatService, IChatSideChatService } from '../common/chatSideChatService.js';
-import { AgentsWindowGraphicVariant, AgentsWindowSectionStyle, BYOKUtilityModelDefault, ChatAIDisabledSettingId, ChatAgentLocation, ChatConfiguration, ChatClosedPromoNotification, ChatDefaultPermissionLevel, ChatNotificationMode, ChatPermissionLevel } from '../common/constants.js';
+import { AgentsWindowGraphicVariant, AgentsWindowSectionStyle, BYOKUtilityModelDefault, ChatAIDisabledSettingId, ChatAgentLocation, ChatConfiguration, ChatClosedPromoNotification, ChatDefaultPermissionLevel, ChatNotificationMode, ChatPermissionLevel, WelcomePageCardSurface, WelcomeSignInStyle } from '../common/constants.js';
 import { agentsWindowHandoffConfigurationProperties } from './agentSessionsConfiguration.js';
 import { chatProgressConfigurationProperties, legacyChatThinkingConfigurationProperties } from './chatProgressConfiguration.js';
 import { customizationMarketplaceConfigurationProperties } from './aiCustomization/customizationMarketplaceConfiguration.js';
@@ -2457,6 +2457,20 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental'],
 			experiment: { mode: 'auto' },
 		},
+		[ChatConfiguration.WelcomePageSignInStyle]: {
+			type: 'string',
+			enum: [WelcomeSignInStyle.Button, WelcomeSignInStyle.CopilotCard, WelcomeSignInStyle.GitHubCard, WelcomeSignInStyle.CompactCard],
+			enumDescriptions: [
+				nls.localize('chat.welcomePage.signIn.style.button', "Show a sign-in button."),
+				nls.localize('chat.welcomePage.signIn.style.copilotCard', "Show a card that lists what GitHub Copilot does, with a sign-in button."),
+				nls.localize('chat.welcomePage.signIn.style.githubCard', "Show a card that lists what working with GitHub brings, such as pull requests, issues and GitHub Copilot, with a sign-in button."),
+				nls.localize('chat.welcomePage.signIn.style.compactCard', "Show a card that sums up what signing in brings in one sentence, with a sign-in button."),
+			],
+			markdownDescription: nls.localize('chat.welcomePage.signIn.style', "Controls how the Welcome page asks you to sign in with GitHub when signed out. Applies only while {0} is enabled.", '`#chat.welcomePage.signIn.enabled#`'),
+			default: WelcomeSignInStyle.Button,
+			tags: ['advanced', 'experimental'],
+			experiment: { mode: 'auto' },
+		},
 		[ChatConfiguration.WelcomePageAgentsWindowGraphic]: {
 			type: 'string',
 			enum: [AgentsWindowGraphicVariant.None, AgentsWindowGraphicVariant.WindowComparison, AgentsWindowGraphicVariant.Banner],
@@ -2484,6 +2498,18 @@ configurationRegistry.registerConfiguration({
 			markdownDescription: nls.localize('chat.welcomePage.agentsWindowSectionStyle', "Controls how the Agents window graphic, its captions and the Agents window button are set apart from the rest of the Welcome page. Applies only while {0} is `windowComparison`.", '`#chat.welcomePage.agentsWindowGraphic#`'),
 			default: AgentsWindowSectionStyle.Outline,
 			tags: ['experimental'],
+			experiment: { mode: 'auto' },
+		},
+		[ChatConfiguration.WelcomePageCardSurface]: {
+			type: 'string',
+			enum: [WelcomePageCardSurface.Neutral, WelcomePageCardSurface.Tint],
+			enumDescriptions: [
+				nls.localize('chat.welcomePage.cardSurface.neutral', "Show the cards on a neutral surface, like the walkthrough tiles."),
+				nls.localize('chat.welcomePage.cardSurface.tint', "Show the cards on a surface tinted with the accent color."),
+			],
+			markdownDescription: nls.localize('chat.welcomePage.cardSurface', "Controls the surface of the Welcome page's cards that promote a feature: the Agents window banner, shown while {0} is `banner`, and the sign-in cards, shown while {1} is a card.", '`#chat.welcomePage.agentsWindowGraphic#`', '`#chat.welcomePage.signIn.style#`'),
+			default: WelcomePageCardSurface.Neutral,
+			tags: ['advanced', 'experimental'],
 			experiment: { mode: 'auto' },
 		},
 		[ChatConfiguration.TitleBarOpenInAgentsWindowEnabled]: {

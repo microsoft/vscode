@@ -3535,6 +3535,7 @@ class NewSession extends Disposable {
 	private readonly _mode: ISettableObservable<{ readonly id: string; readonly kind: string } | undefined>;
 	private readonly _workspace: ISettableObservable<ISessionWorkspace | undefined>;
 	private readonly _changesets = observableValue<readonly ISessionChangeset[] | undefined>(this, undefined);
+	private readonly _isArchived = observableValue<boolean>(this, false);
 	private readonly _worktreePending = observableValue<boolean>(this, false);
 	private readonly _description: ISettableObservable<IMarkdownString | undefined>;
 	private readonly _isNewSessionRequestInProgress = observableValue(this, false);
@@ -3707,7 +3708,7 @@ class NewSession extends Disposable {
 		this._modelSource = observableValue<ChatModelSource | undefined>(this, this._selectedModelId ? ChatModelSource.Chosen : undefined);
 		const mode = observableValue<{ readonly id: string; readonly kind: string } | undefined>(this, this._selectedAgent ? { id: this._selectedAgent.uri, kind: AGENT_MODE_KIND } : undefined);
 		this._mode = mode;
-		const isArchived = observableValue(this, false);
+		const isArchived = this._isArchived;
 		const isRead = observableValue(this, true);
 		this._description = observableValue<IMarkdownString | undefined>(this, undefined);
 		const lastTurnEnd = observableValue<Date | undefined>(this, undefined);
@@ -3829,6 +3830,7 @@ class NewSession extends Disposable {
 	}
 
 	setStatus(status: SessionStatus): void { this._status.set(status, undefined); }
+	setArchived(isArchived: boolean): void { this._isArchived.set(isArchived, undefined); }
 	startRequest(activity: string | undefined): IDisposable {
 		const requestId = this._newSessionRequestId++;
 		this._newSessionRequestActivities.set(requestId, activity);
@@ -5577,7 +5579,37 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		) {
 			return;
 		}
+		this._publishActiveClient(cached, connection, scope);
+	}
 
+	/**
+	 * Publishes this client as an active client of `cached` while the returned disposable is held, as it is for the focused
+	 * session. The host restarts a chat whose runtime it released, and the canvases it had open, only for a contributing
+	 * client, whose customizations provide them.
+	 */
+	private _contributeActiveClient(rawId: string, cached: AgentHostSessionAdapter): IDisposable {
+		const connection = this.connection;
+		if (!connection || this._isAgentDisabledByPolicy(cached.agentProvider)) {
+			return Disposable.None;
+		}
+		const scope = this._activeClientService.acquireScope(this.resourceSchemeForProvider(cached.agentProvider), cached.isQuickChat.get() ? [] : cached.userWorkingDirectories);
+		const cancellation = new CancellationTokenSource();
+		raceCancellation(scope.whenResolved(), cancellation.token).then(() => {
+			// Hydrating the session can replace its adapter meanwhile; publish to the one that represents it now.
+			const current = this._sessionCache.get(rawId);
+			if (!cancellation.token.isCancellationRequested && this.connection === connection && current && !this._isAgentDisabledByPolicy(current.agentProvider)) {
+				// The host forgets contributions to a session it released without telling this client, so an earlier publication proves nothing.
+				this._lastPublishedActiveClients.delete(current.backendUri.toString());
+				this._publishActiveClient(current, connection, scope);
+			}
+		}, error => this._logService.warn(`[${this.id}] Failed to contribute to session ${cached.backendUri.toString()}`, error));
+		return toDisposable(() => {
+			cancellation.dispose(true);
+			scope.dispose();
+		});
+	}
+
+	private _publishActiveClient(cached: AgentHostSessionAdapter, connection: IAgentConnection, scope: IAgentCustomizationScope): void {
 		// Both publishers share a client ID, so match the chat handler's composed snapshot.
 		const sessionTools = this._activeClientService.acquireSessionTools(cached.resource);
 		let activeClient: SessionActiveClient;
@@ -8035,6 +8067,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	// -- Session actions ------------------------------------------------------
 
 	async archiveSession(sessionId: string): Promise<void> {
+		if (this._setPendingNewSessionArchived(sessionId, true)) {
+			return;
+		}
 		this._assertSessionAvailable(sessionId);
 		const rawId = this._sessionKeyFromChatId(sessionId);
 		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
@@ -8312,7 +8347,18 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const rawId = this._sessionKeyFromChatId(sessionId);
 		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
 		const backendChat = this.getBackendChatResource(chatResource);
-		return cached && backendChat ? cached.observeChatCanvases(backendChat) : undefined;
+		if (!rawId || !cached || !backendChat) {
+			return undefined;
+		}
+		const canvases = cached.observeChatCanvases(backendChat);
+		const contribution = this._contributeActiveClient(rawId, cached);
+		return {
+			object: canvases.object,
+			dispose: () => {
+				contribution.dispose();
+				canvases.dispose();
+			},
+		};
 	}
 
 	/** Resolves the host-supplied backend session and chat that a canvas operation addresses. */
@@ -8394,7 +8440,21 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	}
 
 	async unarchiveSession(sessionId: string): Promise<void> {
+		if (this._setPendingNewSessionArchived(sessionId, false)) {
+			return;
+		}
 		this._setSessionArchived(sessionId, false);
+	}
+
+	/** Mirrors the change on a sent new session's draft. Returns `true` while the host hasn't announced the session, so the commit applies it. */
+	protected _setPendingNewSessionArchived(sessionId: string, isArchived: boolean): boolean {
+		const newSession = this._getNewSession(sessionId);
+		if (!newSession || newSession.session.status.get() === SessionStatus.Untitled) {
+			return false;
+		}
+		newSession.setArchived(isArchived);
+		this._onDidChangeSessions.fire({ added: [], removed: [], changed: [newSession.session] });
+		return !this._hasSession(sessionId);
 	}
 
 	get supportsWorktreeCleanup(): boolean {
@@ -9608,6 +9668,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				this._preserveNewSessionConfig(newSession, committedSession.sessionId);
 				if (explicitTitle) {
 					await this.renameSession(committedSession.sessionId, explicitTitle);
+				}
+				if (newSession.session.isArchived.get() && !committedSession.isArchived.get()) {
+					await this.archiveSession(committedSession.sessionId).catch(error => this._logService.error(`[${this.id}] Failed to archive session '${committedSession.sessionId}' after it was created.`, error));
 				}
 				onDidCommit?.(committedSession);
 				// Session graduated: release the eager subscription without

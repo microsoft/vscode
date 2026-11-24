@@ -521,6 +521,7 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 							chat: chat?.resource,
 							branchName: state?.branchName,
 							baseBranchName: state?.baseBranchName,
+							artifactIntegrations: artifactIntegrationsEnabledObs.read(undefined),
 							sendToChat: session ? options => createPullRequestChatRequest.send(session, options, op.pullRequestCreation, chat) : undefined,
 							onRestoreFocus: () => buttonBar.buttons[0]?.focus(),
 						}, options => {

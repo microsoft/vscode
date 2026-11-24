@@ -695,11 +695,11 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 			return;
 		}
 
-		const indexResource = repository.indexGroup.resourceStates
+		const indexResource = repository.indexChanges
 			.find(resource => pathEquals(resource.resourceUri.fsPath, textEditor.document.uri.fsPath));
-		const workingTreeResource = repository.workingTreeGroup.resourceStates
+		const workingTreeResource = repository.workingTreeChanges
 			.find(resource => pathEquals(resource.resourceUri.fsPath, textEditor.document.uri.fsPath));
-		const mergeChangesResource = repository.mergeGroup.resourceStates
+		const mergeChangesResource = repository.mergeChanges
 			.find(resource => pathEquals(resource.resourceUri.fsPath, textEditor.document.uri.fsPath));
 		const hasMergeConflicts = mergeChangesResource ? /^(<{7,}|={7,}|>{7,})/m.test(textEditor.document.getText()) : false;
 
@@ -878,7 +878,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 
 		const onDidDisappearRepository = filterEvent(repository.onDidChangeState, state => state === RepositoryState.Disposed);
 		const disappearListener = onDidDisappearRepository(() => dispose());
-		const disposeParentListener = repository.sourceControl.onDidDisposeParent(() => dispose());
+		const disposeParentListener = repository.sourceControl.sourceControl.onDidDisposeParent(() => dispose());
 		const changeListener = repository.onDidChangeRepository(uri => this._onDidChangeRepository.fire({ repository, uri }));
 		const originalResourceChangeListener = repository.onDidChangeOriginalResource(uri => this._onDidChangeOriginalResource.fire({ repository, uri }));
 
@@ -946,7 +946,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 			// set mergeChanges context
 			const mergeChanges: Uri[] = [];
 			for (const { repository } of this.openRepositories.values()) {
-				for (const state of repository.mergeGroup.resourceStates) {
+				for (const state of repository.mergeChanges) {
 					mergeChanges.push(state.resourceUri);
 				}
 			}
@@ -1126,11 +1126,11 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 		for (const liveRepository of this.openRepositories) {
 			const repository = liveRepository.repository;
 
-			if (hint === repository.sourceControl) {
+			if (hint === repository.sourceControl.sourceControl) {
 				return liveRepository;
 			}
 
-			if (hint === repository.mergeGroup || hint === repository.indexGroup || hint === repository.workingTreeGroup || hint === repository.untrackedGroup) {
+			if (hint === repository.sourceControl.mergeGroup || hint === repository.sourceControl.indexGroup || hint === repository.sourceControl.workingTreeGroup || hint === repository.sourceControl.untrackedGroup) {
 				return liveRepository;
 			}
 		}

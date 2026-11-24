@@ -38,9 +38,10 @@ type StepEnd =
 	| { readonly action: 'abort' };
 
 /**
- * Renders {@link ISpotlightPayload} scenarios: it dims the window (including the
- * native window controls) unless {@link SPOTLIGHT_BACKDROP_CONFIG} is disabled,
- * walks the steps, and shows an anchored callout for each. Implements the
+ * Renders {@link ISpotlightPayload} scenarios: it dims and blocks the window
+ * (including the native window controls) unless {@link SPOTLIGHT_BACKDROP_CONFIG}
+ * is disabled, which leaves the rest of the window interactive. It walks the
+ * steps and shows an anchored callout for each. Implements the
  * engine's {@link IOnboardingPresentation} contract so the scenario engine can
  * drive it without knowing anything about spotlights.
  */

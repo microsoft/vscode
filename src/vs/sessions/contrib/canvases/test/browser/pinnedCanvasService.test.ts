@@ -108,7 +108,8 @@ suite('PinnedCanvasService', () => {
 			observeCanvas: (_session, _chat, canvasResource) => {
 				const key = canvasResource.toString();
 				observed.push(key);
-				const value = live.get(key) ?? observableValue<ICanvas | undefined>('live', undefined);
+				// As the provider's, an observation is pending until it loads, and `undefined` once it fails.
+				const value = live.get(key) ?? observableValue<ICanvas | undefined>('live', { resource: canvasResource, instanceId: undefined, title: 'Canvas', source: undefined });
 				live.set(key, value);
 				return { object: value, dispose: () => released.push(key) };
 			},
@@ -756,6 +757,25 @@ suite('PinnedCanvasService', () => {
 
 		assert.deepStrictEqual({ whilePending, state: entry.state.get(), reconnecting: entry.reconnecting.get(), chatObservations: harness.chatObservations }, {
 			whilePending: { state: PinnedCanvasState.Pending, reconnecting: true, chatObservations: [`observe ${chat.resource}`, `release ${chat.resource}`] },
+			state: PinnedCanvasState.Live,
+			reconnecting: false,
+			chatObservations: [`observe ${chat.resource}`, `release ${chat.resource}`],
+		});
+	});
+
+	test('keeps observing the chat of a shown pin until the canvas its chat restores has a source', async () => {
+		const canvas = createCanvas('plan');
+		const { harness, entry, chat } = createRestoredHarness(canvas);
+
+		await harness.service.show(entry);
+		// A chat whose runtime was released lists its canvas before restoring it.
+		harness.setChatCanvases(chat.resource, [canvas]);
+		harness.setLive({ ...canvas, source: undefined }, canvas.resource);
+		const whileRestoring = { state: entry.state.get(), reconnecting: entry.reconnecting.get(), chatObservations: [...harness.chatObservations] };
+		harness.setLive(canvas, canvas.resource);
+
+		assert.deepStrictEqual({ whileRestoring, state: entry.state.get(), reconnecting: entry.reconnecting.get(), chatObservations: harness.chatObservations }, {
+			whileRestoring: { state: PinnedCanvasState.Pending, reconnecting: true, chatObservations: [`observe ${chat.resource}`] },
 			state: PinnedCanvasState.Live,
 			reconnecting: false,
 			chatObservations: [`observe ${chat.resource}`, `release ${chat.resource}`],

@@ -104,7 +104,7 @@ import { SyncDescriptor } from '../../../instantiation/common/descriptors.js';
 import { AgentHostAuthenticationScope } from '../../node/agentHostAuthenticationScope.js';
 import type { IAgentHostPullRequestResolver } from '../../node/shared/pullRequestResolver.js';
 import { detachedWorktreeRecordUri, IAgentHostWorktreeIsolation, NullAgentHostWorktreeIsolation, SessionWorkingDirectoryMissingError, WorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
-import { IAgentHostSessionStateStore } from '../../common/agentHostSessionStateStore.js';
+import { IAgentHostSessionStateStore, SessionStateMirrorFlush } from '../../common/agentHostSessionStateStore.js';
 import { parseSessionAdditionalWorktrees } from '../../node/shared/sessionAdditionalWorktrees.js';
 import { createTestSessionStateStore, createTestWorktreeCleanupService, seedSessionAdditionalWorktrees } from './chatMetadataTestHelpers.js';
 import { AgentHostCatalogSourceResolver } from '../../node/agentHostCatalogSourceResolver.js';
@@ -18978,11 +18978,15 @@ suite('CopilotAgent', () => {
 		afterTest(() => disposeAgent(agent));
 		const initiallyRequired = copilotRequired();
 		const initiallyReady = agent.isReadyForAutomation(undefined);
-		modelSnapshots.fire([{ vendor: 'gemini', id: 'gemini-2.5-pro', modelIdentifier: 'gemini/Gemini/gemini-2.5-pro' }]);
-		await waitForState(agent.models, models => models.length === 1);
+		modelSnapshots.fire([
+			{ vendor: 'gemini', id: 'gemini-2.5-pro', modelIdentifier: 'gemini/Gemini/gemini-2.5-pro' },
+			{ vendor: 'openai', id: 'gpt-5', modelIdentifier: 'openai/OpenAI/gpt-5', supportedReasoningEfforts: ['low', 'medium', 'high'], defaultReasoningEffort: 'medium' },
+		]);
+		await waitForState(agent.models, models => models.length === 2);
 		const optionalWithByok = copilotRequired();
-		const selectedModel = { id: agent.models.get()[0].id };
+		const [selectedModel, selectedEffortModel] = agent.models.get().map(model => ({ id: model.id }));
 		const readyWithByok = agent.isReadyForAutomation(selectedModel);
+		const readyWithByokEffort = agent.isReadyForAutomation(selectedEffortModel);
 		const copilotStillBlocked = !agent.isReadyForAutomation({ id: 'gpt-4o' });
 		modelSnapshots.fire([]);
 		await waitForState(agent.models, models => models.length === 0);
@@ -18994,16 +18998,20 @@ suite('CopilotAgent', () => {
 			requiredAfterHide,
 			initiallyReady,
 			readyWithByok,
+			readyWithByokEffort,
 			copilotStillBlocked,
 			readyAfterHide: agent.isReadyForAutomation(selectedModel),
+			readyWithEffortAfterHide: agent.isReadyForAutomation(selectedEffortModel),
 		}, {
 			initiallyRequired: true,
 			optionalWithByok: false,
 			requiredAfterHide: true,
 			initiallyReady: false,
 			readyWithByok: true,
+			readyWithByokEffort: true,
 			copilotStillBlocked: true,
 			readyAfterHide: false,
+			readyWithEffortAfterHide: false,
 		});
 	});
 
@@ -23898,42 +23906,49 @@ suite('CopilotAgent', () => {
 					h.sdkSessions.push(sdkSession);
 					return sdkSession as unknown as CopilotSession;
 				};
-				/** Routes a turn as the host does, then sends it on the model the router chose. */
-				const send = async (turnId: string, router: string | false = 'team', previousTurns: Turn[] = []) => {
+				/**
+				 * Routes a turn as the host does, then sends it on the model the router chose, and runs the prompt hook
+				 * and echoes the message as the runtime does for a message that reaches the agent. `told` is the guidance
+				 * the hook adds to the message, or `none` for a note that ends earlier guidance.
+				 */
+				const send = async (turnId: string, router: string | false = 'team', previousTurns: Turn[] = [], reachesAgent = true) => {
 					const resolution = router
 						? await h.agent.resolveTurnModel(h.chat, { turnId, selection: { id: `model-router:${router}` }, text: 'build it', previousTurns }, h.context, CancellationToken.None)
 						: undefined;
 					await h.agent.chats.sendMessage(h.chat, 'build it', [workingDirectory], undefined, turnId, undefined, h.sendContext);
-					return { kept: resolution?.routed?.kept, notices: resolution?.notices ?? [] };
+					const note = reachesAgent ? /<model_router_guidance>[^]*<\/model_router_guidance>/.exec(chatEntriesBySdkId(h.agent).get(h.sdkSessionId()!)!.chatSession.handleUserPromptSubmitted()?.additionalContext ?? '')?.[0] : undefined;
+					if (reachesAgent) {
+						// The mock runtime's send returns an empty message id.
+						h.sdkSessions.at(-1)!.emit({ id: `message-${turnId}`, timestamp: '2025-01-01T00:00:00.000Z', parentId: null, type: 'user.message', data: { content: 'build it', messageId: '' } } as SessionEventPayload<'user.message'>);
+					}
+					const told = note && (/How the user wants the work done:\n(?<guidance>.*)\n/.exec(note)?.groups?.guidance ?? 'none');
+					return { kept: resolution?.routed?.kept, notices: resolution?.notices ?? [], told };
 				};
-				const guidanceOf = (config: { readonly systemMessage?: { readonly content?: string } } | undefined) => /How the user wants the work done:\n(?<guidance>.*)\n/.exec(config?.systemMessage?.content ?? '')?.groups?.guidance;
-				/** The guidance each session was launched with: those created, then those resumed. */
-				const launched = () => ({ created: h.launchConfigs.map(guidanceOf), resumed: resumeConfigs.map(guidanceOf) });
-				return { ...h, send, launched, fileService };
+				/** What shows that no turn replaced the chat's session: the system prompts it was launched with, and how often it was resumed. */
+				const launches = () => ({ guidanceInSystemPrompt: [...h.launchConfigs, ...resumeConfigs].some(config => (config?.systemMessage?.content ?? '').includes('model_router_guidance')), resumed: resumeConfigs.length });
+				return { ...h, send, launches, fileService };
 			}
 
-			test('a warm session is replaced once when the first message is routed to a route with guidance', async () => {
+			test('the first routed turn tells the chat its route\'s guidance on the session that was warm, and later turns on the route say nothing', async () => {
 				const h = await createRoutedAgent('router-guidance');
 				await h.agent.chats.warmChat!(h.chat, h.context);
 				const first = await h.send('turn-1');
 				const second = await h.send('turn-2');
-				assert.deepStrictEqual({ first, second, prewarm: h.state().prewarm, launched: h.launched(), sends: h.sdkSessions.map(session => session.sendCalls) }, {
-					first: { kept: undefined, notices: [] },
-					// Routed to the same guidance again: nothing is relaunched.
-					second: { kept: undefined, notices: [] },
-					prewarm: ['modelRouterGuidanceChanged'],
-					launched: { created: [undefined, 'Plan first.'], resumed: [] },
-					sends: [0, 2],
+				assert.deepStrictEqual({ first, second, prewarm: h.state().prewarm, launches: h.launches(), sends: h.sdkSessions.map(session => session.sendCalls) }, {
+					first: { kept: undefined, notices: [], told: 'Plan first.' },
+					second: { kept: undefined, notices: [], told: undefined },
+					prewarm: ['used'],
+					launches: { guidanceInSystemPrompt: false, resumed: 0 },
+					sends: [2],
 				});
 			});
 
-			test('a routed turn that is never sent gives its guidance to no other turn, and a later routed turn brings its own', async () => {
+			test('a routed turn that is never sent tells the chat nothing, and a later routed turn brings its guidance', async () => {
 				const h = await createRoutedAgent('router-cancelled');
 				await h.agent.chats.warmChat!(h.chat, h.context);
 				// turn-1 is routed and then cancelled; turn-2 is sent on a hand-picked model and never routed.
 				await h.agent.resolveTurnModel(h.chat, { turnId: 'turn-1', selection: { id: 'model-router:team' }, text: 'build it', previousTurns: [] }, h.context, CancellationToken.None);
-				await h.send('turn-2', false);
-				const afterUnrouted = { prewarm: h.state().prewarm, launched: h.launched() };
+				const unrouted = await h.send('turn-2', false);
 				// The chat has started work without guidance, as it also has after a host restart. Its
 				// saved turn says which route it is on, and routing keeps it there.
 				const saved: Turn = {
@@ -23942,10 +23957,10 @@ suite('CopilotAgent', () => {
 					usage: { _meta: { modelRouted: { router: 'team', chosenModel: 'claude-sonnet', routeName: 'feature' } } },
 				};
 				const later = await h.send('turn-3', 'team', [saved]);
-				assert.deepStrictEqual({ afterUnrouted, later, launched: h.launched() }, {
-					afterUnrouted: { prewarm: ['used'], launched: { created: [undefined], resumed: [] } },
-					later: { kept: true, notices: [] },
-					launched: { created: [undefined], resumed: ['Plan first.'] },
+				assert.deepStrictEqual({ unrouted: unrouted.told, later, launches: h.launches() }, {
+					unrouted: undefined,
+					later: { kept: true, notices: [], told: 'Plan first.' },
+					launches: { guidanceInSystemPrompt: false, resumed: 0 },
 				});
 			});
 
@@ -23978,39 +23993,29 @@ suite('CopilotAgent', () => {
 				assert.deepStrictEqual({ model: resolution.selection?.id, route: resolution.routed?.routeName, notices: resolution.notices, lists: h.client.modelListRequests.length }, { model: 'claude-sonnet', route: 'feature', notices: [], lists: 2 });
 			});
 
-			test('a chat that is routed to a route with other guidance is relaunched with it', async () => {
+			test('a chat routed to a route with other guidance is told it on its running session, and again after its history is rewritten or its session is released', async () => {
 				const h = await createRoutedAgent('router-moved');
 				await h.agent.chats.warmChat!(h.chat, h.context);
-				await h.send('turn-1');
+				const first = await h.send('turn-1');
 				// Another router, so the turn is routed afresh: to a route with guidance of its own.
-				await h.send('turn-2', 'solo');
+				const moved = await h.send('turn-2', 'solo');
 				// A turn sent on a hand-picked model keeps the guidance the chat has.
-				await h.send('turn-3', false);
-				assert.deepStrictEqual({ launched: h.launched(), sends: h.sdkSessions.map(session => session.sendCalls) }, {
-					launched: { created: [undefined, 'Plan first.'], resumed: ['Review first.'] },
-					sends: [0, 1, 2],
-				});
-			});
-
-			test('a chat keeps its guidance when a turn routed elsewhere is never sent, or while background subagents run', async () => {
-				const h = await createRoutedAgent('router-kept');
-				await h.agent.chats.warmChat!(h.chat, h.context);
-				await h.send('turn-1');
-				// turn-2 is routed to a route with other guidance and cancelled; turn-3 is sent on a hand-picked model.
-				await h.agent.resolveTurnModel(h.chat, { turnId: 'turn-2', selection: { id: 'model-router:solo' }, text: 'build it', previousTurns: [] }, h.context, CancellationToken.None);
-				await h.send('turn-3', false);
-				const afterCancelled = h.launched().resumed;
-				// A relaunch would end the background subagents of an earlier turn, so the session is kept until they are done.
-				const subagents = stub(chatEntriesBySdkId(h.agent).get(h.sdkSessionId()!)!.chatSession, 'hasActiveSubagents').get(() => true);
-				await h.send('turn-4', 'solo');
-				const whileSubagentsRun = h.launched().resumed;
-				subagents.restore();
-				await h.send('turn-5', 'solo');
-				assert.deepStrictEqual({ afterCancelled, whileSubagentsRun, afterwards: h.launched().resumed, sends: h.sdkSessions.map(session => session.sendCalls) }, {
-					afterCancelled: [],
-					whileSubagentsRun: [],
-					afterwards: ['Review first.'],
-					sends: [0, 3, 1],
+				const unrouted = await h.send('turn-3', false);
+				const stayed = await h.send('turn-4', 'solo');
+				// A message that never reaches the agent, such as one stopped while it is prepared, has told the chat nothing.
+				await h.send('turn-unsent', 'team', [], false);
+				const afterUnsent = await h.send('turn-resent', 'team');
+				// A compaction can drop the message that carried the note.
+				h.sdkSessions[0].emit({ id: 'compaction', timestamp: '2025-01-01T00:00:00.000Z', parentId: null, type: 'session.compaction_complete', data: { success: true } } as SessionEventPayload<'session.compaction_complete'>);
+				const afterCompaction = await h.send('turn-5', 'team');
+				// While this host does not run the chat, another process can rewrite its history.
+				h.sdkSessions[0].emit({ id: 'idle', timestamp: '2025-01-01T00:00:00.000Z', parentId: null, type: 'session.idle', data: {} } as SessionEventPayload<'session.idle'>);
+				await h.agent.chats.releaseChat(h.chat, h.context);
+				const afterRelease = await h.send('turn-6', 'team');
+				assert.deepStrictEqual({ told: [first, moved, unrouted, stayed, afterUnsent, afterCompaction, afterRelease].map(turn => turn.told), launches: h.launches(), sends: h.sdkSessions.map(session => session.sendCalls) }, {
+					told: ['Plan first.', 'Review first.', undefined, undefined, 'Plan first.', 'Plan first.', 'Plan first.'],
+					launches: { guidanceInSystemPrompt: false, resumed: 1 },
+					sends: [7, 1],
 				});
 			});
 		});
@@ -24501,6 +24506,77 @@ suite('CopilotAgent', () => {
 
 			assert.deepStrictEqual({ asked: asked.kind, afterAsk, answered }, { asked: 'consentRequired', afterAsk: 1, answered: 'opened' });
 		}).timeout(30_000);
+
+		for (const mode of ['send', 'close', 'observe'] as const) {
+			const title = {
+				send: 'reopens it in the runtime its first send starts',
+				close: 'closes it without starting, and does not reopen it',
+				observe: 'restores it without a send for a window that observes and contributes to it',
+			}[mode];
+			test(`a workspace-less draft whose runtime was released with a canvas open ${title}`, async () => {
+				const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/warm-qc-canvas-release-home-`));
+				const preview = { instanceId: 'preview', canvasId: 'preview', extensionId: 'user:preview', title: 'Preview', input: {}, url: 'https://example.test/preview' };
+				let launched = 0;
+				const onSdkSession = (sdkSession: MockCopilotSession) => {
+					sdkSession.canvases.push({ canvasId: 'preview', extensionId: 'user:preview', displayName: 'Preview', description: 'A preview.' });
+					// A runtime launched again lists the canvas before its extension registers it. Another extension reports
+					// its registration first, and the canvas's own registration follows.
+					const open = sdkSession.rpc.canvas.open;
+					let unregisteredOpens = launched++ > 0 && mode !== 'close' ? 2 : 0;
+					sdkSession.rpc.canvas.open = async params => {
+						if (unregisteredOpens > 0) {
+							unregisteredOpens--;
+							void timeout(5).then(() => sdkSession.emit({ id: 'canvas-registry', timestamp: '2026-01-01T00:00:00Z', parentId: null, ephemeral: true, type: 'session.canvas.registry_changed', data: { canvases: [] } }));
+							throw new Error('Request session.canvas.open failed with message: Canvas "user:preview/preview" is not registered.');
+						}
+						return { ...await open(params), url: preview.url };
+					};
+				};
+				const h = await createWarmableAgent('warm-workspaceless-canvas-release', undefined, { workspacelessHome: userHome, rootConfig: { [AgentHostCanvasesEnabledConfigKey]: true }, onSdkSession });
+				afterTest(async () => {
+					await disposeAgent(h.agent);
+					await fs.rm(userHome.fsPath, { recursive: true, force: true });
+				});
+				const session = AgentSession.uri('copilotcli', 'warm-workspaceless-canvas-release');
+				await h.agent.openSessionCanvas(session, { canvasId: 'preview', extensionId: 'user:preview', instanceId: 'preview' }, h.chat, h.context);
+				h.sdkSessions[0].openCanvases.push(preview);
+				h.sdkSessions[0].emit({ id: 'canvas-open', timestamp: '2026-01-01T00:00:00Z', parentId: null, ephemeral: true, type: 'session.canvas.opened', data: preview });
+				const signals: AgentSignal[] = [];
+				disposables.add(h.agent.onDidChatProgress(signal => signals.push(signal)));
+				const canvasStates = () => signals.filter((signal): signal is Extract<AgentSignal, { kind: 'canvas' }> => signal.kind === 'canvas');
+				const sdkSessionId = h.sdkSessionId();
+				await h.agent.chats.releaseChat(h.chat, h.context, { reason: () => 'idle', canContinue: () => true });
+				// Nothing was sent, so the runtime persisted no history and a restart restores the chat as a draft, workspace-less as the host recorded it.
+				await sessionStateStoresByAgent.get(h.agent)!.writeMetadata(session, session, { [AH_META_WORKSPACELESS_DB_KEY]: 'true' }, SessionStateMirrorFlush.Immediate);
+				await h.agent.materializeChat(h.chat, h.context, JSON.stringify({ sdkSessionId }));
+				if (mode === 'observe') {
+					// A pin observes the chat and contributes its window, which restores the released canvases.
+					const watch = h.agent.watchChatCanvases(h.chat, { published: () => [], resolveContext: async () => h.context });
+					contributeActiveClient(h.agent, h.chat, h.context);
+					const restoration = (h.agent as unknown as { _canvasRestores: { get(chat: URI): Promise<void> | undefined } })._canvasRestores.get(h.chat);
+					assert.ok(restoration);
+					await restoration;
+					await timeout(50);
+					watch.dispose();
+				} else {
+					if (mode === 'close') {
+						const resource = canvasStates()[0]?.resource;
+						assert.ok(resource);
+						await h.agent.closeSessionCanvas!(session, { resource }, h.chat, h.context);
+					}
+					// A runtime launched early, before the released canvases are handed over, cannot take them.
+					await h.agent.chats.warmChat!(h.chat, h.context);
+					await h.agent.chats.sendMessage(h.chat, 'hello', undefined, undefined, 'turn-1', undefined, h.sendContext);
+					await timeout(50);
+				}
+
+				assert.deepStrictEqual({ prewarm: h.state().prewarm, opens: h.sdkSessions.map(s => s.canvasOpenCalls.map(call => call.instanceId)), sends: h.sdkSessions.map(s => s.sendCalls), source: canvasStates().at(-1)?.state.uri }, {
+					send: { prewarm: ['canvasContinuity'], opens: [['preview'], [], ['preview']], sends: [0, 0, 1], source: preview.url },
+					close: { prewarm: ['canvasContinuity'], opens: [['preview'], [], []], sends: [0, 0, 1], source: undefined },
+					observe: { prewarm: [], opens: [['preview'], ['preview']], sends: [0, 0], source: preview.url },
+				}[mode]);
+			}).timeout(30_000);
+		}
 
 		test('a worktree send discards the folder warm session and materializes in the worktree', async () => {
 			const h = await createWarmableAgent('warm-worktree');

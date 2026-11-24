@@ -723,7 +723,8 @@ export interface IProtocolServerGitHubEnvironment {
 	readonly status: IAgentHostGitHubEnvironmentStatus;
 	/** Fires when {@link status} changes; sent to those clients as a {@link GitHubEnvironmentChangedNotification}. */
 	readonly onDidChangeStatus: Event<IAgentHostGitHubEnvironmentStatus>;
-	register(accountId: string, credential: string): Promise<IAgentHostGitHubEnvironmentRegistration>;
+	/** Registers for the given account; `name` is the client's name for this host, used for a new registration. */
+	register(accountId: string, credential: string, name?: string): Promise<IAgentHostGitHubEnvironmentRegistration>;
 	unregister(accountId: string): Promise<void>;
 }
 
@@ -4250,7 +4251,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				if (validated.error || !validated.content.accountId || !validated.content.credential) {
 					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, validated.error?.message ?? 'accountId and credential are required'));
 				}
-				return githubEnvironment.register(validated.content.accountId, validated.content.credential);
+				return githubEnvironment.register(validated.content.accountId, validated.content.credential, validated.content.name);
 			}
 			const validated = unregisterGitHubEnvironmentParamsValidator.validate(params);
 			if (validated.error || !validated.content.accountId) {

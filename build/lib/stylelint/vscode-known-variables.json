@@ -1073,6 +1073,7 @@
 		"--session-view-bubble-background-opacity",
 		"--session-view-request-background",
 		"--session-view-request-hover-background",
+		"--session-view-request-background-opacity",
 		"--session-activity-bar-reserved-width",
 		"--session-activity-bar-column-width",
 		"--session-activity-bar-content-inset",

@@ -1576,7 +1576,8 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	/** Receives the session before it initializes, so tests can dispose a session whose initialization fails. */
 	onSessionCreated?: (session: CopilotAgentSession) => void;
 	/** Called the first time the session starts root work. */
-	onRootWorkStarted?: () => void;
+	onHistoryRewritten?: () => void;
+	onHostInstructionsDelivered?: () => void;
 	/** The shared Computer Use permission setup the agent hands to the session. */
 	computerUsePermissionSetup?: () => CopilotComputerUsePermissionSetup | undefined;
 	/** The client's plugins, as `plugins.list` reports them. */
@@ -2007,7 +2008,8 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 			launchPlan,
 			shellManager: options?.shellManager,
 			clientSnapshot: options?.clientSnapshot,
-			onRootWorkStarted: options?.onRootWorkStarted,
+			onHistoryRewritten: options?.onHistoryRewritten,
+			onHostInstructionsDelivered: options?.onHostInstructionsDelivered,
 			builtinPluginDirectories: options?.builtinPluginDirectories,
 			getUserMcpServers: options?.getUserMcpServers ?? (options?.getUserMcpServerNames ? async () => Object.fromEntries(
 				[...await options.getUserMcpServerNames!()].map(name => [name, { type: 'http' as const, url: 'https://mcp.example.com' }]),
@@ -2179,53 +2181,111 @@ suite('CopilotAgentSession', () => {
 		assert.deepStrictEqual({ before, after: session.isHeldInUse }, { before: false, after: true });
 	});
 
-	suite('reports the first root work, once', () => {
-		const notification = (kind: object, overrides?: { agentId: string }) => (mockSession: MockCopilotSession) =>
-			mockSession.fire('system.notification', { content: '<system_notification>\nDone\n</system_notification>', kind } as SessionEventPayload<'system.notification'>['data'], overrides);
-		const shellCompleted = { type: 'shell_completed', shellId: 'shell-a', exitCode: 0, description: 'sleep 6' };
+	test('reports each rewrite of its history: a compaction, a truncation and a rewind, but not a message or a subagent\'s compaction', async () => {
+		let rewrites = 0;
+		const { mockSession } = await createAgentSession(disposables, { resume: true, onHistoryRewritten: () => rewrites++ });
+		const after = (fire: () => void) => {
+			fire();
+			return rewrites;
+		};
+		assert.deepStrictEqual({
+			message: after(() => mockSession.fire('user.message', { content: 'Hello.', messageId: 'message-1', turnId: 'sdk-turn' } as SessionEventPayload<'user.message'>['data'])),
+			subagentCompaction: after(() => mockSession.fire('session.compaction_complete', { success: true } as SessionEventPayload<'session.compaction_complete'>['data'], { agentId: 'subagent' })),
+			compaction: after(() => mockSession.fire('session.compaction_complete', { success: true } as SessionEventPayload<'session.compaction_complete'>['data'])),
+			truncation: after(() => mockSession.fire('session.truncation', {} as SessionEventPayload<'session.truncation'>['data'])),
+			rewind: after(() => mockSession.fire('session.snapshot_rewind', { upToEventId: 'user-0', eventsRemoved: 1 })),
+		}, { message: 0, subagentCompaction: 0, compaction: 1, truncation: 2, rewind: 3 });
+	});
 
-		const starts: Record<string, (session: CopilotAgentSession, mockSession: MockCopilotSession) => void | Promise<void>> = {
-			'a sent message': session => session.send('hello', undefined, 'turn-1'),
-			'a root message the runtime received on its own': (_session, mockSession) => mockSession.fire('user.message', { content: 'Play one move.', messageId: 'provider-message', turnId: 'provider-sdk-turn' } as SessionEventPayload<'user.message'>['data']),
-			'a root message while a host turn is still pending': (session, mockSession) => {
-				session.resetTurnState('turn-pending');
+	test('host instructions reach the agent with the prompt hook, or with the prompt itself when managed policy suppresses hooks, and count as delivered once the runtime echoes that prompt', async () => {
+		interface ISendCase {
+			readonly prompt?: string;
+			/** A managed hook policy keeps the runtime from calling the prompt hook. */
+			readonly suppressHooks?: boolean;
+			/** The runtime rejects the send. */
+			readonly rejected?: boolean;
+			/** The runtime records the prompt. It does not when the send is rejected, a hook blocks it, or it is a command. */
+			readonly echoed?: boolean;
+			/** A root message the runtime starts on its own arrives afterwards. */
+			readonly thenOtherMessage?: boolean;
+			/** The id of a root message the runtime echoes while the send is still in flight. */
+			readonly echoedDuringSend?: string;
+			/** The turn also goes idle while the send is still in flight. */
+			readonly idleDuringSend?: boolean;
+			/** The runtime does not start the fleet. */
+			readonly fleetNotStarted?: boolean;
+		}
+		const sendWith = async ({ prompt = 'hello', suppressHooks = false, rejected = false, echoed = true, thenOtherMessage = false, echoedDuringSend, idleDuringSend = false, fleetNotStarted = false }: ISendCase) => {
+			let delivered = 0;
+			const { session, runtime, mockSession } = await createAgentSession(disposables, { onHostInstructionsDelivered: () => delivered++ });
+			mockSession.commandListResult = { commands: [{ name: 'fleet', kind: 'builtin', description: 'Start fleet', allowDuringAgentExecution: false }] };
+			if (suppressHooks) {
+				runtime.onSessionEvent?.({
+					type: 'session.managed_settings_resolved', id: 'policy', timestamp: new Date(0).toISOString(), parentId: null, ephemeral: true,
+					data: { source: 'server', serverManaged: true, deviceManaged: false, bypassPermissionsDisabled: false, failClosed: false, managedKeys: ['allowManagedHooksOnly'], settings: { allowManagedHooksOnly: true } },
+				});
+			}
+			if (echoedDuringSend) {
+				mockSession.onSend = () => {
+					mockSession.fire('user.message', { content: prompt, messageId: echoedDuringSend, turnId: 'sdk-turn' } as SessionEventPayload<'user.message'>['data']);
+					if (idleDuringSend) {
+						mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
+					}
+				};
+			}
+			mockSession.fleetStartResult = { started: !fleetNotStarted };
+			if (rejected) {
+				const closed = Promise.reject(new Error('The connection closed.'));
+				closed.catch(() => { });
+				mockSession.sendGate = closed;
+			}
+			await session.send(prompt, undefined, 'turn-1', 'interactive', undefined, AgentHostClientType.Unknown, ['A note.']).catch(() => { });
+			// A command's turn is over without a prompt, so the hook then runs for a prompt the runtime starts on its own.
+			const hook = suppressHooks || prompt.startsWith('/fleet') ? undefined : session.handleUserPromptSubmitted()?.additionalContext;
+			const beforeEcho = delivered;
+			if (echoed) {
+				mockSession.fire('user.message', { content: prompt, messageId: 'message-1', turnId: 'sdk-turn' } as SessionEventPayload<'user.message'>['data']);
+			}
+			if (thenOtherMessage) {
 				mockSession.fire('user.message', { content: 'From an extension.', messageId: 'provider-message', turnId: 'provider-sdk-turn' } as SessionEventPayload<'user.message'>['data']);
-			},
-			'a notification that wakes the root agent': (_session, mockSession) => notification(shellCompleted)(mockSession),
-			'a notification that wakes the root agent while a host turn is still pending': (session, mockSession) => {
-				session.resetTurnState('turn-pending');
-				notification(shellCompleted)(mockSession);
-			},
-			// Covers a request the runtime marks as automation, whose message event is filtered as context.
-			'a root assistant turn': (_session, mockSession) => mockSession.fire('assistant.turn_start', { turnId: 'sdk-turn' } as SessionEventPayload<'assistant.turn_start'>['data']),
+			}
+			const prompts = [...mockSession.sendRequests.map(request => request as MessageOptions), ...mockSession.fleetStartCalls].map(request => request.prompt);
+			return { prompts, displayPrompt: (mockSession.sendRequests[0] as MessageOptions | undefined)?.displayPrompt, hook, beforeEcho, delivered };
 		};
-		for (const [name, start] of Object.entries(starts)) {
-			test(name, async () => {
-				let reports = 0;
-				const { session, mockSession } = await createAgentSession(disposables, { resume: true, onRootWorkStarted: () => reports++ });
-				const before = session.hasStartedRootWork;
-				await start(session, mockSession);
-				// A second start of any kind is not a second report.
-				mockSession.fire('assistant.turn_start', { turnId: 'sdk-turn-2' } as SessionEventPayload<'assistant.turn_start'>['data']);
-				assert.deepStrictEqual({ before, after: session.hasStartedRootWork, reports }, { before: false, after: true, reports: 1 });
-			});
-		}
-
-		const notStarts: Record<string, (mockSession: MockCopilotSession) => void> = {
-			'a subagent\'s message': mockSession => mockSession.fire('user.message', { content: 'Sub task.', messageId: 'child-message', turnId: 'child-turn' } as SessionEventPayload<'user.message'>['data'], { agentId: 'subagent' }),
-			'a subagent\'s turn': mockSession => mockSession.fire('assistant.turn_start', { turnId: 'child-turn' } as SessionEventPayload<'assistant.turn_start'>['data'], { agentId: 'subagent' }),
-			'a subagent\'s notification': notification(shellCompleted, { agentId: 'subagent' }),
-			'a notification that does not wake the agent': notification({ type: 'new_inbox_message', entryId: 'entry-a', senderName: 'sidekick', senderType: 'sidekick-agent', summary: 'New message' }),
-			'context injected as a user message': mockSession => mockSession.fire('user.message', { content: 'A skill.', source: 'skill-pdf' } as SessionEventPayload<'user.message'>['data']),
-		};
-		for (const [name, event] of Object.entries(notStarts)) {
-			test(`not for ${name}`, async () => {
-				let reports = 0;
-				const { session, mockSession } = await createAgentSession(disposables, { resume: true, onRootWorkStarted: () => reports++ });
-				event(mockSession);
-				assert.deepStrictEqual({ started: session.hasStartedRootWork, reports }, { started: false, reports: 0 });
-			});
-		}
+		const reminder = '\n\n<reminder>\nA note.\n</reminder>';
+		assert.deepStrictEqual({
+			hook: await sendWith({}),
+			hookBlockedPrompt: (await sendWith({ echoed: false })).delivered,
+			// Handled by the history RPC: no prompt goes out, so the note does not either, nor with a later prompt.
+			command: await sendWith({ prompt: '/compact', echoed: false }),
+			suppressedHooks: await sendWith({ suppressHooks: true }),
+			// The rejected turn is over: a message the runtime starts afterwards is not its prompt.
+			suppressedHooksRejected: (await sendWith({ suppressHooks: true, rejected: true, echoed: false, thenOtherMessage: true })).delivered,
+			// The prompt's own echo can come before its send returns its id.
+			suppressedHooksEarlyEcho: (await sendWith({ suppressHooks: true, echoed: false, echoedDuringSend: 'message-1' })).delivered,
+			// Another root message echoed during a send that is then rejected is not that send's prompt.
+			suppressedHooksOtherEchoThenRejected: (await sendWith({ suppressHooks: true, rejected: true, echoed: false, echoedDuringSend: 'provider-message' })).delivered,
+			// The turn can be over before its send returns the prompt's id.
+			suppressedHooksEarlyEchoAndIdle: (await sendWith({ suppressHooks: true, echoed: false, echoedDuringSend: 'message-1', idleDuringSend: true })).delivered,
+			suppressedHooksFleet: (await sendWith({ prompt: '/fleet build it', suppressHooks: true, echoed: false })).prompts,
+			// A fleet start returns no message id: its prompt is the root message of the turn it started.
+			suppressedHooksFleetEchoed: (await sendWith({ prompt: '/fleet build it', suppressHooks: true })).delivered,
+			suppressedHooksFleetNotStarted: (await sendWith({ prompt: '/fleet build it', suppressHooks: true, fleetNotStarted: true })).delivered,
+			fleet: (await sendWith({ prompt: '/fleet build it', echoed: false })).prompts,
+		}, {
+			hook: { prompts: ['hello'], displayPrompt: undefined, hook: 'A note.', beforeEcho: 0, delivered: 1 },
+			hookBlockedPrompt: 0,
+			command: { prompts: [], displayPrompt: undefined, hook: undefined, beforeEcho: 0, delivered: 0 },
+			suppressedHooks: { prompts: [`hello${reminder}`], displayPrompt: 'hello', hook: undefined, beforeEcho: 0, delivered: 1 },
+			suppressedHooksRejected: 0,
+			suppressedHooksEarlyEcho: 1,
+			suppressedHooksOtherEchoThenRejected: 0,
+			suppressedHooksEarlyEchoAndIdle: 1,
+			suppressedHooksFleet: [`build it${reminder}`],
+			suppressedHooksFleetEchoed: 1,
+			suppressedHooksFleetNotStarted: 0,
+			fleet: ['build it'],
+		});
 	});
 
 	suite('grep search subagent nudge', () => {
@@ -12860,6 +12920,92 @@ suite('CopilotAgentSession', () => {
 				{ turnId: 'turn-1', parentToolCallId: 'tc-subagent', hook: warned('preToolUse', 'Careful with that tool.') },
 			]);
 		});
+
+		// Recorded from a live session with the sandbox on: the runtime reports a failed command hook twice, as a failed
+		// hook.end and as a `session.error` of type `hook`, and then carries on with the turn.
+		const sandboxedHookError = (hookType: string): SessionEventPayload<'session.error'>['data'] => ({
+			errorType: 'hook',
+			message: `${hookType} hook from ".github/hooks/tpi.json" failed in the session sandbox: Hook command failed with code 1. Stderr omitted for privacy. If it needs more access, allow it in the sandbox policy.`,
+		});
+		const failedPromptHook: SessionEventPayload<'hook.end'>['data'] = {
+			hookInvocationId: '295abbbf-9c78-4152-92f0-2e1200d6f394', hookType: 'userPromptSubmitted', success: false,
+			error: { message: 'Error: Hook command failed with code 1\nStderr: The prompt contains FAILME.\n', source: '.github/hooks/tpi.json' },
+		};
+		const failedToolHook: SessionEventPayload<'hook.end'>['data'] = {
+			hookInvocationId: '13a71f95-5307-49e9-ac53-3647902284bc', hookType: 'preToolUse', success: false,
+			output: { 'toolu_01NRuK8WZWtBXdvLtoMaQXuy': 'Denied by preToolUse hook from ".github/hooks/tpi.json" (hook errored)' },
+			error: { message: 'Error: Hook command failed with code 1\nStderr: hook.js exits with code 1 for tool calls that mention crash.txt.\n', source: '.github/hooks/tpi.json' },
+		};
+		function getTurnOutline(signals: readonly AgentSignal[]) {
+			return signals.flatMap(signal => {
+				if (signal.kind !== 'action') {
+					return [];
+				}
+				const action = signal.action;
+				const scope = signal.parentToolCallId ? `${signal.parentToolCallId}: ` : '';
+				switch (action.type) {
+					case ActionType.ChatTurnStarted: return [`${scope}started ${action.message.text}`];
+					case ActionType.ChatError: return [`${scope}error`];
+					case ActionType.ChatTurnComplete: return [`${scope}complete ${action.turnId}`];
+					case ActionType.ChatResponsePart: return action.part.kind === ResponsePartKind.SystemNotification ? [`${scope}notice ${action.turnId}: ${action.part.content}`]
+						: action.part.kind === ResponsePartKind.Markdown ? [`${scope}markdown ${action.turnId}`] : [];
+					default: return [];
+				}
+			});
+		}
+
+		test('keeps the turn when a prompt hook fails in the sandbox, showing the failure once and not starting the prompt again', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			await session.send('FAILME reply with just the word ok', undefined, 'turn-1');
+			// In the order received: the sandbox report reaches VS Code before the hook's own end.
+			mockSession.fire('session.error', sandboxedHookError('userPromptSubmitted'));
+			mockSession.fire('hook.end', failedPromptHook);
+			mockSession.fire('user.message', { content: 'FAILME reply with just the word ok', messageId: 'message-1', turnId: '0' } as SessionEventPayload<'user.message'>['data']);
+			mockSession.fire('assistant.message', { messageId: 'reply', content: 'ok' } as SessionEventPayload<'assistant.message'>['data']);
+			mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
+			await timeout(0);
+
+			assert.deepStrictEqual(getTurnOutline(signals), [
+				'notice turn-1: The userPromptSubmitted hook from .github/hooks/tpi.json failed: Error: Hook command failed with code 1\nStderr: The prompt contains FAILME.\n',
+				'markdown turn-1',
+				'complete turn-1',
+			]);
+		});
+
+		test('keeps the turn and a subagent when a preToolUse hook fails in the sandbox mid-turn', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			await session.send('Show me what is in crash.txt', undefined, 'turn-1');
+			mockSession.fire('user.message', { content: 'Show me what is in crash.txt', messageId: 'message-1', turnId: '0' } as SessionEventPayload<'user.message'>['data']);
+			mockSession.fire('subagent.started', {
+				toolCallId: 'tc-subagent', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explore tests',
+			} as SessionEventPayload<'subagent.started'>['data'], { agentId: 'agent-1' });
+			mockSession.fire('session.error', sandboxedHookError('preToolUse'), { agentId: 'agent-1' });
+			mockSession.fire('hook.end', { ...failedToolHook, parentToolCallId: 'tc-subagent' }, { agentId: 'agent-1' });
+			mockSession.fire('session.error', sandboxedHookError('preToolUse'));
+			mockSession.fire('hook.end', failedToolHook);
+			mockSession.fire('assistant.message', { messageId: 'reply', content: 'The read was denied by a preToolUse hook that errored.' } as SessionEventPayload<'assistant.message'>['data']);
+			mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
+			await timeout(0);
+
+			const failure = 'The preToolUse hook from .github/hooks/tpi.json failed: Error: Hook command failed with code 1\nStderr: hook.js exits with code 1 for tool calls that mention crash.txt.\n';
+			assert.deepStrictEqual(getTurnOutline(signals), [
+				`tc-subagent: notice turn-1: ${failure}`,
+				`notice turn-1: ${failure}`,
+				'markdown turn-1',
+				'complete turn-1',
+			]);
+		});
+
+		test('still ends the turn for a session error that is not about a hook', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			await session.send('hello', undefined, 'turn-1');
+			mockSession.fire('user.message', { content: 'hello', messageId: 'message-1', turnId: '0' } as SessionEventPayload<'user.message'>['data']);
+			mockSession.fire('session.error', { errorType: 'authentication', message: 'Not signed in' });
+			mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
+			await timeout(0);
+
+			assert.deepStrictEqual(getTurnOutline(signals), ['error']);
+		});
 	});
 
 	for (const restored of [false, true]) {
@@ -21751,6 +21897,38 @@ Use the attached image as context.
 					asked: { kind: 'consentRequired', consent: consent('user:demo', true) }, opened: { kind: 'opened' }, desynchronized: false, actions: [],
 					rootConfigUpdates: [{ [AgentHostExtensionPermissionApprovalsConfigKey]: { [`user:demo (environment variables: ${variable})`]: 'allow' } }],
 					nextAnswer: { kind: 'approve-once' },
+				});
+			});
+
+			test('shows an open that starts its extension the request another starting extension waits on, but not an open of a running one', async () => {
+				const { session, runtime, mockSession } = await createAgentSession(disposables, { controlPlaneRpcTimeoutMs: 10 });
+				mockSession.extensions.push(
+					{ id: 'user:lazy', name: 'lazy', source: 'user', status: 'dormant' },
+					{ id: 'user:live', name: 'live', source: 'user', status: 'running' },
+				);
+				// The runtime does not finish starting an extension while another one waits for consent.
+				const otherAnswer = runtime.handlePermissionRequest(envRequest('user:other'));
+				const runtimeOpens: string[] = [];
+				mockSession.rpc.canvas.open = async params => {
+					runtimeOpens.push(params.extensionId ?? '');
+					if (params.extensionId === 'user:lazy') {
+						await otherAnswer;
+					}
+					return { instanceId: params.instanceId, extensionId: params.extensionId ?? '', canvasId: params.canvasId, url: 'https://example.test/demo' };
+				};
+				const live = await session.openCanvas(canvasRequest('user:live'));
+				const asked = await session.openCanvas(canvasRequest('user:lazy'));
+				const runtimeOpensBeforeAnswer = [...runtimeOpens];
+				const opened = asked.kind === 'consentRequired'
+					? await session.openCanvas(canvasRequest('user:lazy'), { kind: 'consent', consentId: asked.consent.id, optionId: AgentExtensionConsentOption.Allow })
+					: asked;
+				assert.deepStrictEqual({ live, asked: withoutId(asked), runtimeOpensBeforeAnswer, opened, otherAnswer: await otherAnswer }, {
+					live: { kind: 'opened' },
+					asked: { kind: 'consentRequired', consent: { ...consent('user:other', true), displayName: 'other' } },
+					// The runtime fails a start that waits too long, so the open starts the extension only once the person answered.
+					runtimeOpensBeforeAnswer: ['user:live'],
+					opened: { kind: 'opened' },
+					otherAnswer: { kind: 'approve-once' },
 				});
 			});
 

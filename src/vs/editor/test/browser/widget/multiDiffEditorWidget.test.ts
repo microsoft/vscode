@@ -715,7 +715,7 @@ suite('MultiDiffEditorWidget', () => {
 		widget.layout(new Dimension(800, 200));
 		const viewModel = widget.createViewModel(model);
 		await waitForState(viewModel.items, items => items.length === documentItems.length);
-		viewModel.items.get()[0].lastTemplateData.set({ expandedContentHeight: 2000, selections: undefined }, undefined);
+		viewModel.items.get()[0].lastTemplateData.set({ expandedContentHeight: 2000, selections: undefined, splitViewRatio: undefined }, undefined);
 		widget.setViewModel(viewModel);
 		widget.reveal({ original: originalUris[0], modified: modifiedUris[0] }, { highlight: false });
 
@@ -749,6 +749,82 @@ suite('MultiDiffEditorWidget', () => {
 			});
 		} finally {
 			observer.dispose();
+			widget.setViewModel(undefined);
+			viewModel.dispose();
+			widget.dispose();
+			for (const documentItem of documentItems) {
+				documentItem.dispose();
+			}
+		}
+	}));
+
+	test('keeps the split view ratio with its file when templates are recycled', () => runWithFakedTimers({}, async () => {
+		const services = new ServiceCollection();
+		services.set(IAccessibilitySignalService, new class extends mock<IAccessibilitySignalService>() { }());
+		services.set(IActionViewItemService, new NullActionViewItemService());
+		services.set(IEditorProgressService, new class extends mock<IEditorProgressService>() {
+			override show() { return emptyProgressRunner; }
+		}());
+		services.set(IDiffProviderFactoryService, new PendingDiffProviderFactoryService());
+		services.set(IStorageService, disposables.add(new InMemoryStorageService()));
+		services.set(IMenuService, new class extends mock<IMenuService>() {
+			override createMenu(): IMenu {
+				return new class extends mock<IMenu>() {
+					override readonly onDidChange = Event.None;
+					override getActions() { return []; }
+					override dispose(): void { }
+				}();
+			}
+		}());
+		const instantiationService = createCodeEditorServices(disposables, services);
+		const documentItems: RefCounted<IDocumentDiffItem>[] = [];
+		const resources: { original: URI; modified: URI }[] = [];
+		for (let index = 0; index < 3; index++) {
+			const originalUri = URI.parse(`inmemory://original/test-${index}.js`);
+			const modifiedUri = URI.parse(`inmemory://modified/test-${index}.js`);
+			const original = disposables.add(instantiateTextModel(instantiationService, '', undefined, undefined, originalUri));
+			const modified = disposables.add(instantiateTextModel(instantiationService, 'const value = 1;', undefined, undefined, modifiedUri));
+			documentItems.push(RefCounted.createOfNonDisposable<IDocumentDiffItem>({
+				original: new DiffItemSource(originalUri, original),
+				modified: new DiffItemSource(modifiedUri, modified),
+				options: { accessibilitySupport: 'off' },
+			}, { dispose() { } }));
+			resources.push({ original: originalUri, modified: modifiedUri });
+		}
+		const container = document.createElement('div');
+		const widget = instantiationService.createInstance(
+			MultiDiffEditorWidget,
+			container,
+			{} satisfies IWorkbenchUIElementFactory,
+			{ variant: 'noCardsNonCompact' },
+		);
+		// Each item is taller than the viewport, so revealing an item releases the template of the previous one.
+		widget.layout(new Dimension(1200, 200));
+		const viewModel = widget.createViewModel({ documents: ValueWithChangeEvent.const(documentItems) });
+		await waitForState(viewModel.items, items => items.length === documentItems.length);
+		widget.setViewModel(viewModel);
+		const revealEditor = (index: number) => {
+			widget.reveal(resources[index], { highlight: false });
+			return widget.getActiveControl()!;
+		};
+
+		try {
+			const firstEditor = revealEditor(0);
+			firstEditor.setSplitViewRatio(0.3);
+			const lastEditor = revealEditor(2);
+			const lastItemRatio = lastEditor.getSplitViewRatio();
+			const restoredFirstItemRatio = revealEditor(0).getSplitViewRatio();
+
+			assert.deepStrictEqual({
+				recycledTemplate: lastEditor === firstEditor,
+				lastItemRatio,
+				restoredFirstItemRatio,
+			}, {
+				recycledTemplate: true,
+				lastItemRatio: undefined,
+				restoredFirstItemRatio: 0.3,
+			});
+		} finally {
 			widget.setViewModel(undefined);
 			viewModel.dispose();
 			widget.dispose();

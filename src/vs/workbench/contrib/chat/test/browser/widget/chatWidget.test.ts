@@ -226,6 +226,8 @@ suite('ChatWidget', () => {
 		requestInProgress.set(true);
 		hasActiveRequest.set(true);
 		const toolbarStates: { requestInProgress: boolean; hasActiveRequest: boolean }[] = [];
+		let listViewModel: ChatViewModel | undefined = viewModel;
+		const listViewModelsOnRefresh: (string | undefined)[] = [];
 		const inputPart = upcastPartial<ChatInputPart>({
 			sandboxToggleChecked: derived(reader => selectedChat.read(reader) === sandboxedChat),
 			currentModeObs: observableValue('mode', upcastPartial<ReturnType<ChatInputPart['currentModeObs']['get']>>({ id: 'agent' })),
@@ -243,7 +245,10 @@ suite('ChatWidget', () => {
 			inputPartDisposable: { value: inputPart },
 			configurationService: new TestConfigurationService(),
 			chatSessionsService: upcastPartial<IChatSessionsService>({ getChatSessionContribution: () => undefined }),
-			listWidget: { updateRendererOptions: (options: IChatListItemRendererOptions) => { rendererOptions.push(options.responseIdentity); } },
+			listWidget: {
+				updateRendererOptions: (options: IChatListItemRendererOptions) => { rendererOptions.push(options.responseIdentity); },
+				setViewModel: (value: ChatViewModel | undefined) => { listViewModel = value; },
+			},
 			rerenderListIfConnected: () => { },
 			container: dom.$('div'),
 			viewModelDisposables: store.add(new DisposableStore()),
@@ -252,14 +257,14 @@ suite('ChatWidget', () => {
 			updateSessionStateIndicator: () => { },
 			clearGettingStartedTip: () => { },
 			updateWorkingProgressBorder: () => { },
-			onDidChangeItems: () => { },
+			onDidChangeItems: () => { listViewModelsOnRefresh.push(listViewModel?.sessionResource.toString()); },
 			_hasPendingRequestsContextKey: { set: () => { } },
 			requestInProgress,
 			hasActiveRequest,
 			_chatSessionSupportsRenameContextKey: { set: () => { } },
 			viewOptions: { isSessionsWindow: true },
 		});
-		return { widget, resource, get placeholder() { return placeholder; }, editorPlaceholders, rendererOptions, modelPools, toolbarStates };
+		return { widget, resource, get placeholder() { return placeholder; }, editorPlaceholders, rendererOptions, modelPools, toolbarStates, listViewModelsOnRefresh };
 	}
 
 	test('restores the sandbox label when switching between chats with the same placeholder', () => {
@@ -278,6 +283,13 @@ suite('ChatWidget', () => {
 		const harness = createRespondentWidget(true);
 		harness.widget.setModel(undefined);
 		assert.deepStrictEqual(harness.toolbarStates, [{ requestInProgress: false, hasActiveRequest: false }]);
+	});
+
+	test('unbinding releases the outgoing view model from the transcript list before it refreshes', () => {
+		// A disposed view model still lists its chat's pending requests, which would otherwise show while the next chat loads.
+		const harness = createRespondentWidget(true);
+		harness.widget.setModel(undefined);
+		assert.deepStrictEqual(harness.listViewModelsOnRefresh, [undefined]);
 	});
 
 	test('presents a chat answered by another agent with that agent, and restores its session type\'s presentation', () => {

@@ -1626,8 +1626,10 @@ export interface IAgentConnection {
 	 * Registers the host as a GitHub environment owned by the given GitHub
 	 * account, using that account's credential. Registering again refreshes
 	 * the credential. Requires the `vscode.githubEnvironment` capability.
+	 * @param name The client's name for the host, which a host that supports it
+	 * uses for a new registration.
 	 */
-	registerGitHubEnvironment?(accountId: string, credential: string): Promise<IAgentHostGitHubEnvironmentRegistration>;
+	registerGitHubEnvironment?(accountId: string, credential: string, name?: string): Promise<IAgentHostGitHubEnvironmentRegistration>;
 	unregisterGitHubEnvironment?(accountId: string): Promise<void>;
 
 	// ---- Filesystem operations ----------------------------------------------

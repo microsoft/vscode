@@ -15,9 +15,11 @@ Standard HC Connected editors use the editor card's perimeter and `modernPanel.b
 
 The floating editor's content curve follows the inside of its frame, accounting for the snapped border width so tab-strip corners stay concentric with the card, including with a customized editor-area radius or fractional zoom.
 
+Modal editors keep one rounded clip on the part itself, with equal radii on all four corners. It clips the header, optional sidebar and square content to the curve inside its border. The shadow wrapper paints but does not clip. This applies with or without Modern UI: Chromium supports one rounded clip per draw quad, so nesting another forces offscreen render surfaces. Unequal corner radii also force a render surface on macOS.
+
 ## Suggestion menu corners
 
-Editor and workbench suggestion menus use the Outer radius on their first item's upper corners and their last item's lower corners. These styles are shared with the Agents window, where they apply independently of the main workbench's Modern UI setting. These boundaries follow logical list positions, not virtualized DOM order; a single-item menu receives all four corners. The rounded list viewport clips partially scrolled highlights without clipping the workbench widget's resize sashes. Interior corners stay at the Control tier, and a visible status bar keeps the last row at that tier rather than rounding the footer seam.
+Editor and workbench suggestion menus use the Outer radius on their first item's upper corners and their last item's lower corners. These styles are shared with the Agents window, where they apply independently of the main workbench's Modern UI setting. These boundaries follow logical list positions, not virtualized DOM order; a single-item menu receives all four corners. The editor widget clips partially scrolled highlights and its status bar; its list keeps a square clip, because Chromium applies one rounded clip per draw quad and nesting rounded clips forces offscreen render surfaces. The widget's four clip radii stay equal, including with a status bar, so macOS can apply them through Core Animation rather than a render surface. The workbench widget instead keeps its rounded list viewport, without clipping its resize sashes. Interior corners stay at the Control tier, and a visible status bar keeps the last row at that tier rather than rounding the footer seam.
 
 ## Editor tab style
 
@@ -244,6 +246,8 @@ Activity bar items in non-default top or bottom positions use the `modernTab.*` 
 Editor tab fill, label, and action colors have the same precedence in the `connected` and `pill` styles. Existing `tab.*` fill and label customizations remain effective unless the corresponding `modernTab.*` or `modernEditorTab.*` color is explicitly customized. Connected action backgrounds retain their seamless defaults until an explicit editor action color overrides them; frame borders continue to use the connected treatment described above.
 
 `statusBar.inactiveBackground` only changes the resting background in an inactive window with a workspace or folder open. Debugging and other status bar background overrides take precedence. Empty windows continue to use `statusBar.noFolderBackground`. Leaving the inactive color unset preserves the existing status bar behavior.
+
+With `window.density.layout` set to `default`, a status bar painted with the shell color merges with the gutter above it into one band, so its items are centered in that band. A status bar with its own color, for example while debugging, centers its items within its own background instead.
 
 ## Examples
 
