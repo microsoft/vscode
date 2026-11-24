@@ -1312,7 +1312,10 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 				if (e.dataTransfer) {
 					e.dataTransfer.effectAllowed = 'copyMove';
-					if (selectedEditors.length > 1) {
+					if (isNewWindowOperation) {
+						const label = selectedEditors.length > 1 ? `${editor.getName()} + ${selectedEditors.length - 1}` : editor.getName();
+						this.applyNewWindowDragImage(e, tab, label);
+					} else if (selectedEditors.length > 1) {
 						const label = `${editor.getName()} + ${selectedEditors.length - 1}`;
 						applyDragImage(e, tab, label);
 					} else {

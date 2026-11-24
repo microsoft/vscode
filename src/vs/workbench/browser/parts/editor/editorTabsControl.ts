@@ -506,10 +506,20 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 				label = localize('draggedEditorGroup', "{0} (+{1})", label, this.groupView.count - 1);
 			}
 
-			applyDragImage(e, element, label);
+			if (isNewWindowOperation) {
+				this.applyNewWindowDragImage(e, element, label);
+			} else {
+				applyDragImage(e, element, label);
+			}
 		}
 
 		return isNewWindowOperation;
+	}
+
+	protected applyNewWindowDragImage(e: DragEvent, element: HTMLElement, label: string): void {
+		// The native cursor can indicate a rejected drop even though we open a window at drag end.
+		const hint = localize('editorNewWindowDragHint', "Drop outside VS Code to open in a new window");
+		applyDragImage(e, element, `${label}\n${hint}`, ['editor-new-window-drag-image']);
 	}
 
 	protected async onGroupDragEnd(e: DragEvent, previousDragEvent: DragEvent | undefined, element: HTMLElement, isNewWindowOperation: boolean): Promise<void> {
