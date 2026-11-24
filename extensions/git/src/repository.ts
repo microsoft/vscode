@@ -728,6 +728,12 @@ export class Repository implements Disposable {
 	private _onDidChangeStatus = new EventEmitter<void>();
 	readonly onDidRunGitStatus: Event<void> = this._onDidChangeStatus.event;
 
+	private _onDidChangeResources = new EventEmitter<void>();
+	/**
+	 * Fires when `mergeChanges`, `indexChanges`, `workingTreeChanges` or `untrackedChanges` change.
+	 */
+	readonly onDidChangeResources: Event<void> = this._onDidChangeResources.event;
+
 	private _onDidChangeOriginalResource = new EventEmitter<Uri>();
 	readonly onDidChangeOriginalResource: Event<Uri> = this._onDidChangeOriginalResource.event;
 
@@ -753,6 +759,18 @@ export class Repository implements Disposable {
 	get sourceControl(): GitSourceControl { return this._sourceControl; }
 
 	private _EMPTY_TREE: string | undefined;
+
+	private _mergeChanges: readonly Resource[] = [];
+	get mergeChanges(): readonly Resource[] { return this._mergeChanges; }
+
+	private _indexChanges: readonly Resource[] = [];
+	get indexChanges(): readonly Resource[] { return this._indexChanges; }
+
+	private _workingTreeChanges: readonly Resource[] = [];
+	get workingTreeChanges(): readonly Resource[] { return this._workingTreeChanges; }
+
+	private _untrackedChanges: readonly Resource[] = [];
+	get untrackedChanges(): readonly Resource[] { return this._untrackedChanges; }
 
 	private _HEAD: Branch | undefined;
 	get HEAD(): Branch | undefined {
@@ -859,11 +877,11 @@ export class Repository implements Disposable {
 
 		this._HEAD = undefined;
 		this._remotes = [];
-		this.sourceControl.mergeGroup.resourceStates = [];
-		this.sourceControl.indexGroup.resourceStates = [];
-		this.sourceControl.workingTreeGroup.resourceStates = [];
-		this.sourceControl.untrackedGroup.resourceStates = [];
-		this.sourceControl.sourceControl.count = 0;
+		this._mergeChanges = [];
+		this._indexChanges = [];
+		this._workingTreeChanges = [];
+		this._untrackedChanges = [];
+		this._onDidChangeResources.fire();
 	}
 
 	get root(): string {
@@ -1014,7 +1032,8 @@ export class Repository implements Disposable {
 
 		workspace.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('git.mergeEditor')) {
-				this.sourceControl.mergeGroup.resourceStates = this.sourceControl.mergeGroup.resourceStates.map(r => r.clone());
+				this._mergeChanges = this._mergeChanges.map(r => r.clone());
+				this._onDidChangeResources.fire();
 			}
 		}, undefined, this.sourceControlDisposables);
 
@@ -3044,19 +3063,17 @@ export class Repository implements Disposable {
 	}
 
 	private _updateResourceGroupsState(resourcesGroups: GitResourceGroups): void {
-		// set resource groups
-		if (resourcesGroups.indexGroup) { this.sourceControl.indexGroup.resourceStates = resourcesGroups.indexGroup; }
-		if (resourcesGroups.mergeGroup) { this.sourceControl.mergeGroup.resourceStates = resourcesGroups.mergeGroup; }
-		if (resourcesGroups.untrackedGroup) { this.sourceControl.untrackedGroup.resourceStates = resourcesGroups.untrackedGroup; }
-		if (resourcesGroups.workingTreeGroup) { this.sourceControl.workingTreeGroup.resourceStates = resourcesGroups.workingTreeGroup; }
+		if (resourcesGroups.indexGroup) { this._indexChanges = resourcesGroups.indexGroup; }
+		if (resourcesGroups.mergeGroup) { this._mergeChanges = resourcesGroups.mergeGroup; }
+		if (resourcesGroups.untrackedGroup) { this._untrackedChanges = resourcesGroups.untrackedGroup; }
+		if (resourcesGroups.workingTreeGroup) { this._workingTreeChanges = resourcesGroups.workingTreeGroup; }
 
 		// clear worktree migrating flag once all conflicts are resolved
 		if (this._isWorktreeMigrating && resourcesGroups.mergeGroup && resourcesGroups.mergeGroup.length === 0) {
 			this._isWorktreeMigrating = false;
 		}
 
-		// set count badge
-		this._sourceControl.setCountBadge();
+		this._onDidChangeResources.fire();
 	}
 
 	private async getStatus(cancellationToken?: CancellationToken): Promise<GitResourceGroups> {

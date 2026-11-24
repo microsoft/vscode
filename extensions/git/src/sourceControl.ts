@@ -12,10 +12,9 @@ import { dispose, filterEvent, isCopilotWorktreeFolder } from './util';
 import { Status } from './api/git.constants';
 
 /**
- * Owns the source control of a repository, with its resource groups, input
- * box and providers, and copies the repository model into them. Disposing it
- * removes the repository from the Source Control view without disposing the
- * repository.
+ * The view model of a repository: owns its source control, with its resource groups, input box and providers, and
+ * writes the repository model into them when the repository reports a change. Disposing it removes the repository
+ * from the Source Control view without disposing the repository.
  */
 export class GitSourceControl implements Disposable {
 
@@ -135,7 +134,8 @@ export class GitSourceControl implements Disposable {
 
 		const onDidChangeCountBadge = filterEvent(workspace.onDidChangeConfiguration, e => e.affectsConfiguration('git.countBadge', root));
 		onDidChangeCountBadge(this.setCountBadge, this, this.disposables);
-		this.setCountBadge();
+		repository.onDidChangeResources(this.updateResourceStates, this, this.disposables);
+		this.updateResourceStates();
 	}
 
 	/**
@@ -150,30 +150,34 @@ export class GitSourceControl implements Disposable {
 		this.sourceControl.isHidden = this._isHidden || isWarm;
 	}
 
-	/**
-	 * Copies the repository model into the source control: each changed
-	 * resource group, the commit template, and the count badge.
-	 */
-	setCountBadge(): void {
+	private updateResourceStates(): void {
+		this.indexGroup.resourceStates = [...this.repository.indexChanges];
+		this.mergeGroup.resourceStates = [...this.repository.mergeChanges];
+		this.untrackedGroup.resourceStates = [...this.repository.untrackedChanges];
+		this.workingTreeGroup.resourceStates = [...this.repository.workingTreeChanges];
+		this.setCountBadge();
+	}
+
+	private setCountBadge(): void {
 		const config = workspace.getConfiguration('git', Uri.file(this.repository.root));
 		const countBadge = config.get<'all' | 'tracked' | 'off'>('countBadge');
 		const untrackedChanges = config.get<'mixed' | 'separate' | 'hidden'>('untrackedChanges');
 
 		let count =
-			this.mergeGroup.resourceStates.length +
-			this.indexGroup.resourceStates.length +
-			this.workingTreeGroup.resourceStates.length;
+			this.repository.mergeChanges.length +
+			this.repository.indexChanges.length +
+			this.repository.workingTreeChanges.length;
 
 		switch (countBadge) {
 			case 'off': count = 0; break;
 			case 'tracked':
 				if (untrackedChanges === 'mixed') {
-					count -= this.workingTreeGroup.resourceStates.filter(r => r.type === Status.UNTRACKED || r.type === Status.IGNORED).length;
+					count -= this.repository.workingTreeChanges.filter(r => r.type === Status.UNTRACKED || r.type === Status.IGNORED).length;
 				}
 				break;
 			case 'all':
 				if (untrackedChanges === 'separate') {
-					count += this.untrackedGroup.resourceStates.length;
+					count += this.repository.untrackedChanges.length;
 				}
 				break;
 		}
