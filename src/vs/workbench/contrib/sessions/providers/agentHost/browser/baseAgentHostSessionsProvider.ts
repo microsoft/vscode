@@ -5579,7 +5579,37 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		) {
 			return;
 		}
+		this._publishActiveClient(cached, connection, scope);
+	}
 
+	/**
+	 * Publishes this client as an active client of `cached` while the returned disposable is held, as it is for the focused
+	 * session. The host restarts a chat whose runtime it released, and the canvases it had open, only for a contributing
+	 * client, whose customizations provide them.
+	 */
+	private _contributeActiveClient(rawId: string, cached: AgentHostSessionAdapter): IDisposable {
+		const connection = this.connection;
+		if (!connection || this._isAgentDisabledByPolicy(cached.agentProvider)) {
+			return Disposable.None;
+		}
+		const scope = this._activeClientService.acquireScope(this.resourceSchemeForProvider(cached.agentProvider), cached.isQuickChat.get() ? [] : cached.userWorkingDirectories);
+		const cancellation = new CancellationTokenSource();
+		raceCancellation(scope.whenResolved(), cancellation.token).then(() => {
+			// Hydrating the session can replace its adapter meanwhile; publish to the one that represents it now.
+			const current = this._sessionCache.get(rawId);
+			if (!cancellation.token.isCancellationRequested && this.connection === connection && current && !this._isAgentDisabledByPolicy(current.agentProvider)) {
+				// The host forgets contributions to a session it released without telling this client, so an earlier publication proves nothing.
+				this._lastPublishedActiveClients.delete(current.backendUri.toString());
+				this._publishActiveClient(current, connection, scope);
+			}
+		}, error => this._logService.warn(`[${this.id}] Failed to contribute to session ${cached.backendUri.toString()}`, error));
+		return toDisposable(() => {
+			cancellation.dispose(true);
+			scope.dispose();
+		});
+	}
+
+	private _publishActiveClient(cached: AgentHostSessionAdapter, connection: IAgentConnection, scope: IAgentCustomizationScope): void {
 		// Both publishers share a client ID, so match the chat handler's composed snapshot.
 		const sessionTools = this._activeClientService.acquireSessionTools(cached.resource);
 		let activeClient: SessionActiveClient;
@@ -8317,7 +8347,18 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const rawId = this._sessionKeyFromChatId(sessionId);
 		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
 		const backendChat = this.getBackendChatResource(chatResource);
-		return cached && backendChat ? cached.observeChatCanvases(backendChat) : undefined;
+		if (!rawId || !cached || !backendChat) {
+			return undefined;
+		}
+		const canvases = cached.observeChatCanvases(backendChat);
+		const contribution = this._contributeActiveClient(rawId, cached);
+		return {
+			object: canvases.object,
+			dispose: () => {
+				contribution.dispose();
+				canvases.dispose();
+			},
+		};
 	}
 
 	/** Resolves the host-supplied backend session and chat that a canvas operation addresses. */
