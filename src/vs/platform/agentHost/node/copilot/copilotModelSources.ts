@@ -39,6 +39,8 @@ export interface ICopilotModelSourceModel {
 	 * for a keyless Azure endpoint, which the runtime would authenticate with the machine's Azure identity.
 	 */
 	readonly servable: boolean;
+	/** Whether the source is going away: only turns already running on the model may still call it. */
+	readonly draining: boolean;
 	readonly runtimeProvider: NamedProviderConfig;
 	readonly runtimeModel: ProviderModelConfig;
 }
@@ -77,6 +79,7 @@ export function getCopilotModelSourceModels(source: IAgentModelSource): readonly
 			id: `${providerName}/${model.id}`,
 			model,
 			servable: source.credential ? true : !requiresCredential && endpoint.type !== 'azure',
+			draining: source.draining === true,
 			runtimeProvider: {
 				name: providerName,
 				type: endpoint.type,

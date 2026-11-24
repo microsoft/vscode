@@ -1691,6 +1691,13 @@ export interface IAgentModelSource {
 	 * requests to them fail.
 	 */
 	readonly credential?: string;
+	/**
+	 * The source's last contributing client left. The agent no longer lists its
+	 * models and fails new work on them, but turns already running on them
+	 * finish with the credential. The host removes the source once
+	 * {@link IAgent.whenModelSourceIdle} settles.
+	 */
+	readonly draining?: boolean;
 }
 
 /** What an agent read from a model source's definition. */
@@ -2216,6 +2223,13 @@ export interface IAgent {
 	 * and its credential is no longer used.
 	 */
 	setModelSources?(sources: readonly IAgentModelSource[]): void;
+
+	/**
+	 * Settles once no running turn uses a model of the model source `id`, so the
+	 * host can remove a {@link IAgentModelSource.draining draining} source
+	 * without ending those turns. Required with {@link setModelSources}.
+	 */
+	whenModelSourceIdle?(id: string, token: CancellationToken): Promise<void>;
 
 	/**
 	 * Chooses the model for a main-agent turn that selected a model router

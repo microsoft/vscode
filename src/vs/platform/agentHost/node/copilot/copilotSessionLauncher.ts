@@ -504,8 +504,11 @@ interface ICopilotSessionLaunchBase {
 	readonly stageRecorder?: IAgentProviderSendStageRecorder;
 	/** The on-device model provider installed on {@link client} when the user opted in: replaceable direct-selection rows and turn attribution. */
 	readonly localModelProvider?: ILocalModelProvider;
-	/** The provider and model of the registered model source serving `selectedModel`, if any, replaced as a whole on every sync. */
-	readonly modelSources?: (selectedModel: string | undefined) => ILocalModelSessionConfigContribution;
+	/**
+	 * The provider and model of the registered model source serving `selectedModel`, if any, replaced as a whole on
+	 * every sync. A source that is going away serves only a session running a turn on it.
+	 */
+	readonly modelSources?: (selectedModel: string | undefined, hasActiveTurn: boolean) => ILocalModelSessionConfigContribution;
 	readonly availableModels?: () => readonly IAgentModelInfo[];
 	readonly modelPolicyModels?: () => readonly IAgentModelInfo[];
 	/** The Auto tiers this chat's catalog accepts: a scoped caller's own catalog, else the host-wide one. */
@@ -1692,7 +1695,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		if (localModelConfig?.models.length) {
 			this._logService.info(`[Copilot:${plan.sessionId}] Wired ${localModelConfig.models.length} on-device model row(s)`);
 		}
-		const modelSourceConfig = plan.modelSources?.(plan.kind === 'create' ? plan.model?.id : plan.fallback.model?.id);
+		const modelSourceConfig = plan.modelSources?.(plan.kind === 'create' ? plan.model?.id : plan.fallback.model?.id, false);
 		if (modelSourceConfig?.models.length) {
 			this._logService.info(`[Copilot:${plan.sessionId}] Wired the selected model of a registered model source`);
 		}

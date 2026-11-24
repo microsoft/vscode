@@ -24,7 +24,7 @@ import * as os from 'os';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { DeferredPromise, raceTimeout, Throttler, timeout } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
-import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
+import { CancellationError, getErrorCode, isCancellationError } from '../../../../base/common/errors.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable, type IDisposable, type IReference } from '../../../../base/common/lifecycle.js';
 import { equals } from '../../../../base/common/arrays.js';
 import { equals as objectsEqual } from '../../../../base/common/objects.js';
@@ -4136,13 +4136,27 @@ suite('CopilotAgent', () => {
 		await agent.chats.prepareTurn!(chat, 'turn-1', [URI.file(workingDirectory)], context);
 
 		await agent.chats.changeModel(chat, { id: 'customendpoint/Example/gpt-x' }, context);
+		const registered = runtimes.map(runtime => runtime.providerSyncCalls.at(-1));
+
+		// The source's last contributor left: its models leave the catalog, and new work on them fails.
+		agent.setModelSources([
+			{ id: 'vscode.byok/copilotcli/customendpoint/Example', format: BYOK_ENDPOINTS_MODEL_SOURCE_FORMAT, credential: 'key-1', draining: true, definition: { requiresCredential: true, models: [{ id: 'gpt-x', endpoint, aliases: ['customendpoint/Example/gpt-x'] }] } },
+		]);
+		const listedWhileDraining = agent.models.get().some(model => model.id === sourceModel.id);
+		const reselect = await agent.chats.changeModel(chat, { id: sourceModel.id }, context).then(() => 'selected', (error: Error) => getErrorCode(error));
+		// No turn runs on it, so the host may remove it at once.
+		await agent.whenModelSourceIdle('vscode.byok/copilotcli/customendpoint/Example', CancellationToken.None);
 
 		assert.deepStrictEqual({
 			setModelCalls: runtimes.map(runtime => runtime.setModelCalls.map(([model]) => model)),
-			registered: runtimes.map(runtime => runtime.providerSyncCalls.at(-1)),
+			registered,
+			listedWhileDraining,
+			reselect,
 		}, {
 			setModelCalls: [[sourceModel.id]],
 			registered: [[sourceModel.id]],
+			listedWhileDraining: false,
+			reselect: 'modelSourceUnavailable',
 		});
 	});
 

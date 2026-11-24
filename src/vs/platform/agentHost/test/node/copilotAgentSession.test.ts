@@ -4239,6 +4239,27 @@ suite('CopilotAgentSession', () => {
 			assert.deepStrictEqual(mockSession.providerSyncCalls.map(call => call.providers?.map(provider => provider.name)), [[sourceB.name]]);
 		});
 
+		test('a source that is going away keeps serving the running turn, and is withdrawn once it ends', async () => {
+			let draining = false;
+			const { session, mockSession } = await createAgentSession(disposables, {
+				modelId: `${sourceA.name}/m1`,
+				launchByokConfig: { providers: [sourceA], models: [modelA] },
+				modelSources: (selected, hasActiveTurn) => selected === `${sourceA.name}/m1` && (!draining || hasActiveTurn) ? { providers: [sourceA], models: [modelA] } : { providers: [], models: [] },
+			});
+
+			session.resetTurnState('turn-1');
+			draining = true;
+			await session.syncByokModels();
+			const whileRunning = mockSession.providerSyncCalls.length;
+			session.discardActiveTurn();
+			await session.syncByokModels();
+
+			assert.deepStrictEqual({ whileRunning, afterTurn: mockSession.providerSyncCalls.map(call => call.providers?.map(provider => provider.name)) }, {
+				whileRunning: 0,
+				afterTurn: [[]],
+			});
+		});
+
 		test('reports a rejected key to its model source instead of asking for GitHub sign-in', async () => {
 			const { modelSources } = createSources();
 			const { session, mockSession } = await createAgentSession(disposables, {

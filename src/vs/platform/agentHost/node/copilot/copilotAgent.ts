@@ -1387,6 +1387,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private _loggedAutoPresentation: string | undefined;
 	/** The models of the registered model sources this agent serves, with their runtime providers. */
 	private _modelSourceModels: readonly ICopilotModelSourceModel[] = [];
+	/** Waiters for draining model sources whose models running turns still use. */
+	private readonly _modelSourceIdleWaiters = new Set<{ readonly id: string; readonly resolve: () => void }>();
 	private readonly _onDidRejectModelSourceCredential = this._register(new Emitter<string>());
 	readonly onDidRejectModelSourceCredential = this._onDidRejectModelSourceCredential.event;
 	private _byokModels: readonly IAgentModelInfo[] = [];
@@ -2507,6 +2509,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		for (const session of this._allLiveSessions()) {
 			void this._scheduleConnectorRefresh(session);
 		}
+		this._releaseDrainingModelSources();
 		if (this._sessionTelemetryRevoked) {
 			queueMicrotask(() => {
 				this._disposeIdleTelemetryRevokedSessions().catch(err =>
@@ -4085,7 +4088,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		// Published models are copies of the BYOK models when they have a config schema, so they are matched by id.
 		// A registered source's model is usable only while the runtime can call it, e.g. not while it needs a key.
 		return models.some(candidate => candidate.id === model.id)
-			&& (this._byokModels.some(candidate => candidate.id === model.id) || this._modelSourceModels.some(candidate => candidate.servable && candidate.id === model.id));
+			&& (this._byokModels.some(candidate => candidate.id === model.id) || this._modelSourceModels.some(candidate => candidate.servable && !candidate.draining && candidate.id === model.id));
 	}
 
 	async authenticate(resource: string, token: string, expiresIn?: number, _meta?: Record<string, unknown>): Promise<boolean> {
@@ -5067,15 +5070,58 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (models.length || hadModels) {
 			this._syncByokModelsOnLiveSessions();
 		}
+		this._settleModelSourceIdleWaiters();
+	}
+
+	whenModelSourceIdle(id: string, token: CancellationToken): Promise<void> {
+		if (token.isCancellationRequested || !this._isModelSourceInUse(id)) {
+			return Promise.resolve();
+		}
+		return new Promise<void>(resolve => {
+			const listener = token.onCancellationRequested(() => waiter.resolve());
+			const waiter = {
+				id,
+				resolve: () => {
+					listener.dispose();
+					this._modelSourceIdleWaiters.delete(waiter);
+					resolve();
+				},
+			};
+			this._modelSourceIdleWaiters.add(waiter);
+		});
+	}
+
+	/** Whether a running turn uses a model of the model source `id`. */
+	private _isModelSourceInUse(id: string): boolean {
+		const models = new Set(this._modelSourceModels.filter(model => model.modelSourceId === id).map(model => model.id));
+		return this._allLiveSessions().some(session => session.hasActiveTurn && session.requestedModelId !== undefined && models.has(session.requestedModelId));
+	}
+
+	private _settleModelSourceIdleWaiters(): void {
+		for (const waiter of [...this._modelSourceIdleWaiters]) {
+			if (!this._isModelSourceInUse(waiter.id)) {
+				waiter.resolve();
+			}
+		}
+	}
+
+	/** Withdraws draining sources from sessions whose turns on them ended, and lets the host remove the sources no turn uses. */
+	private _releaseDrainingModelSources(): void {
+		if (!this._modelSourceModels.some(model => model.draining)) {
+			return;
+		}
+		this._syncByokModelsOnLiveSessions();
+		this._settleModelSourceIdleWaiters();
 	}
 
 	/**
 	 * The runtime provider and model of a session's selected model when a registered model source serves it, which
 	 * replace the session's earlier ones on every sync. A session registers no other source's provider, so it never
 	 * holds another source's credential, and the runtime keeps its background model calls when no source is selected.
+	 * A draining source's provider stays only while the session runs a turn on it, so that turn finishes.
 	 */
-	private _getModelSourceSessionConfig(selectedModel: string | undefined): ILocalModelSessionConfigContribution {
-		const model = selectedModel !== undefined ? this._modelSourceModels.find(candidate => candidate.servable && candidate.id === selectedModel) : undefined;
+	private _getModelSourceSessionConfig(selectedModel: string | undefined, hasActiveTurn: boolean): ILocalModelSessionConfigContribution {
+		const model = selectedModel !== undefined ? this._modelSourceModels.find(candidate => candidate.servable && candidate.id === selectedModel && (!candidate.draining || hasActiveTurn)) : undefined;
 		return {
 			providers: model ? [model.runtimeProvider] : [],
 			models: model ? [model.runtimeModel] : [],
@@ -5087,12 +5133,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * id VS Code's BYOK bridge served it under, with the same configuration; else `model`.
 	 */
 	private _resolveModelSourceAlias<T extends ModelSelection | undefined>(model: T): T | ModelSelection {
-		const source = model && this._modelSourceModels.find(candidate => candidate.servable && candidate.model.aliases?.includes(model.id));
+		const source = model && this._modelSourceModels.find(candidate => candidate.servable && !candidate.draining && candidate.model.aliases?.includes(model.id));
 		return source ? { ...model, id: source.id } : model;
 	}
 
 	private _getModelSourceRows(): IAgentModelInfo[] {
-		return this._modelSourceModels.map(({ id, modelSourceId, model }): IAgentModelInfo => {
+		// A draining source's models are withdrawn from the catalog; only turns already running on them continue.
+		return this._modelSourceModels.filter(candidate => !candidate.draining).map(({ id, modelSourceId, model }): IAgentModelInfo => {
 			const thinkingLevel = this._createThinkingLevelConfigSchemaProperty(model.reasoningEfforts, model.defaultReasoningEffort, model.id);
 			return {
 				provider: this.id,
@@ -9523,10 +9570,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 			}
 
 			await this._applyPendingModelSelection(current, entry, token);
-			// A model whose source was withdrawn is selected again, or the turn fails; it never runs on another model.
-			const deselected = entry.deselectedModel;
-			if (deselected) {
-				await this._applyModelSelection(current, entry, deselected, token);
+			// A model whose source was withdrawn, or is going away, is selected again, or the turn fails; it never runs on
+			// another model.
+			const selection = entry.deselectedModel ?? entry.appliedModelSelection;
+			if (selection && (entry.deselectedModel || this._modelSourceModels.some(model => model.draining && model.id === selection.id))) {
+				await this._applyModelSelection(current, entry, selection, token);
 			}
 			if (turnId) {
 				entry.resetTurnState(turnId, senderClientId, clientType, clientTelemetryContext);
@@ -11423,7 +11471,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			modelPolicyModels: () => credentials ? availableModels() : this._capiModels.map(model => this._asPresented(model)),
 			autoTierSupport: () => credentials ? getScopedAutoModeTierSupport(this._getScopedModelCatalog(credentials)) : getAdvertisedAutoModeTierSupport(),
 			managedSettingsResolver: this._managedSettingsResolver,
-			modelSources: selectedModel => this._getModelSourceSessionConfig(selectedModel),
+			modelSources: (selectedModel, hasActiveTurn) => this._getModelSourceSessionConfig(selectedModel, hasActiveTurn),
 		};
 		const { owner, chatChannelUri } = identity;
 		const chatKey = chatChannelUri.toString();

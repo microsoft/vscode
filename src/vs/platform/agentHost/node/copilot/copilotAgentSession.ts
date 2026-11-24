@@ -8642,7 +8642,7 @@ export class CopilotAgentSession extends Disposable {
 			}
 			const current = await this._sessionLauncher.resolveByokSessionConfig(this.sessionId);
 			// A sync during a switch keeps the provider of the model being switched to.
-			const merged = composeByokSessionConfig(this._registeredByokConfig, current, this._launchPlan.localModelProvider?.contributeSessionConfig(), this._launchPlan.modelSources?.(targetModel ?? this._switchingToModel ?? this._requestedModel?.id));
+			const merged = composeByokSessionConfig(this._registeredByokConfig, current, this._launchPlan.localModelProvider?.contributeSessionConfig(), this._launchPlan.modelSources?.(targetModel ?? this._switchingToModel ?? this._requestedModel?.id, this.hasActiveTurn));
 			// A restart across the await swapped in a wrapper with its own launch
 			// config, so `merged` is no longer a valid basis for that session.
 			if (!merged || this._store.isDisposed || this._wrapper !== wrapper) {
@@ -8652,6 +8652,11 @@ export class CopilotAgentSession extends Disposable {
 			await this._awaitControlPlaneRpc('rpc.provider.sync', wrapper.session.rpc.provider.sync(merged));
 			this._registeredByokConfig = merged;
 		});
+	}
+
+	/** The id of the model the session was asked to use, whether or not the runtime still has it selected. */
+	get requestedModelId(): string | undefined {
+		return this._requestedModel?.id;
 	}
 
 	/** The requested selection last successfully applied, before resolving configuration overrides. */

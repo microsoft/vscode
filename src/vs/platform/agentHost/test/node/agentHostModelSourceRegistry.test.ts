@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise } from '../../../../base/common/async.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
@@ -59,10 +61,30 @@ class TestAgent extends mock<IAgent>() {
 		this.served.push(sources);
 	}
 
+	/** Resolves when the test lets the source's running turns finish. */
+	readonly idle = new Map<string, DeferredPromise<void>>();
+	readonly cancelledIdleWaits: string[] = [];
+
+	override whenModelSourceIdle(id: string, token: CancellationToken): Promise<void> {
+		const idle = new DeferredPromise<void>();
+		this.idle.set(id, idle);
+		const listener = token.onCancellationRequested(() => {
+			this.cancelledIdleWaits.push(id);
+			listener.dispose();
+		});
+		idle.p.finally(() => listener.dispose());
+		return idle.p;
+	}
+
 	/** The last served sources, as `id: credential presence`. */
 	get lastServed(): Record<string, boolean> | undefined {
 		const last = this.served.at(-1);
 		return last && Object.fromEntries(last.map(source => [source.id, source.credential !== undefined]));
+	}
+
+	/** The last served sources that are going away. */
+	get lastDraining(): string[] | undefined {
+		return this.served.at(-1)?.filter(source => source.draining).map(source => source.id);
 	}
 }
 
@@ -162,7 +184,31 @@ suite('AgentHostModelSourceRegistry', () => {
 		});
 	});
 
-	test('rejects sources the agent cannot read, and removes a departed client\'s sources by retention', () => {
+	test('lets running turns finish before removing a source its last contributor left, unless a client registers it again', async () => {
+		const { registry, state, agent } = createRegistry();
+		registry.handleClientAction(set({ id: 'source' }), 'client-a', 1);
+		authenticate(registry, 'source', state.modelSource('source')?.credentialNonce, 'secret');
+		registry.handleClientAction(set({ id: 'returning' }, {}), 'client-a', 2);
+
+		registry.removeClient('client-a');
+		const whileDraining = { remaining: state.rootState.modelSources?.map(modelSource => modelSource.id), served: agent.lastServed, draining: agent.lastDraining };
+		// Another client registers one of them again before its turns finish.
+		registry.handleClientAction(set({ id: 'returning' }, {}), 'client-b', 1);
+		agent.idle.get('source')!.complete();
+		agent.idle.get('returning')!.complete();
+		await Promise.resolve();
+
+		assert.deepStrictEqual({ whileDraining, cancelled: agent.cancelledIdleWaits, remaining: state.rootState.modelSources?.map(modelSource => modelSource.id), served: agent.lastServed, draining: agent.lastDraining }, {
+			// Its credential stays for the running turns; the agent fails new work on it.
+			whileDraining: { remaining: ['source', 'returning'], served: { source: true, returning: false }, draining: ['source', 'returning'] },
+			cancelled: ['returning'],
+			remaining: ['returning'],
+			served: { returning: false },
+			draining: [],
+		});
+	});
+
+	test('rejects sources the agent cannot read, and removes a departed client\'s sources by retention', async () => {
 		const { registry, state, agent } = createRegistry();
 
 		registry.handleClientAction(set({ id: 'other-format', format: 'unknown/format@1' }), 'client-a', 1);
@@ -183,6 +229,10 @@ suite('AgentHostModelSourceRegistry', () => {
 		// Removal applies to every client.
 		registry.handleClientAction({ type: ActionType.RootModelSourceRemoved, id: 'removed' }, 'client-a', 9);
 		registry.removeClient('client-a');
+		for (const idle of agent.idle.values()) {
+			idle.complete();
+		}
+		await Promise.resolve();
 
 		assert.deepStrictEqual({
 			rejections: state.rejections.length,

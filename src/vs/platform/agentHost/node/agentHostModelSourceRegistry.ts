@@ -6,6 +6,7 @@
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
 import { Emitter } from '../../../base/common/event.js';
 import { disposableTimeout } from '../../../base/common/async.js';
+import { CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { Disposable, MutableDisposable, toDisposable, type IDisposable } from '../../../base/common/lifecycle.js';
 import { equals } from '../../../base/common/objects.js';
 import { generateUuid } from '../../../base/common/uuid.js';
@@ -57,6 +58,11 @@ interface IModelSourceEntry {
 	listed: boolean;
 	/** Expires a credential delivered with a lifetime. */
 	readonly lease: MutableDisposable<IDisposable>;
+	/**
+	 * Set while the source's last contributing client has left: running turns on it finish, and then the host
+	 * removes it. Cancelled when a client registers it again.
+	 */
+	readonly drain: MutableDisposable<CancellationTokenSource>;
 }
 
 /**
@@ -82,7 +88,7 @@ export class AgentHostModelSourceRegistry extends Disposable {
 		super();
 		this._register(toDisposable(() => {
 			for (const entry of this._entries.values()) {
-				entry.lease.dispose();
+				this._disposeEntry(entry);
 			}
 		}));
 	}
@@ -170,7 +176,9 @@ export class AgentHostModelSourceRegistry extends Disposable {
 
 	/**
 	 * Stops counting `clientId` as a contributor once it has left. A source it
-	 * was the last contributor to is removed, unless its retention is `host`.
+	 * was the last contributor to goes away, unless its retention is `host`:
+	 * new work on it fails at once, but running turns finish before the host
+	 * removes it and drops its credential.
 	 */
 	removeClient(clientId: string): void {
 		for (const [id, entry] of [...this._entries]) {
@@ -179,10 +187,24 @@ export class AgentHostModelSourceRegistry extends Disposable {
 			}
 			const retention = this._findModelSource(id)?.retention ?? ModelSourceRetentionPolicy.ContributingClient;
 			if (retention === ModelSourceRetentionPolicy.ContributingClient) {
+				this._drain(id, entry);
+			}
+		}
+	}
+
+	private _drain(id: string, entry: IModelSourceEntry): void {
+		const cts = new CancellationTokenSource();
+		entry.drain.value = cts;
+		// The agent withdraws the source's models, and keeps its credential only for the turns running on it.
+		this._syncAgent(entry.provider);
+		const idle = this._getAgent(entry.provider)?.whenModelSourceIdle?.(id, cts.token) ?? Promise.resolve();
+		idle.then(() => {
+			if (!cts.token.isCancellationRequested && this._entries.get(id) === entry && entry.drain.value === cts) {
+				entry.drain.clear();
 				this._state.dispatchServerAction(ROOT_STATE_URI, { type: ActionType.RootModelSourceRemoved, id });
 				this._remove(id);
 			}
-		}
+		}, error => this._logService.warn(`[AgentHostModelSourceRegistry] Failed to wait for the turns on model source ${id}: ${toErrorMessage(error)}`));
 	}
 
 	private _validate(action: Extract<ClientModelSourceAction, { readonly type: ActionType.RootModelSourceSet }>): string | undefined {
@@ -219,10 +241,19 @@ export class AgentHostModelSourceRegistry extends Disposable {
 		if (previous && this._isReregistration(previous, modelSource)) {
 			// A re-registration, or a new name or retention: the reducer kept the host-reported fields, and the credential stays.
 			previous.contributors.add(clientId);
+			if (previous.drain.value) {
+				// A client registered the source again before it went away.
+				previous.drain.value.cancel();
+				previous.drain.clear();
+				this._syncAgent(previous.provider);
+				return;
+			}
 			this._onDidChange.fire();
 			return;
 		}
-		previous?.lease.dispose();
+		if (previous) {
+			this._disposeEntry(previous);
+		}
 		const agent = this._getAgent(modelSource.provider)!;
 		// An update makes the dispatching client the only contributor: the others registered a different definition.
 		const entry: IModelSourceEntry = {
@@ -240,6 +271,7 @@ export class AgentHostModelSourceRegistry extends Disposable {
 			// Models whose upstream identity didn't change keep their IDs, and stay listed while a new credential is requested.
 			listed: previous?.listed === true && previous.provider === modelSource.provider,
 			lease: new MutableDisposable(),
+			drain: new MutableDisposable(),
 		};
 		this._entries.set(modelSource.id, entry);
 		try {
@@ -277,9 +309,16 @@ export class AgentHostModelSourceRegistry extends Disposable {
 		if (!entry) {
 			return;
 		}
-		entry.lease.dispose();
+		this._disposeEntry(entry);
 		this._entries.delete(id);
 		this._syncAgent(entry.provider);
+	}
+
+	private _disposeEntry(entry: IModelSourceEntry): void {
+		entry.lease.dispose();
+		// Disposing cancels a pending drain, whose source is gone or replaced.
+		entry.drain.value?.cancel();
+		entry.drain.dispose();
 	}
 
 	private _report(id: string, entry: IModelSourceEntry): void {
@@ -298,7 +337,7 @@ export class AgentHostModelSourceRegistry extends Disposable {
 		const sources: IAgentModelSource[] = [];
 		for (const [id, entry] of this._entries) {
 			if (entry.provider === provider && entry.listed) {
-				sources.push({ id, format: entry.format, definition: entry.definition, ...(entry.credential ? { credential: entry.credential } : {}) });
+				sources.push({ id, format: entry.format, definition: entry.definition, ...(entry.credential ? { credential: entry.credential } : {}), ...(entry.drain.value ? { draining: true } : {}) });
 			}
 		}
 		this._getAgent(provider)?.setModelSources?.(sources);
