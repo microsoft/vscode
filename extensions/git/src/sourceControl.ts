@@ -144,7 +144,7 @@ export class GitSourceControl implements Disposable {
 				: new ThemeIcon('repo');
 
 		const root = Uri.file(repository.root);
-		this.sourceControl = scm.createSourceControl('git', 'Git', root, icon, undefined, parent);
+		this.sourceControl = scm.createSourceControl('git', 'Git', root, icon, parent);
 		this.sourceControl.contextValue = repository.kind;
 		const activeRepositoryRoot = repository.dotGit.isBare ? repository.dotGit.commonPath : parentRoot;
 		this.sourceControl.activeRepositoryName = repository.kind === 'worktree' && activeRepositoryRoot

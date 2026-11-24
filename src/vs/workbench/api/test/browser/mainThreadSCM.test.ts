@@ -32,11 +32,9 @@ suite('MainThreadSCM', () => {
 	 * A main thread whose source control `C` registers late, because its input box model resolves late.
 	 */
 	function createMainThread() {
-		const providers = new Map<string, ISCMProvider>();
 		const events: string[] = [];
 		const scmService = new class extends mock<ISCMService>() {
 			override registerSCMProvider(provider: ISCMProvider): ISCMRepository {
-				providers.set(provider.label, provider);
 				events.push(`add ${provider.label}`);
 				return new class extends mock<ISCMRepository>() {
 					override readonly provider = provider;
@@ -77,29 +75,15 @@ suite('MainThreadSCM', () => {
 		);
 		disposables.add({ dispose: () => mainThread.dispose() });
 
-		return { mainThread, providers, events, lateInputBox };
+		return { mainThread, events, lateInputBox };
 	}
-
-	test('applies the visibility changes of source controls in the order they were made, also while a source control registers', async () => {
-		const { mainThread, providers, lateInputBox } = createMainThread();
-		await mainThread.$registerSourceControl(0, undefined, 'git', 'A', undefined, undefined, false, inputBox('/A'));
-		const registerC = mainThread.$registerSourceControl(1, undefined, 'git', 'C', undefined, undefined, true, inputBox('/C/'));
-
-		// Show C and hide A, then show A again: the second change must not be undone by the first one
-		const first = mainThread.$setSourceControlsHidden([[1, false], [0, true]]);
-		const second = mainThread.$setSourceControlsHidden([[0, false]]);
-		lateInputBox.complete(resolvedInputBox());
-		await Promise.all([registerC, first, second]);
-
-		assert.deepStrictEqual({ A: providers.get('A')!.isHidden.get(), C: providers.get('C')!.isHidden.get() }, { A: false, C: false });
-	});
 
 	test('removes a source control after the source controls registered before it, so that replacing one never leaves none', async () => {
 		const { mainThread, events, lateInputBox } = createMainThread();
-		await mainThread.$registerSourceControl(0, undefined, 'git', 'A', undefined, undefined, false, inputBox('/A'));
+		await mainThread.$registerSourceControl(0, undefined, 'git', 'A', undefined, undefined, inputBox('/A'));
 
 		// Replace A by C, whose registration waits for its input box model
-		const registerC = mainThread.$registerSourceControl(1, undefined, 'git', 'C', undefined, undefined, false, inputBox('/C/'));
+		const registerC = mainThread.$registerSourceControl(1, undefined, 'git', 'C', undefined, undefined, inputBox('/C/'));
 		const unregisterA = mainThread.$unregisterSourceControl(0);
 		lateInputBox.complete(resolvedInputBox());
 		await Promise.all([registerC, unregisterA]);
