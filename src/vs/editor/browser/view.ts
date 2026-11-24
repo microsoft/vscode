@@ -266,6 +266,11 @@ export class View extends ViewEventHandler {
 			for (const overlay of contentOverlays) {
 				contentViewOverlays.addDynamicOverlay(overlay);
 			}
+			if (gpu) {
+				// The renderer paints what these overlays draw in the DOM editor;
+				// what is left (unsupported decorations, wrap indicators) is rare.
+				contentViewOverlays.omitLinesWhileEmpty();
+			}
 			this._viewParts.push(contentViewOverlays);
 		}
 
