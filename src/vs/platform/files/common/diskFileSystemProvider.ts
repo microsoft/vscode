@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { insert } from '../../../base/common/arrays.js';
 import { ThrottledDelayer } from '../../../base/common/async.js';
 import { onUnexpectedError } from '../../../base/common/errors.js';
 import { Emitter } from '../../../base/common/event.js';
@@ -81,12 +80,12 @@ export abstract class AbstractDiskFileSystemProvider extends Disposable implemen
 
 	private universalWatcher: AbstractUniversalWatcherClient | undefined;
 
-	private readonly universalWatchRequests: IUniversalWatchRequest[] = [];
-	private readonly universalWatchRequestDelayer = this._register(new ThrottledDelayer<void>(this.getRefreshWatchersDelay(this.universalWatchRequests.length)));
+	private readonly universalWatchRequests = new Set<IUniversalWatchRequest>();
+	private readonly universalWatchRequestDelayer = this._register(new ThrottledDelayer<void>(this.getRefreshWatchersDelay(this.universalWatchRequests.size)));
 
 	private watchUniversal(resource: URI, opts: IWatchOptions): IDisposable {
 		const request = this.toWatchRequest(resource, opts);
-		const remove = insert(this.universalWatchRequests, request);
+		this.universalWatchRequests.add(request);
 
 		// Trigger update
 		this.refreshUniversalWatchers();
@@ -94,7 +93,7 @@ export abstract class AbstractDiskFileSystemProvider extends Disposable implemen
 		return toDisposable(() => {
 
 			// Remove from list of paths to watch universally
-			remove();
+			this.universalWatchRequests.delete(request);
 
 			// Trigger update
 			this.refreshUniversalWatchers();
@@ -130,7 +129,7 @@ export abstract class AbstractDiskFileSystemProvider extends Disposable implemen
 	private refreshUniversalWatchers(): void {
 		this.universalWatchRequestDelayer.trigger(() => {
 			return this.doRefreshUniversalWatchers();
-		}, this.getRefreshWatchersDelay(this.universalWatchRequests.length)).catch(error => onUnexpectedError(error));
+		}, this.getRefreshWatchersDelay(this.universalWatchRequests.size)).catch(error => onUnexpectedError(error));
 	}
 
 	private doRefreshUniversalWatchers(): Promise<void> {
@@ -150,7 +149,7 @@ export abstract class AbstractDiskFileSystemProvider extends Disposable implemen
 		}
 
 		// Ask to watch the provided paths
-		return this.universalWatcher.watch(this.universalWatchRequests);
+		return this.universalWatcher.watch(Array.from(this.universalWatchRequests));
 	}
 
 	protected abstract createUniversalWatcher(
@@ -165,8 +164,8 @@ export abstract class AbstractDiskFileSystemProvider extends Disposable implemen
 
 	private nonRecursiveWatcher: AbstractNonRecursiveWatcherClient | undefined;
 
-	private readonly nonRecursiveWatchRequests: INonRecursiveWatchRequest[] = [];
-	private readonly nonRecursiveWatchRequestDelayer = this._register(new ThrottledDelayer<void>(this.getRefreshWatchersDelay(this.nonRecursiveWatchRequests.length)));
+	private readonly nonRecursiveWatchRequests = new Set<INonRecursiveWatchRequest>();
+	private readonly nonRecursiveWatchRequestDelayer = this._register(new ThrottledDelayer<void>(this.getRefreshWatchersDelay(this.nonRecursiveWatchRequests.size)));
 
 	private watchNonRecursive(resource: URI, opts: IWatchOptions): IDisposable {
 
@@ -179,7 +178,7 @@ export abstract class AbstractDiskFileSystemProvider extends Disposable implemen
 			filter: opts.filter,
 			correlationId: opts.correlationId
 		};
-		const remove = insert(this.nonRecursiveWatchRequests, request);
+		this.nonRecursiveWatchRequests.add(request);
 
 		// Trigger update
 		this.refreshNonRecursiveWatchers();
@@ -187,7 +186,7 @@ export abstract class AbstractDiskFileSystemProvider extends Disposable implemen
 		return toDisposable(() => {
 
 			// Remove from list of paths to watch non-recursively
-			remove();
+			this.nonRecursiveWatchRequests.delete(request);
 
 			// Trigger update
 			this.refreshNonRecursiveWatchers();
@@ -197,7 +196,7 @@ export abstract class AbstractDiskFileSystemProvider extends Disposable implemen
 	private refreshNonRecursiveWatchers(): void {
 		this.nonRecursiveWatchRequestDelayer.trigger(() => {
 			return this.doRefreshNonRecursiveWatchers();
-		}, this.getRefreshWatchersDelay(this.nonRecursiveWatchRequests.length)).catch(error => onUnexpectedError(error));
+		}, this.getRefreshWatchersDelay(this.nonRecursiveWatchRequests.size)).catch(error => onUnexpectedError(error));
 	}
 
 	private doRefreshNonRecursiveWatchers(): Promise<void> {
@@ -217,7 +216,7 @@ export abstract class AbstractDiskFileSystemProvider extends Disposable implemen
 		}
 
 		// Ask to watch the provided paths
-		return this.nonRecursiveWatcher.watch(this.nonRecursiveWatchRequests);
+		return this.nonRecursiveWatcher.watch(Array.from(this.nonRecursiveWatchRequests));
 	}
 
 	protected abstract createNonRecursiveWatcher(
