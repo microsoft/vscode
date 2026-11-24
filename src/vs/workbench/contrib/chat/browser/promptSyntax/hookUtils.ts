@@ -4,7 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { findNodeAtLocation, Node, parseTree } from '../../../../../base/common/json.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { ITextEditorSelection } from '../../../../../platform/editor/common/editor.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
+
+/**
+ * Lists the `.json` hook files directly in `folder`, or none when it doesn't exist or can't be read.
+ */
+export async function listHookFiles(fileService: IFileService, folder: URI): Promise<URI[]> {
+	try {
+		const stat = await fileService.resolve(folder);
+		return (stat.children ?? []).filter(child => child.isFile && child.name.toLowerCase().endsWith('.json')).map(child => child.resource);
+	} catch {
+		return [];
+	}
+}
 
 /**
  * Converts an offset in content to a 1-based line and column.

@@ -25,7 +25,7 @@ import { toHookType } from '../../common/promptSyntax/hookSchema.js';
 import { resolveCopilotCliHookType } from '../../common/promptSyntax/hookCopilotCliCompat.js';
 import { buildNewCopilotHookFile, buildNewHookEntry, HookSourceFormat } from '../../common/promptSyntax/hookCompatibility.js';
 import { ITextEditorSelection } from '../../../../../platform/editor/common/editor.js';
-import { findHookCommandSelection } from './hookUtils.js';
+import { findHookCommandSelection, listHookFiles } from './hookUtils.js';
 import { findRepositoryRoot } from '../../common/promptSyntax/utils/repositoryRoot.js';
 import { IPathService } from '../../../../services/path/common/pathService.js';
 import { ICopilotHomeService } from '../../../../services/environment/common/copilotHomeService.js';
@@ -206,7 +206,7 @@ export async function createCopilotHook(accessor: ServicesAccessor, options: ICr
 	if (await fileService.exists(resource)) {
 		const result = await addHookToExistingFile(textModelService, textFileService, resource, eventName);
 		if (result.kind === 'added') {
-			return options.openEditor(resource, result.selection);
+			return options.openEditor(resource, findHookCommandSelection(result.text, eventName, result.commandIndex, 'command'));
 		}
 		if (result.kind === 'invalid') {
 			notificationService.error(localize('newHook.parseError', "Couldn't add a hook to {0}. Fix the errors in the file and try again.", basename(resource)));
@@ -250,16 +250,11 @@ async function pickHookEvent(quickInputService: IQuickInputService): Promise<str
 	return eventItem?.eventName;
 }
 
-type AddHookToExistingFileResult =
-	| { readonly kind: 'added'; readonly selection: ITextEditorSelection | undefined }
-	| { readonly kind: 'invalid' }
-	| { readonly kind: 'conflictingEventName'; readonly existingEventName: string };
-
 /**
  * Adds an empty command hook for `eventName` to an existing hook file through its text model, so
  * unsaved changes in an open editor are kept. A file without unsaved changes is saved afterwards.
  */
-async function addHookToExistingFile(textModelService: ITextModelService, textFileService: ITextFileService, resource: URI, eventName: string): Promise<AddHookToExistingFileResult> {
+async function addHookToExistingFile(textModelService: ITextModelService, textFileService: ITextFileService, resource: URI, eventName: string): Promise<AddCopilotHookResult> {
 	const reference = await textModelService.createModelReference(resource);
 	try {
 		const model = reference.object.textEditorModel;
@@ -272,7 +267,7 @@ async function addHookToExistingFile(textModelService: ITextModelService, textFi
 		if (!wasDirty) {
 			await textFileService.save(resource);
 		}
-		return { kind: 'added', selection: findHookCommandSelection(result.text, eventName, result.commandIndex, 'command') };
+		return result;
 	} finally {
 		reference.dispose();
 	}
@@ -286,16 +281,6 @@ async function createHookFile(fileService: IFileService, resource: URI, eventNam
 	const text = JSON.stringify(buildNewCopilotHookFile(eventName), null, '\t');
 	await fileService.createFile(resource, VSBuffer.fromString(text));
 	return findHookCommandSelection(text, eventName, 0, 'command');
-}
-
-async function listHookFiles(fileService: IFileService, folder: URI): Promise<URI[]> {
-	try {
-		const stat = await fileService.resolve(folder);
-		return (stat.children ?? []).filter(child => child.isFile && child.name.toLowerCase().endsWith('.json')).map(child => child.resource);
-	} catch {
-		// The folder doesn't exist yet, so there are no hook files to add to.
-		return [];
-	}
 }
 
 async function pickHookFile(quickInputService: IQuickInputService, fileService: IFileService, labelService: ILabelService, folder: URI): Promise<URI | undefined> {

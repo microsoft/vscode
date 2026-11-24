@@ -80,12 +80,18 @@ suite('hookActions', () => {
 	});
 
 	suite('addCopilotHookToText', () => {
-		test('adds the event to a file without it', () => {
-			const result = addCopilotHookToText('{\n\t"version": 1,\n\t"hooks": {}\n}', 'preToolUse');
-			assert.deepStrictEqual(result.kind === 'added' && { json: JSON.parse(result.text), commandIndex: result.commandIndex }, {
-				json: { version: 1, hooks: { preToolUse: [{ type: 'command', command: '' }] } },
-				commandIndex: 0,
-			});
+		test('adds the event to a file without it, creating the hooks object when missing', () => {
+			const added = (text: string, eventName: string) => {
+				const result = addCopilotHookToText(text, eventName);
+				return result.kind === 'added' && { json: JSON.parse(result.text), commandIndex: result.commandIndex };
+			};
+			assert.deepStrictEqual([
+				added('{\n\t"version": 1,\n\t"hooks": {}\n}', 'preToolUse'),
+				added('{ "version": 1 }', 'sessionStart'),
+			], [
+				{ json: { version: 1, hooks: { preToolUse: [{ type: 'command', command: '' }] } }, commandIndex: 0 },
+				{ json: { version: 1, hooks: { sessionStart: [{ type: 'command', command: '' }] } }, commandIndex: 0 },
+			]);
 		});
 
 		test('appends to an existing event and keeps comments', () => {
@@ -112,11 +118,6 @@ suite('hookActions', () => {
 			});
 		});
 
-		test('creates the hooks object when it is missing', () => {
-			const result = addCopilotHookToText('{ "version": 1 }', 'sessionStart');
-			assert.deepStrictEqual(result.kind === 'added' && JSON.parse(result.text), { version: 1, hooks: { sessionStart: [{ type: 'command', command: '' }] } });
-		});
-
 		test('leaves content it cannot edit safely', () => {
 			assert.deepStrictEqual([
 				addCopilotHookToText('{ "hooks": ', 'preToolUse'),
@@ -126,18 +127,9 @@ suite('hookActions', () => {
 			].map(result => result.kind), ['invalid', 'invalid', 'invalid', 'invalid']);
 		});
 
-		test('does not add an event the file already has under an older name', () => {
-			assert.deepStrictEqual([
-				addCopilotHookToText('{ "hooks": { "PreToolUse": [{ "type": "command", "command": "a" }] } }', 'preToolUse'),
-				addCopilotHookToText('{ "hooks": { "PreToolUse": [] } }', 'sessionEnd').kind,
-			], [
-				{ kind: 'conflictingEventName', existingEventName: 'PreToolUse' },
-				'added',
-			]);
-		});
-
-		test('keeps existing older-format hooks running whichever event is added', () => {
+		test('never hides existing older-format hooks: refuses the same event, adds others', () => {
 			const text = '{ "hooks": { "PreToolUse": [{ "type": "command", "command": "deny-script" }] } }';
+			assert.deepStrictEqual(addCopilotHookToText(text, 'preToolUse'), { kind: 'conflictingEventName', existingEventName: 'PreToolUse' });
 			const retained = getValidAgentHookNames(Target.GitHubCopilot, false).filter(eventName => {
 				const result = addCopilotHookToText(text, eventName);
 				const edited = result.kind === 'added' ? result.text : text;

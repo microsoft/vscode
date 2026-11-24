@@ -27,6 +27,7 @@ import { getChatSessionType } from '../../common/model/chatUri.js';
 import { PromptsConfig } from '../../common/promptSyntax/config/config.js';
 import { HOOKS_SOURCE_FOLDER } from '../../common/promptSyntax/config/promptFileLocations.js';
 import { findRepositoryRoot } from '../../common/promptSyntax/utils/repositoryRoot.js';
+import { listHookFiles } from '../promptSyntax/hookUtils.js';
 import { IPathService } from '../../../../services/path/common/pathService.js';
 
 /**
@@ -273,21 +274,15 @@ export class PromptsServiceCustomizationItemProvider implements ICustomizationIt
 				continue;
 			}
 			visitedRoots.add(gitRoot);
-			let children;
-			try {
-				children = (await this.fileService.resolve(joinPath(gitRoot, HOOKS_SOURCE_FOLDER))).children ?? [];
-			} catch {
-				continue;
-			}
-			for (const child of children) {
-				if (child.isDirectory || extname(child.resource).toLowerCase() !== '.json' || listedHookFiles.has(child.resource)) {
+			for (const uri of await listHookFiles(this.fileService, joinPath(gitRoot, HOOKS_SOURCE_FOLDER))) {
+				if (listedHookFiles.has(uri)) {
 					continue;
 				}
-				listedHookFiles.add(child.resource);
+				listedHookFiles.add(uri);
 				items.push({
-					uri: child.resource,
+					uri,
 					type: promptType,
-					name: getFriendlyName(child.name),
+					name: getFriendlyName(basename(uri)),
 					source: PromptsStorage.local,
 					enabled: false,
 					status: 'degraded',
