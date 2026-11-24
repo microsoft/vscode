@@ -2059,10 +2059,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 					this.paneCompositeService.hideActivePaneComposite(location);
 				}
 			} else if (!this.paneCompositeService.getActivePaneComposite(location)) {
-				const paneCompositeToOpen = this.getPaneCompositeToShow(location);
-				if (paneCompositeToOpen) {
-					this.openViewContainer(location, paneCompositeToOpen, false, () => !opens.token.isCancellationRequested && this.isVisible(part) && !this.paneCompositeService.getActivePaneComposite(location));
-				}
+				this.showPaneComposite(location, () => !opens.token.isCancellationRequested && this.isVisible(part) && !this.paneCompositeService.getActivePaneComposite(location));
 			}
 		}
 
@@ -2080,6 +2077,23 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 		if (auxiliaryBarMaximized !== wasAuxiliaryBarMaximized) {
 			this._onDidChangeAuxiliaryBarMaximized.fire();
+		}
+	}
+
+	/**
+	 * Opens the view container that a part shows when it shows without one, without focus, while `canOpen` returns `true`.
+	 * The panel and the secondary side bar fall back from the one that was active last when it has no views, as the view
+	 * container of an extension has none until the extensions register: they then choose once the extensions registered.
+	 */
+	private async showPaneComposite(location: ViewContainerLocation, canOpen: () => boolean): Promise<void> {
+		let paneCompositeToOpen = this.getPaneCompositeToShow(location);
+		if (!paneCompositeToOpen || paneCompositeToOpen !== this.paneCompositeService.getLastActivePaneCompositeId(location)) {
+			await this.extensionService.whenInstalledExtensionsRegistered();
+			paneCompositeToOpen = this.getPaneCompositeToShow(location);
+		}
+
+		if (paneCompositeToOpen) {
+			await this.openViewContainer(location, paneCompositeToOpen, false, canOpen); // checks `canOpen` before it opens
 		}
 	}
 

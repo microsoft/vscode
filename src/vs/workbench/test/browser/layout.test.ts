@@ -17,6 +17,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/comm
 import { Layout } from '../../browser/layout.js';
 import { Part, updateSashEndpoints } from '../../browser/part.js';
 import { IPartsLayoutState, PanelAlignment, Parts, Position } from '../../services/layout/browser/layoutService.js';
+import { NullExtensionService } from '../../services/extensions/common/extensions.js';
 import { NullTelemetryService } from '../../../platform/telemetry/common/telemetryUtils.js';
 import { Registry } from '../../../platform/registry/common/platform.js';
 import { Extensions as ViewExtensions, IViewDescriptor, IViewsRegistry, ViewContainer, ViewContainerLocation } from '../../common/views.js';
@@ -227,6 +228,7 @@ suite('Workbench layout chat part', () => {
 			_mainContainerDimension: { width: configuration.widths?.window ?? 1600, height: 900 },
 			state: { runtime: { mainWindowFullscreen: false } },
 			telemetryService: NullTelemetryService,
+			extensionService: new NullExtensionService(),
 			// No view containers: the side bar and the panel show and hide empty
 			paneCompositeService: { getActivePaneComposite: () => undefined, getLastActivePaneCompositeId: () => undefined },
 			viewDescriptorService: {
@@ -1234,6 +1236,50 @@ suite('Workbench layout chat part', () => {
 			assert.deepStrictEqual({ hiddenMeanwhile: await open(true), shownMeanwhile: await open(false) }, {
 				hiddenMeanwhile: { sideBarVisible: false, opened: [] },
 				shownMeanwhile: { sideBarVisible: true, opened: ['extensionViewContainer'] },
+			});
+		});
+
+		test('a panel whose view container that was active last is an extension\'s shows it once the extensions register, rather than another or none', async () => {
+			const open = async (builtInViewContainers: string[]) => {
+				const { layout } = createStateLayout();
+				const registered = new DeferredPromise<boolean>();
+				const viewContainers = new Set(builtInViewContainers);
+				const opened: string[] = [];
+				Object.assign(layout, {
+					extensionService: { whenInstalledExtensionsRegistered: () => registered.p },
+					paneCompositeService: {
+						getActivePaneComposite: () => undefined,
+						getLastActivePaneCompositeId: (location: ViewContainerLocation) => location === ViewContainerLocation.Panel ? 'extensionViewContainer' : undefined,
+						getPaneComposite: (id: string) => viewContainers.has(id) ? {} : undefined,
+						getVisiblePaneCompositeIds: () => [],
+						openPaneComposite: async (id: string | undefined) => {
+							if (id) {
+								opened.push(id);
+							}
+							return id ? {} : undefined;
+						},
+					},
+				});
+				// Until the extensions register, the view container of an extension is not there, and so has no views
+				Object.assign(Reflect.get(layout, 'viewDescriptorService'), {
+					getViewContainersByLocation: (location: ViewContainerLocation) => location === ViewContainerLocation.Panel ? [...viewContainers].map(id => ({ id })) : [],
+					getViewContainerById: (id: string) => viewContainers.has(id) ? { id } : null,
+					getViewContainerModel: () => ({ activeViewDescriptors: [{}] }),
+					getDefaultViewContainer: () => undefined,
+				});
+
+				layout.applyPartsLayoutState(layout.getPartsLayoutState());
+				const beforeRegistration = [...opened];
+				viewContainers.add('extensionViewContainer');
+				registered.complete(true);
+				await timeout(0);
+
+				return { beforeRegistration, opened };
+			};
+
+			assert.deepStrictEqual({ besideBuiltIn: await open(['workbench.panel.markers']), alone: await open([]) }, {
+				besideBuiltIn: { beforeRegistration: [], opened: ['extensionViewContainer'] },
+				alone: { beforeRegistration: [], opened: ['extensionViewContainer'] },
 			});
 		});
 	});
