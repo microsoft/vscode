@@ -1533,8 +1533,11 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 	/** Move the canvas, which draws from `top`, to show the viewport at `scrollTop`. */
 	private _offsetCanvas(top: number, scrollTop: number, dpr: number): void {
 		// Whole device pixels, so the compositor moves the picture without
-		// resampling it.
-		const offset = (Math.round(top * dpr) - Math.round(scrollTop * dpr)) / dpr;
+		// resampling it: the renderer's own anchors when it has them, as only
+		// they match where it draws at a fractional ratio.
+		const editorView = this._editorView;
+		const anchor = (position: number) => editorView?.scrollAnchor?.(position, dpr) ?? Math.round(position * dpr);
+		const offset = (anchor(top) - anchor(scrollTop)) / dpr;
 		this.canvas.domNode.style.transform = offset === 0 ? '' : `translate3d(0px, ${offset}px, 0px)`;
 	}
 
@@ -1570,10 +1573,10 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 	 */
 	private _canOverscan(dpr: number): boolean {
 		const editorView = this._editorView;
-		// A transform of whole CSS pixels moves a canvas by whole device pixels
-		// only at an integer ratio, and only a renderer that skips unchanged
-		// frames gains from the margin.
-		return this._overscan && this._incrementalRendering && Number.isInteger(dpr)
+		// Only a renderer that skips unchanged frames gains from the margin. At a
+		// fractional ratio, only one that draws on the document's device pixels
+		// (`scrollAnchor`) shows, moved, what it would draw.
+		return this._overscan && this._incrementalRendering && (Number.isInteger(dpr) || !!editorView?.scrollAnchor)
 			&& !!editorView?.supportsSurfaces && !!editorView.presentNextFrame;
 	}
 

@@ -227,6 +227,14 @@ export interface EditorView {
 	maxLineWidth(startLine: number, endLine: number): number;
 	columnOffset(line: number, column: number): number;
 	columnAtOffset(line: number, offset: number): number | undefined;
+	/**
+	 * The device pixel row of the document that the top row of a frame
+	 * scrolled to `scrollTop` shows at `devicePixelRatio`. Renderers that have
+	 * it draw content on the document's device pixels, so moving a frame by
+	 * the difference of two anchors shows what drawing it at the other scroll
+	 * position would, at any ratio. Absent in npm 0.0.1.
+	 */
+	scrollAnchor?(scrollTop: number, devicePixelRatio: number): number;
 	resize(width: number, height: number): void;
 	render(): boolean;
 	/**

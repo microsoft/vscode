@@ -123,9 +123,12 @@ neither syncs the renderer nor draws, and the compositor moves the picture as
 it moves DOM text. Once the viewport leaves
 the canvas, the canvas moves to leave the whole margin ahead of the scroll and
 draws only the rows new to it. It applies with WebGPU and incremental
-rendering, at whole-number display scales (a transform of whole CSS pixels then
-moves the canvas by whole device pixels, so the picture is not resampled), and
-with renderers that skip frames that change nothing (`presentNextFrame`).
+rendering, with renderers that skip frames that change nothing
+(`presentNextFrame`), and at any display scale with renderers that draw
+content on the document's device pixels (`scrollAnchor`; older ones at
+whole-number scales only). The canvas moves by the difference of the
+renderer's anchors for the two scroll positions, whole device pixels, so the
+picture is not resampled and shows what drawing it there would.
 Decorations that change in place are still queried for the visible lines only,
 the range whose cache the DOM overlays share; the lines drawn beyond the
 viewport get theirs on the first frame that scrolls, before it shows them.
@@ -135,11 +138,13 @@ it paints a quarter of the minimap's rows above and below them, and while the
 minimap scrolls within them `Minimap` only moves the canvas, by whole rows,
 which are whole device pixels. A clip ends at the minimap's last whole row, and
 its border paints the partial row below in the minimap's background, as the
-DOM minimap leaves it, so no row of the margin shows there. Lines and
-decorations that change in the margin repaint the canvas as they change. A
-minimap as tall as the editor (`minimap.size` `fill`, or `fit` once the
-document no longer fits) shows all its lines and does not scroll, so it paints
-no margin.
+DOM minimap leaves it, so no row of the margin shows there. (At a fractional
+scale, a DOM minimap on half a device pixel is resampled, and its last whole
+row bleeds faintly into the partial row, where this shows the background.)
+Lines and decorations that change in the margin repaint the canvas as they
+change. A minimap as tall as the editor (`minimap.size` `fill`, or `fit` once
+the document no longer fits) shows all its lines and does not scroll, so it
+paints no margin.
 
 ## Guide ownership
 
