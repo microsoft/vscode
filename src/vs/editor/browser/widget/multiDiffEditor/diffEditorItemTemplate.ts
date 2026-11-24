@@ -18,7 +18,10 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IDiffEditorOptions } from '../../../common/config/editorOptions.js';
+import { IPosition } from '../../../common/core/position.js';
+import { IRange } from '../../../common/core/range.js';
 import { OffsetRange } from '../../../common/core/ranges/offsetRange.js';
+import { ScrollType } from '../../../common/editorCommon.js';
 import { observableCodeEditor } from '../../observableCodeEditor.js';
 import { DiffEditorWidget } from '../diffEditor/diffEditorWidget.js';
 import { DocumentDiffItemViewModel } from './multiDiffEditorViewModel.js';
@@ -318,12 +321,30 @@ export class DiffEditorItemTemplate extends VirtualizedItemTemplate<DocumentDiff
 	}
 
 	/**
-	 * Returns the offset of a line from the top of the item. A pending height update is applied first, so that the list
-	 * already includes lines that were just shown, for example by selecting a line in a hidden unchanged region.
+	 * Returns the offset of a position from the top of the item, that is of the row that shows it when its line wraps. A
+	 * pending height update is applied first, so that the list already includes lines that were just shown, for example
+	 * by selecting a line in a hidden unchanged region.
 	 */
-	public getLineOffset(side: 'original' | 'modified', lineNumber: number): number {
+	public getPositionOffset(side: 'original' | 'modified', position: IPosition): number {
 		this._flushVerticalState();
-		return this._headerHeight + (side === 'original' ? this._getOriginalEditorLineTop(lineNumber) : this._getModifiedEditorLineTop(lineNumber));
+		const editor = side === 'original' ? this.editor.getOriginalEditor() : this.editor.getModifiedEditor();
+		return this._headerHeight + editor.getTopForPosition(position.lineNumber, position.column);
+	}
+
+	/**
+	 * Reveals a range horizontally in the editor of a side, and returns the editor's horizontal scroll position if that
+	 * changed. The editor keeps its vertical scroll position, which the list owns.
+	 */
+	public revealRangeHorizontally(side: 'original' | 'modified', range: IRange): number | undefined {
+		const editor = side === 'original' ? this.editor.getOriginalEditor() : this.editor.getModifiedEditor();
+		const scrollTop = editor.getScrollTop();
+		const scrollLeft = editor.getScrollLeft();
+		editor.revealRange(range, ScrollType.Immediate);
+		editor.setScrollTop(scrollTop, ScrollType.Immediate);
+		// The editor computes the horizontal scroll position that reveals a range when it renders the range.
+		editor.render();
+		const newScrollLeft = editor.getScrollLeft();
+		return newScrollLeft !== scrollLeft ? newScrollLeft : undefined;
 	}
 
 	private readonly _dataStore;

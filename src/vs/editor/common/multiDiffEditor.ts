@@ -19,6 +19,7 @@ export interface IMultiDiffEditorOptions extends ITextEditorOptions {
 export interface IMultiDiffEditorOptionsViewState {
 	revealData?: {
 		resource: IMultiDiffResourceId;
+		/** A range of the original document, or of the modified document if the file was added. */
 		range?: IRange;
 	};
 }

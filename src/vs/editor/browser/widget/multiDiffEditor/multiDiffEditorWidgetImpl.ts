@@ -17,12 +17,13 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { OffsetRange } from '../../../common/core/ranges/offsetRange.js';
 import { IDiffEditorOptions } from '../../../common/config/editorOptions.js';
-import { IRange } from '../../../common/core/range.js';
+import { IRange, Range } from '../../../common/core/range.js';
 import { ISelection, Selection } from '../../../common/core/selection.js';
 import { IDiffEditor } from '../../../common/editorCommon.js';
 import { IMultiDiffResourceId } from '../../../common/multiDiffEditor.js';
 import { EditorContextKeys } from '../../../common/editorContextKeys.js';
 import { ICodeEditor } from '../../editorBrowser.js';
+import { translatePosition } from '../diffEditor/utils.js';
 import { CompressedVirtualizedScrollView, ICompressedVirtualizedScrollItem, ICompressedVirtualizedScrollItemContext } from './compressedVirtualizedScrollView.js';
 import { ICompressedVirtualizedScrollLayout } from './compressedVirtualizedScrollLayout.js';
 import { binaryFilePlaceholderContentHeight, DiffEditorItemBinding, DiffEditorItemTemplate } from './diffEditorItemTemplate.js';
@@ -471,13 +472,25 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 
 		const template = viewItem.template.get();
 		if (template && options?.range) {
-			const side = options.side ?? (template.editor.renderSideBySide && viewItem.viewModel.originalUri ? 'original' : 'modified');
+			let side: 'original' | 'modified' = options.side ?? (viewItem.viewModel.originalUri ? 'original' : 'modified');
+			let range = options.range;
+			if (side === 'original' && !template.editor.renderSideBySide) {
+				// An inline diff shows the original document where the modified document has it.
+				const mappings = template.editor.getDiffComputationResult()?.changes2 ?? [];
+				range = Range.plusRange(translatePosition(range.getStartPosition(), mappings), translatePosition(range.getEndPosition(), mappings));
+				side = 'modified';
+			}
 			// An item keeps its full height in the list, which scrolls its editor to the part in the viewport, so the list
 			// rather than the editor scrolls to the range. It does not scroll above the item.
 			const viewportHeight = this._scrollView.layout.get().contentViewport.length;
-			this._scrollView.setLogicalScrollPosition(Math.max(scrollTop, scrollTop + template.getLineOffset(side, options.range.startLineNumber) - viewportHeight / 2));
+			this._scrollView.setLogicalScrollPosition(Math.max(scrollTop, scrollTop + template.getPositionOffset(side, range.getStartPosition()) - viewportHeight / 2));
+			const scrollLeft = template.revealRangeHorizontally(side, range);
+			if (scrollLeft !== undefined) {
+				// All items share the horizontal scroll position.
+				this._scrollView.setScrollPosition({ scrollLeft });
+			}
 			if (options.highlight) {
-				highlightRange(side === 'original' ? template.editor.getOriginalEditor() : template.editor.getModifiedEditor(), options.range);
+				highlightRange(side === 'original' ? template.editor.getOriginalEditor() : template.editor.getModifiedEditor(), range);
 			}
 		}
 	}

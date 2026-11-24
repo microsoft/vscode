@@ -22,6 +22,7 @@ import { ServiceCollection } from '../../../../platform/instantiation/common/ser
 import { emptyProgressRunner, IEditorProgressService } from '../../../../platform/progress/common/progress.js';
 import { InMemoryStorageService, IStorageService } from '../../../../platform/storage/common/storage.js';
 import { IUserInteractionService, MockUserInteractionService } from '../../../../platform/userInteraction/browser/userInteractionService.js';
+import { ICodeEditor } from '../../../browser/editorBrowser.js';
 import { IDiffProviderFactoryService } from '../../../browser/widget/diffEditor/diffProviderFactoryService.js';
 import { DiffEditorWidget } from '../../../browser/widget/diffEditor/diffEditorWidget.js';
 import { RefCounted } from '../../../browser/widget/diffEditor/utils.js';
@@ -29,7 +30,8 @@ import { DiffItemSource, IDocumentDiffItem, IMultiDiffEditorModel } from '../../
 import { getMultiDiffEditorVariantConfiguration, multiDiffEditorVariants } from '../../../browser/widget/multiDiffEditor/multiDiffEditorOptions.js';
 import { MultiDiffEditorWidget } from '../../../browser/widget/multiDiffEditor/multiDiffEditorWidget.js';
 import { IWorkbenchUIElementFactory } from '../../../browser/widget/multiDiffEditor/workbenchUIElementFactory.js';
-import { EditorOption } from '../../../common/config/editorOptions.js';
+import { EditorOption, IDiffEditorOptions } from '../../../common/config/editorOptions.js';
+import { Position } from '../../../common/core/position.js';
 import { Range } from '../../../common/core/range.js';
 import { IDocumentDiff, IDocumentDiffProvider } from '../../../common/diff/documentDiffProvider.js';
 import { EditorContextKeys } from '../../../common/editorContextKeys.js';
@@ -364,7 +366,10 @@ suite('MultiDiffEditorWidget', () => {
 		}
 	});
 
-	test('reveals a range far into a file by scrolling the list, so that later layouts keep it visible', async () => {
+	/**
+	 * Shows a file below a small one in a widget of 800x300 pixels once their diffs are computed, and scrolls to the file.
+	 */
+	async function showFileBelowAnother(originalContent: string, modifiedContent: string, options: { readonly renderSideBySide?: boolean; readonly diffWordWrap?: 'on' | 'off'; readonly editorOptions?: IDiffEditorOptions } = {}) {
 		const services = new ServiceCollection();
 		services.set(IAccessibilitySignalService, new class extends mock<IAccessibilitySignalService>() { }());
 		services.set(IActionViewItemService, new NullActionViewItemService());
@@ -384,20 +389,22 @@ suite('MultiDiffEditorWidget', () => {
 		const container = document.createElement('div');
 		document.body.appendChild(container);
 		disposables.add(toDisposable(() => container.remove()));
-		// Every third line changes, so that no unchanged region is hidden and the second file is much taller than the viewport.
-		const lines = Array.from({ length: 400 }, (_, index) => `line ${index + 1}`);
-		const models = [
-			['a\nb', 'a\nc'],
-			[lines.join('\n'), lines.map((line, index) => index % 3 === 0 ? `changed ${index + 1}` : line).join('\n')],
-		].map(([original, modified], index) => [
+		const models = [['a\nb', 'a\nc'], [originalContent, modifiedContent]].map(([original, modified], index) => [
 			instantiateTextModel(instantiationService, original, undefined, undefined, URI.parse(`inmemory://original/${index}.js`)),
 			instantiateTextModel(instantiationService, modified, undefined, undefined, URI.parse(`inmemory://modified/${index}.js`)),
 		]);
 		const documentItems = models.map(([original, modified]) => disposables.add(RefCounted.createOfNonDisposable<IDocumentDiffItem>({
 			original: new DiffItemSource(original.uri, original),
 			modified: new DiffItemSource(modified.uri, modified),
+			options: options.editorOptions,
 		}, { dispose() { } })));
 		const widget = instantiationService.createInstance(MultiDiffEditorWidget, container, {} satisfies IWorkbenchUIElementFactory, { variant: 'noCardsNonCompact' });
+		if (options.renderSideBySide !== undefined) {
+			widget.setRenderSideBySide(options.renderSideBySide);
+		}
+		if (options.diffWordWrap) {
+			widget.setDiffWordWrap(options.diffWordWrap);
+		}
 		widget.layout(new Dimension(800, 300));
 		const viewModel = widget.createViewModel({ documents: ValueWithChangeEvent.const(documentItems) });
 		disposables.add(toDisposable(() => {
@@ -410,14 +417,27 @@ suite('MultiDiffEditorWidget', () => {
 			await waitForState(item.diffEditorViewModel.isDiffUpToDate, value => value);
 		}
 		widget.setViewModel(viewModel);
+		const resource = { original: models[1][0].uri, modified: models[1][1].uri };
+		widget.reveal(resource, { highlight: false });
+		await waitForState(widget.getLayoutDebugState(), state => state.items[1]?.hasTemplate === true);
+		return { widget, resource };
+	}
+
+	/** Returns whether a position is in the visible part of an editor's content. */
+	function isVisible(editor: ICodeEditor, position: Position): boolean {
+		const left = editor.getOffsetForColumn(position.lineNumber, position.column);
+		return editor.getVisibleRanges().some(range => range.containsPosition(position))
+			&& editor.getScrollLeft() <= left && left <= editor.getScrollLeft() + editor.getLayoutInfo().contentWidth;
+	}
+
+	test('reveals a range far into a file by scrolling the list, so that later layouts keep it visible', async () => {
+		// Every third line changes, so that no unchanged region is hidden and the file is much taller than the viewport.
+		const lines = Array.from({ length: 400 }, (_, index) => `line ${index + 1}`);
+		const { widget, resource } = await showFileBelowAnother(lines.join('\n'), lines.map((line, index) => index % 3 === 0 ? `changed ${index + 1}` : line).join('\n'));
 
 		try {
-			const [original, modified] = models[1];
-			const resource = { original: original.uri, modified: modified.uri };
-			widget.reveal(resource, { highlight: false });
-			await waitForState(widget.getLayoutDebugState(), state => state.items[1]?.hasTemplate === true);
 			const itemTop = widget.getViewState().scrollState.top;
-			const editor = widget.tryGetCodeEditor(modified.uri)!.editor;
+			const editor = widget.tryGetCodeEditor(resource.modified)!.editor;
 			const showsLine = () => editor.getVisibleRanges().some(range => range.startLineNumber <= 301 && 301 <= range.endLineNumber);
 			const before = showsLine();
 			widget.reveal(resource, { range: new Range(301, 1, 301, 1), side: 'modified', highlight: false });
@@ -426,6 +446,72 @@ suite('MultiDiffEditorWidget', () => {
 			widget.layout(new Dimension(800, 301));
 
 			assert.deepStrictEqual({ before, scrolledList, after, afterLayout: showsLine() }, { before: false, scrolledList: true, after: true, afterLayout: true });
+		} finally {
+			widget.setViewModel(undefined);
+		}
+	});
+
+	test('reveals the row of a wrapped line that shows the range', async () => {
+		const lines = Array.from({ length: 400 }, (_, index) => `line ${index + 1}`);
+		const modifiedLines = lines.map((line, index) => index % 3 === 0 ? `changed ${index + 1}` : line);
+		modifiedLines[300] = Array.from({ length: 500 }, (_, index) => `word${index}`).join(' ');
+		const { widget, resource } = await showFileBelowAnother(lines.join('\n'), modifiedLines.join('\n'), { renderSideBySide: true, diffWordWrap: 'on' });
+
+		try {
+			const editor = widget.tryGetCodeEditor(resource.modified)!.editor;
+			const end = new Position(301, modifiedLines[300].length + 1);
+			widget.reveal(resource, { range: Range.fromPositions(end), side: 'modified', highlight: false });
+
+			assert.deepStrictEqual({
+				endIsScreensBelowLineTop: editor.getTopForPosition(end.lineNumber, end.column) - editor.getTopForLineNumber(end.lineNumber) > 300,
+				visible: isVisible(editor, end),
+			}, { endIsScreensBelowLineTop: true, visible: true });
+		} finally {
+			widget.setViewModel(undefined);
+		}
+	});
+
+	test('reveals a range of the original document in the modified editor of an inline diff', async () => {
+		const lines = Array.from({ length: 300 }, (_, index) => `line ${index + 1}`);
+		const modifiedLines = [
+			...Array.from({ length: 200 }, (_, index) => `inserted ${index + 1}`),
+			...lines.map((line, index) => index === 149 ? `changed ${index + 1}` : line),
+		];
+		const { widget, resource } = await showFileBelowAnother(lines.join('\n'), modifiedLines.join('\n'), { renderSideBySide: false });
+
+		try {
+			const editor = widget.tryGetCodeEditor(resource.modified)!.editor;
+			// Without a side, the range refers to the original document, whose line 150 is line 350 of the modified one.
+			widget.reveal(resource, { range: new Range(150, 1, 150, 9), highlight: true });
+
+			assert.deepStrictEqual({
+				highlights: editor.getModel()!.getAllDecorations().filter(decoration => decoration.options.description === 'symbol-navigate-action-highlight').map(decoration => decoration.range),
+				visible: isVisible(editor, new Position(350, 1)),
+			}, { highlights: [new Range(350, 1, 350, 12)], visible: true });
+		} finally {
+			widget.setViewModel(undefined);
+		}
+	});
+
+	test('reveals a range beyond the right edge by scrolling all files horizontally, and keeps the editor where the list scrolled it', async () => {
+		const lines = Array.from({ length: 400 }, (_, index) => `line ${index + 1}`);
+		const originalLines = [...lines];
+		originalLines[300] = Array.from({ length: 100 }, (_, index) => `word${index}`).join(' ');
+		// Surrounding lines make the editor's own reveal scroll vertically.
+		const { widget, resource } = await showFileBelowAnother(originalLines.join('\n'), lines.map((line, index) => index % 3 === 0 ? `changed ${index + 1}` : line).join('\n'), { renderSideBySide: true, diffWordWrap: 'off', editorOptions: { cursorSurroundingLines: 10 } });
+
+		try {
+			const editor = widget.tryGetCodeEditor(resource.original)!.editor;
+			const end = new Position(301, originalLines[300].length + 1);
+			const range = new Range(301, end.column - 5, 301, end.column);
+			widget.reveal(resource, { range, highlight: false });
+			const scrollTop = editor.getScrollTop();
+			const sharesScrollLeft = widget.getViewState().scrollState.left === editor.getScrollLeft();
+			const visible = isVisible(editor, end);
+			// Revealing the range again neither scrolls the list nor widens the editor, either of which would render the list.
+			widget.reveal(resource, { range, highlight: false });
+
+			assert.deepStrictEqual({ sharesScrollLeft, visible, keepsScrollTop: editor.getScrollTop() === scrollTop }, { sharesScrollLeft: true, visible: true, keepsScrollTop: true });
 		} finally {
 			widget.setViewModel(undefined);
 		}

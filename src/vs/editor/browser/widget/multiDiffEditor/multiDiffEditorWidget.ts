@@ -282,8 +282,8 @@ export class MultiDiffEditorWidget extends Disposable {
 export interface RevealOptions {
 	range?: Range;
 	/**
-	 * The side of the diff that the range refers to. Defaults to the original side while the diff shows it, that is side
-	 * by side and unless the file was added, and to the modified side otherwise.
+	 * The document that the range refers to. Defaults to the original document, unless the file was added. An inline diff
+	 * reveals a range of the original document where the modified document has it.
 	 */
 	side?: 'original' | 'modified';
 	highlight: boolean;
