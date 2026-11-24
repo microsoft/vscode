@@ -13,10 +13,18 @@ import { TestLanguageConfigurationService } from '../../common/modes/testLanguag
 import { TestThemeService } from '../../../../platform/theme/test/common/testThemeService.js';
 
 export function testViewModel(text: string[], options: IEditorOptions, callback: (viewModel: ViewModel, model: TextModel, configuration: TestConfiguration) => void): void {
+	const model = createTextModel(text.join('\n'));
+	testViewModelOfModel(model, options, callback);
+	model.dispose();
+}
+
+/**
+ * Like {@link testViewModel}, for a model that the caller creates and disposes.
+ */
+export function testViewModelOfModel(model: TextModel, options: IEditorOptions, callback: (viewModel: ViewModel, model: TextModel, configuration: TestConfiguration) => void): void {
 	const EDITOR_ID = 1;
 
 	const configuration = new TestConfiguration(options);
-	const model = createTextModel(text.join('\n'));
 	const monospaceLineBreaksComputerFactory = MonospaceLineBreaksComputerFactory.create(configuration.options);
 	const testLanguageConfigurationService = new TestLanguageConfigurationService();
 	const viewModel = new ViewModel(EDITOR_ID, configuration, model, monospaceLineBreaksComputerFactory, monospaceLineBreaksComputerFactory, null!, testLanguageConfigurationService, new TestThemeService(), {
@@ -29,7 +37,6 @@ export function testViewModel(text: string[], options: IEditorOptions, callback:
 	callback(viewModel, model, configuration);
 
 	viewModel.dispose();
-	model.dispose();
 	configuration.dispose();
 	testLanguageConfigurationService.dispose();
 }
