@@ -3997,8 +3997,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.inputAndSideToolbar = inputAndSideToolbar;
 		const inputContainer = elements.inputContainer; // The chat editor, attachments, and toolbars
 		this.inputContainer = inputContainer;
-		dom.append(inputContainer, dom.$('.chat-input-working-border', { 'aria-hidden': 'true' }, dom.$('.chat-input-working-border-clip')));
-		dom.append(inputContainer, dom.$('.chat-input-working-border.chat-input-working-border-glow', { 'aria-hidden': 'true' }, dom.$('.chat-input-working-border-clip')));
+		dom.append(inputContainer, dom.$('.chat-input-working-border', { 'aria-hidden': 'true' }));
+		dom.append(inputContainer, dom.$('.chat-input-working-border.chat-input-working-border-glow', { 'aria-hidden': 'true' }));
 		this._workingBorderAnimations.value = pauseCSSAnimationsWhenHidden(inputContainer, {
 			pausedClass: 'chat-input-anim-paused',
 			subtree: true,

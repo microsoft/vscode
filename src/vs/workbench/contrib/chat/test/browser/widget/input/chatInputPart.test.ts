@@ -1471,8 +1471,8 @@ suite('ChatInputPart', () => {
 		const session = dom.append(host, dom.$('.interactive-session'));
 		const inputPart = dom.append(session, dom.$('.interactive-input-part'));
 		const input = dom.append(inputPart, dom.$('.chat-input-container.working'));
-		const beam = dom.append(input, dom.$('.chat-input-working-border', undefined, dom.$('.chat-input-working-border-clip')));
-		const glow = dom.append(input, dom.$('.chat-input-working-border.chat-input-working-border-glow', undefined, dom.$('.chat-input-working-border-clip')));
+		const beam = dom.append(input, dom.$('.chat-input-working-border'));
+		const glow = dom.append(input, dom.$('.chat-input-working-border.chat-input-working-border-glow'));
 		await retry(async () => assert.strictEqual(mainWindow.getComputedStyle(beam).position, 'absolute'), 10, 100);
 		const geometry = [];
 		for (const [width, height] of [[400, 80], [200, 300], [333.33, 97.25]]) {
@@ -1480,11 +1480,10 @@ suite('ChatInputPart', () => {
 			input.style.height = `${height}px`;
 			geometry.push(...[beam, glow].map(border => {
 				const bounds = border.getBoundingClientRect();
-				const style = mainWindow.getComputedStyle(border.firstElementChild!, '::before');
+				const style = mainWindow.getComputedStyle(border, '::before');
 				// Allow 1/64px layout rounding plus computed-style serialization.
 				return {
 					coversCorners: Math.abs(parseFloat(style.width) - Math.hypot(bounds.width, bounds.height)) < 0.02,
-					clip: mainWindow.getComputedStyle(border.firstElementChild!).overflow,
 					animation: style.animationName,
 					timing: style.animationTimingFunction,
 				};
@@ -1503,20 +1502,16 @@ suite('ChatInputPart', () => {
 			idleAnimations: input.getAnimations({ subtree: true }).filter(animation => animation instanceof mainWindow.CSSAnimation).length,
 		}, {
 			geometry: Array.from({ length: 6 }, () => ({
-				coversCorners: true, clip: 'clip', animation: reduced ? 'none' : 'chat-input-working-border-spin', timing: reduced ? 'ease' : 'linear',
+				coversCorners: true, animation: reduced ? 'none' : 'chat-input-working-border-spin', timing: reduced ? 'ease' : 'linear',
 			})),
 			keyframes: reduced ? [] : Array.from({ length: 2 }, () => ['translate(-50%, -50%) rotate(0deg)', 'translate(-50%, -50%) rotate(360deg)']),
 			idleAnimations: 0,
 		});
 	});
 
-	test('decorative input borders do not increase ancestor scroll overflow or nest rounded clips', async () => {
-		// Chromium applies one rounded clip per draw quad, so a rounded clip inside the rounded auxiliary bar card
-		// makes it draw the input through offscreen render passes.
-		const roundedClips = (...elements: HTMLElement[]) => elements.filter(element => {
-			const style = mainWindow.getComputedStyle(element);
-			return style.overflow !== 'visible' && [style.borderTopLeftRadius, style.borderTopRightRadius, style.borderBottomRightRadius, style.borderBottomLeftRadius].some(radius => parseFloat(radius) > 0);
-		}).map(element => element.className);
+	test('decorative input borders do not increase ancestor scroll overflow, and the input clips its contents without a rounded clip', async () => {
+		// Chromium applies one rounded clip per draw quad, so a rounded clip on the input, inside the rounded
+		// auxiliary bar card, makes every keystroke draw the input through offscreen render passes.
 		const snapshots = [];
 		for (const compact of [false, true]) {
 			for (const working of [false, true]) {
@@ -1529,27 +1524,30 @@ suite('ChatInputPart', () => {
 				const input = dom.append(inputPart, dom.$('.chat-input-container'));
 				input.classList.toggle('working', working);
 				input.style.cssText = 'width: 400px; height: 40px; --chat-input-radius: 8px;';
+				const content = dom.append(input, dom.$('div'));
+				content.style.cssText = 'position: absolute; top: 0; left: 380px; width: 60px; height: 20px;';
 				await retry(async () => assert.strictEqual(mainWindow.getComputedStyle(input).position, 'relative'), 10, 100);
 				const before = { width: host.scrollWidth, height: host.scrollHeight };
-				const beamClip = dom.$('.chat-input-working-border-clip');
-				const glowClip = dom.$('.chat-input-working-border-clip');
-				const beam = dom.append(input, dom.$('.chat-input-working-border', undefined, beamClip));
-				const glow = dom.append(input, dom.$('.chat-input-working-border.chat-input-working-border-glow', undefined, glowClip));
+				dom.append(input, dom.$('.chat-input-working-border'));
+				dom.append(input, dom.$('.chat-input-working-border.chat-input-working-border-glow'));
+				const style = mainWindow.getComputedStyle(input);
+				const bounds = input.getBoundingClientRect();
 				snapshots.push({
 					compact,
 					working,
 					widthIncrease: host.scrollWidth - before.width,
 					heightIncrease: host.scrollHeight - before.height,
-					radius: mainWindow.getComputedStyle(input).borderTopLeftRadius,
-					roundedClips: roundedClips(input, beam, glow, beamClip, glowClip),
+					radius: style.borderTopLeftRadius,
+					roundedClip: style.overflow !== 'visible',
+					contentsClipped: mainWindow.document.elementFromPoint(bounds.right + 10, bounds.top + 10) !== content,
 				});
 			}
 		}
 		assert.deepStrictEqual(snapshots, [
-			{ compact: false, working: false, widthIncrease: 0, heightIncrease: 0, radius: '8px', roundedClips: [] },
-			{ compact: false, working: true, widthIncrease: 0, heightIncrease: 0, radius: '8px', roundedClips: [] },
-			{ compact: true, working: false, widthIncrease: 0, heightIncrease: 0, radius: '8px', roundedClips: [] },
-			{ compact: true, working: true, widthIncrease: 0, heightIncrease: 0, radius: '8px', roundedClips: [] },
+			{ compact: false, working: false, widthIncrease: 0, heightIncrease: 0, radius: '8px', roundedClip: false, contentsClipped: true },
+			{ compact: false, working: true, widthIncrease: 0, heightIncrease: 0, radius: '8px', roundedClip: false, contentsClipped: false },
+			{ compact: true, working: false, widthIncrease: 0, heightIncrease: 0, radius: '8px', roundedClip: false, contentsClipped: false },
+			{ compact: true, working: true, widthIncrease: 0, heightIncrease: 0, radius: '8px', roundedClip: false, contentsClipped: false },
 		]);
 	});
 
