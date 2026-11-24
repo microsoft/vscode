@@ -7,20 +7,51 @@ import '../../browser/media/aquarium.css';
 import '../../../../../workbench/browser/parts/sessions/media/sessionsPart.css';
 import '../../../../../workbench/contrib/sessions/browser/parts/media/sessionsGridContent.css';
 import assert from 'assert';
-import { getWindow } from '../../../../../base/browser/dom.js';
+import { EventType, getWindow } from '../../../../../base/browser/dom.js';
+import { timeout } from '../../../../../base/common/async.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { runWithFakedTimers } from '../../../../../base/test/common/virtualScheduling/runWithFakedTimers.js';
 import { TestAccessibilityService } from '../../../../../platform/accessibility/test/common/testAccessibilityService.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { NullHoverService } from '../../../../../platform/hover/test/browser/nullHoverService.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { InMemoryStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { NullTelemetryServiceShape } from '../../../../../platform/telemetry/common/telemetryUtils.js';
+import { IHostService } from '../../../../../workbench/services/host/browser/host.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { AquariumService, SESSIONS_DEVELOPER_JOY_ENABLED_SETTING } from '../../browser/aquariumOverlay.js';
 import { disposeSharedFishDefs, Fish, FishSpecies } from '../../browser/fish.js';
 import { registerTestIframe } from '../../../../../base/test/browser/testWindow.js';
+
+class TestHostService extends mock<IHostService>() {
+	private readonly _onDidChangeFocus = new Emitter<boolean>();
+	override readonly onDidChangeFocus = this._onDidChangeFocus.event;
+	override readonly onDidChangeActiveWindow = Event.None;
+	override hasFocus = true;
+
+	setFocus(focus: boolean): void {
+		this.hasFocus = focus;
+		this._onDidChangeFocus.fire(focus);
+	}
+}
+
+class TestMotionAccessibilityService extends TestAccessibilityService {
+	private readonly _onDidChangeReducedMotion = new Emitter<void>();
+	override onDidChangeReducedMotion = this._onDidChangeReducedMotion.event;
+	private motionReduced = false;
+
+	override isMotionReduced(): boolean {
+		return this.motionReduced;
+	}
+
+	setMotionReduced(reduced: boolean): void {
+		this.motionReduced = reduced;
+		this._onDidChangeReducedMotion.fire();
+	}
+}
 
 suite('AquariumService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -49,6 +80,7 @@ suite('AquariumService', () => {
 			configurationService,
 			new TestAccessibilityService(),
 			new NullTelemetryServiceShape(),
+			new TestHostService(),
 		));
 		store.add(service.mountToggle(toggleContainer));
 		const button = toggleContainer.querySelector<HTMLButtonElement>('.agents-aquarium-toggle');
@@ -119,6 +151,7 @@ suite('AquariumService', () => {
 			configurationService,
 			new TestAccessibilityService(),
 			new NullTelemetryServiceShape(),
+			new TestHostService(),
 		));
 		store.add(service.mountToggle(toggleContainer));
 		toggleContainer.querySelector<HTMLButtonElement>('.agents-aquarium-toggle')?.click();
@@ -166,6 +199,7 @@ suite('AquariumService', () => {
 			configurationService,
 			new TestAccessibilityService(),
 			new NullTelemetryServiceShape(),
+			new TestHostService(),
 		));
 		store.add(service.mountToggle(toggleContainer));
 		const fish = new Fish({
@@ -196,6 +230,122 @@ suite('AquariumService', () => {
 			mainRealmButton: true,
 			mainRealmFish: true,
 			mainRealmSvg: true,
+		});
+	});
+
+	test('wiggles the off-state toggle a few times, only while its window is focused and motion is not reduced', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const mainContainer = document.createElement('div');
+		const toggleContainer = document.createElement('div');
+		document.body.append(mainContainer, toggleContainer);
+		store.add(toDisposable(() => {
+			mainContainer.remove();
+			toggleContainer.remove();
+		}));
+
+		const layoutService = new class extends mock<IWorkbenchLayoutService>() {
+			override readonly mainContainer = mainContainer;
+		}();
+		const configurationService = new TestConfigurationService({ [SESSIONS_DEVELOPER_JOY_ENABLED_SETTING]: true });
+		store.add(configurationService.onDidChangeConfigurationEmitter);
+		const accessibilityService = new TestMotionAccessibilityService();
+		const hostService = new TestHostService();
+		const service = store.add(new AquariumService(
+			layoutService,
+			new MockContextKeyService(),
+			{ ...NullHoverService },
+			store.add(new InMemoryStorageService()),
+			configurationService,
+			accessibilityService,
+			new NullTelemetryServiceShape(),
+			hostService,
+		));
+		store.add(service.mountToggle(toggleContainer));
+		const button = toggleContainer.querySelector<HTMLButtonElement>('.agents-aquarium-toggle')!;
+		const isWiggling = () => button.classList.contains('wiggle');
+		const waitForNextWiggle = () => timeout(12_000);
+		const finishWiggle = () => button.firstElementChild?.dispatchEvent(new AnimationEvent(EventType.ANIMATION_END, { bubbles: true }));
+
+		await waitForNextWiggle();
+		const first = isWiggling();
+		finishWiggle();
+		const afterFirst = isWiggling();
+
+		hostService.setFocus(false);
+		await waitForNextWiggle();
+		const whileUnfocused = isWiggling();
+		hostService.setFocus(true);
+
+		accessibilityService.setMotionReduced(true);
+		await waitForNextWiggle();
+		const whileMotionReduced = isWiggling();
+		accessibilityService.setMotionReduced(false);
+
+		await waitForNextWiggle();
+		const second = isWiggling();
+		hostService.setFocus(false);
+		const secondAfterLosingFocus = isWiggling();
+		hostService.setFocus(true);
+
+		await waitForNextWiggle();
+		const third = isWiggling();
+		finishWiggle();
+		await waitForNextWiggle();
+		const fourth = isWiggling();
+
+		assert.deepStrictEqual({
+			first,
+			afterFirst,
+			whileUnfocused,
+			whileMotionReduced,
+			second,
+			secondAfterLosingFocus,
+			third,
+			fourth,
+		}, {
+			first: true,
+			afterFirst: false,
+			whileUnfocused: false,
+			whileMotionReduced: false,
+			second: true,
+			secondAfterLosingFocus: false,
+			third: true,
+			fourth: false,
+		});
+	}));
+
+	test('stops the aquarium animations when the workbench reduces motion', () => {
+		const workbench = document.createElement('div');
+		workbench.className = 'monaco-workbench';
+		const toggle = document.createElement('button');
+		toggle.className = 'agents-aquarium-toggle wiggle';
+		const icon = document.createElement('span');
+		icon.className = 'codicon';
+		toggle.appendChild(icon);
+		const water = document.createElement('div');
+		water.className = 'agents-aquarium-water';
+		const fishStrip = document.createElement('div');
+		fishStrip.className = 'agents-aquarium-fish-strip';
+		workbench.append(toggle, water, fishStrip);
+		document.body.appendChild(workbench);
+		store.add(toDisposable(() => workbench.remove()));
+
+		const targetWindow = getWindow(workbench);
+		const animations = () => ({
+			toggle: targetWindow.getComputedStyle(icon).animationName,
+			fishStrip: targetWindow.getComputedStyle(fishStrip).animationName,
+			water: [targetWindow.getComputedStyle(water, '::before').animationName, targetWindow.getComputedStyle(water, '::after').animationName],
+		});
+		const still = { toggle: 'none', fishStrip: 'none', water: ['none', 'none'] };
+		const moving = { toggle: 'agents-aquarium-toggle-wiggle', fishStrip: 'agents-aquarium-body-wave', water: ['agents-aquarium-float-a', 'agents-aquarium-float-b'] };
+
+		const motionEnabled = animations();
+		workbench.classList.add('monaco-reduce-motion');
+		const motionReduced = animations();
+
+		assert.deepStrictEqual({ motionEnabled, motionReduced }, {
+			// The stylesheet also follows the OS preference, which a test cannot set.
+			motionEnabled: targetWindow.matchMedia('(prefers-reduced-motion: reduce)').matches ? still : moving,
+			motionReduced: still,
 		});
 	});
 });
