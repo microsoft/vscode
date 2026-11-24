@@ -367,13 +367,14 @@ export function buildLinkDevContainerStateCommand(options: IDevContainerStateLin
 		'}',
 		// Restoring files another user wrote, e.g., before a change of the container user, would let them plant hooks that run
 		// as this user. Nobody else may be able to change a root user's files either. With ACLs, the group bits are the mask,
-		// which limits named users and groups. Prints the first such file; errors count as such files.
+		// which limits named users and groups. True if there is such a file or `find` fails.
 		'untrusted_files() {',
 		'  if [ "$user_uid" = 0 ]; then',
-		'    find "$1" \\( ! -user 0 -o ! -type l \\( -perm -020 -o -perm -002 \\) \\) -print 2>&1 | head -n 1',
+		'    set -- "$1" \\( ! -user 0 -o ! -type l \\( -perm -020 -o -perm -002 \\) \\)',
 		'  else',
-		'    find "$1" ! -user 0 ! -user "$user_uid" -print 2>&1 | head -n 1',
+		'    set -- "$1" ! -user 0 ! -user "$user_uid"',
 		'  fi',
+		'  { find "$@" -print 2>&1 || echo failed; } | { read -r line; }',
 		'}',
 		'link_state() {',
 		'  rel=$1',
@@ -408,7 +409,7 @@ export function buildLinkDevContainerStateCommand(options: IDevContainerStateLin
 		'    if [ -d "$dst" ]; then : > "$dst.deferred"; fi',
 		'    skip running "it exists and the container was already running"; return 0',
 		'  fi',
-		'  if [ ! -L "$src" ] && [ -d "$dst" ] && [ -n "$(untrusted_files "$dst")" ]; then',
+		'  if [ ! -L "$src" ] && [ -d "$dst" ] && untrusted_files "$dst"; then',
 		// The container's folder stays in use, see above.
 		'    if [ -d "$src" ]; then : > "$dst.deferred"; fi',
 		'    skip untrusted "a user other than root or the container user owns or can change files in $state/$rel"; return 0',
