@@ -3106,9 +3106,15 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// Hidden only by the layout, such as for a maximized panel, it shows again after a reload
 		const visible = !this.chatPartHidden || this.chatPartHiddenByLayout;
-		const size = this.chatPartHidden
+		let size = this.chatPartHidden
 			? this.workbenchGrid.getViewCachedVisibleSize(this.chatPartView)
 			: this.workbenchGrid.getViewSize(this.chatPartView).width;
+		// With the editor area hidden for it, the chat part fills the editor area's width too. It keeps its own width, so that
+		// the hidden editor area keeps its width in a grid that is created from it (see `createGridDescriptor`)
+		const editorWidth = !this.chatPartHidden && this.isEditorHiddenByChat() ? this.workbenchGrid.getViewCachedVisibleSize(this.editorPartView) : undefined;
+		if (size !== undefined && editorWidth !== undefined) {
+			size = Math.max(this.chatPartView.minimumWidth, size - editorWidth);
+		}
 		const value: IChatPartLayout = { version: CHAT_PART_LAYOUT_VERSION, visible, size: size ?? this.chatPartView.minimumWidth, hiddenByLayout: visible && hiddenByLayout };
 		this.storageService.store(CHAT_PART_LAYOUT_STORAGE_KEY, JSON.stringify(value), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}

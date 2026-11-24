@@ -1166,6 +1166,27 @@ suite('Workbench layout chat part', () => {
 			assert.deepStrictEqual(restored, before);
 		});
 
+		test('a chat part that has the editor area keeps its own width, so that the editor area shows again at its width after a state applies or the window reloads', () => {
+			const widths = (layout: Layout, views: Map<Parts, Part>) => [Parts.SIDEBAR_PART, Parts.CHAT_PART, Parts.EDITOR_PART, Parts.AUXILIARYBAR_PART]
+				.map(part => `${part.split('.').pop()} ${currentGrid(layout).getViewSize(views.get(part)!).width}`);
+			const before: Record<string, string[]> = {};
+			const shownAgain: Record<string, string[]> = {};
+			for (const path of ['applied', 'reloaded']) {
+				let { layout, views, save } = createStateLayout(undefined, chatConfiguration);
+				before[path] = widths(layout, views);
+				layout.setEditorHiddenByChat(true);
+				if (path === 'applied') {
+					layout.applyPartsLayoutState(layout.getPartsLayoutState());
+				} else {
+					({ layout, views } = createStateLayout(save(), chatConfiguration));
+				}
+				layout.setEditorHiddenByChat(false);
+				shownAgain[path] = widths(layout, views);
+			}
+
+			assert.deepStrictEqual(shownAgain, before);
+		});
+
 		test('a banner that shows keeps showing', () => {
 			const { layout, views } = createStateLayout();
 			layout.setPartHidden(false, Parts.BANNER_PART);
