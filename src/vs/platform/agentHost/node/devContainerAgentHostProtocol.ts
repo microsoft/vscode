@@ -13,7 +13,7 @@ import { generateUuid } from '../../../base/common/uuid.js';
 import { hasKey } from '../../../base/common/types.js';
 import type { IValidator } from '../../../base/common/validation.js';
 import { ILogService } from '../../log/common/log.js';
-import { DevContainerCloseConnectionNotification, DevContainerConnectEnvironmentExtensionMethod, devContainerConnectEnvironmentParamsValidator, DevContainerConnectExtensionMethod, devContainerConnectParamsValidator, devContainerConnectionParamsValidator, DevContainerDisconnectExtensionMethod, devContainerEnvironmentParamsValidator, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, DevContainerSandboxSupportNotification, DevContainerRelayCloseNotification, DevContainerRelayMessageNotification, devContainerRelayMessageValidator, DevContainerRelaySendExtensionMethod, DevContainerRemoveEnvironmentExtensionMethod, DevContainerRemoveExtensionMethod, DevContainerStopExtensionMethod, DevContainerUserStateNotification, devContainerWorkspaceParamsValidator, type IAgentHostExtensionNotificationMap } from '../common/agentHostExtensionProtocol.js';
+import { DevContainerCloseConnectionNotification, DevContainerConnectEnvironmentExtensionMethod, devContainerConnectEnvironmentParamsValidator, DevContainerConnectExtensionMethod, DevContainerConnectFailureNotification, devContainerConnectParamsValidator, devContainerConnectionParamsValidator, DevContainerDisconnectExtensionMethod, devContainerEnvironmentParamsValidator, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, DevContainerSandboxSupportNotification, DevContainerRelayCloseNotification, DevContainerRelayMessageNotification, devContainerRelayMessageValidator, DevContainerRelaySendExtensionMethod, DevContainerRemoveEnvironmentExtensionMethod, DevContainerRemoveExtensionMethod, DevContainerStopExtensionMethod, DevContainerUserStateNotification, devContainerWorkspaceParamsValidator, type IAgentHostExtensionNotificationMap } from '../common/agentHostExtensionProtocol.js';
 import { IDevContainerAgentHostMainService, type IDevContainerAgentHostConfig, type IDevContainerAgentHostConnectResult } from '../common/devContainerAgentHost.js';
 import { devContainerEnvironmentImages, isDevContainerEnvironmentId } from '../common/devContainerEnvironments.js';
 import { AhpErrorCodes, JsonRpcErrorCodes, ProtocolError } from '../common/state/sessionProtocol.js';
@@ -55,6 +55,9 @@ export class DevContainerAgentHostProtocol extends Disposable {
 		}
 		if (_service.onDidReportUserState) {
 			this._register(_service.onDidReportUserState(event => this._forward(DevContainerUserStateNotification, event)));
+		}
+		if (_service.onDidFailConnect) {
+			this._register(_service.onDidFailConnect(event => this._forward(DevContainerConnectFailureNotification, event)));
 		}
 		this._register(_service.onDidRelayClose(id => this._forward(DevContainerRelayCloseNotification, { connectionId: id })));
 		this._register(_service.onDidCloseConnection(id => {

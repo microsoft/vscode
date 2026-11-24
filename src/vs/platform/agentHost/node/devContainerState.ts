@@ -458,3 +458,47 @@ function isFolderName(value: string): boolean {
 function shellQuote(value: string): string {
 	return `'${value.replace(/'/g, `'\\''`)}'`;
 }
+
+/** Whether a Docker or Podman error reports that the target is mounted more than once. */
+export function isDevContainerDuplicateMountError(errorText: string, target: string): boolean {
+	const escapedTarget = escapeRegExp(target.replace(/\/+$/, ''));
+	return new RegExp(`Duplicate mount point: ${escapedTarget}/*(?![\\w./-])`, 'i').test(errorText)
+		|| new RegExp(`(?<![\\w./-])"?${escapedTarget}/*"?: duplicate mount destination`, 'i').test(errorText);
+}
+
+/**
+ * Cause of a `devcontainer up` failure that the failed command doesn't identify, e.g., a mount error of `docker run`
+ * or a configuration error without a failed command. Reported instead of the error message.
+ */
+export type DevContainerUpErrorCause = 'duplicateMount' | 'volume' | 'mount' | 'daemon' | 'config' | 'lifecycle' | 'feature' | 'other';
+
+const upErrorLifecyclePattern = /\b(?:initialize|onCreate|updateContent|postCreate|postStart|postAttach)Command\b.*\bfailed\.$/;
+const upErrorConfigPattern = /^(?:Dev container config \(.*\) (?:not found|is missing one of|must contain a JSON object literal)|No dev container config and no workspace found|A Dev Container using Docker Compose requires a workspace folder|Dockerfile \(.*\) not found|Service '.*' configured in devcontainer\.json not found|An error occurred retrieving the Docker Compose configuration|No image information specified|--platform or --push require BuildKit|Failed to read\/parse secrets)|can not be resolved because no environment variable name is given/m;
+const upErrorTextPatterns: [DevContainerUpErrorCause, RegExp][] = [
+	['feature', /^Cannot use the '.*' Feature since it was reported to be problematic|Legacy feature '.*' not supported|Failure resolving Features|Feature '.*' (?:in 'overrideFeatureInstallOrder' )?could not be processed|Failed to download package for|Digest did not match for|Failed to compute Feature installation order|cannot be read for Feature/m],
+	['duplicateMount', /Duplicate mount point|duplicate mount destination/i],
+	['daemon', /Cannot connect to the Docker daemon|Is the docker daemon running|failed to connect to the docker API|error during connect|permission denied while trying to connect to the Docker daemon|Cannot connect to Podman|unable to connect to Podman/i],
+	['volume', /invalid mount config for type "volume"|error while mounting volume|external volume .* not found|refers to undefined volume|invalid volume specification|no such volume|volume .* is in use/i],
+	['mount', /invalid mount|bind source path does not exist|error (?:while )?mounting|Mounts denied|trying to mount a directory onto a file/i],
+];
+
+/**
+ * Classifies a failed `devcontainer up` from the CLI's error result and output. Lifecycle and configuration errors,
+ * which the CLI's description identifies, take precedence over errors in the output of the commands they run.
+ */
+export function getDevContainerUpErrorCause(result: { readonly description?: unknown; readonly message?: unknown } | undefined, output = ''): DevContainerUpErrorCause {
+	const description = typeof result?.description === 'string' ? result.description : '';
+	const message = typeof result?.message === 'string' ? result.message : '';
+	if (upErrorLifecyclePattern.test(description)) {
+		return 'lifecycle';
+	}
+	if (upErrorConfigPattern.test(`${description}\n${message}`)) {
+		return 'config';
+	}
+	// Command lines can contain arguments such as mounts.
+	const text = `${description}\n${message}\n${output}`.replace(/\x1b\[[0-9;?]*[A-Za-z]/g, '').split(/\r?\n/)
+		.filter(line => !/^\s*(?:\[\d+ ms\]\s*)?(?:Start|Stop \(\d+ ms\)): /.test(line))
+		.map(line => line.replace(new RegExp(`${failedCommandPattern}.*`), '$1'))
+		.join('\n');
+	return upErrorTextPatterns.find(([, pattern]) => pattern.test(text))?.[0] || 'other';
+}

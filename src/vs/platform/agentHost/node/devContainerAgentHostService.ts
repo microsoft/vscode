@@ -33,7 +33,7 @@ import { getResolvedShellEnv } from '../../shell/node/shellEnv.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { type AgentHostEndpointAddress, selectAgentHostEndpoint } from '../common/agentHostEndpointRegistry.js';
 import { telemetryLevelToAgentHostValue } from '../common/agentHostTelemetry.js';
-import { DevContainerEnvironmentVolumeLookupTimeoutMs, IDevContainerAgentHostConfig, IDevContainerAgentHostConnectResult, IDevContainerAgentHostMainService, IDevContainerAgentHostSandboxSupport, IDevContainerAgentHostUserStateReport, VSCODE_REMOTE_CONTAINERS_SESSION_ENV, type DevContainerAgentHostSource } from '../common/devContainerAgentHost.js';
+import { DevContainerConnectStage, DevContainerEnvironmentVolumeLookupTimeoutMs, IDevContainerAgentHostConfig, IDevContainerAgentHostConnectFailure, IDevContainerAgentHostConnectResult, IDevContainerAgentHostMainService, IDevContainerAgentHostSandboxSupport, IDevContainerAgentHostUserStateReport, VSCODE_REMOTE_CONTAINERS_SESSION_ENV, type DevContainerAgentHostSource } from '../common/devContainerAgentHost.js';
 import { devContainerEnvironmentScheme, IDevContainerEnvironmentSource } from '../common/devContainerEnvironments.js';
 import { DevContainerSample, IDevContainerRepository, devContainerSampleUri, devContainerSamples, getDevContainerSampleFolder } from '../common/devContainerSamples.js';
 import { IRelayMessage } from '../common/relayTransport.js';
@@ -43,7 +43,7 @@ import { IPreparedDevContainerSample, prepareDevContainerSample } from './devCon
 import { IDevContainerSandboxConfiguration, isDevContainerSandboxSupported, parseDevContainerSandboxConfiguration, prepareDevContainerSandboxConfiguration } from './devContainerSandbox.js';
 import { buildCreateDevContainerCacheCommand, buildLinkDevContainerServerCacheCommand, canAddDevContainerServerCacheMount, devContainerServerCacheMount, getDevContainerCliCachePath, getDevContainerServerCachePath } from './devContainerServerCache.js';
 import { DevContainerShell, IDevContainerShellResult } from './devContainerShell.js';
-import { IDevContainerStateErrorValues, IDevContainerStateLinkProgress, buildLinkDevContainerStateCommand, findDevContainerStateMount, getDefaultDevContainerIdLabels, getDevContainerStateMount, getDevContainerStateMountTarget, getDevContainerStateTargetKind, getDevContainerStateVolumeLabels, getDevContainerStateVolumeName, isDevContainerRunning, isDevContainerStateVolumeFor, parseLinkDevContainerStateOutput, sanitizeDevContainerStateErrorMessage } from './devContainerState.js';
+import { IDevContainerStateErrorValues, IDevContainerStateLinkProgress, buildLinkDevContainerStateCommand, findDevContainerStateMount, getDefaultDevContainerIdLabels, getDevContainerStateMount, getDevContainerStateMountTarget, getDevContainerStateTargetKind, getDevContainerStateVolumeLabels, getDevContainerStateVolumeName, getDevContainerUpErrorCause, isDevContainerRunning, isDevContainerStateVolumeFor, parseLinkDevContainerStateOutput, sanitizeDevContainerStateErrorMessage } from './devContainerState.js';
 import { prepareOwnerOnlyDirectory } from './localAgentHostMetadata.js';
 import { ensureRemoteAgentHostCliInstalled } from './remoteAgentHostCliInstaller.js';
 import {
@@ -266,9 +266,13 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 	readonly onDidChangeSandboxSupport = this._onDidChangeSandboxSupport.event;
 	private readonly _onDidReportUserState = this._register(new Emitter<IDevContainerAgentHostUserStateReport>());
 	readonly onDidReportUserState = this._onDidReportUserState.event;
+	private readonly _onDidFailConnect = this._register(new Emitter<IDevContainerAgentHostConnectFailure>());
+	readonly onDidFailConnect = this._onDidFailConnect.event;
 
 	private readonly _connections = this._register(new DisposableMap<string, IDevContainerRelay>());
 	private readonly _connectionStores = this._register(new DisposableMap<string, DisposableStore>());
+	/** What each connection attempt is doing, for telemetry when it fails. */
+	private readonly _connectStages = new Map<string, DevContainerConnectStage>();
 	private readonly _connectionTokenSources = new Map<string, CancellationTokenSource>();
 	private readonly _connectionWorkspaces = new Map<string, string>();
 	private readonly _containerIds = new Map<string, string>();
@@ -335,6 +339,7 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 			this._connectionWorkspaces.set(config.connectionId, workspaceKey);
 			store.add(toDisposable(() => this._connectionWorkspaces.delete(config.connectionId)));
 		};
+		this._connectStages.set(config.connectionId, hasKey(config, { workspaceFolder: true }) ? 'readConfig' : 'prepare');
 
 		try {
 			this._logService.info(`${LOG_PREFIX} Starting Dev Container for ${config.name}`);
@@ -373,7 +378,7 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 				const up = await this._runDevContainerStage(
 					config.connectionId,
 					'up',
-					!!config.persistUserState,
+					true,
 					// Lifecycle commands run after linking user state, so their changes to it persist.
 					['up', ...DEV_CONTAINER_LOG_ARGS, ...selectorArgs, ...cacheMountArgs, ...userStateMount.args, ...config.persistUserState ? ['--skip-post-create'] : []],
 					tokenSource.token,
@@ -385,6 +390,7 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 				}
 				upResult = up.parsed;
 				registerContainer(upResult.containerId);
+				this._setConnectStage(config.connectionId, 'link');
 				// Containers created with the setting on keep their volume, so they are linked even if it is off now.
 				const homeFolder = await this._linkUserState(config.connectionId, upResult.containerId, upResult.remoteUser, !!config.persistUserState, userStateMount.keepExistingFolders, tokenSource.token, {
 					selectorArgs,
@@ -402,6 +408,7 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 				}
 			}
 
+			this._setConnectStage(config.connectionId, 'agentHostStart');
 			const sandboxSupported = await this._getSandboxSupported(config.connectionId, upResult.containerId, tokenSource.token);
 			this._onDidChangeSandboxSupport.fire({ connectionId: config.connectionId, supported: sandboxSupported });
 			// The container ID skips the CLI's container lookup.
@@ -483,6 +490,7 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 
 			const relayCommand = `${VSCODE_REMOTE_CONTAINERS_SESSION_ENV}=${shellEscape(this._telemetryService.sessionId)} ${buildAgentRelayCommand(cliBin, cliDataDir, endpoint.instanceId, initial.userDataPath)}`;
 			store.delete(shell);
+			this._setConnectStage(config.connectionId, 'connect');
 			const relay = await this._createRelay(
 				config.connectionId,
 				execSelector,
@@ -513,6 +521,11 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 				...(hasKey(config, { workspaceFolder: true }) ? { hostWorkspaceFolder: config.workspaceFolder } : {}),
 			};
 		} catch (error) {
+			const stage = this._connectStages.get(config.connectionId);
+			if (stage && !isCancellationError(error) && !tokenSource.token.isCancellationRequested) {
+				// Waiting for the Agent Host to register or its relay to connect timed out.
+				this._onDidFailConnect.fire({ connectionId: config.connectionId, stage: getErrorMessage(error).startsWith('Timed out waiting for ') ? 'timeout' : stage });
+			}
 			if (sampleContainerStarted) {
 				try {
 					await this._changeContainerState(source, 'stop');
@@ -525,6 +538,14 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 				this._connectionStores.deleteAndDispose(config.connectionId);
 			}
 			throw error;
+		} finally {
+			this._connectStages.delete(config.connectionId);
+		}
+	}
+
+	private _setConnectStage(connectionId: string, stage: DevContainerConnectStage): void {
+		if (this._connectStages.has(connectionId)) {
+			this._connectStages.set(connectionId, stage);
 		}
 	}
 
@@ -538,10 +559,15 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 				if (!stage) {
 					return this._runDevContainer(connectionId, args, token);
 				}
-				const { stdout, stderr, code } = await this._runDevContainerStage<unknown>(connectionId, stage, !!persistUserState, args, token, undefined, stage === 'up' ? parseDevContainerUpResult : parseDevContainerUserCommandsResult, errorValues);
+				const { stdout, stderr, code, parsed } = await this._runDevContainerStage<unknown>(connectionId, stage, stage === 'up' || !!persistUserState, args, token, undefined, stage === 'up' ? parseDevContainerUpResult : parseDevContainerUserCommandsResult, errorValues);
+				if (stage === 'up' && parsed !== undefined) {
+					// Steps after `up`, e.g., cloning a sample, are preparation.
+					this._setConnectStage(connectionId, 'prepare');
+				}
 				return { stdout, stderr, code };
 			},
 			linkUserState: async (containerId, remoteUser, selectorArgs, keepExistingFolders) => {
+				this._setConnectStage(connectionId, 'link');
 				errorValues = {
 					// The override configuration has no remoteEnv, so only the image's metadata can set HOME.
 					homeFolder: await this._linkUserState(connectionId, containerId, remoteUser, !!persistUserState, keepExistingFolders, token, {
@@ -585,10 +611,15 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 				if (!stage) {
 					return this._runDevContainer(connectionId, args, token);
 				}
-				const { stdout, stderr, code } = await this._runDevContainerStage<unknown>(connectionId, stage, !!persistUserState, args, token, undefined, stage === 'up' ? parseDevContainerUpResult : parseDevContainerUserCommandsResult, errorValues);
+				const { stdout, stderr, code, parsed } = await this._runDevContainerStage<unknown>(connectionId, stage, stage === 'up' || !!persistUserState, args, token, undefined, stage === 'up' ? parseDevContainerUpResult : parseDevContainerUserCommandsResult, errorValues);
+				if (stage === 'up' && parsed !== undefined) {
+					// Steps after `up`, e.g., cloning a sample, are preparation.
+					this._setConnectStage(connectionId, 'prepare');
+				}
 				return { stdout, stderr, code };
 			},
 			linkUserState: async (containerId, remoteUser, selectorArgs, configuration, keepExistingFolders) => {
+				this._setConnectStage(connectionId, 'link');
 				errorValues = {
 					homeFolder: await this._linkUserState(connectionId, containerId, remoteUser, !!persistUserState, keepExistingFolders, token, {
 						selectorArgs,
@@ -659,11 +690,24 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 	 * unless the container is new or was stopped, so no process may be using them.
 	 */
 	private async _getUserStateMountArgs(connectionId: string, configuration: Promise<string>, workspaceFolder: string, token: CancellationToken): Promise<{ readonly args: readonly string[]; readonly keepExistingFolders: boolean }> {
+		this._setConnectStage(connectionId, 'mount');
+		let output: string;
+		try {
+			output = await configuration;
+		} catch (error) {
+			if (isCancellationError(error) || token.isCancellationRequested) {
+				throw error;
+			}
+			// The Dev Container CLI reports the error when starting the container.
+			this._logService.info(`${LOG_PREFIX} Not keeping user state on a volume: cannot read the configuration`, error);
+			this._reportOutput(connectionId, 'Not keeping user state on a volume: cannot read the configuration.\n');
+			this._onDidReportUserState.fire({ connectionId, stage: 'mount', outcome: 'skipped', reason: 'configUnreadable' });
+			return { args: [], keepExistingFolders: true };
+		}
 		let reason = 'config';
 		let target: string | undefined;
 		let keepExistingFolders = true;
 		try {
-			const output = await configuration;
 			const { content, error } = devContainerStateConfigurationValidator.validate(JSON.parse(output));
 			if (error) {
 				throw new Error(`Invalid Dev Container configuration: ${error.message}`);
@@ -825,21 +869,24 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 
 	/** Runs a Dev Container CLI command; `parsed` is set only if it succeeded. Optionally reports the outcome for user state telemetry. */
 	private async _runDevContainerStage<T>(connectionId: string, stage: 'up' | 'userCommands', report: boolean, args: readonly string[], token: CancellationToken, environment: NodeJS.ProcessEnv | undefined, parse: (stdout: string) => T | undefined, errorValues?: IDevContainerStateErrorValues): Promise<{ stdout: string; stderr: string; code: number; parsed: T | undefined }> {
+		this._setConnectStage(connectionId, stage);
 		let result: { stdout: string; stderr: string; code: number };
 		try {
 			result = await this._runDevContainer(connectionId, args, token, environment);
 		} catch (error) {
 			if (report && !isCancellationError(error) && !token.isCancellationRequested) {
-				this._onDidReportUserState.fire({ connectionId, stage, outcome: 'failed', reason: 'run', errorMessage: sanitizeDevContainerStateErrorMessage([getErrorMessage(error)], errorValues) });
+				const errorCause = stage === 'up' ? getDevContainerUpErrorCause(undefined, getErrorMessage(error)) : undefined;
+				this._onDidReportUserState.fire({ connectionId, stage, outcome: 'failed', reason: 'run', ...errorCause ? { errorCause } : {}, errorMessage: sanitizeDevContainerStateErrorMessage([getErrorMessage(error)], errorValues) });
 			}
 			throw error;
 		}
 		const parsed = parse(result.stdout);
 		const succeeded = result.code === 0 && parsed !== undefined;
 		if (report) {
+			const errorCause = !succeeded && stage === 'up' ? getDevContainerUpErrorCause(parseDevContainerErrorResult(result.stdout), result.stderr) : undefined;
 			this._onDidReportUserState.fire(succeeded
 				? { connectionId, stage, outcome: 'succeeded' }
-				: { connectionId, stage, outcome: 'failed', reason: result.code !== 0 ? 'exitCode' : 'result', exitCode: result.code, errorMessage: getDevContainerCliErrorMessage(result.stdout, result.stderr, errorValues) });
+				: { connectionId, stage, outcome: 'failed', reason: result.code !== 0 ? 'exitCode' : 'result', exitCode: result.code, ...errorCause ? { errorCause } : {}, errorMessage: getDevContainerCliErrorMessage(result.stdout, result.stderr, errorValues) });
 		}
 		return { stdout: result.stdout, stderr: result.stderr, code: result.code, parsed: succeeded ? parsed : undefined };
 	}
@@ -1561,20 +1608,24 @@ function parseDevContainerUserCommandsResult(output: string): true | undefined {
 	}) || undefined;
 }
 
-/** A failed Dev Container CLI command's error result and Docker daemon error, or its stderr, for telemetry. */
-export function getDevContainerCliErrorMessage(stdout: string, stderr: string, values?: IDevContainerStateErrorValues): string | undefined {
-	let result: { readonly description?: string; readonly message?: string } | undefined;
+/** The error result a failed Dev Container CLI command wrote to stdout. */
+function parseDevContainerErrorResult(stdout: string): { readonly description?: string; readonly message?: string } | undefined {
 	for (const line of stdout.trim().split('\n').reverse()) {
 		try {
 			const { content, error } = devContainerErrorResultValidator.validate(JSON.parse(line));
 			if (!error) {
-				result = content;
-				break;
+				return content;
 			}
 		} catch {
 			// Continue scanning earlier output lines.
 		}
 	}
+	return undefined;
+}
+
+/** A failed Dev Container CLI command's error result and Docker daemon error, or its stderr, for telemetry. */
+export function getDevContainerCliErrorMessage(stdout: string, stderr: string, values?: IDevContainerStateErrorValues): string | undefined {
+	const result = parseDevContainerErrorResult(stdout);
 	// Docker daemon errors, e.g., for invalid mounts, only appear in the logs.
 	const daemonError = stderr.split('\n').reverse().find(line => line.includes('Error response from daemon:'));
 	const parts = result

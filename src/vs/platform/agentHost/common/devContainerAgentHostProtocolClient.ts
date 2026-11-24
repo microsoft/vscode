@@ -7,8 +7,8 @@ import { CancellationError } from '../../../base/common/errors.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { hasKey } from '../../../base/common/types.js';
-import { DevContainerCloseConnectionNotification, DevContainerConnectEnvironmentExtensionMethod, DevContainerConnectExtensionMethod, devContainerConnectResultValidator, devContainerConnectionParamsValidator, DevContainerDisconnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, DevContainerSandboxSupportNotification, devContainerSandboxSupportValidator, DevContainerRelayCloseNotification, DevContainerRelayMessageNotification, devContainerRelayMessageValidator, DevContainerRelaySendExtensionMethod, DevContainerRemoveEnvironmentExtensionMethod, DevContainerRemoveExtensionMethod, DevContainerStopExtensionMethod, DevContainerUserStateNotification, devContainerUserStateValidator, type IAgentHostExtensionCommandMap } from './agentHostExtensionProtocol.js';
-import type { DevContainerAgentHostSource, IDevContainerAgentHostConfig, IDevContainerAgentHostConnectResult, IDevContainerAgentHostMainService, IDevContainerAgentHostOutput, IDevContainerAgentHostSandboxSupport, IDevContainerAgentHostUserStateReport } from './devContainerAgentHost.js';
+import { DevContainerCloseConnectionNotification, DevContainerConnectEnvironmentExtensionMethod, DevContainerConnectExtensionMethod, DevContainerConnectFailureNotification, devContainerConnectFailureValidator, devContainerConnectResultValidator, devContainerConnectionParamsValidator, DevContainerDisconnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, DevContainerSandboxSupportNotification, devContainerSandboxSupportValidator, DevContainerRelayCloseNotification, DevContainerRelayMessageNotification, devContainerRelayMessageValidator, DevContainerRelaySendExtensionMethod, DevContainerRemoveEnvironmentExtensionMethod, DevContainerRemoveExtensionMethod, DevContainerStopExtensionMethod, DevContainerUserStateNotification, devContainerUserStateValidator, type IAgentHostExtensionCommandMap } from './agentHostExtensionProtocol.js';
+import type { DevContainerAgentHostSource, IDevContainerAgentHostConfig, IDevContainerAgentHostConnectFailure, IDevContainerAgentHostConnectResult, IDevContainerAgentHostMainService, IDevContainerAgentHostOutput, IDevContainerAgentHostSandboxSupport, IDevContainerAgentHostUserStateReport } from './devContainerAgentHost.js';
 import type { IRelayMessage } from './relayTransport.js';
 
 /** Adapts the VS Code extension RPCs to the shared-process Dev Container service contract. */
@@ -29,6 +29,8 @@ export class DevContainerAgentHostProtocolClient extends Disposable implements I
 	readonly onDidChangeSandboxSupport = this._onDidChangeSandboxSupport.event;
 	private readonly _onDidReportUserState = this._register(new Emitter<IDevContainerAgentHostUserStateReport>());
 	readonly onDidReportUserState = this._onDidReportUserState.event;
+	private readonly _onDidFailConnect = this._register(new Emitter<IDevContainerAgentHostConnectFailure>());
+	readonly onDidFailConnect = this._onDidFailConnect.event;
 	private readonly _connections = new Map<string, object>();
 
 	constructor(
@@ -124,6 +126,13 @@ export class DevContainerAgentHostProtocolClient extends Disposable implements I
 				const result = devContainerUserStateValidator.validate(params);
 				if (!result.error && this._connections.has(result.content.connectionId)) {
 					this._onDidReportUserState.fire(result.content);
+				}
+				return true;
+			}
+			case DevContainerConnectFailureNotification: {
+				const result = devContainerConnectFailureValidator.validate(params);
+				if (!result.error && this._connections.has(result.content.connectionId)) {
+					this._onDidFailConnect.fire(result.content);
 				}
 				return true;
 			}

@@ -7,7 +7,7 @@ import assert from 'assert';
 import { spawnSync } from 'child_process';
 import { isWindows } from '../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { buildLinkDevContainerStateCommand, devContainerStateFallbackTarget, devContainerStateWorkspacesTarget, findDevContainerStateMount, getDefaultDevContainerIdLabels, getDevContainerId, getDevContainerStateMountTarget, getDevContainerStateVolumeLabels, getDevContainerStateVolumeName, IDevContainerStateLinkOptions, isDevContainerStateVolumeFor, parseLinkDevContainerStateOutput, sanitizeDevContainerStateErrorMessage } from '../../node/devContainerState.js';
+import { buildLinkDevContainerStateCommand, devContainerStateFallbackTarget, devContainerStateWorkspacesTarget, DevContainerUpErrorCause, findDevContainerStateMount, getDefaultDevContainerIdLabels, getDevContainerId, getDevContainerStateMountTarget, getDevContainerStateVolumeLabels, getDevContainerStateVolumeName, getDevContainerUpErrorCause, IDevContainerStateLinkOptions, isDevContainerStateVolumeFor, parseLinkDevContainerStateOutput, sanitizeDevContainerStateErrorMessage } from '../../node/devContainerState.js';
 
 suite('DevContainerState', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -231,5 +231,24 @@ suite('DevContainerState', () => {
 	test('keeps the start and end of long error messages', () => {
 		const message = sanitizeDevContainerStateErrorMessage([`start ${'x'.repeat(2000)} end`]);
 		assert.deepStrictEqual({ length: message?.length, start: message?.startsWith('start x'), end: message?.endsWith('x end'), elided: message?.includes('\n…\n') }, { length: 1000, start: true, end: true, elided: true });
+	});
+
+	test('classifies devcontainer up error causes the failed command does not identify', () => {
+		const setup = 'An error occurred setting up the container.';
+		const cases: [Parameters<typeof getDevContainerUpErrorCause>, DevContainerUpErrorCause][] = [
+			[[{ description: setup, message: 'Command failed: docker run -a STDOUT --mount type=volume,src=s,dst=/workspaces image' }, '[2 ms] docker: Error response from daemon: Duplicate mount point: /workspaces.'], 'duplicateMount'],
+			[[undefined, '\x1b[31mCannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?\x1b[0m'], 'daemon'],
+			[[{ description: 'The postStartCommand in the devcontainer.json failed.' }, 'Error response from daemon: invalid mount config'], 'lifecycle'],
+			[[{ description: '`setup` of postCreateCommand from devcontainer.json failed.' }], 'lifecycle'],
+			[[{ description: 'Dev container config (/home/me/project/.devcontainer/devcontainer.json) not found.' }], 'config'],
+			[[{ description: setup, message: 'Failed to download package for ghcr.io/devcontainers/features/node' }], 'feature'],
+			[[{ description: setup, message: 'Command failed: docker run image' }, 'Error response from daemon: invalid mount config for type "volume": invalid mount path'], 'volume'],
+			[[{ description: setup, message: 'Command failed: docker run image' }, 'Error response from daemon: invalid mount config for type "bind": bind source path does not exist: /home/me/.ssh'], 'mount'],
+			// The failed command identifies build errors.
+			[[{ description: 'An error occurred building the image.', message: 'Command failed: docker buildx build .' }, 'ERROR: failed to solve: process "/bin/sh -c exit 1" did not complete successfully: exit code: 1'], 'other'],
+			// Command lines and their start and stop logs are not classified.
+			[[{ description: setup, message: 'Command failed: docker create --mount type=volume,src=no such volume,dst=/data image' }, '[3 ms] Start: Run: docker run -l "Duplicate mount point" image\n[4 ms] Stop (1 ms): Run: docker run -l "Duplicate mount point" image'], 'other'],
+		];
+		assert.deepStrictEqual(cases.map(([args]) => getDevContainerUpErrorCause(...args)), cases.map(([, cause]) => cause));
 	});
 });
