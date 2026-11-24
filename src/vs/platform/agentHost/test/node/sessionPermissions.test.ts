@@ -419,6 +419,37 @@ suite('SessionPermissionManager', () => {
 		}
 		assert.deepStrictEqual(results, cases.map(([, expected]) => expected));
 	});
+	test('only exact absolute file grants override protected-write confirmation in Assisted approval', async () => {
+    const target = join(workDir, '.mcp.json');
+    const exactRule = pathRule('Edit', target, false)!;
+    const cases: [string, ToolCallConfirmationReason | undefined][] = [
+        ['Edit', undefined],
+        ['Edit(*)', undefined],
+        ['file_tool', undefined],
+        [pathRule('Edit', workDir, true)!, undefined],
+        [exactRule.replace('.mcp.json', '*.json'), undefined],
+        [exactRule, ToolCallConfirmationReason.Setting],
+    ];
+    const results = [];
+    for (const [rule] of cases) {
+        setPermissionRules([rule]);
+        results.push(await permissions.getExplicitPermissionAutoApproval(
+            { ...writeEvent(target), toolName: 'file_tool' },
+            sessionUri
+        ));
+    }
+    assert.deepStrictEqual(results, cases.map(([, expected]) => expected));
+});
+test('explicit Ask rules retain confirmation for protected writes in Assisted approval', async () => {
+    const target = join(workDir, '.mcp.json');
+    const rule = pathRule('Edit', target, false)!;
+    setPermissionRules([rule], [], [rule]);
+    const asked = await permissions.getExplicitPermissionAutoApproval(
+        writeEvent(target),
+        sessionUri
+    );
+    assert.strictEqual(asked, undefined);
+});
 
 	test('exact protected-file grants do not override explicit asks or denies', async () => {
 		const target = join(outsideDir, '.mcp.json');
