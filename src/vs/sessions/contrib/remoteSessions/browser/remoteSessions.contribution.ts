@@ -45,7 +45,7 @@ class RemoteSessionToolsContribution extends Disposable implements IWorkbenchCon
 		super();
 		const list = instantiationService.createInstance(ListAgentHostsTool);
 		const create = instantiationService.createInstance(CreateRemoteSessionTool);
-		const message = instantiationService.createInstance(SendRemoteMessageTool);
+		const message = this._register(instantiationService.createInstance(SendRemoteMessageTool));
 		const inspect = instantiationService.createInstance(GetRemoteSessionTool);
 		this._register(toolsService.registerTool(list.getToolData(), list));
 		this._register(toolsService.registerTool(create.getToolData(), create));

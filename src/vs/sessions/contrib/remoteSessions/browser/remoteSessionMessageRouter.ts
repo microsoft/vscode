@@ -3,19 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { disposableTimeout, raceCancellationError, SequencerByKey } from '../../../../base/common/async.js';
+import { disposableTimeout, raceCancellationError, RunOnceScheduler, SequencerByKey } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { CancellationError } from '../../../../base/common/errors.js';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { getComparisonKey, isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
+import { getGlobalConfigurationValue } from '../../../../platform/agentHost/common/agentHostConfigurationSync.js';
 import { IAgentHostConnectionsService } from '../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { resolveAgentHostSessionTrustFolders } from '../../../../platform/agentHost/common/agentHostWorkspaceTrust.js';
+import { AgentHostAgentOrchestrationLimitsSettingId } from '../../../../platform/agentHost/common/agentService.js';
 import { toRemoteSessionMessageMetadata } from '../../../../platform/agentHost/common/meta/agentRemoteSessionMeta.js';
 import { buildOpenSessionLinkUri } from '../../../../platform/agentHost/common/openSessionLink.js';
+import { maxSentMessages, orchestrationLimitWindowMs, SessionActionLimiter } from '../../../../platform/agentHost/common/sessionActionLimiter.js';
 import { ChatInteractivity as ProtocolChatInteractivity } from '../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType } from '../../../../platform/agentHost/common/state/sessionActions.js';
 import { DEFAULT_CHAT_ID, effectiveChatInteractivity, getSessionChatResource, isSessionStatusArchived, MessageKind, PendingMessageKind, readSessionWorkspaceless, SessionState, StateComponents } from '../../../../platform/agentHost/common/state/sessionState.js';
@@ -29,8 +32,10 @@ import { IRemoteSessionChat, readRemoteSessionState, resolveRemoteSessionChat, r
 import { IRemoteSessionChatReference, IRemoteSessionChatService } from './remoteSessionChatService.js';
 import { areRemoteSessionToolsEnabled } from '../common/remoteSessions.js';
 
-const maxRemoteMessages = 50;
+const remoteMessageRetryWindowMs = orchestrationLimitWindowMs;
 export const maxRemoteMessageLength = 64 * 1024;
+
+class RemoteMessageLimitError extends Error { }
 
 export interface ISendRemoteMessageOptions {
 	readonly session: string;
@@ -70,8 +75,11 @@ export function parseSendRemoteMessageOptions(value: unknown): ISendRemoteMessag
 }
 
 /** Routes approved messages without opening a chat or changing its execution configuration. */
-export class RemoteSessionMessageRouter {
-	private readonly requests = new Map<string, { readonly input: string; readonly result: Promise<ISendRemoteMessageResult> }>();
+export class RemoteSessionMessageRouter extends Disposable {
+	// In-flight requests do not expire; settled results remain available for retries.
+	private readonly requests = new Map<string, { readonly input: ISendRemoteMessageOptions; readonly result: Promise<ISendRemoteMessageResult>; expiresAt?: number }>();
+	private readonly requestCleanup = this._register(new RunOnceScheduler(() => this.expireRequests(), remoteMessageRetryWindowMs));
+	private readonly sentMessages = new SessionActionLimiter(maxSentMessages, orchestrationLimitWindowMs, Date.now);
 	private readonly sends = new SequencerByKey<string>();
 
 	constructor(
@@ -81,7 +89,14 @@ export class RemoteSessionMessageRouter {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IRemoteSessionChatService private readonly backgroundChats: IRemoteSessionChatService,
 		@IWorkspaceTrustManagementService private readonly workspaceTrustService: IWorkspaceTrustManagementService,
-	) { }
+	) {
+		super();
+	}
+
+	override dispose(): void {
+		this.requests.clear();
+		super.dispose();
+	}
 
 	async prepareTarget(source: URI, target: string, token: CancellationToken): Promise<IRemoteMessageTarget> {
 		const resolved = await this.resolve(source, target, token);
@@ -91,25 +106,80 @@ export class RemoteSessionMessageRouter {
 	send(source: URI, options: ISendRemoteMessageOptions, requestId: string, token: CancellationToken): Promise<ISendRemoteMessageResult> {
 		this.checkEnabled();
 		const key = JSON.stringify([getComparisonKey(source), requestId]);
-		const input = JSON.stringify(options);
+		const input = { session: options.session, message: options.message };
 		const previous = this.requests.get(key);
 		if (previous) {
-			if (previous.input !== input) {
-				throw new Error(localize('remoteMessage.changedRetry', "A remote message request cannot be retried with different arguments."));
+			if (previous.expiresAt !== undefined && previous.expiresAt <= Date.now()) {
+				this.requests.delete(key);
+			} else {
+				if (previous.input.session !== input.session || previous.input.message !== input.message) {
+					throw new Error(localize('remoteMessage.changedRetry', "A remote message request cannot be retried with different arguments."));
+				}
+				return previous.result;
 			}
-			return previous.result;
 		}
-		if (this.requests.size >= maxRemoteMessages) {
-			throw new Error(localize('remoteMessage.limit', "Remote message limit reached ({0} requests per window).", maxRemoteMessages));
-		}
-		const result = this.queueSend(source, options, token);
+		const result = this.sendRequest(key, source, options, token);
 		this.requests.set(key, { input, result });
 		return result;
 	}
 
+	private async sendRequest(key: string, source: URI, options: ISendRemoteMessageOptions, token: CancellationToken): Promise<ISendRemoteMessageResult> {
+		try {
+			return await this.queueSend(source, options, token);
+		} catch (error) {
+			if (error instanceof RemoteMessageLimitError) {
+				this.requests.delete(key);
+			}
+			throw error;
+		} finally {
+			const request = this.requests.get(key);
+			if (request) {
+				request.expiresAt = Date.now() + remoteMessageRetryWindowMs;
+				if (!this.requestCleanup.isScheduled()) {
+					this.requestCleanup.schedule();
+				}
+			}
+		}
+	}
+
+	private expireRequests(): void {
+		const now = Date.now();
+		let hasUnexpiredRequests = false;
+		for (const [key, request] of this.requests) {
+			if (request.expiresAt === undefined) {
+				continue;
+			}
+			if (request.expiresAt <= now) {
+				this.requests.delete(key);
+			} else {
+				hasUnexpiredRequests = true;
+			}
+		}
+		if (hasUnexpiredRequests) {
+			// send() checks expiry on access; periodic sweeps avoid a timer per request.
+			this.requestCleanup.schedule();
+		}
+	}
+
 	private async queueSend(sourceResource: URI, options: ISendRemoteMessageOptions, token: CancellationToken): Promise<ISendRemoteMessageResult> {
 		const { source, target } = await this.resolve(sourceResource, options.session, token);
-		return this.sends.queue(getComparisonKey(target.chat), () => this.doSend(source, target, options, token));
+		const session = getComparisonKey(source.session.resource);
+		const limit = getGlobalConfigurationValue<string>(this.configurationService, AgentHostAgentOrchestrationLimitsSettingId) === 'off' ? undefined : this.sentMessages.getLimit(session);
+		if (limit) {
+			throw new RemoteMessageLimitError(limit.retryAfterSeconds === undefined
+				? localize('remoteMessage.pendingLimit', "Remote message limit reached: this session has sent {0} of {1} messages in the last {2} minutes, with {3} more in progress. Wait for a send to finish, or turn off {4} in settings.", limit.used, limit.max, limit.windowMinutes, limit.pending, AgentHostAgentOrchestrationLimitsSettingId)
+				: localize('remoteMessage.limit', "Remote message limit reached: this session has sent {0} of {1} messages in the last {2} minutes. Retry after {3} seconds, or turn off {4} in settings.", limit.used, limit.max, limit.windowMinutes, limit.retryAfterSeconds, AgentHostAgentOrchestrationLimitsSettingId));
+		}
+		const reservation = this.sentMessages.reserve(session);
+		let mayHaveDelivered = false;
+		try {
+			return await this.sends.queue(getComparisonKey(target.chat), () => this.doSend(source, target, options, token, () => { mayHaveDelivered = true; }));
+		} finally {
+			reservation.dispose();
+			if (mayHaveDelivered) {
+				this.sentMessages.record(session);
+			}
+		}
 	}
 
 	private checkEnabled(): void {
@@ -195,7 +265,7 @@ export class RemoteSessionMessageRouter {
 		}
 	}
 
-	private async doSend(source: IResolvedRemoteSource, target: IResolvedRemoteChat, options: ISendRemoteMessageOptions, token: CancellationToken): Promise<ISendRemoteMessageResult> {
+	private async doSend(source: IResolvedRemoteSource, target: IResolvedRemoteChat, options: ISendRemoteMessageOptions, token: CancellationToken, onMayHaveDelivered: () => void): Promise<ISendRemoteMessageResult> {
 		const store = new DisposableStore();
 		let dispatched = false;
 		let rejected = false;
@@ -290,6 +360,7 @@ export class RemoteSessionMessageRouter {
 			}
 		} finally {
 			if (confirmed || (dispatched && !rejected)) {
+				onMayHaveDelivered();
 				background?.releaseWhenIdle();
 			} else {
 				background?.dispose();
