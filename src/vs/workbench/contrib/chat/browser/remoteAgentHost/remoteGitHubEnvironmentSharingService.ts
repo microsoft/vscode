@@ -260,15 +260,20 @@ export class RemoteGitHubEnvironmentSharingService extends Disposable implements
 		}
 		if (result) {
 			// The environment replaces the remote in the GitHub environment list once the remote is disconnected.
-			void this._environmentService.refresh(CancellationToken.None).catch(error => {
+			const refresh = this._environmentService.refresh(CancellationToken.None).catch(error => {
 				if (!isCancellationError(error)) {
 					this._logService.warn('[RemoteGitHubEnvironments] Failed to refresh GitHub environments after keeping a remote shared', error);
 				}
 			});
-			if (share.environmentId !== undefined) {
+			const environmentId = share.environmentId;
+			if (environmentId !== undefined) {
+				// New sessions on the remote can only move to the environment before the remote disconnects once it is discovered, which takes this refresh if sharing started recently.
+				if (!this._environmentService.hosts.get().some(host => host.id === environmentId)) {
+					await raceTimeout(refresh, 5000);
+				}
 				for (const handler of [...this._keepSharingHandlers]) {
 					try {
-						handler(address, share.environmentId);
+						handler(address, environmentId);
 					} catch (error) {
 						this._logService.error('[RemoteGitHubEnvironments] Failed to continue sessions through a kept GitHub environment', error);
 					}
