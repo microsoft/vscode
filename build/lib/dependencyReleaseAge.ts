@@ -295,6 +295,7 @@ export function parseCargoLockfile(text: string): ILockedPackage[] {
 	// Other tables, such as [metadata] or [[patch.unused]], don't list installed packages.
 	let inOtherTable = false;
 	let inDependencies = false;
+	const keys = new Set<string>();
 	const flush = () => {
 		if (current) {
 			if (!current.name || !current.version) {
@@ -329,13 +330,22 @@ export function parseCargoLockfile(text: string): ILockedPackage[] {
 		}
 		if (line.startsWith('[')) {
 			flush();
+			keys.clear();
 			inOtherTable = line !== '[[package]]';
 			if (!inOtherTable) {
 				current = {};
-			} else if (!/^\[\[?[A-Za-z][\w.-]*\]\]?$/.test(line) || /^\[\[?package\b/.test(line)) {
+			} else if (!/^(\[[A-Za-z][\w.-]*\]|\[\[[A-Za-z][\w.-]*\]\])$/.test(line) || /^\[\[?package\b/.test(line)) {
 				fail();
 			}
 			continue;
+		}
+		// TOML allows each key once per table.
+		const key = /^("[^"\\]*"|[A-Za-z0-9_-]+) =/.exec(line)?.[1];
+		if (key !== undefined) {
+			if (keys.has(key)) {
+				fail();
+			}
+			keys.add(key);
 		}
 		if (inOtherTable) {
 			// Cargo writes only plain string fields and dependency arrays in its other tables, such as the checksums of

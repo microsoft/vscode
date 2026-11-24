@@ -223,6 +223,10 @@ suite('dependencyReleaseAge', () => {
 			'version = 4\n\n[package]\nname = "serde"\nversion = "1.0.228"\n',
 			// Other tables must be readable too.
 			cargoPackage('name = "serde"', 'version = "1.0.228"', '', '[metadata]', 'broken = "'),
+			// Unbalanced table headers, and a key twice in a table.
+			cargoPackage('name = "serde"', 'version = "1.0.228"', '', '[metadata]]'),
+			cargoPackage('name = "serde"', 'version = "1.0.228"', '', '[[patch.unused]'),
+			cargoPackage('name = "serde"', 'version = "1.0.228"', 'dependencies = []', 'dependencies = [', ' "a",', ']'),
 		]) {
 			assert.throws(() => parseCargoLockfile(text), Error, text);
 		}
