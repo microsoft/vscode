@@ -728,6 +728,16 @@ export class Repository implements Disposable {
 	private _onDidChangeStatus = new EventEmitter<void>();
 	readonly onDidRunGitStatus: Event<void> = this._onDidChangeStatus.event;
 
+	private _onDidChangeCommitTemplate = new EventEmitter<void>();
+	readonly onDidChangeCommitTemplate: Event<void> = this._onDidChangeCommitTemplate.event;
+
+	private _onDidResetCommitMessage = new EventEmitter<string>();
+	/**
+	 * Fires with the message that the next commit starts from: the message of the rebase commit when a rebase stops at
+	 * a commit, an empty message when the rebase ends, and the commit template after a commit with a message.
+	 */
+	readonly onDidResetCommitMessage: Event<string> = this._onDidResetCommitMessage.event;
+
 	private _onDidChangeResources = new EventEmitter<void>();
 	/**
 	 * Fires when `mergeChanges`, `indexChanges`, `workingTreeChanges` or `untrackedChanges` change.
@@ -811,13 +821,19 @@ export class Repository implements Disposable {
 		return this._worktrees;
 	}
 
+	private _commitTemplate: string | undefined;
+	/**
+	 * The merge or squash message, or else the commit template, read with each git status.
+	 */
+	get commitTemplate(): string | undefined { return this._commitTemplate; }
+
 	private _rebaseCommit: Commit | undefined = undefined;
 
 	set rebaseCommit(rebaseCommit: Commit | undefined) {
 		if (this._rebaseCommit && !rebaseCommit) {
-			this.sourceControl.inputBox.value = '';
+			this._onDidResetCommitMessage.fire('');
 		} else if (rebaseCommit && (!this._rebaseCommit || this._rebaseCommit.hash !== rebaseCommit.hash)) {
-			this.sourceControl.inputBox.value = rebaseCommit.message;
+			this._onDidResetCommitMessage.fire(rebaseCommit.message);
 		}
 
 		const shouldUpdateContext = !!this._rebaseCommit !== !!rebaseCommit;
@@ -1455,7 +1471,7 @@ export class Repository implements Disposable {
 
 	private async commitOperationCleanup(message: string | undefined, indexResources: string[], workingGroupResources: string[]) {
 		if (message) {
-			this.sourceControl.inputBox.value = await this.getInputTemplate();
+			this._onDidResetCommitMessage.fire(await this.getInputTemplate());
 		}
 		this.closeDiffEditors(indexResources, workingGroupResources);
 
@@ -3039,7 +3055,10 @@ export class Repository implements Disposable {
 			this.mergeInProgress = mergeInProgress;
 			this.cherryPickInProgress = cherryPickInProgress;
 
-			this.sourceControl.sourceControl.commitTemplate = commitTemplate;
+			if (this._commitTemplate !== commitTemplate) {
+				this._commitTemplate = commitTemplate;
+				this._onDidChangeCommitTemplate.fire();
+			}
 
 			// Execute cancellable long-running operation
 			const [resourceGroups, refs] =

@@ -4549,7 +4549,7 @@ export class CommandCenter {
 
 		let message: string | undefined;
 
-		if (config.get<boolean>('useCommitInputAsStashMessage') && (!repository.sourceControl.sourceControl.commitTemplate || repository.sourceControl.inputBox.value !== repository.sourceControl.sourceControl.commitTemplate)) {
+		if (config.get<boolean>('useCommitInputAsStashMessage') && (!repository.commitTemplate || repository.sourceControl.inputBox.value !== repository.commitTemplate)) {
 			message = repository.sourceControl.inputBox.value;
 		}
 
