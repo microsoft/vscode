@@ -1904,6 +1904,33 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 		assert.deepStrictEqual({ afterCompute, afterCurrent: updates }, { afterCompute: 0, afterCurrent: [{ owner, changeset: buildBranchChangesetUri(owner) }] });
 	});
 
+	test('a turn end whose branch is unchanged reports the changeset current without diffing it', async () => {
+		const state = { fingerprint: 'tree-1' as string | undefined };
+		const { git, calls } = createCountingBranchGitService(state);
+		const telemetry = new CapturingTelemetryService();
+		const { svc } = build({ workingDirectories: ['file:///repo'], git, checkpoint: NULL_CHECKPOINT_SERVICE, telemetry });
+		const owner = buildFolderChangesetOwnerUri(sessionStr, getWorkingDirectoryScopeId(['file:///repo']));
+		const branchOutcomes = () => telemetry.events.filter(event => event.eventName === 'agentHost.changesetComputed' && event.data.kind === 'branch').map(event => ({ turnId: event.data.turnId, outcome: event.data.outcome, fileCount: event.data.fileCount }));
+
+		const chat = buildDefaultChatUri(sessionStr);
+		svc.onTurnComplete(chat, 'turn-1');
+		await svc.whenStaticComputed(owner, 'branch');
+		svc.onTurnComplete(chat, 'turn-2');
+		await svc.whenStaticComputed(owner, 'branch');
+		state.fingerprint = 'tree-2';
+		svc.onTurnComplete(chat, 'turn-3');
+		await svc.whenStaticComputed(owner, 'branch');
+
+		assert.deepStrictEqual({ diffs: calls.filter(call => call === 'computeSessionFileDiffs').length, outcomes: branchOutcomes() }, {
+			diffs: 2,
+			outcomes: [
+				{ turnId: 'turn-1', outcome: 'computed', fileCount: 1 },
+				{ turnId: 'turn-2', outcome: 'unchanged', fileCount: undefined },
+				{ turnId: 'turn-3', outcome: 'computed', fileCount: 1 },
+			],
+		});
+	});
+
 	test('a branch refresh recomputes when the working tree, a commit or the base changed, or when forced', async () => {
 		const state = { fingerprint: 'tree-1' as string | undefined };
 		const { git, calls } = createCountingBranchGitService(state);
