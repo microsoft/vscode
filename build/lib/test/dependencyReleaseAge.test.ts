@@ -105,6 +105,8 @@ suite('dependencyReleaseAge', () => {
 				'node_modules/alias': { name: 'real', version: '2.0.0', resolved: 'https://registry.npmjs.org/real/-/real-2.0.0.tgz' },
 				'node_modules/fork': { version: '1.0.0', resolved: 'git+ssh://git@github.com/owner/fork.git#0123abc' },
 				'node_modules/mirror': { version: '1.0.0', resolved: 'https://mirror.example.com/mirror/-/mirror-1.0.0.tgz' },
+				// Another tarball of the registry under a locked name and version.
+				'node_modules/swap': { version: '1.0.0', resolved: 'https://registry.npmjs.org/evil/-/evil-9.9.9.tgz' },
 				'node_modules/bundled': { version: '1.0.0', inBundle: true },
 				'node_modules/packageMocks/keytar': { extraneous: true },
 			},
@@ -131,6 +133,7 @@ suite('dependencyReleaseAge', () => {
 			npm('real', '2.0.0'),
 			npm('fork', '1.0.0', { kind: 'other', description: 'git repository git+ssh://git@github.com/owner/fork.git#0123abc' }),
 			npm('mirror', '1.0.0', { kind: 'other', description: 'tarball https://mirror.example.com/mirror/-/mirror-1.0.0.tgz' }),
+			npm('swap', '1.0.0', { kind: 'other', description: 'tarball https://registry.npmjs.org/evil/-/evil-9.9.9.tgz, which is not the registry tarball of swap@1.0.0' }),
 		]);
 	});
 
@@ -181,7 +184,9 @@ suite('dependencyReleaseAge', () => {
 			parsePnpmLockfile(lockfile('    resolution:', '      tarball: https://example.com/a.tgz')),
 			parsePnpmLockfile(lockfile('    resolution: {tarball: https://example.com/a.tgz} # comment')),
 			parsePnpmLockfile(`lockfileVersion: '9.0'\npackages: {}\n`),
-		], [[npm('a', '1.0.0')], [tarball], [tarball], []]);
+			parsePnpmLockfile(lockfile('    resolution: {integrity: sha512-x==, tarball: https://registry.npmjs.org/a/-/a-1.0.0.tgz}')),
+			parsePnpmLockfile(lockfile('    resolution: {integrity: sha512-x==, tarball: https://registry.npmjs.org/evil/-/evil-9.9.9.tgz}')),
+		], [[npm('a', '1.0.0')], [tarball], [tarball], [], [npm('a', '1.0.0')], [npm('a', '1.0.0', { kind: 'other', description: 'tarball https://registry.npmjs.org/evil/-/evil-9.9.9.tgz, which is not the registry tarball of a@1.0.0' })]]);
 		for (const text of [
 			// A field that pnpm doesn't write, a nested value, and no resolution at all.
 			lockfile('    resolution: {integrity: sha512-x==, url: https://example.com/a.tgz}'),
@@ -253,6 +258,7 @@ suite('dependencyReleaseAge', () => {
 		for (const text of [
 			'minimumReleaseAge: 7d\n',
 			'minimumReleaseAge: [10080]\n',
+			'minimumReleaseAge: 10000000000000000\n',
 			'minimumReleaseAge: 10080\nminimumReleaseAgeExclude: electron\n',
 			'minimumReleaseAge: 10080\nminimumReleaseAgeExclude:\n  - {electron: true}\n',
 			'minimumReleaseAge: 10080\nminimumReleaseAgeExclude: [\n',
@@ -318,6 +324,10 @@ suite('dependencyReleaseAge', () => {
 			{ lockfile: 'pnpm-lock.yaml', name: 'fork', version: '1.0.0', message: 'fork@1.0.0 comes from git repository https://github.com/owner/fork.git. Dependencies must come from registry.npmjs.org.' },
 			{ lockfile: 'pnpm-lock.yaml', name: 'fresh', version: '1.0.0', message: 'fresh@1.0.0 was published on 2026-11-20T08:30:00.000Z. The minimumReleaseAge of pnpm-workspace.yaml (7 days) allows it from 2026-11-27T08:30:00.000Z.' },
 			{ lockfile: 'pnpm-lock.yaml', name: 'missing', version: '1.0.0', message: 'missing@1.0.0 is not published on registry.npmjs.org.' },
+		]);
+		// A publish date that gives no valid date of eligibility fails too.
+		assert.deepStrictEqual((await checkChanges([{ lockfile: 'pnpm-lock.yaml', policy, added: [npm('undated', '1.0.0')] }], new Set(), fakeRegistry({ 'undated@1.0.0': { kind: 'published', publishedAt: new Date(Number.NaN) } }), now)).map(violation => violation.message), [
+			'undated@1.0.0 has no valid date from which the minimumReleaseAge of pnpm-workspace.yaml allows it.',
 		]);
 		// Excluded versions, versions that main already locks and local packages need no lookup.
 		assert.deepStrictEqual(registry.lookups.sort(), ['crates:serde@1.0.229', 'npm:fresh@1.0.0', 'npm:mature@1.0.0', 'npm:missing@1.0.0']);

@@ -141,15 +141,30 @@ function readResolution(key: string, resolution: unknown): Record<string, string
 	return resolution as Record<string, string>;
 }
 
-function pnpmSource(version: string, resolution: Record<string, string>): PackageSource {
+/**
+ * The URL of the tarball that registry.npmjs.org publishes for a version. A lockfile that names another tarball of the
+ * registry, such as one of a newer package, for a locked version would install it under that name and version.
+ */
+function registryTarball(name: string, version: string): string {
+	return `${NPM_REGISTRY}${name}/-/${name.slice(name.lastIndexOf('/') + 1)}-${version}.tgz`;
+}
+
+function otherTarball(name: string, version: string, tarball: string): PackageSource {
+	return { kind: 'other', description: tarball.startsWith(NPM_REGISTRY) ? `tarball ${tarball}, which is not the registry tarball of ${name}@${version}` : `tarball ${tarball}` };
+}
+
+function pnpmSource(name: string, version: string, resolution: Record<string, string>): PackageSource {
 	if (resolution.directory !== undefined || /^(link|file|workspace):/.test(version) || resolution.tarball?.startsWith('file:')) {
 		return { kind: 'local' };
 	}
 	if (resolution.type === 'git' || resolution.repo !== undefined || resolution.commit !== undefined) {
 		return { kind: 'other', description: `git repository ${resolution.repo ?? version}${resolution.commit ? `#${resolution.commit}` : ''}` };
 	}
-	if (resolution.type !== undefined || (resolution.tarball !== undefined && !resolution.tarball.startsWith(NPM_REGISTRY))) {
-		return { kind: 'other', description: resolution.tarball !== undefined ? `tarball ${resolution.tarball}` : `a resolution of type ${resolution.type}` };
+	if (resolution.type !== undefined) {
+		return { kind: 'other', description: `a resolution of type ${resolution.type}` };
+	}
+	if (resolution.tarball !== undefined && resolution.tarball !== registryTarball(name, version)) {
+		return otherTarball(name, version, resolution.tarball);
 	}
 	if (resolution.integrity === undefined) {
 		throw new Error(`cannot read the source of ${version}`);
@@ -183,7 +198,7 @@ export function parsePnpmLockfile(text: string): ILockedPackage[] {
 				throw new Error(`cannot read the package ${key}`);
 			}
 			const resolution = readResolution(key, entry.resolution);
-			packages.push({ ecosystem: 'npm', ...nameAndVersion, source: pnpmSource(nameAndVersion.version, resolution) });
+			packages.push({ ecosystem: 'npm', ...nameAndVersion, source: pnpmSource(nameAndVersion.name, nameAndVersion.version, resolution) });
 		}
 	}
 	return packages;
@@ -199,15 +214,15 @@ interface IPackageLockEntry {
 	readonly dependencies?: Record<string, IPackageLockEntry>;
 }
 
-function npmSource(version: string, entry: IPackageLockEntry): PackageSource {
-	if (entry.resolved === undefined || entry.resolved.startsWith(NPM_REGISTRY)) {
+function npmSource(name: string, version: string, entry: IPackageLockEntry): PackageSource {
+	if (entry.resolved === undefined || entry.resolved === registryTarball(name, version)) {
 		// Version 1 lockfiles may give a git or URL specifier as the version, with no resolved URL.
 		return SEMVER.test(version) ? { kind: 'registry' } : { kind: 'other', description: `the version specifier ${version}` };
 	}
 	if (entry.resolved.startsWith('file:')) {
 		return { kind: 'local' };
 	}
-	return { kind: 'other', description: entry.resolved.startsWith('git') ? `git repository ${entry.resolved}` : `tarball ${entry.resolved}` };
+	return entry.resolved.startsWith('git') ? { kind: 'other', description: `git repository ${entry.resolved}` } : otherTarball(name, version, entry.resolved);
 }
 
 /** Lists the installed packages of an npm lockfile, of version 1 (`dependencies`) or 2 and 3 (`packages`). */
@@ -238,7 +253,7 @@ export function parsePackageLockfile(text: string): ILockedPackage[] {
 			packages.push({ ecosystem: 'npm', name, version: entry.version, source: { kind: 'local' } });
 			return;
 		}
-		packages.push({ ecosystem: 'npm', name, version: entry.version, source: npmSource(entry.version, entry) });
+		packages.push({ ecosystem: 'npm', name, version: entry.version, source: npmSource(name, entry.version, entry) });
 	};
 	if (isRecord(entries)) {
 		for (const [key, entry] of Object.entries(entries as Record<string, IPackageLockEntry>)) {
@@ -368,7 +383,8 @@ export function parseReleaseAgePolicy(text: string, file: string): IReleaseAgePo
 		throw new Error(`${file} is not a mapping`);
 	}
 	const { minimumReleaseAge, minimumReleaseAgeExclude } = settings;
-	if (minimumReleaseAge !== undefined && (typeof minimumReleaseAge !== 'string' || !/^\d+$/.test(minimumReleaseAge))) {
+	// A bounded number of minutes, so that the dates it gives stay valid.
+	if (minimumReleaseAge !== undefined && (typeof minimumReleaseAge !== 'string' || !/^\d{1,8}$/.test(minimumReleaseAge))) {
 		throw new Error(`cannot read the minimumReleaseAge of ${file}: ${JSON.stringify(minimumReleaseAge)}`);
 	}
 	if (minimumReleaseAgeExclude !== undefined && (!Array.isArray(minimumReleaseAgeExclude) || !minimumReleaseAgeExclude.every(item => typeof item === 'string'))) {
@@ -453,6 +469,10 @@ export async function checkChanges(changes: readonly ILockfileChange[], lockedOn
 					return;
 				}
 				const eligibleAt = new Date(release.publishedAt.getTime() + minimumReleaseAge * 60_000);
+				if (Number.isNaN(eligibleAt.getTime())) {
+					violation(`${pkg.name}@${pkg.version} has no valid date from which the minimumReleaseAge of ${policy.file} allows it.`);
+					return;
+				}
 				if (eligibleAt > now) {
 					violation(`${pkg.name}@${pkg.version} was published on ${release.publishedAt.toISOString()}. The minimumReleaseAge of ${policy.file} (${formatMinutes(minimumReleaseAge)}) allows it from ${eligibleAt.toISOString()}.`);
 				}
