@@ -22,7 +22,9 @@ suite('git editor', () => {
 	teardown(async () => {
 		await commands.executeCommand('workbench.action.closeAllEditors');
 		await commands.executeCommand('workbench.action.editorLayoutSingle');
-		fs.rmSync(tmpDir, { recursive: true, force: true });
+		// The workbench releases its watcher on the closed editors asynchronously,
+		// which keeps the directory locked on Windows for a short while
+		await fs.promises.rm(tmpDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
 	});
 
 	function isOpen(uri: Uri): boolean {
