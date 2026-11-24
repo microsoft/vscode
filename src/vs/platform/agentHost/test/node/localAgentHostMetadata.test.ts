@@ -11,7 +11,7 @@ import * as os from 'os';
 import { dirname, join } from '../../../../base/common/path.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { IAgentHostEndpointIdentity, IAgentHostEndpointMetadata, getAgentHostEndpointIdentityHashInput } from '../../common/agentHostEndpointRegistry.js';
-import { ILocalAgentHostEndpointMetadata, cleanupLocalAgentHostEndpointMetadataSync, createLocalAgentHostEndpointMetadata, prepareLocalAgentHostEndpointMetadataDirectory, prepareLocalAgentHostEndpointSocketDirectory, publishLocalAgentHostEndpointMetadata, readLocalAgentHostEndpointRegistry, readLocalAgentHostEndpoint } from '../../node/localAgentHostMetadata.js';
+import { ILocalAgentHostEndpointMetadata, cleanupLocalAgentHostEndpointMetadataSync, createLocalAgentHostEndpointMetadata, isPidAlive, prepareLocalAgentHostEndpointMetadataDirectory, prepareLocalAgentHostEndpointSocketDirectory, publishLocalAgentHostEndpointMetadata, readLocalAgentHostEndpointRegistry, readLocalAgentHostEndpoint } from '../../node/localAgentHostMetadata.js';
 import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
 
 suite('Local Agent Host Endpoint Metadata', () => {
@@ -261,6 +261,24 @@ suite('Local Agent Host Endpoint Metadata', () => {
 		}, {
 			registered: [live.instanceId],
 			deadFileRemoved: true,
+		});
+	});
+
+	suite('isPidAlive', () => {
+		test('returns true for the current process', () => {
+			assert.strictEqual(isPidAlive(process.pid), true);
+		});
+
+		test('returns false for invalid PIDs', () => {
+			assert.strictEqual(isPidAlive(0), false);
+			assert.strictEqual(isPidAlive(-1), false);
+			assert.strictEqual(isPidAlive(Number.NaN), false);
+		});
+
+		test('returns false for a clearly nonexistent PID', () => {
+			// 2^31 - 1 is a valid signed 32-bit int but vanishingly unlikely
+			// to be a live PID on any real machine.
+			assert.strictEqual(isPidAlive(2147483646), false);
 		});
 	});
 
