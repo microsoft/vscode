@@ -91,10 +91,8 @@ export class CopilotModelRouterGuidance {
 			return undefined;
 		}
 		if (state.pending) {
-			// A note was handed out and its message was never seen to reach the agent. It may still have, so what the chat was told is not known.
-			state.pending = undefined;
-			state.told = undefined;
-			state.mayHoldNote = true;
+			// A note was handed out and its message was never seen to reach the agent. It may still have.
+			this._toldUnknown(state);
 		}
 		const routed = state.turn && state.turn.id === turnId ? state.turn.routed : undefined;
 		if (!routed || state.told && structuralEquals(state.told.guidance, routed.guidance)) {
@@ -122,7 +120,10 @@ export class CopilotModelRouterGuidance {
 	/** The chat's history was rewritten: a note can be gone from it, or an older one back in it. */
 	historyRewritten(chat: string): void {
 		const state = this._chats.get(chat);
-		if (state?.mayHoldNote) {
+		if (state?.pending) {
+			// The note on its way can be in what was rewritten, so its delivery would say nothing.
+			this._toldUnknown(state);
+		} else if (state?.mayHoldNote) {
 			state.told = undefined;
 		}
 	}
@@ -131,9 +132,15 @@ export class CopilotModelRouterGuidance {
 	historyChangedElsewhere(chat: string): void {
 		const state = this._chats.get(chat);
 		if (state) {
-			state.told = undefined;
-			state.mayHoldNote = true;
+			this._toldUnknown(state);
 		}
+	}
+
+	/** What the chat was told is not known, and its history can hold a note. A note on its way no longer counts when it arrives. */
+	private _toldUnknown(state: IChatGuidance): void {
+		state.pending = undefined;
+		state.told = undefined;
+		state.mayHoldNote = true;
 	}
 
 	/** Forgets a chat that is gone. */
