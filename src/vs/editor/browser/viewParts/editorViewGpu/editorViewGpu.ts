@@ -39,6 +39,7 @@ import type { IViewLineHitTestProvider } from '../../controller/mouseHandler.js'
 import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { EditorViewBracketGuideColors, toEditorViewBracketGuide } from './editorViewGuides.js';
+import { EditorViewLineState } from './editorViewLineState.js';
 import { EditorViewMinimapPainter } from './editorViewMinimap.js';
 import { EditorViewOverviewRulerPainter } from './editorViewOverviewRuler.js';
 import type { IEditorViewSurfaceHost } from './editorViewSurfaces.js';
@@ -237,6 +238,8 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 	 * lines are sent only before it paints, measures or minimaps them.
 	 */
 	private _sentTextStyle: (string | undefined)[] = [];
+	/** The folding controls and indentation guides the renderer has, so frames send only changes. */
+	private readonly _lineState = new EditorViewLineState();
 	/** Text-style key of lines built by `_buildLine`, recorded when they are sent. */
 	private readonly _builtTextStyle = new WeakMap<LineInput, string>();
 	/**
@@ -1046,6 +1049,7 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 			if (delta.type === 'replaceLines') {
 				this._sentGutterLabels.splice(delta.start, delta.deleteCount, ...delta.insert.map(line => line.gutterLabel));
 				this._sentTextStyle.splice(delta.start, delta.deleteCount, ...delta.insert.map(line => this._builtTextStyle.get(line) ?? ''));
+				this._lineState.replaceLines(delta.start, delta.deleteCount, delta.insert);
 			}
 		} catch (err) {
 			onUnexpectedError(err);
@@ -1072,6 +1076,7 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 		}
 		spliceUnsent(this._sentGutterLabels, start, deleteCount, insertCount);
 		spliceUnsent(this._sentTextStyle, start, deleteCount, insertCount);
+		this._lineState.spliceLines(start, deleteCount, insertCount);
 	}
 
 	/**
@@ -1189,6 +1194,7 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 			}
 			this._sentGutterLabels = [];
 			this._sentTextStyle = [];
+			this._lineState.reset();
 			this._lineStateDirty = true;
 			this._spliceLines(0, 0, this._context.viewModel.getLineCount());
 			return;
@@ -1251,7 +1257,9 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 				}
 			}
 		}
-		this._applyDelta({ type: 'setIndentGuides', start, counts, activeLevels });
+		for (const run of this._lineState.indentGuidesToSend(start, counts, activeLevels)) {
+			this._applyDelta({ type: 'setIndentGuides', ...run });
+		}
 	}
 
 	public ownsContentDecoration(decoration: ViewModelDecoration): boolean {
@@ -1394,8 +1402,11 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 	}
 
 	private _setFoldingControls(start: number, controls: (FoldingControlInput | null)[]): void {
-		if (this._editorView?.setFoldingControls) {
-			this._editorView.setFoldingControls(start, controls);
+		const editorView = this._editorView;
+		if (editorView?.setFoldingControls) {
+			for (const run of this._lineState.foldingControlsToSend(start, controls)) {
+				editorView.setFoldingControls(run.start, run.controls);
+			}
 			return;
 		}
 		// npm 0.0.1 takes the controls of every line.
