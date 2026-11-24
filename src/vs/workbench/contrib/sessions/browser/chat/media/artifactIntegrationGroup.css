@@ -30,7 +30,8 @@
 	display: flex;
 	flex-direction: column;
 	max-height: 288px;
-	overflow-y: auto;
+	/* Rows truncate to the dropdown's width rather than scrolling sideways. */
+	overflow: hidden auto;
 }
 
 /* Rows keep the action list's control tier: one line, quiet until hovered or focused. */
@@ -59,11 +60,14 @@
 	outline-offset: calc(-1 * var(--vscode-strokeThickness));
 }
 
+/* Dropdown rows show an artifact's full label, which can be long. It truncates after the title, but well before the
+	status sections, whose share of the shrinking this weight keeps negligible. */
 .artifact-group-row-main {
 	display: inline-flex;
 	align-items: center;
 	gap: var(--vscode-spacing-size40);
-	flex-shrink: 0;
+	flex-shrink: 1000;
+	min-width: 0;
 	border-radius: var(--vscode-cornerRadius-small);
 	font-variant-numeric: tabular-nums;
 }
@@ -72,6 +76,14 @@
 .artifact-group-row-icon .artifact-icon {
 	display: inline-flex;
 	align-items: center;
+	flex-shrink: 0;
+}
+
+.artifact-group-row-label {
+	min-width: 0;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
 }
 
 .artifact-group-row .codicon[class*='codicon-'] {
@@ -82,7 +94,7 @@
 	display: inline-flex;
 	align-items: center;
 	gap: var(--vscode-spacing-size20);
-	/* Only gives way, after the title, when the row is still too wide for its actions. */
+	/* Only gives way, after the title and the label, when the row is still too wide for its actions. */
 	min-width: 0;
 	overflow: hidden;
 }
