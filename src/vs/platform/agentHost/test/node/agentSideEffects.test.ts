@@ -9367,6 +9367,31 @@ suite('AgentSideEffects', () => {
 
 	suite('session permissions', () => {
 
+		function getToolCall(toolCallId: string) {
+			const part = stateManager.getChatState(defaultChatUri)?.activeTurn?.responseParts.find(part =>
+				part.kind === ResponsePartKind.ToolCall && part.toolCall.toolCallId === toolCallId
+			);
+			return part?.kind === ResponsePartKind.ToolCall ? part.toolCall : undefined;
+		}
+
+		async function startPendingCustomTool(toolCallId: string, managedApprovalRequired = false): Promise<void> {
+			const chat = URI.parse(defaultChatUri);
+			agent.fireProgress({
+				kind: 'action', resource: chat,
+				action: chatToolCallStart('turn-1', toolCallId, 'CustomTool', 'Custom Tool'),
+			});
+			agent.fireProgress({
+				kind: 'pending_confirmation', chat,
+				state: {
+					status: ToolCallStatus.PendingConfirmation, toolCallId,
+					toolName: 'CustomTool', displayName: 'Custom Tool',
+					invocationMessage: 'Run custom tool', confirmationTitle: 'Run custom tool?',
+				},
+				permissionKind: AgentPermissionKind.CustomTool, managedApprovalRequired,
+			});
+			await waitForState(stateManager, () => getToolCall(toolCallId)?.status === ToolCallStatus.PendingConfirmation || undefined);
+		}
+
 		test('live sampling tool parts route their custom approval without granting ordinary tool permissions', () => {
 			setupSession();
 			startTurn('turn-1', defaultChatUri);
@@ -9536,6 +9561,91 @@ suite('AgentSideEffects', () => {
 			assert.deepStrictEqual(agent.respondToPermissionCalls, [
 				{ requestId: 'tc-perm-3', approved: true },
 			]);
+		});
+
+		test('allow-session auto-approves other pending calls for the same tool', async () => {
+			setupSession();
+			stateManager.setSessionConfig(sessionUri.toString(), {
+				schema: { type: 'object', properties: {} },
+				values: {},
+			});
+			startTurn('turn-1');
+			disposables.add(sideEffects.registerProgressListener(agent));
+			await startPendingCustomTool('tc-a');
+			await startPendingCustomTool('tc-b');
+
+			const confirmation: ChatAction = {
+				type: ActionType.ChatToolCallConfirmed,
+				turnId: 'turn-1',
+				toolCallId: 'tc-a',
+				approved: true,
+				confirmed: ToolCallConfirmationReason.UserAction,
+				selectedOptionId: 'allow-session',
+			};
+			stateManager.dispatchClientAction(defaultChatUri, confirmation, { clientId: 'test', clientSeq: 2 });
+			sideEffects.handleAction(defaultChatUri, confirmation);
+
+			const toolCall = await waitForState(stateManager, () => {
+				const pending = getToolCall('tc-b');
+				return pending?.status === ToolCallStatus.Running ? pending : undefined;
+			});
+			assert.deepStrictEqual({
+				status: toolCall.status,
+				confirmed: toolCall.confirmed,
+				responses: agent.respondToPermissionCalls,
+			}, {
+				status: ToolCallStatus.Running,
+				confirmed: ToolCallConfirmationReason.Setting,
+				responses: [
+					{ requestId: 'tc-a', approved: true },
+					{ requestId: 'tc-b', approved: true },
+				],
+			});
+		});
+
+		test('switching to Allow All auto-approves pending calls except managed approvals', async () => {
+			setupSession();
+			stateManager.setSessionConfig(sessionUri.toString(), {
+				schema: {
+					type: 'object',
+					properties: {
+						[SessionConfigKey.AutoApprove]: {
+							type: 'string',
+							title: 'Approvals',
+							enum: ['default', 'autoApprove', 'autopilot'],
+							default: 'default',
+							sessionMutable: true,
+						},
+					},
+				},
+				values: { [SessionConfigKey.AutoApprove]: 'default' },
+			});
+			startTurn('turn-1');
+			disposables.add(sideEffects.registerProgressListener(agent));
+			await startPendingCustomTool('tc-ordinary');
+			await startPendingCustomTool('tc-managed', true);
+
+			stateManager.dispatchClientAction(sessionUri.toString(), {
+				type: ActionType.SessionConfigChanged,
+				config: { [SessionConfigKey.AutoApprove]: 'autoApprove' },
+			}, { clientId: 'test', clientSeq: 2 });
+
+			const toolCall = await waitForState(stateManager, () => {
+				const pending = getToolCall('tc-ordinary');
+				return pending?.status === ToolCallStatus.Running ? pending : undefined;
+			});
+			await timeout(0);
+			assert.deepStrictEqual({
+				status: toolCall.status,
+				confirmed: toolCall.confirmed,
+				managedStatus: getToolCall('tc-managed')?.status,
+				responses: agent.respondToPermissionCalls,
+			}, {
+				status: ToolCallStatus.Running,
+				confirmed: ToolCallConfirmationReason.Setting,
+				managedStatus: ToolCallStatus.PendingConfirmation,
+				responses: [{ requestId: 'tc-ordinary', approved: true }],
+			});
 		});
 
 		test('managed approval bypasses global, session, and per-tool auto-approval', async () => {
