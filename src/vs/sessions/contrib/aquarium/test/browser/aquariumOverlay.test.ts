@@ -56,6 +56,46 @@ class TestMotionAccessibilityService extends TestAccessibilityService {
 suite('AquariumService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	/** Mounts an off-state toggle in a focused window where motion is not reduced. */
+	function mountWiggleToggle() {
+		const mainContainer = document.createElement('div');
+		const toggleContainer = document.createElement('div');
+		document.body.append(mainContainer, toggleContainer);
+		store.add(toDisposable(() => {
+			mainContainer.remove();
+			toggleContainer.remove();
+		}));
+
+		const layoutService = new class extends mock<IWorkbenchLayoutService>() {
+			override readonly mainContainer = mainContainer;
+		}();
+		const configurationService = new TestConfigurationService({ [SESSIONS_DEVELOPER_JOY_ENABLED_SETTING]: true });
+		store.add(configurationService.onDidChangeConfigurationEmitter);
+		const accessibilityService = new TestMotionAccessibilityService();
+		const hostService = new TestHostService();
+		const service = store.add(new AquariumService(
+			layoutService,
+			new MockContextKeyService(),
+			{ ...NullHoverService },
+			store.add(new InMemoryStorageService()),
+			configurationService,
+			accessibilityService,
+			new NullTelemetryServiceShape(),
+			hostService,
+		));
+		store.add(service.mountToggle(toggleContainer));
+		const button = toggleContainer.querySelector<HTMLButtonElement>('.agents-aquarium-toggle')!;
+		return {
+			button,
+			accessibilityService,
+			hostService,
+			isWiggling: () => button.classList.contains('wiggle'),
+			waitForNextWiggle: () => timeout(12_000),
+			/** Reports an animation event on the toggle's icon, like the browser does for the wiggle. */
+			fireAnimationEvent: (type: string) => button.firstElementChild?.dispatchEvent(new AnimationEvent(type, { bubbles: true })),
+		};
+	}
+
 	test('persists and applies aquarium action visibility to mounted buttons', () => {
 		const mainContainer = document.createElement('div');
 		const toggleContainer = document.createElement('div');
@@ -234,36 +274,8 @@ suite('AquariumService', () => {
 	});
 
 	test('wiggles the off-state toggle a few times, only while its window is focused and motion is not reduced', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-		const mainContainer = document.createElement('div');
-		const toggleContainer = document.createElement('div');
-		document.body.append(mainContainer, toggleContainer);
-		store.add(toDisposable(() => {
-			mainContainer.remove();
-			toggleContainer.remove();
-		}));
-
-		const layoutService = new class extends mock<IWorkbenchLayoutService>() {
-			override readonly mainContainer = mainContainer;
-		}();
-		const configurationService = new TestConfigurationService({ [SESSIONS_DEVELOPER_JOY_ENABLED_SETTING]: true });
-		store.add(configurationService.onDidChangeConfigurationEmitter);
-		const accessibilityService = new TestMotionAccessibilityService();
-		const hostService = new TestHostService();
-		const service = store.add(new AquariumService(
-			layoutService,
-			new MockContextKeyService(),
-			{ ...NullHoverService },
-			store.add(new InMemoryStorageService()),
-			configurationService,
-			accessibilityService,
-			new NullTelemetryServiceShape(),
-			hostService,
-		));
-		store.add(service.mountToggle(toggleContainer));
-		const button = toggleContainer.querySelector<HTMLButtonElement>('.agents-aquarium-toggle')!;
-		const isWiggling = () => button.classList.contains('wiggle');
-		const waitForNextWiggle = () => timeout(12_000);
-		const finishWiggle = () => button.firstElementChild?.dispatchEvent(new AnimationEvent(EventType.ANIMATION_END, { bubbles: true }));
+		const { accessibilityService, hostService, isWiggling, waitForNextWiggle, fireAnimationEvent } = mountWiggleToggle();
+		const finishWiggle = () => fireAnimationEvent(EventType.ANIMATION_END);
 
 		await waitForNextWiggle();
 		const first = isWiggling();
@@ -309,6 +321,49 @@ suite('AquariumService', () => {
 			second: true,
 			secondAfterLosingFocus: false,
 			third: true,
+			fourth: false,
+		});
+	}));
+
+	test('ends a wiggle whose animation is held back or cancelled, without replaying it', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const { button, isWiggling, waitForNextWiggle, fireAnimationEvent } = mountWiggleToggle();
+
+		// Hover or keyboard focus holds the animation back for the whole run: no animation event arrives.
+		await waitForNextWiggle();
+		const heldBack = isWiggling();
+		await timeout(1_000);
+		const heldBackAfterItsRun = isWiggling();
+
+		// The next one is held back too, and the pointer leaves the toggle during the run.
+		await timeout(11_000);
+		const heldBackAgain = isWiggling();
+		button.dispatchEvent(new MouseEvent(EventType.MOUSE_LEAVE));
+		const afterPointerLeft = isWiggling();
+
+		// Hover or keyboard focus cancels the last one while it plays.
+		await waitForNextWiggle();
+		const playing = isWiggling();
+		fireAnimationEvent('animationcancel');
+		const afterCancel = isWiggling();
+
+		await waitForNextWiggle();
+		const fourth = isWiggling();
+
+		assert.deepStrictEqual({
+			heldBack,
+			heldBackAfterItsRun,
+			heldBackAgain,
+			afterPointerLeft,
+			playing,
+			afterCancel,
+			fourth,
+		}, {
+			heldBack: true,
+			heldBackAfterItsRun: false,
+			heldBackAgain: true,
+			afterPointerLeft: false,
+			playing: true,
+			afterCancel: false,
 			fourth: false,
 		});
 	}));

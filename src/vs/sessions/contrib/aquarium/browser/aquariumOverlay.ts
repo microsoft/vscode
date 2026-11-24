@@ -63,6 +63,11 @@ const DART_IMPULSE = 150;
  */
 const MAX_WIGGLES = 3;
 const WIGGLE_INTERVAL_MS = 12_000;
+/**
+ * The longest a toggle keeps the wiggle class. Longer than the animation in
+ * aquarium.css, so a wiggle that plays through ends on its own first.
+ */
+const WIGGLE_MAX_RUN_MS = 1_000;
 const WIGGLE_CLASS = 'wiggle';
 
 const ENABLED_STORAGE_KEY = 'sessions.developerJoy.enabled';
@@ -87,6 +92,10 @@ interface IMountedToggle {
 	hostVisible: boolean;
 	/** How many more times this toggle may wiggle, see {@link MAX_WIGGLES}. */
 	remainingWiggles: number;
+	/** Starts one wiggle, which ends on its own, see {@link WIGGLE_MAX_RUN_MS}. */
+	startWiggle(): void;
+	/** Ends the wiggle in progress, if any. */
+	endWiggle(): void;
 }
 
 export class AquariumService extends Disposable implements IAquariumService {
@@ -151,8 +160,20 @@ export class AquariumService extends Disposable implements IAquariumService {
 			e.stopPropagation();
 			this.toggle();
 		}));
-		// A finished wiggle gives up the class so the next one can replay it.
-		store.add(addDisposableListener(button, EventType.ANIMATION_END, () => button.classList.remove(WIGGLE_CLASS)));
+		// A wiggle keeps its class for one run only: hover and keyboard focus hold
+		// the animation back in CSS, so a class left behind would play the wiggle
+		// whenever they end. The run is over when the animation finishes or is
+		// cancelled, when the pointer or focus leaves the toggle, and after
+		// WIGGLE_MAX_RUN_MS at the latest, as an animation that never starts
+		// fires no event at all.
+		const wiggleTimeout = store.add(new RunOnceScheduler(() => button.classList.remove(WIGGLE_CLASS), WIGGLE_MAX_RUN_MS));
+		const endWiggle = () => {
+			wiggleTimeout.cancel();
+			button.classList.remove(WIGGLE_CLASS);
+		};
+		for (const type of [EventType.ANIMATION_END, 'animationcancel', EventType.MOUSE_LEAVE, EventType.BLUR]) {
+			store.add(addDisposableListener(button, type, endWiggle));
+		}
 		const hoverDelegate = store.add(createInstantHoverDelegate());
 		store.add(this.hoverService.setupManagedHover(
 			hoverDelegate,
@@ -162,7 +183,16 @@ export class AquariumService extends Disposable implements IAquariumService {
 
 		parent.appendChild(button);
 
-		const mount: IMountedToggle = { button, hostVisible: true, remainingWiggles: MAX_WIGGLES };
+		const mount: IMountedToggle = {
+			button,
+			hostVisible: true,
+			remainingWiggles: MAX_WIGGLES,
+			startWiggle: () => {
+				button.classList.add(WIGGLE_CLASS);
+				wiggleTimeout.schedule();
+			},
+			endWiggle,
+		};
 		this.mounts.add(mount);
 		this.applyFeatureEnabledStateForButton(button);
 		this.reconcileActivation();
@@ -294,7 +324,7 @@ export class AquariumService extends Disposable implements IAquariumService {
 		let wigglePending = false;
 		for (const mount of this.mounts) {
 			if (!this.canWiggle(mount)) {
-				mount.button.classList.remove(WIGGLE_CLASS);
+				mount.endWiggle();
 			} else if (mount.remainingWiggles > 0) {
 				wigglePending = true;
 			}
@@ -311,7 +341,7 @@ export class AquariumService extends Disposable implements IAquariumService {
 		for (const mount of this.mounts) {
 			if (mount.remainingWiggles > 0 && this.canWiggle(mount)) {
 				mount.remainingWiggles--;
-				mount.button.classList.add(WIGGLE_CLASS);
+				mount.startWiggle();
 			}
 		}
 		this.updateWiggle();
