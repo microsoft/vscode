@@ -10,6 +10,7 @@ import { OperatingSystem } from '../../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import product from '../../../../../platform/product/common/product.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { SESSIONS_MARK_AS_DONE_CONFETTI_SETTING } from '../../../../../platform/chat/common/sessionArchiveActions.js';
 import { SESSIONS_LIST_INDENT_ITEMS_SETTING, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
@@ -128,7 +129,7 @@ suite('Sessions Contribution', () => {
 			experiment: indentItemsProperty.experiment,
 		}, {
 			type: 'boolean',
-			default: true,
+			default: product.quality !== 'stable',
 			tags: ['experimental', 'advanced', 'onExP'],
 			experiment: { mode: 'auto' },
 		});
