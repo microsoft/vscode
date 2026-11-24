@@ -740,9 +740,19 @@ document.addEventListener('click', event => {
 				return;
 			}
 
-			let hrefText = node.getAttribute('data-href');
-			if (!hrefText) {
-				hrefText = node.getAttribute('href');
+			const originalHref = node.getAttribute('data-href');
+			const hrefText = originalHref || node.getAttribute('href');
+			if (hrefText && /^command:/i.test(hrefText)) {
+				// Keep the encoded URL intact: the extension host owns argument parsing
+				// and permission checks. Consume every command click, including invalid
+				// or denied invocations, so it cannot fall through to native navigation.
+				messaging.postMessage('openCommandLink', { href: hrefText });
+				event.preventDefault();
+				event.stopPropagation();
+				return;
+			}
+
+			if (!originalHref) {
 				// Pass through known schemes
 				if (hrefText && passThroughLinkSchemes.some(scheme => hrefText!.startsWith(scheme))) {
 					return;

@@ -1940,6 +1940,16 @@
         "title": "%configuration.preview%",
         "order": 23,
         "properties": {
+          "markdown.preview.allowedCommands": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^\\S+$"
+            },
+            "default": [],
+            "markdownDescription": "%markdown.preview.allowedCommands.desc%",
+            "scope": "window"
+          },
           "markdown.styles": {
             "type": "array",
             "items": {
@@ -2144,6 +2154,8 @@
     "check-markdown-editor-package-json": "node ./scripts/updateMarkdownEditorPackageJson.mts --check",
     "test-markdown-editor-package-json": "node --test ./scripts/updateMarkdownEditorPackageJson.test.mts",
     "test-editor-title": "node --test ./scripts/editorTitle.test.mts",
+    "test-preview-command-links": "node --test ./scripts/previewCommandLinks.test.mts",
+    "test-preview-command-links-browser": "node --test ./scripts/previewCommandLinks.browser.test.mts",
     "test-markdown-editor-clipboard": "node --test ./scripts/clipboardMedia.test.mts ./scripts/markdownEditorMediaTransfer.test.mts",
     "compile-web": "npm-run-all2 -lp bundle-web typecheck-web",
     "bundle-web": "node ./esbuild.browser.mts",

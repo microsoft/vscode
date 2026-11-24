@@ -73,6 +73,12 @@ export namespace FromWebviewMessage {
 		readonly href: string;
 	}
 
+	/** Keep the encoded URL intact until the extension host validates the request. */
+	export interface ClickCommandLink extends BaseMessage {
+		readonly type: 'openCommandLink';
+		readonly href: string;
+	}
+
 	export interface ShowPreviewSecuritySelector extends BaseMessage {
 		readonly type: 'showPreviewSecuritySelector';
 	}
@@ -87,6 +93,7 @@ export namespace FromWebviewMessage {
 		| RevealLine
 		| DidClick
 		| ClickLink
+		| ClickCommandLink
 		| ShowPreviewSecuritySelector
 		| PreviewStyleLoadError
 		;

@@ -13,6 +13,7 @@ import { getSafeNotificationMessage } from '../util/notification';
 import { MdLinkOpener } from '../util/openDocumentLink';
 import { areUrisEqual, getMarkdownLocalResourceRoots, WebviewResourceProvider } from '../util/resources';
 import { urlToUri } from '../util/url';
+import { dispatchPreviewCommand, getPreviewCommandPermission } from './commandLinks';
 import { ImageInfo, MdDocumentRenderer } from './documentRenderer';
 import { MarkdownPreviewConfigurationManager } from './previewConfig';
 import { scrollEditorToLine, StartingScrollFragment, StartingScrollLine, StartingScrollLocation } from './scrolling';
@@ -196,7 +197,9 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 		}
 
 		this._register(this.#webviewPanel.webview.onDidReceiveMessage((e: FromWebviewMessage.Type) => {
-			if (e.source !== this.#resource.toString()) {
+			// A webview message is document input, not permission to execute a command.
+			// Bind it to this live preview's resource before validating its payload.
+			if (!e || typeof e !== 'object' || e.source !== this.#resource.toString() || this.#disposed) {
 				return;
 			}
 
@@ -215,6 +218,10 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 
 				case 'openLink':
 					this.#onDidClickPreviewLink(e.href);
+					break;
+
+				case 'openCommandLink':
+					void this.#onDidClickCommandLink(e.href);
 					break;
 
 				case 'showPreviewSecuritySelector':
@@ -497,6 +504,9 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 		return {
 			enableScripts: true,
 			enableForms: false,
+			// Command URLs must go through our message handler, which checks current
+			// trust and User/Remote permissions rather than granting native navigation.
+			enableCommandUris: false,
 			localResourceRoots: this.#getLocalResourceRoots()
 		};
 	}
@@ -505,7 +515,53 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 		return getMarkdownLocalResourceRoots(this.#resource, this.#contributionProvider.contributions.previewResourceRoots);
 	}
 
+	/** Execute a command request only after validating it in the extension host. */
+	async #onDidClickCommandLink(href: unknown): Promise<void> {
+		const result = await dispatchPreviewCommand(href, {
+			createUri: components => vscode.Uri.from(components),
+			getPermission: commandId => getPreviewCommandPermission(
+				commandId,
+				vscode.workspace.isTrusted,
+				vscode.workspace.getConfiguration('markdown.preview').inspect<unknown>('allowedCommands'),
+			),
+			executeCommand: (commandId, ...args) => vscode.commands.executeCommand(commandId, ...args),
+		});
+
+		// Do not interpolate any document-provided text or caught exception into
+		// notifications: those strings may contain secrets or notification links.
+		switch (result) {
+			case 'executed':
+				return;
+			case 'untrustedWorkspace':
+				void vscode.window.showWarningMessage(vscode.l10n.t("Markdown preview commands require a trusted workspace."));
+				return;
+			case 'invalidConfiguration':
+				void vscode.window.showWarningMessage(vscode.l10n.t("The User or Remote setting 'markdown.preview.allowedCommands' must be an array of nonempty command IDs without whitespace."));
+				return;
+			case 'notAllowed':
+				void vscode.window.showWarningMessage(vscode.l10n.t("This command is not allowed in the Markdown preview. To allow it, add its exact command ID to 'markdown.preview.allowedCommands' in User or Remote Settings."));
+				return;
+			case 'invalidLink':
+				void vscode.window.showWarningMessage(vscode.l10n.t("Invalid Markdown preview command link."));
+				return;
+			case 'invalidArguments':
+				void vscode.window.showWarningMessage(vscode.l10n.t("Markdown preview command arguments must be a percent-encoded JSON array."));
+				return;
+			case 'invalidUri':
+				void vscode.window.showWarningMessage(vscode.l10n.t("Invalid URI argument in the Markdown preview command link."));
+				return;
+			case 'failed':
+				void vscode.window.showErrorMessage(vscode.l10n.t("Could not execute the Markdown preview command."));
+				return;
+		}
+	}
+
 	async #onDidClickPreviewLink(href: string) {
+		// The ordinary link message is also an untrusted entry point. Route command
+		// URLs through the same policy instead of passing them to a generic opener.
+		if (/^command:/i.test(href)) {
+			return this.#onDidClickCommandLink(href);
+		}
 		const config = vscode.workspace.getConfiguration('markdown', this.resource);
 		const openLinks = config.get<string>('preview.openMarkdownLinks', 'inPreview');
 		if (openLinks === 'inPreview') {

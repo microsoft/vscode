@@ -31,6 +31,7 @@
 	"markdown.previewSide.title": "Open Preview to the Side",
 	"markdown.showLockedPreviewToSide.title": "Open Locked Preview to the Side",
 	"markdown.showSource.title": "Open Source File",
+	"markdown.preview.allowedCommands.desc": "Command IDs that links in the Markdown preview may execute. Disabled by default. Requires a trusted workspace. Only User and Remote Settings are used; Workspace and Folder values are ignored. IDs match exactly and case-sensitively, without wildcards. Allowed commands can execute code or modify files with document-supplied arguments. Allowing a composite command such as `runCommands` also permits its nested commands without separate entries.",
 	"markdown.styles.dec": "A list of URLs or local paths to CSS style sheets to use from the Markdown preview. Relative paths are interpreted relative to the folder open in the Explorer. If there is no open folder, they are interpreted relative to the location of the Markdown file. All `\\` need to be written as `\\\\`.",
 	"markdown.reopenAsPreview.title": "Open as Preview",
 	"markdown.reopenAsSource.title": "Reopen as source file",
