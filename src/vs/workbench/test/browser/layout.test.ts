@@ -1345,5 +1345,63 @@ suite('Workbench layout chat part', () => {
 				alone: { beforeRegistration: [], opened: ['extensionViewContainer'] },
 			});
 		});
+
+		test('the focus that goes to a maximized secondary side bar, as the editor area that had it hides, goes to the view container that opens there once the extensions register, unless something has the focus by then', async () => {
+			const apply = async (focusMeanwhile: boolean) => {
+				const { layout, views } = createStateLayout();
+				mainWindow.document.body.appendChild(layout.mainContainer);
+				store.add(toDisposable(() => layout.mainContainer.remove()));
+				const editorButton = append(views.get(Parts.EDITOR_PART)!.element, $('button'));
+				const viewContainerButton = append(views.get(Parts.AUXILIARYBAR_PART)!.element, $('button'));
+				const statusBarButton = append(views.get(Parts.STATUSBAR_PART)!.element, $('button'));
+				const registered = new DeferredPromise<boolean>();
+				const viewContainers = new Set<string>();
+				let active: string | undefined;
+				Object.assign(layout, {
+					extensionService: { whenInstalledExtensionsRegistered: () => registered.p },
+					paneCompositeService: {
+						getActivePaneComposite: (location: ViewContainerLocation) => location === ViewContainerLocation.AuxiliaryBar && active ? {} : undefined,
+						getLastActivePaneCompositeId: (location: ViewContainerLocation) => location === ViewContainerLocation.AuxiliaryBar ? 'extensionViewContainer' : undefined,
+						getPaneComposite: (id: string) => viewContainers.has(id) ? {} : undefined,
+						getVisiblePaneCompositeIds: () => [],
+						openPaneComposite: async (id: string | undefined) => {
+							active = id;
+							return id ? {} : undefined;
+						},
+					},
+					// As focusing the secondary side bar focuses its active view container, if it has one
+					focusPart: (part: Parts) => {
+						if (part === Parts.AUXILIARYBAR_PART && active) {
+							viewContainerButton.focus();
+						}
+					},
+				});
+				// Until the extensions register, the view container of an extension is not there, and so has no views
+				Object.assign(Reflect.get(layout, 'viewDescriptorService'), {
+					getViewContainersByLocation: (location: ViewContainerLocation) => location === ViewContainerLocation.AuxiliaryBar ? [...viewContainers].map(id => ({ id })) : [],
+					getViewContainerById: (id: string) => viewContainers.has(id) ? { id } : null,
+					getViewContainerModel: () => ({ activeViewDescriptors: [{}] }),
+					getDefaultViewContainer: () => undefined,
+				});
+				const state = layout.getPartsLayoutState();
+
+				editorButton.focus();
+				layout.applyPartsLayoutState({ ...state, auxiliaryBar: { ...state.auxiliaryBar, maximized: true } });
+				if (focusMeanwhile) {
+					statusBarButton.focus();
+				}
+				viewContainers.add('extensionViewContainer');
+				registered.complete(true);
+				await timeout(0);
+
+				const activeElement = mainWindow.document.activeElement;
+				return { opened: active, focused: activeElement === viewContainerButton ? 'view container' : activeElement === statusBarButton ? 'status bar' : activeElement?.tagName.toLowerCase() };
+			};
+
+			assert.deepStrictEqual({ focusLost: await apply(false), focusedMeanwhile: await apply(true) }, {
+				focusLost: { opened: 'extensionViewContainer', focused: 'view container' },
+				focusedMeanwhile: { opened: 'extensionViewContainer', focused: 'status bar' },
+			});
+		});
 	});
 });

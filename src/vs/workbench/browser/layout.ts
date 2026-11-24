@@ -2050,26 +2050,38 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			this.inPartsLayoutStateTransition = false;
 		}
 
+		// Whether the focus moves, as the part that has it hides
+		const focusMoves = !!focusedView && !(this.workbenchGrid.isViewVisible(focusedView) && isHTMLElement(focused) && focused.isConnected);
+
 		// An open that waits for the extensions to register shows its part as it opens, so it is dropped when another state
 		// applies meanwhile, or when its part hides or gets a view container
 		const opens = new CancellationTokenSource();
 		this.partsLayoutStateOpens.value = toDisposable(() => opens.dispose(true));
+		const showViewContainer = async (location: ViewContainerLocation, part: Parts.SIDEBAR_PART | Parts.PANEL_PART | Parts.AUXILIARYBAR_PART) => {
+			await this.showPaneComposite(location, () => !opens.token.isCancellationRequested && this.isVisible(part) && !this.paneCompositeService.getActivePaneComposite(location));
+
+			// The focus that moves finds nothing to focus in a maximized part whose view container opens later: it goes
+			// there as it opens, unless something has the focus by then
+			if (focusMoves && !opens.token.isCancellationRequested && this.paneCompositeService.getActivePaneComposite(location) && this.isFocusLost()) {
+				this.focus();
+			}
+		};
 		for (const [location, part] of [[ViewContainerLocation.Sidebar, Parts.SIDEBAR_PART], [ViewContainerLocation.Panel, Parts.PANEL_PART], [ViewContainerLocation.AuxiliaryBar, Parts.AUXILIARYBAR_PART]] as const) {
 			if (!this.isVisible(part)) {
 				if (this.paneCompositeService.getActivePaneComposite(location)) {
 					this.paneCompositeService.hideActivePaneComposite(location);
 				}
 			} else if (!this.paneCompositeService.getActivePaneComposite(location)) {
-				this.showPaneComposite(location, () => !opens.token.isCancellationRequested && this.isVisible(part) && !this.paneCompositeService.getActivePaneComposite(location));
+				showViewContainer(location, part);
 			}
 		}
 
 		// What had the focus gets it again while its part shows, else the focus goes where it goes when that part hides
 		if (focusedView) {
-			if (this.workbenchGrid.isViewVisible(focusedView) && isHTMLElement(focused) && focused.isConnected) {
-				focused.focus();
-			} else {
+			if (focusMoves) {
 				this.focus();
+			} else if (isHTMLElement(focused)) {
+				focused.focus();
 			}
 		}
 
@@ -2109,6 +2121,14 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 
 		return this.viewDescriptorService.getViewContainersByLocation(location).find(viewContainer => this.hasViews(viewContainer.id))?.id;
+	}
+
+	/**
+	 * Returns whether nothing has the focus, as when what had it hid.
+	 */
+	private isFocusLost(): boolean {
+		const activeElement = getActiveElement();
+		return !activeElement || activeElement === activeElement.ownerDocument.body;
 	}
 
 	//#endregion
