@@ -314,4 +314,34 @@ suite('ExtHostSCM', () => {
 		sourceControl.dispose();
 		await rpcProtocol.sync();
 	}));
+
+	test('a disposed source control is unregistered without unregistering its resource groups one by one first', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const calls: string[] = [];
+		const rpcProtocol = new TestRPCProtocol();
+		rpcProtocol.set(MainContext.MainThreadSCM, new class extends mock<MainThreadSCMShape>() {
+			override async $registerSourceControl(): Promise<void> { }
+			override async $registerGroups(): Promise<void> { }
+			override async $unregisterGroup(): Promise<void> { calls.push('unregister group'); }
+			override async $unregisterSourceControl(): Promise<void> { calls.push('unregister source control'); }
+		});
+		rpcProtocol.set(MainContext.MainThreadTelemetry, new class extends mock<MainThreadTelemetryShape>() {
+			override $publicLog2(): void { }
+		});
+
+		const commands = new class extends mock<ExtHostCommands>() {
+			override registerArgumentProcessor(_processor: ArgumentProcessor): void { }
+		};
+		const extHostSCM = new ExtHostSCM(rpcProtocol, commands, {} as ExtHostDocuments, new NullLogService());
+
+		const sourceControl = extHostSCM.createSourceControl(nullExtensionDescription, 'git', 'Git', URI.file('/repo'), undefined, undefined, undefined);
+		const removed = sourceControl.createResourceGroup('removed', 'Removed');
+		sourceControl.createResourceGroup('kept', 'Kept');
+		await timeout(200);
+
+		removed.dispose();
+		sourceControl.dispose();
+		await rpcProtocol.sync();
+
+		assert.deepStrictEqual(calls, ['unregister group', 'unregister source control']);
+	}));
 });

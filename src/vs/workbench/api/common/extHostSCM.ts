@@ -874,6 +874,8 @@ class ExtHostSourceControl implements vscode.SourceControl {
 		this.onDidDisposeParent = _parent ? _parent.onDidDispose : Event.None;
 	}
 
+	private _isDisposed = false;
+
 	private createdResourceGroups = new Map<ExtHostSourceControlResourceGroup, IDisposable>();
 	private updatedResourceGroups = new Set<ExtHostSourceControlResourceGroup>();
 
@@ -911,7 +913,11 @@ class ExtHostSourceControl implements vscode.SourceControl {
 				this.updatedResourceGroups.delete(group);
 				updateListener.dispose();
 				this._groups.delete(group.handle);
-				this.#proxy.$unregisterGroup(this.handle, group.handle);
+
+				// The groups of a source control that is disposed are removed with it
+				if (!this._isDisposed) {
+					this.#proxy.$unregisterGroup(this.handle, group.handle);
+				}
 			});
 
 			groups.push([group.handle, group.id, group.label, group.features, group.multiDiffEditorEnableViewChanges]);
@@ -993,6 +999,7 @@ class ExtHostSourceControl implements vscode.SourceControl {
 	}
 
 	dispose(): void {
+		this._isDisposed = true;
 		this._acceptInputDisposables.dispose();
 		this._actionButtonDisposables.dispose();
 		this._statusBarDisposables.dispose();
