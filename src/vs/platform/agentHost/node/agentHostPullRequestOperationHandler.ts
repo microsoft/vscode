@@ -19,7 +19,7 @@ import { AgentSession } from '../common/agent.js';
 import { AgentHostCreatePullRequestOperationId, type IChangesetOperationHandler } from '../common/agentHostChangesetOperationService.js';
 import { buildConversationContext } from '../common/agentHostConversationContext.js';
 import { captureCredentialSource, type IAgentHostCredentialSource } from '../common/agentHostCredentials.js';
-import { IAgentHostGitService, parseUpstreamBranchName, type BaseBranch } from '../common/agentHostGitService.js';
+import { getGitStateBaseBranch, IAgentHostGitService, parseUpstreamBranchName, type BaseBranch } from '../common/agentHostGitService.js';
 import { getWorkingDirectoryKey } from '../common/agentHostWorkingDirectories.js';
 import { readAgentMergeFolderState, withAgentMergeFolderState } from '../common/agentMerge.js';
 import { parseChangesetUri, parseFolderChangesetOwnerUri } from '../common/changesetUri.js';
@@ -292,8 +292,9 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		if (!baseBranchName) {
 			throw new ProtocolError(JsonRpcErrorCodes.InternalError, `Could not determine base branch for ${workingDirectory}`);
 		}
-		// The pull request targets the branch name; its changes are the Branch Changes, compared against the recorded base.
-		const diffBaseBranch = recordedBaseBranch ?? baseBranchName;
+		// The pull request targets the branch name; its changes are the Branch Changes, compared against the recorded base,
+		// else the base the git state compares against.
+		const diffBaseBranch = recordedBaseBranch ?? getGitStateBaseBranch(gitState) ?? baseBranchName;
 
 		const repositoryOwner = currentGitState?.githubOwner ?? gitHubState?.owner;
 		const repositoryName = currentGitState?.githubRepo ?? gitHubState?.repo;

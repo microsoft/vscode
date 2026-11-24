@@ -296,6 +296,7 @@ const gitValidator = plainObject(vObj({
 	branchName: vOptionalProp(boundedString(AGENT_HOST_CATALOG_TITLE_LENGTH_LIMIT)),
 	isDetachedHead: vOptionalProp(vBoolean()),
 	baseBranchName: vOptionalProp(boundedString(AGENT_HOST_CATALOG_TITLE_LENGTH_LIMIT)),
+	baseBranchFullName: vOptionalProp(boundedString(AGENT_HOST_CATALOG_TITLE_LENGTH_LIMIT)),
 	upstreamBranchName: vOptionalProp(boundedString(AGENT_HOST_CATALOG_TITLE_LENGTH_LIMIT)),
 	defaultBranchName: vOptionalProp(boundedString(AGENT_HOST_CATALOG_TITLE_LENGTH_LIMIT)),
 	defaultRemoteBranchName: vOptionalProp(boundedString(AGENT_HOST_CATALOG_TITLE_LENGTH_LIMIT)),

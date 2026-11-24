@@ -268,7 +268,7 @@ function createAuthenticationService(disposables: Pick<DisposableStore, 'add'>, 
 	}(new NullLogService()));
 }
 
-function setup(disposables: Pick<DisposableStore, 'add'>, gitService: TestGitService, gitHubClient: TestGitHubClient | IAgentHostGitHubService, options?: { authenticationService?: IAgentHostAuthenticationService; copilotApiService?: TestCopilotApiService; withCopilotToken?: boolean; turns?: Turn[]; draft?: boolean; autoMergeMethod?: PullRequestMergeMethod; enableAgentMerge?: boolean; agentMergeAvailable?: boolean; sessionAgentMergeEnabled?: boolean; agentMergeDefaults?: Partial<AgentMergeConfiguration>; agentMergeOverrides?: AgentMergeSessionOverrides; agentMergeControllerState?: AgentMergeControllerState; baseBranch?: string; branchPrefix?: string; workingDirectory?: string; logService?: ILogService; autopilotAvailable?: boolean; autopilotResult?: IPullRequestAutopilotResult | Error }): { handler: AgentHostPullRequestOperationHandler; autopilotCalls: { session: string; artifactId: string; options: IPullRequestAutopilotOptions }[]; session: URI; stateManager: AgentHostStateManager; createdEvents: string[]; createdOwners: string[]; createdConversationChats: (string | undefined)[]; createdBranches: string[]; sessionConfigUpdates: Record<string, unknown>[]; sessionConfigValues: Record<string, unknown>; copilotApiService: TestCopilotApiService; branchNameGenerator: TestBranchNameGenerator } {
+function setup(disposables: Pick<DisposableStore, 'add'>, gitService: TestGitService, gitHubClient: TestGitHubClient | IAgentHostGitHubService, options?: { authenticationService?: IAgentHostAuthenticationService; copilotApiService?: TestCopilotApiService; withCopilotToken?: boolean; turns?: Turn[]; draft?: boolean; autoMergeMethod?: PullRequestMergeMethod; enableAgentMerge?: boolean; agentMergeAvailable?: boolean; sessionAgentMergeEnabled?: boolean; agentMergeDefaults?: Partial<AgentMergeConfiguration>; agentMergeOverrides?: AgentMergeSessionOverrides; agentMergeControllerState?: AgentMergeControllerState; baseBranch?: string; withoutRecordedBase?: boolean; branchPrefix?: string; workingDirectory?: string; logService?: ILogService; autopilotAvailable?: boolean; autopilotResult?: IPullRequestAutopilotResult | Error }): { handler: AgentHostPullRequestOperationHandler; autopilotCalls: { session: string; artifactId: string; options: IPullRequestAutopilotOptions }[]; session: URI; stateManager: AgentHostStateManager; createdEvents: string[]; createdOwners: string[]; createdConversationChats: (string | undefined)[]; createdBranches: string[]; sessionConfigUpdates: Record<string, unknown>[]; sessionConfigValues: Record<string, unknown>; copilotApiService: TestCopilotApiService; branchNameGenerator: TestBranchNameGenerator } {
 	const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 	const session = URI.parse('agent:/session');
 	const createdEvents: string[] = [];
@@ -378,7 +378,7 @@ function setup(disposables: Pick<DisposableStore, 'add'>, gitService: TestGitSer
 				}
 				return state;
 			},
-			async () => options?.baseBranch ?? 'main',
+			async () => options?.withoutRecordedBase ? undefined : options?.baseBranch ?? 'main',
 			async event => {
 				createdEvents.push(`${event.sessionKey}:${event.pullRequestUrl}`);
 				createdOwners.push(event.ownerUri);
@@ -1522,6 +1522,23 @@ suite('AgentHostPullRequestOperationHandler', () => {
 		}, {
 			diffBaseBranches: ['origin/release'],
 			pullRequestBase: 'release',
+		});
+	});
+
+	test('without a recorded base, computes the changes against the base the git state names', async () => {
+		const gitService = new TestGitService();
+		gitService.gitState = { hasGitHubRemote: true, branchName: 'feature/test', githubOwner: 'microsoft', githubRepo: 'vscode', baseBranchName: 'main', baseBranchFullName: 'refs/remotes/origin/main' };
+		const gitHubClient = new TestGitHubClient();
+		const { handler, session } = setup(disposables, gitService, gitHubClient, { withoutRecordedBase: true });
+
+		await handler.invoke({ channel: buildSessionChangesetUri(session.toString()), operationId: AgentHostPullRequestOperationHandler.OPERATION_CREATE_PR }, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			diffBaseBranches: gitService.diffBaseBranches,
+			pullRequestBase: gitHubClient.lastBase,
+		}, {
+			diffBaseBranches: ['refs/remotes/origin/main'],
+			pullRequestBase: 'main',
 		});
 	});
 
