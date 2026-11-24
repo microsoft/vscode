@@ -8,7 +8,7 @@ import '../media/sessionsList.css';
 import '../media/disclosure.css';
 import { SessionGroupAppearancePicker } from './sessionGroupAppearancePicker.js';
 import { findSearchWords, getSessionSearchHint, ISessionSearchDocument, ISessionSearchField, ISessionSearchHint, ISessionSearchMatch, ISessionsListSearchResults, matchSessionSearch, SessionsListFindController, SessionsListSearchQuery, SessionsListSearchTelemetry, SessionSearchFieldKind, toSearchFilterData } from './sessionsListSearch.js';
-import { SessionRowIndent, setSessionRowIndentGuides } from './sessionsListIndentGuides.js';
+import { ISessionRowIndent, SessionRowIndent, SessionsListIndentGuides } from './sessionsListIndentGuides.js';
 import * as DOM from '../../../../../base/browser/dom.js';
 import { renderAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
 import { Gesture } from '../../../../../base/browser/touch.js';
@@ -23,7 +23,7 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { HighlightedLabel } from '../../../../../base/browser/ui/highlightedlabel/highlightedLabel.js';
 import { createMatches, FuzzyScore, IMatch } from '../../../../../base/common/filters.js';
 import { disposableTimeout } from '../../../../../base/common/async.js';
-import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { escapeControlAndFormatCharacters } from '../../../../../base/common/strings.js';
 import { constObservable, IObservable, IReader, ISettableObservable, autorun, derived, observableFromEvent, observableSignalFromEvent, observableValue, runOnChange } from '../../../../../base/common/observable.js';
@@ -88,6 +88,7 @@ import * as aria from '../../../../../base/browser/ui/aria/aria.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { Action, ActionRunner, IAction, Separator, SubmenuAction, toAction } from '../../../../../base/common/actions.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { createSessionActionViewItemProvider, getSessionArchiveActionViewItemOptions, SessionArchiveActionViewItem } from '../sessionActionViewItem.js';
 import { HoverStyle, IDelayedHoverOptions } from '../../../../../base/browser/ui/hover/hover.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
@@ -204,6 +205,8 @@ export const SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING = 'sessions.list.sho
 export const SESSIONS_LIST_INDENT_ITEMS_SETTING = 'sessions.list.indentItems';
 /** Whether pinned canvases are listed in a Canvases section, which can also start a session with a new canvas. */
 export const SESSIONS_LIST_CANVASES_SECTION_SETTING = 'sessions.list.canvasesSection';
+/** Starts a session with a new canvas, which the Canvases section offers. */
+export const NEW_CANVAS_SESSION_COMMAND_ID = 'workbench.action.agentSessions.newCanvasSession';
 
 export const IsSessionPinnedContext = new RawContextKey<boolean>('sessionItem.isPinned', false);
 export const SessionItemInboxStateContext = new RawContextKey<string>('sessionItem.inboxState', '');
@@ -359,6 +362,13 @@ export class SessionChatItem {
 		 * not done, listed in the Done section.
 		 */
 		readonly standalone?: boolean,
+		/**
+		 * The session the chat is still in while a pending move shows it as a
+		 * chat of {@link session}, where the move puts it: the main chat of a
+		 * session moving under another session. Opening the row opens this
+		 * session, and the row offers no other actions until the move ends.
+		 */
+		readonly movingFrom?: ISession,
 	) { }
 }
 
@@ -1150,7 +1160,6 @@ class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 		template.container.classList.toggle('last-chat', element.isLast);
 		template.container.classList.toggle('standalone', !!element.standalone);
 		const comparisonConnectorPosition = element.standalone ? undefined : this.getComparisonConnectorPosition(element.session);
-		setSessionRowIndentGuides(template.container, groupDepth, comparisonConnectorPosition !== undefined ? SessionRowIndent.Comparison : SessionRowIndent.Item);
 		template.container.classList.toggle('session-comparison-chat', comparisonConnectorPosition !== undefined);
 		if (comparisonConnectorPosition === 'middle') {
 			const connector = DOM.append(template.container, $('span.session-comparison-chat-connector', { 'aria-hidden': 'true' }));
@@ -1165,8 +1174,8 @@ class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 			const isRead = element.chat.isRead.read(reader);
 			const completedStateIcon = getChatCompletedStateIcon(element.session, element.chat, reader, () => agentMergeConfiguration ??= this.getAgentMergeConfiguration(element));
 			const capabilities = getChatCapabilities(element.chat, element.session, reader);
-			template.canArchiveContext.set(capabilities.canArchive);
-			template.canDeleteContext.set(capabilities.canDelete);
+			template.canArchiveContext.set(capabilities.canArchive && !element.movingFrom);
+			template.canDeleteContext.set(capabilities.canDelete && !element.movingFrom);
 			template.isUntitledContext.set(status === SessionStatus.Untitled);
 			template.isArchivedContext.set(isArchived);
 			template.statusIcon.setStatus(
@@ -1816,6 +1825,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			collapsedSessionIds?: IObservable<ReadonlySet<string>>;
 			getAdditionalContextKeys?: SessionContextKeyProvider;
 			showMetadataWhileActive?: (session: ISession) => boolean;
+			showMetadataSeparators?: boolean;
 			getCompletedStatusMessage?: (session: ISession, reader: IReader | undefined) => string | undefined;
 			getTriageDescription?: (session: ISession, reader: IReader | undefined) => string | undefined;
 			onboardingTarget?: IObservable<ISessionOnboardingTarget | undefined>;
@@ -2023,7 +2033,6 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		} else {
 			delete template.container.dataset.sessionGroupConnector;
 		}
-		setSessionRowIndentGuides(template.container, groupDepth, groupConnectorPosition ? SessionRowIndent.Comparison : SessionRowIndent.Item);
 
 		if (this.options.inlineRename) {
 			template.elementDisposables.add(DOM.addDisposableListener(template.titleRow, DOM.EventType.DBLCLICK, (event: MouseEvent) => {
@@ -2321,8 +2330,12 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 				: getSessionDiffStats(element, reader);
 			const mainChat = element.mainChat.read(reader);
 			const timeDate = getSessionRowUpdatedAt(element, mainChat, reader, this.options.grouping(), this.options.showMetadataWhileActive?.(element));
+			const appendSeparator = () => {
+				if (this.options.showMetadataSeparators && template.detailsRow.childElementCount > 0) {
+					DOM.append(template.detailsRow, $('span.session-separator.has-separator', { 'aria-hidden': 'true' }));
+				}
+			};
 
-			const parts: HTMLElement[] = [];
 			if (
 				eligible &&
 				this.options.externalApplicationBadgeMode?.read(reader) === ExternalSessionApplicationBadgeMode.Details
@@ -2334,15 +2347,12 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 				);
 				DOM.append(badgeEl, $('span.session-external-application-badge-label', undefined, badgeLabel));
 				reader.store.add(this.hoverService.setupDelayedHoverAtMouse(badgeEl, { content: badgeLabel }));
-				parts.push(badgeEl);
 			}
 
 			const statusMessage = getSessionStatusMessage(sessionStatus, description)
 				?? (sessionStatus === SessionStatus.Completed ? this.options.getCompletedStatusMessage?.(element, reader) : undefined);
 			if (sessionStatus !== SessionStatus.InProgress || !hideDetails) {
-				if (parts.length > 0) {
-					DOM.append(template.detailsRow, $('span.session-separator.has-separator'));
-				}
+				appendSeparator();
 				let icon: ThemeIcon;
 				if (isQuickChat) {
 					icon = Codicon.commentDiscussion;
@@ -2353,49 +2363,36 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 				}
 				const typeIconEl = DOM.append(template.detailsRow, $('span.session-details-icon'));
 				DOM.append(typeIconEl, $(`span${ThemeIcon.asCSSSelector(icon)}`));
-				parts.push(typeIconEl);
 			}
 
 			if (!hideDetails && badgeLabel) {
 				const badgeEl = DOM.append(template.detailsRow, $('span.session-badge'));
 				badgeEl.textContent = badgeLabel;
-				parts.push(badgeEl);
 			}
 
 			const triage = this.options.getTriageDescription?.(element, reader);
 			if (triage) {
-				if (parts.length > 0) {
-					DOM.append(template.detailsRow, $('span.session-separator.has-separator'));
-				}
+				appendSeparator();
 				const label = DOM.append(template.detailsRow, $('span.session-description', undefined, triage));
 				reader.store.add(this.hoverService.setupDelayedHoverAtMouse(label, { content: triage }));
-				parts.push(label);
 			}
 
 			if (searchHint) {
-				if (parts.length > 0) {
-					DOM.append(template.detailsRow, $('span.session-separator.has-separator'));
-				}
+				appendSeparator();
 				const hintEl = DOM.append(template.detailsRow, $('span.session-search-hint'));
 				renderSearchHint(hintEl, searchHint, reader.store);
-				parts.push(hintEl);
 			}
 
 			// Diff stats
 			if (!isQuickChat && !hideDetails && diffStats) {
-				if (parts.length > 0) {
-					DOM.append(template.detailsRow, $('span.session-separator.has-separator'));
-				}
+				appendSeparator();
 				const diffEl = DOM.append(template.detailsRow, $('span.session-diff'));
 				DOM.append(diffEl, $('span.session-diff-added')).textContent = `+${diffStats.insertions}`;
 				DOM.append(diffEl, $('span.session-diff-removed')).textContent = `-${diffStats.deletions}`;
-				parts.push(diffEl);
 			}
 
 			if (statusMessage !== undefined) {
-				if (parts.length > 0) {
-					DOM.append(template.detailsRow, $('span.session-separator.has-separator'));
-				}
+				appendSeparator();
 				const statusEl = DOM.append(template.detailsRow, $('span.session-description'));
 				if (typeof statusMessage === 'string') {
 					descriptionDisposable.clear();
@@ -2403,15 +2400,12 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 				} else {
 					descriptionDisposable.value = this.markdownRendererService.render(statusMessage, { sanitizerConfig: { replaceWithPlaintext: true } }, statusEl);
 				}
-				parts.push(statusEl);
 			} else {
 				descriptionDisposable.clear();
 			}
 
 			if (timeDate) {
-				if (parts.length > 0) {
-					DOM.append(template.detailsRow, $('span.session-separator.has-separator'));
-				}
+				appendSeparator();
 				const timeEl = DOM.append(template.detailsRow, $('span.session-time'));
 				const definiteTimeDate = timeDate;
 				const formatTime = () => formatSessionListTime(definiteTimeDate);
@@ -3064,7 +3058,6 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 		template.container.closest('.monaco-list-row')?.classList.toggle('sessions-disclosure-row', collapsible);
 		const groupDepth = this.getGroupDepth(element);
 		setSessionGroupDepth(template.container, groupDepth);
-		setSessionRowIndentGuides(template.container, groupDepth, SessionRowIndent.Header);
 		template.container.classList.remove(SESSION_HEADER_DROP_TARGET_CLASS);
 		template.container.classList.remove('session-section-shortcut');
 		template.container.classList.remove('session-section-new-session');
@@ -3406,7 +3399,6 @@ class SessionGroupRenderer implements ITreeRenderer<SessionListItem, FuzzyScore,
 		setSessionGroupDepth(template.container, element.depth);
 
 		const isComparison = element.comparison !== undefined;
-		setSessionRowIndentGuides(template.container, element.depth, isComparison ? SessionRowIndent.Comparison : SessionRowIndent.Header);
 		template.container.classList.toggle('session-comparison-group', isComparison);
 		const groupIcon: ThemeIcon = isComparison ? Codicon.layers : {
 			id: element.group.icon ?? Codicon.folderLibrary.id,
@@ -3588,10 +3580,7 @@ class SessionShowMoreRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 		}
 		const container = template.parentElement;
 		if (container) {
-			const groupDepth = this.getGroupDepth(element);
-			setSessionGroupDepth(container, groupDepth);
-			// The show more folders row lists sections, so it lines up with their headers.
-			setSessionRowIndentGuides(container, groupDepth, element.kind === 'sessions' ? SessionRowIndent.Item : SessionRowIndent.Header);
+			setSessionGroupDepth(container, this.getGroupDepth(element));
 		}
 		container?.classList.toggle('session-show-more-folders', element.kind !== 'sessions');
 		template.textContent = getSessionShowMoreLabel(element);
@@ -3630,9 +3619,7 @@ class SessionPlaceholderRenderer implements ITreeRenderer<SessionListItem, Fuzzy
 		if (!isSessionPlaceholder(element)) {
 			return;
 		}
-		const groupDepth = this.getGroupDepth(element);
-		setSessionGroupDepth(template.container, groupDepth);
-		setSessionRowIndentGuides(template.container, groupDepth, SessionRowIndent.Item);
+		setSessionGroupDepth(template.container, this.getGroupDepth(element));
 		template.label.textContent = element.label;
 		template.hover.value = element.hover
 			? this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), template.container, element.hover)
@@ -4668,6 +4655,16 @@ interface IListOpenRequest {
 	invocation: number;
 }
 
+/** A session that the list shows as a chat of the session it moves under while its provider moves it. */
+interface IPendingSessionMove extends IDisposable {
+	readonly session: ISession;
+	/** The main chat of {@link session}, which the move takes along. */
+	readonly chat: IChat;
+	readonly destination: ISession;
+	/** The chat of {@link destination} that the moved chat follows; `undefined`: first. */
+	readonly after: IChat | undefined;
+}
+
 /**
  * Identifies a sessions list row by the model identity it renders. Only test
  * subclasses use it, to drive rows that production reaches through user input.
@@ -4839,8 +4836,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 	private readonly pendingInboxAdvance = this._register(new MutableDisposable());
 	private readonly inboxAutoAdvanceSpotlight = this._register(new MutableDisposable<InboxAutoAdvanceSpotlight>());
 	private readonly nestedSessionOrderUpdate = this._register(new MutableDisposable());
-	/** Reveals what a move started from the list moved, once the list shows it; see {@link watchMoveForReveal}. */
+	/** Reveals what a move started from the list moved, once the list shows it; see {@link watchMove}. */
 	private readonly pendingMoveReveal = this._register(new MutableDisposable<DisposableStore>());
+	/** Sessions shown as chats of the sessions they move under while their provider moves them, by session ID; see {@link showPendingSessionMove}. */
+	private readonly pendingSessionMoves = this._register(new DisposableMap<string, IPendingSessionMove>());
 	private tryPendingMoveReveal: (() => void) | undefined;
 	/** Whether the focused nested chat can move up or down through its provider, for the Move Up and Move Down keybindings. */
 	private readonly focusedChatCanMoveUpContext: IContextKey<boolean>;
@@ -5030,6 +5029,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		@IMarkdownRendererService markdownRendererService: IMarkdownRendererService,
 		@IHoverService hoverService: IHoverService,
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
+		@IProductService productService: IProductService,
 	) {
 		super();
 		this._hideSideChats = sideChatPlacementService.inSidePane;
@@ -5251,6 +5251,13 @@ export class SessionsList extends Disposable implements ISessionsList {
 		);
 		this._chatRenderer = chatRenderer;
 		const selectHeader = (element: ISessionSection | ISessionGroupItem, event: MouseEvent) => {
+			// A header of the separate navigation list, such as Canvases, is a row of that list and not of the tree.
+			const navigationIndex = this.navigationSections.indexOf(element as ISessionSection);
+			if (this.navigationList && navigationIndex >= 0) {
+				this.navigationList.setFocus([navigationIndex], event);
+				this.navigationList.setSelection([], event);
+				return;
+			}
 			this.tree.setFocus([element], event);
 			this.tree.setSelection([element], event);
 		};
@@ -5378,6 +5385,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 					this.showAutomationsContextMenu(e.anchor);
 				} else if (e.element?.pinnedCanvas) {
 					this.showPinnedCanvasContextMenu(e.element.pinnedCanvas, e.anchor);
+				} else if (e.element?.id === CANVASES_SECTION_ID) {
+					this.showHeaderContextMenu(Menus.SessionSectionContext, this.contextKeyService.createOverlay([[SessionSectionTypeContext.key, CANVASES_SECTION_ID]]), e.element, [], e.anchor);
 				}
 			}));
 		}
@@ -5391,6 +5400,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			this._register(runOnChange(scoped, () => this.update()));
 		}
 
+		const indentGuides = new SessionsListIndentGuides<SessionListItem>(element => this.getRowIndent(element), () => this.tree);
 		this.tree = treeDisposables.add(treeInstantiationService.createInstance(
 			WorkbenchObjectTree<SessionListItem, FuzzyScore>,
 			'SessionsListTree',
@@ -5405,7 +5415,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				showMoreRenderer,
 				placeholderRenderer,
 				new PendingSessionRenderer(instantiationService, (item, anchor) => this.showPendingSessionContextMenu(item, anchor), error => this.notificationService.error(error)),
-			],
+			].map((renderer: ITreeRenderer<SessionListItem, FuzzyScore, unknown>) => indentGuides.wrapRenderer(renderer)),
 			{
 				accessibilityProvider: new SessionsAccessibilityProvider(sectionRenderer.automationStatus, {
 					scheduledSessionResources: this.options.scheduledSessionResources,
@@ -5526,6 +5536,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 					}
 				},
 				overrideStyles: this.options.overrideStyles,
+				// Indent guides are not in Stable yet; elsewhere they follow `workbench.tree.renderIndentGuides`.
+				renderIndentGuides: productService.quality === 'stable' ? RenderIndentGuides.None : undefined,
 				twistieAdditionalCssClass: element => {
 					if (!isSessionItem(element) || this.getRenderedSessionListChats(element).length === 0 && !this.comparisonParentSessionIds.has(element.sessionId)) {
 						return 'force-no-twistie';
@@ -5537,6 +5549,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 				},
 			}
 		));
+		// Collapsing a row, or diffing children, changes the row below a row without rendering it again.
+		treeDisposables.add(this.tree.onDidChangeModel(() => indentGuides.refresh()));
+		treeDisposables.add(this.tree.onDidChangeCollapseState(() => indentGuides.refresh()));
 		this.selectedSessions = observableFromEvent(this, this.tree.onDidChangeSelection,
 			() => this.tree.getSelection().filter((item): item is ISession => !!item && isSessionItem(item)));
 		this.findController = this._register(new SessionsListFindController(this.tree, this.searchFilter, this.contextViewService, {
@@ -5681,6 +5696,11 @@ export class SessionsList extends Disposable implements ISessionsList {
 			if (isSessionChatItem(element)) {
 				const isLeftClick = DOM.isMouseEvent(e.browserEvent) && e.browserEvent.button === 0;
 				const preserveFocus = isLeftClick ? false : (e.editorOptions.preserveFocus ?? false);
+				if (element.movingFrom) {
+					// Until the move ends, the chat is the main chat of the session it moves from.
+					await this.beginOpenRequest(element.movingFrom, undefined, preserveFocus, e.sideBySide);
+					return;
+				}
 				await this.beginOpenRequest(element.session, element.chat, preserveFocus, e.sideBySide);
 				return;
 			}
@@ -5937,6 +5957,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 			this.updateSessionGroupLimit();
 		}));
 
+		this._register(runOnChange(this.customViewService.activeCustomView, () => this.syncActiveChatSelection(this._mainWindowShown.get())));
+
 		this.refresh();
 		this.syncActiveChatSelection(this._mainWindowShown.get());
 		this.observeInboxApprovals(chatService);
@@ -6089,6 +6111,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 					filtered = [...filtered, match];
 				}
 			}
+		}
+		// A session moving under another session shows as a chat of that session instead.
+		if (this.pendingSessionMoves.size > 0) {
+			filtered = filtered.filter(session => !this.pendingSessionMoves.has(session.sessionId));
 		}
 		if (inbox) {
 			filtered = filtered.filter(session => this.filters.matchesInboxScope(session));
@@ -6453,7 +6479,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 							? ObjectTreeElementCollapseState.Collapsed
 							: ObjectTreeElementCollapseState.Expanded),
 					children: chats.length > 0
-						? chats.map((chat, index) => ({ element: new SessionChatItem(session, chat, index === chats.length - 1) }))
+						? chats.map((chat, index) => ({ element: new SessionChatItem(session, chat, index === chats.length - 1, undefined, this.getPendingMoveSource(session, chat)) }))
 						: undefined,
 				};
 			});
@@ -6627,17 +6653,19 @@ export class SessionsList extends Disposable implements ISessionsList {
 				children.push(renderSection(automationsSection));
 			}
 		}
+		// The Canvases section follows Automations: as a header and its pins in the navigation list, or as a section in the tree without one.
+		const canvasesSection = this.getCanvasesSection();
+		if (canvasesSection) {
+			if (showNavigationShortcuts) {
+				navigationSections.push(canvasesSection, ...this.getPinnedCanvasSections());
+			} else {
+				children.push(this.renderCanvasesSection(canvasesSection, resolveCollapsed));
+			}
+		}
 		if (this.options.showCustomizations?.() ?? showNavigationShortcuts) {
 			navigationSections.push({ id: CUSTOMIZATIONS_SECTION_ID, label: localize('customizations', "Customizations"), sessions: [] });
 		}
-		if (this.showsCanvasesSection()) {
-			// The Canvases section follows the navigation shortcuts in either layout.
-			this.setNavigationSections(navigationSections);
-			const canvasesSection = this.getCanvasesSection(resolveCollapsed);
-			if (canvasesSection) {
-				children.push(canvasesSection);
-			}
-		} else {
+		if (!this.showsCanvasesSection()) {
 			// Pinned canvases follow Automations: in the navigation list, or in the tree without one.
 			const pinnedCanvasSections = this.getPinnedCanvasSections();
 			if (showNavigationShortcuts) {
@@ -6645,8 +6673,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 			} else {
 				children.push(...pinnedCanvasSections.map(section => renderSection(section)));
 			}
-			this.setNavigationSections(navigationSections);
 		}
+		this.setNavigationSections(navigationSections);
 
 		const pinnedSection = sections.find(s => s.id === 'pinned');
 		if (pinnedSection) {
@@ -6904,7 +6932,31 @@ export class SessionsList extends Disposable implements ISessionsList {
 	 * that is not done are listed in the Done section instead.
 	 */
 	private getRenderedSessionListChats(session: ISession): readonly IChat[] {
-		return getSessionListChats(session, undefined, !this._excludeArchived && session.isArchived.get(), this._hideSideChats.get());
+		const chats = getSessionListChats(session, undefined, !this._excludeArchived && session.isArchived.get(), this._hideSideChats.get());
+		return this.pendingSessionMoves.size > 0 ? this.withPendingMovedChats(session, chats) : chats;
+	}
+
+	/** `chats`, the chats `session` lists, with the main chats of the sessions moving under it where their moves put them. */
+	private withPendingMovedChats(session: ISession, chats: readonly IChat[]): readonly IChat[] {
+		let result = chats;
+		for (const move of this.pendingSessionMoves.values()) {
+			if (move.destination.sessionId === session.sessionId) {
+				// Placed after a chat without a row, such as the main chat, or first, the moved chat is the first row.
+				const index = move.after ? result.findIndex(chat => isEqual(chat.resource, move.after!.resource)) : -1;
+				result = [...result.slice(0, index + 1), move.chat, ...result.slice(index + 1)];
+			}
+		}
+		return result;
+	}
+
+	/** The session that `chat` is still in when the list shows it as a chat of `session` only because it moves there. */
+	private getPendingMoveSource(session: ISession, chat: IChat): ISession | undefined {
+		for (const move of this.pendingSessionMoves.values()) {
+			if (move.destination.sessionId === session.sessionId && move.chat === chat) {
+				return move.session;
+			}
+		}
+		return undefined;
 	}
 
 	private attachComparisonsToOriginatingSessions(children: IObjectTreeElement<SessionListItem>[], inbox: boolean, renderSection: (section: ISessionSection) => IObjectTreeElement<SessionListItem>): IObjectTreeElement<SessionListItem>[] {
@@ -7046,6 +7098,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 			case AUTOMATIONS_SECTION_ID:
 				await this.commandService.executeCommand('sessionsView.manageAutomations');
 				break;
+			case CANVASES_SECTION_ID:
+				// The navigation list does not collapse, so its Canvases header starts a session with a canvas, like its toolbar action.
+				await this.commandService.executeCommand(NEW_CANVAS_SESSION_COMMAND_ID);
+				break;
 			case CUSTOMIZATIONS_SECTION_ID:
 				this.instantiationService.createInstance(ChatCustomizationsTelemetry).logInteraction('buttonClicked', 'sessionsHeader');
 				if (this.options.customizationMigrationsAvailable?.get()) {
@@ -7142,6 +7198,11 @@ export class SessionsList extends Disposable implements ISessionsList {
 	}
 
 	private syncActiveChatSelection(shown: IShownChat | undefined): void {
+		// A full-page view, such as Automations or a pinned canvas, covers the shown chat and marks its own row as current.
+		if (this.customViewService.activeCustomView.get()) {
+			this.tree.setSelection([]);
+			return;
+		}
 		if (!shown) {
 			return;
 		}
@@ -7813,8 +7874,50 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 	private runMove(move: SessionsListMove): void {
 		runSessionsListMove(move, this._sessionsManagementService, this.notificationService, this.logService, {
-			watch: watched => this.watchMoveForReveal(watched),
+			watch: watched => this.watchMove(watched),
 		}).catch(onUnexpectedError);
+	}
+
+	/**
+	 * Shows the session that `move` moves under another session as a chat of that session while the move runs (see
+	 * {@link showPendingSessionMove}), and reveals what `move` moved once the list shows it (see
+	 * {@link watchMoveForReveal}). Call it before the move starts, as the provider reports where the chat went while the
+	 * move runs, then call the returned function with whether the move succeeded.
+	 */
+	watchMove(move: SessionsListMove): (moved: boolean) => void {
+		const endPendingMove = move.kind === 'session' ? this.showPendingSessionMove(move.session, move.destination, move.after) : undefined;
+		const watchedReveal = this.watchMoveForReveal(move);
+		return moved => {
+			endPendingMove?.();
+			watchedReveal(moved);
+		};
+	}
+
+	/**
+	 * Shows `session` as a chat of `destination` right away, where moving it under `destination` puts it, rather than
+	 * once its provider reports the move: the provider may first load all of the session. Call the returned function
+	 * once the move ended. Until then, or until the provider reports the move, the list shows the session there; after
+	 * that, it shows the session as its provider lists it, where it was when the move failed.
+	 */
+	private showPendingSessionMove(session: ISession, destination: ISession, after: IChat | undefined): () => void {
+		const store = new DisposableStore();
+		const move: IPendingSessionMove = { session, chat: session.mainChat.get(), destination, after, dispose: () => store.dispose() };
+		const end = () => {
+			if (this.pendingSessionMoves.get(session.sessionId) === move) {
+				this.pendingSessionMoves.deleteAndDispose(session.sessionId);
+				this.scheduleListUpdate();
+			}
+		};
+		this.pendingSessionMoves.set(session.sessionId, move);
+		const extUri = this.uriIdentityService.extUri;
+		// The provider can report the move before the move ends; its own row then replaces this one.
+		store.add(this._sessionsManagementService.onDidMoveChat(({ from }) => {
+			if (from.session.sessionId === session.sessionId && extUri.isEqual(from.chat, move.chat.resource)) {
+				end();
+			}
+		}));
+		this.scheduleListUpdate();
+		return end;
 	}
 
 	/**
@@ -7824,7 +7927,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 	 * focus into the list. Gives up when the row doesn't show within a few updates of the list or a few seconds, and when
 	 * a later move is watched.
 	 */
-	watchMoveForReveal(move: SessionsListMove): (moved: boolean) => void {
+	private watchMoveForReveal(move: SessionsListMove): (moved: boolean) => void {
 		const store = new DisposableStore();
 		this.pendingMoveReveal.value = store;
 		const extUri = this.uriIdentityService.extUri;
@@ -8117,7 +8220,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 	/** The sibling chat row a nested chat swaps with when moved up or down, if any. */
 	private getAdjacentChatRow(item: ISessionChatItem, direction: 'up' | 'down'): ISessionChatItem | undefined {
-		const rows = this.getChatRows(item.session);
+		// A chat whose move into the session is pending isn't in it yet.
+		const rows = this.getChatRows(item.session).filter(row => !row.movingFrom);
 		const index = rows.findIndex(row => isEqual(row.chat.resource, item.chat.resource));
 		return index === -1 ? undefined : rows[direction === 'up' ? index - 1 : index + 1];
 	}
@@ -9065,20 +9169,23 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 	/**
 	 * The Canvases section, which lists the canvases pinned to the sidebar and offers to start a session with a new canvas.
-	 * It shows while chat and canvases are enabled.
+	 * It shows while its setting, chat and canvases are enabled.
 	 */
-	private getCanvasesSection(resolveCollapsed: (element: SessionListItem, collapsed: boolean | ObjectTreeElementCollapseState) => boolean | ObjectTreeElementCollapseState): IObjectTreeElement<SessionListItem> | undefined {
-		const pinnedCanvases = this.options.pinnedCanvases;
-		if (!pinnedCanvases?.enabled.get() || this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.enabled.key) !== true) {
+	private getCanvasesSection(): ISessionSection | undefined {
+		if (!this.showsCanvasesSection() || !this.options.pinnedCanvases?.enabled.get() || this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.enabled.key) !== true) {
 			return undefined;
 		}
-		const element: ISessionSection = { id: CANVASES_SECTION_ID, label: localize('canvases', "Canvases"), sessions: [] };
+		return { id: CANVASES_SECTION_ID, label: localize('canvases', "Canvases"), sessions: [] };
+	}
+
+	/** The Canvases section in the sessions tree, which collapses and shows a placeholder while nothing is pinned. */
+	private renderCanvasesSection(element: ISessionSection, resolveCollapsed: (element: SessionListItem, collapsed: boolean | ObjectTreeElementCollapseState) => boolean | ObjectTreeElementCollapseState): IObjectTreeElement<SessionListItem> {
 		const pins: IObjectTreeElement<SessionListItem>[] = this.getPinnedCanvasSections().map(element => ({ element }));
 		return {
 			element,
 			collapsible: true,
 			collapsed: resolveCollapsed(element, this.getSavedCollapseState(element.id) ? ObjectTreeElementCollapseState.PreserveOrCollapsed : ObjectTreeElementCollapseState.PreserveOrExpanded),
-			children: pins.length > 0 ? pins : [{ element: { placeholder: true as const, sectionId: CANVASES_SECTION_ID, label: localize('noCanvases', "No canvases yet") } }],
+			children: pins.length > 0 ? pins : [{ element: { placeholder: true as const, sectionId: CANVASES_SECTION_ID, label: localize('noCanvases', "No canvases") } }],
 		};
 	}
 
@@ -9137,7 +9244,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 			return;
 		}
 		if (element && isSessionChatItem(element)) {
-			this.showChatContextMenu(element, e.anchor);
+			if (!element.movingFrom) {
+				this.showChatContextMenu(element, e.anchor);
+			}
 			return;
 		}
 		if (!element || isSessionShowMore(element) || isSessionPlaceholder(element)) {
@@ -9823,6 +9932,31 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 	isRenderedInCustomGroup(session: ISession): boolean {
 		return this.getRenderedSessionGroup(session) !== undefined;
+	}
+
+	/** How the row of `element` steps in below its header, which decides the indent guides it draws. */
+	private getRowIndent(element: SessionListItem): ISessionRowIndent {
+		if (isPendingSessionItem(element)) {
+			// Pending rows only render in the top-level Drafts section.
+			return { depth: 0, indent: SessionRowIndent.Item };
+		}
+		if (isSessionGroupItem(element)) {
+			return { depth: element.depth, indent: element.comparison !== undefined ? SessionRowIndent.Comparison : SessionRowIndent.Header };
+		}
+		if (isSessionSection(element)) {
+			return { depth: this.getRowGroupDepth(element), indent: SessionRowIndent.Header };
+		}
+		if (isSessionShowMore(element)) {
+			// The show more folders row lists sections, so it lines up with their headers.
+			return { depth: this.getRowGroupDepth(element), indent: element.kind === 'sessions' ? SessionRowIndent.Item : SessionRowIndent.Header };
+		}
+		if (isSessionPlaceholder(element)) {
+			return { depth: this.getRowGroupDepth(element), indent: SessionRowIndent.Item };
+		}
+		// A comparison's attempts and their nested chats step in with the comparison.
+		const session = isSessionChatItem(element) ? element.standalone ? undefined : element.session : element;
+		const isComparison = session !== undefined && this.renderedComparisonParticipantConnectorPositions.has(session.sessionId);
+		return { depth: this.getRowGroupDepth(element), indent: isComparison ? SessionRowIndent.Comparison : SessionRowIndent.Item };
 	}
 
 	/**
@@ -11256,6 +11390,8 @@ export interface ISessionsFlatListOptions {
 	readonly getAdditionalContextKeys?: SessionContextKeyProvider;
 	/** Keeps repository and time visible alongside progress in history views. */
 	readonly showMetadataWhileActive?: (session: ISession) => boolean;
+	/** Keeps dot separators between metadata items in history views. Defaults to `false`. */
+	readonly showMetadataSeparators?: boolean;
 	/** Short outcome shown before the time of a completed row, such as "Cancelled". */
 	readonly getCompletedStatusMessage?: (session: ISession, reader: IReader | undefined) => string | undefined;
 	/** Whether opening a row immediately marks its session as read. Defaults to `true`. */
@@ -11368,6 +11504,7 @@ export class SessionsFlatList extends Disposable {
 				reportExternalApplicationBadgeShowFromExperimentTrigger,
 				getAdditionalContextKeys: this.options.getAdditionalContextKeys,
 				showMetadataWhileActive: this.options.showMetadataWhileActive,
+				showMetadataSeparators: this.options.showMetadataSeparators,
 				getCompletedStatusMessage: this.options.getCompletedStatusMessage,
 			},
 			approvalModel,

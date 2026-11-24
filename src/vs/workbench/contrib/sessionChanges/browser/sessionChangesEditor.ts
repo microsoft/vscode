@@ -67,7 +67,7 @@ import { localize } from '../../../../nls.js';
 import { getChangesEditorFileStats } from './changesEditorLabels.js';
 import { IDiffEditorOptionsService } from '../../../services/editor/common/diffEditorOptionsService.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { MultiDiffEditorFileListAvailableContext, MultiDiffEditorFileListEnabledContext, MultiDiffEditorFileListPositionContext, MultiDiffEditorFileListViewModeContext, observableMultiDiffEditorFileListHidden, observableMultiDiffEditorFileListPosition, observableMultiDiffEditorFileListViewMode, observableWorkbenchMultiDiffEditorVariant, toggleMultiDiffEditorFileList } from '../../multiDiffEditor/common/multiDiffEditor.js';
+import { bindMultiDiffEditorFileListContextKeys, MultiDiffEditorFileListEnabledContext, observableMultiDiffEditorFileListHidden, observableMultiDiffEditorFileListPosition, observableMultiDiffEditorFileListViewMode, observableWorkbenchMultiDiffEditorVariant, toggleMultiDiffEditorFileList } from '../../multiDiffEditor/common/multiDiffEditor.js';
 import { MultiDiffEditorWithFileListWidget } from '../../multiDiffEditor/browser/multiDiffEditorWithFileListWidget.js';
 import { MultiDiffEditorInput } from '../../multiDiffEditor/browser/multiDiffEditorInput.js';
 import { IMultiDiffEditorWidgetOptions } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorOptions.js';
@@ -471,10 +471,12 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 		const fileListVisible = derived(this, reader => fileListAvailable.read(reader) && !fileListHidden.read(reader));
 		const fileListViewMode = observableMultiDiffEditorFileListViewMode(this, this.storageService, this._store);
 		const fileListPosition = observableMultiDiffEditorFileListPosition(this, this.storageService, this._store);
-		this._register(bindContextKey(MultiDiffEditorFileListAvailableContext, this.contextKeyService, reader => fileListAvailable.read(reader)));
-		this._register(bindContextKey(MultiDiffEditorFileListEnabledContext, this.contextKeyService, reader => fileListVisible.read(reader)));
-		this._register(bindContextKey(MultiDiffEditorFileListViewModeContext, this.contextKeyService, reader => fileListViewMode.read(reader)));
-		this._register(bindContextKey(MultiDiffEditorFileListPositionContext, this.contextKeyService, reader => fileListPosition.read(reader)));
+		this._register(bindMultiDiffEditorFileListContextKeys(this.contextKeyService, this._paneVisible, {
+			available: fileListAvailable,
+			visible: fileListVisible,
+			viewMode: fileListViewMode,
+			position: fileListPosition,
+		}));
 		return instantiationService.createInstance(MultiDiffEditorWithFileListWidget, this.bodyContainer!, uiElementFactory, widgetOptions, fileListVisible, fileListViewMode, fileListPosition);
 	}
 

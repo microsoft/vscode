@@ -110,7 +110,7 @@ import { linkKey } from '../../../common/sessionLinks.js';
 import { BRANCH_CHANGES_CHANGESET_ID, ChatInteractivity, ChatModelSource, ChatOriginKind, DEFAULT_CHAT_CAPABILITIES, effectiveChatInteractivity, getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, getNestedChatDefaultChangesetId, getSessionOwnedGitHubPullRequestRefs, IChat, IChatCapabilities, IGitHubInfo, IGitHubIssueRef, IGitHubPullRequestRef, isActiveSessionStatus, ISession, ISessionAgentRef, ISessionApplication, ISessionEnvironment, ISessionArtifact, ISessionCanvas, ISessionCanvasDefinition, ISessionCapabilities, ISessionChangesSummary, ISessionChatCustomization, ISessionChangeset, ISessionCreationReference, ISessionFileChange, ISessionPreparationProgress, ISessionTurnFileChange, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection, SessionArtifactKind, sessionFileChangesEqual, sessionWorkspaceEqual, SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus, SessionStatus, SessionTypeAuthRequirement, toSessionId, type SessionCanvasDefinitionSnapshot } from '../../../../../services/sessions/common/session.js';
 import { dedupeLinks, partitionSessionArtifacts, type IRecordedGitHubReference } from './agentHostSessionArtifacts.js';
 import { AgentHostArtifactIntegrations, mapArtifactModelChats } from './agentHostArtifactIntegrations.js';
-import { createGitHubPullRequestArtifactWorkspaceConfigurationSynchronizer } from './githubPullRequestArtifactWorkspaceConfiguration.js';
+import { GitHubPullRequestArtifactWorkspaceConfiguration } from './githubPullRequestArtifactWorkspaceConfiguration.js';
 import { gitHubPullRequestMarkReadyIgnoredChecksSetting } from '../../../../../../platform/agentHost/common/githubPullRequestArtifact.js';
 import { IArtifactModel } from '../../../../../../platform/artifactIntegrations/common/artifactIntegration.js';
 import { IFocusedSessionHostService, ISessionHostService, SessionHostKind } from '../../../../../services/sessions/browser/sessionHost.js';
@@ -1452,6 +1452,8 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	readonly mode: ISettableObservable<{ readonly id: string; readonly kind: string } | undefined>;
 	readonly loading: IObservable<boolean>;
 	readonly isArchived = observableValue('isArchived', false);
+	/** See {@link ISession.archivePending}. */
+	readonly archivePending = observableValue('archivePending', false);
 	// Read/unread state is owned by the provider and backed by the agent host
 	// protocol's `IsRead` status bit (persisted as session metadata). It is
 	// seeded from the session metadata, kept in sync with protocol updates, and
@@ -3533,6 +3535,7 @@ class NewSession extends Disposable {
 	private readonly _mode: ISettableObservable<{ readonly id: string; readonly kind: string } | undefined>;
 	private readonly _workspace: ISettableObservable<ISessionWorkspace | undefined>;
 	private readonly _changesets = observableValue<readonly ISessionChangeset[] | undefined>(this, undefined);
+	private readonly _isArchived = observableValue<boolean>(this, false);
 	private readonly _worktreePending = observableValue<boolean>(this, false);
 	private readonly _description: ISettableObservable<IMarkdownString | undefined>;
 	private readonly _isNewSessionRequestInProgress = observableValue(this, false);
@@ -3705,7 +3708,7 @@ class NewSession extends Disposable {
 		this._modelSource = observableValue<ChatModelSource | undefined>(this, this._selectedModelId ? ChatModelSource.Chosen : undefined);
 		const mode = observableValue<{ readonly id: string; readonly kind: string } | undefined>(this, this._selectedAgent ? { id: this._selectedAgent.uri, kind: AGENT_MODE_KIND } : undefined);
 		this._mode = mode;
-		const isArchived = observableValue(this, false);
+		const isArchived = this._isArchived;
 		const isRead = observableValue(this, true);
 		this._description = observableValue<IMarkdownString | undefined>(this, undefined);
 		const lastTurnEnd = observableValue<Date | undefined>(this, undefined);
@@ -3827,6 +3830,7 @@ class NewSession extends Disposable {
 	}
 
 	setStatus(status: SessionStatus): void { this._status.set(status, undefined); }
+	setArchived(isArchived: boolean): void { this._isArchived.set(isArchived, undefined); }
 	startRequest(activity: string | undefined): IDisposable {
 		const requestId = this._newSessionRequestId++;
 		this._newSessionRequestActivities.set(requestId, activity);
@@ -4565,6 +4569,14 @@ interface ISessionRefresh {
 	trailing: { readonly announceExistingAsAdded: boolean } | undefined;
 }
 
+/** Archives of one session that are shown before their host confirms them. */
+interface IPendingSessionArchive {
+	/** The archives still waiting for their host's confirmation. */
+	count: number;
+	/** The archived state the host last reported, which the session settles on when none of the archives is confirmed. */
+	hostArchived: boolean;
+}
+
 export abstract class BaseAgentHostSessionsProvider extends Disposable implements IAgentHostSessionsProvider {
 
 	abstract readonly id: string;
@@ -4635,6 +4647,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	private _archiveSessionBatches = 0;
 	private readonly _pendingArchiveSessionChanges = new Map<string, ISession>();
 	private readonly _archiveSessionChangeScheduler = this._register(new RunOnceScheduler(() => this._flushArchiveSessionChanges(), 0));
+	/** Archives shown before their host confirms them, by raw session ID. */
+	private readonly _pendingSessionArchives = new Map<string, IPendingSessionArchive>();
 	private readonly _onDidChangeSessionsFromNotifications = this._register(new Emitter<ISessionChangeEvent>());
 	protected readonly _onDidChangeSessionsImmediately = Event.any(this._onDidChangeSessions.event, this._onDidChangeSessionsFromNotifications.event);
 	/** The changes of every session, also of those the listing scope hides: see {@link getAllSessions}. */
@@ -5291,7 +5305,13 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	}
 
 	/** Resolve host archive state before applying it to the client cache. */
-	protected _resolveArchivedState(_rawId: string, isArchived: boolean): boolean {
+	protected _resolveArchivedState(rawId: string, isArchived: boolean): boolean {
+		// A host update during a pending archive, such as a listing refresh or a status change, still predates it.
+		const pending = this._pendingSessionArchives.get(rawId);
+		if (pending) {
+			pending.hostArchived = isArchived;
+			return true;
+		}
 		return isArchived;
 	}
 
@@ -5559,7 +5579,37 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		) {
 			return;
 		}
+		this._publishActiveClient(cached, connection, scope);
+	}
 
+	/**
+	 * Publishes this client as an active client of `cached` while the returned disposable is held, as it is for the focused
+	 * session. The host restarts a chat whose runtime it released, and the canvases it had open, only for a contributing
+	 * client, whose customizations provide them.
+	 */
+	private _contributeActiveClient(rawId: string, cached: AgentHostSessionAdapter): IDisposable {
+		const connection = this.connection;
+		if (!connection || this._isAgentDisabledByPolicy(cached.agentProvider)) {
+			return Disposable.None;
+		}
+		const scope = this._activeClientService.acquireScope(this.resourceSchemeForProvider(cached.agentProvider), cached.isQuickChat.get() ? [] : cached.userWorkingDirectories);
+		const cancellation = new CancellationTokenSource();
+		raceCancellation(scope.whenResolved(), cancellation.token).then(() => {
+			// Hydrating the session can replace its adapter meanwhile; publish to the one that represents it now.
+			const current = this._sessionCache.get(rawId);
+			if (!cancellation.token.isCancellationRequested && this.connection === connection && current && !this._isAgentDisabledByPolicy(current.agentProvider)) {
+				// The host forgets contributions to a session it released without telling this client, so an earlier publication proves nothing.
+				this._lastPublishedActiveClients.delete(current.backendUri.toString());
+				this._publishActiveClient(current, connection, scope);
+			}
+		}, error => this._logService.warn(`[${this.id}] Failed to contribute to session ${cached.backendUri.toString()}`, error));
+		return toDisposable(() => {
+			cancellation.dispose(true);
+			scope.dispose();
+		});
+	}
+
+	private _publishActiveClient(cached: AgentHostSessionAdapter, connection: IAgentConnection, scope: IAgentCustomizationScope): void {
 		// Both publishers share a client ID, so match the chat handler's composed snapshot.
 		const sessionTools = this._activeClientService.acquireSessionTools(cached.resource);
 		let activeClient: SessionActiveClient;
@@ -8017,23 +8067,68 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	// -- Session actions ------------------------------------------------------
 
 	async archiveSession(sessionId: string): Promise<void> {
+		if (this._setPendingNewSessionArchived(sessionId, true)) {
+			return;
+		}
 		this._assertSessionAvailable(sessionId);
 		const rawId = this._sessionKeyFromChatId(sessionId);
 		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
 		const connection = this.connection;
-		if (!cached || !connection) {
+		if (!cached || !rawId || !connection) {
 			throw new Error(localize('sessionArchiveUnavailable', "Connect to this session's host to mark it as done."));
 		}
 		const subscription = connection.getSubscription(StateComponents.Session, cached.backendUri, 'archiveSession');
+		// Show the session as archived right away: confirmation first needs the
+		// session's full state from the host, which takes long for long sessions.
+		// Callers such as worktree cleanup still wait for the confirmation below.
+		const pending = this._beginPendingSessionArchive(rawId, sessionId, cached);
 		try {
 			const result = await connection.dispatchConfirmed(cached.backendUri.toString(), subscription.object, { type: ActionType.SessionIsArchivedChanged, isArchived: true }, CancellationToken.None);
 			if (result.rejectionReason) {
 				throw new Error(result.rejectionReason);
 			}
-			this._setSessionArchivedLocally(sessionId, true);
+			pending.hostArchived = true;
 		} finally {
 			subscription.dispose();
+			this._endPendingSessionArchive(rawId, sessionId, pending);
 		}
+	}
+
+	private _beginPendingSessionArchive(rawId: string, sessionId: string, cached: AgentHostSessionAdapter): IPendingSessionArchive {
+		let pending = this._pendingSessionArchives.get(rawId);
+		if (!pending) {
+			pending = { count: 0, hostArchived: cached.isArchived.get() };
+			this._pendingSessionArchives.set(rawId, pending);
+		}
+		pending.count++;
+		transaction(tx => {
+			cached.isArchived.set(true, tx);
+			cached.archivePending.set(true, tx);
+		});
+		this._fireSessionArchiveChange(sessionId, cached);
+		return pending;
+	}
+
+	/**
+	 * Settles the session once none of its archives awaits confirmation: archived when one was confirmed, otherwise on the
+	 * state its host last reported. Change events let consumers that wait for a confirmed archive act on it.
+	 */
+	private _endPendingSessionArchive(rawId: string, sessionId: string, pending: IPendingSessionArchive): void {
+		pending.count--;
+		// An explicit archive state, such as Restore while the archive was pending, already ended it.
+		if (pending.count > 0 || this._pendingSessionArchives.get(rawId) !== pending) {
+			return;
+		}
+		this._pendingSessionArchives.delete(rawId);
+		const cached = this._sessionCache.get(rawId);
+		if (!cached) {
+			return;
+		}
+		transaction(tx => {
+			cached.isArchived.set(pending.hostArchived, tx);
+			cached.archivePending.set(false, tx);
+		});
+		this._fireSessionArchiveChange(sessionId, cached);
 	}
 
 	async archiveSessions(sessionIds: readonly string[]): Promise<readonly PromiseSettledResult<void>[]> {
@@ -8252,7 +8347,18 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const rawId = this._sessionKeyFromChatId(sessionId);
 		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
 		const backendChat = this.getBackendChatResource(chatResource);
-		return cached && backendChat ? cached.observeChatCanvases(backendChat) : undefined;
+		if (!rawId || !cached || !backendChat) {
+			return undefined;
+		}
+		const canvases = cached.observeChatCanvases(backendChat);
+		const contribution = this._contributeActiveClient(rawId, cached);
+		return {
+			object: canvases.object,
+			dispose: () => {
+				contribution.dispose();
+				canvases.dispose();
+			},
+		};
 	}
 
 	/** Resolves the host-supplied backend session and chat that a canvas operation addresses. */
@@ -8334,7 +8440,21 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	}
 
 	async unarchiveSession(sessionId: string): Promise<void> {
+		if (this._setPendingNewSessionArchived(sessionId, false)) {
+			return;
+		}
 		this._setSessionArchived(sessionId, false);
+	}
+
+	/** Mirrors the change on a sent new session's draft. Returns `true` while the host hasn't announced the session, so the commit applies it. */
+	protected _setPendingNewSessionArchived(sessionId: string, isArchived: boolean): boolean {
+		const newSession = this._getNewSession(sessionId);
+		if (!newSession || newSession.session.status.get() === SessionStatus.Untitled) {
+			return false;
+		}
+		newSession.setArchived(isArchived);
+		this._onDidChangeSessions.fire({ added: [], removed: [], changed: [newSession.session] });
+		return !this._hasSession(sessionId);
 	}
 
 	get supportsWorktreeCleanup(): boolean {
@@ -8475,10 +8595,22 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	protected _setSessionArchivedLocally(sessionId: string, isArchived: boolean): boolean {
 		const rawId = this._sessionKeyFromChatId(sessionId);
 		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
-		if (!cached) {
+		if (!cached || !rawId) {
 			return false;
 		}
-		cached.isArchived.set(isArchived, undefined);
+		// An explicit state replaces a pending archive's, which settles without changing it.
+		const endsPendingArchive = this._pendingSessionArchives.delete(rawId);
+		transaction(tx => {
+			cached.isArchived.set(isArchived, tx);
+			if (endsPendingArchive) {
+				cached.archivePending.set(false, tx);
+			}
+		});
+		this._fireSessionArchiveChange(sessionId, cached);
+		return true;
+	}
+
+	private _fireSessionArchiveChange(sessionId: string, cached: AgentHostSessionAdapter): void {
 		if (this._archiveSessionBatches > 0) {
 			this._pendingArchiveSessionChanges.set(sessionId, cached);
 			if (!this._archiveSessionChangeScheduler.isScheduled()) {
@@ -8487,7 +8619,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		} else {
 			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [cached] });
 		}
-		return true;
 	}
 
 	async setSessionReadState(sessionId: string, isRead: boolean): Promise<void> {
@@ -8725,7 +8856,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				this.id,
 				provider.remoteAddress,
 				undefined,
-				createGitHubPullRequestArtifactWorkspaceConfigurationSynchronizer(this._baseConfigurationService),
+				this._instantiationService.createInstance(GitHubPullRequestArtifactWorkspaceConfiguration).synchronize,
 			);
 		}
 		return this._artifactIntegrations.value;
@@ -8768,7 +8899,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			const chat = state && session.chats.read(reader).find(chat => getSessionChatResource(state, chat.resource.fragment || DEFAULT_CHAT_ID, state.defaultChat) === origin);
 			const folder = chat?.workspace.read(reader)?.folders[0];
 			// eslint-disable-next-line local/code-agent-host-uri-mapping -- TODO(agent-host-uri): artifact integration workspace context needs the owning connection mapper
-			return folder && origin ? { chat: origin, workingDirectory: fromAgentHostUri(folder.workingDirectory).toString(), resource: folder.root } : undefined;
+			return folder && origin ? { chat: origin, workingDirectory: fromAgentHostUri(folder.workingDirectory).toString(), resource: folder.workingDirectory } : undefined;
 		});
 		const reference = await integrations.acquireArtifact(session.backendUri.toString(), artifactId, workspace);
 		const chats = derived(reader => {
@@ -9537,6 +9668,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				this._preserveNewSessionConfig(newSession, committedSession.sessionId);
 				if (explicitTitle) {
 					await this.renameSession(committedSession.sessionId, explicitTitle);
+				}
+				if (newSession.session.isArchived.get() && !committedSession.isArchived.get()) {
+					await this.archiveSession(committedSession.sessionId).catch(error => this._logService.error(`[${this.id}] Failed to archive session '${committedSession.sessionId}' after it was created.`, error));
 				}
 				onDidCommit?.(committedSession);
 				// Session graduated: release the eager subscription without

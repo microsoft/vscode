@@ -6,6 +6,7 @@
 import * as sqlite3 from '@vscode/sqlite3';
 import * as fs from 'fs';
 import { Suite, Context } from 'mocha';
+import { tmpdir } from 'os';
 import { dirname, join } from 'path';
 import { Application, ApplicationOptions, IModelConfigSection, Logger } from '../../automation';
 
@@ -390,6 +391,40 @@ export async function retryWithRestart(app: Application, testFn: () => Promise<u
 	}
 
 	throw lastError ?? new Error('retryWithRestart failed with an unknown error');
+}
+
+/**
+ * Written by `smoketest.openLocalChat` (`test/smoke/extensions/vscode-smoketest-ext-host`)
+ * once the chat view shows the new local chat it opened.
+ */
+const OPEN_LOCAL_CHAT_DONE_FILE = join(tmpdir(), 'vscode-smoketest-open-local-chat-done.txt');
+
+/**
+ * Opens a new local chat in the chat view with `smoketest.openLocalChat`, and
+ * returns once the view shows it.
+ *
+ * The command palette closes before the command has run. In a fresh window
+ * the command can run seconds later, once the extension host has activated
+ * the smoke test extension. Meanwhile the chat view can bind a session of its
+ * own, also a local one, and a message sent to it is left running in the
+ * background when the command opens its new chat. So wait for the command to
+ * finish rather than for the view to show some other local chat.
+ */
+export async function openLocalChatInChatView(app: Application): Promise<void> {
+	fs.rmSync(OPEN_LOCAL_CHAT_DONE_FILE, { force: true });
+	const previousSessionResource = await app.workbench.chat.getChatViewSessionResource();
+	await app.workbench.quickaccess.runCommand('smoketest.openLocalChat');
+
+	// The command itself waits up to 60 seconds for New Local Chat to be registered.
+	const deadline = Date.now() + 90_000;
+	while (!fs.existsSync(OPEN_LOCAL_CHAT_DONE_FILE)) {
+		if (Date.now() > deadline) {
+			throw new Error('Timed out waiting for smoketest.openLocalChat to open a new local chat');
+		}
+		await timeout(100);
+	}
+
+	await app.workbench.chat.waitForNewLocalChatViewSession(previousSessionResource);
 }
 
 export interface ITask<T> {

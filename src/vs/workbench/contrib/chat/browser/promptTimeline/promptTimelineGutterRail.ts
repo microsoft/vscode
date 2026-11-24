@@ -14,8 +14,8 @@ import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../nls.js';
 import { MIN_HOST_WIDTH } from './promptTimelineLayout.js';
-import { PromptDiffStat, PromptFileDiff, PromptTick, IPromptScrollLayout, promptTickEquals } from './promptTimelineModel.js';
-import { IPromptReviewFileEvent, IPromptTimelineRail } from './promptTimelineRail.js';
+import { PromptTick } from './promptTimelineModel.js';
+import { IPromptTimelineRail } from './promptTimelineRail.js';
 import './media/promptTimeline.css';
 
 /**
@@ -55,52 +55,20 @@ export function restDotCount(promptCount: number, railHeight: number): number {
 	return Math.max(MIN_REST_DOTS, Math.min(capped, Math.floor((available - MORE_MARKER_HEIGHT) / step)));
 }
 
-/**
- * Which of a row's two buttons holds the flyout's roving tab stop: the label (jump to the prompt) or
- * the diff badge (review that prompt's changes).
- */
-type RowColumn = 'jump' | 'diff';
-
 /** Where a row preview came from — see {@link PromptTimelineGutterRail._setPreview}. */
 type PreviewSource = 'dot' | 'row';
 
 interface IRowEntry {
 	tick: PromptTick;
-	/** Row container. Holds the `reviewable` state and the layout both buttons share; not focusable. */
 	readonly container: HTMLElement;
-	/** Left button: reveals the prompt in the transcript. */
 	readonly jump: HTMLButtonElement;
-	/** Right button: opens this prompt's changes as a diff. Dropped when the prompt edited nothing. */
-	readonly diff: HTMLButtonElement;
 	readonly label: HTMLElement;
-	readonly stat: HTMLElement;
 }
 
 /** Unique-per-instance suffix so the flyout's id (referenced by the handle's `aria-controls`) never collides. */
 let gutterIdSeq = 0;
 
-/**
- * A minimal, left-edge prompt timeline. At rest it is only a small handle in the transcript's left
- * gutter (one dot per prompt, the current prompt's dot accented) — no per-prompt marks, no diff
- * colour — so the transcript stays calm. Hovering, tapping, or focusing the handle expands a flyout
- * listing every prompt (its text and a diff badge) to the *right* of the dots, so the dots stay
- * visible and keep working as a scrubber: hovering an individual dot previews its prompt in the
- * flyout. Because the list is evenly spaced and never derived from response heights, it stays stable
- * under virtualization.
- *
- * Each row is split into two buttons so the prompt's changes are reachable without leaving the rail:
- * the label on the left reveals the prompt in the transcript, and the diff badge on the right opens
- * just that turn's changes (the ruler rail offers the same drill-down from its hover card). The badge
- * is absent for prompts that edited nothing. Both close the flyout.
- *
- * The handle is an accessible disclosure button (`aria-expanded`/`aria-controls`) wired for mouse,
- * touch (via {@link Gesture}) and keyboard; the flyout is a single-tab-stop toolbar where Up/Down
- * (and Home/End) move between rows, Left/Right move between a row's two buttons, and Escape dismisses.
- *
- * It implements the same {@link IPromptTimelineRail} contract as the overview-ruler rail so the two
- * are interchangeable behind the `sessions.chatTimeline.display` setting; the scroll-driven and
- * fisheye affordances the ruler needs (hard-wheel bloom, proportional scroll layout) are no-ops here.
- */
+/** A left-edge handle that opens a list of prompt titles for navigating the transcript. */
 export class PromptTimelineGutterRail extends Disposable implements IPromptTimelineRail {
 
 	private readonly _domNode: HTMLElement;
@@ -132,8 +100,6 @@ export class PromptTimelineGutterRail extends Disposable implements IPromptTimel
 	private _activeIndex = -1;
 	/** Row holding the flyout's single tab stop. */
 	private _focusRow = 0;
-	/** Which of that row's two buttons holds it. */
-	private _focusColumn: RowColumn = 'jump';
 	private _loadOlder: (() => Promise<void>) | undefined;
 	private _loadingOlder: (() => Promise<void>) | undefined;
 	private _olderButton: Button | undefined;
@@ -142,14 +108,6 @@ export class PromptTimelineGutterRail extends Disposable implements IPromptTimel
 
 	private readonly _onDidSelect = this._register(new Emitter<string>());
 	readonly onDidSelect: Event<string> = this._onDidSelect.event;
-
-	/** Fired by a row's diff button to review that prompt's whole changeset. */
-	private readonly _onDidReview = this._register(new Emitter<PromptTick>());
-	readonly onDidReview: Event<PromptTick> = this._onDidReview.event;
-	// Per-FILE review is only offered by the ruler rail's hover card; the gutter rail's rows drill down
-	// to the whole prompt. Kept to satisfy the shared rail contract.
-	private readonly _onDidReviewFile = this._register(new Emitter<IPromptReviewFileEvent>());
-	readonly onDidReviewFile: Event<IPromptReviewFileEvent> = this._onDidReviewFile.event;
 
 	get domNode(): HTMLElement { return this._domNode; }
 
@@ -245,8 +203,6 @@ export class PromptTimelineGutterRail extends Disposable implements IPromptTimel
 			}
 		}));
 
-		// Keyboard: one Tab stop into the flyout; Up/Down (and Home/End) move between rows, Left/Right
-		// between a row's label and diff buttons, Escape dismisses.
 		this._register(addDisposableListener(this._list, EventType.KEY_DOWN, e => this._onListKeyDown(e)));
 
 		// Focus fully leaving the rail collapses the disclosure (covers Shift+Tab off the handle,
@@ -273,7 +229,7 @@ export class PromptTimelineGutterRail extends Disposable implements IPromptTimel
 		} else {
 			this._open = true;
 			this._updateRevealed();
-			this._focusActiveRow();
+			this._focusPrompt(this._focusRow);
 			if (!this._rows.length) {
 				void this._requestOlder();
 			}
@@ -335,7 +291,7 @@ export class PromptTimelineGutterRail extends Disposable implements IPromptTimel
 		const hasOlder = !!this._loadOlder || (this._loadingFromButton && !!this._olderButton?.hasFocus());
 		const show = hasOlder && this._atHistoryStart();
 		if (!show && this._olderButton?.hasFocus()) {
-			const target = hasOlder ? this._cell(this._focusRow, this._focusColumn) : this._rows[0]?.jump;
+			const target = this._rows[hasOlder ? this._focusRow : 0]?.jump;
 			(target ?? this._rest).focus({ preventScroll: true });
 		}
 		this._list.classList.toggle('has-older-prompts', hasOlder);
@@ -372,28 +328,10 @@ export class PromptTimelineGutterRail extends Disposable implements IPromptTimel
 		}
 	}
 
-	/**
-	 * Collapse the disclosure (shared close path for activation, Escape, and row actions).
-	 *
-	 * `restoreFocus` returns focus to the handle so keyboard users are not stranded; the diff action
-	 * opts out, because the multi-diff editor it opens takes focus itself and pulling focus back to
-	 * the rail first would fight it.
-	 */
-	private _close(restoreFocus = true): void {
+	private _close(): void {
 		this._open = false;
 		this._updateRevealed();
-		if (restoreFocus) {
-			this._rest.focus();
-		}
-	}
-
-	private _focusActiveRow(): void {
-		this._focusCell(this._focusRow, this._focusColumn);
-	}
-
-	setFilesProvider(_provider: (tick: PromptTick) => readonly PromptFileDiff[]): void {
-		// The gutter rail's rows review a whole prompt; only the ruler rail's hover card lists the
-		// individual files, so it has no use for the provider.
+		this._rest.focus();
 	}
 
 	/**
@@ -454,16 +392,7 @@ export class PromptTimelineGutterRail extends Disposable implements IPromptTimel
 		this._register(toDisposable(() => observer.disconnect()));
 	}
 
-	/** Previews the prompt a hovered dot stands for by highlighting its row and scrolling it into view. */
-	/**
-	 * Previews the prompt a row stands for: highlights it and scrolls it into view.
-	 *
-	 * `source` decides whether the row gets the full-width band. A preview from a hovered *dot* points
-	 * at a row the pointer is nowhere near, so the whole row lights up to say "this one". A preview
-	 * from the pointer resting on the row itself must NOT band it: the row's two halves light up
-	 * individually under the pointer, and a band covering both would paint over that — making a row
-	 * with two buttons read as one.
-	 */
+	/** A dot previews its corresponding row; a row under the pointer already has a hover highlight. */
 	private _setPreview(index: number, source: PreviewSource = 'dot'): void {
 		const band = source === 'dot' ? index : -1;
 		if (this._previewIndex === index && this._previewBand === band) {
@@ -564,24 +493,13 @@ export class PromptTimelineGutterRail extends Disposable implements IPromptTimel
 		const sameStructure = ticks.length === this._rows.length
 			&& ticks.every((t, i) => this._rows[i]?.tick.requestId === t.requestId);
 		if (sameStructure) {
-			// Note the focused target before any button can disappear underneath it.
-			const doc = getWindow(this._domNode).document;
-			const focusedCell = this._isLiveCell(doc.activeElement) ? doc.activeElement : undefined;
-			// Only the stats changed (streaming edits); update them in place so focus/hover are kept.
 			for (let i = 0; i < ticks.length; i++) {
-				if (!promptTickEquals(this._rows[i].tick, ticks[i])) {
-					this._renderRow(this._rows[i], ticks[i]);
+				const row = this._rows[i];
+				if (row.tick.text !== ticks[i].text || row.tick.ariaLabel !== ticks[i].ariaLabel) {
+					this._renderRow(row, ticks[i]);
 				}
 			}
-			// A prompt whose first edit just landed gains a diff button; re-apply the tab stops so it
-			// joins the roving order (and so a stop never lands on one that went away).
-			this._updateTabStops(this._focusRow, this._focusColumn);
-			// The focused badge is the one that went away (its prompt's edits netted back to zero):
-			// follow the tab stop to its fallback, instead of leaving focus on a `display: none` button
-			// — which the browser strands on <body>, and the rail then reads as a real focus-out.
-			if (focusedCell && !this._isLiveCell(focusedCell)) {
-				this._cell(this._focusRow, this._focusColumn)?.focus();
-			}
+			this._updateTabStops(this._focusRow);
 			this._updateActiveClasses();
 			return;
 		}
@@ -603,7 +521,7 @@ export class PromptTimelineGutterRail extends Disposable implements IPromptTimel
 		}
 
 		const activeIndex = this._rows.findIndex(r => r.tick.requestId === this._activeRequestId);
-		this._updateTabStops(activeIndex >= 0 ? activeIndex : 0, 'jump');
+		this._updateTabStops(activeIndex >= 0 ? activeIndex : 0);
 		this._updateActiveClasses();
 	}
 
@@ -612,26 +530,17 @@ export class PromptTimelineGutterRail extends Disposable implements IPromptTimel
 		const jump = append(container, $<HTMLButtonElement>('button.prompt-timeline-gutter-row-jump'));
 		jump.tabIndex = -1;
 		const label = append(jump, $('span.prompt-timeline-gutter-row-label'));
-		const diff = append(container, $<HTMLButtonElement>('button.prompt-timeline-gutter-row-diff'));
-		diff.tabIndex = -1;
-		const stat = append(diff, $('span.prompt-timeline-gutter-row-stat'));
-		const entry: IRowEntry = { tick, container, jump, diff, label, stat };
+		const entry: IRowEntry = { tick, container, jump, label };
 		this._renderRow(entry, tick);
 		this._rowDisposables.add(addDisposableListener(jump, EventType.CLICK, () => {
 			this._onDidSelect.fire(entry.tick.requestId);
 			this._close();
 		}));
-		this._rowDisposables.add(addDisposableListener(diff, EventType.CLICK, () => {
-			this._onDidReview.fire(entry.tick);
-			this._close(/*restoreFocus*/ false);
+		this._rowDisposables.add(addDisposableListener(jump, EventType.FOCUS, () => {
+			this._open = true;
+			this._updateRevealed();
+			this._updateTabStops(this._rows.indexOf(entry));
 		}));
-		for (const [button, column] of [[jump, 'jump'], [diff, 'diff']] as const) {
-			this._rowDisposables.add(addDisposableListener(button, EventType.FOCUS, () => {
-				this._open = true;
-				this._updateRevealed();
-				this._updateTabStops(this._rows.indexOf(entry), column);
-			}));
-		}
 		return entry;
 	}
 
@@ -640,80 +549,23 @@ export class PromptTimelineGutterRail extends Disposable implements IPromptTimel
 		entry.jump.setAttribute('aria-label', tick.ariaLabel);
 		entry.label.textContent = tick.text;
 		entry.label.title = tick.text;
-		// A stat that nets out to no changed lines is treated as nothing to review.
-		const stat = tick.stat && tick.stat.added + tick.stat.removed > 0 ? tick.stat : undefined;
-		this._renderStat(entry.stat, stat);
-		// Prompts that edited nothing have nothing to review: the row drops its second half entirely
-		// (rather than showing it disabled), which also takes it out of the focus order.
-		entry.container.classList.toggle('reviewable', !!stat);
-		if (stat) {
-			entry.diff.setAttribute('aria-label', localize(
-				'promptTimeline.gutter.reviewChanges',
-				"Review Changes for Prompt: {0}, {1}",
-				tick.text,
-				stat.fileCount === 1
-					? localize('promptTimeline.gutter.reviewOneFile', "1 file changed")
-					: localize('promptTimeline.gutter.reviewNFiles', "{0} files changed", stat.fileCount),
-			));
-		}
 	}
 
-	private _renderStat(container: HTMLElement, stat: PromptDiffStat | undefined): void {
-		clearNode(container);
-		if (!stat) {
-			return;
-		}
-		append(container, $('span.added')).textContent = `+${stat.added}`;
-		append(container, $('span.removed')).textContent = `\u2212${stat.removed}`;
-	}
-
-	/** The button a row column maps to, or undefined when that row has no changes to review. */
-	private _cell(rowIndex: number, column: RowColumn): HTMLButtonElement | undefined {
-		const entry = this._rows[rowIndex];
-		if (!entry) {
-			return undefined;
-		}
-		if (column === 'jump') {
-			return entry.jump;
-		}
-		return entry.container.classList.contains('reviewable') ? entry.diff : undefined;
-	}
-
-	/** True when `element` is a row button that is still a live focus target — a dropped badge is not. */
-	private _isLiveCell(element: Element | null): boolean {
-		return this._rows.some(row => row.jump === element
-			|| (row.diff === element && row.container.classList.contains('reviewable')));
-	}
-
-	/**
-	 * Roving tabindex: exactly one button across the whole flyout is tabbable, so it stays a single Tab
-	 * stop even though every row now holds two. A requested diff column falls back to the label when
-	 * that row has no changes, so the tab stop can never land on a hidden (unfocusable) button.
-	 */
-	private _updateTabStops(focusIndex: number, column: RowColumn = this._focusColumn): void {
+	private _updateTabStops(focusIndex: number): void {
 		this._focusRow = Math.max(0, Math.min(this._rows.length - 1, focusIndex));
-		this._focusColumn = this._cell(this._focusRow, column) ? column : 'jump';
-		const focused = this._cell(this._focusRow, this._focusColumn);
-		for (const entry of this._rows) {
-			entry.jump.tabIndex = entry.jump === focused ? 0 : -1;
-			entry.diff.tabIndex = entry.diff === focused ? 0 : -1;
+		for (let i = 0; i < this._rows.length; i++) {
+			this._rows[i].jump.tabIndex = i === this._focusRow ? 0 : -1;
 		}
 	}
 
-	/** Moves the roving tab stop and the focus together, clamping the row and resolving the column. */
-	private _focusCell(rowIndex: number, column: RowColumn): void {
-		this._updateTabStops(rowIndex, column);
-		this._cell(this._focusRow, this._focusColumn)?.focus();
+	private _focusPrompt(rowIndex: number): void {
+		this._updateTabStops(rowIndex);
+		this._rows[this._focusRow]?.jump.focus();
 		if (this._loadOlder && this._focusRow === 0) {
 			this._list.scrollTop = 0;
 		}
 	}
 
-	/**
-	 * The flyout's toolbar keyboard model: Up/Down (and Home/End) walk the rows keeping the current
-	 * column where the target row has one, Left/Right cross between a row's label and diff buttons,
-	 * and Escape dismisses.
-	 */
 	private _onListKeyDown(e: KeyboardEvent): void {
 		if (this._rows.length === 0) {
 			return;
@@ -726,21 +578,18 @@ export class PromptTimelineGutterRail extends Disposable implements IPromptTimel
 			return;
 		}
 		const activeElement = getWindow(this._domNode).document.activeElement;
-		const currentIndex = this._rows.findIndex(r => r.jump === activeElement || r.diff === activeElement);
+		const currentIndex = this._rows.findIndex(r => r.jump === activeElement);
 		if (event.keyCode === KeyCode.Enter) {
 			// Activate the row button here: unhandled, Enter reaches workbench keybindings scoped to the
 			// chat widget (e.g. editing requests), which consume it before the button's native click.
 			if (currentIndex !== -1) {
 				event.preventDefault();
 				event.stopPropagation();
-				const row = this._rows[currentIndex];
-				(row.jump === activeElement ? row.jump : row.diff).click();
+				this._rows[currentIndex].jump.click();
 			}
 			return;
 		}
-		const currentColumn: RowColumn = this._rows[currentIndex]?.diff === activeElement ? 'diff' : 'jump';
 		let nextIndex = currentIndex;
-		let nextColumn = currentColumn;
 		switch (event.keyCode) {
 			case KeyCode.DownArrow: nextIndex = Math.min(this._rows.length - 1, currentIndex + 1); break;
 			case KeyCode.UpArrow:
@@ -751,13 +600,11 @@ export class PromptTimelineGutterRail extends Disposable implements IPromptTimel
 				break;
 			case KeyCode.Home: nextIndex = 0; break;
 			case KeyCode.End: nextIndex = this._rows.length - 1; break;
-			case KeyCode.RightArrow: nextColumn = 'diff'; break;
-			case KeyCode.LeftArrow: nextColumn = 'jump'; break;
 			default: return;
 		}
 		event.preventDefault();
 		event.stopPropagation();
-		this._focusCell(nextIndex, nextColumn);
+		this._focusPrompt(nextIndex);
 	}
 
 	setActive(requestId: string | undefined): void {
@@ -769,8 +616,7 @@ export class PromptTimelineGutterRail extends Disposable implements IPromptTimel
 		let activeIndex = -1;
 		for (let i = 0; i < this._rows.length; i++) {
 			const row = this._rows[i];
-			const active = this._activeRequestId !== undefined
-				&& (row.tick.requestId === this._activeRequestId || row.tick.allRequestIds.includes(this._activeRequestId));
+			const active = row.tick.requestId === this._activeRequestId;
 			if (active) {
 				activeIndex = i;
 			}
@@ -790,9 +636,9 @@ export class PromptTimelineGutterRail extends Disposable implements IPromptTimel
 	}
 
 	focusTick(requestId: string): void {
-		const index = this._rows.findIndex(r => r.tick.requestId === requestId || r.tick.allRequestIds.includes(requestId));
+		const index = this._rows.findIndex(r => r.tick.requestId === requestId);
 		if (index >= 0) {
-			this._focusCell(index, 'jump');
+			this._focusPrompt(index);
 		}
 	}
 
@@ -804,8 +650,4 @@ export class PromptTimelineGutterRail extends Disposable implements IPromptTimel
 		}
 	}
 
-	// The ruler blooms its fan on a hard scroll and scatters marks by scroll position; the gutter rail is a
-	// static, evenly-spaced list, so both are intentionally no-ops.
-	notifyHardWheel(): void { }
-	setScrollLayout(_layout: IPromptScrollLayout | undefined): void { }
 }

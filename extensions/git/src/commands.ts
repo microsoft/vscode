@@ -704,18 +704,18 @@ async function evaluateDiagnosticsCommitHook(repository: Repository, options: Co
 	}
 
 	const resources: Uri[] = [];
-	if (repository.indexGroup.resourceStates.length > 0) {
+	if (repository.indexChanges.length > 0) {
 		// Staged files
-		resources.push(...repository.indexGroup.resourceStates.map(r => r.resourceUri));
+		resources.push(...repository.indexChanges.map(r => r.resourceUri));
 	} else if (options.all === 'tracked') {
 		// Tracked files
-		resources.push(...repository.workingTreeGroup.resourceStates
+		resources.push(...repository.workingTreeChanges
 			.filter(r => r.type !== Status.UNTRACKED && r.type !== Status.IGNORED)
 			.map(r => r.resourceUri));
 	} else {
 		// All files
-		resources.push(...repository.workingTreeGroup.resourceStates.map(r => r.resourceUri));
-		resources.push(...repository.untrackedGroup.resourceStates.map(r => r.resourceUri));
+		resources.push(...repository.workingTreeChanges.map(r => r.resourceUri));
+		resources.push(...repository.untrackedChanges.map(r => r.resourceUri));
 	}
 
 	const diagnostics: Map<Uri, number> = new Map();
@@ -823,7 +823,7 @@ export class CommandCenter {
 
 	@command('git.openAllChanges', { repository: true })
 	async openChanges(repository: Repository): Promise<void> {
-		for (const resource of [...repository.workingTreeGroup.resourceStates, ...repository.untrackedGroup.resourceStates]) {
+		for (const resource of [...repository.workingTreeChanges, ...repository.untrackedChanges]) {
 			if (
 				resource.type === Status.DELETED || resource.type === Status.DELETED_BY_THEM ||
 				resource.type === Status.DELETED_BY_US || resource.type === Status.BOTH_DELETED
@@ -1512,10 +1512,10 @@ export class CommandCenter {
 		}
 
 		const allChangedResources = [
-			...repository.workingTreeGroup.resourceStates,
-			...repository.indexGroup.resourceStates,
-			...repository.mergeGroup.resourceStates,
-			...repository.untrackedGroup.resourceStates
+			...repository.workingTreeChanges,
+			...repository.indexChanges,
+			...repository.mergeChanges,
+			...repository.untrackedChanges
 		];
 
 		// Check if file has uncommitted changes
@@ -1597,7 +1597,7 @@ export class CommandCenter {
 
 	@command('git.stageAll', { repository: true })
 	async stageAll(repository: Repository): Promise<void> {
-		const resources = [...repository.workingTreeGroup.resourceStates, ...repository.untrackedGroup.resourceStates];
+		const resources = [...repository.workingTreeChanges, ...repository.untrackedChanges];
 		const uris = resources.map(r => r.resourceUri);
 
 		if (uris.length > 0) {
@@ -1609,7 +1609,7 @@ export class CommandCenter {
 
 	private async _stageDeletionConflict(repository: Repository, uri: Uri): Promise<void> {
 		const uriString = uri.toString();
-		const resource = repository.mergeGroup.resourceStates.filter(r => r.resourceUri.toString() === uriString)[0];
+		const resource = repository.mergeChanges.filter(r => r.resourceUri.toString() === uriString)[0];
 
 		if (!resource) {
 			return;
@@ -1644,7 +1644,7 @@ export class CommandCenter {
 
 	@command('git.stageAllTracked', { repository: true })
 	async stageAllTracked(repository: Repository): Promise<void> {
-		const resources = repository.workingTreeGroup.resourceStates
+		const resources = repository.workingTreeChanges
 			.filter(r => r.type !== Status.UNTRACKED && r.type !== Status.IGNORED);
 		const uris = resources.map(r => r.resourceUri);
 
@@ -1653,7 +1653,7 @@ export class CommandCenter {
 
 	@command('git.stageAllUntracked', { repository: true })
 	async stageAllUntracked(repository: Repository): Promise<void> {
-		const resources = [...repository.workingTreeGroup.resourceStates, ...repository.untrackedGroup.resourceStates]
+		const resources = [...repository.workingTreeChanges, ...repository.untrackedChanges]
 			.filter(r => r.type === Status.UNTRACKED || r.type === Status.IGNORED);
 		const uris = resources.map(r => r.resourceUri);
 
@@ -1662,7 +1662,7 @@ export class CommandCenter {
 
 	@command('git.stageAllMerge', { repository: true })
 	async stageAllMerge(repository: Repository): Promise<void> {
-		const resources = repository.mergeGroup.resourceStates.filter(s => s instanceof Resource) as Resource[];
+		const resources = repository.mergeChanges.filter(s => s instanceof Resource) as Resource[];
 		const { merge, unresolved, deletionConflicts } = await categorizeResourceByResolution(resources);
 
 		try {
@@ -1837,8 +1837,8 @@ export class CommandCenter {
 		}
 
 		const resources = [
-			...repository.workingTreeGroup.resourceStates,
-			...repository.untrackedGroup.resourceStates]
+			...repository.workingTreeChanges,
+			...repository.untrackedChanges]
 			.filter(r => r.multiFileDiffEditorModifiedUri?.toString() === uri.toString() || r.multiDiffEditorOriginalUri?.toString() === uri.toString())
 			.map(r => r.resourceUri);
 
@@ -2092,7 +2092,7 @@ export class CommandCenter {
 			return;
 		}
 
-		const resource = repository.indexGroup.resourceStates
+		const resource = repository.indexChanges
 			.find(r => pathEquals(r.resourceUri.fsPath, modifiedUri.fsPath));
 		if (!resource) {
 			return;
@@ -2150,7 +2150,7 @@ export class CommandCenter {
 			return;
 		}
 
-		const resources = repository.indexGroup.resourceStates
+		const resources = repository.indexChanges
 			.filter(r => r.multiFileDiffEditorModifiedUri?.toString() === uri.toString() || r.multiDiffEditorOriginalUri?.toString() === uri.toString())
 			.map(r => r.resourceUri);
 
@@ -2244,12 +2244,12 @@ export class CommandCenter {
 
 	@command('git.cleanAll', { repository: true })
 	async cleanAll(repository: Repository): Promise<void> {
-		await this._cleanAll(repository.workingTreeGroup.resourceStates);
+		await this._cleanAll([...repository.workingTreeChanges]);
 	}
 
 	@command('git.cleanAllTracked', { repository: true })
 	async cleanAllTracked(repository: Repository): Promise<void> {
-		const resources = repository.workingTreeGroup.resourceStates
+		const resources = repository.workingTreeChanges
 			.filter(r => r.type !== Status.UNTRACKED && r.type !== Status.IGNORED);
 
 		if (resources.length === 0) {
@@ -2261,7 +2261,7 @@ export class CommandCenter {
 
 	@command('git.cleanAllUntracked', { repository: true })
 	async cleanAllUntracked(repository: Repository): Promise<void> {
-		const resources = [...repository.workingTreeGroup.resourceStates, ...repository.untrackedGroup.resourceStates]
+		const resources = [...repository.workingTreeChanges, ...repository.untrackedChanges]
 			.filter(r => r.type === Status.UNTRACKED || r.type === Status.IGNORED);
 
 		if (resources.length === 0) {
@@ -2401,17 +2401,17 @@ export class CommandCenter {
 		}
 
 		let enableSmartCommit = config.get<boolean>('enableSmartCommit') === true;
-		let noStagedChanges = repository.indexGroup.resourceStates.length === 0;
-		let noUnstagedChanges = repository.workingTreeGroup.resourceStates.length === 0;
+		let noStagedChanges = repository.indexChanges.length === 0;
+		let noUnstagedChanges = repository.workingTreeChanges.length === 0;
 
 		if (!opts.empty) {
 			if (promptToSaveFilesBeforeCommit !== 'never') {
 				let documents = workspace.textDocuments
 					.filter(d => !d.isUntitled && d.isDirty && isDescendant(repository.root, d.uri.fsPath));
 
-				if (promptToSaveFilesBeforeCommit === 'staged' || repository.indexGroup.resourceStates.length > 0) {
+				if (promptToSaveFilesBeforeCommit === 'staged' || repository.indexChanges.length > 0) {
 					documents = documents
-						.filter(d => repository.indexGroup.resourceStates.some(s => pathEquals(s.resourceUri.fsPath, d.uri.fsPath)));
+						.filter(d => repository.indexChanges.some(s => pathEquals(s.resourceUri.fsPath, d.uri.fsPath)));
 				}
 
 				if (documents.length > 0) {
@@ -2428,19 +2428,23 @@ export class CommandCenter {
 						// After saving the dirty documents, if there are any documents that are part of the
 						// index group we have to add them back in order for the saved changes to be committed
 						documents = documents
-							.filter(d => repository.indexGroup.resourceStates.some(s => pathEquals(s.resourceUri.fsPath, d.uri.fsPath)));
+							.filter(d => repository.indexChanges.some(s => pathEquals(s.resourceUri.fsPath, d.uri.fsPath)));
 						await repository.add(documents.map(d => d.uri));
 
-						noStagedChanges = repository.indexGroup.resourceStates.length === 0;
-						noUnstagedChanges = repository.workingTreeGroup.resourceStates.length === 0;
+						noStagedChanges = repository.indexChanges.length === 0;
+						noUnstagedChanges = repository.workingTreeChanges.length === 0;
 					} else if (pick !== commit) {
 						return; // do not commit on cancel
 					}
 				}
 			}
 
+			// a merge/rebase can be continued as is when its only unstaged changes are untracked files
+			const canContinueWithoutStaging = (repository.mergeInProgress || repository.rebaseCommit !== undefined)
+				&& repository.workingTreeChanges.every(r => r.type === Status.UNTRACKED);
+
 			// no changes, and the user has not configured to commit all in this case
-			if (!noUnstagedChanges && noStagedChanges && !enableSmartCommit && !opts.all && !opts.amend) {
+			if (!noUnstagedChanges && noStagedChanges && !enableSmartCommit && !opts.all && !opts.amend && !canContinueWithoutStaging) {
 				const suggestSmartCommit = config.get<boolean>('suggestSmartCommit') === true;
 
 				if (!suggestSmartCommit) {
@@ -2499,7 +2503,7 @@ export class CommandCenter {
 				// or no staged changes and not `all`
 				|| (!opts.all && noStagedChanges)
 				// no staged changes and no tracked unstaged changes
-				|| (noStagedChanges && smartCommitChanges === 'tracked' && repository.workingTreeGroup.resourceStates.every(r => r.type === Status.UNTRACKED))
+				|| (noStagedChanges && smartCommitChanges === 'tracked' && repository.workingTreeChanges.every(r => r.type === Status.UNTRACKED))
 			)
 			// amend allows changing only the commit message
 			&& !opts.amend
@@ -2590,7 +2594,7 @@ export class CommandCenter {
 	}
 
 	private async commitWithAnyInput(repository: Repository, opts: CommitOptions): Promise<void> {
-		const message = repository.inputBox.value;
+		const message = repository.sourceControl.inputBox.value;
 		const root = Uri.file(repository.root);
 		const config = workspace.getConfiguration('git', root);
 
@@ -2797,7 +2801,7 @@ export class CommandCenter {
 
 	@command('git.restoreCommitTemplate', { repository: true })
 	async restoreCommitTemplate(repository: Repository): Promise<void> {
-		repository.inputBox.value = await repository.getCommitTemplate();
+		repository.sourceControl.inputBox.value = await repository.getCommitTemplate();
 	}
 
 	@command('git.undoCommit', { repository: true })
@@ -2827,7 +2831,7 @@ export class CommandCenter {
 			await this.unstageAll(repository);
 		}
 
-		repository.inputBox.value = commit.message;
+		repository.sourceControl.inputBox.value = commit.message;
 	}
 
 	@command('git.checkout', { repository: true })
@@ -4499,9 +4503,9 @@ export class CommandCenter {
 	}
 
 	private async _stash(repository: Repository, includeUntracked = false, staged = false): Promise<boolean> {
-		const noUnstagedChanges = repository.workingTreeGroup.resourceStates.length === 0
-			&& (!includeUntracked || repository.untrackedGroup.resourceStates.length === 0);
-		const noStagedChanges = repository.indexGroup.resourceStates.length === 0;
+		const noUnstagedChanges = repository.workingTreeChanges.length === 0
+			&& (!includeUntracked || repository.untrackedChanges.length === 0);
+		const noStagedChanges = repository.indexChanges.length === 0;
 
 		if (staged) {
 			if (noStagedChanges) {
@@ -4522,9 +4526,9 @@ export class CommandCenter {
 			let documents = workspace.textDocuments
 				.filter(d => !d.isUntitled && d.isDirty && isDescendant(repository.root, d.uri.fsPath));
 
-			if (promptToSaveFilesBeforeStashing === 'staged' || repository.indexGroup.resourceStates.length > 0) {
+			if (promptToSaveFilesBeforeStashing === 'staged' || repository.indexChanges.length > 0) {
 				documents = documents
-					.filter(d => repository.indexGroup.resourceStates.some(s => pathEquals(s.resourceUri.fsPath, d.uri.fsPath)));
+					.filter(d => repository.indexChanges.some(s => pathEquals(s.resourceUri.fsPath, d.uri.fsPath)));
 			}
 
 			if (documents.length > 0) {
@@ -4545,8 +4549,8 @@ export class CommandCenter {
 
 		let message: string | undefined;
 
-		if (config.get<boolean>('useCommitInputAsStashMessage') && (!repository.sourceControl.commitTemplate || repository.inputBox.value !== repository.sourceControl.commitTemplate)) {
-			message = repository.inputBox.value;
+		if (config.get<boolean>('useCommitInputAsStashMessage') && (!repository.commitTemplate || repository.sourceControl.inputBox.value !== repository.commitTemplate)) {
+			message = repository.sourceControl.inputBox.value;
 		}
 
 		message = await window.showInputBox({
@@ -4977,10 +4981,10 @@ export class CommandCenter {
 		// Collect all modified files
 		const modifiedFiles: string[] = [];
 		for (const repository of this.model.repositories) {
-			modifiedFiles.push(...repository.indexGroup.resourceStates.map(r => r.resourceUri.fsPath));
-			modifiedFiles.push(...repository.workingTreeGroup.resourceStates.map(r => r.resourceUri.fsPath));
-			modifiedFiles.push(...repository.untrackedGroup.resourceStates.map(r => r.resourceUri.fsPath));
-			modifiedFiles.push(...repository.mergeGroup.resourceStates.map(r => r.resourceUri.fsPath));
+			modifiedFiles.push(...repository.indexChanges.map(r => r.resourceUri.fsPath));
+			modifiedFiles.push(...repository.workingTreeChanges.map(r => r.resourceUri.fsPath));
+			modifiedFiles.push(...repository.untrackedChanges.map(r => r.resourceUri.fsPath));
+			modifiedFiles.push(...repository.mergeChanges.map(r => r.resourceUri.fsPath));
 		}
 
 		// Collect all editor tabs that are not dirty and not modified
@@ -5082,17 +5086,17 @@ export class CommandCenter {
 
 	@command('git.viewChanges', { repository: true })
 	async viewChanges(repository: Repository): Promise<void> {
-		await this._viewResourceGroupChanges(repository, repository.workingTreeGroup);
+		await this._viewResourceGroupChanges(repository, repository.sourceControl.workingTreeGroup);
 	}
 
 	@command('git.viewStagedChanges', { repository: true })
 	async viewStagedChanges(repository: Repository): Promise<void> {
-		await this._viewResourceGroupChanges(repository, repository.indexGroup);
+		await this._viewResourceGroupChanges(repository, repository.sourceControl.indexGroup);
 	}
 
 	@command('git.viewUntrackedChanges', { repository: true })
 	async viewUnstagedChanges(repository: Repository): Promise<void> {
-		await this._viewResourceGroupChanges(repository, repository.untrackedGroup);
+		await this._viewResourceGroupChanges(repository, repository.sourceControl.untrackedGroup);
 	}
 
 	private async _viewResourceGroupChanges(repository: Repository, resourceGroup: GitResourceGroup): Promise<void> {
@@ -5112,7 +5116,7 @@ export class CommandCenter {
 		}
 
 		await commands.executeCommand('_workbench.openScmMultiDiffEditor', {
-			title: `${repository.sourceControl.label}: ${resourceGroup.label}`,
+			title: `${repository.sourceControl.sourceControl.label}: ${resourceGroup.label}`,
 			repositoryUri: Uri.file(repository.root),
 			resourceGroupId: resourceGroup.id
 		});
@@ -5816,9 +5820,9 @@ export class CommandCenter {
 				return undefined;
 			}
 
-			return repository.workingTreeGroup.resourceStates.filter(r => r.resourceUri.toString() === uriString)[0]
-				|| repository.indexGroup.resourceStates.filter(r => r.resourceUri.toString() === uriString)[0]
-				|| repository.mergeGroup.resourceStates.filter(r => r.resourceUri.toString() === uriString)[0];
+			return repository.workingTreeChanges.filter(r => r.resourceUri.toString() === uriString)[0]
+				|| repository.indexChanges.filter(r => r.resourceUri.toString() === uriString)[0]
+				|| repository.mergeChanges.filter(r => r.resourceUri.toString() === uriString)[0];
 		}
 		return undefined;
 	}

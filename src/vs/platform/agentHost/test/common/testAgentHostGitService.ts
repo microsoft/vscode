@@ -34,6 +34,7 @@ export class TestAgentHostGitService implements IAgentHostGitService {
 	hasUncommittedChanges(...args: Parameters<IAgentHostGitService['hasUncommittedChanges']>) { return defaultGitService.hasUncommittedChanges(...args); }
 	createStash(...args: Parameters<IAgentHostGitService['createStash']>) { return defaultGitService.createStash(...args); }
 	commitAll(...args: Parameters<IAgentHostGitService['commitAll']>) { return defaultGitService.commitAll(...args); }
+	commit(...args: Parameters<IAgentHostGitService['commit']>) { return defaultGitService.commit(...args); }
 	mergeBranch(...args: Parameters<IAgentHostGitService['mergeBranch']>) { return defaultGitService.mergeBranch(...args); }
 	restore(...args: Parameters<IAgentHostGitService['restore']>) { return defaultGitService.restore(...args); }
 	hasUpstream(...args: Parameters<IAgentHostGitService['hasUpstream']>) { return defaultGitService.hasUpstream(...args); }
@@ -48,6 +49,7 @@ export class TestAgentHostGitService implements IAgentHostGitService {
 	commitTree(...args: Parameters<IAgentHostGitService['commitTree']>) { return defaultGitService.commitTree(...args); }
 	updateRef(...args: Parameters<IAgentHostGitService['updateRef']>) { return defaultGitService.updateRef(...args); }
 	deleteRefs(...args: Parameters<IAgentHostGitService['deleteRefs']>) { return defaultGitService.deleteRefs(...args); }
+	flushTelemetry() { }
 	revParse(...args: Parameters<IAgentHostGitService['revParse']>) { return defaultGitService.revParse(...args); }
 	overlayPathIntoTree(...args: Parameters<IAgentHostGitService['overlayPathIntoTree']>) { return defaultGitService.overlayPathIntoTree(...args); }
 	diffTreePaths(...args: Parameters<IAgentHostGitService['diffTreePaths']>) { return defaultGitService.diffTreePaths(...args); }
@@ -86,6 +88,7 @@ export function createNoopGitService(): IAgentHostGitService {
 		hasUncommittedChanges: async () => false,
 		createStash: async () => { },
 		commitAll: async () => { },
+		commit: async () => { },
 		mergeBranch: async () => '',
 		restore: async () => { },
 		hasUpstream: async () => false,

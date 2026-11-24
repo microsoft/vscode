@@ -54,10 +54,10 @@ export class ApiRepositoryState implements RepositoryState {
 	get worktrees(): Worktree[] { return this.#repository.worktrees; }
 	get rebaseCommit(): Commit | undefined { return this.#repository.rebaseCommit; }
 
-	get mergeChanges(): Change[] { return this.#repository.mergeGroup.resourceStates.map(r => new ApiChange(r)); }
-	get indexChanges(): Change[] { return this.#repository.indexGroup.resourceStates.map(r => new ApiChange(r)); }
-	get workingTreeChanges(): Change[] { return this.#repository.workingTreeGroup.resourceStates.map(r => new ApiChange(r)); }
-	get untrackedChanges(): Change[] { return this.#repository.untrackedGroup.resourceStates.map(r => new ApiChange(r)); }
+	get mergeChanges(): Change[] { return this.#repository.mergeChanges.map(r => new ApiChange(r)); }
+	get indexChanges(): Change[] { return this.#repository.indexChanges.map(r => new ApiChange(r)); }
+	get workingTreeChanges(): Change[] { return this.#repository.workingTreeChanges.map(r => new ApiChange(r)); }
+	get untrackedChanges(): Change[] { return this.#repository.untrackedChanges.map(r => new ApiChange(r)); }
 }
 
 export class ApiRepositoryUIState implements RepositoryUIState {
@@ -90,9 +90,9 @@ export class ApiRepository implements Repository {
 
 		this.kind = this.#repository.kind;
 		this.rootUri = Uri.file(this.#repository.root);
-		this.inputBox = new ApiInputBox(this.#repository.inputBox);
+		this.inputBox = new ApiInputBox(this.#repository.sourceControl.inputBox);
 		this.state = new ApiRepositoryState(this.#repository);
-		this.ui = new ApiRepositoryUIState(this.#repository.sourceControl);
+		this.ui = new ApiRepositoryUIState(this.#repository.sourceControl.sourceControl);
 		this.isUsingVirtualFileSystem = this.#repository.isUsingVirtualFileSystem;
 
 		this.onDidCommit = mapEvent<OperationResult, void>(

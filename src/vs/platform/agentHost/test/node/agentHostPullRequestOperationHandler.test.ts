@@ -30,7 +30,8 @@ import { IAgentHostSessionStateStore } from '../../common/agentHostSessionStateS
 import { getWorkingDirectoryKey, getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
 import { AgentMergeConfigKey, readAgentMergeSessionState, type AgentMergeConfiguration, type AgentMergeControllerState, type AgentMergeSessionOverrides } from '../../common/agentMerge.js';
 import { buildBranchChangesetUri, buildFolderChangesetOwnerUri, buildSessionChangesetUri } from '../../common/changesetUri.js';
-import { PREPARE_PULL_REQUEST_OPERATION_ID, createPullRequestConversationMeta, createPullRequestOperationMeta, createPullRequestValidationMeta, readPullRequestDetailsResult, type IPullRequestCreateOptions } from '../../common/meta/agentPullRequestOperationMeta.js';
+import { PREPARE_PULL_REQUEST_OPERATION_ID, createPullRequestConversationMeta, createPullRequestOperationMeta, createPullRequestValidationMeta, readPullRequestDetailsResult, type IPullRequestAutopilotOptions, type IPullRequestCreateOptions } from '../../common/meta/agentPullRequestOperationMeta.js';
+import { IAgentHostPullRequestAutopilotService, type IPullRequestAutopilotResult } from '../../node/agentHostPullRequestAutopilot.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { JsonRpcErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { MessageKind, ResponsePartKind, SessionStatus, TurnState, buildChatUri, buildDefaultChatUri, withSessionGitHubState, withSessionGitState, type ISessionFileDiff, type ISessionGitState, type Turn } from '../../common/state/sessionState.js';
@@ -255,7 +256,7 @@ function createAuthenticationService(disposables: Pick<DisposableStore, 'add'>, 
 	}(new NullLogService()));
 }
 
-function setup(disposables: Pick<DisposableStore, 'add'>, gitService: TestGitService, gitHubClient: TestGitHubClient | IAgentHostGitHubService, options?: { authenticationService?: IAgentHostAuthenticationService; copilotApiService?: TestCopilotApiService; withCopilotToken?: boolean; turns?: Turn[]; draft?: boolean; autoMergeMethod?: PullRequestMergeMethod; enableAgentMerge?: boolean; agentMergeAvailable?: boolean; sessionAgentMergeEnabled?: boolean; agentMergeDefaults?: Partial<AgentMergeConfiguration>; agentMergeOverrides?: AgentMergeSessionOverrides; agentMergeControllerState?: AgentMergeControllerState; baseBranch?: string; branchPrefix?: string; workingDirectory?: string; logService?: ILogService }): { handler: AgentHostPullRequestOperationHandler; session: URI; stateManager: AgentHostStateManager; createdEvents: string[]; createdOwners: string[]; createdConversationChats: (string | undefined)[]; createdBranches: string[]; sessionConfigUpdates: Record<string, unknown>[]; sessionConfigValues: Record<string, unknown>; copilotApiService: TestCopilotApiService; branchNameGenerator: TestBranchNameGenerator } {
+function setup(disposables: Pick<DisposableStore, 'add'>, gitService: TestGitService, gitHubClient: TestGitHubClient | IAgentHostGitHubService, options?: { authenticationService?: IAgentHostAuthenticationService; copilotApiService?: TestCopilotApiService; withCopilotToken?: boolean; turns?: Turn[]; draft?: boolean; autoMergeMethod?: PullRequestMergeMethod; enableAgentMerge?: boolean; agentMergeAvailable?: boolean; sessionAgentMergeEnabled?: boolean; agentMergeDefaults?: Partial<AgentMergeConfiguration>; agentMergeOverrides?: AgentMergeSessionOverrides; agentMergeControllerState?: AgentMergeControllerState; baseBranch?: string; branchPrefix?: string; workingDirectory?: string; logService?: ILogService; autopilotAvailable?: boolean; autopilotResult?: IPullRequestAutopilotResult | Error }): { handler: AgentHostPullRequestOperationHandler; autopilotCalls: { session: string; artifactId: string; options: IPullRequestAutopilotOptions }[]; session: URI; stateManager: AgentHostStateManager; createdEvents: string[]; createdOwners: string[]; createdConversationChats: (string | undefined)[]; createdBranches: string[]; sessionConfigUpdates: Record<string, unknown>[]; sessionConfigValues: Record<string, unknown>; copilotApiService: TestCopilotApiService; branchNameGenerator: TestBranchNameGenerator } {
 	const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 	const session = URI.parse('agent:/session');
 	const createdEvents: string[] = [];
@@ -263,6 +264,18 @@ function setup(disposables: Pick<DisposableStore, 'add'>, gitService: TestGitSer
 	const createdConversationChats: (string | undefined)[] = [];
 	const createdBranches: string[] = [];
 	const sessionConfigUpdates: Record<string, unknown>[] = [];
+	const autopilotCalls: { session: string; artifactId: string; options: IPullRequestAutopilotOptions }[] = [];
+	const autopilotService = new class extends mock<IAgentHostPullRequestAutopilotService>() {
+		override isAvailable() { return options?.autopilotAvailable ?? false; }
+		override async enable(session: string, artifactId: string, autopilot: IPullRequestAutopilotOptions): Promise<IPullRequestAutopilotResult> {
+			autopilotCalls.push({ session, artifactId, options: autopilot });
+			const result = options?.autopilotResult ?? { enabled: [], unavailable: [] };
+			if (result instanceof Error) {
+				throw result;
+			}
+			return result;
+		}
+	}();
 	stateManager.createSession({
 		resource: session.toString(),
 		provider: 'copilot',
@@ -359,8 +372,10 @@ function setup(disposables: Pick<DisposableStore, 'add'>, gitService: TestGitSer
 				createdOwners.push(event.ownerUri);
 				createdConversationChats.push(event.conversationChat);
 				createdBranches.push(event.branchName);
+				return `artifact:${event.pullRequestNumber}`;
 			},
-			authenticationService, gitService, gitHubService, gitHubEndpointService, utilityModelService, branchNameGenerator, configurationService, logService, stateManager),
+			authenticationService, gitService, gitHubService, gitHubEndpointService, utilityModelService, branchNameGenerator, configurationService, logService, stateManager, autopilotService),
+		autopilotCalls,
 		session,
 		stateManager,
 		createdEvents,
@@ -732,6 +747,7 @@ suite('AgentHostPullRequestOperationHandler', () => {
 					mergeMethods: ['SQUASH'],
 					agentMergeAvailable,
 					...(agentMergeAvailable ? { agentMergeOptions: { addressReviews: true, fixCI: true, resolveConflicts: true, mergePullRequest: 'never' } } : {}),
+					autopilotAvailable: false,
 				},
 				message: undefined,
 				gitCalls: ['computeSessionFileDiffs'],
@@ -834,6 +850,7 @@ suite('AgentHostPullRequestOperationHandler', () => {
 					mergeMethods: [],
 					agentMergeAvailable: true,
 					agentMergeOptions: { addressReviews: true, fixCI: true, resolveConflicts: true, mergePullRequest: 'never' },
+					autopilotAvailable: false,
 				},
 				gitCalls: ['computeSessionFileDiffs'],
 				sessionConfigUpdates: [],
@@ -1303,6 +1320,46 @@ suite('AgentHostPullRequestOperationHandler', () => {
 			message: { markdown: 'Created draft pull request [#123](https://github.com/microsoft/vscode/pull/123) and enabled Agent Merge.' },
 			sessionConfigUpdates: [agentMergeFolderPatch(session, { enabled: true, overrides })],
 		});
+	});
+
+	const autopilotOptions: IPullRequestAutopilotOptions = { addressReviews: true, fixCI: true, resolveConflicts: false, markReady: true, merge: 'always' };
+
+	test('preparation offers Autopilot while artifact integrations are enabled', async () => {
+		const { handler, session } = setup(disposables, new TestGitService(), new TestGitHubClient(), { withCopilotToken: true, autopilotAvailable: true });
+		const details = readPullRequestDetailsResult(await handler.prepare({ channel: buildSessionChangesetUri(session.toString()), operationId: PREPARE_PULL_REQUEST_OPERATION_ID }, CancellationToken.None));
+		assert.deepStrictEqual({ agentMergeAvailable: details.agentMergeAvailable, autopilotAvailable: details.autopilotAvailable }, { agentMergeAvailable: false, autopilotAvailable: true });
+	});
+
+	for (const [outcome, autopilotResult, message] of [
+		['all rules on', { enabled: ['Automatically Fix CI'], unavailable: [] }, 'Created draft pull request [#123](https://github.com/microsoft/vscode/pull/123) and enabled Autopilot.'],
+		['unavailable rules', { enabled: ['Automatically Fix CI'], unavailable: ['Automatically Mark Ready'] }, 'Created draft pull request [#123](https://github.com/microsoft/vscode/pull/123) and enabled Autopilot. These Autopilot rules are unavailable and stayed off: Automatically Mark Ready.'],
+		['a failure', new Error('Integration unavailable'), 'Created draft pull request [#123](https://github.com/microsoft/vscode/pull/123), but Autopilot could not be enabled: Integration unavailable'],
+	] as const) {
+		test(`turns on Autopilot for the recorded pull request and reports ${outcome}`, async () => {
+			const { handler, session, autopilotCalls, sessionConfigUpdates } = setup(disposables, new TestGitService(), new TestGitHubClient(), { autopilotAvailable: true, autopilotResult });
+			const result = await handler.invoke({
+				channel: buildSessionChangesetUri(session.toString()),
+				operationId: 'create-pr',
+				_meta: createPullRequestOperationMeta({ ...submittedOptions, draft: true, autopilot: autopilotOptions }),
+			}, CancellationToken.None);
+			assert.deepStrictEqual({ message: result.message, autopilotCalls, sessionConfigUpdates }, {
+				message: { markdown: message },
+				autopilotCalls: [{ session: session.toString(), artifactId: 'artifact:123', options: autopilotOptions }],
+				sessionConfigUpdates: [],
+			});
+		});
+	}
+
+	test('rejects Autopilot before any mutation while artifact integrations are disabled', async () => {
+		const gitService = new TestGitService();
+		const gitHubClient = new TestGitHubClient();
+		const { handler, session, autopilotCalls, createdEvents } = setup(disposables, gitService, gitHubClient, { autopilotAvailable: false });
+		await assert.rejects(() => handler.invoke({
+			channel: buildSessionChangesetUri(session.toString()),
+			operationId: 'create-pr',
+			_meta: createPullRequestOperationMeta({ ...submittedOptions, autopilot: autopilotOptions }),
+		}, CancellationToken.None), /Autopilot is unavailable/);
+		assert.deepStrictEqual({ gitCalls: gitService.calls, octoCalls: gitHubClient.calls, autopilotCalls, createdEvents }, { gitCalls: [], octoCalls: [], autopilotCalls: [], createdEvents: [] });
 	});
 
 	for (const mergePullRequest of ['always', 'ifUnchanged', 'never'] as const) {

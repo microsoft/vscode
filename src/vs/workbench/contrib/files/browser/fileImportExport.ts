@@ -410,15 +410,18 @@ export class ExternalFileImport {
 	async import(target: ExplorerItem, source: DragEvent, targetWindow: Window): Promise<void> {
 		const cts = new CancellationTokenSource();
 
-		// Indicate progress globally
+		// Indicate progress globally. The title is reported as a message so that
+		// it can be replaced with the resources being copied once they are known.
 		const importPromise = this.progressService.withProgress(
 			{
 				location: ProgressLocation.Window,
 				delay: 800,
-				cancellable: true,
-				title: localize('copyingFiles', "Copying...")
+				cancellable: true
 			},
-			async () => await this.doImport(target, source, targetWindow, cts.token),
+			async progress => {
+				progress.report({ message: localize('copyingFiles', "Copying...") });
+				await this.doImport(target, source, targetWindow, progress, cts.token);
+			},
 			() => cts.dispose(true)
 		);
 
@@ -428,7 +431,7 @@ export class ExternalFileImport {
 		return importPromise;
 	}
 
-	private async doImport(target: ExplorerItem, source: DragEvent, targetWindow: Window, token: CancellationToken): Promise<void> {
+	private async doImport(target: ExplorerItem, source: DragEvent, targetWindow: Window, progress: IProgress<IProgressStep>, token: CancellationToken): Promise<void> {
 
 		// Activate all providers for the resources dropped
 		const candidateFiles = coalesce((await this.instantiationService.invokeFunction(accessor => extractEditorsAndFilesDropData(accessor, source))).map(editor => editor.resource));
@@ -496,17 +499,17 @@ export class ExternalFileImport {
 
 			// Copy resources
 			if (result === ImportChoice.Copy) {
-				return this.importResources(target, files, token);
+				return this.importResources(target, files, progress, token);
 			}
 		}
 
 		// Handle dropped files (only support FileStat as target)
 		else if (target instanceof ExplorerItem) {
-			return this.importResources(target, files, token);
+			return this.importResources(target, files, progress, token);
 		}
 	}
 
-	private async importResources(target: ExplorerItem, resources: URI[], token: CancellationToken): Promise<void> {
+	private async importResources(target: ExplorerItem, resources: URI[], progress: IProgress<IProgressStep>, token: CancellationToken): Promise<void> {
 		if (resources && resources.length > 0) {
 
 			// Resolve target to check for name collisions and ask user
@@ -571,16 +574,26 @@ export class ExternalFileImport {
 			}))).flat();
 
 			const undoLevel = this.configurationService.getValue<IFilesConfiguration>().explorer.confirmUndo;
+			const progressLabel = resourcesFiltered.length === 1 ?
+				localize({ comment: ['substitution will be the name of the file that was copied'], key: 'copyingFile' }, "Copying {0}", basename(resourcesFiltered[0].resource)) :
+				localize({ comment: ['substitution will be the number of files that were copied'], key: 'copyingnFile' }, "Copying {0} resources", resourcesFiltered.length);
+			progress.report({ message: progressLabel });
+
+			// The import notification is cancellable and shows the progress, so
+			// only indicate the progress of the copy in the Explorer
 			await this.explorerService.applyBulkEdit(resourceFileEdits, {
 				undoLabel: resourcesFiltered.length === 1 ?
 					localize({ comment: ['substitution will be the name of the file that was imported'], key: 'importFile' }, "Import {0}", basename(resourcesFiltered[0].resource)) :
 					localize({ comment: ['substitution will be the number of files that were imported'], key: 'importnFile' }, "Import {0} resources", resourcesFiltered.length),
-				progressLabel: resourcesFiltered.length === 1 ?
-					localize({ comment: ['substitution will be the name of the file that was copied'], key: 'copyingFile' }, "Copying {0}", basename(resourcesFiltered[0].resource)) :
-					localize({ comment: ['substitution will be the number of files that were copied'], key: 'copyingnFile' }, "Copying {0} resources", resourcesFiltered.length),
-				progressLocation: ProgressLocation.Window,
+				progressLabel,
+				progressLocation: ProgressLocation.Explorer,
 				confirmBeforeUndo: undoLevel === UndoConfirmLevel.Verbose || undoLevel === UndoConfirmLevel.Default,
+				token
 			});
+
+			if (token.isCancellationRequested) {
+				return;
+			}
 
 			// if we only add one file, just open it directly
 			const autoOpen = this.configurationService.getValue<IFilesConfiguration>().explorer.autoOpenDroppedFile;
@@ -637,7 +650,7 @@ export class FileDownload {
 			{
 				location: ProgressLocation.Window,
 				delay: 800,
-				cancellable: isWeb,
+				cancellable: true,
 				title: localize('downloadingFiles', "Downloading")
 			},
 			async progress => this.doDownload(source, progress, cts),
@@ -863,11 +876,13 @@ export class FileDownload {
 			// Remember as last used download folder
 			this.storageService.store(FileDownload.LAST_USED_DOWNLOAD_PATH_STORAGE_KEY, dirname(destination).fsPath, StorageScope.APPLICATION, StorageTarget.MACHINE);
 
-			// Perform download
+			// Perform download. The download notification is cancellable and shows
+			// the progress, so only indicate the progress of the copy in the Explorer
 			await this.explorerService.applyBulkEdit([new ResourceFileEdit(explorerItem.resource, destination, { overwrite: true, copy: true })], {
 				undoLabel: localize('downloadBulkEdit', "Download {0}", explorerItem.name),
 				progressLabel: localize('downloadingBulkEdit', "Downloading {0}", explorerItem.name),
-				progressLocation: ProgressLocation.Window
+				progressLocation: ProgressLocation.Explorer,
+				token: cts.token
 			});
 		} else {
 			cts.cancel(); // User canceled a download. In case there were multiple files selected we should cancel the remainder of the prompts #86100

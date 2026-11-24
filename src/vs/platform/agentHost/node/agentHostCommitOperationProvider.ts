@@ -7,8 +7,9 @@ import { Disposable, DisposableStore, IDisposable } from '../../../base/common/l
 import { localize } from '../../../nls.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import type { IChangesetOperationContribution, IChangesetOperationContext, IChangesetOperationRegistry } from '../common/agentHostChangesetOperationService.js';
-import { ChangesetKind } from '../common/changesetUri.js';
-import { ChangesetOperationScope, ChangesetOperationStatus, type ChangesetOperation } from '../common/state/sessionState.js';
+import { ChangesetKind, parseChangesetUri } from '../common/changesetUri.js';
+import { ChangesetOperationScope, ChangesetOperationStatus, type ChangesetOperation, type ISessionGitState } from '../common/state/sessionState.js';
+import { resolveChangesetOwnerScope } from './agentHostBranchChangesetScope.js';
 import { AgentHostCommitOperationHandler } from './agentHostCommitOperationHandler.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import type { IAgentHostCredentialSource } from '../common/agentHostCredentials.js';
@@ -34,10 +35,17 @@ export class AgentHostCommitOperationContribution extends Disposable implements 
 		return store;
 	}
 
-	getOperations({ sessionKey, changesetKind, gitState }: IChangesetOperationContext): ChangesetOperation[] {
+	getOperations({ sessionKey, ownerKey, changesetUri, changesetKind, gitState }: IChangesetOperationContext): ChangesetOperation[] {
 		// Commit always commits every uncommitted change in the working directory,
-		// so it is only advertised on the changeset that shows exactly those changes.
-		if (changesetKind !== ChangesetKind.Uncommitted) {
+		// so it is only advertised on changesets that show exactly those changes:
+		// the uncommitted changeset, and the branch changeset of a single-repository
+		// owner that works directly on its base branch without outgoing commits.
+		// A multi-repository branch changeset shows the changes of every repository,
+		// while Commit, like the git state, covers only the first one.
+		const isCommittableBranchChangeset = changesetKind === ChangesetKind.Branch
+			&& isOnBaseBranchWithoutOutgoingCommits(gitState)
+			&& resolveChangesetOwnerScope(this._stateManager, ownerKey ?? parseChangesetUri(changesetUri)?.ownerUri ?? sessionKey).workingDirectories.length === 1;
+		if (changesetKind !== ChangesetKind.Uncommitted && !isCommittableBranchChangeset) {
 			return [];
 		}
 
@@ -60,4 +68,20 @@ export class AgentHostCommitOperationContribution extends Disposable implements 
 		this._registry?.onDidChangeOperations(sessionKey);
 		await this._registry?.refreshSessionGitState(sessionKey, source);
 	}
+}
+
+/**
+ * Whether the working directory is checked out on its base branch, tracks the
+ * base branch on `origin`, and has no commits ahead of it. The branch changeset
+ * diffs the working tree against the merge base with `origin/<base>`, which is
+ * then the current commit, so it shows exactly the uncommitted changes. Without
+ * that upstream the outgoing commits are unknown, and committed work could make
+ * the branch changeset show more than Commit commits.
+ */
+function isOnBaseBranchWithoutOutgoingCommits(gitState: ISessionGitState | undefined): boolean {
+	return !!gitState?.branchName
+		&& !gitState.isDetachedHead
+		&& gitState.branchName === gitState.baseBranchName
+		&& gitState.upstreamBranchName === `origin/${gitState.baseBranchName}`
+		&& gitState.outgoingChanges === 0;
 }

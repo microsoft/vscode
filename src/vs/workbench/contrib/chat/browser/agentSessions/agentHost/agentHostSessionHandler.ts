@@ -8324,7 +8324,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				state = await this._readEagerlyCreatedSessionState(backendSession, token) ?? state;
 			}
 			if (state && (readSessionWorkspaceless(state._meta) || state.workingDirectories !== undefined)) {
-				return resolveAgentHostSessionTrustFolders(state, this._workspaceTrustManagementService);
+				// Persisted folders are host URIs; map them to client space so a remote host's folders aren't gated as local ones.
+				return resolveAgentHostSessionTrustFolders(state, this._workspaceTrustManagementService, resource => this._config.connection.resourceUris.fromAgentHost(resource));
 			}
 		}
 		return this._resolveRequestedWorkingDirectories(sessionResource) ?? [];

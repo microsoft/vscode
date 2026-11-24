@@ -41,7 +41,7 @@ suite('Entry-driven remote provider lifecycle', () => {
 		store.add(configuration.onDidChangeConfigurationEmitter);
 		instantiation.stub(IConfigurationService, configuration);
 		instantiation.stub(IRemoteAgentHostService, { onDidChangeConfiguredEntries: changes.event, onDidChangeConnections: Event.None });
-		instantiation.stub(ISSHRemoteAgentHostService, {});
+		instantiation.stub(ISSHRemoteAgentHostService, { disconnectedEntries: constObservable([]) });
 		instantiation.stub(IWSLRemoteAgentHostService, {});
 		instantiation.stub(ISessionsProvidersService, {});
 		instantiation.stub(INotificationService, new TestNotificationService());
