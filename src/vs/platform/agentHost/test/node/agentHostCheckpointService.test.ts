@@ -388,6 +388,34 @@ suite('AgentHostCheckpointService', () => {
 		});
 	});
 
+	test('turn end reuses the refs that the turn start and parent lookup resolved', async () => {
+		const lookupsAtTurnEnd = async (options: { baseline: boolean; previous: boolean }) => {
+			const { chat, gitService, session, service, workingDirectory } = createTestService(async () => 'tree', options);
+			const lookups: string[] = [];
+			const revParse = gitService.revParse;
+			gitService.revParse = async (...args) => {
+				lookups.push(args[1]);
+				return revParse(...args);
+			};
+			await service.captureTurnStartCheckpoint(session, chat, 'turn-5', [workingDirectory]);
+			lookups.length = 0;
+			await service.captureTurnCheckpoint(session, chat, 'turn-5', [workingDirectory]);
+			return lookups;
+		};
+		const baselineRef = buildCheckpointRefName(AgentSession.id(AgentSession.uri('copilot', 'session')), 0);
+		const previousRef = buildCheckpointRefName(AgentSession.id(AgentSession.uri('copilot', 'session')), 4);
+
+		assert.deepStrictEqual({
+			withPrevious: await lookupsAtTurnEnd({ baseline: true, previous: true }),
+			firstTurn: await lookupsAtTurnEnd({ baseline: true, previous: false }),
+			baselineCreatedAtStart: await lookupsAtTurnEnd({ baseline: false, previous: false }),
+		}, {
+			withPrevious: [previousRef],
+			firstTurn: [baselineRef],
+			baselineCreatedAtStart: [baselineRef],
+		});
+	});
+
 	test('turn start resolves before baseline publication while turn end waits for it', async () => {
 		const baselineWriting = new DeferredPromise<void>();
 		const releaseBaseline = new DeferredPromise<void>();

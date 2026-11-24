@@ -28,6 +28,8 @@ interface ITurnStartCheckpoint {
 	/** Repository roots the turn touches; turns in flight in one repository disqualify each other from git diffs. */
 	readonly repositories: Set<string>;
 	readonly trees: Map<string, string>;
+	/** Repository roots whose baseline the start found or created, so the end need not look it up again. */
+	readonly baselines: Set<string>;
 	/** The chat's storage as recorded when the turn started; the end writes there even if the chat changed owner or left the registry since. */
 	storage: { readonly storage: URI; readonly isDefault: boolean } | undefined;
 	gitEligible: boolean;
@@ -212,7 +214,7 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 			return;
 		}
 
-		const checkpoint: ITurnStartCheckpoint = { chatKey, session: sessionUri, repositories: new Set(), trees: new Map(), storage: undefined, gitEligible: true };
+		const checkpoint: ITurnStartCheckpoint = { chatKey, session: sessionUri, repositories: new Set(), trees: new Map(), baselines: new Set(), storage: undefined, gitEligible: true };
 		this._turnStartCheckpoints.set(turnKey, checkpoint);
 		// Register the turn in its repositories first: even a turn whose own capture is skipped makes concurrent turns there ineligible.
 		const repositoryRoots: { readonly workingDirectory: URI; readonly repositoryRoot: URI }[] = [];
@@ -278,6 +280,9 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 				try {
 					if (tree && !completedRepositories.has(repositoryRootUri) && await this._createBaselineCheckpoint(sessionUri, repositoryRootUri, tree)) {
 						completedRepositories.add(repositoryRootUri);
+					}
+					if (completedRepositories.has(repositoryRootUri)) {
+						checkpoint.baselines.add(repositoryRootUri.toString());
 					}
 				} catch (err) {
 					this._logService.warn(`[AgentHostCheckpoint] Failed to capture turn start for ${sessionUri.toString()}/${turnId} in working directory ${workingDirectoryUri.toString()}`, err);
@@ -390,17 +395,20 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 
 					// Check if the baseline ref exists for this repository. If it
 					// doesn't exist, we cannot capture a turn checkpoint for this repository.
-					const baselineCheckpointRef = await this.getBaselineCheckpoint(sessionUri, repositoryRootUri);
+					// The turn's start already found or created it, unless that failed.
+					const baselineCheckpointRef = startCheckpoint.baselines.has(repositoryRootUri.toString())
+						? buildCheckpointRefName(sanitized, 0)
+						: await this.getBaselineCheckpoint(sessionUri, repositoryRootUri);
 					if (!baselineCheckpointRef) {
 						continue;
 					}
 
-					const parentRef = await this._getRepositoryParentRef(ref.object, turnId, repositoryRootUri, baselineCheckpointRef);
-					let parentCommitOid = await this._gitService.revParse(repositoryRootUri, parentRef);
-					if (!parentCommitOid) {
-						this._logService.warn(`[AgentHostCheckpoint] Parent ref ${parentRef} missing for session ${sessionUri.toString()} in working directory ${workingDirectoryUri.toString()}`);
+					const parent = await this._getRepositoryParent(ref.object, turnId, repositoryRootUri, baselineCheckpointRef);
+					if (!parent.oid) {
+						this._logService.warn(`[AgentHostCheckpoint] Parent ref ${parent.ref} missing for session ${sessionUri.toString()} in working directory ${workingDirectoryUri.toString()}`);
 						continue;
 					}
+					let parentCommitOid = parent.oid;
 
 					const startTree = startCheckpoint.trees.get(repositoryRootUri.toString());
 					if (!startTree) {
@@ -446,21 +454,32 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 		}
 	}
 
-	private async _getRepositoryParentRef(db: ISessionDatabase, turnId: string, repositoryRootUri: URI, baselineCheckpointRef: string): Promise<string> {
+	/**
+	 * Resolves the parent of a turn's checkpoint in a repository: the chat's
+	 * newest checkpoint that exists there, else the baseline. Returns the ref
+	 * with the commit it resolved to, so the caller need not look it up again.
+	 */
+	private async _getRepositoryParent(db: ISessionDatabase, turnId: string, repositoryRootUri: URI, baselineCheckpointRef: string): Promise<{ readonly ref: string; readonly oid: string | undefined }> {
 		const previousCheckpointRef = await db.getPreviousCheckpointRef(turnId);
-		if (previousCheckpointRef && await this._gitService.revParse(repositoryRootUri, previousCheckpointRef)) {
-			return previousCheckpointRef;
+		if (previousCheckpointRef) {
+			const oid = await this._gitService.revParse(repositoryRootUri, previousCheckpointRef);
+			if (oid) {
+				return { ref: previousCheckpointRef, oid };
+			}
 		}
 
 		// Foreign rows belong to other chats; their refs are no parent of this chat's turns.
 		const ownCheckpointRefs = (await db.getTurnsWithCheckpointRefs()).filter(turn => !turn.foreign).map(turn => turn.checkpointRef);
 		for (const checkpointRef of ownCheckpointRefs.toReversed()) {
-			if (checkpointRef !== previousCheckpointRef && await this._gitService.revParse(repositoryRootUri, checkpointRef)) {
-				return checkpointRef;
+			if (checkpointRef !== previousCheckpointRef) {
+				const oid = await this._gitService.revParse(repositoryRootUri, checkpointRef);
+				if (oid) {
+					return { ref: checkpointRef, oid };
+				}
 			}
 		}
 
-		return baselineCheckpointRef;
+		return { ref: baselineCheckpointRef, oid: await this._gitService.revParse(repositoryRootUri, baselineCheckpointRef) };
 	}
 
 	async getTurnCheckpointPair(
