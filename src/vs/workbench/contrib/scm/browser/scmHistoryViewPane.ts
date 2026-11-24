@@ -882,6 +882,10 @@ class SCMHistoryTreeKeyboardNavigationLabelProvider implements ICompressibleKeyb
 		} else if (isSCMHistoryItemLoadMoreTreeElement(element)) {
 			// We don't want to match the load more element
 			return '';
+		} else if (isSCMHistoryItemChangeViewModelTreeElement(element)) {
+			return basename(element.historyItemChange.uri.fsPath);
+		} else if (isSCMHistoryItemChangeNode(element)) {
+			return element.name;
 		} else {
 			throw new Error('Invalid tree element');
 		}
