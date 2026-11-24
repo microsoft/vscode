@@ -9,7 +9,7 @@ import { IPickerQuickAccessItem, PickerQuickAccessProvider, TriggerAction, FastA
 import { prepareQuery, IPreparedQuery, compareItemsByFuzzyScore, scoreItemFuzzy, FuzzyScorerCache } from '../../../../base/common/fuzzyScorer.js';
 import { IFileQueryBuilderOptions, QueryBuilder } from '../../../services/search/common/queryBuilder.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { getOutOfWorkspaceEditorResources, extractRangeFromFilter, IAnythingQuickAccessFileSearchDelegate, IAnythingQuickAccessProviderRunOptions, IWorkbenchSearchConfiguration } from '../common/search.js';
+import { getOutOfWorkspaceEditorResources, extractRangeFromFilter, getSearchNoResultsActions, IAnythingQuickAccessFileSearchDelegate, IAnythingQuickAccessProviderRunOptions, IWorkbenchSearchConfiguration } from '../common/search.js';
 import { ISearchService, ISearchComplete } from '../../../services/search/common/search.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { untildify } from '../../../../base/common/labels.js';
@@ -26,6 +26,7 @@ import { IModelService } from '../../../../editor/common/services/model.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
 import { localize } from '../../../../nls.js';
 import { IWorkingCopyService } from '../../../services/workingCopy/common/workingCopyService.js';
+import { IMenuService } from '../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IWorkbenchEditorConfiguration, EditorResourceAccessor, isEditorInput } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
@@ -156,12 +157,25 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
-		@IExternalUriOpenerService private readonly _externalUriOpenerService: IExternalUriOpenerService
+		@IExternalUriOpenerService private readonly _externalUriOpenerService: IExternalUriOpenerService,
+		@IMenuService private readonly menuService: IMenuService,
 	) {
 		super(AnythingQuickAccessProvider.PREFIX, {
 			canAcceptInBackground: true,
 			noResultsPick: AnythingQuickAccessProvider.NO_RESULTS_PICK
 		});
+
+		// When nothing matches, other features may offer what else to do with the query
+		this.options = {
+			...this.options,
+			noResultsPick: filter => {
+				const query = filter.trim();
+				const action = query.length >= 3 ? getSearchNoResultsActions(this.menuService, this.contextKeyService, query)[0] : undefined;
+				return action
+					? { label: localize('anythingNoResultsAction', "{0}: {1}", action.label, query), description: action.tooltip || undefined, accept: () => action.run() }
+					: AnythingQuickAccessProvider.NO_RESULTS_PICK;
+			},
+		};
 
 		this.pickState = this._register(new class extends Disposable {
 

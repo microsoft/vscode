@@ -8,10 +8,10 @@ import { Event, Emitter } from '../../../../base/common/event.js';
 import { basename, dirname } from '../../../../base/common/resources.js';
 import { IDisposable, Disposable, DisposableStore, combinedDisposable, dispose, toDisposable, MutableDisposable, DisposableMap } from '../../../../base/common/lifecycle.js';
 import { ViewPane, IViewPaneOptions, ViewAction } from '../../../browser/parts/views/viewPane.js';
-import { append, $, clearNode, isPointerEvent, isActiveElement } from '../../../../base/browser/dom.js';
+import { append, $, clearNode, isPointerEvent, isActiveElement, DisposableResizeObserver, getWindow } from '../../../../base/browser/dom.js';
 import { asCSSUrl } from '../../../../base/browser/cssValue.js';
 import { IListVirtualDelegate, IIdentityProvider } from '../../../../base/browser/ui/list/list.js';
-import { ISCMResourceGroup, ISCMResource, ISCMRepository, ISCMInput, ISCMViewService, ISCMViewVisibleRepositoryChangeEvent, ISCMService, VIEW_PANE_ID, ISCMActionButton, ISCMActionButtonDescriptor, ISCMRepositorySortKey, ViewMode, ISCMRepositorySelectionMode } from '../common/scm.js';
+import { ISCMResourceGroup, ISCMResource, ISCMRepository, ISCMInput, ISCMViewService, ISCMViewVisibleRepositoryChangeEvent, ISCMService, VIEW_PANE_ID, ISCMActionButton, ISCMActionButtonDescriptor, ISCMRepositorySortKey, ViewMode, ISCMRepositorySelectionMode, ISCMRepositoryNotice, ISCMRepositoryNoticeElement } from '../common/scm.js';
 import { ResourceLabels, IResourceLabel, IFileLabelOptions } from '../../../browser/labels.js';
 import { CountBadge } from '../../../../base/browser/ui/countBadge/countBadge.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
@@ -21,10 +21,10 @@ import { IContextKeyService, IContextKey, ContextKeyExpr, RawContextKey } from '
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { MenuItemAction, IMenuService, registerAction2, MenuId, IAction2Options, MenuRegistry, Action2, IMenu } from '../../../../platform/actions/common/actions.js';
-import { IAction, ActionRunner, Separator, IActionRunner, toAction } from '../../../../base/common/actions.js';
-import { IActionViewItemProvider } from '../../../../base/browser/ui/actionbar/actionbar.js';
+import { Action, IAction, ActionRunner, Separator, IActionRunner, toAction } from '../../../../base/common/actions.js';
+import { ActionBar, IActionViewItemProvider } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { IThemeService, IFileIconTheme } from '../../../../platform/theme/common/themeService.js';
-import { isSCMResource, isSCMResourceGroup, isSCMRepository, isSCMInput, collectContextMenuActions, getActionViewItemProvider, isSCMActionButton, isSCMViewService, isSCMResourceNode, connectPrimaryMenu } from './util.js';
+import { isSCMResource, isSCMResourceGroup, isSCMRepository, isSCMInput, collectContextMenuActions, getActionViewItemProvider, isSCMActionButton, isSCMViewService, isSCMResourceNode, connectPrimaryMenu, isSCMRepositoryNotice } from './util.js';
 import { WorkbenchCompressibleAsyncDataTree, IOpenEvent } from '../../../../platform/list/browser/listService.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { disposableTimeout, Sequencer, Throttler } from '../../../../base/common/async.js';
@@ -78,8 +78,11 @@ import { SCMInputWidget } from './scmInput.js';
 import { SCM_STRUCTURAL_DIFF_ID_PREFIX, SCMStructuralDiffElement, SCMStructuralDiffModel, getSCMStructuralDiffAriaLabel, getSCMStructuralDiffLabel, isSCMStructuralDiffElement } from '../common/scmStructuralDiff.js';
 import { SCMStructuralDiffRenderer, openSCMStructuralDiff } from './scmStructuralDiffRenderer.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
+import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
+import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
+import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 
-type TreeElement = ISCMRepository | ISCMInput | ISCMActionButton | ISCMResourceGroup | ISCMResource | IResourceNode<ISCMResource, ISCMResourceGroup> | SCMStructuralDiffElement;
+type TreeElement = ISCMRepository | ISCMInput | ISCMActionButton | ISCMRepositoryNoticeElement | ISCMResourceGroup | ISCMResource | IResourceNode<ISCMResource, ISCMResourceGroup> | SCMStructuralDiffElement;
 
 export function isSCMTreeElementCollapsedByDefault(element: unknown): boolean {
 	return !(isSCMRepository(element) || isSCMResourceGroup(element) || isSCMResourceNode(element) || isSCMStructuralDiffElement(element));
@@ -92,7 +95,7 @@ export function isSCMTreeElementCollapsedByDefault(element: unknown): boolean {
  * indent children under their parent's icon like in the Outline view.
  */
 export function getSCMTreeTwistieCssClass(element: unknown, dataSource: SCMTreeDataSource): string | undefined {
-	if (isSCMActionButton(element) || isSCMInput(element)) {
+	if (isSCMActionButton(element) || isSCMInput(element) || isSCMRepositoryNotice(element)) {
 		return 'force-no-twistie';
 	}
 	if (isSCMStructuralDiffElement(element) || (isSCMResource(element) && dataSource.hasChildren(element))) {
@@ -232,6 +235,108 @@ export class ActionButtonRenderer implements ICompressibleTreeRenderer<ISCMActio
 	}
 }
 
+
+interface RepositoryNoticeTemplate {
+	readonly container: HTMLElement;
+	readonly notice: HTMLElement;
+	readonly elementDisposables: DisposableStore;
+}
+
+/**
+ * A notice for a repository, above the input. It grows with its text,
+ * which wraps in narrow views.
+ */
+class RepositoryNoticeRenderer implements ICompressibleTreeRenderer<ISCMRepositoryNoticeElement, FuzzyScore, RepositoryNoticeTemplate> {
+
+	static readonly DEFAULT_HEIGHT = 72;
+
+	static readonly TEMPLATE_ID = 'repositoryNotice';
+	get templateId(): string { return RepositoryNoticeRenderer.TEMPLATE_ID; }
+
+	private readonly heights = new WeakMap<ISCMRepositoryNotice, number>();
+	private readonly renderedNotices = new WeakSet<ISCMRepositoryNotice>();
+	private readonly actionButtons = new Map<ISCMRepositoryNoticeElement, Button>();
+
+	constructor(
+		private readonly updateHeight: (element: ISCMRepositoryNoticeElement, height: number) => void,
+		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
+	) { }
+
+	renderTemplate(container: HTMLElement): RepositoryNoticeTemplate {
+		// Use default cursor & disable hover for list item
+		container.parentElement!.parentElement!.classList.add('cursor-default', 'force-no-hover');
+		// Like the action button's container, so the notice lines up with the button
+		const noticeContainer = append(container, $('.scm-repository-notice-container'));
+		const notice = append(noticeContainer, $('.scm-repository-notice'));
+		return { container: noticeContainer, notice, elementDisposables: new DisposableStore() };
+	}
+
+	renderElement(node: ITreeNode<ISCMRepositoryNoticeElement, FuzzyScore>, index: number, templateData: RepositoryNoticeTemplate): void {
+		const element = node.element;
+		const notice = element.notice;
+		const store = templateData.elementDisposables;
+		clearNode(templateData.notice);
+
+		if (notice.icon) {
+			const icon = append(templateData.notice, $('.scm-repository-notice-icon', { 'aria-hidden': 'true' }));
+			append(icon, $(ThemeIcon.asCSSSelector(notice.icon)));
+		}
+
+		const message = append(templateData.notice, $('.scm-repository-notice-message'));
+		message.appendChild(store.add(this.markdownRendererService.render(notice.message)).element);
+
+		if (notice.dismiss) {
+			const dismiss = notice.dismiss;
+			const toolbar = store.add(new ActionBar(append(templateData.notice, $('.scm-repository-notice-dismiss')), { hoverDelegate: getDefaultHoverDelegate('element') }));
+			toolbar.push(store.add(new Action('scm.repositoryNotice.dismiss', dismiss.tooltip, ThemeIcon.asClassName(Codicon.closeCompact), true, async () => dismiss.run())), { icon: true, label: false });
+		}
+
+		if (notice.action) {
+			const action = notice.action;
+			const button = store.add(new Button(append(templateData.notice, $('.scm-repository-notice-action')), { ...defaultButtonStyles, secondary: true, title: false }));
+			button.label = action.label;
+			store.add(button.onDidClick(() => action.run()));
+			this.actionButtons.set(element, button);
+			store.add(toDisposable(() => this.actionButtons.delete(element)));
+		}
+
+		// The text wraps in narrow views, so the row follows the height of the notice
+		const updateHeight = () => {
+			const height = templateData.container.offsetHeight;
+			if (height > 0 && this.heights.get(notice) !== height) {
+				this.heights.set(notice, height);
+				this.updateHeight(element, height);
+			}
+		};
+		const observer = store.add(new DisposableResizeObserver('scmRepositoryNotice', updateHeight, getWindow(templateData.container)));
+		store.add(observer.observe(templateData.container));
+
+		if (!this.renderedNotices.has(notice)) {
+			this.renderedNotices.add(notice);
+			notice.onDidRender?.();
+		}
+	}
+
+	renderCompressedElements(): void {
+		throw new Error('Should never happen since node is incompressible');
+	}
+
+	getHeight(element: ISCMRepositoryNoticeElement): number {
+		return this.heights.get(element.notice) ?? RepositoryNoticeRenderer.DEFAULT_HEIGHT;
+	}
+
+	focusNotice(element: ISCMRepositoryNoticeElement): void {
+		this.actionButtons.get(element)?.focus();
+	}
+
+	disposeElement(node: ITreeNode<ISCMRepositoryNoticeElement, FuzzyScore>, index: number, templateData: RepositoryNoticeTemplate): void {
+		templateData.elementDisposables.clear();
+	}
+
+	disposeTemplate(templateData: RepositoryNoticeTemplate): void {
+		templateData.elementDisposables.dispose();
+	}
+}
 
 class SCMTreeDragAndDrop implements ITreeDragAndDrop<TreeElement> {
 	constructor(private readonly instantiationService: IInstantiationService) { }
@@ -707,13 +812,15 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 
 class ListDelegate implements IListVirtualDelegate<TreeElement> {
 
-	constructor(private readonly inputRenderer: InputRenderer) { }
+	constructor(private readonly inputRenderer: InputRenderer, private readonly noticeRenderer: RepositoryNoticeRenderer) { }
 
 	getHeight(element: TreeElement) {
 		if (isSCMInput(element)) {
 			return this.inputRenderer.getHeight(element);
 		} else if (isSCMActionButton(element)) {
 			return ActionButtonRenderer.DEFAULT_HEIGHT + 8;
+		} else if (isSCMRepositoryNotice(element)) {
+			return this.noticeRenderer.getHeight(element);
 		} else {
 			return 22;
 		}
@@ -726,6 +833,8 @@ class ListDelegate implements IListVirtualDelegate<TreeElement> {
 			return InputRenderer.TEMPLATE_ID;
 		} else if (isSCMActionButton(element)) {
 			return ActionButtonRenderer.TEMPLATE_ID;
+		} else if (isSCMRepositoryNotice(element)) {
+			return RepositoryNoticeRenderer.TEMPLATE_ID;
 		} else if (isSCMResourceGroup(element)) {
 			return ResourceGroupRenderer.TEMPLATE_ID;
 		} else if (isSCMStructuralDiffElement(element)) {
@@ -774,6 +883,12 @@ export class SCMTreeSorter implements ITreeSorter<TreeElement> {
 			}
 
 			return 0;
+		}
+
+		if (isSCMRepositoryNotice(one)) {
+			return -1;
+		} else if (isSCMRepositoryNotice(other)) {
+			return 1;
 		}
 
 		if (isSCMInput(one)) {
@@ -852,7 +967,7 @@ export class SCMTreeKeyboardNavigationLabelProvider implements ICompressibleKeyb
 			return getSCMStructuralDiffLabel(element);
 		} else if (ResourceTree.isResourceNode(element)) {
 			return element.name;
-		} else if (isSCMRepository(element) || isSCMInput(element) || isSCMActionButton(element)) {
+		} else if (isSCMRepository(element) || isSCMInput(element) || isSCMActionButton(element) || isSCMRepositoryNotice(element)) {
 			return undefined;
 		} else if (isSCMResourceGroup(element)) {
 			return element.label;
@@ -891,6 +1006,9 @@ function getSCMResourceId(element: TreeElement): string {
 	} else if (isSCMActionButton(element)) {
 		const provider = element.repository.provider;
 		return `actionButton:${provider.id}`;
+	} else if (isSCMRepositoryNotice(element)) {
+		const provider = element.repository.provider;
+		return `repositoryNotice:${provider.id}/${element.notice.id}`;
 	} else if (isSCMResourceGroup(element)) {
 		const provider = element.provider;
 		return `resourceGroup:${provider.id}/${element.id}`;
@@ -946,6 +1064,9 @@ export class SCMAccessibilityProvider implements IListAccessibilityProvider<Tree
 				: localize('scmInputRow.accessibilityHelpNoKb', "Source Control Input, Run the Open Accessibility Help command for more information.");
 		} else if (isSCMActionButton(element)) {
 			return element.button?.command.title ?? '';
+		} else if (isSCMRepositoryNotice(element)) {
+			const message = renderAsPlaintext(element.notice.message);
+			return element.notice.action ? `${message} ${element.notice.action.label}` : message;
 		} else if (isSCMResourceGroup(element)) {
 			return element.label;
 		} else {
@@ -1480,6 +1601,7 @@ export class SCMViewPane extends ViewPane {
 	private listLabels!: ResourceLabels;
 	private inputRenderer!: InputRenderer;
 	private actionButtonRenderer!: ActionButtonRenderer;
+	private noticeRenderer!: RepositoryNoticeRenderer;
 
 	private _viewMode: ViewMode;
 	get viewMode(): ViewMode { return this._viewMode; }
@@ -1753,6 +1875,13 @@ export class SCMViewPane extends ViewPane {
 			catch { }
 		});
 		this.actionButtonRenderer = this.instantiationService.createInstance(ActionButtonRenderer);
+		this.noticeRenderer = this.instantiationService.createInstance(RepositoryNoticeRenderer, (element, height) => {
+			try {
+				// The notice may have been removed meanwhile
+				this.tree.updateElementHeight(element, height);
+			}
+			catch { }
+		});
 
 		this.listLabels = this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this.onDidChangeBodyVisibility });
 		this.disposables.add(this.listLabels);
@@ -1770,11 +1899,12 @@ export class SCMViewPane extends ViewPane {
 			WorkbenchCompressibleAsyncDataTree,
 			'SCM Tree Repo',
 			container,
-			new ListDelegate(this.inputRenderer),
+			new ListDelegate(this.inputRenderer, this.noticeRenderer),
 			new SCMTreeCompressionDelegate(),
 			[
 				this.inputRenderer,
 				this.actionButtonRenderer,
+				this.noticeRenderer,
 				this.instantiationService.createInstance(RepositoryRenderer, MenuId.SCMTitle, getActionViewItemProvider(this.instantiationService)),
 				this.instantiationService.createInstance(ResourceGroupRenderer, getActionViewItemProvider(this.instantiationService), resourceActionRunner),
 				this.disposables.add(this.instantiationService.createInstance(ResourceRenderer, () => this.viewMode, this.listLabels, getActionViewItemProvider(this.instantiationService), resourceActionRunner)),
@@ -1850,6 +1980,12 @@ export class SCMViewPane extends ViewPane {
 
 			// Focus the action button
 			this.actionButtonRenderer.focusActionButton(e.element);
+			this.tree.setFocus([], e.browserEvent);
+
+			return;
+		} else if (isSCMRepositoryNotice(e.element)) {
+			this.scmViewService.focus(e.element.repository);
+			this.noticeRenderer.focusNotice(e.element);
 			this.tree.setFocus([], e.browserEvent);
 
 			return;
@@ -1980,6 +2116,7 @@ export class SCMViewPane extends ViewPane {
 			repositoryDisposables.add(autorun(reader => {
 				/** @description action button */
 				repository.provider.actionButton.read(reader);
+				this.scmViewService.getRepositoryNotice(repository).read(reader);
 				this.updateChildren(repository);
 			}));
 
@@ -2056,7 +2193,7 @@ export class SCMViewPane extends ViewPane {
 			actionRunner = new RepositoryActionRunner(() => this.getSelectedRepositories());
 			disposables.add(actionRunner);
 			actions = collectContextMenuActions(menu);
-		} else if (isSCMInput(element) || isSCMActionButton(element)) {
+		} else if (isSCMInput(element) || isSCMActionButton(element) || isSCMRepositoryNotice(element)) {
 			// noop
 		} else if (isSCMResourceGroup(element)) {
 			const menus = this.scmViewService.menus.getRepositoryMenus(element.provider);
@@ -2398,6 +2535,9 @@ export class SCMViewPane extends ViewPane {
 }
 
 export class SCMTreeDataSource extends Disposable implements IAsyncDataSource<ISCMViewService, TreeElement> {
+
+	private readonly noticeElements = new WeakMap<ISCMRepositoryNotice, ISCMRepositoryNoticeElement>();
+
 	constructor(
 		private readonly viewMode: () => ViewMode,
 		private readonly structuralDiff: SCMStructuralDiffModel,
@@ -2421,6 +2561,12 @@ export class SCMTreeDataSource extends Disposable implements IAsyncDataSource<IS
 			inputOrElement = isSCMRepository(inputOrElement) ? inputOrElement : this.scmViewService.visibleRepositories[0];
 			const actionButton = inputOrElement.provider.actionButton.get();
 			const resourceGroups = inputOrElement.provider.groups;
+
+			// Notice
+			const notice = this.scmViewService.getRepositoryNotice(inputOrElement).get();
+			if (notice) {
+				children.push(this.getNoticeElement(inputOrElement, notice));
+			}
 
 			// SCM Input
 			if (inputOrElement.input.visible) {
@@ -2473,6 +2619,16 @@ export class SCMTreeDataSource extends Disposable implements IAsyncDataSource<IS
 		return [];
 	}
 
+	/** The same element for a notice, so that its row height can be updated. */
+	private getNoticeElement(repository: ISCMRepository, notice: ISCMRepositoryNotice): ISCMRepositoryNoticeElement {
+		let element = this.noticeElements.get(notice);
+		if (!element || element.repository !== repository) {
+			element = { type: 'repositoryNotice', repository, notice };
+			this.noticeElements.set(notice, element);
+		}
+		return element;
+	}
+
 	getParent(element: TreeElement): ISCMViewService | TreeElement {
 		if (isSCMStructuralDiffElement(element)) {
 			return element.parent;
@@ -2503,7 +2659,7 @@ export class SCMTreeDataSource extends Disposable implements IAsyncDataSource<IS
 			return result;
 		} else if (isSCMInput(element)) {
 			return element.repository;
-		} else if (isSCMActionButton(element)) {
+		} else if (isSCMActionButton(element) || isSCMRepositoryNotice(element)) {
 			return element.repository;
 		} else if (isSCMResourceGroup(element)) {
 			const repository = this.scmViewService.visibleRepositories.find(r => r.provider === element.provider);
@@ -2526,7 +2682,7 @@ export class SCMTreeDataSource extends Disposable implements IAsyncDataSource<IS
 			return true;
 		} else if (isSCMInput(inputOrElement)) {
 			return false;
-		} else if (isSCMActionButton(inputOrElement)) {
+		} else if (isSCMActionButton(inputOrElement) || isSCMRepositoryNotice(inputOrElement)) {
 			return false;
 		} else if (isSCMResourceGroup(inputOrElement)) {
 			return true;

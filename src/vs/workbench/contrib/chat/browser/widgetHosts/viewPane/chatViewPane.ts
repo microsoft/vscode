@@ -77,6 +77,7 @@ import { IActivityService, ProgressBadge } from '../../../../../services/activit
 import { DeferredPromise, disposableTimeout, raceCancellation, RunOnceScheduler } from '../../../../../../base/common/async.js';
 import { AgentSessionsFilter, AgentSessionsGrouping } from '../../agentSessions/agentSessionsFilter.js';
 import { AgentSessionsWorktreeOpener } from '../../agentSessions/agentSessionsWorktreeOpener.js';
+import { AgentSessionsListDelegate } from '../../agentSessions/agentSessionsViewer.js';
 import { IAgentSessionsService } from '../../agentSessions/agentSessionsService.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { requiresCopilotAgentHost, IManagedSettingsService } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
@@ -1223,6 +1224,9 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	//#region Chat Control
 
 	private static readonly MIN_CHAT_WIDGET_HEIGHT = 116;
+	/** Room around the content in the center of the empty chat, for the welcome message and the controls floating above the input. */
+	private static readonly WELCOME_CONTENT_PADDING = 64;
+	private static readonly MIN_SESSIONS_HEIGHT_WITH_WELCOME_CONTENT = 2 * AgentSessionsListDelegate.ITEM_HEIGHT + AgentSessionsListDelegate.SECTION_HEIGHT;
 
 	private _widget!: ChatWidget;
 	get widget(): ChatWidget { return this._widget; }
@@ -1442,9 +1446,16 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		}));
 
 		// When showing sessions stacked, adjust the height of the sessions list to make room for chat input
+		// and for content in the center of the empty chat, which also depends on the height of the sessions
 		this._register(autorun(reader => {
 			chatWidget.inputPart.height.read(reader);
+			chatWidget.welcomeContentHeight.read(reader);
 			if (this.sessionsViewerVisible && this.sessionsViewerOrientation === AgentSessionsViewerOrientation.Stacked) {
+				this.relayoutForInputHeight();
+			}
+		}));
+		this._register(sessionsControl.onDidChangeContentHeight(() => {
+			if (this.sessionsViewerVisible && this.sessionsViewerOrientation === AgentSessionsViewerOrientation.Stacked && chatWidget.welcomeContentHeight.get() > 0) {
 				this.relayoutForInputHeight();
 			}
 		}));
@@ -2054,6 +2065,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		const inputMaxHeight = this.sessionsViewerOrientation === AgentSessionsViewerOrientation.Stacked ? remainingHeight : undefined;
 
 		// Chat Widget
+		this._widget.setWelcomeContentOffset(titleHeight + heightReduction);
 		if (layoutInput) {
 			this._widget.setInputPartMaxHeightOverride(inputMaxHeight);
 			this._widget.layout(remainingHeight - heightReduction, remainingWidth - widthReduction);
@@ -2139,6 +2151,18 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		if (this.sessionsViewerOrientation === AgentSessionsViewerOrientation.Stacked) {
 			reservedChatWidgetHeight = sessionsOnly ? 0 : Math.max(ChatViewPane.MIN_CHAT_WIDGET_HEIGHT, this._widget?.input?.height.get() ?? 0);
 			availableSessionsHeight -= reservedChatWidgetHeight;
+
+			// With content in the center of the empty chat, the sessions only take the height of their rows,
+			// so the content centers on the whole view, but they keep some rows when the view is short
+			const welcomeContentHeight = this._widget?.welcomeContentHeight.get() ?? 0;
+			const sessionsContentHeight = this.sessionsControl.contentHeight;
+			if (welcomeContentHeight > 0 && sessionsContentHeight > 0) {
+				availableSessionsHeight = Math.min(
+					availableSessionsHeight,
+					sessionsContentHeight,
+					Math.max(ChatViewPane.MIN_SESSIONS_HEIGHT_WITH_WELCOME_CONTENT, availableSessionsHeight - welcomeContentHeight - ChatViewPane.WELCOME_CONTENT_PADDING)
+				);
+			}
 		} else {
 			availableSessionsHeight -= this.sessionsNewButtonContainer?.offsetHeight ?? 0;
 		}

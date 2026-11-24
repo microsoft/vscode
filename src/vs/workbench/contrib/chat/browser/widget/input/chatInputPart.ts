@@ -18,6 +18,7 @@ import { IHoverDelegate } from '../../../../../../base/browser/ui/hover/hoverDel
 import { IAction } from '../../../../../../base/common/actions.js';
 import { equals as arraysEqual } from '../../../../../../base/common/arrays.js';
 import { DeferredPromise, RunOnceScheduler } from '../../../../../../base/common/async.js';
+import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IStringDictionary } from '../../../../../../base/common/collections.js';
 import { isDefined } from '../../../../../../base/common/types.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
@@ -216,6 +217,14 @@ const INPUT_EDITOR_PADDING = { compact: { top: 2, bottom: 2 }, default: { top: 1
 const CachedLanguageModelsKey = 'chat.cachedLanguageModels.v2';
 const PERMISSION_LEVEL_OPTION_ID = 'permissionLevel';
 const CHAT_INPUT_COMPACT_PICKER_WIDTH = 22;
+/** After switching the session type, the new session renders the session target picker again in quick succession; after this much quiet it is done. */
+const SESSION_TARGET_PICKER_SETTLE_DELAY = 100;
+/**
+ * How long after switching the session type the session target picker that the
+ * switch opens stays open while the new session renders it again, and how long
+ * to wait for the first render before opening it anyway.
+ */
+const SESSION_TARGET_PICKER_RENDER_TIMEOUT = 2000;
 
 export function getChatInputEditorMetrics(options: IChatInputPartOptions['inputEditorOptions'], defaultFontSize: number): { fontSize: number; lineHeight: number } {
 	const fontSize = options?.fontSize ?? defaultFontSize;
@@ -967,6 +976,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private readonly agentHostPickers = new Map<string, AgentHostChatInputPicker>();
 	private readonly overflowPickerWidget = this._register(new MutableDisposable<IDisposable>());
 	private sessionTargetWidget: SessionTypePickerActionItem | undefined;
+	/**
+	 * Opens the session target picker after switching the session type, once the
+	 * toolbar stops rendering it again, which closes a picker that was open.
+	 */
+	private readonly sessionTargetPickerOpening = this._register(new MutableDisposable<RunOnceScheduler>());
+	private sessionTargetPickerOpeningUntil = 0;
 	private delegationWidget: DelegationSessionPickerActionItem | undefined;
 	private readonly chatSessionPickerWidgets = this._register(new DisposableMap<string, ChatSessionPickerActionItem>());
 	private chatSessionPickerContainer: HTMLElement | undefined;
@@ -1229,6 +1244,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		@IAgentHostConnectionsService private readonly agentHostConnectionsService: IAgentHostConnectionsService,
 		@IMenuService private readonly menuService: IMenuService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IActionWidgetService private readonly actionWidgetService: IActionWidgetService,
 	) {
 		super();
 		// Registered before anything else here, so every listener below reads the models after the change.
@@ -1926,6 +1942,44 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	public openSessionTargetPicker(): void {
 		this.sessionTargetWidget?.show();
+	}
+
+	/**
+	 * Picks a session type in the session target picker, as if the user selected it.
+	 * @param options.openPicker Then opens the picker, so the user sees where session
+	 * types are picked. After a switch, it opens once the new session rendered it.
+	 * @returns `switched` when it started a session of that type, `selected` when
+	 * the type was already selected, or `undefined` when the picker does not offer it.
+	 */
+	public selectSessionTarget(type: AgentSessionTarget, options?: { readonly openPicker?: boolean }): 'switched' | 'selected' | undefined {
+		const result = this.sessionTargetWidget?.selectSessionType(type);
+		if (options?.openPicker) {
+			if (result === 'switched') {
+				this.sessionTargetPickerOpeningUntil = Date.now() + SESSION_TARGET_PICKER_RENDER_TIMEOUT;
+				const opening = this.sessionTargetPickerOpening.value = new RunOnceScheduler(() => this.openSessionTargetPicker(), SESSION_TARGET_PICKER_RENDER_TIMEOUT);
+				opening.schedule();
+			} else {
+				this.openSessionTargetPicker();
+			}
+		}
+		return result;
+	}
+
+	/**
+	 * The toolbar rendered the session target picker again, which closes it. After
+	 * a switch, it opens once the toolbar settles, and opens again when the toolbar
+	 * closes it shortly after, unless the user closed it.
+	 */
+	private reopenSessionTargetPickerAfterRender(): void {
+		const opening = this.sessionTargetPickerOpening.value;
+		if (!opening) {
+			return;
+		}
+		if (Date.now() > this.sessionTargetPickerOpeningUntil) {
+			this.sessionTargetPickerOpening.clear();
+		} else if (opening.isScheduled() || this.actionWidgetService.isVisible) {
+			opening.schedule(SESSION_TARGET_PICKER_SETTLE_DELAY);
+		}
 	}
 
 	public openDelegationPicker(): void {
@@ -4457,6 +4511,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 						this.delegationWidget = picker;
 					} else {
 						this.sessionTargetWidget = picker;
+						this.reopenSessionTargetPickerAfterRender();
 					}
 					return picker;
 				} else if (action.id === ChatSessionPrimaryPickerAction.ID && action instanceof MenuItemAction) {
@@ -4720,6 +4775,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 							this.delegationWidget = picker;
 						} else {
 							this.sessionTargetWidget = picker;
+							this.reopenSessionTargetPickerAfterRender();
 						}
 						return picker;
 					} else if (action.id === OpenPermissionPickerAction.ID && action instanceof MenuItemAction) {
