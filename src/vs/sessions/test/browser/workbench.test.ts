@@ -267,6 +267,7 @@ suite('Sessions - Workbench', () => {
 		_panelAlignment: PanelAlignment;
 		partVisibility: { customViewGrid: boolean };
 		_customViewAllowsPanel: boolean;
+		_customViewPanelVisible?: boolean;
 		_panelMaximizedEditorState?: { width: number | undefined };
 		_maximumEditorDimensionsOverride?: IViewSize;
 		panelPartView: object;
@@ -1397,12 +1398,9 @@ suite('Sessions - Workbench', () => {
 	});
 
 	test('desktop descriptor supports spanning and chat-aligned panels, with the Session Activity Bar column, hidden, last in the content row', () => {
-		const topology = (alignment: PanelAlignment, withColumn = false, customViewOwnsPanel = false) => {
+		const topology = (alignment: PanelAlignment, withColumn = false) => {
 			const host = createHost({ single: true }) as IGridDescriptorTestHarness & { _panelAlignment: PanelAlignment; sessionActivityBarColumn?: { minimumWidth: number } };
 			host._panelAlignment = alignment;
-			host.partVisibility.customViewGrid = customViewOwnsPanel;
-			host.partVisibility.panel = customViewOwnsPanel;
-			host._customViewAllowsPanel = customViewOwnsPanel;
 			host.sessionActivityBarColumn = withColumn ? { minimumWidth: 34 } : undefined;
 			host.layoutPolicy = {
 				getPartSizes: () => ({ sideBarSize: 280, auxiliaryBarSize: 340, panelSize: 300 }),
@@ -1418,7 +1416,6 @@ suite('Sessions - Workbench', () => {
 		assert.deepStrictEqual({
 			justify: topology('justify'),
 			center: topology('center'),
-			centerCustomView: topology('center', false, true),
 			justifyColumn: topology('justify', true),
 			centerColumn: topology('center', true),
 		}, {
@@ -1441,15 +1438,6 @@ suite('Sessions - Workbench', () => {
 					[Parts.SESSIONS_PART, Parts.PANEL_PART],
 					Parts.EDITOR_PART,
 					Parts.CUSTOM_VIEW_GRID_PART,
-				],
-			],
-			centerCustomView: [
-				Parts.TITLEBAR_PART,
-				[
-					Parts.SIDEBAR_PART,
-					Parts.SESSIONS_PART,
-					Parts.EDITOR_PART,
-					[Parts.CUSTOM_VIEW_GRID_PART, Parts.PANEL_PART],
 				],
 			],
 		});
@@ -4931,6 +4919,7 @@ suite('Sessions - Workbench', () => {
 			_panelAlignment: 'justify',
 			partVisibility: { customViewGrid: true },
 			_customViewAllowsPanel: true,
+			_customViewPanelVisible: true,
 			panelPartView: views.get(Parts.PANEL_PART)!,
 			sessionsPartView: views.get(Parts.SESSIONS_PART)!,
 			editorPartView: views.get(Parts.EDITOR_PART)!,
@@ -5083,23 +5072,40 @@ suite('Sessions - Workbench', () => {
 
 		assert.deepStrictEqual(opened, []);
 	});
-	test('reparenting a centered panel preserves editor constraints', () => {
+	test('a centered panel only moves below a custom view once it shows there, preserving editor constraints', () => {
 		const host = createHost({ single: true, partVisibility: { editor: true, panel: true, sessions: true } }) as ITestWorkbench & IPanelAlignmentTestHarness;
 		host._panelAlignment = 'center';
-		let overrideDuringMove: IViewSize | undefined;
-		host.workbenchGrid.moveView = () => {
-			overrideDuringMove = host._maximumEditorDimensionsOverride;
-			host.getMaximumEditorDimensions(host.mainContainer);
+		host.paneCompositeService.getActivePaneComposite = () => ({});
+		host.paneCompositeService.hideActivePaneComposite = () => { };
+		const moves: string[] = [];
+		host.workbenchGrid.moveView = (_view, _size, referenceView) => {
+			const target = referenceView === host.customViewGridPartView ? 'customView' : 'sessions';
+			moves.push(host._maximumEditorDimensionsOverride ? target : `${target} (unconstrained)`);
+		};
+		const step = (name: string, fn: () => void) => {
+			fn();
+			return `${name}: ${moves.splice(0).join(', ') || 'none'}`;
 		};
 
-		applyCustomViewGridVisibility.call(host, { id: 'view' });
+		const steps = [
+			step('open', () => applyCustomViewGridVisibility.call(host, { id: 'view' })),
+			step('show panel', () => setPanelHidden.call(host, false)),
+			step('hide and show panel', () => { setPanelHidden.call(host, true); setPanelHidden.call(host, false); }),
+			step('switch view', () => applyCustomViewGridVisibility.call(host, { id: 'other' })),
+			step('close', () => applyCustomViewGridVisibility.call(host, undefined)),
+			step('open and close', () => { applyCustomViewGridVisibility.call(host, { id: 'view' }); applyCustomViewGridVisibility.call(host, undefined); }),
+		];
 
-		assert.deepStrictEqual({
-			overrideDuringMove: !!overrideDuringMove,
-			overrideAfterMove: host._maximumEditorDimensionsOverride,
-		}, {
-			overrideDuringMove: true,
-			overrideAfterMove: undefined,
+		assert.deepStrictEqual({ steps, overrideAfterMoves: host._maximumEditorDimensionsOverride }, {
+			steps: [
+				'open: none',
+				'show panel: customView',
+				'hide and show panel: none',
+				'switch view: none',
+				'close: sessions',
+				'open and close: none',
+			],
+			overrideAfterMoves: undefined,
 		});
 	});
 

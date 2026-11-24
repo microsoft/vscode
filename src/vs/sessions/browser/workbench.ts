@@ -506,6 +506,8 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 	private _customViewAllowsPanel = false;
 	private _customViewId: string | undefined;
 	private _customViewPanelVisible = false;
+	/** Whether the centered panel was moved below the custom view, which only happens once it shows there. */
+	private _panelBelowCustomView = false;
 	/** Guards the grid updates that show/hide the custom view from feeding back into the desired part visibility. */
 	private _applyingCustomViewGridVisibility = false;
 	private _customViewCoveredPartWidths: { editor?: number; auxiliaryBar?: number } | undefined;
@@ -2039,16 +2041,14 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 		};
 
 		if (this.agentWorkbenchLayout === AgentWorkbenchLayout.Desktop && this.getPanelAlignment() === 'center') {
-			const customViewOwnsPanel = this.partVisibility.customViewGrid && this._customViewAllowsPanel;
-			const panelOwner = customViewOwnsPanel ? customViewGridNode : sessionsNode;
-			const panelColumn: ISerializedNode = {
+			const chatColumn: ISerializedNode = {
 				type: 'branch',
 				data: [
-					{ ...panelOwner, size: topRightHeight },
+					{ ...sessionsNode, size: topRightHeight },
 					panelNode,
 				],
-				size: customViewOwnsPanel ? rightSectionWidth : sessionsWidth,
-				visible: panelOwner.visible === false && panelNode.visible === false ? false : undefined,
+				size: sessionsWidth,
+				visible: sessionsNode.visible === false && panelNode.visible === false ? false : undefined,
 			};
 
 			return {
@@ -2061,12 +2061,7 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 							type: 'branch',
 							data: [
 								sideBarNode,
-								...this._topRightSectionChildren(
-									customViewOwnsPanel ? sessionsNode : panelColumn,
-									editorNode,
-									auxiliaryBarNode,
-									customViewOwnsPanel ? panelColumn : customViewGridNode,
-								),
+								...this._topRightSectionChildren(chatColumn, editorNode, auxiliaryBarNode, customViewGridNode),
 								...sessionActivityBarColumnNodes,
 							],
 							size: contentHeight,
@@ -2859,6 +2854,9 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 		this.mainContainer.classList.toggle(LayoutClasses.PANEL_HIDDEN, !this._effectiveVisible(Parts.PANEL_PART));
 
 		// Propagate to grid
+		if (customViewVisible && this._effectiveVisible(Parts.PANEL_PART)) {
+			this._placeCenteredPanel(true);
+		}
 		this.workbenchGrid.setViewVisible(
 			this.panelPartView,
 			this._effectiveVisible(Parts.PANEL_PART),
@@ -2967,15 +2965,12 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 		}
 
 		this._applyingCustomViewGridVisibility = true;
-		const previousMaximumEditorDimensionsOverride = this._maximumEditorDimensionsOverride;
 		try {
 			// Suspended so the desktop width sync cannot read the transient node
 			// widths as a sash drag and write back the desired visibility.
 			this._runWithEditorResizeSyncSuspended(() => {
-				if (this.getPanelAlignment() === 'center' && allowsPanel !== customViewAllowedPanel) {
-					this._maximumEditorDimensionsOverride ??= this.getMaximumEditorDimensions(this.mainContainer);
-					const panelTarget = allowsPanel ? this.customViewGridPartView : this.sessionsPartView;
-					this.workbenchGrid.moveView(this.panelPartView, this._viewMoveSizing(this.panelPartView, 'height'), panelTarget, Direction.Down);
+				if (!allowsPanel) {
+					this._placeCenteredPanel(false);
 				}
 				// One pass, revealing before hiding so the row never goes empty in between.
 				if (visible) {
@@ -2988,7 +2983,6 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 				}
 			});
 		} finally {
-			this._maximumEditorDimensionsOverride = previousMaximumEditorDimensionsOverride;
 			this.sessionsPartService.setContentVisible(!visible);
 			this._applyingCustomViewGridVisibility = false;
 		}
@@ -3017,6 +3011,29 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 			this.focusPart(Parts.CUSTOM_VIEW_GRID_PART);
 		} else if (customViewVisibilityChanged) {
 			this.sessionsService.focusActiveSession();
+		}
+	}
+
+	/**
+	 * The centered panel shares a column with the chat, or with the custom view
+	 * once it shows there. Moving it lays out the grid again, and most custom view
+	 * visits never show the panel, so it only moves when it has to.
+	 */
+	private _placeCenteredPanel(belowCustomView: boolean): void {
+		if (this.getPanelAlignment() !== 'center' || this._panelBelowCustomView === belowCustomView) {
+			return;
+		}
+
+		const previousMaximumEditorDimensionsOverride = this._maximumEditorDimensionsOverride;
+		try {
+			this._runWithEditorResizeSyncSuspended(() => {
+				this._maximumEditorDimensionsOverride ??= this.getMaximumEditorDimensions(this.mainContainer);
+				const panelTarget = belowCustomView ? this.customViewGridPartView : this.sessionsPartView;
+				this.workbenchGrid.moveView(this.panelPartView, this._viewMoveSizing(this.panelPartView, 'height'), panelTarget, Direction.Down);
+				this._panelBelowCustomView = belowCustomView;
+			});
+		} finally {
+			this._maximumEditorDimensionsOverride = previousMaximumEditorDimensionsOverride;
 		}
 	}
 
@@ -3150,18 +3167,18 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 				this._editorPaneVisibleWhileGridMoves = this.isEditorPaneVisible();
 				if (alignment === 'center') {
 					const panelSize = this._viewMoveSizing(this.panelPartView, 'height');
-					const panelTarget = this.partVisibility.customViewGrid && this._customViewAllowsPanel
-						? this.customViewGridPartView
-						: this.sessionsPartView;
-					this.workbenchGrid.moveView(this.panelPartView, panelSize, panelTarget, Direction.Down);
+					const belowCustomView = this.partVisibility.customViewGrid && this._effectiveVisible(Parts.PANEL_PART);
+					this.workbenchGrid.moveView(this.panelPartView, panelSize, belowCustomView ? this.customViewGridPartView : this.sessionsPartView, Direction.Down);
+					this._panelBelowCustomView = belowCustomView;
 				} else {
 					const sessionsWidth = this.workbenchGrid.isViewVisible(this.sessionsPartView)
 						? this.workbenchGrid.getViewSize(this.sessionsPartView).width
 						: undefined;
 					const editorSize = maximizedEditorWidth ?? this._viewMoveSizing(this.editorPartView, 'width');
 					const customViewGridSize = this._viewMoveSizing(this.customViewGridPartView, 'width');
-					if (this.partVisibility.customViewGrid && this._customViewAllowsPanel) {
+					if (this._panelBelowCustomView) {
 						this.workbenchGrid.moveView(this.sessionsPartView, this._viewMoveSizing(this.sessionsPartView, 'width'), this.customViewGridPartView, Direction.Left);
+						this._panelBelowCustomView = false;
 					}
 					this.workbenchGrid.moveView(this.editorPartView, editorSize, this.sessionsPartView, Direction.Right);
 					this.workbenchGrid.moveView(this.customViewGridPartView, customViewGridSize, this.editorPartView, Direction.Right);

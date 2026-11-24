@@ -562,24 +562,53 @@ suite('SessionsTerminalContribution', () => {
 		});
 	});
 
-	for (const opensEmpty of [false, true]) {
-		test(`opening the terminal view ${opensEmpty ? 'empty' : 'with terminals'} in Automations leaves the hidden session alone`, async () => {
-			terminalViewVisible = false;
-			terminalGroupCount = opensEmpty ? 0 : 1;
-			const session = makeAgentSession({ worktree: URI.file('/worktree'), providerType: AgentSessionProviders.Background });
-			activeSessionObs.set(session, undefined);
-			await tick();
-			activeCustomViewObs.set(upcastPartial<ICustomViewDescriptor>({ id: 'automations' }), undefined);
+	/** Shows the terminal view, as the Panel commands and keybindings do. */
+	function showTerminalView(empty: boolean): void {
+		terminalViewVisible = true;
+		terminalGroupCount = empty ? 0 : 1;
+		viewVisibilityEmitter.fire({ id: TERMINAL_VIEW_ID, visible: true });
+	}
 
-			terminalViewVisible = true;
-			viewVisibilityEmitter.fire({ id: TERMINAL_VIEW_ID, visible: true });
-			const homeTerminal = makeTerminalInstance(nextInstanceId++, HOME_DIR.fsPath);
-			terminalInstances.set(homeTerminal.instanceId, homeTerminal);
-			terminalGroupCount = 1;
-			onDidCreateInstance.fire(homeTerminal);
+	/** A terminal the terminal view or the user creates in the panel. */
+	function createPanelTerminal(): TestTerminalInstance {
+		const instance = makeTerminalInstance(nextInstanceId++, HOME_DIR.fsPath);
+		terminalInstances.set(instance.instanceId, instance);
+		onDidCreateInstance.fire(instance);
+		return instance;
+	}
+
+	test('opening and closing a custom view without showing its terminal view leaves the panel terminals alone', async () => {
+		activeSessionObs.set(makeAgentSession({ worktree: HOME_DIR, providerType: AgentSessionProviders.Background }), undefined);
+		await tick();
+		visibilityOperations.length = 0;
+
+		activeCustomViewObs.set(upcastPartial<ICustomViewDescriptor>({ id: 'automations' }), undefined);
+		await tick();
+		activeCustomViewObs.set(undefined, undefined);
+		await tick();
+
+		assert.deepStrictEqual({ operations: visibilityOperations, created: createdTerminals.length }, { operations: [], created: 1 });
+	});
+
+	for (const opensEmpty of [false, true]) {
+		test(`showing the terminal view ${opensEmpty ? 'empty' : 'with session terminals'} in a custom view gives it its own terminal and leaves the hidden session alone`, async () => {
+			terminalViewVisible = false;
+			activeSessionObs.set(makeAgentSession({ worktree: URI.file('/worktree'), providerType: AgentSessionProviders.Background }), undefined);
 			await tick();
+			const sessionTerminal = opensEmpty ? undefined : makeTerminalInstance(nextInstanceId++, URI.file('/worktree').fsPath);
+			if (sessionTerminal) {
+				terminalInstances.set(sessionTerminal.instanceId, sessionTerminal);
+			}
+			activeCustomViewObs.set(upcastPartial<ICustomViewDescriptor>({ id: 'automations' }), undefined);
+			await tick();
+
+			showTerminalView(opensEmpty);
+			// The terminal view creates a terminal when it opens empty.
+			const viewTerminal = opensEmpty ? createPanelTerminal() : undefined;
+			await tick();
+			const customTerminal = viewTerminal ?? terminalInstances.get(nextInstanceId - 1)!;
 			const whileCovered = {
-				created: createdTerminals.map(terminal => terminal.cwd.fsPath),
+				created: createdTerminals.map(terminal => terminal.cwd?.fsPath ?? 'default'),
 				backgrounded: [...backgroundedInstances],
 			};
 
@@ -588,15 +617,15 @@ suite('SessionsTerminalContribution', () => {
 			assert.deepStrictEqual({
 				whileCovered,
 				afterLeaving: {
-					created: createdTerminals.map(terminal => terminal.cwd.fsPath),
+					created: createdTerminals.map(terminal => terminal.cwd?.fsPath ?? 'default'),
 					backgrounded: [...backgroundedInstances],
 					localDefault: localDefaultCwdCalls.at(-1),
 				},
 			}, {
-				whileCovered: { created: [], backgrounded: [] },
+				whileCovered: { created: opensEmpty ? [] : ['default'], backgrounded: sessionTerminal ? [sessionTerminal.instanceId] : [] },
 				afterLeaving: {
-					created: [URI.file('/worktree').fsPath],
-					backgrounded: [homeTerminal.instanceId],
+					created: opensEmpty ? [URI.file('/worktree').fsPath] : ['default'],
+					backgrounded: [customTerminal.instanceId],
 					localDefault: undefined,
 				},
 			});
@@ -604,54 +633,51 @@ suite('SessionsTerminalContribution', () => {
 	}
 
 	test('custom-view terminals stay alive but cannot be reused by a session with the same cwd', async () => {
-		const session = makeAgentSession({ worktree: HOME_DIR, providerType: AgentSessionProviders.Background });
-		activeSessionObs.set(session, undefined);
+		activeSessionObs.set(makeAgentSession({ worktree: HOME_DIR, providerType: AgentSessionProviders.Background }), undefined);
 		await tick();
 		const sessionTerminal = terminalInstances.get(1)!;
-
 		const automations = upcastPartial<ICustomViewDescriptor>({ id: 'automations' });
+
 		activeCustomViewObs.set(automations, undefined);
 		await tick();
-		const afterEntering = [...backgroundedInstances];
-		const customTerminal = makeTerminalInstance(nextInstanceId++, HOME_DIR.fsPath);
-		terminalInstances.set(customTerminal.instanceId, customTerminal);
-		onDidCreateInstance.fire(customTerminal);
+		showTerminalView(false);
 		await tick();
-
+		const customTerminal = terminalInstances.get(nextInstanceId - 1)!;
+		const afterShowing = [...backgroundedInstances];
 		activeCustomViewObs.set(undefined, undefined);
 		await tick();
 		const afterLeaving = [...backgroundedInstances];
 		activeCustomViewObs.set(automations, undefined);
 		await tick();
+		showTerminalView(false);
+		await tick();
 
 		assert.deepStrictEqual({
-			afterEntering,
+			afterShowing,
 			afterLeaving,
 			afterReturning: [...backgroundedInstances],
 			created: createdTerminals.length,
 			disposed: disposedInstances.map(instance => instance.instanceId),
 			trackedCustom: contribution.getChatWindowTerminalOwner(customTerminal),
 		}, {
-			afterEntering: [sessionTerminal.instanceId],
+			afterShowing: [sessionTerminal.instanceId],
 			afterLeaving: [customTerminal.instanceId],
 			afterReturning: [sessionTerminal.instanceId],
-			created: 1,
+			created: 2,
 			disposed: [],
 			trackedCustom: undefined,
 		});
 	});
 
 	test('leaving a custom view shows the session terminals before hiding its own, so the session panel stays open', async () => {
-		const session = makeAgentSession({ worktree: HOME_DIR, providerType: AgentSessionProviders.Background });
-		activeSessionObs.set(session, undefined);
+		activeSessionObs.set(makeAgentSession({ worktree: HOME_DIR, providerType: AgentSessionProviders.Background }), undefined);
 		await tick();
 		const sessionTerminal = terminalInstances.get(1)!;
 		activeCustomViewObs.set(upcastPartial<ICustomViewDescriptor>({ id: 'automations' }), undefined);
 		await tick();
-		const customTerminal = makeTerminalInstance(nextInstanceId++, HOME_DIR.fsPath);
-		terminalInstances.set(customTerminal.instanceId, customTerminal);
-		onDidCreateInstance.fire(customTerminal);
+		showTerminalView(false);
 		await tick();
+		const customTerminal = terminalInstances.get(nextInstanceId - 1)!;
 		visibilityOperations.length = 0;
 
 		activeCustomViewObs.set(undefined, undefined);
@@ -662,9 +688,8 @@ suite('SessionsTerminalContribution', () => {
 	test('leaving a custom view without other terminals leaves hiding its terminals to the session reconciliation', async () => {
 		activeCustomViewObs.set(upcastPartial<ICustomViewDescriptor>({ id: 'automations' }), undefined);
 		await tick();
-		const customTerminal = makeTerminalInstance(nextInstanceId++, HOME_DIR.fsPath);
-		terminalInstances.set(customTerminal.instanceId, customTerminal);
-		onDidCreateInstance.fire(customTerminal);
+		showTerminalView(true);
+		createPanelTerminal();
 		await tick();
 		visibilityOperations.length = 0;
 
@@ -677,23 +702,26 @@ suite('SessionsTerminalContribution', () => {
 		const firstView = upcastPartial<ICustomViewDescriptor>({ id: 'first' });
 		const secondView = upcastPartial<ICustomViewDescriptor>({ id: 'second' });
 		activeCustomViewObs.set(firstView, undefined);
-		const firstTerminal = makeTerminalInstance(nextInstanceId++, HOME_DIR.fsPath);
-		terminalInstances.set(firstTerminal.instanceId, firstTerminal);
-		onDidCreateInstance.fire(firstTerminal);
+		await tick();
+		showTerminalView(true);
+		const firstTerminal = createPanelTerminal();
 		await tick();
 		activeCustomViewObs.set(secondView, undefined);
 		await tick();
-		const secondTerminal = makeTerminalInstance(nextInstanceId++, HOME_DIR.fsPath);
-		terminalInstances.set(secondTerminal.instanceId, secondTerminal);
-		onDidCreateInstance.fire(secondTerminal);
+		showTerminalView(false);
 		await tick();
+		const secondTerminal = terminalInstances.get(nextInstanceId - 1)!;
 		activeCustomViewObs.set(firstView, undefined);
+		await tick();
+		showTerminalView(false);
 		await tick();
 
 		assert.deepStrictEqual({
+			active: activeInstanceId,
 			backgrounded: [...backgroundedInstances],
 			disposed: disposedInstances.map(instance => instance.instanceId),
 		}, {
+			active: firstTerminal.instanceId,
 			backgrounded: [secondTerminal.instanceId],
 			disposed: [],
 		});
@@ -702,16 +730,17 @@ suite('SessionsTerminalContribution', () => {
 	test('returning to a custom view restores its selected terminal rather than the last created terminal', async () => {
 		const view = upcastPartial<ICustomViewDescriptor>({ id: 'automations' });
 		activeCustomViewObs.set(view, undefined);
-		const first = makeTerminalInstance(nextInstanceId++, HOME_DIR.fsPath);
-		const second = makeTerminalInstance(nextInstanceId++, HOME_DIR.fsPath);
-		for (const instance of [first, second]) {
-			terminalInstances.set(instance.instanceId, instance);
-			onDidCreateInstance.fire(instance);
-		}
+		await tick();
+		showTerminalView(true);
+		const first = createPanelTerminal();
+		const second = createPanelTerminal();
 		activeInstanceId = first.instanceId;
 		activeCustomViewObs.set(undefined, undefined);
 		await tick();
+		activeInstanceId = second.instanceId;
 		activeCustomViewObs.set(view, undefined);
+		await tick();
+		showTerminalView(false);
 		await tick();
 
 		assert.deepStrictEqual({
