@@ -2278,6 +2278,8 @@ suite('DefaultAccountProvider Microsoft account', () => {
 		microsoftSessions: AuthenticationSession[];
 		githubSessions: AuthenticationSession[];
 		failMicrosoftLookup: boolean;
+		/** When set, the next Microsoft sessions lookup returns this promise instead of the current sessions. */
+		pendingMicrosoftLookup: DeferredPromise<AuthenticationSession[]> | undefined;
 		nativeManagedSettings: ManagedSettingsData;
 		microsoftProviderAvailable: boolean;
 		readonly microsoftLookups: string[];
@@ -2348,6 +2350,7 @@ suite('DefaultAccountProvider Microsoft account', () => {
 			microsoftSessions: options.microsoftSessions ?? [],
 			githubSessions: options.githubSessions ?? [],
 			failMicrosoftLookup: options.failMicrosoftLookup ?? false,
+			pendingMicrosoftLookup: undefined,
 			microsoftProviderAvailable: options.microsoftProviderAvailable ?? true,
 			nativeManagedSettings: options.nativeManagedSettings ?? {},
 			microsoftLookups: [],
@@ -2380,6 +2383,11 @@ suite('DefaultAccountProvider Microsoft account', () => {
 					world.microsoftLookups.push(providerId);
 					if (world.failMicrosoftLookup) {
 						throw new Error('Microsoft sessions unavailable');
+					}
+					if (world.pendingMicrosoftLookup) {
+						const pending = world.pendingMicrosoftLookup;
+						world.pendingMicrosoftLookup = undefined;
+						return pending.p;
 					}
 					return world.microsoftSessions;
 				}
@@ -2585,6 +2593,20 @@ suite('DefaultAccountProvider Microsoft account', () => {
 		await provider.refresh();
 
 		assert.deepStrictEqual({ accountName: provider.defaultAccount?.accountName, sessionId: provider.defaultAccount?.sessionId, rememberedAccountLabel: world.rememberedAccountLabel }, { accountName: 'alice', sessionId: 's1', rememberedAccountLabel: 'alice' });
+	});
+
+	test('an account remembered while the lookup after a removal is pending is not forgotten', async () => {
+		const { world, provider } = await createWorld({ rememberedAccountLabel: 'alice', microsoftSessions: [session('s1', 'alice')] });
+		const lookup = new DeferredPromise<AuthenticationSession[]>();
+		world.pendingMicrosoftLookup = lookup;
+
+		world.sessionChanges.fire({ providerId: 'microsoft', label: 'Microsoft', event: { added: [], removed: [session('s1', 'alice')], changed: [] } });
+		world.microsoftSessions = [session('s2', 'bob')];
+		await provider.rememberMicrosoftAccount({ id: 'id-bob', label: 'bob' });
+		await lookup.complete([session('s2', 'bob')]);
+		await provider.refresh();
+
+		assert.deepStrictEqual({ rememberedAccountLabel: world.rememberedAccountLabel, accountName: provider.defaultAccount?.accountName, providerId: provider.defaultAccount?.authenticationProvider.id }, { rememberedAccountLabel: 'bob', accountName: 'bob', providerId: 'microsoft' });
 	});
 
 	test('a remembered account stored by another window makes the Microsoft account the default account', async () => {

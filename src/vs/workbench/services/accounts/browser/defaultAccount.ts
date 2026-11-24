@@ -1808,7 +1808,7 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 		if (currentSessionRemoved) {
 			try {
 				const sessions = await this.authenticationService.getSessions(MICROSOFT_DEFAULT_ACCOUNT_PROVIDER_ID, undefined, {}, true);
-				if (!sessions.some(session => session.account.label === current.accountName)) {
+				if (this.rememberedMicrosoftAccountLabel === current.accountName && !sessions.some(session => session.account.label === current.accountName)) {
 					this.logService.info('[DefaultAccount] The remembered Microsoft account signed out, forgetting it');
 					await this.forgetMicrosoftAccount();
 					return;
