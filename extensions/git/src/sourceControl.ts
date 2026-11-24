@@ -5,11 +5,15 @@
 
 import * as path from 'path';
 import { Disposable, l10n, LogOutputChannel, ProgressLocation, scm, SourceControl, SourceControlInputBox, ThemeIcon, Uri, window, workspace } from 'vscode';
+import { ActionButton } from './actionButton';
 import { GitArtifactProvider } from './artifactProvider';
 import { GitQuickDiffProvider, StagedResourceQuickDiffProvider } from './quickDiffProvider';
 import type { GitResourceGroup, IRepositoryResolver, Repository } from './repository';
 import { debounceEvent, dispose, EmptyDisposable, eventToPromise, filterEvent, IDisposable, isCopilotWorktreeFolder, onceEvent } from './util';
 import { OperationKind } from './operation';
+import type { CommitCommandsCenter } from './postCommitCommands';
+import type { IRemoteSourcePublisherRegistry } from './remotePublisher';
+import { StatusBarCommands } from './statusbar';
 import { Status } from './api/git.constants';
 
 class ProgressManager {
@@ -99,6 +103,8 @@ export class GitSourceControl implements Disposable {
 	constructor(
 		private readonly repository: Repository,
 		repositoryResolver: IRepositoryResolver,
+		remoteSourcePublisherRegistry: IRemoteSourcePublisherRegistry,
+		commitCommandsCenter: CommitCommandsCenter,
 		logger: LogOutputChannel
 	) {
 		// Parent source control. Repositories opened in the Sessions app
@@ -206,6 +212,16 @@ export class GitSourceControl implements Disposable {
 
 		// Shows or clears the validation warning of a repository with too many changes
 		repository.onDidCheckStatusLimit(() => this.sourceControl.inputBox.validateInput = this.sourceControl.inputBox.validateInput, null, this.disposables);
+
+		const statusBar = new StatusBarCommands(repository, this.sourceControl, remoteSourcePublisherRegistry);
+		this.disposables.push(statusBar);
+		statusBar.onDidChange(() => this.sourceControl.statusBarCommands = statusBar.commands, null, this.disposables);
+		this.sourceControl.statusBarCommands = statusBar.commands;
+
+		const actionButton = new ActionButton(repository, this.sourceControl, commitCommandsCenter, logger);
+		this.disposables.push(actionButton);
+		actionButton.onDidChange(() => this.sourceControl.actionButton = actionButton.button, null, this.disposables);
+		this.sourceControl.actionButton = actionButton.button;
 
 		this.disposables.push(new ProgressManager(repository));
 

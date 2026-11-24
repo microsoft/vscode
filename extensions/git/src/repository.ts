@@ -12,7 +12,6 @@ import * as os from 'os';
 import * as path from 'path';
 import picomatch from 'picomatch';
 import { CancellationError, CancellationToken, CancellationTokenSource, Command, commands, CustomExecution, Disposable, Event, EventEmitter, FileDecoration, l10n, LogLevel, LogOutputChannel, Memento, ProcessExecution, ProgressLocation, ProgressOptions, RelativePattern, ShellExecution, SourceControl, SourceControlInputBoxValidation, SourceControlInputBoxValidationType, SourceControlResourceDecorations, SourceControlResourceGroup, SourceControlResourceState, TabInputNotebookDiff, TabInputTextDiff, TabInputTextMultiDiff, Task, TaskPanelKind, TaskRevealKind, TaskRunOn, tasks, ThemeColor, Uri, window, workspace, WorkspaceEdit, WorkspaceFolder } from 'vscode';
-import { ActionButton } from './actionButton';
 import { ApiRepository } from './api/api1';
 import type { Branch, BranchQuery, Change, CommitOptions, DiffChange, FetchOptions, LogOptions, Ref, Remote, RepositoryKind } from './api/git';
 import { ForcePushMode, GitErrorCodes, RefType, Status } from './api/git.constants';
@@ -25,7 +24,6 @@ import { Operation, OperationKind, OperationManager, OperationResult } from './o
 import { CommitCommandsCenter, IPostCommitCommandsProviderRegistry } from './postCommitCommands';
 import { IPushErrorHandlerRegistry } from './pushError';
 import { IRemoteSourcePublisherRegistry } from './remotePublisher';
-import { StatusBarCommands } from './statusbar';
 import { toGitUri } from './uri';
 import { anyEvent, combinedDisposable, dispose, EmptyDisposable, eventToPromise, filterEvent, find, getCommitShortHash, IDisposable, isDescendant, isLinuxSnap, isRemote, isWindows, Limiter, pathEquals, relativePath } from './util';
 import { IFileWatcher, watch } from './watch';
@@ -948,8 +946,8 @@ export class Repository implements Disposable {
 	}
 
 	/**
-	 * Creates the source control with its status bar commands, action button and progress, and the file watchers,
-	 * auto fetch and configuration listeners that keep the model current. For now, only the constructor calls it.
+	 * Creates the source control, which shows the model, and the file watchers, auto fetch and configuration listeners
+	 * that keep the model current. For now, only the constructor calls it.
 	 */
 	private attachSourceControl(): void {
 		const root = Uri.file(this.repository.root);
@@ -984,7 +982,7 @@ export class Repository implements Disposable {
 		this.sourceControlDisposables.push(new FileEventLogger(onRepositoryWorkingTreeFileChange, onRepositoryDotGitFileChange, this.logger));
 
 		// Created after the file watchers, as before, so that their watch requests are not queued behind the source control's
-		this._sourceControl = new GitSourceControl(this, this.repositoryResolver, this.logger);
+		this._sourceControl = new GitSourceControl(this, this.repositoryResolver, this.remoteSourcePublisherRegistry, this.commitCommandCenter, this.logger);
 		this.sourceControlDisposables.push(this._sourceControl);
 
 		workspace.onDidChangeConfiguration(e => {
@@ -1013,16 +1011,6 @@ export class Repository implements Disposable {
 			});
 			this.sourceControlDisposables.push(trustDisposable);
 		}
-
-		const statusBar = new StatusBarCommands(this, this.remoteSourcePublisherRegistry);
-		this.sourceControlDisposables.push(statusBar);
-		statusBar.onDidChange(() => this.sourceControl.sourceControl.statusBarCommands = statusBar.commands, null, this.sourceControlDisposables);
-		this.sourceControl.sourceControl.statusBarCommands = statusBar.commands;
-
-		const actionButton = new ActionButton(this, this.commitCommandCenter, this.logger);
-		this.sourceControlDisposables.push(actionButton);
-		actionButton.onDidChange(() => this.sourceControl.sourceControl.actionButton = actionButton.button, this, this.sourceControlDisposables);
-		this.sourceControl.sourceControl.actionButton = actionButton.button;
 
 	}
 
