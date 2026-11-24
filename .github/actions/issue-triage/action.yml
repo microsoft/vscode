@@ -10,6 +10,9 @@ inputs:
     required: true
 
 outputs:
+  issue_number:
+    description: "For `check-issue`, the validated issue number."
+    value: ${{ steps.run.outputs.issue_number }}
   proceed:
     description: "For `check-issue`, 'true' when the issue still needs triage."
     value: ${{ steps.run.outputs.proceed }}
