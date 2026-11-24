@@ -166,12 +166,12 @@ suite('Workbench layout chat part', () => {
 	function createLayout(configuration: ILayoutConfiguration, saved?: ISavedLayout) {
 		const views = new Map<Parts, Part>();
 		const visibility: string[] = [];
-		const view = (id: Parts, minimumWidth = 0, minimumHeight = 0) => {
+		const view = (id: Parts, minimumWidth = 0, minimumHeight = 0, maximumWidth = Number.POSITIVE_INFINITY) => {
 			const element = $(`.part.${id.split('.').pop()}`);
 			const part = new class extends mock<Part>() {
 				override readonly element = element;
 				override readonly minimumWidth = minimumWidth;
-				override readonly maximumWidth = Number.POSITIVE_INFINITY;
+				override readonly maximumWidth = maximumWidth;
 				override readonly minimumHeight = minimumHeight;
 				override readonly maximumHeight = Number.POSITIVE_INFINITY;
 				override get onDidChange() { return Event.None; }
@@ -190,7 +190,7 @@ suite('Workbench layout chat part', () => {
 		const parts = {
 			titleBarPartView: view(Parts.TITLEBAR_PART, 0, 30),
 			bannerPartView: view(Parts.BANNER_PART),
-			activityBarPartView: view(Parts.ACTIVITYBAR_PART, 48),
+			activityBarPartView: view(Parts.ACTIVITYBAR_PART, 48, 0, 48), // fixed, as the real activity bar
 			sideBarPartView: view(Parts.SIDEBAR_PART, 170),
 			editorPartView: view(Parts.EDITOR_PART, 220),
 			panelPartView: view(Parts.PANEL_PART, 300, 77),
@@ -905,6 +905,7 @@ suite('Workbench layout chat part', () => {
 	suite('parts layout state', () => {
 
 		const configuration: ILayoutConfiguration = { sideBar: Position.LEFT, panel: Position.BOTTOM, alignment: 'center' };
+		const chatConfiguration: ILayoutConfiguration = { ...configuration, chat: { visible: true, size: 400 } };
 
 		/** The grid that the layout shows now: applying a state replaces it. */
 		function currentGrid(layout: Layout): SerializableGrid<ISerializableView> {
@@ -915,8 +916,8 @@ suite('Workbench layout chat part', () => {
 			return shape((currentGrid(layout).serialize().root.data as ISerializedNode[])[2]);
 		}
 
-		function createStateLayout(saved?: ISavedLayout) {
-			const created = createGridLayout(configuration, saved);
+		function createStateLayout(saved?: ISavedLayout, layoutConfiguration = configuration) {
+			const created = createGridLayout(layoutConfiguration, saved);
 			store.add(toDisposable(() => currentGrid(created.layout).dispose()));
 			return created;
 		}
@@ -990,6 +991,83 @@ suite('Workbench layout chat part', () => {
 			layout.toggleMaximizedPanel();
 
 			assert.deepStrictEqual(layout.getPartsLayoutState(), { ...state, panel: { ...state.panel, maximized: false } });
+		});
+
+		test('an editor area hidden for the chat part is not a maximized panel, and stays hidden when an applied maximized secondary side bar is restored', () => {
+			const described = createStateLayout(undefined, chatConfiguration).layout;
+			described.setEditorHiddenByChat(true);
+			described.toggleMaximizedAuxiliaryBar();
+
+			const { layout } = createStateLayout(undefined, chatConfiguration);
+			layout.setEditorHiddenByChat(true);
+			layout.applyPartsLayoutState(described.getPartsLayoutState());
+			layout.toggleMaximizedAuxiliaryBar();
+
+			assert.deepStrictEqual({
+				describedPanelMaximized: described.getPartsLayoutState().panel.maximized,
+				restored: { hiddenByChat: layout.isEditorHiddenByChat(), editor: layout.isVisible(Parts.EDITOR_PART, mainWindow), chat: layout.isVisible(Parts.CHAT_PART) },
+			}, {
+				describedPanelMaximized: false,
+				restored: { hiddenByChat: true, editor: false, chat: true },
+			});
+		});
+
+		test('a maximized panel or secondary side bar that is applied hides the chat part, which keeps its width as states apply and shows again at it when it is restored', () => {
+			const apply = (maximize: 'panel' | 'auxiliaryBar') => {
+				const { layout, views, visibility } = createStateLayout(undefined, chatConfiguration);
+				const chat = () => ({ visible: layout.isVisible(Parts.CHAT_PART), width: currentGrid(layout).getViewSize(views.get(Parts.CHAT_PART)!).width });
+				const state = layout.getPartsLayoutState();
+				const maximizedState: IPartsLayoutState = maximize === 'panel'
+					? { ...state, panel: { ...state.panel, maximized: true } }
+					: { ...state, auxiliaryBar: { ...state.auxiliaryBar, maximized: true } };
+				layout.applyPartsLayoutState(maximizedState);
+				const maximized = { chatVisible: layout.isVisible(Parts.CHAT_PART), visibility: [...visibility] };
+				layout.applyPartsLayoutState(maximizedState);
+				layout.applyPartsLayoutState(state);
+				const appliedBack = chat();
+				layout.applyPartsLayoutState(maximizedState);
+				if (maximize === 'panel') {
+					layout.toggleMaximizedPanel();
+				} else {
+					layout.toggleMaximizedAuxiliaryBar();
+				}
+				return { maximized, appliedBack, restored: chat() };
+			};
+			// The parts are told that they hide as maximizing the secondary side bar tells them
+			const maximizing = createStateLayout(undefined, chatConfiguration);
+			maximizing.layout.toggleMaximizedAuxiliaryBar();
+
+			assert.deepStrictEqual({ panel: apply('panel'), auxiliaryBar: apply('auxiliaryBar') }, {
+				panel: { maximized: { chatVisible: false, visibility: ['editor hides', 'chat hides'] }, appliedBack: { visible: true, width: 400 }, restored: { visible: true, width: 400 } },
+				auxiliaryBar: { maximized: { chatVisible: false, visibility: maximizing.visibility }, appliedBack: { visible: true, width: 400 }, restored: { visible: true, width: 400 } },
+			});
+		});
+
+		test('what had the focus keeps it while its part shows, and the focus goes to the editor when its part hides', () => {
+			const { layout, views, focus } = createStateLayout(undefined, chatConfiguration);
+			mainWindow.document.body.appendChild(layout.mainContainer);
+			store.add(toDisposable(() => layout.mainContainer.remove()));
+			const chatButton = append(views.get(Parts.CHAT_PART)!.element, $('button'));
+			const sideBarButton = append(views.get(Parts.SIDEBAR_PART)!.element, $('button'));
+			const state = layout.getPartsLayoutState();
+
+			chatButton.focus();
+			layout.applyPartsLayoutState(state);
+			const chatButtonKeptFocus = mainWindow.document.activeElement === chatButton;
+
+			sideBarButton.focus();
+			layout.applyPartsLayoutState({ ...state, sideBar: { ...state.sideBar, visible: false } });
+
+			assert.deepStrictEqual({ chatButtonKeptFocus, focused: focus.focused }, { chatButtonKeptFocus: true, focused: ['editor'] });
+		});
+
+		test('a banner that shows keeps showing', () => {
+			const { layout, views } = createStateLayout();
+			layout.setPartHidden(false, Parts.BANNER_PART);
+
+			layout.applyPartsLayoutState(layout.getPartsLayoutState());
+
+			assert.strictEqual(currentGrid(layout).isViewVisible(views.get(Parts.BANNER_PART)!), true);
 		});
 	});
 });
