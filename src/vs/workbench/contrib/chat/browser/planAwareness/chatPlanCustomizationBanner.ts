@@ -10,10 +10,12 @@ import { ActionBar } from '../../../../../base/browser/ui/actionbar/actionbar.js
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { Action } from '../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableMap, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { ResourceSet } from '../../../../../base/common/map.js';
 import { autorun } from '../../../../../base/common/observable.js';
 import { language } from '../../../../../base/common/platform.js';
-import { basename } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, isCodeEditor, IViewZone } from '../../../../../editor/browser/editorBrowser.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
@@ -33,6 +35,8 @@ import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { ChatModeKind } from '../../common/constants.js';
 import { CUSTOMIZATION_HINT_SETTING_ID, CustomizationFileKind, CustomizationHintTreatment, getCustomizationFileKind, getCustomizationHintPresentation, getPlanCreditsAmount, getPlanCreditsPhrase, getPlanFactText, ICustomizationHintPresentation, IPlanFact, PlanNudgeId, PlanNudgeSurface, shouldShowCustomizationHint } from '../../common/planAwareness/chatPlanAwareness.js';
 import { PromptsConfig } from '../../common/promptSyntax/config/config.js';
+import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
+import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
 import { IChatPlanAwarenessService, PlanNudgeAction } from './chatPlanAwarenessService.js';
 
@@ -178,6 +182,16 @@ class CustomizationBannerWidget extends Disposable implements IOverlayWidget {
  * credits they have, until they close it. Experiments can tune the copy and how
  * long a user has to be inactive. The empty Chat view tells more once they open it.
  */
+/** Settings that turn kinds of customization files on or off for Copilot. */
+const DISCOVERY_SETTINGS = [
+	PromptsConfig.USE_AGENT_MD,
+	PromptsConfig.USE_NESTED_AGENT_MD,
+	PromptsConfig.USE_CLAUDE_MD,
+	PromptsConfig.USE_COPILOT_INSTRUCTION_FILES,
+	PromptsConfig.USE_AGENT_SKILLS,
+	PromptsConfig.USE_CUSTOMIZATIONS_IN_PARENT_REPOS,
+];
+
 export class ChatPlanCustomizationBanner extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.chatPlanCustomizationBanner';
@@ -191,6 +205,9 @@ export class ChatPlanCustomizationBanner extends Disposable implements IWorkbenc
 	private shownInSession = false;
 	/** The user closed a banner, so banners stay away for this window, also in developer mode, which ignores that they were closed. */
 	private hiddenInSession = false;
+	/** The customization files that Copilot picks up, found once one of them opens. */
+	private discoveredFiles = new ResourceSet();
+	private discoveryRequest = 0;
 
 	constructor(
 		@IChatPlanAwarenessService private readonly planAwarenessService: IChatPlanAwarenessService,
@@ -201,17 +218,32 @@ export class ChatPlanCustomizationBanner extends Disposable implements IWorkbenc
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IPromptsService private readonly promptsService: IPromptsService,
 	) {
 		super();
 
 		this.visibleContext = customizationBannerVisible.bindTo(contextKeyService);
+
+		// What Copilot picks up changes with the customization files and the settings that turn kinds of them on or off
+		this._register(Event.any(
+			promptsService.onDidChangeSkills,
+			promptsService.onDidChangeCustomAgents,
+			promptsService.onDidChangeSlashCommands,
+			promptsService.onDidChangeInstructions,
+			promptsService.onDidChangeAgentInstructions,
+			Event.filter(configurationService.onDidChangeConfiguration, e => DISCOVERY_SETTINGS.some(setting => e.affectsConfiguration(setting))),
+		)(() => {
+			if (this.discoveryRequest > 0) {
+				this.discoverCustomizationFiles();
+			}
+		}));
 
 		this.updateTreatments();
 		this._register(assignmentService.onDidRefetchAssignments(() => this.updateTreatments()));
 		this._register(configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('experiments.override')) {
 				this.updateTreatments();
-			} else if (e.affectsConfiguration(CUSTOMIZATION_HINT_SETTING_ID) || e.affectsConfiguration(PromptsConfig.USE_CLAUDE_MD) || e.affectsConfiguration(PromptsConfig.USE_AGENT_MD) || e.affectsConfiguration(PromptsConfig.USE_AGENT_SKILLS)) {
+			} else if (e.affectsConfiguration(CUSTOMIZATION_HINT_SETTING_ID)) {
 				this.update();
 			}
 		}));
@@ -222,6 +254,8 @@ export class ChatPlanCustomizationBanner extends Disposable implements IWorkbenc
 			planAwarenessService.plan.read(reader);
 			planAwarenessService.recentChatRequests.read(reader);
 			planAwarenessService.developerMode.read(reader);
+			// Closing the line in another window removes it here too
+			planAwarenessService.isDismissed(PlanNudgeId.CustomizationFile, reader);
 			this.update();
 		}));
 	}
@@ -279,24 +313,52 @@ export class ChatPlanCustomizationBanner extends Disposable implements IWorkbenc
 		this.visibleContext.set(isCodeEditor(active) && this.banners.has(active));
 	}
 
-	private isReadByCopilot(kind: CustomizationFileKind, model: ITextModel): boolean {
-		const name = basename(model.uri);
-		if (name.startsWith('CLAUDE')) {
-			return !!this.configurationService.getValue<boolean>(PromptsConfig.USE_CLAUDE_MD);
+	/**
+	 * Finds the customization files that Copilot picks up, as it discovers them for
+	 * chat, and shows the line in those that are open.
+	 */
+	private async discoverCustomizationFiles(): Promise<void> {
+		const request = ++this.discoveryRequest;
+		const files = new ResourceSet();
+		try {
+			const token = CancellationToken.None;
+			const [discovered, agentInstructions, nestedAgentInstructions] = await Promise.all([
+				Promise.all([PromptsType.instructions, PromptsType.skill, PromptsType.agent, PromptsType.prompt].map(type => this.promptsService.getDiscoveryInfo(type, token))),
+				this.promptsService.listAgentInstructions(token),
+				this.promptsService.listNestedAgentMDs(token),
+			]);
+			for (const file of discovered.flatMap(info => info.files)) {
+				if (file.status === 'loaded') {
+					files.add(file.promptPath.uri);
+				}
+			}
+			for (const file of [...agentInstructions, ...nestedAgentInstructions]) {
+				files.add(file.uri);
+				if (file.realPath) {
+					files.add(file.realPath);
+				}
+			}
+		} catch {
+			// Without knowing what Copilot picks up, no file shows the line
 		}
-		if (name === 'AGENTS.md') {
-			return !!this.configurationService.getValue<boolean>(PromptsConfig.USE_AGENT_MD);
+		if (request === this.discoveryRequest && !this._store.isDisposed) {
+			this.discoveredFiles = files;
+			this.update();
 		}
-		if (kind === 'skill') {
-			return !!this.configurationService.getValue<boolean>(PromptsConfig.USE_AGENT_SKILLS);
-		}
-		return true;
 	}
 
 	private getPresentation(model: ITextModel): ICustomizationHintPresentation | undefined {
 		const kind = getCustomizationFileKind(model.uri);
 		const plan = this.planAwarenessService.plan.get();
-		if (!kind || !plan || this.hiddenInSession || !this.isReadByCopilot(kind, model)) {
+		if (!kind || !plan || this.hiddenInSession) {
+			return undefined;
+		}
+		// Only for a file that Copilot picks up. It is looked up in every experiment arm, as it decides whether the
+		// experiment trigger is logged.
+		if (this.discoveryRequest === 0) {
+			this.discoverCustomizationFiles();
+		}
+		if (!this.discoveredFiles.has(model.uri)) {
 			return undefined;
 		}
 

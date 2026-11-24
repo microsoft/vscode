@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { Schemas } from '../../../../../base/common/network.js';
 import { escapeMarkdownSyntaxTokens, MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableMap, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, derived, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
@@ -47,7 +48,7 @@ export class ChatPlanAwarenessTriggers extends Disposable implements IWorkbenchC
 		@IChatPlanAwarenessService private readonly planAwarenessService: IChatPlanAwarenessService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ITerminalService terminalService: ITerminalService,
-		@ISCMService scmService: ISCMService,
+		@ISCMService private readonly scmService: ISCMService,
 		@ISCMViewService private readonly scmViewService: ISCMViewService,
 		@IProductService productService: IProductService,
 	) {
@@ -113,10 +114,12 @@ export class ChatPlanAwarenessTriggers extends Disposable implements IWorkbenchC
 			changesChanged.read(reader);
 			const notice = reviewNotice.read(reader);
 			const hasChanges = repository.provider.groups.some(group => group.resources.length > 0);
-			// Once shown in this window, it stays until the user acts on it, even when it used up the last of the suggestions.
-			// Until then, it follows the limits: another suggestion may use up the last one before the user opens the view.
+			// Once shown in this window, it stays until the user acts on it, here or in another window, even when it used up the
+			// last of the suggestions. Until then, it follows the limits: another suggestion may use up the last one before the
+			// user opens the view.
 			const show = !!notice && hasChanges && !this.reviewNoticeHidden.read(reader) && (this.reviewNoticeShown
-				? this.planAwarenessService.developerMode.read(reader).has(PlanNudgeId.ReviewChanges) || !!this.planAwarenessService.summary.read(reader)
+				? this.planAwarenessService.developerMode.read(reader).has(PlanNudgeId.ReviewChanges)
+				|| (!!this.planAwarenessService.summary.read(reader) && !this.planAwarenessService.isDismissed(PlanNudgeId.ReviewChanges, reader))
 				: this.planAwarenessService.canShow(PlanNudgeId.ReviewChanges, PlanNudgeSurface.Hint, reader));
 			const next = show ? notice : undefined;
 			if (next !== shownNotice) {
@@ -159,12 +162,24 @@ export class ChatPlanAwarenessTriggers extends Disposable implements IWorkbenchC
 		this.planAwarenessService.dismiss(PlanNudgeId.ReviewChanges, PlanNudgeSurface.Hint, PlanNudgeAction.Primary);
 		this.reviewNoticeHidden.set(true, undefined);
 		const staged = repository.provider.groups.some(group => group.id === STAGED_CHANGES_GROUP_ID && group.resources.length > 0);
+		// With several repositories, the request names and attaches the one to review, as it is sent right away
+		const root = this.scmService.repositoryCount > 1 ? repository.provider.rootUri : undefined;
+		const rootPath = root && (root.scheme === Schemas.file ? root.fsPath : root.path);
+		let query: string;
+		if (rootPath) {
+			query = staged
+				? localize('planAwareness.review.stagedInRepository', "Review my staged changes in the repository at {0} for bugs, security issues and missing tests. If everything looks good, commit them in that repository with a concise message that describes the change. Otherwise, list the issues you found without committing.", rootPath)
+				: localize('planAwareness.review.uncommittedInRepository', "Review my uncommitted changes in the repository at {0} for bugs, security issues and missing tests. If everything looks good, commit them in that repository with a concise message that describes the change. Otherwise, list the issues you found without committing.", rootPath);
+		} else {
+			query = staged
+				? localize('planAwareness.review.staged', "Review my staged changes for bugs, security issues and missing tests. If everything looks good, commit them with a concise message that describes the change. Otherwise, list the issues you found without committing.")
+				: localize('planAwareness.review.uncommitted', "Review my uncommitted changes for bugs, security issues and missing tests. If everything looks good, commit them with a concise message that describes the change. Otherwise, list the issues you found without committing.");
+		}
 		return this.planAwarenessService.openChat({
 			mode: ChatModeKind.Agent,
-			query: staged
-				? localize('planAwareness.review.staged', "Review my staged changes for bugs, security issues and missing tests. If everything looks good, commit them with a concise message that describes the change. Otherwise, list the issues you found without committing.")
-				: localize('planAwareness.review.uncommitted', "Review my uncommitted changes for bugs, security issues and missing tests. If everything looks good, commit them with a concise message that describes the change. Otherwise, list the issues you found without committing."),
+			query,
 			isPartialQuery: false,
+			attachFiles: root ? [root] : undefined,
 		});
 	}
 }

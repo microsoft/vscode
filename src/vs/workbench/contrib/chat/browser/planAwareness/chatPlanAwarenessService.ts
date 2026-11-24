@@ -12,8 +12,6 @@ import { autorun, derived, IObservable, IReader, ISettableObservable, ITransacti
 import { language } from '../../../../../base/common/platform.js';
 import { localize } from '../../../../../nls.js';
 import { IAgentHostEnablementService } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
-import { CLAUDE_AGENT_PROVIDER_ID, CODEX_AGENT_PROVIDER_ID } from '../../../../../platform/agentHost/common/agent.js';
-import { affectsAgentHostProviderPreference, shouldSurfaceLocalAgentHostProvider } from '../../../../../platform/agentHost/common/agentService.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -27,13 +25,17 @@ import { ViewContainerLocation, IViewDescriptorService } from '../../../../commo
 import { ChatEntitlement, getChatPlanName, IChatEntitlementService, isProUser } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
-import { IChatDetail, IChatService } from '../../common/chatService/chatService.js';
-import { IChatViewSessionsListService } from '../../common/chatViewSessionsListService.js';
+import { convertLegacyChatSessionTiming, IChatDetail, IChatService } from '../../common/chatService/chatService.js';
 import { ChatModeKind } from '../../common/constants.js';
 import { COPILOT_VENDOR_ID, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../common/languageModels.js';
 import { addRecentChatRequests, canShowPlanNudge, DEFAULT_PLAN_NUDGE_LIMITS, findModelOfFamily, getFlagshipModels, getModelFamilies, getPlanCredits, getPlanFacts, getSeenPlanNudges, IPlanFact, IPlanNudgeState, IPlanSummary, isPlanNudgeBudgetUsed, parsePlanNudgeDeveloperMode, parsePlanNudgeState, parseRecentChatRequests, PLAN_SUGGESTIONS_SETTING_ID, PlanNudgeId, PlanNudgeSurface, recordPlanNudgeDismissed, recordPlanNudgeShown, shouldShowPlanSuggestions } from '../../common/planAwareness/chatPlanAwareness.js';
 import { ACTION_ID_NEW_CHAT, CHAT_OPEN_ACTION_ID, IChatViewOpenOptions } from '../actions/chatActions.js';
-import { AgentSessionProviders } from '../agentSessions/agentSessions.js';
+import { AgentSessionProviders, AgentSessionTarget } from '../agentSessions/agentSessions.js';
+import { SessionTypeAvailability } from '../agentSessions/sessionTypeAvailability.js';
+import { IManagedSettingsService } from '../../../../../platform/policy/common/copilotManagedSettings.js';
+import { IAgentSdkSetupService } from '../../../../services/agentHost/browser/agentSdkSetupService.js';
+import { IChatSessionsService } from '../../common/chatSessionsService.js';
+import { getConfiguredSessionTypePickerAvailability } from '../widget/input/sessionTargetPickerActionItem.js';
 import { IAgentSessionsService } from '../agentSessions/agentSessionsService.js';
 import { ChatViewId, IChatWidget, IChatWidgetService } from '../chat.js';
 import { requiresNewerVSCode } from '../widget/input/modelPicker/modelPickerItemPrimitives.js';
@@ -161,6 +163,11 @@ export interface IChatPlanAwarenessService {
 	 */
 	isWithinLimits(id: PlanNudgeId, surface: PlanNudgeSurface): boolean;
 	/**
+	 * Whether the user stopped a suggestion for good, in any window.
+	 * @param reader Re-evaluates when the user stops it, also in another window.
+	 */
+	isDismissed(id: PlanNudgeId, reader?: IReader): boolean;
+	/**
 	 * Remembers that the user saw a suggestion, unless developer mode showed it.
 	 */
 	markShown(id: PlanNudgeId, surface: PlanNudgeSurface): void;
@@ -286,7 +293,9 @@ export class ChatPlanAwarenessService extends Disposable implements IChatPlanAwa
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
 		@IAgentHostEnablementService agentHostEnablementService: IAgentHostEnablementService,
-		@IChatViewSessionsListService chatViewSessionsListService: IChatViewSessionsListService,
+		@IChatSessionsService chatSessionsService: IChatSessionsService,
+		@IAgentSdkSetupService agentSdkSetupService: IAgentSdkSetupService,
+		@IManagedSettingsService managedSettingsService: IManagedSettingsService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IStorageService private readonly storageService: IStorageService,
@@ -312,8 +321,7 @@ export class ChatPlanAwarenessService extends Disposable implements IChatPlanAwa
 		this._register(storageService.onDidChangeValue(StorageScope.APPLICATION, RECENT_CHAT_REQUESTS_STORAGE_KEY, this._store)(e => {
 			const stored = parseRecentChatRequests(storageService.get(RECENT_CHAT_REQUESTS_STORAGE_KEY, StorageScope.APPLICATION));
 			if (e.external && stored) {
-				const current = this._recentChatRequests.get() ?? [];
-				this._recentChatRequests.set(addRecentChatRequests(stored, ...current.filter(time => !stored.includes(time))), undefined);
+				this._recentChatRequests.set(addRecentChatRequests(stored, ...this._recentChatRequests.get() ?? []), undefined);
 			}
 		}));
 
@@ -323,7 +331,18 @@ export class ChatPlanAwarenessService extends Disposable implements IChatPlanAwa
 		const enabled = observableConfigValue<boolean>(PLAN_SUGGESTIONS_SETTING_ID, false, configurationService);
 		const developerModeValue = observableConfigValue<unknown>(ChatPlanAwarenessDeveloperModeSettingId, undefined, configurationService);
 		this.developerMode = derived(this, reader => parsePlanNudgeDeveloperMode(developerModeValue.read(reader)));
-		const harnessPreferenceChanged = observableSignalFromEvent(this, Event.filter(configurationService.onDidChangeConfiguration, e => affectsAgentHostProviderPreference(e, true)));
+		const harnessesChanged = observableSignalFromEvent(this, Event.any<unknown>(
+			chatSessionsService.onDidChangeAvailability,
+			chatSessionsService.onDidChangeItemsProviders,
+			agentSdkSetupService.onDidChangeSetups,
+			managedSettingsService.onDidChangeManagedSettings,
+		));
+		// Like the harness picker, which offers a registered harness once it can be picked
+		const offersHarness = (type: AgentSessionTarget) => {
+			const contribution = chatSessionsService.getChatSessionContribution(type);
+			return !!contribution && !contribution.hideFromSessionTypePicker
+				&& getConfiguredSessionTypePickerAvailability(type, configurationService, chatSessionsService, chatEntitlementService, languageModelsService, agentSdkSetupService, managedSettingsService) === SessionTypeAvailability.Available;
+		};
 		const chatEnabled = observableContextKey<boolean>(ChatContextKeys.enabled.key, contextKeyService);
 		const entitlementChanged = observableSignalFromEvent(this, chatEntitlementService.onDidChangeEntitlement);
 		const quotasChanged = observableSignalFromEvent(this, chatEntitlementService.onDidChangeQuotaRemaining);
@@ -351,12 +370,11 @@ export class ChatPlanAwarenessService extends Disposable implements IChatPlanAwa
 			// The harnesses that the harness picker offers
 			const harnesses: string[] = [];
 			if (agentHostEnablementService.enabled.read(reader)) {
-				harnessPreferenceChanged.read(reader);
-				const surfacesAllAgents = chatViewSessionsListService.surfacesAllLocalAgentHostAgents.read(reader);
-				if (shouldSurfaceLocalAgentHostProvider(CLAUDE_AGENT_PROVIDER_ID, configurationService, surfacesAllAgents)) {
+				harnessesChanged.read(reader);
+				if (offersHarness(AgentSessionProviders.AgentHostClaude)) {
 					harnesses.push('Claude');
 				}
-				if (shouldSurfaceLocalAgentHostProvider(CODEX_AGENT_PROVIDER_ID, configurationService, surfacesAllAgents)) {
+				if (offersHarness(AgentSessionProviders.AgentHostCodex)) {
 					harnesses.push('Codex');
 				}
 			}
@@ -407,19 +425,16 @@ export class ChatPlanAwarenessService extends Disposable implements IChatPlanAwa
 			});
 		}));
 
-		// Seed the recent chat requests from the chat history once for paid users, whether suggestions are on or off,
-		// so that targeting and the experiment triggers see the same activity in every experiment arm
-		let seeded = false;
+		// Seed the recent chat requests from the chat history once per machine for paid users, whether suggestions are
+		// on or off, so that targeting and the experiment triggers see the same activity in every experiment arm
+		const needsSeed = this._recentChatRequests.get() === undefined;
+		let seeding = false;
 		this._register(autorun(reader => {
-			if (seeded || !this.plan.read(reader) || this._recentChatRequests.read(reader) !== undefined) {
+			if (!needsSeed || seeding || !this.plan.read(reader)) {
 				return;
 			}
-			seeded = true;
-			chatService.getLocalSessionHistory().then(history => {
-				if (this._recentChatRequests.read(undefined) === undefined) {
-					this.setRecentChatRequests(this.getRecentChatRequestsFromHistory(history), undefined);
-				}
-			}, () => { /* nothing is targeted until the history is read in another window, or the user sends a request */ });
+			seeding = true;
+			this.seedRecentChatRequests(chatService);
 		}));
 
 		this._register(CommandsRegistry.registerCommand(CLOSE_PLAN_MOMENT_COMMAND_ID, () => this.closeMoment(false)));
@@ -442,22 +457,52 @@ export class ChatPlanAwarenessService extends Disposable implements IChatPlanAwa
 	}
 
 	/**
-	 * The most recent Copilot requests in the local chat history and in the agent
-	 * sessions, such as those of the agent host harnesses. They only tell when each
-	 * session was last used, so a session counts as one request.
+	 * Adds the most recent Copilot requests in the local chat history and in the
+	 * agent sessions, such as those of the agent host harnesses, once their providers
+	 * resolved. They only tell when each session was last used, so a session counts
+	 * as one request. Only requests from before the seed count: this window counts
+	 * those it sends since, and other windows store theirs.
 	 */
-	private getRecentChatRequestsFromHistory(history: readonly IChatDetail[]): number[] {
+	private async seedRecentChatRequests(chatService: IChatService): Promise<void> {
+		const seedStart = Date.now();
+		const model = this.agentSessionsService.model;
+		const [history] = await Promise.all([
+			chatService.getLocalSessionHistory().catch(() => [] satisfies IChatDetail[]),
+			model.resolve(undefined, undefined, 'automatic'),
+		]);
+		if (this._store.isDisposed) {
+			return;
+		}
+
 		const sessions = new ResourceMap<number>();
 		for (const item of history) {
-			sessions.set(item.sessionResource, item.lastMessageDate);
-		}
-		for (const session of this.agentSessionsService.model.sessions) {
-			const time = session.timing.lastRequestStarted;
-			if (time && COPILOT_SESSION_TYPES.has(session.providerType)) {
-				sessions.set(session.resource, Math.max(time, sessions.get(session.resource) ?? 0));
+			// A chat that is open may have no request yet, and dates its last message by when it was created
+			const time = item.isActive ? convertLegacyChatSessionTiming(item.timing).lastRequestStarted : item.lastMessageDate;
+			if (time && time < seedStart) {
+				sessions.set(item.sessionResource, time);
 			}
 		}
-		return addRecentChatRequests([], ...sessions.values());
+		const addAgentSessions = (): number[] => {
+			const added: number[] = [];
+			for (const session of model.sessions) {
+				const time = session.timing.lastRequestStarted;
+				if (time && time < seedStart && COPILOT_SESSION_TYPES.has(session.providerType) && (sessions.get(session.resource) ?? 0) < time) {
+					sessions.set(session.resource, time);
+					added.push(time);
+				}
+			}
+			return added;
+		};
+		addAgentSessions();
+		this.setRecentChatRequests(addRecentChatRequests(this._recentChatRequests.get() ?? [], ...sessions.values()), undefined);
+
+		// Providers that register later, such as those of extensions, add the sessions they find
+		this._register(model.onDidChangeSessions(() => {
+			const added = addAgentSessions();
+			if (added.length) {
+				this.setRecentChatRequests(addRecentChatRequests(this._recentChatRequests.get() ?? [], ...added), undefined);
+			}
+		}));
 	}
 
 	private setRecentChatRequests(recentChatRequests: readonly number[], tx: ITransaction | undefined): void {
@@ -483,6 +528,10 @@ export class ChatPlanAwarenessService extends Disposable implements IChatPlanAwa
 
 	isWithinLimits(id: PlanNudgeId, surface: PlanNudgeSurface): boolean {
 		return canShowPlanNudge(this._state.get(), id, surface, Date.now());
+	}
+
+	isDismissed(id: PlanNudgeId, reader?: IReader): boolean {
+		return this._state.read(reader).dismissed.includes(id);
 	}
 
 	markShown(id: PlanNudgeId, surface: PlanNudgeSurface): void {

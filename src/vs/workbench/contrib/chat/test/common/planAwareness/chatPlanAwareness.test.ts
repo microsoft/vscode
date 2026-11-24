@@ -300,7 +300,7 @@ suite('ChatPlanAwareness', () => {
 
 	test('detects the moments to suggest Copilot with the terminal agents that the product configures', () => {
 		const agents = parseTerminalAgents([
-			{ name: 'Test Agent', commands: ['test-agent', 'npx @test/agent'], promptArguments: ['-p', 'run'], modelFamily: 'claude', limitReachedOutput: ['limitreached', 'error:\\D{0,20}429'], limitApproachingOutput: ['\\d+%used'] },
+			{ name: 'Test Agent', commands: ['test-agent', 'npx @test/agent'], promptArguments: ['-p', '--print', 'run'], modelFamily: 'claude', limitReachedOutput: ['limitreached', 'error:\\D{0,20}429'], limitApproachingOutput: ['\\d+%used'] },
 			{ name: 'Other Agent', commands: ['other'], limitReachedOutput: ['outofcredits'] },
 			// Not valid: without commands, without a valid pattern, or without a name
 			{ name: 'No Commands', commands: [], limitReachedOutput: ['x'] },
@@ -315,6 +315,17 @@ suite('ChatPlanAwareness', () => {
 		assert.deepStrictEqual({
 			agents: agents.map(agent => ({ name: agent.name, modelFamily: agent.modelFamily })),
 			commandLines: ['test-agent', 'test-agent -p "add input validation"', 'test-agent run \'fix the build\'', 'test-agent "add a login page"', 'test-agent --resume', 'npx  @test/agent', 'test-agentic', 'other "go on"', 'git commit'].map(parse),
+			// Options before and after the prompt, which may take values
+			options: [
+				'test-agent -p "fix the build" --model opus',
+				'test-agent --model opus -p "fix the build"',
+				'test-agent --model opus -p fix',
+				'test-agent --print="fix the build" --model opus',
+				'test-agent run --model opus "fix the build"',
+				'test-agent --verbose "add a \\"login\\" page" | tee out.log',
+				'test-agent --model opus mcp',
+				'test-agent -p --model opus',
+			].map(command => parseAgentCommandLine(command, agents)?.prompt),
 			limits: ['Limit reached · resets 8pm', 'Error: request rejected (429)', '90% used', 'Limit\x20re\nached', 'Done in 3s'].map(output => getAgentLimitState(output, testAgent)),
 			otherLimits: ['Out of credits', '90% used'].map(output => getAgentLimitState(output, otherAgent)),
 			noAgents: parseTerminalAgents(undefined),
@@ -331,6 +342,7 @@ suite('ChatPlanAwareness', () => {
 				{ agent: 'Other Agent', prompt: 'go on' },
 				undefined,
 			],
+			options: ['fix the build', 'fix the build', 'fix', 'fix the build', 'fix the build', 'add a "login" page', undefined, undefined],
 			limits: ['reached', 'reached', 'approaching', 'reached', undefined],
 			otherLimits: ['reached', undefined],
 			noAgents: [],

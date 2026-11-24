@@ -6,7 +6,6 @@
 import { escapeMarkdownSyntaxTokens } from '../../../../../base/common/htmlContent.js';
 import { IChatPlanAwarenessTerminalAgent } from '../../../../../base/common/product.js';
 import { basename } from '../../../../../base/common/resources.js';
-import { escapeRegExpCharacters } from '../../../../../base/common/strings.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
@@ -609,10 +608,10 @@ export function parsePlanNudgeState(raw: string | undefined): IPlanNudgeState {
  */
 export interface ITerminalAgent {
 	readonly name: string;
-	/** Matches a command line that starts the agent, with its arguments in the `args` group. */
-	readonly commandLine: RegExp;
-	/** Matches the arguments of a command line that gives the agent a prompt, in the `prompt` group. */
-	readonly prompt: RegExp;
+	/** The commands that start the agent, each split into its words, for example `npx` and the package. */
+	readonly commands: readonly (readonly string[])[];
+	/** The options or subcommands that are followed by a prompt, such as `-p` or `exec`. */
+	readonly promptArguments: readonly string[];
 	/** The well-known family of the Copilot model to continue with. */
 	readonly modelFamily: string | undefined;
 	readonly limitReached: readonly RegExp[];
@@ -637,11 +636,6 @@ function toStrings(value: unknown): string[] {
 	return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string' && !!item.trim()).map(item => item.trim()) : [];
 }
 
-/** Matches the words of a command, with any whitespace between them. */
-function commandPattern(command: string): string {
-	return command.split(/\s+/).map(escapeRegExpCharacters).join('\\s+');
-}
-
 /**
  * The terminal agents that the product configures, skipping entries that are
  * not valid, for example without a name, commands or usage limit patterns.
@@ -657,13 +651,10 @@ export function parseTerminalAgents(configuration: readonly IChatPlanAwarenessTe
 		if (!commands.length || !limitReached.length) {
 			continue;
 		}
-		const promptArguments = toStrings(entry.promptArguments);
-		// A prompt after one of its prompt arguments, or a quoted first argument that starts an interactive session with a prompt
-		const afterArgument = promptArguments.length ? `(?:${promptArguments.map(commandPattern).join('|')})\\s+(?<quote>["']?)(?<prompt>.+?)\\k<quote>|` : '';
 		agents.push({
 			name: entry.name.trim(),
-			commandLine: new RegExp(`^\\s*(?:${commands.map(commandPattern).join('|')})(?:\\s+(?<args>.*))?$`),
-			prompt: new RegExp(`^(?:${afterArgument}(?<initialQuote>["'])(?<initialPrompt>.+?)\\k<initialQuote>)\\s*$`),
+			commands: commands.map(command => command.split(/\s+/)),
+			promptArguments: toStrings(entry.promptArguments),
 			modelFamily: typeof entry.modelFamily === 'string' ? getModelFamilyName(entry.modelFamily) : undefined,
 			limitReached,
 			limitApproaching: compilePatterns(entry.limitApproachingOutput),
@@ -672,17 +663,102 @@ export function parseTerminalAgents(configuration: readonly IChatPlanAwarenessTe
 	return agents;
 }
 
+interface ICommandLineWord {
+	readonly value: string;
+	/** Whether any part of the word was quoted, as prompts with several words are. */
+	readonly quoted: boolean;
+	/** Whether the word is an option such as `-p` or `--model=opus`: it starts with an unquoted `-`. */
+	readonly option: boolean;
+}
+
+/**
+ * Splits the first command of a shell command line into its words, removing
+ * quotes and escapes. It ends at an operator that starts another command or
+ * redirects, such as `|`, `;`, `&` or `>`, and at a comment.
+ */
+function splitCommandLine(commandLine: string): ICommandLineWord[] {
+	const words: ICommandLineWord[] = [];
+	let value = '';
+	let quoted = false;
+	let option = false;
+	let inWord = false;
+	const endWord = () => {
+		if (inWord) {
+			words.push({ value, quoted, option });
+		}
+		value = '';
+		quoted = option = inWord = false;
+	};
+	for (let i = 0; i < commandLine.length; i++) {
+		const char = commandLine[i];
+		if (/\s/.test(char)) {
+			endWord();
+		} else if (char === '\'') {
+			const end = commandLine.indexOf('\'', i + 1);
+			value += commandLine.slice(i + 1, end === -1 ? undefined : end);
+			quoted = inWord = true;
+			i = end === -1 ? commandLine.length : end;
+		} else if (char === '"') {
+			quoted = inWord = true;
+			for (i++; i < commandLine.length && commandLine[i] !== '"'; i++) {
+				if (commandLine[i] === '\\' && i + 1 < commandLine.length && '"\\$`'.includes(commandLine[i + 1])) {
+					i++;
+				}
+				value += commandLine[i];
+			}
+		} else if (char === '\\') {
+			value += commandLine[++i] ?? '';
+			inWord = true;
+		} else if ('|;&<>'.includes(char) || (char === '#' && !inWord)) {
+			break;
+		} else {
+			option ||= !inWord && char === '-';
+			value += char;
+			inWord = true;
+		}
+	}
+	endWord();
+	return words;
+}
+
+/**
+ * The prompt among the arguments of an agent. Options may come before or after
+ * it, and which options take a value is not known, so a prompt of several words
+ * is the quoted argument that is not an option, after a prompt argument when there
+ * is one. Otherwise, a prompt argument such as `-p` may be followed by an unquoted
+ * prompt of one word, or give it as `--print=…`. An unquoted argument without a
+ * prompt argument may be a subcommand, so it is not taken for a prompt.
+ */
+function findAgentPrompt(args: readonly ICommandLineWord[], promptArguments: readonly string[]): string | undefined {
+	let promptArgument = -1;
+	for (let i = 0; i < args.length && promptArgument === -1; i++) {
+		const word = args[i];
+		const inline = word.option ? promptArguments.find(argument => word.value.startsWith(`${argument}=`)) : undefined;
+		if (inline) {
+			return word.value.slice(inline.length + 1).trim() || undefined;
+		}
+		if (!word.quoted && promptArguments.includes(word.value)) {
+			promptArgument = i;
+		}
+	}
+	const quoted = args.find((word, index) => index > promptArgument && word.quoted && !word.option && word.value.trim());
+	if (quoted) {
+		return quoted.value.trim();
+	}
+	const next = promptArgument === -1 ? undefined : args[promptArgument + 1];
+	return next && !next.option && next.value.trim() ? next.value.trim() : undefined;
+}
+
 /**
  * Detects a terminal command line that starts one of the given agents, and the
  * prompt it gives the agent.
  */
 export function parseAgentCommandLine(commandLine: string, agents: readonly ITerminalAgent[]): { readonly agent: ITerminalAgent; readonly prompt: string | undefined } | undefined {
+	const words = splitCommandLine(commandLine);
 	for (const agent of agents) {
-		const match = agent.commandLine.exec(commandLine);
-		if (match) {
-			const groups = agent.prompt.exec(match.groups?.args?.trim() ?? '')?.groups;
-			const prompt = (groups?.prompt ?? groups?.initialPrompt)?.trim();
-			return { agent, prompt: prompt || undefined };
+		const command = agent.commands.find(command => command.length <= words.length && command.every((part, index) => !words[index].quoted && words[index].value === part));
+		if (command) {
+			return { agent, prompt: findAgentPrompt(words.slice(command.length), agent.promptArguments) };
 		}
 	}
 	return undefined;
@@ -776,9 +852,11 @@ export const MAX_RECENT_CHAT_REQUESTS = 4;
 
 /**
  * Adds Copilot requests to the times of the most recent requests, newest first.
+ * A time that is already known is the same request, for example one that another
+ * window stored too.
  */
 export function addRecentChatRequests(recentChatRequests: readonly number[], ...times: number[]): number[] {
-	return [...recentChatRequests, ...times].filter(time => time > 0).sort((a, b) => b - a).slice(0, MAX_RECENT_CHAT_REQUESTS);
+	return [...new Set([...recentChatRequests, ...times])].filter(time => time > 0).sort((a, b) => b - a).slice(0, MAX_RECENT_CHAT_REQUESTS);
 }
 
 /**
