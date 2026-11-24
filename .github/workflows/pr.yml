@@ -633,16 +633,41 @@ jobs:
         with:
           node-version-file: .nvmrc
 
+      # The YAML parser of the check, pinned here with its integrity rather than installed from the lockfiles that the
+      # pull request may change. The version is the one of the root package.json.
+      - name: Download js-yaml
+        env:
+          JS_YAML_VERSION: 4.3.2
+          JS_YAML_INTEGRITY: sha512-SFNOvSJ+Dgf/9An904Yx+CgSlIPCkIpao4qo51lpee25TIRejdH3rhR4EZMGoNx3/TP3O+wzWuiTFl4sqbltzA==
+        run: |
+          set -e
+          mkdir -p "$RUNNER_TEMP/js-yaml"
+          cd "$RUNNER_TEMP/js-yaml"
+          curl -fsSL --retry 3 -o js-yaml.tgz "https://registry.npmjs.org/js-yaml/-/js-yaml-$JS_YAML_VERSION.tgz"
+          integrity="sha512-$(openssl dgst -sha512 -binary js-yaml.tgz | base64 -w0)"
+          if [ "$integrity" != "$JS_YAML_INTEGRITY" ]; then
+            echo "::error::js-yaml-$JS_YAML_VERSION.tgz has the integrity $integrity, not $JS_YAML_INTEGRITY."
+            exit 1
+          fi
+          tar -xzf js-yaml.tgz
+          echo "DEPENDENCY_RELEASE_AGE_JS_YAML=$RUNNER_TEMP/js-yaml/package/dist/js-yaml.mjs" >> "$GITHUB_ENV"
+
       - name: Check the release age of the added dependencies
         env:
-          MERGE_GROUP_BASE: ${{ needs.changes.outputs.merge-group-base }}
-          # The merge group ahead in the queue, when Detect Changes could not find the commit that the group forks from.
-          MERGE_GROUP_PARENT: ${{ github.event.merge_group.base_sha }}
+          GH_TOKEN: ${{ github.token }}
+          MERGE_GROUP_BASE_REF: ${{ github.event.merge_group.base_ref }}
+          MERGE_GROUP_HEAD_SHA: ${{ github.event.merge_group.head_sha }}
         run: |
           set -e
           base=HEAD^1
           if [ "$GITHUB_EVENT_NAME" = merge_group ]; then
-            base=${MERGE_GROUP_BASE:-$MERGE_GROUP_PARENT}
+            # The commit of the base branch that the group forks from, like Detect Changes finds it. Never the merge group
+            # ahead in the queue, which would leave out the dependencies of the pull requests ahead of this one.
+            base=$(gh api "repos/$GITHUB_REPOSITORY/compare/${MERGE_GROUP_BASE_REF#refs/heads/}...$MERGE_GROUP_HEAD_SHA" --jq .merge_base_commit.sha) || base=
+            if [ -z "$base" ]; then
+              echo "::error::Could not find the commit of $MERGE_GROUP_BASE_REF that the merge group forks from."
+              exit 1
+            fi
             git cat-file -e "$base^{commit}" 2>/dev/null || git fetch --no-tags --depth=1 origin "$base"
           fi
           node build/lib/dependencyReleaseAge.ts --base "$base" --head HEAD

@@ -14,6 +14,7 @@
 
 import { execFileSync } from 'child_process';
 import path from 'path';
+import { pathToFileURL } from 'url';
 
 export type Ecosystem = 'npm' | 'crates';
 
@@ -66,11 +67,6 @@ function assertNoConflictMarkers(text: string): void {
 	}
 }
 
-function unquote(value: string): string {
-	const trimmed = value.trim();
-	return /^(['"]).*\1$/.test(trimmed) ? trimmed.slice(1, -1) : trimmed;
-}
-
 /** Splits `name@version` and `@scope/name@version`, without the peer dependency suffix of pnpm, `(peer@1.0.0)`. */
 export function splitPackageKey(key: string): { readonly name: string; readonly version: string } | undefined {
 	const at = key.indexOf('@', 1);
@@ -82,16 +78,37 @@ export function splitPackageKey(key: string): { readonly name: string; readonly 
 	return { name: key.slice(0, at), version: peers === -1 ? version : version.slice(0, peers) };
 }
 
-/** Parses the inline mapping of a pnpm lockfile `resolution`, such as `{integrity: sha512-..., tarball: https://...}`. */
-function parseFlowMapping(text: string): Record<string, string> {
-	const mapping: Record<string, string> = {};
-	for (const pair of text.split(/,\s*(?=[A-Za-z]+:\s)/)) {
-		const colon = pair.indexOf(':');
-		if (colon > 0) {
-			mapping[pair.slice(0, colon).trim()] = unquote(pair.slice(colon + 1));
+/** The fields of a pnpm lockfile `resolution`. Any other field fails the check, rather than being read as the registry. */
+const PNPM_RESOLUTION_FIELDS = new Set(['integrity', 'tarball', 'type', 'repo', 'commit', 'directory', 'path']);
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/**
+ * Parses YAML with js-yaml, reading every scalar as a string (the failsafe schema). The Dependency Release Age job of
+ * .github/workflows/pr.yml downloads a version that it pins with its integrity, and passes its path in
+ * DEPENDENCY_RELEASE_AGE_JS_YAML, so that a pull request cannot change the parser that checks it. Elsewhere, such as in
+ * the tests, it uses the js-yaml of the root package.json.
+ */
+interface IYaml {
+	load(text: string, options: { readonly schema: unknown }): unknown;
+	loadAll(text: string, iterator: undefined, options: { readonly schema: unknown }): unknown[];
+	readonly FAILSAFE_SCHEMA: unknown;
+}
+
+const yaml: IYaml = await import(process.env.DEPENDENCY_RELEASE_AGE_JS_YAML ? pathToFileURL(process.env.DEPENDENCY_RELEASE_AGE_JS_YAML).href : 'js-yaml') as IYaml;
+
+function readResolution(key: string, resolution: unknown): Record<string, string> {
+	if (!isRecord(resolution) || Object.keys(resolution).length === 0) {
+		throw new Error(`${key} has no resolution`);
+	}
+	for (const [field, value] of Object.entries(resolution)) {
+		if (!PNPM_RESOLUTION_FIELDS.has(field) || typeof value !== 'string') {
+			throw new Error(`cannot read the resolution of ${key}: ${JSON.stringify(resolution)}`);
 		}
 	}
-	return mapping;
+	return resolution as Record<string, string>;
 }
 
 function pnpmSource(version: string, resolution: Record<string, string>): PackageSource {
@@ -101,56 +118,46 @@ function pnpmSource(version: string, resolution: Record<string, string>): Packag
 	if (resolution.type === 'git' || resolution.repo !== undefined || resolution.commit !== undefined) {
 		return { kind: 'other', description: `git repository ${resolution.repo ?? version}${resolution.commit ? `#${resolution.commit}` : ''}` };
 	}
-	if (resolution.tarball !== undefined && !resolution.tarball.startsWith(NPM_REGISTRY)) {
-		return { kind: 'other', description: `tarball ${resolution.tarball}` };
+	if (resolution.type !== undefined || (resolution.tarball !== undefined && !resolution.tarball.startsWith(NPM_REGISTRY))) {
+		return { kind: 'other', description: resolution.tarball !== undefined ? `tarball ${resolution.tarball}` : `a resolution of type ${resolution.type}` };
+	}
+	if (resolution.integrity === undefined) {
+		throw new Error(`cannot read the source of ${version}`);
 	}
 	return { kind: 'registry' };
 }
 
 /**
  * Lists the packages of a pnpm lockfile: the `packages` of each of its YAML documents (pnpm writes the package manager
- * and its dependencies in a document of their own). pnpm writes each package as a two-space indented key, followed by
- * its `resolution` as an inline mapping.
+ * and its dependencies in a document of their own). Throws when the file isn't a pnpm lockfile, or a package has a
+ * resolution that the check cannot read, so that a lockfile the check cannot read fails it instead of passing as empty.
  */
 export function parsePnpmLockfile(text: string): ILockedPackage[] {
 	assertNoConflictMarkers(text);
+	const documents = yaml.loadAll(text, undefined, { schema: yaml.FAILSAFE_SCHEMA });
+	if (documents.length === 0) {
+		throw new Error('is empty');
+	}
 	const packages: ILockedPackage[] = [];
-	let section: string | undefined;
-	let current: { name: string; version: string; resolution: Record<string, string> } | undefined;
-	const flush = () => {
-		if (current) {
-			packages.push({ ecosystem: 'npm', name: current.name, version: current.version, source: pnpmSource(current.version, current.resolution) });
-			current = undefined;
+	for (const document of documents) {
+		if (!isRecord(document) || typeof document.lockfileVersion !== 'string') {
+			throw new Error('is not a pnpm lockfile: a document has no lockfileVersion');
 		}
-	};
-	for (const line of text.split(/\r?\n/)) {
-		if (line === '---' || /^\S/.test(line)) {
-			flush();
-			section = line === '---' ? undefined : /^([^\s:]+):/.exec(line)?.[1];
-			continue;
+		const entries = document.packages ?? {};
+		if (!isRecord(entries)) {
+			throw new Error('has packages that are not a mapping');
 		}
-		if (section !== 'packages') {
-			continue;
-		}
-		const entry = /^ {2}(\S.*?):(\s*\{\})?\s*$/.exec(line);
-		if (entry) {
-			flush();
-			const key = splitPackageKey(unquote(entry[1]));
-			if (!key) {
-				throw new Error(`cannot parse the package key ${entry[1]}`);
+		for (const [key, entry] of Object.entries(entries)) {
+			const nameAndVersion = splitPackageKey(key);
+			if (!nameAndVersion || !isRecord(entry)) {
+				throw new Error(`cannot read the package ${key}`);
 			}
-			current = { ...key, resolution: {} };
-			continue;
-		}
-		const resolution = /^ {4}resolution:\s*\{(.*)\}\s*$/.exec(line);
-		if (resolution && current) {
-			current.resolution = parseFlowMapping(resolution[1]);
+			const resolution = readResolution(key, entry.resolution);
+			packages.push({ ecosystem: 'npm', ...nameAndVersion, source: pnpmSource(nameAndVersion.version, resolution) });
 		}
 	}
-	flush();
 	return packages;
 }
-
 interface IPackageLockEntry {
 	readonly name?: string;
 	readonly version?: string;
@@ -177,8 +184,14 @@ export function parsePackageLockfile(text: string): ILockedPackage[] {
 	const lockfile = JSON.parse(text) as { readonly packages?: Record<string, IPackageLockEntry>; readonly dependencies?: Record<string, IPackageLockEntry> };
 	const packages: ILockedPackage[] = [];
 	const add = (name: string, entry: IPackageLockEntry) => {
-		if (entry.link || entry.inBundle || entry.bundled || !entry.version) {
+		if (typeof entry !== 'object' || entry === null || (entry.version !== undefined && typeof entry.version !== 'string') || (entry.resolved !== undefined && typeof entry.resolved !== 'string') || typeof name !== 'string') {
+			throw new Error(`cannot read the entry of ${name}`);
+		}
+		if (entry.link || entry.inBundle || entry.bundled) {
 			return;
+		}
+		if (!entry.version) {
+			throw new Error(`has no version of ${name}`);
 		}
 		if (entry.version.startsWith('file:')) {
 			packages.push({ ecosystem: 'npm', name, version: entry.version, source: { kind: 'local' } });
@@ -206,13 +219,30 @@ export function parsePackageLockfile(text: string): ILockedPackage[] {
 	return packages;
 }
 
-/** Lists the `[[package]]` entries of a Cargo lockfile. Packages without a `source` are crates of the workspace. */
+/** Reads a TOML string value, `"..."` or `'...'`, with an optional trailing comment. */
+function readTomlString(value: string): string | undefined {
+	const match = /^(?:"((?:[^"\\]|\\.)*)"|'([^']*)')\s*(?:#.*)?$/.exec(value.trim());
+	if (!match) {
+		return undefined;
+	}
+	return match[2] ?? match[1].replace(/\\(["\\])/g, '$1');
+}
+
+/**
+ * Lists the `[[package]]` entries of a Cargo lockfile. Packages without a `source` are crates of the workspace. Throws on a
+ * package whose name, version or source it cannot read, so that a lockfile the check cannot read fails it.
+ */
 export function parseCargoLockfile(text: string): ILockedPackage[] {
 	assertNoConflictMarkers(text);
 	const packages: ILockedPackage[] = [];
 	let current: Record<string, string> | undefined;
+	// Other tables, such as [metadata] or [[patch.unused]], don't list installed packages.
+	let inOtherTable = false;
 	const flush = () => {
-		if (current?.name && current.version) {
+		if (current) {
+			if (!current.name || !current.version) {
+				throw new Error(`has a [[package]] without a name or version${current.name ? ` (${current.name})` : ''}`);
+			}
 			const source = current.source;
 			packages.push({
 				ecosystem: 'crates',
@@ -225,23 +255,40 @@ export function parseCargoLockfile(text: string): ILockedPackage[] {
 		}
 		current = undefined;
 	};
-	for (const line of text.split(/\r?\n/)) {
-		if (line.startsWith('[')) {
+	const lines = text.split(/\r?\n/);
+	for (let index = 0; index < lines.length; index++) {
+		const line = lines[index];
+		const header = /^\s*\[/.test(line) ? line.replace(/#.*$/, '').trim() : undefined;
+		if (header !== undefined) {
 			flush();
-			if (line.trim() === '[[package]]') {
+			inOtherTable = header !== '[[package]]';
+			if (header === '[[package]]') {
 				current = {};
+			} else if (/^\[+\s*["']?package\b/.test(header)) {
+				throw new Error(`line ${index + 1}: unexpected package table: ${line}`);
 			}
 			continue;
 		}
-		const field = /^(name|version|source)\s*=\s*"(.*)"\s*$/.exec(line);
-		if (field && current) {
-			current[field[1]] = field[2];
+		const field = /^\s*["']?(name|version|source|package)["']?\s*=(.*)$/.exec(line);
+		if (!field || inOtherTable) {
+			continue;
 		}
+		if (!current) {
+			// The lockfile format version is the only one of these keys outside of a package.
+			if (field[1] === 'version' && /^\s*\d+\s*(#.*)?$/.test(field[2])) {
+				continue;
+			}
+			throw new Error(`line ${index + 1}: unexpected ${field[1]} outside of a [[package]]: ${line}`);
+		}
+		const value = field[1] === 'package' ? undefined : readTomlString(field[2]);
+		if (value === undefined || Object.hasOwn(current, field[1])) {
+			throw new Error(`line ${index + 1}: cannot read the ${field[1]} of a [[package]]: ${line}`);
+		}
+		current[field[1]] = value;
 	}
 	flush();
 	return packages;
 }
-
 export function parseLockfile(file: string, text: string): ILockedPackage[] {
 	switch (path.posix.basename(file)) {
 		case 'pnpm-lock.yaml': return parsePnpmLockfile(text);
@@ -251,28 +298,24 @@ export function parseLockfile(file: string, text: string): ILockedPackage[] {
 	}
 }
 
-/** Reads `minimumReleaseAge` and `minimumReleaseAgeExclude` from the top level of a pnpm-workspace.yaml. */
+/**
+ * Reads `minimumReleaseAge` and `minimumReleaseAgeExclude` from a pnpm-workspace.yaml. Throws when they are set to something
+ * else than a number of minutes and a list of strings, so that a policy the check cannot read fails it.
+ */
 export function parseReleaseAgePolicy(text: string, file: string): IReleaseAgePolicy {
-	let minimumReleaseAge: number | undefined;
-	const exclude: string[] = [];
-	let inExclude = false;
-	for (const line of text.split(/\r?\n/)) {
-		if (/^\S/.test(line)) {
-			inExclude = /^minimumReleaseAgeExclude:\s*$/.test(line);
-			const age = /^minimumReleaseAge:\s*(\d+)\s*(#.*)?$/.exec(line);
-			if (age) {
-				minimumReleaseAge = Number(age[1]);
-			}
-			continue;
-		}
-		const item = inExclude ? /^\s+-\s+(.+?)\s*$/.exec(line) : null;
-		if (item) {
-			exclude.push(unquote(item[1]));
-		}
+	const settings = yaml.load(text, { schema: yaml.FAILSAFE_SCHEMA }) ?? {};
+	if (!isRecord(settings)) {
+		throw new Error(`${file} is not a mapping`);
 	}
-	return { minimumReleaseAge, exclude, file };
+	const { minimumReleaseAge, minimumReleaseAgeExclude } = settings;
+	if (minimumReleaseAge !== undefined && (typeof minimumReleaseAge !== 'string' || !/^\d+$/.test(minimumReleaseAge))) {
+		throw new Error(`cannot read the minimumReleaseAge of ${file}: ${JSON.stringify(minimumReleaseAge)}`);
+	}
+	if (minimumReleaseAgeExclude !== undefined && (!Array.isArray(minimumReleaseAgeExclude) || !minimumReleaseAgeExclude.every(item => typeof item === 'string'))) {
+		throw new Error(`cannot read the minimumReleaseAgeExclude of ${file}: ${JSON.stringify(minimumReleaseAgeExclude)}`);
+	}
+	return { minimumReleaseAge: minimumReleaseAge === undefined ? undefined : Number(minimumReleaseAge), exclude: (minimumReleaseAgeExclude ?? []) as string[], file };
 }
-
 function globToRegExp(glob: string): RegExp {
 	return new RegExp(`^${glob.split('*').map(part => part.replace(/[.+?^${}()|[\]\\/]/g, '\\$&')).join('.*')}$`);
 }

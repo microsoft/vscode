@@ -155,8 +155,64 @@ suite('dependencyReleaseAge', () => {
 		assert.throws(() => parsePackageLockfile('{\n<<<<<<< HEAD\n}'), /merge conflict markers/);
 	});
 
+	test('reads every YAML form of a pnpm resolution, and fails on lockfiles and resolutions that it cannot read', () => {
+		const lockfile = (...lines: string[]) => [`lockfileVersion: '9.0'`, '', 'packages:', '', '  a@1.0.0:', ...lines, ''].join('\n');
+		const tarball = npm('a', '1.0.0', { kind: 'other', description: 'tarball https://example.com/a.tgz' });
+		assert.deepStrictEqual([
+			parsePnpmLockfile(lockfile('    resolution: {integrity: sha512-x==}')),
+			// A block-style resolution, and an inline one with a comment.
+			parsePnpmLockfile(lockfile('    resolution:', '      tarball: https://example.com/a.tgz')),
+			parsePnpmLockfile(lockfile('    resolution: {tarball: https://example.com/a.tgz} # comment')),
+			parsePnpmLockfile(`lockfileVersion: '9.0'\npackages: {}\n`),
+		], [[npm('a', '1.0.0')], [tarball], [tarball], []]);
+		for (const text of [
+			// A field that pnpm doesn't write, a nested value, and no resolution at all.
+			lockfile('    resolution: {integrity: sha512-x==, url: https://example.com/a.tgz}'),
+			lockfile('    resolution: {tarball: {url: https://example.com/a.tgz}}'),
+			lockfile('    engines: {node: \'>=18\'}'),
+			// Malformed YAML, packages that are not a mapping, and no lockfileVersion.
+			`lockfileVersion: '9.0'\npackages: [\n`,
+			`lockfileVersion: '9.0'\npackages: [a@1.0.0]\n`,
+			'packages:\n\n  a@1.0.0:\n    resolution: {integrity: sha512-x==}\n',
+		]) {
+			assert.throws(() => parsePnpmLockfile(text), Error, text);
+		}
+	});
+	test('reads the TOML string forms of Cargo lockfile fields, and fails on packages it cannot read', () => {
+		const cargoPackage = (...fields: string[]) => ['version = 4', '', '[[package]]', ...fields, ''].join('\n');
+		assert.deepStrictEqual([
+			...parseCargoLockfile(cargoPackage('name = "a"', 'version = "1.0.0"', 'source = "git+https://github.com/owner/a#0123abc" # comment')),
+			...parseCargoLockfile(cargoPackage(`name = 'b'`, `version = '1.0.0'`, `source = 'registry+https://github.com/rust-lang/crates.io-index'`)),
+		], [
+			{ ecosystem: 'crates', name: 'a', version: '1.0.0', source: { kind: 'other', description: 'git repository https://github.com/owner/a#0123abc' } },
+			{ ecosystem: 'crates', name: 'b', version: '1.0.0', source: { kind: 'registry' } },
+		]);
+		for (const text of [
+			cargoPackage('name = "serde"', 'version = "1.0.228'),
+			cargoPackage('name = "serde"'),
+			cargoPackage('name = "serde"', 'version = "1.0.228"', 'source = """git+https://github.com/owner/serde"""'),
+			cargoPackage('name = "serde"', 'version = "1.0.228"', 'source = "a"', 'source = "b"'),
+			'version = 4\n\npackage = [{ name = "serde", version = "1.0.228" }]\n',
+		]) {
+			assert.throws(() => parseCargoLockfile(text), Error, text);
+		}
+	});
+
 	test('reads the release-age policy of the pnpm-workspace.yaml files of the repository', () => {
-		assert.deepStrictEqual(parseReleaseAgePolicy('packages:\n  - a\nminimumReleaseAge: 10080\nminimumReleaseAgeExclude:\n  - \'@vscode/*\'\n  - electron\nnodeLinker: isolated\n', 'pnpm-workspace.yaml'), policy);
+		assert.deepStrictEqual(parseReleaseAgePolicy('packages:\n  - a\nminimumReleaseAge: 10080\nminimumReleaseAgeExclude:\n  - \'@vscode/*\'\n  # comment\n  - electron # comment\nnodeLinker: isolated\n', 'pnpm-workspace.yaml'), policy);
+		assert.deepStrictEqual(parseReleaseAgePolicy('minimumReleaseAge: 1440\nminimumReleaseAgeExclude: []\nminimumReleaseAgeStrict: true\n', 'a.yaml'), { minimumReleaseAge: 1440, exclude: [], file: 'a.yaml' });
+		// YAML reads a quoted key and a flow list the same.
+		assert.deepStrictEqual(parseReleaseAgePolicy('"minimumReleaseAge": 10080\nminimumReleaseAgeExclude: [electron, \'@vscode/*\']\n', 'pnpm-workspace.yaml'), { ...policy, exclude: ['electron', '@vscode/*'] });
+		// A policy that the check cannot read fails it, instead of reading as no policy.
+		for (const text of [
+			'minimumReleaseAge: 7d\n',
+			'minimumReleaseAge: [10080]\n',
+			'minimumReleaseAge: 10080\nminimumReleaseAgeExclude: electron\n',
+			'minimumReleaseAge: 10080\nminimumReleaseAgeExclude:\n  - {electron: true}\n',
+			'minimumReleaseAge: 10080\nminimumReleaseAgeExclude: [\n',
+		]) {
+			assert.throws(() => parseReleaseAgePolicy(text, 'pnpm-workspace.yaml'), Error, text);
+		}
 		// The policy that the check enforces must keep parsing as the files change.
 		for (const file of ['pnpm-workspace.yaml', 'build/pnpm-workspace.yaml', 'remote/pnpm-workspace.yaml']) {
 			const parsed = parseReleaseAgePolicy(fs.readFileSync(path.join(repositoryRoot, file), 'utf8'), file);
