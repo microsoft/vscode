@@ -1299,6 +1299,24 @@ export interface IFetchAuthorizationServerMetadataOptions {
 	 * Optional custom fetch implementation (defaults to global fetch)
 	 */
 	fetch?: IFetcher;
+	/**
+	 * Require the metadata issuer to match the requested authorization server.
+	 */
+	validateIssuer?: boolean;
+}
+
+/** Compares metadata issuers, including the tenant-independent Entra discovery aliases. */
+function isMatchingAuthorizationServerIssuer(expectedIssuer: URL, issuerValue: string): boolean {
+	const issuer = new URL(issuerValue);
+	// Entra discovery uses issuer aliases; access-token issuer validation belongs to the resource server.
+	if (expectedIssuer.origin === 'https://login.microsoftonline.com'
+		&& (/^\/(?:common|organizations|consumers)\/v2\.0\/?$/.test(expectedIssuer.pathname)
+			&& issuer.pathname === '/%7Btenantid%7D/v2.0'
+			|| /^\/consumers\/v2\.0\/?$/.test(expectedIssuer.pathname)
+			&& issuer.pathname === '/9188040d-6c67-4c5b-b112-36a304b66dad/v2.0')) {
+		issuer.pathname = expectedIssuer.pathname;
+	}
+	return issuer.toString() === expectedIssuer.toString() && !issuer.search && !issuer.hash && !issuer.username && !issuer.password;
 }
 
 /** Helper to try parsing the response as authorization server metadata */
@@ -1354,7 +1372,8 @@ export async function fetchAuthorizationServerMetadata(
 ): Promise<{ metadata: IAuthorizationServerMetadata; discoveryUrl: string; errors: Error[] }> {
 	const {
 		additionalHeaders = {},
-		fetch: fetchImpl = fetch
+		fetch: fetchImpl = fetch,
+		validateIssuer = false
 	} = options;
 
 	const authorizationServerUrl = new URL(authorizationServer);
@@ -1373,6 +1392,10 @@ export async function fetchAuthorizationServerMetadata(
 			});
 			const metadata = await tryParseAuthServerMetadata(rawResponse);
 			if (metadata) {
+				if (validateIssuer && !isMatchingAuthorizationServerIssuer(authorizationServerUrl, metadata.issuer)) {
+					errors.push(new Error('Authorization server metadata issuer does not match the requested authorization server (RFC 8414 section 3)'));
+					return undefined;
+				}
 				return metadata;
 			}
 			// No metadata found, collect error from response

@@ -54,6 +54,8 @@ export async function request(options: IRequestOptions, token: CancellationToken
 		const responseBodyMs = watch && responseHeadersMs !== undefined ? watch.elapsed() - responseHeadersMs : undefined;
 		trace('bodyReceived');
 		return {
+			...(res.url ? { url: res.url } : {}),
+			requestHasAuthorization: !res.redirected && Object.entries(options.headers ?? {}).some(([name, value]) => name.toLowerCase() === 'authorization' && !!value),
 			res: {
 				statusCode: res.status,
 				headers: getResponseHeaders(res),

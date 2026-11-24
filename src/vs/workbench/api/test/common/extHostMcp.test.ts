@@ -798,6 +798,24 @@ suite('ExtHostMcp', () => {
 	});
 
 	suite('createAuthMetadata', () => {
+		test('uses externally hosted issuer metadata discovered at the MCP origin without protected resource metadata', async () => {
+			const metadata = {
+				issuer: TEST_AUTH_SERVER,
+				authorization_endpoint: `${TEST_AUTH_SERVER}/custom-authorize`,
+				token_endpoint: `${TEST_AUTH_SERVER}/custom-token`,
+				registration_endpoint: `${TEST_AUTH_SERVER}/custom-register`,
+				response_types_supported: ['code'],
+			};
+			const fetch = sinon.stub().callsFake(async (url: string) => url === 'https://example.com/.well-known/oauth-authorization-server'
+				? createMockResponse({ body: JSON.stringify(metadata) })
+				: createMockResponse({ status: 404 }));
+			const result = await createAuthMetadata(TEST_MCP_URL, new Headers(), {
+				sameOriginHeaders: {},
+				fetch,
+				log: () => { },
+			});
+			assert.deepStrictEqual(result.serverMetadata, metadata);
+		});
 		let sandbox: sinon.SinonSandbox;
 		let logMessages: Array<{ level: LogLevel; message: string }>;
 		let mockLogger: (level: LogLevel, message: string) => void;

@@ -12,6 +12,7 @@ import { MsalLoggerOptions } from '../common/loggerOptions';
 import { ICachedPublicClientApplication } from '../common/publicClientCache';
 import { IAccountAccess } from '../common/accountAccess';
 import { MicrosoftAuthenticationTelemetryReporter } from '../common/telemetryReporter';
+import { isAccessTokenNearExpiry } from '../common/tokenExpiry';
 
 /** The native broker, when this environment has one and the user has not turned it off. */
 export function getNativeBrokerOptions(clientId: string, logger: LogOutputChannel): BrokerOptions | undefined {
@@ -127,10 +128,7 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 			);
 			if (fiveMinutesBefore < new Date()) {
 				this._logger.debug(`[acquireTokenSilent] [${this._clientId}] [${request.authority}] [${request.scopes.join(' ')}] [${request.account.username}] id token is expired or about to expire. Forcing refresh...`);
-				const newRequest = this.isBrokerAvailable
-					// HACK: Broker doesn't support forceRefresh so we need to pass in claims which will force a refresh
-					? { ...request, claims: request.claims ?? '{ "id_token": {}}' }
-					: { ...request, forceRefresh: true };
+				const newRequest = this.getForceRefreshRequest(request);
 				result = await this._sequencer.queue(() => this._pca.acquireTokenSilent(newRequest));
 				this._logger.debug(`[acquireTokenSilent] [${this._clientId}] [${request.authority}] [${request.scopes.join(' ')}] [${request.account.username}] got forced result`);
 			}
@@ -165,6 +163,24 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 			}
 		}
 
+		// MSAL renews cached access tokens inside its renewal window, but the native broker can still
+		// hand back a cached token that is about to expire. Refresh it here so a caller asking again
+		// near the advertised `expiresAfter` receives a fresh token without any extra request option.
+		if (result.fromCache && isAccessTokenNearExpiry(result.expiresOn)) {
+			this._logger.debug(`[acquireTokenSilent] [${this._clientId}] [${request.authority}] [${request.scopes.join(' ')}] [${request.account.username}] access token is expired or about to expire. Forcing refresh...`);
+			const newRequest = this.getForceRefreshRequest(request);
+			try {
+				result = await this._sequencer.queue(() => this._pca.acquireTokenSilent(newRequest));
+				this._logger.debug(`[acquireTokenSilent] [${this._clientId}] [${request.authority}] [${request.scopes.join(' ')}] [${request.account.username}] got forced result`);
+			} catch (error) {
+				// Keep serving a cached token that has not expired yet; the next request will try again.
+				if (!result.expiresOn || result.expiresOn.getTime() <= Date.now()) {
+					throw error;
+				}
+				this._logger.warn(`[acquireTokenSilent] [${this._clientId}] [${request.authority}] [${request.scopes.join(' ')}] [${request.account.username}] failed to refresh an access token that is about to expire; using the cached token: ${error}`);
+			}
+		}
+
 		if (!result.account) {
 			this._logger.error(`[acquireTokenSilent] [${this._clientId}] [${request.authority}] [${request.scopes.join(' ')}] [${request.account.username}] no account found in result`);
 		} else if (!result.fromCache && this._verifyIfUsingBroker(result)) {
@@ -172,6 +188,13 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 			this._onDidAccountsChangeEmitter.fire({ added: [], changed: [result.account], deleted: [] });
 		}
 		return result;
+	}
+
+	private getForceRefreshRequest(request: SilentFlowRequest): SilentFlowRequest {
+		// HACK: Broker doesn't support forceRefresh so we need to pass in claims which will force a refresh
+		return this.isBrokerAvailable
+			? { ...request, claims: request.claims ?? '{ "id_token": {}}' }
+			: { ...request, forceRefresh: true };
 	}
 
 	async acquireTokenInteractive(request: InteractiveRequest): Promise<AuthenticationResult> {
