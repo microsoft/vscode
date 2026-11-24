@@ -70,11 +70,15 @@ esac
   snapcraftLog=$(mktemp)
   trap 'rm -f "$snapcraftLog"' EXIT
 
+  # Snapcraft's snap puts craftctl in $SNAP/libexec/snapcraft and relies on snapd's
+  # environment block to add it to PATH.
+  SNAPCRAFT_PATH="${SNAP:-/snap/snapcraft/current}/libexec/snapcraft:$PATH"
+
   # Retry Store initialization 429s only while Snapcraft has not written part state
   # or created a partial output snap.
   # Three backoffs with jitter, then a final attempt (0 means no more retries).
   for delay in 30 60 120 0; do
-    if sudo --preserve-env snapcraft pack --destructive-mode "${SNAPCRAFT_TARGET_ARGS[@]}" --output "$SNAP_PATH" 2>&1 | tee "$snapcraftLog"; then
+    if sudo --preserve-env env "PATH=$SNAPCRAFT_PATH" snapcraft pack --destructive-mode "${SNAPCRAFT_TARGET_ARGS[@]}" --output "$SNAP_PATH" 2>&1 | tee "$snapcraftLog"; then
       break
     else
       exitCodes=("${PIPESTATUS[@]}")
