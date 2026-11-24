@@ -45,27 +45,15 @@ async function flush(): Promise<void> {
 }
 
 /**
- * A repository at `root`, ready once its first git status ran, see `Repository`.
+ * A repository at `root`, see `Repository`.
  */
 class TestRepository {
-	private readonly ready = new Deferred();
-	readonly closed = new Deferred();
-	isReady = false;
-
-	constructor(readonly root: string, public isWarm: boolean, isReady: boolean) {
-		if (isReady) {
-			this.setReady();
-		}
-	}
-
-	get whenFirstStatus() { return this.ready.promise; }
-	setReady() { this.isReady = true; this.ready.resolve(); }
+	constructor(readonly root: string, public isWarm: boolean) { }
 }
 
 /**
  * A workspace and the git model, which applies the changes that `WorkspaceFolderRepositories` decides as `Model` does.
- * Repositories open when `registerLocation` is called for their location and are ready when `ready` is called for
- * them, unless `autoOpen`.
+ * Repositories open when `registerLocation` is called for their location, unless `autoOpen`.
  */
 class TestWorkspace {
 
@@ -81,11 +69,11 @@ class TestWorkspace {
 	/** The switched locations until their repository is shown or kept warm, see `Model.locationSwitches`. */
 	private readonly locationSwitches = new Set<Promise<void>>();
 
-	constructor(folders: TestFolder[], private readonly autoOpen = true, private readonly firstStatusTimeout = 1e9) {
+	constructor(folders: TestFolder[], private readonly autoOpen = true) {
 		this.folders = folders;
 		for (const f of folders) {
 			const root = deepest(repositoriesOnDisk, f.uri.fsPath)!;
-			this.open.set(root, new TestRepository(root, false, true));
+			this.open.set(root, new TestRepository(root, false));
 		}
 	}
 
@@ -97,20 +85,16 @@ class TestWorkspace {
 		const opened = this.opens.get(fsPath);
 		if (opened) {
 			this.opens.delete(fsPath);
-			this.addHiddenRepository(fsPath);
+			this.addRepository(fsPath);
 			opened.resolve();
 		}
 	}
 
-	private addHiddenRepository(fsPath: string): void {
+	private addRepository(fsPath: string): void {
 		const root = deepest(repositoriesOnDisk, fsPath);
 		if (root && !this.open.has(root)) {
-			this.open.set(root, new TestRepository(root, true, this.autoOpen));
+			this.open.set(root, new TestRepository(root, false));
 		}
-	}
-
-	ready(root: string): void {
-		this.open.get(root)?.setReady();
 	}
 
 	/** The folder at `index` moves to `fsPath`: `Model.onDidChangeWorkspaceFolders` handles a switch, or runs the code of `main`. */
@@ -130,7 +114,7 @@ class TestWorkspace {
 			this.close(left);
 		}
 		if (toOpen && !this.open.has(toOpen)) {
-			this.open.set(toOpen, new TestRepository(toOpen, false, true));
+			this.open.set(toOpen, new TestRepository(toOpen, false));
 		}
 	}
 
@@ -152,8 +136,8 @@ class TestWorkspace {
 
 	/** `Model.applyRepositoryChanges` */
 	private apply(changes: IRepositoryChanges<TestRepository>): void {
-		changes.warm.forEach(r => r.isWarm = true);
 		changes.show.forEach(r => r.isWarm = false);
+		changes.warm.forEach(r => r.isWarm = true);
 		changes.close.forEach(r => this.close(r));
 		for (const opening of changes.open) {
 			const switching = this.openSwitchedLocation(opening);
@@ -164,24 +148,30 @@ class TestWorkspace {
 
 	/** `Model.openSwitchedLocation` */
 	private async openSwitchedLocation(opening: ILocationOpening): Promise<void> {
-		await this.locationOpens.track(this.openRepository(opening.location));
-
-		const repository = this.getRepository(opening.location);
-		if (repository?.isWarm && !this.model.setOpenedRepository(opening, repository)) {
-			await Promise.race([repository.whenFirstStatus, repository.closed.promise, new Promise(c => setTimeout(c, this.firstStatusTimeout))]);
+		const repository = await this.locationOpens.track(this.openRepository(opening.location));
+		if (repository) {
+			this.model.setOpenedRepository(opening, repository);
 		}
 
 		this.apply(this.model.completeOpening(opening, this.folders, this.repositories));
 	}
 
-	private openRepository(fsPath: string): Promise<void> {
+	/** `Model.openRepository`, which opens a repository attached, and attaches the warm one that it finds */
+	private async openRepository(fsPath: string): Promise<TestRepository | undefined> {
 		if (this.autoOpen) {
-			this.addHiddenRepository(fsPath);
-			return Promise.resolve();
+			this.addRepository(fsPath);
+		} else {
+			const deferred = this.opens.get(fsPath) ?? new Deferred();
+			this.opens.set(fsPath, deferred);
+			await deferred.promise;
 		}
-		const deferred = this.opens.get(fsPath) ?? new Deferred();
-		this.opens.set(fsPath, deferred);
-		return deferred.promise;
+
+		const repository = this.getRepository(fsPath);
+		if (repository?.isWarm) {
+			this.model.delete(repository);
+			repository.isWarm = false;
+		}
+		return repository;
 	}
 
 	private close(repository: TestRepository) {
@@ -193,7 +183,6 @@ class TestWorkspace {
 		}
 		this.open.delete(repository.root);
 		this.model.delete(repository);
-		repository.closed.resolve();
 	}
 }
 
@@ -220,13 +209,12 @@ suite('WorkspaceFolderRepositories', () => {
 		const summary = (changes: IRepositoryChanges<{ root: string }>) => ({ show: changes.show.map(r => r.root), warm: changes.warm.map(r => r.root), close: changes.close.map(r => r.root), open: changes.open.map(o => o.location) });
 
 		const toWt1 = model.switchFolderLocations([{ from: at(primary), to: folder(wt1) }], [folder(wt1)], [primaryRepository]);
-		const ready = model.setOpenedRepository(toWt1.open[0], wt1Repository);
+		model.setOpenedRepository(toWt1.open[0], wt1Repository);
 		const opened = model.completeOpening(toWt1.open[0], [folder(wt1)], [primaryRepository, wt1Repository]);
 		const back = model.switchFolderLocations([{ from: at(wt1), to: folder(primary) }], [folder(primary)], [primaryRepository, wt1Repository]);
 
-		assert.deepStrictEqual({ toWt1: summary(toWt1), ready, opened: summary(opened), back: summary(back) }, {
+		assert.deepStrictEqual({ toWt1: summary(toWt1), opened: summary(opened), back: summary(back) }, {
 			toWt1: { show: [], warm: [primary], close: [], open: [wt1] },
-			ready: false,
 			opened: { show: [wt1], warm: [], close: [], open: [] },
 			back: { show: [primary], warm: [wt1], close: [], open: [] }
 		});
@@ -288,24 +276,23 @@ suite('WorkspaceFolderRepositories', () => {
 		assert.deepStrictEqual({ warm: away.warm.map(r => r.root), shown: opened.show.map(r => r.root) }, { warm: [primary], shown: [wt1] });
 	});
 
-	test('a switch to a cold location hides the location that is left at once and shows the new one once ready', async () => {
-		const ws = new TestWorkspace([folder(primary, 0, knownLocations)]);
+	test('a switch to a cold location keeps the location that is left warm at once and shows the new one once it is open', async () => {
+		const ws = new TestWorkspace([folder(primary, 0, knownLocations)], false);
 
 		ws.switchTo(wt1);
 		const whileOpening = { ...ws.state, opening: ws.opening };
-		ws.ready(wt1);
+		ws.registerLocation(wt1);
 		await flush();
 
-		assert.deepStrictEqual({ whileOpening, ready: { ...ws.state, opening: ws.opening } }, {
-			whileOpening: { shown: [], warm: [primary, wt1].sort(), opening: 1 },
-			ready: { shown: [wt1], warm: [primary], opening: 0 }
+		assert.deepStrictEqual({ whileOpening, opened: { ...ws.state, opening: ws.opening } }, {
+			whileOpening: { shown: [], warm: [primary], opening: 1 },
+			opened: { shown: [wt1], warm: [primary], opening: 0 }
 		});
 	});
 
 	test('a switch back to a warm location shows it at once', async () => {
 		const ws = new TestWorkspace([folder(primary, 0, knownLocations)]);
 		ws.switchTo(wt1);
-		ws.ready(wt1);
 		await flush();
 		ws.resolveLocations();
 
@@ -318,7 +305,6 @@ suite('WorkspaceFolderRepositories', () => {
 		const ws = new TestWorkspace([folder(primary, 0, knownLocations)]);
 
 		ws.switchTo(nested);
-		ws.ready(nested);
 		await flush();
 
 		assert.deepStrictEqual(ws.state, { shown: [nested], warm: [primary] });
@@ -329,7 +315,6 @@ suite('WorkspaceFolderRepositories', () => {
 
 		for (const location of [wt1, wt2, wt3, nested]) {
 			ws.switchTo(location);
-			ws.ready(location);
 			await flush();
 			ws.resolveLocations();
 		}
@@ -337,20 +322,10 @@ suite('WorkspaceFolderRepositories', () => {
 		assert.deepStrictEqual(ws.state, { shown: [nested], warm: [wt1, wt2, wt3] });
 	});
 
-	test('the new location is shown after the first status timeout', async () => {
-		const ws = new TestWorkspace([folder(primary, 0, knownLocations)], true, 10);
-
-		ws.switchTo(wt1);
-		await new Promise(c => setTimeout(c, 50));
-
-		assert.deepStrictEqual(ws.state, { shown: [wt1], warm: [primary] });
-	});
-
 	test('a repository that is the repository of another workspace folder is not hidden', async () => {
 		const ws = new TestWorkspace([folder(primary, 0, knownLocations), folder(path.join(primary, 'src'), 1)]);
 
 		ws.switchTo(wt1);
-		ws.ready(wt1);
 		await flush();
 
 		assert.deepStrictEqual(ws.state, { shown: [primary, wt1], warm: [] });
@@ -385,7 +360,6 @@ suite('WorkspaceFolderRepositories', () => {
 		ws.switchTo(nested);
 		const beforeLocations = ws.state;
 		ws.resolveLocations();
-		ws.ready(nested);
 		await flush();
 
 		assert.deepStrictEqual({ beforeLocations, afterLocations: ws.state }, {
@@ -397,7 +371,6 @@ suite('WorkspaceFolderRepositories', () => {
 	test('a warm repository that is not a known location anymore is closed once the locations are known', async () => {
 		const ws = new TestWorkspace([folder(primary, 0, knownLocations)]);
 		ws.switchTo(wt1);
-		ws.ready(wt1);
 		await flush();
 		ws.resolveLocations();
 
@@ -407,13 +380,13 @@ suite('WorkspaceFolderRepositories', () => {
 		assert.deepStrictEqual(ws.state, { shown: [wt1], warm: [] });
 	});
 
-	// About 320,000 replays in all, so one test per first two switches keeps each well inside the test timeout on slower agents.
-	type OrderEvent = { kind: 'begin' | 'register' | 'ready' | 'locations'; index: number };
+	// One test per first two switches keeps each well inside the test timeout on slower agents.
+	type OrderEvent = { kind: 'begin' | 'register' | 'locations'; index: number };
 	const ordersCache = new Map<string, OrderEvent[][]>();
 	const orderTargets = [wt1, wt2, nested, primary];
 	for (const a of orderTargets.filter(t => t !== primary)) {
 		for (const b of orderTargets.filter(t => t !== a)) {
-			test(`every order in which up to three switches of a folder, starting with ${path.basename(a)} then ${path.basename(b)}, begin, open, get their first status and learn their locations shows the repository of the location the folder is at`, async () => {
+			test(`every order in which up to three switches of a folder, starting with ${path.basename(a)} then ${path.basename(b)}, begin, open and learn their locations shows the repository of the location the folder is at`, async () => {
 				const sequences: string[][] = [[a, b], ...orderTargets.filter(t => t !== b).map(c => [a, b, c])];
 				await checkEveryOrder(sequences);
 			});
@@ -424,7 +397,7 @@ suite('WorkspaceFolderRepositories', () => {
 		type Event = OrderEvent;
 
 		// Each switch begins after the previous one and its locations are learnt after it begins, before the next switch
-		// begins if at all, or at any time for the last one. A switch opens after it begins and is ready after it opens.
+		// begins if at all, or at any time for the last one. A switch opens after it begins.
 		const orders = (count: number, known: boolean[]): Event[][] => {
 			const key = `${count}:${known.map(Number).join('')}`;
 			const cached = ordersCache.get(key);
@@ -433,7 +406,7 @@ suite('WorkspaceFolderRepositories', () => {
 			}
 			const all: Event[] = [];
 			for (let index = 0; index < count; index++) {
-				all.push({ kind: 'begin', index }, { kind: 'register', index }, { kind: 'ready', index });
+				all.push({ kind: 'begin', index }, { kind: 'register', index });
 				if (known[index]) {
 					all.push({ kind: 'locations', index });
 				}
@@ -443,7 +416,6 @@ suite('WorkspaceFolderRepositories', () => {
 				switch (e.kind) {
 					case 'begin': return e.index === 0 || (has(done, 'begin', e.index - 1) && (!known[e.index - 1] || has(done, 'locations', e.index - 1)));
 					case 'register': return has(done, 'begin', e.index);
-					case 'ready': return has(done, 'register', e.index);
 					case 'locations': return has(done, 'begin', e.index) && !has(done, 'begin', e.index + 1);
 				}
 			};
@@ -468,30 +440,28 @@ suite('WorkspaceFolderRepositories', () => {
 				for (const order of orders(sequence.length, known)) {
 					runs++;
 					const ws = new TestWorkspace([folder(primary, 0, knownLocations)], false);
-					const describe = () => `${sequence.map(l => path.basename(l)).join('>')} known=${known.map(Number).join('')} ${order.map(e => `${e.kind === 'ready' ? 's' : e.kind[0]}${e.index}`).join(' ')}`;
+					const describe = () => `${sequence.map(l => path.basename(l)).join('>')} known=${known.map(Number).join('')} ${order.map(e => `${e.kind[0]}${e.index}`).join(' ')}`;
 					let allSwitchesKnown = true;
 					for (const event of order) {
 						const location = sequence[event.index];
 						switch (event.kind) {
 							case 'begin': allSwitchesKnown &&= ws.folders[0].locations !== undefined; ws.switchTo(location); break;
 							case 'register': ws.registerLocation(location); break;
-							case 'ready': ws.ready(deepest(repositoriesOnDisk, location)!); break;
 							case 'locations': ws.resolveLocations(); break;
 						}
 						await flush();
 
-						// Only the repository of the location the folder is at is shown, once its first status ran
+						// Only the repository of the location the folder is at is shown
 						const current = deepest(repositoriesOnDisk, ws.folders[0].uri.fsPath)!;
 						const shown = ws.shown;
-						if (allSwitchesKnown && (shown.some(r => r !== current) || shown.some(r => !ws.open.get(r)!.isReady))) {
-							violations.push(`${describe()}: after ${event.kind === 'ready' ? 's' : event.kind[0]}${event.index} shown=[${shown.map(r => path.basename(r))}]`);
+						if (allSwitchesKnown && shown.some(r => r !== current)) {
+							violations.push(`${describe()}: after ${event.kind[0]}${event.index} shown=[${shown.map(r => path.basename(r))}]`);
 						}
 					}
 
 					ws.resolveLocations();
 					for (const location of [primary, ...sequence]) {
 						ws.registerLocation(location);
-						ws.ready(deepest(repositoriesOnDisk, location)!);
 					}
 					await flush();
 

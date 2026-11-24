@@ -536,7 +536,7 @@ suite('git smoke test', function () {
 		}
 	});
 
-	test('a repository opened detached is not in the git API until any other open attaches it and returns it', async function () {
+	test('a repository that a switch detached is not in the git API until an open attaches it and returns it', async function () {
 		const model = getModel();
 		const repositoryPath = await fs.promises.realpath(await fs.promises.mkdtemp(path.join(os.tmpdir(), 'git-smoke-')));
 		const runGit = (command: string) => cp.execSync(`git ${command}`, { cwd: repositoryPath, stdio: 'pipe' });
@@ -549,17 +549,21 @@ suite('git smoke test', function () {
 		runGit('commit -m "initial commit"');
 		fs.writeFileSync(path.join(repositoryPath, 'modified.txt'), 'two\n');
 
-		const opened: string[] = [];
-		const listener = git.onDidOpenRepository(r => opened.push(path.basename(r.rootUri.fsPath)));
+		const events: string[] = [];
+		const listeners = [
+			git.onDidOpenRepository(r => events.push(`open ${path.basename(r.rootUri.fsPath)}`)),
+			git.onDidCloseRepository(r => events.push(`close ${path.basename(r.rootUri.fsPath)}`))
+		];
 		try {
 			// Outside the workspace, so it opens as a repository in a parent folder would
-			const repository = (await model.openRepository(repositoryPath, false, true, true))!;
-			await repository.whenFirstStatus;
+			const repository = (await model.openRepository(repositoryPath, false, true))!;
+			await repository.status();
+
+			// As a switch of a workspace folder location detaches the repository of the location that it leaves
+			// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Only switches detach, which tests cannot drive.
+			model['getOpenRepository'](repository)!.detach();
 			const state = () => ({ isAttached: repository.isAttached, inApi: git.getRepository(Uri.file(repositoryPath)) !== null });
 			const detached = { ...state(), changes: repository.workingTreeChanges.map(r => path.basename(r.resourceUri.fsPath)) };
-
-			const openedDetached = await model.openRepository(repositoryPath, false, true, true);
-			const afterDetachedOpen = { ...state(), sameRepository: openedDetached === repository };
 
 			// As a visible editor's folder or a folder scan opens it
 			const openedAgain = await model.openRepository(repositoryPath);
@@ -569,15 +573,15 @@ suite('git smoke test', function () {
 			const openedAttached = await model.openRepository(repositoryPath);
 			const afterAttachedOpens = { sameRepository: openedAttached === repository, changes: apiRepository?.state.workingTreeChanges.map(c => path.basename(c.uri.fsPath)) };
 
-			assert.deepStrictEqual({ detached, afterDetachedOpen, afterOpen, afterAttachedOpens, opened }, {
+			const name = path.basename(repositoryPath);
+			assert.deepStrictEqual({ detached, afterOpen, afterAttachedOpens, events }, {
 				detached: { isAttached: false, inApi: false, changes: ['modified.txt'] },
-				afterDetachedOpen: { isAttached: false, inApi: false, sameRepository: true },
 				afterOpen: { isAttached: true, inApi: true, sameRepository: true },
 				afterAttachedOpens: { sameRepository: true, changes: ['modified.txt'] },
-				opened: [path.basename(repositoryPath)]
+				events: [`open ${name}`, `close ${name}`, `open ${name}`]
 			});
 		} finally {
-			listener.dispose();
+			listeners.forEach(l => l.dispose());
 			const repository = model.getRepository(repositoryPath);
 			if (repository) {
 				model.close(repository);

@@ -16,7 +16,7 @@ export interface IFolderLocationSwitch {
 }
 
 /**
- * A location whose repository a switch opens, detached, until it is shown or kept warm.
+ * A location whose repository a switch opens, until it is shown or kept warm.
  */
 export interface ILocationOpening {
 	readonly location: string;
@@ -24,7 +24,7 @@ export interface ILocationOpening {
 
 /**
  * What to do with the repositories: show them (attach them), keep them warm (detach them), close them, and the
- * locations whose repository to open detached, see {@link WorkspaceFolderRepositories.completeOpening}.
+ * locations whose repository to open, see {@link WorkspaceFolderRepositories.completeOpening}.
  */
 export interface IRepositoryChanges<T> {
 	readonly show: T[];
@@ -48,12 +48,12 @@ export interface IFolderLocationRepository {
  * Decides which repositories to show for workspace folders that switch between their locations, so that a folder
  * shows one repository and switches without flicker. The repository of the location that is left is kept warm and
  * shown again right away when the folder switches back. At most `warmCapacity` repositories are kept warm, the least
- * recently left one is closed first. The repository of a location that is not warm opens detached, and is shown once
- * ready. Only the repositories of the switching folders are affected.
+ * recently left one is closed first. The repository of a location that is not warm opens, and is kept warm if the
+ * folder left the location while it opened. Only the repositories of the switching folders are affected.
  */
 export class WorkspaceFolderRepositories<T extends IFolderLocationRepository> {
 
-	/** The warm repositories, the least recently left first. These are ready. */
+	/** The warm repositories, the least recently left first. */
 	private readonly warm: T[] = [];
 
 	/** The locations whose repository switches open, one for each switch, until it is shown or kept warm. */
@@ -117,12 +117,10 @@ export class WorkspaceFolderRepositories<T extends IFolderLocationRepository> {
 	}
 
 	/**
-	 * Sets the repository that `opening` opened, detached. Returns whether it is ready to be shown: otherwise it is once
-	 * its first git status ran.
+	 * Sets the repository that `opening` opened.
 	 */
-	setOpenedRepository(opening: ILocationOpening, repository: T): boolean {
+	setOpenedRepository(opening: ILocationOpening, repository: T): void {
 		(opening as Opening<T>).repository = repository;
-		return this.warm.includes(repository);
 	}
 
 	/**

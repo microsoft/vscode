@@ -897,13 +897,6 @@ export class Repository implements Disposable {
 	private _historyProvider: GitHistoryProvider;
 	get historyProvider(): GitHistoryProvider { return this._historyProvider; }
 
-	private didRunFirstStatus!: () => void;
-
-	/**
-	 * Resolves once git status ran for the first time.
-	 */
-	readonly whenFirstStatus = new Promise<void>(resolve => this.didRunFirstStatus = resolve);
-
 	private isRepositoryHuge: false | { limit: number } = false;
 	private didWarnAboutLimit = false;
 
@@ -3033,7 +3026,6 @@ export class Repository implements Disposable {
 			this._updateResourceGroupsState(resourceGroups);
 
 			this._onDidChangeStatus.fire();
-			this.didRunFirstStatus();
 		}
 		catch (err) {
 			if (err instanceof CancellationError) {
