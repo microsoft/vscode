@@ -4297,7 +4297,7 @@ suite('CopilotSessionLauncher resume config', () => {
 		snapshot: CopilotSessionLaunchPlan['snapshot'] = { discoveredAgents: [], additionalRootInstructions: [], tools: [], plugins: [], mcpServers: {} },
 		createClientSdkTools: ICopilotSessionRuntime['createClientSdkTools'] = () => [],
 		runtimeOverrides: Partial<ICopilotSessionRuntime> = {},
-		planOverrides: Pick<CopilotSessionLaunchPlan, 'modelRouterGuidance' | 'isEphemeral' | 'additionalDirectories'> = {},
+		planOverrides: Pick<CopilotSessionLaunchPlan, 'isEphemeral' | 'additionalDirectories'> = {},
 	): Promise<ResumeSessionOptions> {
 		const plan = {
 			kind: 'resume',
@@ -4382,16 +4382,6 @@ suite('CopilotSessionLauncher resume config', () => {
 			[...definitions, { name: 'openBrowserPage' }, { name: 'clickElement' }],
 		];
 		assert.deepStrictEqual(changes.map(tools => isDeepStrictEqual(appliedConfiguration.sessionConfig, appliedConfiguration.resolve(tools).sessionConfig)), [true, true, false, false, false, true, false]);
-	});
-
-	test('tells the main agent the guidance of the chat\'s model router route, but not an ephemeral session', async () => {
-		const store = disposables.add(new DisposableStore());
-		const modelRouterGuidance = { router: 'Team', route: 'feature', guidance: 'Plan first.' };
-		const content = async (isEphemeral: boolean) => (await buildResumeConfig(createLauncher(store, {}), undefined, undefined, undefined, {}, { modelRouterGuidance, isEphemeral })).systemMessage?.content ?? '';
-		assert.deepStrictEqual({
-			chat: /<model_router_guidance>[^]*"Team" chose its "feature" route[^]*Plan first\.[^]*<\/model_router_guidance>$/.test(await content(false)),
-			ephemeral: (await content(true)).includes('model_router_guidance'),
-		}, { chat: true, ephemeral: false });
 	});
 
 	test('sends the hooks of custom agents only when every session folder is trusted', async () => {
