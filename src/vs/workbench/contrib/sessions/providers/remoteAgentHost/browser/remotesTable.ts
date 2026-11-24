@@ -927,6 +927,16 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 		}
 	}
 
+	/** Returns the list row that currently renders the row with the given id, if it is in view. */
+	getRowElement(id: string): HTMLElement | undefined {
+		for (const template of this.templates) {
+			if (template.row?.id === id && template.container.isConnected) {
+				return template.container.parentElement?.parentElement ?? undefined;
+			}
+		}
+		return undefined;
+	}
+
 	private onDidSelectSandboxProfile(address: string, option: SandboxProfileOption | undefined): void {
 		const connection = this.connections.getConnectionByAddress(address);
 		if (!connection || readHostSandboxProfile(connection) === undefined || !option) {

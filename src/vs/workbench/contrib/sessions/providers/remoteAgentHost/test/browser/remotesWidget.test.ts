@@ -223,6 +223,8 @@ class TestRemotesModel extends Disposable implements IRemotesModel {
 	}
 }
 
+type MenuAnchor = ReturnType<Parameters<IContextMenuService['showContextMenu']>[0]['getAnchor']>;
+
 class TestRemotesWidget extends RemotesWidget {
 	focusFirstRow(): void {
 		this.table.focusFirst();
@@ -236,6 +238,7 @@ class TestRemotesWidget extends RemotesWidget {
 suite('RemotesWidget', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const menus = new WeakMap<HTMLElement, () => readonly IAction[]>();
+	const menuAnchors = new WeakMap<HTMLElement, () => MenuAnchor | undefined>();
 
 	function createWidget(operatingSystem = OperatingSystem.Macintosh, grouping: 'status' | 'type' | 'default' = 'type', width = 900, storageService?: IStorageService) {
 		const parent = dom.append(document.body, dom.$('div'));
@@ -248,8 +251,10 @@ suite('RemotesWidget', () => {
 			instantiationService.stub(IStorageService, storageService);
 		}
 		let menuActions: readonly IAction[] = [];
+		let menuAnchor: MenuAnchor | undefined;
 		instantiationService.stub(IContextMenuService, 'showContextMenu', (delegate: Parameters<IContextMenuService['showContextMenu']>[0]) => {
 			menuActions = delegate.getActions?.() ?? [];
+			menuAnchor = delegate.getAnchor();
 			delegate.onHide?.(true);
 		});
 		menus.set(parent, () => {
@@ -257,6 +262,7 @@ suite('RemotesWidget', () => {
 			menuActions = [];
 			return actions;
 		});
+		menuAnchors.set(parent, () => menuAnchor);
 		const errors: Parameters<INotificationService['error']>[0][] = [];
 		const hoverContents = new Map<HTMLElement, string>();
 		const mouseHoverTargets = new Set<HTMLElement>();
@@ -4228,6 +4234,31 @@ suite('RemotesWidget', () => {
 			ssh: ['New Session', 'Disconnect', '---', 'Hide from Environment Picker', '---', 'Copy Address', '---', 'Rename...', 'Configure Agent Run Behavior...', 'Troubleshoot Connection...'],
 			group: ['Open SSH Configuration', '---', 'Open Setup Guide'],
 			changes: [{ id: 'ssh:build', action: 'rename' }],
+		});
+	});
+
+	test('Shift+F10 on a focused row scrolled out of view reveals the row and anchors its context menu there', () => {
+		const { parent, model, widget } = createWidget(OperatingSystem.Macintosh, 'default');
+		model.remotes.set(Array.from({ length: 60 }, (_, index) => ({
+			id: `ssh:host${index}`, kind: 'ssh' as const, name: `Host ${index}`, detail: `host${index}.example.com`, canRemove: true,
+			availability: 'online' as const, connectionStatus: RemoteAgentHostConnectionStatus.disconnected,
+		})), undefined);
+		widget.focusFirstRow();
+		const focusedId = parent.querySelector<HTMLElement>('.monaco-list-row.focused [data-remote-id]')!.dataset.remoteId!;
+		widget.scrollToBottom();
+		const renderedBefore = !!parent.querySelector(`[data-remote-id="${focusedId}"]`);
+		const list = parent.querySelector<HTMLElement>('.monaco-table .monaco-list')!;
+		for (const type of ['keydown', 'keyup']) {
+			list.dispatchEvent(new KeyboardEvent(type, { key: 'F10', keyCode: 121, shiftKey: true, bubbles: true, cancelable: true }));
+		}
+		const menu = menuLabels(menus.get(parent)!());
+		const anchor = menuAnchors.get(parent)!();
+		assert.deepStrictEqual({
+			renderedBefore, menu,
+			anchor: dom.isHTMLElement(anchor) ? anchor.querySelector<HTMLElement>('[data-remote-id]')?.dataset.remoteId : undefined,
+		}, {
+			renderedBefore: false, anchor: focusedId,
+			menu: ['Connect', '---', 'Hide from Environment Picker', '---', 'Rename...', 'Configure Agent Run Behavior...', 'Troubleshoot Connection...'],
 		});
 	});
 

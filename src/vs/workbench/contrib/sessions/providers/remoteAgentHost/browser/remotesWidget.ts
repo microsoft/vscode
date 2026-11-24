@@ -5,6 +5,7 @@
 
 import * as dom from '../../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../../base/browser/keyboardEvent.js';
+import { IMouseEvent } from '../../../../../../base/browser/mouseEvent.js';
 import { status } from '../../../../../../base/browser/ui/aria/aria.js';
 import { Button } from '../../../../../../base/browser/ui/button/button.js';
 import { createInstantHoverDelegate } from '../../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
@@ -394,12 +395,18 @@ export class RemotesWidget extends Disposable {
 		}));
 		this._register(this.table.onContextMenu(event => {
 			const actions = event.element ? getRemoteRowMenuActions(event.element.entry, (entry, action) => this.runRowAction(entry, action)) : [];
-			if (!actions.length) {
+			if (!event.element || !actions.length) {
 				return;
 			}
 			dom.EventHelper.stop(event.browserEvent, true);
+			// The list has no anchor for a focused row scrolled out of view, so reveal the row and anchor the menu to it.
+			let anchor: HTMLElement | IMouseEvent | null | undefined = event.anchor;
+			if (!anchor && event.index !== undefined) {
+				this.table.reveal(event.index);
+				anchor = nameRenderer.getRowElement(event.element.id);
+			}
 			contextMenuService.showContextMenu({
-				getAnchor: () => event.anchor,
+				getAnchor: () => anchor ?? this.table.getHTMLElement(),
 				getActions: () => actions,
 			});
 		}));
