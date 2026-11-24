@@ -495,6 +495,8 @@ const mcpServersMigrationCategory: ICustomizationMigrationCategory = {
 				return localize('mcpMigrationTargetConflict', "Could not migrate '{0}' because the destination already contains a different server with that name.", failure.name);
 			case McpServerCustomizationMigrationFailureReason.InvalidTarget:
 				return localize('mcpMigrationInvalidTarget', "Could not migrate '{0}' because the destination MCP configuration is invalid.", failure.name);
+			case McpServerCustomizationMigrationFailureReason.InvalidServerName:
+				return localize('mcpMigrationInvalidServerName', "Could not migrate '{0}' because the destination MCP configuration only supports server names containing alphanumeric characters, underscores, and hyphens.", failure.name);
 			case McpServerCustomizationMigrationFailureReason.ShadowedServerNotMigrated:
 				return localize('mcpMigrationShadowedServerNotMigrated', "Could not migrate '{0}' because another workspace folder defines an MCP server with the same name. Migrate both servers together so the same configuration stays active.", failure.name);
 			default:

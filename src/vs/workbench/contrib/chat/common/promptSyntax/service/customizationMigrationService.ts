@@ -192,6 +192,8 @@ export const enum McpServerCustomizationMigrationFailureReason {
 	SourceUnavailable = 'sourceUnavailable',
 	/** The source JSON, servers map, or selected server definition is invalid. */
 	InvalidSource = 'invalidSource',
+	/** The destination MCP configuration only supports server names containing alphanumeric characters, underscores, and hyphens. */
+	InvalidServerName = 'invalidServerName',
 	/** The configuration has unsupported properties, unresolved variables, or projection differences beyond the confirmed removals. */
 	UnrepresentableConfiguration = 'unrepresentableConfiguration',
 	/** An `${env:}`, `${input:}` or `${config:}` reference is used in an environment variable or header name, which the destination never expands. */
