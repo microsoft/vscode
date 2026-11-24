@@ -103,9 +103,7 @@ export function syncPRReviewFeedback(agentFeedbackService: IAgentFeedbackService
 			}
 		}
 	}
-	for (const duplicate of duplicateCreatedMirrors) {
-		agentFeedbackService.removeFeedback(sessionResource, duplicate.id);
-	}
+	agentFeedbackService.removeFeedbacks(sessionResource, Array.from(duplicateCreatedMirrors, duplicate => duplicate.id));
 
 	for (const comment of comments) {
 		const mirror = mirrorBySource.get(comment.id);

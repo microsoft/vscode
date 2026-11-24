@@ -168,6 +168,8 @@ export interface IAgentFeedbackService {
 	 * Remove a single feedback item.
 	 */
 	removeFeedback(sessionResource: URI, feedbackId: string): void;
+	/** Removes several feedback items at once, notifying listeners a single time. */
+	removeFeedbacks(sessionResource: URI, feedbackIds: readonly string[]): void;
 
 	/**
 	 * Update the text of an existing feedback item.

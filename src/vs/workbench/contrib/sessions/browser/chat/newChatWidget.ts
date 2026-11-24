@@ -3345,9 +3345,7 @@ export class NewChatWidget extends Disposable {
 			...(userInteraction ? { onDidCreateResponse: userInteraction.onDidCreateResponse } : {}),
 		};
 		const clearFeedback = () => {
-			for (const item of feedbackItems) {
-				this.agentFeedbackService.removeFeedback(AGENT_FEEDBACK_NEW_SESSION_RESOURCE, item.id);
-			}
+			this.agentFeedbackService.removeFeedbacks(AGENT_FEEDBACK_NEW_SESSION_RESOURCE, Array.from(feedbackItems, item => item.id));
 		};
 		const restoreWorkspace = () => {
 			if (folderUri) {

@@ -237,6 +237,9 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 	 * generic feedback / navigation change events.
 	 */
 	private _handleBackendChange(sessionResource: URI): void {
+		if (this._batchRemoveDepth > 0) {
+			return;
+		}
 		const key = sessionResource.toString();
 		const feedbackItems = this._backendForSession(sessionResource).getItems(sessionResource);
 		const visibleResolvedFeedbackIds = this._visibleResolvedFeedbackIds.get(sessionResource);
@@ -423,6 +426,24 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 			const hasExistingFeedbackForFile = feedbackItems.some(f => f.id !== accepted.id && f.resourceUri.toString() === resourceStr);
 			this._onDidConvertFeedback.fire({ sessionResource, feedback: accepted, kind: accepted.kind, hasExistingFeedbackForFile });
 		}
+	}
+
+	private _batchRemoveDepth = 0;
+
+	/** Removes several feedback items at once, notifying listeners a single time. */
+	removeFeedbacks(sessionResource: URI, feedbackIds: readonly string[]): void {
+		if (feedbackIds.length === 0) {
+			return;
+		}
+		this._batchRemoveDepth++;
+		try {
+			for (const feedbackId of feedbackIds) {
+				this.removeFeedback(sessionResource, feedbackId);
+			}
+		} finally {
+			this._batchRemoveDepth--;
+		}
+		this._handleBackendChange(sessionResource);
 	}
 
 	removeFeedback(sessionResource: URI, feedbackId: string): void {
