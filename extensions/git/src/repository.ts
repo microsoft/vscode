@@ -719,10 +719,10 @@ export class Repository implements Disposable {
 	get sourceControl(): GitSourceControl { return this._sourceControl; }
 
 	/**
-	 * Whether the repository has no source control. {@link attach} creates it, with the file watchers and auto fetch
+	 * Whether the repository has a source control. {@link attach} creates it, with the file watchers and auto fetch
 	 * that keep the model current, and {@link detach} disposes them.
 	 */
-	get isDetached(): boolean { return this.sourceControlDisposables === undefined; }
+	get isAttached(): boolean { return this.sourceControlDisposables !== undefined; }
 
 	private _EMPTY_TREE: string | undefined;
 
@@ -808,7 +808,7 @@ export class Repository implements Disposable {
 	 * Resets the commit message of the source control, or of the next one while the repository is detached.
 	 */
 	private resetCommitMessage(message: string): void {
-		if (this.isDetached) {
+		if (!this.isAttached) {
 			this.commitMessage = message;
 		}
 		this._onDidResetCommitMessage.fire(message);
@@ -3291,7 +3291,7 @@ export class Repository implements Disposable {
 	 */
 	async whenIdleAndFocused(): Promise<void> {
 		while (true) {
-			if (this.isDetached) {
+			if (!this.isAttached) {
 				await eventToPromise(this._onDidAttach.event);
 				continue;
 			}

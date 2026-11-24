@@ -555,7 +555,7 @@ suite('git smoke test', function () {
 			// Outside the workspace, so it opens as a repository in a parent folder would
 			const repository = (await model.openRepository(repositoryPath, false, true, true))!;
 			await repository.whenFirstStatus;
-			const state = () => ({ isDetached: repository.isDetached, inApi: git.getRepository(Uri.file(repositoryPath)) !== null });
+			const state = () => ({ isAttached: repository.isAttached, inApi: git.getRepository(Uri.file(repositoryPath)) !== null });
 			const detached = { ...state(), changes: repository.workingTreeChanges.map(r => path.basename(r.resourceUri.fsPath)) };
 
 			const openedDetached = await model.openRepository(repositoryPath, false, true, true);
@@ -570,9 +570,9 @@ suite('git smoke test', function () {
 			const afterAttachedOpens = { sameRepository: openedAttached === repository, changes: apiRepository?.state.workingTreeChanges.map(c => path.basename(c.uri.fsPath)) };
 
 			assert.deepStrictEqual({ detached, afterDetachedOpen, afterOpen, afterAttachedOpens, opened }, {
-				detached: { isDetached: true, inApi: false, changes: ['modified.txt'] },
-				afterDetachedOpen: { isDetached: true, inApi: false, sameRepository: true },
-				afterOpen: { isDetached: false, inApi: true, sameRepository: true },
+				detached: { isAttached: false, inApi: false, changes: ['modified.txt'] },
+				afterDetachedOpen: { isAttached: false, inApi: false, sameRepository: true },
+				afterOpen: { isAttached: true, inApi: true, sameRepository: true },
 				afterAttachedOpens: { sameRepository: true, changes: ['modified.txt'] },
 				opened: [path.basename(repositoryPath)]
 			});
