@@ -12,7 +12,7 @@ import { hasKey } from '../../../../base/common/types.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';
-import { IShellLaunchConfig, ITerminalProcessOptions } from '../../common/terminal.js';
+import { FlowControlConstants, IShellLaunchConfig, ITerminalProcessOptions } from '../../common/terminal.js';
 import { ChildProcessMonitor } from '../../node/childProcessMonitor.js';
 import { TerminalProcess } from '../../node/terminalProcess.js';
 
@@ -172,5 +172,37 @@ suite('TerminalProcess startup disposal', () => {
 		} finally {
 			fixture.cleanup();
 		}
+	});
+});
+
+suite('TerminalProcess flow control', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('resumes when the renderer holds back a full acknowledgement chunk', () => {
+		const options: ITerminalProcessOptions = {
+			shellIntegration: { enabled: false, suggestEnabled: false, nonce: '' },
+			windowsUseConptyDll: false,
+			environmentVariableCollections: undefined,
+			workspaceFolder: undefined,
+			isScreenReaderOptimized: false
+		};
+		const env = { ...process.env };
+		const terminal = store.add(new TerminalProcess(
+			{ executable: process.execPath }, process.cwd(), 80, 24, env, env, options,
+			store.add(new NullLogService()), { applicationName: 'vscode' } as IProductService
+		));
+		let resumed = 0;
+		const pty: Pick<IPty, 'resume'> = { resume: () => { resumed++; } };
+		Reflect.set(terminal, '_ptyProcess', pty);
+		// Paused, with everything sent already received: the renderer acknowledges a chunk
+		// only once more than a chunk is unacknowledged, so it can hold back a whole one,
+		// and no more output arrives to make it send that one while the pty is paused.
+		Reflect.set(terminal, '_isPtyPaused', true);
+		Reflect.set(terminal, '_unacknowledgedCharCount', 2 * FlowControlConstants.CharCountAckSize);
+		terminal.acknowledgeDataEvent(FlowControlConstants.CharCountAckSize);
+		assert.deepStrictEqual(
+			{ resumed, paused: Reflect.get(terminal, '_isPtyPaused') },
+			{ resumed: 1, paused: false }
+		);
 	});
 });
