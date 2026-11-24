@@ -384,7 +384,7 @@ suite('BrowserTunnelAgentHostService', () => {
 			{ operation: 'list', authorization: 'Bearer microsoft-token', limit: TUNNEL_DISCOVERY_LIMIT },
 			{ operation: 'list', authorization: 'github github-token', limit: TUNNEL_DISCOVERY_LIMIT },
 			{ operation: 'list', authorization: 'Bearer microsoft-token', limit: TUNNEL_DISCOVERY_LIMIT },
-			{ operation: 'delete', authorization: 'github github-token', limit: undefined },
+			{ operation: 'delete', authorization: 'github github-token' },
 			{ operation: 'list', authorization: 'github github-token', limit: TUNNEL_DISCOVERY_LIMIT },
 		]);
 	});
