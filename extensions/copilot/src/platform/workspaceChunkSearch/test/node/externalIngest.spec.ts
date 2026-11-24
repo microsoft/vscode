@@ -368,6 +368,27 @@ suite('ExternalIngestIndex', () => {
 		assert.strictEqual(await index.shouldTrackFile(file2, CancellationToken.None), true);
 	});
 
+	test('initialize stats each new workspace file once', async () => {
+		const workspaceRoot = URI.file('/workspace');
+		const file1 = URI.joinPath(workspaceRoot, 'src', 'file1.ts');
+		const file2 = URI.joinPath(workspaceRoot, 'src', 'file2.ts');
+
+		const files = new ResourceMap<MockFileEntry>();
+		files.set(file1, createFileFromString('const x = 1;'));
+		files.set(file2, createFileFromString('const y = 2;'));
+
+		const { mockFs, index } = setupTestContext(workspaceRoot, files);
+		await index.initialize();
+
+		assert.deepStrictEqual({
+			statCalls: [...mockFs.statCalls].map(([uri, count]) => [uri.toString(), count]),
+			trackedFiles: index.getDiagnostics().files.map(uri => uri.toString()).sort(),
+		}, {
+			statCalls: [[file1.toString(), 1], [file2.toString(), 1]],
+			trackedFiles: [file1.toString(), file2.toString()],
+		});
+	});
+
 	test('initialize skips malformed file stats and continues indexing', async () => {
 		const workspaceRoot = URI.file('/workspace');
 		const malformedStats: readonly {
