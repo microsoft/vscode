@@ -3146,6 +3146,51 @@ suite('AgentHostGitService - getBranchDiffFingerprint (real git)', () => {
 		tmpRoot = mkdtempSync(join(tmpdir(), 'agent-host-git-fingerprint-none-'));
 		assert.strictEqual(await svc!.getBranchDiffFingerprint(URI.file(tmpRoot), 'main'), undefined);
 	});
+
+	(hasGit ? test : test.skip)('lets computeSessionFileDiffs reuse its merge base and status', async () => {
+		const fs = await import('fs/promises');
+		const run = initRepo();
+		const directory = URI.file(tmpRoot!);
+		await fs.writeFile(join(tmpRoot!, 'a.txt'), 'base\n');
+		run('add', '.');
+		run('commit', '-q', '-m', 'base');
+		run('checkout', '-q', '-b', 'feature');
+		await fs.writeFile(join(tmpRoot!, 'b.txt'), 'committed\n');
+		run('add', '.');
+		run('commit', '-q', '-m', 'feature');
+		await fs.writeFile(join(tmpRoot!, 'a.txt'), 'modified\n');
+		await fs.writeFile(join(tmpRoot!, 'untracked.txt'), 'new\n');
+
+		const logService = new TestLogService();
+		const counting = createGitService(disposables, logService);
+		const options = { sessionUri: 'copilot:/s', baseBranch: 'main' };
+		const commandsOf = async (compute: () => Promise<unknown>) => {
+			const start = logService.commands.length;
+			const result = await compute();
+			// A failing command is logged a second time, with its error.
+			return { result, commands: logService.commands.slice(start).filter(command => !command.includes(' failed: ')).map(command => command.replace('[agentHostGitService] > git ', '').split(' ')[0]) };
+		};
+
+		await counting.getRepositoryRoot(directory);
+		const withoutFingerprint = await commandsOf(() => counting.computeSessionFileDiffs(directory, options));
+		const fingerprint = await counting.getBranchDiffFingerprint(directory, 'main');
+		const withFingerprint = await commandsOf(() => counting.computeSessionFileDiffs(directory, { ...options, fingerprint }));
+		const otherBaseBranch = await commandsOf(() => counting.computeSessionFileDiffs(directory, { sessionUri: 'copilot:/s', fingerprint }));
+
+		assert.deepStrictEqual({
+			sameDiffs: JSON.stringify(withFingerprint.result) === JSON.stringify(withoutFingerprint.result),
+			withoutFingerprint: withoutFingerprint.commands,
+			withFingerprint: withFingerprint.commands,
+			otherBaseBranch: otherBaseBranch.commands,
+		}, {
+			sameDiffs: true,
+			withoutFingerprint: ['merge-base', 'status', 'read-tree', 'add', 'diff'],
+			// The merge base and status come from the fingerprint.
+			withFingerprint: ['read-tree', 'add', 'diff'],
+			// A fingerprint taken for another base branch is not reused.
+			otherBaseBranch: ['rev-parse', 'status', 'read-tree', 'add', 'diff'],
+		});
+	});
 });
 
 suite('AgentHostGitService - hasUnignoredPaths (real git)', () => {

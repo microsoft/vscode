@@ -858,18 +858,21 @@ export class AgentHostGitService extends Disposable implements IAgentHostGitServ
 			return undefined;
 		}
 
-		// Resolve the merge-base commit the Branch Changes diff is anchored on.
-		const mergeBaseCommit = await this._resolveBranchMergeBaseCommit(repositoryRoot, options.baseBranch);
+		// A fingerprint taken moments before already holds the merge base and status.
+		const fingerprinted = readBranchDiffFingerprint(options.fingerprint, options.baseBranch);
 
-		return this._computeWorkingTreeDiffs(repositoryRoot, mergeBaseCommit, options.sessionUri);
+		// Resolve the merge-base commit the Branch Changes diff is anchored on.
+		const mergeBaseCommit = fingerprinted?.mergeBaseCommit ?? await this._resolveBranchMergeBaseCommit(repositoryRoot, options.baseBranch);
+
+		return this._computeWorkingTreeDiffs(repositoryRoot, mergeBaseCommit, options.sessionUri, fingerprinted?.statusOutput);
 	}
 
-	private async _computeWorkingTreeDiffs(repositoryRoot: URI, baseCommit: string, sessionUri: string): Promise<ISessionFileDiff[] | undefined> {
+	private async _computeWorkingTreeDiffs(repositoryRoot: URI, baseCommit: string, sessionUri: string, knownStatusOutput?: string): Promise<ISessionFileDiff[] | undefined> {
 		// Detect whether the working tree has any untracked files. If so we
 		// have to use the temp-index trick so the untracked content is
 		// included in `--cached --raw` output; otherwise a plain `git diff`
 		// is sufficient and avoids the temp-dir overhead.
-		const statusOut = await this._runGitStatus(repositoryRoot, ['--porcelain=v1', '-z', '--untracked-files=all']);
+		const statusOut = knownStatusOutput ?? await this._runGitStatus(repositoryRoot, ['--porcelain=v1', '-z', '--untracked-files=all']);
 		if (statusOut === undefined) {
 			return undefined;
 		}
@@ -1013,7 +1016,8 @@ export class AgentHostGitService extends Disposable implements IAgentHostGitServ
 			if (submoduleFingerprints.some(fingerprint => fingerprint === undefined)) {
 				return undefined;
 			}
-			return JSON.stringify([mergeBaseCommit, head?.trim(), statusOut, files, submoduleFingerprints]);
+			// Read back by `readBranchDiffFingerprint`.
+			return JSON.stringify([baseBranch || null, mergeBaseCommit, head?.trim(), statusOut, files, submoduleFingerprints]);
 		} finally {
 			limiter.dispose();
 		}
@@ -2312,6 +2316,26 @@ export function parseGitWorktrees(output: string): IAgentHostGitWorktree[] {
  */
 export function parseUntrackedPaths(output: string | undefined): string[] {
 	return parseChangedPaths(output, status => status === '??');
+}
+
+/**
+ * Reads the merge base and `git status` output back from what `getBranchDiffFingerprint` returned for
+ * `baseBranch`. `undefined` when there is no fingerprint, it was taken for another base branch, or it
+ * cannot be read.
+ */
+function readBranchDiffFingerprint(fingerprint: string | undefined, baseBranch: string | undefined): { readonly mergeBaseCommit: string; readonly statusOutput: string } | undefined {
+	if (!fingerprint) {
+		return undefined;
+	}
+	try {
+		const parsed: unknown = JSON.parse(fingerprint);
+		if (Array.isArray(parsed) && parsed[0] === (baseBranch || null) && typeof parsed[1] === 'string' && typeof parsed[3] === 'string') {
+			return { mergeBaseCommit: parsed[1], statusOutput: parsed[3] };
+		}
+	} catch {
+		// Not a fingerprint: compute everything.
+	}
+	return undefined;
 }
 
 /** Allows index copying only when changed paths have no staged blobs or unmatched pathspecs. */
