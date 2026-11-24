@@ -33,11 +33,11 @@ suite('Cloud automation task conversations', () => {
 	const resource = URI.from({ scheme: SessionType.CopilotCloud, path: '/task/original' });
 	const date = '2026-01-01T00:00:00Z';
 	const user = (id: string, type: string, content: string): TaskEvent => ({ id, parentId: null, timestamp: date, type, data: { content } });
-	const original: GetTaskResponse = { id: 'original', automation_id: 'automation', created_at: date, remote_steerable: true, state: 'completed', sessions: [{ id: 'first', created_at: date, state: 'completed', prompt: 'Review' }] };
+	const original: GetTaskResponse = { id: 'original', automation_id: 'automation', created_at: date, remote_steerable: true, state: 'completed', sessions: [{ id: 'first', created_at: date, state: 'completed', prompt: 'Execution instructions', event_content: 'Review' }] };
 	type Tasks = Pick<ITasksClient, 'get' | 'getEvents' | 'steer'>;
 	const request = upcastPartial<IChatAgentRequest>({ sessionResource: resource, message: 'Continue', variables: { variables: [] } });
-	function setup(tasks: Tasks, known = false) {
-		const access: ICloudAutomationTaskAccess = { isKnownRun: () => known, withTasks: async (token, operation) => { CancellationToken.throwIfCanceled(token); return operation(tasks, token); } };
+	function setup(tasks: Tasks, getAutomationPrompt: ICloudAutomationTaskAccess['getAutomationPrompt'] = async () => assert.fail('Event content should not require a prompt lookup')) {
+		const access: ICloudAutomationTaskAccess = { isKnownRun: () => false, getAutomationPrompt, withTasks: async (token, operation) => { CancellationToken.throwIfCanceled(token); return operation(tasks, token); } };
 		return { access, controller: disposables.add(new CloudAutomationTaskConversations(access, new NullLogService())) };
 	}
 
@@ -116,11 +116,44 @@ suite('Cloud automation task conversations', () => {
 		const pending = { ...user('queued', 'user.message', 'Next'), pending: true };
 		const events = [user('first', 'user.message', 'First'), pending, user('answer', 'assistant.message', 'Still answering First')];
 		const { controller } = setup({
-			get: async () => original, getEvents: async () => ({ data: { events, total: events.length } }), steer: async () => assert.fail('Unexpected write'),
+			get: async () => ({ ...original, sessions: [{ ...original.sessions![0], event_content: 'First' }] }), getEvents: async () => ({ data: { events, total: events.length } }), steer: async () => assert.fail('Unexpected write'),
 		});
+
 		const session = disposables.add(await controller.provideChatSessionContent(resource, CancellationToken.None));
 		assert.deepStrictEqual(session.history.map(turn => turn.type === 'request' ? turn.prompt : turn.parts.map(part => part.kind === 'markdownContent' && part.content.value)), [
 			'First', ['Still answering First'],
+		]);
+	});
+
+	test('only the first automation prompt is replaced or hidden; the response and later requests survive', async () => {
+		const events = [
+			{ ...user('first', 'user.message', 'Execution instructions'), data: { content: 'Execution instructions', transformedContent: 'Execution instructions' } },
+			user('answer', 'assistant.message', 'Done'), user('next', 'user.message', 'Explain'),
+		];
+		const rendered = async (eventContent: string | null, prompt: string | Error, withEvents = true) => {
+			let lookups = 0;
+			const { controller } = setup({
+				get: async () => ({ ...original, sessions: [{ ...original.sessions![0], event_content: eventContent }] }),
+				getEvents: async () => ({ data: { events: withEvents ? events : [], total: withEvents ? events.length : 0 } }),
+				steer: async () => assert.fail('Opening must not steer'),
+			}, async () => {
+				lookups++;
+				if (prompt instanceof Error) { throw prompt; }
+				return prompt;
+			});
+			const { history } = disposables.add(await controller.provideChatSessionContent(resource, CancellationToken.None));
+			return { lookups, turns: history.map(turn => turn.type === 'request' ? [turn.prompt, !!turn.isRequestHidden] : turn.parts.map(part => part.kind === 'markdownContent' && part.content.value)) };
+		};
+		assert.deepStrictEqual([
+			await rendered('Trigger text', 'Configured'),
+			await rendered(null, 'Recorded revision'),
+			await rendered(null, new Error('Revision unavailable')),
+			await rendered('', 'Recorded revision', false),
+		], [
+			{ lookups: 0, turns: [['Trigger text', false], ['Done'], ['Explain', false], []] },
+			{ lookups: 1, turns: [['Recorded revision', false], ['Done'], ['Explain', false], []] },
+			{ lookups: 1, turns: [['', true], ['Done'], ['Explain', false], []] },
+			{ lookups: 1, turns: [['Recorded revision', false], []] },
 		]);
 	});
 

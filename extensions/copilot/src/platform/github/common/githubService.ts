@@ -223,6 +223,9 @@ export interface IOctoKitService {
 	 */
 	getCustomAgentDetails(owner: string, repo: string, agentName: string, version: string, authOptions: AuthOptions): Promise<CustomAgentDetails | undefined>;
 
+	/** Reads the saved prompt for an automation (or its exact revision) without prompting for access. */
+	getAutomationPrompt(owner: string, repo: string, automationId: string, revisionId: string | undefined): Promise<string | undefined>;
+
 	/**
 	 * Gets the list of files changed in a pull request.
 	 * @param owner The repository owner

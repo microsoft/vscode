@@ -125,13 +125,11 @@ export class ChatSessionContentBuilder {
 		events: readonly AgentTaskSessionEvent[],
 		pullRequest: PullRequestSearchItem | undefined,
 		initialReferences: Promise<vscode.ChatPromptReference[]>,
+		initialAutomationPrompt?: string,
 	): Promise<Array<ChatRequestTurn | ChatResponseTurn2>> {
 		return (async () => {
 			const history: Array<ChatRequestTurn | ChatResponseTurn2> = [];
 			const references = Array.from(await initialReferences);
-			const isTurnBoundary = (e: AgentTaskSessionEvent): e is AgentTaskSessionEvent & { data: { content?: string } } =>
-				e.type === 'user.message' && !e.dismissed && isUserAuthoredMessage(e.data);
-
 			// Single pass: skip bootstrap events between `session.requested`/`session.start`
 			// and the next user-authored `user.message` (which opens a new turn), and append
 			// everything else to the current turn. Events that arrive before any turn opens
@@ -139,15 +137,30 @@ export class ChatSessionContentBuilder {
 			// and are used as the synthesized turn's events below.
 			const turns: { prompt: string; events: AgentTaskSessionEvent[] }[] = [];
 			const preTurnEvents: AgentTaskSessionEvent[] = [];
+			const firstSession = task.sessions?.[0];
+			const followUpSessions = initialAutomationPrompt !== undefined ? task.sessions?.slice(1) : undefined;
 			let suppressing = false;
 			for (const event of events) {
+				// Events can start mid-history. If the first boundary already belongs to a later
+				// session, synthesize the automation turn rather than replacing the user's follow-up.
+				if (initialAutomationPrompt !== undefined && !turns.length && !event.dismissed && (
+					(event.type === 'session.start' && followUpSessions?.some(s => s.id === event.data.sessionId)) ||
+					(event.type === 'user.message' && event.data.content !== firstSession?.prompt && followUpSessions?.some(s => s.prompt === event.data.content))
+				)) {
+					turns.push({ prompt: initialAutomationPrompt, events: preTurnEvents });
+				}
 				if (event.type === 'session.requested' || event.type === 'session.start') {
 					suppressing = true;
 					continue;
 				}
-				if (isTurnBoundary(event)) {
+				const isInitialAutomationTurn = initialAutomationPrompt !== undefined && !turns.length;
+				if (event.type === 'user.message' && !event.dismissed && (
+					isUserAuthoredMessage(event.data) ||
+					// The automation's initial execution message can also be sent verbatim.
+					(isInitialAutomationTurn && event.data.content && (!firstSession?.prompt || event.data.content === firstSession.prompt))
+				)) {
 					suppressing = false;
-					turns.push({ prompt: event.data.content ?? '', events: [] });
+					turns.push({ prompt: isInitialAutomationTurn ? initialAutomationPrompt : event.data.content ?? '', events: isInitialAutomationTurn ? preTurnEvents : [] });
 				} else if (!suppressing) {
 					(turns.length > 0 ? turns[turns.length - 1].events : preTurnEvents).push(event);
 				}
@@ -157,14 +170,14 @@ export class ChatSessionContentBuilder {
 			// turn from the first session's prompt so the request bubble isn't empty and
 			// never shows the AI-generated title.
 			if (turns.length === 0) {
-				turns.push({ prompt: task.sessions?.[0]?.prompt ?? task.name ?? '', events: preTurnEvents });
+				turns.push({ prompt: initialAutomationPrompt ?? firstSession?.prompt ?? task.name ?? '', events: preTurnEvents });
 			}
 
 			const latestSession = task.sessions?.[task.sessions.length - 1];
 
 			turns.forEach((turn, index) => {
 				const turnReferences = index === 0 ? references : [];
-				history.push(new ChatRequestTurn2(
+				const request = new ChatRequestTurn2(
 					turn.prompt,
 					undefined,
 					turnReferences,
@@ -174,7 +187,11 @@ export class ChatSessionContentBuilder {
 					undefined,
 					undefined,
 					undefined,
-				));
+				);
+				if (index === 0 && initialAutomationPrompt === '') {
+					request.isRequestHidden = true;
+				}
+				history.push(request);
 
 				// PR card after the first request, if a PR is attached.
 				if (index === 0 && pullRequest && pullRequest.author && vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {

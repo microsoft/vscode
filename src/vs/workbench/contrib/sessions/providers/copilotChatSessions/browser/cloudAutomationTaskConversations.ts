@@ -72,30 +72,24 @@ function historyPollRetryDelay(error: unknown, failures: number): number | undef
 	return undefined;
 }
 
-function turnHistory({ task, events }: ITaskSnapshot): IChatSessionHistoryItem[] {
-	const history: IChatSessionHistoryItem[] = [];
-	let parts: IChatProgress[] = [];
+function turnHistory({ task, events }: ITaskSnapshot, configuredPrompt: string | undefined): IChatSessionHistoryItem[] {
+	const firstSession = task.sessions?.[0];
+	const initialPrompt = firstSession?.event_content?.trim() ? firstSession.event_content : configuredPrompt;
+	const turns: { id: string; prompt: string; parts: IChatProgress[] }[] = [];
+	const leadingParts: IChatProgress[] = [];
+	let parts = leadingParts;
 	let bootstrap = false;
-	const request = (id: string, prompt: string) => {
-		if (history.length) {
-			history.push({ type: 'response', participant, parts });
-		}
-		parts = [];
-		history.push({ type: 'request', participant, id, prompt });
-	};
-	const fallbackRequests = () => {
-		for (const session of task.sessions ?? []) {
-			request(session.id, session.prompt ?? task.name ?? '');
-		}
-		if (!history.length) {
-			request(task.id, task.name ?? '');
-		}
-	};
 	for (const event of events) {
 		if (event.agentId || event.dismissed) {
 			continue;
 		}
 		if (event.type === 'session.start' || event.type === 'session.requested') {
+			if (event.type === 'session.start' && !turns.length && firstSession && isEventObject(event.data)) {
+				const sessionId = event.data.sessionId;
+				if (task.sessions?.slice(1).some(session => session.id === sessionId)) {
+					turns.push({ id: firstSession.id, prompt: '', parts: leadingParts });
+				}
+			}
 			bootstrap = true;
 		}
 		const content = eventContent(event);
@@ -103,25 +97,38 @@ function turnHistory({ task, events }: ITaskSnapshot): IChatSessionHistoryItem[]
 			continue;
 		}
 		if (event.type === 'user.message') {
-			// A verbatim transformed prompt is runtime-injected, not a new user turn.
-			bootstrap = event.data.transformedContent === content;
+			// The first automation message can be verbatim; later verbatim prompts are runtime-injected.
+			const initialExecution = !turns.length && (!firstSession?.prompt || content === firstSession.prompt);
+			bootstrap = event.data.transformedContent === content && !initialExecution;
 			if (!bootstrap) {
-				request(event.id, content);
+				parts = [];
+				turns.push({ id: event.id, prompt: content, parts });
 			}
 		} else if (!bootstrap && event.type === 'assistant.message') {
-			if (!history.length) {
-				fallbackRequests();
-			}
 			parts.push({ kind: 'markdownContent', content: new MarkdownString(content) });
 		}
 	}
-	if (!history.length) {
-		fallbackRequests();
+	if (!turns.length) {
+		for (const session of task.sessions ?? []) {
+			turns.push({ id: session.id, prompt: session.prompt ?? '', parts: [] });
+		}
+		if (!turns.length) {
+			turns.push({ id: task.id, prompt: '', parts: [] });
+		}
+		turns[turns.length - 1].parts = leadingParts;
+	} else if (firstSession && firstSession.prompt !== turns[0].prompt && task.sessions?.slice(1).some(session => session.prompt === turns[0].prompt)) {
+		// The log may contain the follow-up's user event but not the initial automation request.
+		turns.unshift({ id: firstSession.id, prompt: '', parts: leadingParts });
 	}
-	history.push({
-		type: 'response', participant, parts,
-		...(stopped(task) ? { errorDetails: { message: localize('cloudAutomationTask.stopped', "The GitHub task stopped: {0}.", task.state) } } : {}),
-	});
+	const history: IChatSessionHistoryItem[] = [];
+	for (const [index, turn] of turns.entries()) {
+		const prompt = index === 0 ? initialPrompt : turn.prompt;
+		history.push({ type: 'request', participant, id: turn.id, prompt: prompt ?? '', ...(index === 0 && !prompt && { isRequestHidden: true }) });
+		history.push({
+			type: 'response', participant, parts: turn.parts,
+			...(index === turns.length - 1 && stopped(task) ? { errorDetails: { message: localize('cloudAutomationTask.stopped', "The GitHub task stopped: {0}.", task.state) } } : {}),
+		});
+	}
 	return history;
 }
 
@@ -158,7 +165,7 @@ export class CloudAutomationTaskConversations extends Disposable implements ICha
 	private publish(resource: URI, task: GetTaskResponse): IChatSessionItem {
 		const latest = task.sessions?.at(-1);
 		const item: IChatSessionItem = {
-			resource, label: task.name || latest?.prompt || localize('cloudAutomationTask.run', "Automation run"),
+			resource, label: task.name || localize('cloudAutomationTask.run', "Automation run"),
 			status: active(task) ? ChatSessionStatus.InProgress : task.state === 'waiting_for_user' ? ChatSessionStatus.NeedsInput : stopped(task) ? ChatSessionStatus.Failed : ChatSessionStatus.Completed,
 			timing: {
 				created: Date.parse(task.created_at), lastRequestStarted: latest && Date.parse(latest.created_at),
@@ -221,13 +228,26 @@ export class CloudAutomationTaskConversations extends Disposable implements ICha
 		try {
 			const opening = new DisposableStore();
 			let snapshot: ITaskSnapshot;
+			let configuredPrompt: string | undefined;
 			try {
-				snapshot = await this.read(resource, CancellationToken.any([token, lifetime.token], opening));
+				const openingToken = CancellationToken.any([token, lifetime.token], opening);
+				snapshot = await this.read(resource, openingToken);
+				if (!snapshot.task.sessions?.[0]?.event_content?.trim()) {
+					try {
+						configuredPrompt = await this.access.getAutomationPrompt(snapshot.task, openingToken);
+					} catch (error) {
+						if (isCancellationError(error)) {
+							throw error;
+						}
+						this.logService.warn('[CloudAutomations] Could not load the initial run prompt');
+					}
+					CancellationToken.throwIfCanceled(openingToken);
+				}
 			} finally {
 				opening.dispose();
 			}
 			const disposed = scope.add(new Emitter<void>());
-			let history = turnHistory(snapshot);
+			let history = turnHistory(snapshot, configuredPrompt);
 			const observation = new CancellationTokenSource(lifetime.token);
 			scope.add(toDisposable(() => observation.dispose(true)));
 			let pollFailures = 0;
@@ -238,7 +258,7 @@ export class CloudAutomationTaskConversations extends Disposable implements ICha
 					CancellationToken.throwIfCanceled(observation.token);
 					snapshot = current;
 					pollFailures = 0;
-					history = turnHistory(current);
+					history = turnHistory(current, configuredPrompt);
 					changed.fire(history);
 				} catch (error) {
 					if (isCancellationError(error)) {
@@ -271,7 +291,7 @@ export class CloudAutomationTaskConversations extends Disposable implements ICha
 						observation.cancel();
 						refresh.cancel();
 						await this.access.withTasks(combined, (tasks, token) => tasks.steer(baseline.task.id, { type: 'user_message', content: request.message }, token, { caller }));
-						history = turnHistory(await this.followReply(resource, request.message, baseline, progress, combined));
+						history = turnHistory(await this.followReply(resource, request.message, baseline, progress, combined), configuredPrompt);
 					} finally {
 						send.dispose();
 					}
