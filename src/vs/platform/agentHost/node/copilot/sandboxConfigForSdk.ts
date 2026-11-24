@@ -263,8 +263,12 @@ function toOperatingSystem(platform: NodeJS.Platform): OperatingSystem {
 	return platform === 'win32' ? OperatingSystem.Windows : platform === 'darwin' ? OperatingSystem.Macintosh : OperatingSystem.Linux;
 }
 
+export function getCopilotExtensionDataDirectory(copilotHome: URI): URI {
+	return URI.joinPath(copilotHome, 'extension-data');
+}
+
 function getExtensionSandboxDefaults(platform: NodeJS.Platform, extensionHome: URI | undefined): string[] {
-	return extensionHome ? [toSandboxFileSystemPath(URI.joinPath(extensionHome, 'extension-data'), platform)] : [];
+	return extensionHome ? [toSandboxFileSystemPath(getCopilotExtensionDataDirectory(extensionHome), platform)] : [];
 }
 
 function resolveUserPaths(sandbox: ISandboxConfigValue | undefined, os: OperatingSystem, extensionReadwritePaths: readonly string[], managedPolicy: ISessionSandboxPolicy | undefined): IResolvedUserPaths {
