@@ -4101,14 +4101,20 @@ export class CopilotAgent extends Disposable implements IAgent {
 		});
 	}
 
-	/** Applies the GitHub credential the shared store kept while a Microsoft account was in use, unless one was applied meanwhile. */
+	/** Applies the GitHub credential the shared store kept while a Microsoft account was in use, unless one was applied meanwhile. Asks for the Microsoft credential when no GitHub token ends up applied. */
 	private async _applyKeptGitHubCredential(): Promise<void> {
 		if (this._githubCredentials.token || this._accountService.state.get().kind !== 'legacy') {
 			return;
 		}
 		const kept = this._getKeptGitHubCredential();
-		if (kept) {
-			await this._applyGitHubAuthentication(kept.token, getRemainingTimeInSeconds(kept.expiresAt), this._gitHubEndpointGeneration);
+		try {
+			if (kept) {
+				await this._applyGitHubAuthentication(kept.token, getRemainingTimeInSeconds(kept.expiresAt), this._gitHubEndpointGeneration);
+			}
+		} finally {
+			if (!this._githubCredentials.token && this._accountService.state.get().kind === 'legacy') {
+				this._entraAuthentication?.advertiseMissingCredential();
+			}
 		}
 	}
 

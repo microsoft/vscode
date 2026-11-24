@@ -6540,6 +6540,39 @@ suite('CopilotAgent', () => {
 		assert.strictEqual(applied(), 'later');
 	});
 
+	test('when the kept GitHub credential is gone before the kept step runs, the Microsoft requirement is published', async () => {
+		const { agent, authenticationService, gitHub, published, endMicrosoft, applied, idle, accountKind } = await useMicrosoftAccount({ githubToken: 'kept' });
+		published.length = 0;
+		let release!: () => void;
+		const sequencer = (agent as unknown as { _authenticationSequencer: { queue(task: () => Promise<void>): Promise<void> } })._authenticationSequencer;
+		const held = sequencer.queue(() => new Promise<void>(resolve => release = resolve));
+		const ended = endMicrosoft();
+		await new Promise<void>(resolve => setTimeout(resolve, 0));
+		authenticationService.invalidateAuthTokens(gitHub.resource);
+		release();
+		await Promise.all([held, ended]);
+		await idle();
+		assert.deepStrictEqual({ applied: applied(), published, account: accountKind() }, { applied: undefined, published: [copilotEntraDiscoveryResource], account: 'legacy' });
+	});
+
+	test('a Microsoft credential supplied again before the kept step runs is not asked for again', async () => {
+		const { agent, authenticationService, gitHub, published, endMicrosoft, applied, idle, accountKind } = await useMicrosoftAccount({ githubToken: 'kept' });
+		published.length = 0;
+		let release!: () => void;
+		const sequencer = (agent as unknown as { _authenticationSequencer: { queue(task: () => Promise<void>): Promise<void> } })._authenticationSequencer;
+		const held = sequencer.queue(() => new Promise<void>(resolve => release = resolve));
+		const ended = endMicrosoft();
+		await new Promise<void>(resolve => setTimeout(resolve, 0));
+		authenticationService.invalidateAuthTokens(gitHub.resource);
+		const again = authenticationService.authenticate({ resource: copilotEntraDiscoveryResource, scopes: ['User.Read'], token: 'synthetic-identity', accountId: 'selected' }, [agent]);
+		await new Promise<void>(resolve => setTimeout(resolve, 0));
+		release();
+		await Promise.all([held, ended, again]);
+		await idle();
+		const outstanding = (agent as unknown as { _entraAuthentication: { authenticationRequired: { get(): { resource: { resource: string } } | undefined } } })._entraAuthentication.authenticationRequired.get()?.resource.resource;
+		assert.deepStrictEqual({ applied: applied(), published, outstanding, account: accountKind() }, { applied: undefined, published: [], outstanding: undefined, account: 'ready' });
+	});
+
 	test('a GitHub token is applied directly when the Microsoft bridge is off', async () => {
 		// The account context never leaves its initial state with the bridge off, so this passes without the Microsoft rule.
 		const { sendGitHub, applied } = await useMicrosoftAccount({ githubToken: 'first', microsoft: false });
