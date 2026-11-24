@@ -4272,9 +4272,14 @@ suite('RemotesWidget', () => {
 		for (const type of ['keydown', 'keyup']) {
 			picker.dispatchEvent(new KeyboardEvent(type, { key: 'F10', keyCode: 121, shiftKey: true, bubbles: true, cancelable: true }));
 		}
-		assert.deepStrictEqual(menuLabels(menus.get(parent)!()), [
-			'Connect', '---', 'Hide from Environment Picker', '---', 'Rename...', 'Configure Agent Run Behavior...', 'Troubleshoot Connection...', 'Delete Dev Tunnel...',
-		]);
+		const anchor = menuAnchors.get(parent)!();
+		assert.deepStrictEqual({
+			menu: menuLabels(menus.get(parent)!()),
+			anchor: dom.isHTMLElement(anchor) ? anchor.querySelector<HTMLElement>('[data-remote-id]')?.dataset.remoteId : undefined,
+		}, {
+			menu: ['Connect', '---', 'Hide from Environment Picker', '---', 'Rename...', 'Configure Agent Run Behavior...', 'Troubleshoot Connection...', 'Delete Dev Tunnel...'],
+			anchor: 'tunnel:laptop',
+		});
 	});
 
 	test('the Dev Tunnels settings button and setup links follow table focus and support keyboard activation', async () => {
