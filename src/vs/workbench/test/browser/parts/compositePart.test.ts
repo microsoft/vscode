@@ -21,6 +21,7 @@ import { IThemeService } from '../../../../platform/theme/common/themeService.js
 import { TestThemeService } from '../../../../platform/theme/test/common/testThemeService.js';
 import { Composite, CompositeDescriptor, CompositeRegistry } from '../../../browser/composite.js';
 import { CompositePart } from '../../../browser/parts/compositePart.js';
+import { Codicon } from '../../../../base/common/codicons.js';
 import { NullHoverService } from '../../../../platform/hover/test/browser/nullHoverService.js';
 import { TestLayoutService } from '../workbenchTestServices.js';
 import { TestStorageService } from '../../common/workbenchTestServices.js';
@@ -98,6 +99,10 @@ class TestCompositePart extends CompositePart<TestComposite> {
 		return this.removeComposite(TestComposite.ID);
 	}
 
+	createTestTitleLabel(parent: HTMLElement) {
+		return this.createTitleLabel(parent);
+	}
+
 	hasCompositeOpenListeners(): boolean {
 		return this.onDidCompositeOpen.hasListeners();
 	}
@@ -148,5 +153,35 @@ suite('CompositePart', () => {
 
 		assert.strictEqual(part.removeTestComposite(), true);
 		assert.strictEqual(part.hasCompositeOpenListeners(), false);
+	});
+
+	test('the title shows the badge of the composite after its name, read with it, until it has none', () => {
+		const storageService = disposables.add(new TestStorageService());
+		const themeService = new TestThemeService();
+		const instantiationService = disposables.add(new TestInstantiationService(new ServiceCollection(
+			[ITelemetryService, NullTelemetryService],
+			[IThemeService, themeService],
+			[IStorageService, storageService],
+		)));
+		const part = disposables.add(new TestCompositePart(instantiationService, disposables.add(new TestCompositeRegistry()), storageService, themeService, new TestLayoutService()));
+		const label = part.createTestTitleLabel(fixture);
+		const titleLabel = fixture.querySelector('.title-label')!;
+		const state = () => ({
+			title: titleLabel.querySelector('h2')!.textContent,
+			ariaLabel: titleLabel.querySelector('h2')!.getAttribute('aria-label'),
+			hasBadge: titleLabel.classList.contains('has-title-badge'),
+			badge: titleLabel.querySelector('.view-title-badge:not(.hidden)')?.textContent ?? null,
+			icon: titleLabel.querySelector('.view-title-badge-icon')!.classList.contains('codicon-worktree'),
+			badgeAriaHidden: titleLabel.querySelector('.view-title-badge')!.getAttribute('aria-hidden'),
+		});
+
+		label.updateTitle(TestComposite.ID, 'vscode', undefined, { icon: Codicon.worktree, label: 'fix-tab-corner-alignment', tooltip: 'tooltip', ariaLabel: 'Folder Location, fix-tab-corner-alignment' });
+		const withBadge = state();
+		label.updateTitle(TestComposite.ID, 'vscode');
+
+		assert.deepStrictEqual([withBadge, state()], [
+			{ title: 'vscode', ariaLabel: 'vscode, Folder Location, fix-tab-corner-alignment', hasBadge: true, badge: 'fix-tab-corner-alignment', icon: true, badgeAriaHidden: 'true' },
+			{ title: 'vscode', ariaLabel: null, hasBadge: false, badge: null, icon: false, badgeAriaHidden: 'true' },
+		]);
 	});
 });

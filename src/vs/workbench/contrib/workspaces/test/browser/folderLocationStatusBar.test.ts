@@ -127,7 +127,7 @@ suite('FolderLocationStatusBarContribution', () => {
 		fixture.switchTo();
 		assert.deepStrictEqual(
 			{ visible: fixture.isVisible(), text: fixture.entries[0].text, ariaLabel: fixture.entries[0].ariaLabel, command: fixture.entries[0].command, kind: fixture.entries[0].kind, tooltip: fixture.entries[0].tooltip },
-			{ visible: true, text: '$(git-branch) Alternate', ariaLabel: 'Folder Location, Alternate', command: { id: SWITCH_FOLDER_LOCATION_COMMAND_ID, title: 'Folder Location', arguments: ['status.workspace.folderLocation'] }, kind: 'prominent', tooltip: `Alternate (alternate location of 'project')` });
+			{ visible: true, text: '$(git-branch)', ariaLabel: 'Folder Location, Alternate', command: { id: SWITCH_FOLDER_LOCATION_COMMAND_ID, title: 'Folder Location', arguments: ['status.workspace.folderLocation'] }, kind: 'prominent', tooltip: `Alternate (alternate location of 'project')` });
 
 		fixture.returnToPrimary();
 		assert.strictEqual(fixture.isVisible(), false);
@@ -160,14 +160,14 @@ suite('FolderLocationStatusBarContribution', () => {
 		fixture.switchTo();
 		steps.push(state());
 
-		const atPrimary = { text: '$(folder) project', kind: undefined, ariaLabel: 'Folder Location, project', tooltip: 'project (Switch Folder Location)' };
+		const atPrimary = { text: '$(folder)', kind: undefined, ariaLabel: 'Folder Location, project', tooltip: 'project (Switch Folder Location)' };
 		assert.deepStrictEqual(steps, [
 			'none',
 			atPrimary,
 			{ introduces: false },
 			'none',
 			atPrimary,
-			{ text: '$(git-branch) Alternate', kind: 'prominent', ariaLabel: 'Folder Location, Alternate', tooltip: `Alternate (alternate location of 'project')` },
+			{ text: '$(git-branch)', kind: 'prominent', ariaLabel: 'Folder Location, Alternate', tooltip: `Alternate (alternate location of 'project')` },
 		]);
 	});
 
@@ -178,25 +178,25 @@ suite('FolderLocationStatusBarContribution', () => {
 		};
 		const windowsFixture = (folder: URI) => createFixture(undefined, { alternates: [location], primary: folder, extUri: extUriIgnorePathCase });
 		// One at a time: each registers the entry's onboarding target
-		const shownText = async (folder: URI, recasedIdentity?: URI) => {
+		const shownName = async (folder: URI, recasedIdentity?: URI) => {
 			const fixture = windowsFixture(folder);
 			await settle();
 			if (recasedIdentity) {
 				fixture.switchTo();
 				fixture.returnToPrimary(recasedIdentity);
 			}
-			const text = fixture.isVisible() ? fixture.entries.at(-1)!.text : 'none';
+			const name = fixture.isVisible() ? fixture.entries.at(-1)!.ariaLabel : 'none';
 			fixture.contribution.dispose();
-			return text;
+			return name;
 		};
 		const drive = URI.from({ scheme: 'file', path: '/c:/Users/me/Repo' });
 
 		assert.deepStrictEqual({
-			drive: await shownText(drive),
-			driveRoot: await shownText(URI.from({ scheme: 'file', path: '/c:/' })),
-			uncShareRoot: await shownText(URI.from({ scheme: 'file', authority: 'server', path: '/share/' })),
-			recased: await shownText(drive, URI.from({ scheme: 'file', path: '/C:/users/ME/repo' })),
-		}, { drive: '$(folder) Repo', driveRoot: '$(folder) c:', uncShareRoot: '$(folder) share', recased: '$(folder) repo' });
+			drive: await shownName(drive),
+			driveRoot: await shownName(URI.from({ scheme: 'file', path: '/c:/' })),
+			uncShareRoot: await shownName(URI.from({ scheme: 'file', authority: 'server', path: '/share/' })),
+			recased: await shownName(drive, URI.from({ scheme: 'file', path: '/C:/users/ME/repo' })),
+		}, { drive: 'Folder Location, Repo', driveRoot: 'Folder Location, c:', uncShareRoot: 'Folder Location, share', recased: 'Folder Location, repo' });
 	});
 
 	test('the introduction is a spotlight on the entry with only Got It', async () => {

@@ -8,7 +8,7 @@ import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite, toResource } from '../../../../../base/test/common/utils.js';
 import { ExplorerItem } from '../../common/explorerModel.js';
-import { ExplorerView, getContext, shouldPreserveWorkspaceNameCase } from '../../browser/views/explorerView.js';
+import { ExplorerView, getContext, getFolderLocationTitleBadge, shouldPreserveWorkspaceNameCase } from '../../browser/views/explorerView.js';
 import { listInvalidItemForeground } from '../../../../../platform/theme/common/colorRegistry.js';
 import { CompressedNavigationController, ExplorerDataSource, ExplorerFindProvider, FileDragAndDrop, FilesFilter, FilesRenderer, FileSorter, ICompressedNavigationController } from '../../browser/views/explorerViewer.js';
 import * as dom from '../../../../../base/browser/dom.js';
@@ -34,6 +34,7 @@ import { IEditorResolverService } from '../../../../services/editor/common/edito
 import { IExplorerService } from '../../browser/files.js';
 import { ResourceLabels } from '../../../../browser/labels.js';
 import { hasKey } from '../../../../../base/common/types.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { testIWorkspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
 
 class TestExplorerView extends ExplorerView {
@@ -87,6 +88,25 @@ suite('Files - ExplorerView', () => {
 		const roots = folders.map((uri, index) => new ExplorerItem(uri, fileService, configService, NullFilesConfigurationService, undefined, true, false, false, false, `name${index}`, 0, false));
 
 		assert.deepStrictEqual(roots.map(root => renderer.getAriaLabel(root)), ['name0', 'name1']);
+	});
+
+	test('the folder location badge shows only while the folder of a single-folder workspace is at another location', () => {
+		const primary = URI.file('/work/project');
+		const alternate = URI.file('/work/project.worktrees/fix');
+		const location = { uri: alternate, label: 'fix', icon: Codicon.worktree, providerId: 'git', builtIn: true };
+		const workspace = (uri: URI, folders: URI[]) => ({ id: 'id', uri, folders: folders.map((folderUri, index) => ({ uri: folderUri, name: 'project', index, toResource: (path: string) => joinPath(folderUri, path) })) }) as IWorkspace;
+		const folderLocationService = (atAlternate: boolean) => new class extends mock<IWorkspaceFolderLocationService>() { override getLocation() { return atAlternate ? location : undefined; } }();
+		const labelService = { getFolderLocationLabel: () => 'Worktree · fix' } as unknown as ILabelService;
+
+		assert.deepStrictEqual([
+			getFolderLocationTitleBadge(WorkbenchState.FOLDER, workspace(primary, [alternate]), folderLocationService(true), labelService),
+			getFolderLocationTitleBadge(WorkbenchState.FOLDER, workspace(primary, [primary]), folderLocationService(false), labelService),
+			getFolderLocationTitleBadge(WorkbenchState.WORKSPACE, workspace(URI.file('/work/a.code-workspace'), [alternate, primary]), folderLocationService(true), labelService),
+		], [
+			{ icon: Codicon.worktree, label: 'fix', tooltip: `Worktree · fix (alternate location of 'project')`, ariaLabel: 'Folder Location, Worktree · fix' },
+			undefined,
+			undefined,
+		]);
 	});
 
 	test('getContext', async function () {
@@ -151,7 +171,7 @@ suite('Files - ExplorerView', () => {
 				getEditable: () => undefined,
 			});
 			instantiationService.stub(IClipboardService, new TestClipboardService());
-			instantiationService.stub(IWorkspaceFolderLocationService, new class extends mock<IWorkspaceFolderLocationService>() { override readonly onDidChangeLocation = Event.None; });
+			instantiationService.stub(IWorkspaceFolderLocationService, new class extends mock<IWorkspaceFolderLocationService>() { override readonly onDidChangeLocation = Event.None; override getLocation() { return undefined; } });
 			instantiationService.stub(IContextMenuService, {
 				showContextMenu: delegate => {
 					assert.ok(hasKey(delegate, { menuActionOptions: true }));

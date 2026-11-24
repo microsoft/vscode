@@ -912,3 +912,15 @@ export interface IViewBadge {
 	readonly tooltip: string;
 	readonly value: number;
 }
+
+/**
+ * A pill that follows the title of a view, in its header or, while it is the only view of its container, in the
+ * container's title.
+ */
+export interface IViewTitleBadge {
+	readonly icon: ThemeIcon;
+	readonly label: string;
+	readonly tooltip: string;
+	/** Read after the title, as the pill itself is hidden from screen readers. */
+	readonly ariaLabel: string;
+}

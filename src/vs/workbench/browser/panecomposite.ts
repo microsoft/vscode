@@ -18,7 +18,7 @@ import { IThemeService } from '../../platform/theme/common/themeService.js';
 import { IWorkspaceContextService } from '../../platform/workspace/common/workspace.js';
 import { ViewPaneContainer, ViewsSubMenu } from './parts/views/viewPaneContainer.js';
 import { IPaneComposite } from '../common/panecomposite.js';
-import { IView } from '../common/views.js';
+import { IView, IViewTitleBadge } from '../common/views.js';
 import { IExtensionService } from '../services/extensions/common/extensions.js';
 import { VIEWPANE_FILTER_ACTION } from './parts/views/viewPane.js';
 import { IBoundarySashes } from '../../base/browser/ui/sash/sash.js';
@@ -147,6 +147,10 @@ export abstract class PaneComposite<MementoType extends object = object> extends
 
 	override getTitle(): string {
 		return this.viewPaneContainer?.getTitle() ?? '';
+	}
+
+	override getTitleBadge(): IViewTitleBadge | undefined {
+		return this.viewPaneContainer?.getTitleBadge();
 	}
 
 	override focus(): void {

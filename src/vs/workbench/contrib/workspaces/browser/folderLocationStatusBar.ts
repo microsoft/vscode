@@ -80,7 +80,7 @@ export const RETURN_TO_PRIMARY_FOLDER_LOCATION_COMMAND_ID = 'workbench.action.re
 export const SWITCH_FOLDER_LOCATION_COMMAND_ID = 'workbench.action.switchFolderLocation';
 
 /**
- * Shows the location of the workspace folder in the status bar while the folder is at an alternate location, and the folder
+ * Shows the location of the workspace folder in the status bar, as an icon named by its tooltip and accessible name, while the folder is at an alternate location, and the folder
  * itself while it is at its own location and has alternate locations, such as worktrees, to switch to.
  */
 export class FolderLocationStatusBarContribution extends Disposable implements IWorkbenchContribution {
@@ -206,15 +206,15 @@ export class FolderLocationStatusBarContribution extends Disposable implements I
 		const command = { id: SWITCH_FOLDER_LOCATION_COMMAND_ID, title: localize('folderLocation', "Folder Location"), arguments: [FOLDER_LOCATION_STATUS_ENTRY_ID] };
 		const props = location ? {
 			name: localize('folderLocation', "Folder Location"),
-			text: `$(${location.icon?.id ?? Codicon.gitBranchCheckout.id}) ${location.label}`,
+			text: `$(${location.icon?.id ?? Codicon.gitBranchCheckout.id})`,
 			ariaLabel: localize('folderLocationAria', "Folder Location, {0}", this.labelService.getFolderLocationLabel(folder.uri)),
 			tooltip: localize('folderLocationTooltip', "{0} (alternate location of '{1}')", this.labelService.getFolderLocationLabel(folder.uri), primaryName),
 			command,
 			kind: 'prominent' as const
 		} : {
-			// The folder itself, as the picker names it, to switch to one of its alternate locations
+			// The folder itself, as the picker names it, to switch to one of its alternate locations; the entry shows only its icon
 			name: localize('folderLocation', "Folder Location"),
-			text: `$(${Codicon.folder.id}) ${primaryName}`,
+			text: `$(${Codicon.folder.id})`,
 			ariaLabel: localize('folderLocationAria', "Folder Location, {0}", primaryName),
 			tooltip: localize('folderLocationPrimaryTooltip', "{0} (Switch Folder Location)", primaryName),
 			command

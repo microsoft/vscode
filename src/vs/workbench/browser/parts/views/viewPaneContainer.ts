@@ -34,7 +34,7 @@ import { ViewPane } from './viewPane.js';
 import { IViewletViewOptions } from './viewsViewlet.js';
 import { Component } from '../../../common/component.js';
 import { PANEL_SECTION_BORDER, PANEL_SECTION_DRAG_AND_DROP_BACKGROUND, PANEL_SECTION_HEADER_BACKGROUND, PANEL_SECTION_HEADER_BORDER, PANEL_SECTION_HEADER_FOREGROUND, SIDE_BAR_DRAG_AND_DROP_BACKGROUND, SIDE_BAR_SECTION_HEADER_BACKGROUND, SIDE_BAR_SECTION_HEADER_BORDER, SIDE_BAR_SECTION_HEADER_FOREGROUND } from '../../../common/theme.js';
-import { IAddedViewDescriptorRef, ICustomViewDescriptor, IView, IViewContainerModel, IViewDescriptor, IViewDescriptorRef, IViewDescriptorService, IViewPaneContainer, ViewContainer, ViewContainerLocation, ViewVisibilityState } from '../../../common/views.js';
+import { IAddedViewDescriptorRef, ICustomViewDescriptor, IView, IViewContainerModel, IViewDescriptor, IViewDescriptorRef, IViewDescriptorService, IViewPaneContainer, IViewTitleBadge, ViewContainer, ViewContainerLocation, ViewVisibilityState } from '../../../common/views.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { FocusedViewContext } from '../../../common/contextkeys.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
@@ -563,6 +563,13 @@ export class ViewPaneContainer<MementoType extends object = object> extends Comp
 		}
 
 		return containerTitle;
+	}
+
+	/**
+	 * The badge of the only view, while it is merged with the container and shows its title there.
+	 */
+	getTitleBadge(): IViewTitleBadge | undefined {
+		return this.isViewMergedWithContainer() ? this.paneItems[0].pane.titleBadge : undefined;
 	}
 
 	private showContextMenu(event: StandardMouseEvent): void {

@@ -42,7 +42,8 @@ import { IClipboardService } from '../../../../../platform/clipboard/common/clip
 import { IFileService, FileSystemProviderCapabilities } from '../../../../../platform/files/common/files.js';
 import { IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Event } from '../../../../../base/common/event.js';
-import { IViewDescriptorService } from '../../../../common/views.js';
+import { IViewDescriptorService, IViewTitleBadge } from '../../../../common/views.js';
+import { basename } from '../../../../../base/common/resources.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
@@ -176,6 +177,25 @@ export function shouldPreserveWorkspaceNameCase(workbenchState: WorkbenchState, 
 	return !workspace.configuration || !isUntitledWorkspace(workspace.configuration, environmentService);
 }
 
+/**
+ * The badge of the Explorer while the folder of a single-folder workspace is at another location, such as a worktree.
+ */
+export function getFolderLocationTitleBadge(workbenchState: WorkbenchState, workspace: IWorkspace, folderLocationService: IWorkspaceFolderLocationService, labelService: ILabelService): IViewTitleBadge | undefined {
+	const folder = workbenchState === WorkbenchState.FOLDER ? workspace.folders[0] : undefined;
+	const location = folder ? folderLocationService.getLocation(folder) : undefined;
+	if (!folder || !location) {
+		return undefined;
+	}
+	const locationLabel = labelService.getFolderLocationLabel(folder.uri) ?? location.label;
+	const primaryName = workspace.uri ? basename(workspace.uri) : folder.name;
+	return {
+		icon: location.icon ?? Codicon.gitBranchCheckout,
+		label: location.label,
+		tooltip: nls.localize('folderLocationTitleBadgeTooltip', "{0} (alternate location of '{1}')", locationLabel, primaryName),
+		ariaLabel: nls.localize('folderLocationTitleBadgeAria', "Folder Location, {0}", locationLabel)
+	};
+}
+
 export class ExplorerView extends ViewPane implements IExplorerView {
 
 	static readonly TREE_VIEW_STATE_STORAGE_KEY: string = 'workbench.explorer.treeViewState';
@@ -211,6 +231,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 	private _autoReveal: boolean | 'force' | 'focusNoScroll' = false;
 	private readonly delegate: IExplorerViewContainerDelegate | undefined;
 	private workspaceTitleContainer: HTMLElement | undefined;
+	private headerTitleElement: HTMLElement | undefined;
 
 	override get singleViewPaneContainerTitle(): string {
 		return this.name;
@@ -264,6 +285,25 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 
 		this.explorerService.registerView(this);
 		this._register(toDisposable(() => this.clearWorkspaceTitleContainer()));
+
+		this._register(this.folderLocationService.onDidChangeLocation(() => this.updateFolderLocationBadge()));
+		this._register(this.contextService.onDidChangeWorkspaceFolders(() => this.updateFolderLocationBadge()));
+		this._register(this.contextService.onDidChangeWorkbenchState(() => this.updateFolderLocationBadge()));
+		this._register(this.labelService.onDidChangeFormatters(() => this.updateFolderLocationBadge()));
+		this.updateFolderLocationBadge();
+	}
+
+	private updateFolderLocationBadge(): void {
+		const badge = getFolderLocationTitleBadge(this.contextService.getWorkbenchState(), this.contextService.getWorkspace(), this.folderLocationService, this.labelService);
+		if (!badge && !this.titleBadge) {
+			return;
+		}
+		this.updateTitleBadge(badge);
+		this.headerTitleElement?.setAttribute('aria-label', this.ariaHeaderLabel);
+	}
+
+	protected override getAriaHeaderLabel(title: string): string {
+		return nls.localize('explorerSection', "Explorer Section: {0}", title);
 	}
 
 	get autoReveal() {
@@ -275,7 +315,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 	}
 
 	get name(): string {
-		// The folder's location shows in the window title and the status bar, not here
+		// The folder's location shows in the title badge, after the name
 		return this.labelService.getWorkspaceLabel(this.contextService.getWorkspace());
 	}
 
@@ -325,10 +365,10 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 
 		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		const titleElement = container.querySelector('.title') as HTMLElement;
+		this.headerTitleElement = titleElement;
 		const setHeader = () => {
 			titleElement.textContent = this.name;
 			this.updateTitle(this.name);
-			this.ariaHeaderLabel = nls.localize('explorerSection', "Explorer Section: {0}", this.name);
 			titleElement.setAttribute('aria-label', this.ariaHeaderLabel);
 		};
 

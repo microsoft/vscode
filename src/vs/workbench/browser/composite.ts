@@ -18,6 +18,7 @@ import { IActionViewItem } from '../../base/browser/ui/actionbar/actionbar.js';
 import { MenuId } from '../../platform/actions/common/actions.js';
 import { IBoundarySashes } from '../../base/browser/ui/sash/sash.js';
 import { IBaseActionViewItemOptions } from '../../base/browser/ui/actionbar/actionViewItems.js';
+import { IViewTitleBadge } from '../common/views.js';
 
 /**
  * Composites are layed out in the sidebar and panel part of the workbench. At a time only one composite
@@ -95,6 +96,13 @@ export abstract class Composite<MementoType extends object = object> extends Com
 	}
 
 	getTitle(): string | undefined {
+		return undefined;
+	}
+
+	/**
+	 * Returns the badge to show after the title of this composite, if any.
+	 */
+	getTitleBadge(): IViewTitleBadge | undefined {
 		return undefined;
 	}
 
