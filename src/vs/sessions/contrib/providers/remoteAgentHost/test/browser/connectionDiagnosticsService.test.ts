@@ -15,7 +15,7 @@ import { IAgentConnection } from '../../../../../../platform/agentHost/common/ag
 import { traceConnectionOperation, type IRemoteConnectionDiagnosticEvent } from '../../../../../../platform/agentHost/common/connectionDiagnostics.js';
 import { IRemoteGitHubEnvironmentSharingService } from '../../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostEntry, IRemoteAgentHostPendingConnection, IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostAutoConnectSettingId, RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
-import { ICachedTunnel, ITunnelAgentHostService, ITunnelInfo } from '../../../../../../platform/agentHost/common/tunnelAgentHost.js';
+import { ICachedTunnel, ITunnelAgentHostService, ITunnelInfo, TunnelAuthenticationRequiredError } from '../../../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -25,10 +25,10 @@ import { createInMemoryFileService } from '../../../../../../platform/files/test
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
-import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
+import { INotificationService, NotificationMessage } from '../../../../../../platform/notification/common/notification.js';
 import { IQuickInputService, IQuickPick, IQuickPickItem, QuickInputHideReason } from '../../../../../../platform/quickinput/common/quickInput.js';
 import { IRemoteTunnelService } from '../../../../../../platform/remoteTunnel/common/remoteTunnel.js';
-import { IAuthenticationService } from '../../../../../../workbench/services/authentication/common/authentication.js';
+import { AuthenticationSession, IAuthenticationService } from '../../../../../../workbench/services/authentication/common/authentication.js';
 import { IWorkbenchEnvironmentService } from '../../../../../../workbench/services/environment/common/environmentService.js';
 import { TestPathService } from '../../../../../../workbench/test/browser/workbenchTestServices.js';
 import { ConnectionDiagnosticsService } from '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/connectionDiagnosticsService.js';
@@ -125,6 +125,43 @@ suite('ConnectionDiagnosticsService', () => {
 		const section = snapshot.sections.find(section => section.title.startsWith(title));
 		assert.ok(section, `Missing ${title} section`);
 		return Object.fromEntries(section.entries.map(entry => [entry.label, entry.value]));
+	}
+
+	/** Stubs the services that Connect via Dev Tunnel uses, with a picker that records what it shows. */
+	function stubConnectViaTunnel(instantiation: TestInstantiationService, service: ConnectionDiagnosticsService, hasSession: boolean) {
+		instantiation.stub(IConnectionDiagnosticsService, service);
+		const picker = { ready: new DeferredPromise<void>(), hide: store.add(new Emitter<void>()), shows: 0, itemLabels: [] as readonly string[] };
+		instantiation.stub(IQuickInputService, {
+			createQuickPick: <T extends IQuickPickItem>() => new class extends mock<IQuickPick<T>>() {
+				override items: readonly T[] = [];
+				override readonly onDidTriggerButton = Event.None;
+				override readonly onDidAccept = Event.None;
+				override readonly onDidTriggerItemButton = Event.None;
+				override readonly onDidHide = Event.map(picker.hide.event, () => ({ reason: QuickInputHideReason.Gesture }));
+				override show(): void { picker.shows++; }
+				override hide(): void { picker.hide.fire(); }
+				override dispose(): void { }
+				override set busy(value: boolean) {
+					if (!value) {
+						picker.itemLabels = this.items.map(item => item.label);
+						void picker.ready.complete();
+					}
+				}
+			}(),
+		});
+		instantiation.stub(IRemoteTunnelService, { onDidChangeTunnelStatus: Event.None, getTunnelStatus: async () => ({ type: 'disconnected' }) });
+		const session: AuthenticationSession = { id: 'session', accessToken: 'test-token', account: { id: 'account', label: 'Account' }, scopes: [] };
+		instantiation.stub(IAuthenticationService, {
+			getSessions: async () => hasSession ? [session] : [],
+			createSession: async () => session,
+		});
+		const errors: string[] = [];
+		instantiation.stub(INotificationService, new class extends mock<INotificationService>() {
+			override error(message: NotificationMessage): void { errors.push(String(message)); }
+		}());
+		instantiation.stub(IDialogService, new class extends mock<IDialogService>() { }());
+		const command = CommandsRegistry.getCommand(RemoteAgentHostCommandIds.connectViaTunnel)!;
+		return { picker, errors, runCommand: () => instantiation.invokeFunction(accessor => command.handler(accessor)) };
 	}
 
 	test('exports authoritative pending automatic setup and updates live host status before a connection exists', async () => {
@@ -359,42 +396,14 @@ suite('ConnectionDiagnosticsService', () => {
 		await assert.rejects(service.trackDiscovery('startup', async () => { throw new Error('offline'); }));
 		const result = [tunnel];
 		tunnels.list = async () => result;
-		instantiation.stub(IConnectionDiagnosticsService, service);
-		const pickerReady = new DeferredPromise<void>();
-		const hide = store.add(new Emitter<void>());
-		let itemLabels: readonly string[] = [];
-		instantiation.stub(IQuickInputService, {
-			createQuickPick: <T extends IQuickPickItem>() => new class extends mock<IQuickPick<T>>() {
-				override items: readonly T[] = [];
-				override readonly onDidTriggerButton = Event.None;
-				override readonly onDidAccept = Event.None;
-				override readonly onDidTriggerItemButton = Event.None;
-				override readonly onDidHide = Event.map(hide.event, () => ({ reason: QuickInputHideReason.Gesture }));
-				override show(): void { }
-				override hide(): void { hide.fire(); }
-				override dispose(): void { }
-				override set busy(value: boolean) {
-					if (!value) {
-						itemLabels = this.items.map(item => item.label);
-						void pickerReady.complete();
-					}
-				}
-			}(),
-		});
-		instantiation.stub(IRemoteTunnelService, { onDidChangeTunnelStatus: Event.None, getTunnelStatus: async () => ({ type: 'disconnected' }) });
-		instantiation.stub(IAuthenticationService, {
-			getSessions: async () => [{ id: 'session', accessToken: 'test-token', account: { id: 'account', label: 'Account' }, scopes: [] }],
-		});
-		instantiation.stub(INotificationService, new class extends mock<INotificationService>() { }());
-		instantiation.stub(IDialogService, new class extends mock<IDialogService>() { }());
-		const command = CommandsRegistry.getCommand(RemoteAgentHostCommandIds.connectViaTunnel)!;
-		const run = instantiation.invokeFunction(accessor => command.handler(accessor));
-		await pickerReady.p;
-		hide.fire();
+		const { picker, runCommand } = stubConnectViaTunnel(instantiation, service, true);
+		const run = runCommand();
+		await picker.ready.p;
+		picker.hide.fire();
 		await run;
 		const snapshot = await service.getSnapshot();
 		assert.deepStrictEqual({
-			itemLabels,
+			itemLabels: picker.itemLabels,
 			trigger: values(snapshot, 'Tunnel discovery').Trigger,
 			result: values(snapshot, 'Tunnel discovery').Result,
 			count: values(snapshot, 'Tunnel discovery')['Hosts in last successful discovery'],
@@ -409,6 +418,31 @@ suite('ConnectionDiagnosticsService', () => {
 			cache: [],
 		});
 	});
+
+	for (const hadSession of [true, false]) {
+		test(`interactive enumeration ${hadSession ? 'signs in again once when the tunnel service rejects an existing session' : 'does not sign in again right after signing in'}`, async () => {
+			const { service, tunnels, instantiation } = createService();
+			let listed = 0;
+			tunnels.list = async () => {
+				if (listed++ === 0) {
+					throw new TunnelAuthenticationRequiredError('github');
+				}
+				return [tunnel];
+			};
+			const signIns: string[] = [];
+			tunnels.signIn = async provider => { signIns.push(provider); };
+			const { picker, errors, runCommand } = stubConnectViaTunnel(instantiation, service, hadSession);
+			const run = runCommand();
+			if (hadSession) {
+				await picker.ready.p;
+				picker.hide.fire();
+			}
+			await run;
+			assert.deepStrictEqual({ listed, signIns, shows: picker.shows, itemLabels: picker.itemLabels, errors }, hadSession
+				? { listed: 2, signIns: ['github'], shows: 2, itemLabels: ['Mock host'], errors: [] }
+				: { listed: 1, signIns: [], shows: 1, itemLabels: [], errors: ['Failed to list dev tunnels: Sign in to allow access to your tunnels.'] });
+		});
+	}
 
 	test('late older discovery completion cannot replace newer successful inventory', async () => {
 		const { service } = createService();
