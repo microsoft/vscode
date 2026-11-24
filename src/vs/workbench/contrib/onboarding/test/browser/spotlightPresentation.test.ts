@@ -18,7 +18,6 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
-import { IQuickInput, IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { DialogService } from '../../../../services/dialogs/common/dialogService.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { TestHostService, TestLayoutService, TestQuickInputService } from '../../../../test/browser/workbenchTestServices.js';
@@ -29,6 +28,7 @@ import { IOnboardingScenario, OnboardingDismissReason, OnboardingOutcome } from 
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { TestExperimentTriggerTelemetryService } from '../../../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
 import { TestDialogService } from '../../../../../platform/dialogs/test/common/testDialogService.js';
+import { FakeQuickInputService } from './fakeQuickInputService.js';
 
 class SpotlightTestLayoutService extends TestLayoutService {
 	constructor(private readonly _container: HTMLElement) {
@@ -1237,23 +1237,8 @@ suite('SpotlightPresentation', () => {
 
 	suite('modal UI', () => {
 
-		/** Shows and hides a Quick Input the way the service reports it, without rendering one. */
-		class FakeQuickInputService extends mock<IQuickInputService>() {
-			private readonly _onShow = disposables.add(new Emitter<void>());
-			private readonly _onHide = disposables.add(new Emitter<void>());
-			override readonly onShow = this._onShow.event;
-			override readonly onHide = this._onHide.event;
-			override currentQuickInput: IQuickInput | undefined;
-
-			show(): void {
-				this.currentQuickInput = new (mock<IQuickInput>())();
-				this._onShow.fire();
-			}
-
-			hide(): void {
-				this.currentQuickInput = undefined;
-				this._onHide.fire();
-			}
+		function createQuickInputService(): FakeQuickInputService {
+			return disposables.add(new FakeQuickInputService());
 		}
 
 		function createDialogService(): DialogService {
@@ -1364,7 +1349,7 @@ suite('SpotlightPresentation', () => {
 
 		test('hides the step while the Quick Input is open, leaves Escape to it, does not dim the window and restores the step when it closes', () => runWithFakedTimers({}, async () => {
 			const container = createContainer();
-			const quickInput = new FakeQuickInputService();
+			const quickInput = createQuickInputService();
 			const dimming: boolean[] = [];
 			const host = new class extends TestHostService {
 				override async setWindowDimmed(_window: Window, dimmed: boolean): Promise<void> { dimming.push(dimmed); }
@@ -1403,7 +1388,7 @@ suite('SpotlightPresentation', () => {
 		test('keeps the step hidden when a folder picked in the Quick Input is decided by a later dialog', () => runWithFakedTimers({}, async () => {
 			const container = createContainer();
 			const dialogService = createDialogService();
-			const quickInput = new FakeQuickInputService();
+			const quickInput = createQuickInputService();
 			const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
 			const presentation = disposables.add(new SpotlightPresentation(new SpotlightTestLayoutService(container), new TestHostService(), contextKeyService, new TestConfigurationService(), NullTelemetryService, dialogService, quickInput));
 			const selected = disposables.add(new Emitter<Promise<boolean>>());
@@ -1485,12 +1470,84 @@ suite('SpotlightPresentation', () => {
 			}));
 		}
 
+		test('advances a step whose target click opened a dialog, and shows the next step once the dialog closes', () => runWithFakedTimers({}, async () => {
+			const container = createContainer();
+			const dialogService = createDialogService();
+			const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
+			const presentation = disposables.add(new SpotlightPresentation(new SpotlightTestLayoutService(container), new TestHostService(), contextKeyService, new TestConfigurationService(), NullTelemetryService, dialogService, new TestQuickInputService()));
+			const workspace = createTarget(container, 'test.dialog.clickWorkspace');
+			let dialog: ReturnType<typeof showDialog> | undefined;
+			disposables.add(addDisposableListener(workspace, EventType.CLICK, () => dialog = showDialog(dialogService)));
+			createTarget(container, 'test.dialog.clickModel');
+			const shown: string[] = [];
+			const result = presentation.run(createScenario('test.dialog.click', {
+				id: 'workspace', targetId: 'test.dialog.clickWorkspace', title: 'Choose a workspace', description: 'Pick a folder.',
+				advanceOnTargetClick: true,
+				onDidShow: () => shown.push('workspace'),
+			}, {
+				id: 'model', targetId: 'test.dialog.clickModel', title: 'Choose a model', description: 'Pick a model.',
+				onDidShow: () => {
+					shown.push('model');
+					clickPrimary(container);
+				},
+			}), { targetWindow: mainWindow, onAbort: Event.None });
+			await settle();
+
+			workspace.click();
+			await settle();
+			const whileOpen = { visible: overlayState(container).visible, shown: [...shown] };
+			dialog!.item.close();
+			await dialog!.result;
+			await settle();
+
+			assert.deepStrictEqual({ whileOpen, afterClose: [...shown] }, {
+				whileOpen: { visible: false, shown: ['workspace'] },
+				afterClose: ['workspace', 'model'],
+			});
+			assert.deepStrictEqual(await result, { outcome: OnboardingOutcome.Completed, shown: true, dismissReason: OnboardingDismissReason.Completed, lastStepIndex: 1, stepCount: 2 });
+		}));
+
+		test('a step restored without the backdrop leaves focus where the user works and does not reopen its target', () => runWithFakedTimers({}, async () => {
+			const container = createContainer();
+			const dialogService = createDialogService();
+			const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
+			const configuration = new TestConfigurationService({ [SPOTLIGHT_BACKDROP_CONFIG]: false });
+			const presentation = disposables.add(new SpotlightPresentation(new SpotlightTestLayoutService(container), new TestHostService(), contextKeyService, configuration, NullTelemetryService, dialogService, new TestQuickInputService()));
+			// Like the workspace picker, the opener moves focus into a popup outside the target.
+			const picker = container.appendChild($('input'));
+			const outside = container.appendChild($('button'));
+			let opens = 0;
+			createTarget(container, 'test.dialog.focusWorkspace', { open: () => { opens++; picker.focus(); } });
+			createTarget(container, 'test.dialog.focusModel');
+			const result = presentation.run(createScenario('test.dialog.focus', {
+				id: 'workspace', targetId: 'test.dialog.focusWorkspace', title: 'Choose a workspace', description: 'Pick a folder.',
+				openTarget: true, allowTargetInteraction: true,
+			}, {
+				id: 'model', targetId: 'test.dialog.focusModel', title: 'Choose a model', description: 'Pick a model.',
+				onDidShow: () => clickPrimary(container),
+			}), { targetWindow: mainWindow, onAbort: Event.None });
+			await settle();
+
+			outside.focus();
+			const dialog = showDialog(dialogService);
+			dialog.item.close();
+			await dialog.result;
+			await settle();
+			const restored = { ...overlayState(container), focusedOutside: mainWindow.document.activeElement === outside, opens };
+			clickPrimary(container);
+
+			assert.deepStrictEqual({ restored, result: await result }, {
+				restored: { visible: true, title: 'Choose a workspace', counter: '1 of 2', focusedOutside: true, opens: 1 },
+				result: { outcome: OnboardingOutcome.Completed, shown: true, dismissReason: OnboardingDismissReason.Completed, lastStepIndex: 1, stepCount: 2 },
+			});
+		}));
+
 		for (const ui of ['dialog', 'quickInput'] as const) {
 			for (const runAsSequenceStep of [false, true]) {
 				test(`does not start a step until an open ${ui} closes (runAsSequenceStep: ${runAsSequenceStep})`, () => runWithFakedTimers({}, async () => {
 					const container = createContainer();
 					const dialogService = createDialogService();
-					const quickInput = new FakeQuickInputService();
+					const quickInput = createQuickInputService();
 					const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
 					const presentation = disposables.add(new SpotlightPresentation(new SpotlightTestLayoutService(container), new TestHostService(), contextKeyService, new TestConfigurationService(), NullTelemetryService, dialogService, quickInput));
 					createTarget(container, 'test.modal.waiting');

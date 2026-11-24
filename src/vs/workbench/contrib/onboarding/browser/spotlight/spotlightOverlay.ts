@@ -11,7 +11,7 @@ import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { IHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegate.js';
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IMarkdownString, isMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
@@ -115,6 +115,8 @@ export class SpotlightOverlay extends Disposable {
 
 	/** Listeners scoped to the currently shown step (re-layout sources). */
 	private readonly _stepListeners = this._register(new DisposableStore());
+	/** A target activation waiting to advance the step. Unlike the step's listeners, it outlives {@link suspend}. */
+	private readonly _queuedActivation = this._register(new MutableDisposable());
 
 	private readonly _onDidClickNext = this._register(new Emitter<SpotlightAdvanceSource>());
 	readonly onDidClickNext: Event<SpotlightAdvanceSource> = this._onDidClickNext.event;
@@ -211,7 +213,7 @@ export class SpotlightOverlay extends Disposable {
 		this._options = options;
 		this._lastTargets = options.focusTarget ? [target, options.focusTarget.element] : [target];
 		// Re-showing for a replaced target must not take focus from where the user works in a non-modal spotlight.
-		const keepFocus = !!options.preserveFocus && this._isFocusElsewhere();
+		const keepFocus = !!options.preserveFocus && this.isFocusElsewhere();
 		this.setPrimaryActionEnabled(true);
 		this._renderContent(content);
 		const externalUiParticipates = !!options.targetOverlayVisible || !!options.allowTargetInteraction || !!options.advanceOnTargetClick || !!options.hideNext;
@@ -222,6 +224,7 @@ export class SpotlightOverlay extends Disposable {
 
 		// Rebuild the per-step re-layout listeners.
 		this._stepListeners.clear();
+		this._queuedActivation.clear();
 		// Keep focus in the target's logical subtree when the callout is rendered outside its popup.
 		target.id ||= `spotlight-target-${generateUuid()}`;
 		setParentFlowTo(this._root, target);
@@ -290,7 +293,7 @@ export class SpotlightOverlay extends Disposable {
 					this._previousFocus = undefined;
 					this._onDidClickNext.fire('target');
 				});
-				this._stepListeners.add(toDisposable(() => targetWindow.clearTimeout(handle)));
+				this._queuedActivation.value = toDisposable(() => targetWindow.clearTimeout(handle));
 			};
 			if (advanceOnly) {
 				for (const eventType of [EventType.CLICK, TouchEventType.Tap]) {
@@ -384,6 +387,19 @@ export class SpotlightOverlay extends Disposable {
 
 	/** Hide the current step while another target is being resolved. */
 	hide(): void {
+		this._queuedActivation.clear();
+		this._hideStep();
+	}
+
+	/**
+	 * Hide the current step while modal UI is open. Unlike {@link hide}, an activation of the target that is already
+	 * queued still advances the step, as when activating the target is what opened the modal UI.
+	 */
+	suspend(): void {
+		this._hideStep();
+	}
+
+	private _hideStep(): void {
 		this._stepListeners.clear();
 		this._root.style.display = 'none';
 		this._root.classList.remove('target-overlay-visible');
@@ -696,7 +712,7 @@ export class SpotlightOverlay extends Disposable {
 	}
 
 	/** Whether a non-modal spotlight has focus somewhere else in the window, outside the callout and its target. */
-	private _isFocusElsewhere(): boolean {
+	isFocusElsewhere(): boolean {
 		const active = getActiveElement();
 		if (this._backdropVisible || !isHTMLElement(active) || active === active.ownerDocument.body) {
 			return false;
@@ -707,7 +723,7 @@ export class SpotlightOverlay extends Disposable {
 	private _restoreFocus(): void {
 		const previous = this._previousFocus;
 		this._previousFocus = undefined;
-		if (previous && previous.isConnected && !this._isFocusElsewhere()) {
+		if (previous && previous.isConnected && !this.isFocusElsewhere()) {
 			previous.focus();
 		}
 	}

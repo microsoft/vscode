@@ -3,22 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DeferredPromise, raceCancellationError } from '../../../../base/common/async.js';
+import { DeferredPromise } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { CancellationError, isCancellationError, onUnexpectedError } from '../../../../base/common/errors.js';
-import { Emitter, Event } from '../../../../base/common/event.js';
+import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
-import { autorun, IObservable, IReader, observableSignal, observableValue } from '../../../../base/common/observable.js';
+import { autorun, IObservable, IReader, observableSignal, observableValue, waitForState } from '../../../../base/common/observable.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IWorkbenchAssignmentService } from '../../../services/assignment/common/assignmentService.js';
 import { Memento } from '../../../common/memento.js';
 import { IOnboardingPresentation, onboardingPresentationRegistry } from '../common/onboardingPresentation.js';
+import { OnboardingModalUi } from '../common/onboardingModalUi.js';
 import { runWithOnboardingPresentation } from './onboardingPresentationQueue.js';
 import { onboardingScenarioRegistry } from '../common/onboardingRegistry.js';
 import { IOnboardingExperiment, IOnboardingRunResult, IOnboardingScenario, ONBOARDING_ASSIGNMENT_CONTEXT_PREFIX, OnboardingOutcome } from '../common/onboardingScenario.js';
@@ -101,6 +103,7 @@ export class OnboardingScenarioService extends Disposable implements IOnboarding
 	private _started = false;
 	private _stopped = false;
 	private readonly _shownSinceStart = new Set<string>();
+	private readonly _modalUi: OnboardingModalUi;
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
@@ -110,9 +113,11 @@ export class OnboardingScenarioService extends Disposable implements IOnboarding
 		@IWorkbenchAssignmentService private readonly assignmentService: IWorkbenchAssignmentService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IDialogService private readonly dialogService: IDialogService,
+		@IQuickInputService quickInputService: IQuickInputService,
 	) {
 		super();
 
+		this._modalUi = new OnboardingModalUi(dialogService, quickInputService);
 		this._memento = new Memento(OnboardingScenarioService.MEMENTO_ID, this.storageService);
 		this._state = this._memento.getMemento(StorageScope.APPLICATION, StorageTarget.MACHINE);
 
@@ -374,7 +379,7 @@ export class OnboardingScenarioService extends Disposable implements IOnboarding
 
 	private _isStillEligible(scenario: IOnboardingScenario): boolean {
 		return this._enabled
-			&& !this.dialogService.hasDialog
+			&& !this._modalUi.visible.get()
 			&& (!scenario.when || this.contextKeyService.contextMatchesRules(scenario.when))
 			&& (scenario.trigger.kind !== 'observable' || scenario.trigger.signal.get() === true);
 	}
@@ -461,9 +466,10 @@ export class OnboardingScenarioService extends Disposable implements IOnboarding
 		this._activeAbort = abort;
 		try {
 			return await runWithOnboardingPresentation(mainWindow, cancellation.token, async () => {
-				// A modal can open while this run waits for the presentation slot.
-				while (run.automatic && this.dialogService.hasDialog) {
-					await raceCancellationError(Event.toPromise(this.dialogService.onDidShowDialog, store), cancellation.token);
+				// Modal UI can open while this run waits for the presentation slot. An automatic run waits for it to close
+				// before it counts as shown, as a spotlight would not show over it.
+				if (run.automatic) {
+					await waitForState(this._modalUi.visible, visible => !visible, undefined, cancellation.token);
 				}
 				// An automatic run can wait behind other presentations, so it only starts if it is still eligible.
 				if (this._stopped || run.automatic && !this._isStillEligible(scenario)) {

@@ -305,6 +305,7 @@ suite('AgentPickerSpotlight', () => {
 			storage, context, configuration, store.add(new TestLifecycleService()),
 			new NullWorkbenchAssignmentService(), NullTelemetryService,
 			store.add(new DialogService(new class extends mock<IWorkbenchEnvironmentService>() { }(), new NullLogService())),
+			new TestQuickInputService(),
 		));
 		const finish = new DeferredPromise<void>();
 		store.add(toDisposable(() => { void finish.complete(); }));

@@ -6,9 +6,8 @@
 import { timeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { isCancellationError, onUnexpectedError } from '../../../../../base/common/errors.js';
-import { Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, derived, IObservable, observableFromEvent, waitForState } from '../../../../../base/common/observable.js';
+import { autorun, waitForState } from '../../../../../base/common/observable.js';
 import { IConfigurationService, isConfigured } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
@@ -18,6 +17,7 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
 import { IOnboardingPresentation, IOnboardingRunContext } from '../../common/onboardingPresentation.js';
+import { OnboardingModalUi } from '../../common/onboardingModalUi.js';
 import { IOnboardingRunResult, IOnboardingScenario, OnboardingDismissReason, OnboardingOutcome } from '../../common/onboardingScenario.js';
 import { IOnboardingSequenceStep, IOnboardingSequenceStepContext, IOnboardingSequenceStepPresentation, IOnboardingSequenceStepResult } from '../../common/onboardingSequence.js';
 import { IOnboardingTarget, hasOnboardingTargetSelection, isVisibleOnboardingTarget, onDidSelectOnboardingTarget, resolveOnboardingTarget } from './onboardingTarget.js';
@@ -62,11 +62,7 @@ export class SpotlightPresentation extends Disposable implements IOnboardingPres
 	readonly kind = SPOTLIGHT_PRESENTATION_KIND;
 	readonly countsAsVisualStep = true;
 
-	/** Whether a dialog is showing or queued. */
-	private readonly _dialogVisible: IObservable<boolean>;
-	private readonly _quickInputVisible: IObservable<boolean>;
-	/** Modal UI that a spotlight never shows over. It listens to the dialog and Quick Input services only while observed. */
-	private readonly _modalUiVisible: IObservable<boolean>;
+	private readonly _modalUi: OnboardingModalUi;
 
 	constructor(
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
@@ -78,9 +74,7 @@ export class SpotlightPresentation extends Disposable implements IOnboardingPres
 		@IQuickInputService quickInputService: IQuickInputService,
 	) {
 		super();
-		this._dialogVisible = observableFromEvent(this, Event.any(dialogService.onWillShowDialog, dialogService.onDidShowDialog), () => dialogService.hasDialog);
-		this._quickInputVisible = observableFromEvent(this, Event.any(quickInputService.onShow, quickInputService.onHide), () => !!quickInputService.currentQuickInput);
-		this._modalUiVisible = derived(this, reader => this._dialogVisible.read(reader) || this._quickInputVisible.read(reader));
+		this._modalUi = new OnboardingModalUi(dialogService, quickInputService);
 	}
 
 	async run(scenario: IOnboardingScenario, context: IOnboardingRunContext): Promise<IOnboardingRunResult> {
@@ -297,8 +291,8 @@ export class SpotlightPresentation extends Disposable implements IOnboardingPres
 			// A dialog dims the window itself while it shows, and clears the dimming when it closes.
 			// The Quick Input dims nothing, so the window is not dimmed while the spotlight steps aside for it.
 			store.add(autorun(reader => {
-				if (!this._dialogVisible.read(reader)) {
-					this.hostService.setWindowDimmed(targetWindow, !this._quickInputVisible.read(reader));
+				if (!this._modalUi.dialogVisible.read(reader)) {
+					this.hostService.setWindowDimmed(targetWindow, !this._modalUi.quickInputVisible.read(reader));
 				}
 			}));
 			store.add(toDisposable(() => this.hostService.setWindowDimmed(targetWindow, false)));
@@ -317,8 +311,8 @@ export class SpotlightPresentation extends Disposable implements IOnboardingPres
 	 */
 	private async _waitForModalUiToClose(token: CancellationToken): Promise<void> {
 		try {
-			while (this._modalUiVisible.get() && !token.isCancellationRequested) {
-				await waitForState(this._modalUiVisible, visible => !visible, undefined, token);
+			while (this._modalUi.visible.get() && !token.isCancellationRequested) {
+				await waitForState(this._modalUi.visible, visible => !visible, undefined, token);
 				await timeout(MODAL_UI_SETTLE_DELAY, token);
 			}
 		} catch (error) {
@@ -545,7 +539,9 @@ export class SpotlightPresentation extends Disposable implements IOnboardingPres
 			}
 			advanceIfSatisfied();
 
-			if (openTarget && !ended) {
+			// A step shown again while the user works elsewhere in a non-modal spotlight leaves focus there, and so does not
+			// reopen its target, which would take it.
+			if (openTarget && !ended && !(renderPreserveFocus && overlay.isFocusElsewhere())) {
 				try {
 					await target.open?.(cancellation.token);
 				} catch (error) {
@@ -554,12 +550,13 @@ export class SpotlightPresentation extends Disposable implements IOnboardingPres
 			}
 		};
 
-		// Modal UI hides the step, which keeps listening so the outcome of what the user does there can still advance it.
+		// Modal UI hides the step, which keeps listening so the outcome of what the user does there can still advance it,
+		// including a target activation that opened the modal UI.
 		let suspended = false;
 		const restore = async () => {
 			// Restore only once what the user did there settled, such as a folder picked in the Quick Input and the trust
 			// dialog that follows it, so a step that is about to advance or hide again does not flash.
-			while (!ended && (this._modalUiVisible.get() || pendingSelection)) {
+			while (!ended && (this._modalUi.visible.get() || pendingSelection)) {
 				await this._waitForModalUiToClose(cancellation.token);
 				await pendingSelection?.catch(() => undefined);
 				await this._waitForTargetReady(context.targetWindow, target.element);
@@ -580,9 +577,9 @@ export class SpotlightPresentation extends Disposable implements IOnboardingPres
 			await render(rendered || preserveFocus);
 		};
 		stepStore.add(autorun(reader => {
-			if (this._modalUiVisible.read(reader) && !suspended && !ended) {
+			if (this._modalUi.visible.read(reader) && !suspended && !ended) {
 				suspended = true;
-				overlay.hide();
+				overlay.suspend();
 				void restore();
 			}
 		}));

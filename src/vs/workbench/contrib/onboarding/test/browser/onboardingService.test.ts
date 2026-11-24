@@ -34,6 +34,7 @@ import { IOnboardingPresentation, IOnboardingRunContext, onboardingPresentationR
 import { onboardingScenarioRegistry } from '../../common/onboardingRegistry.js';
 import { IOnboardingRunResult, IOnboardingScenario, OnboardingDismissReason, OnboardingOutcome } from '../../common/onboardingScenario.js';
 import { getOnboardingDeveloperModeVariation, ONBOARDING_DEVELOPER_MODE_CONFIG, ONBOARDING_DEVELOPER_MODE_VARIATIONS_CONFIG, ONBOARDING_ENABLED_CONFIG } from '../../common/onboardingScenarioService.js';
+import { FakeQuickInputService } from './fakeQuickInputService.js';
 
 function completedResult(outcome: OnboardingOutcome = OnboardingOutcome.Completed): IOnboardingRunResult {
 	const dismissReason = outcome === OnboardingOutcome.Skipped ? OnboardingDismissReason.SkipButton
@@ -145,9 +146,11 @@ suite('OnboardingScenarioService', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let dialogService: DialogService;
+	let quickInputService: FakeQuickInputService;
 
 	setup(() => {
 		dialogService = disposables.add(new DialogService(new class extends mock<IWorkbenchEnvironmentService>() { }(), new NullLogService()));
+		quickInputService = disposables.add(new FakeQuickInputService());
 	});
 
 	teardown(() => {
@@ -191,6 +194,7 @@ suite('OnboardingScenarioService', () => {
 			assignment ?? new NullWorkbenchAssignmentService(),
 			telemetry,
 			dialogService,
+			quickInputService,
 		));
 		return { service, contextKeyService, config, lifecycle };
 	}
@@ -326,6 +330,26 @@ suite('OnboardingScenarioService', () => {
 		assert.deepStrictEqual({ whileOpen, runs: presentation.runs }, {
 			whileOpen: { runs: [], shown: false },
 			runs: ['dialog-observable'],
+		});
+	});
+
+	test('an automatic tour waits for the Quick Input to close before it counts as shown', async () => {
+		const presentation = new RecordingPresentation(uniqueKind());
+		registerPresentation(presentation);
+		registerScenario({ id: 'quick-input-1', trigger: { kind: 'auto' }, presentation: { kind: presentation.kind, payload: undefined } });
+		quickInputService.show();
+		const { service } = createService();
+		service.start();
+		await timeout(0);
+		const whileOpen = { runs: [...presentation.runs], shown: service.hasBeenShown('quick-input-1') };
+
+		quickInputService.hide();
+		await timeout(0);
+
+		assert.deepStrictEqual({ whileOpen, runs: presentation.runs, shown: service.hasBeenShown('quick-input-1') }, {
+			whileOpen: { runs: [], shown: false },
+			runs: ['quick-input-1'],
+			shown: true,
 		});
 	});
 
@@ -1173,7 +1197,7 @@ suite('OnboardingScenarioService', () => {
 		const config = new TestConfigurationService();
 		const contextKeyService = store.add(new ContextKeyService(config));
 		const lifecycle = store.add(new TestLifecycleService());
-		const service = store.add(new OnboardingScenarioService(storage, contextKeyService, config as unknown as IConfigurationService, lifecycle, new NullWorkbenchAssignmentService(), NullTelemetryService as unknown as ITelemetryService, dialogService));
+		const service = store.add(new OnboardingScenarioService(storage, contextKeyService, config as unknown as IConfigurationService, lifecycle, new NullWorkbenchAssignmentService(), NullTelemetryService as unknown as ITelemetryService, dialogService, quickInputService));
 		service.start();
 		store.dispose();
 		assert.ok(true);

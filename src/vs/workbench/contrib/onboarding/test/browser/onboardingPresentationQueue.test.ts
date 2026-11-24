@@ -93,6 +93,7 @@ suite('Onboarding presentation isolation', () => {
 			store.add(new InMemoryStorageService()), contextKeys, configuration,
 			store.add(new TestLifecycleService()), new NullWorkbenchAssignmentService(), NullTelemetryService,
 			new TestDialogService(),
+			new TestQuickInputService(),
 		));
 		scenarioService.start();
 		const automaticRun = scenarioService.runScenario('test.automatic');

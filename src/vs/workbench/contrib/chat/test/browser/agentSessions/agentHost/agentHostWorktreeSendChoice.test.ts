@@ -179,6 +179,7 @@ suite('Agent host Work in Parallel choice on send', () => {
 				storage, contextKeyService, configuration, disposables.add(new TestLifecycleService()),
 				new NullWorkbenchAssignmentService(), NullTelemetryService,
 				disposables.add(new DialogService(upcastPartial<IWorkbenchEnvironmentService>({}), new NullLogService())),
+				new TestQuickInputService(),
 			)));
 			const layout = new class extends TestLayoutService {
 				override getContainer() { return mainWindow.document.body; }

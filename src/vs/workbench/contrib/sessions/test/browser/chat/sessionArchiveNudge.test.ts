@@ -284,6 +284,7 @@ suite('SessionArchiveNudge', () => {
 			new NullWorkbenchAssignmentService(),
 			NullTelemetryService,
 			new TestDialogService(),
+			new TestQuickInputService(),
 		));
 		let service = store.add(new SessionArchiveNudgeService(storage, management, telemetry, configuration, viewsService, onboardingService, chatService));
 		const current = observableValue<ISession | undefined>('current', sessions[0]);

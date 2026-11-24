@@ -88,7 +88,7 @@ suite('AgentsWindowInvitationOnboarding', () => {
 				return (name.endsWith('.show') ? true : name.endsWith('.id') ? 'onb-parallel-work-test' : undefined) as T | undefined;
 			}
 		}();
-		const onboarding = store.add(new OnboardingScenarioService(storage, context, configuration, lifecycle, assignment, NullTelemetryService, new TestDialogService()));
+		const onboarding = store.add(new OnboardingScenarioService(storage, context, configuration, lifecycle, assignment, NullTelemetryService, new TestDialogService(), new TestQuickInputService()));
 		store.add(onboardingScenarioRegistry.register(createNewSessionViewV2Tour(constObservable(true))));
 		const entitlement = new class extends TestChatEntitlementService {
 			override readonly sentiment = { hidden: options.hidden ?? false };

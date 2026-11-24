@@ -5787,6 +5787,7 @@ suite('NewChatWidget', () => {
 							store.add(new InMemoryStorageService()), contextKeyService, configuration, store.add(new TestLifecycleService()),
 							new NullWorkbenchAssignmentService(), NullTelemetryService,
 							store.add(new DialogService(upcastPartial<IWorkbenchEnvironmentService>({}), new NullLogService())),
+							new TestQuickInputService(),
 						));
 						const layout = new class extends TestLayoutService {
 							override getContainer() { return mainWindow.document.body; }
@@ -5889,6 +5890,7 @@ suite('NewChatWidget', () => {
 							store.add(new InMemoryStorageService()), contextKeyService, configuration, store.add(new TestLifecycleService()),
 							new NullWorkbenchAssignmentService(), NullTelemetryService,
 							store.add(new DialogService(upcastPartial<IWorkbenchEnvironmentService>({}), new NullLogService())),
+							new TestQuickInputService(),
 						));
 						const layout = new class extends TestLayoutService {
 							override getContainer() { return mainWindow.document.body; }

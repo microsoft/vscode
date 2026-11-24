@@ -72,6 +72,7 @@ suite('AutomationsTour', () => {
 				storage, context, configuration, disposables.add(new TestLifecycleService()), new NullWorkbenchAssignmentService(),
 				new class extends mock<ITelemetryService>() { override publicLog2(): void { } }(),
 				new class extends mock<IDialogService>() { override readonly hasDialog = false; override readonly onDidShowDialog = Event.None; }(),
+				new TestQuickInputService(),
 			));
 			const service = createService();
 			service.start();
@@ -107,6 +108,7 @@ suite('AutomationsTour', () => {
 			disposables.add(new InMemoryStorageService()), context, configuration, disposables.add(new TestLifecycleService()), new NullWorkbenchAssignmentService(),
 			new class extends mock<ITelemetryService>() { override publicLog2(): void { } }(),
 			new class extends mock<IDialogService>() { override readonly hasDialog = false; override readonly onDidShowDialog = Event.None; }(),
+			new TestQuickInputService(),
 		));
 		service.start();
 		await timeout(0);
