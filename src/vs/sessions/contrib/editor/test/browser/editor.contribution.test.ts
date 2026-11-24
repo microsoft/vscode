@@ -36,6 +36,7 @@ import { MockContextKeyService, MockKeybindingService, MockScopableContextKeySer
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { USLayoutResolvedKeybinding } from '../../../../../platform/keybinding/common/usLayoutResolvedKeybinding.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
+import { IWorkspaceFolderLocationService } from '../../../../../platform/workspace/common/folderLocations.js';
 import { IEditorOptions } from '../../../../../platform/editor/common/editor.js';
 import { FileOperationError, FileOperationResult, IFileService } from '../../../../../platform/files/common/files.js';
 import { IQuickInputService, IQuickPick, IQuickPickItem, QuickInputType } from '../../../../../platform/quickinput/common/quickInput.js';
@@ -159,7 +160,19 @@ suite('Sessions - Editor Contribution', () => {
 		instantiationService.stub(IChatWindowService, upcastPartial<IChatWindowService>({ activeWindow: undefined }));
 	}
 
+	/** Quick Open asks for the locations of the workspace folder: it has no other locations. */
+	function stubNoFolderLocations(instantiationService: TestInstantiationService): void {
+		instantiationService.stub(IWorkspaceFolderLocationService, upcastPartial<IWorkspaceFolderLocationService>({
+			onDidChangeLocation: Event.None,
+			onDidChangeLocations: Event.None,
+			onDidChangeProviders: Event.None,
+			isAtAlternateLocation: () => false,
+			canSetLocation: () => false
+		}));
+	}
+
 	function createFileSearch(instantiationService: TestInstantiationService): EmptyFileEditorSearch {
+		stubNoFolderLocations(instantiationService);
 		const container = appendElement(mainWindow.document.body, 'empty-file-editor-search');
 		store.add(toDisposable(() => container.remove()));
 		return store.add(instantiationService.createInstance(EmptyFileEditorSearch, container));
@@ -812,6 +825,7 @@ suite('Sessions - Editor Contribution', () => {
 
 	test('empty file editor Open File command searches its own session workspace', async () => {
 		const instantiationService = workbenchInstantiationService(undefined, store);
+		stubNoFolderLocations(instantiationService);
 		instantiationService.stub(IMenuService, store.add(instantiationService.createInstance(MenuService)));
 		const queries: IFileQuery[] = [];
 		const onDidSearch = store.add(new Emitter<void>());
@@ -1057,6 +1071,7 @@ suite('Sessions - Editor Contribution', () => {
 	test('empty file editor inline search anchors results and restores the field on Escape', async () => {
 		await mainWindow.document.fonts.ready;
 		const instantiationService = workbenchInstantiationService(undefined, store);
+		stubNoFolderLocations(instantiationService);
 		const queries: IFileQuery[] = [];
 		const onDidSearch = store.add(new Emitter<void>());
 		instantiationService.stub(ISearchService, new class extends mock<ISearchService>() {
