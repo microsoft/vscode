@@ -11,6 +11,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IWorkspaceFolderLocationService } from '../../../../../platform/workspace/common/folderLocations.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../../../workbench/common/views.js';
 import { IExplorerService } from '../../../../../workbench/contrib/files/browser/files.js';
 import { ExplorerView } from '../../../../../workbench/contrib/files/browser/views/explorerView.js';
@@ -37,6 +38,7 @@ suite('SessionsExplorerView folder reveal', () => {
 			getViewLocationById: () => ViewContainerLocation.AuxiliaryBar,
 		});
 		instantiation.stub(IExplorerService, { registerView: () => { } });
+		instantiation.stub(IWorkspaceFolderLocationService, { onDidChangeLocation: Event.None, getLocation: () => undefined });
 		instantiation.stub(ICommandService, {
 			executeCommand: async id => {
 				calls.push({ command: id });
