@@ -81,6 +81,7 @@ type DevContainerStateVolumeEvent = {
 	scriptUser: string | undefined;
 	capChown: boolean | undefined;
 	capDacOverride: boolean | undefined;
+	capDacReadSearch: boolean | undefined;
 	capFowner: boolean | undefined;
 	stateOwner: string | undefined;
 	capDropChown: boolean | undefined;
@@ -100,7 +101,7 @@ type DevContainerStateVolumeClassification = {
 	stage: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The stage: mount (adding the volume), up (starting the container), link (linking state folders to it) or userCommands (lifecycle commands, which run after linking).' };
 	outcome: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The stage outcome, e.g., added, existingContainer, linked, noMount, homeNotFound, missingCapabilities, readOnlyRootfs, homeInaccessible, succeeded or failed.' };
 	reason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Fixed identifier of the operation that failed.' };
-	step: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Fixed identifier of the link script step that failed.' };
+	step: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Fixed identifier of the link script step that failed or skipped linking.' };
 	target: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the volume is mounted at /workspaces or at a separate folder.' };
 	skipReasons: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Fixed identifiers of why state folders were not persisted, e.g., because they are already mounted.' };
 	exitCode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Exit code of the failed command.' };
@@ -112,6 +113,7 @@ type DevContainerStateVolumeClassification = {
 	scriptUser: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the link script ran as root or as another user.' };
 	capChown: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the link script had the CAP_CHOWN capability.' };
 	capDacOverride: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the link script had the CAP_DAC_OVERRIDE capability.' };
+	capDacReadSearch: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the link script had the CAP_DAC_READ_SEARCH capability.' };
 	capFowner: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the link script had the CAP_FOWNER capability.' };
 	stateOwner: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Who owned the state folder before linking: root, user (the container user) or other.' };
 	capDropChown: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the container drops ALL capabilities or CHOWN, for link failures.' };
@@ -142,6 +144,7 @@ export function reportDevContainerUserState(telemetryService: ITelemetryService,
 		scriptUser: report.scriptUser,
 		capChown: report.capChown,
 		capDacOverride: report.capDacOverride,
+		capDacReadSearch: report.capDacReadSearch,
 		capFowner: report.capFowner,
 		stateOwner: report.stateOwner,
 		capDropChown: report.capDropChown,

@@ -742,7 +742,7 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 			skippedFolders: progress.skippedFolders,
 			skipReasons: progress.skipReasons,
 			...(progress.scriptUser ? { scriptUser: progress.scriptUser } : {}),
-			...(progress.capChown !== undefined ? { capChown: progress.capChown, capDacOverride: progress.capDacOverride, capFowner: progress.capFowner } : {}),
+			...(progress.capChown !== undefined ? { capChown: progress.capChown, capDacOverride: progress.capDacOverride, capDacReadSearch: progress.capDacReadSearch, capFowner: progress.capFowner } : {}),
 			...(progress.stateOwner ? { stateOwner: progress.stateOwner } : {}),
 		};
 		try {
@@ -790,7 +790,7 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 			}
 			const skippedMessage = getDevContainerStateLinkSkippedMessage(progress);
 			this._logService.info(skippedMessage ? `${LOG_PREFIX} Not keeping user state on volume ${mount.Name}: ${skippedMessage}` : `${LOG_PREFIX} Keeping user state on volume ${mount.Name}`);
-			this._onDidReportUserState.fire({ connectionId, stage: 'link', outcome: progress.skipped ?? (progress.homeFound ? 'linked' : 'homeNotFound'), target, ...getProgress() });
+			this._onDidReportUserState.fire({ connectionId, stage: 'link', outcome: progress.skipped ?? (progress.homeFound ? 'linked' : 'homeNotFound'), ...(progress.skipped ? { step: progress.step } : {}), target, ...getProgress() });
 		} catch (error) {
 			if (isCancellationError(error) || token.isCancellationRequested) {
 				throw error;

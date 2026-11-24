@@ -84,6 +84,7 @@ export const devContainerUserStateValidator = vObj({
 	scriptUser: vOptionalProp(vString()),
 	capChown: vOptionalProp(vBoolean()),
 	capDacOverride: vOptionalProp(vBoolean()),
+	capDacReadSearch: vOptionalProp(vBoolean()),
 	capFowner: vOptionalProp(vBoolean()),
 	stateOwner: vOptionalProp(vString()),
 	capDropChown: vOptionalProp(vBoolean()),

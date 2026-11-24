@@ -71,7 +71,7 @@ export interface IDevContainerAgentHostUserStateReport {
 	readonly outcome: string;
 	/** Fixed identifier of what failed. */
 	readonly reason?: string;
-	/** The link command's failed step. */
+	/** The link command's failed step, or the step that skipped linking. */
 	readonly step?: string;
 	readonly exitCode?: number;
 	/** Where the state volume is mounted: `workspaces` or `volume`. */
@@ -87,6 +87,7 @@ export interface IDevContainerAgentHostUserStateReport {
 	/** The link command's effective capabilities. */
 	readonly capChown?: boolean;
 	readonly capDacOverride?: boolean;
+	readonly capDacReadSearch?: boolean;
 	readonly capFowner?: boolean;
 	/** Who owned the state folder before linking: `root`, `user` (the container user) or `other`. */
 	readonly stateOwner?: string;

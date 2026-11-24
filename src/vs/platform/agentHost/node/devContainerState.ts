@@ -34,8 +34,8 @@ const linkProgressPrefix = 'vscode-state:';
 const linkSteps = ['capabilities', 'rootfs', 'volume', 'stateFolder', 'statePath', 'stateLink', 'home', 'mountinfo', 'folders'];
 const linkSkipReasons = ['parent', 'mounted', 'symlink', 'file', 'state', 'home', 'running'];
 const linkSkippedOutcomes = ['missingCapabilities', 'readOnlyRootfs', 'homeInaccessible'] as const;
-/** Capabilities root needs to manage another user's folders, by their bit in `CapEff`. */
-const linkCapabilities = { CAP_CHOWN: 0, CAP_DAC_OVERRIDE: 1, CAP_FOWNER: 3 };
+/** Capabilities root needs to manage another user's folders or to enter their home folder, by their bit in `CapEff`. */
+const linkCapabilities = { CAP_CHOWN: 0, CAP_DAC_OVERRIDE: 1, CAP_DAC_READ_SEARCH: 2, CAP_FOWNER: 3 };
 const stateOwners = ['root', 'user', 'other'] as const;
 
 /** Computes the Dev Containers CLI's `${devcontainerId}` for the container's id labels. */
@@ -232,9 +232,11 @@ export function buildLinkDevContainerStateCommand(options: IDevContainerStateLin
 		'fi',
 		'case "$script_uid" in "") ;; 0) progress uid:root ;; *) progress uid:other ;; esac',
 		'case "$cap_eff" in ""|*[!0-9a-fA-F]*) cap_eff= ;; *) progress "capEff:$cap_eff"; cap_low=${cap_eff#"${cap_eff%?}"} ;; esac',
+		// True if the capabilities are unknown.
+		'has_cap() { [ -z "$cap_eff" ] || [ $((0x$cap_low >> $1 & 1)) = 1 ]; }',
 		'missing=',
 		'need_cap() {',
-		'  if [ -n "$cap_eff" ] && [ $((0x$cap_low >> $1 & 1)) = 0 ]; then progress "missing:$2"; missing="$missing $2"; fi',
+		'  if ! has_cap $1; then progress "missing:$2"; missing="$missing $2"; fi',
 		'}',
 		`case "$owner" in 0:0) ;; *) need_cap ${linkCapabilities.CAP_CHOWN} CAP_CHOWN ;; esac`,
 		`case "$owner" in 0:*) ;; *) need_cap ${linkCapabilities.CAP_DAC_OVERRIDE} CAP_DAC_OVERRIDE; need_cap ${linkCapabilities.CAP_FOWNER} CAP_FOWNER ;; esac`,
@@ -288,10 +290,22 @@ export function buildLinkDevContainerStateCommand(options: IDevContainerStateLin
 		'    else',
 		'      home_inaccessible=1',
 		'    fi',
+		// The home folder may also exist in a parent folder that root cannot enter.
+		'  elif [ ! -e "$1" ] && [ ! -L "$1" ] && ! (cd "$(dirname "$1")" 2>/dev/null); then',
+		'    home_inaccessible=1',
 		'  fi',
 		'}',
 		'set_home "$home"',
-		'if [ -n "$home_inaccessible" ]; then progress skipped:homeInaccessible; echo "Not persisting user state: home folder $home is not accessible" >&2; exit 0; fi',
+		'if [ -n "$home_inaccessible" ]; then',
+		// E.g., a home folder with mode 700 that root does not own.
+		`  if has_cap ${linkCapabilities.CAP_DAC_OVERRIDE} || has_cap ${linkCapabilities.CAP_DAC_READ_SEARCH}; then`,
+		'    progress skipped:homeInaccessible; echo "Not persisting user state: home folder $home is not accessible" >&2',
+		'  else',
+		'    progress missing:CAP_DAC_OVERRIDE; progress missing:CAP_DAC_READ_SEARCH; progress skipped:missingCapabilities',
+		'    echo "Not persisting user state: root cannot enter home folder $home without CAP_DAC_OVERRIDE or CAP_DAC_READ_SEARCH" >&2',
+		'  fi',
+		'  exit 0',
+		'fi',
 		'if [ -z "$home_found" ]; then progress noHome; echo "Not persisting user state: home folder $home not found" >&2; exit 0; fi',
 		'progress step:mountinfo',
 		'test -r /proc/self/mountinfo',
@@ -409,13 +423,14 @@ export interface IDevContainerStateLinkProgress {
 	readonly homeFound: boolean;
 	/** Why the command did not link state folders, if it skipped them all. */
 	readonly skipped?: DevContainerStateLinkSkippedOutcome;
-	/** The capabilities root needs for the container user's folders and lacks, if it skipped linking because of them. */
+	/** The capabilities root needs for the container user's folders and lacks, if it skipped linking because of them. At the `home` step, root needs either of them. */
 	readonly missingCapabilities?: readonly string[];
 	/** Whether the command ran as root. */
 	readonly scriptUser?: 'root' | 'other';
 	/** The command's effective capabilities, if it could read them. */
 	readonly capChown?: boolean;
 	readonly capDacOverride?: boolean;
+	readonly capDacReadSearch?: boolean;
 	readonly capFowner?: boolean;
 	/** Who owned the state folder before the command took ownership of it. */
 	readonly stateOwner?: typeof stateOwners[number];
@@ -482,6 +497,7 @@ export function parseLinkDevContainerStateOutput(stdout: string): IDevContainerS
 		...(capabilities !== undefined ? {
 			capChown: hasCapability(linkCapabilities.CAP_CHOWN),
 			capDacOverride: hasCapability(linkCapabilities.CAP_DAC_OVERRIDE),
+			capDacReadSearch: hasCapability(linkCapabilities.CAP_DAC_READ_SEARCH),
 			capFowner: hasCapability(linkCapabilities.CAP_FOWNER),
 		} : {}),
 		...(stateOwner ? { stateOwner } : {}),
@@ -498,6 +514,9 @@ export function parseLinkDevContainerStateOutput(stdout: string): IDevContainerS
 export function getDevContainerStateLinkSkippedMessage(progress: IDevContainerStateLinkProgress): string | undefined {
 	switch (progress.skipped) {
 		case 'missingCapabilities':
+			if (progress.step === 'home') {
+				return `root lacks capabilities it needs to enter the home folder (${(progress.missingCapabilities ?? []).join(' or ')}), e.g., because of cap_drop`;
+			}
 			return `root lacks capabilities it needs for the container user's folders (${(progress.missingCapabilities ?? []).join(', ')}), e.g., because of cap_drop`;
 		case 'readOnlyRootfs':
 			return 'the container\'s root file system is read-only';

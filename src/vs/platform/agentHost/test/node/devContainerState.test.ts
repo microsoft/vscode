@@ -210,11 +210,12 @@ suite('DevContainerState', () => {
 			parseLinkDevContainerStateOutput('vscode-state:uid:other\nvscode-state:capEff:0\nvscode-state:stateOwner:user\nvscode-state:step:stateFolder\n'),
 			parseLinkDevContainerStateOutput('vscode-state:uid:/home/node\nvscode-state:capEff:/home\nvscode-state:missing:/etc\nvscode-state:stateOwner:node\nvscode-state:skipped:/home/node\n'),
 		], [
-			{ step: 'capabilities', homeFound: true, skipped: 'missingCapabilities', missingCapabilities: ['CAP_CHOWN', 'CAP_FOWNER'], scriptUser: 'root', capChown: false, capDacOverride: true, capFowner: false, ...folders },
-			{ step: 'stateFolder', homeFound: true, scriptUser: 'other', capChown: false, capDacOverride: false, capFowner: false, stateOwner: 'user', ...folders },
+			{ step: 'capabilities', homeFound: true, skipped: 'missingCapabilities', missingCapabilities: ['CAP_CHOWN', 'CAP_FOWNER'], scriptUser: 'root', capChown: false, capDacOverride: true, capDacReadSearch: false, capFowner: false, ...folders },
+			{ step: 'stateFolder', homeFound: true, scriptUser: 'other', capChown: false, capDacOverride: false, capDacReadSearch: false, capFowner: false, stateOwner: 'user', ...folders },
 			{ step: undefined, homeFound: true, ...folders },
 		]);
 		assert.strictEqual(getDevContainerStateLinkSkippedMessage(parseLinkDevContainerStateOutput('vscode-state:missing:CAP_CHOWN\nvscode-state:skipped:missingCapabilities\n')), 'root lacks capabilities it needs for the container user\'s folders (CAP_CHOWN), e.g., because of cap_drop');
+		assert.strictEqual(getDevContainerStateLinkSkippedMessage(parseLinkDevContainerStateOutput('vscode-state:step:home\nvscode-state:missing:CAP_DAC_OVERRIDE\nvscode-state:missing:CAP_DAC_READ_SEARCH\nvscode-state:skipped:missingCapabilities\n')), 'root lacks capabilities it needs to enter the home folder (CAP_DAC_OVERRIDE or CAP_DAC_READ_SEARCH), e.g., because of cap_drop');
 	});
 
 	test('reads security settings from docker inspect as fixed values', () => {
