@@ -3,13 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ISerializableView, ISerializedNode, IViewSize, Sizing } from '../../base/browser/ui/grid/grid.js';
+import { ISerializableView, ISerializedNode, IViewSize } from '../../base/browser/ui/grid/grid.js';
 import { alert } from '../../base/browser/ui/aria/aria.js';
 import { localize } from '../../nls.js';
 import { IEditorWillOpenEvent } from '../../workbench/common/editor.js';
 import { Parts } from '../../workbench/services/layout/browser/layoutService.js';
 import { DockedEditorInput } from '../../workbench/browser/parts/editor/dockedEditorInput.js';
 import { getActiveElement } from '../../base/browser/dom.js';
+import { clamp } from '../../base/common/numbers.js';
 import { DetailsPosition } from '../../workbench/contrib/sessions/common/sessionConfig.js';
 import { DockedAuxiliaryBarController } from './dockedAuxiliaryBarController.js';
 import { DesktopMainEditorPart } from './parts/desktopEditorPart.js';
@@ -242,11 +243,22 @@ export class DesktopWorkbench extends Workbench {
 		return Math.min(policySideBarSize, 280);
 	}
 
+	protected override get _defaultEditorPartWidth(): number {
+		return clamp(Math.floor(this.mainContainerDimension.width / 3), EDITOR_PART_MINIMUM_WIDTH, EDITOR_PART_DEFAULT_WIDTH);
+	}
+
+	protected override _applyEditorSplitSize(): void {
+		this.workbenchGrid.resizeView(this.editorPartView, {
+			width: this._defaultEditorPartWidth,
+			height: this.workbenchGrid.getViewSize(this.editorPartView).height,
+		});
+	}
+
 	protected override _editorNodeSize(effectiveEditorWidth: number, effectiveAuxBarWidth: number): number {
 		// The editor part spans the editor + auxiliary bar width (the aux bar is
 		// docked inside it, not a grid column) so the editor tab bar spans the full width.
 		if (!this.partVisibility.editor && this.partVisibility.auxiliaryBar) {
-			return this._isHorizontalDetailsPosition() ? this._dockedAuxiliaryBarWidth : this._savedPartSizes.editor ?? EDITOR_PART_DEFAULT_WIDTH;
+			return this._isHorizontalDetailsPosition() ? this._dockedAuxiliaryBarWidth : this._savedPartSizes.editor ?? this._defaultEditorPartWidth;
 		}
 		return effectiveEditorWidth + (this._reservedDetailWidth() > 0 ? effectiveAuxBarWidth : 0);
 	}
@@ -401,7 +413,7 @@ export class DesktopWorkbench extends Workbench {
 		const revealing = visible && !this.workbenchGrid.isViewVisible(this.editorPartView);
 		const savedWidth = this._savedPartSizes.editor;
 		const hasSavedWidth = savedWidth !== undefined && savedWidth >= EDITOR_PART_MINIMUM_WIDTH;
-		this.workbenchGrid.setViewVisible(this.editorPartView, visible, revealing && !hasSavedWidth ? Sizing.Distribute : undefined);
+		this.workbenchGrid.setViewVisible(this.editorPartView, visible);
 		if (revealing) {
 			if (hasSavedWidth) {
 				this.workbenchGrid.resizeView(this.editorPartView, {
@@ -409,6 +421,7 @@ export class DesktopWorkbench extends Workbench {
 					height: this.workbenchGrid.getViewSize(this.editorPartView).height,
 				});
 			} else {
+				this._applyEditorSplitSize();
 				this._hasAppliedInitialEditorSplit = true;
 			}
 		}
@@ -432,20 +445,16 @@ export class DesktopWorkbench extends Workbench {
 			this._notifyContainerDidLayout();
 			return;
 		}
-		// When revealing without a captured "Hide Editor" size to restore, prefer the
-		// remembered global editor width and only fall back to the equal split
-		// when there is no known good width (a genuine first open).
 		const dockedEditorSizeBeforeHide = this._memento.dockedEditorSizeBeforeHide;
 		const savedEditorWidth = this._savedPartSizes.editor;
 		const canRestoreSavedWidth = savedEditorWidth !== undefined && savedEditorWidth >= EDITOR_PART_MINIMUM_WIDTH;
 		const shouldRestoreDockedEditorSize = !hidden && !!dockedEditorSizeBeforeHide;
 		const shouldRestoreSavedWidth = !hidden && !shouldRestoreDockedEditorSize && canRestoreSavedWidth;
-		const shouldApplyEvenSplit = !hidden && !shouldRestoreDockedEditorSize && !shouldRestoreSavedWidth;
+		const shouldApplyDefaultWidth = !hidden && !shouldRestoreDockedEditorSize && !shouldRestoreSavedWidth;
 
 		this.workbenchGrid.setViewVisible(
 			this.editorPartView,
-			this._editorNodeShouldBeVisible(),
-			shouldApplyEvenSplit ? Sizing.Distribute : undefined
+			this._editorNodeShouldBeVisible()
 		);
 
 		if (hidden) {
@@ -471,7 +480,8 @@ export class DesktopWorkbench extends Workbench {
 			this._memento.dockedEditorSizeBeforeHide = undefined;
 		}
 
-		if (shouldApplyEvenSplit) {
+		if (shouldApplyDefaultWidth) {
+			this._applyEditorSplitSize();
 			this._hasAppliedInitialEditorSplit = true;
 		}
 		this._layoutDockedAuxBar();

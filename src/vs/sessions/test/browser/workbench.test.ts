@@ -1084,6 +1084,7 @@ suite('Sessions - Workbench', () => {
 
 	test('restoreSidePaneComposition applies every Editor/Details composition in order and restores shared widths', () => {
 		const host = createHost({ single: true, dockedWidth: 300, editorWidth: 900, partVisibility: { editor: false, auxiliaryBar: false } });
+		host._savedPartSizes = { editor: 900 };
 		const sharedEditorWidthBefore = host.workbenchGrid.getViewSize(host.editorPartView).width;
 
 		const compositions: ISidePaneState[] = [
@@ -1685,6 +1686,7 @@ suite('Sessions - Workbench', () => {
 				for (const editorVisible of [true, false]) {
 					const host = Object.assign(createHost({
 						single: true,
+						windowWidth: 1800,
 						partVisibility: { sidebar: false, editor: false, auxiliaryBar: false },
 					}), {
 						_detailsPosition: position,
@@ -1735,7 +1737,7 @@ suite('Sessions - Workbench', () => {
 			}
 			assert.deepStrictEqual(results, results.map(result => ({
 				...result,
-				width: result.savedWidth === 740 ? 740 : 900,
+				width: result.savedWidth === 740 ? 740 : 600,
 				reopenedWidth: result.editorVisible ? undefined : 560,
 				composition: { editor: result.editorVisible, auxiliaryBar: true },
 			})));
@@ -1859,7 +1861,7 @@ suite('Sessions - Workbench', () => {
 		// Round-trip guard for the compounding-shrink bug: an Editor-only session
 		// (detail closed) persists its pure editor-content width, and the descriptor
 		// must reconstruct the node at exactly that width (no detail added, none lost).
-		const host = createHost({ single: true, dockedWidth: 300, partVisibility: { editor: true, auxiliaryBar: false } }) as IGridDescriptorTestHarness;
+		const host = createHost({ single: true, windowWidth: 1600, dockedWidth: 300, partVisibility: { editor: true, auxiliaryBar: false } }) as IGridDescriptorTestHarness;
 		host._savedPartSizes = { editor: 900 };
 		host.layoutPolicy = {
 			getPartSizes: () => ({ sideBarSize: 280, auxiliaryBarSize: 340, panelSize: 300 }),
@@ -1882,7 +1884,7 @@ suite('Sessions - Workbench', () => {
 		// descriptor must treat it as missing and use the default, not build a 0-width
 		// node that the grid then clamps to its 300px minimum.
 		const build = (savedEditor: number | undefined) => {
-			const host = createHost({ single: true, dockedWidth: 300, partVisibility: { editor: true, auxiliaryBar: false } }) as IGridDescriptorTestHarness;
+			const host = createHost({ single: true, windowWidth: 1600, dockedWidth: 300, partVisibility: { editor: true, auxiliaryBar: false } }) as IGridDescriptorTestHarness;
 			host._savedPartSizes = savedEditor === undefined ? {} : { editor: savedEditor };
 			host.layoutPolicy = {
 				getPartSizes: () => ({ sideBarSize: 280, auxiliaryBarSize: 340, panelSize: 300 }),
@@ -1902,9 +1904,9 @@ suite('Sessions - Workbench', () => {
 			missing: build(undefined),
 			validSaved: build(750),
 		}, {
-			corruptZero: 600,
-			subMinimum: 600,
-			missing: 600,
+			corruptZero: 533,
+			subMinimum: 533,
+			missing: 533,
 			validSaved: 750,
 		});
 	});
@@ -3068,7 +3070,58 @@ suite('Sessions - Workbench', () => {
 		});
 	});
 
-	test('applies an even split when revealing the docked editor with no captured width even after the initial split', () => {
+	test('defaults the desktop side pane to at most a third of the workbench', () => {
+		const results = [];
+		for (const position of ['right', 'bottom'] as const) {
+			for (const windowWidth of [900, 1440, 2400]) {
+				const host = Object.assign(createHost({
+					single: true,
+					windowWidth,
+					partVisibility: { editor: false, auxiliaryBar: false },
+				}), {
+					_detailsPosition: position,
+					_panelAlignment: 'justify' as PanelAlignment,
+					layoutPolicy: {
+						getPartSizes: () => ({ sideBarSize: 280, auxiliaryBarSize: 300, panelSize: 250 }),
+						viewportClass: { get: () => 'desktop' },
+					},
+					titleBarPartView: { minimumHeight: 30 },
+				});
+				const views = new Map<Parts, TestPartView>();
+				const grid = store.add(SerializableGrid.deserialize<ISerializableView>(createDesktopGridDescriptor.call(host, windowWidth, 800), {
+					fromJSON: ({ type }: { type: Parts }) => {
+						const view = store.add(new TestPartView(type));
+						views.set(type, view);
+						return view;
+					},
+				}, { proportionalLayout: false }));
+				grid.layout(windowWidth, 800);
+				const editor = views.get(Parts.EDITOR_PART)!;
+				Object.assign(host, {
+					workbenchGrid: grid,
+					editorPartView: editor,
+					sessionsPartView: views.get(Parts.SESSIONS_PART)!,
+				});
+				host.setEditorHidden(false);
+				const opened = grid.getViewSize(editor).width;
+				grid.resizeView(editor, { width: 720, height: 800 });
+				const resized = grid.getViewSize(editor).width;
+				host.setEditorHidden(true);
+				host.setEditorHidden(false);
+				results.push({ position, windowWidth, opened, resized, reopened: grid.getViewSize(editor).width });
+			}
+		}
+		assert.deepStrictEqual(results, [
+			{ position: 'right', windowWidth: 900, opened: 300, resized: 320, reopened: 320 },
+			{ position: 'right', windowWidth: 1440, opened: 480, resized: 720, reopened: 720 },
+			{ position: 'right', windowWidth: 2400, opened: 600, resized: 720, reopened: 720 },
+			{ position: 'bottom', windowWidth: 900, opened: 300, resized: 320, reopened: 320 },
+			{ position: 'bottom', windowWidth: 1440, opened: 480, resized: 720, reopened: 720 },
+			{ position: 'bottom', windowWidth: 2400, opened: 600, resized: 720, reopened: 720 },
+		]);
+	});
+
+	test('applies the default width when revealing the docked editor with no captured width even after the initial split', () => {
 		const host = createHost({ single: true, sessionsWidth: 1000, windowWidth: 1300, hasAppliedInitialEditorSplit: true, dockedWidth: 300, editorWidth: 300, partVisibility: { editor: false, auxiliaryBar: true } });
 
 		setEditorHidden.call(host, false);
@@ -3076,15 +3129,15 @@ suite('Sessions - Workbench', () => {
 		assert.deepStrictEqual({
 			editorVisible: host.partVisibility.editor,
 			visibilityChanges: host.visibilityChanges,
-			distributions: host.distributions,
+			resizes: host.resizes,
 		}, {
 			editorVisible: true,
 			visibilityChanges: [true],
-			distributions: [host.editorPartView],
+			resizes: [{ width: 433, height: 800 }],
 		});
 	});
 
-	test('restores a captured docked editor width instead of applying an even split', () => {
+	test('restores a captured docked editor width instead of applying the default width', () => {
 		const host = createHost({ single: true, sessionsWidth: 1000, hasAppliedInitialEditorSplit: true, dockedWidth: 300, partVisibility: { editor: false, auxiliaryBar: true } });
 		host._memento.dockedEditorSizeBeforeHide = { width: 720, height: 800 };
 
@@ -3103,7 +3156,7 @@ suite('Sessions - Workbench', () => {
 		});
 	});
 
-	test('reopening the whole side pane even-splits instead of restoring a cramped width', () => {
+	test('reopening the whole side pane uses the default instead of restoring a cramped width', () => {
 		const host = createHost({ single: true, sessionsWidth: 1360, windowWidth: 1360, hasAppliedInitialEditorSplit: true, dockedWidth: 300, editorWidth: 40, partVisibility: { editor: true, auxiliaryBar: false } });
 
 		setEditorHidden.call(host, true);
@@ -3117,7 +3170,7 @@ suite('Sessions - Workbench', () => {
 		assert.deepStrictEqual({
 			afterClose,
 			editorVisible: host.partVisibility.editor,
-			distributions: host.distributions,
+			resizes: host.resizes,
 			snapshot: host._memento.dockedEditorSizeBeforeHide,
 		}, {
 			afterClose: {
@@ -3125,7 +3178,7 @@ suite('Sessions - Workbench', () => {
 				resizes: [],
 			},
 			editorVisible: true,
-			distributions: [host.editorPartView],
+			resizes: [{ width: 453, height: 800 }],
 			snapshot: undefined,
 		});
 	});
