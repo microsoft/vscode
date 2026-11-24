@@ -158,6 +158,53 @@ suite('Markdown editor bridge', () => {
 		}
 	});
 
+	test('groups contiguous typing into word-level undo steps', async () => {
+		const document = await vscode.workspace.openTextDocument({ language: 'markdown', content: '' });
+		await vscode.window.showTextDocument(document);
+		const panel = new TestPanel();
+		const provider = createProvider(new TestMemento());
+		const cancellation = new vscode.CancellationTokenSource();
+		let connection: ReturnType<typeof connectRenderer> | undefined;
+		try {
+			await provider.resolveCustomTextEditor(document, panel, cancellation.token);
+			const secret = /name="vscode-markdown-editor-message-secret" content="([^"]+)"/.exec(panel.webview.html)?.[1];
+			assert.ok(secret);
+			connection = connectRenderer(panel, secret);
+			const { host, client } = connection;
+			await host.ready({});
+			await until(() => client.getContent() === '');
+
+			// Type "hello world" one character at a time, waiting for each write to land
+			// so every character becomes a separate workspace.applyEdit call.
+			const phrase = 'hello world';
+			for (let i = 0; i < phrase.length; i++) {
+				type(client, i, phrase[i]);
+				await until(() => document.getText() === phrase.slice(0, i + 1), () => document.getText());
+			}
+
+			// First undo removes " world" as a single step rather than just "d"
+			await vscode.commands.executeCommand('undo');
+			await until(() => document.getText() === 'hello', () => document.getText());
+			assert.strictEqual(document.getText(), 'hello');
+
+			// Second undo removes "hello" as a single step
+			await vscode.commands.executeCommand('undo');
+			await until(() => document.getText() === '', () => document.getText());
+			assert.strictEqual(document.getText(), '');
+
+			// Redo restores word chunks cleanly
+			await vscode.commands.executeCommand('redo');
+			await until(() => document.getText() === 'hello', () => document.getText());
+			await vscode.commands.executeCommand('redo');
+			await until(() => document.getText() === 'hello world', () => document.getText());
+		} finally {
+			panel.dispose();
+			connection?.dispose();
+			provider.dispose();
+			cancellation.dispose();
+		}
+	});
+
 	test('cancels navigation waiting for renderer readiness and releases it when the panel is disposed', async () => {
 		const document = await vscode.workspace.openTextDocument({ language: 'markdown', content: '# Heading' });
 		const panel = new TestPanel();

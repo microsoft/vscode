@@ -20,14 +20,20 @@ suite('ExtHostBulkEdits.applyWorkspaceEdit', () => {
 	const resource = URI.parse('foo:bar');
 	let bulkEdits: ExtHostBulkEdits;
 	let workspaceResourceEdits: IWorkspaceEditDto;
+	let lastUndoStopBefore: boolean | undefined;
+	let lastUndoStopAfter: boolean | undefined;
 
 	setup(() => {
 		workspaceResourceEdits = null!;
+		lastUndoStopBefore = undefined;
+		lastUndoStopAfter = undefined;
 
 		const rpcProtocol = new TestRPCProtocol();
 		rpcProtocol.set(MainContext.MainThreadBulkEdits, new class extends mock<MainThreadBulkEditsShape>() {
-			override $tryApplyWorkspaceEdit(_workspaceResourceEdits: SerializableObjectWithBuffers<IWorkspaceEditDto>): Promise<boolean> {
+			override $tryApplyWorkspaceEdit(_workspaceResourceEdits: SerializableObjectWithBuffers<IWorkspaceEditDto>, _undoRedoGroupId?: number, _isRefactoring?: boolean, undoStopBefore?: boolean, undoStopAfter?: boolean): Promise<boolean> {
 				workspaceResourceEdits = _workspaceResourceEdits.value;
+				lastUndoStopBefore = undoStopBefore;
+				lastUndoStopAfter = undoStopAfter;
 				return Promise.resolve(true);
 			}
 		});
@@ -64,6 +70,24 @@ suite('ExtHostBulkEdits.applyWorkspaceEdit', () => {
 		assert.strictEqual(workspaceResourceEdits.edits.length, 1);
 		const [first] = workspaceResourceEdits.edits;
 		assert.ok(typeof (<IWorkspaceTextEditDto>first).versionId === 'undefined');
+	});
+
+	test('requires workspaceEditUndoStops proposal for undoStop metadata', async () => {
+		const edit = new extHostTypes.WorkspaceEdit();
+		edit.replace(resource, new extHostTypes.Range(0, 0, 0, 0), 'a');
+		assert.throws(
+			() => bulkEdits.applyWorkspaceEdit(edit, nullExtensionDescription, { undoStopBefore: false, undoStopAfter: false }),
+			/workspaceEditUndoStops/
+		);
+	});
+
+	test('forwards undoStopBefore and undoStopAfter when proposal is enabled', async () => {
+		const edit = new extHostTypes.WorkspaceEdit();
+		edit.replace(resource, new extHostTypes.Range(0, 0, 0, 0), 'a');
+		const extension = { ...nullExtensionDescription, enabledApiProposals: ['workspaceEditUndoStops'] };
+		await bulkEdits.applyWorkspaceEdit(edit, extension, { undoStopBefore: false, undoStopAfter: false });
+		assert.strictEqual(lastUndoStopBefore, false);
+		assert.strictEqual(lastUndoStopAfter, false);
 	});
 
 });

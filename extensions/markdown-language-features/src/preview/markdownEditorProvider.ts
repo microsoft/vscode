@@ -29,6 +29,7 @@ import { MarkdownEditorRename, renameApi } from './markdownEditorRename';
 import { completionApi, MarkdownEditorLanguageFeatures } from './markdownEditorLanguageFeatures';
 import { MarkdownEditorImagePaste } from './markdownEditorImagePaste';
 import { MarkdownEditorNavigation } from './markdownEditorNavigation';
+import { MarkdownEditorUndoGrouper } from './markdownEditorUndoGrouping';
 import { MarkdownEditorSessionTelemetry, type MarkdownEditorViewState } from './markdownEditorTelemetry';
 import { MAX_SCANNED_DOCUMENT_LENGTH, scanMarkdownFeatures } from './markdownDocumentFeatures';
 
@@ -367,15 +368,40 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 			return;
 		}
 		const vsCodeDocument = vsCodeTextDocument(document);
+		const undoGrouper = new MarkdownEditorUndoGrouper();
+		let applyingEditorEdit = false;
 		// Counts the editor's own writes for telemetry
 		const editorWrites = new vscode.EventEmitter<void>();
 		const syncedDocument: SyncedTextDocument = {
 			get version() { return vsCodeDocument.version; },
 			getText: () => vsCodeDocument.getText(),
 			applyEdits: async (version, edits) => {
-				const applied = await vsCodeDocument.applyEdits(version, edits);
+				if (document.version !== version) {
+					undoGrouper.reset();
+					return false;
+				}
+				const edit = new vscode.WorkspaceEdit();
+				let deletedText = '';
+				for (const { offset, length, newText } of edits) {
+					const range = new vscode.Range(document.positionAt(offset), document.positionAt(offset + length));
+					if (edits.length === 1 && length > 0) {
+						deletedText = document.getText(range);
+					}
+					edit.replace(document.uri, range, newText);
+				}
+				const metadata = undoGrouper.prepareEdit(edits, deletedText);
+				applyingEditorEdit = true;
+				let applied = false;
+				try {
+					applied = await vscode.workspace.applyEdit(edit, metadata);
+				} finally {
+					applyingEditorEdit = false;
+				}
 				if (applied) {
+					undoGrouper.commitEdit();
 					editorWrites.fire();
+				} else {
+					undoGrouper.reset();
 				}
 				return applied;
 			},
@@ -389,7 +415,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 		const webview = new AuthenticatedWebview(webviewPanel.webview, this.#logger, connection => sync.connect(connection));
 		this.#webviewPanels.set(webviewPanel, webview);
 		const codeBlockEditorProviders = this.#loadCodeBlockEditorProviders(webviewPanel.webview);
-		this.#wireSingle(document, webviewPanel, originalDocument, codeBlockEditorProviders, webview, sync, editorWrites.event);
+		this.#wireSingle(document, webviewPanel, originalDocument, codeBlockEditorProviders, webview, sync, editorWrites.event, undoGrouper, () => applyingEditorEdit);
 	}
 
 	/**
@@ -426,6 +452,8 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 		editorWebview: AuthenticatedWebview,
 		sync: TextDocumentSync,
 		editorWrites: vscode.Event<void>,
+		undoGrouper: MarkdownEditorUndoGrouper,
+		isApplyingEditorEdit: () => boolean,
 	): void {
 		let webviewReady = false;
 		let readonly = this.#getInitialReadonly(document);
@@ -506,6 +534,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 		const comments = this.#wireComments(document, editorWebview, sync);
 		// Workspace edits made by this panel's own handlers (rename, completions, media paste)
 		const applyPanelEdit = async (edit: vscode.WorkspaceEdit, metadata?: vscode.WorkspaceEditMetadata): Promise<boolean> => {
+			undoGrouper.reset();
 			const applied = await vscode.workspace.applyEdit(edit, metadata);
 			if (applied) {
 				telemetry?.session.recordEdit();
@@ -590,6 +619,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 					this.#focusedWebviewPanels.add(webviewPanel);
 				} else {
 					this.#focusedWebviewPanels.delete(webviewPanel);
+					undoGrouper.reset();
 				}
 				await this.#updateEditorFocusContext();
 			},
@@ -607,6 +637,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 				// editor's changes first and only act while this panel is active, so the
 				// chord cannot race a pending edit or land on a different document.
 				await sync.drain();
+				undoGrouper.reset();
 				signal.throwIfAborted();
 				if (webviewPanel.active && !resolveCancellation.token.isCancellationRequested) {
 					await vscode.commands.executeCommand(message.command);
@@ -641,6 +672,9 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 		let lineBreak = vsCodeLineBreak(document);
 		const onDocumentChange = vscode.workspace.onDidChangeTextDocument((e) => {
 			if (e.document.uri.toString() === document.uri.toString() && e.contentChanges.length > 0) {
+				if (!isApplyingEditorEdit()) {
+					undoGrouper.reset();
+				}
 				diagnosticsChanged();
 				if (vsCodeLineBreak(document) !== lineBreak) {
 					lineBreak = vsCodeLineBreak(document);
@@ -656,6 +690,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 			? this.#wireDocumentDiff(originalDocument, document, editorWebview, sync)
 			: this.#wireQuickDiff(document, editorWebview, sync);
 		const reloadWebview = (): void => {
+			undoGrouper.reset();
 			navigation.reset();
 			richLinks.clear();
 			imagePaste.dispose();

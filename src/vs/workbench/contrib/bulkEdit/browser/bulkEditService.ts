@@ -65,6 +65,8 @@ class BulkEdit {
 		private readonly _undoRedoGroup: UndoRedoGroup,
 		private readonly _undoRedoSource: UndoRedoSource | undefined,
 		private readonly _confirmBeforeUndo: boolean,
+		private readonly _undoStopBefore: boolean,
+		private readonly _undoStopAfter: boolean,
 		@IInstantiationService private readonly _instaService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService,
 	) {
@@ -128,7 +130,8 @@ class BulkEdit {
 			if (group[0] instanceof ResourceFileEdit) {
 				resources.push(await this._performFileEdits(<ResourceFileEdit[]>group, this._undoRedoGroup, this._undoRedoSource, this._confirmBeforeUndo, progress));
 			} else if (group[0] instanceof ResourceTextEdit) {
-				resources.push(await this._performTextEdits(<ResourceTextEdit[]>group, this._undoRedoGroup, this._undoRedoSource, progress, reason));
+				const singleGroup = ranges.length === 1;
+				resources.push(await this._performTextEdits(<ResourceTextEdit[]>group, this._undoRedoGroup, this._undoRedoSource, progress, reason, singleGroup ? this._undoStopBefore : true, singleGroup ? this._undoStopAfter : true));
 			} else if (group[0] instanceof ResourceNotebookCellEdit) {
 				resources.push(await this._performCellEdits(<ResourceNotebookCellEdit[]>group, this._undoRedoGroup, this._undoRedoSource, progress));
 			} else if (group[0] instanceof ResourceAttachmentEdit) {
@@ -155,9 +158,9 @@ class BulkEdit {
 		return await model.apply();
 	}
 
-	private async _performTextEdits(edits: ResourceTextEdit[], undoRedoGroup: UndoRedoGroup, undoRedoSource: UndoRedoSource | undefined, progress: IProgress<void>, reason: TextModelEditSource | undefined): Promise<readonly URI[]> {
+	private async _performTextEdits(edits: ResourceTextEdit[], undoRedoGroup: UndoRedoGroup, undoRedoSource: UndoRedoSource | undefined, progress: IProgress<void>, reason: TextModelEditSource | undefined, undoStopBefore: boolean, undoStopAfter: boolean): Promise<readonly URI[]> {
 		this._logEdits('_performTextEdits', edits);
-		const model = this._instaService.createInstance(BulkTextEdits, this._label || localize('workspaceEdit', "Workspace Edit"), this._code || 'undoredo.workspaceEdit', this._editor, undoRedoGroup, undoRedoSource, progress, this._token, edits);
+		const model = this._instaService.createInstance(BulkTextEdits, this._label || localize('workspaceEdit', "Workspace Edit"), this._code || 'undoredo.workspaceEdit', this._editor, undoRedoGroup, undoRedoSource, progress, this._token, edits, undoStopBefore, undoStopAfter);
 		return await model.apply(reason);
 	}
 
@@ -269,7 +272,9 @@ export class BulkEditService extends Disposable implements IBulkEditService {
 			edits,
 			undoRedoGroup,
 			options?.undoRedoSource,
-			!!options?.confirmBeforeUndo
+			!!options?.confirmBeforeUndo,
+			options?.undoStopBefore ?? true,
+			options?.undoStopAfter ?? true
 		);
 
 		let listener: IDisposable | undefined;

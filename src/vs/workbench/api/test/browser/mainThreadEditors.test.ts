@@ -401,4 +401,62 @@ suite('MainThreadEditors', () => {
 		await model.undo();
 		assert.strictEqual(model.getValue(), 'hello world!');
 	});
+
+	test('bulk edit can coalesce consecutive single-document edits into one undo step', async () => {
+		const model = modelService.createModel('', null, resource);
+		try {
+			const makeInsert = (col: number, text: string): IWorkspaceTextEditDto => ({
+				resource,
+				versionId: undefined,
+				textEdit: { range: new Range(1, col, 1, col), text }
+			});
+
+			// First char starts an open undo element; next chars append to it
+			assert.strictEqual(await bulkEdits.$tryApplyWorkspaceEdit(new SerializableObjectWithBuffers({ edits: [makeInsert(1, 'h')] }), undefined, false, true, false), true);
+			assert.strictEqual(await bulkEdits.$tryApplyWorkspaceEdit(new SerializableObjectWithBuffers({ edits: [makeInsert(2, 'i')] }), undefined, false, false, false), true);
+			assert.strictEqual(await bulkEdits.$tryApplyWorkspaceEdit(new SerializableObjectWithBuffers({ edits: [makeInsert(3, '!')] }), undefined, false, false, true), true);
+			assert.strictEqual(model.getValue(), 'hi!');
+
+			// One undo reverts all three edits together
+			await model.undo();
+			assert.strictEqual(model.getValue(), '');
+
+			// One redo restores all three edits together
+			await model.redo();
+			assert.strictEqual(model.getValue(), 'hi!');
+		} finally {
+			model.dispose();
+		}
+	});
+
+	test('bulk edit undoStopBefore: true breaks an open undo group', async () => {
+		const model = modelService.createModel('', null, resource);
+		try {
+			const makeInsert = (col: number, text: string): IWorkspaceTextEditDto => ({
+				resource,
+				versionId: undefined,
+				textEdit: { range: new Range(1, col, 1, col), text }
+			});
+
+			// Group 1: "hello"
+			assert.strictEqual(await bulkEdits.$tryApplyWorkspaceEdit(new SerializableObjectWithBuffers({ edits: [makeInsert(1, 'h')] }), undefined, false, true, false), true);
+			assert.strictEqual(await bulkEdits.$tryApplyWorkspaceEdit(new SerializableObjectWithBuffers({ edits: [makeInsert(2, 'i')] }), undefined, false, false, false), true);
+			// Group 2: " there" starts a new undo step with undoStopBefore: true
+			assert.strictEqual(await bulkEdits.$tryApplyWorkspaceEdit(new SerializableObjectWithBuffers({ edits: [makeInsert(3, ' ')] }), undefined, false, true, false), true);
+			assert.strictEqual(await bulkEdits.$tryApplyWorkspaceEdit(new SerializableObjectWithBuffers({ edits: [makeInsert(4, 'y')] }), undefined, false, false, false), true);
+			assert.strictEqual(await bulkEdits.$tryApplyWorkspaceEdit(new SerializableObjectWithBuffers({ edits: [makeInsert(5, 'o')] }), undefined, false, false, false), true);
+			// Default bulk edit closes the open group and creates its own step
+			assert.strictEqual(await bulkEdits.$tryApplyWorkspaceEdit(new SerializableObjectWithBuffers({ edits: [makeInsert(6, '!')] })), true);
+			assert.strictEqual(model.getValue(), 'hi yo!');
+
+			await model.undo();
+			assert.strictEqual(model.getValue(), 'hi yo');
+			await model.undo();
+			assert.strictEqual(model.getValue(), 'hi');
+			await model.undo();
+			assert.strictEqual(model.getValue(), '');
+		} finally {
+			model.dispose();
+		}
+	});
 });

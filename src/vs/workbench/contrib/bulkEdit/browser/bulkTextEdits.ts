@@ -193,6 +193,8 @@ export class BulkTextEdits {
 		private readonly _progress: IProgress<void>,
 		private readonly _token: CancellationToken,
 		edits: ResourceTextEdit[],
+		private readonly _undoStopBefore: boolean,
+		private readonly _undoStopAfter: boolean,
 		@IEditorWorkerService private readonly _editorWorker: IEditorWorkerService,
 		@IModelService private readonly _modelService: IModelService,
 		@ITextModelService private readonly _textModelResolverService: ITextModelService,
@@ -310,15 +312,29 @@ export class BulkTextEdits {
 				// This edit touches a single model => keep things simple
 				const task = tasks[0];
 				if (!task.isNoOp()) {
-					const singleModelEditStackElement = new SingleModelEditStackElement(this._label, this._code, task.model, task.getBeforeCursorState());
-					this._undoRedoService.pushElement(singleModelEditStackElement, this._undoRedoGroup, this._undoRedoSource);
+					if (this._undoStopBefore) {
+						task.model.pushStackElement();
+					}
+					const lastElement = !this._undoStopBefore ? this._undoRedoService.getLastElement(task.model.uri) : null;
+					let singleModelEditStackElement: SingleModelEditStackElement;
+					if (lastElement instanceof SingleModelEditStackElement && lastElement.canAppend(task.model)) {
+						singleModelEditStackElement = lastElement;
+					} else {
+						singleModelEditStackElement = new SingleModelEditStackElement(this._label, this._code, task.model, task.getBeforeCursorState());
+						this._undoRedoService.pushElement(singleModelEditStackElement, this._undoRedoGroup, this._undoRedoSource);
+					}
 					task.apply(reason);
-					singleModelEditStackElement.close();
+					if (this._undoStopAfter) {
+						singleModelEditStackElement.close();
+					}
 					resources.push(task.model.uri);
 				}
 				this._progress.report(undefined);
 			} else {
 				// prepare multi model undo element
+				for (const task of tasks) {
+					task.model.pushStackElement();
+				}
 				const multiModelEditStackElement = new MultiModelEditStackElement(
 					this._label,
 					this._code,

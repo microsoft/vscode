@@ -103,6 +103,8 @@ export interface IBulkEditOptions {
 	quotableLabel?: string;
 	undoRedoSource?: UndoRedoSource;
 	undoRedoGroupId?: number;
+	undoStopBefore?: boolean;
+	undoStopAfter?: boolean;
 	confirmBeforeUndo?: boolean;
 	respectAutoSaveConfig?: boolean;
 	reason?: TextModelEditSource;

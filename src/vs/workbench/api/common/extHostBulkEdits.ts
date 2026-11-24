@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
+import { checkProposedApiEnabled } from '../../services/extensions/common/extensions.js';
 import { MainContext, MainThreadBulkEditsShape } from './extHost.protocol.js';
 import { ExtHostDocumentsAndEditors } from './extHostDocumentsAndEditors.js';
 import { IExtHostRpcService } from './extHostRpcService.js';
@@ -29,7 +30,14 @@ export class ExtHostBulkEdits {
 	}
 
 	applyWorkspaceEdit(edit: vscode.WorkspaceEdit, extension: IExtensionDescription, metadata: vscode.WorkspaceEditMetadata | undefined): Promise<boolean> {
+		let undoStopBefore: boolean | undefined;
+		let undoStopAfter: boolean | undefined;
+		if (metadata?.undoStopBefore !== undefined || metadata?.undoStopAfter !== undefined) {
+			checkProposedApiEnabled(extension, 'workspaceEditUndoStops');
+			undoStopBefore = metadata.undoStopBefore;
+			undoStopAfter = metadata.undoStopAfter;
+		}
 		const dto = new SerializableObjectWithBuffers(WorkspaceEdit.from(edit, this._versionInformationProvider));
-		return this._proxy.$tryApplyWorkspaceEdit(dto, undefined, metadata?.isRefactoring ?? false);
+		return this._proxy.$tryApplyWorkspaceEdit(dto, undefined, metadata?.isRefactoring ?? false, undoStopBefore, undoStopAfter);
 	}
 }
