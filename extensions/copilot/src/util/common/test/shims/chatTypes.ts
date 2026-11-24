@@ -339,8 +339,6 @@ export class ChatRequestTurn implements vscode.ChatRequestTurn {
 }
 
 export class ChatRequestTurn2 implements vscode.ChatRequestTurn2 {
-	isRequestHidden?: boolean;
-
 	constructor(
 		readonly prompt: string,
 		readonly command: string | undefined,

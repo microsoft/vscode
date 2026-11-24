@@ -242,9 +242,6 @@ declare module 'vscode' {
 		/** Whether this request was initiated by the system rather than the user. */
 		readonly isSystemInitiated?: boolean;
 
-		/** When returned in session history, omit the request row but keep its response visible. */
-		isRequestHidden?: boolean;
-
 		/**
 		 * @hidden
 		 */

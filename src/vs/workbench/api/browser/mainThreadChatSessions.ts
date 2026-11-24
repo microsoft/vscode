@@ -154,7 +154,6 @@ export class ObservableChatSession extends Disposable implements IChatSession {
 					return {
 						type: 'request' as const,
 						prompt: turn.prompt,
-						isRequestHidden: turn.isRequestHidden,
 						participant: turn.participant,
 						command: turn.command,
 						variableData: variables ? { variables } : undefined,
