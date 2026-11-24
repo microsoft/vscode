@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import type { IChannel } from '../../../../base/parts/ipc/common/ipc.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -364,6 +364,30 @@ suite('WSLRemoteAgentHostService (renderer)', () => {
 
 		assert.deepStrictEqual(mainService.connectCalls, [{ distro: 'Ubuntu', name: 'Ubuntu', userInitiated: true }]);
 	});
+
+	for (const userJoins of [false, true]) {
+		test(`an automatic connect to a stopped distro ${userJoins ? 'starts it when a user reconnects' : 'fails'} while its running-distro check is pending`, async () => {
+			const runningDistros = new DeferredPromise<string[]>();
+			mainService.runningDistros = runningDistros.p;
+			// With auto-connect, registering a distro (as Connect in Remote Environments does) dials it automatically.
+			service.cacheDistro({ distro: 'Ubuntu', name: 'Ubuntu' });
+			remoteAgentHostService.reconnect('wsl:Ubuntu', false);
+			if (userJoins) {
+				remoteAgentHostService.reconnect('wsl:Ubuntu', true);
+			}
+			const outcome = remoteAgentHostService.waitForConnection('wsl:Ubuntu').then(() => 'connected', (error: Error) => error.message);
+			runningDistros.complete([]);
+			const listeners = disposables.add(new DisposableStore());
+			while (transports.length === 0 && !await Promise.race([outcome.then(() => true), Event.toPromise(remoteAgentHostService.onDidChangeConnections, listeners).then(() => false)])) {
+				// Wait until the connect either creates a transport or fails.
+			}
+			await transports[0]?.completeInitialize();
+
+			assert.deepStrictEqual({ outcome: await outcome, connectCalls: mainService.connectCalls }, userJoins
+				? { outcome: 'connected', connectCalls: [{ distro: 'Ubuntu', name: 'Ubuntu', remoteAgentHostCommand: undefined, userInitiated: true }] }
+				: { outcome: `WSL distro 'Ubuntu' is not running.`, connectCalls: [] });
+		});
+	}
 
 	test('replaces a retained main-process relay before the first renderer protocol client', async () => {
 		const retained = await mainService.connect({ distro: 'Ubuntu', name: 'Ubuntu' });
