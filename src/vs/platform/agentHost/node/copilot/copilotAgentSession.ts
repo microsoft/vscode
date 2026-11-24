@@ -135,7 +135,7 @@ import { toAgentClientUri } from '../../common/agentClientUri.js';
 import { FileEditTracker } from '../shared/fileEditTracker.js';
 import { ICopilotApiService, type IRestrictedTelemetryContext } from '../shared/copilotApiService.js';
 import type { IAgentHostRestrictedTelemetryContext } from '../agentHostRestrictedTelemetry.js';
-import { buildChatErrorInfoFromCopilotSdkFields } from './copilotSdkChatError.js';
+import { buildChatErrorInfoFromCopilotSdkFields, isCopilotSdkHookError } from './copilotSdkChatError.js';
 import { getMcpSkillCustomizationUri, getMcpSkillName } from '../../common/agentHostCustomizationUri.js';
 import { CopilotMcpServerLogs } from './copilotMcpServerLogs.js';
 import { applyMcpServerRuntimeStates, buildMcpChannel, buildMcpTopLevelCustomizationId, getMcpServerCustomizations, McpCustomizationController, mcpSkillDisplayName, type IMcpServerProvenance, type IMcpSkill, type ISdkMcpServer } from '../shared/mcpCustomizationController.js';
@@ -12701,6 +12701,10 @@ export class CopilotAgentSession extends Disposable {
 				this._heldSessionErrorReports.push(reportError);
 			} else {
 				reportError();
+			}
+			// The failed hook's own hook.end is shown as a warning, and the runtime continues the turn.
+			if (isCopilotSdkHookError(e.data)) {
+				return;
 			}
 			const parentToolCallId = this._parentToolCallIdForSubagentEvent(e);
 			if (turn) {

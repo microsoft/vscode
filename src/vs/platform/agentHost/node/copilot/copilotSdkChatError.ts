@@ -17,6 +17,15 @@ export interface ICopilotSdkChatErrorFields {
 	readonly serviceRequestId?: string;
 }
 
+/**
+ * Whether a `session.error` reports a failed hook. The runtime sends it as a
+ * diagnostic next to the hook's failed `hook.end` and carries on with the turn,
+ * so it does not end the work the way other session errors do.
+ */
+export function isCopilotSdkHookError(data: Pick<ICopilotSdkChatErrorFields, 'errorType'>): boolean {
+	return data.errorType === 'hook';
+}
+
 function copilotSdkErrorTypeToFetchType(errorType: string, statusCode: number | undefined): string | undefined {
 	switch (errorType) {
 		case 'quota':
