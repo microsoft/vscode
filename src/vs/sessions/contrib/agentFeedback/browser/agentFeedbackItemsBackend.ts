@@ -5,6 +5,7 @@
 
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { getComparisonKey, isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -286,6 +287,15 @@ function feedbackToAnnotation(feedback: IAgentFeedback, connection: IAgentConnec
 	};
 }
 
+/**
+ * Maps an annotation's resource into client space. Feedback on an untitled
+ * buffer has no host counterpart, so {@link feedbackToAnnotation} sends it
+ * unchanged and it must come back unchanged, not as an agent-host URI.
+ */
+function annotationResourceToClient(resource: URI, connection: IAgentConnection): URI {
+	return resource.scheme === Schemas.untitled ? resource : connection.resourceUris.fromAgentHost(resource);
+}
+
 function annotationToFeedback(annotation: Annotation, sessionResource: URI, connection: IAgentConnection): IAgentFeedback | undefined {
 	const entries = annotation.entries ?? [];
 	const meta = readFeedbackMeta(annotation);
@@ -303,7 +313,7 @@ function annotationToFeedback(annotation: Annotation, sessionResource: URI, conn
 	return {
 		id: annotation.id,
 		text: entryText(entries[0].text),
-		resourceUri: connection.resourceUris.fromAgentHost(URI.parse(annotation.resource)),
+		resourceUri: annotationResourceToClient(URI.parse(annotation.resource), connection),
 		range: fromTextRange(annotation.range),
 		sessionResource,
 		suggestion: meta?.suggestion,
