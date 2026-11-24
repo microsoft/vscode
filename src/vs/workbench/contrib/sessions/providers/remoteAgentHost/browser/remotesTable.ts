@@ -410,7 +410,7 @@ export function getRemoteRowMenuActions(entry: RemoteTableEntry, onAction: (entr
 		const primary = getGroupPrimaryAction(entry);
 		return Separator.join(
 			primary ? [item(primary)] : [],
-			entry.documentation ? [item({ id: 'remotes.documentation', kind: 'documentation', label: localize('remotes.openSetupGuide', "Open Setup Guide"), tooltip: entry.documentation.label, icon: Codicon.info, enabled: true })] : [],
+			entry.documentation ? [item({ id: 'remotes.documentation', kind: 'documentation', label: entry.documentation.label, icon: Codicon.info, enabled: true })] : [],
 		);
 	}
 	if (entry.type !== 'remote') {
@@ -434,9 +434,13 @@ export function getRemoteRowMenuActions(entry: RemoteTableEntry, onAction: (entr
 		],
 		showGitHubEnvironment ? [item({
 			id: 'remotes.githubEnvironment', kind: 'githubEnvironment',
-			label: share?.state === 'connecting' || share?.state === 'unavailable'
-				? getGitHubEnvironmentLabel(remote) ?? ''
-				: share
+			label: share?.state === 'connecting'
+				? localize('remotes.sharingAsGitHubEnvironment', "Sharing as GitHub Environment...")
+				: share?.state === 'unavailable'
+					? share.unavailableReason === 'host'
+						? localize('remotes.sharedByRemote', "Shared by Remote Computer")
+						: localize('remotes.sharedByAnotherAccount', "Shared by Another Account")
+					: share
 					? localize('remotes.stopSharingAsGitHubEnvironment', "Stop Sharing as GitHub Environment")
 					: localize('remotes.shareAsGitHubEnvironment', "Share as GitHub Environment"),
 			icon: share?.state === 'connecting' ? connectionProgressIcon : Codicon.github,
@@ -444,32 +448,40 @@ export function getRemoteRowMenuActions(entry: RemoteTableEntry, onAction: (entr
 		})] : [],
 		[item({
 			id: 'remotes.visibility', kind: 'toggleVisibility',
-			label: offerShowInPicker ? localize('remotes.showInPicker', "Show in Environment Picker") : localize('remotes.hideFromPicker', "Hide from Environment Picker"),
+			label: offerShowInPicker ? localize('remotes.showInPicker', "Show in Picker") : localize('remotes.hideFromPicker', "Hide from Picker"),
 			tooltip: remote.pickerUnavailableReason ?? (remote.hidden
 				? localize('remotes.showInPickerDetail', "Show this environment when choosing where to run a session")
 				: localize('remotes.hideFromPickerDetail', "Hide this environment from the environment picker. It stays in Remote Environments.")),
 			icon: offerShowInPicker ? Codicon.eyeClosed : Codicon.eye,
 			enabled: !remote.pickerUnavailableReason,
 		})],
-		remote.copyableAddress ? [item({ id: 'remotes.copyAddress', kind: 'copyAddress', label: localize('remotes.copyAddress', "Copy Address"), icon: Codicon.copy, enabled: true })] : [],
+		remote.copyableAddress ? [item({
+			id: 'remotes.copyAddress', kind: 'copyAddress',
+			label: remote.kind === 'ssh' ? localize('remotes.copySSHAddress', "Copy SSH Address") : localize('remotes.copyAddress', "Copy Connection Address"),
+			tooltip: remote.copyableAddress, icon: Codicon.copy, enabled: true,
+		})] : [],
 		[
 			item({ id: 'remotes.rename', kind: 'rename', label: localize('remotes.rename', "Rename..."), icon: Codicon.edit, enabled: ready }),
 			...(remote.kind === 'tunnel' || remote.kind === 'ssh' ? [item({
-				id: 'remotes.locationPreference', kind: 'locationPreference', label: localize('remotes.locationPreference', "Configure Agent Run Behavior..."),
+				id: 'remotes.locationPreference', kind: 'locationPreference', label: localize('remotes.locationPreference', "Choose How Agents Run..."),
 				tooltip: remoteAgentRunBehaviorDescription, icon: Codicon.serverProcess, enabled: ready && !changingConnection,
 			})] : []),
 			item({
 				id: 'remotes.troubleshoot', kind: 'troubleshoot', label: localize('remotes.troubleshootConnection', "Troubleshoot Connection..."),
 				tooltip: localize('remotes.troubleshootConnectionDetail', "See what's known about this connection and what to try next"), icon: Codicon.tools, enabled: ready,
 			}),
+			...(remote.kind === 'ssh' ? [item({
+				id: 'remotes.configureSSH', kind: 'configure', label: localize('remotes.openSSHConfiguration', "Open SSH Configuration"), enabled: ready,
+			})] : []),
 			...(remote.contributedBy ? [item({ id: 'remotes.showExtension', kind: 'showExtension', label: localize('remotes.showExtension', "Show {0} Extension", remote.contributedBy.displayName), icon: Codicon.extensions, enabled: true })] : []),
 			...(remote.canUpdateServer ? [item({ id: 'remotes.updateServer', kind: 'updateServer', label: localize('remotes.updateServer', "Update Server"), icon: Codicon.cloudDownload, enabled: ready })] : []),
+			...(entry.documentation ? [item({ id: 'remotes.documentation', kind: 'documentation', label: entry.documentation.label, icon: Codicon.info, enabled: true })] : []),
 			...(showDelete ? [item({
 				id: 'remotes.delete', kind: 'delete',
-				label: remote.kind === 'tunnel' ? localize('remotes.deleteTunnel', "Delete Dev Tunnel...")
-					: remote.kind === 'ssh' ? localize('remotes.forgetSSH', "Forget SSH Connection...")
-						: remote.kind === 'devContainer' ? localize('remotes.deleteDevContainer', "Delete Dev Container...")
-							: localize('remotes.removeEnvironment', "Remove Environment..."),
+				label: remote.kind === 'tunnel' ? localize('remotes.removeTunnel', "Remove Dev Tunnel...")
+					: remote.kind === 'ssh' ? localize('remotes.removeSSH', "Remove Saved SSH Connection...")
+						: remote.kind === 'devContainer' ? localize('remotes.deleteDevContainer', "Delete Container and Files...")
+							: localize('remotes.removeEnvironment', "Remove GitHub Environment..."),
 				icon: Codicon.trash, enabled: ready,
 			})] : []),
 		],

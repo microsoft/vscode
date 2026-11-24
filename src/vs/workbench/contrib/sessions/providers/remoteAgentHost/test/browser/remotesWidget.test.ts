@@ -2727,7 +2727,7 @@ suite('RemotesWidget', () => {
 			visibilityChanges: model.visibilityChanges, connectionChanges: model.connectionChanges,
 		}, {
 			buttons: ['Connect', ''],
-			menu: ['remotes.actions', 'remotes.troubleshoot', 'vs.actions.separator', 'remotes.rename', 'remotes.visibility', 'remotes.delete', 'vs.actions.separator', 'remotes.documentation'],
+			menu: ['remotes.actions', 'vs.actions.separator', 'remotes.visibility', 'vs.actions.separator', 'remotes.rename', 'remotes.troubleshoot', 'remotes.documentation', 'remotes.delete'],
 			visibilityChanges: [], connectionChanges: [],
 		});
 	});
@@ -2830,10 +2830,10 @@ suite('RemotesWidget', () => {
 		widget.setVisible(true);
 		await timeout(0);
 		const expected = [
-			['Connect', 'Troubleshoot Connection...', '---', 'Rename...', 'Hide from Picker', 'Remove GitHub Environment...', '---', 'Learn More about GitHub Environment (Preview)'],
-			['Connect', 'Troubleshoot Connection...', 'Choose How Agents Run...', '---', 'Rename...', 'Hide from Picker', 'Remove Dev Tunnel...', '---', 'Learn More about Dev Tunnel'],
-			['Connect', 'Troubleshoot Connection...', '---', 'Rename...', 'Hide from Picker', '---', 'Learn More about WSL'],
-			['New Session', 'Disconnect', 'Troubleshoot Connection...', 'Choose How Agents Run...', 'Open SSH Configuration', 'Copy SSH Address', '---', 'Rename...', 'Hide from Picker', '---', 'Learn More about SSH'],
+			['Connect', '---', 'Hide from Picker', '---', 'Rename...', 'Troubleshoot Connection...', 'Learn More about GitHub Environment (Preview)', 'Remove GitHub Environment...'],
+			['Connect', '---', 'Hide from Picker', '---', 'Rename...', 'Choose How Agents Run...', 'Troubleshoot Connection...', 'Learn More about Dev Tunnel', 'Remove Dev Tunnel...'],
+			['Connect', '---', 'Hide from Picker', '---', 'Rename...', 'Troubleshoot Connection...', 'Learn More about WSL'],
+			['New Session', 'Disconnect', '---', 'Hide from Picker', '---', 'Copy SSH Address', '---', 'Rename...', 'Choose How Agents Run...', 'Troubleshoot Connection...', 'Open SSH Configuration', 'Learn More about SSH'],
 		];
 		assert.deepStrictEqual({
 			before, after: actions(), contextMenus: rows().map(row => menuLabels(getContextMenuActions(parent, row))), changes: model.managementChanges,
@@ -2937,8 +2937,8 @@ suite('RemotesWidget', () => {
 			connectionStatus: RemoteAgentHostConnectionStatus.incompatible('Version mismatch', ['1'], ['2'], 'vendor/update'),
 		}], undefined);
 		assert.deepStrictEqual(getMenuActions(parent, ssh.id).map(action => action.id === 'vs.actions.separator' ? '---' : action.label), [
-			'Connect', 'Troubleshoot Connection...', 'Update Server', 'Choose How Agents Run...', 'Open SSH Configuration', 'Copy SSH Address', '---',
-			'Rename...', 'Hide from Picker', 'Remove Saved SSH Connection...', '---', 'Learn More about SSH',
+			'Connect', '---', 'Hide from Picker', '---', 'Copy SSH Address', '---',
+			'Rename...', 'Choose How Agents Run...', 'Troubleshoot Connection...', 'Open SSH Configuration', 'Update Server', 'Learn More about SSH', 'Remove Saved SSH Connection...',
 		]);
 	});
 
@@ -4241,9 +4241,9 @@ suite('RemotesWidget', () => {
 		const disconnected = actions('devcontainer:local');
 		model.remotes.set(model.remotes.get().map(remote => ({ ...remote, connectionStatus: RemoteAgentHostConnectionStatus.connected })), undefined);
 		assert.deepStrictEqual({ disconnected, connected: actions('devcontainer:local'), remote: actions('devcontainer:ssh') }, {
-			disconnected: { connect: 'Connect', newSession: false, menu: ['Connect', 'Troubleshoot Connection...', 'Rename...', 'Hide from Picker', 'Delete Container and Files...', 'Learn More about Dev Containers'] },
-			connected: { connect: 'Disconnect', newSession: true, menu: ['New Session', 'Disconnect', 'Troubleshoot Connection...', 'Rename...', 'Hide from Picker', 'Delete Container and Files...', 'Learn More about Dev Containers'] },
-			remote: { connect: undefined, newSession: true, menu: ['New Session', 'Troubleshoot Connection...', 'Rename...', 'Hide from Picker', 'Delete Container and Files...', 'Learn More about Dev Containers'] },
+			disconnected: { connect: 'Connect', newSession: false, menu: ['Connect', 'Hide from Picker', 'Rename...', 'Troubleshoot Connection...', 'Learn More about Dev Containers', 'Delete Container and Files...'] },
+			connected: { connect: 'Disconnect', newSession: true, menu: ['New Session', 'Disconnect', 'Hide from Picker', 'Rename...', 'Troubleshoot Connection...', 'Learn More about Dev Containers', 'Delete Container and Files...'] },
+			remote: { connect: undefined, newSession: true, menu: ['New Session', 'Hide from Picker', 'Rename...', 'Troubleshoot Connection...', 'Learn More about Dev Containers', 'Delete Container and Files...'] },
 		});
 	});
 
@@ -4403,15 +4403,15 @@ suite('RemotesWidget', () => {
 		await store.add(new ActionRunner()).run(ssh.find(action => action.id === 'remotes.rename')!);
 		await timeout(0);
 		assert.deepStrictEqual({ tunnel: menuLabels(tunnel), ssh: menuLabels(ssh), group: menuLabels(group), changes: model.managementChanges }, {
-			tunnel: ['Connect', '---', 'Hide from Environment Picker', '---', 'Rename...', 'Configure Agent Run Behavior...', 'Troubleshoot Connection...', 'Delete Dev Tunnel...'],
-			ssh: ['New Session', 'Disconnect', '---', 'Hide from Environment Picker', '---', 'Copy Address', '---', 'Rename...', 'Configure Agent Run Behavior...', 'Troubleshoot Connection...'],
-			group: ['Open SSH Configuration', '---', 'Open Setup Guide'],
+			tunnel: ['Connect', '---', 'Hide from Picker', '---', 'Rename...', 'Choose How Agents Run...', 'Troubleshoot Connection...', 'Learn More about Dev Tunnel', 'Remove Dev Tunnel...'],
+			ssh: ['New Session', 'Disconnect', '---', 'Hide from Picker', '---', 'Copy SSH Address', '---', 'Rename...', 'Choose How Agents Run...', 'Troubleshoot Connection...', 'Open SSH Configuration', 'Learn More about SSH'],
+			group: ['Open SSH Configuration', '---', 'Learn More about SSH'],
 			changes: [{ id: 'ssh:build', action: 'rename' }],
 		});
 	});
 
 	test('Shift+F10 on a focused row scrolled out of view reveals the row and anchors its context menu there', () => {
-		const { parent, model, widget } = createWidget(OperatingSystem.Macintosh, 'default');
+		const { parent, model, widget } = createWidget(OperatingSystem.Macintosh, 'none');
 		model.remotes.set(Array.from({ length: 60 }, (_, index) => ({
 			id: `ssh:host${index}`, kind: 'ssh' as const, name: `Host ${index}`, detail: `host${index}.example.com`, canRemove: true,
 			availability: 'online' as const, connectionStatus: RemoteAgentHostConnectionStatus.disconnected,
@@ -4431,7 +4431,7 @@ suite('RemotesWidget', () => {
 			anchor: dom.isHTMLElement(anchor) ? anchor.querySelector<HTMLElement>('[data-remote-id]')?.dataset.remoteId : undefined,
 		}, {
 			renderedBefore: false, anchor: focusedId,
-			menu: ['Connect', '---', 'Hide from Environment Picker', '---', 'Rename...', 'Configure Agent Run Behavior...', 'Troubleshoot Connection...'],
+			menu: ['Connect', '---', 'Hide from Picker', '---', 'Rename...', 'Choose How Agents Run...', 'Troubleshoot Connection...', 'Open SSH Configuration', 'Learn More about SSH'],
 		});
 	});
 
@@ -4450,7 +4450,7 @@ suite('RemotesWidget', () => {
 			menu: menuLabels(menus.get(parent)!()),
 			anchor: dom.isHTMLElement(anchor) ? anchor.querySelector<HTMLElement>('[data-remote-id]')?.dataset.remoteId : undefined,
 		}, {
-			menu: ['Connect', '---', 'Hide from Environment Picker', '---', 'Rename...', 'Configure Agent Run Behavior...', 'Troubleshoot Connection...', 'Delete Dev Tunnel...'],
+			menu: ['Connect', '---', 'Hide from Picker', '---', 'Rename...', 'Choose How Agents Run...', 'Troubleshoot Connection...', 'Learn More about Dev Tunnel', 'Remove Dev Tunnel...'],
 			anchor: 'tunnel:laptop',
 		});
 	});
