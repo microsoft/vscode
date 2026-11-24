@@ -6,7 +6,8 @@
 import * as fs from 'fs/promises';
 import { structuralEquals } from '../../../../base/common/equals.js';
 import { getErrorMessage } from '../../../../base/common/errors.js';
-import { IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { isAbsolute } from '../../../../base/common/path.js';
@@ -31,7 +32,10 @@ export interface ICopilotProjectExtensionTrustReconciliation {
 	readonly revokedExtensionNames: ReadonlySet<string>;
 }
 
-/** Counts of trust expansions and contractions, compared to find what changed since a session last reconciled. */
+/**
+ * Counts of effective trust expansions and contractions, compared to find what changed since a session last reconciled.
+ * Besides workspace trust changes, they count scratch-folder and worktree exemptions starting or ending under launches.
+ */
 export interface ICopilotProjectExtensionTrustState {
 	readonly expansions: number;
 	readonly contractions: number;
@@ -62,7 +66,7 @@ type CopilotExtensionSource = 'project' | 'user' | 'plugin' | 'session';
  * canonical path. Without trust information every launch is refused; with workspace trust disabled, all are allowed.
  * A worktree the host created for a session inherits its repository's trust, as the runtime's own trust grant does.
  */
-export class CopilotProjectExtensionLaunchPolicy {
+export class CopilotProjectExtensionLaunchPolicy extends Disposable {
 	private readonly _admittedRoots = new ResourceMap<number>();
 	/** Admissions holding a directory that could not be canonicalized; while any exist, no launch record is pruned. */
 	private _unresolvedAdmissionDirectories = 0;
@@ -70,6 +74,7 @@ export class CopilotProjectExtensionLaunchPolicy {
 	/** Admitted worktrees the host created as a session's working directory, with the repository whose trust they inherit. */
 	private readonly _inheritingWorktrees = new Map<string, { readonly worktree: URI; readonly repository: URI; count: number }>();
 	private _trust: IAgentHostWorkspaceTrust | undefined;
+	/** Advances whenever effective trust changes, workspace trust or an exemption, so a pending launch decision re-evaluates. */
 	private _trustGeneration = 0;
 	private _trustState: ICopilotProjectExtensionTrustState = { expansions: 0, contractions: 0 };
 	/** Canonical trusted roots of the current trust, by trusted URI. Only resolved roots are kept, so a missing one is retried. */
@@ -81,12 +86,22 @@ export class CopilotProjectExtensionLaunchPolicy {
 	 * only once no open chat lies in the folder the runtime discovered it in (`discoveryRoot`); without one, never.
 	 */
 	private readonly _allowedLaunches = new Map<string, { readonly module: URI; readonly extensionName: string; readonly discoveryRoot: URI | undefined }>();
+	/** Project extension launches this policy refused, by the same key, so an exemption starting under one can retry it. */
+	private readonly _refusedLaunches = new Map<string, { readonly module: URI; readonly discoveryRoot: URI | undefined }>();
+
+	private readonly _onDidChangeExemptions = this._register(new Emitter<ICopilotProjectExtensionTrustChange>());
+	/**
+	 * Fires when a scratch-folder or worktree exemption starts under a refused launch, or ends under an allowed one. No
+	 * workspace trust change reports these: they follow sessions opening and closing.
+	 */
+	readonly onDidChangeExemptions: Event<ICopilotProjectExtensionTrustChange> = this._onDidChangeExemptions.event;
 
 	constructor(
 		private readonly _configurationService: IAgentConfigurationService,
 		private readonly _logService: ILogService,
 		private readonly _realpath: (path: string) => Promise<string> = fs.realpath,
 	) {
+		super();
 		this._trust = this._readTrust();
 	}
 
@@ -127,6 +142,11 @@ export class CopilotProjectExtensionLaunchPolicy {
 
 	/** Resolves `change` into the project extensions it affects: a contraction revokes the allowed launches trust no longer covers. */
 	async reconciliationFor(change: ICopilotProjectExtensionTrustChange): Promise<ICopilotProjectExtensionTrustReconciliation> {
+		for (const [key, launch] of [...this._refusedLaunches]) {
+			if (launch.discoveryRoot && !this._mayRunFrom(launch.discoveryRoot)) {
+				this._refusedLaunches.delete(key);
+			}
+		}
 		const revokedExtensionNames = new Set<string>();
 		if (change.contracted) {
 			for (const [key, launch] of [...this._allowedLaunches]) {
@@ -167,9 +187,15 @@ export class CopilotProjectExtensionLaunchPolicy {
 		}
 		this._unresolvedAdmissionDirectories += unresolvedDirectories;
 
+		// Exemptions this admission starts; a launch they now allow may have been refused before.
+		const startedExemptions: URI[] = [];
 		const admittedWorkspacelessRoot = scratchFolder ? await this._canonicalScratchFolder(scratchFolder, roots) : undefined;
 		if (admittedWorkspacelessRoot) {
-			this._workspacelessRoots.set(admittedWorkspacelessRoot, (this._workspacelessRoots.get(admittedWorkspacelessRoot) ?? 0) + 1);
+			const references = this._workspacelessRoots.get(admittedWorkspacelessRoot) ?? 0;
+			this._workspacelessRoots.set(admittedWorkspacelessRoot, references + 1);
+			if (references === 0) {
+				startedExemptions.push(admittedWorkspacelessRoot);
+			}
 		}
 
 		const inheritance = createdWorktree ? await this._canonicalInheritance(createdWorktree, roots) : undefined;
@@ -180,7 +206,14 @@ export class CopilotProjectExtensionLaunchPolicy {
 				existing.count++;
 			} else {
 				this._inheritingWorktrees.set(inheritingKey, { ...inheritance, count: 1 });
+				startedExemptions.push(inheritance.worktree);
 			}
+		}
+		if (startedExemptions.length) {
+			this._trustGeneration++;
+		}
+		if (startedExemptions.some(folder => this._hasLaunchUnder(this._refusedLaunches, folder))) {
+			this._noteExemptionChange({ expanded: true, contracted: false });
 		}
 
 		const trustState = this._trustState;
@@ -189,12 +222,21 @@ export class CopilotProjectExtensionLaunchPolicy {
 				this._releaseReference(this._admittedRoots, root);
 			}
 			this._unresolvedAdmissionDirectories -= unresolvedDirectories;
-			if (admittedWorkspacelessRoot) {
-				this._releaseReference(this._workspacelessRoots, admittedWorkspacelessRoot);
+			// Exemptions this admission ends; a launch they allowed may still run in another session.
+			const endedExemptions: URI[] = [];
+			if (admittedWorkspacelessRoot && this._releaseReference(this._workspacelessRoots, admittedWorkspacelessRoot)) {
+				endedExemptions.push(admittedWorkspacelessRoot);
 			}
 			const entry = inheritingKey ? this._inheritingWorktrees.get(inheritingKey) : undefined;
 			if (inheritingKey && entry && --entry.count <= 0) {
 				this._inheritingWorktrees.delete(inheritingKey);
+				endedExemptions.push(entry.worktree);
+			}
+			if (endedExemptions.length) {
+				this._trustGeneration++;
+			}
+			if (endedExemptions.some(folder => this._hasLaunchUnder(this._allowedLaunches, folder))) {
+				this._noteExemptionChange({ expanded: false, contracted: true });
 			}
 		});
 		return {
@@ -254,16 +296,20 @@ export class CopilotProjectExtensionLaunchPolicy {
 				this._logService.trace(`[Copilot] Project extension launch denied because its entrypoint could not be resolved: ${modulePath}`);
 				return {};
 			}
+			const key = `${modulePath}\n${module.toString()}`;
 			if (!this._isAdmitted(module)) {
+				this._refusedLaunches.set(key, { module, discoveryRoot });
 				this._logService.trace(`[Copilot] Project extension launch denied because its entrypoint is not admitted: ${module.fsPath}`);
 				return {};
 			}
 			if (!await this._isLaunchTrusted(module) || !this._isAdmitted(module)) {
+				this._refusedLaunches.set(key, { module, discoveryRoot });
 				this._logService.trace(`[Copilot] Project extension launch denied because its workspace is not trusted: ${module.fsPath}`);
 				return {};
 			}
+			this._refusedLaunches.delete(key);
 			// The runtime names a project extension after the folder it discovered, which a symlink may resolve elsewhere.
-			this._allowedLaunches.set(`${modulePath}\n${module.toString()}`, { module, extensionName: basename(dirname(URI.file(modulePath))), discoveryRoot });
+			this._allowedLaunches.set(key, { module, extensionName: basename(dirname(URI.file(modulePath))), discoveryRoot });
 			launchModulePath = module.fsPath;
 		}
 
@@ -279,7 +325,7 @@ export class CopilotProjectExtensionLaunchPolicy {
 		};
 	}
 
-	/** Decides against the trust current when the decision completes: a change while resolving roots re-evaluates it. */
+	/** Decides against the trust current when the decision completes: a change of trust or of an exemption while resolving roots re-evaluates it. */
 	private async _isLaunchTrusted(resource: URI): Promise<boolean> {
 		while (true) {
 			if ([...this._workspacelessRoots.keys()].some(root => extUriBiasedIgnorePathCase.isEqualOrParent(resource, root))) {
@@ -330,6 +376,19 @@ export class CopilotProjectExtensionLaunchPolicy {
 
 	private _isAdmitted(resource: URI): boolean {
 		return [...this._admittedRoots.keys()].some(root => extUriBiasedIgnorePathCase.isEqualOrParent(resource, root));
+	}
+
+	private _hasLaunchUnder(launches: ReadonlyMap<string, { readonly module: URI }>, folder: URI): boolean {
+		return [...launches.values()].some(launch => extUriBiasedIgnorePathCase.isEqualOrParent(launch.module, folder));
+	}
+
+	/** Records an exemption starting or ending as an effective trust change, which initializing sessions catch up with. */
+	private _noteExemptionChange(change: ICopilotProjectExtensionTrustChange): void {
+		this._trustState = {
+			expansions: this._trustState.expansions + (change.expanded ? 1 : 0),
+			contractions: this._trustState.contractions + (change.contracted ? 1 : 0),
+		};
+		this._onDidChangeExemptions.fire(change);
 	}
 
 	/**
@@ -407,12 +466,14 @@ export class CopilotProjectExtensionLaunchPolicy {
 		}
 	}
 
-	private _releaseReference(references: ResourceMap<number>, resource: URI): void {
+	/** Releases one reference to `resource`; returns whether it was the last. */
+	private _releaseReference(references: ResourceMap<number>, resource: URI): boolean {
 		const count = references.get(resource);
 		if (count === undefined || count <= 1) {
 			references.delete(resource);
-		} else {
-			references.set(resource, count - 1);
+			return count !== undefined;
 		}
+		references.set(resource, count - 1);
+		return false;
 	}
 }
