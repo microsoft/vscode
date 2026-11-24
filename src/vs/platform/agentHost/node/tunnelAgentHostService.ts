@@ -23,6 +23,7 @@ import {
 import {
 	ITunnelAgentHostMainService,
 	TUNNEL_AGENT_HOST_PORT,
+	TUNNEL_DISCOVERY_LIMIT,
 	TUNNEL_LAUNCHER_LABEL,
 	TUNNEL_MIN_PROTOCOL_VERSION,
 	type ITunnelConnectResult,
@@ -212,6 +213,7 @@ export class TunnelAgentHostMainService extends Disposable implements ITunnelAge
 				requireAllLabels: true,
 				includePorts: true,
 				tokenScopes: ['connect'],
+				limit: TUNNEL_DISCOVERY_LIMIT,
 			});
 			for (const tunnel of tunnels) {
 				const info = parseTunnelInfo(tunnel);

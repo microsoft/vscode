@@ -27,6 +27,7 @@ import {
 	isTunnelGatewaySelectionRejectedError,
 	isTunnelNotFoundError,
 	TUNNEL_ADDRESS_PREFIX,
+	TUNNEL_DISCOVERY_LIMIT,
 	TUNNEL_GATEWAY_MIN_PROTOCOL_VERSION,
 	TUNNEL_LAUNCHER_LABEL,
 	TUNNEL_MIN_PROTOCOL_VERSION,
@@ -298,6 +299,7 @@ export class BrowserTunnelAgentHostService extends Disposable implements ITunnel
 				requireAllLabels: true,
 				includePorts: true,
 				tokenScopes: ['connect'],
+				limit: TUNNEL_DISCOVERY_LIMIT,
 			}));
 			const results = filterBrowserTunnelInfos(tunnels);
 			this._logService.info(`${LOG_PREFIX} Found ${results.length} tunnel(s) with agent host support`);

@@ -14,7 +14,7 @@ import { AgentHostProtocolClient } from '../../../../../../../platform/agentHost
 import { IRemoteAgentHostLocationPreferenceService } from '../../../../../../../platform/agentHost/common/remoteAgentHostLocationPreference.js';
 import { IRemoteAgentHostConnectionFactory, IRemoteAgentHostService, RemoteAgentHostsEnabledSettingId } from '../../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { getProtocolMessageSize } from '../../../../../../../platform/agentHost/common/state/sessionTransport.js';
-import { type ITunnelConnectResult, type ITunnelGatewaySelection, type ITunnelGatewaySelectionSession, type ITunnelInfo } from '../../../../../../../platform/agentHost/common/tunnelAgentHost.js';
+import { TUNNEL_DISCOVERY_LIMIT, type ITunnelConnectResult, type ITunnelGatewaySelection, type ITunnelGatewaySelectionSession, type ITunnelInfo } from '../../../../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { resolveGatewaySelection, type IGatewaySelectionRequest } from '../../../../../../../platform/agentHost/common/tunnelGatewaySelection.js';
 import type { ITunnelDuplexStream } from '../../../../../../../platform/agentHost/common/tunnelMessageSocket.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -124,7 +124,7 @@ function createRemoteAgentHostService(): IRemoteAgentHostService {
 function createBrowserTunnelService(
 	store: Pick<DisposableStore, 'add'>,
 	sessions: readonly AuthenticationSession[] | ((provider: string) => readonly AuthenticationSession[]),
-	listTunnels: (authorization: string) => Promise<readonly IDevTunnelsWebTunnel[]>,
+	listTunnels: (authorization: string, options?: IDevTunnelsWebRequestOptions) => Promise<readonly IDevTunnelsWebTunnel[]>,
 	deleteTunnel?: (authorization: string) => Promise<boolean>,
 	connectionOptions?: {
 		onFactory: (factory: IRemoteAgentHostConnectionFactory) => void;
@@ -137,8 +137,8 @@ function createBrowserTunnelService(
 		constructor(_userAgent: string, _apiVersion: object, private readonly _userTokenCallback: () => Promise<string>) {
 		}
 
-		async listTunnels(): Promise<readonly IDevTunnelsWebTunnel[]> {
-			return listTunnels(await this._userTokenCallback());
+		async listTunnels(_clusterId: string | undefined, _domain: string | undefined, options: IDevTunnelsWebRequestOptions): Promise<readonly IDevTunnelsWebTunnel[]> {
+			return listTunnels(await this._userTokenCallback(), options);
 		}
 
 		getTunnel(): Promise<IDevTunnelsWebTunnel | null> {
@@ -365,9 +365,9 @@ suite('BrowserTunnelAgentHostService', () => {
 			id: provider, accessToken: `${provider}-token`, scopes: ['tunnel'], account: { id: provider, label: provider },
 		});
 		sessions.set('microsoft', session('microsoft'));
-		const calls: { operation: string; authorization: string }[] = [];
-		const service = createBrowserTunnelService(store, provider => sessions.has(provider) ? [sessions.get(provider)!] : [], async authorization => {
-			calls.push({ operation: 'list', authorization });
+		const calls: { operation: string; authorization: string; limit?: number }[] = [];
+		const service = createBrowserTunnelService(store, provider => sessions.has(provider) ? [sessions.get(provider)!] : [], async (authorization, options) => {
+			calls.push({ operation: 'list', authorization, limit: options?.limit });
 			return [];
 		}, async authorization => {
 			calls.push({ operation: 'delete', authorization });
@@ -381,11 +381,11 @@ suite('BrowserTunnelAgentHostService', () => {
 		await service.listTunnels({ authProvider: 'github' });
 
 		assert.deepStrictEqual(calls, [
-			{ operation: 'list', authorization: 'Bearer microsoft-token' },
-			{ operation: 'list', authorization: 'github github-token' },
-			{ operation: 'list', authorization: 'Bearer microsoft-token' },
-			{ operation: 'delete', authorization: 'github github-token' },
-			{ operation: 'list', authorization: 'github github-token' },
+			{ operation: 'list', authorization: 'Bearer microsoft-token', limit: TUNNEL_DISCOVERY_LIMIT },
+			{ operation: 'list', authorization: 'github github-token', limit: TUNNEL_DISCOVERY_LIMIT },
+			{ operation: 'list', authorization: 'Bearer microsoft-token', limit: TUNNEL_DISCOVERY_LIMIT },
+			{ operation: 'delete', authorization: 'github github-token', limit: undefined },
+			{ operation: 'list', authorization: 'github github-token', limit: TUNNEL_DISCOVERY_LIMIT },
 		]);
 	});
 

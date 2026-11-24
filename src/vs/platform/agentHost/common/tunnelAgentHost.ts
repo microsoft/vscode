@@ -38,6 +38,13 @@ export const TUNNEL_AGENT_HOST_PORT = 31546;
 /** Label used to identify VS Code server launcher tunnels. */
 export const TUNNEL_LAUNCHER_LABEL = 'vscode-server-launcher';
 
+/**
+ * Upper bound passed to the Dev Tunnels list endpoint during discovery. The
+ * service applies a small default page size when no `limit` is given, so
+ * tunnels beyond the first page never reach the client (see #336170).
+ */
+export const TUNNEL_DISCOVERY_LIMIT = 100;
+
 /** Address prefix for tunnel-backed connections (e.g. `tunnel:myTunnelId`). */
 export const TUNNEL_ADDRESS_PREFIX = 'tunnel:';
 
