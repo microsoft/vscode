@@ -10410,6 +10410,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 				this._invalidateCanvasContinuity(chat);
 			}
 			await this._destroyLiveSession(target, true);
+			// While the chat is released another process can run it, and need not be the last to have run it when this host resumes it.
+			this._modelRouterGuidance.historyChangedElsewhere(initial.chatKey);
 			const scoped = this._scopedClients.get(initial.chatKey);
 			if (scoped) {
 				await scoped.stop();

@@ -2208,8 +2208,10 @@ suite('CopilotAgentSession', () => {
 			readonly echoed?: boolean;
 			/** A root message the runtime starts on its own arrives afterwards. */
 			readonly thenOtherMessage?: boolean;
+			/** The id of a root message the runtime echoes while the send is still in flight. */
+			readonly echoedDuringSend?: string;
 		}
-		const sendWith = async ({ prompt = 'hello', suppressHooks = false, rejected = false, echoed = true, thenOtherMessage = false }: ISendCase) => {
+		const sendWith = async ({ prompt = 'hello', suppressHooks = false, rejected = false, echoed = true, thenOtherMessage = false, echoedDuringSend }: ISendCase) => {
 			let delivered = 0;
 			const { session, runtime, mockSession } = await createAgentSession(disposables, { onHostInstructionsDelivered: () => delivered++ });
 			mockSession.commandListResult = { commands: [{ name: 'fleet', kind: 'builtin', description: 'Start fleet', allowDuringAgentExecution: false }] };
@@ -2219,13 +2221,17 @@ suite('CopilotAgentSession', () => {
 					data: { source: 'server', serverManaged: true, deviceManaged: false, bypassPermissionsDisabled: false, failClosed: false, managedKeys: ['allowManagedHooksOnly'], settings: { allowManagedHooksOnly: true } },
 				});
 			}
+			if (echoedDuringSend) {
+				mockSession.onSend = () => mockSession.fire('user.message', { content: prompt, messageId: echoedDuringSend, turnId: 'sdk-turn' } as SessionEventPayload<'user.message'>['data']);
+			}
 			if (rejected) {
 				const closed = Promise.reject(new Error('The connection closed.'));
 				closed.catch(() => { });
 				mockSession.sendGate = closed;
 			}
 			await session.send(prompt, undefined, 'turn-1', 'interactive', undefined, AgentHostClientType.Unknown, ['A note.']).catch(() => { });
-			const hook = suppressHooks || prompt.startsWith('/') ? undefined : session.handleUserPromptSubmitted()?.additionalContext;
+			// A command's turn is over without a prompt, so the hook then runs for a prompt the runtime starts on its own.
+			const hook = suppressHooks || prompt.startsWith('/fleet') ? undefined : session.handleUserPromptSubmitted()?.additionalContext;
 			const beforeEcho = delivered;
 			if (echoed) {
 				mockSession.fire('user.message', { content: prompt, messageId: 'message-1', turnId: 'sdk-turn' } as SessionEventPayload<'user.message'>['data']);
@@ -2240,11 +2246,15 @@ suite('CopilotAgentSession', () => {
 		assert.deepStrictEqual({
 			hook: await sendWith({}),
 			hookBlockedPrompt: (await sendWith({ echoed: false })).delivered,
-			// Handled by the history RPC: no prompt goes out, so the note does not either.
+			// Handled by the history RPC: no prompt goes out, so the note does not either, nor with a later prompt.
 			command: await sendWith({ prompt: '/compact', echoed: false }),
 			suppressedHooks: await sendWith({ suppressHooks: true }),
 			// The rejected turn is over: a message the runtime starts afterwards is not its prompt.
 			suppressedHooksRejected: (await sendWith({ suppressHooks: true, rejected: true, echoed: false, thenOtherMessage: true })).delivered,
+			// The prompt's own echo can come before its send returns its id.
+			suppressedHooksEarlyEcho: (await sendWith({ suppressHooks: true, echoed: false, echoedDuringSend: 'message-1' })).delivered,
+			// Another root message echoed during a send that is then rejected is not that send's prompt.
+			suppressedHooksOtherEchoThenRejected: (await sendWith({ suppressHooks: true, rejected: true, echoed: false, echoedDuringSend: 'provider-message' })).delivered,
 			suppressedHooksFleet: (await sendWith({ prompt: '/fleet build it', suppressHooks: true, echoed: false })).prompts,
 			fleet: (await sendWith({ prompt: '/fleet build it', echoed: false })).prompts,
 		}, {
@@ -2253,6 +2263,8 @@ suite('CopilotAgentSession', () => {
 			command: { prompts: [], displayPrompt: undefined, hook: undefined, beforeEcho: 0, delivered: 0 },
 			suppressedHooks: { prompts: [`hello${reminder}`], displayPrompt: 'hello', hook: undefined, beforeEcho: 0, delivered: 1 },
 			suppressedHooksRejected: 0,
+			suppressedHooksEarlyEcho: 1,
+			suppressedHooksOtherEchoThenRejected: 0,
 			suppressedHooksFleet: [`build it${reminder}`],
 			fleet: ['build it'],
 		});

@@ -23909,7 +23909,8 @@ suite('CopilotAgent', () => {
 					await h.agent.chats.sendMessage(h.chat, 'build it', [workingDirectory], undefined, turnId, undefined, h.sendContext);
 					const note = reachesAgent ? /<model_router_guidance>[^]*<\/model_router_guidance>/.exec(chatEntriesBySdkId(h.agent).get(h.sdkSessionId()!)!.chatSession.handleUserPromptSubmitted()?.additionalContext ?? '')?.[0] : undefined;
 					if (reachesAgent) {
-						h.sdkSessions.at(-1)!.emit({ id: `message-${turnId}`, timestamp: '2025-01-01T00:00:00.000Z', parentId: null, type: 'user.message', data: { content: 'build it', messageId: `message-${turnId}` } } as SessionEventPayload<'user.message'>);
+						// The mock runtime's send returns an empty message id.
+						h.sdkSessions.at(-1)!.emit({ id: `message-${turnId}`, timestamp: '2025-01-01T00:00:00.000Z', parentId: null, type: 'user.message', data: { content: 'build it', messageId: '' } } as SessionEventPayload<'user.message'>);
 					}
 					const told = note && (/How the user wants the work done:\n(?<guidance>.*)\n/.exec(note)?.groups?.guidance ?? 'none');
 					return { kept: resolution?.routed?.kept, notices: resolution?.notices ?? [], told };
@@ -23962,7 +23963,7 @@ suite('CopilotAgent', () => {
 				assert.deepStrictEqual({ model: resolution.selection?.id, route: resolution.routed?.routeName, notices: resolution.notices }, { model: 'claude-sonnet', route: 'feature', notices: [] });
 			});
 
-			test('a chat routed to a route with other guidance is told it on its running session, and again after its history is rewritten', async () => {
+			test('a chat routed to a route with other guidance is told it on its running session, and again after its history is rewritten or its session is released', async () => {
 				const h = await createRoutedAgent('router-moved');
 				await h.agent.chats.warmChat!(h.chat, h.context);
 				const first = await h.send('turn-1');
@@ -23977,10 +23978,14 @@ suite('CopilotAgent', () => {
 				// A compaction can drop the message that carried the note.
 				h.sdkSessions[0].emit({ id: 'compaction', timestamp: '2025-01-01T00:00:00.000Z', parentId: null, type: 'session.compaction_complete', data: { success: true } } as SessionEventPayload<'session.compaction_complete'>);
 				const afterCompaction = await h.send('turn-5', 'team');
-				assert.deepStrictEqual({ told: [first, moved, unrouted, stayed, afterUnsent, afterCompaction].map(turn => turn.told), launches: h.launches(), sends: h.sdkSessions.map(session => session.sendCalls) }, {
-					told: ['Plan first.', 'Review first.', undefined, undefined, 'Plan first.', 'Plan first.'],
-					launches: { guidanceInSystemPrompt: false, resumed: 0 },
-					sends: [7],
+				// While this host does not run the chat, another process can rewrite its history.
+				h.sdkSessions[0].emit({ id: 'idle', timestamp: '2025-01-01T00:00:00.000Z', parentId: null, type: 'session.idle', data: {} } as SessionEventPayload<'session.idle'>);
+				await h.agent.chats.releaseChat(h.chat, h.context);
+				const afterRelease = await h.send('turn-6', 'team');
+				assert.deepStrictEqual({ told: [first, moved, unrouted, stayed, afterUnsent, afterCompaction, afterRelease].map(turn => turn.told), launches: h.launches(), sends: h.sdkSessions.map(session => session.sendCalls) }, {
+					told: ['Plan first.', 'Review first.', undefined, undefined, 'Plan first.', 'Plan first.', 'Plan first.'],
+					launches: { guidanceInSystemPrompt: false, resumed: 1 },
+					sends: [7, 1],
 				});
 			});
 		});
