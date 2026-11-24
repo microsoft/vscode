@@ -68,6 +68,7 @@ jobs:
       # The commit of the base branch that a merge group forks from (see the Find the base step).
       merge-group-base: ${{ steps.base.outputs.merge-group-base }}
       cli: ${{ steps.detect.outputs.cli }}
+      dependencies: ${{ steps.detect.outputs.dependencies }}
       copilot-shim: ${{ steps.detect.outputs.copilot-shim }}
       copilot: ${{ steps.detect.outputs.copilot }}
       unit-tests: ${{ steps.detect.outputs.unit-tests }}
@@ -606,6 +607,46 @@ jobs:
           fi
           echo "ripple built, passed its tests and planned the tests in Detect Changes."
 
+  # Checks that the package versions that the changes add to pnpm-lock.yaml, package-lock.json and Cargo.lock come
+  # from registry.npmjs.org or crates.io, and are at least as old as the minimumReleaseAge of pnpm-workspace.yaml,
+  # unless its minimumReleaseAgeExclude lists them (see build/lib/dependencyReleaseAge.ts). It reads only public data,
+  # so that it also runs for pull requests from forks. For a merge group, it compares with the commit of the base
+  # branch that the group forks from, so that it covers the pull requests ahead of it in the queue too.
+  dependency-release-age:
+    name: Dependency Release Age
+    needs: changes
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.dependencies == 'true') }}
+    runs-on: *linux-runner
+    permissions:
+      contents: read
+    timeout-minutes: 20
+    steps:
+      - name: Checkout microsoft/vscode
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The merge commit and its first parent, the base branch.
+          fetch-depth: 2
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+
+      - name: Check the release age of the added dependencies
+        env:
+          MERGE_GROUP_BASE: ${{ needs.changes.outputs.merge-group-base }}
+          # The merge group ahead in the queue, when Detect Changes could not find the commit that the group forks from.
+          MERGE_GROUP_PARENT: ${{ github.event.merge_group.base_sha }}
+        run: |
+          set -e
+          base=HEAD^1
+          if [ "$GITHUB_EVENT_NAME" = merge_group ]; then
+            base=${MERGE_GROUP_BASE:-$MERGE_GROUP_PARENT}
+            git cat-file -e "$base^{commit}" 2>/dev/null || git fetch --no-tags --depth=1 origin "$base"
+          fi
+          node build/lib/dependencyReleaseAge.ts --base "$base" --head HEAD
+
   # The test jobs below report "<OS> / <job>" checks, for example "Windows / Electron-Unit", whether
   # they run or not. Each calls the reusable workflow of its OS, whose jobs have fixed names, run on
   # the runner that the calling job passes, and skip when the changes cannot affect them (the
@@ -1112,6 +1153,7 @@ jobs:
       - monaco-editor
       - telemetry
       - ripple
+      - dependency-release-age
       - linux-rust-tests
       - linux-tests
       # - macos-tests

@@ -1,0 +1,314 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import assert from 'assert';
+import { execFileSync } from 'child_process';
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
+import { suite, test } from 'node:test';
+import { addedPackages, checkChanges, checkRevisions, createPublicRegistry, isExcluded, packageManagerPackage, parseCargoLockfile, parsePackageLockfile, parsePnpmLockfile, parseReleaseAgePolicy, type ILockedPackage, type IRegistry, type Release } from '../dependencyReleaseAge.ts';
+
+const repositoryRoot = path.resolve(import.meta.dirname, '../../..');
+const now = new Date('2026-11-23T12:00:00Z');
+const daysAgo = (days: number) => new Date(now.getTime() - days * 86_400_000);
+const policy = { minimumReleaseAge: 10080, exclude: ['@vscode/*', 'electron'], file: 'pnpm-workspace.yaml' };
+const npm = (name: string, version: string, source: ILockedPackage['source'] = { kind: 'registry' }): ILockedPackage => ({ ecosystem: 'npm', name, version, source });
+
+function fakeRegistry(releases: Record<string, Release>): IRegistry & { readonly lookups: string[] } {
+	const lookups: string[] = [];
+	return {
+		lookups,
+		async release(ecosystem, name, version) {
+			lookups.push(`${ecosystem}:${name}@${version}`);
+			return releases[`${name}@${version}`] ?? { notFound: true };
+		},
+	};
+}
+
+const pnpmLockfile = `---
+lockfileVersion: '9.0'
+
+importers:
+
+  .:
+    packageManagerDependencies:
+      pnpm:
+        specifier: 12.16.0
+        version: 12.16.0
+
+packages:
+
+  pnpm@12.16.0:
+    resolution: {integrity: sha512-abc==}
+    hasBin: true
+
+---
+lockfileVersion: '9.0'
+
+importers:
+
+  .:
+    dependencies:
+      left-pad:
+        specifier: ^1.3.0
+        version: 1.3.0
+
+packages:
+
+  '@scope/name@2.0.0-beta.1':
+    resolution: {integrity: sha512-def==}
+    engines: {node: '>=18'}
+
+  left-pad@1.3.0:
+    resolution: {integrity: sha512-ghi==, tarball: https://registry.npmjs.org/left-pad/-/left-pad-1.3.0.tgz}
+
+  from-git@https://codeload.github.com/owner/repo/tar.gz/0123abc:
+    resolution: {tarball: https://codeload.github.com/owner/repo/tar.gz/0123abc}
+    version: 1.0.0
+
+  git-dep@git+https://github.com/owner/repo.git#0123abc:
+    resolution: {commit: 0123abc, repo: https://github.com/owner/repo.git, type: git}
+    version: 1.0.0
+
+  keytar@file:mocks/keytar:
+    resolution: {directory: mocks/keytar, type: directory}
+
+snapshots:
+
+  left-pad@1.3.0: {}
+`;
+
+suite('dependencyReleaseAge', () => {
+	test('lists the packages of every document of a pnpm lockfile, and where they come from', () => {
+		assert.deepStrictEqual(parsePnpmLockfile(pnpmLockfile), [
+			npm('pnpm', '12.16.0'),
+			npm('@scope/name', '2.0.0-beta.1'),
+			npm('left-pad', '1.3.0'),
+			npm('from-git', 'https://codeload.github.com/owner/repo/tar.gz/0123abc', { kind: 'other', description: 'tarball https://codeload.github.com/owner/repo/tar.gz/0123abc' }),
+			npm('git-dep', 'git+https://github.com/owner/repo.git#0123abc', { kind: 'other', description: 'git repository https://github.com/owner/repo.git#0123abc' }),
+			npm('keytar', 'file:mocks/keytar', { kind: 'local' }),
+		]);
+	});
+
+	test('lists the installed packages of an npm lockfile', () => {
+		const lockfile = JSON.stringify({
+			lockfileVersion: 3,
+			packages: {
+				'': { name: 'root', version: '1.0.0' },
+				'packages/local': { version: '1.0.0' },
+				'node_modules/local': { resolved: 'packages/local', link: true },
+				'node_modules/hono': { version: '4.13.18', resolved: 'https://registry.npmjs.org/hono/-/hono-4.13.18.tgz' },
+				'node_modules/a/node_modules/@scope/b': { version: '1.0.0', resolved: 'https://registry.npmjs.org/@scope/b/-/b-1.0.0.tgz' },
+				'node_modules/alias': { name: 'real', version: '2.0.0', resolved: 'https://registry.npmjs.org/real/-/real-2.0.0.tgz' },
+				'node_modules/fork': { version: '1.0.0', resolved: 'git+ssh://git@github.com/owner/fork.git#0123abc' },
+				'node_modules/mirror': { version: '1.0.0', resolved: 'https://mirror.example.com/mirror/-/mirror-1.0.0.tgz' },
+				'node_modules/bundled': { version: '1.0.0', inBundle: true },
+			},
+		});
+		assert.deepStrictEqual(parsePackageLockfile(lockfile), [
+			npm('hono', '4.13.18'),
+			npm('@scope/b', '1.0.0'),
+			npm('real', '2.0.0'),
+			npm('fork', '1.0.0', { kind: 'other', description: 'git repository git+ssh://git@github.com/owner/fork.git#0123abc' }),
+			npm('mirror', '1.0.0', { kind: 'other', description: 'tarball https://mirror.example.com/mirror/-/mirror-1.0.0.tgz' }),
+		]);
+	});
+
+	test('lists the packages of a Cargo lockfile', () => {
+		const lockfile = [
+			'version = 4',
+			'',
+			'[[package]]',
+			'name = "code-cli"',
+			'version = "0.1.0"',
+			'dependencies = [',
+			' "serde",',
+			']',
+			'',
+			'[[package]]',
+			'name = "serde"',
+			'version = "1.0.228"',
+			'source = "registry+https://github.com/rust-lang/crates.io-index"',
+			'checksum = "abc"',
+			'',
+			'[[package]]',
+			'name = "tunnels"',
+			'version = "0.1.0"',
+			'source = "git+https://github.com/microsoft/dev-tunnels?rev=0123abc#0123abc"',
+			'',
+			'[metadata]',
+			'name = "ignored"',
+			'version = "1.0.0"',
+		].join('\n');
+		assert.deepStrictEqual(parseCargoLockfile(lockfile), [
+			{ ecosystem: 'crates', name: 'code-cli', version: '0.1.0', source: { kind: 'local' } },
+			{ ecosystem: 'crates', name: 'serde', version: '1.0.228', source: { kind: 'registry' } },
+			{ ecosystem: 'crates', name: 'tunnels', version: '0.1.0', source: { kind: 'other', description: 'git repository https://github.com/microsoft/dev-tunnels?rev=0123abc#0123abc' } },
+		]);
+	});
+
+	test('rejects lockfiles with merge conflict markers', () => {
+		assert.throws(() => parsePnpmLockfile('packages:\n<<<<<<< HEAD\n  a@1.0.0:\n=======\n  a@2.0.0:\n>>>>>>> main\n'), /merge conflict markers/);
+		assert.throws(() => parsePackageLockfile('{\n<<<<<<< HEAD\n}'), /merge conflict markers/);
+	});
+
+	test('reads the release-age policy of the pnpm-workspace.yaml files of the repository', () => {
+		assert.deepStrictEqual(parseReleaseAgePolicy('packages:\n  - a\nminimumReleaseAge: 10080\nminimumReleaseAgeExclude:\n  - \'@vscode/*\'\n  - electron\nnodeLinker: isolated\n', 'pnpm-workspace.yaml'), policy);
+		// The policy that the check enforces must keep parsing as the files change.
+		for (const file of ['pnpm-workspace.yaml', 'build/pnpm-workspace.yaml', 'remote/pnpm-workspace.yaml']) {
+			const parsed = parseReleaseAgePolicy(fs.readFileSync(path.join(repositoryRoot, file), 'utf8'), file);
+			assert.strictEqual(parsed.minimumReleaseAge, 10080, file);
+			assert.ok(parsed.exclude.includes('@vscode/*'), file);
+		}
+	});
+
+	test('matches minimumReleaseAgeExclude as pnpm does', () => {
+		const exclude = ['@vscode/*', 'playwright*', 'electron', 'nx@21.6.5', 'webpack@4.47.0 || 5.102.1'];
+		assert.deepStrictEqual([
+			isExcluded('@vscode/vsce', '1.0.0', exclude),
+			isExcluded('@vscodex/vsce', '1.0.0', exclude),
+			isExcluded('playwright-core', '1.0.0', exclude),
+			isExcluded('electron', '39.0.0', exclude),
+			isExcluded('electron-to-chromium', '1.0.0', exclude),
+			isExcluded('nx', '21.6.5', exclude),
+			isExcluded('nx', '21.6.6', exclude),
+			isExcluded('webpack', '5.102.1', exclude),
+			isExcluded('webpack', '5.102.2', exclude),
+		], [true, false, true, true, false, true, false, true, false]);
+	});
+
+	test('only the packages that a lockfile did not have from the same source count as added', () => {
+		assert.deepStrictEqual(addedPackages(
+			[npm('a', '1.0.0'), npm('b', '1.0.0')],
+			[npm('a', '1.0.0'), npm('b', '1.0.0', { kind: 'other', description: 'tarball https://example.com/b.tgz' }), npm('c', '1.0.0'), npm('c', '1.0.0')],
+		), [npm('b', '1.0.0', { kind: 'other', description: 'tarball https://example.com/b.tgz' }), npm('c', '1.0.0')]);
+	});
+
+	test('reports added versions that are too new, missing or from other sources, with the date they become allowed', async () => {
+		const registry = fakeRegistry({
+			'fresh@1.0.0': { publishedAt: new Date('2026-11-20T08:30:00Z') },
+			'mature@1.0.0': { publishedAt: daysAgo(8) },
+			'@vscode/fresh@1.0.0': { publishedAt: daysAgo(1) },
+			'serde@1.0.229': { publishedAt: daysAgo(2) },
+		});
+		const violations = await checkChanges([
+			{
+				lockfile: 'pnpm-lock.yaml',
+				policy,
+				added: [
+					npm('fresh', '1.0.0'),
+					npm('mature', '1.0.0'),
+					npm('@vscode/fresh', '1.0.0'),
+					npm('missing', '1.0.0'),
+					npm('locked-on-main', '1.0.0'),
+					npm('fork', '1.0.0', { kind: 'other', description: 'git repository https://github.com/owner/fork.git' }),
+					npm('mock', 'file:mock', { kind: 'local' }),
+				],
+			},
+			{ lockfile: 'cli/Cargo.lock', policy: { ...policy, exclude: [] }, added: [{ ecosystem: 'crates', name: 'serde', version: '1.0.229', source: { kind: 'registry' } }] },
+		], new Set(['npm:locked-on-main@1.0.0']), registry, now);
+
+		assert.deepStrictEqual(violations, [
+			{ lockfile: 'cli/Cargo.lock', name: 'serde', version: '1.0.229', message: `serde@1.0.229 was published on ${daysAgo(2).toISOString()}. The minimumReleaseAge of pnpm-workspace.yaml (7 days) allows it from ${new Date(daysAgo(2).getTime() + 7 * 86_400_000).toISOString()}.` },
+			{ lockfile: 'pnpm-lock.yaml', name: 'fork', version: '1.0.0', message: 'fork@1.0.0 comes from git repository https://github.com/owner/fork.git. Dependencies must come from registry.npmjs.org.' },
+			{ lockfile: 'pnpm-lock.yaml', name: 'fresh', version: '1.0.0', message: 'fresh@1.0.0 was published on 2026-11-20T08:30:00.000Z. The minimumReleaseAge of pnpm-workspace.yaml (7 days) allows it from 2026-11-27T08:30:00.000Z.' },
+			{ lockfile: 'pnpm-lock.yaml', name: 'missing', version: '1.0.0', message: 'missing@1.0.0 is not published on registry.npmjs.org.' },
+		]);
+		// Excluded versions, versions that main already locks and local packages need no lookup.
+		assert.deepStrictEqual(registry.lookups.sort(), ['crates:serde@1.0.229', 'npm:fresh@1.0.0', 'npm:mature@1.0.0', 'npm:missing@1.0.0']);
+	});
+
+	test('reads publish dates from the public registries, and retries failed requests', async () => {
+		const requests: string[] = [];
+		const responses: Record<string, { status: number; body?: unknown }[]> = {
+			'https://registry.npmjs.org/@scope%2Fname': [
+				{ status: 503 },
+				{ status: 200, body: { versions: { '1.0.0': {} }, time: { created: '2020-01-01T00:00:00Z', '1.0.0': '2026-11-01T00:00:00Z', '0.9.0': '2026-10-01T00:00:00Z' } } },
+			],
+			'https://registry.npmjs.org/missing': [{ status: 404 }],
+			'https://crates.io/api/v1/crates/serde/1.0.228': [{ status: 200, body: { version: { created_at: '2026-09-01T00:00:00Z' } } }],
+			'https://registry.npmjs.org/down': [{ status: 500 }, { status: 500 }],
+		};
+		const registry = createPublicRegistry(async url => {
+			requests.push(url);
+			const response = responses[url]?.shift();
+			if (!response) {
+				throw new Error(`unexpected request ${url}`);
+			}
+			return { status: response.status, body: response.body };
+		}, [0]);
+
+		assert.deepStrictEqual(await Promise.all([
+			registry.release('npm', '@scope/name', '1.0.0'),
+			// The packument of a package is downloaded once.
+			registry.release('npm', '@scope/name', '0.9.0'),
+			registry.release('npm', 'missing', '1.0.0'),
+			registry.release('crates', 'serde', '1.0.228'),
+		]), [
+			{ publishedAt: new Date('2026-11-01T00:00:00Z') },
+			// Unpublished: the packument dates it, but lists no such version.
+			{ notFound: true },
+			{ notFound: true },
+			{ publishedAt: new Date('2026-09-01T00:00:00Z') },
+		]);
+		await assert.rejects(registry.release('npm', 'down', '1.0.0'), /GET https:\/\/registry\.npmjs\.org\/down failed: HTTP 500/);
+		assert.strictEqual(requests.filter(url => url.endsWith('@scope%2Fname')).length, 2);
+	});
+
+	test('reads the pnpm version of the packageManager field', () => {
+		assert.deepStrictEqual(packageManagerPackage('{"packageManager": "pnpm@12.16.0+sha512.abc"}'), npm('pnpm', '12.16.0'));
+		assert.strictEqual(packageManagerPackage('{"name": "a"}'), undefined);
+	});
+
+	test('checks the lockfiles that differ between two commits', async () => {
+		const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'dependency-release-age-test-'));
+		try {
+			const git = (...args: string[]) => execFileSync('git', ['-c', 'user.name=test', '-c', 'user.email=test@example.com', '-c', 'commit.gpgsign=false', '-c', 'core.autocrlf=false', ...args], { cwd: dir, encoding: 'utf8' }).trim();
+			const write = (file: string, content: string) => {
+				fs.mkdirSync(path.dirname(path.join(dir, file)), { recursive: true });
+				fs.writeFileSync(path.join(dir, file), content);
+			};
+			const lockfile = (...keys: string[]) => `lockfileVersion: '9.0'\n\npackages:\n\n${keys.map(key => `  ${key}:\n    resolution: {integrity: sha512-x==}\n`).join('\n')}`;
+			git('init', '--quiet');
+			write('package.json', '{"packageManager": "pnpm@12.16.0"}');
+			write('pnpm-workspace.yaml', 'minimumReleaseAge: 10080\n');
+			write('pnpm-lock.yaml', lockfile('a@1.0.0', 'shared@1.0.0'));
+			write('build/pnpm-workspace.yaml', 'minimumReleaseAge: 1440\nminimumReleaseAgeExclude:\n  - excluded\n');
+			write('build/pnpm-lock.yaml', lockfile('b@1.0.0'));
+			git('add', '.');
+			git('commit', '--quiet', '-m', 'base');
+			const base = git('rev-parse', 'HEAD');
+
+			write('package.json', '{"packageManager": "pnpm@12.17.0"}');
+			write('pnpm-lock.yaml', lockfile('a@1.0.0', 'a@2.0.0', 'shared@1.0.0'));
+			write('build/pnpm-lock.yaml', lockfile('b@1.0.0', 'b@2.0.0', 'excluded@1.0.0', 'shared@1.0.0'));
+			git('commit', '--quiet', '-am', 'head');
+
+			const registry = fakeRegistry({
+				'a@2.0.0': { publishedAt: daysAgo(2) },
+				'b@2.0.0': { publishedAt: daysAgo(2) },
+				'pnpm@12.17.0': { publishedAt: daysAgo(10) },
+			});
+			const result = await checkRevisions(base, 'HEAD', registry, now, dir);
+			assert.deepStrictEqual({
+				lockfiles: result.lockfiles,
+				checked: result.checked,
+				violations: result.violations.map(violation => `${violation.lockfile}: ${violation.name}@${violation.version}`),
+				errors: result.errors,
+				lookups: registry.lookups.sort(),
+			}, {
+				lockfiles: ['build/pnpm-lock.yaml', 'pnpm-lock.yaml', 'package.json'],
+				checked: 5,
+				// build/ allows b@2.0.0 after a day, and the root lockfile already locks shared@1.0.0.
+				violations: ['pnpm-lock.yaml: a@2.0.0'],
+				errors: [],
+				lookups: ['npm:a@2.0.0', 'npm:b@2.0.0', 'npm:pnpm@12.17.0'],
+			});
+		} finally {
+			fs.rmSync(dir, { recursive: true, force: true });
+		}
+	});
+});
