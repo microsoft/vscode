@@ -149,5 +149,19 @@
 @keyframes code-blink-key {
 	to { opacity: 0.4; }
 }
+
+@media (prefers-reduced-motion: reduce) {
+	.monaco-workbench:not(.monaco-enable-motion) .repl .repl-tree .output.expression .code-blink,
+	.monaco-workbench:not(.monaco-enable-motion) .repl .repl-tree .output.expression .code-rapid-blink {
+		animation: none;
+	}
+}
+
+.monaco-workbench.monaco-reduce-motion .repl .repl-tree .output.expression .code-blink,
+.monaco-workbench.monaco-reduce-motion .repl .repl-tree .output.expression .code-rapid-blink,
+.monaco-reduce-motion .repl .repl-tree .output.expression .code-blink,
+.monaco-reduce-motion .repl .repl-tree .output.expression .code-rapid-blink {
+	animation: none;
+}
 .monaco-workbench .repl .repl-tree .output.expression .code-subscript { vertical-align: sub; font-size: smaller; line-height: normal; }
 .monaco-workbench .repl .repl-tree .output.expression .code-superscript { vertical-align: super; font-size: smaller; line-height: normal; }
