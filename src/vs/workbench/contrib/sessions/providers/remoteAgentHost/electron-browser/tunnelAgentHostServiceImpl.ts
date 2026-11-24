@@ -175,6 +175,12 @@ export class TunnelAgentHostService extends Disposable implements ITunnelAgentHo
 	/** Tracks which auth provider was last used successfully. */
 	private _lastAuthProvider: 'github' | 'microsoft' | undefined;
 
+	/**
+	 * The account that {@link signIn} last created a session for, by provider. Its session takes
+	 * precedence over other accounts' sessions with the tunnel scopes, which the service may reject.
+	 */
+	private readonly _signedInAccounts = new Map<'github' | 'microsoft', string>();
+
 	/** See {@link TunnelFailoverTracker}. */
 	private readonly _failoverTracker = new TunnelFailoverTracker();
 
@@ -576,6 +582,10 @@ export class TunnelAgentHostService extends Disposable implements ITunnelAgentHo
 		try {
 			// Try exact scope match first
 			let sessions = await this._authenticationService.getSessions(providerId, scopes, {}, true);
+			const signedInSession = sessions.find(session => session.account.id === this._signedInAccounts.get(provider));
+			if (signedInSession) {
+				sessions = [signedInSession];
+			}
 
 			// Fall back: find any session whose scopes are a superset
 			if (sessions.length === 0) {
@@ -639,7 +649,8 @@ export class TunnelAgentHostService extends Disposable implements ITunnelAgentHo
 			throw new Error(localize('tunnelAgentHost.authenticationUnsupported', "Tunnel sign-in is not supported by this application."));
 		}
 		try {
-			await this._authenticationService.createSession(authProvider, scopes, { activateImmediate: true });
+			const session = await this._authenticationService.createSession(authProvider, scopes, { activateImmediate: true });
+			this._signedInAccounts.set(authProvider, session.account.id);
 			this._lastAuthProvider = authProvider;
 		} catch (error) {
 			// GitHub Authentication documents this cancellation shape across the extension-host boundary.

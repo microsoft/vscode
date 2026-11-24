@@ -269,6 +269,31 @@ suite('TunnelAgentHostService discovery', () => {
 		assert.strictEqual(calls, 2);
 	});
 
+	test('discovery after sign-in uses the signed-in account when another account\'s session was rejected', async () => {
+		const session = (account: string): AuthenticationSession => ({ id: account, accessToken: `${account}-token`, scopes: ['tunnel'], account: { id: account, label: account } });
+		const sessions = [session('rejected')];
+		const tokens: string[] = [];
+		const service = createService(() => sessions, new class extends mock<IChannel>() {
+			override async call<T>(_command: string, args: readonly string[]): Promise<T> {
+				tokens.push(args[0]);
+				if (args[0] === 'rejected-token') {
+					throw Object.assign(new Error('Unauthorized'), { name: TUNNEL_DISCOVERY_UNAUTHORIZED });
+				}
+				return [] as T;
+			}
+		}(), {
+			onFactory: () => { },
+			createSession: async () => {
+				sessions.push(session('signed-in'));
+				return sessions[1];
+			},
+		});
+		await assert.rejects(service.listTunnels({ authProvider: 'github' }), TunnelAuthenticationRequiredError);
+		await service.signIn('github');
+		await service.listTunnels({ authProvider: 'github' });
+		assert.deepStrictEqual(tokens, ['rejected-token', 'signed-in-token']);
+	});
+
 	test('uses the explicit provider for listing, deletion and refresh after another provider was cached', async () => {
 		const sessions = new Map<string, AuthenticationSession>();
 		const session = (provider: string): AuthenticationSession => ({
