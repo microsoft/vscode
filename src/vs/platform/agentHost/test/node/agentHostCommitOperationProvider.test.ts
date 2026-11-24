@@ -103,11 +103,16 @@ suite('AgentHostCommitOperationContribution', () => {
 	test('advertises commit on the branch changeset when working on the base branch without outgoing commits', () => {
 		const provider = createContribution('folder', { used: true });
 		const multiRepositoryProvider = createContribution('folder', { used: true, workingDirectories: ['file:///repo', 'file:///other-repo'] });
-		const onBaseBranch: ISessionGitState = { branchName: 'main', baseBranchName: 'main', upstreamBranchName: 'origin/main', outgoingChanges: 0, uncommittedChanges: 1 };
+		const onBaseBranch: ISessionGitState = { branchName: 'main', baseBranchName: 'main', baseBranchRef: 'refs/remotes/origin/main', upstreamBranchName: 'origin/main', outgoingChanges: 0, uncommittedChanges: 1 };
+		const onLocalBaseBranch: ISessionGitState = { ...onBaseBranch, baseBranchRef: 'refs/heads/main', upstreamBranchName: undefined, outgoingChanges: undefined };
 		const branchOperations = (gitState: ISessionGitState, contribution = provider) => contribution.getOperations({ sessionKey, changesetUri: branchChangesetUri, changesetKind: ChangesetKind.Branch, gitState }).map(op => op.id);
 
 		const actual = {
 			onBaseBranch: branchOperations(onBaseBranch),
+			baseOnOtherRemote: branchOperations({ ...onBaseBranch, baseBranchRef: 'refs/remotes/upstream/main', upstreamBranchName: 'upstream/main' }),
+			onLocalBaseBranch: branchOperations(onLocalBaseBranch),
+			onLocalBaseBranchWithOutgoingCommits: branchOperations({ ...onLocalBaseBranch, upstreamBranchName: 'origin/main', outgoingChanges: 1 }),
+			withoutBaseBranchRef: branchOperations({ ...onBaseBranch, baseBranchRef: undefined }),
 			sessionChangeset: provider.getOperations({ sessionKey, changesetUri: sessionChangesetUri, changesetKind: ChangesetKind.Session, gitState: onBaseBranch }).map(op => op.id),
 			multipleRepositories: branchOperations(onBaseBranch, multiRepositoryProvider),
 			withOutgoingCommits: branchOperations({ ...onBaseBranch, outgoingChanges: 1 }),
@@ -120,6 +125,10 @@ suite('AgentHostCommitOperationContribution', () => {
 
 		assert.deepStrictEqual(actual, {
 			onBaseBranch: ['commit'],
+			baseOnOtherRemote: ['commit'],
+			onLocalBaseBranch: ['commit'],
+			onLocalBaseBranchWithOutgoingCommits: ['commit'],
+			withoutBaseBranchRef: [],
 			sessionChangeset: [],
 			multipleRepositories: [],
 			withOutgoingCommits: [],
