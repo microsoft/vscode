@@ -9,7 +9,7 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { suite, test } from 'node:test';
-import { addedPackages, cargoSource, checkChanges, checkRevisions, createPublicRegistry, isExcluded, packageManagerPackage, parseCargoLockfile, parsePackageLockfile, parsePnpmLockfile, parseReleaseAgePolicy, type ILockedPackage, type IRegistry, type Release } from '../dependencyReleaseAge.ts';
+import { addedPackages, cargoSource, checkChanges, registryConfigurationProblems, checkRevisions, createPublicRegistry, isExcluded, packageManagerPackage, parseCargoLockfile, parsePackageLockfile, parsePnpmLockfile, parseReleaseAgePolicy, type ILockedPackage, type IRegistry, type Release } from '../dependencyReleaseAge.ts';
 
 const repositoryRoot = path.resolve(import.meta.dirname, '../../..');
 const now = new Date('2026-11-23T12:00:00Z');
@@ -273,6 +273,18 @@ suite('dependencyReleaseAge', () => {
 		}
 	});
 
+	test('fails on registry settings that route packages away from registry.npmjs.org', () => {
+		assert.deepStrictEqual({
+			npmrc: registryConfigurationProblems('a/.npmrc', 'registry=https://registry.npmjs.org/\n@vscode:registry = "https://registry.npmjs.org"\n//registry.npmjs.org/:_authToken=x\n@corp:registry=https://mirror.example.com/\n'),
+			workspace: registryConfigurationProblems('pnpm-workspace.yaml', 'minimumReleaseAge: 10080\nregistries:\n  default: https://mirror.example.com/\n'),
+			plain: registryConfigurationProblems('pnpm-workspace.yaml', 'minimumReleaseAge: 10080\n'),
+		}, {
+			npmrc: ['a/.npmrc sets @corp:registry to https://mirror.example.com/. Dependencies must come from registry.npmjs.org.'],
+			workspace: ['pnpm-workspace.yaml sets registries, which routes packages to registries that this check doesn\'t read. Dependencies must come from registry.npmjs.org.'],
+			plain: [],
+		});
+	});
+
 	test('matches minimumReleaseAgeExclude as pnpm does', () => {
 		const exclude = ['@vscode/*', 'playwright*', 'electron', 'nx@21.6.5', 'webpack@4.47.0 || 5.102.1'];
 		assert.deepStrictEqual([
@@ -438,6 +450,13 @@ suite('dependencyReleaseAge', () => {
 			write('pnpm-workspace.yaml', 'minimumReleaseAge: 7d\n');
 			git('commit', '--quiet', '-am', 'policy');
 			assert.deepStrictEqual((await checkRevisions(base, 'HEAD', fakeRegistry({}), now, dir)).errors.map(error => error.split(':')[0]), ['pnpm-workspace.yaml']);
+
+			// So does a registry setting, even when no lockfile changes, as it applies to the locked packages.
+			git('checkout', '--quiet', '-b', 'routing', base);
+			write('.npmrc', 'registry=https://mirror.example.com/\n');
+			git('add', '.');
+			git('commit', '--quiet', '-m', 'routing');
+			assert.deepStrictEqual((await checkRevisions(base, 'HEAD', fakeRegistry({}), now, dir)).problems, ['.npmrc sets registry to https://mirror.example.com/. Dependencies must come from registry.npmjs.org.']);
 		} finally {
 			fs.rmSync(dir, { recursive: true, force: true });
 		}

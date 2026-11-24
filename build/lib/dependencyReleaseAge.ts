@@ -373,6 +373,28 @@ export function parseLockfile(file: string, text: string): ILockedPackage[] {
 	}
 }
 
+/** The pnpm-workspace.yaml settings that route packages to registries, from which pnpm rebuilds tarball URLs. */
+const PNPM_REGISTRY_SETTINGS = ['registry', 'registries', 'namedRegistries', 'pnprServer'];
+
+/**
+ * The problems with the registry configuration of a pnpm-workspace.yaml or .npmrc. The lockfiles name no registry for
+ * most packages, so the check reads them as registry.npmjs.org packages only while nothing routes them to another one.
+ */
+export function registryConfigurationProblems(file: string, text: string): string[] {
+	if (path.posix.basename(file) === '.npmrc') {
+		return text.split(/\r?\n/)
+			.map(line => /^\s*((?:@[^:\s]+:)?registry)\s*=\s*(.*?)\s*$/.exec(line))
+			.filter(match => match !== null && !/^https:\/\/registry\.npmjs\.org\/?$/.test(match[2].replace(/^["']|["']$/g, '')))
+			.map(match => `${file} sets ${match![1]} to ${match![2]}. Dependencies must come from registry.npmjs.org.`);
+	}
+	const settings = yaml.load(text, { schema: yaml.FAILSAFE_SCHEMA }) ?? {};
+	if (!isRecord(settings)) {
+		return [`${file} is not a mapping`];
+	}
+	return PNPM_REGISTRY_SETTINGS.filter(setting => Object.hasOwn(settings, setting))
+		.map(setting => `${file} sets ${setting}, which routes packages to registries that this check doesn't read. Dependencies must come from registry.npmjs.org.`);
+}
+
 /**
  * Reads `minimumReleaseAge` and `minimumReleaseAgeExclude` from a pnpm-workspace.yaml. Throws when they are set to something
  * else than a number of minutes and a list of strings, so that a policy the check cannot read fails it.
@@ -632,6 +654,8 @@ export interface ICheckResult {
 	readonly checked: number;
 	readonly violations: readonly IViolation[];
 	readonly errors: readonly string[];
+	/** Registry configurations that route packages away from registry.npmjs.org, which fail the check. */
+	readonly problems: readonly string[];
 	/** Changes of the release-age policy, which the check reports but doesn't apply. */
 	readonly notices: readonly string[];
 }
@@ -643,6 +667,7 @@ export async function checkRevisions(base: string, head: string, registry: IRegi
 	// foo@1.0.0 doesn't make a newly published foo@1.0.0 on crates.io older.
 	const lockedOnBase = new Set<string>();
 	const errors: string[] = [];
+	const problems: string[] = [];
 	const notices: string[] = [];
 	for (const lockfile of listLockfiles(cwd, base)) {
 		try {
@@ -658,6 +683,14 @@ export async function checkRevisions(base: string, head: string, registry: IRegi
 
 	// A change to a policy is read, so that one the check can't read fails it, and reported. The check applies the
 	// stricter of the base and the head policies (see stricterPolicy).
+	// Every registry configuration of the head, whether or not this change edits it, as it applies to every lockfile.
+	for (const file of git(cwd, 'ls-tree', '-r', '-z', '--name-only', head).split('\0').filter(file => ['pnpm-workspace.yaml', '.npmrc'].includes(path.posix.basename(file)))) {
+		try {
+			problems.push(...registryConfigurationProblems(file, readAt(cwd, head, file) ?? ''));
+		} catch (error) {
+			errors.push(`${file}: ${error instanceof Error ? error.message : String(error)}`);
+		}
+	}
 	for (const file of changedFiles.filter(file => path.posix.basename(file) === 'pnpm-workspace.yaml')) {
 		const headText = readAt(cwd, head, file);
 		if (headText === undefined) {
@@ -724,6 +757,7 @@ export async function checkRevisions(base: string, head: string, registry: IRegi
 		checked: changes.reduce((count, change) => count + change.added.length, 0),
 		violations,
 		errors,
+		problems,
 		notices,
 	};
 }
@@ -763,14 +797,18 @@ async function main(argv: readonly string[]): Promise<number> {
 	for (const error of result.errors) {
 		console.log(`::error title=Dependency release age::${escapeAnnotation(`Cannot read ${error}`)}`);
 	}
+	for (const problem of result.problems) {
+		console.log(`::error title=Dependency release age::${escapeAnnotation(problem)}`);
+	}
 	for (const violation of result.violations) {
 		console.log(`::error file=${escapeProperty(violation.lockfile)},title=Dependency release age::${escapeAnnotation(violation.message)}`);
 	}
-	const summary = result.violations.length === 0 && result.errors.length === 0
+	const failed = result.violations.length > 0 || result.errors.length > 0 || result.problems.length > 0;
+	const summary = !failed
 		? `Checked ${result.checked} added package versions in ${result.lockfiles.length} changed lockfiles: all come from the official registries and meet the minimumReleaseAge of pnpm-workspace.yaml.`
-		: `Checked ${result.checked} added package versions in ${result.lockfiles.length} changed lockfiles: ${result.violations.length} violate the dependency policy${result.errors.length ? `, and ${result.errors.length} lockfiles cannot be read` : ''}.`;
+		: `Checked ${result.checked} added package versions in ${result.lockfiles.length} changed lockfiles: ${result.violations.length} violate the dependency policy${result.errors.length ? `, ${result.errors.length} files cannot be read` : ''}${result.problems.length ? `, and ${result.problems.length} registry settings route packages elsewhere` : ''}.`;
 	console.log(summary);
-	if (process.env.GITHUB_STEP_SUMMARY && (result.violations.length > 0 || result.errors.length > 0)) {
+	if (process.env.GITHUB_STEP_SUMMARY && failed) {
 		const { appendFileSync } = await import('fs');
 		const rows = result.violations.map(violation => `| \`${violation.lockfile}\` | \`${violation.name}@${violation.version}\` | ${violation.message.replace(/\|/g, '\\|')} |`);
 		appendFileSync(process.env.GITHUB_STEP_SUMMARY, [
@@ -780,10 +818,11 @@ async function main(argv: readonly string[]): Promise<number> {
 			'',
 			...(rows.length ? ['| Lockfile | Package | Problem |', '| --- | --- | --- |', ...rows, ''] : []),
 			...result.errors.map(error => `- Cannot read ${error}`),
+			...result.problems.map(problem => `- ${problem}`),
 			'',
 		].join('\n'));
 	}
-	return result.violations.length > 0 || result.errors.length > 0 ? 1 : 0;
+	return failed ? 1 : 0;
 }
 
 if (import.meta.main) {
