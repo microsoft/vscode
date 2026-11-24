@@ -85,10 +85,12 @@ suite('MainThreadCustomEditors', () => {
 		resolveCustomEditor?: () => Promise<void>;
 		capabilities?: CustomEditorProviderCapabilities;
 		textEditor?: boolean;
+		readonlyState?: { value: boolean; readonly onDidChange: Emitter<void> };
 		resolveNavigation?: (handle: string, token: CancellationToken) => Promise<{ selection: undefined } | undefined>;
 	}) {
 		const calls: string[] = [];
 		const handles: string[] = [];
+		const readonlyUpdates: { readonly handle: string; readonly readonly: boolean | undefined; readonly kind: 'init' | 'change' }[] = [];
 		const handleName = (handle: string) => `webview#${handles.indexOf(handle) + 1}`;
 
 		const createAttempts = new Map<string, number>();
@@ -105,9 +107,14 @@ suite('MainThreadCustomEditors', () => {
 				calls.push(`$disposeCustomDocument(${URI.revive(resource).path})`);
 			}
 
-			override $resolveCustomEditor(resource: UriComponents, handle: string) {
+			override $resolveCustomEditor(resource: UriComponents, handle: string, _viewType: string, initData: { readonly?: boolean }) {
 				calls.push(`$resolveCustomEditor(${URI.revive(resource).path}, ${handleName(handle)})`);
+				readonlyUpdates.push({ handle: handleName(handle), readonly: initData.readonly, kind: 'init' });
 				return extHost.resolveCustomEditor?.() ?? Promise.resolve();
+			}
+
+			override $onDidChangeCustomEditorReadonly(handle: string, readonly: boolean): void {
+				readonlyUpdates.push({ handle: handleName(handle), readonly, kind: 'change' });
 			}
 
 			override async $resolveCustomEditorInlineDiff(originalResource: UriComponents, modifiedResource: UriComponents, handle: string) {
@@ -187,12 +194,20 @@ suite('MainThreadCustomEditors', () => {
 			const textModel = store.add(createTextModel('text', undefined, undefined, resource));
 			const resolved = new class extends mock<IResolvedTextEditorModel>() {
 				override textEditorModel = textModel;
-				override isReadonly() { return false; }
+				override isReadonly() { return extHost.readonlyState?.value ?? false; }
 			};
 			instantiationService.stub(ITextModelService, { createModelReference: async () => ({ object: resolved, dispose: () => { } }) });
 			instantiationService.stub(ITextFileService, {
 				files: new class extends mock<ITextFileEditorModelManager>() {
-					override get() { return undefined; }
+					override get() {
+						if (!extHost.readonlyState) {
+							return undefined;
+						}
+						return {
+							onDidChangeOrphaned: Event.None,
+							onDidChangeReadonly: extHost.readonlyState.onDidChange.event,
+						} as never;
+					}
 					override onDidChangeDirty = Event.None;
 				},
 				isDirty: () => false
@@ -239,8 +254,39 @@ suite('MainThreadCustomEditors', () => {
 			return { input };
 		}
 
-		return { calls, models, resolvers, createInput, createDiffInput, customEditors, outlineChanges: () => outlineChanges };
+		return { calls, readonlyUpdates, models, resolvers, createInput, createDiffInput, customEditors, outlineChanges: () => outlineChanges };
 	}
+
+	test('propagates initial and dynamic read-only state for custom text editors', async () => {
+		const onDidChange = store.add(new Emitter<void>());
+		const readonlyState = { value: true, onDidChange };
+		const fixture = createCustomEditors({ createCustomDocument: async () => ({ editable: false }), textEditor: true, readonlyState });
+		const { input } = fixture.createInput();
+		await input.resolve();
+
+		readonlyState.value = false;
+		onDidChange.fire();
+		// Duplicate notification with unchanged state should not fire again.
+		onDidChange.fire();
+		readonlyState.value = true;
+		onDidChange.fire();
+
+		input.dispose();
+		await timeout(0);
+
+		// Changes after disposal should not fire.
+		readonlyState.value = false;
+		onDidChange.fire();
+
+		assert.deepStrictEqual({ readonlyUpdates: fixture.readonlyUpdates, unexpectedErrors }, {
+			readonlyUpdates: [
+				{ handle: 'webview#1', readonly: true, kind: 'init' },
+				{ handle: 'webview#1', readonly: false, kind: 'change' },
+				{ handle: 'webview#1', readonly: true, kind: 'change' },
+			],
+			unexpectedErrors: [],
+		});
+	});
 
 	test('custom text navigation resolves only after its editor and invalidates Outline capability on disposal', async () => {
 		const fixture = createCustomEditors({ createCustomDocument: async () => ({ editable: false }), textEditor: true, capabilities: { supportsNavigation: true } });

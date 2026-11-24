@@ -9,7 +9,7 @@ import { VSBuffer } from '../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { isCancellationError, onUnexpectedError } from '../../../base/common/errors.js';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { Disposable, DisposableMap, DisposableStore, IReference, toDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, IReference, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { ISelection } from '../../../editor/common/core/selection.js';
 import { IOutlineService } from '../../services/outline/browser/outline.js';
 import { MainThreadCustomTextEditorNavigation } from './mainThreadCustomTextEditorNavigation.js';
@@ -254,7 +254,22 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 					return;
 				}
 
+				let isReadonly = this.isWebviewInputReadonly(webviewInput, resolvedModelRef.object);
+				const readonlyListener = new MutableDisposable();
+				const updateReadonly = () => {
+					const nextReadonly = this.isWebviewInputReadonly(webviewInput, resolvedModelRef.object);
+					if (nextReadonly !== isReadonly) {
+						isReadonly = nextReadonly;
+						this._proxyCustomEditors.$onDidChangeCustomEditorReadonly(handle, nextReadonly);
+					}
+				};
+				const watchModelReadonly = () => {
+					readonlyListener.value = resolvedModelRef.object.onDidChangeReadonly(updateReadonly);
+				};
+				watchModelReadonly();
+
 				const disposeModelRefs = () => {
+					readonlyListener.dispose();
 					additionalModelRefs.dispose();
 
 					// If the model is still dirty, make sure we have time to save it
@@ -289,6 +304,8 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 					webviewInput.onMove(async (newResource: URI) => {
 						const oldModel = resolvedModelRef;
 						resolvedModelRef = await this.getOrCreateCustomEditorModel(modelType, newResource, viewType, {}, CancellationToken.None);
+						watchModelReadonly();
+						updateReadonly();
 						this._proxyCustomEditors.$onMoveCustomEditor(handle, newResource, viewType);
 						oldModel.dispose();
 					});
@@ -300,6 +317,7 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 						contentOptions: webviewInput.webview.contentOptions,
 						options: webviewInput.webview.options,
 						active: webviewInput === this._editorService.activeEditor,
+						readonly: isReadonly,
 					};
 					const position = editorGroupToColumn(this._editorGroupService, webviewInput.group || 0);
 
@@ -327,6 +345,7 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 				} catch (error) {
 					onUnexpectedError(error);
 					webviewInput.webview.setHtml(this.mainThreadWebview.getWebviewResolvedFailedContent(viewType));
+					readonlyListener.dispose();
 					additionalModelRefs.dispose();
 					resolvedModelRef.dispose();
 					return;
@@ -335,6 +354,13 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 		}));
 
 		this._editorProviders.set(viewType, disposables);
+	}
+
+	private isWebviewInputReadonly(webviewInput: CustomEditorWebviewInput, model: ICustomEditorModel): boolean {
+		if (webviewInput instanceof CustomEditorSideBySideDiffInput && webviewInput.side === 'original') {
+			return true;
+		}
+		return Boolean(model.isReadonly());
 	}
 
 	private getOrAddWebviewInput(webviewInput: CustomEditorWebviewInput, serializeBuffersForPostMessage: boolean): extHostProtocol.WebviewHandle {

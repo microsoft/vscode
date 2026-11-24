@@ -19,6 +19,8 @@ const editorConfiguration = z.object({
 	renderWhitespace: z.boolean(),
 	/** The line break the document uses, which the editor should insert. */
 	lineBreak: z.enum(['\n', '\r\n']),
+	/** Whether the underlying file or editor input is read-only. */
+	documentReadonly: z.boolean(),
 });
 const selection = z.object({ anchor: offset, active: offset });
 export const navigationState = z.object({

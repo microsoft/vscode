@@ -282,6 +282,7 @@ export class ExtHostCustomEditors implements extHostProtocol.ExtHostCustomEditor
 			contentOptions: extHostProtocol.IWebviewContentOptions;
 			options: extHostProtocol.IWebviewPanelOptions;
 			active: boolean;
+			readonly?: boolean;
 		},
 		position: EditorGroupColumn,
 		cancellation: CancellationToken,
@@ -299,7 +300,7 @@ export class ExtHostCustomEditors implements extHostProtocol.ExtHostCustomEditor
 		// and the providing extension's install directory, as documented on
 		// `WebviewOptions.localResourceRoots`.
 		this._extHostWebview.ensureDefaultContentOptions(handle, initData.contentOptions, entry.extension);
-		const panel = this._extHostWebviewPanels.createNewWebviewPanel(handle, viewType, initData.title, viewColumn, initData.options, webview, initData.active);
+		const panel = this._extHostWebviewPanels.createNewWebviewPanel(handle, viewType, initData.title, viewColumn, initData.options, webview, initData.active, entry.extension, initData.readonly);
 
 		const revivedResource = URI.revive(resource);
 
@@ -316,6 +317,10 @@ export class ExtHostCustomEditors implements extHostProtocol.ExtHostCustomEditor
 				throw new Error('Unknown webview provider type');
 			}
 		}
+	}
+
+	$onDidChangeCustomEditorReadonly(handle: extHostProtocol.WebviewHandle, readonly: boolean): void {
+		this._extHostWebviewPanels.getWebviewPanel(handle)?._updateReadonly(readonly);
 	}
 
 	async $resolveCustomTextEditorNavigation(handle: extHostProtocol.WebviewHandle, viewType: string, resource: UriComponents, token: CancellationToken): Promise<{ selection: ISelection | undefined } | undefined> {
@@ -481,7 +486,7 @@ export class ExtHostCustomEditors implements extHostProtocol.ExtHostCustomEditor
 		const viewColumn = typeConverters.ViewColumn.to(position);
 		const webview = this._extHostWebview.createNewWebview(handle, initData.contentOptions, entry.extension);
 		this._extHostWebview.ensureDefaultContentOptions(handle, initData.contentOptions, entry.extension);
-		const panel = this._extHostWebviewPanels.createNewWebviewPanel(handle, viewType, initData.title, viewColumn, initData.options, webview, initData.active);
+		const panel = this._extHostWebviewPanels.createNewWebviewPanel(handle, viewType, initData.title, viewColumn, initData.options, webview, initData.active, entry.extension, initData.readonly);
 		return { entry, panel };
 	}
 

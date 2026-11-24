@@ -10,6 +10,7 @@ export interface MarkdownEditorInitialState extends MarkdownEditorConfiguration 
 	/** The text to show until the editor's content session (`@vscode/web-editors`) delivers it. */
 	readonly content: string;
 	readonly readonly: boolean;
+	readonly readonlyMessage: string;
 	readonly richLinksEnabled: boolean;
 	readonly linkPresentationRules: readonly { id: string; source: string; flags: string; kind: string }[];
 }

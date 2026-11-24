@@ -1094,6 +1094,7 @@ export interface CustomEditorDiffInitData {
 	readonly contentOptions: IWebviewContentOptions;
 	readonly options: IWebviewPanelOptions;
 	readonly active: boolean;
+	readonly readonly?: boolean;
 }
 
 export interface CustomEditorSideBySideDiffWebviewHandles {
@@ -1237,10 +1238,12 @@ export interface ExtHostCustomEditorsShape {
 			contentOptions: IWebviewContentOptions;
 			options: IWebviewPanelOptions;
 			active: boolean;
+			readonly?: boolean;
 		},
 		position: EditorGroupColumn,
 		cancellation: CancellationToken
 	): Promise<void>;
+	$onDidChangeCustomEditorReadonly(handle: WebviewHandle, readonly: boolean): void;
 	$resolveCustomEditorInlineDiff(
 		originalResource: UriComponents,
 		modifiedResource: UriComponents,
