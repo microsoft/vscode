@@ -14,6 +14,9 @@ import { findHookCommandSelection } from '../../../browser/promptSyntax/hookUtil
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { COPILOT_ALLOW_MANAGED_HOOKS_ONLY_CONFIG, COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
 import { PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
+import { parseCopilotHooks } from '../../../common/promptSyntax/hookCompatibility.js';
+import { getValidAgentHookNames, HookType } from '../../../common/promptSyntax/hookTypes.js';
+import { Target } from '../../../common/promptSyntax/promptTypes.js';
 import { AICustomizationManagementCommands, AICustomizationManagementSection } from '../../../common/aiCustomizationWorkspaceService.js';
 
 suite('hookActions', () => {
@@ -124,6 +127,17 @@ suite('hookActions', () => {
 				{ kind: 'conflictingEventName', existingEventName: 'PreToolUse' },
 				'added',
 			]);
+		});
+
+		test('keeps existing older-format hooks running whichever event is added', () => {
+			const text = '{ "hooks": { "PreToolUse": [{ "type": "command", "command": "deny-script" }] } }';
+			const retained = getValidAgentHookNames(Target.GitHubCopilot, false).filter(eventName => {
+				const result = addCopilotHookToText(text, eventName);
+				const edited = result.kind === 'added' ? result.text : text;
+				const preToolUse = parseCopilotHooks(JSON.parse(edited), undefined, '').get(HookType.PreToolUse);
+				return preToolUse?.hooks.some(hook => hook.command === 'deny-script');
+			});
+			assert.deepStrictEqual(retained, getValidAgentHookNames(Target.GitHubCopilot, false));
 		});
 	});
 });
