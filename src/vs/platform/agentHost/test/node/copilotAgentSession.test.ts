@@ -1576,7 +1576,8 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	/** Receives the session before it initializes, so tests can dispose a session whose initialization fails. */
 	onSessionCreated?: (session: CopilotAgentSession) => void;
 	/** Called the first time the session starts root work. */
-	onRootWorkStarted?: () => void;
+	onHistoryRewritten?: () => void;
+	onHostInstructionsDelivered?: () => void;
 	/** The shared Computer Use permission setup the agent hands to the session. */
 	computerUsePermissionSetup?: () => CopilotComputerUsePermissionSetup | undefined;
 	/** The client's plugins, as `plugins.list` reports them. */
@@ -2007,7 +2008,8 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 			launchPlan,
 			shellManager: options?.shellManager,
 			clientSnapshot: options?.clientSnapshot,
-			onRootWorkStarted: options?.onRootWorkStarted,
+			onHistoryRewritten: options?.onHistoryRewritten,
+			onHostInstructionsDelivered: options?.onHostInstructionsDelivered,
 			builtinPluginDirectories: options?.builtinPluginDirectories,
 			getUserMcpServers: options?.getUserMcpServers ?? (options?.getUserMcpServerNames ? async () => Object.fromEntries(
 				[...await options.getUserMcpServerNames!()].map(name => [name, { type: 'http' as const, url: 'https://mcp.example.com' }]),
@@ -2179,53 +2181,54 @@ suite('CopilotAgentSession', () => {
 		assert.deepStrictEqual({ before, after: session.isHeldInUse }, { before: false, after: true });
 	});
 
-	suite('reports the first root work, once', () => {
-		const notification = (kind: object, overrides?: { agentId: string }) => (mockSession: MockCopilotSession) =>
-			mockSession.fire('system.notification', { content: '<system_notification>\nDone\n</system_notification>', kind } as SessionEventPayload<'system.notification'>['data'], overrides);
-		const shellCompleted = { type: 'shell_completed', shellId: 'shell-a', exitCode: 0, description: 'sleep 6' };
-
-		const starts: Record<string, (session: CopilotAgentSession, mockSession: MockCopilotSession) => void | Promise<void>> = {
-			'a sent message': session => session.send('hello', undefined, 'turn-1'),
-			'a root message the runtime received on its own': (_session, mockSession) => mockSession.fire('user.message', { content: 'Play one move.', messageId: 'provider-message', turnId: 'provider-sdk-turn' } as SessionEventPayload<'user.message'>['data']),
-			'a root message while a host turn is still pending': (session, mockSession) => {
-				session.resetTurnState('turn-pending');
-				mockSession.fire('user.message', { content: 'From an extension.', messageId: 'provider-message', turnId: 'provider-sdk-turn' } as SessionEventPayload<'user.message'>['data']);
-			},
-			'a notification that wakes the root agent': (_session, mockSession) => notification(shellCompleted)(mockSession),
-			'a notification that wakes the root agent while a host turn is still pending': (session, mockSession) => {
-				session.resetTurnState('turn-pending');
-				notification(shellCompleted)(mockSession);
-			},
-			// Covers a request the runtime marks as automation, whose message event is filtered as context.
-			'a root assistant turn': (_session, mockSession) => mockSession.fire('assistant.turn_start', { turnId: 'sdk-turn' } as SessionEventPayload<'assistant.turn_start'>['data']),
+	test('reports each rewrite of its history: a compaction, a truncation and a rewind, but not a message', async () => {
+		let rewrites = 0;
+		const { mockSession } = await createAgentSession(disposables, { resume: true, onHistoryRewritten: () => rewrites++ });
+		const after = (fire: () => void) => {
+			fire();
+			return rewrites;
 		};
-		for (const [name, start] of Object.entries(starts)) {
-			test(name, async () => {
-				let reports = 0;
-				const { session, mockSession } = await createAgentSession(disposables, { resume: true, onRootWorkStarted: () => reports++ });
-				const before = session.hasStartedRootWork;
-				await start(session, mockSession);
-				// A second start of any kind is not a second report.
-				mockSession.fire('assistant.turn_start', { turnId: 'sdk-turn-2' } as SessionEventPayload<'assistant.turn_start'>['data']);
-				assert.deepStrictEqual({ before, after: session.hasStartedRootWork, reports }, { before: false, after: true, reports: 1 });
-			});
-		}
+		assert.deepStrictEqual({
+			message: after(() => mockSession.fire('user.message', { content: 'Hello.', messageId: 'message-1', turnId: 'sdk-turn' } as SessionEventPayload<'user.message'>['data'])),
+			compaction: after(() => mockSession.fire('session.compaction_complete', { success: true } as SessionEventPayload<'session.compaction_complete'>['data'])),
+			truncation: after(() => mockSession.fire('session.truncation', {} as SessionEventPayload<'session.truncation'>['data'])),
+			rewind: after(() => mockSession.fire('session.snapshot_rewind', { upToEventId: 'user-0', eventsRemoved: 1 })),
+		}, { message: 0, compaction: 1, truncation: 2, rewind: 3 });
+	});
 
-		const notStarts: Record<string, (mockSession: MockCopilotSession) => void> = {
-			'a subagent\'s message': mockSession => mockSession.fire('user.message', { content: 'Sub task.', messageId: 'child-message', turnId: 'child-turn' } as SessionEventPayload<'user.message'>['data'], { agentId: 'subagent' }),
-			'a subagent\'s turn': mockSession => mockSession.fire('assistant.turn_start', { turnId: 'child-turn' } as SessionEventPayload<'assistant.turn_start'>['data'], { agentId: 'subagent' }),
-			'a subagent\'s notification': notification(shellCompleted, { agentId: 'subagent' }),
-			'a notification that does not wake the agent': notification({ type: 'new_inbox_message', entryId: 'entry-a', senderName: 'sidekick', senderType: 'sidekick-agent', summary: 'New message' }),
-			'context injected as a user message': mockSession => mockSession.fire('user.message', { content: 'A skill.', source: 'skill-pdf' } as SessionEventPayload<'user.message'>['data']),
+	test('host instructions reach the agent with the prompt hook, or with the prompt itself when managed policy suppresses hooks', async () => {
+		const sendWith = async (hostInstruction: string, prompt = 'hello', suppressHooks = false, rejected = false) => {
+			let delivered = 0;
+			const { session, runtime, mockSession } = await createAgentSession(disposables, { onHostInstructionsDelivered: () => delivered++ });
+			if (suppressHooks) {
+				runtime.onSessionEvent?.({
+					type: 'session.managed_settings_resolved', id: 'policy', timestamp: new Date(0).toISOString(), parentId: null, ephemeral: true,
+					data: { source: 'server', serverManaged: true, deviceManaged: false, bypassPermissionsDisabled: false, failClosed: false, managedKeys: ['allowManagedHooksOnly'], settings: { allowManagedHooksOnly: true } },
+				});
+			}
+			if (rejected) {
+				const closed = Promise.reject(new Error('The connection closed.'));
+				closed.catch(() => { });
+				mockSession.sendGate = closed;
+			}
+			await session.send(prompt, undefined, 'turn-1', undefined, undefined, AgentHostClientType.Unknown, [hostInstruction]).catch(() => { });
+			const sent = mockSession.sendRequests.map(request => request as MessageOptions).map(request => ({ prompt: request.prompt, displayPrompt: request.displayPrompt }));
+			const deliveredBySend = delivered;
+			return { sent, deliveredBySend, hook: session.handleUserPromptSubmitted()?.additionalContext, delivered };
 		};
-		for (const [name, event] of Object.entries(notStarts)) {
-			test(`not for ${name}`, async () => {
-				let reports = 0;
-				const { session, mockSession } = await createAgentSession(disposables, { resume: true, onRootWorkStarted: () => reports++ });
-				event(mockSession);
-				assert.deepStrictEqual({ started: session.hasStartedRootWork, reports }, { started: false, reports: 0 });
-			});
-		}
+		assert.deepStrictEqual({
+			hook: await sendWith('A note.'),
+			// Handled by the history RPC: no prompt goes out, so the note does not either.
+			command: (await sendWith('A note.', '/compact')).deliveredBySend,
+			suppressedHooks: await sendWith('A note.', 'hello', true),
+			// The runtime never took the prompt.
+			suppressedHooksRejected: (await sendWith('A note.', 'hello', true, true)).delivered,
+		}, {
+			hook: { sent: [{ prompt: 'hello', displayPrompt: undefined }], deliveredBySend: 0, hook: 'A note.', delivered: 1 },
+			command: 0,
+			suppressedHooks: { sent: [{ prompt: 'hello\n\n<reminder>\nA note.\n</reminder>', displayPrompt: 'hello' }], deliveredBySend: 1, hook: undefined, delivered: 1 },
+			suppressedHooksRejected: 0,
+		});
 	});
 
 	suite('grep search subagent nudge', () => {

@@ -53,7 +53,6 @@ import type { AgentChatInputResponseSource, IAgentChatInputResponseMeta } from '
 import { createShellAuthenticationRequest } from '../../common/meta/agentShellAuthenticationMeta.js';
 import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, toAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
 import { canStopBackgroundWork, toStoppableBackgroundWorkMeta } from '../../common/meta/agentHostBackgroundWorkStopMeta.js';
-import type { IModelRouterGuidance } from '../../common/modelRouterGuidance.js';
 import { readCopilotShellAttachment, readCopilotShellId, toCopilotBackgroundShellMeta } from '../../common/meta/copilotBackgroundWorkMeta.js';
 import { SAVE_SANDBOX_PATH, SAVE_SESSION_SANDBOX_PATH, SAVE_WORKSPACE_SANDBOX_PATH, SESSION_SANDBOX_PATHS_CHANGED, type ISandboxPathGrant } from '../../common/sandboxPathGrant.js';
 import { getSessionPathDisplay, type ISessionPathDisplay, type ISessionPathRoot } from '../../common/sessionPathDisplay.js';
@@ -786,8 +785,10 @@ export interface ICopilotAgentSessionOptions {
 	readonly customizationDirectory?: URI;
 	/** Snapshot of the active client's tools and plugins at session creation time. */
 	readonly clientSnapshot?: IActiveClientSnapshot;
-	/** Called once, the first time this session starts root work: a sent message, or work the runtime starts itself. */
-	readonly onRootWorkStarted?: () => void;
+	/** Called when the runtime rewrites this session's history in place: a compaction, a truncation or a rewind. */
+	readonly onHistoryRewritten?: () => void;
+	/** Called when the host instructions of a send reach the agent with a prompt. A send that submits no prompt delivers none. */
+	readonly onHostInstructionsDelivered?: () => void;
 	/** Built-in plugin directories registered with the runtime, whose resources the agent reads like applied plugins. */
 	readonly builtinPluginDirectories?: readonly URI[];
 	/** Returns whether a host-published client membership includes this chat. */
@@ -1633,7 +1634,6 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _completedTokenUsage = new Map<string, IAgentTurnTokenUsage>();
 	private _hasCompletedTurn = false;
 	private _hasSentTurn = false;
-	private _rootWorkStarted = false;
 	private _completedTurnHistory: Promise<boolean> | undefined;
 	private readonly _subagentObservedTokenUsage = new LRUCache<string, ObservedTokenUsage>(256);
 	private readonly _observedUsageEventIds = new Set<string>();
@@ -1675,28 +1675,11 @@ export class CopilotAgentSession extends Disposable {
 	 * does from creation, and for a resumed session from the first turn sent after resuming.
 	 */
 	get isHeldInUse(): boolean { return this._launchPlan.kind === 'create' || this._hasSentTurn; }
-	/** Whether this session has started root work. Until then it can be replaced without losing anything. */
-	get hasStartedRootWork(): boolean { return this._rootWorkStarted; }
 	get isEphemeral(): boolean { return this._launchPlan.isEphemeral === true; }
 	/** Whether this session's runtime was launched with canvases, which only a relaunch changes. */
 	get canvasRuntimeEnabled(): boolean { return this._wrapper?.canvasRuntimeEnabled === true; }
 	/** Whether VS Code's `chat.useHooks` setting allowed hooks when this runtime launched. */
 	get hooksEnabled(): boolean { return this._wrapper?.launchHooksEnabled !== false; }
-	/** The model router agent plan this session was launched with, compared by identity. */
-	get modelRouterGuidance(): IModelRouterGuidance | undefined { return this._launchPlan.isEphemeral ? undefined : this._launchPlan.modelRouterGuidance; }
-
-	/**
-	 * Notes that the root agent is doing work in this session, whoever started it: a sent message,
-	 * a request an extension sent through the SDK, or a notification that woke the agent. Child
-	 * agents and context-only events never count.
-	 */
-	private _noteRootWorkStarted(): void {
-		if (this._rootWorkStarted) {
-			return;
-		}
-		this._rootWorkStarted = true;
-		this._onRootWorkStarted?.();
-	}
 	/** Reuses persisted history to distinguish restored chats from a chat's first turn. */
 	get completedTurnHistory(): Promise<boolean> | undefined {
 		return this._launchPlan.kind === 'resume'
@@ -2346,7 +2329,8 @@ export class CopilotAgentSession extends Disposable {
 	 */
 	private readonly _shellInitScriptInstanceId = generateUuid().substring(0, 8);
 	private readonly _launchPlan: CopilotSessionLaunchPlan;
-	private readonly _onRootWorkStarted: (() => void) | undefined;
+	private readonly _onHistoryRewritten: (() => void) | undefined;
+	private readonly _onHostInstructionsDelivered: (() => void) | undefined;
 	private readonly _modelConfigurationOwner = generateUuid();
 	private _modelConfigurationGeneration = 0;
 	private readonly _modelConfigurationRefresh = this._register(new Throttler());
@@ -2597,7 +2581,8 @@ export class CopilotAgentSession extends Disposable {
 		this._mcpServerLogs = this._register(new CopilotMcpServerLogs(() => this._wrapper?.lifecycleState === 'active' ? this._wrapper.session : undefined, this._logService));
 		this._sessionLauncher = options.sessionLauncher;
 		this._launchPlan = options.launchPlan;
-		this._onRootWorkStarted = options.onRootWorkStarted;
+		this._onHistoryRewritten = options.onHistoryRewritten;
+		this._onHostInstructionsDelivered = options.onHostInstructionsDelivered;
 		this._requestedModel = options.launchPlan.kind === 'create' ? options.launchPlan.model : options.launchPlan.fallback.model;
 		this._register(toDisposable(() => this._publishModelConfiguration(undefined)));
 		this._register(toDisposable(() => this._disposeLocalModelState()));
@@ -7231,17 +7216,32 @@ export class CopilotAgentSession extends Disposable {
 
 	handleUserPromptSubmitted(): { readonly additionalContext: string } | undefined {
 		this._currentTurn.value?.timingRecorder?.markMilestone?.('promptHook');
+		const additionalContext = this._promptContext();
+		// The runtime calls the hook for a prompt it has accepted.
+		this._promptContextDelivered();
+		return additionalContext ? { additionalContext } : undefined;
+	}
+
+	/** What the host adds to the next prompt besides the user's message. */
+	private _promptContext(): string | undefined {
 		const parts = [
 			...(this._hostInstructions ?? []),
 			...(this._pendingSnapshotReminder ? [this._pendingSnapshotReminder] : []),
 			// Changes the user undid since the agent's last tool result.
 			...this._discardedEditNotes,
 		];
+		return parts.length > 0 ? parts.join('\n\n') : undefined;
+	}
+
+	/** The prompt that carries {@link _promptContext} reached the agent, so no later prompt repeats it. */
+	private _promptContextDelivered(): void {
+		const deliveredHostInstructions = !!this._hostInstructions?.length;
 		this._hostInstructions = undefined;
 		this._pendingSnapshotReminder = undefined;
 		this._discardedEditNotes = [];
-		const additionalContext = parts.length > 0 ? parts.join('\n\n') : undefined;
-		return additionalContext ? { additionalContext } : undefined;
+		if (deliveredHostInstructions) {
+			this._onHostInstructionsDelivered?.();
+		}
 	}
 
 	async reloadExtensions(): Promise<void> {
@@ -7682,7 +7682,16 @@ export class CopilotAgentSession extends Disposable {
 					});
 					return undefined;
 				} else {
-					return await this._wrapper.session.send({ prompt, attachments: sdkAttachments?.length ? sdkAttachments : undefined, ...(displayPrompt ? { displayPrompt } : {}), ...toCopilotMessageSourceOptions(messageSource, sendingTurn?.id) });
+					// A managed hook policy keeps the runtime from calling the prompt hook, so what the hook would add rides the
+					// prompt itself, as a steering message's reminder does. The message is still recorded as the user sent it.
+					const context = this._sdkHookCallbacksMayBeSuppressed ? this._promptContext() : undefined;
+					const sent = context ? { prompt: `${prompt}\n\n<reminder>\n${context}\n</reminder>`, displayPrompt: displayPrompt ?? prompt } : { prompt, ...(displayPrompt ? { displayPrompt } : {}) };
+					const messageId = await this._wrapper.session.send({ ...sent, attachments: sdkAttachments?.length ? sdkAttachments : undefined, ...toCopilotMessageSourceOptions(messageSource, sendingTurn?.id) });
+					if (context) {
+						// Only now: a send the runtime rejects has delivered nothing.
+						this._promptContextDelivered();
+					}
+					return messageId;
 				}
 			});
 		}), sendingTurn, abortToken, sendingTurn);
@@ -7711,7 +7720,6 @@ export class CopilotAgentSession extends Disposable {
 			turn.sdkSendInvoked = true;
 		}
 		this._hasSentTurn = true;
-		this._noteRootWorkStarted();
 		recorder?.markMilestone?.('sdkSend');
 		try {
 			const result = await measureAgentProviderOperation(recorder, 'sdkSend', operation);
@@ -11401,10 +11409,6 @@ export class CopilotAgentSession extends Disposable {
 			}
 
 			this._logService.info(`[Copilot:${sessionId}] System notification received: kind=${e.data.kind.type}`);
-			// A notification that wakes the root agent is root work, even while a host turn is only pending.
-			if (notification.startsTurn && !e.agentId) {
-				this._noteRootWorkStarted();
-			}
 			if (this._turnId) {
 				this._emitAction({
 					type: ActionType.ChatResponsePart,
@@ -11464,7 +11468,6 @@ export class CopilotAgentSession extends Disposable {
 			// quarantined until assistant.turn_start instead.
 			this._dropLateRootTurnEvents = false;
 			this._failedExecutionIdlePending = false;
-			this._noteRootWorkStarted();
 			// Show a failure held from between turns only now, so that a newer
 			// failure from this message's own preparation replaces it.
 			this._showUnshownManagedPluginFailure();
@@ -14014,9 +14017,13 @@ export class CopilotAgentSession extends Disposable {
 		store.add(wrapper.onTurnEnd(invalidate));
 		store.add(wrapper.onSessionError(invalidate));
 		// In-place rewrites of the persisted log.
-		store.add(wrapper.onSessionCompactionComplete(invalidate));
-		store.add(wrapper.onSessionTruncation(invalidate));
-		store.add(wrapper.onSessionSnapshotRewind(invalidate));
+		const rewritten = () => {
+			invalidate();
+			this._onHistoryRewritten?.();
+		};
+		store.add(wrapper.onSessionCompactionComplete(rewritten));
+		store.add(wrapper.onSessionTruncation(rewritten));
+		store.add(wrapper.onSessionSnapshotRewind(rewritten));
 	}
 
 	/**
@@ -14947,7 +14954,6 @@ export class CopilotAgentSession extends Disposable {
 			turn?.markRunning();
 			if (!e.agentId) {
 				this._dropLateRootTurnEvents = false;
-				this._noteRootWorkStarted();
 				// The SDK starts the next turn only after it has emitted the failed
 				// execution's idle, so any idle from here on belongs to this turn.
 				this._failedExecutionIdlePending = false;
