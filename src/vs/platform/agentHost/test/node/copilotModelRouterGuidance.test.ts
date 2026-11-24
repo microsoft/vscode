@@ -130,11 +130,21 @@ suite('CopilotModelRouterGuidance', () => {
 		assert.deepStrictEqual({ after: turn(state, 't2', 'noGuidance'), then: turn(state, 't3', 'noGuidance') }, { after: 'none', then: undefined });
 	});
 
-	test('tells a chat its guidance again after its history was rewritten', () => {
+	test('tells a chat its guidance again after its history was rewritten, also while the note was on its way', () => {
 		const state = new CopilotModelRouterGuidance();
 		turn(state, 't1', guidance());
 		state.historyRewritten(chat);
-		assert.deepStrictEqual({ afterRewrite: turn(state, 't2', guidance()), then: turn(state, 't3', guidance()) }, { afterRewrite: 'feature', then: undefined });
+		// A compaction between the note being handed out and its message reaching the agent can drop that message.
+		const sending = new CopilotModelRouterGuidance();
+		turn(sending, 't1', guidance(), { reachesAgent: false });
+		sending.historyRewritten(chat);
+		sending.noteDelivered(chat);
+		assert.deepStrictEqual({
+			afterRewrite: turn(state, 't2', guidance()),
+			then: turn(state, 't3', guidance()),
+			rewrittenWhileSending: turn(sending, 't2', guidance()),
+			rewrittenWhileSendingThen: turn(sending, 't3', guidance()),
+		}, { afterRewrite: 'feature', then: undefined, rewrittenWhileSending: 'feature', rewrittenWhileSendingThen: undefined });
 	});
 
 	test('forgets a chat that is gone, and keeps chats apart', () => {
