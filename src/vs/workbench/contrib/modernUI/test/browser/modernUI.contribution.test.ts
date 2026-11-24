@@ -3117,6 +3117,65 @@ suite('ModernUIContribution', () => {
 		});
 	});
 
+	for (const modernUI of [false, true]) {
+		test(`modal editor keeps one concentric rounded clip with Modern UI ${modernUI ? 'enabled' : 'disabled'}`, () => {
+			const root = appendElement(document.body, `monaco-workbench${modernUI ? ' modern-ui floating-panels' : ''}`);
+			root.style.cssText = '--vscode-cornerRadius-large: 8px; --vscode-editorWidget-border: #778899; --vscode-shadow-xl: 0 8px 32px #0008;';
+			store.add(toDisposable(() => root.remove()));
+			const block = appendElement(root, 'monaco-modal-editor-block');
+			const resizable = appendElement(block, 'modal-editor-resizable');
+			const sash = appendElement(resizable, 'monaco-sash vertical');
+			const shadow = appendElement(resizable, 'modal-editor-shadow');
+			const part = appendElement(shadow, 'part editor modal-editor-part');
+			const header = appendElement(part, 'modal-editor-header');
+			const navigation = appendElement(header, 'modal-editor-navigation');
+			const sidebar = appendElement(part, 'modal-editor-sidebar');
+			const content = appendElement(part, 'content');
+			const targetWindow = getWindow(root);
+			const roundedClips = (element: HTMLElement) => {
+				const clips = [];
+				for (let ancestor: HTMLElement | null = element; ancestor && ancestor !== root; ancestor = ancestor.parentElement) {
+					const style = targetWindow.getComputedStyle(ancestor);
+					if (style.overflow === 'hidden' && parseFloat(style.borderRadius) > 0) {
+						clips.push(ancestor.className);
+					}
+				}
+				return clips;
+			};
+			const states = [false, true].map(hasSidebar => {
+				part.classList.toggle('has-sidebar', hasSidebar);
+				const frame = targetWindow.getComputedStyle(part);
+				return {
+					hasSidebar,
+					contentClipRadii: [
+						[frame.borderTopLeftRadius, frame.borderLeftWidth],
+						[frame.borderTopRightRadius, frame.borderRightWidth],
+						[frame.borderBottomRightRadius, frame.borderRightWidth],
+						[frame.borderBottomLeftRadius, frame.borderLeftWidth],
+					].map(([radius, width]) => parseFloat(radius) - parseFloat(width)),
+					shadowOverflow: targetWindow.getComputedStyle(shadow).overflow,
+					shadowPainted: targetWindow.getComputedStyle(shadow).boxShadow !== 'none',
+					contentRadius: targetWindow.getComputedStyle(content).borderRadius,
+					contentOverflow: targetWindow.getComputedStyle(content).overflow,
+					clips: [header, sidebar, content].map(roundedClips),
+					sashClips: roundedClips(sash),
+					navigationOverflow: targetWindow.getComputedStyle(navigation).overflow,
+				};
+			});
+			assert.deepStrictEqual(states, [false, true].map(hasSidebar => ({
+				hasSidebar,
+				contentClipRadii: [7, 7, 7, 7],
+				shadowOverflow: 'visible',
+				shadowPainted: true,
+				contentRadius: '0px',
+				contentOverflow: 'hidden',
+				clips: Array.from({ length: 3 }, () => [`part editor modal-editor-part${hasSidebar ? ' has-sidebar' : ''}`]),
+				sashClips: [],
+				navigationOverflow: 'hidden',
+			})));
+		});
+	}
+
 	test('modal editor sashes hide grips without changing resize affordances', () => {
 		const root = document.createElement('div');
 		root.className = 'monaco-workbench modern-ui';
