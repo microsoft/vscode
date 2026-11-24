@@ -227,6 +227,7 @@ const githubMcpRegistryOwnerAvatars = new Map<string, string>([
 	['io.mediawork/mediawork', 'https://avatars.githubusercontent.com/u/313353126?v=4'],
 	['io.picsee/short-link', 'https://avatars.githubusercontent.com/u/23622185?u=96a0a6b5c184105dc4c92e546712ceb16ec7811f&v=4'],
 	['uk.sadiqoon/sakh', 'https://avatars.githubusercontent.com/u/278950795?v=4'],
+	['world.scalix/cloud', 'https://avatars.githubusercontent.com/u/278103495?v=4'],
 ]);
 
 export function getGitHubMcpRegistryIcon(itemUrl: string | undefined, resourceId?: string): URI | undefined {
