@@ -8801,6 +8801,21 @@ suite('Sessions - SessionsList', () => {
 			(source.isConnected ? source : listNode)?.dispatchEvent(new DragEvent('dragend', { bubbles: true, dataTransfer }));
 		}
 
+		/** Drags the row `source` onto `target` and returns the rows that showed drop feedback, as "label: classes". */
+		function dragFeedback(container: HTMLElement, source: string, target: string, fraction: number): string[] {
+			let feedback: string[] = [];
+			dragRow(rowOf(container, source), rowOf(container, target), fraction, () => {
+				feedback = [...container.querySelectorAll<HTMLElement>('.monaco-list-row')]
+					.filter(row => [...row.classList].some(name => name.startsWith('drop-target')))
+					.map(row => `${labelOf(row)}: ${[...row.classList].filter(name => name.startsWith('drop-target')).join(' ')}`);
+			});
+			return feedback;
+		}
+
+		function topLevelLabels(container: HTMLElement): string[] {
+			return [...container.querySelectorAll<HTMLElement>('.monaco-list-row')].filter(row => row.getAttribute('aria-level') === '1').map(labelOf);
+		}
+
 		function render(grouping = SessionsGrouping.Workspace, sectionMemberships: ReadonlyMap<string, string> = new Map(), liveGroups = false, settings: Readonly<Record<string, unknown>> = {}, productQuality?: string) {
 			let currentGrouping = grouping;
 			const now = Date.now();
@@ -8960,7 +8975,7 @@ suite('Sessions - SessionsList', () => {
 			const groupsService = harness.instantiationService.get(ISessionGroupsService);
 			const topLevel = () => {
 				list.refresh();
-				return [...container.querySelectorAll<HTMLElement>('.monaco-list-row')].filter(row => row.getAttribute('aria-level') === '1').map(labelOf);
+				return topLevelLabels(container);
 			};
 			const unpinned = topLevel();
 			// The first pin expands Pinned, which would otherwise start collapsed and hide the group.
@@ -8974,12 +8989,7 @@ suite('Sessions - SessionsList', () => {
 			dragRow(rowOf(container, 'Triage'), rowOf(container, 'vscode'), 0.1);
 			const afterRefusedDrop = topLevel();
 			// Dropped among the pinned groups, a nested group returns to the top level first below them.
-			let feedback: string[] = [];
-			dragRow(rowOf(container, 'Docs'), rowOf(container, 'Triage'), 0.1, () => {
-				feedback = [...container.querySelectorAll<HTMLElement>('.monaco-list-row')]
-					.filter(row => [...row.classList].some(name => name.startsWith('drop-target')))
-					.map(row => `${labelOf(row)}: ${[...row.classList].filter(name => name.startsWith('drop-target')).join(' ')}`);
-			});
+			const feedback = dragFeedback(container, 'Docs', 'Triage', 0.1);
 			const afterExtraction = topLevel();
 			groupsService.setGroupPinned(triage.id, false);
 			const restored = topLevel();
@@ -9012,59 +9022,30 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
-		test('a header dropped among pinned groups shows its line below Pinned when no unpinned header has a row', () => {
-			const { harness, list, container } = render(SessionsGrouping.Date, new Map(), true);
-			const groupsService = harness.instantiationService.get(ISessionGroupsService);
-			// Without the ungrouped session, every date section is empty and has no row to anchor the line on.
-			harness.managementService.sessions.splice(harness.managementService.sessions.findIndex(session => session.title.get() === 'Ungrouped'), 1);
-			groupsService.setGroupPinned(release.id, true);
-			groupsService.setGroupPinned(triage.id, true);
-			list.refresh();
-			let feedback: string[] = [];
-			dragRow(rowOf(container, 'Docs'), rowOf(container, 'Triage'), 0.1, () => {
-				feedback = [...container.querySelectorAll<HTMLElement>('.monaco-list-row')]
-					.filter(row => [...row.classList].some(name => name.startsWith('drop-target')))
-					.map(row => `${labelOf(row)}: ${[...row.classList].filter(name => name.startsWith('drop-target')).join(' ')}`);
-			});
-			list.refresh();
+		for (const olderHasRow of [false, true]) {
+			test(`a group extracted below Pinned shows its line where it lands and stays above Recent, ${olderHasRow ? 'with a row for Older only' : 'without rows for date sections'}`, () => {
+				const { harness, list, container } = render(SessionsGrouping.Date, new Map(), true);
+				const groupsService = harness.instantiationService.get(ISessionGroupsService);
+				// Recent has no row while the line is placed, and Older has one only with the old session.
+				const sessions = harness.managementService.sessions;
+				sessions.splice(sessions.findIndex(session => session.title.get() === 'Ungrouped'), 1);
+				if (olderHasRow) {
+					const old = new Date(Date.now() - 30 * 24 * 60 * 60_000);
+					sessions.push(createTestSession('Old ungrouped', { workspaceLabel: 'vscode', createdAt: old, updatedAt: old }).session);
+				}
+				groupsService.setGroupPinned(release.id, true);
+				groupsService.setGroupPinned(triage.id, true);
+				list.refresh();
+				const feedback = dragFeedback(container, 'Docs', 'Triage', 0.1);
+				sessions.push(createTestSession('New ungrouped', { workspaceLabel: 'vscode' }).session);
+				list.refresh();
 
-			assert.deepStrictEqual({
-				feedback,
-				topLevel: [...container.querySelectorAll<HTMLElement>('.monaco-list-row')].filter(row => row.getAttribute('aria-level') === '1').map(labelOf),
-			}, {
-				// The line follows the last row of Pinned, where Docs lands, rather than Triage within it.
-				feedback: ['Flaky test: drop-target-after'],
-				topLevel: ['Pinned', 'Docs'],
+				assert.deepStrictEqual({ feedback, topLevel: topLevelLabels(container) }, olderHasRow
+					? { feedback: ['Older: drop-target-before'], topLevel: ['Pinned', 'Docs', 'Recent', 'Older'] }
+					// The line follows the last row of Pinned, where Docs lands, rather than Triage within it.
+					: { feedback: ['Flaky test: drop-target-after'], topLevel: ['Pinned', 'Docs', 'Recent'] });
 			});
-		});
-
-		test('a group extracted below Pinned stays above a date section that was empty when it was dropped', () => {
-			const { harness, list, container } = render(SessionsGrouping.Date, new Map(), true);
-			const groupsService = harness.instantiationService.get(ISessionGroupsService);
-			// Only an old ungrouped session: Older has a row, Recent has none.
-			const sessions = harness.managementService.sessions;
-			sessions.splice(sessions.findIndex(session => session.title.get() === 'Ungrouped'), 1);
-			sessions.push(createTestSession('Old ungrouped', { workspaceLabel: 'vscode', createdAt: new Date(Date.now() - 30 * 24 * 60 * 60_000), updatedAt: new Date(Date.now() - 30 * 24 * 60 * 60_000) }).session);
-			groupsService.setGroupPinned(release.id, true);
-			groupsService.setGroupPinned(triage.id, true);
-			list.refresh();
-			let feedback: string[] = [];
-			dragRow(rowOf(container, 'Docs'), rowOf(container, 'Triage'), 0.1, () => {
-				feedback = [...container.querySelectorAll<HTMLElement>('.monaco-list-row')]
-					.filter(row => [...row.classList].some(name => name.startsWith('drop-target')))
-					.map(row => `${labelOf(row)}: ${[...row.classList].filter(name => name.startsWith('drop-target')).join(' ')}`);
-			});
-			sessions.push(createTestSession('New ungrouped', { workspaceLabel: 'vscode' }).session);
-			list.refresh();
-
-			assert.deepStrictEqual({
-				feedback,
-				topLevel: [...container.querySelectorAll<HTMLElement>('.monaco-list-row')].filter(row => row.getAttribute('aria-level') === '1').map(labelOf),
-			}, {
-				feedback: ['Older: drop-target-before'],
-				topLevel: ['Pinned', 'Docs', 'Recent', 'Older'],
-			});
-		});
+		}
 
 		test('context-menu section moves expand their destination and keep old sections visible when removed', async () => {
 			const { harness, list, container, contextMenus } = render(SessionsGrouping.Workspace, new Map(), true);
