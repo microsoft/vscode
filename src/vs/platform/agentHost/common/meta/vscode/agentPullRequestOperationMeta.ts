@@ -28,12 +28,27 @@ export interface IPullRequestContext {
 	readonly upstreamBranchName?: string;
 }
 
+export type PullRequestAutopilotMergePolicy = 'never' | 'ifUnchanged' | 'always';
+
+/**
+ * Autopilot rules to turn on for the created pull request, keyed by the
+ * automation option IDs of the GitHub pull request artifact integration.
+ */
+export interface IPullRequestAutopilotOptions {
+	readonly addressReviews: boolean;
+	readonly fixCI: boolean;
+	readonly resolveConflicts: boolean;
+	readonly markReady: boolean;
+	readonly merge: PullRequestAutopilotMergePolicy;
+}
+
 export interface IPullRequestCreateOptions {
 	readonly title: string;
 	readonly description: string;
 	readonly draft: boolean;
 	readonly agentMerge: boolean;
 	readonly agentMergeOptions?: AgentMergeActions;
+	readonly autopilot?: IPullRequestAutopilotOptions;
 	readonly autoMergeMethod?: 'MERGE' | 'SQUASH' | 'REBASE';
 	readonly expectedContext?: IPullRequestContext;
 }
@@ -50,6 +65,8 @@ export interface IPullRequestDetails {
 	readonly mergeMethods: readonly ('MERGE' | 'SQUASH' | 'REBASE')[];
 	readonly agentMergeAvailable: boolean;
 	readonly agentMergeOptions?: AgentMergeActions;
+	/** Whether Autopilot can be turned on for the created pull request. Absent from hosts that predate it. */
+	readonly autopilotAvailable?: boolean;
 	readonly generationError?: string;
 	readonly context?: IPullRequestContext;
 }
@@ -99,6 +116,21 @@ function parseAgentMergeOptions(value: unknown): AgentMergeActions {
 	};
 }
 
+function parseAutopilotOptions(value: unknown): IPullRequestAutopilotOptions {
+	if (!isRecord(value) || typeof value.addressReviews !== 'boolean' || typeof value.fixCI !== 'boolean'
+		|| typeof value.resolveConflicts !== 'boolean' || typeof value.markReady !== 'boolean'
+		|| (value.merge !== 'never' && value.merge !== 'ifUnchanged' && value.merge !== 'always')) {
+		throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, localize('agentHost.pr.invalidAutopilotOptions', "Invalid Autopilot configuration."));
+	}
+	return {
+		addressReviews: value.addressReviews,
+		fixCI: value.fixCI,
+		resolveConflicts: value.resolveConflicts,
+		markReady: value.markReady,
+		merge: value.merge,
+	};
+}
+
 function parseCreateOptions(value: unknown): IPullRequestCreateOptions {
 	if (!isRecord(value) || typeof value.title !== 'string' || typeof value.description !== 'string') {
 		throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, localize('agentHost.pr.invalidOptions', "Invalid pull request creation options."));
@@ -131,10 +163,14 @@ function parseChatOptions(value: unknown): IPullRequestChatOptions {
 	if (value.agentMergeOptions !== undefined && !value.agentMerge) {
 		throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, localize('agentHost.pr.agentMergeOptionsWithoutEnablement', "Enable Agent Merge to configure it for this pull request."));
 	}
+	if (value.autopilot !== undefined && (value.agentMerge || autoMergeMethod)) {
+		throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, localize('agentHost.pr.conflictingAutopilotOptions', "Autopilot cannot be combined with Agent Merge or GitHub auto-merge."));
+	}
 	return {
 		draft: value.draft,
 		agentMerge: value.agentMerge,
 		...(value.agentMergeOptions !== undefined ? { agentMergeOptions: parseAgentMergeOptions(value.agentMergeOptions) } : {}),
+		...(value.autopilot !== undefined ? { autopilot: parseAutopilotOptions(value.autopilot) } : {}),
 		...(autoMergeMethod ? { autoMergeMethod } : {}),
 		...(value.expectedContext !== undefined ? { expectedContext: parseContext(value.expectedContext) } : {}),
 	};
@@ -233,7 +269,8 @@ function parseDetails(value: unknown): IPullRequestDetails {
 		throw invalidDetails();
 	}
 	const generationError = value.generationError;
-	if (generationError !== undefined && typeof generationError !== 'string') {
+	if ((generationError !== undefined && typeof generationError !== 'string')
+		|| (value.autopilotAvailable !== undefined && typeof value.autopilotAvailable !== 'boolean')) {
 		throw invalidDetails();
 	}
 	return {
@@ -246,6 +283,7 @@ function parseDetails(value: unknown): IPullRequestDetails {
 		mergeMethods: [...value.mergeMethods],
 		agentMergeAvailable: value.agentMergeAvailable,
 		...(value.agentMergeOptions !== undefined ? { agentMergeOptions: parseAgentMergeOptions(value.agentMergeOptions) } : {}),
+		...(value.autopilotAvailable !== undefined ? { autopilotAvailable: value.autopilotAvailable } : {}),
 		...(generationError !== undefined ? { generationError } : {}),
 		...(value.context !== undefined ? { context: parseContext(value.context) } : {}),
 	};

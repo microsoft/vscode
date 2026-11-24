@@ -117,6 +117,8 @@ Local and per-address remote frontend summary caches use a separate generation f
 
 ## Session adaptation
 
+Sandboxed Copilot Agent Host sessions with Canvas enabled request read/write access to the shared `<COPILOT_HOME>/extension-data/` directory, subject to sandbox policy. When the launch configuration grants that path, the host creates it before SDK create or resume so the first canvas save works on a fresh Copilot home. This default does not grant the parent Copilot home or the extension source directories.
+
 `AgentHostSessionAdapter` is the stable `ISession` facade for a committed Agent Host session. It:
 
 - preserves provider resource identity;
@@ -136,6 +138,8 @@ Side-chat provenance is independent of conversation inheritance. Side chats norm
 Each chat's read state is projected from its chat summary independently of the session aggregate. In a multi-chat session, any unread normal user-visible chat forces the aggregate unread; Tool/subagent chats are excluded. When the last unread participating chat becomes read, the host promotes the aggregate to read; repeated read actions do not clear an independently unread session. When supported by the negotiated protocol version, activating a chat or invoking Mark as Read or Mark as Unread on a session row dispatches the chat-level read-state action for the represented main chat and updates that chat facade optimistically; the host remains responsible for aggregate synchronization, persistence, and fan-out.
 
 Selectable Agent Host changesets have one catalogue owner for each scope. The default chat exists from initial draft creation and owns repository-preparation changes before provider materialization. After materialization, the session continues publishing its cumulative Session Changes entry while each chat owns its repository and turn catalogue. Peer chats also own a Session Changes entry scoped to the edits made in that chat; because Git checkpoints capture the working tree shared by every chat, it is computed from the chat's tracked edits. The client keeps a chat-owned Session Changes entry and otherwise projects the session-owned entry into the chat catalogue, so the default chat shows the cumulative summary across all chats while every chat retains chat-scoped Branch, Uncommitted, This Turn, and Compare entries.
+
+VS Code's Agent Host only serves per-turn changesets at chat addresses, including for the default chat. The client still follows a session-owned turn entry if an older host advertises one.
 
 Session workflow operations such as pull-request creation and Agent Merge are advertised by Branch Changes sourced from the default chat. Changesets from other scopes, along with Uncommitted, This Turn, and Compare entries, keep those operations filtered out.
 
@@ -203,7 +207,7 @@ Copilot and Codex update the exact chat backing and its durable working-director
 
 Single-chat isolation does not require multi-root support. It replaces the session and chat working directories with the worktree, retains the source repository as the project, and adopts the normal session worktree configuration and lifecycle. Chat creation is serialized with this replacement; a chat created before conversion starts makes the single-chat request fail safely rather than moving the new chat.
 
-Multi-chat isolation requires the provider's multi-root capability. Other chats can continue running and new chats can be created. The aggregate session workspace retains its existing folders and includes the new checkout. Inheriting chats are pinned to their previous directories before it is added; the caller's chat state, catalog summary, persisted scope, and folder Git state then identify its new worktree. Session-wide isolation configuration remains unchanged.
+Multi-chat isolation requires the provider's multi-root capability. Other chats can continue running and new chats can be created. The aggregate session workspace retains its existing folders and includes the new checkout. Inheriting chats are pinned to their previous directories before it is added; the caller's chat state, catalog summary, persisted scope, and folder Git state then identify its new worktree. The session summary's `vscode.isolatedChatWorktrees` `_meta` entry lists such chat worktrees, other than the session's first folder, while the session still works in them and their repository (resolved with Git) is the session's project, so that a client can offer them as locations of the project's folder; the host republishes it as an isolated chat is restored or moves to another session. A client that ignores it, or a host that omits it, keeps standard behavior. Session-wide isolation configuration remains unchanged.
 
 Git state follows the effective checkout: session-level refreshes use the aggregate session's primary directory, while chat-level refreshes use that chat's directory, including for the main chat. Destination branch metadata is published before its workspace is exposed, without waiting for the background refresh cooldown. The original folder is not modified; file inclusion follows ordinary worktree creation.
 

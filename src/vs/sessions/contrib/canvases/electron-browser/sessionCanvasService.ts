@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { mainWindow } from '../../../../base/browser/window.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, derivedOpts, IObservable, IReader, observableSignalFromEvent } from '../../../../base/common/observable.js';
@@ -19,7 +20,7 @@ import { IChatWindowService } from '../../../../workbench/contrib/chatWindow/bro
 import { ISessionsHostLayoutService } from '../../../../workbench/services/sessions/browser/sessionsHostLayoutService.js';
 import { getMainWindowHost, getWindowHost, IFocusedSessionHostService, ISessionHost, ISessionHostService, SessionHostKind } from '../../../../workbench/services/sessions/browser/sessionHost.js';
 import { ICustomViewService } from '../../../../workbench/contrib/sessions/browser/customView.js';
-import { IChat, ISession, ISessionCanvasDefinition } from '../../../../workbench/services/sessions/common/session.js';
+import { IChat, ISession, ISessionCanvasDefinition, isSessionArchiveConfirmed } from '../../../../workbench/services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionEditorWorkingSetService } from '../../layout/common/sessionEditorWorkingSet.js';
 import { ISessionCanvasRegistryService } from '../common/sessionCanvas.js';
@@ -89,6 +90,13 @@ export class SessionCanvasContextService extends Disposable implements ICanvasCo
 				// A chat window restores and reconciles its canvases without taking focus, as an unfocused one does.
 				add(focusedSession, focusedChat, getWindowHost(focusedHost)?.kind === SessionHostKind.ChatWindow);
 			}
+			// The main window presents the canvases of its chat while another window has focus.
+			const mainWindowHost = this.sessionHostService.getHostOfWindow(mainWindow.vscodeWindowId, reader);
+			const mainSession = mainWindowHost?.session.read(reader);
+			const mainChat = mainWindowHost?.chat.read(reader);
+			if (mainSession && mainChat) {
+				add(mainSession, mainChat, true);
+			}
 			// Every chat of every chat window presents its canvases there, whichever chat is active or focused.
 			for (const resource of this.chatWindowChats.read(reader)) {
 				const owner = this.sessionsManagementService.getSessionForChatResource(resource);
@@ -122,9 +130,17 @@ export class SessionCanvasContextService extends Disposable implements ICanvasCo
 			}
 		}));
 		this._register(this.sessionsManagementService.onDidChangeSessions(event => {
-			const archived = event.changed.filter(session => session.isArchived.read(undefined));
+			const archived = event.changed.filter(session => isSessionArchiveConfirmed(session));
 			for (const session of [...event.removed, ...archived]) {
 				this.removeOwners(owner => ownsSession(owner, session));
+			}
+		}));
+		this._register(this.sessionsManagementService.onDidDiscardNewSession(session => {
+			this.removeOwners(owner => ownsSession(owner, session));
+		}));
+		this._register(this.sessionsManagementService.onDidReplaceNewDraftSession(({ from, to }) => {
+			if (!isEqual(from.resource, to.resource)) {
+				this.removeOwners(owner => ownsSession(owner, from));
 			}
 		}));
 		this._register(this.sessionsManagementService.onDidDeleteChat(({ session, chatResource }) => {

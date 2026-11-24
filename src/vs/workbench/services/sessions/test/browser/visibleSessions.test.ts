@@ -1100,6 +1100,51 @@ suite('VisibleSessions', () => {
 		});
 	});
 
+	suite('openInSlot', () => {
+
+		type Replaced = { readonly session: string; readonly index: number; readonly sticky: boolean; readonly by: string | undefined };
+
+		test('opens a session in place of the session of a slot, which keeps its place, and reports the replaced session with its pin', () => {
+			const replaced: Replaced[] = [];
+			const model = createModel((session, index, sticky, by) => replaced.push({ session: session.sessionId, index, sticky, by }));
+			const A = stubSession('A');
+			const B = stubSession('B');
+			const C = stubSession('C');
+			model.restoreGrid([{ session: A, sticky: true }, { session: B, sticky: false }], 1);
+			const slotOfA = model.getGridSlots()[0].id;
+
+			model.openInSlot(C, 'A');
+
+			assert.deepStrictEqual({ ...snapshot(model), keepsSlot: model.getGridSlots()[0].id === slotOfA, replaced }, {
+				visible: ['C', 'B'],
+				active: 'C',
+				sticky: [],
+				keepsSlot: true,
+				replaced: [{ session: 'A', index: 0, sticky: true, by: 'C' }],
+			});
+		});
+
+		test('moves a session the grid shows elsewhere into the slot, keeping its own pin', () => {
+			const replaced: Replaced[] = [];
+			const model = createModel((session, index, sticky, by) => replaced.push({ session: session.sessionId, index, sticky, by }));
+			const A = stubSession('A');
+			const B = stubSession('B');
+			const C = stubSession('C');
+			model.restoreGrid([{ session: A, sticky: false }, { session: B, sticky: false }, { session: C, sticky: true }], 0);
+			const slotOfA = model.getGridSlots()[0].id;
+
+			model.openInSlot(C, 'A');
+
+			assert.deepStrictEqual({ ...snapshot(model), keepsSlot: model.getGridSlots()[0].id === slotOfA, replaced }, {
+				visible: ['C', 'B'],
+				active: 'C',
+				sticky: ['C'],
+				keepsSlot: true,
+				replaced: [{ session: 'A', index: 0, sticky: false, by: 'C' }],
+			});
+		});
+	});
+
 	suite('restoreGrid', () => {
 
 		test('builds the grid in order with the correct active and sticky slots', () => {
@@ -2102,6 +2147,54 @@ suite('VisibleSessions - active chat removal fallback', () => {
 			inWindow: ['main'],
 			back: ['main', 'second'],
 		});
+	});
+
+	test('an active chat that another surface takes from the grid falls back to the last tab, or to the nearest chat it came from when asked', () => {
+		const main = makeChat('main');
+		const source = makeChat('source');
+		const last = makeChat('last');
+		const side: IChat = { ...makeChat('side'), origin: { kind: ChatOriginKind.SideChat, parentChat: source.resource } };
+		const nested: IChat = { ...makeChat('nested'), origin: { kind: ChatOriginKind.SideChat, parentChat: side.resource } };
+		const { session } = createSession([main, source, side, nested, last]);
+		const model = createModel();
+		model.setActive(session);
+		const visible = model.activePane.get()!;
+		const fallbackWhenHidden = (chat: IChat, options?: { readonly showAncestorInstead?: boolean }) => {
+			model.setActiveChat(session, chat);
+			const hold = model.hideChatFromGrid(session.sessionId, chat.resource, options);
+			const fallback = visible.chat.get()?.title.get();
+			hold.dispose();
+			return fallback;
+		};
+
+		const fallbacks = {
+			byDefault: fallbackWhenHidden(side),
+			ancestor: fallbackWhenHidden(side, { showAncestorInstead: true }),
+		};
+		const sideHold = model.hideChatFromGrid(session.sessionId, side.resource, { showAncestorInstead: true });
+		const nestedFallback = fallbackWhenHidden(nested, { showAncestorInstead: true });
+		sideHold.dispose();
+
+		assert.deepStrictEqual({ ...fallbacks, nested: nestedFallback }, { byDefault: 'last', ancestor: 'source', nested: 'source' });
+	});
+
+	test('a closed main chat reopens when a side chat moves out of the grid', () => {
+		const main = makeChat('main');
+		const side: IChat = { ...makeChat('side'), origin: { kind: ChatOriginKind.SideChat, parentChat: main.resource } };
+		const { session } = createSession([main, side]);
+		const model = createModel();
+		model.setActive(session);
+		const visible = model.activePane.get()!;
+		model.setActiveChat(session, side);
+		model.closeChat(session, main, { allowMainChat: true });
+
+		const hold = model.hideChatFromGrid(session.sessionId, side.resource, { showAncestorInstead: true });
+		assert.deepStrictEqual({
+			active: visible.chat.get()?.title.get(),
+			tabs: visible.tabs.visibleChatTabs.get().map(c => c.title.get()),
+			closed: visible.tabs.closedChats.get().map(c => c.title.get()),
+		}, { active: 'main', tabs: ['main'], closed: [] });
+		hold.dispose();
 	});
 });
 

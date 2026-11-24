@@ -57,7 +57,7 @@ import { getFlatContextMenuActions } from '../../../../platform/actions/browser/
 import { Button, ButtonWithDescription, ButtonWithDropdown } from '../../../../base/browser/ui/button/button.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { RepositoryContextKeys } from './scmViewService.js';
-import { defaultButtonStyles, defaultCountBadgeStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { defaultButtonStyles, getCountBadgeStyle } from '../../../../platform/theme/browser/defaultStyles.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { IDragAndDropData } from '../../../../base/browser/dnd.js';
 import { fillEditorsDragData } from '../../../browser/dnd.js';
@@ -69,7 +69,7 @@ import { WorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.j
 import { rot } from '../../../../base/common/numbers.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { OpenScmGroupAction } from '../../multiDiffEditor/browser/scmMultiDiffSourceResolver.js';
-import { autorun } from '../../../../base/common/observable.js';
+import { autorun, runOnChange } from '../../../../base/common/observable.js';
 import { bindContextKey, observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
@@ -87,16 +87,31 @@ export function isSCMTreeElementCollapsedByDefault(element: unknown): boolean {
 
 /**
  * Returns an additional class for the twistie of an element. Files and symbols open when clicked, so they expand only
- * through their twistie, and expandable ones keep it when the file icon theme hides arrows, like file nests in the Explorer.
+ * through their twistie, and expandable files keep it when the file icon theme hides arrows, like file nests in the
+ * Explorer. Structural rows always show an icon, so they all keep the twistie space, even when they cannot expand, to
+ * indent children under their parent's icon like in the Outline view.
  */
 export function getSCMTreeTwistieCssClass(element: unknown, dataSource: SCMTreeDataSource): string | undefined {
 	if (isSCMActionButton(element) || isSCMInput(element)) {
 		return 'force-no-twistie';
 	}
-	if ((isSCMResource(element) || isSCMStructuralDiffElement(element)) && dataSource.hasChildren(element)) {
+	if (isSCMStructuralDiffElement(element) || (isSCMResource(element) && dataSource.hasChildren(element))) {
 		return 'force-twistie';
 	}
 	return undefined;
+}
+
+/**
+ * Returns whether the icons of files that cannot expand take the place of their twisties. Like the Explorer, a tree does
+ * that when folders have no icons, to align file icons with folder twisties. A list has no folders, so it does that for
+ * every file icon theme, unless files can expand to show their structural changes. Then all files keep their twistie
+ * space, so that their icons stay aligned whether or not they can expand.
+ */
+export function shouldAlignSCMTreeIconsAndTwisties(viewMode: ViewMode, theme: Pick<IFileIconTheme, 'hasFileIcons' | 'hasFolderIcons'>, canExpandFiles: boolean): boolean {
+	if (!theme.hasFileIcons) {
+		return false;
+	}
+	return viewMode === ViewMode.List ? !canExpandFiles : !theme.hasFolderIcons;
 }
 
 function processResourceFilterData(uri: URI, filterData: FuzzyScore | LabelFuzzyScore | undefined): [IMatch[] | undefined, IMatch[] | undefined] {
@@ -434,7 +449,7 @@ class ResourceGroupRenderer implements ICompressibleTreeRenderer<ISCMResourceGro
 			actionRunner: this.actionRunner
 		}, this.menuService, this.contextKeyService, this.contextMenuService, this.keybindingService, this.commandService, this.telemetryService);
 		const countContainer = append(element, $('.count'));
-		const count = new CountBadge(countContainer, {}, defaultCountBadgeStyles);
+		const count = new CountBadge(countContainer, {}, getCountBadgeStyle({ badgeBackground: undefined, badgeBorder: undefined }));
 		const disposables = combinedDisposable(actionBar, count);
 
 		return { name, count, actionBar, elementDisposables: new DisposableStore(), disposables };
@@ -609,7 +624,7 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 
 		const matches = createMatches(node.filterData as FuzzyScore | undefined);
 		template.fileLabel.setResource({ resource: folder.uri, name: label }, {
-			fileDecorations: { colors: false, badges: true },
+			fileDecorations: { colors: false, badges: true, alignBadgeLastCharacter: true },
 			fileKind,
 			matches,
 			separator: this.labelService.getSeparator(folder.uri.scheme)
@@ -658,7 +673,7 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 
 		template.fileLabel.setFile(data.uri, {
 			...data.fileLabelOptions,
-			fileDecorations: { colors: false, badges: !icon },
+			fileDecorations: { colors: false, badges: !icon, alignBadgeLastCharacter: true },
 		});
 
 		if (icon) {
@@ -1033,6 +1048,7 @@ interface RepositoryVisibilityItem {
 class RepositoryVisibilityActionController {
 
 	private items = new Map<ISCMRepository, RepositoryVisibilityItem>();
+	private readonly hiddenListeners = new DisposableMap<ISCMRepository>();
 	private repositoryCountContextKey: IContextKey<number>;
 	private repositoryVisibilityCountContextKey: IContextKey<number>;
 	private readonly disposables = new DisposableStore();
@@ -1055,7 +1071,23 @@ class RepositoryVisibilityActionController {
 	}
 
 	private onDidAddRepository(repository: ISCMRepository): void {
-		if (repository.provider.isHidden) {
+		// A provider can be hidden and shown again while it is registered
+		this.hiddenListeners.set(repository, autorun(reader => {
+			if (repository.provider.isHidden.read(reader)) {
+				this.removeItem(repository);
+			} else {
+				this.addItem(repository);
+			}
+		}));
+	}
+
+	private onDidRemoveRepository(repository: ISCMRepository): void {
+		this.hiddenListeners.deleteAndDispose(repository);
+		this.removeItem(repository);
+	}
+
+	private addItem(repository: ISCMRepository): void {
+		if (this.items.has(repository)) {
 			return;
 		}
 
@@ -1079,8 +1111,13 @@ class RepositoryVisibilityActionController {
 		this.updateRepositoryContextKeys();
 	}
 
-	private onDidRemoveRepository(repository: ISCMRepository): void {
-		this.items.get(repository)?.dispose();
+	private removeItem(repository: ISCMRepository): void {
+		const item = this.items.get(repository);
+		if (!item) {
+			return;
+		}
+
+		item.dispose();
 		this.items.delete(repository);
 		this.updateRepositoryContextKeys();
 	}
@@ -1108,6 +1145,7 @@ class RepositoryVisibilityActionController {
 
 	dispose(): void {
 		this.disposables.dispose();
+		this.hiddenListeners.dispose();
 		dispose(this.items.values());
 		this.items.clear();
 	}
@@ -1511,6 +1549,9 @@ export class SCMViewPane extends ViewPane {
 		}
 		this.showStructuralDiffContextKey.set(enabled);
 		this.structuralDiff.setEnabled(enabled);
+		if (this.treeContainer) {
+			this.updateIndentStyles(this.themeService.getFileIconTheme());
+		}
 	}
 
 	private readonly items = new DisposableMap<ISCMRepository, IDisposable>();
@@ -1556,7 +1597,7 @@ export class SCMViewPane extends ViewPane {
 		super({ ...options, titleMenuId: MenuId.SCMTitle }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
 		this.structuralDiff = this.disposables.add(instantiationService.createInstance(SCMStructuralDiffModel));
-		this._showStructuralDiff = this.storageService.getBoolean('scm.showStructuralDiff', StorageScope.WORKSPACE, false);
+		this._showStructuralDiff = this.getShowStructuralDiff();
 
 		// View mode and sort key
 		this._viewMode = this.getViewMode();
@@ -1589,7 +1630,7 @@ export class SCMViewPane extends ViewPane {
 					this.viewSortKey = this.getViewSortKey();
 					break;
 				case 'scm.showStructuralDiff':
-					this.showStructuralDiff = this.storageService.getBoolean('scm.showStructuralDiff', StorageScope.WORKSPACE, false);
+					this.showStructuralDiff = this.getShowStructuralDiff();
 					break;
 			}
 		}, this, this.disposables);
@@ -1601,7 +1642,7 @@ export class SCMViewPane extends ViewPane {
 			this.storeTreeViewState();
 		}, this, this.disposables);
 
-		Event.any(this.scmService.onDidAddRepository, this.scmService.onDidRemoveRepository)(() => this._onDidChangeViewWelcomeState.fire(), this, this.disposables);
+		Event.any(this.scmService.onDidAddRepository, this.scmService.onDidRemoveRepository, this.scmViewService.onDidChangeRepositories)(() => this._onDidChangeViewWelcomeState.fire(), this, this.disposables);
 
 		this.disposables.add(this.revealResourceThrottler);
 		this.disposables.add(this.updateChildrenThrottler);
@@ -1695,6 +1736,7 @@ export class SCMViewPane extends ViewPane {
 		this.disposables.add(this.instantiationService.createInstance(RepositoryVisibilityActionController));
 
 		this.themeService.onDidFileIconThemeChange(this.updateIndentStyles, this, this.disposables);
+		this.disposables.add(runOnChange(this.structuralDiff.hasProvider, () => this.updateIndentStyles(this.themeService.getFileIconTheme())));
 		this.updateIndentStyles(this.themeService.getFileIconTheme());
 	}
 
@@ -1887,10 +1929,15 @@ export class SCMViewPane extends ViewPane {
 			return;
 		}
 
+		// The active editor can show the resource itself or, as for staged changes,
+		// the modified side of its diff, which may not be the source file
+		const matchesUri = (resource: ISCMResource) => this.uriIdentityService.extUri.isEqual(resource.sourceUri, uri)
+			|| this.uriIdentityService.extUri.isEqual(resource.multiDiffEditorModifiedUri, uri);
+
 		// Do not set focus/selection when the resource is already focused and selected
 		const representsResource = (element: TreeElement) => {
 			const resource = isSCMResource(element) ? element : isSCMStructuralDiffElement(element) ? element.resource : undefined;
-			return resource !== undefined && this.uriIdentityService.extUri.isEqual(resource.sourceUri, uri);
+			return resource !== undefined && matchesUri(resource);
 		};
 		if (this.tree.getFocus().some(representsResource) && this.tree.getSelection().some(representsResource)) {
 			return;
@@ -1909,9 +1956,8 @@ export class SCMViewPane extends ViewPane {
 						// go backwards from last group
 						for (let j = repository.provider.groups.length - 1; j >= 0; j--) {
 							const groupItem = repository.provider.groups[j];
-							const resource = this.viewMode === ViewMode.Tree
-								? groupItem.resourceTree.getNode(uri)?.element
-								: groupItem.resources.find(r => this.uriIdentityService.extUri.isEqual(r.sourceUri, uri));
+							const resource = (this.viewMode === ViewMode.Tree ? groupItem.resourceTree.getNode(uri)?.element : undefined)
+								?? groupItem.resources.find(matchesUri);
 
 							if (resource) {
 								await this.tree.expandTo(resource);
@@ -2093,6 +2139,11 @@ export class SCMViewPane extends ViewPane {
 		return viewSortKey;
 	}
 
+	/** Structural diffs are shown by default once `scm.structuralDiff.enabled` is set, unless the user hid them in this workspace. */
+	private getShowStructuralDiff(): boolean {
+		return this.storageService.getBoolean('scm.showStructuralDiff', StorageScope.WORKSPACE, true);
+	}
+
 	private loadTreeViewState(): IAsyncDataTreeViewState | undefined {
 		const storageViewState = this.storageService.get('scm.viewState2', StorageScope.WORKSPACE);
 		if (!storageViewState) {
@@ -2159,9 +2210,10 @@ export class SCMViewPane extends ViewPane {
 	}
 
 	private updateIndentStyles(theme: IFileIconTheme): void {
+		const canExpandFiles = this.structuralDiff.enabled && this.structuralDiff.hasProvider.get();
 		this.treeContainer.classList.toggle('list-view-mode', this.viewMode === ViewMode.List);
 		this.treeContainer.classList.toggle('tree-view-mode', this.viewMode === ViewMode.Tree);
-		this.treeContainer.classList.toggle('align-icons-and-twisties', (this.viewMode === ViewMode.List && theme.hasFileIcons) || (theme.hasFileIcons && !theme.hasFolderIcons));
+		this.treeContainer.classList.toggle('align-icons-and-twisties', shouldAlignSCMTreeIconsAndTwisties(this.viewMode, theme, canExpandFiles));
 		this.treeContainer.classList.toggle('hide-arrows', this.viewMode === ViewMode.Tree && theme.hidesExplorerArrows === true);
 	}
 
@@ -2302,7 +2354,8 @@ export class SCMViewPane extends ViewPane {
 	}
 
 	override shouldShowWelcome(): boolean {
-		return this.scmService.repositoryCount === 0;
+		// Hidden repositories are not shown, for example while a provider swaps the repository of a workspace folder
+		return this.scmViewService.repositories.length === 0;
 	}
 
 	override getActionsContext(): unknown {

@@ -29,7 +29,7 @@ import { resolveAgentMessageProvenance } from '../common/agentMessageProvenance.
 import { getPendingSteeringMessages } from '../common/agentSessionMessage.js';
 import { isRenameChatTool } from '../common/serverToolNames.js';
 import { type AgentHostPrewarmSkipReason, type CodexModelProvider, AgentHostLaunchKind, createUnknownAgentHostClientTelemetryContext, type IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
-import { AgentPermissionKind, AgentSession, AgentSignal, CODEX_AGENT_PROVIDER_ID, IAgent, IAgentChatContext, IAgentToolPendingConfirmationSignal, resolveSubagentChatParent, type AgentSubagentKind, type AgentSubagentTaskModelSource, type IAgentModelCallCompletedSignal, type IAgentModelCallFinishedSignal, type IAgentSubagentStartedSignal } from '../common/agent.js';
+import { AgentPermissionKind, AgentSession, AgentSignal, CODEX_AGENT_PROVIDER_ID, IAgent, IAgentChatContext, IAgentToolPendingConfirmationSignal, resolveSubagentChatParent, type AgentSubagentKind, type AgentSubagentTaskModelSource, type IAgentModelCallCompletedSignal, type IAgentModelCallFinishedSignal, type IAgentPrewarmClaim, type IAgentSubagentStartedSignal } from '../common/agent.js';
 import { readCodexSessionModel, withCodexSessionModel } from '../common/meta/codexSessionModel.js';
 import { isPresentationOnlyToolCall, readToolCallMeta, toToolCallMeta } from '../common/meta/agentToolCallMeta.js';
 import { isAgentMergeMessage } from '../common/meta/agentMergeMessageMeta.js';
@@ -131,9 +131,12 @@ export interface IAgentSideEffectsOptions {
 	 * on the first send, or the picked folder) is resolved before the agent
 	 * materializes and its cwd is locked. Resolves to the working directories to
 	 * hand the agent (index 0 = process root), or `undefined` for workspace-less
-	 * sessions. Provided by {@link AgentService}.
+	 * sessions. `onResolved` allows checkpoints to start before base-branch persistence.
+	 * Provided by {@link AgentService}.
 	 */
-	readonly resolveWorkingDirectoryBeforeSend?: (params: { session: ProtocolURI; chat: ProtocolURI; turnId: string; prompt: string; credentials?: IAgentHostCredentialSource; agentMergeTurn?: boolean }) => Promise<readonly URI[] | undefined>;
+	readonly resolveWorkingDirectoryBeforeSend?: (params: { session: ProtocolURI; chat: ProtocolURI; turnId: string; prompt: string; credentials?: IAgentHostCredentialSource; agentMergeTurn?: boolean; onResolved?: (workingDirectories: readonly URI[]) => void }) => Promise<readonly URI[] | undefined>;
+	/** Announces a provisional session whose turn was cancelled before reaching its agent, which never materialized it. */
+	readonly announceUnsentProvisionalSession?: (params: { session: ProtocolURI; workingDirectories: readonly URI[] | undefined }) => void;
 	/** Resolves a referenced chat's turns, hydrating its owning session when needed. */
 	readonly resolveChatAttachmentTurns?: (resource: ProtocolURI) => Promise<readonly Turn[]>;
 	/** Resolves the recorded owner of a chat that may not be loaded. */
@@ -2229,6 +2232,7 @@ export class AgentSideEffects extends Disposable {
 		// handed the prompt can discard the checkpoint it already started.
 		let checkpointCapture: Promise<void> | undefined;
 		let dispatchedToProvider = false;
+		let resolvedWorkingDirectories: readonly URI[] | undefined;
 		try {
 			const credentials = options.credentials ? captureCredentialSource(options.credentials, agent.getProtectedResources()) : undefined;
 			this._turnTracker.setCurrentStage(turnChannel, turnId, failureStage);
@@ -2239,22 +2243,15 @@ export class AgentSideEffects extends Disposable {
 			// for worktree sessions (created here on the first send) or the picked
 			// folder for folder sessions; undefined for workspace-less sessions.
 			const agentMergeTurn = message.origin.kind === MessageKind.SystemNotification && isAgentMergeMessage(message);
-			const resolvedWorkingDirectories = await this._options.resolveWorkingDirectoryBeforeSend?.({ session: options.sessionChannel, chat, turnId, prompt: message.text, ...(credentials ? { credentials } : {}), ...(agentMergeTurn ? { agentMergeTurn } : {}) });
-			// Start the turn-start checkpoint as soon as the working directory is
-			// known so its git snapshot runs alongside the provider round-trips
-			// below instead of after them. It is still awaited before the message
-			// is sent, so the snapshot continues to reflect the tree the agent
-			// starts from. A turn cancelled before it got here never captures at
-			// all — the snapshot is expensive and would only be discarded.
-			// Rejections are marked handled here because the paths below can skip
-			// the await; the later `await` still surfaces them so a failed
-			// capture fails the turn exactly as it used to.
-			const shouldCheckpoint = !this._stateManager.isEphemeralSession(sessionChannel)
-				&& !this._cancelledTurnIds.get(turnChannel)?.has(turnId);
-			checkpointCapture = shouldCheckpoint
-				? this._checkpointService.captureTurnStartCheckpoint(URI.parse(sessionChannel), chatUri, turnId, resolvedWorkingDirectories)
-				: undefined;
-			checkpointCapture?.catch(() => { /* surfaced by the await below */ });
+			// Directory-dependent snapshots can overlap base-branch persistence.
+			const captureCheckpoint = (workingDirectories: readonly URI[] | undefined) => {
+				if (!checkpointCapture && !this._stateManager.isEphemeralSession(sessionChannel) && !this._cancelledTurnIds.get(turnChannel)?.has(turnId)) {
+					checkpointCapture = this._checkpointService.captureTurnStartCheckpoint(URI.parse(sessionChannel), chatUri, turnId, workingDirectories);
+					checkpointCapture.catch(() => { /* surfaced by the await below or by the provider */ });
+				}
+			};
+			resolvedWorkingDirectories = await this._options.resolveWorkingDirectoryBeforeSend?.({ session: options.sessionChannel, chat, turnId, prompt: message.text, ...(credentials ? { credentials } : {}), ...(agentMergeTurn ? { agentMergeTurn } : {}), onResolved: captureCheckpoint });
+			captureCheckpoint(resolvedWorkingDirectories);
 			const chatContext = this._chatContext(options.sessionChannel, chat);
 			const clientOperationContext = {
 				...chatContext,
@@ -2307,14 +2304,14 @@ export class AgentSideEffects extends Disposable {
 
 			// A provider can prepare the turn — e.g. materialize a deferred session
 			// with the selection applied above — while attachments, contributions
-			// and the checkpoint capture run. Dispatch still waits for both, so the
-			// checkpoint keeps describing the tree the agent starts from. A failed
+			// and the checkpoint capture run. Dispatch waits for preparation; opted-in
+			// providers await the checkpoint before their first tool call. A failed
 			// preparation is only logged: `sendMessage` then prepares as usual and
 			// surfaces any error exactly as it would without the overlap.
 			let providerPreparation: Promise<void> | undefined;
 			// Preparation can materialize the deferred session, so it reports how the send found its warm launch.
 			const prewarmReporters = {
-				reportPrewarmedSession: (discardReason?: string) => this._turnTracker.markPrewarmedSession(turnChannel, turnId, discardReason),
+				reportPrewarmedSession: (discardReason?: string, claim?: IAgentPrewarmClaim) => this._turnTracker.markPrewarmedSession(turnChannel, turnId, discardReason, claim),
 				reportPrewarmSkipped: (reason: AgentHostPrewarmSkipReason) => this._turnTracker.markPrewarmSkipped(turnChannel, turnId, reason),
 			};
 			if (agent.chats.prepareTurn) {
@@ -2339,6 +2336,8 @@ export class AgentSideEffects extends Disposable {
 				turnTelemetryCorrelation: { agentSessionId: AgentSession.id(sessionChannel), chatSessionId: getTelemetryChatSessionId(turnChannel), turnId },
 				reportCodexModelProvider: (provider: CodexModelProvider) => this._turnTracker.setCodexModelProvider(turnChannel, turnId, provider),
 				...prewarmReporters,
+				// Pre-tool runtime command hooks (e.g. SessionStart/UserPromptSubmit) may race the snapshot when opting in.
+				...(agent.chats.awaitsTurnStartCheckpoint && checkpointCapture ? { turnStartCheckpoint: checkpointCapture } : {}),
 				...(turnTelemetryContext ? { turnTelemetryContext } : {}),
 				...(contribution.instructions?.length ? { hostInstructions: contribution.instructions } : {}),
 				sendStageRecorder: this._turnTracker.createProviderStageRecorder(turnChannel, turnId),
@@ -2353,7 +2352,7 @@ export class AgentSideEffects extends Disposable {
 				this._turnTracker.markSendStage(turnChannel, turnId, 'providerPreparation');
 				await providerPreparation;
 			}
-			if (checkpointCapture) {
+			if (checkpointCapture && !agent.chats.awaitsTurnStartCheckpoint) {
 				// Measures only what the checkpoint still costs the critical path
 				// after overlapping the work above, not the capture's total cost.
 				this._turnTracker.markSendStage(turnChannel, turnId, 'checkpoint');
@@ -2404,6 +2403,11 @@ export class AgentSideEffects extends Disposable {
 				});
 			}
 			this._failSessionCreationIfStillCreating(sessionChannel, error);
+		} finally {
+			// A turn can be cancelled at any stage before dispatch, and each one leaves its provisional session unannounced.
+			if (!dispatchedToProvider && this._cancelledTurnIds.get(turnChannel)?.has(turnId)) {
+				this._announceUnsentProvisionalSession(sessionChannel, resolvedWorkingDirectories);
+			}
 		}
 	}
 
@@ -2634,6 +2638,12 @@ export class AgentSideEffects extends Disposable {
 		const summary = this._stateManager.getSessionSummary(sessionChannel);
 		if (summary) {
 			this._stateManager.markSessionPersisted(sessionChannel, summary);
+		}
+	}
+
+	private _announceUnsentProvisionalSession(sessionChannel: ProtocolURI, workingDirectories: readonly URI[] | undefined): void {
+		if (this._stateManager.getSessionState(sessionChannel)?.lifecycle === SessionLifecycle.Creating) {
+			this._options.announceUnsentProvisionalSession?.({ session: sessionChannel, workingDirectories });
 		}
 	}
 

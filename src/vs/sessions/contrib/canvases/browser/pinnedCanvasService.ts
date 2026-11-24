@@ -125,6 +125,8 @@ class PinnedCanvas extends Disposable implements IPinnedCanvas {
 	private lastBound: URI | undefined;
 	/** The session object that last listed this pin's chat, so the chat leaving that list is a deletion. */
 	private listedBy: ISession | undefined;
+	/** The chat membership the bound canvas was last observed again for, after its observation failed. */
+	private observedAgainFor: readonly ICanvas[] | undefined;
 
 	get boundCanvas(): URI | undefined {
 		return this.boundResource.read(undefined);
@@ -209,6 +211,18 @@ class PinnedCanvas extends Disposable implements IPinnedCanvas {
 	releaseMembership(): void {
 		this.membershipSession = undefined;
 		this.membershipReference.clear();
+	}
+
+	/**
+	 * Whether to observe the bound canvas again after its observation failed, which happens at most once for each
+	 * `membership` of its chat that lists it, so a canvas that keeps failing is not observed again in a loop.
+	 */
+	shouldObserveAgain(membership: readonly ICanvas[]): boolean {
+		if (this.observedAgainFor === membership) {
+			return false;
+		}
+		this.observedAgainFor = membership;
+		return true;
 	}
 
 	endReconnect(tx: ITransaction | undefined): void {
@@ -456,6 +470,11 @@ export class PinnedCanvasService extends Disposable implements IPinnedCanvasServ
 		return !!shown && getCanvasReferenceKey(shown) === getCanvasReferenceKey(reference);
 	}
 
+	/** Whether the canvas page shows `pin`, bound or not. */
+	private isPinShown(pin: PinnedCanvas, reader: IReader): boolean {
+		return this.customViewService.activeCustomView.read(reader)?.id === PINNED_CANVAS_PAGE_ID && this.selectedId.read(reader) === pin.id;
+	}
+
 	getTrackedCanvas(reference: ICanvasReference, reader?: IReader): ICanvas | undefined {
 		return this.getEntry(reference, reader)?.canvas.read(reader);
 	}
@@ -606,23 +625,31 @@ export class PinnedCanvasService extends Disposable implements IPinnedCanvasServ
 		if (membership === undefined) {
 			return;
 		}
-		const bound = pin.boundCanvas;
+		const { instanceId, extensionId, canvasId } = pin.identity;
+		let bound = pin.boundCanvas;
+		if (!bound || !membership.some(canvas => isEqual(canvas.resource, bound))) {
+			const match = membership.find(canvas => canvas.instanceId === instanceId
+				&& (!canvas.extensionId || !extensionId || canvas.extensionId === extensionId)
+				&& (!canvas.canvasId || !canvasId || canvas.canvasId === canvasId));
+			if (match) {
+				pin.bind(session, match.resource, this.sessionsManagementService.observeCanvas(session, chat.resource, match.resource), undefined);
+				bound = match.resource;
+			}
+		}
 		if (bound && membership.some(canvas => isEqual(canvas.resource, bound))) {
+			const canvas = pin.canvas.read(reader);
+			// The canvas could not be observed while its chat no longer had it, for example while its session was released; observe it again now that it does.
+			if (!canvas && pin.shouldObserveAgain(membership)) {
+				pin.bind(session, bound, this.sessionsManagementService.observeCanvas(session, chat.resource, bound), undefined);
+				return;
+			}
+			// A chat lists a canvas it restores before the canvas has a source. A shown pin keeps observing its chat, which lets the chat restore it.
+			const restoring = canvas?.source === undefined && this.isPinShown(pin, reader);
 			transaction(tx => {
 				pin.setPresent(tx);
-				pin.endReconnect(tx);
-			});
-			return;
-		}
-		const { instanceId, extensionId, canvasId } = pin.identity;
-		const match = membership.find(canvas => canvas.instanceId === instanceId
-			&& (!canvas.extensionId || !extensionId || canvas.extensionId === extensionId)
-			&& (!canvas.canvasId || !canvasId || canvas.canvasId === canvasId));
-		if (match) {
-			const live = this.sessionsManagementService.observeCanvas(session, chat.resource, match.resource);
-			transaction(tx => {
-				pin.bind(session, match.resource, live, tx);
-				pin.endReconnect(tx);
+				if (!restoring) {
+					pin.endReconnect(tx);
+				}
 			});
 			return;
 		}
@@ -692,6 +719,10 @@ export class PinnedCanvasService extends Disposable implements IPinnedCanvasServ
 	private isOwnerGone(pin: PinnedCanvas, reader: IReader): boolean {
 		const session = this.sessionsManagementService.getSession(pin.identity.session);
 		if (!session || !ownsSession(pin.identity, session)) {
+			return false;
+		}
+		// The main chat shares its session's archived state, which shows a pending archive the host may still reject.
+		if (session.archivePending?.read(reader)) {
 			return false;
 		}
 		if (session.isArchived.read(reader)) {

@@ -6,6 +6,8 @@
 import * as dom from '../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { IMouseWheelEvent } from '../../../../../base/browser/mouseEvent.js';
+import { EventType as TouchEventType, GestureEvent } from '../../../../../base/browser/touch.js';
+import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { ITreeContextMenuEvent, ITreeElement, ITreeFilter } from '../../../../../base/browser/ui/tree/tree.js';
 import { RenderIndentGuides } from '../../../../../base/browser/ui/tree/abstractTree.js';
@@ -48,7 +50,7 @@ import { IChatRequestModeInfo } from '../../common/model/chatModel.js';
 import { IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, IChatViewModelChangeEvent, isRequestVM, isResponseVM, isScheduledRequestVM } from '../../common/model/chatViewModel.js';
 import { PROMPT_TIMELINE_STICKY_SCROLL_SETTING } from '../../common/promptTimeline.js';
 import { ChatAccessibilityProvider } from '../accessibility/chatAccessibilityProvider.js';
-import { ChatTreeItem, IChatAccessibilityService, IChatCodeBlockInfo, IChatContextMenuActionContext, IChatFileTreeInfo, IChatListItemRendererOptions, IChatScrollAnchor } from '../chat.js';
+import { ChatTreeItem, IChatAccessibilityService, IChatCodeBlockInfo, IChatContextMenuActionContext, IChatFileTreeInfo, IChatListItemRendererOptions, IChatScrollAnchor, IChatWidget } from '../chat.js';
 import { resolveResponseSelection } from '../responseSelectionResolver.js';
 import { CodeBlockPart } from './chatContentParts/codeBlockPart.js';
 import { ChatCollapsibleContentPart } from './chatContentParts/chatCollapsibleContentPart.js';
@@ -322,6 +324,9 @@ export interface IChatListWidgetOptions {
 	 */
 	readonly getEditingValue?: () => string | undefined;
 
+	/** The widget whose list this is, which shows the input requests, such as questions, of the chats it renders. */
+	readonly getWidget?: () => IChatWidget | undefined;
+
 	/** Scrollable space kept below the last item, for content floating over the list. */
 	readonly paddingBottom?: number;
 
@@ -402,6 +407,8 @@ export class ChatListWidget extends Disposable {
 	private readonly _renderer: ChatListItemRenderer;
 
 	private _viewModel: IChatViewModel | undefined;
+	private readonly _historyNavigationFrame = this._register(new MutableDisposable());
+	private _loadingHistoryFor: IChatViewModel | undefined;
 	private _visible = true;
 	private _lastItem: ChatTreeItem | undefined;
 	/** What the last full {@link refresh} rendered, so response-only updates can skip diffing the whole transcript. */
@@ -593,6 +600,7 @@ export class ChatListWidget extends Disposable {
 			refreshStickyScroll: () => this._tree.refreshStickyScroll(),
 			stickyScrollTopPadding: CHAT_STICKY_SCROLL_TOP_PADDING,
 			getEditingValue: options.getEditingValue,
+			getWidget: options.getWidget,
 			preserveScrollPosition: target => this.preserveScrollPosition(target),
 			onDidFinishProgressCollapse: () => this.updateBottomPadding(),
 		};
@@ -796,10 +804,33 @@ export class ChatListWidget extends Disposable {
 				this.trackUserToggleResize(element, e.target);
 			}
 		}));
-		this._register(dom.addDisposableListener(this._container, dom.EventType.WHEEL, () => this.cancelUserToggleScrollRestoration()));
-		this._register(dom.addDisposableListener(this._container, dom.EventType.POINTER_DOWN, () => this.cancelUserToggleScrollRestoration()));
+		this._register(dom.addDisposableListener(this._tree.getHTMLElement(), dom.EventType.WHEEL, e => {
+			this.cancelUserToggleScrollRestoration();
+			if (e.deltaY < 0 && !e.ctrlKey && !e.shiftKey) {
+				this.scheduleOlderHistory();
+			}
+		}, { capture: true, passive: true }));
+		this._register(dom.addDisposableListener(this._tree.getHTMLElement(), TouchEventType.Change, e => {
+			if ((e as GestureEvent).translationY > 0) {
+				this.scheduleOlderHistory();
+			}
+		}, true));
+		this._register(dom.addDisposableListener(this._container, dom.EventType.POINTER_DOWN, e => {
+			this.cancelUserToggleScrollRestoration();
+			if (dom.isHTMLElement(e.target) && e.target.closest('.scrollbar.vertical')) {
+				this.scheduleOlderHistory(this.scrollTop);
+			}
+		}, true));
+		this._register(dom.addDisposableListener(this._container, dom.EventType.POINTER_MOVE, e => {
+			if (e.buttons === 1 && e.movementY < 0 && dom.isHTMLElement(e.target) && e.target.closest('.scrollbar.vertical')) {
+				this.scheduleOlderHistory();
+			}
+		}, true));
 		this._register(dom.addDisposableListener(this._container, dom.EventType.KEY_DOWN, e => {
 			const keyCode = new StandardKeyboardEvent(e).keyCode;
+			if (e.target === this._tree.getHTMLElement() && (keyCode === KeyCode.UpArrow || keyCode === KeyCode.PageUp || keyCode === KeyCode.Home)) {
+				this.scheduleOlderHistory();
+			}
 			if (keyCode === KeyCode.UpArrow
 				|| keyCode === KeyCode.DownArrow
 				|| keyCode === KeyCode.PageUp
@@ -1038,6 +1069,8 @@ export class ChatListWidget extends Disposable {
 	setViewModel(viewModel: IChatViewModel | undefined): void {
 		if (this._viewModel !== viewModel) {
 			this.clearScrollHeightReservation();
+			this._historyNavigationFrame.clear();
+			this._loadingHistoryFor = undefined;
 		}
 		this._viewModel = viewModel;
 		this._renderedState = undefined;
@@ -1076,8 +1109,10 @@ export class ChatListWidget extends Disposable {
 
 		const editing = this._viewModel.editing;
 		const diffIds = new Map<ChatTreeItem, string>();
+		const previousFirst = this._renderedState?.items[0];
+		const anchor = previousFirst && items[0] !== previousFirst && items.includes(previousFirst) ? this.getScrollAnchor() : undefined;
 
-		this._withPersistedAutoScroll(() => {
+		const updateTree = () => {
 			this._tree.setChildren(null, treeItems, {
 				diffDepth: 1,
 				diffIdentityProvider: {
@@ -1091,7 +1126,13 @@ export class ChatListWidget extends Disposable {
 					},
 				}
 			});
-		});
+		};
+		if (anchor) {
+			updateTree();
+			this.revealScrollAnchor(anchor);
+		} else {
+			this._withPersistedAutoScroll(updateTree);
+		}
 
 		this._renderedState = {
 			viewModel: this._viewModel,
@@ -1287,6 +1328,37 @@ export class ChatListWidget extends Disposable {
 	delegateScrollFromMouseWheelEvent(event: IMouseWheelEvent): void {
 		this.cancelUserToggleScrollRestoration();
 		this._tree.delegateScrollFromMouseWheelEvent(event);
+		if (event.deltaY < 0 && !event.ctrlKey && !event.shiftKey) {
+			this.scheduleOlderHistory();
+		}
+	}
+
+	private scheduleOlderHistory(beforeScrollbarClick?: number): void {
+		const viewModel = this._viewModel;
+		if (!viewModel?.model.loadOlderHistory || !this._visible || this._historyNavigationFrame.value || this._loadingHistoryFor === viewModel) {
+			return;
+		}
+		// Check after native list navigation, including gestures at the edge that emit no scroll event.
+		this._historyNavigationFrame.value = dom.scheduleAtNextAnimationFrame(dom.getWindow(this._container), async () => {
+			this._historyNavigationFrame.clear();
+			if (!this._visible || this._viewModel !== viewModel || this.scrollTop > this.renderHeight / 2
+				|| (beforeScrollbarClick !== undefined && this.scrollTop >= beforeScrollbarClick)) {
+				return;
+			}
+			this._loadingHistoryFor = viewModel;
+			try {
+				await viewModel.model.loadOlderHistory?.();
+			} catch (error) {
+				if (this._viewModel === viewModel && !this._store.isDisposed) {
+					this.logService.warn('Failed to load older chat history', error);
+					status(localize('chat.olderHistoryFailed', "Could not load earlier messages. Navigate up to retry."));
+				}
+			} finally {
+				if (this._loadingHistoryFor === viewModel) {
+					this._loadingHistoryFor = undefined;
+				}
+			}
+		});
 	}
 
 	/**

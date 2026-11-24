@@ -11,7 +11,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { platformSessionSchema } from '../../common/agentHostSchema.js';
-import { AgentHostSandboxKey, ISandboxConfigValue } from '../../common/sandboxConfigSchema.js';
+import { AgentHostSandboxConfigKey, AgentHostSandboxKey, ISandboxConfigValue, sandboxConfigSchema } from '../../common/sandboxConfigSchema.js';
 import { readSessionSandboxPolicy } from '../../common/meta/agentSandboxPolicyMeta.js';
 import { readChatSandboxState, readChatSandboxStates, readSessionSandboxState, withChatSandboxState, withSessionSandboxState } from '../../common/meta/agentSandboxStateMeta.js';
 import { omitTransientSessionConfigValues, SessionConfigKey } from '../../common/sessionConfigKeys.js';
@@ -96,6 +96,39 @@ suite('Session sandbox configuration', () => {
 			property: platformSessionSchema.toProtocol().properties.sandboxEnabled.enum,
 			mutable: platformSessionSchema.toProtocol().properties.sandboxEnabled.sessionMutable,
 		}, { values: {}, property: ['default', 'on', 'off'], mutable: true });
+	});
+
+	test('the assigned sandbox profile overrides host values for new sessions within the managed policy', () => {
+		const { configuration, create } = setupSession();
+		const owner = create('profiles');
+		const target = { session: owner, chat: buildDefaultChatUri(owner) };
+		const read = () => {
+			const sandbox = getSessionSandboxConfig(configuration, target, 'linux');
+			return { allowNetwork: sandbox.allowNetwork, allowLocalNetwork: sandbox.allowLocalNetwork, allowedNetworkDomains: sandbox.allowedNetworkDomains };
+		};
+		const open = { id: 'open', name: 'Open', sandbox: { allowNetwork: true, allowLocalNetwork: false } };
+		configuration.updateRootConfig({ [AgentHostSandboxConfigKey.Sandbox]: { enabled: 'on', allowNetwork: false, allowLocalNetwork: true, allowedNetworkDomains: ['host.example'] } });
+		const unassigned = read();
+		configuration.updateRootConfig({ [AgentHostSandboxConfigKey.SandboxProfile]: open });
+		const assigned = read();
+		configuration.setSessionSandboxPolicy(owner, { enabled: true, allowOutbound: false });
+		const managed = read();
+		configuration.setSessionSandboxPolicy(owner, { enabled: true });
+		configuration.updateRootConfig({ [AgentHostSandboxConfigKey.SandboxProfile]: {} });
+		const cleared = read();
+		configuration.updateRootConfig({ [AgentHostSandboxConfigKey.SandboxProfile]: { id: 'open', name: 'Open' } });
+		assert.deepStrictEqual({
+			unassigned, assigned, managed, cleared, partial: read(),
+			schema: [open, {}, { id: 'open', name: 'Open', sandbox: { enabled: 'maybe' } }, { id: 7, name: 'Open', sandbox: {} }]
+				.map(value => sandboxConfigSchema.validate(AgentHostSandboxConfigKey.SandboxProfile, value)),
+		}, {
+			unassigned: { allowNetwork: false, allowLocalNetwork: true, allowedNetworkDomains: ['host.example'] },
+			assigned: { allowNetwork: true, allowLocalNetwork: false, allowedNetworkDomains: ['host.example'] },
+			managed: { allowNetwork: false, allowLocalNetwork: false, allowedNetworkDomains: ['host.example'] },
+			cleared: { allowNetwork: false, allowLocalNetwork: true, allowedNetworkDomains: ['host.example'] },
+			partial: { allowNetwork: false, allowLocalNetwork: true, allowedNetworkDomains: ['host.example'] },
+			schema: [true, true, false, false],
+		});
 	});
 
 	test('session path upgrades reach every peer but not other sessions, and managed lists remain authoritative', () => {

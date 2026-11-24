@@ -33,7 +33,7 @@ import { ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { SESSIONS_MARK_AS_DONE_CONFETTI_SETTING } from '../../../../../platform/chat/common/sessionArchiveActions.js';
 import { ARCHIVE_SESSION_COMMAND_ID, HIDE_AUTOMATION_SESSION_FROM_LIST_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID, SHOW_AUTOMATION_SESSION_IN_LIST_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
-import { SessionActiveChatIsDeletableContext, SessionFocusedChatIsRenameTargetContext, SessionIsArchivedContext, SessionItemIsMultiSelectionContext, SessionSupportsRenameContext, SessionsFocusContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { IsPhoneLayoutContext, SessionActiveChatIsDeletableContext, SessionFocusedChatIsRenameTargetContext, SessionIsArchivedContext, SessionItemIsMultiSelectionContext, SessionSupportsRenameContext, SessionsFocusContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { ISessionsPartService } from '../../../../../workbench/services/sessions/browser/sessionsPartService.js';
 import { ISessionsListModelService } from '../../../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
 import { SessionView } from '../../../../../workbench/contrib/sessions/browser/parts/sessionView.js';
@@ -67,13 +67,14 @@ function getKeybindingRule(commandId: string, keybinding: number, operatingSyste
 suite('Sessions - Session management actions', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('offers Open Customizations for one selected session and hides it when AI is disabled', () => {
+	test('offers Open Customizations for one desktop session and hides it on phones or when AI is disabled', () => {
 		const item = MenuRegistry.getMenuItems(Menus.SessionItemContextMenu).filter(isIMenuItem).find(item => item.command.id === 'sessionsViewPane.openCustomizations');
 		assert.ok(item);
-		const evaluate = (enabled: boolean, multipleSelection: boolean) => {
+		const evaluate = (enabled: boolean, multipleSelection: boolean, phone = false) => {
 			const values = {
 				[ChatContextKeys.enabled.key]: enabled,
 				[SessionItemIsMultiSelectionContext.key]: multipleSelection,
+				[IsPhoneLayoutContext.key]: phone,
 			};
 			const itemContext = context(values);
 			return { visible: item.when?.evaluate(itemContext), enabled: item.command.precondition?.evaluate(itemContext) };
@@ -83,11 +84,13 @@ suite('Sessions - Session management actions', () => {
 			single: evaluate(true, false),
 			multiple: evaluate(true, true),
 			aiDisabled: evaluate(false, false),
+			phone: evaluate(true, false, true),
 		}, {
 			group: 'navigation',
 			single: { visible: true, enabled: true },
 			multiple: { visible: true, enabled: false },
 			aiDisabled: { visible: false, enabled: false },
+			phone: { visible: false, enabled: false },
 		});
 	});
 
@@ -557,6 +560,24 @@ suite('Sessions - Session management actions', () => {
 			confirmations: [],
 			archived: [active.sessionId, waiting.sessionId, completed.sessionId],
 		});
+	});
+
+	test('archives a multi-selection without waiting for each session in turn', async () => {
+		const sessions = ['One', 'Two', 'Three'].map(title => createTestSession(title).session);
+		const harness = createActionHarness(sessions, undefined);
+		const started: string[] = [];
+		const completion = new DeferredPromise<void>();
+		harness.managementService.archiveSession = async session => {
+			started.push(session.sessionId);
+			await completion.p;
+		};
+
+		const archive = harness.instantiationService.invokeFunction(accessor => new ArchiveSessionAction().run(accessor));
+		const startedBeforeCompletion = [...started];
+		await completion.complete();
+		await archive;
+
+		assert.deepStrictEqual(startedBeforeCompletion, sessions.map(session => session.sessionId));
 	});
 
 	test('plays the confetti signal optimistically when keyboard archive is requested', async () => {

@@ -25,7 +25,8 @@ import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { ActionType } from '../common/state/sessionActions.js';
 import { PREPARE_PULL_REQUEST_OPERATION_ID } from '../common/meta/agentPullRequestOperationMeta.js';
 import { persistSessionMetadataValues, SESSION_ARTIFACTS_KEY } from './shared/persistSessionMetadata.js';
-import { SessionArtifacts } from './shared/sessionArtifacts.js';
+import { getArtifactChangeOwner, SessionArtifacts } from './shared/sessionArtifacts.js';
+import { AgentHostTelemetryReporter, IAgentHostTelemetryReporter } from './agentHostTelemetryReporter.js';
 
 export class AgentHostPullRequestOperationContribution extends Disposable implements IChangesetOperationContribution {
 
@@ -42,6 +43,7 @@ export class AgentHostPullRequestOperationContribution extends Disposable implem
 		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
 		@IAgentHostSessionStateStore private readonly _sessionStateStore: IAgentHostSessionStateStore,
 		@ILogService private readonly _logService: ILogService,
+		@IAgentHostTelemetryReporter private readonly _telemetryReporter: AgentHostTelemetryReporter,
 	) {
 		super();
 		this._register(this._stateManager.onDidRemoveSession(sessionKey => this._lastAdvertisedOperations.delete(sessionKey)));
@@ -116,9 +118,11 @@ export class AgentHostPullRequestOperationContribution extends Disposable implem
 			return undefined;
 		}
 
-		// Folder session that has outgoing changes
+		// Folder session whose outgoing commits can be synced to the upstream
+		// branch. A branch without an upstream keeps the pull request operations,
+		// since creating the pull request publishes the branch.
 		const isFolderSession = state?.config?.values[SessionConfigKey.Isolation] === 'folder';
-		if (isFolderSession && gitState?.outgoingChanges && gitState.outgoingChanges > 0) {
+		if (isFolderSession && gitState?.upstreamBranchName && gitState.outgoingChanges && gitState.outgoingChanges > 0) {
 			return undefined;
 		}
 
@@ -264,7 +268,8 @@ export class AgentHostPullRequestOperationContribution extends Disposable implem
 		this._logService.info(`[AgentHostPullRequestOperationContribution] Advertised operations changed: session=${sessionKey}, primary=${primary}, operations=[${advertised}]`);
 	}
 
-	async recordCreatedPullRequest(event: PullRequestCreatedEvent): Promise<void> {
+	/** Records the pull request as an artifact of the chat Create PR was used from, and returns the artifact's ID. */
+	async recordCreatedPullRequest(event: PullRequestCreatedEvent): Promise<string> {
 		const sessionKey = event.sessionKey;
 
 		const chat = event.conversationChat ?? resolveChangesetOwnerScope(this._stateManager, event.ownerUri).sourceUri;
@@ -275,17 +280,39 @@ export class AgentHostPullRequestOperationContribution extends Disposable implem
 		});
 		// The pull request belongs to the folder it was created from.
 		const folder = resolveGitHubStateFolder(this._stateManager, event.ownerUri);
-		await artifacts.mutate(collection => collection.addOrPromoteArtifact({
-			type: SessionArtifactType.PullRequest,
-			label: event.pullRequestTitle ?? '',
+		// The chat is the origin that the artifact's automation, such as Autopilot's repairs, sends its prompts to. A promoted
+		// or already recorded entry keeps an origin it has; one recorded without an origin gets this chat.
+		const { artifact, outcome } = await artifacts.mutate(collection => {
+			const result = collection.addOrPromoteArtifact({
+				type: SessionArtifactType.PullRequest,
+				label: event.pullRequestTitle ?? '',
+				isArtifact: true,
+				link: event.pullRequestUrl,
+			}, generateUuid, { chat });
+			if (result.artifact.origin) {
+				return result;
+			}
+			const withOrigin = { ...result.artifact, origin: { chat } };
+			return { ...result, artifact: withOrigin, artifacts: result.artifacts.map(candidate => candidate.id === withOrigin.id ? withOrigin : candidate) };
+		});
+		this._telemetryReporter.artifactRecorded({
+			...getArtifactChangeOwner(this._stateManager, chat, sessionKey),
+			chat,
+			turnId: undefined,
+			toolCallId: undefined,
+			source: 'createPullRequestAction',
+			kind: artifact.type,
 			isArtifact: true,
-			link: event.pullRequestUrl,
-		}, generateUuid));
+			outcome,
+			isGitHub: artifact.isGitHub === true,
+			batchSize: 1,
+		});
 
 		const gitHubState = readFolderGitHubState(this._stateManager.getSessionState(sessionKey)?._meta, folder.folderKey);
 		await this._gitStateService.setSessionGitHubState(event.ownerUri, withMostRecentRelatedSessionPullRequest(gitHubState, event.pullRequestUrl, event.branchName));
 
 		this._registry?.onDidChangeOperations(sessionKey);
 		void this._registry?.refreshSessionGitState(event.ownerUri, event.credentialSource);
+		return artifact.id;
 	}
 }

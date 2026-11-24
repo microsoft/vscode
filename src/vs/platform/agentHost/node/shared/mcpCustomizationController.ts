@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { buildMcpServerLogsChannelTemplate, MCP_SERVER_LOGS_META_KEY, readMcpServerLogsChannelTemplate } from '../../common/otlp/mcpServerLogsChannel.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { equals } from '../../../../base/common/objects.js';
 import { derived, observableValue, transaction, type IObservable, type ITransaction } from '../../../../base/common/observable.js';
@@ -153,6 +154,23 @@ export function mergeMcpServerCustomizations(declarations: readonly Customizatio
 	return [...byId.values()];
 }
 
+/** Adds the optional diagnostic channel while preserving opaque customization metadata. */
+export function withMcpServerLogsChannels<T extends Customization>(customization: T, session: string): T {
+	if (customization.type === CustomizationType.McpServer) {
+		const template = buildMcpServerLogsChannelTemplate(session, customization.name);
+		return readMcpServerLogsChannelTemplate(customization._meta) === template
+			? customization
+			: { ...customization, _meta: { ...customization._meta, [MCP_SERVER_LOGS_META_KEY]: template } };
+	}
+	let changed = false;
+	const children = customization.children?.map(child => {
+		const updated = child.type === CustomizationType.McpServer ? withMcpServerLogsChannels(child, session) : child;
+		changed ||= updated !== child;
+		return updated;
+	});
+	return changed ? { ...customization, children } : customization;
+}
+
 /** Applies live MCP runtime fields to matching top-level or child customizations. */
 export function applyMcpServerRuntimeStates<T extends Customization>(customization: T, runtimeStates: ReadonlyMap<string, IMcpServerRuntimeState> | undefined): T {
 	if (!runtimeStates?.size) {
@@ -195,6 +213,8 @@ export { DEFAULT_MCP_APP_CAPABILITIES, DEFAULT_MCP_APP };
  */
 export interface IMcpCustomizationControllerOptions {
 	readonly provider?: string;
+	/** Opts in when the provider implements per-server diagnostic subscriptions. */
+	readonly supportsServerLogs?: boolean;
 	/** Concrete chat URI used for MCP App routing. */
 	readonly chatUri: URI;
 	/** The session that owns {@link chatUri}. */
@@ -430,12 +450,13 @@ export class McpCustomizationController extends Disposable {
 	}
 
 	private _publishSkills(runtimeStates?: ReadonlyMap<string, IMcpServerRuntimeState>): void {
-		if (this._skills.get() === undefined) {
+		if (this._skills.get() === undefined && !this._options.supportsServerLogs) {
 			return;
 		}
 		runtimeStates ??= this.runtimeStates.get();
 		for (const customization of this._stateManager.getSessionState(this._sessionUri.toString())?.customizations ?? []) {
-			const updated = applyMcpServerRuntimeStates(customization, runtimeStates);
+			const runtime = applyMcpServerRuntimeStates(customization, runtimeStates);
+			const updated = this._options.supportsServerLogs ? withMcpServerLogsChannels(runtime, this._sessionUri.toString()) : runtime;
 			if (updated !== customization) {
 				this._options.emit({ type: ActionType.SessionCustomizationUpdated, customization: updated });
 			}
@@ -837,7 +858,8 @@ export class McpCustomizationController extends Disposable {
 			...(skills !== undefined ? { children: skills } : {}),
 			...(meta ? { _meta: meta } : {}),
 		};
-		const observed = withObservedDefault(customization, defaultEnabled);
+		const observedDefault = withObservedDefault(customization, defaultEnabled);
+		const observed = this._options.supportsServerLogs ? withMcpServerLogsChannels(observedDefault, this._sessionUri.toString()) : observedDefault;
 		const enablement = this._options.resolveEnablement?.(observed, owningPluginUri) ?? discovered?.enablement ?? (incompatible ? undefined : existing?.enablement);
 		return enablement?.length ? { ...observed, enablement: [...enablement] } : observed;
 	}

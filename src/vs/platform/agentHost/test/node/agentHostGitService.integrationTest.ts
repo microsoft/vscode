@@ -15,7 +15,7 @@
 
 import assert from 'assert';
 import * as cp from 'child_process';
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, realpathSync, rmdirSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from 'fs';
 import { rm } from 'fs/promises';
 import { createServer, type Socket } from 'net';
 import { tmpdir } from 'os';
@@ -34,15 +34,18 @@ import { autorun } from '../../../../base/common/observable.js';
 import { CheckoutBlockedByLocalChangesError, EMPTY_TREE_OBJECT, GitRefType } from '../../common/agentHostGitService.js';
 import type { ISessionGitState } from '../../common/state/sessionState.js';
 import { AgentHostGitService } from '../../node/agentHostGitService.js';
+import { gitServiceArguments } from './agentHostGitServiceTestUtils.js';
 import { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { GitRepositoryRootsContribution } from '../../node/chatContributions/gitRepositoryRoots/gitRepositoryRootsContribution.js';
 import type { IAgentHostChatContributionContext, ITurnEnd } from '../../common/agentHostChatContributionsService.js';
 
 class TestLogService extends NullLogService {
 	readonly warnings: string[] = [];
+	readonly commands: string[] = [];
 	repositoryRootLookups = 0;
 
 	override trace(message: string): void {
+		this.commands.push(message);
 		if (message === '[agentHostGitService] > git rev-parse --show-toplevel') {
 			this.repositoryRootLookups++;
 		}
@@ -57,7 +60,7 @@ function createGitService(disposables: Pick<DisposableStore, 'add'>, logService:
 	const fileService = disposables.add(new FileService(logService));
 	disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new DiskFileSystemProvider(logService))));
 	const env: Partial<INativeEnvironmentService> = { tmpDir: URI.file(tmpdir()) };
-	return new ctor(fileService, env as INativeEnvironmentService, logService);
+	return disposables.add(new ctor(...gitServiceArguments(disposables, fileService, env as INativeEnvironmentService, logService)));
 }
 
 /** Times git commands out after 300ms by default, so that tests can observe the default timeout quickly. */
@@ -288,7 +291,7 @@ suite('AgentHostGitService - getRepositoryRoot (real git)', () => {
 
 		assert.deepStrictEqual({ roots: roots.map(root => root?.fsPath), lookups: logService.repositoryRootLookups, resolveFailures: logService.warnings.filter(warning => warning.includes('Failed to resolve repository root')) }, {
 			roots: [expectedRoot, undefined, undefined, undefined],
-			lookups: 3,
+			lookups: 2,
 			resolveFailures: [],
 		});
 	});
@@ -425,7 +428,7 @@ suite('AgentHostGitService - getRepositoryRoot (real git)', () => {
 		assert.deepStrictEqual(values, [undefined, true]);
 	}).timeout(30_000);
 
-	(hasGit ? test : test.skip)('orders refresh after an in-flight lookup and before subsequent readers', async () => {
+	(hasGit ? test : test.skip)('shares a negative result with forced refreshes requested during an in-flight lookup', async () => {
 		const directory = URI.file(tmpRoot);
 		const first = service.getRepositoryRoot(directory);
 		const refreshed = service.getRepositoryRoot(directory, { refreshIfNone: true });
@@ -434,7 +437,7 @@ suite('AgentHostGitService - getRepositoryRoot (real git)', () => {
 
 		assert.deepStrictEqual({ roots, lookups: logService.repositoryRootLookups }, {
 			roots: [undefined, undefined, undefined],
-			lookups: 2,
+			lookups: 1,
 		});
 	});
 
@@ -590,11 +593,46 @@ suite('AgentHostGitService - getSessionGitState (real git)', () => {
 		});
 	});
 
+	(hasGit ? test : test.skip)('name-only HEAD reads skip branch details and preserve detached commit names', async () => {
+		const dir = initRepo();
+		const directory = URI.file(dir);
+		const attached = await svc!.getHEAD(directory, { nameOnly: true });
+		const commit = cp.execFileSync('git', ['rev-parse', 'HEAD'], { cwd: dir, encoding: 'utf8' }).trim();
+		cp.execFileSync('git', ['checkout', '--detach', '-q'], { cwd: dir, stdio: 'pipe' });
+
+		assert.deepStrictEqual({ attached, detached: await svc!.getHEAD(directory, { nameOnly: true }), commands: logService.commands }, {
+			attached: { ref: 'refs/heads/main', name: 'main', kind: GitRefType.Head },
+			detached: { name: commit, kind: GitRefType.DetachedHead },
+			commands: ['symbolic-ref HEAD', 'symbolic-ref HEAD', 'rev-parse HEAD'].map(command => `[agentHostGitService] > git ${command}`),
+		});
+	});
+
+	(hasGit ? test : test.skip)('name-only HEAD reads do not treat non-branch symbolic refs as branches', async () => {
+		const dir = initRepo();
+		cp.execFileSync('git', ['tag', 'sample'], { cwd: dir, stdio: 'pipe' });
+		cp.execFileSync('git', ['symbolic-ref', 'HEAD', 'refs/tags/sample'], { cwd: dir, stdio: 'pipe' });
+		const directory = URI.file(dir);
+
+		assert.deepStrictEqual({
+			full: await svc!.getHEAD(directory),
+			nameOnly: await svc!.getHEAD(directory, { nameOnly: true }),
+		}, { full: undefined, nameOnly: undefined });
+	});
+
 	(hasGit ? test : test.skip)('getHEAD returns undefined for an unborn HEAD', async () => {
 		tmpRoot = mkdtempSync(join(tmpdir(), 'agent-host-unborn-'));
 		cp.execFileSync('git', ['init', '-q', '-b', 'main'], { cwd: tmpRoot, stdio: 'pipe' });
 
-		assert.strictEqual(await svc!.getHEAD(URI.file(tmpRoot)), undefined);
+		const directory = URI.file(tmpRoot);
+		assert.deepStrictEqual({
+			full: await svc!.getHEAD(directory),
+			nameOnly: await svc!.getHEAD(directory, { nameOnly: true }),
+			commands: logService.commands,
+		}, {
+			full: undefined,
+			nameOnly: { ref: 'refs/heads/main', name: 'main', kind: GitRefType.Head },
+			commands: ['symbolic-ref HEAD', 'for-each-ref --format=%(refname)%00%(upstream) refs/heads/main', 'symbolic-ref HEAD'].map(command => `[agentHostGitService] > git ${command}`),
+		});
 	});
 
 	(hasGit ? test : test.skip)('getCurrentBranchName throws on failed strict lookup without changing best-effort callers', async () => {
@@ -701,6 +739,20 @@ suite('AgentHostGitService - getSessionGitState (real git)', () => {
 				upstream: undefined,
 				kind: GitRefType.Head,
 			},
+		});
+	});
+
+	(hasGit ? test : test.skip)('resolves the default branch from a non-origin remote when origin is absent', async () => {
+		const dir = initRepo();
+		cp.execFileSync('git', ['remote', 'add', 'upstream', 'https://github.com/microsoft/vscode.git'], { cwd: dir, stdio: 'pipe' });
+		cp.execFileSync('git', ['update-ref', 'refs/remotes/upstream/main', 'refs/heads/main'], { cwd: dir, stdio: 'pipe' });
+		cp.execFileSync('git', ['symbolic-ref', 'refs/remotes/upstream/HEAD', 'refs/remotes/upstream/main'], { cwd: dir, stdio: 'pipe' });
+
+		assert.deepStrictEqual(await svc!.getDefaultBranch2(URI.file(dir)), {
+			ref: 'refs/heads/main',
+			name: 'main',
+			upstream: undefined,
+			kind: GitRefType.Head,
 		});
 	});
 
@@ -1520,6 +1572,63 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 		});
 	});
 
+	(hasGit ? test : test.skip)('commit with all stages tracked, staged and untracked changes', async () => {
+		const dir = initRepo();
+		const fs = await import('fs/promises');
+		await fs.writeFile(join(dir, 'tracked.txt'), 'before');
+		cp.execFileSync('git', ['add', 'tracked.txt'], { cwd: dir, env, stdio: 'pipe' });
+		cp.execFileSync('git', ['commit', '-q', '-m', 'add tracked'], { cwd: dir, env, stdio: 'pipe' });
+
+		await fs.writeFile(join(dir, 'tracked.txt'), 'after');
+		await fs.writeFile(join(dir, 'staged.txt'), 'staged');
+		cp.execFileSync('git', ['add', 'staged.txt'], { cwd: dir, env, stdio: 'pipe' });
+		await fs.writeFile(join(dir, 'untracked.txt'), 'untracked');
+
+		await svc!.commit(URI.file(dir), 'commit all changes', { all: true });
+
+		const status = cp.execFileSync('git', ['status', '--porcelain'], { cwd: dir, env, encoding: 'utf8' }).trim();
+		const lastMessage = cp.execFileSync('git', ['log', '-1', '--format=%s'], { cwd: dir, env, encoding: 'utf8' }).trim();
+		const committedFiles = cp.execFileSync('git', ['diff-tree', '--no-commit-id', '--name-only', '-r', 'HEAD'], { cwd: dir, env, encoding: 'utf8' }).trim().split(/\r?\n/g).sort();
+
+		assert.deepStrictEqual({ status, lastMessage, committedFiles }, {
+			status: '',
+			lastMessage: 'commit all changes',
+			committedFiles: ['staged.txt', 'tracked.txt', 'untracked.txt'],
+		});
+	});
+
+	(hasGit ? test : test.skip)('commit with all: tracked leaves untracked files out of the commit', async () => {
+		const dir = initRepo();
+		const fs = await import('fs/promises');
+		await fs.writeFile(join(dir, 'tracked.txt'), 'before');
+		cp.execFileSync('git', ['add', 'tracked.txt'], { cwd: dir, env, stdio: 'pipe' });
+		cp.execFileSync('git', ['commit', '-q', '-m', 'add tracked'], { cwd: dir, env, stdio: 'pipe' });
+
+		await fs.writeFile(join(dir, 'tracked.txt'), 'after');
+		await fs.writeFile(join(dir, 'untracked.txt'), 'untracked');
+
+		await svc!.commit(URI.file(dir), 'commit tracked changes', { all: 'tracked' });
+
+		const status = cp.execFileSync('git', ['status', '--porcelain'], { cwd: dir, env, encoding: 'utf8' }).trim();
+		const committedFiles = cp.execFileSync('git', ['diff-tree', '--no-commit-id', '--name-only', '-r', 'HEAD'], { cwd: dir, env, encoding: 'utf8' }).trim().split(/\r?\n/g);
+
+		assert.deepStrictEqual({ status, committedFiles }, { status: '?? untracked.txt', committedFiles: ['tracked.txt'] });
+	});
+
+	(hasGit ? test : test.skip)('commit with signCommit false does not sign even when commit.gpgSign is enabled', async () => {
+		const dir = initRepo();
+		const fs = await import('fs/promises');
+		cp.execFileSync('git', ['config', 'commit.gpgSign', 'true'], { cwd: dir, env, stdio: 'pipe' });
+		// Any signing attempt fails, as when a background passphrase prompt is dismissed.
+		cp.execFileSync('git', ['config', 'gpg.program', join(dir, 'missing-gpg')], { cwd: dir, env, stdio: 'pipe' });
+		await fs.writeFile(join(dir, 'work.txt'), 'work');
+
+		await svc!.commit(URI.file(dir), 'preserve work', { all: true, signCommit: false });
+
+		const [lastMessage, signatureStatus] = cp.execFileSync('git', ['log', '-1', '--format=%s%n%G?'], { cwd: dir, env, encoding: 'utf8' }).trim().split(/\r?\n/g);
+		assert.deepStrictEqual({ lastMessage, signatureStatus }, { lastMessage: 'preserve work', signatureStatus: 'N' });
+	});
+
 	(hasGit ? test : test.skip)('createStash stashes tracked, staged and untracked changes', async () => {
 		const dir = initRepo();
 		const fs = await import('fs/promises');
@@ -1726,6 +1835,18 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 		}
 	});
 
+	(hasGit ? test : test.skip)('push sets the upstream on the only remote when it is not origin', async () => {
+		const dir = initRepo();
+		const remotePath = join(dir, 'remote.git');
+		cp.execFileSync('git', ['init', '--bare', '-q', remotePath], { cwd: dir, env, stdio: 'pipe' });
+		cp.execFileSync('git', ['remote', 'add', 'upstream', remotePath], { cwd: dir, env, stdio: 'pipe' });
+		cp.execFileSync('git', ['checkout', '-q', '-b', 'agents/session'], { cwd: dir, env, stdio: 'pipe' });
+
+		await svc!.push(URI.file(dir), { ref: 'agents/session', setUpstream: true });
+
+		assert.strictEqual(cp.execFileSync('git', ['rev-parse', '--abbrev-ref', 'agents/session@{upstream}'], { cwd: dir, env, encoding: 'utf8' }).trim(), 'upstream/agents/session');
+	});
+
 	(hasGit ? test : test.skip)('addWorktree tracks an explicitly selected remote when creating its local branch', async () => {
 		const dir = initRepo();
 		const remotePath = join(dir, 'remote.git');
@@ -1921,6 +2042,81 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 		}
 	});
 
+	(hasGit ? test : test.skip)('removeWorktree forgets the cached repository roots of the removed worktree', async () => {
+		const dir = initRepo();
+		const wtPath = join(dir, '..', `wt-root-cache-${Date.now()}`);
+		const worktree = URI.file(wtPath);
+		try {
+			await svc!.addWorktree(URI.file(dir), {
+				path: worktree,
+				commitish: 'main',
+				newBranchName: 'agents/root-cache-worktree',
+				track: false,
+			});
+			mkdirSync(join(wtPath, 'nested'));
+			// Git reports the canonical path, which differs from `wtPath` where the temp directory is a symlink (macOS).
+			const canonicalRoot = URI.file(cp.execFileSync('git', ['rev-parse', '--show-toplevel'], { cwd: wtPath, env, encoding: 'utf8' }).trim());
+			const directories = [worktree, URI.file(join(wtPath, 'nested')), canonicalRoot];
+			const before = await Promise.all(directories.map(directory => svc!.getRepositoryRoot(directory)));
+
+			await svc!.removeWorktree(URI.file(dir), worktree);
+
+			const after = await Promise.all(directories.map(directory => svc!.getRepositoryRoot(directory)));
+			assert.deepStrictEqual({
+				before: before.map(root => root?.fsPath),
+				after,
+				hasGitRoot: svc!.hasGitRoot(worktree).get(),
+			}, {
+				before: [canonicalRoot.fsPath, canonicalRoot.fsPath, canonicalRoot.fsPath],
+				after: [undefined, undefined, undefined],
+				hasGitRoot: undefined,
+			});
+		} finally {
+			try { await svc!.removeWorktree(URI.file(dir), worktree, { force: true }); } catch { /* best-effort cleanup */ }
+			await rmDirWithRetry(wtPath);
+			try { cp.execFileSync('git', ['branch', '-D', 'agents/root-cache-worktree'], { cwd: dir, env, stdio: 'ignore' }); } catch { /* best-effort cleanup */ }
+		}
+	});
+
+	(hasGit ? test : test.skip)('removeWorktree forgets the canonical root when only a descendant was looked up through a symlinked parent', async () => {
+		const dir = initRepo();
+		const parent = realpathSync(mkdtempSync(join(tmpdir(), 'agent-host-git-wt-parent-')));
+		const linkedParent = `${parent}-link`;
+		const worktree = URI.file(join(linkedParent, 'wt'));
+		try {
+			// A junction on Windows, which needs no symlink privilege; the type is ignored elsewhere.
+			symlinkSync(parent, linkedParent, 'junction');
+			await svc!.addWorktree(URI.file(dir), {
+				path: worktree,
+				commitish: 'main',
+				newBranchName: 'agents/symlinked-parent-worktree',
+				track: false,
+			});
+			mkdirSync(join(parent, 'wt', 'nested'));
+			const nested = URI.file(join(linkedParent, 'wt', 'nested'));
+			const canonicalRoot = URI.file(cp.execFileSync('git', ['rev-parse', '--show-toplevel'], { cwd: join(parent, 'wt'), env, encoding: 'utf8' }).trim());
+			const before = await svc!.getRepositoryRoot(nested);
+
+			await svc!.removeWorktree(URI.file(dir), worktree);
+
+			assert.deepStrictEqual({
+				before: before?.fsPath,
+				after: [await svc!.getRepositoryRoot(nested), await svc!.getRepositoryRoot(canonicalRoot)],
+				hasGitRoot: svc!.hasGitRoot(canonicalRoot).get(),
+			}, {
+				before: canonicalRoot.fsPath,
+				after: [undefined, undefined],
+				hasGitRoot: undefined,
+			});
+		} finally {
+			try { await svc!.removeWorktree(URI.file(dir), worktree, { force: true }); } catch { /* best-effort cleanup */ }
+			// `rmSync` treats a Windows junction as a directory; `rmdirSync` removes the junction without following it.
+			try { (isWindows ? rmdirSync : unlinkSync)(linkedParent); } catch { /* best-effort cleanup */ }
+			await rmDirWithRetry(parent);
+			try { cp.execFileSync('git', ['branch', '-D', 'agents/symlinked-parent-worktree'], { cwd: dir, env, stdio: 'ignore' }); } catch { /* best-effort cleanup */ }
+		}
+	});
+
 	(hasGit ? test : test.skip)('removeWorktree prunes a lingering admin entry when the working tree is already gone', async () => {
 		const dir = initRepo();
 		const suffix = `wt-prune-${Date.now()}`;
@@ -2003,8 +2199,44 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 			exists: existsSync(wtPath),
 			refs: refs.length,
 			preserved: cp.execFileSync('git', ['show', `${refs[0]}:untracked.txt`], { cwd: dir, env, encoding: 'utf8' }),
+			author: cp.execFileSync('git', ['log', '-1', '--format=%ae', refs[0]], { cwd: dir, env, encoding: 'utf8' }).trim(),
 			branchHead: cp.execFileSync('git', ['rev-parse', 'agents/preserve'], { cwd: dir, env, encoding: 'utf8' }).trim(),
-		}, { exists: false, refs: 1, preserved: 'recover this work', branchHead: head });
+		}, { exists: false, refs: 1, preserved: 'recover this work', author: cp.execFileSync('git', ['config', 'user.email'], { cwd: dir, encoding: 'utf8' }).trim(), branchHead: head });
+	});
+
+	(hasGit ? test : test.skip)('forced removal preserves dirty work when the repository has no Git identity', async () => {
+		const dir = initRepo();
+		const wtPath = join(dir, 'checkout');
+		await svc!.addWorktree(URI.file(dir), { path: URI.file(wtPath), commitish: 'main', newBranchName: 'agents/no-identity', track: false });
+		writeFileSync(join(wtPath, 'untracked.txt'), 'recover this work');
+		cp.execFileSync('git', ['config', '--unset', 'user.email'], { cwd: dir, env, stdio: 'pipe' });
+		cp.execFileSync('git', ['config', 'user.useConfigOnly', 'true'], { cwd: dir, env, stdio: 'pipe' });
+		const emptyGlobalConfig = join(dir, '.git', 'empty-global.gitconfig');
+		writeFileSync(emptyGlobalConfig, '');
+		// Hide every identity source: global/system config, config injected through the environment, and identity variables.
+		const overrides: Record<string, string | undefined> = { GIT_CONFIG_GLOBAL: emptyGlobalConfig, GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_COUNT: '0', GIT_CONFIG_PARAMETERS: undefined, GIT_AUTHOR_NAME: undefined, GIT_AUTHOR_EMAIL: undefined, GIT_COMMITTER_NAME: undefined, GIT_COMMITTER_EMAIL: undefined, EMAIL: undefined };
+		const saved = Object.fromEntries(Object.keys(overrides).map(key => [key, process.env[key]]));
+		const apply = (values: Record<string, string | undefined>) => {
+			for (const [key, value] of Object.entries(values)) {
+				if (value === undefined) {
+					delete process.env[key];
+				} else {
+					process.env[key] = value;
+				}
+			}
+		};
+		apply(overrides);
+		try {
+			await svc!.removeWorktree(URI.file(dir), URI.file(wtPath), { force: true });
+			const refs = cp.execFileSync('git', ['for-each-ref', '--format=%(refname)', 'refs/vscode-preserved-worktrees/'], { cwd: dir, env, encoding: 'utf8' }).trim().split('\n');
+			assert.deepStrictEqual({
+				exists: existsSync(wtPath),
+				preserved: cp.execFileSync('git', ['show', `${refs[0]}:untracked.txt`], { cwd: dir, env, encoding: 'utf8' }),
+				author: cp.execFileSync('git', ['log', '-1', '--format=%ae', refs[0]], { cwd: dir, env, encoding: 'utf8' }).trim(),
+			}, { exists: false, preserved: 'recover this work', author: 'vscode@localhost' });
+		} finally {
+			apply(saved);
+		}
 	});
 
 	(hasGit ? test : test.skip)('explicit discard removes dirty work without a recovery ref and retains committed history', async () => {

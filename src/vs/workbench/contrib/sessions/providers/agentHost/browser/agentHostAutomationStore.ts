@@ -25,7 +25,7 @@ import { isCustomizationEnabled } from '../../../../../../platform/agentHost/com
 import { omitAutomationSessionTemplateConfigValues, pickAutomationDefinitionOwnedConfigValues, SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { type IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
-import { AutomationDisableConditionKind, AutomationMisfirePolicy, AutomationOperation, AutomationRunOriginKind, AutomationRunStatus, AutomationTriggerKind, MessageAttachmentKind, MessageKind, type Message, type AutomationDefinition, type AutomationEntry, type AutomationRunSummary, type AutomationState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { AutomationDisableConditionKind, AutomationMisfirePolicy, AutomationOperation, AutomationRunOriginKind, AutomationRunStatus, AutomationTargetKind, AutomationTriggerKind, MessageAttachmentKind, MessageKind, type Message, type AutomationDefinition, type AutomationEntry, type AutomationRunSummary, type AutomationState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { AUTOMATION_CATALOG_URI, isAhpAutomationCatalogChannel, StateComponents, type ClientPluginCustomization } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
@@ -224,6 +224,10 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 			&& this._findAutomationEntry(automationId) !== undefined;
 	}
 
+	supportsContinueSession(providerId: string): boolean {
+		return providerId === this._providerId && !!this._connection.initializeResult.get()?.automations?.targets?.previousSession;
+	}
+
 	runsFor(automationId: string): IObservable<readonly IAutomationRun[]> {
 		let result = this._runsForCache.get(automationId);
 		if (!result) {
@@ -258,6 +262,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 			permissionLevel: options.permissionLevel,
 			enabled: options.enabled ?? true,
 			...(options.disableConditions !== undefined ? { disableConditions: options.disableConditions } : {}),
+			...(options.continueSession ? { continueSession: true } : {}),
 			createdAt: now.toISOString(),
 			updatedAt: now.toISOString(),
 		};
@@ -618,6 +623,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 			sessionTemplate: hostConversation ? undefined : projectAutomationSessionTemplate(state.definition, modelId),
 			enabled: state.definition.enabled,
 			...(disableConditions !== undefined ? { disableConditions } : {}),
+			...(state.definition.target?.kind === AutomationTargetKind.PreviousSession ? { continueSession: true } : {}),
 			createdAt: state.createdAt,
 			updatedAt: state.modifiedAt,
 			lastRunAt: newestRun?.lifecycle.createdAt,
@@ -654,6 +660,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 		return {
 			id: this._resourceId(run.resource),
 			automationId: this._resourceId(run.automation),
+			...(getAgentHostScheduledChat(run) ? { purpose: 'scheduledChat' as const } : {}),
 			status: lifecycle.status === AutomationRunStatus.Cancelled ? 'failed' : lifecycle.status,
 			trigger: run.origin.kind === AutomationRunOriginKind.Manual
 				? 'manual'
@@ -763,6 +770,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 						...(enabledChanged ? { enabled: definition.enabled } : {}),
 						...(conditionsChanged ? { disableConditions: definition.disableConditions ?? [] } : {}),
 						triggers: definition.triggers,
+						...(definition.target ? { target: definition.target } : {}),
 						_meta: definition._meta,
 					},
 				},
@@ -933,6 +941,9 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 			}
 		}
 		meta = withAgentHostScheduledChat(meta, descriptor.purpose === 'scheduledChat' ? { ...(conversation ? { conversation } : {}) } : undefined);
+		// Turning Same Chat off must replace the host's target, as an omitted one keeps it; other targets stay.
+		const target = descriptor.continueSession ? { kind: AutomationTargetKind.PreviousSession } as const
+			: existing?.target?.kind === AutomationTargetKind.PreviousSession ? { kind: AutomationTargetKind.NewSession } as const : existing?.target;
 		return {
 			title: descriptor.name,
 			message: { ...message, origin: { kind: MessageKind.Automation } },
@@ -954,6 +965,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 			triggers: existing && scheduleUnchanged
 				? existing.triggers
 				: scheduleTrigger(descriptor.schedule),
+			...(target ? { target } : {}),
 			// An empty object clears the persisted preference over JSON; undefined would be omitted.
 			_meta: Object.keys(meta).length > 0 || existing?._meta !== undefined ? meta : undefined,
 		};
@@ -1041,6 +1053,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 			permissionLevel,
 			enabled,
 			disableConditions: patch.disableConditions !== undefined ? patch.disableConditions : current.disableConditions,
+			...(patch.continueSession !== undefined ? { continueSession: patch.continueSession } : {}),
 			updatedAt: now.toISOString(),
 		};
 	}

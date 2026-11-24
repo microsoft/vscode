@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { GitHubTelemetryNotification } from '@github/copilot-sdk';
+import type { GitHubTelemetryNotification } from '@microsoft/copilot-sdk';
 import { ITelemetryData, ITelemetryService } from '../../../telemetry/common/telemetry.js';
-import type { IAgentTelemetryContext } from '../../common/agent.js';
+import type { IAgentTelemetryContext, IAgentTurnInteraction } from '../../common/agent.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { toCopilotTelemetryData } from '../shared/copilotSkuTelemetry.js';
 import type { CompactionTurnCorrelationOutcome, IForwardedCompactionCorrelation } from './compactionTurnCorrelation.js';
@@ -16,6 +16,8 @@ export interface ICopilotModelCallCorrelationTelemetry {
 	readonly ahCorrelationWaitMs?: number;
 	readonly ahActiveRootTurnIdAtResponse?: string;
 	readonly ahSessionDisposedDuringWait?: boolean;
+	readonly originalTurnId?: string;
+	readonly steeredFromTurn?: string;
 }
 
 type ModelCallTurnCorrelatedEvent = {
@@ -23,9 +25,13 @@ type ModelCallTurnCorrelatedEvent = {
 	modelCallId: string;
 	turnId: string;
 	mappingStatus: Exclude<ModelCallTurnCorrelationRecordStatus, 'duplicate'>;
+	originalTurnId?: string;
+	steeredFromTurn?: string;
 };
 
 type ModelCallTurnCorrelatedClassification = {
+	originalTurnId?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Known original execution in the steering chain; absent when unresolved.' };
+	steeredFromTurn?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Host steering predecessor when observed.' };
 	owner: 'amunger';
 	comment: 'Records exact model-call ownership independently of response telemetry arrival. Deduplicated by SDK session and call ID; the first owner is retained and a later conflicting owner is emitted with mappingStatus conflict so consumers can exclude it, not dropped here.';
 	sdkSessionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'SDK session ID matching sdk_session_id on forwarded response events.' };
@@ -65,6 +71,8 @@ type ModelCallTurnCorrelatedClassification = {
 
 /* __GDPR__FRAGMENT__
 	"CopilotModelCallCorrelation": {
+		"originalTurnId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Known original execution in the steering chain, attached to exactly correlated responses." },
+		"steeredFromTurn": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Observed host steering predecessor. Runtime continuity is reported by turnSteered.attributionStatus." },
 		"ahCorrelationOutcome": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Host correlation decision: mappingAvailable, mappingWaited, waitExpired, responseAlreadyForwarded, sessionNotFound, activeTurnFallback, or noActiveTurn. A conversation-compaction response is correlated through its compaction attempt instead and may also report noOwningTurn (the compaction ran between turns) or missingAttemptId. A wait expiry does not establish that a completion was produced." },
 		"ahCorrelationWaitMs": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Actual elapsed correlation wait in milliseconds; absent when no wait occurred." },
 		"ahActiveRootTurnIdAtResponse": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Active root turn identifier captured at response callback entry before any wait, only when no authoritative turnId was resolved. A contextual root candidate, not an attribution repair; it may not own this model call." },
@@ -367,6 +375,9 @@ type ModelCallTurnCorrelatedClassification = {
 		"arguments": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Telemetry-safe tool arguments; unsafe values are hashed by the runtime." },
 		"result_type": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Coarse tool result outcome, either SUCCESS or FAILURE." },
 		"invoke_outcome": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Fine-grained invocation outcome: success, error, cancelled, or disabledByUser." },
+		"failure_reason": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Bounded reason a call failed before the tool ran: not_found (the session does not offer the tool), retained_unavailable, retained_redefined, or unknown_agent." },
+		"tool_in_catalog": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the session's tool catalog declared the called tool, encoded as a string boolean." },
+		"tool_name_hashed": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether tool_name is a hash rather than the plain name, encoded as a string boolean." },
 		"search_engine": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Search implementation used by the grep tool, either ripgrep or tgrep." },
 		"model": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Model that requested the tool call." },
 		"tool_call_id": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Identifier for this tool call, stable across correlated events." },
@@ -808,9 +819,11 @@ export class CopilotGitHubTelemetryForwarder {
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) { }
 
-	recordModelCallTurnCorrelation(sdkSessionId: string, modelCallId: string, turnId: string, mappingStatus: Exclude<ModelCallTurnCorrelationRecordStatus, 'duplicate'>): void {
+	recordModelCallTurnCorrelation(sdkSessionId: string, modelCallId: string, turnId: string, mappingStatus: Exclude<ModelCallTurnCorrelationRecordStatus, 'duplicate'>, lineage?: IAgentTurnInteraction): void {
 		this._telemetryService.publicLog2<ModelCallTurnCorrelatedEvent, ModelCallTurnCorrelatedClassification>('agentHost.modelCallTurnCorrelated', {
 			sdkSessionId, modelCallId, turnId, mappingStatus,
+			...(lineage?.originalTurnId ? { originalTurnId: lineage.originalTurnId } : {}),
+			...(lineage?.steeredFromTurn ? { steeredFromTurn: lineage.steeredFromTurn } : {}),
 		});
 	}
 
@@ -824,6 +837,12 @@ export class CopilotGitHubTelemetryForwarder {
 		if (event.kind === 'response.success' || event.kind === 'response.error') {
 			if (correlation) {
 				data.ahCorrelationOutcome = correlation.ahCorrelationOutcome;
+				if (correlation.originalTurnId !== undefined) {
+					data.originalTurnId = correlation.originalTurnId;
+				}
+				if (correlation.steeredFromTurn !== undefined) {
+					data.steeredFromTurn = correlation.steeredFromTurn;
+				}
 				if (correlation.ahCorrelationWaitMs !== undefined) {
 					data.ahCorrelationWaitMs = correlation.ahCorrelationWaitMs;
 				}
@@ -896,6 +915,8 @@ export class CopilotGitHubTelemetryForwarder {
 			initiatorClientType: clientType,
 		};
 		delete data.secondary_assignment_context;
+		delete data.originalTurnId;
+		delete data.steeredFromTurn;
 		delete data.ahCorrelationOutcome;
 		delete data.ahCorrelationWaitMs;
 		delete data.ahActiveRootTurnIdAtResponse;

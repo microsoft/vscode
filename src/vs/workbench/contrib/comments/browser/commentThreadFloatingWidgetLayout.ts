@@ -16,6 +16,9 @@ const MIN_COMMENTS_HEIGHT = 40;
 const DEFAULT_MIN_WIDTH = 320;
 const DEFAULT_MAX_WIDTH = 560;
 const DEFAULT_WIDTH_RATIO = 0.4;
+/** A new comment starts out wider than other widgets, when the editor has room for it, to invite writing a long comment. */
+const NEW_COMMENT_MAX_WIDTH = 640;
+const NEW_COMMENT_WIDTH_RATIO = 0.5;
 /**
  * How many of the lines next to a widget placed right after them may leave it no room after them, and so run under it,
  * so that a couple of long lines don't keep it from its code.
@@ -25,6 +28,11 @@ const COVERABLE_LINES = 2;
 const MAX_WIDTH_BESIDE_LINES = 640;
 /** Portion of the editor height that a widget sizing itself to its content may take up. */
 const AUTO_HEIGHT_RATIO = 0.6;
+/**
+ * How many columns of code a floating widget leaves in view beside it, at least, which shows the start of most lines.
+ * In an editor that is too narrow for that, the widgets are docked below their code instead.
+ */
+const MIN_COLUMNS_BESIDE_WIDGET = 20;
 
 export interface IRect {
 	readonly top: number;
@@ -60,8 +68,13 @@ export interface ICommentThreadFloatingWidgetLayout {
 	/** Distance from the left edge of the editor to the left edge of the widget. */
 	readonly left: number;
 	readonly width: number;
-	/** The height chosen by the user, or `undefined` when the widget sizes itself to its content. */
+	/** The height chosen by the user while the widget floats, or `undefined` when it sizes itself to its content. */
 	readonly height: number | undefined;
+	/**
+	 * The height chosen by the user while the widget is docked below its code, or `undefined` when it sizes itself to its
+	 * content there. It's kept apart from the floating placement and size, which don't apply while the widget is docked.
+	 */
+	readonly dockedHeight?: number;
 	/**
 	 * Whether the user moved or resized the widget. Other widgets are placed around such a widget, rather than moving
 	 * it to keep the widgets in the order of their code.
@@ -173,10 +186,53 @@ export function getCenteredTop(codeTop: number, codeBottom: number, height: numb
 }
 
 /**
- * The width a widget starts out with in an editor whose code area has the given width.
+ * The width a widget starts out with in an editor whose code area has the given width. A new comment starts out wider,
+ * when the editor has room for it, so that it invites writing a long comment.
  */
-export function getDefaultFloatingWidgetWidth(editorContentWidth: number, availableWidth: number): number {
-	return Math.min(clamp(Math.round(editorContentWidth * DEFAULT_WIDTH_RATIO), DEFAULT_MIN_WIDTH, DEFAULT_MAX_WIDTH), availableWidth);
+export function getDefaultFloatingWidgetWidth(editorContentWidth: number, availableWidth: number, isNewComment: boolean): number {
+	const ratio = isNewComment ? NEW_COMMENT_WIDTH_RATIO : DEFAULT_WIDTH_RATIO;
+	const maxWidth = isNewComment ? NEW_COMMENT_MAX_WIDTH : DEFAULT_MAX_WIDTH;
+	return Math.min(clamp(Math.round(editorContentWidth * ratio), DEFAULT_MIN_WIDTH, maxWidth), availableWidth);
+}
+
+/**
+ * Whether the widgets of an editor are docked below their code, in space that the editor makes for them between its
+ * lines, rather than floating over the code. That's when the area that shows the code is too narrow for a widget at the
+ * narrowest width that widgets start out with to leave enough columns of code in view beside it, such as in a narrow
+ * diff editor, where a floating widget covers much of the code wherever it's placed.
+ * @param codeAreaWidth The width of the area that shows the code.
+ * @param characterWidth The width of a character of the code.
+ */
+export function shouldDockFloatingWidgets(codeAreaWidth: number, characterWidth: number): boolean {
+	return codeAreaWidth < MIN_COLUMNS_BESIDE_WIDGET * characterWidth + CODE_GAP + DEFAULT_MIN_WIDTH + EDGE_MARGIN;
+}
+
+/**
+ * A view zone of an editor, which takes up vertical space after a line.
+ */
+export interface IViewZoneSpace {
+	readonly id: string;
+	readonly afterLineNumber: number;
+	readonly height: number;
+}
+
+/**
+ * Where a view zone starts: the zones after a line are stacked below its end, in their order.
+ * @param zones The view zones of the editor, in their order.
+ * @returns The line that the zone is after, and the distance from the end of that line to the top of the zone, or
+ * `undefined` when there is no such zone.
+ */
+export function getViewZoneOffset(zones: readonly IViewZoneSpace[], id: string): { afterLineNumber: number; offset: number } | undefined {
+	const index = zones.findIndex(zone => zone.id === id);
+	if (index === -1) {
+		return undefined;
+	}
+	const { afterLineNumber } = zones[index];
+	let offset = 0;
+	for (let i = index - 1; i >= 0 && zones[i].afterLineNumber === afterLineNumber; i--) {
+		offset += zones[i].height;
+	}
+	return { afterLineNumber, offset };
 }
 
 /**
@@ -261,7 +317,10 @@ export function getRevealScrollTop(code: { top: number; bottom: number }, widget
 	return Math.max(0, clamp(code.top - EDGE_MARGIN, widget.bottom + EDGE_MARGIN - viewportHeight, widget.top - EDGE_MARGIN));
 }
 
-function rectsIntersect(a: IRect, b: IRect): boolean {
+/**
+ * Whether two areas overlap.
+ */
+export function rectsIntersect(a: IRect, b: IRect): boolean {
 	return a.left < b.left + b.width && b.left < a.left + a.width && a.top < b.top + b.height && b.top < a.top + a.height;
 }
 
@@ -490,11 +549,12 @@ export class FloatingWidgetSizeModel {
 
 	/**
 	 * The width that the widget is shown at: the preferred width, but, unless a reply or comment is being written, no
-	 * wider than its content can fill. The user can still make the widget wider.
+	 * wider than its content can fill. A short comment is still shown at a comfortable width, rather than squeezed down
+	 * to its content. The user can still make the widget wider.
 	 */
 	getDefaultWidth(content: IFloatingWidgetContentWidths, preferredWidth: number, isEditing: boolean): number {
 		const range = this.getWidthRange(content);
-		return clamp(isEditing ? preferredWidth : Math.min(preferredWidth, content.natural), range.min, range.max);
+		return clamp(isEditing ? preferredWidth : Math.min(preferredWidth, Math.max(content.natural, DEFAULT_MIN_WIDTH)), range.min, range.max);
 	}
 
 	/**

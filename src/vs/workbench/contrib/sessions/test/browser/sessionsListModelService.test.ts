@@ -267,6 +267,18 @@ suite('SessionsListModelService', () => {
 		});
 	}));
 
+	test('a malformed stored Inbox entry does not discard the other triage decisions', () => {
+		storageService.store('sessionsListControl.inboxState', JSON.stringify([
+			['held', { kind: 'hold' }],
+			['broken', { kind: 'unknown' }],
+			['alsoBroken'],
+			['snoozed', { kind: 'snoozed', until: Date.now() + 60_000 }],
+		]), StorageScope.PROFILE, StorageTarget.USER);
+		service.dispose();
+		service = disposables.add(instantiationService.createInstance(SessionsListModelService));
+		assert.deepStrictEqual(['held', 'broken', 'snoozed'].map(id => service.getInboxState(createSession(id))?.kind), ['hold', undefined, 'snoozed']);
+	});
+
 	test('explicit triage of historical unread completions survives reload', () => {
 		sessions.push(...['dismissed', 'held', 'timed', 'untilActivity'].map(id => ({
 			...createSession(id), isRead: constObservable(false),
@@ -445,6 +457,38 @@ suite('SessionsListModelService', () => {
 		assert.deepStrictEqual({ done, undone, afterActivity: service.getInboxState(session), archived: session.isArchived.get() }, {
 			done: 'done', undone: undefined, afterActivity: undefined, archived: false,
 		});
+	});
+
+	for (const action of ['done', 'untilActivity'] as const) {
+		test(`${action} survives last-turn timestamp hydration and reload but ends on newer activity`, () => {
+			const lastTurnEnd = observableValue<Date | undefined>('lastTurnEnd', undefined);
+			const session = { ...createSession('triage', SessionStatus.Completed, { updatedAt: new Date(100) }), lastTurnEnd };
+			sessions.push(session);
+			service.setInboxState([session], action);
+			lastTurnEnd.set(new Date(90), undefined);
+			const hydrated = service.getInboxState(session)?.kind;
+			service.dispose();
+			service = disposables.add(instantiationService.createInstance(SessionsListModelService));
+			const restored = service.getInboxState(session)?.kind;
+			lastTurnEnd.set(new Date(100), undefined);
+			const refined = service.getInboxState(session)?.kind;
+			lastTurnEnd.set(new Date(101), undefined);
+			assert.deepStrictEqual({ hydrated, restored, refined, afterActivity: service.getInboxState(session)?.kind }, {
+				hydrated: action, restored: action, refined: action, afterActivity: undefined,
+			});
+		});
+	}
+
+	test('stored acknowledgement with an unresolved last-turn timestamp survives hydration', () => {
+		const lastTurnEnd = observableValue<Date | undefined>('lastTurnEnd', new Date(90));
+		const session = { ...createSession('triage', SessionStatus.Completed, { updatedAt: new Date(100) }), lastTurnEnd };
+		sessions.push(session);
+		storageService.store('sessionsListControl.inboxState', JSON.stringify([
+			[session.sessionId, { kind: 'done', activity: `${SessionStatus.Completed}:100:0` }],
+		]), StorageScope.PROFILE, StorageTarget.USER);
+		service.dispose();
+		service = disposables.add(instantiationService.createInstance(SessionsListModelService));
+		assert.strictEqual(service.getInboxState(session)?.kind, 'done');
 	});
 
 	test('inbox snooze persists across reload and expires without a catalog update', async () => {
@@ -665,7 +709,7 @@ suite('SessionsListModelService', () => {
 		const hidden = service.isSessionListed(scheduled);
 		service.dispose();
 		service = disposables.add(instantiationService.createInstance(SessionsListModelService));
-		const restored = service.isSessionListed(scheduled, undefined, true);
+		const restored = service.isSessionListed(scheduled);
 		service.showAutomationSessions([scheduled]);
 		assert.deepStrictEqual({ hidden, restored, shown: service.isSessionListed(scheduled) }, { hidden: false, restored: false, shown: true });
 	});
@@ -698,25 +742,6 @@ suite('SessionsListModelService', () => {
 					]
 				},
 			],
-		});
-	});
-
-	test('fires a listing change when hiding an automation run shown only by the list filter', () => {
-		const automation = createSession('automation', SessionStatus.Completed, { isAutomation: true });
-		const events: ISessionListModelChangeEvent[] = [];
-		disposables.add(service.onDidChange(e => events.push(e)));
-		const before = service.isSessionListed(automation, undefined, true);
-
-		service.hideAutomationSessions([automation]);
-
-		assert.deepStrictEqual({
-			before,
-			after: service.isSessionListed(automation, undefined, true),
-			events,
-		}, {
-			before: true,
-			after: false,
-			events: [{ changes: [{ sessionId: 'automation', kind: SessionListModelChangeKind.AutomationListing }] }],
 		});
 	});
 
@@ -826,7 +851,7 @@ suite('SessionsListModelService', () => {
 		});
 	});
 
-	test('show automation runs overrides listing policies without changing explicit choices', () => {
+	test('each listing mode keeps explicit choices', () => {
 		const hidden = createSession('hidden', SessionStatus.Completed, { isAutomation: true });
 		const shown = createSession('shown', SessionStatus.Completed, { isAutomation: true });
 		const policy = createSession('policy', SessionStatus.Completed, { isAutomation: true });
@@ -843,37 +868,28 @@ suite('SessionsListModelService', () => {
 				source: ConfigurationTarget.USER,
 			});
 		};
-		const listed = (showAutomationRuns: boolean) => sessions
-			.filter(session => service.isSessionListed(session, undefined, showAutomationRuns))
+		const listed = () => sessions
+			.filter(session => service.isSessionListed(session))
 			.map(session => session.sessionId);
 		service.hideAutomationSessions([hidden]);
 		service.showAutomationSessions([shown]);
 		service.showRepliedAutomationSession(replied);
 
 		setMode(AutomationSessionsListMode.Never);
-		const never = { off: listed(false), on: listed(true) };
+		const never = listed();
 		setMode(AutomationSessionsListMode.AfterReply);
-		const afterReply = { off: listed(false), on: listed(true) };
+		const afterReply = listed();
 		setMode(AutomationSessionsListMode.Always);
-		const always = { off: listed(false), on: listed(true) };
+		const always = listed();
 		const stored = {
 			shown: storageService.get('sessionsListControl.shownAutomationSessions', StorageScope.PROFILE),
 			hidden: storageService.get('sessionsListControl.hiddenAutomationSessions', StorageScope.PROFILE),
 		};
 
 		assert.deepStrictEqual({ never, afterReply, always, stored }, {
-			never: {
-				off: ['shown', 'replied', 'regular'],
-				on: ['shown', 'policy', 'replied', 'regular'],
-			},
-			afterReply: {
-				off: ['shown', 'replied', 'regular'],
-				on: ['shown', 'policy', 'replied', 'regular'],
-			},
-			always: {
-				off: ['shown', 'policy', 'replied', 'regular'],
-				on: ['shown', 'policy', 'replied', 'regular'],
-			},
+			never: ['shown', 'replied', 'regular'],
+			afterReply: ['shown', 'replied', 'regular'],
+			always: ['shown', 'policy', 'replied', 'regular'],
 			stored: {
 				shown: JSON.stringify(['shown', 'replied']),
 				hidden: JSON.stringify(['hidden']),

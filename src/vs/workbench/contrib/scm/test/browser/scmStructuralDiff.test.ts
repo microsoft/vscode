@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { $, append, getWindow } from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
+import { CountBadge } from '../../../../../base/browser/ui/countBadge/countBadge.js';
 import { ITreeNode } from '../../../../../base/browser/ui/tree/tree.js';
 import { AsyncDataTree } from '../../../../../base/browser/ui/tree/asyncDataTree.js';
 import { IDelayedHoverAtMouseOptions } from '../../../../../base/browser/ui/hover/hover.js';
@@ -13,8 +14,10 @@ import { DeferredPromise } from '../../../../../base/common/async.js';
 import { Event } from '../../../../../base/common/event.js';
 import { FuzzyScore } from '../../../../../base/common/filters.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
+import { isMacintosh, isWindows } from '../../../../../base/common/platform.js';
 import { ResourceTree } from '../../../../../base/common/resourceTree.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { getCountBadgeStyle } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ICodeEditor, IDiffEditor } from '../../../../../editor/browser/editorBrowser.js';
@@ -46,10 +49,11 @@ import { IEditorService, PreferredGroup, SIDE_GROUP } from '../../../../services
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { SCMAccessibilityHelp } from '../../browser/scmAccessibilityHelp.js';
-import { ContextKeys, SCMAccessibilityProvider, SCMTreeDataSource, SCMTreeKeyboardNavigationLabelProvider, SCMTreeSorter, SCMViewPane, getSCMTreeTwistieCssClass, isSCMTreeElementCollapsedByDefault } from '../../browser/scmViewPane.js';
+import { ContextKeys, SCMAccessibilityProvider, SCMTreeDataSource, SCMTreeKeyboardNavigationLabelProvider, SCMTreeSorter, SCMViewPane, getSCMTreeTwistieCssClass, isSCMTreeElementCollapsedByDefault, shouldAlignSCMTreeIconsAndTwisties } from '../../browser/scmViewPane.js';
 import { SCMStructuralDiffRenderer, openSCMStructuralDiff } from '../../browser/scmStructuralDiffRenderer.js';
 import { ISCMProvider, ISCMResource, ISCMResourceGroup, ISCMViewService, ViewMode } from '../../common/scm.js';
 import { SCMStructuralDiffElement, SCMStructuralDiffModel, SCMStructuralDiffNode } from '../../common/scmStructuralDiff.js';
+import '../../../modernUI/browser/media/fontRamp.css';
 import '../../../modernUI/browser/media/padding.css';
 
 class TestCodeEditor extends mock<ICodeEditor>() {
@@ -220,7 +224,7 @@ suite('SCM structural diff tree', () => {
 		});
 	}
 
-	test('forces the twistie of expandable files and symbols, which expand only through it, so that file icon themes cannot hide it', async () => {
+	test('forces the twistie of expandable files, and the twistie space of all structural rows so that leaf icons stay indented under their parent', async () => {
 		const other = new class extends mock<ISCMResource>() {
 			override readonly sourceUri = URI.file('/repo/folder/notes.md');
 			override readonly resourceGroup = group;
@@ -229,16 +233,17 @@ suite('SCM structural diff tree', () => {
 			override readonly provider = group.provider;
 			override readonly resources = [resource, other];
 		};
+		const status: SCMStructuralDiffElement = { type: 'structuralDiffStatus', id: 'partial', status: 'incomplete', parent: resource, resource, generation: 1, order: 1 };
 		const structuralDiff = new class extends mock<SCMStructuralDiffModel>() {
 			override get enabled(): boolean { return true; }
 			override hasChildren(candidate: ISCMResource): boolean { return candidate === resource; }
-			override async getChildren(): Promise<readonly SCMStructuralDiffElement[]> { return [parent]; }
+			override async getChildren(): Promise<readonly SCMStructuralDiffElement[]> { return [parent, status]; }
 		};
 		const viewService = new class extends mock<ISCMViewService>() {
 			override readonly visibleRepositories = [];
 		};
 		const dataSource = store.add(new SCMTreeDataSource(() => ViewMode.List, structuralDiff, new TestConfigurationService(), viewService));
-		const names = new Map<unknown, string>([[resource, 'file.ts'], [parent, 'Calculator'], [child, 'run'], [other, 'notes.md']]);
+		const names = new Map<unknown, string>([[resource, 'file.ts'], [parent, 'Calculator'], [child, 'run'], [status, 'partial'], [other, 'notes.md']]);
 		const container = $('.scm-view');
 		type Element = Parameters<SCMTreeDataSource['getParent']>[0];
 		const tree = store.add(new AsyncDataTree<ISCMResourceGroup, Element>('SCM twisties', container, {
@@ -258,7 +263,28 @@ suite('SCM structural diff tree', () => {
 		await tree.expand(resource);
 		const rows = [...container.querySelectorAll('.monaco-list-row')];
 		assert.deepStrictEqual(Object.fromEntries(rows.map(row => [row.textContent, row.querySelector('.monaco-tl-twistie')?.classList.contains('force-twistie')])), {
-			'file.ts': true, Calculator: true, run: false, 'notes.md': false,
+			'file.ts': true, Calculator: true, run: true, partial: true, 'notes.md': false,
+		});
+	});
+
+	test('aligns file icons with twisties like the Explorer, except in a list where files can expand, so that all files stay aligned', () => {
+		const themes = {
+			seti: { hasFileIcons: true, hasFolderIcons: false },
+			folderIcons: { hasFileIcons: true, hasFolderIcons: true },
+			noFileIcons: { hasFileIcons: false, hasFolderIcons: false },
+		};
+		const align = (viewMode: ViewMode, canExpandFiles: boolean) => Object.fromEntries(Object.entries(themes)
+			.map(([name, theme]) => [name, shouldAlignSCMTreeIconsAndTwisties(viewMode, theme, canExpandFiles)]));
+		assert.deepStrictEqual({
+			list: align(ViewMode.List, false),
+			listWithExpandableFiles: align(ViewMode.List, true),
+			tree: align(ViewMode.Tree, false),
+			treeWithExpandableFiles: align(ViewMode.Tree, true),
+		}, {
+			list: { seti: true, folderIcons: true, noFileIcons: false },
+			listWithExpandableFiles: { seti: false, folderIcons: false, noFileIcons: false },
+			tree: { seti: true, folderIcons: false, noFileIcons: false },
+			treeWithExpandableFiles: { seti: true, folderIcons: false, noFileIcons: false },
 		});
 	});
 
@@ -589,15 +615,23 @@ suite('SCM structural diff tree', () => {
 	});
 
 	for (const [width, modernUI] of [[220, false], [420, false], [220, true], [420, true]] as const) {
-		test(`aligns and dims structural status boxes like file badge boxes at ${width}px${modernUI ? ' in the Modern UI' : ''}, including diagnostic counts`, () => {
+		test(`aligns file badges, structural statuses, and group counts at ${width}px${modernUI ? ' in the Modern UI' : ''}`, () => {
 			const root = $('.monaco-workbench');
 			root.classList.toggle('modern-ui', modernUI);
-			const container = append(root, $('.scm-view.monaco-list'));
+			root.classList.add(isMacintosh ? 'mac' : isWindows ? 'windows' : 'linux');
+			root.style.setProperty('--vscode-fontSize-body1', '13px');
+			const view = append(root, $('.scm-view'));
+			const container = append(view, $('.monaco-list'));
 			container.style.width = `${width}px`;
 			container.style.setProperty('--vscode-spacing-size40', '4px');
+			container.style.setProperty('--vscode-spacing-size60', '6px');
 			container.style.setProperty('--vscode-spacing-size160', '16px');
 			container.style.setProperty('--vscode-fontSize-label2', '11px');
+			container.style.setProperty('--vscode-fontSize-label3', '10px');
 			container.style.setProperty('--vscode-fontWeight-semiBold', '600');
+			container.style.setProperty('--vscode-strokeThickness', '1px');
+			container.style.setProperty('--vscode-cornerRadius-circle', '9999px');
+			container.style.setProperty('--vscode-badge-background', '#456');
 			mainWindow.document.body.appendChild(root);
 			store.add(toDisposable(() => root.remove()));
 			const instantiationService = workbenchInstantiationService(undefined, store);
@@ -605,8 +639,8 @@ suite('SCM structural diff tree', () => {
 			instantiationService.stub(IDecorationsService, decorations);
 			const labels = store.add(instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER));
 			const renderer = new SCMStructuralDiffRenderer(NullHoverService);
-			const cases = ['M', 'D', 'A', 'R'].flatMap(letter => [undefined, '5', '123'].map(count => ({
-				letter, count, uri: URI.file(`/repo/${letter}-${count ?? 'none'}.ts`),
+			const cases = ['M', 'D', 'A', 'R'].flatMap(letter => [undefined, '5', '123', '↓M'].map(count => ({
+				letter, count, uri: URI.file(`/repo/${letter}-${count ?? 'none'}-${'aVeryLongFileName'.repeat(8)}.ts`),
 			})));
 			store.add(decorations.registerDecorationsProvider({
 				label: 'SCM status',
@@ -629,12 +663,40 @@ suite('SCM structural diff tree', () => {
 				contents.style.paddingLeft = `${indent}px`;
 				return contents;
 			};
+			const groupContents = createRow(0);
+			const groupRow = groupContents.parentElement;
+			assert.ok(groupRow);
+			const group = append(groupContents, $('.resource-group'));
+			const groupName = append(group, $('.name'));
+			groupName.textContent = 'A very long resource group name that must leave room for the count';
+			const groupActions = append(group, $('.actions'));
+			groupActions.style.width = '44px';
+			append(groupActions, $('div')).style.width = '44px';
+			const countContainer = append(group, $('.count'));
+			const groupCount = store.add(new CountBadge(countContainer, { count: 1 }, getCountBadgeStyle({ badgeBackground: undefined, badgeBorder: undefined })));
+			const countBadge = countContainer.querySelector('.monaco-count-badge');
+			assert.ok(countBadge);
+			const getTextCenter = (element: Element, lastCharacter = false) => {
+				const text = element.firstChild;
+				assert.ok(text?.textContent?.length);
+				const range = mainWindow.document.createRange();
+				range.setStart(text, lastCharacter ? text.textContent.length - 1 : 0);
+				range.setEnd(text, text.textContent.length);
+				const bounds = range.getBoundingClientRect();
+				return (bounds.left + bounds.right) / 2;
+			};
 			// The tree contents' right padding plus the badges' right margin: 12px and 3px, or 4px each in the Modern UI.
 			const expectedRight = container.getBoundingClientRect().right - (modernUI ? 8 : 15);
+			const expectedCenter = expectedRight - 8;
 			const results = cases.map(({ letter, count, uri }) => {
-				const fileRow = append(createRow(0), $('.resource'));
+				const fileContents = createRow(0);
+				const fileListRow = fileContents.parentElement;
+				assert.ok(fileListRow);
+				const fileRow = append(fileContents, $('.resource'));
 				const fileLabel = labels.create(append(fileRow, $('.name')));
-				fileLabel.setFile(uri, { hidePath: true, fileDecorations: { colors: false, badges: true } });
+				const fileActions = append(fileLabel.element, $('.actions'));
+				append(fileActions, $('div')).style.width = '44px';
+				fileLabel.setFile(uri, { hidePath: true, fileDecorations: { colors: false, badges: true, alignBadgeLastCharacter: true } });
 				const template = store.add(renderer.renderTemplate(createRow(32)));
 				const name = 'aVeryLongMethodNameThatMustLeaveRoomForTheStatus';
 				const element = {
@@ -650,15 +712,26 @@ suite('SCM structural diff tree', () => {
 					override readonly element = element;
 					override readonly filterData = FuzzyScore.Default;
 				}, 0, template);
-				const fileStyle = getWindow(container).getComputedStyle(fileLabel.element, '::after');
+				const fileBadge = fileLabel.element.querySelector('.monaco-decoration-badge-content');
+				const fileLastCharacter = fileBadge?.lastElementChild;
+				assert.ok(fileBadge && fileLastCharacter);
+				const fileStyle = getWindow(container).getComputedStyle(fileBadge);
 				const structuralStyle = getWindow(container).getComputedStyle(template.status);
-				const fileRight = fileLabel.element.getBoundingClientRect().right - parseFloat(fileStyle.marginRight);
+				const fileRight = fileBadge.getBoundingClientRect().right;
 				const structuralRight = template.status.getBoundingClientRect().right;
+				const fileName = fileLabel.element.querySelector('.monaco-icon-label-container');
+				assert.ok(fileName);
+				fileListRow.classList.add('focused');
+				const focusedFileRight = fileBadge.getBoundingClientRect().right;
+				const fileActionsBounds = fileActions.getBoundingClientRect();
 				return {
-					fileText: fileStyle.content,
+					fileText: fileBadge.textContent,
 					structuralText: template.status.textContent,
 					rightEdgesAligned: Math.abs(fileRight - structuralRight) < 1 && Math.abs(fileRight - expectedRight) < 1,
-					justifyContent: [fileStyle.justifyContent, structuralStyle.justifyContent],
+					trailingCharactersCentered: [getTextCenter(fileLastCharacter), getTextCenter(template.status), getTextCenter(countBadge)].every(center => Math.abs(center - expectedCenter) < 0.5),
+					fileNameTruncated: fileName.scrollWidth > fileName.clientWidth,
+					fileBadgeFits: fileBadge.getBoundingClientRect().left >= fileLabel.element.getBoundingClientRect().left,
+					fileActionsFit: fileActionsBounds.width > 0 && fileActionsBounds.right <= fileBadge.getBoundingClientRect().left && Math.abs(focusedFileRight - fileRight) < 1,
 					minWidth: [fileStyle.minWidth, structuralStyle.minWidth],
 					opacity: [fileStyle.opacity, structuralStyle.opacity],
 					sameTypography: fileStyle.fontSize === structuralStyle.fontSize && fileStyle.fontWeight === structuralStyle.fontWeight,
@@ -666,10 +739,53 @@ suite('SCM structural diff tree', () => {
 				};
 			});
 			assert.deepStrictEqual(results, cases.map(({ letter, count }) => ({
-				fileText: JSON.stringify(count ? `${count}, ${letter}` : letter),
+				fileText: count ? `${count}, ${letter}` : letter,
 				structuralText: letter,
-				rightEdgesAligned: true, justifyContent: ['center', 'center'], minWidth: ['16px', '16px'], opacity: ['0.75', '0.75'], sameTypography: true, badgeFits: true,
+				rightEdgesAligned: true, trailingCharactersCentered: true,
+				fileNameTruncated: true, fileBadgeFits: true, fileActionsFit: true, minWidth: ['16px', '16px'], opacity: ['0.75', '0.75'], sameTypography: true, badgeFits: true,
 			})));
+			const getCountBackground = () => {
+				const badge = countBadge.getBoundingClientRect();
+				const background = getWindow(container).getComputedStyle(countBadge, '::before');
+				if (background.content === 'none' || background.content === 'normal') {
+					return { left: badge.left, right: badge.right, width: badge.width, height: badge.height, style: getWindow(container).getComputedStyle(countBadge) };
+				}
+				const width = parseFloat(background.width);
+				const left = badge.left + parseFloat(background.left) + new DOMMatrixReadOnly(background.transform).m41;
+				return { left, right: left + width, width, height: parseFloat(background.height), style: background };
+			};
+			const countValues = [0, 1, 2, 8, 9, 12, 1234];
+			const countStates = [false, true].flatMap(contrast => {
+				if (contrast) {
+					container.style.setProperty('--vscode-contrastBorder', '#fff');
+				}
+				return [false, true].flatMap(focused => {
+					groupRow.classList.toggle('focused', focused);
+					return countValues.map(value => {
+						groupCount.setCount(value);
+						const background = getCountBackground();
+						const textRange = mainWindow.document.createRange();
+						textRange.selectNodeContents(countBadge);
+						const text = textRange.getBoundingClientRect();
+						const actions = groupActions.getBoundingClientRect();
+						return {
+							text: countBadge.textContent,
+							textCentered: Math.abs((text.left + text.right - background.left - background.right) / 2) < 0.5,
+							lastDigitCentered: Math.abs(getTextCenter(countBadge, true) - expectedCenter) < 0.5,
+							singleDigitIsCircular: value >= 10 || (Math.abs(background.width - background.height) < 0.5 && parseFloat(background.style.borderTopLeftRadius) >= background.height / 2 - 0.5),
+							backgroundVisible: background.style.backgroundColor === 'rgb(68, 85, 102)',
+							hasContrastOutline: background.style.outlineStyle === 'solid',
+							actionsVisible: getWindow(container).getComputedStyle(groupActions).display !== 'none' && actions.width > 0,
+							fits: background.right <= group.getBoundingClientRect().right && (focused
+								? groupName.getBoundingClientRect().right <= actions.left && actions.right <= background.left
+								: groupName.getBoundingClientRect().right <= background.left),
+						};
+					});
+				});
+			});
+			assert.deepStrictEqual(countStates, [false, true].flatMap(contrast => [false, true].flatMap(focused =>
+				countValues.map(value => ({ text: `${value}`, textCentered: true, lastDigitCentered: true, singleDigitIsCircular: true, backgroundVisible: true, hasContrastOutline: contrast, actionsVisible: focused, fits: true })),
+			)));
 		});
 	}
 

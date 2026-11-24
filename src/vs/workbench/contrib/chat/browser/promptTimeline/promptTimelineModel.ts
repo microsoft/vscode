@@ -21,6 +21,7 @@ import { getChatRequestText } from '../chatRequestText.js';
 import { ChatTreeItem } from '../chat.js';
 import { IChatResponseFileChangesService } from '../chatResponseFileChangesService.js';
 import { IChatEditingService, IEditSessionEntryDiff } from '../../common/editing/chatEditingService.js';
+import { IChatModel } from '../../common/model/chatModel.js';
 import { IChatRequestViewModel, isRequestVM, isResponseVM } from '../../common/model/chatViewModel.js';
 import { budgetBucketPrompts, MAX_TICKS, PromptItem } from './promptBucketing.js';
 
@@ -135,7 +136,7 @@ function promptsEqual(a: readonly PromptItem[], b: readonly PromptItem[]): boole
 export interface IActivePrompt {
 	readonly text: string;
 	readonly index: number;
-	readonly total: number;
+	readonly total: number | undefined;
 }
 
 /**
@@ -149,6 +150,8 @@ export class PromptTimelineModel extends Disposable {
 
 	/** The chat session resource, tracked reactively so the editing session can be resolved. */
 	private readonly _sessionResource: IObservable<URI | undefined>;
+	private readonly _activeModel: IObservable<IChatModel | undefined>;
+	readonly olderHistoryLoader: IObservable<(() => Promise<void>) | undefined>;
 
 	/** The chat editing session for this chat, if one exists (local or agent-host). */
 	private readonly _editingSession = derived(this, reader => {
@@ -180,11 +183,10 @@ export class PromptTimelineModel extends Disposable {
 	get ticks(): IObservable<readonly PromptTick[]> { return this._ticks; }
 
 	/**
-	 * One tick per user prompt — unbucketed and uncapped. The
-	 * gutter rail lists every prompt as its own entry (no recency bucketing/sampling), so it needs the
-	 * raw prompt list rather than the capped {@link ticks} the overview ruler uses.
+	 * One navigation target per loaded user prompt. Unlike the ruler's {@link ticks}, the gutter
+	 * must not subscribe to file changes for the entire conversation just to display prompt titles.
 	 */
-	private readonly _basePromptTicks = derived<readonly PromptTick[]>(this, reader => {
+	readonly promptTicks = derived<readonly PromptTick[]>(this, reader => {
 		const prompts = this._prompts.read(reader);
 		return prompts.map((prompt): PromptTick => ({
 			requestId: prompt.requestId,
@@ -195,8 +197,6 @@ export class PromptTimelineModel extends Disposable {
 			ariaLabel: localize('promptTimeline.tick', "Prompt: {0}", prompt.text),
 		}));
 	});
-	private readonly _promptTicks = this._withDiffStats(this._basePromptTicks);
-	get promptTicks(): IObservable<readonly PromptTick[]> { return this._promptTicks; }
 
 	private _withDiffStats(ticks: IObservable<readonly PromptTick[]>): IObservable<readonly PromptTick[]> {
 		const ticksWithStats = mapObservableArrayCached(this, ticks, tick => derivedOpts<PromptTick>({
@@ -231,7 +231,9 @@ export class PromptTimelineModel extends Disposable {
 		}
 		const prompts = this._prompts.read(reader);
 		const index = prompts.findIndex(p => p.requestId === id);
-		return index < 0 ? undefined : { text: prompts[index].text, index: index + 1, total: prompts.length };
+		const model = this._activeModel.read(reader);
+		const partial = model?.olderHistoryCursor?.read(reader) !== undefined || model?.olderHistoryUnavailable?.read(reader);
+		return index < 0 ? undefined : { text: prompts[index].text, index: index + 1, total: partial ? undefined : prompts.length };
 	});
 	get activePrompt(): IObservable<IActivePrompt | undefined> { return this._activePrompt; }
 
@@ -259,6 +261,11 @@ export class PromptTimelineModel extends Disposable {
 		// Assigned here (not as a field initializer) because it reads `this.widget`,
 		// which parameter properties only assign once the constructor body runs.
 		this._sessionResource = observableFromEvent(this, this.widget.onDidChangeViewModel, () => this.widget.viewModel?.sessionResource);
+		this._activeModel = observableFromEvent(this, this.widget.onDidChangeViewModel, () => this.widget.viewModel?.model);
+		this.olderHistoryLoader = derived(this, reader => {
+			const model = this._activeModel.read(reader);
+			return model?.olderHistoryCursor?.read(reader) !== undefined ? model.loadOlderHistory : undefined;
+		});
 		this._register(this.widget.onDidChangeViewModel(() => this._bindViewModel()));
 		this._register(this.widget.onDidScroll(() => { this._updateActive(); this._triggerScrollLayout(); }));
 		this._register(this.widget.onDidChangeContentHeight(() => this._triggerScrollLayout()));

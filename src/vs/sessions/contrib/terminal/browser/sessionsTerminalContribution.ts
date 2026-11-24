@@ -26,7 +26,7 @@ import { IViewsService } from '../../../../workbench/services/views/common/views
 import { isAgentHostProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { getMainWindowHost, ISessionHost, ISessionHostService } from '../../../../workbench/services/sessions/browser/sessionHost.js';
-import { IChat, ISession, ISessionWorkspace } from '../../../../workbench/services/sessions/common/session.js';
+import { IChat, ISession, isSessionArchiveConfirmed, ISessionWorkspace } from '../../../../workbench/services/sessions/common/session.js';
 import { ISessionsProvidersService } from '../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ITerminalProfileService, TERMINAL_VIEW_ID, TerminalCommandId } from '../../../../workbench/contrib/terminal/common/terminal.js';
 import { TerminalContextKeys } from '../../../../workbench/contrib/terminal/common/terminalContextKey.js';
@@ -336,7 +336,7 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 			}
 			const justArchived: ISession[] = [];
 			for (const session of e.changed) {
-				if (session.isArchived.get()) {
+				if (isSessionArchiveConfirmed(session)) {
 					if (!this._archivedSessionIds.has(session.sessionId)) {
 						this._archivedSessionIds.add(session.sessionId);
 						this._invalidateTerminalOperations(session.sessionId);

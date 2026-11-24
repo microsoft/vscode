@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { GitHubTelemetryNotification } from '@github/copilot-sdk';
+import type { GitHubTelemetryNotification } from '@microsoft/copilot-sdk';
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ITelemetryData } from '../../../telemetry/common/telemetry.js';
@@ -27,6 +27,27 @@ class TestTelemetryService extends CapturingTelemetryService<ITelemetryData | un
 
 suite('CopilotGitHubTelemetryForwarder', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('enriches response and late bridge with host lineage and rejects runtime-provided lineage', () => {
+		const telemetry = new TestTelemetryService();
+		const forwarder = new CopilotGitHubTelemetryForwarder(telemetry);
+		const notification: GitHubTelemetryNotification = {
+			sessionId: 'sdk', restricted: false,
+			event: { kind: 'response.success', properties: { originalTurnId: 'forged', steeredFromTurn: 'forged', interaction_id: 'interaction' }, metrics: {} },
+		};
+		forwarder.forward(notification, 'b', { ahCorrelationOutcome: 'mappingAvailable', originalTurnId: 'a', steeredFromTurn: 'a' });
+		forwarder.forward(notification, undefined, { ahCorrelationOutcome: 'waitExpired' });
+		forwarder.recordModelCallTurnCorrelation('sdk', 'call', 'b', 'late', {
+			sdkSessionId: 'sdk', originalTurnId: 'a', steeredFromTurn: 'a', interactionIds: ['interaction'], interactionIdsTruncated: false,
+		});
+		assert.deepStrictEqual(telemetry.events.map(event => ({
+			event: event.eventName, turn: event.data?.turnId, original: event.data?.originalTurnId, from: event.data?.steeredFromTurn,
+		})), [
+			{ event: 'copilotSdk/response.success', turn: 'b', original: 'a', from: 'a' },
+			{ event: 'copilotSdk/response.success', turn: undefined, original: undefined, from: undefined },
+			{ event: 'agentHost.modelCallTurnCorrelated', turn: 'b', original: 'a', from: 'a' },
+		]);
+	});
 
 	test('forwards a standard event to VS Code telemetry', () => {
 		const telemetryService = new TestTelemetryService();

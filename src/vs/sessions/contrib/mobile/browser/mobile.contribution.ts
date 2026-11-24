@@ -33,7 +33,7 @@ import { IChatEditPresentationService } from '../../../../workbench/contrib/chat
 import { MobileChatEditPresenter } from './mobileChatEditPresenter.js';
 import { ChatAttachmentWidgetRegistry, IChatAttachmentWidgetRegistry } from '../../../../workbench/contrib/chat/browser/attachments/chatAttachmentWidgetRegistry.js';
 import { SessionsChatAccessibilityHelp } from '../../chat/browser/sessionsChatAccessibilityHelp.js';
-import './mobileClipboardImageContext.js';
+import './mobileAttachmentContext.js';
 import './mobileBackgroundNotifier.js';
 import { mobileConfigurationDefaults } from './mobileConfigurationDefaults.js';
 

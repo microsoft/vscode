@@ -11,6 +11,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../../../ba
 import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { isLinuxWebKit } from '../../../../../../base/test/browser/linuxWebKit.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { TestAccessibilityService } from '../../../../../../platform/accessibility/test/common/testAccessibilityService.js';
@@ -174,7 +175,9 @@ suite('ChatWorkingLogoAtlas', () => {
 		await assert.rejects(createChatWorkingLogoAtlas(mainWindow, { width: 24, height: 24, color: '#007acc' }, CancellationToken.Cancelled), isCancellationError);
 	});
 
-	test('uses padded, native-resolution tiles and 120 Hz stepped transforms', async () => {
+	// WebKit on Linux (Playwright's port) reads the atlas canvas back as blank pixels, unlike Chromium and WebKit on macOS.
+	// mocha's test.skip returns no test to set the timeout of.
+	(isLinuxWebKit ? test.skip : test)('uses padded, native-resolution tiles and 120 Hz stepped transforms', async () => {
 		const token = cancelOnTeardown();
 		const resource = store.add(await createChatWorkingLogoAtlas(mainWindow, { width: 24, height: 24, color: '#007acc' }, token));
 		const image = $<HTMLImageElement>('img');
@@ -246,7 +249,7 @@ suite('ChatWorkingLogoAtlas', () => {
 				URL.revokeObjectURL(source);
 			}
 		}
-	}).timeout(atlasGenerationTimeout);
+	})?.timeout(atlasGenerationTimeout);
 
 	test('live atlas pauses when hidden, resumes on remount, and returns to static artwork', async () => {
 		const host = mainWindow.document.body.appendChild($('.monaco-enable-motion'));

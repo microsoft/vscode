@@ -226,7 +226,9 @@ export function sortedDiff<T>(before: ReadonlyArray<T>, after: ReadonlyArray<T>,
 
 		if (latest && latest.start + latest.deleteCount === start) {
 			latest.deleteCount += deleteCount;
-			latest.toInsert.push(...toInsert);
+			for (const item of toInsert) {
+				latest.toInsert.push(item);
+			}
 		} else {
 			result.push({ start, deleteCount, toInsert });
 		}
@@ -276,8 +278,13 @@ export function delta<T>(before: ReadonlyArray<T>, after: ReadonlyArray<T>, comp
 	const added: T[] = [];
 
 	for (const splice of splices) {
-		removed.push(...before.slice(splice.start, splice.start + splice.deleteCount));
-		added.push(...splice.toInsert);
+		const end = splice.start + splice.deleteCount;
+		for (let i = splice.start; i < end; i++) {
+			removed.push(before[i]);
+		}
+		for (const item of splice.toInsert) {
+			added.push(item);
+		}
 	}
 
 	return { removed, added };

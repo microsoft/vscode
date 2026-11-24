@@ -103,7 +103,7 @@
 	margin-top: var(--modern-ui-floating-card-margin);
 }
 
-.monaco-workbench.floating-panels .part.editor > .content {
+.monaco-workbench.floating-panels .part.editor:not(.modal-editor-part) > .content {
 	border-radius: var(--vscode-cornerRadius-large, 8px);
 }
 
@@ -121,7 +121,11 @@
 	border-radius: var(--vscode-cornerRadius-large, 8px);
 }
 
-.monaco-workbench.floating-panels .part.editor:not(.modal-editor-part) > .content,
+.monaco-workbench.floating-panels .part.editor:not(.modal-editor-part) > .content {
+	/* Content sits inside the frame stroke, so its curve must be concentric with the card. */
+	border-radius: max(0px, calc(var(--vscode-editorArea-cornerRadius, var(--vscode-cornerRadius-large, 8px)) - var(--modern-ui-floating-card-stroke-width)));
+}
+
 .monaco-workbench.floating-panels .webview-overlay-content:not(.webview-overlay-modal) {
 	border-radius: var(--vscode-editorArea-cornerRadius, var(--vscode-cornerRadius-large, 8px));
 }
@@ -363,6 +367,13 @@
 	padding-right: var(--vscode-spacing-size120);
 	padding-top: var(--vscode-spacing-size20);
 	padding-bottom: var(--vscode-spacing-size20);
+}
+
+/* A status bar painted with the shell color merges with the gap above it, so center its
+ * items in that combined band. `matches-shell-background` is set by statusbarPart.ts. */
+.monaco-workbench.floating-panels .part.statusbar.matches-shell-background {
+	padding-top: calc(var(--vscode-spacing-size20) - var(--modern-ui-floating-card-statusbar-margin) / 2);
+	padding-bottom: calc(var(--vscode-spacing-size20) + var(--modern-ui-floating-card-statusbar-margin) / 2);
 }
 
 .monaco-workbench.floating-panels .part.statusbar:not(:focus).status-border-top::after {

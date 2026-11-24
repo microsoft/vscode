@@ -6,14 +6,18 @@
 import assert from 'assert';
 import { renderMarkdown } from '../../../../../../base/browser/markdownRenderer.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
-import { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { IMarkdownString, isMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { Separator } from '../../../../../../base/common/actions.js';
 import { ILanguageModelChatMetadata, ILanguageModelProviderDescriptor } from '../../../common/languageModels.js';
-import { buildAddModelsDropdownActions, getModelHoverContent, getModelNameHoverContent } from '../../../browser/chatManagement/chatModelsWidget.js';
-import { ILanguageModel } from '../../../browser/chatManagement/chatModelsViewModel.js';
+import { buildAddModelsDropdownActions, getModelAriaLabel, getModelHoverContent, getModelNameHoverContent, TokenLimitsColumnRenderer } from '../../../browser/chatManagement/chatModelsWidget.js';
+import { ILanguageModel, ILanguageModelEntry } from '../../../browser/chatManagement/chatModelsViewModel.js';
 import { ChatAgentLocation } from '../../../common/constants.js';
+import * as DOM from '../../../../../../base/browser/dom.js';
+import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
+import { NullHoverService } from '../../../../../../platform/hover/test/browser/nullHoverService.js';
 
 function createModel(overrides: Partial<ILanguageModelChatMetadata> = {}): ILanguageModel {
 	return {
@@ -142,6 +146,52 @@ suite('ChatModelsWidget', () => {
 
 			assert.ok(value.includes('Input Cost'));
 			assert.ok(value.includes('0 credits per 1M tokens'));
+		});
+	});
+
+	suite('context size', () => {
+
+		function renderContextSize(model: ILanguageModel) {
+			const hovers: string[] = [];
+			const hoverService: IHoverService = {
+				...NullHoverService,
+				setupDelayedHoverAtMouse: (_target, options) => {
+					const content = (typeof options === 'function' ? options() : options).content;
+					hovers.push(isMarkdownString(content) ? content.value : String(content));
+					return Disposable.None;
+				}
+			};
+			const renderer = new TokenLimitsColumnRenderer(hoverService);
+			const row = document.createElement('div');
+			const templateData = renderer.renderTemplate(DOM.append(row, DOM.$('div')));
+			const entry: ILanguageModelEntry = { type: 'model', id: model.identifier, templateId: TokenLimitsColumnRenderer.TEMPLATE_ID, model };
+			renderer.renderElement(entry, 0, templateData);
+			const cell = Array.from(templateData.tokenLimitsElement.querySelectorAll('.token-limit-item'), item => item.textContent);
+			renderer.disposeTemplate(templateData);
+			return {
+				cell,
+				cellHover: hovers.join(''),
+				modelHover: getModelHoverContent(model).value.split('\n').find(line => line.startsWith('Context Size')),
+				ariaLabel: getModelAriaLabel(model).split('. ').find(part => part.startsWith('Context size')),
+			};
+		}
+
+		test('uses the declared context window and falls back to input and output budgets', () => {
+			const results = [
+				{ maxInputTokens: 77_000, maxOutputTokens: 8_192, maxContextWindowTokens: 65_536 },
+				{ maxInputTokens: 8_192, maxOutputTokens: 4_096 },
+				{ maxInputTokens: undefined, maxOutputTokens: undefined, maxContextWindowTokens: 100_000 },
+				{ maxInputTokens: undefined, maxOutputTokens: undefined },
+				{ maxInputTokens: 8_192, maxOutputTokens: 4_096, maxContextWindowTokens: 0 },
+			].map(limits => renderContextSize(createModel(limits)));
+
+			assert.deepStrictEqual(results, [
+				{ cell: ['66K'], cellHover: 'Context Size: 66K', modelHover: 'Context Size: 66K', ariaLabel: 'Context size: 66K tokens' },
+				{ cell: ['12K'], cellHover: 'Context Size: 12K', modelHover: 'Context Size: 12K', ariaLabel: 'Context size: 12K tokens' },
+				{ cell: ['100K'], cellHover: 'Context Size: 100K', modelHover: 'Context Size: 100K', ariaLabel: 'Context size: 100K tokens' },
+				{ cell: [], cellHover: '', modelHover: undefined, ariaLabel: undefined },
+				{ cell: [], cellHover: '', modelHover: undefined, ariaLabel: undefined },
+			]);
 		});
 	});
 

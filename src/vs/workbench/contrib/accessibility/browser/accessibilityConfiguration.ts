@@ -61,6 +61,7 @@ export const enum AccessibilityVerbositySettingId {
 	TerminalChatOutput = 'accessibility.verbosity.terminalChatOutput',
 	InlineCompletions = 'accessibility.verbosity.inlineCompletions',
 	KeybindingsEditor = 'accessibility.verbosity.keybindingsEditor',
+	SandboxProfiles = 'accessibility.verbosity.sandboxProfiles',
 	Notebook = 'accessibility.verbosity.notebook',
 	Editor = 'accessibility.verbosity.editor',
 	Hover = 'accessibility.verbosity.hover',
@@ -196,7 +197,11 @@ const configuration: IConfigurationNode = {
 			...baseVerbosityProperty
 		},
 		[AccessibilityVerbositySettingId.KeybindingsEditor]: {
-			description: localize('verbosity.keybindingsEditor.description', 'Provide information about how to change a keybinding, edit its system-wide scope, and navigate to the results table in the keybindings editor.'),
+			description: localize('verbosity.keybindingsEditor.description', 'Provide information about how to change a keybinding in the keybindings editor when a row is focused and how to navigate to the results table.'),
+			...baseVerbosityProperty
+		},
+		[AccessibilityVerbositySettingId.SandboxProfiles]: {
+			description: localize('verbosity.sandboxProfiles', "Provide information about accessing help in the sandbox profiles editor."),
 			...baseVerbosityProperty
 		},
 		[AccessibilityVerbositySettingId.Notebook]: {
@@ -818,6 +823,19 @@ const configuration: IConfigurationNode = {
 			'default': {
 				'sound': 'on',
 				'announcement': 'auto'
+			}
+		},
+		'accessibility.signals.dictationDisconnected': {
+			...defaultNoAnnouncement,
+			'description': localize('accessibility.signals.dictationDisconnected', "Plays a sound / audio cue when dictation has been disconnected."),
+			'properties': {
+				'sound': {
+					'description': localize('accessibility.signals.dictationDisconnected.sound', "Plays a sound when dictation has been disconnected."),
+					...soundFeatureBase,
+				},
+			},
+			'default': {
+				'sound': 'on'
 			}
 		},
 		'accessibility.signals.clear': {

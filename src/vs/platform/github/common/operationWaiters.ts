@@ -3,11 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
+import { CancellationError } from '../../../base/common/errors.js';
+import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { IRequestScheduler } from './scheduler.js';
 
 /** One caller waiting for an operation, with its own cancellation and deadline. */
 interface IOperationWaiter<T> {
-	readonly signal: AbortSignal;
+	readonly cancellationToken: CancellationToken;
 	resolve(value: T): void;
 	reject(error: unknown): void;
 	blockedUntil(time: number): void;
@@ -21,7 +24,7 @@ export interface IWaiterCooldownPolicy {
 
 /** Owner-managed operation lifetime, distinct from the individual callers waiting for it. */
 export interface IInFlightOperation<T> {
-	readonly controller: AbortController;
+	readonly controller: CancellationTokenSource;
 	readonly deadline: number;
 	readonly waiters: OperationWaiters<T>;
 }
@@ -33,9 +36,9 @@ export class OperationWaiters<T> {
 
 	get size(): number { return this._waiters.size; }
 
-	hasSignal(signal: AbortSignal): boolean {
+	hasToken(cancellationToken: CancellationToken): boolean {
 		for (const waiter of this._waiters) {
-			if (waiter.signal === signal) {
+			if (waiter.cancellationToken === cancellationToken) {
 				return true;
 			}
 		}
@@ -62,31 +65,23 @@ export class OperationWaiters<T> {
 	}
 
 	wait(
-		signal: AbortSignal,
+		cancellationToken: CancellationToken,
 		deadline: number,
 		scheduler: Pick<IRequestScheduler, 'now' | 'schedule'>,
 		timeoutError: () => Error,
 		cooldown?: IWaiterCooldownPolicy,
 	): Promise<T> {
-		if (signal.aborted) {
-			return Promise.reject(signal.reason);
+		if (cancellationToken.isCancellationRequested) {
+			return Promise.reject(new CancellationError());
 		}
 		return new Promise((resolve, reject) => {
-			const onAbort = () => {
-				cleanup();
-				reject(signal.reason);
-			};
-			const timer = scheduler.schedule(() => {
-				cleanup();
-				reject(timeoutError());
-			}, Math.max(0, deadline - scheduler.now()));
+			const lifetime = new DisposableStore();
 			const cleanup = () => {
-				timer.dispose();
-				signal.removeEventListener('abort', onAbort);
+				lifetime.dispose();
 				this._waiters.delete(waiter);
 			};
 			const waiter: IOperationWaiter<T> = {
-				signal,
+				cancellationToken,
 				resolve: response => {
 					cleanup();
 					if (deadline <= scheduler.now()) {
@@ -108,7 +103,14 @@ export class OperationWaiters<T> {
 				},
 			};
 			this._waiters.add(waiter);
-			signal.addEventListener('abort', onAbort, { once: true });
+			lifetime.add(cancellationToken.onCancellationRequested(() => {
+				cleanup();
+				reject(new CancellationError());
+			}));
+			lifetime.add(scheduler.schedule(() => {
+				cleanup();
+				reject(timeoutError());
+			}, Math.max(0, deadline - scheduler.now())));
 			if (this._blockedUntil !== undefined) {
 				waiter.blockedUntil(this._blockedUntil);
 			}

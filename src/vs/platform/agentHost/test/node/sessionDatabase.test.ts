@@ -1138,6 +1138,43 @@ suite('SessionDatabase', () => {
 
 			assert.strictEqual(await db.getNextTurnEventId('does-not-exist'), undefined);
 		});
+
+		test('pruning after a restored turn addressed by its SDK event id removes the turns the SDK truncated', async () => {
+			// Truncating at a restored turn removes the SDK events from the next
+			// turn's event id on; a surviving row would hand that removed id to a
+			// later fork or truncation as its boundary. Usage of a resumed restored
+			// turn lazily creates an alias row keyed by the SDK event id.
+			const prune = async (withAlias: boolean, operation?: (database: SessionDatabase) => Promise<void>) => {
+				const database = disposables.add(await SessionDatabase.open(':memory:'));
+				for (const [turnId, eventId] of [['request_1', 'sdk-evt-1'], ['request_2', 'sdk-evt-2']]) {
+					await database.createTurn(turnId);
+					await database.setTurnEventId(turnId, eventId);
+				}
+				if (withAlias) {
+					await database.setTurnUsage('sdk-evt-2', '{}');
+				}
+				await database.createTurn('request_3');
+				await database.setTurnEventId('request_3', 'sdk-evt-3');
+				await operation?.(database);
+				return {
+					nextAfterFirst: await database.getNextTurnEventId('sdk-evt-1'),
+					nextAfterSecond: await database.getNextTurnEventId('sdk-evt-2'),
+					...(withAlias ? { hasUsage: (await database.getTurnUsages()).has('sdk-evt-2') } : {}),
+				};
+			};
+
+			assert.deepStrictEqual({
+				deleteTurnsAfter: await prune(false, database => database.deleteTurnsAfter('sdk-evt-2')),
+				truncateFromTurn: await prune(false, database => database.truncateFromTurn('sdk-evt-2')),
+				aliasBefore: await prune(true),
+				aliasDeleteTurnsAfter: await prune(true, database => database.deleteTurnsAfter('sdk-evt-2')),
+			}, {
+				deleteTurnsAfter: { nextAfterFirst: 'sdk-evt-2', nextAfterSecond: undefined },
+				truncateFromTurn: { nextAfterFirst: undefined, nextAfterSecond: undefined },
+				aliasBefore: { nextAfterFirst: 'sdk-evt-2', nextAfterSecond: 'sdk-evt-3', hasUsage: true },
+				aliasDeleteTurnsAfter: { nextAfterFirst: 'sdk-evt-2', nextAfterSecond: undefined, hasUsage: true },
+			});
+		});
 	});
 
 	suite('reasoning response parts', () => {

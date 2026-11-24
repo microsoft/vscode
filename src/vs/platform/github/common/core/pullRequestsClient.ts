@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { mergeArrayPages } from '../client/pagination.js';
 import { ApiPaginationOptions, ApiRequestOptions } from '../client/request.js';
 import { numberSegment, pathSegment, repositoryPath, withQuery } from '../client/routing.js';
@@ -10,14 +11,14 @@ import { parse } from '../client/schema.js';
 import { PageOptions, RepositoryRef } from '../client/types.js';
 import { ChangedFile, Connection, CursorOptions, NodeIdentity } from './core.js';
 import { CoreClient, cursorVariables, parseAccount, parseActor, parseChangedFile, parseConnection, parseLabel, parseMilestone, parseNodeIdentity, parseRepositoryIdentity, parseTeam } from './coreClient.js';
-import { UpdateBranchOptions, AutoMergeState, CreatePullRequestRequest, DraftState, EnableAutoMergeRequest, EnqueuePullRequestRequest, IPullRequestsClient, ListPullRequestsOptions, MergePullRequestRequest, MergeResult, PullRequest, PullRequestBranch, PullRequestListItem, PullRequestSummary, UpdateBranchResult, UpdatePullRequestRequest } from './pullRequests.js';
+import { AutoMergeState, CreatePullRequestRequest, DraftState, EnableAutoMergeRequest, EnqueuePullRequestRequest, IPullRequestsClient, ListPullRequestsOptions, MergePullRequestRequest, MergeResult, PullRequest, PullRequestBranch, PullRequestListItem, PullRequestSummary, UpdateBranchOptions, UpdateBranchResult, UpdatePullRequestRequest } from './pullRequests.js';
 import { Commit } from './repositories.js';
 import { parseCommit } from './repositoriesClient.js';
 
 export class PullRequestsClient implements IPullRequestsClient {
 	constructor(private readonly _client: CoreClient) { }
 
-	async list(repository: RepositoryRef, signal: AbortSignal, options?: ListPullRequestsOptions): Promise<readonly PullRequestSummary[]> {
+	async list(repository: RepositoryRef, cancellationToken: CancellationToken, options?: ListPullRequestsOptions): Promise<readonly PullRequestSummary[]> {
 		const { query, ...requestOptions } = options ?? {};
 		return this._client.requestPages({
 			domain: 'pullRequests',
@@ -26,22 +27,22 @@ export class PullRequestsClient implements IPullRequestsClient {
 			authentication: 'optional',
 			expectedStatus: 200,
 			options: requestOptions
-		}, signal, parsePullRequests, mergeArrayPages);
+		}, cancellationToken, parsePullRequests, mergeArrayPages);
 	}
 
-	async listConnection(repository: RepositoryRef, signal: AbortSignal, options?: ApiPaginationOptions<CursorOptions>): Promise<Connection<PullRequestListItem> | null> {
+	async listConnection(repository: RepositoryRef, cancellationToken: CancellationToken, options?: ApiPaginationOptions<CursorOptions>): Promise<Connection<PullRequestListItem> | null> {
 		const { query = {}, ...requestOptions } = options ?? {};
 		return this._client.graphqlPages(
 			'pullRequests',
 			listPullRequestsQuery,
 			{ owner: repository.owner, name: repository.repo, ...cursorVariables(query) },
-			signal,
+			cancellationToken,
 			data => parsePullRequestsQuery(data)?.repository?.pullRequests ?? null,
 			requestOptions
 		);
 	}
 
-	async get(repository: RepositoryRef, pullNumber: number, signal: AbortSignal, options?: ApiRequestOptions): Promise<PullRequest> {
+	async get(repository: RepositoryRef, pullNumber: number, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<PullRequest> {
 		return this._client.request({
 			domain: 'pullRequests',
 			method: 'GET',
@@ -49,10 +50,10 @@ export class PullRequestsClient implements IPullRequestsClient {
 			authentication: 'optional',
 			expectedStatus: 200,
 			options
-		}, signal, parsePullRequest);
+		}, cancellationToken, parsePullRequest);
 	}
 
-	async create(repository: RepositoryRef, request: CreatePullRequestRequest, signal: AbortSignal, options?: ApiRequestOptions): Promise<PullRequest> {
+	async create(repository: RepositoryRef, request: CreatePullRequestRequest, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<PullRequest> {
 		return this._client.request({
 			domain: 'pullRequests',
 			method: 'POST',
@@ -61,10 +62,10 @@ export class PullRequestsClient implements IPullRequestsClient {
 			authentication: 'required',
 			expectedStatus: 201,
 			options
-		}, signal, parsePullRequest);
+		}, cancellationToken, parsePullRequest);
 	}
 
-	async update(repository: RepositoryRef, pullNumber: number, request: UpdatePullRequestRequest, signal: AbortSignal, options?: ApiRequestOptions): Promise<PullRequest> {
+	async update(repository: RepositoryRef, pullNumber: number, request: UpdatePullRequestRequest, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<PullRequest> {
 		return this._client.request({
 			domain: 'pullRequests',
 			method: 'PATCH',
@@ -73,10 +74,10 @@ export class PullRequestsClient implements IPullRequestsClient {
 			authentication: 'required',
 			expectedStatus: 200,
 			options
-		}, signal, parsePullRequest);
+		}, cancellationToken, parsePullRequest);
 	}
 
-	async listForCommit(repository: RepositoryRef, commitRef: string, signal: AbortSignal, options?: ApiPaginationOptions<PageOptions>): Promise<readonly PullRequestSummary[]> {
+	async listForCommit(repository: RepositoryRef, commitRef: string, cancellationToken: CancellationToken, options?: ApiPaginationOptions<PageOptions>): Promise<readonly PullRequestSummary[]> {
 		const { query, ...requestOptions } = options ?? {};
 		return this._client.requestPages({
 			domain: 'pullRequests',
@@ -85,10 +86,10 @@ export class PullRequestsClient implements IPullRequestsClient {
 			authentication: 'optional',
 			expectedStatus: 200,
 			options: requestOptions
-		}, signal, parsePullRequests, mergeArrayPages);
+		}, cancellationToken, parsePullRequests, mergeArrayPages);
 	}
 
-	async listFiles(repository: RepositoryRef, pullNumber: number, signal: AbortSignal, options?: ApiPaginationOptions<PageOptions>): Promise<readonly ChangedFile[]> {
+	async listFiles(repository: RepositoryRef, pullNumber: number, cancellationToken: CancellationToken, options?: ApiPaginationOptions<PageOptions>): Promise<readonly ChangedFile[]> {
 		const { query, ...requestOptions } = options ?? {};
 		return this._client.requestPages({
 			domain: 'pullRequests',
@@ -97,10 +98,10 @@ export class PullRequestsClient implements IPullRequestsClient {
 			authentication: 'optional',
 			expectedStatus: 200,
 			options: requestOptions
-		}, signal, parseFiles, mergeArrayPages);
+		}, cancellationToken, parseFiles, mergeArrayPages);
 	}
 
-	async listCommits(repository: RepositoryRef, pullNumber: number, signal: AbortSignal, options?: ApiPaginationOptions<PageOptions>): Promise<readonly Commit[]> {
+	async listCommits(repository: RepositoryRef, pullNumber: number, cancellationToken: CancellationToken, options?: ApiPaginationOptions<PageOptions>): Promise<readonly Commit[]> {
 		const { query, ...requestOptions } = options ?? {};
 		return this._client.requestPages({
 			domain: 'pullRequests',
@@ -109,10 +110,10 @@ export class PullRequestsClient implements IPullRequestsClient {
 			authentication: 'optional',
 			expectedStatus: 200,
 			options: requestOptions
-		}, signal, parseCommits, mergeArrayPages);
+		}, cancellationToken, parseCommits, mergeArrayPages);
 	}
 
-	async getDiff(repository: RepositoryRef, pullNumber: number, format: 'diff' | 'patch', signal: AbortSignal, options?: ApiRequestOptions): Promise<string> {
+	async getDiff(repository: RepositoryRef, pullNumber: number, format: 'diff' | 'patch', cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<string> {
 		return this._client.request({
 			domain: 'pullRequests',
 			method: 'GET',
@@ -122,10 +123,10 @@ export class PullRequestsClient implements IPullRequestsClient {
 			expectedStatus: 200,
 			responseBody: 'text',
 			options
-		}, signal, parse.string);
+		}, cancellationToken, parse.string);
 	}
 
-	async merge(repository: RepositoryRef, pullNumber: number, request: MergePullRequestRequest, signal: AbortSignal, options?: ApiRequestOptions): Promise<MergeResult> {
+	async merge(repository: RepositoryRef, pullNumber: number, request: MergePullRequestRequest, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<MergeResult> {
 		return this._client.request({
 			domain: 'pullRequests',
 			method: 'PUT',
@@ -134,10 +135,10 @@ export class PullRequestsClient implements IPullRequestsClient {
 			authentication: 'required',
 			expectedStatus: 200,
 			options
-		}, signal, parseMerge);
+		}, cancellationToken, parseMerge);
 	}
 
-	async updateBranch(repository: RepositoryRef, pullNumber: number, signal: AbortSignal, options?: UpdateBranchOptions): Promise<UpdateBranchResult> {
+	async updateBranch(repository: RepositoryRef, pullNumber: number, cancellationToken: CancellationToken, options?: UpdateBranchOptions): Promise<UpdateBranchResult> {
 		const { expectedHeadSha, ...requestOptions } = options ?? {};
 		return this._client.request({
 			domain: 'pullRequests',
@@ -147,70 +148,70 @@ export class PullRequestsClient implements IPullRequestsClient {
 			authentication: 'required',
 			expectedStatus: 202,
 			options: requestOptions
-		}, signal, parseBranchUpdate);
+		}, cancellationToken, parseBranchUpdate);
 	}
 
-	async markReadyForReview(pullRequestId: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<DraftState> {
+	async markReadyForReview(pullRequestId: string, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<DraftState> {
 		return this._client.graphql(
 			'pullRequests',
 			markReadyMutation,
 			{ input: { pullRequestId } },
-			signal,
+			cancellationToken,
 			data => parseDraftMutation(data).result.pullRequest,
 			options
 		);
 	}
 
-	async convertToDraft(pullRequestId: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<DraftState> {
+	async convertToDraft(pullRequestId: string, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<DraftState> {
 		return this._client.graphql(
 			'pullRequests',
 			convertToDraftMutation,
 			{ input: { pullRequestId } },
-			signal,
+			cancellationToken,
 			data => parseDraftMutation(data).result.pullRequest,
 			options
 		);
 	}
 
-	async enableAutoMerge(pullRequestId: string, request: EnableAutoMergeRequest, signal: AbortSignal, options?: ApiRequestOptions): Promise<AutoMergeState> {
+	async enableAutoMerge(pullRequestId: string, request: EnableAutoMergeRequest, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<AutoMergeState> {
 		return this._client.graphql(
 			'pullRequests',
 			enableAutoMergeMutation,
 			{ input: { ...request, pullRequestId } },
-			signal,
+			cancellationToken,
 			data => parseAutoMergeMutation(data).result.pullRequest,
 			options
 		);
 	}
 
-	async disableAutoMerge(pullRequestId: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<AutoMergeState> {
+	async disableAutoMerge(pullRequestId: string, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<AutoMergeState> {
 		return this._client.graphql(
 			'pullRequests',
 			disableAutoMergeMutation,
 			{ input: { pullRequestId } },
-			signal,
+			cancellationToken,
 			data => parseAutoMergeMutation(data).result.pullRequest,
 			options
 		);
 	}
 
-	async enqueue(pullRequestId: string, request: EnqueuePullRequestRequest, signal: AbortSignal, options?: ApiRequestOptions): Promise<NodeIdentity> {
+	async enqueue(pullRequestId: string, request: EnqueuePullRequestRequest, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<NodeIdentity> {
 		return this._client.graphql(
 			'pullRequests',
 			enqueueMutation,
 			{ input: { ...request, pullRequestId } },
-			signal,
+			cancellationToken,
 			data => parseQueueMutation(data).result.mergeQueueEntry,
 			options
 		);
 	}
 
-	async dequeue(pullRequestId: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<NodeIdentity> {
+	async dequeue(pullRequestId: string, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<NodeIdentity> {
 		return this._client.graphql(
 			'pullRequests',
 			dequeueMutation,
 			{ input: { id: pullRequestId } },
-			signal,
+			cancellationToken,
 			data => parseQueueMutation(data).result.mergeQueueEntry,
 			options
 		);

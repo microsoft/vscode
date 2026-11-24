@@ -24,6 +24,8 @@ import { MockPromptsService } from './promptSyntax/service/mockPromptsService.js
 import { Target } from '../../common/promptSyntax/promptTypes.js';
 import { SessionType } from '../../common/chatSessionsService.js';
 import { LocalChatSessionUri } from '../../common/model/chatUri.js';
+import { PromptFileParser } from '../../common/promptSyntax/promptFileParser.js';
+import { CustomAgent } from '../../common/promptSyntax/service/promptsServiceImpl.js';
 
 class TestChatAgentService implements Partial<IChatAgentService> {
 	_serviceBrand: undefined;
@@ -80,6 +82,26 @@ suite('ChatModeService', () => {
 	const waitForRefresh = async (): Promise<void> => {
 		await (await chatModeService.getLocalModes()).waitForPendingUpdates();
 	};
+
+	test('carries parsed greetings through mode updates and cached restoration', async () => {
+		const uri = URI.parse('test:/review.agent.md');
+		const parseAgent = (message: string) => CustomAgent.fromParsedPromptFile(
+			new PromptFileParser().parse(uri, `---\nname: Review\nvscode:\n  welcome-message: ${message}\n---\n`),
+			{ source: workspaceSource, sessionTypes: undefined, enabled: true },
+		);
+		promptsService.setCustomModes([parseAgent('Hello')]);
+		await waitForRefresh();
+		const modes = await chatModeService.getLocalModes();
+		const mode = modes.findModeById(uri.toString())!;
+		storageService.store('chat.customModes.local', modes.custom, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		const cached = testDisposables.add(chatModeService.createModes(LocalChatSessionUri.getNewSessionUri()));
+		const restored = cached.findModeById(uri.toString())?.welcomeMessage?.get();
+		promptsService.setCustomModes([parseAgent('Updated')]);
+		await waitForRefresh();
+		assert.deepStrictEqual({ restored, sameMode: mode === modes.findModeById(uri.toString()), updated: mode.welcomeMessage?.get() }, {
+			restored: 'Hello', sameMode: true, updated: 'Updated',
+		});
+	});
 
 	test('preserves source labels through caching and updates without changing agent names or IDs', async () => {
 		const first: ICustomAgent = {

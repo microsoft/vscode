@@ -56,7 +56,7 @@ import { ArtifactDetailsAccessibilityHelp, ArtifactDetailsAccessibleView, Artifa
 import { ArtifactIntegrationPresentation } from '../../../browser/chat/artifactIntegrationPresentation.js';
 import { ArtifactIntegrationGroup } from '../../../browser/chat/artifactIntegrationGroup.js';
 import { ArtifactDetailsModel } from '../../../browser/chat/artifactDetailsModel.js';
-import { ArtifactDetailsPanel } from '../../../browser/chat/artifactDetailsPanel.js';
+import { ArtifactDetailsPanel, fitArtifactListHeights } from '../../../browser/chat/artifactDetailsPanel.js';
 import { artifactViewKey, IArtifactDetailsViewData } from '../../../browser/chat/artifactDetailsView.js';
 import { ITestSessionWithChat, stubFocusedSessionHostFromSessionsService } from '../sessionHostTestUtils.js';
 
@@ -627,7 +627,7 @@ suite('Artifact Integration Presentation', () => {
 				const panel = await open(f, a);
 				button(panel, 'Autopilot').click();
 				await expand(f, panel);
-				const outer = panel.querySelector<HTMLElement>('.artifact-details-lower-content')!;
+				const outer = panel.querySelector<HTMLElement>('.artifact-details-body')!;
 				const inner = panel.querySelector<HTMLElement>('.artifact-activities-list .monaco-scrollable-element')!;
 				const contents = inner.querySelector<HTMLElement>('.monaco-list-rows')!;
 				const innerScrollTop = () => Math.round(inner.getBoundingClientRect().top - contents.getBoundingClientRect().top);
@@ -654,6 +654,88 @@ suite('Artifact Integration Presentation', () => {
 					JSON.stringify({ first, bottom, backUp, final: { inner: innerScrollTop(), outer: outer.scrollTop }, rowsTop: contents.style.top, outerHeight: outer.clientHeight, outerScrollHeight: outer.scrollHeight }));
 			});
 		}
+
+		test('everything below the header scrolls together, and only by a distance worth scrolling', async () => {
+			const f = fixture();
+			const a = f.artifact();
+			setActivities(a, Array.from({ length: 20 }, (_, index) => activity(a, `entry-${index}`, { createdAt: index })));
+			const panel = await open(f, a);
+			panel.querySelector<HTMLElement>('[role="tab"]')!.click();
+			button(panel, 'Autopilot').click();
+			await expand(f, panel);
+			const body = panel.querySelector<HTMLElement>('.artifact-details-body')!;
+			const overflows = new Set<string>();
+			for (let height = 300; height <= 800; height += 10) {
+				f.host.style.height = `${height}px`;
+				await settle(f);
+				const overflow = body.scrollHeight - body.clientHeight;
+				overflows.add(overflow <= 0 ? 'fits' : overflow < 56 ? `scrolls only ${overflow}px at ${height}px` : 'scrolls');
+			}
+			assert.deepStrictEqual({
+				scrolled: ['.artifact-tabbed-state-widget', '.artifact-autopilot', '.artifact-activities'].map(selector => body.contains(panel.querySelector(selector))),
+				header: body.contains(panel.querySelector('.artifact-details-header')),
+				overflows: [...overflows].sort(),
+			}, { scrolled: [true, true, true], header: false, overflows: ['fits', 'scrolls'] });
+		});
+
+		test('keyboard navigation reveals the focused row when the panel is shorter than the list', async () => {
+			const f = fixture();
+			f.host.style.height = '300px';
+			const a = f.artifact();
+			setActivities(a, Array.from({ length: 20 }, (_, index) => activity(a, `entry-${index}`, { createdAt: index })));
+			const panel = await open(f, a);
+			await expand(f, panel);
+			const body = panel.querySelector<HTMLElement>('.artifact-details-body')!;
+			const list = panel.querySelector<HTMLElement>('.artifact-activities-list .monaco-list')!;
+			assert.ok(body.clientHeight < list.offsetHeight, `The panel (${body.clientHeight}px) must be shorter than the list (${list.offsetHeight}px)`);
+			list.focus();
+			list.dispatchEvent(new FocusEvent('focus'));
+			const visible: boolean[] = [];
+			for (const id of ['list.focusFirst', 'list.focusDown', 'list.focusDown', 'list.focusDown', 'list.focusDown', 'list.focusLast', 'list.focusFirst']) {
+				f.instantiation.invokeFunction(accessor => CommandsRegistry.getCommand(id)!.handler(accessor));
+				await settle(f);
+				const row = list.querySelector('.monaco-list-row.focused')!.getBoundingClientRect();
+				const viewport = body.getBoundingClientRect();
+				visible.push(row.top >= viewport.top - 0.5 && row.bottom <= viewport.bottom + 0.5);
+			}
+			assert.deepStrictEqual(visible, Array(7).fill(true));
+		});
+
+		test('layout and model updates keep the scroll position', async () => {
+			const f = fixture();
+			f.host.style.height = '560px';
+			const a = f.artifact();
+			const entries = (count: number) => Array.from({ length: count }, (_, index) => activity(a, `entry-${index}`, { createdAt: index }));
+			setActivities(a, entries(20));
+			const panel = await open(f, a);
+			button(panel, 'Autopilot').click();
+			await expand(f, panel);
+			const body = panel.querySelector<HTMLElement>('.artifact-details-body')!;
+			assert.ok(body.scrollHeight - body.clientHeight > 40, 'The panel must have content to scroll');
+			body.scrollTop = 40;
+			body.dispatchEvent(new mainWindow.Event('scroll'));
+			await settle(f);
+			const afterLayout = body.scrollTop;
+			setActivities(a, entries(21));
+			await settle(f);
+			assert.deepStrictEqual({ afterLayout, afterUpdate: body.scrollTop }, { afterLayout: 40, afterUpdate: 40 });
+		});
+
+		test('lists shrink to fit and grow back when scrolling would reveal too little', () => {
+			const lists = [{ preferred: 196, minimum: 112, step: 28 }, { preferred: 168, minimum: 84, step: 28 }];
+			const fit = (overflow: number, slack = 8) => {
+				const result = fitArtifactListHeights(lists, overflow, slack);
+				return [...result.heights, result.overflow];
+			};
+			assert.deepStrictEqual([0, 30, 168, 174, 180, 300].map(overflow => fit(overflow)), [
+				[196, 168, 0],
+				[140, 168, -26],
+				[112, 84, 0],
+				[112, 84, 6],
+				[140, 112, 68],
+				[112, 84, 132],
+			]);
+		});
 
 		test('shows an accessible right-aligned loaded activity count while collapsed and expanded', async () => {
 			const f = fixture();
@@ -991,6 +1073,27 @@ suite('Artifact Integration Presentation', () => {
 			hover: 'Open: compact status', acquired: [], inline: true, labels: ['#42', '1/2', '1'],
 			main: { label: 'Open #42', description: 'Open: compact status', popup: null },
 			sections: [{ popup: 'dialog', expanded: 'false' }, { popup: 'dialog', expanded: 'false' }],
+		});
+	});
+
+	test('a pill label shortens the artifact\'s own pill, while its label still names it for screen readers and dropdown rows', () => {
+		const f = fixture();
+		const a = f.artifact();
+		updateContribution(a, c => ({ ...c, view: { ...c.view, main: { ...c.view.main!, label: 'Use the theme\'s minimap background', pillLabel: 'PR #42', description: undefined } } }));
+		const hover = f.hovers.get(a.main);
+		assert.ok(typeof hover === 'function');
+		assert.deepStrictEqual({
+			label: a.main.querySelector('.chat-pill-label')?.textContent,
+			ariaLabel: a.main.getAttribute('aria-label'),
+			description: a.main.getAttribute('aria-description'),
+			hover: hover().content,
+			row: a.entry.get().label,
+		}, {
+			label: 'PR #42',
+			ariaLabel: 'Open Use the theme\'s minimap background',
+			description: null,
+			hover: 'Use the theme\'s minimap background',
+			row: 'Use the theme\'s minimap background',
 		});
 	});
 
@@ -1680,6 +1783,33 @@ suite('Artifact Integration Presentation', () => {
 			same: true, checked: true, configured: [
 				{ integrationId: 'test', revision: 4, values: { fix: true } }, { integrationId: 'test', revision: 5, values: { fix: false } },
 			], errors: ['The artifact operation failed: Consent failed'], invoked: [],
+		});
+	});
+
+	test('switches change at once and can be clicked in quick succession while the provider saves and refreshes', async () => {
+		const f = fixture();
+		const a = f.artifact();
+		const panel = await open(f, a);
+		const toggles = [...panel.querySelectorAll<HTMLButtonElement>('.artifact-autopilot-rule [role="switch"]')];
+		const state = () => toggles.map(toggle => ({ checked: toggle.getAttribute('aria-checked'), disabled: toggle.disabled }));
+		const write = new DeferredPromise<void>();
+		a.setConfigureResult(write.p);
+		toggles[0].click();
+		// Every Autopilot change makes the provider refresh the resource, which keeps showing its last known state.
+		updateContribution(a, c => ({ ...c, view: { ...c.view, availability: { kind: 'stale', reason: 'Refreshing.' } } }));
+		await settle(f);
+		toggles[1].click();
+		toggles[2].click();
+		await settle(f);
+		const saving = { toggles: state(), writes: a.configured.length };
+		await write.complete();
+		await settle(f);
+		const on = { checked: 'true', disabled: false };
+		assert.deepStrictEqual({ saving, saved: state(), configured: a.configured, errors: f.errors }, {
+			saving: { toggles: [on, on, on], writes: 1 }, saved: [on, on, on],
+			configured: [
+				{ integrationId: 'test', revision: 4, values: { fix: true } }, { integrationId: 'test', revision: 5, values: { reviews: true, merge: true } },
+			], errors: [],
 		});
 	});
 
@@ -2714,6 +2844,68 @@ suite('Artifact Integration Presentation', () => {
 				value: 'Always', grant: 'always', writes: [],
 				errors: ['The artifact operation failed: This Autopilot rule changed while selecting a policy. Choose the policy again.'],
 				pickerClosed: true,
+			});
+		});
+
+		test('a policy picked for an enabled rule cannot re-enable it after another update turns it off', async () => {
+			const f = fixture();
+			const quickInput = store.add(f.instantiation.createInstance(QuickInputService));
+			f.instantiation.stub(IQuickInputService, quickInput);
+			const a = f.artifact();
+			useEnumAutomation(a, 'always');
+			updateContribution(a, contribution => ({
+				...contribution,
+				options: [{ id: 'fix', kind: 'boolean', label: 'Auto Fix CI', description: 'Repair failed checks.', actionIds: ['fix'], maxAttempts: 3, defaultValue: false }, ...contribution.options],
+				configuration: { ...contribution.configuration, revision: 5, values: { fix: false, merge: 'always' } },
+			}));
+			const panel = await open(f, a);
+			button(panel, 'Autopilot').click();
+			const choose = async (label: string) => {
+				button(panel, label).click();
+				await settle(f);
+				return () => {
+					const choice = f.host.querySelectorAll<HTMLElement>('.quick-input-widget .monaco-list-row')[1];
+					choice.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0 }));
+					choice.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1, button: 0 }));
+				};
+			};
+			const turnOffMerge = (revision: number) => updateContribution(a, contribution => ({
+				...contribution, configuration: { ...contribution.configuration, revision, values: { ...contribution.configuration.values, merge: 'off' } },
+			}));
+
+			// Turned off while the picker is open.
+			const pickWhileOpen = await choose('Always');
+			turnOffMerge(6);
+			pickWhileOpen();
+			await settle(f);
+			const whilePicking = { writes: a.configured.length, merge: a.snapshot.get().contributions[0].configuration.values.merge };
+
+			// Turned off after the pick, while its write waits for an earlier write.
+			updateContribution(a, contribution => ({ ...contribution, configuration: { ...contribution.configuration, revision: 7, values: { ...contribution.configuration.values, merge: 'always' } } }));
+			await settle(f);
+			const earlierWrite = new DeferredPromise<void>();
+			a.setConfigureResult(earlierWrite.p);
+			panel.querySelectorAll<HTMLElement>('.artifact-autopilot-rule [role="switch"]')[0].click();
+			await settle(f);
+			const pickBeforeWrite = await choose('Always');
+			pickBeforeWrite();
+			await settle(f);
+			turnOffMerge(8);
+			await earlierWrite.complete();
+			await settle(f);
+
+			assert.deepStrictEqual({
+				whilePicking, writes: a.configured, values: a.snapshot.get().contributions[0].configuration.values,
+				merge: panel.querySelectorAll('.artifact-autopilot-rule [role="switch"]')[1].getAttribute('aria-checked'),
+				policy: panel.querySelector('.artifact-autopilot-policy')?.textContent, errors: f.errors,
+			}, {
+				whilePicking: { writes: 0, merge: 'off' },
+				writes: [{ integrationId: 'test', revision: 7, values: { fix: true } }],
+				values: { fix: true, merge: 'off' }, merge: 'false', policy: 'When No Changes Were Made',
+				errors: [
+					'The artifact operation failed: This Autopilot rule changed while selecting a policy. Choose the policy again.',
+					'The artifact operation failed: Merge Automatically When Ready was turned off before its new policy was saved, so it stays off. Turning it on again uses the selected policy.',
+				],
 			});
 		});
 

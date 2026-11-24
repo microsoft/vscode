@@ -562,6 +562,11 @@
 	text-overflow: ellipsis;
 }
 
+/* The model details give way first, so the working time is never cut off mid-number. */
+.interactive-item-container .chat-response-working-time {
+	flex-shrink: 0;
+}
+
 .interactive-item-container.interactive-response .chat-footer-toolbar .chat-footer-details.hidden {
 	display: none;
 }
@@ -727,6 +732,7 @@
 	}
 }
 
+/* NOTE- BLOCKQUOTE_HORIZONTAL_INSET in chatMarkdownContentPart.ts sizes request code blocks to this padding and border */
 .interactive-item-container .value .rendered-markdown blockquote {
 	margin: 0px;
 	padding: 0px 16px 0 10px;
@@ -1093,6 +1099,8 @@ following list content ends up with no space above it. Add a matching top margin
 have to be updated for changes to the rules above, or to support more deeply nested lists. */
 .interactive-item-container .value .rendered-markdown ul .interactive-result-code-block {
 	margin-left: -24px;
+	/* The dedented block is wider than the list item */
+	max-width: none;
 }
 
 .interactive-item-container .value .rendered-markdown ul ul .interactive-result-code-block {
@@ -1101,6 +1109,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-item-container .value .rendered-markdown ol .interactive-result-code-block {
 	margin-left: -28px;
+	/* The dedented block is wider than the list item */
+	max-width: none;
 }
 
 .interactive-item-container .value .rendered-markdown ol ol .interactive-result-code-block {
@@ -1252,13 +1262,14 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .chat-dnd-overlay .attach-context-overlay-text {
-	padding: 0.6em;
-	margin: 0.2em;
-	line-height: 12px;
-	height: 12px;
 	display: flex;
 	align-items: center;
-	text-align: center;
+}
+
+.chat-dnd-overlay .attach-context-overlay-text .overlay-text {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
 }
 
 .chat-dnd-overlay .attach-context-overlay-text .codicon {
@@ -2444,8 +2455,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .chat-attached-context .chat-attached-context-attachment.show-file-icons.warning,
-.chat-attached-context .chat-attached-context-attachment.show-file-icons.partial-warning,
-.chat-attached-context .chat-attached-context-attachment.show-file-icons.auto-image-warning {
+.chat-attached-context .chat-attached-context-attachment.show-file-icons.partial-warning {
 	border-color: var(--vscode-notificationsWarningIcon-foreground);
 }
 
@@ -2673,6 +2683,36 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	white-space: nowrap;
 	text-overflow: ellipsis;
 	text-decoration: inherit;
+}
+
+/*
+ * The pills of the issues and pull requests of a repository differ only by their number. A pill that is
+ * shortened to fit shortens the repository and keeps the number, which is the suffix of its label.
+ */
+.interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-icon-label.github-reference .monaco-icon-name-container {
+	min-width: 0;
+}
+
+/* The number is not clipped at its box either, which would dim the edge of its first character. */
+.interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-icon-label.github-reference .monaco-icon-suffix-container {
+	flex-shrink: 0;
+	overflow: visible;
+}
+
+/* The number reads as part of the name rather than as a description of it. */
+.interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-icon-label.github-reference .label-suffix {
+	color: inherit;
+}
+
+/* A block shows an ellipsis for the part of the repository that is cut off, which a flex container does not. */
+.interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-icon-label.github-reference .monaco-highlighted-label {
+	display: block;
+}
+
+/* The icon of the label takes the height of its line, which centers it as the flex container did. */
+.interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-icon-label.github-reference .monaco-highlighted-label .codicon {
+	line-height: inherit;
+	vertical-align: top;
 }
 
 .interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-icon-label .monaco-button.codicon.codicon-close-compact,
@@ -3852,6 +3892,80 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	display: none;
 }
 
+.chat-working-progress > .chat-live-response-stats {
+	font-size: var(--vscode-chat-font-size-body-s);
+}
+
+/* Leading stats take the place of a generic working phrase, and lead a label or activities that name a state. */
+.chat-working-progress-generic-label > .chat-working-progress-leading-stats:not([hidden]) ~ .rendered-markdown.progress-step {
+	display: none;
+}
+
+.chat-working-progress:not(.chat-working-progress-generic-label) > .chat-working-progress-leading-stats::after {
+	/* The separator between the stats themselves. */
+	content: ' \00b7  ';
+	white-space: pre;
+}
+
+/* Trailing stats follow the phrase, label or activities, after the same separator. Those keep their width and the stats
+	take what is left of the row, so a narrow row truncates the stats instead of wrapping its label or drawing them over it. */
+.chat-working-progress > .chat-working-progress-trailing-stats {
+	flex: 1 1 0;
+	min-width: 0;
+	/* No wider than their text, so their hover does not reach into the empty rest of the row. */
+	max-width: max-content;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.chat-working-progress > .chat-working-progress-trailing-stats::before {
+	content: ' \00b7  ';
+	white-space: pre;
+}
+
+/* After activities, the separator rests in the slot of their chevron instead, so that slot leaves no gap. */
+.chat-working-progress-has-activities > .chat-working-progress-trailing-stats::before {
+	content: none;
+}
+
+/* The same space follows the slot as leads it, so what the slot shows sits midway between the label and the stats. */
+.chat-working-progress-has-activities > .chat-working-progress-trailing-stats {
+	margin-inline-start: var(--vscode-spacing-size20);
+}
+
+.chat-working-progress-has-trailing-stats .chat-working-activities .chat-pill-button {
+	position: relative;
+}
+
+.chat-working-progress-has-trailing-stats .chat-working-activities .chat-pill-button::after {
+	content: '\00b7';
+	position: absolute;
+	inset-block: 0;
+	inset-inline-end: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: var(--vscode-codiconFontSize-compact);
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-chat-font-size-body-s);
+	transition: opacity 100ms ease-in-out;
+}
+
+/* The chevron takes the separator's place in the states that show it, so nothing moves. */
+.chat-working-progress-has-trailing-stats .chat-working-activities .chat-pill-button:is(:hover, .hovered, :focus-visible, [aria-expanded="true"])::after {
+	opacity: 0;
+}
+
+.monaco-reduce-motion .chat-working-progress-has-trailing-stats .chat-working-activities .chat-pill-button::after {
+	transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.chat-working-progress-has-trailing-stats .chat-working-activities .chat-pill-button::after {
+		transition: none;
+	}
+}
+
 .chat-working-activities {
 	--chat-pill-background: transparent;
 	display: flex;
@@ -3861,7 +3975,9 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	min-width: 0;
 }
 
-.chat-working-activities .monaco-action-bar .chat-dropdown-pill {
+/* Named with both of the widget's classes to outrank the pill sizing in `chatPills.css`, which otherwise ties on
+	specificity and, loaded later, keeps a pill at its full width in a row too narrow for it. */
+.chat-pills.chat-working-activities .monaco-action-bar .chat-dropdown-pill {
 	max-width: 100%;
 	flex-shrink: 1;
 	min-width: 0;
@@ -3978,6 +4094,11 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	flex-direction: row;
 	padding: 8px 12px;
 	gap: 6px;
+}
+
+/* The mute button uses the chat input notice action's styles; it sits on the right. */
+.chat-notification-widget .chat-notification-widget-action {
+	margin-left: auto;
 }
 
 .interactive-item-container .chat-confirmation-widget .interactive-result-code-block,
@@ -4428,6 +4549,12 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		position: relative;
 	}
 
+	/* Request code blocks are laid out to the row width, see CodeBlockPart.layout */
+	.interactive-item-container.interactive-request .value .rendered-markdown.chat-markdown-has-code-block {
+		box-sizing: border-box;
+		max-width: 100%;
+	}
+
 	.chat-request-disclosure {
 		width: 100%;
 	}
@@ -4636,8 +4763,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	}
 
 	.interactive-item-container.interactive-request .value .chat-request-attachment-cards .chat-attached-context-attachment.image-attachment.warning,
-	.interactive-item-container.interactive-request .value .chat-request-attachment-cards .chat-attached-context-attachment.image-attachment.partial-warning,
-	.interactive-item-container.interactive-request .value .chat-request-attachment-cards .chat-attached-context-attachment.image-attachment.auto-image-warning {
+	.interactive-item-container.interactive-request .value .chat-request-attachment-cards .chat-attached-context-attachment.image-attachment.partial-warning {
 		border-color: var(--vscode-notificationsWarningIcon-foreground);
 	}
 
@@ -5309,48 +5435,138 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 	.scheduled-request-editor-actions {
 		display: flex;
-		gap: var(--vscode-spacing-size80);
+		justify-content: flex-end;
+		align-items: center;
+		gap: var(--vscode-spacing-size40);
 	}
 
 	.scheduled-request-editor .monaco-button {
 		width: auto;
 		flex: 0 0 auto;
 		margin: 0;
+		height: var(--chat-input-control-height);
+		padding: 0 var(--vscode-spacing-size80);
+		border: none;
+		font-size: var(--vscode-fontSize-label1);
+		border-radius: var(--vscode-cornerRadius-circle);
+	}
 
-		&.scheduled-request-edit-time {
-			flex: 0 1 auto;
-			margin-right: auto;
+	.scheduled-request-cancel {
+		color: var(--vscode-foreground);
+		background-color: transparent;
+	}
+
+	.scheduled-request-cancel:not(.disabled):hover {
+		background-color: var(--vscode-toolbar-hoverBackground);
+		outline: var(--vscode-strokeThickness) dashed var(--vscode-toolbar-hoverOutline);
+		outline-offset: calc(-1 * var(--vscode-strokeThickness));
+	}
+
+	.scheduled-request-save {
+		display: flex;
+		min-width: 0;
+		border-radius: var(--vscode-cornerRadius-circle);
+		background-color: var(--vscode-button-background);
+		box-shadow: inset 0 0 0 var(--vscode-strokeThickness) var(--vscode-contrastBorder, transparent);
+	}
+
+	.scheduled-request-save .scheduled-request-save-label {
+		flex: 0 1 auto;
+		min-width: 0;
+		padding-left: var(--vscode-spacing-size100);
+		border-radius: var(--vscode-cornerRadius-circle) 0 0 var(--vscode-cornerRadius-circle);
+
+		> span {
 			min-width: 0;
-
-			> span:not(.codicon) {
-				min-width: 0;
-				overflow: hidden;
-				white-space: nowrap;
-				text-overflow: ellipsis;
-			}
+			overflow: hidden;
+			white-space: nowrap;
+			text-overflow: ellipsis;
 		}
 	}
 
-	.scheduled-request-actions {
-		top: -17px;
-		opacity: 0;
+	.scheduled-request-save-separator {
+		align-self: stretch;
+		width: var(--vscode-strokeThickness);
+		margin: var(--vscode-spacing-size40) 0;
+		background-color: var(--vscode-button-separator);
 	}
 
-	&:focus-within .scheduled-request-actions {
+	.scheduled-request-save .scheduled-request-edit-time {
+		width: var(--vscode-spacing-size240);
+		padding: 0;
+		border-radius: 0 var(--vscode-cornerRadius-circle) var(--vscode-cornerRadius-circle);
+
+		.codicon {
+			font-size: var(--vscode-codiconFontSize-compact);
+		}
+	}
+
+	.scheduled-request-editor-actions .monaco-button:focus-visible {
+		outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+		outline-offset: var(--vscode-strokeThickness);
+	}
+
+	&.interactive-request .scheduled-request-actions {
+		/* Keep the toolbar out of the preceding message's inline editor. */
+		top: calc(-1 * var(--vscode-spacing-size80));
+		opacity: 0;
+		pointer-events: none;
+	}
+
+	&.interactive-request:hover .scheduled-request-actions,
+	&.interactive-request:focus-within .scheduled-request-actions {
 		opacity: 1;
+		pointer-events: auto;
 	}
 
 	.scheduled-request-header {
 		display: flex;
 		align-items: center;
-		gap: var(--vscode-spacing-size80);
+		gap: var(--vscode-spacing-size40);
 		color: var(--vscode-descriptionForeground);
 		font-size: var(--vscode-chat-font-size-body-xs);
+	}
+
+	.value .rendered-markdown .scheduled-request-header > .codicon {
+		top: 0;
+		font-size: var(--vscode-codiconFontSize-compact);
 	}
 
 	.scheduled-request-description {
 		flex: 1;
 		min-width: 0;
+	}
+
+	.scheduled-request-time {
+		flex: 0 1 auto;
+		display: inline-grid;
+		overflow: hidden;
+
+		> time {
+			grid-area: 1 / 1;
+			overflow: hidden;
+			white-space: nowrap;
+			text-overflow: ellipsis;
+			transition: opacity 160ms ease, transform 160ms ease;
+		}
+
+		> .scheduled-request-exact {
+			opacity: 0;
+			transform: translateY(100%);
+		}
+	}
+
+	.scheduled-request-time:hover,
+	.rendered-markdown:focus-visible .scheduled-request-time {
+		> .scheduled-request-from-now {
+			opacity: 0;
+			transform: translateY(-100%);
+		}
+
+		> .scheduled-request-exact {
+			opacity: 1;
+			transform: translateY(0);
+		}
 	}
 
 	.scheduled-request-text,
@@ -5362,6 +5578,16 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	.scheduled-request-attachments {
 		color: var(--vscode-descriptionForeground);
 		font-size: var(--vscode-chat-font-size-body-xs);
+	}
+}
+
+.monaco-reduce-motion .interactive-item-container.scheduled-request .scheduled-request-time > time {
+	transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.interactive-item-container.scheduled-request .scheduled-request-time > time {
+		transition: none;
 	}
 }
 

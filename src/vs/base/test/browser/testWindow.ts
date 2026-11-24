@@ -23,3 +23,23 @@ export function registerTestIframe(iframe: HTMLIFrameElement): IDisposable {
 	ensureCodeWindow(targetWindow, nextTestWindowId++);
 	return registerWindow(targetWindow);
 }
+
+/**
+ * Resolves once the iframe's window has the viewport of the iframe's box. WebKit can report a freshly attached
+ * iframe's viewport as 0x0 until its document is laid out and a frame is rendered, so tests that measure or hit
+ * test inside the iframe must wait for this first.
+ */
+export async function whenTestIframeLaidOut(iframe: HTMLIFrameElement): Promise<void> {
+	const targetWindow = iframe.contentWindow;
+	const ownerWindow = iframe.ownerDocument.defaultView;
+	if (!targetWindow || !ownerWindow) {
+		throw new Error('Attach the iframe to a document before waiting for its layout.');
+	}
+	iframe.getBoundingClientRect();
+	await new Promise<void>(resolve => ownerWindow.requestAnimationFrame(() => resolve()));
+	const expected = [iframe.clientWidth, iframe.clientHeight];
+	const actual = [targetWindow.innerWidth, targetWindow.innerHeight];
+	if (actual[0] !== expected[0] || actual[1] !== expected[1]) {
+		throw new Error(`The iframe's viewport is ${actual.join('x')} after a rendered frame, expected ${expected.join('x')}.`);
+	}
+}
