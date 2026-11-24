@@ -25,7 +25,7 @@ import { changeMatchesResource, getActiveResourceCandidates } from './agentFeedb
 import { IAgentFeedbackContext, AGENT_FEEDBACK_NEW_SESSION_RESOURCE, INavigableSessionComment, IAcceptFeedbackOptions, IAgentFeedbackChangeEvent, IAgentFeedbackNavigationBearing, IAgentFeedbackNavigationChangeEvent, IAgentFeedbackCommentRevealEvent, IAgentFeedbackAddedEvent, IAgentFeedbackConvertedEvent, IAgentFeedbackReplyAddedEvent, IAgentFeedbackSubmittedEvent, ISubmitFeedbackOptions, IAgentFeedbackService } from '../../../../workbench/contrib/sessions/browser/agentFeedback.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { IChatWidget, IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
-import { ResponseModelState } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { ChatRequestQueueKind, ResponseModelState } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatResponseModel } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IFeedbackPullRequest } from '../../../../platform/agentHost/common/meta/agentFeedbackAnnotations.js';
@@ -786,7 +786,7 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 	 * Agent-host sessions don't keep a reactive feedback attachment in the chat input: their feedback lives in the
 	 * annotations backend. The accepted items, which are about to become submitted, are attached to this single request to
 	 * the session's {@link _getAgentHostFeedbackChat feedback chat}. A widget that shows the chat sends it, which queues it
-	 * while the agent is busy. Without one, it is sent in the background, so feedback for a chat that is not shown is not
+	 * while the agent is busy. Without one, it is queued in the background, so feedback for a chat that is not shown is not
 	 * dropped.
 	 */
 	private async _submitAgentHostFeedback(sessionResource: URI, options: ISubmitFeedbackOptions | undefined): Promise<boolean> {
@@ -823,6 +823,7 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 			await this._sessionsManagementService.sendRequestInBackground(session, chat, {
 				query: options?.query ?? '/act-on-feedback',
 				attachedContext: [createAttachment()],
+				queue: ChatRequestQueueKind.Queued,
 			});
 		} catch (error) {
 			this._logService.error('[AgentFeedback] Failed to submit feedback in the background', error);

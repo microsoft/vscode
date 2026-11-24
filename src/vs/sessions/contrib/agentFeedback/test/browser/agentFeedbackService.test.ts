@@ -23,7 +23,7 @@ import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
-import { ResponseModelState } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { ChatRequestQueueKind, ResponseModelState } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatResponseModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { IEditorService, IVisibleEditorsChangeEvent } from '../../../../../workbench/services/editor/common/editorService.js';
 import { ISendRequestOptions, ISessionsChangeEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
@@ -1001,7 +1001,7 @@ suite('AgentFeedbackService - Submit (agent host)', () => {
 	/** The chats a widget shows, or `undefined` when one shows any chat. */
 	let widgetChats: readonly URI[] | undefined;
 	/** The requests sent in the background. */
-	let backgroundRequests: { chat: string; query: string; attachedTexts: string[] | undefined }[];
+	let backgroundRequests: { chat: string; query: string; queue: ChatRequestQueueKind | undefined; attachedTexts: string[] | undefined }[];
 	/** The error a background send fails with, if any. */
 	let backgroundSendError: Error | undefined;
 
@@ -1040,7 +1040,7 @@ suite('AgentFeedbackService - Submit (agent host)', () => {
 					throw backgroundSendError;
 				}
 				const entry = options.attachedContext?.[0];
-				backgroundRequests.push({ chat: chat.resource.toString(), query: options.query, attachedTexts: entry?.kind === 'agentFeedback' ? entry.feedbackItems.map(item => item.text) : undefined });
+				backgroundRequests.push({ chat: chat.resource.toString(), query: options.query, queue: options.queue, attachedTexts: entry?.kind === 'agentFeedback' ? entry.feedbackItems.map(item => item.text) : undefined });
 			}
 		});
 		activeSession = observableValue<ITestSessionWithChat | undefined>('activeSession', undefined);
@@ -1218,7 +1218,7 @@ suite('AgentFeedbackService - Submit (agent host)', () => {
 	});
 
 	for (const fails of [false, true]) {
-		test(`sends the feedback in the background when no widget shows its chat: ${fails ? 'fails' : 'succeeds'}`, async () => {
+		test(`queues the feedback in the background when no widget shows its chat: ${fails ? 'fails' : 'succeeds'}`, async () => {
 			chats.set([
 				{ resource: session } as IChat,
 				{ resource: nestedChat } as IChat,
@@ -1226,7 +1226,7 @@ suite('AgentFeedbackService - Submit (agent host)', () => {
 			], undefined);
 			showChat(session, chats.get()[2]);
 			widgetChats = [sideChat];
-			backgroundSendError = fails ? new Error('Request already in progress') : undefined;
+			backgroundSendError = fails ? new Error('The agent host is unavailable') : undefined;
 			const first = service.addFeedback(session, fileA, r(10), 'Fix the PR comment');
 			let accepted = 0;
 
@@ -1238,7 +1238,7 @@ suite('AgentFeedbackService - Submit (agent host)', () => {
 				states: service.getFeedback(session).map(item => ({ id: item.id, state: item.state })),
 			}, {
 				submitted: !fails, accepted: fails ? 0 : 1, widgetOps: [],
-				backgroundRequests: fails ? [] : [{ chat: nestedChat.toString(), query: '/act-on-feedback', attachedTexts: ['Fix the PR comment'] }],
+				backgroundRequests: fails ? [] : [{ chat: nestedChat.toString(), query: '/act-on-feedback', queue: ChatRequestQueueKind.Queued, attachedTexts: ['Fix the PR comment'] }],
 				states: [
 					{ id: first.id, state: fails ? AgentFeedbackState.Accepted : AgentFeedbackState.Submitted },
 					{ id: second.id, state: AgentFeedbackState.Accepted },
