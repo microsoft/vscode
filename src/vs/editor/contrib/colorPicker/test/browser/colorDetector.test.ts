@@ -112,6 +112,7 @@ suite('ColorDetector', () => {
 		await withAsyncTestCodeEditor(['#ff0000', '#00ff00', '#0000ff'], {}, async (editor, _viewModel, instantiationService) => {
 			store.add(instantiationService.get(ILanguageFeaturesService).colorProvider.register('*', colorProvider(3)));
 
+			useStyledContainer(editor);
 			const detector = store.add(instantiationService.createInstance(ColorDetector, editor));
 			await Event.toPromise(detector.limitReporter.onDidChange);
 
