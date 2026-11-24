@@ -1205,4 +1205,31 @@ data: [DONE]
 		expect(completions[0].usage).toBeDefined();
 		expect(completions[0].usage!.copilot_usage).toBeUndefined();
 	});
+
+	test('routes ID-less extra_content and argument deltas by tool-call index across parallel tool calls', async function() {
+		const response = [
+			`data: {"choices":[{"index":0,"delta":{"role":"assistant","tool_calls":[{"index":0,"id":"call_1","type":"function","function":{"name":"get_weather","arguments":"{\\"city\\":"}},{"index":1,"id":"call_2","type":"function","function":{"name":"get_weather","arguments":"{\\"city\\":"}}]},"finish_reason":null}]}\n`,
+			`data: {"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"\\"Taipei\\"}"},"extra_content":{"google":{"thought_signature":"sig_call_1"}}},{"index":1,"function":{"arguments":"\\"Kaohsiung\\"}"}}]},"finish_reason":null}]}\n`,
+			`data: {"choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}]}\n`,
+			`data: [DONE]\n`,
+		];
+		const { collection, finishedCb } = createSpyingFinishedCb();
+		const processor = await createProcessor(response);
+		await getAll(processor.processSSE(finishedCb));
+
+		const completedToolCalls = collection.flatMap(item => item.delta.copilotToolCalls ?? []);
+		expect(completedToolCalls).toEqual([
+			{
+				id: 'call_1',
+				name: 'get_weather',
+				arguments: '{"city":"Taipei"}',
+				extra_content: { google: { thought_signature: 'sig_call_1' } },
+			},
+			{
+				id: 'call_2',
+				name: 'get_weather',
+				arguments: '{"city":"Kaohsiung"}',
+			},
+		]);
+	});
 });

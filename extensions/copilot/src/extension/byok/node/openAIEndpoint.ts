@@ -198,6 +198,19 @@ export class OpenAIEndpoint extends ChatEndpoint {
 			|| /gemini[-/]?[3-9]/i.test(this.model);
 	}
 
+	private _hasGoogleThoughtSignature(toolCall: IOpenAIToolCallWithExtraContent): boolean {
+		const extra = toolCall.extra_content;
+		if (typeof extra !== 'object' || extra === null || Array.isArray(extra)) {
+			return false;
+		}
+		const google = extra.google;
+		if (typeof google !== 'object' || google === null || Array.isArray(google)) {
+			return false;
+		}
+		const sig = (google as Record<string, unknown>).thought_signature;
+		return typeof sig === 'string' && sig.length > 0;
+	}
+
 	private _ensureGeminiToolCallThoughtSignatures(messages: IEndpointBody['messages']): void {
 		if (!Array.isArray(messages) || !this._isGeminiChatCompletionsTarget()) {
 			return;
@@ -207,20 +220,8 @@ export class OpenAIEndpoint extends ChatEndpoint {
 				continue;
 			}
 			const toolCalls = msg.tool_calls as IOpenAIToolCallWithExtraContent[];
-			const hasSignature = toolCalls.some(tc => {
-				const extra = tc.extra_content;
-				if (typeof extra !== 'object' || extra === null || Array.isArray(extra)) {
-					return false;
-				}
-				const google = extra.google;
-				if (typeof google !== 'object' || google === null || Array.isArray(google)) {
-					return false;
-				}
-				const sig = (google as Record<string, unknown>).thought_signature;
-				return typeof sig === 'string' && sig.length > 0;
-			});
-			if (!hasSignature) {
-				const firstCall = toolCalls[0];
+			const firstCall = toolCalls[0];
+			if (!this._hasGoogleThoughtSignature(firstCall)) {
 				const existingExtra = typeof firstCall.extra_content === 'object' && firstCall.extra_content !== null && !Array.isArray(firstCall.extra_content)
 					? firstCall.extra_content
 					: {};

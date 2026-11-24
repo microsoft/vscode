@@ -421,6 +421,38 @@ describe('OpenAIEndpoint - Reasoning Properties', () => {
 			const nonGeminiBody = nonGeminiEndpoint.createRequestBody(createTestOptions([unsignedAssistantToolCalls]));
 			const [nonGeminiMsg] = nonGeminiBody.messages as any[];
 			expect(nonGeminiMsg.tool_calls[0].extra_content).toBeUndefined();
+
+			// Even if a later parallel call carries a signature, the first call must still be signed
+			const misattributedFirstUnsigned: Raw.ChatMessage = {
+				role: Raw.ChatRole.Assistant,
+				content: [{
+					type: Raw.ChatCompletionContentPartKind.Opaque,
+					value: {
+						type: 'thinking',
+						thinking: {
+							id: '',
+							text: [],
+							metadata: {
+								toolExtraContent: {
+									'call_b': { google: { thought_signature: 'sig-on-second' } }
+								}
+							}
+						}
+					}
+				}],
+				toolCalls: [
+					{ id: 'call_a', type: 'function', function: { name: 'read_agent', arguments: '{"agent_id":"1"}' } },
+					{ id: 'call_b', type: 'function', function: { name: 'read_agent', arguments: '{"agent_id":"2"}' } },
+				],
+			};
+			const recoveredBody = geminiEndpoint.createRequestBody(createTestOptions([misattributedFirstUnsigned]));
+			const [recoveredMsg] = recoveredBody.messages as any[];
+			expect(recoveredMsg.tool_calls[0].extra_content).toEqual({
+				google: { thought_signature: 'skip_thought_signature_validator' }
+			});
+			expect(recoveredMsg.tool_calls[1].extra_content).toEqual({
+				google: { thought_signature: 'sig-on-second' }
+			});
 		});
 	});
 

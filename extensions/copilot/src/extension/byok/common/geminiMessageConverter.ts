@@ -266,7 +266,7 @@ export function apiMessageToGeminiMessage(messages: Array<LanguageModelChatMessa
 	for (const c of contents) {
 		if (c.role === 'model' && c.parts) {
 			const functionCallParts = c.parts.filter(p => Boolean(p.functionCall?.name));
-			if (functionCallParts.length > 0 && !functionCallParts.some(p => typeof p.thoughtSignature === 'string' && p.thoughtSignature.length > 0)) {
+			if (functionCallParts.length > 0 && !(typeof functionCallParts[0].thoughtSignature === 'string' && functionCallParts[0].thoughtSignature.length > 0)) {
 				functionCallParts[0].thoughtSignature = GEMINI_SKIP_THOUGHT_SIGNATURE_VALIDATOR;
 			}
 		}
