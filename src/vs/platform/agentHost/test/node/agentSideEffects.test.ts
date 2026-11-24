@@ -9374,11 +9374,12 @@ suite('AgentSideEffects', () => {
 			return part?.kind === ResponsePartKind.ToolCall ? part.toolCall : undefined;
 		}
 
-		async function startPendingCustomTool(toolCallId: string, managedApprovalRequired = false): Promise<void> {
+		async function startPendingCustomTool(toolCallId: string, options: { readonly managedApprovalRequired?: boolean; readonly clientTool?: boolean } = {}): Promise<void> {
 			const chat = URI.parse(defaultChatUri);
+			const contributor = options.clientTool ? { kind: ToolCallContributorKind.Client, clientId: 'test-client' } as const : undefined;
 			agent.fireProgress({
 				kind: 'action', resource: chat,
-				action: chatToolCallStart('turn-1', toolCallId, 'CustomTool', 'Custom Tool'),
+				action: chatToolCallStart('turn-1', toolCallId, 'CustomTool', 'Custom Tool', contributor ? { contributor } : undefined),
 			});
 			agent.fireProgress({
 				kind: 'pending_confirmation', chat,
@@ -9387,7 +9388,7 @@ suite('AgentSideEffects', () => {
 					toolName: 'CustomTool', displayName: 'Custom Tool',
 					invocationMessage: 'Run custom tool', confirmationTitle: 'Run custom tool?',
 				},
-				permissionKind: AgentPermissionKind.CustomTool, managedApprovalRequired,
+				permissionKind: AgentPermissionKind.CustomTool, managedApprovalRequired: options.managedApprovalRequired,
 			});
 			await waitForState(stateManager, () => getToolCall(toolCallId)?.status === ToolCallStatus.PendingConfirmation || undefined);
 		}
@@ -9603,7 +9604,7 @@ suite('AgentSideEffects', () => {
 			});
 		});
 
-		test('switching to Allow All auto-approves pending calls except managed approvals', async () => {
+		test('switching to Allow All auto-approves pending calls except managed approvals and client tools', async () => {
 			setupSession();
 			stateManager.setSessionConfig(sessionUri.toString(), {
 				schema: {
@@ -9623,7 +9624,8 @@ suite('AgentSideEffects', () => {
 			startTurn('turn-1');
 			disposables.add(sideEffects.registerProgressListener(agent));
 			await startPendingCustomTool('tc-ordinary');
-			await startPendingCustomTool('tc-managed', true);
+			await startPendingCustomTool('tc-managed', { managedApprovalRequired: true });
+			await startPendingCustomTool('tc-client', { clientTool: true });
 
 			stateManager.dispatchClientAction(sessionUri.toString(), {
 				type: ActionType.SessionConfigChanged,
@@ -9639,11 +9641,13 @@ suite('AgentSideEffects', () => {
 				status: toolCall.status,
 				confirmed: toolCall.confirmed,
 				managedStatus: getToolCall('tc-managed')?.status,
+				clientStatus: getToolCall('tc-client')?.status,
 				responses: agent.respondToPermissionCalls,
 			}, {
 				status: ToolCallStatus.Running,
 				confirmed: ToolCallConfirmationReason.Setting,
 				managedStatus: ToolCallStatus.PendingConfirmation,
+				clientStatus: ToolCallStatus.PendingConfirmation,
 				responses: [{ requestId: 'tc-ordinary', approved: true }],
 			});
 		});

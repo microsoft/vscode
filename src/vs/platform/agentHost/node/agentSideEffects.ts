@@ -6,10 +6,10 @@
 import { getTelemetryChatSessionId } from '../common/agentTelemetryCorrelation.js';
 import { readUsageInfoMeta } from '../common/meta/agentUsageMeta.js';
 import { getErrorCode, getErrorMessage } from '../../../base/common/errors.js';
-import { isThenable, RunOnceScheduler, Throttler } from '../../../base/common/async.js';
+import { isThenable, RunOnceScheduler } from '../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { Event } from '../../../base/common/event.js';
-import { Disposable, DisposableMap, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { LRUCache, NKeyMap } from '../../../base/common/map.js';
 import { equals } from '../../../base/common/objects.js';
 import { autorun, IObservable, IReader } from '../../../base/common/observable.js';
@@ -289,8 +289,8 @@ export class AgentSideEffects extends Disposable {
 
 	/** Maps chat-scoped tool calls to their owning agents and any confirmations awaiting the user. */
 	private readonly _toolCallAgents = new Map<string, IToolCallRoute>();
-	/** Serializes and coalesces reevaluation of pending confirmations. */
-	private readonly _pendingConfirmationReevaluation = this._register(new Throttler());
+	/** Cancels the in-flight reevaluation of pending confirmations when a newer one starts. */
+	private readonly _pendingConfirmationReevaluation = this._register(new MutableDisposable());
 	/** Tool entries created for a real permission request before the provider publishes its start. */
 	private readonly _permissionToolStarts = new Map<string, string>();
 	private readonly _resumedTurnExecutions = new Map<string, IResumedTurnExecution>();
@@ -1847,8 +1847,9 @@ export class AgentSideEffects extends Disposable {
 		if (readyAction.confirmed) {
 			this._toolCallTracker.toolCallExecutionStarted(sessionKey, readyAction.toolCallId);
 		}
-		// Register the prompt just before publishing it, after the path-option lookup.
-		const trackPendingConfirmation = !clientShouldAutoApprove && !!effective.state.confirmationTitle
+		// Register the prompt just before publishing it, after the path-option lookup. A client tool's own
+		// confirmation gate decides its approval, so a later permission change must not approve it on the host.
+		const trackPendingConfirmation = contributor?.kind !== ToolCallContributorKind.Client && !!effective.state.confirmationTitle
 			&& this._stateManager.getChatState(sessionKey)?.activeTurn?.id === turnId;
 		if (trackPendingConfirmation) {
 			this._toolCallAgents.set(toolCallKey, { agentId: agent.id, confirmation: { signal: e, sessionKey, turnId } });
@@ -1867,15 +1868,17 @@ export class AgentSideEffects extends Disposable {
 		}
 	}
 
-	/** Schedules a reevaluation after a configuration change or a new prompt. */
+	/** Starts a reevaluation after a configuration change or a new prompt, cancelling one in flight so it never acts on outdated rules. */
 	private _queuePendingConfirmationReevaluation(): void {
-		void this._pendingConfirmationReevaluation.queue(() => this._reevaluatePendingConfirmations()).catch(error => {
+		const cts = new CancellationTokenSource();
+		this._pendingConfirmationReevaluation.value = toDisposable(() => cts.dispose(true));
+		void this._reevaluatePendingConfirmations(cts.token).catch(error => {
 			this._logService.error('[AgentSideEffects] _reevaluatePendingConfirmations failed', error);
 		});
 	}
 
 	/** Rechecks outstanding confirmations and only acts on prompts that are still active. */
-	private async _reevaluatePendingConfirmations(): Promise<void> {
+	private async _reevaluatePendingConfirmations(token: CancellationToken): Promise<void> {
 		for (const [key, route] of [...this._toolCallAgents]) {
 			if (!route.confirmation) {
 				continue;
@@ -1883,6 +1886,9 @@ export class AgentSideEffects extends Disposable {
 			const { signal, sessionKey, turnId } = route.confirmation;
 			const { toolCallId } = signal.state;
 			const { autoApproval } = await this._evaluateHostPermission(signal, sessionKey);
+			if (token.isCancellationRequested) {
+				return;
+			}
 			if (this._toolCallAgents.get(key) !== route) {
 				continue;
 			}
