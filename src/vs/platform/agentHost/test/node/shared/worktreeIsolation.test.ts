@@ -2403,7 +2403,7 @@ suite('WorktreeIsolation', () => {
 		gitService.getRepositoryRoot = async () => worktreeCheckout;
 		gitService.getWorktreeRoots = async () => [repoRoot, worktreeCheckout];
 		gitService.getCurrentBranch = async () => 'agents/adopted';
-		gitService.getDefaultBranch = async () => ({ name: 'main', startPoint: 'main' });
+		gitService.getDefaultBranch = async () => ({ name: 'main', startPoint: 'origin/main' });
 		const isolation = createIsolation(disposables, { gitService });
 
 		const recorded = await isolation.adoptExistingWorktreeMetadata(sessionUri, worktreeCheckout);
@@ -2421,7 +2421,7 @@ suite('WorktreeIsolation', () => {
 			branchName: 'agents/adopted',
 			path: worktreeCheckout.toString(),
 			repositoryRoot: repoRoot.toString(),
-			diffBaseBranch: 'main',
+			diffBaseBranch: 'origin/main',
 			project: { uri: repoRoot.toString(), displayName: basename(repoRoot) },
 		});
 	});
