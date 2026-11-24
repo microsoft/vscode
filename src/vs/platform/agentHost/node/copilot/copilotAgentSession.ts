@@ -2337,6 +2337,8 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _onHostInstructionsDelivered: (() => void) | undefined;
 	/** The turn whose prompt was given the host instructions, until the runtime echoes that prompt. A prompt it rejects or a hook blocks is never echoed. */
 	private _hostInstructionsHandedOutTo: CopilotTurn | undefined;
+	/** The ids of the root messages echoed in that turn before its send returned the prompt's id. */
+	private _hostInstructionsEarlyEchoes: (string | undefined)[] = [];
 	private readonly _modelConfigurationOwner = generateUuid();
 	private _modelConfigurationGeneration = 0;
 	private readonly _modelConfigurationRefresh = this._register(new Throttler());
@@ -4176,6 +4178,10 @@ export class CopilotAgentSession extends Disposable {
 		if (this._resumingTurnAwaitingProviderStart === this._currentTurn.value) {
 			this._resumingTurnAwaitingProviderStart = undefined;
 		}
+		// What this turn's prompt was to carry is not for a later prompt. A turn can end without one: a command, or a stop before the send.
+		this._hostInstructions = undefined;
+		this._hostInstructionsHandedOutTo = undefined;
+		this._pendingSnapshotReminder = undefined;
 		this._currentTurn.clear();
 		this._computerUseSetup?.()?.cancelChat(this._computerUseSetupChat);
 		this._computerUseActivation.cancel();
@@ -7212,6 +7218,7 @@ export class CopilotAgentSession extends Disposable {
 		const turn = this._currentTurn.value;
 		this._hostInstructions = hostInstructions;
 		this._hostInstructionsHandedOutTo = undefined;
+		this._hostInstructionsEarlyEchoes = [];
 		// Attaching a file or folder lets this chat's sandbox read it; `_prepareSdkTurn` applies the grant before the turn runs.
 		this._sandbox.addAttachments(attachments);
 		this._pendingSnapshotReminder = this._attachmentReminder(attachments);
@@ -7269,11 +7276,29 @@ export class CopilotAgentSession extends Disposable {
 		];
 		if (this._hostInstructions?.length) {
 			this._hostInstructionsHandedOutTo = this._currentTurn.value;
+			this._hostInstructionsEarlyEchoes = [];
 		}
 		this._hostInstructions = undefined;
 		this._pendingSnapshotReminder = undefined;
 		this._discardedEditNotes = [];
 		return parts.length > 0 ? parts.join('\n\n') : undefined;
+	}
+
+	/**
+	 * A root message was echoed in the turn whose prompt took the host instructions. They have reached the agent
+	 * when that message is the prompt, which the id its send returns tells. An echo can come before that id.
+	 */
+	private _confirmHostInstructions(turn: CopilotTurn, echoedMessageId?: string): void {
+		if (this._hostInstructionsHandedOutTo !== turn) {
+			return;
+		}
+		if (turn.sentMessageId === undefined) {
+			this._hostInstructionsEarlyEchoes.push(echoedMessageId);
+		} else if (turn.sentMessageId === echoedMessageId || this._hostInstructionsEarlyEchoes.includes(turn.sentMessageId)) {
+			this._hostInstructionsHandedOutTo = undefined;
+			this._hostInstructionsEarlyEchoes = [];
+			this._onHostInstructionsDelivered?.();
+		}
 	}
 
 	/**
@@ -7736,6 +7761,7 @@ export class CopilotAgentSession extends Disposable {
 		this._logService.info(`[Copilot:${this.sessionId}] session.send() returned`);
 		if (sendingTurn && typeof execution.value === 'string') {
 			sendingTurn.sentMessageId = execution.value;
+			this._confirmHostInstructions(sendingTurn);
 			if (this._earlyPromptBlock?.messageId === execution.value) {
 				this._showPromptBlock(sendingTurn, this._earlyPromptBlock.reason);
 				this._earlyPromptBlock = undefined;
@@ -11511,10 +11537,8 @@ export class CopilotAgentSession extends Disposable {
 			// The message is admitted only after required plugins are prepared.
 			this._setManagedPluginActivity(undefined);
 			const steering = this._takeMatchingPendingSteering(e.data.content, e.data.messageId);
-			if (!steering && this._hostInstructionsHandedOutTo && this._hostInstructionsHandedOutTo === this._currentTurn.value) {
-				// The echo of the prompt that took the host's instructions, in the turn that sent it: they have reached the agent.
-				this._hostInstructionsHandedOutTo = undefined;
-				this._onHostInstructionsDelivered?.();
+			if (!steering && this._currentTurn.value) {
+				this._confirmHostInstructions(this._currentTurn.value, e.data.messageId);
 			}
 			if (steering) {
 				this._logService.trace(`[Copilot:${sessionId}] Pending message delivery: pendingId=${steering.pendingMessage.id}, sdkMessageId=${e.data.messageId}, runtimeDelivery=${e.data.delivery ?? 'unknown'}, interactionId=${e.data.interactionId}, promotedTurnId=${steering.promotedTurnId}`);
