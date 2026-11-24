@@ -14,7 +14,7 @@ import { mock, upcastPartial } from '../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { Layout } from '../../browser/layout.js';
 import { Part, updateSashEndpoints } from '../../browser/part.js';
-import { PanelAlignment, Parts, Position } from '../../services/layout/browser/layoutService.js';
+import { IPartsLayoutState, PanelAlignment, Parts, Position } from '../../services/layout/browser/layoutService.js';
 import { NullTelemetryService } from '../../../platform/telemetry/common/telemetryUtils.js';
 import { Registry } from '../../../platform/registry/common/platform.js';
 import { Extensions as ViewExtensions, IViewDescriptor, IViewsRegistry, ViewContainer, ViewContainerLocation } from '../../common/views.js';
@@ -160,10 +160,12 @@ suite('Workbench layout chat part', () => {
 	interface ISavedLayout {
 		readonly runtime: ReadonlyMap<string, unknown>;
 		readonly stored: string | undefined;
+		readonly initialization?: ReadonlyMap<string, unknown>;
 	}
 
 	function createLayout(configuration: ILayoutConfiguration, saved?: ISavedLayout) {
 		const views = new Map<Parts, Part>();
+		const visibility: string[] = [];
 		const view = (id: Parts, minimumWidth = 0, minimumHeight = 0) => {
 			const element = $(`.part.${id.split('.').pop()}`);
 			const part = new class extends mock<Part>() {
@@ -174,7 +176,7 @@ suite('Workbench layout chat part', () => {
 				override readonly maximumHeight = Number.POSITIVE_INFINITY;
 				override get onDidChange() { return Event.None; }
 				override layout() { }
-				override setVisible() { }
+				override setVisible(visible: boolean) { visibility.push(`${id.split('.').pop()} ${visible ? 'shows' : 'hides'}`); }
 				override getContainer() { return element; }
 				override updateStyles() { }
 				override toJSON() { return { type: id }; }
@@ -203,7 +205,7 @@ suite('Workbench layout chat part', () => {
 			['panel.hidden', false],
 			['auxiliaryBar.hidden', false],
 		]);
-		const initialization = new Map<string, unknown>([['sideBar.size', configuration.widths?.sideBar ?? 250], ['auxiliaryBar.size', configuration.widths?.auxiliaryBar ?? 260], ['panel.size', 200]]);
+		const initialization = saved?.initialization ? new Map(saved.initialization) : new Map<string, unknown>([['sideBar.size', configuration.widths?.sideBar ?? 250], ['auxiliaryBar.size', configuration.widths?.auxiliaryBar ?? 260], ['panel.size', 200]]);
 		const anchor = { location: configuration.anchor ?? null, registered: configuration.anchorRegistered ?? true };
 		const viewEvents = { location: store.add(new Emitter<void>()), container: store.add(new Emitter<void>()), containerLocation: store.add(new Emitter<void>()), containers: store.add(new Emitter<void>()) };
 		let stored = saved ? saved.stored : configuration.chat && configuration.chat !== 'noLayout' ? JSON.stringify({ version: 1, ...configuration.chat }) : undefined;
@@ -215,11 +217,13 @@ suite('Workbench layout chat part', () => {
 			override hasFocus(part: Parts) { return part === Parts.CHAT_PART && focus.chat; }
 			override focusPart(part: Parts) { focus.focused.push(part.split('.').pop()!); }
 			override isFloatingPanelsEnabled() { return false; }
+			override layout() { (Reflect.get(this, 'workbenchGrid') as SerializableGrid<ISerializableView>).layout(configuration.widths?.window ?? 1600, 900); }
 			protected override getPart(id: Parts) { return views.get(id)!; }
 		}(mainWindow.document.body));
 		Object.assign(layout, {
 			...parts,
 			_mainContainerDimension: { width: configuration.widths?.window ?? 1600, height: 900 },
+			state: { runtime: { mainWindowFullscreen: false } },
 			telemetryService: NullTelemetryService,
 			// No view containers: the side bar and the panel show and hide empty
 			paneCompositeService: { getActivePaneComposite: () => undefined, getLastActivePaneCompositeId: () => undefined },
@@ -238,6 +242,7 @@ suite('Workbench layout chat part', () => {
 				getRuntimeValue: (key: { name: string; defaultValue: unknown }) => runtime.has(key.name) ? runtime.get(key.name) : key.defaultValue,
 				setRuntimeValue: (key: { name: string }, value: unknown) => runtime.set(key.name, value),
 				getInitializationValue: (key: { name: string; defaultValue: unknown }) => initialization.get(key.name) ?? key.defaultValue,
+				setInitializationValue: (key: { name: string }, value: unknown) => initialization.set(key.name, value),
 			},
 		});
 		if (configuration.anchor !== undefined) {
@@ -246,9 +251,9 @@ suite('Workbench layout chat part', () => {
 		const descriptor = (Reflect.get(layout, 'createGridDescriptor') as () => ISerializedGrid).call(layout);
 		const save = (): ISavedLayout => {
 			(Reflect.get(layout, 'saveChatPartLayout') as () => void).call(layout);
-			return { runtime, stored };
+			return { runtime, stored, initialization };
 		};
-		return { layout, views, descriptor, save, anchor, focus, viewEvents };
+		return { layout, views, descriptor, save, anchor, focus, viewEvents, visibility };
 	}
 
 	/** The parts of `node`, nested as the grid nests them, marking hidden parts. */
@@ -324,7 +329,7 @@ suite('Workbench layout chat part', () => {
 	});
 
 	function createGridLayout(configuration: ILayoutConfiguration, saved?: ISavedLayout, laidOut = true) {
-		const { layout, views, descriptor, save, anchor, focus, viewEvents } = createLayout(configuration, saved);
+		const { layout, views, descriptor, save, anchor, focus, viewEvents, visibility } = createLayout(configuration, saved);
 		const grid = store.add(SerializableGrid.deserialize(descriptor, { fromJSON: ({ type }: { type: Parts }) => views.get(type)! }, { proportionalLayout: false }));
 		append(layout.mainContainer, grid.element);
 		if (laidOut) {
@@ -332,7 +337,7 @@ suite('Workbench layout chat part', () => {
 		}
 		Object.assign(layout, { workbenchGrid: grid, initialized: laidOut });
 		const middle = () => shape((grid.serialize().root.data as ISerializedNode[])[2]);
-		return { layout, grid, middle, save, anchor, views, focus, viewEvents };
+		return { layout, grid, middle, save, anchor, views, focus, viewEvents, visibility };
 	}
 
 	test('the visible neighbors of the parts beside a chat part are the chat part, as long as it shows', () => {
@@ -896,4 +901,95 @@ suite('Workbench layout chat part', () => {
 			});
 		}
 	}
+
+	suite('parts layout state', () => {
+
+		const configuration: ILayoutConfiguration = { sideBar: Position.LEFT, panel: Position.BOTTOM, alignment: 'center' };
+
+		/** The grid that the layout shows now: applying a state replaces it. */
+		function currentGrid(layout: Layout): SerializableGrid<ISerializableView> {
+			return Reflect.get(layout, 'workbenchGrid');
+		}
+
+		function currentMiddle(layout: Layout): unknown {
+			return shape((currentGrid(layout).serialize().root.data as ISerializedNode[])[2]);
+		}
+
+		function createStateLayout(saved?: ISavedLayout) {
+			const created = createGridLayout(configuration, saved);
+			store.add(toDisposable(() => currentGrid(created.layout).dispose()));
+			return created;
+		}
+
+		test('applies an arrangement of the parts at once, as the window starts with it, without moving the focus', () => {
+			const { layout, focus, save, visibility } = createStateLayout();
+			const panelPositions: string[] = [];
+			store.add(layout.onDidChangePanelPosition(position => panelPositions.push(position)));
+			const state: IPartsLayoutState = {
+				sideBar: { visible: false, size: 280 },
+				panel: { visible: true, size: 320, position: Position.RIGHT, maximized: false },
+				auxiliaryBar: { visible: true, size: 300, maximized: false }
+			};
+
+			layout.applyPartsLayoutState(state);
+			const started = createStateLayout(save());
+
+			assert.deepStrictEqual(
+				{ grid: currentGrid(layout).serialize(), state: layout.getPartsLayoutState(), visibility, panelPositions, focused: focus.focused },
+				{ grid: currentGrid(started.layout).serialize(), state, visibility: ['sidebar hides'], panelPositions: ['right'], focused: [] }
+			);
+		});
+
+		test('a maximized secondary side bar hides the other parts, and restoring it shows them as the state arranges them', () => {
+			const { layout } = createStateLayout();
+			const state: IPartsLayoutState = {
+				sideBar: { visible: true, size: 280 },
+				panel: { visible: true, size: 250, position: Position.BOTTOM, maximized: false },
+				auxiliaryBar: { visible: true, size: 300, maximized: true }
+			};
+
+			layout.applyPartsLayoutState(state);
+			const maximized = { middle: currentMiddle(layout), state: layout.getPartsLayoutState() };
+			layout.toggleMaximizedAuxiliaryBar();
+			const restored = { middle: currentMiddle(layout), state: layout.getPartsLayoutState() };
+
+			assert.deepStrictEqual({ maximized, restored }, {
+				maximized: { middle: ['activitybar', '(sidebar)', ['(editor)', '(panel)'], 'auxiliarybar'], state },
+				restored: { middle: ['activitybar', 'sidebar', ['editor', 'panel'], 'auxiliarybar'], state: { ...state, auxiliaryBar: { ...state.auxiliaryBar, maximized: false } } },
+			});
+		});
+
+		test('a maximized panel hides the editor area, and restoring it gives the panel its size', () => {
+			const { layout } = createStateLayout();
+			const state: IPartsLayoutState = {
+				sideBar: { visible: true, size: 280 },
+				panel: { visible: true, size: 250, position: Position.BOTTOM, maximized: true },
+				auxiliaryBar: { visible: false, size: 300, maximized: false }
+			};
+
+			layout.applyPartsLayoutState(state);
+			const maximized = { panelMaximized: layout.isPanelMaximized(), middle: currentMiddle(layout), state: layout.getPartsLayoutState() };
+			layout.toggleMaximizedPanel();
+			const restored = { panelMaximized: layout.isPanelMaximized(), middle: currentMiddle(layout), state: layout.getPartsLayoutState() };
+
+			assert.deepStrictEqual({ maximized, restored }, {
+				maximized: { panelMaximized: true, middle: ['activitybar', 'sidebar', ['(editor)', 'panel'], '(auxiliarybar)'], state },
+				restored: { panelMaximized: false, middle: ['activitybar', 'sidebar', ['editor', 'panel'], '(auxiliarybar)'], state: { ...state, panel: { ...state.panel, maximized: false } } },
+			});
+		});
+
+		test('restoring a maximized panel on the right takes its room back from the panel, not from the side bars', () => {
+			const { layout } = createStateLayout();
+			const state: IPartsLayoutState = {
+				sideBar: { visible: true, size: 280 },
+				panel: { visible: true, size: 320, position: Position.RIGHT, maximized: true },
+				auxiliaryBar: { visible: true, size: 300, maximized: false }
+			};
+
+			layout.applyPartsLayoutState(state);
+			layout.toggleMaximizedPanel();
+
+			assert.deepStrictEqual(layout.getPartsLayoutState(), { ...state, panel: { ...state.panel, maximized: false } });
+		});
+	});
 });

@@ -14,7 +14,7 @@ import { EditorInputCapabilities, GroupIdentifier, isResourceEditorInput, IUntyp
 import { SidebarPart } from './parts/sidebar/sidebarPart.js';
 import type { ChatHostPart } from './parts/chat/chatHostPart.js';
 import { PanelPart } from './parts/panel/panelPart.js';
-import { Position, Parts, PartOpensMaximizedOptions, IWorkbenchLayoutService, positionFromString, positionToString, partOpensMaximizedFromString, PanelAlignment, ActivityBarPosition, LayoutSettings, MULTI_WINDOW_PARTS, SINGLE_WINDOW_PARTS, ZenModeSettings, EditorTabsMode, EditorActionsLocation, shouldShowCustomTitleBar, isHorizontal, isMultiWindowPart, IPartVisibilityChangeEvent, isFloatingTopEdgeExposed, ModernUIDensity } from '../services/layout/browser/layoutService.js';
+import { Position, Parts, PartOpensMaximizedOptions, IWorkbenchLayoutService, positionFromString, positionToString, partOpensMaximizedFromString, PanelAlignment, ActivityBarPosition, LayoutSettings, MULTI_WINDOW_PARTS, SINGLE_WINDOW_PARTS, ZenModeSettings, EditorTabsMode, EditorActionsLocation, shouldShowCustomTitleBar, isHorizontal, isMultiWindowPart, IPartVisibilityChangeEvent, isFloatingTopEdgeExposed, ModernUIDensity, IPartsLayoutState } from '../services/layout/browser/layoutService.js';
 import { isTemporaryWorkspace, IWorkspaceContextService, WorkbenchState } from '../../platform/workspace/common/workspace.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../platform/storage/common/storage.js';
 import { IConfigurationChangeEvent, IConfigurationService, isConfigured } from '../../platform/configuration/common/configuration.js';
@@ -1774,42 +1774,24 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.auxiliaryBarPartView = auxiliaryBarPart;
 		this.statusBarPartView = statusBar;
 
-		const viewMap: Record<string, ISerializableView> = {
-			[Parts.ACTIVITYBAR_PART]: this.activityBarPartView,
-			[Parts.BANNER_PART]: this.bannerPartView,
-			[Parts.TITLEBAR_PART]: this.titleBarPartView,
-			[Parts.EDITOR_PART]: this.editorPartView,
-			[Parts.PANEL_PART]: this.panelPartView,
-			[Parts.SIDEBAR_PART]: this.sideBarPartView,
-			[Parts.STATUSBAR_PART]: this.statusBarPartView,
-			[Parts.AUXILIARYBAR_PART]: this.auxiliaryBarPartView
-		};
-
 		// A chat part joins the grid only when a feature registered one as the window started
 		const chatPart = this.parts.get(Parts.CHAT_PART);
 		if (chatPart) {
 			this.chatPartView = chatPart;
-			viewMap[Parts.CHAT_PART] = chatPart;
 		}
 
-		const fromJSON = ({ type }: { type: Parts }) => viewMap[type];
-		const workbenchGrid = SerializableGrid.deserialize(
-			this.createGridDescriptor(),
-			{ fromJSON },
-			{ proportionalLayout: false }
-		);
-
-		this.mainContainer.prepend(workbenchGrid.element);
+		this.workbenchGrid = this.createWorkbenchGrid();
+		this.mainContainer.prepend(this.workbenchGrid.element);
 		this.mainContainer.setAttribute('role', 'application');
-		this.workbenchGrid = workbenchGrid;
-		this.workbenchGrid.edgeSnapping = this.state.runtime.mainWindowFullscreen;
+		this.logStartupLayout();
 
 		for (const part of [titleBar, editorPart, activityBar, panelPart, sideBar, statusBar, auxiliaryBarPart, bannerPart]) {
 			this._register(part.onDidVisibilityChange(visible => {
-				if (!this.inMaximizedAuxiliaryBarTransition) {
+				if (!this.inMaximizedAuxiliaryBarTransition && !this.inPartsLayoutStateTransition) {
 
 					// skip reacting when we are transitioning
-					// in or out of maximised auxiliary bar to prevent
+					// in or out of maximised auxiliary bar or
+					// applying the state of the parts to prevent
 					// stepping on each other toes because this
 					// transition is already dealing with all parts
 					// visibility efficiently.
@@ -1877,6 +1859,209 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			this.stateModel.setInitializationValue(LayoutStateKeys.AUXILIARYBAR_EMPTY, this.paneCompositeService.getPaneCompositeIds(ViewContainerLocation.AuxiliaryBar).length === 0);
 		}));
 	}
+
+	/**
+	 * Creates the grid of the parts from the state of the layout.
+	 */
+	private createWorkbenchGrid(): SerializableGrid<ISerializableView> {
+		const viewMap: Record<string, ISerializableView> = {
+			[Parts.ACTIVITYBAR_PART]: this.activityBarPartView,
+			[Parts.BANNER_PART]: this.bannerPartView,
+			[Parts.TITLEBAR_PART]: this.titleBarPartView,
+			[Parts.EDITOR_PART]: this.editorPartView,
+			[Parts.PANEL_PART]: this.panelPartView,
+			[Parts.SIDEBAR_PART]: this.sideBarPartView,
+			[Parts.STATUSBAR_PART]: this.statusBarPartView,
+			[Parts.AUXILIARYBAR_PART]: this.auxiliaryBarPartView
+		};
+		if (this.chatPartView) {
+			viewMap[Parts.CHAT_PART] = this.chatPartView;
+		}
+
+		const workbenchGrid = SerializableGrid.deserialize(
+			this.createGridDescriptor(),
+			{ fromJSON: ({ type }: { type: Parts }) => viewMap[type] },
+			{ proportionalLayout: false }
+		);
+		workbenchGrid.edgeSnapping = this.state.runtime.mainWindowFullscreen;
+
+		return workbenchGrid;
+	}
+
+	//#region Parts layout state
+
+	private inPartsLayoutStateTransition = false;
+
+	/**
+	 * Returns the arrangement of the primary side bar, the panel and the secondary side bar. While the
+	 * secondary side bar is maximized, the other parts are described as they show when it is restored.
+	 */
+	getPartsLayoutState(): IPartsLayoutState {
+		const restored = this.isAuxiliaryBarMaximized() ? this.stateModel.getRuntimeValue(LayoutStateKeys.AUXILIARYBAR_LAST_NON_MAXIMIZED_VISIBILITY) : undefined;
+		const panelPosition = this.getPanelPosition();
+		const panelMaximized = restored ? restored.panelVisible && !restored.editorVisible : this.isPanelMaximized();
+
+		return {
+			sideBar: {
+				visible: restored ? restored.sideBarVisible : this.isVisible(Parts.SIDEBAR_PART),
+				size: this.getPartSize(this.sideBarPartView, Parts.SIDEBAR_PART, false, LayoutStateKeys.SIDEBAR_SIZE)
+			},
+			panel: {
+				visible: restored ? restored.panelVisible : this.isVisible(Parts.PANEL_PART),
+				size: panelMaximized
+					? this.stateModel.getRuntimeValue(isHorizontal(panelPosition) ? LayoutStateKeys.PANEL_LAST_NON_MAXIMIZED_HEIGHT : LayoutStateKeys.PANEL_LAST_NON_MAXIMIZED_WIDTH)
+					: this.getPartSize(this.panelPartView, Parts.PANEL_PART, isHorizontal(panelPosition), LayoutStateKeys.PANEL_SIZE),
+				position: panelPosition,
+				maximized: panelMaximized
+			},
+			auxiliaryBar: {
+				visible: this.isVisible(Parts.AUXILIARYBAR_PART),
+				size: restored
+					? this.stateModel.getRuntimeValue(LayoutStateKeys.AUXILIARYBAR_LAST_NON_MAXIMIZED_SIZE)
+					: this.getPartSize(this.auxiliaryBarPartView, Parts.AUXILIARYBAR_PART, false, LayoutStateKeys.AUXILIARYBAR_SIZE),
+				maximized: !!restored
+			}
+		};
+	}
+
+	/**
+	 * Returns the size of a part as it shows, or as it showed last while it is hidden.
+	 */
+	private getPartSize(view: ISerializableView, part: SINGLE_WINDOW_PARTS, isHeight: boolean, sizeKey: InitializationStateKey<number>): number {
+		if (!this.workbenchGrid) {
+			return this.stateModel.getInitializationValue(sizeKey);
+		}
+
+		if (this.isVisible(part)) {
+			const size = this.workbenchGrid.getViewSize(view);
+			return isHeight ? size.height : size.width;
+		}
+
+		return this.workbenchGrid.getViewCachedVisibleSize(view) ?? this.stateModel.getInitializationValue(sizeKey);
+	}
+
+	/**
+	 * Applies an arrangement of the primary side bar, the panel and the secondary side bar at once.
+	 *
+	 * Unlike showing, hiding, moving and maximizing the parts one after the other, this does not pass
+	 * through intermediate arrangements and does not move the focus to another part. The grid is
+	 * created again from the new state, as when the window starts. A part that shows opens its last
+	 * active view container, without focus, and a part that hides closes its active view container.
+	 */
+	applyPartsLayoutState(state: IPartsLayoutState): void {
+
+		// The panel can only be maximized when it is centered or on the left or right (see `isPanelMaximized`)
+		const panelMaximized = state.panel.visible && state.panel.maximized && (this.getPanelAlignment() === 'center' || !isHorizontal(state.panel.position));
+		const auxiliaryBarMaximized = state.auxiliaryBar.maximized;
+		const previousPanelPosition = this.getPanelPosition();
+		const wasAuxiliaryBarMaximized = this.isAuxiliaryBarMaximized();
+
+		this.stateModel.setRuntimeValue(LayoutStateKeys.PANEL_POSITION, state.panel.position);
+		this.stateModel.setRuntimeValue(LayoutStateKeys.PANEL_WAS_LAST_MAXIMIZED, state.panel.maximized);
+		this.stateModel.setRuntimeValue(isHorizontal(state.panel.position) ? LayoutStateKeys.PANEL_LAST_NON_MAXIMIZED_HEIGHT : LayoutStateKeys.PANEL_LAST_NON_MAXIMIZED_WIDTH, state.panel.size);
+		this.stateModel.setRuntimeValue(LayoutStateKeys.AUXILIARYBAR_WAS_LAST_MAXIMIZED, auxiliaryBarMaximized);
+		if (auxiliaryBarMaximized) {
+			// A maximized secondary side bar hides the other parts, and shows them again when it is restored
+			this.stateModel.setRuntimeValue(LayoutStateKeys.AUXILIARYBAR_LAST_NON_MAXIMIZED_VISIBILITY, { sideBarVisible: state.sideBar.visible, editorVisible: !panelMaximized, panelVisible: state.panel.visible, auxiliaryBarVisible: true });
+			this.stateModel.setRuntimeValue(LayoutStateKeys.AUXILIARYBAR_LAST_NON_MAXIMIZED_SIZE, state.auxiliaryBar.size);
+		}
+		this.stateModel.setRuntimeValue(LayoutStateKeys.SIDEBAR_HIDDEN, auxiliaryBarMaximized || !state.sideBar.visible);
+		this.stateModel.setRuntimeValue(LayoutStateKeys.PANEL_HIDDEN, auxiliaryBarMaximized || !state.panel.visible);
+		this.stateModel.setRuntimeValue(LayoutStateKeys.AUXILIARYBAR_HIDDEN, !auxiliaryBarMaximized && !state.auxiliaryBar.visible);
+		this.stateModel.setRuntimeValue(LayoutStateKeys.EDITOR_HIDDEN, auxiliaryBarMaximized || panelMaximized || this.isEditorHiddenByChat());
+
+		// Maximized parts take the room of the hidden parts in the grid
+		this.stateModel.setInitializationValue(LayoutStateKeys.SIDEBAR_SIZE, state.sideBar.size);
+		this.stateModel.setInitializationValue(LayoutStateKeys.PANEL_SIZE, state.panel.size);
+		this.stateModel.setInitializationValue(LayoutStateKeys.AUXILIARYBAR_SIZE, state.auxiliaryBar.size);
+
+		// Before the window created the grid, it creates it from this state
+		if (!this.workbenchGrid) {
+			return;
+		}
+
+		const focusedPart = ([Parts.EDITOR_PART, Parts.PANEL_PART, Parts.SIDEBAR_PART, Parts.AUXILIARYBAR_PART] as const).find(part => this.hasFocus(part));
+		if (this.chatPartView) {
+			this.saveChatPartLayout(); // the grid places the chat part as it saved its layout
+		}
+
+		const views = coalesce([this.sideBarPartView, this.editorPartView, this.panelPartView, this.auxiliaryBarPartView, this.chatPartView]);
+		const wasVisible = new Map(views.map(view => [view, this.workbenchGrid.isViewVisible(view)]));
+
+		this.inPartsLayoutStateTransition = true;
+		try {
+			const previousGrid = this.workbenchGrid;
+			this.workbenchGrid = this.createWorkbenchGrid();
+			this.mainContainer.prepend(this.workbenchGrid.element);
+			previousGrid.dispose(); // does not dispose the parts, which the new grid shows
+
+			this.mainContainer.classList.toggle(LayoutClasses.SIDEBAR_HIDDEN, !this.isVisible(Parts.SIDEBAR_PART));
+			this.mainContainer.classList.toggle(LayoutClasses.PANEL_HIDDEN, !this.isVisible(Parts.PANEL_PART));
+			this.mainContainer.classList.toggle(LayoutClasses.AUXILIARYBAR_HIDDEN, !this.isVisible(Parts.AUXILIARYBAR_PART));
+			this.mainContainer.classList.toggle(LayoutClasses.MAIN_EDITOR_AREA_HIDDEN, !this.isVisible(Parts.EDITOR_PART, mainWindow));
+			if (state.panel.position !== previousPanelPosition) {
+				const panelPart = this.getPart(Parts.PANEL_PART);
+				panelPart.getContainer()?.classList.replace(positionToString(previousPanelPosition), positionToString(state.panel.position));
+				this.mainContainer.classList.replace(`panel-position-${positionToString(previousPanelPosition)}`, `panel-position-${positionToString(state.panel.position)}`);
+				panelPart.updateStyles();
+			}
+
+			this.layout();
+			this.updateSashEndpoints();
+
+			// A new grid does not tell its views whether they show, as showing or hiding them in a grid does
+			for (const view of views) {
+				const visible = this.workbenchGrid.isViewVisible(view);
+				if (visible !== wasVisible.get(view)) {
+					view.setVisible?.(visible);
+				}
+			}
+		} finally {
+			this.inPartsLayoutStateTransition = false;
+		}
+
+		for (const [location, part] of [[ViewContainerLocation.Sidebar, Parts.SIDEBAR_PART], [ViewContainerLocation.Panel, Parts.PANEL_PART], [ViewContainerLocation.AuxiliaryBar, Parts.AUXILIARYBAR_PART]] as const) {
+			if (!this.isVisible(part)) {
+				if (this.paneCompositeService.getActivePaneComposite(location)) {
+					this.paneCompositeService.hideActivePaneComposite(location);
+				}
+			} else if (!this.paneCompositeService.getActivePaneComposite(location)) {
+				const paneCompositeToOpen = this.getPaneCompositeToShow(location);
+				if (paneCompositeToOpen) {
+					this.openViewContainer(location, paneCompositeToOpen, false);
+				}
+			}
+		}
+
+		// The focus stays in its part, or goes where it goes when a part that had it hides
+		if (focusedPart === Parts.EDITOR_PART || (focusedPart && !this.isVisible(focusedPart))) {
+			this.focus();
+		} else if (focusedPart) {
+			this.focusPart(focusedPart);
+		}
+
+		if (state.panel.position !== previousPanelPosition) {
+			this._onDidChangePanelPosition.fire(positionToString(state.panel.position));
+		}
+		if (auxiliaryBarMaximized !== wasAuxiliaryBarMaximized) {
+			this._onDidChangeAuxiliaryBarMaximized.fire();
+		}
+	}
+
+	/**
+	 * Returns the view container that a part shows when it shows without one: the one that was active last, or
+	 * for the panel and the secondary side bar the first one that has views if the one that was active last has none.
+	 */
+	private getPaneCompositeToShow(location: ViewContainerLocation): string | undefined {
+		const lastActive = this.paneCompositeService.getLastActivePaneCompositeId(location);
+		if (location === ViewContainerLocation.Sidebar || (lastActive && this.hasViews(lastActive))) {
+			return lastActive;
+		}
+
+		return this.viewDescriptorService.getViewContainersByLocation(location).find(viewContainer => this.hasViews(viewContainer.id))?.id;
+	}
+
+	//#endregion
 
 	layout(): void {
 		if (!this.disposed) {
@@ -3142,7 +3327,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		const activityBarSize = this.stateModel.getRuntimeValue(LayoutStateKeys.ACTIVITYBAR_HIDDEN) ? 0 : nodes.activityBar.size;
 		const sideBarSize = this.stateModel.getRuntimeValue(LayoutStateKeys.SIDEBAR_HIDDEN) ? 0 : nodes.sideBar.size;
 		const auxiliaryBarSize = this.stateModel.getRuntimeValue(LayoutStateKeys.AUXILIARYBAR_HIDDEN) ? 0 : nodes.auxiliaryBar.size;
-		const panelSize = this.stateModel.getInitializationValue(LayoutStateKeys.PANEL_SIZE) ? 0 : nodes.panel.size;
+		const panelSize = this.stateModel.getRuntimeValue(LayoutStateKeys.PANEL_HIDDEN) ? 0 : nodes.panel.size;
 
 		const panelPostion = this.stateModel.getRuntimeValue(LayoutStateKeys.PANEL_POSITION);
 		const sideBarPosition = this.stateModel.getRuntimeValue(LayoutStateKeys.SIDEBAR_POSITON);
@@ -3341,6 +3526,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			height
 		};
 
+		return result;
+	}
+
+	private logStartupLayout(): void {
 		type StartupLayoutEvent = {
 			activityBarVisible: boolean;
 			sideBarVisible: boolean;
@@ -3376,8 +3565,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		// WARNING: Do not remove this event, it's used to track build rollout progress
 		// Talk to @joaomoreno, @lszomoru or @jruales before doing so
 		this.telemetryService.publicLog2<StartupLayoutEvent, StartupLayoutEventClassification>('startupLayout', layoutDescriptor);
-
-		return result;
 	}
 
 	override dispose(): void {
