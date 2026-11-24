@@ -174,6 +174,8 @@ export interface IRemoteTroubleshootingInfo {
 		readonly port?: number;
 		readonly identityFiles?: readonly string[];
 		readonly proxyCommand?: string;
+		/** The remote agent host's log, relative to the remote home folder; unknown for development builds. */
+		readonly remoteLog?: string;
 		/** Whether a host key was saved for this host, which Forget Saved Host Key removes. */
 		readonly hasSavedHostKey: boolean;
 	};
@@ -1043,7 +1045,9 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 		switch (target.kind) {
 			case 'ssh': {
 				const { info } = await this.resolveSSHHostKeyIdentity(target.entry);
-				return { ...common, ssh: info };
+				// The SSH connection installs the CLI of this client's product, which logs in its server data folder.
+				const { quality, serverDataFolderName } = this.productService;
+				return { ...common, ssh: quality && serverDataFolderName ? { ...info, remoteLog: `${serverDataFolderName}/cli/agent-host-${quality}.log` } : info };
 			}
 			case 'wsl':
 				return { ...common, canRestartDistribution: !this.installedDistros || this.installedDistros.has(target.distro) };

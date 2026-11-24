@@ -143,6 +143,30 @@ export interface ISCMActionButton {
 	readonly button: ISCMActionButtonDescriptor;
 }
 
+/**
+ * A message that a feature shows for a repository in the Source Control view,
+ * above the input.
+ */
+export interface ISCMRepositoryNotice {
+	/** Identifies the notice, for example in telemetry and accessibility. */
+	readonly id: string;
+	readonly icon?: ThemeIcon;
+	/** Markdown with theme icons. Links run only through {@link action}. */
+	readonly message: IMarkdownString;
+	/** The one thing the notice offers to do. */
+	readonly action?: { readonly label: string; readonly run: () => unknown };
+	/** Dismissing the notice. Without it, the notice cannot be closed. */
+	readonly dismiss?: { readonly tooltip: string; readonly run: () => unknown };
+	/** Called the first time the notice renders in a view. */
+	readonly onDidRender?: () => void;
+}
+
+export interface ISCMRepositoryNoticeElement {
+	readonly type: 'repositoryNotice';
+	readonly repository: ISCMRepository;
+	readonly notice: ISCMRepositoryNotice;
+}
+
 export interface ISCMInput {
 	readonly repository: ISCMRepository;
 
@@ -268,4 +292,15 @@ export interface ISCMViewService {
 	 */
 	readonly activeRepository: IObservable<{ repository: ISCMRepository; pinned: boolean } | undefined>;
 	pinActiveRepository(repository: ISCMRepository | undefined): void;
+
+	/**
+	 * The notice shown for a repository in the Source Control view, if any.
+	 */
+	getRepositoryNotice(repository: ISCMRepository): IObservable<ISCMRepositoryNotice | undefined>;
+
+	/**
+	 * Shows a notice for a repository, replacing the notice it shows. Dispose the
+	 * result to remove the notice.
+	 */
+	setRepositoryNotice(repository: ISCMRepository, notice: ISCMRepositoryNotice): IDisposable;
 }

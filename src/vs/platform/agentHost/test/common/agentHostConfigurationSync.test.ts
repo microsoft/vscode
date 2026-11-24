@@ -12,7 +12,9 @@ import { Registry } from '../../../registry/common/platform.js';
 import '../../../request/common/request.js';
 import { AgentHostConfigurationSyncTarget, formatAgentHostConfigurationSyncValueForLog, getAgentHostConfigurationSyncEntries, getAgentHostConfigurationSyncTarget, getGlobalConfigurationValue, inspectValue, resolveAgentHostConfigurationSyncPatch } from '../../common/agentHostConfigurationSync.js';
 import { LOCAL_AGENT_HOST_RESOURCE_IDENTITY } from '../../common/agentHostResourceService.js';
-import { AgentHostArtifactIntegrationsConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostByokModelsEnabledDefault, AgentHostGitHubArtifactIgnoredChecksConfigKey } from '../../common/agentHostSchema.js';
+import { AgentHostArtifactIntegrationsConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostByokModelsEnabledDefault, AgentHostComputerUseEnabledConfigKey, AgentHostGitHubArtifactIgnoredChecksConfigKey } from '../../common/agentHostSchema.js';
+import { AgentHostComputerUseEnabledSettingId } from '../../common/agentService.js';
+import { computerUseConfigurationProperties } from '../../common/computerUseConfiguration.js';
 import { artifactToolsConfigurationProperties } from '../../common/artifactToolsConfiguration.js';
 import { ArtifactIntegrationsSettingId } from '../../../artifactIntegrations/common/artifactIntegration.js';
 import { AgentMergeConfigKey, AgentMergeSettingId } from '../../common/agentMerge.js';
@@ -53,6 +55,7 @@ suite('AgentHostConfigurationSync', () => {
 		properties: {
 			...artifactToolsConfigurationProperties,
 			...chatMoveConfigurationProperties,
+			...computerUseConfigurationProperties,
 			[AgentMergeSettingId.Enabled]: { type: 'boolean' as const, default: false, agentHost: { key: AgentMergeConfigKey.Enabled } },
 			[ALL_HOSTS_SETTING]: {
 				type: 'boolean' as const,
@@ -109,6 +112,14 @@ suite('AgentHostConfigurationSync', () => {
 		});
 
 		assert.strictEqual(getGlobalConfigurationValue(configurationService, ALL_HOSTS_SETTING), false);
+	});
+
+	test('mirrors Computer Use opt-in and opt-out to local and remote hosts', () => {
+		const results = [AgentHostConfigurationSyncTarget.Local, AgentHostConfigurationSyncTarget.RemoteExtensionHost, AgentHostConfigurationSyncTarget.Remote].map(target =>
+			[false, true].map(enabled => resolveAgentHostConfigurationSyncPatch(createConfigurationService({
+				[AgentHostComputerUseEnabledSettingId]: { userValue: enabled, workspaceValue: !enabled },
+			}), target)[AgentHostComputerUseEnabledConfigKey]));
+		assert.deepStrictEqual(results, [[false, true], [false, true], [false, true]]);
 	});
 
 	for (const target of [AgentHostConfigurationSyncTarget.Local, AgentHostConfigurationSyncTarget.Remote]) {

@@ -3683,7 +3683,8 @@ suite('RemotesWidget', () => {
 			page: {
 				title: 'Troubleshoot connection',
 				facts: ['Environment: Laptop', 'Status: Connection failed', 'Connection type: Dev Tunnel'],
-				feedback: 'Connection failed: Connection refused', guidance: [], command: undefined,
+				feedback: 'Connection failed: Connection refused', command: undefined,
+				guidance: ['Check that the computer sharing this tunnel is turned on and connected to the internet, and that it still shares the tunnel with Remote Tunnel Access or the code tunnel command. Then retry.'],
 				actions: ['Retry Connection'], links: ['Dev Tunnel connection guide', 'Open Diagnostic Report'],
 			},
 			actionsWhenHidden: 0,
