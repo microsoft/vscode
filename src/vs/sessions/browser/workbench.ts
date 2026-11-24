@@ -3050,8 +3050,16 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 	}
 
 	private _applyExclusivePartVisibility(): void {
-		this.workbenchGrid.setViewVisible(this.sessionsPartView, this._effectiveVisible(Parts.SESSIONS_PART));
+		// The centered panel shares a column with the chat. Hiding the chat first
+		// would grow the panel over the column, and it would come back that tall.
+		const sessionsVisible = this._effectiveVisible(Parts.SESSIONS_PART);
+		if (sessionsVisible) {
+			this.workbenchGrid.setViewVisible(this.sessionsPartView, true);
+		}
 		this.workbenchGrid.setViewVisible(this.panelPartView, this._effectiveVisible(Parts.PANEL_PART));
+		if (!sessionsVisible) {
+			this.workbenchGrid.setViewVisible(this.sessionsPartView, false);
+		}
 		this._applyEditorAreaVisibility();
 	}
 

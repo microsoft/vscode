@@ -5121,6 +5121,48 @@ suite('Sessions - Workbench', () => {
 		});
 	});
 
+	test('a custom view leaves the heights of the chat and the centered panel below it as they were', () => {
+		const host = createHost({ single: true, partVisibility: { sidebar: true, sessions: true, editor: false, auxiliaryBar: false, panel: true } }) as IGridDescriptorTestHarness & IPanelAlignmentTestHarness;
+		host._panelAlignment = 'center';
+		host.layoutPolicy = {
+			getPartSizes: () => ({ sideBarSize: 280, auxiliaryBarSize: 340, panelSize: 300 }),
+			viewportClass: { get: () => 'desktop' },
+		};
+		host.titleBarPartView = { minimumHeight: 30 };
+		const views = new Map<Parts, TestPartView>();
+		const grid = store.add(SerializableGrid.deserialize(createDesktopGridDescriptor.call(host, 1200, 800), {
+			fromJSON: ({ type }: { type: Parts }) => {
+				const view = store.add(new TestPartView(type));
+				views.set(type, view);
+				return view;
+			},
+		}, { proportionalLayout: false }));
+		grid.layout(1200, 800);
+		// Views the grid does not hold, such as the docked side panel, stay hidden.
+		const gridView = (view: object) => view instanceof TestPartView ? view : undefined;
+		Object.assign(host, {
+			_panelBelowCustomView: false,
+			sessionsPartView: views.get(Parts.SESSIONS_PART),
+			panelPartView: views.get(Parts.PANEL_PART),
+			editorPartView: views.get(Parts.EDITOR_PART),
+			customViewGridPartView: views.get(Parts.CUSTOM_VIEW_GRID_PART),
+			workbenchGrid: {
+				getViewSize: (view: object) => { const v = gridView(view); return v ? grid.getViewSize(v) : { width: 0, height: 0 }; },
+				isViewVisible: (view: object) => { const v = gridView(view); return !!v && grid.isViewVisible(v); },
+				getViewCachedVisibleSize: (view: object) => { const v = gridView(view); return v ? grid.getViewCachedVisibleSize(v) : undefined; },
+				setViewVisible: (view: object, visible: boolean) => { const v = gridView(view); if (v) { grid.setViewVisible(v, visible); } },
+				resizeView: (view: object, size: IViewSize) => { const v = gridView(view); if (v) { grid.resizeView(v, size); } },
+			},
+		});
+		const heights = () => ({ sessions: grid.getViewSize(views.get(Parts.SESSIONS_PART)!).height, panel: grid.getViewSize(views.get(Parts.PANEL_PART)!).height });
+
+		const initial = heights();
+		applyCustomViewGridVisibility.call(host, { id: 'view' });
+		applyCustomViewGridVisibility.call(host, undefined);
+
+		assert.deepStrictEqual(heights(), initial);
+	});
+
 	test('responsive panel availability changes preserve focus outside the panel', () => {
 		const host = createHost({ single: true, focusedPart: Parts.EDITOR_PART, partVisibility: { panel: true, sessions: true } });
 		const descriptor = { id: 'view' };
