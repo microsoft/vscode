@@ -5,14 +5,14 @@
 
 import assert from 'assert';
 import { Dimension } from '../../../../../base/browser/dom.js';
-import { raceTimeout } from '../../../../../base/common/async.js';
+import { raceTimeout, timeout } from '../../../../../base/common/async.js';
 import { Emitter, ValueWithChangeEvent } from '../../../../../base/common/event.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { errorHandler, setUnexpectedErrorHandler } from '../../../../../base/common/errors.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { KeyCodeChord, ResolvedKeybinding } from '../../../../../base/common/keybindings.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { constObservable, IObservable, observableValue, waitForState } from '../../../../../base/common/observable.js';
+import { constObservable, IObservable, ISettableObservable, observableValue, waitForState } from '../../../../../base/common/observable.js';
 import { OperatingSystem } from '../../../../../base/common/platform.js';
 import { basename } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -23,10 +23,17 @@ import { RefCounted } from '../../../../../editor/browser/widget/diffEditor/util
 import { DiffItemSource, IDocumentDiffItem } from '../../../../../editor/browser/widget/multiDiffEditor/model.js';
 import { MultiDiffEditorViewModel } from '../../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorViewModel.js';
 import { IWorkbenchUIElementFactory } from '../../../../../editor/browser/widget/multiDiffEditor/workbenchUIElementFactory.js';
+import { Range } from '../../../../../editor/common/core/range.js';
+import { IDocumentDiff, IDocumentDiffProviderOptions } from '../../../../../editor/common/diff/documentDiffProvider.js';
+import { linesDiffComputers } from '../../../../../editor/common/diff/linesDiffComputers.js';
+import { StructuralDiff, StructuralDiffClassification, StructuralDiffProvider, SymbolKind } from '../../../../../editor/common/languages.js';
+import { IEditorWorkerService } from '../../../../../editor/common/services/editorWorker.js';
 import { InMemoryTextModelService } from '../../../../../editor/common/services/inMemoryTextModelService.js';
+import { ILanguageFeaturesService } from '../../../../../editor/common/services/languageFeatures.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { TestDiffProviderFactoryService } from '../../../../../editor/test/browser/diff/testDiffProviderFactoryService.js';
+import { TestEditorWorkerService } from '../../../../../editor/test/common/services/testEditorWorkerService.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { TestAccessibilityService } from '../../../../../platform/accessibility/test/common/testAccessibilityService.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -48,6 +55,7 @@ import { TestEditorGroupView, workbenchInstantiationService } from '../../../../
 import { TextFileOperationError, TextFileOperationResult } from '../../../../services/textfile/common/textfiles.js';
 import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { AccessibilityCommandId } from '../../../accessibility/common/accessibilityCommands.js';
+import { ISCMViewService } from '../../../scm/common/scm.js';
 import { MultiDiffEditor } from '../../browser/multiDiffEditor.js';
 import { MultiDiffEditorInput, MultiDiffEditorSerializer } from '../../browser/multiDiffEditorInput.js';
 import { IMultiDiffSourceResolverService, MultiDiffEditorItem } from '../../browser/multiDiffSourceResolverService.js';
@@ -67,6 +75,8 @@ suite('MultiDiffEditorWithFileListWidget', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let instantiationService: TestInstantiationService;
+	/** Whether the Source Control view shows structural changes, which the file list follows. */
+	let showStructuralDiff: ISettableObservable<boolean>;
 
 	setup(() => {
 		instantiationService = workbenchInstantiationService(undefined, disposables);
@@ -75,6 +85,10 @@ suite('MultiDiffEditorWithFileListWidget', () => {
 		instantiationService.stub(IUserInteractionService, new MockUserInteractionService(false));
 		// Disposes the synthetic documents of binary items synchronously, like the editor widget tests.
 		instantiationService.stub(ITextModelService, instantiationService.createInstance(InMemoryTextModelService));
+		showStructuralDiff = observableValue('showStructuralDiff', false);
+		instantiationService.stub(ISCMViewService, new class extends mock<ISCMViewService>() {
+			override readonly showStructuralDiff = showStructuralDiff;
+		}());
 	});
 
 	function createComposite(fileListVisible: IObservable<boolean>, fileListViewMode: IObservable<MultiDiffEditorFileListViewMode> = constObservable('list'), fileListPosition: IObservable<MultiDiffEditorFileListPosition> = constObservable('right')) {
@@ -368,6 +382,90 @@ suite('MultiDiffEditorWithFileListWidget', () => {
 				initialSelection: [1],
 				afterClick: { selection: [4], active: '/repo/renamed.png', focusInDiff: false },
 				afterDoubleClick: { selection: [2], active: '/repo/deleted.png', collapsed: false, focusInDiff: true },
+			});
+		} finally {
+			widget.setViewModel(undefined);
+		}
+	});
+
+	test('expands files to the symbols that changed in them while structural changes are shown, keeping the twistie space of all files in the list, reveals a symbol in its diff and drops the symbols of a collapsed file', async () => {
+		const modelService = instantiationService.get(IModelService);
+		const createModels = (path: string, original: string, modified: string) => [
+			disposables.add(modelService.createModel(original, null, URI.from({ scheme: 'original', path }))),
+			disposables.add(modelService.createModel(modified, null, URI.file(path))),
+		] as const;
+		const [original, modified] = createModels('/repo/a.ts', 'function run() {\n\treturn 1;\n}', 'function run() {\n\treturn 2;\n}');
+		const notes = createModels('/repo/notes.md', 'old', 'new');
+		instantiationService.stub(IEditorWorkerService, new class extends TestEditorWorkerService {
+			override async computeDiff(originalUri: URI, modifiedUri: URI, options: IDocumentDiffProviderOptions): Promise<IDocumentDiff> {
+				const result = linesDiffComputers.getDefault().computeDiff(modelService.getModel(originalUri)!.getLinesContent(), modelService.getModel(modifiedUri)!.getLinesContent(), options);
+				return { identical: false, quitEarly: result.hitTimeout, changes: result.changes, moves: result.moves };
+			}
+		}());
+		const run = { name: 'run', kind: SymbolKind.Function, range: new Range(1, 1, 3, 2), selectionRange: new Range(1, 10, 1, 13) };
+		const change = { textChangeIndex: 0, range: new Range(2, 9, 2, 10), classification: StructuralDiffClassification.Implementation };
+		disposables.add(instantiationService.get(ILanguageFeaturesService).structuralDiffProvider.register({ pattern: '**/*.ts' }, new class implements StructuralDiffProvider {
+			provideStructuralDiff(): StructuralDiff {
+				return {
+					root: {
+						id: 'file', originalChanges: [], modifiedChanges: [],
+						originalItem: { name: 'a.ts', kind: SymbolKind.File, range: original.getFullModelRange() },
+						modifiedItem: { name: 'a.ts', kind: SymbolKind.File, range: modified.getFullModelRange() },
+						children: [{ id: 'run', originalItem: run, modifiedItem: run, originalChanges: [change], modifiedChanges: [change], children: [] }],
+					},
+					isIncomplete: false,
+				};
+			}
+		}()));
+		const { container, composite } = createComposite(constObservable(true));
+		const widget = composite.multiDiffEditorWidget;
+		composite.layout(new Dimension(1000, 400));
+		const documentItems = [[original, modified], notes].map(([original, modified]) => disposables.add(RefCounted.createOfNonDisposable<IDocumentDiffItem>({
+			original: new DiffItemSource(original.uri, original),
+			modified: new DiffItemSource(modified.uri, modified),
+		}, { dispose() { } })));
+		const viewModel = disposables.add(widget.createViewModel({ documents: ValueWithChangeEvent.const(documentItems) }));
+		await waitForState(viewModel.items, items => items.length === documentItems.length);
+		widget.setViewModel(viewModel, { preserveFocus: true });
+		await waitForState(viewModel.isLoading, isLoading => !isLoading);
+
+		const listRows = () => [...container.querySelectorAll<HTMLElement>('.monaco-list-row')].sort((a, b) => Number(a.dataset.index) - Number(b.dataset.index));
+		const rows = () => listRows().map(row => {
+			const expanded = row.getAttribute('aria-expanded');
+			return [
+				row.querySelector('.label-name')?.textContent,
+				row.querySelector('.multi-diff-file-list-item-status, .scm-structural-change-status')?.textContent,
+				row.querySelector('.scm-structural-change-annotation')?.textContent,
+				expanded === null ? 'leaf' : expanded === 'true' ? 'expanded' : 'collapsed',
+				row.querySelector('.monaco-tl-twistie.force-twistie') ? 'keeps twistie space' : undefined,
+			].filter(part => !!part).join(' ');
+		});
+
+		try {
+			const hidden = rows();
+			showStructuralDiff.set(true, undefined);
+			const shown = rows();
+			listRows()[0].querySelector('.monaco-tl-twistie')!.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 }));
+			// The structural changes load asynchronously, through the documents, the text diff and the provider.
+			for (let attempt = 0; rows().length === 2; attempt++) {
+				assert.ok(attempt < 50, 'The structural changes did not load');
+				await timeout(0);
+			}
+			const expanded = rows();
+			listRows()[1].dispatchEvent(new MouseEvent('dblclick', { bubbles: true, detail: 2 }));
+			const editor = widget.getActiveControl()?.getModifiedEditor();
+			const opened = { file: editor?.getModel()?.uri.path, selection: editor?.getSelection()?.toString(), focused: editor?.hasTextFocus() };
+			listRows()[0].querySelector('.monaco-tl-twistie')!.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 }));
+			const collapsed = rows();
+			showStructuralDiff.set(false, undefined);
+
+			assert.deepStrictEqual({ hidden, shown, expanded, opened, collapsed, hiddenAgain: rows() }, {
+				hidden: ['a.ts M leaf', 'notes.md M leaf'],
+				shown: ['a.ts M collapsed keeps twistie space', 'notes.md M leaf keeps twistie space'],
+				expanded: ['a.ts M expanded keeps twistie space', 'run M impl leaf keeps twistie space', 'notes.md M leaf keeps twistie space'],
+				opened: { file: '/repo/a.ts', selection: '[1,10 -> 1,13]', focused: true },
+				collapsed: ['a.ts M collapsed keeps twistie space', 'notes.md M leaf keeps twistie space'],
+				hiddenAgain: ['a.ts M leaf', 'notes.md M leaf'],
 			});
 		} finally {
 			widget.setViewModel(undefined);

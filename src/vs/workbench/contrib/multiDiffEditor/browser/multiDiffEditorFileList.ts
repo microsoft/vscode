@@ -7,18 +7,23 @@ import { $, append } from '../../../../base/browser/dom.js';
 import { IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
 import { ICompressedTreeElement, ICompressedTreeNode } from '../../../../base/browser/ui/tree/compressedObjectTreeModel.js';
 import { ICompressibleTreeRenderer } from '../../../../base/browser/ui/tree/objectTree.js';
-import { ITreeNode } from '../../../../base/browser/ui/tree/tree.js';
+import { ITreeNode, ObjectTreeElementCollapseState } from '../../../../base/browser/ui/tree/tree.js';
 import { commonPrefixLength } from '../../../../base/common/arrays.js';
+import { disposableTimeout } from '../../../../base/common/async.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { autorun, derived, IObservable, observableFromEvent } from '../../../../base/common/observable.js';
 import { basename, dirname } from '../../../../base/common/resources.js';
 import { IResourceNode, ResourceTree } from '../../../../base/common/resourceTree.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { MultiDiffEditorWidget } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidget.js';
 import { DocumentDiffItemViewModel } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorViewModel.js';
 import { localize } from '../../../../nls.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { TextEditorSelectionSource } from '../../../../platform/editor/common/editor.js';
 import { FileKind } from '../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
@@ -31,13 +36,47 @@ import { DEFAULT_LABELS_CONTAINER, IResourceLabel, ResourceLabels } from '../../
 import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
 import { AccessibilityCommandId } from '../../accessibility/common/accessibilityCommands.js';
 import { createFileIconThemableTreeContainerScope } from '../../files/browser/views/explorerView.js';
+import { SCMStructuralDiffRenderer } from '../../scm/browser/scmStructuralDiffRenderer.js';
+import { ISCMViewService } from '../../scm/common/scm.js';
+import { getSCMStructuralDiffAriaLabel, getSCMStructuralDiffLabel, getSCMStructuralDiffTarget, isSCMStructuralDiffElement, IStructuralDiffResourceAdapter, SCMStructuralDiffElement, StructuralDiffModel } from '../../scm/common/scmStructuralDiff.js';
 import { MultiDiffEditorFileListFocusedContext, MultiDiffEditorFileListViewMode, sortMultiDiffEditorFileListItems } from '../common/multiDiffEditor.js';
 
 type FolderNode = IResourceNode<DocumentDiffItemViewModel, null>;
-type FileListElement = DocumentDiffItemViewModel | FolderNode;
+type StructuralChange = SCMStructuralDiffElement<DocumentDiffItemViewModel>;
+type FileListElement = DocumentDiffItemViewModel | FolderNode | StructuralChange;
 
 function isFolder(element: FileListElement): element is FolderNode {
 	return ResourceTree.isResourceNode(element);
+}
+
+function isStructuralChange(element: FileListElement): element is StructuralChange {
+	return isSCMStructuralDiffElement(element);
+}
+
+/** Like the Source Control view, the list loads the structural changes of a file when it is expanded. */
+const structuralDiffAdapter: IStructuralDiffResourceAdapter<DocumentDiffItemViewModel> = {
+	location: 'multiDiffEditor',
+	getDocuments: item => ({ original: item.originalUri, modified: item.modifiedUri }),
+	getIdentity: item => ['multiDiffEditor', item.getKey()],
+};
+
+/** How long a file loads its structural changes before its twistie shows that it loads, like in an async tree. */
+const SLOW_LOAD_DELAY_MS = 800;
+
+/** Structural changes are expanded by default, like in the Source Control view, and keep the state the user gives them. */
+function toStructuralChangeElement(element: StructuralChange): ICompressedTreeElement<FileListElement> {
+	const children = element.type === 'structuralDiff' ? element.children : [];
+	return {
+		element,
+		incompressible: true,
+		collapsible: children.length > 0,
+		collapsed: ObjectTreeElementCollapseState.PreserveOrExpanded,
+		children: children.map(toStructuralChangeElement),
+	};
+}
+
+function getKeyboardNavigationLabel(element: FileListElement): string {
+	return isFolder(element) ? element.name : isStructuralChange(element) ? getSCMStructuralDiffLabel(element) : basename(getItemUri(element));
 }
 
 const enum MultiDiffFileStatus {
@@ -89,11 +128,11 @@ function getCommonFolderPath(paths: readonly string[]): string {
 	return common.join('/') || '/';
 }
 
-function getFileListElements(unsortedItems: readonly DocumentDiffItemViewModel[], viewMode: MultiDiffEditorFileListViewMode, workspaceContextService: IWorkspaceContextService): ICompressedTreeElement<FileListElement>[] {
+function getFileListElements(unsortedItems: readonly DocumentDiffItemViewModel[], viewMode: MultiDiffEditorFileListViewMode, workspaceContextService: IWorkspaceContextService, toFileElement: (item: DocumentDiffItemViewModel) => ICompressedTreeElement<FileListElement>): ICompressedTreeElement<FileListElement>[] {
 	// `MultiDiffEditor` orders the diffs the same way, so that they appear in the order of the list.
 	const items = sortMultiDiffEditorFileListItems(unsortedItems, getItemUri, viewMode);
 	if (viewMode === 'list' || items.length === 0) {
-		return items.map(item => ({ element: item, incompressible: true }));
+		return items.map(toFileElement);
 	}
 
 	// Group by path only: the sides of a diff can use different schemes (e.g. `git:` for a deleted file).
@@ -131,7 +170,7 @@ function getFileListElements(unsortedItems: readonly DocumentDiffItemViewModel[]
 	});
 
 	const toElements = (folder: FolderNode): ICompressedTreeElement<FileListElement>[] => [...folder.children].flatMap(child => {
-		const files: ICompressedTreeElement<FileListElement>[] = (filesByNode.get(child) ?? []).map(item => ({ element: item, incompressible: true }));
+		const files = (filesByNode.get(child) ?? []).map(toFileElement);
 		return child.childrenCount > 0 ? [...files, { element: child, children: toElements(child) }] : files;
 	});
 	return toElements(resourceTree.root);
@@ -141,22 +180,32 @@ function getFileListElements(unsortedItems: readonly DocumentDiffItemViewModel[]
  * Lists the files of a {@link MultiDiffEditorWidget}, as a flat list or as a
  * tree of folders, both sorted like the Source Control view, and keeps its
  * selection on the file the user is looking at. Opening a file reveals it in
- * the widget.
+ * the widget. While the Source Control view shows structural changes, a file
+ * expands to its structural changes, and opening one reveals it in the diff.
  */
 export class MultiDiffEditorFileList extends Disposable {
 	private readonly _tree: WorkbenchCompressibleObjectTree<FileListElement>;
+	private readonly _structuralDiff: StructuralDiffModel<DocumentDiffItemViewModel>;
+	/** The structural changes that the expanded files show. */
+	private readonly _structuralChanges = new Map<DocumentDiffItemViewModel, readonly StructuralChange[]>();
+	/** Files whose structural changes take long to load. Like in the Source Control view, their twistie shows that they load. */
+	private readonly _slowItems = new Set<DocumentDiffItemViewModel>();
+	private _renderedItems: readonly DocumentDiffItemViewModel[] = [];
+	private _renderedViewMode: MultiDiffEditorFileListViewMode | undefined;
+	private _visible = true;
 
 	constructor(
 		container: HTMLElement,
 		private readonly _multiDiffEditorWidget: MultiDiffEditorWidget,
-		viewMode: IObservable<MultiDiffEditorFileListViewMode>,
+		private readonly _viewMode: IObservable<MultiDiffEditorFileListViewMode>,
 		@IAccessibilityService accessibilityService: IAccessibilityService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@ILabelService labelService: ILabelService,
+		@ISCMViewService scmViewService: ISCMViewService,
 		@IThemeService themeService: IThemeService,
-		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
+		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 	) {
 		super();
 
@@ -174,6 +223,7 @@ export class MultiDiffEditorFileList extends Disposable {
 				: localize('multiDiffEditorFileList.accessibilityHelpNoKb', "{0}, run the Open Accessibility Help command for more information", label);
 		});
 
+		this._structuralDiff = this._register(instantiationService.createInstance(StructuralDiffModel<DocumentDiffItemViewModel>, structuralDiffAdapter));
 		this._register(createFileIconThemableTreeContainerScope(container, themeService));
 		const labels = this._register(instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER));
 		this._tree = this._register(instantiationService.createInstance(
@@ -182,14 +232,15 @@ export class MultiDiffEditorFileList extends Disposable {
 			container,
 			new MultiDiffEditorFileListDelegate(),
 			[
-				new MultiDiffEditorFileRenderer(labels, labelService, () => viewMode.get()),
+				new MultiDiffEditorFileRenderer(labels, labelService, () => this._viewMode.get(), item => this._slowItems.has(item)),
 				new MultiDiffEditorFolderRenderer(labels, labelService),
+				instantiationService.createInstance(SCMStructuralDiffRenderer),
 			],
 			{
-				identityProvider: { getId: element => isFolder(element) ? `folder:${element.uri.toString()}` : element.getKey() },
+				identityProvider: { getId: element => isFolder(element) ? `folder:${element.uri.toString()}` : isStructuralChange(element) ? element.id : element.getKey() },
 				keyboardNavigationLabelProvider: {
-					getKeyboardNavigationLabel: element => isFolder(element) ? element.name : basename(getItemUri(element)),
-					getCompressedNodeKeyboardNavigationLabel: elements => elements.map(element => isFolder(element) ? element.name : basename(getItemUri(element))).join('/'),
+					getKeyboardNavigationLabel,
+					getCompressedNodeKeyboardNavigationLabel: elements => elements.map(getKeyboardNavigationLabel).join('/'),
 				},
 				accessibilityProvider: {
 					getWidgetAriaLabel: () => widgetAriaLabel,
@@ -197,16 +248,43 @@ export class MultiDiffEditorFileList extends Disposable {
 						if (isFolder(element)) {
 							return element.relativePath.substring(1);
 						}
+						if (isStructuralChange(element)) {
+							return getSCMStructuralDiffAriaLabel(element);
+						}
 						const uri = getItemUri(element);
 						return localize('multiDiffEditorFileList.item', "{0}, {1}, {2}", basename(uri), getFileStatusLabel(getFileStatus(element)), labelService.getUriLabel(dirname(uri), { relative: true }));
 					},
 				},
 				multipleSelectionSupport: false,
 				horizontalScrolling: false,
-				hideTwistiesOfChildlessElements: true,
+				// A file that can expand shows its twistie before its structural changes are loaded.
+				hideTwistiesOfChildlessElements: false,
+				// Files and their structural changes open when clicked, so they only expand through their twistie.
+				expandOnlyOnTwistieClick: element => !isFolder(element),
+				twistieAdditionalCssClass: element => this._getTwistieCssClass(element),
 			}
 		));
 		MultiDiffEditorFileListFocusedContext.bindTo(this._tree.contextKeyService);
+
+		// A change of all files, such as turning structural changes on or off, renders the files again, which also updates
+		// whether they keep their twistie space, see `_getTwistieCssClass`.
+		this._register(this._structuralDiff.onDidChange(item => item ? this._updateStructuralChanges(item) : this._renderFiles()));
+		this._register(this._tree.onDidChangeCollapseState(e => {
+			const element = e.node.element;
+			// A file whose structural changes turn out to be empty stops being collapsible, which needs no update.
+			if (!element || isFolder(element) || isStructuralChange(element) || !e.node.collapsible) {
+				return;
+			}
+			if (e.node.collapsed) {
+				// Like in the Source Control view, a collapsed file keeps no structural changes and loads them again when it is expanded.
+				this._structuralChanges.delete(element);
+				this._tree.setChildren(element, []);
+				this._structuralDiff.release(element);
+			} else {
+				this._loadStructuralChanges(element);
+			}
+		}));
+		this._register(autorun(reader => this._structuralDiff.setEnabled(scmViewService.showStructuralDiff.read(reader))));
 
 		const items = derived(this, reader => this._multiDiffEditorWidget.viewModel.read(reader)?.items.read(reader) ?? []);
 
@@ -222,16 +300,21 @@ export class MultiDiffEditorFileList extends Disposable {
 		});
 
 		// A single autorun keeps the tree contents and selection consistent with each other.
-		let renderedItems: readonly DocumentDiffItemViewModel[] = [];
-		let renderedViewMode: MultiDiffEditorFileListViewMode | undefined;
 		this._register(autorun(reader => {
 			const currentItems = items.read(reader);
-			const currentViewMode = viewMode.read(reader);
-			const didRebuild = currentItems !== renderedItems || currentViewMode !== renderedViewMode;
+			const currentViewMode = this._viewMode.read(reader);
+			const didRebuild = currentItems !== this._renderedItems || currentViewMode !== this._renderedViewMode;
 			if (didRebuild) {
-				renderedItems = currentItems;
-				renderedViewMode = currentViewMode;
-				this._tree.setChildren(null, getFileListElements(currentItems, currentViewMode, workspaceContextService));
+				const remaining = new Set(currentItems);
+				this._structuralDiff.releaseWhere(item => !remaining.has(item));
+				for (const item of this._structuralChanges.keys()) {
+					if (!remaining.has(item)) {
+						this._structuralChanges.delete(item);
+					}
+				}
+				this._renderedItems = currentItems;
+				this._renderedViewMode = currentViewMode;
+				this._renderFiles();
 			}
 
 			const current = currentItem.read(reader);
@@ -239,18 +322,41 @@ export class MultiDiffEditorFileList extends Disposable {
 				this._tree.setSelection([]);
 				return;
 			}
-			if (didRebuild || this._tree.getSelection()[0] !== current) {
-				this._tree.setSelection([current]);
-				this._tree.setFocus([current]);
-				this._tree.reveal(current);
+			// A selected structural change of the current file stays selected.
+			const selected = this._tree.getSelection()[0];
+			const selection = selected && isStructuralChange(selected) && selected.resource === current ? selected : current;
+			if (didRebuild || selected !== selection) {
+				this._tree.setSelection([selection]);
+				this._tree.setFocus([selection]);
+				this._tree.reveal(selection);
 			}
 		}));
 
 		this._register(this._tree.onDidOpen(e => {
-			if (e.element && !isFolder(e.element)) {
+			if (!e.element || isFolder(e.element)) {
+				return;
+			}
+			if (isStructuralChange(e.element)) {
+				this._openStructuralChange(e.element, !!e.editorOptions.preserveFocus);
+			} else {
 				this._open(e.element, !!e.editorOptions.preserveFocus);
 			}
 		}));
+	}
+
+	/**
+	 * Called when the editor of the list is shown or hidden. Like the Source Control view, a hidden list keeps no
+	 * structural changes, so it loads those of its expanded files again when it is shown.
+	 */
+	setVisible(visible: boolean): void {
+		if (this._visible === visible) {
+			return;
+		}
+		this._visible = visible;
+		this._structuralDiff.setVisible(visible);
+		if (visible) {
+			this._loadExpandedFiles();
+		}
 	}
 
 	private _open(item: DocumentDiffItemViewModel, preserveFocus: boolean): void {
@@ -264,6 +370,130 @@ export class MultiDiffEditorFileList extends Disposable {
 		this._multiDiffEditorWidget.reveal({ original: item.originalUri, modified: item.modifiedUri }, { highlight: false });
 		if (!preserveFocus) {
 			this._multiDiffEditorWidget.focus();
+		}
+	}
+
+	/** Reveals a structural change in the diff of its file, and selects it, which also shows it in a hidden unchanged region. */
+	private _openStructuralChange(change: StructuralChange, preserveFocus: boolean): void {
+		const item = change.resource;
+		const viewModel = this._multiDiffEditorWidget.viewModel.get();
+		if (change.type !== 'structuralDiff' || !this._structuralDiff.isCurrent(change) || !viewModel || !viewModel.items.get().includes(item)) {
+			return;
+		}
+		if (item.collapsed.get()) {
+			viewModel.expand(item);
+		}
+		const resource = { original: item.originalUri, modified: item.modifiedUri };
+		this._multiDiffEditorWidget.reveal(resource, { highlight: false });
+		const diffEditor = this._multiDiffEditorWidget.getActiveControl();
+		if (!diffEditor) {
+			return;
+		}
+		const { side, range } = getSCMStructuralDiffTarget(change, diffEditor.renderSideBySide);
+		const editor = side === 'original' ? diffEditor.getOriginalEditor() : diffEditor.getModifiedEditor();
+		editor.setSelection(range, TextEditorSelectionSource.NAVIGATION);
+		this._multiDiffEditorWidget.reveal(resource, { range, side, highlight: false });
+		if (!preserveFocus) {
+			editor.focus();
+		}
+	}
+
+	/**
+	 * Structural changes always show an icon, so they keep their twistie space to indent their children under their
+	 * parent's icon, and files that can expand keep their twistie when the file icon theme hides arrows, like file nests
+	 * in the Explorer. A flat list has no folders whose twisties file icons align with, so while files can expand, all
+	 * files keep their twistie space, so that their icons stay aligned.
+	 */
+	private _getTwistieCssClass(element: FileListElement): string | undefined {
+		if (isStructuralChange(element)) {
+			return 'force-twistie';
+		}
+		if (isFolder(element)) {
+			return undefined;
+		}
+		const canExpandFiles = this._structuralDiff.enabled && this._structuralDiff.hasProvider.get();
+		return this._structuralDiff.hasChildren(element) || (canExpandFiles && this._viewMode.get() === 'list') ? 'force-twistie' : undefined;
+	}
+
+	/**
+	 * Renders the files with the structural changes that they show. Expanded files keep showing them while they load them
+	 * again, for example after the provider changed, so that the list does not lose its scroll position.
+	 */
+	private _renderFiles(): void {
+		if (this._renderedViewMode === undefined) {
+			return;
+		}
+		this._tree.setChildren(null, getFileListElements(this._renderedItems, this._renderedViewMode, this._workspaceContextService, item => {
+			const collapsible = this._structuralDiff.hasChildren(item);
+			if (!collapsible) {
+				this._structuralChanges.delete(item);
+			}
+			return {
+				element: item,
+				incompressible: true,
+				collapsible,
+				// Files are collapsed until the user expands them.
+				collapsed: ObjectTreeElementCollapseState.PreserveOrCollapsed,
+				children: this._structuralChanges.get(item)?.map(toStructuralChangeElement),
+			};
+		}));
+		this._loadExpandedFiles();
+	}
+
+	/** Updates whether a file can expand and, if it is expanded, loads its structural changes again, for example after an edit. */
+	private _updateStructuralChanges(item: DocumentDiffItemViewModel): void {
+		if (!this._tree.hasElement(item)) {
+			return;
+		}
+		const collapsible = this._structuralDiff.hasChildren(item);
+		if (this._tree.isCollapsible(item) !== collapsible) {
+			// An expanded file that becomes collapsible loads its structural changes through its collapse state change.
+			this._tree.setCollapsible(item, collapsible);
+		} else if (collapsible && !this._tree.isCollapsed(item)) {
+			this._loadStructuralChanges(item);
+		}
+	}
+
+	private _loadExpandedFiles(): void {
+		for (const item of this._renderedItems) {
+			if (this._tree.hasElement(item) && this._tree.isCollapsible(item) && !this._tree.isCollapsed(item)) {
+				this._loadStructuralChanges(item);
+			}
+		}
+	}
+
+	private async _loadStructuralChanges(item: DocumentDiffItemViewModel): Promise<void> {
+		const slowTimeout = disposableTimeout(() => this._setSlow(item, true), SLOW_LOAD_DELAY_MS, this._store);
+		try {
+			const changes = await this._structuralDiff.getChildren(item);
+			// A file that was collapsed, edited or removed in the meantime loads its structural changes again when it is
+			// expanded or after the edit. A load that was stopped, for example by an edit, yields no structural changes, while
+			// the file still has some, so the file keeps showing its previous ones until then.
+			const isCurrent = changes.length > 0 ? changes.every(change => this._structuralDiff.isCurrent(change)) : !this._structuralDiff.hasChildren(item);
+			if (this._store.isDisposed || !isCurrent || !this._tree.hasElement(item) || this._tree.isCollapsed(item)) {
+				return;
+			}
+			this._structuralChanges.set(item, changes);
+			this._tree.setChildren(item, changes.map(toStructuralChangeElement));
+		} catch (error) {
+			onUnexpectedError(error);
+		} finally {
+			slowTimeout.dispose();
+			this._setSlow(item, false);
+		}
+	}
+
+	private _setSlow(item: DocumentDiffItemViewModel, slow: boolean): void {
+		if (this._store.isDisposed || this._slowItems.has(item) === slow) {
+			return;
+		}
+		if (slow) {
+			this._slowItems.add(item);
+		} else {
+			this._slowItems.delete(item);
+		}
+		if (this._tree.hasElement(item)) {
+			this._tree.rerender(item);
 		}
 	}
 
@@ -290,7 +520,7 @@ class MultiDiffEditorFileListDelegate implements IListVirtualDelegate<FileListEl
 	}
 
 	getTemplateId(element: FileListElement): string {
-		return isFolder(element) ? MultiDiffEditorFolderRenderer.TEMPLATE_ID : MultiDiffEditorFileRenderer.TEMPLATE_ID;
+		return isFolder(element) ? MultiDiffEditorFolderRenderer.TEMPLATE_ID : isStructuralChange(element) ? SCMStructuralDiffRenderer.TEMPLATE_ID : MultiDiffEditorFileRenderer.TEMPLATE_ID;
 	}
 }
 
@@ -308,7 +538,18 @@ class MultiDiffEditorFileRenderer implements ICompressibleTreeRenderer<FileListE
 		private readonly _labels: ResourceLabels,
 		private readonly _labelService: ILabelService,
 		private readonly _getViewMode: () => MultiDiffEditorFileListViewMode,
+		private readonly _isSlow: (item: DocumentDiffItemViewModel) => boolean,
 	) { }
+
+	renderTwistie(element: FileListElement, twistie: HTMLElement): boolean {
+		const loading = ThemeIcon.asClassNameArray(Codicon.treeItemLoading);
+		if (this._isSlow(element as DocumentDiffItemViewModel)) {
+			twistie.classList.add(...loading);
+			return true;
+		}
+		twistie.classList.remove(...loading);
+		return false;
+	}
 
 	renderTemplate(container: HTMLElement): IMultiDiffEditorFileTemplate {
 		container.classList.add('multi-diff-file-list-item');
