@@ -19,7 +19,7 @@ import { ILogService } from '../../log/common/log.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { FileEditKind, type ISessionFileDiff, type ISessionGitState } from '../common/state/sessionState.js';
 import { buildGitBlobUri } from './gitDiffContent.js';
-import { CheckoutBlockedByLocalChangesError, EMPTY_TREE_OBJECT, IAddWorktreeOptions, IAgentHostGitService, IAgentHostGitWorktree, IBranch, IBranchDiffSafetyInfo, ICommitOptions, IRefQuery, IComputeSessionFileDiffsOptions, IDefaultBranch, IGitRemote, IPullOptions, IPushOptions, GitRefType, IRemoteBranch, GitRef, ITag, Branch, IWorktreeFileProgress, IDetachedHead } from '../common/agentHostGitService.js';
+import { CheckoutBlockedByLocalChangesError, EMPTY_TREE_OBJECT, IAddWorktreeOptions, IAgentHostGitService, IAgentHostGitWorktree, IBranch, IBranchDiffSafetyInfo, ICommitOptions, IRefQuery, IComputeSessionFileDiffsOptions, IDefaultBranch, IGitRemote, IPullOptions, IPushOptions, GitRefType, IRemoteBranch, GitRef, ITag, Branch, IWorktreeFileProgress, IDetachedHead, toBaseBranchName } from '../common/agentHostGitService.js';
 import { LRUCache } from '../../../base/common/map.js';
 import { firstParallel, Limiter, timeout } from '../../../base/common/async.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
@@ -1188,8 +1188,8 @@ export class AgentHostGitService extends Disposable implements IAgentHostGitServ
 		});
 	}
 
-	async getSessionGitState(workingDirectory: URI, baseBranchName?: string): Promise<ISessionGitState | undefined> {
-		return this._computeSessionGitState(workingDirectory, baseBranchName);
+	async getSessionGitState(workingDirectory: URI, baseBranch?: string): Promise<ISessionGitState | undefined> {
+		return this._computeSessionGitState(workingDirectory, baseBranch);
 	}
 
 	async getFetchRemoteUrls(workingDirectory: URI, preferredRemote?: string): Promise<readonly string[] | undefined> {
@@ -1488,7 +1488,7 @@ export class AgentHostGitService extends Disposable implements IAgentHostGitServ
 		const status = parseGitStatusV2(statusOutput);
 		const hasGitRemote = remotesOutput !== undefined ? remotesOutput.trim().length > 0 : undefined;
 		const hasGitHubRemote = parseHasGitHubRemote(remotesOutput);
-		const baseBranchName = configuredBaseBranch ?? parseDefaultBranchRef(defaultBranchRef);
+		const baseBranchName = configuredBaseBranch ? toBaseBranchName(configuredBaseBranch) : parseDefaultBranchRef(defaultBranchRef);
 		const defaultBranch = parseDefaultRemoteBranchRef(defaultBranchRef);
 		const githubRepo = parseGitHubRepoFromRemote(remotesOutput);
 		const upstreamRemote = status.upstreamBranchName?.split('/')[0];
@@ -1500,7 +1500,7 @@ export class AgentHostGitService extends Disposable implements IAgentHostGitServ
 				? this._getPushRemote(repositoryRoot, status.branchName)
 				: undefined,
 			baseBranchName && status.branchName && status.branchName !== baseBranchName
-				? this._computeBaseBranchDivergence(repositoryRoot, baseBranchName, status.outgoingChanges === undefined)
+				? this._computeBaseBranchDivergence(repositoryRoot, baseBranchName, configuredBaseBranch, status.outgoingChanges === undefined)
 				: undefined,
 			// `origin/HEAD` can outlive its target (e.g. after the remote renames its default branch).
 			defaultBranch
@@ -1551,7 +1551,13 @@ export class AgentHostGitService extends Disposable implements IAgentHostGitServ
 		return (await this._runGit(repositoryRoot, ['for-each-ref', '--format=%(push:remotename)', `refs/heads/${branchName}`]))?.trim() || undefined;
 	}
 
-	private async _computeBaseBranchDivergence(repositoryRoot: URI, baseBranchName: string, countCommits: boolean): Promise<{ readonly hasChanges: boolean; readonly count?: number } | undefined> {
+	/**
+	 * Compares `HEAD` with the base branch. With `countCommits`, counts the commits `HEAD` has that `baseBranch`
+	 * lacks: the base exactly as recorded, which Branch Changes compares against, else the local base branch.
+	 * Whether `HEAD` has changes is always relative to the local `baseBranchName` when it exists: Merge merges into
+	 * it, and an upstream still lacks the commits a local merge added.
+	 */
+	private async _computeBaseBranchDivergence(repositoryRoot: URI, baseBranchName: string, baseBranch: string | undefined, countCommits: boolean): Promise<{ readonly hasChanges: boolean; readonly count?: number } | undefined> {
 		const localRef = `refs/heads/${baseBranchName}`;
 		const remoteRef = `refs/remotes/origin/${baseBranchName}`;
 		const refs = await this._runGit(repositoryRoot, ['for-each-ref', '--format=%(refname)', localRef, remoteRef]);
@@ -1559,17 +1565,16 @@ export class AgentHostGitService extends Disposable implements IAgentHostGitServ
 			return undefined;
 		}
 		const refNames = new Set(refs.split(/\r?\n/g).filter(Boolean));
-		const baseBranchRef = refNames.has(localRef) ? localRef : refNames.has(remoteRef) ? remoteRef : baseBranchName;
-		// Upstream divergence can remain after a local merge, so operation availability tracks the local base separately.
-		const output = await this._runGit(repositoryRoot, ['rev-list', countCommits ? '--count' : '--max-count=1', `${baseBranchRef}..HEAD`]);
-		if (output === undefined) {
+		const mergeTargetRef = refNames.has(localRef) ? localRef : refNames.has(remoteRef) ? remoteRef : baseBranchName;
+		const [unmerged, ahead] = await Promise.all([
+			this._runGit(repositoryRoot, ['rev-list', '--max-count=1', `${mergeTargetRef}..HEAD`]),
+			countCommits ? this._runGit(repositoryRoot, ['rev-list', '--count', `${baseBranch ?? mergeTargetRef}..HEAD`]) : undefined,
+		]);
+		if (unmerged === undefined) {
 			return undefined;
 		}
-		if (!countCommits) {
-			return { hasChanges: output.trim().length > 0 };
-		}
-		const count = Number(output.trim());
-		return Number.isFinite(count) ? { hasChanges: count > 0, count } : undefined;
+		const count = Number(ahead?.trim());
+		return { hasChanges: unmerged.trim().length > 0, ...(Number.isFinite(count) ? { count } : {}) };
 	}
 
 	private _runGitStatus(workingDirectory: URI, args: readonly string[], failFastAfterTimeout = true): Promise<string | undefined> {

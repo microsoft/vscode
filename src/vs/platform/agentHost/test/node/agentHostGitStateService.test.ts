@@ -1627,7 +1627,7 @@ suite('AgentHostGitStateService', () => {
 
 		await h.service.refreshSessionGitState(SESSION, undefined);
 
-		assert.deepStrictEqual(h.gitBaseBranches, ['main']);
+		assert.deepStrictEqual(h.gitBaseBranches, ['origin/main']);
 	}));
 
 	for (const project of [undefined, WORKING_DIRECTORY]) {
@@ -1644,7 +1644,7 @@ suite('AgentHostGitStateService', () => {
 
 			await h.service.refreshSessionGitState(SESSION, undefined);
 
-			assert.deepStrictEqual(h.gitBaseBranches, ['release']);
+			assert.deepStrictEqual(h.gitBaseBranches, ['origin/release']);
 		}));
 	}
 
@@ -1758,7 +1758,7 @@ suite('AgentHostGitStateService', () => {
 
 		await h.service.refreshSessionGitState(SESSION, undefined);
 
-		assert.deepStrictEqual(h.gitBaseBranches, ['main']);
+		assert.deepStrictEqual(h.gitBaseBranches, ['origin/main']);
 	}));
 
 	test('uses the persisted base branch when a worktree checked out its configured branch', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -1776,7 +1776,7 @@ suite('AgentHostGitStateService', () => {
 
 		await h.service.refreshSessionGitState(SESSION, undefined);
 
-		assert.deepStrictEqual(h.gitBaseBranches, ['main']);
+		assert.deepStrictEqual(h.gitBaseBranches, ['origin/main']);
 	}));
 
 	test('uses the persisted worktree base branch for an adopted linked worktree', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -1792,7 +1792,7 @@ suite('AgentHostGitStateService', () => {
 
 		await h.service.refreshSessionGitState(SESSION, undefined);
 
-		assert.deepStrictEqual(h.gitBaseBranches, ['release']);
+		assert.deepStrictEqual(h.gitBaseBranches, ['origin/release']);
 	}));
 
 	test('publishes the recorded base branch in full next to its short name', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -1811,7 +1811,7 @@ suite('AgentHostGitStateService', () => {
 			recorded: { baseBranches: recorded.gitBaseBranches, gitState: recorded.service.getSessionGitState(SESSION) },
 			unrecorded: { baseBranches: unrecorded.gitBaseBranches, gitState: unrecorded.service.getSessionGitState(SESSION) },
 		}, {
-			recorded: { baseBranches: ['release'], gitState: { branchName: 'agents/session', baseBranchName: 'release', baseBranchFullName: 'origin/release' } },
+			recorded: { baseBranches: ['origin/release'], gitState: { branchName: 'agents/session', baseBranchName: 'release', baseBranchFullName: 'origin/release' } },
 			unrecorded: { baseBranches: [undefined], gitState: { branchName: 'feature', baseBranchName: 'main', baseBranchFullName: 'main' } },
 		});
 	}));

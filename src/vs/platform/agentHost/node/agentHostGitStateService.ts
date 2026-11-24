@@ -15,7 +15,7 @@ import { CopilotCliVSCodeAssignmentContextKey } from '../common/copilotCliConfig
 import { logSettingExperimentTrigger } from '../../telemetry/common/experimentTrigger.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { getSessionRelatedPullRequestUrls, isAhpChatChannel, ISessionGitHubState, ISessionWithDefaultChat, readFolderGitHubState, readFolderScopeGitState, readSessionGitData, readSessionGitHubData, readSessionGitState, readSessionSourceControlState, SessionLifecycle, SessionSourceControlOutcome, withInitialSessionPullRequest, withMostRecentRelatedSessionPullRequest, withMostRecentSessionPullRequest, withFolderGitHubState, withFolderScopeGitState, withSessionGitState, withSessionSourceControlState, type ISessionGitState, type ISessionSourceControlState, type SessionSummaryMeta } from '../common/state/sessionState.js';
-import { IAgentHostGitService, toBaseBranchName } from '../common/agentHostGitService.js';
+import { IAgentHostGitService } from '../common/agentHostGitService.js';
 import { ActionType } from '../common/state/sessionActions.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentHostSessionStateStore, SessionStateMirrorFlush } from '../common/agentHostSessionStateStore.js';
@@ -584,11 +584,11 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 	}
 
 	/**
-	 * Computes the Git state of `workingDirectory` against `baseBranchFullName`, which the Git service receives without
-	 * its remote prefix and the state carries as recorded in {@link ISessionGitState.baseBranchFullName}.
+	 * Computes the Git state of `workingDirectory` against `baseBranchFullName`, which the Git service receives and the
+	 * state carries ({@link ISessionGitState.baseBranchFullName}) exactly as recorded.
 	 */
 	private async _computeGitState(workingDirectory: URI, baseBranchFullName: string | undefined): Promise<ISessionGitState | undefined> {
-		const gitState = await this._gitService.getSessionGitState(workingDirectory, toBaseBranchName(baseBranchFullName));
+		const gitState = await this._gitService.getSessionGitState(workingDirectory, baseBranchFullName);
 		const fullName = baseBranchFullName || gitState?.baseBranchName;
 		return gitState && fullName !== undefined ? { ...gitState, baseBranchFullName: fullName } : gitState;
 	}

@@ -905,6 +905,35 @@ suite('AgentHostGitService - getSessionGitState (real git)', () => {
 			await rmDirWithRetry(remoteDir);
 		}
 	});
+
+	(hasGit ? test : test.skip)('counts commits ahead of the recorded base while Merge availability follows the local base branch', async () => {
+		const dir = initRepo();
+		const env = { ...process.env, GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@t', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@t' };
+		const run = (...args: string[]) => cp.execFileSync('git', args, { cwd: dir, env, stdio: 'pipe' });
+		run('update-ref', 'refs/remotes/origin/main', 'HEAD');
+		run('checkout', '-q', '-b', 'upstream');
+		run('commit', '-q', '--allow-empty', '-m', 'upstream');
+		run('update-ref', 'refs/remotes/origin/main', 'HEAD');
+		// The feature branch starts from `origin/main`, which the local `main` lags behind, and has no upstream.
+		run('checkout', '-q', '--no-track', '-b', 'feature', 'origin/main');
+		run('commit', '-q', '--allow-empty', '-m', 'feature');
+		const divergence = async (baseBranch: string) => {
+			const state = await svc!.getSessionGitState(URI.file(dir), baseBranch);
+			return { baseBranchName: state?.baseBranchName, outgoingChanges: state?.outgoingChanges, hasBaseBranchChanges: state?.hasBaseBranchChanges };
+		};
+
+		const originMain = await divergence('origin/main');
+		const main = await divergence('main');
+		// What Merge does: the local `main` takes the feature commits while `origin/main` stays behind.
+		run('branch', '-f', 'main', 'feature');
+		const afterLocalMerge = await divergence('origin/main');
+
+		assert.deepStrictEqual({ originMain, main, afterLocalMerge }, {
+			originMain: { baseBranchName: 'main', outgoingChanges: 1, hasBaseBranchChanges: true },
+			main: { baseBranchName: 'main', outgoingChanges: 2, hasBaseBranchChanges: true },
+			afterLocalMerge: { baseBranchName: 'main', outgoingChanges: 1, hasBaseBranchChanges: false },
+		});
+	});
 });
 
 suite('AgentHostGitService - computeSessionFileDiffs (real git)', () => {

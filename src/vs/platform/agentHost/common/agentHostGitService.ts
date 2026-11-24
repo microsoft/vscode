@@ -389,8 +389,12 @@ export interface IAgentHostGitService {
 	 * shelling out to `git`. Returns undefined if the directory is not a
 	 * git work tree. Called on session open and after each turn completes
 	 * so the UI always reflects current branch/remote/change state.
+	 *
+	 * `baseBranch` is the session's base branch exactly as recorded (e.g.
+	 * `origin/main`): commits ahead are counted against it, and
+	 * {@link ISessionGitState.baseBranchName} is its name on the remote.
 	 */
-	getSessionGitState(workingDirectory: URI, baseBranchName?: string): Promise<ISessionGitState | undefined>;
+	getSessionGitState(workingDirectory: URI, baseBranch?: string): Promise<ISessionGitState | undefined>;
 	/** Returns fetch remote URLs with the preferred remote, then `origin`, first. */
 	getFetchRemoteUrls(workingDirectory: URI, preferredRemote?: string): Promise<readonly string[] | undefined>;
 	/** Returns the repository's fetch remotes in `git remote -v` order. */
