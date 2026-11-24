@@ -1452,6 +1452,35 @@ suite('AutomationsCardsWidget', () => {
 		});
 	});
 
+	test('loaded automation history keeps metadata separators through status changes', async () => {
+		const { widget, automationService } = setup();
+		automationService.setAutomations([automation()]);
+		const loadedRun = run({ externalResource: URI.parse('https://github.com/owner/private/tasks/exact') });
+		const fallback = run({ id: 'fallback', sessionResource: undefined, externalResource: URI.parse('https://github.com/owner/private/tasks/fallback') });
+		const snapshots = [];
+		for (const status of ['completed', 'running', 'completed'] as const) {
+			automationService.setRuns([{ ...loadedRun, status }, { ...fallback, status }]);
+			await waitForSessionActions();
+			snapshots.push(['.automations-run-session-list .session-item', '.automations-temporary-run'].map(selector => {
+				const row = widget.element.querySelector(selector)!;
+				return [...row.querySelectorAll<HTMLElement>('.session-separator')]
+					.filter(separator => getWindow(separator).getComputedStyle(separator).display !== 'none')
+					.map(separator => ({
+						content: getWindow(separator).getComputedStyle(separator, '::before').content,
+						hidden: separator.getAttribute('aria-hidden'),
+						next: separator.nextElementSibling?.classList.item(0),
+					}));
+			}));
+		}
+		const timeSeparator = { content: '"·"', hidden: 'true', next: 'session-time' };
+		const statusSeparator = { content: '"·"', hidden: 'true', next: 'session-description' };
+		assert.deepStrictEqual(snapshots, [
+			[[timeSeparator], [timeSeparator]],
+			[[statusSeparator, timeSeparator], [statusSeparator, timeSeparator]],
+			[[timeSeparator], [timeSeparator]],
+		]);
+	});
+
 	test('native cloud rows announce the status shown before the time', async () => {
 		const { widget, automationService, sessionsManagementService } = setup();
 		automationService.setAutomations([automation()]);

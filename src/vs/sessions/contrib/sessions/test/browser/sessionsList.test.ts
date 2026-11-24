@@ -12440,6 +12440,34 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
+		test('flat lists opt into metadata separators without changing the default', () => {
+			const source = createTestSession('History run', { workspaceLabel: 'vscode' });
+			const changesSummary = observableValue<ISessionChangesSummary | undefined>('summary', { files: 1, additions: 12, deletions: 3 });
+			const session = { ...source.session, changesSummary };
+			const renderers = [undefined, true].map(showMetadataSeparators => {
+				const harness = createListHarness(disposables, [session]);
+				const container = harness.createContainer();
+				const list = harness.store.add(harness.instantiationService.createInstance(SessionsFlatList, container, {
+					onSessionOpen: () => { },
+					showMetadataSeparators,
+				}));
+				list.setSessions([session]);
+				list.layout(300, 400);
+				return () => [...container.querySelectorAll('.session-details-row > .session-separator')]
+					.map(separator => separator.nextElementSibling?.className);
+			});
+			const completed = renderers.map(render => render());
+			source.status.set(SessionStatus.Error, undefined);
+			const error = renderers.map(render => render());
+			source.status.set(SessionStatus.Completed, undefined);
+			changesSummary.set(undefined, undefined);
+			assert.deepStrictEqual({ completed, error, withoutChanges: renderers.map(render => render()) }, {
+				completed: [[], ['session-diff', 'session-time']],
+				error: [[], ['session-diff', 'session-description', 'session-time']],
+				withoutChanges: [[], ['session-time']],
+			});
+		});
+
 		for (const status of [SessionStatus.InProgress, SessionStatus.NeedsInput]) {
 			test(`flat-list active metadata matches its accessible label when enabled (${status})`, () => {
 				const source = createTestSession('Cloud run', { workspaceLabel: 'owner/repo', status });
