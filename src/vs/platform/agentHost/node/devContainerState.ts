@@ -405,16 +405,27 @@ const failedCommandPattern = String.raw`\b(Command(?: in \w+)? failed): (\S+)(?:
 // Other commands' arguments and other subcommands can contain local values.
 const errorMessageCommands = ['docker', 'podman', 'docker-compose'];
 const errorMessageSubcommands = ['build', 'buildx', 'compose', 'container', 'cp', 'create', 'down', 'exec', 'image', 'inspect', 'network', 'ps', 'pull', 'rm', 'run', 'start', 'stop', 'up', 'volume'];
+// Commands that Dev Containers runs itself. Other command names can be user content (e.g., an initializeCommand) or part of a path with a space.
+const errorMessageKnownCommands = [...errorMessageCommands, 'sh', 'bash', 'cmd', 'set', 'test', 'id'];
+// Node.js network errors are followed by the host name or address.
+const networkErrorAddressPattern = /\b(ENOTFOUND|EAI_AGAIN|ECONNREFUSED|ETIMEDOUT|EHOSTUNREACH|ENETUNREACH) \S+/g;
+const ipv4AddressPattern = /\b(?:\d{1,3}\.){3}\d{1,3}(?::\d+)?\b/g;
+// For example, the config file in "Dev container config (<path>) not found." Paths with spaces are only partially redacted by the telemetry service.
+const parenthesizedPathPattern = /\((?:[a-zA-Z]:)?[\\/][^\r\n]*\)/g;
 
 /**
  * Builds an error message for telemetry from parts such as an error message and a command's stderr. Removes command
- * lines, Dev Containers CLI log entries, ids and the container user. The telemetry service redacts paths and secrets.
+ * lines, Dev Containers CLI log entries, paths in parentheses, network addresses, ids and the container user. The
+ * telemetry service redacts other paths, URLs and secrets.
  */
 export function sanitizeDevContainerStateErrorMessage(parts: readonly (string | undefined)[], values: IDevContainerStateErrorValues = {}): string | undefined {
 	const replacements: [RegExp, string][] = [
 		// State volume names include the folder name.
 		[/vscode-state-[a-z0-9_.-]*[a-z0-9]/g, 'vscode-state-<name>'],
 		[/\b(?:[0-9a-f]{64}|[0-9a-f]{12})\b/g, '<id>'],
+		[parenthesizedPathPattern, '(<path>)'],
+		[networkErrorAddressPattern, '$1 <address>'],
+		[ipv4AddressPattern, '<address>'],
 	];
 	const homeFolder = values.homeFolder?.replace(/\/+$/, '');
 	if (homeFolder) {
@@ -424,9 +435,8 @@ export function sanitizeDevContainerStateErrorMessage(parts: readonly (string | 
 		replacements.push([new RegExp(`(?<![\\w.-])${escapeRegExp(values.user)}(?![\\w.-])`, 'g'), '<user>']);
 	}
 	const summarizeCommand = (_match: string, prefix: string, command: string, subcommand: string | undefined, args: string) => {
-		const name = command.split(/[\\/]/).pop();
-		const keep = !!subcommand && errorMessageCommands.includes(name?.replace(/\.exe$/i, '') || '') && errorMessageSubcommands.includes(subcommand);
-		return `${prefix}: ${name}${keep ? ` ${subcommand}` : ''}${(subcommand && !keep) || args.trim() ? ' <args>' : ''}`;
+		const { name, known, keep } = classifyFailedCommand(command, subcommand);
+		return `${prefix}: ${known ? name : '<command>'}${keep ? ` ${subcommand}` : ''}${(subcommand && !keep) || args.trim() ? ' <args>' : ''}`;
 	};
 	const lines = parts.flatMap(part => {
 		let text = (part || '').replace(/\x1b\[[0-9;?]*[A-Za-z]/g, '');
@@ -445,6 +455,28 @@ export function sanitizeDevContainerStateErrorMessage(parts: readonly (string | 
 	}
 	// The specific error is usually at the end.
 	return `${message.substring(0, errorMessageHeadLength)}\n…\n${message.substring(message.length - (maxErrorMessageLength - errorMessageHeadLength - 3))}`;
+}
+
+/**
+ * Returns the command of an error message starting with a failed command as a fixed value: a command Dev Containers runs
+ * itself with an allowed subcommand (e.g., `docker run`), or `<command>` for other commands.
+ */
+export function getFailedCommandName(message: string): string | undefined {
+	const match = new RegExp(`^\\s*${failedCommandPattern}`).exec(message);
+	if (!match) {
+		return undefined;
+	}
+	const subcommand = match[3];
+	const { knownName, known, keep } = classifyFailedCommand(match[2], subcommand);
+	return known ? `${knownName}${keep ? ` ${subcommand}` : ''}` : '<command>';
+}
+
+function classifyFailedCommand(command: string, subcommand: string | undefined) {
+	const name = command.split(/[\\/]/).pop() || '';
+	const knownName = name.replace(/\.exe$/i, '').toLowerCase();
+	const known = errorMessageKnownCommands.includes(knownName);
+	const keep = !!subcommand && errorMessageCommands.includes(knownName) && errorMessageSubcommands.includes(subcommand);
+	return { name, knownName, known, keep };
 }
 
 function escapeRegExp(value: string): string {

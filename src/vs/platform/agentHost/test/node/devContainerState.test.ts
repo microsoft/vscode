@@ -228,6 +228,25 @@ suite('DevContainerState', () => {
 		]);
 	});
 
+	test('removes values from error messages that the telemetry service does not redact', () => {
+		const sanitize = (message: string) => sanitizeDevContainerStateErrorMessage([message]);
+		assert.deepStrictEqual({
+			commandPathWithSpace: sanitize('Command failed: C:\\Users\\John Doe\\bin\\docker.exe run --sig-proxy=false alpine'),
+			userCommand: sanitize('Command failed: /home/jdoe/bin/acme-init.sh --region eu'),
+			configPath: sanitize('Dev container config (C:\\Users\\jdoe\\Acme Merger Plan (2)\\.devcontainer\\devcontainer.json) not found.'),
+			hostName: sanitize('getaddrinfo ENOTFOUND registry.acme-corp.internal'),
+			address: sanitize('connect ECONNREFUSED 10.1.2.3:443'),
+			dockerHost: sanitize('dial tcp 10.1.2.3:2376: connect: connection refused'),
+		}, {
+			commandPathWithSpace: 'Command failed: <command> <args>',
+			userCommand: 'Command failed: <command> <args>',
+			configPath: 'Dev container config (<path>) not found.',
+			hostName: 'getaddrinfo ENOTFOUND <address>',
+			address: 'connect ECONNREFUSED <address>',
+			dockerHost: 'dial tcp <address>: connect: connection refused',
+		});
+	});
+
 	test('keeps the start and end of long error messages', () => {
 		const message = sanitizeDevContainerStateErrorMessage([`start ${'x'.repeat(2000)} end`]);
 		assert.deepStrictEqual({ length: message?.length, start: message?.startsWith('start x'), end: message?.endsWith('x end'), elided: message?.includes('\n…\n') }, { length: 1000, start: true, end: true, elided: true });
