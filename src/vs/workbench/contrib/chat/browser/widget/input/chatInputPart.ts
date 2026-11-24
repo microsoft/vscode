@@ -852,12 +852,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	// logging so we can detect writes that target a different session than the
 	// one the widget viewModel is currently showing (cyclic-ref window).
 	private _inputModelSessionResource: URI | undefined;
-	/**
-	 * Speaks for the intended model while no conversation is bound — the inline request-edit input
-	 * part never binds one. Keeping it off the conversation is what makes that editor
-	 * self-contained: picking a model there to resubmit one request leaves the chat's own model
-	 * alone.
-	 */
+	/** Tracks model intent while no conversation is bound, including while editing a request inline. */
 	private readonly _unboundIntent = new IntendedModelSlot();
 
 	/**
@@ -1023,6 +1018,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	get currentLanguageModel() {
 		return this._currentLanguageModel.get()?.identifier;
+	}
+
+	get hasUserSelectedModel(): boolean {
+		const intended = this._intentHolder.intendedModel;
+		return intended?.reason === ModelSelectionReason.UserSelection && intended.modelId === this.currentLanguageModel;
 	}
 
 	get selectedLanguageModel(): IObservable<ILanguageModelChatMetadataAndIdentifier | undefined> {
@@ -1648,10 +1648,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	 * The remembered profile preference is updated only when both
 	 * `isUserAction` and `storeSelection` are true.
 	 */
-	public switchModelByIdentifier(identifier: string, storeSelection: boolean = false, isUserAction: boolean = false): boolean {
+	public switchModelByIdentifier(identifier: string, storeSelection: boolean = false, isUserAction: boolean = false, configuration?: IStringDictionary<unknown>): boolean {
 		const models = this.getModels();
 		const model = models.find(m => m.identifier === identifier);
 		if (model) {
+			this.restoreModelConfiguration(identifier, configuration, false);
 			if (isUserAction) {
 				this.setCurrentLanguageModel(model, true, storeSelection);
 			} else {
