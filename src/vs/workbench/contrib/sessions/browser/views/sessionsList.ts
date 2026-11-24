@@ -5941,6 +5941,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 			this.updateSessionGroupLimit();
 		}));
 
+		this._register(runOnChange(this.customViewService.activeCustomView, () => this.syncActiveChatSelection(this._mainWindowShown.get())));
+
 		this.refresh();
 		this.syncActiveChatSelection(this._mainWindowShown.get());
 		this.observeInboxApprovals(chatService);
@@ -7146,6 +7148,11 @@ export class SessionsList extends Disposable implements ISessionsList {
 	}
 
 	private syncActiveChatSelection(shown: IShownChat | undefined): void {
+		// A full-page view, such as Automations or a pinned canvas, covers the shown chat and marks its own row as current.
+		if (this.customViewService.activeCustomView.get()) {
+			this.tree.setSelection([]);
+			return;
+		}
 		if (!shown) {
 			return;
 		}

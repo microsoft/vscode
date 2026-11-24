@@ -1709,6 +1709,38 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
+		test('selects the shown chat only while no full-page view, such as a pinned canvas, covers it', () => {
+			const activeCustomView = observableValue<ICustomViewDescriptor | undefined>(disposables, undefined);
+			const shown = createTestSession('shown');
+			const harness = createListHarness(disposables, [shown.session], instantiationService => {
+				instantiationService.stub(ICustomViewService, new class extends mock<ICustomViewService>() {
+					override readonly activeCustomView = activeCustomView;
+				});
+			});
+			stubSessionHosts(harness.instantiationService, disposables, {
+				session: constObservable({ session: shown.session, chat: shown.session.mainChat.get() }),
+			});
+			const container = harness.createContainer();
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+				grouping: () => SessionsGrouping.Date,
+				sorting: () => SessionsSorting.Created,
+				onSessionOpen: () => { },
+			}));
+			list.layout(300, 400);
+			const selectedRows = () => [...container.querySelectorAll<HTMLElement>('.monaco-list-row.selected')].map(row => row.querySelector('.session-title')?.textContent);
+
+			const initial = selectedRows();
+			activeCustomView.set(upcastPartial<ICustomViewDescriptor>({ id: PINNED_CANVAS_PAGE_ID }), undefined);
+			const covered = selectedRows();
+			activeCustomView.set(undefined, undefined);
+
+			assert.deepStrictEqual({ initial, covered, uncovered: selectedRows() }, {
+				initial: [shown.session.title.get()],
+				covered: [],
+				uncovered: [shown.session.title.get()],
+			});
+		});
+
 		test('lists pinned canvases in a Canvases section below Automations in the sessions tree without separate navigation', async () => {
 			const activeCustomView = observableValue<ICustomViewDescriptor | undefined>(disposables, undefined);
 			const createPin = (id: string, title: string) => upcastPartial<IPinnedCanvas>({
