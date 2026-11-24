@@ -38,10 +38,10 @@ export class CompletionController extends Disposable {
 		const layout = (): void => {
 			const caret = view.caretRect.get();
 			if (!caret || this.#suggest.state.get().kind === 'closed') { return; }
-			const container = view.overlayContainer.getBoundingClientRect();
+			const transform = view.coordinateSpace.capture();
 			const editorBounds = view.element.getBoundingClientRect();
-			const top = Math.max(0, -container.top);
-			const bottom = Math.min(window.innerHeight, editorBounds.bottom) - container.top;
+			const top = Math.max(0, transform.toLocalPoint({ x: 0, y: 0 }).y);
+			const bottom = transform.toLocalPoint({ x: 0, y: Math.min(window.innerHeight, editorBounds.bottom) }).y;
 			const below = Math.max(0, bottom - caret.y - caret.height);
 			const above = Math.max(0, caret.y - top);
 			const flipped = below < widget.element.offsetHeight && above > below;

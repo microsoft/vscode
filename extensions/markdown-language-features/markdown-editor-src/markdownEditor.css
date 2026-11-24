@@ -38,6 +38,10 @@ body[data-vscode-theme-kind="vscode-high-contrast-light"] {
 	scrollbar-color: var(--vscode-scrollbarSlider-background) transparent;
 }
 
+.md-editor {
+	zoom: var(--md-editor-zoom, 1);
+}
+
 .md-comment-widget {
 	background:
 		linear-gradient(var(--vscode-menu-background), var(--vscode-menu-background)),

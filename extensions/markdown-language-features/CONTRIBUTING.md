@@ -116,6 +116,12 @@ background and glow, and defaults to enabled. Resource-specific changes are sent
 to the renderer without reloading the document or changing source-marker visibility.
 The webview reserves symmetric scrollbar gutters so the document remains centered.
 
+### Zooming the Markdown editor
+
+**Markdown Editor: Zoom In**, **Zoom Out**, and **Reset Zoom** change only the active rich editor pane. Zoom ranges from 50% to 200% in 10-percentage-point steps, with 100% as the default. Read and edit mode share a pane's zoom; split panes can use different values. The zoom is restored with the webview's scroll position and selection, not written to the Markdown file or VS Code settings. The commands can be bound to keys without changing the default window-zoom shortcuts.
+
+Run `node --test ./scripts/markdownEditorZoom.browser.test.mts` from this extension directory to check zoomed editing, overlay placement, and view-state restoration in Chromium.
+
 ### Whitespace indicators
 
 `markdown.editor.renderWhitespace` controls the space and tab indicators shown

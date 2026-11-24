@@ -158,6 +158,24 @@
         "enablement": "activeCustomEditorId == 'vscode.markdown.editor'"
       },
       {
+        "command": "markdown.editor.zoomIn",
+        "title": "%markdown.editor.zoomIn%",
+        "category": "Markdown Editor",
+        "enablement": "activeCustomEditorId == 'vscode.markdown.editor'"
+      },
+      {
+        "command": "markdown.editor.zoomOut",
+        "title": "%markdown.editor.zoomOut%",
+        "category": "Markdown Editor",
+        "enablement": "activeCustomEditorId == 'vscode.markdown.editor'"
+      },
+      {
+        "command": "markdown.editor.resetZoom",
+        "title": "%markdown.editor.resetZoom%",
+        "category": "Markdown Editor",
+        "enablement": "activeCustomEditorId == 'vscode.markdown.editor'"
+      },
+      {
         "command": "_markdown.copyImage",
         "title": "%markdown.copyImage.title%",
         "category": "Markdown"
@@ -749,6 +767,18 @@
         },
         {
           "command": "markdown.editor.rename",
+          "when": "activeCustomEditorId == 'vscode.markdown.editor'"
+        },
+        {
+          "command": "markdown.editor.zoomIn",
+          "when": "activeCustomEditorId == 'vscode.markdown.editor'"
+        },
+        {
+          "command": "markdown.editor.zoomOut",
+          "when": "activeCustomEditorId == 'vscode.markdown.editor'"
+        },
+        {
+          "command": "markdown.editor.resetZoom",
           "when": "activeCustomEditorId == 'vscode.markdown.editor'"
         },
         {

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CommentModeController, CommentsModel, CommentsView, EditorController, EditorModel, EditorView, GutterMarker, OffsetRange, Selection, StringEdit, StringReplacement, StringValue, commands, findNodeOffsetById, vscodeHostKeyboardProfile, vscodeLocalKeyboardProfile, type CodeBlockAstNode, type LinkPresentationKind } from '@vscode/markdown-editor';
+import { CommentModeController, CommentsModel, CommentsView, EditorController, EditorModel, EditorView, GutterMarker, OffsetRange, Point2D, Selection, StringEdit, StringReplacement, StringValue, commands, findNodeOffsetById, vscodeHostKeyboardProfile, vscodeLocalKeyboardProfile, type CodeBlockAstNode, type LinkPresentationKind } from '@vscode/markdown-editor';
 import type { IframeEmbeddedEditorHostTransport, IframeEmbeddedEditorProvider, ResolvedIframeEmbeddedEditor } from '@vscode/markdown-editor/web-editors';
 import { Disposable, autorun, observableValue, transaction } from '@vscode/observables';
 import { HubRpcConnection } from '@vscode/hubrpc';
@@ -38,13 +38,19 @@ declare function acquireVsCodeApi(): VsCodeApi;
 
 /**
  * The editor's view state, persisted as webview state (`getState`/`setState`) so
- * the scroll and cursor position are restored when the webview is reloaded or the
+ * the zoom, scroll and cursor position are restored when the webview is reloaded or the
  * custom editor is re-created (e.g. after switching sessions and back).
  */
 interface PersistedViewState {
 	scrollTop?: number;
 	selection?: { anchor: number; active: number };
+	zoomPercent?: number;
 }
+
+const defaultZoom = 100;
+const minimumZoom = 50;
+const maximumZoom = 200;
+const zoomStep = 10;
 
 interface InitialState extends MarkdownEditorInitialState {
 	readonly linkPresentationRules: readonly { id: string; source: string; flags: string; kind: LinkPresentationKind }[];
@@ -136,6 +142,8 @@ class Editor extends Disposable {
 	#navigationReady = false;
 	#navigationReportScheduled = false;
 	readonly #scrollHost: HTMLElement;
+	#zoomPercent = defaultZoom;
+	#zoomAnchor: { range: Range; top: number; scrollTop: number } | undefined;
 
 	readonly #comments = new CommentsModel();
 	#commentsView: CommentsView | undefined;
@@ -266,6 +274,11 @@ class Editor extends Disposable {
 				this.#scrollHost.scrollTop = state.scrollTop;
 			},
 			command: async ({ command: commandId }) => {
+				switch (commandId) {
+					case 'markdown.editor.zoomIn': return this.#setZoom(Math.min(maximumZoom, this.#zoomPercent + zoomStep));
+					case 'markdown.editor.zoomOut': return this.#setZoom(Math.max(minimumZoom, this.#zoomPercent - zoomStep));
+					case 'markdown.editor.resetZoom': return this.#setZoom(defaultZoom);
+				}
 				if (commandId === 'markdown.editor.triggerSuggest') {
 					await this.#completion?.start();
 					return;
@@ -473,6 +486,20 @@ class Editor extends Disposable {
 			},
 		}));
 		this.#view = view;
+		this._register(autorun(reader => {
+			view.measuredLayout.measurements.read(reader);
+			// Responsive margins may rewrap the text during the view's resize
+			// pass. Finish anchoring then, unless scrolling has already moved on.
+			const anchor = this.#zoomAnchor;
+			this.#zoomAnchor = undefined;
+			if (anchor && host.scrollTop === anchor.scrollTop && anchor.range.startContainer.isConnected) {
+				host.scrollTop += anchor.range.getBoundingClientRect().top - anchor.top;
+			}
+		}));
+		if (savedViewState.zoomPercent !== undefined) {
+			this.#zoomPercent = savedViewState.zoomPercent;
+			view.element.style.setProperty('--md-editor-zoom', String(this.#zoomPercent / 100));
+		}
 		this.#rename = this._register(new RenameController(model, view, this.#host, this.#versions));
 		this.#completion = this._register(new CompletionController(model, view, this.#host, this.#versions));
 		this.#diagnostics = this._register(new DiagnosticsController(model, view, this.#host, this.#versions));
@@ -694,6 +721,45 @@ class Editor extends Disposable {
 			}
 			throw error;
 		}
+	}
+
+	#setZoom(percent: number): void {
+		const view = this.#view;
+		if (!view || percent === this.#zoomPercent) {
+			return;
+		}
+		const host = this.#scrollHost;
+		const bounds = host.getBoundingClientRect();
+		const documentNode = view.documentViewNode.get();
+		const rangeAt = (offset: number | undefined): Range | undefined => {
+			const pos = offset === undefined ? undefined : documentNode?.sourceToDom(offset);
+			if (pos) {
+				const range = document.createRange();
+				range.setStart(pos.node, pos.offset);
+				range.collapse(true);
+				return range.getClientRects().length ? range : undefined;
+			}
+			return undefined;
+		};
+		// Follow a visible caret, not one the user has scrolled away from. A DOM
+		// range follows the same text through reflow without changing the selection.
+		const pending = this.#zoomAnchor?.scrollTop === host.scrollTop ? this.#zoomAnchor : undefined;
+		this.#zoomAnchor = undefined;
+		let anchor = pending?.range ?? (this.model.readonlyMode.get() ? undefined : rangeAt(this.model.selection.get()?.active));
+		let top = pending?.top ?? anchor?.getBoundingClientRect().top;
+		if (top === undefined || top < bounds.top || top >= bounds.bottom) {
+			const center = new Point2D(bounds.left + bounds.width / 2, bounds.top + bounds.height / 2);
+			anchor = host.scrollTop > 0 ? rangeAt(view.resolveOffsetFromPoint(center)) : undefined;
+			top = anchor?.getBoundingClientRect().top;
+		}
+		view.stopFollowingCaret();
+		this.#zoomPercent = percent;
+		view.element.style.setProperty('--md-editor-zoom', String(percent / 100));
+		if (anchor && top !== undefined) {
+			host.scrollTop += anchor.getBoundingClientRect().top - top;
+			this.#zoomAnchor = { range: anchor, top, scrollTop: host.scrollTop };
+		}
+		this.#patchViewState({ zoomPercent: percent, scrollTop: host.scrollTop });
 	}
 
 	#getViewState(): PersistedViewState {
