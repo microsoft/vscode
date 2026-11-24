@@ -917,7 +917,8 @@ suite('AgentHostGitStateService', () => {
 		await h.service.refreshSessionGitState(SESSION, undefined, undefined, { force: true });
 		const first = { pausesWaited: pausesWaited(), reads: h.gitCalls.length, announced: h.runEvents.length };
 		h.setGitResult({ branchName: 'feature', baseBranchName: 'main', uncommittedChanges: 1 });
-		await h.service.refreshSessionGitState(SESSION, undefined);
+		// Calls made during the pause are all served by the next refresh.
+		await Promise.all([h.service.refreshSessionGitState(SESSION, undefined), h.service.refreshSessionGitState(SESSION, undefined)]);
 		const second = { pausesWaited: pausesWaited(), reads: h.gitCalls.length, announced: h.runEvents.length, uncommittedChanges: h.service.getSessionGitState(SESSION)?.uncommittedChanges };
 
 		assert.deepStrictEqual({ first, second }, {

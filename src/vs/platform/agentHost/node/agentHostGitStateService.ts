@@ -67,8 +67,8 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 	private readonly _gitStateRefreshThrottler = this._register(new ThrottlerByKey<string>());
 	/** Keys with a queued refresh that must announce itself even when nothing it reads changed; consumed when the refresh starts. */
 	private readonly _forcedGitStateRefreshes = new Set<string>();
-	/** Callers of each key waiting for a refresh to start; the refresh that starts releases them once it has published its state, before it pauses. */
-	private readonly _gitStateRefreshWaiters = new Map<string, DeferredPromise<void>[]>();
+	/** For each key, completes once the next refresh to start has published its state, before it pauses; shared by every call made before that refresh starts. */
+	private readonly _gitStateRefreshPublished = new Map<string, DeferredPromise<void>>();
 	/** Reads of a folder's Git state in flight, by folder and base branch. */
 	private readonly _gitStateReads = new Map<string, Promise<ISessionGitState | undefined>>();
 	/** Keys whose first refresh has been announced, with their containing session. */
@@ -468,19 +468,17 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 			this._forcedGitStateRefreshes.add(sessionKey);
 		}
 		// Callers wait for a refresh that starts after their call, but not for the pause that follows it.
-		const published = new DeferredPromise<void>();
-		let waiters = this._gitStateRefreshWaiters.get(sessionKey);
-		if (!waiters) {
-			waiters = [];
-			this._gitStateRefreshWaiters.set(sessionKey, waiters);
+		let published = this._gitStateRefreshPublished.get(sessionKey);
+		if (!published) {
+			published = new DeferredPromise<void>();
+			this._gitStateRefreshPublished.set(sessionKey, published);
 		}
-		waiters.push(published);
 		const refresh = this._gitStateRefreshThrottler.queue(sessionKey, async () => {
 			// A refresh announces itself only when it observed something new, when it is the first one, or when its caller knows the checkout changed in ways the state does not describe.
 			const forced = this._forcedGitStateRefreshes.delete(sessionKey);
-			const releasing = this._gitStateRefreshWaiters.get(sessionKey) ?? [];
-			this._gitStateRefreshWaiters.delete(sessionKey);
-			const release = () => releasing.forEach(waiter => waiter.complete());
+			// This refresh serves every call made before it started.
+			const served = this._gitStateRefreshPublished.get(sessionKey);
+			this._gitStateRefreshPublished.delete(sessionKey);
 			let announce = forced || !this._announcedGitStateRefreshes.has(sessionKey);
 			try {
 				this._logService.trace(`[AgentHostGitStateService][refreshSessionGitState] Refreshing git state for ${sessionKey}, ${workingDirectory?.fsPath}`);
@@ -556,7 +554,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 				}
 				void this.reconcilePendingRecordedPullRequests(sessionKey).catch(error =>
 					this._logService.warn(`[AgentHostGitStateService] Failed to reconcile pending pull requests for ${sessionKey}`, error));
-				release();
+				served?.complete();
 
 				// We want to ensure that we refresh the git state at
 				// most every 5 seconds in order to avoid excessive git
@@ -570,7 +568,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 
 				this._logService.warn(`[AgentHostGitStateService][refreshSessionGitState] Failed to compute git state for ${sessionKey}:`, error);
 			} finally {
-				release();
+				served?.complete();
 			}
 		});
 		// The throttler drops a queued refresh when it is disposed, so its own promise settles the wait too.
