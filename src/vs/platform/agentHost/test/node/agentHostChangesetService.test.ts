@@ -2849,17 +2849,22 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 		testGitStates.set(peerResource, {
 			branchName: 'chat-feature',
 			baseBranchName: 'chat-main',
+			baseBranchFullName: 'origin/chat-main',
 		});
+		stateManager.dispatchServerAction(sessionStr, { type: ActionType.SessionReady });
 
+		svc.refreshChangesetCatalog(peerResource);
 		svc.refreshBranchChangeset(peerResource);
 		await waitForChangesetReady(stateManager, branchUri);
 
 		assert.deepStrictEqual({
+			description: stateManager.getChatState(peerResource)?.changesets?.find(changeset => changeset.changeKind === 'branch')?.description,
 			diffBaseBranches,
 			reviewBaseBranches,
 		}, {
-			diffBaseBranches: ['chat-main'],
-			reviewBaseBranches: ['chat-main'],
+			description: 'chat-feature → origin/chat-main',
+			diffBaseBranches: ['origin/chat-main'],
+			reviewBaseBranches: ['origin/chat-main'],
 		});
 	});
 

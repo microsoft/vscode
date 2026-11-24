@@ -1488,24 +1488,28 @@ export class AgentHostGitService extends Disposable implements IAgentHostGitServ
 		const status = parseGitStatusV2(statusOutput);
 		const hasGitRemote = remotesOutput !== undefined ? remotesOutput.trim().length > 0 : undefined;
 		const hasGitHubRemote = parseHasGitHubRemote(remotesOutput);
-		const baseBranchName = configuredBaseBranch ? toBaseBranchName(configuredBaseBranch) : parseDefaultBranchRef(defaultBranchRef);
 		const defaultBranch = parseDefaultRemoteBranchRef(defaultBranchRef);
+		// `origin/HEAD` can outlive its target (e.g. after the remote renames its default branch).
+		const hasDefaultRemoteBranch = defaultBranch
+			? this._runGit(repositoryRoot, ['show-ref', '--verify', '--quiet', `refs/remotes/${defaultBranch.remoteBranchName}`]).then(output => output !== undefined)
+			: Promise.resolve(false);
+		// Without a recorded base, compare against the default branch's start point: its remote-tracking
+		// branch when it exists, so a stale local default branch does not show unrelated upstream commits.
+		const baseBranch = configuredBaseBranch || (await hasDefaultRemoteBranch ? defaultBranch?.remoteBranchName : parseDefaultBranchRef(defaultBranchRef));
+		const baseBranchName = toBaseBranchName(baseBranch);
 		const githubRepo = parseGitHubRepoFromRemote(remotesOutput);
 		const upstreamRemote = status.upstreamBranchName?.split('/')[0];
 		// `gh pr checkout` can create a local branch whose head lives on a fork but
 		// has no upstream tracking ref; Git still reports the branch's push remote,
 		// which can be a remote name or the literal fork URL.
-		const [pushRemote, baseBranchDivergence, hasDefaultRemoteBranch] = await Promise.all([
+		const [pushRemote, baseBranchDivergence, defaultRemoteBranchExists] = await Promise.all([
 			!upstreamRemote && status.branchName
 				? this._getPushRemote(repositoryRoot, status.branchName)
 				: undefined,
-			baseBranchName && status.branchName && status.branchName !== baseBranchName
-				? this._computeBaseBranchDivergence(repositoryRoot, baseBranchName, configuredBaseBranch, status.outgoingChanges === undefined)
+			baseBranch && baseBranchName && status.branchName && status.branchName !== baseBranchName
+				? this._computeBaseBranchDivergence(repositoryRoot, baseBranchName, baseBranch, status.outgoingChanges === undefined)
 				: undefined,
-			// `origin/HEAD` can outlive its target (e.g. after the remote renames its default branch).
-			defaultBranch
-				? this._runGit(repositoryRoot, ['show-ref', '--verify', '--quiet', `refs/remotes/${defaultBranch.remoteBranchName}`]).then(output => output !== undefined)
-				: false,
+			hasDefaultRemoteBranch,
 		]);
 		const githubHeadRepo = upstreamRemote
 			? parseGitHubRepoFromRemote(remotesOutput, upstreamRemote)
@@ -1529,9 +1533,10 @@ export class AgentHostGitService extends Disposable implements IAgentHostGitServ
 			branchName: status.branchName,
 			isDetachedHead: status.isDetachedHead,
 			baseBranchName,
+			baseBranchFullName: baseBranch,
 			upstreamBranchName: status.upstreamBranchName,
 			defaultBranchName: defaultBranch?.branchName,
-			defaultRemoteBranchName: hasDefaultRemoteBranch
+			defaultRemoteBranchName: defaultRemoteBranchExists
 				? defaultBranch?.remoteBranchName
 				: undefined,
 			incomingChanges: status.incomingChanges,
@@ -1553,11 +1558,11 @@ export class AgentHostGitService extends Disposable implements IAgentHostGitServ
 
 	/**
 	 * Compares `HEAD` with the base branch. With `countCommits`, counts the commits `HEAD` has that `baseBranch`
-	 * lacks: the base exactly as recorded, which Branch Changes compares against, else the local base branch.
-	 * Whether `HEAD` has changes is always relative to the local `baseBranchName` when it exists: Merge merges into
-	 * it, and an upstream still lacks the commits a local merge added.
+	 * lacks, the ref Branch Changes compares against. Whether `HEAD` has changes is relative to the local
+	 * `baseBranchName` when it exists: Merge merges into it, and an upstream still lacks the commits a local merge
+	 * added.
 	 */
-	private async _computeBaseBranchDivergence(repositoryRoot: URI, baseBranchName: string, baseBranch: string | undefined, countCommits: boolean): Promise<{ readonly hasChanges: boolean; readonly count?: number } | undefined> {
+	private async _computeBaseBranchDivergence(repositoryRoot: URI, baseBranchName: string, baseBranch: string, countCommits: boolean): Promise<{ readonly hasChanges: boolean; readonly count?: number } | undefined> {
 		const localRef = `refs/heads/${baseBranchName}`;
 		const remoteRef = `refs/remotes/origin/${baseBranchName}`;
 		const refs = await this._runGit(repositoryRoot, ['for-each-ref', '--format=%(refname)', localRef, remoteRef]);
@@ -1568,7 +1573,7 @@ export class AgentHostGitService extends Disposable implements IAgentHostGitServ
 		const mergeTargetRef = refNames.has(localRef) ? localRef : refNames.has(remoteRef) ? remoteRef : baseBranchName;
 		const [unmerged, ahead] = await Promise.all([
 			this._runGit(repositoryRoot, ['rev-list', '--max-count=1', `${mergeTargetRef}..HEAD`]),
-			countCommits ? this._runGit(repositoryRoot, ['rev-list', '--count', `${baseBranch ?? mergeTargetRef}..HEAD`]) : undefined,
+			countCommits ? this._runGit(repositoryRoot, ['rev-list', '--count', `${baseBranch}..HEAD`]) : undefined,
 		]);
 		if (unmerged === undefined) {
 			return undefined;

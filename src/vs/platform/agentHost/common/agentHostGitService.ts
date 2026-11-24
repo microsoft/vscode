@@ -32,6 +32,15 @@ export function toBaseBranchName(baseBranch: string | undefined): string | undef
 		.replace(/^origin\//, '') || undefined;
 }
 
+/**
+ * Returns the base branch a session's Git state compares against, the fallback
+ * when the session recorded none. Git state saved before
+ * {@link ISessionGitState.baseBranchFullName} existed only names the branch.
+ */
+export function getGitStateBaseBranch(gitState: ISessionGitState | undefined): string | undefined {
+	return gitState?.baseBranchFullName ?? gitState?.baseBranchName;
+}
+
 /** Selects the session's default base, preferring the default branch's upstream over its local name. */
 export function resolveDefaultBaseBranchName(defaultBranch: Branch | undefined, fallbackBranch: string | undefined): string | undefined {
 	return defaultBranch?.kind === GitRefType.Head
@@ -393,6 +402,9 @@ export interface IAgentHostGitService {
 	 * `baseBranch` is the session's base branch exactly as recorded (e.g.
 	 * `origin/main`): commits ahead are counted against it, and
 	 * {@link ISessionGitState.baseBranchName} is its name on the remote.
+	 * Without one, the base is the default branch's remote-tracking branch
+	 * when it exists, else the default branch. The state reports the base
+	 * as {@link ISessionGitState.baseBranchFullName}.
 	 */
 	getSessionGitState(workingDirectory: URI, baseBranch?: string): Promise<ISessionGitState | undefined>;
 	/** Returns fetch remote URLs with the preferred remote, then `origin`, first. */

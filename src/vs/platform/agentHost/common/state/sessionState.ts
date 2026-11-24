@@ -1331,7 +1331,11 @@ export interface ISessionGitState {
 	readonly isDetachedHead?: boolean;
 	/** Base branch the work targets (e.g. `main`). */
 	readonly baseBranchName?: string;
-	/** Base branch exactly as recorded for the session (e.g. `origin/main`), as Branch Changes describes it. {@link baseBranchName} is the same branch without its remote prefix. */
+	/**
+	 * Base branch exactly as recorded for the session (e.g. `origin/main`), which Branch Changes compares against and
+	 * describes. Without a recorded base, the default branch's remote-tracking branch when it exists, else the default
+	 * branch. {@link baseBranchName} is the same branch without its remote prefix.
+	 */
 	readonly baseBranchFullName?: string;
 	/** Upstream tracking branch (e.g. `origin/feature`). */
 	readonly upstreamBranchName?: string;

@@ -812,6 +812,7 @@ suite('AgentHostGitService - getSessionGitState (real git)', () => {
 		run('symbolic-ref', 'refs/remotes/origin/HEAD', 'refs/remotes/origin/main');
 		const defaultBranchFields = (state: ISessionGitState | undefined) => ({
 			baseBranchName: state?.baseBranchName,
+			baseBranchFullName: state?.baseBranchFullName,
 			defaultBranchName: state?.defaultBranchName,
 			defaultRemoteBranchName: state?.defaultRemoteBranchName,
 		});
@@ -823,9 +824,9 @@ suite('AgentHostGitService - getSessionGitState (real git)', () => {
 		const dangling = defaultBranchFields(await svc!.getSessionGitState(URI.file(dir)));
 
 		assert.deepStrictEqual({ detected, configured, dangling }, {
-			detected: { baseBranchName: 'main', defaultBranchName: 'main', defaultRemoteBranchName: 'origin/main' },
-			configured: { baseBranchName: 'release', defaultBranchName: 'main', defaultRemoteBranchName: 'origin/main' },
-			dangling: { baseBranchName: 'main', defaultBranchName: 'main', defaultRemoteBranchName: undefined },
+			detected: { baseBranchName: 'main', baseBranchFullName: 'origin/main', defaultBranchName: 'main', defaultRemoteBranchName: 'origin/main' },
+			configured: { baseBranchName: 'release', baseBranchFullName: 'release', defaultBranchName: 'main', defaultRemoteBranchName: 'origin/main' },
+			dangling: { baseBranchName: 'main', baseBranchFullName: 'main', defaultBranchName: 'main', defaultRemoteBranchName: undefined },
 		});
 	});
 

@@ -15,7 +15,7 @@ import { CopilotCliVSCodeAssignmentContextKey } from '../common/copilotCliConfig
 import { logSettingExperimentTrigger } from '../../telemetry/common/experimentTrigger.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { getSessionRelatedPullRequestUrls, isAhpChatChannel, ISessionGitHubState, ISessionWithDefaultChat, readFolderGitHubState, readFolderScopeGitState, readSessionGitData, readSessionGitHubData, readSessionGitState, readSessionSourceControlState, SessionLifecycle, SessionSourceControlOutcome, withInitialSessionPullRequest, withMostRecentRelatedSessionPullRequest, withMostRecentSessionPullRequest, withFolderGitHubState, withFolderScopeGitState, withSessionGitState, withSessionSourceControlState, type ISessionGitState, type ISessionSourceControlState, type SessionSummaryMeta } from '../common/state/sessionState.js';
-import { IAgentHostGitService } from '../common/agentHostGitService.js';
+import { getGitStateBaseBranch, IAgentHostGitService } from '../common/agentHostGitService.js';
 import { ActionType } from '../common/state/sessionActions.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentHostSessionStateStore, SessionStateMirrorFlush } from '../common/agentHostSessionStateStore.js';
@@ -571,7 +571,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 		if (inFlight) {
 			return inFlight;
 		}
-		const read = this._computeGitState(workingDirectory, baseBranchFullName);
+		const read = this._gitService.getSessionGitState(workingDirectory, baseBranchFullName);
 		const readKey = fresh ? freshKey : key;
 		this._gitStateReads.set(readKey, read);
 		const clear = () => {
@@ -581,16 +581,6 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 		};
 		read.then(clear, clear);
 		return read;
-	}
-
-	/**
-	 * Computes the Git state of `workingDirectory` against `baseBranchFullName`, which the Git service receives and the
-	 * state carries ({@link ISessionGitState.baseBranchFullName}) exactly as recorded.
-	 */
-	private async _computeGitState(workingDirectory: URI, baseBranchFullName: string | undefined): Promise<ISessionGitState | undefined> {
-		const gitState = await this._gitService.getSessionGitState(workingDirectory, baseBranchFullName);
-		const fullName = baseBranchFullName || gitState?.baseBranchName;
-		return gitState && fullName !== undefined ? { ...gitState, baseBranchFullName: fullName } : gitState;
 	}
 
 	getSessionGitState(sessionKey: string): ISessionGitState | undefined {
@@ -647,7 +637,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 		const baseBranchFullName = await this.resolveSessionBaseBranchFullName(chat);
 		let gitState: ISessionGitState | undefined;
 		try {
-			gitState = await this._computeGitState(workingDirectory, baseBranchFullName);
+			gitState = await this._gitService.getSessionGitState(workingDirectory, baseBranchFullName);
 		} catch (error) {
 			this._logService.warn(`[AgentHostGitStateService] Could not read the checkout while recording a pull request for ${folder.sessionUri}`, error);
 		}
@@ -758,7 +748,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 				const baseBranchFullName = await this.resolveSessionBaseBranchFullName(chat);
 				let gitState: ISessionGitState | undefined;
 				try {
-					gitState = await this._computeGitState(directory, baseBranchFullName);
+					gitState = await this._gitService.getSessionGitState(directory, baseBranchFullName);
 				} catch (error) {
 					this._logService.warn(`[AgentHostGitStateService] Could not read the checkout for a pending pull request in ${session}`, error);
 					continue;
@@ -799,7 +789,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 				}
 				let latestGitState: ISessionGitState | undefined;
 				try {
-					latestGitState = await this._computeGitState(directory, baseBranchFullName);
+					latestGitState = await this._gitService.getSessionGitState(directory, baseBranchFullName);
 				} catch (error) {
 					this._logService.warn(`[AgentHostGitStateService] Could not confirm the checkout for a pending pull request in ${session}`, error);
 					continue;
@@ -967,7 +957,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 	/** Resolves the base branch recorded for `sessionKey` exactly as recorded (e.g. `origin/main`), falling back to the one its Git state names. */
 	async resolveSessionBaseBranchFullName(sessionKey: string): Promise<string | undefined> {
 		const state = this._getStateForGitScope(sessionKey);
-		const gitStateBaseBranch = this.getSessionGitState(sessionKey)?.baseBranchName;
+		const gitStateBaseBranch = getGitStateBaseBranch(this.getSessionGitState(sessionKey));
 		const isSessionFolder = resolveGitHubStateFolder(this._stateManager, sessionKey).isSessionFolder;
 		if (!isSessionFolder && this._chatOwnership.isRegisteredDefaultChat(sessionKey)) {
 			return gitStateBaseBranch;
