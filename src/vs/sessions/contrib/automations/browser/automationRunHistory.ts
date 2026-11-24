@@ -42,7 +42,8 @@ import { IChatModel } from '../../../../workbench/contrib/chat/common/model/chat
 import { Menus } from '../../../../workbench/contrib/sessions/browser/menus.js';
 import { SessionStatusIcon } from '../../../../workbench/contrib/sessions/browser/sessionStatusIcon.js';
 import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { formatSessionListTime, SessionItemStatusContext, SessionsFlatList } from '../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
+import { formatSessionListTime, SessionsFlatList } from '../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
+import { SessionItemStatusContext } from '../../../../workbench/contrib/sessions/browser/views/sessionsListCommon.js';
 import { SessionIsArchivedContext, SessionIsReadContext, SessionSupportsRenameContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { ARCHIVE_SESSION_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, RENAME_SESSION_COMMAND_ID, UNARCHIVE_SESSION_COMMAND_ID } from '../../../../workbench/contrib/sessions/common/sessionCommands.js';
 import { SESSIONS_SEND_LATER_ENABLED_SETTING } from '../../../../workbench/contrib/sessions/common/sessionConfig.js';

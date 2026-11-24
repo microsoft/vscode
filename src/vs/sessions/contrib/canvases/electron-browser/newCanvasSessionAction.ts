@@ -18,7 +18,7 @@ import { notifyCanvasOpenFailure } from '../../../../workbench/contrib/canvases/
 import { Menus } from '../../../../workbench/contrib/sessions/browser/menus.js';
 import { IPinnedCanvasService } from '../../../../workbench/contrib/sessions/browser/pinnedCanvases.js';
 import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { CANVASES_SECTION_ID, NEW_CANVAS_SESSION_COMMAND_ID, SESSIONS_LIST_CANVASES_SECTION_SETTING, SessionSectionToolbarMenuId, SessionSectionTypeContext } from '../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
+import { CANVASES_SECTION_ID, NEW_CANVAS_SESSION_COMMAND_ID, SESSIONS_LIST_CANVASES_SECTION_SETTING, SessionSectionToolbarMenuId, SessionSectionTypeContext } from '../../../../workbench/contrib/sessions/browser/views/sessionsListCommon.js';
 import { SessionsCategories } from '../../../../workbench/contrib/sessions/common/categories.js';
 import { ICanvasSessionDraft, ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionCanvasDefinition } from '../../../../workbench/services/sessions/common/session.js';

@@ -22,7 +22,8 @@ import { CLOSE_MOBILE_SIDEBAR_DRAWER_COMMAND_ID } from '../../../../browser/work
 import { EditorsVisibleContext, EditorAreaFocusContext, IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
 import { SessionsCategories } from '../../../../../workbench/contrib/sessions/common/categories.js';
 import { IsNewChatSessionContext, IsPhoneLayoutContext, SessionItemIsMultiSelectionContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
-import { canStartNewSessionLike, getNewSessionSources, SessionSectionToolbarMenuId, SessionGroupToolbarMenuId, SessionSectionTypeContext, SessionSectionHasNonCloudRepositoryContext, SessionGroupIsComparisonContext, ISessionSection, ISessionGroupItem, NEW_SESSION_FOR_WORKSPACE_ACTION_ID, NEW_SESSION_IN_ENVIRONMENT_ACTION_ID } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
+import { canStartNewSessionLike, getNewSessionSources } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
+import { SessionSectionToolbarMenuId, SessionGroupToolbarMenuId, SessionSectionTypeContext, SessionSectionHasNonCloudRepositoryContext, SessionGroupIsComparisonContext, ISessionSection, ISessionGroupItem, NEW_SESSION_FOR_WORKSPACE_ACTION_ID, NEW_SESSION_IN_ENVIRONMENT_ACTION_ID } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListCommon.js';
 import { ISession } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionGroupsService } from '../../../../../workbench/contrib/sessions/browser/sessionGroupsService.js';
 import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';

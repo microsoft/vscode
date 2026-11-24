@@ -13,7 +13,7 @@ import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/brow
 import { ILifecycleService, LifecyclePhase } from '../../../../services/lifecycle/common/lifecycle.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { registerSessionsListConfiguration } from '../sessionsConfiguration.js';
-import { SessionsGrouping } from '../views/sessionsList.js';
+import { SessionsGrouping } from '../views/sessionsListCommon.js';
 import { registerSessionsListActions, registerSessionsListReadStateMenus, SessionsArchiveActionsContribution } from '../views/sessionsListActions.js';
 import { EditorWindowSessionsContext, ISessionsViewOptions, SessionsView } from '../views/sessionsView.js';
 

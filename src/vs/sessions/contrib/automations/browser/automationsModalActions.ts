@@ -18,7 +18,7 @@ import { AgentsWindowMenus } from '../../../browser/agentsWindowMenus.js';
 import { AutomationHeaderButtonActionViewItem, AutomationHeaderSplitButtonActionViewItem } from './automationActionViewItems.js';
 import { AutomationCommands } from './automationCommands.js';
 import { IAutomationDescriptor } from '../../../../workbench/contrib/chat/common/automations/automation.js';
-import { SessionItemIsAutomationContext, SessionItemIsInSessionsListContext } from '../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
+import { SessionItemIsAutomationContext, SessionItemIsInSessionsListContext } from '../../../../workbench/contrib/sessions/browser/views/sessionsListCommon.js';
 import { SessionIsArchivedContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { HIDE_AUTOMATION_SESSION_FROM_LIST_COMMAND_ID, SHOW_AUTOMATION_SESSION_IN_LIST_COMMAND_ID } from '../../../../workbench/contrib/sessions/common/sessionCommands.js';
 

@@ -21,7 +21,7 @@ import { asCssVariable } from '../../../../../platform/theme/common/colorUtils.j
 import { UNKNOWN_SESSION_APPLICATION_ID } from '../../../../services/sessions/common/sessionApplication.js';
 import { getScheduledRequestTimeLabel, renderScheduledRequestTime } from '../../../chat/browser/widget/chatScheduledRequestTime.js';
 import { SessionsListFilters } from './sessionsListFilters.js';
-import type { SessionListItem } from './sessionsList.js';
+import type { SessionListItem } from './sessionsListCommon.js';
 
 /** Unsent work owned by the caller, never a provider-created session. */
 export interface IPendingSessionItem {

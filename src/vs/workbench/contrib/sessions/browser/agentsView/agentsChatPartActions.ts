@@ -23,7 +23,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { getSessionPresentationWorkspace, IChat, ISession } from '../../../../services/sessions/common/session.js';
 import { INewSessionTarget } from '../parts/chatView.js';
 import { SessionIsArchivedContext, SessionIsCreatedContext, SessionItemIsMultiSelectionContext, SessionSupportsRenameContext } from '../../common/contextkeys.js';
-import { ISessionSection, SessionItemContextMenuId, SessionSectionToolbarMenuId, SessionSectionTypeContext } from '../views/sessionsList.js';
+import { ISessionSection, SessionItemContextMenuId, SessionSectionToolbarMenuId, SessionSectionTypeContext } from '../views/sessionsListCommon.js';
 import { registerSessionsListActions } from '../views/sessionsListActions.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';

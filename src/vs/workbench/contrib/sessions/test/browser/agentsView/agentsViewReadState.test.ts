@@ -16,7 +16,7 @@ import { FocusedViewContext, IsSessionsWindowContext } from '../../../../../comm
 import { IChat, ISession } from '../../../../../services/sessions/common/session.js';
 import { ChatContextKeys } from '../../../../chat/common/actions/chatContextKeys.js';
 import { RawWorkbenchListFocusContextKey } from '../../../../../../platform/list/browser/listService.js';
-import { SessionItemContextMenuId } from '../../../browser/views/sessionsList.js';
+import { SessionItemContextMenuId } from '../../../browser/views/sessionsListCommon.js';
 import { registerSessionsListActions, registerSessionsListReadStateMenus } from '../../../browser/views/sessionsListActions.js';
 import { SessionsViewId } from '../../../browser/views/sessionsView.js';
 import { ISessionsManagementService } from '../../../common/sessionsManagement.js';

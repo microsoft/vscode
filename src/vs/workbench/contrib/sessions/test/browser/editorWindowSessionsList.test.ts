@@ -13,7 +13,7 @@ import { IViewletViewOptions } from '../../../../browser/parts/views/viewsViewle
 import { createEditorWindowSessionsViewOptions, EDITOR_WINDOW_SESSIONS_GROUPINGS, EditorWindowSessionsList } from '../../browser/agentsView/editorWindowSessionsList.js';
 import { EditorWindowSessionsContext, SessionsView, SessionsViewId } from '../../browser/views/sessionsView.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
-import { SessionsGrouping } from '../../browser/views/sessionsList.js';
+import { SessionsGrouping } from '../../browser/views/sessionsListCommon.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
