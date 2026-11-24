@@ -587,6 +587,33 @@ suite('git smoke test', function () {
 		}
 	});
 
+	test('a repository object of an extension uses the source control that is shown, also after a detach and attach', async function () {
+		const model = getModel();
+		const repositoryPath = await fs.promises.realpath(await fs.promises.mkdtemp(path.join(os.tmpdir(), 'git-smoke-')));
+		cp.execSync('git init -b main', { cwd: repositoryPath });
+
+		try {
+			const apiRepository = (await git.openRepository(Uri.file(repositoryPath)))!;
+			const repository = model.getRepository(repositoryPath)!;
+			repository.detach();
+			repository.attach();
+
+			apiRepository.inputBox.value = 'written by the extension';
+			const written = repository.sourceControl.inputBox.value;
+			repository.sourceControl.inputBox.value = 'typed by the user';
+			const read = apiRepository.inputBox.value;
+
+			assert.deepStrictEqual({ written, read }, { written: 'written by the extension', read: 'typed by the user' });
+		} finally {
+			const repository = model.getRepository(repositoryPath);
+			if (repository) {
+				model.close(repository);
+			}
+			// On Windows, the closed repository's watchers can hold the folder for a moment
+			await fs.promises.rm(repositoryPath, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
+		}
+	});
+
 	test('a worktree attached as the repository of a workspace folder location is not shown under its main repository', async function () {
 		const model = getModel();
 		const base = await fs.promises.realpath(await fs.promises.mkdtemp(path.join(os.tmpdir(), 'git-smoke-')));

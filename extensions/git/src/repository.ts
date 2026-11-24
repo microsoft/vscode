@@ -716,6 +716,13 @@ export class Repository implements Disposable {
 
 	private readonly _onDidAttach = new EventEmitter<void>();
 
+	private readonly _onDidChangeSourceControlSelection = new EventEmitter<boolean>();
+
+	/**
+	 * Fires when the source control is selected or unselected, also the one created by a later {@link attach}.
+	 */
+	readonly onDidChangeSourceControlSelection: Event<boolean> = this._onDidChangeSourceControlSelection.event;
+
 	get sourceControl(): GitSourceControl { return this._sourceControl; }
 
 	/**
@@ -921,7 +928,7 @@ export class Repository implements Disposable {
 		private readonly repositoryCache: RepositoryCache
 	) {
 		this._operations = new OperationManager(this.logger);
-		this.disposables.push(this._onDidAttach);
+		this.disposables.push(this._onDidAttach, this._onDidChangeSourceControlSelection);
 
 		const root = Uri.file(repository.root);
 
@@ -999,6 +1006,7 @@ export class Repository implements Disposable {
 		this._sourceControl = new GitSourceControl(this, this.repositoryResolver, this.remoteSourcePublisherRegistry, this.commitCommandCenter, this.logger, { isFolderLocation, commitMessage: this.commitMessage });
 		this.commitMessage = undefined;
 		sourceControlDisposables.push(this._sourceControl);
+		this._sourceControl.sourceControl.onDidChangeSelection(selected => this._onDidChangeSourceControlSelection.fire(selected), undefined, sourceControlDisposables);
 
 		workspace.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('git.mergeEditor')) {
