@@ -87,7 +87,7 @@ export function agentHostSessionWorkspaceKey(workspace: ISessionWorkspace | unde
 			f.workingDirectory ? extUri.getComparisonKey(f.workingDirectory) : '',
 			repo?.branchName ?? '',
 			repo?.baseBranchName ?? '',
-			repo?.baseBranchFullName ?? '',
+			repo?.baseBranchRef ?? '',
 			String(repo?.baseBranchProtected ?? ''),
 			String(repo?.hasGitRemote ?? ''),
 			String(repo?.hasGitHubRemote ?? ''),
@@ -217,7 +217,7 @@ function withFolderGitState(folder: ISessionFolder, gitState: ISessionGitState):
 			isRepository: constObservable(true),
 			branchName: gitState.branchName,
 			baseBranchName: gitState.baseBranchName,
-			baseBranchFullName: gitState.baseBranchFullName,
+			baseBranchRef: gitState.baseBranchRef,
 			hasGitRemote: gitState.hasGitRemote,
 			hasGitHubRemote: gitState.hasGitHubRemote,
 			upstreamBranchName: gitState.upstreamBranchName,
@@ -242,7 +242,7 @@ function withFolderGitHubInfo(folder: ISessionFolder, gitHubInfo: IObservable<IG
 
 export function buildAgentHostSessionWorkspace(project: IAgentHostSessionProjectSummary | undefined, workingDirectories: readonly URI[] | undefined, options: IAgentHostSessionWorkspaceOptions, gitHubInfo: IObservable<IGitHubInfo | undefined>, gitState?: ISessionGitState): ISessionWorkspace | undefined {
 	const baseBranchName = gitState?.baseBranchName;
-	const baseBranchFullName = gitState?.baseBranchFullName;
+	const baseBranchRef = gitState?.baseBranchRef;
 	const baseBranchProtected = baseBranchName !== undefined
 		? matchesAnyBranchProtectionPattern(baseBranchName, options.branchProtectionPatterns)
 		: undefined;
@@ -255,7 +255,7 @@ export function buildAgentHostSessionWorkspace(project: IAgentHostSessionProject
 	const outgoingChanges = gitState?.outgoingChanges;
 	const uncommittedChanges = gitState?.uncommittedChanges;
 	const branchName = gitState?.branchName;
-	const gitFields = { branchName, baseBranchName, baseBranchFullName, baseBranchProtected, hasGitRemote, hasGitHubRemote, upstreamBranchName, defaultBranchName, defaultRemoteBranchName, incomingChanges, outgoingChanges, uncommittedChanges };
+	const gitFields = { branchName, baseBranchName, baseBranchRef, baseBranchProtected, hasGitRemote, hasGitHubRemote, upstreamBranchName, defaultBranchName, defaultRemoteBranchName, incomingChanges, outgoingChanges, uncommittedChanges };
 
 	// The primary (index 0) is the session's process root; it carries the git
 	// state / project association. Additional directories carry no per-folder

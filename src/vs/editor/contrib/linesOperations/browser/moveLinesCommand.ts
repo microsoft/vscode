@@ -412,9 +412,7 @@ export class MoveLinesCommand implements ICommand {
 
 		if (this._moveEndPositionDown) {
 			result = result.setEndPosition(result.endLineNumber + 1, 1);
-		}
-
-		if (this._moveEndLineSelectionShrink && result.startLineNumber < result.endLineNumber) {
+		} else if (this._moveEndLineSelectionShrink && result.startLineNumber < result.endLineNumber) {
 			result = result.setEndPosition(result.endLineNumber, 2);
 		}
 

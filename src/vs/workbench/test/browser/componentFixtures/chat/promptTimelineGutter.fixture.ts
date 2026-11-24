@@ -8,7 +8,7 @@ import { PromptTimelineGutterRail } from '../../../../contrib/chat/browser/promp
 import { PromptTick } from '../../../../contrib/chat/browser/promptTimeline/promptTimelineModel.js';
 import { ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
 
-function tick(requestId: string, text: string, stat?: PromptTick['stat']): PromptTick {
+function tick(requestId: string, text: string): PromptTick {
 	return {
 		requestId,
 		allRequestIds: [requestId],
@@ -16,7 +16,6 @@ function tick(requestId: string, text: string, stat?: PromptTick['stat']): Promp
 		timestamp: 0,
 		count: 1,
 		ariaLabel: `Prompt: ${text}`,
-		stat,
 	};
 }
 
@@ -37,7 +36,7 @@ function renderPromptTimelineGutter({ container, disposableStore }: ComponentFix
 	rail.setHostWidth(320);
 	rail.setTicks([
 		tick('one', 'Investigate the failure'),
-		tick('two', 'Do a thing', { added: 3, removed: 1, fileCount: 1 }),
+		tick('two', 'Do a thing'),
 		tick('three', 'Do something that needs input'),
 	]);
 	rail.setActive('two');

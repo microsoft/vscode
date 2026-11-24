@@ -71,7 +71,7 @@ import { VisibleSessions } from '../../../../../../workbench/services/sessions/b
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService, ResourceTrustRequestOptions } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { IChatWidget, IChatWidgetService } from '../../../../../../workbench/contrib/chat/browser/chat.js';
 import { buildLocalSessionStateUri } from '../../../../../../workbench/contrib/chat/browser/copilotCliEventsUri.js';
-import { IChatService, type ChatSendResult, type IChatModelReference, type IChatSendRequestData, type IChatSendRequestOptions } from '../../../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { ChatRequestQueueKind, IChatService, type ChatSendResult, type IChatModelReference, type IChatSendRequestData, type IChatSendRequestOptions } from '../../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatSessionsService } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IChatWidgetHistoryService } from '../../../../../../workbench/contrib/chat/common/widget/chatWidgetHistoryService.js';
 import { CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
@@ -1599,10 +1599,11 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	});
 
-	test('observes the canvases of an inactive chat, which its chat model leaves unknown, while the reference is held', () => {
+	test('observes the canvases of an inactive chat, which its chat model leaves unknown, and contributes to its session while the reference is held', async () => {
 		agentHost.setAgents([{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: {} }]);
 		const provider = createProvider(disposables, agentHost, undefined, { activeSession: observableValue<ITestSessionWithChat | undefined>('activeSession', undefined) });
 		const rawId = 'pinned-chat-owner';
+		agentHost.addSession(createSession(rawId));
 		fireSessionAdded(agentHost, rawId);
 		const session = provider.getSessions()[0];
 		// The chat the session listing advertises, which the session never subscribes to while inactive.
@@ -1617,13 +1618,21 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const observed = read(reference?.object.get());
 		const chatModel = read(session.mainChat.get().canvases?.get());
 		const subscribedWhileHeld = [agentHost.sessionSubscribeCounts.get(chat), agentHost.sessionSubscribeCounts.get(resource)];
+		// The host restores a released chat's canvases only for a client that contributes to its session.
+		await timeout(0);
 		reference?.dispose();
+		// The host forgets the contribution when it releases the session, so observing again contributes again.
+		const again = provider.observeChatCanvases(session.sessionId, session.mainChat.get().resource);
+		await timeout(0);
+		again?.dispose();
+		const contributedTo = agentHost.dispatchedActions.filter(dispatch => dispatch.action.type === ActionType.SessionActiveClientSet).map(dispatch => dispatch.channel);
 
-		assert.deepStrictEqual({ observed, chatModel, subscribedWhileHeld, unsubscribes: [agentHost.sessionUnsubscribeCounts.get(chat), agentHost.sessionUnsubscribeCounts.get(resource)] }, {
+		assert.deepStrictEqual({ observed, chatModel, subscribedWhileHeld, contributedTo, unsubscribes: [agentHost.sessionUnsubscribeCounts.get(chat), agentHost.sessionUnsubscribeCounts.get(resource)] }, {
 			observed: [{ resource, instanceId: 'plan' }],
 			chatModel: undefined,
 			subscribedWhileHeld: [1, 1],
-			unsubscribes: [1, 1],
+			contributedTo: [AgentSession.uri('copilotcli', rawId).toString(), AgentSession.uri('copilotcli', rawId).toString()],
+			unsubscribes: [2, 2],
 		});
 	});
 
@@ -4761,6 +4770,32 @@ suite('LocalAgentHostSessionsProvider', () => {
 			{ model: pinnedId, configuration: { reasoningEffort: 'low' } },
 			{ model: pinnedId, configuration: { reasoningEffort: 'medium' } },
 		]);
+	});
+
+	test('a follow-up request is queued behind the request in progress when asked', async () => {
+		const sent: (ChatRequestQueueKind | undefined)[] = [];
+		const provider = createProvider(disposables, agentHost, undefined, {
+			openSession: true,
+			acquireOrLoadSession: async () => new ImmortalReference(new class extends mock<IChatModel>() {
+				override readonly inputModel = new class extends mock<IInputModel>() {
+					override readonly state = constObservable<IChatModelInputState | undefined>(undefined);
+					override setState(): void { }
+					override clearState(): void { }
+				}();
+			}()),
+			sendRequest: async (resource, _message, options) => {
+				sent.push(options?.queue);
+				if (sent.length === 1) {
+					agentHost.addSession(createSession(AgentSession.id(resource), { summary: 'Queued Session' }));
+				}
+				return { kind: 'queued' as const, deferred: new Promise<ChatSendResult>(() => { }) };
+			},
+		});
+		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+		const chat = await provider.createNewChat(session.sessionId);
+		const committed = await provider.sendRequest(session.sessionId, chat.resource, { query: 'first' });
+		await provider.sendRequest(committed.sessionId, committed.resource, { query: 'second', queue: ChatRequestQueueKind.Queued });
+		assert.deepStrictEqual(sent, [undefined, ChatRequestQueueKind.Queued]);
 	});
 
 	test('setAgent with undefined clears the cached agent selection', () => {
@@ -17446,6 +17481,89 @@ suite('LocalAgentHostSessionsProvider', () => {
 			count: 1,
 			isDraft: true,
 			resources: [session.resource.toString()],
+		});
+	});
+
+	test('archiving a new session before its first request commits archives the draft and then the committed session', async () => {
+		const provider = createProvider(disposables, agentHost, undefined, {
+			openSession: true,
+			sendRequest: async (): Promise<ChatSendResult> => ({ kind: 'sent' as const, data: {} as ChatSendResult extends { kind: 'sent'; data: infer D } ? D : never }),
+		});
+		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+		const chat = await provider.createNewChat(session.sessionId);
+		const draftAdvertised = new DeferredPromise<void>();
+		disposables.add(provider.onDidChangeSessions(e => {
+			if (e.added.includes(session)) {
+				draftAdvertised.complete();
+			}
+		}));
+		const request = provider.sendRequest(session.sessionId, chat.resource, { query: 'hello' });
+		await draftAdvertised.p;
+		const rawId = AgentSession.id(session.resource);
+		const archiveDispatches = () => agentHost.dispatchedActions
+			.filter(dispatched => dispatched.action.type === ActionType.SessionIsArchivedChanged)
+			.map(dispatched => ({ session: AgentSession.id(dispatched.channel), action: dispatched.action }));
+
+		agentHost.dispatchConfirmed = async (channel, _subscription, action) => {
+			if (action.type === ActionType.SessionIsArchivedChanged) {
+				agentHost.dispatchedActions.push({ channel, action, clientId: agentHost.clientId, clientSeq: 0 });
+			}
+			return { channel, action, serverSeq: 1, origin: undefined };
+		};
+		await provider.archiveSession(session.sessionId);
+		const beforeCommit = { draftArchived: session.isArchived.get(), dispatched: archiveDispatches() };
+		agentHost.addSession(createSession(rawId, { summary: 'Committed Session' }));
+		fireSessionAdded(agentHost, rawId, { title: 'Committed Session' });
+		const committed = await request;
+
+		assert.deepStrictEqual({
+			beforeCommit,
+			committedArchived: committed.isArchived.get(),
+			dispatched: archiveDispatches(),
+		}, {
+			beforeCommit: { draftArchived: true, dispatched: [] },
+			committedArchived: true,
+			dispatched: [{ session: rawId, action: { type: ActionType.SessionIsArchivedChanged, isArchived: true } }],
+		});
+	});
+
+	test('unarchiving a new session after the host announces it but before commit is not undone at commit', async () => {
+		const provider = createProvider(disposables, agentHost, undefined, {
+			openSession: true,
+			sendRequest: async (): Promise<ChatSendResult> => ({ kind: 'sent' as const, data: {} as ChatSendResult extends { kind: 'sent'; data: infer D } ? D : never }),
+		});
+		await timeout(0);
+		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+		const chat = await provider.createNewChat(session.sessionId);
+		const draftAdvertised = new DeferredPromise<void>();
+		disposables.add(provider.onDidChangeSessions(e => {
+			if (e.added.includes(session)) {
+				draftAdvertised.complete();
+			}
+		}));
+		agentHost.listSessionsBarrier = new DeferredPromise<void>();
+		const request = provider.sendRequest(session.sessionId, chat.resource, { query: 'hello' });
+		await draftAdvertised.p;
+		const rawId = AgentSession.id(session.resource);
+
+		await provider.archiveSession(session.sessionId);
+		agentHost.addSession(createSession(rawId, { summary: 'Committed Session' }));
+		fireSessionAdded(agentHost, rawId, { title: 'Committed Session' });
+		await provider.unarchiveSession(session.sessionId);
+		const draftArchived = session.isArchived.get();
+		agentHost.listSessionsBarrier.complete();
+		const committed = await request;
+
+		assert.deepStrictEqual({
+			draftArchived,
+			committedArchived: committed.isArchived.get(),
+			dispatched: agentHost.dispatchedActions
+				.filter(dispatched => dispatched.action.type === ActionType.SessionIsArchivedChanged)
+				.map(dispatched => dispatched.action),
+		}, {
+			draftArchived: false,
+			committedArchived: false,
+			dispatched: [{ type: ActionType.SessionIsArchivedChanged, isArchived: false }],
 		});
 	});
 

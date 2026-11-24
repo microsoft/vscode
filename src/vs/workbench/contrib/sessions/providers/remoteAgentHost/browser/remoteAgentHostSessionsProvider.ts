@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Limiter, raceTimeout, RunOnceScheduler } from '../../../../../../base/common/async.js';
+import { Limiter, raceTimeout, RunOnceScheduler, SequencerByKey } from '../../../../../../base/common/async.js';
+import { coalesce } from '../../../../../../base/common/arrays.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { isPassiveRelayConnection } from '../../../../../../platform/agentHost/common/meta/relayConnectionMeta.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
@@ -37,7 +38,7 @@ import { IInstantiationService } from '../../../../../../platform/instantiation/
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
-import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
+import { IStorageService, StorageScope } from '../../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { BrowserRemoteProxyEnabledSettingId } from '../../../../browserView/common/browserView.js';
@@ -51,7 +52,7 @@ import { IChatWidgetService } from '../../../../chat/browser/chat.js';
 import { IChatService } from '../../../../chat/common/chatService/chatService.js';
 import { IChatSessionsService } from '../../../../chat/common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../../../chat/common/languageModels.js';
-import { IAgentHostAutoConnect, IAgentHostConnectProgress, IAgentHostConnectionLabels, IAgentHostGroup, LocalAgentHostRegistration } from '../../../common/agentHostSessionsProvider.js';
+import { IAgentHostAutoConnect, IAgentHostConnectProgress, IAgentHostConnectionLabels, IAgentHostGroup, IAgentHostPredecessor, IAgentHostSuccessor, LocalAgentHostRegistration } from '../../../common/agentHostSessionsProvider.js';
 import { buildAgentHostSessionWorkspace, readBranchProtectionPatterns } from '../../../common/agentHostSessionWorkspace.js';
 import { DevContainerIdleTimeoutSettingId } from '../../../common/devContainerAgentHostService.js';
 import { IGitHubInfo, IChat, isActiveSessionStatus, ISession, ISessionEnvironment, SessionStatus, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_REMOTE } from '../../../../../services/sessions/common/session.js';
@@ -122,6 +123,8 @@ export interface IRemoteAgentHostSessionsProviderConfig {
 	readonly hostDescription?: IObservable<string>;
 	readonly localRegistration?: IObservable<LocalAgentHostRegistration | undefined>;
 	readonly isVisibleInEnvironmentPicker?: IObservable<boolean>;
+	readonly successor?: IObservable<IAgentHostSuccessor | undefined>;
+	readonly predecessor?: IObservable<IAgentHostPredecessor | undefined>;
 	/** Overrides the stable host key for account-scoped picker preferences. */
 	readonly pickerVisibilityKey?: string;
 	readonly removeLabel?: string;
@@ -232,6 +235,8 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 	readonly localRegistration?: IObservable<LocalAgentHostRegistration | undefined>;
 	readonly isVisibleInEnvironmentPicker?: IObservable<boolean>;
 	readonly showInEnvironmentPicker: () => void;
+	readonly successor?: IObservable<IAgentHostSuccessor | undefined>;
+	readonly predecessor?: IObservable<IAgentHostPredecessor | undefined>;
 	readonly removeLabel?: string;
 	readonly canRemove?: boolean;
 	readonly disconnectLabel?: string;
@@ -241,6 +246,8 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 	private readonly _automationStore: ReconnectableAgentHostAutomationStore;
 
 	private readonly _activitySources = new WeakMap<AgentHostSessionAdapter, { readonly source: 'host' } | { readonly source: 'discovery'; readonly modifiedTime: number }>();
+	/** Keeps an overlapping archive and unarchive of a session in order, since both await Dev Container work. */
+	private readonly _sessionArchiveSequencer = new SequencerByKey<string>();
 	private readonly _connectionStatus = observableValue<RemoteAgentHostConnectionStatus>('connectionStatus', RemoteAgentHostConnectionStatus.disconnected);
 	private readonly _readOnly: IObservable<boolean>;
 	readonly connectionStatus: IObservable<RemoteAgentHostConnectionStatus> = this._connectionStatus;
@@ -397,6 +404,8 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		this.connectionLabels = config.connectionLabels;
 		this.hostDescription = config.hostDescription;
 		this.localRegistration = config.localRegistration;
+		this.successor = config.successor;
+		this.predecessor = config.predecessor;
 		const pickerVisibility = this._register(new RemoteAgentHostPickerVisibility(storageService));
 		const pickerKey = config.pickerVisibilityKey ?? getRemoteAgentHostPickerKey(config.preferenceKey ?? config.address);
 		const manageRemotes = observableConfigValue(ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, true, this._configurationService);
@@ -501,6 +510,18 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 	}
 
 	override async archiveSession(sessionId: string): Promise<void> {
+		if (!this._setPendingNewSessionArchived(sessionId, true)) {
+			await this._sessionArchiveSequencer.queue(sessionId, () => this._archiveSession(sessionId));
+		}
+	}
+
+	override async unarchiveSession(sessionId: string): Promise<void> {
+		if (!this._setPendingNewSessionArchived(sessionId, false)) {
+			await this._sessionArchiveSequencer.queue(sessionId, () => this._unarchiveSession(sessionId));
+		}
+	}
+
+	private async _archiveSession(sessionId: string): Promise<void> {
 		if (!this._hasSession(sessionId)) {
 			return;
 		}
@@ -533,7 +554,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		}
 	}
 
-	override async unarchiveSession(sessionId: string): Promise<void> {
+	private async _unarchiveSession(sessionId: string): Promise<void> {
 		if (!this._hasSession(sessionId)) {
 			return;
 		}
@@ -1309,6 +1330,27 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		this._unpublished = true;
 		if (this._sessionCache.size > 0) {
 			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [] });
+		}
+	}
+
+	/**
+	 * Removes every session and the persisted cache for good, for a host that no
+	 * longer exists, such as a deleted Dev Container environment. Unlike
+	 * {@link unpublishCachedSessions}, the sessions are reported as removed, so
+	 * open views and session state are cleaned up. Unlike a removal reported by
+	 * the host, nothing is asked of the host or the source host.
+	 */
+	forgetSessions(): void {
+		this._cancelSessionRefreshRetry();
+		const pending = [...this._pendingSessions.values()];
+		this._pendingSessions.clear();
+		const forgotten = coalesce([...this._sessionCache.keys()].map(rawId => this._removeCachedSession(rawId)));
+		this._storageService.remove(this._storageKey, StorageScope.APPLICATION);
+		if (pending.length > 0 || forgotten.length > 0) {
+			this._onDidChangeSessions.fire({ added: [], removed: [...pending, ...forgotten], changed: [] });
+		}
+		for (const session of forgotten) {
+			session.dispose();
 		}
 	}
 

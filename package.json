@@ -114,7 +114,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.82.0",
     "@devcontainers/cli": "0.88.0",
-    "@microsoft/copilot-sdk": "2.0.1",
+    "@microsoft/copilot-sdk": "2.0.2-unstable.45286541461.g05667ac",
     "@hpke/core": "^1.9.0",
     "@microsoft/1ds-core-js": "^3.2.13",
     "@microsoft/1ds-post-js": "^3.2.13",
@@ -240,11 +240,11 @@
     "gulp-rename": "^1.2.0",
     "gulp-replace": "^0.5.4",
     "gulp-sourcemaps": "^3.0.0",
-    "husky": "^0.13.1",
     "innosetup": "^6.4.1",
     "js-yaml": "^4.2.0",
     "json-schema-to-typescript": "16.0.0",
     "lazy.js": "^0.4.2",
+    "minimatch": "^3.1.5",
     "mocha": "^10.8.2",
     "mocha-junit-reporter": "^2.2.1",
     "mocha-multi-reporters": "^1.5.1",
@@ -278,5 +278,5 @@
   "optionalDependencies": {
     "windows-foreground-love": "0.6.1"
   },
-  "copilotRuntimeVersion": "1.0.114"
+  "copilotRuntimeVersion": "1.0.114-unstable.r45286541461.g05667ac"
 }

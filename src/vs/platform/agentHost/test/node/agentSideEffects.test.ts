@@ -67,6 +67,8 @@ import { IAgentHostProviderService } from '../../node/agentHostProviderService.j
 import { createTestAgentHostProviderService } from './testAgentHostProviderService.js';
 import { AgentHostSessionTitleController, IAgentHostSessionTitleController, type AutomaticTitleGenerationStrategy } from '../../node/agentHostSessionTitleController.js';
 import { registerBuiltInChatContributions } from '../../node/chatContributions/builtInChatContributions.js';
+import { IAgentHostPullRequestAutopilotService } from '../../node/agentHostPullRequestAutopilot.js';
+import { nullPullRequestAutopilotService } from './pullRequestAutopilotTestUtils.js';
 import { AgentHostChatInputService, IAgentHostChatInputService } from '../../node/agentHostChatInputService.js';
 import { AgentHostAuthenticationService, IAgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
 import type { IAgentHostCredentialSource } from '../../common/agentHostCredentials.js';
@@ -164,7 +166,7 @@ class NoopGitStateService implements IAgentHostGitStateService {
 	async refreshSessionGitState(_sessionKey: string, _workingDirectory?: URI): Promise<void> { }
 	getMaterializedWorktreeMeta(_sessionKey: string, _branchName: string): undefined { return undefined; }
 	async setFolderGitState(): Promise<void> { }
-	async resolveSessionBaseBranchName(_sessionKey: string): Promise<string | undefined> { return undefined; }
+	async resolveSessionBaseBranchRef(_sessionKey: string): Promise<string | undefined> { return undefined; }
 	async setSessionGitHubState(_sessionKey: string, _state: ISessionGitHubState): Promise<void> { }
 	async recordSessionMerge(_sessionKey: string, _commit: string): Promise<void> { }
 	async attachSessionGitHubPullRequest(_sessionKey: string, _workingDirectory?: URI): Promise<void> { }
@@ -319,6 +321,7 @@ function createTestSideEffects(
 	services.set(IAgentHostProviderService, providerService);
 	const chatOwnership = createTestChatOwnershipService(stateManager);
 	services.set(IAgentHostChatOwnershipService, chatOwnership);
+	services.set(IAgentHostPullRequestAutopilotService, nullPullRequestAutopilotService);
 	services.set(IAgentHostSessionStateStore, sessionStateStore);
 	services.set(IAgentHostChatInputService, disposables.add(new AgentHostChatInputService(stateManager, providerService, disposables.add(new AgentHostSubscriptionService(chatOwnership)), chatOwnership, authenticationService, sessionStateStore)));
 	const instantiationService = disposables.add(new InstantiationService(services, /*strict*/ true));
@@ -3077,6 +3080,45 @@ suite('AgentSideEffects', () => {
 			assert.deepStrictEqual({ captureCount, sendMessageCalls: agent.sendMessageCalls }, {
 				captureCount: 0,
 				sendMessageCalls: [],
+			});
+		});
+
+		test('a first turn cancelled during working-directory resolution announces the provisional session without sending', async () => {
+			setupProvisionalSession();
+			const resolving = new DeferredPromise<void>();
+			const resolved = new DeferredPromise<readonly URI[]>();
+			const announced = new DeferredPromise<{ session: string; workingDirectories: string[] | undefined }>();
+			const localSideEffects = createTestSideEffects(disposables, stateManager, {
+				getAgent: () => agent,
+				agents: agentList,
+				sessionDataService: createNullSessionDataService(),
+				resolveWorkingDirectoryBeforeSend: () => {
+					resolving.complete();
+					return resolved.p;
+				},
+				announceUnsentProvisionalSession: ({ session, workingDirectories }) => announced.complete({ session, workingDirectories: workingDirectories?.map(uri => uri.toString()) }),
+			});
+			const started = {
+				type: ActionType.ChatTurnStarted,
+				startedAt: '2025-01-01T00:00:00.000Z',
+				turnId: 'turn-1',
+				message: { text: 'hello', origin: { kind: MessageKind.User } },
+			} as const;
+			stateManager.dispatchClientAction(defaultChatUri, started, { clientId: 'test', clientSeq: 1 });
+
+			localSideEffects.handleAction(defaultChatUri, started);
+			await resolving.p;
+			stateManager.dispatchClientAction(defaultChatUri, { type: ActionType.ChatTurnCancelled, turnId: 'turn-1', duration: 0 }, { clientId: 'test', clientSeq: 2 });
+			resolved.complete([URI.file('/repo.worktrees/feature')]);
+
+			assert.deepStrictEqual({
+				announced: await announced.p,
+				sendMessageCalls: agent.sendMessageCalls,
+				lifecycle: stateManager.getSessionState(sessionUri.toString())?.lifecycle,
+			}, {
+				announced: { session: sessionUri.toString(), workingDirectories: [URI.file('/repo.worktrees/feature').toString()] },
+				sendMessageCalls: [],
+				lifecycle: SessionLifecycle.Creating,
 			});
 		});
 

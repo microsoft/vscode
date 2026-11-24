@@ -1255,80 +1255,6 @@ per-word capitalization does not survive translation. */
 	color: var(--vscode-textLink-activeForeground);
 }
 
-/* Overview View (compact snapshot) */
-.ai-customization-overview {
-	display: flex;
-	flex-direction: column;
-	height: 100%;
-	padding: 8px;
-}
-
-.ai-customization-overview .overview-sections {
-	display: flex;
-	flex-wrap: wrap;
-	gap: 8px;
-}
-
-
-.ai-customization-overview .overview-section {
-	display: flex;
-	align-items: center;
-	gap: 8px;
-	padding: 10px 12px;
-	background-color: var(--vscode-sideBar-background);
-	border: 1px solid var(--vscode-widget-border);
-	border-radius: 6px;
-	cursor: pointer;
-	transition: background-color 0.1s ease;
-	flex: 1 1 120px;
-	min-width: 100px;
-}
-
-.ai-customization-overview .overview-section:hover {
-	background-color: var(--vscode-list-hoverBackground);
-	border-color: var(--vscode-focusBorder);
-}
-
-.ai-customization-overview .overview-section:focus {
-	outline: 1px solid var(--vscode-focusBorder);
-	outline-offset: -1px;
-}
-
-.ai-customization-overview .overview-section .section-icon {
-	flex-shrink: 0;
-	width: 16px;
-	height: 16px;
-	opacity: 0.9;
-}
-
-.ai-customization-overview .overview-section .section-text {
-	flex: 1;
-	min-width: 0;
-}
-
-.ai-customization-overview .overview-section .section-label {
-	font-size: var(--vscode-fontSize-label1);
-	font-weight: var(--vscode-fontWeight-semiBold);
-	color: var(--vscode-foreground);
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-}
-
-
-
-.ai-customization-overview .overview-section .section-count {
-	flex-shrink: 0;
-	font-size: 9px;
-	font-weight: var(--vscode-fontWeight-semiBold);
-	padding: 1px 5px;
-	background-color: var(--vscode-list-inactiveSelectionBackground);
-	color: var(--vscode-list-inactiveSelectionForeground, var(--vscode-foreground));
-	border-radius: 8px;
-	min-width: 14px;
-	text-align: center;
-}
-
 /* Content container visibility */
 .ai-customization-management-editor .prompts-content-container,
 .ai-customization-management-editor .prompt-migration-content-container,
@@ -1437,62 +1363,6 @@ per-word capitalization does not survive translation. */
 
 .ai-customization-management-editor .tools-list-search-container .monaco-inputbox {
 	width: 100%;
-}
-
-/* Shared gallery row used by the tools, MCP server and plugin marketplace lists. See galleryItemRenderer.ts */
-.ai-customization-management-editor .gallery-item {
-	display: flex;
-	align-items: center;
-	gap: 8px;
-	padding: 8px 12px;
-	box-sizing: border-box;
-	border-radius: 4px;
-	cursor: default;
-}
-
-.ai-customization-management-editor .gallery-item:hover {
-	background-color: var(--vscode-list-hoverBackground);
-}
-
-.ai-customization-management-editor .gallery-item-details {
-	display: flex;
-	flex-direction: column;
-	flex: 1;
-	min-width: 0;
-	overflow: hidden;
-}
-
-.ai-customization-management-editor .gallery-item-name {
-	font-size: var(--vscode-fontSize-body1);
-	font-weight: var(--vscode-fontWeight-semiBold);
-	line-height: 18px;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-}
-
-.ai-customization-management-editor .gallery-item-description,
-.ai-customization-management-editor .gallery-item-publisher {
-	font-size: var(--vscode-fontSize-body2);
-	color: var(--vscode-descriptionForeground);
-	line-height: 16px;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-}
-
-.ai-customization-management-editor .gallery-item-action {
-	flex-shrink: 0;
-}
-
-.ai-customization-management-editor .gallery-item-action .monaco-button {
-	white-space: nowrap;
-	font-size: var(--vscode-fontSize-body2);
-	padding: 2px 10px;
-}
-
-.ai-customization-management-editor .gallery-item-action .monaco-button:focus-visible {
-	outline-offset: -1px;
 }
 
 .ai-customization-management-editor .tools-list-tree {
@@ -2403,7 +2273,7 @@ per-word capitalization does not survive translation. */
 	margin-top: 1px;
 }
 
-.ai-customization-management-editor .embedded-marketplace-detail .embedded-detail-publisher {
+.ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-header-link {
 	align-self: flex-end;
 	flex-shrink: 1;
 	min-width: 0;
@@ -2416,7 +2286,7 @@ per-word capitalization does not survive translation. */
 	font-weight: var(--vscode-fontWeight-regular);
 }
 
-.ai-customization-management-editor .embedded-marketplace-detail .embedded-detail-publisher[href] {
+.ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-header-link[href] {
 	color: var(--vscode-textLink-foreground);
 }
 

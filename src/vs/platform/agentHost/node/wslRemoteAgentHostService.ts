@@ -41,8 +41,9 @@ import {
 const LOG_PREFIX = '[WSLRemoteAgentHost]';
 
 /**
- * Max time a stopped WSL distro may take to boot and produce the bootstrap's
- * first output. This intentionally includes VM startup and login-shell profile
+ * Max time a stopped WSL distro may take to boot and produce first output, for
+ * both the platform probe (the first command in the distro, which starts it) and
+ * the bootstrap. This intentionally includes VM startup and login-shell profile
  * sourcing, which can legitimately exceed the post-output idle budget.
  */
 const AGENT_HOST_INITIAL_OUTPUT_TIMEOUT_MS = 3 * 60_000;
@@ -720,7 +721,7 @@ export class WSLRemoteAgentHostMainService extends Disposable implements IWSLRem
 	}
 
 	protected async _resolvePlatform(distro: string): Promise<{ os: string; arch: string }> {
-		const result = await runWslCommand(['-e', 'uname', '-s', '-m'], { distro, timeout: 10_000 });
+		const result = await runWslCommand(['-e', 'uname', '-s', '-m'], { distro, timeout: AGENT_HOST_INITIAL_OUTPUT_TIMEOUT_MS });
 		if (result.exitCode !== 0) {
 			throw new Error(`${LOG_PREFIX} Failed to detect platform in '${distro}' (exit ${result.exitCode}): ${result.stderr.trim() || result.stdout.trim()}`);
 		}

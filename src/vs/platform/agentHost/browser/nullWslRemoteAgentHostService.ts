@@ -47,6 +47,10 @@ export class NullWSLRemoteAgentHostService implements IWSLRemoteAgentHostService
 		throw new Error('WSL is not available on this platform.');
 	}
 
+	isDisconnected(_distro: string): boolean {
+		return false;
+	}
+
 	async reconnect(_distro: string, _name: string): Promise<IWSLAgentHostConnection> {
 		throw new Error('WSL is not available on this platform.');
 	}

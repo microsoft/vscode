@@ -493,6 +493,99 @@
 	border-radius: 4px;
 }
 
+/* Repository notice: a neutral card above the input, bordered like the input, with its
+	close action at the top right and its action at the bottom right */
+.scm-view .scm-repository-notice-container {
+	box-sizing: border-box;
+	padding: var(--vscode-spacing-size40) 0 var(--vscode-spacing-size40) 11px;
+}
+
+.scm-view .scm-repository-notice {
+	display: grid;
+	grid-template-columns: auto minmax(0, 1fr) auto;
+	grid-template-areas:
+		"icon message dismiss"
+		"action action action";
+	column-gap: var(--vscode-spacing-size80);
+	row-gap: var(--vscode-spacing-size80);
+	box-sizing: border-box;
+	padding: var(--vscode-spacing-size80) var(--vscode-spacing-size100);
+	border: var(--vscode-strokeThickness) solid var(--vscode-input-border, var(--vscode-widget-border, transparent));
+	border-radius: var(--vscode-cornerRadius-medium);
+	background-color: color-mix(in srgb, var(--vscode-foreground) 4%, transparent);
+	line-height: 18px;
+	white-space: normal;
+}
+
+/* One line tall, so the icon centers on the first line of the message */
+.scm-view .scm-repository-notice-icon {
+	grid-area: icon;
+	display: flex;
+	align-items: center;
+	height: 1lh;
+	color: var(--vscode-icon-foreground);
+}
+
+.scm-view .scm-repository-notice-message {
+	grid-area: message;
+	min-width: 0;
+	overflow-wrap: break-word;
+}
+
+.scm-view .scm-repository-notice-message p {
+	margin: 0;
+}
+
+.scm-view .scm-repository-notice-message strong {
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.scm-view .scm-repository-notice-dismiss {
+	grid-area: dismiss;
+	align-self: start;
+	margin-right: calc(-1 * var(--vscode-spacing-size40));
+}
+
+/* A compact close button, one line tall so it lines up with the first line of the message */
+.scm-view .scm-repository-notice-dismiss .action-label {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: var(--vscode-spacing-size200);
+	height: 1lh;
+	padding: 0;
+	border-radius: var(--vscode-cornerRadius-small);
+	color: var(--vscode-descriptionForeground);
+}
+
+.scm-view .scm-repository-notice-dismiss .action-label:hover {
+	color: var(--vscode-foreground);
+}
+
+/* `.monaco-workbench .codicon` sizes the glyph directly, so this out-ranks it. The glyph is the button itself, so it keeps the line height of the message to stay one line tall */
+.monaco-workbench .scm-view .scm-repository-notice-dismiss .codicon[class*='codicon-'] {
+	font-size: var(--vscode-codiconFontSize-compact);
+	line-height: inherit;
+	color: inherit;
+}
+
+.scm-view .scm-repository-notice-action {
+	grid-area: action;
+	justify-self: end;
+}
+
+.scm-view .scm-repository-notice-action .monaco-button {
+	width: auto;
+	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size100);
+	white-space: nowrap;
+}
+
+.monaco-workbench.hc-black .scm-view .scm-repository-notice,
+.monaco-workbench.hc-light .scm-view .scm-repository-notice {
+	border-color: var(--vscode-contrastBorder);
+	background-color: transparent;
+}
+
 .scm-view .button-container {
 	display: flex;
 	height: 100%;

@@ -20,7 +20,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { mock } from '../../../../base/test/common/mock.js';
 import { MissionControlControlVerifier, type IMissionControlSigningKey } from '../../node/missionControl/missionControlControl.js';
 import { MissionControlProtocolServer, toMissionControlSocket, type IMissionControlRelayRecovery, type IMissionControlSocket, type MissionControlPublishDiagnostic } from '../../node/missionControl/missionControlProtocolServer.js';
-import { MissionControlEnvironment } from '../../node/missionControl/missionControlEnvironment.js';
+import { MissionControlEnvironment, selectLocalMissionControlDirectories } from '../../node/missionControl/missionControlEnvironment.js';
 import { MissionControlAuthentication, MissionControlSealing, sealMissionControlCredential } from '../../node/missionControl/missionControlAuthentication.js';
 import { getConnectionDiagnosticError, type IConnectionDiagnosticEvent } from '../../common/connectionDiagnostics.js';
 import { getConnectionTelemetryError } from '../../common/connectionTelemetry.js';
@@ -2667,6 +2667,8 @@ suite('Mission Control WPS', () => {
 				manualPublishAcks?: boolean;
 				tokenReplies?: readonly { status: number; retryAfter?: string; body: object }[];
 				failSigningKeyRefresh?: boolean;
+				realpath?: (path: string) => Promise<string>;
+				onExcludedDirectory?: (path: string) => void;
 			} = {},
 		): Promise<void> {
 			const path = await mkdtemp(join(process.cwd(), '.build', 'mission-control-retry-after-'));
@@ -2752,6 +2754,8 @@ suite('Mission Control WPS', () => {
 						return { dispose() { } };
 					},
 					updateProjects: async () => { projectUpdates++; },
+					realpath: overrides.realpath,
+					onExcludedDirectory: overrides.onExcludedDirectory,
 					onError: error => {
 						errors.push(error instanceof Error ? error.message : String(error));
 						errorReported.fire();
@@ -3590,6 +3594,48 @@ suite('Mission Control WPS', () => {
 				await assert.rejects(service.configure({ ...options, projects: [join(directory, 'missing')] }), error =>
 					getConnectionTelemetryError(getConnectionDiagnosticError(error)).errorCategory === 'fileSystem');
 			});
+		});
+
+		test('grants only local directories when a mapped drive resolves to a network share', async () => {
+			const mappedDrive = 'Z:\\';
+			const share = '\\\\server\\share\\';
+			const excluded: string[] = [];
+			await withEnvironment([], async ({ service, options, directory, attachments }) => {
+				const home = realpathSync(directory);
+				const project = realpathSync(await mkdtemp(join(home, 'project-')));
+				await service.configure(undefined, options.accountId);
+				await service.configure({ ...options, roots: [home, mappedDrive, `${mappedDrive}project`], projects: [project, `${mappedDrive}project`], defaultDirectory: home });
+				const attachment = attachments.at(-1)!;
+				assert.deepStrictEqual({
+					initialRoots: attachment.initialRoots,
+					roots: attachment.getRoots(),
+					projects: attachment.getProjects(),
+					defaultDirectory: attachment.defaultDirectory,
+					excluded,
+				}, {
+					initialRoots: [home], roots: [home], projects: [project], defaultDirectory: home,
+					excluded: [share, `${share}project`],
+				});
+			}, undefined, false, {
+				realpath: path => path.startsWith(mappedDrive) ? Promise.resolve(`${share}${path.slice(mappedDrive.length)}`) : fs.realpath(path),
+				onExcludedDirectory: path => { excluded.push(path); },
+			});
+		});
+
+		test('rejects a network-backed default directory or no remaining local root as invalid configuration', () => {
+			const outcomes = [
+				{ roots: ['C:\\'], defaultDirectory: '\\\\server\\home' },
+				{ roots: ['\\\\server\\share\\', '\\\\wsl.localhost\\Ubuntu\\home'] },
+				{ roots: [] },
+			].map(directories => {
+				try {
+					selectLocalMissionControlDirectories(directories);
+					return 'accepted';
+				} catch (error) {
+					return getConnectionTelemetryError(getConnectionDiagnosticError(error)).errorCategory;
+				}
+			});
+			assert.deepStrictEqual(outcomes, ['invalidConfiguration', 'invalidConfiguration', 'accepted']);
 		});
 
 		test('reports changed and removed managed policy immediately without parsing it or losing heartbeat Retry-After', async () => {

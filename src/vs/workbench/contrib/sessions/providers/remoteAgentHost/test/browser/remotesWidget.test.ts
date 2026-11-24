@@ -223,6 +223,8 @@ class TestRemotesModel extends Disposable implements IRemotesModel {
 	}
 }
 
+type MenuAnchor = ReturnType<Parameters<IContextMenuService['showContextMenu']>[0]['getAnchor']>;
+
 class TestRemotesWidget extends RemotesWidget {
 	focusFirstRow(): void {
 		this.table.focusFirst();
@@ -236,6 +238,7 @@ class TestRemotesWidget extends RemotesWidget {
 suite('RemotesWidget', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const menus = new WeakMap<HTMLElement, () => readonly IAction[]>();
+	const menuAnchors = new WeakMap<HTMLElement, () => MenuAnchor | undefined>();
 
 	function createWidget(operatingSystem = OperatingSystem.Macintosh, grouping: 'status' | 'type' | 'default' = 'type', width = 900, storageService?: IStorageService) {
 		const parent = dom.append(document.body, dom.$('div'));
@@ -248,11 +251,18 @@ suite('RemotesWidget', () => {
 			instantiationService.stub(IStorageService, storageService);
 		}
 		let menuActions: readonly IAction[] = [];
+		let menuAnchor: MenuAnchor | undefined;
 		instantiationService.stub(IContextMenuService, 'showContextMenu', (delegate: Parameters<IContextMenuService['showContextMenu']>[0]) => {
 			menuActions = delegate.getActions?.() ?? [];
+			menuAnchor = delegate.getAnchor();
 			delegate.onHide?.(true);
 		});
-		menus.set(parent, () => menuActions);
+		menus.set(parent, () => {
+			const actions = menuActions;
+			menuActions = [];
+			return actions;
+		});
+		menuAnchors.set(parent, () => menuAnchor);
 		const errors: Parameters<INotificationService['error']>[0][] = [];
 		const hoverContents = new Map<HTMLElement, string>();
 		const mouseHoverTargets = new Set<HTMLElement>();
@@ -375,6 +385,15 @@ suite('RemotesWidget', () => {
 		assert.ok(overflow, `Missing overflow for ${id}`);
 		overflow.dispatchEvent(new MouseEvent('mousedown', { button: 0, bubbles: true, cancelable: true }));
 		return menus.get(parent)!();
+	}
+
+	function getContextMenuActions(parent: HTMLElement, row: HTMLElement): readonly IAction[] {
+		row.dispatchEvent(new MouseEvent('contextmenu', { button: 2, bubbles: true, cancelable: true }));
+		return menus.get(parent)!();
+	}
+
+	function menuLabels(actions: readonly IAction[]): string[] {
+		return actions.map(action => action.id === Separator.ID ? '---' : action.label);
 	}
 
 	function findMenuAction(parent: HTMLElement, id: string, action: string): IAction | undefined {
@@ -2077,23 +2096,32 @@ suite('RemotesWidget', () => {
 		});
 	});
 
-	test('shows only the live assignment: a disconnected host shows nothing until it reconnects', () => {
+	test('a disconnected host shows its last-known assignment, disabled, also after reopening; reconnecting shows the host\'s current assignment without writing to it', () => {
 		const first = createWidget();
 		const host = new TestSandboxProfilesHost();
 		first.addHost('tunnel:laptop', host);
-		assignHostSandboxProfile(host, { id: 'strict', name: 'Strict', settings: {} });
-		const state = () => {
-			const picker = first.parent.querySelector<HTMLSelectElement>('[data-remote-id="tunnel:laptop"] select')!;
+		assignHostSandboxProfile(host, { id: 's1', name: 'S1', settings: {} });
+		const state = (device: typeof first) => {
+			const picker = device.parent.querySelector<HTMLSelectElement>('[data-remote-id="tunnel:laptop"] select')!;
 			return { disabled: picker.disabled, selected: picker.options[picker.selectedIndex].text, label: picker.getAttribute('aria-label') };
 		};
-		const connected = state();
+		const connected = state(first);
 		first.disconnectHost('tunnel:laptop');
-		const disconnected = state();
+		const disconnected = state(first);
+		const reopened = createWidget(OperatingSystem.Macintosh, 'type', 900, first.storageService);
+		const reopenedState = state(reopened);
+		// Another device assigns S2 while this machine is offline.
+		assignHostSandboxProfile(host, { id: 's2', name: 'S2', settings: {} });
 		first.addHost('tunnel:laptop', host);
-		assert.deepStrictEqual({ connected, disconnected, reconnected: state() }, {
-			connected: { disabled: false, selected: 'Strict (on host)', label: 'Sandbox profile for Laptop' },
-			disconnected: { disabled: true, selected: 'Default', label: 'Sandbox profile for Laptop. Connect to Laptop to see or choose one.' },
-			reconnected: { disabled: false, selected: 'Strict (on host)', label: 'Sandbox profile for Laptop' },
+		const reconnected = state(first);
+		first.disconnectHost('tunnel:laptop');
+		assert.deepStrictEqual({ connected, disconnected, reopened: reopenedState, reconnected, host: (host.values[AgentHostSandboxConfigKey.SandboxProfile] as { id: string }).id, disconnectedAgain: state(first) }, {
+			connected: { disabled: false, selected: 'S1 (on host)', label: 'Sandbox profile for Laptop' },
+			disconnected: { disabled: true, selected: 'S1 (on host)', label: 'Sandbox profile for Laptop: S1, last known. Connect to Laptop to refresh or change it.' },
+			reopened: { disabled: true, selected: 'S1 (on host)', label: 'Sandbox profile for Laptop: S1, last known. Connect to Laptop to refresh or change it.' },
+			reconnected: { disabled: false, selected: 'S2 (on host)', label: 'Sandbox profile for Laptop' },
+			host: 's2',
+			disconnectedAgain: { disabled: true, selected: 'S2 (on host)', label: 'Sandbox profile for Laptop: S2, last known. Connect to Laptop to refresh or change it.' },
 		});
 	});
 	test('another device sees the assigned profile, can save it to its own profiles, and the last assignment wins', () => {
@@ -2613,15 +2641,15 @@ suite('RemotesWidget', () => {
 		}, { changes: [{ id: 'ssh:build', action: 'rename' }], enabled: true, name: 'Renamed remote' });
 	});
 
-	test('remote menus keep connection, organization, copy, and management groups consistent after refresh', async () => {
+	test('remote overflow and context menus keep connection, organization, copy, and management groups consistent after refresh', async () => {
 		const { parent, model, widget } = createWidget(OperatingSystem.Windows);
 		model.environmentsEnabled.set(true, undefined);
 		model.remotes.set([...model.remotes.get(), {
 			id: 'environment:desktop', kind: 'environment', name: 'Desktop', detail: 'env-desktop', canRemove: true,
 			availability: 'online', connectionStatus: RemoteAgentHostConnectionStatus.disconnected,
 		}], undefined);
-		const actions = () => [...parent.querySelectorAll<HTMLElement>('[data-remote-id]')].map(row =>
-			getMenuActions(parent, row.dataset.remoteId!).map(action => action.id === 'vs.actions.separator' ? '---' : action.label));
+		const rows = () => [...parent.querySelectorAll<HTMLElement>('[data-remote-id]')];
+		const actions = () => rows().map(row => menuLabels(getMenuActions(parent, row.dataset.remoteId!)));
 		const before = actions();
 		widget.setVisible(true);
 		await timeout(0);
@@ -2631,7 +2659,9 @@ suite('RemotesWidget', () => {
 			['Connect', '---', 'Hide from Environment Picker', '---', 'Rename...', 'Troubleshoot Connection...'],
 			['New Session', 'Disconnect', '---', 'Hide from Environment Picker', '---', 'Copy Address', '---', 'Rename...', 'Configure Agent Run Behavior...', 'Troubleshoot Connection...'],
 		];
-		assert.deepStrictEqual({ before, after: actions(), changes: model.managementChanges }, { before: expected, after: expected, changes: [] });
+		assert.deepStrictEqual({
+			before, after: actions(), contextMenus: rows().map(row => menuLabels(getContextMenuActions(parent, row))), changes: model.managementChanges,
+		}, { before: expected, after: expected, contextMenus: expected, changes: [] });
 	});
 
 	test('Delete works offline, prevents duplicate actions and restores keyboard focus', async () => {
@@ -3674,7 +3704,8 @@ suite('RemotesWidget', () => {
 			page: {
 				title: 'Troubleshoot connection',
 				facts: ['Environment: Laptop', 'Status: Connection failed', 'Connection type: Dev Tunnel'],
-				feedback: 'Connection failed: Connection refused', guidance: [], command: undefined,
+				feedback: 'Connection failed: Connection refused', command: undefined,
+				guidance: ['Check that the computer sharing this tunnel is turned on and connected to the internet, and that it still shares the tunnel with Remote Tunnel Access or the code tunnel command. Then retry.'],
 				actions: ['Retry Connection'], links: ['Dev Tunnel connection guide', 'Open Diagnostic Report'],
 			},
 			actionsWhenHidden: 0,
@@ -4180,6 +4211,75 @@ suite('RemotesWidget', () => {
 			focused: dom.getActiveElement() === overflow,
 		}, {
 			rename: 'Rename...', changes: [], focused: true,
+		});
+	});
+
+	test('Shift+F10 opens the focused row\'s More Actions as a context menu that runs them on that row', async () => {
+		const { parent, model } = createWidget();
+		const list = parent.querySelector<HTMLElement>('.monaco-table .monaco-list')!;
+		const openWithKeyboard = (id: string) => {
+			parent.querySelector<HTMLElement>(`[data-remote-id="${id}"]`)!.click();
+			for (const type of ['keydown', 'keyup']) {
+				list.dispatchEvent(new KeyboardEvent(type, { key: 'F10', keyCode: 121, shiftKey: true, bubbles: true, cancelable: true }));
+			}
+			return menus.get(parent)!();
+		};
+		const tunnel = openWithKeyboard('tunnel:laptop');
+		const ssh = openWithKeyboard('ssh:build');
+		const sshGroup = [...parent.querySelectorAll<HTMLElement>('.remotes-group-row')].find(group => group.querySelector('.remotes-name')?.textContent === 'SSH')!;
+		const group = getContextMenuActions(parent, sshGroup);
+		await store.add(new ActionRunner()).run(ssh.find(action => action.id === 'remotes.rename')!);
+		await timeout(0);
+		assert.deepStrictEqual({ tunnel: menuLabels(tunnel), ssh: menuLabels(ssh), group: menuLabels(group), changes: model.managementChanges }, {
+			tunnel: ['Connect', '---', 'Hide from Environment Picker', '---', 'Rename...', 'Configure Agent Run Behavior...', 'Troubleshoot Connection...', 'Delete Dev Tunnel...'],
+			ssh: ['New Session', 'Disconnect', '---', 'Hide from Environment Picker', '---', 'Copy Address', '---', 'Rename...', 'Configure Agent Run Behavior...', 'Troubleshoot Connection...'],
+			group: ['Open SSH Configuration', '---', 'Open Setup Guide'],
+			changes: [{ id: 'ssh:build', action: 'rename' }],
+		});
+	});
+
+	test('Shift+F10 on a focused row scrolled out of view reveals the row and anchors its context menu there', () => {
+		const { parent, model, widget } = createWidget(OperatingSystem.Macintosh, 'default');
+		model.remotes.set(Array.from({ length: 60 }, (_, index) => ({
+			id: `ssh:host${index}`, kind: 'ssh' as const, name: `Host ${index}`, detail: `host${index}.example.com`, canRemove: true,
+			availability: 'online' as const, connectionStatus: RemoteAgentHostConnectionStatus.disconnected,
+		})), undefined);
+		widget.focusFirstRow();
+		const focusedId = parent.querySelector<HTMLElement>('.monaco-list-row.focused [data-remote-id]')!.dataset.remoteId!;
+		widget.scrollToBottom();
+		const renderedBefore = !!parent.querySelector(`[data-remote-id="${focusedId}"]`);
+		const list = parent.querySelector<HTMLElement>('.monaco-table .monaco-list')!;
+		for (const type of ['keydown', 'keyup']) {
+			list.dispatchEvent(new KeyboardEvent(type, { key: 'F10', keyCode: 121, shiftKey: true, bubbles: true, cancelable: true }));
+		}
+		const menu = menuLabels(menus.get(parent)!());
+		const anchor = menuAnchors.get(parent)!();
+		assert.deepStrictEqual({
+			renderedBefore, menu,
+			anchor: dom.isHTMLElement(anchor) ? anchor.querySelector<HTMLElement>('[data-remote-id]')?.dataset.remoteId : undefined,
+		}, {
+			renderedBefore: false, anchor: focusedId,
+			menu: ['Connect', '---', 'Hide from Environment Picker', '---', 'Rename...', 'Configure Agent Run Behavior...', 'Troubleshoot Connection...'],
+		});
+	});
+
+	test('Shift+F10 opens the menu of the row whose Sandbox Profile selector has focus, not the previously focused row', () => {
+		const { parent, addHost } = createWidget();
+		addHost('tunnel:laptop', new TestSandboxProfilesHost());
+		parent.querySelector<HTMLElement>('[data-remote-id="ssh:build"]')!.click();
+		// The selector restores focus to itself when it closes, without the table focusing its row.
+		const picker = parent.querySelector<HTMLSelectElement>('[data-remote-id="tunnel:laptop"] select')!;
+		picker.focus();
+		for (const type of ['keydown', 'keyup']) {
+			picker.dispatchEvent(new KeyboardEvent(type, { key: 'F10', keyCode: 121, shiftKey: true, bubbles: true, cancelable: true }));
+		}
+		const anchor = menuAnchors.get(parent)!();
+		assert.deepStrictEqual({
+			menu: menuLabels(menus.get(parent)!()),
+			anchor: dom.isHTMLElement(anchor) ? anchor.querySelector<HTMLElement>('[data-remote-id]')?.dataset.remoteId : undefined,
+		}, {
+			menu: ['Connect', '---', 'Hide from Environment Picker', '---', 'Rename...', 'Configure Agent Run Behavior...', 'Troubleshoot Connection...', 'Delete Dev Tunnel...'],
+			anchor: 'tunnel:laptop',
 		});
 	});
 

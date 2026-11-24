@@ -23,7 +23,7 @@
 	.modal-editor-shadow {
 		box-shadow: var(--vscode-shadow-xl);
 		border-radius: 8px;
-		overflow: hidden;
+		/* Only the part clips: Chromium needs render surfaces for nested rounded clips (one rounded clip per quad). */
 		width: 100%;
 		height: 100%;
 	}

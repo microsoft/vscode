@@ -3833,6 +3833,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 
 		const unarchiveConnection = new MockAgentConnection();
 		const unarchiveProvider = createProvider(disposables, unarchiveConnection, { localAgentHostService });
+		await timeout(0);
 		fireSessionAdded(unarchiveConnection, 'dev-container-worktree-unarchive', { title: 'Dev Container Worktree Unarchive', metadata });
 		const sessionToUnarchive = unarchiveProvider.getSessions().find(candidate => candidate.title.get() === 'Dev Container Worktree Unarchive');
 		assert.ok(sessionToUnarchive);
@@ -3867,6 +3868,76 @@ suite('RemoteAgentHostSessionsProvider', () => {
 			'stop-container',
 			`archive:${handle}`,
 		]);
+	});
+
+	test('a failed Dev Container worktree archive at commit does not fail the new session', async () => {
+		const localAgentHostService = new class extends mock<IAgentHostService>() {
+			override async setDetachedWorktreeArchived(): Promise<void> {
+				throw new Error('Archiving prepared worktrees is not supported.');
+			}
+		}();
+		const provider = createProvider(disposables, connection, { localAgentHostService, openSession: true });
+		const metadata = { 'vscode.devContainerWorktree': { version: 1, handle: '00000000-0000-4000-8000-000000000001' } };
+		const session = provider.createNewSession(URI.parse('vscode-agent-host://localhost__4321/home/user/project'), provider.sessionTypes[0].id, { metadata });
+		const chat = await provider.createNewChat(session.sessionId);
+		const draftAdvertised = new DeferredPromise<void>();
+		disposables.add(provider.onDidChangeSessions(e => {
+			if (e.added.includes(session)) {
+				draftAdvertised.complete();
+			}
+		}));
+		const request = provider.sendRequest(session.sessionId, chat.resource, { query: 'hello' });
+		await draftAdvertised.p;
+
+		await provider.archiveSession(session.sessionId);
+		fireSessionAdded(connection, AgentSession.id(session.resource), { metadata });
+		const committed = await request;
+
+		assert.deepStrictEqual({ resource: committed.resource.toString(), isArchived: committed.isArchived.get() }, { resource: session.resource.toString(), isArchived: false });
+	});
+
+	test('unarchiving a new session while its Dev Container worktree archive is pending is not undone', async () => {
+		const archiveStarted = new DeferredPromise<void>();
+		const releaseArchive = new DeferredPromise<void>();
+		const delegated: boolean[] = [];
+		const localAgentHostService = new class extends mock<IAgentHostService>() {
+			override async setDetachedWorktreeArchived(_handle: string, archived: boolean): Promise<void> {
+				delegated.push(archived);
+				if (archived) {
+					archiveStarted.complete();
+					await releaseArchive.p;
+				}
+			}
+		}();
+		const provider = createProvider(disposables, connection, { localAgentHostService, openSession: true });
+		const metadata = { 'vscode.devContainerWorktree': { version: 1, handle: '00000000-0000-4000-8000-000000000001' } };
+		const session = provider.createNewSession(URI.parse('vscode-agent-host://localhost__4321/home/user/project'), provider.sessionTypes[0].id, { metadata });
+		const chat = await provider.createNewChat(session.sessionId);
+		const draftAdvertised = new DeferredPromise<void>();
+		disposables.add(provider.onDidChangeSessions(e => {
+			if (e.added.includes(session)) {
+				draftAdvertised.complete();
+			}
+		}));
+		const request = provider.sendRequest(session.sessionId, chat.resource, { query: 'hello' });
+		await draftAdvertised.p;
+
+		await provider.archiveSession(session.sessionId);
+		fireSessionAdded(connection, AgentSession.id(session.resource), { metadata });
+		await archiveStarted.p;
+		const unarchive = provider.unarchiveSession(session.sessionId);
+		releaseArchive.complete();
+		const [committed] = await Promise.all([request, unarchive]);
+
+		assert.deepStrictEqual({
+			delegated,
+			dispatched: connection.dispatchedActions.flatMap(dispatched => dispatched.action.type === ActionType.SessionIsArchivedChanged ? [dispatched.action.isArchived] : []),
+			isArchived: committed.isArchived.get(),
+		}, {
+			delegated: [true, false],
+			dispatched: [true, false],
+			isArchived: false,
+		});
 	});
 
 	for (const seconds of [1, 10, 65]) {
@@ -5126,6 +5197,28 @@ suite('RemoteAgentHostSessionsProvider', () => {
 			provider2.getSessions().map(s => s.title.get()),
 			['Keep Me'],
 		);
+	}));
+
+	test('forgetSessions removes sessions and their persisted cache without asking the host', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		connection.addSession(createSession('forget-me', { summary: 'Forget Me' }));
+		const provider = createProvider(disposables, connection, { storageService });
+		await timeout(0);
+		await storageService.flush();
+		provider.clearConnection();
+		const removed: string[] = [];
+		disposables.add(provider.onDidChangeSessions(e => removed.push(...e.removed.map(s => s.title.get()))));
+
+		provider.forgetSessions();
+		await storageService.flush();
+
+		const restored = createProvider(disposables, new MockAgentConnection(), { storageService, noConnection: true });
+		assert.deepStrictEqual({
+			sessions: provider.getSessions().length,
+			removed,
+			restored: restored.getSessions().length,
+			hostDeletions: connection.disposedSessions.length,
+		}, { sessions: 0, removed: ['Forget Me'], restored: 0, hostDeletions: 0 });
 	}));
 
 	test('retains application and stable environment identity in disconnected caches after renaming a host', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {

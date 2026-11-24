@@ -63,6 +63,8 @@ import { AgentHostToolCallTracker, IAgentHostToolCallTracker } from '../../node/
 import { AgentHostTurnTracker, IAgentHostTurnTracker } from '../../node/agentHostTurnTracker.js';
 import { AgentHostLocalCommands, IAgentHostLocalCommands } from '../../node/localCommands/localChatCommand.js';
 import { registerBuiltInChatContributions } from '../../node/chatContributions/builtInChatContributions.js';
+import { IAgentHostPullRequestAutopilotService } from '../../node/agentHostPullRequestAutopilot.js';
+import { nullPullRequestAutopilotService } from './pullRequestAutopilotTestUtils.js';
 import { AgentHostChatInputService, IAgentHostChatInputService } from '../../node/agentHostChatInputService.js';
 import { AgentHostAuthenticationService, IAgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
 import { AgentHostSubscriptionService } from '../../node/agentHostSubscriptionService.js';
@@ -166,7 +168,7 @@ class RecordingGitStateService implements IAgentHostGitStateService {
 	async refreshSessionGitState(_sessionKey: string, _workingDirectory?: URI): Promise<void> { }
 	getMaterializedWorktreeMeta(_sessionKey: string, _branchName: string): undefined { return undefined; }
 	async setFolderGitState(): Promise<void> { }
-	async resolveSessionBaseBranchName(_sessionKey: string): Promise<string | undefined> { return undefined; }
+	async resolveSessionBaseBranchRef(_sessionKey: string): Promise<string | undefined> { return undefined; }
 	async setSessionGitHubState(_sessionKey: string, _state: ISessionGitHubState): Promise<void> { }
 	async recordSessionMerge(_sessionKey: string, _commit: string): Promise<void> { }
 	async attachSessionGitHubPullRequest(sessionKey: string, workingDirectory?: URI): Promise<void> {
@@ -1007,6 +1009,7 @@ function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDispo
 	const service = disposables.add(new AgentHostChatContributions(logService, instantiationService));
 	services.set(IAgentHostChatContributions, service);
 	services.set(IAgentHostArtifactEventService, disposables.add(new AgentHostArtifactEventService()));
+	services.set(IAgentHostPullRequestAutopilotService, nullPullRequestAutopilotService);
 	const artifactIntegrationDirectory = disposables.add(new AgentHostArtifactIntegrationDirectory(disposables.add(new ArtifactIntegrationRegistry())));
 	services.set(IAgentHostArtifactIntegrationDirectory, artifactIntegrationDirectory);
 	const telemetryReporter = new AgentHostTelemetryReporter(new CapturingTelemetryService());

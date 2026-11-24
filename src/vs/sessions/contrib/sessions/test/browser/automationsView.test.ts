@@ -1484,6 +1484,35 @@ suite('AutomationsCardsWidget', () => {
 		});
 	});
 
+	test('loaded automation history keeps metadata separators through status changes', async () => {
+		const { widget, automationService } = setup();
+		automationService.setAutomations([automation()]);
+		const loadedRun = run({ externalResource: URI.parse('https://github.com/owner/private/tasks/exact') });
+		const fallback = run({ id: 'fallback', sessionResource: undefined, externalResource: URI.parse('https://github.com/owner/private/tasks/fallback') });
+		const snapshots = [];
+		for (const status of ['completed', 'running', 'completed'] as const) {
+			automationService.setRuns([{ ...loadedRun, status }, { ...fallback, status }]);
+			await waitForSessionActions();
+			snapshots.push(['.automations-run-session-list .session-item', '.automations-temporary-run'].map(selector => {
+				const row = widget.element.querySelector(selector)!;
+				return [...row.querySelectorAll<HTMLElement>('.session-separator')]
+					.filter(separator => getWindow(separator).getComputedStyle(separator).display !== 'none')
+					.map(separator => ({
+						content: getWindow(separator).getComputedStyle(separator, '::before').content,
+						hidden: separator.getAttribute('aria-hidden'),
+						next: separator.nextElementSibling?.classList.item(0),
+					}));
+			}));
+		}
+		const timeSeparator = { content: '"·"', hidden: 'true', next: 'session-time' };
+		const statusSeparator = { content: '"·"', hidden: 'true', next: 'session-description' };
+		assert.deepStrictEqual(snapshots, [
+			[[timeSeparator], [timeSeparator]],
+			[[statusSeparator, timeSeparator], [statusSeparator, timeSeparator]],
+			[[timeSeparator], [timeSeparator]],
+		]);
+	});
+
 	test('native cloud rows announce the status shown before the time', async () => {
 		const { widget, automationService, sessionsManagementService } = setup();
 		automationService.setAutomations([automation()]);
@@ -2252,20 +2281,36 @@ suite('AutomationsCardsWidget', () => {
 		const { widget, automationService } = setup();
 		automationService.setAutomations([automation()]);
 		const updatedAt = new Date().toISOString();
-		automationService.setRuns([run({
+		const cloudRun = run({
 			sessionResource: undefined, externalResource: URI.parse('https://github.com/owner/private/tasks/task'),
 			startedAt: '2026-01-01T00:00:00Z', updatedAt, status: 'completed',
-		})]);
+		});
+		automationService.setRuns([cloudRun]);
 		const row = widget.element.querySelector('.automations-temporary-run')!;
 		const details = row.querySelector('.session-details-row')!;
+		const separators = details.querySelectorAll<HTMLElement>('.session-separator');
+		const separatorStyles = () => [...separators].map(separator => ({
+			display: getWindow(separator).getComputedStyle(separator).display,
+			content: getWindow(separator).getComputedStyle(separator, '::before').content,
+		}));
+		const completedSeparators = separatorStyles();
+		automationService.setRuns([{ ...cloudRun, status: 'running' }]);
+		const runningSeparators = separatorStyles();
+		automationService.setRuns([cloudRun]);
 		assert.deepStrictEqual({
 			cloud: !!details.querySelector('.session-details-icon .codicon-cloud-compact'),
 			repository: details.querySelector('.session-badge')?.textContent,
-			separators: details.querySelectorAll('.session-separator.has-separator').length,
+			completedSeparators,
+			runningSeparators,
 			time: details.querySelector('.session-time')?.textContent,
 			description: details.querySelector('.session-description')?.textContent,
 			accessibleStatus: row.getAttribute('aria-label')?.includes('Completed on GitHub'),
-		}, { cloud: true, repository: 'owner/private', separators: 1, time: 'now', description: '', accessibleStatus: true });
+		}, {
+			cloud: true, repository: 'owner/private',
+			completedSeparators: [{ display: 'none', content: 'none' }, { display: 'block', content: '"·"' }],
+			runningSeparators: [{ display: 'block', content: '"·"' }, { display: 'block', content: '"·"' }],
+			time: 'now', description: '', accessibleStatus: true,
+		});
 	});
 
 	test('event trigger labels remain visible throughout history row hover and focus states', async () => {
