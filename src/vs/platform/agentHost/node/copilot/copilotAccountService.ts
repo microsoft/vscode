@@ -255,7 +255,7 @@ export class CopilotAccountService extends Disposable implements ICopilotAccount
 			}
 			let selected: ICopilotServiceChoice | undefined;
 			if (step.kind === 'completed' && step.result.status === 'needs-account-selection') {
-				const choices = (step.result.accounts ?? []).filter(account => account.kind === (expected.service === 'm365' ? 'loki' : 'entraEmu'));
+				const choices = (step.result.accounts ?? []).filter(account => account.kind === (expected.service === 'm365' ? 'microsoft365Copilot' : 'entraEmu'));
 				if (choices.length !== 1 || !sameService(toServiceChoice(choices[0]), expected)) {
 					throw new ProtocolError(AhpErrorCodes.AuthRequired, localize('copilot.conversationServiceUnavailable', "The selected Copilot service is unavailable for this conversation."));
 				}
@@ -448,7 +448,7 @@ async function readLoginOutcome(session: CopilotSession, result: CompletedLogin)
 }
 
 function toServiceChoice(account: LoginAccount): ICopilotServiceChoice {
-	const service = account.kind === 'entraEmu' ? 'github' : account.kind === 'loki' ? 'm365' : undefined;
+	const service = account.kind === 'entraEmu' ? 'github' : account.kind === 'microsoft365Copilot' ? 'm365' : undefined;
 	const resource = service && copilotEntraResources.get(service === 'github' ? copilotEntraEmuAudience : copilotEntraM365Audience);
 	if (!service || !resource || !account.selectionId || !account.host || !account.login) {
 		throw new Error('The runtime returned an unsupported Microsoft service choice.');
@@ -462,9 +462,7 @@ function resourceForChoice(choice: ICopilotServiceChoice): ProtectedResourceMeta
 }
 
 async function readActiveAccount(session: CopilotSession): Promise<ICopilotServiceChoice> {
-	const result = await session.rpc.accounts.get({ query: { kind: 'activeAccount' } });
-	const account = result.kind === 'activeAccount' ? result.account : undefined;
-	const authSelectionId = result.kind === 'activeAccount' ? result.authSelectionId : undefined;
+	const { account, authSelectionId } = await session.rpc.accounts.getActive();
 	const selectionId = authSelectionId ?? account?.selectionId;
 	if (!account?.active || !selectionId || !account.derivedFrom
 		|| authSelectionId && account.selectionId && authSelectionId !== account.selectionId) {
