@@ -5,8 +5,11 @@
 
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { DisposableMap, DisposableStore, IDisposable, IReference } from '../../../base/common/lifecycle.js';
+import { autorun, derived } from '../../../base/common/observable.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
+import { IModelService } from '../../../editor/common/services/model.js';
 import { ExtHostContext, ExtHostQuickDiffShape, IDocumentFilterDto, ITextEditorChange, ITextEditorDiffInformation, MainContext, MainThreadQuickDiffShape } from '../common/extHost.protocol.js';
+import { findChatEditingSessionEntry, IChatEditingService, ModifiedFileEntryState } from '../../contrib/chat/common/editing/chatEditingService.js';
 import { IQuickDiffService, QuickDiffProvider } from '../../contrib/scm/common/quickDiff.js';
 import { IQuickDiffModelService, QuickDiffModel } from '../../contrib/scm/browser/quickDiffModel.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
@@ -21,7 +24,9 @@ export class MainThreadQuickDiff implements MainThreadQuickDiffShape {
 	constructor(
 		extHostContext: IExtHostContext,
 		@IQuickDiffService private readonly quickDiffService: IQuickDiffService,
-		@IQuickDiffModelService private readonly quickDiffModelService: IQuickDiffModelService
+		@IQuickDiffModelService private readonly quickDiffModelService: IQuickDiffModelService,
+		@IChatEditingService private readonly chatEditingService: IChatEditingService,
+		@IModelService private readonly modelService: IModelService,
 	) {
 		this.proxy = extHostContext.getProxy(ExtHostContext.ExtHostQuickDiff);
 	}
@@ -48,18 +53,53 @@ export class MainThreadQuickDiff implements MainThreadQuickDiffShape {
 	}
 
 	async $createSourceControlDiffInformation(handle: number, uri: UriComponents): Promise<void> {
-		const reference = this.quickDiffModelService.createQuickDiffModelReference(URI.revive(uri));
+		const resource = URI.revive(uri);
+		const reference = this.quickDiffModelService.createQuickDiffModelReference(resource);
 		if (!reference) {
 			return;
 		}
 
 		const store = new DisposableStore();
 		store.add(reference);
-		store.add(reference.object.onDidChange(() => this.sendSourceControlDiffInformation(handle, reference)));
-		this.informationDisposables.set(handle, store);
 
-		// Push the current state so the extension host has an initial value.
-		this.sendSourceControlDiffInformation(handle, reference);
+		const chatDiffObs = derived(r => {
+			const sessions = this.chatEditingService.editingSessionsObs.read(r).filter(session => session.isGlobalEditingSession.read(r));
+			const match = findChatEditingSessionEntry(sessions, resource, r);
+			if (!match || match.entry.state.read(r) !== ModifiedFileEntryState.Modified || !match.entry.diffInfo) {
+				return undefined;
+			}
+			const diff = match.entry.diffInfo.read(r);
+			return { entry: match.entry, diff };
+		});
+
+		const publish = () => {
+			const chatDiff = chatDiffObs.get();
+			if (chatDiff) {
+				const changes: ITextEditorChange[] = chatDiff.diff.changes.map(change => [
+					change.original.startLineNumber,
+					change.original.endLineNumberExclusive,
+					change.modified.startLineNumber,
+					change.modified.endLineNumberExclusive,
+				]);
+				const documentVersion = this.modelService.getModel(resource)?.getVersionId() ?? reference.object.changesVersionId;
+				const diffInformation: ITextEditorDiffInformation = {
+					documentVersion,
+					original: chatDiff.entry.originalURI,
+					modified: chatDiff.entry.modifiedURI,
+					changes,
+				};
+				this.proxy.$acceptSourceControlDiffInformation(handle, diffInformation);
+				return;
+			}
+			this.sendSourceControlDiffInformation(handle, reference);
+		};
+
+		store.add(reference.object.onDidChange(publish));
+		store.add(autorun(r => {
+			chatDiffObs.read(r);
+			publish();
+		}));
+		this.informationDisposables.set(handle, store);
 	}
 
 	async $disposeSourceControlDiffInformation(handle: number): Promise<void> {
