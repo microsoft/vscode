@@ -36,6 +36,8 @@ export interface IReleaseAgePolicy {
 	/** The minimum age of a version, in minutes, or undefined when the policy sets none. */
 	readonly minimumReleaseAge: number | undefined;
 	readonly exclude: readonly string[];
+	/** Exclusions that a version must match as well, those of the base when a change edits the policy. */
+	readonly alsoExclude?: readonly string[];
 	/** The pnpm-workspace.yaml that the policy comes from. */
 	readonly file: string | undefined;
 }
@@ -453,7 +455,22 @@ function decodeIniString(value: string): string | undefined {
 			return undefined;
 		}
 	}
-	return trimmed.startsWith('\'') ? (trimmed.endsWith('\'') && trimmed.length > 1 ? trimmed.slice(1, -1) : undefined) : trimmed;
+	if (trimmed.startsWith('\'')) {
+		return trimmed.endsWith('\'') && trimmed.length > 1 ? trimmed.slice(1, -1) : undefined;
+	}
+	// An unquoted value ends at an unescaped ; or #, and a backslash escapes \, ; and #, as the ini package reads it.
+	let decoded = '';
+	for (let index = 0; index < trimmed.length; index++) {
+		const char = trimmed[index];
+		if (char === '\\' && '\\;#'.includes(trimmed[index + 1] ?? '')) {
+			decoded += trimmed[++index];
+		} else if (char === ';' || char === '#') {
+			break;
+		} else {
+			decoded += char;
+		}
+	}
+	return decoded.trim();
 }
 
 /**
@@ -544,7 +561,7 @@ export async function checkChanges(changes: readonly ILockfileChange[], lockedOn
 				continue;
 			}
 			const minimumReleaseAge = policy.minimumReleaseAge;
-			if (minimumReleaseAge === undefined || lockedOnBase.has(packageId(pkg)) || (pkg.ecosystem === 'npm' && isExcluded(pkg.name, pkg.version, policy.exclude))) {
+			if (minimumReleaseAge === undefined || lockedOnBase.has(packageId(pkg)) || (pkg.ecosystem === 'npm' && isExcluded(pkg.name, pkg.version, policy.exclude) && (policy.alsoExclude === undefined || isExcluded(pkg.name, pkg.version, policy.alsoExclude)))) {
 				continue;
 			}
 			checks.push(registry.release(pkg.ecosystem, pkg.name, pkg.version).then(release => {
@@ -701,13 +718,14 @@ export function packageManagerPackage(packageJson: string | undefined): ILockedP
 
 /**
  * The stricter of the policies of the base and the head, so that a change can't relax the policy that checks it: the
- * larger minimumReleaseAge, and only the exclusions that both list.
+ * larger minimumReleaseAge, and only versions that the exclusions of both exempt.
  */
 export function stricterPolicy(base: IReleaseAgePolicy, head: IReleaseAgePolicy): IReleaseAgePolicy {
 	const ages = [base.minimumReleaseAge, head.minimumReleaseAge].filter(age => age !== undefined);
 	return {
 		minimumReleaseAge: ages.length ? Math.max(...ages) : undefined,
-		exclude: head.exclude.filter(pattern => base.exclude.includes(pattern)),
+		exclude: head.exclude,
+		alsoExclude: base.exclude,
 		file: head.file ?? base.file,
 	};
 }

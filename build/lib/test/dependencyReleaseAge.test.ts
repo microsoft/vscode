@@ -9,7 +9,7 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { suite, test } from 'node:test';
-import { addedPackages, cargoSource, checkChanges, registryConfigurationProblems, checkRevisions, createPublicRegistry, isExcluded, packageManagerPackage, parseCargoLockfile, parsePackageLockfile, parsePnpmLockfile, parseReleaseAgePolicy, type ILockedPackage, type IRegistry, type Release } from '../dependencyReleaseAge.ts';
+import { addedPackages, cargoSource, checkChanges, registryConfigurationProblems, stricterPolicy, checkRevisions, createPublicRegistry, isExcluded, packageManagerPackage, parseCargoLockfile, parsePackageLockfile, parsePnpmLockfile, parseReleaseAgePolicy, type ILockedPackage, type IRegistry, type Release } from '../dependencyReleaseAge.ts';
 
 const repositoryRoot = path.resolve(import.meta.dirname, '../../..');
 const now = new Date('2026-11-23T12:00:00Z');
@@ -285,6 +285,8 @@ suite('dependencyReleaseAge', () => {
 			npmrc: registryConfigurationProblems('a/.npmrc', 'registry=https://registry.npmjs.org/\n@vscode:registry = "https://registry.npmjs.org"\n//registry.npmjs.org/:_authToken=x\n@corp:registry=https://mirror.example.com/\n'),
 			workspace: registryConfigurationProblems('pnpm-workspace.yaml', 'minimumReleaseAge: 10080\nregistries:\n  default: https://mirror.example.com/\n'),
 			plain: registryConfigurationProblems('pnpm-workspace.yaml', 'minimumReleaseAge: 10080\n'),
+			// INI drops inline comments from unquoted values, and a backslash escapes them.
+			comments: registryConfigurationProblems('.npmrc', 'registry=https://registry.npmjs.org/ # official\n@a:registry=https://registry.npmjs.org/;x\n@b:registry=https://mirror.example.com/\\#x\n'),
 			// INI decodes quoted keys, so these set the registry too, and a section or an unreadable line fails.
 			quoted: registryConfigurationProblems('.npmrc', '"registry"=https://mirror.example.com/\n"\\u0072egistry" = https://mirror.example.com/\n[section]\n'),
 			// Cargo source replacement and patches, but not the target settings of the repository.
@@ -298,6 +300,7 @@ suite('dependencyReleaseAge', () => {
 			npmrc: ['a/.npmrc sets @corp:registry to https://mirror.example.com/. Dependencies must come from registry.npmjs.org.'],
 			workspace: ['pnpm-workspace.yaml sets registries, which routes packages to registries that this check doesn\'t read. Dependencies must come from registry.npmjs.org.'],
 			plain: [],
+			comments: ['.npmrc sets @b:registry to https://mirror.example.com/\\#x. Dependencies must come from registry.npmjs.org.'],
 			quoted: [
 				'.npmrc sets registry to https://mirror.example.com/. Dependencies must come from registry.npmjs.org.',
 				'.npmrc sets registry to https://mirror.example.com/. Dependencies must come from registry.npmjs.org.',
@@ -320,6 +323,18 @@ suite('dependencyReleaseAge', () => {
 			isExcluded('webpack', '5.102.1', exclude),
 			isExcluded('webpack', '5.102.2', exclude),
 		], [true, false, true, true, false, true, false, true, false]);
+	});
+
+	test('a version that the exclusions of both the base and the head exempt stays exempt', async () => {
+		const narrowed = stricterPolicy({ ...policy, exclude: ['@vscode/*'] }, { ...policy, exclude: ['@vscode/vsce@1.0.0', '*'] });
+		const registry = fakeRegistry({
+			'@vscode/vsce@1.0.0': { kind: 'published', publishedAt: daysAgo(1) },
+			'@vscode/other@1.0.0': { kind: 'published', publishedAt: daysAgo(1) },
+			'left-pad@1.0.0': { kind: 'published', publishedAt: daysAgo(1) },
+		});
+		const violations = await checkChanges([{ lockfile: 'pnpm-lock.yaml', policy: narrowed, added: [npm('@vscode/vsce', '1.0.0'), npm('@vscode/other', '1.0.0'), npm('left-pad', '1.0.0')] }], new Set(), registry, now);
+		// The head's '*' exempts left-pad, but the base's exclusions don't.
+		assert.deepStrictEqual(violations.map(violation => violation.name), ['left-pad']);
 	});
 
 	test('only the packages that a lockfile did not have from the same source count as added', () => {
