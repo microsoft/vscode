@@ -85,4 +85,17 @@ suite('Account Title Bar Widget Styles', () => {
 			},
 		});
 	});
+
+	test('github provider icon does not have an outer circular border', () => {
+		const root = append(mainWindow.document.body, $('.monaco-workbench.agent-sessions-workbench.vs-dark'));
+		root.style.setProperty('--vscode-strokeThickness', '1px');
+		root.style.setProperty('--vscode-descriptionForeground', '#888888');
+		store.add(toDisposable(() => root.remove()));
+
+		const genericIcon = append(root, $('span.sessions-account-titlebar-panel-provider-icon'));
+		const githubIcon = append(root, $('span.sessions-account-titlebar-panel-provider-icon.codicon-github'));
+
+		assert.strictEqual(mainWindow.getComputedStyle(genericIcon).borderStyle, 'solid');
+		assert.strictEqual(mainWindow.getComputedStyle(githubIcon).borderStyle, 'none');
+	});
 });
