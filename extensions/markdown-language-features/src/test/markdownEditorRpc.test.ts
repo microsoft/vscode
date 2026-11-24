@@ -31,6 +31,7 @@ suite('Markdown editor RPC', () => {
 		host.register(markdownEditorHost, {
 			ready: () => { },
 			history: () => { },
+			undoEditHint: () => { },
 			openLink: () => { },
 			setReadonly: () => { },
 			editorFocusChanged: () => { },

@@ -205,6 +205,46 @@ suite('Markdown editor bridge', () => {
 		}
 	});
 
+	test('preserves word-level undo boundaries during burst typing without awaiting each write', async () => {
+		const document = await vscode.workspace.openTextDocument({ language: 'markdown', content: '' });
+		await vscode.window.showTextDocument(document);
+		const panel = new TestPanel();
+		const provider = createProvider(new TestMemento());
+		const cancellation = new vscode.CancellationTokenSource();
+		let connection: ReturnType<typeof connectRenderer> | undefined;
+		try {
+			await provider.resolveCustomTextEditor(document, panel, cancellation.token);
+			const secret = /name="vscode-markdown-editor-message-secret" content="([^"]+)"/.exec(panel.webview.html)?.[1];
+			assert.ok(secret);
+			connection = connectRenderer(panel, secret);
+			const { host, client } = connection;
+			await host.ready({});
+			await until(() => client.getContent() === '');
+
+			// Send all characters rapidly without awaiting document writes so TextDocumentSync
+			// batches keystrokes across the space boundary (e.g. "o " + "world").
+			const phrase = 'hello world';
+			for (let i = 0; i < phrase.length; i++) {
+				type(client, i, phrase[i]);
+			}
+			await until(() => document.getText() === phrase && client.getContent() === phrase, () => [document.getText(), client.getContent()]);
+
+			// Undo must still remove " world" first and then "hello"
+			await vscode.commands.executeCommand('undo');
+			await until(() => document.getText() === 'hello', () => document.getText());
+			assert.strictEqual(document.getText(), 'hello');
+
+			await vscode.commands.executeCommand('undo');
+			await until(() => document.getText() === '', () => document.getText());
+			assert.strictEqual(document.getText(), '');
+		} finally {
+			panel.dispose();
+			connection?.dispose();
+			provider.dispose();
+			cancellation.dispose();
+		}
+	});
+
 	test('cancels navigation waiting for renderer readiness and releases it when the panel is disposed', async () => {
 		const document = await vscode.workspace.openTextDocument({ language: 'markdown', content: '# Heading' });
 		const panel = new TestPanel();

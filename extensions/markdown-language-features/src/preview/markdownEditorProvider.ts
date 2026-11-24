@@ -10,7 +10,7 @@ import { Disposable, disposeAll } from '../util/dispose';
 import { getRangeFromPositionOrRange, MdLinkOpener } from '../util/openDocumentLink';
 import { areUrisEqual, getMarkdownLocalResourceRoots } from '../util/resources';
 import { ChangedLineRange, MarkdownPreviewLineDiffProvider } from './lineDiff';
-import { TextDocumentSync, type SyncedTextDocument } from '@vscode/web-editors';
+import { TextDocumentSync, type DocumentTextChange, type SyncedTextDocument } from '@vscode/web-editors';
 import { vsCodeLineBreak, vsCodeTextDocument } from '@vscode/web-editors/vscode';
 import { encodeWebviewInitialState } from './webviewInitialState';
 import type { ILogger } from '../logging';
@@ -370,6 +370,16 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 		const vsCodeDocument = vsCodeTextDocument(document);
 		const undoGrouper = new MarkdownEditorUndoGrouper();
 		let applyingEditorEdit = false;
+		let suppressChangeVersion: number | undefined;
+		let suppressedSegmentChange = false;
+		const onDidChangeText = new vscode.EventEmitter<DocumentTextChange>();
+		const forwardDocumentChange = vsCodeDocument.onDidChangeText(change => {
+			if (suppressChangeVersion !== undefined && document.version === suppressChangeVersion) {
+				suppressedSegmentChange = true;
+				return;
+			}
+			onDidChangeText.fire(change);
+		});
 		// Counts the editor's own writes for telemetry
 		const editorWrites = new vscode.EventEmitter<void>();
 		const syncedDocument: SyncedTextDocument = {
@@ -380,35 +390,56 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 					undoGrouper.reset();
 					return false;
 				}
-				const edit = new vscode.WorkspaceEdit();
-				let deletedText = '';
-				for (const { offset, length, newText } of edits) {
-					const range = new vscode.Range(document.positionAt(offset), document.positionAt(offset + length));
-					if (edits.length === 1 && length > 0) {
-						deletedText = document.getText(range);
+				const deletedText = edits.length === 1 && edits[0].length > 0
+					? document.getText(new vscode.Range(document.positionAt(edits[0].offset), document.positionAt(edits[0].offset + edits[0].length)))
+					: '';
+				const steps = undoGrouper.planEdits(edits, deletedText);
+				let expectedVersion = version;
+				let appliedCount = 0;
+				suppressedSegmentChange = false;
+				for (let i = 0; i < steps.length; i++) {
+					if (document.version !== expectedVersion) {
+						undoGrouper.reset();
+						break;
 					}
-					edit.replace(document.uri, range, newText);
+					const step = steps[i];
+					const edit = new vscode.WorkspaceEdit();
+					for (const { offset, length, newText } of step.edits) {
+						edit.replace(document.uri, new vscode.Range(document.positionAt(offset), document.positionAt(offset + length)), newText);
+					}
+					const isLastStep = i === steps.length - 1;
+					applyingEditorEdit = true;
+					suppressChangeVersion = isLastStep ? undefined : expectedVersion + 1;
+					let applied = false;
+					try {
+						applied = await vscode.workspace.applyEdit(edit, step.metadata);
+					} finally {
+						applyingEditorEdit = false;
+						suppressChangeVersion = undefined;
+					}
+					if (!applied) {
+						undoGrouper.reset();
+						break;
+					}
+					step.commit();
+					appliedCount++;
+					expectedVersion = document.version;
 				}
-				const metadata = undoGrouper.prepareEdit(edits, deletedText);
-				applyingEditorEdit = true;
-				let applied = false;
-				try {
-					applied = await vscode.workspace.applyEdit(edit, metadata);
-				} finally {
-					applyingEditorEdit = false;
-				}
-				if (applied) {
-					undoGrouper.commitEdit();
+				if (appliedCount > 0) {
+					if (appliedCount < steps.length && suppressedSegmentChange) {
+						onDidChangeText.fire({});
+					}
 					editorWrites.fire();
-				} else {
-					undoGrouper.reset();
+					return true;
 				}
-				return applied;
+				return false;
 			},
-			onDidChangeText: vsCodeDocument.onDidChangeText,
+			onDidChangeText: onDidChangeText.event,
 		};
 		const sync = new TextDocumentSync(syncedDocument, { onError: (message, error) => this.#logger.trace('Markdown editor', message, error) });
 		webviewPanel.onDidDispose(() => {
+			forwardDocumentChange.dispose();
+			onDidChangeText.dispose();
 			vsCodeDocument.dispose();
 			editorWrites.dispose();
 		});
@@ -566,6 +597,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 		});
 		editorWebview.setHandlers({
 			selectionChanged: message => navigation.acceptSelection(message),
+			undoEditHint: message => undoGrouper.acceptHint(message.kind),
 			getDiagnostics: () => languageFeatures.diagnostics(),
 			completions: message => languageFeatures.completions(message),
 			acceptCompletion: message => languageFeatures.accept(message),

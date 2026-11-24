@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { DocumentTextEdit } from '@vscode/web-editors';
+import type { UndoEditHint } from './markdownEditorProtocol';
 
 /**
  * Maximum single-edit character length treated as contiguous typing/deletion
@@ -26,6 +27,13 @@ export interface UndoStopMetadata {
 	readonly undoStopAfter: boolean;
 }
 
+export interface PlannedUndoStep {
+	readonly edits: readonly DocumentTextEdit[];
+	readonly metadata: UndoStopMetadata;
+	/** Commits this step's state transition after `applyEdit` succeeds. */
+	commit(): void;
+}
+
 interface PendingState {
 	readonly kind: EditKind;
 	readonly offset: number | undefined;
@@ -40,22 +48,63 @@ export class MarkdownEditorUndoGrouper {
 
 	#lastKind: EditKind = 'other';
 	#lastOffset: number | undefined;
-	#pending: PendingState | undefined;
+	#pendingHint: Exclude<UndoEditHint, 'break'> | undefined;
+	#generation = 0;
 
 	public reset(): void {
 		this.#lastKind = 'other';
 		this.#lastOffset = undefined;
-		this.#pending = undefined;
+		this.#pendingHint = undefined;
+		this.#generation++;
 	}
 
 	/**
-	 * Computes undo stop metadata for `edits` without committing the state transition
-	 * until {@link commitEdit} is called.
+	 * Accepts an explicit boundary or edit-kind hint from the webview editor
+	 * (navigation, pointer click, paste, or deletion direction).
 	 */
-	public prepareEdit(edits: readonly DocumentTextEdit[], deletedText: string): UndoStopMetadata {
-		if (edits.length !== 1) {
-			this.#pending = { kind: 'other', offset: undefined };
-			return { undoStopBefore: true, undoStopAfter: true };
+	public acceptHint(hint: UndoEditHint): void {
+		if (hint === 'break') {
+			this.reset();
+			return;
+		}
+		this.#pendingHint = hint;
+	}
+
+	/**
+	 * Plans one or more sequential `applyEdit` steps for `edits` along with their
+	 * `undoStopBefore` / `undoStopAfter` metadata. Batched typing that crosses a
+	 * word/space undo boundary (e.g. `"o "` after `"hell"`) is split at those
+	 * boundaries so undo granularity does not depend on IPC batching.
+	 *
+	 * Call `step.commit()` after each step's `applyEdit` succeeds.
+	 */
+	public planEdits(edits: readonly DocumentTextEdit[], deletedText: string): readonly PlannedUndoStep[] {
+		const hint = this.#pendingHint;
+		this.#pendingHint = undefined;
+		const generation = this.#generation;
+
+		const makeStep = (
+			stepEdits: readonly DocumentTextEdit[],
+			metadata: UndoStopMetadata,
+			nextState: PendingState,
+		): PlannedUndoStep => ({
+			edits: stepEdits,
+			metadata,
+			commit: () => {
+				// Ignore commits from edits that were in flight before a reset/break arrived.
+				if (this.#generation === generation) {
+					this.#lastKind = nextState.kind;
+					this.#lastOffset = nextState.offset;
+				}
+			},
+		});
+
+		const isolated = (): readonly PlannedUndoStep[] => [
+			makeStep(edits, { undoStopBefore: true, undoStopAfter: true }, { kind: 'other', offset: undefined }),
+		];
+
+		if (hint === 'isolated' || edits.length !== 1) {
+			return isolated();
 		}
 
 		const edit = edits[0];
@@ -65,91 +114,121 @@ export class MarkdownEditorUndoGrouper {
 			|| deletedText.includes('\n')
 			|| deletedText.includes('\r')
 		) {
-			this.#pending = { kind: 'other', offset: undefined };
-			return { undoStopBefore: true, undoStopAfter: true };
+			return isolated();
 		}
 
 		// Pure insertion (typing)
 		if (edit.length === 0 && edit.newText.length > 0) {
 			if (edit.newText.length > MAX_COALESCED_EDIT_LENGTH) {
-				this.#pending = { kind: 'other', offset: undefined };
-				return { undoStopBefore: true, undoStopAfter: true };
+				return isolated();
 			}
-			return this.#prepareTyping(edit.offset, edit.newText);
+			return this.#planTyping(edit.offset, edit.newText, makeStep);
 		}
 
 		// Pure deletion (backspace / forward delete)
 		if (edit.length > 0 && edit.newText.length === 0) {
 			if (edit.length > MAX_COALESCED_EDIT_LENGTH) {
-				this.#pending = { kind: 'other', offset: undefined };
-				return { undoStopBefore: true, undoStopAfter: true };
+				return isolated();
 			}
-			return this.#prepareDeletion(edit.offset, edit.length);
+			const { metadata, nextState } = this.#planDeletion(edit.offset, edit.length, hint);
+			return [makeStep(edits, metadata, nextState)];
 		}
 
 		// Replacement or no-op
-		this.#pending = { kind: 'other', offset: undefined };
-		return { undoStopBefore: true, undoStopAfter: true };
+		return isolated();
 	}
 
-	/** Commits the state transition from the last {@link prepareEdit} call after `applyEdit` succeeds. */
-	public commitEdit(): void {
-		if (this.#pending) {
-			this.#lastKind = this.#pending.kind;
-			this.#lastOffset = this.#pending.offset;
-			this.#pending = undefined;
+	#planTyping(
+		offset: number,
+		text: string,
+		makeStep: (edits: readonly DocumentTextEdit[], metadata: UndoStopMetadata, nextState: PendingState) => PlannedUndoStep,
+	): readonly PlannedUndoStep[] {
+		const tokens = text.match(/ +|[^ ]+/g) ?? [text];
+		const groups: { offset: number; text: string; undoStopBefore: boolean; nextState: PendingState }[] = [];
+
+		let kind = this.#lastKind;
+		let prevOffset = this.#lastOffset;
+		let currentOffset = offset;
+
+		for (const token of tokens) {
+			const isContiguous = prevOffset === currentOffset;
+			const nextOffset = currentOffset + token.length;
+			let nextKind: 'typingOther' | 'typingFirstSpace' | 'typingConsecutiveSpace';
+
+			if (token[0] === ' ') {
+				const prevIsSpace = kind === 'typingFirstSpace' || kind === 'typingConsecutiveSpace';
+				nextKind = (isContiguous && prevIsSpace) || token.length > 1
+					? 'typingConsecutiveSpace'
+					: 'typingFirstSpace';
+			} else {
+				nextKind = 'typingOther';
+			}
+
+			const undoStopBefore = !isContiguous || shouldPushUndoStopBetweenTyping(kind, nextKind);
+			const nextState: PendingState = { kind: nextKind, offset: nextOffset };
+
+			if (groups.length > 0 && !undoStopBefore) {
+				const current = groups[groups.length - 1];
+				current.text += token;
+				current.nextState = nextState;
+			} else {
+				groups.push({ offset: currentOffset, text: token, undoStopBefore, nextState });
+			}
+
+			kind = nextKind;
+			prevOffset = nextOffset;
+			currentOffset = nextOffset;
 		}
+
+		return groups.map(group => makeStep(
+			[{ offset: group.offset, length: 0, newText: group.text }],
+			{ undoStopBefore: group.undoStopBefore, undoStopAfter: false },
+			group.nextState,
+		));
 	}
 
-	#prepareTyping(offset: number, text: string): UndoStopMetadata {
-		const isContiguous = this.#lastOffset === offset;
-		const nextOffset = offset + text.length;
-
-		if (/^ +$/.test(text)) {
-			const prevIsSpace = this.#lastKind === 'typingFirstSpace' || this.#lastKind === 'typingConsecutiveSpace';
-			const nextKind: EditKind = (isContiguous && prevIsSpace) || text.length > 1
-				? 'typingConsecutiveSpace'
-				: 'typingFirstSpace';
-			const undoStopBefore = !isContiguous || shouldPushUndoStopBetweenTyping(this.#lastKind, nextKind);
-			this.#pending = { kind: nextKind, offset: nextOffset };
-			return { undoStopBefore, undoStopAfter: false };
+	#planDeletion(
+		offset: number,
+		length: number,
+		hint: 'deleteBackward' | 'deleteForward' | undefined,
+	): { metadata: UndoStopMetadata; nextState: PendingState } {
+		if (hint === 'deleteBackward') {
+			const canCoalesce = (this.#lastKind === 'deletingLeft' || this.#lastKind === 'deleting')
+				&& offset + length === this.#lastOffset;
+			return {
+				metadata: { undoStopBefore: !canCoalesce, undoStopAfter: false },
+				nextState: { kind: 'deletingLeft', offset },
+			};
 		}
 
-		if (!text.includes(' ')) {
-			const undoStopBefore = !isContiguous || shouldPushUndoStopBetweenTyping(this.#lastKind, 'typingOther');
-			this.#pending = { kind: 'typingOther', offset: nextOffset };
-			return { undoStopBefore, undoStopAfter: false };
+		if (hint === 'deleteForward') {
+			const canCoalesce = (this.#lastKind === 'deletingRight' || this.#lastKind === 'deleting')
+				&& offset === this.#lastOffset;
+			return {
+				metadata: { undoStopBefore: !canCoalesce, undoStopAfter: false },
+				nextState: { kind: 'deletingRight', offset },
+			};
 		}
 
-		// Coalesced typing that spans a space boundary (e.g. " w" or "o ")
-		const startsWithSpace = text.startsWith(' ');
-		const endsWithSpace = text.endsWith(' ');
-		const nextKind: EditKind = endsWithSpace
-			? (text.endsWith('  ') ? 'typingConsecutiveSpace' : 'typingFirstSpace')
-			: 'typingOther';
-		const undoStopBefore = !isContiguous
-			|| startsWithSpace
-			|| shouldPushUndoStopBetweenTyping(this.#lastKind, 'typingOther');
-		this.#pending = { kind: nextKind, offset: nextOffset };
-		return { undoStopBefore, undoStopAfter: false };
-	}
-
-	#prepareDeletion(offset: number, length: number): UndoStopMetadata {
-		// Contiguous backspace (deleting immediately before the previous deletion offset)
+		// Fallback when no direction hint was supplied (e.g. direct programmatic test)
 		if ((this.#lastKind === 'deleting' || this.#lastKind === 'deletingLeft') && offset + length === this.#lastOffset) {
-			this.#pending = { kind: 'deletingLeft', offset };
-			return { undoStopBefore: false, undoStopAfter: false };
+			return {
+				metadata: { undoStopBefore: false, undoStopAfter: false },
+				nextState: { kind: 'deletingLeft', offset },
+			};
 		}
 
-		// Contiguous forward-delete (deleting at the same offset)
 		if ((this.#lastKind === 'deleting' || this.#lastKind === 'deletingRight') && offset === this.#lastOffset) {
-			this.#pending = { kind: 'deletingRight', offset };
-			return { undoStopBefore: false, undoStopAfter: false };
+			return {
+				metadata: { undoStopBefore: false, undoStopAfter: false },
+				nextState: { kind: 'deletingRight', offset },
+			};
 		}
 
-		// First deletion in a sequence; direction will be disambiguated by the next deletion
-		this.#pending = { kind: 'deleting', offset };
-		return { undoStopBefore: true, undoStopAfter: false };
+		return {
+			metadata: { undoStopBefore: true, undoStopAfter: false },
+			nextState: { kind: 'deleting', offset },
+		};
 	}
 }
 
