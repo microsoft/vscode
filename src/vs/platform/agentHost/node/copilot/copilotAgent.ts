@@ -4076,8 +4076,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (model === undefined) {
 			return false;
 		}
-		const selectedModel = models.find(candidate => candidate.id === model.id);
-		return selectedModel !== undefined && this._byokModels.includes(selectedModel);
+		// Published models are copies of the BYOK models when they have a config schema, so they are matched by id.
+		return models.some(candidate => candidate.id === model.id) && this._byokModels.some(candidate => candidate.id === model.id);
 	}
 
 	async authenticate(resource: string, token: string, expiresIn?: number, _meta?: Record<string, unknown>): Promise<boolean> {
