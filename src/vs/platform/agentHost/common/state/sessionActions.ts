@@ -144,9 +144,8 @@ import {
 	type SessionWorkingDirectoryRemovedAction,
 	type SessionWorkingDirectoryReplacedAction,
 	type RootConfigChangedAction,
-	type RootModelSourceRegistrationSetAction,
-	type RootModelSourceRegistrationRemovedAction,
-	type RootModelSourceContributorRemovedAction,
+	type RootModelSourceSetAction,
+	type RootModelSourceRemovedAction,
 } from './protocol/actions.js';
 
 import type { SessionSummary } from './protocol/state.js';
@@ -199,11 +198,11 @@ export type IActiveSessionsChangedAction = RootActiveSessionsChangedAction;
 export type IRootConfigChangedAction = RootConfigChangedAction;
 
 /** A change to the host's model source registry that a client dispatches on the root channel. */
-export type ClientModelSourceAction = RootModelSourceRegistrationSetAction | RootModelSourceContributorRemovedAction | RootModelSourceRegistrationRemovedAction;
+export type ClientModelSourceAction = RootModelSourceSetAction | RootModelSourceRemovedAction;
 
 /** Whether `action` is a {@link ClientModelSourceAction}. */
 export function isClientModelSourceAction(action: { readonly type: string }): action is ClientModelSourceAction {
-	return action.type === ActionType.RootModelSourceRegistrationSet || action.type === ActionType.RootModelSourceContributorRemoved || action.type === ActionType.RootModelSourceRegistrationRemoved;
+	return action.type === ActionType.RootModelSourceSet || action.type === ActionType.RootModelSourceRemoved;
 }
 
 // Chat/turn actions — short aliases (turns now live on the chat channel)

@@ -1670,7 +1670,7 @@ export interface IAgentModelInfo {
 	readonly supportsVision: boolean;
 	readonly configSchema?: ConfigSchema;
 	readonly policyState?: PolicyState;
-	/** The registered model source this model comes from, as its `ModelSourceRegistration.id`. */
+	/** The registered model source this model comes from, as its `ModelSource.id`. */
 	readonly modelSourceId?: string;
 	readonly _meta?: Record<string, unknown>;
 }
@@ -1681,7 +1681,7 @@ export interface IAgentModelInfo {
  * capability lists.
  */
 export interface IAgentModelSource {
-	/** The registration's `id`, and the `modelSourceId` of the models the agent publishes for it. */
+	/** The source's `id`, and the `modelSourceId` of the models the agent publishes for it. */
 	readonly id: string;
 	readonly format: string;
 	readonly definition: Record<string, unknown>;

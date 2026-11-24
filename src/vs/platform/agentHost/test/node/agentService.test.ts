@@ -24895,14 +24895,14 @@ suite('AgentService (node dispatcher)', () => {
 			registerTestAgentProvider(service, provider);
 			const stateManager = getStateManager(service);
 
-			service.dispatchModelSourceAction({ type: ActionType.RootModelSourceRegistrationSet, registration: { id: 'source', provider: 'copilot', displayName: 'Example', format: 'example.test/source@1', definition: {} }, clientId: 'client-1' }, 'client-1', 1);
-			const credentialNonce = stateManager.rootState.modelSourceRegistrations?.[0].credentialNonce ?? '';
+			service.dispatchModelSourceAction({ type: ActionType.RootModelSourceSet, modelSource: { id: 'source', provider: 'copilot', displayName: 'Example', format: 'example.test/source@1', nonce: 'v1' }, definition: {} }, 'client-1', 1);
+			const credentialNonce = stateManager.rootState.modelSources?.[0].credentialNonce ?? '';
 			const result = await service.authenticate({ resource: 'https://models.example.test/v1', token: 'secret', target: { kind: AuthenticateTargetKind.ModelSource, modelSourceId: 'source', credentialNonce } });
 			const agentInfo = stateManager.rootState.agents.find(info => info.provider === 'copilot');
 
 			assert.deepStrictEqual({
 				result,
-				state: stateManager.rootState.modelSourceRegistrations?.[0].state,
+				state: stateManager.rootState.modelSources?.[0].state,
 				served,
 				modelSources: agentInfo?.modelSources,
 				models: agentInfo?.models.map(model => ({ id: model.id, modelSourceId: model.modelSourceId })),

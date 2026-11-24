@@ -150,11 +150,11 @@ suite('Agent Host Provider Integration - Copilot BYOK direct endpoints', functio
 		const sources = formats.map(format => {
 			const { endpoint } = resolveCustomEndpointRuntimeEndpoint(settings[format]);
 			assert.ok(endpoint, `${format} is not routed directly`);
-			return getCopilotModelSourceModels({ id: `vscode.byok/ns/copilotcli/customendpoint/${format}`, format: BYOK_ENDPOINTS_MODEL_SOURCE_FORMAT, definition: { models: [{ id: `model-${format}`, endpoint, toolCalling: true, maxOutputTokens: 512 }], requiresCredential: true }, credential: API_KEYS[format] })[0];
+			return getCopilotModelSourceModels({ id: `vscode.byok/copilotcli/customendpoint/${format}`, format: BYOK_ENDPOINTS_MODEL_SOURCE_FORMAT, definition: { models: [{ id: `model-${format}`, endpoint, toolCalling: true, maxOutputTokens: 512 }], requiresCredential: true }, credential: API_KEYS[format] })[0];
 		});
 
 		// A source that needs no key, such as an Ollama server, must not pick up keys from the environment.
-		sources.push(getCopilotModelSourceModels({ id: 'vscode.byok/ns/copilotcli/ollama/Local', format: BYOK_ENDPOINTS_MODEL_SOURCE_FORMAT, definition: { models: [{ id: 'model-keyless', endpoint: { type: 'openai', wireApi: 'completions', baseUrl: `${base}/keyless/v1` }, toolCalling: true }], requiresCredential: false } })[0]);
+		sources.push(getCopilotModelSourceModels({ id: 'vscode.byok/copilotcli/ollama/Local', format: BYOK_ENDPOINTS_MODEL_SOURCE_FORMAT, definition: { models: [{ id: 'model-keyless', endpoint: { type: 'openai', wireApi: 'completions', baseUrl: `${base}/keyless/v1` }, toolCalling: true }], requiresCredential: false } })[0]);
 
 		const sessionId = 'byok-direct-endpoints';
 		const homeDirectory = await mkdtemp(`${tmpdir()}/byok-direct-`);

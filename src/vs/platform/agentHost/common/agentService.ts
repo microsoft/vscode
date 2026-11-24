@@ -1055,7 +1055,7 @@ export interface IAgentService {
 	 */
 	dispatchModelSourceAction?(action: ClientModelSourceAction, clientId: string, clientSeq: number, clientContext?: IAgentHostClientTelemetryContext): void;
 
-	/** Removes the model sources a departed client registered with `contributingClient` retention. */
+	/** Stops counting a departed client as a contributor of its model sources, removing those it was the last contributor to under `contributingClient` retention. */
 	removeClientModelSources?(clientId: string): void;
 	getModelsForCredentials(provider: string, credentials: IAgentHostCredentialSource, token?: CancellationToken): Promise<readonly IAgentModelInfo[]>;
 

@@ -14,9 +14,9 @@ import type { AuthenticateParams, AuthenticateResult } from '../../../../../../p
 import { AgentHostByokDirectEndpointsSettingId, AgentHostByokModelsEnabledSettingId, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IAgentHostConnectionsService, type IAgentHostConnectionInfo } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { AgentHostClientConnectionKind } from '../../../../../../platform/agentHost/common/agentHostTelemetry.js';
-import { BYOK_ENDPOINTS_MODEL_SOURCE_FORMAT, getByokModelSourceNamespace, parseByokModelSourceId } from '../../../../../../platform/agentHost/common/byokModelSource.js';
+import { BYOK_ENDPOINTS_MODEL_SOURCE_FORMAT, getByokModelSourceId } from '../../../../../../platform/agentHost/common/byokModelSource.js';
 import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
-import { ModelSourceAuthRequiredReason, ModelSourceRetentionPolicy, ModelSourceStatus, type ModelSourceRegistration, type ModelSourceState, type RootState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { ModelSourceAuthRequiredReason, ModelSourceRetentionPolicy, ModelSourceStatus, type ModelSource, type ModelSourceState, type RootState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, type ActionEnvelope, type ClientModelSourceAction, type RootAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { rootReducer } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { ConfigurationTarget } from '../../../../../../platform/configuration/common/configuration.js';
@@ -26,21 +26,22 @@ import { MockContextKeyService } from '../../../../../../platform/keybinding/tes
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { INotificationHandle, IPromptChoice, NotificationMessage, Severity } from '../../../../../../platform/notification/common/notification.js';
 import { TestNotificationService } from '../../../../../../platform/notification/test/common/testNotificationService.js';
-import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
+import { InMemoryStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
-import { IUserDataProfileService } from '../../../../../services/userDataProfile/common/userDataProfile.js';
 import { AgentHostModelSourceRegistrar, AgentHostModelSourceStatusService, getByokModelSources, isReachableFromRemoteAgentHost } from '../../../browser/agentSessions/agentHost/agentHostModelSourceRegistrar.js';
 import { ILanguageModelsService, type ILanguageModelChatMetadata, type ILanguageModelsGroup } from '../../../common/languageModels.js';
 import { ILanguageModelsConfigurationService, type ILanguageModelsProviderGroup } from '../../../common/languageModelsConfiguration.js';
-import type { IUserDataProfile } from '../../../../../../platform/userDataProfile/common/userDataProfile.js';
 
 const PUBLIC_URL = 'https://models.example.test/v1/chat/completions';
 const PRIVATE_URL = 'http://10.0.0.5:8000/v1/chat/completions';
+const SOURCE_ID = getByokModelSourceId('copilotcli', { vendor: 'customendpoint', group: 'Example' });
 
 class FakeRootSubscription implements IAgentSubscription<RootState> {
 	private readonly _onDidChange = new Emitter<RootState>();
 	readonly onDidChange = this._onDidChange.event;
+	private readonly _onDidApplySnapshot = new Emitter<RootState>();
+	readonly onDidApplySnapshot = this._onDidApplySnapshot.event;
 	readonly onWillApplyAction = Event.None;
 	readonly onDidApplyAction = Event.None;
 
@@ -55,20 +56,26 @@ class FakeRootSubscription implements IAgentSubscription<RootState> {
 		this._onDidChange.fire(this.value);
 	}
 
-	/** Reports a registration's status, as the host does. */
-	report(id: string, state: ModelSourceState, credentialNonce: string, options: { readonly resource?: string; readonly origins?: string[]; readonly credentialId?: string } = {}): void {
-		this.apply({ type: ActionType.RootModelSourceStateChanged, id, state, credentialNonce, credentialResource: { resource: options.resource ?? 'https://models.example.test/v1' }, credentialOrigins: options.origins ?? ['https://models.example.test'], ...(options.credentialId ? { credentialId: options.credentialId } : {}) });
+	/** Applies a snapshot, as after a reconnect. */
+	snapshot(): void {
+		this._onDidApplySnapshot.fire(this.value);
+	}
+
+	/** Reports a source's status, as the host does. */
+	report(state: ModelSourceState, credentialNonce: string, options: { readonly id?: string; readonly resource?: string; readonly origins?: string[]; readonly accountId?: string } = {}): void {
+		this.apply({ type: ActionType.RootModelSourceStateChanged, id: options.id ?? SOURCE_ID, state, credentialNonce, credentialResource: { resource: options.resource ?? 'https://models.example.test/v1' }, credentialOrigins: options.origins ?? ['https://models.example.test'], ...(options.accountId ? { accountId: options.accountId } : {}) });
 	}
 
 	dispose(): void {
 		this._onDidChange.dispose();
+		this._onDidApplySnapshot.dispose();
 	}
 }
 
-/** An agent host connection that applies registrations to its root state and records delivered keys. */
+/** An agent host connection that applies model source actions to its root state and records delivered keys. */
 class FakeConnection extends mock<IAgentConnection>() {
 	readonly actions: ClientModelSourceAction[] = [];
-	readonly keys: { readonly token: string; readonly nonce: string | undefined; readonly credentialId: string | undefined }[] = [];
+	readonly keys: { readonly token: string; readonly nonce: string | undefined; readonly accountId: string | undefined }[] = [];
 	override readonly clientId = 'window-1';
 
 	constructor(override readonly rootState: FakeRootSubscription, override readonly clientConnectionKind: AgentHostClientConnectionKind) {
@@ -86,9 +93,13 @@ class FakeConnection extends mock<IAgentConnection>() {
 	}
 
 	override async authenticate(params: AuthenticateParams): Promise<AuthenticateResult> {
-		const target = params.target?.kind === 'modelSource' ? params.target : undefined;
-		this.keys.push({ token: params.token, nonce: target?.credentialNonce, credentialId: target?.credentialId });
+		this.keys.push({ token: params.token, nonce: params.target?.kind === 'modelSource' ? params.target.credentialNonce : undefined, accountId: params.accountId });
 		return { authenticated: true };
+	}
+
+	/** The definitions this window registered. */
+	get definitions(): Record<string, unknown>[] {
+		return this.actions.flatMap(action => action.type === ActionType.RootModelSourceSet ? [action.definition] : []);
 	}
 }
 
@@ -146,12 +157,12 @@ suite('AgentHostModelSourceRegistrar', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createRegistrar(options: { readonly kind?: AgentHostClientConnectionKind; readonly formats?: readonly string[]; readonly models?: readonly { readonly id: string; readonly url: string }[]; readonly existing?: readonly ModelSourceRegistration[] } = {}) {
+	function createRegistrar(options: { readonly kind?: AgentHostClientConnectionKind; readonly formats?: readonly string[]; readonly models?: readonly { readonly id: string; readonly url: string }[]; readonly existing?: readonly ModelSource[] } = {}) {
 		const disposables = store.add(new DisposableStore());
 		const root = disposables.add(new FakeRootSubscription({
 			agents: [{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: { modelSourceRegistration: { formats: [...options.formats ?? [BYOK_ENDPOINTS_MODEL_SOURCE_FORMAT]] } } }],
 			activeSessions: 0,
-			modelSourceRegistrations: [...options.existing ?? []],
+			modelSources: [...options.existing ?? []],
 		}));
 		const connection = new FakeConnection(root, options.kind ?? AgentHostClientConnectionKind.Local);
 		const onDidChangeGroups = disposables.add(new Emitter<readonly ILanguageModelsProviderGroup[]>());
@@ -166,9 +177,6 @@ suite('AgentHostModelSourceRegistrar', () => {
 		const { languageModelsService, languageModelsConfigurationService } = createLanguageModelServices(models, onDidChangeGroups.event);
 		const configurationService = new TestConfigurationService({ [AgentHostByokDirectEndpointsSettingId]: true });
 		const notificationService = new PromptRecorder();
-		const storageService = disposables.add(new InMemoryStorageService());
-		// Windows of one installation share an installation ID.
-		storageService.store('chat.agentHost.byokModelSources.installationId', 'installation', StorageScope.APPLICATION, StorageTarget.MACHINE);
 		const statusService = disposables.add(new AgentHostModelSourceStatusService());
 
 		const registrar = disposables.add(new AgentHostModelSourceRegistrar(
@@ -186,27 +194,18 @@ suite('AgentHostModelSourceRegistrar', () => {
 			configurationService,
 			new MockContextKeyService(),
 			notificationService,
-			storageService,
-			new class extends mock<IUserDataProfileService>() {
-				override readonly currentProfile = new class extends mock<IUserDataProfile>() {
-					override readonly id = 'profile';
-				};
-			},
+			disposables.add(new InMemoryStorageService()),
 			new class extends mock<IWorkbenchEnvironmentService>() {
 				override readonly remoteAuthority = undefined;
 			},
 			statusService,
 			new NullLogService(),
 		));
-		const registrations = () => root.value.modelSourceRegistrations ?? [];
+		const modelSources = () => root.value.modelSources ?? [];
 		return {
-			registrar, connection, root, models, configurationService, notificationService, statusService, registrations,
-			replaceKey(reference: string, value: string) {
-				models.groups[0] = { ...models.groups[0], apiKey: reference };
-				models.keys.set('customendpoint/Example', value);
-				onDidChangeGroups.fire(models.groups);
-			},
-			refreshGroups() {
+			registrar, connection, root, models, notificationService, statusService, modelSources,
+			changeGroups(change: () => void) {
+				change();
 				onDidChangeGroups.fire(models.groups);
 			},
 			async setEnabled(enabled: boolean, setting = AgentHostByokDirectEndpointsSettingId) {
@@ -216,135 +215,121 @@ suite('AgentHostModelSourceRegistrar', () => {
 		};
 	}
 
-	test('registers each provider group with the local host, delivers its key, and withdraws it when turned off', async () => {
-		const { connection, root, registrations, replaceKey, setEnabled, statusService } = createRegistrar();
-		await timeout(0);
-		const registration = registrations()[0];
+	/** A source another window or device registered, with another definition. */
+	function otherCopy(modelSource: ModelSource): Extract<ClientModelSourceAction, { readonly type: ActionType.RootModelSourceSet }> {
+		const { state: _state, credentialNonce: _nonce, credentialResource: _resource, credentialOrigins: _origins, accountId: _account, ...rest } = modelSource;
+		return { type: ActionType.RootModelSourceSet, modelSource: { ...rest, nonce: 'other' }, definition: { models: [{ id: 'gpt-x', endpoint: { type: 'openai', wireApi: 'completions', baseUrl: 'https://elsewhere.example.test/v1' } }], requiresCredential: true } };
+	}
 
-		root.report(registration.id, { kind: ModelSourceStatus.AuthRequired, reason: ModelSourceAuthRequiredReason.Required }, 'nonce-1');
+	test('registers each provider group with the local host, delivers its key, and removes it when turned off', async () => {
+		const { connection, root, modelSources, changeGroups, setEnabled, statusService, models } = createRegistrar();
 		await timeout(0);
-		const firstCredentialId = connection.keys[0]?.credentialId;
-		root.report(registration.id, { kind: ModelSourceStatus.Ready }, 'nonce-2', { credentialId: firstCredentialId });
+		const registered = modelSources()[0];
+
+		root.report({ kind: ModelSourceStatus.AuthRequired, reason: ModelSourceAuthRequiredReason.Required }, 'nonce-1');
+		await timeout(0);
+		const first = connection.keys[0]?.accountId;
+		root.report({ kind: ModelSourceStatus.Ready }, 'nonce-2', { accountId: first });
 		const served = [...statusService.locallyServedModels];
-		// A key the endpoint rejected is not sent again until the user replaces it.
-		root.report(registration.id, { kind: ModelSourceStatus.AuthRequired, reason: ModelSourceAuthRequiredReason.Rejected }, 'nonce-3', { credentialId: firstCredentialId });
+		// The endpoint refused the key: it is not sent again until the user replaces it.
+		root.report({ kind: ModelSourceStatus.AuthRequired, reason: ModelSourceAuthRequiredReason.Rejected }, 'nonce-3', { accountId: first });
 		await timeout(0);
 		const keysBeforeReplacement = connection.keys.length;
-		replaceKey('${input:chat.lm.secret.second}', 'key-2');
+		changeGroups(() => {
+			models.groups[0] = { ...models.groups[0], apiKey: '${input:chat.lm.secret.second}' };
+			models.keys.set('customendpoint/Example', 'key-2');
+		});
 		await timeout(0);
 
 		await setEnabled(false);
 
 		assert.deepStrictEqual({
-			registration: { ...registration, id: parseByokModelSourceId(registration.id) },
+			registered: { ...registered, nonce: registered.nonce.startsWith('sha1-') },
+			definition: connection.definitions[0],
 			served,
 			keysBeforeReplacement,
-			keys: connection.keys.map(key => ({ ...key, credentialId: key.credentialId === firstCredentialId ? 'first' : key.credentialId ? 'replaced' : undefined })),
+			keys: connection.keys.map(key => ({ ...key, accountId: key.accountId === first ? 'first' : key.accountId ? 'replaced' : undefined })),
 			actions: connection.actions.map(action => action.type),
-			remaining: registrations(),
+			remaining: modelSources(),
 			servedAfterRemoval: [...statusService.locallyServedModels],
 		}, {
-			registration: {
-				id: { vendor: 'customendpoint', group: 'Example' },
-				provider: 'copilotcli',
-				displayName: 'Example',
-				format: BYOK_ENDPOINTS_MODEL_SOURCE_FORMAT,
-				definition: {
-					models: [{ id: 'gpt-x', name: 'GPT-X', endpoint: { type: 'openai', wireApi: 'completions', baseUrl: 'https://models.example.test/v1' }, toolCalling: true, maxInputTokens: 100, maxOutputTokens: 20, maxContextWindowTokens: 120, aliases: ['customendpoint/Example/gpt-x'] }],
-					requiresCredential: true,
-				},
-				contributingClientIds: ['window-1'],
-				// The local host is shared by the user's windows, so the source outlives this one.
-				retention: ModelSourceRetentionPolicy.Host,
+			// The definition travels on the action, and only its nonce is in state.
+			registered: { id: SOURCE_ID, provider: 'copilotcli', displayName: 'Example', format: BYOK_ENDPOINTS_MODEL_SOURCE_FORMAT, nonce: true, retention: ModelSourceRetentionPolicy.Host },
+			definition: {
+				models: [{ id: 'gpt-x', name: 'GPT-X', endpoint: { type: 'openai', wireApi: 'completions', baseUrl: 'https://models.example.test/v1' }, toolCalling: true, maxInputTokens: 100, maxOutputTokens: 20, maxContextWindowTokens: 120, aliases: ['customendpoint/Example/gpt-x'] }],
+				requiresCredential: true,
 			},
 			// While the host serves it, the bridge doesn't list it.
 			served: ['customendpoint/Example/gpt-x'],
 			keysBeforeReplacement: 1,
-			// The host publishes the ID of the key it holds, so a replaced key is sent without registering again.
-			keys: [{ token: 'key-1', nonce: 'nonce-1', credentialId: 'first' }, { token: 'key-2', nonce: 'nonce-3', credentialId: 'replaced' }],
-			actions: [ActionType.RootModelSourceRegistrationSet, ActionType.RootModelSourceRegistrationRemoved],
+			keys: [{ token: 'key-1', nonce: 'nonce-1', accountId: 'first' }, { token: 'key-2', nonce: 'nonce-3', accountId: 'replaced' }],
+			actions: [ActionType.RootModelSourceSet, ActionType.RootModelSourceRemoved],
 			remaining: [],
 			servedAfterRemoval: [],
 		});
 	});
 
-	test('registers nothing with a host whose agents don\'t read the format, and never sends the key for another copy of the group', async () => {
+	test('registers an unchanged source again to contribute it, and leaves another client\'s definition and key alone', async () => {
+		const probe = createRegistrar();
+		await timeout(0);
+		const ours = probe.modelSources()[0];
+		const differing = otherCopy(ours);
+		const unchanged = createRegistrar({ existing: [{ ...ours, state: { kind: ModelSourceStatus.Ready }, credentialNonce: 'nonce-1', credentialResource: { resource: 'https://models.example.test/v1' }, credentialOrigins: ['https://models.example.test'], accountId: 'another-device-key' }] });
+		const different = createRegistrar({ existing: [{ ...differing.modelSource, state: { kind: ModelSourceStatus.AuthRequired, reason: ModelSourceAuthRequiredReason.Required }, credentialNonce: 'nonce-1', credentialResource: { resource: 'https://elsewhere.example.test/v1' }, credentialOrigins: ['https://elsewhere.example.test'] }] });
 		const unsupported = createRegistrar({ formats: ['example.test/other@1'] });
-		const supported = createRegistrar();
-		await timeout(0);
-		// Another window replaced the registration with a different endpoint.
-		const current = supported.registrations()[0];
-		const { contributingClientIds: _, ...copy } = current;
-		supported.root.apply({ type: ActionType.RootModelSourceRegistrationSet, clientId: 'other-window', registration: { ...copy, definition: { ...current.definition, models: [{ id: 'gpt-x', endpoint: { type: 'openai', wireApi: 'completions', baseUrl: 'https://elsewhere.example.test/v1' } }] } } });
-		supported.root.report(current.id, { kind: ModelSourceStatus.AuthRequired, reason: ModelSourceAuthRequiredReason.Required }, 'nonce-1', { resource: 'https://elsewhere.example.test/v1', origins: ['https://elsewhere.example.test'] });
 		await timeout(0);
 
 		assert.deepStrictEqual({
-			unsupportedActions: unsupported.connection.actions.length,
-			supportedActions: supported.connection.actions.length,
-			keys: supported.connection.keys,
+			unchanged: { actions: unchanged.connection.actions.map(action => action.type), state: unchanged.modelSources()[0].state, keys: unchanged.connection.keys.length },
+			different: { actions: different.connection.actions.length, nonce: different.modelSources()[0].nonce, keys: different.connection.keys.length },
+			unsupported: unsupported.connection.actions.length,
 		}, {
-			unsupportedActions: 0,
-			supportedActions: 1,
-			keys: [],
+			// Registering it again keeps its status and the key another device delivered, which differs but wasn't replaced here.
+			unchanged: { actions: [ActionType.RootModelSourceSet], state: { kind: ModelSourceStatus.Ready }, keys: 0 },
+			// Updating it unprompted would make the two clients replace each other's source indefinitely.
+			different: { actions: 0, nonce: 'other', keys: 0 },
+			unsupported: 0,
 		});
 	});
 
-	test('asks before using a remote host, and registers only the endpoints it can reach', async () => {
-		const remote = createRegistrar({ kind: AgentHostClientConnectionKind.SSH, models: [{ id: 'public', url: PUBLIC_URL }, { id: 'private', url: PRIVATE_URL }] });
-		const relayed = createRegistrar({ kind: AgentHostClientConnectionKind.WebPubSub });
+	test('adds back a source another client removed only after reconnecting, and removes one the user deleted', async () => {
+		const { connection, root, modelSources, changeGroups, models } = createRegistrar();
 		await timeout(0);
-		const beforeConsent = remote.registrations().length;
-		remote.notificationService.prompts[0].choices[0].run();
+		root.apply({ type: ActionType.RootModelSourceRemoved, id: SOURCE_ID });
+		await timeout(0);
+		const afterRemovalElsewhere = modelSources().length;
+		root.snapshot();
+		await timeout(0);
+		const afterReconnect = modelSources().length;
+		changeGroups(() => models.groups.splice(0, 1));
 		await timeout(0);
 
-		assert.deepStrictEqual({
-			beforeConsent,
-			prompts: remote.notificationService.prompts.length,
-			models: remote.registrations().map(registration => ({ models: registration.definition.models, retention: registration.retention })),
-			relayed: { prompts: relayed.notificationService.prompts.length, actions: relayed.connection.actions.length },
-		}, {
-			beforeConsent: 0,
-			prompts: 1,
-			models: [{
-				models: [{ id: 'public', name: 'PUBLIC', endpoint: { type: 'openai', wireApi: 'completions', baseUrl: 'https://models.example.test/v1' }, toolCalling: true, maxInputTokens: 100, maxOutputTokens: 20, maxContextWindowTokens: 120, aliases: ['customendpoint/Example/public'] }],
-				// A remote host's registrations leave with this window.
-				retention: ModelSourceRetentionPolicy.ContributingClient,
-			}],
-			// A relay could read the keys.
-			relayed: { prompts: 0, actions: 0 },
+		assert.deepStrictEqual({ afterRemovalElsewhere, afterReconnect, actions: connection.actions.map(action => action.type), remaining: modelSources().length }, {
+			afterRemovalElsewhere: 0,
+			afterReconnect: 1,
+			actions: [ActionType.RootModelSourceSet, ActionType.RootModelSourceSet, ActionType.RootModelSourceRemoved],
+			remaining: 0,
 		});
 	});
 
-	test('a window turned off by its own settings withdraws only its contribution, and keeps a group whose models failed to list', async () => {
-		const { connection, root, models, registrations, refreshGroups, setEnabled } = createRegistrar();
+	test('a window turned off by its own settings leaves the source to others, and a group whose models failed to list keeps it', async () => {
+		const { connection, models, modelSources, changeGroups, setEnabled } = createRegistrar();
 		await timeout(0);
-		const registration = registrations()[0];
-		const { contributingClientIds: _, ...copy } = registration;
-		// Another window of the profile contributes the same group.
-		root.apply({ type: ActionType.RootModelSourceRegistrationSet, clientId: 'window-2', registration: copy });
-		models.failedGroups!.add('customendpoint/Example');
-		refreshGroups();
-		const afterFailedListing = registrations()[0].contributingClientIds;
-
+		changeGroups(() => models.failedGroups!.add('customendpoint/Example'));
+		await timeout(0);
 		await setEnabled(false, AgentHostByokModelsEnabledSettingId);
 
-		assert.deepStrictEqual({
-			afterFailedListing,
-			actions: connection.actions.map(action => action.type),
-			remaining: registrations().map(candidate => candidate.contributingClientIds),
-		}, {
-			afterFailedListing: ['window-1', 'window-2'],
-			actions: [ActionType.RootModelSourceRegistrationSet, ActionType.RootModelSourceContributorRemoved],
-			remaining: [['window-2']],
+		assert.deepStrictEqual({ actions: connection.actions.map(action => action.type), remaining: modelSources().length }, {
+			actions: [ActionType.RootModelSourceSet],
+			remaining: 1,
 		});
 	});
 
 	test('asks again for a key it could not read', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-		const { connection, root, models, registrations } = createRegistrar();
+		const { connection, root, models } = createRegistrar();
 		await timeout(0);
 		models.keys.delete('customendpoint/Example');
-		root.report(registrations()[0].id, { kind: ModelSourceStatus.AuthRequired, reason: ModelSourceAuthRequiredReason.Required }, 'nonce-1');
+		root.report({ kind: ModelSourceStatus.AuthRequired, reason: ModelSourceAuthRequiredReason.Required }, 'nonce-1');
 		await timeout(0);
 		const keysWhileUnreadable = connection.keys.length;
 		models.keys.set('customendpoint/Example', 'key-1');
@@ -356,16 +341,32 @@ suite('AgentHostModelSourceRegistrar', () => {
 		});
 	}));
 
-	test('removes registrations it left behind, but not another profile\'s', async () => {
-		const stale = (id: string): ModelSourceRegistration => ({ id, provider: 'copilotcli', displayName: 'Gone', format: BYOK_ENDPOINTS_MODEL_SOURCE_FORMAT, definition: { models: [], requiresCredential: false }, retention: ModelSourceRetentionPolicy.Host });
-		const namespace = getByokModelSourceNamespace('installation', 'profile');
-		const { registrations } = createRegistrar({ existing: [stale(`${namespace}copilotcli/customendpoint/Gone`), stale('vscode.byok/other-profile/copilotcli/customendpoint/Gone')] });
+	test('asks before using a remote host, and registers only the endpoints it can reach', async () => {
+		const remote = createRegistrar({ kind: AgentHostClientConnectionKind.SSH, models: [{ id: 'public', url: PUBLIC_URL }, { id: 'private', url: PRIVATE_URL }] });
+		const relayed = createRegistrar({ kind: AgentHostClientConnectionKind.WebPubSub });
+		await timeout(0);
+		const beforeConsent = remote.modelSources().length;
+		remote.notificationService.prompts[0].choices[0].run();
 		await timeout(0);
 
-		assert.deepStrictEqual(registrations().map(registration => registration.id.replace(namespace, '<own>/')), [
-			'vscode.byok/other-profile/copilotcli/customendpoint/Gone',
-			'<own>/copilotcli/customendpoint/Example',
-		]);
+		assert.deepStrictEqual({
+			beforeConsent,
+			prompts: remote.notificationService.prompts.length,
+			definitions: remote.connection.definitions,
+			retention: remote.modelSources().map(modelSource => modelSource.retention),
+			relayed: { prompts: relayed.notificationService.prompts.length, actions: relayed.connection.actions.length },
+		}, {
+			beforeConsent: 0,
+			prompts: 1,
+			definitions: [{
+				models: [{ id: 'public', name: 'PUBLIC', endpoint: { type: 'openai', wireApi: 'completions', baseUrl: 'https://models.example.test/v1' }, toolCalling: true, maxInputTokens: 100, maxOutputTokens: 20, maxContextWindowTokens: 120, aliases: ['customendpoint/Example/public'] }],
+				requiresCredential: true,
+			}],
+			// A remote host's sources leave with this window.
+			retention: [ModelSourceRetentionPolicy.ContributingClient],
+			// A relay could read the keys.
+			relayed: { prompts: 0, actions: 0 },
+		});
 	});
 });
 

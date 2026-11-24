@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { hash } from '../../../base/common/hash.js';
+import { StringSHA1 } from '../../../base/common/hash.js';
 import { localize } from '../../../nls.js';
 import type { ProtectedResourceMetadata } from './state/protocol/state.js';
 
@@ -66,30 +66,30 @@ export type IByokEndpointsDefinition = {
 const MODEL_SOURCE_ID_PREFIX = 'vscode.byok/';
 
 /**
- * The registration ID prefix of one VS Code profile on one installation. Its
- * windows share their registrations, and replace them without disturbing
- * another profile's or device's, since each has its own providers and keys.
+ * The registration ID of a BYOK provider group for one agent provider. It is
+ * derived from the group's configuration key alone, so every window and device
+ * that has the group shares one registration.
  */
-export function getByokModelSourceNamespace(installationId: string, profileId: string): string {
-	return `${MODEL_SOURCE_ID_PREFIX}${hash(`${installationId}\n${profileId}`).toString(16)}/`;
+export function getByokModelSourceId(provider: string, source: { readonly vendor: string; readonly group: string }): string {
+	return `${MODEL_SOURCE_ID_PREFIX}${encodeURIComponent(provider)}/${encodeURIComponent(source.vendor)}/${encodeURIComponent(source.group)}`;
 }
 
-/** The registration ID of a BYOK provider group for one agent provider, in a {@link getByokModelSourceNamespace namespace}. */
-export function getByokModelSourceId(namespace: string, provider: string, source: { readonly vendor: string; readonly group: string }): string {
-	return `${namespace}${encodeURIComponent(provider)}/${encodeURIComponent(source.vendor)}/${encodeURIComponent(source.group)}`;
+/** Whether `id` is a registration ID from {@link getByokModelSourceId}. */
+export function isByokModelSourceId(id: string): boolean {
+	return parseByokModelSourceId(id) !== undefined;
 }
 
-/** The BYOK vendor and provider group of a registration ID from {@link getByokModelSourceId}, in any namespace. */
+/** The BYOK vendor and provider group of a registration ID from {@link getByokModelSourceId}. */
 export function parseByokModelSourceId(id: string): { readonly vendor: string; readonly group: string } | undefined {
 	if (!id.startsWith(MODEL_SOURCE_ID_PREFIX)) {
 		return undefined;
 	}
 	const segments = id.slice(MODEL_SOURCE_ID_PREFIX.length).split('/');
-	if (segments.length !== 4 || segments.some(segment => !segment)) {
+	if (segments.length !== 3 || segments.some(segment => !segment)) {
 		return undefined;
 	}
 	try {
-		return { vendor: decodeURIComponent(segments[2]), group: decodeURIComponent(segments[3]) };
+		return { vendor: decodeURIComponent(segments[1]), group: decodeURIComponent(segments[2]) };
 	} catch {
 		return undefined;
 	}
@@ -107,6 +107,27 @@ const MAX_ALIASES = 8;
  */
 export function getByokEndpointsCredentialResource(definition: IByokEndpointsDefinition): ProtectedResourceMetadata | undefined {
 	return definition.requiresCredential && definition.models.length ? { resource: definition.models[0].endpoint.baseUrl } : undefined;
+}
+
+/**
+ * The model source `nonce` of a definition: a hash of its canonical JSON, with
+ * object keys sorted. Equal definitions get the same nonce in every window and
+ * on every device, so registering an unchanged source again keeps its key.
+ */
+export function getByokEndpointsNonce(definition: IByokEndpointsDefinition): string {
+	const sha = new StringSHA1();
+	sha.update(canonicalJson(definition));
+	return `sha1-${sha.digest()}`;
+}
+
+function canonicalJson(value: unknown): string {
+	if (Array.isArray(value)) {
+		return `[${value.map(canonicalJson).join(',')}]`;
+	}
+	if (typeof value === 'object' && value !== null) {
+		return `{${Object.entries(value).filter(([, entry]) => entry !== undefined).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0).map(([key, entry]) => `${JSON.stringify(key)}:${canonicalJson(entry)}`).join(',')}}`;
+	}
+	return JSON.stringify(value);
 }
 
 /** Every origin a definition's API key is sent to, in model order. */

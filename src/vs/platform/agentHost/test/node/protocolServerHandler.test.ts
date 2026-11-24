@@ -8407,9 +8407,9 @@ suite('ProtocolServerHandler', () => {
 		});
 	});
 
-	test('routes model source registrations to the agent service, and rejects them on hosts without a registry', async () => {
+	test('routes model source actions to the agent service, and rejects them on hosts without a registry', async () => {
 		const transport = connectClient('client-1', [ROOT_STATE_URI]);
-		const action = { type: ActionType.RootModelSourceRegistrationRemoved, id: 'source' } as const;
+		const action = { type: ActionType.RootModelSourceRemoved, id: 'source' } as const;
 		transport.simulateMessage(request(2, 'dispatchAction', { channel: ROOT_STATE_URI, clientSeq: 1, action }));
 		await handler.whenIdle();
 		const rejection = (findNotifications(transport.sent, 'action').at(-1)?.params as ActionEnvelope | undefined)?.rejectionReason;
@@ -8422,8 +8422,8 @@ suite('ProtocolServerHandler', () => {
 		await handler.whenIdle();
 
 		assert.deepStrictEqual({ rejection, routed, dispatched: agentService.handledActions }, {
-			rejection: `Unsupported action: ${ActionType.RootModelSourceRegistrationRemoved}`,
-			routed: [{ type: ActionType.RootModelSourceRegistrationRemoved, clientId: 'client-1' }],
+			rejection: `Unsupported action: ${ActionType.RootModelSourceRemoved}`,
+			routed: [{ type: ActionType.RootModelSourceRemoved, clientId: 'client-1' }],
 			dispatched: [],
 		});
 	});

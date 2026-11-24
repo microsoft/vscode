@@ -21,7 +21,7 @@ suite('Copilot model sources', () => {
 			{ id: 'azure', endpoint: { type: 'azure', wireApi: 'responses', baseUrl: 'https://res.openai.azure.com/openai/v1' } },
 		],
 	};
-	const source: IAgentModelSource = { id: 'vscode.byok/ns/copilotcli/customendpoint/Example', format: BYOK_ENDPOINTS_MODEL_SOURCE_FORMAT, definition, credential: 'key-1' };
+	const source: IAgentModelSource = { id: 'vscode.byok/copilotcli/customendpoint/Example', format: BYOK_ENDPOINTS_MODEL_SOURCE_FORMAT, definition, credential: 'key-1' };
 
 	test('maps each model to a runtime provider that calls its endpoint with the source\'s key', () => {
 		const [gpt, claude, azure] = getCopilotModelSourceModels(source);
@@ -68,7 +68,7 @@ suite('Copilot model sources', () => {
 			newKey: ids({ ...source, credential: 'key-2' }),
 			renamedModel: ids({ ...source, definition: renamed }),
 			movedEndpoint: ids({ ...source, definition: moved }).map((id, index) => id === original[index]),
-			otherRegistration: ids({ ...source, id: 'vscode.byok/ns/copilotcli/customendpoint/Other' }).map((id, index) => id === original[index]),
+			otherRegistration: ids({ ...source, id: 'vscode.byok/copilotcli/customendpoint/Other' }).map((id, index) => id === original[index]),
 		}, {
 			newKey: original,
 			renamedModel: original,

@@ -43,7 +43,7 @@ const BYOK_MODELS: readonly IByokLmModelInfo[] = [
 const AGENT_MODELS: readonly IAgentModelInfo[] = [
 	{ provider: 'copilot', id: 'claude-sonnet-4.5', name: 'Claude Sonnet 4.5', supportsVision: false },
 	{ provider: 'copilot', id: 'azure/work/gpt-5', name: 'GPT-5', supportsVision: false, _meta: createAgentModelByokMeta('azure/work/gpt-5') },
-	{ provider: 'copilot', id: 'modelsource~abc/gpt-x', name: 'GPT X', supportsVision: false, modelSourceId: 'vscode.byok/ns/copilotcli/customendpoint/Example' },
+	{ provider: 'copilot', id: 'modelsource~abc/gpt-x', name: 'GPT X', supportsVision: false, modelSourceId: 'vscode.byok/copilotcli/customendpoint/Example' },
 ];
 const SOURCE_MODEL = 'modelsource~abc/gpt-x';
 

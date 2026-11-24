@@ -597,16 +597,16 @@ export class AgentSideEffects extends Disposable {
 	 * Publishes agent descriptors using the last known model lists.
 	 */
 	private _publishAgentInfos(agents: readonly IAgent[], reader?: IReader): void {
-		const registrations = this._stateManager.rootState.modelSourceRegistrations ?? [];
+		const registered = this._stateManager.rootState.modelSources ?? [];
 		const infos: AgentInfo[] = agents.map(a => {
 			const d = a.getDescriptor();
 			const protectedResources = a.getProtectedResources(reader);
 			const models = reader ? a.models.read(reader) : a.models.get();
 			const customizations = a.getCustomizations?.();
 			// A registered source is listed while the agent serves at least one of its models.
-			const modelSources = registrations
-				.filter(registration => registration.provider === d.provider && models.some(m => m.modelSourceId === registration.id))
-				.map(registration => ({ id: registration.id, displayName: registration.displayName }));
+			const modelSources = registered
+				.filter(source => source.provider === d.provider && models.some(m => m.modelSourceId === source.id))
+				.map(source => ({ id: source.id, displayName: source.displayName }));
 			return {
 				provider: d.provider, displayName: d.displayName, description: d.description, models: models.map(m => ({
 					id: m.id,

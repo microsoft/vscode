@@ -4128,10 +4128,10 @@ suite('CopilotAgent', () => {
 		await agent.refreshModels();
 		const endpoint = { type: 'openai', wireApi: 'completions', baseUrl: 'https://models.example.test/v1' } as const;
 		agent.setModelSources([
-			{ id: 'vscode.byok/ns/copilotcli/customendpoint/Example', format: BYOK_ENDPOINTS_MODEL_SOURCE_FORMAT, credential: 'key-1', definition: { requiresCredential: true, models: [{ id: 'gpt-x', endpoint, aliases: ['customendpoint/Example/gpt-x'] }] } },
-			{ id: 'vscode.byok/ns/copilotcli/customendpoint/Other', format: BYOK_ENDPOINTS_MODEL_SOURCE_FORMAT, credential: 'key-2', definition: { requiresCredential: true, models: [{ id: 'other', endpoint }] } },
+			{ id: 'vscode.byok/copilotcli/customendpoint/Example', format: BYOK_ENDPOINTS_MODEL_SOURCE_FORMAT, credential: 'key-1', definition: { requiresCredential: true, models: [{ id: 'gpt-x', endpoint, aliases: ['customendpoint/Example/gpt-x'] }] } },
+			{ id: 'vscode.byok/copilotcli/customendpoint/Other', format: BYOK_ENDPOINTS_MODEL_SOURCE_FORMAT, credential: 'key-2', definition: { requiresCredential: true, models: [{ id: 'other', endpoint }] } },
 		]);
-		const sourceModel = agent.models.get().find(model => model.modelSourceId === 'vscode.byok/ns/copilotcli/customendpoint/Example')!;
+		const sourceModel = agent.models.get().find(model => model.modelSourceId === 'vscode.byok/copilotcli/customendpoint/Example')!;
 		await provisionSession(agent, { session, workingDirectories: [URI.file(workingDirectory)] });
 		await agent.chats.prepareTurn!(chat, 'turn-1', [URI.file(workingDirectory)], context);
 
