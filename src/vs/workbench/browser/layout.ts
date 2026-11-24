@@ -1974,6 +1974,14 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		const previousPanelPosition = this.getPanelPosition();
 		const wasAuxiliaryBarMaximized = this.isAuxiliaryBarMaximized();
 
+		if (this.chatPartView) {
+			// The grid places the chat part as it saved its layout, at its own width: it hides before the parts beside it
+			// when the secondary side bar maximizes (see `setAuxiliaryBarMaximized`), and it saves its width without the
+			// editor area's while it has the editor area, so it saves before that ends below. A maximized part hides a
+			// visible chat part until it is restored, as maximizing it does (see `hideChatPartForLayout`)
+			this.saveChatPartLayout(panelMaximized || auxiliaryBarMaximized);
+		}
+
 		// Maximizing the panel ends hiding the editor area for the chat part, to hide it for the panel (see `toggleMaximizedPanel`)
 		if (panelMaximized) {
 			this.clearEditorHiddenByChat();
@@ -2006,13 +2014,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		const focusedView = isHTMLElement(focused)
 			? coalesce([this.titleBarPartView, this.bannerPartView, this.activityBarPartView, this.sideBarPartView, this.editorPartView, this.panelPartView, this.auxiliaryBarPartView, this.statusBarPartView, this.chatPartView]).find(view => isAncestorUsingFlowTo(focused, view.element))
 			: undefined;
-
-		if (this.chatPartView) {
-			// The grid places the chat part as it saved its layout, at its own width: it hides before the parts beside it
-			// when the secondary side bar maximizes (see `setAuxiliaryBarMaximized`). A maximized part hides a visible chat
-			// part until it is restored, as maximizing it does (see `hideChatPartForLayout`)
-			this.saveChatPartLayout(panelMaximized || auxiliaryBarMaximized);
-		}
 
 		const views = coalesce([this.sideBarPartView, this.editorPartView, this.panelPartView, this.auxiliaryBarPartView, this.chatPartView]);
 		const wasVisible = new Map(views.map(view => [view, this.workbenchGrid.isViewVisible(view)]));

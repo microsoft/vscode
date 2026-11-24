@@ -1187,6 +1187,26 @@ suite('Workbench layout chat part', () => {
 			assert.deepStrictEqual(shownAgain, before);
 		});
 
+		test('a maximized panel that applies while the chat part has the editor area restores the widths, as maximizing it does', () => {
+			const widths = (layout: Layout, views: Map<Parts, Part>) => [Parts.SIDEBAR_PART, Parts.CHAT_PART, Parts.EDITOR_PART, Parts.PANEL_PART, Parts.AUXILIARYBAR_PART]
+				.map(part => `${part.split('.').pop()} ${currentGrid(layout).getViewSize(views.get(part)!).width}x${currentGrid(layout).getViewSize(views.get(part)!).height}`);
+			const restore = (maximize: (layout: Layout) => void) => {
+				const { layout, views } = createStateLayout(undefined, chatConfiguration);
+				layout.setEditorHiddenByChat(true);
+				maximize(layout);
+				layout.toggleMaximizedPanel();
+				return widths(layout, views);
+			};
+
+			assert.deepStrictEqual(
+				restore(layout => {
+					const state = layout.getPartsLayoutState();
+					layout.applyPartsLayoutState({ ...state, panel: { ...state.panel, maximized: true } });
+				}),
+				restore(layout => layout.toggleMaximizedPanel())
+			);
+		});
+
 		test('a banner that shows keeps showing', () => {
 			const { layout, views } = createStateLayout();
 			layout.setPartHidden(false, Parts.BANNER_PART);
