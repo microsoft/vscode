@@ -78,7 +78,7 @@ suite('AgentHostReviewService', () => {
 		const chatGitState: ISessionGitState = {
 			branchName: 'chat-feature',
 			baseBranchName: 'chat-main',
-			baseBranchFullName: 'origin/chat-main',
+			baseBranchFullName: 'refs/remotes/origin/chat-main',
 		};
 		const gitStateService: IAgentHostGitStateService = {
 			_serviceBrand: undefined,
@@ -121,7 +121,7 @@ suite('AgentHostReviewService', () => {
 		));
 
 		await service.setReviewState(buildBranchChangesetUri(folderOwner), ['file:///chat/file.ts'], true);
-		await service.getReviewedPaths(folderOwner, URI.parse('file:///chat'), 'origin/chat-main');
+		await service.getReviewedPaths(folderOwner, URI.parse('file:///chat'), 'refs/remotes/origin/chat-main');
 
 		assert.deepStrictEqual({
 			openedDatabases,
@@ -129,7 +129,7 @@ suite('AgentHostReviewService', () => {
 			reviewedRefsAreShared: new Set(reviewedRefs).size === 1,
 		}, {
 			openedDatabases: [],
-			baseBranches: ['origin/chat-main', 'origin/chat-main'],
+			baseBranches: ['refs/remotes/origin/chat-main', 'refs/remotes/origin/chat-main'],
 			reviewedRefsAreShared: false,
 		});
 	});

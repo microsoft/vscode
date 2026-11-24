@@ -9,7 +9,7 @@ import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
 import { AGENT_HOST_MERGE_CHANGESET_OPERATION_ID, IChangesetOperationHandler } from '../common/agentHostChangesetOperationService.js';
-import { IAgentHostGitService, tryResolvePrimaryWorktreeRoot } from '../common/agentHostGitService.js';
+import { getGitStateBaseBranch, IAgentHostGitService, tryResolvePrimaryWorktreeRoot } from '../common/agentHostGitService.js';
 import { parseChangesetUri } from '../common/changesetUri.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
 import { AHP_SESSION_NOT_FOUND, JsonRpcErrorCodes, ProtocolError } from '../common/state/sessionProtocol.js';
@@ -70,12 +70,14 @@ export class AgentHostMergeOperationHandler implements IChangesetOperationHandle
 
 		const storedGitState = readSessionGitState(sessionState._meta);
 		const recordedBaseBranch = await this._resolveRecordedBaseBranch(scope.sourceUri);
-		const baseBranch = recordedBaseBranch ? await this._gitService.resolveBaseBranch(repositoryRoot, recordedBaseBranch) : undefined;
+		const gitState = await this._gitService.getSessionGitState(worktreeRoot, recordedBaseBranch) ?? storedGitState;
+		// Like Create PR, a session that recorded no base merges into the base its fresh Git state compares against.
+		const baseBranchRef = recordedBaseBranch ?? getGitStateBaseBranch(gitState);
+		const baseBranch = baseBranchRef ? await this._gitService.resolveBaseBranch(repositoryRoot, baseBranchRef) : undefined;
 		const targetBranch = baseBranch ? await this._gitService.resolveMergeTargetBranch(repositoryRoot, baseBranch) : undefined;
 		if (!targetBranch) {
 			throw new ProtocolError(JsonRpcErrorCodes.InternalError, localize('agentHost.changeset.merge.targetBranchMissing', "Could not determine the branch to merge into."));
 		}
-		const gitState = await this._gitService.getSessionGitState(worktreeRoot, recordedBaseBranch) ?? storedGitState;
 		const sourceBranch = gitState?.branchName ?? await this._gitService.getCurrentBranch(worktreeRoot);
 		if (!sourceBranch) {
 			throw new ProtocolError(JsonRpcErrorCodes.InternalError, localize('agentHost.changeset.merge.sourceBranchMissing', "Could not determine the worktree branch."));

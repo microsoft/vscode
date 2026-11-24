@@ -954,7 +954,11 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 		});
 	}
 
-	/** Resolves the base branch recorded for `sessionKey` exactly as recorded (e.g. `refs/remotes/origin/main`), falling back to the one its Git state names. */
+	/**
+	 * Resolves the base branch recorded for `sessionKey` exactly as recorded (e.g. `refs/remotes/origin/main`), falling
+	 * back to the full ref its Git state names. Without either, it is `undefined` and the git service derives the default
+	 * branch's ref.
+	 */
 	async resolveSessionBaseBranchFullName(sessionKey: string): Promise<string | undefined> {
 		const state = this._getStateForGitScope(sessionKey);
 		const gitStateBaseBranch = getGitStateBaseBranch(this.getSessionGitState(sessionKey));

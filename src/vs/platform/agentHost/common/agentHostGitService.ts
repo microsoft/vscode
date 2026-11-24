@@ -69,11 +69,14 @@ export function getBaseBranchLabel(baseBranch: string): string {
 
 /**
  * Returns the base branch a session's Git state compares against, the fallback
- * when the session recorded none. Git state saved before
- * {@link ISessionGitState.baseBranchFullName} existed only names the branch.
+ * when the session recorded none. Only a full ref (e.g. `refs/remotes/origin/main`)
+ * is trusted: a short base in Git state was derived by an older build and can
+ * name a stale local branch, so it is ignored and the git service derives the
+ * default branch's ref again.
  */
 export function getGitStateBaseBranch(gitState: ISessionGitState | undefined): string | undefined {
-	return gitState?.baseBranchFullName ?? gitState?.baseBranchName;
+	const baseBranch = gitState?.baseBranchFullName;
+	return baseBranch?.startsWith('refs/') ? baseBranch : undefined;
 }
 
 /**

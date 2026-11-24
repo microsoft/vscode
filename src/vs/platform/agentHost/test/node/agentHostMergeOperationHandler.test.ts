@@ -36,6 +36,7 @@ class TestGitService extends mock<IAgentHostGitService>() {
 	targetDirty = false;
 	mergeError: Error | undefined;
 	mergeCommit: string | undefined = 'merge-sha';
+	baseBranchFullName: string | undefined;
 	/** The local branch tracking each remote-tracking ref. */
 	readonly trackingBranches = new Map<string, string>();
 
@@ -52,6 +53,7 @@ class TestGitService extends mock<IAgentHostGitService>() {
 		return {
 			branchName: this.sourceBranch,
 			baseBranchName: 'main',
+			...(this.baseBranchFullName ? { baseBranchFullName: this.baseBranchFullName } : {}),
 			uncommittedChanges: this.sourceDirty ? 1 : 0,
 			outgoingChanges: 1,
 		};
@@ -103,7 +105,11 @@ class TestGitService extends mock<IAgentHostGitService>() {
 interface ISetupOptions {
 	readonly configuredBranch?: string;
 	readonly persistedBaseBranch?: string;
-	/** The local branch tracking {@link persistedBaseBranch}. */
+	/** Records no base branch for the session, so Merge falls back to its fresh Git state. */
+	readonly recordsNoBase?: boolean;
+	/** The base branch the fresh Git state compares against. */
+	readonly gitStateBaseBranch?: string;
+	/** The local branch tracking {@link persistedBaseBranch}, else {@link gitStateBaseBranch}. */
 	readonly trackingBranch?: string;
 	readonly sourceDirty?: boolean;
 	readonly targetBranch?: string;
@@ -153,14 +159,16 @@ async function setup(disposables: Pick<DisposableStore, 'add'>, options: ISetupO
 	gitService.targetDirty = options.targetDirty ?? false;
 	gitService.mergeError = options.mergeError;
 	gitService.mergeCommit = options.missingMergeCommit ? undefined : 'merge-sha';
-	if (options.persistedBaseBranch && options.trackingBranch) {
-		gitService.trackingBranches.set(options.persistedBaseBranch, options.trackingBranch);
+	gitService.baseBranchFullName = options.gitStateBaseBranch;
+	const trackedBaseBranch = options.persistedBaseBranch ?? options.gitStateBaseBranch;
+	if (trackedBaseBranch && options.trackingBranch) {
+		gitService.trackingBranches.set(trackedBaseBranch, options.trackingBranch);
 	}
 	const refreshed: string[] = [];
 	const merged: Array<{ sessionKey: string; commit: string | undefined }> = [];
 	const handler = new AgentHostMergeOperationHandler(
 		sessionKey => stateManager.getSessionState(sessionKey),
-		async () => options.configuredBranch ?? options.persistedBaseBranch ?? 'main',
+		async () => options.recordsNoBase ? undefined : options.configuredBranch ?? options.persistedBaseBranch ?? 'main',
 		async sessionKey => { refreshed.push(sessionKey); },
 		async (sessionKey, commit) => { merged.push({ sessionKey, commit }); },
 		gitService,
@@ -221,6 +229,29 @@ suite('AgentHostMergeOperationHandler', () => {
 				`mergeBranch:${repositoryRoot.toString()}:agents/session`,
 			],
 			requestedBaseBranches: ['refs/remotes/origin/main'],
+			message: 'Merged changes from \'agents/session\' into \'dev\'.',
+		});
+	});
+
+	test('merges into the base the fresh Git state compares against when none is recorded', async () => {
+		const { gitService, handler } = await setup(disposables, { recordsNoBase: true, gitStateBaseBranch: 'refs/remotes/origin/main', trackingBranch: 'dev', targetBranch: 'dev' });
+
+		const result = await handler.invoke({
+			channel: branchChangeset,
+			operationId: AgentHostMergeOperationHandler.OPERATION_MERGE,
+		}, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			calls: gitService.calls,
+			requestedBaseBranches: gitService.requestedBaseBranches,
+			message: typeof result.message === 'string' ? result.message : result.message?.markdown,
+		}, {
+			calls: [
+				`hasUncommittedChanges:${repositoryRoot.toString()}`,
+				`hasUncommittedChanges:${worktreeRoot.toString()}`,
+				`mergeBranch:${repositoryRoot.toString()}:agents/session`,
+			],
+			requestedBaseBranches: [undefined],
 			message: 'Merged changes from \'agents/session\' into \'dev\'.',
 		});
 	});

@@ -500,12 +500,12 @@ suite.skip('AgentHostChangesetService', () => {
 				workingDirectories: ['file:///wd'],
 				defaultChat: buildDefaultChatUri(sessionStr),
 			});
-			localStateManager.setSessionMeta(sessionStr, withSessionGitState(undefined, { baseBranchName: 'main' }));
+			localStateManager.setSessionMeta(sessionStr, withSessionGitState(undefined, { baseBranchName: 'main', baseBranchFullName: 'refs/remotes/origin/main' }));
 
 			localChangesets.refreshSessionChangeset(sessionStr);
 			await waitForChangesetReady(localStateManager, buildSessionChangesetUri(sessionStr));
 
-			assert.deepStrictEqual(computeCalls, [{ baseBranch: 'main' }]);
+			assert.deepStrictEqual(computeCalls, [{ baseBranch: 'refs/remotes/origin/main' }]);
 		});
 
 		test('session changeset keeps persisted diff base ahead of _meta.git base branch', async () => {
@@ -535,7 +535,7 @@ suite.skip('AgentHostChangesetService', () => {
 				workingDirectories: ['file:///wd'],
 				defaultChat: buildDefaultChatUri(sessionStr),
 			});
-			localStateManager.setSessionMeta(sessionStr, withSessionGitState(undefined, { baseBranchName: 'main' }));
+			localStateManager.setSessionMeta(sessionStr, withSessionGitState(undefined, { baseBranchName: 'main', baseBranchFullName: 'refs/remotes/origin/main' }));
 
 			localChangesets.refreshSessionChangeset(sessionStr);
 			await waitForChangesetReady(localStateManager, buildSessionChangesetUri(sessionStr));
@@ -2986,6 +2986,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 		testGitStates.set(peerResource, {
 			branchName: 'chat-feature',
 			baseBranchName: 'chat-main',
+			baseBranchFullName: 'refs/remotes/origin/chat-main',
 		});
 		svc.refreshChangesetCatalog(peerResource);
 		const withChatGit = stateManager.getChatState(peerResource)?.changesets;
@@ -3011,7 +3012,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 			defaultChatWithoutLiveGit: ['branch', 'uncommitted', 'turn', 'compare-turns'],
 			withoutChatGit: ['session', 'turn'],
 			withChatGit: ['branch', 'uncommitted', 'session', 'turn', 'compare-turns'],
-			branchDescription: 'chat-feature → chat-main',
+			branchDescription: 'chat-feature → origin/chat-main',
 		});
 	});
 

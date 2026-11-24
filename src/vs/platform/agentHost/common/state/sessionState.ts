@@ -1335,7 +1335,8 @@ export interface ISessionGitState {
 	 * Base branch exactly as recorded for the session, which Branch Changes compares against and describes: a full ref
 	 * (e.g. `refs/remotes/origin/main`), or a short name (e.g. `origin/main`) for sessions recorded earlier. Without a
 	 * recorded base, the default branch's remote-tracking branch when it exists, else the default branch.
-	 * {@link baseBranchName} is the branch it names, without its remote.
+	 * {@link baseBranchName} is the branch it names, without its remote. As the fallback for a session that recorded no
+	 * base, only a full ref is trusted; a short name saved by an older build is ignored and the base derived again.
 	 */
 	readonly baseBranchFullName?: string;
 	/** Upstream tracking branch (e.g. `origin/feature`). */
