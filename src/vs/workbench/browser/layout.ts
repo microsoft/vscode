@@ -2659,6 +2659,16 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 			this.inMaximizedAuxiliaryBarTransition = true;
 			try {
+				// Beside a visible editor area, a chat part that shows again shows after the other parts (see below), while the secondary
+				// side bar still takes most of the room. The room that the chat part needs then comes from the side bar and a panel on the
+				// left or right (see `ensureChatPartFits`): they get their widths back once the secondary side bar has its own again
+				const chatPartShowsLast = this.chatPartHiddenByLayout && !!state?.editorVisible;
+				const widthsBefore = chatPartShowsLast
+					? ([[this.sideBarPartView, Parts.SIDEBAR_PART], [this.panelPartView, Parts.PANEL_PART]] as const)
+						.filter(([, part]) => part !== Parts.PANEL_PART || !isHorizontal(this.getPanelPosition()))
+						.map(([view, part]) => ({ view, part, width: this.workbenchGrid.getViewCachedVisibleSize(view) }))
+					: [];
+
 				this.setEditorHidden(!state?.editorVisible);	// this order of updating view visibility
 				if (!state?.editorVisible) {
 					this.restoreChatPartAfterLayout();
@@ -2672,6 +2682,12 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 					width: this.stateModel.getRuntimeValue(LayoutStateKeys.AUXILIARYBAR_LAST_NON_MAXIMIZED_SIZE),
 					height: size.height
 				});
+
+				for (const { view, part, width } of widthsBefore) {
+					if (width !== undefined && this.isVisible(part) && this.workbenchGrid.getViewSize(view).width !== width) {
+						this.workbenchGrid.resizeView(view, { width, height: this.workbenchGrid.getViewSize(view).height });
+					}
+				}
 			} finally {
 				this.inMaximizedAuxiliaryBarTransition = false;
 			}

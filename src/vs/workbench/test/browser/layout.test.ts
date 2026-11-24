@@ -1207,6 +1207,28 @@ suite('Workbench layout chat part', () => {
 			);
 		});
 
+		test('restoring the secondary side bar, maximized beside the chat part as the window reloaded, gives the parts their widths from before', () => {
+			const widths = (layout: Layout, views: Map<Parts, Part>) => [Parts.SIDEBAR_PART, Parts.CHAT_PART, Parts.EDITOR_PART, Parts.PANEL_PART, Parts.AUXILIARYBAR_PART]
+				.map(part => `${part.split('.').pop()} ${currentGrid(layout).getViewSize(views.get(part)!).width}`);
+			// A window where the parts beside the chat part leave the editor area little more than its minimum width
+			const layoutConfiguration: ILayoutConfiguration = { ...chatConfiguration, chat: { visible: true, size: 398 }, widths: { window: 1340, sideBar: 300, auxiliaryBar: 292 } };
+			const maximized = createStateLayout(undefined, layoutConfiguration);
+			const before = widths(maximized.layout, maximized.views);
+			maximized.layout.toggleMaximizedAuxiliaryBar();
+			// The sizes as the layout saves them as the window closes (see `createWorkbenchLayout`)
+			const grid = currentGrid(maximized.layout);
+			const initialization = new Map<string, unknown>([
+				['sideBar.size', grid.getViewCachedVisibleSize(maximized.views.get(Parts.SIDEBAR_PART)!)],
+				['panel.size', grid.getViewCachedVisibleSize(maximized.views.get(Parts.PANEL_PART)!)],
+				['auxiliaryBar.size', grid.getViewSize(maximized.views.get(Parts.AUXILIARYBAR_PART)!).width],
+			]);
+
+			const { layout, views } = createStateLayout({ ...maximized.save(), initialization }, layoutConfiguration);
+			layout.toggleMaximizedAuxiliaryBar();
+
+			assert.deepStrictEqual(widths(layout, views), before);
+		});
+
 		test('a banner that shows keeps showing', () => {
 			const { layout, views } = createStateLayout();
 			layout.setPartHidden(false, Parts.BANNER_PART);
