@@ -207,15 +207,14 @@
 	text-overflow: ellipsis;
 }
 
-/* Alternate folder location: icon, name and branch-style description */
+/* Alternate folder location: name and the location's icon and label */
 .monaco-workbench .part.titlebar .command-center .command-center-quick-pick .search-label.has-folder-location {
 	display: flex;
 	align-items: center;
 	gap: 4px;
 }
 
-.monaco-workbench .part.titlebar .command-center .command-center-quick-pick .folder-location-name-group,
-.monaco-workbench .part.titlebar .command-center .command-center-quick-pick .folder-location-branch-group {
+.monaco-workbench .part.titlebar .command-center .command-center-quick-pick .folder-location-group {
 	display: flex;
 	align-items: center;
 	gap: 4px;
@@ -223,14 +222,13 @@
 }
 
 .monaco-workbench .part.titlebar .command-center .command-center-quick-pick .folder-location-name,
-.monaco-workbench .part.titlebar .command-center .command-center-quick-pick .folder-location-branch {
+.monaco-workbench .part.titlebar .command-center .command-center-quick-pick .folder-location-label {
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
 }
 
-.monaco-workbench .part.titlebar .command-center .command-center-quick-pick .folder-location-icon,
-.monaco-workbench .part.titlebar .command-center .command-center-quick-pick .folder-location-branch-icon {
+.monaco-workbench .part.titlebar .command-center .command-center-quick-pick .folder-location-icon {
 	flex-shrink: 0;
 	font-size: var(--vscode-codiconFontSize-compact);
 }

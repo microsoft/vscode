@@ -101,7 +101,7 @@ suite('AgentTitleBarStatusWidget', () => {
 
 		assert.deepStrictEqual({ atPrimary, atAlternate, afterReturn: name() }, {
 			atPrimary: 'Open Quick Access',
-			atAlternate: 'Open Quick Access, repo-tasks, branch feature-x',
+			atAlternate: 'Open Quick Access, repo-tasks, Folder Location, wt-1',
 			afterReturn: 'Open Quick Access'
 		});
 	});
