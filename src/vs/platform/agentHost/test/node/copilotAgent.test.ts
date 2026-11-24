@@ -22959,6 +22959,9 @@ suite('CopilotAgent', () => {
 				URI.joinPath(pluginDir, 'skills', 'review', 'SKILL.md'),
 				VSBuffer.fromString('---\nname: review\nuser-invocable: false\n---\nbody'),
 			);
+			const commandPath = 'commands/review.prompt.md';
+			await fileService.createFolder(URI.joinPath(pluginDir, 'commands'));
+			await fileService.writeFile(URI.joinPath(pluginDir, commandPath), VSBuffer.fromString('Review the changes.'));
 
 			class PluginDirSpyManager extends TestAgentPluginManager {
 				override async syncCustomizations(_clientId: string, customizations: ClientPluginCustomization[]): Promise<ISyncedCustomization[]> {
@@ -23015,6 +23018,12 @@ suite('CopilotAgent', () => {
 				name: 'review',
 				disableUserInvocation: true,
 				_meta: { 'vscode.sourceUri': URI.joinPath(sourceRoot, 'skills', 'review', 'SKILL.md').toString() },
+			}, {
+				type: CustomizationType.Prompt,
+				id: customizationId(URI.joinPath(pluginDir, commandPath).toString()),
+				uri: URI.joinPath(pluginDir, commandPath).toString(),
+				name: 'review',
+				_meta: { 'vscode.sourceUri': URI.joinPath(sourceRoot, commandPath).toString() },
 			}]);
 		});
 

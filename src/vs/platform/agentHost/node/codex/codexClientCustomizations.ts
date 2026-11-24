@@ -168,6 +168,7 @@ export function parsedPluginChildren(parsed: IParsedPlugin, synced: ISyncedCusto
 	for (const a of parsed.agents) { add(a.customization); }
 	for (const s of parsed.skills) { add(s.customization); }
 	for (const r of parsed.instructions) { add(r.customization); }
+	for (const prompt of parsed.prompts ?? []) { add(prompt); }
 	for (const h of parsed.hooks) { add(h.customization); }
 	for (const m of parsed.mcpServers) { add(m.customization); }
 	if (!synced.pluginDir) {

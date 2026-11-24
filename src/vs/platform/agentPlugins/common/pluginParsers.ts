@@ -14,7 +14,7 @@ import { URI } from '../../../base/common/uri.js';
 import { IFileService } from '../../files/common/files.js';
 import { parseFrontMatter } from '../../../base/common/yaml.js';
 import { IMcpRemoteServerConfiguration, IMcpServerConfiguration, IMcpStdioServerConfiguration, McpServerType } from '../../mcp/common/mcpPlatformTypes.js';
-import { CustomizationType, McpServerStatus, type AgentCustomization, type HookCustomization, type McpServerCustomization, type RuleCustomization, type SkillCustomization } from '../../agentHost/common/state/protocol/state.js';
+import { CustomizationType, McpServerStatus, type AgentCustomization, type HookCustomization, type McpServerCustomization, type PromptCustomization, type RuleCustomization, type SkillCustomization } from '../../agentHost/common/state/protocol/state.js';
 import { DEFAULT_MCP_APP } from '../../agentHost/common/state/protocol/mcpAppDefaults.js';
 import { customizationId } from '../../agentHost/common/state/sessionState.js';
 import { withSkillArgumentHintMeta } from '../../agentHost/common/meta/skillCustomizationMeta.js';
@@ -134,8 +134,13 @@ export interface IParsedSkill extends ISkillPluginResource {
 	readonly customization: SkillCustomization;
 }
 
+interface IRulePluginResource extends INamedPluginResource {
+	readonly globs?: readonly string[];
+	readonly alwaysApply?: boolean;
+}
+
 /** A parsed rule (instruction) paired with its protocol-level child customization. */
-export interface IParsedRule extends INamedPluginResource {
+export interface IParsedRule extends IRulePluginResource {
 	readonly customization: RuleCustomization;
 }
 
@@ -147,6 +152,7 @@ export interface IParsedPlugin {
 	readonly skills: readonly IParsedSkill[];
 	readonly agents: readonly IParsedAgent[];
 	readonly instructions: readonly IParsedRule[];
+	readonly prompts?: readonly PromptCustomization[];
 }
 
 // ---------------------------------------------------------------------------
@@ -415,7 +421,7 @@ function makeSkillCustomization(resource: ISkillPluginResource): SkillCustomizat
 	};
 }
 
-function makeRuleCustomization(resource: INamedPluginResource): RuleCustomization {
+function makeRuleCustomization(resource: IRulePluginResource): RuleCustomization {
 	const uri = resource.uri.toString();
 	return {
 		type: CustomizationType.Rule,
@@ -423,6 +429,8 @@ function makeRuleCustomization(resource: INamedPluginResource): RuleCustomizatio
 		uri,
 		name: resource.name,
 		...(resource.description ? { description: resource.description } : {}),
+		...(resource.globs !== undefined ? { globs: [...resource.globs] } : {}),
+		...(resource.alwaysApply !== undefined ? { alwaysApply: resource.alwaysApply } : {}),
 	};
 }
 
@@ -1195,7 +1203,7 @@ export async function readInstructionComponents(
 	dirs: readonly URI[],
 	fileService: IFileService,
 	options?: { readonly containmentRoot?: URI },
-): Promise<readonly INamedPluginResource[]> {
+): Promise<readonly IRulePluginResource[]> {
 	const seen = new Set<string>();
 	const items: INamedPluginResource[] = [];
 
@@ -1242,8 +1250,8 @@ export async function readInstructionComponents(
 
 	items.sort((a, b) => a.name.localeCompare(b.name));
 	return Promise.all(items.map(async item => {
-		const { name, description } = await parseRuleFile(item.uri, fileService, item.name);
-		return { ...item, name, ...(description ? { description } : {}) };
+		const { name, description, globs, alwaysApply } = await parseRuleFile(item.uri, fileService, item.name);
+		return { ...item, name, ...(description ? { description } : {}), globs, alwaysApply };
 	}));
 }
 
@@ -1495,11 +1503,14 @@ export async function parsePlugin(
 	const skillsSection = getPluginManifestComponent(formatConfig, 'skills', manifest);
 	const agentsSection = getPluginManifestComponent(formatConfig, 'agents', manifest);
 	const rulesSection = getPluginManifestComponent(formatConfig, 'rules', manifest);
+	const commandsSection = getPluginManifestComponent(formatConfig, 'commands', manifest);
 	const hookDirs = resolvePluginComponentDirs(pluginUri, formatConfig, 'hooks', formatConfig.hookConfigPath, hooksSection, boundaryUri);
 	const mcpDirs = resolvePluginComponentDirs(pluginUri, formatConfig, 'mcpServers', '.mcp.json', mcpSection, boundaryUri);
 	const skillDirs = resolvePluginComponentDirs(pluginUri, formatConfig, 'skills', 'skills', skillsSection, boundaryUri);
 	const agentDirs = resolvePluginComponentDirs(pluginUri, formatConfig, 'agents', 'agents', agentsSection, boundaryUri);
 	const instructionDirs = resolvePluginComponentDirs(pluginUri, formatConfig, 'rules', 'rules', rulesSection, boundaryUri);
+	const commandDirs = resolvePluginComponentDirs(pluginUri, formatConfig, 'commands', 'commands', commandsSection, boundaryUri);
+	const containment = formatConfig.format === PluginFormat.AgentPlugin ? { containmentRoot: pluginUri } : undefined;
 
 	// Handle embedded MCP servers in manifest
 	let embeddedMcp: IMcpServerDefinition[] = [];
@@ -1519,7 +1530,7 @@ export async function parsePlugin(
 		embeddedHooks = formatConfig.parseHooks(manifestUri, hooksSection, pluginUri, workspaceRoot, userHome);
 	}
 
-	const [hooks, mcpServers, skills, agents, instructions] = await Promise.all([
+	const [hooks, mcpServers, skills, agents, instructions, commands] = await Promise.all([
 		embeddedHooks.length > 0
 			? Promise.resolve(embeddedHooks)
 			: readHooks(pluginUri, hookDirs, formatConfig, fileService, workspaceRoot, userHome),
@@ -1528,12 +1539,22 @@ export async function parsePlugin(
 			: readPluginMcpServers(pluginUri, mcpDirs, formatConfig, fileService),
 		readPluginSkills(pluginUri, skillDirs, formatConfig, fileService),
 		readAgentComponents(agentDirs, fileService, {
-			...(formatConfig.format === PluginFormat.AgentPlugin ? { containmentRoot: pluginUri } : {}),
+			...containment,
 			deduplicateByName: options?.deduplicateAgentsByName,
 		}),
-		readInstructionComponents(instructionDirs, fileService, formatConfig.format === PluginFormat.AgentPlugin ? { containmentRoot: pluginUri } : undefined),
+		readInstructionComponents(instructionDirs, fileService, containment),
+		readMarkdownComponents(commandDirs, fileService, { ...containment, deduplicateByName: false }),
 	]);
 
+	const prompts = commands.filter(command => !basename(command.uri).startsWith('.')).map((command): PromptCustomization => {
+		const dotInStem = command.name.lastIndexOf('.');
+		return {
+			type: CustomizationType.Prompt,
+			id: buildChildId(command.uri),
+			uri: command.uri.toString(),
+			name: dotInStem > 0 ? command.name.slice(0, dotInStem) : command.name,
+		};
+	});
 	return {
 		format: formatConfig.format,
 		hooks,
@@ -1541,6 +1562,7 @@ export async function parsePlugin(
 		skills: skills.map(toParsedSkill),
 		agents: agents.map(toParsedAgent),
 		instructions: instructions.map(toParsedRule),
+		...(prompts.length ? { prompts } : {}),
 	};
 }
 
@@ -1554,6 +1576,6 @@ export function toParsedSkill(resource: ISkillPluginResource): IParsedSkill {
 	return { ...resource, customization: makeSkillCustomization(resource) };
 }
 
-function toParsedRule(resource: INamedPluginResource): IParsedRule {
+function toParsedRule(resource: IRulePluginResource): IParsedRule {
 	return { ...resource, customization: makeRuleCustomization(resource) };
 }

@@ -646,7 +646,8 @@ suite('pluginParsers', () => {
 					},
 				}));
 				await write('/plugins/example/com.github.copilot/agents/helper.agent.md', '---\nname: helper\ndescription: Helps\n---');
-				await write('/plugins/example/com.github.copilot/rules/project.instructions.md', '---\nname: project-rule\ndescription: Project conventions\n---');
+				await write('/plugins/example/com.github.copilot/rules/project.instructions.md', '---\nname: project-rule\ndescription: Project conventions\napplyTo: "**/*.ts"\nalwaysApply: false\n---');
+				await write('/plugins/example/com.github.copilot/commands/review.prompt.md', 'Review the changes.');
 				await write('/plugins/example/com.github.copilot/hooks/hooks.json', JSON.stringify({
 					hooks: {
 						PostToolUse: [{ hooks: [{ type: 'command', command: 'echo ${PLUGIN_ROOT}' }] }],
@@ -658,7 +659,8 @@ suite('pluginParsers', () => {
 				const plugin = await parse();
 				assert.deepStrictEqual({
 					agents: plugin.agents.map(agent => agent.name),
-					instructions: plugin.instructions.map(({ customization }) => ({ name: customization.name, description: customization.description })),
+					instructions: plugin.instructions.map(({ customization: { name, description, globs, alwaysApply } }) => ({ name, description, globs, alwaysApply })),
+					prompts: plugin.prompts?.map(({ name, type }) => ({ name, type })),
 					hooks: plugin.hooks.map(hook => ({
 						type: hook.type,
 						commands: hook.commands.map(command => ({
@@ -668,7 +670,8 @@ suite('pluginParsers', () => {
 					})),
 				}, {
 					agents: ['helper'],
-					instructions: [{ name: 'project-rule', description: 'Project conventions' }],
+					instructions: [{ name: 'project-rule', description: 'Project conventions', globs: ['**/*.ts'], alwaysApply: false }],
+					prompts: [{ name: 'review', type: CustomizationType.Prompt }],
 					hooks: [{
 						type: 'PostToolUse',
 						commands: [{

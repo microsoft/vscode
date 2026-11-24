@@ -873,7 +873,7 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 			...child,
 			uri: origin.uri,
 			source: origin.source,
-			scope: AICustomizationScopes.fromSource(origin.source),
+			scope: origin.source === AICustomizationSources.extension ? undefined : AICustomizationScopes.fromSource(origin.source),
 			extensionId: origin.extensionId,
 			extensionLabel: origin.extensionLabel,
 			pluginUri: origin.pluginUri,

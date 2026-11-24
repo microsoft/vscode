@@ -1255,10 +1255,13 @@ suite('AgentCustomizationItemProvider', () => {
 		const workspaceAgentUri = URI.file('/workspace/.github/agents/reviewer.agent.md');
 		const workspaceSkillUri = URI.file('/workspace/.github/skills/review/SKILL.md');
 		const workspaceInstructionsUri = URI.file('/workspace/.github/instructions/review.instructions.md');
+		const workspacePromptUri = URI.file('/workspace/.github/prompts/review.prompt.md');
+		const extensionId = 'github.copilot-chat';
 		const fileService = createInMemoryFileService(disposables, SYNCED_CUSTOMIZATION_SCHEME);
 		await fileService.writeFile(URI.joinPath(bundleUri, 'agents', 'reviewer.agent.md'), VSBuffer.fromString('---\nname: Reviewer\ndescription: Reviews changes\n---\nReview carefully.'));
 		await fileService.writeFile(URI.joinPath(bundleUri, 'skills', 'review', 'SKILL.md'), VSBuffer.fromString('---\nname: Review Skill\ndescription: Reviews code\n---\nReview code.'));
 		await fileService.writeFile(URI.joinPath(bundleUri, 'rules', 'review.instructions.md'), VSBuffer.fromString('---\nname: Review Instructions\ndescription: Review rules\n---\nFollow review rules.'));
+		await fileService.writeFile(URI.joinPath(bundleUri, 'commands', 'review.prompt.md'), VSBuffer.fromString('Review the changes.'));
 
 		const published: Customization[] = [];
 		class TestCustomizationService extends NullAgentHostCustomizationService {
@@ -1274,12 +1277,16 @@ suite('AgentCustomizationItemProvider', () => {
 			[URI.joinPath(bundleUri, 'agents', 'reviewer.agent.md').toString(), workspaceAgentUri],
 			[URI.joinPath(bundleUri, 'skills', 'review', 'SKILL.md').toString(), workspaceSkillUri],
 			[URI.joinPath(bundleUri, 'rules', 'review.instructions.md').toString(), workspaceInstructionsUri],
+			[URI.joinPath(bundleUri, 'commands', 'review.prompt.md').toString(), workspacePromptUri],
 		]);
 		const provider = disposables.add(new AgentCustomizationItemProvider(
 			{ clientId: 'vscode', resourceUris: createAgentHostResourceUriMapper('local') },
 			undefined,
 			syncedUri => {
 				const uri = origins.get(syncedUri.toString()) ?? origins.get(syncedUri.with({ path: syncedUri.path.replace(/^\/session-bundle\//, '/bundle/') }).toString());
+				if (uri === workspaceSkillUri) {
+					return { uri, source: AICustomizationSources.extension, extensionId };
+				}
 				return uri ? { uri, source: AICustomizationSources.local } : undefined;
 			},
 			fileService,
@@ -1300,11 +1307,12 @@ suite('AgentCustomizationItemProvider', () => {
 		assert.deepStrictEqual(items.map(item => ({ type: item.type, name: item.name, uri: item.uri.toString() })), [
 			{ type: PromptsType.agent, name: 'Reviewer', uri: workspaceAgentUri.toString() },
 			{ type: PromptsType.instructions, name: 'Review Instructions', uri: workspaceInstructionsUri.toString() },
+			{ type: PromptsType.prompt, name: 'review', uri: workspacePromptUri.toString() },
 			{ type: PromptsType.skill, name: 'Review Skill', uri: workspaceSkillUri.toString() },
 		]);
 
 		const cacheRoot = URI.file('/host/plugin-cache/bundle');
-		const publishedChild = (type: CustomizationType.Agent | CustomizationType.Rule | CustomizationType.Skill, path: string, name: string) => {
+		const publishedChild = (type: CustomizationType.Agent | CustomizationType.Rule | CustomizationType.Skill | CustomizationType.Prompt, path: string, name: string) => {
 			const uri = URI.joinPath(cacheRoot, path).toString();
 			return { type, id: uri, uri, name, _meta: { 'vscode.sourceUri': URI.joinPath(sessionBundleUri, path).toString() } };
 		};
@@ -1314,6 +1322,7 @@ suite('AgentCustomizationItemProvider', () => {
 			children: [
 				publishedChild(CustomizationType.Agent, 'agents/reviewer.agent.md', 'Host Reviewer'),
 				publishedChild(CustomizationType.Rule, 'rules/review.instructions.md', 'Host Instructions'),
+				publishedChild(CustomizationType.Prompt, 'commands/review.prompt.md', 'review'),
 				publishedChild(CustomizationType.Skill, 'skills/review/SKILL.md', 'Host Skill'),
 			],
 		});
@@ -1321,8 +1330,13 @@ suite('AgentCustomizationItemProvider', () => {
 		assert.deepStrictEqual(updated.map(item => ({ name: item.name, uri: item.uri.toString(), source: item.source, scope: item.scope, status: item.status })), [
 			{ name: 'Host Reviewer', uri: workspaceAgentUri.toString(), source: AICustomizationSources.local, scope: 'workspace', status: 'loaded' },
 			{ name: 'Host Instructions', uri: workspaceInstructionsUri.toString(), source: AICustomizationSources.local, scope: 'workspace', status: 'loaded' },
-			{ name: 'Host Skill', uri: workspaceSkillUri.toString(), source: AICustomizationSources.local, scope: 'workspace', status: 'loaded' },
+			{ name: 'review', uri: workspacePromptUri.toString(), source: AICustomizationSources.local, scope: 'workspace', status: 'loaded' },
+			{ name: 'Host Skill', uri: workspaceSkillUri.toString(), source: AICustomizationSources.extension, scope: undefined, status: 'loaded' },
 		]);
+		const normalizer = new AICustomizationItemNormalizer(labelService, upcastPartial<IProductService>({
+			defaultChatAgent: upcastPartial<NonNullable<IProductService['defaultChatAgent']>>({ chatExtensionId: extensionId }),
+		}));
+		assert.deepStrictEqual(normalizer.normalizeItems(updated, PromptsType.skill).map(item => item.scope), [AICustomizationScopes.application]);
 	});
 
 	test('labels bundled extension customizations with the extension display name', async () => {
