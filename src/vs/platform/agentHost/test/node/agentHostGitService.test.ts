@@ -6,10 +6,10 @@
 import assert from 'assert';
 import { tmpdir } from 'os';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { AgentHostGitService, canRestageOntoIndexCopy, formatGitError, getRemoteTrackingRef, GitCheckoutProgressParser, isRetryableWorktreeRemovalError, parseChangedPaths, parseDefaultBranchRef, parseDefaultRemoteBranchRef, parseFetchRemoteUrls, parseGitDiffRawNumstat, parseGitHubRepoFromRemote, parseGitStatusV2, parseGitWorktrees, parseHasGitHubRemote, parseSingleLsTreeEntry, parseUntrackedPaths, selectDefaultPushRemote, summarizeStderrForError } from '../../node/agentHostGitService.js';
+import { AgentHostGitService, canRestageOntoIndexCopy, formatGitError, getRemoteTrackingRef, GitCheckoutProgressParser, isRetryableWorktreeRemovalError, parseChangedPaths, parseDefaultBranchRef, parseDefaultRemoteBranchRef, parseFetchRemoteUrls, parseGitDiffRawNumstat, parseGitHubRepoFromRemote, parseGitStatusV2, parseGitWorktrees, parseHasGitHubRemote, parseGitRefs, parseSingleLsTreeEntry, parseUntrackedPaths, selectDefaultPushRemote, summarizeStderrForError } from '../../node/agentHostGitService.js';
 import { buildGitBlobUri } from '../../node/gitDiffContent.js';
 import { URI } from '../../../../base/common/uri.js';
-import { Branch, EMPTY_TREE_OBJECT, getBranchCompletions, GitRefType, IRefQuery, resolveDiffBaseBranchName } from '../../common/agentHostGitService.js';
+import { Branch, EMPTY_TREE_OBJECT, getBranchCompletions, GitRefType, IBranch, IRefQuery, resolveDiffBaseBranchName, resolveUpstreamBaseBranchName } from '../../common/agentHostGitService.js';
 import { needsSessionGitStateRefresh } from '../../common/state/sessionState.js';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
@@ -992,6 +992,27 @@ suite('AgentHostGitService', () => {
 					resolveDiffBaseBranchName('', undefined),
 				],
 				['persisted', 'gitState', 'persisted', 'main', 'release', undefined, 'main', undefined],
+			);
+		});
+	});
+
+	suite('resolveUpstreamBaseBranchName', () => {
+		test('uses an origin upstream that tracks a differently named branch', () => {
+			// Parsed as `getHEAD` does, so a remote name with a slash (`team/origin`) is split as `team`.
+			const branch = (name: string, upstream?: string) => parseGitRefs(`refs/heads/${name}\0${upstream ? `refs/remotes/${upstream}` : ''}`)[0] as IBranch;
+			assert.deepStrictEqual(
+				[
+					resolveUpstreamBaseBranchName(branch('feat/test', 'origin/dev')),
+					resolveUpstreamBaseBranchName(branch('feat/test', 'origin/release/1.0')),
+					resolveUpstreamBaseBranchName(branch('feat/test', 'origin/feat/test')),
+					resolveUpstreamBaseBranchName(branch('feat/test', 'team/origin/feat/test')),
+					resolveUpstreamBaseBranchName(branch('feat/test', 'upstream/release')),
+					resolveUpstreamBaseBranchName(branch('main', 'origin/main')),
+					resolveUpstreamBaseBranchName(branch('feat/test')),
+					resolveUpstreamBaseBranchName({ kind: GitRefType.DetachedHead, name: 'abc123' }),
+					resolveUpstreamBaseBranchName(undefined),
+				],
+				['origin/dev', 'origin/release/1.0', undefined, undefined, undefined, undefined, undefined, undefined, undefined],
 			);
 		});
 	});

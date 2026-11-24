@@ -90,7 +90,7 @@ import { IAgentHostDatabase, IAgentHostDatabaseSessionOptions, type IAgentHostDa
 import { AgentSessionRegistry, IRegisteredSession, IStoredRegisteredSession } from './agentSessionRegistry.js';
 import { IAgentHostSessionStateStore, type ISessionStateChatMove, type ISessionStateWorktreeListChanges, readSessionBaseBranch, SessionStateDeletedError, SessionStateMirrorFlush, sessionStatePatch, type SessionStateValuesPrefetch } from '../common/agentHostSessionStateStore.js';
 import { getSessionStateValueKey } from './agentHostSessionStateMirror.js';
-import { IAgentHostGitService, META_DIFF_BASE_BRANCH, resolveDefaultBaseBranchName, tryResolvePrimaryWorktreeRoot } from '../common/agentHostGitService.js';
+import { IAgentHostGitService, META_DIFF_BASE_BRANCH, resolveDefaultBaseBranchName, resolveUpstreamBaseBranchName, tryResolvePrimaryWorktreeRoot } from '../common/agentHostGitService.js';
 import { getChatsInUse } from './agentHostChatsInUse.js';
 import { resolveAgentMergeOwningChat, resolveBranchChangesetScopeForOwner, resolveBranchChangesetScopeForSource, resolveChangesetOwnerScope, resolveGitHubStateFolder } from './agentHostBranchChangesetScope.js';
 import { IAgentHostSubscriptionService, resolveAgentHostSession } from '../common/agentHostSubscriptionService.js';
@@ -2037,12 +2037,16 @@ export class AgentService extends Disposable implements IAgentService {
 				if (!persistedBase && (!isDefaultChat || resolveGitHubStateFolder(this._stateManager, source).isSessionFolder)) {
 					const repositoryRoot = await this._gitService.getRepositoryRoot(resolved);
 					if (repositoryRoot) {
-						const defaultBranch = await this._gitService.getDefaultBranch2(repositoryRoot);
+						const [head, defaultBranch] = await Promise.all([
+							this._gitService.getHEAD(repositoryRoot),
+							this._gitService.getDefaultBranch2(repositoryRoot),
+						]);
 						const configuredBranch = config[SessionConfigKey.Branch];
 						const fallbackBranch = typeof configuredBranch === 'string'
 							? configuredBranch
 							: await this._gitService.getCurrentBranch(repositoryRoot);
-						const baseBranch = resolveDefaultBaseBranchName(defaultBranch, fallbackBranch);
+						// A checked-out branch tracking another branch (e.g. created from `origin/dev`) is based on it, not on the remote's default branch.
+						const baseBranch = resolveUpstreamBaseBranchName(head) ?? resolveDefaultBaseBranchName(defaultBranch, fallbackBranch);
 						if (baseBranch) {
 							await this._sessionStateStore.writeMetadata(session, isDefaultChat ? session : URI.parse(source), {
 								[META_DIFF_BASE_BRANCH]: baseBranch,

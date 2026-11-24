@@ -17,7 +17,7 @@ import { localize } from '../../../../nls.js';
 import { createDecorator } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
 import { AgentSession, IAgentSessionProjectInfo } from '../../common/agent.js';
-import { Branch, getBranchCompletions, GitRefType, IAgentHostGitService, IGitRemote, IRemoteBranch, IWorktreeFileProgress, META_DIFF_BASE_BRANCH, resolveDefaultBaseBranchName, tryResolvePrimaryWorktreeRoot } from '../../common/agentHostGitService.js';
+import { Branch, getBranchCompletions, GitRefType, IAgentHostGitService, IGitRemote, IRemoteBranch, IWorktreeFileProgress, META_DIFF_BASE_BRANCH, resolveDefaultBaseBranchName, resolveUpstreamBaseBranchName, tryResolvePrimaryWorktreeRoot } from '../../common/agentHostGitService.js';
 import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, toAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
 import { ISchemaProperty, schemaProperty } from '../../common/agentHostSchema.js';
 import { ISessionDataService, type ISessionDatabase } from '../../common/sessionDataService.js';
@@ -2029,7 +2029,12 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 		if (!primaryRoot || isEqual(primaryRoot, worktreeRoot)) {
 			return undefined;
 		}
-		const baseBranch = (await this._gitService.getDefaultBranch(primaryRoot).catch(() => undefined))?.name;
+		const [head, defaultBranch] = await Promise.all([
+			this._gitService.getHEAD(worktreeRoot).catch(() => undefined),
+			this._gitService.getDefaultBranch(primaryRoot).catch(() => undefined),
+		]);
+		// A worktree branch tracking another branch (e.g. created from `origin/dev`) is based on it, not on the remote's default branch.
+		const baseBranch = resolveUpstreamBaseBranchName(head) ?? defaultBranch?.name;
 		return { worktreeRoot, primaryRoot, baseBranch };
 	}
 
