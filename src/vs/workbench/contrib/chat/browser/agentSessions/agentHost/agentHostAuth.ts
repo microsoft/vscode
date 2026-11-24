@@ -390,6 +390,7 @@ export class AgentHostAuthenticationRecovery {
 		const defaultAccountService = accessor.get(IDefaultAccountService);
 		const commandService = accessor.get(ICommandService);
 		// Copilot's optional Microsoft requirements are answered only by a window whose account is Microsoft; other windows leave the choice to the one that is.
+		// This holds whatever chat.agentHost.copilot.m365.enabled says: a window with the setting off has no way to take a host off a Microsoft account again, so it must not put it there.
 		if (resource.required === false && (resource.resource === copilotEntraDiscoveryResource || isCopilotEntraServiceResource(resource))
 			&& defaultAccountService.currentDefaultAccount?.authenticationProvider.id !== MICROSOFT_DEFAULT_ACCOUNT_PROVIDER_ID) {
 			return;
@@ -883,10 +884,11 @@ export async function authenticateProtectedResources(
 	const resolvedOptions = resolveAuthenticationOptions(accessor, options);
 	for (const agent of agents) {
 		const resources = agent.protectedResources ?? [];
-		// With several named Microsoft service resources offered, the window cannot tell which one the user means, so it forwards none of them.
-		const choosesBetweenServices = resources.filter(r => isCopilotEntraServiceResource(r) && !!r.resource_name).length > 1;
+		// With several named optional Microsoft service resources offered, the window cannot tell which one the user means, so it forwards none of them.
+		const isOptionalService = (r: ProtectedResourceMetadata) => r.required === false && isCopilotEntraServiceResource(r);
+		const choosesBetweenServices = resources.filter(r => isOptionalService(r) && !!r.resource_name).length > 1;
 		for (const resource of resources) {
-			if (choosesBetweenServices && isCopilotEntraServiceResource(resource)) {
+			if (choosesBetweenServices && isOptionalService(resource)) {
 				continue;
 			}
 			await authenticateProtectedResourceWithServices(authenticationService, defaultAccountService, logService, resource, resolvedOptions);

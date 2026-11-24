@@ -15,6 +15,7 @@ import { gitHubCopilotResource } from '../../../../../../platform/agentHost/comm
 import { deriveGitHubEndpoints } from '../../../../../../platform/github/common/githubEndpoints.js';
 import type { ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { AgentHostCopilotM365EnabledSettingId } from '../../../../../../platform/chat/common/chatSettings.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
@@ -193,6 +194,22 @@ suite('Agent Host Microsoft credential acquisition', () => {
 		});
 	});
 
+	test('named Microsoft services that the host requires are all forwarded', async () => {
+		const f = fixture();
+		const services = [...copilotEntraResources].map(([audience, serviceResource], index): ProtectedResourceMetadata => ({
+			resource: serviceResource,
+			resource_name: `Service ${audience}`,
+			authorization_servers: [copilotEntraAuthorizationServer],
+			scopes_supported: [`${audience}/.default`],
+			...(index === 0 ? { required: true } : {}),
+		}));
+		f.authentication.sessions = [selected, ...services.map((service, index) => ({ ...selected, scopes: service.scopes_supported!, accessToken: `cached-${index}` }))];
+		const forwarded: string[] = [];
+		const options = { logPrefix: '[test]', authenticate: async (request: IAgentHostAuthenticateRequest) => { forwarded.push(request.resource); } };
+		await f.instantiation.invokeFunction(authenticateProtectedResources, [{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], protectedResources: [{ ...resource, required: false }, ...services] }], options);
+		assert.deepStrictEqual(forwarded, [copilotEntraDiscoveryResource, ...services.map(service => service.resource)]);
+	});
+
 	test('recovery answers optional Microsoft requirements only for a window on a Microsoft account', async () => {
 		const f = fixture();
 		const serviceAudience = [...copilotEntraResources.keys()][0];
@@ -215,7 +232,9 @@ suite('Agent Host Microsoft credential acquisition', () => {
 			githubCopilot: { requirement: copilot, sessions: [gitHubSession], provider: 'github' },
 		};
 		const answered: Record<string, Record<string, number>> = {};
-		for (const [accountName, account] of Object.entries(accounts)) {
+		const configuration = f.instantiation.get(IConfigurationService) as TestConfigurationService;
+		for (const [accountName, account] of [...Object.entries(accounts), ...['github', 'none'].map((name): [string, IDefaultAccount | null] => [`${name}SettingOff`, accounts[name]])]) {
+			await configuration.setUserConfiguration(AgentHostCopilotM365EnabledSettingId, !accountName.endsWith('SettingOff'));
 			answered[accountName] = {};
 			for (const [name, { requirement, sessions, provider }] of Object.entries(requirements)) {
 				f.defaults.currentDefaultAccount = account;
@@ -231,6 +250,8 @@ suite('Agent Host Microsoft credential acquisition', () => {
 			microsoft: { optionalDiscovery: 1, optionalService: 1, graphNotOptional: 1, githubCopilot: 1 },
 			github: { optionalDiscovery: 0, optionalService: 0, graphNotOptional: 1, githubCopilot: 1 },
 			none: { optionalDiscovery: 0, optionalService: 0, graphNotOptional: 1, githubCopilot: 1 },
+			githubSettingOff: { optionalDiscovery: 0, optionalService: 0, graphNotOptional: 1, githubCopilot: 1 },
+			noneSettingOff: { optionalDiscovery: 0, optionalService: 0, graphNotOptional: 1, githubCopilot: 1 },
 		});
 	});
 

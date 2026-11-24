@@ -387,9 +387,22 @@ export class ChatSetupController extends Disposable {
 				this.setStep(ChatSetupStep.Installing);
 				await this.doInstall();
 				this.requireMicrosoftResource(choice, currentResources(), cancellation.token);
+				const isDefaultAccount = () => {
+					const defaultAccount = this.defaultAccountService.currentDefaultAccount;
+					return defaultAccount?.authenticationProvider.id === MICROSOFT_DEFAULT_ACCOUNT_PROVIDER_ID && defaultAccount.accountName === identity.account.label;
+				};
+				const wasDefaultAccount = isDefaultAccount();
 				await this.defaultAccountService.rememberMicrosoftAccount(identity.account);
-				const defaultAccount = this.defaultAccountService.currentDefaultAccount;
-				if (defaultAccount?.authenticationProvider.id !== MICROSOFT_DEFAULT_ACCOUNT_PROVIDER_ID || defaultAccount.accountName !== identity.account.label) {
+				try {
+					// The remembered account outlives this attempt, so an attempt abandoned during the update above must not leave it behind.
+					this.requireMicrosoftResource(choice, currentResources(), cancellation.token);
+				} catch (error) {
+					if (!wasDefaultAccount) {
+						await this.defaultAccountService.forgetMicrosoftAccount();
+					}
+					throw error;
+				}
+				if (!isDefaultAccount()) {
 					await this.defaultAccountService.forgetMicrosoftAccount();
 					throw new Error(localize('copilotMicrosoftNotDefault', "Microsoft sign-in could not be completed for this window. Try again."));
 				}
