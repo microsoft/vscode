@@ -555,6 +555,26 @@ suite('MultiDiffEditorWidget', () => {
 		}
 	});
 
+	test('highlights text next to replaced text of an inline diff without the replacement', async () => {
+		const lines = Array.from({ length: 300 }, (_, index) => `line ${index + 1}`);
+		const originalLines = [...lines];
+		originalLines[149] = 'one foo two';
+		const modifiedLines = [...Array.from({ length: 200 }, (_, index) => `inserted ${index + 1}`), ...lines];
+		modifiedLines[349] = 'one baz two';
+		const { widget, resource } = await showFileBelowAnother(originalLines.join('\n'), modifiedLines.join('\n'), { renderSideBySide: false });
+
+		try {
+			const editor = widget.tryGetCodeEditor(resource.modified)!.editor;
+			// "one " ends where "foo" starts, which "baz" replaced, and " two" starts where it ends.
+			widget.reveal(resource, { range: new Range(150, 1, 150, 5), highlight: true });
+			widget.reveal(resource, { range: new Range(150, 8, 150, 12), highlight: true });
+
+			assert.deepStrictEqual(getHighlights(editor), [new Range(350, 1, 350, 5), new Range(350, 8, 350, 12)]);
+		} finally {
+			widget.setViewModel(undefined);
+		}
+	});
+
 	test('reveals and highlights the modified lines of a change without inner changes in an inline diff', async () => {
 		const lines = Array.from({ length: 300 }, (_, index) => `line ${index + 1}`);
 		const modifiedLines = [

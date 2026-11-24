@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Dimension, h } from '../../../../base/browser/dom.js';
+import { findLast } from '../../../../base/common/arraysFind.js';
 import { CancellationToken, cancelOnDispose } from '../../../../base/common/cancellation.js';
 import { arrayEqualsC } from '../../../../base/common/equals.js';
 import { BugIndicatingError, onUnexpectedError } from '../../../../base/common/errors.js';
@@ -18,6 +19,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { OffsetRange } from '../../../common/core/ranges/offsetRange.js';
 import { IDiffEditorOptions } from '../../../common/config/editorOptions.js';
+import { Position } from '../../../common/core/position.js';
 import { IRange, Range } from '../../../common/core/range.js';
 import { ISelection, Selection } from '../../../common/core/selection.js';
 import { DetailedLineRangeMapping } from '../../../common/diff/rangeMapping.js';
@@ -805,7 +807,22 @@ function mapToModifiedDocument(range: Range, mappings: readonly DetailedLineRang
 	if (innerChange?.modifiedRange.isEmpty()) {
 		return undefined;
 	}
-	return Range.plusRange(translatePosition(start, mappings), translatePosition(range.getEndPosition(), mappings));
+	return Range.fromPositions(translateEdge(start, mappings, 'start'), translateEdge(range.getEndPosition(), mappings, 'end'));
+}
+
+/**
+ * Maps the start or the end of a range of the original document to the modified document. An edge that only touches
+ * replaced text maps to the edge of its replacement, so that the range does not include the replacement, to which
+ * {@link translatePosition} maps the edge.
+ */
+function translateEdge(position: Position, mappings: readonly DetailedLineRangeMapping[], edge: 'start' | 'end'): Position {
+	const innerChanges = findLast(mappings, mapping => mapping.original.startLineNumber <= position.lineNumber)?.innerChanges ?? [];
+	const touched = innerChanges.find(inner => !inner.originalRange.isEmpty() && position.equals(edge === 'start' ? inner.originalRange.getEndPosition() : inner.originalRange.getStartPosition()));
+	if (touched) {
+		return edge === 'start' ? touched.modifiedRange.getEndPosition() : touched.modifiedRange.getStartPosition();
+	}
+	const translated = translatePosition(position, mappings);
+	return edge === 'start' ? translated.getStartPosition() : translated.getEndPosition();
 }
 
 export interface IMultiDiffEditorViewState {
