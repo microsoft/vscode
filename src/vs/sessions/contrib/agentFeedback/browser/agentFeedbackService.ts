@@ -765,9 +765,10 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 			return submitted;
 		}
 
-		const widget = await whenChatWidgetForSession(this._chatWidgetService, options?.targetChat ?? sessionResource);
+		const targetChat = options?.targetChat ?? this._getFocusedAgentHostChat(sessionResource) ?? sessionResource;
+		const widget = await whenChatWidgetForSession(this._chatWidgetService, targetChat);
 		if (!widget) {
-			this._logService.error('[AgentFeedback] submitFeedback: no chat widget found for session', (options?.targetChat ?? sessionResource).toString());
+			this._logService.error('[AgentFeedback] submitFeedback: no chat widget found for session', targetChat.toString());
 			return false;
 		}
 
@@ -796,6 +797,22 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 		// covers sessions without that contribution.
 		const nonAgentHostOptions = options?.feedbackIds ? { ...options, feedbackIds: undefined } : options;
 		return this._sendActOnFeedbackRequest(widget, sessionResource, nonAgentHostOptions);
+	}
+
+	/**
+	 * The chat the focused host shows of an Agent Host session, such as a nested chat of it: its feedback is the session's,
+	 * so it is sent to the chat the user looks at, whose widget exists, rather than to the session's main chat, which no
+	 * widget shows while another chat of the session is open.
+	 */
+	private _getFocusedAgentHostChat(sessionResource: URI): URI | undefined {
+		if (!this.isAgentHostSession(sessionResource)) {
+			return undefined;
+		}
+		const host = this._focusedSessionHostService.focusedHost.get();
+		if (!isEqual(host.session.get()?.resource, sessionResource)) {
+			return undefined;
+		}
+		return host.chat.get()?.resource;
 	}
 
 	/**
