@@ -578,15 +578,23 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 					user: remoteUser,
 				};
 			},
-			reportUserStateMount: error => this._onDidReportUserState.fire(error === undefined
-				? { connectionId, stage: 'mount', outcome: 'added', target: 'volume' }
-				: { connectionId, stage: 'mount', outcome: 'failed', reason: 'volume', target: 'volume', errorMessage: sanitizeDevContainerStateErrorMessage([getErrorMessage(error)]) }),
+			reportUserStateMount: error => this._reportPreparedUserStateMount(connectionId, error),
 			testConfiguration: readDevContainerEnvironmentTestConfiguration(process.env),
 		}, sandboxEnabled, persistUserState);
 	}
 
 	private _getEnvironmentCacheDirectory(environmentId: string): string {
 		return join(this._environmentService.userDataPath, 'devContainerEnvironments', environmentId);
+	}
+
+	/** Reports a sample's or environment's state volume, whose failure also fails the connection. */
+	protected _reportPreparedUserStateMount(connectionId: string, error: unknown): void {
+		if (error !== undefined) {
+			this._setConnectStage(connectionId, 'mount');
+		}
+		this._onDidReportUserState.fire(error === undefined
+			? { connectionId, stage: 'mount', outcome: 'added', target: 'volume' }
+			: { connectionId, stage: 'mount', outcome: 'failed', reason: 'volume', target: 'volume', errorMessage: sanitizeDevContainerStateErrorMessage([getErrorMessage(error)]) });
 	}
 
 	private async _runReportedDocker(connectionId: string, args: readonly string[], token: CancellationToken): Promise<{ stdout: string; stderr: string; code: number }> {
@@ -629,9 +637,7 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 					user: remoteUser,
 				};
 			},
-			reportUserStateMount: error => this._onDidReportUserState.fire(error === undefined
-				? { connectionId, stage: 'mount', outcome: 'added', target: 'volume' }
-				: { connectionId, stage: 'mount', outcome: 'failed', reason: 'volume', target: 'volume', errorMessage: sanitizeDevContainerStateErrorMessage([getErrorMessage(error)]) }),
+			reportUserStateMount: error => this._reportPreparedUserStateMount(connectionId, error),
 			readSource: async () => {
 				const lifetime = new DisposableStore();
 				try {

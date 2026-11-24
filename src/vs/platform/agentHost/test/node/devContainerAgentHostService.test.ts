@@ -1361,6 +1361,35 @@ suite('Dev Container Agent Host Main Service', () => {
 		});
 	});
 
+	test('reports state volume failures of samples and environments as mount failures', async () => {
+		const results: Record<string, { stages: string[]; mount: string[] }> = {};
+		for (const source of ['sample', 'environment'] as const) {
+			const service = store.add(new class extends TestDevContainerAgentHostMainService {
+				protected override async _prepareSample(connectionId: string): Promise<IPreparedDevContainerSample> {
+					this._reportPreparedUserStateMount(connectionId, new Error('docker volume create failed'));
+					throw new Error('docker volume create failed');
+				}
+
+				protected override async _prepareEnvironment(connectionId: string): Promise<IPreparedDevContainerEnvironment> {
+					this._reportPreparedUserStateMount(connectionId, new Error('docker volume create failed'));
+					throw new Error('docker volume create failed');
+				}
+			}());
+			const stages: string[] = [];
+			const mount: string[] = [];
+			store.add(service.onDidFailConnect(failure => stages.push(failure.stage)));
+			store.add(service.onDidReportUserState(report => report.stage === 'mount' && mount.push(`${report.outcome}:${report.reason}`)));
+			await assert.rejects(service.connect(source === 'sample'
+				? { connectionId: source, sampleId: 'node', name: 'Node Sample', persistUserState: true }
+				: { connectionId: source, environmentId: 'environment', image: devContainerEnvironmentImage, name: 'Dev Container', persistUserState: true }), /docker volume create failed/);
+			results[source] = { stages, mount };
+		}
+		assert.deepStrictEqual(results, {
+			sample: { stages: ['mount'], mount: ['failed:volume'] },
+			environment: { stages: ['mount'], mount: ['failed:volume'] },
+		});
+	});
+
 	test('caches bootstrap CLIs for each libc even when the server cache remains private', async () => {
 		for (const [libc, platform] of [['', 'linux-x64'], ['musl', 'alpine-x64']]) {
 			const service = store.add(new TestDevContainerAgentHostMainService(libc, true, undefined, process.env, true, [], new Set(), '/tmp', new NullLogService(), 'a'.repeat(40)));
