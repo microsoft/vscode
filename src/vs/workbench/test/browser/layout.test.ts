@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { $, append } from '../../../base/browser/dom.js';
+import { $, append, setParentFlowTo } from '../../../base/browser/dom.js';
 import { Grid, Direction, ISerializableView, ISerializedGrid, ISerializedNode, Orientation, SerializableGrid } from '../../../base/browser/ui/grid/grid.js';
 import { LayoutPriority } from '../../../base/browser/ui/splitview/splitview.js';
 import { mainWindow } from '../../../base/browser/window.js';
@@ -1023,7 +1023,7 @@ suite('Workbench layout chat part', () => {
 					? { ...state, panel: { ...state.panel, maximized: true } }
 					: { ...state, auxiliaryBar: { ...state.auxiliaryBar, maximized: true } };
 				layout.applyPartsLayoutState(maximizedState);
-				const maximized = { chatVisible: layout.isVisible(Parts.CHAT_PART), visibility: [...visibility] };
+				const maximized = { chatVisible: layout.isVisible(Parts.CHAT_PART), visibility: [...visibility].sort() };
 				layout.applyPartsLayoutState(maximizedState);
 				layout.applyPartsLayoutState(state);
 				const appliedBack = chat();
@@ -1035,14 +1035,47 @@ suite('Workbench layout chat part', () => {
 				}
 				return { maximized, appliedBack, restored: chat() };
 			};
-			// The parts are told that they hide as maximizing the secondary side bar tells them
-			const maximizing = createStateLayout(undefined, chatConfiguration);
-			maximizing.layout.toggleMaximizedAuxiliaryBar();
-
 			assert.deepStrictEqual({ panel: apply('panel'), auxiliaryBar: apply('auxiliaryBar') }, {
-				panel: { maximized: { chatVisible: false, visibility: ['editor hides', 'chat hides'] }, appliedBack: { visible: true, width: 400 }, restored: { visible: true, width: 400 } },
-				auxiliaryBar: { maximized: { chatVisible: false, visibility: maximizing.visibility }, appliedBack: { visible: true, width: 400 }, restored: { visible: true, width: 400 } },
+				panel: { maximized: { chatVisible: false, visibility: ['chat hides', 'editor hides'] }, appliedBack: { visible: true, width: 400 }, restored: { visible: true, width: 400 } },
+				auxiliaryBar: { maximized: { chatVisible: false, visibility: ['chat hides', 'editor hides', 'panel hides', 'sidebar hides'] }, appliedBack: { visible: true, width: 400 }, restored: { visible: true, width: 400 } },
 			});
+		});
+
+		test('a state applies as from a window without a maximized part, also while the secondary side bar is maximized beside the chat part', () => {
+			const widths = (layout: Layout, views: Map<Parts, Part>) => Object.fromEntries([Parts.SIDEBAR_PART, Parts.CHAT_PART, Parts.EDITOR_PART, Parts.PANEL_PART, Parts.AUXILIARYBAR_PART]
+				.map(part => [part.split('.').pop(), currentGrid(layout).isViewVisible(views.get(part)!) ? currentGrid(layout).getViewSize(views.get(part)!).width : 'hidden']));
+			const apply = (target: (state: IPartsLayoutState) => IPartsLayoutState, maximizedBefore: boolean) => {
+				const { layout, views } = createStateLayout(undefined, chatConfiguration);
+				const state = layout.getPartsLayoutState();
+				if (maximizedBefore) {
+					layout.toggleMaximizedAuxiliaryBar();
+				}
+				layout.applyPartsLayoutState(target(state));
+				return widths(layout, views);
+			};
+			const targets: Record<string, (state: IPartsLayoutState) => IPartsLayoutState> = {
+				widerSideBar: state => ({ ...state, sideBar: { ...state.sideBar, size: 280 } }),
+				hiddenSideBar: state => ({ ...state, sideBar: { ...state.sideBar, visible: false } }),
+				maximizedPanelOnTheRight: state => ({ ...state, panel: { ...state.panel, position: Position.RIGHT, size: 320, maximized: true } }),
+			};
+
+			const fromMaximized = Object.fromEntries(Object.entries(targets).map(([name, target]) => [name, apply(target, true)]));
+			const fromNormal = Object.fromEntries(Object.entries(targets).map(([name, target]) => [name, apply(target, false)]));
+
+			assert.deepStrictEqual(fromMaximized, fromNormal);
+		});
+
+		test('maximizing the secondary side bar hides the chat part at its own width, not with the width of the parts it hides beside it', () => {
+			const before = createStateLayout(undefined, chatConfiguration);
+			before.layout.toggleMaximizedAuxiliaryBar();
+			const saved = before.save();
+			const { layout, views } = createStateLayout(saved, chatConfiguration);
+			layout.toggleMaximizedAuxiliaryBar();
+
+			assert.deepStrictEqual(
+				{ saved: JSON.parse(saved.stored!), restored: currentGrid(layout).getViewSize(views.get(Parts.CHAT_PART)!).width },
+				{ saved: { version: 1, visible: true, size: 400, hiddenByLayout: true }, restored: 400 }
+			);
 		});
 
 		test('what had the focus keeps it while its part shows, and the focus goes to the editor when its part hides', () => {
@@ -1061,6 +1094,22 @@ suite('Workbench layout chat part', () => {
 			layout.applyPartsLayoutState({ ...state, sideBar: { ...state.sideBar, visible: false } });
 
 			assert.deepStrictEqual({ chatButtonKeptFocus, focused: focus.focused }, { chatButtonKeptFocus: true, focused: ['editor'] });
+		});
+
+		test('content that an editor shows outside its element has the focus in the editor, which goes to the maximized part when the editor area hides', () => {
+			const { layout, views, focus } = createStateLayout();
+			mainWindow.document.body.appendChild(layout.mainContainer);
+			store.add(toDisposable(() => layout.mainContainer.remove()));
+			// As a notebook or a webview shows its content outside the editor's element, linked to an element of the editor by its id
+			const outside = append(mainWindow.document.body, $('button'));
+			store.add(toDisposable(() => outside.remove()));
+			setParentFlowTo(outside, append(views.get(Parts.EDITOR_PART)!.element, $('div#layout-test-editor-content')));
+			const state = layout.getPartsLayoutState();
+
+			outside.focus();
+			layout.applyPartsLayoutState({ ...state, auxiliaryBar: { ...state.auxiliaryBar, maximized: true } });
+
+			assert.deepStrictEqual(focus.focused, ['auxiliarybar']);
 		});
 
 		test('a banner that shows keeps showing', () => {
