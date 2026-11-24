@@ -35,12 +35,20 @@ export class NullWSLRemoteAgentHostService implements IWSLRemoteAgentHostService
 		return [];
 	}
 
+	async terminateDistro(_distro: string): Promise<void> {
+		throw new Error('WSL is not available on this platform.');
+	}
+
 	async connect(_config: IWSLAgentHostConfig): Promise<IWSLAgentHostConnection> {
 		throw new Error('WSL is not available on this platform.');
 	}
 
 	async disconnect(_distro: string): Promise<void> {
 		throw new Error('WSL is not available on this platform.');
+	}
+
+	isDisconnected(_distro: string): boolean {
+		return false;
 	}
 
 	async reconnect(_distro: string, _name: string): Promise<IWSLAgentHostConnection> {

@@ -52,14 +52,14 @@ export class GitQuickDiffProvider implements QuickDiffProvider {
 		}
 
 		// Ignore path that is inside a merge group
-		if (this.repository.mergeGroup.resourceStates.some(r => pathEquals(r.resourceUri.fsPath, uri.fsPath))) {
+		if (this.repository.mergeChanges.some(r => pathEquals(r.resourceUri.fsPath, uri.fsPath))) {
 			this.logger.trace(`[Repository][provideOriginalResource] Resource is part of a merge group: ${uri.toString()}`);
 			return undefined;
 		}
 
 		// Ignore path that is untracked
-		if (this.repository.untrackedGroup.resourceStates.some(r => pathEquals(r.resourceUri.path, uri.path)) ||
-			this.repository.workingTreeGroup.resourceStates.some(r => pathEquals(r.resourceUri.path, uri.path) && r.type === Status.UNTRACKED)) {
+		if (this.repository.untrackedChanges.some(r => pathEquals(r.resourceUri.path, uri.path)) ||
+			this.repository.workingTreeChanges.some(r => pathEquals(r.resourceUri.path, uri.path) && r.type === Status.UNTRACKED)) {
 			this.logger.trace(`[Repository][provideOriginalResource] Resource is untracked: ${uri.toString()}`);
 			return undefined;
 		}
@@ -108,7 +108,7 @@ export class StagedResourceQuickDiffProvider implements QuickDiffProvider {
 		}
 
 		// Ignore resources that are not in the index group
-		if (!this._repository.indexGroup.resourceStates.some(r => pathEquals(r.resourceUri.fsPath, uri.fsPath))) {
+		if (!this._repository.indexChanges.some(r => pathEquals(r.resourceUri.fsPath, uri.fsPath))) {
 			this.logger.trace(`[StagedResourceQuickDiffProvider][provideOriginalResource] Resource is not part of a index group: ${uri.toString()}`);
 			return undefined;
 		}

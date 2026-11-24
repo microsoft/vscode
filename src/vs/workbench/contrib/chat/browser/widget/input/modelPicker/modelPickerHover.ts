@@ -148,7 +148,8 @@ export function getModelHoverContent(
 		costInfoRendered = true;
 	}
 
-	const description = descriptionOverride ?? model.metadata.tooltip;
+	const tooltip = descriptionOverride ?? model.metadata.tooltip;
+	const description = tooltip && !repeatsMessageBanner(model, tooltip) ? tooltip : undefined;
 	if (!costInfoRendered && (description || isHydraFusionModel(model))) {
 		const { element, learnMoreLink } = renderModelDescription(description ?? '', openerService, disposables, isHydraFusionModel(model) ? HYDRA_FUSION_LEARN_MORE_URL : undefined);
 		element.classList.add('chat-model-hover-description');
@@ -200,6 +201,18 @@ export function getModelHoverContent(
 	}
 
 	return container.children.length > 0 ? { element: container, disposable: disposables, tabbableElements } : undefined;
+}
+
+/**
+ * Whether the text repeats a warning or info banner shown for the model. Providers also
+ * give a flagged row's warning as the model's tooltip, to explain its status icon elsewhere.
+ */
+export function repeatsMessageBanner(model: ILanguageModelChatMetadataAndIdentifier, text: string): boolean {
+	if (isAutoModel(model)) {
+		return false;
+	}
+	const { warningText, infoText } = model.metadata;
+	return Object.values(warningText ?? {}).includes(text) || Object.values(infoText ?? {}).includes(text);
 }
 
 /**

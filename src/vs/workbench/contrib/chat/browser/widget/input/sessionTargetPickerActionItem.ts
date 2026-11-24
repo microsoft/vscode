@@ -297,6 +297,27 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 		this._updateAgentSessionItems();
 	}
 
+	/**
+	 * Picks a session type as if the user selected it in the picker.
+	 * @returns `switched` when it started a session of that type, `selected` when
+	 * the type was already selected, or `undefined` when the picker does not offer it.
+	 */
+	selectSessionType(type: AgentSessionTarget): 'switched' | 'selected' | undefined {
+		const sessionTypeItem = this._sessionTypeItems.find(item => item.type === type);
+		if (!sessionTypeItem || !this._isSessionTypeEnabled(type) || (type === AgentSessionProviders.Local && requiresCopilotAgentHost(this.managedSettingsService, this.configurationService))) {
+			return undefined;
+		}
+		const availability = getConfiguredSessionTypePickerAvailability(type, this.configurationService, this.chatSessionsService, this.chatEntitlementService, this.languageModelsService, this.agentSdkSetupService, this.managedSettingsService);
+		if (availability !== SessionTypeAvailability.Available) {
+			return undefined;
+		}
+		if ((this._getSelectedSessionType() ?? this._getDefaultSessionType()) === type) {
+			return 'selected';
+		}
+		this._run(sessionTypeItem);
+		return 'switched';
+	}
+
 	protected _run(sessionTypeItem: ISessionTypeItem): void {
 		const previousTarget = this._getSelectedSessionType() ?? this._getDefaultSessionType();
 		this._reportCopilotHarnessTargetChanged(sessionTypeItem.type);

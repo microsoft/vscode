@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { timeout } from '../../../../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../../../base/common/event.js';
 import { fuzzyScore, FuzzyScoreOptions } from '../../../../../../../../base/common/filters.js';
@@ -18,13 +19,14 @@ import { Position } from '../../../../../../../../editor/common/core/position.js
 import { Range } from '../../../../../../../../editor/common/core/range.js';
 import { OffsetRange } from '../../../../../../../../editor/common/core/ranges/offsetRange.js';
 import { Selection } from '../../../../../../../../editor/common/core/selection.js';
-import { IDecorationOptions } from '../../../../../../../../editor/common/editorCommon.js';
+import { Handler, IDecorationOptions } from '../../../../../../../../editor/common/editorCommon.js';
 import { CompletionItem, CompletionItemKind, CompletionList, CompletionTriggerKind, SymbolKind } from '../../../../../../../../editor/common/languages.js';
 import { ITextModel, TrackedRangeStickiness } from '../../../../../../../../editor/common/model.js';
 import { ILanguageFeaturesService } from '../../../../../../../../editor/common/services/languageFeatures.js';
 import { LanguageFeaturesService } from '../../../../../../../../editor/common/services/languageFeaturesService.js';
 import { CompletionModel } from '../../../../../../../../editor/contrib/suggest/browser/completionModel.js';
 import { CompletionItem as SuggestCompletionItem } from '../../../../../../../../editor/contrib/suggest/browser/suggest.js';
+import { SuggestModel } from '../../../../../../../../editor/contrib/suggest/browser/suggestModel.js';
 import { WordDistance } from '../../../../../../../../editor/contrib/suggest/browser/wordDistance.js';
 import { IOutlineModelService, OutlineModel } from '../../../../../../../../editor/contrib/documentSymbols/browser/outlineModel.js';
 import { TestCodeEditorService } from '../../../../../../../../editor/test/browser/editorTestServices.js';
@@ -52,7 +54,7 @@ import { InputEditorCommandArgumentHint } from '../../../../../browser/widget/in
 import { AgentHostCompletionReferenceKind, createChatReferenceVariableEntry, toAgentHostCompletionVariableEntry } from '../../../../../common/attachments/chatVariableEntries.js';
 import { IChatVariablesService, IDynamicVariable } from '../../../../../common/attachments/chatVariables.js';
 import { attachedContextCompletionAdditionalTriggerCharacters, attachedContextCompletionSortText, computeCompletionRanges, escapeForCharClass, getAttachedContextCompletionMatch, getAttachedContextCompletionSortText, getCompletionRangeWord, getPromptSlashCommandFilterText, isAtTriggerCharacterToken } from '../../../../../browser/widget/input/editor/chatInputCompletionUtils.js';
-import { IChatInputCompletionItem, IChatInputCompletionsParams, IChatInputCompletionsResult, IChatSession, IChatSessionsService } from '../../../../../common/chatSessionsService.js';
+import { IChatInputCompletionItem, IChatInputCompletionsParams, IChatInputCompletionsResult, IChatSession, IChatSessionContentProvider, IChatSessionsService, SessionType } from '../../../../../common/chatSessionsService.js';
 import { IChatService } from '../../../../../common/chatService/chatService.js';
 import { ICustomizationHarnessService } from '../../../../../common/customizationHarnessService.js';
 import { IChatSlashCommandService, IChatSlashData } from '../../../../../common/participants/chatSlashCommands.js';
@@ -400,6 +402,95 @@ suite('AgentHostInputCompletionsBase', () => {
 			{ label: '#z-index.ts', filterText: '#src/index', sortText: '000000' },
 			{ label: '#a-index.ts', filterText: '#src/index', sortText: '000001' },
 		]);
+	});
+});
+
+suite('AgentHostInputCompletions typing a file reference', () => {
+
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	/**
+	 * Types the text into the chat input of an agent host chat, one character at a time, and records
+	 * what suggestions show after each character and what the host was asked for. The host stands in
+	 * for its file completion provider: it suggests the files whose name contains the text after `@`.
+	 */
+	async function typeInAgentHostChat(text: string): Promise<string[]> {
+		let hostQuery: string | undefined;
+		const chatSessionsService = new MockChatSessionsService();
+		store.add(chatSessionsService.registerChatSessionContentProvider(SessionType.AgentHostCopilot, upcastPartial<IChatSessionContentProvider>({
+			provideChatInputCompletionTriggerCharacters: async () => ['@', '#', '/', ' '],
+			provideChatInputCompletions: async (_sessionResource, params) => {
+				const start = params.text.lastIndexOf('@', params.offset - 1);
+				const query = hostQuery = params.text.slice(start + 1, params.offset);
+				return {
+					items: ['my-file.ts', 'my.file.ts', 'myfile.ts'].filter(file => file.includes(query)).map((file): IChatInputCompletionItem => ({
+						insertText: `@${file}`,
+						start: { lineNumber: 1, column: start + 1 },
+						end: { lineNumber: 1, column: params.offset + 1 },
+						attachment: { kind: 'resource', uri: URI.file(`/workspace/${file}`), displayName: file },
+					})),
+				};
+			},
+		})));
+		const sessionResource = URI.from({ scheme: SessionType.AgentHostCopilot, path: '/session' });
+		const widgetService = new MockChatWidgetService();
+		widgetService.getWidgetByInputUri = () => upcastPartial<IChatWidget>({
+			viewModel: upcastPartial<IChatViewModel>({ model: upcastPartial<IChatModel>({ sessionResource }) }),
+		});
+		const languageFeaturesService = new LanguageFeaturesService();
+		store.add(new AgentHostInputCompletions(languageFeaturesService, widgetService, chatSessionsService, new TestConfigurationService(),
+			upcastPartial<IAgentHostConnectionsService>({ resolveSessionResource: () => undefined }),
+			upcastPartial<IAgentHostUntitledProvisionalSessionService>({ get: () => undefined })));
+		await timeout(0); // the provider registers once the host announced its trigger characters
+
+		const transcript: string[] = [];
+		const model = store.add(createTextModel('', null, undefined, URI.from({ scheme: Schemas.vscodeChatInput, path: '/input' })));
+		await withAsyncTestCodeEditor(model, { quickSuggestions: false, serviceCollection: new ServiceCollection([ILanguageFeaturesService, languageFeaturesService]) }, async (editor, _viewModel, instantiationService) => {
+			const suggestModel = store.add(instantiationService.createInstance(SuggestModel, editor));
+			let shown = 'closed';
+			store.add(suggestModel.onDidSuggest(e => shown = e.completionModel.items.map(item => item.textLabel).join(', ')));
+			store.add(suggestModel.onDidCancel(e => {
+				if (!e.retrigger) {
+					shown = 'closed';
+				}
+			}));
+			for (const character of text) {
+				hostQuery = undefined;
+				editor.trigger('keyboard', Handler.Type, { text: character });
+				await timeout(0);
+				transcript.push(`${editor.getValue()}: ${shown}${hostQuery === undefined ? '' : ` (asked the host for "${hostQuery}")`}`);
+			}
+		});
+		return transcript;
+	}
+
+	test('asks the host again when punctuation is typed in a file reference', async () => {
+		assert.deepStrictEqual({
+			dash: await typeInAgentHostChat('@my-f'),
+			dot: await typeInAgentHostChat('@my.f'),
+			outsideAReference: await typeInAgentHostChat('a-b.'),
+		}, {
+			dash: [
+				'@: my-file.ts, my.file.ts, myfile.ts (asked the host for "")',
+				'@m: my-file.ts, my.file.ts, myfile.ts (asked the host for "m")',
+				'@my: my-file.ts, my.file.ts, myfile.ts (asked the host for "my")',
+				'@my-: my-file.ts (asked the host for "my-")',
+				'@my-f: my-file.ts (asked the host for "my-f")',
+			],
+			dot: [
+				'@: my-file.ts, my.file.ts, myfile.ts (asked the host for "")',
+				'@m: my-file.ts, my.file.ts, myfile.ts (asked the host for "m")',
+				'@my: my-file.ts, my.file.ts, myfile.ts (asked the host for "my")',
+				'@my.: my.file.ts (asked the host for "my.")',
+				'@my.f: my.file.ts (asked the host for "my.f")',
+			],
+			outsideAReference: [
+				'a: closed',
+				'a-: closed',
+				'a-b: closed',
+				'a-b.: closed',
+			],
+		});
 	});
 });
 

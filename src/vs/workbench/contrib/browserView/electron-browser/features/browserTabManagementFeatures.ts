@@ -10,7 +10,7 @@ import { KeybindingWeight } from '../../../../../platform/keybinding/common/keyb
 import { KeyMod, KeyCode } from '../../../../../base/common/keyCodes.js';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
 import { IEditorGroup, IEditorGroupsService, GroupsOrder } from '../../../../services/editor/common/editorGroupsService.js';
-import { EditorsOrder, EditorResourceAccessor, GroupIdentifier, SideBySideEditor } from '../../../../common/editor.js';
+import { EditorsOrder, EditorResourceAccessor, GroupIdentifier, SideBySideEditor, IEditorCommandsContext } from '../../../../common/editor.js';
 import { IQuickInputService, IQuickInputButton, IQuickPickItem, IQuickPickSeparator, QuickInputButtonLocation, IQuickPick } from '../../../../../platform/quickinput/common/quickInput.js';
 import { Disposable, DisposableMap, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { Emitter } from '../../../../../base/common/event.js';
@@ -26,7 +26,7 @@ import { AGENT_HOST_SCHEME } from '../../../../../platform/agentHost/common/agen
 import { BrowserViewCommandId } from '../../../../../platform/browserView/common/browserView.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
 import { BROWSER_FILE_SCHEMES, BrowserRemoteProxyEnabledSettingId, BrowserDimOverlaySettingId, getLocalFileBrowserViewSession, IBrowserViewModel, IBrowserViewWorkbenchService } from '../../common/browserView.js';
-import { BrowserNewTabPlacementSettingId } from '../browserViewWorkbenchService.js';
+import { BrowserNewTabPlacementSettingId, BrowserUserAgentSettingId, getDefaultBrowserUserAgent } from '../browserViewWorkbenchService.js';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { workbenchConfigurationNodeBase } from '../../../../common/configuration.js';
 import { isLocalhostAuthority, isAllInterfacesAuthority } from '../../../../../platform/url/common/trustedDomains.js';
@@ -48,7 +48,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../../pla
 import { IPreferencesService } from '../../../../services/preferences/common/preferences.js';
 import { disposableTimeout } from '../../../../../base/common/async.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
-import { IsSessionsWindowContext, ResourceContextKey } from '../../../../common/contextkeys.js';
+import { IsSessionsWindowContext, ResourceContextKey, EditorTitleContextEditorIdContext, MultipleEditorsSelectedInGroupContext } from '../../../../common/contextkeys.js';
 import { matchesSomeScheme, Schemas } from '../../../../../base/common/network.js';
 import { BrowserNavigationFeatures } from './browserNavigationFeatures.js';
 import { IEditorOptions, ViewColumn } from '../../../../../platform/editor/common/editor.js';
@@ -454,6 +454,38 @@ class NewTabAction extends Action2 {
 	}
 }
 
+class DuplicateTabAction extends Action2 {
+	constructor() {
+		super({
+			id: BrowserViewCommandId.DuplicateTab,
+			precondition: MultipleEditorsSelectedInGroupContext.negate(),
+			title: localize2('browser.duplicateTab', "Duplicate Tab"),
+			category: BrowserActionCategory,
+			menu: {
+				id: MenuId.EditorTitleContext,
+				group: '1_open',
+				order: 20,
+				when: EditorTitleContextEditorIdContext.isEqualTo(BrowserEditorInput.EDITOR_ID),
+			},
+		});
+	}
+
+	async run(accessor: ServicesAccessor, _resource?: URI, context?: IEditorCommandsContext): Promise<void> {
+		const editorGroupsService = accessor.get(IEditorGroupsService);
+		const group = context ? editorGroupsService.getGroup(context.groupId) : editorGroupsService.activeGroup;
+		const source = context?.editorIndex !== undefined ? group?.getEditorByIndex(context.editorIndex) : group?.activeEditor;
+		if (!group || !(source instanceof BrowserEditorInput)) {
+			return;
+		}
+
+		const duplicate = source.copy('duplicateTab');
+		await accessor.get(IEditorService).openEditor(duplicate, {
+			pinned: true,
+			index: group.getIndexOfEditor(source) + 1,
+		}, group.id);
+	}
+}
+
 class CloseAllBrowserTabsAction extends Action2 {
 	constructor() {
 		super({
@@ -595,6 +627,7 @@ registerAction2(class OpenIntegratedBrowserFromNewTabButtonAction extends NewTab
 registerAction2(OpenFileInIntegratedBrowserAction);
 registerAction2(OpenOrListBrowsersAction);
 registerAction2(NewTabAction);
+registerAction2(DuplicateTabAction);
 registerAction2(CloseAllBrowserTabsAction);
 registerAction2(CloseAllBrowserTabsInGroupAction);
 
@@ -991,6 +1024,15 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 				'When enabled, localhost links (`localhost`, `127.0.0.1`, `[::1]`) and all-interfaces links (`0.0.0.0`, `[0:0:0:0:0:0:0:0]`, `[::]`) from the terminal, chat, and other sources will open in the Integrated Browser instead of the system browser.'
 			),
 			agentsWindow: { default: true },
+		},
+		[BrowserUserAgentSettingId]: {
+			type: 'string',
+			default: getDefaultBrowserUserAgent(),
+			markdownDescription: localize(
+				{ comment: ['This is the description for a setting.'], key: 'browser.userAgent' },
+				"The user agent used by the Integrated Browser. Device emulation overrides this value."
+			),
+			scope: ConfigurationScope.WINDOW,
 		},
 		[BrowserDimOverlaySettingId]: {
 			type: 'boolean',

@@ -108,7 +108,7 @@ suite('FolderLocationWorkingSetsContribution', () => {
 			editorGroupsService,
 			storage as unknown as IStorageService,
 			{ asCanonicalUri: (uri: URI) => uri, extUri: extUriIgnorePathCase } as unknown as IUriIdentityService,
-			{ error: (message: string) => errors.push(message), info: (message: string) => infos.push(message) } as unknown as ILogService,
+			{ error: (message: string) => errors.push(message), info: (message: string) => infos.push(message), trace: () => { } } as unknown as ILogService,
 			{ getBackups: async () => { await area.backupsGate; return area.backups; } } as unknown as IWorkingCopyBackupService,
 			{ onDidChangeDirty: onDidChangeDirty.event, onDidUnregister: Event.None } as unknown as IWorkingCopyService,
 			{ onDidEditorsChange: Event.None } as unknown as IEditorService

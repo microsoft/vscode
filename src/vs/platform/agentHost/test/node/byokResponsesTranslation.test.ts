@@ -262,7 +262,7 @@ suite('byokResponsesTranslation', () => {
 				{ type: 'function_call', callId: 'call_1', name: 'getWeather', argumentsJson: '{"city":"NYC"}' },
 				{ type: 'custom_tool_call', callId: 'call_2', name: 'apply_patch', input: 'patch' },
 			],
-			usage: { inputTokens: 10, outputTokens: 5, reasoningTokens: 2 },
+			usage: { inputTokens: 10, cachedTokens: 7, outputTokens: 5, reasoningTokens: 2 },
 		};
 
 		const events = bridgeResultToResponsesSseFrames(result, 'gpt-5').map(frame => {
@@ -317,7 +317,7 @@ suite('byokResponsesTranslation', () => {
 			outputTypes: ['reasoning', 'message', 'function_call', 'custom_tool_call'],
 			usage: {
 				input_tokens: 10,
-				input_tokens_details: { cached_tokens: 0 },
+				input_tokens_details: { cached_tokens: 7 },
 				output_tokens: 5,
 				output_tokens_details: { reasoning_tokens: 2 },
 				total_tokens: 15,
@@ -520,7 +520,7 @@ suite('byokResponsesTranslation', () => {
 				{ type: 'reasoning', id: 'thinking_1', summary: ['thought'], encryptedContent: 'vscode-reasoning-metadata:{"signature":"sig"}' },
 				{ type: 'message', content: [{ type: 'text', text: 'answer' }] },
 			],
-			usage: { inputTokens: 3, outputTokens: 2, reasoningTokens: 1 },
+			usage: { inputTokens: 3, cachedTokens: 2, outputTokens: 2, reasoningTokens: 1 },
 		}, 'gpt-5')) as {
 			id: string;
 			created_at: number;
@@ -548,7 +548,7 @@ suite('byokResponsesTranslation', () => {
 			top_p: 1,
 			usage: {
 				input_tokens: 3,
-				input_tokens_details: { cached_tokens: 0 },
+				input_tokens_details: { cached_tokens: 2 },
 				output_tokens: 2,
 				output_tokens_details: { reasoning_tokens: 1 },
 				total_tokens: 5,
@@ -557,5 +557,18 @@ suite('byokResponsesTranslation', () => {
 		assert.deepStrictEqual(body.output.map(item => item.type), ['reasoning', 'message']);
 		assert.match(body.output[0].id, /^rs_byok_/);
 		assert.strictEqual(body.output[0].encrypted_content, 'vscode-reasoning-metadata:{"signature":"sig"}');
+	});
+
+	test('defaults cached tokens to zero when usage is absent or does not include them', () => {
+		const results: IByokLmChatResult[] = [
+			{ output: [] },
+			{ output: [], usage: { inputTokens: 3 } },
+			{ output: [], usage: { inputTokens: 3, cachedTokens: 0 } },
+		];
+		assert.deepStrictEqual(results.map(result => {
+			const body = JSON.parse(bridgeResultToResponsesBody(result, 'gpt-5')) as { usage: { input_tokens_details: { cached_tokens: number } } };
+			const completed = parseFrames(bridgeResultToResponsesSseFrames(result, 'gpt-5')).at(-1)?.data.response as typeof body;
+			return [body.usage.input_tokens_details.cached_tokens, completed.usage.input_tokens_details.cached_tokens];
+		}), [[0, 0], [0, 0], [0, 0]]);
 	});
 });

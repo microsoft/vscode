@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CustomizationEnablementKind, CustomizationType, type Customization, type CustomizationEnablement, type SkillCustomization } from './state/protocol/state.js';
+import { readRuntimePluginEnablement } from './meta/pluginEnablementMeta.js';
+import { CustomizationEnablementKind, CustomizationLoadStatus, CustomizationType, type Customization, type CustomizationEnablement, type SkillCustomization } from './state/protocol/state.js';
 
 /**
  * Effective enablement when no explicit decision exists at any scope. It is
@@ -48,10 +49,28 @@ export function isSkillEligibleForUserInvocation(skill: SkillCustomization): boo
 	return skill.enabled !== false && skill.disableUserInvocation !== true;
 }
 
+/**
+ * Returns whether the user can use a skill container's skills. A runtime plugin
+ * waiting for session start is published as disabled until its runtime
+ * decides, so the user's intended enablement decides instead.
+ */
+export function isSkillContainerEnabled(container: Customization): boolean {
+	if (container.type === CustomizationType.Directory) {
+		return container.enabled;
+	}
+	if (container.type === CustomizationType.Plugin && container.load?.kind === CustomizationLoadStatus.Loading) {
+		const runtime = readRuntimePluginEnablement(container);
+		if (runtime && runtime.effectiveEnabled === undefined) {
+			return runtime.managedDesiredEnabled ?? runtime.repositoryEnabled ?? runtime.globalEnabled;
+		}
+	}
+	return isCustomizationEnabled(container);
+}
+
 /** Enumerates skills and their effective container enablement, including MCP server children. */
 export function* getSkillCustomizations(customizations: readonly Customization[]): Iterable<{ readonly skill: SkillCustomization; readonly container: Customization; readonly containerEnabled: boolean }> {
 	for (const container of customizations) {
-		const containerEnabled = container.type === CustomizationType.Directory ? container.enabled : isCustomizationEnabled(container);
+		const containerEnabled = isSkillContainerEnabled(container);
 		for (const child of container.children ?? []) {
 			if (child.type === CustomizationType.Skill) {
 				yield { skill: child, container, containerEnabled };

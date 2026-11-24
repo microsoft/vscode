@@ -67,7 +67,7 @@ import { CustomizationMarketplaceInstallService } from '../../../../contrib/chat
 import { ICopilotConnector, ICopilotConnectorsService } from '../../../../contrib/chat/browser/aiCustomization/copilotConnectorsService.js';
 import { ICopilotExtensionsService } from '../../../../contrib/chat/browser/aiCustomization/copilotExtensionsService.js';
 import { EmbeddedConnectorDetail } from '../../../../contrib/chat/browser/aiCustomization/embeddedConnectorDetail.js';
-import { ICustomizationHarnessService, ICustomizationItem, ICustomizationItemProvider, ICustomizationMarketplaceManagementProvider, ICustomizationMcpServerCompatibility, ICustomizationMcpServerMigrationProvider, ICustomizationOrganizationControl, ICustomizationSourceFolder, IHarnessDescriptor, createVSCodeHarnessDescriptor } from '../../../../contrib/chat/common/customizationHarnessService.js';
+import { ICustomizationHarnessService, ICustomizationItem, ICustomizationItemProvider, ICustomizationMarketplaceManagementProvider, ICustomizationMcpServerCompatibility, ICustomizationMcpServerMigrationProvider, ICustomizationOrganizationControl, ICustomizationSectionNotice, ICustomizationSourceFolder, IHarnessDescriptor, createVSCodeHarnessDescriptor } from '../../../../contrib/chat/common/customizationHarnessService.js';
 import { IChatSessionsService } from '../../../../contrib/chat/common/chatSessionsService.js';
 import { getChatSessionType, LocalChatSessionUri } from '../../../../contrib/chat/common/model/chatUri.js';
 import { CustomizationMigrationType, ICustomizationMigrationService, IMcpServerCustomizationMigrationCandidate } from '../../../../contrib/chat/common/promptSyntax/service/customizationMigrationService.js';
@@ -218,6 +218,7 @@ function createMockAICustomizationItemsModel(): IAICustomizationItemsModel {
 		override async fetchProviderItems() { return []; }
 		override async fetchAICustomizationItems(_promptType: PromptsType) { return []; }
 		override async fetchSourceFolders(_promptType: PromptsType) { return []; }
+		override async fetchSectionNotices(_promptType: PromptsType) { return []; }
 	}();
 
 	return new class extends mock<IAICustomizationItemsModel>() {
@@ -225,6 +226,7 @@ function createMockAICustomizationItemsModel(): IAICustomizationItemsModel {
 		override getActiveItemSource() { return itemSource; }
 		override getCount(_section: ItemsModelSection): IObservable<number> { return constObservable(0); }
 		override getPluginCount(): IObservable<number> { return constObservable(0); }
+		override getSectionNotices(_section: ItemsModelSection): IObservable<readonly ICustomizationSectionNotice[]> { return constObservable([]); }
 		override async whenSectionLoaded(_section: ItemsModelSection): Promise<void> { }
 	}();
 }
@@ -1283,6 +1285,7 @@ interface IRenderEditorOptions {
 	readonly managementSections?: readonly AICustomizationManagementSection[];
 	readonly availableHarnesses?: readonly IHarnessDescriptor[];
 	readonly selectedSection?: AICustomizationManagementSection;
+	readonly showPluginMarketplaces?: boolean;
 	readonly agentFinderPublicFeedEnabled?: boolean;
 	readonly copilotConnectorsEnabled?: boolean;
 	readonly copilotConnectors?: readonly ICopilotConnector[];
@@ -1395,10 +1398,15 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		AICustomizationManagementSection.Prompts,
 	];
 	const mcpServerCompatibility = options.mcpServerCompatibility;
-	const marketplaceManagementProvider: ICustomizationMarketplaceManagementProvider | undefined = options.pluginMarketplaceMigration ? {
+	const marketplaceManagementProvider: ICustomizationMarketplaceManagementProvider | undefined = options.pluginMarketplaceMigration || options.showPluginMarketplaces ? {
 		onDidChange: Event.None,
 		onDidChangeMarketplaces: Event.None,
-		list: async () => [],
+		list: async () => options.showPluginMarketplaces ? [
+			{ name: 'claude-code-plugins', source: 'github.com/anthropics/claude-code', isDefault: true, managed: false, available: true },
+			{ name: 'vscode-team-kit', source: 'github.com/microsoft/vscode-team-kit', isDefault: false, managed: false, available: true },
+			{ name: 'contoso-enterprise-marketplace', source: 'github.com/contoso/plugins', isDefault: false, managed: true, available: true },
+			{ name: 'contoso-archived-marketplace', source: 'github.com/contoso/archived-plugins', isDefault: false, managed: true, available: false },
+		] : [],
 		add: async (_sessionResource, source) => ({ name: 'vscode-team-kit', source, isDefault: false, managed: false, available: true }),
 		queryMarketplace: async () => ({ items: [], total: 0 }),
 		remove: async () => ({ removed: true }),
@@ -2285,6 +2293,12 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		editor.selectSectionById(options.selectedSection);
 	}
 	editor.setVisible(true);
+	if (options.showPluginMarketplaces) {
+		editor.showPluginMarketplaces();
+		await editor.getPluginMarketplacesWidget()?.refresh();
+		assert(ctx.container.querySelector<HTMLElement>('.plugin-marketplaces-widget')?.checkVisibility() === true, 'The marketplace management subpage must be visible.');
+		assert(ctx.container.querySelectorAll('.marketplace-list-item-name').length === 4, 'The marketplace rows must finish rendering.');
+	}
 	if (options.mcpInstallRequest) {
 		void instantiationService.get(ICustomizationInstallationConfigurationService).collect(options.mcpInstallRequest, CancellationToken.None);
 		assert(ctx.container.querySelector('.mcp-install-container .mcp-install-form') !== null, 'The install form must open as a page of the editor.');
@@ -4762,6 +4776,17 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 					run: async () => { },
 				}],
 			}],
+		}),
+	}),
+
+	PluginMarketplaces: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['The Marketplaces subpage of Plugins shows a back button, title, Browse All and Add Marketplace buttons, a "Search marketplaces..." box, and a User group with default, user-added, organization-managed, and organization-managed unavailable marketplaces.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: agentHostCopilotSessionResource,
+			selectedSection: AICustomizationManagementSection.Plugins,
+			showPluginMarketplaces: true,
 		}),
 	}),
 
