@@ -26,7 +26,8 @@ import { getFriendlyName, isChatExtensionItem } from './aiCustomizationItemSourc
 import { getChatSessionType } from '../../common/model/chatUri.js';
 import { PromptsConfig } from '../../common/promptSyntax/config/config.js';
 import { HOOKS_SOURCE_FOLDER } from '../../common/promptSyntax/config/promptFileLocations.js';
-import { findGitRoot } from '../promptSyntax/hookUtils.js';
+import { findRepositoryRoot } from '../../common/promptSyntax/utils/repositoryRoot.js';
+import { IPathService } from '../../../../services/path/common/pathService.js';
 
 /**
  * Adapts the rich promptsService model to the same provider-shaped items
@@ -43,6 +44,7 @@ export class PromptsServiceCustomizationItemProvider implements ICustomizationIt
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IFileService private readonly fileService: IFileService,
+		@IPathService private readonly pathService: IPathService,
 	) {
 		this.onDidChange = Event.any(
 			// Hook files at the repository root aren't watched by the prompts service when Local
@@ -264,8 +266,9 @@ export class PromptsServiceCustomizationItemProvider implements ICustomizationIt
 		}
 		const message = localize('hookRepositoryRootNotRunning', "Local agents only run hooks from the open folder. Turn on the {0} setting to run hooks from the repository root.", PromptsConfig.USE_CUSTOMIZATIONS_IN_PARENT_REPOS);
 		const visitedRoots = new ResourceSet();
+		const userHome = await this.pathService.userHome();
 		for (const folder of this.workspaceContextService.getWorkspace().folders) {
-			const gitRoot = await findGitRoot(this.fileService, folder.uri);
+			const gitRoot = await findRepositoryRoot(this.fileService, folder.uri, userHome);
 			if (!gitRoot || isEqual(gitRoot, folder.uri) || this.workspaceContextService.getWorkspaceFolder(gitRoot) || visitedRoots.has(gitRoot)) {
 				continue;
 			}

@@ -4,10 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { findNodeAtLocation, Node, parseTree } from '../../../../../base/common/json.js';
-import { dirname, isEqual, joinPath } from '../../../../../base/common/resources.js';
-import { URI } from '../../../../../base/common/uri.js';
 import { ITextEditorSelection } from '../../../../../platform/editor/common/editor.js';
-import { IFileService } from '../../../../../platform/files/common/files.js';
 
 /**
  * Converts an offset in content to a 1-based line and column.
@@ -106,20 +103,3 @@ export function findHookCommandSelection(content: string, hookType: string, inde
 	};
 }
 
-/**
- * Finds the root of the git repository that contains `folder`, or `undefined` when it isn't in one.
- * A `.git` entry can be a folder or, for worktrees and submodules, a file.
- */
-export async function findGitRoot(fileService: Pick<IFileService, 'exists'>, folder: URI): Promise<URI | undefined> {
-	let current = folder;
-	while (true) {
-		if (await fileService.exists(joinPath(current, '.git'))) {
-			return current;
-		}
-		const parent = dirname(current);
-		if (isEqual(parent, current)) {
-			return undefined;
-		}
-		current = parent;
-	}
-}

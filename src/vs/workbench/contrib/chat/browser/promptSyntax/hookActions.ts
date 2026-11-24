@@ -25,7 +25,9 @@ import { toHookType } from '../../common/promptSyntax/hookSchema.js';
 import { resolveCopilotCliHookType } from '../../common/promptSyntax/hookCopilotCliCompat.js';
 import { buildNewCopilotHookFile, buildNewHookEntry, HookSourceFormat } from '../../common/promptSyntax/hookCompatibility.js';
 import { ITextEditorSelection } from '../../../../../platform/editor/common/editor.js';
-import { findGitRoot, findHookCommandSelection } from './hookUtils.js';
+import { findHookCommandSelection } from './hookUtils.js';
+import { findRepositoryRoot } from '../../common/promptSyntax/utils/repositoryRoot.js';
+import { IPathService } from '../../../../services/path/common/pathService.js';
 import { ICopilotHomeService } from '../../../../services/environment/common/copilotHomeService.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
@@ -75,16 +77,16 @@ export function getHookFilesPolicyBlock(configurationService: Pick<IConfiguratio
 /**
  * The folder the Copilot runtime loads hooks from for the given storage: `.github/hooks` at the
  * root of the git repository that contains `projectRoot` (or `projectRoot` itself when it isn't in
- * one), or the `hooks` folder of the Copilot home for user hooks.
+ * one, as found by {@link findRepositoryRoot}), or the `hooks` folder of the Copilot home for user hooks.
  */
-export async function getCopilotHooksFolder(fileService: Pick<IFileService, 'exists'>, copilotHome: URI, storage: PromptsStorage.local | PromptsStorage.user, projectRoot: URI | undefined): Promise<URI | undefined> {
+export async function getCopilotHooksFolder(fileService: Pick<IFileService, 'stat'>, userHome: URI, copilotHome: URI, storage: PromptsStorage.local | PromptsStorage.user, projectRoot: URI | undefined): Promise<URI | undefined> {
 	if (storage === PromptsStorage.user) {
 		return joinPath(copilotHome, USER_HOOKS_FOLDER);
 	}
 	if (!projectRoot) {
 		return undefined;
 	}
-	const repositoryRoot = await findGitRoot(fileService, projectRoot) ?? projectRoot;
+	const repositoryRoot = await findRepositoryRoot(fileService, projectRoot, userHome) ?? projectRoot;
 	return joinPath(repositoryRoot, HOOKS_SOURCE_FOLDER);
 }
 
@@ -175,33 +177,22 @@ export async function createCopilotHook(accessor: ServicesAccessor, options: ICr
 	const notificationService = accessor.get(INotificationService);
 	const quickInputService = accessor.get(IQuickInputService);
 	const fileService = accessor.get(IFileService);
+	const pathService = accessor.get(IPathService);
 	const copilotHomeService = accessor.get(ICopilotHomeService);
 	const textModelService = accessor.get(ITextModelService);
 	const textFileService = accessor.get(ITextFileService);
 	const labelService = accessor.get(ILabelService);
 
-	const policyBlock = getHookFilesPolicyBlock(configurationService);
-	if (policyBlock) {
-		notificationService.info(policyBlock === 'organizationOnly'
-			? localize('newHook.organizationOnly', "Your organization only allows hooks it provides, so you can't create a hook file.")
-			: localize('newHook.pluginOnly', "Your organization only allows hooks from plugins, so you can't create a hook file."));
+	if (notifyIfHookFilesBlocked(configurationService, notificationService)) {
 		return;
 	}
 
-	const eventItems: IHookEventQuickPickItem[] = getValidAgentHookNames(Target.GitHubCopilot, false).map(eventName => {
-		const metadata = getAgentHookMetadata(Target.GitHubCopilot, eventName);
-		return { eventName, label: metadata?.label ?? eventName, description: eventName, detail: metadata?.description };
-	});
-	const eventItem = await quickInputService.pick(eventItems, {
-		title: localize('newHook.event.title', "New Hook"),
-		placeHolder: localize('newHook.event.placeholder', "Select when the hook runs"),
-		matchOnDescription: true,
-	});
-	if (!eventItem) {
+	const eventName = await pickHookEvent(quickInputService);
+	if (!eventName) {
 		return;
 	}
 
-	const folder = await getCopilotHooksFolder(fileService, copilotHomeService.home, options.storage, options.projectRoot);
+	const folder = await getCopilotHooksFolder(fileService, await pathService.userHome(), copilotHomeService.home, options.storage, options.projectRoot);
 	if (!folder) {
 		notificationService.info(localize('newHook.noFolder', "Open a folder to create a workspace hook."));
 		return;
@@ -212,46 +203,89 @@ export async function createCopilotHook(accessor: ServicesAccessor, options: ICr
 		return;
 	}
 
-	let selection: ITextEditorSelection | undefined;
 	if (await fileService.exists(resource)) {
-		const reference = await textModelService.createModelReference(resource);
-		let conflictingEventName: string | undefined;
-		try {
-			const model = reference.object.textEditorModel;
-			const wasDirty = textFileService.isDirty(resource);
-			const result = addCopilotHookToText(model.getValue(), eventItem.eventName);
-			if (result.kind === 'invalid') {
-				notificationService.error(localize('newHook.parseError', "Couldn't add a hook to {0}. Fix the errors in the file and try again.", basename(resource)));
-				await options.openEditor(resource, undefined);
-				return;
-			}
-			if (result.kind === 'conflictingEventName') {
-				conflictingEventName = result.existingEventName;
-			} else {
-				model.pushEditOperations([], [{ range: model.getFullModelRange(), text: result.text }], () => null);
-				if (!wasDirty) {
-					await textFileService.save(resource);
-				}
-				selection = findHookCommandSelection(result.text, eventItem.eventName, result.commandIndex, 'command');
-			}
-		} finally {
-			reference.dispose();
+		const result = await addHookToExistingFile(textModelService, textFileService, resource, eventName);
+		if (result.kind === 'added') {
+			return options.openEditor(resource, result.selection);
 		}
-		if (conflictingEventName) {
-			notificationService.info(localize('newHook.conflictingEventName', "{0} already has {1} hooks in an older format. Add the {2} hook to a new file instead.", basename(resource), conflictingEventName, eventItem.eventName));
-			resource = await pickNewHookFileName(quickInputService, labelService, folder, await listHookFiles(fileService, folder));
-			if (!resource) {
-				return;
-			}
+		if (result.kind === 'invalid') {
+			notificationService.error(localize('newHook.parseError', "Couldn't add a hook to {0}. Fix the errors in the file and try again.", basename(resource)));
+			return options.openEditor(resource, undefined);
+		}
+		notificationService.info(localize('newHook.conflictingEventName', "{0} already has {1} hooks in an older format. Add the {2} hook to a new file instead.", basename(resource), result.existingEventName, eventName));
+		resource = await pickNewHookFileName(quickInputService, labelService, folder, await listHookFiles(fileService, folder));
+		if (!resource) {
+			return;
 		}
 	}
-	if (!selection) {
-		const text = JSON.stringify(buildNewCopilotHookFile(eventItem.eventName), null, '\t');
-		await fileService.createFile(resource, VSBuffer.fromString(text));
-		selection = findHookCommandSelection(text, eventItem.eventName, 0, 'command');
-	}
+	await options.openEditor(resource, await createHookFile(fileService, resource, eventName));
+}
 
-	await options.openEditor(resource, selection);
+/**
+ * Tells the user when policy blocks hook files, and returns whether it does.
+ */
+function notifyIfHookFilesBlocked(configurationService: IConfigurationService, notificationService: INotificationService): boolean {
+	const policyBlock = getHookFilesPolicyBlock(configurationService);
+	if (policyBlock) {
+		notificationService.info(policyBlock === 'organizationOnly'
+			? localize('newHook.organizationOnly', "Your organization only allows hooks it provides, so you can't create a hook file.")
+			: localize('newHook.pluginOnly', "Your organization only allows hooks from plugins, so you can't create a hook file."));
+	}
+	return policyBlock !== undefined;
+}
+
+/**
+ * Asks the user which Copilot event the hook runs on.
+ */
+async function pickHookEvent(quickInputService: IQuickInputService): Promise<string | undefined> {
+	const eventItems: IHookEventQuickPickItem[] = getValidAgentHookNames(Target.GitHubCopilot, false).map(eventName => {
+		const metadata = getAgentHookMetadata(Target.GitHubCopilot, eventName);
+		return { eventName, label: metadata?.label ?? eventName, description: eventName, detail: metadata?.description };
+	});
+	const eventItem = await quickInputService.pick(eventItems, {
+		title: localize('newHook.event.title', "New Hook"),
+		placeHolder: localize('newHook.event.placeholder', "Select when the hook runs"),
+		matchOnDescription: true,
+	});
+	return eventItem?.eventName;
+}
+
+type AddHookToExistingFileResult =
+	| { readonly kind: 'added'; readonly selection: ITextEditorSelection | undefined }
+	| { readonly kind: 'invalid' }
+	| { readonly kind: 'conflictingEventName'; readonly existingEventName: string };
+
+/**
+ * Adds an empty command hook for `eventName` to an existing hook file through its text model, so
+ * unsaved changes in an open editor are kept. A file without unsaved changes is saved afterwards.
+ */
+async function addHookToExistingFile(textModelService: ITextModelService, textFileService: ITextFileService, resource: URI, eventName: string): Promise<AddHookToExistingFileResult> {
+	const reference = await textModelService.createModelReference(resource);
+	try {
+		const model = reference.object.textEditorModel;
+		const wasDirty = textFileService.isDirty(resource);
+		const result = addCopilotHookToText(model.getValue(), eventName);
+		if (result.kind !== 'added') {
+			return result;
+		}
+		model.pushEditOperations([], [{ range: model.getFullModelRange(), text: result.text }], () => null);
+		if (!wasDirty) {
+			await textFileService.save(resource);
+		}
+		return { kind: 'added', selection: findHookCommandSelection(result.text, eventName, result.commandIndex, 'command') };
+	} finally {
+		reference.dispose();
+	}
+}
+
+/**
+ * Creates a Copilot-format hook file with an empty command hook for `eventName`, and returns the
+ * selection of that command.
+ */
+async function createHookFile(fileService: IFileService, resource: URI, eventName: string): Promise<ITextEditorSelection | undefined> {
+	const text = JSON.stringify(buildNewCopilotHookFile(eventName), null, '\t');
+	await fileService.createFile(resource, VSBuffer.fromString(text));
+	return findHookCommandSelection(text, eventName, 0, 'command');
 }
 
 async function listHookFiles(fileService: IFileService, folder: URI): Promise<URI[]> {

@@ -18,6 +18,7 @@ import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { testWorkspace } from '../../../../../../platform/workspace/test/common/testWorkspace.js';
 import { TestContextService } from '../../../../../test/common/workbenchTestServices.js';
+import { IPathService } from '../../../../../services/path/common/pathService.js';
 import { PromptsServiceCustomizationItemProvider } from '../../../browser/aiCustomization/promptsServiceCustomizationItemProvider.js';
 import { IAICustomizationWorkspaceService } from '../../../common/aiCustomizationWorkspaceService.js';
 import { PromptsConfig } from '../../../common/promptSyntax/config/config.js';
@@ -26,6 +27,12 @@ import { ICustomAgent, IPromptPath, IPromptsService, PromptsStorage } from '../.
 
 suite('PromptsServiceCustomizationItemProvider', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	const pathService = new class extends mock<IPathService>() {
+		override userHome(): URI;
+		override userHome(): Promise<URI>;
+		override userHome(): URI | Promise<URI> { return URI.file('/home/me'); }
+	}();
 
 	function createPromptsService(listedFiles: readonly URI[]): IPromptsService {
 		return new class extends mock<IPromptsService>() {
@@ -67,6 +74,7 @@ suite('PromptsServiceCustomizationItemProvider', () => {
 			new TestContextService(testWorkspace(URI.file('/repo/packages/app'))),
 			configurationService,
 			fileService,
+			pathService,
 		);
 		const items = await provider.provideChatSessionCustomizations(URI.parse('vscode-chat-session://local/1'), CancellationToken.None);
 		return items.filter(item => item.type === PromptsType.hook).map(item => ({ path: item.uri.path, enabled: item.enabled, badge: item.badge }));
@@ -74,7 +82,7 @@ suite('PromptsServiceCustomizationItemProvider', () => {
 
 	function createProvider(fileService: FileService) {
 		const promptsService = createPromptsService([]);
-		return new PromptsServiceCustomizationItemProvider(promptsService, new class extends mock<IAICustomizationWorkspaceService>() { }(), new class extends mock<IProductService>() { }(), new TestContextService(), new TestConfigurationService(), fileService);
+		return new PromptsServiceCustomizationItemProvider(promptsService, new class extends mock<IAICustomizationWorkspaceService>() { }(), new class extends mock<IProductService>() { }(), new TestContextService(), new TestConfigurationService(), fileService, pathService);
 	}
 
 	test('lists repository-root hooks for a nested folder as not running when Local does not read parent repositories', async () => {

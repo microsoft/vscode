@@ -6,6 +6,9 @@
 import assert from 'assert';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
+import { FileService } from '../../../../../../platform/files/common/fileService.js';
+import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
+import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { CommandsRegistry, ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -52,13 +55,16 @@ suite('hookActions', () => {
 	});
 
 	test('workspace hooks go in .github/hooks at the git repository root, user hooks in the Copilot home', async () => {
-		const gitFolders = ['/repo/.git'];
-		const fileService = { exists: async (resource: URI) => gitFolders.includes(resource.path) };
-		const folderFor = async (storage: PromptsStorage.local | PromptsStorage.user, projectRoot: URI | undefined, copilotHome = URI.file('/home/me/.copilot')) => (await getCopilotHooksFolder(fileService, copilotHome, storage, projectRoot))?.path;
+		const fileService = store.add(new FileService(new NullLogService()));
+		store.add(fileService.registerProvider('file', store.add(new InMemoryFileSystemProvider())));
+		await fileService.createFolder(URI.file('/repo/.git'));
+		await fileService.createFolder(URI.file('/home/me/.git'));
+		const folderFor = async (storage: PromptsStorage.local | PromptsStorage.user, projectRoot: URI | undefined, copilotHome = URI.file('/home/me/.copilot')) => (await getCopilotHooksFolder(fileService, URI.file('/home/me'), copilotHome, storage, projectRoot))?.path;
 		assert.deepStrictEqual({
 			repositoryRoot: await folderFor(PromptsStorage.local, URI.file('/repo')),
 			subfolder: await folderFor(PromptsStorage.local, URI.file('/repo/packages/app')),
 			notARepository: await folderFor(PromptsStorage.local, URI.file('/other/folder')),
+			insideHomeRepository: await folderFor(PromptsStorage.local, URI.file('/home/me/project')),
 			noFolder: await folderFor(PromptsStorage.local, undefined),
 			user: await folderFor(PromptsStorage.user, URI.file('/repo')),
 			userWithCopilotHomeSet: await folderFor(PromptsStorage.user, URI.file('/repo'), URI.file('/custom/copilot-home')),
@@ -66,6 +72,7 @@ suite('hookActions', () => {
 			repositoryRoot: '/repo/.github/hooks',
 			subfolder: '/repo/.github/hooks',
 			notARepository: '/other/folder/.github/hooks',
+			insideHomeRepository: '/home/me/project/.github/hooks',
 			noFolder: undefined,
 			user: '/home/me/.copilot/hooks',
 			userWithCopilotHomeSet: '/custom/copilot-home/hooks',
