@@ -1748,6 +1748,10 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 					// Node's dual-stack connection errors have no message, and IPC drops their nested errors.
 					err.message = err.errors.filter((error: unknown): error is Error => error instanceof Error && !!error.message)
 						.map(error => error.message).join('\n') || getErrorCode(err) || err.message;
+				} else if (err.level === 'handshake' && err.message.includes('no matching host key format')) {
+					// ssh2 cannot negotiate OpenSSH host certificates, so a server that offers only
+					// those fails key exchange. Servers that also offer a plain key negotiate it instead.
+					err.message = localize('sshNoMatchingHostKeyFormat', "{0}. The server only offers host key types that are not supported here, such as OpenSSH host certificates. To connect, the server also needs to offer a plain host key, for example by adding ssh-ed25519 to HostKeyAlgorithms in its sshd_config.", err.message);
 				}
 				this._logService.error(`${LOG_PREFIX} SSH connection error: ${err.message}`);
 				// ssh2 reports a refused host key as "Host denied (verification

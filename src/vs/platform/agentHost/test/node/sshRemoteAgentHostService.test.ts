@@ -579,6 +579,40 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 		});
 	}
 
+	for (const { name, message, expectedMessage } of [
+		{
+			name: 'explains a server that only offers host certificates',
+			message: 'Handshake failed: no matching host key format',
+			expectedMessage: 'Handshake failed: no matching host key format. The server only offers host key types that are not supported here, such as OpenSSH host certificates. To connect, the server also needs to offer a plain host key, for example by adding ssh-ed25519 to HostKeyAlgorithms in its sshd_config.',
+		},
+		{
+			name: 'keeps other handshake failures as reported',
+			message: 'Handshake failed: no matching cipher',
+			expectedMessage: 'Handshake failed: no matching cipher',
+		},
+	]) {
+		test(`SSH handshake failure: ${name}`, async () => {
+			const logService = new RecordingLogService();
+			const connecting = disposables.add(new KeyboardInteractiveConnectTestService(
+				logService, { quality, dataFolderName } as IProductService, NullTelemetryService));
+			const error = Object.assign(new Error(message), { level: 'handshake' });
+			connecting.client.connectError = error;
+
+			await assert.rejects(connecting.connectSSHForTest(makeConfig()), actual => {
+				assert.deepStrictEqual({
+					sameError: actual === error,
+					message: toErrorMessage(transformErrorFromSerialization(transformErrorForSerialization(error))),
+					log: logService.errors,
+				}, {
+					sameError: true,
+					message: expectedMessage,
+					log: [`[SSHRemoteAgentHost] SSH connection error: ${expectedMessage}`],
+				});
+				return true;
+			});
+		});
+	}
+
 	for (const level of ['client-authentication', 'client-dns', 'client-socket', 'client-timeout', undefined]) {
 		test(`classifies SSH authentication failure by level (${level}) rather than message`, async () => {
 			const connecting = disposables.add(new KeyboardInteractiveConnectTestService(
