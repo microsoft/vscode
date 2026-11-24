@@ -849,7 +849,7 @@ export class NewChatWidget extends Disposable {
 				this._newChatInput.focus();
 				return;
 			}
-			await this._onWorkspaceSelected(this._workspacePicker.selectedFolderUri, pick);
+			await this._selectSessionType(this._workspacePicker.selectedFolderUri, pick);
 			this._newChatInput.focus();
 		}));
 		this._register(this.sessionsManagementService.onDidChangeSessionTypes(() => this._restoreNoWorkspaceDraft()));
@@ -1775,6 +1775,29 @@ export class NewChatWidget extends Disposable {
 		// The user's own choice of workspace wins over the requested placement
 		this._pendingWorktreePlacement.set(undefined, undefined);
 		this.newSessionComposerService.notifyUserWorkspaceSelection();
+	}
+
+	/**
+	 * Replaces the draft of `folderUri` with one of the agent the user picked. Where the user chose New Worktree for the
+	 * replaced draft, or one is still requested for it, the new draft works in a new worktree too, as a preference: it is
+	 * dropped where the picked agent cannot work in one.
+	 */
+	private async _selectSessionType(folderUri: URI | undefined, pick: IPreferredSessionType | undefined): Promise<void> {
+		const pending = this._pendingWorktreePlacement.get();
+		const pendingForFolder = !!folderUri && !!pending && this.uriIdentityService.extUri.isEqual(pending.folderUri, folderUri);
+		const chosen = !!this._newWorktree?.isUserChosen() && this._newWorktree.isSelected();
+		const placement: IPendingWorktreePlacement | undefined = folderUri && isWorktreeSupportEnabled(this.configurationService) && (chosen || pendingForFolder)
+			? { folderUri, sessionId: undefined, previousSessionId: this._session.get()?.sessionId, isPreference: pendingForFolder ? pending.isPreference : true }
+			: undefined;
+		this._pendingWorktreePlacement.set(placement, undefined);
+		let result: IOpenNewSessionResult | undefined;
+		try {
+			result = await this._onWorkspaceSelected(folderUri, pick);
+		} finally {
+			if (placement) {
+				this._bindWorktreePlacement(placement, result);
+			}
+		}
 	}
 
 	private _warnNewWorktreeUnavailable(): void {
@@ -3673,7 +3696,7 @@ export class NewChatWidget extends Disposable {
 	 * {@link ISessionsService.openNewSession} itself — a single gate shared
 	 * by every path that creates a concrete session for a folder.
 	 */
-	private async _onWorkspaceSelected(folderUri: URI | undefined, userPick?: IPreferredSessionType, background?: boolean): Promise<void> {
+	private async _onWorkspaceSelected(folderUri: URI | undefined, userPick?: IPreferredSessionType, background?: boolean): Promise<IOpenNewSessionResult | undefined> {
 		this._workspaceSelectionCleared = !folderUri && this._workspaceOptOutEnabled.get();
 		const workspaceOptOutTarget = this._workspaceSelectionCleared ? this._workspaceOptOutTarget.get() : undefined;
 		// Cancel any in-flight upgrade for a previous selection.
@@ -3723,6 +3746,7 @@ export class NewChatWidget extends Disposable {
 			// Don't leave the picker showing the declined folder as selected.
 			this._workspacePicker.removeFromRecents(folderUri);
 		}
+		return result;
 	}
 
 	private async _refreshPromptOptions(): Promise<void> {
