@@ -81,6 +81,8 @@ export interface IExtensionGalleryManifestService {
 	readonly onDidChangeExtensionGalleryManifest: Event<IExtensionGalleryManifest | null>;
 	getExtensionGalleryManifest(): Promise<IExtensionGalleryManifest | null>;
 	getAccessToken(targetUrl: string): Promise<string | undefined>;
+	/** Report a proven same-origin bearer 401, optionally allowing silent renewal. Forward only that response's WWW-Authenticate header. */
+	refreshAccessToken(targetUrl: string, rejectedAccessToken: string, wwwAuthenticate?: string, canRefresh?: boolean): Promise<boolean>;
 }
 
 export function getExtensionGalleryManifestResourceUri(manifest: IExtensionGalleryManifest, type: string): string | undefined {
