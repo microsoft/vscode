@@ -690,13 +690,18 @@ export class CanvasService extends Disposable implements ICanvasService {
 	 * active editor at the location being left, and is restored as the active editor where it was so before. At a location
 	 * it was not open at before, it keeps whether it was the active editor at the location being left.
 	 * A canvas that an earlier swap closed and that is not open again yet, as when applying the editors of a location failed
-	 * and its editor area is emptied instead, keeps how it is restored.
+	 * and its editor area is emptied instead, or whose owner stays hidden, records nothing: it is restored as it was at the
+	 * location being entered, and otherwise keeps how it is restored.
 	 */
 	private rememberActiveCanvasesByLocation(): void {
 		const leaving = this.settledLocation;
 		const entering = this.getLocationKey();
 		for (const [key, presentation] of this.presentations) {
 			if (!presentation.opened) {
+				const remembered = entering !== undefined ? presentation.activeByLocation?.get(entering) : undefined;
+				if (remembered !== undefined) {
+					presentation.restoreActive = remembered;
+				}
 				continue;
 			}
 			const input = this.inputs.get(key);

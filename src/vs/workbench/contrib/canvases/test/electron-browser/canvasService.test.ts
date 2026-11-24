@@ -534,6 +534,21 @@ suite('CanvasService', () => {
 			], [false, true]);
 		});
 
+		test('in the background as remembered there when its owner stayed hidden across two location swaps', async () => {
+			const harness = await createOpenHarness();
+			await switchTo(harness, '/worktreeB', true);
+			await switchTo(harness, '/workspace', false);
+			harness.visible.set(new Set(), undefined);
+			await switchTo(harness, '/worktreeC', true);
+			await switchTo(harness, '/worktreeB', false);
+			harness.visible.set(new Set([canvasOwnerKey(harness.owner)]), undefined);
+			await timeout(0);
+			assert.deepStrictEqual({
+				opened: harness.opened.length,
+				inactive: harness.openOptions[harness.openOptions.length - 1]?.inactive,
+			}, { opened: 4, inactive: true });
+		});
+
 		test('active when applying the editors of the location failed and its editor area is emptied instead', async () => {
 			const harness = await createOpenHarness();
 			const input = harness.opened[0];
