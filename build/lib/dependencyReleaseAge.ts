@@ -338,6 +338,13 @@ export function parseCargoLockfile(text: string): ILockedPackage[] {
 			continue;
 		}
 		if (inOtherTable) {
+			// Cargo writes only plain string fields and dependency arrays in its other tables, such as the checksums of
+			// version 1 [metadata] or [[patch.unused]]. They don't list installed packages, but must still be readable.
+			if (line === 'dependencies = [') {
+				inDependencies = true;
+			} else if (!/^("[^"\\]*"|[A-Za-z0-9_-]+) = "[^"\\]*"$/.test(line) && !/^dependencies = \[( "[^"\\]*",)* ?\]$/.test(line)) {
+				fail();
+			}
 			continue;
 		}
 		if (!current) {

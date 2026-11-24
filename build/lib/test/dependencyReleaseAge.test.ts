@@ -221,6 +221,8 @@ suite('dependencyReleaseAge', () => {
 			cargoPackage('name = "serde"', 'version = "1.0.228"', 'source = "a"', 'source = "b"'),
 			'version = 4\n\npackage = [{ name = "serde", version = "1.0.228" }]\n',
 			'version = 4\n\n[package]\nname = "serde"\nversion = "1.0.228"\n',
+			// Other tables must be readable too.
+			cargoPackage('name = "serde"', 'version = "1.0.228"', '', '[metadata]', 'broken = "'),
 		]) {
 			assert.throws(() => parseCargoLockfile(text), Error, text);
 		}
