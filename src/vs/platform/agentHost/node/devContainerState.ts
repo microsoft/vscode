@@ -294,7 +294,7 @@ export function buildLinkDevContainerStateCommand(options: IDevContainerStateLin
 		'  elif [ ! -e "$1" ] && [ ! -L "$1" ]; then',
 		'    home_parent=$(dirname "$1")',
 		'    while [ "$home_parent" != / ] && [ ! -e "$home_parent" ] && [ ! -L "$home_parent" ]; do home_parent=$(dirname "$home_parent"); done',
-		'    if ! (cd "$home_parent" 2>/dev/null); then home_inaccessible=1; fi',
+		'    if [ -d "$home_parent" ] && ! (cd "$home_parent" 2>/dev/null); then home_inaccessible=1; fi',
 		'  fi',
 		'}',
 		'set_home "$home"',
