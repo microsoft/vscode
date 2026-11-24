@@ -13380,6 +13380,10 @@ suite('CopilotAgent', () => {
 						rowThisHostCannotRead: { before: [revoked('running', 101)], after: [[revoked('failed'), { id: 'project:unreadable' } as unknown as Extension]] },
 						// The revoked extension's row was unreadable before the reload, so a process listed after it may be the same one.
 						unreadableBeforeReloadFailedThenListed: { before: [{ id: 'project:revoked' } as unknown as Extension], reloadFails: true, after: [[revoked('running', 101)]] },
+						// A newer runtime may list the revoked process with a status or source this host doesn't know.
+						listedWithUnknownStatusBeforeReload: { before: [revoked('active' as never, 101)], after: [[revoked('failed')]] },
+						reloadFailedAndListedWithUnknownStatus: { before: [revoked('running', 101)], reloadFails: true, after: [[revoked('stopping' as never, 101)]] },
+						reloadFailedAndListedWithUnknownSource: { before: [revoked('running', 101)], reloadFails: true, after: [[{ ...revoked('running', 101), source: 'workspace' as never }]] },
 					};
 					const outcomes: Record<string, { outcome: string; reloads: number }> = {};
 					for (const [name, scenario] of Object.entries(scenarios)) {
@@ -13410,6 +13414,9 @@ suite('CopilotAgent', () => {
 						reloadFailedForOneStartingWithoutProcess: { outcome: unconfirmed, reloads: 2 },
 						rowThisHostCannotRead: { outcome: unconfirmed, reloads: 2 },
 						unreadableBeforeReloadFailedThenListed: { outcome: unconfirmed, reloads: 2 },
+						listedWithUnknownStatusBeforeReload: { outcome: 'confirmed', reloads: 1 },
+						reloadFailedAndListedWithUnknownStatus: { outcome: unconfirmed, reloads: 2 },
+						reloadFailedAndListedWithUnknownSource: { outcome: unconfirmed, reloads: 2 },
 					});
 				} finally {
 					await fixture.dispose();

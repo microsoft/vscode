@@ -5571,13 +5571,19 @@ export class CopilotAgentSession extends Disposable {
 			}
 			if (source === 'unknown') {
 				this._logService.warn(`[Copilot:${this.sessionId}] Ignoring live extension inventory entry with unsupported source '${extension.source}'`);
+				complete = false;
 				return [];
+			}
+			const status = this._extensionStatus(extension.status);
+			if (status === 'unknown') {
+				this._logService.warn(`[Copilot:${this.sessionId}] Live extension inventory entry '${extension.id}' has unsupported status '${extension.status}'`);
+				complete = false;
 			}
 			return [{
 				id: extension.id,
 				name: extension.name,
 				source,
-				status: this._extensionStatus(extension.status),
+				status,
 				...(typeof extension.pid === 'number' ? { pid: extension.pid } : {}),
 			}];
 		});
