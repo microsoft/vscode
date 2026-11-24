@@ -646,7 +646,7 @@ class ResourceCommandResolver {
 			case Status.INTENT_TO_RENAME:
 			case Status.TYPE_CHANGED: {
 				const uriString = resource.resourceUri.toString();
-				const [indexStatus] = this.repository.sourceControl.indexGroup.resourceStates.filter(r => r.resourceUri.toString() === uriString);
+				const [indexStatus] = this.repository.indexChanges.filter(r => r.resourceUri.toString() === uriString);
 
 				if (indexStatus && indexStatus.renameResourceUri) {
 					return { modified: indexStatus.renameResourceUri };
@@ -1254,29 +1254,29 @@ export class Repository implements Disposable {
 			},
 			() => {
 				const resourcePaths = resources.map(r => r.fsPath);
-				const indexGroupResourcePaths = this.sourceControl.indexGroup.resourceStates.map(r => r.resourceUri.fsPath);
+				const indexGroupResourcePaths = this.indexChanges.map(r => r.resourceUri.fsPath);
 
 				// Collect added resources
 				const addedResourceStates: Resource[] = [];
-				for (const resource of [...this.sourceControl.mergeGroup.resourceStates, ...this.sourceControl.untrackedGroup.resourceStates, ...this.sourceControl.workingTreeGroup.resourceStates]) {
+				for (const resource of [...this.mergeChanges, ...this.untrackedChanges, ...this.workingTreeChanges]) {
 					if (resourcePaths.includes(resource.resourceUri.fsPath) && !indexGroupResourcePaths.includes(resource.resourceUri.fsPath)) {
 						addedResourceStates.push(resource.clone(ResourceGroupType.Index));
 					}
 				}
 
 				// Add new resource(s) to index group
-				const indexGroup = [...this.sourceControl.indexGroup.resourceStates, ...addedResourceStates];
+				const indexGroup = [...this.indexChanges, ...addedResourceStates];
 
 				// Remove resource(s) from merge group
-				const mergeGroup = this.sourceControl.mergeGroup.resourceStates
+				const mergeGroup = this.mergeChanges
 					.filter(r => !resourcePaths.includes(r.resourceUri.fsPath));
 
 				// Remove resource(s) from working group
-				const workingTreeGroup = this.sourceControl.workingTreeGroup.resourceStates
+				const workingTreeGroup = this.workingTreeChanges
 					.filter(r => !resourcePaths.includes(r.resourceUri.fsPath));
 
 				// Remove resource(s) from untracked group
-				const untrackedGroup = this.sourceControl.untrackedGroup.resourceStates
+				const untrackedGroup = this.untrackedChanges
 					.filter(r => !resourcePaths.includes(r.resourceUri.fsPath));
 
 				return { indexGroup, mergeGroup, workingTreeGroup, untrackedGroup };
@@ -1307,12 +1307,12 @@ export class Repository implements Disposable {
 				}
 				this.closeDiffEditors([...resources.length !== 0 ?
 					resources.map(r => r.fsPath) :
-					this.sourceControl.indexGroup.resourceStates.map(r => r.resourceUri.fsPath)], []);
+					this.indexChanges.map(r => r.resourceUri.fsPath)], []);
 
 				// Clear AI contribution tracking for reverted resources
 				const uris = resources.length !== 0
 					? resources
-					: this.sourceControl.indexGroup.resourceStates.map(r => r.resourceUri);
+					: this.indexChanges.map(r => r.resourceUri);
 				commands.executeCommand('_aiEdits.clearAiContributions', uris);
 			},
 			() => {
@@ -1321,12 +1321,12 @@ export class Repository implements Disposable {
 				const untrackedChangesResourceGroupType = untrackedChanges === 'mixed' ? ResourceGroupType.WorkingTree : ResourceGroupType.Untracked;
 
 				const resourcePaths = resources.length === 0 ?
-					this.sourceControl.indexGroup.resourceStates.map(r => r.resourceUri.fsPath) : resources.map(r => r.fsPath);
+					this.indexChanges.map(r => r.resourceUri.fsPath) : resources.map(r => r.fsPath);
 
 				// Collect removed resources
 				const trackedResources: Resource[] = [];
 				const untrackedResources: Resource[] = [];
-				for (const resource of this.sourceControl.indexGroup.resourceStates) {
+				for (const resource of this.indexChanges) {
 					if (resourcePaths.includes(resource.resourceUri.fsPath)) {
 						if (resource.type === Status.INDEX_ADDED) {
 							untrackedResources.push(resource.clone(untrackedChangesResourceGroupType));
@@ -1337,17 +1337,17 @@ export class Repository implements Disposable {
 				}
 
 				// Remove resource(s) from index group
-				const indexGroup = this.sourceControl.indexGroup.resourceStates
+				const indexGroup = this.indexChanges
 					.filter(r => !resourcePaths.includes(r.resourceUri.fsPath));
 
 				// Add resource(s) to working group
 				const workingTreeGroup = untrackedChanges === 'mixed' ?
-					[...this.sourceControl.workingTreeGroup.resourceStates, ...trackedResources, ...untrackedResources] :
-					[...this.sourceControl.workingTreeGroup.resourceStates, ...trackedResources];
+					[...this.workingTreeChanges, ...trackedResources, ...untrackedResources] :
+					[...this.workingTreeChanges, ...trackedResources];
 
 				// Add resource(s) to untracked group
 				const untrackedGroup = untrackedChanges === 'separate' ?
-					[...this.sourceControl.untrackedGroup.resourceStates, ...untrackedResources] : undefined;
+					[...this.untrackedChanges, ...untrackedResources] : undefined;
 
 				return { indexGroup, workingTreeGroup, untrackedGroup };
 			});
@@ -1361,9 +1361,9 @@ export class Repository implements Disposable {
 				const toRestore: string[] = [];
 
 				const resourceStates = [
-					...this.sourceControl.indexGroup.resourceStates,
-					...this.sourceControl.workingTreeGroup.resourceStates,
-					...this.sourceControl.untrackedGroup.resourceStates
+					...this.indexChanges,
+					...this.workingTreeChanges,
+					...this.untrackedChanges
 				];
 
 				for (const resource of resources) {
@@ -1402,9 +1402,9 @@ export class Repository implements Disposable {
 	}
 
 	async commit(message: string | undefined, opts: CommitOptions = Object.create(null)): Promise<void> {
-		const indexResources = [...this.sourceControl.indexGroup.resourceStates.map(r => r.resourceUri.fsPath)];
+		const indexResources = [...this.indexChanges.map(r => r.resourceUri.fsPath)];
 		const workingGroupResources = opts.all && opts.all !== 'tracked' ?
-			[...this.sourceControl.workingTreeGroup.resourceStates.map(r => r.resourceUri.fsPath)] : [];
+			[...this.workingTreeChanges.map(r => r.resourceUri.fsPath)] : [];
 
 		if (this.rebaseCommit) {
 			await this.run(
@@ -1525,7 +1525,7 @@ export class Repository implements Disposable {
 			workingTreeGroup: Resource[] | undefined = undefined;
 
 		if (opts.all === 'tracked') {
-			workingTreeGroup = this.sourceControl.workingTreeGroup.resourceStates
+			workingTreeGroup = this.workingTreeChanges
 				.filter(r => r.type === Status.UNTRACKED);
 		} else if (opts.all) {
 			untrackedGroup = workingTreeGroup = [];
@@ -1541,7 +1541,7 @@ export class Repository implements Disposable {
 				const toClean: string[] = [];
 				const toCheckout: string[] = [];
 				const submodulesToUpdate: string[] = [];
-				const resourceStates = [...this.sourceControl.workingTreeGroup.resourceStates, ...this.sourceControl.untrackedGroup.resourceStates];
+				const resourceStates = [...this.workingTreeChanges, ...this.untrackedChanges];
 
 				resources.forEach(r => {
 					const fsPath = r.fsPath;
@@ -1599,11 +1599,11 @@ export class Repository implements Disposable {
 				const resourcePaths = resources.map(r => r.fsPath);
 
 				// Remove resource(s) from working group
-				const workingTreeGroup = this.sourceControl.workingTreeGroup.resourceStates
+				const workingTreeGroup = this.workingTreeChanges
 					.filter(r => !resourcePaths.includes(r.resourceUri.fsPath));
 
 				// Remove resource(s) from untracked group
-				const untrackedGroup = this.sourceControl.untrackedGroup.resourceStates
+				const untrackedGroup = this.untrackedChanges
 					.filter(r => !resourcePaths.includes(r.resourceUri.fsPath));
 
 				return { workingTreeGroup, untrackedGroup };
@@ -2663,10 +2663,10 @@ export class Repository implements Disposable {
 	}
 
 	async createStash(message?: string, includeUntracked?: boolean, staged?: boolean): Promise<void> {
-		const indexResources = [...this.sourceControl.indexGroup.resourceStates.map(r => r.resourceUri.fsPath)];
+		const indexResources = [...this.indexChanges.map(r => r.resourceUri.fsPath)];
 		const workingGroupResources = [
-			...!staged ? this.sourceControl.workingTreeGroup.resourceStates.map(r => r.resourceUri.fsPath) : [],
-			...includeUntracked ? this.sourceControl.untrackedGroup.resourceStates.map(r => r.resourceUri.fsPath) : []];
+			...!staged ? this.workingTreeChanges.map(r => r.resourceUri.fsPath) : [],
+			...includeUntracked ? this.untrackedChanges.map(r => r.resourceUri.fsPath) : []];
 
 		return await this.run(Operation.Stash(false), async () => {
 			await this.repository.createStash(message, includeUntracked, staged);
@@ -2877,22 +2877,22 @@ export class Repository implements Disposable {
 			return;
 		}
 
-		if (sourceRepository.sourceControl.indexGroup.resourceStates.length === 0 &&
-			sourceRepository.sourceControl.workingTreeGroup.resourceStates.length === 0 &&
-			sourceRepository.sourceControl.untrackedGroup.resourceStates.length === 0) {
+		if (sourceRepository.indexChanges.length === 0 &&
+			sourceRepository.workingTreeChanges.length === 0 &&
+			sourceRepository.untrackedChanges.length === 0) {
 			await window.showInformationMessage(l10n.t('There are no changes in the selected worktree to migrate.'));
 			return;
 		}
 
 		const sourceFilePaths = [
-			...sourceRepository.sourceControl.indexGroup.resourceStates,
-			...sourceRepository.sourceControl.workingTreeGroup.resourceStates,
-			...sourceRepository.sourceControl.untrackedGroup.resourceStates
+			...sourceRepository.indexChanges,
+			...sourceRepository.workingTreeChanges,
+			...sourceRepository.untrackedChanges
 		].map(resource => path.relative(sourceRepository.root, resource.resourceUri.fsPath));
 
 		const targetFilePaths = [
-			...this.sourceControl.workingTreeGroup.resourceStates,
-			...this.sourceControl.untrackedGroup.resourceStates
+			...this.workingTreeChanges,
+			...this.untrackedChanges
 		].map(resource => path.relative(this.root, resource.resourceUri.fsPath));
 
 		// Detect overlapping unstaged files in worktree stash and target repository
@@ -3260,8 +3260,8 @@ export class Repository implements Disposable {
 		const config = workspace.getConfiguration('git', Uri.file(this.root));
 		const shouldAutoStash = config.get<boolean>('autoStash')
 			&& this.repository.git.compareGitVersionTo('2.27.0') < 0
-			&& (this.sourceControl.indexGroup.resourceStates.length > 0
-				|| this.sourceControl.workingTreeGroup.resourceStates.some(
+			&& (this.indexChanges.length > 0
+				|| this.workingTreeChanges.some(
 					r => r.type !== Status.UNTRACKED && r.type !== Status.IGNORED));
 
 		if (!shouldAutoStash) {
@@ -3359,8 +3359,8 @@ export class Repository implements Disposable {
 		const head = HEAD.name || (HEAD.commit || '').substr(0, 8);
 
 		return head
-			+ (this.sourceControl.workingTreeGroup.resourceStates.length + this.sourceControl.untrackedGroup.resourceStates.length > 0 ? '*' : '')
-			+ (this.sourceControl.indexGroup.resourceStates.length > 0 ? '+' : '')
+			+ (this.workingTreeChanges.length + this.untrackedChanges.length > 0 ? '*' : '')
+			+ (this.indexChanges.length > 0 ? '+' : '')
 			+ (this.mergeInProgress || !!this.rebaseCommit ? '!' : '');
 	}
 

@@ -77,9 +77,9 @@ class CheckoutStatusBar {
 					return '$(lock)';
 				case this.repository.mergeInProgress || !!this.repository.rebaseCommit:
 					return '$(git-branch-conflicts)';
-				case this.repository.sourceControl.indexGroup.resourceStates.length > 0:
+				case this.repository.indexChanges.length > 0:
 					return '$(git-branch-staged-changes)';
-				case this.repository.sourceControl.workingTreeGroup.resourceStates.length + this.repository.sourceControl.untrackedGroup.resourceStates.length > 0:
+				case this.repository.workingTreeChanges.length + this.repository.untrackedChanges.length > 0:
 					return '$(git-branch-changes)';
 				default:
 					return '$(git-branch)';

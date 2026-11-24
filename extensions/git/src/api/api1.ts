@@ -54,10 +54,10 @@ export class ApiRepositoryState implements RepositoryState {
 	get worktrees(): Worktree[] { return this.#repository.worktrees; }
 	get rebaseCommit(): Commit | undefined { return this.#repository.rebaseCommit; }
 
-	get mergeChanges(): Change[] { return this.#repository.sourceControl.mergeGroup.resourceStates.map(r => new ApiChange(r)); }
-	get indexChanges(): Change[] { return this.#repository.sourceControl.indexGroup.resourceStates.map(r => new ApiChange(r)); }
-	get workingTreeChanges(): Change[] { return this.#repository.sourceControl.workingTreeGroup.resourceStates.map(r => new ApiChange(r)); }
-	get untrackedChanges(): Change[] { return this.#repository.sourceControl.untrackedGroup.resourceStates.map(r => new ApiChange(r)); }
+	get mergeChanges(): Change[] { return this.#repository.mergeChanges.map(r => new ApiChange(r)); }
+	get indexChanges(): Change[] { return this.#repository.indexChanges.map(r => new ApiChange(r)); }
+	get workingTreeChanges(): Change[] { return this.#repository.workingTreeChanges.map(r => new ApiChange(r)); }
+	get untrackedChanges(): Change[] { return this.#repository.untrackedChanges.map(r => new ApiChange(r)); }
 }
 
 export class ApiRepositoryUIState implements RepositoryUIState {

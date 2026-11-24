@@ -287,7 +287,7 @@ export class ActionButton {
 			isMergeInProgress: this.repository.mergeInProgress,
 			isRebaseInProgress: !!this.repository.rebaseCommit,
 			repositoryHasChangesToCommit: this.repositoryHasChangesToCommit(),
-			repositoryHasUnresolvedConflicts: this.repository.sourceControl.mergeGroup.resourceStates.length > 0
+			repositoryHasUnresolvedConflicts: this.repository.mergeChanges.length > 0
 		};
 	}
 
@@ -297,7 +297,7 @@ export class ActionButton {
 		const suggestSmartCommit = config.get<boolean>('suggestSmartCommit') === true;
 		const smartCommitChanges = config.get<'all' | 'tracked'>('smartCommitChanges', 'all');
 
-		const resources = [...this.repository.sourceControl.indexGroup.resourceStates];
+		const resources = [...this.repository.indexChanges];
 
 		if (
 			// Smart commit enabled (all)
@@ -305,12 +305,12 @@ export class ActionButton {
 			// Smart commit disabled, smart suggestion enabled
 			(!enableSmartCommit && suggestSmartCommit)
 		) {
-			resources.push(...this.repository.sourceControl.workingTreeGroup.resourceStates);
+			resources.push(...this.repository.workingTreeChanges);
 		}
 
 		// Smart commit enabled (tracked only)
 		if (enableSmartCommit && smartCommitChanges === 'tracked') {
-			resources.push(...this.repository.sourceControl.workingTreeGroup.resourceStates.filter(r => r.type !== Status.UNTRACKED));
+			resources.push(...this.repository.workingTreeChanges.filter(r => r.type !== Status.UNTRACKED));
 		}
 
 		return resources.length !== 0;
