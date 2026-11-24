@@ -17,12 +17,14 @@ export const BYOK_ENDPOINTS_MODEL_SOURCE_FORMAT = 'code.visualstudio.com/byok-en
 /**
  * The endpoint that serves a model: the runtime provider `type`, the wire
  * format, and the base URL the runtime appends its API path to. The runtime
- * chooses the auth header from `type`.
+ * chooses the auth header from `type`: `google` endpoints use the Gemini
+ * Interactions API.
  */
 export type IByokEndpoint = {
-	readonly type: 'openai' | 'azure' | 'anthropic';
+	readonly type: 'openai' | 'azure' | 'anthropic' | 'google';
 	/** For `openai` and `azure`: whether requests use Chat Completions or Responses. */
 	readonly wireApi?: 'completions' | 'responses';
+	/** For `google`, it includes the API version, such as `https://generativelanguage.googleapis.com/v1beta`. */
 	readonly baseUrl: string;
 	/** For `azure`: the `api-version` query parameter the runtime adds. */
 	readonly azureApiVersion?: string;
@@ -53,8 +55,9 @@ export type IByokEndpointModel = {
 
 /**
  * A BYOK provider group in {@link BYOK_ENDPOINTS_MODEL_SOURCE_FORMAT}: the
- * models a runtime can call the same way VS Code's own BYOK provider does. It
- * never contains the group's API key, which the client delivers separately.
+ * models a runtime can call at the endpoints, and in the API formats, that VS
+ * Code's own BYOK provider uses. It never contains the group's API key, which
+ * the client delivers separately.
  */
 // A type rather than an interface, so it is a registration's `Record<string, unknown>` definition.
 export type IByokEndpointsDefinition = {
@@ -195,11 +198,11 @@ function readEndpoint(value: unknown): IByokEndpoint | undefined {
 		return undefined;
 	}
 	const { type, wireApi, baseUrl, azureApiVersion } = value;
-	if ((type !== 'openai' && type !== 'azure' && type !== 'anthropic') || typeof baseUrl !== 'string' || !isBaseUrl(baseUrl)) {
+	if ((type !== 'openai' && type !== 'azure' && type !== 'anthropic' && type !== 'google') || typeof baseUrl !== 'string' || !isBaseUrl(baseUrl)) {
 		return undefined;
 	}
-	// The runtime picks the Messages API from the `anthropic` type, and only Azure takes an API version.
-	if (!isOptional(wireApi, isWireApi) || (type === 'anthropic' && wireApi !== undefined)
+	// The runtime picks the Messages and Interactions APIs from the type, and only Azure takes an API version.
+	if (!isOptional(wireApi, isWireApi) || ((type === 'anthropic' || type === 'google') && wireApi !== undefined)
 		|| !isOptional(azureApiVersion, isApiVersion) || (type !== 'azure' && azureApiVersion !== undefined)) {
 		return undefined;
 	}

@@ -18,6 +18,9 @@ export const NON_DEFERRED_CLIENT_TOOL_NAMES: ReadonlySet<string> = new Set<strin
 /** Tool count above which MCP and external tools are deferred behind tool search, so any extra tool defers. */
 export const TOOL_SEARCH_DEFER_THRESHOLD = 1;
 
+/** Most tools one request to an OpenAI-compatible API may carry; the API rejects larger requests. */
+export const OPENAI_COMPATIBLE_MAX_TOOLS = 128;
+
 export interface IHostToolSearchResult {
 	readonly toolNames: readonly string[];
 	readonly textResultForLlm: string;

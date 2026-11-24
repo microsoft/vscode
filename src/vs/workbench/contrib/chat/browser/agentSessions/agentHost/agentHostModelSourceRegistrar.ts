@@ -14,7 +14,7 @@ import { AgentHostByokDirectEndpointsSettingId, AgentHostByokModelsEnabledSettin
 import { IAgentHostConnectionsService, type IAgentHostConnectionInfo } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { AgentHostClientConnectionKind } from '../../../../../../platform/agentHost/common/agentHostTelemetry.js';
 import { CUSTOM_ENDPOINT_BYOK_VENDOR, findCustomEndpointModelSettings, resolveCustomEndpointRuntimeEndpoint, type CustomEndpointRuntimeEndpointResolution, type ICustomEndpointModelSettings } from '../../../../../../platform/agentHost/common/byokCustomEndpoint.js';
-import { getOllamaByokEndpoint, OPENROUTER_BYOK_ENDPOINT, resolveAzureRuntimeEndpoint, resolveCustomOAIRuntimeEndpoint, XAI_BYOK_ENDPOINT } from '../../../../../../platform/agentHost/common/byokVendorEndpoints.js';
+import { ANTHROPIC_BYOK_ENDPOINT, GEMINI_BYOK_ENDPOINT, getGeminiByokModelId, getOllamaByokEndpoint, getOpenAIByokEndpoint, OPENROUTER_BYOK_ENDPOINT, resolveAzureRuntimeEndpoint, resolveCustomOAIRuntimeEndpoint, XAI_BYOK_ENDPOINT } from '../../../../../../platform/agentHost/common/byokVendorEndpoints.js';
 import { BYOK_ENDPOINTS_MODEL_SOURCE_FORMAT, getByokEndpointsCredentialOrigins, getByokEndpointsCredentialResource, getByokEndpointsNonce, getByokModelSourceId, isByokModelSourceId, parseByokModelSourceId, readByokEndpointsDefinition, type IByokEndpoint, type IByokEndpointModel, type IByokEndpointsDefinition } from '../../../../../../platform/agentHost/common/byokModelSource.js';
 import { ModelSourceAuthRequiredReason, ModelSourceRetentionPolicy, ModelSourceStatus, type ModelSource, type RootState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
@@ -116,7 +116,7 @@ interface IByokVendorModelSources {
 }
 
 type IByokVendorModelResolution =
-	| { readonly endpoint: IByokEndpoint; readonly toolCalling?: unknown; readonly vision?: unknown; readonly bridgeReason?: undefined }
+	| { readonly endpoint: IByokEndpoint; readonly modelId?: string; readonly toolCalling?: unknown; readonly vision?: unknown; readonly bridgeReason?: undefined }
 	| { readonly endpoint?: undefined; readonly bridgeReason: string };
 
 /** Resolves a model configured in the group's `models`, by the URL rules of the vendor's provider. */
@@ -130,21 +130,31 @@ function resolveConfiguredModel(group: ILanguageModelsProviderGroup, metadata: I
 }
 
 /** Resolves a model the vendor's provider lists itself, at the vendor's fixed endpoint. */
-function resolveListedModel(endpoint: IByokEndpoint, metadata: ILanguageModelChatMetadata): IByokVendorModelResolution {
-	return { endpoint, toolCalling: metadata.capabilities?.toolCalling, vision: metadata.capabilities?.vision };
+function resolveListedModel(endpoint: IByokEndpoint, metadata: ILanguageModelChatMetadata, modelId?: string): IByokVendorModelResolution {
+	return { endpoint, ...(modelId !== undefined ? { modelId } : {}), toolCalling: metadata.capabilities?.toolCalling, vision: metadata.capabilities?.vision };
+}
+
+/** The reasoning efforts a model offers, from its configuration schema. */
+function getReasoningEfforts(metadata: ILanguageModelChatMetadata): string[] | undefined {
+	return metadata.configurationSchema?.properties?.reasoningEffort?.enum?.filter((value): value is string => typeof value === 'string');
 }
 
 /**
- * The vendors whose provider groups are registered as model sources, and how the
- * runtime calls their models the way the extension does. Gemini, OpenAI, and
- * Anthropic keep using the bridge: the runtime has no Gemini API, always asks
- * OpenAI for reasoning summaries, and applies its own Claude thinking settings.
+ * The vendors whose provider groups are registered as model sources, and the
+ * API format the runtime calls their models in. The runtime applies its own
+ * request settings, such as thinking budgets and output caps. OpenRouter's
+ * Anthropic models keep using the bridge: the extension sends OpenRouter's
+ * Messages API the key as a bearer token, and the runtime's Anthropic
+ * provider sends it as `x-api-key`.
  */
 const byokVendorModelSources: readonly IByokVendorModelSources[] = [
 	{ vendor: CUSTOM_ENDPOINT_BYOK_VENDOR, requiresKey: false, resolve: (group, metadata) => resolveConfiguredModel(group, metadata, resolveCustomEndpointRuntimeEndpoint) },
 	{ vendor: 'customoai', requiresKey: false, resolve: (group, metadata) => resolveConfiguredModel(group, metadata, resolveCustomOAIRuntimeEndpoint) },
 	// Without a key, the Azure provider signs in with the user's Microsoft account instead.
 	{ vendor: 'azure', requiresKey: true, resolve: (group, metadata) => resolveConfiguredModel(group, metadata, settings => resolveAzureRuntimeEndpoint(metadata.id, settings)) },
+	{ vendor: 'openai', requiresKey: true, resolve: (_group, metadata) => resolveListedModel(getOpenAIByokEndpoint(!!getReasoningEfforts(metadata)?.length), metadata) },
+	{ vendor: 'anthropic', requiresKey: true, resolve: (_group, metadata) => resolveListedModel(ANTHROPIC_BYOK_ENDPOINT, metadata) },
+	{ vendor: 'gemini', requiresKey: true, resolve: (_group, metadata) => resolveListedModel(GEMINI_BYOK_ENDPOINT, metadata, getGeminiByokModelId(metadata.id)) },
 	{ vendor: 'xai', requiresKey: true, resolve: (_group, metadata) => resolveListedModel(XAI_BYOK_ENDPOINT, metadata) },
 	{
 		vendor: 'openrouter', requiresKey: true, resolve: (_group, metadata) => metadata.capabilities?.apiType === 'messages' || metadata.id.includes('anthropic/')
@@ -157,13 +167,13 @@ const byokVendorModelSources: readonly IByokVendorModelSources[] = [
 /** The model source entry of a model, or `undefined` when the format can't carry it. */
 function toByokEndpointModel(identifier: string, metadata: ILanguageModelChatMetadata, resolution: Extract<IByokVendorModelResolution, { readonly endpoint: IByokEndpoint }>): IByokEndpointModel | undefined {
 	const reasoningEffortSchema = metadata.configurationSchema?.properties?.reasoningEffort;
-	const reasoningEfforts = reasoningEffortSchema?.enum?.filter((value): value is string => typeof value === 'string');
+	const reasoningEfforts = getReasoningEfforts(metadata);
 	const tokenCount = (value: number | undefined) => value !== undefined && Number.isSafeInteger(value) && value > 0 ? value : undefined;
 	const maxInputTokens = tokenCount(metadata.maxInputTokens);
 	const maxOutputTokens = tokenCount(metadata.maxOutputTokens);
 	const maxContextWindowTokens = tokenCount(getModelContextWindowTotal(metadata));
 	const model: IByokEndpointModel = {
-		id: metadata.id,
+		id: resolution.modelId ?? metadata.id,
 		name: metadata.name,
 		endpoint: resolution.endpoint,
 		...(typeof resolution.toolCalling === 'boolean' ? { toolCalling: resolution.toolCalling } : {}),

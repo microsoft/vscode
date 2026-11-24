@@ -94,7 +94,7 @@ import { IAgentConfigurationService, type IAgentChatConfigurationChangeEvent, ty
 import { CopilotSessionWrapper, type ICopilotByokSessionConfig, type ICopilotModelCallFinishedEvent } from './copilotSessionWrapper.js';
 import { allowCopilotSdkExecution, restoreDeferredCopilotSdkExecution } from './copilotSessionExecutionMarker.js';
 import { getCopilotSdkToolResourceUri } from './copilotSdkMeta.js';
-import { isModelSourceModelId } from './copilotModelSources.js';
+import { isModelSourceModelId, omitsReasoningSummary } from './copilotModelSources.js';
 import { isAutoModel } from './modelIdentifiers.js';
 import { readAgentCustomizationMeta } from '../../common/meta/agentCustomizationMeta.js';
 import { areCopilotCustomAgentHooksTrusted, clientToolNamesFromSnapshot, composeByokSessionConfig, findLocalModelDirectFamily, getCopilotAgentCustomization, getCopilotWorkingDirectoryTrust, isCopilotSessionTelemetryEnabled, isMcpServerExplicitlyProjected, resolveCopilotSessionManagedSettings, toSessionConfigMcpServers, type CopilotChatSurface, type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotClientToolConfiguration, type ICopilotSessionLauncher, type ICopilotSessionRuntime } from './copilotSessionLauncher.js';
@@ -2356,6 +2356,11 @@ export class CopilotAgentSession extends Disposable {
 	 * withdrawn or can't be registered. The next turn selects it again or fails; it never runs on another model.
 	 */
 	private _requestedModelDeselected = false;
+	/**
+	 * Whether the runtime omits reasoning summaries for this session, which it keeps across model changes, so
+	 * {@link setModel} restores its default when the session leaves a model that omits them. `undefined` when unknown.
+	 */
+	private _reasoningSummaryOmitted: boolean | undefined = false;
 	private readonly _onSessionEvent: ((event: SessionEvent) => void) | undefined;
 	private readonly _canvasByInstanceId = new Map<string, ICanvasProjectionEntry>();
 	/** In-flight user closes by canvas channel, so concurrent requests from several clients share one RPC. */
@@ -5322,6 +5327,10 @@ export class CopilotAgentSession extends Disposable {
 			// Either way the model is selected again before the next turn.
 			const launchModel = this._requestedModel?.id;
 			this._requestedModelDeselected = !!launchModel && isModelSourceModelId(launchModel) && (this._launchPlan.kind === 'resume' || !wrapper.launchByokConfig.models?.some(model => `${model.provider}/${model.id}` === launchModel));
+			// The launcher omits reasoning summaries for the same models. A resumed session on a model source's model
+			// may have journaled `none` from a model it can no longer select, so its next model change sets the default.
+			this._reasoningSummaryOmitted = omitsReasoningSummary(launchModel, wrapper.launchByokConfig)
+				|| (this._launchPlan.kind === 'resume' && !!launchModel && isModelSourceModelId(launchModel) ? undefined : false);
 			this._reportLocalModelSelection(this._launchPlan.kind === 'create' ? this._launchPlan.model?.id : this._launchPlan.fallback.model?.id);
 			this._canvasExtensions = undefined;
 			this._ignoredRestoredCanvasInstanceIds.clear();
@@ -8697,6 +8706,10 @@ export class CopilotAgentSession extends Disposable {
 			throw new AgentModelSourceUnavailableError(localize('copilotAgentSession.modelSourceUnavailable', "The model {0} is unavailable. Check that its provider is still configured and has a valid API key, or choose another model.", name));
 		}
 		this._logService.info(`[Copilot:${this.sessionId}] Changing model to: ${model}`);
+		// The runtime keeps a session's reasoning summary across model changes, so leaving a model that omits it
+		// restores the runtime's default.
+		const omitReasoningSummary = omitsReasoningSummary(model, this._registeredByokConfig);
+		const reasoningSummary = omitReasoningSummary ? 'none' : this._reasoningSummaryOmitted !== false ? 'detailed' : undefined;
 		try {
 			if (isAutoModel(model) && contextTier === 'default') {
 				const result = await this._awaitControlPlaneRpc('session.options.update', this._wrapper.session.rpc.options.update({
@@ -8712,7 +8725,9 @@ export class CopilotAgentSession extends Disposable {
 				reasoningEffort,
 				contextTier,
 				...(autoTier !== undefined ? { autoTier } : {}),
+				...(reasoningSummary ? { reasoningSummary } : {}),
 			}));
+			this._reasoningSummaryOmitted = omitReasoningSummary;
 			this._requestedModel = requested ?? { id: model };
 			// Its source may have been withdrawn while the runtime switched to it.
 			this._requestedModelDeselected = this._switchTargetDeselected;

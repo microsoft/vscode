@@ -60,7 +60,7 @@ import { buildCopilotBuiltinAgents, COPILOT_BUILTIN_AGENT_NAMES } from './copilo
 import { createCopilotSkillProvider } from './copilotBuiltinSkills.js';
 import { CopilotSessionWrapper, type ICopilotByokSessionConfig } from './copilotSessionWrapper.js';
 import type { ILocalModelProvider, ILocalModelSessionConfigContribution } from './localModelBridge/localModelProvider.js';
-import { isModelSourceModelId, isModelSourceProviderName } from './copilotModelSources.js';
+import { isModelSourceModelId, isModelSourceProviderName, omitsReasoningSummary } from './copilotModelSources.js';
 import { ShellManager, createShellTools, type IUnsandboxedCommandConfirmationRequest } from './copilotShellTools.js';
 import { isAutoModel, isGpt56Model } from './modelIdentifiers.js';
 import { CopilotToolName, EPHEMERAL_DISABLED_COPILOT_TOOLS } from './copilotToolDisplay.js';
@@ -71,7 +71,7 @@ import { applyPromptOverridesFromString, resolveConfiguredPromptOverride } from 
 import { isProgressUpdatesPromptModel } from './prompts/progressUpdatesInstructions.js';
 import { describeSystemMessageConfig, fullSystemPrompt } from './prompts/systemMessage.js';
 import { getCopilotExtensionDataDirectory, type SandboxConfig } from './sandboxConfigForSdk.js';
-import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, TOOL_SEARCH_DEFER_THRESHOLD, agentHostModelSupportsToolSearch } from './toolSearchDeferral.js';
+import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, OPENAI_COMPATIBLE_MAX_TOOLS, TOOL_SEARCH_DEFER_THRESHOLD, agentHostModelSupportsToolSearch } from './toolSearchDeferral.js';
 import { createCopilotExtensionTools } from './copilotExtensionTools.js';
 import { isModelRouterModelId } from '../../common/modelRouter.js';
 import { ModelRouterEnabledConfigKey } from '../../common/modelRouterConfig.js';
@@ -1767,9 +1767,13 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			this._logService.info(`[Copilot:${plan.sessionId}] Model capability override: routing prompt for '${describeModelId(model)}' as family '${modelFamily}'`);
 		}
 		// An omitted model delegates selection to the runtime, rather than opting out of the client's tool-search choice.
-		const toolSearchEnabled = effectiveModel === undefined || agentHostModelSupportsToolSearch(effectiveModel.id);
+		// A registered model source's model gets tool search too, but only once its tools exceed what OpenAI-compatible
+		// APIs accept: the runtime sends a model source's model every tool, and has no tool limit of its own for it.
+		const modelSourceLaunch = model !== undefined && isModelSourceModelId(model.id);
+		const toolSearchEnabled = effectiveModel === undefined || modelSourceLaunch || agentHostModelSupportsToolSearch(effectiveModel.id);
+		const deferThreshold = modelSourceLaunch ? OPENAI_COMPATIBLE_MAX_TOOLS : TOOL_SEARCH_DEFER_THRESHOLD;
 		const resolveToolSearch = (names: ReadonlySet<string>): NonNullable<NonNullable<CreateSessionOptions['tools']>['search']> =>
-			toolSearchEnabled && names.has(CLIENT_TOOL_SEARCH_REFERENCE_NAME) ? { enabled: true, deferThreshold: TOOL_SEARCH_DEFER_THRESHOLD } : { enabled: false };
+			toolSearchEnabled && names.has(CLIENT_TOOL_SEARCH_REFERENCE_NAME) ? { enabled: true, deferThreshold } : { enabled: false };
 		const toolSearchActive = resolveToolSearch(filterClientToolNames(trustedClientToolNames(plan.snapshot.tools), availableTools, excludedTools)).enabled === true;
 		const serverTools = runtime.createServerSdkTools(toolSearchActive);
 		const extensionTools = [...createCopilotExtensionTools(canvasRuntimeEnabled, () => runtime.reloadExtensions(), this._logService), ...runtime.createModelRouterTools?.() ?? []];
@@ -1881,6 +1885,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 				...byok,
 				// A resumed session keeps its journaled effort unless an override is configured.
 				...(plan.kind === 'resume' ? { reasoningEffort: toRuntimeReasoningEffort(model, resolveConfiguredReasoningEffortOverride(model, this._configurationService, this._logService, plan.sessionId)) } : {}),
+				...(omitsReasoningSummary(model?.id, byok) ? { reasoningSummary: 'none' as const } : {}),
 				capabilities: modelCapabilities,
 			},
 			events: {

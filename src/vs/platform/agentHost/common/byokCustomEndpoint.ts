@@ -122,7 +122,7 @@ export function resolveCustomEndpointRuntimeEndpoint(route: ICustomEndpointModel
 	if (route.reasoningEffortFormat !== undefined && route.reasoningEffortFormat !== apiType) {
 		return { bridgeReason: 'reasoningEffortFormat' };
 	}
-	// The runtime always sends Responses reasoning fields, and decides Messages thinking from the model ID.
+	// The runtime always asks Responses models for encrypted reasoning, and decides Messages thinking from the model ID.
 	if (apiType === 'responses' ? route.thinking !== true : apiType === 'messages' && (route.thinking === true || route.adaptiveThinking === true || route.minThinkingBudget !== undefined || route.maxThinkingBudget !== undefined)) {
 		return { bridgeReason: 'thinking' };
 	}

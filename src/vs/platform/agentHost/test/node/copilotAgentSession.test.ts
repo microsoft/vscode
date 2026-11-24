@@ -4239,6 +4239,26 @@ suite('CopilotAgentSession', () => {
 			assert.deepStrictEqual(mockSession.providerSyncCalls.map(call => call.providers?.map(provider => provider.name)), [[sourceB.name]]);
 		});
 
+		test('a Responses model omits reasoning summaries, and leaving it restores the default', async () => {
+			const sourceR = { name: 'modelsource~rrrr', type: 'openai' as const, wireApi: 'responses' as const, baseUrl: 'https://r.example.test/v1', apiKey: 'key-r' };
+			const modelR = { id: 'm3', provider: sourceR.name, modelId: 'm3' };
+			const { session, mockSession } = await createAgentSession(disposables, {
+				modelId: `${sourceA.name}/m1`,
+				launchByokConfig: { providers: [sourceA], models: [modelA] },
+				modelSources: selected => selected === `${sourceR.name}/m3` ? { providers: [sourceR], models: [modelR] } : selected === `${sourceA.name}/m1` ? { providers: [sourceA], models: [modelA] } : { providers: [], models: [] },
+			});
+
+			await session.setModel(`${sourceR.name}/m3`);
+			await session.setModel(`${sourceA.name}/m1`);
+			await session.setModel('gpt-5.4');
+
+			assert.deepStrictEqual(mockSession.setModelCalls.map(([model, options]) => [model, options?.reasoningSummary]), [
+				[`${sourceR.name}/m3`, 'none'],
+				[`${sourceA.name}/m1`, 'detailed'],
+				['gpt-5.4', undefined],
+			]);
+		});
+
 		test('a source that is going away keeps serving the running turn, and is withdrawn once it ends', async () => {
 			let draining = false;
 			const { session, mockSession } = await createAgentSession(disposables, {

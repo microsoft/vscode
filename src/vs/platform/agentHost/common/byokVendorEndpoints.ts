@@ -7,10 +7,36 @@ import { resolveCustomEndpointRuntimeEndpoint, type CustomEndpointRuntimeEndpoin
 import type { IByokEndpoint } from './byokModelSource.js';
 
 /*
- * The endpoints of the Copilot extension's other BYOK vendors whose requests the
- * runtime sends the same way. Each mirrors the URL rules of the vendor's provider
- * in the extension and reuses the Custom Endpoint resolver for the auth header.
+ * The endpoints of the Copilot extension's other BYOK vendors. The runtime
+ * calls each in the API format the vendor's provider in the extension uses,
+ * with its own request settings: Custom Endpoint-style vendors mirror their
+ * provider's URL rules and reuse the Custom Endpoint resolver for the auth
+ * header, and the others call the vendor's public API.
  */
+
+/** The OpenAI API. */
+const OPENAI_BYOK_BASE_URL = 'https://api.openai.com/v1';
+
+/**
+ * The OpenAI API for a model. The extension calls every model with Responses,
+ * but leaves out the encrypted reasoning a model without reasoning rejects,
+ * which the runtime always asks Responses for. Those models are called with
+ * Chat Completions instead, which the API serves for them too.
+ */
+export function getOpenAIByokEndpoint(reasoning: boolean): IByokEndpoint {
+	return { type: 'openai', wireApi: reasoning ? 'responses' : 'completions', baseUrl: OPENAI_BYOK_BASE_URL };
+}
+
+/** The Anthropic API, which the extension calls with Messages. */
+export const ANTHROPIC_BYOK_ENDPOINT: IByokEndpoint = { type: 'anthropic', baseUrl: 'https://api.anthropic.com' };
+
+/** The Gemini API, which the runtime calls with the Interactions API rather than the extension's `generateContent`. */
+export const GEMINI_BYOK_ENDPOINT: IByokEndpoint = { type: 'google', baseUrl: 'https://generativelanguage.googleapis.com/v1beta' };
+
+/** The id the Gemini API is called with, without the `models/` prefix of its model names. */
+export function getGeminiByokModelId(modelId: string): string {
+	return modelId.startsWith('models/') ? modelId.slice('models/'.length) : modelId;
+}
 
 /** The xAI API, which the extension calls with Chat Completions. */
 export const XAI_BYOK_ENDPOINT: IByokEndpoint = { type: 'openai', wireApi: 'completions', baseUrl: 'https://api.x.ai/v1' };

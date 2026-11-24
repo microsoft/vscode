@@ -385,6 +385,8 @@ suite('getByokModelSources', () => {
 				{ name: 'Foundry', vendor: 'azure', models: [{ id: 'gpt-4o', url: 'https://r.openai.azure.com' }] },
 				{ name: 'Keyed', vendor: 'azure', apiKey: '${input:chat.lm.secret.azure}', models: [{ id: 'gpt-4o', url: 'https://r.openai.azure.com' }] },
 				{ name: 'Gemini', vendor: 'gemini', apiKey: '${input:chat.lm.secret.gemini}' },
+				{ name: 'OpenAI', vendor: 'openai', apiKey: '${input:chat.lm.secret.openai}' },
+				{ name: 'Claude', vendor: 'anthropic', apiKey: '${input:chat.lm.secret.anthropic}' },
 			],
 			metadata: new Map([
 				['xai/Grok/grok-4', metadataOf('xai', 'grok-4', { capabilities: { toolCalling: true, vision: false } })],
@@ -394,9 +396,13 @@ suite('getByokModelSources', () => {
 				['ollama/Local/llama', metadataOf('ollama', 'llama')],
 				['azure/Foundry/gpt-4o', metadataOf('azure', 'gpt-4o')],
 				['azure/Keyed/gpt-4o', metadataOf('azure', 'gpt-4o')],
-				['gemini/Gemini/gemini-3', metadataOf('gemini', 'gemini-3')],
+				['gemini/Gemini/models/gemini-3', metadataOf('gemini', 'models/gemini-3')],
+				// Only a reasoning model offers an effort level; the others are called with Chat Completions.
+				['openai/OpenAI/gpt-5', metadataOf('openai', 'gpt-5', { configurationSchema: { properties: { reasoningEffort: { type: 'string', enum: ['low', 'high'] } } } })],
+				['openai/OpenAI/gpt-4.1', metadataOf('openai', 'gpt-4.1')],
+				['anthropic/Claude/claude-sonnet-4-5', metadataOf('anthropic', 'claude-sonnet-4-5')],
 			]),
-			resolvedVendors: new Set(['xai', 'openrouter', 'ollama', 'azure', 'gemini']),
+			resolvedVendors: new Set(['xai', 'openrouter', 'ollama', 'azure', 'gemini', 'openai', 'anthropic']),
 			keys: new Map(),
 		};
 		const { languageModelsService, languageModelsConfigurationService } = createLanguageModelServices(models);
@@ -409,11 +415,19 @@ suite('getByokModelSources', () => {
 		assert.deepStrictEqual({ sources: summary(sources), whileXaiReloads: reloading.map(source => `${source.vendor}/${source.group}`) }, {
 			sources: [
 				{ group: 'azure/Keyed', requiresCredential: true, models: [{ id: 'gpt-4o', endpoint: { type: 'azure', wireApi: 'completions', baseUrl: 'https://r.openai.azure.com/openai/deployments/gpt-4o', azureApiVersion: '2025-01-01-preview' } }] },
+				{
+					group: 'openai/OpenAI', requiresCredential: true, models: [
+						{ id: 'gpt-4.1', endpoint: { type: 'openai', wireApi: 'completions', baseUrl: 'https://api.openai.com/v1' } },
+						{ id: 'gpt-5', endpoint: { type: 'openai', wireApi: 'responses', baseUrl: 'https://api.openai.com/v1' } },
+					]
+				},
+				{ group: 'anthropic/Claude', requiresCredential: true, models: [{ id: 'claude-sonnet-4-5', endpoint: { type: 'anthropic', baseUrl: 'https://api.anthropic.com' } }] },
+				{ group: 'gemini/Gemini', requiresCredential: true, models: [{ id: 'gemini-3', endpoint: { type: 'google', baseUrl: 'https://generativelanguage.googleapis.com/v1beta' } }] },
 				{ group: 'xai/Grok', requiresCredential: true, models: [{ id: 'grok-4', endpoint: { type: 'openai', wireApi: 'completions', baseUrl: 'https://api.x.ai/v1' } }] },
 				{ group: 'openrouter/Router', requiresCredential: true, models: [{ id: 'openai/gpt-5', endpoint: { type: 'openai', wireApi: 'completions', baseUrl: 'https://openrouter.ai/api/v1' } }] },
 				{ group: 'ollama/Local', requiresCredential: false, models: [{ id: 'llama', endpoint: { type: 'openai', wireApi: 'completions', baseUrl: 'http://localhost:11434/v1' } }] },
 			],
-			whileXaiReloads: ['azure/Keyed', 'xai/Grok', 'openrouter/Router', 'ollama/Local'],
+			whileXaiReloads: ['azure/Keyed', 'openai/OpenAI', 'anthropic/Claude', 'gemini/Gemini', 'xai/Grok', 'openrouter/Router', 'ollama/Local'],
 		});
 	});
 

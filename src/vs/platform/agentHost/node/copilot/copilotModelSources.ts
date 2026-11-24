@@ -24,6 +24,20 @@ export function isModelSourceModelId(id: string): boolean {
 	return id.startsWith(MODEL_SOURCE_PROVIDER_PREFIX) && id.includes('/');
 }
 
+/**
+ * Whether a session on `modelId` asks for no reasoning summaries: the model is a
+ * registered model source's Responses model in `config`. VS Code's BYOK providers
+ * never ask for them, and OpenAI only returns them to verified organizations,
+ * while the runtime asks every Responses model for them by default.
+ */
+export function omitsReasoningSummary(modelId: string | undefined, config: { readonly providers?: readonly NamedProviderConfig[]; readonly models?: readonly ProviderModelConfig[] }): boolean {
+	if (!modelId || !isModelSourceModelId(modelId)) {
+		return false;
+	}
+	const model = config.models?.find(candidate => `${candidate.provider}/${candidate.id}` === modelId);
+	return !!model && config.providers?.find(candidate => candidate.name === model.provider)?.wireApi === 'responses';
+}
+
 /** One model of a registered model source, as the Copilot agent lists it and the runtime calls it. */
 export interface ICopilotModelSourceModel {
 	/** The registration's `id`. */
@@ -66,7 +80,7 @@ export function getCopilotModelSourceModels(source: IAgentModelSource): readonly
 	const { models, requiresCredential } = readByokEndpointsDefinition(source.definition);
 	return models.map(model => {
 		const endpoint = model.endpoint;
-		const chatCompletions = endpoint.type !== 'anthropic' && endpoint.wireApi !== 'responses';
+		const chatCompletions = (endpoint.type === 'openai' || endpoint.type === 'azure') && endpoint.wireApi !== 'responses';
 		const providerName = `${MODEL_SOURCE_PROVIDER_PREFIX}${createHash('sha256').update(JSON.stringify([source.id, source.format, endpoint.type, endpoint.wireApi ?? null, endpoint.baseUrl, endpoint.azureApiVersion ?? null, model.id])).digest('hex').slice(0, 16)}`;
 		const supports = {
 			// Unknown capabilities stay unknown, so the runtime applies its own defaults.
@@ -83,7 +97,8 @@ export function getCopilotModelSourceModels(source: IAgentModelSource): readonly
 			runtimeProvider: {
 				name: providerName,
 				type: endpoint.type,
-				...(endpoint.wireApi && endpoint.type !== 'anthropic' ? { wireApi: endpoint.wireApi } : {}),
+				// The definition only gives OpenAI and Azure endpoints a wire API.
+				...(endpoint.wireApi ? { wireApi: endpoint.wireApi } : {}),
 				baseUrl: endpoint.baseUrl,
 				...(endpoint.azureApiVersion ? { azure: { apiVersion: endpoint.azureApiVersion } } : {}),
 				// A static key, never a header: the runtime redacts it, and may echo headers in errors.

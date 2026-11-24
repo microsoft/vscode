@@ -18,6 +18,7 @@ suite('BYOK endpoints model source definition', () => {
 			models: [
 				{ ...model, name: 'GPT X', toolCalling: true, maxInputTokens: 100, reasoningEfforts: ['low'], aliases: ['customendpoint/G/gpt-x'] },
 				{ id: 'claude', endpoint: { type: 'anthropic', baseUrl: 'https://anthropic.example.test' } },
+				{ id: 'gemini', endpoint: { type: 'google', baseUrl: 'https://generativelanguage.googleapis.com/v1beta' } },
 				{ id: 'azure', endpoint: { type: 'azure', wireApi: 'responses', baseUrl: 'https://res.openai.azure.com/openai', azureApiVersion: '2025-04-01-preview' } },
 			],
 			requiresCredential: true,
@@ -46,6 +47,7 @@ suite('BYOK endpoints model source definition', () => {
 			badTokenCount: { models: [{ ...model, maxInputTokens: -1 }], requiresCredential: false },
 			unknownType: { models: [{ ...model, endpoint: { ...model.endpoint, type: 'gemini' } }], requiresCredential: false },
 			anthropicWireApi: { models: [{ ...model, endpoint: { type: 'anthropic', wireApi: 'responses', baseUrl: 'https://a.test' } }], requiresCredential: false },
+			googleWireApi: { models: [{ ...model, endpoint: { type: 'google', wireApi: 'completions', baseUrl: 'https://g.test/v1beta' } }], requiresCredential: false },
 			openAiApiVersion: { models: [{ ...model, endpoint: { ...model.endpoint, azureApiVersion: '1' } }], requiresCredential: false },
 			urlQuery: { models: [{ ...model, endpoint: { ...model.endpoint, baseUrl: 'https://api.example.test/v1?key=1' } }], requiresCredential: false },
 			urlCredentials: { models: [{ ...model, endpoint: { ...model.endpoint, baseUrl: 'https://user:pass@api.example.test/v1' } }], requiresCredential: false },

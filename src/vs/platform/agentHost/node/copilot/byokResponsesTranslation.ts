@@ -15,6 +15,7 @@ import {
 	IByokLmStreamDeltaBody,
 	IByokLmTool,
 } from '../../common/agentHostByokLm.js';
+import { OPENAI_COMPATIBLE_MAX_TOOLS } from './toolSearchDeferral.js';
 
 interface IResponsesContentPart {
 	readonly type?: string;
@@ -308,7 +309,7 @@ export function responsesRequestToBridge(vendor: string, body: IResponsesRequest
  * requests with more, and the Copilot SDK runtime only defers tools behind
  * tool search for models it serves natively, so BYOK requests are capped here.
  */
-export const BYOK_MAX_TOOLS = 128;
+export const BYOK_MAX_TOOLS = OPENAI_COMPATIBLE_MAX_TOOLS;
 
 /**
  * Trims {@link IByokLmChatRequest.tools} to at most {@link maxTools}. Tools the
