@@ -608,8 +608,8 @@ suite('SessionsManagementService', () => {
 	});
 
 	test('resource lookups find a case variant of a session resource only where its scheme ignores path casing', () => {
-		const insensitive = stubSession({ sessionId: 'insensitive', resource: URI.from({ scheme: CASE_INSENSITIVE_SCHEME, path: '/Session' }), previousIdentities: [{ resource: URI.from({ scheme: CASE_INSENSITIVE_SCHEME, path: '/Previous' }), sessionId: 'previous' }] });
-		const sensitive = stubSession({ sessionId: 'sensitive', resource: URI.parse('test:///Session') });
+		const insensitive = stubSession({ sessionId: 'insensitive', providerId: 'test', resource: URI.from({ scheme: CASE_INSENSITIVE_SCHEME, path: '/Session' }), previousIdentities: [{ resource: URI.from({ scheme: CASE_INSENSITIVE_SCHEME, path: '/Previous' }), sessionId: 'previous' }] });
+		const sensitive = stubSession({ sessionId: 'sensitive', providerId: 'test', resource: URI.parse('test:///Session') });
 		const provider = new class extends TestSessionsProvider {
 			override getAllSessions(): ISession[] { return [insensitive, sensitive]; }
 			override getSession(resource: URI): ISession | undefined {
