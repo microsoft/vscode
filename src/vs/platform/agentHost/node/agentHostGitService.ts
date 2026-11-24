@@ -1566,7 +1566,9 @@ export class AgentHostGitService extends Disposable implements IAgentHostGitServ
 			: Promise.resolve(false);
 		// Without a recorded base, compare against the default branch's start point: its remote-tracking
 		// branch when it exists, so a stale local default branch does not show unrelated upstream commits.
-		const baseBranch = configuredBaseBranch || (await hasDefaultRemoteBranch ? defaultBranch?.remoteBranchName : parseDefaultBranchRef(defaultBranchRef));
+		const baseBranch = configuredBaseBranch || (defaultBranch
+			? (await hasDefaultRemoteBranch ? `refs/remotes/${defaultBranch.remoteBranchName}` : `refs/heads/${defaultBranch.branchName}`)
+			: parseDefaultBranchRef(defaultBranchRef));
 		const parsedBaseBranch = baseBranch ? await this._parseBaseBranch(repositoryRoot, baseBranch, remotesOutput) : undefined;
 		const baseBranchName = parsedBaseBranch?.branch;
 		const githubRepo = parseGitHubRepoFromRemote(remotesOutput);

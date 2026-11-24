@@ -826,10 +826,10 @@ suite('AgentHostGitService - getSessionGitState (real git)', () => {
 		const dangling = defaultBranchFields(await svc!.getSessionGitState(URI.file(dir)));
 
 		assert.deepStrictEqual({ detected, configured, configuredRef, dangling }, {
-			detected: { baseBranchName: 'main', baseBranchFullName: 'origin/main', defaultBranchName: 'main', defaultRemoteBranchName: 'origin/main' },
+			detected: { baseBranchName: 'main', baseBranchFullName: 'refs/remotes/origin/main', defaultBranchName: 'main', defaultRemoteBranchName: 'origin/main' },
 			configured: { baseBranchName: 'release', baseBranchFullName: 'release', defaultBranchName: 'main', defaultRemoteBranchName: 'origin/main' },
 			configuredRef: { baseBranchName: 'release', baseBranchFullName: 'refs/remotes/origin/release', defaultBranchName: 'main', defaultRemoteBranchName: 'origin/main' },
-			dangling: { baseBranchName: 'main', baseBranchFullName: 'main', defaultBranchName: 'main', defaultRemoteBranchName: undefined },
+			dangling: { baseBranchName: 'main', baseBranchFullName: 'refs/heads/main', defaultBranchName: 'main', defaultRemoteBranchName: undefined },
 		});
 	});
 

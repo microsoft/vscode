@@ -76,12 +76,15 @@ export function getGitStateBaseBranch(gitState: ISessionGitState | undefined): s
 	return gitState?.baseBranchFullName ?? gitState?.baseBranchName;
 }
 
-/** Selects the session's default base, preferring the default branch's upstream over its local name. */
-export function resolveDefaultBaseBranchName(defaultBranch: Branch | undefined, fallbackBranch: string | undefined): string | undefined {
+/**
+ * Selects the full ref a session records as its default base, preferring the default branch's upstream over the branch
+ * itself. Without a default branch, it is `fallbackBranch`, a branch name that readers resolve the way git does.
+ */
+export function resolveDefaultBaseBranchRef(defaultBranch: Branch | undefined, fallbackBranch: string | undefined): string | undefined {
 	return defaultBranch?.kind === GitRefType.Head
-		? defaultBranch.upstream?.name ?? defaultBranch.name
+		? defaultBranch.upstream?.ref ?? defaultBranch.ref
 		: defaultBranch?.kind === GitRefType.RemoteHead
-			? defaultBranch.name
+			? defaultBranch.ref
 			: fallbackBranch;
 }
 

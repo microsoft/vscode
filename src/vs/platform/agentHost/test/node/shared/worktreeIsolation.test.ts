@@ -857,7 +857,7 @@ suite('WorktreeIsolation', () => {
 			branchDefault: 'main',
 			branchEnum: ['main'],
 			startPoint: 'main',
-			diffBaseBranch: 'main',
+			diffBaseBranch: 'refs/heads/main',
 		});
 	});
 
@@ -936,7 +936,7 @@ suite('WorktreeIsolation', () => {
 			operations,
 		}, {
 			startPoint: 'origin/main',
-			diffBaseBranch: 'main',
+			diffBaseBranch: 'refs/heads/main',
 			operations: ['resolve:origin/main', 'fetch:origin:refs/remotes/origin/main', 'add:origin/main'],
 		});
 	});
@@ -1077,7 +1077,7 @@ suite('WorktreeIsolation', () => {
 			fetched: [{ branch: 'upstream/feature/pr', timeout: 60_000 }, { branch: 'upstream/main', timeout: 60_000 }],
 			addWorktreeArgs: [{ commitish: 'upstream/feature/pr', newBranchName: 'agents/pr-42-s1', track: true }],
 			branchName: 'agents/pr-42-s1',
-			diffBaseBranch: 'upstream/main',
+			diffBaseBranch: 'refs/remotes/upstream/main',
 		});
 	});
 
@@ -1387,7 +1387,7 @@ suite('WorktreeIsolation', () => {
 			diffBaseBranch: await db.getMetadata(META_DIFF_BASE_BRANCH),
 		}, {
 			startPoint: 'feature',
-			diffBaseBranch: 'origin/main',
+			diffBaseBranch: 'refs/remotes/origin/main',
 		});
 	});
 
@@ -2403,7 +2403,7 @@ suite('WorktreeIsolation', () => {
 		gitService.getRepositoryRoot = async () => worktreeCheckout;
 		gitService.getWorktreeRoots = async () => [repoRoot, worktreeCheckout];
 		gitService.getCurrentBranch = async () => 'agents/adopted';
-		gitService.getDefaultBranch = async () => ({ name: 'main', startPoint: 'origin/main' });
+		gitService.getDefaultBranch2 = async () => localBranch('main', 'origin/main');
 		const isolation = createIsolation(disposables, { gitService });
 
 		const recorded = await isolation.adoptExistingWorktreeMetadata(sessionUri, worktreeCheckout);
@@ -2421,7 +2421,7 @@ suite('WorktreeIsolation', () => {
 			branchName: 'agents/adopted',
 			path: worktreeCheckout.toString(),
 			repositoryRoot: repoRoot.toString(),
-			diffBaseBranch: 'origin/main',
+			diffBaseBranch: 'refs/remotes/origin/main',
 			project: { uri: repoRoot.toString(), displayName: basename(repoRoot) },
 		});
 	});
