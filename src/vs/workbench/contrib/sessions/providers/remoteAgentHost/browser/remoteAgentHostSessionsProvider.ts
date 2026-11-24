@@ -1119,6 +1119,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 			}
 			this._activitySources.set(adapter, { source: 'discovery', modifiedTime: meta.modifiedTime });
 			this._sessionCache.set(rawId, adapter);
+			this._invalidateSessionCatalog();
 			added.push(adapter);
 		}
 		if (added.length > 0 || changed.length > 0) {
@@ -1222,6 +1223,10 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		this._automationStore.setConnection(connection);
 		this._defaultDirectory = defaultDirectory;
 		this._unpublished = false;
+		if (wasUnpublished) {
+			// The cached sessions are listed again before the host lists them
+			this._invalidateSessionCatalog();
+		}
 		this.updateResourceLabelHomes();
 
 		this._syncRootState(connection.rootState.value);

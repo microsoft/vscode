@@ -2009,6 +2009,41 @@ suite('LocalAgentHostSessionsProvider', () => {
 		}, { saved: ['claude', 'codex'], creation: ['copilotcli'], interactivity: [ChatInteractivity.ReadOnly, ChatInteractivity.ReadOnly] });
 	});
 
+	test('listing policy-disabled saved sessions reads the policy once per agent, not once per session', () => {
+		let inspects = 0;
+		const configurationService = new class extends TestConfigurationService {
+			override inspect<T>(key: string) {
+				inspects++;
+				const value = super.inspect<T>(key);
+				return { ...value, policyValue: key === 'chat.agentHost.claudeAgent.enabled' ? value.value : undefined };
+			}
+		}({ 'chat.agentHost.claudeAgent.enabled': false });
+		const provider = createProvider(disposables, agentHost, undefined, { configurationService, isSessionsWindow: true });
+		for (let index = 0; index < 50; index++) {
+			fireSessionAdded(agentHost, `claude-${index}`, { title: `Claude ${index}`, provider: 'claude' });
+		}
+		provider.getSessions();
+		inspects = 0;
+		const listed = provider.getSessions().length;
+		assert.deepStrictEqual({ listed, inspects }, { listed: 50, inspects: 2 });
+	});
+
+	test('resource lookups see sessions added and removed before the change event is debounced', () => {
+		agentHost.setAgents([{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: {} }]);
+		const provider = createProvider(disposables, agentHost);
+		const management = createManagementService(disposables, provider);
+		const resourceOf = (rawId: string) => provider.getAllSessions().find(session => session.resource.path.includes(rawId))?.resource;
+		fireSessionAdded(agentHost, 'removed-early');
+		const removed = resourceOf('removed-early')!;
+		assert.ok(management.getSession(removed));
+
+		fireSessionAdded(agentHost, 'added-early');
+		fireSessionRemoved(agentHost, 'removed-early');
+		const added = resourceOf('added-early')!;
+
+		assert.deepStrictEqual({ added: management.getSession(added)?.resource.toString(), removed: management.getSession(removed)?.resource.toString() }, { added: added.toString(), removed: undefined });
+	});
+
 	for (const initiallyBlocked of [false, true]) {
 		test(`policy-disabled history never passively restores and releases existing subscriptions (cold=${initiallyBlocked})`, () => {
 			const setting = 'chat.agentHost.claudeAgent.enabled';

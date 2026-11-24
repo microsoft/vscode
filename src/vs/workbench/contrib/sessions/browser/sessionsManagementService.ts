@@ -172,6 +172,12 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	private readonly _providerListeners = this._register(new DisposableMap<string, IDisposable>());
 	private readonly _disposeCts = this._register(new CancellationTokenSource());
 	private readonly _unlistedNewSessions = new ResourceMap<ISession>();
+	/**
+	 * Every session of every provider by resource and previous identity, for {@link getSession}. Built on
+	 * demand and dropped as soon as a provider's sessions may change, so lookups don't enumerate all providers.
+	 */
+	private _sessionIndex: ResourceMap<ISession> | undefined;
+	private _sessionIndexGeneration = 0;
 	private readonly _inFlightNewSessionRequests = new ResourceMap<{ readonly session: ISession; readonly input?: Pick<ISendRequestOptions, 'query' | 'attachedContext'>; readonly published: boolean; count: number }>();
 	/**
 	 * Chat resources for which this service has just kicked off a
@@ -234,6 +240,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		const added: ISession[] = [];
 		const allAdded: ISession[] = [];
 		this._subscribeToProviders(e.added, added, allAdded);
+		this._invalidateSessionIndex();
 		// Provider disappearance hides sessions; reporting removals would trigger deletion cleanup.
 		this._fireDidChangeSessions({ added, removed: [], changed: [] }, { added: allAdded, removed: [], changed: [] });
 	}
@@ -266,6 +273,12 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			this._providerListeners.set(provider.id, disposables);
 			added.push(...sessions);
 			allAdded.push(...allSessions);
+			if (provider.onDidChangeSessionCatalog) {
+				disposables.add(provider.onDidChangeSessionCatalog(() => this._invalidateSessionIndex()));
+			} else {
+				disposables.add(provider.onDidChangeSessions(() => this._invalidateSessionIndex()));
+				disposables.add((provider.onDidChangeAllSessions ?? provider.onDidChangeSessions)(() => this._invalidateSessionIndex()));
+			}
 			disposables.add(provider.onDidChangeSessions(e => this.onDidChangeSessionsFromSessionsProviders(e)));
 			disposables.add((provider.onDidChangeAllSessions ?? provider.onDidChangeSessions)(e => this._fireDidChangeEachSession(e)));
 			disposables.add(provider.onDidMoveChat(e => this._onDidMoveChat.fire(e)));
@@ -284,6 +297,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 
 	private _handleDidReplaceSession(event: ISessionReplacedEvent): void {
 		const { from, to } = event;
+		this._invalidateSessionIndex();
 		this._moveOwnership(from, to);
 		this._explicitlyMarkedUnreadChats.delete(from.resource);
 		this.chatWidgetHistoryService.moveHistory(ChatAgentLocation.Chat, from.sessionId, to.sessionId);
@@ -422,6 +436,35 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		return sessions;
 	}
 
+	private _invalidateSessionIndex(): void {
+		this._sessionIndex = undefined;
+		this._sessionIndexGeneration++;
+	}
+
+	private _getSessionIndex(): ResourceMap<ISession> {
+		if (this._sessionIndex) {
+			return this._sessionIndex;
+		}
+		const generation = this._sessionIndexGeneration;
+		// The first session claiming a resource, as its current or a previous identity, wins.
+		const index = new ResourceMap<ISession>(resource => this.uriIdentityService.extUri.getComparisonKey(resource));
+		for (const session of this._getAllSessions()) {
+			if (!index.has(session.resource)) {
+				index.set(session.resource, session);
+			}
+			for (const previous of session.previousIdentities ?? []) {
+				if (!index.has(previous.resource)) {
+					index.set(previous.resource, session);
+				}
+			}
+		}
+		// Sessions that changed while enumerating may be missing: use the index once, rebuild it next time.
+		if (generation === this._sessionIndexGeneration) {
+			this._sessionIndex = index;
+		}
+		return index;
+	}
+
 	/**
 	 * A legacy Copilot CLI session migrated in place to the agent host is briefly
 	 * listed by BOTH the extension-host provider (`copilotcli:/<id>`) and the
@@ -442,10 +485,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		if (unlistedSession) {
 			return unlistedSession;
 		}
-		return this._getAllSessions().find(s =>
-			this.uriIdentityService.extUri.isEqual(s.resource, resource)
-			|| s.previousIdentities?.some(previous => this.uriIdentityService.extUri.isEqual(previous.resource, resource))
-		);
+		return this._getSessionIndex().get(resource);
 	}
 
 	getSessionForChatResource(resource: URI): { session: ISession; chat: IChat } | undefined {

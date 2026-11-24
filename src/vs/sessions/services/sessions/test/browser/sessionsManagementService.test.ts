@@ -556,6 +556,59 @@ suite('SessionsManagementService', () => {
 		}, { listed: ['listed'], maintenance: ['listed', 'hidden'], found: 'hidden', changes: ['changed hidden'] });
 	});
 
+	test('repeated resource lookups do not enumerate the session catalog', () => {
+		const previousResource = URI.parse('test:///previous');
+		const sessions = Array.from({ length: 590 }, (_, index) => stubSession({
+			sessionId: `session-${index}`,
+			providerId: 'test',
+			...(index === 589 ? { previousIdentities: [{ resource: previousResource, sessionId: 'previous' }] } : {}),
+		}));
+		let enumerations = 0;
+		const provider = new class extends TestSessionsProvider {
+			override getSessions(): ISession[] { return sessions; }
+			override getAllSessions(): ISession[] {
+				enumerations++;
+				return sessions;
+			}
+		}(sessions[0]);
+		const { service } = createSessionsManagementService(sessions[0], disposables, provider);
+		service.getSession(sessions[589].resource);
+		enumerations = 0;
+		const found = [];
+		for (let index = 0; index < 20; index++) {
+			found.push([
+				service.getSession(sessions[589].resource)?.sessionId,
+				service.getSession(previousResource)?.sessionId,
+				service.getSession(URI.parse('test:///missing'))?.sessionId,
+			]);
+		}
+		assert.deepStrictEqual({ enumerations, found }, {
+			enumerations: 0,
+			found: Array.from({ length: 20 }, () => ['session-589', 'session-589', undefined]),
+		});
+	});
+
+	test('resource lookups see the sessions a provider reports after a change', () => {
+		const first = stubSession({ sessionId: 'first', providerId: 'test' });
+		const added = stubSession({ sessionId: 'added', providerId: 'test' });
+		const onDidChangeSessions = disposables.add(new Emitter<ISessionChangeEvent>());
+		let sessions = [first];
+		const provider = new class extends TestSessionsProvider {
+			override readonly onDidChangeSessions = onDidChangeSessions.event;
+			override getSessions(): ISession[] { return sessions; }
+		}(first);
+		const { service } = createSessionsManagementService(first, disposables, provider);
+		const before = service.getSession(added.resource)?.sessionId;
+		sessions = [first, added];
+		onDidChangeSessions.fire({ added: [added], removed: [], changed: [] });
+		const afterAdd = service.getSession(added.resource)?.sessionId;
+		sessions = [added];
+		onDidChangeSessions.fire({ added: [], removed: [first], changed: [] });
+		assert.deepStrictEqual({ before, afterAdd, afterRemove: service.getSession(first.resource)?.sessionId }, {
+			before: undefined, afterAdd: 'added', afterRemove: undefined,
+		});
+	});
+
 	suite('session grid integration', () => {
 		function created(id: string): ISession {
 			const chat: IChat = { ...stubChat, resource: URI.parse(`test:///${id}/chat`), status: constObservable(SessionStatus.Completed) };

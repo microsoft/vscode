@@ -471,6 +471,17 @@ export interface ISessionsProvider {
 	readonly onDidChangeAllSessions?: Event<ISessionChangeEvent>;
 
 	/**
+	 * Fires synchronously whenever a resource lookup over {@link getAllSessions} may resolve differently:
+	 * a session is listed or no longer listed (also when that is not announced, e.g. a silent publish or a
+	 * visibility change), a listed session is replaced by another object for the same session, or the
+	 * resources a session is found by change (its {@link ISession.resource} or {@link ISession.previousIdentities}).
+	 * It fires before the (possibly debounced) {@link onDidChangeSessions} and {@link onDidChangeAllSessions}.
+	 * Consumers that cache the session set by resource invalidate it here; without it, they
+	 * invalidate on {@link onDidChangeSessions} and {@link onDidChangeAllSessions}.
+	 */
+	readonly onDidChangeSessionCatalog?: Event<void>;
+
+	/**
 	 * Fires when a chat moved between this provider's sessions, after both
 	 * sessions reflect it. Providers whose chats never move return `Event.None`.
 	 */

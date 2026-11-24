@@ -647,6 +647,72 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		});
 	}));
 
+	test('resource lookups follow a Cloud task rebinding to another environment, also for observers of the same update', () => {
+		const { catalog } = createTaskCatalog([]);
+		catalog.setTasks([{ taskId: 'task', name: 'Task', environmentId: 'first-env', sessionId: 'first-session' }]);
+		const management = createManagementService(catalog);
+		const row = catalog.getSessions()[0];
+		const firstAlias = row.previousIdentities![0].resource;
+		const second: ICloudSandboxTask = { taskId: 'task', name: 'Renamed', environmentId: 'second-env', sessionId: 'second-session' };
+		const secondAlias = createCloudSandboxTaskSession(second).session.previousIdentities![0].resource;
+		const lookups = () => ({ byFirstAlias: management.getSession(firstAlias)?.resource.toString(), bySecondAlias: management.getSession(secondAlias)?.resource.toString() });
+		const warm = lookups();
+		const observed: ReturnType<typeof lookups>[] = [];
+		disposables.add(autorun(reader => {
+			if (row.title.read(reader) === 'Renamed') {
+				observed.push(lookups());
+			}
+		}));
+
+		catalog.setTasks([second]);
+
+		const rebound = { byFirstAlias: undefined, bySecondAlias: row.resource.toString() };
+		assert.deepStrictEqual({ warm, observed, after: lookups(), secondAlias: row.previousIdentities![0].resource.toString() }, {
+			warm: { byFirstAlias: row.resource.toString(), bySecondAlias: undefined },
+			observed: [rebound],
+			after: rebound,
+			secondAlias: secondAlias.toString(),
+		});
+	});
+
+	test('resource lookups find a Cloud task its runtime publishes silently', () => {
+		const task: ICloudSandboxTask = { taskId: 'new-task', sessionId: 'new-session', environmentId: 'environment', name: 'Preparing' };
+		const { runtime, catalog } = createTaskCatalog([task]);
+		const resource = cloudSandboxTaskResource(task.taskId);
+		catalog.attach(task.taskId, runtime, task);
+		runtime.seedProvisionalSession(createSession(task.sessionId!, { session: AgentSession.uri('ahp-session', task.sessionId!), provider: 'copilot', summary: task.name }));
+		catalog.setTasks([task]);
+		const management = createManagementService(catalog);
+		const withheld = management.getSession(resource)?.resource.toString();
+
+		runtime.publishWithheldSession(task.sessionId!, { announce: false });
+
+		assert.deepStrictEqual({ withheld, published: management.getSession(resource)?.resource.toString() }, { withheld: undefined, published: resource.toString() });
+	});
+
+	test('resource lookups find cached sessions as soon as a reconnect republishes them, before the host lists them', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		connection.addSession(createSession('cached', { summary: 'Cached' }));
+		const provider = createProvider(disposables, connection);
+		await timeout(0);
+		const resource = provider.getSessions()[0].resource;
+		const management = createManagementService(provider);
+		provider.unpublishCachedSessions();
+		const hidden = management.getSession(resource)?.resource.toString();
+
+		const listing = new DeferredPromise<IAgentSessionMetadata[]>();
+		const reconnected = disposables.add(new MockAgentConnection());
+		reconnected.listSessions = async () => listing.p;
+		provider.setConnection(reconnected);
+		const republished = { listed: provider.getSessions().map(session => session.resource.toString()), found: management.getSession(resource)?.resource.toString() };
+		await listing.complete([]);
+		await timeout(0);
+
+		assert.deepStrictEqual({ hidden, republished }, {
+			hidden: undefined,
+			republished: { listed: [resource.toString()], found: resource.toString() },
+		});
+	}));
+
 	test('a restored visible chat keeps its facade while runtime fields and interactivity hydrate', () => {
 		const entry = createCloudSandboxTaskSession({ taskId: 'task', name: 'Summary' });
 		const chat = entry.session.mainChat.get();
