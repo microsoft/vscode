@@ -85,7 +85,7 @@ type RemoteCellTemplate = {
 	readonly elementDisposables: DisposableStore;
 	row?: IRemoteTableRow;
 } & (
-		| { readonly column: 'name'; readonly content: HTMLElement; readonly chevron: HTMLElement; readonly nameRow: HTMLElement; readonly icon: HTMLElement; readonly label: HTMLElement; readonly detail: HTMLElement; readonly gitHubEnvironment: HTMLElement; readonly serverUpdate: HTMLElement; readonly count: HTMLElement; readonly countBadge: CountBadge; readonly warning: HTMLElement; readonly description: HTMLElement; readonly links: HTMLElement; readonly actionContainer: HTMLElement; actionLink?: Link; actionProgress?: HTMLElement; link?: Link }
+		| { readonly column: 'name'; readonly content: HTMLElement; readonly chevron: HTMLElement; readonly nameRow: HTMLElement; readonly icon: HTMLElement; readonly label: HTMLElement; readonly detail: HTMLElement; readonly gitHubEnvironment: HTMLElement; readonly serverUpdate: HTMLElement; readonly pickerHidden: HTMLElement; readonly count: HTMLElement; readonly countBadge: CountBadge; readonly warning: HTMLElement; readonly description: HTMLElement; readonly links: HTMLElement; readonly actionContainer: HTMLElement; actionLink?: Link; actionProgress?: HTMLElement; link?: Link }
 		| { readonly column: 'type' | 'system' | 'status' | 'sessions' | 'activity'; readonly label: HTMLElement }
 		| { readonly column: 'sandboxProfile'; readonly select: SelectBox; readonly picker: HTMLElement; options: readonly SandboxProfileOption[] }
 		| { readonly column: 'actions'; readonly action: Action; readonly connect: ButtonWithIcon; readonly newSession: ButtonWithIcon; readonly newSessionAction: Action; readonly visibility: Action; readonly createDevContainer: Action; readonly rename: Action; readonly copyAddress: Action; readonly locationPreference: Action; readonly troubleshoot: Action; readonly gitHubEnvironment: Action; readonly showExtension: Action; readonly updateServer: Action; readonly delete: Action; readonly documentation: Action; readonly toolbar: WorkbenchToolBar; actionLayout: string }
@@ -404,6 +404,7 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 					detail: dom.append(nameRow, dom.$('.remotes-name-detail')),
 					gitHubEnvironment: dom.append(nameRow, dom.$('.remotes-github-environment')),
 					serverUpdate: dom.append(nameRow, dom.$('.remotes-server-update')),
+					pickerHidden: dom.append(nameRow, dom.$('.remotes-picker-hidden')),
 					countBadge: disposables.add(new CountBadge(count, {}, {
 						...defaultCountBadgeStyles, badgeBackground: undefined, badgeForeground: undefined,
 					})),
@@ -716,6 +717,18 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 						content: serverUpdate, style: HoverStyle.Pointer,
 					}, { groupId: this.hoverGroupId }));
 				}
+				dom.clearNode(template.pickerHidden);
+				// A reason the picker can't show the remote takes precedence over the user's hidden preference.
+				const hiddenDetail = entry.type === 'remote' && entry.remote.hidden && !entry.remote.pickerUnavailableReason
+					? localize('remotes.hiddenDetail', "Hidden from the environment picker. Use More Actions to show it again.") : undefined;
+				template.pickerHidden.hidden = !hiddenDetail;
+				if (hiddenDetail) {
+					// The row's accessible label already includes this state.
+					dom.append(template.pickerHidden, renderIcon(Codicon.eyeClosed)).setAttribute('aria-hidden', 'true');
+					template.elementDisposables.add(this.hoverService.setupDelayedHover(template.pickerHidden, {
+						content: hiddenDetail, style: HoverStyle.Pointer,
+					}, { groupId: this.hoverGroupId }));
+				}
 				template.count.hidden = entry.type !== 'group';
 				dom.clearNode(template.warning);
 				if (entry.type === 'group' && entry.warning) {
@@ -747,7 +760,7 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 				const pickerDetail = entry.type !== 'remote' ? undefined
 					: entry.remote.pickerUnavailableReason
 						? localize('remotes.pickerUnavailableDetail', "Not shown in the environment picker: {0}", entry.remote.pickerUnavailableReason)
-						: entry.remote.hidden ? localize('remotes.hiddenDetail', "Hidden from the environment picker. Use More Actions to show it again.") : undefined;
+						: hiddenDetail;
 				template.elementDisposables.add(this.hoverService.setupDelayedHoverAtMouse(template.label, {
 					content: entry.type === 'group' && entry.description ? entry.description
 						: [

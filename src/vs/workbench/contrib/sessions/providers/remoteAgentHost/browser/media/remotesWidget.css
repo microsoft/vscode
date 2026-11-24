@@ -835,7 +835,8 @@
 }
 
 .remotes-widget .remotes-github-environment,
-.remotes-widget .remotes-server-update {
+.remotes-widget .remotes-server-update,
+.remotes-widget .remotes-picker-hidden {
 	display: flex;
 	flex-shrink: 0;
 	color: var(--vscode-descriptionForeground);
@@ -920,6 +921,7 @@
 .remotes-widget .remotes-group-count[hidden],
 .remotes-widget .remotes-github-environment[hidden],
 .remotes-widget .remotes-server-update[hidden],
+.remotes-widget .remotes-picker-hidden[hidden],
 .remotes-widget .remotes-empty-signin[hidden],
 .remotes-widget .remotes-signin-progress[hidden],
 .remotes-widget .remotes-refresh-warning[hidden],
