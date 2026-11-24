@@ -425,9 +425,9 @@ export class SCMViewService implements ISCMViewService {
 						}
 						repositoryView.selectionIndex = index;
 					});
-
-					this._onDidChangeRepositories.fire({ added, removed: Iterable.empty() });
 				}
+
+				this._onDidChangeRepositories.fire({ added, removed: Iterable.empty() });
 
 				this.didSelectRepository = false;
 				return;
