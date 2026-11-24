@@ -6208,57 +6208,6 @@ suite('CopilotAgentSession', () => {
 			replacement.session.dispose();
 		});
 
-		test('leaves a handed-over canvas whose reopen waits for consent to the client that opens it, which is asked for it', async () => {
-			const { handoff } = await takeCanvasesFromPreviousRuntime({ ...preview, url: 'https://example.test/previous' });
-			const otherAnswer = new DeferredPromise<PermissionRequestResult>();
-			const replacement = await createAgentSession(disposables, {
-				resume: true,
-				canvasHandoff: handoff,
-				configureMockSession: mock => {
-					mock.extensions.push({ id: preview.extensionId, name: 'preview', source: 'project', status: 'dormant' });
-					// The runtime does not finish starting an extension while another one waits for consent.
-					mock.onCanvasOpen = async () => {
-						await otherAnswer.p;
-						return { ...preview, url: 'https://example.test/reopened' };
-					};
-				},
-			});
-			// An eager extension that asks to register hooks waits until a turn or a client shows its request.
-			void replacement.runtime.handlePermissionRequest({ kind: 'extension-permission-access', extensionName: 'user:pr-health', capabilities: ['register hooks'] }).then(result => otherAnswer.complete(result));
-			const resource = handoff.projections[0].resource.toString();
-			const adopted = replacement.session.adoptCanvasHandoff(handoff);
-			await timeout(0);
-			const beforeOpen = summarizeCanvasSignals(replacement.signals);
-			const request = { canvasId: preview.canvasId, extensionId: preview.extensionId, instanceId: preview.instanceId };
-			const asked = await replacement.session.openCanvas(request);
-			const opened = asked.kind === 'consentRequired'
-				? await replacement.session.openCanvas(request, { kind: 'consent', consentId: asked.consent.id, optionId: AgentExtensionConsentOption.NotNow })
-				: asked;
-			await timeout(0);
-			const after = summarizeCanvasSignals(replacement.signals);
-
-			assert.deepStrictEqual({
-				adopted,
-				beforeOpen,
-				askedFor: asked.kind === 'consentRequired' ? asked.consent.extensionName : asked.kind,
-				opened,
-				otherAnswer: await otherAnswer.p,
-				reopened: { members: after.membership.at(-1)?.length, url: after.states.at(-1)?.url },
-			}, {
-				adopted: true,
-				// The canvas leaves the chat, so a client that shows it opens it.
-				beforeOpen: {
-					states: [{ resource, url: undefined }],
-					membership: [[]],
-				},
-				askedFor: 'user:pr-health',
-				opened: { kind: 'opened' },
-				otherAnswer: { kind: 'reject' },
-				reopened: { members: 1, url: 'https://example.test/reopened' },
-			});
-			replacement.session.dispose();
-		});
-
 		test('reopens a restored canvas without delaying the resume', async () => {
 			const { handoff } = await takeCanvasesFromPreviousRuntime({ ...preview, url: 'https://example.test/previous' });
 			const reopen = new DeferredPromise<Awaited<ReturnType<CopilotSession['rpc']['canvas']['open']>>>();
@@ -6437,6 +6386,55 @@ suite('CopilotAgentSession', () => {
 				{ trigger: 'restore', outcome: 'opened', askedForConsent: true },
 				{ trigger: 'restore', outcome: 'consentDenied', askedForConsent: true },
 			]);
+		});
+
+		test('reports that restoring a canvas asked for the consent of another extension its start waited for, which a client open showed', async () => {
+			const { handoff } = await takeCanvasesFromPreviousRuntime({ ...preview, url: 'https://example.test/previous' });
+			const telemetryService = new CapturingTelemetryService();
+			const otherAnswer = new DeferredPromise<PermissionRequestResult>();
+			const replacement = await createAgentSession(disposables, {
+				resume: true,
+				canvasHandoff: handoff,
+				telemetryService,
+				configureMockSession: mock => {
+					mock.extensions.push({ id: preview.extensionId, name: 'preview', source: 'project', status: 'dormant' });
+					// The runtime does not finish starting an extension while another one waits for consent.
+					mock.onCanvasOpen = async () => {
+						await otherAnswer.p;
+						return { ...preview, url: 'https://example.test/reopened' };
+					};
+				},
+			});
+			void replacement.runtime.handlePermissionRequest({ kind: 'extension-permission-access', extensionName: 'user:pr-health', capabilities: ['register hooks'] }).then(result => otherAnswer.complete(result));
+			const resource = handoff.projections[0].resource.toString();
+			assert.strictEqual(replacement.session.adoptCanvasHandoff(handoff), true);
+			const request = { canvasId: preview.canvasId, extensionId: preview.extensionId, instanceId: preview.instanceId };
+			const asked = await replacement.session.openCanvas(request);
+			const opened = asked.kind === 'consentRequired'
+				? await replacement.session.openCanvas(request, { kind: 'consent', consentId: asked.consent.id, optionId: AgentExtensionConsentOption.NotNow })
+				: asked;
+			await retry(async () => assert.strictEqual(telemetryService.events.filter(event => event.eventName === 'agentHost.canvasHostOpen').length, 2), 10, 100);
+
+			assert.deepStrictEqual({
+				askedFor: asked.kind === 'consentRequired' ? asked.consent.extensionName : asked.kind,
+				opened,
+				reports: telemetryService.events.filter(event => event.eventName === 'agentHost.canvasHostOpen').map(event => {
+					const { trigger, outcome, askedForConsent } = event.data as ICanvasHostOpenEvent;
+					return { trigger, outcome, askedForConsent };
+				}).sort((a, b) => a.trigger.localeCompare(b.trigger)),
+				// The canvas keeps its lifetime while it waits.
+				...summarizeCanvasSignals(replacement.signals),
+			}, {
+				askedFor: 'user:pr-health',
+				opened: { kind: 'opened' },
+				reports: [
+					{ trigger: 'restore', outcome: 'opened', askedForConsent: true },
+					{ trigger: 'user', outcome: 'opened', askedForConsent: true },
+				],
+				states: [{ resource, url: undefined }, { resource, url: 'https://example.test/reopened' }],
+				membership: [[resource]],
+			});
+			replacement.session.dispose();
 		});
 
 		test('restores a handed-over canvas whose icon is shown again at any step of its restoration, unless it is closed', async () => {

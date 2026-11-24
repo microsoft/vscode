@@ -127,6 +127,8 @@ class PinnedCanvas extends Disposable implements IPinnedCanvas {
 	private listedBy: ISession | undefined;
 	/** The chat membership the bound canvas was last observed again for, after its observation failed. */
 	private observedAgainFor: readonly ICanvas[] | undefined;
+	/** Whether this reconnect already opened the canvas its chat restores. */
+	private openedWhileRestoring = false;
 
 	get boundCanvas(): URI | undefined {
 		return this.boundResource.read(undefined);
@@ -192,7 +194,17 @@ class PinnedCanvas extends Disposable implements IPinnedCanvas {
 
 	/** Asks to find the live canvas again through its chat's membership, without showing the chat. */
 	requestReconnect(tx: ITransaction | undefined): void {
+		this.openedWhileRestoring = false;
 		this._reconnecting.set(true, tx);
+	}
+
+	/** Records that this reconnect opens the canvas its chat restores, once. Returns `false` when it already did. */
+	claimOpenWhileRestoring(): boolean {
+		if (this.openedWhileRestoring) {
+			return false;
+		}
+		this.openedWhileRestoring = true;
+		return true;
 	}
 
 	/**
@@ -648,6 +660,10 @@ export class PinnedCanvasService extends Disposable implements IPinnedCanvasServ
 			}
 			// A chat lists a canvas it restores before the canvas has a source. A shown pin keeps observing its chat, which lets the chat restore it.
 			const restoring = canvas?.source === undefined && this.isPinShown(pin, reader);
+			// The restore waits while the canvas's extension start is held behind consent that only a turn or an open asks for, so the pin opens it.
+			if (restoring && canvas?.instanceId !== undefined && canvasId && extensionId && pin.reconnecting.read(reader) && pin.claimOpenWhileRestoring()) {
+				this.openRestoringCanvas(pin, session, chat, { canvasId, extensionId });
+			}
 			transaction(tx => {
 				pin.setPresent(tx);
 				if (!restoring) {
@@ -690,6 +706,20 @@ export class PinnedCanvasService extends Disposable implements IPinnedCanvasServ
 					this.notificationService.error(localize('pinnedCanvas.reopenFailed', "Could not reopen canvas {0}: {1}", pin.title.get(), toErrorMessage(error)));
 				}
 			});
+	}
+
+	/**
+	 * Opens a canvas its chat is restoring, which shows any consent request its extension's start waits for. The chat then
+	 * publishes the canvas's source; when the open fails otherwise, the chat keeps restoring it as before.
+	 */
+	private openRestoringCanvas(pin: PinnedCanvas, session: ISession, chat: IChat, type: Pick<ISessionCanvasDefinition, 'canvasId' | 'extensionId'>): void {
+		this.sessionsManagementService.openCanvas(session, chat, type, pin.identity.instanceId).catch(error => {
+			if (error instanceof CanvasExtensionConsentDeniedError) {
+				notifyCanvasOpenFailure(this.notificationService, error, pin.title.get(), options => this.retryReopen(pin, type, options));
+			} else {
+				this.logService.warn(`[PinnedCanvasService] Opening a restoring canvas failed: ${toErrorMessage(error)}`);
+			}
+		});
 	}
 
 	/**
