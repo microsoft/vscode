@@ -475,7 +475,7 @@ suite('Dev Container Agent Host Connector', () => {
 					configs.push(config);
 					userState.fire({ connectionId: 'other', stage: 'mount', outcome: 'added' });
 					userState.fire({ connectionId: config.connectionId, stage: 'mount', outcome: 'added', target: 'workspaces' });
-					userState.fire({ connectionId: config.connectionId, stage: 'up', outcome: 'failed', reason: 'exitCode', exitCode: 1, errorCause: 'duplicateMount' });
+					userState.fire({ connectionId: config.connectionId, stage: 'up', outcome: 'failed', reason: 'exitCode', exitCode: 1, errorCause: 'duplicateMount', lifecycleInUp: false });
 					userState.fire({ connectionId: config.connectionId, stage: 'link', outcome: 'failed', reason: 'script', step: 'folders', exitCode: 1, target: 'workspaces', movedFolders: 1, skippedFolders: 2, skipReasons: 'mounted,symlink', errorMessage: 'Cannot link user state (exit 1):' });
 					connectFailure.fire({ connectionId: 'other', stage: 'up' });
 					connectFailure.fire({ connectionId: config.connectionId, stage: 'link' });
@@ -520,12 +520,12 @@ suite('Dev Container Agent Host Connector', () => {
 				}(),
 			));
 			await assert.rejects(connector.createConnection(URI.file('/project'), 'devcontainer:project', CancellationToken.None), /Lifecycle failed/);
-			const unset = { reason: undefined, errorCause: undefined, step: undefined, target: undefined, skipReasons: undefined, exitCode: undefined, restoredFolders: undefined, movedFolders: undefined, createdFolders: undefined, existingFolders: undefined, skippedFolders: undefined, errorMessage: undefined, enabled: true, sample: false, remote: false };
+			const unset = { reason: undefined, errorCause: undefined, lifecycleInUp: undefined, step: undefined, target: undefined, skipReasons: undefined, exitCode: undefined, restoredFolders: undefined, movedFolders: undefined, createdFolders: undefined, existingFolders: undefined, skippedFolders: undefined, errorMessage: undefined, enabled: true, sample: false, remote: false };
 			assert.deepStrictEqual({ persistUserState: configs.map(config => config.persistUserState), events }, {
 				persistUserState: [true],
 				events: [
 					{ eventName: 'vscodeAgents.devContainer/stateVolume', data: { ...unset, stage: 'mount', outcome: 'added', target: 'workspaces' } },
-					{ eventName: 'vscodeAgents.devContainer/stateVolume', data: { ...unset, stage: 'up', outcome: 'failed', reason: 'exitCode', exitCode: 1, errorCause: 'duplicateMount' } },
+					{ eventName: 'vscodeAgents.devContainer/stateVolume', data: { ...unset, stage: 'up', outcome: 'failed', reason: 'exitCode', exitCode: 1, errorCause: 'duplicateMount', lifecycleInUp: false } },
 					{ eventName: 'vscodeAgents.devContainer/stateVolume', data: { ...unset, stage: 'link', outcome: 'failed', reason: 'script', step: 'folders', exitCode: 1, target: 'workspaces', movedFolders: 1, skippedFolders: 2, skipReasons: 'mounted,symlink', errorMessage: 'Cannot link user state (exit 1):' } },
 					{ eventName: 'vscodeAgents.devContainer/connect', data: { success: false, cancelled: false, reconnect: false, stateVolume: true, sample: false, remote: false, failureStage: 'link' } },
 				],

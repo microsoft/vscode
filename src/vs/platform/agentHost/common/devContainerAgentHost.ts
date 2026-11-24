@@ -68,8 +68,10 @@ export interface IDevContainerAgentHostUserStateReport {
 	readonly outcome: string;
 	/** Fixed identifier of what failed or why the stage was skipped. */
 	readonly reason?: string;
-	/** Cause of a failed `up` that its failed command doesn't identify, see `getDevContainerUpErrorCause`. */
+	/** Cause of a failed `up` or `userCommands` that its failed command doesn't identify, see `getDevContainerUpErrorCause`. */
 	readonly errorCause?: string;
+	/** `up`: Whether it ran the lifecycle commands; otherwise, e.g., when user state persists, they run in `userCommands`. */
+	readonly lifecycleInUp?: boolean;
 	/** The link command's failed step. */
 	readonly step?: string;
 	readonly exitCode?: number;

@@ -74,6 +74,7 @@ export const devContainerUserStateValidator = vObj({
 	outcome: vString(),
 	reason: vOptionalProp(vString()),
 	errorCause: vOptionalProp(vString()),
+	lifecycleInUp: vOptionalProp(vBoolean()),
 	step: vOptionalProp(vString()),
 	exitCode: vOptionalProp(vNumber()),
 	target: vOptionalProp(vString()),

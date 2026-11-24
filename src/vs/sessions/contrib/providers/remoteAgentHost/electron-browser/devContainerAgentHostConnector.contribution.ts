@@ -70,6 +70,7 @@ type DevContainerStateVolumeEvent = {
 	outcome: string;
 	reason: string | undefined;
 	errorCause: string | undefined;
+	lifecycleInUp: boolean | undefined;
 	step: string | undefined;
 	target: string | undefined;
 	skipReasons: string | undefined;
@@ -91,7 +92,8 @@ type DevContainerStateVolumeClassification = {
 	stage: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The stage: mount (adding the volume), up (starting the container), link (linking state folders to it) or userCommands (lifecycle commands, which run after linking).' };
 	outcome: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The stage outcome, e.g., added, existingContainer, skipped, linked, noMount, homeNotFound, succeeded or failed.' };
 	reason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Fixed identifier of the operation that failed, or of why the stage was skipped, e.g., configUnreadable (the Dev Container CLI then reports the error).' };
-	errorCause: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Fixed cause of a failed up stage that the failed command does not identify: duplicateMount, volume, mount, daemon (Docker not running), config, lifecycle, feature or other.' };
+	errorCause: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Fixed cause of a failed up or userCommands stage that the failed command does not identify: duplicateMount, volume, mount, daemon (Docker not running), config, lifecycle (a lifecycle command failed), feature or other.' };
+	lifecycleInUp: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the up stage ran the lifecycle commands. Otherwise, e.g., with the setting on, they run in the userCommands stage, so lifecycle failures can be compared separately.' };
 	step: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Fixed identifier of the link script step that failed.' };
 	target: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the volume is mounted at /workspaces or at a separate folder.' };
 	skipReasons: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Fixed identifiers of why state folders were not persisted, e.g., because they are already mounted.' };
@@ -102,7 +104,7 @@ type DevContainerStateVolumeClassification = {
 	existingFolders: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of state folders that were already linked.' };
 	skippedFolders: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of state folders not persisted.' };
 	errorMessage: { classification: 'CallstackOrException'; purpose: 'FeatureInsight'; comment: 'Error message of a failed stage without command lines, ids and the container user; the telemetry service also redacts paths and secrets.' };
-	enabled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the chat.agentHost.devContainer.stateVolume.enabled setting is on. The up stage is also reported with it off, to compare, and linking also runs for containers created with it on.' };
+	enabled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the chat.agentHost.devContainer.stateVolume.enabled setting is on. The up and userCommands stages are also reported with it off, without error messages, to compare, and linking also runs for containers created with it on.' };
 	sample: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the container is for a Dev Container sample.' };
 	remote: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the container runs on a remote Docker host through SSH, Tunnel or WSL.' };
 };
@@ -113,6 +115,7 @@ export function reportDevContainerUserState(telemetryService: ITelemetryService,
 		outcome: report.outcome,
 		reason: report.reason,
 		errorCause: report.errorCause,
+		lifecycleInUp: report.lifecycleInUp,
 		step: report.step,
 		target: report.target,
 		skipReasons: report.skipReasons || undefined,

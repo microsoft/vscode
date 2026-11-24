@@ -131,6 +131,7 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 	linkStateResult: { stdout: string; stderr?: string; code: number } = { stdout: '', code: 0 };
 	userCommandsExitCode = 0;
 	upExitCode = 0;
+	upErrorDescription = 'An error occurred setting up the container.';
 	userStateUpArgs: readonly string[] | undefined;
 	linkedBeforeLifecycle: boolean | undefined;
 	cacheSetupError: Error | undefined;
@@ -270,7 +271,7 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 		}
 		if (args[0] === 'run-user-commands') {
 			this.linkedBeforeLifecycle = this.localCommands.some(command => command.args[2] === 'root' && !!command.args.at(-1)?.includes('link_state'));
-			return Promise.resolve({ stdout: `${JSON.stringify(this.userCommandsExitCode ? { outcome: 'error', description: 'postCreateCommand from devcontainer.json failed with exit code 1.', message: 'npm ERR! Your cache folder contains root-owned files: /home/node/.npm, run: sudo chown -R node /home/node/.npm' } : { outcome: 'success' })}\n`, stderr: '', code: this.userCommandsExitCode });
+			return Promise.resolve({ stdout: `${JSON.stringify(this.userCommandsExitCode ? { outcome: 'error', description: 'postCreateCommand from devcontainer.json failed.', message: 'npm ERR! Your cache folder contains root-owned files: /home/node/.npm, run: sudo chown -R node /home/node/.npm' } : { outcome: 'success' })}\n`, stderr: '', code: this.userCommandsExitCode });
 		}
 		const expectedUpArgs = ['up', '--log-level', 'debug', '--workspace-folder', '/workspace', ...this.sandboxConfigurationPrepared ? ['--config', '/workspace/.devcontainer/devcontainer.json', '--override-config', '/sandbox/devcontainer.json'] : [], ...this.cacheMountConfigured ? [] : ['--mount', devContainerServerCacheMount]];
 		if (args.includes('--skip-post-create')) {
@@ -284,7 +285,7 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 		}
 		if (this.upExitCode) {
 			return Promise.resolve({
-				stdout: `${JSON.stringify({ outcome: 'error', description: 'An error occurred setting up the container.', message: 'Command failed: docker run -e API_KEY=secret image' })}\n`,
+				stdout: `${JSON.stringify({ outcome: 'error', description: this.upErrorDescription, message: 'Command failed: docker run -e API_KEY=secret image' })}\n`,
 				stderr: '[5 ms] Start: Run: docker run -e API_KEY=secret image\ndocker: Error response from daemon: invalid mount config.\n',
 				code: this.upExitCode,
 			});
@@ -1162,7 +1163,7 @@ suite('Dev Container Agent Host Main Service', () => {
 			connected: true,
 			reports: [
 				{ connectionId: 'state', stage: 'mount', outcome: 'added', target: 'workspaces' },
-				{ connectionId: 'state', stage: 'up', outcome: 'succeeded' },
+				{ connectionId: 'state', stage: 'up', outcome: 'succeeded', lifecycleInUp: false },
 				{ connectionId: 'state', stage: 'link', outcome: 'linked', target: 'workspaces', restoredFolders: 0, movedFolders: 1, createdFolders: 0, existingFolders: 0, skippedFolders: 1, skipReasons: 'mounted' },
 				{ connectionId: 'state', stage: 'userCommands', outcome: 'succeeded' },
 			],
@@ -1285,18 +1286,42 @@ suite('Dev Container Agent Host Main Service', () => {
 		}
 		const progress = { restoredFolders: 0, movedFolders: 0, createdFolders: 0, existingFolders: 0, skippedFolders: 0, skipReasons: '' };
 		const added = { stage: 'mount', outcome: 'added', target: 'workspaces' } as const;
-		const up = { stage: 'up', outcome: 'succeeded' } as const;
+		const up = { stage: 'up', outcome: 'succeeded', lifecycleInUp: false } as const;
 		const succeeded = { stage: 'userCommands', outcome: 'succeeded' } as const;
 		assert.deepStrictEqual(results, {
 			config: { connected: true, reports: [{ stage: 'mount', outcome: 'failed', reason: 'config', target: undefined, errorMessage: 'Both /workspaces and /.vscode-volume may already be mounted' }, up, { stage: 'link', outcome: 'noMount' }, succeeded] },
 			configUnreadable: { connected: true, reports: [{ stage: 'mount', outcome: 'skipped', reason: 'configUnreadable' }, up, { stage: 'link', outcome: 'noMount' }, succeeded] },
 			volume: { connected: true, reports: [{ stage: 'mount', outcome: 'failed', reason: 'volume', target: 'workspaces', errorMessage: 'Cannot create Docker volume vscode-state-<name> (exit 1): volume create failed' }, up, { stage: 'link', outcome: 'noMount' }, succeeded] },
-			upRun: { connected: false, reports: [added, { stage: 'up', outcome: 'failed', reason: 'run', errorCause: 'other', errorMessage: 'devcontainer up failed' }] },
-			upExitCode: { connected: false, reports: [added, { stage: 'up', outcome: 'failed', reason: 'exitCode', exitCode: 1, errorCause: 'mount', errorMessage: 'An error occurred setting up the container.\nCommand failed: docker run <args>\nError response from daemon: invalid mount config.' }] },
+			upRun: { connected: false, reports: [added, { stage: 'up', outcome: 'failed', reason: 'run', errorCause: 'other', lifecycleInUp: false, errorMessage: 'devcontainer up failed' }] },
+			upExitCode: { connected: false, reports: [added, { stage: 'up', outcome: 'failed', reason: 'exitCode', exitCode: 1, errorCause: 'mount', lifecycleInUp: false, errorMessage: 'An error occurred setting up the container.\nCommand failed: docker run <args>\nError response from daemon: invalid mount config.' }] },
 			inspect: { connected: true, reports: [added, up, { stage: 'link', outcome: 'failed', reason: 'inspect', step: undefined, exitCode: undefined, target: undefined, errorMessage: 'inspect failed' }, succeeded] },
 			script: { connected: true, reports: [added, up, { stage: 'link', outcome: 'failed', reason: 'script', step: 'statePath', exitCode: 1, target: 'workspaces', ...progress, errorMessage: `Cannot link user state (exit 1): mkdir: cannot create directory '~/.cache': Permission denied` }, succeeded] },
 			homeNotFound: { connected: true, reports: [added, up, { stage: 'link', outcome: 'homeNotFound', target: 'workspaces', ...progress }, succeeded] },
-			userCommands: { connected: false, reports: [added, up, { stage: 'link', outcome: 'linked', target: 'workspaces', ...progress }, { stage: 'userCommands', outcome: 'failed', reason: 'exitCode', exitCode: 1, errorMessage: 'postCreateCommand from devcontainer.json failed with exit code 1.\nnpm ERR! Your cache folder contains root-owned files: ~/.npm, run: sudo chown -R <user> ~/.npm' }] },
+			userCommands: { connected: false, reports: [added, up, { stage: 'link', outcome: 'linked', target: 'workspaces', ...progress }, { stage: 'userCommands', outcome: 'failed', reason: 'exitCode', exitCode: 1, errorCause: 'lifecycle', errorMessage: 'postCreateCommand from devcontainer.json failed.\nnpm ERR! Your cache folder contains root-owned files: ~/.npm, run: sudo chown -R <user> ~/.npm' }] },
+		});
+	});
+
+	test('reports only the fixed outcome and cause of up with the setting off', async () => {
+		const scenarios: { name: string; setup: (service: TestDevContainerAgentHostMainService) => void }[] = [
+			{ name: 'succeeded', setup: () => { } },
+			{ name: 'run', setup: service => service.failDevContainerUp = true },
+			{ name: 'exitCode', setup: service => service.upExitCode = 1 },
+			{ name: 'lifecycle', setup: service => { service.upExitCode = 1; service.upErrorDescription = 'postCreateCommand from devcontainer.json failed.'; } },
+		];
+		const results: Record<string, Omit<IDevContainerAgentHostUserStateReport, 'connectionId'>[]> = {};
+		for (const { name, setup } of scenarios) {
+			const service = store.add(new TestDevContainerAgentHostMainService());
+			setup(service);
+			const reports: Omit<IDevContainerAgentHostUserStateReport, 'connectionId'>[] = [];
+			store.add(service.onDidReportUserState(({ connectionId: _, ...report }) => reports.push(report)));
+			await service.connect({ connectionId: name, workspaceFolder: '/workspace', name: 'Project' }).catch(() => { });
+			results[name] = reports;
+		}
+		assert.deepStrictEqual(results, {
+			succeeded: [{ stage: 'up', outcome: 'succeeded', lifecycleInUp: true }],
+			run: [{ stage: 'up', outcome: 'failed', reason: 'run', errorCause: 'other', lifecycleInUp: true }],
+			exitCode: [{ stage: 'up', outcome: 'failed', reason: 'exitCode', exitCode: 1, errorCause: 'mount', lifecycleInUp: true }],
+			lifecycle: [{ stage: 'up', outcome: 'failed', reason: 'exitCode', exitCode: 1, errorCause: 'lifecycle', lifecycleInUp: true }],
 		});
 	});
 

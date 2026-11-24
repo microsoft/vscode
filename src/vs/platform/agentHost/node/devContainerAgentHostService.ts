@@ -378,7 +378,7 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 				const up = await this._runDevContainerStage(
 					config.connectionId,
 					'up',
-					true,
+					!!config.persistUserState,
 					// Lifecycle commands run after linking user state, so their changes to it persist.
 					['up', ...DEV_CONTAINER_LOG_ARGS, ...selectorArgs, ...cacheMountArgs, ...userStateMount.args, ...config.persistUserState ? ['--skip-post-create'] : []],
 					tokenSource.token,
@@ -559,7 +559,7 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 				if (!stage) {
 					return this._runDevContainer(connectionId, args, token);
 				}
-				const { stdout, stderr, code, parsed } = await this._runDevContainerStage<unknown>(connectionId, stage, stage === 'up' || !!persistUserState, args, token, undefined, stage === 'up' ? parseDevContainerUpResult : parseDevContainerUserCommandsResult, errorValues);
+				const { stdout, stderr, code, parsed } = await this._runDevContainerStage<unknown>(connectionId, stage, !!persistUserState, args, token, undefined, stage === 'up' ? parseDevContainerUpResult : parseDevContainerUserCommandsResult, errorValues);
 				if (stage === 'up' && parsed !== undefined) {
 					// Steps after `up`, e.g., cloning a sample, are preparation.
 					this._setConnectStage(connectionId, 'prepare');
@@ -619,7 +619,7 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 				if (!stage) {
 					return this._runDevContainer(connectionId, args, token);
 				}
-				const { stdout, stderr, code, parsed } = await this._runDevContainerStage<unknown>(connectionId, stage, stage === 'up' || !!persistUserState, args, token, undefined, stage === 'up' ? parseDevContainerUpResult : parseDevContainerUserCommandsResult, errorValues);
+				const { stdout, stderr, code, parsed } = await this._runDevContainerStage<unknown>(connectionId, stage, !!persistUserState, args, token, undefined, stage === 'up' ? parseDevContainerUpResult : parseDevContainerUserCommandsResult, errorValues);
 				if (stage === 'up' && parsed !== undefined) {
 					// Steps after `up`, e.g., cloning a sample, are preparation.
 					this._setConnectStage(connectionId, 'prepare');
@@ -873,27 +873,28 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 		}
 	}
 
-	/** Runs a Dev Container CLI command; `parsed` is set only if it succeeded. Optionally reports the outcome for user state telemetry. */
-	private async _runDevContainerStage<T>(connectionId: string, stage: 'up' | 'userCommands', report: boolean, args: readonly string[], token: CancellationToken, environment: NodeJS.ProcessEnv | undefined, parse: (stdout: string) => T | undefined, errorValues?: IDevContainerStateErrorValues): Promise<{ stdout: string; stderr: string; code: number; parsed: T | undefined }> {
+	/**
+	 * Runs a Dev Container CLI command and reports its outcome for user state telemetry; `parsed` is set only if it succeeded.
+	 * Reports the outcome and the fixed error cause with the setting on and off, to compare, but error messages only with it on.
+	 */
+	private async _runDevContainerStage<T>(connectionId: string, stage: 'up' | 'userCommands', persistUserState: boolean, args: readonly string[], token: CancellationToken, environment: NodeJS.ProcessEnv | undefined, parse: (stdout: string) => T | undefined, errorValues?: IDevContainerStateErrorValues): Promise<{ stdout: string; stderr: string; code: number; parsed: T | undefined }> {
 		this._setConnectStage(connectionId, stage);
+		const lifecycle = stage === 'up' ? { lifecycleInUp: !args.includes('--skip-post-create') } : {};
 		let result: { stdout: string; stderr: string; code: number };
 		try {
 			result = await this._runDevContainer(connectionId, args, token, environment);
 		} catch (error) {
-			if (report && !isCancellationError(error) && !token.isCancellationRequested) {
-				const errorCause = stage === 'up' ? getDevContainerUpErrorCause(undefined, getErrorMessage(error)) : undefined;
-				this._onDidReportUserState.fire({ connectionId, stage, outcome: 'failed', reason: 'run', ...errorCause ? { errorCause } : {}, errorMessage: sanitizeDevContainerStateErrorMessage([getErrorMessage(error)], errorValues) });
+			if (!isCancellationError(error) && !token.isCancellationRequested) {
+				const errorCause = getDevContainerUpErrorCause(undefined, getErrorMessage(error));
+				this._onDidReportUserState.fire({ connectionId, stage, outcome: 'failed', reason: 'run', errorCause, ...lifecycle, ...persistUserState ? { errorMessage: sanitizeDevContainerStateErrorMessage([getErrorMessage(error)], errorValues) } : {} });
 			}
 			throw error;
 		}
 		const parsed = parse(result.stdout);
 		const succeeded = result.code === 0 && parsed !== undefined;
-		if (report) {
-			const errorCause = !succeeded && stage === 'up' ? getDevContainerUpErrorCause(parseDevContainerErrorResult(result.stdout), result.stderr) : undefined;
-			this._onDidReportUserState.fire(succeeded
-				? { connectionId, stage, outcome: 'succeeded' }
-				: { connectionId, stage, outcome: 'failed', reason: result.code !== 0 ? 'exitCode' : 'result', exitCode: result.code, ...errorCause ? { errorCause } : {}, errorMessage: getDevContainerCliErrorMessage(result.stdout, result.stderr, errorValues) });
-		}
+		this._onDidReportUserState.fire(succeeded
+			? { connectionId, stage, outcome: 'succeeded', ...lifecycle }
+			: { connectionId, stage, outcome: 'failed', reason: result.code !== 0 ? 'exitCode' : 'result', exitCode: result.code, errorCause: getDevContainerUpErrorCause(parseDevContainerErrorResult(result.stdout), result.stderr), ...lifecycle, ...persistUserState ? { errorMessage: getDevContainerCliErrorMessage(result.stdout, result.stderr, errorValues) } : {} });
 		return { stdout: result.stdout, stderr: result.stderr, code: result.code, parsed: succeeded ? parsed : undefined };
 	}
 
