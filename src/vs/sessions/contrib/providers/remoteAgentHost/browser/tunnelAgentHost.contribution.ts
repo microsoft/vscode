@@ -171,6 +171,9 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 			const address = `${TUNNEL_ADDRESS_PREFIX}${tunnel.tunnelId}`;
 			if (!this._providerStores.has(address)) {
 				this._createProvider(address, tunnel.name);
+			} else {
+				// Discovery can rename a cached tunnel; workspace labels come from the provider label.
+				this._providerInstances.get(address)?.setLabel(tunnel.name);
 			}
 		}
 	}
@@ -502,9 +505,14 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 			// offline — those render grayed-out via the status-update loop
 			// below. Pass 'github' as authProvider so _handleSessionsChange
 			// can match these tunnels for teardown on session removal.
+			// Refresh already-cached tunnels in place so a renamed tunnel
+			// picks up its new name without losing its auth provider, order,
+			// or auto-connect suppression.
 			const cachedIds = new Set(cached.map(t => t.tunnelId));
 			for (const tunnel of onlineTunnels) {
-				if (!cachedIds.has(tunnel.tunnelId) && !this._tunnelService.isTunnelDismissed(tunnel.tunnelId)) {
+				if (cachedIds.has(tunnel.tunnelId)) {
+					this._tunnelService.updateCachedTunnel(tunnel);
+				} else if (!this._tunnelService.isTunnelDismissed(tunnel.tunnelId)) {
 					this._tunnelService.cacheTunnel(tunnel, 'github');
 				}
 			}
