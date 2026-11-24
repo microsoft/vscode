@@ -18,6 +18,8 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { INotification, INotificationHandle } from '../../../../../platform/notification/common/notification.js';
 import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
+import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
+import { IWorkspace, IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { GroupModelChangeKind, IEditorIdentifier, ITextDiffEditorPane } from '../../../../common/editor.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IEditorGroup, IEditorGroupsService, IEditorPart, IModalEditorPart } from '../../../../services/editor/common/editorGroupsService.js';
@@ -150,8 +152,13 @@ suite('CanvasService', () => {
 			get sentiment() { return { hidden }; },
 			onDidChangeSentiment: sentiment.event,
 		});
+		let folderLocation = URI.file('/workspace');
+		const workspaceContextService = upcastPartial<IWorkspaceContextService>({
+			getWorkspace: () => upcastPartial<IWorkspace>({ folders: [{ uri: folderLocation, name: 'workspace', index: 0, toResource: path => URI.joinPath(folderLocation, path) }] }),
+		});
+		const uriIdentityService = upcastPartial<IUriIdentityService>({ extUri: upcastPartial<IUriIdentityService['extUri']>({ getComparisonKey: uri => uri.toString() }) });
 		const service = store.add(new CanvasService(contextService, editorService, editorGroupsService, instantiationService, options?.browserService ?? upcastPartial<IBrowserViewWorkbenchService>({}), entitlementService,
-			new TestConfigurationService({ [CanvasesEnabledSettingId]: true }), new NullLogService(), notificationService));
+			new TestConfigurationService({ [CanvasesEnabledSettingId]: true }), new NullLogService(), notificationService, workspaceContextService, uriIdentityService));
 		return {
 			workingSetState, setActiveInput: (input: EditorInput | undefined) => { activeInput = input; },
 			owner, canvas, canvases, contexts, openRequests, visible, removed, opened, openOptions, openEditors, closed, moves, groupRestores, notifications, service, chatWindowOwners,
@@ -160,6 +167,8 @@ suite('CanvasService', () => {
 			hideAI: () => { hidden = true; sentiment.fire(); },
 			showAI: () => { hidden = false; sentiment.fire(); },
 			setModalActive: (value: boolean) => modalActive = value,
+			/** Switches the folder location of the single-folder workspace, as before its editors are swapped. */
+			setFolderLocation: (path: string) => folderLocation = URI.file(path),
 			setApplyingWorkingSet: (value: boolean) => {
 				applyingWorkingSet = value;
 				applyingWorkingSetChanged.fire(value);
@@ -464,6 +473,107 @@ suite('CanvasService', () => {
 		harness.setApplyingWorkingSet(false);
 		await timeout(0);
 		assert.deepStrictEqual({ openedWhileApplying, reopened: harness.openEditors.length, opened: harness.opened.length }, { openedWhileApplying: 1, reopened: 1, opened: 2 });
+	});
+
+	suite('restores the canvas as the active tab at a folder location', () => {
+
+		/**
+		 * Switches to the folder location `path` while the canvas is the active editor or not, as the folder location
+		 * working sets do, and returns whether the canvas came back as a background tab.
+		 */
+		async function switchTo(harness: ReturnType<typeof createHarness>, path: string, active: boolean): Promise<boolean | undefined> {
+			const input = harness.opened[harness.opened.length - 1];
+			harness.setActiveInput(active ? input : undefined);
+			harness.setFolderLocation(path);
+			harness.setApplyingWorkingSet(true);
+			harness.setActiveInput(undefined);
+			harness.openEditors.length = 0;
+			input.dispose();
+			harness.setApplyingWorkingSet(false);
+			await timeout(0);
+			return harness.openOptions[harness.openOptions.length - 1]?.inactive;
+		}
+
+		async function createOpenHarness() {
+			const harness = createHarness();
+			harness.canvases.set([harness.canvas], undefined);
+			await timeout(0);
+			return harness;
+		}
+
+		test('as it was when a working set is applied without changing the location', async () => {
+			const harness = await createOpenHarness();
+			assert.deepStrictEqual([
+				await switchTo(harness, '/workspace', true),
+				await switchTo(harness, '/workspace', true),
+				await switchTo(harness, '/workspace', false),
+			], [false, false, true]);
+		});
+
+		test('active when it was the active editor there, as after visiting a worktree', async () => {
+			const harness = await createOpenHarness();
+			assert.deepStrictEqual([
+				await switchTo(harness, '/worktree', true),
+				await switchTo(harness, '/workspace', true),
+			], [false, false]);
+		});
+
+		test('in the background when another editor was active there, although it was the active editor at the worktree', async () => {
+			const harness = await createOpenHarness();
+			assert.deepStrictEqual([
+				await switchTo(harness, '/worktree', false),
+				await switchTo(harness, '/workspace', true),
+			], [true, true]);
+		});
+
+		test('as it was at the location left when visiting a location for the first time', async () => {
+			const harness = await createOpenHarness();
+			assert.deepStrictEqual([
+				await switchTo(harness, '/worktree1', true),
+				await switchTo(harness, '/worktree2', false),
+			], [false, true]);
+		});
+
+		test('active when applying the editors of the location failed and its editor area is emptied instead', async () => {
+			const harness = await createOpenHarness();
+			const input = harness.opened[0];
+			harness.setActiveInput(input);
+			harness.setFolderLocation('/worktree');
+			harness.setApplyingWorkingSet(true);
+			harness.setActiveInput(undefined);
+			harness.openEditors.length = 0;
+			input.dispose();
+			const reopening = harness.delayOpen();
+			harness.setApplyingWorkingSet(false);
+			// The editor area is emptied while the canvas is still opening again after the failed apply.
+			harness.setApplyingWorkingSet(true);
+			harness.opened[harness.opened.length - 1].dispose();
+			await reopening.complete();
+			await timeout(0);
+			harness.setApplyingWorkingSet(false);
+			await timeout(0);
+			assert.deepStrictEqual(harness.openOptions.slice(1).map(options => options?.inactive), [false, false]);
+		});
+
+		test('as it was at the location left once that location is the least recently left of too many', async () => {
+			const harness = await createOpenHarness();
+			await switchTo(harness, '/worktree0', false);
+			for (let i = 1; i <= 20; i++) {
+				await switchTo(harness, `/worktree${i}`, true);
+			}
+			assert.deepStrictEqual(await switchTo(harness, '/workspace', true), false);
+		});
+
+		test('as it was at the location left once the user closed it while another surface shows it, and showed it again', async () => {
+			const harness = createHarness({ presentedElsewhere: true });
+			harness.canvases.set([harness.canvas], undefined);
+			await timeout(0);
+			await switchTo(harness, '/worktree', false);
+			const input = harness.opened[harness.opened.length - 1];
+			input.dispose();
+			await harness.service.revealCanvas(input.reference);
+			assert.deepStrictEqual(await switchTo(harness, '/workspace', true), false);
+		});
 	});
 
 	test('closes the canvas of a hidden owner when the visible owner has not settled its canvases', async () => {
