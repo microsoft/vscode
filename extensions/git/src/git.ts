@@ -1741,31 +1741,40 @@ export class Repository {
 	 * have to list the whole tree.
 	 */
 	private async findTreePathIgnoreCase(ref: string, relativePath: string): Promise<string | undefined> {
-		const findInFolder = async (folder: string, pathLowercase: string) => {
-			const elements = await this.lstree(ref, folder !== '.' ? `${folder}/` : undefined);
-			return elements.find(element => element.file.toLowerCase() === pathLowercase)?.file;
+		const segments = relativePath.split('/');
+
+		// Folders can only match the intermediate segments of the path
+		const findInFolder = async (folder: string, pathLowercase: string, isFolder: boolean) => {
+			const elements = await this.lstree(ref, folder ? `${folder}/` : undefined);
+			return elements
+				.filter(element => (element.type === 'tree') === isFolder && element.file.toLowerCase() === pathLowercase)
+				.map(element => element.file);
 		};
 
 		// Common case: only the case of the file name differs
-		const dirname = path.posix.dirname(relativePath);
-		const file = await findInFolder(dirname, relativePath.toLowerCase());
-		if (file || dirname === '.') {
+		const dirname = segments.slice(0, -1).join('/');
+		const [file] = await findInFolder(dirname, relativePath.toLowerCase(), false);
+		if (file || !dirname) {
 			return file;
 		}
 
-		// The case of a folder differs: resolve one segment at a time
-		let treePath = '.';
-		for (const segment of relativePath.split('/')) {
-			const candidate = treePath !== '.' ? `${treePath}/${segment}` : segment;
-			const resolved = await findInFolder(treePath, candidate.toLowerCase());
-			if (!resolved) {
-				return undefined;
+		// The case of a folder differs: resolve one segment at a time. A tree can
+		// contain folders whose names only differ in case, so try each of them.
+		const resolve = async (folder: string, index: number): Promise<string | undefined> => {
+			const candidate = folder ? `${folder}/${segments[index]}` : segments[index];
+			const isFolder = index < segments.length - 1;
+
+			for (const resolved of await findInFolder(folder, candidate.toLowerCase(), isFolder)) {
+				const result = isFolder ? await resolve(resolved, index + 1) : resolved;
+				if (result) {
+					return result;
+				}
 			}
 
-			treePath = resolved;
-		}
+			return undefined;
+		};
 
-		return treePath;
+		return resolve('', 0);
 	}
 
 	async detectObjectType(object: string): Promise<{ mimetype: string; encoding?: string }> {

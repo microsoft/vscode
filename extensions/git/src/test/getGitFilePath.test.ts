@@ -79,10 +79,32 @@ suite('git getGitFilePath', () => {
 		});
 	});
 
-	test('resolves a path with a different case in the index', async () => {
+	test('resolves a path in a folder whose name exists in several cases', async () => {
+		// Case-insensitive file systems cannot hold both folders, so add the file to the index directly
+		const { stdout: blob } = await git.exec(directory, ['rev-parse', 'HEAD:other/unrelated.txt']);
+		await git.exec(directory, ['update-index', '--add', '--cacheinfo', `100644,${blob.trim()},src/b.txt`]);
+		await git.exec(directory, ['commit', '-m', 'add a folder whose name only differs in case']);
+
+		const gitFilePath = await repository.getGitFilePath('HEAD', path.join(directory, 'SRC', 'B.TXT'));
+
+		assert.strictEqual(gitFilePath, path.join(directory, 'src', 'b.txt'));
+	});
+
+	test('does not resolve a path to a folder', async () => {
+		await assert.rejects(repository.getGitFilePath('HEAD', path.join(directory, 'sRC')), { message: 'Git relative path not found. Was looking for sRC' });
+		await assert.rejects(repository.getGitFilePath('HEAD', path.join(directory, 'src', 'NESTED')), { message: 'Git relative path not found. Was looking for src/NESTED' });
+	});
+
+	test('resolves a path with a different case in the index without listing the whole index', async () => {
 		const gitFilePath = await repository.getGitFilePath('', path.join(directory, 'SRC', 'Nested', 'file.txt'));
 
-		assert.strictEqual(gitFilePath, path.join(directory, 'Src', 'Nested', 'File.txt'));
+		assert.deepStrictEqual({
+			gitFilePath,
+			lsFilesCalls: repository.calls.filter(args => args[0] === 'ls-files')
+		}, {
+			gitFilePath: path.join(directory, 'Src', 'Nested', 'File.txt'),
+			lsFilesCalls: [['ls-files', '--stage', '--', ':(icase,literal)SRC/Nested/file.txt']]
+		});
 	});
 
 	test('does not list the other files of the repository when a path is not found', async () => {
