@@ -1599,10 +1599,11 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	});
 
-	test('observes the canvases of an inactive chat, which its chat model leaves unknown, while the reference is held', () => {
+	test('observes the canvases of an inactive chat, which its chat model leaves unknown, and contributes to its session while the reference is held', async () => {
 		agentHost.setAgents([{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: {} }]);
 		const provider = createProvider(disposables, agentHost, undefined, { activeSession: observableValue<ITestSessionWithChat | undefined>('activeSession', undefined) });
 		const rawId = 'pinned-chat-owner';
+		agentHost.addSession(createSession(rawId));
 		fireSessionAdded(agentHost, rawId);
 		const session = provider.getSessions()[0];
 		// The chat the session listing advertises, which the session never subscribes to while inactive.
@@ -1617,13 +1618,21 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const observed = read(reference?.object.get());
 		const chatModel = read(session.mainChat.get().canvases?.get());
 		const subscribedWhileHeld = [agentHost.sessionSubscribeCounts.get(chat), agentHost.sessionSubscribeCounts.get(resource)];
+		// The host restores a released chat's canvases only for a client that contributes to its session.
+		await timeout(0);
 		reference?.dispose();
+		// The host forgets the contribution when it releases the session, so observing again contributes again.
+		const again = provider.observeChatCanvases(session.sessionId, session.mainChat.get().resource);
+		await timeout(0);
+		again?.dispose();
+		const contributedTo = agentHost.dispatchedActions.filter(dispatch => dispatch.action.type === ActionType.SessionActiveClientSet).map(dispatch => dispatch.channel);
 
-		assert.deepStrictEqual({ observed, chatModel, subscribedWhileHeld, unsubscribes: [agentHost.sessionUnsubscribeCounts.get(chat), agentHost.sessionUnsubscribeCounts.get(resource)] }, {
+		assert.deepStrictEqual({ observed, chatModel, subscribedWhileHeld, contributedTo, unsubscribes: [agentHost.sessionUnsubscribeCounts.get(chat), agentHost.sessionUnsubscribeCounts.get(resource)] }, {
 			observed: [{ resource, instanceId: 'plan' }],
 			chatModel: undefined,
 			subscribedWhileHeld: [1, 1],
-			unsubscribes: [1, 1],
+			contributedTo: [AgentSession.uri('copilotcli', rawId).toString(), AgentSession.uri('copilotcli', rawId).toString()],
+			unsubscribes: [2, 2],
 		});
 	});
 
