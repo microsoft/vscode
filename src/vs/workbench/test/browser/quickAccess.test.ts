@@ -484,6 +484,46 @@ suite('QuickAccess', () => {
 		restore();
 	});
 
+	test('quick pick access - keeps the active pick when the picks change while the picker is open', () => {
+		const registry = (Registry.as<IQuickAccessRegistry>(Extensions.Quickaccess));
+		const restore = (registry as QuickAccessRegistry).clear();
+		const localDisposables = new DisposableStore();
+		const onDidChangePicks = localDisposables.add(new Emitter<void>());
+
+		class ChangingTestQuickPickProvider extends PickerQuickAccessProvider<IQuickPickItem> {
+
+			constructor() {
+				super('changing');
+			}
+
+			protected override get onDidChangePicks(): Event<void> {
+				return onDidChangePicks.event;
+			}
+
+			protected override getPickIdentity(pick: IQuickPickItem): string {
+				return pick.label;
+			}
+
+			protected _getPicks(): Array<IQuickPickItem> {
+				return [{ label: 'One' }, { label: 'Two' }];
+			}
+		}
+
+		localDisposables.add(registry.registerQuickAccessProvider({ ctor: ChangingTestQuickPickProvider, prefix: 'changing', helpEntries: [] }));
+
+		accessor.quickInputService.quickAccess.show('changing');
+		const picker = accessor.quickInputService.currentQuickInput as IQuickPick<IQuickPickItem>;
+		const before = picker.items[1] as IQuickPickItem;
+		picker.activeItems = [before];
+		onDidChangePicks.fire();
+
+		assert.deepStrictEqual({ active: picker.activeItems.map(item => item.label), refreshed: picker.activeItems[0] !== before }, { active: ['Two'], refreshed: true });
+
+		picker.hide();
+		localDisposables.dispose();
+		restore();
+	});
+
 	test('PickerEditorState can properly restore editors', async () => {
 
 		const part = await createEditorPart(instantiationService, disposables.add(new DisposableStore()));

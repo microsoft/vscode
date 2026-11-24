@@ -668,4 +668,20 @@ suite('AnythingQuickAccess - folder locations', () => {
 			after: [{ resource: URI.file('/work/folder/src/app.ts') }, ...kinds.map(kind => editorInput('/work/folder', kind))]
 		}));
 	}));
+
+	test('keeps the recently opened file the user moved to when its locations are known', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const loaded = new DeferredPromise<void>();
+		const { provider, quickInputService } = setup('/work/folder', ['/work/folder', '/work/worktree'], ['/work/worktree/src/first.ts', '/work/worktree/src/app.ts'], { loaded: loaded.p });
+		const picker = store.add(quickInputService.createQuickPick<IAnythingQuickPickItem>({ useSeparators: true }));
+		const beforeShown = Event.toPromise(Event.filter(picker.onDidChangeActive, picks => picks[0]?.resource?.path === '/work/worktree/src/first.ts'));
+		store.add(provider.provide(picker, CancellationToken.None));
+		picker.show();
+		await beforeShown;
+		picker.activeItems = picker.items.filter((pick): pick is IAnythingQuickPickItem => pick.type !== 'separator').slice(1, 2);
+		await loaded.complete();
+		await timeout(0);
+		const active = picker.activeItems.map(pick => pick.resource?.path);
+		picker.hide();
+		assert.deepStrictEqual(active, ['/work/folder/src/app.ts']);
+	}));
 });

@@ -156,7 +156,7 @@ export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem
 		// Set initial picks and update on type
 		let picksCts: CancellationTokenSource | undefined = undefined;
 		const picksDisposable = disposables.add(new MutableDisposable());
-		const updatePickerItems = async () => {
+		const updatePickerItems = async (activeIdentity?: string) => {
 			// Cancel any previous ask for picks and busy
 			picksCts?.dispose(true);
 			picker.busy = false;
@@ -204,6 +204,9 @@ export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem
 				}
 
 				picker.items = items;
+				if (!activeItem && activeIdentity !== undefined) {
+					activeItem = items.find((item): item is T => item.type !== 'separator' && this.getPickIdentity(item) === activeIdentity);
+				}
 				if (activeItem) {
 					picker.activeItems = [activeItem];
 				}
@@ -408,7 +411,11 @@ export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem
 		disposables.add(picker.onDidTriggerItemButton(({ button, item }) => buttonTrigger(button, item)));
 		disposables.add(picker.onDidTriggerSeparatorButton(({ button, separator }) => buttonTrigger(button, separator)));
 
-		disposables.add(this.onDidChangePicks(() => updatePickerItems()));
+		// Keep the active pick when the provider's data changes under the user
+		disposables.add(this.onDidChangePicks(() => {
+			const activeItem = picker.activeItems[0];
+			updatePickerItems(activeItem ? this.getPickIdentity(activeItem) : undefined);
+		}));
 
 		return disposables;
 	}
@@ -416,6 +423,14 @@ export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem
 	/** Fires when the provider's data changes and the open picker needs new picks. */
 	protected get onDidChangePicks(): Event<void> {
 		return Event.None;
+	}
+
+	/**
+	 * Returns an identity for a pick that stays the same when the picks are refreshed
+	 * through `onDidChangePicks`, so that the active pick is kept across the refresh.
+	 */
+	protected getPickIdentity(pick: T): string | undefined {
+		return undefined;
 	}
 
 	/**

@@ -395,6 +395,39 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		return this.workspaceFolderLocations.onDidChange;
 	}
 
+	protected override getPickIdentity(pick: IAnythingQuickPickItem): string | undefined {
+		if (pick.editor) {
+			return this.getEditorIdentity(isEditorInput(pick.editor) ? pick.editor.toUntyped() : pick.editor);
+		}
+
+		return pick.resource ? `${pick.label}|${this.getCurrentLocationKey(pick.resource)}` : undefined;
+	}
+
+	/**
+	 * An identity of an editor that is the same for the editor under another location
+	 * of the workspace folder and the editor it is shown as under the current location.
+	 */
+	private getEditorIdentity(editor: IUntypedEditorInput | undefined): string | undefined {
+		if (isResourceMergeEditorInput(editor)) {
+			return `merge(${this.getEditorIdentity(editor.input1)},${this.getEditorIdentity(editor.input2)},${this.getEditorIdentity(editor.base)},${this.getEditorIdentity(editor.result)})`;
+		}
+		if (isResourceDiffEditorInput(editor)) {
+			return `diff(${this.getEditorIdentity(editor.original)},${this.getEditorIdentity(editor.modified)})`;
+		}
+		if (isResourceSideBySideEditorInput(editor)) {
+			return `sideBySide(${this.getEditorIdentity(editor.primary)},${this.getEditorIdentity(editor.secondary)})`;
+		}
+		if (isResourceEditorInput(editor)) {
+			return `${editor.options?.override ?? DEFAULT_EDITOR_ASSOCIATION.id}|${this.getCurrentLocationKey(editor.resource)}`;
+		}
+
+		return undefined;
+	}
+
+	private getCurrentLocationKey(resource: URI): string {
+		return this.uriIdentityService.extUri.getComparisonKey(this.workspaceFolderLocations.toCurrentLocation(resource) ?? resource);
+	}
+
 	private get configuration() {
 		const editorConfig = this.configurationService.getValue<IWorkbenchEditorConfiguration>().workbench?.editor;
 		const searchConfig = this.configurationService.getValue<IWorkbenchSearchConfiguration>().search;
