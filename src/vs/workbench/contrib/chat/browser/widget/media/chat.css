@@ -1327,12 +1327,17 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	--chat-input-working-border-color1: var(--vscode-chat-inputWorkingBorderColor1);
 }
 
-/* Prevent contents from covering border corners. Not applied in compact mode
-	because overflow:hidden creates a BFC that causes a ResizeObserver ↔ layout
-	feedback loop when toolbars share width with the editor. */
+/* Keep contents inside the input box. Not applied in compact mode, where
+	the former overflow:hidden created a BFC that caused a ResizeObserver ↔
+	layout feedback loop when toolbars share width with the editor. The clip is
+	deliberately square (the box's own border-radius still rounds its border
+	and background): the
+	box sits inside the rounded auxiliary bar card, Chromium applies one rounded
+	clip per draw quad, and Blink gives every outer rounded clip around another
+	one a render surface, so a rounded `overflow: hidden` here makes every
+	keystroke draw offscreen render passes. */
 .interactive-session .interactive-input-part:not(.compact) .chat-input-container {
-	/* Prevent contents from covering border corner */
-	overflow: hidden;
+	clip-path: inset(0);
 }
 
 @keyframes chat-input-working-border-spin {
@@ -1353,8 +1358,14 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	border-radius: inherit;
 	padding: var(--chat-input-working-border-width);
 	container-type: size;
-	/* Masking alone does not keep the oversized gradient out of ancestor scroll areas. */
-	overflow: clip;
+	/* The mask, shaped by `border-radius`, gives the ring its rounded shape,
+		and layout containment keeps the oversized gradient out of ancestor
+		scroll areas. Don't clip the ring with a rounded `overflow`: Chromium
+		applies one rounded clip per draw quad, so a rounded clip inside the
+		auxiliary bar card's makes Blink give the card's clip render surfaces,
+		adding offscreen passes to every comet frame. The square clip on
+		`.chat-input-working-border-clip` bounds the rotating gradient instead. */
+	contain: layout;
 	-webkit-mask:
 		linear-gradient(#000 0 0) content-box,
 		linear-gradient(#000 0 0);
@@ -1369,7 +1380,17 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	z-index: 2;
 }
 
-.monaco-workbench .interactive-session .chat-input-container > .chat-input-working-border::before {
+.monaco-workbench .interactive-session .chat-input-container > .chat-input-working-border > .chat-input-working-border-clip {
+	position: absolute;
+	inset: 0;
+	overflow: clip;
+	/* Without layout containment here, Blink re-runs layerization
+		(`PaintArtifactCompositor::Update`) on every frame of the spin, costing
+		about 0.6 ms of renderer main-thread time per frame. */
+	contain: layout;
+}
+
+.monaco-workbench .interactive-session .chat-input-container > .chat-input-working-border > .chat-input-working-border-clip::before {
 	content: '';
 	position: absolute;
 	top: 50%;
@@ -1393,7 +1414,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	z-index: 1;
 }
 
-.monaco-workbench .interactive-session .chat-input-container > .chat-input-working-border-glow::before {
+.monaco-workbench .interactive-session .chat-input-container > .chat-input-working-border-glow > .chat-input-working-border-clip::before {
 	background: conic-gradient(from 135deg,
 			transparent 0deg,
 			color-mix(in srgb, var(--chat-input-working-border-color1) 60%, transparent) 25deg,
@@ -1410,6 +1431,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		rely on a visible focus/container outline for accessibility. */
 	border-color: var(--vscode-input-border, transparent);
 	overflow: visible;
+	clip-path: none;
 
 	> .chat-editor-container {
 		overflow: hidden;
@@ -1435,11 +1457,11 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	opacity: 1;
 }
 
-.monaco-workbench .interactive-session .chat-input-container.working > .chat-input-working-border::before {
+.monaco-workbench .interactive-session .chat-input-container.working > .chat-input-working-border > .chat-input-working-border-clip::before {
 	animation: chat-input-working-border-spin var(--chat-input-anim-duration) linear infinite;
 }
 
-.monaco-workbench .interactive-session .chat-input-container.working.chat-input-anim-paused > .chat-input-working-border::before {
+.monaco-workbench .interactive-session .chat-input-container.working.chat-input-anim-paused > .chat-input-working-border > .chat-input-working-border-clip::before {
 	animation-play-state: paused;
 }
 
@@ -1447,12 +1469,12 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	to force a restart of the comet animations so a new
 	`--chat-input-anim-duration` takes effect mid-flight (browsers cache
 	animation-duration at start time when sourced from a custom property). */
-.monaco-workbench .interactive-session .chat-input-container.working.chat-input-anim-restart > .chat-input-working-border::before {
+.monaco-workbench .interactive-session .chat-input-container.working.chat-input-anim-restart > .chat-input-working-border > .chat-input-working-border-clip::before {
 	animation: none;
 }
 
 @media (prefers-reduced-motion: reduce) {
-	.monaco-workbench .interactive-session .chat-input-container.working > .chat-input-working-border::before {
+	.monaco-workbench .interactive-session .chat-input-container.working > .chat-input-working-border > .chat-input-working-border-clip::before {
 		animation: none;
 	}
 }
