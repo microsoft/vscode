@@ -603,13 +603,13 @@ function findHeader(nodes: readonly SessionsListSnapshotNode[], headerId: string
 	return undefined;
 }
 
-/** The custom group the header is nested in, or `undefined` at the top level. */
+/** The custom group the header is nested in, or `undefined` at the top level. Sections, such as Pinned with its pinned groups, only present headers and are not their parents. */
 function findHeaderParent(nodes: readonly SessionsListSnapshotNode[], headerId: string, parentId?: string): string | undefined {
 	for (const node of nodes) {
 		if (node.type !== 'session' && node.id === headerId) {
 			return parentId;
 		}
-		const match = findHeaderParent(node.children ?? [], headerId, node.type === 'session' ? undefined : node.id);
+		const match = findHeaderParent(node.children ?? [], headerId, node.type === 'group' ? node.id : undefined);
 		if (match !== undefined) {
 			return match;
 		}

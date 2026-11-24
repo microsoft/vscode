@@ -31,7 +31,7 @@ import { SessionsCategories } from '../../common/categories.js';
 import { AutomationSessionsListMode, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SESSIONS_LIST_INBOX_ENABLED_SETTING, SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING } from '../../common/sessionConfig.js';
 import { ACKNOWLEDGE_INBOX_SESSION_COMMAND_ID, ARCHIVE_CHAT_COMMAND_ID, ARCHIVE_SESSION_COMMAND_ID, ARCHIVE_SESSION_GROUP_COMMAND_ID, ARCHIVE_SESSIONS_WITH_UNDO_COMMAND_ID, DELETE_SESSION_GROUP_WITH_UNDO_COMMAND_ID, HIDE_AUTOMATION_SESSION_FROM_LIST_COMMAND_ID, HOLD_INBOX_SESSION_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, RENAME_SESSION_COMMAND_ID, RESUME_INBOX_SESSION_COMMAND_ID, SHOW_AUTOMATION_SESSION_IN_LIST_COMMAND_ID, SHOW_SESSION_APPLICATION_FILTERS_COMMAND_ID, UNARCHIVE_CHAT_COMMAND_ID, UNARCHIVE_SESSION_COMMAND_ID } from '../../common/sessionCommands.js';
 import { IsPhoneLayoutContext, SessionSupportsDeleteContext, SessionSupportsRenameContext, SessionActiveChatCanArchiveContext, SessionActiveChatIsUntitledContext, SessionHeaderTargetsChatContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsReadContext, SessionItemIsMultiSelectionContext, SessionsListPromoteNewChatActionContext } from '../../common/contextkeys.js';
-import { getSessionListChats, isAutomationSession, SessionItemInboxStateContext, SessionItemCanAcknowledgeContext, SessionItemCanMergePullRequestContext, SessionItemCanImportContext, SessionItemContextMenuId, SessionItemIsAutomationContext, SessionItemIsInSessionsListContext, SessionItemOrganizeMenuGroup, SessionItemHasUnreadNestedSessionsContext, SessionSectionToolbarMenuId, SessionGroupToolbarMenuId, SessionSectionTypeContext, SessionGroupHasVisibleSessionsContext, SessionGroupIsEmptyContext, SessionGroupIsComparisonContext, IsSessionPinnedContext, SessionsGrouping, SessionsSorting, ISessionSection, ISessionGroupItem, ISessionChatItem, SessionChatItemCanArchiveContext, SessionChatItemCanMoveDownContext, SessionChatItemCanMoveUpContext, SessionChatItemCanSetReadStateContext, SessionChatItemIsArchivedContext, SessionChatItemIsReadContext, SessionChatItemIsStandaloneContext, SessionChatItemIsUntitledContext, SessionsListFocusedChatItemContext, SessionsListSearchOpenContext } from './sessionsList.js';
+import { getSessionListChats, isAutomationSession, SessionItemInboxStateContext, SessionItemCanAcknowledgeContext, SessionItemCanMergePullRequestContext, SessionItemCanImportContext, SessionItemContextMenuId, SessionItemIsAutomationContext, SessionItemIsInSessionsListContext, SessionItemOrganizeMenuGroup, SessionItemHasUnreadNestedSessionsContext, SessionSectionToolbarMenuId, SessionGroupToolbarMenuId, SessionSectionTypeContext, SessionGroupHasVisibleSessionsContext, SessionGroupIsEmptyContext, SessionGroupIsComparisonContext, SessionGroupIsNestedContext, SessionGroupIsPinnedContext, IsSessionPinnedContext, SessionsGrouping, SessionsSorting, ISessionSection, ISessionGroupItem, ISessionChatItem, SessionChatItemCanArchiveContext, SessionChatItemCanMoveDownContext, SessionChatItemCanMoveUpContext, SessionChatItemCanSetReadStateContext, SessionChatItemIsArchivedContext, SessionChatItemIsReadContext, SessionChatItemIsStandaloneContext, SessionChatItemIsUntitledContext, SessionsListFocusedChatItemContext, SessionsListSearchOpenContext } from './sessionsList.js';
 import { getChatCapabilities, IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionGroupsService } from '../sessionGroupsService.js';
 import { ISessionsListModelService } from '../sessionsListModelService.js';
@@ -1369,6 +1369,48 @@ function createSessionsListActions(): DisposableStore {
 			const hasSubgroups = sessionGroupsService.getTree().getSubgroups(context.group.id).length > 0;
 			if (!hasSubgroups && sessionGroupsService.getSectionIdsInGroup(context.group.id).length === 0 && sessionGroupsService.getSessionIdsInGroup(context.group.id).length === 0) {
 				sessionGroupsService.deleteGroup(context.group.id);
+			}
+		}
+	}));
+
+	store.add(registerAction2(class PinSessionGroupAction extends Action2 {
+		constructor() {
+			super({
+				id: 'sessionsView.pinGroup',
+				title: localize2('pinGroup', "Pin Group"),
+				icon: Codicon.pin,
+				menu: [SessionGroupToolbarMenuId, Menus.SessionGroupContext].map(id => ({
+					id,
+					group: id === SessionGroupToolbarMenuId ? 'navigation' : SessionItemOrganizeMenuGroup,
+					order: 0,
+					when: ContextKeyExpr.and(SessionGroupIsPinnedContext.negate(), SessionGroupIsNestedContext.negate(), SessionGroupIsComparisonContext.negate()),
+				}))
+			});
+		}
+		run(accessor: ServicesAccessor, context?: ISessionGroupItem): void {
+			if (context && !context.comparison) {
+				accessor.get(ISessionGroupsService).setGroupPinned(context.group.id, true);
+			}
+		}
+	}));
+
+	store.add(registerAction2(class UnpinSessionGroupAction extends Action2 {
+		constructor() {
+			super({
+				id: 'sessionsView.unpinGroup',
+				title: localize2('unpinGroup', "Unpin Group"),
+				icon: Codicon.pinned,
+				menu: [SessionGroupToolbarMenuId, Menus.SessionGroupContext].map(id => ({
+					id,
+					group: id === SessionGroupToolbarMenuId ? 'navigation' : SessionItemOrganizeMenuGroup,
+					order: 0,
+					when: SessionGroupIsPinnedContext,
+				}))
+			});
+		}
+		run(accessor: ServicesAccessor, context?: ISessionGroupItem): void {
+			if (context) {
+				accessor.get(ISessionGroupsService).setGroupPinned(context.group.id, false);
 			}
 		}
 	}));

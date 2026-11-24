@@ -37,6 +37,8 @@ export interface ISessionGroup extends ISessionGroupAppearance {
 	 * Always an existing group other than the group itself or one of its subgroups.
 	 */
 	readonly parentId?: string;
+	/** Whether the user pinned this group to the top of the sessions list. Only top-level groups are pinned. */
+	readonly pinned?: true;
 }
 
 export interface ISessionGroupsChangeEvent {
@@ -213,6 +215,12 @@ export interface ISessionGroupsService {
 
 	/** Set a group's icon and name color, or restore the default with `undefined`. */
 	setGroupColor(groupId: string, color: string | undefined): void;
+
+	/**
+	 * Pin a top-level group to the top of the sessions list, or unpin it. No-op
+	 * for a nested group. Nesting a pinned group in another group unpins it.
+	 */
+	setGroupPinned(groupId: string, pinned: boolean): void;
 
 	/** Appearance of a workspace, repository, or environment section, keyed by its stable section id. */
 	getSectionAppearance(sectionId: string): ISessionGroupAppearance | undefined;
@@ -666,6 +674,16 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 		this._onDidChange.fire({ groupsChanged: true, membershipChanged: new Set() });
 	}
 
+	setGroupPinned(groupId: string, pinned: boolean): void {
+		const group = this._groups.get(groupId);
+		if (!group || group.parentId !== undefined || !!group.pinned === pinned) {
+			return;
+		}
+		this._groups.set(groupId, withPinned(group, pinned));
+		this.save();
+		this._onDidChange.fire({ groupsChanged: true, membershipChanged: new Set() });
+	}
+
 	getSectionAppearance(sectionId: string): ISessionGroupAppearance | undefined {
 		return this._sectionAppearance.get(sectionId);
 	}
@@ -1030,6 +1048,7 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 							createdAt: typeof group.createdAt === 'number' ? group.createdAt : Date.now(),
 							...(typeof group.icon === 'string' ? { icon: group.icon } : {}),
 							...(typeof group.color === 'string' ? { color: group.color } : {}),
+							...(group.pinned === true ? { pinned: true } : {}),
 						}, typeof group.parentId === 'string' ? group.parentId : undefined));
 					}
 				}
@@ -1132,7 +1151,13 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 }
 
 /** The group nested in `parentId`, or as a top-level group when it is `undefined`. */
+/** The group with `parentId` as its parent. A nested group is never pinned. */
 function withParent(group: ISessionGroup, parentId: string | undefined): ISessionGroup {
 	const { parentId: _, ...properties } = group;
-	return parentId === undefined ? properties : { ...properties, parentId };
+	return parentId === undefined ? properties : { ...withPinned(properties, false), parentId };
+}
+
+function withPinned(group: ISessionGroup, pinned: boolean): ISessionGroup {
+	const { pinned: _, ...properties } = group;
+	return pinned ? { ...properties, pinned: true } : properties;
 }

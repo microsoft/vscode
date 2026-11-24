@@ -154,6 +154,22 @@ suite('Sessions - Sessions list tools', () => {
 		});
 	});
 
+	test('reorders pinned groups with a sibling-only moveHeader, as they nest in no group', async () => {
+		const sessions = [session('Ship notes', 1), session('Fix login', 2)];
+		const { read, organize } = setup(sessions, {
+			groups: [{ id: 'release', name: 'Release', createdAt: 2, pinned: true }, { id: 'triage', name: 'Triage', createdAt: 1, pinned: true }],
+			memberships: { 'Ship notes': 'release', 'Fix login': 'triage' },
+		});
+
+		const { results } = await organize({ action: 'moveHeader', id: 'group:triage', before: 'group:release' });
+		const { tree } = await read();
+
+		assert.deepStrictEqual({ results, tree: outline(tree) }, {
+			results: [{ action: 'moveHeader', ok: true }],
+			tree: [{ 'Pinned+': [{ 'Triage': ['Fix login'] }, { 'Release': ['Ship notes'] }] }],
+		});
+	});
+
 	test('applies a batch that creates nested groups, moves sessions and sections into them, and collapses one', async () => {
 		const sessions = [session('Alpha', 1), session('Beta', 2), session('Gamma', 3)];
 		const { read, organize, harness } = setup(sessions);

@@ -28,6 +28,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { getWorktreeFilterKey } from '../../../../../workbench/contrib/chat/common/sessionWorktreeFolders.js';
 import { isDefined } from '../../../../../base/common/types.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
+import { IWorkbenchAssignmentService } from '../../../../../workbench/services/assignment/common/assignmentService.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { EditorMarkdownCodeBlockRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/editorMarkdownCodeBlockRenderer.js';
@@ -8954,6 +8955,117 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
+		test('a pinned group renders inside Pinned and first in group menus, reorders only among pinned groups, and unpins back to its place', () => {
+			const { harness, list, container, contextMenus } = render(SessionsGrouping.Workspace, new Map(), true);
+			const groupsService = harness.instantiationService.get(ISessionGroupsService);
+			const topLevel = () => {
+				list.refresh();
+				return [...container.querySelectorAll<HTMLElement>('.monaco-list-row')].filter(row => row.getAttribute('aria-level') === '1').map(labelOf);
+			};
+			const unpinned = topLevel();
+			// The first pin expands Pinned, which would otherwise start collapsed and hide the group.
+			groupsService.setGroupPinned(triage.id, true);
+			const pinned = topLevel();
+			const pinnedLevel = list.getItemRow({ group: triage.id })?.getAttribute('aria-level');
+			const pinnedLabel = list.getItemRow({ section: 'pinned' })?.getAttribute('aria-label');
+			rowOf(container, 'Ungrouped').dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+			const addToGroup = contextMenus.at(-1)!.find(action => action.id === 'sessions.addToGroupSubmenu');
+			assert.ok(addToGroup instanceof SubmenuAction);
+			dragRow(rowOf(container, 'Triage'), rowOf(container, 'vscode'), 0.1);
+			const afterRefusedDrop = topLevel();
+			// Dropped among the pinned groups, a nested group returns to the top level first below them.
+			let feedback: string[] = [];
+			dragRow(rowOf(container, 'Docs'), rowOf(container, 'Triage'), 0.1, () => {
+				feedback = [...container.querySelectorAll<HTMLElement>('.monaco-list-row')]
+					.filter(row => [...row.classList].some(name => name.startsWith('drop-target')))
+					.map(row => `${labelOf(row)}: ${[...row.classList].filter(name => name.startsWith('drop-target')).join(' ')}`);
+			});
+			const afterExtraction = topLevel();
+			groupsService.setGroupPinned(triage.id, false);
+			const restored = topLevel();
+			groupsService.setGroupPinned(triage.id, true);
+			dragRow(rowOf(container, 'Triage'), rowOf(container, 'Release work'), 0.5);
+
+			assert.deepStrictEqual({
+				unpinned,
+				pinned,
+				pinnedLevel,
+				pinnedLabel,
+				menuOrder: addToGroup.actions.map(action => action.id.replace('sessions.addToGroup.', '')),
+				afterRefusedDrop,
+				feedback,
+				afterExtraction,
+				restored,
+				nested: { parent: groupsService.getGroup(triage.id)?.parentId, pinned: groupsService.getGroup(triage.id)?.pinned },
+			}, {
+				unpinned: ['Release work', 'Triage', 'vscode'],
+				pinned: ['Pinned', 'Release work', 'vscode'],
+				pinnedLevel: '2',
+				// The header counts the sessions of its pinned groups.
+				pinnedLabel: 'Pinned, 1',
+				menuOrder: [triage.id, release.id, hotfixes.id, urgent.id, docs.id],
+				afterRefusedDrop: ['Pinned', 'Release work', 'vscode'],
+				feedback: ['Release work: drop-target-before'],
+				afterExtraction: ['Pinned', 'Docs', 'Release work', 'vscode'],
+				restored: ['Docs', 'Release work', 'Triage', 'vscode'],
+				nested: { parent: release.id, pinned: undefined },
+			});
+		});
+
+		test('a header dropped among pinned groups shows its line below Pinned when no unpinned header has a row', () => {
+			const { harness, list, container } = render(SessionsGrouping.Date, new Map(), true);
+			const groupsService = harness.instantiationService.get(ISessionGroupsService);
+			// Without the ungrouped session, every date section is empty and has no row to anchor the line on.
+			harness.managementService.sessions.splice(harness.managementService.sessions.findIndex(session => session.title.get() === 'Ungrouped'), 1);
+			groupsService.setGroupPinned(release.id, true);
+			groupsService.setGroupPinned(triage.id, true);
+			list.refresh();
+			let feedback: string[] = [];
+			dragRow(rowOf(container, 'Docs'), rowOf(container, 'Triage'), 0.1, () => {
+				feedback = [...container.querySelectorAll<HTMLElement>('.monaco-list-row')]
+					.filter(row => [...row.classList].some(name => name.startsWith('drop-target')))
+					.map(row => `${labelOf(row)}: ${[...row.classList].filter(name => name.startsWith('drop-target')).join(' ')}`);
+			});
+			list.refresh();
+
+			assert.deepStrictEqual({
+				feedback,
+				topLevel: [...container.querySelectorAll<HTMLElement>('.monaco-list-row')].filter(row => row.getAttribute('aria-level') === '1').map(labelOf),
+			}, {
+				// The line follows the last row of Pinned, where Docs lands, rather than Triage within it.
+				feedback: ['Flaky test: drop-target-after'],
+				topLevel: ['Pinned', 'Docs'],
+			});
+		});
+
+		test('a group extracted below Pinned stays above a date section that was empty when it was dropped', () => {
+			const { harness, list, container } = render(SessionsGrouping.Date, new Map(), true);
+			const groupsService = harness.instantiationService.get(ISessionGroupsService);
+			// Only an old ungrouped session: Older has a row, Recent has none.
+			const sessions = harness.managementService.sessions;
+			sessions.splice(sessions.findIndex(session => session.title.get() === 'Ungrouped'), 1);
+			sessions.push(createTestSession('Old ungrouped', { workspaceLabel: 'vscode', createdAt: new Date(Date.now() - 30 * 24 * 60 * 60_000), updatedAt: new Date(Date.now() - 30 * 24 * 60 * 60_000) }).session);
+			groupsService.setGroupPinned(release.id, true);
+			groupsService.setGroupPinned(triage.id, true);
+			list.refresh();
+			let feedback: string[] = [];
+			dragRow(rowOf(container, 'Docs'), rowOf(container, 'Triage'), 0.1, () => {
+				feedback = [...container.querySelectorAll<HTMLElement>('.monaco-list-row')]
+					.filter(row => [...row.classList].some(name => name.startsWith('drop-target')))
+					.map(row => `${labelOf(row)}: ${[...row.classList].filter(name => name.startsWith('drop-target')).join(' ')}`);
+			});
+			sessions.push(createTestSession('New ungrouped', { workspaceLabel: 'vscode' }).session);
+			list.refresh();
+
+			assert.deepStrictEqual({
+				feedback,
+				topLevel: [...container.querySelectorAll<HTMLElement>('.monaco-list-row')].filter(row => row.getAttribute('aria-level') === '1').map(labelOf),
+			}, {
+				feedback: ['Older: drop-target-before'],
+				topLevel: ['Pinned', 'Docs', 'Recent', 'Older'],
+			});
+		});
+
 		test('context-menu section moves expand their destination and keep old sections visible when removed', async () => {
 			const { harness, list, container, contextMenus } = render(SessionsGrouping.Workspace, new Map(), true);
 			const menu = (label: string) => {
@@ -10294,6 +10406,56 @@ suite('Sessions - SessionsList', () => {
 			list.layout(400, 400);
 			return { attempt1, attempt2, judge, synthesis, container, harness, list, contextMenus };
 		}
+
+		test('the Pinned header summarizes every participant of a comparison attached inside it, also those "Show less" hides', async () => {
+			const pinnedParent: ISessionGroup = { id: 'pinned-parent', name: 'Pinned parent', createdAt: 5, pinned: true };
+			const source = buildTestSession({ id: 'source', title: 'Review PR', workspace: 'Workspace' });
+			const { list } = renderComparison(undefined, 'all', new Set(), false, SessionsGrouping.Workspace, pinnedParent,
+				harness => {
+					harness.managementService.sessions.push(source.session);
+					harness.instantiationService.stub(IListService, harness.store.add(new ListService()));
+					// Cap groups at two sessions and choose "Show less" on the comparison.
+					harness.instantiationService.stub(IWorkbenchAssignmentService, new class extends mock<IWorkbenchAssignmentService>() {
+						override readonly onDidRefetchAssignments = Event.None;
+						override async getTreatment<T extends string | number | boolean>(): Promise<T | undefined> { return 2 as T; }
+					});
+					harness.instantiationService.get(IStorageService).store('sessionsListControl.sessionGroupExpansionState', JSON.stringify({ [getSessionGroupSectionId(group.id)]: false }), StorageScope.PROFILE, StorageTarget.USER);
+				}, false,
+				{ originatingChatResource: source.session.mainChat.get().resource });
+			await timeout(0);
+			list.refresh();
+			const pinnedLabel = list.getItemRow({ section: 'pinned' })?.getAttribute('aria-label');
+			list.setItemCollapsed({ section: 'pinned' }, false);
+
+			assert.deepStrictEqual({
+				pinnedLabel,
+				visibleParticipants: list.getVisibleSessions().filter(session => session !== source.session).length,
+			}, {
+				// Review PR and all four participants, though only two participant rows are shown.
+				pinnedLabel: 'Pinned, 5',
+				visibleParticipants: 2,
+			});
+		});
+
+		test('the Pinned header does not summarize comparison participants attached to an originating session outside it', () => {
+			const pinnedParent: ISessionGroup = { id: 'pinned-parent', name: 'Pinned parent', createdAt: 5, pinned: true };
+			const source = buildTestSession({ id: 'source', title: 'Review PR', workspace: 'Source project' });
+			const { list } = renderComparison(undefined, 'all', new Set(), false, SessionsGrouping.Workspace, pinnedParent,
+				harness => {
+					harness.managementService.sessions.push(source.session);
+					harness.instantiationService.stub(IListService, harness.store.add(new ListService()));
+				}, false,
+				{ originatingChatResource: source.session.mainChat.get().resource });
+
+			assert.deepStrictEqual({
+				pinnedLabel: list.getItemRow({ section: 'pinned' })?.getAttribute('aria-label'),
+				comparisonLevel: list.getItemRow({ group: group.id })?.getAttribute('aria-level'),
+			}, {
+				// The comparison's workspace section is in the pinned group, but its participants render beneath Review PR.
+				pinnedLabel: 'Pinned, 0',
+				comparisonLevel: '3',
+			});
+		});
 
 		for (const folderless of [false, true]) {
 			test(`attaches an agent-created ${folderless ? 'folderless' : 'workspace'} comparison to its originating session`, () => {

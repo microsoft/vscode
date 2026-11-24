@@ -538,6 +538,25 @@ suite('SessionGroupsService', () => {
 		});
 	});
 
+	test('only top-level groups stay pinned, through reloading, nesting, and undoing a deletion', () => {
+		const pinned = service.createGroup('Pinned');
+		const parent = service.createGroup('Parent');
+		const child = service.createGroup('Child', [], parent.id);
+		service.setGroupPinned(pinned.id, true);
+		service.setGroupPinned(parent.id, true);
+		service.setGroupPinned(child.id, true);
+		const reloaded = disposables.add(instantiationService.createInstance(SessionGroupsService));
+		reloaded.restoreGroups(reloaded.deleteGroup(pinned.id)!);
+		reloaded.moveGroup(parent.id, pinned.id);
+		reloaded.moveGroup(parent.id, undefined);
+
+		assert.deepStrictEqual(Object.fromEntries(reloaded.getGroups().map(group => [group.name, group.pinned])), {
+			Child: undefined,
+			Parent: undefined,
+			Pinned: true,
+		});
+	});
+
 	test('icon and color reset independently and unchanged appearance does not emit', () => {
 		const group = service.createGroup('Group');
 		const changes: { groupsChanged: boolean; members: string[] }[] = [];
