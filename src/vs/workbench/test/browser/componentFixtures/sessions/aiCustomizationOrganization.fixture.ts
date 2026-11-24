@@ -508,6 +508,8 @@ async function renderOrganization(ctx: ComponentFixtureContext, options: IRender
 			}());
 			reg.defineInstance(IFileService, new class extends mock<IFileService>() {
 				override readonly onDidFilesChange = Event.None;
+				override readonly onDidRunOperation = Event.None;
+				override async exists() { return false; }
 			}());
 			reg.defineInstance(IProductService, new class extends mock<IProductService>() {
 				override readonly defaultChatAgent = upcastPartial<NonNullable<IProductService['defaultChatAgent']>>({ chatExtensionId: CHAT_EXTENSION_ID });
