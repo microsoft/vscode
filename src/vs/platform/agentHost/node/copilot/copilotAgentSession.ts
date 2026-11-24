@@ -2335,8 +2335,8 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _launchPlan: CopilotSessionLaunchPlan;
 	private readonly _onHistoryRewritten: (() => void) | undefined;
 	private readonly _onHostInstructionsDelivered: (() => void) | undefined;
-	/** A prompt was given the host instructions, and the runtime has not echoed it yet. A prompt it rejects or a hook blocks is never echoed. */
-	private _hostInstructionsHandedOut = false;
+	/** The turn whose prompt was given the host instructions, until the runtime echoes that prompt. A prompt it rejects or a hook blocks is never echoed. */
+	private _hostInstructionsHandedOutTo: CopilotTurn | undefined;
 	private readonly _modelConfigurationOwner = generateUuid();
 	private _modelConfigurationGeneration = 0;
 	private readonly _modelConfigurationRefresh = this._register(new Throttler());
@@ -7211,7 +7211,7 @@ export class CopilotAgentSession extends Disposable {
 		}
 		const turn = this._currentTurn.value;
 		this._hostInstructions = hostInstructions;
-		this._hostInstructionsHandedOut = false;
+		this._hostInstructionsHandedOutTo = undefined;
 		// Attaching a file or folder lets this chat's sandbox read it; `_prepareSdkTurn` applies the grant before the turn runs.
 		this._sandbox.addAttachments(attachments);
 		this._pendingSnapshotReminder = this._attachmentReminder(attachments);
@@ -7245,6 +7245,7 @@ export class CopilotAgentSession extends Disposable {
 				this._clearActiveTurn();
 			}
 			this._hostInstructions = undefined;
+			this._hostInstructionsHandedOutTo = undefined;
 			this._pendingSnapshotReminder = undefined;
 			throw err;
 		} finally {
@@ -7266,7 +7267,9 @@ export class CopilotAgentSession extends Disposable {
 			// Changes the user undid since the agent's last tool result.
 			...this._discardedEditNotes,
 		];
-		this._hostInstructionsHandedOut ||= !!this._hostInstructions?.length;
+		if (this._hostInstructions?.length) {
+			this._hostInstructionsHandedOutTo = this._currentTurn.value;
+		}
 		this._hostInstructions = undefined;
 		this._pendingSnapshotReminder = undefined;
 		this._discardedEditNotes = [];
@@ -11508,9 +11511,9 @@ export class CopilotAgentSession extends Disposable {
 			// The message is admitted only after required plugins are prepared.
 			this._setManagedPluginActivity(undefined);
 			const steering = this._takeMatchingPendingSteering(e.data.content, e.data.messageId);
-			if (!steering && this._hostInstructionsHandedOut) {
-				// The echo of the prompt that took the host's instructions: they have reached the agent.
-				this._hostInstructionsHandedOut = false;
+			if (!steering && this._hostInstructionsHandedOutTo && this._hostInstructionsHandedOutTo === this._currentTurn.value) {
+				// The echo of the prompt that took the host's instructions, in the turn that sent it: they have reached the agent.
+				this._hostInstructionsHandedOutTo = undefined;
 				this._onHostInstructionsDelivered?.();
 			}
 			if (steering) {
@@ -14054,9 +14057,12 @@ export class CopilotAgentSession extends Disposable {
 		store.add(wrapper.onTurnEnd(invalidate));
 		store.add(wrapper.onSessionError(invalidate));
 		// In-place rewrites of the persisted log.
-		const rewritten = () => {
+		const rewritten = (e: { readonly agentId?: string }) => {
 			invalidate();
-			this._onHistoryRewritten?.();
+			// A subagent's history is its own: the root agent's is as it was.
+			if (!e.agentId) {
+				this._onHistoryRewritten?.();
+			}
 		};
 		store.add(wrapper.onSessionCompactionComplete(rewritten));
 		store.add(wrapper.onSessionTruncation(rewritten));
@@ -14295,7 +14301,7 @@ export class CopilotAgentSession extends Disposable {
 			this._logService.warn(`[Copilot:${this.sessionId}] Not showing a hook's prompt block on turn ${turn.id}: it is not this turn's own prompt, or the turn has ended`);
 			return;
 		}
-		this._hostInstructionsHandedOut = false;
+		this._hostInstructionsHandedOutTo = undefined;
 		this._emitAction({ type: ActionType.ChatResponsePart, turnId: turn.id, part: createPromptBlockedNotification(reason) }, undefined, true);
 	}
 

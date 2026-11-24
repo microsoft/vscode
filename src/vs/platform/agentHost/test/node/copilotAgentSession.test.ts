@@ -2181,7 +2181,7 @@ suite('CopilotAgentSession', () => {
 		assert.deepStrictEqual({ before, after: session.isHeldInUse }, { before: false, after: true });
 	});
 
-	test('reports each rewrite of its history: a compaction, a truncation and a rewind, but not a message', async () => {
+	test('reports each rewrite of its history: a compaction, a truncation and a rewind, but not a message or a subagent\'s compaction', async () => {
 		let rewrites = 0;
 		const { mockSession } = await createAgentSession(disposables, { resume: true, onHistoryRewritten: () => rewrites++ });
 		const after = (fire: () => void) => {
@@ -2190,10 +2190,11 @@ suite('CopilotAgentSession', () => {
 		};
 		assert.deepStrictEqual({
 			message: after(() => mockSession.fire('user.message', { content: 'Hello.', messageId: 'message-1', turnId: 'sdk-turn' } as SessionEventPayload<'user.message'>['data'])),
+			subagentCompaction: after(() => mockSession.fire('session.compaction_complete', { success: true } as SessionEventPayload<'session.compaction_complete'>['data'], { agentId: 'subagent' })),
 			compaction: after(() => mockSession.fire('session.compaction_complete', { success: true } as SessionEventPayload<'session.compaction_complete'>['data'])),
 			truncation: after(() => mockSession.fire('session.truncation', {} as SessionEventPayload<'session.truncation'>['data'])),
 			rewind: after(() => mockSession.fire('session.snapshot_rewind', { upToEventId: 'user-0', eventsRemoved: 1 })),
-		}, { message: 0, compaction: 1, truncation: 2, rewind: 3 });
+		}, { message: 0, subagentCompaction: 0, compaction: 1, truncation: 2, rewind: 3 });
 	});
 
 	test('host instructions reach the agent with the prompt hook, or with the prompt itself when managed policy suppresses hooks, and count as delivered once the runtime echoes that prompt', async () => {
@@ -2205,8 +2206,10 @@ suite('CopilotAgentSession', () => {
 			readonly rejected?: boolean;
 			/** The runtime records the prompt. It does not when the send is rejected, a hook blocks it, or it is a command. */
 			readonly echoed?: boolean;
+			/** A root message the runtime starts on its own arrives afterwards. */
+			readonly thenOtherMessage?: boolean;
 		}
-		const sendWith = async ({ prompt = 'hello', suppressHooks = false, rejected = false, echoed = true }: ISendCase) => {
+		const sendWith = async ({ prompt = 'hello', suppressHooks = false, rejected = false, echoed = true, thenOtherMessage = false }: ISendCase) => {
 			let delivered = 0;
 			const { session, runtime, mockSession } = await createAgentSession(disposables, { onHostInstructionsDelivered: () => delivered++ });
 			mockSession.commandListResult = { commands: [{ name: 'fleet', kind: 'builtin', description: 'Start fleet', allowDuringAgentExecution: false }] };
@@ -2227,6 +2230,9 @@ suite('CopilotAgentSession', () => {
 			if (echoed) {
 				mockSession.fire('user.message', { content: prompt, messageId: 'message-1', turnId: 'sdk-turn' } as SessionEventPayload<'user.message'>['data']);
 			}
+			if (thenOtherMessage) {
+				mockSession.fire('user.message', { content: 'From an extension.', messageId: 'provider-message', turnId: 'provider-sdk-turn' } as SessionEventPayload<'user.message'>['data']);
+			}
 			const prompts = [...mockSession.sendRequests.map(request => request as MessageOptions), ...mockSession.fleetStartCalls].map(request => request.prompt);
 			return { prompts, displayPrompt: (mockSession.sendRequests[0] as MessageOptions | undefined)?.displayPrompt, hook, beforeEcho, delivered };
 		};
@@ -2237,7 +2243,8 @@ suite('CopilotAgentSession', () => {
 			// Handled by the history RPC: no prompt goes out, so the note does not either.
 			command: await sendWith({ prompt: '/compact', echoed: false }),
 			suppressedHooks: await sendWith({ suppressHooks: true }),
-			suppressedHooksRejected: (await sendWith({ suppressHooks: true, rejected: true, echoed: false })).delivered,
+			// The rejected turn is over: a message the runtime starts afterwards is not its prompt.
+			suppressedHooksRejected: (await sendWith({ suppressHooks: true, rejected: true, echoed: false, thenOtherMessage: true })).delivered,
 			suppressedHooksFleet: (await sendWith({ prompt: '/fleet build it', suppressHooks: true, echoed: false })).prompts,
 			fleet: (await sendWith({ prompt: '/fleet build it', echoed: false })).prompts,
 		}, {
