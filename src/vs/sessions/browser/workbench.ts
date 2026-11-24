@@ -2969,15 +2969,13 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 			// Suspended so the desktop width sync cannot read the transient node
 			// widths as a sash drag and write back the desired visibility.
 			this._runWithEditorResizeSyncSuspended(() => {
-				if (!allowsPanel) {
-					this._placeCenteredPanel(false);
-				}
 				// One pass, revealing before hiding so the row never goes empty in between.
 				if (visible) {
 					this.workbenchGrid.setViewVisible(this.customViewGridPartView, true);
 					this._applyExclusivePartVisibility();
 				} else {
 					this._applyExclusivePartVisibility();
+					this._placeCenteredPanel(false);
 					this.workbenchGrid.setViewVisible(this.customViewGridPartView, false);
 					this._restoreCustomViewCoveredPartWidths();
 				}
@@ -3017,7 +3015,9 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 	/**
 	 * The centered panel shares a column with the chat, or with the custom view
 	 * once it shows there. Moving it lays out the grid again, and most custom view
-	 * visits never show the panel, so it only moves when it has to.
+	 * visits never show the panel, so it only moves when it has to. It only moves
+	 * next to a shown view: the grid sizes the new column from the view it splits,
+	 * which is empty while that view is hidden.
 	 */
 	private _placeCenteredPanel(belowCustomView: boolean): void {
 		if (this.getPanelAlignment() !== 'center' || this._panelBelowCustomView === belowCustomView) {
@@ -3167,7 +3167,8 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 				this._editorPaneVisibleWhileGridMoves = this.isEditorPaneVisible();
 				if (alignment === 'center') {
 					const panelSize = this._viewMoveSizing(this.panelPartView, 'height');
-					const belowCustomView = this.partVisibility.customViewGrid && this._effectiveVisible(Parts.PANEL_PART);
+					// A custom view hides the chat, and the panel only moves next to a shown view.
+					const belowCustomView = this.partVisibility.customViewGrid;
 					this.workbenchGrid.moveView(this.panelPartView, panelSize, belowCustomView ? this.customViewGridPartView : this.sessionsPartView, Direction.Down);
 					this._panelBelowCustomView = belowCustomView;
 				} else {

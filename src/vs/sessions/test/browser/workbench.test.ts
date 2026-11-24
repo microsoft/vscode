@@ -5072,14 +5072,18 @@ suite('Sessions - Workbench', () => {
 
 		assert.deepStrictEqual(opened, []);
 	});
-	test('a centered panel only moves below a custom view once it shows there, preserving editor constraints', () => {
+	test('a centered panel only moves below a custom view once it shows there, next to shown views, preserving editor constraints', () => {
 		const host = createHost({ single: true, partVisibility: { editor: true, panel: true, sessions: true } }) as ITestWorkbench & IPanelAlignmentTestHarness;
 		host._panelAlignment = 'center';
 		host.paneCompositeService.getActivePaneComposite = () => ({});
 		host.paneCompositeService.hideActivePaneComposite = () => { };
+		host.storageService = { store: () => { } };
+		host._onDidChangePanelAlignment = { fire: () => { } };
+		host._layoutGrid = () => { };
 		const moves: string[] = [];
 		host.workbenchGrid.moveView = (_view, _size, referenceView) => {
-			const target = referenceView === host.customViewGridPartView ? 'customView' : 'sessions';
+			// The grid sizes the panel's new column from the view it splits, which is empty while that view is hidden.
+			const target = `${referenceView === host.customViewGridPartView ? 'customView' : 'sessions'}${host.gridVisibility.get(referenceView) === false ? ' (hidden)' : ''}`;
 			moves.push(host._maximumEditorDimensionsOverride ? target : `${target} (unconstrained)`);
 		};
 		const step = (name: string, fn: () => void) => {
@@ -5094,6 +5098,12 @@ suite('Sessions - Workbench', () => {
 			step('switch view', () => applyCustomViewGridVisibility.call(host, { id: 'other' })),
 			step('close', () => applyCustomViewGridVisibility.call(host, undefined)),
 			step('open and close', () => { applyCustomViewGridVisibility.call(host, { id: 'view' }); applyCustomViewGridVisibility.call(host, undefined); }),
+			step('center the panel in a custom view', () => {
+				host._panelAlignment = 'justify';
+				applyCustomViewGridVisibility.call(host, { id: 'view' });
+				setPanelAlignment.call(host, 'center');
+			}),
+			step('close after centering', () => applyCustomViewGridVisibility.call(host, undefined)),
 		];
 
 		assert.deepStrictEqual({ steps, overrideAfterMoves: host._maximumEditorDimensionsOverride }, {
@@ -5104,6 +5114,8 @@ suite('Sessions - Workbench', () => {
 				'switch view: none',
 				'close: sessions',
 				'open and close: none',
+				'center the panel in a custom view: customView',
+				'close after centering: sessions',
 			],
 			overrideAfterMoves: undefined,
 		});
