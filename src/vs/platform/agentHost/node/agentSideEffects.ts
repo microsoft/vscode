@@ -1724,9 +1724,11 @@ export class AgentSideEffects extends Disposable {
 		const forbiddenSnapshotWrite = this._permissionManager.isForbiddenSnapshotWrite(approvalEvent, sessionKey);
 		const deniedByPermissions = forbiddenSnapshotWrite || this._permissionManager.isDeniedByPermissions(approvalEvent, sessionKey);
 		const deniedByPolicy = typeof deniedByPermissions === 'boolean' ? deniedByPermissions : await deniedByPermissions;
-		const autoApproval = e.managedApprovalRequired || e.requiresUserConfirmation || deniedByPolicy
-			? undefined
-			: await this._permissionManager.getAutoApproval(approvalEvent, sessionKey);
+	const autoApproval = deniedByPolicy || e.managedApprovalRequired
+	? undefined
+	: e.requiresUserConfirmation
+		? await this._permissionManager.getExplicitPermissionAutoApproval(approvalEvent, sessionKey)
+		: await this._permissionManager.getAutoApproval(approvalEvent, sessionKey);
 		const activeTurn = this._stateManager.getSessionState(sessionKey)?.activeTurn;
 		if (turnId && activeTurn?.id !== turnId) {
 			this._logService.warn(`[AgentSideEffects] Rejecting permission after its turn ended: turnId=${turnId}, toolCallId=${e.state.toolCallId}`);

@@ -261,6 +261,91 @@ export class SessionPermissionManager extends Disposable {
 	 *
 	 * The caller rejects permission deny rules before checking auto-approval.
 	 */
+
+	/**
+ * Checks only explicit saved permission rules.
+ *
+ * This is used when an external reviewer requires confirmation.
+ * Explicit Allow rules are respected, but global/session Allow All
+ * and implicit host defaults must not override the reviewer.
+ */
+async getExplicitPermissionAutoApproval(
+	e: IToolApprovalEvent,
+	sessionKey: ProtocolURI
+): Promise<ToolCallConfirmationReason | undefined> {
+	// Sandbox bypass requests must always require confirmation.
+	if (e.requestSandboxBypass) {
+		return undefined;
+	}
+
+	// Keep shell commands under reviewer control.
+	if (e.permissionKind === AgentPermissionKind.Shell) {
+		return undefined;
+	}
+
+	const permissions = this._getPermissionRules(sessionKey);
+
+	// No explicit Allow or Ask rules to evaluate.
+	if (!permissions.allow.length && !permissions.ask?.length) {
+		return undefined;
+	}
+
+	const request = this._permissionRequest(e, sessionKey);
+	const context = this._permissionContext(sessionKey);
+
+	const workDirs = getEffectiveWorkingDirectories(this._stateManager, sessionKey);
+	const workingDirectories = workDirs?.map(d => URI.parse(d));
+
+	const permissionResource = getPermissionResource(e);
+
+	const writeResources = e.permissionKind === AgentPermissionKind.Write && permissionResource
+		? await this._resolveResourcesForApproval(permissionResource)
+		: undefined;
+
+	// If a write path cannot be resolved, do not auto-approve it.
+	if (e.permissionKind === AgentPermissionKind.Write && e.permissionPath && !writeResources) {
+		return undefined;
+	}
+
+	// Resolve paths so that explicit rules also work with symlinks.
+	const requests = writeResources
+		? writeResources.map(resource => ({ ...request, path: resource.fsPath }))
+		: await this._resolvePermissionRequests(request);
+
+	if (!requests) {
+		return undefined;
+	}
+
+	// Ask rules take priority over explicit Allow rules.
+	if (permissions.ask?.some(rule =>
+		requests.some(candidate => matchesPermissionRule(rule, candidate, context))
+	)) {
+		return undefined;
+	}
+
+	// Use the canonical request for matching Allow rules.
+	const canonicalRequest = requests[requests.length - 1];
+
+	const matchingAllowRules = permissions.allow.filter(rule =>
+		matchesPermissionRule(rule, canonicalRequest, context)
+	);
+
+	// Preserve protected-write confirmation requirements.
+	// An exact absolute-path Allow rule retains the existing behaviour.
+	if (
+		writeResources &&
+		!matchingAllowRules.some(isExactAbsolutePathRule) &&
+		await this._requiresEditConfirmation(writeResources, workingDirectories, sessionKey)
+	) {
+		return undefined;
+	}
+
+	if (matchingAllowRules.length) {
+		return ToolCallConfirmationReason.Setting;
+	}
+
+	return undefined;
+}
 	async getAutoApproval(e: IToolApprovalEvent, sessionKey: ProtocolURI): Promise<ToolCallConfirmationReason | undefined> {
 		// `sessionKey` is the chat channel URI (see `_handleToolReady`), so the
 		// state manager returns that chat's *effective* working-directory set
