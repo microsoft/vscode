@@ -25,35 +25,5 @@ runs:
       with:
         script: |
           const { pathToFileURL } = require('url');
-          const triage = await import(pathToFileURL(process.env.GITHUB_ACTION_PATH + '/issueTriage.ts').href);
-          if (process.env.OPERATION === 'suggest-area' || process.env.OPERATION === 'publish-translation') {
-            const path = require('path');
-            const actionsDir = path.join(process.env.RUNNER_TEMP, 'gh-aw', 'actions');
-            const { setupGlobals } = require(path.join(actionsDir, 'setup_globals.cjs'));
-            setupGlobals(core, github, context, exec, io, getOctokit);
-            const { sanitizeContent } = require(path.join(actionsDir, 'sanitize_content.cjs'));
-            const options = {
-              agentOutputPath: process.env.GH_AW_AGENT_OUTPUT,
-              detectionConclusion: process.env.DETECTION_CONCLUSION,
-              staged: process.env.GH_AW_SAFE_OUTPUTS_STAGED === 'true',
-            };
-            if (process.env.OPERATION === 'suggest-area') {
-              const { main } = require(path.join(actionsDir, 'add_labels.cjs'));
-              const handler = await main({ allowed: triage.advisoryAreaLabels, issue_intent: true, max: 1, staged: options.staged });
-              await triage.suggestArea(github, context, core, options, sanitizeContent, async label => {
-                const result = await handler({ labels: [label] }, {});
-                if (!result.success || result.skipped) {
-                  throw new Error(`Failed to suggest the area label: ${result.error || result.reason || 'unknown error'}`);
-                }
-              });
-            } else {
-              const { enforceCommentLimits } = require(path.join(actionsDir, 'comment_limit_helpers.cjs'));
-              await triage.publishTranslation(github, context, core, options, value => {
-                const sanitized = sanitizeContent(value);
-                enforceCommentLimits(sanitized);
-                return sanitized;
-              });
-            }
-          } else {
-            await triage.run(github, context, core, process.env);
-          }
+          const { run } = await import(pathToFileURL(process.env.GITHUB_ACTION_PATH + '/issueTriage.ts').href);
+          await run(github, context, core, process.env, { exec, io, getOctokit });

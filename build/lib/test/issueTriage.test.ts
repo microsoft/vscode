@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { suite, test } from 'node:test';
-import { assignOwner, checkIssue, checkTeamMember, checkTeamMembers, getSkipReason, publishTranslation, suggestArea, type IIssue } from '../../../.github/actions/issue-triage/issueTriage.ts';
+import { advisoryAreaLabels, assignOwner, checkIssue, checkTeamMember, checkTeamMembers, getSkipReason, publishTranslation, run, suggestArea, type IIssue } from '../../../.github/actions/issue-triage/issueTriage.ts';
 
 type Parameters = Readonly<Record<string, string | number | readonly string[]>>;
 
@@ -278,6 +278,83 @@ suite('Issue Triage', () => {
 			await assert.rejects(suggestArea(github, context, core, options, value => value, suggest), /Invalid area label suggestion/);
 			await suggestArea(github, context, core, { ...options, detectionConclusion: 'warning' }, value => value, suggest);
 			assert.deepStrictEqual(suggestions, [{ name: 'terminal', rationale: 'sanitized:@someone', confidence: 'HIGH', suggest: true }]);
+		} finally {
+			rmSync(directory, { recursive: true, force: true });
+		}
+	});
+
+	test('dispatches safe outputs through the gh-aw handlers', async () => {
+		const directory = mkdtempSync(path.join(tmpdir(), 'issue-triage-'));
+		try {
+			const actionsDir = path.join(directory, 'gh-aw', 'actions');
+			mkdirSync(actionsDir, { recursive: true });
+			writeFileSync(path.join(actionsDir, 'setup_globals.cjs'), `
+				const fs = require('node:fs');
+				const path = require('node:path');
+				exports.setupGlobals = (core, github, context, exec, io, getOctokit) => {
+					fs.writeFileSync(path.join(__dirname, 'globals.json'), JSON.stringify({ exec, io, getOctokit: typeof getOctokit }));
+				};
+			`);
+			writeFileSync(path.join(actionsDir, 'sanitize_content.cjs'), `
+				exports.sanitizeContent = value => value.replace('@someone', '\`@someone\`');
+			`);
+			writeFileSync(path.join(actionsDir, 'add_labels.cjs'), `
+				const fs = require('node:fs');
+				const path = require('node:path');
+				exports.main = async options => async (input, context) => {
+					fs.writeFileSync(path.join(__dirname, 'label.json'), JSON.stringify({ options, input, context }));
+					return JSON.parse(fs.readFileSync(path.join(__dirname, 'result.json'), 'utf8'));
+				};
+			`);
+			writeFileSync(path.join(actionsDir, 'comment_limit_helpers.cjs'), `
+				exports.enforceCommentLimits = value => {
+					if (value.includes('too long')) { throw new Error('comment limit'); }
+				};
+			`);
+			const agentOutputPath = path.join(directory, 'agent-output.json');
+			const env = { RUNNER_TEMP: directory, GH_AW_AGENT_OUTPUT: agentOutputPath, DETECTION_CONCLUSION: 'success', GH_AW_SAFE_OUTPUTS_STAGED: 'false' };
+			const runtime = { exec: { name: 'exec' }, io: { name: 'io' }, getOctokit: () => ({}) };
+			const writes: Parameters[] = [];
+			const github = new FakeGitHub((call, parameters) => {
+				if (call === 'GET /repos/microsoft/vscode/issues/100') {
+					return issue(100);
+				}
+				if (call.startsWith('GET')) {
+					return [];
+				}
+				writes.push(parameters);
+				return {};
+			});
+			const core = new FakeCore();
+			writeFileSync(agentOutputPath, JSON.stringify({ items: [{ type: 'suggest_area', label: 'terminal', rationale: '@someone', confidence: 'HIGH' }] }));
+			writeFileSync(path.join(actionsDir, 'result.json'), JSON.stringify({ success: true }));
+			await run(github, context, core, { ...env, OPERATION: 'suggest-area' }, runtime);
+			assert.deepStrictEqual({
+				globals: JSON.parse(readFileSync(path.join(actionsDir, 'globals.json'), 'utf8')),
+				label: JSON.parse(readFileSync(path.join(actionsDir, 'label.json'), 'utf8')),
+			}, {
+				globals: { exec: { name: 'exec' }, io: { name: 'io' }, getOctokit: 'function' },
+				label: {
+					options: { allowed: advisoryAreaLabels, issue_intent: true, max: 1, staged: false },
+					input: { labels: [{ name: 'terminal', rationale: '`@someone`', confidence: 'HIGH', suggest: true }] },
+					context: {},
+				},
+			});
+			writeFileSync(path.join(actionsDir, 'result.json'), JSON.stringify({ success: true, skipped: true, reason: 'not sent' }));
+			await assert.rejects(run(github, context, core, { ...env, OPERATION: 'suggest-area' }, runtime), /Failed to suggest the area label: not sent/);
+			writeFileSync(path.join(actionsDir, 'result.json'), JSON.stringify({ success: true }));
+			await run(github, context, core, { ...env, OPERATION: 'suggest-area', GH_AW_SAFE_OUTPUTS_STAGED: 'true' }, runtime);
+			assert.strictEqual(JSON.parse(readFileSync(path.join(actionsDir, 'label.json'), 'utf8')).options.staged, true);
+			writeFileSync(agentOutputPath, JSON.stringify({ items: [{ type: 'publish_translation', body: '## AI Translation:\n\nHello @someone' }] }));
+			await run(github, context, core, { ...env, OPERATION: 'publish-translation', DETECTION_CONCLUSION: 'warning' }, runtime);
+			assert.strictEqual(writes.length, 0);
+			await run(github, context, core, { ...env, OPERATION: 'publish-translation' }, runtime);
+			assert.deepStrictEqual(writes.map(parameters => parameters.body ?? parameters.labels), [
+				'## AI Translation:\n\nHello `@someone`\n\n<!-- vscode-issue-triage-translation -->',
+				['ai-translated'],
+			]);
+			writeFileSync(agentOutputPath, JSON.stringify({ items: [{ type: 'publish_translation', body: '## AI Translation:\n\ntoo long' }] }));
+			await assert.rejects(run(github, context, core, { ...env, OPERATION: 'publish-translation' }, runtime), /comment limit/);
 		} finally {
 			rmSync(directory, { recursive: true, force: true });
 		}

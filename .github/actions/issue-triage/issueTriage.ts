@@ -7,6 +7,8 @@
 // only use the workflow's GITHUB_TOKEN.
 
 import { closeSync, openSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
+import path from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
 
 type RequestParameters = Readonly<Record<string, string | number | readonly string[]>>;
@@ -36,6 +38,12 @@ interface ICore {
 	warning(message: string): void;
 	setOutput(name: string, value: string): void;
 	setFailed(message: string): void;
+}
+
+interface IGitHubScriptRuntime {
+	readonly exec: unknown;
+	readonly io: unknown;
+	readonly getOctokit: unknown;
 }
 
 export interface IIssue {
@@ -490,16 +498,44 @@ export async function assignOwner(github: IGitHub, context: IContext, core: ICor
 /**
  * Runs the operation of the `.github/actions/issue-triage` action that the `OPERATION` environment variable names.
  */
-export async function run(github: IGitHub, context: IContext, core: ICore, env: NodeJS.ProcessEnv): Promise<void> {
+export async function run(github: IGitHub, context: IContext, core: ICore, env: NodeJS.ProcessEnv, runtime: IGitHubScriptRuntime): Promise<void> {
+	const options = {
+		agentOutputPath: env.GH_AW_AGENT_OUTPUT ?? '',
+		detectionConclusion: env.DETECTION_CONCLUSION ?? '',
+		staged: env.GH_AW_SAFE_OUTPUTS_STAGED === 'true',
+	};
 	switch (env.OPERATION) {
 		case 'check-issue':
 			return checkIssue(github, context, core);
 		case 'assign-owner':
-			return assignOwner(github, context, core, {
-				agentOutputPath: env.GH_AW_AGENT_OUTPUT ?? '',
-				detectionConclusion: env.DETECTION_CONCLUSION ?? '',
-				staged: env.GH_AW_SAFE_OUTPUTS_STAGED === 'true',
+			return assignOwner(github, context, core, options);
+		case 'suggest-area':
+		case 'publish-translation': {
+			if (!env.RUNNER_TEMP) {
+				throw new Error('RUNNER_TEMP is required to load the safe-output handlers.');
+			}
+			const require = createRequire(import.meta.url);
+			const actionsDir = path.join(env.RUNNER_TEMP, 'gh-aw', 'actions');
+			const { setupGlobals } = require(path.join(actionsDir, 'setup_globals.cjs'));
+			setupGlobals(core, github, context, runtime.exec, runtime.io, runtime.getOctokit);
+			const { sanitizeContent } = require(path.join(actionsDir, 'sanitize_content.cjs'));
+			if (env.OPERATION === 'suggest-area') {
+				const { main } = require(path.join(actionsDir, 'add_labels.cjs'));
+				const handler = await main({ allowed: advisoryAreaLabels, issue_intent: true, max: 1, staged: options.staged });
+				return suggestArea(github, context, core, options, sanitizeContent, async label => {
+					const result = await handler({ labels: [label] }, {});
+					if (!result.success || result.skipped) {
+						throw new Error(`Failed to suggest the area label: ${result.error || result.reason || 'unknown error'}`);
+					}
+				});
+			}
+			const { enforceCommentLimits } = require(path.join(actionsDir, 'comment_limit_helpers.cjs'));
+			return publishTranslation(github, context, core, options, value => {
+				const sanitized = sanitizeContent(value);
+				enforceCommentLimits(sanitized);
+				return sanitized;
 			});
+		}
 		default:
 			core.setFailed(`Unknown operation: ${env.OPERATION}`);
 	}
