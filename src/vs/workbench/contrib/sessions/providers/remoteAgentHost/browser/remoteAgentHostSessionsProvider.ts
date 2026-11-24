@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Limiter, raceTimeout, RunOnceScheduler, SequencerByKey } from '../../../../../../base/common/async.js';
+import { coalesce } from '../../../../../../base/common/arrays.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { isPassiveRelayConnection } from '../../../../../../platform/agentHost/common/meta/relayConnectionMeta.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
@@ -37,7 +38,7 @@ import { IInstantiationService } from '../../../../../../platform/instantiation/
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
-import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
+import { IStorageService, StorageScope } from '../../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { BrowserRemoteProxyEnabledSettingId } from '../../../../browserView/common/browserView.js';
@@ -1329,6 +1330,27 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		this._unpublished = true;
 		if (this._sessionCache.size > 0) {
 			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [] });
+		}
+	}
+
+	/**
+	 * Removes every session and the persisted cache for good, for a host that no
+	 * longer exists, such as a deleted Dev Container environment. Unlike
+	 * {@link unpublishCachedSessions}, the sessions are reported as removed, so
+	 * open views and session state are cleaned up. Unlike a removal reported by
+	 * the host, nothing is asked of the host or the source host.
+	 */
+	forgetSessions(): void {
+		this._cancelSessionRefreshRetry();
+		const pending = [...this._pendingSessions.values()];
+		this._pendingSessions.clear();
+		const forgotten = coalesce([...this._sessionCache.keys()].map(rawId => this._removeCachedSession(rawId)));
+		this._storageService.remove(this._storageKey, StorageScope.APPLICATION);
+		if (pending.length > 0 || forgotten.length > 0) {
+			this._onDidChangeSessions.fire({ added: [], removed: [...pending, ...forgotten], changed: [] });
+		}
+		for (const session of forgotten) {
+			session.dispose();
 		}
 	}
 

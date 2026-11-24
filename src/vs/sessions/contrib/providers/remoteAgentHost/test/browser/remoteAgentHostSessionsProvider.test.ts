@@ -5199,6 +5199,28 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		);
 	}));
 
+	test('forgetSessions removes sessions and their persisted cache without asking the host', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		connection.addSession(createSession('forget-me', { summary: 'Forget Me' }));
+		const provider = createProvider(disposables, connection, { storageService });
+		await timeout(0);
+		await storageService.flush();
+		provider.clearConnection();
+		const removed: string[] = [];
+		disposables.add(provider.onDidChangeSessions(e => removed.push(...e.removed.map(s => s.title.get()))));
+
+		provider.forgetSessions();
+		await storageService.flush();
+
+		const restored = createProvider(disposables, new MockAgentConnection(), { storageService, noConnection: true });
+		assert.deepStrictEqual({
+			sessions: provider.getSessions().length,
+			removed,
+			restored: restored.getSessions().length,
+			hostDeletions: connection.disposedSessions.length,
+		}, { sessions: 0, removed: ['Forget Me'], restored: 0, hostDeletions: 0 });
+	}));
+
 	test('retains application and stable environment identity in disconnected caches after renaming a host', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const storageService = disposables.add(new InMemoryStorageService());
 		connection.addSession({
