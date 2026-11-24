@@ -30,6 +30,7 @@ import { getMultiDiffEditorVariantConfiguration, multiDiffEditorVariants } from 
 import { MultiDiffEditorWidget } from '../../../browser/widget/multiDiffEditor/multiDiffEditorWidget.js';
 import { IWorkbenchUIElementFactory } from '../../../browser/widget/multiDiffEditor/workbenchUIElementFactory.js';
 import { EditorOption } from '../../../common/config/editorOptions.js';
+import { Range } from '../../../common/core/range.js';
 import { IDocumentDiff, IDocumentDiffProvider } from '../../../common/diff/documentDiffProvider.js';
 import { EditorContextKeys } from '../../../common/editorContextKeys.js';
 import { instantiateTextModel } from '../../common/testTextModel.js';
@@ -358,6 +359,73 @@ suite('MultiDiffEditorWidget', () => {
 				topAfterReveal: 0,
 				topAfterGrowth: 0,
 			});
+		} finally {
+			widget.setViewModel(undefined);
+		}
+	});
+
+	test('reveals a range far into a file by scrolling the list, so that later layouts keep it visible', async () => {
+		const services = new ServiceCollection();
+		services.set(IAccessibilitySignalService, new class extends mock<IAccessibilitySignalService>() { }());
+		services.set(IActionViewItemService, new NullActionViewItemService());
+		services.set(IEditorProgressService, new class extends mock<IEditorProgressService>() { }());
+		services.set(IDiffProviderFactoryService, new TestDiffProviderFactoryService());
+		services.set(IStorageService, disposables.add(new InMemoryStorageService()));
+		services.set(IMenuService, new class extends mock<IMenuService>() {
+			override createMenu(): IMenu {
+				return new class extends mock<IMenu>() {
+					override readonly onDidChange = Event.None;
+					override getActions() { return []; }
+					override dispose(): void { }
+				}();
+			}
+		}());
+		const instantiationService = createCodeEditorServices(disposables, services);
+		const container = document.createElement('div');
+		document.body.appendChild(container);
+		disposables.add(toDisposable(() => container.remove()));
+		// Every third line changes, so that no unchanged region is hidden and the second file is much taller than the viewport.
+		const lines = Array.from({ length: 400 }, (_, index) => `line ${index + 1}`);
+		const models = [
+			['a\nb', 'a\nc'],
+			[lines.join('\n'), lines.map((line, index) => index % 3 === 0 ? `changed ${index + 1}` : line).join('\n')],
+		].map(([original, modified], index) => [
+			instantiateTextModel(instantiationService, original, undefined, undefined, URI.parse(`inmemory://original/${index}.js`)),
+			instantiateTextModel(instantiationService, modified, undefined, undefined, URI.parse(`inmemory://modified/${index}.js`)),
+		]);
+		const documentItems = models.map(([original, modified]) => disposables.add(RefCounted.createOfNonDisposable<IDocumentDiffItem>({
+			original: new DiffItemSource(original.uri, original),
+			modified: new DiffItemSource(modified.uri, modified),
+		}, { dispose() { } })));
+		const widget = instantiationService.createInstance(MultiDiffEditorWidget, container, {} satisfies IWorkbenchUIElementFactory, { variant: 'noCardsNonCompact' });
+		widget.layout(new Dimension(800, 300));
+		const viewModel = widget.createViewModel({ documents: ValueWithChangeEvent.const(documentItems) });
+		disposables.add(toDisposable(() => {
+			widget.dispose();
+			viewModel.dispose();
+			models.flat().forEach(model => model.dispose());
+		}));
+		await waitForState(viewModel.items, items => items.length === 2);
+		for (const item of viewModel.items.get()) {
+			await waitForState(item.diffEditorViewModel.isDiffUpToDate, value => value);
+		}
+		widget.setViewModel(viewModel);
+
+		try {
+			const [original, modified] = models[1];
+			const resource = { original: original.uri, modified: modified.uri };
+			widget.reveal(resource, { highlight: false });
+			await waitForState(widget.getLayoutDebugState(), state => state.items[1]?.hasTemplate === true);
+			const itemTop = widget.getViewState().scrollState.top;
+			const editor = widget.tryGetCodeEditor(modified.uri)!.editor;
+			const showsLine = () => editor.getVisibleRanges().some(range => range.startLineNumber <= 301 && 301 <= range.endLineNumber);
+			const before = showsLine();
+			widget.reveal(resource, { range: new Range(301, 1, 301, 1), side: 'modified', highlight: false });
+			const scrolledList = widget.getViewState().scrollState.top > itemTop;
+			const after = showsLine();
+			widget.layout(new Dimension(800, 301));
+
+			assert.deepStrictEqual({ before, scrolledList, after, afterLayout: showsLine() }, { before: false, scrolledList: true, after: true, afterLayout: true });
 		} finally {
 			widget.setViewModel(undefined);
 		}

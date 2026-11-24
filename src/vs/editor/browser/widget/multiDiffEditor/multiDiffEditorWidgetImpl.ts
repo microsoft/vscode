@@ -469,11 +469,16 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 		});
 		this._scrollView.setLogicalScrollPosition(scrollTop);
 
-		const diffEditor = viewItem.template.get()?.editor;
-		const editor = 'original' in resource ? diffEditor?.getOriginalEditor() : diffEditor?.getModifiedEditor();
-		if (editor && options?.range) {
-			editor.revealRangeInCenter(options.range);
-			highlightRange(editor, options.range);
+		const template = viewItem.template.get();
+		if (template && options?.range) {
+			const side = options.side ?? (template.editor.renderSideBySide && viewItem.viewModel.originalUri ? 'original' : 'modified');
+			// An item keeps its full height in the list, which scrolls its editor to the part in the viewport, so the list
+			// rather than the editor scrolls to the range. It does not scroll above the item.
+			const viewportHeight = this._scrollView.layout.get().contentViewport.length;
+			this._scrollView.setLogicalScrollPosition(Math.max(scrollTop, scrollTop + template.getLineOffset(side, options.range.startLineNumber) - viewportHeight / 2));
+			if (options.highlight) {
+				highlightRange(side === 'original' ? template.editor.getOriginalEditor() : template.editor.getModifiedEditor(), options.range);
+			}
 		}
 	}
 

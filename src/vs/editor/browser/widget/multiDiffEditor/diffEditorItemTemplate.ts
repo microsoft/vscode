@@ -317,6 +317,15 @@ export class DiffEditorItemTemplate extends VirtualizedItemTemplate<DocumentDiff
 		return this._observedEditorContentHeight + this._outerEditorHeight;
 	}
 
+	/**
+	 * Returns the offset of a line from the top of the item. A pending height update is applied first, so that the list
+	 * already includes lines that were just shown, for example by selecting a line in a hidden unchanged region.
+	 */
+	public getLineOffset(side: 'original' | 'modified', lineNumber: number): number {
+		this._flushVerticalState();
+		return this._headerHeight + (side === 'original' ? this._getOriginalEditorLineTop(lineNumber) : this._getModifiedEditorLineTop(lineNumber));
+	}
+
 	private readonly _dataStore;
 
 	protected createBinding(item: DocumentDiffItemViewModel, context: IVirtualizedItemBindingContext): DiffEditorItemBinding {
