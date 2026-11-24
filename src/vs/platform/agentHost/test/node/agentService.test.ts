@@ -5782,7 +5782,8 @@ suite('AgentService (node dispatcher)', () => {
 			const repoA = URI.file('/workspace/repoA');
 			const submodule = URI.joinPath(repoA, 'lib');
 			const showBlobCalls: Array<{ workingDirectory: string; ref: string; repoRelativePath: string }> = [];
-			const gitService = createBlobGitService(new Map([[repoA.toString(), repoA], [submodule.toString(), submodule]]), showBlobCalls);
+			const gitService = createBlobGitService(new Map([[repoA.toString(), repoA]]), showBlobCalls);
+			gitService.getSubmoduleRoot = async (_workingDirectory, resource) => resource.path.startsWith(`${submodule.path}/`) ? submodule : undefined;
 			const { service: localService, session } = await createBlobSession(gitService, [repoA]);
 
 			await localService.resourceRead(URI.parse(buildGitBlobUri(session.toString(), 'submoduleSha', 'lib.txt', '/workspace/repoA/lib/lib.txt')));

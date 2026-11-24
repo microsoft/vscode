@@ -43,9 +43,11 @@ class TestGitService extends TestAgentHostGitService {
 	restoreError: Error | undefined;
 	repositoryRoot: URI | undefined = URI.file('/repo');
 	readonly repositoryRoots = new Map<string, URI | undefined>();
+	submoduleRoot: URI | undefined;
 	untrackedPaths: readonly string[] = [];
 
 	override async getRepositoryRoot(workingDirectory: URI): Promise<URI | undefined> { return this.repositoryRoots.get(workingDirectory.toString()) ?? this.repositoryRoot; }
+	async getSubmoduleRoot(): Promise<URI | undefined> { return this.submoduleRoot; }
 	override async hasUncommittedChanges(): Promise<boolean> { return true; }
 	override async restore(workingDirectory: URI, paths: readonly string[], options?: { readonly staged?: boolean; readonly ref?: string }): Promise<void> {
 		this.restoreCalls.push({ workingDirectory: workingDirectory.toString(), paths, options });
@@ -427,31 +429,36 @@ suite('AgentHostDiscardChangesOperationHandler', () => {
 		]);
 	});
 
-	test('restores a Branch Changes file inside a submodule in the submodule', async () => {
-		const { handler, gitService, stateManager, session } = setup(disposables);
-		const submodule = URI.file('/repo/lib');
-		gitService.repositoryRoots.set(submodule.toString(), submodule);
-		const owner = buildDefaultChatUri(session.toString());
-		const channel = buildBranchChangesetUri(owner);
-		const target = URI.joinPath(submodule, 'lib.txt');
-		addChangesetFile(stateManager, channel, {
-			before: {
-				uri: target.toString(),
-				content: { uri: buildGitBlobUri(owner, 'submodule-baseline', 'lib.txt', target.path) },
-			},
-			after: { uri: target.toString(), content: { uri: target.toString() } },
-		});
+	test('restores a Branch or Uncommitted Changes file inside a submodule from its baseline in the submodule', async () => {
+		const restoreCalls: Record<string, TestGitService['restoreCalls']> = {};
+		for (const [kind, buildChangeset] of [[ChangesetKind.Branch, buildBranchChangesetUri], [ChangesetKind.Uncommitted, buildUncommittedChangesetUri]] as const) {
+			const { handler, gitService, stateManager, session } = setup(disposables);
+			const submodule = URI.file('/repo/lib');
+			gitService.submoduleRoot = submodule;
+			const owner = buildDefaultChatUri(session.toString());
+			const channel = buildChangeset(owner);
+			const target = URI.joinPath(submodule, 'lib.txt');
+			addChangesetFile(stateManager, channel, {
+				before: {
+					uri: target.toString(),
+					content: { uri: buildGitBlobUri(owner, 'submodule-baseline', 'lib.txt', target.path) },
+				},
+				after: { uri: target.toString(), content: { uri: target.toString() } },
+			});
 
-		await handler.invoke({
-			channel,
-			operationId: AgentHostDiscardChangesOperationHandler.OPERATION_DISCARD_CHANGES,
-			target: makeResourceTarget(target),
-		}, CancellationToken.None);
+			await handler.invoke({
+				channel,
+				operationId: AgentHostDiscardChangesOperationHandler.OPERATION_DISCARD_CHANGES,
+				target: makeResourceTarget(target),
+			}, CancellationToken.None);
+			restoreCalls[kind] = gitService.restoreCalls;
+		}
 
-		assert.deepStrictEqual(gitService.restoreCalls, [
-			{ workingDirectory: submodule.toString(), paths: ['lib.txt'], options: { staged: true, ref: 'submodule-baseline' } },
-			{ workingDirectory: submodule.toString(), paths: ['lib.txt'], options: { ref: 'submodule-baseline' } },
-		]);
+		const fromBaseline = [
+			{ workingDirectory: URI.file('/repo/lib').toString(), paths: ['lib.txt'], options: { staged: true, ref: 'submodule-baseline' } },
+			{ workingDirectory: URI.file('/repo/lib').toString(), paths: ['lib.txt'], options: { ref: 'submodule-baseline' } },
+		];
+		assert.deepStrictEqual(restoreCalls, { [ChangesetKind.Branch]: fromBaseline, [ChangesetKind.Uncommitted]: fromBaseline });
 	});
 
 	test('rejects a resource that is not part of Branch Changes', async () => {

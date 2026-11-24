@@ -20,7 +20,7 @@ import { rm } from 'fs/promises';
 import { createServer, type Socket } from 'net';
 import { tmpdir } from 'os';
 import { NullLogService } from '../../../log/common/log.js';
-import { dirname, join, relative } from '../../../../base/common/path.js';
+import { join, relative } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
 import { isWindows } from '../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -92,6 +92,8 @@ function initRepositoryWithSubmodule(root: string): string {
 	mkdirSync(parent);
 	run(sub, 'init', '-q', '-b', 'main');
 	writeFileSync(join(sub, 'lib.txt'), 'lib\n');
+	mkdirSync(join(sub, 'old'));
+	writeFileSync(join(sub, 'old', 'gone.txt'), 'gone\n');
 	run(sub, 'add', '.');
 	run(sub, '-c', 'commit.gpgSign=false', 'commit', '-q', '-m', 'sub');
 	run(parent, 'init', '-q', '-b', 'main');
@@ -1213,16 +1215,18 @@ suite('AgentHostGitService - computeSessionFileDiffs (real git)', () => {
 		await fs.appendFile(join(dir, 'README.md'), 'root edit\n');
 		await fs.appendFile(join(dir, 'lib', 'lib.txt'), 'submodule edit\n');
 		await fs.writeFile(join(dir, 'lib', 'new.txt'), 'new\n');
+		await fs.rm(join(dir, 'lib', 'old'), { recursive: true });
 
 		const changes = async () => {
 			const diffs = await svc!.computeSessionFileDiffs(URI.file(dir), { sessionUri: 'copilot:/s' });
 			return Promise.all((diffs ?? []).map(async diff => {
 				const file = URI.parse(diff.after?.uri ?? diff.before!.uri);
 				const baseline = diff.before && parseGitBlobUri(diff.before.content.uri);
+				const repository = await svc!.getSubmoduleRoot(URI.file(dir), file) ?? URI.file(dir);
 				return {
 					path: relative(dir, file.fsPath),
 					diff: diff.diff,
-					baseline: baseline && (await svc!.showBlob(URI.file(dirname(file.fsPath)), baseline.sha, baseline.repoRelativePath))?.toString(),
+					baseline: baseline && (await svc!.showBlob(repository, baseline.sha, baseline.repoRelativePath))?.toString(),
 				};
 			}));
 		};
@@ -1235,6 +1239,7 @@ suite('AgentHostGitService - computeSessionFileDiffs (real git)', () => {
 			{ path: 'README.md', diff: { added: 1, removed: 0 }, baseline: 'readme\n' },
 			{ path: join('lib', 'lib.txt'), diff: { added: 1, removed: 0 }, baseline: 'lib\n' },
 			{ path: join('lib', 'new.txt'), diff: { added: 1, removed: 0 }, baseline: undefined },
+			{ path: join('lib', 'old', 'gone.txt'), diff: { added: 0, removed: 1 }, baseline: 'gone\n' },
 		];
 		assert.deepStrictEqual({ tracked, withUntracked }, {
 			tracked: expected,
@@ -3113,6 +3118,16 @@ suite('AgentHostGitService - getBranchDiffFingerprint (real git)', () => {
 		await fs.appendFile(file, 'two\n');
 
 		assert.notStrictEqual(await svc!.getBranchDiffFingerprint(directory), modified);
+	});
+
+	(hasGit ? test : test.skip)('is defined when a submodule that is not checked out changes', async () => {
+		tmpRoot = realpathSync(mkdtempSync(join(tmpdir(), 'agent-host-git-fingerprint-submodule-')));
+		const directory = initRepositoryWithSubmodule(tmpRoot);
+		const run = (...args: string[]) => cp.execFileSync('git', args, { cwd: directory, env, stdio: 'pipe' });
+		run('submodule', 'deinit', '-q', '-f', 'lib');
+		run('update-index', '--cacheinfo', `160000,${run('rev-parse', 'HEAD').toString().trim()},lib`);
+
+		assert.strictEqual(typeof await svc!.getBranchDiffFingerprint(URI.file(directory)), 'string');
 	});
 
 	(hasGit ? test : test.skip)('is undefined outside a repository', async () => {

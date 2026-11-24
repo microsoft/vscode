@@ -9,7 +9,8 @@ import { cp as copyFile } from '@vscode/fs-copyfile';
 import { distinct } from '../../../base/common/arrays.js';
 import { Schemas } from '../../../base/common/network.js';
 import * as path from '../../../base/common/path.js';
-import { extUriBiasedIgnorePathCase } from '../../../base/common/resources.js';
+import { extUriBiasedIgnorePathCase, normalizePath } from '../../../base/common/resources.js';
+import { isDefined } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { generateUuid } from '../../../base/common/uuid.js';
@@ -860,6 +861,10 @@ export class AgentHostGitService extends Disposable implements IAgentHostGitServ
 		// Resolve the merge-base commit the Branch Changes diff is anchored on.
 		const mergeBaseCommit = await this._resolveBranchMergeBaseCommit(repositoryRoot, options.baseBranch);
 
+		return this._computeWorkingTreeDiffs(repositoryRoot, mergeBaseCommit, options.sessionUri);
+	}
+
+	private async _computeWorkingTreeDiffs(repositoryRoot: URI, baseCommit: string, sessionUri: string): Promise<ISessionFileDiff[] | undefined> {
 		// Detect whether the working tree has any untracked files. If so we
 		// have to use the temp-index trick so the untracked content is
 		// included in `--cached --raw` output; otherwise a plain `git diff`
@@ -872,17 +877,74 @@ export class AgentHostGitService extends Disposable implements IAgentHostGitServ
 
 		let rawDiffOutput: string | undefined;
 		if (!hasUntracked) {
-			rawDiffOutput = await this._runGit(repositoryRoot, ['diff', '--raw', '--numstat', '--diff-filter=ADMR', '-z', mergeBaseCommit, '--']);
+			rawDiffOutput = await this._runGit(repositoryRoot, ['diff', '--raw', '--numstat', '--diff-filter=ADMR', '-z', baseCommit, '--']);
 		} else {
 			const changedPaths = parseChangedPaths(statusOut);
-			rawDiffOutput = await this._runWithTempIndex(repositoryRoot, mergeBaseCommit, changedPaths);
+			rawDiffOutput = await this._runWithTempIndex(repositoryRoot, baseCommit, changedPaths);
 		}
 
 		if (rawDiffOutput === undefined) {
 			return undefined;
 		}
 
-		return parseGitDiffRawNumstat(rawDiffOutput, repositoryRoot, options.sessionUri, mergeBaseCommit);
+		const diffs = parseGitDiffRawNumstat(rawDiffOutput, repositoryRoot, sessionUri, baseCommit);
+		const submodules = await this._getSubmodules(repositoryRoot);
+		if (!submodules.length) {
+			return diffs;
+		}
+
+		// Git reports a changed submodule as a single entry, if at all, so
+		// list the files changed inside each changed submodule instead.
+		const changedPaths = new Set(parseChangedPaths(statusOut));
+		const diffUris = new Set(diffs.map(diff => diff.after?.uri ?? diff.before?.uri));
+		const expanded = (await Promise.all(submodules.map(async submodule => {
+			if (!changedPaths.has(submodule.path) && !diffUris.has(submodule.root.toString())) {
+				return undefined;
+			}
+			// A submodule that is new since the base commit stays a single entry.
+			const submoduleBaseCommit = await this.revParse(repositoryRoot, `${baseCommit}:${submodule.path}`);
+			const submoduleDiffs = submoduleBaseCommit && await this._computeWorkingTreeDiffs(submodule.root, submoduleBaseCommit, sessionUri);
+			return submoduleDiffs ? { uri: submodule.root.toString(), diffs: submoduleDiffs } : undefined;
+		}))).filter(isDefined);
+		const expandedUris = new Set(expanded.map(submodule => submodule.uri));
+		return [
+			...diffs.filter(diff => !expandedUris.has(diff.after?.uri ?? diff.before?.uri ?? '')),
+			...expanded.flatMap(submodule => submodule.diffs),
+		];
+	}
+
+	/**
+	 * Returns the submodules that the repository's `.gitmodules` registers
+	 * inside it and that are checked out, in the order it registers them.
+	 */
+	private async _getSubmodules(repositoryRoot: URI): Promise<{ readonly path: string; readonly root: URI }[]> {
+		try {
+			await fsPromises.access(path.join(repositoryRoot.fsPath, '.gitmodules'));
+		} catch {
+			return [];
+		}
+		// Each `-z` entry is the key and the value, separated by a newline.
+		const output = await this._runGit(repositoryRoot, ['config', '-z', '--file', '.gitmodules', '--get-regexp', '^submodule\\..*\\.path$']);
+		const submodules = (output?.split('\x00') ?? [])
+			.map(entry => entry.substring(entry.indexOf('\n') + 1))
+			.filter(Boolean)
+			.map(submodulePath => ({ path: submodulePath, root: URI.joinPath(repositoryRoot, submodulePath) }))
+			.filter(submodule => extUriBiasedIgnorePathCase.isEqualOrParent(submodule.root, repositoryRoot) && !extUriBiasedIgnorePathCase.isEqual(submodule.root, repositoryRoot));
+		// The folder of a submodule that isn't checked out has no `.git` and belongs to the repository itself.
+		const checkedOut = await Promise.all(submodules.map(submodule => fsPromises.access(path.join(submodule.root.fsPath, '.git')).then(() => true, () => false)));
+		return submodules.filter((_, index) => checkedOut[index]);
+	}
+
+	async getSubmoduleRoot(workingDirectory: URI, resource: URI): Promise<URI | undefined> {
+		const file = normalizePath(resource);
+		let submoduleRoot: URI | undefined;
+		let repositoryRoot = await this.getRepositoryRoot(workingDirectory);
+		while (repositoryRoot) {
+			const submodule = (await this._getSubmodules(repositoryRoot)).find(({ root }) => extUriBiasedIgnorePathCase.isEqualOrParent(file, root) && !extUriBiasedIgnorePathCase.isEqual(file, root));
+			submoduleRoot = submodule?.root ?? submoduleRoot;
+			repositoryRoot = submodule?.root;
+		}
+		return submoduleRoot;
 	}
 
 	async resolveBranchBaselineCommit(workingDirectory: URI, baseBranch?: string): Promise<string | undefined> {
@@ -899,6 +961,10 @@ export class AgentHostGitService extends Disposable implements IAgentHostGitServ
 		if (!repositoryRoot) {
 			return undefined;
 		}
+		return this._computeBranchDiffFingerprint(repositoryRoot, baseBranch);
+	}
+
+	private async _computeBranchDiffFingerprint(repositoryRoot: URI, baseBranch: string | undefined): Promise<string | undefined> {
 		const [mergeBaseCommit, head, statusOut] = await Promise.all([
 			this._resolveBranchMergeBaseCommit(repositoryRoot, baseBranch),
 			this._runGit(repositoryRoot, ['rev-parse', 'HEAD']),
@@ -913,15 +979,25 @@ export class AgentHostGitService extends Disposable implements IAgentHostGitServ
 		}
 		const limiter = new Limiter<string>(16);
 		try {
-			const files = await Promise.all(changedPaths.map(changedPath => limiter.queue(async () => {
-				try {
-					const stat = await fsPromises.lstat(path.join(repositoryRoot.fsPath, changedPath), { bigint: true });
-					return `${stat.size}:${stat.mtimeNs}`;
-				} catch {
-					return 'missing';
-				}
-			})));
-			return JSON.stringify([mergeBaseCommit, head?.trim(), statusOut, files]);
+			const [files, submodules] = await Promise.all([
+				Promise.all(changedPaths.map(changedPath => limiter.queue(async () => {
+					try {
+						const stat = await fsPromises.lstat(path.join(repositoryRoot.fsPath, changedPath), { bigint: true });
+						return `${stat.size}:${stat.mtimeNs}`;
+					} catch {
+						return 'missing';
+					}
+				}))),
+				this._getSubmodules(repositoryRoot),
+			]);
+			// Edits inside a submodule leave its entry in the repository's status as it was.
+			const submoduleFingerprints = await Promise.all(submodules
+				.filter(submodule => changedPaths.includes(submodule.path))
+				.map(submodule => this._computeBranchDiffFingerprint(submodule.root, undefined)));
+			if (submoduleFingerprints.some(fingerprint => fingerprint === undefined)) {
+				return undefined;
+			}
+			return JSON.stringify([mergeBaseCommit, head?.trim(), statusOut, files, submoduleFingerprints]);
 		} finally {
 			limiter.dispose();
 		}
