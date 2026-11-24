@@ -491,6 +491,59 @@ suite('git smoke test', function () {
 		}
 	});
 
+	test('a detached repository keeps its status and commit message, and once attached again shows them at once and then the changes made meanwhile', async function () {
+		const model = getModel();
+		const repositoryPath = await fs.promises.realpath(await fs.promises.mkdtemp(path.join(os.tmpdir(), 'git-smoke-')));
+		const runGit = (command: string) => cp.execSync(`git ${command}`, { cwd: repositoryPath, stdio: 'pipe' });
+		runGit('init -b main');
+		runGit('config user.name testuser');
+		runGit('config user.email monacotools@example.com');
+		runGit('config commit.gpgsign false');
+		fs.writeFileSync(path.join(repositoryPath, 'modified.txt'), 'one\n');
+		runGit('add .');
+		runGit('commit -m "initial commit"');
+		fs.writeFileSync(path.join(repositoryPath, 'modified.txt'), 'two\n');
+
+		try {
+			const apiRepository = (await git.openRepository(Uri.file(repositoryPath)))!;
+			await apiRepository.status();
+			const repository = model.getRepository(repositoryPath)!;
+			const detachedSourceControl = repository.sourceControl;
+			const changes = () => repository.sourceControl.workingTreeGroup.resourceStates.map(r => path.basename(r.resourceUri.fsPath)).sort();
+
+			repository.sourceControl.inputBox.value = 'draft';
+			repository.detach();
+			fs.writeFileSync(path.join(repositoryPath, 'untracked.txt'), 'new\n');
+			// Longer than file changes take to run git status
+			await new Promise(resolve => setTimeout(resolve, 2000));
+			const whileDetached = repository.workingTreeChanges.map(r => path.basename(r.resourceUri.fsPath)).sort();
+
+			repository.attach();
+			const attachedAgain = { changes: changes(), commitMessage: repository.sourceControl.inputBox.value };
+			const deadline = Date.now() + 10000;
+			while (!repository.workingTreeChanges.some(r => path.basename(r.resourceUri.fsPath) === 'untracked.txt') && Date.now() < deadline) {
+				await Promise.race([eventToPromise(repository.onDidRunGitStatus), new Promise(resolve => setTimeout(resolve, 1000))]);
+			}
+
+			const refreshed = changes();
+
+			// A commit through the API while detached resets the commit message, as it does while attached
+			repository.sourceControl.inputBox.value = 'second draft';
+			repository.detach();
+			await apiRepository.commit('second commit', { all: true });
+			repository.attach();
+			const committedWhileDetached = repository.sourceControl.inputBox.value;
+
+			assert.deepStrictEqual(
+				{ whileDetached, attachedAgain, refreshed, newSourceControl: repository.sourceControl !== detachedSourceControl, committedWhileDetached },
+				{ whileDetached: ['modified.txt'], attachedAgain: { changes: ['modified.txt'], commitMessage: 'draft' }, refreshed: ['modified.txt', 'untracked.txt'], newSourceControl: true, committedWhileDetached: '' });
+		} finally {
+			model.close(model.getRepository(repositoryPath)!);
+			// On Windows, the closed repository's watchers can hold the folder for a moment
+			await fs.promises.rm(repositoryPath, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
+		}
+	});
+
 	// diabled because of https://github.com/microsoft/vscode/issues/327142
 	test.skip('rename/delete conflict', async function () {
 		await commands.executeCommand('workbench.view.scm');

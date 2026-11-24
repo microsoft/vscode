@@ -74,6 +74,13 @@ class ProgressManager {
 	}
 }
 
+export interface GitSourceControlOptions {
+	/**
+	 * The commit message that the input box starts with, such as the one it had when the repository was detached.
+	 */
+	readonly commitMessage: string | undefined;
+}
+
 /**
  * The view model of a repository: owns its source control, with its resource groups, input box and providers, and
  * writes the repository model into them when the repository reports a change. Disposing it removes the repository
@@ -105,7 +112,8 @@ export class GitSourceControl implements Disposable {
 		repositoryResolver: IRepositoryResolver,
 		remoteSourcePublisherRegistry: IRemoteSourcePublisherRegistry,
 		commitCommandsCenter: CommitCommandsCenter,
-		logger: LogOutputChannel
+		logger: LogOutputChannel,
+		options: GitSourceControlOptions
 	) {
 		// Parent source control. Repositories opened in the Sessions app
 		// don't use the parent/child relationship and it is expected for
@@ -160,6 +168,9 @@ export class GitSourceControl implements Disposable {
 
 		this.sourceControl.acceptInputCommand = { command: 'git.commit', title: l10n.t('Commit'), arguments: [this.sourceControl] };
 		this.sourceControl.inputBox.validateInput = (text, position) => repository.validateInput(text, position);
+		if (options.commitMessage !== undefined) {
+			this.sourceControl.inputBox.value = options.commitMessage;
+		}
 
 		this.disposables.push(this.sourceControl);
 
