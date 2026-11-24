@@ -107,6 +107,20 @@ interface IAnythingPickState extends IDisposable {
 
 
 /**
+ * A row of recently opened files: the editor it opens and the history entries it is shown for.
+ */
+interface IEditorHistoryRow {
+	editor: EditorInput | IResourceEditorInput;
+	readonly entries: Array<EditorInput | IResourceEditorInput>;
+
+	/** Whether the row is shown for an entry under another location of the workspace folder. */
+	mapped: boolean;
+
+	/** Whether `editor` is an entry under the location the workspace folder is at now. */
+	exact: boolean;
+}
+
+/**
  * The known locations of the workspace folder where it can be at other locations, such as its worktrees, so that recently
  * opened files under another of them can be shown and opened under the location it is at now.
  */
@@ -215,8 +229,9 @@ class WorkspaceFolderLocations extends Disposable {
 			return undefined;
 		}
 
-		const path = extUri.relativePath(location, resource);
-		return path ? extUri.joinPath(folder.uri, path) : undefined;
+		// The path of the file under the location, as the location may differ from it in casing only
+		const segments = resource.path.substring(location.path.length).split('/').filter(segment => !!segment);
+		return segments.length > 0 ? extUri.joinPath(folder.uri, ...segments) : undefined;
 	}
 }
 
@@ -782,7 +797,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 		// Just return all history entries if not searching
 		if (!query.normalized) {
-			return this.getEditorHistory().map(({ editor, entry }) => this.createAnythingPick(editor, configuration, undefined, undefined, entry));
+			return this.getEditorHistory().map(({ editor, entries }) => this.createAnythingPick(editor, configuration, undefined, undefined, entries));
 		}
 
 		if (!this.configuration.includeHistory) {
@@ -792,13 +807,13 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		// Perform filtering
 		const editorHistoryScorerAccessor = query.containsPathSeparator ? quickPickItemScorerAccessor : this.labelOnlyEditorHistoryPickAccessor; // Only match on label of the editor unless the search includes path separators
 		const editorHistoryPicks: Array<IAnythingQuickPickItem> = [];
-		for (const { editor, entry } of this.getEditorHistory()) {
+		for (const { editor, entries } of this.getEditorHistory()) {
 			const resource = editor.resource;
 			if (!resource) {
 				continue;
 			}
 
-			const editorHistoryPick = this.createAnythingPick(editor, configuration, undefined, undefined, entry);
+			const editorHistoryPick = this.createAnythingPick(editor, configuration, undefined, undefined, entries);
 
 			const { score, labelMatch, descriptionMatch } = scoreItemFuzzy(editorHistoryPick, query, false, editorHistoryScorerAccessor, this.pickState.scorerCache);
 			if (!score) {
@@ -824,25 +839,40 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 	/**
 	 * The editor history, where an entry under another location of the workspace folder is the same
-	 * file under the location the folder is at now, once only.
+	 * file under the location the folder is at now, shown once together with the entries of that file.
 	 */
-	private getEditorHistory(): Array<{ editor: EditorInput | IResourceEditorInput; entry: EditorInput | IResourceEditorInput }> {
-		const result: Array<{ editor: EditorInput | IResourceEditorInput; entry: EditorInput | IResourceEditorInput }> = [];
+	private getEditorHistory(): IEditorHistoryRow[] {
+		const result: IEditorHistoryRow[] = [];
 
-		// Whether a resource was shown and whether that was for an entry under another location
-		const shown = new ResourceMap<boolean>(uri => this.uriIdentityService.extUri.getComparisonKey(uri));
+		const rows = new ResourceMap<IEditorHistoryRow>(uri => this.uriIdentityService.extUri.getComparisonKey(uri));
 		for (const entry of this.historyService.getHistory()) {
 			const resource = isEditorInput(entry) ? EditorResourceAccessor.getOriginalUri(entry) : entry.resource;
 			const moved = resource && this.workspaceFolderLocations.toCurrentLocation(resource);
 			const target = moved ?? resource;
-			if (target) {
-				const shownMoved = shown.get(target);
-				if (shownMoved !== undefined && (moved || shownMoved)) {
-					continue;
+			const row = target ? rows.get(target) : undefined;
+
+			// An entry for a file shown for an entry under another location joins that row,
+			// which then opens the entry under the current location where there is one
+			if (row && (moved || row.mapped)) {
+				row.entries.push(entry);
+				if (!moved && !row.exact) {
+					row.editor = entry;
+					row.exact = true;
 				}
-				shown.set(target, !!moved || !!shownMoved);
+				row.mapped = true;
+				continue;
 			}
-			result.push({ editor: moved ? { resource: moved } : entry, entry });
+
+			const newRow: IEditorHistoryRow = {
+				editor: moved ? (isEditorInput(entry) ? { resource: moved } : { ...entry, resource: moved }) : entry,
+				entries: [entry],
+				mapped: !!moved,
+				exact: !moved
+			};
+			result.push(newRow);
+			if (target && !row) {
+				rows.set(target, newRow);
+			}
 		}
 
 		return result;
@@ -1314,9 +1344,9 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 	//#region Helpers
 
-	private createAnythingPick(resourceOrEditor: URI | EditorInput | IResourceEditorInput, configuration: { openSideBySideDirection: 'right' | 'down' | undefined }, fileSearchDelegate?: IAnythingQuickAccessFileSearchDelegate, includeOpenToSideButton = true, historyEntry?: EditorInput | IResourceEditorInput): IAnythingQuickPickItem {
+	private createAnythingPick(resourceOrEditor: URI | EditorInput | IResourceEditorInput, configuration: { openSideBySideDirection: 'right' | 'down' | undefined }, fileSearchDelegate?: IAnythingQuickAccessFileSearchDelegate, includeOpenToSideButton = true, historyEntries?: readonly (EditorInput | IResourceEditorInput)[]): IAnythingQuickPickItem {
 		const showOpenToSideButton = includeOpenToSideButton && this._editorGroupsService.supportsSplitting;
-		const isEditorHistoryEntry = !!historyEntry;
+		const isEditorHistoryEntry = !!historyEntries;
 
 		let resource: URI | undefined;
 		let label: string;
@@ -1389,8 +1419,10 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 				}
 
 				const removeFromHistoryButtonIndex = showOpenToSideButton ? 1 : 0;
-				if (buttonIndex === removeFromHistoryButtonIndex && historyEntry) {
-					this.historyService.removeFromHistory(historyEntry);
+				if (buttonIndex === removeFromHistoryButtonIndex && historyEntries) {
+					for (const historyEntry of historyEntries) {
+						this.historyService.removeFromHistory(historyEntry);
+					}
 
 					return TriggerAction.REMOVE_ITEM;
 				}

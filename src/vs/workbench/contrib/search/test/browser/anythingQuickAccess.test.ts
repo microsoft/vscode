@@ -40,6 +40,8 @@ import { TestContextService } from '../../../../test/common/workbenchTestService
 import { IHistoryService } from '../../../../services/history/common/history.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
+import { extUriIgnorePathCase } from '../../../../../base/common/resources.js';
+import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 
 suite('AnythingQuickAccess - links', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -448,14 +450,18 @@ suite('AnythingQuickAccess - folder locations', () => {
 		}
 	}
 
-	function setup(current: string, locations: string[], history: string[]) {
+	function setup(current: string, locations: string[], history: string[], ignorePathCasing = false) {
 		const instantiationService = workbenchInstantiationService(undefined, store);
+		if (ignorePathCasing) {
+			instantiationService.stub(IUriIdentityService, { extUri: extUriIgnorePathCase });
+		}
 		const opened: string[] = [];
 		const removed: string[] = [];
+		const entries = history.map(path => ({ resource: URI.file(path) }));
 		instantiationService.stub(IWorkspaceContextService, new TestContextService(testWorkspace(URI.file(current))));
 		instantiationService.stub(IWorkspaceFolderLocationService, folderLocationService(locations.map(location => URI.file(location))));
 		instantiationService.stub(IHistoryService, {
-			getHistory: () => history.map(path => ({ resource: URI.file(path) })),
+			getHistory: () => entries,
 			removeFromHistory: (input: EditorInput | IResourceEditorInput) => { removed.push(input.resource!.path); }
 		});
 		instantiationService.stub(IEditorService, 'openEditor', async (input: IResourceEditorInput) => { opened.push(input.resource!.path); return undefined; });
@@ -467,10 +473,10 @@ suite('AnythingQuickAccess - folder locations', () => {
 		instantiationService.stub(IOutlineService, {});
 		instantiationService.stub(IOutlineModelService, {});
 		const provider = store.add(instantiationService.createInstance(TestAnythingQuickAccessProvider));
-		return { provider, opened, removed };
+		return { provider, opened, removed, entries };
 	}
 
-	for (const { name, current, locations, history, expected } of [
+	for (const { name, current, locations, history, expected, ignorePathCasing } of [
 		{
 			name: 'shows recently opened files of a worktree under the folder it is back at',
 			current: '/work/folder',
@@ -492,10 +498,32 @@ suite('AnythingQuickAccess - folder locations', () => {
 			history: ['/work/folder/.worktrees/one/src/app.ts', '/work/folder/src/other.ts'],
 			expected: ['/work/folder/src/app.ts', '/work/folder/src/other.ts'],
 		},
+		{
+			name: 'maps files of a worktree on a drive letter',
+			current: '/c:/work/folder',
+			locations: ['/c:/work/folder', '/c:/work/worktree'],
+			history: ['/c:/work/worktree/src/app.ts', '/d:/work/worktree/src/other.ts'],
+			expected: ['/c:/work/folder/src/app.ts', '/d:/work/worktree/src/other.ts'],
+		},
+		{
+			name: 'maps files of a worktree whose path differs in case where path casing is ignored',
+			current: '/c:/work/folder',
+			locations: ['/c:/work/folder', '/C:/Work/Worktree'],
+			history: ['/c:/work/worktree/src/app.ts', '/c:/work/folder/src/APP.ts'],
+			expected: ['/c:/work/folder/src/APP.ts'],
+			ignorePathCasing: true,
+		},
+		{
+			name: 'maps files of a worktree on a network share',
+			current: '//server/share/folder',
+			locations: ['//server/share/folder', '//server/share/worktree'],
+			history: ['//server/share/worktree/src/app.ts', '//other/share/worktree/src/other.ts'],
+			expected: ['//server/share/folder/src/app.ts', '//other/share/worktree/src/other.ts'],
+		},
 	]) {
 		test(name, async () => {
-			const { provider } = setup(current, locations, history);
-			assert.deepStrictEqual((await provider.getHistoryPicks()).map(pick => pick.resource?.path), expected);
+			const { provider } = setup(current, locations, history, ignorePathCasing);
+			assert.deepStrictEqual((await provider.getHistoryPicks()).map(pick => pick.resource?.toString()), expected.map(path => URI.file(path).toString()));
 		});
 	}
 
@@ -505,5 +533,18 @@ suite('AnythingQuickAccess - folder locations', () => {
 		await pick.accept?.(NO_KEY_MODS, { inBackground: false });
 		pick.trigger?.(pick.buttons!.length - 1, NO_KEY_MODS);
 		assert.deepStrictEqual({ opened, removed }, { opened: ['/work/folder/src/app.ts'], removed: ['/work/worktree/src/app.ts'] });
+	});
+
+	test('opens the entry of the folder and removes all entries a file is shown for', async () => {
+		const { provider, opened, removed, entries } = setup('/work/folder', ['/work/folder', '/work/worktree'], ['/work/worktree/src/app.ts', '/work/folder/src/app.ts']);
+		const picks = await provider.getHistoryPicks();
+		await picks[0].accept?.(NO_KEY_MODS, { inBackground: false });
+		picks[0].trigger?.(picks[0].buttons!.length - 1, NO_KEY_MODS);
+		assert.deepStrictEqual({ picks: picks.length, editor: picks[0].editor === entries[1], opened, removed }, {
+			picks: 1,
+			editor: true,
+			opened: ['/work/folder/src/app.ts'],
+			removed: ['/work/worktree/src/app.ts', '/work/folder/src/app.ts']
+		});
 	});
 });
