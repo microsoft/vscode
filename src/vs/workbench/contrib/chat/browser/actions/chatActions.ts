@@ -147,7 +147,7 @@ export async function openCustomizationChat(accessor: ServicesAccessor, type: Pr
 				query = localize('generateAgent.request', "Create a new custom agent file. Ask me for the agent name and purpose and user or workspace location. Do not ask further but come up with a first draft. Check {0}. Finish with a file link to the generated agent.\n", documentationUrl);
 				break;
 			case PromptsType.hook:
-				query = localize('generateHook.request', "Create a new hook in the GitHub Copilot hooks format. Ask me for the hook name and purpose and user or workspace location. Do not ask further but come up with a first draft. Put a workspace hook in a .json file in .github/hooks at the root of the git repository, and a user hook in ~/.copilot/hooks. Follow {0}: use \"version\": 1 and camelCase event names such as preToolUse, not PascalCase names such as PreToolUse. Finish with a file link to the generated hook.\n", documentationUrl);
+				query = localize('generateHook.request', "Create a new hook in the GitHub Copilot hooks format. Ask me for the hook name and purpose and user or workspace location. Do not ask further but come up with a first draft. Put a workspace hook in a .json file in .github/hooks at the root of the git repository, and a user hook in the hooks folder of the Copilot home: ~/.copilot/hooks by default, or $COPILOT_HOME/hooks when COPILOT_HOME is set. Follow {0}: use \"version\": 1 and camelCase event names such as preToolUse, not PascalCase names such as PreToolUse. Finish with a file link to the generated hook.\n", documentationUrl);
 				break;
 		}
 	}

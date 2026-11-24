@@ -20,11 +20,13 @@ import { PromptsStorage } from '../../common/promptSyntax/service/promptsService
 import { PromptsType, Target } from '../../common/promptSyntax/promptTypes.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
-import { getAgentHookMetadata, getValidAgentHookNames } from '../../common/promptSyntax/hookTypes.js';
+import { getAgentHookMetadata, getValidAgentHookNames, HookType } from '../../common/promptSyntax/hookTypes.js';
+import { toHookType } from '../../common/promptSyntax/hookSchema.js';
+import { resolveCopilotCliHookType } from '../../common/promptSyntax/hookCopilotCliCompat.js';
 import { buildNewCopilotHookFile, buildNewHookEntry, HookSourceFormat } from '../../common/promptSyntax/hookCompatibility.js';
 import { ITextEditorSelection } from '../../../../../platform/editor/common/editor.js';
 import { findHookCommandSelection } from './hookUtils.js';
-import { IPathService } from '../../../../services/path/common/pathService.js';
+import { ICopilotHomeService } from '../../../../services/environment/common/copilotHomeService.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -44,9 +46,9 @@ import { HOOKS_SOURCE_FOLDER } from '../../common/promptSyntax/config/promptFile
 const CONFIGURE_HOOKS_ACTION_ID = 'workbench.action.chat.configure.hooks';
 
 /**
- * Folder under the user's home that the Copilot runtime loads user hooks from.
+ * Folder under the Copilot home (`COPILOT_HOME`, or `~/.copilot` by default) that the Copilot runtime loads user hooks from.
  */
-const USER_HOOKS_FOLDER = '.copilot/hooks';
+const USER_HOOKS_FOLDER = 'hooks';
 
 const INVALID_FILE_NAME_CHARACTERS = /[/\\:*?"<>|]/;
 
@@ -91,11 +93,11 @@ export async function findGitRoot(fileService: Pick<IFileService, 'exists'>, fol
 /**
  * The folder the Copilot runtime loads hooks from for the given storage: `.github/hooks` at the
  * root of the git repository that contains `projectRoot` (or `projectRoot` itself when it isn't in
- * one), or `~/.copilot/hooks` for user hooks.
+ * one), or the `hooks` folder of the Copilot home for user hooks.
  */
-export async function getCopilotHooksFolder(fileService: Pick<IFileService, 'exists'>, userHome: () => Promise<URI>, storage: PromptsStorage.local | PromptsStorage.user, projectRoot: URI | undefined): Promise<URI | undefined> {
+export async function getCopilotHooksFolder(fileService: Pick<IFileService, 'exists'>, copilotHome: URI, storage: PromptsStorage.local | PromptsStorage.user, projectRoot: URI | undefined): Promise<URI | undefined> {
 	if (storage === PromptsStorage.user) {
-		return joinPath(await userHome(), USER_HOOKS_FOLDER);
+		return joinPath(copilotHome, USER_HOOKS_FOLDER);
 	}
 	if (!projectRoot) {
 		return undefined;
@@ -105,22 +107,39 @@ export async function getCopilotHooksFolder(fileService: Pick<IFileService, 'exi
 }
 
 /**
- * Adds an empty command hook for the Copilot event `eventName` to the hook file content `text`,
- * keeping its comments and formatting. Returns `undefined` when the content can't be edited safely.
+ * Result of {@link addCopilotHookToText}:
+ * - `added`: the new hook's file content, and the index of its command for selection.
+ * - `invalid`: the content isn't a hook file that can be edited safely.
+ * - `conflictingEventName`: the file already has hooks for the same event under another name, such as
+ *   `PreToolUse` for `preToolUse`. VS Code reads only one of the two, so adding would hide existing hooks.
  */
-export function addCopilotHookToText(text: string, eventName: string): { text: string; commandIndex: number } | undefined {
+export type AddCopilotHookResult =
+	| { readonly kind: 'added'; readonly text: string; readonly commandIndex: number }
+	| { readonly kind: 'invalid' }
+	| { readonly kind: 'conflictingEventName'; readonly existingEventName: string };
+
+/**
+ * Adds an empty command hook for the Copilot event `eventName` to the hook file content `text`,
+ * keeping its comments and formatting.
+ */
+export function addCopilotHookToText(text: string, eventName: string): AddCopilotHookResult {
 	const errors: ParseError[] = [];
 	const json: unknown = parseJSONC(text, errors, { allowTrailingComma: true });
 	if (errors.length || !isObject(json)) {
-		return undefined;
+		return { kind: 'invalid' };
 	}
 	const hooks = json.hooks;
 	if (hooks !== undefined && !isObject(hooks)) {
-		return undefined;
+		return { kind: 'invalid' };
 	}
 	const existing = hooks?.[eventName];
 	if (existing !== undefined && !Array.isArray(existing)) {
-		return undefined;
+		return { kind: 'invalid' };
+	}
+	const hookType = toKnownHookType(eventName);
+	const existingEventName = hookType && Object.keys(hooks ?? {}).find(key => key !== eventName && toKnownHookType(key) === hookType);
+	if (existingEventName) {
+		return { kind: 'conflictingEventName', existingEventName };
 	}
 	const entries: unknown[] = existing ?? [];
 	// Count commands the way `findHookCommandSelection` does, so the new command can be selected.
@@ -133,7 +152,12 @@ export function addCopilotHookToText(text: string, eventName: string): { text: s
 	const eol = text.includes('\r\n') ? '\r\n' : '\n';
 	const formattingOptions: FormattingOptions = { tabSize: 1, insertSpaces: false, eol };
 	const edits = setProperty(text, ['hooks', eventName, entries.length], buildNewHookEntry(HookSourceFormat.Copilot), formattingOptions);
-	return { text: applyEdits(text, edits), commandIndex };
+	return { kind: 'added', text: applyEdits(text, edits), commandIndex };
+}
+
+/** Maps an event name to the event VS Code reads it as, the same way `parseCopilotHooks` does. */
+function toKnownHookType(eventName: string): HookType | undefined {
+	return resolveCopilotCliHookType(eventName) ?? toHookType(eventName);
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {
@@ -169,7 +193,7 @@ export async function createCopilotHook(accessor: ServicesAccessor, options: ICr
 	const notificationService = accessor.get(INotificationService);
 	const quickInputService = accessor.get(IQuickInputService);
 	const fileService = accessor.get(IFileService);
-	const pathService = accessor.get(IPathService);
+	const copilotHomeService = accessor.get(ICopilotHomeService);
 	const textModelService = accessor.get(ITextModelService);
 	const textFileService = accessor.get(ITextFileService);
 	const labelService = accessor.get(ILabelService);
@@ -195,13 +219,13 @@ export async function createCopilotHook(accessor: ServicesAccessor, options: ICr
 		return;
 	}
 
-	const folder = await getCopilotHooksFolder(fileService, () => pathService.userHome(), options.storage, options.projectRoot);
+	const folder = await getCopilotHooksFolder(fileService, copilotHomeService.home, options.storage, options.projectRoot);
 	if (!folder) {
 		notificationService.info(localize('newHook.noFolder', "Open a folder to create a workspace hook."));
 		return;
 	}
 
-	const resource = await pickHookFile(quickInputService, fileService, labelService, folder);
+	let resource = await pickHookFile(quickInputService, fileService, labelService, folder);
 	if (!resource) {
 		return;
 	}
@@ -209,24 +233,37 @@ export async function createCopilotHook(accessor: ServicesAccessor, options: ICr
 	let selection: ITextEditorSelection | undefined;
 	if (await fileService.exists(resource)) {
 		const reference = await textModelService.createModelReference(resource);
+		let conflictingEventName: string | undefined;
 		try {
 			const model = reference.object.textEditorModel;
 			const wasDirty = textFileService.isDirty(resource);
 			const result = addCopilotHookToText(model.getValue(), eventItem.eventName);
-			if (!result) {
+			if (result.kind === 'invalid') {
 				notificationService.error(localize('newHook.parseError', "Couldn't add a hook to {0}. Fix the errors in the file and try again.", basename(resource)));
 				await options.openEditor(resource, undefined);
 				return;
 			}
-			model.pushEditOperations([], [{ range: model.getFullModelRange(), text: result.text }], () => null);
-			if (!wasDirty) {
-				await textFileService.save(resource);
+			if (result.kind === 'conflictingEventName') {
+				conflictingEventName = result.existingEventName;
+			} else {
+				model.pushEditOperations([], [{ range: model.getFullModelRange(), text: result.text }], () => null);
+				if (!wasDirty) {
+					await textFileService.save(resource);
+				}
+				selection = findHookCommandSelection(result.text, eventItem.eventName, result.commandIndex, 'command');
 			}
-			selection = findHookCommandSelection(result.text, eventItem.eventName, result.commandIndex, 'command');
 		} finally {
 			reference.dispose();
 		}
-	} else {
+		if (conflictingEventName) {
+			notificationService.info(localize('newHook.conflictingEventName', "{0} already has {1} hooks in an older format. Add the {2} hook to a new file instead.", basename(resource), conflictingEventName, eventItem.eventName));
+			resource = await pickNewHookFileName(quickInputService, labelService, folder, await listHookFiles(fileService, folder));
+			if (!resource) {
+				return;
+			}
+		}
+	}
+	if (!selection) {
 		const text = JSON.stringify(buildNewCopilotHookFile(eventItem.eventName), null, '\t');
 		await fileService.createFile(resource, VSBuffer.fromString(text));
 		selection = findHookCommandSelection(text, eventItem.eventName, 0, 'command');
@@ -235,20 +272,18 @@ export async function createCopilotHook(accessor: ServicesAccessor, options: ICr
 	await options.openEditor(resource, selection);
 }
 
-async function pickHookFile(quickInputService: IQuickInputService, fileService: IFileService, labelService: ILabelService, folder: URI): Promise<URI | undefined> {
-	const folderLabel = labelService.getUriLabel(folder);
-	const existingFiles: URI[] = [];
+async function listHookFiles(fileService: IFileService, folder: URI): Promise<URI[]> {
 	try {
 		const stat = await fileService.resolve(folder);
-		for (const child of stat.children ?? []) {
-			if (child.isFile && child.name.toLowerCase().endsWith('.json')) {
-				existingFiles.push(child.resource);
-			}
-		}
+		return (stat.children ?? []).filter(child => child.isFile && child.name.toLowerCase().endsWith('.json')).map(child => child.resource);
 	} catch {
 		// The folder doesn't exist yet, so there are no hook files to add to.
+		return [];
 	}
+}
 
+async function pickHookFile(quickInputService: IQuickInputService, fileService: IFileService, labelService: ILabelService, folder: URI): Promise<URI | undefined> {
+	const existingFiles = await listHookFiles(fileService, folder);
 	if (existingFiles.length) {
 		const items: IHookFileQuickPickItem[] = [
 			{ resource: undefined, label: localize('newHook.file.new', "New Hook File...") },
@@ -256,7 +291,7 @@ async function pickHookFile(quickInputService: IQuickInputService, fileService: 
 		];
 		const item = await quickInputService.pick(items, {
 			title: localize('newHook.file.title', "New Hook"),
-			placeHolder: localize('newHook.file.placeholder', "Select a hook file in {0}", folderLabel),
+			placeHolder: localize('newHook.file.placeholder', "Select a hook file in {0}", labelService.getUriLabel(folder)),
 		});
 		if (!item) {
 			return undefined;
@@ -265,11 +300,14 @@ async function pickHookFile(quickInputService: IQuickInputService, fileService: 
 			return item.resource;
 		}
 	}
+	return pickNewHookFileName(quickInputService, labelService, folder, existingFiles);
+}
 
+async function pickNewHookFileName(quickInputService: IQuickInputService, labelService: ILabelService, folder: URI, existingFiles: readonly URI[]): Promise<URI | undefined> {
 	const defaultName = existingFiles.some(resource => basename(resource).toLowerCase() === 'hooks.json') ? '' : 'hooks';
 	const name = await quickInputService.input({
 		title: localize('newHook.name.title', "New Hook"),
-		prompt: localize('newHook.name.prompt', "Name of the new hook file in {0}", folderLabel),
+		prompt: localize('newHook.name.prompt', "Name of the new hook file in {0}", labelService.getUriLabel(folder)),
 		value: defaultName,
 		validateInput: async value => {
 			const fileName = toHookFileName(value);

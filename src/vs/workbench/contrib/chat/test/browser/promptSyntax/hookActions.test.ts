@@ -48,30 +48,31 @@ suite('hookActions', () => {
 		});
 	});
 
-	test('workspace hooks go in .github/hooks at the git repository root, user hooks in ~/.copilot/hooks', async () => {
+	test('workspace hooks go in .github/hooks at the git repository root, user hooks in the Copilot home', async () => {
 		const gitFolders = ['/repo/.git'];
 		const fileService = { exists: async (resource: URI) => gitFolders.includes(resource.path) };
-		const userHome = async () => URI.file('/home/me');
-		const folderFor = async (storage: PromptsStorage.local | PromptsStorage.user, projectRoot: URI | undefined) => (await getCopilotHooksFolder(fileService, userHome, storage, projectRoot))?.path;
+		const folderFor = async (storage: PromptsStorage.local | PromptsStorage.user, projectRoot: URI | undefined, copilotHome = URI.file('/home/me/.copilot')) => (await getCopilotHooksFolder(fileService, copilotHome, storage, projectRoot))?.path;
 		assert.deepStrictEqual({
 			repositoryRoot: await folderFor(PromptsStorage.local, URI.file('/repo')),
 			subfolder: await folderFor(PromptsStorage.local, URI.file('/repo/packages/app')),
 			notARepository: await folderFor(PromptsStorage.local, URI.file('/other/folder')),
 			noFolder: await folderFor(PromptsStorage.local, undefined),
 			user: await folderFor(PromptsStorage.user, URI.file('/repo')),
+			userWithCopilotHomeSet: await folderFor(PromptsStorage.user, URI.file('/repo'), URI.file('/custom/copilot-home')),
 		}, {
 			repositoryRoot: '/repo/.github/hooks',
 			subfolder: '/repo/.github/hooks',
 			notARepository: '/other/folder/.github/hooks',
 			noFolder: undefined,
 			user: '/home/me/.copilot/hooks',
+			userWithCopilotHomeSet: '/custom/copilot-home/hooks',
 		});
 	});
 
 	suite('addCopilotHookToText', () => {
 		test('adds the event to a file without it', () => {
 			const result = addCopilotHookToText('{\n\t"version": 1,\n\t"hooks": {}\n}', 'preToolUse');
-			assert.deepStrictEqual(result && { json: JSON.parse(result.text), commandIndex: result.commandIndex }, {
+			assert.deepStrictEqual(result.kind === 'added' && { json: JSON.parse(result.text), commandIndex: result.commandIndex }, {
 				json: { version: 1, hooks: { preToolUse: [{ type: 'command', command: '' }] } },
 				commandIndex: 0,
 			});
@@ -90,7 +91,7 @@ suite('hookActions', () => {
 				'}',
 			].join('\n');
 			const result = addCopilotHookToText(text, 'preToolUse');
-			assert.deepStrictEqual(result && {
+			assert.deepStrictEqual(result.kind === 'added' && {
 				keepsComment: result.text.includes('// keep me'),
 				commandIndex: result.commandIndex,
 				selected: findHookCommandSelection(result.text, 'preToolUse', result.commandIndex, 'command') !== undefined,
@@ -103,7 +104,7 @@ suite('hookActions', () => {
 
 		test('creates the hooks object when it is missing', () => {
 			const result = addCopilotHookToText('{ "version": 1 }', 'sessionStart');
-			assert.deepStrictEqual(result && JSON.parse(result.text), { version: 1, hooks: { sessionStart: [{ type: 'command', command: '' }] } });
+			assert.deepStrictEqual(result.kind === 'added' && JSON.parse(result.text), { version: 1, hooks: { sessionStart: [{ type: 'command', command: '' }] } });
 		});
 
 		test('leaves content it cannot edit safely', () => {
@@ -112,7 +113,17 @@ suite('hookActions', () => {
 				addCopilotHookToText('[]', 'preToolUse'),
 				addCopilotHookToText('{ "hooks": [] }', 'preToolUse'),
 				addCopilotHookToText('{ "hooks": { "preToolUse": {} } }', 'preToolUse'),
-			], [undefined, undefined, undefined, undefined]);
+			].map(result => result.kind), ['invalid', 'invalid', 'invalid', 'invalid']);
+		});
+
+		test('does not add an event the file already has under an older name', () => {
+			assert.deepStrictEqual([
+				addCopilotHookToText('{ "hooks": { "PreToolUse": [{ "type": "command", "command": "a" }] } }', 'preToolUse'),
+				addCopilotHookToText('{ "hooks": { "PreToolUse": [] } }', 'sessionEnd').kind,
+			], [
+				{ kind: 'conflictingEventName', existingEventName: 'PreToolUse' },
+				'added',
+			]);
 		});
 	});
 });

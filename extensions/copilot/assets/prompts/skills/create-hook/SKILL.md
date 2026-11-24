@@ -6,7 +6,7 @@ disable-model-invocation: true
 ---
 Related skill: `agent-customization`. Load and follow **hooks.md** for template and principles.
 
-Guide the user to create a hook in the GitHub Copilot hooks format, either for the repository in `.github/hooks/` at the root of the git repository or for the user in `~/.copilot/hooks/`. Use `"version": 1` and the camelCase event names from the [GitHub Copilot hooks reference](https://docs.github.com/en/copilot/reference/hooks-reference), and take input and output fields from that reference.
+Guide the user to create a hook in the GitHub Copilot hooks format, either for the repository in `.github/hooks/` at the root of the git repository or for the user in `~/.copilot/hooks/` (`$COPILOT_HOME/hooks/` when `COPILOT_HOME` is set). Use `"version": 1` and the camelCase event names from the [GitHub Copilot hooks reference](https://docs.github.com/en/copilot/reference/hooks-reference), and take input and output fields from that reference.
 
 ## Extract from Conversation
 First, review the conversation history. If the user has been expressing concerns about agent behavior (e.g., "don't run this command", "always check before doing X", "inject this context"), generalize that into a hook. Extract:
