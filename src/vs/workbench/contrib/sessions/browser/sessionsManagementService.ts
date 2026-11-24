@@ -281,7 +281,11 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			}
 			disposables.add(provider.onDidChangeSessions(e => this.onDidChangeSessionsFromSessionsProviders(e)));
 			disposables.add((provider.onDidChangeAllSessions ?? provider.onDidChangeSessions)(e => this._fireDidChangeEachSession(e)));
-			disposables.add(provider.onDidMoveChat(e => this._onDidMoveChat.fire(e)));
+			disposables.add(provider.onDidMoveChat(e => {
+				// A provider lists a chat's new session before announcing it, so a move listener's lookup must not see the old index.
+				this._invalidateSessionIndex();
+				this._onDidMoveChat.fire(e);
+			}));
 			if (provider.onDidReplaceSession) {
 				disposables.add(provider.onDidReplaceSession(e => this._handleDidReplaceSession(e)));
 			}

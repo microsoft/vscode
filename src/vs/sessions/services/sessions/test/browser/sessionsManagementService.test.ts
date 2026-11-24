@@ -609,6 +609,25 @@ suite('SessionsManagementService', () => {
 		});
 	});
 
+	test('a chat move listener finds the destination session, which the provider lists before its catalog change', () => {
+		const source = stubSession({ sessionId: 'source', providerId: 'test' });
+		const destination = stubSession({ sessionId: 'destination', providerId: 'test' });
+		const onDidMoveChat = disposables.add(new Emitter<IChatMovedEvent>());
+		let sessions = [source];
+		const provider = new class extends TestSessionsProvider {
+			override readonly onDidChangeSessionCatalog = Event.None;
+			override readonly onDidMoveChat = onDidMoveChat.event;
+			override getSessions(): ISession[] { return sessions; }
+		}(source);
+		const { service } = createSessionsManagementService(source, disposables, provider);
+		const before = service.getSession(destination.resource)?.sessionId;
+		const found: (string | undefined)[] = [];
+		disposables.add(service.onDidMoveChat(({ to }) => found.push(service.getSession(to.session.resource)?.sessionId)));
+		sessions = [source, destination];
+		onDidMoveChat.fire({ from: { session: source, chat: source.mainChat.get().resource }, to: { session: destination, chat: destination.mainChat.get().resource } });
+		assert.deepStrictEqual({ before, found }, { before: undefined, found: ['destination'] });
+	});
+
 	suite('session grid integration', () => {
 		function created(id: string): ISession {
 			const chat: IChat = { ...stubChat, resource: URI.parse(`test:///${id}/chat`), status: constObservable(SessionStatus.Completed) };
