@@ -4338,7 +4338,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const editedModelId = editedModelRequestOptions?.userSelectedModelId;
 		const modelToKeep = isUserQuery && !options.preserveInput && editedModelId && isEditing
 			&& isEditing.pendingKind === undefined && editedModelId !== isEditing.modelId && this.input.hasUserSelectedModel
-			? { id: editedModelId, configuration: editedModelRequestOptions?.userSelectedModelConfiguration, previousComposerModelId: this.inputPart.currentLanguageModel }
+			? {
+				id: editedModelId,
+				configuration: editedModelRequestOptions?.userSelectedModelConfiguration,
+				previousComposerModelId: this.inputPart.currentLanguageModel,
+				composerModelSelectionRevision: this.inputPart.modelSelectionRevision,
+			}
 			: undefined;
 		const editedModeKind = isInlineEdit ? this.input.currentModeKind : undefined;
 		const editedModeInfo = isInlineEdit ? this.input.currentModeInfo : undefined;
@@ -4538,7 +4543,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 
 		if (modelToKeep && !this._store.isDisposed && this.viewModel === editingViewModel && !this.viewModel.editing
-			&& this.inputPart.currentLanguageModel === modelToKeep.previousComposerModelId) {
+			&& this.inputPart.currentLanguageModel === modelToKeep.previousComposerModelId
+			&& this.inputPart.modelSelectionRevision === modelToKeep.composerModelSelectionRevision) {
 			if (!this.inputPart.switchModelByIdentifier(modelToKeep.id, false, true, modelToKeep.configuration)) {
 				this.logService.debug('[ChatWidget] The model chosen for the revised request is no longer selectable in the composer');
 			}

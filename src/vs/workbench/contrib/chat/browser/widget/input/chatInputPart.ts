@@ -1015,9 +1015,15 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	 * bucket. See issue #320393.
 	 */
 	private readonly _modelConfigStore: ChatModelConfigurationStore;
+	private _modelSelectionRevision = 0;
 
 	get currentLanguageModel() {
 		return this._currentLanguageModel.get()?.identifier;
+	}
+
+	/** Changes when this input makes an explicit model or model configuration choice. */
+	get modelSelectionRevision(): number {
+		return this._modelSelectionRevision;
 	}
 
 	get hasUserSelectedModel(): boolean {
@@ -1387,6 +1393,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			const model = this._currentLanguageModel.get();
 			if (model?.identifier === modelId) {
 				this.setCurrentLanguageModel(model, true, false);
+			} else {
+				this._modelSelectionRevision++;
 			}
 		}));
 		this.selectedToolsModel = this._register(this.instantiationService.createInstance(ChatSelectedTools, this.currentModeObs, this._currentLanguageModel));
@@ -2352,6 +2360,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		if (isUserAction && policyError) {
 			this.logService.warn('[ChatInputPart] Rejected model selection outside the selected agent model list');
 			throw new Error(policyError);
+		}
+		if (isUserAction) {
+			this._modelSelectionRevision++;
 		}
 		const persistSelection = isUserAction && storeSelection;
 		this._modelSelectionDiagnostics.report('set-model', {

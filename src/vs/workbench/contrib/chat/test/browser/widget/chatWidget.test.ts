@@ -3159,7 +3159,7 @@ suite('ChatWidget - acceptInput submission', () => {
 		assert.deepStrictEqual({ requests: fixture.chatService.sendRequest.callCount }, { requests: 1 });
 	});
 
-	for (const scenario of ['latest', 'unchanged', 'fallback', 'older', 'queued', 'rejected'] as const) {
+	for (const scenario of ['latest', 'unchanged', 'fallback', 'older', 'queued', 'rejected', 'composer configuration changed', 'composer model switched back'] as const) {
 		test(`inline edit model selection on resubmit (${scenario})`, async () => {
 			const fixture = createSubmissionWidget();
 			await fixture.configurationService.setUserConfiguration('chat.editRequests', 'inline');
@@ -3168,6 +3168,7 @@ suite('ChatWidget - acceptInput submission', () => {
 			const mainConfiguration = { thinkingLevel: 'medium', contextSize: 272000 };
 			const editedConfiguration = { thinkingLevel: 'high', contextSize: 1000000 };
 			const keepsEditedModel = scenario === 'latest' || scenario === 'older';
+			const expectedComposerConfiguration = scenario === 'composer configuration changed' ? { ...mainConfiguration, thinkingLevel: 'low' } : mainConfiguration;
 			const mainModeInfo: ChatInputPart['currentModeInfo'] = {
 				kind: ChatModeKind.Ask,
 				isBuiltin: true,
@@ -3187,6 +3188,7 @@ suite('ChatWidget - acceptInput submission', () => {
 			const editedMode = constObservable(upcastPartial<IChatMode>({ id: 'edited-agent', agents: constObservable(['edited-subagent']) }));
 			const editedTools = { editedTool: true, otherTool: false };
 			let composerModelId = mainModelId;
+			let composerModelSelectionRevision = 0;
 			const intendedModel = (): IIntendedModelSelection => ({ modelId: composerModelId, reason: ModelSelectionReason.UserSelection });
 			Object.defineProperties(fixture.input, {
 				currentLanguageModel: { get: () => composerModelId },
@@ -3201,6 +3203,7 @@ suite('ChatWidget - acceptInput submission', () => {
 			});
 			fixture.inputPartDisposable.value = upcastPartial<ChatInputPart>({
 				get currentLanguageModel() { return composerModelId; },
+				get modelSelectionRevision() { return composerModelSelectionRevision; },
 				dnd: upcastPartial<ChatInputPart['dnd']>({ setDisabledOverlay: () => { } }),
 				clearToolConfirmationCarousel: fixture.input.clearToolConfirmationCarousel,
 				toggleChatInputOverlay: fixture.input.toggleChatInputOverlay,
@@ -3269,7 +3272,29 @@ suite('ChatWidget - acceptInput submission', () => {
 				_requestToolsSources: { value: new WeakMap() },
 			});
 
-			await fixture.widget.acceptInput();
+			if (scenario === 'composer configuration changed' || scenario === 'composer model switched back') {
+				const sendStarted = new DeferredPromise<void>();
+				const sendResult = new DeferredPromise<ChatSendResult>();
+				fixture.chatService.sendRequest.onFirstCall().callsFake(() => {
+					void sendStarted.complete();
+					return sendResult.p;
+				});
+				const resubmitting = fixture.widget.acceptInput();
+				await sendStarted.p;
+				if (scenario === 'composer configuration changed') {
+					fixture.input.getModelConfiguration.withArgs(mainModelId).returns(expectedComposerConfiguration);
+					composerModelSelectionRevision++;
+				} else {
+					for (const modelId of [editedModelId, mainModelId]) {
+						composerModelId = modelId;
+						composerModelSelectionRevision++;
+					}
+				}
+				await sendResult.complete(fixture.sent);
+				await resubmitting;
+			} else {
+				await fixture.widget.acceptInput();
+			}
 			await fixture.widget.acceptInput('Follow up', { preserveInput: true });
 
 			const requests = fixture.chatService.sendRequest.getCalls().map(call => {
@@ -3308,7 +3333,7 @@ suite('ChatWidget - acceptInput submission', () => {
 				}, {
 					input: 'Follow up',
 					model: keepsEditedModel ? editedModelId : mainModelId,
-					configuration: keepsEditedModel ? editedConfiguration : mainConfiguration,
+					configuration: keepsEditedModel ? editedConfiguration : expectedComposerConfiguration,
 					mode: ChatModeKind.Ask,
 					modeInfo: mainModeInfo,
 					tools: {},
@@ -3316,7 +3341,7 @@ suite('ChatWidget - acceptInput submission', () => {
 				}],
 				mainSelection: {
 					userSelectedModelId: keepsEditedModel ? editedModelId : mainModelId,
-					userSelectedModelConfiguration: keepsEditedModel ? editedConfiguration : mainConfiguration,
+					userSelectedModelConfiguration: keepsEditedModel ? editedConfiguration : expectedComposerConfiguration,
 				},
 				mainMode: mainModeInfo,
 				intendedModel: { modelId: keepsEditedModel ? editedModelId : mainModelId, reason: ModelSelectionReason.UserSelection },
