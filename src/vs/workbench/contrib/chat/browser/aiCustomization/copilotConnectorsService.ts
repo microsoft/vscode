@@ -136,7 +136,8 @@ export interface ICopilotConnector {
 	readonly description: string;
 	readonly icon?: URI;
 	readonly documentation?: URI;
-	readonly homepage?: URI;
+	/** Validated original URL, preserving escaped path separators and query characters. */
+	readonly homepage?: string;
 	readonly version?: string;
 	readonly author?: ICopilotConnectorAuthor;
 	readonly repository?: URI;
@@ -1075,13 +1076,10 @@ function scoreConnectorField(word: string, value: string): number | undefined {
 	return best;
 }
 
-const copilotConnectorsSourcePageUri = URI.parse('https://github.com/features/copilot');
+export const copilotConnectorsSourcePageUri = URI.parse('https://docs.github.com/en/copilot/concepts/customizations/copilot-connectors');
 
 export function toCopilotConnectorMarketplaceEntry(connector: ICopilotConnector): ICustomizationMarketplaceEntry {
 	const publisher = connector.author?.name || localize('copilotConnectors.publisher', "GitHub Copilot");
-	const publisherUrl = connector.author?.name
-		? (connector.author.url ?? connector.homepage)
-		: ((connector.homepage?.authority.toLowerCase() === 'github.com' ? connector.homepage : undefined) ?? copilotConnectorsSourcePageUri);
 	return {
 		identifier: connector.name,
 		displayName: connector.displayName,
@@ -1093,10 +1091,11 @@ export function toCopilotConnectorMarketplaceEntry(connector: ICopilotConnector)
 		connectorIds: [...new Set([connector.name, ...connector.mcpServers.map(server => server.name)])],
 		url: copilotConnectorsSourcePageUri,
 		externalUrl: copilotConnectorsSourcePageUri.toString(true),
+		...(connector.homepage ? { homepage: connector.homepage } : {}),
 		...(connector.repository ? { repository: connector.repository } : {}),
 		icon: connector.icon,
 		publisher,
-		...(publisherUrl ? { publisherUrl } : {}),
+		...(connector.author?.name && connector.author.url ? { publisherUrl: connector.author.url } : {}),
 		installation: { kind: 'copilotConnector', name: connector.name },
 	};
 }
@@ -1149,6 +1148,8 @@ function parseConnectors({ plugins }: ConnectorCatalog): readonly ICopilotConnec
 		const { metadata, connection } = plugin;
 		const displayName = text(metadata.displayName) ?? name;
 		const description = text(plugin.description) ?? localize('copilotConnectors.defaultDescription', "Connect {0} to GitHub Copilot.", displayName);
+		const homepage = text(plugin.homepage, 8192);
+		const homepageUri = parseHttpsUri(homepage);
 		const mcpServerEntries = Object.entries(plugin.mcpServers.mcpServers);
 		if (mcpServerEntries.length > maxMcpServersPerConnector) {
 			throw new CopilotConnectorsError(localize('copilotConnectors.invalidResponse', "Copilot connectors returned an invalid response."));
@@ -1158,8 +1159,8 @@ function parseConnectors({ plugins }: ConnectorCatalog): readonly ICopilotConnec
 			displayName,
 			description,
 			icon: parseHttpsUri(plugin.logo),
-			documentation: parseHttpsUri(plugin.homepage),
-			homepage: parseHttpsUri(plugin.homepage),
+			documentation: homepageUri,
+			homepage: homepageUri ? homepage : undefined,
 			version: text(plugin.version, 512),
 			author: parseAuthor(plugin.author),
 			repository: parseHttpsUri(plugin.repository),
