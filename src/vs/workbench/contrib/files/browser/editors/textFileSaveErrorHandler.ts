@@ -33,6 +33,7 @@ import { IPreferencesService } from '../../../../services/preferences/common/pre
 import { IEditorIdentifier, SaveReason, SideBySideEditor } from '../../../../common/editor.js';
 import { hash } from '../../../../../base/common/hash.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
+import { IModelService } from '../../../../../editor/common/services/model.js';
 
 export const CONFLICT_RESOLUTION_CONTEXT = 'saveConflictResolutionContext';
 export const CONFLICT_RESOLUTION_SCHEME = 'conflictResolution';
@@ -445,15 +446,20 @@ function findEditorsToReplaceOnSaveAs(editorService: IEditorService, source: URI
 
 class SaveAsIgnoreEncodingLossAction extends Action {
 
+	private readonly sourceVersionId: number | undefined;
+
 	constructor(
 		private source: URI,
 		private target: URI,
 		private options: ITextFileSaveOptions,
 		@ITextFileService private readonly textFileService: ITextFileService,
 		@IEditorService private readonly editorService: IEditorService,
-		@ILogService private readonly logService: ILogService
+		@ILogService private readonly logService: ILogService,
+		@IModelService private readonly modelService: IModelService
 	) {
 		super('workbench.files.action.saveAsIgnoreEncodingLoss', localize('saveAnyway', "Save Anyway"));
+
+		this.sourceVersionId = this.modelService.getModel(source)?.getAlternativeVersionId();
 	}
 
 	override async run(): Promise<void> {
@@ -470,6 +476,12 @@ class SaveAsIgnoreEncodingLossAction extends Action {
 			// edits made to it since: save it as it is rather than copying the
 			// source over it again
 			if (!await targetModel.save({ ...options, from: source, ignoreEncodingLoss: true, reason: SaveReason.EXPLICIT })) {
+				return;
+			}
+
+			// The source was edited after the "Save As" was refused: the target
+			// does not hold these edits, so keep the source dirty and open
+			if (this.modelService.getModel(source)?.getAlternativeVersionId() !== this.sourceVersionId) {
 				return;
 			}
 
