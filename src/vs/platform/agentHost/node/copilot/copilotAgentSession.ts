@@ -6176,7 +6176,7 @@ export class CopilotAgentSession extends Disposable {
 	private async _reopenCanvas(wrapper: CopilotSessionWrapper, projection: ICopilotCanvasProjection): Promise<void> {
 		const { instanceId, extensionId, canvasId } = projection.canvas;
 		const stopwatch = StopWatch.create();
-		// A restored extension that starts may ask for consent, which a turn shows.
+		// A restored extension that starts may ask for consent, which a turn or a client that opens the canvas shows.
 		const consentShownBefore = this._extensionConsentShownCount(extensionId);
 		const askedForConsent = () => this._extensionConsentShownCount(extensionId) > consentShownBefore;
 		const extension = await this._readCanvasOpenExtension(wrapper, extensionId);
@@ -6185,6 +6185,7 @@ export class CopilotAgentSession extends Disposable {
 			return;
 		}
 		let reopened: Awaited<ReturnType<CopilotSession['rpc']['canvas']['open']>> | undefined;
+		const consentWatch = this._leaveRestoredCanvasToClientsOnUnaskedConsent(projection, extension);
 		// A runtime that just launched can list a canvas before its extension registers it, which a change reports. Other
 		// extensions report changes too, so each change allows another attempt until one deadline.
 		const deadline = Date.now() + this._controlPlaneRpcTimeoutMs;
@@ -6204,6 +6205,7 @@ export class CopilotAgentSession extends Disposable {
 					&& !this._store.isDisposed && this._wrapper === wrapper && this._isCurrentCanvasProjection(projection)) {
 					continue;
 				}
+				consentWatch.dispose();
 				this._reportCanvasHostOpen('restore', extension, stopwatch, this._store.isDisposed ? 'cancelled' : this._extensionConsentDenialFor(extensionId) ? 'consentDenied' : getCanvasOpenFailure(error) ?? 'error', askedForConsent());
 				this._logService.warn(`[Copilot:${this.sessionId}] Failed to reopen a restored canvas: ${getErrorMessage(error)}`);
 				return;
@@ -6211,6 +6213,7 @@ export class CopilotAgentSession extends Disposable {
 				registryChanged.cancel();
 			}
 		}
+		consentWatch.dispose();
 		this._reportCanvasHostOpen('restore', extension, stopwatch, reopened ? 'opened' : 'timeout', askedForConsent());
 		if (!reopened) {
 			this._logService.warn(`[Copilot:${this.sessionId}] Reopening a restored canvas did not finish within ${this._controlPlaneRpcTimeoutMs}ms`);
@@ -6220,6 +6223,29 @@ export class CopilotAgentSession extends Disposable {
 		if (!this._store.isDisposed && this._wrapper === wrapper && this._isCurrentCanvasProjection(projection)) {
 			this._projectOpenedCanvas(reopened);
 		}
+	}
+
+	/**
+	 * Leaves a restored canvas to clients once its reopen waits for a consent request that no turn or client shows.
+	 * The runtime holds the reopen until the request is answered, and a background reopen cannot ask anyone; a client
+	 * opens a canvas its chat lacks, which asks for the request, as it opens the canvases a resume restored.
+	 */
+	private _leaveRestoredCanvasToClientsOnUnaskedConsent(projection: ICopilotCanvasProjection, extension: CanvasOpenExtension | undefined): IDisposable {
+		const { instanceId, extensionId, canvasId } = projection.canvas;
+		const request: IAgentCanvasOpenRequest = { instanceId, extensionId, canvasId };
+		const leaveIfUnasked = () => {
+			// A turn in progress shows the request once it is ready.
+			if (this._store.isDisposed || this._currentTurn.value || !this._isCurrentCanvasProjection(projection)
+				|| ![...this._extensionConsentGates.values()].some(gate => !gate.decision.isSettled && !gate.presentedToClient && this._canvasOpenWaitsFor(request, extension, gate))) {
+				return;
+			}
+			this._logService.info(`[Copilot:${this.sessionId}] A restored canvas waits for extension consent that nobody was asked; leaving it for a client to open: extension=${extensionId}`);
+			this._canvasByInstanceId.delete(instanceId);
+			this._ignoredRestoredCanvasInstanceIds.add(instanceId);
+			this._publishCanvases();
+		};
+		leaveIfUnasked();
+		return this._onDidAddExtensionConsentGate.event(leaveIfUnasked);
 	}
 
 	private _flushDeferredCanvasCloses(wrapper: CopilotSessionWrapper): Promise<void> {

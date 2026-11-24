@@ -8,7 +8,7 @@ import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { disposableTimeout } from '../../../../base/common/async.js';
 import { Event } from '../../../../base/common/event.js';
 import { Disposable, IReference, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, derived, IObservable, IReader, ITransaction, observableFromEvent, observableSignalFromEvent, observableValue, transaction } from '../../../../base/common/observable.js';
+import { autorun, derived, IObservable, IReader, ITransaction, observableFromEvent, observableSignalFromEvent, observableValue, subtransaction, transaction } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { hasKey } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -162,9 +162,12 @@ class PinnedCanvas extends Disposable implements IPinnedCanvas {
 		this.lastResource = resource;
 		this.lastBound = resource;
 		this.liveReference.value = live;
-		this.liveCanvas.set(live?.object, tx);
-		this.boundResource.set(resource, tx);
-		this.missing.set(false, tx);
+		// A pin shown while it binds another canvas lifetime must never present the new canvas under the old reference.
+		subtransaction(tx, tx => {
+			this.liveCanvas.set(live?.object, tx);
+			this.boundResource.set(resource, tx);
+			this.missing.set(false, tx);
+		});
 	}
 
 	/** Drops the live observation, which lets its session be released, but remembers the canvas to resume it. */
