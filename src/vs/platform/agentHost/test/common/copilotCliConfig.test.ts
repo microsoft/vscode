@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { CopilotCliConfigKey, copilotCliConfigSchema, normalizeCopilotPolicyHelperConfig, normalizeModelFamilyAlias, normalizeSkillCharBudget, resolveModelCapabilityOverrideField, type CopilotCliModelCapabilityOverrides } from '../../common/copilotCliConfig.js';
+import { CopilotCliConfigKey, copilotCliConfigSchema, normalizeCopilotPolicyHelperConfig, normalizeCopilotPolicyHelperFailureMode, normalizeModelFamilyAlias, normalizeSkillCharBudget, resolveModelCapabilityOverrideField, type CopilotCliModelCapabilityOverrides } from '../../common/copilotCliConfig.js';
 import { reasoningEffortLevels } from '../../common/reasoningEffort.js';
 
 suite('copilotCliConfig', () => {
@@ -87,6 +87,29 @@ suite('copilotCliConfig', () => {
 		].map(value => copilotCliConfigSchema.validate(CopilotCliConfigKey.PolicyHelper, value)), [
 			false, false, false, false, true, true, true, true, false, false,
 		]);
+	});
+
+	test('preserves bounded integer policy helper timeouts without supplying a runtime default', () => {
+		assert.deepStrictEqual([
+			undefined, 1, 5000, 30_000, 0, -1, 30_001, 1.5, Number.NaN, Number.POSITIVE_INFINITY, '30000', null,
+		].map(timeoutMs => normalizeCopilotPolicyHelperConfig({ path: 'helper', timeoutMs })), [
+			{ path: 'helper', args: [] },
+			{ path: 'helper', args: [], timeoutMs: 1 },
+			{ path: 'helper', args: [], timeoutMs: 5000 },
+			{ path: 'helper', args: [], timeoutMs: 30_000 },
+			undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined,
+		]);
+	});
+
+	test('accepts only exact policy helper failure modes and a serializable root reset', () => {
+		const values = [undefined, null, '', 'ignore', 'failClosed', 'failclosed', ' failClosed ', true, {}];
+		assert.deepStrictEqual({
+			normalized: values.map(normalizeCopilotPolicyHelperFailureMode),
+			valid: values.map(value => copilotCliConfigSchema.validate(CopilotCliConfigKey.PolicyHelperFailureMode, value)),
+		}, {
+			normalized: [undefined, undefined, undefined, 'ignore', 'failClosed', undefined, undefined, undefined, undefined],
+			valid: [false, false, true, true, true, false, false, false, false],
+		});
 	});
 
 	test('skill character budget schema defaults to 30000', () => {

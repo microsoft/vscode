@@ -41,6 +41,8 @@ export const enum CopilotCliConfigKey {
 	RuntimePath = 'runtimePath',
 	/** Copilot runtime policy helper executable. An empty path disables it. */
 	PolicyHelper = 'policyHelper',
+	/** Local fallback for the runtime's policy helper failure mode. Empty removes the environment override. */
+	PolicyHelperFailureMode = 'policyHelperFailureMode',
 	/** Requested M365 account-choice rollout value, not the startup-effective account/service mode. */
 	M365Enabled = 'm365Enabled',
 	/** Enable the rubber duck critic subagent. */
@@ -115,18 +117,31 @@ export const AgentHostCopilotRuntimePathSettingId = 'chat.agentHost.copilot.runt
 
 export const AgentHostCopilotPolicyHelperSettingId = 'chat.agentHost.copilot.policyHelper';
 
+export const AgentHostCopilotPolicyHelperFailureModeSettingId = 'chat.agentHost.copilot.policyHelperFailureMode';
+
+export type CopilotPolicyHelperFailureMode = 'ignore' | 'failClosed';
+
+/** Returns only failure modes supported by the runtime environment contract. */
+export function normalizeCopilotPolicyHelperFailureMode(value: unknown): CopilotPolicyHelperFailureMode | undefined {
+	return value === 'ignore' || value === 'failClosed' ? value : undefined;
+}
+
 /** Policy helper executable for the Copilot runtime, subject to device and server policy precedence. */
 export interface ICopilotPolicyHelperConfig {
 	readonly path: string;
 	readonly args?: readonly string[];
+	readonly timeoutMs?: number;
 }
 
-/** Normalizes policy helper arguments and treats invalid or empty paths as unset. */
+/** Normalizes policy helper registration and treats invalid or empty values as unset. */
 export function normalizeCopilotPolicyHelperConfig(value: unknown): ICopilotPolicyHelperConfig | undefined {
 	if (!copilotCliConfigSchema.validate(CopilotCliConfigKey.PolicyHelper, value) || !value.path.trim()) {
 		return undefined;
 	}
-	return { path: value.path, args: value.args ?? [] };
+	if (value.timeoutMs !== undefined && (!Number.isInteger(value.timeoutMs) || value.timeoutMs < 1 || value.timeoutMs > 30_000)) {
+		return undefined;
+	}
+	return { path: value.path, args: value.args ?? [], ...(value.timeoutMs === undefined ? {} : { timeoutMs: value.timeoutMs }) };
 }
 
 export const CopilotClaudeAdvisorEnabledSettingId = 'chat.copilot.claudeAdvisor.enabled';
@@ -302,8 +317,20 @@ export const copilotCliConfigSchema = createSchema({
 				title: localize('agentHost.config.copilotPolicyHelper.args.title', "Arguments"),
 				description: localize('agentHost.config.copilotPolicyHelper.args.description', "Arguments passed to the policy helper executable."),
 			},
+			timeoutMs: {
+				type: 'number',
+				title: localize('agentHost.config.copilotPolicyHelper.timeoutMs.title', "Timeout"),
+				description: localize('agentHost.config.copilotPolicyHelper.timeoutMs.description', "Timeout for one helper run, in whole milliseconds from 1 through 30000. If omitted, the runtime uses 5000 milliseconds."),
+			},
 		},
 		required: ['path'],
+	}),
+	[CopilotCliConfigKey.PolicyHelperFailureMode]: schemaProperty<CopilotPolicyHelperFailureMode | ''>({
+		type: 'string',
+		title: localize('agentHost.config.copilotPolicyHelperFailureMode.title', "Copilot Policy Helper Failure Mode"),
+		description: localize('agentHost.config.copilotPolicyHelperFailureMode.description', "Local fallback for policy helper failures. Device and server policies take precedence. Empty removes the environment override. Requires a runtime that supports COPILOT_CLI_POLICY_HELPER_FAILURE_MODE. Changes restart the runtime after active turns and subagents finish."),
+		enum: ['', 'ignore', 'failClosed'],
+		default: '',
 	}),
 	[CopilotCliConfigKey.M365Enabled]: schemaProperty<boolean>({
 		type: 'boolean',

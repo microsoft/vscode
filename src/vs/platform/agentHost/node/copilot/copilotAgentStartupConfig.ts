@@ -5,7 +5,7 @@
 
 import { equals } from '../../../../base/common/objects.js';
 import type { IAgentHostManagedSettingsPermissions } from '../../common/agentHostManagedSettings.js';
-import { DEFAULT_COPILOT_EXECUTION_SUBAGENT_MODEL, type CopilotSdkLogLevelSetting } from '../../common/copilotCliConfig.js';
+import { DEFAULT_COPILOT_EXECUTION_SUBAGENT_MODEL, type CopilotPolicyHelperFailureMode, type CopilotSdkLogLevelSetting } from '../../common/copilotCliConfig.js';
 
 export class CopilotAgentStartupConfig {
 	constructor(
@@ -34,6 +34,7 @@ export class CopilotAgentStartupConfig {
 		readonly browserUse = false,
 		/** `chat.copilot.modelRouter.enabled`: routers ask a decision model, which needs the runtime's DECISIONS_API flag. */
 		readonly decisionsApi = false,
+		readonly policyHelperFailureMode: CopilotPolicyHelperFailureMode | undefined = undefined,
 	) { }
 
 	equals(other: CopilotAgentStartupConfig): boolean {

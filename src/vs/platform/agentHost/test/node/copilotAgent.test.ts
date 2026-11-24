@@ -9596,14 +9596,20 @@ suite('CopilotAgent', () => {
 			target.discardActiveTurn();
 			const subagent = stub(target, 'hasActiveSubagents').get(() => true);
 			disposables.add(toDisposable(() => subagent.restore()));
-			configurationService.updateRootConfig({ [CopilotCliConfigKey.PolicyHelper]: { path: '/opt/policy-helper' } });
+			configurationService.updateRootConfig({
+				[CopilotCliConfigKey.PolicyHelper]: { path: '/opt/policy-helper', timeoutMs: 30_000 },
+				[CopilotCliConfigKey.PolicyHelperFailureMode]: 'failClosed',
+			});
 			await agent.chats.sendMessage(chat, 'busy', [directory], undefined, 'second', undefined, context);
 			target.discardActiveTurn();
 			const deferredStops = clients.filter((_client, index) => options[index].github?.token !== undefined).map(client => client.stopCallCount);
 			subagent.restore();
 			await agent.chats.sendMessage(chat, 'idle', [directory], undefined, 'third', undefined, context);
 			chatEntriesBySdkId(agent).get(launches.at(-1)!.sessionId)!.chatSession.discardActiveTurn();
-			configurationService.updateRootConfig({ [CopilotCliConfigKey.PolicyHelper]: { path: '' } });
+			configurationService.updateRootConfig({
+				[CopilotCliConfigKey.PolicyHelper]: { path: '' },
+				[CopilotCliConfigKey.PolicyHelperFailureMode]: '',
+			});
 			await agent.chats.sendMessage(chat, 'removed', [directory], undefined, 'fourth', undefined, context);
 
 			assert.deepStrictEqual({
@@ -9612,12 +9618,14 @@ suite('CopilotAgent', () => {
 				kinds: launches.map(launch => launch.kind),
 				oldSends: launches[0].runtime.sendCalls,
 				helpers: options.filter(option => option.github?.token !== undefined).map(option => option.runtime?.env?.COPILOT_CLI_POLICY_HELPER),
+				modes: options.filter(option => option.github?.token !== undefined).map(option => option.runtime?.env?.COPILOT_CLI_POLICY_HELPER_FAILURE_MODE),
 			}, {
 				deferredStops: [0],
 				stops: [1, 1, 0],
 				kinds: ['create', 'resume', 'resume'],
 				oldSends: 2,
-				helpers: [undefined, '{"path":"/opt/policy-helper","args":[]}', undefined],
+				helpers: [undefined, '{"path":"/opt/policy-helper","args":[],"timeoutMs":30000}', undefined],
+				modes: [undefined, 'failClosed', undefined],
 			});
 		});
 
@@ -16751,16 +16759,16 @@ suite('CopilotAgent', () => {
 			};
 			const flags = ['EXISTING', 'OTHER', 'DYNAMIC_AUTO_TIERS'];
 			assert.deepStrictEqual(await Promise.all([
-				undefined, { path: '/opt/policy-helper' }, { path: '/opt/policy-helper', args: ['--mode', 'copilot'] }, { path: '   ' },
+				undefined, { path: '/opt/policy-helper' }, { path: '/opt/policy-helper', args: ['--mode', 'copilot'], timeoutMs: 30_000 }, { path: '   ' },
 			].map(launchEnv)), [
 				{ flags, helper: undefined, ambient: undefined },
 				{ flags: [...flags, 'POLICY_HELPER'], helper: '{"path":"/opt/policy-helper","args":[]}', ambient: undefined },
-				{ flags: [...flags, 'POLICY_HELPER'], helper: '{"path":"/opt/policy-helper","args":["--mode","copilot"]}', ambient: undefined },
+				{ flags: [...flags, 'POLICY_HELPER'], helper: '{"path":"/opt/policy-helper","args":["--mode","copilot"],"timeoutMs":30000}', ambient: undefined },
 				{ flags, helper: undefined, ambient: undefined },
 			]);
 		});
 
-		test('restarts for policy helper addition, path and argument changes, and removal, but not equivalent values', async () => {
+		test('restarts for policy helper addition, path, argument and timeout changes, and removal, but not equivalent values', async () => {
 			const client = new TestCopilotClient([]);
 			const { agent, configurationService } = createTestAgentContext(disposables, { copilotClient: client });
 			afterTest(() => disposeAgent(agent));
@@ -16770,6 +16778,9 @@ suite('CopilotAgent', () => {
 				{ args: [], path: '/opt/helper' },
 				{ path: '/opt/helper', args: ['--first'] },
 				{ path: '/opt/helper', args: ['--second'] },
+				{ path: '/opt/other', args: ['--second'] },
+				{ timeoutMs: 30_000, args: ['--second'], path: '/opt/other' },
+				{ path: '/opt/other', args: ['--second'], timeoutMs: 30_000 },
 				{ path: '/opt/other', args: ['--second'] },
 				{ path: '' },
 				undefined,
@@ -16787,10 +16798,53 @@ suite('CopilotAgent', () => {
 					'{"path":"/opt/helper","args":["--first"]}',
 					'{"path":"/opt/helper","args":["--second"]}',
 					'{"path":"/opt/other","args":["--second"]}',
+					'{"path":"/opt/other","args":["--second"],"timeoutMs":30000}',
+					'{"path":"/opt/other","args":["--second"]}',
 					undefined,
 				],
-				stops: 5,
+				stops: 7,
 			});
+		});
+
+		test('restarts for policy helper failure mode set, change and removal and strips inherited overrides', async () => {
+			const client = new TestCopilotClient([]);
+			const { agent, configurationService } = createTestAgentContext(disposables, { copilotClient: client });
+			const ambient = {
+				COPILOT_CLI_POLICY_HELPER_FAILURE_MODE: 'failClosed',
+				copilot_cli_policy_helper_failure_mode: 'ignore',
+			};
+			const environment = stub(agent as unknown as { _createCopilotCliEnvironment(): Record<string, string | undefined> }, '_createCopilotCliEnvironment')
+				.callsFake(() => ({ ...ambient }));
+			try {
+				await agent.listChatsToMigrate();
+				for (const value of ['failClosed', 'failClosed', 'ignore', '', undefined]) {
+					configurationService.updateRootConfig({ [CopilotCliConfigKey.PolicyHelperFailureMode]: value });
+					await agent.listChatsToMigrate();
+				}
+				assert.deepStrictEqual({
+					environments: getCreatedClientOptions(agent).map(options => ({
+						mode: options.runtime?.env?.COPILOT_CLI_POLICY_HELPER_FAILURE_MODE,
+						otherCase: options.runtime?.env?.copilot_cli_policy_helper_failure_mode,
+					})),
+					stops: client.stopCallCount,
+					ambient,
+				}, {
+					environments: [
+						{ mode: undefined, otherCase: undefined },
+						{ mode: 'failClosed', otherCase: undefined },
+						{ mode: 'ignore', otherCase: undefined },
+						{ mode: undefined, otherCase: undefined },
+					],
+					stops: 3,
+					ambient: {
+						COPILOT_CLI_POLICY_HELPER_FAILURE_MODE: 'failClosed',
+						copilot_cli_policy_helper_failure_mode: 'ignore',
+					},
+				});
+			} finally {
+				await disposeAgent(agent);
+				environment.restore();
+			}
 		});
 
 		test('uses the captured policy helper during startup and retries a stale snapshot', async () => {
@@ -16808,19 +16862,27 @@ suite('CopilotAgent', () => {
 			const { agent, configurationService } = createTestAgentContext(disposables, {
 				copilotClient: client,
 				proxyResolver,
-				rootConfig: { [CopilotCliConfigKey.PolicyHelper]: { path: '/opt/first' } },
+				rootConfig: {
+					[CopilotCliConfigKey.PolicyHelper]: { path: '/opt/first' },
+					[CopilotCliConfigKey.PolicyHelperFailureMode]: 'ignore',
+				},
 			});
 			const startup = agent.listChatsToMigrate();
 			try {
 				await requested.p;
-				configurationService.updateRootConfig({ [CopilotCliConfigKey.PolicyHelper]: { path: '/opt/second' } });
+				configurationService.updateRootConfig({
+					[CopilotCliConfigKey.PolicyHelper]: { path: '/opt/second' },
+					[CopilotCliConfigKey.PolicyHelperFailureMode]: 'failClosed',
+				});
 				pending.complete([]);
 				await startup;
 				assert.deepStrictEqual({
 					helpers: getCreatedClientOptions(agent).map(options => options.runtime?.env?.COPILOT_CLI_POLICY_HELPER),
+					modes: getCreatedClientOptions(agent).map(options => options.runtime?.env?.COPILOT_CLI_POLICY_HELPER_FAILURE_MODE),
 					stops: client.stopCallCount,
 				}, {
 					helpers: ['{"path":"/opt/first","args":[]}', '{"path":"/opt/second","args":[]}'],
+					modes: ['ignore', 'failClosed'],
 					stops: 1,
 				});
 			} finally {
@@ -18386,10 +18448,10 @@ suite('CopilotAgent', () => {
 			});
 		});
 
-		for (const change of ['addition', 'arguments', 'removal'] as const) {
+		for (const change of ['addition', 'arguments', 'timeout', 'removal'] as const) {
 			test(`defers policy helper ${change} until an in-flight turn ends`, async () => {
 				const initial = change === 'addition' ? undefined : { path: '/opt/helper' };
-				const updated = change === 'removal' ? { path: '' } : { path: '/opt/helper', args: ['--updated'] };
+				const updated = change === 'removal' ? { path: '' } : change === 'timeout' ? { path: '/opt/helper', timeoutMs: 30_000 } : { path: '/opt/helper', args: ['--updated'] };
 				const client = new StopCountingClient([]);
 				const { agent, configurationService } = createTestAgentContext(disposables, {
 					copilotClient: client,
@@ -18413,10 +18475,40 @@ suite('CopilotAgent', () => {
 				}, {
 					duringTurn: { stopCount: 0, disposed: false },
 					afterTurn: { stopCount: 1, disposed: true },
-					helper: change === 'removal' ? undefined : '{"path":"/opt/helper","args":["--updated"]}',
+					helper: change === 'removal' ? undefined : change === 'timeout' ? '{"path":"/opt/helper","args":[],"timeoutMs":30000}' : '{"path":"/opt/helper","args":["--updated"]}',
 				});
 			});
 		}
+
+		test('defers policy helper failure mode set, change and removal until in-flight turns end', async () => {
+			const client = new StopCountingClient([]);
+			const { agent, configurationService } = createTestAgentContext(disposables, { copilotClient: client });
+			afterTest(() => disposeAgent(agent));
+			await agent.listChatsToMigrate();
+			const changes = [];
+			for (const mode of ['failClosed', 'ignore', '']) {
+				const chat = busyChatStub();
+				setDefaultSessionStub(agent, 'busy-helper-mode', chat);
+				const stopsBefore = client.stopCallCount;
+				configurationService.updateRootConfig({ [CopilotCliConfigKey.PolicyHelperFailureMode]: mode });
+				await timeout(0);
+				const duringTurn = { stops: client.stopCallCount - stopsBefore, disposed: chat.disposed };
+				chat.hasActiveTurn = false;
+				reportChatTurnEnded(agent);
+				await client.waitForCalls(() => client.stopCallCount === stopsBefore + 1);
+				await agent.listChatsToMigrate();
+				changes.push({
+					duringTurn,
+					afterTurn: { stops: client.stopCallCount - stopsBefore, disposed: chat.disposed },
+					mode: getCreatedClientOptions(agent).at(-1)?.runtime?.env?.COPILOT_CLI_POLICY_HELPER_FAILURE_MODE,
+				});
+			}
+			assert.deepStrictEqual(changes, ['failClosed', 'ignore', undefined].map(mode => ({
+				duringTurn: { stops: 0, disposed: false },
+				afterTurn: { stops: 1, disposed: true },
+				mode,
+			})));
+		});
 
 		test('applies local index changes after the active turn finishes', async () => {
 			const client = new StopCountingClient([]);
