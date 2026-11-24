@@ -259,6 +259,7 @@ suite('dependencyReleaseAge', () => {
 			'minimumReleaseAge: 7d\n',
 			'minimumReleaseAge: [10080]\n',
 			'minimumReleaseAge: 10000000000000000\n',
+			'minimumReleaseAge: 10080\nminimumReleaseAgeExclude: [true, 123]\n',
 			'minimumReleaseAge: 10080\nminimumReleaseAgeExclude: electron\n',
 			'minimumReleaseAge: 10080\nminimumReleaseAgeExclude:\n  - {electron: true}\n',
 			'minimumReleaseAge: 10080\nminimumReleaseAgeExclude: [\n',
@@ -278,10 +279,25 @@ suite('dependencyReleaseAge', () => {
 			npmrc: registryConfigurationProblems('a/.npmrc', 'registry=https://registry.npmjs.org/\n@vscode:registry = "https://registry.npmjs.org"\n//registry.npmjs.org/:_authToken=x\n@corp:registry=https://mirror.example.com/\n'),
 			workspace: registryConfigurationProblems('pnpm-workspace.yaml', 'minimumReleaseAge: 10080\nregistries:\n  default: https://mirror.example.com/\n'),
 			plain: registryConfigurationProblems('pnpm-workspace.yaml', 'minimumReleaseAge: 10080\n'),
+			// INI decodes quoted keys, so these set the registry too, and a section or an unreadable line fails.
+			quoted: registryConfigurationProblems('.npmrc', '"registry"=https://mirror.example.com/\n"\\u0072egistry" = https://mirror.example.com/\n[section]\n'),
+			// Cargo source replacement and patches, but not the target settings of the repository.
+			cargo: [
+				registryConfigurationProblems('cli/.cargo/config.toml', fs.readFileSync(path.join(repositoryRoot, 'cli/.cargo/config.toml'), 'utf8')),
+				registryConfigurationProblems('.cargo/config.toml', '[source.crates-io]\nreplace-with = "mirror"\n'),
+				registryConfigurationProblems('.cargo/config', '[patch.crates-io]\nserde = { git = "https://github.com/owner/serde" }\n'),
+				registryConfigurationProblems('.cargo/config.toml', '["\\u0073ource".crates-io]\n'),
+			].map(problems => problems.length),
 		}, {
 			npmrc: ['a/.npmrc sets @corp:registry to https://mirror.example.com/. Dependencies must come from registry.npmjs.org.'],
 			workspace: ['pnpm-workspace.yaml sets registries, which routes packages to registries that this check doesn\'t read. Dependencies must come from registry.npmjs.org.'],
 			plain: [],
+			quoted: [
+				'.npmrc sets registry to https://mirror.example.com/. Dependencies must come from registry.npmjs.org.',
+				'.npmrc sets registry to https://mirror.example.com/. Dependencies must come from registry.npmjs.org.',
+				'.npmrc has a line that this check can\'t read: [section]',
+			],
+			cargo: [0, 1, 1, 1],
 		});
 	});
 
@@ -380,6 +396,22 @@ suite('dependencyReleaseAge', () => {
 		]);
 		await assert.rejects(registry.release('npm', 'down', '1.0.0'), /GET https:\/\/registry\.npmjs\.org\/down failed: HTTP 500/);
 		assert.strictEqual(requests.filter(url => url.endsWith('@scope%2Fname')).length, 2);
+	});
+
+	test('keeps to one crates.io request per second, retries included', async () => {
+		const starts: number[] = [];
+		let first = true;
+		const registry = createPublicRegistry(async () => {
+			starts.push(Date.now());
+			if (first) {
+				first = false;
+				return { status: 500, body: undefined };
+			}
+			return { status: 200, body: { version: { created_at: '2026-09-01T00:00:00Z' } } };
+		}, [0]);
+		await Promise.all([registry.release('crates', 'a', '1.0.0'), registry.release('crates', 'b', '1.0.0')]);
+		assert.strictEqual(starts.length, 3);
+		assert.ok(starts.slice(1).every((start, index) => start - starts[index] >= 990), JSON.stringify(starts));
 	});
 
 	test('reads the pnpm version of the packageManager field', () => {

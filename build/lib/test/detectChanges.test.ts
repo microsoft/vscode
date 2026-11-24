@@ -302,10 +302,11 @@ suite('Detect Changes', () => {
 			dependencies('build/pnpm-workspace.yaml'),
 			dependencies('remote/.pnpmfile.mjs'),
 			dependencies('build/.npmrc'),
+			dependencies('cli/.cargo/config.toml'),
 			dependencies('package.json'),
 			dependencies('extensions/git/package.json'),
 			dependencies('src/vs/base/common/async.ts'),
-		]), ['true', 'true', 'true', 'true', 'true', 'true', 'true', 'true', 'false', 'false']);
+		]), ['true', 'true', 'true', 'true', 'true', 'true', 'true', 'true', 'true', 'false', 'false']);
 	});
 
 	test('both sides of a rename participate in selection', async () => {

@@ -125,6 +125,7 @@ interface IYaml {
 	load(text: string, options: { readonly schema: unknown }): unknown;
 	loadAll(text: string, iterator: undefined, options: { readonly schema: unknown }): unknown[];
 	readonly FAILSAFE_SCHEMA: unknown;
+	readonly CORE_SCHEMA: unknown;
 }
 
 const yaml: IYaml = await import(process.env.DEPENDENCY_RELEASE_AGE_JS_YAML ? pathToFileURL(process.env.DEPENDENCY_RELEASE_AGE_JS_YAML).href : 'js-yaml') as IYaml;
@@ -373,6 +374,11 @@ export function parseLockfile(file: string, text: string): ILockedPackage[] {
 	}
 }
 
+/** pnpm-workspace.yaml, .npmrc and Cargo configuration files, which can route packages to other registries. */
+export function isRegistryConfiguration(file: string): boolean {
+	return /(^|\/)(pnpm-workspace\.yaml|\.npmrc|\.cargo\/config(\.toml)?)$/.test(file);
+}
+
 /** The pnpm-workspace.yaml settings that route packages to registries, from which pnpm rebuilds tarball URLs. */
 const PNPM_REGISTRY_SETTINGS = ['registry', 'registries', 'namedRegistries', 'pnprServer'];
 
@@ -381,13 +387,37 @@ const PNPM_REGISTRY_SETTINGS = ['registry', 'registries', 'namedRegistries', 'pn
  * most packages, so the check reads them as registry.npmjs.org packages only while nothing routes them to another one.
  */
 export function registryConfigurationProblems(file: string, text: string): string[] {
-	if (path.posix.basename(file) === '.npmrc') {
-		return text.split(/\r?\n/)
-			.map(line => /^\s*((?:@[^:\s]+:)?registry)\s*=\s*(.*?)\s*$/.exec(line))
-			.filter(match => match !== null && !/^https:\/\/registry\.npmjs\.org\/?$/.test(match[2].replace(/^["']|["']$/g, '')))
-			.map(match => `${file} sets ${match![1]} to ${match![2]}. Dependencies must come from registry.npmjs.org.`);
+	const basename = path.posix.basename(file);
+	if (basename === '.npmrc') {
+		const problems: string[] = [];
+		for (const line of text.split(/\r?\n/)) {
+			if (/^\s*([;#].*)?$/.test(line)) {
+				continue;
+			}
+			// npm and pnpm read .npmrc as INI, which decodes quoted keys and values, and nests keys under [sections].
+			const setting = /^\s*([^=]*?)\s*=\s*(.*?)\s*$/.exec(line);
+			if (!setting) {
+				problems.push(`${file} has a line that this check can't read: ${line}`);
+				continue;
+			}
+			const key = decodeIniString(setting[1]);
+			if (key === undefined || /registry/i.test(key) && !/^(@[^:\s]+:)?registry$/.test(key) && !/^\/\/[^\s]*:_/.test(key)) {
+				problems.push(`${file} has a registry setting that this check can't read: ${setting[1]}`);
+			} else if (/^(@[^:\s]+:)?registry$/.test(key) && !/^https:\/\/registry\.npmjs\.org\/?$/.test(decodeIniString(setting[2]) ?? '')) {
+				problems.push(`${file} sets ${key} to ${setting[2]}. Dependencies must come from registry.npmjs.org.`);
+			}
+		}
+		return problems;
 	}
-	const settings = yaml.load(text, { schema: yaml.FAILSAFE_SCHEMA }) ?? {};
+	if (basename === 'config' || basename === 'config.toml') {
+		// Cargo source replacement or patches in .cargo/config(.toml) can fetch crates that Cargo.lock still lists as coming
+		// from crates.io. The check doesn't read TOML, so any of these words, or an escape that could spell one, fails it.
+		const content = text.split(/\r?\n/).filter(line => !/^\s*#/.test(line)).join('\n');
+		return /\b(source|registry|registries|replace-with|patch|paths)\b|\\[uU]/.test(content)
+			? [`${file} may replace or patch where Cargo downloads crates from, which this check doesn't read. Dependencies must come from crates.io.`]
+			: [];
+	}
+	const settings = yaml.load(text, { schema: yaml.CORE_SCHEMA }) ?? {};
 	if (!isRecord(settings)) {
 		return [`${file} is not a mapping`];
 	}
@@ -395,24 +425,39 @@ export function registryConfigurationProblems(file: string, text: string): strin
 		.map(setting => `${file} sets ${setting}, which routes packages to registries that this check doesn't read. Dependencies must come from registry.npmjs.org.`);
 }
 
+/** Decodes an INI key or value as npm reads it: a double-quoted string as JSON, a single-quoted one as is. */
+function decodeIniString(value: string): string | undefined {
+	const trimmed = value.trim();
+	if (trimmed.startsWith('"')) {
+		try {
+			const decoded: unknown = JSON.parse(trimmed);
+			return typeof decoded === 'string' ? decoded : undefined;
+		} catch {
+			return undefined;
+		}
+	}
+	return trimmed.startsWith('\'') ? (trimmed.endsWith('\'') && trimmed.length > 1 ? trimmed.slice(1, -1) : undefined) : trimmed;
+}
+
 /**
  * Reads `minimumReleaseAge` and `minimumReleaseAgeExclude` from a pnpm-workspace.yaml. Throws when they are set to something
  * else than a number of minutes and a list of strings, so that a policy the check cannot read fails it.
  */
 export function parseReleaseAgePolicy(text: string, file: string): IReleaseAgePolicy {
-	const settings = yaml.load(text, { schema: yaml.FAILSAFE_SCHEMA }) ?? {};
+	// The YAML types that pnpm reads, so that `[true, 123]` isn't a list of strings.
+	const settings = yaml.load(text, { schema: yaml.CORE_SCHEMA }) ?? {};
 	if (!isRecord(settings)) {
 		throw new Error(`${file} is not a mapping`);
 	}
 	const { minimumReleaseAge, minimumReleaseAgeExclude } = settings;
-	// A bounded number of minutes, so that the dates it gives stay valid.
-	if (minimumReleaseAge !== undefined && (typeof minimumReleaseAge !== 'string' || !/^\d{1,8}$/.test(minimumReleaseAge))) {
+	// A bounded whole number of minutes, so that the dates it gives stay valid.
+	if (minimumReleaseAge !== undefined && (typeof minimumReleaseAge !== 'number' || !Number.isSafeInteger(minimumReleaseAge) || minimumReleaseAge < 0 || minimumReleaseAge > 99_999_999)) {
 		throw new Error(`cannot read the minimumReleaseAge of ${file}: ${JSON.stringify(minimumReleaseAge)}`);
 	}
-	if (minimumReleaseAgeExclude !== undefined && (!Array.isArray(minimumReleaseAgeExclude) || !minimumReleaseAgeExclude.every(item => typeof item === 'string'))) {
+	if (minimumReleaseAgeExclude !== undefined && minimumReleaseAgeExclude !== null && (!Array.isArray(minimumReleaseAgeExclude) || !minimumReleaseAgeExclude.every(item => typeof item === 'string'))) {
 		throw new Error(`cannot read the minimumReleaseAgeExclude of ${file}: ${JSON.stringify(minimumReleaseAgeExclude)}`);
 	}
-	return { minimumReleaseAge: minimumReleaseAge === undefined ? undefined : Number(minimumReleaseAge), exclude: (minimumReleaseAgeExclude ?? []) as string[], file };
+	return { minimumReleaseAge, exclude: (minimumReleaseAgeExclude ?? []) as string[], file };
 }
 function globToRegExp(glob: string): RegExp {
 	return new RegExp(`^${glob.split('*').map(part => part.replace(/[.+?^${}()|[\]\\/]/g, '\\$&')).join('.*')}$`);
@@ -548,11 +593,12 @@ export function createPublicRegistry(get: FetchJson = fetchJson, retryDelaysMs =
 	const cratesLimit = createLimiter(1, 1_000);
 	const packuments = new Map<string, Promise<{ readonly versions?: Record<string, unknown>; readonly time?: Record<string, string> } | undefined>>();
 
-	const getWithRetries = async (url: string, headers: Record<string, string>) => {
+	// Each attempt, including retries, waits for its turn, so that retries keep to the limit too.
+	const getWithRetries = async (url: string, headers: Record<string, string>, limit: <T>(task: () => Promise<T>) => Promise<T>) => {
 		for (let attempt = 0; ; attempt++) {
 			let error: string;
 			try {
-				const { status, body } = await get(url, headers);
+				const { status, body } = await limit(() => get(url, headers));
 				if (status === 404) {
 					return undefined;
 				}
@@ -575,17 +621,17 @@ export function createPublicRegistry(get: FetchJson = fetchJson, retryDelaysMs =
 			if (ecosystem === 'npm') {
 				let packument = packuments.get(name);
 				if (!packument) {
-					packument = npmLimit(() => getWithRetries(`${NPM_REGISTRY}${name.replace('/', '%2F')}`, { accept: 'application/json' })) as Promise<{ readonly versions?: Record<string, unknown>; readonly time?: Record<string, string> } | undefined>;
+					packument = getWithRetries(`${NPM_REGISTRY}${name.replace('/', '%2F')}`, { accept: 'application/json' }, npmLimit) as Promise<{ readonly versions?: Record<string, unknown>; readonly time?: Record<string, string> } | undefined>;
 					packuments.set(name, packument);
 				}
 				const { time, versions } = (await packument) ?? {};
 				const published = versions?.[version] ? time?.[version] : undefined;
 				return published ? { kind: 'published', publishedAt: new Date(published) } : { kind: 'notFound' };
 			}
-			const body = await cratesLimit(() => getWithRetries(`https://crates.io/api/v1/crates/${encodeURIComponent(name)}/${encodeURIComponent(version)}`, {
+			const body = await getWithRetries(`https://crates.io/api/v1/crates/${encodeURIComponent(name)}/${encodeURIComponent(version)}`, {
 				'accept': 'application/json',
 				'user-agent': 'microsoft/vscode dependency release age check (https://github.com/microsoft/vscode)',
-			})) as { readonly version?: { readonly created_at?: string } } | undefined;
+			}, cratesLimit) as { readonly version?: { readonly created_at?: string } } | undefined;
 			const created = body?.version?.created_at;
 			return created ? { kind: 'published', publishedAt: new Date(created) } : { kind: 'notFound' };
 		},
@@ -684,7 +730,7 @@ export async function checkRevisions(base: string, head: string, registry: IRegi
 	// A change to a policy is read, so that one the check can't read fails it, and reported. The check applies the
 	// stricter of the base and the head policies (see stricterPolicy).
 	// Every registry configuration of the head, whether or not this change edits it, as it applies to every lockfile.
-	for (const file of git(cwd, 'ls-tree', '-r', '-z', '--name-only', head).split('\0').filter(file => ['pnpm-workspace.yaml', '.npmrc'].includes(path.posix.basename(file)))) {
+	for (const file of git(cwd, 'ls-tree', '-r', '-z', '--name-only', head).split('\0').filter(isRegistryConfiguration)) {
 		try {
 			problems.push(...registryConfigurationProblems(file, readAt(cwd, head, file) ?? ''));
 		} catch (error) {

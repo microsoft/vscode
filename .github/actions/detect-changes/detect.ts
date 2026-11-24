@@ -79,7 +79,7 @@ const rules: readonly IChangeRule[] = [
 		// packageManager field of package.json (see build/lib/dependencyReleaseAge.ts).
 		output: 'dependencies',
 		paths: [
-			/(^|\/)(pnpm-lock\.yaml|package-lock\.json|Cargo\.lock|pnpm-workspace\.yaml|\.pnpmfile\.mjs|\.npmrc)$/,
+			/(^|\/)(pnpm-lock\.yaml|package-lock\.json|Cargo\.lock|pnpm-workspace\.yaml|\.pnpmfile\.mjs|\.npmrc|\.cargo\/config(\.toml)?)$/,
 			'package.json',
 			'build/lib/dependencyReleaseAge.ts',
 		],
