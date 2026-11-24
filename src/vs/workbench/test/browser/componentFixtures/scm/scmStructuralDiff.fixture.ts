@@ -24,7 +24,7 @@ export default defineThemedFixtureGroup({ path: 'scm/' }, {
 		labels: { kind: 'screenshot' },
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 		expectedVisualDescriptions: [
-			'A class named Calculator contains a changed calculate method, an added newMethod, and a deleted oldMethod. Only the expanded Calculator class has a twistie. The methods and the warning row cannot expand, so like files next to folders in the Explorer they have no twistie, and their icons start in the twistie column. The changed method has a muted impl annotation without brackets aligned on the right, immediately before its M status marker. The signature stays beside the method name. The class and method icons use their respective Outline symbol theme colors, with normal Source Control row spacing. The single-letter M, A, and D status markers align on the right, using the corresponding Git decoration theme colors, dimmed like file badges. Added/deleted methods have no change-part annotation, and the unchanged Calculator container has neither an annotation nor a status marker. A warning row below the class says Partial structural changes.',
+			'A class named Calculator contains a changed calculate method, an added newMethod, and a deleted oldMethod. Only the expanded Calculator class shows a chevron. The methods cannot expand but, like in the Outline view, keep an empty twistie column, so their icons are indented to the right of the Calculator class icon. The warning row keeps the same empty twistie column, so its icon aligns with the Calculator class icon. The changed method has a muted impl annotation without brackets aligned on the right, immediately before its M status marker. The signature stays beside the method name. The class and method icons use their respective Outline symbol theme colors, with normal Source Control row spacing. The single-letter M, A, and D status markers align on the right, using the corresponding Git decoration theme colors, dimmed like file badges. Added/deleted methods have no change-part annotation, and the unchanged Calculator container has neither an annotation nor a status marker. A warning row below the class says Partial structural changes.',
 		],
 		render: context => renderStructuralChanges(context),
 	}),
@@ -72,7 +72,7 @@ export default defineThemedFixtureGroup({ path: 'scm/' }, {
 		labels: { kind: 'screenshot' },
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 		expectedVisualDescriptions: [
-			'Two rows say Unable to load structural changes and Structural changes took too long to load. Each has the same warning icon as the partial-results row, in the regular foreground color, and neither row has a twistie, an annotation, or a status marker.',
+			'Two rows say Unable to load structural changes and Structural changes took too long to load. Each has the same warning icon as the partial-results row, in the regular foreground color, after an empty twistie column without a chevron, and neither row has an annotation or a status marker.',
 		],
 		render: context => renderStructuralDiffTree(context, 360, [createStatus('error', 0), createStatus('timedOut', 1)]),
 	}),
@@ -129,9 +129,11 @@ function renderStructuralChanges(context: ComponentFixtureContext, { width = 360
 function renderStructuralDiffTree(context: ComponentFixtureContext, width: number, elements: readonly SCMStructuralDiffElement[], selection?: SCMStructuralDiffElement): void {
 	const { container, disposableStore, theme, fileIconTheme } = context;
 	const instantiationService = createEditorServices(disposableStore, { colorTheme: theme });
-	// The SCM view in list mode hides the twisties of rows that cannot expand when the file icon theme has file icons
+	// Like the Explorer, the SCM view in tree mode hides the twisties of rows that cannot expand when the file icon theme
+	// has file but no folder icons, like Seti, but structural rows keep the twistie space to indent children under their
+	// parent's icon
 	container.classList.add('scm-view', 'file-icon-themable-tree');
-	container.classList.toggle('align-icons-and-twisties', fileIconTheme.hasFileIcons);
+	container.classList.toggle('align-icons-and-twisties', fileIconTheme.hasFileIcons && !fileIconTheme.hasFolderIcons);
 	container.style.width = `${width}px`;
 	container.style.fontSize = 'var(--vscode-fontSize-body1)';
 	setGitDecorationColors(container);
@@ -144,6 +146,7 @@ function renderStructuralDiffTree(context: ComponentFixtureContext, width: numbe
 		keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: getSCMStructuralDiffLabel },
 		accessibilityProvider: { getWidgetAriaLabel: () => 'Structural changes', getAriaLabel: getSCMStructuralDiffAriaLabel },
 		horizontalScrolling: false,
+		twistieAdditionalCssClass: () => 'force-twistie',
 	}));
 	tree.style(getListStyles({}));
 	// As in the SCM view, only symbols with children can expand
