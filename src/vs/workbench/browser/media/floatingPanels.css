@@ -369,6 +369,13 @@
 	padding-bottom: var(--vscode-spacing-size20);
 }
 
+/* A status bar painted with the shell color merges with the gap above it, so center its
+ * items in that combined band. `matches-shell-background` is set by statusbarPart.ts. */
+.monaco-workbench.floating-panels .part.statusbar.matches-shell-background {
+	padding-top: calc(var(--vscode-spacing-size20) - var(--modern-ui-floating-card-statusbar-margin) / 2);
+	padding-bottom: calc(var(--vscode-spacing-size20) + var(--modern-ui-floating-card-statusbar-margin) / 2);
+}
+
 .monaco-workbench.floating-panels .part.statusbar:not(:focus).status-border-top::after {
 	display: none;
 }

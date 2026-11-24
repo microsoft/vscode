@@ -10,7 +10,7 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAgentHostConnectionsService, IAgentHostConnectionInfo } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
-import { assignHostSandboxProfile, readHostSandboxProfile } from '../../../../../../platform/agentHost/common/sandboxProfiles.js';
+import { assignHostSandboxProfile, readHostSandboxProfile, readSandboxProfileAssignments, rememberSandboxProfileAssignment } from '../../../../../../platform/agentHost/common/sandboxProfiles.js';
 import { TestSandboxProfilesHost } from '../../../../../../platform/agentHost/test/common/sandboxProfilesTestUtils.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { AgentNetworkDomainSettingId } from '../../../../../../platform/networkFilter/common/settings.js';
@@ -154,25 +154,38 @@ suite('Sandbox profiles editor', () => {
 		});
 	});
 
-	test('a profile in use by a connected remote environment cannot be deleted; disconnected hosts keep their copy', async () => {
+	test('a profile assigned to a remote environment cannot be deleted, including after the host disconnects, until it is unassigned', async () => {
 		const build = host();
-		const offline = host();
-		const hosts: Record<string, TestSandboxProfilesHost | undefined> = { build, other: host(), offline: undefined };
+		const hosts: Record<string, TestSandboxProfilesHost | undefined> = { build, other: host() };
 		const { storage, open } = setup(hosts);
 		const input = open();
 		const strict = await create(input, 'Strict');
 		assignHostSandboxProfile(build, strict);
-		assignHostSandboxProfile(offline, strict);
-		const inUse = { hosts: input.hostsUsingProfile(strict.id), deleted: input.deleteProfile(strict.id), library: readSandboxProfiles(storage).map(p => p.name) };
+		const connected = { hosts: input.hostsUsingProfile(strict.id), deleted: input.deleteProfile(strict.id) };
+		hosts.build = undefined;
+		input.dispose();
+		const reopened = open();
+		const disconnected = { hosts: reopened.hostsUsingProfile(strict.id), deleted: reopened.deleteProfile(strict.id) };
+		// Another device clears the assignment while this machine is offline: the last-known assignment still blocks deletion.
 		assignHostSandboxProfile(build, undefined);
-		const unassigned = { deleted: input.deleteProfile(strict.id), library: readSandboxProfiles(storage).map(p => p.name), selected: input.draft?.name };
-		hosts.offline = offline;
-		assert.deepStrictEqual({ inUse, unassigned, offlineCopy: readHostSandboxProfile(offline)?.name }, {
-			inUse: { hosts: ['build'], deleted: false, library: ['Strict'] },
-			unassigned: { deleted: true, library: [], selected: undefined },
-			// Only connected hosts are checked; a host that was disconnected keeps using its own copy.
-			offlineCopy: 'Strict',
+		const changedWhileOffline = reopened.deleteProfile(strict.id);
+		hosts.build = build;
+		const reconnected = { deleted: reopened.deleteProfile(strict.id), library: readSandboxProfiles(storage) };
+		assert.deepStrictEqual({ connected, disconnected, changedWhileOffline, reconnected }, {
+			connected: { hosts: ['build'], deleted: false },
+			disconnected: { hosts: ['build'], deleted: false },
+			changedWhileOffline: false,
+			reconnected: { deleted: true, library: [] },
 		});
+	});
+
+	test('unavailable host state keeps the last-known assignment; only Default clears it', () => {
+		const { storage } = setup();
+		rememberSandboxProfileAssignment(storage, 'ssh:build', 'Build', { id: 'strict', name: 'Strict', sandbox: {} });
+		rememberSandboxProfileAssignment(storage, 'ssh:build', 'Build', undefined);
+		const unavailable = readSandboxProfileAssignments(storage).map(assignment => assignment.profile.id);
+		rememberSandboxProfileAssignment(storage, 'ssh:build', 'Build', null);
+		assert.deepStrictEqual({ unavailable, cleared: readSandboxProfileAssignments(storage) }, { unavailable: ['strict'], cleared: [] });
 	});
 
 	test('edits of a profile deleted in another window are not saved and do not bring it back', async () => {

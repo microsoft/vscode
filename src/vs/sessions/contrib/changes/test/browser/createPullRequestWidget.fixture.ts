@@ -42,7 +42,8 @@ const details: ISessionPullRequestDetails = {
 interface IFixtureOptions {
 	readonly loading?: boolean;
 	readonly draft?: boolean;
-	readonly mergeMode?: 'Agent Merge' | 'Auto-Merge';
+	readonly mergeMode?: 'Agent Merge' | 'Autopilot' | 'Auto-Merge';
+	readonly artifactIntegrations?: boolean;
 	readonly generationError?: boolean;
 	readonly creationError?: boolean;
 	readonly creating?: boolean;
@@ -97,6 +98,7 @@ async function render({ container, disposableStore, theme }: ComponentFixtureCon
 				agentMergeOptions: options.agentMergeOptions ?? details.agentMergeOptions,
 				...(options.generationError ? { title: '', description: '', generationError: 'The generation service is unavailable.' } : {}),
 				...(options.restrictedRepository ? { autoMergeAllowed: false, agentMergeAvailable: false, agentMergeOptions: undefined, mergeMethods: [] } : {}),
+				...(options.artifactIntegrations ? { agentMergeAvailable: false, agentMergeOptions: undefined, autopilotAvailable: true } : {}),
 			}),
 			create: async () => {
 				if (options.creationError) {
@@ -110,6 +112,7 @@ async function render({ container, disposableStore, theme }: ComponentFixtureCon
 		branchName: options.header?.branchName ?? details.branchName,
 		baseBranchName: options.header?.baseBranchName ?? details.baseBranchName,
 		initialDraft: options.draft,
+		artifactIntegrations: options.artifactIntegrations,
 		preferences: preferences.read(),
 		onDidChangePreferences: change => preferences.update(change),
 		sendToChat: async () => { },
@@ -175,6 +178,8 @@ export default defineThemedFixtureGroup({ path: 'sessions/createPullRequest' }, 
 	AgentMergeCustom: defineComponentFixture({ render: context => render(context, { mergeMode: 'Agent Merge', agentMergeOptions: { addressReviews: false, fixCI: true, resolveConflicts: false, mergePullRequest: 'ifUnchanged' } }) }),
 	AgentMergeNarrow: defineComponentFixture({ render: context => render(context, { mergeMode: 'Agent Merge', narrow: true }) }),
 	DraftWithAgentMerge: defineComponentFixture({ render: context => render(context, { draft: true, mergeMode: 'Agent Merge' }) }),
+	Autopilot: defineComponentFixture({ render: context => render(context, { artifactIntegrations: true, mergeMode: 'Autopilot' }), additionalThemes: ['darkHighContrast', 'lightHighContrast'] }),
+	DraftWithAutopilot: defineComponentFixture({ render: context => render(context, { artifactIntegrations: true, draft: true, mergeMode: 'Autopilot' }) }),
 	AutoMerge: defineComponentFixture({ render: context => render(context, { mergeMode: 'Auto-Merge' }), additionalThemes: ['darkHighContrast', 'lightHighContrast'] }),
 	Narrow: defineComponentFixture({ render: context => render(context, { narrow: true, mergeMode: 'Auto-Merge' }) }),
 	GenerationFailed: defineComponentFixture({ render: context => render(context, { generationError: true }) }),

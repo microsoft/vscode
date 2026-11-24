@@ -276,7 +276,7 @@ export class SandboxProfilesEditor extends EditorPane {
 		const showInUse = async (hosts: readonly string[]) => {
 			await this._dialogs.info(
 				localize('deleteInUse', "Sandbox profile '{0}' can't be deleted because it is in use.", row.name),
-				localize('deleteInUseDetail', "It is assigned to these remote environments: {0}. Choose another profile or Default for them in Remote Environments, then delete it.", hosts.join(', ')),
+				localize('deleteInUseDetail', "It is assigned to these remote environments: {0}. Disconnected environments count by their last-known assignment. Connect and choose another profile or Default for them in Remote Environments, then delete it.", hosts.join(', ')),
 			);
 		};
 		const hosts = input.hostsUsingProfile(row.id);
@@ -287,7 +287,7 @@ export class SandboxProfilesEditor extends EditorPane {
 		if ((await this._dialogs.confirm({
 			type: 'warning',
 			message: localize('deletePrompt', "Delete sandbox profile '{0}'?", row.name),
-			detail: localize('deleteDetail', "This removes the profile from this machine. Disconnected hosts using it keep their own copy."),
+			detail: localize('deleteDetail', "This removes the profile from this machine."),
 			primaryButton: localize('deleteButton', "&&Delete"),
 		})).confirmed) {
 			if (input.deleteProfile(row.id)) {

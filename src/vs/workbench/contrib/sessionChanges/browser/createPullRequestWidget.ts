@@ -27,13 +27,37 @@ import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { gitHubPullRequestArtifactOptions } from '../../../../platform/agentHost/common/githubPullRequestArtifact.js';
+import { ArtifactAutomationOption } from '../../../../platform/artifactIntegrations/common/artifactIntegration.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { defaultButtonStyles, defaultCheckboxStyles, defaultInputBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
-import { ISessionPullRequestAgentMergeOptions, ISessionPullRequestChatOptions, ISessionPullRequestCreation, ISessionPullRequestDetails, ISessionPullRequestOptions, SessionPullRequestMergeMethod } from '../../sessions/common/pullRequestCreation.js';
+import { ISessionPullRequestAgentMergeOptions, ISessionPullRequestAutopilotOptions, ISessionPullRequestChatOptions, ISessionPullRequestCreation, ISessionPullRequestDetails, ISessionPullRequestOptions, SessionPullRequestMergeMethod } from '../../sessions/common/pullRequestCreation.js';
 import { CreatePullRequestAction, CreatePullRequestMergeMode, ICreatePullRequestPreferences } from '../../sessions/common/createPullRequestPreferences.js';
 
 type AgentMergeRepairAction = Exclude<keyof ISessionPullRequestAgentMergeOptions, 'mergePullRequest'>;
+type AutopilotRule = Exclude<keyof ISessionPullRequestAutopilotOptions, 'merge'>;
+type AutopilotMergePolicy = ISessionPullRequestAutopilotOptions['merge'];
 const agentMergePolicies = ['never', 'ifUnchanged', 'always'] as const;
+const defaultAutopilotOptions: ISessionPullRequestAutopilotOptions = {
+	addressReviews: true,
+	fixCI: true,
+	resolveConflicts: true,
+	markReady: false,
+	merge: 'never',
+};
+
+/** Autopilot controls use the wording of the pull request integration's own Autopilot rules. */
+function getAutopilotOption(id: keyof ISessionPullRequestAutopilotOptions): ArtifactAutomationOption {
+	const option = gitHubPullRequestArtifactOptions.find(option => option.id === id);
+	if (!option) {
+		throw new Error(`Unknown Autopilot rule: ${id}`);
+	}
+	return option;
+}
+
+function isAutopilotMergePolicy(value: string): value is AutopilotMergePolicy {
+	return value === 'never' || value === 'ifUnchanged' || value === 'always';
+}
 
 export interface ICreatePullRequestFormContent {
 	readonly title?: string;
@@ -46,6 +70,11 @@ export interface ICreatePullRequestWidgetOptions {
 	readonly chat?: URI;
 	readonly branchName?: string;
 	readonly baseBranchName?: string;
+	/**
+	 * Whether artifact integrations apply to the session, in which case Agent Merge is unavailable and is not offered
+	 * while preparation is loading. Autopilot is offered only once preparation confirms the host supports it.
+	 */
+	readonly artifactIntegrations?: boolean;
 	readonly initialDraft?: boolean;
 	readonly initialContent?: ICreatePullRequestFormContent;
 	readonly sendToChat?: (options: ISessionPullRequestChatOptions) => Promise<void>;
@@ -81,6 +110,11 @@ export class CreatePullRequestWidget extends Disposable {
 	private readonly agentMergeCheckboxes: Record<AgentMergeRepairAction, Checkbox>;
 	private readonly agentMergePolicyRadio: Radio;
 	private readonly agentMergePolicyDescription: HTMLElement;
+	private readonly autopilotSection: HTMLElement;
+	private readonly autopilotCheckboxes: Record<AutopilotRule, Checkbox>;
+	private readonly autopilotMergeRadio: Radio;
+	private readonly autopilotMergePolicies: readonly AutopilotMergePolicy[];
+	private readonly autopilotMergeDescription: HTMLElement;
 	private readonly mergeMethodSection: HTMLElement;
 	private readonly mergeMethodRadio: Radio;
 	private readonly mergeMethodDescription: HTMLElement;
@@ -101,6 +135,7 @@ export class CreatePullRequestWidget extends Disposable {
 	private mergeMethod: SessionPullRequestMergeMethod = 'SQUASH';
 	private agentMergePolicy: ISessionPullRequestAgentMergeOptions['mergePullRequest'] = 'never';
 	private agentMergeOptionsEdited = false;
+	private autopilotMerge: ISessionPullRequestAutopilotOptions['merge'] = 'never';
 	private loading = true;
 	private submitting = false;
 	private titleEdited = false;
@@ -218,6 +253,8 @@ export class CreatePullRequestWidget extends Disposable {
 			this.options.onDidChangePreferences?.({ mergeMode: this.preferredMergeMode });
 			if (this.mergeMode === 'agent' && this.details?.agentMergeOptions) {
 				this.saveAgentMergePreferences();
+			} else if (this.mergeMode === 'autopilot') {
+				this.saveAutopilotPreferences();
 			}
 			this.updateMergeDescription();
 		}));
@@ -227,8 +264,8 @@ export class CreatePullRequestWidget extends Disposable {
 			'aria-label': localize('createPR.agentMergeOptions', "Agent Merge configuration for this session"),
 		}));
 		const repairActions = dom.append(this.agentMergeOptionsSection, dom.$('.create-pr-agent-merge-actions'));
-		const createRepairCheckbox = (label: string, description: string): Checkbox => {
-			const row = dom.append(repairActions, dom.$('.create-pr-agent-merge-option'));
+		const createRuleCheckbox = (container: HTMLElement, label: string, description: string, onChange: () => void): Checkbox => {
+			const row = dom.append(container, dom.$('.create-pr-agent-merge-option'));
 			const checkbox = this._register(new Checkbox('', false, defaultCheckboxStyles));
 			checkbox.domNode.setAttribute('aria-label', label);
 			row.appendChild(checkbox.domNode);
@@ -245,24 +282,31 @@ export class CreatePullRequestWidget extends Disposable {
 				if (checkbox.enabled) {
 					checkbox.checked = !checkbox.checked;
 					checkbox.focus();
-					this.saveAgentMergePreferences();
+					onChange();
 				}
 			}));
-			this._register(checkbox.onChange(() => this.saveAgentMergePreferences()));
+			this._register(checkbox.onChange(() => onChange()));
 			return checkbox;
 		};
+		const saveAgentMerge = () => this.saveAgentMergePreferences();
 		this.agentMergeCheckboxes = {
-			addressReviews: createRepairCheckbox(
+			addressReviews: createRuleCheckbox(
+				repairActions,
 				localize('createPR.addressReviews', "Address Reviews"),
 				localize('createPR.addressReviewsHint', "Agent Merge will automatically ask the agent to address feedback when the pull request has unresolved review comments."),
+				saveAgentMerge,
 			),
-			fixCI: createRepairCheckbox(
+			fixCI: createRuleCheckbox(
+				repairActions,
 				localize('createPR.fixCI', "Fix CI Failures"),
 				localize('createPR.fixCIHint', "Agent Merge will automatically ask the agent to investigate and fix failures when required CI checks fail."),
+				saveAgentMerge,
 			),
-			resolveConflicts: createRepairCheckbox(
+			resolveConflicts: createRuleCheckbox(
+				repairActions,
 				localize('createPR.resolveConflicts', "Resolve Conflicts and Behind Branches"),
 				localize('createPR.resolveConflictsHint', "Agent Merge will automatically ask the agent to update the source branch when it has merge conflicts or falls behind the base branch."),
+				saveAgentMerge,
 			),
 		};
 		dom.append(this.agentMergeOptionsSection, dom.$('.create-pr-label', undefined, localize('createPR.agentMergePolicy', "Merge Pull Request")));
@@ -286,6 +330,45 @@ export class CreatePullRequestWidget extends Disposable {
 			this.applyAgentMergeOptions(options.preferences.agentMergeOptions);
 			this.agentMergeOptionsEdited = true;
 		}
+
+		this.autopilotSection = dom.append(body, dom.$('.create-pr-field.create-pr-autopilot', {
+			role: 'group',
+			'aria-label': localize('createPR.autopilotOptions', "Autopilot rules for the new pull request"),
+		}));
+		const autopilotRules = dom.append(this.autopilotSection, dom.$('.create-pr-agent-merge-actions'));
+		const saveAutopilot = () => {
+			this.saveAutopilotPreferences();
+			this.updateMergeDescription();
+		};
+		const createAutopilotRule = (rule: AutopilotRule): Checkbox => {
+			const option = getAutopilotOption(rule);
+			return createRuleCheckbox(autopilotRules, option.label, option.description, saveAutopilot);
+		};
+		this.autopilotCheckboxes = {
+			addressReviews: createAutopilotRule('addressReviews'),
+			fixCI: createAutopilotRule('fixCI'),
+			resolveConflicts: createAutopilotRule('resolveConflicts'),
+			markReady: createAutopilotRule('markReady'),
+		};
+		const mergeOption = getAutopilotOption('merge');
+		const mergeChoices = mergeOption.kind === 'enum'
+			? mergeOption.choices.flatMap(choice => isAutopilotMergePolicy(choice.value) ? [{ value: choice.value, label: choice.label }] : [])
+			: [];
+		this.autopilotMergePolicies = mergeChoices.map(choice => choice.value);
+		dom.append(this.autopilotSection, dom.$('.create-pr-label', undefined, mergeOption.label));
+		this.autopilotMergeRadio = this._register(new Radio({
+			ariaLabel: mergeOption.label,
+			items: mergeChoices.map(choice => ({ text: choice.label, isActive: choice.value === defaultAutopilotOptions.merge })),
+		}));
+		this.autopilotSection.appendChild(this.autopilotMergeRadio.domNode);
+		this.autopilotMergeDescription = dom.append(this.autopilotSection, dom.$('.create-pr-hint', { id: `${id}-autopilot-merge-hint` }));
+		this.autopilotMergeRadio.domNode.setAttribute('aria-describedby', `${id}-autopilot-merge-hint`);
+		this._register(this.autopilotMergeRadio.onDidSelect(index => {
+			this.autopilotMerge = this.autopilotMergePolicies[index];
+			this.saveAutopilotPreferences();
+			this.updateMergeDescription();
+		}));
+		this.applyAutopilotOptions(options.preferences?.autopilotOptions ?? defaultAutopilotOptions);
 
 		this.mergeMethodSection = dom.append(body, dom.$('.create-pr-field'));
 		dom.append(this.mergeMethodSection, dom.$('.create-pr-label', undefined, localize('createPR.mergeMethod', "Merge method")));
@@ -482,16 +565,30 @@ export class CreatePullRequestWidget extends Disposable {
 	private updateMergeOptions(): void {
 		const focusedRadio = [this.mergeModeRadio, this.mergeMethodRadio].find(radio => radio.domNode.contains(dom.getActiveElement()));
 		const autoMergeAllowed = (this.details?.autoMergeAllowed ?? this.loading) && !this.draftCheckbox.checked && this.mergeMethods.length > 0;
-		const agentMergeAvailable = this.details?.agentMergeAvailable ?? this.loading;
+		const agentMergeAvailable = this.details?.agentMergeAvailable ?? (this.loading && this.options.artifactIntegrations !== true);
+		// Older hosts ignore Autopilot choices, and hosts without integrations reject them.
+		const autopilotAvailable = this.details?.autopilotAvailable === true;
 		const autoMergeUnavailableReason = autoMergeAllowed && !this.loading ? undefined : this.getAutoMergeUnavailableReason();
 		this.mergeMode = this.preferredMergeMode;
-		if ((this.mergeMode === 'auto' && !autoMergeAllowed) || (this.mergeMode === 'agent' && !agentMergeAvailable)) {
+		// Autopilot replaces Agent Merge where artifact integrations are enabled, so either stands in for the other.
+		if (this.mergeMode === 'agent' && !agentMergeAvailable && autopilotAvailable) {
+			this.mergeMode = 'autopilot';
+		} else if (this.mergeMode === 'autopilot' && !autopilotAvailable && agentMergeAvailable) {
+			this.mergeMode = 'agent';
+		}
+		if ((this.mergeMode === 'auto' && !autoMergeAllowed) || (this.mergeMode === 'agent' && !agentMergeAvailable) || (this.mergeMode === 'autopilot' && !autopilotAvailable)) {
 			this.mergeMode = 'manual';
 		}
-		this.mergeModes = agentMergeAvailable ? ['manual', 'agent', 'auto'] : ['manual', 'auto'];
+		this.mergeModes = [
+			'manual',
+			...(agentMergeAvailable ? ['agent'] as const : []),
+			...(autopilotAvailable ? ['autopilot'] as const : []),
+			'auto',
+		];
 		const labels: Record<CreatePullRequestMergeMode, string> = {
 			manual: localize('createPR.manual', "Merge Manually"),
 			agent: localize('createPR.agentMerge', "Agent Merge"),
+			autopilot: localize('createPR.autopilot', "Autopilot"),
 			auto: localize('createPR.autoMerge', "Auto-Merge"),
 		};
 		this.mergeModeRadio.setItems(this.mergeModes.map(mode => ({
@@ -561,13 +658,32 @@ export class CreatePullRequestWidget extends Disposable {
 			}
 		}
 		this.agentMergePolicyRadio.setEnabled(agentMergeControlsEnabled);
+		this.autopilotSection.hidden = this.mergeMode !== 'autopilot';
+		const markReadyRow = this.autopilotCheckboxes.markReady.domNode.parentElement;
+		if (markReadyRow) {
+			// Only a draft can be marked ready.
+			markReadyRow.hidden = !this.draftCheckbox.checked;
+		}
+		const autopilotControlsEnabled = !this.autopilotSection.hidden && !this.submitting;
+		for (const checkbox of Object.values(this.autopilotCheckboxes)) {
+			if (autopilotControlsEnabled) {
+				checkbox.enable();
+			} else {
+				checkbox.disable();
+			}
+		}
+		this.autopilotMergeRadio.setEnabled(autopilotControlsEnabled);
+		// The Autopilot rules shown below the options explain themselves.
+		this.mergeDescription.hidden = this.mergeMode === 'autopilot';
 		this.mergeDescription.textContent = this.mergeMode === 'agent'
 			? this.canConfigureAgentMerge
 				? localize('createPR.agentSessionHint', "Applied to this session on submission. Your choices are remembered for future pull requests. Additional agent usage may apply.")
 				: localize('createPR.agentConfigurationUnavailable', "Uses the session's existing Agent Merge settings. Update the agent host to configure them here.")
-			: this.mergeMode === 'auto'
-				? localize('createPR.autoHint', "GitHub merges when required checks and approvals pass. It does not fix failing checks or address reviews.")
-				: localize('createPR.manualHint', "You decide when to merge. No automatic fixes or merging.");
+			: this.mergeMode === 'autopilot'
+				? ''
+				: this.mergeMode === 'auto'
+					? localize('createPR.autoHint', "GitHub merges when required checks and approvals pass. It does not fix failing checks or address reviews.")
+					: localize('createPR.manualHint', "You decide when to merge. No automatic fixes or merging.");
 		const policyDescription = this.agentMergePolicy === 'never'
 			? localize('createPR.agentMergeNeverHint', "Leave the pull request open for you to merge.")
 			: this.agentMergePolicy === 'ifUnchanged'
@@ -576,6 +692,14 @@ export class CreatePullRequestWidget extends Disposable {
 		this.agentMergePolicyDescription.textContent = this.draftCheckbox.checked && this.agentMergePolicy !== 'never'
 			? localize('createPR.agentMergeDraftPolicyHint', "{0} Drafts can be marked ready automatically.", policyDescription)
 			: policyDescription;
+		const autopilotMergeDescription = this.autopilotMerge === 'never'
+			? localize('createPR.autopilotMergeNeverHint', "Leave the pull request open for you to merge.")
+			: this.autopilotMerge === 'ifUnchanged'
+				? localize('createPR.autopilotMergeUnchangedHint', "Merge when ready, but only if Autopilot made no changes. A repair that changes the pull request turns merging off.")
+				: getAutopilotOption('merge').description;
+		this.autopilotMergeDescription.textContent = this.draftCheckbox.checked && this.autopilotMerge !== 'never' && !this.autopilotCheckboxes.markReady.checked
+			? localize('createPR.autopilotMergeDraftHint', "{0} A draft is merged only after it is marked ready for review.", autopilotMergeDescription)
+			: autopilotMergeDescription;
 		this.updateMergeMethodDescription();
 		this.relayout();
 	}
@@ -638,6 +762,29 @@ export class CreatePullRequestWidget extends Disposable {
 		this.options.onDidChangePreferences?.({ agentMergeOptions: this.getAgentMergeOptions() });
 	}
 
+	private applyAutopilotOptions(options: ISessionPullRequestAutopilotOptions): void {
+		for (const rule of Object.keys(this.autopilotCheckboxes) as AutopilotRule[]) {
+			this.autopilotCheckboxes[rule].checked = options[rule];
+		}
+		this.autopilotMerge = options.merge;
+		this.autopilotMergeRadio.setActiveItem(this.autopilotMergePolicies.indexOf(this.autopilotMerge));
+	}
+
+	/** The rules as shown. Mark Ready is remembered for drafts but never requested for a pull request that is ready for review. */
+	private getAutopilotOptions(forSubmission = false): ISessionPullRequestAutopilotOptions {
+		return {
+			addressReviews: this.autopilotCheckboxes.addressReviews.checked,
+			fixCI: this.autopilotCheckboxes.fixCI.checked,
+			resolveConflicts: this.autopilotCheckboxes.resolveConflicts.checked,
+			markReady: this.autopilotCheckboxes.markReady.checked && (!forSubmission || this.draftCheckbox.checked),
+			merge: this.autopilotMerge,
+		};
+	}
+
+	private saveAutopilotPreferences(): void {
+		this.options.onDidChangePreferences?.({ autopilotOptions: this.getAutopilotOptions() });
+	}
+
 	private async submit(action = this.primaryAction): Promise<void> {
 		const sendToChat = this.options.sendToChat;
 		if (!this.isActionEnabled(action)) {
@@ -645,6 +792,7 @@ export class CreatePullRequestWidget extends Disposable {
 		}
 		const agentMergeOptions = this.details?.agentMergeOptions || (!this.details && this.loading && this.agentMergeOptionsEdited)
 			? this.getAgentMergeOptions() : undefined;
+		const autopilot = this.mergeMode === 'autopilot' ? this.getAutopilotOptions(true) : undefined;
 		this.primaryAction = action;
 		this.options.onDidChangePreferences?.({
 			...(sendToChat ? { primaryAction: action } : {}),
@@ -652,6 +800,7 @@ export class CreatePullRequestWidget extends Disposable {
 			mergeMode: this.preferredMergeMode,
 			mergeMethod: this.preferredMergeMethod,
 			...(agentMergeOptions ? { agentMergeOptions } : {}),
+			...(autopilot ? { autopilotOptions: this.getAutopilotOptions() } : {}),
 		});
 		const previouslyFocused = dom.getActiveElement();
 		const previouslyFocusedRadio = [this.mergeModeRadio, this.mergeMethodRadio].find(radio => radio.domNode.contains(previouslyFocused));
@@ -672,6 +821,7 @@ export class CreatePullRequestWidget extends Disposable {
 			draft: this.draftCheckbox.checked,
 			agentMerge: this.mergeMode === 'agent',
 			...(this.mergeMode === 'agent' && agentMergeOptions ? { agentMergeOptions } : {}),
+			...(autopilot ? { autopilot } : {}),
 			...(this.mergeMode === 'auto' ? { autoMergeMethod: this.mergeMethod } : {}),
 		};
 		const options: ISessionPullRequestOptions = {
@@ -747,6 +897,10 @@ export class CreatePullRequestWidget extends Disposable {
 				...(this.agentMergeOptionsSection.hidden ? [] : [
 					...Object.values(this.agentMergeCheckboxes).map(checkbox => checkbox.domNode),
 					...this.agentMergePolicyRadio.optionElements,
+				]),
+				...(this.autopilotSection.hidden ? [] : [
+					...Object.values(this.autopilotCheckboxes).filter(checkbox => !checkbox.domNode.parentElement?.hidden).map(checkbox => checkbox.domNode),
+					...this.autopilotMergeRadio.optionElements,
 				]),
 				...(this.mergeMethodSection.hidden ? [] : this.mergeMethodRadio.optionElements),
 				this.cancelButton.element,
