@@ -1053,7 +1053,7 @@ suite('AgentHostGitService - computeSessionFileDiffs (real git)', () => {
 		assert.ok(paths.some(p => p?.endsWith('b.txt')), `expected b.txt in diff; got ${paths.join(', ')}`);
 	});
 
-	(hasGit ? test : test.skip)('prefers origin base branch when local base branch is stale', async () => {
+	(hasGit ? test : test.skip)('diffs against the base branch exactly as recorded when its local and remote-tracking refs differ', async () => {
 		const fs = await import('fs/promises');
 		const { dir, run } = initRepo();
 		await fs.writeFile(join(dir, 'shared.txt'), 'base\n');
@@ -1074,15 +1074,16 @@ suite('AgentHostGitService - computeSessionFileDiffs (real git)', () => {
 		run('add', '.');
 		run('commit', '-q', '-m', 'feature');
 
-		const result = await svc!.computeSessionFileDiffs(URI.file(dir), { sessionUri: 'copilot:/s', baseBranch: 'main' });
-		assert.ok(result, 'expected diffs');
-		const paths = result.map(d => d.after?.uri ?? d.before?.uri);
+		const changedFiles = async (baseBranch: string) => (await svc!.computeSessionFileDiffs(URI.file(dir), { sessionUri: 'copilot:/s', baseBranch }))
+			?.map(diff => URI.parse(diff.after?.uri ?? diff.before!.uri).path.split('/').pop())
+			.sort();
+		// The local `main` is stale: it lacks the upstream commit that `origin/main` and the feature branch have.
 		assert.deepStrictEqual({
-			feature: paths.some(p => p?.endsWith('feature.txt')),
-			upstream: paths.some(p => p?.endsWith('upstream.txt')),
+			'origin/main': await changedFiles('origin/main'),
+			main: await changedFiles('main'),
 		}, {
-			feature: true,
-			upstream: false,
+			'origin/main': ['feature.txt'],
+			main: ['feature.txt', 'upstream.txt'],
 		});
 	});
 
