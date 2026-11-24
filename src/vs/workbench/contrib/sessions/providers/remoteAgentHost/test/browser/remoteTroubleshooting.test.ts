@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { RemoteAgentHostConnectionStatus } from '../../../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { formatSSHProxyCommandExit } from '../../../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { getRemoteTroubleshootingGuide } from '../../browser/remoteTroubleshooting.js';
 import { ICustomizationRemote, IRemoteTroubleshootingInfo, RemoteKind } from '../../browser/remotesModel.js';
 
@@ -106,8 +107,9 @@ suite('getRemoteTroubleshootingGuide', () => {
 			dns: failure('getaddrinfo ENOTFOUND build.example.com'),
 			network: failure('connect ETIMEDOUT 10.0.0.1:22'),
 			proxy: failure('SSH jump process exited with code 255'),
-			proxyNotFound: failure('SSH ProxyCommand exited (1): \'C:\\Program\' is not recognized as an internal or external command,\r\noperable program or batch file.'),
-			proxyNotFoundInOtherLanguage: failure('SSH ProxyCommand exited (127): sh: 1: corkscrew: introuvable'),
+			proxyNotFound: failure(`Connection lost before handshake (${formatSSHProxyCommandExit(1, '\'C:\\Program\' is not recognized as an internal or external command,\r\noperable program or batch file.')})`),
+			proxyNotFoundInOtherLanguage: failure(`Connection lost before handshake (${formatSSHProxyCommandExit(127, 'sh: 1: corkscrew: introuvable')})`),
+			proxyExited: failure(`Connection lost before handshake (${formatSSHProxyCommandExit(255, 'kex_exchange_identification: Connection closed by remote host')})`),
 			key: failure('Cannot parse privateKey: Encrypted private key detected, but no passphrase given'),
 			remoteSetup: failure('Timed out waiting for the newly spawned agent host to register itself after 10135ms (deadline 10000ms)', { ssh: { ...ssh, remoteLog: '.vscode-server/cli/agent-host-stable.log' } }),
 			remoteSetupWithoutLog: failure('Timed out waiting for the agent host to register'),
@@ -125,6 +127,7 @@ suite('getRemoteTroubleshootingGuide', () => {
 			proxy: { primary: 'retry', actions: ['openSSHConfig'], guidance: ['The ProxyJump or ProxyCommand configuration failed'], command: 'ssh -v -- build' },
 			proxyNotFound: { primary: 'retry', actions: ['openSSHConfig'], guidance: ['The ProxyCommand program couldn\'t be started'], command: 'ssh -v -- build' },
 			proxyNotFoundInOtherLanguage: { primary: 'retry', actions: ['openSSHConfig'], guidance: ['The ProxyCommand program couldn\'t be started'], command: 'ssh -v -- build' },
+			proxyExited: { primary: 'retry', actions: ['openSSHConfig'], guidance: ['The ProxyJump or ProxyCommand configuration failed'], command: 'ssh -v -- build' },
 			key: { primary: 'retry', actions: ['openSSHConfig'], guidance: ['The SSH key couldn\'t be used'], command: 'ssh -v -- build' },
 			remoteSetup: {
 				primary: 'retry', actions: ['openSSHConfig'],
