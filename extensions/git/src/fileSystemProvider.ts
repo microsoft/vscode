@@ -23,7 +23,7 @@ function sanitizeRef(ref: string, path: string, submoduleOf: string | undefined,
 	if (ref === '~') {
 		const fileUri = Uri.file(path);
 		const uriString = fileUri.toString();
-		const [indexStatus] = repository.sourceControl.indexGroup.resourceStates.filter(r => r.resourceUri.toString() === uriString);
+		const [indexStatus] = repository.indexChanges.filter(r => r.resourceUri.toString() === uriString);
 		return indexStatus ? '' : 'HEAD';
 	}
 

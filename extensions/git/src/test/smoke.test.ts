@@ -363,6 +363,134 @@ suite('git smoke test', function () {
 		}
 	});
 
+	test('the source control shows the status, commit messages and visibility of its repository', async function () {
+		const model = getModel();
+		const repositoryPath = await fs.promises.realpath(await fs.promises.mkdtemp(path.join(os.tmpdir(), 'git-smoke-')));
+		const runGit = (command: string) => cp.execSync(`git ${command}`, { cwd: repositoryPath, stdio: 'pipe' });
+		runGit('init -b main');
+		runGit('config user.name testuser');
+		runGit('config user.email monacotools@example.com');
+		runGit('config commit.gpgsign false');
+		fs.writeFileSync(path.join(repositoryPath, 'modified.txt'), 'one\n');
+		fs.writeFileSync(path.join(repositoryPath, 'staged.txt'), 'one\n');
+		fs.writeFileSync(path.join(repositoryPath, 'conflict.txt'), 'base\n');
+		runGit('add .');
+		runGit('commit -m "initial commit"');
+		fs.writeFileSync(path.join(repositoryPath, 'modified.txt'), 'two\n');
+		fs.writeFileSync(path.join(repositoryPath, 'staged.txt'), 'two\n');
+		runGit('add staged.txt');
+		fs.writeFileSync(path.join(repositoryPath, 'untracked.txt'), 'new\n');
+
+		try {
+			const apiRepository = (await git.openRepository(Uri.file(repositoryPath)))!;
+			const sourceControl = model.getRepository(repositoryPath)!.sourceControl;
+			const resources = (group: { resourceStates: { resourceUri: Uri; type: number }[] }) => group.resourceStates.map(r => `${path.basename(r.resourceUri.fsPath)}:${r.type}`).sort();
+
+			// Core puts the commit template into an empty input box on its own, so the input box is read only after
+			// the extension wrote it
+			const read = (withInputBox: boolean) => ({
+				merge: resources(sourceControl.mergeGroup),
+				index: resources(sourceControl.indexGroup),
+				workingTree: resources(sourceControl.workingTreeGroup),
+				untracked: resources(sourceControl.untrackedGroup),
+				count: sourceControl.sourceControl.count,
+				commitTemplate: sourceControl.sourceControl.commitTemplate,
+				...withInputBox ? { inputBox: sourceControl.sourceControl.inputBox.value } : {},
+				isHidden: sourceControl.sourceControl.isHidden,
+				// Commit hashes depend on the time of the commits
+				statusBarCommands: sourceControl.sourceControl.statusBarCommands?.map(c => c.title.replace(/\b[0-9a-f]{8}\b/, '<commit>')),
+				actionButton: sourceControl.sourceControl.actionButton?.command.title
+			});
+
+			const actual: Record<string, ReturnType<typeof read> & { inputBoxEnabled?: boolean[] }> = {};
+			await apiRepository.status();
+			actual.opened = read(false);
+
+			// The main thread sends each input box value back. A round trip to it makes sure that it sent back the
+			// draft before the commit resets the input box.
+			apiRepository.inputBox.value = 'draft';
+			await commands.getCommands();
+			const inputBoxEnabled: boolean[] = [];
+			const operationsListener = model.getRepository(repositoryPath)!.onDidChangeOperations(() => {
+				if (inputBoxEnabled.at(-1) !== sourceControl.sourceControl.inputBox.enabled) {
+					inputBoxEnabled.push(sourceControl.sourceControl.inputBox.enabled);
+				}
+			});
+			await apiRepository.commit('second commit');
+			operationsListener.dispose();
+			actual.committed = { ...read(true), inputBoxEnabled };
+
+			runGit('add .');
+			runGit('commit -m "work in progress"');
+			runGit('checkout -b topic');
+			fs.writeFileSync(path.join(repositoryPath, 'conflict.txt'), 'topic\n');
+			runGit('commit -am "topic change"');
+			runGit('checkout main');
+			fs.writeFileSync(path.join(repositoryPath, 'conflict.txt'), 'main\n');
+			runGit('commit -am "main change"');
+			runGit('checkout topic');
+			assert.throws(() => runGit('rebase main'));
+			await apiRepository.status();
+			actual.rebasing = read(true);
+
+			runGit('rebase --abort');
+			await apiRepository.status();
+			actual.rebaseAborted = read(true);
+
+			fs.writeFileSync(path.join(repositoryPath, '.git', 'template.txt'), 'subject from template\n');
+			runGit('config commit.template .git/template.txt');
+			await apiRepository.status();
+			actual.template = read(false);
+
+			model.getRepository(repositoryPath)!.setWarm(true);
+			actual.warm = read(false);
+			model.getRepository(repositoryPath)!.setWarm(false);
+			actual.shown = read(false);
+
+			const empty = { merge: [], index: [], workingTree: [], untracked: [], count: 0, commitTemplate: '', isHidden: false };
+			const onTopic = { ...empty, statusBarCommands: ['$(git-branch) topic', '$(cloud-upload)'], actionButton: '$(cloud-upload) Publish Branch' };
+			assert.deepStrictEqual(actual, {
+				opened: {
+					...empty,
+					index: [`staged.txt:${Status.INDEX_MODIFIED}`],
+					workingTree: [`modified.txt:${Status.MODIFIED}`, `untracked.txt:${Status.UNTRACKED}`],
+					count: 3,
+					statusBarCommands: ['$(git-branch-staged-changes) main*+', '$(cloud-upload)'],
+					actionButton: '$(check) Commit'
+				},
+				committed: {
+					...empty,
+					workingTree: [`modified.txt:${Status.MODIFIED}`, `untracked.txt:${Status.UNTRACKED}`],
+					count: 2,
+					inputBox: '',
+					statusBarCommands: ['$(git-branch-changes) main*', '$(cloud-upload)'],
+					actionButton: '$(check) Commit',
+					inputBoxEnabled: [false, true]
+				},
+				rebasing: {
+					...empty,
+					merge: [`conflict.txt:${Status.BOTH_MODIFIED}`],
+					count: 1,
+					commitTemplate: 'topic change',
+					inputBox: 'topic change',
+					statusBarCommands: ['$(git-commit) <commit>! (Rebasing)', '$(cloud-upload)'],
+					actionButton: '$(check) Continue'
+				},
+				rebaseAborted: { ...onTopic, inputBox: '' },
+				template: { ...onTopic, commitTemplate: 'subject from template' },
+				warm: { ...onTopic, commitTemplate: 'subject from template', isHidden: true },
+				shown: { ...onTopic, commitTemplate: 'subject from template' }
+			});
+		} finally {
+			const repository = model.getRepository(repositoryPath);
+			if (repository) {
+				model.close(repository);
+			}
+			// On Windows, the closed repository's watchers can hold the folder for a moment
+			await fs.promises.rm(repositoryPath, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
+		}
+	});
+
 	// diabled because of https://github.com/microsoft/vscode/issues/327142
 	test.skip('rename/delete conflict', async function () {
 		await commands.executeCommand('workbench.view.scm');

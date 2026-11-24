@@ -695,11 +695,11 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 			return;
 		}
 
-		const indexResource = repository.sourceControl.indexGroup.resourceStates
+		const indexResource = repository.indexChanges
 			.find(resource => pathEquals(resource.resourceUri.fsPath, textEditor.document.uri.fsPath));
-		const workingTreeResource = repository.sourceControl.workingTreeGroup.resourceStates
+		const workingTreeResource = repository.workingTreeChanges
 			.find(resource => pathEquals(resource.resourceUri.fsPath, textEditor.document.uri.fsPath));
-		const mergeChangesResource = repository.sourceControl.mergeGroup.resourceStates
+		const mergeChangesResource = repository.mergeChanges
 			.find(resource => pathEquals(resource.resourceUri.fsPath, textEditor.document.uri.fsPath));
 		const hasMergeConflicts = mergeChangesResource ? /^(<{7,}|={7,}|>{7,})/m.test(textEditor.document.getText()) : false;
 
@@ -946,7 +946,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 			// set mergeChanges context
 			const mergeChanges: Uri[] = [];
 			for (const { repository } of this.openRepositories.values()) {
-				for (const state of repository.sourceControl.mergeGroup.resourceStates) {
+				for (const state of repository.mergeChanges) {
 					mergeChanges.push(state.resourceUri);
 				}
 			}

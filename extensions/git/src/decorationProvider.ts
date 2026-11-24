@@ -5,7 +5,7 @@
 
 import { window, workspace, Uri, Disposable, Event, EventEmitter, FileDecoration, FileDecorationProvider, ThemeColor, l10n, SourceControlHistoryItemRef } from 'vscode';
 import * as path from 'path';
-import { Repository, GitResourceGroup } from './repository';
+import { Repository, Resource } from './repository';
 import { Model } from './model';
 import { debounce } from './decorators';
 import { filterEvent, dispose, anyEvent, PromiseSource, combinedDisposable, runAndSubscribeEvent } from './util';
@@ -142,10 +142,10 @@ class GitDecorationProvider implements FileDecorationProvider {
 	private onDidRunGitStatus(): void {
 		const newDecorations = new Map<string, FileDecoration>();
 
-		this.collectDecorationData(this.repository.sourceControl.indexGroup, newDecorations);
-		this.collectDecorationData(this.repository.sourceControl.untrackedGroup, newDecorations);
-		this.collectDecorationData(this.repository.sourceControl.workingTreeGroup, newDecorations);
-		this.collectDecorationData(this.repository.sourceControl.mergeGroup, newDecorations);
+		this.collectDecorationData(this.repository.indexChanges, newDecorations);
+		this.collectDecorationData(this.repository.untrackedChanges, newDecorations);
+		this.collectDecorationData(this.repository.workingTreeChanges, newDecorations);
+		this.collectDecorationData(this.repository.mergeChanges, newDecorations);
 		this.collectSubmoduleDecorationData(newDecorations);
 
 		const uris = new Set([...this.decorations.keys()].concat([...newDecorations.keys()]));
@@ -153,8 +153,8 @@ class GitDecorationProvider implements FileDecorationProvider {
 		this._onDidChangeDecorations.fire([...uris.values()].map(value => Uri.parse(value, true)));
 	}
 
-	private collectDecorationData(group: GitResourceGroup, bucket: Map<string, FileDecoration>): void {
-		for (const r of group.resourceStates) {
+	private collectDecorationData(resources: readonly Resource[], bucket: Map<string, FileDecoration>): void {
+		for (const r of resources) {
 			const decoration = r.resourceDecoration;
 
 			if (decoration) {
