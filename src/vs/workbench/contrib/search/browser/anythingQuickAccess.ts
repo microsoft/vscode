@@ -121,6 +121,8 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 	private readonly pickState: IAnythingPickState;
 
 	private _linkSourceGroup: number | undefined;
+	/** Whether this run offers actions of other features when nothing matches. */
+	private _offersNoResultsActions = false;
 
 	get defaultFilterValue(): DefaultQuickAccessFilterValue | undefined {
 		if (this.configuration.preserveInput) {
@@ -165,12 +167,13 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 			noResultsPick: AnythingQuickAccessProvider.NO_RESULTS_PICK
 		});
 
-		// When nothing matches, other features may offer what else to do with the query
+		// When nothing matches, other features may offer what else to do with the query, in Quick Open itself but not in
+		// pickers that handle the accepted item themselves
 		this.options = {
 			...this.options,
 			noResultsPick: filter => {
 				const query = filter.trim();
-				const action = query.length >= 3 ? getSearchNoResultsActions(this.menuService, this.contextKeyService, query)[0] : undefined;
+				const action = this._offersNoResultsActions && query.length >= 3 ? getSearchNoResultsActions(this.menuService, this.contextKeyService, query)[0] : undefined;
 				return action
 					? { label: localize('anythingNoResultsAction', "{0}: {1}", action.label, query), description: action.tooltip || undefined, accept: () => action.run() }
 					: AnythingQuickAccessProvider.NO_RESULTS_PICK;
@@ -260,6 +263,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		// Update the pick state for this run
 		this.pickState.set(picker, runOptions?.fileSearchDelegate === undefined);
 		this._linkSourceGroup = this._supportsLinks(runOptions) ? this._editorGroupsService.activeGroup.id : undefined;
+		this._offersNoResultsActions = this._supportsLinks(runOptions);
 
 		// Add editor decorations for active editor symbol picks
 		const editorDecorationsDisposable = disposables.add(new MutableDisposable());

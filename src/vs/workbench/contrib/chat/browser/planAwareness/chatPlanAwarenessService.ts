@@ -12,7 +12,8 @@ import { autorun, derived, IObservable, IReader, ISettableObservable, ITransacti
 import { language } from '../../../../../base/common/platform.js';
 import { localize } from '../../../../../nls.js';
 import { IAgentHostEnablementService } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
-import { AgentHostClaudeAgentEnabledSettingId, AgentHostCodexAgentEnabledSettingId } from '../../../../../platform/agentHost/common/agentService.js';
+import { CLAUDE_AGENT_PROVIDER_ID, CODEX_AGENT_PROVIDER_ID } from '../../../../../platform/agentHost/common/agent.js';
+import { affectsAgentHostProviderPreference, shouldSurfaceLocalAgentHostProvider } from '../../../../../platform/agentHost/common/agentService.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -27,6 +28,7 @@ import { ChatEntitlement, getChatPlanName, IChatEntitlementService, isProUser } 
 import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IChatDetail, IChatService } from '../../common/chatService/chatService.js';
+import { IChatViewSessionsListService } from '../../common/chatViewSessionsListService.js';
 import { ChatModeKind } from '../../common/constants.js';
 import { COPILOT_VENDOR_ID, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../common/languageModels.js';
 import { addRecentChatRequests, canShowPlanNudge, DEFAULT_PLAN_NUDGE_LIMITS, findModelOfFamily, getFlagshipModels, getModelFamilies, getPlanCredits, getPlanFacts, getSeenPlanNudges, IPlanFact, IPlanNudgeState, IPlanSummary, isPlanNudgeBudgetUsed, parsePlanNudgeDeveloperMode, parsePlanNudgeState, parseRecentChatRequests, PLAN_SUGGESTIONS_SETTING_ID, PlanNudgeId, PlanNudgeSurface, recordPlanNudgeDismissed, recordPlanNudgeShown, shouldShowPlanSuggestions } from '../../common/planAwareness/chatPlanAwareness.js';
@@ -284,6 +286,7 @@ export class ChatPlanAwarenessService extends Disposable implements IChatPlanAwa
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
 		@IAgentHostEnablementService agentHostEnablementService: IAgentHostEnablementService,
+		@IChatViewSessionsListService chatViewSessionsListService: IChatViewSessionsListService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IStorageService private readonly storageService: IStorageService,
@@ -299,14 +302,28 @@ export class ChatPlanAwarenessService extends Disposable implements IChatPlanAwa
 		this._recentChatRequests = observableValue(this, parseRecentChatRequests(storageService.get(RECENT_CHAT_REQUESTS_STORAGE_KEY, StorageScope.APPLICATION)));
 		this.recentChatRequests = this._recentChatRequests;
 
+		// Other windows and Settings Sync change what the user saw and dismissed, and when they used Copilot.
+		// Picking that up keeps this window from showing a dismissed suggestion and from storing an outdated copy.
+		this._register(storageService.onDidChangeValue(StorageScope.APPLICATION, STATE_STORAGE_KEY, this._store)(e => {
+			if (e.external) {
+				this._state.set(parsePlanNudgeState(storageService.get(STATE_STORAGE_KEY, StorageScope.APPLICATION)), undefined);
+			}
+		}));
+		this._register(storageService.onDidChangeValue(StorageScope.APPLICATION, RECENT_CHAT_REQUESTS_STORAGE_KEY, this._store)(e => {
+			const stored = parseRecentChatRequests(storageService.get(RECENT_CHAT_REQUESTS_STORAGE_KEY, StorageScope.APPLICATION));
+			if (e.external && stored) {
+				const current = this._recentChatRequests.get() ?? [];
+				this._recentChatRequests.set(addRecentChatRequests(stored, ...current.filter(time => !stored.includes(time))), undefined);
+			}
+		}));
+
 		this.momentVisibleContext = ChatPlanAwarenessContextKeys.momentVisible.bindTo(contextKeyService);
 		const targetedContext = ChatPlanAwarenessContextKeys.targeted.bindTo(contextKeyService);
 
 		const enabled = observableConfigValue<boolean>(PLAN_SUGGESTIONS_SETTING_ID, false, configurationService);
 		const developerModeValue = observableConfigValue<unknown>(ChatPlanAwarenessDeveloperModeSettingId, undefined, configurationService);
 		this.developerMode = derived(this, reader => parsePlanNudgeDeveloperMode(developerModeValue.read(reader)));
-		const claudeHarnessEnabled = observableConfigValue<boolean>(AgentHostClaudeAgentEnabledSettingId, true, configurationService);
-		const codexHarnessEnabled = observableConfigValue<boolean>(AgentHostCodexAgentEnabledSettingId, true, configurationService);
+		const harnessPreferenceChanged = observableSignalFromEvent(this, Event.filter(configurationService.onDidChangeConfiguration, e => affectsAgentHostProviderPreference(e, true)));
 		const chatEnabled = observableContextKey<boolean>(ChatContextKeys.enabled.key, contextKeyService);
 		const entitlementChanged = observableSignalFromEvent(this, chatEntitlementService.onDidChangeEntitlement);
 		const quotasChanged = observableSignalFromEvent(this, chatEntitlementService.onDidChangeQuotaRemaining);
@@ -331,12 +348,15 @@ export class ChatPlanAwarenessService extends Disposable implements IChatPlanAwa
 
 			const quotas = chatEntitlementService.quotas;
 			const isOrganizationPlan = entitlement === ChatEntitlement.Business || entitlement === ChatEntitlement.Enterprise;
+			// The harnesses that the harness picker offers
 			const harnesses: string[] = [];
 			if (agentHostEnablementService.enabled.read(reader)) {
-				if (claudeHarnessEnabled.read(reader)) {
+				harnessPreferenceChanged.read(reader);
+				const surfacesAllAgents = chatViewSessionsListService.surfacesAllLocalAgentHostAgents.read(reader);
+				if (shouldSurfaceLocalAgentHostProvider(CLAUDE_AGENT_PROVIDER_ID, configurationService, surfacesAllAgents)) {
 					harnesses.push('Claude');
 				}
-				if (codexHarnessEnabled.read(reader)) {
+				if (shouldSurfaceLocalAgentHostProvider(CODEX_AGENT_PROVIDER_ID, configurationService, surfacesAllAgents)) {
 					harnesses.push('Codex');
 				}
 			}

@@ -1016,6 +1016,14 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				},
 			}));
 			store.add(toDisposable(() => this.sessionsControl = undefined));
+			// With content in the center of the empty chat, the Chat view's own list only takes the height of its rows
+			if (sessionsControl instanceof AgentSessionsControl) {
+				store.add(sessionsControl.onDidChangeContentHeight(() => {
+					if (this.sessionsViewerVisible && this.sessionsViewerOrientation === AgentSessionsViewerOrientation.Stacked && (this._widget?.welcomeContentHeight.get() ?? 0) > 0) {
+						this.relayoutForInputHeight();
+					}
+				}));
+			}
 			sessionsToolbar.context = sessionsControl;
 			return { sessionsControl, store };
 		};
@@ -1451,11 +1459,6 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			chatWidget.inputPart.height.read(reader);
 			chatWidget.welcomeContentHeight.read(reader);
 			if (this.sessionsViewerVisible && this.sessionsViewerOrientation === AgentSessionsViewerOrientation.Stacked) {
-				this.relayoutForInputHeight();
-			}
-		}));
-		this._register(sessionsControl.onDidChangeContentHeight(() => {
-			if (this.sessionsViewerVisible && this.sessionsViewerOrientation === AgentSessionsViewerOrientation.Stacked && chatWidget.welcomeContentHeight.get() > 0) {
 				this.relayoutForInputHeight();
 			}
 		}));
@@ -2152,10 +2155,11 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			reservedChatWidgetHeight = sessionsOnly ? 0 : Math.max(ChatViewPane.MIN_CHAT_WIDGET_HEIGHT, this._widget?.input?.height.get() ?? 0);
 			availableSessionsHeight -= reservedChatWidgetHeight;
 
-			// With content in the center of the empty chat, the sessions only take the height of their rows,
-			// so the content centers on the whole view, but they keep some rows when the view is short
+			// With content in the center of the empty chat, the Chat view's own list only takes the height of its rows,
+			// so the content centers on the whole view, but it keeps some rows when the view is short. A provided list
+			// takes the height it gets
 			const welcomeContentHeight = this._widget?.welcomeContentHeight.get() ?? 0;
-			const sessionsContentHeight = this.sessionsControl.contentHeight;
+			const sessionsContentHeight = this.agentSessionsControl?.contentHeight ?? 0;
 			if (welcomeContentHeight > 0 && sessionsContentHeight > 0) {
 				availableSessionsHeight = Math.min(
 					availableSessionsHeight,
