@@ -770,22 +770,20 @@
 	font-size: var(--vscode-fontSize-body2);
 }
 
-/* Each prompt is a full-width row split into two targets: the label on the left reveals the prompt,
- * the diff badge on the right opens that turn's changes. The fill always lives on the halves, never
- * on this container, so at any point exactly one layer paints a background and highlights never
- * stack. The container is a plain div because a button may not nest inside a button. */
 .prompt-timeline-gutter-row {
 	display: flex;
 	align-items: center;
 	width: 100%;
 }
 
-.prompt-timeline-gutter-row-jump,
-.prompt-timeline-gutter-row-diff {
+.prompt-timeline-gutter-row-jump {
 	display: flex;
 	align-items: center;
+	flex: 1 1 auto;
+	min-width: 0;
 	padding: 6px 8px;
 	border: none;
+	border-radius: var(--vscode-cornerRadius-small);
 	background: transparent;
 	color: inherit;
 	font: inherit;
@@ -793,78 +791,24 @@
 	cursor: pointer;
 }
 
-/* Radius follows the painted SHAPE, not the element. A half that carries a fill on its own (hover) is
- * a standalone control, so it is rounded on all four corners; only when both halves paint together do
- * they split one band's corners between them (see the `.preview`/`.active` rules below). Rounding the
- * halves unconditionally would leave a hovered label with a square edge cut off mid-row. */
-.prompt-timeline-gutter-row-jump {
-	flex: 1 1 auto;
-	min-width: 0;
-	border-radius: var(--vscode-cornerRadius-small);
-}
-
-/* The badge claims only the width its stat needs. Prompts that changed nothing have nothing to
- * review, so it is dropped from the layout — and, being `display: none`, from the focus order. */
-.prompt-timeline-gutter-row-diff {
-	flex: 0 0 auto;
-	border-radius: var(--vscode-cornerRadius-small);
-}
-
-.prompt-timeline-gutter-row:not(.reviewable) .prompt-timeline-gutter-row-diff {
-	display: none;
-}
-
-/* Hovering tints only the half under the pointer — that, and nothing else, is what tells the two
- * targets apart. No divider: at rest there is no boundary to draw (nothing is being interacted with),
- * and on hover the tinted half's own edge already is the boundary. */
 .prompt-timeline-gutter-row-jump:is(:hover, .hovered),
-.prompt-timeline-gutter-row-diff:is(:hover, .hovered) {
+.prompt-timeline-gutter-row.preview .prompt-timeline-gutter-row-jump {
 	background-color: var(--vscode-list-hoverBackground);
 }
 
-/* `.preview` is the row a hovered DOT points at — the pointer is over on the dot column, nowhere near
- * the row, so the whole band lights up to say "this one". (A row under the pointer deliberately does
- * NOT get this class; its own halves light up instead — see `_setPreview`.) `.active` is the prompt
- * the transcript is scrolled to. Tinting both halves rather than the container keeps the fill on one
- * layer. Pair the selection background with its matching foreground so the label stays legible in
- * themes where the two are designed together. */
-.prompt-timeline-gutter-row.preview .prompt-timeline-gutter-row-jump,
-.prompt-timeline-gutter-row.preview .prompt-timeline-gutter-row-diff {
-	background-color: var(--vscode-list-hoverBackground);
-}
-
-.prompt-timeline-gutter-row.active {
+.prompt-timeline-gutter-row.active .prompt-timeline-gutter-row-jump {
 	color: var(--vscode-list-activeSelectionForeground);
-}
-
-.prompt-timeline-gutter-row.active .prompt-timeline-gutter-row-jump,
-.prompt-timeline-gutter-row.active .prompt-timeline-gutter-row-diff {
 	background-color: var(--vscode-list-activeSelectionBackground);
 }
 
-/* Both halves are painted and touching, so they now form ONE band: the label keeps the left corners,
- * the badge the right, and the seam between them is square. Scoped to rows that actually have a badge
- * — on the rest the label is the whole band and stays rounded all round. */
-.prompt-timeline-gutter-row.reviewable.preview .prompt-timeline-gutter-row-jump,
-.prompt-timeline-gutter-row.reviewable.active .prompt-timeline-gutter-row-jump {
-	border-radius: var(--vscode-cornerRadius-small) 0 0 var(--vscode-cornerRadius-small);
-}
-
-.prompt-timeline-gutter-row.preview .prompt-timeline-gutter-row-diff,
-.prompt-timeline-gutter-row.active .prompt-timeline-gutter-row-diff {
-	border-radius: 0 var(--vscode-cornerRadius-small) var(--vscode-cornerRadius-small) 0;
-}
-
 .prompt-timeline-gutter-older:is(:focus-visible, .focus-visible),
-.prompt-timeline-gutter-row-jump:is(:focus-visible, .focus-visible),
-.prompt-timeline-gutter-row-diff:is(:focus-visible, .focus-visible) {
+.prompt-timeline-gutter-row-jump:is(:focus-visible, .focus-visible) {
 	outline: var(--vscode-strokeThickness, 1px) solid var(--vscode-focusBorder);
 	outline-offset: calc(-1 * var(--vscode-strokeThickness, 1px));
 }
 
 .monaco-workbench:is(.hc-black, .hc-light) .prompt-timeline-gutter-older:hover:not(.disabled, :focus-visible, .focus-visible),
-.monaco-workbench:is(.hc-black, .hc-light) .prompt-timeline-gutter-row-jump:is(:hover, .hovered):not(:focus-visible, .focus-visible),
-.monaco-workbench:is(.hc-black, .hc-light) .prompt-timeline-gutter-row-diff:is(:hover, .hovered):not(:focus-visible, .focus-visible) {
+.monaco-workbench:is(.hc-black, .hc-light) .prompt-timeline-gutter-row-jump:is(:hover, .hovered):not(:focus-visible, .focus-visible) {
 	outline: var(--vscode-strokeThickness, 1px) dashed var(--vscode-contrastActiveBorder);
 	outline-offset: calc(-1 * var(--vscode-strokeThickness, 1px));
 }
@@ -876,20 +820,4 @@
 	white-space: nowrap;
 	text-overflow: ellipsis;
 	font-size: 12px;
-}
-
-.prompt-timeline-gutter-row-stat {
-	flex: 0 0 auto;
-	font-size: 11px;
-	font-variant-numeric: tabular-nums;
-	white-space: nowrap;
-}
-
-.prompt-timeline-gutter-row-stat .added {
-	color: var(--vscode-gitDecoration-addedResourceForeground, var(--vscode-charts-green));
-}
-
-.prompt-timeline-gutter-row-stat .removed {
-	color: var(--vscode-gitDecoration-deletedResourceForeground, var(--vscode-charts-red));
-	margin-left: 4px;
 }
