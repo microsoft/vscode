@@ -6,9 +6,10 @@
 import assert from 'assert';
 import * as sinon from 'sinon';
 import { DeferredPromise } from '../../../../../base/common/async.js';
+import { extUri } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { ISearchComplete, ISearchProgressItem } from '../../../../services/search/common/search.js';
+import { ISearchComplete, ISearchProgressItem, SemanticSearchBehavior } from '../../../../services/search/common/search.js';
 import { SearchView } from '../../browser/searchView.js';
 
 suite('Search View - keyword suggestions', () => {
@@ -64,6 +65,85 @@ suite('Search View - keyword suggestions', () => {
 
 		assert.deepStrictEqual({ resets: setAIQuery.callCount, requests: aiSearch.callCount, pendingAfterMatch, cache: view._cachedResults }, {
 			resets: 1, requests: 1, pendingAfterMatch: undefined, cache: complete
+		});
+	});
+});
+
+suite('Search View - folder location change', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	type TriggerQueryChangeOptions = Parameters<SearchView['triggerQueryChange']>[0];
+
+	const folder = URI.file('/repo');
+	const worktree = URI.file('/repo.worktrees/feature');
+
+	function createView(options: { query?: string; visible?: boolean; searchedFolders?: URI[]; neverSearched?: boolean; currentFolder?: URI }) {
+		const { query = 'needle', visible = true, currentFolder = folder } = options;
+		const searchedFolders = options.neverSearched ? undefined : options.searchedFolders ?? [worktree];
+		const triggerQueryChange = sinon.spy((_options?: TriggerQueryChangeOptions) => { });
+		const refreshAndUpdateCount = sinon.spy(async () => { });
+		const cancelSearch = sinon.spy();
+		const state = { visible };
+		const view: {
+			onDidChangeFolderLocation(): void;
+			onVisibilityChanged(visible: boolean): Promise<void>;
+			onSearchResultsChanged(): Promise<void>;
+		} = Object.assign(Object.create(SearchView.prototype), {
+			searchWidget: { searchInput: { getValue: () => query } },
+			viewletVisible: { set: () => { } },
+			viewModel: { searchResult: { toggleHighlights: () => { } }, cancelSearch, cancelAISearch: () => { } },
+			contextService: { getWorkspace: () => ({ folders: [{ uri: currentFolder }] }) },
+			uriIdentityService: { extUri },
+			isVisible: () => state.visible,
+			configurationService: { getValue: () => ({ searchView: { semanticSearchBehavior: SemanticSearchBehavior.Auto } }) },
+			logService: { info: () => { } },
+			triggerQueryChange,
+			refreshAndUpdateCount,
+			changedWhileHidden: false,
+			searchedFolders,
+		});
+		const setVisible = (value: boolean) => {
+			state.visible = value;
+			return view.onVisibilityChanged(value);
+		};
+		return { view, triggerQueryChange, refreshAndUpdateCount, cancelSearch, setVisible };
+	}
+
+	test('reruns the query right away when the view is visible and the search ran in another folder', () => {
+		const reruns = (options: Parameters<typeof createView>[0]) => {
+			const { view, triggerQueryChange } = createView(options);
+			view.onDidChangeFolderLocation();
+			return triggerQueryChange.args;
+		};
+
+		assert.deepStrictEqual({
+			moved: reruns({}),
+			sameFolder: reruns({ searchedFolders: [folder] }),
+			neverSearched: reruns({ neverSearched: true }),
+			emptyQuery: reruns({ query: '' }),
+		}, {
+			moved: [[{ shouldKeepAIResults: false, shouldUpdateAISearch: true }]],
+			sameFolder: [],
+			neverSearched: [],
+			emptyQuery: [],
+		});
+	});
+
+	test('reruns the query once when a hidden view becomes visible', async () => {
+		const { view, triggerQueryChange, refreshAndUpdateCount, cancelSearch, setVisible } = createView({ visible: false });
+
+		view.onDidChangeFolderLocation();
+		await view.onSearchResultsChanged();
+		const rerunsWhileHidden = triggerQueryChange.callCount;
+		await setVisible(true);
+		await setVisible(false);
+		await setVisible(true);
+
+		assert.deepStrictEqual({ cancelled: cancelSearch.args, rerunsWhileHidden, reruns: triggerQueryChange.args, redraws: refreshAndUpdateCount.callCount }, {
+			cancelled: [[true]],
+			rerunsWhileHidden: 0,
+			reruns: [[{ shouldKeepAIResults: false, shouldUpdateAISearch: true }]],
+			redraws: 0
 		});
 	});
 });

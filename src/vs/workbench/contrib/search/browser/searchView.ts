@@ -48,6 +48,8 @@ import { defaultInputBoxStyles, defaultToggleStyles } from '../../../../platform
 import { IFileIconTheme, IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceFolderLocationService } from '../../../../platform/workspace/common/folderLocations.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { OpenFolderAction } from '../../../browser/actions/workspaceActions.js';
 import { ResourceListDnDHandler } from '../../../browser/dnd.js';
 import { ResourceLabels } from '../../../browser/labels.js';
@@ -178,6 +180,9 @@ export class SearchView extends ViewPane {
 
 	private delayedRefresh: Delayer<void>;
 	private changedWhileHidden: boolean;
+	private rerunWhenVisible = false;
+	/** The workspace folders the last search ran in, to tell whether a Folder Location change made its results stale. */
+	private searchedFolders: URI[] | undefined;
 
 	private searchWithoutFolderMessageElement: HTMLElement | undefined;
 
@@ -239,6 +244,8 @@ export class SearchView extends ViewPane {
 		@IAccessibilitySignalService private readonly accessibilitySignalService: IAccessibilitySignalService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ISCMService private readonly scmService: ISCMService,
+		@IWorkspaceFolderLocationService private readonly folderLocationService: IWorkspaceFolderLocationService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 	) {
 
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
@@ -302,6 +309,7 @@ export class SearchView extends ViewPane {
 		this._register(this.fileService.onDidFilesChange(e => this.onFilesChanged(e)));
 		this._register(this.textFileService.untitled.onWillDispose(model => this.onUntitledDidDispose(model.resource)));
 		this._register(this.contextService.onDidChangeWorkbenchState(() => this.onDidChangeWorkbenchState()));
+		this._register(this.folderLocationService.onDidChangeLocation(() => this.onDidChangeFolderLocation()));
 		this._register(this.searchHistoryService.onDidClearHistory(() => this.clearHistory()));
 		this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(e)));
 
@@ -430,6 +438,46 @@ export class SearchView extends ViewPane {
 		if (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY && this.searchWithoutFolderMessageElement) {
 			dom.hide(this.searchWithoutFolderMessageElement);
 		}
+	}
+
+	private onDidChangeFolderLocation(): void {
+		if (!this.searchWidget?.searchInput?.getValue() || !this.isSearchedInOtherFolders()) {
+			return;
+		}
+		if (this.isVisible()) {
+			this.submitSearch();
+		} else {
+			this.viewModel.cancelSearch(true);
+			this.viewModel.cancelAISearch(true);
+			this.rerunWhenVisible = true;
+		}
+	}
+
+	/**
+	 * Whether the last search ran in other workspace folders than the current ones, for example
+	 * before the Folder Location changed. `false` when nothing has been searched yet.
+	 */
+	private isSearchedInOtherFolders(): boolean {
+		if (!this.searchedFolders) {
+			return false;
+		}
+		const current = this.contextService.getWorkspace().folders;
+		return this.searchedFolders.length !== current.length || this.searchedFolders.some((folder, index) => !this.uriIdentityService.extUri.isEqual(folder, current[index].uri));
+	}
+
+	/**
+	 * Runs the current query the same way as pressing Enter in the search input.
+	 */
+	private submitSearch(options?: { triggeredOnType: boolean; delay: number }): void {
+		const shouldRenderAIResults = this.configurationService.getValue<ISearchConfigurationProperties>('search').searchView.semanticSearchBehavior;
+		if (shouldRenderAIResults === SemanticSearchBehavior.Auto) {
+			this.logService.info(`SearchView: Automatically rendering AI results`);
+		}
+		this.triggerQueryChange({
+			...options,
+			shouldKeepAIResults: false,
+			shouldUpdateAISearch: shouldRenderAIResults === SemanticSearchBehavior.Auto,
+		});
 	}
 
 	private refreshInputs() {
@@ -626,7 +674,11 @@ export class SearchView extends ViewPane {
 	private async onVisibilityChanged(visible: boolean): Promise<void> {
 		this.viewletVisible.set(visible);
 		if (visible) {
-			if (this.changedWhileHidden) {
+			if (this.rerunWhenVisible) {
+				this.rerunWhenVisible = false;
+				this.changedWhileHidden = false;
+				this.submitSearch();
+			} else if (this.changedWhileHidden) {
 				// Render if results changed while viewlet was hidden - #37818
 				await this.refreshAndUpdateCount();
 				this.changedWhileHidden = false;
@@ -697,17 +749,7 @@ export class SearchView extends ViewPane {
 			this.searchWidget.toggleReplace(true);
 		}
 
-		this._register(this.searchWidget.onSearchSubmit(options => {
-			const shouldRenderAIResults = this.configurationService.getValue<ISearchConfigurationProperties>('search').searchView.semanticSearchBehavior;
-			if (shouldRenderAIResults === SemanticSearchBehavior.Auto) {
-				this.logService.info(`SearchView: Automatically rendering AI results`);
-			}
-			this.triggerQueryChange({
-				...options,
-				shouldKeepAIResults: false,
-				shouldUpdateAISearch: shouldRenderAIResults === SemanticSearchBehavior.Auto,
-			});
-		}));
+		this._register(this.searchWidget.onSearchSubmit(options => this.submitSearch(options)));
 		this._register(this.searchWidget.onSearchCancel(({ focus }) => this.cancelSearch(focus)));
 		this._register(this.searchWidget.searchInput.onDidOptionChange(() => {
 			this.triggerQueryChange({ shouldKeepAIResults: true });
@@ -1702,6 +1744,7 @@ export class SearchView extends ViewPane {
 				this.tree.collapse(this.searchResult.aiTextSearchResult);
 			}
 
+			this.searchedFolders = folderResources.map(folder => folder.uri);
 			this.onQueryTriggered(query, options, excludePatternText, includePatternText, triggeredOnType, shouldKeepAIResults, shouldUpdateAISearch);
 
 			if (!preserveFocus) {
