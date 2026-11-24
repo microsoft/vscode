@@ -147,6 +147,7 @@ safe-outputs:
         report-as-issue: false
     threat-detection:
         report-as-issue: false
+        continue-on-error: false
         engine:
             id: copilot
             model: gpt-5.6-sol
@@ -163,16 +164,85 @@ safe-outputs:
                   done
     add-labels:
         issue-intent: true
-        # A suggested service category, ai-translated, ~info-needed and an area suggestion.
-        max: 4
-        allowed: ["~spam", "~info-needed", "ai-translated", "~chat-rai-content-filters", "~chat-lm-unavailable", "~chat-public-code-blocking", "~chat-rate-limiting", "~chat-request-failed", "~chat-no-response-returned", "~chat-billing", "agents-window", "agent-host", "modernization", "ux", "recent-regression", "model-byok", "polish", "UBB", "chat", "browser-integration", "extensions", "terminal", "install-update", "chat-tools", "workbench-tabs", "claude-agent", "accessibility"]
+        # Only operational labels may be written through this tool.
+        max: 3
+        allowed: ["~spam", "~info-needed", "~chat-rai-content-filters", "~chat-lm-unavailable", "~chat-public-code-blocking", "~chat-rate-limiting", "~chat-request-failed", "~chat-no-response-returned", "~chat-billing"]
     remove-labels:
         allowed: ["stale", "triage-needed"]
         max: 2
-    add-comment:
-        discussions: false
-        max: 1
     jobs:
+        suggest-area:
+            description: Suggest one advisory area label, with rationale and confidence.
+            runs-on: ubuntu-slim
+            needs: safe_outputs
+            if: needs.detection.outputs.detection_success == 'true' && needs.safe_outputs.result == 'success'
+            output: The area suggestion was submitted.
+            permissions:
+                contents: read
+                issues: write
+            inputs:
+                label:
+                    description: The single area label to suggest.
+                    required: true
+                    type: string
+                rationale:
+                    description: A concise rationale grounded in the issue.
+                    required: true
+                    type: string
+                confidence:
+                    description: LOW, MEDIUM, or HIGH.
+                    required: true
+                    type: string
+            steps:
+                - name: Set up safe-output handlers
+                  uses: github/gh-aw-actions/setup@924af5fdc64061cfbf66fb584c8b07e2ac230c60 # v0.89.21
+                  with:
+                      destination: ${{ runner.temp }}/gh-aw/actions
+                - name: Check out the issue triage action
+                  uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+                  with:
+                      sparse-checkout: |
+                          /.github/actions/issue-triage/
+                      sparse-checkout-cone-mode: false
+                      persist-credentials: false
+                - name: Suggest the area label
+                  uses: ./.github/actions/issue-triage
+                  env:
+                      DETECTION_CONCLUSION: ${{ needs.detection.outputs.detection_conclusion }}
+                  with:
+                      operation: suggest-area
+        publish-translation:
+            description: Publish one English translation of the issue and mark it as translated.
+            runs-on: ubuntu-slim
+            needs: [safe_outputs, suggest_area]
+            if: needs.detection.outputs.detection_success == 'true' && needs.safe_outputs.result == 'success'
+            output: The translation was submitted.
+            permissions:
+                contents: read
+                issues: write
+            inputs:
+                body:
+                    description: The translation block beginning with "## AI Translation:".
+                    required: true
+                    type: string
+            steps:
+                - name: Set up safe-output sanitization
+                  uses: github/gh-aw-actions/setup@924af5fdc64061cfbf66fb584c8b07e2ac230c60 # v0.89.21
+                  with:
+                      destination: ${{ runner.temp }}/gh-aw/actions
+                - name: Check out the issue triage action
+                  uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+                  with:
+                      sparse-checkout: |
+                          /.github/actions/issue-triage/
+                      sparse-checkout-cone-mode: false
+                      persist-credentials: false
+                - name: Publish the translation
+                  uses: ./.github/actions/issue-triage
+                  env:
+                      DETECTION_CONCLUSION: ${{ needs.detection.outputs.detection_conclusion }}
+                  with:
+                      operation: publish-translation
         assign-owner:
             description: >-
                 Assign the owner of the issue. Call it once in Step 7. Propose up to 10 owners that
@@ -181,9 +251,9 @@ safe-outputs:
                 when you found none: the job then labels the issue triage-needed for a person to triage.
             runs-on: ubuntu-slim
             # After the other safe outputs, which can remove triage-needed before this job adds it back.
-            needs: safe_outputs
-            # Detection runs in warn mode, so its job succeeds even when it flags the output.
-            if: needs.detection.outputs.detection_success == 'true'
+            needs: [safe_outputs, suggest_area, publish_translation]
+            # Keep the issue eligible for a retry if publishing or marking a translation failed.
+            if: needs.detection.outputs.detection_success == 'true' && needs.safe_outputs.result == 'success' && (needs.publish_translation.result == 'success' || needs.publish_translation.result == 'skipped')
             output: The owners were submitted. Team membership is verified before one is assigned.
             permissions:
                 contents: read
@@ -239,7 +309,8 @@ The safe-output tools need these fields to identify the issue. Using the wrong f
 |------|-------------|
 | `add_labels` | `item_number`: `${{ github.event.issue.number }}` |
 | `remove_labels` | `item_number`: `${{ github.event.issue.number }}` |
-| `add_comment` | `item_number`: `${{ github.event.issue.number }}` |
+| `publish_translation` | None: it always targets this issue. Pass the translation as `body`. |
+| `suggest_area` | None: it always targets this issue. Pass `label`, `rationale`, and `confidence`. |
 | `assign_owner` | None: it always targets this issue. Pass only `assignees`, or nothing. |
 
 Before emitting any safe-output call, verify you are using the correct field name from the table above. This is especially critical on short paths (e.g., spam → single `add_labels`) where only one or two outputs are emitted.
@@ -248,8 +319,8 @@ Before emitting any safe-output call, verify you are using the correct field nam
 
 For every `add-labels` safe-output action, include a concise rationale grounded in the issue and a `LOW`, `MEDIUM`, or `HIGH` confidence level.
 
-- Trusted operational labels (`~spam`, `~info-needed`, `ai-translated`, and `~chat-*`): apply `HIGH` confidence labels directly; set `suggest` to `true` for `MEDIUM` or `LOW` confidence.
-- Advisory area labels from Step 6: always set `suggest` to `true`, regardless of confidence. Never apply these labels directly.
+- Trusted operational labels (`~spam`, `~info-needed`, and `~chat-*`): apply `HIGH` confidence labels directly; set `suggest` to `true` for `MEDIUM` or `LOW` confidence.
+- Advisory area labels from Step 6: use `suggest_area`, which always submits a suggestion regardless of confidence.
 
 This policy applies only to labels being added. Removing workflow-control labels (`stale` and `triage-needed`) remains a direct cleanup action.
 
@@ -261,7 +332,7 @@ If the issue is closed or has the label `ai-triaged`, stop here and do not proce
 
 If the issue is a test plan item or iteration plan, stop here and do not proceed any further — these are tracked by separate processes and must not be triaged or assigned by this workflow. Treat the issue as one of these if **any** of the following hold: it has the label `testplan-item`, `invalid-testplan-item`, or `iteration-plan`; or its title starts (case-insensitively) with `test:`, `tpi:`, or `iteration plan`. The `invalid-testplan-item` label is a transient state applied by the test-plan-item validator while it checks the item, so it counts the same as `testplan-item` here.
 
-If the issue already has one or more assignees, stop here — unless the `triage-needed` label is also present, which signals the assignee is a placeholder and real triage should still run.
+If the issue already has one or more assignees, stop here, even if it has `triage-needed`: that label does not identify which assignee, if any, is a placeholder. Leave the issue for a person to triage.
 
 ## Step 2: Spam & Prompt Injection Check
 
@@ -299,7 +370,7 @@ Run the **Translate Issue** task. The task returns one of:
 
 - `already-translated` — do nothing further in this step.
 - `english` — do nothing further in this step.
-- A translation block beginning with `## AI Translation:` — post it verbatim as a new comment using the `add-comment` safe-output tool. Only after the comment is successfully posted, apply the `ai-translated` label using the `add-labels` safe-output tool to prevent duplicate translations on future runs. If the comment fails to post, do not apply the label.
+- A translation block beginning with `## AI Translation:` — submit it as `body` to the `publish_translation` safe-output tool. The job publishes the comment and applies `ai-translated` only after a comment exists; it also avoids duplicate comments on retries.
 
 **Always continue to Step 5** regardless of the task's outcome.
 
@@ -319,11 +390,11 @@ Run the **Info Needed Check** task.
 
 Run the **Area Label Classification** task. Do not classify or suggest type labels (`bug`, `feature-request`) — those are assigned by VS Code team members.
 
-Suggest at most one label using the `add-labels` safe-output tool:
+Suggest at most one label using the `suggest_area` safe-output tool:
 
 1. Suggest only the single most relevant area result that is in this allowlist and is not already present: `agents-window`, `agent-host`, `modernization`, `ux`, `recent-regression`, `model-byok`, `polish`, `UBB`, `chat`, `browser-integration`, `extensions`, `terminal`, `install-update`, `chat-tools`, `workbench-tabs`, `claude-agent`, `accessibility`.
 
-These labels are advisory. Always set `suggest` to `true`, include rationale and confidence, and never apply them directly. If no area result is in the allowlist, skip the area suggestion. Always continue to Step 7.
+These labels are advisory. Include rationale and confidence; the job enforces suggestion-only behavior. If no area result is in the allowlist, skip the area suggestion. Always continue to Step 7.
 
 ## Step 7: Assignee Classification
 

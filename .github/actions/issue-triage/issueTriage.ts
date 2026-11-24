@@ -18,6 +18,7 @@ interface IGitHub {
 interface IUser {
 	readonly login: string;
 	readonly type?: string;
+	readonly id?: number;
 }
 
 interface IContext {
@@ -45,6 +46,24 @@ export interface IIssue {
 	readonly assignees?: readonly IUser[] | null;
 	readonly pull_request?: object;
 }
+
+interface IComment {
+	readonly body?: string | null;
+	readonly user?: IUser | null;
+}
+
+interface IAgentOutputItem {
+	readonly type?: string;
+	readonly assignees?: unknown;
+	readonly body?: unknown;
+	readonly label?: unknown;
+	readonly rationale?: unknown;
+	readonly confidence?: unknown;
+}
+
+export const advisoryAreaLabels = ['agents-window', 'agent-host', 'modernization', 'ux', 'recent-regression', 'model-byok', 'polish', 'UBB', 'chat', 'browser-integration', 'extensions', 'terminal', 'install-update', 'chat-tools', 'workbench-tabs', 'claude-agent', 'accessibility'];
+const translationMarker = '<!-- vscode-issue-triage-translation -->';
+const githubActionsBotId = 41898282;
 
 interface IPermission {
 	readonly permission: string;
@@ -118,15 +137,14 @@ export function getIgnoreReason(issue: IIssue): string | undefined {
 }
 
 /**
- * Returns why the issue doesn't need triage, or `undefined` when it does. An assigned issue only needs
- * triage when it is labeled `triage-needed`, which marks its assignee as a placeholder.
+ * Returns why the issue doesn't need automated triage, or `undefined` when it does.
  */
 export function getSkipReason(issue: IIssue): string | undefined {
 	const reason = getIgnoreReason(issue);
 	if (reason) {
 		return reason;
 	}
-	if (issue.assignees?.length && !getLabelNames(issue).some(label => label.toLowerCase() === 'triage-needed')) {
+	if (issue.assignees?.length) {
 		return 'it is already assigned';
 	}
 	return undefined;
@@ -293,30 +311,97 @@ export async function checkTeamMembers(github: IGitHub, owner: string, repo: str
 	return { members, notMembers, notChecked };
 }
 
-/**
- * Reads the owners, best first, that the agent proposed with the `assign-owner` safe output. Only the
- * first call counts.
- */
-function readProposedOwners(agentOutputPath: string, core: ICore): string[] {
-	const output: { readonly items?: readonly { readonly type?: string; readonly assignees?: unknown }[] } = JSON.parse(readFileSync(agentOutputPath, 'utf8'));
-	const calls = (output.items ?? []).filter(item => item.type === 'assign_owner');
+function readAgentOutput(agentOutputPath: string, type: string, core: ICore): IAgentOutputItem | undefined {
+	const output: { readonly items?: readonly IAgentOutputItem[] } = JSON.parse(readFileSync(agentOutputPath, 'utf8'));
+	const calls = (output.items ?? []).filter(item => item.type === type);
 	if (calls.length > 1) {
-		core.warning(`The agent proposed owners ${calls.length} times; only the first is considered.`);
+		core.warning(`The agent called ${type} ${calls.length} times; only the first is considered.`);
 	}
-	const assignees = calls[0]?.assignees;
+	return calls[0];
+}
+
+function readProposedOwners(agentOutputPath: string, core: ICore): string[] {
+	const assignees = readAgentOutput(agentOutputPath, 'assign_owner', core)?.assignees;
 	return typeof assignees === 'string' ? parseLogins(assignees).slice(0, maxProposedOwners) : [];
+}
+
+interface ISafeOutputOptions {
+	readonly agentOutputPath: string;
+	readonly detectionConclusion: string;
+	readonly staged: boolean;
+}
+
+function isDetectionSuccessful(options: ISafeOutputOptions, core: ICore): boolean {
+	if (options.detectionConclusion !== 'success') {
+		core.warning(`Not processing the output: threat detection concluded '${options.detectionConclusion}'.`);
+		return false;
+	}
+	return true;
+}
+
+/**
+ * Submits only an allowlisted area label as a suggestion through gh-aw's label handler.
+ */
+export async function suggestArea(github: IGitHub, context: IContext, core: ICore, options: ISafeOutputOptions, sanitize: (value: string) => string, suggest: (label: { name: string; rationale: string; confidence: string; suggest: true }) => Promise<void>): Promise<void> {
+	if (!isDetectionSuccessful(options, core)) {
+		return;
+	}
+	const item = readAgentOutput(options.agentOutputPath, 'suggest_area', core);
+	if (!item || typeof item.label !== 'string' || !advisoryAreaLabels.includes(item.label) || typeof item.rationale !== 'string' || !item.rationale.trim() || typeof item.confidence !== 'string' || !['LOW', 'MEDIUM', 'HIGH'].includes(item.confidence)) {
+		throw new Error('Invalid area label suggestion.');
+	}
+	const labelName = item.label;
+	const issue = await getIssue(github, context, getIssueNumber(context));
+	if (issue.pull_request || issue.state !== 'open' || getLabelNames(issue).some(label => label.toLowerCase() === labelName.toLowerCase())) {
+		core.info('Not suggesting an area label for a closed issue, pull request, or existing label.');
+		return;
+	}
+	await suggest({ name: item.label, rationale: sanitize(item.rationale), confidence: item.confidence, suggest: true });
+}
+
+/**
+ * Publishes a translation once and marks it only after the comment exists.
+ */
+export async function publishTranslation(github: IGitHub, context: IContext, core: ICore, options: ISafeOutputOptions, sanitize: (value: string) => string): Promise<void> {
+	if (!isDetectionSuccessful(options, core)) {
+		return;
+	}
+	const item = readAgentOutput(options.agentOutputPath, 'publish_translation', core);
+	if (!item || typeof item.body !== 'string' || !item.body.startsWith('## AI Translation:') || item.body.length > 65000) {
+		throw new Error('Invalid translation output.');
+	}
+	const { owner, repo } = context.repo;
+	const issueNumber = getIssueNumber(context);
+	const issue = await getIssue(github, context, issueNumber);
+	if (issue.pull_request || issue.state !== 'open' || getLabelNames(issue).some(label => ['ai-translated', '*english-please'].includes(label.toLowerCase()))) {
+		core.info('Not publishing a translation for a closed, already translated issue or pull request.');
+		return;
+	}
+	let existing = false;
+	for (let page = 1; ; page++) {
+		const { data: comments } = await github.request<readonly IComment[]>('GET /repos/{owner}/{repo}/issues/{issue_number}/comments', { owner, repo, issue_number: issueNumber, per_page: 100, page });
+		existing = comments.some(comment => comment.user?.id === githubActionsBotId && comment.body?.includes(translationMarker));
+		if (existing || comments.length < 100) {
+			break;
+		}
+	}
+	if (options.staged) {
+		core.info(`Staged mode: would ${existing ? 'mark the existing translation' : 'publish and mark a translation'} on #${issueNumber}.`);
+		return;
+	}
+	if (!existing) {
+		const body = `${sanitize(item.body)}\n\n${translationMarker}`;
+		await github.request('POST /repos/{owner}/{repo}/issues/{issue_number}/comments', { owner, repo, issue_number: issueNumber, body });
+		core.info(`Published a translation on #${issueNumber}.`);
+	}
+	await github.request('POST /repos/{owner}/{repo}/issues/{issue_number}/labels', { owner, repo, issue_number: issueNumber, labels: ['ai-translated'] });
+	core.info(`Marked #${issueNumber} as translated.`);
 }
 
 /**
  * The inputs of `assignOwner`.
  */
-export interface IAssignOwnerOptions {
-	readonly agentOutputPath: string;
-	/** The conclusion of threat detection, which is `warning` when it flagged the agent output. */
-	readonly detectionConclusion: string;
-	/** Whether to only log the assignment. */
-	readonly staged: boolean;
-}
+export interface IAssignOwnerOptions extends ISafeOutputOptions { }
 
 /**
  * Labels the issue `triage-needed`, so that a person triages it, unless it already has the label.
@@ -349,16 +434,14 @@ export async function assignOwner(github: IGitHub, context: IContext, core: ICor
 		return;
 	}
 	const proposed = readProposedOwners(options.agentOutputPath, core);
-	const issue = await getIssue(github, context, issueNumber);
+	let issue = await getIssue(github, context, issueNumber);
 	const ignoreReason = getIgnoreReason(issue);
 	if (ignoreReason) {
 		core.info(`Not assigning anybody because ${ignoreReason}.`);
 		return;
 	}
-	// `triage-needed` may already be removed by the other safe outputs, so compare with the assignees of the event instead.
-	const previous = (context.payload.issue?.assignees ?? []).map(assignee => assignee.login.toLowerCase());
-	if ((issue.assignees ?? []).some(assignee => !previous.includes(assignee.login.toLowerCase()))) {
-		core.info('Not assigning anybody because the issue was assigned while triage was running.');
+	if (issue.assignees?.length) {
+		core.info('Not assigning anybody because the issue already has an assignee.');
 		return;
 	}
 	let login: string | undefined;
@@ -377,10 +460,20 @@ export async function assignOwner(github: IGitHub, context: IContext, core: ICor
 		core.info(`Staged mode: would assign ${login} to #${issueNumber} and remove the stale and triage-needed labels.`);
 		return;
 	}
+	issue = await getIssue(github, context, issueNumber);
+	const latestIgnoreReason = getIgnoreReason(issue);
+	if (latestIgnoreReason || issue.assignees?.length) {
+		core.info(`Not assigning anybody because ${latestIgnoreReason ?? 'the issue already has an assignee'}.`);
+		return;
+	}
 	const { data: updated } = await github.request<IIssue>('POST /repos/{owner}/{repo}/issues/{issue_number}/assignees', { owner, repo, issue_number: issueNumber, assignees: [login] });
 	if (!updated.assignees?.some(assignee => assignee.login.toLowerCase() === login.toLowerCase())) {
 		core.warning(`GitHub did not assign ${login} to #${issueNumber}.`);
 		return requestTriage(github, context, core, issue, options.staged);
+	}
+	if (updated.assignees.some(assignee => assignee.login.toLowerCase() !== login.toLowerCase())) {
+		core.warning(`Another assignee appeared while assigning #${issueNumber}; leaving it for human triage.`);
+		return requestTriage(github, context, core, updated, options.staged);
 	}
 	core.info(`Assigned ${login} to #${issueNumber}.`);
 	for (const label of getLabelNames(issue).filter(name => ['stale', 'triage-needed'].includes(name.toLowerCase()))) {

@@ -8,7 +8,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { suite, test } from 'node:test';
-import { assignOwner, checkIssue, checkTeamMember, checkTeamMembers, getSkipReason, type IIssue } from '../../../.github/actions/issue-triage/issueTriage.ts';
+import { assignOwner, checkIssue, checkTeamMember, checkTeamMembers, getSkipReason, publishTranslation, suggestArea, type IIssue } from '../../../.github/actions/issue-triage/issueTriage.ts';
 
 type Parameters = Readonly<Record<string, string | number | readonly string[]>>;
 
@@ -102,7 +102,7 @@ suite('Issue Triage', () => {
 			'test plan item': 'it has the label Testplan-Item',
 			'test plan title': 'it is a test plan item or an iteration plan',
 			'assigned': 'it is already assigned',
-			'placeholder assignee': 'triage',
+			'placeholder assignee': 'it is already assigned',
 		});
 	});
 
@@ -187,15 +187,16 @@ suite('Issue Triage', () => {
 			const externals = Array.from({ length: 7 }, (_, index) => `external-${index}`);
 			const results: Record<string, string[]> = {};
 			for (const [name, assignees, labels, currentAssignees, staged, detectionConclusion] of [
-				['assigns the first member', '@Former-Member, member, admin-member', ['triage-needed', 'stale'], ['placeholder'], false, 'success'],
-				['sanitized mentions', '`@other-team-writer`, `@member`, admin-member', ['stale'], ['placeholder'], false, 'success'],
-				['malformed or blocked mentions', '`@member, @member`, `@member`suffix, `@copilot`, `@renovate[bot]`', ['stale'], ['placeholder'], false, 'success'],
-				['staged', 'member', ['triage-needed', 'stale'], ['placeholder'], true, 'success'],
-				['threat detection flagged the output', 'member', ['stale'], ['placeholder'], false, 'warning'],
-				['nobody on the team in the first 10', `copilot other-team-writer, former-member, ${externals.join(', ')}, member`, ['stale'], ['placeholder'], false, 'success'],
-				['no owner found', undefined, ['stale'], ['placeholder'], false, 'success'],
-				['no owner found, still labeled triage-needed', '', ['triage-needed'], ['placeholder'], false, 'success'],
-				['assigned while triage ran', 'member', ['stale'], ['placeholder', 'someone'], false, 'success'],
+				['assigns the first member', '@Former-Member, member, admin-member', ['triage-needed', 'stale'], [], false, 'success'],
+				['sanitized mentions', '`@other-team-writer`, `@member`, admin-member', ['stale'], [], false, 'success'],
+				['malformed or blocked mentions', '`@member, @member`, `@member`suffix, `@copilot`, `@renovate[bot]`', ['stale'], [], false, 'success'],
+				['staged', 'member', ['triage-needed', 'stale'], [], true, 'success'],
+				['threat detection flagged the output', 'member', ['stale'], [], false, 'warning'],
+				['nobody on the team in the first 10', `copilot other-team-writer, former-member, ${externals.join(', ')}, member`, ['stale'], [], false, 'success'],
+				['no owner found', undefined, ['stale'], [], false, 'success'],
+				['no owner found, still labeled triage-needed', '', ['triage-needed'], [], false, 'success'],
+				['placeholder remains assigned', 'member', ['triage-needed', 'stale'], ['placeholder'], false, 'success'],
+				['assigned while triage ran', 'member', ['stale'], ['someone'], false, 'success'],
 			] as const) {
 				const agentOutputPath = path.join(directory, 'agent-output.json');
 				writeFileSync(agentOutputPath, JSON.stringify({ items: [{ type: 'add_labels', labels: ['~info-needed'] }, { type: 'assign_owner', assignees }] }));
@@ -204,12 +205,12 @@ suite('Issue Triage', () => {
 						return issue(100, { labels: labels.map(label => ({ name: label })), assignees: currentAssignees.map(login => ({ login })) });
 					}
 					if (call === 'POST /repos/microsoft/vscode/issues/100/assignees') {
-						return issue(100, { assignees: [{ login: 'placeholder' }, { login: 'member' }] });
+						return issue(100, { assignees: [{ login: 'member' }] });
 					}
 					return handlePermission(call) ?? {};
 				});
 				const core = new FakeCore();
-				const payload = { action: 'labeled', label: { name: 'stale' }, issue: { number: 100, assignees: [{ login: 'placeholder' }] } };
+				const payload = { action: 'labeled', label: { name: 'stale' }, issue: { number: 100 } };
 				await assignOwner(github, { ...context, payload }, core, { agentOutputPath, detectionConclusion, staged });
 				results[name] = [...github.calls.filter(call => call !== 'GET /repos/microsoft/vscode/issues/100'), ...core.messages];
 			}
@@ -254,8 +255,170 @@ suite('Issue Triage', () => {
 					'warning: Not assigning anybody: the agent did not find an owner.',
 					'#100 keeps the triage-needed label.',
 				],
-				'assigned while triage ran': ['Not assigning anybody because the issue was assigned while triage was running.'],
+				'placeholder remains assigned': ['Not assigning anybody because the issue already has an assignee.'],
+				'assigned while triage ran': ['Not assigning anybody because the issue already has an assignee.'],
 			});
+		} finally {
+			rmSync(directory, { recursive: true, force: true });
+		}
+	});
+
+	test('enforces allowlisted area suggestions regardless of agent-supplied flags', async () => {
+		const directory = mkdtempSync(path.join(tmpdir(), 'issue-triage-'));
+		try {
+			const agentOutputPath = path.join(directory, 'agent-output.json');
+			const github = new FakeGitHub(() => issue(100));
+			const core = new FakeCore();
+			const options = { agentOutputPath, detectionConclusion: 'success', staged: false };
+			const suggestions: object[] = [];
+			const suggest = async (label: object) => { suggestions.push(label); };
+			writeFileSync(agentOutputPath, JSON.stringify({ items: [{ type: 'suggest_area', label: 'terminal', rationale: '@someone', confidence: 'HIGH', suggest: false }] }));
+			await suggestArea(github, context, core, options, value => `sanitized:${value}`, suggest);
+			writeFileSync(agentOutputPath, JSON.stringify({ items: [{ type: 'suggest_area', label: '~spam', rationale: 'reason', confidence: 'HIGH' }] }));
+			await assert.rejects(suggestArea(github, context, core, options, value => value, suggest), /Invalid area label suggestion/);
+			await suggestArea(github, context, core, { ...options, detectionConclusion: 'warning' }, value => value, suggest);
+			assert.deepStrictEqual(suggestions, [{ name: 'terminal', rationale: 'sanitized:@someone', confidence: 'HIGH', suggest: true }]);
+		} finally {
+			rmSync(directory, { recursive: true, force: true });
+		}
+	});
+
+	test('does not assign an owner if someone is assigned during the membership check', async () => {
+		const directory = mkdtempSync(path.join(tmpdir(), 'issue-triage-'));
+		try {
+			const agentOutputPath = path.join(directory, 'agent-output.json');
+			writeFileSync(agentOutputPath, JSON.stringify({ items: [{ type: 'assign_owner', assignees: 'member' }] }));
+			let issueReads = 0;
+			const github = new FakeGitHub(call => {
+				if (call === 'GET /repos/microsoft/vscode/issues/100') {
+					issueReads++;
+					return issue(100, issueReads === 1 ? {} : { assignees: [{ login: 'someone' }] });
+				}
+				return handlePermission(call) ?? {};
+			});
+			const core = new FakeCore();
+			await assignOwner(github, context, core, { agentOutputPath, detectionConclusion: 'success', staged: false });
+			assert.deepStrictEqual(github.calls, [
+				'GET /repos/microsoft/vscode/issues/100',
+				'GET /repos/microsoft/vscode/collaborators/member/permission',
+				'GET /repos/microsoft/vscode/issues/100',
+			]);
+		} finally {
+			rmSync(directory, { recursive: true, force: true });
+		}
+	});
+
+	test('keeps triage-needed if another assignee appears during assignment', async () => {
+		const directory = mkdtempSync(path.join(tmpdir(), 'issue-triage-'));
+		try {
+			const agentOutputPath = path.join(directory, 'agent-output.json');
+			writeFileSync(agentOutputPath, JSON.stringify({ items: [{ type: 'assign_owner', assignees: 'member' }] }));
+			const github = new FakeGitHub(call => {
+				if (call === 'GET /repos/microsoft/vscode/issues/100') {
+					return issue(100, { labels: ['triage-needed', 'stale'] });
+				}
+				if (call === 'POST /repos/microsoft/vscode/issues/100/assignees') {
+					return issue(100, { labels: ['triage-needed', 'stale'], assignees: [{ login: 'someone' }, { login: 'member' }] });
+				}
+				return handlePermission(call) ?? {};
+			});
+			const core = new FakeCore();
+			await assignOwner(github, context, core, { agentOutputPath, detectionConclusion: 'success', staged: false });
+			assert.deepStrictEqual({
+				writes: github.calls.filter(call => !call.startsWith('GET')),
+				messages: core.messages,
+			}, {
+				writes: ['POST /repos/microsoft/vscode/issues/100/assignees'],
+				messages: ['warning: Another assignee appeared while assigning #100; leaving it for human triage.', '#100 keeps the triage-needed label.'],
+			});
+		} finally {
+			rmSync(directory, { recursive: true, force: true });
+		}
+	});
+
+	test('marks a translation only after publication and recovers from label failure without a duplicate', async () => {
+		const directory = mkdtempSync(path.join(tmpdir(), 'issue-triage-'));
+		try {
+			const agentOutputPath = path.join(directory, 'agent-output.json');
+			writeFileSync(agentOutputPath, JSON.stringify({ items: [{ type: 'publish_translation', body: '## AI Translation:\n\nHello @someone' }] }));
+			const options = { agentOutputPath, detectionConclusion: 'success', staged: false };
+			const core = new FakeCore();
+			const marker = '<!-- vscode-issue-triage-translation -->';
+			let comment: string | undefined;
+			let failComment = true;
+			let failLabel = true;
+			const github = new FakeGitHub((call, parameters) => {
+				if (call === 'GET /repos/microsoft/vscode/issues/100') {
+					return issue(100);
+				}
+				if (call.endsWith('/comments') && call.startsWith('GET')) {
+					return comment ? [{ body: comment, user: { id: 41898282 } }] : [{ body: marker, user: { id: 1 } }];
+				}
+				if (call.endsWith('/comments') && call.startsWith('POST')) {
+					if (failComment) {
+						return 423;
+					}
+					comment = String(parameters.body);
+					return {};
+				}
+				if (call.endsWith('/labels') && failLabel) {
+					return 500;
+				}
+				return {};
+			});
+			const sanitize = (value: string) => value.replace('@someone', '`@someone`');
+			await assert.rejects(publishTranslation(github, context, core, options, sanitize), /HTTP 423/);
+			failComment = false;
+			await assert.rejects(publishTranslation(github, context, core, options, sanitize), /HTTP 500/);
+			failLabel = false;
+			await publishTranslation(github, context, core, options, sanitize);
+			assert.deepStrictEqual({
+				comment,
+				writes: github.calls.filter(call => call.startsWith('POST')),
+			}, {
+				comment: `## AI Translation:\n\nHello \`@someone\`\n\n${marker}`,
+				writes: [
+					'POST /repos/microsoft/vscode/issues/100/comments',
+					'POST /repos/microsoft/vscode/issues/100/comments',
+					'POST /repos/microsoft/vscode/issues/100/labels',
+					'POST /repos/microsoft/vscode/issues/100/labels',
+				],
+			});
+		} finally {
+			rmSync(directory, { recursive: true, force: true });
+		}
+	});
+
+	test('finds an existing translation on later pages and does not write in staged or failed detection runs', async () => {
+		const directory = mkdtempSync(path.join(tmpdir(), 'issue-triage-'));
+		try {
+			const agentOutputPath = path.join(directory, 'agent-output.json');
+			writeFileSync(agentOutputPath, JSON.stringify({ items: [{ type: 'publish_translation', body: '## AI Translation:\n\nHello' }] }));
+			const options = { agentOutputPath, detectionConclusion: 'success', staged: false };
+			const core = new FakeCore();
+			const github = new FakeGitHub((call, parameters) => {
+				if (call === 'GET /repos/microsoft/vscode/issues/100') {
+					return issue(100);
+				}
+				if (call.startsWith('GET') && call.endsWith('/comments')) {
+					return parameters.page === 1
+						? Array.from({ length: 100 }, () => ({ body: 'comment', user: { id: 1 } }))
+						: [{ body: '<!-- vscode-issue-triage-translation -->', user: { id: 41898282 } }];
+				}
+				return {};
+			});
+			await publishTranslation(github, context, core, { ...options, detectionConclusion: 'warning' }, value => value);
+			await publishTranslation(github, context, core, { ...options, staged: true }, value => value);
+			await publishTranslation(github, context, core, options, value => value);
+			assert.deepStrictEqual(github.calls, [
+				'GET /repos/microsoft/vscode/issues/100',
+				'GET /repos/microsoft/vscode/issues/100/comments',
+				'GET /repos/microsoft/vscode/issues/100/comments',
+				'GET /repos/microsoft/vscode/issues/100',
+				'GET /repos/microsoft/vscode/issues/100/comments',
+				'GET /repos/microsoft/vscode/issues/100/comments',
+				'POST /repos/microsoft/vscode/issues/100/labels',
+			]);
 		} finally {
 			rmSync(directory, { recursive: true, force: true });
 		}
