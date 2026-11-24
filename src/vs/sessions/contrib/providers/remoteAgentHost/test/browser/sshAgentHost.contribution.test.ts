@@ -24,7 +24,6 @@ import { INotificationService } from '../../../../../../platform/notification/co
 import { TestNotificationService } from '../../../../../../platform/notification/test/common/testNotificationService.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
-import { categorizeSSHConnectError } from '../../../../../../workbench/contrib/sessions/common/sessionsTelemetry.js';
 import { ISessionsProvidersService } from '../../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { type IEntryDrivenProviderOptions } from '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/entryDrivenProviderContribution.js';
 import { ManagedReconnectState } from '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/managedReconnectAgentHostContribution.js';
@@ -388,26 +387,6 @@ suite('shouldPauseSSHReconnectAfterFailure', () => {
 			hostKeyDenial: true,
 			authenticationFailure: true,
 			regularError: false,
-		});
-	});
-});
-
-suite('categorizeSSHConnectError', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
-
-	test('returns bounded categories without logging error messages', () => {
-		assert.deepStrictEqual({
-			cancellation: categorizeSSHConnectError(new CancellationError()),
-			hostKeyDenial: categorizeSSHConnectError(new SSHHostKeyDeniedError('test-host')),
-			authentication: categorizeSSHConnectError(new Error('All configured authentication methods failed')),
-			network: categorizeSSHConnectError(new Error('connect ETIMEDOUT')),
-			other: categorizeSSHConnectError(new Error('remote setup failed')),
-		}, {
-			cancellation: 'cancelled',
-			hostKeyDenial: 'hostKeyDenied',
-			authentication: 'authentication',
-			network: 'network',
-			other: 'other',
 		});
 	});
 });

@@ -31,6 +31,7 @@ import {
 	WorkspaceRemoteAgentHostsSettingId,
 	getEntryTypeConfig,
 	parseWebSocketRemoteAgentHostEntries,
+	type IRemoteAgentHostConnectionAttempt,
 	type IRemoteAgentHostConnectionFactory,
 	type IRemoteAgentHostConnectionInfo,
 	type IRemoteAgentHostConnectOptions,
@@ -80,6 +81,8 @@ interface IConnectionEntry {
 interface IPendingConnectionAttempt {
 	readonly promise: Promise<void>;
 	readonly info: IRemoteAgentHostPendingConnection;
+	/** Dial number within the current retry cycle, starting at one. */
+	readonly attemptNumber: number;
 	readonly observer?: RemoteAgentHostConnectionObserver;
 	readonly previousError?: string;
 	/** Also set when a user explicitly joins an automatic attempt already in flight. */
@@ -677,7 +680,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		const userInitiated = factory?.getPendingConnectionInitiation?.(entryToCreate) ?? options.userInitiated;
 		const observer = factory?.getConnectionObserver?.(entryToCreate);
 		const previousError = !userInitiated ? this._entries.get(address)?.lastConnectionError : undefined;
-		const attempt = { promise: pendingConnect.p, info: { address, startedAt: Date.now(), userInitiated }, observer, previousError, showError: userInitiated || !!previousError, userJoined: false };
+		const attempt = { promise: pendingConnect.p, info: { address, startedAt: Date.now(), userInitiated }, attemptNumber: (this._reconnectAttempts.get(address) ?? 0) + 1, observer, previousError, showError: userInitiated || !!previousError, userJoined: false };
 		this._pendingConnects.set(address, attempt);
 		observer?.('connecting');
 		this._onDidChangePendingConnections.fire();
@@ -772,7 +775,9 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			// Nothing else reports this failure: no entry was created, so consumers
 			// only learn the address became unavailable from this notification.
 			this._onDidChangeConnections.fire();
-			if (isTerminalConnectError(err) || this._store.isDisposed || !this._remoteAgentHostsEnabled.get() || !this._scheduleReconnect(address, entryToCreate.connectionToken)) {
+			const willRetry = !isTerminalConnectError(err) && !this._store.isDisposed && this._remoteAgentHostsEnabled.get() && this._scheduleReconnect(address, entryToCreate.connectionToken);
+			this._reportConnectionAttempt(factory, entryToCreate, attempt, { error: err, duringHandshake: false, willRetry });
+			if (!willRetry) {
 				observer?.(isCancellationError(err) || this._store.isDisposed || !this._remoteAgentHostsEnabled.get() ? 'disposed' : 'failed');
 			}
 			return;
@@ -925,6 +930,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			this._reconnectAttempts.delete(address);
 			this._resolvePendingConnectionWait(address);
 			this._onDidChangeConnections.fire();
+			this._reportConnectionAttempt(factory, entryToCreate, attempt, undefined);
 		} catch (err) {
 			if (!isCurrentEntry()) {
 				if (!store.isDisposed) {
@@ -949,6 +955,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 				this._reconnectAttempts.delete(address);
 				this._rejectPendingConnectionWait(address, err);
 				this._onDidChangeConnections.fire();
+				this._reportConnectionAttempt(factory, entryToCreate, attempt, { error: err, duringHandshake: true, willRetry: false });
 				return;
 			}
 
@@ -965,6 +972,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			// restore itself instead of rebuilding from scratch.
 			if (RemoteAgentHostConnectionStatus.isReconnecting(entry.status)) {
 				this._logService.info(`[RemoteAgentHost] Handshake with ${address} was interrupted; the protocol client is restoring the connection`);
+				this._reportConnectionAttempt(factory, entryToCreate, attempt, { error: err, duringHandshake: true, willRetry: true });
 				return;
 			}
 
@@ -979,10 +987,21 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			this._rejectPendingConnectionWait(address, err);
 			this._onDidChangeConnections.fire();
 			// Schedule reconnect if the address is still configured
-			if (isAuthenticationFailureReason(disconnectReason) || createdConnection.reconnectManagedByClient || !this._scheduleReconnect(address, entryToCreate.connectionToken)) {
+			const willRetry = !isAuthenticationFailureReason(disconnectReason) && !createdConnection.reconnectManagedByClient && this._scheduleReconnect(address, entryToCreate.connectionToken);
+			this._reportConnectionAttempt(factory, entryToCreate, attempt, { error: err, duringHandshake: true, willRetry });
+			if (!willRetry) {
 				observer?.('failed');
 			}
 		}
+	}
+
+	private _reportConnectionAttempt(factory: IRemoteAgentHostConnectionFactory, entry: IRemoteAgentHostEntry, attempt: IPendingConnectionAttempt, failure: IRemoteAgentHostConnectionAttempt['failure']): void {
+		factory.reportConnectionAttempt?.(entry, {
+			userInitiated: attempt.info.userInitiated,
+			attempt: attempt.attemptNumber,
+			durationMs: Date.now() - attempt.info.startedAt,
+			failure,
+		});
 	}
 
 	/**

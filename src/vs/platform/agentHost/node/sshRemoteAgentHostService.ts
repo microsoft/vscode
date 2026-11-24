@@ -39,6 +39,9 @@ import {
 	type SSHStrictHostKeyChecking,
 	SSHHostKeyDeniedError,
 	SSHAuthenticationFailedError,
+	SSHConnectFailureCode,
+	encodeSSHConnectFailureCode,
+	setSSHConnectFailureCode,
 } from '../common/sshRemoteAgentHost.js';
 import {
 	computeHostKeyFingerprint,
@@ -159,6 +162,62 @@ const HANDSHAKE_TIMEOUT_MS = 30_000;
  * the interval a prompt is actually outstanding.
  */
 const INTERACTIVE_TIMEOUT_MS = 300_000;
+
+/**
+ * Classifies an ssh2 client error while its `level` is still available, which
+ * IPC drops. ssh2 gives handshake failures no structured reason, so this
+ * matches its fixed messages. Through a proxy, a lost connection can have any
+ * cause, so it is not reported as a network failure.
+ */
+function getSSHClientFailureCode(error: Error & ClientErrorExtensions, viaProxy: boolean): SSHConnectFailureCode {
+	switch (error.level) {
+		case 'handshake':
+			if (error.message.includes('no matching host key format')) {
+				return SSHConnectFailureCode.HostKeyFormat;
+			}
+			if (error.message.includes('no matching key exchange algorithm')) {
+				return SSHConnectFailureCode.KexAlgorithm;
+			}
+			return SSHConnectFailureCode.Handshake;
+		case 'protocol':
+			if (error.message !== 'Connection lost before handshake') {
+				return SSHConnectFailureCode.Handshake;
+			}
+			return viaProxy ? SSHConnectFailureCode.Connection : SSHConnectFailureCode.Network;
+		case 'client-socket':
+		case 'client-dns':
+		case 'client-timeout':
+			return viaProxy ? SSHConnectFailureCode.Connection : SSHConnectFailureCode.Network;
+		default:
+			return SSHConnectFailureCode.Connection;
+	}
+}
+
+/** Records `code` on a failure of `operation`, unless a more specific code was recorded first. */
+async function withSSHConnectFailureCode<T>(code: SSHConnectFailureCode, operation: Promise<T>): Promise<T> {
+	try {
+		return await operation;
+	} catch (error) {
+		setSSHConnectFailureCode(error, code);
+		throw error;
+	}
+}
+
+function createSSHConnectFailure(message: string, code: SSHConnectFailureCode): Error {
+	const error = new Error(message);
+	setSSHConnectFailureCode(error, code);
+	return error;
+}
+
+/** Encodes the failure code of a rejected connect for the renderer; see {@link encodeSSHConnectFailureCode}. */
+async function encodingSSHConnectFailureCode<T>(operation: Promise<T>): Promise<T> {
+	try {
+		return await operation;
+	} catch (error) {
+		encodeSSHConnectFailureCode(error);
+		throw error;
+	}
+}
 
 /**
  * One entry in the queue of authentication attempts handed to ssh2's
@@ -855,7 +914,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 	}
 
 	async connect(config: ISSHAgentHostConfig, expectedConnectionId?: string): Promise<ISSHConnectResult> {
-		return this._connectSession(computeSSHConnectionKey(config), () => this._connect(config), expectedConnectionId);
+		return encodingSSHConnectFailureCode(this._connectSession(computeSSHConnectionKey(config), () => this._connect(config), expectedConnectionId));
 	}
 
 	private async _connectSession(connectionKey: string, createSession: () => Promise<SSHConnection>, expectedConnectionId?: string): Promise<ISSHConnectResult> {
@@ -883,6 +942,8 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 		this._logService.info(`${LOG_PREFIX} Connecting to ${connectionKey}`);
 		const displayHost = config.sshConfigHost ?? `${config.username}@${config.host}`;
 		let sshClient: SSHClient | undefined;
+		// The stage reached so far, recorded on a failure that has no more specific code.
+		let failureCode: SSHConnectFailureCode = SSHConnectFailureCode.Connection;
 
 		try {
 			const reportProgress = (message: string) => {
@@ -892,6 +953,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 			// 1. Establish SSH connection
 			reportProgress(localize('sshProgressConnecting', "Establishing SSH connection..."));
 			sshClient = await this._connectSSH(config, connectionKey, resolvedConfig);
+			failureCode = SSHConnectFailureCode.AgentHost;
 
 			let endpoint: AgentHostEndpointAddress;
 			let connectionToken: string | undefined;
@@ -923,6 +985,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 			} else {
 				// 2. Resolve the remote CLI first — every registry command
 				// (`agent endpoints`/`agent host`/`agent relay`) needs it.
+				failureCode = SSHConnectFailureCode.CliInstall;
 				const { stdout: unameS } = await sshExec(sshClient, 'uname -s');
 				const { stdout: unameM } = await sshExec(sshClient, 'uname -m');
 				const platform = resolveRemotePlatform(unameS, unameM);
@@ -936,6 +999,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 				cliDataDir = getRemoteCLIDataDir(this._serverDataFolderName);
 
 				// 3. Discover every live endpoint on the remote via the shared registry.
+				failureCode = SSHConnectFailureCode.AgentHost;
 				reportProgress(localize('sshProgressCheckingAgent', "Checking for existing agent hosts..."));
 				const exec = bindSshExec(sshClient);
 				const initial = await runAgentEndpoints(exec, cliBin, cliDataDir);
@@ -1105,6 +1169,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 			return conn;
 
 		} catch (err) {
+			setSSHConnectFailureCode(err, failureCode);
 			sshClient?.end();
 			if (sshClient) {
 				this._jumpProxies.deleteAndDispose(sshClient);
@@ -1271,7 +1336,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 				}
 			}
 			session.dispose();
-			throw new Error(`${LOG_PREFIX} Failed to connect to the selected remote agent host: ${relayErrorMessage}. Please retry connecting.`);
+			throw createSSHConnectFailure(`${LOG_PREFIX} Failed to connect to the selected remote agent host: ${relayErrorMessage}. Please retry connecting.`, SSHConnectFailureCode.Relay);
 		} finally {
 			const remaining = (this._pendingRelayAcquisitions.get(session) ?? 1) - 1;
 			if (remaining > 0) {
@@ -1308,15 +1373,15 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 
 	async reconnect(sshConfigHost: string, name: string, remoteAgentHostCommand?: string, agentForward?: boolean, userInitiated?: boolean, preferredAgentLocation?: RemoteAgentHostLocationPreference, expectedConnectionId?: string): Promise<ISSHConnectResult> {
 		this._logService.info(`${LOG_PREFIX} Reconnecting via SSH config host: ${sshConfigHost} (userInitiated=${userInitiated ?? true})`);
-		return this._connectSession(
+		return encodingSSHConnectFailureCode(this._connectSession(
 			computeSSHConnectionKey({ sshConfigHost }),
 			() => this._connectConfiguredHost(sshConfigHost, name, remoteAgentHostCommand, agentForward, userInitiated, preferredAgentLocation),
 			expectedConnectionId,
-		);
+		));
 	}
 
 	private async _connectConfiguredHost(sshConfigHost: string, name: string, remoteAgentHostCommand?: string, agentForward?: boolean, userInitiated?: boolean, preferredAgentLocation?: RemoteAgentHostLocationPreference): Promise<SSHConnection> {
-		const resolved = await this.resolveSSHConfig(sshConfigHost);
+		const resolved = await withSSHConnectFailureCode(SSHConnectFailureCode.Configuration, this.resolveSSHConfig(sshConfigHost));
 
 		// Always use Agent auth — the auth handler will walk through the SSH
 		// agent and any default identities. If the user pinned a non-default
@@ -1500,6 +1565,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 			resolved ??= await this.resolveSSHConfig(originalHost);
 		} catch (err) {
 			if (err instanceof SSHKnownHostsResolutionError) {
+				setSSHConnectFailureCode(err, SSHConnectFailureCode.Configuration);
 				throw err;
 			}
 			this._logService.warn(`${LOG_PREFIX} Could not resolve SSH config for ${originalHost}: ${err}`);
@@ -1524,7 +1590,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 			keepaliveInterval: 15_000,
 		};
 
-		const attempts: SSHAuthAttempt[] = [{ type: 'none', username: config.username }, ...await this._buildAuthAttempts(config, resolved)];
+		const attempts: SSHAuthAttempt[] = [{ type: 'none', username: config.username }, ...await withSSHConnectFailureCode(SSHConnectFailureCode.Configuration, this._buildAuthAttempts(config, resolved))];
 		this._logService.info(`${LOG_PREFIX} Built ${attempts.length} auth attempt(s): ${attempts.map(a => describeAuthAttempt(a)).join(', ')}`);
 		// Track requestIds we created during this connect so we can fire
 		// onDidCancelKeyboardInteractive for any still-pending prompts when
@@ -1662,12 +1728,14 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 			}, this._logService);
 		} catch (error) {
 			client.end();
+			setSSHConnectFailureCode(error, SSHConnectFailureCode.Configuration);
 			throw error;
 		}
 		if (jumpProxy) {
 			this._jumpProxies.set(client, jumpProxy);
 			connectConfig.sock = jumpProxy.stream;
 		}
+		const viaProxy = !!jumpProxy || !!resolved?.proxyCommand;
 		return new Promise<SSHClient>((resolve, reject) => {
 			let settled = false;
 			let connected = false;
@@ -1686,7 +1754,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 				}
 				clearDeadline();
 				deadlineTimer = this._armHandshakeDeadline(ms, () => {
-					rejectConnect(new Error(`SSH handshake to ${config.host} timed out`), true);
+					rejectConnect(createSSHConnectFailure(`SSH handshake to ${config.host} timed out`, SSHConnectFailureCode.Network), true);
 				});
 			};
 
@@ -1744,11 +1812,13 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 			});
 
 			client.on('error', (err: Error & ClientErrorExtensions) => {
+				const failureCode = getSSHClientFailureCode(err, viaProxy);
+				setSSHConnectFailureCode(err, failureCode);
 				if (err instanceof AggregateError && !err.message) {
 					// Node's dual-stack connection errors have no message, and IPC drops their nested errors.
 					err.message = err.errors.filter((error: unknown): error is Error => error instanceof Error && !!error.message)
 						.map(error => error.message).join('\n') || getErrorCode(err) || err.message;
-				} else if (err.level === 'handshake' && err.message.includes('no matching host key format')) {
+				} else if (failureCode === SSHConnectFailureCode.HostKeyFormat) {
 					// ssh2 cannot negotiate OpenSSH host certificates, so a server that offers only
 					// those fails key exchange. Servers that also offer a plain key negotiate it instead.
 					err.message = localize('sshNoMatchingHostKeyFormat', "{0}. The server only offers host key types that are not supported here, such as OpenSSH host certificates. To connect, the server also needs to offer a plain host key, for example by adding ssh-ed25519 to HostKeyAlgorithms in its sshd_config.", err.message);
@@ -1777,7 +1847,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 				rejectConnect(
 					hostKeyDenied
 						? new SSHHostKeyDeniedError(displayHost)
-						: new Error(`SSH connection to ${config.host} closed before the handshake completed`),
+						: createSSHConnectFailure(`SSH connection to ${config.host} closed before the handshake completed`, viaProxy ? SSHConnectFailureCode.Connection : SSHConnectFailureCode.Network),
 					false);
 			});
 
@@ -1804,7 +1874,10 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 				}
 				client.connect(connectConfig);
 			} catch (error) {
-				rejectConnect(error instanceof Error ? error : new Error(String(error)), true);
+				// An invalid ProxyCommand or connection setting, such as an unparseable key.
+				const failure = error instanceof Error ? error : new Error(String(error));
+				setSSHConnectFailureCode(failure, SSHConnectFailureCode.Configuration);
+				rejectConnect(failure, true);
 			}
 		});
 	}

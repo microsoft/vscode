@@ -23,7 +23,7 @@ import { IProductService } from '../../../product/common/productService.js';
 import { TelemetryConfiguration } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { AGENT_HOST_ENDPOINT_REGISTRY_SCHEMA_VERSION, type AgentHostEndpointAddress, type IAgentHostEndpointMetadata } from '../../common/agentHostEndpointRegistry.js';
-import { isSSHAuthenticationFailedError, SSHAuthMethod, type ISSHAgentHostConfig, type ISSHConnectProgress, type ISSHEndpointSelection, type ISSHEndpointSelectionRequest, type ISSHKeyboardInteractivePrompt, type ISSHKeyboardInteractiveRequest, type ISSHResolvedConfig } from '../../common/sshRemoteAgentHost.js';
+import { decodeSSHConnectFailureCode, getSSHConnectFailureCode, isSSHAuthenticationFailedError, SSHAuthMethod, SSHConnectFailureCode, type ISSHAgentHostConfig, type ISSHConnectProgress, type ISSHEndpointSelection, type ISSHEndpointSelectionRequest, type ISSHKeyboardInteractivePrompt, type ISSHKeyboardInteractiveRequest, type ISSHResolvedConfig } from '../../common/sshRemoteAgentHost.js';
 import { SSHRemoteAgentHostMainService, makeAuthHandler, type SSHAuthAttempt } from '../../node/sshRemoteAgentHostService.js';
 import { parseSSHGOutput } from '../../common/sshConfigParsing.js';
 import type { AnyAuthMethod, AuthenticationType, ConnectConfig } from 'ssh2';
@@ -579,16 +579,24 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 		});
 	}
 
-	for (const { name, message, expectedMessage } of [
+	for (const { name, message, expectedMessage, expectedCode } of [
 		{
 			name: 'explains a server that only offers host certificates',
 			message: 'Handshake failed: no matching host key format',
 			expectedMessage: 'Handshake failed: no matching host key format. The server only offers host key types that are not supported here, such as OpenSSH host certificates. To connect, the server also needs to offer a plain host key, for example by adding ssh-ed25519 to HostKeyAlgorithms in its sshd_config.',
+			expectedCode: SSHConnectFailureCode.HostKeyFormat,
+		},
+		{
+			name: 'identifies a key exchange mismatch',
+			message: 'Handshake failed: no matching key exchange algorithm',
+			expectedMessage: 'Handshake failed: no matching key exchange algorithm',
+			expectedCode: SSHConnectFailureCode.KexAlgorithm,
 		},
 		{
 			name: 'keeps other handshake failures as reported',
 			message: 'Handshake failed: no matching cipher',
 			expectedMessage: 'Handshake failed: no matching cipher',
+			expectedCode: SSHConnectFailureCode.Handshake,
 		},
 	]) {
 		test(`SSH handshake failure: ${name}`, async () => {
@@ -602,12 +610,35 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 				assert.deepStrictEqual({
 					sameError: actual === error,
 					message: toErrorMessage(transformErrorFromSerialization(transformErrorForSerialization(error))),
+					code: getSSHConnectFailureCode(actual),
 					log: logService.errors,
 				}, {
 					sameError: true,
 					message: expectedMessage,
+					code: expectedCode,
 					log: [`[SSHRemoteAgentHost] SSH connection error: ${expectedMessage}`],
 				});
+				return true;
+			});
+		});
+	}
+
+	for (const { stage, execResponses, relayFails, expectedCode } of [
+		{ stage: 'remote platform detection', execResponses: [{ stdout: 'Plan9\n', code: 0 }, { stdout: 'mips\n', code: 0 }], relayFails: false, expectedCode: SSHConnectFailureCode.CliInstall },
+		{ stage: 'agent host discovery', execResponses: [...discoveryResponses([]).slice(0, 3), { stdout: '', code: 1 }], relayFails: false, expectedCode: SSHConnectFailureCode.AgentHost },
+		{ stage: 'relay creation', execResponses: discoveryResponses([makeEndpoint({ type: 'standalone', pid: 1234, instanceId: 'inst-1' })]), relayFails: true, expectedCode: SSHConnectFailureCode.Relay },
+	]) {
+		test(`records the stage of a failure during ${stage}`, async () => {
+			service.execResponses = execResponses;
+			if (relayFails) {
+				service.relayResult = new Error('connection refused');
+			}
+			await assert.rejects(service.connect(makeConfig()), (actual: Error) => {
+				// Shared-process IPC rebuilds the rejection from its name and message.
+				const received = new Error(actual.message);
+				received.name = actual.name;
+				decodeSSHConnectFailureCode(received);
+				assert.deepStrictEqual({ name: received.name, code: getSSHConnectFailureCode(received) }, { name: 'Error', code: expectedCode });
 				return true;
 			});
 		});

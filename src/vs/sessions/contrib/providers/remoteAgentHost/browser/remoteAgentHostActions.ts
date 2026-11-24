@@ -11,7 +11,6 @@ import { cloudSandboxAddress } from '../../../../../platform/agentHost/common/cl
 import { isCancellationError } from '../../../../../base/common/errors.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { StopWatch } from '../../../../../base/common/stopwatch.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
@@ -39,9 +38,7 @@ import { IQuickInputButton, IQuickInputService, IQuickPick, IQuickPickItem } fro
 import { IRemoteTunnelService, TunnelStatus } from '../../../../../platform/remoteTunnel/common/remoteTunnel.js';
 import { IAuthenticationService } from '../../../../../workbench/services/authentication/common/authentication.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
-import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { SessionsCategories } from '../../../../../workbench/contrib/sessions/common/categories.js';
-import { categorizeSSHConnectError, logSSHConnectAttempt } from '../../../../../workbench/contrib/sessions/common/sessionsTelemetry.js';
 import { SessionWorkspacePickerGroupContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
@@ -566,8 +563,6 @@ export async function connectWithProgress(
 	const sshService = accessor.get(ISSHRemoteAgentHostService);
 	const remoteAgentHostService = accessor.get(IRemoteAgentHostService);
 	const notificationService = accessor.get(INotificationService);
-	const telemetryService = accessor.get(ITelemetryService);
-	const stopwatch = StopWatch.create(false);
 
 	const address = computeSSHConnectionKey(config);
 	if (remoteAgentHostService.connections.some(connection => connection.address === address && RemoteAgentHostConnectionStatus.isConnected(connection.status))) {
@@ -589,26 +584,9 @@ export async function connectWithProgress(
 
 	try {
 		const connection = await sshService.connect(config);
-		logSSHConnectAttempt(telemetryService, {
-			operation: 'connect',
-			userInitiated: config.userInitiated ?? true,
-			attempt: 1,
-			durationMs: stopwatch.elapsed(),
-			success: true,
-			willRetry: false,
-		});
 		handle.close();
 		return connection.localAddress;
 	} catch (err) {
-		logSSHConnectAttempt(telemetryService, {
-			operation: 'connect',
-			userInitiated: config.userInitiated ?? true,
-			attempt: 1,
-			durationMs: stopwatch.elapsed(),
-			success: false,
-			willRetry: false,
-			errorCategory: categorizeSSHConnectError(err),
-		});
 		handle.close();
 		if (isCancellationError(err) || isSSHHostKeyDeniedError(err)) {
 			// A refused host key needs no generic error on top: either the user
