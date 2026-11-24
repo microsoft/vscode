@@ -937,6 +937,16 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 		return undefined;
 	}
 
+	/** Returns the rendered row that contains the given element in any of its cells. */
+	getRowContaining(element: Node): IRemoteTableRow | undefined {
+		for (const template of this.templates) {
+			if (template.row && template.container.isConnected && template.container.parentElement?.contains(element)) {
+				return template.row;
+			}
+		}
+		return undefined;
+	}
+
 	private onDidSelectSandboxProfile(address: string, option: SandboxProfileOption | undefined): void {
 		const connection = this.connections.getConnectionByAddress(address);
 		if (!connection || readHostSandboxProfile(connection) === undefined || !option) {

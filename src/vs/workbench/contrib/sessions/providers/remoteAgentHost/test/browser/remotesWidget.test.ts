@@ -4262,6 +4262,21 @@ suite('RemotesWidget', () => {
 		});
 	});
 
+	test('Shift+F10 opens the menu of the row whose Sandbox Profile selector has focus, not the previously focused row', () => {
+		const { parent, addHost } = createWidget();
+		addHost('tunnel:laptop', new TestSandboxProfilesHost());
+		parent.querySelector<HTMLElement>('[data-remote-id="ssh:build"]')!.click();
+		// The selector restores focus to itself when it closes, without the table focusing its row.
+		const picker = parent.querySelector<HTMLSelectElement>('[data-remote-id="tunnel:laptop"] select')!;
+		picker.focus();
+		for (const type of ['keydown', 'keyup']) {
+			picker.dispatchEvent(new KeyboardEvent(type, { key: 'F10', keyCode: 121, shiftKey: true, bubbles: true, cancelable: true }));
+		}
+		assert.deepStrictEqual(menuLabels(menus.get(parent)!()), [
+			'Connect', '---', 'Hide from Environment Picker', '---', 'Rename...', 'Configure Agent Run Behavior...', 'Troubleshoot Connection...', 'Delete Dev Tunnel...',
+		]);
+	});
+
 	test('the Dev Tunnels settings button and setup links follow table focus and support keyboard activation', async () => {
 		const { widget, parent, model, configRequests, documentation, settings } = createWidget();
 		model.remotes.set([model.remotes.get()[0]], undefined);

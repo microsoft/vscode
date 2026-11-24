@@ -393,6 +393,15 @@ export class RemotesWidget extends Disposable {
 				this.toggleGroup(event.element.entry.id);
 			}
 		}));
+		// Inline controls can take focus without the table focusing their row, such as a Sandbox Profile selector
+		// restoring focus when it closes. Follow them, so keyboard actions like the context menu act on that row.
+		this._register(dom.addDisposableListener(this.table.getHTMLElement(), dom.EventType.FOCUS_IN, event => {
+			const row = dom.isHTMLElement(event.target) ? nameRenderer.getRowContaining(event.target) : undefined;
+			const index = row ? this.table.indexOf(row) : -1;
+			if (index !== -1 && this.table.getFocus()[0] !== index) {
+				this.table.setFocus([index]);
+			}
+		}));
 		this._register(this.table.onContextMenu(event => {
 			const actions = event.element ? getRemoteRowMenuActions(event.element.entry, (entry, action) => this.runRowAction(entry, action)) : [];
 			if (!event.element || !actions.length) {
