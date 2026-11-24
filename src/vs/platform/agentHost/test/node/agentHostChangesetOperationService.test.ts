@@ -16,6 +16,7 @@ import { NullLogService } from '../../../log/common/log.js';
 import { AGENT_HOST_MERGE_CHANGESET_OPERATION_ID, type IChangesetOperationContribution, type IChangesetOperationContext, type IChangesetOperationHandler, type IChangesetOperationRegistry } from '../../common/agentHostChangesetOperationService.js';
 import { getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
 import { buildBranchChangesetUri, buildCompareTurnsChangesetUri, buildFolderChangesetOwnerUri, buildSessionChangesetUri, buildTurnChangesetUri, buildUncommittedChangesetUri, buildWorkingSetChangesetUri } from '../../common/changesetUri.js';
+import { LIST_BASE_BRANCHES_OPERATION_ID, SET_BASE_BRANCH_OPERATION_ID } from '../../common/meta/agentBaseBranchOperationMeta.js';
 import { PREPARE_PULL_REQUEST_OPERATION_ID } from '../../common/meta/agentPullRequestOperationMeta.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../../common/state/protocol/channels-changeset/commands.js';
@@ -777,7 +778,7 @@ suite('AgentHostChangesetOperationService', () => {
 		assert.deepStrictEqual(uncommittedOperations, sampleOperations);
 	});
 
-	test('keeps Branch Changes operations present but disabled while a turn is active', () => {
+	test('keeps Branch Changes operations present but disabled while a turn is active, except the base branch operations', () => {
 		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 		const sessionKey = 'agent:/session';
 		stateManager.createSession({
@@ -791,14 +792,16 @@ suite('AgentHostChangesetOperationService', () => {
 		});
 		stateManager.dispatchServerAction(buildDefaultChatUri(sessionKey), chatTurnStarted('turn-1', 'hi', '2025-01-01T00:00:00.000Z'));
 		const service = createService(stateManager);
-		disposables.add(service.registerContribution(new OperationsContribution(sampleOperations)));
+		const baseBranchOperations: ChangesetOperation[] = [LIST_BASE_BRANCHES_OPERATION_ID, SET_BASE_BRANCH_OPERATION_ID]
+			.map(id => ({ id, label: id, scopes: [ChangesetOperationScope.Changeset], status: ChangesetOperationStatus.Idle }));
+		disposables.add(service.registerContribution(new OperationsContribution([...sampleOperations, ...baseBranchOperations])));
 
 		const branchOperations = service.getOperations(sessionKey, buildBranchChangesetUri(sessionKey), sampleGitState);
 
 		assert.deepStrictEqual(branchOperations, [{
 			...sampleOperations[0],
 			status: ChangesetOperationStatus.Disabled,
-		}]);
+		}, ...baseBranchOperations]);
 	});
 
 	test('advertises Discard Changes on Session Changes and only on the last turn changeset as turns start and complete, with or without Git state', () => {
