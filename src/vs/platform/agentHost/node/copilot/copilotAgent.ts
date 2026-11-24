@@ -4106,12 +4106,17 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (this._githubCredentials.token || this._accountService.state.get().kind !== 'legacy') {
 			return;
 		}
-		const resource = this._gitHubEndpointService.getCopilotResource();
-		const kept = this._authenticationService.getAuthCredential({ resource: resource.resource, scopes: resource.scopes_supported })
-			?? this._authenticationService.getAuthCredential({ resource: resource.resource });
+		const kept = this._getKeptGitHubCredential();
 		if (kept) {
 			await this._applyGitHubAuthentication(kept.token, getRemainingTimeInSeconds(kept.expiresAt), this._gitHubEndpointGeneration);
 		}
+	}
+
+	/** Reads the GitHub credential the shared store holds for the Copilot resource, preferring the scoped entry. */
+	private _getKeptGitHubCredential() {
+		const resource = this._gitHubEndpointService.getCopilotResource();
+		return this._authenticationService.getAuthCredential({ resource: resource.resource, scopes: resource.scopes_supported })
+			?? this._authenticationService.getAuthCredential({ resource: resource.resource });
 	}
 
 	private async _applyGitHubAuthentication(token: string, expiresIn: number | undefined, endpointGeneration: number, _meta?: Record<string, unknown>): Promise<boolean> {
@@ -4263,7 +4268,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	async handleAuthenticationToken(params: AuthenticateParams): Promise<boolean> {
-		if (await this._entraAuthentication?.authenticate(params, this.getProtectedResources().find(resource => resource.resource === params.resource))) {
+		const hasGitHubToReturnTo = !params.token && !!(this._githubCredentials.token || this._getKeptGitHubCredential());
+		if (await this._entraAuthentication?.authenticate(params, this.getProtectedResources().find(resource => resource.resource === params.resource), !hasGitHubToReturnTo)) {
 			if (!params.token) {
 				await this._clientStopping;
 			}

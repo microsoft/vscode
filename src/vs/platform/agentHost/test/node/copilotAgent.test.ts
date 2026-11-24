@@ -6274,7 +6274,7 @@ suite('CopilotAgent', () => {
 				resourcesDuringAuthority: { microsoftOptional: true, github: initialResources.filter(resource => resource.resource !== copilotEntraDiscoveryResource) },
 				stops: withdrawal === 'signOut' ? 1 : 0, connected: withdrawal === 'signOut' ? 1 : 0,
 				credential: withdrawal === 'signOut' ? { kind: 'unavailable' } : { kind: 'token', accountId: 'selected', accessToken: 'synthetic-resource' },
-				readvertised: withdrawal === 'signOut' ? copilotEntraDiscoveryResource : undefined,
+				readvertised: undefined,
 			});
 		});
 	}
@@ -6374,8 +6374,28 @@ suite('CopilotAgent', () => {
 		if ((options.microsoft ?? true) && !options.deferMicrosoft) {
 			await signInMicrosoft();
 		}
-		return { ...context, client, gitHub, published, sendGitHub, endMicrosoft, applied, idle, signInMicrosoft };
+		return { ...context, client, gitHub, published, sendGitHub, endMicrosoft, applied, idle, signInMicrosoft, accountKind };
 	}
+
+	test('ending the Microsoft account over a kept GitHub token asks no client for the Microsoft credential', async () => {
+		const { agent, authenticationService, client, endMicrosoft, applied, idle, accountKind } = await useMicrosoftAccount({ githubToken: 'kept' });
+		const asked: string[] = [];
+		const answers: Promise<unknown>[] = [];
+		disposables.add(autorun(reader => {
+			const requirement = agent.authenticationRequired.read(reader);
+			if (requirement?.resource.resource === copilotEntraDiscoveryResource) {
+				asked.push(requirement.resource.resource);
+				// A window that still holds the Microsoft credential answers a published request with it.
+				answers.push(authenticationService.authenticate({ resource: copilotEntraDiscoveryResource, scopes: ['User.Read'], token: 'synthetic-identity', accountId: 'selected' }, [agent]).catch(() => undefined));
+			}
+		}));
+		const stops = client.stopCallCount;
+		await endMicrosoft();
+		await idle();
+		await Promise.all(answers);
+		await idle();
+		assert.deepStrictEqual({ asked, applied: applied(), account: accountKind(), stops: client.stopCallCount - stops }, { asked: [], applied: 'kept', account: 'legacy', stops: 1 });
+	});
 
 	test('signing in to Microsoft over a GitHub token publishes no GitHub request for a client to answer', async () => {
 		const { agent, authenticationService, gitHub, signInMicrosoft, applied, idle } = await useMicrosoftAccount({ githubToken: 'github', deferMicrosoft: true });
@@ -6437,21 +6457,22 @@ suite('CopilotAgent', () => {
 		assert.deepStrictEqual({ ...kept, readyAfterMicrosoftEnds: agent.isReadyForAutomation(undefined) }, { published: [], stopped: 0, microsoft: 'selected', kept: undefined, readyAfterMicrosoftEnds: false });
 	});
 
-	test('when the Microsoft account ends, the kept GitHub credential is applied and no GitHub request is published', async () => {
+	test('when the Microsoft account ends, the kept GitHub credential is applied and nothing is published', async () => {
 		const { agent, published, endMicrosoft, applied, idle } = await useMicrosoftAccount({ githubToken: 'kept' });
 		published.length = 0;
 		await endMicrosoft();
 		await idle();
 		assert.deepStrictEqual({ applied: applied(), ready: agent.isReadyForAutomation(undefined), published }, {
-			applied: 'kept', ready: true, published: [copilotEntraDiscoveryResource],
+			applied: 'kept', ready: true, published: [],
 		});
 	});
 
 	test('when Microsoft service discovery failed, the empty discovery token ends it and applies the kept GitHub credential', async () => {
-		const { endMicrosoft, applied, idle } = await useMicrosoftAccount({ githubToken: 'kept', failDiscovery: true });
+		const { published, endMicrosoft, applied, idle } = await useMicrosoftAccount({ githubToken: 'kept', failDiscovery: true });
+		published.length = 0;
 		await endMicrosoft();
 		await idle();
-		assert.strictEqual(applied(), 'kept');
+		assert.deepStrictEqual({ applied: applied(), published }, { applied: 'kept', published: [] });
 	});
 
 	test('when the Microsoft account ends, a kept GitHub token sent without scopes is applied', async () => {
