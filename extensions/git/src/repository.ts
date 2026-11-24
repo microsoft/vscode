@@ -812,6 +812,22 @@ export class Repository implements Disposable {
 	}
 
 	/**
+	 * The commit message in the input box of the source control, or while the repository is detached, the one that the
+	 * next source control starts with.
+	 */
+	get inputBoxValue(): string {
+		return this.isAttached ? this._sourceControl.inputBox.value : this.commitMessage ?? '';
+	}
+
+	set inputBoxValue(value: string) {
+		if (this.isAttached) {
+			this._sourceControl.inputBox.value = value;
+		} else {
+			this.commitMessage = value;
+		}
+	}
+
+	/**
 	 * Resets the commit message of the source control, or of the next one while the repository is detached.
 	 */
 	private resetCommitMessage(message: string): void {

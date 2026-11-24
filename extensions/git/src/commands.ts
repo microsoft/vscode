@@ -2594,7 +2594,7 @@ export class CommandCenter {
 	}
 
 	private async commitWithAnyInput(repository: Repository, opts: CommitOptions): Promise<void> {
-		const message = repository.sourceControl.inputBox.value;
+		const message = repository.inputBoxValue;
 		const root = Uri.file(repository.root);
 		const config = workspace.getConfiguration('git', root);
 
@@ -2801,7 +2801,7 @@ export class CommandCenter {
 
 	@command('git.restoreCommitTemplate', { repository: true })
 	async restoreCommitTemplate(repository: Repository): Promise<void> {
-		repository.sourceControl.inputBox.value = await repository.getCommitTemplate();
+		repository.inputBoxValue = await repository.getCommitTemplate();
 	}
 
 	@command('git.undoCommit', { repository: true })
@@ -2831,7 +2831,7 @@ export class CommandCenter {
 			await this.unstageAll(repository);
 		}
 
-		repository.sourceControl.inputBox.value = commit.message;
+		repository.inputBoxValue = commit.message;
 	}
 
 	@command('git.checkout', { repository: true })
@@ -4549,8 +4549,8 @@ export class CommandCenter {
 
 		let message: string | undefined;
 
-		if (config.get<boolean>('useCommitInputAsStashMessage') && (!repository.commitTemplate || repository.sourceControl.inputBox.value !== repository.commitTemplate)) {
-			message = repository.sourceControl.inputBox.value;
+		if (config.get<boolean>('useCommitInputAsStashMessage') && (!repository.commitTemplate || repository.inputBoxValue !== repository.commitTemplate)) {
+			message = repository.inputBoxValue;
 		}
 
 		message = await window.showInputBox({

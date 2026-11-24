@@ -602,7 +602,7 @@ suite('git smoke test', function () {
 		}
 	});
 
-	test('a repository object of an extension uses the source control that is shown, also after a detach and attach', async function () {
+	test('a repository object of an extension uses the source control that is shown, also after a detach and attach, and while detached', async function () {
 		const model = getModel();
 		const repositoryPath = await fs.promises.realpath(await fs.promises.mkdtemp(path.join(os.tmpdir(), 'git-smoke-')));
 		cp.execSync('git init -b main', { cwd: repositoryPath });
@@ -618,7 +618,19 @@ suite('git smoke test', function () {
 			repository.sourceControl.inputBox.value = 'typed by the user';
 			const read = apiRepository.inputBox.value;
 
-			assert.deepStrictEqual({ written, read }, { written: 'written by the extension', read: 'typed by the user' });
+			// As an extension that generates a commit message while a switch of the workspace folder detached the repository
+			repository.detach();
+			apiRepository.inputBox.value = 'written while detached';
+			const readWhileDetached = apiRepository.inputBox.value;
+			repository.attach();
+			const shownOnceAttached = repository.sourceControl.inputBox.value;
+
+			assert.deepStrictEqual({ written, read, readWhileDetached, shownOnceAttached }, {
+				written: 'written by the extension',
+				read: 'typed by the user',
+				readWhileDetached: 'written while detached',
+				shownOnceAttached: 'written while detached'
+			});
 		} finally {
 			const repository = model.getRepository(repositoryPath);
 			if (repository) {

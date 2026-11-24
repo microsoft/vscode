@@ -21,8 +21,8 @@ class ApiInputBox implements InputBox {
 
 	constructor(repository: BaseRepository) { this.#repository = repository; }
 
-	set value(value: string) { this.#repository.sourceControl.inputBox.value = value; }
-	get value(): string { return this.#repository.sourceControl.inputBox.value; }
+	set value(value: string) { this.#repository.inputBoxValue = value; }
+	get value(): string { return this.#repository.inputBoxValue; }
 }
 
 export class ApiChange implements Change {
