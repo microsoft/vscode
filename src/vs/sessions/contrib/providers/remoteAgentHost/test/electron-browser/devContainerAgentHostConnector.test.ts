@@ -311,6 +311,9 @@ suite('Dev Container Agent Host Connector', () => {
 		displayNames.set('devcontainer:environment', 'Renamed');
 		await relay();
 		const renamed = await connect();
+		// A rename the host would reject falls back to the environment's name rather than blocking the connection.
+		displayNames.set('devcontainer:environment', 'Invalid\0');
+		const invalid = await connect();
 		await connector.removeContainer(source);
 		await configuration.setUserConfiguration(DevContainerEnvironmentsEnabledSettingId, false);
 		assert.deepStrictEqual({
@@ -319,7 +322,7 @@ suite('Dev Container Agent Host Connector', () => {
 			localDocker: await connector.isLocalDockerAvailable(),
 			configs: configs.map(config => hasKey(config, { environmentId: true }) ? { environmentId: config.environmentId, image: config.image, name: config.name, persistUserState: config.persistUserState } : config),
 			headings: output.filter(value => value.includes('Starting')).map(value => value.trim()),
-			connectionNames: [target.name, renamed.name],
+			connectionNames: [target.name, renamed.name, invalid.name],
 			removed,
 			workspace: target.workspaceUri.path,
 		}, {
@@ -332,11 +335,12 @@ suite('Dev Container Agent Host Connector', () => {
 				{ environmentId: 'environment', image: devContainerEnvironmentImage, name: 'Dev Container 2', persistUserState: true },
 				{ environmentId: 'environment', image: devContainerEnvironmentImage, name: 'Renamed', persistUserState: true },
 				{ environmentId: 'environment', image: devContainerEnvironmentImage, name: 'Renamed', persistUserState: true },
+				{ environmentId: 'environment', image: devContainerEnvironmentImage, name: 'Dev Container 2', persistUserState: true },
 			],
 			// A relay reconnect gets a heading of its own only after a rename.
-			headings: ['--- Starting Dev Container for Dev Container 2 ---', '--- Starting Dev Container for Renamed ---', '--- Starting Dev Container for Renamed ---'],
+			headings: ['--- Starting Dev Container for Dev Container 2 ---', '--- Starting Dev Container for Renamed ---', '--- Starting Dev Container for Renamed ---', '--- Starting Dev Container for Dev Container 2 ---'],
 			// The rename applies on top as the address's display name, so clearing it restores the environment's name.
-			connectionNames: ['Dev Container 2', 'Dev Container 2'],
+			connectionNames: ['Dev Container 2', 'Dev Container 2', 'Dev Container 2'],
 			removed: [{ environmentId: 'environment' }],
 			workspace: '/workspaces',
 		});
