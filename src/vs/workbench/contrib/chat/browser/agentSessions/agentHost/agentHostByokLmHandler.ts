@@ -5,7 +5,6 @@
 
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { hash } from '../../../../../../base/common/hash.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { decodeBase64, VSBuffer } from '../../../../../../base/common/buffer.js';
 import {
@@ -15,8 +14,6 @@ import {
 	IByokLmChatRequest,
 	IByokLmChatResult,
 	IByokLmContentPart,
-	IByokLmCredential,
-	IByokLmCredentialRequest,
 	IByokLmInputItem,
 	IByokLmModelInfo,
 	IByokLmOutputItem,
@@ -24,37 +21,30 @@ import {
 	IByokLmStreamDelta,
 	IByokLmStreamDeltaBody,
 } from '../../../../../../platform/agentHost/common/agentHostByokLm.js';
-import { AgentHostByokCustomEndpointDirectSettingId } from '../../../../../../platform/agentHost/common/agentService.js';
-import { CUSTOM_ENDPOINT_BYOK_VENDOR, findCustomEndpointModelSettings, resolveCustomEndpointRuntimeEndpoint } from '../../../../../../platform/agentHost/common/byokCustomEndpoint.js';
-import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
+import { AgentHostByokCustomEndpointDirectSettingId } from '../../../../../../platform/agentHost/common/agentService.js';
+import { CUSTOM_ENDPOINT_BYOK_VENDOR } from '../../../../../../platform/agentHost/common/byokCustomEndpoint.js';
 import { ChatEntitlementContextKeys, IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import {
 	ChatImageMimeType,
 	ChatMessageRole,
-	getLanguageModelSecretStorageKey,
 	getModelContextWindowTotal,
 	IChatMessage,
 	IChatMessagePart,
-	ILanguageModelChatMetadata,
 	ILanguageModelChatRequestOptions,
 	ILanguageModelsService,
 } from '../../../common/languageModels.js';
-import { ILanguageModelsConfigurationService, ILanguageModelsProviderGroup } from '../../../common/languageModelsConfiguration.js';
+import { ILanguageModelsConfigurationService } from '../../../common/languageModelsConfiguration.js';
 import { SessionType } from '../../../common/chatSessionsService.js';
+import { areCustomEndpointModelSourcesEnabled, getCustomEndpointModelSources } from './agentHostModelSourceRegistrar.js';
 
 const STATEFUL_MARKER_MIME_TYPE = 'stateful_marker';
 const USAGE_MIME_TYPE = 'usage';
 const REASONING_METADATA_PREFIX = 'vscode-reasoning-metadata:';
 const VSCODE_REASONING_SUMMARY_PART_DONE = 'vscode_reasoning_summary_part_done';
 const CLIENT_BYOK_CONTEXT_KEYS = new Set([ChatEntitlementContextKeys.clientByokEnabled.key]);
-
-/** Identifies a provider group's stored API key without revealing it: a hash of the key's secret storage reference. */
-function getCredentialVersion(group: ILanguageModelsProviderGroup): string | undefined {
-	const secretKey = getLanguageModelSecretStorageKey(group.apiKey);
-	return secretKey ? hash(secretKey).toString(16) : undefined;
-}
 
 /**
  * Renderer-side {@link IAgentHostByokLmHandler}. Services BYOK chat requests
@@ -101,8 +91,7 @@ export class AgentHostByokLmHandler extends Disposable implements IAgentHostByok
 		this._register(Event.filter(contextKeyService.onDidChangeContext, event => event.affectsSome(CLIENT_BYOK_CONTEXT_KEYS))(() => {
 			this._onDidChangeModels.fire();
 		}));
-		// Direct models carry their endpoint and key version, which change with the
-		// provider group settings even when the group's models stay the same.
+		// Which Custom Endpoint models are registered as model sources instead depends on these.
 		this._register(this._languageModelsConfigurationService.onDidChangeLanguageModelGroups(() => {
 			this._onDidChangeModels.fire();
 		}));
@@ -205,18 +194,16 @@ export class AgentHostByokLmHandler extends Disposable implements IAgentHostByok
 			return [];
 		}
 
-		const directGroups = this._isCustomEndpointDirectEnabled() ? this._customEndpointGroupsByModel() : undefined;
+		const registeredModelSourceModels = this._getRegisteredModelSourceModels();
 		const models: IByokLmModelInfo[] = [];
 		for (const identifier of this._languageModelsService.getLanguageModelIds()) {
 			const metadata = this._languageModelsService.lookupLanguageModel(identifier);
 			// Only genuine renderer BYOK models — exclude agent-host copies, which
 			// carry a `targetChatSessionType` and would otherwise re-enter the bridge.
-			if (metadata?.isBYOK && !metadata.targetChatSessionType) {
+			if (metadata?.isBYOK && !metadata.targetChatSessionType && !registeredModelSourceModels.has(identifier)) {
 				const reasoningEffortSchema = metadata.configurationSchema?.properties?.reasoningEffort;
 				const supportedReasoningEfforts = reasoningEffortSchema?.enum?.filter((value): value is string => typeof value === 'string');
 				const defaultReasoningEffort = typeof reasoningEffortSchema?.default === 'string' ? reasoningEffortSchema.default : undefined;
-				const group = directGroups?.get(identifier);
-				const direct = group && this._resolveDirectModel(identifier, metadata, group);
 				const model: IByokLmModelInfo = {
 					vendor: metadata.vendor,
 					id: metadata.id,
@@ -225,7 +212,7 @@ export class AgentHostByokLmHandler extends Disposable implements IAgentHostByok
 					maxContextWindowTokens: getModelContextWindowTotal(metadata),
 					maxPromptTokens: metadata.maxInputTokens,
 					maxOutputTokens: metadata.maxOutputTokens,
-					...(direct ?? { supportsVision: !!metadata.capabilities?.vision }),
+					supportsVision: !!metadata.capabilities?.vision,
 					...(supportedReasoningEfforts?.length ? { supportedReasoningEfforts } : {}),
 					...(defaultReasoningEffort !== undefined ? { defaultReasoningEffort } : {}),
 				};
@@ -238,75 +225,27 @@ export class AgentHostByokLmHandler extends Disposable implements IAgentHostByok
 		return models;
 	}
 
-	async resolveCredential(request: IByokLmCredentialRequest, _token: CancellationToken): Promise<IByokLmCredential | undefined> {
-		if (!this._chatEntitlementService.clientByokEnabled || !this._isCustomEndpointDirectEnabled() || request.vendor !== CUSTOM_ENDPOINT_BYOK_VENDOR) {
-			return undefined;
-		}
-		const group = this._languageModelsConfigurationService.getLanguageModelsProviderGroups().find(candidate => candidate.vendor === request.vendor && candidate.name === request.group);
-		// The agent host registers the key with the endpoint of the snapshot it holds, so a key replaced since is not served.
-		if (!group || getCredentialVersion(group) !== request.credentialVersion) {
-			return undefined;
-		}
-		// Reads the same group configuration synchronously, before its first await.
-		const apiKey = await this._languageModelsService.resolveLanguageModelsProviderGroupApiKey(request.vendor, request.group);
-		return apiKey ? { apiKey } : {};
-	}
-
-	private _isCustomEndpointDirectEnabled(): boolean {
-		return this._configurationService.getValue<boolean>(AgentHostByokCustomEndpointDirectSettingId) === true;
-	}
-
 	/**
-	 * The current settings of each Custom Endpoint model's provider group, by model
-	 * identifier. Read from the configuration file rather than the resolved groups,
-	 * which miss changes that leave the group's models the same, such as a new key.
+	 * The language model identifiers of the Custom Endpoint models this window
+	 * registers with agent hosts as model sources. The agent host serves them from
+	 * its own catalog, so the bridge doesn't list them too.
 	 */
-	private _customEndpointGroupsByModel(): Map<string, ILanguageModelsProviderGroup> {
-		const configuredGroups = this._languageModelsConfigurationService.getLanguageModelsProviderGroups();
-		const groups = new Map<string, ILanguageModelsProviderGroup>();
+	private _getRegisteredModelSourceModels(): ReadonlySet<string> {
+		if (!areCustomEndpointModelSourcesEnabled(this._configurationService, this._chatEntitlementService)) {
+			return new Set();
+		}
+		const registered = new Set<string>();
+		const sources = getCustomEndpointModelSources(this._languageModelsService, this._languageModelsConfigurationService, this._logService);
 		for (const { group, modelIdentifiers } of this._languageModelsService.getLanguageModelGroups(CUSTOM_ENDPOINT_BYOK_VENDOR)) {
-			const configured = group && configuredGroups.find(candidate => candidate.vendor === CUSTOM_ENDPOINT_BYOK_VENDOR && candidate.name === group.name);
-			if (configured) {
-				for (const identifier of modelIdentifiers) {
-					groups.set(identifier, configured);
+			const source = group && sources.find(candidate => candidate.group === group.name);
+			for (const identifier of source ? modelIdentifiers : []) {
+				const modelId = this._languageModelsService.lookupLanguageModel(identifier)?.id;
+				if (modelId !== undefined && source!.definition.models.some(model => model.id === modelId)) {
+					registered.add(identifier);
 				}
 			}
 		}
-		return groups;
-	}
-
-	/**
-	 * The endpoint the agent host's runtime calls a Custom Endpoint model at, with
-	 * the capabilities it declares, when the runtime can send the same requests as
-	 * the extension. The API key stays out of the model list; the agent host
-	 * fetches it with {@link resolveCredential}.
-	 */
-	private _resolveDirectModel(identifier: string, metadata: ILanguageModelChatMetadata, group: ILanguageModelsProviderGroup): Pick<IByokLmModelInfo, 'supportsVision' | 'supportsToolCalls' | 'direct'> | undefined {
-		const settings = findCustomEndpointModelSettings(group, metadata.id);
-		if (!settings) {
-			return undefined;
-		}
-		// A key written into the settings file is not read from secret storage, so it is never forwarded.
-		const secretKey = getLanguageModelSecretStorageKey(group.apiKey);
-		if (group.apiKey !== undefined && !secretKey) {
-			this._logService.trace(`[AgentHostByokLmHandler] ${identifier} keeps using the bridge: its API key is not stored securely`);
-			return undefined;
-		}
-		const resolution = resolveCustomEndpointRuntimeEndpoint(settings);
-		if (!resolution.endpoint) {
-			this._logService.trace(`[AgentHostByokLmHandler] ${identifier} keeps using the bridge: ${resolution.bridgeReason}`);
-			return undefined;
-		}
-		return {
-			// Unknown capabilities stay unknown so the runtime applies its own defaults.
-			...(typeof settings.vision === 'boolean' ? { supportsVision: settings.vision } : {}),
-			...(typeof settings.toolCalling === 'boolean' ? { supportsToolCalls: settings.toolCalling } : {}),
-			direct: {
-				...resolution.endpoint,
-				group: group.name,
-				...(secretKey ? { credentialVersion: getCredentialVersion(group) } : {}),
-			},
-		};
+		return registered;
 	}
 
 	/**

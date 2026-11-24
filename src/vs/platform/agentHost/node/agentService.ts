@@ -46,7 +46,7 @@ import type { IAgentCustomizationSettingsRegistration } from '../common/agentCus
 import { buildAnnotationsUri, isAhpAnnotationsChannel, parseAnnotationsUri } from '../common/annotationsUri.js';
 import { changesetSession, hasChangesetPath, parseChangesetUri } from '../common/changesetUri.js';
 import { readAgentPermissionResponseMeta, withoutAgentPermissionFeedback } from '../common/meta/agentPermissionResponseMeta.js';
-import { ActionType, ActionEnvelope, AuthRequiredReason, INotification, isAnnotationsAction, isPassiveSessionMetadataAction, isSessionAction, type ChatAction, type ClientAutomationAction, type ClientAutomationRunAction, type IIsArchivedChangedAction, type IIsReadChangedAction, type IRootConfigChangedAction, type SessionAction, type SessionWorkingDirectoryAction, type TerminalAction, type ClientAnnotationsAction, type ClientChangesetAction } from '../common/state/sessionActions.js';
+import { ActionType, ActionEnvelope, AuthRequiredReason, INotification, isAnnotationsAction, isPassiveSessionMetadataAction, isSessionAction, type ChatAction, type ClientAutomationAction, type ClientAutomationRunAction, type ClientModelSourceAction, type IIsArchivedChangedAction, type IIsReadChangedAction, type IRootConfigChangedAction, type SessionAction, type SessionWorkingDirectoryAction, type TerminalAction, type ClientAnnotationsAction, type ClientChangesetAction } from '../common/state/sessionActions.js';
 import { resolveSessionWorkingDirectoryAction } from '../common/state/sessionWorkingDirectories.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult, SessionConfigPropertySchema, SessionConfigSchema } from '../common/state/protocol/commands.js';
 import { AHP_CANVAS_SCHEME } from '../common/canvasUri.js';
@@ -98,6 +98,7 @@ import { deriveLegacyDefaultChat } from '../common/agentHostLegacyDefaultChat.js
 import { IAgentHostChatOwnershipService, usesStandardSessionUris, type IChatOwnerResolution } from './agentHostChatOwnershipService.js';
 import { AgentHostAttachmentMigration } from './agentHostAttachmentMigration.js';
 import { IAgentHostChatInputService } from './agentHostChatInputService.js';
+import { AgentHostModelSourceRegistry } from './agentHostModelSourceRegistry.js';
 import { AgentSideEffects, type IAgentSideEffectsOptions } from './agentSideEffects.js';
 import { AgentHostLocalTurns, interleaveLocalTurns } from './agentHostLocalTurns.js';
 import { AgentHostSavedChatService, type AgentHostSavedChatArchiveTarget } from './agentHostSavedChatService.js';
@@ -1181,6 +1182,8 @@ export class AgentService extends Disposable implements IAgentService {
 	private readonly _authService: AgentHostAuthenticationService;
 	/** Shared side-effect handler for action dispatch and session lifecycle. */
 	private readonly _sideEffects: AgentSideEffects;
+	/** Model sources clients registered, and the credentials they delivered for them. */
+	private readonly _modelSourceRegistry: AgentHostModelSourceRegistry;
 	private readonly _agentMergeController: AgentMergeController;
 	/** Owns static / per-turn changeset compute, publish, persist, restore. */
 	private readonly _changesets: IAgentHostChangesetService;
@@ -1356,6 +1359,8 @@ export class AgentService extends Disposable implements IAgentService {
 		this._terminalManager = collaborators.terminalManager;
 		this._localTurns = collaborators.localTurns;
 		this._sideEffects = collaborators.sideEffects;
+		this._modelSourceRegistry = this._register(new AgentHostModelSourceRegistry(this._stateManager, provider => this._providerService.getProvider(provider), this._logService));
+		this._register(this._modelSourceRegistry.onDidChange(() => this._sideEffects.republishAgentInfos()));
 		this._serverToolHost = collaborators.serverToolHost;
 		this._catalogSyncService = new AgentHostCatalogSyncService(this._sessionDataService, this._orchestratorDatabase, this._sessionStateStore, this._logService);
 		this._sessionPrewarmer = this._register(instantiationService.createInstance(AgentHostSessionPrewarmer, {
@@ -2302,6 +2307,10 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	async authenticate(params: AuthenticateParams, scope?: IAgentHostAuthenticationScope, clientId?: string): Promise<AuthenticateResult> {
+		if (params.target?.kind === AuthenticateTargetKind.ModelSource) {
+			this._modelSourceRegistry.authenticate(params, params.target);
+			return { authenticated: true };
+		}
 		if (params.target) {
 			if (params.target.kind !== AuthenticateTargetKind.McpServer) {
 				throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Unsupported authentication target kind');
@@ -2316,6 +2325,14 @@ export class AgentService extends Disposable implements IAgentService {
 			this._agentMergeController.refresh();
 		}
 		return result;
+	}
+
+	dispatchModelSourceAction(action: ClientModelSourceAction, clientId: string, clientSeq: number, clientContext?: IAgentHostClientTelemetryContext): void {
+		this._modelSourceRegistry.handleClientAction(action, clientId, clientSeq, clientContext);
+	}
+
+	removeClientModelSources(clientId: string): void {
+		this._modelSourceRegistry.removeClient(clientId);
 	}
 
 	// ---- Changeset operation handlers --------------------------------------

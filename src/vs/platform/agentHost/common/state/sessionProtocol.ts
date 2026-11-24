@@ -56,6 +56,7 @@ export type {
 	ListSessionsParams,
 	ListSessionsResult,
 	McpServerAuthenticateTarget,
+	ModelSourceAuthenticateTarget,
 	ReconnectParams,
 	ReconnectReplayResult,
 	ReconnectResult,
@@ -120,6 +121,22 @@ export const AHP_NOT_FOUND = -32008 as const;
 // ---- Type guards -----------------------------------------------------------
 
 import type { AhpRequest, AhpNotification, AhpSuccessResponse, ProtocolMessage, JsonRpcErrorResponse } from './protocol/messages.js';
+import { AuthenticateTargetKind as ProtocolAuthenticateTargetKind, type AuthenticateTarget as ProtocolAuthenticateTarget, type McpServerAuthenticateTarget as ProtocolMcpServerAuthenticateTarget } from './protocol/commands.js';
+
+/** Whether an `authenticate` target names an MCP server. */
+export function isMcpServerAuthenticateTarget(target: ProtocolAuthenticateTarget | undefined): target is ProtocolMcpServerAuthenticateTarget {
+	return target?.kind === ProtocolAuthenticateTargetKind.McpServer;
+}
+
+/**
+ * The consumer an `authenticate` target names, for keying credentials by
+ * target. A model source's credential nonce is not part of its identity.
+ */
+export function getAuthenticateTargetIdentity(target: ProtocolAuthenticateTarget): readonly string[] {
+	return isMcpServerAuthenticateTarget(target)
+		? [target.kind, target.session, target.customizationId]
+		: [target.kind, target.modelSourceId];
+}
 
 export function isJsonRpcRequest(msg: ProtocolMessage): msg is AhpRequest {
 	return 'method' in msg && 'id' in msg;

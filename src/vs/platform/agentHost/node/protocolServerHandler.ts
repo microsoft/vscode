@@ -70,7 +70,7 @@ import { AgentChatMoveRefusedError, type AgentChatMoveDestination } from '../com
 import type { CommandMap } from '../common/state/protocol/messages.js';
 import type { ChatConfigChangedAction, SessionConfigChangedAction } from '../common/state/protocol/actions.js';
 import { MessageAttachmentKind, type AutomationEntry, type ChatState, type RootConfigState } from '../common/state/protocol/state.js';
-import { ActionEnvelope, ActionType, INotification, isAnnotationsAction, isAutomationAction, isAutomationRunAction, isChangesetAction, isChatAction, isSessionAction, isTerminalAction } from '../common/state/sessionActions.js';
+import { ActionEnvelope, ActionType, INotification, isAnnotationsAction, isAutomationAction, isAutomationRunAction, isChangesetAction, isChatAction, isClientModelSourceAction, isSessionAction, isTerminalAction } from '../common/state/sessionActions.js';
 import { compareProtocolVersions, isActionKnownToVersion, PROTOCOL_VERSION } from '../common/state/protocol/version/registry.js';
 import { AgentHostTcpBudget } from '../common/agentHostTcpConnection.js';
 import { agentHostStateReceiveLimits, negotiateChannelFlowControl } from '../common/agentHostChannel.js';
@@ -1912,10 +1912,16 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	private _handleClientDisconnected(clientId: string): void {
 		const record = this._clients.get(clientId);
 		if (record?.state === 'grace') {
+			const remainingGrace = Math.max(0, CLIENT_TOOL_CALL_DISCONNECT_TIMEOUT - (Date.now() - record.lastSeenAt));
 			record.disconnectTimeouts.set('managed-settings', disposableTimeout(() => {
 				record.disconnectTimeouts.deleteAndDispose('managed-settings');
 				this._managedSettingsService.removeClient(this._managedSettingsContributionId(clientId));
-			}, Math.max(0, CLIENT_TOOL_CALL_DISCONNECT_TIMEOUT - (Date.now() - record.lastSeenAt))));
+			}, remainingGrace));
+			// A client that reconnects within the grace window keeps the model sources it registered.
+			record.disconnectTimeouts.set('model-sources', disposableTimeout(() => {
+				record.disconnectTimeouts.deleteAndDispose('model-sources');
+				this._agentService.removeClientModelSources?.(clientId);
+			}, remainingGrace));
 		}
 		for (const session of this._stateManager.getSessionUris()) {
 			const state = this._stateManager.getSessionState(session);
@@ -3130,13 +3136,13 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		const origin = { clientId: client.clientId, clientSeq: params.clientSeq };
 		let rejection: string | undefined;
 		if (client.transport.relayAuthentication?.authenticated === false
-			|| (client.transport.relayClientId !== undefined && action.type === ActionType.RootConfigChanged && client.transport.relayAuthentication?.authenticated !== true)) {
+			|| (client.transport.relayClientId !== undefined && (action.type === ActionType.RootConfigChanged || isClientModelSourceAction(action)) && client.transport.relayAuthentication?.authenticated !== true)) {
 			rejection = 'Relay identity authentication is required';
 		} else if (client.transport.relayPassive) {
 			rejection = readOnlyConnectionMessage;
 		} else if (IS_CLIENT_DISPATCHABLE[action.type] !== true) {
 			rejection = `Server-only action: ${action.type}`;
-		} else if (UNSUPPORTED_CLIENT_ACTION_TYPES.has(action.type)) {
+		} else if (UNSUPPORTED_CLIENT_ACTION_TYPES.has(action.type) || (isClientModelSourceAction(action) && !this._agentService.dispatchModelSourceAction)) {
 			rejection = `Unsupported action: ${action.type}`;
 		}
 		if (!rejection && client.transport.relayClientId !== undefined && this._config.relayResourceRoots && action.type === ActionType.SessionWorkingDirectorySet) {
@@ -3204,6 +3210,12 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			}
 			return this._agentService.dispatchAction(params.channel, action, client.clientId, params.clientSeq, client.telemetryContext,
 				this._config.scopedRelayCredentials ? this._getScopedAuthentication(client) : undefined);
+		} else if (isClientModelSourceAction(action)) {
+			if (!isAhpRootChannel(params.channel)) {
+				this._stateManager.rejectClientAction(params.channel, action, origin, 'Model source actions require the root channel.');
+				return;
+			}
+			this._agentService.dispatchModelSourceAction?.(action, client.clientId, params.clientSeq, client.telemetryContext);
 		}
 	}
 

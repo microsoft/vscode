@@ -8,7 +8,7 @@
 
 import type { URI } from './state.js';
 
-import type { RootAgentsChangedAction, RootActiveSessionsChangedAction, RootTerminalsChangedAction, RootConfigChangedAction } from '../channels-root/actions.js';
+import type { RootAgentsChangedAction, RootActiveSessionsChangedAction, RootTerminalsChangedAction, RootConfigChangedAction, RootModelSourceRegistrationSetAction, RootModelSourceRegistrationRemovedAction, RootModelSourceStateChangedAction } from '../channels-root/actions.js';
 
 import type { SessionReadyAction, SessionCreationFailedAction, SessionChatAddedAction, SessionChatRemovedAction, SessionChatUpdatedAction, SessionChatsReorderedAction, SessionDefaultChatChangedAction, SessionTitleChangedAction, SessionServerToolsChangedAction, SessionActiveClientSetAction, SessionActiveClientRemovedAction, SessionWorkingDirectorySetAction, SessionWorkingDirectoryRemovedAction, SessionWorkingDirectoryReplacedAction, SessionInputNeededSetAction, SessionInputNeededRemovedAction, SessionCustomizationsChangedAction, SessionCustomizationToggledAction, SessionCustomizationUpdatedAction, SessionCustomizationRemovedAction, SessionMcpServerStateChangedAction, SessionMcpServerStartRequestedAction, SessionMcpServerStopRequestedAction, SessionMcpServerBackgroundRequestedAction, SessionIsReadChangedAction, SessionIsArchivedChangedAction, SessionActivityChangedAction, SessionChangesetsChangedAction, SessionConfigChangedAction, SessionMetaChangedAction } from '../channels-session/actions.js';
 
@@ -122,6 +122,9 @@ export const enum ActionType {
 	AnnotationsEntryRemoved = 'annotations/entryRemoved',
 	RootTerminalsChanged = 'root/terminalsChanged',
 	RootConfigChanged = 'root/configChanged',
+	RootModelSourceRegistrationSet = 'root/modelSourceRegistrationSet',
+	RootModelSourceRegistrationRemoved = 'root/modelSourceRegistrationRemoved',
+	RootModelSourceStateChanged = 'root/modelSourceStateChanged',
 	TerminalData = 'terminal/data',
 	TerminalInput = 'terminal/input',
 	TerminalResized = 'terminal/resized',
@@ -183,6 +186,9 @@ export type StateAction =
 	| RootActiveSessionsChangedAction
 	| RootTerminalsChangedAction
 	| RootConfigChangedAction
+	| RootModelSourceRegistrationSetAction
+	| RootModelSourceRegistrationRemovedAction
+	| RootModelSourceStateChangedAction
 	| SessionReadyAction
 	| SessionCreationFailedAction
 	| SessionChatAddedAction

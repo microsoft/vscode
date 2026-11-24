@@ -10,16 +10,12 @@ import { existsSync } from 'fs';
 import { mkdtemp, readdir, readFile, rm } from 'fs/promises';
 import { tmpdir } from 'os';
 import { CopilotClient, RuntimeConnection } from '@microsoft/copilot-sdk';
-import { Emitter, Event } from '../../../../../base/common/event.js';
 import { join, relative } from '../../../../../base/common/path.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { NullLogService } from '../../../../log/common/log.js';
-import { getByokLmAgentModelId, type IByokLmModelInfo } from '../../../common/agentHostByokLm.js';
-import { resolveCustomEndpointRuntimeEndpoint, type ICustomEndpointModelSettings } from '../../../common/byokCustomEndpoint.js';
-import { ByokLmBridgeRegistry } from '../../../node/byokLmBridgeRegistry.js';
+import { CUSTOM_ENDPOINT_MODEL_SOURCE_FORMAT, toCustomEndpointModelSourceModel, type ICustomEndpointModelSettings } from '../../../common/byokCustomEndpoint.js';
 import { createCopilotCliEnvironment } from '../../../node/copilot/copilotCliEnvironment.js';
-import { toAgentByokCurrentModel, toRuntimeByokModelId } from '../../../node/copilot/copilotByokModelIds.js';
-import { synthesizeByokSessionConfig } from '../../../node/copilot/copilotSessionLauncher.js';
+import { getCopilotModelSourceModels } from '../../../node/copilot/copilotModelSources.js';
+import { withLocalModelSessionConfig } from '../../../node/copilot/copilotSessionLauncher.js';
 import { anthropicMessageToSse, responsesMessageToSse } from '../e2e/harness/capiWireCodec.js';
 import { createIsolatedProviderEnvironment } from '../providerTestEnvironment.js';
 
@@ -93,7 +89,7 @@ function writeChatCompletion(response: ServerResponse, model: string, text: stri
  */
 suite('Agent Host Provider Integration - Copilot BYOK direct endpoints', function () {
 
-	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('the bundled runtime calls each wire format with the group key and keeps the key off disk', async function () {
 		this.timeout(180_000);
@@ -138,23 +134,15 @@ suite('Agent Host Provider Integration - Copilot BYOK direct endpoints', functio
 			azure: { url: `${base}/azure/openai/deployments/gpt-4o/chat/completions?api-version=2025-01-01-preview`, requestHeaders: { 'api-key': '${apiKey}' } },
 		};
 		const formats = Object.keys(settings) as WireFormat[];
-		const byokModels: IByokLmModelInfo[] = formats.map(format => {
-			const endpoint = resolveCustomEndpointRuntimeEndpoint(settings[format]).endpoint;
-			assert.ok(endpoint, `${format} is not routed directly`);
-			return { vendor: 'customendpoint', id: `model-${format}`, modelIdentifier: `customendpoint/${format}/model-${format}`, supportsToolCalls: true, direct: { ...endpoint, group: format } };
+		// One registered model source per format, each with its own key, as the window registers a provider group.
+		const sources = formats.map(format => {
+			const { model } = toCustomEndpointModelSourceModel(`model-${format}`, settings[format], {});
+			assert.ok(model, `${format} is not routed directly`);
+			return getCopilotModelSourceModels({ id: `vscode.customendpoint/copilotcli/${format}`, format: CUSTOM_ENDPOINT_MODEL_SOURCE_FORMAT, definition: { models: [{ ...model, toolCalling: true }], requiresApiKey: true }, credential: API_KEYS[format] })[0];
 		});
 
 		const sessionId = 'byok-direct-endpoints';
 		const homeDirectory = await mkdtemp(`${tmpdir()}/byok-direct-`);
-		const models = store.add(new Emitter<IByokLmModelInfo[]>());
-		const registry = new ByokLmBridgeRegistry();
-		const registration = registry.register('client', {
-			chat: async () => ({ output: [], error: 'not routed through the bridge' }),
-			resolveCredential: async ({ group }) => ({ apiKey: API_KEYS[group as WireFormat] }),
-			onDidChangeModels: models.event,
-			onDidDelta: Event.None,
-		});
-		models.fire(byokModels);
 		const client = new CopilotClient({
 			// The agent host's main runtime client uses this mode.
 			mode: 'coding-agent',
@@ -168,23 +156,26 @@ suite('Agent Host Provider Integration - Copilot BYOK direct endpoints', functio
 		let session: Awaited<ReturnType<CopilotClient['createSession']>> | undefined;
 
 		try {
-			const byok = await synthesizeByokSessionConfig(sessionId, registry, () => Promise.reject(new Error('the proxy is not needed')), new NullLogService());
-			const agentModelIds = byokModels.map(getByokLmAgentModelId);
+			const byok = withLocalModelSessionConfig({}, undefined, {
+				providers: sources.map(source => source.runtimeProvider),
+				models: sources.map(source => source.runtimeModel),
+			});
 			await client.start();
 			clientStarted = true;
 			session = await client.createSession({
 				sessionId,
-				model: toRuntimeByokModelId(agentModelIds[0], byok),
+				model: sources[0].id,
 				inference: byok,
 				github: { capi: { enabled: false } },
 				events: { streaming: true },
 				tools: { availableTools: [] },
 			});
 
-			const turns: { selected: string | undefined; reply: string | undefined }[] = [];
-			for (const agentModelId of agentModelIds) {
-				await session.rpc.model.switchTo({ modelId: toRuntimeByokModelId(agentModelId, byok) });
-				const selected = toAgentByokCurrentModel(await session.rpc.model.getCurrent()).modelId;
+			// The id the agent host publishes is the runtime's selection id, so it is used as is in both directions.
+			const turns: { selected: boolean; reply: string | undefined }[] = [];
+			for (const source of sources) {
+				await session.rpc.model.switchTo({ modelId: source.id });
+				const selected = (await session.rpc.model.getCurrent()).modelId === source.id;
 				const reply = await session.sendAndWait({ prompt: 'Reply with a greeting.' }, 60_000);
 				turns.push({ selected, reply: reply?.type === 'assistant.message' ? reply.data.content : undefined });
 			}
@@ -210,10 +201,10 @@ suite('Agent Host Provider Integration - Copilot BYOK direct endpoints', functio
 				keyFiles,
 			}, {
 				turns: [
-					{ selected: 'customendpoint/chatCompletions/model-chatCompletions', reply: 'hello from chat completions' },
-					{ selected: 'customendpoint/responses/model-responses', reply: 'hello from responses' },
-					{ selected: 'customendpoint/messages/model-messages', reply: 'hello from messages' },
-					{ selected: 'customendpoint/azure/model-azure', reply: 'hello from azure' },
+					{ selected: true, reply: 'hello from chat completions' },
+					{ selected: true, reply: 'hello from responses' },
+					{ selected: true, reply: 'hello from messages' },
+					{ selected: true, reply: 'hello from azure' },
 				],
 				requests: [
 					{ path: '/openai/v1/chat/completions', auth: 'bearer', model: 'model-chatCompletions' },
@@ -233,7 +224,6 @@ suite('Agent Host Provider Integration - Copilot BYOK direct endpoints', functio
 						await client.stop();
 					}
 				} finally {
-					registration.dispose();
 					await new Promise(resolve => server.close(resolve));
 					await rm(homeDirectory, { recursive: true, force: true });
 				}

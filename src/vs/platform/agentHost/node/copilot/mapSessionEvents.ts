@@ -22,7 +22,6 @@ import { CopilotToolName, getInvocationMessage, getPastTenseMessage, getSdkImage
 import { imageGenerationToolMetaKey } from '../../common/meta/agentImageGenerationMeta.js';
 import { AgentSystemNotificationKind, toAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
 import { buildSessionDbUri } from '../../common/sessionDbUri.js';
-import { toAgentByokModelId } from './copilotByokModelIds.js';
 import { getMediaMime } from '../../../../base/common/mime.js';
 import { buildCopilotSystemNotification, getCopilotSubagentDisplayNames } from './copilotSystemNotification.js';
 import { COPILOT_FUSION_PHASE_AGENT_NAME, formatFusionReviewContent, getFusionPhaseToolCallId, isCopilotFusionEvent, getFusionPhasePresentation, isProvisionalFusionConversationEvent } from './copilotFusionProgress.js';
@@ -697,8 +696,7 @@ export async function mapSessionEvents(
 	const subagentConfigurations = new Map<string, IAgentRuntimeModelConfiguration>();
 	const fusionReplay = new FusionReplayState(events);
 
-	const recordSubagentModel = (parentToolCallId: string | undefined, runtimeModel: string | undefined, configuration?: IAgentRuntimeModelConfiguration): void => {
-		const model = toAgentByokModelId(runtimeModel);
+	const recordSubagentModel = (parentToolCallId: string | undefined, model: string | undefined, configuration?: IAgentRuntimeModelConfiguration): void => {
 		if (!parentToolCallId || !model) {
 			return;
 		}
@@ -858,7 +856,7 @@ export async function mapSessionEvents(
 			case 'session.start': {
 				// Restore the initial model; later model-change events take precedence.
 				if (!e.agentId && e.data.selectedModel) {
-					currentModel = { id: toAgentByokModelId(e.data.selectedModel) };
+					currentModel = { id: e.data.selectedModel };
 				}
 				break;
 			}
@@ -873,11 +871,11 @@ export async function mapSessionEvents(
 							const metadata = { ...builder.usage._meta };
 							delete metadata.autoModeResolved;
 							delete metadata[LOCAL_MODEL_META_KEY];
-							builder.usage = { ...builder.usage, model: toAgentByokModelId(e.data.newModel), _meta: metadata };
+							builder.usage = { ...builder.usage, model: e.data.newModel, _meta: metadata };
 						}
 					}
 				} else {
-					currentModel = { id: toAgentByokModelId(e.data.newModel) };
+					currentModel = { id: e.data.newModel };
 				}
 				break;
 			}

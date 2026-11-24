@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { findCustomEndpointModelSettings, resolveCustomEndpointRuntimeEndpoint, type ICustomEndpointModelSettings } from '../../common/byokCustomEndpoint.js';
+import { findCustomEndpointModelSettings, getCustomEndpointModelSourceCredentialResource, readCustomEndpointModelSource, resolveCustomEndpointRuntimeEndpoint, toCustomEndpointModelSourceModel, type CustomEndpointModelSourceDefinition, type ICustomEndpointModelSettings } from '../../common/byokCustomEndpoint.js';
 
 suite('resolveCustomEndpointRuntimeEndpoint', () => {
 
@@ -111,5 +111,55 @@ suite('resolveCustomEndpointRuntimeEndpoint', () => {
 			discoveredGroup: undefined,
 			discoveredGroupWithModels: undefined,
 		});
+	});
+});
+
+suite('Custom Endpoint model source definition', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('carries the models the runtime can call directly and reads them back with their endpoints', () => {
+		const info = { name: 'GPT X', maxInputTokens: 100, maxOutputTokens: 20, maxContextWindowTokens: 120, reasoningEfforts: ['low', 'high'], defaultReasoningEffort: 'low' };
+		const direct = toCustomEndpointModelSourceModel('gpt-x', { url: 'https://api.example.test/v1/responses', requestHeaders: { Authorization: 'Bearer ${apiKey}' }, toolCalling: true }, info);
+		const bridged = toCustomEndpointModelSourceModel('slow', { url: 'https://api.example.test/v1', streaming: false }, {});
+		const definition: CustomEndpointModelSourceDefinition = { models: [direct.model!], requiresApiKey: true };
+
+		assert.deepStrictEqual({
+			direct: direct.model,
+			bridgeReason: bridged.bridgeReason,
+			read: readCustomEndpointModelSource(definition).models.map(entry => entry.endpoint),
+			credentialResource: getCustomEndpointModelSourceCredentialResource(definition),
+			keylessCredentialResource: getCustomEndpointModelSourceCredentialResource({ ...definition, requiresApiKey: false }),
+		}, {
+			// Unknown vision stays absent rather than becoming `false`.
+			direct: { id: 'gpt-x', name: 'GPT X', url: 'https://api.example.test/v1/responses', requestHeaders: { Authorization: 'Bearer ${apiKey}' }, toolCalling: true, maxInputTokens: 100, maxOutputTokens: 20, maxContextWindowTokens: 120, reasoningEfforts: ['low', 'high'], defaultReasoningEffort: 'low' },
+			bridgeReason: 'streaming',
+			read: [{ type: 'openai', wireApi: 'responses', baseUrl: 'https://api.example.test/v1' }],
+			credentialResource: { resource: 'https://api.example.test/v1/responses' },
+			keylessCredentialResource: undefined,
+		});
+	});
+
+	test('rejects definitions the runtime would send differently', () => {
+		const model = { id: 'gpt-x', url: 'https://api.example.test/v1/chat/completions' };
+		const invalid: Record<string, unknown> = {
+			notAnObject: 'models',
+			noModels: { models: [], requiresApiKey: false },
+			noKeyDeclaration: { models: [model] },
+			duplicateIds: { models: [model, model], requiresApiKey: false },
+			unknownModelKey: { models: [{ ...model, modelOptions: { temperature: 0 } }], requiresApiKey: false },
+			badTokenCount: { models: [{ ...model, maxInputTokens: -1 }], requiresApiKey: false },
+			customHeader: { models: [{ ...model, requestHeaders: { 'x-custom': 'value' } }], requiresApiKey: false },
+		};
+		const rejected = Object.entries(invalid).filter(([, definition]) => {
+			try {
+				readCustomEndpointModelSource(definition);
+				return false;
+			} catch {
+				return true;
+			}
+		}).map(([name]) => name);
+
+		assert.deepStrictEqual(rejected, Object.keys(invalid));
 	});
 });

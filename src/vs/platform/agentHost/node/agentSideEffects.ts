@@ -596,11 +596,16 @@ export class AgentSideEffects extends Disposable {
 	 * Publishes agent descriptors using the last known model lists.
 	 */
 	private _publishAgentInfos(agents: readonly IAgent[], reader?: IReader): void {
+		const registrations = this._stateManager.rootState.modelSourceRegistrations ?? [];
 		const infos: AgentInfo[] = agents.map(a => {
 			const d = a.getDescriptor();
 			const protectedResources = a.getProtectedResources(reader);
 			const models = reader ? a.models.read(reader) : a.models.get();
 			const customizations = a.getCustomizations?.();
+			// A registered source is listed while the agent serves at least one of its models.
+			const modelSources = registrations
+				.filter(registration => registration.provider === d.provider && models.some(m => m.modelSourceId === registration.id))
+				.map(registration => ({ id: registration.id, displayName: registration.displayName }));
 			return {
 				provider: d.provider, displayName: d.displayName, description: d.description, models: models.map(m => ({
 					id: m.id,
@@ -612,8 +617,10 @@ export class AgentSideEffects extends Disposable {
 					supportsVision: m.supportsVision,
 					policyState: m.policyState,
 					configSchema: m.configSchema,
+					...(m.modelSourceId !== undefined ? { modelSourceId: m.modelSourceId } : {}),
 					_meta: m._meta,
 				})),
+				...(modelSources.length ? { modelSources } : {}),
 				customizations: customizations?.length ? [...customizations] : undefined,
 				protectedResources: protectedResources.length > 0 ? protectedResources : undefined,
 				capabilities: d.capabilities ? { ...d.capabilities } : undefined,
@@ -624,6 +631,11 @@ export class AgentSideEffects extends Disposable {
 		}
 		this._lastAgentInfos = infos;
 		this._stateManager.dispatchServerAction(ROOT_STATE_URI, { type: ActionType.RootAgentsChanged, agents: infos });
+	}
+
+	/** Publishes agent descriptors again, for changes the agents' observables don't report, such as a model source's name. */
+	republishAgentInfos(): void {
+		this._publishAgentInfos(this._options.agents.get());
 	}
 
 	private async _publishSessionCustomizations(agent: IAgent, session: ProtocolURI, supersededRetries: number): Promise<void> {

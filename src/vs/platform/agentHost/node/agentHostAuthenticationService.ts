@@ -14,7 +14,7 @@ import type { ILogService } from '../../log/common/log.js';
 import type { AuthenticateParams, AuthenticateResult, IAgent, IAgentHostAuthTokenRequest } from '../common/agent.js';
 import type { ProtectedResourceMetadata } from '../common/state/protocol/state.js';
 import { isScopedCredentialUsable, normalizeAuthenticationScopes, type IAgentHostAuthenticationScope, type IAgentHostCredentialPrincipal, type IAgentHostCredentialSource, type IAgentHostScopedCredential } from '../common/agentHostCredentials.js';
-import { AhpErrorCodes, JsonRpcErrorCodes, ProtocolError } from '../common/state/sessionProtocol.js';
+import { AhpErrorCodes, getAuthenticateTargetIdentity, isMcpServerAuthenticateTarget, JsonRpcErrorCodes, ProtocolError } from '../common/state/sessionProtocol.js';
 
 export const SESSION_CREDENTIAL_PRINCIPAL_KEY = 'vscode.credentialPrincipal';
 
@@ -427,7 +427,7 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 		const accountId = stored.lastAccountId === stored.unhintedAccountId ? undefined : stored.lastAccountId;
 		return stored.clientId === undefined ? accountId : JSON.stringify([
 			stored.clientId, stored.resource,
-			stored.target ? [stored.target.kind, stored.target.session, stored.target.customizationId] : null,
+			stored.target ? getAuthenticateTargetIdentity(stored.target) : null,
 			accountId,
 		]);
 	}
@@ -710,9 +710,12 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 	}
 
 	private _key(resource: string, scopes: readonly string[], target?: AuthenticateParams['target']): string {
-		return target
+		if (!target) {
+			return `${resource}\x00${scopes.join('\x00')}`;
+		}
+		return isMcpServerAuthenticateTarget(target)
 			? JSON.stringify([resource, scopes, target.kind, getComparisonKey(URI.parse(target.session)), target.customizationId])
-			: `${resource}\x00${scopes.join('\x00')}`;
+			: JSON.stringify([resource, scopes, ...getAuthenticateTargetIdentity(target)]);
 	}
 
 }

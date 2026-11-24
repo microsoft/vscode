@@ -95,9 +95,8 @@ import { CopilotSessionWrapper, type ICopilotByokSessionConfig, type ICopilotMod
 import { allowCopilotSdkExecution, restoreDeferredCopilotSdkExecution } from './copilotSessionExecutionMarker.js';
 import { getCopilotSdkToolResourceUri } from './copilotSdkMeta.js';
 import { isAutoModel } from './modelIdentifiers.js';
-import { resolveRuntimeByokModelId, toAgentByokCurrentModel, toAgentByokModelId } from './copilotByokModelIds.js';
 import { readAgentCustomizationMeta } from '../../common/meta/agentCustomizationMeta.js';
-import { areCopilotCustomAgentHooksTrusted, clientToolNamesFromSnapshot, composeByokSessionConfig, findLocalModelDirectFamily, getCopilotAgentCustomization, getCopilotWorkingDirectoryTrust, hasWithdrawnDirectByokProvider, isCopilotSessionTelemetryEnabled, isMcpServerExplicitlyProjected, resolveCopilotSessionManagedSettings, toSessionConfigMcpServers, type CopilotChatSurface, type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotClientToolConfiguration, type ICopilotSessionLauncher, type ICopilotSessionRuntime } from './copilotSessionLauncher.js';
+import { areCopilotCustomAgentHooksTrusted, clientToolNamesFromSnapshot, composeByokSessionConfig, findLocalModelDirectFamily, getCopilotAgentCustomization, getCopilotWorkingDirectoryTrust, isCopilotSessionTelemetryEnabled, isMcpServerExplicitlyProjected, resolveCopilotSessionManagedSettings, toSessionConfigMcpServers, type CopilotChatSurface, type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotClientToolConfiguration, type ICopilotSessionLauncher, type ICopilotSessionRuntime } from './copilotSessionLauncher.js';
 import type { ICopilotCreatedWorktree, ICopilotProjectExtensionTrustReconciliation } from './copilotProjectExtensionLaunchPolicy.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, NON_DEFERRED_CLIENT_TOOL_NAMES, RUNTIME_TOOL_SEARCH_TOOL_NAME, searchToolsWithoutClient } from './toolSearchDeferral.js';
 import { ActiveClientToolSet, structuralToolsEqual } from '../activeClientState.js';
@@ -157,7 +156,7 @@ import { IAgentHostPromptCache } from '../agentHostPromptCache.js';
 import { IAgentHostStorageService } from '../agentHostStorageService.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, type McpAuthRequirement, type McpServerCustomization, type McpServerState } from '../../common/state/protocol/channels-session/state.js';
-import { AhpErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
+import { AhpErrorCodes, isMcpServerAuthenticateTarget, ProtocolError } from '../../common/state/sessionProtocol.js';
 import type { IAgentHostScopedCredential } from '../../common/agentHostCredentials.js';
 import type { ErrorInfo, ProtectedResourceMetadata } from '../../common/state/protocol/common/state.js';
 import { CopilotSlashCommandProvider } from './copilotSlashCommandProvider.js';
@@ -2173,8 +2172,6 @@ export class CopilotAgentSession extends Disposable {
 	private _heldSessionErrorReports: (() => void)[] | undefined;
 	/** BYOK providers and models registered on {@link _wrapper}; seeded at launch and grown by {@link syncByokModels}. */
 	private _registeredByokConfig: ICopilotByokSessionConfig = {};
-	/** The BYOK config last resolved for {@link _wrapper}, which decides whether a model is called directly. */
-	private _latestByokConfig: ICopilotByokSessionConfig = {};
 	private readonly _byokSync = new Sequencer();
 	/** The open on-device attribution turn; only with a local model provider. */
 	private _localModelTurn: { readonly turnId: string; readonly generation: number } | undefined;
@@ -3277,8 +3274,7 @@ export class CopilotAgentSession extends Disposable {
 		return !this._streamingToolCalls.get(event.data.toolCallId)?.started && this._shouldDropEarlierFusionEvent(event);
 	}
 
-	private _updateSubagentModel(parentToolCallId: string, runtimeModel: string | undefined, configuration?: IAgentRuntimeModelConfiguration): void {
-		const model = toAgentByokModelId(runtimeModel);
+	private _updateSubagentModel(parentToolCallId: string, model: string | undefined, configuration?: IAgentRuntimeModelConfiguration): void {
 		if (!model) {
 			return;
 		}
@@ -5308,7 +5304,6 @@ export class CopilotAgentSession extends Disposable {
 			this._mcpAwaitingOAuthReconnect.clear();
 			this._lastAppliedAgent = this._launchPlan.kind === 'create' ? this._launchPlan.resolvedAgentName ?? null : undefined;
 			this._registeredByokConfig = wrapper.launchByokConfig;
-			this._latestByokConfig = wrapper.launchByokConfig;
 			this._reportLocalModelSelection(this._launchPlan.kind === 'create' ? this._launchPlan.model?.id : this._launchPlan.fallback.model?.id);
 			this._canvasExtensions = undefined;
 			this._ignoredRestoredCanvasInstanceIds.clear();
@@ -6729,6 +6724,9 @@ export class CopilotAgentSession extends Disposable {
 	 * Only matching requests wait for Connector ownership; Connector-owned servers never receive a forwarded MCP token.
 	 */
 	async resolveMcpAuthentication(params: AuthenticateParams): Promise<boolean> {
+		if (params.target && !isMcpServerAuthenticateTarget(params.target)) {
+			return false;
+		}
 		const serverName = params.target ? this._mcpCustomizations.serverNameForCustomizationId(params.target.customizationId) : undefined;
 		if (params.target && (serverName === undefined || !isEqual(this.ownerSessionUri, URI.parse(params.target.session)))) {
 			return false;
@@ -7066,7 +7064,7 @@ export class CopilotAgentSession extends Disposable {
 			this._awaitControlPlaneRpc('session.model.getCurrent', this._wrapper.session.rpc.model.getCurrent()),
 			this._awaitControlPlaneRpc('rpc.agent.getCurrent', this._wrapper.session.rpc.agent.getCurrent()),
 		]);
-		return { model: toAgentByokCurrentModel(model), agentName: agent.agent?.name };
+		return { model, agentName: agent.agent?.name };
 	}
 
 	setSessionApproveAll(enabled: boolean): Promise<void> {
@@ -8613,9 +8611,8 @@ export class CopilotAgentSession extends Disposable {
 	 * launched, e.g. for a chat restored before the renderer's first BYOK
 	 * snapshot reached the agent host. External BYOK is additive (see
 	 * {@link composeByokSessionConfig}) and a no-op when nothing new was
-	 * reported, except that a model the window no longer routes directly is
-	 * moved to the bridge; the on-device rows are replaced by the provider's
-	 * current contribution. Serialized so concurrent callers observe each
+	 * reported; the on-device rows and registered model sources are replaced
+	 * by their current contributions. Serialized so concurrent callers observe each
 	 * other's registrations.
 	 */
 	syncByokModels(): Promise<void> {
@@ -8625,15 +8622,10 @@ export class CopilotAgentSession extends Disposable {
 				return;
 			}
 			const current = await this._sessionLauncher.resolveByokSessionConfig(this.sessionId);
-			const bridgeProvider = hasWithdrawnDirectByokProvider(this._registeredByokConfig, current) ? await this._sessionLauncher.resolveByokBridgeProvider(this.sessionId) : undefined;
-			// A restart across the awaits swapped in a wrapper with its own launch
-			// config, so this session's registration is no longer a valid basis for it.
-			if (this._store.isDisposed || this._wrapper !== wrapper) {
-				return;
-			}
-			const merged = composeByokSessionConfig(this._registeredByokConfig, current, this._launchPlan.localModelProvider?.contributeSessionConfig(), bridgeProvider);
-			this._latestByokConfig = current;
-			if (!merged) {
+			const merged = composeByokSessionConfig(this._registeredByokConfig, current, this._launchPlan.localModelProvider?.contributeSessionConfig(), this._launchPlan.modelSources?.());
+			// A restart across the await swapped in a wrapper with its own launch
+			// config, so `merged` is no longer a valid basis for that session.
+			if (!merged || this._store.isDisposed || this._wrapper !== wrapper) {
 				return;
 			}
 			this._logService.info(`[Copilot:${this.sessionId}] Registering BYOK models on live session: models=${merged.models?.length ?? 0}, previouslyRegistered=${this._registeredByokConfig.models?.length ?? 0}`);
@@ -8669,7 +8661,7 @@ export class CopilotAgentSession extends Disposable {
 					throw new Error('The runtime did not reset the context tier.');
 				}
 			}
-			await this._awaitControlPlaneRpc('session.setModel', this._wrapper.session.setModel(resolveRuntimeByokModelId(model, this._latestByokConfig, this._registeredByokConfig), {
+			await this._awaitControlPlaneRpc('session.setModel', this._wrapper.session.setModel(model, {
 				reasoningEffort,
 				contextTier,
 				...(autoTier !== undefined ? { autoTier } : {}),
@@ -8705,7 +8697,7 @@ export class CopilotAgentSession extends Disposable {
 				return;
 			}
 			await this._awaitControlPlaneRpc('session.model.list', this._wrapper.session.rpc.model.list());
-			const current = toAgentByokCurrentModel(await this._awaitControlPlaneRpc('session.model.getCurrent', this._wrapper.session.rpc.model.getCurrent()));
+			const current = await this._awaitControlPlaneRpc('session.model.getCurrent', this._wrapper.session.rpc.model.getCurrent());
 			if (generation !== this._modelConfigurationGeneration || this._store.isDisposed) {
 				return;
 			}

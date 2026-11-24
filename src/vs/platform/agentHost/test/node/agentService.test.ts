@@ -136,7 +136,7 @@ import { parseSessionWorktreeFolders, WORKTREE_FOLDERS_KEY } from '../../node/sh
 import type { IAgentHostPullRequestResolver } from '../../node/shared/pullRequestResolver.js';
 import { ADDITIONAL_WORKTREES_METADATA_KEY, readSessionAdditionalWorktrees, writeSessionAdditionalWorktrees } from '../../node/shared/sessionAdditionalWorktrees.js';
 import { SessionArtifacts } from '../../node/shared/sessionArtifacts.js';
-import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, AuthenticateTargetKind, ContentEncoding, JSON_RPC_INTERNAL_ERROR, JsonRpcErrorCodes, ProtocolError, type IStateSnapshot } from '../../common/state/sessionProtocol.js';
+import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, AuthenticateTargetKind, ContentEncoding, isMcpServerAuthenticateTarget, JSON_RPC_INTERNAL_ERROR, JsonRpcErrorCodes, ProtocolError, type AuthenticateTarget, type IStateSnapshot } from '../../common/state/sessionProtocol.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { ArtifactIntegrationServerToolName, ArtifactServerToolName, SessionServerToolName } from '../../common/serverToolNames.js';
 import { setAgentMergeEnabledToolName } from '../../node/shared/agentMergeServerTools.js';
@@ -24883,6 +24883,38 @@ suite('AgentService (node dispatcher)', () => {
 
 	suite('authenticate', () => {
 
+		test('serves a registered model source: its credential reaches the agent, and its models are published under it', async () => {
+			const agent = disposables.add(new MockAgent('copilot', { modelSourceRegistration: { formats: ['example.test/source@1'] } }));
+			const provider: IAgent = agent;
+			const served: (string | undefined)[][] = [];
+			provider.describeModelSource = () => ({ credentialResource: { resource: 'https://models.example.test/v1' } });
+			provider.setModelSources = sources => {
+				served.push(sources.map(source => source.credential));
+				agent.setModels(sources.map(source => ({ provider: 'copilot', id: `${source.id}/model`, name: 'Model', supportsVision: false, modelSourceId: source.id })));
+			};
+			registerTestAgentProvider(service, provider);
+			const stateManager = getStateManager(service);
+
+			service.dispatchModelSourceAction({ type: ActionType.RootModelSourceRegistrationSet, registration: { id: 'source', provider: 'copilot', displayName: 'Example', format: 'example.test/source@1', definition: {}, clientId: 'client-1' } }, 'client-1', 1);
+			const credentialNonce = stateManager.rootState.modelSourceRegistrations?.[0].credentialNonce ?? '';
+			const result = await service.authenticate({ resource: 'https://models.example.test/v1', token: 'secret', target: { kind: AuthenticateTargetKind.ModelSource, modelSourceId: 'source', credentialNonce } });
+			const agentInfo = stateManager.rootState.agents.find(info => info.provider === 'copilot');
+
+			assert.deepStrictEqual({
+				result,
+				state: stateManager.rootState.modelSourceRegistrations?.[0].state,
+				served,
+				modelSources: agentInfo?.modelSources,
+				models: agentInfo?.models.map(model => ({ id: model.id, modelSourceId: model.modelSourceId })),
+			}, {
+				result: { authenticated: true },
+				state: { kind: 'ready' },
+				served: [[], ['secret']],
+				modelSources: [{ id: 'source', displayName: 'Example' }],
+				models: [{ id: 'source/model', modelSourceId: 'source' }],
+			});
+		});
+
 		test('waits for provider completion after canonical acceptance and isolates completion failure', async () => {
 			const provider: IAgent = copilotAgent;
 			const started = new DeferredPromise<void>();
@@ -24920,11 +24952,11 @@ suite('AgentService (node dispatcher)', () => {
 					},
 				],
 			});
-			const targets = ['top', 'child'].map(customizationId => ({ kind: AuthenticateTargetKind.McpServer, session: session.toString(), customizationId }));
+			const targets = ['top', 'child'].map(customizationId => ({ kind: AuthenticateTargetKind.McpServer as const, session: session.toString(), customizationId }));
 			const received: typeof targets = [];
 			const provider: IAgent = copilotAgent;
 			provider.handleAuthenticationToken = async params => {
-				if (params.target) {
+				if (isMcpServerAuthenticateTarget(params.target)) {
 					received.push(params.target);
 				}
 				return true;
@@ -24940,7 +24972,7 @@ suite('AgentService (node dispatcher)', () => {
 				{ ...targets[0], customizationId: 'missing' },
 				{ ...targets[0], customizationId: 'plugin' },
 				{ ...targets[0], kind: 'future' as AuthenticateTargetKind },
-			]) {
+			] as AuthenticateTarget[]) {
 				for (const authenticationScope of [undefined, scope]) {
 					await assert.rejects(service.authenticate({ resource: 'https://api.github.com', token: 'mcp-token', target }, authenticationScope), { code: JsonRpcErrorCodes.InvalidParams });
 				}

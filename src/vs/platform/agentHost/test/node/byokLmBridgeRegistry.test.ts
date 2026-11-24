@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import type { IByokLmBridgeConnection, IByokLmChatResult, IByokLmDirectEndpoint, IByokLmModelInfo } from '../../common/agentHostByokLm.js';
+import type { IByokLmBridgeConnection, IByokLmChatResult, IByokLmModelInfo } from '../../common/agentHostByokLm.js';
 import { ByokLmBridgeRegistry } from '../../node/byokLmBridgeRegistry.js';
 
 /**
@@ -140,25 +140,6 @@ suite('ByokLmBridgeRegistry', () => {
 		});
 
 		reg.dispose();
-	});
-
-	test('republishes a direct model whose key version or tool support changes', () => {
-		const registry = new ByokLmBridgeRegistry();
-		const conn = pushable();
-		store.add(registry.register('client-a', conn.connection));
-		const direct: IByokLmDirectEndpoint = { type: 'openai', wireApi: 'completions', baseUrl: 'https://api.example.test/v1', group: 'Work', credentialVersion: '1' };
-		const model: IByokLmModelInfo = { vendor: 'customendpoint', id: 'gpt-x', direct };
-		conn.push([model]);
-		let changes = 0;
-		store.add(registry.onDidChangeModels(() => { changes++; }));
-
-		const rotated: IByokLmModelInfo = { ...model, direct: { ...direct, credentialVersion: '2' } };
-		conn.push([rotated]);
-		conn.push([{ ...rotated, direct: { ...direct, credentialVersion: '2' } }]);
-		const withTools = { ...rotated, supportsToolCalls: true };
-		conn.push([withTools]);
-
-		assert.deepStrictEqual({ changes, models: registry.getModels() }, { changes: 2, models: [withTools] });
 	});
 
 	test('treats a change in only the model identifier as a model change (re-publishes)', () => {

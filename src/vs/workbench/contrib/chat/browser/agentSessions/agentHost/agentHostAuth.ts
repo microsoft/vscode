@@ -24,14 +24,14 @@ import type { IDefaultAccount } from '../../../../../../base/common/defaultAccou
 import { deriveGitHubEndpoints } from '../../../../../../platform/github/common/githubEndpoints.js';
 import { gitHubCopilotResource } from '../../../../../../platform/agentHost/common/githubEndpoints.js';
 import { type McpAuthRequirement, type McpOAuthClient, type ModelSelection, type ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import type { AuthenticateTarget, McpServerAuthenticateTarget } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
+import { getAuthenticateTargetIdentity, type AuthenticateTarget, type McpServerAuthenticateTarget } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { AuthRequiredReason } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import type { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { copilotConnectorsScope, copilotCredentialBaselineScopes } from '../../../../../../platform/github/common/connectors/connectors.js';
 import { CustomizationMarketplaceConfiguration } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
-import { type AgentInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { type AgentInfo, type SessionModelInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
@@ -68,14 +68,16 @@ export function modelRequiresAgentAuthentication(agent: AgentInfo | undefined, m
 		return false;
 	}
 	const requiresAuthentication = agent.protectedResources.some(resource => resource.required !== false);
-	if (!agent.models.some(candidate => readAgentModelByokIdentifier(candidate) !== undefined)) {
+	// Models of a registered model source are called with the user's own credential, like window BYOK models.
+	const isUserProvided = (candidate: SessionModelInfo) => readAgentModelByokIdentifier(candidate) !== undefined || candidate.modelSourceId !== undefined;
+	if (!agent.models.some(isUserProvided)) {
 		return requiresAuthentication;
 	}
 	if (!model) {
 		return true;
 	}
 	const selectedModel = agent.models.find(candidate => candidate.id === model.id);
-	return !selectedModel || readAgentModelByokIdentifier(selectedModel) === undefined;
+	return !selectedModel || !isUserProvided(selectedModel);
 }
 
 function assertAuthenticationAccepted(result: unknown): void {
@@ -236,7 +238,7 @@ export class AgentHostAuthTokenCache {
 	}
 
 	private _key(resource: string, scopes: readonly string[] | undefined, target?: AuthenticateTarget): string {
-		return `${resource}\x00${JSON.stringify([[...new Set(scopes)].sort(), ...(target ? [target.kind, target.session, target.customizationId] : [])])}`;
+		return `${resource}\x00${JSON.stringify([[...new Set(scopes)].sort(), ...(target ? getAuthenticateTargetIdentity(target) : [])])}`;
 	}
 }
 

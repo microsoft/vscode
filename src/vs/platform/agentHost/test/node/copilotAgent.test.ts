@@ -7730,7 +7730,7 @@ suite('CopilotAgent', () => {
 				provider: 'copilotcli',
 				displayName: 'Copilot',
 				description: 'Copilot SDK agent running in the local agent host process',
-				capabilities: { multipleChats: { fork: true, sideChat: true }, multipleWorkingDirectories: { immutablePrimary: true } },
+				capabilities: { multipleChats: { fork: true, sideChat: true }, multipleWorkingDirectories: { immutablePrimary: true }, modelSourceRegistration: { formats: ['code.visualstudio.com/custom-endpoint@1'] } },
 			},
 			agentHostCapabilities: { workspaceConversion: true },
 		});

@@ -196,6 +196,8 @@ export interface ProtectedResourceMetadata {
 	/**
 	 * REQUIRED. The protected resource's resource identifier, a URL using the
 	 * `https` scheme with no fragment component (e.g. `"https://api.github.com"`).
+	 * A registered model source's endpoint may use any scheme the agent
+	 * supports, because nothing fetches it.
 	 */
 	resource: string;
 

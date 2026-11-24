@@ -115,7 +115,6 @@ import { IAgentEditAttribution, IAgentEditAttributionService, NullAgentEditAttri
 import { buildSandboxConfigForSdk, type SandboxConfig } from '../../node/copilot/sandboxConfigForSdk.js';
 import { ActiveClientToolSet, structuralToolsEqual } from '../../node/activeClientState.js';
 import { AgentHostClientConnectionService, IAgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
-import { getDirectByokProviderName } from '../../node/copilot/copilotByokModelIds.js';
 import { type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotClientToolConfiguration, type ICopilotSessionLauncher, type ICopilotSessionRuntime } from '../../node/copilot/copilotSessionLauncher.js';
 import type { ICopilotConnectorServers } from '../../node/copilot/copilotConnectors.js';
 import type { ILocalModelProvider } from '../../node/copilot/localModelBridge/localModelProvider.js';
@@ -1709,7 +1708,6 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 			return new CopilotSessionWrapper(mockSession as unknown as CopilotSession, options?.canvasRuntimeEnabled ?? true, options?.launchByokConfig ?? {}, imageGenerationEnabled, imageGenerationWatermark, undefined, true, true, options?.sessionTelemetryEnabled ?? true, rootValues[AgentHostMcpSkillsEnabledConfigKey] !== false, logService);
 		},
 		resolveByokSessionConfig: async () => options?.resolveByokSessionConfig?.() ?? {},
-		resolveByokBridgeProvider: async () => (name, vendor) => ({ name, type: 'openai', wireApi: 'responses', baseUrl: `http://127.0.0.1:1/v/${vendor}`, bearerToken: 'nonce.test-session-1' }),
 	};
 
 	const services = new ServiceCollection();
@@ -4152,32 +4150,6 @@ suite('CopilotAgentSession', () => {
 		assert.deepStrictEqual({ providerSyncCalls: mockSession.providerSyncCalls, setModelCalls: mockSession.setModelCalls.map(([model]) => model) }, {
 			providerSyncCalls: [{ providers: [provider], models: [early, late] }],
 			setModelCalls: ['customendpoint/Pool/early', 'customendpoint/Pool/late'],
-		});
-	});
-
-	test('moves a direct BYOK model the window stops reporting to the bridge, keeping the selection', async () => {
-		const direct = getDirectByokProviderName('customendpoint', 'Work/llama');
-		// A keyless endpoint, such as a local server, which dropping the key alone would not stop.
-		const provider = { name: direct, type: 'openai' as const, wireApi: 'completions' as const, baseUrl: 'http://127.0.0.1:2/v1' };
-		const model = { id: 'Work/llama', provider: direct, wireModel: 'llama', modelId: 'llama' };
-		let current: ICopilotByokSessionConfig = { providers: [provider], models: [model] };
-		const { session, mockSession } = await createAgentSession(disposables, {
-			launchByokConfig: { providers: [provider], models: [model] },
-			resolveByokSessionConfig: () => current,
-		});
-
-		await session.setModel('customendpoint/Work/llama');
-		// BYOK disabled by policy: the window reports no models.
-		current = {};
-		await session.syncByokModels();
-		await session.syncByokModels();
-
-		assert.deepStrictEqual({ providerSyncCalls: mockSession.providerSyncCalls, setModelCalls: mockSession.setModelCalls.map(([selected]) => selected) }, {
-			providerSyncCalls: [{
-				providers: [{ name: direct, type: 'openai', wireApi: 'responses', baseUrl: 'http://127.0.0.1:1/v/customendpoint', bearerToken: 'nonce.test-session-1' }],
-				models: [{ id: 'Work/llama', provider: direct, modelId: 'llama' }],
-			}],
-			setModelCalls: [`${direct}/Work/llama`],
 		});
 	});
 

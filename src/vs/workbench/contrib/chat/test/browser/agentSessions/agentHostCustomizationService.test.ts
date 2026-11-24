@@ -48,7 +48,7 @@ import { IAuthenticationMcpUsageService } from '../../../../../services/authenti
 import { IDynamicAuthenticationProviderStorageService } from '../../../../../services/authentication/common/dynamicAuthenticationProviderStorage.js';
 import { IMcpService } from '../../../../mcp/common/mcpTypes.js';
 import { MCP } from '../../../../mcp/common/modelContextProtocol.js';
-import { AuthenticateTargetKind } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
+import { AuthenticateTargetKind, isMcpServerAuthenticateTarget } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import type { IAgentHostAuthenticateRequest } from '../../../browser/agentSessions/agentHost/agentHostAuth.js';
 import { AbstractAgentHostCustomizationService, IAgentHostCustomizationTarget, WorkbenchAgentHostCustomizationService } from '../../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { IAgentHostUntitledProvisionalSessionService } from '../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
@@ -1156,7 +1156,7 @@ suite('AbstractAgentHostCustomizationService', () => {
 		}));
 		const target = new FakeTarget(servers);
 		target.onAuthenticate = request => queueMicrotask(() => sut.updateTarget(target, target.customizations.map(customization =>
-			customization.type === CustomizationType.McpServer && customization.id === request.target?.customizationId
+			customization.type === CustomizationType.McpServer && isMcpServerAuthenticateTarget(request.target) && customization.id === request.target.customizationId
 				? { ...customization, state: { kind: McpServerStatus.Ready } }
 				: customization)));
 		sut.setTarget(session, target);

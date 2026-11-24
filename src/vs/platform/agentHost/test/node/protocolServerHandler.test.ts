@@ -262,6 +262,7 @@ class MockAgentService extends Disposable implements IAgentService {
 	prepareSessionWorktreeCleanup?: IAgentService['prepareSessionWorktreeCleanup'];
 	listManagedWorktrees?: IAgentService['listManagedWorktrees'];
 	cleanupManagedWorktree?: IAgentService['cleanupManagedWorktree'];
+	dispatchModelSourceAction?: IAgentService['dispatchModelSourceAction'];
 	private readonly _worktreeDiskUsage = this._register(new AgentHostWorktreeDiskUsageService(undefined, new class extends mock<IAgentHostDatabase>() { }(), new class extends mock<AgentHostStateManager>() { }()));
 
 	measureWorktreeDiskUsage(root: URI, token: CancellationToken, session?: URI): Promise<number | undefined> {
@@ -8402,6 +8403,27 @@ suite('ProtocolServerHandler', () => {
 			dispatched: agentService.handledActions,
 		}, {
 			response: { jsonrpc: '2.0', id: 2, error: { code: JsonRpcErrorCodes.MethodNotFound, message: 'Method not found: action' } },
+			dispatched: [],
+		});
+	});
+
+	test('routes model source registrations to the agent service, and rejects them on hosts without a registry', async () => {
+		const transport = connectClient('client-1', [ROOT_STATE_URI]);
+		const action = { type: ActionType.RootModelSourceRegistrationRemoved, id: 'source' } as const;
+		transport.simulateMessage(request(2, 'dispatchAction', { channel: ROOT_STATE_URI, clientSeq: 1, action }));
+		await handler.whenIdle();
+		const rejection = (findNotifications(transport.sent, 'action').at(-1)?.params as ActionEnvelope | undefined)?.rejectionReason;
+
+		const routed: { type: string; clientId: string }[] = [];
+		agentService.dispatchModelSourceAction = (modelSourceAction, clientId) => {
+			routed.push({ type: modelSourceAction.type, clientId });
+		};
+		transport.simulateMessage(notification('dispatchAction', { channel: ROOT_STATE_URI, clientSeq: 2, action }));
+		await handler.whenIdle();
+
+		assert.deepStrictEqual({ rejection, routed, dispatched: agentService.handledActions }, {
+			rejection: `Unsupported action: ${ActionType.RootModelSourceRegistrationRemoved}`,
+			routed: [{ type: ActionType.RootModelSourceRegistrationRemoved, clientId: 'client-1' }],
 			dispatched: [],
 		});
 	});

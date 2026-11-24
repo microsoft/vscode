@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
-import { equals } from '../../../base/common/objects.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { IByokLmBridgeConnection, IByokLmModelInfo } from '../common/agentHostByokLm.js';
 
@@ -171,11 +170,8 @@ function modelsEqual(a: readonly IByokLmModelInfo[], b: readonly IByokLmModelInf
 			&& m.maxPromptTokens === n.maxPromptTokens
 			&& m.maxOutputTokens === n.maxOutputTokens
 			&& m.supportsVision === n.supportsVision
-			&& m.supportsToolCalls === n.supportsToolCalls
 			&& m.defaultReasoningEffort === n.defaultReasoningEffort
-			&& arraysEqual(m.supportedReasoningEfforts, n.supportedReasoningEfforts)
-			// A changed `credentialVersion` is how a replaced API key reaches live sessions.
-			&& equals(m.direct, n.direct);
+			&& arraysEqual(m.supportedReasoningEfforts, n.supportedReasoningEfforts);
 	});
 }
 

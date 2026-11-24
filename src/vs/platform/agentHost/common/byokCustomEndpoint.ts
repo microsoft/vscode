@@ -3,14 +3,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { IByokLmRuntimeEndpoint } from './agentHostByokLm.js';
+import { localize } from '../../../nls.js';
 import { customEndpointUsesAzureApiKey, inferCustomEndpointApiType, isCustomEndpointApiType, resolveCustomEndpointUrl, type CustomEndpointApiType } from './customEndpointUrl.js';
+import type { ProtectedResourceMetadata } from './state/protocol/state.js';
 
 /** The language model vendor of the Copilot extension's Custom Endpoint BYOK provider. */
 export const CUSTOM_ENDPOINT_BYOK_VENDOR = 'customendpoint';
 
 /** The literal a Custom Endpoint `requestHeaders` value uses to insert the group's API key. */
 const API_KEY_TEMPLATE = '${apiKey}';
+
+/**
+ * A runtime provider endpoint that sends a Custom Endpoint model's requests:
+ * the provider `type`, wire format, and base URL the runtime appends the API
+ * path to. The runtime chooses the auth header from `type`.
+ */
+export interface ICustomEndpointRuntimeEndpoint {
+	readonly type: 'openai' | 'azure' | 'anthropic';
+	/** For `openai` and `azure`: whether requests use Chat Completions or Responses. */
+	readonly wireApi?: 'completions' | 'responses';
+	readonly baseUrl: string;
+	/** For `azure`: the `api-version` query parameter the runtime adds. */
+	readonly azureApiVersion?: string;
+}
 
 /** The settings of one Custom Endpoint model that the agent host's runtime needs to call it. */
 export interface ICustomEndpointModelSettings {
@@ -48,7 +63,7 @@ export type CustomEndpointBridgeReason =
 	| 'query';
 
 export type CustomEndpointRuntimeEndpointResolution =
-	| { readonly endpoint: IByokLmRuntimeEndpoint; readonly bridgeReason?: undefined }
+	| { readonly endpoint: ICustomEndpointRuntimeEndpoint; readonly bridgeReason?: undefined }
 	| { readonly endpoint?: undefined; readonly bridgeReason: CustomEndpointBridgeReason };
 
 type CustomEndpointAuth = 'bearer' | 'azureApiKey' | 'anthropicApiKey';
@@ -210,3 +225,161 @@ function hasPathSegments(path: string, segments: string): boolean {
 function isRecord(value: unknown): value is { readonly [key: string]: unknown } {
 	return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
+
+// #region Model source definition
+
+/**
+ * The definition format of a Custom Endpoint provider group registered with an
+ * agent host as a model source (see {@link CustomEndpointModelSourceDefinition}).
+ */
+export const CUSTOM_ENDPOINT_MODEL_SOURCE_FORMAT = 'code.visualstudio.com/custom-endpoint@1';
+
+/** A Custom Endpoint model in a {@link CustomEndpointModelSourceDefinition}. */
+export type CustomEndpointModelSourceModel = {
+	/** The model id the endpoint is called with. */
+	readonly id: string;
+	readonly name?: string;
+	/** The model's `url`, as configured. */
+	readonly url: string;
+	/** The model's `apiType`, else its group's. */
+	readonly apiType?: CustomEndpointApiType;
+	/** The model's `requestHeaders`, which only name the header that carries the API key. */
+	readonly requestHeaders?: { readonly [name: string]: string };
+	readonly toolCalling?: boolean;
+	/** Whether the model accepts images. Absent when unknown. */
+	readonly vision?: boolean;
+	readonly maxInputTokens?: number;
+	readonly maxOutputTokens?: number;
+	readonly maxContextWindowTokens?: number;
+	readonly reasoningEfforts?: readonly string[];
+	readonly defaultReasoningEffort?: string;
+};
+
+/**
+ * A Custom Endpoint provider group, in {@link CUSTOM_ENDPOINT_MODEL_SOURCE_FORMAT}:
+ * the models the runtime can call the same way the Copilot extension does. It
+ * never contains the group's API key, which a client delivers separately.
+ */
+export type CustomEndpointModelSourceDefinition = {
+	readonly models: readonly CustomEndpointModelSourceModel[];
+	/** Whether requests carry the group's API key. */
+	readonly requiresApiKey: boolean;
+};
+
+/** A {@link CustomEndpointModelSourceModel} and the runtime endpoint that serves it. */
+export interface ICustomEndpointModelSourceEndpoint {
+	readonly model: CustomEndpointModelSourceModel;
+	readonly endpoint: ICustomEndpointRuntimeEndpoint;
+}
+
+/** The model details a Custom Endpoint model source carries beyond its group's settings. */
+export interface ICustomEndpointModelSourceModelInfo {
+	readonly name?: string;
+	readonly maxInputTokens?: number;
+	readonly maxOutputTokens?: number;
+	readonly maxContextWindowTokens?: number;
+	readonly reasoningEfforts?: readonly string[];
+	readonly defaultReasoningEffort?: string;
+}
+
+/**
+ * The model source entry of the Custom Endpoint model `id`, or why the runtime
+ * can't call it the way the Copilot extension does.
+ */
+export function toCustomEndpointModelSourceModel(id: string, settings: ICustomEndpointModelSettings, info: ICustomEndpointModelSourceModelInfo): { readonly model: CustomEndpointModelSourceModel; readonly bridgeReason?: undefined } | { readonly model?: undefined; readonly bridgeReason: CustomEndpointBridgeReason } {
+	const resolution = resolveCustomEndpointRuntimeEndpoint(settings);
+	if (resolution.bridgeReason) {
+		return { bridgeReason: resolution.bridgeReason };
+	}
+	const requestHeaders = isRecord(settings.requestHeaders) && Object.keys(settings.requestHeaders).length
+		? Object.fromEntries(Object.entries(settings.requestHeaders).filter((entry): entry is [string, string] => typeof entry[1] === 'string'))
+		: undefined;
+	return {
+		model: {
+			id,
+			...(info.name !== undefined ? { name: info.name } : {}),
+			url: settings.url,
+			...(isCustomEndpointApiType(settings.apiType) ? { apiType: settings.apiType } : {}),
+			...(requestHeaders ? { requestHeaders } : {}),
+			...(typeof settings.toolCalling === 'boolean' ? { toolCalling: settings.toolCalling } : {}),
+			...(typeof settings.vision === 'boolean' ? { vision: settings.vision } : {}),
+			...(info.maxInputTokens !== undefined ? { maxInputTokens: info.maxInputTokens } : {}),
+			...(info.maxOutputTokens !== undefined ? { maxOutputTokens: info.maxOutputTokens } : {}),
+			...(info.maxContextWindowTokens !== undefined ? { maxContextWindowTokens: info.maxContextWindowTokens } : {}),
+			...(info.reasoningEfforts?.length ? { reasoningEfforts: [...info.reasoningEfforts] } : {}),
+			...(info.defaultReasoningEffort !== undefined ? { defaultReasoningEffort: info.defaultReasoningEffort } : {}),
+		},
+	};
+}
+
+/**
+ * Reads a {@link CustomEndpointModelSourceDefinition} and maps each model to its
+ * runtime endpoint. Throws, with a message for the user, when the definition is
+ * malformed or names a model the runtime can't call the way the extension does.
+ */
+export function readCustomEndpointModelSource(definition: unknown): { readonly models: readonly ICustomEndpointModelSourceEndpoint[]; readonly requiresApiKey: boolean } {
+	if (!isRecord(definition) || !Array.isArray(definition.models) || definition.models.length === 0 || typeof definition.requiresApiKey !== 'boolean') {
+		throw new Error(localize('customEndpointModelSource.invalid', "The Custom Endpoint model source definition is not valid."));
+	}
+	const models: ICustomEndpointModelSourceEndpoint[] = [];
+	const ids = new Set<string>();
+	for (const candidate of definition.models) {
+		const model = readModelSourceModel(candidate);
+		if (!model || ids.has(model.id)) {
+			throw new Error(localize('customEndpointModelSource.invalidModel', "The Custom Endpoint model source definition has a model that is not valid."));
+		}
+		ids.add(model.id);
+		const resolution = resolveCustomEndpointRuntimeEndpoint(model);
+		if (resolution.bridgeReason) {
+			throw new Error(localize('customEndpointModelSource.unsupportedModel', "The Custom Endpoint model {0} can't be called directly ({1}).", model.id, resolution.bridgeReason));
+		}
+		models.push({ model, endpoint: resolution.endpoint });
+	}
+	return { models, requiresApiKey: definition.requiresApiKey };
+}
+
+/**
+ * The resource a Custom Endpoint model source's API key is for: the first
+ * model's `url`, as the definition names it. A client checks it against its
+ * own copy of the definition before it sends the key.
+ */
+export function getCustomEndpointModelSourceCredentialResource(definition: CustomEndpointModelSourceDefinition): ProtectedResourceMetadata | undefined {
+	return definition.requiresApiKey && definition.models.length ? { resource: definition.models[0].url } : undefined;
+}
+
+function readModelSourceModel(value: unknown): CustomEndpointModelSourceModel | undefined {
+	if (!isRecord(value) || typeof value.id !== 'string' || !value.id || typeof value.url !== 'string') {
+		return undefined;
+	}
+	// Keys the format doesn't define, such as `streaming` or `modelOptions`, would change how requests are sent.
+	const knownKeys = new Set(['id', 'name', 'url', 'apiType', 'requestHeaders', 'toolCalling', 'vision', 'maxInputTokens', 'maxOutputTokens', 'maxContextWindowTokens', 'reasoningEfforts', 'defaultReasoningEffort']);
+	if (Object.keys(value).some(key => !knownKeys.has(key))) {
+		return undefined;
+	}
+	const { name, apiType, requestHeaders, toolCalling, vision, maxInputTokens, maxOutputTokens, maxContextWindowTokens, reasoningEfforts, defaultReasoningEffort } = value;
+	const isOptional = (field: unknown, type: 'string' | 'boolean') => field === undefined || typeof field === type;
+	const isOptionalTokenCount = (field: unknown) => field === undefined || (typeof field === 'number' && Number.isSafeInteger(field) && field > 0);
+	if (!isOptional(name, 'string') || !isOptional(defaultReasoningEffort, 'string') || !isOptional(toolCalling, 'boolean') || !isOptional(vision, 'boolean')
+		|| !isOptionalTokenCount(maxInputTokens) || !isOptionalTokenCount(maxOutputTokens) || !isOptionalTokenCount(maxContextWindowTokens)
+		|| (apiType !== undefined && !isCustomEndpointApiType(apiType))
+		|| (requestHeaders !== undefined && !(isRecord(requestHeaders) && Object.values(requestHeaders).every(header => typeof header === 'string')))
+		|| (reasoningEfforts !== undefined && !(Array.isArray(reasoningEfforts) && reasoningEfforts.every(effort => typeof effort === 'string')))) {
+		return undefined;
+	}
+	return {
+		id: value.id,
+		...(typeof name === 'string' ? { name } : {}),
+		url: value.url,
+		...(isCustomEndpointApiType(apiType) ? { apiType } : {}),
+		...(isRecord(requestHeaders) ? { requestHeaders: requestHeaders as { readonly [name: string]: string } } : {}),
+		...(typeof toolCalling === 'boolean' ? { toolCalling } : {}),
+		...(typeof vision === 'boolean' ? { vision } : {}),
+		...(typeof maxInputTokens === 'number' ? { maxInputTokens } : {}),
+		...(typeof maxOutputTokens === 'number' ? { maxOutputTokens } : {}),
+		...(typeof maxContextWindowTokens === 'number' ? { maxContextWindowTokens } : {}),
+		...(Array.isArray(reasoningEfforts) ? { reasoningEfforts: reasoningEfforts as string[] } : {}),
+		...(typeof defaultReasoningEffort === 'string' ? { defaultReasoningEffort } : {}),
+	};
+}
+
+// #endregion

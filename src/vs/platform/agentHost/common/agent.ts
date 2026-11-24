@@ -1661,7 +1661,36 @@ export interface IAgentModelInfo {
 	readonly supportsVision: boolean;
 	readonly configSchema?: ConfigSchema;
 	readonly policyState?: PolicyState;
+	/** The registered model source this model comes from, as its `ModelSourceRegistration.id`. */
+	readonly modelSourceId?: string;
 	readonly _meta?: Record<string, unknown>;
+}
+
+/**
+ * A model source registered on the host that an agent serves models from. Its
+ * definition is in one of the formats the agent's `modelSourceRegistration`
+ * capability lists.
+ */
+export interface IAgentModelSource {
+	/** The registration's `id`, and the `modelSourceId` of the models the agent publishes for it. */
+	readonly id: string;
+	readonly format: string;
+	readonly definition: Record<string, unknown>;
+	/**
+	 * The source's credential, when it takes one and a client delivered it.
+	 * Held in memory only. Without it, the source's models stay listed, and
+	 * requests to them fail.
+	 */
+	readonly credential?: string;
+}
+
+/** What an agent read from a model source's definition. */
+export interface IAgentModelSourceDescription {
+	/**
+	 * RFC 9728 metadata for the endpoint a credential is for, when the source
+	 * takes one. A client passes `resource.resource` back to `authenticate`.
+	 */
+	readonly credentialResource?: ProtectedResourceMetadata;
 }
 
 // ---- Agent signals (sent via IAgent.onDidChatProgress) ----------------------
@@ -2155,6 +2184,21 @@ export interface IAgent {
 
 	/** Discovers models using only the requesting connection's credentials, without changing the shared catalog. */
 	getModelsForCredentials?(credentials: IAgentHostCredentialSource, token?: CancellationToken): Promise<readonly IAgentModelInfo[]>;
+
+	/**
+	 * Reads a registered model source's definition. Throws, with a message for
+	 * the user, when the agent cannot serve it. Required when the agent
+	 * advertises the `modelSourceRegistration` capability.
+	 */
+	describeModelSource?(source: Pick<IAgentModelSource, 'id' | 'format' | 'definition'>): IAgentModelSourceDescription;
+
+	/**
+	 * Replaces the registered model sources the agent serves models from. Their
+	 * models join {@link models} with `modelSourceId` set, and live sessions can
+	 * select them. Models of a source that is no longer passed are withdrawn,
+	 * and its credential is no longer used.
+	 */
+	setModelSources?(sources: readonly IAgentModelSource[]): void;
 
 	/**
 	 * Chooses the model for a main-agent turn that selected a model router

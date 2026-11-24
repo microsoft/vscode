@@ -596,7 +596,7 @@ suite('AgentHostAuthenticationScope', () => {
 
 	test('targeted MCP tokens stay out of agent credentials and retain independent concurrent replay slots', async () => {
 		const service = store.add(new AgentHostAuthenticationService(new NullLogService(), async () => { assert.fail('Targeted MCP tokens must not validate an agent identity'); }));
-		const target = (customizationId: string) => ({ kind: AuthenticateTargetKind.McpServer, session: 'ahp-session:/target', customizationId });
+		const target = (customizationId: string) => ({ kind: AuthenticateTargetKind.McpServer as const, session: 'ahp-session:/target', customizationId });
 		const first: AuthenticateParams = { resource, scopes: ['read', 'write'], token: 'first-token', target: target('first') };
 		const second: AuthenticateParams = { ...first, token: 'second-token', target: target('second') };
 		const started = new DeferredPromise<void>();

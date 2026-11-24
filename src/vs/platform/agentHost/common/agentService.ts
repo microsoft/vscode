@@ -40,7 +40,7 @@ import type { CompletionsParams, CompletionsResult, CreateTerminalParams, Resolv
 import type { AutomationCapabilities, InitializeResult } from './state/protocol/common/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from './state/protocol/channels-changeset/commands.js';
 import type { FetchAutomationRunsParams, FetchAutomationRunsResult, ListAutomationTriggerDefinitionsParams, ListAutomationTriggerDefinitionsResult, RunAutomationParams, RunAutomationResult } from './state/protocol/channels-automation/commands.js';
-import type { ActionEnvelope, ClientAutomationAction, ClientAutomationRunAction, INotification, IRootConfigChangedAction, SessionAction, ChatAction, TerminalAction, ClientAnnotationsAction, ClientChangesetAction } from './state/sessionActions.js';
+import type { ActionEnvelope, ClientAutomationAction, ClientAutomationRunAction, ClientModelSourceAction, INotification, IRootConfigChangedAction, SessionAction, ChatAction, TerminalAction, ClientAnnotationsAction, ClientChangesetAction } from './state/sessionActions.js';
 import type { ContentEncoding, ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMkdirParams, ResourceMkdirResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceResolveParams, ResourceResolveResult, ResourceWatchState, ResourceWriteParams, ResourceWriteResult, CreateResourceWatchParams, CreateResourceWatchResult, IStateSnapshot } from './state/sessionProtocol.js';
 import { ComponentToState, StateComponents, type RootState } from './state/sessionState.js';
 import type { ISessionArtifact } from './sessionArtifacts.js';
@@ -240,10 +240,11 @@ export const AgentHostCodexAgentEnabledSettingId = 'chat.agentHost.codexAgent.en
 export const AgentHostByokModelsEnabledSettingId = 'chat.agentHost.byokModels.enabled';
 
 /**
- * Configuration key controlling whether the local agent host calls Custom
- * Endpoint BYOK models' endpoints directly with the provider group's API key,
- * instead of sending each request back through the window. Read in the window,
- * which decides which models route directly and serves their keys.
+ * Configuration key controlling whether the window registers its Custom Endpoint
+ * BYOK provider groups with agent hosts as model sources, so their agents call
+ * the endpoints directly with the provider group's API key instead of sending
+ * each request back through the window. Read in the window, which decides which
+ * models are registered and delivers their keys.
  */
 export const AgentHostByokCustomEndpointDirectSettingId = 'chat.agentHost.byokModels.customEndpointDirect.enabled';
 
@@ -1047,7 +1048,15 @@ export interface IAgentService {
 	 */
 	authenticate(params: AuthenticateParams, scope?: IAgentHostAuthenticationScope, clientId?: string): Promise<AuthenticateResult>;
 
-	/** Resolves a provider's connection-scoped model catalog without authenticating the shared provider. */
+	/**
+	 * Applies a client's change to the host's model source registry, or rejects
+	 * it through the action's `rejectionReason`. Absent on hosts that don't
+	 * serve registered model sources.
+	 */
+	dispatchModelSourceAction?(action: ClientModelSourceAction, clientId: string, clientSeq: number, clientContext?: IAgentHostClientTelemetryContext): void;
+
+	/** Removes the model sources a departed client registered with `contributingClient` retention. */
+	removeClientModelSources?(clientId: string): void;
 	getModelsForCredentials(provider: string, credentials: IAgentHostCredentialSource, token?: CancellationToken): Promise<readonly IAgentModelInfo[]>;
 
 	/** List all available sessions from the Copilot CLI. */
@@ -1450,14 +1459,14 @@ export interface IAgentConnection {
 	 * Dispatch a client-originated action. `channel` is the protocol URI
 	 * string identifying the channel the action targets (a session URI for
 	 * session actions, terminal URI for terminal actions, or
-	 * `ROOT_STATE_URI` for root-config actions). Strings are used rather
+	 * `ROOT_STATE_URI` for root actions). Strings are used rather
 	 * than {@link URI} objects so authority-less scheme URIs like
 	 * `ahp-root://` survive the wire format without normalization.
 	 */
-	dispatch(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | ClientAutomationAction | ClientAutomationRunAction | IRootConfigChangedAction): void;
+	dispatch(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | ClientAutomationAction | ClientAutomationRunAction | IRootConfigChangedAction | ClientModelSourceAction): void;
 
 	/** Wait for the authoritative action echo, including any rejection, or cancellation; the caller must hold the subscription until settlement. */
-	dispatchConfirmed<T>(channel: string, subscription: IAgentSubscription<T>, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | ClientAutomationAction | ClientAutomationRunAction | IRootConfigChangedAction, token: CancellationToken): Promise<ActionEnvelope>;
+	dispatchConfirmed<T>(channel: string, subscription: IAgentSubscription<T>, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | ClientAutomationAction | ClientAutomationRunAction | IRootConfigChangedAction | ClientModelSourceAction, token: CancellationToken): Promise<ActionEnvelope>;
 
 	// ---- Events (connection-level) ------------------------------------------
 	readonly onDidNotification: Event<INotification>;

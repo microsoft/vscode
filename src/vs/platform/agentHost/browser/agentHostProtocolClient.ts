@@ -68,7 +68,7 @@ import { AgentSubscriptionManager, ChatStateSubscription, type IActiveSubscripti
 import { AGENT_HOST_SCHEME, agentHostAuthority, createAgentHostResourceUriMapper, fromAgentHostUri, type IAgentHostResourceUriMapper, toAgentHostUri } from '../common/agentHostUri.js';
 import { AgentHostResourceIdentity, AgentHostResourcePermissionError, IAgentHostResourceService, LOCAL_AGENT_HOST_RESOURCE_IDENTITY } from '../common/agentHostResourceService.js';
 import type { ClientNotificationMap, CommandMap, JsonRpcErrorResponse, JsonRpcRequest, JsonRpcResponse } from '../common/state/protocol/messages.js';
-import { ActionType, AuthRequiredReason, type ActionEnvelope, type ChatAction, type ClientAnnotationsAction, type ClientAutomationAction, type ClientAutomationRunAction, type ClientChangesetAction, type INotification, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../common/state/sessionActions.js';
+import { ActionType, AuthRequiredReason, type ActionEnvelope, type ChatAction, type ClientAnnotationsAction, type ClientAutomationAction, type ClientAutomationRunAction, type ClientChangesetAction, type ClientModelSourceAction, type INotification, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../common/state/sessionActions.js';
 import { getOlderHostDefaultChat, getOlderHostSkillCompletion } from './agentHostOlderHostCompatibility.js';
 import { MessageAttachmentKind, SessionSummary, ROOT_STATE_URI, StateComponents, isAhpRootChannel, isAhpChatChannel, isSessionChatArchived, isSessionStatusRead, type AgentInfo, type ClientPluginCustomization, type SessionState, type Message, type RootState } from '../common/state/sessionState.js';
 import type { AgentChatMoveDestination } from '../common/agentHostChatMove.js';
@@ -77,7 +77,7 @@ import { normalizeLegacyActionEnvelope } from '../common/state/legacyProtocolCom
 import { getAgentHostClientProtocolVersions } from '../common/agentHostProtocolCompatibility.js';
 import { ChatProvidersConfigKey, ChatProvidersSettingId } from '../common/agentHostChatProviders.js';
 import { compareProtocolVersions } from '../common/state/protocol/version/registry.js';
-import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, ProtocolError, ReconnectResultType, JSON_RPC_INTERNAL_ERROR, type ProtocolMessage, type IStateSnapshot, type SubscribeResult, type JsonRpcNotification, type AhpNotification } from '../common/state/sessionProtocol.js';
+import { getAuthenticateTargetIdentity, isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, ProtocolError, ReconnectResultType, JSON_RPC_INTERNAL_ERROR, type ProtocolMessage, type IStateSnapshot, type SubscribeResult, type JsonRpcNotification, type AhpNotification } from '../common/state/sessionProtocol.js';
 import { type IVscodeUpgradeResult } from '../common/state/protocolUpgrade.js';
 import { isClientTransport, NonReconnectableTransportError, AgentHostTransportFailureReason, type IProtocolTransport } from '../common/state/sessionTransport.js';
 import { AhpErrorCodes, JsonRpcErrorCodes } from '../common/state/protocol/errors.js';
@@ -1992,7 +1992,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		return this._subscriptionManager.getActiveSubscriptions();
 	}
 
-	dispatch(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | ClientAutomationAction | ClientAutomationRunAction | IRootConfigChangedAction): void {
+	dispatch(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | ClientAutomationAction | ClientAutomationRunAction | IRootConfigChangedAction | ClientModelSourceAction): void {
 		// Assisted permissions feedback is restricted telemetry: it goes only to the host, never into this
 		// client's state. A replay after a reconnect resends the optimistic copy, so it drops the feedback.
 		const optimistic = action.type === ActionType.ChatToolCallConfirmed ? withoutAgentPermissionFeedback(action) : action;
@@ -2030,7 +2030,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		}
 	}
 
-	async dispatchConfirmed<T>(channel: string, subscription: IAgentSubscription<T>, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | ClientAutomationAction | ClientAutomationRunAction | IRootConfigChangedAction, token: CancellationToken): Promise<ActionEnvelope> {
+	async dispatchConfirmed<T>(channel: string, subscription: IAgentSubscription<T>, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | ClientAutomationAction | ClientAutomationRunAction | IRootConfigChangedAction | ClientModelSourceAction, token: CancellationToken): Promise<ActionEnvelope> {
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
 		}
@@ -2318,7 +2318,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	/**
 	 * Dispatch a client action to the server. Returns the clientSeq used.
 	 */
-	private dispatchAction(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | ClientAutomationAction | ClientAutomationRunAction | IRootConfigChangedAction, _clientId: string, clientSeq: number): void {
+	private dispatchAction(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | ClientAutomationAction | ClientAutomationRunAction | IRootConfigChangedAction | ClientModelSourceAction, _clientId: string, clientSeq: number): void {
 		if (action.type === ActionType.ChatTurnStarted && this._expiredRelayAuthentication && this._usesPagedChatHistory(URI.parse(channel))) {
 			this._expiredRelayAuthentication.unsentTurns.add(clientSeq);
 			return;
@@ -2941,7 +2941,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	private _authenticationKey(params: AuthenticateParams): string {
 		const key = `${params.resource}\0${JSON.stringify(params.scopes ?? [])}`;
 		// Targeted MCP credentials are independent of each other and of the provider-level credential.
-		return params.target ? `${key}\0${JSON.stringify([params.target.kind, params.target.session, params.target.customizationId])}` : key;
+		return params.target ? `${key}\0${JSON.stringify(getAuthenticateTargetIdentity(params.target))}` : key;
 	}
 
 	/**
@@ -3253,7 +3253,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	 * Inspect an outgoing client-dispatched action and grant implicit reads for
 	 * resources that the host will need to read after receiving the action.
 	 */
-	private _grantImplicitReadsForOutgoingAction(action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | ClientAutomationAction | ClientAutomationRunAction | IRootConfigChangedAction): void {
+	private _grantImplicitReadsForOutgoingAction(action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | ClientAutomationAction | ClientAutomationRunAction | IRootConfigChangedAction | ClientModelSourceAction): void {
 		switch (action.type) {
 			case ActionType.SessionActiveClientSet:
 				if (action.activeClient.customizations) {
