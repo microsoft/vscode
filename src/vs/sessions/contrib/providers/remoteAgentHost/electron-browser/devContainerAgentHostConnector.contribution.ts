@@ -380,12 +380,17 @@ class DevContainerOutputWriter extends Disposable {
 		this._connectionIds.add(connectionId);
 		this._channelId = getDevContainerOutputChannel(workspaceUri, label);
 
-		this._append(localize('devContainerOutputStarting', "\n--- Starting Dev Container for {0} ---\n", description));
+		this.appendHeading(description);
 		this._register(mainService.onDidOutput(output => {
 			if (this._connectionIds.has(output.connectionId)) {
 				this._append(output.data);
 			}
 		}));
+	}
+
+	/** Marks where the output of starting the Dev Container begins. */
+	appendHeading(description: string): void {
+		this._append(localize('devContainerOutputStarting', "\n--- Starting Dev Container for {0} ---\n", description));
 	}
 
 	addConnection(connectionId: string): void {
@@ -556,8 +561,9 @@ export class DevContainerAgentHostConnector extends Disposable implements IDevCo
 					: sourceEntry ? `${basename(workspaceUri)} Dev Container (${sourceEntry.name})` : `${basename(workspaceUri)} Dev Container`);
 		// The host and the log name an environment as it is currently renamed, read on every connect to follow later renames.
 		const hostName = () => (environment ? this._remoteAgentHostService.getDisplayNameOverride(address) : undefined) ?? name;
+		let heading = environment ? hostName() : workspaceUri.fsPath;
 		const connectionStore = new DisposableStore();
-		const outputWriter = connectionStore.add(new DevContainerOutputWriter(mainService, connectionId, workspaceUri, this._getOutputLabel(workspaceUri), environment ? hostName() : workspaceUri.fsPath, this._outputService));
+		const outputWriter = connectionStore.add(new DevContainerOutputWriter(mainService, connectionId, workspaceUri, this._getOutputLabel(workspaceUri), heading, this._outputService));
 		// Whether each connection keeps user state on a volume.
 		const connectionIds = new Map<string, boolean>();
 		const cancellationListener = token.onCancellationRequested(() => {
@@ -639,11 +645,17 @@ export class DevContainerAgentHostConnector extends Disposable implements IDevCo
 
 				const reconnectConnectionId = generateUuid();
 				outputWriter.addConnection(reconnectConnectionId);
+				const reconnectName = hostName();
+				// After a rename, the output that follows is headed with the new name.
+				if (environment && reconnectName !== heading) {
+					heading = reconnectName;
+					outputWriter.appendHeading(heading);
+				}
 				try {
 					result = await connect({
 						connectionId: reconnectConnectionId,
 						...source,
-						name: hostName(),
+						name: reconnectName,
 						resume: false,
 						...(options?.sandboxEnabled !== undefined ? { sandboxEnabled: options.sandboxEnabled } : {}),
 					}, true);

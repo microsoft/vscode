@@ -300,8 +300,16 @@ suite('Dev Container Agent Host Connector', () => {
 			return target;
 		};
 		const target = await connect();
-		// A rename in Remote Environments names the environment on the host from its next connection on.
+		const relay = async () => {
+			const transport = store.add(target.transportFactory());
+			assert.ok(isClientTransport(transport));
+			await transport.connect();
+		};
+		await relay();
+		await relay();
+		// A rename in Remote Environments names the environment on the host from its next relay or connection on.
 		displayNames.set('devcontainer:environment', 'Renamed');
+		await relay();
 		const renamed = await connect();
 		await connector.removeContainer(source);
 		await configuration.setUserConfiguration(DevContainerEnvironmentsEnabledSettingId, false);
@@ -321,9 +329,12 @@ suite('Dev Container Agent Host Connector', () => {
 			// Named after the environment, so environments on the same host can be told apart.
 			configs: [
 				{ environmentId: 'environment', image: devContainerEnvironmentImage, name: 'Dev Container 2', persistUserState: true },
+				{ environmentId: 'environment', image: devContainerEnvironmentImage, name: 'Dev Container 2', persistUserState: true },
+				{ environmentId: 'environment', image: devContainerEnvironmentImage, name: 'Renamed', persistUserState: true },
 				{ environmentId: 'environment', image: devContainerEnvironmentImage, name: 'Renamed', persistUserState: true },
 			],
-			headings: ['--- Starting Dev Container for Dev Container 2 ---', '--- Starting Dev Container for Renamed ---'],
+			// A relay reconnect gets a heading of its own only after a rename.
+			headings: ['--- Starting Dev Container for Dev Container 2 ---', '--- Starting Dev Container for Renamed ---', '--- Starting Dev Container for Renamed ---'],
 			// The rename applies on top as the address's display name, so clearing it restores the environment's name.
 			connectionNames: ['Dev Container 2', 'Dev Container 2'],
 			removed: [{ environmentId: 'environment' }],
