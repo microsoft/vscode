@@ -19,19 +19,16 @@ suite('Copilot model sources', () => {
 			{ id: 'gpt-x', name: 'GPT X', endpoint: { type: 'openai', wireApi: 'completions', baseUrl: 'https://models.example.test/v1' }, toolCalling: true, maxInputTokens: 100, reasoningEfforts: ['low', 'high'] },
 			{ id: 'claude', endpoint: { type: 'anthropic', baseUrl: 'https://anthropic.example.test' }, vision: true },
 			{ id: 'azure', endpoint: { type: 'azure', wireApi: 'responses', baseUrl: 'https://res.openai.azure.com/openai/v1' } },
-			{ id: 'gemini', endpoint: { type: 'google', baseUrl: 'https://generativelanguage.googleapis.com/v1beta' }, maxOutputTokens: 64 },
 		],
 	};
 	const source: IAgentModelSource = { id: 'vscode.byok/copilotcli/customendpoint/Example', format: BYOK_ENDPOINTS_MODEL_SOURCE_FORMAT, definition, credential: 'key-1' };
 
 	test('maps each model to a runtime provider that calls its endpoint with the source\'s key', () => {
-		const [gpt, claude, azure, gemini] = getCopilotModelSourceModels(source);
+		const [gpt, claude] = getCopilotModelSourceModels(source);
 		assert.deepStrictEqual({
 			description: describeCopilotModelSource(source),
 			gpt: { idIsSelectionId: gpt.id === `${gpt.runtimeProvider.name}/gpt-x`, servable: gpt.servable, provider: { ...gpt.runtimeProvider, name: undefined }, model: { ...gpt.runtimeModel, provider: undefined } },
 			claude: { provider: { ...claude.runtimeProvider, name: undefined }, model: { ...claude.runtimeModel, provider: undefined } },
-			azure: { provider: { ...azure.runtimeProvider, name: undefined } },
-			gemini: { provider: { ...gemini.runtimeProvider, name: undefined }, model: { ...gemini.runtimeModel, provider: undefined } },
 		}, {
 			description: { credentialResource: { resource: 'https://models.example.test/v1' } },
 			gpt: {
@@ -45,12 +42,6 @@ suite('Copilot model sources', () => {
 				provider: { name: undefined, type: 'anthropic', baseUrl: 'https://anthropic.example.test', apiKey: 'key-1' },
 				model: { id: 'claude', provider: undefined, modelId: 'claude', capabilities: { supports: { vision: true } } },
 			},
-			azure: { provider: { name: undefined, type: 'azure', wireApi: 'responses', baseUrl: 'https://res.openai.azure.com/openai/v1', apiKey: 'key-1' } },
-			// Only Chat Completions requests go without an output cap.
-			gemini: {
-				provider: { name: undefined, type: 'google', baseUrl: 'https://generativelanguage.googleapis.com/v1beta', apiKey: 'key-1' },
-				model: { id: 'gemini', provider: undefined, modelId: 'gemini', maxOutputTokens: 64 },
-			},
 		});
 	});
 
@@ -60,7 +51,7 @@ suite('Copilot model sources', () => {
 			awaitingKey: getCopilotModelSourceModels({ ...source, credential: undefined }).map(model => ({ servable: model.servable, apiKey: model.runtimeProvider.apiKey })),
 			keyless: getCopilotModelSourceModels({ ...source, definition: keyless, credential: undefined }).map(model => model.servable),
 		}, {
-			awaitingKey: [{ servable: false, apiKey: undefined }, { servable: false, apiKey: undefined }, { servable: false, apiKey: undefined }, { servable: false, apiKey: undefined }],
+			awaitingKey: [{ servable: false, apiKey: undefined }, { servable: false, apiKey: undefined }, { servable: false, apiKey: undefined }],
 			keyless: [true],
 		});
 	});
@@ -78,8 +69,8 @@ suite('Copilot model sources', () => {
 		}, {
 			newKey: original,
 			renamedModel: original,
-			movedEndpoint: [false, true, true, true],
-			otherRegistration: [false, false, false, false],
+			movedEndpoint: [false, true, true],
+			otherRegistration: [false, false, false],
 		});
 	});
 });

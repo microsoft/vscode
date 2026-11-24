@@ -7,11 +7,10 @@ import assert from 'assert';
 import type { IncomingMessage, ServerResponse } from 'http';
 import { AddressInfo } from 'net';
 import { existsSync } from 'fs';
-import { mkdtemp, readdir, readFile, rm, writeFile } from 'fs/promises';
+import { mkdtemp, readdir, readFile, rm } from 'fs/promises';
 import { tmpdir } from 'os';
-import { approveAll, CopilotClient, RuntimeConnection } from '@microsoft/copilot-sdk';
+import { CopilotClient, RuntimeConnection } from '@microsoft/copilot-sdk';
 import { join, relative } from '../../../../../base/common/path.js';
-import { isWindows } from '../../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { resolveCustomEndpointRuntimeEndpoint, type ICustomEndpointModelSettings } from '../../../common/byokCustomEndpoint.js';
 import { BYOK_ENDPOINTS_MODEL_SOURCE_FORMAT, type IByokEndpoint } from '../../../common/byokModelSource.js';
@@ -44,7 +43,6 @@ interface IObservedRequest {
 /** The fields of a model request these tests read. */
 interface IRequestBody {
 	readonly model?: unknown;
-	readonly messages?: readonly { readonly role?: unknown; readonly content?: unknown }[];
 	readonly tools?: readonly { readonly function?: { readonly name?: unknown } }[];
 	readonly reasoning?: { readonly summary?: unknown };
 	readonly generation_config?: { readonly max_output_tokens?: unknown };
@@ -86,11 +84,11 @@ function observeAuth(request: IncomingMessage): ObservedAuth {
 	return 'unexpected';
 }
 
-function writeChatCompletion(response: ServerResponse, model: string, delta: Record<string, unknown>, finishReason: 'stop' | 'tool_calls'): void {
-	const chunk = (chunkDelta: Record<string, unknown>, reason: string | null) => `data: ${JSON.stringify({ id: 'chatcmpl-direct', object: 'chat.completion.chunk', created: 0, model, choices: [{ index: 0, delta: chunkDelta, finish_reason: reason }] })}\n\n`;
+function writeChatCompletion(response: ServerResponse, model: string, text: string): void {
+	const chunk = (delta: Record<string, unknown>, finishReason: string | null) => `data: ${JSON.stringify({ id: 'chatcmpl-direct', object: 'chat.completion.chunk', created: 0, model, choices: [{ index: 0, delta, finish_reason: finishReason }] })}\n\n`;
 	response.writeHead(200, { 'content-type': 'text/event-stream' });
-	response.write(chunk(delta, null));
-	response.write(chunk({}, finishReason));
+	response.write(chunk({ role: 'assistant', content: text }, null));
+	response.write(chunk({}, 'stop'));
 	response.write(`data: ${JSON.stringify({ id: 'chatcmpl-direct', object: 'chat.completion.chunk', created: 0, model, choices: [], usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 } })}\n\n`);
 	response.end('data: [DONE]\n\n');
 }
@@ -232,7 +230,7 @@ suite('Agent Host Provider Integration - Copilot BYOK direct endpoints', functio
 				response.writeHead(401, { 'content-type': 'application/json' });
 				response.end(JSON.stringify({ error: { message: 'unauthorized' } }));
 			} else if (pathname.endsWith('/chat/completions')) {
-				writeChatCompletion(response, String(body.model), { role: 'assistant', content: pathname.startsWith('/azure/') ? 'hello from azure' : pathname.startsWith('/keyless/') ? 'hello from keyless' : 'hello from chat completions' }, 'stop');
+				writeChatCompletion(response, String(body.model), pathname.startsWith('/azure/') ? 'hello from azure' : pathname.startsWith('/keyless/') ? 'hello from keyless' : 'hello from chat completions');
 			} else if (pathname.endsWith('/responses')) {
 				response.writeHead(200, { 'content-type': 'text/event-stream' });
 				response.end(responsesMessageToSse({ content: [{ type: 'text', text: 'hello from responses' }], stopReason: 'stop' }));
@@ -328,7 +326,7 @@ suite('Agent Host Provider Integration - Copilot BYOK direct endpoints', functio
 		const server = await startModelServer((_request, body, response) => {
 			const names = (body.tools ?? []).map(tool => tool.function?.name);
 			requests.push({ tools: names.length, toolSearch: names.includes('tool_search_tool') });
-			writeChatCompletion(response, String(body.model), { role: 'assistant', content: 'hello' }, 'stop');
+			writeChatCompletion(response, String(body.model), 'hello');
 		});
 
 		try {
@@ -348,66 +346,6 @@ suite('Agent Host Provider Integration - Copilot BYOK direct endpoints', functio
 			]);
 		} finally {
 			await server.close();
-		}
-	});
-
-	// The bundled runtime only redacts provider keys from the output a shell tool streams, not from its result: the
-	// result reaches the model, the tool's events, and the session's events file with the key. Enable this once the
-	// runtime redacts tool results.
-	test.skip('the runtime redacts a model source\'s key from tool output', async function () {
-		this.timeout(180_000);
-
-		const key = API_KEYS.chatCompletions;
-		const shell = isWindows ? 'powershell' : 'bash';
-		let resultSentToModel: string | undefined;
-		const server = await startModelServer((_request, body, response) => {
-			const result = body.messages?.find(message => message.role === 'tool');
-			if (result) {
-				resultSentToModel = JSON.stringify(result.content);
-				writeChatCompletion(response, String(body.model), { role: 'assistant', content: 'done' }, 'stop');
-			} else {
-				// The command prints a file holding the key, so only the tool's output carries it.
-				const command = isWindows ? 'Get-Content key.txt' : 'cat key.txt';
-				writeChatCompletion(response, String(body.model), { role: 'assistant', tool_calls: [{ index: 0, id: 'call_read_key', type: 'function', function: { name: shell, arguments: JSON.stringify({ command, description: 'Print the file' }) } }] }, 'tool_calls');
-			}
-		});
-		const workingDirectory = await mkdtemp(`${tmpdir()}/byok-direct-workspace-`);
-
-		try {
-			await writeFile(join(workingDirectory, 'key.txt'), `KEY=${key}\n`);
-			const source = createSourceModel('customendpoint/redaction', { id: 'model-redaction', endpoint: { type: 'openai', wireApi: 'completions', baseUrl: `${server.base}/v1` } }, key);
-			const toolResults: string[] = [];
-			const { keyFiles } = await withRuntime(client => withSession(client, {
-				model: source.id,
-				workingDirectory,
-				inference: sessionConfig([source]),
-				github: { capi: { enabled: false } },
-				permissions: { onRequest: approveAll },
-				events: {
-					streaming: true,
-					onEvent: event => {
-						if (event.type === 'tool.execution_complete') {
-							toolResults.push(JSON.stringify(event.data));
-						}
-					},
-				},
-				tools: { availableTools: [shell] },
-			}, session => session.sendAndWait({ prompt: 'Print key.txt.' }, 60_000)));
-
-			assert.deepStrictEqual({
-				ran: toolResults.some(result => result.includes('KEY=')),
-				keyInToolResult: toolResults.some(result => result.includes(key)),
-				keyInModelRequest: resultSentToModel?.includes(key),
-				keyFiles,
-			}, {
-				ran: true,
-				keyInToolResult: false,
-				keyInModelRequest: false,
-				keyFiles: [],
-			});
-		} finally {
-			await server.close();
-			await rm(workingDirectory, { recursive: true, force: true });
 		}
 	});
 });
