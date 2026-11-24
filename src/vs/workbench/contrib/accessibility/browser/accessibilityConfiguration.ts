@@ -91,7 +91,8 @@ export const enum AccessibilityVerbositySettingId {
 	BrowserElementCommenting = 'accessibility.verbosity.browserElementCommenting',
 	ScreenshotTool = 'accessibility.verbosity.screenshotTool',
 	ChatPetAchievements = 'accessibility.verbosity.chatPetAchievements',
-	ChatPetJumpGame = 'accessibility.verbosity.chatPetJumpGame'
+	ChatPetJumpGame = 'accessibility.verbosity.chatPetJumpGame',
+	ChatPlanNudge = 'accessibility.verbosity.chatPlanNudge'
 }
 
 const baseVerbosityProperty: IConfigurationPropertySchema = {
@@ -319,6 +320,10 @@ const configuration: IConfigurationNode = {
 		},
 		[AccessibilityVerbositySettingId.ChatPetAchievements]: {
 			description: localize('verbosity.chatPetAchievements', 'Provide information about how to access chat pet achievements accessibility help when the Achievements modal is focused.'),
+			...baseVerbosityProperty
+		},
+		[AccessibilityVerbositySettingId.ChatPlanNudge]: {
+			description: localize('verbosity.chatPlanNudge', 'Provide information about how to access the Copilot plan suggestion accessibility help menu when a suggestion is focused.'),
 			...baseVerbosityProperty
 		},
 		[AccessibilityVerbositySettingId.ChatPetJumpGame]: {

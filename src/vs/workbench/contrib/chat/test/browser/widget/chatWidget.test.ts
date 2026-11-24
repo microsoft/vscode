@@ -1393,6 +1393,8 @@ suite('ChatWidget', () => {
 			chatSessionsService: { getChatSessionContribution: () => undefined },
 			welcomePart: store.add(new MutableDisposable()),
 			welcomeMessageContainer: container,
+			welcomeContentContainer: dom.$('.chat-welcome-content'),
+			welcomeContentSpacer: dom.$('.chat-welcome-content-spacer'),
 			instantiationService: {
 				createInstance: (_ctor: object, content: IChatViewWelcomeContent) => {
 					contents.push(content);

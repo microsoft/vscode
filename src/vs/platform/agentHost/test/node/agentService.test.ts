@@ -9114,13 +9114,14 @@ suite('AgentService (node dispatcher)', () => {
 	});
 
 	suite('createSession', () => {
-		for (const { name, defaultBranch, repository, expected } of [
-			{ name: 'default branch upstream', defaultBranch: { kind: GitRefType.Head, name: 'main', ref: 'refs/heads/main', upstream: { name: 'origin/main', ref: 'refs/remotes/origin/main', remote: 'origin' } }, repository: true, expected: 'origin/main' },
-			{ name: 'remote default branch', defaultBranch: { kind: GitRefType.RemoteHead, name: 'upstream/main', ref: 'refs/remotes/upstream/main', remote: 'upstream' }, repository: true, expected: 'upstream/main' },
-			{ name: 'local default branch', defaultBranch: { kind: GitRefType.Head, name: 'main', ref: 'refs/heads/main' }, repository: true, expected: 'main' },
-			{ name: 'selected branch fallback', defaultBranch: undefined, repository: true, expected: 'feature' },
+		for (const { name, defaultBranch, branch, repository, expected } of [
+			{ name: 'default branch upstream', defaultBranch: { kind: GitRefType.Head, name: 'main', ref: 'refs/heads/main', upstream: { name: 'origin/main', ref: 'refs/remotes/origin/main', remote: 'origin' } }, repository: true, expected: 'refs/remotes/origin/main' },
+			{ name: 'remote default branch', defaultBranch: { kind: GitRefType.RemoteHead, name: 'upstream/main', ref: 'refs/remotes/upstream/main', remote: 'upstream' }, repository: true, expected: 'refs/remotes/upstream/main' },
+			{ name: 'local default branch', defaultBranch: { kind: GitRefType.Head, name: 'main', ref: 'refs/heads/main' }, repository: true, expected: 'refs/heads/main' },
+			{ name: 'selected branch fallback', defaultBranch: undefined, branch: { kind: GitRefType.Head, name: 'feature', ref: 'refs/heads/feature' }, repository: true, expected: 'refs/heads/feature' },
+			{ name: 'unborn selected branch fallback', defaultBranch: undefined, branch: undefined, repository: true, expected: 'feature' },
 			{ name: 'non-Git folder', defaultBranch: undefined, repository: false, expected: undefined },
-		] satisfies { name: string; defaultBranch: Branch | undefined; repository: boolean; expected: string | undefined }[]) {
+		] satisfies { name: string; defaultBranch: Branch | undefined; branch?: Branch; repository: boolean; expected: string | undefined }[]) {
 			for (const provisional of [false, true]) {
 				test(`records the ${name} diff base on folder session send, not draft creation (provisional: ${provisional})`, async () => {
 					const db = new TestSessionDatabase();
@@ -9129,6 +9130,7 @@ suite('AgentService (node dispatcher)', () => {
 					git.getRepositoryRoot = async () => repository ? directory : undefined;
 					git.getDefaultBranch2 = async () => defaultBranch;
 					git.getCurrentBranch = async () => 'feature';
+					git.getBranch = async (_directory, branchName) => branchName === 'feature' ? branch : undefined;
 					const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, git));
 					const agent = disposables.add(new MockAgent('copilot'));
 					const createChat = agent.chats.createChat;
@@ -9276,7 +9278,7 @@ suite('AgentService (node dispatcher)', () => {
 			defaultBranch.complete({ kind: GitRefType.Head, name: 'main', ref: 'refs/heads/main' });
 			await waitForCondition(agent.onDidSendMessage, () => agent.sendMessageCalls.length === 1, 'the message should reach the provider');
 
-			assert.deepStrictEqual({ sendsWhileResolvingBase, base: await getTestSessionStateStore(svc).readBaseBranchWithoutImport(session, undefined) }, { sendsWhileResolvingBase: 0, base: 'main' });
+			assert.deepStrictEqual({ sendsWhileResolvingBase, base: await getTestSessionStateStore(svc).readBaseBranchWithoutImport(session, undefined) }, { sendsWhileResolvingBase: 0, base: 'refs/heads/main' });
 		});
 
 		test('folder send resolves the default branch at send time rather than draft time', async () => {
@@ -9298,7 +9300,7 @@ suite('AgentService (node dispatcher)', () => {
 			svc.dispatchAction(buildDefaultChatUri(session), chatTurnStarted('turn-1', 'start now'), 'client', 1);
 			await waitForCondition(agent.onDidSendMessage, () => agent.sendMessageCalls.length === 1, 'the message should reach the provider');
 
-			assert.strictEqual(await getTestSessionStateStore(svc).readBaseBranchWithoutImport(session, undefined), 'origin/release');
+			assert.strictEqual(await getTestSessionStateStore(svc).readBaseBranchWithoutImport(session, undefined), 'refs/remotes/origin/release');
 		});
 
 		test('folder peer sends preserve the base pinned by another chat in the same folder', async () => {
@@ -24055,6 +24057,8 @@ suite('AgentService (node dispatcher)', () => {
 				pull: async () => { },
 				push: async () => { },
 				getSessionGitState: async (uri: URI) => { calls.push(uri.fsPath); return gitState; },
+				resolveBaseBranch: async () => undefined,
+				resolveMergeTargetBranch: async () => undefined,
 				computeSessionFileDiffs: async () => undefined,
 				showBlob: async () => undefined,
 				captureWorkingTreeAsTree: async () => undefined,
@@ -24093,7 +24097,7 @@ suite('AgentService (node dispatcher)', () => {
 			assert.deepStrictEqual(calls, [workingDirectory.fsPath, workingDirectory.fsPath]);
 			assert.deepStrictEqual(
 				getStateManager(localService).getSessionState(session.toString())?._meta,
-				withSessionInitiator(withWorkingDirectoryScopeId(withWorkingDirectoryKey(withSessionExternal({ git: { ...gitState, baseBranchFullName: 'main' } }, false), workingDirectory.toString()), [workingDirectory.toString()]), { name: 'vscode' }),
+				withSessionInitiator(withWorkingDirectoryScopeId(withWorkingDirectoryKey(withSessionExternal({ git: gitState }, false), workingDirectory.toString()), [workingDirectory.toString()]), { name: 'vscode' }),
 			);
 		});
 
@@ -24175,6 +24179,8 @@ suite('AgentService (node dispatcher)', () => {
 				push: async () => { },
 				restore: async () => { },
 				getSessionGitState: async () => undefined,
+				resolveBaseBranch: async () => undefined,
+				resolveMergeTargetBranch: async () => undefined,
 				computeSessionFileDiffs: async () => undefined,
 				showBlob: async () => undefined,
 				captureWorkingTreeAsTree: async () => undefined,
@@ -24350,7 +24356,7 @@ suite('AgentService (node dispatcher)', () => {
 				assert.deepStrictEqual(calls, [workingDirectory.fsPath]);
 				assert.deepStrictEqual(
 					getStateManager(localService).getSessionState(session.toString())?._meta,
-					{ git: { ...gitState, baseBranchFullName: 'main' } },
+					{ git: gitState },
 				);
 			});
 

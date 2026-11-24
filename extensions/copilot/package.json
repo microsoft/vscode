@@ -5517,6 +5517,10 @@
       ],
       "commandPalette": [
         {
+          "command": "github.copilot.open.walkthrough",
+          "when": "!isSessionsWindow"
+        },
+        {
           "command": "github.copilot.report",
           "when": "false"
         },
