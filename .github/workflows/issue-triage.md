@@ -170,14 +170,17 @@ safe-outputs:
                       find "$dir" -path '*/api-proxy-logs/*' -type f ! -name token-usage.jsonl -print -delete \
                           || sudo -n find "$dir" -path '*/api-proxy-logs/*' -type f ! -name token-usage.jsonl -print -delete
                   done
+    # check_issue skips pull requests, so the label outputs only need issues: write.
     add-labels:
         target: ${{ needs.check_issue.outputs.issue_number }}
+        pull-requests: false
         issue-intent: true
         # Only operational labels may be written through this tool.
         max: 3
         allowed: ["~spam", "~info-needed", "~chat-rai-content-filters", "~chat-lm-unavailable", "~chat-public-code-blocking", "~chat-rate-limiting", "~chat-request-failed", "~chat-no-response-returned", "~chat-billing"]
     remove-labels:
         target: ${{ needs.check_issue.outputs.issue_number }}
+        pull-requests: false
         allowed: ["stale", "triage-needed"]
         max: 2
     jobs:
