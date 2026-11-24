@@ -106,12 +106,17 @@ export interface IDefaultAccount {
 /** The fields of a default account that identify its GitHub account and the authentication session to use for it. */
 export type IGitHubDefaultAccount = Pick<IDefaultAccount, 'authenticationProvider' | 'accountName' | 'sessionId' | 'enterprise'>;
 
+/** The id of the Microsoft authentication provider, whose account can be the default account when the user chose it. */
+export const MICROSOFT_DEFAULT_ACCOUNT_PROVIDER_ID = 'microsoft';
+
 /**
- * Returns the default account as a GitHub account, or `undefined` when there is no default account. Every default
- * account is a GitHub account, so this returns the account it is given. Code that makes GitHub requests for the default
- * account reads it through here, so that a default account that is not a GitHub account would yield `undefined` too.
- * Callers that handle a missing default account differently from that case must check the account itself.
+ * Returns the default account as a GitHub account, or `undefined` when there is no default account or the default
+ * account is a Microsoft account. Code that makes GitHub requests for the default account reads it through here.
+ * Callers that handle a missing default account differently from a Microsoft one must check the account itself.
  */
 export function asGitHubAccount(account: IDefaultAccount | null | undefined): IGitHubDefaultAccount | undefined {
-	return account ?? undefined;
+	if (!account || account.authenticationProvider.id === MICROSOFT_DEFAULT_ACCOUNT_PROVIDER_ID) {
+		return undefined;
+	}
+	return account;
 }

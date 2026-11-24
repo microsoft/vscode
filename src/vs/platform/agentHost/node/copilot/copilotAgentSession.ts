@@ -916,6 +916,8 @@ interface ICanvasOpenOperation {
 	consentShown?: boolean;
 	/** Whether telemetry reported how the open ended, which it does once. */
 	reported?: boolean;
+	/** Whether the open waits for the chat's restore of the canvas instead of opening it. */
+	readonly restore?: boolean;
 }
 
 type CanvasOpenExtension = Awaited<ReturnType<CopilotSession['rpc']['extensions']['list']>>['extensions'][number];
@@ -1539,6 +1541,8 @@ export class CopilotAgentSession extends Disposable {
 	/** Extension consent requests waiting for the user's decision, by consent ID. */
 	private readonly _extensionConsentGates = new Map<string, IExtensionConsentGate>();
 	private readonly _onDidAddExtensionConsentGate = this._register(new Emitter<void>());
+	/** Fires when a client or a turn is shown an extension consent request. */
+	private readonly _onDidShowExtensionConsent = this._register(new Emitter<void>());
 	/**
 	 * Extensions this runtime did not allow to load, by name. The runtime keeps a person's No, and the extension stays failed,
 	 * until it is replaced, so asking again needs a new runtime.
@@ -1548,6 +1552,8 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _extensionConsentShownCounts = new Map<string, number>();
 	/** UI-initiated canvas opens until the runtime settles them. */
 	private readonly _canvasOpens = new Set<ICanvasOpenOperation>();
+	/** Background reopens of restored canvases, by instance ID, which a client open of the same canvas waits for instead of opening it again. */
+	private readonly _canvasRestores = new Map<string, Promise<AgentCanvasOpenResult>>();
 	/** The open each consent request shown to a client belongs to, by consent and instance ID; kept after the open settles so a late answer gets its outcome. */
 	private readonly _canvasConsentOpens = new LRUCache<string, ICanvasOpenOperation>(32);
 	/** Keys session approvals that must not outlive this runtime. */
@@ -5560,15 +5566,21 @@ export class CopilotAgentSession extends Disposable {
 			this._answerExtensionConsent(answer.consentId, answer.optionId);
 			return this._awaitCanvasOpen(shownFor);
 		}
+		// A client open of a canvas the chat is restoring waits for that restore, which reopens it with its input, instead of opening it again.
+		const projected = this._canvasByInstanceId.get(request.instanceId);
+		const restore = projected && projected.canvas.canvasId === request.canvasId && (!request.extensionId || projected.canvas.extensionId === request.extensionId)
+			? this._canvasRestores.get(request.instanceId)
+			: undefined;
 		const operation: ICanvasOpenOperation = {
 			request, outcome: new DeferredPromise(), ready: this._syncPermissionModeBeforeCanvasOpen(), stopwatch: StopWatch.create(), consentShownBefore: this._extensionConsentShownCount(request.extensionId),
 			// Read before the open starts, alongside the permission mode sync, so it tells whether the open starts the extension.
 			extensionRead: this._readCanvasOpenExtension(this._wrapper, request.extensionId),
+			restore: restore !== undefined,
 		};
 		// A client that stops waiting, for example while it asks for consent, must not leave the failure unhandled.
 		operation.outcome.p.catch(() => undefined);
 		this._canvasOpens.add(operation);
-		void this._runCanvasOpen(operation).then(result => {
+		void (restore ?? this._runCanvasOpen(operation)).then(result => {
 			this._reportUserCanvasOpen(operation, result.kind === 'failed' ? result.failure : result.kind === 'consentDenied' ? 'consentDenied' : 'opened');
 			operation.outcome.complete(result);
 		}, error => {
@@ -5599,6 +5611,7 @@ export class CopilotAgentSession extends Disposable {
 				const unattended = this._unattendedExtensionConsent();
 				if (!unattended) {
 					gate.presentedToClient = true;
+					this._onDidShowExtensionConsent.fire();
 					operation.consentShown = true;
 					this._noteExtensionConsentShown(gate.consent.extensionName);
 					this._canvasConsentOpens.set(canvasConsentOpenKey(gate.consent.id, operation.request.instanceId), operation);
@@ -5609,10 +5622,12 @@ export class CopilotAgentSession extends Disposable {
 			}
 			const added = Event.toPromise(this._onDidAddExtensionConsentGate.event);
 			try {
-				const settled = await raceTimeout(Promise.race([
+				const next = Promise.race([
 					operation.outcome.p.then(result => ({ result })),
 					added.then(() => ({ result: undefined })),
-				]), this._controlPlaneRpcTimeoutMs);
+				]);
+				// A restore bounds its own wait, and timing out does not desynchronize the session.
+				const settled = operation.restore ? await next : await raceTimeout(next, this._controlPlaneRpcTimeoutMs);
 				if (!settled) {
 					// The open is still in flight and may still change runtime state; the client sees it time out.
 					this._reportUserCanvasOpen(operation, 'timeout');
@@ -5669,6 +5684,8 @@ export class CopilotAgentSession extends Disposable {
 			throw new Error('Canvases are disabled for this session.');
 		}
 		const wasIgnored = this._ignoredRestoredCanvasInstanceIds.has(request.instanceId);
+		// An open of a canvas this chat lists reopens that lifetime, which may wait for consent.
+		const projected = this._canvasByInstanceId.get(request.instanceId);
 		let latestEvent: SessionEventPayload<'session.canvas.opened' | 'session.canvas.closed' | 'session.canvas.unavailable'> | undefined;
 		const listener = wasIgnored ? wrapper.onEvent(event => {
 			if (!event.agentId
@@ -5682,9 +5699,16 @@ export class CopilotAgentSession extends Disposable {
 			await operation.ready;
 			operation.extension = await operation.extensionRead;
 			await this._awaitOtherExtensionConsents(operation);
+			const current = this._canvasByInstanceId.get(request.instanceId);
+			// A lifetime closed meanwhile stays closed.
+			if (projected && (!current || !isEqual(current.resource, projected.resource))) {
+				return { kind: 'failed', failure: 'dismissed' };
+			}
+			// The runtime coalesces concurrent opens of an instance with the first one's input, so a reopen keeps the lifetime's input.
+			const sameCanvas = current && current.canvas.canvasId === request.canvasId && (!request.extensionId || current.canvas.extensionId === request.extensionId);
 			let canvas: Awaited<ReturnType<CopilotSession['rpc']['canvas']['open']>>;
 			try {
-				canvas = await wrapper.session.rpc.canvas.open(request);
+				canvas = await wrapper.session.rpc.canvas.open(sameCanvas && current.input !== undefined ? { ...request, input: current.input } : request);
 			} catch (error) {
 				const denied = operation.denied ?? this._extensionConsentDenialFor(request.extensionId);
 				if (denied) {
@@ -6163,7 +6187,13 @@ export class CopilotAgentSession extends Disposable {
 			const { handedOver: _handedOver, ...unavailable } = current;
 			this._canvasByInstanceId.set(instanceId, unavailable);
 			if (declared) {
-				void this._reopenCanvas(wrapper, unavailable);
+				const restore = this._reopenCanvas(wrapper, unavailable);
+				this._canvasRestores.set(instanceId, restore);
+				void restore.finally(() => {
+					if (this._canvasRestores.get(instanceId) === restore) {
+						this._canvasRestores.delete(instanceId);
+					}
+				});
 			}
 		}
 	}
@@ -6171,42 +6201,47 @@ export class CopilotAgentSession extends Disposable {
 	/**
 	 * Reopens a restored canvas without delaying the resume or the turn that triggered it. The wait is bounded but,
 	 * unlike control-plane requests, a timeout does not desynchronize the session: the canvas stays unavailable,
-	 * and a late reopen still arrives as an opened event.
+	 * and a late reopen still arrives as an opened event. Resolves with the outcome a client open of the canvas reports.
 	 */
-	private async _reopenCanvas(wrapper: CopilotSessionWrapper, projection: ICopilotCanvasProjection): Promise<void> {
+	private async _reopenCanvas(wrapper: CopilotSessionWrapper, projection: ICopilotCanvasProjection): Promise<AgentCanvasOpenResult> {
 		const { instanceId, extensionId, canvasId } = projection.canvas;
 		const stopwatch = StopWatch.create();
-		// A restored extension that starts may ask for consent, which a turn shows.
+		// A restored extension that starts may ask for consent, which a turn or a client that opens the canvas shows. An
+		// extension that is not running yet also waits for any other extension's consent, as an open that starts it does.
 		const consentShownBefore = this._extensionConsentShownCount(extensionId);
-		const askedForConsent = () => this._extensionConsentShownCount(extensionId) > consentShownBefore;
+		const anyConsentShownBefore = this._extensionConsentShownCount(undefined);
 		const extension = await this._readCanvasOpenExtension(wrapper, extensionId);
+		const askedForConsent = () => this._extensionConsentShownCount(extensionId) > consentShownBefore
+			|| (extension?.status !== 'running' && this._extensionConsentShownCount(undefined) > anyConsentShownBefore);
 		// A close or a replaced runtime during the read supersedes the restore; opening now would bring the canvas back.
 		if (this._store.isDisposed || this._wrapper !== wrapper || !this._isCurrentCanvasProjection(projection)) {
-			return;
+			return { kind: 'failed', failure: 'dismissed' };
 		}
 		let reopened: Awaited<ReturnType<CopilotSession['rpc']['canvas']['open']>> | undefined;
 		// A runtime that just launched can list a canvas before its extension registers it, which a change reports. Other
-		// extensions report changes too, so each change allows another attempt until one deadline.
+		// extensions report changes too, so each change allows another attempt until one deadline. Time a person spends
+		// answering a consent request the restore waits for does not count.
+		const request: IAgentCanvasOpenRequest = { extensionId, canvasId, instanceId };
+		const consentWait = { ms: 0 };
 		const deadline = Date.now() + this._controlPlaneRpcTimeoutMs;
 		while (true) {
 			const registryChanged = Event.toPromise(Event.any(Event.signal(wrapper.onExtensionsLoaded), Event.signal(wrapper.onCanvasRegistryChanged)));
 			try {
-				reopened = await raceTimeout(wrapper.session.rpc.canvas.open({
-					extensionId,
-					canvasId,
-					instanceId,
+				reopened = await this._awaitRestoringCanvasOpen(wrapper.session.rpc.canvas.open({
+					...request,
 					...(projection.input !== undefined ? { input: projection.input } : {}),
-				}), this._controlPlaneRpcTimeoutMs);
+				}), request, extension, consentWait);
 				break;
 			} catch (error) {
-				const remaining = deadline - Date.now();
+				const remaining = deadline + consentWait.ms - Date.now();
 				if (getCanvasOpenFailure(error) === 'unavailable' && remaining > 0 && await raceTimeout(registryChanged.then(() => true), remaining)
 					&& !this._store.isDisposed && this._wrapper === wrapper && this._isCurrentCanvasProjection(projection)) {
 					continue;
 				}
-				this._reportCanvasHostOpen('restore', extension, stopwatch, this._store.isDisposed ? 'cancelled' : this._extensionConsentDenialFor(extensionId) ? 'consentDenied' : getCanvasOpenFailure(error) ?? 'error', askedForConsent());
+				const denied = this._store.isDisposed ? undefined : this._extensionConsentDenialFor(extensionId);
+				this._reportCanvasHostOpen('restore', extension, stopwatch, this._store.isDisposed ? 'cancelled' : denied ? 'consentDenied' : getCanvasOpenFailure(error) ?? 'error', askedForConsent());
 				this._logService.warn(`[Copilot:${this.sessionId}] Failed to reopen a restored canvas: ${getErrorMessage(error)}`);
-				return;
+				return denied ? { kind: 'consentDenied', ...denied } : { kind: 'failed', failure: getCanvasOpenFailure(error) ?? 'unavailable' };
 			} finally {
 				registryChanged.cancel();
 			}
@@ -6214,11 +6249,52 @@ export class CopilotAgentSession extends Disposable {
 		this._reportCanvasHostOpen('restore', extension, stopwatch, reopened ? 'opened' : 'timeout', askedForConsent());
 		if (!reopened) {
 			this._logService.warn(`[Copilot:${this.sessionId}] Reopening a restored canvas did not finish within ${this._controlPlaneRpcTimeoutMs}ms`);
-			return;
+			return { kind: 'failed', failure: 'unavailable' };
 		}
-		// Events received during the request, such as a close, supersede its result.
-		if (!this._store.isDisposed && this._wrapper === wrapper && this._isCurrentCanvasProjection(projection)) {
+		// Events received during the request, such as a close, supersede its result. An opened event of the same lifetime
+		// already projected the canvas, which counts as opened.
+		const current = this._canvasByInstanceId.get(instanceId);
+		if (this._store.isDisposed || this._wrapper !== wrapper || !current || !isEqual(current.resource, projection.resource)) {
+			return { kind: 'failed', failure: 'dismissed' };
+		}
+		if (this._isCurrentCanvasProjection(projection)) {
 			this._projectOpenedCanvas(reopened);
+		}
+		return { kind: 'opened' };
+	}
+
+	/**
+	 * Waits for a restore's open, bounded like other control-plane requests while nobody is asked the consent it waits
+	 * for. While a client or a turn shows that request, waits for the answer, then for a new bounded wait. Adds the time
+	 * spent asking to `consentWait`. Resolves `undefined` when the bounded wait ends first.
+	 */
+	private async _awaitRestoringCanvasOpen<T>(open: Promise<T>, request: IAgentCanvasOpenRequest, extension: CanvasOpenExtension | undefined, consentWait: { ms: number }): Promise<T | undefined> {
+		const settled = open.then(value => ({ value }));
+		// An open that fails after the bounded wait ended is reported by nobody.
+		settled.catch(() => undefined);
+		while (true) {
+			const shown = [...this._extensionConsentGates.values()].find(gate => !gate.decision.isSettled && (gate.presentedToClient || gate.confirmingInTurn) && this._canvasOpenWaitsFor(request, extension, gate));
+			if (shown) {
+				const stopwatch = StopWatch.create();
+				const result = await Promise.race([settled, shown.decision.p.then(() => undefined)]);
+				consentWait.ms += stopwatch.elapsed();
+				if (result) {
+					return result.value;
+				}
+				continue;
+			}
+			const showing = Event.toPromise(this._onDidShowExtensionConsent.event);
+			try {
+				const result = await raceTimeout(Promise.race([settled, showing.then(() => 'shown' as const)]), this._controlPlaneRpcTimeoutMs);
+				if (result === undefined) {
+					return undefined;
+				}
+				if (result !== 'shown') {
+					return result.value;
+				}
+			} finally {
+				showing.cancel();
+			}
 		}
 	}
 
@@ -10706,6 +10782,7 @@ export class CopilotAgentSession extends Disposable {
 		const { displayName: name, extensionName, items } = gate.consent;
 		const environment = gate.consent.kind === 'environment';
 		gate.confirmingInTurn = true;
+		this._onDidShowExtensionConsent.fire();
 		const result = await this._confirmEphemerally(turn, AgentHostExtensionPermissionApprovalsConfigKey, gate.identity, {
 			toolName: environment ? 'extension_env_consent' : 'extension_permission_consent',
 			displayName: localize('extensionPermissionConsentDisplayName', "Extensions"),
