@@ -5573,6 +5573,10 @@
           "when": "false"
         },
         {
+          "command": "github.copilot.chat.attachFile",
+          "when": "false"
+        },
+        {
           "command": "github.copilot.chat.review",
           "when": "!github.copilot.interactiveSession.disabled"
         },
