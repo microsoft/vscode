@@ -64,7 +64,10 @@ export interface IDevContainerAgentHostSandboxSupport {
 export interface IDevContainerAgentHostUserStateReport {
 	readonly connectionId: string;
 	readonly stage: 'mount' | 'up' | 'link' | 'userCommands';
-	/** `mount`: added, existingContainer, failed. `link`: linked, noMount, homeNotFound, failed. `up`, `userCommands`: succeeded, failed. */
+	/**
+	 * `mount`: added, existingContainer, failed. `link`: linked, noMount, homeNotFound, missingCapabilities, readOnlyRootfs,
+	 * homeInaccessible, failed. `up`, `userCommands`: succeeded, failed.
+	 */
 	readonly outcome: string;
 	/** Fixed identifier of what failed. */
 	readonly reason?: string;
@@ -79,6 +82,20 @@ export interface IDevContainerAgentHostUserStateReport {
 	readonly existingFolders?: number;
 	readonly skippedFolders?: number;
 	readonly skipReasons?: string;
+	/** Whether the link command ran as `root` or as an `other` user. */
+	readonly scriptUser?: string;
+	/** The link command's effective capabilities. */
+	readonly capChown?: boolean;
+	readonly capDacOverride?: boolean;
+	readonly capFowner?: boolean;
+	/** Who owned the state folder before linking: `root`, `user` (the container user) or `other`. */
+	readonly stateOwner?: string;
+	/** The container's security settings, for link failures, see `getDevContainerSecurityOptions`. */
+	readonly capDropChown?: boolean;
+	readonly privileged?: boolean;
+	readonly usernsMode?: boolean;
+	readonly readonlyRootfs?: boolean;
+	readonly runtime?: string;
 	/** Sanitized error message of a failed stage, see `sanitizeDevContainerStateErrorMessage`. */
 	readonly errorMessage?: string;
 }

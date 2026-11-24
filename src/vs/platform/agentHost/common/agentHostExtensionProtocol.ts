@@ -81,6 +81,16 @@ export const devContainerUserStateValidator = vObj({
 	existingFolders: vOptionalProp(vNumber()),
 	skippedFolders: vOptionalProp(vNumber()),
 	skipReasons: vOptionalProp(vString()),
+	scriptUser: vOptionalProp(vString()),
+	capChown: vOptionalProp(vBoolean()),
+	capDacOverride: vOptionalProp(vBoolean()),
+	capFowner: vOptionalProp(vBoolean()),
+	stateOwner: vOptionalProp(vString()),
+	capDropChown: vOptionalProp(vBoolean()),
+	privileged: vOptionalProp(vBoolean()),
+	usernsMode: vOptionalProp(vBoolean()),
+	readonlyRootfs: vOptionalProp(vBoolean()),
+	runtime: vOptionalProp(vString()),
 	errorMessage: vOptionalProp(vString()),
 });
 export const devContainerConnectResultValidator = vObj({
