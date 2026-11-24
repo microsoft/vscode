@@ -127,8 +127,8 @@ class PinnedCanvas extends Disposable implements IPinnedCanvas {
 	private listedBy: ISession | undefined;
 	/** The chat membership the bound canvas was last observed again for, after its observation failed. */
 	private observedAgainFor: readonly ICanvas[] | undefined;
-	/** Whether this reconnect already opened the canvas its chat restores. */
-	private openedWhileRestoring = false;
+	/** The session and canvas lifetime this reconnect opened while its chat restored the canvas. */
+	private readonly openedWhileRestoring = observableValue<{ readonly session: ISession; readonly resource: URI } | undefined>(this, undefined);
 
 	get boundCanvas(): URI | undefined {
 		return this.boundResource.read(undefined);
@@ -194,16 +194,21 @@ class PinnedCanvas extends Disposable implements IPinnedCanvas {
 
 	/** Asks to find the live canvas again through its chat's membership, without showing the chat. */
 	requestReconnect(tx: ITransaction | undefined): void {
-		this.openedWhileRestoring = false;
+		// Observable, so that asking again while reconnecting opens a restoring canvas again.
+		this.openedWhileRestoring.set(undefined, tx);
 		this._reconnecting.set(true, tx);
 	}
 
-	/** Records that this reconnect opens the canvas its chat restores, once. Returns `false` when it already did. */
-	claimOpenWhileRestoring(): boolean {
-		if (this.openedWhileRestoring) {
+	/**
+	 * Records that this reconnect opens the canvas lifetime `resource` through `session` while its chat restores it.
+	 * Returns `false` when it already did, so a lifetime is opened once per reconnect and session.
+	 */
+	claimOpenWhileRestoring(session: ISession, resource: URI, reader: IReader): boolean {
+		const opened = this.openedWhileRestoring.read(reader);
+		if (opened?.session === session && isEqual(opened.resource, resource)) {
 			return false;
 		}
-		this.openedWhileRestoring = true;
+		this.openedWhileRestoring.set({ session, resource }, undefined);
 		return true;
 	}
 
@@ -661,7 +666,7 @@ export class PinnedCanvasService extends Disposable implements IPinnedCanvasServ
 			// A chat lists a canvas it restores before the canvas has a source. A shown pin keeps observing its chat, which lets the chat restore it.
 			const restoring = canvas?.source === undefined && this.isPinShown(pin, reader);
 			// The restore waits while the canvas's extension start is held behind consent that only a turn or an open asks for, so the pin opens it.
-			if (restoring && canvas?.instanceId !== undefined && canvasId && extensionId && pin.reconnecting.read(reader) && pin.claimOpenWhileRestoring()) {
+			if (restoring && canvas?.instanceId !== undefined && canvasId && extensionId && pin.reconnecting.read(reader) && pin.claimOpenWhileRestoring(session, bound, reader)) {
 				this.openRestoringCanvas(pin, session, chat, { canvasId, extensionId });
 			}
 			transaction(tx => {

@@ -583,6 +583,41 @@ suite('PinnedCanvasService', () => {
 		});
 	});
 
+	test('opens a restoring canvas again when its shown pin is selected again or its session is replaced', async () => {
+		const canvas = createCanvas('plan');
+		const { harness, entry, sessions, chat } = createRestoredHarness(canvas, { openCanvas: async () => { throw new Error('Connection closed.'); } });
+
+		await harness.service.show(entry);
+		harness.setChatCanvases(chat.resource, [canvas]);
+		harness.setLive({ ...canvas, source: undefined }, canvas.resource);
+		await timeout(0);
+		const opensBefore = harness.openedCanvases.length;
+		await harness.service.show(entry);
+		await timeout(0);
+		const opensAfterSelecting = harness.openedCanvases.length;
+		const replacement = createSession('session:/a', [createChat('chat:/a', undefined).chat]);
+		sessions.splice(0, 1, replacement);
+		harness.sessionsChanged.fire({ added: [replacement], removed: [], changed: [] });
+		harness.setChatCanvases(chat.resource, [canvas]);
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			opensBefore,
+			opensAfterSelecting,
+			opensAfterReplacement: harness.openedCanvases.length,
+			state: entry.state.get(),
+			reconnecting: entry.reconnecting.get(),
+			notifications: harness.notifications,
+		}, {
+			opensBefore: 1,
+			opensAfterSelecting: 2,
+			opensAfterReplacement: 3,
+			state: PinnedCanvasState.Pending,
+			reconnecting: true,
+			notifications: [],
+		});
+	});
+
 	test('reopens a shown pin through its chat when its chat no longer lists its canvas, and binds once the chat publishes it after unrelated changes', async () => {
 		const opened = new DeferredPromise<void>();
 		const { harness, entry, chat } = createRestoredHarness(createCanvas('plan'), { openCanvas: () => opened.p });
