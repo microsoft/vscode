@@ -2610,7 +2610,7 @@ suite('Sessions - Actions', () => {
 			await run(NEW_SESSION_FOR_WORKSPACE_ACTION_ID, { sessions: [session] });
 			await run(NEW_SESSION_FOR_WORKSPACE_ACTION_ID, { environment, sessions: [session] });
 
-			// Without a creation target, the environment section still starts in its environment.
+			// Without a creation target, the workspace and environment sections still start in their environment.
 			assert.deepStrictEqual({ selections, environments }, available
 				? {
 					selections: Array.from({ length: 5 }, () => ({
@@ -2624,7 +2624,7 @@ suite('Sessions - Actions', () => {
 						folder: localFolder,
 						options: { providerId: local.providerId, selectionOrigin: WorkspaceSelectionOrigin.User },
 					}],
-					environments: [session.providerId],
+					environments: [session.providerId, session.providerId],
 				});
 		});
 	}
@@ -2676,10 +2676,12 @@ suite('Sessions - Actions', () => {
 		await run({ repository: { owner: 'microsoft', name: 'vscode' }, sessions: [sandbox('sandbox-1'), sandbox('sandbox-2')] });
 		// A workspace section starts like its first session that it can start like.
 		await run({ sessions: [sandbox('sandbox'), local] });
+		// A workspace section of only such sessions, such as those of an extension's host of jobs, starts in their environment.
+		await run({ sessions: [sandbox('sandbox-1'), sandbox('sandbox-2')] });
 		// An environment section of only such sessions, such as an extension's host of jobs, starts in its environment.
 		await run({ environment: { id: 'cloud', label: 'Cloud' }, sessions: [sandbox('sandbox-1'), sandbox('sandbox-2')] });
 
-		assert.deepStrictEqual({ opened, selections }, { opened: 3, selections: ['local-provider file:///local', 'environment of sandbox-provider'] });
+		assert.deepStrictEqual({ opened, selections }, { opened: 4, selections: ['local-provider file:///local', 'environment of sandbox-provider', 'environment of sandbox-provider'] });
 	});
 
 	test('New Session uses the active native canvas for plain invocations and incidental toolbar context', async () => {
