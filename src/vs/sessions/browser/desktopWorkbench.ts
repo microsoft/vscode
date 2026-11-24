@@ -248,8 +248,9 @@ export class DesktopWorkbench extends Workbench {
 	}
 
 	protected override _applyEditorSplitSize(): void {
+		const detailWidth = this.partVisibility.auxiliaryBar ? this._reservedDetailWidth() : 0;
 		this.workbenchGrid.resizeView(this.editorPartView, {
-			width: this._defaultEditorPartWidth,
+			width: this._defaultEditorPartWidth + detailWidth,
 			height: this.workbenchGrid.getViewSize(this.editorPartView).height,
 		});
 	}

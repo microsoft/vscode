@@ -1227,6 +1227,11 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 			return;
 		}
 
+		// A pane whose default is already the minimum has not been minimized.
+		if (this._defaultEditorPartWidth <= this.editorPartView.minimumWidth) {
+			return;
+		}
+
 		this._restoreMinimizedPartOnActivation(this.editorPartView, this.sessionsPartView);
 	}
 

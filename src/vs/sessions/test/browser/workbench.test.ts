@@ -3104,20 +3104,53 @@ suite('Sessions - Workbench', () => {
 				});
 				host.setEditorHidden(false);
 				const opened = grid.getViewSize(editor).width;
+				restoreEditorPartOnActivation.call(host);
+				const focused = grid.getViewSize(editor).width;
 				grid.resizeView(editor, { width: 720, height: 800 });
 				const resized = grid.getViewSize(editor).width;
 				host.setEditorHidden(true);
 				host.setEditorHidden(false);
-				results.push({ position, windowWidth, opened, resized, reopened: grid.getViewSize(editor).width });
+				results.push({ position, windowWidth, opened, focused, resized, reopened: grid.getViewSize(editor).width });
 			}
 		}
 		assert.deepStrictEqual(results, [
-			{ position: 'right', windowWidth: 900, opened: 300, resized: 320, reopened: 320 },
-			{ position: 'right', windowWidth: 1440, opened: 480, resized: 720, reopened: 720 },
-			{ position: 'right', windowWidth: 2400, opened: 600, resized: 720, reopened: 720 },
-			{ position: 'bottom', windowWidth: 900, opened: 300, resized: 320, reopened: 320 },
-			{ position: 'bottom', windowWidth: 1440, opened: 480, resized: 720, reopened: 720 },
-			{ position: 'bottom', windowWidth: 2400, opened: 600, resized: 720, reopened: 720 },
+			{ position: 'right', windowWidth: 900, opened: 300, focused: 300, resized: 320, reopened: 320 },
+			{ position: 'right', windowWidth: 1440, opened: 480, focused: 480, resized: 720, reopened: 720 },
+			{ position: 'right', windowWidth: 2400, opened: 600, focused: 600, resized: 720, reopened: 720 },
+			{ position: 'bottom', windowWidth: 900, opened: 300, focused: 300, resized: 320, reopened: 320 },
+			{ position: 'bottom', windowWidth: 1440, opened: 480, focused: 480, resized: 720, reopened: 720 },
+			{ position: 'bottom', windowWidth: 2400, opened: 600, focused: 600, resized: 720, reopened: 720 },
+		]);
+	});
+
+	test('first reveal reserves horizontal Details beside the default editor content width', () => {
+		const results = [];
+		for (const position of ['left', 'right', 'top', 'bottom'] as const) {
+			for (const floating of [false, true]) {
+				const host = Object.assign(createHost({
+					single: true,
+					windowWidth: 1440,
+					dockedWidth: 220,
+					editorWidth: position === 'left' || position === 'right' ? 220 : 600,
+					partVisibility: { editor: false, auxiliaryBar: true },
+				}), {
+					_detailsPosition: position,
+					_auxiliaryBarFloating: floating,
+				});
+				host.setEditorHidden(false);
+				const width = host.workbenchGrid.getViewSize(host.editorPartView).width;
+				results.push({ position, floating, width, content: persistedEditorWidth.call(host, width) });
+			}
+		}
+		assert.deepStrictEqual(results, [
+			{ position: 'left', floating: false, width: 700, content: 480 },
+			{ position: 'left', floating: true, width: 480, content: 480 },
+			{ position: 'right', floating: false, width: 700, content: 480 },
+			{ position: 'right', floating: true, width: 480, content: 480 },
+			{ position: 'top', floating: false, width: 600, content: 600 },
+			{ position: 'top', floating: true, width: 600, content: 600 },
+			{ position: 'bottom', floating: false, width: 600, content: 600 },
+			{ position: 'bottom', floating: true, width: 600, content: 600 },
 		]);
 	});
 
@@ -3133,7 +3166,7 @@ suite('Sessions - Workbench', () => {
 		}, {
 			editorVisible: true,
 			visibilityChanges: [true],
-			resizes: [{ width: 433, height: 800 }],
+			resizes: [{ width: 733, height: 800 }],
 		});
 	});
 
