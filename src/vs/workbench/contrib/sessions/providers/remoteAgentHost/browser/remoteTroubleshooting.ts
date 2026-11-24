@@ -4,8 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../../../nls.js';
+import { escapeRegExpCharacters } from '../../../../../../base/common/strings.js';
 import { IAgentHostBuild } from '../../../../../../platform/agentHost/common/meta/agentHostUpgradeMeta.js';
 import { RemoteAgentHostConnectionStatus } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { formatSSHProxyCommandExit } from '../../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { canConnectToRemote, ICustomizationRemote, IRemoteTroubleshootingInfo } from './remotesModel.js';
 
 /** Actions the Troubleshoot Connection page can offer. */
@@ -42,8 +44,38 @@ const documentation: Record<ICustomizationRemote['kind'], { readonly label: stri
 	devContainer: troubleshootingDocumentation,
 };
 
+/**
+ * The exit status and error output of a ProxyCommand that ended the connection. They're read from the message
+ * {@link formatSSHProxyCommandExit} localized where the connection runs, in the same language as this window.
+ */
+function getSSHProxyCommandExit(error: string): { readonly status: string; readonly stderr: string } | undefined {
+	const pattern = escapeRegExpCharacters(formatSSHProxyCommandExit('\u0000', '\u0001'))
+		.replace('\u0000', '(?<status>[^\\s()]+)')
+		.replace('\u0001', '(?<stderr>[\\s\\S]*)');
+	const groups = new RegExp(pattern).exec(error)?.groups;
+	return groups ? { status: groups.status, stderr: groups.stderr } : undefined;
+}
+
+/** A regular expression, or an object with the same test method where a pattern isn't enough. */
+interface IErrorMatcher {
+	test(error: string): boolean;
+}
+
+/** Shells exit with 127 (POSIX) or 9009 (cmd) when they can't find the command, whatever the language of their message. */
+const sshProxyCommandNotStarted: IErrorMatcher = {
+	test: error => {
+		const exit = getSSHProxyCommandExit(error);
+		return !!exit && (exit.status === '127' || exit.status === '9009'
+			|| /is not recognized as an internal or external command|command not found|: not found|No such file or directory|cannot find the path/i.test(exit.stderr));
+	},
+};
+
+const sshProxyFailed: IErrorMatcher = {
+	test: error => /ProxyJump|ProxyCommand|SSH jump process/i.test(error) || !!getSSHProxyCommandExit(error),
+};
+
 /** Explains SSH errors from their messages; the first matching pattern wins, so sign-in rejections precede network errors. */
-const sshErrors: readonly (readonly [RegExp, () => string, RemoteTroubleshootingAction[]])[] = [
+const sshErrors: readonly (readonly [IErrorMatcher, () => string, RemoteTroubleshootingAction[]])[] = [
 	[/All configured authentication methods failed|SSH authentication failed|Permission denied \((?:publickey|password|keyboard-interactive)|Jump host authentication failed/i,
 		() => localize('remotes.sshCheckAuthentication', "The SSH server rejected the sign-in. Check the user name and credentials used to connect. If you use an SSH key, its public key must be authorized for that user on the remote computer."), ['connectViaSSH']],
 	[/host key.*(?:changed|mismatch|rejected)|host key verification failed|REMOTE HOST IDENTIFICATION HAS CHANGED/i,
@@ -54,13 +86,16 @@ const sshErrors: readonly (readonly [RegExp, () => string, RemoteTroubleshooting
 		() => localize('remotes.sshNameResolution', "The host name couldn't be resolved. Check HostName in your SSH configuration and this computer's network or DNS settings."), []],
 	[/ETIMEDOUT|EHOSTUNREACH|ENETUNREACH|jump host could not be reached|Timed out while waiting for handshake/i,
 		() => localize('remotes.sshNetwork', "The remote computer couldn't be reached from this network. Check the host, the port, and any VPN connection it requires."), []],
-	[/ProxyJump|ProxyCommand|SSH jump process/i,
+	[sshProxyCommandNotStarted,
+		() => localize('remotes.sshProxyNotFound', "The ProxyCommand program couldn't be started. Check its path in your SSH configuration, and put the path in quotes if it contains spaces."), []],
+	[sshProxyFailed,
 		() => localize('remotes.sshProxy', "The ProxyJump or ProxyCommand configuration failed. Make sure OpenSSH is installed on this computer and that each jump host accepts a sign-in without prompts."), []],
 	[/passphrase|private key/i,
 		() => localize('remotes.sshKey', "The SSH key couldn't be used. Check that the key file exists and that its passphrase is correct."), []],
-	[/agent host to register|remote CLI|VS Code CLI|download/i,
-		() => localize('remotes.sshRemoteSetup', "Signing in worked, but starting the agent host on the remote computer failed. The remote computer needs internet access to download VS Code. Collect a diagnostic report for details."), []],
 ];
+
+/** Errors after signing in, while installing or starting the agent host on the remote computer. */
+const sshRemoteSetupError = /agent host to register|remote CLI|VS Code CLI|download/i;
 
 function getQualityName(quality: string): string {
 	switch (quality) {
@@ -108,16 +143,24 @@ function getUpdateLabel(update: NonNullable<NonNullable<IRemoteTroubleshootingIn
 }
 
 /**
- * A verbose SSH command for the connection, offered only when its destination means the same in POSIX shells,
- * PowerShell and cmd, so pasting it can't run anything else. `--` keeps the destination from being read as an option.
+ * The `ssh` arguments that select the connection's host, offered only when they mean the same in POSIX shells,
+ * PowerShell and cmd, so pasting a command with them can't run anything else. `--` keeps the destination from being read as an option.
  */
-function getSSHTestCommand(ssh: IRemoteTroubleshootingInfo['ssh'], address: string): string | undefined {
+function getSSHDestinationArguments(ssh: IRemoteTroubleshootingInfo['ssh'], address: string): string | undefined {
 	const destination = ssh?.alias ?? `${ssh?.user ? `${ssh.user}@` : ''}${ssh?.host ?? ssh?.hostName ?? address}`;
 	const port = !ssh?.alias && ssh?.port !== undefined && ssh.port !== 22 ? ssh.port : undefined;
 	if (!/^\w[\w.@:-]*$/.test(destination) || port !== undefined && !Number.isSafeInteger(port)) {
 		return undefined;
 	}
-	return `ssh -v${port !== undefined ? ` -p ${port}` : ''} -- ${destination}`;
+	return `${port !== undefined ? `-p ${port} ` : ''}-- ${destination}`;
+}
+
+/**
+ * Shows the end of the remote agent host log. The path is relative to the home folder, where SSH commands start,
+ * so no shell on this computer expands it.
+ */
+function getSSHRemoteLogCommand(destination: string | undefined, remoteLog: string | undefined): string | undefined {
+	return destination && remoteLog && /^[\w.-]+(?:\/[\w.-]+)*$/.test(remoteLog) ? `ssh ${destination} tail -n 50 ${remoteLog}` : undefined;
 }
 
 /** The remote's state and connection error, explained per connection type with the actions that may unblock it. */
@@ -186,17 +229,30 @@ export function getRemoteTroubleshootingGuide(remote: ICustomizationRemote, info
 					}
 				} else if (failed) {
 					const match = sshErrors.find(([pattern]) => pattern.test(error));
-					const testCommand = getSSHTestCommand(ssh, remote.detail);
-					guidance.push(match ? match[1]() : testCommand
-						? localize('remotes.sshGeneric', "Run the command below in a terminal to see where the connection fails.")
-						: localize('remotes.sshGenericNoCommand', "Check the host, user, and port in your SSH configuration, and that the remote computer can be reached from this network."));
+					const destination = getSSHDestinationArguments(ssh, remote.detail);
+					const remoteSetup = !match && sshRemoteSetupError.test(error);
+					const logCommand = remoteSetup ? getSSHRemoteLogCommand(destination, ssh?.remoteLog) : undefined;
+					if (match) {
+						guidance.push(match[1]());
+					} else if (remoteSetup) {
+						guidance.push(localize('remotes.sshRemoteSetup', "Signing in worked, but starting the agent host on the remote computer failed. The remote computer needs internet access to download VS Code. If it reaches the internet through a proxy, set http_proxy and https_proxy in its shell startup file."));
+						if (ssh?.remoteLog) {
+							guidance.push(localize('remotes.sshRemoteLog', "The agent host log on the remote computer, ~/{0}, explains the failure.", ssh.remoteLog));
+						}
+					} else {
+						guidance.push(destination
+							? localize('remotes.sshGeneric', "Run the command below in a terminal to see where the connection fails.")
+							: localize('remotes.sshGenericNoCommand', "Check the host, user, and port in your SSH configuration, and that the remote computer can be reached from this network."));
+					}
 					for (const action of match?.[2] ?? []) {
 						if (action !== 'forgetHostKey' || ssh?.hasSavedHostKey) {
 							actions.push(action);
 						}
 					}
-					if (testCommand) {
-						command = { label: localize('remotes.sshTestCommand', "Test the connection in a terminal"), value: testCommand };
+					if (logCommand) {
+						command = { label: localize('remotes.sshRemoteLogCommand', "Show the end of the remote agent host log in a terminal"), value: logCommand };
+					} else if (destination) {
+						command = { label: localize('remotes.sshTestCommand', "Test the connection in a terminal"), value: `ssh -v ${destination}` };
 					}
 				}
 				actions.push('openSSHConfig');
@@ -256,6 +312,8 @@ export function getRemoteTroubleshootingGuide(remote: ICustomizationRemote, info
 					guidance.push(localize('remotes.tunnelIncompatible', "Update VS Code or the VS Code CLI on the computer that shares this tunnel, then retry."));
 				} else if (failed && /relay|timed out|gateway/i.test(error)) {
 					guidance.push(localize('remotes.tunnelRelay', "The tunnel relay didn't respond in time. Check this computer's network connection and retry. If it keeps failing, restart sharing on the other computer."));
+				} else if (failed) {
+					guidance.push(localize('remotes.tunnelGeneric', "Check that the computer sharing this tunnel is turned on and connected to the internet, and that it still shares the tunnel with Remote Tunnel Access or the code tunnel command. Then retry."));
 				}
 				if (remote.canDelete && (tunnel?.inLastDiscovery === false || remote.availability === 'offline')) {
 					actions.push('deleteTunnel');
@@ -276,6 +334,8 @@ export function getRemoteTroubleshootingGuide(remote: ICustomizationRemote, info
 					guidance.push(localize('remotes.environmentTimeout', "Connecting timed out. Make sure the application that shares this environment is running on that computer, then retry."));
 				} else if (incompatible && !upgradeMethod) {
 					guidance.push(localize('remotes.environmentIncompatible', "Update the application that shares this environment, then retry."));
+				} else if (failed) {
+					guidance.push(localize('remotes.environmentGeneric', "Check that the application that shares this environment is running on that computer, and that you're signed in to GitHub with an account that can use it. Then retry."));
 				}
 				actions.push('refresh', 'openEnvironmentSettings');
 				if (remote.canRemove && remote.availability === 'offline') {
@@ -325,6 +385,10 @@ export function getRemoteTroubleshootingGuide(remote: ICustomizationRemote, info
 					guidance.push(localize('remotes.containerLifecycle', "The container's setup commands failed. Show the log for details."));
 				} else if (failed && /timed out/i.test(error)) {
 					guidance.push(localize('remotes.containerTimeout', "The agent host in the container didn't start in time. Show the log for details, then retry."));
+				} else if (failed) {
+					guidance.push(info.canShowLog
+						? localize('remotes.containerGeneric', "Show the log to see where connecting to the container failed, then retry.")
+						: localize('remotes.containerGenericNoLog', "Check that Docker is running on {0}, then retry.", container?.hostName ?? remote.detail));
 				}
 			}
 			break;
