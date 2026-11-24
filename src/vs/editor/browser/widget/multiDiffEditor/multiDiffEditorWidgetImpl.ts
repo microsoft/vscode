@@ -20,6 +20,7 @@ import { OffsetRange } from '../../../common/core/ranges/offsetRange.js';
 import { IDiffEditorOptions } from '../../../common/config/editorOptions.js';
 import { IRange, Range } from '../../../common/core/range.js';
 import { ISelection, Selection } from '../../../common/core/selection.js';
+import { DetailedLineRangeMapping } from '../../../common/diff/rangeMapping.js';
 import { IDiffEditor } from '../../../common/editorCommon.js';
 import { IMultiDiffResourceId } from '../../../common/multiDiffEditor.js';
 import { EditorContextKeys } from '../../../common/editorContextKeys.js';
@@ -505,13 +506,14 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 		if (!options.range || index === -1 || !template) {
 			return;
 		}
+		// A collapsed item only shows its header, so it expands to show the range.
+		viewItem.viewModel.collapsed.set(false, undefined);
 		let side: 'original' | 'modified' = options.side ?? (viewItem.viewModel.originalUri ? 'original' : 'modified');
 		let range = options.range;
 		if (side === 'original' && !template.editor.renderSideBySide) {
 			// An inline diff shows the original document where the modified document has it, except for deleted text.
-			const mappings = template.editor.getDiffComputationResult()?.changes2 ?? [];
-			const modifiedRange = Range.plusRange(translatePosition(range.getStartPosition(), mappings), translatePosition(range.getEndPosition(), mappings));
-			if (modifiedRange.isEmpty() && !range.isEmpty()) {
+			const modifiedRange = mapToModifiedDocument(range, template.editor.getDiffComputationResult()?.changes2 ?? []);
+			if (!modifiedRange) {
 				// Deleted text shows in view zones of the modified editor, whose lines the hidden original editor aligns with.
 				// The modified editor can neither reveal nor highlight a range in them.
 				this._scrollToItemOffset(index, template.getPositionOffset('original', range.getStartPosition()));
@@ -785,6 +787,25 @@ function highlightRange(targetEditor: ICodeEditor, range: IRange) {
 			decorations.clear();
 		}
 	}, 350);
+}
+
+/**
+ * Maps a range of the original document to the modified document, or returns undefined for a range that starts in
+ * deleted text. Changes without inner changes, which the legacy diff algorithm computes for larger changes, map a range to
+ * their modified lines.
+ */
+function mapToModifiedDocument(range: Range, mappings: readonly DetailedLineRangeMapping[]): Range | undefined {
+	const start = range.getStartPosition();
+	const change = mappings.find(mapping => mapping.original.contains(start.lineNumber));
+	if (change && !change.innerChanges) {
+		return change.modified.isEmpty ? undefined : change.modified.toExclusiveRange();
+	}
+	// The text after an inner change starts at its end.
+	const innerChange = change?.innerChanges?.find(inner => inner.originalRange.containsPosition(start) && !inner.originalRange.getEndPosition().equals(start));
+	if (innerChange?.modifiedRange.isEmpty()) {
+		return undefined;
+	}
+	return Range.plusRange(translatePosition(start, mappings), translatePosition(range.getEndPosition(), mappings));
 }
 
 export interface IMultiDiffEditorViewState {

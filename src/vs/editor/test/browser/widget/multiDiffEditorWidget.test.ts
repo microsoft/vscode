@@ -35,6 +35,7 @@ import { EditorOption, IDiffEditorOptions } from '../../../common/config/editorO
 import { Position } from '../../../common/core/position.js';
 import { Range } from '../../../common/core/range.js';
 import { IDocumentDiff, IDocumentDiffProvider } from '../../../common/diff/documentDiffProvider.js';
+import { DetailedLineRangeMapping } from '../../../common/diff/rangeMapping.js';
 import { EditorContextKeys } from '../../../common/editorContextKeys.js';
 import { instantiateTextModel } from '../../common/testTextModel.js';
 import { TestDiffProviderFactoryService } from '../diff/testDiffProviderFactoryService.js';
@@ -371,8 +372,8 @@ suite('MultiDiffEditorWidget', () => {
 	 * Shows a file below a small one in a widget of 800x300 pixels, and scrolls to the file. Their diffs are computed
 	 * before, unless the caller computes them later.
 	 */
-	async function showFileBelowAnother(originalContent: string, modifiedContent: string, options: { readonly renderSideBySide?: boolean; readonly diffWordWrap?: 'on' | 'off'; readonly editorOptions?: IDiffEditorOptions; readonly computeDiffsLater?: boolean } = {}) {
-		const diffProviderFactory = new DelayedDiffProviderFactoryService();
+	async function showFileBelowAnother(originalContent: string, modifiedContent: string, options: { readonly renderSideBySide?: boolean; readonly diffWordWrap?: 'on' | 'off'; readonly editorOptions?: IDiffEditorOptions; readonly computeDiffsLater?: boolean; readonly withoutInnerChanges?: boolean } = {}) {
+		const diffProviderFactory = new DelayedDiffProviderFactoryService(options.withoutInnerChanges);
 		const services = new ServiceCollection();
 		services.set(IAccessibilitySignalService, new class extends mock<IAccessibilitySignalService>() { }());
 		services.set(IActionViewItemService, new NullActionViewItemService());
@@ -539,13 +540,52 @@ suite('MultiDiffEditorWidget', () => {
 
 		try {
 			const editor = widget.tryGetCodeEditor(resource.modified)!.editor;
-			widget.reveal(resource, { range: new Range(200, 1, 200, 9), highlight: false });
 			const lineHeight = editor.getOption(EditorOption.lineHeight);
-			const top = editor.getTopForLineNumber(101) - (301 - 200) * lineHeight;
+			const showsDeletedLine = (lineNumber: number) => {
+				const top = editor.getTopForLineNumber(101) - (301 - lineNumber) * lineHeight;
+				return editor.getScrollTop() <= top && top + lineHeight <= editor.getScrollTop() + editor.getLayoutInfo().height;
+			};
+			widget.reveal(resource, { range: new Range(150, 1, 150, 9), highlight: false });
+			const showsRange = showsDeletedLine(150);
+			widget.reveal(resource, { range: Range.fromPositions(new Position(250, 3)), highlight: false });
+
+			assert.deepStrictEqual({ showsRange, showsPosition: showsDeletedLine(250) }, { showsRange: true, showsPosition: true });
+		} finally {
+			widget.setViewModel(undefined);
+		}
+	});
+
+	test('reveals and highlights the modified lines of a change without inner changes in an inline diff', async () => {
+		const lines = Array.from({ length: 300 }, (_, index) => `line ${index + 1}`);
+		const modifiedLines = [
+			...Array.from({ length: 200 }, (_, index) => `inserted ${index + 1}`),
+			...lines.map((line, index) => index === 149 ? `changed ${index + 1}` : line),
+		];
+		const { widget, resource } = await showFileBelowAnother(lines.join('\n'), modifiedLines.join('\n'), { renderSideBySide: false, withoutInnerChanges: true });
+
+		try {
+			const editor = widget.tryGetCodeEditor(resource.modified)!.editor;
+			widget.reveal(resource, { range: new Range(150, 1, 150, 9), highlight: true });
+
+			assert.deepStrictEqual({ highlights: getHighlights(editor), visible: isVisible(editor, new Position(350, 1)) }, { highlights: [new Range(350, 1, 351, 1)], visible: true });
+		} finally {
+			widget.setViewModel(undefined);
+		}
+	});
+
+	test('expands a collapsed file to reveal a range in it', async () => {
+		const lines = Array.from({ length: 400 }, (_, index) => `line ${index + 1}`);
+		const { widget, resource } = await showFileBelowAnother(lines.join('\n'), lines.map((line, index) => index % 3 === 0 ? `changed ${index + 1}` : line).join('\n'));
+
+		try {
+			const item = widget.viewModel.get()!.items.get()[1];
+			item.collapsed.set(true, undefined);
+			widget.reveal(resource, { range: new Range(301, 1, 301, 1), side: 'modified', highlight: false });
 
 			assert.deepStrictEqual({
-				showsDeletedLine: editor.getScrollTop() <= top && top + lineHeight <= editor.getScrollTop() + editor.getLayoutInfo().height,
-			}, { showsDeletedLine: true });
+				collapsed: item.collapsed.get(),
+				visible: isVisible(widget.tryGetCodeEditor(resource.modified)!.editor, new Position(301, 1)),
+			}, { collapsed: false, visible: true });
 		} finally {
 			widget.setViewModel(undefined);
 		}
@@ -1067,6 +1107,12 @@ class DelayedDiffProviderFactoryService implements IDiffProviderFactoryService {
 	private readonly _diffProviderFactory = new TestDiffProviderFactoryService();
 	private readonly _canComputeDiffs = new DeferredPromise<void>();
 
+	/**
+	 * @param _withoutInnerChanges Whether the changes have no inner changes, like the changes of the legacy diff algorithm
+	 * that have 20 or more lines on a side.
+	 */
+	constructor(private readonly _withoutInnerChanges = false) { }
+
 	computeDiffs(): void {
 		this._canComputeDiffs.complete();
 	}
@@ -1077,7 +1123,8 @@ class DelayedDiffProviderFactoryService implements IDiffProviderFactoryService {
 			onDidChange: diffProvider.onDidChange,
 			computeDiff: async (original, modified, options, cancellationToken) => {
 				await this._canComputeDiffs.p;
-				return diffProvider.computeDiff(original, modified, options, cancellationToken);
+				const diff = await diffProvider.computeDiff(original, modified, options, cancellationToken);
+				return this._withoutInnerChanges ? { ...diff, changes: diff.changes.map(change => new DetailedLineRangeMapping(change.original, change.modified, undefined)) } : diff;
 			},
 		};
 	}

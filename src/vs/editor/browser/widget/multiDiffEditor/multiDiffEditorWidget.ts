@@ -280,7 +280,7 @@ export class MultiDiffEditorWidget extends Disposable {
 }
 
 export interface RevealOptions {
-	/** A range to reveal once the diff of the file is computed. */
+	/** A range to reveal once the diff of the file is computed. Revealing a range expands the file. */
 	range?: Range;
 	/**
 	 * The document that the range refers to. Defaults to the original document, unless the file was added. An inline diff
