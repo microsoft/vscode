@@ -100,7 +100,7 @@ type DevContainerStateVolumeClassification = {
 	owner: 'chrmarti';
 	comment: 'Reports how keeping user and agent state on a per-container volume went, to evaluate the chat.agentHost.devContainer.stateVolume.enabled experiment.';
 	stage: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The stage: mount (adding the volume), up (starting the container), link (linking state folders to it) or userCommands (lifecycle commands, which run after linking).' };
-	outcome: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The stage outcome, e.g., added, existingContainer, linked, noMount, homeNotFound, missingCapabilities, readOnlyRootfs, homeInaccessible, untrustedState (another user owns or can change the state folder or the volume\'s root folder), succeeded or failed.' };
+	outcome: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The stage outcome, e.g., added, existingContainer, linked, noMount, homeNotFound, missingCapabilities, readOnlyRootfs, homeInaccessible, stateNotRootOwned (the state folder was re-owned, e.g., by a chown -R in a lifecycle command), untrustedState (another user can change the state folder or the volume\'s root folder), succeeded or failed.' };
 	reason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Fixed identifier of the operation that failed.' };
 	step: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Fixed identifier of the link script step that failed or skipped linking.' };
 	target: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the volume is mounted at /workspaces or at a separate folder.' };
@@ -116,7 +116,7 @@ type DevContainerStateVolumeClassification = {
 	capDacOverride: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the link script had the CAP_DAC_OVERRIDE capability.' };
 	capDacReadSearch: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the link script had the CAP_DAC_READ_SEARCH capability.' };
 	capFowner: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the link script had the CAP_FOWNER capability.' };
-	stateOwner: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Who owned the state folder before linking: root, user (the container user) or other.' };
+	stateOwner: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Who owns the state folder: root, user (the container user) or other.' };
 	volumeOwner: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Who owns the volume\'s root folder: root, user (the container user) or other.' };
 	capDropChown: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the container drops ALL capabilities or CHOWN, for link failures.' };
 	privileged: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the container is privileged, for link failures.' };

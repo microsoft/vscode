@@ -188,6 +188,7 @@ suite('DevContainerState', () => {
 			'vscode-state:skip:mounted',
 			'vscode-state:skip:mounted',
 			'vscode-state:skip:running',
+			'vscode-state:skip:untrusted',
 			'vscode-state:skip:/home/node',
 			'vscode-state:step:/home/node',
 			'unrelated output',
@@ -197,7 +198,7 @@ suite('DevContainerState', () => {
 			parseLinkDevContainerStateOutput('vscode-state:step:volume\nvscode-state:step:home\nvscode-state:noHome\n'),
 			parseLinkDevContainerStateOutput(''),
 		], [
-			{ step: 'folders', homeFound: true, restoredFolders: 1, movedFolders: 2, createdFolders: 1, existingFolders: 1, skippedFolders: 5, skipReasons: 'mounted,running,symlink,unknown' },
+			{ step: 'folders', homeFound: true, restoredFolders: 1, movedFolders: 2, createdFolders: 1, existingFolders: 1, skippedFolders: 6, skipReasons: 'mounted,running,symlink,unknown,untrusted' },
 			{ step: 'home', homeFound: false, restoredFolders: 0, movedFolders: 0, createdFolders: 0, existingFolders: 0, skippedFolders: 0, skipReasons: '' },
 			{ step: undefined, homeFound: true, restoredFolders: 0, movedFolders: 0, createdFolders: 0, existingFolders: 0, skippedFolders: 0, skipReasons: '' },
 		]);
@@ -217,7 +218,8 @@ suite('DevContainerState', () => {
 		assert.strictEqual(getDevContainerStateLinkSkippedMessage(parseLinkDevContainerStateOutput('vscode-state:missing:CAP_CHOWN\nvscode-state:skipped:missingCapabilities\n')), 'root lacks capabilities it needs for the container user\'s folders (CAP_CHOWN), e.g., because of cap_drop');
 		assert.strictEqual(getDevContainerStateLinkSkippedMessage(parseLinkDevContainerStateOutput('vscode-state:step:home\nvscode-state:missing:CAP_DAC_OVERRIDE\nvscode-state:missing:CAP_DAC_READ_SEARCH\nvscode-state:skipped:missingCapabilities\n')), 'root lacks capabilities it needs to enter the home folder (CAP_DAC_OVERRIDE or CAP_DAC_READ_SEARCH), e.g., because of cap_drop');
 		assert.strictEqual(getDevContainerStateLinkSkippedMessage(parseLinkDevContainerStateOutput('vscode-state:step:folders\nvscode-state:missing:CAP_FOWNER\nvscode-state:skipped:missingCapabilities\n')), 'root lacks capabilities it needs to copy the container user\'s folders to the volume (CAP_FOWNER), e.g., because of cap_drop');
-		assert.strictEqual(getDevContainerStateLinkSkippedMessage(parseLinkDevContainerStateOutput('vscode-state:step:stateFolder\nvscode-state:skipped:untrustedState\n')), 'another user owns or can change the state folder or the volume\'s root folder');
+		assert.strictEqual(getDevContainerStateLinkSkippedMessage(parseLinkDevContainerStateOutput('vscode-state:step:stateFolder\nvscode-state:skipped:untrustedState\n')), 'another user can change the state folder or the volume\'s root folder');
+		assert.strictEqual(getDevContainerStateLinkSkippedMessage(parseLinkDevContainerStateOutput('vscode-state:step:stateFolder\nvscode-state:stateOwner:user\nvscode-state:skipped:stateNotRootOwned\n')), 'the volume\'s .vscode-state folder is not owned by root, e.g., after a lifecycle command ran `chown -R` on the volume. To keep its state, give it and its contents back to root if you trust them, or remove it to start fresh');
 	});
 
 	test('reads security settings from docker inspect as fixed values', () => {

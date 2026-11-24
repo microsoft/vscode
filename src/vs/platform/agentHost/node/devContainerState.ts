@@ -32,8 +32,8 @@ const serverStateFolders = ['data/User/globalStorage', 'data/User/workspaceStora
 const homeStateFolders = ['.copilot'];
 const linkProgressPrefix = 'vscode-state:';
 const linkSteps = ['capabilities', 'rootfs', 'volume', 'stateFolder', 'statePath', 'stateLink', 'home', 'mountinfo', 'folders'];
-const linkSkipReasons = ['parent', 'mounted', 'symlink', 'file', 'state', 'home', 'running'];
-const linkSkippedOutcomes = ['missingCapabilities', 'readOnlyRootfs', 'homeInaccessible', 'untrustedState'] as const;
+const linkSkipReasons = ['parent', 'mounted', 'symlink', 'file', 'state', 'home', 'running', 'untrusted'];
+const linkSkippedOutcomes = ['missingCapabilities', 'readOnlyRootfs', 'homeInaccessible', 'stateNotRootOwned', 'untrustedState'] as const;
 /** Capabilities root needs to manage another user's folders or to enter their home folder, by their bit in `CapEff`. */
 const linkCapabilities = { CAP_CHOWN: 0, CAP_DAC_OVERRIDE: 1, CAP_DAC_READ_SEARCH: 2, CAP_FOWNER: 3 };
 const stateOwners = ['root', 'user', 'other'] as const;
@@ -260,8 +260,8 @@ export function buildLinkDevContainerStateCommand(options: IDevContainerStateLin
 		'test ! -L "$state"',
 		'test -d "$state" || mkdir "$state" || test -d "$state"',
 		// The user can own the volume's root folder, e.g., when Docker copied a user-owned /workspaces from the image, and then
-		// replace the state folder at any time. Works inside the state folder after checking that it is on the volume, so a
-		// later replacement does not affect this script.
+		// replace the state folder at any time. Works inside the state folder after checking that it is on the volume and owned
+		// by root, so a later replacement does not affect this script.
 		'cd -P "$state"',
 		`if [ "$(pwd -P)" != "$volume_real/"${shellQuote(stateFolderName)} ]; then echo "$state is not a folder on the volume" >&2; exit 1; fi`,
 		'owner_kind() { case "$1" in 0) echo root ;; "$user_uid") echo user ;; *) echo other ;; esac; }',
@@ -270,18 +270,23 @@ export function buildLinkDevContainerStateCommand(options: IDevContainerStateLin
 		// The volume's root folder.
 		'volume_uid=$(stat -c %u ..)',
 		'progress "volumeOwner:$(owner_kind "$volume_uid")"',
+		// E.g., after a `chown -R` of the volume in a lifecycle command. Taking ownership again would not make the folders and
+		// symlinks the user could add meanwhile safe for this script to work in.
+		'if [ "$state_uid" != 0 ]; then',
+		'  progress skipped:stateNotRootOwned',
+		'  echo "Not persisting user state: $state is not owned by root. To keep it, give it and its contents back to root (chown -R root:root) if you trust them, or remove it to start fresh" >&2',
+		'  exit 0',
+		'fi',
 		'root_only() { case "$(stat -c %u:%A "$1")" in 0:d????-??-?*) return 0 ;; *) return 1 ;; esac; }',
 		// A root user's state must neither come from nor be replaceable by another user, e.g., hooks in ~/.copilot run as root.
 		'if [ "$user_uid" = 0 ]; then',
 		'  if ! root_only . || ! root_only ..; then',
-		'    progress skipped:untrustedState; echo "Not persisting user state: a user other than root owns or can write to $state or $volume" >&2; exit 0',
+		'    progress skipped:untrustedState; echo "Not persisting user state: a user other than root can write to $state or $volume" >&2; exit 0',
 		'  fi',
-		// Another user's state must not end up in the container user's home folder.
-		'elif [ "$(owner_kind "$state_uid")" = other ] || [ "$(owner_kind "$volume_uid")" = other ]; then',
-		'  progress skipped:untrustedState; echo "Not persisting user state: another user owns $state or $volume" >&2; exit 0',
+		// Another user could replace the state folder with their own.
+		'elif [ "$(owner_kind "$volume_uid")" = other ]; then',
+		'  progress skipped:untrustedState; echo "Not persisting user state: another user owns $volume" >&2; exit 0',
 		'fi',
-		// E.g., a `chown -R` of the volume in a lifecycle command. The user may have added symlinks to it meanwhile, see `protect`.
-		'if [ "$state_uid" != 0 ]; then echo "Taking ownership of $state" >&2; fi',
 		// Moved folders are no longer protected by the home folder's permissions, so only the user's group may enter. Root
 		// owns the state folder and the parents of moved folders, so the user cannot plant symlinks for this script to follow.
 		'chown -h "$state_owner" .',
@@ -352,20 +357,6 @@ export function buildLinkDevContainerStateCommand(options: IDevContainerStateLin
 		'}',
 		'is_other() { [ -L "$1" ] || { [ -e "$1" ] && [ ! -d "$1" ]; }; }',
 		'skip() { progress "skip:$1"; echo "Not persisting ~/$rel: $2" >&2; }',
-		// Takes ownership of a folder on the volume before using its entries, as the user may have owned it and planted symlinks
-		// in it, e.g., after a `chown -R` of the volume. Its parent folder is already protected, so it cannot be replaced. Like
-		// the state folder, it then lets only root write to it and the user's group enter it.
-		'protected=" "',
-		'protect() {',
-		'  case "$protected" in *" $1 "*) return 0 ;; esac',
-		'  case "$(stat -c %u:%g:%A "$1")" in',
-		'    0:*:d????-??-?[xt]*|0:"${owner#*:}":d????-[xs]?-?*) ;;',
-		'    0:*:d????-??-?*) if [ "$user_uid" != 0 ]; then chown -h "$state_owner" "$1"; chmod 750 "$1"; fi ;;',
-		'    *:*:d*) chown -h "$state_owner" "$1"; chmod 750 "$1" ;;',
-		'    *) echo "$state/${1#./} is not a folder" >&2; return 1 ;;',
-		'  esac',
-		'  protected="$protected$1 "',
-		'}',
 		// Copying the user's files with their permissions changes files root does not own. Checked before replacing anything.
 		'need_fowner() {',
 		'  case "$owner" in 0:*) return 0 ;; esac',
@@ -387,7 +378,9 @@ export function buildLinkDevContainerStateCommand(options: IDevContainerStateLin
 		'  fi',
 		'  for parent in "$@"; do',
 		'    if is_other "$home_prefix/$parent" || is_other "./$parent"; then skip parent "~/$parent is not a folder"; return 0; fi',
-		'    if [ -d "./$parent" ]; then protect "./$parent"; fi',
+		// Like the state folder, only root may change the folders this script works in. Checked top-down, so a checked folder
+		// cannot be replaced.
+		'    if [ -d "./$parent" ] && ! root_only "./$parent"; then skip untrusted "a user other than root can change $state/$parent"; return 0; fi',
 		'  done',
 		'  if has_mount "$home_real/$rel"; then skip mounted "it is already mounted"; return 0; fi',
 		'  if [ -L "$src" ]; then',
@@ -396,10 +389,17 @@ export function buildLinkDevContainerStateCommand(options: IDevContainerStateLin
 		'    skip file "it is not a folder"; return 0',
 		'  fi',
 		'  if is_other "$dst"; then skip state "$state/$rel is not a folder"; return 0; fi',
+		// Restoring the volume's state would remove the folder without keeping a copy of it, or fail after removing it.
+		'  if [ -L "$dst.deferred" ] || { [ -e "$dst.deferred" ] && [ ! -f "$dst.deferred" ]; }; then skip state "$state/$rel.deferred is not a file"; return 0; fi',
+		// Restoring files another user wrote, e.g., before a change of the container user, would let them plant hooks that run
+		// as this user. Errors count as such files.
+		'  if [ ! -L "$src" ] && [ -d "$dst" ] && [ -n "$(find "$dst" ! -user 0 ! -user "$user_uid" -print 2>&1 | head -n 1)" ]; then',
+		'    skip untrusted "a user other than root or the container user owns files in $state/$rel"; return 0',
+		'  fi',
 		// Moving or replacing a folder that is in use would lose the changes made to it meanwhile. The marker keeps a copy of
 		// these changes when the volume's state replaces the folder later, see below.
 		'  if [ -n "$keep_existing" ] && [ ! -L "$src" ] && [ -d "$src" ]; then',
-		'    if [ -d "$dst" ] && [ ! -e "$dst.deferred" ] && [ ! -L "$dst.deferred" ]; then : > "$dst.deferred"; fi',
+		'    if [ -d "$dst" ]; then : > "$dst.deferred"; fi',
 		'    skip running "it exists and the container was already running"; return 0',
 		'  fi',
 		'  for parent in "$@"; do',
@@ -407,9 +407,7 @@ export function buildLinkDevContainerStateCommand(options: IDevContainerStateLin
 		'      mkdir "$home_prefix/$parent" || test -d "$home_prefix/$parent"',
 		'      chown -h "$owner" "$home_prefix/$parent"',
 		'    fi',
-		'    if [ ! -d "./$parent" ]; then mkdir "./$parent" || test -d "./$parent"; fi',
-		// A new folder gets the default ACL of its parent, which the user can have set while owning the parent.
-		'    protect "./$parent"',
+		'    test -d "./$parent" || mkdir "./$parent" || test -d "./$parent"',
 		'  done',
 		'  result=existing',
 		'  if [ ! -L "$src" ]; then',
@@ -472,7 +470,7 @@ export interface IDevContainerStateLinkProgress {
 	readonly capDacOverride?: boolean;
 	readonly capDacReadSearch?: boolean;
 	readonly capFowner?: boolean;
-	/** Who owned the state folder before the command took ownership of it. */
+	/** Who owns the state folder. */
 	readonly stateOwner?: typeof stateOwners[number];
 	/** Who owns the volume's root folder, which can replace the state folder. */
 	readonly volumeOwner?: typeof stateOwners[number];
@@ -571,8 +569,10 @@ export function getDevContainerStateLinkSkippedMessage(progress: IDevContainerSt
 			return 'the container\'s root file system is read-only';
 		case 'homeInaccessible':
 			return 'root cannot access the home folder';
+		case 'stateNotRootOwned':
+			return `the volume's ${stateFolderName} folder is not owned by root, e.g., after a lifecycle command ran \`chown -R\` on the volume. To keep its state, give it and its contents back to root if you trust them, or remove it to start fresh`;
 		case 'untrustedState':
-			return 'another user owns or can change the state folder or the volume\'s root folder';
+			return 'another user can change the state folder or the volume\'s root folder';
 		default:
 			return undefined;
 	}

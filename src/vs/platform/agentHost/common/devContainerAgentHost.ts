@@ -66,7 +66,7 @@ export interface IDevContainerAgentHostUserStateReport {
 	readonly stage: 'mount' | 'up' | 'link' | 'userCommands';
 	/**
 	 * `mount`: added, existingContainer, failed. `link`: linked, noMount, homeNotFound, missingCapabilities, readOnlyRootfs,
-	 * homeInaccessible, untrustedState, failed. `up`, `userCommands`: succeeded, failed.
+	 * homeInaccessible, stateNotRootOwned, untrustedState, failed. `up`, `userCommands`: succeeded, failed.
 	 */
 	readonly outcome: string;
 	/** Fixed identifier of what failed. */
@@ -89,7 +89,7 @@ export interface IDevContainerAgentHostUserStateReport {
 	readonly capDacOverride?: boolean;
 	readonly capDacReadSearch?: boolean;
 	readonly capFowner?: boolean;
-	/** Who owned the state folder before linking: `root`, `user` (the container user) or `other`. */
+	/** Who owns the state folder: `root`, `user` (the container user) or `other`. */
 	readonly stateOwner?: string;
 	/** Who owns the volume's root folder: `root`, `user` (the container user) or `other`. */
 	readonly volumeOwner?: string;
