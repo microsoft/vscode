@@ -2209,7 +2209,7 @@ export class CopilotAgentSession extends Disposable {
 	private _requiresRestartAfterWorkingDirectoryChange = false;
 	private _requiresRestartAfterModelChange = false;
 	private _requiresRestartAfterTelemetryRevocation = false;
-	private _requiresRestartAfterProjectExtensionRevocation = false;
+	private readonly _projectExtensionRevocationRequiresRestart = new DeferredPromise<void>();
 	private readonly _slashCommandProvider: CopilotSlashCommandProvider;
 	/** Last agent mode pushed to the SDK via {@link applyMode}, to elide redundant `rpc.mode.set` calls. */
 	private _lastAppliedMode: CopilotSdkMode | undefined;
@@ -4655,11 +4655,21 @@ export class CopilotAgentSession extends Disposable {
 
 	/** Set when this session couldn't confirm that an extension whose workspace trust was revoked stopped. */
 	get requiresRestartAfterProjectExtensionRevocation(): boolean {
-		return this._requiresRestartAfterProjectExtensionRevocation;
+		return this._projectExtensionRevocationRequiresRestart.isSettled;
+	}
+
+	/** Resolves once {@link requiresRestartAfterProjectExtensionRevocation} is set, which may happen while the session is torn down. */
+	get whenProjectExtensionRevocationRequiresRestart(): Promise<void> {
+		return this._projectExtensionRevocationRequiresRestart.p;
 	}
 
 	markProjectExtensionRevocationRequiresRestart(): void {
-		this._requiresRestartAfterProjectExtensionRevocation = true;
+		void this._projectExtensionRevocationRequiresRestart.complete();
+	}
+
+	/** The Copilot runtime this session runs on. */
+	get runtimeClient(): CopilotSessionLaunchPlan['client'] {
+		return this._launchPlan.client;
 	}
 
 	get requiresMcpLaunchConfigurationRefresh(): boolean {
@@ -7412,8 +7422,15 @@ export class CopilotAgentSession extends Disposable {
 		// Configuration refresh resumes the same SDK session in a new runtime, which RPCs addressed to this one would reach.
 		const isCurrent = () => !this._store.isDisposed && !this._retiring && this._wrapper === wrapper && wrapper.lifecycleState === 'active';
 		const revokedNames = reconciliation.revokedExtensionNames;
-		// Once the session retires or moves to a new runtime, disconnecting the old one stops the extensions it ran.
+		// A revocation the session can't finish because it retires falls to the teardown retiring it, which must then
+		// confirm the runtime stopped.
+		const leaveRevocationToTeardown = () => {
+			if (revokedNames.size > 0) {
+				this.markProjectExtensionRevocationRequiresRestart();
+			}
+		};
 		if (!isCurrent()) {
+			leaveRevocationToTeardown();
 			return;
 		}
 		let inventory: ICopilotRuntimeExtensionInventory;
@@ -7421,6 +7438,7 @@ export class CopilotAgentSession extends Disposable {
 			inventory = await this._listRuntimeExtensions(wrapper);
 		} catch (error) {
 			if (!isCurrent()) {
+				leaveRevocationToTeardown();
 				return;
 			}
 			// Without the inventory, a revoked extension may still run here.
@@ -7431,6 +7449,7 @@ export class CopilotAgentSession extends Disposable {
 			return;
 		}
 		if (!isCurrent()) {
+			leaveRevocationToTeardown();
 			return;
 		}
 		// The runtime names a project extension after its folder, as the policy recorded its revoked launch.
@@ -7439,6 +7458,7 @@ export class CopilotAgentSession extends Disposable {
 		if (revoked.length || (revokedNames.size > 0 && !inventory.complete)) {
 			const confirmed = await this._stopRevokedProjectExtensions(revoked, inventory.complete, revokedNames, wrapper, isCurrent);
 			if (!confirmed) {
+				leaveRevocationToTeardown();
 				return;
 			}
 			if (!reconciliation.expanded || !isCurrent()) {
@@ -7467,7 +7487,7 @@ export class CopilotAgentSession extends Disposable {
 	 * that none of their processes still runs in a complete inventory: a same-named extension that trust still covers
 	 * relaunches in a new process. `revokedComplete` is false when the inventory `revoked` came from had a row this host
 	 * couldn't read. Retries the reload once, then throws. Returns the confirming inventory, or `undefined` once the
-	 * session retires, as its teardown disconnects it.
+	 * session retires, as its teardown stops the runtime.
 	 */
 	private async _stopRevokedProjectExtensions(revoked: readonly ICopilotRuntimeExtension[], revokedComplete: boolean, revokedNames: ReadonlySet<string>, wrapper: CopilotSessionWrapper, isCurrent: () => boolean): Promise<ICopilotRuntimeExtensionInventory | undefined> {
 		const revokedPids = new Set(revoked.flatMap(extension => extension.pid === undefined ? [] : [extension.pid]));
