@@ -889,25 +889,6 @@ export class Repository implements Disposable {
 	private _historyProvider: GitHistoryProvider;
 	get historyProvider(): GitHistoryProvider { return this._historyProvider; }
 
-	get isHidden(): boolean { return this._sourceControl.isHidden || this._isWarm; }
-
-	/**
-	 * Whether the repository is kept open, hidden, at a known location of a workspace folder other
-	 * than its current one, so that switching to that location is instant. A warm repository does
-	 * not run git status, autofetch or refresh while it is warm: the changes it sees are applied
-	 * once it is shown.
-	 */
-	private _isWarm: boolean;
-	get isWarm(): boolean { return this._isWarm; }
-
-	/**
-	 * The root of the repository that this repository is shown under, if any. Closing that one closes this one too.
-	 */
-	get parentRoot(): string | undefined { return this._sourceControl.parentRoot; }
-
-	private _onDidChangeWarm = new EventEmitter<boolean>();
-	readonly onDidChangeWarm: Event<boolean> = this._onDidChangeWarm.event;
-
 	private didRunFirstStatus!: () => void;
 
 	/**
@@ -936,11 +917,8 @@ export class Repository implements Disposable {
 		private readonly globalState: Memento,
 		private readonly logger: LogOutputChannel,
 		private telemetryReporter: TelemetryReporter,
-		private readonly repositoryCache: RepositoryCache,
-		isWarm = false
+		private readonly repositoryCache: RepositoryCache
 	) {
-		this._isWarm = isWarm;
-		this.disposables.push(this._onDidChangeWarm);
 		this._operations = new OperationManager(this.logger);
 		this.disposables.push(this._onDidAttach);
 
@@ -968,16 +946,17 @@ export class Repository implements Disposable {
 
 		this.commitCommandCenter = new CommitCommandsCenter(globalState, this, postCommitCommandsProviderRegistry);
 		this.disposables.push(this.commitCommandCenter);
-
-		this.attach();
 	}
 
 	/**
 	 * Creates the source control, which shows the model, and the file watchers, auto fetch and configuration listeners
 	 * that keep the model current. A repository that was detached runs git status, as its model can miss changes made
 	 * while it was detached. Does nothing if the repository is attached.
+	 *
+	 * @param isFolderLocation Whether the repository is the one of a workspace folder location that a switch of the
+	 * folder shows, which is not shown under another repository.
 	 */
-	attach(): void {
+	attach(isFolderLocation = false): void {
 		if (this.sourceControlDisposables) {
 			return;
 		}
@@ -1016,7 +995,7 @@ export class Repository implements Disposable {
 		sourceControlDisposables.push(new FileEventLogger(onRepositoryWorkingTreeFileChange, onRepositoryDotGitFileChange, this.logger));
 
 		// Created after the file watchers, as before, so that their watch requests are not queued behind the source control's
-		this._sourceControl = new GitSourceControl(this, this.repositoryResolver, this.remoteSourcePublisherRegistry, this.commitCommandCenter, this.logger, { commitMessage: this.commitMessage });
+		this._sourceControl = new GitSourceControl(this, this.repositoryResolver, this.remoteSourcePublisherRegistry, this.commitCommandCenter, this.logger, { isFolderLocation, commitMessage: this.commitMessage });
 		this.commitMessage = undefined;
 		sourceControlDisposables.push(this._sourceControl);
 
@@ -3307,30 +3286,12 @@ export class Repository implements Disposable {
 	}
 
 	/**
-	 * Hides or shows the repository as a warm repository, see {@link isWarm}.
-	 */
-	setWarm(isWarm: boolean): void {
-		if (this._isWarm === isWarm) {
-			return;
-		}
-
-		this.logger.trace(`[Repository][setWarm] ${isWarm ? 'Keeping repository warm' : 'Showing repository'}: ${this.root}`);
-		this._isWarm = isWarm;
-		this._onDidChangeWarm.fire(isWarm);
-	}
-
-	/**
 	 * Resolves once the repository is attached and idle, and its window is focused.
 	 */
 	async whenIdleAndFocused(): Promise<void> {
 		while (true) {
 			if (!this.isAttached) {
 				await eventToPromise(this._onDidAttach.event);
-				continue;
-			}
-
-			if (this._isWarm) {
-				await eventToPromise(filterEvent(this.onDidChangeWarm, isWarm => !isWarm));
 				continue;
 			}
 

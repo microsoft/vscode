@@ -339,7 +339,7 @@ suite('git smoke test', function () {
 		try {
 			const parentRepository = (await git.openRepository(Uri.file(parentPath)))!;
 			const worktreeRepository = (await git.openRepository(Uri.file(worktreePath)))!;
-			const worktreeFoundParent = model.getRepository(worktreeRepository.rootUri)!.parentRoot !== undefined;
+			const worktreeFoundParent = model.getRepository(worktreeRepository.rootUri)!.sourceControl.parentRoot !== undefined;
 
 			// The worktree closes while its parent is still open. Compare URIs rather than paths, because on
 			// Windows Uri.fsPath lowercases the drive letter.
@@ -383,23 +383,23 @@ suite('git smoke test', function () {
 
 		try {
 			const apiRepository = (await git.openRepository(Uri.file(repositoryPath)))!;
-			const sourceControl = model.getRepository(repositoryPath)!.sourceControl;
+			const repository = model.getRepository(repositoryPath)!;
 			const resources = (group: { resourceStates: { resourceUri: Uri; type: number }[] }) => group.resourceStates.map(r => `${path.basename(r.resourceUri.fsPath)}:${r.type}`).sort();
 
 			// Core puts the commit template into an empty input box on its own, so the input box is read only after
 			// the extension wrote it
 			const read = (withInputBox: boolean) => ({
-				merge: resources(sourceControl.mergeGroup),
-				index: resources(sourceControl.indexGroup),
-				workingTree: resources(sourceControl.workingTreeGroup),
-				untracked: resources(sourceControl.untrackedGroup),
-				count: sourceControl.sourceControl.count,
-				commitTemplate: sourceControl.sourceControl.commitTemplate,
-				...withInputBox ? { inputBox: sourceControl.sourceControl.inputBox.value } : {},
-				isHidden: sourceControl.sourceControl.isHidden,
+				merge: resources(repository.sourceControl.mergeGroup),
+				index: resources(repository.sourceControl.indexGroup),
+				workingTree: resources(repository.sourceControl.workingTreeGroup),
+				untracked: resources(repository.sourceControl.untrackedGroup),
+				count: repository.sourceControl.sourceControl.count,
+				commitTemplate: repository.sourceControl.sourceControl.commitTemplate,
+				...withInputBox ? { inputBox: repository.sourceControl.sourceControl.inputBox.value } : {},
+				isHidden: repository.sourceControl.sourceControl.isHidden,
 				// Commit hashes depend on the time of the commits
-				statusBarCommands: sourceControl.sourceControl.statusBarCommands?.map(c => c.title.replace(/\b[0-9a-f]{8}\b/, '<commit>')),
-				actionButton: sourceControl.sourceControl.actionButton?.command.title
+				statusBarCommands: repository.sourceControl.sourceControl.statusBarCommands?.map(c => c.title.replace(/\b[0-9a-f]{8}\b/, '<commit>')),
+				actionButton: repository.sourceControl.sourceControl.actionButton?.command.title
 			});
 
 			const actual: Record<string, ReturnType<typeof read> & { inputBoxEnabled?: boolean[] }> = {};
@@ -412,8 +412,8 @@ suite('git smoke test', function () {
 			await commands.getCommands();
 			const inputBoxEnabled: boolean[] = [];
 			const operationsListener = model.getRepository(repositoryPath)!.onDidChangeOperations(() => {
-				if (inputBoxEnabled.at(-1) !== sourceControl.sourceControl.inputBox.enabled) {
-					inputBoxEnabled.push(sourceControl.sourceControl.inputBox.enabled);
+				if (inputBoxEnabled.at(-1) !== repository.sourceControl.sourceControl.inputBox.enabled) {
+					inputBoxEnabled.push(repository.sourceControl.sourceControl.inputBox.enabled);
 				}
 			});
 			await apiRepository.commit('second commit');
@@ -441,11 +441,6 @@ suite('git smoke test', function () {
 			runGit('config commit.template .git/template.txt');
 			await apiRepository.status();
 			actual.template = read(false);
-
-			model.getRepository(repositoryPath)!.setWarm(true);
-			actual.warm = read(false);
-			model.getRepository(repositoryPath)!.setWarm(false);
-			actual.shown = read(false);
 
 			const empty = { merge: [], index: [], workingTree: [], untracked: [], count: 0, commitTemplate: '', isHidden: false };
 			const onTopic = { ...empty, statusBarCommands: ['$(git-branch) topic', '$(cloud-upload)'], actionButton: '$(cloud-upload) Publish Branch' };
@@ -477,9 +472,7 @@ suite('git smoke test', function () {
 					actionButton: '$(check) Continue'
 				},
 				rebaseAborted: { ...onTopic, inputBox: '' },
-				template: { ...onTopic, commitTemplate: 'subject from template' },
-				warm: { ...onTopic, commitTemplate: 'subject from template', isHidden: true },
-				shown: { ...onTopic, commitTemplate: 'subject from template' }
+				template: { ...onTopic, commitTemplate: 'subject from template' }
 			});
 		} finally {
 			const repository = model.getRepository(repositoryPath);
@@ -541,6 +534,86 @@ suite('git smoke test', function () {
 			model.close(model.getRepository(repositoryPath)!);
 			// On Windows, the closed repository's watchers can hold the folder for a moment
 			await fs.promises.rm(repositoryPath, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
+		}
+	});
+
+	test('a repository opened detached is not in the git API until an extension opens it, and other opens leave it detached', async function () {
+		const model = getModel();
+		const repositoryPath = await fs.promises.realpath(await fs.promises.mkdtemp(path.join(os.tmpdir(), 'git-smoke-')));
+		const runGit = (command: string) => cp.execSync(`git ${command}`, { cwd: repositoryPath, stdio: 'pipe' });
+		runGit('init -b main');
+		runGit('config user.name testuser');
+		runGit('config user.email monacotools@example.com');
+		runGit('config commit.gpgsign false');
+		fs.writeFileSync(path.join(repositoryPath, 'modified.txt'), 'one\n');
+		runGit('add .');
+		runGit('commit -m "initial commit"');
+		fs.writeFileSync(path.join(repositoryPath, 'modified.txt'), 'two\n');
+
+		const opened: string[] = [];
+		const listener = git.onDidOpenRepository(r => opened.push(path.basename(r.rootUri.fsPath)));
+		try {
+			// Outside the workspace, so it opens as a repository in a parent folder would
+			const repository = (await model.openRepository(repositoryPath, false, true, true))!;
+			await repository.whenFirstStatus;
+			const state = () => ({ isAttached: repository.isAttached, inApi: git.getRepository(Uri.file(repositoryPath)) !== null });
+			const detached = { ...state(), changes: repository.workingTreeChanges.map(r => path.basename(r.resourceUri.fsPath)) };
+
+			await model.openRepository(repositoryPath);
+			const afterOtherOpen = state();
+
+			const apiRepository = await git.openRepository(Uri.file(repositoryPath));
+			const afterExtensionOpen = { ...state(), sameRepository: model.getRepository(repositoryPath) === repository, changes: apiRepository?.state.workingTreeChanges.map(c => path.basename(c.uri.fsPath)) };
+
+			assert.deepStrictEqual({ detached, afterOtherOpen, afterExtensionOpen, opened }, {
+				detached: { isAttached: false, inApi: false, changes: ['modified.txt'] },
+				afterOtherOpen: { isAttached: false, inApi: false },
+				afterExtensionOpen: { isAttached: true, inApi: true, sameRepository: true, changes: ['modified.txt'] },
+				opened: [path.basename(repositoryPath)]
+			});
+		} finally {
+			listener.dispose();
+			const repository = model.getRepository(repositoryPath);
+			if (repository) {
+				model.close(repository);
+			}
+			// On Windows, the closed repository's watchers can hold the folder for a moment
+			await fs.promises.rm(repositoryPath, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
+		}
+	});
+
+	test('a worktree attached as the repository of a workspace folder location is not shown under its main repository', async function () {
+		const model = getModel();
+		const base = await fs.promises.realpath(await fs.promises.mkdtemp(path.join(os.tmpdir(), 'git-smoke-')));
+		const parentPath = path.join(base, 'parent');
+		const worktreePath = path.join(base, 'worktree');
+		fs.mkdirSync(parentPath);
+		cp.execSync('git init -b main', { cwd: parentPath });
+		cp.execSync('git -c user.name=testuser -c user.email=monacotools@example.com commit --allow-empty -m "initial commit"', { cwd: parentPath });
+		cp.execSync(`git worktree add -b worktree "${worktreePath}"`, { cwd: parentPath });
+
+		try {
+			await git.openRepository(Uri.file(parentPath));
+			const worktreeRepository = (await git.openRepository(Uri.file(worktreePath)))!;
+			const worktree = model.getRepository(worktreeRepository.rootUri)!;
+			const parentRootWhenOpened = worktree.sourceControl.parentRoot;
+
+			// A switch of a workspace folder to the worktree attaches it this way, see `Model.applyRepositoryChanges`
+			worktree.detach();
+			worktree.attach(true);
+
+			assert.deepStrictEqual(
+				{ parentRootWhenOpened, parentRootAsFolderLocation: worktree.sourceControl.parentRoot },
+				{ parentRootWhenOpened: parentPath, parentRootAsFolderLocation: undefined });
+		} finally {
+			for (const repositoryPath of [worktreePath, parentPath]) {
+				const repository = model.getRepository(repositoryPath);
+				if (repository) {
+					model.close(repository);
+				}
+			}
+			// On Windows, the closed repositories' watchers can hold the folder for a moment
+			await fs.promises.rm(base, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
 		}
 	});
 

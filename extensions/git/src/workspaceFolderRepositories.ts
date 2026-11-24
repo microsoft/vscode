@@ -16,15 +16,15 @@ export interface IFolderLocationSwitch {
 }
 
 /**
- * A location whose repository a switch opens, hidden, until it is shown or kept warm.
+ * A location whose repository a switch opens, detached, until it is shown or kept warm.
  */
 export interface ILocationOpening {
 	readonly location: string;
 }
 
 /**
- * What to do with the repositories: show them, keep them warm (hidden, with git status paused), close them, and
- * the locations whose repository to open hidden, see {@link WorkspaceFolderRepositories.completeOpening}.
+ * What to do with the repositories: show them (attach them), keep them warm (detach them), close them, and the
+ * locations whose repository to open detached, see {@link WorkspaceFolderRepositories.completeOpening}.
  */
 export interface IRepositoryChanges<T> {
 	readonly show: T[];
@@ -38,19 +38,17 @@ interface Opening<T> extends ILocationOpening {
 }
 
 /**
- * A repository of a workspace folder location. `parentRoot` is the root of the repository it is shown under, which
- * closes it when it closes.
+ * A repository of a workspace folder location.
  */
 export interface IFolderLocationRepository {
 	readonly root: string;
-	readonly parentRoot?: string;
 }
 
 /**
  * Decides which repositories to show for workspace folders that switch between their locations, so that a folder
  * shows one repository and switches without flicker. The repository of the location that is left is kept warm and
  * shown again right away when the folder switches back. At most `warmCapacity` repositories are kept warm, the least
- * recently left one is closed first. The repository of a location that is not warm opens hidden, and is shown once
+ * recently left one is closed first. The repository of a location that is not warm opens detached, and is shown once
  * ready. Only the repositories of the switching folders are affected.
  */
 export class WorkspaceFolderRepositories<T extends IFolderLocationRepository> {
@@ -112,14 +110,14 @@ export class WorkspaceFolderRepositories<T extends IFolderLocationRepository> {
 			// The new location can be a repository nested in the one that is left, which is open while the new one is not yet
 			const left = getDeepest(repositories, from.uri.fsPath);
 			if (left && this.isShown(left) && !changes.show.includes(left) && !this.isCurrent(left, workspaceFolders, repositories, targets)) {
-				this.keepWarm(left, changes, repositories);
+				this.keepWarm(left, changes);
 			}
 		}
 		return changes;
 	}
 
 	/**
-	 * Sets the repository that `opening` opened, hidden. Returns whether it is ready to be shown: otherwise it is once
+	 * Sets the repository that `opening` opened, detached. Returns whether it is ready to be shown: otherwise it is once
 	 * its first git status ran.
 	 */
 	setOpenedRepository(opening: ILocationOpening, repository: T): boolean {
@@ -143,7 +141,7 @@ export class WorkspaceFolderRepositories<T extends IFolderLocationRepository> {
 			this.takeWarmRepository(repository);
 			changes.show.push(repository);
 		} else if (!this.isPending(repository) && !this.isOpening(repository.root)) {
-			this.keepWarm(repository, changes, repositories);
+			this.keepWarm(repository, changes);
 		}
 		return changes;
 	}
@@ -193,7 +191,7 @@ export class WorkspaceFolderRepositories<T extends IFolderLocationRepository> {
 		for (const repository of repositories) {
 			if (this.isShown(repository) && !this.isOpening(repository.root) && !changes.show.includes(repository)
 				&& isOtherFolderLocation(repository.root, switchingFolders) && !this.isCurrent(repository, workspaceFolders, repositories)) {
-				this.keepWarm(repository, changes, repositories);
+				this.keepWarm(repository, changes);
 			}
 		}
 
@@ -235,22 +233,15 @@ export class WorkspaceFolderRepositories<T extends IFolderLocationRepository> {
 	}
 
 	/**
-	 * Keeps `repository` warm, and closes the least recently left warm repositories beyond the capacity. A repository
-	 * that another open repository is shown under is not closed, as that would close the other one too.
+	 * Keeps `repository` warm, and closes the least recently left warm repositories beyond the capacity.
 	 */
-	private keepWarm(repository: T, changes: IRepositoryChanges<T>, repositories: readonly T[]): void {
+	private keepWarm(repository: T, changes: IRepositoryChanges<T>): void {
 		this.takeWarmRepository(repository);
 		this.warm.push(repository);
 		changes.warm.push(repository);
 
-		for (const candidate of [...this.warm]) {
-			if (this.warm.length <= this.warmCapacity) {
-				break;
-			}
-			if (!repositories.some(r => r !== candidate && r.parentRoot !== undefined && pathEquals(r.parentRoot, candidate.root))) {
-				this.takeWarmRepository(candidate);
-				changes.close.push(candidate);
-			}
+		while (this.warm.length > this.warmCapacity) {
+			changes.close.push(this.warm.shift()!);
 		}
 	}
 

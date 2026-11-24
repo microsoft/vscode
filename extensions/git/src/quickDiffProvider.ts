@@ -46,7 +46,7 @@ export class GitQuickDiffProvider implements QuickDiffProvider {
 		}
 
 		// Ignore path that is inside a hidden repository
-		if (this.repository.isHidden === true) {
+		if (this.repository.sourceControl.isHidden) {
 			this.logger.trace(`[Repository][provideOriginalResource] Repository is hidden: ${uri.toString()}`);
 			return undefined;
 		}
@@ -95,7 +95,7 @@ export class StagedResourceQuickDiffProvider implements QuickDiffProvider {
 		}
 
 		// Ignore path that is inside a hidden repository
-		if (this._repository.isHidden === true) {
+		if (this._repository.sourceControl.isHidden) {
 			this.logger.trace(`[StagedResourceQuickDiffProvider][provideOriginalResource] Repository is hidden: ${uri.toString()}`);
 			return undefined;
 		}

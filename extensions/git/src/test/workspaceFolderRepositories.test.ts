@@ -251,25 +251,6 @@ suite('WorkspaceFolderRepositories', () => {
 		});
 	});
 
-	test('a full warm cache does not close a repository that other open repositories are shown under', () => {
-		const model = new WorkspaceFolderRepositories<{ root: string; parentRoot?: string }>(3);
-		const repositories = [{ root: primary }, ...[wt1, wt2, wt3, nested].map(root => ({ root, parentRoot: primary }))];
-		const repository = (root: string) => repositories.find(r => r.root === root)!;
-		const at = (fsPath: string) => folder(fsPath, 0, knownLocations);
-		let changes!: IRepositoryChanges<{ root: string; parentRoot?: string }>;
-		const open = [repository(primary)];
-		let current = primary;
-		for (const to of [wt1, wt2, wt3, nested]) {
-			changes = model.switchFolderLocations([{ from: at(current), to: folder(to) }], [folder(to)], open);
-			open.push(repository(to));
-			model.setOpenedRepository(changes.open[0], repository(to));
-			model.completeOpening(changes.open[0], [folder(to)], open);
-			current = to;
-		}
-
-		assert.deepStrictEqual({ warm: changes.warm.map(r => r.root), close: changes.close.map(r => r.root) }, { warm: [wt3], close: [wt1] });
-	});
-
 	test('only the folders that show the repository of their current location only keep the repositories of their other locations warm', () => {
 		const at = folder(wt1, 0, knownLocations);
 		const repositories = [{ root: primary }, { root: wt1 }];
