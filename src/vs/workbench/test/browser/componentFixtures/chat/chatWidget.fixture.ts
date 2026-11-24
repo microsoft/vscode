@@ -45,7 +45,7 @@ import { ILinkPresentationService } from '../../../../../platform/dataChannel/co
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatProgressAnimation, ChatProgressVerbosity, CollapsedToolsDisplayMode, ThinkingDisplayMode } from '../../../../contrib/chat/common/constants.js';
+import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatProgressAnimation, ChatProgressVerbosity } from '../../../../contrib/chat/common/constants.js';
 import { PROMPT_TIMELINE_STICKY_SCROLL_SETTING } from '../../../../contrib/chat/common/promptTimeline.js';
 import { SessionType } from '../../../../contrib/chat/common/chatSessionsService.js';
 import { IChatEditingService, IChatEditingSession, IEditSessionEntryDiff } from '../../../../contrib/chat/common/editing/chatEditingService.js';
@@ -172,8 +172,6 @@ export interface IChatWidgetFixtureOptions {
 	readonly persistentProgressVerbosity?: ChatProgressVerbosity;
 	/** Product quality used to select Stable or Insiders product branding. */
 	readonly productQuality?: 'stable' | 'insider';
-	readonly thinkingStyle?: ThinkingDisplayMode;
-	readonly collapsedTools?: CollapsedToolsDisplayMode;
 	readonly collapseCompletedResponses?: boolean;
 	readonly terminalToolsInThinking?: boolean;
 	readonly simpleTerminalCollapsible?: boolean;
@@ -391,12 +389,6 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 	}
 	if (options.persistentProgressVerbosity !== undefined) {
 		configService.setUserConfiguration(ChatConfiguration.PersistentProgressVerbosity, options.persistentProgressVerbosity);
-	}
-	if (options.thinkingStyle !== undefined) {
-		configService.setUserConfiguration(ChatConfiguration.ThinkingStyle, options.thinkingStyle);
-	}
-	if (options.collapsedTools !== undefined) {
-		configService.setUserConfiguration('chat.agent.thinking.collapsedTools', options.collapsedTools);
 	}
 	if (options.collapseCompletedResponses !== undefined) {
 		configService.setUserConfiguration(ChatConfiguration.CollapseCompletedResponses, options.collapseCompletedResponses);
@@ -1304,7 +1296,6 @@ interface IPersistentProgressScenarioOptions {
 	readonly previousProgressAnimation?: ChatProgressAnimation;
 	readonly productQuality?: 'stable' | 'insider';
 	readonly reducedMotion?: boolean;
-	readonly thinkingStyle?: ThinkingDisplayMode;
 	readonly terminalToolsInThinking?: boolean;
 	readonly simpleTerminalCollapsible?: boolean;
 	readonly expandThinking?: boolean;
@@ -1317,7 +1308,7 @@ interface IPersistentProgressScenarioOptions {
 }
 
 async function renderPersistentProgressScenario(context: ComponentFixtureContext, messages: readonly IFixtureMessage[], options: IPersistentProgressScenarioOptions = {}): Promise<void> {
-	const { expectedText, progressAnimation = ChatProgressAnimation.Draw, productQuality = 'stable', reducedMotion = false, thinkingStyle = ThinkingDisplayMode.Collapsed } = options;
+	const { expectedText, progressAnimation = ChatProgressAnimation.Draw, productQuality = 'stable', reducedMotion = false } = options;
 	const reducedMotionEmitter = context.disposableStore.add(new Emitter<void>());
 	const accessibilityService = new class extends TestAccessibilityService {
 		override readonly onDidChangeReducedMotion = reducedMotionEmitter.event;
@@ -1330,7 +1321,6 @@ async function renderPersistentProgressScenario(context: ComponentFixtureContext
 		persistentProgress: options.previousProgressAnimation ?? progressAnimation,
 		persistentProgressVerbosity: options.progressVerbosity,
 		productQuality,
-		thinkingStyle,
 		// Keep layout fixtures expanded; completed-response folding has dedicated fixtures.
 		collapseCompletedResponses: false,
 		terminalToolsInThinking: options.terminalToolsInThinking,
@@ -1674,7 +1664,8 @@ async function renderPersistentProgressScenario(context: ComponentFixtureContext
 	}
 }
 
-function defineThinkingStyleScenarios(thinkingStyle: ThinkingDisplayMode, defaults: IPersistentProgressScenarioOptions = {}): ReturnType<typeof defineThemedFixtureGroup> {
+function defineProgressScenarios(defaults: IPersistentProgressScenarioOptions = {}): ReturnType<typeof defineThemedFixtureGroup> {
+	const persistent = defaults.progressAnimation !== ChatProgressAnimation.Off;
 	const scenario = (messages: readonly IFixtureMessage[], options: IPersistentProgressScenarioOptions = {}, prependThinking = true) => defineComponentFixture({
 		labels: { kind: 'animated' },
 		...persistentProgressVirtualTime(messages),
@@ -1684,12 +1675,11 @@ function defineThinkingStyleScenarios(thinkingStyle: ThinkingDisplayMode, defaul
 		})) : messages, {
 			...defaults,
 			...options,
-			thinkingStyle,
 		}),
 	});
 	return defineThemedFixtureGroup({
 		Thinking: scenario(PERSISTENT_PROGRESS_THINKING, {}, false),
-		...(thinkingStyle === ThinkingDisplayMode.Collapsed ? {
+		...(persistent ? {
 			ThinkingExpanded: scenario(PERSISTENT_PROGRESS_THINKING, { expandThinking: true }, false),
 		} : {}),
 		ThinkingAndStreamingTool: scenario(PERSISTENT_PROGRESS_THINKING_AND_TOOL, {}, false),
@@ -1707,11 +1697,11 @@ function defineThinkingStyleScenarios(thinkingStyle: ThinkingDisplayMode, defaul
 		ParallelSubagents: scenario(parallelSubagentMessages(), { expectedText: '5 subagents running' }, false),
 		CompletedSubagentNotices: scenario(parallelSubagentMessages(true), {}, false),
 		// The legacy fixed-scrolling thinking container reports a ResizeObserver loop when
-		// subagent pills expand inside it (independent of this setting), which the headless
-		// harness treats as a fixture error. The enabled variant still covers this scenario.
-		...(defaults.progressAnimation === ChatProgressAnimation.Off && thinkingStyle === ThinkingDisplayMode.FixedScrolling ? {} : {
+		// subagent pills expand inside it, which the headless harness treats as a fixture
+		// error. The enabled variant still covers this scenario.
+		...(persistent ? {
 			ExpandedReasoningWithSubagents: scenario(parallelSubagentMessages(), { expandThinking: true }, false),
-		}),
+		} : {}),
 		McpStarting: scenario(PERSISTENT_PROGRESS_MCP_STARTING, {}, false),
 		McpAutostart: scenario(PERSISTENT_PROGRESS_MCP_AUTOSTART, {}, false),
 	});
@@ -1726,10 +1716,6 @@ function defineProgressAnimationScenarios(progressAnimation: ChatProgressAnimati
 		ExpandedThinking: defineComponentFixture({
 			labels: { kind: 'animated' },
 			render: context => renderPersistentProgressScenario(context, PERSISTENT_PROGRESS_THINKING_AND_TOOL, { progressAnimation, expandThinking: true }),
-		}),
-		ResponseFooter: defineComponentFixture({
-			labels: { kind: 'animated' },
-			render: context => renderPersistentProgressScenario(context, PERSISTENT_PROGRESS_THINKING_AND_TOOL, { progressAnimation, thinkingStyle: ThinkingDisplayMode.FixedScrolling }),
 		}),
 		ReducedMotion: defineComponentFixture({
 			render: context => renderPersistentProgressScenario(context, PERSISTENT_PROGRESS_THINKING_AND_TOOL, { progressAnimation, reducedMotion: true }),
@@ -1808,7 +1794,6 @@ async function renderPersistentVerbosityComparison(context: ComponentFixtureCont
 		additionalServices: options.filePillTitle ? reg => reg.defineInstance(IFileService, context.disposableStore.add(new TestFileService())) : undefined,
 		persistentProgress: ChatProgressAnimation.Draw,
 		persistentProgressVerbosity: verbosity,
-		thinkingStyle: ThinkingDisplayMode.Collapsed,
 		collapseCompletedResponses: false,
 		messages: [{
 			user: 'Review the progress renderer and its tests',
@@ -1884,7 +1869,6 @@ async function renderPersistentProgressHandoff(context: ComponentFixtureContext,
 		inputVisible: false,
 		persistentProgress: ChatProgressAnimation.Draw,
 		persistentProgressVerbosity: ChatProgressVerbosity.Compact,
-		thinkingStyle: ThinkingDisplayMode.CollapsedPreview,
 		collapseCompletedResponses: false,
 		messages: [{
 			user: 'Keep the next response in place while progress collapses',
@@ -1990,6 +1974,7 @@ async function renderPersistentReasoningTitle(context: ComponentFixtureContext, 
 }
 
 function defineToolChainScenarios(progressAnimation = ChatProgressAnimation.Draw): ReturnType<typeof defineThemedFixtureGroup> {
+	const persistent = progressAnimation !== ChatProgressAnimation.Off;
 	const tool = (toolId: string, invocationMessage: string, complete = false): Extract<NonNullable<IFixtureMessage['assistant']>[number], { kind: 'tool' }> => ({
 		kind: 'tool', toolId, displayName: toolId, invocationMessage, complete,
 	});
@@ -2074,18 +2059,23 @@ function defineToolChainScenarios(progressAnimation = ChatProgressAnimation.Draw
 		GroupedToolDetails: scenario(tools([...before, { ...readTerminalDetails, toolId: 'read_terminal', source: ToolDataSource.Internal }])),
 		SharedItemSpacing: scenario(sharedItemSpacing, { activityRowSpacing: true, progressVerbosity: ChatProgressVerbosity.Verbose }),
 		SharedItemSpacingNarrow: scenario(sharedItemSpacing, { activityRowSpacing: true, progressVerbosity: ChatProgressVerbosity.Verbose, width: 420, height: 1000, listHeight: 780 }),
-		TerminalWithIntention: scenario(terminalSequence(), collapsibleTerminalOptions),
 		TerminalWithIntentionStandalone: scenario(terminalSequence(), { ...collapsibleTerminalOptions, terminalToolsInThinking: false }),
-		TerminalWithIntentionNarrow: scenario(terminalSequence(), { ...collapsibleTerminalOptions, width: 420, height: 1000, listHeight: 780 }),
-		TerminalWithIntentionRunning: scenario(terminalSequence(false), collapsibleTerminalOptions),
-		TerminalWithIntentionOutput: scenario(terminalSequence(true, '=== BRANCH ===\nfeature/progress\n M src/progress.ts'), { ...collapsibleTerminalOptions, expandTerminal: true }),
-		ThinkingAndTerminalChains: scenario(tools([
-			{ kind: 'thinking', text: '**Checking the local changes**\nInspect the working tree before running the checks.\n\n**Comparing the results**\nReview the changed files and verify that the patch is limited to the intended behavior.' },
-			{ kind: 'markdown', text: 'I will check the working tree and review the patch separately.' },
-			tool('read_file', 'Read the progress renderer', true),
-			{ kind: 'terminal', intention: 'Find changed files', command: 'git status --short', complete: true },
-			{ kind: 'terminal', intention: 'Review the current patch', command: 'git --no-pager diff --stat', complete: true },
-		]), { ...collapsibleTerminalOptions, expandThinking: true }),
+		// Without persistent progress, grouped terminals stay unrendered inside the collapsed
+		// fixed-scrolling thinking container, and expanding that container reports a ResizeObserver
+		// loop that the headless harness treats as a fixture error.
+		...(persistent ? {
+			TerminalWithIntention: scenario(terminalSequence(), collapsibleTerminalOptions),
+			TerminalWithIntentionNarrow: scenario(terminalSequence(), { ...collapsibleTerminalOptions, width: 420, height: 1000, listHeight: 780 }),
+			TerminalWithIntentionRunning: scenario(terminalSequence(false), collapsibleTerminalOptions),
+			TerminalWithIntentionOutput: scenario(terminalSequence(true, '=== BRANCH ===\nfeature/progress\n M src/progress.ts'), { ...collapsibleTerminalOptions, expandTerminal: true }),
+			ThinkingAndTerminalChains: scenario(tools([
+				{ kind: 'thinking', text: '**Checking the local changes**\nInspect the working tree before running the checks.\n\n**Comparing the results**\nReview the changed files and verify that the patch is limited to the intended behavior.' },
+				{ kind: 'markdown', text: 'I will check the working tree and review the patch separately.' },
+				tool('read_file', 'Read the progress renderer', true),
+				{ kind: 'terminal', intention: 'Find changed files', command: 'git status --short', complete: true },
+				{ kind: 'terminal', intention: 'Review the current patch', command: 'git --no-pager diff --stat', complete: true },
+			]), { ...collapsibleTerminalOptions, expandThinking: true }),
+		} : {}),
 		ToolChain: scenario(tools([...before, tool('apply_patch', 'Updating the progress renderer...')])),
 		CompletedToolChain: scenario(tools([...before, tool('apply_patch', 'Updated the progress renderer', true)], true)),
 		SingleToolActive: scenario(tools([{ ...singleSearchTool, complete: false }]), { progressVerbosity: ChatProgressVerbosity.Compact }),
@@ -2103,15 +2093,16 @@ function defineToolChainScenarios(progressAnimation = ChatProgressAnimation.Draw
 		InterwovenThinking: scenario(interwoven, { activityRowSpacing: true, progressVerbosity: ChatProgressVerbosity.Verbose }),
 		ExpandedReasoning: scenario(interwoven, { expandThinking: true }),
 		ReasoningThenProse: scenario(reasoningThenProse, { reasoningProseSpacing: true, activityRowSpacing: true, progressVerbosity: ChatProgressVerbosity.Verbose }),
-		...(progressAnimation === ChatProgressAnimation.Off ? {} : {
+		// Compact only applies to persistent progress, and the expanded variant would expand the legacy container.
+		...(persistent ? {
 			InterwovenThinkingCompact: scenario(interwoven, { activityRowSpacing: true, progressVerbosity: ChatProgressVerbosity.Compact, expectedCollapsedToolChains: 2 }),
 			ReasoningThenProseCompact: scenario(reasoningThenProse, { reasoningProseSpacing: true, activityRowSpacing: true, progressVerbosity: ChatProgressVerbosity.Compact, expectedCollapsedToolChains: 1 }),
-		}),
-		ReasoningThenProseExpanded: scenario(tools([
-			{ kind: 'thinking', text: '**Checking the search scope**\nConfirm the query and search the current working tree.' },
-			{ kind: 'markdown', text: 'Re-running the search against the current working tree.' },
-			tool('search_workspace', 'Search for `progress|thinking|working`'),
-		]), { expandThinking: true, reasoningProseSpacing: true }),
+			ReasoningThenProseExpanded: scenario(tools([
+				{ kind: 'thinking', text: '**Checking the search scope**\nConfirm the query and search the current working tree.' },
+				{ kind: 'markdown', text: 'Re-running the search against the current working tree.' },
+				tool('search_workspace', 'Search for `progress|thinking|working`'),
+			]), { expandThinking: true, reasoningProseSpacing: true }),
+		} : {}),
 		MixedQuestions: scenario(tools([
 			...mixedPrefix,
 			tool('vscode_askQuestions', 'Choose the verification scope'),
@@ -2204,7 +2195,6 @@ async function renderToolIconExamples(context: ComponentFixtureContext, grouped:
 	await renderChatWidget(context, {
 		persistentProgress: ChatProgressAnimation.Draw,
 		persistentProgressVerbosity: ChatProgressVerbosity.Compact,
-		collapsedTools: grouped ? CollapsedToolsDisplayMode.Always : CollapsedToolsDisplayMode.Off,
 		collapseCompletedResponses: false,
 		terminalToolsInThinking: true,
 		simpleTerminalCollapsible: true,
@@ -2365,7 +2355,6 @@ function defineCompletedProgressScenarios(): ReturnType<typeof defineThemedFixtu
 			await renderChatWidget(context, {
 				persistentProgress: progress,
 				collapseCompletedResponses: collapse,
-				thinkingStyle: ThinkingDisplayMode.CollapsedPreview,
 				terminalToolsInThinking: true,
 				simpleTerminalCollapsible: true,
 				agentHostSession: true,
@@ -2821,6 +2810,8 @@ async function renderDisabledPetResizeObserverProbe(context: ComponentFixtureCon
 async function renderPendingDivider(context: ComponentFixtureContext, kind: ChatRequestQueueKind, isSystemInitiated = false, scheduledWidth?: number): Promise<void> {
 	await renderChatWidget(context, {
 		width: scheduledWidth,
+		// The earlier response is still thinking, so pin its working label to keep the screenshot stable.
+		thinkingPhrases: ['Working'],
 		messages: [{
 			user: 'Review the current changes',
 			assistant: [{ kind: 'thinking', text: 'Reviewing the workspace changes.' }],
@@ -2969,21 +2960,9 @@ export default defineThemedFixtureGroup({ path: 'chat/widget/' }, {
 			DrawMonochrome: defineProgressAnimationScenarios(ChatProgressAnimation.DrawMonochrome),
 			DrawMonochromeNoIcon: defineProgressAnimationScenarios(ChatProgressAnimation.DrawMonochromeNoIcon),
 		}),
-		ByThinkingStyle: defineThemedFixtureGroup({
-			Collapsed: defineThinkingStyleScenarios(ThinkingDisplayMode.Collapsed),
-			CollapsedPreview: defineThinkingStyleScenarios(ThinkingDisplayMode.CollapsedPreview),
-			FixedScrolling: defineThinkingStyleScenarios(ThinkingDisplayMode.FixedScrolling),
-		}),
-		OffByThinkingStyle: defineThemedFixtureGroup({
-			Collapsed: defineThinkingStyleScenarios(ThinkingDisplayMode.Collapsed, { progressAnimation: ChatProgressAnimation.Off }),
-			CollapsedPreview: defineThinkingStyleScenarios(ThinkingDisplayMode.CollapsedPreview, { progressAnimation: ChatProgressAnimation.Off }),
-			FixedScrolling: defineThinkingStyleScenarios(ThinkingDisplayMode.FixedScrolling, { progressAnimation: ChatProgressAnimation.Off }),
-		}),
-		OffAfterEnabled: defineThemedFixtureGroup({
-			Collapsed: defineThinkingStyleScenarios(ThinkingDisplayMode.Collapsed, { progressAnimation: ChatProgressAnimation.Off, previousProgressAnimation: ChatProgressAnimation.Draw }),
-			CollapsedPreview: defineThinkingStyleScenarios(ThinkingDisplayMode.CollapsedPreview, { progressAnimation: ChatProgressAnimation.Off, previousProgressAnimation: ChatProgressAnimation.Draw }),
-			FixedScrolling: defineThinkingStyleScenarios(ThinkingDisplayMode.FixedScrolling, { progressAnimation: ChatProgressAnimation.Off, previousProgressAnimation: ChatProgressAnimation.Draw }),
-		}),
+		Scenarios: defineProgressScenarios(),
+		OffScenarios: defineProgressScenarios({ progressAnimation: ChatProgressAnimation.Off }),
+		OffAfterEnabled: defineProgressScenarios({ progressAnimation: ChatProgressAnimation.Off, previousProgressAnimation: ChatProgressAnimation.Draw }),
 		ResponseStreaming: defineComponentFixture({
 			labels: { kind: 'animated' },
 			render: context => renderPersistentProgressScenario(context, PERSISTENT_PROGRESS_RESPONSE),
@@ -3054,7 +3033,6 @@ export default defineThemedFixtureGroup({ path: 'chat/widget/' }, {
 				messages: PERSISTENT_PROGRESS_THINKING_AND_TOOL,
 				persistentProgress: ChatProgressAnimation.Off,
 				productQuality: 'stable',
-				thinkingStyle: ThinkingDisplayMode.Collapsed,
 				height: 560,
 				listHeight: 340,
 			}),
@@ -3075,14 +3053,6 @@ export default defineThemedFixtureGroup({ path: 'chat/widget/' }, {
 			labels: { kind: 'animated' },
 			virtualTime: { enabled: false },
 			render: context => renderPersistentProgressScenario(context, PERSISTENT_PROGRESS_THINKING, { activityUpdates: true }),
-		}),
-		FixedScrollingThinking: defineComponentFixture({
-			labels: { kind: 'animated' },
-			render: context => renderPersistentProgressScenario(context, PERSISTENT_PROGRESS_THINKING_AND_TOOL, { thinkingStyle: ThinkingDisplayMode.FixedScrolling }),
-		}),
-		PreviewThinking: defineComponentFixture({
-			labels: { kind: 'animated' },
-			render: context => renderPersistentProgressScenario(context, PERSISTENT_PROGRESS_THINKING_AND_TOOL, { thinkingStyle: ThinkingDisplayMode.CollapsedPreview }),
 		}),
 		CollapsedThinkingReducedMotion: defineComponentFixture({
 			render: context => renderPersistentProgressScenario(context, PERSISTENT_PROGRESS_THINKING_AND_TOOL, { reducedMotion: true }),

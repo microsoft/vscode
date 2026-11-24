@@ -123,7 +123,6 @@ export enum ChatConfiguration {
 	HtmlPreviewEnabled = 'chat.htmlPreview.enabled',
 	NativeComponentsEnabled = 'chat.nativeComponents.enabled',
 	CheckpointsEnabled = 'chat.checkpoints.enabled',
-	ThinkingStyle = 'chat.agent.thinkingStyle',
 	ThinkingGenerateTitles = 'chat.agent.thinking.generateTitles',
 	TerminalToolsInThinking = 'chat.agent.thinking.terminalTools',
 	TerminalAgentHostEnabled = 'chat.terminal.agentHost.enabled',
@@ -460,12 +459,6 @@ export enum ChatResponseStatsTokens {
 	Speed = 'speed',
 	/** The output tokens of the response so far. */
 	Count = 'count',
-}
-
-export enum CollapsedToolsDisplayMode {
-	Off = 'off',
-	WithThinking = 'withThinking',
-	Always = 'always',
 }
 
 export enum ChatNotificationMode {

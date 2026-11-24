@@ -33,7 +33,7 @@ import { IChatWidgetService } from '../../../../contrib/chat/browser/chat.js';
 import { AcceptToolConfirmationActionId, registerChatToolActions, SkipToolConfirmationActionId } from '../../../../contrib/chat/browser/actions/chatToolActions.js';
 import { getSubagentEditorResource, OpenSubagentChatActionViewItem } from '../../../../contrib/chat/browser/widget/chatContentParts/chatSubagentOpenChat.js';
 import { IChatProgress, IChatSubagentToolInvocationData, IChatToolInvocation } from '../../../../contrib/chat/common/chatService/chatService.js';
-import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, ChatAgentLocation, ChatConfiguration, ChatProgressAnimation, ChatProgressVerbosity, CollapsedToolsDisplayMode, ThinkingDisplayMode } from '../../../../contrib/chat/common/constants.js';
+import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, ChatAgentLocation, ChatConfiguration, ChatProgressAnimation, ChatProgressVerbosity } from '../../../../contrib/chat/common/constants.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../../contrib/chat/common/languageModels.js';
 import { ChatModel, ChatRequestModel } from '../../../../contrib/chat/common/model/chatModel.js';
 import { ChatViewModel } from '../../../../contrib/chat/common/model/chatViewModel.js';
@@ -219,8 +219,6 @@ async function renderLifecycle(context: ComponentFixtureContext, name: string, s
 	const children = new ResourceMap<Child>();
 	let inspectedChild: Child | undefined;
 	const config = instantiationService.get(IConfigurationService) as TestConfigurationService;
-	config.setUserConfiguration(ChatConfiguration.ThinkingStyle, ThinkingDisplayMode.Collapsed);
-	config.setUserConfiguration('chat.agent.thinking.collapsedTools', CollapsedToolsDisplayMode.Always);
 	config.setUserConfiguration(ChatConfiguration.ThinkingGenerateTitles, false);
 	config.setUserConfiguration(ChatConfiguration.ThinkingPhrases, { mode: 'replace', phrases: ['Working'] });
 	config.setUserConfiguration(ChatConfiguration.CollapseCompletedResponses, true);

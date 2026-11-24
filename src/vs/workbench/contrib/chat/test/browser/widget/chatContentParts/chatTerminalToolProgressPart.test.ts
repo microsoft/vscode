@@ -1532,7 +1532,6 @@ suite('ChatTerminalToolProgressPart Auto-Expand Logic', () => {
 			const telemetryService = new TestTelemetryService();
 			const instantiationService = workbenchInstantiationService(undefined, store);
 			instantiationService.stub(ITelemetryService, telemetryService);
-			const thinkingStyle = instantiationService.get(IConfigurationService).getValue<string>(ChatConfiguration.ThinkingStyle) ?? 'unknown';
 			const part = store.add(instantiationService.createInstance(
 				ChatTerminalThinkingCollapsibleWrapper,
 				'echo test',
@@ -1557,10 +1556,10 @@ suite('ChatTerminalToolProgressPart Auto-Expand Logic', () => {
 			button.click();
 
 			assert.deepStrictEqual(telemetryService.events, [
-				{ name: 'chat.collapsibleToggle', data: { kind: 'terminal', previousExpanded: true, thinkingStyle, inThinking: true } },
-				{ name: 'terminal/chatThinkingBlockToggle', data: { previousExpanded: true, inThinking: true, thinkingStyle } },
-				{ name: 'chat.collapsibleToggle', data: { kind: 'terminal', previousExpanded: false, thinkingStyle, inThinking: true } },
-				{ name: 'terminal/chatThinkingBlockToggle', data: { previousExpanded: false, inThinking: true, thinkingStyle } },
+				{ name: 'chat.collapsibleToggle', data: { kind: 'terminal', previousExpanded: true, inThinking: true } },
+				{ name: 'terminal/chatThinkingBlockToggle', data: { previousExpanded: true, inThinking: true } },
+				{ name: 'chat.collapsibleToggle', data: { kind: 'terminal', previousExpanded: false, inThinking: true } },
+				{ name: 'terminal/chatThinkingBlockToggle', data: { previousExpanded: false, inThinking: true } },
 			]);
 		});
 	});

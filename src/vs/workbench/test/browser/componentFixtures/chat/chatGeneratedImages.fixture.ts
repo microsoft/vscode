@@ -20,7 +20,7 @@ import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../platform/actio
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
-import { ChatProgressAnimation, CollapsedToolsDisplayMode, ThinkingDisplayMode } from '../../../../contrib/chat/common/constants.js';
+import { ChatProgressAnimation } from '../../../../contrib/chat/common/constants.js';
 import { ChatRequestModel } from '../../../../contrib/chat/common/model/chatModel.js';
 import { ChatToolInvocation } from '../../../../contrib/chat/common/model/chatProgressTypes/chatToolInvocation.js';
 import { ChatRequestTextPart } from '../../../../contrib/chat/common/requestParser/chatParserTypes.js';
@@ -97,8 +97,6 @@ async function renderGeneratedImage(context: ComponentFixtureContext, options: {
 		height,
 		listHeight: height,
 		inputVisible: false,
-		thinkingStyle: ThinkingDisplayMode.Collapsed,
-		collapsedTools: CollapsedToolsDisplayMode.Always,
 		persistentProgress: options.progress ?? ChatProgressAnimation.Off,
 		collapseCompletedResponses: true,
 		menuItems: MenuRegistry.getMenuItems(MenuId.ChatToolOutputResourceToolbar).filter(isIMenuItem).map(item => ({ menuId: MenuId.ChatToolOutputResourceToolbar, item })),
@@ -160,8 +158,6 @@ async function renderSeparateImageBatches(context: ComponentFixtureContext, last
 	};
 	await renderChatWidget(context, {
 		width: 760, height: 1400, listHeight: 1400, inputVisible: false,
-		thinkingStyle: ThinkingDisplayMode.Collapsed,
-		collapsedTools: CollapsedToolsDisplayMode.Always,
 		persistentProgress: ChatProgressAnimation.Off,
 		additionalServices: registration => registration.defineInstance(IAccessibilityService, new FixtureMotionAccessibilityService(context.container, context.disposableStore)),
 		messages: [{
@@ -248,8 +244,6 @@ async function renderBatchGrid(context: ComponentFixtureContext, firstVariant = 
 		height: 1100,
 		listHeight: 1100,
 		inputVisible: false,
-		thinkingStyle: ThinkingDisplayMode.Collapsed,
-		collapsedTools: CollapsedToolsDisplayMode.Always,
 		persistentProgress: ChatProgressAnimation.Off,
 		collapseCompletedResponses: true,
 		menuItems: MenuRegistry.getMenuItems(MenuId.ChatToolOutputResourceToolbar).filter(isIMenuItem).map(item => ({ menuId: MenuId.ChatToolOutputResourceToolbar, item })),
