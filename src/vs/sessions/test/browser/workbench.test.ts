@@ -5033,13 +5033,13 @@ suite('Sessions - Workbench', () => {
 
 	test('a desktop custom view starts with the panel closed and does not change the session panel preference', () => {
 		const host = createHost({ single: true, partVisibility: { panel: true, sessions: true } });
-		const descriptor = { allowPanel: true };
+		const descriptor = { id: 'view' };
 
 		applyCustomViewGridVisibility.call(host, descriptor);
 		const initialPanelVisible = isVisible.call(host, Parts.PANEL_PART);
 		setPanelHidden.call(host, false);
 		const explicitlyOpened = isVisible.call(host, Parts.PANEL_PART);
-		applyCustomViewGridVisibility.call(host, { id: 'other', allowPanel: true });
+		applyCustomViewGridVisibility.call(host, { id: 'other' });
 		const otherViewPanelVisible = isVisible.call(host, Parts.PANEL_PART);
 		applyCustomViewGridVisibility.call(host, undefined);
 
@@ -5058,6 +5058,15 @@ suite('Sessions - Workbench', () => {
 		});
 	});
 
+	test('a phone custom view keeps the panel closed even when the panel command runs', () => {
+		const host = createHost({ single: true, partVisibility: { panel: true, sessions: true } });
+
+		applyCustomViewGridVisibility.call(host, { id: 'view' }, true);
+		setPanelHidden.call(host, false);
+
+		assert.strictEqual(isVisible.call(host, Parts.PANEL_PART), false);
+	});
+
 	test('startup does not open the remembered session panel over a restored custom view', () => {
 		const host = createHost({
 			single: true,
@@ -5068,7 +5077,7 @@ suite('Sessions - Workbench', () => {
 		Object.assign(host.paneCompositeService, {
 			openPaneComposite: (_id: string, location: ViewContainerLocation) => { opened.push(location); },
 		});
-		applyCustomViewGridVisibility.call(host, { allowPanel: true });
+		applyCustomViewGridVisibility.call(host, { id: 'view' });
 		const restoreParts = Reflect.get(Workbench.prototype, 'restoreParts') as (this: ITestWorkbench) => void;
 		restoreParts.call(host);
 
@@ -5083,7 +5092,7 @@ suite('Sessions - Workbench', () => {
 			host.getMaximumEditorDimensions(host.mainContainer);
 		};
 
-		applyCustomViewGridVisibility.call(host, { allowPanel: true });
+		applyCustomViewGridVisibility.call(host, { id: 'view' });
 
 		assert.deepStrictEqual({
 			overrideDuringMove: !!overrideDuringMove,
@@ -5096,7 +5105,7 @@ suite('Sessions - Workbench', () => {
 
 	test('responsive panel availability changes preserve focus outside the panel', () => {
 		const host = createHost({ single: true, focusedPart: Parts.EDITOR_PART, partVisibility: { panel: true, sessions: true } });
-		const descriptor = { allowPanel: true };
+		const descriptor = { id: 'view' };
 		applyCustomViewGridVisibility.call(host, descriptor, false);
 		host.focusedParts.splice(0);
 
@@ -5109,7 +5118,7 @@ suite('Sessions - Workbench', () => {
 		const host = createHost({ single: true, focusedPart: Parts.PANEL_PART, partVisibility: { panel: true, sessions: true } });
 		host.paneCompositeService.getActivePaneComposite = () => ({});
 		host.paneCompositeService.hideActivePaneComposite = () => { };
-		applyCustomViewGridVisibility.call(host, { allowPanel: true });
+		applyCustomViewGridVisibility.call(host, { id: 'view' });
 		setPanelHidden.call(host, false);
 
 		setPanelHidden.call(host, true);

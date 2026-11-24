@@ -1363,17 +1363,15 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 		this.registerLayoutListeners();
 
 		// A custom view replaces the sessions grid (and the editor and side panel)
-		// for as long as it is shown. Individual views may retain the desktop panel.
+		// for as long as it is shown. On the desktop layout it keeps the panel.
 		const contextKeyService = accessor.get(IContextKeyService);
 		this._customViewVisibleKey = CustomViewVisibleContext.bindTo(contextKeyService);
 		this._customViewAllowsPanelKey = CustomViewAllowsPanelContext.bindTo(contextKeyService);
 		this.sessionActivityBarSizeKey = SessionActivityBarSizeContext.bindTo(accessor.get(IContextKeyService));
+		// Derived so that viewport changes that keep the phone state do not reapply the custom view and move focus.
+		const isPhoneLayout = derived(reader => this.layoutPolicy.viewportClass.read(reader) === 'phone');
 		this._register(autorun(reader => {
-			const descriptor = this.customViewService.activeCustomViewOpen.read(reader)?.descriptor;
-			this._applyCustomViewGridVisibility(
-				descriptor,
-				descriptor?.allowPanel === true && this.layoutPolicy.viewportClass.read(reader) === 'phone',
-			);
+			this._applyCustomViewGridVisibility(this.customViewService.activeCustomViewOpen.read(reader)?.descriptor, isPhoneLayout.read(reader));
 		}));
 
 		// Editor opens should only affect the main editor part when
@@ -2922,7 +2920,7 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 	 */
 	private _applyCustomViewGridVisibility(descriptor: ICustomViewDescriptor | undefined, isPhoneLayout = this.layoutPolicy.viewportClass.get() === 'phone'): void {
 		const visible = !!descriptor;
-		const allowsPanel = descriptor?.allowPanel === true && this.agentWorkbenchLayout === AgentWorkbenchLayout.Desktop && !isPhoneLayout;
+		const allowsPanel = visible && this.agentWorkbenchLayout === AgentWorkbenchLayout.Desktop && !isPhoneLayout;
 		const wasCustomViewVisible = this.partVisibility.customViewGrid;
 		const customViewAllowedPanel = this._customViewAllowsPanel;
 		const customViewVisibilityChanged = visible !== wasCustomViewVisible;

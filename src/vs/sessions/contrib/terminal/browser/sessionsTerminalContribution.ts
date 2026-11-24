@@ -122,6 +122,8 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 	private readonly _trackedTerminalScopes = new Map<number, ITrackedTerminalScope>();
 	private readonly _customViewTerminalOwners = new Map<number, string>();
 	private readonly _customViewActiveTerminalIds = new Map<string, number>();
+	/** Panel terminals of the covered session, moved to the background while custom views are shown. */
+	private readonly _terminalsHiddenForCustomView = new Set<number>();
 	private readonly _sessionTerminalLaunchConfigs = new WeakSet<ITerminalInstance['shellLaunchConfig']>();
 	private _activeCustomViewId: string | undefined;
 	private _customViewTerminalGeneration = 0;
@@ -178,7 +180,7 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		}
 
 		this._defaultProfileOverride = derived(reader => {
-			if (this._customViewService.activeCustomView.read(reader)?.allowPanel) {
+			if (this._customViewService.activeCustomView.read(reader)) {
 				return;
 			}
 			const session = this._mainWindowHost.session.read(reader);
@@ -209,8 +211,8 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		// This is a little hacky but I don't see any better approach.
 		this._register(autorun(reader => {
 			const customView = this._customViewService.activeCustomView.read(reader);
-			this._switchCustomViewTerminals(customView?.allowPanel ? customView.id : undefined);
-			if (customView?.allowPanel) {
+			this._switchCustomViewTerminals(customView?.id);
+			if (customView) {
 				this._terminalService.setPanelDefaultCwd(userHome);
 				this._agentHostTerminalService.setDefaultCwd(undefined);
 				return;
@@ -229,7 +231,7 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 
 		// React to active session changes — use worktree/repo for background sessions, home dir otherwise
 		this._register(autorun(reader => {
-			if (this._customViewService.activeCustomView.read(reader)?.allowPanel) {
+			if (this._customViewService.activeCustomView.read(reader)) {
 				const session = this._mainWindowHost.session.read(reader);
 				if (session) {
 					this._invalidateTerminalOperations(session.sessionId);
@@ -333,6 +335,7 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 				this._customViewActiveTerminalIds.delete(customViewId);
 			}
 			this._customViewTerminalOwners.delete(instance.instanceId);
+			this._terminalsHiddenForCustomView.delete(instance.instanceId);
 			this._chatWindowTerminalIds.delete(instance.instanceId);
 		}));
 
@@ -423,6 +426,11 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		}));
 	}
 
+	/** While a custom view replaces the session content, the panel's terminals belong to that view, not to the hidden session. */
+	private _isCustomViewActive(): boolean {
+		return !!this._customViewService.activeCustomView.get();
+	}
+
 	private _switchCustomViewTerminals(customViewId: string | undefined): void {
 		if (customViewId === this._activeCustomViewId) {
 			return;
@@ -433,11 +441,28 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		}
 		this._activeCustomViewId = customViewId;
 		const generation = ++this._customViewTerminalGeneration;
-		for (const instance of this._terminalService.foregroundInstances) {
-			if (instance.target !== TerminalLocation.Panel || instance.shellLaunchConfig.hideFromUser || this._chatWindowTerminalIds.has(instance.instanceId)) {
-				continue;
+		const isPanelTerminal = (instance: ITerminalInstance) => instance.target === TerminalLocation.Panel && !instance.shellLaunchConfig.hideFromUser && !this._chatWindowTerminalIds.has(instance.instanceId);
+		if (!customViewId) {
+			// The covered session's panel is visible again by now. Return its terminals before hiding the custom view's,
+			// so the panel never runs out of terminals, which would close it (`terminal.integrated.hideOnLastClosed`)
+			// and overwrite the session's panel visibility.
+			for (const instanceId of this._terminalsHiddenForCustomView) {
+				const instance = this._terminalService.getInstanceFromId(instanceId);
+				if (instance && !instance.isDisposed) {
+					void this._terminalService.showBackgroundTerminal(instance, true);
+				}
 			}
-			if (customViewId ? this._customViewTerminalOwners.get(instance.instanceId) !== customViewId : this._customViewTerminalOwners.has(instance.instanceId)) {
+			this._terminalsHiddenForCustomView.clear();
+		}
+		const toHide = this._terminalService.foregroundInstances.filter(instance => isPanelTerminal(instance) && (customViewId
+			? this._customViewTerminalOwners.get(instance.instanceId) !== customViewId
+			: this._customViewTerminalOwners.has(instance.instanceId)));
+		// Without other terminals to show, the session's terminal reconciliation hides the custom view's terminals once it has shown or created the session's.
+		if (customViewId || this._terminalService.foregroundInstances.some(instance => isPanelTerminal(instance) && !toHide.includes(instance))) {
+			for (const instance of toHide) {
+				if (customViewId && !this._customViewTerminalOwners.has(instance.instanceId)) {
+					this._terminalsHiddenForCustomView.add(instance.instanceId);
+				}
 				this._terminalService.moveToBackground(instance);
 			}
 		}
@@ -517,7 +542,7 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 	 * the terminal of a task that opened the view.
 	 */
 	private async _onTerminalViewShown(): Promise<ISession | undefined> {
-		if (this._customViewService.activeCustomView.get()?.allowPanel) {
+		if (this._isCustomViewActive()) {
 			return undefined;
 		}
 		const session = this._mainWindowHost.session.get();
@@ -554,7 +579,7 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 	 * active session's terminal, then shows the session's terminals.
 	 */
 	private _adoptTerminalViewTerminal(instance: ITerminalInstance): void {
-		if (this._customViewService.activeCustomView.get()?.allowPanel || this._customViewTerminalOwners.has(instance.instanceId)) {
+		if (this._isCustomViewActive() || this._customViewTerminalOwners.has(instance.instanceId)) {
 			return;
 		}
 		const session = this._mainWindowHost.session.get();
@@ -760,11 +785,11 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 			if (info?.cwd && !info.agentHostCwd && info.cwd.scheme === Schemas.file && !(await this._fileService.exists(info.cwd))) {
 				return;
 			}
-			if (this._isTerminalOperationCancelled(session, generation) || this._customViewService.activeCustomView.get()?.allowPanel) {
+			if (this._isTerminalOperationCancelled(session, generation) || this._isCustomViewActive()) {
 				return;
 			}
 			const targetPath = info?.cwd ?? await this._pathService.userHome();
-			if (this._isTerminalOperationCancelled(session, generation) || this._customViewService.activeCustomView.get()?.allowPanel) {
+			if (this._isTerminalOperationCancelled(session, generation) || this._isCustomViewActive()) {
 				return;
 			}
 			const targetKey = targetPath.fsPath.toLowerCase();
@@ -1030,7 +1055,7 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		const trackedTerminalIds = new Set(this._getTrackedTerminalsForSession(activeSession.sessionId).map(instance => instance.instanceId));
 
 		for (const instance of [...this._terminalService.instances]) {
-			if (this._isTerminalOperationCancelled(activeSession, generation) || this._customViewService.activeCustomView.get()?.allowPanel) {
+			if (this._isTerminalOperationCancelled(activeSession, generation) || this._isCustomViewActive()) {
 				return;
 			}
 			// Skip hidden tool terminals — managed by the chat tool lifecycle
@@ -1044,7 +1069,7 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 
 			const isForeground = this._terminalService.foregroundInstances.includes(currentInstance);
 			const matchesActiveScope = await this._terminalMatchesScope(currentInstance, activeKey, activeAgentHostAddress);
-			if (this._isTerminalOperationCancelled(activeSession, generation) || this._customViewService.activeCustomView.get()?.allowPanel) {
+			if (this._isTerminalOperationCancelled(activeSession, generation) || this._isCustomViewActive()) {
 				return;
 			}
 			const isForceVisible = forceForegroundTerminalIds.includes(currentInstance.instanceId) && matchesActiveScope;
@@ -1060,7 +1085,7 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		}
 
 		for (const instance of toShow) {
-			if (this._isTerminalOperationCancelled(activeSession, generation) || this._customViewService.activeCustomView.get()?.allowPanel) {
+			if (this._isTerminalOperationCancelled(activeSession, generation) || this._isCustomViewActive()) {
 				return;
 			}
 			const availableInstance = this._getAvailableTerminal(instance, 'show background terminal');
@@ -1069,7 +1094,7 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 			}
 		}
 		for (const instance of toHide) {
-			if (this._isTerminalOperationCancelled(activeSession, generation) || this._customViewService.activeCustomView.get()?.allowPanel) {
+			if (this._isTerminalOperationCancelled(activeSession, generation) || this._isCustomViewActive()) {
 				return;
 			}
 			const availableInstance = this._getAvailableTerminal(instance, 'move terminal to background');
@@ -1096,7 +1121,7 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 			if (!await this._terminalMatchesScope(instance, activeKey, activeAgentHostAddress)) {
 				continue;
 			}
-			if (this._isTerminalOperationCancelled(activeSession, generation) || this._customViewService.activeCustomView.get()?.allowPanel) {
+			if (this._isTerminalOperationCancelled(activeSession, generation) || this._isCustomViewActive()) {
 				return;
 			}
 			const cmdDetection = instance.capabilities.get(TerminalCapability.CommandDetection);
@@ -1326,7 +1351,7 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 	}
 }
 
-registerWorkbenchContribution2(SessionsTerminalContribution.ID, SessionsTerminalContribution, WorkbenchPhase.BlockRestore);
+registerWorkbenchContribution2(SessionsTerminalContribution.ID, SessionsTerminalContribution, WorkbenchPhase.AfterRestored);
 
 /** The terminals of chat windows, showing the terminals of the sessions that {@link SessionsTerminalContribution} tracks. */
 class SessionsChatWindowTerminals extends ChatWindowTerminals {

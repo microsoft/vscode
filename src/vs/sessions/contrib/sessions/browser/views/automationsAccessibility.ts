@@ -11,6 +11,7 @@ import { AccessibleContentProvider, AccessibleViewProviderId, AccessibleViewType
 import { AccessibleViewRegistry, IAccessibleViewImplementation } from '../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { getAutomationAfterDate } from '../../../../../platform/agentHost/common/automationDisableConditions.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IMissionControlEnvironmentService } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { IRemoteAgentHostService, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -25,9 +26,7 @@ import { IAgentPluginService } from '../../../../../workbench/contrib/chat/commo
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
-import { AutomationsCustomViewFocusContext } from '../../../../common/agentsWindowContextKeys.js';
-import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
-import { AgentWorkbenchLayout } from '../../../../../workbench/services/sessions/browser/sessionsHostLayoutService.js';
+import { AutomationsCustomViewFocusContext, CustomViewAllowsPanelContext } from '../../../../common/agentsWindowContextKeys.js';
 import { SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING, SESSIONS_SEND_LATER_ENABLED_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
@@ -42,7 +41,7 @@ class AutomationsCustomViewAccessibilityHelp implements IAccessibleViewImplement
 	readonly when = AutomationsCustomViewFocusContext;
 
 	getProvider(accessor: ServicesAccessor): AccessibleContentProvider {
-		const layoutService = accessor.get(IAgentWorkbenchLayoutService);
+		const layoutService = accessor.get(IWorkbenchLayoutService);
 		const automationService = accessor.get(IAutomationService);
 		const agentPluginService = accessor.get(IAgentPluginService);
 		const configurationService = accessor.get(IConfigurationService);
@@ -55,7 +54,7 @@ class AutomationsCustomViewAccessibilityHelp implements IAccessibleViewImplement
 		);
 		const builtInTemplatesVisible = hasEmptyAutomationSection(automations) && templates.some(template => !template.source);
 		const pluginTemplatesVisible = templates.some(template => !!template.source);
-		const panelAvailable = layoutService.agentWorkbenchLayout === AgentWorkbenchLayout.Desktop && layoutService.viewportClass.get() !== 'phone';
+		const panelAvailable = accessor.get(IContextKeyService).getContextKeyValue<boolean>(CustomViewAllowsPanelContext.key) === true;
 		const content = [
 			localize('automationsCustomView.help.overview', "You are in the Automations view. It contains available automation cards followed by run history. Loading, unavailable, and error messages indicate that the catalogue may be incomplete."),
 			...(panelAvailable ? [
