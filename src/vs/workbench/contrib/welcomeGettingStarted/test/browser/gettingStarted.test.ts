@@ -5,12 +5,14 @@
 
 import assert from 'assert';
 import { $, append } from '../../../../../base/browser/dom.js';
+import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { Toggle } from '../../../../../base/browser/ui/toggle/toggle.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Color } from '../../../../../base/common/color.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
+import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { defaultToggleStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { TestThemeService } from '../../../../../platform/theme/test/common/testThemeService.js';
@@ -19,6 +21,55 @@ import '../../../../browser/media/floatingPanels.css';
 import '../../../modernUI/browser/media/editorBorder.css';
 import '../../browser/media/gettingStarted.css';
 import { GettingStartedFocusOutline, updateGettingStartedFocusOutlineRadius } from '../../browser/gettingStartedFocusOutline.js';
+
+suite('Getting started walkthrough layout', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const width of [700, 1160]) {
+		test(`steps remain visible and scrollable with enlarged text at ${width}px`, () => {
+			const workbench = append(mainWindow.document.body, $('.monaco-workbench'));
+			store.add(toDisposable(() => workbench.remove()));
+			const editor = append(workbench, $('.part.editor'));
+			editor.style.position = 'relative';
+			const content = append(editor, $('.content'));
+			content.style.cssText = `width: ${width}px; height: 300px;`;
+			const container = append(content, $('.gettingStartedContainer.height-constrained'));
+			container.classList.toggle('width-semi-constrained', width <= 950);
+			container.style.fontSize = '26px';
+			const slide = append(container, $('.gettingStartedSlideDetails.gettingStartedSlide'));
+
+			const description = 'Install the required tools and learn how to navigate, customize, build, and debug your first application with this walkthrough.';
+			const title = $('h2.category-title.max-lines-3', {}, 'Get started with this development environment');
+			title.style.fontSize = '52px';
+			const category = $('.getting-started-category', {},
+				$('.category-description-container', {}, title, $('.category-description.description.max-lines-3', {}, description)));
+			const firstStep = $('button.getting-started-step', {}, $('h3.step-title', {}, 'Install development tools'));
+			const lastStep = $('button.getting-started-step', {}, $('h3.step-title', {}, 'Finish setup'));
+			const steps = $('.getting-started-detail-container', {},
+				$('.step-list-container', {}, firstStep,
+					...Array.from({ length: 6 }, () => $('button.getting-started-step', {}, 'Set up the environment')),
+					lastStep));
+			const stepScrollbar = store.add(new DomScrollableElement(steps, { className: 'steps-container' }));
+			const details = $('.gettingStartedDetailsContent.image', {}, category, stepScrollbar.getDomNode(),
+				$('.getting-started-media'), $('.getting-started-footer', {}, description));
+			const pageScrollbar = store.add(new DomScrollableElement(details, { className: 'full-height-scrollable', vertical: ScrollbarVisibility.Hidden }));
+			append(slide, pageScrollbar.getDomNode());
+
+			stepScrollbar.scanDomNode();
+			pageScrollbar.scanDomNode();
+			assert.ok(steps.clientHeight >= firstStep.offsetHeight, 'The step viewport should fit a complete step');
+
+			const viewport = details.getBoundingClientRect();
+			const titleTop = title.getBoundingClientRect().top;
+			pageScrollbar.setScrollPosition({ scrollTop: steps.getBoundingClientRect().top - viewport.top });
+			assert.ok(title.getBoundingClientRect().top < titleTop, 'The header should scroll out of the way');
+			stepScrollbar.setScrollPosition({ scrollTop: steps.scrollHeight - steps.clientHeight });
+
+			const bounds = lastStep.getBoundingClientRect();
+			assert.ok(bounds.top >= viewport.top - 1 && bounds.bottom <= viewport.bottom + 1, 'The last step should be visible');
+		});
+	}
+});
 
 suite('Getting started focus styles', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
