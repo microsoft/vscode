@@ -694,4 +694,47 @@ suite('AgentHostByokLmHandler', () => {
 
 		assert.deepStrictEqual(result, { output: [], error: 'provider exploded' });
 	});
+
+	test('round-trips toolExtraContent reasoning metadata across chat output and input', async () => {
+		const toolExtraContent = { call_1: { google: { thought_signature: 'sig-openai-compat' } } };
+		const service = new TestLanguageModelsService(
+			new Map([['id', byokModel('customoai', 'gemini-3.5-flash')]]),
+			request => request.messages.some(m => m.role === ChatMessageRole.Assistant)
+				? responseOf([{ type: 'text', value: 'done' }])
+				: responseOf([
+					{ type: 'thinking', value: '', metadata: { toolExtraContent } },
+					{ type: 'tool_use', name: 'read_agent', toolCallId: 'call_1', parameters: { agent_id: 'a1' } },
+				]),
+		);
+		const handler = createHandler(service);
+
+		const firstTurn = await handler.chat(
+			{ vendor: 'customoai', modelId: 'gemini-3.5-flash', input: [{ type: 'message', role: 'user', content: [{ type: 'text', text: 'go' }] }] },
+			CancellationToken.None,
+		);
+		const reasoningItem = firstTurn.output.find(item => item.type === 'reasoning');
+		assert.strictEqual(
+			reasoningItem?.type === 'reasoning' ? reasoningItem.encryptedContent : undefined,
+			`vscode-reasoning-metadata:${JSON.stringify({ toolExtraContent })}`,
+		);
+
+		await handler.chat(
+			{
+				vendor: 'customoai',
+				modelId: 'gemini-3.5-flash',
+				input: [
+					{ type: 'reasoning', id: 'rs_byok_1', summary: [''], encryptedContent: reasoningItem?.type === 'reasoning' ? reasoningItem.encryptedContent : undefined },
+					{ type: 'function_call', callId: 'call_1', name: 'read_agent', argumentsJson: '{"agent_id":"a1"}' },
+					{ type: 'function_call_output', callId: 'call_1', output: '{"status":"idle"}' },
+				],
+			},
+			CancellationToken.None,
+		);
+
+		const replayedAssistant = service.captured?.messages.find(m => m.role === ChatMessageRole.Assistant);
+		const replayedThinking = replayedAssistant?.content.find(p => p.type === 'thinking');
+		assert.deepStrictEqual(replayedThinking?.type === 'thinking' ? replayedThinking.metadata : undefined, {
+			toolExtraContent,
+		});
+	});
 });

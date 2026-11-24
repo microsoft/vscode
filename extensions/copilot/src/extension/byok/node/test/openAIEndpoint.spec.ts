@@ -329,6 +329,99 @@ describe('OpenAIEndpoint - Reasoning Properties', () => {
 			expect(messages[1].cot_id).toBe('reasoning-456');
 			expect(messages[1].cot_summary).toBe('complex reasoning here');
 		});
+
+		it('replays toolExtraContent thought signatures onto matching tool_calls without polluting reasoning fields', () => {
+			const endpoint = instaService.createInstance(OpenAIEndpoint,
+				{
+					...modelMetadata,
+					id: 'gemini-3.5-flash',
+					supported_endpoints: [ModelSupportedEndpoint.ChatCompletions]
+				},
+				'test-api-key',
+				'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions');
+
+			const assistantToolCallMessage: Raw.ChatMessage = {
+				role: Raw.ChatRole.Assistant,
+				content: [{
+					type: Raw.ChatCompletionContentPartKind.Opaque,
+					value: {
+						type: 'thinking',
+						thinking: {
+							id: 'rs_byok_synthetic',
+							text: [],
+							metadata: {
+								toolExtraContent: {
+									'call_1': { google: { thought_signature: 'real-openai-compat-sig' } }
+								}
+							}
+						}
+					}
+				}],
+				toolCalls: [
+					{ id: 'call_1', type: 'function', function: { name: 'get_weather', arguments: '{"city":"Taipei"}' } },
+					{ id: 'call_2', type: 'function', function: { name: 'get_weather', arguments: '{"city":"Kaohsiung"}' } },
+				],
+			};
+
+			const body = endpoint.createRequestBody(createTestOptions([assistantToolCallMessage]));
+			const [msg] = body.messages as any[];
+
+			expect(msg.cot_id).toBeUndefined();
+			expect(msg.reasoning_content).toBeUndefined();
+			expect(msg.tool_calls).toEqual([
+				{
+					id: 'call_1',
+					type: 'function',
+					function: { name: 'get_weather', arguments: '{"city":"Taipei"}' },
+					extra_content: { google: { thought_signature: 'real-openai-compat-sig' } },
+				},
+				{
+					id: 'call_2',
+					type: 'function',
+					function: { name: 'get_weather', arguments: '{"city":"Kaohsiung"}' },
+				},
+			]);
+		});
+
+		it('injects skip_thought_signature_validator on only the first unsigned tool call for Gemini Chat Completions endpoints', () => {
+			const geminiEndpoint = instaService.createInstance(OpenAIEndpoint,
+				{
+					...modelMetadata,
+					id: 'models/gemini-3.1-pro-preview',
+					supported_endpoints: [ModelSupportedEndpoint.ChatCompletions]
+				},
+				'test-api-key',
+				'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions');
+
+			const nonGeminiEndpoint = instaService.createInstance(OpenAIEndpoint,
+				{
+					...modelMetadata,
+					id: 'gpt-4o',
+					supported_endpoints: [ModelSupportedEndpoint.ChatCompletions]
+				},
+				'test-api-key',
+				'https://api.openai.com/v1/chat/completions');
+
+			const unsignedAssistantToolCalls: Raw.ChatMessage = {
+				role: Raw.ChatRole.Assistant,
+				content: [],
+				toolCalls: [
+					{ id: 'call_a', type: 'function', function: { name: 'read_agent', arguments: '{"agent_id":"1"}' } },
+					{ id: 'call_b', type: 'function', function: { name: 'read_agent', arguments: '{"agent_id":"2"}' } },
+				],
+			};
+
+			const geminiBody = geminiEndpoint.createRequestBody(createTestOptions([unsignedAssistantToolCalls]));
+			const [geminiMsg] = geminiBody.messages as any[];
+			expect(geminiMsg.tool_calls[0].extra_content).toEqual({
+				google: { thought_signature: 'skip_thought_signature_validator' }
+			});
+			expect(geminiMsg.tool_calls[1].extra_content).toBeUndefined();
+
+			const nonGeminiBody = nonGeminiEndpoint.createRequestBody(createTestOptions([unsignedAssistantToolCalls]));
+			const [nonGeminiMsg] = nonGeminiBody.messages as any[];
+			expect(nonGeminiMsg.tool_calls[0].extra_content).toBeUndefined();
+		});
 	});
 
 	describe('Responses API mode (useResponsesApi = true)', () => {

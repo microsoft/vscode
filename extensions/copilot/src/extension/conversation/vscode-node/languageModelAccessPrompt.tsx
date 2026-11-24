@@ -27,19 +27,44 @@ interface IThinkingGroup {
 	readonly metadata: Record<string, unknown>;
 }
 
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+	return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function hasContinuationMetadata(metadata: Readonly<Record<string, unknown>> | undefined): boolean {
+	if (!metadata) {
+		return false;
+	}
+	return typeof metadata.signature === 'string'
+		|| typeof metadata.encrypted_content === 'string'
+		|| typeof metadata.redactedData === 'string'
+		|| isPlainObject(metadata.toolExtraContent);
+}
+
 function groupThinkingParts(parts: readonly vscode.LanguageModelThinkingPart[]): IThinkingGroup[] {
 	const groups = new Map<string, IThinkingGroup>();
 	for (const part of parts) {
 		const text = Array.isArray(part.value) ? part.value : [part.value];
-		if (!part.id && !text.some(value => value.length > 0)) {
+		const nonEmptyText = text.filter(value => value.length > 0);
+		if (!part.id && nonEmptyText.length === 0 && !hasContinuationMetadata(part.metadata)) {
 			continue;
 		}
 		const id = part.id ?? '';
 		const previous = groups.get(id);
+		const mergedToolExtraContent = isPlainObject(previous?.metadata.toolExtraContent) || isPlainObject(part.metadata?.toolExtraContent)
+			? {
+				...(isPlainObject(previous?.metadata.toolExtraContent) ? previous.metadata.toolExtraContent : {}),
+				...(isPlainObject(part.metadata?.toolExtraContent) ? part.metadata.toolExtraContent : {}),
+			}
+			: undefined;
 		groups.set(id, {
 			id,
-			text: [...previous?.text ?? [], ...text],
-			metadata: { ...previous?.metadata, ...part.metadata },
+			text: [...previous?.text ?? [], ...(nonEmptyText.length > 0 || !hasContinuationMetadata(part.metadata) ? text : [])],
+			metadata: {
+				...previous?.metadata,
+				...part.metadata,
+				...(mergedToolExtraContent ? { toolExtraContent: mergedToolExtraContent } : {}),
+			},
 		});
 	}
 	return [...groups.values()];

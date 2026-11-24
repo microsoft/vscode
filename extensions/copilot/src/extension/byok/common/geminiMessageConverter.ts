@@ -2,13 +2,43 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import type { Content, FunctionCall, FunctionResponse, Part } from '@google/genai';
+import type { Content, FunctionResponse, Part } from '@google/genai';
 import { Raw } from '@vscode/prompt-tsx';
 import type { LanguageModelChatMessage, LanguageModelChatMessage2 } from 'vscode';
 import { CustomDataPartMimeTypes } from '../../../platform/endpoint/common/endpointTypes';
 import { LanguageModelChatMessageRole, LanguageModelDataPart, LanguageModelTextPart, LanguageModelThinkingPart, LanguageModelToolCallPart, LanguageModelToolResultPart, LanguageModelToolResultPart2 } from '../../../vscodeTypes';
 
-function apiContentToGeminiContent(content: (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart | LanguageModelDataPart | LanguageModelThinkingPart)[]): Part[] {
+// Google's documented bypass tokens for replaying function calls whose original
+// Gemini thought_signature is unavailable (e.g. cross-provider history, resumed
+// sessions, or compacted steps).
+export const GEMINI_SKIP_THOUGHT_SIGNATURE_VALIDATOR = 'skip_thought_signature_validator';
+const GEMINI_CONTEXT_ENGINEERING_BYPASS = 'context_engineering_is_the_way_to_go';
+const GEMINI_THOUGHT_SIGNATURE_BYPASS_SENTINELS = [
+	GEMINI_SKIP_THOUGHT_SIGNATURE_VALIDATOR,
+	GEMINI_CONTEXT_ENGINEERING_BYPASS,
+] as const;
+
+function normalizeThoughtSignature(signature: string): string {
+	for (const sentinel of GEMINI_THOUGHT_SIGNATURE_BYPASS_SENTINELS) {
+		if (signature === sentinel || signature === Buffer.from(sentinel, 'utf8').toString('base64')) {
+			return sentinel;
+		}
+	}
+	return signature;
+}
+
+function isFunctionResponseOnlyContent(content: Content): boolean {
+	return content.role === 'user'
+		&& Array.isArray(content.parts)
+		&& content.parts.length > 0
+		&& content.parts.every(part => 'functionResponse' in part && Boolean(part.functionResponse));
+}
+
+function apiContentToGeminiContent(
+	content: (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolResultPart2 | LanguageModelToolCallPart | LanguageModelDataPart | LanguageModelThinkingPart)[],
+	callIdToFunctionName: ReadonlyMap<string, string>,
+	isAssistantMessage = false,
+): Part[] {
 	const convertedContent: Part[] = [];
 	let pendingSignature: string | undefined;
 
@@ -17,19 +47,22 @@ function apiContentToGeminiContent(content: (LanguageModelTextPart | LanguageMod
 			// Extract thought signature from thinking part metadata
 			if (part.metadata && typeof part.metadata === 'object' && 'signature' in part.metadata) {
 				const metadataObj = part.metadata as Record<string, unknown>;
-				if (typeof metadataObj.signature === 'string') {
-					pendingSignature = metadataObj.signature;
+				if (typeof metadataObj.signature === 'string' && metadataObj.signature.length > 0) {
+					pendingSignature = normalizeThoughtSignature(metadataObj.signature);
 				}
 			}
 			// Note: We don't emit thinking content to Gemini as it's already been processed
-			// The signature will be attached to the next function call
+			// The signature will be attached to the next function call (or trailing part)
 		} else if (part instanceof LanguageModelToolCallPart) {
+			if (!part.name) {
+				continue;
+			}
 			const functionCallPart: Part = {
 				functionCall: {
 					name: part.name,
 					args: part.input as Record<string, unknown> || {}
 				},
-				// Attach pending thought signature if available (required by Gemini 3 for function calling)
+				// Attach pending thought signature if available (required by Gemini 3+ for function calling)
 				...(pendingSignature ? { thoughtSignature: pendingSignature } : {})
 			};
 
@@ -68,8 +101,10 @@ function apiContentToGeminiContent(content: (LanguageModelTextPart | LanguageMod
 				imageDescription = `\n[Contains ${imageParts.length} image(s) with types: ${imageParts.map(p => p.mimeType).join(', ')}]`;
 			}
 
-			// extraction: functionName_timestamp => split on first underscore
-			const functionName = part.callId?.split('_')[0] || 'unknown_function';
+			// Resolve exact tool name from prior tool call ID when available, falling back to callId prefix
+			const functionName = (part.callId ? callIdToFunctionName.get(part.callId) : undefined)
+				|| part.callId?.split('_')[0]
+				|| 'unknown_function';
 
 			// Preserve structured JSON if possible
 			let responsePayload: any = {};
@@ -117,6 +152,24 @@ function apiContentToGeminiContent(content: (LanguageModelTextPart | LanguageMod
 			}
 		}
 	}
+
+	// If a signature arrived in a trailing thinking part (e.g. final stream chunk after a
+	// functionCall or text response), attach it to the step's first unsigned functionCall
+	// or, on non-tool turns, to the final text part.
+	if (isAssistantMessage && pendingSignature) {
+		const unsignedFunctionCall = convertedContent.find(p => Boolean(p.functionCall?.name) && !p.thoughtSignature);
+		if (unsignedFunctionCall) {
+			unsignedFunctionCall.thoughtSignature = pendingSignature;
+		} else if (!convertedContent.some(p => Boolean(p.functionCall?.name))) {
+			for (let i = convertedContent.length - 1; i >= 0; i--) {
+				if (convertedContent[i].text !== undefined && !convertedContent[i].thoughtSignature) {
+					convertedContent[i].thoughtSignature = pendingSignature;
+					break;
+				}
+			}
+		}
+	}
+
 	return convertedContent;
 }
 
@@ -124,8 +177,15 @@ export function apiMessageToGeminiMessage(messages: Array<LanguageModelChatMessa
 	const contents: Content[] = [];
 	let systemInstruction: Content | undefined;
 
-	// Track tool calls to match with their responses
-	const pendingToolCalls = new Map<string, FunctionCall>();
+	// Track tool calls by callId so tool result parts resolve their exact function name
+	const callIdToFunctionName = new Map<string, string>();
+	for (const message of messages) {
+		for (const part of message.content) {
+			if (part instanceof LanguageModelToolCallPart && part.callId && part.name) {
+				callIdToFunctionName.set(part.callId, part.name);
+			}
+		}
+	}
 
 	for (const message of messages) {
 		if (message.role === LanguageModelChatMessageRole.System) {
@@ -141,21 +201,14 @@ export function apiMessageToGeminiMessage(messages: Array<LanguageModelChatMessa
 				};
 			}
 		} else if (message.role === LanguageModelChatMessageRole.Assistant) {
-			const parts = apiContentToGeminiContent(message.content);
-
-			// Store function calls for later matching with responses
-			parts.forEach(part => {
-				if (part.functionCall && part.functionCall.name) {
-					pendingToolCalls.set(part.functionCall.name, part.functionCall);
-				}
-			});
+			const parts = apiContentToGeminiContent(message.content, callIdToFunctionName, true);
 
 			contents.push({
 				role: 'model',
 				parts
 			});
 		} else if (message.role === LanguageModelChatMessageRole.User) {
-			const parts = apiContentToGeminiContent(message.content);
+			const parts = apiContentToGeminiContent(message.content, callIdToFunctionName, false);
 
 			contents.push({
 				role: 'user',
@@ -193,6 +246,29 @@ export function apiMessageToGeminiMessage(messages: Array<LanguageModelChatMessa
 		const c = contents[i];
 		if (c.role === 'model' && (!c.parts || c.parts.length === 0)) {
 			contents.splice(i, 1);
+		}
+	}
+	// Coalesce consecutive user turns composed solely of functionResponse parts so parallel
+	// tool responses stay in a single content block matching the parallel functionCall step.
+	for (let i = 1; i < contents.length; i++) {
+		const previous = contents[i - 1];
+		const current = contents[i];
+		if (isFunctionResponseOnlyContent(previous) && isFunctionResponseOnlyContent(current)) {
+			previous.parts = [...previous.parts!, ...current.parts!];
+			contents.splice(i, 1);
+			i--;
+		}
+	}
+	// Gemini 3+ requires a thoughtSignature on the first functionCall of each model step.
+	// When replaying unsigned tool calls (e.g. cross-provider model switches, subagents, or
+	// compacted/resumed history), inject Google's bypass sentinel on the first functionCall
+	// only while leaving subsequent parallel calls in the same step unsigned.
+	for (const c of contents) {
+		if (c.role === 'model' && c.parts) {
+			const functionCallParts = c.parts.filter(p => Boolean(p.functionCall?.name));
+			if (functionCallParts.length > 0 && !functionCallParts.some(p => typeof p.thoughtSignature === 'string' && p.thoughtSignature.length > 0)) {
+				functionCallParts[0].thoughtSignature = GEMINI_SKIP_THOUGHT_SIGNATURE_VALIDATOR;
+			}
 		}
 	}
 

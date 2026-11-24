@@ -64,6 +64,7 @@ class StreamingToolCall {
 	public id: string | undefined;
 	public name: string | undefined;
 	public arguments: string = '';
+	public extra_content: Record<string, unknown> | undefined;
 
 	constructor() { }
 
@@ -83,6 +84,10 @@ class StreamingToolCall {
 			argumentsChanged = true;
 		}
 
+		if (toolCall.extra_content && typeof toolCall.extra_content === 'object' && !Array.isArray(toolCall.extra_content)) {
+			this.extra_content = toolCall.extra_content;
+		}
+
 		return argumentsChanged;
 	}
 }
@@ -98,6 +103,7 @@ class StreamingToolCalls {
 				name: call.name!,
 				arguments: call.arguments,
 				id: call.id!,
+				...(call.extra_content ? { extra_content: call.extra_content } : {}),
 			};
 		});
 	}

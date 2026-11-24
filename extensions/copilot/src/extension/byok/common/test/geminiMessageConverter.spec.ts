@@ -101,6 +101,157 @@ describe('GeminiMessageConverter', () => {
 		}]);
 	});
 
+	it('should inject skip_thought_signature_validator on only the first function call of an unsigned assistant step', () => {
+		const messages: Array<LanguageModelChatMessage | LanguageModelChatMessage2> = [{
+			role: LanguageModelChatMessageRole.Assistant,
+			content: [
+				new LanguageModelToolCallPart('550e8400-e29b-41d4-a716-446655440001', 'read_agent', { agent_id: 'a1' }),
+				new LanguageModelToolCallPart('550e8400-e29b-41d4-a716-446655440002', 'read_agent', { agent_id: 'a2' }),
+			],
+			name: undefined,
+		}];
+
+		const result = apiMessageToGeminiMessage(messages);
+
+		expect(result.contents[0].parts).toEqual([
+			{
+				functionCall: {
+					name: 'read_agent',
+					args: { agent_id: 'a1' },
+				},
+				thoughtSignature: 'skip_thought_signature_validator',
+			},
+			{
+				functionCall: {
+					name: 'read_agent',
+					args: { agent_id: 'a2' },
+				},
+			},
+		]);
+	});
+
+	it('should preserve real parallel function call signatures without signing subsequent parallel calls', () => {
+		const messages: Array<LanguageModelChatMessage | LanguageModelChatMessage2> = [{
+			role: LanguageModelChatMessageRole.Assistant,
+			content: [
+				new LanguageModelThinkingPart('Planning parallel reads', undefined, { signature: 'real-gemini-sig' }),
+				new LanguageModelToolCallPart('call-1', 'view', { path: 'a.ts' }),
+				new LanguageModelToolCallPart('call-2', 'view', { path: 'b.ts' }),
+			],
+			name: undefined,
+		}];
+
+		const result = apiMessageToGeminiMessage(messages);
+
+		expect(result.contents[0].parts).toEqual([
+			{
+				functionCall: {
+					name: 'view',
+					args: { path: 'a.ts' },
+				},
+				thoughtSignature: 'real-gemini-sig',
+			},
+			{
+				functionCall: {
+					name: 'view',
+					args: { path: 'b.ts' },
+				},
+			},
+		]);
+	});
+
+	it('should attach trailing thought signature parts and normalize base64-encoded bypass sentinels', () => {
+		const base64Bypass = Buffer.from('skip_thought_signature_validator', 'utf8').toString('base64');
+		const messages: Array<LanguageModelChatMessage | LanguageModelChatMessage2> = [
+			{
+				role: LanguageModelChatMessageRole.Assistant,
+				content: [
+					new LanguageModelToolCallPart('uuid-call-1', 'read_agent', { agent_id: 'bg-1' }),
+					new LanguageModelThinkingPart('', undefined, { signature: 'trailing-sig' }),
+				],
+				name: undefined,
+			},
+			{
+				role: LanguageModelChatMessageRole.User,
+				content: [
+					new LanguageModelToolResultPart('uuid-call-1', [new LanguageModelTextPart('{"status":"completed"}')]),
+				],
+				name: undefined,
+			},
+			{
+				role: LanguageModelChatMessageRole.Assistant,
+				content: [
+					new LanguageModelThinkingPart('', undefined, { signature: base64Bypass }),
+					new LanguageModelToolCallPart('uuid-call-2', 'bash', { command: 'echo ok' }),
+				],
+				name: undefined,
+			},
+		];
+
+		const result = apiMessageToGeminiMessage(messages);
+
+		expect(result.contents).toEqual([
+			{
+				role: 'model',
+				parts: [{
+					functionCall: { name: 'read_agent', args: { agent_id: 'bg-1' } },
+					thoughtSignature: 'trailing-sig',
+				}],
+			},
+			{
+				role: 'user',
+				parts: [{
+					functionResponse: {
+						name: 'read_agent',
+						response: { status: 'completed' },
+					},
+				}],
+			},
+			{
+				role: 'model',
+				parts: [{
+					functionCall: { name: 'bash', args: { command: 'echo ok' } },
+					thoughtSignature: 'skip_thought_signature_validator',
+				}],
+			},
+		]);
+	});
+
+	it('should resolve UUID callId names and coalesce consecutive parallel functionResponse user messages', () => {
+		const messages: Array<LanguageModelChatMessage | LanguageModelChatMessage2> = [
+			{
+				role: LanguageModelChatMessageRole.Assistant,
+				content: [
+					new LanguageModelThinkingPart('', undefined, { signature: 'sig-parallel' }),
+					new LanguageModelToolCallPart('550e8400-e29b-41d4-a716-446655440010', 'grep', { pattern: 'foo' }),
+					new LanguageModelToolCallPart('550e8400-e29b-41d4-a716-446655440011', 'glob', { pattern: '*.ts' }),
+				],
+				name: undefined,
+			},
+			{
+				role: LanguageModelChatMessageRole.User,
+				content: [new LanguageModelToolResultPart('550e8400-e29b-41d4-a716-446655440010', [new LanguageModelTextPart('{"matches":1}')])],
+				name: undefined,
+			},
+			{
+				role: LanguageModelChatMessageRole.User,
+				content: [new LanguageModelToolResultPart('550e8400-e29b-41d4-a716-446655440011', [new LanguageModelTextPart('{"files":["a.ts"]}')])],
+				name: undefined,
+			},
+		];
+
+		const result = apiMessageToGeminiMessage(messages);
+
+		expect(result.contents).toHaveLength(2);
+		expect(result.contents[1]).toEqual({
+			role: 'user',
+			parts: [
+				{ functionResponse: { name: 'grep', response: { matches: 1 } } },
+				{ functionResponse: { name: 'glob', response: { files: ['a.ts'] } } },
+			],
+		});
+	});
+
 	it('should extract functionResponse parts from model message into subsequent user message and prune empty model', () => {
 		// Simulate a model message that (incorrectly) contains only a tool result part
 		const toolResult = new LanguageModelToolResultPart('myTool_12345', [new LanguageModelTextPart('{"foo":"bar"}')]);

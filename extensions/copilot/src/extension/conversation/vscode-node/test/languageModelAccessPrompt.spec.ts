@@ -165,4 +165,52 @@ describe('LanguageModelAccessPrompt', () => {
 			originApi: 'responses',
 		}]);
 	});
+
+	test('retains metadata-only toolExtraContent thinking parts without ID or text', async () => {
+		const services = disposables.add(createExtensionUnitTestingServices());
+		services.define(IChatMLFetcher, new StaticChatMLFetcher([]));
+		const accessor = disposables.add(services.createTestingAccessor());
+		const instantiation = accessor.get(IInstantiationService);
+		const endpoint = instantiation.createInstance(MockEndpoint, 'gemini-3.5-flash');
+		const message = {
+			role: LanguageModelChatMessageRole.Assistant,
+			content: [
+				new LanguageModelThinkingPart('', undefined, {
+					toolExtraContent: { call_1: { google: { thought_signature: 'sig-1' } } },
+					...thinkingOriginToMetadata('chatCompletions'),
+				}),
+				new LanguageModelThinkingPart('', undefined, {
+					toolExtraContent: { call_2: { google: { thought_signature: 'sig-2' } } },
+				}),
+			],
+			name: undefined,
+		};
+
+		const { messages } = await renderPromptElement(
+			instantiation,
+			endpoint,
+			LanguageModelAccessPrompt,
+			{ noSafety: true, messages: [message] },
+		);
+		const assistant = messages.find(candidate => candidate.role === Raw.ChatRole.Assistant);
+		const thinking = assistant?.content
+			.filter(part => part.type === Raw.ChatCompletionContentPartKind.Opaque)
+			.map(part => rawPartAsThinkingEnvelope(part));
+
+		expect(thinking).toEqual([{
+			thinking: {
+				id: '',
+				text: [],
+				metadata: {
+					toolExtraContent: {
+						call_1: { google: { thought_signature: 'sig-1' } },
+						call_2: { google: { thought_signature: 'sig-2' } },
+					},
+					vscode_thinking_origin_api: 'chatCompletions',
+				},
+				encrypted: undefined,
+			},
+			originApi: 'chatCompletions',
+		}]);
+	});
 });

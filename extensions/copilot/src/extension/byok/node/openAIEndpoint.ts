@@ -18,6 +18,12 @@ import { IChatWebSocketManager } from '../../../platform/networking/node/chatWeb
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { ITokenizerProvider } from '../../../platform/tokenizer/node/tokenizer';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
+import { GEMINI_SKIP_THOUGHT_SIGNATURE_VALIDATOR } from '../common/geminiMessageConverter';
+
+interface IOpenAIToolCallWithExtraContent {
+	id?: string;
+	extra_content?: Record<string, unknown>;
+}
 
 function hydrateBYOKErrorMessages(response: ChatResponse): ChatResponse {
 	if (response.type === ChatFetchResponseType.Failed && response.streamError) {
@@ -158,7 +164,22 @@ export class OpenAIEndpoint extends ChatEndpoint {
 		const supportsThinking = !!this.modelMetadata.capabilities.supports.thinking;
 		return (out, data) => {
 			if (data) {
+				const toolExtraContent = data.metadata?.toolExtraContent;
+				const hasToolExtraContent = typeof toolExtraContent === 'object' && toolExtraContent !== null && !Array.isArray(toolExtraContent);
+				if (hasToolExtraContent && 'tool_calls' in out && Array.isArray(out.tool_calls)) {
+					const extraByCallId = toolExtraContent as Record<string, unknown>;
+					for (const toolCall of out.tool_calls as IOpenAIToolCallWithExtraContent[]) {
+						const extra = toolCall.id ? extraByCallId[toolCall.id] : undefined;
+						if (typeof extra === 'object' && extra !== null && !Array.isArray(extra)) {
+							toolCall.extra_content = extra as Record<string, unknown>;
+						}
+					}
+				}
 				const text = Array.isArray(data.text) ? data.text.join('') : data.text;
+				// Skip synthetic metadata-only thinking envelopes when populating reasoning text fields
+				if (hasToolExtraContent && !text) {
+					return;
+				}
 				if (data.id) {
 					out.cot_id = data.id;
 					out.cot_summary = text;
@@ -169,6 +190,52 @@ export class OpenAIEndpoint extends ChatEndpoint {
 				}
 			}
 		};
+	}
+
+	private _isGeminiChatCompletionsTarget(): boolean {
+		return this._modelUrl.includes('generativelanguage.googleapis.com')
+			|| this._modelUrl.includes('aiplatform.googleapis.com')
+			|| /gemini[-/]?[3-9]/i.test(this.model);
+	}
+
+	private _ensureGeminiToolCallThoughtSignatures(messages: IEndpointBody['messages']): void {
+		if (!Array.isArray(messages) || !this._isGeminiChatCompletionsTarget()) {
+			return;
+		}
+		for (const msg of messages) {
+			if (msg.role !== 'assistant' || !('tool_calls' in msg) || !Array.isArray(msg.tool_calls) || msg.tool_calls.length === 0) {
+				continue;
+			}
+			const toolCalls = msg.tool_calls as IOpenAIToolCallWithExtraContent[];
+			const hasSignature = toolCalls.some(tc => {
+				const extra = tc.extra_content;
+				if (typeof extra !== 'object' || extra === null || Array.isArray(extra)) {
+					return false;
+				}
+				const google = extra.google;
+				if (typeof google !== 'object' || google === null || Array.isArray(google)) {
+					return false;
+				}
+				const sig = (google as Record<string, unknown>).thought_signature;
+				return typeof sig === 'string' && sig.length > 0;
+			});
+			if (!hasSignature) {
+				const firstCall = toolCalls[0];
+				const existingExtra = typeof firstCall.extra_content === 'object' && firstCall.extra_content !== null && !Array.isArray(firstCall.extra_content)
+					? firstCall.extra_content
+					: {};
+				const existingGoogle = typeof existingExtra.google === 'object' && existingExtra.google !== null && !Array.isArray(existingExtra.google)
+					? existingExtra.google as Record<string, unknown>
+					: {};
+				firstCall.extra_content = {
+					...existingExtra,
+					google: {
+						...existingGoogle,
+						thought_signature: GEMINI_SKIP_THOUGHT_SIGNATURE_VALIDATOR,
+					},
+				};
+			}
+		}
 	}
 
 	protected _isReservedHeader(lowerKey: string): boolean {
@@ -325,6 +392,7 @@ export class OpenAIEndpoint extends ChatEndpoint {
 			if (body.messages && isKimiFamily(this)) {
 				body.messages = normalizeKimiToolCallIds(body.messages);
 			}
+			this._ensureGeminiToolCallThoughtSignatures(body.messages);
 			this._applyReasoningEffort(body, options);
 			return this._applyConfiguredModelOptions(body, options);
 		}

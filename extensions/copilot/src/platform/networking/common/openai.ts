@@ -257,6 +257,7 @@ export interface IToolCall {
 	index: number;
 	id?: string;
 	function?: { name: string; arguments: string };
+	extra_content?: Record<string, unknown>;
 }
 
 /**
