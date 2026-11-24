@@ -64,8 +64,7 @@ const inputStyles = getInputBoxStyle({ inputBackground: settingsTextInputBackgro
 const selectStyles = getSelectBoxStyles({ selectBackground: settingsSelectBackground, selectForeground: settingsSelectForeground, selectBorder: settingsSelectBorder, selectListBorder: settingsSelectListBorder });
 
 interface IProfileRow {
-	/** `undefined` for a profile that has not been saved yet. */
-	readonly id: string | undefined;
+	readonly id: string;
 	readonly name: string;
 }
 
@@ -82,7 +81,6 @@ class ProfileRowRenderer implements IListRenderer<IProfileRow, IProfileRowTempla
 	private readonly _hoverDelegate = createInstantHoverDelegate();
 
 	constructor(
-		private readonly _onEdit: (row: IProfileRow) => void,
 		private readonly _onDelete: (row: IProfileRow) => void,
 		private readonly _instantiationService: IInstantiationService,
 		private readonly _hoverService: IHoverService,
@@ -103,7 +101,6 @@ class ProfileRowRenderer implements IListRenderer<IProfileRow, IProfileRowTempla
 		};
 		const toolbar = disposables.add(this._instantiationService.createInstance(WorkbenchToolBar, actions, { hoverDelegate: this._hoverDelegate }));
 		toolbar.setActions([
-			disposables.add(new Action('sandboxProfiles.editRow', localize('edit', "Edit Profile"), ThemeIcon.asClassName(Codicon.edit), true, run(this._onEdit))),
 			disposables.add(new Action('sandboxProfiles.deleteRow', localize('delete', "Delete Profile"), ThemeIcon.asClassName(Codicon.trash), true, run(this._onDelete))),
 		]);
 		return template;
@@ -112,8 +109,6 @@ class ProfileRowRenderer implements IListRenderer<IProfileRow, IProfileRowTempla
 	renderElement(row: IProfileRow, _index: number, template: IProfileRowTemplate): void {
 		template.row = row;
 		template.label.textContent = row.name;
-		template.label.classList.toggle('new-profile', !row.id);
-		template.actions.hidden = !row.id;
 	}
 
 	disposeTemplate(template: IProfileRowTemplate): void {
@@ -133,9 +128,9 @@ export class SandboxProfilesEditor extends EditorPane {
 	private _root!: HTMLElement;
 	private _splitView: SplitView<number> | undefined;
 	private _list!: WorkbenchList<IProfileRow>;
+	private _newProfileButton!: Button;
 	private _header!: HTMLElement;
 	private _body!: HTMLElement;
-	private _footer!: HTMLElement;
 	private _nameInput: InputBox | undefined;
 	private _showNameValidation = false;
 	private _syncingSelection = false;
@@ -165,22 +160,19 @@ export class SandboxProfilesEditor extends EditorPane {
 	protected override createEditor(parent: HTMLElement): void {
 		this._root = dom.append(parent, $('.sandbox-profiles-editor'));
 		const sidebarView = dom.append(this._root, $('.sidebar-view'));
-		const sidebarHeader = dom.append(sidebarView, $('.section-heading'));
-		dom.append(sidebarHeader, renderIcon(Codicon.shield)).setAttribute('aria-hidden', 'true');
-		dom.append(sidebarHeader, $('h2.section-title', {}, localize('profilesHeading', "Profiles")));
-		const newAction = this._register(new Action('sandboxProfiles.new', localize('new', "New Profile"), ThemeIcon.asClassName(Codicon.add), true, () => this._createProfile()));
-		const sidebarToolbar = this._register(this._instantiationService.createInstance(WorkbenchToolBar, dom.append(sidebarHeader, $('.section-actions')), { ariaLabel: localize('profileActions', "Profile actions") }));
-		sidebarToolbar.setActions([newAction]);
+		const newProfile = this._newProfileButton = this._register(new Button(dom.append(sidebarView, $('.new-profile-button')), defaultButtonStyles));
+		newProfile.label = localize('new', "New Profile");
+		this._register(newProfile.onDidClick(() => this._createProfile()));
 		this._list = this._register(this._instantiationService.createInstance(WorkbenchList<IProfileRow>, 'SandboxProfiles', dom.append(sidebarView, $('.profiles-list')),
 			{ getHeight: () => 22, getTemplateId: () => ProfileRowRenderer.ID } satisfies IListVirtualDelegate<IProfileRow>,
-			[this._register(new ProfileRowRenderer(row => this._editProfile(row), row => this._deleteProfile(row), this._instantiationService, this._hoverService))], {
+			[this._register(new ProfileRowRenderer(row => this._deleteProfile(row), this._instantiationService, this._hoverService))], {
 			multipleSelectionSupport: false,
 			setRowLineHeight: false,
 			horizontalScrolling: false,
 			openOnSingleClick: true,
-			identityProvider: { getId: row => row.id ?? 'new' },
+			identityProvider: { getId: row => row.id },
 			accessibilityProvider: {
-				getAriaLabel: row => row.id ? row.name : localize('unsaved', "{0}, unsaved", row.name),
+				getAriaLabel: row => row.name,
 				getWidgetAriaLabel: () => localize('library', "Sandbox profiles"),
 			},
 		}));
@@ -195,7 +187,6 @@ export class SandboxProfilesEditor extends EditorPane {
 		const resizeObserver = this._register(new dom.DisposableResizeObserver('sandboxProfilesBody', () => bodyScrollable.scanDomNode(), dom.getWindow(parent)));
 		this._register(resizeObserver.observe(this._body));
 		this._register(resizeObserver.observe(bodyContent));
-		this._footer = dom.append(contentsView, $('.profile-actions'));
 
 		this._splitView = this._register(new SplitView(this._root, { orientation: Orientation.HORIZONTAL, proportionalLayout: true }));
 		this._splitView.addView({
@@ -203,7 +194,7 @@ export class SandboxProfilesEditor extends EditorPane {
 			layout: (width, _offset, height) => {
 				sidebarView.style.width = `${width}px`;
 				if (height) {
-					const listHeight = height - 36;
+					const listHeight = height - 40;
 					this._list.getHTMLElement().style.height = `${listHeight}px`;
 					this._list.layout(listHeight, width);
 				}
@@ -229,18 +220,21 @@ export class SandboxProfilesEditor extends EditorPane {
 	}
 
 	override focus(): void {
-		// The name box is disabled for read-only profiles and can't take focus, so focus the list instead.
-		if (this._profileInput?.editing) {
-			this._nameInput?.focus();
-		} else {
+		// Like the Profiles editor, focus the selected profile in the list rather than its name field.
+		if (this._list.length) {
 			this._list.domFocus();
+		} else {
+			this._newProfileButton.focus();
 		}
 	}
 
 	override async setInput(input: SandboxProfilesInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		await super.setInput(input, options, context, token);
 		if (!token.isCancellationRequested) {
-			this._selectionListener.value = input.onDidSelect(() => this._render(input));
+			const listeners = new DisposableStore();
+			listeners.add(input.onDidSelect(() => this._render(input)));
+			listeners.add(input.onDidChangeProfiles(() => this._renderList(input)));
+			this._selectionListener.value = listeners;
 			this._render(input);
 		}
 	}
@@ -253,40 +247,30 @@ export class SandboxProfilesEditor extends EditorPane {
 		super.clearInput();
 	}
 
+	/** Saves pending valid changes, then asks before discarding changes that can't be saved. */
 	private async _confirmDiscard(input: SandboxProfilesInput): Promise<boolean> {
+		input.flush();
 		return !input.isDirty() || (await this._dialogs.confirm({
 			message: localize('discardPrompt', "Discard unsaved profile changes?"),
 			primaryButton: localize('discard', "&&Discard Changes"),
 		})).confirmed;
 	}
 
+	/** Like the Profiles editor, New Profile saves a profile right away and selects its name to rename it. */
 	private async _createProfile(): Promise<void> {
 		const input = this._profileInput;
 		if (input && await this._confirmDiscard(input)) {
 			this._showNameValidation = false;
-			input.select();
+			const profile = input.createProfile();
+			status(localize('created', "Sandbox profile {0} created.", profile.name));
 			this._nameInput?.focus();
+			this._nameInput?.select();
 		}
-	}
-
-	private async _editProfile(row: IProfileRow): Promise<void> {
-		const input = this._profileInput;
-		if (!input || !row.id) {
-			return;
-		}
-		if (input.draft.id !== row.id || !input.existing) {
-			if (!await this._confirmDiscard(input)) {
-				return;
-			}
-			input.select(input.profiles.find(profile => profile.id === row.id));
-		}
-		input.edit();
-		this._nameInput?.focus();
 	}
 
 	private async _deleteProfile(row: IProfileRow): Promise<void> {
 		const input = this._profileInput;
-		if (!input || !row.id) {
+		if (!input) {
 			return;
 		}
 		const showInUse = async (hosts: readonly string[]) => {
@@ -316,7 +300,7 @@ export class SandboxProfilesEditor extends EditorPane {
 
 	private async _onDidSelectRow(row: IProfileRow | undefined): Promise<void> {
 		const input = this._profileInput;
-		if (this._syncingSelection || !input || !row || (row.id ?? undefined) === (input.existing ? input.draft.id : undefined)) {
+		if (this._syncingSelection || !input || !row || row.id === input.draft?.id) {
 			return;
 		}
 		if (await this._confirmDiscard(input)) {
@@ -329,10 +313,7 @@ export class SandboxProfilesEditor extends EditorPane {
 
 	private _renderList(input: SandboxProfilesInput): void {
 		const rows: IProfileRow[] = input.profiles.map(({ id, name }) => ({ id, name }));
-		if (!input.existing) {
-			rows.push({ id: undefined, name: input.draft.name.trim() || localize('newProfile', "New Profile") });
-		}
-		const index = rows.findIndex(row => row.id === (input.existing ? input.draft.id : undefined));
+		const index = rows.findIndex(row => row.id === input.draft?.id);
 		this._syncingSelection = true;
 		try {
 			this._list.splice(0, this._list.length, rows);
@@ -346,21 +327,24 @@ export class SandboxProfilesEditor extends EditorPane {
 	private _render(input: SandboxProfilesInput): void {
 		this._controls.clear();
 		this._invalidJson.clear();
+		this._nameInput = undefined;
 		dom.clearNode(this._header);
 		dom.clearNode(this._body);
-		dom.clearNode(this._footer);
 		this._renderList(input);
-		const readOnly = !input.editing;
-		this._root.classList.toggle('read-only', readOnly);
-		this._footer.hidden = readOnly;
+		const draft = input.draft;
+		if (!draft) {
+			const empty = dom.append(this._header, $('.profiles-empty'));
+			dom.append(empty, $('h2.section-title', {}, localize('noProfiles', "No Sandbox Profiles")));
+			dom.append(empty, $('p.section-description', {}, localize('noProfilesDescription', "Select New Profile to create a profile from your current sandbox settings. Assign profiles to hosts in Remote Environments.")));
+			this._bodyScrollable.scanDomNode();
+			return;
+		}
 
 		const heading = dom.append(this._header, $('.section-heading'));
 		dom.append(heading, renderIcon(Codicon.settings)).setAttribute('aria-hidden', 'true');
 		const title = dom.append(heading, $('h2.section-title'));
-		title.textContent = input.existing ? input.draft.name : localize('newHeading', "New Sandbox Profile");
-		dom.append(this._header, $('p.section-description', {}, readOnly
-			? localize('readOnlyDescription', "Saved on this machine and read-only. Use Edit Profile in the list to change it, or assign it to hosts in Remote Environments.")
-			: localize('localOnly', "Profiles are saved on this machine. Assign them to hosts in Remote Environments; saving updates the connected hosts using this profile.")));
+		title.textContent = draft.name;
+		dom.append(this._header, $('p.section-description', {}, localize('autoSaveDescription', "Changes are saved automatically and update the connected hosts using this profile. Assign profiles to hosts in Remote Environments.")));
 
 		const nameRow = dom.append(this._header, $('.inline-field'));
 		dom.append(nameRow, $('label.inline-field-label', {}, localize('name', "Name")));
@@ -375,19 +359,16 @@ export class SandboxProfilesEditor extends EditorPane {
 				},
 			},
 		}));
-		nameInput.value = input.draft.name;
-		nameInput.setEnabled(!readOnly);
+		nameInput.value = draft.name;
 		this._controls.add(nameInput.onDidChange(value => {
-			input.draft.name = value;
+			draft.name = value;
 			this._showNameValidation = true;
 			nameInput.validate();
 			input.changed();
-			if (!input.existing) {
-				title.textContent = value.trim() || localize('newHeading', "New Sandbox Profile");
-			}
+			title.textContent = value.trim() || input.profiles.find(profile => profile.id === draft.id)?.name || '';
 		}));
 
-		const settings = input.draft.settings;
+		const settings = draft.settings;
 		const properties = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties();
 		for (const group of sandboxProfileGroups) {
 			dom.append(this._body, $('h3.settings-group-title', {}, group.title));
@@ -396,49 +377,22 @@ export class SandboxProfilesEditor extends EditorPane {
 				const description = describe(schema);
 				const value = settings[key];
 				if (schema?.type === 'boolean') {
-					this._boolRow(label, description, value === true, readOnly, checked => { settings[key] = checked; input.changed(); });
+					this._boolRow(label, description, value === true, checked => { settings[key] = checked; input.changed(); });
 				} else if (key === Sandbox.AgentSandboxEnabled) {
 					const values = (schema?.enum ?? []).map(String);
 					const control = dom.append(this._settingRow(this._body, label, description), $('.setting-item-select'));
 					const select = this._controls.add(new SelectBox(values.map((text, index) => ({ text, description: schema?.enumDescriptions?.[index] })), Math.max(0, values.indexOf(String(value))), this._contextViewService, selectStyles, { ariaLabel: label, useCustomDrawn: true }));
 					select.render(control);
-					select.setEnabled(!readOnly);
 					this._controls.add(select.onDidSelect(({ selected }) => { settings[key] = selected; input.changed(); }));
 				} else if (key === Sandbox.AgentSandboxUserConfiguredPaths) {
-					this._jsonRow(label, key, description, schema, value ?? {}, readOnly, validateUserConfiguredPaths, parsed => { settings[key] = parsed as IAgentSandboxUserConfiguredPaths; input.changed(); }, input.invalidText(key), text => input.setInvalidText(key, text));
+					this._jsonRow(label, key, description, schema, value ?? {}, validateUserConfiguredPaths, parsed => { settings[key] = parsed as IAgentSandboxUserConfiguredPaths; input.changed(); }, input.invalidText(key), text => input.setInvalidText(key, text));
 				} else {
 					const control = this._settingRow(this._body, label, description);
-					this._stringList(control, label, Array.isArray(value) ? value : [], readOnly, items => { settings[key] = items; input.changed(); });
+					this._stringList(control, label, Array.isArray(value) ? value : [], items => { settings[key] = items; input.changed(); });
 				}
 			}
 		}
 
-		const save = this._controls.add(new Button(this._footer, defaultButtonStyles));
-		save.label = input.existing ? localize('save', "Save") : localize('create', "Create");
-		this._controls.add(save.onDidClick(async () => {
-			this._showNameValidation = true;
-			if (nameInput.validate() === MessageType.ERROR) {
-				nameInput.focus();
-				return;
-			}
-			const invalid = this._invalidJson.values().next().value;
-			if (invalid) {
-				invalid.focus();
-				status(localize('fixJson', "Fix the JSON errors before saving."));
-				return;
-			}
-			const created = !input.existing;
-			const error = input.saveError;
-			if (error) {
-				await this._dialogs.error(error);
-				return;
-			}
-			await input.save();
-			status(created ? localize('created', "Sandbox profile created.") : localize('saved', "Sandbox profile saved."));
-		}));
-		const discard = this._controls.add(new Button(this._footer, { ...defaultButtonStyles, secondary: true }));
-		discard.label = input.existing ? localize('discardChanges', "Discard Changes") : localize('cancel', "Cancel");
-		this._controls.add(discard.onDidClick(() => { this._showNameValidation = false; input.revert(); }));
 		this._bodyScrollable.scanDomNode();
 	}
 
@@ -453,7 +407,7 @@ export class SandboxProfilesEditor extends EditorPane {
 	}
 
 	/** Renders an inline settings.json editor for an object setting that the Settings editor cannot edit directly. */
-	private _jsonRow(label: string, key: string, description: string | undefined, schema: IConfigurationPropertySchema | undefined, value: unknown, readOnly: boolean, validateValue: (value: unknown) => string | undefined, change: (value: unknown) => void, invalidText: string | undefined, setInvalidText: (text: string | undefined) => void): void {
+	private _jsonRow(label: string, key: string, description: string | undefined, schema: IConfigurationPropertySchema | undefined, value: unknown, validateValue: (value: unknown) => string | undefined, change: (value: unknown) => void, invalidText: string | undefined, setInvalidText: (text: string | undefined) => void): void {
 		const control = this._settingRow(this._body, label, description);
 		control.classList.add('setting-item-json');
 		const frame = dom.append(control, $('.json-frame'));
@@ -470,8 +424,6 @@ export class SandboxProfilesEditor extends EditorPane {
 			folding: true,
 			wordWrap: 'off',
 			automaticLayout: true,
-			readOnly,
-			domReadOnly: readOnly,
 			padding: { top: 4, bottom: 4 },
 			scrollbar: { vertical: 'auto', horizontal: 'auto', alwaysConsumeMouseWheel: false },
 		}, getSimpleCodeEditorWidgetOptions()));
@@ -525,32 +477,27 @@ export class SandboxProfilesEditor extends EditorPane {
 		}));
 	}
 
-	private _boolRow(label: string, description: string | undefined, checked: boolean, readOnly: boolean, change: (checked: boolean) => void): void {
+	private _boolRow(label: string, description: string | undefined, checked: boolean, change: (checked: boolean) => void): void {
 		const row = dom.append(this._body, $('.setting-item.setting-item-bool'));
 		dom.append(row, $('.setting-item-title', {}, label));
 		const value = dom.append(row, $('.setting-item-value-description'));
 		const checkbox = this._controls.add(new Checkbox(label, checked, defaultCheckboxStyles));
 		value.appendChild(checkbox.domNode);
-		if (readOnly) {
-			checkbox.disable();
-		}
 		this._controls.add(checkbox.onChange(() => change(checkbox.checked)));
 		if (description) {
 			const text = dom.append(value, $('.setting-item-description', {}, description));
-			if (!readOnly) {
-				this._controls.add(dom.addDisposableListener(text, dom.EventType.CLICK, () => {
-					checkbox.checked = !checkbox.checked;
-					change(checkbox.checked);
-					checkbox.focus();
-				}));
-			}
+			this._controls.add(dom.addDisposableListener(text, dom.EventType.CLICK, () => {
+				checkbox.checked = !checkbox.checked;
+				change(checkbox.checked);
+				checkbox.focus();
+			}));
 		}
 	}
 
-	private _stringList(container: HTMLElement, label: string, initial: readonly string[], readOnly: boolean, change: (items: string[]) => void): void {
+	private _stringList(container: HTMLElement, label: string, initial: readonly string[], change: (items: string[]) => void): void {
 		const widget = this._controls.add(this._instantiationService.createInstance(ListSettingWidget<IListDataItem>, container));
 		let items = [...initial];
-		const update = () => widget.setValue(items.map(data => ({ value: { type: 'string', data } })), { isReadOnly: readOnly });
+		const update = () => widget.setValue(items.map(data => ({ value: { type: 'string', data } })));
 		widget.domNode.setAttribute('aria-label', label);
 		update();
 		this._controls.add(widget.onDidChangeList((event: SettingListEvent<IListDataItem>) => {
