@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../../../base/common/async.js';
-import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../../../base/common/cancellation.js';
 import { isCancellationError } from '../../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../../../../../base/common/lifecycle.js';
@@ -202,6 +202,60 @@ suite('Cloud automation task conversations', () => {
 		await session.requestHandler!(request, parts => answers.push(...parts.flatMap(part => part.kind === 'markdownContent' ? [part.content.value] : [])), [], CancellationToken.None);
 		assert.deepStrictEqual({ polls, answers }, { polls: 2, answers: ['New answer'] });
 	}));
+
+	test('an accepted reply survives a transient event read without resending the message', () => runWithFakedTimers({}, async () => {
+		let writes = 0;
+		const reads: number[] = [];
+		const { controller } = setup({
+			get: async () => original,
+			getEvents: async () => {
+				if (writes) {
+					reads.push(Date.now());
+					if (reads.length === 1) {
+						throw new ApiRequestError(503, 'server', undefined, undefined, 10);
+					}
+				}
+				const events = writes ? [user('echo', 'user.message', request.message), user('answer', 'assistant.message', 'Done')] : [];
+				return { data: { events, total: events.length } };
+			},
+			steer: async () => { writes++; },
+		});
+		const session = disposables.add(await controller.provideChatSessionContent(resource, CancellationToken.None));
+		const answers: string[] = [];
+		await session.requestHandler!(request, parts => answers.push(...parts.flatMap(part => part.kind === 'markdownContent' ? [part.content.value] : [])), [], CancellationToken.None);
+		assert.deepStrictEqual({ reads: reads.length, honoredRetryAfter: reads[1] - reads[0] >= 10_000, answers, writes }, { reads: 2, honoredRetryAfter: true, answers: ['Done'], writes: 1 });
+	}));
+
+	for (const cancel of [false, true]) {
+		test(`accepted reply read retries stop on ${cancel ? 'cancellation' : 'exhaustion'}`, () => runWithFakedTimers({}, async () => {
+			const source = disposables.add(new CancellationTokenSource());
+			let writes = 0;
+			let failedReads = 0;
+			const { controller } = setup({
+				get: async () => {
+					if (writes) {
+						failedReads++;
+						if (cancel && failedReads === 1) {
+							void timeout(1).then(() => source.cancel());
+						}
+						throw new ApiRequestError(503, 'server');
+					}
+					return original;
+				},
+				getEvents: async () => ({ data: { events: [], total: 0 } }),
+				steer: async () => { writes++; },
+			});
+			const session = disposables.add(await controller.provideChatSessionContent(resource, CancellationToken.None));
+			const outcome = await session.requestHandler!(request, () => { }, [], source.token).then(
+				() => 'completed',
+				(error: Error) => isCancellationError(error) ? 'cancelled' : error.message,
+			);
+			assert.deepStrictEqual({ failedReads, writes, outcome }, {
+				failedReads: cancel ? 1 : 4, writes: 1,
+				outcome: cancel ? 'cancelled' : 'GitHub accepted the reply, but its progress could not be read. Reopen this run to check it.',
+			});
+		}));
+	}
 
 	test('disposal discards a late account read and an uncertain steer is never replayed', async () => {
 		let writes = 0;

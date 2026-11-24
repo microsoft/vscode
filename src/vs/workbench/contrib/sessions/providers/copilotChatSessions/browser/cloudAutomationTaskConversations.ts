@@ -16,7 +16,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
 import { JsonObject, JsonValue } from '../../../../../../platform/github/common/client/types.js';
 import { ApiRequestError } from '../../../../../../platform/github/common/missionControl/missionControlClient.js';
-import { isRetryableMissionControlError, missionControlRetryDelay } from '../../../../../../platform/github/common/missionControl/missionControlError.js';
+import { isRetryableMissionControlError, MISSION_CONTROL_RETRY_BUDGET_MS, missionControlMaxRetries, missionControlRetryDelay } from '../../../../../../platform/github/common/missionControl/missionControlError.js';
 import { GetTaskResponse, TaskEvent } from '../../../../../../platform/github/common/missionControl/tasks.js';
 import { RequestError } from '../../../../../../platform/github/common/types.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
@@ -303,6 +303,26 @@ export class CloudAutomationTaskConversations extends Disposable implements ICha
 		}
 	}
 
+	private async readAcceptedReply(resource: URI, token: CancellationToken): Promise<ITaskSnapshot> {
+		const deadline = Date.now() + MISSION_CONTROL_RETRY_BUDGET_MS;
+		for (let failures = 1; ; failures++) {
+			CancellationToken.throwIfCanceled(token);
+			try {
+				return await this.read(resource, token);
+			} catch (error) {
+				CancellationToken.throwIfCanceled(token);
+				const delay = historyPollRetryDelay(error, failures);
+				if (delay === undefined) {
+					throw error;
+				}
+				if (failures > missionControlMaxRetries(error instanceof ApiRequestError ? error.code : undefined) || Date.now() + delay >= deadline) {
+					throw new Error(localize('cloudAutomationTask.progressUnavailable', "GitHub accepted the reply, but its progress could not be read. Reopen this run to check it."), { cause: error });
+				}
+				await timeout(delay, token);
+			}
+		}
+	}
+
 	private async followReply(resource: URI, prompt: string, baseline: ITaskSnapshot, progress: (parts: IChatProgress[]) => void, token: CancellationToken): Promise<ITaskSnapshot> {
 		const seen = new Set(baseline.events.map(event => event.id));
 		const priorSessions = new Set(baseline.task.sessions?.map(session => session.id));
@@ -311,7 +331,7 @@ export class CloudAutomationTaskConversations extends Disposable implements ICha
 		let receivedAnswer = false;
 		progress([{ kind: 'progressMessage', content: new MarkdownString(localize('cloudAutomationTask.sent', "Reply sent to GitHub.")) }]);
 		for (; ;) {
-			const current = await this.read(resource, token);
+			const current = await this.readAcceptedReply(resource, token);
 			let inReply = false;
 			for (const event of current.events) {
 				const content = eventContent(event);
