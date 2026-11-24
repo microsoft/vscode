@@ -830,11 +830,10 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 				}
 				const pickerDetail = entry.type !== 'remote' ? undefined
 					: entry.remote.pickerUnavailableReason
-						? localize('remotes.pickerUnavailableDetail', "Not shown in the environment picker: {0}", entry.remote.pickerUnavailableReason)
+						? localize('remotes.pickerUnavailableDetail', "Hidden from the environment picker: {0}", entry.remote.pickerUnavailableReason)
 						: entry.remote.hidden ? localize('remotes.hiddenDetail', "Hidden from the environment picker. Use More Actions to show it again.") : undefined;
-				template.pickerStatus.textContent = entry.type !== 'remote' ? ''
-					: entry.remote.pickerUnavailableReason ? localize('remotes.pickerUnavailableStatus', "Not shown in picker")
-						: entry.remote.hidden ? localize('remotes.hiddenStatus', "Hidden from picker") : '';
+				template.pickerStatus.textContent = entry.type === 'remote' && (entry.remote.hidden || entry.remote.pickerUnavailableReason)
+					? localize('remotes.hiddenStatus', "Hidden from Picker") : '';
 				template.pickerStatus.hidden = !template.pickerStatus.textContent;
 				if (pickerDetail) {
 					template.elementDisposables.add(this.hoverService.setupDelayedHoverAtMouse(template.pickerStatus, {

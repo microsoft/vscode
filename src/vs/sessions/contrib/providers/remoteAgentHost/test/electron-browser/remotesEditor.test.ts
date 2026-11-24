@@ -207,8 +207,9 @@ suite('RemotesEditor', () => {
 			runBehaviorExplained: ['tasks you want to leave running', 'when available', 'If a Dev Tunnel is shared', 'Existing sessions are not moved'].every(explanation => content.includes(explanation)),
 			removalActions: ['Remove GitHub Environment', 'Remove Saved SSH Connection', 'Remove Dev Tunnel'].every(label => content.includes(label)),
 			connectionFailures: ['a notification shows the error', 'Connect action shows a warning', 'select Connect to try again'].every(explanation => content.includes(explanation)),
+			pickerVisibility: ['Hidden from Picker', 'Show in Picker', 'Hide from Picker'].every(label => content.includes(label)),
 			oldGroupSettings: content.includes('The Dev Tunnels group has an Open Dev Tunnels Settings action.'),
-		}, { runBehavior: true, runBehaviorExplained: true, removalActions: true, connectionFailures: true, oldGroupSettings: false });
+		}, { runBehavior: true, runBehaviorExplained: true, removalActions: true, connectionFailures: true, pickerVisibility: true, oldGroupSettings: false });
 	});
 
 	test('offers the open command in the Command Palette and Sessions overflow only with management, Environment picker, AI and remote gates', () => {

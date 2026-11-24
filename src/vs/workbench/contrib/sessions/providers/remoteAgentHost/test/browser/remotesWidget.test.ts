@@ -822,27 +822,128 @@ suite('RemotesWidget', () => {
 
 	test('hidden picker status preserves connection actions and name hover', () => {
 		const { parent, model, widget, hoverContents } = createWidget(OperatingSystem.Windows, 'none', 900);
+		feedbackStyles(parent);
+		parent.style.font = '13px "Segoe UI", sans-serif';
+		parent.style.setProperty('--vscode-fontSize-label1', '12px');
 		const remote = model.remotes.get()[0];
-		model.remotes.set([{ ...remote, hidden: true, name: 'Build server with a long environment name' }], undefined);
+		model.remotes.set([{ ...remote, hidden: true, name: 'Build server' }], undefined);
 		const row = parent.querySelector<HTMLElement>('[data-remote-id]')!;
 		const name = row.querySelector<HTMLElement>('.remotes-name')!;
 		const pickerStatus = row.querySelector<HTMLElement>('.remotes-picker-status')!;
-		const states = [900, 360].map(width => {
+		const states = [900, 360, 900].map(width => {
 			parent.style.width = `${width}px`;
 			widget.layout();
 			return {
 				status: pickerStatus.textContent, visible: pickerStatus.getBoundingClientRect().width > 0,
+				truncated: pickerStatus.scrollWidth > pickerStatus.clientWidth,
+				nameTruncated: name.scrollWidth > name.clientWidth,
 				connection: getConnectionAction(parent, remote.id).getAttribute('aria-label'),
 				show: getMenuAction(parent, remote.id, 'visibility').label,
 			};
 		});
 		assert.deepStrictEqual({
-			states, hover: hoverContents.get(pickerStatus), nameHover: hoverContents.get(name)?.includes('Build server with a long environment name'),
+			states, hover: hoverContents.get(pickerStatus), nameHover: hoverContents.get(name)?.includes('Build server'),
 		}, {
-			states: Array.from({ length: 2 }, () => ({ status: 'Hidden from picker', visible: true, connection: 'Disconnect Build server with a long environment name', show: 'Show in Picker' })),
+			states: Array.from({ length: 3 }, () => ({ status: 'Hidden from Picker', visible: true, truncated: false, nameTruncated: false, connection: 'Disconnect Build server', show: 'Show in Picker' })),
 			hover: 'Hidden from the environment picker. Use More Actions to show it again.', nameHover: true,
 		});
 	});
+
+	test('hidden picker status keeps compact row actions in view', () => {
+		const { parent, model, widget, configurationService } = createWidget(OperatingSystem.Windows, 'type', 672);
+		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxProfilesEnabled, false);
+		configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectsConfiguration: (key: string) => key === AgentSandboxSettingId.AgentSandboxProfilesEnabled }));
+		feedbackStyles(parent);
+		parent.style.font = '13px "Segoe UI", sans-serif';
+		parent.style.setProperty('--vscode-fontSize-label1', '12px');
+		parent.style.setProperty('--vscode-fontWeight-semiBold', '600');
+		const remote = {
+			...model.remotes.get()[0], name: 'Build server',
+			metadata: { operatingSystem: OperatingSystem.Windows, observedAt: Date.now(), lastActivityAt: Date.now() - 3 * 60_000 },
+		};
+		model.remotes.set([remote], undefined);
+		const viewport = parent.querySelector<HTMLElement>('.remotes-table-viewport')!;
+		const table = parent.querySelector<HTMLElement>('.monaco-table')!;
+		const activityHeader = parent.querySelectorAll<HTMLElement>('.monaco-table-th')[2].querySelector<HTMLElement>('.remotes-sort-header')!;
+		activityHeader.click();
+		const read = () => {
+			widget.layout();
+			const row = parent.querySelector<HTMLElement>('[data-remote-id]')!;
+			const name = row.querySelector<HTMLElement>('.remotes-name')!;
+			const status = row.querySelector<HTMLElement>('.remotes-picker-status')!;
+			const action = row.querySelector<HTMLElement>('.codicon-toolbar-more')!;
+			const bounds = viewport.getBoundingClientRect();
+			const actionBounds = action.getBoundingClientRect();
+			const neighboringLabels = [
+				activityHeader.querySelector<HTMLElement>('span:first-child')!,
+				row.querySelector<HTMLElement>('.remotes-status-column .remotes-metadata > span:last-child')!,
+				row.querySelector<HTMLElement>('.remotes-activity-column .remotes-metadata > span')!,
+				row.querySelector<HTMLElement>('.remotes-system-column .remotes-metadata > span')!,
+			];
+			return {
+				scrolls: table.getBoundingClientRect().width > viewport.clientWidth,
+				nameFits: name.scrollWidth <= name.clientWidth,
+				statusFits: status.hidden || status.scrollWidth <= status.clientWidth,
+				actionInView: actionBounds.left >= bounds.left && actionBounds.right <= bounds.right,
+				neighboringLabelsFit: neighboringLabels.map(label => label.scrollWidth <= label.clientWidth),
+			};
+		};
+		const before = read();
+		model.remotes.set([{ ...remote, hidden: true }], undefined);
+		const hidden = read();
+		model.remotes.set([{ ...remote, hidden: true, description: 'Remote build host' }], undefined);
+		const described = read();
+		model.remotes.set([remote], undefined);
+		const restored = read();
+		model.remotes.set([remote, { ...remote, id: 'ssh:other', name: 'Another host', hidden: true }], undefined);
+		widget.setSearchQuery('Build server');
+		parent.style.width = '620px';
+		assert.deepStrictEqual({ before, hidden, described, restored, filtered: read() }, {
+			before: { scrolls: false, nameFits: true, statusFits: true, actionInView: true, neighboringLabelsFit: [true, true, true, true] },
+			hidden: { scrolls: false, nameFits: true, statusFits: true, actionInView: true, neighboringLabelsFit: [true, true, true, true] },
+			described: { scrolls: false, nameFits: true, statusFits: true, actionInView: true, neighboringLabelsFit: [true, true, true, true] },
+			restored: { scrolls: false, nameFits: true, statusFits: true, actionInView: true, neighboringLabelsFit: [true, true, true, true] },
+			filtered: { scrolls: false, nameFits: true, statusFits: true, actionInView: true, neighboringLabelsFit: [true, true, true, true] },
+		});
+	});
+
+	for (const state of ['hidden', 'unavailable'] as const) {
+		test(`${state} picker status keeps names readable alongside descriptions through resizing`, () => {
+			const { parent, model, widget } = createWidget(OperatingSystem.Windows, 'status', 879);
+			feedbackStyles(parent);
+			parent.style.font = '13px "Segoe UI", sans-serif';
+			parent.style.setProperty('--vscode-fontSize-label1', '12px');
+			const remote = { ...model.remotes.get()[0], name: 'Build server with a long environment name', description: 'Remote build host' };
+			model.remotes.set([remote], undefined);
+			const viewport = parent.querySelector<HTMLElement>('.remotes-table-viewport')!;
+			const table = parent.querySelector<HTMLElement>('.monaco-table')!;
+			const scrolls = () => table.getBoundingClientRect().width > viewport.clientWidth;
+			const before = scrolls();
+			model.remotes.set([{ ...remote, ...(state === 'hidden' ? { hidden: true } : { pickerUnavailableReason: 'Connect once to add this environment.' }) }], undefined);
+			const states = [879, 360, 1400, 879].map(width => {
+				parent.style.width = `${width}px`;
+				widget.layout();
+				const row = parent.querySelector<HTMLElement>('[data-remote-id]')!;
+				const name = row.querySelector<HTMLElement>('.remotes-name')!;
+				const detail = row.querySelector<HTMLElement>('.remotes-name-detail')!;
+				const status = row.querySelector<HTMLElement>('.remotes-picker-status')!;
+				const context = document.createElement('canvas').getContext('2d')!;
+				context.font = dom.getWindow(name).getComputedStyle(name).font;
+				return {
+					scrolls: scrolls(),
+					statusFits: status.scrollWidth <= status.clientWidth,
+					nameReadable: name.clientWidth >= context.measureText('Build server\u2026').width,
+					detailVisible: detail.clientWidth > 0,
+				};
+			});
+			model.remotes.set([remote], undefined);
+			assert.deepStrictEqual({ before, states, restored: scrolls() }, {
+				before: false,
+				states: [true, true, false, true].map(scrolls => ({ scrolls, statusFits: true, nameReadable: true, detailVisible: true })),
+				restored: false,
+			});
+		});
+	}
 
 	test('identity and host-reported resources distinguish hosts and are searchable', () => {
 		const { parent, model, widget, hoverContents } = createWidget(OperatingSystem.Windows, 'default', 1400);
@@ -2567,6 +2668,7 @@ suite('RemotesWidget', () => {
 			await timeout(0);
 			const hidden = {
 				label: getMenuAction(parent, 'ssh:build', 'visibility').label,
+				status: row.querySelector<HTMLElement>('.remotes-picker-status')!.textContent,
 				dimmed: row.classList.contains('remotes-row-hidden'),
 				connection: getRowStatus(row),
 				accessible: widget.getAccessibilityContent().includes('Build server (hidden from environment picker)'),
@@ -2580,11 +2682,12 @@ suite('RemotesWidget', () => {
 			assert.deepStrictEqual({
 				before, hidden, retained,
 				restored: model.remotes.get().find(remote => remote.id === 'ssh:build')?.hidden,
+				restoredStatus: parent.querySelector<HTMLElement>('[data-remote-id="ssh:build"] .remotes-picker-status')!.textContent,
 				visibilityChanges: model.visibilityChanges, connectionChanges: model.connectionChanges, managementChanges: model.managementChanges,
 			}, {
 				before: 'Hide from Picker',
-				hidden: { label: 'Show in Picker', dimmed: true, connection: state === 'offline' ? 'Offline' : state === 'connected' ? 'Connected' : 'Available', accessible: true },
-				retained: 1, restored: false,
+				hidden: { label: 'Show in Picker', status: 'Hidden from Picker', dimmed: true, connection: state === 'offline' ? 'Offline' : state === 'connected' ? 'Connected' : 'Available', accessible: true },
+				retained: 1, restored: false, restoredStatus: '',
 				visibilityChanges: [{ id: 'ssh:build', hidden: true }, { id: 'ssh:build', hidden: false }],
 				connectionChanges: [], managementChanges: [],
 			});
@@ -2631,7 +2734,7 @@ suite('RemotesWidget', () => {
 
 	for (const hidden of [false, true]) {
 		test(`unavailable remotes explain their absence instead of offering a visibility toggle (hidden: ${hidden})`, () => {
-			const { parent, model, widget } = createWidget(OperatingSystem.Windows);
+			const { parent, model, widget, hoverContents } = createWidget(OperatingSystem.Windows);
 			const remote: ICustomizationRemote = {
 				id: 'wsl:Debian', kind: 'wsl', name: 'Debian', detail: 'Debian', canRemove: false, hidden,
 				availability: 'online', connectionStatus: RemoteAgentHostConnectionStatus.disconnected,
@@ -2639,10 +2742,12 @@ suite('RemotesWidget', () => {
 			};
 			model.remotes.set([remote], undefined);
 			const row = parent.querySelector<HTMLElement>('[data-remote-id]')!;
+			const status = row.querySelector<HTMLElement>('.remotes-picker-status')!;
 			const action = getMenuAction(parent, remote.id, 'visibility');
 			const unavailable = {
 				label: action.label, tooltip: action.tooltip, disabled: !action.enabled,
-				accessible: widget.getAccessibilityContent().includes('not shown in environment picker: This remote can\'t appear as a separate entry'),
+				status: status.textContent, statusHover: hoverContents.get(status),
+				accessible: widget.getAccessibilityContent().includes('hidden from environment picker: This remote can\'t appear as a separate entry'),
 			};
 			runMenuAction(parent, remote.id, 'visibility');
 			model.remotes.set([{ ...remote, pickerUnavailableReason: undefined }], undefined);
@@ -2651,6 +2756,7 @@ suite('RemotesWidget', () => {
 				unavailable,
 				restored: {
 					label: restoredAction.label, disabled: !restoredAction.enabled,
+					status: row.querySelector<HTMLElement>('.remotes-picker-status')!.textContent,
 					unavailableClass: row.classList.contains('remotes-row-picker-unavailable'),
 				},
 				visibilityChanges: model.visibilityChanges, connectionChanges: model.connectionChanges,
@@ -2659,10 +2765,13 @@ suite('RemotesWidget', () => {
 					label: 'Show in Picker',
 					tooltip: 'This remote can\'t appear as a separate entry in the environment picker.',
 					disabled: true, accessible: true,
+					status: 'Hidden from Picker',
+					statusHover: 'Hidden from the environment picker: This remote can\'t appear as a separate entry in the environment picker.',
 				},
 				restored: {
 					label: hidden ? 'Show in Picker' : 'Hide from Picker',
 					disabled: false, unavailableClass: false,
+					status: hidden ? 'Hidden from Picker' : '',
 				},
 				visibilityChanges: [], connectionChanges: [],
 			});

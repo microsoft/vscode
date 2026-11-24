@@ -297,11 +297,12 @@ export class RemotesWidget extends Disposable {
 		const sandboxProfileHidden = () => this.tableContainer.classList.contains('remotes-hide-sandbox-profile');
 		const groupedByType = () => this.tableContainer.classList.contains('remotes-group-by-type');
 		const groupedByStatus = () => this.tableContainer.classList.contains('remotes-group-by-status');
+		const hasPickerStatus = () => this.rows.some(({ entry }) => entry.type === 'remote' && (entry.remote.hidden || entry.remote.pickerUnavailableReason));
 		const columnDefinitions = [
-			{ id: 'name', label: localize('remotes.nameColumn', "Name"), weight: 300, minimumWidth: 100, maximumWidth: Number.POSITIVE_INFINITY },
-			{ id: 'status', label: statusLabel, weight: 144, get minimumWidth() { return groupedByStatus() ? 0 : 124; }, get maximumWidth() { return groupedByStatus() ? 0 : Number.POSITIVE_INFINITY; } },
-			{ id: 'activity', label: lastActivityLabel, weight: 160, minimumWidth: 136, maximumWidth: Number.POSITIVE_INFINITY },
-			{ id: 'system', label: localize('remotes.systemColumn', "System"), weight: 120, minimumWidth: 100, maximumWidth: Number.POSITIVE_INFINITY },
+			{ id: 'name', label: localize('remotes.nameColumn', "Name"), weight: 300, get minimumWidth() { return hasPickerStatus() ? 276 : 100; }, maximumWidth: Number.POSITIVE_INFINITY },
+			{ id: 'status', label: statusLabel, weight: 144, get minimumWidth() { return groupedByStatus() ? 0 : hasPickerStatus() ? 108 : 124; }, get maximumWidth() { return groupedByStatus() ? 0 : Number.POSITIVE_INFINITY; } },
+			{ id: 'activity', label: lastActivityLabel, weight: 160, get minimumWidth() { return hasPickerStatus() ? 124 : 136; }, maximumWidth: Number.POSITIVE_INFINITY },
+			{ id: 'system', label: localize('remotes.systemColumn', "System"), weight: 120, get minimumWidth() { return hasPickerStatus() ? 84 : 100; }, maximumWidth: Number.POSITIVE_INFINITY },
 			{ id: 'type', label: typeLabel, weight: 216, get minimumWidth() { return groupedByType() ? 0 : 216; }, get maximumWidth() { return groupedByType() ? 0 : Number.POSITIVE_INFINITY; } },
 			{ id: 'sandboxProfile', label: localize('remotes.sandboxProfileColumn', "Sandbox Profile"), weight: 180, get minimumWidth() { return sandboxProfileHidden() ? 0 : 140; }, get maximumWidth() { return sandboxProfileHidden() ? 0 : Number.POSITIVE_INFINITY; } },
 			{ id: 'actions', label: '', weight: 0, get minimumWidth() { return compact() ? 64 : 224; }, get maximumWidth() { return this.minimumWidth; } },
@@ -1292,7 +1293,7 @@ export class RemotesWidget extends Disposable {
 	private getRemoteAriaLabel(remote: ICustomizationRemote): string {
 		const displayName = remote.description ? localize('remotes.nameWithDescription', "{0} on {1}", remote.name, remote.description) : remote.name;
 		const name = remote.pickerUnavailableReason
-			? localize('remotes.unavailablePickerName', "{0} (not shown in environment picker: {1})", displayName, remote.pickerUnavailableReason)
+			? localize('remotes.unavailablePickerName', "{0} (hidden from environment picker: {1})", displayName, remote.pickerUnavailableReason)
 			: remote.hidden ? localize('remotes.hiddenName', "{0} (hidden from environment picker)", displayName) : displayName;
 		const availability = getRemoteAvailabilityLabel(remote);
 		const sentences = [

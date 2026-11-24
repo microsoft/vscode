@@ -520,6 +520,15 @@
 	flex: 0 1 auto;
 }
 
+.remotes-widget :is(.remotes-row-hidden, .remotes-row-picker-unavailable) .remotes-name-row > .remotes-name {
+	flex: 2 1 0;
+}
+
+.remotes-widget :is(.remotes-row-hidden, .remotes-row-picker-unavailable) .remotes-name-row > .remotes-name-detail {
+	flex: 1 1 0;
+	max-width: max-content;
+}
+
 .remotes-widget .remotes-actions-column .codicon[hidden] {
 	display: none;
 }
@@ -584,7 +593,7 @@
 .remotes-widget .remotes-picker-status {
 	min-width: 0;
 	max-width: 50%;
-	flex-shrink: 0;
+	flex: 0 1 auto;
 	margin-inline-start: auto;
 	overflow: hidden;
 	text-overflow: ellipsis;
