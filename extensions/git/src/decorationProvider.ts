@@ -60,6 +60,10 @@ export class GitIgnoreDecorationProvider implements FileDecorationProvider {
 	}
 
 	async provideFileDecoration(uri: Uri): Promise<FileDecoration | undefined> {
+		if (uri.scheme !== 'file') {
+			return;
+		}
+
 		const repository = this.model.getRepository(uri);
 
 		if (!repository) {
