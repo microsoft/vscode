@@ -2667,6 +2667,8 @@ suite('Mission Control WPS', () => {
 				manualPublishAcks?: boolean;
 				tokenReplies?: readonly { status: number; retryAfter?: string; body: object }[];
 				failSigningKeyRefresh?: boolean;
+				realpath?: (path: string) => Promise<string>;
+				onExcludedDirectory?: (path: string) => void;
 			} = {},
 		): Promise<void> {
 			const path = await mkdtemp(join(process.cwd(), '.build', 'mission-control-retry-after-'));
@@ -2752,6 +2754,8 @@ suite('Mission Control WPS', () => {
 						return { dispose() { } };
 					},
 					updateProjects: async () => { projectUpdates++; },
+					realpath: overrides.realpath,
+					onExcludedDirectory: overrides.onExcludedDirectory,
 					onError: error => {
 						errors.push(error instanceof Error ? error.message : String(error));
 						errorReported.fire();
@@ -3592,16 +3596,29 @@ suite('Mission Control WPS', () => {
 			});
 		});
 
-		test('excludes network-backed roots and projects while sharing the remaining local directories', () => {
-			assert.deepStrictEqual(selectLocalMissionControlDirectories({
-				roots: ['C:\\', '\\\\server\\share\\', '/home/user', '\\\\server\\share\\project'],
-				projects: ['C:\\project', '\\\\server\\share\\project'],
-				defaultDirectory: 'C:\\Users\\test',
-			}), {
-				roots: ['C:\\', '/home/user'],
-				projects: ['C:\\project'],
-				defaultDirectory: 'C:\\Users\\test',
-				excluded: ['\\\\server\\share\\', '\\\\server\\share\\project'],
+		test('grants only local directories when a mapped drive resolves to a network share', async () => {
+			const mappedDrive = 'Z:\\';
+			const share = '\\\\server\\share\\';
+			const excluded: string[] = [];
+			await withEnvironment([], async ({ service, options, directory, attachments }) => {
+				const home = realpathSync(directory);
+				const project = realpathSync(await mkdtemp(join(home, 'project-')));
+				await service.configure(undefined, options.accountId);
+				await service.configure({ ...options, roots: [home, mappedDrive, `${mappedDrive}project`], projects: [project, `${mappedDrive}project`], defaultDirectory: home });
+				const attachment = attachments.at(-1)!;
+				assert.deepStrictEqual({
+					initialRoots: attachment.initialRoots,
+					roots: attachment.getRoots(),
+					projects: attachment.getProjects(),
+					defaultDirectory: attachment.defaultDirectory,
+					excluded,
+				}, {
+					initialRoots: [home], roots: [home], projects: [project], defaultDirectory: home,
+					excluded: [share, `${share}project`],
+				});
+			}, undefined, false, {
+				realpath: path => path.startsWith(mappedDrive) ? Promise.resolve(`${share}${path.slice(mappedDrive.length)}`) : fs.realpath(path),
+				onExcludedDirectory: path => { excluded.push(path); },
 			});
 		});
 

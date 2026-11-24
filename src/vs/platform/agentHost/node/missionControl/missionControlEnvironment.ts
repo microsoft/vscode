@@ -61,6 +61,8 @@ export interface IMissionControlEnvironmentHost {
 	/** Applies an owner-validated credential choice and reports whether the effective mode changed. */
 	readonly configureExecutionAuthentication?: (useLocalCredentials: boolean) => boolean;
 	readonly updateProjects?: () => Promise<void>;
+	/** Resolves a shared root, project or default directory. Defaults to the native `realpath`. */
+	readonly realpath?: (path: string) => Promise<string>;
 	/** Reports a resolved root or project that is not shared because it is network-backed. */
 	readonly onExcludedDirectory?: (path: string) => void;
 	readonly onError: (error: unknown) => void;
@@ -338,7 +340,7 @@ export class MissionControlEnvironment extends Disposable {
 		if (this._canonicalOwner && this._canonicalOwner !== owner) {
 			throw new MissionControlOwnerMismatchError('Credential does not match the Agent Host owner');
 		}
-		const resolveDirectory = (path: string) => withErrorCategory('AgentHostFileSystem', 'Mission Control could not resolve a shared directory', () => realpath(path));
+		const resolveDirectory = (path: string) => withErrorCategory('AgentHostFileSystem', 'Mission Control could not resolve a shared directory', () => this._host.realpath ? this._host.realpath(path) : realpath(path));
 		const resolved = {
 			roots: await Promise.all(options.roots.map(resolveDirectory)),
 			projects: options.projects === undefined ? undefined : await Promise.all(options.projects.map(resolveDirectory)),
