@@ -28,7 +28,7 @@ import { Memento } from '../../../../../common/memento.js';
 import { NullWorkbenchAssignmentService } from '../../../../../services/assignment/test/common/nullAssignmentService.js';
 import { DialogService } from '../../../../../services/dialogs/common/dialogService.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
-import { TestHostService, TestLayoutService } from '../../../../../test/browser/workbenchTestServices.js';
+import { TestHostService, TestLayoutService, TestQuickInputService } from '../../../../../test/browser/workbenchTestServices.js';
 import { TestLifecycleService, TestProductService } from '../../../../../test/common/workbenchTestServices.js';
 import { OnboardingScenarioService } from '../../../../onboarding/browser/onboardingService.js';
 import { runWithOnboardingPresentation } from '../../../../onboarding/browser/onboardingPresentationQueue.js';
@@ -356,7 +356,7 @@ suite('AgentPickerSpotlight', () => {
 			const layout = new class extends TestLayoutService {
 				override getContainer() { return mainWindow.document.body; }
 			}();
-			const presentation = store.add(new SpotlightPresentation(layout, new TestHostService(), context, new TestConfigurationService(), NullTelemetryService, new TestDialogService()));
+			const presentation = store.add(new SpotlightPresentation(layout, new TestHostService(), context, new TestConfigurationService(), NullTelemetryService, new TestDialogService(), new TestQuickInputService()));
 			const shown = new DeferredPromise<void>();
 			const result = presentation.run(scenario, { targetWindow: mainWindow, onAbort: Event.None, onDidShow: () => { void shown.complete(); } });
 			await shown.p;

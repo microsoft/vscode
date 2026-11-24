@@ -80,7 +80,7 @@ import { ISpotlightPayload, SPOTLIGHT_PRESENTATION_KIND } from '../../../../../w
 import { OnboardingOutcome } from '../../../../../workbench/contrib/onboarding/common/onboardingScenario.js';
 import { onboardingScenarioRegistry } from '../../../../../workbench/contrib/onboarding/common/onboardingRegistry.js';
 import { IOnboardingScenarioService, ONBOARDING_ENABLED_CONFIG } from '../../../../../workbench/contrib/onboarding/common/onboardingScenarioService.js';
-import { TestHostService, TestLayoutService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
+import { TestHostService, TestLayoutService, TestQuickInputService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { TestProductService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { IPreferencesService } from '../../../../../workbench/services/preferences/common/preferences.js';
 import '../../../../../workbench/browser/actions/listCommands.js';
@@ -1437,6 +1437,7 @@ suite('Sessions - SessionsList', () => {
 					new class extends TestLayoutService { override getContainer(): HTMLElement { return container; } }(),
 					new TestHostService(), harness.instantiationService.get(IContextKeyService), harness.instantiationService.get(IConfigurationService), NullTelemetryService,
 					new TestDialogService(),
+					new TestQuickInputService(),
 				));
 				const shown = new DeferredPromise<void>();
 				const result = presentation.run({
@@ -6649,7 +6650,7 @@ suite('Sessions - SessionsList', () => {
 						const layout = new class extends TestLayoutService {
 							override getContainer() { return mainWindow.document.body; }
 						}();
-						const presentation = disposables.add(new SpotlightPresentation(layout, new TestHostService(), harness.instantiationService.get(IContextKeyService), new TestConfigurationService(), NullTelemetryService, new TestDialogService()));
+						const presentation = disposables.add(new SpotlightPresentation(layout, new TestHostService(), harness.instantiationService.get(IContextKeyService), new TestConfigurationService(), NullTelemetryService, new TestDialogService(), new TestQuickInputService()));
 						const shownTour = new DeferredPromise<void>();
 						const previousFocus = mainWindow.document.activeElement;
 						const result = presentation.run({ ...scenario, presentation: { ...scenario.presentation, payload: { steps: [step] } } }, {

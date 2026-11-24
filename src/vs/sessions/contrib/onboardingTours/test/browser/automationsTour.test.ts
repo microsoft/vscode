@@ -31,7 +31,7 @@ import { SessionsWelcomeVisibleContext } from '../../../../../workbench/contrib/
 import { ChatEntitlementContextKeys } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { NullWorkbenchAssignmentService } from '../../../../../workbench/services/assignment/test/common/nullAssignmentService.js';
 import { TestLifecycleService } from '../../../../../workbench/test/common/workbenchTestServices.js';
-import { TestHostService, TestLayoutService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
+import { TestHostService, TestLayoutService, TestQuickInputService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { NewSessionOnboardingHandoffContext } from '../../../../common/agentsWindowContextKeys.js';
 import { AutomationsTourContribution } from '../../browser/automationsTourContribution.js';
 import { AUTOMATIONS_TOUR_ID, createAutomationsTour } from '../../browser/tours/automationsTour.js';
@@ -135,7 +135,7 @@ suite('AutomationsTour', () => {
 			const layout = new class extends TestLayoutService {
 				override getContainer() { return mainWindow.document.body; }
 			}();
-			const presentation = disposables.add(new SpotlightPresentation(layout, new TestHostService(), context, new TestConfigurationService(), NullTelemetryService, new TestDialogService()));
+			const presentation = disposables.add(new SpotlightPresentation(layout, new TestHostService(), context, new TestConfigurationService(), NullTelemetryService, new TestDialogService(), new TestQuickInputService()));
 			const shown = new DeferredPromise<void>();
 			const result = presentation.run(createAutomationsTour(), {
 				targetWindow: mainWindow, onAbort: Event.None, onDidShow: () => { void shown.complete(); },

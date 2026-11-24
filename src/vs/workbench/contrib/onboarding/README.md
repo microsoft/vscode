@@ -195,7 +195,7 @@ Use:
 
 Spotlights are keyboard operable, dismissible with Escape, and keep interactive targets available when requested. Important state changes remain the responsibility of the owning feature.
 
-A spotlight never shows over a modal dialog. A step waits for open dialogs to close before it starts, and a visible step hides while a dialog shows, so Escape in the dialog does not end the tour. When the last dialog closes, the step comes back as it was, unless the dialog's outcome advanced it, removed its target, or made its `when` false; then the tour moves on.
+A spotlight never shows over modal UI: a dialog or the Quick Input, such as the simple file dialog or the Command Palette. Don't target elements inside them. A step waits for open modal UI to close before it starts, and a visible step hides while modal UI shows, so Escape there does not end the tour. When the last one closes, the step comes back as it was, unless what the user did there advanced it, removed its target, or made its `when` false; then the tour moves on.
 
 For a selection-driven step, `primaryAction` can offer the same action through a labeled callout button. It runs only on an explicit button click and does not advance the tour itself: use `advanceOnTargetSelection` or `advanceWhen` to confirm the outcome. The button is disabled after activation, and the action's cancellation token is cancelled when the step ends or its target is replaced. Check that token after asynchronous preparation and before changing state. End Tour remains available even on the final action step.
 

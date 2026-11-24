@@ -18,9 +18,10 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { IQuickInput, IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { DialogService } from '../../../../services/dialogs/common/dialogService.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
-import { TestHostService, TestLayoutService } from '../../../../test/browser/workbenchTestServices.js';
+import { TestHostService, TestLayoutService, TestQuickInputService } from '../../../../test/browser/workbenchTestServices.js';
 import { SpotlightPresentation } from '../../browser/spotlight/spotlightPresentation.js';
 import { IOnboardingTargetOptions, markOnboardingTarget, ONBOARDING_TARGET_ATTR, registerOnboardingTargetProvider } from '../../browser/spotlight/onboardingTarget.js';
 import { ISpotlightPayload, ISpotlightStep, SPOTLIGHT_BACKDROP_CONFIG, SPOTLIGHT_CLOSE_BUTTON_CONFIG, SPOTLIGHT_PRESENTATION_KIND } from '../../browser/spotlight/spotlightTypes.js';
@@ -97,7 +98,7 @@ suite('SpotlightPresentation', () => {
 					}
 				}));
 				const contextKeys = disposables.add(new ContextKeyService(new TestConfigurationService()));
-				const presentation = disposables.add(new SpotlightPresentation(new SpotlightTestLayoutService(container), new TestHostService(), contextKeys, new TestConfigurationService(), NullTelemetryService, new TestDialogService()));
+				const presentation = disposables.add(new SpotlightPresentation(new SpotlightTestLayoutService(container), new TestHostService(), contextKeys, new TestConfigurationService(), NullTelemetryService, new TestDialogService(), new TestQuickInputService()));
 				const shown = new DeferredPromise<void>();
 				const result = presentation.run(createScenario('test.focusOwner', {
 					id: 'focusOwner', targetId: 'test.focusOwner', title: 'New Session', description: 'Start another task.',
@@ -134,7 +135,7 @@ suite('SpotlightPresentation', () => {
 	test('a primary action runs only on click and waits for accepted selection', async () => {
 		const container = createContainer();
 		const contextKeys = disposables.add(new ContextKeyService(new TestConfigurationService()));
-		const presentation = disposables.add(new SpotlightPresentation(new SpotlightTestLayoutService(container), new TestHostService(), contextKeys, new TestConfigurationService(), NullTelemetryService, new TestDialogService()));
+		const presentation = disposables.add(new SpotlightPresentation(new SpotlightTestLayoutService(container), new TestHostService(), contextKeys, new TestConfigurationService(), NullTelemetryService, new TestDialogService(), new TestQuickInputService()));
 		const selected = disposables.add(new Emitter<Promise<boolean>>());
 		const shown = new DeferredPromise<void>();
 		const accepted = new DeferredPromise<boolean>();
@@ -165,7 +166,7 @@ suite('SpotlightPresentation', () => {
 		test(`an advancing primary action completes the last step, and a custom End Tour label skips it (${choice})`, async () => {
 			const container = createContainer();
 			const contextKeys = disposables.add(new ContextKeyService(new TestConfigurationService()));
-			const presentation = disposables.add(new SpotlightPresentation(new SpotlightTestLayoutService(container), new TestHostService(), contextKeys, new TestConfigurationService(), NullTelemetryService, new TestDialogService()));
+			const presentation = disposables.add(new SpotlightPresentation(new SpotlightTestLayoutService(container), new TestHostService(), contextKeys, new TestConfigurationService(), NullTelemetryService, new TestDialogService(), new TestQuickInputService()));
 			createTarget(container, 'test.upgrade');
 			let actions = 0;
 			let visibleButtons: (string | null)[] = [];
@@ -194,7 +195,7 @@ suite('SpotlightPresentation', () => {
 		test(`cancels a pending primary action on ${exit} and ignores its late result`, async () => {
 			const container = createContainer();
 			const contextKeys = disposables.add(new ContextKeyService(new TestConfigurationService()));
-			const presentation = disposables.add(new SpotlightPresentation(new SpotlightTestLayoutService(container), new TestHostService(), contextKeys, new TestConfigurationService(), NullTelemetryService, new TestDialogService()));
+			const presentation = disposables.add(new SpotlightPresentation(new SpotlightTestLayoutService(container), new TestHostService(), contextKeys, new TestConfigurationService(), NullTelemetryService, new TestDialogService(), new TestQuickInputService()));
 			const abort = disposables.add(new Emitter<void>());
 			const shown = new DeferredPromise<void>();
 			const action = new DeferredPromise<void>();
@@ -236,7 +237,7 @@ suite('SpotlightPresentation', () => {
 	test('a scoped adapter reports selection without replacing the owner target marker', async () => {
 		const container = createContainer();
 		const contextKeys = disposables.add(new ContextKeyService(new TestConfigurationService()));
-		const presentation = disposables.add(new SpotlightPresentation(new SpotlightTestLayoutService(container), new TestHostService(), contextKeys, new TestConfigurationService(), NullTelemetryService, new TestDialogService()));
+		const presentation = disposables.add(new SpotlightPresentation(new SpotlightTestLayoutService(container), new TestHostService(), contextKeys, new TestConfigurationService(), NullTelemetryService, new TestDialogService(), new TestQuickInputService()));
 		const selected = disposables.add(new Emitter<Promise<boolean>>());
 		const target = createTarget(container, 'test.owner');
 		disposables.add(registerOnboardingTargetProvider('test.adapter', () => ({ element: target, onDidSelect: selected.event })));
@@ -263,7 +264,7 @@ suite('SpotlightPresentation', () => {
 			};
 			const contextKeys = disposables.add(new ContextKeyService(new TestConfigurationService()));
 			const configuration = new TestConfigurationService({ [SPOTLIGHT_BACKDROP_CONFIG]: backdrop });
-			const presentation = disposables.add(new SpotlightPresentation(new SpotlightTestLayoutService(container), host, contextKeys, configuration, NullTelemetryService, new TestDialogService()));
+			const presentation = disposables.add(new SpotlightPresentation(new SpotlightTestLayoutService(container), host, contextKeys, configuration, NullTelemetryService, new TestDialogService(), new TestQuickInputService()));
 			createTarget(container, 'test.backdrop');
 			let whileShown: { backdropPainted: boolean; ringPainted: boolean; dimming: boolean[] } | undefined;
 			const result = await presentation.run(createScenario('test.backdrop', {
@@ -298,7 +299,7 @@ suite('SpotlightPresentation', () => {
 						return source === 'assignedDefault' ? { value: inspected.value, defaultValue: inspected.value } : inspected;
 					}
 				}({ [SPOTLIGHT_CLOSE_BUTTON_CONFIG]: closeButton });
-				const presentation = disposables.add(new SpotlightPresentation(new SpotlightTestLayoutService(container), new TestHostService(), contextKeys, configuration, telemetry, new TestDialogService()));
+				const presentation = disposables.add(new SpotlightPresentation(new SpotlightTestLayoutService(container), new TestHostService(), contextKeys, configuration, telemetry, new TestDialogService(), new TestQuickInputService()));
 				createTarget(container, 'test.closeButton');
 				const step = (id: string): ISpotlightStep => ({ id, targetId: 'test.closeButton', title: id, description: 'Highlights the target.' });
 				let whileShown: { triggers: string[]; closeButtons: number; endTour: boolean } | undefined;
@@ -323,7 +324,7 @@ suite('SpotlightPresentation', () => {
 	test('resolves a target within the prepared instance scope', async () => {
 		const container = createContainer();
 		const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
-		const presentation = disposables.add(new SpotlightPresentation(new SpotlightTestLayoutService(container), new TestHostService(), contextKeyService, new TestConfigurationService(), NullTelemetryService, new TestDialogService()));
+		const presentation = disposables.add(new SpotlightPresentation(new SpotlightTestLayoutService(container), new TestHostService(), contextKeyService, new TestConfigurationService(), NullTelemetryService, new TestDialogService(), new TestQuickInputService()));
 		const opened: string[] = [];
 		const targetId = 'test.spotlight.scoped';
 		createTarget(container, targetId, { scope: 'first', open: () => { opened.push('first'); } });
@@ -365,7 +366,7 @@ suite('SpotlightPresentation', () => {
 			test(`waits for a picker lost after showing, then ${returns ? 'reattaches' : 'skips'} (runAsSequenceStep: ${runAsSequenceStep})`, async () => {
 				const container = createContainer();
 				const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
-				const presentation = disposables.add(new SpotlightPresentation(new SpotlightTestLayoutService(container), new TestHostService(), contextKeyService, new TestConfigurationService(), NullTelemetryService, new TestDialogService()));
+				const presentation = disposables.add(new SpotlightPresentation(new SpotlightTestLayoutService(container), new TestHostService(), contextKeyService, new TestConfigurationService(), NullTelemetryService, new TestDialogService(), new TestQuickInputService()));
 				const targetId = 'test.spotlight.disappearingPicker';
 				let hiddenWhileWaiting = false;
 				let shown = 0;
@@ -445,7 +446,7 @@ suite('SpotlightPresentation', () => {
 		test(`waits for a picker replaced while the target settles (runAsSequenceStep: ${runAsSequenceStep})`, async () => {
 			const container = createContainer();
 			const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
-			const presentation = disposables.add(new SpotlightPresentation(new SpotlightTestLayoutService(container), new TestHostService(), contextKeyService, new TestConfigurationService(), NullTelemetryService, new TestDialogService()));
+			const presentation = disposables.add(new SpotlightPresentation(new SpotlightTestLayoutService(container), new TestHostService(), contextKeyService, new TestConfigurationService(), NullTelemetryService, new TestDialogService(), new TestQuickInputService()));
 			const targetId = 'test.spotlight.replacedPicker';
 			const original = createTarget(container, targetId);
 			let replacement: HTMLElement | undefined;
@@ -498,7 +499,7 @@ suite('SpotlightPresentation', () => {
 		test(`waits for an owner-provided control and invokes its opener (runAsSequenceStep: ${runAsSequenceStep})`, () => runWithFakedTimers({}, async () => {
 			const container = createContainer();
 			const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
-			const presentation = disposables.add(new SpotlightPresentation(new SpotlightTestLayoutService(container), new TestHostService(), contextKeyService, new TestConfigurationService(), NullTelemetryService, new TestDialogService()));
+			const presentation = disposables.add(new SpotlightPresentation(new SpotlightTestLayoutService(container), new TestHostService(), contextKeyService, new TestConfigurationService(), NullTelemetryService, new TestDialogService(), new TestQuickInputService()));
 			const target = $('button');
 			target.style.cssText = 'position: fixed; left: 100px; top: 100px; width: 100px; height: 30px;';
 			container.appendChild(target);
@@ -548,7 +549,7 @@ suite('SpotlightPresentation', () => {
 	test('can abort while waiting for a picker that disappeared after showing', async () => {
 		const container = createContainer();
 		const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
-		const presentation = disposables.add(new SpotlightPresentation(new SpotlightTestLayoutService(container), new TestHostService(), contextKeyService, new TestConfigurationService(), NullTelemetryService, new TestDialogService()));
+		const presentation = disposables.add(new SpotlightPresentation(new SpotlightTestLayoutService(container), new TestHostService(), contextKeyService, new TestConfigurationService(), NullTelemetryService, new TestDialogService(), new TestQuickInputService()));
 		const abort = disposables.add(new Emitter<void>());
 		const targetId = 'test.spotlight.disappearingAbort';
 		const target = createTarget(container, targetId, {
@@ -575,7 +576,7 @@ suite('SpotlightPresentation', () => {
 	test('waits for a late target and skips a missing target immediately', () => runWithFakedTimers({}, async () => {
 		const container = createContainer();
 		const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
-		const presentation = disposables.add(new SpotlightPresentation(new SpotlightTestLayoutService(container), new TestHostService(), contextKeyService, new TestConfigurationService(), NullTelemetryService, new TestDialogService()));
+		const presentation = disposables.add(new SpotlightPresentation(new SpotlightTestLayoutService(container), new TestHostService(), contextKeyService, new TestConfigurationService(), NullTelemetryService, new TestDialogService(), new TestQuickInputService()));
 
 		const lateTargetId = 'test.spotlight.lateTarget';
 		let shown = 0;
@@ -626,7 +627,7 @@ suite('SpotlightPresentation', () => {
 	test('excludes skipped steps from displayed progress', async () => {
 		const container = createContainer();
 		const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
-		const presentation = disposables.add(new SpotlightPresentation(new SpotlightTestLayoutService(container), new TestHostService(), contextKeyService, new TestConfigurationService(), NullTelemetryService, new TestDialogService()));
+		const presentation = disposables.add(new SpotlightPresentation(new SpotlightTestLayoutService(container), new TestHostService(), contextKeyService, new TestConfigurationService(), NullTelemetryService, new TestDialogService(), new TestQuickInputService()));
 		const progress: { readonly counter: string | null; readonly backHidden: boolean; readonly nextLabel: string | null }[] = [];
 
 		const createAdvancingTarget = (id: string): HTMLElement => {
@@ -691,7 +692,7 @@ suite('SpotlightPresentation', () => {
 		test(`forwards acknowledgment options after awaiting target preparation (runAsSequenceStep: ${runAsSequenceStep})`, async () => {
 			const container = createContainer();
 			const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
-			const presentation = disposables.add(new SpotlightPresentation(new SpotlightTestLayoutService(container), new TestHostService(), contextKeyService, new TestConfigurationService(), NullTelemetryService, new TestDialogService()));
+			const presentation = disposables.add(new SpotlightPresentation(new SpotlightTestLayoutService(container), new TestHostService(), contextKeyService, new TestConfigurationService(), NullTelemetryService, new TestDialogService(), new TestQuickInputService()));
 			let visibleButtons: (string | null)[] = [];
 			const step: ISpotlightStep = {
 				id: 'acknowledge',
@@ -749,7 +750,7 @@ suite('SpotlightPresentation', () => {
 			let nativeActions = 0;
 			disposables.add(addDisposableListener(target, EventType.CLICK, () => nativeActions++));
 			const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
-			const presentation = disposables.add(new SpotlightPresentation(new SpotlightTestLayoutService(container), new TestHostService(), contextKeyService, new TestConfigurationService(), NullTelemetryService, new TestDialogService()));
+			const presentation = disposables.add(new SpotlightPresentation(new SpotlightTestLayoutService(container), new TestHostService(), contextKeyService, new TestConfigurationService(), NullTelemetryService, new TestDialogService(), new TestQuickInputService()));
 			const step: ISpotlightStep = {
 				id: 'archive',
 				targetId: 'test.spotlight.advanceOnly',
@@ -795,7 +796,7 @@ suite('SpotlightPresentation', () => {
 		test(`missing abort target aborts without showing (runAsSequenceStep: ${runAsSequenceStep})`, async () => {
 			const container = createContainer();
 			const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
-			const presentation = disposables.add(new SpotlightPresentation(new SpotlightTestLayoutService(container), new TestHostService(), contextKeyService, new TestConfigurationService(), NullTelemetryService, new TestDialogService()));
+			const presentation = disposables.add(new SpotlightPresentation(new SpotlightTestLayoutService(container), new TestHostService(), contextKeyService, new TestConfigurationService(), NullTelemetryService, new TestDialogService(), new TestQuickInputService()));
 			let prepared = false;
 			let shown = 0;
 			const step: ISpotlightStep = {
@@ -843,7 +844,7 @@ suite('SpotlightPresentation', () => {
 			test(`missing target waits before ${onTimeout ?? 'default skip'} (runAsSequenceStep: ${runAsSequenceStep})`, () => runWithFakedTimers({}, async () => {
 				const container = createContainer();
 				const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
-				const presentation = disposables.add(new SpotlightPresentation(new SpotlightTestLayoutService(container), new TestHostService(), contextKeyService, new TestConfigurationService(), NullTelemetryService, new TestDialogService()));
+				const presentation = disposables.add(new SpotlightPresentation(new SpotlightTestLayoutService(container), new TestHostService(), contextKeyService, new TestConfigurationService(), NullTelemetryService, new TestDialogService(), new TestQuickInputService()));
 				let shown = 0;
 				const step: ISpotlightStep = {
 					id: 'missing',
@@ -887,7 +888,7 @@ suite('SpotlightPresentation', () => {
 	test('hides the previous step while waiting for the next target', () => runWithFakedTimers({}, async () => {
 		const container = createContainer();
 		const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
-		const presentation = disposables.add(new SpotlightPresentation(new SpotlightTestLayoutService(container), new TestHostService(), contextKeyService, new TestConfigurationService(), NullTelemetryService, new TestDialogService()));
+		const presentation = disposables.add(new SpotlightPresentation(new SpotlightTestLayoutService(container), new TestHostService(), contextKeyService, new TestConfigurationService(), NullTelemetryService, new TestDialogService(), new TestQuickInputService()));
 		const firstTarget = createTarget(container, 'test.spotlight.firstVisible', { open: () => firstTarget.click() });
 		let hiddenWhileWaiting = false;
 
@@ -933,7 +934,7 @@ suite('SpotlightPresentation', () => {
 	test('aborts immediately while waiting for a target', async () => {
 		const container = createContainer();
 		const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
-		const presentation = disposables.add(new SpotlightPresentation(new SpotlightTestLayoutService(container), new TestHostService(), contextKeyService, new TestConfigurationService(), NullTelemetryService, new TestDialogService()));
+		const presentation = disposables.add(new SpotlightPresentation(new SpotlightTestLayoutService(container), new TestHostService(), contextKeyService, new TestConfigurationService(), NullTelemetryService, new TestDialogService(), new TestQuickInputService()));
 		const abort = disposables.add(new Emitter<void>());
 
 		const result = await presentation.run(createScenario('test.spotlight.abortWait', {
@@ -974,7 +975,7 @@ suite('SpotlightPresentation', () => {
 			},
 		}));
 
-		const presentation = disposables.add(new SpotlightPresentation(new SpotlightTestLayoutService(container), new TestHostService(), contextKeyService, new TestConfigurationService(), NullTelemetryService, new TestDialogService()));
+		const presentation = disposables.add(new SpotlightPresentation(new SpotlightTestLayoutService(container), new TestHostService(), contextKeyService, new TestConfigurationService(), NullTelemetryService, new TestDialogService(), new TestQuickInputService()));
 		const result = await presentation.run(createScenario('test.spotlight.advanceWhen', {
 			id: 'workspace',
 			targetId: 'test.spotlight.workspace',
@@ -1009,7 +1010,7 @@ suite('SpotlightPresentation', () => {
 				createTarget(container, targetId, { open: () => { opened++; }, hasSelection: () => preselected, onDidSelect: selected.event });
 				let modelOpened = 0;
 				createTarget(container, 'test.spotlight.collapsedModel', { open: () => { modelOpened++; } });
-				const presentation = disposables.add(new SpotlightPresentation(new SpotlightTestLayoutService(container), new TestHostService(), contextKeyService, new TestConfigurationService(), NullTelemetryService, new TestDialogService()));
+				const presentation = disposables.add(new SpotlightPresentation(new SpotlightTestLayoutService(container), new TestHostService(), contextKeyService, new TestConfigurationService(), NullTelemetryService, new TestDialogService(), new TestQuickInputService()));
 				const buttons: { readonly hidden: boolean; readonly label: string | null }[] = [];
 				const titles: (string | null)[] = [];
 				const result = await presentation.run(createScenario('test.spotlight.optionalSelection', {
@@ -1067,7 +1068,7 @@ suite('SpotlightPresentation', () => {
 		test(`skips a step whose target already has a selection (runAsSequenceStep: ${runAsSequenceStep})`, async () => {
 			const container = createContainer();
 			const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
-			const presentation = disposables.add(new SpotlightPresentation(new SpotlightTestLayoutService(container), new TestHostService(), contextKeyService, new TestConfigurationService(), NullTelemetryService, new TestDialogService()));
+			const presentation = disposables.add(new SpotlightPresentation(new SpotlightTestLayoutService(container), new TestHostService(), contextKeyService, new TestConfigurationService(), NullTelemetryService, new TestDialogService(), new TestQuickInputService()));
 			createTarget(container, 'test.spotlight.preselected', { hasSelection: () => true });
 			createTarget(container, 'test.spotlight.unselected', { hasSelection: () => false });
 			const step = (id: string): ISpotlightStep => ({ id, targetId: `test.spotlight.${id}`, title: id, description: id, skipIfSelected: true });
@@ -1098,7 +1099,7 @@ suite('SpotlightPresentation', () => {
 		test(`waits for selection acceptance beyond the next target timeout (accepted: ${accepted})`, () => runWithFakedTimers({}, async () => {
 			const container = createContainer();
 			const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
-			const presentation = disposables.add(new SpotlightPresentation(new SpotlightTestLayoutService(container), new TestHostService(), contextKeyService, new TestConfigurationService(), NullTelemetryService, new TestDialogService()));
+			const presentation = disposables.add(new SpotlightPresentation(new SpotlightTestLayoutService(container), new TestHostService(), contextKeyService, new TestConfigurationService(), NullTelemetryService, new TestDialogService(), new TestQuickInputService()));
 			const selection = disposables.add(new Emitter<Promise<boolean>>());
 			const acceptance = new DeferredPromise<boolean>();
 			createTarget(container, 'test.spotlight.pendingWorkspace', { onDidSelect: selection.event });
@@ -1149,7 +1150,7 @@ suite('SpotlightPresentation', () => {
 	test('resolves the step variation at run time', async () => {
 		const container = createContainer();
 		const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
-		const presentation = disposables.add(new SpotlightPresentation(new SpotlightTestLayoutService(container), new TestHostService(), contextKeyService, new TestConfigurationService(), NullTelemetryService, new TestDialogService()));
+		const presentation = disposables.add(new SpotlightPresentation(new SpotlightTestLayoutService(container), new TestHostService(), contextKeyService, new TestConfigurationService(), NullTelemetryService, new TestDialogService(), new TestQuickInputService()));
 		createTarget(container, 'test.spotlight.resolvedTarget');
 		const scenario = createScenario('test.spotlight.resolvedSteps');
 		const result = await presentation.run({
@@ -1183,7 +1184,7 @@ suite('SpotlightPresentation', () => {
 	test('closes an opened target before a step for another element and when the tour ends', () => runWithFakedTimers({}, async () => {
 		const container = createContainer();
 		const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
-		const presentation = disposables.add(new SpotlightPresentation(new SpotlightTestLayoutService(container), new TestHostService(), contextKeyService, new TestConfigurationService(), NullTelemetryService, new TestDialogService()));
+		const presentation = disposables.add(new SpotlightPresentation(new SpotlightTestLayoutService(container), new TestHostService(), contextKeyService, new TestConfigurationService(), NullTelemetryService, new TestDialogService(), new TestQuickInputService()));
 		const shared = createTarget(container, 'test.spotlight.closeShared');
 		const other = createTarget(container, 'test.spotlight.closeOther');
 		const log: string[] = [];
@@ -1208,7 +1209,7 @@ suite('SpotlightPresentation', () => {
 	test('does not show a step after aborting during variation resolution', async () => {
 		const container = createContainer();
 		const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
-		const presentation = disposables.add(new SpotlightPresentation(new SpotlightTestLayoutService(container), new TestHostService(), contextKeyService, new TestConfigurationService(), NullTelemetryService, new TestDialogService()));
+		const presentation = disposables.add(new SpotlightPresentation(new SpotlightTestLayoutService(container), new TestHostService(), contextKeyService, new TestConfigurationService(), NullTelemetryService, new TestDialogService(), new TestQuickInputService()));
 		const abort = disposables.add(new Emitter<void>());
 		const steps = new DeferredPromise<readonly ISpotlightStep[]>();
 		const scenario = createScenario('test.spotlight.abortedResolution');
@@ -1234,7 +1235,26 @@ suite('SpotlightPresentation', () => {
 		});
 	});
 
-	suite('modal dialogs', () => {
+	suite('modal UI', () => {
+
+		/** Shows and hides a Quick Input the way the service reports it, without rendering one. */
+		class FakeQuickInputService extends mock<IQuickInputService>() {
+			private readonly _onShow = disposables.add(new Emitter<void>());
+			private readonly _onHide = disposables.add(new Emitter<void>());
+			override readonly onShow = this._onShow.event;
+			override readonly onHide = this._onHide.event;
+			override currentQuickInput: IQuickInput | undefined;
+
+			show(): void {
+				this.currentQuickInput = new (mock<IQuickInput>())();
+				this._onShow.fire();
+			}
+
+			hide(): void {
+				this.currentQuickInput = undefined;
+				this._onHide.fire();
+			}
+		}
 
 		function createDialogService(): DialogService {
 			return disposables.add(new DialogService(new class extends mock<IWorkbenchEnvironmentService>() { }(), new NullLogService()));
@@ -1269,7 +1289,7 @@ suite('SpotlightPresentation', () => {
 				override async setWindowDimmed(_window: Window, dimmed: boolean): Promise<void> { dimming.push(dimmed); }
 			};
 			const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
-			const presentation = disposables.add(new SpotlightPresentation(new SpotlightTestLayoutService(container), host, contextKeyService, new TestConfigurationService(), NullTelemetryService, dialogService));
+			const presentation = disposables.add(new SpotlightPresentation(new SpotlightTestLayoutService(container), host, contextKeyService, new TestConfigurationService(), NullTelemetryService, dialogService, new TestQuickInputService()));
 			const opened = [new DeferredPromise<void>(), new DeferredPromise<void>()];
 			let opens = 0;
 			createTarget(container, 'test.dialog.workspace', { open: () => { void opened[opens++]?.complete(); } });
@@ -1304,7 +1324,7 @@ suite('SpotlightPresentation', () => {
 			const container = createContainer();
 			const dialogService = createDialogService();
 			const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
-			const presentation = disposables.add(new SpotlightPresentation(new SpotlightTestLayoutService(container), new TestHostService(), contextKeyService, new TestConfigurationService(), NullTelemetryService, dialogService));
+			const presentation = disposables.add(new SpotlightPresentation(new SpotlightTestLayoutService(container), new TestHostService(), contextKeyService, new TestConfigurationService(), NullTelemetryService, dialogService, new TestQuickInputService()));
 			const selected = disposables.add(new Emitter<Promise<boolean>>());
 			const acceptance = new DeferredPromise<boolean>();
 			const opened = new DeferredPromise<void>();
@@ -1336,13 +1356,93 @@ suite('SpotlightPresentation', () => {
 			});
 		});
 
+		test('hides the step while the Quick Input is open, leaves Escape to it, does not dim the window and restores the step when it closes', async () => {
+			const container = createContainer();
+			const quickInput = new FakeQuickInputService();
+			const dimming: boolean[] = [];
+			const host = new class extends TestHostService {
+				override async setWindowDimmed(_window: Window, dimmed: boolean): Promise<void> { dimming.push(dimmed); }
+			};
+			const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
+			const presentation = disposables.add(new SpotlightPresentation(new SpotlightTestLayoutService(container), host, contextKeyService, new TestConfigurationService(), NullTelemetryService, createDialogService(), quickInput));
+			const opened = [new DeferredPromise<void>(), new DeferredPromise<void>()];
+			let opens = 0;
+			createTarget(container, 'test.quickInput.workspace', { open: () => { void opened[opens++]?.complete(); } });
+			createTarget(container, 'test.quickInput.model');
+			const result = presentation.run(createScenario('test.quickInput.restore', {
+				id: 'workspace', targetId: 'test.quickInput.workspace', title: 'Choose a workspace', description: 'Pick a folder.',
+				openTarget: true, allowTargetInteraction: true,
+			}, {
+				id: 'model', targetId: 'test.quickInput.model', title: 'Choose a model', description: 'Pick a model.',
+				onDidShow: () => clickPrimary(container),
+			}), { targetWindow: mainWindow, onAbort: Event.None });
+			await opened[0].p;
+
+			quickInput.show();
+			const whileOpen = { visible: overlayState(container).visible, dimming: [...dimming] };
+			mainWindow.document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true, cancelable: true }));
+			quickInput.hide();
+			await opened[1].p;
+			const restored = overlayState(container);
+			clickPrimary(container);
+
+			assert.deepStrictEqual({ whileOpen, restored, result: await result, dimming }, {
+				whileOpen: { visible: false, dimming: [true, false] },
+				restored: { visible: true, title: 'Choose a workspace', counter: '1 of 2' },
+				result: { outcome: OnboardingOutcome.Completed, shown: true, dismissReason: OnboardingDismissReason.Completed, lastStepIndex: 1, stepCount: 2 },
+				dimming: [true, false, true, false],
+			});
+		});
+
+		test('keeps the step hidden when a folder picked in the Quick Input is decided by a later dialog', async () => {
+			const container = createContainer();
+			const dialogService = createDialogService();
+			const quickInput = new FakeQuickInputService();
+			const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
+			const presentation = disposables.add(new SpotlightPresentation(new SpotlightTestLayoutService(container), new TestHostService(), contextKeyService, new TestConfigurationService(), NullTelemetryService, dialogService, quickInput));
+			const selected = disposables.add(new Emitter<Promise<boolean>>());
+			const acceptance = new DeferredPromise<boolean>();
+			const opened = new DeferredPromise<void>();
+			let opens = 0;
+			createTarget(container, 'test.quickInput.pendingWorkspace', { onDidSelect: selected.event, open: () => { opens++; void opened.complete(); } });
+			createTarget(container, 'test.quickInput.acceptedModel');
+			const result = presentation.run(createScenario('test.quickInput.handOver', {
+				id: 'workspace', targetId: 'test.quickInput.pendingWorkspace', title: 'Choose a workspace', description: 'Pick a folder.',
+				openTarget: true, allowTargetInteraction: true, advanceOnTargetSelection: true,
+			}, {
+				id: 'model', targetId: 'test.quickInput.acceptedModel', title: 'Choose a model', description: 'Pick a model.',
+				onDidShow: () => clickPrimary(container),
+			}), { targetWindow: mainWindow, onAbort: Event.None });
+			await opened.p;
+
+			quickInput.show();
+			const whileQuickInput = overlayState(container).visible;
+			quickInput.hide();
+			// The picker reports the folder a little after the Quick Input closes, and the trust dialog follows.
+			await nextFrame();
+			await nextFrame();
+			selected.fire(acceptance.p);
+			const beforeDialog = overlayState(container).visible;
+			const dialog = showDialog(dialogService);
+			dialog.item.close();
+			await dialog.result;
+			await acceptance.complete(true);
+
+			assert.deepStrictEqual({ whileQuickInput, beforeDialog, opens, result: await result }, {
+				whileQuickInput: false,
+				beforeDialog: false,
+				opens: 1,
+				result: { outcome: OnboardingOutcome.Completed, shown: true, dismissReason: OnboardingDismissReason.Completed, lastStepIndex: 1, stepCount: 2 },
+			});
+		});
+
 		for (const change of ['targetRemoved', 'contextChanged'] as const) {
 			test(`moves on instead of restoring a step whose target or context the dialog changed (${change})`, async () => {
 				const container = createContainer();
 				const dialogService = createDialogService();
 				const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
 				const pickerVisible = contextKeyService.createKey<boolean>('testSpotlightDialogPickerVisible', true);
-				const presentation = disposables.add(new SpotlightPresentation(new SpotlightTestLayoutService(container), new TestHostService(), contextKeyService, new TestConfigurationService(), NullTelemetryService, dialogService));
+				const presentation = disposables.add(new SpotlightPresentation(new SpotlightTestLayoutService(container), new TestHostService(), contextKeyService, new TestConfigurationService(), NullTelemetryService, dialogService, new TestQuickInputService()));
 				const opened = new DeferredPromise<void>();
 				let opens = 0;
 				const workspace = createTarget(container, 'test.dialog.changedWorkspace', { open: () => { opens++; void opened.complete(); } });
@@ -1380,38 +1480,48 @@ suite('SpotlightPresentation', () => {
 			});
 		}
 
-		for (const runAsSequenceStep of [false, true]) {
-			test(`does not start a step until an open dialog closes (runAsSequenceStep: ${runAsSequenceStep})`, async () => {
-				const container = createContainer();
-				const dialogService = createDialogService();
-				const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
-				const presentation = disposables.add(new SpotlightPresentation(new SpotlightTestLayoutService(container), new TestHostService(), contextKeyService, new TestConfigurationService(), NullTelemetryService, dialogService));
-				createTarget(container, 'test.dialog.waiting');
-				let prepared = 0;
-				let shown = 0;
-				const step: ISpotlightStep = {
-					id: 'waiting', targetId: 'test.dialog.waiting', title: 'Waiting', description: 'Shows after the dialog.',
-					onBeforeShow: () => { prepared++; },
-				};
-				const context = { targetWindow: mainWindow, onAbort: Event.None, onDidShow: () => { shown++; clickPrimary(container); } };
-				const dialog = showDialog(dialogService);
-				const result = runAsSequenceStep
-					? presentation.runStep({ id: step.id, kind: SPOTLIGHT_PRESENTATION_KIND, payload: step }, {
-						...context, cancellationToken: CancellationToken.None, stepIndex: 0, visualStepIndex: 0, visualStepCount: 1, canGoBack: false, isLastVisualStep: true,
-					})
-					: presentation.run(createScenario('test.dialog.waiting', step), context);
-				await nextFrame();
-				await nextFrame();
-				const whileOpen = { prepared, shown };
-				dialog.item.close();
-				const end = await result;
+		for (const ui of ['dialog', 'quickInput'] as const) {
+			for (const runAsSequenceStep of [false, true]) {
+				test(`does not start a step until an open ${ui} closes (runAsSequenceStep: ${runAsSequenceStep})`, async () => {
+					const container = createContainer();
+					const dialogService = createDialogService();
+					const quickInput = new FakeQuickInputService();
+					const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
+					const presentation = disposables.add(new SpotlightPresentation(new SpotlightTestLayoutService(container), new TestHostService(), contextKeyService, new TestConfigurationService(), NullTelemetryService, dialogService, quickInput));
+					createTarget(container, 'test.modal.waiting');
+					let prepared = 0;
+					let shown = 0;
+					const step: ISpotlightStep = {
+						id: 'waiting', targetId: 'test.modal.waiting', title: 'Waiting', description: 'Shows after the modal UI.',
+						onBeforeShow: () => { prepared++; },
+					};
+					const context = { targetWindow: mainWindow, onAbort: Event.None, onDidShow: () => { shown++; clickPrimary(container); } };
+					const dialog = ui === 'dialog' ? showDialog(dialogService) : undefined;
+					if (ui === 'quickInput') {
+						quickInput.show();
+					}
+					const result = runAsSequenceStep
+						? presentation.runStep({ id: step.id, kind: SPOTLIGHT_PRESENTATION_KIND, payload: step }, {
+							...context, cancellationToken: CancellationToken.None, stepIndex: 0, visualStepIndex: 0, visualStepCount: 1, canGoBack: false, isLastVisualStep: true,
+						})
+						: presentation.run(createScenario('test.modal.waiting', step), context);
+					await nextFrame();
+					await nextFrame();
+					const whileOpen = { prepared, shown };
+					if (dialog) {
+						dialog.item.close();
+					} else {
+						quickInput.hide();
+					}
+					const end = await result;
 
-				assert.deepStrictEqual({ whileOpen, shown, completed: hasKey(end, { action: true }) ? end.action === 'next' : end.outcome === OnboardingOutcome.Completed }, {
-					whileOpen: { prepared: 0, shown: 0 },
-					shown: 1,
-					completed: true,
+					assert.deepStrictEqual({ whileOpen, shown, completed: hasKey(end, { action: true }) ? end.action === 'next' : end.outcome === OnboardingOutcome.Completed }, {
+						whileOpen: { prepared: 0, shown: 0 },
+						shown: 1,
+						completed: true,
+					});
 				});
-			});
+			}
 		}
 	});
 });

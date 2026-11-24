@@ -18,7 +18,7 @@ import { InMemoryStorageService, StorageScope } from '../../../../../platform/st
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { Memento } from '../../../../common/memento.js';
 import { NullWorkbenchAssignmentService } from '../../../../services/assignment/test/common/nullAssignmentService.js';
-import { TestHostService, TestLayoutService } from '../../../../test/browser/workbenchTestServices.js';
+import { TestHostService, TestLayoutService, TestQuickInputService } from '../../../../test/browser/workbenchTestServices.js';
 import { TestLifecycleService } from '../../../../test/common/workbenchTestServices.js';
 import { GuidedTryoutPresentation } from '../../browser/guidedTryoutPresentation.js';
 import { runWithOnboardingPresentation } from '../../browser/onboardingPresentationQueue.js';
@@ -68,7 +68,7 @@ suite('Onboarding presentation isolation', () => {
 		const layout = new class extends TestLayoutService {
 			override getContainer(): HTMLElement { return container; }
 		};
-		const spotlight = store.add(new SpotlightPresentation(layout, host, contextKeys, new TestConfigurationService(), NullTelemetryService, new TestDialogService()));
+		const spotlight = store.add(new SpotlightPresentation(layout, host, contextKeys, new TestConfigurationService(), NullTelemetryService, new TestDialogService(), new TestQuickInputService()));
 		store.add(onboardingPresentationRegistry.register(spotlight));
 		store.add(onboardingSequenceStepPresentationRegistry.register(spotlight));
 		function target(id: string) {

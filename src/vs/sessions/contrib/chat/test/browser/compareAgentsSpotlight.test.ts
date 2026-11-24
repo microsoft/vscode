@@ -24,7 +24,7 @@ import { onboardingScenarioRegistry } from '../../../../../workbench/contrib/onb
 import { OnboardingOutcome } from '../../../../../workbench/contrib/onboarding/common/onboardingScenario.js';
 import { IOnboardingScenarioService } from '../../../../../workbench/contrib/onboarding/common/onboardingScenarioService.js';
 import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
-import { TestHostService, TestLayoutService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
+import { TestHostService, TestLayoutService, TestQuickInputService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { CompareAgentsSpotlight, COMPARE_AGENTS_SPOTLIGHT_ID } from '../../../../../workbench/contrib/sessions/browser/chat/compareAgentsSpotlight.js';
 import { SessionComparisonModelSelection } from '../../../../../workbench/contrib/sessions/browser/chat/sessionComparisonModelSelection.js';
 import { COMPARE_AGENTS_SHOW_SPOTLIGHT_SETTING } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
@@ -140,7 +140,7 @@ suite('CompareAgentsSpotlight', () => {
 			const layout = new class extends TestLayoutService {
 				override getContainer() { return mainWindow.document.body; }
 			}();
-			const presentation = store.add(new SpotlightPresentation(layout, new TestHostService(), contextKeys, new TestConfigurationService(), NullTelemetryService, new TestDialogService()));
+			const presentation = store.add(new SpotlightPresentation(layout, new TestHostService(), contextKeys, new TestConfigurationService(), NullTelemetryService, new TestDialogService(), new TestQuickInputService()));
 			const shown = new DeferredPromise<void>();
 			const result = presentation.run(onboardingScenarioRegistry.getScenario(COMPARE_AGENTS_SPOTLIGHT_ID)!, {
 				targetWindow: mainWindow, onAbort: Event.None, onDidShow: () => { void shown.complete(); },

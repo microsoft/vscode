@@ -29,7 +29,7 @@ import { ResolveSessionConfigResult } from '../../../../../../../platform/agentH
 import { NullWorkbenchAssignmentService } from '../../../../../../services/assignment/test/common/nullAssignmentService.js';
 import { DialogService } from '../../../../../../services/dialogs/common/dialogService.js';
 import { IWorkbenchEnvironmentService } from '../../../../../../services/environment/common/environmentService.js';
-import { TestHostService, TestLayoutService } from '../../../../../../test/browser/workbenchTestServices.js';
+import { TestHostService, TestLayoutService, TestQuickInputService } from '../../../../../../test/browser/workbenchTestServices.js';
 import { TestLifecycleService } from '../../../../../../test/common/workbenchTestServices.js';
 import { OnboardingScenarioService } from '../../../../../onboarding/browser/onboardingService.js';
 import { SpotlightPresentation } from '../../../../../onboarding/browser/spotlight/spotlightPresentation.js';
@@ -183,7 +183,7 @@ suite('Agent host Work in Parallel choice on send', () => {
 			const layout = new class extends TestLayoutService {
 				override getContainer() { return mainWindow.document.body; }
 			}();
-			disposables.add(onboardingPresentationRegistry.register(disposables.add(new SpotlightPresentation(layout, new TestHostService(), contextKeyService, new TestConfigurationService(), NullTelemetryService, new TestDialogService()))));
+			disposables.add(onboardingPresentationRegistry.register(disposables.add(new SpotlightPresentation(layout, new TestHostService(), contextKeyService, new TestConfigurationService(), NullTelemetryService, new TestDialogService(), new TestQuickInputService()))));
 		} else {
 			instantiationService.stub(IOnboardingScenarioService, upcastPartial<IOnboardingScenarioService>({
 				runScenario: (id: string) => running ??= run(id).finally(() => { running = undefined; }),

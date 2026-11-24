@@ -46,7 +46,7 @@ import { NullTelemetryService } from '../../../../../platform/telemetry/common/t
 import { NullWorkbenchAssignmentService } from '../../../../../workbench/services/assignment/test/common/nullAssignmentService.js';
 import { DialogService } from '../../../../../workbench/services/dialogs/common/dialogService.js';
 import { IWorkbenchEnvironmentService } from '../../../../../workbench/services/environment/common/environmentService.js';
-import { TestHostService, TestLayoutService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
+import { TestHostService, TestLayoutService, TestQuickInputService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { TestLifecycleService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { NewWorktreeChoice } from '../../../../../workbench/contrib/sessions/browser/chat/newWorktreeChoice.js';
 import { IChatSubmitRequest } from '../../../../../workbench/contrib/chat/browser/chatSubmitRequestHandlerService.js';
@@ -5791,7 +5791,7 @@ suite('NewChatWidget', () => {
 						const layout = new class extends TestLayoutService {
 							override getContainer() { return mainWindow.document.body; }
 						}();
-						store.add(onboardingPresentationRegistry.register(store.add(new SpotlightPresentation(layout, new TestHostService(), contextKeyService, new TestConfigurationService(), NullTelemetryService, new TestDialogService()))));
+						store.add(onboardingPresentationRegistry.register(store.add(new SpotlightPresentation(layout, new TestHostService(), contextKeyService, new TestConfigurationService(), NullTelemetryService, new TestDialogService(), new TestQuickInputService()))));
 						const provider = store.add(new CalloutSendChoiceProvider(onboarding));
 						const worktreeSendChoiceService = new NewSessionWorktreeSendChoiceService();
 						store.add(worktreeSendChoiceService.registerProvider(provider));
@@ -5893,7 +5893,7 @@ suite('NewChatWidget', () => {
 						const layout = new class extends TestLayoutService {
 							override getContainer() { return mainWindow.document.body; }
 						}();
-						store.add(onboardingPresentationRegistry.register(store.add(new SpotlightPresentation(layout, new TestHostService(), contextKeyService, new TestConfigurationService(), NullTelemetryService, new TestDialogService()))));
+						store.add(onboardingPresentationRegistry.register(store.add(new SpotlightPresentation(layout, new TestHostService(), contextKeyService, new TestConfigurationService(), NullTelemetryService, new TestDialogService(), new TestQuickInputService()))));
 						const provider = store.add(new CalloutSendChoiceProvider(onboarding));
 						const worktreeSendChoiceService = new NewSessionWorktreeSendChoiceService();
 						store.add(worktreeSendChoiceService.registerProvider(provider));
