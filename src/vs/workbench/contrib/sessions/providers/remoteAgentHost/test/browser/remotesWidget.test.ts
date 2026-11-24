@@ -2077,23 +2077,32 @@ suite('RemotesWidget', () => {
 		});
 	});
 
-	test('shows only the live assignment: a disconnected host shows nothing until it reconnects', () => {
+	test('a disconnected host shows its last-known assignment, disabled, also after reopening; reconnecting shows the host\'s current assignment without writing to it', () => {
 		const first = createWidget();
 		const host = new TestSandboxProfilesHost();
 		first.addHost('tunnel:laptop', host);
-		assignHostSandboxProfile(host, { id: 'strict', name: 'Strict', settings: {} });
-		const state = () => {
-			const picker = first.parent.querySelector<HTMLSelectElement>('[data-remote-id="tunnel:laptop"] select')!;
+		assignHostSandboxProfile(host, { id: 's1', name: 'S1', settings: {} });
+		const state = (device: typeof first) => {
+			const picker = device.parent.querySelector<HTMLSelectElement>('[data-remote-id="tunnel:laptop"] select')!;
 			return { disabled: picker.disabled, selected: picker.options[picker.selectedIndex].text, label: picker.getAttribute('aria-label') };
 		};
-		const connected = state();
+		const connected = state(first);
 		first.disconnectHost('tunnel:laptop');
-		const disconnected = state();
+		const disconnected = state(first);
+		const reopened = createWidget(OperatingSystem.Macintosh, 'type', 900, first.storageService);
+		const reopenedState = state(reopened);
+		// Another device assigns S2 while this machine is offline.
+		assignHostSandboxProfile(host, { id: 's2', name: 'S2', settings: {} });
 		first.addHost('tunnel:laptop', host);
-		assert.deepStrictEqual({ connected, disconnected, reconnected: state() }, {
-			connected: { disabled: false, selected: 'Strict (on host)', label: 'Sandbox profile for Laptop' },
-			disconnected: { disabled: true, selected: 'Default', label: 'Sandbox profile for Laptop. Connect to Laptop to see or choose one.' },
-			reconnected: { disabled: false, selected: 'Strict (on host)', label: 'Sandbox profile for Laptop' },
+		const reconnected = state(first);
+		first.disconnectHost('tunnel:laptop');
+		assert.deepStrictEqual({ connected, disconnected, reopened: reopenedState, reconnected, host: (host.values[AgentHostSandboxConfigKey.SandboxProfile] as { id: string }).id, disconnectedAgain: state(first) }, {
+			connected: { disabled: false, selected: 'S1 (on host)', label: 'Sandbox profile for Laptop' },
+			disconnected: { disabled: true, selected: 'S1 (on host)', label: 'Sandbox profile for Laptop: S1, last known. Connect to Laptop to refresh or change it.' },
+			reopened: { disabled: true, selected: 'S1 (on host)', label: 'Sandbox profile for Laptop: S1, last known. Connect to Laptop to refresh or change it.' },
+			reconnected: { disabled: false, selected: 'S2 (on host)', label: 'Sandbox profile for Laptop' },
+			host: 's2',
+			disconnectedAgain: { disabled: true, selected: 'S2 (on host)', label: 'Sandbox profile for Laptop: S2, last known. Connect to Laptop to refresh or change it.' },
 		});
 	});
 	test('another device sees the assigned profile, can save it to its own profiles, and the last assignment wins', () => {

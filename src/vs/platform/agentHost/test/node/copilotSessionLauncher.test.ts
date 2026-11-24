@@ -5,6 +5,7 @@
 
 import type { CopilotClient, CopilotSession, PermissionHandler, PermissionRequest, ResumeSessionOptions, CreateSessionOptions, Tool, Verbosity } from '@microsoft/copilot-sdk';
 import assert from 'assert';
+import { existsSync, mkdirSync, renameSync, writeFileSync } from 'fs';
 import { CopilotMcpServerLogs, mcpDiagnosticEntryToLogRecord } from '../../node/copilot/copilotMcpServerLogs.js';
 import type { IOtlpLogRecord } from '../../common/otlp/otlpLogEmitter.js';
 import { mkdir, mkdtemp, realpath, rm, symlink } from 'fs/promises';
@@ -643,7 +644,8 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const appBundleRoot = URI.file('/application').fsPath;
 
-	function setup(kind: 'create' | 'resume', reportPolicy = true, enforced = false, allowBypass = false, allowOutbound?: boolean, sandboxUpdateError?: Error, sandboxToggles?: Pick<SandboxConfig, 'sandboxMcpServers' | 'sandboxLspServers' | 'allowDevToolAccess' | 'addCurrentWorkingDirectory' | 'auth'>, allowLocalNetwork?: boolean, networkHosts?: Pick<SandboxNetworkPolicy, 'allowedHosts' | 'blockedHosts'>) {
+	function setup(launch: 'create' | 'resume' | { kind: 'create' | 'resume'; copilotHome: URI }, reportPolicy = true, enforced = false, allowBypass = false, allowOutbound?: boolean, sandboxUpdateError?: Error, sandboxToggles?: Pick<SandboxConfig, 'sandboxMcpServers' | 'sandboxLspServers' | 'allowDevToolAccess' | 'addCurrentWorkingDirectory' | 'auth'>, allowLocalNetwork?: boolean, networkHosts?: Pick<SandboxNetworkPolicy, 'allowedHosts' | 'blockedHosts'>) {
+		const { kind, copilotHome } = typeof launch === 'string' ? { kind: launch, copilotHome: undefined } : launch;
 		const manager = store.add(new AgentHostStateManager(new NullLogService()));
 		const configuration = store.add(new AgentConfigurationService(manager, new NullLogService()));
 		const owner = 'copilot:/sess-1';
@@ -720,7 +722,7 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 			? { ...shared, kind, model: undefined }
 			: { ...shared, kind, fallback: { model: undefined } };
 		const logService = new CapturingLogService();
-		const launcher = createTestLauncher(undefined, {}, logService, noopSessionOpenTelemetry, configuration);
+		const launcher = createTestLauncher(undefined, {}, logService, noopSessionOpenTelemetry, configuration, undefined, undefined, undefined, copilotHome);
 		let attachedSession: CopilotSession | undefined;
 		let sessionClosed = false;
 		const services = new ServiceCollection(
@@ -761,7 +763,7 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 		}));
 		const runtime: ICopilotSessionRuntime = {
 			...testRuntime,
-			getLaunchSandboxConfig: isResume => sandbox.getLaunchConfig(isResume),
+			getLaunchSandboxConfig: (isResume, requestExtensions) => sandbox.getLaunchConfig(isResume, requestExtensions ? copilotHome : undefined),
 			applyLaunchSandbox: async (session, isResume) => {
 				await sandbox.applyLaunchConfig(session, isResume);
 				attachedSession = session;
@@ -1084,21 +1086,21 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 
 	for (const kind of ['create', 'resume'] as const) {
 		test(`${kind} grants Canvas data writes only when extensions are enabled`, async () => {
-			const home = URI.file('/copilot-home');
-			const openedPaths: Array<readonly string[] | undefined> = [];
-			for (const enabled of [false, true]) {
-				const fixture = setup(kind);
-				fixture.configuration.updateRootConfig({ [AgentHostCanvasesEnabledConfigKey]: enabled });
-				fixture.configuration.updateSessionConfig(fixture.owner, { sandboxEnabled: 'on' });
+			const copilotHome = URI.file(await mkdtemp(join(tmpdir(), 'canvas-grant-')));
+			try {
+				const openedPaths: Array<readonly string[] | undefined> = [];
+				for (const enabled of [false, true]) {
+					const fixture = setup({ kind, copilotHome });
+					fixture.configuration.updateRootConfig({ [AgentHostCanvasesEnabledConfigKey]: enabled });
+					fixture.configuration.updateSessionConfig(fixture.owner, { sandboxEnabled: 'on' });
 
-				store.add(await fixture.launcher.launch(fixture.plan, {
-					...fixture.runtime,
-					getLaunchSandboxConfig: (isResume, requestExtensions) => fixture.sandbox.getLaunchConfig(isResume, requestExtensions ? home : undefined),
-				}));
-				openedPaths.push(fixture.captured?.permissions?.sandbox?.userPolicy?.filesystem?.readwritePaths);
+					store.add(await fixture.launcher.launch(fixture.plan, fixture.runtime));
+					openedPaths.push(fixture.captured?.permissions?.sandbox?.userPolicy?.filesystem?.readwritePaths);
+				}
+				assert.deepStrictEqual(openedPaths, [undefined, [URI.joinPath(copilotHome, 'extension-data').fsPath]]);
+			} finally {
+				await rm(copilotHome.fsPath, { recursive: true, force: true });
 			}
-
-			assert.deepStrictEqual(openedPaths, [undefined, [URI.joinPath(home, 'extension-data').fsPath]]);
 		});
 
 		test(`${kind} passes the launch sandbox config when the SDK session opens and repeats it for older runtimes`, async () => {
@@ -3213,6 +3215,48 @@ suite('CopilotSessionLauncher canvas config', () => {
 
 		await assert.rejects(() => launcher.launch(plan, testRuntime), /Extension SDK path is unavailable/);
 	});
+
+	for (const kind of ['create', 'resume'] as const) {
+		test(`prepares fresh canvas storage before SDK ${kind} only when granted`, async () => {
+			const home = URI.file(await mkdtemp(URI.joinPath(URI.file(homedir()), '.vscode-canvas-test-').fsPath));
+			try {
+				const directory = URI.joinPath(home, 'extension-data');
+				const canvas = URI.joinPath(directory, 'test-canvas');
+				const session = upcastPartial<CopilotSession>({
+					sessionId: 'canvas-storage', on: () => () => { }, disconnect: async () => { },
+					rpc: upcastPartial<CopilotSession['rpc']>({
+						agent: upcastPartial<CopilotSession['rpc']['agent']>(emptyAgentCatalog),
+						options: upcastPartial({ update: async () => ({ success: true }) }),
+					}),
+				});
+				const launcher = createTestLauncher(undefined, { [AgentHostCanvasesEnabledConfigKey]: true }, undefined, undefined, undefined, undefined, undefined, undefined, home);
+				for (const granted of [false, true]) {
+					const client = returningSession(session, () => {
+						assert.strictEqual(existsSync(directory.fsPath), granted);
+						if (granted) {
+							mkdirSync(canvas.fsPath);
+							writeFileSync(URI.joinPath(canvas, 'state.tmp').fsPath, '{}');
+							renameSync(URI.joinPath(canvas, 'state.tmp').fsPath, URI.joinPath(canvas, 'state.json').fsPath);
+						}
+					});
+					const base = {
+						client, sessionId: session.sessionId, extensionSdkPath: '/copilot-sdk',
+						workingDirectory: testWorkingDirectory, resolvedAgentName: undefined,
+						snapshot: { discoveredAgents: [], additionalRootInstructions: [], tools: [], plugins: [], mcpServers: {} },
+						activeClientToolSet: new ActiveClientToolSet(), shellManager: undefined,
+						githubCredentials: CopilotGitHubSessionCredentials.fromToken(undefined),
+					};
+					store.add(await launcher.launch(kind === 'create' ? { ...base, kind, model: undefined } : { ...base, kind, fallback: { model: undefined } }, {
+						...testRuntime,
+						getLaunchSandboxConfig: () => ({ enabled: true, userPolicy: { filesystem: { readwritePaths: granted ? [directory.fsPath] : [] } } }),
+					}));
+				}
+				assert.ok(existsSync(URI.joinPath(canvas, 'state.json').fsPath));
+			} finally {
+				await rm(home.fsPath, { recursive: true, force: true });
+			}
+		});
+	}
 
 	test('does not request canvas extensions or rendering for ephemeral sessions', async () => {
 		let captured: Parameters<CopilotClient['createSession']>[0] | undefined;
