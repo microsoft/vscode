@@ -457,6 +457,18 @@ suite('TerminalLinkParsing', () => {
 			);
 		});
 
+		suite('CJK punctuation (#318709)', () => {
+			for (const os of [OperatingSystem.Linux, OperatingSystem.Windows]) {
+				test(`should exclude CJK sentence and list punctuation from link paths (${os === OperatingSystem.Windows ? 'Windows' : 'POSIX'})`, () => {
+					const paths = (line: string) => detectLinks(line, os).map(link => link.path.text);
+					deepStrictEqual(paths('请打开文件：src/main.ts。'), ['src/main.ts']);
+					deepStrictEqual(paths('問題在：src/utils.ts，建議檢查。'), ['src/utils.ts']);
+					deepStrictEqual(paths('関連ファイル：src/a.ts、src/b.ts。'), ['src/a.ts', 'src/b.ts']);
+					deepStrictEqual(paths('请检查：src/view.ts！是否存在：src/utils.ts？'), ['src/view.ts', 'src/utils.ts']);
+					deepStrictEqual(paths('파일：src/a.ts；src/b.ts'), ['src/a.ts', 'src/b.ts']);
+				});
+			}
+		});
 		suite('"|"', () => {
 			test('should exclude pipe characters from link paths', () => {
 				deepStrictEqual(
