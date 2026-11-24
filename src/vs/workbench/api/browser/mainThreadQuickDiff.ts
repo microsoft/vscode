@@ -7,7 +7,6 @@ import { CancellationToken } from '../../../base/common/cancellation.js';
 import { DisposableMap, DisposableStore, IDisposable, IReference } from '../../../base/common/lifecycle.js';
 import { autorun, derived } from '../../../base/common/observable.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
-import { IModelService } from '../../../editor/common/services/model.js';
 import { ExtHostContext, ExtHostQuickDiffShape, IDocumentFilterDto, ITextEditorChange, ITextEditorDiffInformation, MainContext, MainThreadQuickDiffShape } from '../common/extHost.protocol.js';
 import { findChatEditingSessionEntry, IChatEditingService, ModifiedFileEntryState } from '../../contrib/chat/common/editing/chatEditingService.js';
 import { IQuickDiffService, QuickDiffProvider } from '../../contrib/scm/common/quickDiff.js';
@@ -26,7 +25,6 @@ export class MainThreadQuickDiff implements MainThreadQuickDiffShape {
 		@IQuickDiffService private readonly quickDiffService: IQuickDiffService,
 		@IQuickDiffModelService private readonly quickDiffModelService: IQuickDiffModelService,
 		@IChatEditingService private readonly chatEditingService: IChatEditingService,
-		@IModelService private readonly modelService: IModelService,
 	) {
 		this.proxy = extHostContext.getProxy(ExtHostContext.ExtHostQuickDiff);
 	}
@@ -75,15 +73,17 @@ export class MainThreadQuickDiff implements MainThreadQuickDiffShape {
 		const publish = () => {
 			const chatDiff = chatDiffObs.get();
 			if (chatDiff) {
+				if (chatDiff.diff.modifiedVersionId === undefined) {
+					return;
+				}
 				const changes: ITextEditorChange[] = chatDiff.diff.changes.map(change => [
 					change.original.startLineNumber,
 					change.original.endLineNumberExclusive,
 					change.modified.startLineNumber,
 					change.modified.endLineNumberExclusive,
 				]);
-				const documentVersion = this.modelService.getModel(resource)?.getVersionId() ?? reference.object.changesVersionId;
 				const diffInformation: ITextEditorDiffInformation = {
-					documentVersion,
+					documentVersion: chatDiff.diff.modifiedVersionId,
 					original: chatDiff.entry.originalURI,
 					modified: chatDiff.entry.modifiedURI,
 					changes,

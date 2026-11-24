@@ -468,7 +468,7 @@ export interface IModifiedFileEntry {
 	/**
 	 * Diff information for this entry
 	 */
-	readonly diffInfo?: IObservable<IDocumentDiff>;
+	readonly diffInfo?: IObservable<IDocumentDiff & { readonly modifiedVersionId?: number }>;
 
 	/**
 	 * Number of lines added in this entry.

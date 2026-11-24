@@ -42,7 +42,7 @@ class TestNavigation extends Disposable implements ICustomTextEditorNavigation {
 	readonly onDidDispose = this._onDidDispose.event;
 
 	selection: ISelection | undefined;
-	readonly revealed: { readonly range: IRange; readonly selection: ISelection | undefined; readonly preserveFocus: boolean }[] = [];
+	readonly revealed: { readonly range: IRange; readonly selection: ISelection | undefined; readonly preserveFocus: boolean; readonly token: CancellationToken }[] = [];
 
 	constructor(readonly model: ITextModel) {
 		super();
@@ -53,8 +53,15 @@ class TestNavigation extends Disposable implements ICustomTextEditorNavigation {
 		this._onDidChangeSelection.fire();
 	}
 
-	async revealRange(range: IRange, selection: ISelection | undefined, preserveFocus: boolean, _token: CancellationToken): Promise<void> {
-		this.revealed.push({ range, selection, preserveFocus });
+	async revealRange(range: IRange, selection: ISelection | undefined, preserveFocus: boolean, token: CancellationToken): Promise<void> {
+		const validatedRange = this.model.validateRange(range);
+		assert.ok(validatedRange.equalsRange(range), `Invalid range passed to revealRange: ${Range.lift(range).toString()} (expected ${validatedRange.toString()})`);
+		if (selection) {
+			const selRange = Selection.liftSelection(selection);
+			const validatedSel = this.model.validateRange(selRange);
+			assert.ok(validatedSel.equalsRange(selRange), `Invalid selection passed to revealRange`);
+		}
+		this.revealed.push({ range, selection, preserveFocus, token });
 	}
 
 	captureViewState() {
@@ -178,7 +185,7 @@ suite('ChatEditingCustomTextEditorIntegration', () => {
 		};
 	}
 
-	test('navigates between changes via custom text editor navigation', () => {
+	test('navigates between changes via custom text editor navigation with valid ranges and cancels superseded reveals', () => {
 		const ctx = createSetup({ isTextEditor: true });
 		ctx.input.navigation = ctx.navigation;
 		const integration = store.add(ctx.instantiation.createInstance(ChatEditingCustomTextEditorIntegration, ctx.entry, ctx.pane, ctx.diffObs));
@@ -186,12 +193,15 @@ suite('ChatEditingCustomTextEditorIntegration', () => {
 		integration.reveal(true);
 		assert.strictEqual(integration.currentIndex.get(), 0);
 		assert.strictEqual(ctx.navigation.revealed.length, 1);
-		assert.deepStrictEqual(ctx.navigation.revealed[0].range, new Range(1, 1, 1, Number.MAX_SAFE_INTEGER));
+		assert.deepStrictEqual(ctx.navigation.revealed[0].range, new Range(1, 1, 1, 14));
+		assert.strictEqual(ctx.navigation.revealed[0].token.isCancellationRequested, false);
 
 		assert.strictEqual(integration.next(false), true);
 		assert.strictEqual(integration.currentIndex.get(), 1);
 		assert.strictEqual(ctx.navigation.revealed.length, 2);
-		assert.deepStrictEqual(ctx.navigation.revealed[1].range, new Range(4, 1, 4, Number.MAX_SAFE_INTEGER));
+		assert.strictEqual(ctx.navigation.revealed[0].token.isCancellationRequested, true);
+		assert.strictEqual(ctx.navigation.revealed[1].token.isCancellationRequested, false);
+		assert.deepStrictEqual(ctx.navigation.revealed[1].range, new Range(4, 1, 4, 14));
 
 		// At the last change, strict next returns false; wrap returns true and goes to 0.
 		assert.strictEqual(integration.next(false), false);
@@ -202,9 +212,26 @@ suite('ChatEditingCustomTextEditorIntegration', () => {
 		assert.strictEqual(integration.previous(false), false);
 		assert.strictEqual(integration.previous(true), true);
 		assert.strictEqual(integration.currentIndex.get(), 1);
+
+		const lastToken = ctx.navigation.revealed[ctx.navigation.revealed.length - 1].token;
+		assert.strictEqual(lastToken.isCancellationRequested, false);
+		integration.dispose();
+		assert.strictEqual(lastToken.isCancellationRequested, true);
 	});
 
-	test('replays reveal once custom text editor navigation attaches', () => {
+	test('clamps EOF deletion range to a valid document range', () => {
+		const ctx = createSetup({ isTextEditor: true });
+		ctx.input.navigation = ctx.navigation;
+		const eofDeletion = new DetailedLineRangeMapping(new LineRange(5, 6), new LineRange(6, 6), undefined);
+		ctx.diffObs.set({ ...ctx.diffObs.get(), changes: [eofDeletion] }, undefined);
+
+		const integration = store.add(ctx.instantiation.createInstance(ChatEditingCustomTextEditorIntegration, ctx.entry, ctx.pane, ctx.diffObs));
+		integration.reveal(true);
+		assert.strictEqual(ctx.navigation.revealed.length, 1);
+		assert.deepStrictEqual(ctx.navigation.revealed[0].range, new Range(5, 7, 5, 7));
+	});
+
+	test('replays reveal once custom text editor navigation attaches and cancels on navigation change', () => {
 		const ctx = createSetup({ isTextEditor: true });
 		const integration = store.add(ctx.instantiation.createInstance(ChatEditingCustomTextEditorIntegration, ctx.entry, ctx.pane, ctx.diffObs));
 
@@ -214,10 +241,14 @@ suite('ChatEditingCustomTextEditorIntegration', () => {
 
 		ctx.input.navigation = ctx.navigation;
 		assert.strictEqual(ctx.navigation.revealed.length, 1);
-		assert.deepStrictEqual(ctx.navigation.revealed[0].range, new Range(4, 1, 4, Number.MAX_SAFE_INTEGER));
+		assert.deepStrictEqual(ctx.navigation.revealed[0].range, new Range(4, 1, 4, 14));
+		assert.strictEqual(ctx.navigation.revealed[0].token.isCancellationRequested, false);
+
+		ctx.input.navigation = undefined;
+		assert.strictEqual(ctx.navigation.revealed[0].token.isCancellationRequested, true);
 	});
 
-	test('tracks cursorInChangeRange and supports keep/undo/toggleDiff', async () => {
+	test('tracks cursorInChangeRange and prioritizes cursor hunk for keep/undo/toggleDiff', async () => {
 		const ctx = createSetup({ isTextEditor: true });
 		ctx.input.navigation = ctx.navigation;
 		const integration = store.add(ctx.instantiation.createInstance(ChatEditingCustomTextEditorIntegration, ctx.entry, ctx.pane, ctx.diffObs));
@@ -226,15 +257,21 @@ suite('ChatEditingCustomTextEditorIntegration', () => {
 		ctx.navigation.setSelection(new Selection(2, 1, 2, 1));
 		assert.strictEqual(contextKeyService.getContextKeyValue(ctxCursorInChangeRange.key), false);
 
+		// Reveal hunk 1 so _currentIndex is 0, then move cursor to hunk 2.
+		integration.reveal(true);
+		assert.strictEqual(integration.currentIndex.get(), 0);
+
 		ctx.navigation.setSelection(new Selection(4, 1, 4, 5));
 		assert.strictEqual(contextKeyService.getContextKeyValue(ctxCursorInChangeRange.key), true);
 
-		integration.reveal(true);
+		// Keep should target hunk 2 (where the cursor is), not hunk 1.
 		await integration.acceptNearestChange();
-		assert.deepStrictEqual(ctx.kept, [ctx.change1]);
+		assert.deepStrictEqual(ctx.kept, [ctx.change2]);
 
+		// Move cursor back to hunk 1 and Undo should target hunk 1.
+		ctx.navigation.setSelection(new Selection(1, 1, 1, 5));
 		await integration.rejectNearestChange();
-		assert.deepStrictEqual(ctx.undone, [ctx.change2]);
+		assert.deepStrictEqual(ctx.undone, [ctx.change1]);
 
 		await integration.toggleDiff(undefined, true);
 		assert.strictEqual(ctx.openedDiffs.length, 1);

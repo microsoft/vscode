@@ -5,7 +5,7 @@
 
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../base/common/event.js';
-import { Disposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, autorunSelfDisposable, derived, IObservable, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { basename, isEqual } from '../../../../../base/common/resources.js';
 import { Position } from '../../../../../editor/common/core/position.js';
@@ -31,7 +31,7 @@ export class ChatEditingCustomTextEditorIntegration extends Disposable implement
 	private readonly _navigation: IObservable<ICustomTextEditorNavigation | undefined>;
 	private readonly _selection: IObservable<Selection | undefined>;
 
-	private readonly _revealCts = this._register(new MutableDisposable<CancellationTokenSource>());
+	private readonly _revealCts = this._register(new MutableDisposable<IDisposable>());
 	private readonly _closeDiffEditorsWhenDecided = this._register(new MutableDisposable());
 
 	private _pendingReveal: { readonly index: number; readonly preserveFocus: boolean } | undefined;
@@ -71,6 +71,8 @@ export class ChatEditingCustomTextEditorIntegration extends Disposable implement
 
 		this._register(autorun(r => {
 			const navigation = this._navigation.read(r);
+			this._revealCts.clear();
+			this._pendingRevealIndex = undefined;
 			if (!navigation) {
 				return;
 			}
@@ -150,11 +152,16 @@ export class ChatEditingCustomTextEditorIntegration extends Disposable implement
 	}
 
 	private _getSortedChanges(diff: IDocumentDiff2): { readonly mapping: DetailedLineRangeMapping; readonly range: Range }[] {
+		const model = diff.modifiedModel;
 		return diff.changes
-			.map(mapping => ({
-				mapping,
-				range: mapping.modified.toInclusiveRange() ?? new Range(mapping.modified.startLineNumber, 1, mapping.modified.startLineNumber, Number.MAX_SAFE_INTEGER),
-			}))
+			.map(mapping => {
+				const rawRange = mapping.modified.toInclusiveRange()
+					?? new Range(mapping.modified.startLineNumber, 1, mapping.modified.startLineNumber, Number.MAX_SAFE_INTEGER);
+				return {
+					mapping,
+					range: model.validateRange(rawRange),
+				};
+			})
 			.sort((a, b) => Range.compareRangesUsingStarts(a.range, b.range));
 	}
 
@@ -164,7 +171,7 @@ export class ChatEditingCustomTextEditorIntegration extends Disposable implement
 
 	private _revealRange(navigation: ICustomTextEditorNavigation, range: Range, preserveFocus: boolean): void {
 		const cts = new CancellationTokenSource();
-		this._revealCts.value = cts;
+		this._revealCts.value = toDisposable(() => cts.dispose(true));
 		void navigation.revealRange(range, Selection.fromRange(range, SelectionDirection.LTR), preserveFocus, cts.token);
 	}
 
@@ -255,11 +262,6 @@ export class ChatEditingCustomTextEditorIntegration extends Disposable implement
 			return undefined;
 		}
 
-		const currentIdx = this._currentIndex.get();
-		if (currentIdx >= 0 && currentIdx < sorted.length) {
-			return sorted[currentIdx].mapping;
-		}
-
 		const sel = this._getActiveCustomEditorInput()?.navigation?.selection;
 		if (sel) {
 			const position = Selection.liftSelection(sel).getStartPosition();
@@ -267,6 +269,11 @@ export class ChatEditingCustomTextEditorIntegration extends Disposable implement
 			if (containing) {
 				return containing.mapping;
 			}
+		}
+
+		const currentIdx = this._currentIndex.get();
+		if (currentIdx >= 0 && currentIdx < sorted.length) {
+			return sorted[currentIdx].mapping;
 		}
 
 		return sorted[0].mapping;
