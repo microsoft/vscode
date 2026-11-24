@@ -188,6 +188,7 @@ export const ACTION_INTRODUCED_IN: { readonly [K in StateAction['type']]: string
 	[ActionType.RootTerminalsChanged]: '0.1.0',
 	[ActionType.RootConfigChanged]: '0.1.0',
 	[ActionType.RootModelSourceRegistrationSet]: '1.2.0',
+	[ActionType.RootModelSourceContributorRemoved]: '1.2.0',
 	[ActionType.RootModelSourceRegistrationRemoved]: '1.2.0',
 	[ActionType.RootModelSourceStateChanged]: '1.2.0',
 	[ActionType.TerminalData]: '0.1.0',

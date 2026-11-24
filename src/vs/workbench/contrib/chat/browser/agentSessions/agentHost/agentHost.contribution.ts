@@ -22,7 +22,7 @@ import { AgentHostByokLmHandler } from './agentHostByokLmHandler.js';
 import { AgentHostContribution } from './agentHostChatContribution.js';
 import { AgentHostCopilotCliSettingsContribution } from './agentHostCopilotCliSettingsContribution.js';
 import { AgentHostExistingSessionHarnessPickerEnablement } from './agentHostExistingSessionHarnessPickerEnablement.js';
-import { AgentHostModelSourceRegistrar } from './agentHostModelSourceRegistrar.js';
+import { AgentHostModelSourceRegistrar, AgentHostModelSourceStatusService, IAgentHostModelSourceStatusService } from './agentHostModelSourceRegistrar.js';
 import { AgentHostOpenSessionLinkOpenerContribution } from './openSessionLinkOpener.contribution.js';
 import { AgentHostSessionListContribution } from './agentHostSessionListContribution.js';
 import { AgentHostSdkSetupNotificationContribution } from './agentHostSdkSetupNotification.js';
@@ -50,3 +50,4 @@ registerWorkbenchContribution2(AgentHostSandboxNotifications.ID, AgentHostSandbo
 registerWorkbenchContribution2(AgentHostModelSourceRegistrar.ID, AgentHostModelSourceRegistrar, WorkbenchPhase.AfterRestored);
 
 registerSingleton(IAgentHostByokLmHandler, AgentHostByokLmHandler, InstantiationType.Delayed);
+registerSingleton(IAgentHostModelSourceStatusService, AgentHostModelSourceStatusService, InstantiationType.Delayed);

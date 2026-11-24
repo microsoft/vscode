@@ -12,15 +12,14 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import type { IByokLmChatRequest, IByokLmStreamDelta } from '../../../../../../platform/agentHost/common/agentHostByokLm.js';
-import { AgentHostByokCustomEndpointDirectSettingId } from '../../../../../../platform/agentHost/common/agentService.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
 import { IContextKey, IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { ChatEntitlementContextKeys, IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { AgentHostByokLmHandler } from '../../../browser/agentSessions/agentHost/agentHostByokLmHandler.js';
+import { AgentHostModelSourceStatusService } from '../../../browser/agentSessions/agentHost/agentHostModelSourceRegistrar.js';
 import { SessionType } from '../../../common/chatSessionsService.js';
-import { ChatMessageRole, IChatMessage, IChatResponsePart, ILanguageModelChatMetadata, ILanguageModelChatRequestOptions, ILanguageModelChatResponse, ILanguageModelsGroup, ILanguageModelsService } from '../../../common/languageModels.js';
-import { ILanguageModelsConfigurationService, type ILanguageModelsProviderGroup } from '../../../common/languageModelsConfiguration.js';
+import { ChatMessageRole, IChatMessage, IChatResponsePart, ILanguageModelChatMetadata, ILanguageModelChatRequestOptions, ILanguageModelChatResponse, ILanguageModelsService } from '../../../common/languageModels.js';
 
 interface ICapturedRequest {
 	modelId: string;
@@ -46,14 +45,9 @@ class TestLanguageModelsService extends mock<ILanguageModelsService>() {
 		private readonly _respond: (request: ICapturedRequest) => ILanguageModelChatResponse,
 		onDidChangeModelVisibility = Event.None,
 		private readonly _isModelHidden: (identifier: string) => boolean = () => false,
-		private readonly _groups: ILanguageModelsGroup[] = [],
 	) {
 		super();
 		this.onDidChangeModelVisibility = onDidChangeModelVisibility;
-	}
-
-	override getLanguageModelGroups(vendor: string): ILanguageModelsGroup[] {
-		return this._groups.filter(group => group.group?.vendor === vendor);
 	}
 
 	override getLanguageModelIds(): string[] {
@@ -81,18 +75,6 @@ class TestChatEntitlementService extends mock<IChatEntitlementService>() {
 
 	override get clientByokEnabled(): boolean {
 		return this._contextKeyService.getContextKeyValue<boolean>(ChatEntitlementContextKeys.clientByokEnabled.key) === true;
-	}
-}
-
-class TestLanguageModelsConfigurationService extends mock<ILanguageModelsConfigurationService>() {
-	override readonly onDidChangeLanguageModelGroups = Event.None;
-
-	constructor(private readonly _groups: readonly ILanguageModelsProviderGroup[] = []) {
-		super();
-	}
-
-	override getLanguageModelsProviderGroups(): readonly ILanguageModelsProviderGroup[] {
-		return this._groups;
 	}
 }
 
@@ -136,7 +118,7 @@ suite('AgentHostByokLmHandler', () => {
 
 	function createHandler(service: ILanguageModelsService): AgentHostByokLmHandler {
 		const { contextKeyService } = createPolicyContext(true);
-		return store.add(new AgentHostByokLmHandler(service, new NullLogService(), new TestChatEntitlementService(contextKeyService), contextKeyService, new TestConfigurationService(), new TestLanguageModelsConfigurationService()));
+		return store.add(new AgentHostByokLmHandler(service, new NullLogService(), new TestChatEntitlementService(contextKeyService), contextKeyService, store.add(new AgentHostModelSourceStatusService())));
 	}
 
 	test('updates model discovery and blocks requests when BYOK policy changes', async () => {
@@ -145,7 +127,7 @@ suite('AgentHostByokLmHandler', () => {
 			() => responseOf([]),
 		);
 		const { contextKeyService, clientByokEnabled } = createPolicyContext(true);
-		const handler = store.add(new AgentHostByokLmHandler(service, new NullLogService(), new TestChatEntitlementService(contextKeyService), contextKeyService, new TestConfigurationService(), new TestLanguageModelsConfigurationService()));
+		const handler = store.add(new AgentHostByokLmHandler(service, new NullLogService(), new TestChatEntitlementService(contextKeyService), contextKeyService, store.add(new AgentHostModelSourceStatusService())));
 		let modelChangeCount = 0;
 		store.add(handler.onDidChangeModels(() => modelChangeCount++));
 
@@ -194,30 +176,27 @@ suite('AgentHostByokLmHandler', () => {
 		]);
 	});
 
-	test('listModels leaves out the Custom Endpoint models registered with agent hosts as model sources', async () => {
-		const group = { name: 'Example', vendor: 'customendpoint', models: [{ id: 'gpt-x', url: 'https://models.example.test/v1/chat/completions' }, { id: 'slow', url: 'https://models.example.test/v1/chat/completions', streaming: false }] };
+	test('listModels leaves out the models the local agent host serves from this window\'s model sources', async () => {
 		const service = new TestLanguageModelsService(
 			new Map<string, ILanguageModelChatMetadata>([
 				['customendpoint/Example/gpt-x', byokModel('customendpoint', 'gpt-x')],
-				['customendpoint/Example/slow', byokModel('customendpoint', 'slow')],
 				['acme/claude', byokModel('acme', 'claude')],
 			]),
 			() => responseOf([]),
-			Event.None,
-			() => false,
-			[{ group, modelIdentifiers: ['customendpoint/Example/gpt-x', 'customendpoint/Example/slow'] }],
 		);
-		const listed = async (enabled: boolean) => {
-			const { contextKeyService } = createPolicyContext(true);
-			const configurationService = new TestConfigurationService({ [AgentHostByokCustomEndpointDirectSettingId]: enabled });
-			const handler = store.add(new AgentHostByokLmHandler(service, new NullLogService(), new TestChatEntitlementService(contextKeyService), contextKeyService, configurationService, new TestLanguageModelsConfigurationService([group])));
-			return (await handler.listModels(CancellationToken.None)).map(model => model.modelIdentifier);
-		};
+		const { contextKeyService } = createPolicyContext(true);
+		const status = store.add(new AgentHostModelSourceStatusService());
+		const handler = store.add(new AgentHostByokLmHandler(service, new NullLogService(), new TestChatEntitlementService(contextKeyService), contextKeyService, status));
+		let modelChangeCount = 0;
+		store.add(handler.onDidChangeModels(() => modelChangeCount++));
+		const listed = async () => (await handler.listModels(CancellationToken.None)).map(model => model.modelIdentifier);
 
-		assert.deepStrictEqual({ off: await listed(false), on: await listed(true) }, {
-			off: ['customendpoint/Example/gpt-x', 'customendpoint/Example/slow', 'acme/claude'],
-			// The model the runtime can't call directly keeps using the bridge.
-			on: ['customendpoint/Example/slow', 'acme/claude'],
+		const before = await listed();
+		status.setLocallyServedModels(new Set(['customendpoint/Example/gpt-x']));
+		assert.deepStrictEqual({ before, served: await listed(), modelChangeCount }, {
+			before: ['customendpoint/Example/gpt-x', 'acme/claude'],
+			served: ['acme/claude'],
+			modelChangeCount: 1,
 		});
 	});
 

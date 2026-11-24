@@ -121,11 +121,16 @@ export const AHP_NOT_FOUND = -32008 as const;
 // ---- Type guards -----------------------------------------------------------
 
 import type { AhpRequest, AhpNotification, AhpSuccessResponse, ProtocolMessage, JsonRpcErrorResponse } from './protocol/messages.js';
-import { AuthenticateTargetKind as ProtocolAuthenticateTargetKind, type AuthenticateTarget as ProtocolAuthenticateTarget, type McpServerAuthenticateTarget as ProtocolMcpServerAuthenticateTarget } from './protocol/commands.js';
+import { AuthenticateTargetKind as ProtocolAuthenticateTargetKind, type AuthenticateTarget as ProtocolAuthenticateTarget, type McpServerAuthenticateTarget as ProtocolMcpServerAuthenticateTarget, type ModelSourceAuthenticateTarget as ProtocolModelSourceAuthenticateTarget } from './protocol/commands.js';
 
 /** Whether an `authenticate` target names an MCP server. */
 export function isMcpServerAuthenticateTarget(target: ProtocolAuthenticateTarget | undefined): target is ProtocolMcpServerAuthenticateTarget {
 	return target?.kind === ProtocolAuthenticateTargetKind.McpServer;
+}
+
+/** Whether an `authenticate` target names a registered model source. */
+export function isModelSourceAuthenticateTarget(target: ProtocolAuthenticateTarget | undefined): target is ProtocolModelSourceAuthenticateTarget {
+	return target?.kind === ProtocolAuthenticateTargetKind.ModelSource;
 }
 
 /**

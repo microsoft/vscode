@@ -7,16 +7,21 @@ import type { NamedProviderConfig, ProviderModelConfig } from '@microsoft/copilo
 import { createHash } from 'crypto';
 import { localize } from '../../../../nls.js';
 import type { IAgentModelSource, IAgentModelSourceDescription } from '../../common/agent.js';
-import { CUSTOM_ENDPOINT_MODEL_SOURCE_FORMAT, getCustomEndpointModelSourceCredentialResource, readCustomEndpointModelSource, type CustomEndpointModelSourceModel } from '../../common/byokCustomEndpoint.js';
+import { BYOK_ENDPOINTS_MODEL_SOURCE_FORMAT, getByokEndpointsCredentialOrigins, getByokEndpointsCredentialResource, readByokEndpointsDefinition, type IByokEndpointModel } from '../../common/byokModelSource.js';
 
 /** The definition formats the Copilot agent reads registered model sources in. */
-export const COPILOT_MODEL_SOURCE_FORMATS: readonly string[] = [CUSTOM_ENDPOINT_MODEL_SOURCE_FORMAT];
+export const COPILOT_MODEL_SOURCE_FORMATS: readonly string[] = [BYOK_ENDPOINTS_MODEL_SOURCE_FORMAT];
 
 const MODEL_SOURCE_PROVIDER_PREFIX = 'modelsource~';
 
 /** Whether `name` is the runtime provider of a registered model source's model. */
 export function isModelSourceProviderName(name: string): boolean {
 	return name.startsWith(MODEL_SOURCE_PROVIDER_PREFIX);
+}
+
+/** Whether `id` is the selection id of a registered model source's model, `<provider>/<model id>`. */
+export function isModelSourceModelId(id: string): boolean {
+	return id.startsWith(MODEL_SOURCE_PROVIDER_PREFIX) && id.includes('/');
 }
 
 /** One model of a registered model source, as the Copilot agent lists it and the runtime calls it. */
@@ -28,19 +33,24 @@ export interface ICopilotModelSourceModel {
 	 * selection id, so it never needs translating at the runtime boundary.
 	 */
 	readonly id: string;
-	readonly model: CustomEndpointModelSourceModel;
+	readonly model: IByokEndpointModel;
+	/**
+	 * Whether the runtime can call the model: its source has a credential, or needs none. Never true
+	 * for a keyless Azure endpoint, which the runtime would authenticate with the machine's Azure identity.
+	 */
+	readonly servable: boolean;
 	readonly runtimeProvider: NamedProviderConfig;
 	readonly runtimeModel: ProviderModelConfig;
 }
 
 /** Reads a registered model source's definition. Throws, with a message for the user, when the agent can't serve it. */
 export function describeCopilotModelSource(source: Pick<IAgentModelSource, 'format' | 'definition'>): IAgentModelSourceDescription {
-	if (source.format !== CUSTOM_ENDPOINT_MODEL_SOURCE_FORMAT) {
+	if (source.format !== BYOK_ENDPOINTS_MODEL_SOURCE_FORMAT) {
 		throw new Error(localize('copilotModelSource.unsupportedFormat', "Copilot can't read model sources in the format {0}.", source.format));
 	}
-	const { models, requiresApiKey } = readCustomEndpointModelSource(source.definition);
-	const credentialResource = getCustomEndpointModelSourceCredentialResource({ models: models.map(entry => entry.model), requiresApiKey });
-	return credentialResource ? { credentialResource } : {};
+	const definition = readByokEndpointsDefinition(source.definition);
+	const credentialResource = getByokEndpointsCredentialResource(definition);
+	return credentialResource ? { credentialResource, credentialOrigins: getByokEndpointsCredentialOrigins(definition) } : {};
 }
 
 /**
@@ -51,8 +61,10 @@ export function describeCopilotModelSource(source: Pick<IAgentModelSource, 'form
  * unchanged one keeps its id across credential and other definition changes.
  */
 export function getCopilotModelSourceModels(source: IAgentModelSource): readonly ICopilotModelSourceModel[] {
-	const { models } = readCustomEndpointModelSource(source.definition);
-	return models.map(({ model, endpoint }) => {
+	const { models, requiresCredential } = readByokEndpointsDefinition(source.definition);
+	return models.map(model => {
+		const endpoint = model.endpoint;
+		const chatCompletions = endpoint.type !== 'anthropic' && endpoint.wireApi !== 'responses';
 		const providerName = `${MODEL_SOURCE_PROVIDER_PREFIX}${createHash('sha256').update(JSON.stringify([source.id, source.format, endpoint.type, endpoint.wireApi ?? null, endpoint.baseUrl, endpoint.azureApiVersion ?? null, model.id])).digest('hex').slice(0, 16)}`;
 		const supports = {
 			// Unknown capabilities stay unknown, so the runtime applies its own defaults.
@@ -64,6 +76,7 @@ export function getCopilotModelSourceModels(source: IAgentModelSource): readonly
 			modelSourceId: source.id,
 			id: `${providerName}/${model.id}`,
 			model,
+			servable: source.credential ? true : !requiresCredential && endpoint.type !== 'azure',
 			runtimeProvider: {
 				name: providerName,
 				type: endpoint.type,
@@ -80,7 +93,9 @@ export function getCopilotModelSourceModels(source: IAgentModelSource): readonly
 				...(model.name !== undefined ? { name: model.name } : {}),
 				...(model.maxContextWindowTokens !== undefined ? { maxContextWindowTokens: model.maxContextWindowTokens } : {}),
 				...(model.maxInputTokens !== undefined ? { maxPromptTokens: model.maxInputTokens } : {}),
-				...(model.maxOutputTokens !== undefined ? { maxOutputTokens: model.maxOutputTokens } : {}),
+				// On Chat Completions the runtime sends it as `max_tokens`, which reasoning models reject, while
+				// VS Code's BYOK providers send no cap there.
+				...(model.maxOutputTokens !== undefined && !chatCompletions ? { maxOutputTokens: model.maxOutputTokens } : {}),
 				...(Object.keys(supports).length ? { capabilities: { supports } } : {}),
 			},
 		};

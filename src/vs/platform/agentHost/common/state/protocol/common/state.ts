@@ -438,7 +438,15 @@ export interface UsageInfo {
  * @preserveUnknownMembers
  */
 export interface ErrorInfo {
-	/** Error type identifier */
+	/**
+	 * Error type identifier. Well-known values:
+	 *
+	 * - `modelSourceUnavailable`: a registered model source the turn uses
+	 *   can't serve it, for example because its credential is missing,
+	 *   expired, rejected, or revoked, or the source was removed. The error
+	 *   part is resumable. See
+	 *   [Model source credentials](/specification/authentication#model-source-credentials).
+	 */
 	errorType: string;
 	/** Human-readable error message */
 	message: string;

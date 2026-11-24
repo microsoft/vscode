@@ -978,6 +978,7 @@ class CopilotChatEntry extends Disposable {
 		onDidRequireAuth: () => void,
 		private readonly _onDidChangeRuntimePlugins: () => void,
 		private readonly _onDidReloadRuntimeContributions: () => void,
+		onDidRejectModelSourceCredential: (model: string) => void,
 	) {
 		super();
 		if (anchor) {
@@ -986,6 +987,7 @@ class CopilotChatEntry extends Disposable {
 		this._register(chatSession);
 		this._register(chatSession.onMcpNotification(notification => onMcpNotification.fire(notification)));
 		this._register(chatSession.onDidRequireAuth(onDidRequireAuth));
+		this._register(chatSession.onDidRejectModelSourceCredential(onDidRejectModelSourceCredential));
 		this._register(chatSession.onDidChangeRuntimePlugins(() => this._onDidChangeRuntimePlugins()));
 		this._register(chatSession.onDidReloadRuntimeContributions(() => this._onDidReloadRuntimeContributions()));
 		this._register(autorun(reader => activeClient.pluginController.mcpServerStates.set(chatSession.mcpServerStates.read(reader), undefined)));
@@ -1385,6 +1387,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private _loggedAutoPresentation: string | undefined;
 	/** The models of the registered model sources this agent serves, with their runtime providers. */
 	private _modelSourceModels: readonly ICopilotModelSourceModel[] = [];
+	private readonly _onDidRejectModelSourceCredential = this._register(new Emitter<string>());
+	readonly onDidRejectModelSourceCredential = this._onDidRejectModelSourceCredential.event;
 	private _byokModels: readonly IAgentModelInfo[] = [];
 	private _lastByokModelsEnabledConfig: unknown = Symbol('uninitialized');
 
@@ -4079,7 +4083,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 			return false;
 		}
 		// Published models are copies of the BYOK models when they have a config schema, so they are matched by id.
-		return models.some(candidate => candidate.id === model.id && (candidate.modelSourceId !== undefined || this._byokModels.some(byok => byok.id === model.id)));
+		// A registered source's model is usable only while the runtime can call it, e.g. not while it needs a key.
+		return models.some(candidate => candidate.id === model.id)
+			&& (this._byokModels.some(candidate => candidate.id === model.id) || this._modelSourceModels.some(candidate => candidate.servable && candidate.id === model.id));
 	}
 
 	async authenticate(resource: string, token: string, expiresIn?: number, _meta?: Record<string, unknown>): Promise<boolean> {
@@ -5063,12 +5069,26 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 	}
 
-	/** The runtime providers and models of the registered model sources, which replace a session's earlier ones on every sync. */
-	private _getModelSourceSessionConfig(): ILocalModelSessionConfigContribution {
+	/**
+	 * The runtime provider and model of a session's selected model when a registered model source serves it, which
+	 * replace the session's earlier ones on every sync. A session registers no other source's provider, so it never
+	 * holds another source's credential, and the runtime keeps its background model calls when no source is selected.
+	 */
+	private _getModelSourceSessionConfig(selectedModel: string | undefined): ILocalModelSessionConfigContribution {
+		const model = selectedModel !== undefined ? this._modelSourceModels.find(candidate => candidate.servable && candidate.id === selectedModel) : undefined;
 		return {
-			providers: this._modelSourceModels.map(model => model.runtimeProvider),
-			models: this._modelSourceModels.map(model => model.runtimeModel),
+			providers: model ? [model.runtimeProvider] : [],
+			models: model ? [model.runtimeModel] : [],
 		};
+	}
+
+	/**
+	 * The registered model source's model that `model` is an alias of, such as the
+	 * id VS Code's BYOK bridge served it under, with the same configuration; else `model`.
+	 */
+	private _resolveModelSourceAlias<T extends ModelSelection | undefined>(model: T): T | ModelSelection {
+		const source = model && this._modelSourceModels.find(candidate => candidate.servable && candidate.model.aliases?.includes(model.id));
+		return source ? { ...model, id: source.id } : model;
 	}
 
 	private _getModelSourceRows(): IAgentModelInfo[] {
@@ -9121,7 +9141,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			this._canvasHandoffs.set(entry.chatChannelUri, canvasHandoff);
 		}
 		let replacement: CopilotAgentSession | undefined;
-		const modelSelection = this._pendingModelSelections.get(context.chatKey) ?? entry.appliedModelSelection;
+		const modelSelection = this._pendingModelSelections.get(context.chatKey) ?? entry.appliedModelSelection ?? entry.deselectedModel;
 		if (modelSelection) {
 			this._pendingModelSelections.set(context.chatKey, modelSelection);
 		}
@@ -9503,6 +9523,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 			}
 
 			await this._applyPendingModelSelection(current, entry, token);
+			// A model whose source was withdrawn is selected again, or the turn fails; it never runs on another model.
+			const deselected = entry.deselectedModel;
+			if (deselected) {
+				await this._applyModelSelection(current, entry, deselected, token);
+			}
 			if (turnId) {
 				entry.resetTurnState(turnId, senderClientId, clientType, clientTelemetryContext);
 				let claimed: CopilotAgentSession | undefined;
@@ -11028,7 +11053,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 	}
 
-	private async _applyModelSelection(context: IResolvedCopilotChatContext, entry: CopilotAgentSession, model: ModelSelection, token: CancellationToken): Promise<void> {
+	private async _applyModelSelection(context: IResolvedCopilotChatContext, entry: CopilotAgentSession, selected: ModelSelection, token: CancellationToken): Promise<void> {
+		const model = this._resolveModelSourceAlias(selected);
 		const policy = await this._managedSettingsResolver.resolve((await this._ensureClientForChat(context.chat)).rpc.managedSettings, this._getSessionCredentials(context.chat).githubCredentials.token, entry.workingDirectory?.scheme === Schemas.file ? entry.workingDirectory.fsPath : undefined, token);
 		const credentials = context.credentials ?? this._credentialSources.get(context.chatKey);
 		const catalog = this._getScopedModelCatalog(credentials);
@@ -11374,6 +11400,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const scopedEntry = credentials && this._scopedModelCatalogs.get(credentials);
 		const catalog = () => scopedEntry?.catalog;
 		const availableModels = () => credentials ? catalog()?.models ?? [] : this._models.get();
+		const launchModel = launchPlan.kind === 'create' ? launchPlan.model : launchPlan.fallback.model;
+		const aliasedModel = this._resolveModelSourceAlias(launchModel);
+		if (aliasedModel !== launchModel) {
+			launchPlan = launchPlan.kind === 'create'
+				? { ...launchPlan, model: aliasedModel }
+				: { ...launchPlan, fallback: { ...launchPlan.fallback, model: aliasedModel } };
+		}
 		if (credentials) {
 			const model = launchPlan.kind === 'create' ? launchPlan.model : launchPlan.fallback.model;
 			const context = {
@@ -11390,7 +11423,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			modelPolicyModels: () => credentials ? availableModels() : this._capiModels.map(model => this._asPresented(model)),
 			autoTierSupport: () => credentials ? getScopedAutoModeTierSupport(this._getScopedModelCatalog(credentials)) : getAdvertisedAutoModeTierSupport(),
 			managedSettingsResolver: this._managedSettingsResolver,
-			modelSources: () => this._getModelSourceSessionConfig(),
+			modelSources: selectedModel => this._getModelSourceSessionConfig(selectedModel),
 		};
 		const { owner, chatChannelUri } = identity;
 		const chatKey = chatChannelUri.toString();
@@ -11557,6 +11590,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 			void activeClient.pluginController.refreshDiscovery();
 		}, () => {
 			void activeClient.pluginController.publishIfRuntimePluginsChanged();
+		}, model => {
+			const source = this._modelSourceModels.find(candidate => candidate.id === model);
+			if (source) {
+				this._onDidRejectModelSourceCredential.fire(source.modelSourceId);
+			}
 		});
 	}
 

@@ -77,7 +77,7 @@ import { normalizeLegacyActionEnvelope } from '../common/state/legacyProtocolCom
 import { getAgentHostClientProtocolVersions } from '../common/agentHostProtocolCompatibility.js';
 import { ChatProvidersConfigKey, ChatProvidersSettingId } from '../common/agentHostChatProviders.js';
 import { compareProtocolVersions } from '../common/state/protocol/version/registry.js';
-import { getAuthenticateTargetIdentity, isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, ProtocolError, ReconnectResultType, JSON_RPC_INTERNAL_ERROR, type ProtocolMessage, type IStateSnapshot, type SubscribeResult, type JsonRpcNotification, type AhpNotification } from '../common/state/sessionProtocol.js';
+import { getAuthenticateTargetIdentity, isModelSourceAuthenticateTarget, isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, ProtocolError, ReconnectResultType, JSON_RPC_INTERNAL_ERROR, type ProtocolMessage, type IStateSnapshot, type SubscribeResult, type JsonRpcNotification, type AhpNotification } from '../common/state/sessionProtocol.js';
 import { type IVscodeUpgradeResult } from '../common/state/protocolUpgrade.js';
 import { isClientTransport, NonReconnectableTransportError, AgentHostTransportFailureReason, type IProtocolTransport } from '../common/state/sessionTransport.js';
 import { AhpErrorCodes, JsonRpcErrorCodes } from '../common/state/protocol/errors.js';
@@ -2796,6 +2796,13 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		if (!params.token || params.token.startsWith('copilot-sealed.')) {
 			return params;
 		}
+		if (isModelSourceAuthenticateTarget(params.target)) {
+			// Model source keys go only to hosts that serve this client directly, unsealed.
+			if (this._isWebPubSubRelay()) {
+				throw new AuthenticationEncryptionError('Model source credentials are not sent through a relay.');
+			}
+			return params;
+		}
 		try {
 			const value = this.rootState.value;
 			const root = value instanceof Error ? undefined : value;
@@ -2853,9 +2860,10 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		if (operation.token.isCancellationRequested) {
 			throw new CancellationError();
 		}
-		if (params.token) {
+		if (params.token && !isModelSourceAuthenticateTarget(params.target)) {
 			this._authentication.set(key, { params: normalizedParams, expiresAt });
 		} else {
+			// A model source's key is delivered only in answer to its current state, never replayed.
 			this._authentication.delete(key);
 		}
 		await this._refreshRelayRootSnapshot();

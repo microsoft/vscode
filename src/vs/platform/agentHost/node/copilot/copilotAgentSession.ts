@@ -63,7 +63,7 @@ import { copilotConnectorsScope } from '../../../github/common/connectors/connec
 import { createUnknownAgentHostClientTelemetryContext, type IAgentHostClientTelemetryContext, type IAgentProviderSendStageRecorder } from '../../common/agentHostTelemetry.js';
 import { measureAgentProviderOperation } from '../../common/agentHostProviderTiming.js';
 import type { AgentMessageProvenance } from '../../common/agentMessageProvenance.js';
-import { type AgentCanvasDefinitionSnapshot, AgentSession, type IAgentChatOwnerRef, type IAgentExtensionInfo, type IAgentManagedPluginRetryEntry, COPILOT_CLI_AGENT_PROVIDER_ID, AgentSignal, AgentWorkingDirectoryChangedError, AuthenticateParams, IMcpNotification, subagentChatTitle, type AgentCanvasExtensionSource, type AgentCanvasOpenFailure, type AgentExtensionStatus, type AgentSubagentTaskModelSource, type AgentTurnProviderCallState, type IAgentCanvasCloseRequest, type IAgentCanvasOpenRequest, type AgentCanvasOpenAnswer, type AgentCanvasOpenResult, AgentExtensionConsentOption, type IAgentExtensionConsentRequest, type IAgentPendingMessageSender, type IAgentPermissionResponseContext, type IAgentTelemetryContext, type IAgentToolPendingConfirmationSignal, type IAgentTurnDiagnosticSnapshot, type IAgentTurnTokenUsage } from '../../common/agent.js';
+import { type AgentCanvasDefinitionSnapshot, AgentModelSourceUnavailableError, AgentSession, type IAgentChatOwnerRef, type IAgentExtensionInfo, type IAgentManagedPluginRetryEntry, COPILOT_CLI_AGENT_PROVIDER_ID, AgentSignal, AgentWorkingDirectoryChangedError, AuthenticateParams, IMcpNotification, subagentChatTitle, type AgentCanvasExtensionSource, type AgentCanvasOpenFailure, type AgentExtensionStatus, type AgentSubagentTaskModelSource, type AgentTurnProviderCallState, type IAgentCanvasCloseRequest, type IAgentCanvasOpenRequest, type AgentCanvasOpenAnswer, type AgentCanvasOpenResult, AgentExtensionConsentOption, type IAgentExtensionConsentRequest, type IAgentPendingMessageSender, type IAgentPermissionResponseContext, type IAgentTelemetryContext, type IAgentToolPendingConfirmationSignal, type IAgentTurnDiagnosticSnapshot, type IAgentTurnTokenUsage } from '../../common/agent.js';
 import { isReasoningEffortLevel } from '../../common/reasoningEffort.js';
 import { CopilotReasoningTiming } from './copilotReasoningTiming.js';
 import { agentModelConfigurationMetaKey, IAgentRuntimeModelConfiguration, readAgentRuntimeModelConfiguration } from '../../common/meta/agentModelConfigurationMeta.js';
@@ -94,6 +94,7 @@ import { IAgentConfigurationService, type IAgentChatConfigurationChangeEvent, ty
 import { CopilotSessionWrapper, type ICopilotByokSessionConfig, type ICopilotModelCallFinishedEvent } from './copilotSessionWrapper.js';
 import { allowCopilotSdkExecution, restoreDeferredCopilotSdkExecution } from './copilotSessionExecutionMarker.js';
 import { getCopilotSdkToolResourceUri } from './copilotSdkMeta.js';
+import { isModelSourceModelId } from './copilotModelSources.js';
 import { isAutoModel } from './modelIdentifiers.js';
 import { readAgentCustomizationMeta } from '../../common/meta/agentCustomizationMeta.js';
 import { areCopilotCustomAgentHooksTrusted, clientToolNamesFromSnapshot, composeByokSessionConfig, findLocalModelDirectFamily, getCopilotAgentCustomization, getCopilotWorkingDirectoryTrust, isCopilotSessionTelemetryEnabled, isMcpServerExplicitlyProjected, resolveCopilotSessionManagedSettings, toSessionConfigMcpServers, type CopilotChatSurface, type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotClientToolConfiguration, type ICopilotSessionLauncher, type ICopilotSessionRuntime } from './copilotSessionLauncher.js';
@@ -2346,6 +2347,15 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _modelConfigurationRefresh = this._register(new Throttler());
 	private _requestedModel: ModelSelection | undefined;
 	private _appliedModelSelection: ModelSelection | undefined;
+	/** The model {@link setModel} is switching to, while it withdraws the previous model's provider. */
+	private _switchingToModel: string | undefined;
+	/** Whether the runtime deselected {@link _switchingToModel} before {@link setModel} returned. */
+	private _switchTargetDeselected = false;
+	/**
+	 * Whether the runtime no longer has {@link _requestedModel} selected, because its model source was
+	 * withdrawn or can't be registered. The next turn selects it again or fails; it never runs on another model.
+	 */
+	private _requestedModelDeselected = false;
 	private readonly _onSessionEvent: ((event: SessionEvent) => void) | undefined;
 	private readonly _canvasByInstanceId = new Map<string, ICanvasProjectionEntry>();
 	/** In-flight user closes by canvas channel, so concurrent requests from several clients share one RPC. */
@@ -2412,6 +2422,9 @@ export class CopilotAgentSession extends Disposable {
 	readonly onMcpNotification = this._onMcpNotification.event;
 	private readonly _onDidRequireAuth = this._register(new Emitter<void>());
 	readonly onDidRequireAuth = this._onDidRequireAuth.event;
+	private readonly _onDidRejectModelSourceCredential = this._register(new Emitter<string>());
+	/** Fires with the selected model's id when the endpoint of its registered model source rejected the credential. */
+	readonly onDidRejectModelSourceCredential = this._onDidRejectModelSourceCredential.event;
 	/**
 	 * Fires when the runtime finishes preparing organization-required plugins,
 	 * which it installs in the background after the session starts. Their
@@ -5304,6 +5317,11 @@ export class CopilotAgentSession extends Disposable {
 			this._mcpAwaitingOAuthReconnect.clear();
 			this._lastAppliedAgent = this._launchPlan.kind === 'create' ? this._launchPlan.resolvedAgentName ?? null : undefined;
 			this._registeredByokConfig = wrapper.launchByokConfig;
+			// The launcher leaves a registered source's model unselected when its provider can't be registered, and a
+			// resumed session restores the runtime's journaled selection, which may predate the source's withdrawal.
+			// Either way the model is selected again before the next turn.
+			const launchModel = this._requestedModel?.id;
+			this._requestedModelDeselected = !!launchModel && isModelSourceModelId(launchModel) && (this._launchPlan.kind === 'resume' || !wrapper.launchByokConfig.models?.some(model => `${model.provider}/${model.id}` === launchModel));
 			this._reportLocalModelSelection(this._launchPlan.kind === 'create' ? this._launchPlan.model?.id : this._launchPlan.fallback.model?.id);
 			this._canvasExtensions = undefined;
 			this._ignoredRestoredCanvasInstanceIds.clear();
@@ -8611,18 +8629,20 @@ export class CopilotAgentSession extends Disposable {
 	 * launched, e.g. for a chat restored before the renderer's first BYOK
 	 * snapshot reached the agent host. External BYOK is additive (see
 	 * {@link composeByokSessionConfig}) and a no-op when nothing new was
-	 * reported; the on-device rows and registered model sources are replaced
-	 * by their current contributions. Serialized so concurrent callers observe each
+	 * reported; the on-device rows and the registered model source of the
+	 * selected model, or of `targetModel`, are replaced by their current
+	 * contributions. Serialized so concurrent callers observe each
 	 * other's registrations.
 	 */
-	syncByokModels(): Promise<void> {
+	syncByokModels(targetModel?: string): Promise<void> {
 		return this._byokSync.queue(async () => {
 			const wrapper = this._wrapper;
 			if (this._store.isDisposed || !wrapper) {
 				return;
 			}
 			const current = await this._sessionLauncher.resolveByokSessionConfig(this.sessionId);
-			const merged = composeByokSessionConfig(this._registeredByokConfig, current, this._launchPlan.localModelProvider?.contributeSessionConfig(), this._launchPlan.modelSources?.());
+			// A sync during a switch keeps the provider of the model being switched to.
+			const merged = composeByokSessionConfig(this._registeredByokConfig, current, this._launchPlan.localModelProvider?.contributeSessionConfig(), this._launchPlan.modelSources?.(targetModel ?? this._switchingToModel ?? this._requestedModel?.id));
 			// A restart across the await swapped in a wrapper with its own launch
 			// config, so `merged` is no longer a valid basis for that session.
 			if (!merged || this._store.isDisposed || this._wrapper !== wrapper) {
@@ -8639,15 +8659,37 @@ export class CopilotAgentSession extends Disposable {
 		return this._appliedModelSelection;
 	}
 
+	/**
+	 * The requested selection when the runtime no longer has it selected, because its model source was withdrawn
+	 * or couldn't be registered. It must be selected again before the next turn, which never runs on another model.
+	 */
+	get deselectedModel(): ModelSelection | undefined {
+		return this._requestedModelDeselected ? this._requestedModel : undefined;
+	}
+
 	async setModel(model: string, reasoningEffort?: NonNullable<CreateSessionOptions['inference']>['reasoningEffort'], contextTier?: NonNullable<CreateSessionOptions['inference']>['contextTier'], autoTier?: NonNullable<NonNullable<CreateSessionOptions['github']>['capi']>['autoTier'] | null, requested?: ModelSelection): Promise<void> {
+		this._switchingToModel = model;
+		this._switchTargetDeselected = false;
+		try {
+			await this._setModel(model, reasoningEffort, contextTier, autoTier, requested);
+		} finally {
+			this._switchingToModel = undefined;
+		}
+	}
+
+	private async _setModel(model: string, reasoningEffort?: NonNullable<CreateSessionOptions['inference']>['reasoningEffort'], contextTier?: NonNullable<CreateSessionOptions['inference']>['contextTier'], autoTier?: NonNullable<NonNullable<CreateSessionOptions['github']>['capi']>['autoTier'] | null, requested?: ModelSelection): Promise<void> {
 		// The runtime rejects a BYOK model that is not registered on the session.
 		try {
-			await this.syncByokModels();
+			await this.syncByokModels(model);
 		} catch (err) {
 			// Deliberately non-fatal: let `setModel` report the runtime's own error
 			// rather than this one. Note a timed-out `provider.sync` still marks the
 			// session control-plane desynchronized, so the failure is not dropped.
 			this._logService.warn(`[Copilot:${this.sessionId}] Failed to register BYOK models before changing model`, err);
+		}
+		if (isModelSourceModelId(model) && !this._registeredByokConfig.models?.some(candidate => `${candidate.provider}/${candidate.id}` === model)) {
+			const name = this._launchPlan.availableModels?.().find(candidate => candidate.id === model)?.name ?? model.slice(model.indexOf('/') + 1);
+			throw new AgentModelSourceUnavailableError(localize('copilotAgentSession.modelSourceUnavailable', "The model {0} is unavailable. Check that its provider is still configured and has a valid API key, or choose another model.", name));
 		}
 		this._logService.info(`[Copilot:${this.sessionId}] Changing model to: ${model}`);
 		try {
@@ -8667,7 +8709,9 @@ export class CopilotAgentSession extends Disposable {
 				...(autoTier !== undefined ? { autoTier } : {}),
 			}));
 			this._requestedModel = requested ?? { id: model };
-			this._appliedModelSelection = this._requestedModel;
+			// Its source may have been withdrawn while the runtime switched to it.
+			this._requestedModelDeselected = this._switchTargetDeselected;
+			this._appliedModelSelection = this._requestedModelDeselected ? undefined : this._requestedModel;
 		} finally {
 			this.refreshModelConfiguration();
 		}
@@ -12758,7 +12802,13 @@ export class CopilotAgentSession extends Disposable {
 			}
 			this._logService.error(`[Copilot:${sessionId}] Session error: ${e.data.errorType} - ${e.data.message}`);
 			if (isCopilotSdkAuthRejection(e.data)) {
-				this._onDidRequireAuth.fire();
+				// A registered model source's endpoint answers without Copilot's request IDs; its rejection says nothing about the GitHub credential.
+				const model = this._requestedModel?.id;
+				if (model && isModelSourceModelId(model) && !e.data.serviceRequestId && !e.data.providerCallId) {
+					this._onDidRejectModelSourceCredential.fire(model);
+				} else {
+					this._onDidRequireAuth.fire();
+				}
 			}
 			const correlation = createCopilotFailureCorrelation(this.resourceUri, this._chatChannelUri, this._turnId, this.sessionId, this._currentTurn.value?.clientContext);
 			const reportError = () => reportCopilotSdkSessionError(this._telemetryService, e, correlation);
@@ -14949,6 +14999,29 @@ export class CopilotAgentSession extends Disposable {
 			// Sent after the hook ended, without naming it.
 			if (e.data.warningType === HOOK_OUTPUT_WARNING_TYPE) {
 				this._showHookNotice(createHookWarningNotification(undefined, e.data.message), e);
+			}
+		}));
+
+		store.add(wrapper.onSessionModelDeselected(e => {
+			// While switching, the previous model's deselection is expected: the switch withdraws its provider.
+			const switching = this._switchingToModel;
+			const target = switching ?? this._requestedModel?.id;
+			if (e.agentId || !target || !isModelSourceModelId(target) || (e.data.previousModel !== target && !target.endsWith(`/${e.data.previousModel}`))) {
+				return;
+			}
+			this._logService.info(`[Copilot:${sessionId}] The runtime deselected ${e.data.previousModel} (${e.data.reason}); the next turn selects it again or fails`);
+			if (switching !== undefined) {
+				this._switchTargetDeselected = true;
+				return;
+			}
+			this._appliedModelSelection = undefined;
+			this._requestedModelDeselected = true;
+			// The model source was withdrawn: a running turn must neither continue on another model nor keep calling
+			// the withdrawn endpoint, so it ends with a resumable error. Aborting first drops the runtime's late events.
+			if (this._currentTurn.value) {
+				const stopped = this.abort();
+				this.failActiveTurn({ errorType: 'modelSourceUnavailable', message: localize('copilotAgentSession.modelSourceWithdrawn', "The model's provider was removed or its API key was revoked. Check the provider, or choose another model.") });
+				stopped.catch(error => this._logService.warn(`[Copilot:${sessionId}] Failed to stop the turn of a withdrawn model`, error));
 			}
 		}));
 

@@ -60,7 +60,7 @@ import { buildCopilotBuiltinAgents, COPILOT_BUILTIN_AGENT_NAMES } from './copilo
 import { createCopilotSkillProvider } from './copilotBuiltinSkills.js';
 import { CopilotSessionWrapper, type ICopilotByokSessionConfig } from './copilotSessionWrapper.js';
 import type { ILocalModelProvider, ILocalModelSessionConfigContribution } from './localModelBridge/localModelProvider.js';
-import { isModelSourceProviderName } from './copilotModelSources.js';
+import { isModelSourceModelId, isModelSourceProviderName } from './copilotModelSources.js';
 import { ShellManager, createShellTools, type IUnsandboxedCommandConfirmationRequest } from './copilotShellTools.js';
 import { isAutoModel, isGpt56Model } from './modelIdentifiers.js';
 import { CopilotToolName, EPHEMERAL_DISABLED_COPILOT_TOOLS } from './copilotToolDisplay.js';
@@ -504,8 +504,8 @@ interface ICopilotSessionLaunchBase {
 	readonly stageRecorder?: IAgentProviderSendStageRecorder;
 	/** The on-device model provider installed on {@link client} when the user opted in: replaceable direct-selection rows and turn attribution. */
 	readonly localModelProvider?: ILocalModelProvider;
-	/** The providers and models of the registered model sources the agent serves, replaced as a whole on every sync. */
-	readonly modelSources?: () => ILocalModelSessionConfigContribution;
+	/** The provider and model of the registered model source serving `selectedModel`, if any, replaced as a whole on every sync. */
+	readonly modelSources?: (selectedModel: string | undefined) => ILocalModelSessionConfigContribution;
 	readonly availableModels?: () => readonly IAgentModelInfo[];
 	readonly modelPolicyModels?: () => readonly IAgentModelInfo[];
 	/** The Auto tiers this chat's catalog accepts: a scoped caller's own catalog, else the host-wide one. */
@@ -1090,6 +1090,15 @@ export function composeByokSessionConfig(applied: ICopilotByokSessionConfig, ext
 }
 
 /**
+ * Whether a session can open with `model` selected. A registered model source's model whose provider couldn't be
+ * registered, e.g. while its credential is missing, opens unselected instead of resolving as another model; the
+ * session then refuses turns until the model can be selected again.
+ */
+function isSelectableAtLaunch(model: string | undefined, config: ICopilotSessionConfig): boolean {
+	return !model || !isModelSourceModelId(model) || !!config.inference?.models?.some(candidate => `${candidate.provider}/${candidate.id}` === model);
+}
+
+/**
  * The selection id of a direct-selection row, `vscode-on-device/<id>`. The runtime accepts the bare `<id>` in `setModel`
  * but resolves it as a CAPI model, so rows are only ever published and selected by this id.
  */
@@ -1414,7 +1423,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			...openConfig,
 			...this._eagerDiagnostics(),
 			sessionId: plan.sessionId,
-			model: plan.model?.id,
+			model: isSelectableAtLaunch(plan.model?.id, config) ? plan.model?.id : undefined,
 			inference: {
 				...openConfig.inference,
 				reasoningEffort: resolveCopilotReasoningEffort(model, this._configurationService, this._logService, plan.sessionId),
@@ -1683,9 +1692,9 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		if (localModelConfig?.models.length) {
 			this._logService.info(`[Copilot:${plan.sessionId}] Wired ${localModelConfig.models.length} on-device model row(s)`);
 		}
-		const modelSourceConfig = plan.modelSources?.();
+		const modelSourceConfig = plan.modelSources?.(plan.kind === 'create' ? plan.model?.id : plan.fallback.model?.id);
 		if (modelSourceConfig?.models.length) {
-			this._logService.info(`[Copilot:${plan.sessionId}] Wired ${modelSourceConfig.models.length} model(s) of registered model sources`);
+			this._logService.info(`[Copilot:${plan.sessionId}] Wired the selected model of a registered model source`);
 		}
 		const byok = withLocalModelSessionConfig(externalByok, localModelConfig, modelSourceConfig);
 		const skillDirectories = toSdkSkillDirectories(pluginsWithoutDirs.flatMap(p => p.skills));

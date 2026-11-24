@@ -18,6 +18,7 @@ import { toRemoteAgentHostSessionType } from '../../../../platform/agentHost/com
 import { buildExternalOpenSessionLinkUri, parseOpenSessionLinkChatId, parseOpenSessionLinkConnectionAuthority, parseOpenSessionLinkTurnId, parseOpenSessionLinkUri } from '../../../../platform/agentHost/common/openSessionLink.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { AgentHostByokLmHandler } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostByokLmHandler.js';
+import { AgentHostModelSourceRegistrar, AgentHostModelSourceStatusService, IAgentHostModelSourceStatusService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostModelSourceRegistrar.js';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
@@ -512,3 +513,6 @@ registerWorkbenchContribution2(ScreenshotWindowToolContribution.ID, ScreenshotWi
 // only window connected to the node host. Lazily instantiated when the node host
 // resolves it via `AgentHostClientByokLmChannel`.
 registerSingleton(IAgentHostByokLmHandler, AgentHostByokLmHandler, InstantiationType.Delayed);
+registerSingleton(IAgentHostModelSourceStatusService, AgentHostModelSourceStatusService, InstantiationType.Delayed);
+// Registers the window's BYOK provider groups with agent hosts as model sources, as the workbench does.
+registerWorkbenchContribution2(AgentHostModelSourceRegistrar.ID, AgentHostModelSourceRegistrar, WorkbenchPhase.AfterRestored);

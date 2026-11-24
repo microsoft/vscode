@@ -278,6 +278,11 @@ export class CopilotSessionWrapper extends Disposable {
 		return this._onSessionModelChange ??= this._sdkEvent('session.model_change');
 	}
 
+	private _onSessionModelDeselected: Event<SessionEventPayload<'session.model_deselected'>> | undefined;
+	get onSessionModelDeselected(): Event<SessionEventPayload<'session.model_deselected'>> {
+		return this._onSessionModelDeselected ??= this._sdkEvent('session.model_deselected');
+	}
+
 	private _onAutoModeResolved: Event<SessionEventPayload<'session.auto_mode_resolved'>> | undefined;
 	get onAutoModeResolved(): Event<SessionEventPayload<'session.auto_mode_resolved'>> {
 		return this._onAutoModeResolved ??= this._sdkEvent('session.auto_mode_resolved');

@@ -1642,6 +1642,15 @@ export class AgentPolicyError extends Error {
 	readonly code = 'policyResolutionFailed';
 }
 
+/**
+ * The turn's model comes from a registered model source that can't serve it, for example because its credential is
+ * missing or rejected, or the source was removed. The turn fails with a resumable `modelSourceUnavailable` error
+ * instead of running on another model.
+ */
+export class AgentModelSourceUnavailableError extends Error {
+	readonly code = 'modelSourceUnavailable';
+}
+
 export interface IAgentChatConfigCompletionsParams extends IAgentResolveChatConfigParams {
 	readonly property: string;
 	readonly query?: string;
@@ -1691,6 +1700,8 @@ export interface IAgentModelSourceDescription {
 	 * takes one. A client passes `resource.resource` back to `authenticate`.
 	 */
 	readonly credentialResource?: ProtectedResourceMetadata;
+	/** Every origin the credential is sent to, such as `https://api.example.com`. Present whenever `credentialResource` is. */
+	readonly credentialOrigins?: readonly string[];
 }
 
 // ---- Agent signals (sent via IAgent.onDidChatProgress) ----------------------
@@ -2184,6 +2195,12 @@ export interface IAgent {
 
 	/** Discovers models using only the requesting connection's credentials, without changing the shared catalog. */
 	getModelsForCredentials?(credentials: IAgentHostCredentialSource, token?: CancellationToken): Promise<readonly IAgentModelInfo[]>;
+
+	/**
+	 * Fires with a registered model source's `id` when its endpoint rejected the
+	 * credential, so the host drops it and asks for another one.
+	 */
+	readonly onDidRejectModelSourceCredential?: Event<string>;
 
 	/**
 	 * Reads a registered model source's definition. Throws, with a message for

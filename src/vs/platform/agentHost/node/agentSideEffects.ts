@@ -92,6 +92,7 @@ import { AgentHostInputRequestTracker } from './agentHostInputRequestTracker.js'
 import { AgentHostLocalTurns } from './agentHostLocalTurns.js';
 import { IAgentHostSessionTitleController } from './agentHostSessionTitleController.js';
 import { AgentHostStateManager, resolveChatStateForUri } from './agentHostStateManager.js';
+import { MODEL_SOURCE_GRACE_PERIOD } from './agentHostModelSourceRegistry.js';
 import { IAgentConfigurationService, isChatConfigCompletion } from './agentConfigurationService.js';
 import { IAgentHostSessionStateStore } from '../common/agentHostSessionStateStore.js';
 import { createAgentChatContext, getSessionChatsForFanOut } from './agentChatContext.js';
@@ -623,7 +624,11 @@ export class AgentSideEffects extends Disposable {
 				...(modelSources.length ? { modelSources } : {}),
 				customizations: customizations?.length ? [...customizations] : undefined,
 				protectedResources: protectedResources.length > 0 ? protectedResources : undefined,
-				capabilities: d.capabilities ? { ...d.capabilities } : undefined,
+				capabilities: d.capabilities ? {
+					...d.capabilities,
+					// The host, not the agent, keeps a departed client's registrations through the grace period.
+					...(d.capabilities.modelSourceRegistration ? { modelSourceRegistration: { ...d.capabilities.modelSourceRegistration, gracePeriod: MODEL_SOURCE_GRACE_PERIOD } } : {}),
+				} : undefined,
 			};
 		});
 		if (equals(this._lastAgentInfos, infos)) {
@@ -2398,7 +2403,8 @@ export class AgentSideEffects extends Disposable {
 				type: ActionType.ChatError,
 				turnId,
 				duration: this._turnDuration(turnStopWatch),
-				part: createErrorResponsePart(error),
+				// The turn can run once its model source can serve it again.
+				part: createErrorResponsePart(error, error.errorType === 'modelSourceUnavailable'),
 			});
 			const endedTurn = this._completeTurn(turnChannel, turnId, 'error', failure);
 			this._toolCallTracker.clearSession(turnChannel);
@@ -2744,7 +2750,8 @@ function buildTurnFailure(stage: AgentHostTurnFailureStage, err: unknown): IAgen
 function buildTurnFailureError(stage: AgentHostTurnFailureStage, err: unknown): ErrorInfo {
 	const message = getErrorMessage(err);
 	const forwarded = tryParseForwardedChatError(err instanceof Error ? err.message : message);
-	const errorType = getErrorCode(err) === 'policyResolutionFailed' ? 'policyResolutionFailed'
+	const code = getErrorCode(err);
+	const errorType = code === 'policyResolutionFailed' || code === 'modelSourceUnavailable' ? code
 		: stage === 'modelSelection' ? 'modelSelectionFailed'
 			: stage === 'workingDirectory' ? 'workingDirectoryFailed' : 'sendFailed';
 	if (forwarded) {

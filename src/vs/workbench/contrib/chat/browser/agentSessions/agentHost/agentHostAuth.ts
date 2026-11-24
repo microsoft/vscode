@@ -23,7 +23,7 @@ import { IDefaultAccountService } from '../../../../../../platform/defaultAccoun
 import type { IDefaultAccount } from '../../../../../../base/common/defaultAccount.js';
 import { deriveGitHubEndpoints } from '../../../../../../platform/github/common/githubEndpoints.js';
 import { gitHubCopilotResource } from '../../../../../../platform/agentHost/common/githubEndpoints.js';
-import { type McpAuthRequirement, type McpOAuthClient, type ModelSelection, type ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { type McpAuthRequirement, type McpOAuthClient, type ModelSelection, type ModelSourceRegistration, type ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { getAuthenticateTargetIdentity, type AuthenticateTarget, type McpServerAuthenticateTarget } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { AuthRequiredReason } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import type { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
@@ -62,14 +62,16 @@ export function agentHostMcpServerId(authority: string, serverName: string, reso
 
 /**
  * Whether creating a session with the selected model requires the agent's protected-resource authentication.
+ * @param registrations The host's model source registrations, whose models are called with the user's own credential.
  */
-export function modelRequiresAgentAuthentication(agent: AgentInfo | undefined, model: ModelSelection | undefined): boolean {
+export function modelRequiresAgentAuthentication(agent: AgentInfo | undefined, model: ModelSelection | undefined, registrations: readonly ModelSourceRegistration[] = []): boolean {
 	if (!agent?.protectedResources?.length) {
 		return false;
 	}
 	const requiresAuthentication = agent.protectedResources.some(resource => resource.required !== false);
-	// Models of a registered model source are called with the user's own credential, like window BYOK models.
-	const isUserProvided = (candidate: SessionModelInfo) => readAgentModelByokIdentifier(candidate) !== undefined || candidate.modelSourceId !== undefined;
+	// Only a registration's models are the user's own; other model sources group the agent's models.
+	const isUserProvided = (candidate: SessionModelInfo) => readAgentModelByokIdentifier(candidate) !== undefined
+		|| (candidate.modelSourceId !== undefined && registrations.some(registration => registration.id === candidate.modelSourceId && registration.provider === agent.provider));
 	if (!agent.models.some(isUserProvided)) {
 		return requiresAuthentication;
 	}

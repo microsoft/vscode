@@ -21,6 +21,7 @@ import { readAgentModelRouterRoutesMeta, readAgentModelRouterSwitchingMeta, read
 import { readAgentManagedModelDefaults, readAgentModelConfigurationDefaults } from '../../../../../../platform/agentHost/common/meta/agentModelConfigurationMeta.js';
 import { readAgentModelByokIdentifier } from '../../../../../../platform/agentHost/common/agentModelByokMeta.js';
 import { readAgentModelGroupId, readAgentModelSourceId } from '../../../../../../platform/agentHost/common/agentModelSource.js';
+import { parseByokModelSourceId } from '../../../../../../platform/agentHost/common/byokModelSource.js';
 import { getReasoningEffortDescription, getReasoningEffortLabel } from '../../../../../../platform/agentHost/common/reasoningEffort.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { readModelRouterDescription, readModelRouterUri } from '../../../../../../platform/agentHost/common/modelRouter.js';
@@ -487,7 +488,9 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 		// `vscode-on-device/` prefix names the sentinel provider that serves it,
 		// not a vendor the user added.
 		const isLocalModelRow = !!readLocalModelRowMeta(model) || model.id.startsWith(`${LOCAL_MODEL_SENTINEL_PROVIDER_NAME}/`);
-		const groupVendorId = explicitGroupId ?? (slash > 0 && !isLocalModelRow ? model.id.slice(0, slash) : model.provider);
+		// A VS Code BYOK provider group registered as a model source groups with its vendor, like the bridged copy of its models.
+		const byokSource = model.modelSourceId !== undefined ? parseByokModelSourceId(model.modelSourceId) : undefined;
+		const groupVendorId = explicitGroupId ?? byokSource?.vendor ?? (slash > 0 && !isLocalModelRow ? model.id.slice(0, slash) : model.provider);
 		if (!groupVendorId) {
 			return undefined;
 		}

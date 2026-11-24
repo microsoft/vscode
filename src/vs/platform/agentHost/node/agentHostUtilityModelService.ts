@@ -11,7 +11,7 @@ import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
-import { AgentSession, COPILOT_CLI_AGENT_PROVIDER_ID } from '../common/agent.js';
+import { AgentSession, COPILOT_CLI_AGENT_PROVIDER_ID, type IAgent, type IAgentModelInfo } from '../common/agent.js';
 import { getByokLmAgentModelId, getByokLmSelectionModelId, IByokLmChatRequest, IByokLmChatResult, IByokLmModelInfo, isByokLmAgentModelId, resolveByokLmEnablement } from '../common/agentHostByokLm.js';
 import { AgentHostByokModelsEnabledConfigKey, AgentHostByokUtilityModelDefault, AgentHostByokUtilityModelDefaultConfigKey, AgentHostUtilitySmallModelConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
 import { readAgentModelByokIdentifier } from '../common/agentModelByokMeta.js';
@@ -148,9 +148,32 @@ export class AgentHostUtilityModelService implements IAgentHostUtilityModelServi
 	}
 
 	private _resolveRoute(context: IAgentHostUtilityModelContext): UtilityModelRoute {
-		return this._byokUtilityModelsSupported
-			? this._resolveByokRoute(context) ?? this._resolveCopilotRoute(context)
-			: this._resolveCopilotRoute(context);
+		const byokRoute = this._byokUtilityModelsSupported ? this._resolveByokRoute(context) : undefined;
+		if (byokRoute) {
+			return byokRoute;
+		}
+		this._assertCopilotServesModelSourceChat(context);
+		return this._resolveCopilotRoute(context);
+	}
+
+	/**
+	 * Fails closed unless `byokUtilityModelDefault` lets Copilot serve a chat whose main agent model comes from a
+	 * registered model source: like a BYOK model, it is the user's own. The agent can only call such a model in a
+	 * session, so it can't serve utility requests itself yet.
+	 */
+	private _assertCopilotServesModelSourceChat(context: IAgentHostUtilityModelContext): void {
+		if (this._resolveMainAgentModel(context)?.model?.modelSourceId === undefined) {
+			return;
+		}
+		switch (this._byokUtilityModelDefault()) {
+			case 'none':
+				throw new AgentHostUtilityModelUnavailableError(AgentHostUtilityModelUnavailableReason.NotConfigured);
+			case 'mainAgent':
+				this._logService.trace('[AgentHostUtilityModelService] The main agent model comes from a registered model source, which cannot serve utility requests; not falling back to Copilot.');
+				throw new AgentHostUtilityModelUnavailableError(AgentHostUtilityModelUnavailableReason.ByokModelUnavailable);
+			case 'copilot':
+				return;
+		}
 	}
 
 	/** Resolves a BYOK route, or `undefined` to use the Copilot default. */
@@ -259,6 +282,21 @@ export class AgentHostUtilityModelService implements IAgentHostUtilityModelServi
 
 	/** The agent model id of the chat's selected main agent model when it is a BYOK model. */
 	private _resolveByokMainAgentModel(context: IAgentHostUtilityModelContext): string | undefined {
+		const resolved = this._resolveMainAgentModel(context);
+		if (!resolved) {
+			return undefined;
+		}
+		const { agent, selection, model } = resolved;
+		if (model) {
+			return readAgentModelByokIdentifier(model) !== undefined ? model.id : undefined;
+		}
+		// The Copilot agent drops BYOK models from its catalog while no renderer
+		// serves them, but the chat keeps its selection; recognize it by its id.
+		return agent.id === COPILOT_CLI_AGENT_PROVIDER_ID && isByokLmAgentModelId(selection.id) ? selection.id : undefined;
+	}
+
+	/** The chat's selected main agent model, and its catalog entry when the agent lists it. */
+	private _resolveMainAgentModel(context: IAgentHostUtilityModelContext): { readonly agent: IAgent; readonly selection: ModelSelection; readonly model: IAgentModelInfo | undefined } | undefined {
 		const chat = context.chat && isAhpChatChannel(context.chat) ? context.chat : this._chatOwnership.getDefaultChat(context.session);
 		if (chat === undefined) {
 			return undefined;
@@ -281,13 +319,7 @@ export class AgentHostUtilityModelService implements IAgentHostUtilityModelServi
 		if (!selection) {
 			return undefined;
 		}
-		const model = agent.models.get().find(m => m.id === selection.id);
-		if (model) {
-			return readAgentModelByokIdentifier(model) !== undefined ? model.id : undefined;
-		}
-		// The Copilot agent drops BYOK models from its catalog while no renderer
-		// serves them, but the chat keeps its selection; recognize it by its id.
-		return agent.id === COPILOT_CLI_AGENT_PROVIDER_ID && isByokLmAgentModelId(selection.id) ? selection.id : undefined;
+		return { agent, selection, model: agent.models.get().find(m => m.id === selection.id) };
 	}
 
 	private _byokUtilityModelDefault(): AgentHostByokUtilityModelDefault {

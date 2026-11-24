@@ -11,6 +11,7 @@ import { supportsAgentHostClientCertificates } from '../common/meta/agentHostCli
 import { ClientProxyChangedExtensionMethod, LookupClientProxyBasicAuthorizationExtensionMethod, lookupClientProxyBasicAuthorizationResultValidator, LookupClientProxyKerberosAuthorizationExtensionMethod, lookupClientProxyKerberosAuthorizationResultValidator, ResolveClientProxyExtensionMethod, resolveClientProxyResultValidator } from '../common/clientProxyProtocol.js';
 import { AgentHostClientProxyCapabilityMetaKey, supportsAgentHostClientProxy } from '../common/meta/agentHostClientProxyMeta.js';
 import { IAgentHostProxyResolver } from './agentHostProxyResolver.js';
+import { MODEL_SOURCE_GRACE_PERIOD } from './agentHostModelSourceRegistry.js';
 import { disposableTimeout, raceCancellationError, raceTimeout, SequencerByKey } from '../../../base/common/async.js';
 import { cancelOnDispose, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { lstat, realpath, stat } from 'fs/promises';
@@ -92,6 +93,7 @@ import {
 	JsonRpcRequest,
 	isJsonRpcNotification,
 	isJsonRpcRequest,
+	isModelSourceAuthenticateTarget,
 	JSON_RPC_INTERNAL_ERROR,
 	JsonRpcErrorCodes,
 	ProtocolError,
@@ -1917,11 +1919,11 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				record.disconnectTimeouts.deleteAndDispose('managed-settings');
 				this._managedSettingsService.removeClient(this._managedSettingsContributionId(clientId));
 			}, remainingGrace));
-			// A client that reconnects within the grace window keeps the model sources it registered.
+			// A client that reconnects within the advertised grace period keeps the model sources it contributes.
 			record.disconnectTimeouts.set('model-sources', disposableTimeout(() => {
 				record.disconnectTimeouts.deleteAndDispose('model-sources');
 				this._agentService.removeClientModelSources?.(clientId);
-			}, remainingGrace));
+			}, Math.max(0, MODEL_SOURCE_GRACE_PERIOD - (Date.now() - record.lastSeenAt))));
 		}
 		for (const session of this._stateManager.getSessionUris()) {
 			const state = this._stateManager.getSessionState(session);
@@ -2804,6 +2806,10 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			return {};
 		},
 		authenticate: async (_client, params) => {
+			// Model sources are shared across the host, so a relay client's key or source would reach other principals.
+			if (isModelSourceAuthenticateTarget(params.target) && (_client.transport.relayClientId !== undefined || this._config.scopedRelayCredentials)) {
+				throw new ProtocolError(AhpErrorCodes.PermissionDenied, 'Model source credentials are not accepted from relay clients');
+			}
 			if (this._config.scopedRelayCredentials) {
 				if (_client.transport.relayPassive && params.resource !== _client.transport.relayAuthentication?.resource) {
 					throw new ProtocolError(AhpErrorCodes.PermissionDenied, readOnlyConnectionMessage);
@@ -3136,7 +3142,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		const origin = { clientId: client.clientId, clientSeq: params.clientSeq };
 		let rejection: string | undefined;
 		if (client.transport.relayAuthentication?.authenticated === false
-			|| (client.transport.relayClientId !== undefined && (action.type === ActionType.RootConfigChanged || isClientModelSourceAction(action)) && client.transport.relayAuthentication?.authenticated !== true)) {
+			|| (client.transport.relayClientId !== undefined && action.type === ActionType.RootConfigChanged && client.transport.relayAuthentication?.authenticated !== true)) {
 			rejection = 'Relay identity authentication is required';
 		} else if (client.transport.relayPassive) {
 			rejection = readOnlyConnectionMessage;
@@ -3144,6 +3150,9 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			rejection = `Server-only action: ${action.type}`;
 		} else if (UNSUPPORTED_CLIENT_ACTION_TYPES.has(action.type) || (isClientModelSourceAction(action) && !this._agentService.dispatchModelSourceAction)) {
 			rejection = `Unsupported action: ${action.type}`;
+		} else if (isClientModelSourceAction(action) && (client.transport.relayClientId !== undefined || this._config.scopedRelayCredentials)) {
+			// Model sources are shared across the host, so a relay client's source would reach other principals.
+			rejection = 'Model sources are unavailable to relay clients';
 		}
 		if (!rejection && client.transport.relayClientId !== undefined && this._config.relayResourceRoots && action.type === ActionType.SessionWorkingDirectorySet) {
 			try {

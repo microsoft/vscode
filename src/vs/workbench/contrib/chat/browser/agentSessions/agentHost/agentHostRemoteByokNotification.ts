@@ -11,6 +11,7 @@ import { isCopilotAgentHostSessionType, isRemoteAgentHostSessionType, parseAgent
 import { agentHostAuthority } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { IWorkbenchContribution } from '../../../../../common/contributions.js';
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
@@ -18,6 +19,7 @@ import { IWorkbenchEnvironmentService } from '../../../../../services/environmen
 import { IRemoteAgentService } from '../../../../../services/remote/common/remoteAgentService.js';
 import { ILanguageModelsService } from '../../../common/languageModels.js';
 import { ChatInputNotificationSeverity, IChatInputNotificationContext, IChatInputNotificationService } from '../../widget/input/chatInputNotificationService.js';
+import { areByokModelSourcesEnabled } from './agentHostModelSourceRegistrar.js';
 
 const REMOTE_BYOK_NOTIFICATION_ID = 'agentHost.remoteByok';
 const REMOTE_BYOK_NOTIFICATION_DISABLED_STORAGE_KEY = 'chat.agentHost.remoteByokNotification.disabled';
@@ -37,6 +39,7 @@ export class AgentHostRemoteByokNotificationContribution extends Disposable impl
 		@IStorageService private readonly _storageService: IStorageService,
 		@IRemoteAgentHostService private readonly _remoteAgentHostService: IRemoteAgentHostService,
 		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -95,7 +98,9 @@ export class AgentHostRemoteByokNotificationContribution extends Disposable impl
 		// Wait for an initialized Copilot session and respect hidden AI features and permanent muting.
 		if (!context.sessionResource || !context.sessionType || !isCopilotAgentHostSessionType(context.sessionType)
 			|| this._chatEntitlementService.sentiment.hidden
-			|| this._storageService.getBoolean(REMOTE_BYOK_NOTIFICATION_DISABLED_STORAGE_KEY, StorageScope.PROFILE, false)) {
+			|| this._storageService.getBoolean(REMOTE_BYOK_NOTIFICATION_DISABLED_STORAGE_KEY, StorageScope.PROFILE, false)
+			// Remote agent hosts then call the BYOK models they can reach directly.
+			|| areByokModelSourcesEnabled(this._configurationService, this._chatEntitlementService)) {
 			return false;
 		}
 		// Keep the warning in the first input and session that displayed it, rather than repeating in new chats.

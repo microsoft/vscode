@@ -43,7 +43,9 @@ const BYOK_MODELS: readonly IByokLmModelInfo[] = [
 const AGENT_MODELS: readonly IAgentModelInfo[] = [
 	{ provider: 'copilot', id: 'claude-sonnet-4.5', name: 'Claude Sonnet 4.5', supportsVision: false },
 	{ provider: 'copilot', id: 'azure/work/gpt-5', name: 'GPT-5', supportsVision: false, _meta: createAgentModelByokMeta('azure/work/gpt-5') },
+	{ provider: 'copilot', id: 'modelsource~abc/gpt-x', name: 'GPT X', supportsVision: false, modelSourceId: 'vscode.byok/ns/copilotcli/customendpoint/Example' },
 ];
+const SOURCE_MODEL = 'modelsource~abc/gpt-x';
 
 interface IScenario {
 	readonly authenticationService?: IAgentHostAuthenticationService;
@@ -292,6 +294,12 @@ suite('AgentHostUtilityModelService', () => {
 			disconnectedCopilotOverrideFallsBack: { utilitySmallModel: 'copilot/gpt-4.1', rendererConnected: false },
 			disconnectedOverrideWithByokDisabled: { utilitySmallModel: 'ollama/llama3', byokModelsEnabled: false, rendererConnected: false },
 			disconnectedOtherProviderSlashId: { mainModel: 'org/model', agentId: 'codex', rendererConnected: false },
+			// A registered model source's model is the user's own, and the agent can only call it in a session.
+			sourceMainDefaultsToCopilot: { mainModel: SOURCE_MODEL },
+			sourceMainNone: { mainModel: SOURCE_MODEL, byokUtilityModelDefault: 'none' },
+			sourceMainMainAgent: { mainModel: SOURCE_MODEL, byokUtilityModelDefault: 'mainAgent' },
+			sourceMainNoneWithOverride: { mainModel: SOURCE_MODEL, byokUtilityModelDefault: 'none', utilitySmallModel: 'ollama/llama3' },
+			remoteSourceMainNone: { mainModel: SOURCE_MODEL, byokUtilityModelDefault: 'none', byokUtilityModelsSupported: false },
 		};
 		const results: Record<string, unknown> = {};
 		for (const [name, scenario] of Object.entries(scenarios)) {
@@ -332,6 +340,11 @@ suite('AgentHostUtilityModelService', () => {
 			disconnectedCopilotOverrideFallsBack: copilot,
 			disconnectedOverrideWithByokDisabled: copilot,
 			disconnectedOtherProviderSlashId: copilot,
+			sourceMainDefaultsToCopilot: copilot,
+			sourceMainNone: { result: 'unavailable: notConfigured', copilotCalls: [], byokRequests: [] },
+			sourceMainMainAgent: byokUnavailable,
+			sourceMainNoneWithOverride: { result: 'byok text', copilotCalls: [], byokRequests: ['ollama|llama3'] },
+			remoteSourceMainNone: { result: 'unavailable: notConfigured', copilotCalls: [], byokRequests: [] },
 		});
 	});
 

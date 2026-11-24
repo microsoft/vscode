@@ -240,13 +240,13 @@ export const AgentHostCodexAgentEnabledSettingId = 'chat.agentHost.codexAgent.en
 export const AgentHostByokModelsEnabledSettingId = 'chat.agentHost.byokModels.enabled';
 
 /**
- * Configuration key controlling whether the window registers its Custom Endpoint
- * BYOK provider groups with agent hosts as model sources, so their agents call
- * the endpoints directly with the provider group's API key instead of sending
- * each request back through the window. Read in the window, which decides which
- * models are registered and delivers their keys.
+ * Configuration key controlling whether the window registers BYOK provider
+ * groups that the Copilot agent can call directly with agent hosts as model
+ * sources, so their agents call the endpoints with the provider group's API key
+ * instead of sending each request back through the window. Read in the window,
+ * which decides which models are registered and delivers their keys.
  */
-export const AgentHostByokCustomEndpointDirectSettingId = 'chat.agentHost.byokModels.customEndpointDirect.enabled';
+export const AgentHostByokDirectEndpointsSettingId = 'chat.agentHost.byokModels.directEndpoints.enabled';
 
 /**
  * Optional override that points at an **SDK root directory** containing a

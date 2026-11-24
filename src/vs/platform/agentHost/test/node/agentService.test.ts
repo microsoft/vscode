@@ -24895,7 +24895,7 @@ suite('AgentService (node dispatcher)', () => {
 			registerTestAgentProvider(service, provider);
 			const stateManager = getStateManager(service);
 
-			service.dispatchModelSourceAction({ type: ActionType.RootModelSourceRegistrationSet, registration: { id: 'source', provider: 'copilot', displayName: 'Example', format: 'example.test/source@1', definition: {}, clientId: 'client-1' } }, 'client-1', 1);
+			service.dispatchModelSourceAction({ type: ActionType.RootModelSourceRegistrationSet, registration: { id: 'source', provider: 'copilot', displayName: 'Example', format: 'example.test/source@1', definition: {} }, clientId: 'client-1' }, 'client-1', 1);
 			const credentialNonce = stateManager.rootState.modelSourceRegistrations?.[0].credentialNonce ?? '';
 			const result = await service.authenticate({ resource: 'https://models.example.test/v1', token: 'secret', target: { kind: AuthenticateTargetKind.ModelSource, modelSourceId: 'source', credentialNonce } });
 			const agentInfo = stateManager.rootState.agents.find(info => info.provider === 'copilot');

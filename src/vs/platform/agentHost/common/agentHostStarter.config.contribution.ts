@@ -15,7 +15,7 @@ import {
 	AgentHostAgentOrchestrationLimitsSettingId,
 	AgentHostSessionModelOptionsSettingId,
 	AgentHostAutoAttachPullRequestsSettingId,
-	AgentHostByokCustomEndpointDirectSettingId,
+	AgentHostByokDirectEndpointsSettingId,
 	AgentHostGitCoalesceReadsSettingId,
 	AgentHostByokModelsEnabledSettingId,
 	CanvasesEnabledSettingId,
@@ -432,10 +432,12 @@ configurationRegistry.registerConfiguration({
 			experiment: { mode: 'startup' },
 			agentHost: { key: AgentHostByokModelsEnabledConfigKey, scope: AgentHostConfigurationSyncScope.Local },
 		},
-		[AgentHostByokCustomEndpointDirectSettingId]: {
+		[AgentHostByokDirectEndpointsSettingId]: {
 			type: 'boolean',
-			markdownDescription: nls.localize('chat.agentHost.byokModels.customEndpointDirect.enabled', "When enabled, Custom Endpoint BYOK provider groups are registered with local and remote agent hosts, whose sessions then call their endpoints directly with the group's API key, instead of sending each request through VS Code. Models whose settings cannot be applied this way, such as custom request headers, keep the current behavior. Requires `#{0}#`.", AgentHostByokModelsEnabledSettingId),
+			markdownDescription: nls.localize('chat.agentHost.byokModels.directEndpoints.enabled', "When enabled, BYOK models that the Copilot agent can call directly are registered with local and remote agent hosts, which then call their endpoints with the provider group's API key instead of sending each request through VS Code. You're asked before keys are sent to a remote agent host. Models whose settings cannot be applied this way, such as custom request headers, keep the current behavior. Requires `#{0}#`.", AgentHostByokModelsEnabledSettingId),
 			default: false,
+			// API keys leave this machine when enabled, so only the user can turn it on.
+			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental', 'advanced'],
 		},
 		[AgentHostCodexAgentEnabledSettingId]: {

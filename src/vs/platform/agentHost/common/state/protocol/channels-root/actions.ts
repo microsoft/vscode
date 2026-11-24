@@ -8,7 +8,7 @@
 
 import type { AgentInfo, ModelSourceRegistration, ModelSourceState } from './state.js';
 import type { TerminalInfo } from '../channels-terminal/state.js';
-import type { ProtectedResourceMetadata } from '../common/state.js';
+import type { ProtectedResourceMetadata, URI } from '../common/state.js';
 import { ActionType } from '../common/actions.js';
 
 // ─── Root Actions ────────────────────────────────────────────────────────────
@@ -71,12 +71,26 @@ export interface RootConfigChangedAction {
 }
 
 /**
- * Adds a model source registration, or replaces the one with the same `id`.
+ * Contributes a model source registration for `clientId`. A registration's
+ * routing is its `provider`, `format`, and `definition`, with definitions
+ * compared as JSON values: object key order is ignored, and numbers compare
+ * by numeric value, so `1` equals `1.0`.
  *
- * A client registers a source by dispatching this with its own `clientId`, and
- * with no `state`, `credentialNonce`, or `credentialResource`. Replacing a
- * registration clears those host-reported fields until the host reports again
- * with {@link RootModelSourceStateChangedAction}.
+ * - **Add.** When no registration has the `id`, appends it, with
+ *   `contributingClientIds` set to `[clientId]`, or absent without a
+ *   `clientId`.
+ * - **Join.** When one has, and its routing is unchanged, keeps its
+ *   host-reported fields (`state`, `credentialNonce`, `credentialResource`,
+ *   `credentialOrigins`, and `credentialId`), adds `clientId` to
+ *   `contributingClientIds` if it isn't there, and takes the other fields
+ *   from the action.
+ * - **Replace.** When the routing changed, replaces the registration, with
+ *   `contributingClientIds` set to `[clientId]`, or absent without a
+ *   `clientId`. Its host-reported fields are absent until the host reports
+ *   again with {@link RootModelSourceStateChangedAction}.
+ *
+ * A client dispatches this with its own `clientId`, and without
+ * `contributingClientIds` or any host-reported field.
  *
  * @category Root Actions
  * @stability 1.0
@@ -85,13 +99,40 @@ export interface RootConfigChangedAction {
  */
 export interface RootModelSourceRegistrationSetAction {
 	type: ActionType.RootModelSourceRegistrationSet;
-	/** The registration to add or replace, matched by `id`. */
+	/** The registration to contribute, matched by `id`. */
 	registration: ModelSourceRegistration;
+	/**
+	 * The contributing client. Absent when the host registers the source
+	 * itself.
+	 */
+	clientId?: string;
 }
 
 /**
- * Removes the model source registration with the given `id`. A no-op when
- * none matches.
+ * Withdraws one client's contribution to a model source registration:
+ * removes `clientId` from `contributingClientIds`, leaving the field absent
+ * when no contributor remains. A no-op when no registration has `id`, or
+ * `clientId` doesn't contribute it. It never removes the registration.
+ *
+ * A client dispatches this with its own `clientId`. The host dispatches it
+ * when a contributing client leaves.
+ *
+ * @category Root Actions
+ * @stability 1.0
+ * @clientDispatchable
+ * @see {@link /specification/root-channel#model-source-registry | Model source registry}
+ */
+export interface RootModelSourceContributorRemovedAction {
+	type: ActionType.RootModelSourceContributorRemoved;
+	/** The registration's `id`. */
+	id: string;
+	/** The contributing client to remove. */
+	clientId: string;
+}
+
+/**
+ * Removes the model source registration with the given `id` for every
+ * contributor. A no-op when none matches.
  *
  * @category Root Actions
  * @stability 1.0
@@ -105,9 +146,10 @@ export interface RootModelSourceRegistrationRemovedAction {
 }
 
 /**
- * Updates a model source registration's status, credential nonce, and
- * credential resource together. A no-op when no registration has `id`. Other
- * fields of the registration are preserved. Only the host dispatches it.
+ * Updates a model source registration's host-reported fields together:
+ * `state`, `credentialNonce`, `credentialResource`, `credentialOrigins`, and
+ * `credentialId`. A no-op when no registration has `id`. Other fields of the
+ * registration are preserved. Only the host dispatches it.
  *
  * @category Root Actions
  * @stability 1.0
@@ -126,4 +168,8 @@ export interface RootModelSourceStateChangedAction {
 	 * source that needs no credential.
 	 */
 	credentialResource?: ProtectedResourceMetadata;
+	/** Replaces the registration's `credentialOrigins`. Absent clears it. */
+	credentialOrigins?: URI[];
+	/** Replaces the registration's `credentialId`. Absent clears it. */
+	credentialId?: string;
 }

@@ -12,7 +12,8 @@ import { tmpdir } from 'os';
 import { CopilotClient, RuntimeConnection } from '@microsoft/copilot-sdk';
 import { join, relative } from '../../../../../base/common/path.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { CUSTOM_ENDPOINT_MODEL_SOURCE_FORMAT, toCustomEndpointModelSourceModel, type ICustomEndpointModelSettings } from '../../../common/byokCustomEndpoint.js';
+import { resolveCustomEndpointRuntimeEndpoint, type ICustomEndpointModelSettings } from '../../../common/byokCustomEndpoint.js';
+import { BYOK_ENDPOINTS_MODEL_SOURCE_FORMAT } from '../../../common/byokModelSource.js';
 import { createCopilotCliEnvironment } from '../../../node/copilot/copilotCliEnvironment.js';
 import { getCopilotModelSourceModels } from '../../../node/copilot/copilotModelSources.js';
 import { withLocalModelSessionConfig } from '../../../node/copilot/copilotSessionLauncher.js';
@@ -21,14 +22,22 @@ import { createIsolatedProviderEnvironment } from '../providerTestEnvironment.js
 
 type WireFormat = 'chatCompletions' | 'responses' | 'messages' | 'azure';
 
-/** The auth a request carried, as a fixed label so key values never enter assertion data. */
-type ObservedAuth = 'bearer' | 'x-api-key' | 'api-key' | 'none' | 'unexpected';
+/**
+ * The auth a request carried: the header, and whose key it was, as fixed labels
+ * so key values never enter assertion data.
+ */
+type ObservedAuth = `${'bearer' | 'x-api-key' | 'api-key'}:${WireFormat}` | 'none' | 'unexpected';
 
 interface IObservedRequest {
 	readonly path: string;
 	readonly auth: ObservedAuth;
 	readonly model: unknown;
+	/** The output token cap fields the request set. */
+	readonly outputCap: readonly string[];
 }
+
+/** A key in the runtime's environment, which no request may carry. */
+const AMBIENT_KEY = 'ambient-provider-key-93d0';
 
 const API_KEYS: Record<WireFormat, string> = {
 	chatCompletions: 'direct-byok-key-chat-completions-6f1d',
@@ -38,7 +47,7 @@ const API_KEYS: Record<WireFormat, string> = {
 };
 
 function observeAuth(request: IncomingMessage): ObservedAuth {
-	const keys = new Set(Object.values(API_KEYS));
+	const owner = (key: string) => (Object.keys(API_KEYS) as WireFormat[]).find(format => API_KEYS[format] === key);
 	const authorization = request.headers.authorization;
 	const xApiKey = request.headers['x-api-key'];
 	const apiKey = request.headers['api-key'];
@@ -49,14 +58,17 @@ function observeAuth(request: IncomingMessage): ObservedAuth {
 	if (sent.length > 1) {
 		return 'unexpected';
 	}
-	if (typeof authorization === 'string' && authorization.startsWith('Bearer ') && keys.has(authorization.slice('Bearer '.length))) {
-		return 'bearer';
+	const bearer = typeof authorization === 'string' && authorization.startsWith('Bearer ') ? owner(authorization.slice('Bearer '.length)) : undefined;
+	if (bearer) {
+		return `bearer:${bearer}`;
 	}
-	if (typeof xApiKey === 'string' && keys.has(xApiKey)) {
-		return 'x-api-key';
+	const xApiKeyOwner = typeof xApiKey === 'string' ? owner(xApiKey) : undefined;
+	if (xApiKeyOwner) {
+		return `x-api-key:${xApiKeyOwner}`;
 	}
-	if (typeof apiKey === 'string' && keys.has(apiKey)) {
-		return 'api-key';
+	const apiKeyOwner = typeof apiKey === 'string' ? owner(apiKey) : undefined;
+	if (apiKeyOwner) {
+		return `api-key:${apiKeyOwner}`;
 	}
 	return 'unexpected';
 }
@@ -101,16 +113,16 @@ suite('Agent Host Provider Integration - Copilot BYOK direct endpoints', functio
 				const body = JSON.parse(await readBody(request) || '{}');
 				const path = request.url ?? '';
 				const auth = observeAuth(request);
-				requests.push({ path, auth, model: body.model });
+				requests.push({ path, auth, model: body.model, outputCap: ['max_tokens', 'max_completion_tokens', 'max_output_tokens'].filter(field => body[field] !== undefined) });
 				const pathname = path.split('?')[0];
-				const expectedAuth: ObservedAuth = pathname.startsWith('/anthropic/') ? 'x-api-key' : pathname.startsWith('/azure/') ? 'api-key' : 'bearer';
-				if (auth !== expectedAuth) {
+				const expectedAuth = pathname.startsWith('/anthropic/') ? 'x-api-key' : pathname.startsWith('/azure/') ? 'api-key' : pathname.startsWith('/keyless/') ? 'none' : 'bearer';
+				if (auth.split(':')[0] !== expectedAuth) {
 					response.writeHead(401, { 'content-type': 'application/json' });
 					response.end(JSON.stringify({ error: { message: 'unauthorized' } }));
 					return;
 				}
 				if (pathname.endsWith('/chat/completions')) {
-					writeChatCompletion(response, String(body.model), pathname.startsWith('/azure/') ? 'hello from azure' : 'hello from chat completions');
+					writeChatCompletion(response, String(body.model), pathname.startsWith('/azure/') ? 'hello from azure' : pathname.startsWith('/keyless/') ? 'hello from keyless' : 'hello from chat completions');
 				} else if (pathname.endsWith('/responses')) {
 					response.writeHead(200, { 'content-type': 'text/event-stream' });
 					response.end(responsesMessageToSse({ content: [{ type: 'text', text: 'hello from responses' }], stopReason: 'stop' }));
@@ -129,17 +141,20 @@ suite('Agent Host Provider Integration - Copilot BYOK direct endpoints', functio
 		// Endpoints as a user configures them, in the shapes the extension accepts.
 		const settings: Record<WireFormat, ICustomEndpointModelSettings> = {
 			chatCompletions: { url: `${base}/openai/v1/chat/completions` },
-			responses: { url: `${base}/openai/v1`, apiType: 'responses' },
+			responses: { url: `${base}/openai/v1`, apiType: 'responses', thinking: true },
 			messages: { url: `${base}/anthropic/v1/messages` },
 			azure: { url: `${base}/azure/openai/deployments/gpt-4o/chat/completions?api-version=2025-01-01-preview`, requestHeaders: { 'api-key': '${apiKey}' } },
 		};
 		const formats = Object.keys(settings) as WireFormat[];
 		// One registered model source per format, each with its own key, as the window registers a provider group.
 		const sources = formats.map(format => {
-			const { model } = toCustomEndpointModelSourceModel(`model-${format}`, settings[format], {});
-			assert.ok(model, `${format} is not routed directly`);
-			return getCopilotModelSourceModels({ id: `vscode.customendpoint/copilotcli/${format}`, format: CUSTOM_ENDPOINT_MODEL_SOURCE_FORMAT, definition: { models: [{ ...model, toolCalling: true }], requiresApiKey: true }, credential: API_KEYS[format] })[0];
+			const { endpoint } = resolveCustomEndpointRuntimeEndpoint(settings[format]);
+			assert.ok(endpoint, `${format} is not routed directly`);
+			return getCopilotModelSourceModels({ id: `vscode.byok/ns/copilotcli/customendpoint/${format}`, format: BYOK_ENDPOINTS_MODEL_SOURCE_FORMAT, definition: { models: [{ id: `model-${format}`, endpoint, toolCalling: true, maxOutputTokens: 512 }], requiresCredential: true }, credential: API_KEYS[format] })[0];
 		});
+
+		// A source that needs no key, such as an Ollama server, must not pick up keys from the environment.
+		sources.push(getCopilotModelSourceModels({ id: 'vscode.byok/ns/copilotcli/ollama/Local', format: BYOK_ENDPOINTS_MODEL_SOURCE_FORMAT, definition: { models: [{ id: 'model-keyless', endpoint: { type: 'openai', wireApi: 'completions', baseUrl: `${base}/keyless/v1` }, toolCalling: true }], requiresCredential: false } })[0]);
 
 		const sessionId = 'byok-direct-endpoints';
 		const homeDirectory = await mkdtemp(`${tmpdir()}/byok-direct-`);
@@ -147,7 +162,7 @@ suite('Agent Host Provider Integration - Copilot BYOK direct endpoints', functio
 			// The agent host's main runtime client uses this mode.
 			mode: 'coding-agent',
 			runtime: RuntimeConnection.forSpawnedStdio({
-				env: createCopilotCliEnvironment(createIsolatedProviderEnvironment(homeDirectory)),
+				env: { ...createCopilotCliEnvironment(createIsolatedProviderEnvironment(homeDirectory)), OPENAI_API_KEY: AMBIENT_KEY, ANTHROPIC_API_KEY: AMBIENT_KEY },
 			}),
 			github: { useLoggedInUser: false },
 			observability: { logLevel: 'all' },
@@ -189,7 +204,7 @@ suite('Agent Host Provider Integration - Copilot BYOK direct endpoints', functio
 			for (const file of files) {
 				const path = join(file.parentPath, file.name);
 				const content = await readFile(path, 'utf8');
-				if (Object.values(API_KEYS).some(key => content.includes(key))) {
+				if ([...Object.values(API_KEYS), AMBIENT_KEY].some(key => content.includes(key))) {
 					keyFiles.push(relative(homeDirectory, path));
 				}
 			}
@@ -205,12 +220,15 @@ suite('Agent Host Provider Integration - Copilot BYOK direct endpoints', functio
 					{ selected: true, reply: 'hello from responses' },
 					{ selected: true, reply: 'hello from messages' },
 					{ selected: true, reply: 'hello from azure' },
+					{ selected: true, reply: 'hello from keyless' },
 				],
+				// Each endpoint gets its own group's key. Chat Completions gets no output cap, which reasoning models would reject as `max_tokens`.
 				requests: [
-					{ path: '/openai/v1/chat/completions', auth: 'bearer', model: 'model-chatCompletions' },
-					{ path: '/openai/v1/responses', auth: 'bearer', model: 'model-responses' },
-					{ path: '/anthropic/v1/messages', auth: 'x-api-key', model: 'model-messages' },
-					{ path: '/azure/openai/deployments/gpt-4o/chat/completions?api-version=2025-01-01-preview', auth: 'api-key', model: 'model-azure' },
+					{ path: '/openai/v1/chat/completions', auth: 'bearer:chatCompletions', model: 'model-chatCompletions', outputCap: [] },
+					{ path: '/openai/v1/responses', auth: 'bearer:responses', model: 'model-responses', outputCap: ['max_output_tokens'] },
+					{ path: '/anthropic/v1/messages', auth: 'x-api-key:messages', model: 'model-messages', outputCap: ['max_tokens'] },
+					{ path: '/azure/openai/deployments/gpt-4o/chat/completions?api-version=2025-01-01-preview', auth: 'api-key:azure', model: 'model-azure', outputCap: [] },
+					{ path: '/keyless/v1/chat/completions', auth: 'none', model: 'model-keyless', outputCap: [] },
 				],
 				sessionStateWritten: true,
 				keyFiles: [],

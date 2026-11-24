@@ -1483,6 +1483,15 @@ export interface ModelSourceAuthenticateTarget {
 	 * (-32011).
 	 */
 	credentialNonce: string;
+	/**
+	 * A client-chosen, non-secret ID for the credential, such as a hash of
+	 * where the client stores the key. The host publishes it as the
+	 * registration's `ModelSourceRegistration.credentialId`, so a client can
+	 * tell whether the host holds its current key. Clients SHOULD include it
+	 * when delivering a credential, and omit it when revoking one. MUST NOT be
+	 * derived from the secret.
+	 */
+	credentialId?: string;
 }
 
 /**

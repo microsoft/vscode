@@ -22,10 +22,7 @@ import {
 	IByokLmStreamDeltaBody,
 } from '../../../../../../platform/agentHost/common/agentHostByokLm.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
-import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
-import { AgentHostByokCustomEndpointDirectSettingId } from '../../../../../../platform/agentHost/common/agentService.js';
-import { CUSTOM_ENDPOINT_BYOK_VENDOR } from '../../../../../../platform/agentHost/common/byokCustomEndpoint.js';
 import { ChatEntitlementContextKeys, IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import {
 	ChatImageMimeType,
@@ -36,9 +33,8 @@ import {
 	ILanguageModelChatRequestOptions,
 	ILanguageModelsService,
 } from '../../../common/languageModels.js';
-import { ILanguageModelsConfigurationService } from '../../../common/languageModelsConfiguration.js';
 import { SessionType } from '../../../common/chatSessionsService.js';
-import { areCustomEndpointModelSourcesEnabled, getCustomEndpointModelSources } from './agentHostModelSourceRegistrar.js';
+import { IAgentHostModelSourceStatusService } from './agentHostModelSourceRegistrar.js';
 
 const STATEFUL_MARKER_MIME_TYPE = 'stateful_marker';
 const USAGE_MIME_TYPE = 'usage';
@@ -75,8 +71,7 @@ export class AgentHostByokLmHandler extends Disposable implements IAgentHostByok
 		@ILogService private readonly _logService: ILogService,
 		@IChatEntitlementService private readonly _chatEntitlementService: IChatEntitlementService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@ILanguageModelsConfigurationService private readonly _languageModelsConfigurationService: ILanguageModelsConfigurationService,
+		@IAgentHostModelSourceStatusService private readonly _modelSourceStatusService: IAgentHostModelSourceStatusService,
 	) {
 		super();
 		// Re-emit (debounced) whenever the renderer's language models change, so the
@@ -91,11 +86,7 @@ export class AgentHostByokLmHandler extends Disposable implements IAgentHostByok
 		this._register(Event.filter(contextKeyService.onDidChangeContext, event => event.affectsSome(CLIENT_BYOK_CONTEXT_KEYS))(() => {
 			this._onDidChangeModels.fire();
 		}));
-		// Which Custom Endpoint models are registered as model sources instead depends on these.
-		this._register(this._languageModelsConfigurationService.onDidChangeLanguageModelGroups(() => {
-			this._onDidChangeModels.fire();
-		}));
-		this._register(Event.filter(this._configurationService.onDidChangeConfiguration, event => event.affectsConfiguration(AgentHostByokCustomEndpointDirectSettingId))(() => {
+		this._register(this._modelSourceStatusService.onDidChange(() => {
 			this._onDidChangeModels.fire();
 		}));
 	}
@@ -194,13 +185,14 @@ export class AgentHostByokLmHandler extends Disposable implements IAgentHostByok
 			return [];
 		}
 
-		const registeredModelSourceModels = this._getRegisteredModelSourceModels();
+		// The local agent host serves these itself, from this window's model sources.
+		const servedModels = this._modelSourceStatusService.locallyServedModels;
 		const models: IByokLmModelInfo[] = [];
 		for (const identifier of this._languageModelsService.getLanguageModelIds()) {
 			const metadata = this._languageModelsService.lookupLanguageModel(identifier);
 			// Only genuine renderer BYOK models — exclude agent-host copies, which
 			// carry a `targetChatSessionType` and would otherwise re-enter the bridge.
-			if (metadata?.isBYOK && !metadata.targetChatSessionType && !registeredModelSourceModels.has(identifier)) {
+			if (metadata?.isBYOK && !metadata.targetChatSessionType && !servedModels.has(identifier)) {
 				const reasoningEffortSchema = metadata.configurationSchema?.properties?.reasoningEffort;
 				const supportedReasoningEfforts = reasoningEffortSchema?.enum?.filter((value): value is string => typeof value === 'string');
 				const defaultReasoningEffort = typeof reasoningEffortSchema?.default === 'string' ? reasoningEffortSchema.default : undefined;
@@ -223,29 +215,6 @@ export class AgentHostByokLmHandler extends Disposable implements IAgentHostByok
 			}
 		}
 		return models;
-	}
-
-	/**
-	 * The language model identifiers of the Custom Endpoint models this window
-	 * registers with agent hosts as model sources. The agent host serves them from
-	 * its own catalog, so the bridge doesn't list them too.
-	 */
-	private _getRegisteredModelSourceModels(): ReadonlySet<string> {
-		if (!areCustomEndpointModelSourcesEnabled(this._configurationService, this._chatEntitlementService)) {
-			return new Set();
-		}
-		const registered = new Set<string>();
-		const sources = getCustomEndpointModelSources(this._languageModelsService, this._languageModelsConfigurationService, this._logService);
-		for (const { group, modelIdentifiers } of this._languageModelsService.getLanguageModelGroups(CUSTOM_ENDPOINT_BYOK_VENDOR)) {
-			const source = group && sources.find(candidate => candidate.group === group.name);
-			for (const identifier of source ? modelIdentifiers : []) {
-				const modelId = this._languageModelsService.lookupLanguageModel(identifier)?.id;
-				if (modelId !== undefined && source!.definition.models.some(model => model.id === modelId)) {
-					registered.add(identifier);
-				}
-			}
-		}
-		return registered;
 	}
 
 	/**

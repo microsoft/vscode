@@ -83,6 +83,7 @@ import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPlu
 import { toClientPluginMcpDefaultCwdsMeta, toClientPluginStandaloneMeta } from '../../common/meta/clientPluginCustomizationMeta.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
 import { AgentSession, AgentExtensionConsentOption, type AgentCanvasOpenAnswer, type AgentCanvasOpenResult, GITHUB_COPILOT_PROTECTED_RESOURCE, type AgentSignal, type AuthenticateParams, type IAgentCanvasInfo, type IAgentChatAdoptionResult, type IAgentChatSessionSettings, type IAgentChatContext, type IAgentChatMetadata, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentDiscoveredChat, type IAgentMaterializeChatEvent, type IAgentPrewarmClaim, type IAgentSpawnChatEvent, fixedChatOwnerRef, type IAgentChatOwnerRef } from '../../common/agent.js';
+import { BYOK_ENDPOINTS_MODEL_SOURCE_FORMAT } from '../../common/byokModelSource.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { subagentChatUri } from '../../common/agentHostChatMinting.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, createUnknownAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
@@ -1638,6 +1639,7 @@ class TestableCopilotAgent extends CopilotAgent {
 				fake.dispose();
 			},
 			onDidRequireAuth: Event.None,
+			onDidRejectModelSourceCredential: Event.None,
 			onDidChangeRuntimePlugins: Event.None,
 			onDidReloadRuntimeContributions: Event.None,
 			hasRunningDetachedShells: async () => false,
@@ -4102,6 +4104,46 @@ suite('CopilotAgent', () => {
 			failed, restarted: client.startCallCount - starts, stopped: client.stopCallCount,
 			models: runtimes.map(runtime => runtime.setModelCalls.map(([model]) => model)),
 		}, { failed: true, restarted: 1, stopped: 1, models: [[], ['model-x']] });
+	});
+
+	test('a chat on a bridged BYOK model moves to its registered model source, which alone is registered on the session', async () => {
+		const workingDirectory = await fs.mkdtemp(`${os.tmpdir()}/copilot-model-source-`);
+		const sessionId = 'model-source';
+		const session = AgentSession.uri('copilotcli', sessionId);
+		const chat = defaultChatUri(session);
+		const context = exactChatContext(session, chat, session);
+		const client = new TestCopilotClient([sdkSession(sessionId, workingDirectory)]);
+		const runtimes: MockCopilotSession[] = [];
+		client.createSession = async () => {
+			const runtime = new MockCopilotSession(sessionId);
+			runtimes.push(runtime);
+			return runtime as unknown as CopilotSession;
+		};
+		const agent = createTestAgent(disposables, { copilotClient: client, sessionDataService: disposables.add(new TestSessionDataService()) });
+		afterTest(async () => {
+			await disposeAgent(agent);
+			await fs.rm(workingDirectory, { recursive: true, force: true });
+		});
+		await agent.authenticate('https://api.github.com', 'token');
+		await agent.refreshModels();
+		const endpoint = { type: 'openai', wireApi: 'completions', baseUrl: 'https://models.example.test/v1' } as const;
+		agent.setModelSources([
+			{ id: 'vscode.byok/ns/copilotcli/customendpoint/Example', format: BYOK_ENDPOINTS_MODEL_SOURCE_FORMAT, credential: 'key-1', definition: { requiresCredential: true, models: [{ id: 'gpt-x', endpoint, aliases: ['customendpoint/Example/gpt-x'] }] } },
+			{ id: 'vscode.byok/ns/copilotcli/customendpoint/Other', format: BYOK_ENDPOINTS_MODEL_SOURCE_FORMAT, credential: 'key-2', definition: { requiresCredential: true, models: [{ id: 'other', endpoint }] } },
+		]);
+		const sourceModel = agent.models.get().find(model => model.modelSourceId === 'vscode.byok/ns/copilotcli/customendpoint/Example')!;
+		await provisionSession(agent, { session, workingDirectories: [URI.file(workingDirectory)] });
+		await agent.chats.prepareTurn!(chat, 'turn-1', [URI.file(workingDirectory)], context);
+
+		await agent.chats.changeModel(chat, { id: 'customendpoint/Example/gpt-x' }, context);
+
+		assert.deepStrictEqual({
+			setModelCalls: runtimes.map(runtime => runtime.setModelCalls.map(([model]) => model)),
+			registered: runtimes.map(runtime => runtime.providerSyncCalls.at(-1)),
+		}, {
+			setModelCalls: [[sourceModel.id]],
+			registered: [[sourceModel.id]],
+		});
 	});
 
 	test('sandbox override survives config resolution but is not inherited by forks', async () => {
@@ -7730,7 +7772,7 @@ suite('CopilotAgent', () => {
 				provider: 'copilotcli',
 				displayName: 'Copilot',
 				description: 'Copilot SDK agent running in the local agent host process',
-				capabilities: { multipleChats: { fork: true, sideChat: true }, multipleWorkingDirectories: { immutablePrimary: true }, modelSourceRegistration: { formats: ['code.visualstudio.com/custom-endpoint@1'] } },
+				capabilities: { multipleChats: { fork: true, sideChat: true }, multipleWorkingDirectories: { immutablePrimary: true }, modelSourceRegistration: { formats: ['code.visualstudio.com/byok-endpoints@1'] } },
 			},
 			agentHostCapabilities: { workspaceConversion: true },
 		});
@@ -21615,6 +21657,7 @@ suite('CopilotAgent', () => {
 				canvasRuntimeEnabled: false,
 				onMcpNotification: Event.None,
 				onDidRequireAuth: Event.None,
+				onDidRejectModelSourceCredential: Event.None,
 				onDidChangeRuntimePlugins: Event.None,
 				onDidReloadRuntimeContributions: Event.None,
 				topLevelMcpCustomizations: () => [],
@@ -24670,6 +24713,7 @@ suite('CopilotAgent', () => {
 					canvasRuntimeEnabled: false,
 					onMcpNotification: Event.None,
 					onDidRequireAuth: Event.None,
+					onDidRejectModelSourceCredential: Event.None,
 					onDidChangeRuntimePlugins: Event.None,
 					onDidReloadRuntimeContributions: Event.None,
 					topLevelMcpCustomizations: () => [],
@@ -27752,6 +27796,7 @@ suite('CopilotAgent', () => {
 				hasActiveTurn: false,
 				onMcpNotification: Event.None,
 				onDidRequireAuth: Event.None,
+				onDidRejectModelSourceCredential: Event.None,
 				onDidChangeRuntimePlugins: Event.None,
 				onDidReloadRuntimeContributions: Event.None,
 				mcpServerStates: observableValue('test', []),
@@ -29869,6 +29914,7 @@ suite('CopilotAgent', () => {
 					canvasRuntimeEnabled: false,
 					onMcpNotification: Event.None,
 					onDidRequireAuth: Event.None,
+					onDidRejectModelSourceCredential: Event.None,
 					onDidChangeRuntimePlugins: Event.None,
 					onDidReloadRuntimeContributions: Event.None,
 					mcpServerStates: observableValue('test', []),

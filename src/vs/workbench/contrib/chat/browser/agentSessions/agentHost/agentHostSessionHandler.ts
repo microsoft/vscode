@@ -7368,10 +7368,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	}
 
 	private async _ensureRequiredAuthentication(model: ModelSelection | undefined): Promise<ProtectedResourceMetadata[]> {
-		const agentInfo = this._getRootState()?.agents.find(a => a.provider === this._config.provider);
+		const rootState = this._getRootState();
+		const agentInfo = rootState?.agents.find(a => a.provider === this._config.provider);
 		const protectedResources = agentInfo?.protectedResources ?? [];
 
-		if (modelRequiresAgentAuthentication(agentInfo, model) && this._config.resolveAuthentication) {
+		if (modelRequiresAgentAuthentication(agentInfo, model, rootState?.modelSourceRegistrations) && this._config.resolveAuthentication) {
 			const authenticated = await this._config.resolveAuthentication(protectedResources);
 			if (!authenticated) {
 				throw new Error(localize('agentHost.authRequired', "Authentication is required to start a session. Please sign in and try again."));

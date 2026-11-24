@@ -2191,6 +2191,9 @@ export class AgentService extends Disposable implements IAgentService {
 			}));
 			this._setupChatDiscoveryForProvider(provider);
 			subscriptions.add(provider.onDidChangeChatData(e => this._onChatDataChanged(e)));
+			if (provider.onDidRejectModelSourceCredential) {
+				subscriptions.add(provider.onDidRejectModelSourceCredential(id => this._modelSourceRegistry.rejectCredential(id)));
+			}
 			if (provider.onDidChangeChatHistory) {
 				subscriptions.add(provider.onDidChangeChatHistory(event => {
 					// A replacing change keeps the turn running now, which may end before the change applies.
