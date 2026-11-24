@@ -117,6 +117,13 @@ suite('CopilotModelRouterGuidance', () => {
 		}, { restoredWithGuidance: 'feature', restoredWithout: 'none', restoredThen: undefined, afterRewrite: 'none', afterRewriteThen: undefined });
 	});
 
+	test('a chat that another process ran is told again, also when it was known to have no guidance', () => {
+		const state = new CopilotModelRouterGuidance();
+		turn(state, 't1', 'noGuidance');
+		state.historyChangedElsewhere(chat);
+		assert.deepStrictEqual({ after: turn(state, 't2', 'noGuidance'), then: turn(state, 't3', 'noGuidance') }, { after: 'none', then: undefined });
+	});
+
 	test('tells a chat its guidance again after its history was rewritten', () => {
 		const state = new CopilotModelRouterGuidance();
 		turn(state, 't1', guidance());

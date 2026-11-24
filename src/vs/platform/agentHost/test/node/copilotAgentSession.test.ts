@@ -2196,10 +2196,20 @@ suite('CopilotAgentSession', () => {
 		}, { message: 0, compaction: 1, truncation: 2, rewind: 3 });
 	});
 
-	test('host instructions reach the agent with the prompt hook, or with the prompt itself when managed policy suppresses hooks', async () => {
-		const sendWith = async (hostInstruction: string, prompt = 'hello', suppressHooks = false, rejected = false) => {
+	test('host instructions reach the agent with the prompt hook, or with the prompt itself when managed policy suppresses hooks, and count as delivered once the runtime echoes that prompt', async () => {
+		interface ISendCase {
+			readonly prompt?: string;
+			/** A managed hook policy keeps the runtime from calling the prompt hook. */
+			readonly suppressHooks?: boolean;
+			/** The runtime rejects the send. */
+			readonly rejected?: boolean;
+			/** The runtime records the prompt. It does not when the send is rejected, a hook blocks it, or it is a command. */
+			readonly echoed?: boolean;
+		}
+		const sendWith = async ({ prompt = 'hello', suppressHooks = false, rejected = false, echoed = true }: ISendCase) => {
 			let delivered = 0;
 			const { session, runtime, mockSession } = await createAgentSession(disposables, { onHostInstructionsDelivered: () => delivered++ });
+			mockSession.commandListResult = { commands: [{ name: 'fleet', kind: 'builtin', description: 'Start fleet', allowDuringAgentExecution: false }] };
 			if (suppressHooks) {
 				runtime.onSessionEvent?.({
 					type: 'session.managed_settings_resolved', id: 'policy', timestamp: new Date(0).toISOString(), parentId: null, ephemeral: true,
@@ -2211,23 +2221,33 @@ suite('CopilotAgentSession', () => {
 				closed.catch(() => { });
 				mockSession.sendGate = closed;
 			}
-			await session.send(prompt, undefined, 'turn-1', undefined, undefined, AgentHostClientType.Unknown, [hostInstruction]).catch(() => { });
-			const sent = mockSession.sendRequests.map(request => request as MessageOptions).map(request => ({ prompt: request.prompt, displayPrompt: request.displayPrompt }));
-			const deliveredBySend = delivered;
-			return { sent, deliveredBySend, hook: session.handleUserPromptSubmitted()?.additionalContext, delivered };
+			await session.send(prompt, undefined, 'turn-1', 'interactive', undefined, AgentHostClientType.Unknown, ['A note.']).catch(() => { });
+			const hook = suppressHooks || prompt.startsWith('/') ? undefined : session.handleUserPromptSubmitted()?.additionalContext;
+			const beforeEcho = delivered;
+			if (echoed) {
+				mockSession.fire('user.message', { content: prompt, messageId: 'message-1', turnId: 'sdk-turn' } as SessionEventPayload<'user.message'>['data']);
+			}
+			const prompts = [...mockSession.sendRequests.map(request => request as MessageOptions), ...mockSession.fleetStartCalls].map(request => request.prompt);
+			return { prompts, displayPrompt: (mockSession.sendRequests[0] as MessageOptions | undefined)?.displayPrompt, hook, beforeEcho, delivered };
 		};
+		const reminder = '\n\n<reminder>\nA note.\n</reminder>';
 		assert.deepStrictEqual({
-			hook: await sendWith('A note.'),
+			hook: await sendWith({}),
+			hookBlockedPrompt: (await sendWith({ echoed: false })).delivered,
 			// Handled by the history RPC: no prompt goes out, so the note does not either.
-			command: (await sendWith('A note.', '/compact')).deliveredBySend,
-			suppressedHooks: await sendWith('A note.', 'hello', true),
-			// The runtime never took the prompt.
-			suppressedHooksRejected: (await sendWith('A note.', 'hello', true, true)).delivered,
+			command: await sendWith({ prompt: '/compact', echoed: false }),
+			suppressedHooks: await sendWith({ suppressHooks: true }),
+			suppressedHooksRejected: (await sendWith({ suppressHooks: true, rejected: true, echoed: false })).delivered,
+			suppressedHooksFleet: (await sendWith({ prompt: '/fleet build it', suppressHooks: true, echoed: false })).prompts,
+			fleet: (await sendWith({ prompt: '/fleet build it', echoed: false })).prompts,
 		}, {
-			hook: { sent: [{ prompt: 'hello', displayPrompt: undefined }], deliveredBySend: 0, hook: 'A note.', delivered: 1 },
-			command: 0,
-			suppressedHooks: { sent: [{ prompt: 'hello\n\n<reminder>\nA note.\n</reminder>', displayPrompt: 'hello' }], deliveredBySend: 1, hook: undefined, delivered: 1 },
+			hook: { prompts: ['hello'], displayPrompt: undefined, hook: 'A note.', beforeEcho: 0, delivered: 1 },
+			hookBlockedPrompt: 0,
+			command: { prompts: [], displayPrompt: undefined, hook: undefined, beforeEcho: 0, delivered: 0 },
+			suppressedHooks: { prompts: [`hello${reminder}`], displayPrompt: 'hello', hook: undefined, beforeEcho: 0, delivered: 1 },
 			suppressedHooksRejected: 0,
+			suppressedHooksFleet: [`build it${reminder}`],
+			fleet: ['build it'],
 		});
 	});
 

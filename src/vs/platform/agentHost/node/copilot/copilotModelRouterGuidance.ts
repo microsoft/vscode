@@ -122,6 +122,15 @@ export class CopilotModelRouterGuidance {
 		}
 	}
 
+	/** Another process ran the chat since this host loaded it, so what its history holds is not known. */
+	historyChangedElsewhere(chat: string): void {
+		const state = this._chats.get(chat);
+		if (state) {
+			state.told = undefined;
+			state.mayHoldNote = true;
+		}
+	}
+
 	/** Forgets a chat that is gone. */
 	forget(chat: string): void {
 		this._chats.delete(chat);
