@@ -16,7 +16,7 @@ import { INotificationService } from '../../../../../platform/notification/commo
 import { IProgressService, ProgressLocation } from '../../../../../platform/progress/common/progress.js';
 import { IContextMenuDelegate } from '../../../../../base/browser/contextmenu.js';
 import { DataTransfers } from '../../../../../base/browser/dnd.js';
-import { EventType, getWindow, ModifierKeyEmitter } from '../../../../../base/browser/dom.js';
+import { $, EventType, getWindow, ModifierKeyEmitter } from '../../../../../base/browser/dom.js';
 import { GestureEvent, EventType as TouchEventType } from '../../../../../base/browser/touch.js';
 import { setARIAContainer } from '../../../../../base/browser/ui/aria/aria.js';
 import type { IDelayedHoverOptions } from '../../../../../base/browser/ui/hover/hover.js';
@@ -88,6 +88,7 @@ import { AutomationsCardsWidget, AutomationsCustomViewContribution, SHOW_DISABLE
 import { AUTOMATIONS_TOUR_ID, createAutomationsTour } from '../../../onboardingTours/browser/tours/automationsTour.js';
 import { AUTOMATIONS_MODAL_SETTING, AutomationsEditorInput } from '../../../automations/browser/automationsEditorInput.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
+import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { EditorInputCapabilities } from '../../../../../workbench/common/editor.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { ISessionsListModelService } from '../../../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
@@ -1203,6 +1204,7 @@ suite('AutomationsCardsWidget', () => {
 		const state = () => sections.map(section => ({
 			visible: section.checkVisibility(),
 			cards: [...section.querySelectorAll<HTMLElement>('.automations-card-wrapper')].filter(card => card.checkVisibility()).length,
+			guidance: section.querySelector('summary')!.getAttribute('aria-description'),
 		}));
 		const before = state();
 		toggleDisabled();
@@ -1213,9 +1215,18 @@ suite('AutomationsCardsWidget', () => {
 			stored: storage.getBoolean(SHOW_DISABLED_AUTOMATIONS_STORAGE_KEY, StorageScope.PROFILE),
 			sharedEmptyStates: sections[1].querySelectorAll('.automations-ownership-empty').length,
 		}, {
-			before: [{ visible: true, cards: 1 }, { visible: false, cards: 0 }],
-			shown: [{ visible: true, cards: 1 }, { visible: true, cards: 2 }],
-			hiddenAgain: [{ visible: true, cards: 1 }, { visible: false, cards: 0 }],
+			before: [
+				{ visible: true, cards: 1, guidance: 'Disabled automations are hidden. Use View options, then Show disabled automations to reveal them.' },
+				{ visible: false, cards: 0, guidance: 'These automations are visible to anyone with repository access, and can be edited by anyone with write access. Disabled automations are hidden. Use View options, then Show disabled automations to reveal them.' },
+			],
+			shown: [
+				{ visible: true, cards: 1, guidance: null },
+				{ visible: true, cards: 2, guidance: 'These automations are visible to anyone with repository access, and can be edited by anyone with write access.' },
+			],
+			hiddenAgain: [
+				{ visible: true, cards: 1, guidance: 'Disabled automations are hidden. Use View options, then Show disabled automations to reveal them.' },
+				{ visible: false, cards: 0, guidance: 'These automations are visible to anyone with repository access, and can be edited by anyone with write access. Disabled automations are hidden. Use View options, then Show disabled automations to reveal them.' },
+			],
 			checked: false, stored: false, sharedEmptyStates: 0,
 		});
 	});
@@ -1272,13 +1283,62 @@ suite('AutomationsCardsWidget', () => {
 		const section = widget.element.querySelectorAll<HTMLElement>('.automations-ownership-section')[1];
 		const personalCard = widget.element.querySelector<HTMLElement>('.automations-card-main')!;
 		personalCard.focus();
+		const personalSummary = widget.element.querySelector('.automations-ownership-summary')!;
+		const hiddenGuidance = personalSummary.getAttribute('aria-description');
 		automationService.setAutomations([personal, { ...shared, enabled: true }]);
 		assert.deepStrictEqual({
 			focusedPersonal: document.activeElement === personalCard,
 			focusVisible: (document.activeElement as HTMLElement).checkVisibility(),
 			sharedVisible: section.checkVisibility(),
-		}, { focusedPersonal: true, focusVisible: true, sharedVisible: true });
+			hiddenGuidance,
+			shownGuidance: personalSummary.getAttribute('aria-description'),
+		}, {
+			focusedPersonal: true, focusVisible: true, sharedVisible: true,
+			hiddenGuidance: 'Disabled automations are hidden. Use View options, then Show disabled automations to reveal them.',
+			shownGuidance: null,
+		});
 	});
+
+	for (const name of ['sessions-automations-help', 'sessions-automations-view']) {
+		for (const sharedEnabled of [false, true]) {
+			test(`${name} restores visible focus after a refresh (sharedEnabled=${sharedEnabled})`, () => {
+				const { widget, automationService, instantiationService } = setup('archive', NullHoverService, undefined, hiddenDisabledStorage());
+				automationService.setCatalogueState('ready');
+				const personal = automation();
+				const shared = automation({ id: 'shared', ownership: 'repository' });
+				automationService.setAutomations([personal, shared]);
+				const sections = [...widget.element.querySelectorAll<HTMLElement>('.automations-ownership-section')];
+				const personalSummary = sections[0].querySelector<HTMLElement>('summary')!;
+				const sharedSummary = sections[1].querySelector<HTMLElement>('summary')!;
+				const focusedParts: Parts[] = [];
+				instantiationService.stub(IAgentWorkbenchLayoutService, new class extends mock<IAgentWorkbenchLayoutService>() {
+					override focusPart(part: Parts): void {
+						focusedParts.push(part);
+						personalSummary.focus();
+					}
+				}());
+				stubSessionsHostLayout(instantiationService);
+				sharedSummary.focus();
+				const implementation = AccessibleViewRegistry.getImplementations().find(implementation => implementation.name === name)!;
+				const provider = disposables.add(instantiationService.invokeFunction(accessor => implementation.getProvider(accessor))!);
+				const accessibleEditor = $('button');
+				document.body.append(accessibleEditor);
+				disposables.add(toDisposable(() => accessibleEditor.remove()));
+				accessibleEditor.focus();
+				automationService.setAutomations([personal, { ...shared, enabled: sharedEnabled }]);
+				provider.onClose();
+				assert.deepStrictEqual({
+					sharedVisible: sections[1].checkVisibility(),
+					restoredSummary: document.activeElement === (sharedEnabled ? sharedSummary : personalSummary),
+					focusVisible: (document.activeElement as HTMLElement).checkVisibility(),
+					focusedParts,
+				}, {
+					sharedVisible: sharedEnabled, restoredSummary: true, focusVisible: true,
+					focusedParts: sharedEnabled ? [] : [Parts.CUSTOM_VIEW_GRID_PART],
+				});
+			});
+		}
+	}
 
 	test('filtering the shared section while its collapsed summary is focused restores visible focus', () => {
 		const { widget, automationService, toggleDisabled } = setup();

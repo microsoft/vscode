@@ -571,6 +571,8 @@ class AutomationCardsSection extends Disposable {
 		const hiddenDisabledDescription = visibleAutomations.length < automations.length
 			? localize('hiddenDisabledAutomations', "Disabled automations are hidden. Use View options, then Show disabled automations to reveal them.")
 			: undefined;
+		const sharedSectionHidden = this.hiddenDisabledOwnerships.get().has('repository')
+			&& !visibleAutomations.some(automation => automation.ownership === 'repository');
 		const groups = getAutomationOwnershipGroups(automations);
 		for (const [ownership, rendered] of this.ownershipSections) {
 			if (!groups.some(group => group.ownership === ownership)) {
@@ -586,7 +588,7 @@ class AutomationCardsSection extends Disposable {
 				this.ownershipSections.set(group.ownership, rendered);
 			}
 			rendered.title.textContent = group.label;
-			if (hiddenDisabledDescription && this.hiddenDisabledOwnerships.get().has(group.ownership)) {
+			if (hiddenDisabledDescription && (this.hiddenDisabledOwnerships.get().has(group.ownership) || group.ownership === 'user' && sharedSectionHidden)) {
 				rendered.summary.setAttribute('aria-description', [group.description, hiddenDisabledDescription].filter(Boolean).join(' '));
 			} else if (group.description) {
 				rendered.summary.setAttribute('aria-description', group.description);
