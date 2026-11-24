@@ -52,7 +52,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			enumDescriptions: [
 				localize('chat.viewSessions.openChatIn.chatPanel', "Open the chat of a session in the Chat view."),
 				localize('chat.viewSessions.openChatIn.chatArea', "Open the chat of a session in the chat area beside the Chat view, which then shows only its sessions. Applies while {0} is `sideBySide`.", '`#chat.viewSessions.orientation#`'),
-				localize('chat.viewSessions.openChatIn.editorArea', "Open the chat of a session as an editor in the editor area. A chat that is already open is revealed instead of opened again."),
+				localize('chat.viewSessions.openChatIn.editorArea', "Open the chat of a session as an editor in the editor area, also from a session link. A chat that is already open is revealed instead of opened again."),
 			],
 			default: ChatViewSessionsOpenChatIn.ChatPanel,
 			tags: ['experimental'],
@@ -178,6 +178,13 @@ export class ChatViewOpenInChatPartContribution extends Disposable implements IW
 					return shownSession && this._sessionsManagementService.getSessionForChatResource(shownSession.resource);
 				});
 				reader.store.add(this._shownChatService.bind(shown, { override: true, priority: 1 }));
+				// The chat that the first request of the Chat view's new chat commits moves to an editor that stays open, also of a new chat
+				// revealed before its request, such as by Run Prompt in New Chat
+				reader.store.add(runOnChange(this._chatViewHostService.shownSession, shownSession => {
+					if (shownSession?.reason === 'commit' && !isUntitledChatSession(shownSession.resource) && this._chatViewHostService.chatViewHosts.read(undefined)) {
+						this._chatWidgetService.openSession(shownSession.resource, ACTIVE_GROUP, { pinned: true }).catch(onUnexpectedError);
+					}
+				}));
 				// A chat that shows in an editor is read, as one that shows in the Chat view is
 				const readMarker = new ShownChatReadMarker(this._sessionsManagementService, extUri);
 				reader.store.add(autorun(reader => {

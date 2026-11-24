@@ -69,6 +69,8 @@ class QuickDiffDecorator extends Disposable {
 	private modifiedSecondaryPatternOptions: ModelDecorationOptions;
 	private deletedOptions: ModelDecorationOptions;
 	private deletedSecondaryOptions: ModelDecorationOptions;
+	private deletedTopOptions: ModelDecorationOptions;
+	private deletedSecondaryTopOptions: ModelDecorationOptions;
 	private decorationsCollection: IEditorDecorationsCollection | undefined;
 
 	constructor(
@@ -117,6 +119,8 @@ class QuickDiffDecorator extends Disposable {
 		};
 		this.deletedOptions = QuickDiffDecorator.createDecoration('dirty-diff-deleted primary', diffDeleted, diffDeletedOptions);
 		this.deletedSecondaryOptions = QuickDiffDecorator.createDecoration('dirty-diff-deleted secondary', diffDeleted, diffDeletedOptions);
+		this.deletedTopOptions = QuickDiffDecorator.createDecoration('dirty-diff-deleted primary top', diffDeleted, diffDeletedOptions);
+		this.deletedSecondaryTopOptions = QuickDiffDecorator.createDecoration('dirty-diff-deleted secondary top', diffDeleted, diffDeletedOptions);
 
 		this._register(configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('scm.diffDecorationsGutterPattern')) {
@@ -168,17 +172,23 @@ class QuickDiffDecorator extends Disposable {
 							: pattern.added ? this.addedSecondaryPatternOptions : this.addedSecondaryOptions
 					});
 					break;
-				case ChangeType.Delete:
+				case ChangeType.Delete: {
+					// Lines deleted at the beginning of the file are shown at the top of the first line
+					const isTop = startLineNumber === 0;
+					const lineNumber = isTop ? 1 : startLineNumber;
+					// The column selects the wrapped row of the line: the first one for the top marker, the last one otherwise
+					const column = isTop ? 1 : Number.MAX_VALUE;
 					decorations.push({
 						range: {
-							startLineNumber: startLineNumber, startColumn: Number.MAX_VALUE,
-							endLineNumber: startLineNumber, endColumn: Number.MAX_VALUE
+							startLineNumber: lineNumber, startColumn: column,
+							endLineNumber: lineNumber, endColumn: column
 						},
 						options: quickDiff.kind === 'primary' || quickDiff.kind === 'contributed'
-							? this.deletedOptions
-							: this.deletedSecondaryOptions
+							? isTop ? this.deletedTopOptions : this.deletedOptions
+							: isTop ? this.deletedSecondaryTopOptions : this.deletedSecondaryOptions
 					});
 					break;
+				}
 				case ChangeType.Modify:
 					decorations.push({
 						range: {
@@ -289,6 +299,11 @@ export class QuickDiffWorkbenchController extends Disposable implements IWorkben
 	private setViewState(state: QuickDiffWorkbenchControllerViewState): void {
 		this.viewState = state;
 		this.stylesheet.textContent = `
+			/* The editor sizes line decorations to the whole area left of the text: limit the hit area to the bar, so that clicks next to it place the cursor */
+			.monaco-editor .dirty-diff-glyph {
+				box-sizing: border-box;
+				width: ${state.width}px !important;
+			}
 			.monaco-editor .dirty-diff-added,
 			.monaco-editor .dirty-diff-modified {
 				border-left-width:${state.width}px;

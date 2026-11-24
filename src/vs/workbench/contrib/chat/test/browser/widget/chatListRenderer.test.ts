@@ -9213,6 +9213,66 @@ suite('ChatListRenderer', () => {
 		});
 	}));
 
+	for (const kind of ['label', 'activities'] as const) {
+		test(`persistent progress in a narrow row truncates the response stats that follow its ${kind} first`, () => {
+			const { disposables, instantiationService, configurationService, response, container } = createPersistentProgressRenderer();
+			configurePersistentProgressTypography(container, 13);
+			configurationService.setUserConfiguration(ChatConfiguration.ResponseStats, ChatResponseStats.ProgressWithMessage);
+			const sections = observableValue<readonly IChatPillSection[]>(kind, [{
+				title: 'Activities', entries: [{ id: 'running', label: 'Running tests', open: () => { } }],
+			}]);
+			const working = {
+				kind: 'working' as const,
+				content: new MarkdownString('1 background command running'),
+				backgroundActivity: kind === 'activities' ? { backgroundShells: '1 background command running' } : undefined,
+			};
+			const context = new class extends mock<IChatContentPartRenderContext>() {
+				override readonly element = response;
+				override readonly content = [working];
+				override readonly contentIndex = 0;
+				override readonly suppressProgressShimmer = true;
+				override readonly backgroundActivityPillSections = kind === 'activities' ? { backgroundShells: backgroundShellsForSections(sections) } : undefined;
+			}();
+			const part = disposables.add(instantiationService.createInstance(ChatWorkingProgressContentPart, working, instantiationService.get(IMarkdownRendererService), context));
+			const value = dom.append(dom.append(container, dom.$('.interactive-item-container.interactive-response.chat-persistent-progress')), dom.$('.value'));
+			value.appendChild(part.domNode);
+			const row = part.domNode;
+			const text = row.querySelector<HTMLElement>(kind === 'activities' ? '.chat-pill-label' : '.rendered-markdown.progress-step > p');
+			const stats = row.querySelector<HTMLElement>('.chat-working-progress-trailing-stats');
+			assert.ok(text && stats);
+			const measureText = () => {
+				const range = mainWindow.document.createRange();
+				range.selectNodeContents(text);
+				return range.getBoundingClientRect();
+			};
+			const wideText = measureText();
+			const wideStats = stats.getBoundingClientRect();
+			/** How the row lays out when it ends at `end`. */
+			const layout = (end: number) => {
+				value.style.width = `${end - row.getBoundingClientRect().left}px`;
+				return {
+					textWraps: measureText().height > wideText.height + 1,
+					textTruncated: text.scrollWidth > text.clientWidth,
+					statsOverText: stats.getBoundingClientRect().left < text.getBoundingClientRect().right - 1,
+					statsTruncated: stats.scrollWidth > stats.clientWidth,
+					overflowsRow: row.scrollWidth > row.clientWidth,
+				};
+			};
+			const whole = { textWraps: false, textTruncated: false, statsOverText: false, statsTruncated: false, overflowsRow: false };
+
+			assert.deepStrictEqual({
+				wide: layout(wideStats.right + 100),
+				endsInStats: layout((wideStats.left + wideStats.right) / 2),
+				endsInText: layout((wideText.left + wideText.right) / 2),
+			}, {
+				wide: whole,
+				endsInStats: { ...whole, statsTruncated: true },
+				// Only a row too narrow for the label or activities alone wraps the label, or truncates the activities.
+				endsInText: { ...whole, statsTruncated: true, textWraps: kind === 'label', textTruncated: kind === 'activities' },
+			});
+		});
+	}
+
 	test('persistent progress shimmers its text only while the response stats do not show in it', async () => {
 		const { configurationService, request, container, renderer, template, node } = createPersistentProgressRenderer();
 		renderer.renderElement(node, 0, template);

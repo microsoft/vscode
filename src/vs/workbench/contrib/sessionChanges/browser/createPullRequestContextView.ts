@@ -47,7 +47,7 @@ export class CreatePullRequestContextView extends Disposable {
 		this.preferences = new CreatePullRequestPreferences(storageService, logService);
 	}
 
-	show(anchor: HTMLElement, creation: ISessionPullRequestCreation, options?: Pick<ICreatePullRequestWidgetOptions, 'chat' | 'branchName' | 'baseBranchName' | 'initialDraft' | 'sendToChat'> & { readonly onHide?: () => void; readonly onRestoreFocus?: () => void }, onCreated?: (options: ISessionPullRequestOptions) => void): void {
+	show(anchor: HTMLElement, creation: ISessionPullRequestCreation, options?: Pick<ICreatePullRequestWidgetOptions, 'chat' | 'branchName' | 'baseBranchName' | 'artifactIntegrations' | 'initialDraft' | 'sendToChat'> & { readonly onHide?: () => void; readonly onRestoreFocus?: () => void }, onCreated?: (options: ISessionPullRequestOptions) => void): void {
 		this.close();
 		const saved = this.savedContent.get(creation);
 		// Content generated from one chat's conversation is not restored for another chat.

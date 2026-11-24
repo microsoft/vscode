@@ -18,7 +18,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agent.js';
 import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { remoteAgentHostSessionTypeId } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
-import { agentHostAuthority, toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
+import { agentHostAuthority, createAgentHostResourceUriMapper, IAgentHostResourceUriMapper, identityAgentHostResourceUriMapper, toAgentHostContentUri, toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
 import { withAgentHostResources } from '../../../../../platform/agentHost/common/meta/agentHostResources.js';
 import { readRemoteSessionOrigin, toRemoteSessionMessageMetadata, withRemoteSessionsCapability } from '../../../../../platform/agentHost/common/meta/agentRemoteSessionMeta.js';
@@ -38,11 +38,15 @@ import { ISessionsProvidersService } from '../../../../../workbench/contrib/sess
 import { IChat, ISession, ISessionGitRepository, ISessionType, ISessionWorkspace, SessionTypeAuthRequirement } from '../../../../../workbench/services/sessions/common/session.js';
 import { ICreateNewSessionOptions, ISendRequestOptions, ISessionsManagementService, NewSessionRequestOptions } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { RemoteSessionService } from '../../browser/remoteSessionService.js';
+import { LocalDevContainerEnvironmentHost } from '../../../../../workbench/contrib/sessions/common/devContainerAgentHostService.js';
 import { parseCreateRemoteSessionOptions, RemoteSessionToolsEnabledSettingId } from '../../common/remoteSessions.js';
 import { IRemoteSessionChatService } from '../../browser/remoteSessionChatService.js';
 
 class RemoteConnection extends mock<IAgentConnection>() {
 	override clientId = 'target-client';
+	constructor(override readonly resourceUris: IAgentHostResourceUriMapper = identityAgentHostResourceUriMapper) {
+		super();
+	}
 }
 
 class RemoteProvider extends mock<IAgentHostSessionsProvider>() {
@@ -55,11 +59,12 @@ class RemoteProvider extends mock<IAgentHostSessionsProvider>() {
 	override sessionTypes: ISessionType[];
 	root: RootState;
 	rootAvailable = true;
-	connection = new RemoteConnection();
+	connection: RemoteConnection;
 
 	constructor(name: string, load = 0, platform: 'windows' | 'linux' | 'macos' = 'linux', agentProvider = 'copilot') {
 		super();
 		this.remoteAddress = `ws://${name}:8080`;
+		this.connection = new RemoteConnection(createAgentHostResourceUriMapper(agentHostAuthority(this.remoteAddress)));
 		this.id = `agenthost-${agentHostAuthority(this.remoteAddress)}`;
 		this.label = name;
 		this.sessionTypes = [{
@@ -562,6 +567,48 @@ suite('RemoteSessionService', () => {
 		const ready = new RemoteProvider('ready', 2);
 		const { create } = setup([unavailable, ready]);
 		assert.strictEqual((await create()).host.id, ready.id);
+	});
+
+	test('describes the host that an ID or a remote workspace pins, and the directory that creation inspects', () => {
+		const build = new RemoteProvider('build');
+		const localContainer = Object.assign(new RemoteProvider('container-1'), { label: 'Dev Container 3', devContainerEnvironmentHost: LocalDevContainerEnvironmentHost });
+		const remoteContainer = Object.assign(new RemoteProvider('container-2'), { label: 'Dev Container 4', devContainerEnvironmentHost: build.remoteAddress });
+		const { service } = setup([build, localContainer, remoteContainer]);
+		const describe = (input: object) => service.getRequestedDestination(parseCreateRemoteSessionOptions({ prompt: 'Run tests', ...input }));
+		const containerWorkspace = remoteContainer.mapAgentHostResource(URI.file('/workspaces/ubuntu'));
+		// A wrapper that displays one path while its metadata names another directory.
+		const misleading = toAgentHostContentUri(URI.file('/workspaces/other'), agentHostAuthority(remoteContainer.remoteAddress), URI.file('/workspaces/demo'));
+		const unavailableWorkspace = toAgentHostUri(URI.file('/repo'), 'gone-host');
+		// A POSIX directory whose name contains a backslash, and a UNC directory: neither may be formatted for this client.
+		const backslash = remoteContainer.mapAgentHostResource(URI.from({ scheme: 'file', path: '/workspaces/a\\b' }));
+		const unc = remoteContainer.mapAgentHostResource(URI.from({ scheme: 'file', authority: 'server-a', path: '/share/repo' }));
+		assert.deepStrictEqual({
+			byId: describe({ hostId: build.id }),
+			localContainer: describe({ hostId: localContainer.id }),
+			remoteContainerByWorkspace: describe({ workspace: { uri: containerWorkspace.toString() } }),
+			misleadingWorkspace: describe({ workspace: { uri: misleading.toString() } }).workspace,
+			backslashWorkspace: describe({ workspace: { uri: backslash.toString() } }).workspace,
+			uncWorkspace: describe({ workspace: { uri: unc.toString() } }).workspace,
+			fileOnPinnedHost: describe({ hostId: build.id, workspace: { uri: 'file:///home/user/project' } }).workspace,
+			otherHostsWorkspace: describe({ hostId: build.id, workspace: { uri: containerWorkspace.toString() } }).workspace,
+			automatic: describe({ workspace: { uri: 'file:///home/user/project' } }),
+			automaticUnc: describe({ workspace: { uri: 'file://server-a/share/repo' } }).workspace,
+			unknownId: describe({ hostId: 'agenthost-missing' }),
+			unknownAuthority: describe({ workspace: { uri: unavailableWorkspace.toString() } }),
+		}, {
+			byId: { host: { label: 'build' }, pinnedBy: build.id, workspace: undefined },
+			localContainer: { host: { label: 'Dev Container 3', containerHost: 'This Computer' }, pinnedBy: localContainer.id, workspace: undefined },
+			remoteContainerByWorkspace: { host: { label: 'Dev Container 4', containerHost: 'build' }, pinnedBy: agentHostAuthority(remoteContainer.remoteAddress), workspace: '/workspaces/ubuntu' },
+			misleadingWorkspace: '/workspaces/other',
+			backslashWorkspace: '/workspaces/a\\b',
+			uncWorkspace: '//server-a/share/repo',
+			fileOnPinnedHost: '/home/user/project',
+			otherHostsWorkspace: '/workspaces/ubuntu',
+			automatic: { host: undefined, pinnedBy: undefined, workspace: '/home/user/project' },
+			automaticUnc: '//server-a/share/repo',
+			unknownId: { host: undefined, pinnedBy: 'agenthost-missing', workspace: undefined },
+			unknownAuthority: { host: undefined, pinnedBy: 'gone-host', workspace: '/repo' },
+		});
 	});
 
 	test('remote workspace URIs pin the matching host and configure a fresh branch', async () => {

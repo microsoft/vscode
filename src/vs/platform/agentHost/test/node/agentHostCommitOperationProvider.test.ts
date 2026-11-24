@@ -26,7 +26,7 @@ const gitStateWithUncommittedChanges: ISessionGitState = {
 suite('AgentHostCommitOperationContribution', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createContribution(isolation?: 'folder' | 'worktree'): AgentHostCommitOperationContribution {
+	function createContribution(isolation?: 'folder' | 'worktree', { workingDirectories = ['file:///repo'], used = false }: { readonly workingDirectories?: string[]; readonly used?: boolean } = {}): AgentHostCommitOperationContribution {
 		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 		if (isolation) {
 			stateManager.createSession({
@@ -36,13 +36,16 @@ suite('AgentHostCommitOperationContribution', () => {
 				status: SessionStatus.Idle,
 				createdAt: new Date(1).toISOString(),
 				modifiedAt: new Date(1).toISOString(),
-				workingDirectories: ['file:///repo'],
+				workingDirectories,
 				defaultChat: buildDefaultChatUri(sessionKey),
 			});
 			stateManager.setSessionConfig(sessionKey, {
 				schema: { type: 'object', properties: {} },
 				values: { [SessionConfigKey.Isolation]: isolation },
 			});
+			if (used) {
+				stateManager.markSessionUsed(sessionKey);
+			}
 		}
 		return disposables.add(new AgentHostCommitOperationContribution(
 			stateManager,
@@ -94,6 +97,37 @@ suite('AgentHostCommitOperationContribution', () => {
 		assert.deepStrictEqual(actual, {
 			folder: [[], [], [], [], ['commit']],
 			pullRequest: [[], [], [], [], ['commit']],
+		});
+	});
+
+	test('advertises commit on the branch changeset when working on the base branch without outgoing commits', () => {
+		const provider = createContribution('folder', { used: true });
+		const multiRepositoryProvider = createContribution('folder', { used: true, workingDirectories: ['file:///repo', 'file:///other-repo'] });
+		const onBaseBranch: ISessionGitState = { branchName: 'main', baseBranchName: 'main', upstreamBranchName: 'origin/main', outgoingChanges: 0, uncommittedChanges: 1 };
+		const branchOperations = (gitState: ISessionGitState, contribution = provider) => contribution.getOperations({ sessionKey, changesetUri: branchChangesetUri, changesetKind: ChangesetKind.Branch, gitState }).map(op => op.id);
+
+		const actual = {
+			onBaseBranch: branchOperations(onBaseBranch),
+			sessionChangeset: provider.getOperations({ sessionKey, changesetUri: sessionChangesetUri, changesetKind: ChangesetKind.Session, gitState: onBaseBranch }).map(op => op.id),
+			multipleRepositories: branchOperations(onBaseBranch, multiRepositoryProvider),
+			withOutgoingCommits: branchOperations({ ...onBaseBranch, outgoingChanges: 1 }),
+			withoutUpstream: branchOperations({ ...onBaseBranch, upstreamBranchName: undefined, outgoingChanges: undefined }),
+			upstreamOnOtherRemote: branchOperations({ ...onBaseBranch, upstreamBranchName: 'upstream/main' }),
+			withoutUncommittedChanges: branchOperations({ ...onBaseBranch, uncommittedChanges: 0 }),
+			onOtherBranch: branchOperations({ ...onBaseBranch, branchName: 'feature/test', upstreamBranchName: 'origin/feature/test' }),
+			detachedHead: branchOperations({ ...onBaseBranch, branchName: undefined, isDetachedHead: true }),
+		};
+
+		assert.deepStrictEqual(actual, {
+			onBaseBranch: ['commit'],
+			sessionChangeset: [],
+			multipleRepositories: [],
+			withOutgoingCommits: [],
+			withoutUpstream: [],
+			upstreamOnOtherRemote: [],
+			withoutUncommittedChanges: [],
+			onOtherBranch: [],
+			detachedHead: [],
 		});
 	});
 

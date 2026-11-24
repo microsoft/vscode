@@ -28,7 +28,7 @@
   "scripts": {
     "compile": "pnpm exec gulp compile-extension:html-language-features-client compile-extension:html-language-features-server",
     "watch": "pnpm exec gulp watch-extension:html-language-features-client watch-extension:html-language-features-server",
-    "install-client-next": "pnpm add vscode-languageclient@next"
+    "update-dependencies": "pnpm install vscode-languageclient@latest"
   },
   "categories": [
     "Programming Languages"
@@ -258,7 +258,7 @@
   },
   "dependencies": {
     "@vscode/extension-telemetry": "^0.9.9",
-    "vscode-languageclient": "^10.1.1",
+    "vscode-languageclient": "^11.0.0",
     "vscode-uri": "^3.2.0"
   },
   "devDependencies": {

@@ -6,6 +6,8 @@
 import 'mocha';
 import { findGit, Git, GitStatusParser, parseGitCommits, parseGitFileLog, parseGitmodules, parseLsTree, parseLsFiles, parseGitRemotes, parseCoAuthors, getWorktreePathFromGitdir } from '../git';
 import * as assert from 'assert';
+import * as fs from 'fs';
+import * as os from 'os';
 import * as path from 'path';
 import { LogOutputChannel, window } from 'vscode';
 import { splitInChunks } from '../util';
@@ -29,6 +31,70 @@ suite('git', () => {
 			// The input exceeds the pipe buffer, so the write fails with EPIPE once git exits.
 			const result = await git.exec2(['--version'], { input: 'x'.repeat(8 * 1024 * 1024) });
 			assert.match(result.stdout, /^git version /);
+		});
+
+		test('reads stash messages as UTF-8 when i18n.logOutputEncoding is set', async () => {
+			const directory = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'vscode-git-stash-'));
+			try {
+				await git.init(directory, { defaultBranch: 'main' });
+				await git.exec(directory, ['config', 'user.name', 'Stash Tester']);
+				await git.exec(directory, ['config', 'user.email', 'stash@example.com']);
+				await git.exec(directory, ['config', 'commit.gpgsign', 'false']);
+				await git.exec(directory, ['commit', '--allow-empty', '-m', 'initial']);
+				await fs.promises.writeFile(path.join(directory, 'file.txt'), 'sample\n');
+				await git.exec(directory, ['add', 'file.txt']);
+				await git.exec(directory, ['config', 'i18n.logOutputEncoding', 'EUC-JP']);
+				await git.exec(directory, ['stash', 'push', '-m', 'テスト stash']);
+
+				const dotGit = await git.getRepositoryDotGit(directory);
+				const repository = git.open(directory, undefined, dotGit, logger);
+				const stashes = await repository.getStashes();
+
+				assert.deepStrictEqual(stashes.map(stash => stash.description), ['テスト stash']);
+			} finally {
+				await fs.promises.rm(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
+			}
+		});
+
+		test('stages and unstages a file whose name contains glob characters without matching other files', async () => {
+			const directory = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'vscode-git-pathspec-'));
+			try {
+				await git.init(directory, { defaultBranch: 'main' });
+				await git.exec(directory, ['config', 'user.name', 'Pathspec Tester']);
+				await git.exec(directory, ['config', 'user.email', 'pathspec@example.com']);
+				await git.exec(directory, ['config', 'commit.gpgsign', 'false']);
+				// As a glob, `[target].md` also matches `t.md`. Unlike `*`, brackets are valid in file names on Windows.
+				await fs.promises.writeFile(path.join(directory, 't.md'), 'one\n');
+				await fs.promises.writeFile(path.join(directory, '[target].md'), 'one\n');
+				await git.exec(directory, ['add', '--', 't.md', ':(literal)[target].md']);
+				await git.exec(directory, ['commit', '-m', 'initial']);
+				await fs.promises.writeFile(path.join(directory, 't.md'), 'two\n');
+				await fs.promises.writeFile(path.join(directory, '[target].md'), 'two\n');
+
+				const dotGit = await git.getRepositoryDotGit(directory);
+				const repository = git.open(directory, undefined, dotGit, logger);
+				const getStaged = async () => (await git.exec(directory, ['diff', '--cached', '--name-only'])).stdout.trim().split('\n').filter(Boolean);
+				const globFile = path.join(directory, '[target].md');
+
+				await repository.add([globFile], { update: true });
+				const stagedAfterAdd = await getStaged();
+
+				await repository.add([path.join(directory, 't.md')], { update: true });
+				await repository.revert('HEAD', [globFile]);
+				const stagedAfterRevert = await getStaged();
+
+				await repository.add([globFile], { update: true });
+				await repository.restore([globFile], { staged: true });
+				const stagedAfterRestore = await getStaged();
+
+				assert.deepStrictEqual({ stagedAfterAdd, stagedAfterRevert, stagedAfterRestore }, {
+					stagedAfterAdd: ['[target].md'],
+					stagedAfterRevert: ['t.md'],
+					stagedAfterRestore: ['t.md']
+				});
+			} finally {
+				await fs.promises.rm(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
+			}
 		});
 	});
 

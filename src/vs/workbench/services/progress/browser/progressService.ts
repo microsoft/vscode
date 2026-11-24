@@ -545,13 +545,26 @@ export class ProgressService extends Disposable implements IProgressService {
 			return discreteProgressRunner;
 		}
 
+		// The task may report progress before it returns its promise, which
+		// the progress updates depend on, so defer these until it returned
+		let pendingSteps: IProgressStep[] | undefined = [];
 		const promise = task({
 			report: progress => {
-				updateProgress(progress);
+				if (pendingSteps) {
+					pendingSteps.push(progress);
+				} else {
+					updateProgress(progress);
+				}
 			}
 		});
 
+		const steps = pendingSteps;
+		pendingSteps = undefined;
+
 		updateProgress(options.total);
+		for (const step of steps) {
+			updateProgress(step);
+		}
 
 		return promise;
 	}

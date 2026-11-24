@@ -5,8 +5,8 @@
 
 import assert from 'assert';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
-import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { isEqual } from '../../../../../base/common/resources.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { basename, isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ResourceFileEdit } from '../../../../../editor/browser/services/bulkEditService.js';
@@ -21,16 +21,16 @@ import { Progress } from '../../../../../platform/progress/common/progress.js';
 import { IUndoRedoElement, IUndoRedoService, UndoRedoGroup } from '../../../../../platform/undoRedo/common/undoRedo.js';
 import { mock } from '../../../../test/common/workbenchTestServices.js';
 import { ITextFileService } from '../../../../services/textfile/common/textfiles.js';
-import { ICreateFileOperation, ICreateOperation, IDeleteOperation, IWorkingCopyFileService } from '../../../../services/workingCopy/common/workingCopyFileService.js';
+import { ICopyOperation, ICreateFileOperation, ICreateOperation, IDeleteOperation, IWorkingCopyFileService, WorkingCopyFileOperationCancellationError } from '../../../../services/workingCopy/common/workingCopyFileService.js';
 import { BulkFileEdits } from '../../browser/bulkFileEdits.js';
 
 suite('BulkFileEdits', function () {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	async function applyDelete(types: readonly FileType[], options?: WorkspaceFileEditOptions) {
-		const files = types.map((type, index) => ({
-			resource: URI.file(`/workspace/entry-${index}`),
-			name: `entry-${index}`,
+	function fileContent(resource: URI, type: FileType, value: VSBuffer): IFileContent & IFileStatWithMetadata {
+		return {
+			resource,
+			name: basename(resource),
 			isFile: (type & FileType.File) !== 0,
 			isDirectory: (type & FileType.Directory) !== 0,
 			isSymbolicLink: (type & FileType.SymbolicLink) !== 0,
@@ -42,8 +42,50 @@ suite('BulkFileEdits', function () {
 			locked: false,
 			executable: false,
 			children: undefined,
-			value: VSBuffer.fromByteArray([index, 128, 255])
-		}));
+			value
+		};
+	}
+
+	async function applyAndUndo(edits: ResourceFileEdit[], fileService: IFileService, workingCopyFileService: IWorkingCopyFileService, token = CancellationToken.None): Promise<void> {
+		let undoElement: IUndoRedoElement | undefined;
+		const undoRedoService = new class extends mock<IUndoRedoService>() {
+			override pushElement(element: IUndoRedoElement): void {
+				undoElement = element;
+			}
+		};
+		const textFileService = new class extends mock<ITextFileService>() {
+			override async getEncodedReadable(): Promise<never> {
+				assert.fail('Undo must restore the original contents, not create an empty file');
+			}
+		};
+
+		const instantiationService = store.add(new InstantiationService(new ServiceCollection(
+			[IConfigurationService, new TestConfigurationService()],
+			[IFileService, fileService],
+			[ILogService, new NullLogService()],
+			[ITextFileService, textFileService],
+			[IUndoRedoService, undoRedoService],
+			[IWorkingCopyFileService, workingCopyFileService],
+		), true));
+		const bulkFileEdits = instantiationService.createInstance(
+			BulkFileEdits,
+			'Edit',
+			'edit',
+			new UndoRedoGroup(),
+			undefined,
+			false,
+			Progress.None,
+			token,
+			edits
+		);
+
+		await bulkFileEdits.apply();
+		assert.ok(undoElement);
+		await undoElement.undo();
+	}
+
+	async function applyDelete(types: readonly FileType[], options?: WorkspaceFileEditOptions) {
+		const files = types.map((type, index) => fileContent(URI.file(`/workspace/entry-${index}`), type, VSBuffer.fromByteArray([index, 128, 255])));
 
 		function getFile(resource: URI) {
 			const file = files.find(file => isEqual(file.resource, resource));
@@ -90,42 +132,8 @@ suite('BulkFileEdits', function () {
 			}
 		};
 
-		let undoElement: IUndoRedoElement | undefined;
-		const undoRedoService = new class extends mock<IUndoRedoService>() {
-			override pushElement(element: IUndoRedoElement): void {
-				undoElement = element;
-			}
-		};
-		const textFileService = new class extends mock<ITextFileService>() {
-			override async getEncodedReadable(): Promise<never> {
-				assert.fail('Undo must restore the original contents, not create an empty file');
-			}
-		};
-
-		const instantiationService = store.add(new InstantiationService(new ServiceCollection(
-			[IConfigurationService, new TestConfigurationService()],
-			[IFileService, fileService],
-			[ILogService, new NullLogService()],
-			[ITextFileService, textFileService],
-			[IUndoRedoService, undoRedoService],
-			[IWorkingCopyFileService, workingCopyFileService],
-		), true));
 		const edits = files.map(file => new ResourceFileEdit(file.resource, undefined, { recursive: true, folder: file.isDirectory, ...options }));
-		const bulkFileEdits = instantiationService.createInstance(
-			BulkFileEdits,
-			'Delete',
-			'delete',
-			new UndoRedoGroup(),
-			undefined,
-			false,
-			Progress.None,
-			CancellationToken.None,
-			edits
-		);
-
-		await bulkFileEdits.apply();
-		assert.ok(undoElement);
-		await undoElement.undo();
+		await applyAndUndo(edits, fileService, workingCopyFileService);
 
 		return operations;
 	}
@@ -172,6 +180,45 @@ suite('BulkFileEdits', function () {
 	test('delete skips undo contents exceeding the size limit', async () => {
 		assert.deepStrictEqual(await applyDelete([FileType.File], { maxSize: 2 }), [
 			{ kind: 'delete', resource: '/workspace/entry-0' }
+		]);
+	});
+
+	test('cancelled copy only undoes the copies that completed', async () => {
+		const cts = store.add(new CancellationTokenSource());
+		const operations: string[] = [];
+		const fileService = new class extends mock<IFileService>() {
+			override async resolve(resource: URI): Promise<IFileStatWithMetadata> {
+				return fileContent(resource, FileType.File, VSBuffer.fromString('abc'));
+			}
+
+			override hasCapability(): boolean {
+				return false;
+			}
+
+			override async readFile(resource: URI): Promise<IFileContent> {
+				return fileContent(resource, FileType.File, VSBuffer.fromString('abc'));
+			}
+		};
+
+		const workingCopyFileService = new class extends mock<IWorkingCopyFileService>() {
+			override async copy(copies: ICopyOperation[]): Promise<readonly IFileStatWithMetadata[]> {
+				const [completed] = copies;
+				operations.push(`copy ${completed.file.target.path}`);
+				cts.cancel();
+				throw new WorkingCopyFileOperationCancellationError([fileContent(completed.file.target, FileType.File, VSBuffer.fromString('abc'))]);
+			}
+
+			override async delete(deletes: IDeleteOperation[]): Promise<void> {
+				operations.push(...deletes.map(({ resource }) => `delete ${resource.path}`));
+			}
+		};
+
+		const edits = [0, 1].map(index => new ResourceFileEdit(URI.file(`/workspace/source-${index}`), URI.file(`/workspace/target-${index}`), { copy: true }));
+		await applyAndUndo(edits, fileService, workingCopyFileService, cts.token);
+
+		assert.deepStrictEqual(operations, [
+			'copy /workspace/target-0',
+			'delete /workspace/target-0'
 		]);
 	});
 });

@@ -119,7 +119,6 @@ allowBuilds:
   fsevents@1.2.13: true
   fsevents@2.3.2: true
   fsevents@2.3.3: true
-  husky: false
   kerberos@2.1.1: true
   keytar@7.9.0: true
   koffi@3.2.1: false
@@ -138,7 +137,7 @@ overrides:
   yauzl: ^3.3.1
   vscode-css-languageservice>vscode-languageserver-types: 3.18.3
   lodash-es: 4.18.1
-  '@vscode/web-editors@0.0.2-76>@vscode/hubrpc': 0.0.2-20
+  '@vscode/web-editors@0.0.2-150>@vscode/hubrpc': 0.0.2-54
   '@vscode/web-editors@0.0.2-104>@vscode/hubrpc': 0.0.2-54
   '@vscode/web-editors@0.0.2-41>@vscode/hubrpc': 0.0.2-15
   '@azure/msal-node-extensions@5.3.2>keytar': file:extensions/microsoft-authentication/packageMocks/keytar
