@@ -252,7 +252,11 @@ suite('RemotesWidget', () => {
 			menuActions = delegate.getActions?.() ?? [];
 			delegate.onHide?.(true);
 		});
-		menus.set(parent, () => menuActions);
+		menus.set(parent, () => {
+			const actions = menuActions;
+			menuActions = [];
+			return actions;
+		});
 		const errors: Parameters<INotificationService['error']>[0][] = [];
 		const hoverContents = new Map<HTMLElement, string>();
 		const mouseHoverTargets = new Set<HTMLElement>();
@@ -375,6 +379,15 @@ suite('RemotesWidget', () => {
 		assert.ok(overflow, `Missing overflow for ${id}`);
 		overflow.dispatchEvent(new MouseEvent('mousedown', { button: 0, bubbles: true, cancelable: true }));
 		return menus.get(parent)!();
+	}
+
+	function getContextMenuActions(parent: HTMLElement, row: HTMLElement): readonly IAction[] {
+		row.dispatchEvent(new MouseEvent('contextmenu', { button: 2, bubbles: true, cancelable: true }));
+		return menus.get(parent)!();
+	}
+
+	function menuLabels(actions: readonly IAction[]): string[] {
+		return actions.map(action => action.id === Separator.ID ? '---' : action.label);
 	}
 
 	function findMenuAction(parent: HTMLElement, id: string, action: string): IAction | undefined {
@@ -2622,15 +2635,15 @@ suite('RemotesWidget', () => {
 		}, { changes: [{ id: 'ssh:build', action: 'rename' }], enabled: true, name: 'Renamed remote' });
 	});
 
-	test('remote menus keep connection, organization, copy, and management groups consistent after refresh', async () => {
+	test('remote overflow and context menus keep connection, organization, copy, and management groups consistent after refresh', async () => {
 		const { parent, model, widget } = createWidget(OperatingSystem.Windows);
 		model.environmentsEnabled.set(true, undefined);
 		model.remotes.set([...model.remotes.get(), {
 			id: 'environment:desktop', kind: 'environment', name: 'Desktop', detail: 'env-desktop', canRemove: true,
 			availability: 'online', connectionStatus: RemoteAgentHostConnectionStatus.disconnected,
 		}], undefined);
-		const actions = () => [...parent.querySelectorAll<HTMLElement>('[data-remote-id]')].map(row =>
-			getMenuActions(parent, row.dataset.remoteId!).map(action => action.id === 'vs.actions.separator' ? '---' : action.label));
+		const rows = () => [...parent.querySelectorAll<HTMLElement>('[data-remote-id]')];
+		const actions = () => rows().map(row => menuLabels(getMenuActions(parent, row.dataset.remoteId!)));
 		const before = actions();
 		widget.setVisible(true);
 		await timeout(0);
@@ -2640,7 +2653,9 @@ suite('RemotesWidget', () => {
 			['Connect', '---', 'Hide from Environment Picker', '---', 'Rename...', 'Troubleshoot Connection...'],
 			['New Session', 'Disconnect', '---', 'Hide from Environment Picker', '---', 'Copy Address', '---', 'Rename...', 'Configure Agent Run Behavior...', 'Troubleshoot Connection...'],
 		];
-		assert.deepStrictEqual({ before, after: actions(), changes: model.managementChanges }, { before: expected, after: expected, changes: [] });
+		assert.deepStrictEqual({
+			before, after: actions(), contextMenus: rows().map(row => menuLabels(getContextMenuActions(parent, row))), changes: model.managementChanges,
+		}, { before: expected, after: expected, contextMenus: expected, changes: [] });
 	});
 
 	test('Delete works offline, prevents duplicate actions and restores keyboard focus', async () => {
@@ -4189,6 +4204,30 @@ suite('RemotesWidget', () => {
 			focused: dom.getActiveElement() === overflow,
 		}, {
 			rename: 'Rename...', changes: [], focused: true,
+		});
+	});
+
+	test('Shift+F10 opens the focused row\'s More Actions as a context menu that runs them on that row', async () => {
+		const { parent, model } = createWidget();
+		const list = parent.querySelector<HTMLElement>('.monaco-table .monaco-list')!;
+		const openWithKeyboard = (id: string) => {
+			parent.querySelector<HTMLElement>(`[data-remote-id="${id}"]`)!.click();
+			for (const type of ['keydown', 'keyup']) {
+				list.dispatchEvent(new KeyboardEvent(type, { key: 'F10', keyCode: 121, shiftKey: true, bubbles: true, cancelable: true }));
+			}
+			return menus.get(parent)!();
+		};
+		const tunnel = openWithKeyboard('tunnel:laptop');
+		const ssh = openWithKeyboard('ssh:build');
+		const sshGroup = [...parent.querySelectorAll<HTMLElement>('.remotes-group-row')].find(group => group.querySelector('.remotes-name')?.textContent === 'SSH')!;
+		const group = getContextMenuActions(parent, sshGroup);
+		await store.add(new ActionRunner()).run(ssh.find(action => action.id === 'remotes.rename')!);
+		await timeout(0);
+		assert.deepStrictEqual({ tunnel: menuLabels(tunnel), ssh: menuLabels(ssh), group: menuLabels(group), changes: model.managementChanges }, {
+			tunnel: ['Connect', '---', 'Hide from Environment Picker', '---', 'Rename...', 'Configure Agent Run Behavior...', 'Troubleshoot Connection...', 'Delete Dev Tunnel...'],
+			ssh: ['New Session', 'Disconnect', '---', 'Hide from Environment Picker', '---', 'Copy Address', '---', 'Rename...', 'Configure Agent Run Behavior...', 'Troubleshoot Connection...'],
+			group: ['Open SSH Configuration', '---', 'Open Setup Guide'],
+			changes: [{ id: 'ssh:build', action: 'rename' }],
 		});
 	});
 
