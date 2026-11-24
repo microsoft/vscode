@@ -1,12 +1,28 @@
 # GitHub actions required reviewers
-.github/workflows/monaco-editor.yml @hediet @alexdima @lszomoru
-.github/workflows/pr-darwin-test.yml @lszomoru @alexdima @sandy081 @TylerLeonhardt @rzhao271 @Yoyokrazy @lramos15
-.github/workflows/pr-linux-cli-test.yml @lszomoru @alexdima @sandy081 @TylerLeonhardt @rzhao271 @Yoyokrazy @lramos15
-.github/workflows/pr-linux-test.yml @lszomoru @alexdima @sandy081 @TylerLeonhardt @rzhao271 @Yoyokrazy @lramos15
-.github/workflows/pr-pnpm-store.yml @lszomoru @alexdima @sandy081 @TylerLeonhardt @rzhao271 @Yoyokrazy @lramos15
-.github/workflows/pr-win32-test.yml @lszomoru @alexdima @sandy081 @TylerLeonhardt @rzhao271 @Yoyokrazy @lramos15
-.github/workflows/pr.yml @lszomoru @alexdima @sandy081 @TylerLeonhardt @rzhao271 @Yoyokrazy @lramos15
+.github/workflows/monaco-editor.yml @hediet @alexdima @lszomoru @connor4312
+.github/workflows/pr-darwin-test.yml @lszomoru @alexdima @sandy081 @TylerLeonhardt @rzhao271 @Yoyokrazy @lramos15 @connor4312
+.github/workflows/pr-linux-cli-test.yml @lszomoru @alexdima @sandy081 @TylerLeonhardt @rzhao271 @Yoyokrazy @lramos15 @connor4312
+.github/workflows/pr-linux-test.yml @lszomoru @alexdima @sandy081 @TylerLeonhardt @rzhao271 @Yoyokrazy @lramos15 @connor4312
+.github/workflows/pr-pnpm-store.yml @lszomoru @alexdima @sandy081 @TylerLeonhardt @rzhao271 @Yoyokrazy @lramos15 @connor4312
+.github/workflows/pr-ripple.yml @connor4312
+.github/workflows/pr-win32-test.yml @lszomoru @alexdima @sandy081 @TylerLeonhardt @rzhao271 @Yoyokrazy @lramos15 @connor4312
+.github/workflows/pr-workspace-images.yml @connor4312
+.github/workflows/pr.yml @lszomoru @alexdima @sandy081 @TylerLeonhardt @rzhao271 @Yoyokrazy @lramos15 @connor4312
 .github/workflows/telemetry.yml @lramos15 @lszomoru @alexdima
+
+# Build and dependency configuration
+/build/ @connor4312
+/gulpfile.mjs @connor4312
+/.nvmrc @connor4312
+/.pnpmfile.mjs @connor4312
+/package.json @connor4312
+/pnpm-lock.yaml @connor4312
+/pnpm-workspace.yaml @connor4312
+/.github/actions/restore-pnpm-store/ @connor4312
+/.github/actions/save-pnpm-store/ @connor4312
+/.github/actions/setup-electron/ @connor4312
+/.github/actions/setup-pnpm/ @connor4312
+/.github/workflows/workspace_image/ @connor4312
 
 # VS Code API
 # Ensure the API team is aware of changes to the vscode-dts file
