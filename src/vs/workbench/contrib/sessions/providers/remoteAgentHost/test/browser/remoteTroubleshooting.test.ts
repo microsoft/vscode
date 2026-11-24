@@ -39,7 +39,7 @@ suite('getRemoteTroubleshootingGuide', () => {
 			signIn: summarize(remote('tunnel', { requiresTunnelSignIn: true })),
 		}, {
 			disconnected: { primary: 'connect', actions: [], guidance: [] },
-			failed: { primary: 'retry', actions: [], guidance: [] },
+			failed: { primary: 'retry', actions: [], guidance: ['Check that the computer sharing this tunnel is turned on and connected to the internet, and that it still shares the tunnel with Remote Tunnel Access or the code tunnel command'] },
 			connecting: { primary: undefined, actions: [], guidance: ['Connecting'] },
 			connected: { primary: 'newSession', actions: ['disconnect'], guidance: [] },
 			connectedNotInPicker: { primary: undefined, actions: ['disconnect'], guidance: [] },
@@ -91,7 +91,8 @@ suite('getRemoteTroubleshootingGuide', () => {
 	});
 
 	test('SSH failures are explained from their errors, with a command to test the connection', () => {
-		const info: IRemoteTroubleshootingInfo = { ssh: { alias: 'build', hostName: 'build.example.com', user: 'dev', port: 22, identityFiles: ['~/.ssh/id_ed25519'], hasSavedHostKey: true } };
+		const ssh = { alias: 'build', hostName: 'build.example.com', user: 'dev', port: 22, identityFiles: ['~/.ssh/id_ed25519'], hasSavedHostKey: true };
+		const info: IRemoteTroubleshootingInfo = { ssh };
 		const failure = (lastConnectionError: string, details = info) => {
 			const { primary, actions, guidance, command } = summarize(remote('ssh', { lastConnectionError }), details);
 			return { primary, actions, guidance, command };
@@ -105,8 +106,11 @@ suite('getRemoteTroubleshootingGuide', () => {
 			dns: failure('getaddrinfo ENOTFOUND build.example.com'),
 			network: failure('connect ETIMEDOUT 10.0.0.1:22'),
 			proxy: failure('SSH jump process exited with code 255'),
+			proxyNotFound: failure('SSH ProxyCommand exited (1): \'C:\\Program\' is not recognized as an internal or external command,\r\noperable program or batch file.'),
+			proxyNotFoundInOtherLanguage: failure('SSH ProxyCommand exited (127): sh: 1: corkscrew: introuvable'),
 			key: failure('Cannot parse privateKey: Encrypted private key detected, but no passphrase given'),
-			remoteSetup: failure('Timed out waiting for the agent host to register'),
+			remoteSetup: failure('Timed out waiting for the newly spawned agent host to register itself after 10135ms (deadline 10000ms)', { ssh: { ...ssh, remoteLog: '.vscode-server/cli/agent-host-stable.log' } }),
+			remoteSetupWithoutLog: failure('Timed out waiting for the agent host to register'),
 			unknown: failure('Something unexpected'),
 			unsafeDestination: failure('Something unexpected', { ssh: { hostName: 'build.example.com', user: '$(touch pwned)', port: 22, hasSavedHostKey: false } }),
 			incompatible: summarize(remote('ssh', { connectionStatus: RemoteAgentHostConnectionStatus.incompatible('Version mismatch', ['1'], ['2']) }), info).guidance,
@@ -119,8 +123,15 @@ suite('getRemoteTroubleshootingGuide', () => {
 			dns: { primary: 'retry', actions: ['openSSHConfig'], guidance: ['The host name couldn\'t be resolved'], command: 'ssh -v -- build' },
 			network: { primary: 'retry', actions: ['openSSHConfig'], guidance: ['The remote computer couldn\'t be reached from this network'], command: 'ssh -v -- build' },
 			proxy: { primary: 'retry', actions: ['openSSHConfig'], guidance: ['The ProxyJump or ProxyCommand configuration failed'], command: 'ssh -v -- build' },
+			proxyNotFound: { primary: 'retry', actions: ['openSSHConfig'], guidance: ['The ProxyCommand program couldn\'t be started'], command: 'ssh -v -- build' },
+			proxyNotFoundInOtherLanguage: { primary: 'retry', actions: ['openSSHConfig'], guidance: ['The ProxyCommand program couldn\'t be started'], command: 'ssh -v -- build' },
 			key: { primary: 'retry', actions: ['openSSHConfig'], guidance: ['The SSH key couldn\'t be used'], command: 'ssh -v -- build' },
-			remoteSetup: { primary: 'retry', actions: ['openSSHConfig'], guidance: ['Signing in worked, but starting the agent host on the remote computer failed'], command: 'ssh -v -- build' },
+			remoteSetup: {
+				primary: 'retry', actions: ['openSSHConfig'],
+				guidance: ['Signing in worked, but starting the agent host on the remote computer failed', 'The agent host log on the remote computer, ~/.vscode-server/cli/agent-host-stable.log, explains the failure.'],
+				command: 'ssh -- build tail -n 50 .vscode-server/cli/agent-host-stable.log',
+			},
+			remoteSetupWithoutLog: { primary: 'retry', actions: ['openSSHConfig'], guidance: ['Signing in worked, but starting the agent host on the remote computer failed'], command: 'ssh -v -- build' },
 			unknown: { primary: 'retry', actions: ['openSSHConfig'], guidance: ['Run the command below in a terminal to see where the connection fails.'], command: 'ssh -v -- build' },
 			unsafeDestination: { primary: 'retry', actions: ['openSSHConfig'], guidance: ['Check the host, user, and port in your SSH configuration, and that the remote computer can be reached from this network.'], command: undefined },
 			incompatible: ['The agent host on the remote computer doesn\'t support this version of VS Code'],
@@ -174,6 +185,7 @@ suite('getRemoteTroubleshootingGuide', () => {
 		assert.deepStrictEqual({
 			offline: summarize(remote('environment', { canRemove: true, availability: 'offline', reportedSessionCount: 2 })),
 			denied: summarize(remote('environment', { availability: 'online', lastConnectionError: 'The environment is shared by a different GitHub account.' })),
+			failed: summarize(remote('environment', { availability: 'online', lastConnectionError: 'Connection closed' })).guidance,
 			extension: summarize(extension, { extension: { version: '1.4.2', issuesUrl: 'https://github.com/publisher/jobs/issues' } }),
 			extensionWithoutIssues: summarize(extension, { extension: {} }).actions,
 		}, {
@@ -181,6 +193,7 @@ suite('getRemoteTroubleshootingGuide', () => {
 				primary: undefined, actions: ['refresh', 'openEnvironmentSettings', 'removeEnvironment'], guidance: ['This environment is offline'], facts: { 'Reported sessions': '2' },
 			},
 			denied: { primary: 'retry', actions: ['refresh', 'openEnvironmentSettings'], guidance: ['GitHub didn\'t allow this connection'] },
+			failed: ['Check that the application that shares this environment is running on that computer, and that you\'re signed in to GitHub with an account that can use it'],
 			extension: {
 				primary: 'retry', actions: ['showExtension', 'reportExtensionIssue'], guidance: ['The Job Runner extension provides this environment and manages its connection'],
 				facts: { 'Provided by': 'Job Runner 1.4.2' },
@@ -200,6 +213,8 @@ suite('getRemoteTroubleshootingGuide', () => {
 			stoppedOnHost: summarize({ ...onHost, lastConnectionError: 'Dev Container for \'Project\' is stopped.' }, connectedHost).guidance,
 			stoppedLocally: summarize({ ...local, lastConnectionError: 'Dev Container for \'Project\' is stopped.' }, connectedHost).guidance,
 			lifecycle: summarize({ ...onHost, lastConnectionError: 'Dev Container lifecycle commands failed: exit 1' }, connectedHost).guidance,
+			failed: summarize({ ...local, lastConnectionError: 'Connection closed' }, connectedHost).guidance,
+			failedWithoutLog: summarize({ ...local, lastConnectionError: 'Connection closed' }, { devContainer: { hostName: 'This Computer', hostConnected: true } }).guidance,
 		}, {
 			hostDisconnected: {
 				primary: 'connectHost', actions: ['showLog'], guidance: ['This Dev Container runs on Build server, which isn\'t connected'], facts: { 'Host': 'Build server' },
@@ -214,6 +229,8 @@ suite('getRemoteTroubleshootingGuide', () => {
 			stoppedOnHost: ['The container is stopped.'],
 			stoppedLocally: ['The container is stopped'],
 			lifecycle: ['The container\'s setup commands failed'],
+			failed: ['Show the log to see where connecting to the container failed, then retry.'],
+			failedWithoutLog: ['Check that Docker is running on This Computer, then retry.'],
 		});
 	});
 });
