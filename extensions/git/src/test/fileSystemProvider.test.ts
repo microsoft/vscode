@@ -92,11 +92,15 @@ suite('git file system provider', () => {
 		assert.ok(submoduleRepository);
 		repositories = [submoduleRepository, repository];
 		await repository.status();
-		const read = async (ref: string) => new TextDecoder().decode(await workspace.fs.readFile(api.toGitUri(submoduleUri, ref)));
+		const read = () => Promise.all(['HEAD~1', 'HEAD'].map(async ref => new TextDecoder().decode(await workspace.fs.readFile(api.toGitUri(submoduleUri, ref)))));
+		const expected = [`Subproject commit ${firstSubmoduleCommit}\n`, `Subproject commit ${secondSubmoduleCommit}\n`];
 
-		assert.deepStrictEqual([await read('HEAD~1'), await read('HEAD')], [
-			`Subproject commit ${firstSubmoduleCommit}\n`,
-			`Subproject commit ${secondSubmoduleCommit}\n`
-		]);
+		const withoutSubmoduleCommits = await read();
+
+		// `git show` prints the commits of the submodule when they are also present in the parent repository
+		await exec(root, ['fetch', '-q', submoduleRoot, 'main']);
+		const withSubmoduleCommits = await read();
+
+		assert.deepStrictEqual({ withoutSubmoduleCommits, withSubmoduleCommits }, { withoutSubmoduleCommits: expected, withSubmoduleCommits: expected });
 	});
 });
