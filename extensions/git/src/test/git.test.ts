@@ -10,7 +10,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { LogOutputChannel, window } from 'vscode';
-import { splitInChunks } from '../util';
+import { splitInChunks, hasDotGitBetween } from '../util';
 
 suite('git', () => {
 	suite('Git process input', () => {
@@ -876,6 +876,54 @@ suite('git', () => {
 				[...splitInChunks(['0', '01', '012', '0', '01', '012', '0', '01', '012'], 9)],
 				[['0', '01', '012', '0', '01'], ['012', '0', '01', '012']]
 			);
+		});
+	});
+
+	suite('hasDotGitBetween', () => {
+		test('returns false when child folder has no .git entry', async () => {
+			const directory = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'vscode-git-test-'));
+			try {
+				const child = path.join(directory, 'sub', 'folder');
+				await fs.promises.mkdir(child, { recursive: true });
+				assert.strictEqual(await hasDotGitBetween(directory, child), false);
+			} finally {
+				await fs.promises.rm(directory, { recursive: true, force: true });
+			}
+		});
+
+		test('returns true when child folder contains .git directory', async () => {
+			const directory = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'vscode-git-test-'));
+			try {
+				const child = path.join(directory, 'sub');
+				const gitDir = path.join(child, '.git');
+				await fs.promises.mkdir(gitDir, { recursive: true });
+				assert.strictEqual(await hasDotGitBetween(directory, child), true);
+			} finally {
+				await fs.promises.rm(directory, { recursive: true, force: true });
+			}
+		});
+
+		test('returns true when intermediate parent contains .git file (submodule or worktree)', async () => {
+			const directory = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'vscode-git-test-'));
+			try {
+				const submodule = path.join(directory, 'submodule');
+				await fs.promises.mkdir(submodule, { recursive: true });
+				await fs.promises.writeFile(path.join(submodule, '.git'), 'gitdir: ../.git/modules/submodule\n');
+				const grandchild = path.join(submodule, 'src', 'components');
+				await fs.promises.mkdir(grandchild, { recursive: true });
+				assert.strictEqual(await hasDotGitBetween(directory, grandchild), true);
+			} finally {
+				await fs.promises.rm(directory, { recursive: true, force: true });
+			}
+		});
+
+		test('returns false when parent and child are the same path', async () => {
+			const directory = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'vscode-git-test-'));
+			try {
+				assert.strictEqual(await hasDotGitBetween(directory, directory), false);
+			} finally {
+				await fs.promises.rm(directory, { recursive: true, force: true });
+			}
 		});
 	});
 });

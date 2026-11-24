@@ -7,7 +7,7 @@ import { workspace, WorkspaceFoldersChangeEvent, Uri, window, Event, EventEmitte
 import TelemetryReporter from '@vscode/extension-telemetry';
 import { IRepositoryResolver, Repository, RepositoryState } from './repository';
 import { memoize, sequentialize, debounce } from './decorators';
-import { dispose, anyEvent, filterEvent, isDescendant, Limiter, pathEquals, PendingOperations, toDisposable, eventToPromise } from './util';
+import { dispose, anyEvent, filterEvent, hasDotGitBetween, isDescendant, Limiter, pathEquals, PendingOperations, toDisposable, eventToPromise } from './util';
 import { Git } from './git';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -509,8 +509,20 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 				.filter(r => !(workspace.workspaceFolders || []).some(f => isDescendant(f.uri.fsPath, r!.repository.root))) as OpenRepository[];
 
 			openRepositoriesToDispose.forEach(r => r.dispose());
-			this.logger.trace(`[Model][onDidChangeWorkspaceFolders] Workspace folders: [${possibleRepositoryFolders.map(p => p.uri.fsPath).join(', ')}]`);
-			await Promise.all(possibleRepositoryFolders.map(p => this.openRepository(p.uri.fsPath)));
+
+			// Sort by path length ascending so ancestor folders appear before descendants
+			const sortedFolders = [...possibleRepositoryFolders].sort((a, b) => a.uri.fsPath.length - b.uri.fsPath.length);
+			const candidateFolders: WorkspaceFolder[] = [];
+			for (const folder of sortedFolders) {
+				const parent = candidateFolders.find(p => isDescendant(p.uri.fsPath, folder.uri.fsPath) && !pathEquals(p.uri.fsPath, folder.uri.fsPath));
+				if (parent && !await hasDotGitBetween(parent.uri.fsPath, folder.uri.fsPath)) {
+					continue;
+				}
+				candidateFolders.push(folder);
+			}
+
+			this.logger.trace(`[Model][onDidChangeWorkspaceFolders] Workspace folders: [${candidateFolders.map(p => p.uri.fsPath).join(', ')}]`);
+			await Promise.all(candidateFolders.map(p => this.openRepository(p.uri.fsPath)));
 		}
 		catch (err) {
 			this.logger.warn(`[Model][onDidChangeWorkspaceFolders] Error: ${err}`);
@@ -717,6 +729,12 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 		const existingRepository = await this.getRepositoryExact(repoPath);
 		if (existingRepository) {
 			this.logger.trace(`[Model][openRepository] Repository for path ${repoPath} already exists: ${existingRepository.root}`);
+			return;
+		}
+
+		const parentRepository = this.getRepository(repoPath);
+		if (parentRepository && !await hasDotGitBetween(parentRepository.root, repoPath)) {
+			this.logger.trace(`[Model][openRepository] Repository for path ${repoPath} already covered by: ${parentRepository.root}`);
 			return;
 		}
 
