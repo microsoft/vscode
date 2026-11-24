@@ -2692,8 +2692,7 @@
       {
         "command": "github.copilot.open.walkthrough",
         "title": "%github.copilot.command.openWalkthrough%",
-        "category": "Chat",
-        "enablement": "!isSessionsWindow"
+        "category": "Chat"
       },
       {
         "command": "github.copilot.debug.generateInlineEditTests",
