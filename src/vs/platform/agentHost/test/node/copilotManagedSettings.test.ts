@@ -174,8 +174,11 @@ suite('Copilot managed settings resolution', () => {
 		const progress: (string | undefined)[] = [];
 		const clock = useFakeTimers();
 		try {
-			const rejected = assert.rejects(resolver.resolve(rpc, 'token', undefined, undefined, value => progress.push(value)), error => error instanceof AgentPolicyError && /longer than 30 seconds/.test(error.message));
-			await clock.tickAsync(30_000);
+			let timedOut = false;
+			const rejected = assert.rejects(resolver.resolve(rpc, 'token', undefined, undefined, value => progress.push(value)).finally(() => { timedOut = true; }), error => error instanceof AgentPolicyError && /longer than 45 seconds/.test(error.message));
+			await clock.tickAsync(44_999);
+			assert.strictEqual(timedOut, false);
+			await clock.tickAsync(1);
 			await rejected;
 			let settled = false;
 			const retry = resolver.resolve(rpc, 'token').finally(() => { settled = true; });

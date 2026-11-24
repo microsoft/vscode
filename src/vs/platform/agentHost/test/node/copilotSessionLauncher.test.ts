@@ -1164,35 +1164,42 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 			assert.deepStrictEqual({ calls, requested, unresolved: Object.hasOwn(fixture.captured ?? {}, 'permissionMode') }, { calls: ['policy', 'mode'], requested: 'assisted', unresolved: false });
 		});
 
-		test(`${kind} waits for slow managed settings before applying policy and starting the SDK session`, async () => {
-			const fixture = setup(kind);
-			const rpc = fixture.plan.client.rpc.managedSettings;
-			const result = await rpc.resolve({ clientName: 'vscode-agent-host' });
-			const gate = new DeferredPromise<typeof result>();
-			const started = new DeferredPromise<void>();
-			rpc.resolve = () => { started.complete(); return gate.p; };
-			const resolver = store.add(new CopilotManagedSettingsResolver(new NullLogService()));
-			const policies: typeof result.resolved[] = [];
-			const activity: (string | undefined)[] = [];
-			const clock = useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
-			try {
-				const launch = fixture.launcher.launch({ ...fixture.plan, managedSettingsResolver: resolver }, {
-					...testRuntime,
-					setApprovalPolicy: resolved => policies.push(resolved),
-					reportManagedSettingsActivity: value => activity.push(value),
-				});
-				await started.p;
-				await clock.tickAsync(4000);
-				assert.deepStrictEqual({ captured: fixture.captured, policies, activity }, { captured: undefined, policies: [], activity: ['Loading your organization\'s managed settings'] });
-				const restricted = { ...result.resolved, settings: { permissions: { deny: ['Shell'] } } };
-				gate.complete({ ...result, resolved: restricted });
-				store.add(await launch);
-				assert.deepStrictEqual({ created: !!fixture.captured, policies, activity }, { created: true, policies: [restricted], activity: ['Loading your organization\'s managed settings', undefined] });
-			} finally {
-				gate.complete(result);
-				clock.restore();
-			}
-		});
+		for (const shared of [true, false]) {
+			test(`${kind} waits for policy beyond the maximum helper timeout with the ${shared ? 'shared' : 'direct'} resolver`, async () => {
+				const fixture = setup(kind);
+				const rpc = fixture.plan.client.rpc.managedSettings;
+				const result = await rpc.resolve({ clientName: 'vscode-agent-host' });
+				const gate = new DeferredPromise<typeof result>();
+				const started = new DeferredPromise<void>();
+				rpc.resolve = () => { started.complete(); return gate.p; };
+				const resolver = shared ? store.add(new CopilotManagedSettingsResolver(new NullLogService())) : undefined;
+				const policies: typeof result.resolved[] = [];
+				const activity: (string | undefined)[] = [];
+				const clock = useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+				try {
+					const launch = fixture.launcher.launch({ ...fixture.plan, managedSettingsResolver: resolver }, {
+						...testRuntime,
+						setApprovalPolicy: resolved => policies.push(resolved),
+						reportManagedSettingsActivity: value => activity.push(value),
+					}).then(wrapper => ({ kind: 'resolved' as const, wrapper }), error => ({ kind: 'rejected' as const, error }));
+					await started.p;
+					await clock.tickAsync(30_000);
+					assert.deepStrictEqual({ captured: fixture.captured, policies, activity }, { captured: undefined, policies: [], activity: shared ? ['Loading your organization\'s managed settings'] : [] });
+					await clock.tickAsync(1000);
+					const restricted = { ...result.resolved, settings: { permissions: { deny: ['Shell'] } } };
+					gate.complete({ ...result, resolved: restricted });
+					const outcome = await launch;
+					if (outcome.kind === 'rejected') {
+						throw outcome.error;
+					}
+					store.add(outcome.wrapper);
+					assert.deepStrictEqual({ created: !!fixture.captured, policies, activity }, { created: true, policies: [restricted], activity: shared ? ['Loading your organization\'s managed settings', undefined] : [] });
+				} finally {
+					gate.complete(result);
+					clock.restore();
+				}
+			});
+		}
 
 		test(`${kind} sends sandbox environment credentials to the SDK and clears them on reset`, async () => {
 			const fixture = setup(kind);

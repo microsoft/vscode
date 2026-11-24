@@ -33,7 +33,7 @@ import { isAgentHostWorkspaceTrusted } from '../../common/agentHostWorkspaceTrus
 import { Promises } from '../../../../base/node/pfs.js';
 import { isWorktreeUnderRepository } from '../../common/worktreePaths.js';
 import { getCopilotApprovalPolicy, isManagedWorkspaceRetrievalWithheld, isWithheldClientTool, MANAGED_WORKSPACE_RETRIEVAL_CLIENT_TOOLS } from './copilotApprovalPolicy.js';
-import { AGENT_HOST_COPILOT_CLIENT_NAME, type CopilotManagedSettingsActivityReporter, type CopilotManagedSettingsResolver, resolveCopilotManagedSettings } from './copilotManagedSettings.js';
+import { AGENT_HOST_COPILOT_CLIENT_NAME, COPILOT_MANAGED_SETTINGS_TIMEOUT_MS, type CopilotManagedSettingsActivityReporter, type CopilotManagedSettingsResolver, resolveCopilotManagedSettings } from './copilotManagedSettings.js';
 import { omitCopilotManagedModelDefaults, type CopilotManagedModelPolicy } from './copilotManagedModelConfiguration.js';
 import { CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliConfigSchema, normalizeModelFamilyAlias, resolveModelCapabilityOverrideField } from '../../common/copilotCliConfig.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
@@ -627,7 +627,7 @@ export function resolveCopilotSessionManagedSettings(plan: CopilotSessionLaunchP
 	const workingDirectory = plan.workspace?.kind === 'virtual' ? undefined : plan.workingDirectory?.fsPath;
 	return plan.managedSettingsResolver
 		? plan.managedSettingsResolver.resolve(plan.client.rpc.managedSettings, plan.githubCredentials.token, workingDirectory, token, reportActivity)
-		: resolveCopilotManagedSettings(plan.client.rpc.managedSettings, plan.githubCredentials.token, 30_000, workingDirectory, token);
+		: resolveCopilotManagedSettings(plan.client.rpc.managedSettings, plan.githubCredentials.token, COPILOT_MANAGED_SETTINGS_TIMEOUT_MS, workingDirectory, token);
 }
 
 export function isCopilotReasoningEffort(value: unknown): value is AgentHostReasoningEffort {
