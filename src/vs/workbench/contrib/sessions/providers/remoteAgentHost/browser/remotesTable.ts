@@ -77,7 +77,7 @@ export interface IRemoteTableRow {
 }
 
 type RemoteColumn = 'name' | 'type' | 'system' | 'status' | 'sessions' | 'activity' | 'sandboxProfile' | 'actions';
-export type RemoteRowAction = 'toggleGroup' | 'toggleVisibility' | 'configure' | 'documentation' | 'connect' | 'newSession' | 'createDevContainer' | 'rename' | 'copyAddress' | 'locationPreference' | 'troubleshoot' | 'githubEnvironment' | 'showExtension' | 'updateServer' | 'delete' | 'signIn';
+export type RemoteRowAction = 'toggleGroup' | 'toggleVisibility' | 'configure' | 'documentation' | 'connect' | 'newSession' | 'createDevContainer' | 'rename' | 'copyAddress' | 'locationPreference' | 'troubleshoot' | 'githubEnvironment' | 'showExtension' | 'updateServer' | 'restartDistribution' | 'delete' | 'signIn';
 
 type RemoteCellTemplate = {
 	readonly container: HTMLElement;
@@ -130,6 +130,7 @@ const selectNavigationKeys = new Set([KeyCode.UpArrow, KeyCode.DownArrow, KeyCod
 export const remoteStatusGroups = [
 	{ key: 'ready', label: localize('remotes.ready', "Connected"), icon: Codicon.circleFilled, description: localize('remotes.ready.detail', "Connected from this window and ready to start or continue sessions.") },
 	{ key: 'available', label: localize('remotes.available', "Available"), icon: Codicon.circle, description: localize('remotes.available.detail', "Select Connect to use this environment.") },
+	{ key: 'stopped', label: localize('remotes.stopped', "Stopped"), icon: Codicon.stopCircle, description: localize('remotes.stopped.detail', "Not running. Select Connect to start it.") },
 	{ key: 'offline', label: localize('remotes.offline', "Offline"), icon: Codicon.circleSlashCompact, description: localize('remotes.offline.detail', "No reachable endpoint was found at the last check. Bring the environment online, then refresh.") },
 ] as const;
 
@@ -262,18 +263,20 @@ export function getRemoteActivityTime(remote: ICustomizationRemote): number | un
 }
 
 /**
- * Groups disconnected hosts by connection eligibility; unchecked hosts remain available to try.
+ * Groups disconnected hosts by connection eligibility; unchecked hosts remain available to try,
+ * and hosts that connecting starts, such as a stopped WSL distribution, are stopped.
  */
-export function getRemoteStatusGroup(remote: ICustomizationRemote): 'ready' | 'available' | 'offline' | undefined {
+export function getRemoteStatusGroup(remote: ICustomizationRemote): typeof remoteStatusGroups[number]['key'] | undefined {
 	if (RemoteAgentHostConnectionStatus.isConnected(remote.connectionStatus)) {
 		return 'ready';
 	}
 	if (remote.requiresTunnelSignIn) {
 		return undefined;
 	}
-	return canConnectToRemote(remote)
-		|| RemoteAgentHostConnectionStatus.isConnecting(remote.connectionStatus)
-		|| RemoteAgentHostConnectionStatus.isReconnecting(remote.connectionStatus) ? 'available' : 'offline';
+	if (RemoteAgentHostConnectionStatus.isConnecting(remote.connectionStatus) || RemoteAgentHostConnectionStatus.isReconnecting(remote.connectionStatus)) {
+		return 'available';
+	}
+	return remote.startsOnConnect ? 'stopped' : canConnectToRemote(remote) ? 'available' : 'offline';
 }
 
 export function getRemoteAvailabilityLabel(remote: ICustomizationRemote): string {
@@ -303,7 +306,7 @@ export function getConnectionProblem(remote: ICustomizationRemote): string | und
 	return remote.lastConnectionError ? localize('remotes.connectionFailedProblem', "Connection failed: {0}", remote.lastConnectionError) : undefined;
 }
 
-function getConnectionPresentation(remote: ICustomizationRemote, connecting?: boolean): { readonly label: string; readonly icon: ThemeIcon | undefined; readonly state: 'connected' | 'available' | 'offline' | 'failed' | 'pending' | 'unverified' } {
+function getConnectionPresentation(remote: ICustomizationRemote, connecting?: boolean): { readonly label: string; readonly icon: ThemeIcon | undefined; readonly state: 'connected' | 'available' | 'stopped' | 'offline' | 'failed' | 'pending' | 'unverified' } {
 	if (connecting !== undefined) {
 		return { label: connecting ? getAgentHostConnectionStatusLabel(RemoteAgentHostConnectionStatus.connecting) : localize('remotes.disconnecting', "Disconnecting"), icon: ThemeIcon.modify(Codicon.loadingCompact, 'spin'), state: 'pending' };
 	}
@@ -322,12 +325,9 @@ function getConnectionPresentation(remote: ICustomizationRemote, connecting?: bo
 	if (remote.lastConnectionError) {
 		return { label: localize('remotes.connectionFailed', "Connection failed"), icon: Codicon.warning, state: 'failed' };
 	}
-	const group = getRemoteStatusGroup(remote);
-	if (group === 'offline') {
-		return { label: remoteStatusGroups[2].label, icon: remoteStatusGroups[2].icon, state: 'offline' };
-	}
-	if (group === 'available') {
-		return { label: remoteStatusGroups[1].label, icon: remoteStatusGroups[1].icon, state: 'available' };
+	const group = remoteStatusGroups.find(group => group.key === getRemoteStatusGroup(remote));
+	if (group && group.key !== 'ready') {
+		return { label: group.label, icon: group.icon, state: group.key };
 	}
 	return { label: '', icon: undefined, state: 'unverified' };
 }
@@ -344,7 +344,7 @@ export function renderConnectionStatus(container: HTMLElement, remote: ICustomiz
 function renderStatusIndicator(container: HTMLElement, icon: ThemeIcon | undefined, state: ReturnType<typeof getConnectionPresentation>['state']): void {
 	dom.clearNode(container);
 	container.classList.add('remotes-connection-indicator');
-	for (const candidate of ['connected', 'available', 'offline', 'failed', 'pending', 'unverified']) {
+	for (const candidate of ['connected', 'available', 'stopped', 'offline', 'failed', 'pending', 'unverified']) {
 		container.classList.toggle(candidate, candidate === state);
 	}
 	container.setAttribute('aria-hidden', 'true');
@@ -421,6 +421,9 @@ export function getRemoteRowMenuActions(entry: RemoteTableEntry, onAction: (entr
 	const changingConnection = RemoteAgentHostConnectionStatus.isConnecting(remote.connectionStatus) || RemoteAgentHostConnectionStatus.isReconnecting(remote.connectionStatus);
 	const showNewSession = connected && !remote.pickerUnavailableReason;
 	const showConnect = remote.requiresTunnelSignIn || !remote.connectsWithHost && canConnectToRemote(remote);
+	// Any installed WSL distribution can be restarted; a stopped one offers Start Distribution, which connects and so starts it.
+	const showDistribution = remote.kind === 'wsl' && canConnectToRemote(remote);
+	const distributionStopped = showDistribution && getRemoteStatusGroup(remote) === 'stopped';
 	const share = remote.gitHubEnvironment;
 	const showGitHubEnvironment = (remote.kind === 'ssh' || remote.kind === 'wsl' || remote.kind === 'tunnel') && (!!remote.canShareAsGitHubEnvironment || !!share);
 	const showDelete = remote.kind === 'environment' && remote.canRemove || (remote.kind === 'tunnel' || remote.kind === 'ssh' || remote.kind === 'devContainer') && !!remote.canDelete;
@@ -429,6 +432,14 @@ export function getRemoteRowMenuActions(entry: RemoteTableEntry, onAction: (entr
 		[
 			...(showNewSession ? [item({ id: 'remotes.newSession', kind: 'newSession', label: localize('remotes.newSession', "New Session"), enabled: ready })] : []),
 			...(showConnect ? [item(getRemoteConnectionAction(entry))] : []),
+			...(showDistribution ? [item({
+				id: 'remotes.distribution', kind: distributionStopped ? 'connect' : 'restartDistribution',
+				label: distributionStopped ? localize('remotes.startDistribution', "Start Distribution") : localize('remotes.restartDistribution', "Restart Distribution..."),
+				tooltip: distributionStopped
+					? localize('remotes.startDistributionTooltip', "Start the WSL distribution and connect to it")
+					: localize('remotes.restartDistributionTooltip', "Stop everything running in the WSL distribution, then start it and connect again"),
+				icon: Codicon.debugRestart, enabled: ready && !changingConnection,
+			})] : []),
 			...(remote.canCreateDevContainer ? [item({ id: 'remotes.createDevContainer', kind: 'createDevContainer', label: localize('remotes.createDevContainer', "Create Dev Container"), icon: Codicon.add, enabled: ready })] : []),
 		],
 		showGitHubEnvironment ? [item({
