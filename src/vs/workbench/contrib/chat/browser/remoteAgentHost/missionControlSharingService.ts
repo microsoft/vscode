@@ -299,8 +299,8 @@ export class MissionControlSharingService extends Disposable implements IMission
 		}));
 		const roots = checks.flatMap(check => check.root ? [check.root] : []);
 		const failures = checks.flatMap(check => check.failure ? [check.failure] : []);
-		// A drive that cannot be read (e.g. an empty card reader or a locked volume) cannot be verified as local, so it is not
-		// shared. When no drive can be read, report the failure instead of granting little more than the home folder.
+		// A drive that cannot be read (e.g. an empty card reader or a locked volume) is not shared. When no drive can be read,
+		// report the failure instead of granting little more than the home folder. The host excludes network-backed drives.
 		if (failures.length && !roots.length) {
 			throw toFileSharingError(failures[0].error, 'fileSystemRoot');
 		}
