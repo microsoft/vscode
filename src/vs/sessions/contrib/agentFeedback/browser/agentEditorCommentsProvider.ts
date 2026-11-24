@@ -119,7 +119,7 @@ export class AgentEditorCommentsProviderContribution extends Disposable implemen
 		if (feedback?.state === AgentFeedbackState.Resolved) {
 			this._agentFeedbackService.hideFeedbackInEditor(sessionResource, parsed.sourceId);
 		} else {
-			this._agentFeedbackService.removeFeedback(sessionResource, parsed.sourceId);
+			this._agentFeedbackService.removeFeedback(sessionResource, [parsed.sourceId]);
 		}
 	}
 

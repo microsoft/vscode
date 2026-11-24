@@ -440,7 +440,7 @@ export class AgentFeedbackWorkbenchCommentsContribution extends Disposable imple
 				if (comment.kind === AgentFeedbackKind.PRReview && comment.sourcePRReviewCommentId) {
 					this._codeReviewService.dismissPRReviewComment(comment.sessionResource, comment.sourcePRReviewCommentId);
 				}
-				this._agentFeedbackService.removeFeedback(comment.sessionResource, comment.sourceId);
+				this._agentFeedbackService.removeFeedback(comment.sessionResource, [comment.sourceId]);
 				return;
 			case AgentFeedbackCommentAction.Hide:
 				this._agentFeedbackService.hideFeedbackInEditor(comment.sessionResource, comment.sourceId);

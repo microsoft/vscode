@@ -338,7 +338,7 @@ suite('AgentFeedbackService - Ordering', () => {
 			'/a.ts:30',
 		]);
 
-		service.removeFeedback(session, f1.id);
+		service.removeFeedback(session, [f1.id]);
 		assert.deepStrictEqual(feedbackSummary(service.getFeedback(session)), [
 			'/a.ts:10',
 			'/a.ts:20',
@@ -609,7 +609,7 @@ suite('AgentFeedbackService - getSessionForFile', () => {
 
 		setActiveSession(draftInF);
 		const first = service.addFeedback(AGENT_FEEDBACK_NEW_SESSION_RESOURCE, URI.file('/f/a.ts'), new Range(1, 1, 1, 2), 'Fix this');
-		service.removeFeedback(AGENT_FEEDBACK_NEW_SESSION_RESOURCE, first.id);
+		service.removeFeedback(AGENT_FEEDBACK_NEW_SESSION_RESOURCE, [first.id]);
 
 		// The set is empty again, so the binding to /f is released and the comment
 		// written without a workspace adopts the next selection instead.
@@ -959,6 +959,32 @@ suite('AgentFeedbackService - State', () => {
 		service.markFeedbackSubmitted(session);
 
 		assert.strictEqual(service.getFeedback(session)[0].state, AgentFeedbackState.Submitted);
+	});
+
+	test('removeFeedback removes a batch of items and notifies once', () => {
+		const fileB = URI.parse('file:///b.ts');
+		const removed = Array.from({ length: 20 }, (_, i) => service.addFeedback(session, fileA, r(i + 1), `a${i + 1}`));
+		service.addFeedback(session, fileB, r(1), 'b1');
+		service.setNavigationAnchor(session, removed[5].id, { reveal: false });
+		let feedbackChanges = 0;
+		let navigationChanges = 0;
+		store.add(service.onDidChangeFeedback(() => feedbackChanges++));
+		store.add(service.onDidChangeNavigation(() => navigationChanges++));
+
+		service.removeFeedback(session, [...removed.map(f => f.id), 'missing']);
+		service.removeFeedback(session, []);
+
+		assert.deepStrictEqual({
+			feedbackChanges,
+			navigationChanges,
+			bearing: service.getNavigationBearing(session),
+			items: feedbackSummary(service.getFeedback(session)),
+		}, {
+			feedbackChanges: 1,
+			navigationChanges: 1,
+			bearing: { activeIdx: -1, totalCount: 1, reveal: true },
+			items: ['/b.ts:1'],
+		});
 	});
 
 	test('resolving and un-resolving moves between resolved and submitted', () => {

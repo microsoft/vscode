@@ -464,19 +464,37 @@ suite('AnnotationsAgentFeedbackItemsBackend', () => {
 		const afterAdd = backend.getItems(sessionResource).map(item => item.id);
 		backend.remove(sessionResource, 'added');
 		const afterRemove = backend.getItems(sessionResource).map(item => item.id);
+		for (const id of ['batch1', 'batch2']) {
+			backend.upsert({
+				id,
+				text: id,
+				resourceUri: addedResource,
+				range: { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 },
+				sessionResource,
+				kind: AgentFeedbackKind.UserReview,
+				state: AgentFeedbackState.Accepted,
+			});
+		}
+		backend.removeMany(sessionResource, ['batch1', 'batch2', 'missing']);
+		const afterRemoveMany = backend.getItems(sessionResource).map(item => item.id);
 		backend.clear(sessionResource);
 
 		assert.deepStrictEqual({
 			afterAdd,
 			afterRemove,
+			afterRemoveMany,
 			afterClear: backend.getItems(sessionResource).map(item => item.id),
 			events,
 		}, {
 			afterAdd: ['existing', 'added'],
 			afterRemove: ['existing'],
+			afterRemoveMany: ['existing'],
 			afterClear: [],
 			events: [
 				['existing', 'added'],
+				['existing'],
+				['existing', 'batch1'],
+				['existing', 'batch1', 'batch2'],
 				['existing'],
 				[],
 			],

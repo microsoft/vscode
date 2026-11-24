@@ -56,6 +56,12 @@ export interface IAgentFeedbackItemsBackend {
 	/** Removes a single feedback item. */
 	remove(sessionResource: URI, feedbackId: string): void;
 
+	/**
+	 * Removes several feedback items of one session at once, firing
+	 * {@link onDidChangeItems} at most once for the whole batch.
+	 */
+	removeMany(sessionResource: URI, feedbackIds: readonly string[]): void;
+
 	/** Removes all feedback items for a session. */
 	clear(sessionResource: URI): void;
 
@@ -131,17 +137,22 @@ export class InMemoryAgentFeedbackItemsBackend extends Disposable implements IAg
 	}
 
 	remove(sessionResource: URI, feedbackId: string): void {
+		this.removeMany(sessionResource, [feedbackId]);
+	}
+
+	removeMany(sessionResource: URI, feedbackIds: readonly string[]): void {
 		const key = sessionResource.toString();
 		const items = this._bySession.get(key);
-		if (!items) {
+		if (!items || !feedbackIds.length) {
 			return;
 		}
-		const idx = items.findIndex(f => f.id === feedbackId);
-		if (idx < 0) {
+		const ids = new Set(feedbackIds);
+		const remaining = items.filter(f => !ids.has(f.id));
+		if (remaining.length === items.length) {
 			return;
 		}
-		items.splice(idx, 1);
-		if (!items.length) {
+		this._bySession.set(key, remaining);
+		if (!remaining.length) {
 			this._bySession.delete(key);
 			this._sessionResourceByKey.delete(key);
 		}
@@ -446,16 +457,33 @@ export class AnnotationsAgentFeedbackItemsBackend extends Disposable implements 
 	}
 
 	remove(sessionResource: URI, feedbackId: string): void {
+		this.removeMany(sessionResource, [feedbackId]);
+	}
+
+	removeMany(sessionResource: URI, feedbackIds: readonly string[]): void {
+		if (!feedbackIds.length) {
+			return;
+		}
+		const key = sessionResource.toString();
 		const channel = this._ensureChannel(sessionResource);
-		this._cacheRemove(sessionResource, feedbackId);
+		this._cacheRemove(sessionResource, feedbackIds);
 		this._emitIfChanged(sessionResource);
 		if (!channel) {
 			return;
 		}
-		channel.connection.dispatch(channel.annotationsUri.toString(), {
-			type: ActionType.AnnotationsRemoved,
-			annotationId: feedbackId,
-		});
+		// Reconcile once after the batch, as in clear.
+		this._suspendedAnnotationsReconciliation.add(key);
+		try {
+			for (const annotationId of feedbackIds) {
+				channel.connection.dispatch(channel.annotationsUri.toString(), {
+					type: ActionType.AnnotationsRemoved,
+					annotationId,
+				});
+			}
+		} finally {
+			this._suspendedAnnotationsReconciliation.delete(key);
+		}
+		this._onAnnotationsChange(sessionResource);
 	}
 
 	clear(sessionResource: URI): void {
@@ -602,16 +630,14 @@ export class AnnotationsAgentFeedbackItemsBackend extends Disposable implements 
 		}
 	}
 
-	private _cacheRemove(sessionResource: URI, feedbackId: string): void {
+	private _cacheRemove(sessionResource: URI, feedbackIds: readonly string[]): void {
 		const key = sessionResource.toString();
 		const items = this._cacheBySession.get(key);
 		if (!items) {
 			return;
 		}
-		const idx = items.findIndex(f => f.id === feedbackId);
-		if (idx >= 0) {
-			items.splice(idx, 1);
-		}
+		const ids = new Set(feedbackIds);
+		this._cacheBySession.set(key, items.filter(f => !ids.has(f.id)));
 	}
 
 	private _suspendChannel(sessionResource: URI): void {

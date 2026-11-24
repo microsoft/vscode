@@ -393,7 +393,7 @@ interface ISendHarness {
 		showPicker(): void;
 	};
 	readonly _isQuickChatComposer: IObservable<boolean>;
-	readonly agentFeedbackService: { removeFeedback(resource: URI, id: string): void };
+	readonly agentFeedbackService: { removeFeedback(resource: URI, ids: readonly string[]): void };
 	readonly sessionsManagementService: {
 		readonly onDidSendRequest: Event<ISendRequestSentEvent>;
 		readonly onDidReplaceNewDraftSession?: Event<{ readonly from: ISession; readonly to: ISession }>;

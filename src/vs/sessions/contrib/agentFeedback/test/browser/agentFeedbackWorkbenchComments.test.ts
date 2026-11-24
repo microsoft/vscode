@@ -113,8 +113,8 @@ suite('Agent Feedback Workbench Comments', () => {
 			override addReply(_sessionResource: URI, feedbackId: string, text: string): void {
 				calls.push(`addReply:${feedbackId}:${text}`);
 			}
-			override removeFeedback(_sessionResource: URI, feedbackId: string): void {
-				calls.push(`removeFeedback:${feedbackId}`);
+			override removeFeedback(_sessionResource: URI, feedbackIds: readonly string[]): void {
+				calls.push(`removeFeedback:${feedbackIds.join(',')}`);
 			}
 			override hideFeedbackInEditor(_sessionResource: URI, feedbackId: string): void {
 				calls.push(`hideFeedbackInEditor:${feedbackId}`);

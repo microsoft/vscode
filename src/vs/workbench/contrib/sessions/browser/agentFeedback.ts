@@ -165,9 +165,10 @@ export interface IAgentFeedbackService {
 	acceptFeedback(sessionResource: URI, feedbackId: string, options?: IAcceptFeedbackOptions): void;
 
 	/**
-	 * Remove a single feedback item.
+	 * Remove the given feedback items. Ids that are not found are ignored. All
+	 * items are removed together, so listeners are notified once.
 	 */
-	removeFeedback(sessionResource: URI, feedbackId: string): void;
+	removeFeedback(sessionResource: URI, feedbackIds: readonly string[]): void;
 
 	/**
 	 * Update the text of an existing feedback item.

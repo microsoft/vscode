@@ -109,7 +109,7 @@ suite('AgentFeedbackEditorWidget', () => {
 			override acceptFeedback(_sessionResource: URI, feedbackId: string): void { acceptedFeedbackIds.push(feedbackId); }
 			override updateFeedback(): void { }
 			override hideFeedbackInEditor(_sessionResource: URI, feedbackId: string): void { hiddenFeedbackIds.push(feedbackId); }
-			override removeFeedback(_sessionResource: URI, feedbackId: string): void { removedFeedbackIds.push(feedbackId); }
+			override removeFeedback(_sessionResource: URI, feedbackIds: readonly string[]): void { removedFeedbackIds.push(...feedbackIds); }
 			override addFeedback(sessionResource: URI, resourceUri: URI, range: IRange, text: string, suggestion?: ICodeReviewSuggestion, _context?: IAgentFeedbackContext, sourcePRReviewCommentId?: string, kind: AgentFeedbackKind = AgentFeedbackKind.UserReview, state: AgentFeedbackState = AgentFeedbackState.Accepted, sourcePullRequest?: IFeedbackPullRequest, sourcePRReviewCommentAuthor?: string): IAgentFeedback {
 				sourcePullRequests.push(sourcePullRequest);
 				sourceAuthors.push(sourcePRReviewCommentAuthor);

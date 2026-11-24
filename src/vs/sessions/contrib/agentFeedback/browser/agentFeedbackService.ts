@@ -425,12 +425,16 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 		}
 	}
 
-	removeFeedback(sessionResource: URI, feedbackId: string): void {
+	removeFeedback(sessionResource: URI, feedbackIds: readonly string[]): void {
+		if (!feedbackIds.length) {
+			return;
+		}
 		const key = sessionResource.toString();
-		if (this._navigationAnchorBySession.get(key)?.itemId === feedbackId) {
+		const anchorId = this._navigationAnchorBySession.get(key)?.itemId;
+		if (anchorId !== undefined && feedbackIds.includes(anchorId)) {
 			this._navigationAnchorBySession.delete(key);
 		}
-		this._backendForSession(sessionResource).remove(sessionResource, feedbackId);
+		this._backendForSession(sessionResource).removeMany(sessionResource, feedbackIds);
 	}
 
 	updateFeedback(sessionResource: URI, feedbackId: string, newText: string): void {
