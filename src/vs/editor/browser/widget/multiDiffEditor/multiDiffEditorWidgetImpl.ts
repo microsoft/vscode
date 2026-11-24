@@ -516,9 +516,8 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 			// An inline diff shows the original document where the modified document has it, except for deleted text.
 			const modifiedRange = mapToModifiedDocument(range, template.editor.getDiffComputationResult()?.changes2 ?? []);
 			if (!modifiedRange) {
-				// Deleted text shows in view zones of the modified editor, whose lines the hidden original editor aligns with.
-				// The modified editor can neither reveal nor highlight a range in them.
-				this._scrollToItemOffset(index, template.getPositionOffset('original', range.getStartPosition()));
+				// Deleted text shows in view zones of the modified editor, which can neither reveal nor highlight a range in them.
+				this._scrollToItemOffset(index, template.getDeletedTextOffset(range.getStartPosition()));
 				return;
 			}
 			range = modifiedRange;
@@ -793,14 +792,13 @@ function highlightRange(targetEditor: ICodeEditor, range: IRange) {
 
 /**
  * Maps a range of the original document to the modified document, or returns undefined for a range that starts in
- * deleted text. Changes without inner changes, which the legacy diff algorithm computes for larger changes, map a range to
- * their modified lines.
+ * deleted text.
  */
 function mapToModifiedDocument(range: Range, mappings: readonly DetailedLineRangeMapping[]): Range | undefined {
 	const start = range.getStartPosition();
 	const change = mappings.find(mapping => mapping.original.contains(start.lineNumber));
-	if (change && !change.innerChanges) {
-		return change.modified.isEmpty ? undefined : change.modified.toExclusiveRange();
+	if (change && !change.innerChanges && change.modified.isEmpty) {
+		return undefined;
 	}
 	// The text after an inner change starts at its end.
 	const innerChange = change?.innerChanges?.find(inner => inner.originalRange.containsPosition(start) && !inner.originalRange.getEndPosition().equals(start));
@@ -813,11 +811,15 @@ function mapToModifiedDocument(range: Range, mappings: readonly DetailedLineRang
 /**
  * Maps the start or the end of a range of the original document to the modified document. An edge that only touches
  * replaced text maps to the edge of its replacement, so that the range does not include the replacement, to which
- * {@link translatePosition} maps the edge.
+ * {@link translatePosition} maps the edge. An edge in a change without inner changes, which the legacy diff algorithm
+ * computes for larger changes, maps to that edge of the change's modified lines.
  */
 function translateEdge(position: Position, mappings: readonly DetailedLineRangeMapping[], edge: 'start' | 'end'): Position {
-	const innerChanges = findLast(mappings, mapping => mapping.original.startLineNumber <= position.lineNumber)?.innerChanges ?? [];
-	const touched = innerChanges.find(inner => !inner.originalRange.isEmpty() && position.equals(edge === 'start' ? inner.originalRange.getEndPosition() : inner.originalRange.getStartPosition()));
+	const change = findLast(mappings, mapping => mapping.original.startLineNumber <= position.lineNumber);
+	if (change && !change.innerChanges && change.original.contains(position.lineNumber)) {
+		return new Position(edge === 'start' ? change.modified.startLineNumber : change.modified.endLineNumberExclusive, 1);
+	}
+	const touched = change?.innerChanges?.find(inner => !inner.originalRange.isEmpty() && position.equals(edge === 'start' ? inner.originalRange.getEndPosition() : inner.originalRange.getStartPosition()));
 	if (touched) {
 		return edge === 'start' ? touched.modifiedRange.getEndPosition() : touched.modifiedRange.getStartPosition();
 	}

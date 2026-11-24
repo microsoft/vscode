@@ -17,7 +17,7 @@ import { EditorContextKeys } from '../../../common/editorContextKeys.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
-import { IDiffEditorOptions } from '../../../common/config/editorOptions.js';
+import { EditorOption, IDiffEditorOptions } from '../../../common/config/editorOptions.js';
 import { IPosition } from '../../../common/core/position.js';
 import { IRange } from '../../../common/core/range.js';
 import { OffsetRange } from '../../../common/core/ranges/offsetRange.js';
@@ -329,6 +329,25 @@ export class DiffEditorItemTemplate extends VirtualizedItemTemplate<DocumentDiff
 		this._flushVerticalState();
 		const editor = side === 'original' ? this.editor.getOriginalEditor() : this.editor.getModifiedEditor();
 		return this._headerHeight + editor.getTopForPosition(position.lineNumber, position.column);
+	}
+
+	/**
+	 * Returns the offset of a position of deleted text from the top of the item, that is of the row that shows it in the
+	 * view zones of an inline diff. The hidden original editor aligns its lines with the view zones, but does not wrap them.
+	 */
+	public getDeletedTextOffset(position: IPosition): number {
+		this._flushVerticalState();
+		const originalEditor = this.editor.getOriginalEditor();
+		const modifiedEditor = this.editor.getModifiedEditor();
+		const originalModel = originalEditor.getModel()!;
+		// The view zones wrap deleted lines like the modified editor wraps its lines.
+		const lineBreaksComputer = modifiedEditor._getViewModel()?.createLineBreaksComputer({
+			getLineContent: lineNumber => originalModel.getLineContent(lineNumber),
+			getLineInjectedText: () => null,
+		});
+		lineBreaksComputer?.addRequest(position.lineNumber, null);
+		const row = lineBreaksComputer?.finalize()[0]?.translateToOutputPosition(position.column - 1).outputLineIndex ?? 0;
+		return this._headerHeight + originalEditor.getTopForLineNumber(position.lineNumber) + row * modifiedEditor.getOption(EditorOption.lineHeight);
 	}
 
 	/**

@@ -575,7 +575,7 @@ suite('MultiDiffEditorWidget', () => {
 		}
 	});
 
-	test('reveals and highlights the modified lines of a change without inner changes in an inline diff', async () => {
+	test('reveals and highlights the modified lines of a change without inner changes in an inline diff, and the rest of a range after them', async () => {
 		const lines = Array.from({ length: 300 }, (_, index) => `line ${index + 1}`);
 		const modifiedLines = [
 			...Array.from({ length: 200 }, (_, index) => `inserted ${index + 1}`),
@@ -586,8 +586,33 @@ suite('MultiDiffEditorWidget', () => {
 		try {
 			const editor = widget.tryGetCodeEditor(resource.modified)!.editor;
 			widget.reveal(resource, { range: new Range(150, 1, 150, 9), highlight: true });
+			widget.reveal(resource, { range: new Range(150, 1, 152, 5), highlight: true });
 
-			assert.deepStrictEqual({ highlights: getHighlights(editor), visible: isVisible(editor, new Position(350, 1)) }, { highlights: [new Range(350, 1, 351, 1)], visible: true });
+			assert.deepStrictEqual({ highlights: getHighlights(editor), visible: isVisible(editor, new Position(350, 1)) }, { highlights: [new Range(350, 1, 351, 1), new Range(350, 1, 352, 5)], visible: true });
+		} finally {
+			widget.setViewModel(undefined);
+		}
+	});
+
+	test('reveals the row of a wrapped deleted line of an inline diff that shows the range', async () => {
+		const lines = Array.from({ length: 400 }, (_, index) => `line ${index + 1}`);
+		const originalLines = [...lines];
+		originalLines[199] = Array.from({ length: 500 }, (_, index) => `word${index}`).join(' ');
+		// Deletes the lines 101 to 300.
+		const { widget, resource } = await showFileBelowAnother(originalLines.join('\n'), [...lines.slice(0, 100), ...lines.slice(300)].join('\n'), { renderSideBySide: false, diffWordWrap: 'on' });
+
+		try {
+			const editor = widget.tryGetCodeEditor(resource.modified)!.editor;
+			const originalEditor = widget.tryGetCodeEditor(resource.original)!.editor;
+			widget.reveal(resource, { range: Range.fromPositions(new Position(200, originalLines[199].length + 1)), highlight: false });
+			const lineHeight = editor.getOption(EditorOption.lineHeight);
+			// The hidden original editor aligns its lines with the view zone, which shows the last row of line 200 above line 201.
+			const top = originalEditor.getTopForLineNumber(201) - lineHeight;
+
+			assert.deepStrictEqual({
+				wrapsOverScreens: top - originalEditor.getTopForLineNumber(200) > 300,
+				showsRow: editor.getScrollTop() <= top && top + lineHeight <= editor.getScrollTop() + editor.getLayoutInfo().height,
+			}, { wrapsOverScreens: true, showsRow: true });
 		} finally {
 			widget.setViewModel(undefined);
 		}
