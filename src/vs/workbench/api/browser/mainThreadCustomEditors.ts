@@ -58,16 +58,9 @@ const enum CustomEditorModelType {
 
 type CustomEditorWebviewInput = CustomEditorInput | CustomEditorDiffInput | CustomEditorSideBySideDiffInput;
 
-interface CustomEditorDiffInitData {
-	readonly title: string;
-	readonly contentOptions: extHostProtocol.IWebviewContentOptions;
-	readonly options: extHostProtocol.IWebviewPanelOptions;
-	readonly active: boolean;
-}
-
 interface CustomEditorSideBySideDiffData {
 	readonly handle: extHostProtocol.WebviewHandle;
-	readonly initData: CustomEditorDiffInitData;
+	readonly getInitData: () => extHostProtocol.CustomEditorDiffInitData;
 }
 
 interface PendingCustomEditorSideBySideDiffResolution {
@@ -334,7 +327,7 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 							cancellation
 						);
 					} else if (webviewInput instanceof CustomEditorSideBySideDiffInput) {
-						await this.resolveCustomEditorSideBySideDiff(modelType, webviewInput, handle, viewType, initData, position, cancellation);
+						await this.resolveCustomEditorSideBySideDiff(modelType, webviewInput, handle, viewType, () => ({ ...initData, readonly: isReadonly }), position, cancellation);
 					} else {
 						const actualResource = modelType === CustomEditorModelType.Text ? this._uriIdentityService.asCanonicalUri(resource) : resource;
 						await this._proxyCustomEditors.$resolveCustomEditor(actualResource, handle, viewType, initData, position, cancellation);
@@ -437,7 +430,7 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 		webviewInput: CustomEditorSideBySideDiffInput,
 		handle: extHostProtocol.WebviewHandle,
 		viewType: string,
-		initData: CustomEditorDiffInitData,
+		getInitData: () => extHostProtocol.CustomEditorDiffInitData,
 		position: EditorGroupColumn,
 		cancellation: CancellationToken,
 	): Promise<void> {
@@ -465,7 +458,7 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 			}
 		}));
 
-		pending[webviewInput.side] = { handle, initData };
+		pending[webviewInput.side] = { handle, getInitData };
 
 		if (pending.original && pending.modified && !pending.started) {
 			pending.started = true;
@@ -482,8 +475,8 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 						},
 						viewType,
 						{
-							original: pending.original!.initData,
-							modified: pending.modified!.initData,
+							original: pending.original!.getInitData(),
+							modified: pending.modified!.getInitData(),
 						},
 						position,
 						pending.cancellation.token

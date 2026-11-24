@@ -154,6 +154,9 @@ class Editor extends Disposable {
 	#syncingReadonly = false;
 	#readonlyFeedbackElement: HTMLElement | undefined;
 	#readonlyFeedbackTimeout: ReturnType<typeof setTimeout> | undefined;
+	#readonlyAriaContainer: HTMLElement | undefined;
+	#readonlyAriaRegions: readonly [HTMLElement, HTMLElement] | undefined;
+	#readonlyAriaIndex = 0;
 
 	constructor(host: HTMLElement, initialState: InitialState) {
 		super();
@@ -161,6 +164,7 @@ class Editor extends Disposable {
 		this.#documentReadonly = initialState.documentReadonly;
 		this.#userReadonly = initialState.readonly;
 		this.#readonlyMessage = initialState.readonlyMessage;
+		this.#mountReadonlyLiveRegion();
 		this.#taskProgressProvider = createTaskProgressProvider(this.model, initialState.taskProgressLabels);
 
 		const messageSecret = document.querySelector<HTMLMetaElement>('meta[name="vscode-markdown-editor-message-secret"]')?.content;
@@ -427,6 +431,9 @@ class Editor extends Disposable {
 		this.#hideReadonlyFeedback();
 		this.#readonlyFeedbackElement?.remove();
 		this.#readonlyFeedbackElement = undefined;
+		this.#readonlyAriaContainer?.remove();
+		this.#readonlyAriaContainer = undefined;
+		this.#readonlyAriaRegions = undefined;
 		window.removeEventListener('pagehide', this.#onPageHide);
 		for (const transport of Array.from(this.#codeBlockEditorHostTransports.values())) {
 			transport.dispose();
@@ -454,6 +461,24 @@ class Editor extends Disposable {
 		}
 	}
 
+	#mountReadonlyLiveRegion(): void {
+		const container = document.createElement('div');
+		container.className = 'md-sr-only';
+		const createRegion = (): HTMLElement => {
+			const region = document.createElement('div');
+			region.setAttribute('role', 'status');
+			region.setAttribute('aria-live', 'polite');
+			region.setAttribute('aria-atomic', 'true');
+			return region;
+		};
+		const first = createRegion();
+		const second = createRegion();
+		container.append(first, second);
+		document.body.appendChild(container);
+		this.#readonlyAriaContainer = container;
+		this.#readonlyAriaRegions = [first, second];
+	}
+
 	#showReadonlyFeedback(): void {
 		if (!this.#documentReadonly || this.#disposed) {
 			return;
@@ -461,11 +486,18 @@ class Editor extends Disposable {
 		if (!this.#readonlyFeedbackElement) {
 			const banner = document.createElement('div');
 			banner.className = 'md-document-readonly-toast';
-			banner.setAttribute('role', 'status');
-			banner.setAttribute('aria-live', 'polite');
+			banner.setAttribute('aria-hidden', 'true');
 			banner.textContent = this.#readonlyMessage;
 			document.body.appendChild(banner);
 			this.#readonlyFeedbackElement = banner;
+		}
+		if (this.#readonlyAriaRegions) {
+			const [active, inactive] = this.#readonlyAriaIndex === 0
+				? this.#readonlyAriaRegions
+				: [this.#readonlyAriaRegions[1], this.#readonlyAriaRegions[0]];
+			this.#readonlyAriaIndex = 1 - this.#readonlyAriaIndex;
+			inactive.textContent = '';
+			active.textContent = this.#readonlyMessage;
 		}
 		this.#readonlyFeedbackElement.classList.add('visible');
 		if (this.#readonlyFeedbackTimeout !== undefined) {
@@ -552,12 +584,12 @@ class Editor extends Disposable {
 		}));
 		this.#view = view;
 		const onReadonlyKeyDown = (event: KeyboardEvent): void => {
-			if (this.#documentReadonly && isEditingKeyEvent(event)) {
+			if (this.#documentReadonly && !isNestedEditableTarget(event.target, view.element) && isEditingKeyEvent(event)) {
 				this.#showReadonlyFeedback();
 			}
 		};
 		const onReadonlyClipboardEdit = (event: ClipboardEvent): void => {
-			if (this.#documentReadonly) {
+			if (this.#documentReadonly && !isNestedEditableTarget(event.target, view.element)) {
 				event.preventDefault();
 				this.#showReadonlyFeedback();
 			}
@@ -851,6 +883,19 @@ function isInitialState(value: unknown): value is InitialState {
 		&& (candidate.lineBreak === '\n' || candidate.lineBreak === '\r\n')
 		&& typeof candidate.richLinksEnabled === 'boolean'
 		&& Array.isArray(candidate.linkPresentationRules);
+}
+
+function isNestedEditableTarget(target: EventTarget | null, editorRoot: HTMLElement): boolean {
+	const element = target instanceof HTMLElement
+		? target
+		: target instanceof Node
+			? target.parentElement
+			: null;
+	if (!element || element === editorRoot) {
+		return false;
+	}
+	const editable = element.closest('input, textarea, select, [contenteditable="true"], [contenteditable=""]');
+	return editable !== null && editable !== editorRoot;
 }
 
 function isEditingKeyEvent(event: KeyboardEvent): boolean {
