@@ -92,6 +92,8 @@ export class SandboxProfilesInput extends EditorInput implements IModalEditorOpt
 	) {
 		super();
 		watchSandboxProfiles(this._storage, this._store, () => this._onDidChangeLibrary());
+		// Save a pending valid edit before the window closes or reloads, while storage still accepts writes.
+		this._register(this._storage.onWillSaveState(() => this._autoSave.flush()));
 		this.select(this.profiles[0]);
 	}
 

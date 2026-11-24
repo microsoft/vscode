@@ -233,7 +233,11 @@ export class SandboxProfilesEditor extends EditorPane {
 		if (!token.isCancellationRequested) {
 			const listeners = new DisposableStore();
 			listeners.add(input.onDidSelect(() => this._render(input)));
-			listeners.add(input.onDidChangeProfiles(() => this._renderList(input)));
+			listeners.add(input.onDidChangeProfiles(() => {
+				this._renderList(input);
+				// Another window can take or free the name being edited.
+				this._nameInput?.validate();
+			}));
 			this._selectionListener.value = listeners;
 			this._render(input);
 		}

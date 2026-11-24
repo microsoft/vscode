@@ -16,7 +16,7 @@ import { TestConfigurationService } from '../../../../../../platform/configurati
 import { AgentNetworkDomainSettingId } from '../../../../../../platform/networkFilter/common/settings.js';
 import { readSandboxProfiles } from '../../../../../../platform/sandbox/common/sandboxProfiles.js';
 import { AgentSandboxSettingId as Sandbox } from '../../../../../../platform/sandbox/common/settings.js';
-import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
+import { InMemoryStorageService, StorageScope, StorageTarget, WillSaveStateReason } from '../../../../../../platform/storage/common/storage.js';
 import { SandboxProfilesInput } from '../../browser/sandboxProfilesInput.js';
 
 suite('Sandbox profiles editor', () => {
@@ -232,6 +232,17 @@ suite('Sandbox profiles editor', () => {
 		draft(input).name = 'Renamed';
 		await input.save();
 		assert.deepStrictEqual([draft(viewer).name, draft(editor).name], ['Renamed', 'Local edit']);
+	});
+
+	test('saves a pending valid edit when storage saves state before the window closes', async () => {
+		const { storage, open } = setup();
+		const input = open();
+		await create(input, 'Strict');
+		draft(input).name = 'Renamed';
+		input.changed();
+		const pending = readSandboxProfiles(storage).map(p => p.name);
+		await storage.flush(WillSaveStateReason.SHUTDOWN);
+		assert.deepStrictEqual({ pending, saved: readSandboxProfiles(storage).map(p => p.name) }, { pending: ['Strict'], saved: ['Renamed'] });
 	});
 
 	test('a name taken or freed in another window updates whether a kept edit is saved', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
