@@ -9,7 +9,7 @@ import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { extUri } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { ISearchComplete, ISearchProgressItem, SemanticSearchBehavior } from '../../../../services/search/common/search.js';
+import { ISearchComplete, ISearchProgressItem, ITextQuery, SemanticSearchBehavior } from '../../../../services/search/common/search.js';
 import { SearchView } from '../../browser/searchView.js';
 
 suite('Search View - keyword suggestions', () => {
@@ -139,7 +139,7 @@ suite('Search View - folder location change', () => {
 			neverSearched: reruns({ neverSearched: true }),
 			emptyQuery: reruns({ query: '' }),
 		}, {
-			moved: [[{ shouldKeepAIResults: false, shouldUpdateAISearch: true }]],
+			moved: [[{ shouldKeepAIResults: false, shouldUpdateAISearch: false, skipAISearch: true }]],
 			sameFolder: [],
 			neverSearched: [],
 			emptyQuery: [],
@@ -159,7 +159,7 @@ suite('Search View - folder location change', () => {
 		assert.deepStrictEqual({ cancelled: cancelSearch.args, rerunsWhileHidden, reruns: triggerQueryChange.args, redraws: refreshAndUpdateCount.callCount }, {
 			cancelled: [[true]],
 			rerunsWhileHidden: 0,
-			reruns: [[{ shouldKeepAIResults: false, shouldUpdateAISearch: true }]],
+			reruns: [[{ shouldKeepAIResults: false, shouldUpdateAISearch: false, skipAISearch: true }]],
 			redraws: 0
 		});
 	});
@@ -178,7 +178,7 @@ suite('Search View - folder location change', () => {
 		}
 
 		assert.deepStrictEqual({ moved: await run(true), notMoved: await run(false) }, {
-			moved: { reruns: [[{ shouldKeepAIResults: false, shouldUpdateAISearch: true }]], searches: 0 },
+			moved: { reruns: [[{ shouldKeepAIResults: false, shouldUpdateAISearch: false, skipAISearch: true }]], searches: 0 },
 			notMoved: { reruns: [], searches: 1 }
 		});
 	});
@@ -202,6 +202,40 @@ suite('Search View - folder location change', () => {
 		await view.replaceSearchModel(quickSearchModel, Promise.resolve({ results: [], messages: [] }));
 		moveTo(folder);
 
-		assert.deepStrictEqual(triggerQueryChange.args, [[{ shouldKeepAIResults: false, shouldUpdateAISearch: true }]]);
+		assert.deepStrictEqual(triggerQueryChange.args, [[{ shouldKeepAIResults: false, shouldUpdateAISearch: false, skipAISearch: true }]]);
+	});
+
+	test('the rerun neither runs AI search on empty results nor requests keyword suggestions', async () => {
+		async function runSearch(skipAISearch: boolean) {
+			const aiTextSearchResult = { hidden: true };
+			const getKeywordSuggestions = sinon.spy();
+			const view: {
+				doSearch(query: ITextQuery, excludePatternText: string, includePatternText: string, triggeredOnType: boolean, shouldKeepAIResults: boolean, shouldUpdateAISearch: boolean, skipAISearch: boolean): Thenable<void>;
+			} = Object.assign(Object.create(SearchView.prototype), {
+				progressService: { withProgress: (_options: object, task: () => Promise<void>) => { task(); } },
+				getProgressLocation: () => 'workbench.view.search',
+				searchWidget: { searchInput: { clearMessage: () => { } }, setReplaceAllActionState: () => { }, getReplaceValue: () => '' },
+				searchStateKey: { set: () => { } },
+				showEmptyStage: () => { },
+				_refreshResultsScheduler: { schedule: () => { } },
+				tree: { setSelection: () => { }, setFocus: () => { } },
+				viewModel: {
+					searchResult: { aiTextSearchResult, setAIQueryUsingTextQuery: () => { } },
+					search: () => ({ asyncResults: Promise.resolve<ISearchComplete>({ results: [], messages: [] }) })
+				},
+				configurationService: { getValue: () => ({ searchView: { semanticSearchBehavior: SemanticSearchBehavior.RunOnEmpty, keywordSuggestions: true } }) },
+				logService: { info: () => { } },
+				getKeywordSuggestions,
+				onSearchComplete: async () => { },
+			});
+
+			await view.doSearch({} as ITextQuery, '', '', false, false, false, skipAISearch);
+			return { aiResultsShown: !aiTextSearchResult.hidden, keywordRequests: getKeywordSuggestions.callCount };
+		}
+
+		assert.deepStrictEqual({ rerun: await runSearch(true), search: await runSearch(false) }, {
+			rerun: { aiResultsShown: false, keywordRequests: 0 },
+			search: { aiResultsShown: true, keywordRequests: 1 }
+		});
 	});
 });

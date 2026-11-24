@@ -445,7 +445,7 @@ export class SearchView extends ViewPane {
 			return;
 		}
 		if (this.isVisible()) {
-			this.submitSearch();
+			this.rerunSearchForNewLocation();
 		} else {
 			this.viewModel.cancelSearch(true);
 			this.viewModel.cancelAISearch(true);
@@ -466,18 +466,11 @@ export class SearchView extends ViewPane {
 	}
 
 	/**
-	 * Runs the current query the same way as pressing Enter in the search input.
+	 * Reruns the current query for the new Folder Location. Clears the AI results of the previous
+	 * location, but does not request AI results or keyword suggestions the user did not ask for.
 	 */
-	private submitSearch(options?: { triggeredOnType: boolean; delay: number }): void {
-		const shouldRenderAIResults = this.configurationService.getValue<ISearchConfigurationProperties>('search').searchView.semanticSearchBehavior;
-		if (shouldRenderAIResults === SemanticSearchBehavior.Auto) {
-			this.logService.info(`SearchView: Automatically rendering AI results`);
-		}
-		this.triggerQueryChange({
-			...options,
-			shouldKeepAIResults: false,
-			shouldUpdateAISearch: shouldRenderAIResults === SemanticSearchBehavior.Auto,
-		});
+	private rerunSearchForNewLocation(): void {
+		this.triggerQueryChange({ shouldKeepAIResults: false, shouldUpdateAISearch: false, skipAISearch: true });
 	}
 
 	private refreshInputs() {
@@ -679,7 +672,7 @@ export class SearchView extends ViewPane {
 			if (this.rerunWhenVisible) {
 				this.rerunWhenVisible = false;
 				this.changedWhileHidden = false;
-				this.submitSearch();
+				this.rerunSearchForNewLocation();
 			} else if (this.changedWhileHidden) {
 				// Render if results changed while viewlet was hidden - #37818
 				await this.refreshAndUpdateCount();
@@ -751,7 +744,17 @@ export class SearchView extends ViewPane {
 			this.searchWidget.toggleReplace(true);
 		}
 
-		this._register(this.searchWidget.onSearchSubmit(options => this.submitSearch(options)));
+		this._register(this.searchWidget.onSearchSubmit(options => {
+			const shouldRenderAIResults = this.configurationService.getValue<ISearchConfigurationProperties>('search').searchView.semanticSearchBehavior;
+			if (shouldRenderAIResults === SemanticSearchBehavior.Auto) {
+				this.logService.info(`SearchView: Automatically rendering AI results`);
+			}
+			this.triggerQueryChange({
+				...options,
+				shouldKeepAIResults: false,
+				shouldUpdateAISearch: shouldRenderAIResults === SemanticSearchBehavior.Auto,
+			});
+		}));
 		this._register(this.searchWidget.onSearchCancel(({ focus }) => this.cancelSearch(focus)));
 		this._register(this.searchWidget.searchInput.onDidOptionChange(() => {
 			this.triggerQueryChange({ shouldKeepAIResults: true });
@@ -1630,7 +1633,7 @@ export class SearchView extends ViewPane {
 		this.searchWidget.focus(false);
 	}
 
-	triggerQueryChange(_options?: { preserveFocus?: boolean; triggeredOnType?: boolean; delay?: number; shouldKeepAIResults?: boolean; shouldUpdateAISearch?: boolean }): void {
+	triggerQueryChange(_options?: { preserveFocus?: boolean; triggeredOnType?: boolean; delay?: number; shouldKeepAIResults?: boolean; shouldUpdateAISearch?: boolean; skipAISearch?: boolean }): void {
 		const options = { preserveFocus: true, triggeredOnType: false, delay: 0, ..._options };
 
 		if (options.triggeredOnType && !this.searchConfig.searchOnType) { return; }
@@ -1639,7 +1642,7 @@ export class SearchView extends ViewPane {
 
 			const delay = options.triggeredOnType ? options.delay : 0;
 			this.triggerQueryDelayer.trigger(() => {
-				this._onQueryChanged(options.preserveFocus, options.triggeredOnType, options.shouldKeepAIResults, options.shouldUpdateAISearch);
+				this._onQueryChanged(options.preserveFocus, options.triggeredOnType, options.shouldKeepAIResults, options.shouldUpdateAISearch, options.skipAISearch);
 			}, delay);
 		}
 	}
@@ -1652,7 +1655,7 @@ export class SearchView extends ViewPane {
 		return this.inputPatternIncludes.getValue().trim();
 	}
 
-	private _onQueryChanged(preserveFocus: boolean, triggeredOnType = false, shouldKeepAIResults = false, shouldUpdateAISearch = false): void {
+	private _onQueryChanged(preserveFocus: boolean, triggeredOnType = false, shouldKeepAIResults = false, shouldUpdateAISearch = false, skipAISearch = false): void {
 		if (!(this.searchWidget.searchInput?.inputBox.isInputValid())) {
 			return;
 		}
@@ -1752,7 +1755,7 @@ export class SearchView extends ViewPane {
 				this.tree.collapse(this.searchResult.aiTextSearchResult);
 			}
 
-			this.onQueryTriggered(query, options, excludePatternText, includePatternText, triggeredOnType, shouldKeepAIResults, shouldUpdateAISearch);
+			this.onQueryTriggered(query, options, excludePatternText, includePatternText, triggeredOnType, shouldKeepAIResults, shouldUpdateAISearch, skipAISearch);
 
 			if (!preserveFocus) {
 				this.searchWidget.focus(false, undefined, true); // focus back to input field
@@ -1786,7 +1789,7 @@ export class SearchView extends ViewPane {
 		});
 	}
 
-	private onQueryTriggered(query: ITextQuery, options: ITextQueryBuilderOptions, excludePatternText: string, includePatternText: string, triggeredOnType: boolean, shouldKeepAIResults: boolean, shouldUpdateAISearch: boolean): void {
+	private onQueryTriggered(query: ITextQuery, options: ITextQueryBuilderOptions, excludePatternText: string, includePatternText: string, triggeredOnType: boolean, shouldKeepAIResults: boolean, shouldUpdateAISearch: boolean, skipAISearch: boolean): void {
 		this.addToSearchHistoryDelayer.trigger(() => {
 			this.searchWidget.searchInput?.onSearchSubmit();
 			this.inputPatternExcludes.onSearchSubmit();
@@ -1799,7 +1802,7 @@ export class SearchView extends ViewPane {
 		}
 
 		this.currentSearchQ = this.currentSearchQ
-			.then(() => this.doSearch(query, excludePatternText, includePatternText, triggeredOnType, shouldKeepAIResults, shouldUpdateAISearch))
+			.then(() => this.doSearch(query, excludePatternText, includePatternText, triggeredOnType, shouldKeepAIResults, shouldUpdateAISearch, skipAISearch))
 			.then(() => undefined, () => undefined);
 	}
 
@@ -2025,7 +2028,7 @@ export class SearchView extends ViewPane {
 		});
 	}
 
-	private doSearch(query: ITextQuery, excludePatternText: string, includePatternText: string, triggeredOnType: boolean, shouldKeepAIResults: boolean, shouldUpdateAISearch: boolean): Thenable<void> {
+	private doSearch(query: ITextQuery, excludePatternText: string, includePatternText: string, triggeredOnType: boolean, shouldKeepAIResults: boolean, shouldUpdateAISearch: boolean, skipAISearch: boolean): Thenable<void> {
 		let progressComplete: () => void;
 		this.progressService.withProgress({ location: this.getProgressLocation(), delay: triggeredOnType ? 300 : 0 }, _progress => {
 			return new Promise<void>(resolve => progressComplete = resolve);
@@ -2059,14 +2062,14 @@ export class SearchView extends ViewPane {
 			this.viewModel.searchResult.setAIQueryUsingTextQuery(query);
 		}
 
-		if (this.configurationService.getValue<ISearchConfigurationProperties>('search').searchView.keywordSuggestions) {
+		if (!skipAISearch && this.configurationService.getValue<ISearchConfigurationProperties>('search').searchView.keywordSuggestions) {
 			this.getKeywordSuggestions();
 		}
 
 		return result.asyncResults.then((complete) => {
 			clearTimeout(slowTimer);
 			const config = this.configurationService.getValue<ISearchConfigurationProperties>('search').searchView.semanticSearchBehavior;
-			if (complete.results.length === 0 && config === SemanticSearchBehavior.RunOnEmpty) {
+			if (!skipAISearch && complete.results.length === 0 && config === SemanticSearchBehavior.RunOnEmpty) {
 				this.logService.info(`SearchView: Requesting semantic results on empty search.`);
 				this.model.searchResult.aiTextSearchResult.hidden = false;
 			}
