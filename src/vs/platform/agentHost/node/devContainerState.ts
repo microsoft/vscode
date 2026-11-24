@@ -365,6 +365,16 @@ export function buildLinkDevContainerStateCommand(options: IDevContainerStateLin
 		'    echo "Not persisting ~/$rel and the remaining folders: the container lacks CAP_FOWNER" >&2; exit 0',
 		'  fi',
 		'}',
+		// Restoring files another user wrote, e.g., before a change of the container user, would let them plant hooks that run
+		// as this user. Nobody else may be able to change a root user's files either. With ACLs, the group bits are the mask,
+		// which limits named users and groups. Prints the first such file; errors count as such files.
+		'untrusted_files() {',
+		'  if [ "$user_uid" = 0 ]; then',
+		'    find "$1" \\( ! -user 0 -o ! -type l \\( -perm -020 -o -perm -002 \\) \\) -print 2>&1 | head -n 1',
+		'  else',
+		'    find "$1" ! -user 0 ! -user "$user_uid" -print 2>&1 | head -n 1',
+		'  fi',
+		'}',
 		'link_state() {',
 		'  rel=$1',
 		'  shift',
@@ -391,16 +401,17 @@ export function buildLinkDevContainerStateCommand(options: IDevContainerStateLin
 		'  if is_other "$dst"; then skip state "$state/$rel is not a folder"; return 0; fi',
 		// Restoring the volume's state would remove the folder without keeping a copy of it, or fail after removing it.
 		'  if [ -L "$dst.deferred" ] || { [ -e "$dst.deferred" ] && [ ! -f "$dst.deferred" ]; }; then skip state "$state/$rel.deferred is not a file"; return 0; fi',
-		// Restoring files another user wrote, e.g., before a change of the container user, would let them plant hooks that run
-		// as this user. Errors count as such files.
-		'  if [ ! -L "$src" ] && [ -d "$dst" ] && [ -n "$(find "$dst" ! -user 0 ! -user "$user_uid" -print 2>&1 | head -n 1)" ]; then',
-		'    skip untrusted "a user other than root or the container user owns files in $state/$rel"; return 0',
-		'  fi',
 		// Moving or replacing a folder that is in use would lose the changes made to it meanwhile. The marker keeps a copy of
-		// these changes when the volume's state replaces the folder later, see below.
+		// these changes when the volume's state replaces the folder later, see below. Recorded before checking the volume's
+		// state, which may become eligible later.
 		'  if [ -n "$keep_existing" ] && [ ! -L "$src" ] && [ -d "$src" ]; then',
 		'    if [ -d "$dst" ]; then : > "$dst.deferred"; fi',
 		'    skip running "it exists and the container was already running"; return 0',
+		'  fi',
+		'  if [ ! -L "$src" ] && [ -d "$dst" ] && [ -n "$(untrusted_files "$dst")" ]; then',
+		// The container's folder stays in use, see above.
+		'    if [ -d "$src" ]; then : > "$dst.deferred"; fi',
+		'    skip untrusted "a user other than root or the container user owns or can change files in $state/$rel"; return 0',
 		'  fi',
 		'  for parent in "$@"; do',
 		'    if [ ! -d "$home_prefix/$parent" ]; then',
