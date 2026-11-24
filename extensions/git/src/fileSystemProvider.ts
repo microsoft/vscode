@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as path from 'path';
 import { workspace, Uri, Disposable, Event, EventEmitter, window, FileSystemProvider, FileChangeEvent, FileStat, FileType, FileChangeType, FileSystemError, LogOutputChannel } from 'vscode';
 import { debounce, throttle } from './decorators';
 import { fromGitUri, toGitUri } from './uri';
@@ -22,7 +23,7 @@ function sanitizeRef(ref: string, path: string, submoduleOf: string | undefined,
 	if (ref === '~') {
 		const fileUri = Uri.file(path);
 		const uriString = fileUri.toString();
-		const [indexStatus] = repository.indexGroup.resourceStates.filter(r => r.resourceUri.toString() === uriString);
+		const [indexStatus] = repository.indexChanges.filter(r => r.resourceUri.toString() === uriString);
 		return indexStatus ? '' : 'HEAD';
 	}
 
@@ -115,10 +116,13 @@ export class GitFileSystemProvider implements FileSystemProvider {
 	private cleanup(): void {
 		const now = new Date().getTime();
 		const cache = new Map<string, CacheRow>();
+		// A loaded Git document needs change events even when its file is not open, for example when the Source Control
+		// view compares the index with HEAD.
+		const loadedDocuments = new Set(workspace.textDocuments.map(d => d.uri.toString()));
 
 		for (const row of this.cache.values()) {
 			const { path } = fromGitUri(row.uri);
-			const isOpen = workspace.textDocuments
+			const isOpen = loadedDocuments.has(row.uri.toString()) || workspace.textDocuments
 				.filter(d => d.uri.scheme === 'file')
 				.some(d => pathEquals(d.uri.fsPath, path));
 
@@ -134,6 +138,15 @@ export class GitFileSystemProvider implements FileSystemProvider {
 
 	private async getOrOpenRepository(uri: string | Uri): Promise<Repository | undefined> {
 		let repository = this.model.getRepository(uri);
+		const fsPath = typeof uri === 'string' ? uri : fromGitUri(uri).path;
+		if (repository && !this.model.isOpeningFolderLocationOf(fsPath)) {
+			return repository;
+		}
+
+		// The repository of a location that a workspace folder switched to (ex: another worktree) can still be opening,
+		// while the open repository of the resource is the one of a location that contains it
+		await this.model.whenFolderLocationSwitchesOpened();
+		repository = this.model.getRepository(uri);
 		if (repository) {
 			return repository;
 		}
@@ -142,14 +155,43 @@ export class GitFileSystemProvider implements FileSystemProvider {
 		// so we need to explicitly open a repository before we can serve git content for the
 		// given git resource.
 		if (workspace.workspaceFolders === undefined || workspace.isAgentSessionsWorkspace) {
-			const fsPath = typeof uri === 'string' ? uri : fromGitUri(uri).path;
 			this.logger.info(`[GitFileSystemProvider][getOrOpenRepository] Opening repository for ${fsPath}`);
 
 			await this.model.openRepository(fsPath, true, true);
+			return this.model.getRepository(uri);
+		}
+
+		// The repository might not be discovered by the initial repository scan (ex: it is
+		// nested deeper than `git.repositoryScanMaxDepth`) and is only opened when a file from
+		// it is visible in a text editor. Editors that only reference git resources (ex: the
+		// merge editor restored after a window reload) would not open it, so we open it using
+		// the same rules that are used for visible text editors.
+		const autoRepositoryDetection = workspace.getConfiguration('git').get<boolean | 'subFolders' | 'openEditors'>('autoRepositoryDetection');
+		if (workspace.isTrusted && (autoRepositoryDetection === true || autoRepositoryDetection === 'openEditors')) {
+			const fsPath = typeof uri === 'string' ? uri : path.dirname(fromGitUri(uri).path);
+			this.logger.trace(`[GitFileSystemProvider][getOrOpenRepository] Opening repository for ${fsPath}`);
+
+			await this.model.openRepository(fsPath);
 			repository = this.model.getRepository(uri);
 		}
 
 		return repository;
+	}
+
+	private getRepositoryForSubmodule(uri: Uri): Repository | undefined {
+		// The root folder of a submodule is a gitlink entry of its parent repository
+		return this.model.getRepositoryForSubmodule(Uri.file(fromGitUri(uri).path));
+	}
+
+	private async readSubmoduleCommit(repository: Repository, ref: string, path: string): Promise<Uint8Array | undefined> {
+		try {
+			// Submodule (gitlink) entries have no content of their own, so render
+			// the commit that they point to, as `git diff` does
+			const { mode, object } = await repository.getObjectDetails(ref, path);
+			return mode === '160000' ? new TextEncoder().encode(`Subproject commit ${object}\n`) : undefined;
+		} catch {
+			return undefined;
+		}
 	}
 
 	watch(): Disposable {
@@ -163,7 +205,7 @@ export class GitFileSystemProvider implements FileSystemProvider {
 
 		const repository = submoduleOf
 			? await this.getOrOpenRepository(submoduleOf)
-			: await this.getOrOpenRepository(uri);
+			: this.getRepositoryForSubmodule(uri) ?? await this.getOrOpenRepository(uri);
 
 		if (!repository) {
 			this.logger.warn(`[GitFileSystemProvider][stat] Repository not found - ${uri.toString()}`);
@@ -215,7 +257,8 @@ export class GitFileSystemProvider implements FileSystemProvider {
 			}
 		}
 
-		const repository = await this.getOrOpenRepository(uri);
+		const submoduleParentRepository = this.getRepositoryForSubmodule(uri);
+		const repository = submoduleParentRepository ?? await this.getOrOpenRepository(uri);
 
 		if (!repository) {
 			this.logger.warn(`[GitFileSystemProvider][readFile] Repository not found - ${uri.toString()}`);
@@ -227,13 +270,32 @@ export class GitFileSystemProvider implements FileSystemProvider {
 
 		this.cache.set(uri.toString(), cacheValue);
 
+		const sanitizedRef = sanitizeRef(ref, path, submoduleOf, repository);
+
+		// When the commit of a submodule is also present in the parent repository,
+		// `git show` prints that commit, so submodules are checked before reading
+		if (submoduleParentRepository) {
+			const submoduleCommit = await this.readSubmoduleCommit(repository, sanitizedRef, path);
+			if (submoduleCommit) {
+				return submoduleCommit;
+			}
+		}
+
 		try {
-			return await repository.buffer(sanitizeRef(ref, path, submoduleOf, repository), path);
+			return await repository.buffer(sanitizedRef, path);
 		} catch {
 			// Empty tree
 			if (ref === await repository.getEmptyTree()) {
 				this.logger.warn(`[GitFileSystemProvider][readFile] Empty tree - ${uri.toString()}`);
 				return new Uint8Array(0);
+			}
+
+			// Submodule that is no longer registered (ex: it has been removed since)
+			if (!submoduleParentRepository) {
+				const submoduleCommit = await this.readSubmoduleCommit(repository, sanitizedRef, path);
+				if (submoduleCommit) {
+					return submoduleCommit;
+				}
 			}
 
 			// File does not exist in git. This could be because the file is untracked or ignored

@@ -195,6 +195,8 @@ export interface IChatUsage {
 		readonly reasoningTokens?: number;
 		readonly cacheWriteTokens?: number;
 		readonly duration?: number;
+		/** The call's own output, when it can differ from `completionTokens`: a subagent's call is reported on its parent turn. */
+		readonly outputTokens?: number;
 		readonly timeToFirstTokenMs?: number;
 		readonly providerCallId?: string;
 		readonly serviceRequestId?: string;
@@ -358,6 +360,8 @@ export interface IChatSystemNotificationPart {
 	collapsible?: boolean;
 	/** Render response timing beside the notification instead of using the response footer. */
 	renderInlineTiming?: boolean;
+	/** Keep the notification visible after the response completes instead of folding it into the completed steps. */
+	alwaysVisible?: boolean;
 	/** Use a quiet transcript boundary or an always-visible workflow introduction instead of a progress row. */
 	presentation?: 'workspaceTransition' | 'workflow';
 	/** Workspace folder name emphasized by the transition presentation. */
@@ -413,6 +417,14 @@ export interface IChatTaskResult {
 	kind: 'progressTaskResult';
 }
 
+/** A bell-slash button on a chat warning that stops that kind of warning, like the chat input notifications' mute action. */
+export interface IChatWarningMuteAction {
+	readonly commandId: string;
+	readonly commandArgs?: unknown[];
+	/** Tooltip and accessible label for the button. */
+	readonly tooltip: string;
+}
+
 export interface IChatWarningMessage {
 	content: IMarkdownString;
 	kind: 'warning';
@@ -421,6 +433,9 @@ export interface IChatWarningMessage {
 	 * response's collapsed steps.
 	 */
 	keepVisibleWhenCollapsed?: boolean;
+	mute?: IChatWarningMuteAction;
+	/** Shows the message as an error, for something that stopped the request rather than a caution about it. */
+	isError?: boolean;
 }
 
 export interface IChatInfoMessage {
@@ -564,6 +579,11 @@ export interface IChatQuestion {
 	required?: boolean;
 	validation?: IChatQuestionValidation;
 	detailedMessage?: string | IMarkdownString;
+	/** Plain text shown before the description as written, with its line breaks. It is never rendered as Markdown. */
+	context?: string;
+	/** A short plain-text note shown just above the answer, with an optional icon. */
+	note?: { readonly text: string; readonly icon?: ThemeIcon };
+	password?: boolean;
 }
 
 /** Answer shape for a single-select question. */
@@ -660,11 +680,11 @@ export interface IChatThinkingPart {
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	metadata?: { readonly [key: string]: any };
 	generatedTitle?: string;
-	/** Provider-owned timing must not be inferred from client observation or replay, even when no duration is supplied. */
+	/** Marks provider-managed reasoning boundaries, including runs without recorded timing. */
 	reasoningTimingSource?: 'provider';
-	/** Epoch milliseconds when the reasoning interval started, persisted so the span survives reload. */
+	/** Provider-reported epoch milliseconds when reasoning started, persisted so the span survives reload. */
 	reasoningStartedAt?: number;
-	/** Elapsed reasoning time in milliseconds, persisted so the duration survives reload. */
+	/** Provider-reported reasoning duration in milliseconds; never inferred from client observation or replay. */
 	reasoningDurationMs?: number;
 }
 
@@ -682,6 +702,26 @@ export interface IChatAutoModeResolutionPart {
 	 * of the pick; it already names the model.
 	 */
 	resolved?: { readonly id: string; readonly name: string; readonly reason?: string };
+	/** A router other than Auto, such as a host-side model router. */
+	router?: string;
+	/** The name of the route a host-side model router chose, when the route has one. */
+	routeName?: string;
+	/** The chosen route's `when`, when it decided the pick. */
+	preference?: string;
+	/** The thinking effort the router chose for this turn. */
+	effort?: string;
+	/** The context window a host-side model router asked for, in tokens. */
+	contextSize?: number;
+	/** Display name of the model the router moved off on this turn. */
+	switchedFrom?: string;
+	/** The router had no confident pick and used its first route. */
+	defaulted?: boolean;
+	/** The chat stayed on the model it was already running. */
+	kept?: boolean;
+	/** Set when the chat stayed on its model and the router changed its effort: the effort before this turn, or none when that was the model's default. */
+	effortChangedFrom?: { readonly effort?: string };
+	/** Auto is presented as Copilot Fusion, so the row names it that way. */
+	fusion?: boolean;
 }
 
 /**
@@ -742,6 +782,18 @@ export interface IChatTerminalToolInvocationData {
 	intention?: string;
 	/** The working directory URI for the terminal */
 	cwd?: UriComponents;
+	/**
+	 * Where an Agent Host command runs, shown before approval because the same
+	 * relative command line runs a different program in another directory or
+	 * environment. The built-in terminal tool leaves this unset and names a
+	 * changed directory in its confirmation title instead.
+	 */
+	executionTarget?: {
+		/** The working directory, verbatim in its execution environment's path syntax. */
+		readonly workingDirectory?: string;
+		/** The execution environment, when it is not the agent host's own machine. */
+		readonly environment?: string;
+	};
 	/**
 	 * Pre-computed confirmation display data (localization must happen at source).
 	 * Contains the command line to show in confirmation (potentially without cd prefix)
@@ -931,6 +983,12 @@ export interface IChatToolInvocation {
 	readonly toolSpecificData?: IChatTerminalToolInvocationData | ILegacyChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatPullRequestContent | IChatTodoListContent | IChatSubagentToolInvocationData | IChatSimpleToolInvocationData | IChatSearchToolInvocationData | IChatToolResourcesInvocationData | IChatModifiedFilesConfirmationData | IChatAgentFeedbackReviewConfirmationData | IChatSessionTargetData | IChatGeneratedImageData | IChatAutomationConfigurationData | IChatAutomationConfiguredData;
 	/** Active-only metadata that is omitted when the invocation is serialized. */
 	readonly otherClientToolCall?: IChatToolInvocationOtherClientData;
+	/**
+	 * What the user typed into the optional feedback field of a confirmation that offers one
+	 * (see {@link IToolConfirmationMessages.feedback}). Active-only: it is sent with the decision
+	 * and omitted when the invocation is serialized.
+	 */
+	confirmationFeedback?: string;
 	/**
 	 * Observable that tracks the `kind` of `toolSpecificData`. Used by the
 	 * tool invocation part to re-render when the kind changes (e.g. from
@@ -1291,6 +1349,8 @@ export interface IChatSubagentToolInvocationData {
 	/** Whether the child has reported a turn; false defers its entry, while undefined preserves legacy publication. */
 	hasStarted?: boolean;
 	isActive?: boolean;
+	/** Whether the latest observed child turn failed, independently of the task tool's result. */
+	isError?: boolean;
 	activity?: 'markdown' | 'reasoning';
 	description?: string;
 	/** Provider-supplied display name for the subagent type. */
@@ -2155,6 +2215,10 @@ export interface IChatRequestSubmittedEvent {
 export interface IChatRequestAcceptedEvent {
 	readonly chatSessionResource: URI;
 	readonly isNewSession: boolean;
+	/** The mode (agent) the submission was sent with, if the sender chose one. */
+	readonly modeInfo?: IChatRequestModeInfo;
+	/** Actor that produced an Agent Host message, e.g. an agent delegating to another session. Absent for direct sends. */
+	readonly agentHostMessageOrigin?: MessageOrigin;
 }
 
 export const IChatService = createDecorator<IChatService>('IChatService');
@@ -2243,6 +2307,8 @@ export interface IChatService {
 	 * Removes a pending request from the session's queue.
 	 */
 	removePendingRequest(sessionResource: URI, requestId: string): void;
+	/** Correlates a remotely consumed queue entry with its actual request, without canceling its submission. */
+	consumePendingRequest(sessionResource: URI, pendingRequestId: string, requestId: string): void;
 	/**
 	 * Sets the pending requests for a session, allowing for deletions/reordering.
 	 * Adding new requests should go through sendRequest with the queue option.

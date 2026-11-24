@@ -8,14 +8,16 @@ import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import type { IRecordedPullRequestAssociationResult } from '../../common/agentHostGitStateService.js';
 import type { IAgentServerToolDefinition } from '../../common/agentServerTools.js';
+import type { AgentHostStateManager } from '../agentHostStateManager.js';
 import { AGENT_HOST_SESSION_LINK_SCHEME } from '../../common/openSessionLink.js';
 import { ArtifactServerToolName, LEGACY_ARTIFACT_SERVER_TOOL_NAMES } from '../../common/serverToolNames.js';
-import { parseSessionArtifactInputs, SessionArtifactCollection } from '../../common/sessionArtifactCollection.js';
+import { parseSessionArtifactInputs, SessionArtifactCollection, type ISessionArtifactInput, type SessionArtifactAddOutcome } from '../../common/sessionArtifactCollection.js';
 import { SESSION_ARTIFACT_TYPES, SessionArtifactType, type ISessionArtifact } from '../../common/sessionArtifacts.js';
 import { type ToolDefinition } from '../../common/state/sessionState.js';
-import type { IServerToolDisplay, IServerToolGroup } from './agentServerToolHost.js';
+import type { IServerToolDisplay, IServerToolGroup, IServerToolExecutionContext } from './agentServerToolHost.js';
 import { assertArtifactChangesAllowed } from './artifactIntegrationServerTools.js';
-import { SessionArtifacts } from './sessionArtifacts.js';
+import { getArtifactChangeOwner, SessionArtifacts } from './sessionArtifacts.js';
+import type { IAgentHostArtifactRecordedReport, IAgentHostArtifactRemovedReport } from '../agentHostTelemetryReporter.js';
 
 const artifactClassification = 'An issue or pull request you create or attempt to fix, change, or unblock is an artifact; inspection or review alone makes it a reference.';
 
@@ -37,6 +39,18 @@ const artifactInputSchema: NonNullable<ToolDefinition['inputSchema']> = {
 		commitHash: { type: 'string', description: 'The commit hash. Required for the `commit` kind.' },
 	},
 	required: ['type', 'label', 'isArtifact'],
+};
+
+/** Offered only while chat resources are enabled (`chat.resources.enabled`): how the chat shows a recorded file. */
+const artifactModeProperty = {
+	type: 'string',
+	enum: ['pinned', 'aboveInput'],
+	description: 'Optional, for files. How the chat shows the file; omit it to list the file with the others. `pinned` gives it a pill of its own. `aboveInput` also shows it above the chat input, for example a status or plan Markdown file you keep updating. The user can change it afterwards. Recording the file again with another mode asks again.',
+};
+
+const artifactInputSchemaWithMode: NonNullable<ToolDefinition['inputSchema']> = {
+	...artifactInputSchema,
+	properties: { ...artifactInputSchema.properties, mode: artifactModeProperty },
 };
 
 function createAddArtifactInputSchema(inputSchema: NonNullable<ToolDefinition['inputSchema']>): NonNullable<ToolDefinition['inputSchema']> {
@@ -79,7 +93,7 @@ export const artifactServerToolDefinitions: IAgentServerToolDefinition[] = [
 	{
 		name: ArtifactServerToolName.RemoveArtifactOrReference,
 		title: 'Remove Artifact or Reference',
-		description: 'Remove an artifact or reference recorded in this chat by id. Removing it also pauses any automation its integrations run for it, such as automatic merging of a pull request. Only available in turns started by a person or a scheduled automation.',
+		description: 'Remove an artifact or reference recorded in this chat by id. Removing it also pauses any automation its integrations run for it, such as a pull request integration\'s own merge automation. Only available in turns started by a person or a scheduled automation.',
 		inputSchema: removeArtifactInputSchema,
 		annotations: { readOnlyHint: false, destructiveHint: true },
 		deferLoading: true,
@@ -98,6 +112,8 @@ export const artifactServerToolDefinitions: IAgentServerToolDefinition[] = [
 export interface IArtifactServerToolAccessor {
 	/** Whether the artifact tools are advertised and executable. */
 	readonly isEnabled: () => boolean;
+	/** Whether agents can choose how the chat shows what they record (`mode`). */
+	readonly isChatResourcesEnabled?: () => boolean;
 	/** Persists the session-wide artifact and reference collection, including entries from every chat. */
 	readonly persist: (session: string, artifacts: readonly ISessionArtifact[]) => void | Promise<void>;
 	/** Labels of the automation that integrations run for a recorded artifact, which removal pauses. */
@@ -108,6 +124,12 @@ export interface IArtifactServerToolAccessor {
 	readonly associatePullRequests?: (chat: string, urls: readonly string[]) => Promise<IRecordedPullRequestAssociationResult>;
 	readonly removePendingPullRequest?: (session: string, chat: string, url: string) => Promise<void>;
 	readonly reportAssociationError?: (error: unknown) => void;
+	/** Reports each entry an add call recorded, promoted or found already recorded, once the change is persisted. */
+	readonly reportArtifactRecorded?: (report: IAgentHostArtifactRecordedReport) => void;
+	/** Announces the entries an add call recorded, promoted or found already recorded, once the change is persisted. */
+	readonly didRecordArtifacts?: (recorded: { readonly session: string; readonly chat: string; readonly turnId: string | undefined; readonly artifactIds: readonly string[] }) => void;
+	/** Reports an entry the remove tool removed, once the change is persisted. */
+	readonly reportArtifactRemoved?: (report: IAgentHostArtifactRemovedReport) => void;
 }
 
 const ENABLED_AUTOMATION_TIMEOUT = 5_000;
@@ -115,6 +137,25 @@ const ENABLED_AUTOMATION_TIMEOUT = 5_000;
 /** The noun an entry is described by, so every message names what it acted on. */
 function entryNoun(isArtifact: boolean): string {
 	return isArtifact ? 'artifact' : 'reference';
+}
+
+function describeAddOutcome(outcome: SessionArtifactAddOutcome, artifact: ISessionArtifact): string {
+	switch (outcome) {
+		case 'added': return `Added ${entryNoun(artifact.isArtifact)}`;
+		case 'promoted': return 'Promoted artifact';
+		case 'modeUpdated': return `Updated how the chat shows the ${entryNoun(artifact.isArtifact)}`;
+		case 'alreadyRecorded': return 'Already recorded';
+	}
+}
+
+/** The fields every artifact telemetry report of a tool call shares. Call it once the change is done, so a chat that moved meanwhile is attributed to the session it moved to. */
+function toolCallTelemetry(stateManager: AgentHostStateManager, context: IServerToolExecutionContext): Pick<IAgentHostArtifactRecordedReport, 'provider' | 'session' | 'chat' | 'turnId' | 'toolCallId'> {
+	return {
+		...getArtifactChangeOwner(stateManager, context.chatUri, context.sessionUri),
+		chat: context.chatUri,
+		turnId: context.turnId,
+		toolCallId: context.toolCallId,
+	};
 }
 
 const REMOVED_ARTIFACT_MESSAGE = 'Removed artifact';
@@ -144,8 +185,12 @@ function describeArtifact(artifact: ISessionArtifact): string {
 
 export function createArtifactServerToolGroup(accessor?: IArtifactServerToolAccessor): IServerToolGroup {
 	const isEnabled = () => accessor?.isEnabled() === true;
+	const isChatResourcesEnabled = () => accessor?.isChatResourcesEnabled?.() === true;
 	return {
 		definitions: artifactServerToolDefinitions,
+		getDefinitions: () => isChatResourcesEnabled()
+			? artifactServerToolDefinitions.map(definition => definition.name === ArtifactServerToolName.AddArtifactOrReference ? { ...definition, inputSchema: createAddArtifactInputSchema(artifactInputSchemaWithMode) } : definition)
+			: artifactServerToolDefinitions,
 		legacyToolNames: LEGACY_ARTIFACT_SERVER_TOOL_NAMES,
 		isEnabled,
 		isEnabledForSession: isEnabled,
@@ -197,7 +242,8 @@ export function createArtifactServerToolGroup(accessor?: IArtifactServerToolAcce
 			const artifacts = new SessionArtifacts(stateManager, context.sessionUri, context.chatUri, accessor.persist);
 			switch (toolName) {
 				case ArtifactServerToolName.AddArtifactOrReference: {
-					const inputs = parseSessionArtifactInputs(rawArgs, ArtifactServerToolName.AddArtifactOrReference);
+					// Without chat resources the parameter is not offered, and a mode an agent sends anyway is ignored, even an invalid one.
+					const inputs = parseSessionArtifactInputs(rawArgs, ArtifactServerToolName.AddArtifactOrReference, isChatResourcesEnabled());
 					for (const input of inputs) {
 						if (input.uri && URI.parse(input.uri).scheme === AGENT_HOST_SESSION_LINK_SCHEME) {
 							throw new Error(`Invalid ${ArtifactServerToolName.AddArtifactOrReference} input: sessions and chats created with session-management tools must not be recorded as artifacts or references.`);
@@ -206,18 +252,29 @@ export function createArtifactServerToolGroup(accessor?: IArtifactServerToolAcce
 					const result = await artifacts.mutate(collection => {
 						const messages: string[] = [];
 						const pullRequestUrls = new Set<string>();
+						const recordings: { readonly input: ISessionArtifactInput; readonly artifact: ISessionArtifact; readonly outcome: SessionArtifactAddOutcome }[] = [];
 						for (const input of inputs) {
 							const result = collection.addOrPromoteArtifact(input, generateUuid, { chat: context.chatUri, ...(context.turnId ? { turnId: context.turnId } : {}) });
-							const status = result.added
-								? `Added ${entryNoun(result.artifact.isArtifact)}`
-								: result.artifacts !== collection.artifacts ? 'Promoted artifact' : 'Already recorded';
-							messages.push(`${status}: ${result.artifact.id}`);
+							messages.push(`${describeAddOutcome(result.outcome, result.artifact)}: ${result.artifact.id}`);
+							recordings.push({ input, artifact: result.artifact, outcome: result.outcome });
 							if (input.isArtifact && result.artifact.type === SessionArtifactType.PullRequest && result.artifact.isGitHub && result.artifact.link) {
 								pullRequestUrls.add(result.artifact.link);
 							}
 							collection = new SessionArtifactCollection(result.artifacts);
 						}
-						return { artifacts: collection.artifacts, messages, pullRequestUrls };
+						return { artifacts: collection.artifacts, messages, pullRequestUrls, recordings };
+					});
+					if (accessor.reportArtifactRecorded) {
+						const shared = toolCallTelemetry(stateManager, context);
+						for (const { input, artifact, outcome } of result.recordings) {
+							accessor.reportArtifactRecorded({ ...shared, source: 'agentTool', kind: artifact.type, isArtifact: input.isArtifact, outcome, isGitHub: artifact.isGitHub === true, batchSize: result.recordings.length });
+						}
+					}
+					accessor.didRecordArtifacts?.({
+						session: getArtifactChangeOwner(stateManager, context.chatUri, context.sessionUri).session,
+						chat: context.chatUri,
+						turnId: context.turnId,
+						artifactIds: result.recordings.map(recording => recording.artifact.id),
 					});
 					if (accessor.associatePullRequests && result.pullRequestUrls.size) {
 						try {
@@ -268,6 +325,7 @@ export function createArtifactServerToolGroup(accessor?: IArtifactServerToolAcce
 					if (!result.removed) {
 						return `No artifact or reference with id ${id}.`;
 					}
+					accessor.reportArtifactRemoved?.({ ...toolCallTelemetry(stateManager, context), initiator: 'agentTool', kind: result.removed.type, isArtifact: result.removed.isArtifact, isGitHub: result.removed.isGitHub === true });
 					const message = result.removed.isArtifact ? REMOVED_ARTIFACT_MESSAGE : REMOVED_REFERENCE_MESSAGE;
 					return paused.length
 						? `${message}: ${result.removed.id}\nPaused automation: ${paused.join('; ')}.`

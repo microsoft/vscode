@@ -4,6 +4,17 @@
 1. Get the extensions: [rust-analyzer](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer) and [CodeLLDB](https://marketplace.visualstudio.com/items?itemName=vadimcn.vscode-lldb)
 2. Ensure your workspace is set to the `launcher` folder being the root.
 
+## Rust toolchain
+
+Production CLI builds use the MSFT Rust toolchain `ms-prod-1.97`. Linux CLI checks and local OSS builds use upstream Rust `1.97.0`. To install the corresponding upstream toolchain locally without changing your default, select it explicitly when running Cargo from this directory:
+
+```shell
+rustup toolchain install 1.97.0 --profile minimal
+cargo +1.97.0 build --release --locked
+```
+
+On Windows, follow the native dependency setup below before building. Keep the MSFT `channel` and upstream `rustupChannel` parameters in the POSIX and Windows Rust installer templates under `build/azure-pipelines` aligned with each other, and keep `rustupChannel` in sync with the Linux Rust test input in `.github/workflows/pr.yml`.
+
 ## Building the CLI on Windows
 
 For the moment, we require OpenSSL on Windows, where it is not usually installed by default. To install it:
@@ -32,6 +43,18 @@ an interactive prompt.
 Without `--tunnel`, `code agent` and `code agent host` still start or reuse a local
 agent host supervisor.
 
+## GitHub environments
+
+Use `code agent host --github-environment --name <name>` to register an agent host as a GitHub environment. Like `code agent host`, it starts in the background by default; `--foreground` keeps it attached to the terminal. By default, it grants access to all accessible local drive roots on Windows and `/` on macOS and Linux, while keeping the launch directory as the shared project and default working directory. Network-backed Windows drives are not added automatically; inaccessible local drives are skipped with a warning. Automatically discovered grants are checked again when the agent host restarts, so a disconnected drive does not prevent registration.
+
+Background startup requires the GitHub credentials to be saved and readable by the detached supervisor. If credential persistence fails, use `--foreground` to keep the acquired credentials in memory without requiring them to be saved.
+
+Only one GitHub environment supervisor may run per server data directory. Repeated starts, including concurrent starts and `--foreground`, report an error instead of starting another host with the same environment identity. Stop the existing host with `code agent kill` before restarting it with different options, or use a separate `--server-data-dir` for an independent environment. Changing `--cli-data-dir` or `--user-data-dir` alone does not create an independent environment identity.
+
+On Windows, `code agent kill` forcefully terminates the selected supervisor and its process tree. A failed termination command reports an error instead of removing the host's discovery entry and reporting success.
+
+To restrict access, pass `--github-environment-root <directory>`. Repeat the option to grant multiple directories; explicit roots replace the default filesystem-wide grants and shared projects, with the first root as the default working directory.
+
 ## Headless sandbox certificate management
 
 Run these commands on the computer hosting the agent, as the same operating-system account and with the same `COPILOT_HOME` as that agent host. If unset, the home defaults to the account's `.copilot` directory. Desktop VS Code and a separate Copilot CLI installation are not required.
@@ -57,7 +80,7 @@ Status exit codes are `0` (trusted), `3` (missing trust), `4` (unsupported platf
 
 VS Code does not create or check a cross-process certificate lock file. A leftover lock file from an earlier development build does not block certificate commands. Existing operations within one agent host remain queued without lock-error messages. Changes from separate processes are not serialized by VS Code; the runtime and OS determine their outcome, with no guaranteed last-writer-wins ordering. Ctrl+C stops the command's process tree; OS trust may already have changed, so check status before retrying. After a successful trust change, restart affected tools.
 
-In a connected remote chat, select **Refresh** in the certificate notice to check the host again after installing trust through the CLI. This read-only action bypasses the host's cached observations and updates certificate diagnostics for its live chats. A failed check reports an error and permits retry; confirmed trust clears the notice. The button requires refresh support from the host. There is no automatic cross-process notification: if no notice is visible, or the host is older, restart the remote agent host and reconnect to discard cached observations. Reloading only the client does not reliably clear a persistent host's cache.
+In a connected remote chat, select **Refresh** in the certificate notice to check the host again after installing trust through the CLI. This read-only action bypasses the host's cached observations and updates certificate diagnostics for its live chats. A failed check reports an error and permits retry; confirmed trust clears the notice. The button requires the host to advertise refresh support on the connection, but does not require permission to manage the host’s trust store. There is no automatic cross-process notification: if no notice is visible, or the host is older, restart the remote agent host and reconnect to discard cached observations. Reloading only the client does not reliably clear a persistent host's cache.
 
 ## Tunnel request correlation
 

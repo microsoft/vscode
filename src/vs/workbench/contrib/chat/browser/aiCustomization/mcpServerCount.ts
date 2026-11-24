@@ -6,6 +6,7 @@
 import { IReader } from '../../../../../base/common/observable.js';
 import { getCustomizationScopeEnablement, type CustomizationDisabledReason } from '../../../../../platform/agentHost/common/customizationEnablement.js';
 import { isContributionEnabled } from '../../common/enablement.js';
+import { McpServerStatus } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { customizationSearchMatchesAny } from '../../common/aiCustomizationSearch.js';
 import { IAgentHostCustomizationService } from '../agentSessions/agentHost/agentHostCustomizationService.js';
 import { IMcpServer } from '../../../mcp/common/mcpTypes.js';
@@ -84,18 +85,30 @@ export function isMcpServerInUse(primaryEnabled: boolean, activeSessionServer: A
 export function getEffectiveMcpServerCount(
 	localServers: readonly IMcpServer[],
 	activeSessionServers: readonly AgentHostMcpServer[],
-	reader: IReader,
+	reader: IReader | undefined,
 	hiddenCollectionIds: readonly string[] | undefined,
 ): number {
+	return getEffectiveMcpServerCounts(localServers, activeSessionServers, reader, hiddenCollectionIds).total;
+}
+
+export function getEffectiveMcpServerCounts(
+	localServers: readonly IMcpServer[],
+	activeSessionServers: readonly AgentHostMcpServer[],
+	reader: IReader | undefined,
+	hiddenCollectionIds: readonly string[] | undefined,
+): { total: number; authRequired: number; authRequiredServers: readonly AgentHostMcpServer[] } {
 	if (activeSessionServers.length === 0) {
-		return localServers.filter(server =>
-			!hiddenCollectionIds?.includes(server.collection.id)
-			&& isContributionEnabled(server.enablement.read(reader))
-		).length;
+		return {
+			total: localServers.filter(server =>
+				!hiddenCollectionIds?.includes(server.collection.id)
+				&& isContributionEnabled(server.enablement.read(reader))
+			).length, authRequired: 0, authRequiredServers: []
+		};
 	}
 
 	const activeSessionMatcher = new ActiveSessionMcpServerMatcher(activeSessionServers);
 	let count = 0;
+	const authRequiredServers: AgentHostMcpServer[] = [];
 	for (const localServer of localServers) {
 		if (hiddenCollectionIds?.includes(localServer.collection.id)) {
 			continue;
@@ -106,14 +119,20 @@ export function getEffectiveMcpServerCount(
 			: isContributionEnabled(localServer.enablement.read(reader));
 		if (isMcpServerInUse(primaryEnabled, activeSessionServer)) {
 			count++;
+			if (activeSessionServer?.status === McpServerStatus.AuthRequired && !activeSessionServer.authenticating) {
+				authRequiredServers.push(activeSessionServer);
+			}
 		}
 	}
 	for (const activeSessionServer of activeSessionMatcher.unmatched('')) {
 		if (isMcpServerInUse(getCustomizationScopeEnablement(activeSessionServer).global, activeSessionServer)) {
 			count++;
+			if (activeSessionServer.status === McpServerStatus.AuthRequired && !activeSessionServer.authenticating) {
+				authRequiredServers.push(activeSessionServer);
+			}
 		}
 	}
-	return count;
+	return { total: count, authRequired: authRequiredServers.length, authRequiredServers };
 }
 
 function isHostOwnedPluginMcpServer(server: {

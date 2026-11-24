@@ -10,10 +10,10 @@ import { upcastPartial } from '../../../base/test/common/mock.js';
 import { IRemoteAgentHostEntry, IRemoteAgentHostService, getEntryAddress, RemoteAgentHostEntryType } from '../../../platform/agentHost/common/remoteAgentHostService.js';
 import { AGENT_HOST_SCHEME, agentHostAuthority, LOCAL_AGENT_HOST_AUTHORITY, toAgentHostUri } from '../../../platform/agentHost/common/agentHostUri.js';
 import { URI } from '../../../base/common/uri.js';
-import { resolveDevContainerSourceWorkspace, resolveRemoteAuthority, resolveRemoteFolderUri, sshAuthorityString } from '../../browser/openInVSCodeUtils.js';
+import { resolveDevContainerSourceWorkspace, resolveRemoteAuthority, resolveRemoteFolderUri, sshAuthorityString } from '../../../workbench/contrib/sessions/browser/openInVSCodeUtils.js';
 import { devContainerSamples, devContainerSampleUri } from '../../../platform/agentHost/common/devContainerSamples.js';
-import { ISessionsProvidersService } from '../../services/sessions/browser/sessionsProvidersService.js';
-import { IAgentHostSessionsProvider } from '../../common/agentHostSessionsProvider.js';
+import { ISessionsProvidersService } from '../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { IAgentHostSessionsProvider } from '../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 
 suite('resolveRemoteAuthority', () => {
 
@@ -237,6 +237,41 @@ suite('resolveRemoteAuthority', () => {
 		assert.deepStrictEqual(authority ? JSON.parse(decodeHex(authority.slice('dev-container+'.length)).toString()) : undefined, repository);
 	});
 
+	test('opens an environment by the volume folder of its workspace, with the SSH or Tunnel host that runs it, or on WSL in a shared Docker engine', () => {
+		const address = 'devcontainer:environment';
+		const resolve = (hostAuthority?: string, knownVolume = true, volumeOnLocalDockerEngine = false) => {
+			const providersService = makeProvidersService(address);
+			const remoteAgentHostService = makeRemoteAgentHostService([{
+				name: 'Dev Container',
+				connection: { type: RemoteAgentHostEntryType.DevContainer, address, environmentId: 'environment', ...(knownVolume ? { volume: { volumeName: 'ubuntu-2', folder: 'ubuntu-2' } } : {}), ...(hostAuthority ? { hostAuthority } : {}), ...(volumeOnLocalDockerEngine ? { volumeOnLocalDockerEngine } : {}) },
+			}]);
+			const folderUri = resolveRemoteFolderUri(URI.from({ scheme: AGENT_HOST_SCHEME, authority: agentHostAuthority(address), path: '/workspaces/ubuntu-2' }), 'agenthost-environment', providersService, remoteAgentHostService);
+			if (!folderUri) {
+				return undefined;
+			}
+			const [config, parentAuthority] = folderUri.authority.slice('dev-container+'.length).split('@');
+			// The configuration is compared as a string: Dev Containers identifies windows and recent entries by the authority.
+			return { scheme: folderUri.scheme, config: decodeHex(config).toString(), parentAuthority, path: folderUri.path };
+		};
+		const config = '{"volumeName":"ubuntu-2","folder":"ubuntu-2"}';
+		assert.deepStrictEqual({
+			local: resolve(),
+			ssh: resolve('ssh-remote+build'),
+			tunnel: resolve('tunnel+build'),
+			// Dev Containers uses this computer's Docker engine for a volume, which is the WSL distribution's only if it has the volume.
+			wsl: resolve('wsl+Ubuntu'),
+			wslOnLocalDockerEngine: resolve('wsl+Ubuntu', true, true),
+			unknownVolume: resolve(undefined, false),
+		}, {
+			local: { scheme: 'vscode-remote', config, parentAuthority: undefined, path: '/workspaces/ubuntu-2' },
+			ssh: { scheme: 'vscode-remote', config, parentAuthority: 'ssh-remote+build', path: '/workspaces/ubuntu-2' },
+			tunnel: { scheme: 'vscode-remote', config, parentAuthority: 'tunnel+build', path: '/workspaces/ubuntu-2' },
+			wsl: undefined,
+			wslOnLocalDockerEngine: { scheme: 'vscode-remote', config, parentAuthority: undefined, path: '/workspaces/ubuntu-2' },
+			unknownVolume: undefined,
+		});
+	});
+
 	test('does not open an unprovisioned sample as a host folder', () => {
 		assert.throws(() => resolveRemoteFolderUri(
 			devContainerSampleUri(devContainerSamples[0]),
@@ -332,8 +367,6 @@ suite('sshAuthorityString', () => {
 
 	test('hex-encodes when user is present', () => {
 		const result = sshAuthorityString({
-			type: RemoteAgentHostEntryType.SSH,
-			address: 'localhost:4321',
 			hostName: 'myserver',
 			user: 'admin',
 		});
@@ -343,8 +376,6 @@ suite('sshAuthorityString', () => {
 
 	test('hex-encodes when port is present', () => {
 		const result = sshAuthorityString({
-			type: RemoteAgentHostEntryType.SSH,
-			address: 'localhost:4321',
 			hostName: 'myserver',
 			port: 2222,
 		});
@@ -354,8 +385,6 @@ suite('sshAuthorityString', () => {
 
 	test('hex-encodes when hostName has uppercase letters', () => {
 		const result = sshAuthorityString({
-			type: RemoteAgentHostEntryType.SSH,
-			address: 'localhost:4321',
 			hostName: 'MyServer',
 		});
 		const decoded = decodeHex(result).toString();
@@ -364,8 +393,6 @@ suite('sshAuthorityString', () => {
 
 	test('hex-encodes with all fields', () => {
 		const result = sshAuthorityString({
-			type: RemoteAgentHostEntryType.SSH,
-			address: 'localhost:4321',
 			hostName: 'MyServer.example.com',
 			user: 'root',
 			port: 22,
@@ -378,12 +405,22 @@ suite('sshAuthorityString', () => {
 		});
 	});
 
-	test('uses hostName directly when address differs', () => {
+	test('uses a lowercase host name directly', () => {
 		const result = sshAuthorityString({
-			type: RemoteAgentHostEntryType.SSH,
-			address: 'localhost:4321',
 			hostName: 'actualhost',
 		});
 		assert.strictEqual(result, 'actualhost');
+	});
+
+	test('encodes like Remote - SSH, which identifies the remote by this string', () => {
+		assert.deepStrictEqual({
+			underscore: sshAuthorityString({ hostName: 'my_host' }),
+			ipv6: sshAuthorityString({ hostName: 'fe80::1' }),
+			plus: JSON.parse(decodeHex(sshAuthorityString({ hostName: 'a+b' })).toString()),
+		}, {
+			underscore: 'my_host',
+			ipv6: 'fe80::1',
+			plus: { hostName: 'a+b' },
+		});
 	});
 });

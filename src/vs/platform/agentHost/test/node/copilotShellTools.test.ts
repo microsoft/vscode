@@ -5,16 +5,17 @@
 
 import { createHash } from 'crypto';
 import assert from 'assert';
-import type { Tool, ToolInvocation, ToolResultObject } from '@github/copilot-sdk';
+import type { Tool, ToolInvocation, ToolResultObject } from '@microsoft/copilot-sdk';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { URI } from '../../../../base/common/uri.js';
 import * as platform from '../../../../base/common/platform.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore, type IDisposable } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { upcastPartial } from '../../../../base/test/common/mock.js';
 import { IAgentConfigurationService, type IAgentSessionConfigurationChangeEvent } from '../../node/agentConfigurationService.js';
 import type { ISessionSandboxPolicy } from '../../node/sessionSandbox.js';
-import { IEnvironmentService } from '../../../environment/common/environment.js';
+import { IEnvironmentService, INativeEnvironmentService } from '../../../environment/common/environment.js';
 import { IFileService } from '../../../files/common/files.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
@@ -136,6 +137,7 @@ suite('CopilotShellTools', () => {
 		const policies = new Map<string, ISessionSandboxPolicy>();
 		const service: IAgentConfigurationService = {
 			_serviceBrand: undefined,
+			copilotM365EnabledAtStartup: false,
 			onDidRootConfigChange: emitter.event,
 			onDidSessionConfigChange: sessionEmitter.event,
 			onDidChatConfigChange: Event.None,
@@ -153,6 +155,8 @@ suite('CopilotShellTools', () => {
 			getSessionConfigValues: session => sessionValues.get(session),
 			resolveConfigurationOwner: session => session,
 			getSessionSandboxPolicy: session => policies.get(session),
+			getSessionSandboxPaths: () => undefined,
+			setSessionSandboxPaths: () => { },
 			getSessionSandboxEnabled: () => undefined,
 			getChatSandboxEnabled: () => undefined,
 			getChatAttachmentScopes: target => [target.session],
@@ -211,9 +215,12 @@ suite('CopilotShellTools', () => {
 			del: async (uri: URI) => { options?.deletedFolders?.push(uri.path); },
 			realpath: async () => undefined,
 		} as Partial<IFileService> as IFileService);
-		services.set(IEnvironmentService, {
+		const appRoot = URI.file('/application').fsPath;
+		services.set(IEnvironmentService, upcastPartial<INativeEnvironmentService>({
+			appRoot,
+			appBundleRoot: appRoot,
 			userHome: URI.file('/home/test-user'),
-		} as Partial<IEnvironmentService> & { userHome: URI } as IEnvironmentService);
+		}));
 		services.set(IProductService, { dataFolderName: '.test-data' } as Partial<IProductService> as IProductService);
 		services.set(ISandboxHelperService, createStubSandboxHelperService());
 		const instantiationService: IInstantiationService = disposables.add(new InstantiationService(services));

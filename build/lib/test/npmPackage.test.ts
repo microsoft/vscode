@@ -280,4 +280,22 @@ suite('npmPackage', () => {
 			});
 		});
 	}
+
+	test('ensureNpmPackage links the installed version from pnpm\'s virtual store', t => {
+		const root = fs.mkdtempSync(path.join(os.tmpdir(), 'vscode-npm-package-test-'));
+		t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+		const nodeModulesRoot = path.join(root, 'node_modules');
+		writePnpmLockfile(path.join(root, 'pnpm-lock.yaml'), { [packageName]: { version, integrity: 'sha512-unused' } });
+		// With the isolated linker, a package that isn't a direct dependency is only in the store, and
+		// linked from its hoisting folder.
+		const installed = path.join(nodeModulesRoot, '.pnpm', `@github+copilot-darwin-arm64@${version}`, 'node_modules', ...packageName.split('/'));
+		fs.mkdirSync(installed, { recursive: true });
+		fs.writeFileSync(path.join(installed, 'package.json'), JSON.stringify({ version }));
+		fs.mkdirSync(path.join(nodeModulesRoot, '.pnpm', 'node_modules', '@github'), { recursive: true });
+		fs.symlinkSync(installed, path.join(nodeModulesRoot, '.pnpm', 'node_modules', ...packageName.split('/')), 'junction');
+
+		ensureNpmPackage(packageName, nodeModulesRoot, { packPackage: () => { throw new Error('The installed version must not be downloaded.'); } });
+
+		assert.strictEqual(fs.realpathSync(path.join(nodeModulesRoot, ...packageName.split('/'))), fs.realpathSync(installed));
+	});
 });

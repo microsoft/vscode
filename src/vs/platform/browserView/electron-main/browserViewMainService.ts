@@ -6,7 +6,7 @@
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore } from '../../../base/common/lifecycle.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
-import { BrowserViewPresentation, BrowserViewSessionSelector, BrowserViewStorageScope, isBrowserViewStorageScopeShareableWithAgent, IBrowserElementCommentsUpdate, IBrowserElementSelectionOptions, IBrowserViewAudience, IBrowserViewBounds, IBrowserViewState, IBrowserViewService, IBrowserViewCaptureScreenshotOptions, IBrowserViewFindInPageOptions, BrowserViewCommandId, IBrowserViewOwner, IBrowserViewInfo, IBrowserViewCreatedEvent, IBrowserViewEditorOpenOptions, IBrowserViewCreateOptions, IBrowserViewCreationContext, IBrowserViewWindowConfiguration, IBrowserDeviceProfile, BrowserViewChangeEvent, BrowserViewEvent, BrowserViewEventMap, serializeBrowserViewInfo, IBrowserViewAccessibilitySnapshot, getBrowserViewSessionNetwork } from '../common/browserView.js';
+import { BrowserViewPresentation, BrowserViewSessionSelector, BrowserViewStorageScope, isBrowserViewStorageScopeShareableWithAgent, IBrowserElementCommentsUpdate, IBrowserElementSelectionOptions, IBrowserViewAudience, IBrowserViewBounds, IBrowserViewState, IBrowserViewDialogResponse, IBrowserViewService, IBrowserViewCaptureScreenshotOptions, IBrowserViewFindInPageOptions, BrowserViewCommandId, IBrowserViewOwner, IBrowserViewInfo, IBrowserViewCreatedEvent, IBrowserViewEditorOpenOptions, IBrowserViewCreateOptions, IBrowserViewCreationContext, IBrowserViewWindowConfiguration, IBrowserDeviceProfile, BrowserViewChangeEvent, BrowserViewEvent, BrowserViewEventMap, serializeBrowserViewInfo, IBrowserViewAccessibilitySnapshot, getBrowserViewSessionNetwork } from '../common/browserView.js';
 import { ITunnelProxyInfo } from '../../tunnel/common/tunnelProxy.js';
 import { clipboard, Menu, MenuItem } from 'electron';
 import { IEnvironmentMainService } from '../../environment/electron-main/environmentMainService.js';
@@ -15,6 +15,7 @@ import { BrowserView } from './browserView.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { IWindowsMainService } from '../../windows/electron-main/windows.js';
 import { BrowserSession } from './browserSession.js';
+import { computeRemoteFileAccess } from './browserSessionFiles.js';
 import { IApplicationStorageMainService } from '../../storage/electron-main/storageMainService.js';
 import { IPermissionCategoryState } from '../common/browserPermissions.js';
 import { IntegratedBrowserOpenSource, logBrowserOpen } from '../common/browserViewTelemetry.js';
@@ -332,6 +333,12 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		this._getBrowserView(id).selectDevice(requestId, deviceId);
 	}
 
+	async respondToDialog(id: string, requestId: string, response: IBrowserViewDialogResponse): Promise<void> {
+		if (!this._getBrowserView(id).dialogs.respond(requestId, response)) {
+			throw new Error('The dialog is no longer pending');
+		}
+	}
+
 	async clearGlobalStorage(): Promise<void> {
 		const browserSession = BrowserSession.getOrCreateGlobal(this.instantiationService);
 		browserSession.connectStorage(this.applicationStorageMainService);
@@ -361,7 +368,8 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 	async updateWindowConfiguration(windowId: number, config: IBrowserViewWindowConfiguration): Promise<void> {
 		const oldConfig = this._windowConfigurations.get(windowId);
 		const didThemeChange = !equals(oldConfig?.theme, config.theme);
-		const didProxyChange = !equals(oldConfig?.networkProxies, config.networkProxies);
+		const didProxyChange = !equals(getProxies(oldConfig), getProxies(config));
+		const didUserAgentChange = oldConfig?.userAgent !== config.userAgent;
 
 		this._windowConfigurations.set(windowId, config);
 		this._ensureWindowCloseSubscription(windowId);
@@ -371,10 +379,13 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 				if (didThemeChange) {
 					view.inspector.setTheme(config.theme);
 				}
+				if (didUserAgentChange) {
+					view.emulator.setBaseUserAgent(config.userAgent);
+				}
 				// A network without a proxy keeps its previous one rather than use the local network.
 				const proxyInfo = didProxyChange ? getSessionProxyInfo(view.session, config) : undefined;
 				if (proxyInfo) {
-					view.session.remote.acquire(view.id, proxyInfo);
+					view.session.remote.acquire(view.id, proxyInfo, windowId);
 				}
 				if (typeof config.maxHistoryEntries === 'number') {
 					view.session.history.setMaxEntries(config.maxHistoryEntries);
@@ -382,7 +393,7 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 			}
 		}
 
-		this._recomputeTrustedFileRoots();
+		this._recomputeFileAccess();
 	}
 
 	private _ensureWindowCloseSubscription(windowId: number): void {
@@ -398,21 +409,16 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 			this._windowCloseSubscriptions.deleteAndDispose(windowId);
 			this.windowEvents.deleteAndDispose(windowId);
 			if (this._windowConfigurations.delete(windowId)) {
-				this._recomputeTrustedFileRoots();
+				this._recomputeFileAccess();
 			}
 		}));
 	}
 
-	private _recomputeTrustedFileRoots(): void {
-		const roots = new Set<string>();
-		let trustAllFiles = false;
-		for (const configuration of this._windowConfigurations.values()) {
-			for (const root of configuration.trustedFileRoots) {
-				roots.add(root);
-			}
-			trustAllFiles ||= configuration.trustAllFiles;
-		}
-		BrowserSession.setTrustedFileRoots([...roots], trustAllFiles);
+	private _recomputeFileAccess(): void {
+		const configurations = [...this._windowConfigurations.values()];
+		const localRoots = new Set(configurations.flatMap(configuration => configuration.trustedLocalFileRoots));
+		BrowserSession.setTrustedLocalFileRoots([...localRoots], configurations.some(configuration => configuration.trustAllLocalFiles));
+		BrowserSession.setRemoteFileAccess(computeRemoteFileAccess(configurations.map(configuration => configuration.remoteNetworks)));
 	}
 
 	/**
@@ -435,7 +441,7 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 			if (!proxyInfo) {
 				throw new Error(`No proxy is available for browser network '${browserSession.network.authority}'`);
 			}
-			browserSession.remote.acquire(id, proxyInfo);
+			browserSession.remote.acquire(id, proxyInfo, host.windowId);
 		}
 
 		const view = this.instantiationService.createInstance(
@@ -463,6 +469,9 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		view.presentation = presentation;
 		if (windowConfiguration?.theme) {
 			view.inspector.setTheme(windowConfiguration.theme);
+		}
+		if (windowConfiguration?.userAgent) {
+			view.emulator.setBaseUserAgent(windowConfiguration.userAgent);
 		}
 
 		Event.once(view.onDidClose)(() => {
@@ -534,6 +543,7 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 			onDidChangeDeviceEmulation: view.emulator.onDidChange,
 			onDidChangeAudiences: view.onDidChangeAudiences,
 			onDidRequestPermission: view.onDidRequestPermission,
+			onDidChangeDialog: view.onDidChangeDialog,
 			onDidChangePermissions: view.onDidChangePermissions,
 			onDidRequestOpenExternal: view.onDidRequestOpenExternal,
 		};
@@ -602,6 +612,11 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		const inspectTarget = windowConfiguration?.aiFeaturesDisabled
 			? undefined
 			: params.frame && await view.inspector.getElementHandle(BrowserViewInspectElementId.ContextMenuTarget, params.frame);
+		// The lookup may attach the debugger first, so the tab can be closed or hidden by now.
+		if (webContents.isDestroyed() || !view.isVisible() || win.isDestroyed() || view.getElectronWindow() !== win) {
+			inspectTarget?.dispose();
+			return;
+		}
 		const menu = new Menu();
 
 		if (params.linkURL) {
@@ -744,5 +759,9 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 
 /** The proxy of a session's remote network, if it has one. */
 function getSessionProxyInfo(browserSession: BrowserSession, config: IBrowserViewWindowConfiguration | undefined): ITunnelProxyInfo | undefined {
-	return browserSession.network ? config?.networkProxies?.[browserSession.network.authority] : undefined;
+	return browserSession.network ? config?.remoteNetworks?.[browserSession.network.authority]?.proxy : undefined;
+}
+
+function getProxies(config: IBrowserViewWindowConfiguration | undefined): { [authority: string]: ITunnelProxyInfo } {
+	return Object.fromEntries(Object.entries(config?.remoteNetworks ?? {}).map(([authority, network]) => [authority, network.proxy]));
 }

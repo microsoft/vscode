@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { Attachment, PermissionRequestedEvent } from '@github/copilot/sdk';
+import * as l10n from '@vscode/l10n';
 import { platform } from 'node:os';
 import type { CancellationToken, ChatParticipantToolToken, ChatResponseStream } from 'vscode';
 import { ILogService } from '../../../../platform/log/common/logService';
@@ -15,6 +16,7 @@ import { LanguageModelTextPart, Uri } from '../../../../vscodeTypes';
 import { ToolName } from '../../../tools/common/toolNames';
 import { IToolsService } from '../../../tools/common/toolsService';
 import { createEditConfirmation, formatDiffAsUnified } from '../../../tools/node/editFileToolUtils';
+import { getWorkspaceFileExternalConfirmation } from '../../../tools/node/toolUtils';
 import { ExternalEditTracker } from '../../common/externalEditTracker';
 import { getWorkingDirectory, isIsolationEnabled, IWorkspaceInfo } from '../../common/workspaceInfo';
 import { getAffectedUrisForEditTool, getCdPresentationOverrides, ToolCall } from '../common/copilotCLITools';
@@ -51,6 +53,7 @@ export type PermissionRequestResult = Parameters<Session['respondToPermission']>
 /**
  * Handles `read` permission requests.
  * Auto-approves reads for workspace files, session resources, trusted images, and attached files.
+ * Workspace membership is based on the resolved path, so a workspace symlink to an outside file still requires confirmation.
  * Falls back to interactive confirmation for out-of-workspace reads.
  */
 export async function handleReadPermission(
@@ -72,14 +75,15 @@ export async function handleReadPermission(
 		return { kind: 'approve-once' };
 	}
 
-	if (isFileFromSessionWorkspace(file, workspaceInfo)) {
-		logService.trace(`[CopilotCLISession] Auto Approving request to read file in session workspace ${permissionRequest.path}`);
-		return { kind: 'approve-once' };
-	}
-
-	if (workspaceService.getWorkspaceFolder(file)) {
-		logService.trace(`[CopilotCLISession] Auto Approving request to read workspace file ${permissionRequest.path}`);
-		return { kind: 'approve-once' };
+	// Lexical membership is not enough: a symlink inside the workspace can resolve outside it.
+	let boundaryViolation: BoundaryViolation | undefined;
+	if (getTrustedReadRoot(file, workspaceInfo, workspaceService)) {
+		const check = await checkResolvedBoundary(file, candidate => getTrustedReadRoot(candidate, workspaceInfo, workspaceService), logService, 'read');
+		if (check.kind === 'inside') {
+			logService.trace(`[CopilotCLISession] Auto Approving request to read workspace file ${permissionRequest.path}`);
+			return { kind: 'approve-once' };
+		}
+		boundaryViolation = check;
 	}
 
 	// Auto-approve reads of internal session resources (e.g. plan.md).
@@ -95,11 +99,12 @@ export async function handleReadPermission(
 		return { kind: 'approve-once' };
 	}
 
+	const baseMessage = permissionRequest.intention || permissionRequest.path || codeBlock(permissionRequest);
 	const toolParams: CoreConfirmationToolParams = {
 		tool: ToolName.CoreConfirmationTool,
 		input: {
 			title: 'Read file(s)',
-			message: permissionRequest.intention || permissionRequest.path || codeBlock(permissionRequest),
+			message: boundaryViolation ? `${baseMessage}\n\n${describeBoundaryViolation(file, boundaryViolation)}` : baseMessage,
 			confirmationType: 'basic'
 		}
 	};
@@ -107,10 +112,115 @@ export async function handleReadPermission(
 }
 
 /**
+ * Returns the session or workspace root that lexically contains `file`.
+ * The returned root is the boundary used to decide whether a resolved path is still trusted.
+ */
+function getTrustedReadRoot(file: URI, workspaceInfo: IWorkspaceInfo, workspaceService: IWorkspaceService): URI | undefined {
+	return getSessionReadRoot(file, workspaceInfo) ?? workspaceService.getWorkspaceFolder(file);
+}
+
+/**
+ * Returns the session working directory, folder, or (for worktrees) repository that lexically contains `file`.
+ */
+function getSessionReadRoot(file: URI, workspaceInfo: IWorkspaceInfo): URI | undefined {
+	const workingDirectory = getWorkingDirectory(workspaceInfo);
+	if (workingDirectory && extUriBiasedIgnorePathCase.isEqualOrParent(file, workingDirectory)) {
+		return workingDirectory;
+	}
+	if (workspaceInfo.folder && extUriBiasedIgnorePathCase.isEqualOrParent(file, workspaceInfo.folder)) {
+		return workspaceInfo.folder;
+	}
+	// Only if we have a worktree should we check the repository.
+	// As this means the user created a worktree and we have a repository.
+	// & if the worktree is automatically trusted, then so is the repository as we created the worktree from that.
+	if (workspaceInfo.worktree && workspaceInfo.repository && extUriBiasedIgnorePathCase.isEqualOrParent(file, workspaceInfo.repository)) {
+		return workspaceInfo.repository;
+	}
+	return undefined;
+}
+
+/**
+ * Why a lexically trusted path still needs confirmation: it resolves to `target` outside
+ * the boundary, or its real location could not be determined.
+ */
+type BoundaryViolation =
+	| { readonly kind: 'escaped'; readonly target: URI }
+	| { readonly kind: 'unresolved' };
+
+type BoundaryCheck = { readonly kind: 'inside' } | BoundaryViolation;
+
+/**
+ * Resolves symlinks and junctions in `file` and checks the result against the roots selected by `getRoot`.
+ * `getRoot` defines the trust boundary. Resolution failures fail closed as `unresolved`.
+ */
+async function checkResolvedBoundary(file: URI, getRoot: (candidate: URI) => URI | undefined, logService: ILogService, purpose: 'read' | 'write'): Promise<BoundaryCheck> {
+	try {
+		const { needsConfirmation, realPath } = await getWorkspaceFileExternalConfirmation(file, getRoot);
+		if (!needsConfirmation) {
+			return { kind: 'inside' };
+		}
+		if (realPath) {
+			logService.trace(`[CopilotCLISession] Not auto-approving ${purpose} that resolves outside the trusted folder: ${file.fsPath} -> ${realPath.fsPath}`);
+			return { kind: 'escaped', target: realPath };
+		}
+	} catch (error) {
+		logService.warn(`[CopilotCLISession] Failed to resolve ${purpose} path ${file.fsPath}; requiring confirmation: ${error instanceof Error ? error.message : String(error)}`);
+	}
+	return { kind: 'unresolved' };
+}
+
+/**
+ * Describes a boundary violation in a confirmation prompt.
+ */
+function describeBoundaryViolation(file: URI, violation: BoundaryViolation): string {
+	return violation.kind === 'escaped'
+		? l10n.t('{0} resolves through a link to {1}, which is outside the trusted folder.', file.fsPath, violation.target.fsPath)
+		: l10n.t('Could not determine where {0} resolves, so it may be outside the trusted folder.', file.fsPath);
+}
+
+/**
+ * The folder that justifies auto-approving a write, and why it is trusted.
+ * - `isolation`: the isolated worktree; writes skip the protected-file check.
+ * - `workingDirectory` / `workspace`: writes are subject to the protected-file check.
+ * - `sessionState`: Copilot CLI session resources (e.g. plan.md).
+ */
+interface IWriteBoundary {
+	readonly kind: 'isolation' | 'workingDirectory' | 'workspace' | 'sessionState';
+	readonly root: URI;
+	/** Roots a resolved path may land in without leaving the boundary. */
+	readonly trustedRoots: readonly URI[];
+}
+
+/**
+ * Selects the boundary that may justify auto-approving a write to `editFile`, if any.
+ */
+function getWriteBoundary(editFile: URI, workspaceInfo: IWorkspaceInfo, workspaceService: IWorkspaceService, sessionDir: URI): IWriteBoundary | undefined {
+	const workingDirectory = getWorkingDirectory(workspaceInfo);
+	const workspaceFolder = workspaceService.getWorkspaceFolder(editFile);
+	if (workingDirectory && extUriBiasedIgnorePathCase.isEqualOrParent(editFile, workingDirectory)) {
+		// If isolation is enabled, only the working directory itself is trusted.
+		if (isIsolationEnabled(workspaceInfo) && !workspaceService.getWorkspaceFolder(workingDirectory)) {
+			return { kind: 'isolation', root: workingDirectory, trustedRoots: [workingDirectory] };
+		}
+		// The protected-file check is relative to the working directory, so a link must stay inside it.
+		return { kind: 'workingDirectory', root: workingDirectory, trustedRoots: [workingDirectory] };
+	}
+	if (workspaceFolder) {
+		return { kind: 'workspace', root: workspaceFolder, trustedRoots: [workspaceFolder] };
+	}
+	if (extUriBiasedIgnorePathCase.isEqualOrParent(editFile, sessionDir)) {
+		return { kind: 'sessionState', root: sessionDir, trustedRoots: [sessionDir] };
+	}
+	return undefined;
+}
+
+/**
  * Handles `write` permission requests.
- * Auto-approves writes within workspace/working directory (respecting isolation mode
- * and protected-file checks). Tracks edits via `ExternalEditTracker` when auto-approving.
- * Falls back to interactive confirmation for writes outside the workspace or to protected files.
+ * Auto-approves writes within the workspace, working directory, or session resources (respecting
+ * isolation mode and protected-file checks). The boundary is checked against the resolved path,
+ * so a symlink or junction that leaves it still requires confirmation.
+ * Tracks edits via `ExternalEditTracker` when approved.
+ * Falls back to interactive confirmation for writes outside these boundaries or to protected files.
  */
 export async function handleWritePermission(
 	sessionId: string,
@@ -127,63 +237,58 @@ export async function handleWritePermission(
 	logService: ILogService,
 	token: CancellationToken,
 ): Promise<PermissionRequestResult> {
-	const workingDirectory = getWorkingDirectory(workspaceInfo);
 	const editFile = getFileBeingEdited(permissionRequest, toolCall);
 
-	// Auto-approve writes within the workspace/working directory when appropriate.
-	if (workingDirectory && editFile) {
-		const isWorkspaceFile = workspaceService.getWorkspaceFolder(editFile);
-		const isWorkingDirectoryFile = !workspaceService.getWorkspaceFolder(workingDirectory) && extUriBiasedIgnorePathCase.isEqualOrParent(editFile, workingDirectory);
+	// Builds the edit confirmation and tracks the edit if it is approved (or needs no confirmation).
+	const confirm = async (options: IEditConfirmationOptions): Promise<PermissionRequestResult> => {
+		const toolParams = await getFileEditConfirmationToolParams(instantiationService, permissionRequest, toolCall, options);
+		if (!toolParams) {
+			if (options.forceConfirmationReason) {
+				logService.warn(`[CopilotCLISession] Failed to build confirmation for write that leaves the trusted folder: ${editFile?.fsPath ?? permissionRequest.fileName}`);
+				return { kind: 'denied-interactively-by-user' };
+			}
+			// No confirmation needed (e.g. no file to edit) — auto-approve.
+			if (editFile) {
+				await trackEditIfNeeded(editTracker, toolCall, editFile, stream, logService);
+			}
+			return { kind: 'approve-once' };
+		}
+		const result = await invokeConfirmationTool(toolParams, toolParentCallId, toolsService, toolInvocationToken, logService, token);
+		if (result.kind === 'approve-once' && editFile) {
+			await trackEditIfNeeded(editTracker, toolCall, editFile, stream, logService);
+		}
+		return result;
+	};
 
-		let autoApprove = false;
-		// If isolation is enabled, we only auto-approve writes within the working directory.
-		if (isIsolationEnabled(workspaceInfo) && isWorkingDirectoryFile) {
-			autoApprove = true;
-		}
-		// If its a workspace file, and not editing protected files, we auto-approve.
-		if (!autoApprove && isWorkspaceFile && !(await requiresFileEditconfirmation(instantiationService, permissionRequest, toolCall))) {
-			autoApprove = true;
-		}
-		// If we're working in the working directory (non-isolation), and not editing protected files, we auto-approve.
-		if (!autoApprove && isWorkingDirectoryFile && !(await requiresFileEditconfirmation(instantiationService, permissionRequest, toolCall, workingDirectory))) {
-			autoApprove = true;
-		}
+	const sessionDir = Uri.joinPath(Uri.file(getCopilotCLISessionStateDir()), sessionId);
+	const boundary = editFile && getWriteBoundary(editFile, workspaceInfo, workspaceService, sessionDir);
+	if (!editFile || !boundary) {
+		return confirm({});
+	}
 
-		if (autoApprove) {
+	// Resolve before the protected-file check, which is evaluated relative to the boundary root.
+	const check = await checkResolvedBoundary(
+		editFile,
+		candidate => boundary.trustedRoots.find(root => extUriBiasedIgnorePathCase.isEqualOrParent(candidate, root)),
+		logService,
+		'write',
+	);
+	if (check.kind !== 'inside') {
+		return confirm({ forceConfirmationReason: describeBoundaryViolation(editFile, check) });
+	}
+
+	switch (boundary.kind) {
+		case 'isolation':
 			logService.trace(`[CopilotCLISession] Auto Approving request ${editFile.fsPath}`);
 			await trackEditIfNeeded(editTracker, toolCall, editFile, stream, logService);
 			return { kind: 'approve-once' };
-		}
+		case 'sessionState':
+			logService.trace(`[CopilotCLISession] Auto Approving request to write to Copilot CLI session resource ${editFile.fsPath}`);
+			return { kind: 'approve-once' };
+		case 'workingDirectory':
+		case 'workspace':
+			return confirm({ workingDirectory: boundary.root });
 	}
-
-	// Auto-approve writes to internal session resources (e.g. plan.md).
-	const sessionDir = Uri.joinPath(Uri.file(getCopilotCLISessionStateDir()), sessionId);
-	if (editFile && extUriBiasedIgnorePathCase.isEqualOrParent(editFile, sessionDir)) {
-		logService.trace(`[CopilotCLISession] Auto Approving request to write to Copilot CLI session resource ${editFile.fsPath}`);
-		return { kind: 'approve-once' };
-	}
-
-	// Fall back to interactive confirmation. If approved, track the edit.
-	let workspaceFolderForFile: URI | undefined;
-	if (editFile) {
-		workspaceFolderForFile = workspaceService.getWorkspaceFolder(editFile);
-		if (workingDirectory && extUriBiasedIgnorePathCase.isEqualOrParent(editFile, workingDirectory)) {
-			workspaceFolderForFile = workingDirectory;
-		}
-	}
-	const toolParams = await getFileEditConfirmationToolParams(instantiationService, permissionRequest, toolCall, workspaceFolderForFile);
-	if (!toolParams) {
-		// No confirmation needed (e.g. no file to edit) — auto-approve.
-		if (editFile) {
-			await trackEditIfNeeded(editTracker, toolCall, editFile, stream, logService);
-		}
-		return { kind: 'approve-once' };
-	}
-	const result = await invokeConfirmationTool(toolParams, toolParentCallId, toolsService, toolInvocationToken, logService, token);
-	if (result.kind === 'approve-once' && editFile) {
-		await trackEditIfNeeded(editTracker, toolCall, editFile, stream, logService);
-	}
-	return result;
 }
 
 /**
@@ -330,20 +435,7 @@ export async function showInteractivePermissionPrompt(
  * or repository (when using worktrees).
  */
 export function isFileFromSessionWorkspace(file: URI, workspaceInfo: IWorkspaceInfo): boolean {
-	const workingDirectory = getWorkingDirectory(workspaceInfo);
-	if (workingDirectory && extUriBiasedIgnorePathCase.isEqualOrParent(file, workingDirectory)) {
-		return true;
-	}
-	if (workspaceInfo.folder && extUriBiasedIgnorePathCase.isEqualOrParent(file, workspaceInfo.folder)) {
-		return true;
-	}
-	// Only if we have a worktree should we check the repository.
-	// As this means the user created a worktree and we have a repository.
-	// & if the worktree is automatically trusted, then so is the repository as we created the worktree from that.
-	if (workspaceInfo.worktree && workspaceInfo.repository && extUriBiasedIgnorePathCase.isEqualOrParent(file, workspaceInfo.repository)) {
-		return true;
-	}
-	return false;
+	return !!getSessionReadRoot(file, workspaceInfo);
 }
 
 /**
@@ -360,12 +452,28 @@ async function trackEditIfNeeded(editTracker: ExternalEditTracker, toolCall: Too
 	}
 }
 
+/**
+ * Whether writing the requested file needs confirmation because it is a protected file.
+ * Every path, including symlink targets, is treated as inside `workingDirectory`, so resolve and verify
+ * the path first (see {@link checkResolvedBoundary}). Without `workingDirectory`, every file path needs confirmation.
+ */
 export async function requiresFileEditconfirmation(instaService: IInstantiationService, permissionRequest: PermissionRequest, toolCall?: ToolCall | undefined, workingDirectory?: URI): Promise<boolean> {
-	const confirmationInfo = await getFileEditConfirmationToolParams(instaService, permissionRequest, toolCall, workingDirectory);
+	const confirmationInfo = await getFileEditConfirmationToolParams(instaService, permissionRequest, toolCall, { workingDirectory });
 	return confirmationInfo !== undefined;
 }
 
-async function getFileEditConfirmationToolParams(instaService: IInstantiationService, permissionRequest: PermissionRequest, toolCall?: ToolCall | undefined, workingDirectory?: URI): Promise<CoreConfirmationToolParams | undefined> {
+interface IEditConfirmationOptions {
+	/**
+	 * The folder every path in the edit is treated as belonging to when checking protected files.
+	 * Symlink targets are treated as inside it too, so only pass it after verifying that the
+	 * resolved path stays inside (see {@link checkResolvedBoundary}).
+	 */
+	readonly workingDirectory?: URI;
+	/** When set, always require confirmation and show this reason. */
+	readonly forceConfirmationReason?: string;
+}
+
+async function getFileEditConfirmationToolParams(instaService: IInstantiationService, permissionRequest: PermissionRequest, toolCall: ToolCall | undefined, { workingDirectory, forceConfirmationReason }: IEditConfirmationOptions): Promise<CoreConfirmationToolParams | undefined> {
 	if (permissionRequest.kind !== 'write') {
 		return;
 	}
@@ -396,7 +504,7 @@ async function getFileEditConfirmationToolParams(instaService: IInstantiationSer
 	};
 
 	const getDetails = () => instaService.invokeFunction(details).then(d => d || '');
-	const confirmationInfo = await instaService.invokeFunction(accessor => createEditConfirmation(accessor, [file], undefined, getDetails, undefined, () => workingDirectory));
+	const confirmationInfo = await instaService.invokeFunction(accessor => createEditConfirmation(accessor, [file], undefined, getDetails, forceConfirmationReason, () => workingDirectory));
 	const confirmationMessage = confirmationInfo.confirmationMessages;
 	if (!confirmationMessage) {
 		return;

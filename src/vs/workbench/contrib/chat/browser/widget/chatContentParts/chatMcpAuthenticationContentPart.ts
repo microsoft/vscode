@@ -138,7 +138,7 @@ export class ChatMcpAuthenticationContentPart extends Disposable implements ICha
 		}));
 		store.add(widget.onDidClick(() => void this.authenticate()));
 		this.domNode.appendChild(widget.domNode);
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		this.authenticateAction = widget.domNode.querySelector<HTMLElement>('.monaco-button') ?? undefined;
 		if (!this._renderedAuthenticatingServerId && this.configurationService.getValue(AccessibilityWorkbenchSettingId.VerboseChatProgressUpdates)) {
 			alert(localize('mcp.auth.announcement', "{0} Use the Authenticate button to continue.", renderAsPlaintext(new MarkdownString(content))));

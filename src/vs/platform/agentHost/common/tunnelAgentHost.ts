@@ -10,13 +10,16 @@ import { localize } from '../../../nls.js';
 
 export const ITunnelAgentHostService = createDecorator<ITunnelAgentHostService>('tunnelAgentHostService');
 
-/** Silent discovery has no usable token for a configured authentication provider. */
+/** Discovery has no usable token for a configured authentication provider. */
 export class TunnelAuthenticationRequiredError extends Error {
 	constructor(readonly authProvider: 'github' | 'microsoft') {
 		super(localize('tunnelAgentHost.authenticationRequired', "Sign in to allow access to your tunnels."));
 		this.name = 'TunnelAuthenticationRequiredError';
 	}
 }
+
+// IPC preserves Error.name, but not custom properties or prototypes.
+export const TUNNEL_DISCOVERY_UNAUTHORIZED = 'TunnelDiscoveryUnauthorized';
 
 /**
  * IPC channel name for the shared-process tunnel service.
@@ -108,8 +111,8 @@ export interface ITunnelInfo {
 	readonly tags: readonly string[];
 	/** Parsed protocol version from tags. */
 	readonly protocolVersion: number;
-	/** Number of hosts currently accepting connections (0 = offline). */
-	readonly hostConnectionCount: number;
+	/** Number of hosts accepting connections at discovery time; undefined if status was not reported. */
+	readonly hostConnectionCount: number | undefined;
 }
 
 /** How startup auto-connect should establish a tunnel connection. */
@@ -534,6 +537,14 @@ export interface ITunnelAgentHostService {
 	/** Cache a tunnel as recently used. */
 	cacheTunnel(tunnel: ITunnelInfo, authProvider?: 'github' | 'microsoft'): void;
 
+	/**
+	 * Refresh a cached tunnel's discovered name, cluster, and protocol version
+	 * in place, e.g. after the tunnel was renamed. Unlike {@link cacheTunnel},
+	 * this keeps the entry's auth provider, recency order, and auto-connect
+	 * suppression. Does nothing when the tunnel is not cached.
+	 */
+	updateCachedTunnel(tunnel: ITunnelInfo): void;
+
 	/** Remove a tunnel from the cache. */
 	removeCachedTunnel(tunnelId: string): void;
 
@@ -566,6 +577,12 @@ export interface ITunnelAgentHostService {
 	getAuthProvider(options?: { silent?: boolean }): Promise<'github' | 'microsoft' | undefined>;
 	/** Requests the configured tunnel permissions without connecting to a host. */
 	signIn?(authProvider: 'github' | 'microsoft'): Promise<void>;
+
+	/**
+	 * The type of the agent host that the tunnel's gateway selected for the current or most recent connection to the
+	 * tunnel at {@link address}, or `undefined` when this service has not connected it or cannot tell.
+	 */
+	getSelectedServerType(address: string): TunnelGatewayServerType | 'unknown' | undefined;
 }
 
 /** Information about an actively hosted tunnel. */

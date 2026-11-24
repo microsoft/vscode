@@ -6,6 +6,7 @@
 import { equals } from '../../../../../base/common/arrays.js';
 import { raceCancellationError, raceTimeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { asGitHubAccount } from '../../../../../base/common/defaultAccount.js';
 import { getErrorMessage, isCancellationError, onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Lazy } from '../../../../../base/common/lazy.js';
@@ -22,6 +23,7 @@ import { createMcpGalleryMarketplaceProviders, getAllMcpGalleryMarketplaceSource
 import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IMcpGalleryManifestService } from '../../../../../platform/mcp/common/mcpGalleryManifest.js';
+import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
 import { ChatConfiguration } from '../../common/constants.js';
@@ -29,15 +31,17 @@ import { ICustomizationHarnessService, ICustomizationMarketplaceInfo, ICustomiza
 import { IPluginMarketplaceService } from '../../common/plugins/pluginMarketplaceService.js';
 import { CopilotConnectorsMarketplaceProvider, ICopilotConnectorsService } from './copilotConnectorsService.js';
 import { isAgentFinderPublicFeedAvailable } from './customizationMarketplaceConfiguration.js';
+import { isTeamProvidedVisible } from './customizationTeamProvenance.js';
 import { createPluginCustomizationMarketplaceProviders, getAllPluginCustomizationMarketplaceSourceInfos, getPluginCustomizationMarketplaceSourceInfos, isPluginMarketplaceAvailableInDiscover } from './pluginCustomizationMarketplaceProvider.js';
 
 export function getProviderMarketplaceSourceId(name: string): string {
 	return `providerPluginMarketplace.${encodeURIComponent(name)}`;
 }
 
-/** Compares the fields that determine a provider marketplace's source identity, availability, and queries. */
+/** Compares the fields that determine a provider marketplace's source identity, availability, provenance label, and queries. */
 function providerMarketplacesEqual(a: ICustomizationMarketplaceInfo, b: ICustomizationMarketplaceInfo): boolean {
-	return a.name === b.name && a.source === b.source && a.available === b.available;
+	return a.name === b.name && a.source === b.source && a.available === b.available
+		&& isTeamProvidedVisible(a.team, a.managed) === isTeamProvidedVisible(b.team, b.managed);
 }
 
 interface IAgentFinderBrowseFeed {
@@ -141,13 +145,14 @@ export class PlatformCustomizationMarketplaceWorkbenchService implements ICustom
 	declare readonly _serviceBrand: undefined;
 	readonly allSources = getAllMcpGalleryMarketplaceSourceInfos();
 	readonly onDidChangeSources: Event<ICustomizationMarketplaceSourcesChangeEvent>;
-	get sources() { return getCustomizationMarketplaceSourceInfos(this.mcpGalleryManifestService.mcpGalleryManifestStatus); }
+	get sources() { return getCustomizationMarketplaceSourceInfos(this.mcpGalleryManifestService.mcpGalleryManifestStatus, this.configurationService, this.productService); }
 	private readonly service: Lazy<CustomizationMarketplaceService>;
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IMcpGalleryManifestService private readonly mcpGalleryManifestService: IMcpGalleryManifestService,
+		@IProductService private readonly productService: IProductService,
 	) {
 		this.onDidChangeSources = Event.map(mcpGalleryManifestService.onDidChangeMcpGalleryManifestStatus, () => ({ sourceIds: this.allSources.map(source => source.id) }));
 		void mcpGalleryManifestService.getMcpGalleryManifest();
@@ -250,7 +255,7 @@ export class CustomizationMarketplaceWorkbenchService extends Disposable impleme
 			Event.map(Event.fromObservableLight(this.harnessService.activeSessionResource), () => ({ sourceIds: this.getSessionBoundSourceIds() })),
 			Event.map(defaultAccountService.onDidChangeDefaultAccount, anySource),
 			Event.map(Event.filter(authenticationService.onDidChangeSessions, event => {
-				const account = defaultAccountService.currentDefaultAccount;
+				const account = asGitHubAccount(defaultAccountService.currentDefaultAccount);
 				return !!account && event.providerId === account.authenticationProvider.id &&
 					[...event.event.added ?? [], ...event.event.removed ?? []].some(session => session.id === account.sessionId);
 			}), anySource),
@@ -283,6 +288,7 @@ export class CustomizationMarketplaceWorkbenchService extends Disposable impleme
 				id: getProviderMarketplaceSourceId(marketplace.name),
 				displayName: marketplace.name,
 				enablementSetting: CustomizationMarketplaceConfiguration.MarketplaceEnabled,
+				...(isTeamProvidedVisible(marketplace.team, marketplace.managed) ? { teamProvided: true } : {}),
 				configurationDependencies: [ChatConfiguration.PluginsEnabled, CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled],
 			}));
 	}

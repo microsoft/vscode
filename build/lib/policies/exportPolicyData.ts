@@ -175,7 +175,15 @@ async function main(): Promise<void> {
 			console.log(`\nPolicy data exported to ${DEFAULT_POLICY_EXPORT_PATH}`);
 		}
 	} finally {
-		rmSync(temporaryRoot, { recursive: true, force: true });
+		// On Windows, the processes of an export can keep files in its folders open for a moment after
+		// its main process exits, while they shut down, which makes the removal fail with EPERM. Retry
+		// for a few seconds, then only warn: a leftover temporary folder must neither fail the export
+		// nor replace the error of a failed one.
+		try {
+			rmSync(temporaryRoot, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+		} catch (error) {
+			console.warn(`Could not remove the temporary folder ${temporaryRoot}: ${error}`);
+		}
 	}
 }
 

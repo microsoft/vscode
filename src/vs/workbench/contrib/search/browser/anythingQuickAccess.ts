@@ -9,7 +9,7 @@ import { IPickerQuickAccessItem, PickerQuickAccessProvider, TriggerAction, FastA
 import { prepareQuery, IPreparedQuery, compareItemsByFuzzyScore, scoreItemFuzzy, FuzzyScorerCache } from '../../../../base/common/fuzzyScorer.js';
 import { IFileQueryBuilderOptions, QueryBuilder } from '../../../services/search/common/queryBuilder.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { getOutOfWorkspaceEditorResources, extractRangeFromFilter, IAnythingQuickAccessFileSearchDelegate, IAnythingQuickAccessProviderRunOptions, IWorkbenchSearchConfiguration } from '../common/search.js';
+import { getOutOfWorkspaceEditorResources, extractRangeFromFilter, getSearchNoResultsActions, IAnythingQuickAccessFileSearchDelegate, IAnythingQuickAccessProviderRunOptions, IWorkbenchSearchConfiguration } from '../common/search.js';
 import { ISearchService, ISearchComplete } from '../../../services/search/common/search.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { untildify } from '../../../../base/common/labels.js';
@@ -26,6 +26,7 @@ import { IModelService } from '../../../../editor/common/services/model.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
 import { localize } from '../../../../nls.js';
 import { IWorkingCopyService } from '../../../services/workingCopy/common/workingCopyService.js';
+import { IMenuService } from '../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IWorkbenchEditorConfiguration, EditorResourceAccessor, isEditorInput } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
@@ -120,6 +121,8 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 	private readonly pickState: IAnythingPickState;
 
 	private _linkSourceGroup: number | undefined;
+	/** Whether this run offers actions of other features when nothing matches. */
+	private _offersNoResultsActions = false;
 
 	get defaultFilterValue(): DefaultQuickAccessFilterValue | undefined {
 		if (this.configuration.preserveInput) {
@@ -156,12 +159,26 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
-		@IExternalUriOpenerService private readonly _externalUriOpenerService: IExternalUriOpenerService
+		@IExternalUriOpenerService private readonly _externalUriOpenerService: IExternalUriOpenerService,
+		@IMenuService private readonly menuService: IMenuService,
 	) {
 		super(AnythingQuickAccessProvider.PREFIX, {
 			canAcceptInBackground: true,
 			noResultsPick: AnythingQuickAccessProvider.NO_RESULTS_PICK
 		});
+
+		// When nothing matches, other features may offer what else to do with the query, in Quick Open itself but not in
+		// pickers that handle the accepted item themselves
+		this.options = {
+			...this.options,
+			noResultsPick: filter => {
+				const query = filter.trim();
+				const action = this._offersNoResultsActions && query.length >= 3 ? getSearchNoResultsActions(this.menuService, this.contextKeyService, query)[0] : undefined;
+				return action
+					? { label: localize('anythingNoResultsAction', "{0}: {1}", action.label, query), description: action.tooltip || undefined, accept: () => action.run() }
+					: AnythingQuickAccessProvider.NO_RESULTS_PICK;
+			},
+		};
 
 		this.pickState = this._register(new class extends Disposable {
 
@@ -246,6 +263,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		// Update the pick state for this run
 		this.pickState.set(picker, runOptions?.fileSearchDelegate === undefined);
 		this._linkSourceGroup = this._supportsLinks(runOptions) ? this._editorGroupsService.activeGroup.id : undefined;
+		this._offersNoResultsActions = this._supportsLinks(runOptions);
 
 		// Add editor decorations for active editor symbol picks
 		const editorDecorationsDisposable = disposables.add(new MutableDisposable());
@@ -419,7 +437,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		const sourceGroup = this._linkSourceGroup ?? this._editorGroupsService.activeGroup.id;
 		const open = async (openWith: (options: OpenInternalOptions) => Promise<boolean>, keyMods: IKeyMods, inBackground: boolean, forceOpenSideBySide = false): Promise<void> => {
 			try {
-				const openToSide = keyMods.alt || (this.configuration.openEditorPinned && keyMods.ctrlCmd) || forceOpenSideBySide;
+				const openToSide = this._editorGroupsService.supportsSplitting && (keyMods.alt || (this.configuration.openEditorPinned && keyMods.ctrlCmd) || forceOpenSideBySide);
 				if (openToSide) {
 					await this.pickState.editorViewState.restore();
 					if (this._editorGroupsService.getGroup(sourceGroup)) {
@@ -454,7 +472,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 			resource,
 			label: `$(link-external) ${label}`,
 			description,
-			buttons: [openToSideButton],
+			buttons: this._editorGroupsService.supportsSplitting ? [openToSideButton] : undefined,
 			accept: (keyMods, event) => open(openWith, keyMods, event.inBackground),
 			trigger: async (_buttonIndex, keyMods) => {
 				await open(openWith, keyMods, false, true);
@@ -1147,6 +1165,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 	//#region Helpers
 
 	private createAnythingPick(resourceOrEditor: URI | EditorInput | IResourceEditorInput, configuration: { openSideBySideDirection: 'right' | 'down' | undefined }, fileSearchDelegate?: IAnythingQuickAccessFileSearchDelegate, includeOpenToSideButton = true): IAnythingQuickPickItem {
+		const showOpenToSideButton = includeOpenToSideButton && this._editorGroupsService.supportsSplitting;
 		const isEditorHistoryEntry = !URI.isUri(resourceOrEditor);
 
 		let resource: URI | undefined;
@@ -1182,7 +1201,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 			const openSideBySideDirection = configuration.openSideBySideDirection;
 			const buttons: IQuickInputButton[] = [];
 
-			if (includeOpenToSideButton) {
+			if (showOpenToSideButton) {
 				buttons.push({
 					iconClass: openSideBySideDirection === 'right' ? ThemeIcon.asClassName(Codicon.splitHorizontal) : ThemeIcon.asClassName(Codicon.splitVertical),
 					tooltip: openSideBySideDirection === 'right' ?
@@ -1213,13 +1232,13 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 			get iconClasses() { return iconClassesValue.value; },
 			get buttons() { return buttonsValue.value; },
 			trigger: (buttonIndex, keyMods) => {
-				if (includeOpenToSideButton && buttonIndex === 0) {
+				if (showOpenToSideButton && buttonIndex === 0) {
 					this.openAnything(resourceOrEditor, { keyMods, range: this.pickState.lastRange, forceOpenSideBySide: true });
 
 					return TriggerAction.CLOSE_PICKER;
 				}
 
-				const removeFromHistoryButtonIndex = includeOpenToSideButton ? 1 : 0;
+				const removeFromHistoryButtonIndex = showOpenToSideButton ? 1 : 0;
 				if (buttonIndex === removeFromHistoryButtonIndex && !URI.isUri(resourceOrEditor)) {
 					this.historyService.removeFromHistory(resourceOrEditor);
 
@@ -1254,7 +1273,8 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 			selection: options.range
 		};
 
-		const targetGroup = options.keyMods?.alt || (this.configuration.openEditorPinned && options.keyMods?.ctrlCmd) || options.forceOpenSideBySide ? SIDE_GROUP : ACTIVE_GROUP;
+		const openToSide = this._editorGroupsService.supportsSplitting && (options.keyMods?.alt || (this.configuration.openEditorPinned && options.keyMods?.ctrlCmd) || options.forceOpenSideBySide);
+		const targetGroup = openToSide ? SIDE_GROUP : ACTIVE_GROUP;
 
 		// Restore any view state if the target is the side group
 		if (targetGroup === SIDE_GROUP) {

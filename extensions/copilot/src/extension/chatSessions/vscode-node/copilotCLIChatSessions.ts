@@ -37,7 +37,7 @@ import { IChatSessionWorktreeService } from '../common/chatSessionWorktreeServic
 import { IChatFolderMruService, IFolderRepositoryManager, IsolationMode } from '../common/folderRepositoryManager';
 import { getWorkingDirectory, IWorkspaceInfo } from '../common/workspaceInfo';
 import { ICustomSessionTitleService } from '../copilotcli/common/customSessionTitleService';
-import { IChatDelegationSummaryService } from '../copilotcli/common/delegationSummaryService';
+import { IChatDelegationSummaryService } from '../common/delegationSummaryService';
 import { clearPendingCopilotCLIRequestContext, setPendingCopilotCLIRequestContext, takePendingCopilotCLIRequestContext } from '../copilotcli/common/pendingRequestContext';
 import { SessionIdForCLI } from '../copilotcli/common/utils';
 import { getCopilotCLISessionDir } from '../copilotcli/node/cliHelpers';
@@ -768,7 +768,7 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 			return { input, attachments: [] };
 		}
 
-		const { prompt, attachments } = await this.promptResolver.resolvePrompt(request, undefined, [], session.workspace, [], token);
+		const { prompt, attachments } = await this.promptResolver.resolvePrompt(request, undefined, [], session.workspace, token);
 		const input = (request.command && (copilotCLICommands as readonly string[]).includes(request.command))
 			? { command: request.command as CopilotCLICommand, prompt }
 			: { prompt };
@@ -950,7 +950,7 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 			stream.markdown(l10n.t('Copilot CLI delegation cancelled.'));
 			return {};
 		}
-		const { prompt, attachments, references } = await this.promptResolver.resolvePrompt(request, await requestPromptPromise, (otherReferences || []).concat([]), workspaceInfo, [], token);
+		const { prompt, attachments, references } = await this.promptResolver.resolvePrompt(request, await requestPromptPromise, (otherReferences || []).concat([]), workspaceInfo, token);
 
 		const mcpServerMappings = buildMcpServerMappings(request.tools);
 		const session = await this.sessionInitializer.createDelegatedSession(request, workspaceInfo, { mcpServerMappings }, token);

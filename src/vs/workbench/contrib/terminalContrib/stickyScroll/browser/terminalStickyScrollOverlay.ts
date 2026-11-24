@@ -191,7 +191,7 @@ export class TerminalStickyScrollOverlay extends Disposable {
 					// scrolling horizontally in a pager
 					this._xterm.raw.onCursorMove,
 				)(() => this._refresh()),
-				// eslint-disable-next-line no-restricted-syntax
+				// eslint-disable-next-line eslint-js/no-restricted-syntax
 				addStandardDisposableListener(this._xterm.raw.element!.querySelector('.xterm-viewport')!, 'scroll', () => this._refresh()),
 			);
 		}

@@ -5,7 +5,7 @@
 
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { ActiveEditorContext, MainEditorAreaVisibleContext } from '../../../../workbench/common/contextkeys.js';
-import { WindowCanvasInput } from '../../../services/canvas/browser/windowCanvasService.js';
+import { WindowCanvasInput } from '../../../../workbench/contrib/sessions/browser/windowCanvas.js';
 import { SessionCanvasActivityBarToggledContext } from '../common/sessionCanvas.js';
 
 export const CanvasActivityBarToggledContext = ContextKeyExpr.or(

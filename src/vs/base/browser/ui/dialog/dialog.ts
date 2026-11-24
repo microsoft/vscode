@@ -161,7 +161,7 @@ export class Dialog extends Disposable {
 			const customFooter = this.footerContainer.appendChild($('#monaco-dialog-footer.dialog-footer'));
 			this.options.renderFooter(customFooter);
 
-			// eslint-disable-next-line no-restricted-syntax
+			// eslint-disable-next-line eslint-js/no-restricted-syntax
 			for (const el of this.footerContainer.querySelectorAll('a')) {
 				el.tabIndex = 0;
 				this.footerActionToFocus ??= el;
@@ -213,7 +213,7 @@ export class Dialog extends Disposable {
 		}
 
 		if (this.options.renderBody || this.options.detailElement) {
-			// eslint-disable-next-line no-restricted-syntax
+			// eslint-disable-next-line eslint-js/no-restricted-syntax
 			for (const el of this.messageContainer.querySelectorAll('a')) {
 				el.tabIndex = 0;
 			}
@@ -416,13 +416,16 @@ export class Dialog extends Disposable {
 				const isArrowNavigation = evt.equals(KeyCode.RightArrow) || evt.equals(KeyCode.LeftArrow);
 				const isEditableTarget = isHTMLElement(e.target) && (isEditableElement(e.target) || e.target.isContentEditable);
 				if (evt.equals(KeyCode.Tab) || evt.equals(KeyMod.Shift | KeyCode.Tab) || isArrowNavigation && !isEditableTarget) {
+					if (isHTMLElement(e.target) && this.options.isExternalFocusAllowed?.(e.target)) {
+						return;
+					}
 
 					// Build a list of focusable elements in their visual order
 					const focusableElements: { focus: () => void }[] = [];
 					let focusedIndex = -1;
 
 					if (this.messageContainer) {
-						// eslint-disable-next-line no-restricted-syntax
+						// eslint-disable-next-line eslint-js/no-restricted-syntax
 						const links = this.messageContainer.querySelectorAll('a');
 						for (const link of links) {
 							focusableElements.push(link);
@@ -467,7 +470,7 @@ export class Dialog extends Disposable {
 					}
 
 					if (this.footerContainer) {
-						// eslint-disable-next-line no-restricted-syntax
+						// eslint-disable-next-line eslint-js/no-restricted-syntax
 						const links = this.footerContainer.querySelectorAll('a');
 						for (const link of links) {
 							focusableElements.push(link);
@@ -514,6 +517,11 @@ export class Dialog extends Disposable {
 			}, true));
 
 			this._register(addDisposableListener(window, 'keyup', e => {
+				// Preserve native activation, such as Space on checkboxes, in permitted popups.
+				if (isHTMLElement(e.target) && this.options.isExternalFocusAllowed?.(e.target)) {
+					return;
+				}
+
 				EventHelper.stop(e, true);
 				const evt = new StandardKeyboardEvent(e);
 
@@ -630,7 +638,7 @@ export class Dialog extends Disposable {
 		this.element.style.border = border;
 
 		if (linkFgColor) {
-			// eslint-disable-next-line no-restricted-syntax
+			// eslint-disable-next-line eslint-js/no-restricted-syntax
 			for (const el of [...this.messageContainer.getElementsByTagName('a'), ...this.footerContainer?.getElementsByTagName('a') ?? []]) {
 				if (el.classList.contains('monaco-button')) {
 					continue;

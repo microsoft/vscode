@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import fs from 'fs';
-import { load } from 'js-yaml';
+import path from 'path';
+import { load, loadAll } from 'js-yaml';
 
 /**
  * A package recorded in a pnpm lockfile (lockfile version 9).
@@ -68,7 +69,9 @@ function closure(lockfile: Lockfile, roots: Iterable<string>): Set<string> {
  * marked `dev` if only its devDependencies reach it.
  */
 export function readPnpmLockfileImporters(lockPath: string): Map<string, PnpmLockfilePackageEntry[]> {
-	const lockfile = load(fs.readFileSync(lockPath, 'utf8')) as Lockfile;
+	// The lockfile of the projects is the last YAML document: pnpm writes the pnpm version that
+	// `packageManager` pins in a document before it (https://pnpm.io/lockfile).
+	const lockfile = loadAll(fs.readFileSync(lockPath, 'utf8')).at(-1) as Lockfile;
 	const result = new Map<string, PnpmLockfilePackageEntry[]>();
 	for (const [importerId, importer] of Object.entries(lockfile.importers ?? {})) {
 		const rootsOf = (kinds: string[]) => kinds.flatMap(kind => Object.entries(importer[kind] ?? {}).map(([name, { version }]) => snapshotKey(name, version)).filter((key): key is string => !!key));
@@ -90,4 +93,20 @@ export function readPnpmLockfileImporters(lockPath: string): Map<string, PnpmLoc
 		result.set(importerId, [...entries.values()]);
 	}
 	return result;
+}
+
+/**
+ * Returns the ids (`name@version`) of the packages that pnpm skipped when it installed the install
+ * root `installRoot`, from `skipped` in its `node_modules/.modules.yaml`: optional packages that it
+ * considers unsupported on this platform, also when the lockfile records no `os` for them (for
+ * example `windows-foreground-love@0.6.1`), and optional packages whose build failed. Empty when the
+ * root isn't installed.
+ */
+export function readPnpmSkippedPackages(installRoot: string): Set<string> {
+	const modulesFile = path.join(installRoot, 'node_modules', '.modules.yaml');
+	if (!fs.existsSync(modulesFile)) {
+		return new Set();
+	}
+	const modules = load(fs.readFileSync(modulesFile, 'utf8')) as { readonly skipped?: readonly string[] } | undefined;
+	return new Set(modules?.skipped ?? []);
 }

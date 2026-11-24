@@ -5,7 +5,7 @@
 
 import { getVisibleWCOTitlebarAreaRect, isFirefox } from '../../browser.js';
 import { EventType as TouchEventType, Gesture } from '../../touch.js';
-import { $, addDisposableListener, append, clearNode, Dimension, EventHelper, EventLike, EventType, getActiveElement, getWindow, IDomNodePagePosition, isAncestor, isInShadowDOM, ModifierKeyEmitter } from '../../dom.js';
+import { $, addDisposableListener, append, clearNode, Dimension, EventHelper, EventLike, EventType, getActiveElement, getDomNodeZoomLevel, getWindow, IDomNodePagePosition, isAncestor, isInShadowDOM, ModifierKeyEmitter } from '../../dom.js';
 import { createStyleSheet } from '../../domStylesheets.js';
 import { StandardKeyboardEvent } from '../../keyboardEvent.js';
 import { StandardMouseEvent } from '../../mouseEvent.js';
@@ -55,6 +55,11 @@ export interface IMenuOptions {
 	actionViewItemProvider?: IActionViewItemProvider;
 	actionRunner?: IActionRunner;
 	getKeyBinding?: (action: IAction) => ResolvedKeybinding | undefined;
+	/**
+	 * Returns the title of the group an action belongs to. The menu shows the title of a group's
+	 * first action as a header above the group, unless a separator with a label introduces it.
+	 */
+	getGroupTitle?: (action: IAction) => string | undefined;
 	ariaLabel?: string;
 	enableMnemonics?: boolean;
 	anchorAlignment?: AnchorAlignment;
@@ -132,13 +137,14 @@ export class Menu extends ActionBar {
 		this._register(Gesture.addTarget(menuElement));
 
 		this._register(addDisposableListener(menuElement, EventType.KEY_DOWN, (e) => {
+			this.setKeyboardNavigation(true);
 			const event = new StandardKeyboardEvent(e);
 
 			// Stop tab navigation of menus
 			if (event.equals(KeyCode.Tab)) {
 				e.preventDefault();
 			}
-		}));
+		}, true));
 
 		if (options.enableMnemonics) {
 			this._register(addDisposableListener(menuElement, EventType.KEY_DOWN, (e) => {
@@ -193,54 +199,62 @@ export class Menu extends ActionBar {
 			}
 		}));
 
+		const resolveActionItem = (eventTarget: EventTarget | null): HTMLElement | undefined => {
+			let target = eventTarget as HTMLElement | null;
+			if (!target || !isAncestor(target, this.actionsList) || target === this.actionsList) {
+				return undefined;
+			}
+
+			while (target.parentElement !== this.actionsList && target.parentElement !== null) {
+				target = target.parentElement;
+			}
+
+			return target.classList.contains('action-item') ? target : undefined;
+		};
+
 		this._register(addDisposableListener(this.actionsList, EventType.MOUSE_MOVE, e => {
 			if (e.movementX === 0 && e.movementY === 0) {
 				return;
 			}
+			const target = resolveActionItem(e.target);
+			if (!target) {
+				return;
+			}
+			this.setKeyboardNavigation(false);
 
-			let target = e.target as HTMLElement;
-			if (!target || !isAncestor(target, this.actionsList) || target === this.actionsList) {
+			const lastFocusedItem = this.focusedItem;
+			// Moving within the focused item is the common case; skip the item lookup for it
+			if (lastFocusedItem !== undefined && this.actionsList.children[lastFocusedItem] === target) {
 				return;
 			}
 
-			while (target.parentElement !== this.actionsList && target.parentElement !== null) {
-				target = target.parentElement;
-			}
+			this.setFocusedItem(target);
 
-			if (target.classList.contains('action-item')) {
-				const lastFocusedItem = this.focusedItem;
-				// Moving within the focused item is the common case; skip the item lookup for it
-				if (lastFocusedItem !== undefined && this.actionsList.children[lastFocusedItem] === target) {
-					return;
-				}
-
-				this.setFocusedItem(target);
-
-				if (lastFocusedItem !== this.focusedItem) {
-					this.updateFocus();
-				}
+			if (lastFocusedItem !== this.focusedItem) {
+				this.updateFocus();
 			}
 		}));
+
+		this._register(addDisposableListener(this.actionsList, EventType.MOUSE_DOWN, e => {
+			if (resolveActionItem(e.target)) {
+				this.setKeyboardNavigation(false);
+			}
+		}, true));
 
 		// Support touch on actions list to focus items (needed for submenus)
 		this._register(Gesture.addTarget(this.actionsList));
 		this._register(addDisposableListener(this.actionsList, TouchEventType.Tap, e => {
-			let target = e.initialTarget as HTMLElement;
-			if (!target || !isAncestor(target, this.actionsList) || target === this.actionsList) {
+			const target = resolveActionItem(e.initialTarget);
+			if (!target) {
 				return;
 			}
+			this.setKeyboardNavigation(false);
 
-			while (target.parentElement !== this.actionsList && target.parentElement !== null) {
-				target = target.parentElement;
-			}
+			const lastFocusedItem = this.focusedItem;
+			this.setFocusedItem(target);
 
-			if (target.classList.contains('action-item')) {
-				const lastFocusedItem = this.focusedItem;
-				this.setFocusedItem(target);
-
-				if (lastFocusedItem !== this.focusedItem) {
-					this.updateFocus();
-				}
+			if (lastFocusedItem !== this.focusedItem) {
+				this.updateFocus();
 			}
 		}));
 
@@ -281,30 +295,10 @@ export class Menu extends ActionBar {
 		}));
 
 		const window = getWindow(container);
-		menuElement.style.maxHeight = `${Math.max(10, window.innerHeight - container.getBoundingClientRect().top - 35)}px`;
+		const containerZoom = getDomNodeZoomLevel(container);
+		menuElement.style.maxHeight = `${Math.max(10, (window.innerHeight - container.getBoundingClientRect().top - 35) / containerZoom)}px`;
 
-		actions = actions.filter((a, idx) => {
-			if (options.submenuIds?.has(a.id)) {
-				console.warn(`Found submenu cycle: ${a.id}`);
-				return false;
-			}
-
-			// Filter out consecutive or useless separators
-			if (a instanceof Separator) {
-				if (idx === actions.length - 1 || idx === 0) {
-					return false;
-				}
-
-				const prevAction = actions[idx - 1];
-				if (prevAction instanceof Separator) {
-					return false;
-				}
-			}
-
-			return true;
-		});
-
-		this.push(actions, { icon: true, label: true, isMenu: true });
+		this.push(cleanMenuActions(actions, options.submenuIds, options.getGroupTitle), { icon: true, label: true, isMenu: true });
 
 		container.appendChild(this.scrollableElement.getDomNode());
 		this.scrollableElement.scanDomNode();
@@ -312,6 +306,16 @@ export class Menu extends ActionBar {
 		this.viewItems.filter(item => !(item instanceof MenuSeparatorActionViewItem)).forEach((item, index, array) => {
 			(item as BaseMenuActionViewItem).updatePositionInSet(index + 1, array.length);
 		});
+
+		// Describe the items of a group by the group's header
+		let headerId: string | undefined;
+		for (const item of this.viewItems) {
+			if (item instanceof MenuSeparatorActionViewItem) {
+				headerId = item.headerId;
+			} else if (headerId && item instanceof BaseMenuActionViewItem) {
+				item.setDescribedBy(headerId);
+			}
+		}
 
 		this._register(ModifierKeyEmitter.getInstance().event(() => {
 			this.mnemonics.clear();
@@ -325,6 +329,11 @@ export class Menu extends ActionBar {
 			}
 			this.scrollableElement.scanDomNode();
 		}));
+	}
+
+	private setKeyboardNavigation(keyboardNavigation: boolean): void {
+		this.menuElement.classList.toggle('keyboard-navigation', keyboardNavigation);
+		this.menuElement.classList.toggle('mouse-navigation', !keyboardNavigation);
 	}
 
 	private initializeOrUpdateStyleSheet(container: HTMLElement, style: IMenuStyles): void {
@@ -376,6 +385,15 @@ export class Menu extends ActionBar {
 				return;
 			}
 		}
+	}
+
+	/**
+	 * Returns the index of the item that shows the given action, or -1. It can differ from the action's
+	 * index in the actions the menu was created with, since the menu adds group headers and removes
+	 * redundant separators.
+	 */
+	indexOfAction(action: IAction): number {
+		return this.viewItems.findIndex(item => (item instanceof BaseActionViewItem ? item._action : item.action) === action);
 	}
 
 	private focusItemByElement(element: HTMLElement) {
@@ -619,6 +637,10 @@ class BaseMenuActionViewItem extends BaseActionViewItem {
 			this.item.setAttribute('aria-posinset', `${pos}`);
 			this.item.setAttribute('aria-setsize', `${setSize}`);
 		}
+	}
+
+	setDescribedBy(id: string): void {
+		this.item?.setAttribute('aria-describedby', id);
 	}
 
 	protected override updateLabel(): void {
@@ -1005,7 +1027,8 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 		this.submenuContainer.style.left = '0';
 		const window = getWindow(this.element);
 		const computedStyles = window.getComputedStyle(this.parentData.parent.domNode);
-		const paddingTop = parseFloat(computedStyles.paddingTop || '0') || 0;
+		const submenuZoom = getDomNodeZoomLevel(this.submenuContainer);
+		const paddingTop = (parseFloat(computedStyles.paddingTop || '0') || 0) * submenuZoom;
 		const entryBox = this.element.getBoundingClientRect();
 		const entryBoxUpdated = {
 			top: entryBox.top - paddingTop,
@@ -1021,8 +1044,8 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 			{ width: viewBox.width, height: viewBox.height },
 			layoutResult
 		);
-		this.submenuContainer.style.left = `${left - viewBox.left}px`;
-		this.submenuContainer.style.top = `${top - viewBox.top}px`;
+		this.submenuContainer.style.left = `${(left - viewBox.left) / submenuZoom}px`;
+		this.submenuContainer.style.top = `${(top - viewBox.top) / submenuZoom}px`;
 	}
 
 	private updateAriaExpanded(value: string): void {
@@ -1059,8 +1082,15 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 }
 
 class MenuSeparatorActionViewItem extends ActionViewItem {
+
+	private static headerIdPool = 0;
+
+	/** The id of the element that labels the group after a separator with a label. */
+	readonly headerId: string | undefined;
+
 	constructor(context: unknown, action: IAction, options: IActionViewItemOptions, private readonly menuStyles: IMenuStyles) {
 		super(context, action, options);
+		this.headerId = action.label ? `monaco-menu-header-${MenuSeparatorActionViewItem.headerIdPool++}` : undefined;
 	}
 
 	override render(container: HTMLElement): void {
@@ -1068,7 +1098,48 @@ class MenuSeparatorActionViewItem extends ActionViewItem {
 		if (this.label) {
 			this.label.style.borderBottomColor = this.menuStyles.separatorColor ? `${this.menuStyles.separatorColor}` : '';
 		}
+		if (this.headerId && this.element) {
+			// Items of the group reference the header with `aria-describedby`
+			this.element.classList.add('menu-header');
+			append(this.element, $('div.menu-header-title', undefined, $('span', { id: this.headerId }, this.action.label)));
+		}
 	}
+
+	protected override updateAriaLabel(): void {
+		// A separator and its header are presentational
+	}
+}
+
+/**
+ * Removes submenu cycles and leading, trailing, and consecutive separators, and introduces each
+ * group with a separator labeled with its title: the label of the separator before the group, or
+ * else the group title of its first action. A separator with a label is kept at the start, and of
+ * consecutive separators where one has a label, the last is kept since it introduces the actions
+ * that follow.
+ */
+function cleanMenuActions(actions: ReadonlyArray<IAction>, submenuIds: ReadonlySet<string> | undefined, getGroupTitle: IMenuOptions['getGroupTitle']): IAction[] {
+	const result: IAction[] = [];
+	let separator: Separator | undefined;
+	for (const action of actions) {
+		if (submenuIds?.has(action.id)) {
+			console.warn(`Found submenu cycle: ${action.id}`);
+		} else if (action instanceof Separator) {
+			if (!separator || separator.label || action.label) {
+				separator = action;
+			}
+		} else {
+			const isGroupStart = !!separator || result.length === 0;
+			const title = separator?.label || (isGroupStart ? getGroupTitle?.(action) : undefined);
+			if (title) {
+				result.push(separator?.label ? separator : new Separator(title));
+			} else if (separator && result.length > 0) {
+				result.push(separator);
+			}
+			separator = undefined;
+			result.push(action);
+		}
+	}
+	return result;
 }
 
 export function cleanMnemonic(label: string): string {
@@ -1435,18 +1506,40 @@ ${formatRule(Codicon.menuSubmenu)}
 	outline-offset: 0 !important;
 }
 
-/* High contrast themes always show the selection border to indicate the focused item, regardless of input modality. The duplicated .monaco-menu raises specificity above the keyboard-only suppression rule above so this wins independent of declaration order. */
+/* High contrast themes show a solid selection border for keyboard focus. Pointer navigation overrides it with the dashed hover boundary below. The duplicated .monaco-menu raises specificity above the keyboard-only suppression rule above so this wins independent of declaration order. */
 .hc-black .monaco-menu.monaco-menu .monaco-action-bar.vertical .action-item.focused > .action-menu-item,
 .hc-light .monaco-menu.monaco-menu .monaco-action-bar.vertical .action-item.focused > .action-menu-item {
-	outline: 1px solid var(--vscode-menu-selectionBorder) !important;
-	outline-offset: -1px !important;
+	outline: var(--vscode-strokeThickness, 1px) solid var(--vscode-menu-selectionBorder) !important;
+	outline-offset: calc(-1 * var(--vscode-strokeThickness, 1px)) !important;
+}
+
+.hc-black .monaco-menu.monaco-menu.mouse-navigation .monaco-action-bar.vertical .action-item.focused:is(:hover, .hovered) > .action-menu-item,
+.hc-light .monaco-menu.monaco-menu.mouse-navigation .monaco-action-bar.vertical .action-item.focused:is(:hover, .hovered) > .action-menu-item {
+	outline-style: dashed !important;
+	outline-color: var(--vscode-contrastActiveBorder, var(--vscode-menu-selectionBorder)) !important;
+}
+
+.hc-black .monaco-menu.monaco-menu.mouse-navigation .monaco-action-bar.vertical .action-item.focused > .action-menu-item:is([aria-expanded='true'], [aria-pressed='true']),
+.hc-light .monaco-menu.monaco-menu.mouse-navigation .monaco-action-bar.vertical .action-item.focused > .action-menu-item:is([aria-expanded='true'], [aria-pressed='true']) {
+	outline-style: solid !important;
 }
 
 /* Keep :host-context separate because WebKit otherwise rejects the valid selectors above. */
 :host-context(.hc-black) .monaco-menu.monaco-menu .monaco-action-bar.vertical .action-item.focused > .action-menu-item,
 :host-context(.hc-light) .monaco-menu.monaco-menu .monaco-action-bar.vertical .action-item.focused > .action-menu-item {
-	outline: 1px solid var(--vscode-menu-selectionBorder) !important;
-	outline-offset: -1px !important;
+	outline: var(--vscode-strokeThickness, 1px) solid var(--vscode-menu-selectionBorder) !important;
+	outline-offset: calc(-1 * var(--vscode-strokeThickness, 1px)) !important;
+}
+
+:host-context(.hc-black) .monaco-menu.monaco-menu.mouse-navigation .monaco-action-bar.vertical .action-item.focused:is(:hover, .hovered) > .action-menu-item,
+:host-context(.hc-light) .monaco-menu.monaco-menu.mouse-navigation .monaco-action-bar.vertical .action-item.focused:is(:hover, .hovered) > .action-menu-item {
+	outline-style: dashed !important;
+	outline-color: var(--vscode-contrastActiveBorder, var(--vscode-menu-selectionBorder)) !important;
+}
+
+:host-context(.hc-black) .monaco-menu.monaco-menu.mouse-navigation .monaco-action-bar.vertical .action-item.focused > .action-menu-item:is([aria-expanded='true'], [aria-pressed='true']),
+:host-context(.hc-light) .monaco-menu.monaco-menu.mouse-navigation .monaco-action-bar.vertical .action-item.focused > .action-menu-item:is([aria-expanded='true'], [aria-pressed='true']) {
+	outline-style: solid !important;
 }
 
 /* Vertical Action Bar Styles */
@@ -1482,6 +1575,30 @@ ${formatRule(Codicon.menuSubmenu)}
 :host-context(.linux) .monaco-menu .monaco-action-bar.vertical .action-label.separator {
 	margin-left: 0;
 	margin-right: 0;
+}
+
+/* Group headers: a separator with a label. The title aligns with the labels of the menu items. */
+.monaco-menu .monaco-action-bar.vertical .action-item.menu-header {
+	flex-direction: column;
+	align-items: stretch;
+}
+
+.monaco-menu .monaco-action-bar.vertical .action-item.menu-header:first-child > .action-label.separator {
+	display: none;
+}
+
+.monaco-menu .monaco-action-bar.vertical .menu-header-title {
+	display: flex;
+	align-items: center;
+	height: 20px;
+	margin: 0 4px;
+	padding: 0 2em;
+	color: var(--vscode-descriptionForeground);
+}
+
+.monaco-menu .monaco-action-bar.vertical .menu-header-title > span {
+	font-size: var(--vscode-fontSize-label2);
+	font-weight: var(--vscode-fontWeight-regular);
 }
 
 .monaco-menu .monaco-action-bar.vertical .submenu-indicator {

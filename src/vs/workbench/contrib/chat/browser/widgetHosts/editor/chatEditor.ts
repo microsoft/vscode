@@ -64,6 +64,8 @@ export interface IChatEditorOptions extends IEditorOptions {
 	explicitSessionType?: string;
 	/** Creation-only metadata describing why the new session type was selected. */
 	sessionTypeSelectionReason?: SessionTypeSelectionReason;
+	/** Where the chat shows in the host of the Chat view's chats, it leaves the window's folder as it is, as `IChatViewHostOpenOptions.keepFolder` does. */
+	keepFolder?: boolean;
 	target?: { data: IExportableChatData | ISerializableChatData };
 	title?: {
 		preferred?: string;
@@ -298,7 +300,7 @@ export class ChatEditor extends AbstractEditorWithViewState<IChatEditorViewState
 
 		// If already showing, just update text
 		if (this._loadingContainer) {
-			// eslint-disable-next-line no-restricted-syntax
+			// eslint-disable-next-line eslint-js/no-restricted-syntax
 			const existingText = this._loadingContainer.querySelector('.chat-loading-content span');
 			if (existingText) {
 				existingText.textContent = message;

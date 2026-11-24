@@ -10,12 +10,13 @@
 .chat-pet-overlay {
 	position: absolute;
 	inset: 0;
+	/* Keep the whole pet above transcript sticky scroll (13), even while resting. */
+	z-index: 14;
 	pointer-events: none;
 }
 
 .chat-pet-overlay.relocating {
 	position: fixed;
-	z-index: 14;
 }
 
 .chat-pet-overlay.relocating > .chat-pet-button {
@@ -45,7 +46,6 @@
 .chat-pet-button.dragging {
 	cursor: grabbing;
 	will-change: translate;
-	/* The tree sticky-scroll container uses 13. Keep the active drag above it. */
 	z-index: 14;
 }
 
@@ -121,6 +121,33 @@
 .chat-pet-button.exiting {
 	pointer-events: none;
 	animation: chat-pet-exit 220ms ease-in forwards;
+}
+
+/* The pet already rests on the surface that rose over it; only its drawn position travels. */
+.chat-pet-button.surface-jump {
+	animation: chat-pet-surface-jump 600ms linear;
+}
+
+/*
+ * Follows the jump sprite's frames: crouch on the old ground, leap through the stretch and airborne frames, then land.
+ * The landing offset keeps the pet heading for the same spot when its resting place rises after it left the ground.
+ */
+@keyframes chat-pet-surface-jump {
+	0%,
+	25% {
+		translate: 0 calc(var(--chat-pet-surface-jump-landing, 0px) + var(--chat-pet-surface-jump-distance));
+		animation-timing-function: cubic-bezier(0.2, 0.8, 0.4, 1);
+	}
+
+	58% {
+		translate: 0 calc(var(--chat-pet-surface-jump-landing, 0px) - var(--vscode-spacing-size80));
+		animation-timing-function: cubic-bezier(0.6, 0, 1, 0.6);
+	}
+
+	66.667%,
+	100% {
+		translate: 0 var(--chat-pet-surface-jump-landing, 0px);
+	}
 }
 
 @keyframes chat-pet-enter {
@@ -616,6 +643,7 @@
 
 .monaco-workbench.monaco-reduce-motion .chat-pet-button.entering,
 .monaco-workbench.monaco-reduce-motion .chat-pet-button.exiting,
+.monaco-workbench.monaco-reduce-motion .chat-pet-button.surface-jump,
 .monaco-workbench.monaco-reduce-motion .chat-pet-button.dragging.soft-resisting,
 .monaco-workbench.monaco-reduce-motion .chat-pet-button.dragging.resisting,
 .monaco-workbench.monaco-reduce-motion .chat-pet-button[data-state='complete'] .chat-pet-sprite,

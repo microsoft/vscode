@@ -26,15 +26,31 @@
 
 .modern-ui .monaco-grid-view .part.editor:not(.modal-editor-part) {
 	border: var(--vscode-strokeThickness) solid var(--vscode-editorGroup-border, color-mix(in srgb, var(--vscode-foreground) 12%, transparent));
-	border-radius: var(--vscode-cornerRadius-large);
+	border-radius: var(--vscode-editorArea-cornerRadius, var(--vscode-cornerRadius-large));
 	box-sizing: border-box;
 	overflow: hidden;
 	background-color: var(--vscode-editor-background);
 }
 
+/*
+ * The card clips its content to its padding edge, whose corners are the card's radius less its stroke: the same
+ * concentric curve that floatingPanels.css gives the content itself. Inside the card, that second rounded clip adds
+ * nothing visible, but it is costly: Chromium applies one rounded clip per draw quad, so it draws nested rounded clips
+ * through offscreen render surfaces on every frame that changes the editor (scrolling, typing), instead of handing the
+ * editor's layers to the system compositor. At macOS window corners, the card's clip follows the window's curve too.
+ */
+.monaco-workbench.modern-ui .monaco-grid-view .part.editor:not(.modal-editor-part) > .content {
+	border-radius: 0;
+}
+
 /* Notebook fixed overlays escape the editor card's clipping, so round their overflow-clipping content. */
 .modern-ui .notebookOverlay {
 	border-radius: var(--vscode-cornerRadius-large);
+}
+
+/* Share the snapped card stroke so the content curve stays concentric at fractional zoom. */
+.monaco-workbench.modern-ui.floating-panels > .monaco-grid-view .part.editor:not(.modal-editor-part) {
+	border-width: var(--modern-ui-floating-card-stroke-width);
 }
 
 .monaco-workbench.modern-ui.floating-panels.modern-ui-compact > .monaco-grid-view .part.editor:not(.modal-editor-part),

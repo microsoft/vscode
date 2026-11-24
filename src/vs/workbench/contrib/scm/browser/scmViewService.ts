@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { ISCMViewService, ISCMRepository, ISCMService, ISCMViewVisibleRepositoryChangeEvent, ISCMMenus, ISCMProvider, ISCMRepositorySortKey, ISCMRepositorySelectionMode } from '../common/scm.js';
+import { ISCMViewService, ISCMRepository, ISCMService, ISCMViewVisibleRepositoryChangeEvent, ISCMMenus, ISCMProvider, ISCMRepositorySortKey, ISCMRepositorySelectionMode, ISCMRepositoryNotice } from '../common/scm.js';
 import { Iterable } from '../../../../base/common/iterator.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { SCMMenus } from './menus.js';
@@ -14,6 +14,7 @@ import { debounce } from '../../../../base/common/decorators.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { compareFileNames, comparePaths } from '../../../../base/common/comparers.js';
 import { basename } from '../../../../base/common/resources.js';
+import { sep } from '../../../../base/common/path.js';
 import { binarySearch } from '../../../../base/common/arrays.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
@@ -27,6 +28,24 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { getSCMRepositoryIcon } from './util.js';
+
+/**
+ * Compares two repository root paths segment by segment so that a
+ * repository is immediately followed by its nested repositories.
+ */
+function compareRepositoryRootPaths(one: string, other: string): number {
+	const oneSegments = one.split(sep);
+	const otherSegments = other.split(sep);
+
+	for (let i = 0; i < Math.min(oneSegments.length, otherSegments.length); i++) {
+		const result = compareFileNames(oneSegments[i], otherSegments[i]);
+		if (result !== 0) {
+			return result;
+		}
+	}
+
+	return oneSegments.length - otherSegments.length;
+}
 
 function getProviderStorageKey(provider: ISCMProvider): string {
 	return `${provider.providerId}:${provider.label}${provider.rootUri ? `:${provider.rootUri.toString()}` : ''}`;
@@ -123,9 +142,7 @@ export class SCMViewService implements ISCMViewService {
 	private _repositories: ISCMRepositoryView[] = [];
 
 	get repositories(): ISCMRepository[] {
-		return this._repositories
-			.filter(r => r.repository.provider.isHidden !== true)
-			.map(r => r.repository);
+		return this._repositories.map(r => r.repository);
 	}
 
 	readonly didFinishLoadingRepositories = observableValue<boolean>(this, false);
@@ -135,13 +152,13 @@ export class SCMViewService implements ISCMViewService {
 		// the visible repositories are sorted by the selection index instead of the discovery time.
 		if (this._repositoriesSortKey === ISCMRepositorySortKey.DiscoveryTime) {
 			return this._repositories
-				.filter(r => r.repository.provider.isHidden !== true && r.selectionIndex !== -1)
+				.filter(r => r.selectionIndex !== -1)
 				.sort((r1, r2) => r1.selectionIndex - r2.selectionIndex)
 				.map(r => r.repository);
 		}
 
 		return this._repositories
-			.filter(r => r.repository.provider.isHidden !== true && r.selectionIndex !== -1)
+			.filter(r => r.selectionIndex !== -1)
 			.map(r => r.repository);
 	}
 
@@ -273,10 +290,17 @@ export class SCMViewService implements ISCMViewService {
 				equalsFn: () => false
 			}, this.onDidFocusRepository, () => this.focusedRepository);
 
+		// Editors can be restored before their repository is opened (ex: window reload), so we
+		// also have to re-evaluate the active editor when the repository containing it is added
+		const onDidAddActiveEditorRepository = Event.filter(this.scmService.onDidAddRepository, repository => {
+			const activeResource = EditorResourceAccessor.getOriginalUri(this.editorService.activeEditor);
+			return !!activeResource && this.scmService.getRepository(activeResource) === repository;
+		});
+
 		this._activeEditorObs = observableFromEventOpts({
 			owner: this,
 			equalsFn: () => false
-		}, this.editorService.onDidActiveEditorChange, () => this.editorService.activeEditor);
+		}, Event.any(this.editorService.onDidActiveEditorChange, onDidAddActiveEditorRepository), () => this.editorService.activeEditor);
 
 		this._activeEditorRepositoryObs = derivedObservableWithCache<ISCMRepository | undefined>(this,
 			(reader, lastValue) => {
@@ -378,9 +402,9 @@ export class SCMViewService implements ISCMViewService {
 						}
 						repositoryView.selectionIndex = index;
 					});
-
-					this._onDidChangeRepositories.fire({ added, removed: Iterable.empty() });
 				}
+
+				this._onDidChangeRepositories.fire({ added, removed: Iterable.empty() });
 
 				this.didSelectRepository = false;
 				return;
@@ -405,6 +429,17 @@ export class SCMViewService implements ISCMViewService {
 					this.didSelectRepository = true;
 				}
 			}
+		} else if (this.previousState && this.didSelectRepository && this.visibleRepositories.length > 0) {
+			// Repositories (ex: submodules) can be discovered after the repositories
+			// finished loading. Keep the repository hidden if it was explicitly hidden
+			// in the previous state.
+			const index = this.previousState.all.indexOf(getProviderStorageKey(repository.provider));
+
+			if (index !== -1 && this.previousState.visible.indexOf(index) === -1) {
+				this.insertRepositoryView(this._repositories, repositoryView);
+				this._onDidChangeRepositories.fire({ added: Iterable.empty(), removed: Iterable.empty() });
+				return;
+			}
 		}
 
 		if (this.selectionModeConfig.get() === ISCMRepositorySelectionMode.Multiple || !this._repositories.find(r => r.selectionIndex !== -1)) {
@@ -424,7 +459,35 @@ export class SCMViewService implements ISCMViewService {
 		}
 	}
 
+	private readonly repositoryNotices = new Map<ISCMRepository, ISettableObservable<ISCMRepositoryNotice | undefined>>();
+
+	private getRepositoryNoticeObservable(repository: ISCMRepository): ISettableObservable<ISCMRepositoryNotice | undefined> {
+		let notice = this.repositoryNotices.get(repository);
+		if (!notice) {
+			notice = observableValue<ISCMRepositoryNotice | undefined>(this, undefined);
+			this.repositoryNotices.set(repository, notice);
+		}
+		return notice;
+	}
+
+	getRepositoryNotice(repository: ISCMRepository): IObservable<ISCMRepositoryNotice | undefined> {
+		return this.getRepositoryNoticeObservable(repository);
+	}
+
+	setRepositoryNotice(repository: ISCMRepository, notice: ISCMRepositoryNotice): IDisposable {
+		const observable = this.getRepositoryNoticeObservable(repository);
+		observable.set(notice, undefined);
+		return toDisposable(() => {
+			if (observable.get() === notice) {
+				observable.set(undefined, undefined);
+			}
+		});
+	}
+
 	private onDidRemoveRepository(repository: ISCMRepository): void {
+		this.repositoryNotices.get(repository)?.set(undefined, undefined);
+		this.repositoryNotices.delete(repository);
+
 		if (!this.didFinishLoadingRepositories.get()) {
 			this.eventuallyFinishLoading();
 		}
@@ -526,7 +589,7 @@ export class SCMViewService implements ISCMViewService {
 
 		// Sort by path
 		if (this._repositoriesSortKey === 'path' && op1.repository.provider.rootUri && op2.repository.provider.rootUri) {
-			return comparePaths(op1.repository.provider.rootUri.fsPath, op2.repository.provider.rootUri.fsPath);
+			return compareRepositoryRootPaths(op1.repository.provider.rootUri.fsPath, op2.repository.provider.rootUri.fsPath);
 		}
 
 		// Sort by name, path
@@ -573,9 +636,20 @@ export class SCMViewService implements ISCMViewService {
 
 		const all = this.repositories.map(r => getProviderStorageKey(r.provider));
 		const visible = this.visibleRepositories.map(r => all.indexOf(getProviderStorageKey(r.provider)));
-		this.previousState = { all, visible, sortKey: this._repositoriesSortKey } satisfies ISCMViewServiceState;
+		const state = { all, visible, sortKey: this._repositoriesSortKey } satisfies ISCMViewServiceState;
 
-		this.storageService.store('scm:view:visibleRepositories', JSON.stringify(this.previousState), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		this.storageService.store('scm:view:visibleRepositories', JSON.stringify(state), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+
+		// Remember the previous visibility of repositories that have not been
+		// discovered yet (ex: submodules) so that it is used when they are added
+		const previousState = this.previousState;
+		const undiscovered = previousState?.all.filter(key => !all.includes(key)) ?? [];
+
+		this.previousState = previousState && undiscovered.length > 0 ? {
+			...state,
+			all: [...all, ...undiscovered],
+			visible: [...visible, ...undiscovered.flatMap((key, index) => previousState.visible.includes(previousState.all.indexOf(key)) ? [all.length + index] : [])]
+		} : state;
 	}
 
 	@debounce(5000)

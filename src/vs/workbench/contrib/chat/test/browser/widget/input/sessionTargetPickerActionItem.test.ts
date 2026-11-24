@@ -13,7 +13,7 @@ import { toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { constObservable, observableFromEvent } from '../../../../../../../base/common/observable.js';
 import { ManagedSettingsData } from '../../../../../../../base/common/policy.js';
 import { URI } from '../../../../../../../base/common/uri.js';
-import { mock } from '../../../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { IAgentHostEnablementService } from '../../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { ActionListItemKind, ActionListWidget, IActionListDelegate, IActionListItem } from '../../../../../../../platform/actionWidget/browser/actionList.js';
@@ -47,6 +47,7 @@ import { ILanguageModelsService } from '../../../../common/languageModels.js';
 import { IChatHarnessSwitchFeedbackSurveyService } from '../../../../browser/feedbackSurvey/chatHarnessSwitchFeedbackSurveyService.js';
 import { createSessionTypePickerAction, getConfiguredSessionTypePickerAvailability, ISessionTypeItem, SessionTypePickerActionItem } from '../../../../browser/widget/input/sessionTargetPickerActionItem.js';
 import { ChatConfiguration, CopilotHarnessIntroductionMode } from '../../../../common/constants.js';
+import { ILocalChatAvailabilityService } from '../../../../common/localChatAvailability.js';
 
 const baseAction: IAction = {
 	id: 'base',
@@ -203,6 +204,7 @@ suite('SessionTypePickerActionItem', () => {
 			managedSandboxEnforced: observableFromEvent(changed.event, () => settings[COPILOT_SANDBOX_ENABLED_KEY] === true),
 			managedSandboxAllowsBypass: constObservable(false),
 		});
+		instantiation.stub(ILocalChatAvailabilityService, upcastPartial<ILocalChatAvailabilityService>({ hidden: constObservable(false) }));
 		const sessions = new class extends mock<IChatSessionsService>() {
 			override readonly onDidChangeAvailability = Event.None;
 			override getAllChatSessionContributions(): ResolvedChatSessionsExtensionPoint[] {
@@ -336,6 +338,20 @@ suite('SessionTypePickerActionItem', () => {
 		assert.deepStrictEqual({ disabled, commands: fixture.commands }, {
 			disabled: policies.map(() => false),
 			commands: policies.map(() => 'workbench.action.chat.openNewChatSessionInPlace.local'),
+		});
+	});
+
+	test('selects an offered harness as if the user picked it', () => {
+		const fixture = createManagedPicker('sidebar');
+		const results = {
+			current: fixture.picker.selectSessionType(AgentSessionProviders.AgentHostCopilot),
+			notOffered: fixture.picker.selectSessionType(AgentSessionProviders.AgentHostClaude),
+			local: fixture.picker.selectSessionType(AgentSessionProviders.Local),
+		};
+		fixture.setManagedSettings({ 'permissions.deny': '["Shell"]' });
+		assert.deepStrictEqual({ ...results, disabledByPolicy: fixture.picker.selectSessionType(AgentSessionProviders.Local), commands: fixture.commands }, {
+			current: 'selected', notOffered: undefined, local: 'switched', disabledByPolicy: undefined,
+			commands: ['workbench.action.chat.openNewChatSessionInPlace.local'],
 		});
 	});
 

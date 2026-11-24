@@ -5,9 +5,10 @@
 
 import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
+import { disposableTimeout } from '../../../../base/common/async.js';
 import { Event } from '../../../../base/common/event.js';
 import { Disposable, IReference, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, derived, IObservable, IReader, ITransaction, observableFromEvent, observableSignalFromEvent, observableValue, transaction } from '../../../../base/common/observable.js';
+import { autorun, derived, IObservable, IReader, ITransaction, observableFromEvent, observableSignalFromEvent, observableValue, subtransaction, transaction } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { hasKey } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -18,13 +19,15 @@ import { IContextKeyService } from '../../../../platform/contextkey/common/conte
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { getCanvasInputResource, getCanvasReferenceKey, ICanvas, ICanvasReference } from '../../../../workbench/contrib/canvases/common/canvas.js';
+import { getCanvasInputResource } from '../../../../workbench/contrib/canvases/common/canvas.js';
+import { CanvasExtensionConsentDeniedError, CanvasOpenFailedError, notifyCanvasOpenFailure } from '../../../../workbench/contrib/canvases/common/agentHostCanvasConsent.js';
 import { IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
-import { ICustomViewService } from '../../../services/customView/browser/customViewService.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { ISession } from '../../../services/sessions/common/session.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { CanvasesPinnedToSidebarContext, IPinnedCanvas, IPinnedCanvasIdentity, IPinnedCanvasService, MAX_PINNED_CANVASES, PINNED_CANVAS_PAGE_ID, PinnedCanvasState, PinnedCanvasTarget } from './pinnedCanvases.js';
+import { ICustomViewService } from '../../../../workbench/contrib/sessions/browser/customView.js';
+import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { IChat, ISession, ISessionCanvasDefinition } from '../../../../workbench/services/sessions/common/session.js';
+import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { CanvasesPinnedToSidebarContext, IPinnedCanvas, IPinnedCanvasIdentity, IPinnedCanvasService, MAX_PINNED_CANVASES, PINNED_CANVAS_PAGE_ID, PinnedCanvasState, PinnedCanvasTarget } from '../../../../workbench/contrib/sessions/browser/pinnedCanvases.js';
+import { getCanvasReferenceKey, ICanvas, ICanvasOpenOptions, ICanvasReference } from '../../../../workbench/common/canvasReference.js';
 
 const PINNED_CANVASES_STORAGE_KEY = 'sessions.pinnedCanvases';
 
@@ -52,6 +55,27 @@ function isPinnedCanvas(target: PinnedCanvasTarget): target is IPinnedCanvas {
 	return hasKey(target, { identity: true });
 }
 
+/**
+ * How long a pin waits for its chat to publish a canvas that the chat reports reopened. The chat
+ * can publish it after answering, or not at all when a close superseded the open.
+ */
+const REOPEN_PUBLICATION_TIMEOUT_MS = 10_000;
+
+/**
+ * A pin's request to its chat to open its canvas again, made through one session object. Each
+ * request is a distinct object, so an answer to a superseded or abandoned request is ignored.
+ */
+interface IPinnedCanvasReopen {
+	readonly session: ISession;
+}
+
+/** An open of a canvas lifetime its chat restores, which a reconnecting pin makes once. */
+interface IRestoringCanvasOpen {
+	readonly session: ISession;
+	readonly resource: URI;
+	pending: boolean;
+}
+
 class PinnedCanvas extends Disposable implements IPinnedCanvas {
 
 	readonly id: string;
@@ -62,6 +86,9 @@ class PinnedCanvas extends Disposable implements IPinnedCanvas {
 	private readonly missing = observableValue(this, false);
 	private readonly _reconnecting = observableValue(this, false);
 	readonly reconnecting: IObservable<boolean> = this._reconnecting;
+	/** Reopening the canvas through its chat while reconnecting, because its chat no longer had it. */
+	private readonly _reopen = observableValue<IPinnedCanvasReopen | undefined>(this, undefined);
+	private readonly reopenPublicationTimeout = this._register(new MutableDisposable());
 	/** The chat membership observed while reconnecting, so the canvas is found again without showing its chat. */
 	private readonly membershipReference = this._register(new MutableDisposable<IReference<IObservable<readonly ICanvas[] | undefined>>>());
 	private membershipSession: ISession | undefined;
@@ -105,6 +132,10 @@ class PinnedCanvas extends Disposable implements IPinnedCanvas {
 	private lastBound: URI | undefined;
 	/** The session object that last listed this pin's chat, so the chat leaving that list is a deletion. */
 	private listedBy: ISession | undefined;
+	/** The chat membership the bound canvas was last observed again for, after its observation failed. */
+	private observedAgainFor: readonly ICanvas[] | undefined;
+	/** The session and canvas lifetime this reconnect opened while its chat restored the canvas. */
+	private readonly openedWhileRestoring = observableValue<IRestoringCanvasOpen | undefined>(this, undefined);
 
 	get boundCanvas(): URI | undefined {
 		return this.boundResource.read(undefined);
@@ -140,9 +171,12 @@ class PinnedCanvas extends Disposable implements IPinnedCanvas {
 		this.lastResource = resource;
 		this.lastBound = resource;
 		this.liveReference.value = live;
-		this.liveCanvas.set(live?.object, tx);
-		this.boundResource.set(resource, tx);
-		this.missing.set(false, tx);
+		// A pin shown while it binds another canvas lifetime must never present the new canvas under the old reference.
+		subtransaction(tx, tx => {
+			this.liveCanvas.set(live?.object, tx);
+			this.boundResource.set(resource, tx);
+			this.missing.set(false, tx);
+		});
 	}
 
 	/** Drops the live observation, which lets its session be released, but remembers the canvas to resume it. */
@@ -167,7 +201,25 @@ class PinnedCanvas extends Disposable implements IPinnedCanvas {
 
 	/** Asks to find the live canvas again through its chat's membership, without showing the chat. */
 	requestReconnect(tx: ITransaction | undefined): void {
+		// Observable, so that asking again while reconnecting opens a restoring canvas again, unless that open is still pending.
+		if (!this.openedWhileRestoring.get()?.pending) {
+			this.openedWhileRestoring.set(undefined, tx);
+		}
 		this._reconnecting.set(true, tx);
+	}
+
+	/**
+	 * Records that this reconnect opens the canvas lifetime `resource` through `session` while its chat restores it.
+	 * Returns `undefined` when it already did, so a lifetime is opened once per reconnect and session.
+	 */
+	claimOpenWhileRestoring(session: ISession, resource: URI, reader: IReader): IRestoringCanvasOpen | undefined {
+		const opened = this.openedWhileRestoring.read(reader);
+		if (opened?.session === session && isEqual(opened.resource, resource)) {
+			return undefined;
+		}
+		const open: IRestoringCanvasOpen = { session, resource, pending: true };
+		this.openedWhileRestoring.set(open, undefined);
+		return open;
 	}
 
 	/**
@@ -191,9 +243,82 @@ class PinnedCanvas extends Disposable implements IPinnedCanvas {
 		this.membershipReference.clear();
 	}
 
+	/**
+	 * Whether to observe the bound canvas again after its observation failed, which happens at most once for each
+	 * `membership` of its chat that lists it, so a canvas that keeps failing is not observed again in a loop.
+	 */
+	shouldObserveAgain(membership: readonly ICanvas[]): boolean {
+		if (this.observedAgainFor === membership) {
+			return false;
+		}
+		this.observedAgainFor = membership;
+		return true;
+	}
+
 	endReconnect(tx: ITransaction | undefined): void {
 		this.releaseMembership();
+		this.cancelReopen(tx);
 		this._reconnecting.set(false, tx);
+	}
+
+	/** Starts reopening the canvas through its chat in `session`, whose membership lacks it. */
+	startReopen(session: ISession, tx: ITransaction | undefined): IPinnedCanvasReopen {
+		const reopen: IPinnedCanvasReopen = { session };
+		this.reopenPublicationTimeout.clear();
+		this._reopen.set(reopen, tx);
+		this.missing.set(false, tx);
+		return reopen;
+	}
+
+	/** Abandons reopening, ignoring a late answer, but keeps a reconnect request so the pin reopens its canvas once its session returns. */
+	cancelReopen(tx: ITransaction | undefined): void {
+		this.reopenPublicationTimeout.clear();
+		this._reopen.set(undefined, tx);
+	}
+
+	/** Abandons a request made through a session object other than `session`, which replaced it, so the pin asks again through `session`. */
+	cancelReopenUnlessThrough(session: ISession): void {
+		const reopen = this._reopen.get();
+		if (reopen && reopen.session !== session) {
+			this.cancelReopen(undefined);
+		}
+	}
+
+	/**
+	 * Records that the chat opened the canvas, and waits a bounded time for the chat to publish it.
+	 * The wait ends regardless of the chat's membership, which may never settle.
+	 */
+	completeReopen(reopen: IPinnedCanvasReopen): void {
+		if (this._store.isDisposed || this._reopen.get() !== reopen) {
+			return;
+		}
+		this.reopenPublicationTimeout.value = disposableTimeout(() => {
+			if (this._reopen.get() === reopen) {
+				this.giveUpReopen();
+			}
+		}, REOPEN_PUBLICATION_TIMEOUT_MS);
+	}
+
+	/** Marks the canvas unavailable when its chat could not open it. Returns `false` when the request was superseded or abandoned. */
+	failReopen(reopen: IPinnedCanvasReopen): boolean {
+		if (this._store.isDisposed || this._reopen.get() !== reopen) {
+			return false;
+		}
+		this.giveUpReopen();
+		return true;
+	}
+
+	/** Whether a request to reopen the canvas through `session` is in flight, or its chat may still publish the canvas. */
+	isReopening(session: ISession, reader: IReader): boolean {
+		return this._reopen.read(reader)?.session === session;
+	}
+
+	/** Marks the canvas unavailable and ends reconnecting, so showing the pin again asks its chat again. */
+	private giveUpReopen(): void {
+		transaction(tx => {
+			this.unbind(true, tx);
+			this.endReconnect(tx);
+		});
 	}
 }
 
@@ -263,6 +388,7 @@ export class PinnedCanvasService extends Disposable implements IPinnedCanvasServ
 						pin.suspend(undefined);
 					}
 					pin.releaseMembership();
+					pin.cancelReopen(undefined);
 				}
 			}
 		}));
@@ -372,6 +498,11 @@ export class PinnedCanvasService extends Disposable implements IPinnedCanvasServ
 		}
 		const shown = this.selected.read(reader)?.reference.read(reader);
 		return !!shown && getCanvasReferenceKey(shown) === getCanvasReferenceKey(reference);
+	}
+
+	/** Whether the canvas page shows `pin`, bound or not. */
+	private isPinShown(pin: PinnedCanvas, reader: IReader): boolean {
+		return this.customViewService.activeCustomView.read(reader)?.id === PINNED_CANVAS_PAGE_ID && this.selectedId.read(reader) === pin.id;
 	}
 
 	getTrackedCanvas(reference: ICanvasReference, reader?: IReader): ICanvas | undefined {
@@ -506,8 +637,10 @@ export class PinnedCanvasService extends Disposable implements IPinnedCanvasServ
 				pin.suspend(undefined);
 			}
 			pin.releaseMembership();
+			pin.cancelReopen(undefined);
 			return;
 		}
+		pin.cancelReopenUnlessThrough(session);
 		const resumable = pin.resumableCanvas;
 		if (!pin.isBoundTo(session) && resumable) {
 			pin.bind(session, resumable, this.sessionsManagementService.observeCanvas(session, chat.resource, resumable), undefined);
@@ -522,32 +655,129 @@ export class PinnedCanvasService extends Disposable implements IPinnedCanvasServ
 		if (membership === undefined) {
 			return;
 		}
-		const bound = pin.boundCanvas;
+		const { instanceId, extensionId, canvasId } = pin.identity;
+		let bound = pin.boundCanvas;
+		if (!bound || !membership.some(canvas => isEqual(canvas.resource, bound))) {
+			const match = membership.find(canvas => canvas.instanceId === instanceId
+				&& (!canvas.extensionId || !extensionId || canvas.extensionId === extensionId)
+				&& (!canvas.canvasId || !canvasId || canvas.canvasId === canvasId));
+			if (match) {
+				pin.bind(session, match.resource, this.sessionsManagementService.observeCanvas(session, chat.resource, match.resource), undefined);
+				bound = match.resource;
+			}
+		}
 		if (bound && membership.some(canvas => isEqual(canvas.resource, bound))) {
+			const canvas = pin.canvas.read(reader);
+			// The canvas could not be observed while its chat no longer had it, for example while its session was released; observe it again now that it does.
+			if (!canvas && pin.shouldObserveAgain(membership)) {
+				pin.bind(session, bound, this.sessionsManagementService.observeCanvas(session, chat.resource, bound), undefined);
+				return;
+			}
+			// A chat lists a canvas it restores before the canvas has a source. A shown pin keeps observing its chat, which lets the chat restore it.
+			const restoring = canvas?.source === undefined && this.isPinShown(pin, reader);
+			// The restore waits while the canvas's extension start is held behind consent that only a turn or an open asks for, so the pin opens it.
+			// A reopen of the canvas while its chat lacked it already did.
+			if (restoring && canvas?.instanceId !== undefined && canvasId && extensionId && pin.reconnecting.read(reader) && !pin.isReopening(session, reader)) {
+				const open = pin.claimOpenWhileRestoring(session, bound, reader);
+				if (open) {
+					this.openRestoringCanvas(pin, open, chat, { canvasId, extensionId });
+				}
+			}
 			transaction(tx => {
 				pin.setPresent(tx);
-				pin.endReconnect(tx);
+				if (!restoring) {
+					pin.endReconnect(tx);
+				}
 			});
 			return;
 		}
-		const { instanceId, extensionId, canvasId } = pin.identity;
-		const match = membership.find(canvas => canvas.instanceId === instanceId
-			&& (!canvas.extensionId || !extensionId || canvas.extensionId === extensionId)
-			&& (!canvas.canvasId || !canvasId || canvas.canvasId === canvasId));
-		if (match) {
-			const live = this.sessionsManagementService.observeCanvas(session, chat.resource, match.resource);
-			transaction(tx => {
-				pin.bind(session, match.resource, live, tx);
-				pin.endReconnect(tx);
-			});
+		// A canvas whose state has not loaded yet may be this pin's.
+		if (membership.some(canvas => canvas.instanceId === undefined)) {
 			return;
 		}
-		if (membership.every(canvas => canvas.instanceId !== undefined)) {
-			transaction(tx => {
-				pin.unbind(true, tx);
-				pin.endReconnect(tx);
-			});
+		if (pin.reconnecting.read(reader)) {
+			if (pin.isReopening(session, reader)) {
+				return;
+			}
+			// A chat can lose a canvas it had open, for example when a lazily activated provider stays dormant after a restart, so a pin that is shown opens it again.
+			if (canvasId && extensionId) {
+				this.reopenCanvas(pin, session, chat, { canvasId, extensionId });
+				return;
+			}
 		}
+		transaction(tx => {
+			pin.unbind(true, tx);
+			pin.endReconnect(tx);
+		});
+	}
+
+	private reopenCanvas(pin: PinnedCanvas, session: ISession, chat: IChat, type: Pick<ISessionCanvasDefinition, 'canvasId' | 'extensionId'>): void {
+		const reopen = pin.startReopen(session, undefined);
+		this.sessionsManagementService.openCanvas(session, chat, type, pin.identity.instanceId).then(
+			() => pin.completeReopen(reopen),
+			error => {
+				if (!pin.failReopen(reopen)) {
+					return;
+				}
+				if (error instanceof CanvasExtensionConsentDeniedError || error instanceof CanvasOpenFailedError) {
+					notifyCanvasOpenFailure(this.notificationService, error, pin.title.get(), options => this.retryReopen(pin, type, options));
+				} else {
+					this.notificationService.error(localize('pinnedCanvas.reopenFailed', "Could not reopen canvas {0}: {1}", pin.title.get(), toErrorMessage(error)));
+				}
+			});
+	}
+
+	/**
+	 * Opens a canvas its chat is restoring, which shows any consent request its extension's start waits for, and waits
+	 * for the restore. The chat then publishes the canvas's source; when the restore fails, the canvas stays unavailable.
+	 */
+	private openRestoringCanvas(pin: PinnedCanvas, open: IRestoringCanvasOpen, chat: IChat, type: Pick<ISessionCanvasDefinition, 'canvasId' | 'extensionId'>): void {
+		this.sessionsManagementService.openCanvas(open.session, chat, type, pin.identity.instanceId).then(() => {
+			open.pending = false;
+		}, error => {
+			open.pending = false;
+			if (!this.isCurrentRestoringOpen(pin, open)) {
+				return;
+			}
+			if (error instanceof CanvasExtensionConsentDeniedError) {
+				notifyCanvasOpenFailure(this.notificationService, error, pin.title.get(), options => this.retryRestoringOpen(pin, open, chat, type, options));
+			} else {
+				this.logService.warn(`[PinnedCanvasService] Opening a restoring canvas failed: ${toErrorMessage(error)}`);
+			}
+		});
+	}
+
+	/** Whether `pin` is still pinned and shows the session and canvas lifetime `open` was for, so its outcome is reported. */
+	private isCurrentRestoringOpen(pin: PinnedCanvas, open: IRestoringCanvasOpen): boolean {
+		return this.pins.get().includes(pin) && pin.isBoundTo(open.session) && isEqual(pin.boundCanvas, open.resource);
+	}
+
+	/**
+	 * Asks again about the declined extension of the canvas lifetime `open` was for. When a newer session or lifetime
+	 * superseded it, only shows the pin, which reconnects through those.
+	 */
+	private async retryRestoringOpen(pin: PinnedCanvas, open: IRestoringCanvasOpen, chat: IChat, type: Pick<ISessionCanvasDefinition, 'canvasId' | 'extensionId'>, options: ICanvasOpenOptions | undefined): Promise<void> {
+		if (!this.pins.get().includes(pin)) {
+			return;
+		}
+		if (this.isCurrentRestoringOpen(pin, open)) {
+			await this.sessionsManagementService.openCanvas(open.session, chat, type, pin.identity.instanceId, options);
+		}
+		await this.show(pin);
+	}
+
+	/**
+	 * Opens a pin's canvas again as the warning about its failed reopen offers, for example asking about its declined
+	 * extension again, then shows the pin, which binds once its chat publishes the canvas.
+	 */
+	private async retryReopen(pin: PinnedCanvas, type: Pick<ISessionCanvasDefinition, 'canvasId' | 'extensionId'>, options: ICanvasOpenOptions | undefined): Promise<void> {
+		const session = this.sessionsManagementService.getSession(pin.identity.session);
+		const chat = session?.chats.get().find(candidate => isEqual(candidate.resource, pin.identity.chat));
+		if (!session || !chat || !this.getEntry(pin)) {
+			return;
+		}
+		await this.sessionsManagementService.openCanvas(session, chat, type, pin.identity.instanceId, options);
+		await this.show(pin);
 	}
 
 	private removeWhere(owns: (identity: IPinnedCanvasIdentity) => boolean): void {
@@ -566,6 +796,10 @@ export class PinnedCanvasService extends Disposable implements IPinnedCanvasServ
 	private isOwnerGone(pin: PinnedCanvas, reader: IReader): boolean {
 		const session = this.sessionsManagementService.getSession(pin.identity.session);
 		if (!session || !ownsSession(pin.identity, session)) {
+			return false;
+		}
+		// The main chat shares its session's archived state, which shows a pending archive the host may still reject.
+		if (session.archivePending?.read(reader)) {
 			return false;
 		}
 		if (session.isArchived.read(reader)) {

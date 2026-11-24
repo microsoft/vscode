@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup } from '../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
-import { type IRemoteHostUnavailableEmptyStateContent, RemoteHostUnavailableEmptyState } from '../../browser/parts/remoteHostUnavailableEmptyState.js';
-import { AGENTS_CENTERED_CONTENT_MAX_WIDTH } from '../../common/layoutConstants.js';
+import { type IRemoteHostUnavailableEmptyStateContent, RemoteHostUnavailableEmptyState } from '../../../workbench/contrib/sessions/browser/parts/remoteHostUnavailableEmptyState.js';
+import { AGENTS_CENTERED_CONTENT_MAX_WIDTH } from '../../../workbench/contrib/sessions/common/layoutConstants.js';
 
 export default defineThemedFixtureGroup({ path: 'sessions/remoteHostUnavailable/' }, {
 	HostNotRunning: defineComponentFixture({

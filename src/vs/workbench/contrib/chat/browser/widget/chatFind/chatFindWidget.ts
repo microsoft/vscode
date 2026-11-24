@@ -5,11 +5,14 @@
 
 import './chatFindWidget.css';
 import * as dom from '../../../../../../base/browser/dom.js';
-import { DeferredPromise, Delayer } from '../../../../../../base/common/async.js';
+import { DeferredPromise, Delayer, raceCancellation } from '../../../../../../base/common/async.js';
+import { cancelOnDispose } from '../../../../../../base/common/cancellation.js';
 import { createRegExp } from '../../../../../../base/common/strings.js';
 import { isDefined } from '../../../../../../base/common/types.js';
 import { Event } from '../../../../../../base/common/event.js';
-import { MutableDisposable } from '../../../../../../base/common/lifecycle.js';
+import { URI } from '../../../../../../base/common/uri.js';
+import { DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
+import { IObservable, runOnChange } from '../../../../../../base/common/observable.js';
 import { Range as EditorRange } from '../../../../../../editor/common/core/range.js';
 import { EditorOption } from '../../../../../../editor/common/config/editorOptions.js';
 import { IEditorDecorationsCollection } from '../../../../../../editor/common/editorCommon.js';
@@ -19,9 +22,11 @@ import { IContextKey, IContextKeyService } from '../../../../../../platform/cont
 import { IContextViewService } from '../../../../../../platform/contextview/browser/contextView.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
-import { SimpleFindWidget } from '../../../../codeEditor/browser/find/simpleFindWidget.js';
+import { localize } from '../../../../../../nls.js';
+import { ISimpleFindResultCount, SimpleFindWidget } from '../../../../codeEditor/browser/find/simpleFindWidget.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
-import { ChatTreeItem, IChatFindController } from '../../chat.js';
+import { IChatModel } from '../../../common/model/chatModel.js';
+import { ChatTreeItem, IChatCodeBlockInfo, IChatFindController } from '../../chat.js';
 import { IChatListItemTemplate } from '../chatListRenderer.js';
 import { CodeBlockPart } from '../chatContentParts/codeBlockPart.js';
 import { ChatFindCommandId } from './chatFindCommandIds.js';
@@ -30,12 +35,16 @@ import { ChatFindModel, IChatFindMatch, MAX_FIND_MATCHES } from './chatFindModel
 
 export interface IChatFindHost {
 	readonly transcriptDomNode: HTMLElement;
+	readonly activeModel?: IObservable<IChatModel | undefined>;
+	readonly transcriptVisible?: IObservable<boolean>;
 	getItems(): readonly ChatTreeItem[];
 	readonly onDidChangeContent: Event<void>;
+	hasElement?(item: ChatTreeItem): boolean;
 	reveal(item: ChatTreeItem, relativeTop?: number): void;
 	getTemplateDataForRequestId(requestId: string | undefined): IChatListItemTemplate | undefined;
 	readonly onDidRerenderRow: Event<IChatListItemTemplate>;
 	editorsInUse(): Iterable<CodeBlockPart>;
+	getCodeBlockInfoForEditor(uri: URI): IChatCodeBlockInfo | undefined;
 	/** Scroll offset of the transcript, in list content space. */
 	getScrollTop(): number;
 	setScrollTop(scrollTop: number): void;
@@ -81,6 +90,10 @@ function nearestBlock(node: Node, root: HTMLElement): Element {
 }
 
 export function findMatchRangesInDom(root: HTMLElement, regex: RegExp, limit: number, excludedRoots: readonly HTMLElement[] = []): Range[] {
+	if (root.hasAttribute('data-chat-find-ignore')) {
+		return [];
+	}
+	const ignoredRoots: Element[] = [...excludedRoots];
 	const ownerDocument = root.ownerDocument;
 	const nodes: { node: Text; start: number; end: number }[] = [];
 	let buffer = '';
@@ -89,12 +102,18 @@ export function findMatchRangesInDom(root: HTMLElement, regex: RegExp, limit: nu
 	const walker = ownerDocument.createTreeWalker(root, 5 /* NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT */);
 	let current: Node | null;
 	while ((current = walker.nextNode())) {
-		if (excludedRoots.some(candidate => candidate.contains(current))) {
+		if (ignoredRoots.some(candidate => candidate.contains(current))) {
 			separatorPending = true;
 			continue;
 		}
 		if (current.nodeType !== 3 /* Node.TEXT_NODE */) {
-			separatorPending ||= (current as Element).tagName === 'BR';
+			const element = current as Element;
+			if (element.hasAttribute('data-chat-find-ignore')) {
+				ignoredRoots.push(element);
+				separatorPending = true;
+			} else {
+				separatorPending ||= element.tagName === 'BR';
+			}
 			continue;
 		}
 		const text = current.textContent;
@@ -246,6 +265,10 @@ export class ChatFindWidget extends SimpleFindWidget implements IChatFindControl
 	private readonly _recomputeDelayer = this._register(new Delayer<void>(200));
 	private readonly _searchDelayer = this._register(new Delayer<void>(SEARCH_DEBOUNCE_DELAY));
 	private readonly _codeDecorations = new Map<CodeBlockPart, IEditorDecorationsCollection>();
+	private readonly _historyInterest = this._register(new MutableDisposable<DisposableStore>());
+	private readonly _historyListeners = this._register(new DisposableStore());
+	private _historyReadFailed = false;
+	private _pendingTreeReveal: IChatFindMatch | undefined;
 
 	private _lastFocusedElement: HTMLElement | undefined;
 	private _lastNavigationWasPrevious = false;
@@ -297,16 +320,34 @@ export class ChatFindWidget extends SimpleFindWidget implements IChatFindControl
 		this._model = this._register(new ChatFindModel(() => this.host.getItems(), () => this.host.getViewportAnchorItemId()));
 		this._register(this._model.onDidChangeMatches(() => this._onMatchesChanged()));
 
+		if (host.activeModel) {
+			this._register(runOnChange(host.activeModel, () => {
+				if (this.visible) {
+					this._close(false);
+				}
+				this._model.clear();
+			}));
+		}
+		if (host.transcriptVisible) {
+			this._register(runOnChange(host.transcriptVisible, visible => {
+				if (!visible) {
+					this._cancelSearchInterest();
+					this._searchDelayer.cancel();
+					this._pendingSearch = undefined;
+				} else if (this._isModelStale()) {
+					this._scheduleSearch();
+				} else {
+					this._scheduleRecompute();
+				}
+			}));
+		}
 		this._register(this.host.onDidChangeContent(() => {
-			if (this.isVisible()) {
-				this._recomputeDelayer.trigger(() => {
-					this._model.recompute();
-					// The row usually rerenders before this debounced pass, against the old matches.
-					this._scheduleRepaint();
-				}).catch(() => { });
-			}
+			this._scheduleRecompute();
 		}));
-		this._register(this.host.onDidRerenderRow(() => {
+		this._register(this.host.onDidRerenderRow(template => {
+			if (template.currentElement && this._model.invalidateRenderedRow(template.currentElement)) {
+				this._scheduleRecompute();
+			}
 			if (this.isVisible()) {
 				this._scheduleRepaint();
 			}
@@ -320,8 +361,26 @@ export class ChatFindWidget extends SimpleFindWidget implements IChatFindControl
 	}
 
 	override show(seedText?: string, focus: boolean = true): void {
+		if (this.host.transcriptVisible?.get() === false || (this.host.activeModel && !this.host.activeModel.get())) {
+			return;
+		}
 		if (shouldCaptureFocusBeforeShow(this.isVisible())) {
 			this._lastFocusedElement = this._targetWindow.document.activeElement as HTMLElement | undefined;
+			const model = this.host.activeModel?.get();
+			if (model?.olderHistoryCursor) {
+				this._historyListeners.add(runOnChange(model.olderHistoryCursor, () => {
+					this._historyReadFailed = false;
+					this._scheduleRecompute();
+				}));
+			}
+			if (model?.olderHistoryUnavailable) {
+				this._historyListeners.add(runOnChange(model.olderHistoryUnavailable, unavailable => {
+					if (unavailable) {
+						this._historyInterest.clear();
+					}
+					this._scheduleRecompute();
+				}));
+			}
 		}
 		this._findWidgetVisibleKey.set(true);
 		// Opening reads the count before the seed text reaches the model, reporting "No results".
@@ -331,32 +390,51 @@ export class ChatFindWidget extends SimpleFindWidget implements IChatFindControl
 		} else {
 			super.show(seedText);
 		}
-		this._model.setQuery(this.inputValue, this._currentFindOptions());
-		this._navigateToActive();
+		this.findFirst();
 	}
 
 	override hide(): void {
+		this._close(true);
+	}
+
+	private _close(restoreFocus: boolean): void {
 		super.hide();
 		this._findWidgetVisibleKey.reset();
-		this._recomputeDelayer.cancel();
+		this._historyListeners.clear();
+		this._cancelSearchInterest();
 		this._searchDelayer.cancel();
 		this._pendingSearch = undefined;
-		this._completeSettle();
-		this._revealScheduler.clear();
-		this._repaintScheduler.clear();
 		this._clearHighlights();
-		this._restoreFocus();
+		if (restoreFocus) {
+			this._restoreFocus();
+		} else {
+			this._lastFocusedElement = undefined;
+		}
 	}
 
 	find(previous: boolean): void {
+		if (!this.visible || this.host.transcriptVisible?.get() === false) {
+			return;
+		}
 		this._lastNavigationWasPrevious = previous;
 		this._unlocatableSkips = 0;
 		if (this._flushPendingSearch()) {
 			// The query was not searched yet, so Enter lands on its first match, not its second.
-			this._navigateToActive();
-			void this.updateResultCount();
 			return;
 		}
+		if (this._recomputeDelayer.isTriggered()) {
+			// A page from another reader can arrive before the debounced content refresh.
+			this._recomputeDelayer.cancel();
+			if (this._refreshLoadedMatches()) {
+				return;
+			}
+		}
+		const { matches, activeIndex } = this._model;
+		const atBoundary = !matches.length || (previous ? activeIndex === 0 : activeIndex === matches.length - 1);
+		if (atBoundary && matches.length < MAX_FIND_MATCHES && this._seekOlder(matches.at(-1), previous)) {
+			return;
+		}
+		this._historyInterest.clear();
 		this._advanceActiveMatch(previous);
 	}
 
@@ -370,7 +448,7 @@ export class ChatFindWidget extends SimpleFindWidget implements IChatFindControl
 		}
 		this._searchDelayer.cancel();
 		this._pendingSearch = undefined;
-		this._model.setQuery(this.inputValue, this._currentFindOptions());
+		this._search();
 		return true;
 	}
 
@@ -400,12 +478,14 @@ export class ChatFindWidget extends SimpleFindWidget implements IChatFindControl
 	}
 
 	findFirst(): void {
+		if (!this.visible) {
+			return;
+		}
 		this._unlocatableSkips = 0;
 		// Toggling an option supersedes a keystroke still waiting out the debounce.
 		this._searchDelayer.cancel();
 		this._pendingSearch = undefined;
-		this._model.setQuery(this.inputValue, this._currentFindOptions());
-		this._navigateToActive();
+		this._search();
 	}
 
 	next(): void {
@@ -462,19 +542,128 @@ export class ChatFindWidget extends SimpleFindWidget implements IChatFindControl
 	 */
 	private _scheduleSearch(): void {
 		// An option toggle also reaches here via `findFirst`; a duplicate would swallow Enter.
-		if (!this._isModelStale()) {
+		if (!this.visible || this.host.transcriptVisible?.get() === false || (!this._isModelStale() && !this._pendingSearch)) {
 			return;
 		}
-		const search = this._searchDelayer.trigger(() => {
-			this._model.setQuery(this.inputValue, this._currentFindOptions());
-			this._navigateToActive();
-		});
+		this._cancelSearchInterest();
+		const search = this._searchDelayer.trigger(() => this._search());
 		this._pendingSearch = search;
 		search.catch(() => { }).finally(() => {
 			if (this._pendingSearch === search) {
 				this._pendingSearch = undefined;
 			}
 		});
+	}
+
+	private _cancelSearchInterest(): void {
+		this._pendingTreeReveal = undefined;
+		this._historyInterest.clear();
+		this._historyReadFailed = false;
+		this._recomputeDelayer.cancel();
+		this._revealScheduler.clear();
+		this._repaintScheduler.clear();
+		this._completeSettle();
+	}
+
+	private _search(): void {
+		this._cancelSearchInterest();
+		this._model.setQuery(this.inputValue, this._currentFindOptions());
+		this._navigateToActive();
+		if (!this._model.activeMatch) {
+			this._seekOlder();
+		}
+	}
+
+	private _scheduleRecompute(): void {
+		if (!this.visible || this.host.transcriptVisible?.get() === false || this._isModelStale()) {
+			return;
+		}
+		this._recomputeDelayer.trigger(() => {
+			if (!this._refreshLoadedMatches()) {
+				this._scheduleRepaint();
+			}
+			if (!this._model.activeMatch && !this._historyReadFailed) {
+				this._seekOlder();
+			}
+		}).catch(() => { });
+	}
+
+	/** Returns whether newly available text already satisfied the search for its first hit. */
+	private _refreshLoadedMatches(): boolean {
+		const hadMatch = !!this._model.activeMatch;
+		this._model.recompute();
+		if (!hadMatch && this._model.activeMatch) {
+			this._historyInterest.clear();
+			this._navigateToActive();
+			void this.updateResultCount();
+			return true;
+		}
+		if (this._pendingTreeReveal && this._model.isActiveOccurrence(this._pendingTreeReveal)) {
+			this._navigateToActive();
+		} else {
+			this._pendingTreeReveal = undefined;
+		}
+		return false;
+	}
+
+	/** A pending provider read is shared with the transcript; only this widget's interest is cancelled. */
+	private _seekOlder(boundary?: IChatFindMatch, previous = false): boolean {
+		if (this._historyInterest.value) {
+			return true;
+		}
+		const model = this.host.activeModel?.get();
+		const cursor = model?.olderHistoryCursor?.get();
+		if (!this.visible || this.host.transcriptVisible?.get() === false || !this._model.query || this._model.isInvalidRegex || !model?.loadOlderHistory || cursor === undefined || model.olderHistoryUnavailable?.get()) {
+			return false;
+		}
+		this._recomputeDelayer.cancel();
+		this._revealScheduler.clear();
+		this._completeSettle();
+		void this._readUntilMatch(model, cursor, boundary, previous);
+		return true;
+	}
+
+	private async _readUntilMatch(model: IChatModel, cursor: string, boundary: IChatFindMatch | undefined, previous: boolean): Promise<void> {
+		const token = cancelOnDispose(this._historyInterest.value = new DisposableStore());
+		this._historyReadFailed = false;
+		void this.updateResultCount();
+		const visited = new Set<string>();
+		try {
+			while (!token.isCancellationRequested && model.loadOlderHistory) {
+				visited.add(cursor);
+				try {
+					await raceCancellation(model.loadOlderHistory(), token);
+				} catch {
+					if (token.isCancellationRequested) {
+						return;
+					}
+					this._historyReadFailed = true;
+				}
+				if (token.isCancellationRequested || this._isModelStale()) {
+					return;
+				}
+				this._recomputeDelayer.cancel();
+				this._model.recompute();
+				const next = model.olderHistoryCursor?.get();
+				this._historyReadFailed ||= !model.olderHistoryCursor || !model.loadOlderHistory || (next !== undefined && visited.has(next));
+				if (boundary ? this._model.selectOlderThan(boundary, previous) : this._model.activeMatch) {
+					this._navigateToActive();
+					return;
+				}
+				if (this._historyReadFailed || next === undefined || this._model.matches.length >= MAX_FIND_MATCHES) {
+					if (boundary) {
+						this._advanceActiveMatch(previous);
+					}
+					return;
+				}
+				cursor = next;
+			}
+		} finally {
+			if (!token.isCancellationRequested) {
+				this._historyInterest.clear();
+				void this.updateResultCount();
+			}
+		}
 	}
 
 	/** Marks the start of locating an active match, if one is not already in progress. */
@@ -507,12 +696,30 @@ export class ChatFindWidget extends SimpleFindWidget implements IChatFindControl
 		}
 	}
 
-	protected async _getResultCount(): Promise<{ resultIndex: number; resultCount: number } | undefined> {
+	protected async _getResultCount(): Promise<ISimpleFindResultCount | undefined> {
 		await this._whenSettled();
 		if (this._model.isInvalidRegex) {
 			return undefined;
 		}
-		return { resultIndex: this._model.activeIndex, resultCount: this._model.matches.length };
+		const model = this.host.activeModel?.get();
+		const cursor = model?.olderHistoryCursor;
+		const hasOlder = cursor?.get() !== undefined;
+		const unavailable = model?.olderHistoryUnavailable?.get();
+		const searching = !!this._historyInterest.value;
+		const incomplete = !!this._model.query && (searching || this._historyReadFailed || !!unavailable || hasOlder || (!!model?.loadOlderHistory && !cursor));
+		const resultCount = this._model.matches.length;
+		let status: string | undefined;
+		if (searching) {
+			status = localize('chat.find.searchingHistory', "Searching…");
+		} else if (this._historyReadFailed && resultCount) {
+			status = localize('chat.find.partialAfterFailure', "{0} of {1}+ (search incomplete)", this._model.activeIndex + 1, resultCount);
+		} else if (!resultCount && incomplete) {
+			status = localize('chat.find.searchIncomplete', "Search incomplete");
+		}
+		return {
+			resultIndex: this._model.activeIndex, resultCount, incomplete, status,
+			canRetry: !searching && !unavailable && hasOlder && !!model?.loadOlderHistory,
+		};
 	}
 
 	protected _onFocusTrackerFocus(): void {
@@ -536,10 +743,14 @@ export class ChatFindWidget extends SimpleFindWidget implements IChatFindControl
 	}
 
 	private _onMatchesChanged(): void {
-		void this.updateResultCount();
+		if (!this._historyInterest.value) {
+			void this.updateResultCount();
+		}
 	}
 
 	private _navigateToActive(): void {
+		this._pendingTreeReveal = undefined;
+		this._revealScheduler.clear();
 		const match = this._model.activeMatch;
 		this._clearHighlights();
 		this._beginSettle();
@@ -549,23 +760,37 @@ export class ChatFindWidget extends SimpleFindWidget implements IChatFindControl
 			return;
 		}
 
-		const item = this._findItemForMatch(match);
-		if (item) {
-			this.host.reveal(item);
+		const item = this._getRevealableItem(match);
+		if (!item) {
+			return;
 		}
-
+		this.host.reveal(item);
 		this._revealScheduler.value = dom.scheduleAtNextAnimationFrame(this._targetWindow, () => this._revealActiveMatch(match));
 	}
 
+	private _getRevealableItem(match: IChatFindMatch): ChatTreeItem | undefined {
+		if (this._model.isActiveOccurrence(match)) {
+			const item = this._findItemForMatch(match);
+			if (item && this.host.hasElement?.(item) !== false) {
+				return item;
+			}
+			// The view model can contain a prepended page before the list refreshes.
+			this._pendingTreeReveal = item ? match : undefined;
+		}
+		this._completeSettle();
+		return undefined;
+	}
+
 	private _revealActiveMatch(match: IChatFindMatch, attempt: number = 0): void {
+		const item = this._getRevealableItem(match);
+		if (!item) {
+			return;
+		}
 		const locatedMatch = this._locateMatch(match);
 		if (!locatedMatch) {
 			// A long jump outruns the list, which mounts and re-measures rows over later frames.
 			if (attempt < ChatFindWidget.MAX_LOCATE_ATTEMPTS) {
-				const item = this._findItemForMatch(match);
-				if (item) {
-					this.host.reveal(item);
-				}
+				this.host.reveal(item);
 				this._revealScheduler.value = dom.scheduleAtNextAnimationFrame(this._targetWindow, () => this._revealActiveMatch(match, attempt + 1));
 				return;
 			}
@@ -574,13 +799,16 @@ export class ChatFindWidget extends SimpleFindWidget implements IChatFindControl
 			return;
 		}
 		if (isCodeMatch(locatedMatch)) {
+			const uri = locatedMatch.codeBlock.uri;
+			const sourceRevealed = uri ? this.host.getCodeBlockInfoForEditor(uri)?.reveal?.() : false;
 			const revealCodeMatch = () => {
 				locatedMatch.codeBlock.editor.revealRangeInCenter(locatedMatch.range);
 				this._repaintVisibleHighlights();
 				this._revealRect(this._codeMatchRect(locatedMatch));
 				this._completeSettle();
 			};
-			if (openAncestorDisclosures(this.host.transcriptDomNode, locatedMatch.codeBlock.element)) {
+			const disclosureOpened = openAncestorDisclosures(this.host.transcriptDomNode, locatedMatch.codeBlock.element);
+			if (sourceRevealed || disclosureOpened) {
 				this._revealScheduler.value = dom.scheduleAtNextAnimationFrame(this._targetWindow, revealCodeMatch);
 			} else {
 				revealCodeMatch();

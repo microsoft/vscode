@@ -13,6 +13,7 @@ import { IWorkspaceContextService, WorkbenchState } from '../../../platform/work
 import { mock } from '../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { ConfigurationMigration, ConfigurationMigrationWorkbenchContribution, Extensions, IConfigurationMigrationRegistry } from '../../common/configuration.js';
+import { testIWorkspace } from '../../../platform/workspace/test/common/testWorkspace.js';
 
 suite('ConfigurationMigrationWorkbenchContribution', () => {
 
@@ -49,7 +50,7 @@ suite('ConfigurationMigrationWorkbenchContribution', () => {
 		const workspaceService = new class extends mock<IWorkspaceContextService>() {
 			override readonly onDidChangeWorkspaceFolders = Event.None;
 			override getWorkbenchState(): WorkbenchState { return WorkbenchState.EMPTY; }
-			override getWorkspace() { return { id: 'test', folders: [] }; }
+			override getWorkspace() { return testIWorkspace({ id: 'test', folders: [] }); }
 		}();
 
 		disposables.add(new ConfigurationMigrationWorkbenchContribution(configurationService, workspaceService));
@@ -63,5 +64,46 @@ suite('ConfigurationMigrationWorkbenchContribution', () => {
 
 	test('includes application configuration when the migration opts in', async () => {
 		assert.deepStrictEqual(await migrate(true), [ConfigurationTarget.APPLICATION, ConfigurationTarget.USER]);
+	});
+
+	test('migrates a value of the remote user settings in the remote user settings when the migration migrates user settings separately', async () => {
+		const key = 'configurationMigration.test.remoteUser';
+		Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration).registerConfigurationMigrations([{
+			key,
+			migrateUserSettingsSeparately: true,
+			migrateFn: value => [[key, { value: undefined }], [`${key}.new`, { value }]],
+		}]);
+
+		const updates: { key: string; value: unknown; target: ConfigurationTarget | undefined }[] = [];
+		const completed = new DeferredPromise<void>();
+		const configurationService = new class extends TestConfigurationService {
+			override inspect<T>(inspectKey: string): IConfigurationValue<T> {
+				return inspectKey === key ? {
+					user: { value: 'remote' as T },
+					userRemote: { value: 'remote' as T },
+				} : {};
+			}
+
+			override updateValue(updateKey: string, value: unknown, _overrides?: unknown, target?: ConfigurationTarget): Promise<void> {
+				updates.push({ key: updateKey, value, target });
+				if (updates.length === 2) {
+					completed.complete();
+				}
+				return Promise.resolve();
+			}
+		}();
+		const workspaceService = new class extends mock<IWorkspaceContextService>() {
+			override readonly onDidChangeWorkspaceFolders = Event.None;
+			override getWorkbenchState(): WorkbenchState { return WorkbenchState.EMPTY; }
+			override getWorkspace() { return testIWorkspace({ id: 'test', folders: [] }); }
+		}();
+
+		disposables.add(new ConfigurationMigrationWorkbenchContribution(configurationService, workspaceService));
+		await completed.p;
+
+		assert.deepStrictEqual(updates, [
+			{ key, value: undefined, target: ConfigurationTarget.USER_REMOTE },
+			{ key: `${key}.new`, value: 'remote', target: ConfigurationTarget.USER_REMOTE },
+		]);
 	});
 });

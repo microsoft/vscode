@@ -7,6 +7,7 @@ import { Emitter, Event } from '../../../base/common/event.js';
 import { localize } from '../../../nls.js';
 import { Disposable, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { IObservable, observableFromEvent } from '../../../base/common/observable.js';
+import { env } from '../../../base/common/process.js';
 import { ILogService } from '../../log/common/log.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { IRequestService } from '../../request/common/request.js';
@@ -14,7 +15,7 @@ import { IEnvironmentService } from '../../environment/common/environment.js';
 import { ISharedProcessService } from '../../ipc/electron-browser/services.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../storage/common/storage.js';
 import { ProxyChannel } from '../../../base/parts/ipc/common/ipc.js';
-import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId, getEntryAddress, type IRemoteAgentHostConnectOptions, type IRemoteAgentHostConnectionFactory, type IRemoteAgentHostCreatedConnection, type IRemoteAgentHostEntry } from '../common/remoteAgentHostService.js';
+import { DISCONNECTED_REMOTE_AGENT_HOSTS_STORAGE_KEY, IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId, getEntryAddress, readDisconnectedRemoteAgentHostAddresses, setRemoteAgentHostDisconnected, type IRemoteAgentHostConnectOptions, type IRemoteAgentHostConnectionFactory, type IRemoteAgentHostCreatedConnection, type IRemoteAgentHostEntry } from '../common/remoteAgentHostService.js';
 import { createDecorator, IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { AhpJsonlLogger } from '../common/ahpJsonlLogger.js';
 import { AgentHostAhpJsonlLoggingSettingId } from '../common/agentService.js';
@@ -137,7 +138,7 @@ export class WSLRelayClientFactory implements IWSLRelayClientFactory {
 				loadCertificates: () => this._requestService.loadCertificates(),
 			},
 			// WSL shares the Windows network, so its agent host may use this client's proxy configuration and tickets.
-			clientProxy: this._instantiationService.createInstance(AgentHostClientProxy, () => true),
+			clientProxy: this._instantiationService.createInstance(AgentHostClientProxy, () => true, env),
 			onDispose: () => {
 				disposed = true;
 				void releaseRelay(activeConnectionId);
@@ -201,22 +202,29 @@ class WSLConnectionFactory extends Disposable implements IRemoteAgentHostConnect
 		super();
 		this.entries = observableFromEvent(
 			this,
-			this._storageService.onDidChangeValue(StorageScope.APPLICATION, CACHED_WSL_DISTROS_KEY, this._store),
+			Event.any(
+				this._storageService.onDidChangeValue(StorageScope.APPLICATION, CACHED_WSL_DISTROS_KEY, this._store),
+				this._storageService.onDidChangeValue(StorageScope.APPLICATION, DISCONNECTED_REMOTE_AGENT_HOSTS_STORAGE_KEY, this._store),
+			),
 			() => this._getEntries(),
 		);
+	}
+
+	getPendingConnectionInitiation(entry: IRemoteAgentHostEntry): boolean | undefined {
+		return this._stagedConfigurations.get(getEntryAddress(entry))?.userInitiated;
 	}
 
 	stageConfiguration(config: IWSLAgentHostConfig): IRemoteAgentHostEntry {
 		const entry = this._createEntry(config.distro, config.name);
 		this._stagedConfigurations.set(getEntryAddress(entry), config);
-		this._storeEntry(entry);
+		this._storeEntry(entry, config.userInitiated !== false);
 		return entry;
 	}
 
 	stageEntry(distro: string, name: string, userInitiated = true): IRemoteAgentHostEntry {
 		const entry = this._createEntry(distro, name);
 		this._stagedConfigurations.set(getEntryAddress(entry), { distro, name, remoteAgentHostCommand: this._getRemoteAgentHostCommand(), userInitiated });
-		this._storeEntry(entry);
+		this._storeEntry(entry, userInitiated);
 		return entry;
 	}
 
@@ -229,42 +237,46 @@ class WSLConnectionFactory extends Disposable implements IRemoteAgentHostConnect
 			throw new Error(`WSL factory cannot create a ${entry.connection.type} connection.`);
 		}
 
-		const address = getEntryAddress(entry);
-		let stagedConnection = this._stagedConfigurations.get(address);
-		this._stagedConfigurations.delete(address);
-		let config = stagedConnection ?? {
+		const { config, userInitiated } = await this._resolveDial(getEntryAddress(entry), {
 			distro: entry.connection.distro,
 			name: entry.name,
 			remoteAgentHostCommand: this._getRemoteAgentHostCommand(),
-		};
-		let userInitiated = config.userInitiated ?? options.userInitiated;
-		if (!userInitiated) {
-			try {
-				await this._ensureDistroIsRunning(config.distro);
-			} catch (err) {
-				const userStagedConnection = this._stagedConfigurations.get(address);
-				if (!userStagedConnection) {
-					throw err;
-				}
-				this._stagedConfigurations.delete(address);
-				stagedConnection = userStagedConnection;
-				config = stagedConnection;
-				userInitiated = config.userInitiated ?? options.userInitiated;
-			}
-			// A user action may have arrived while the background precondition ran.
-			const userStagedConnection = this._stagedConfigurations.get(address);
-			if (userStagedConnection) {
-				this._stagedConfigurations.delete(address);
-				stagedConnection = userStagedConnection;
-				config = stagedConnection;
-				userInitiated = config.userInitiated ?? options.userInitiated;
-			}
-		}
+		}, options);
 
 		// A fresh protocol client must not attach to a relay that may already be initialized.
 		const result = await this._mainService.connect({ ...config, userInitiated });
 		this._logService.trace(`[WSLRemoteAgentHost] WSL relay established, connectionId=${result.connectionId}`);
 		return this._setupConnection(result, config.remoteAgentHostCommand);
+	}
+
+	/**
+	 * Resolves the configuration of a dial and whether a user requested it. Connecting to a stopped
+	 * distribution starts it, which only an explicit user action may do: an automatic dial fails with
+	 * {@link AgentHostTransportFailureReason.HostNotRunning} instead. This is the one place that decides
+	 * whether a dial may start a stopped distribution.
+	 */
+	private async _resolveDial(address: string, defaultConfig: IWSLAgentHostConfig, options: IRemoteAgentHostConnectOptions): Promise<{ readonly config: IWSLAgentHostConfig; readonly userInitiated: boolean }> {
+		const resolve = (fallback: IWSLAgentHostConfig) => {
+			const config = this._takeStagedConfiguration(address) ?? fallback;
+			return { config, userInitiated: (config.userInitiated ?? options.userInitiated) || !!options.hasUserJoined?.() };
+		};
+		const dial = resolve(defaultConfig);
+		if (dial.userInitiated) {
+			return dial;
+		}
+		const runningDistros = await this._mainService.listRunningDistros();
+		// A user may connect while the check runs, either staging a configuration or joining this dial.
+		const current = resolve(dial.config);
+		if (!current.userInitiated && !runningDistros.includes(current.config.distro)) {
+			throw new NonReconnectableTransportError(`WSL distro '${current.config.distro}' is not running.`, AgentHostTransportFailureReason.HostNotRunning);
+		}
+		return current;
+	}
+
+	private _takeStagedConfiguration(address: string): IWSLAgentHostConfig | undefined {
+		const config = this._stagedConfigurations.get(address);
+		this._stagedConfigurations.delete(address);
+		return config;
 	}
 
 	private _createEntry(distro: string, name: string): IRemoteAgentHostEntry {
@@ -278,7 +290,7 @@ class WSLConnectionFactory extends Disposable implements IRemoteAgentHostConnect
 		};
 	}
 
-	private _storeEntry(entry: IRemoteAgentHostEntry): void {
+	private _storeEntry(entry: IRemoteAgentHostEntry, restore: boolean): void {
 		if (entry.connection.type !== RemoteAgentHostEntryType.WSL) {
 			return;
 		}
@@ -287,10 +299,16 @@ class WSLConnectionFactory extends Disposable implements IRemoteAgentHostConnect
 		const connection = entry.connection;
 		const cached = readCachedWSLDistros(this._storageService).filter(distro => distro.distro !== connection.distro);
 		storeCachedWSLDistros(this._storageService, [{ distro: connection.distro, name: entry.name }, ...cached]);
+		// Clear after staging: republishing the entry may start a dial that
+		// must find the staged configuration.
+		if (restore) {
+			setRemoteAgentHostDisconnected(this._storageService, connection.address, false);
+		}
 	}
 
 	private _getEntries(): readonly IRemoteAgentHostEntry[] {
-		return readCachedWSLDistros(this._storageService).map(({ distro, name }) => ({
+		const disconnected = readDisconnectedRemoteAgentHostAddresses(this._storageService);
+		return readCachedWSLDistros(this._storageService).filter(({ distro }) => !disconnected.has(`${WSL_ADDRESS_PREFIX}${distro}`)).map(({ distro, name }) => ({
 			name,
 			connection: {
 				type: RemoteAgentHostEntryType.WSL,
@@ -298,13 +316,6 @@ class WSLConnectionFactory extends Disposable implements IRemoteAgentHostConnect
 				distro,
 			},
 		}));
-	}
-
-	private async _ensureDistroIsRunning(distro: string): Promise<void> {
-		const runningDistros = await this._mainService.listRunningDistros();
-		if (!runningDistros.includes(distro)) {
-			throw new NonReconnectableTransportError(`WSL distro '${distro}' is not running.`, AgentHostTransportFailureReason.HostNotRunning);
-		}
 	}
 
 	private _setupConnection(result: IWSLConnectResult, remoteAgentHostCommand: string | undefined): IRemoteAgentHostCreatedConnection {
@@ -471,6 +482,10 @@ export class WSLRemoteAgentHostService extends Disposable implements IWSLRemoteA
 		return this._mainService.listRunningDistros();
 	}
 
+	async terminateDistro(distro: string): Promise<void> {
+		return this._mainService.terminateDistro(distro);
+	}
+
 	async connect(config: IWSLAgentHostConfig): Promise<IWSLAgentHostConnection> {
 		if (!this._configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId)) {
 			throw new Error('Remote agent host connections are not enabled.');
@@ -507,9 +522,17 @@ export class WSLRemoteAgentHostService extends Disposable implements IWSLRemoteA
 		}
 	}
 
-	async disconnect(distro: string): Promise<void> {
-		this._removeCachedDistro(distro);
+	async disconnect(distro: string, options?: { readonly keepEntry?: boolean }): Promise<void> {
+		if (options?.keepEntry) {
+			setRemoteAgentHostDisconnected(this._storageService, `${WSL_ADDRESS_PREFIX}${distro}`, true);
+		} else {
+			this._removeCachedDistro(distro);
+		}
 		await this._mainService.disconnect(distro);
+	}
+
+	isDisconnected(distro: string): boolean {
+		return readDisconnectedRemoteAgentHostAddresses(this._storageService).has(`${WSL_ADDRESS_PREFIX}${distro}`);
 	}
 
 	async reconnect(distro: string, name: string, userInitiated = true): Promise<IWSLAgentHostConnection> {
@@ -540,6 +563,7 @@ export class WSLRemoteAgentHostService extends Disposable implements IWSLRemoteA
 		if (filtered.length !== cached.length) {
 			storeCachedWSLDistros(this._storageService, filtered);
 		}
+		setRemoteAgentHostDisconnected(this._storageService, `${WSL_ADDRESS_PREFIX}${distro}`, false);
 	}
 
 	/**
@@ -556,6 +580,9 @@ export class WSLRemoteAgentHostService extends Disposable implements IWSLRemoteA
 		const filtered = cached.filter(d => existing.has(d.distro));
 		if (filtered.length !== cached.length) {
 			storeCachedWSLDistros(this._storageService, filtered);
+			for (const missing of cached.filter(d => !existing.has(d.distro))) {
+				setRemoteAgentHostDisconnected(this._storageService, `${WSL_ADDRESS_PREFIX}${missing.distro}`, false);
+			}
 		}
 	}
 

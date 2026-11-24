@@ -4,13 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { mainWindow } from '../../../../../base/browser/window.js';
 import { Emitter } from '../../../../../base/common/event.js';
-import { constObservable, observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { extUri } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { mock } from '../../../../../base/test/common/mock.js';
+import { Schemas } from '../../../../../base/common/network.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, WorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
 import { IWorkspaceFolderCreationData } from '../../../../../platform/workspaces/common/workspaces.js';
@@ -18,10 +21,13 @@ import { IWorkspaceTrustManagementService, IWorkspaceTrustUriInfo } from '../../
 import { IWorkspaceEditingService } from '../../../../../workbench/services/workspaces/common/workspaceEditing.js';
 import { IWorkspaceFolderLabelService } from '../../../../../workbench/services/workspaces/common/workspaceFolderLabelService.js';
 import { IHistoryService } from '../../../../../workbench/services/history/common/history.js';
-import { ChatInteractivity, IChat, ISessionFolder, ISessionGitRepository, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
-import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { ChatInteractivity, IChat, ISessionFolder, ISessionGitRepository, ISessionWorkspace } from '../../../../../workbench/services/sessions/common/session.js';
+import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { IHostService } from '../../../../../workbench/services/host/browser/host.js';
+import { IFocusedSessionHostService, ISessionHost, ISessionHostService, SessionHostContent } from '../../../../../workbench/services/sessions/browser/sessionHost.js';
+import { FocusedSessionHostService } from '../../../../../workbench/contrib/sessions/browser/sessionHostService.js';
 import { WorkspaceFolderManagementContribution } from '../../browser/workspaceFolderManagement.js';
+import { focusedSessionHostServiceOf, ITestSessionWithChat } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 const stubChat = {
 	resource: URI.parse('test:///chat'),
@@ -78,7 +84,7 @@ function makeWorkspace(folderOrFolders: ISessionFolder | readonly ISessionFolder
 	};
 }
 
-function makeActiveSession(sessionId: string, workspace: ISessionWorkspace | undefined, chatWorkspace = workspace): IActiveSession {
+function makeActiveSession(sessionId: string, workspace: ISessionWorkspace | undefined, chatWorkspace = workspace): ITestSessionWithChat {
 	const activeChat: IChat = { ...stubChat, workspace: constObservable(chatWorkspace) };
 	return {
 		resource: URI.parse(`test:///${sessionId}`),
@@ -164,8 +170,8 @@ suite('WorkspaceFolderManagementContribution', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createContribution() {
-		const activeSession = observableValue<IActiveSession | undefined>('activeSession', undefined);
+	function createContribution(createFocusedSessionHostService?: () => IFocusedSessionHostService) {
+		const activeSession = observableValue<ITestSessionWithChat | undefined>('activeSession', undefined);
 		const workspaceEditing = new TestWorkspaceEditing();
 		const workspaceTrust = new TestWorkspaceTrust();
 		const workspaceFoldersChanged = disposables.add(new Emitter<IWorkspaceFoldersChangeEvent>());
@@ -175,7 +181,7 @@ suite('WorkspaceFolderManagementContribution', () => {
 		};
 
 		const sessionsService = new class extends mock<ISessionsService>() {
-			override readonly activeSession = activeSession;
+			readonly activeSession = activeSession;
 		};
 		const workspaceContextService = new class extends mock<IWorkspaceContextService>() {
 			override readonly onDidChangeWorkspaceFolders = workspaceFoldersChanged.event;
@@ -198,13 +204,14 @@ suite('WorkspaceFolderManagementContribution', () => {
 		};
 
 		const contribution = disposables.add(new WorkspaceFolderManagementContribution(
-			sessionsService,
+			createFocusedSessionHostService?.() ?? focusedSessionHostServiceOf(sessionsService.activeSession),
 			uriIdentityService,
 			workspaceContextService,
 			workspaceEditing,
 			workspaceTrust,
 			folderLabel,
 			historyService,
+			upcastPartial<IFileService>({ canHandleResource: async resource => resource.scheme === Schemas.file }),
 		));
 
 		return { contribution, activeSession, workspaceEditing, workspaceTrust, folderLabel, historyService, workspaceFoldersChanged };
@@ -514,6 +521,24 @@ suite('WorkspaceFolderManagementContribution', () => {
 		});
 	});
 
+	test('mounts only the folders the window can read, not a repository\'s web address', async () => {
+		const { activeSession, workspaceEditing } = createContribution();
+		const repository = URI.parse('https://github.com/microsoft/vscode');
+		const webAddress: ISessionFolder = { root: repository, workingDirectory: repository, name: 'microsoft/vscode', description: undefined };
+		const checkout = localFolder('/checkout');
+
+		activeSession.set(makeActiveSession('a', makeWorkspace(webAddress, false)), undefined);
+		await settle();
+		const projectOnly = workspaceEditing.folders.map(folder => folder.uri.toString());
+		activeSession.set(makeActiveSession('b', makeWorkspace([webAddress, checkout], false)), undefined);
+		await settle();
+
+		assert.deepStrictEqual({ projectOnly, withCheckout: workspaceEditing.folders.map(folder => folder.uri.toString()) }, {
+			projectOnly: [],
+			withCheckout: [checkout.workingDirectory.toString()],
+		});
+	});
+
 	test('unmounts the current folder when switching to an untrusted session', async () => {
 		const { activeSession, workspaceEditing, workspaceTrust } = createContribution();
 		const trustedFolder = localFolder('/repo-trusted');
@@ -531,6 +556,49 @@ suite('WorkspaceFolderManagementContribution', () => {
 		}, {
 			added: [[trustedFolder.workingDirectory.toString()]],
 			removed: [[trustedFolder.workingDirectory.toString()]],
+		});
+	});
+
+	test('follows the focused host to the main window when focus returns from a chat window', async () => {
+		const mainWindowId = mainWindow.vscodeWindowId;
+		const chatWindowId = mainWindowId + 1000;
+		const onDidChangeActiveWindow = disposables.add(new Emitter<number>());
+		const mainChat = observableValue<IChat | undefined>('mainChat', undefined);
+		const windowChat = observableValue<IChat | undefined>('windowChat', undefined);
+		const makeHost = (windowId: number, chat: IObservable<IChat | undefined>) => upcastPartial<ISessionHost>({
+			windowId: constObservable(windowId),
+			parent: undefined,
+			content: constObservable({ kind: 'chat' } as SessionHostContent),
+			chat,
+		});
+		const mainHost = makeHost(mainWindowId, mainChat);
+		const chatWindowHost = makeHost(chatWindowId, windowChat);
+		const sessionHostService = upcastPartial<ISessionHostService>({
+			hosts: constObservable([mainHost, chatWindowHost]),
+			getHostOfWindow: (windowId: number) => windowId === chatWindowId ? chatWindowHost : mainHost,
+		});
+		const hostService = upcastPartial<IHostService>({ onDidChangeActiveWindow: onDidChangeActiveWindow.event });
+		const { workspaceEditing } = createContribution(() => disposables.add(new FocusedSessionHostService(sessionHostService, hostService)));
+		const chatOf = (path: string): IChat => ({ ...stubChat, workspace: constObservable(makeWorkspace(localFolder(path), false)) });
+
+		windowChat.set(chatOf('/alpha'), undefined);
+		onDidChangeActiveWindow.fire(chatWindowId);
+		await settle();
+		const whileChatWindowFocused = workspaceEditing.folders.map(folder => folder.uri.path);
+		mainChat.set(chatOf('/beta'), undefined);
+		await settle();
+		const afterMainChatChanged = workspaceEditing.folders.map(folder => folder.uri.path);
+		onDidChangeActiveWindow.fire(mainWindowId);
+		await settle();
+
+		assert.deepStrictEqual({
+			whileChatWindowFocused,
+			afterMainChatChanged,
+			afterMainFocused: workspaceEditing.folders.map(folder => folder.uri.path),
+		}, {
+			whileChatWindowFocused: ['/alpha'],
+			afterMainChatChanged: ['/alpha'],
+			afterMainFocused: ['/beta'],
 		});
 	});
 });

@@ -11,20 +11,22 @@ import { toDisposable } from '../../../base/common/lifecycle.js';
 import { TreeView } from '../../browser/parts/views/treeView.js';
 import { workbenchInstantiationService } from './workbenchTestServices.js';
 import { TestInstantiationService } from '../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { ITreeItem, IViewDescriptorService, TreeItemCollapsibleState } from '../../common/views.js';
+import { ITreeItem, ITreeViewDataProvider, IViewDescriptorService, TreeItemCollapsibleState } from '../../common/views.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { ViewDescriptorService } from '../../services/views/browser/viewDescriptorService.js';
 
 suite('TreeView', function () {
 
+	let instantiationService: TestInstantiationService;
 	let treeView: TreeView;
+	let dataProvider: ITreeViewDataProvider;
 	let largestBatchSize: number = 0;
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	setup(async () => {
 		largestBatchSize = 0;
-		const instantiationService: TestInstantiationService = workbenchInstantiationService(undefined, disposables);
+		instantiationService = workbenchInstantiationService(undefined, disposables);
 		const viewDescriptorService = disposables.add(instantiationService.createInstance(ViewDescriptorService));
 		instantiationService.stub(IViewDescriptorService, viewDescriptorService);
 		treeView = disposables.add(instantiationService.createInstance(TreeView, 'testTree', 'Test Title'));
@@ -40,7 +42,7 @@ suite('TreeView', function () {
 			}
 		};
 
-		treeView.dataProvider = {
+		dataProvider = {
 			getChildren: getChildrenOfItem,
 			getChildrenBatch: async (elements?: ITreeItem[]): Promise<ITreeItem[][] | undefined> => {
 				if (elements && elements.length > largestBatchSize) {
@@ -53,6 +55,7 @@ suite('TreeView', function () {
 				}
 			}
 		};
+		treeView.dataProvider = dataProvider;
 	});
 
 	test('children are batched', async () => {
@@ -60,6 +63,53 @@ suite('TreeView', function () {
 		treeView.setVisibility(true);
 		await treeView.refresh();
 		assert.strictEqual(largestBatchSize, 100);
+	});
+
+	test('tree created in a hidden tree container renders rows once its data loads', async () => {
+		const container = mainWindow.document.createElement('div');
+		// Scope the container like the workbench so that the view styles that hide an empty tree container apply
+		container.classList.add('monaco-workbench');
+		mainWindow.document.body.appendChild(container);
+		disposables.add(toDisposable(() => container.remove()));
+
+		// Mirror an extension view that starts collapsed: the view is created before its data provider is registered, so
+		// it shows the "no data provider" message, which then keeps the still empty tree container hidden. When the view
+		// is expanded, it is laid out before it becomes visible and creates its tree in that hidden tree container.
+		const lateTreeView = disposables.add(instantiationService.createInstance(TreeView, 'lateDataProviderTree', 'Test Title'));
+		lateTreeView.setVisibility(false);
+		lateTreeView.dataProvider = dataProvider;
+		lateTreeView.show(container);
+		lateTreeView.layout(220, 300);
+		lateTreeView.setVisibility(true);
+		await lateTreeView.refresh();
+
+		assert.strictEqual(container.querySelectorAll('.monaco-list-row').length, 10);
+	});
+
+	test('issue #347994 - a refresh served from the cache keeps the children of every expanded node', async () => {
+		const childrenByHandle = new Map<string, ITreeItem[]>();
+		const item = (handle: string, children: ITreeItem[] = []): ITreeItem => {
+			childrenByHandle.set(handle, children);
+			return { handle, accessibilityInformation: { label: handle }, collapsibleState: children.length ? TreeItemCollapsibleState.Expanded : TreeItemCollapsibleState.None };
+		};
+		// The first expanded node has an expanded child, so its children are refreshed while its siblings are still waiting for theirs
+		const roots = [item('P1', [item('folder', [item('file1')])]), item('P2', [item('file2')]), item('P3', [item('file3')])];
+		const cachedTreeView = disposables.add(instantiationService.createInstance(TreeView, 'cachedRefreshTree', 'Test Title'));
+		cachedTreeView.dataProvider = {
+			getChildren: async (element?: ITreeItem) => element ? childrenByHandle.get(element.handle) : roots
+		};
+		const container = mainWindow.document.body.appendChild($('.monaco-workbench'));
+		disposables.add(toDisposable(() => container.remove()));
+
+		cachedTreeView.setVisibility(true); // starts loading the tree
+		cachedTreeView.show(container);
+		cachedTreeView.layout(300, 300);
+		await cachedTreeView.refresh(); // waits for the initial load, which caches every node's children, then refreshes from that cache
+
+		assert.deepStrictEqual(
+			[...container.querySelectorAll('.monaco-list-row')].map(row => row.getAttribute('aria-label')),
+			['P1', 'folder', 'file1', 'P2', 'file2', 'P3', 'file3']
+		);
 	});
 
 

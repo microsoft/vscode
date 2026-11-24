@@ -16,7 +16,8 @@ import { ServiceCollection } from '../../../instantiation/common/serviceCollecti
 import { FileService } from '../../../files/common/fileService.js';
 import { IFileService } from '../../../files/common/files.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
-import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
+import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
+import { CapturingTelemetryService as PlatformCapturingTelemetryService } from '../../../telemetry/test/common/testTelemetryService.js';
 import { TelemetryTrustedValue } from '../../../telemetry/common/telemetryUtils.js';
 import { AgentSession, IAgent } from '../../common/agent.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
@@ -35,6 +36,8 @@ import { AgentHostLocalCommands, IAgentHostLocalCommands } from '../../node/loca
 import { AgentHostChatContributions } from '../../node/agentHostChatContributionsService.js';
 import { IAgentHostPeerChatPersistenceService } from '../../node/agentHostPeerChatStore.js';
 import { registerBuiltInChatContributions } from '../../node/chatContributions/builtInChatContributions.js';
+import { IAgentHostPullRequestAutopilotService } from '../../node/agentHostPullRequestAutopilot.js';
+import { nullPullRequestAutopilotService } from './pullRequestAutopilotTestUtils.js';
 import { AgentHostChatInputService, IAgentHostChatInputService } from '../../node/agentHostChatInputService.js';
 import { AgentHostAuthenticationService, IAgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
 import { AgentHostSubscriptionService } from '../../node/agentHostSubscriptionService.js';
@@ -77,27 +80,10 @@ import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
 import { IAgentHostChatOwnershipService } from '../../node/agentHostChatOwnershipService.js';
 import { FakeChangesetService } from '../common/fakeChangesetService.js';
 
-class CapturingTelemetryService implements ITelemetryService {
-	declare readonly _serviceBrand: undefined;
-	readonly telemetryLevel = TelemetryLevel.USAGE;
-	readonly sessionId = 'test-session';
-	readonly machineId = 'test-machine';
-	readonly sqmId = 'test-sqm';
-	readonly devDeviceId = 'test-dev-device';
-	readonly firstSessionDate = 'test-first-session-date';
-	readonly sendErrorTelemetry = false;
-	readonly events: { eventName: string; data: unknown; level: 'usage' | 'error' }[] = [];
-
-	publicLog(): void { }
-	publicLog2(eventName: string, data?: unknown): void {
-		this.events.push({ eventName, data, level: 'usage' });
+class CapturingTelemetryService extends PlatformCapturingTelemetryService {
+	constructor() {
+		super({ captureErrors: true, distinguishErrors: true });
 	}
-	publicLogError(): void { }
-	publicLogError2(eventName: string, data?: unknown): void {
-		this.events.push({ eventName, data, level: 'error' });
-	}
-	setExperimentProperty(): void { }
-	setCommonProperty(): void { }
 }
 
 /**
@@ -314,6 +300,7 @@ suite('AgentSideEffects — tool call telemetry', () => {
 		const chatContributions = disposables.add(new AgentHostChatContributions(logService, instantiationService));
 		services.set(IAgentHostChatContributions, chatContributions);
 		services.set(IAgentHostArtifactEventService, disposables.add(new AgentHostArtifactEventService()));
+		services.set(IAgentHostPullRequestAutopilotService, nullPullRequestAutopilotService);
 		services.set(IAgentHostArtifactIntegrationDirectory, disposables.add(new AgentHostArtifactIntegrationDirectory(disposables.add(new ArtifactIntegrationRegistry()))));
 		services.set(IAgentHostSessionPromptService, {
 			_serviceBrand: undefined,
@@ -610,6 +597,31 @@ suite('AgentSideEffects — tool call telemetry', () => {
 				model: undefined,
 			},
 		}]);
+	});
+
+	test('reports calls to tools the session does not offer apart from built-in failures', () => {
+		setupSession();
+		startTurn('turn-1');
+
+		toolStart('turn-1', 'tc-invented', 'view_range');
+		toolComplete('turn-1', 'tc-invented', { success: false, pastTenseMessage: 'failed', error: { message: 'Tool \'view_range\' does not exist.', code: 'toolNotFound' } });
+		toolStart('turn-1', 'tc-builtin', 'view');
+		toolComplete('turn-1', 'tc-builtin', { success: false, pastTenseMessage: 'failed', error: { message: 'Tool \'view\' does not exist.', code: 'failure' } });
+		completeTurn('turn-1');
+
+		assert.deepStrictEqual({
+			agentHost: agentHostToolEvents().map(({ data }) => ({ toolId: data.toolId, toolSourceKind: data.toolSourceKind, result: data.result, errorCode: data.errorCode })),
+			legacy: toolEvents().map(({ data }) => ({ toolId: data.toolId, toolSourceKind: data.toolSourceKind })),
+		}, {
+			agentHost: [
+				{ toolId: 'sha256:b1b0f926bc4dc5674c68deada71063cce11c72f399077f1252ae347f1939c1e0', toolSourceKind: 'unknown', result: 'error', errorCode: 'toolNotFound' },
+				{ toolId: 'view', toolSourceKind: 'agentHost', result: 'error', errorCode: 'failure' },
+			],
+			legacy: [
+				{ toolId: 'sha256:b1b0f926bc4dc5674c68deada71063cce11c72f399077f1252ae347f1939c1e0', toolSourceKind: 'unknown' },
+				{ toolId: 'view', toolSourceKind: 'agentHost' },
+			],
+		});
 	});
 
 	test('uses the resolved usage model for an in-flight tool call', () => {

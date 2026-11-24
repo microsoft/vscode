@@ -9,22 +9,27 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestColorTheme, TestThemeService } from '../../../../../platform/theme/test/common/testThemeService.js';
-import { TestStorageService } from '../../../common/workbenchTestServices.js';
+import { TestExtensionService, TestStorageService } from '../../../common/workbenchTestServices.js';
 import { TestHostService, TestLayoutService, TestMenuService, workbenchInstantiationService } from '../../workbenchTestServices.js';
 import { ActivitybarPart, ActivityBarCompositeBar } from '../../../../browser/parts/activitybar/activitybarPart.js';
 import { IViewSize } from '../../../../../base/browser/ui/grid/grid.js';
-import { COMPACT_FLOATING_PANEL_OUTER_MARGIN, isCompactMenuInTitlebar, IWorkbenchLayoutService, LayoutSettings, ModernUIDensity, Parts, Position } from '../../../../services/layout/browser/layoutService.js';
+import { COMPACT_FLOATING_PANEL_OUTER_MARGIN, isCompactMenuInTitlebar, IWorkbenchLayoutService, LayoutSettings, ModernUIDensity, ModernUIEditorTabStyle, Parts, Position } from '../../../../services/layout/browser/layoutService.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IPaneCompositePart } from '../../../../browser/parts/paneCompositePart.js';
-import { IPaneCompositeBarOptions } from '../../../../browser/parts/paneCompositeBar.js';
+import { IPaneCompositeBarOptions, PaneCompositeBar } from '../../../../browser/parts/paneCompositeBar.js';
+import { ViewPaneContainer } from '../../../../browser/parts/views/viewPaneContainer.js';
+import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 import { Event, Emitter } from '../../../../../base/common/event.js';
 import { IPaneComposite } from '../../../../common/panecomposite.js';
 import { Extensions, PaneCompositeDescriptor } from '../../../../browser/panecomposite.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { IViewDescriptorService, ViewContainerLocation } from '../../../../common/views.js';
+import { IViewContainerModel, IViewDescriptorService, ViewContainer, ViewContainerLocation } from '../../../../common/views.js';
 import { IActivityService } from '../../../../services/activity/common/activity.js';
-import { ACTIVITY_BAR_BACKGROUND, ACTIVITY_BAR_BORDER, MODERN_ACTIVITY_BAR_BACKGROUND, MODERN_ACTIVITY_BAR_INACTIVE_BACKGROUND } from '../../../../common/theme.js';
+import { ACTIVITY_BAR_BACKGROUND, ACTIVITY_BAR_BORDER, EDITOR_GROUP_HEADER_CONNECTED_TABS_BACKGROUND, EDITOR_GROUP_HEADER_TABS_BACKGROUND, MODERN_ACTIVITY_BAR_BACKGROUND, MODERN_ACTIVITY_BAR_INACTIVE_BACKGROUND } from '../../../../common/theme.js';
+import { editorBackground } from '../../../../../platform/theme/common/colorRegistry.js';
 import { ActionsOrientation } from '../../../../../base/browser/ui/actionbar/actionbar.js';
 import { Dimension } from '../../../../../base/browser/dom.js';
 import { GlobalCompositeBar } from '../../../../browser/parts/globalCompositeBar.js';
@@ -67,6 +72,7 @@ interface ILayoutTestHarness {
 	lastLayoutDimensions?: Dimension;
 	options: { orientation: ActionsOrientation };
 	compositeBar: { layout: (dimension: Dimension) => void };
+	recomputeSizesIfVisible(): void;
 }
 
 // `super.layout()` resolves through the prototype chain, so calling the extracted method
@@ -129,11 +135,12 @@ suite('ActivitybarPart', () => {
 		disposables.clear();
 	});
 
-	function createActivitybarPart(compact: boolean, floatingPanelsEnabled = false, sideBarPosition = Position.LEFT, colors: { [id: string]: string | undefined } = {}, modernUICompact = false, instantiationService?: IInstantiationService): { part: ActivitybarPart; configService: TestConfigurationService; layoutService: TestFloatingPanelsLayoutService; hostService: TestHostService } {
+	function createActivitybarPart(compact: boolean, floatingPanelsEnabled = false, sideBarPosition = Position.LEFT, colors: { [id: string]: string | undefined } = {}, modernUICompact = false, instantiationService?: IInstantiationService, tabStyle = ModernUIEditorTabStyle.Pill): { part: ActivitybarPart; configService: TestConfigurationService; layoutService: TestFloatingPanelsLayoutService; hostService: TestHostService } {
 		const configService = new TestConfigurationService({
 			[LayoutSettings.ACTIVITY_BAR_COMPACT]: compact,
 			[LayoutSettings.MODERN_UI]: floatingPanelsEnabled,
 			[LayoutSettings.MODERN_UI_DENSITY]: modernUICompact ? ModernUIDensity.Compact : ModernUIDensity.Default,
+			[LayoutSettings.MODERN_UI_EDITOR_TAB_STYLE]: tabStyle,
 		});
 		const storageService = disposables.add(new TestStorageService());
 		const themeService = new TestThemeService(new TestColorTheme(colors));
@@ -560,6 +567,36 @@ suite('ActivitybarPart', () => {
 		});
 	});
 
+	test('default Activity Bar keeps its own colors when connected tabs are enabled', async () => {
+		const actual = [];
+		for (const colors of [
+			{ [editorBackground]: '#000000', [EDITOR_GROUP_HEADER_CONNECTED_TABS_BACKGROUND]: '#ffffff80', [EDITOR_GROUP_HEADER_TABS_BACKGROUND]: '#123456' },
+			{ [editorBackground]: '#000000', [EDITOR_GROUP_HEADER_TABS_BACKGROUND]: '#345678' },
+			{ [editorBackground]: '#102030' },
+		]) {
+			const { part, configService, hostService } = createActivitybarPart(false, true, Position.LEFT, {
+				[MODERN_ACTIVITY_BAR_BACKGROUND]: '#abcdef',
+				[MODERN_ACTIVITY_BAR_INACTIVE_BACKGROUND]: '#654321',
+				...colors,
+			}, false, undefined, ModernUIEditorTabStyle.Connected);
+			hostService.setActiveWindow(mainWindow.vscodeWindowId);
+			const element = document.createElement('div');
+			fixture.appendChild(element);
+			part.create(element);
+			const active = element.style.backgroundColor;
+			hostService.setActiveWindow(mainWindow.vscodeWindowId + 1);
+			const inactive = element.style.backgroundColor;
+			await configService.setUserConfiguration(LayoutSettings.MODERN_UI_EDITOR_TAB_STYLE, ModernUIEditorTabStyle.Pill);
+			fireConfigChange(configService, LayoutSettings.MODERN_UI_EDITOR_TAB_STYLE);
+			actual.push({ active, inactive, pill: element.style.backgroundColor });
+		}
+		assert.deepStrictEqual(actual, [
+			{ active: 'rgb(171, 205, 239)', inactive: 'rgb(101, 67, 33)', pill: 'rgb(101, 67, 33)' },
+			{ active: 'rgb(171, 205, 239)', inactive: 'rgb(101, 67, 33)', pill: 'rgb(101, 67, 33)' },
+			{ active: 'rgb(171, 205, 239)', inactive: 'rgb(101, 67, 33)', pill: 'rgb(101, 67, 33)' },
+		]);
+	});
+
 	// --- toJSON ------------------------------------------------------------
 
 	test('toJSON returns correct part type', () => {
@@ -640,7 +677,7 @@ suite('ActivitybarPart', () => {
 	// The composite bar decides how many activity icons fit before collapsing the rest into
 	// the overflow ("Additional Views") menu, so the size it is handed has to match the
 	// vertical space an item actually occupies in the current mode.
-	function capturedCompositeBarOptions(compact: boolean, floatingPanelsEnabled: boolean, modernUICompact = false): { options: IPaneCompositeBarOptions; globalActivities: { actionHeight: number; actionGap: number } } {
+	function capturedCompositeBarOptions(compact: boolean, floatingPanelsEnabled: boolean, modernUICompact = false, tabStyle = ModernUIEditorTabStyle.Pill): { options: IPaneCompositeBarOptions; globalActivities: { actionHeight: number; actionGap: number } } {
 		let captured: IPaneCompositeBarOptions | undefined;
 		let capturedGlobalActivities: { actionHeight: number; actionGap: number } | undefined;
 		const stubCompositeBar = { create: () => { }, layout: () => { }, dispose: () => { } };
@@ -650,7 +687,7 @@ suite('ActivitybarPart', () => {
 				capturedGlobalActivities = globalActivities;
 				return stubCompositeBar;
 			}
-		} as unknown as IInstantiationService);
+		} as unknown as IInstantiationService, tabStyle);
 
 		const el = document.createElement('div');
 		fixture.appendChild(el);
@@ -686,6 +723,49 @@ suite('ActivitybarPart', () => {
 				modernCompactDensity: { compositeSize: 40, overflowActionSize: 40, globalActivities: { actionHeight: 36, actionGap: 4 } },
 			}
 		);
+	});
+
+	test('default Activity Bar retains its existing row and overflow sizes with connected tabs', () => {
+		const actual = [];
+		for (const compactDensity of [false, true]) {
+			for (const compactIcons of [false, true]) {
+				const { options, globalActivities } = capturedCompositeBarOptions(compactIcons, true, compactDensity, ModernUIEditorTabStyle.Connected);
+				actual.push({
+					actionHeight: globalActivities.actionHeight,
+					actionGap: globalActivities.actionGap,
+					compositeSize: options.compositeSize,
+					overflowActionSize: options.overflowActionSize,
+				});
+			}
+		}
+		assert.deepStrictEqual(actual, [
+			{ actionHeight: 36, actionGap: 8, compositeSize: 44, overflowActionSize: 44 },
+			{ actionHeight: 28, actionGap: 0, compositeSize: 28, overflowActionSize: 28 },
+			{ actionHeight: 36, actionGap: 4, compositeSize: 40, overflowActionSize: 40 },
+			{ actionHeight: 28, actionGap: 0, compositeSize: 28, overflowActionSize: 28 },
+		]);
+	});
+
+	test('changing the tab style leaves the default Activity Bar dimensions unchanged', async () => {
+		const { part, configService } = createActivitybarPart(false, true, Position.LEFT, {}, false, undefined, ModernUIEditorTabStyle.Connected);
+		const element = document.createElement('div');
+		fixture.appendChild(element);
+		part.create(element);
+		const capture = () => ({
+			width: element.style.getPropertyValue('--activity-bar-width'),
+			height: element.style.getPropertyValue('--activity-bar-action-height'),
+		});
+		const connected = capture();
+		await configService.setUserConfiguration(LayoutSettings.MODERN_UI_EDITOR_TAB_STYLE, ModernUIEditorTabStyle.Pill);
+		fireConfigChange(configService, LayoutSettings.MODERN_UI_EDITOR_TAB_STYLE);
+		const pill = capture();
+		await configService.setUserConfiguration(LayoutSettings.MODERN_UI_EDITOR_TAB_STYLE, ModernUIEditorTabStyle.Connected);
+		fireConfigChange(configService, LayoutSettings.MODERN_UI_EDITOR_TAB_STYLE);
+		assert.deepStrictEqual({ connected, pill, restored: capture() }, {
+			connected: { width: '36px', height: '36px' },
+			pill: { width: '36px', height: '36px' },
+			restored: { width: '36px', height: '36px' },
+		});
 	});
 
 	// The gap is rendered *between* items, so N items occupy `N * height + (N - 1) * gap`.
@@ -756,6 +836,7 @@ suite('ActivitybarPart', () => {
 			globalActivities: { actionHeight: itemHeight, actionGap: gap },
 			options: { orientation: ActionsOrientation.VERTICAL },
 			compositeBar: { layout: dimension => { laidOut = dimension; } },
+			recomputeSizesIfVisible: () => { },
 		}, ActivitybarPart.FLOATING_ACTIVITYBAR_WIDTH, 300);
 
 		return laidOut!.height;
@@ -792,6 +873,7 @@ suite('ActivitybarPart', () => {
 			globalActivities: undefined,
 			options: { orientation: ActionsOrientation.HORIZONTAL },
 			compositeBar: { layout: dimension => { laidOut = dimension; } },
+			recomputeSizesIfVisible: () => { },
 		}, 300, 35);
 
 		assert.deepStrictEqual(laidOut, new Dimension(265, 35));
@@ -895,7 +977,7 @@ suite('ActivitybarPart', () => {
 		const record = (location: string) => observed.push({ location, activityBarMenubars: harness.menubars(), titlebarOwns: isCompactMenuInTitlebar(harness.configurationService) });
 
 		record('default');
-		for (const location of ['top', 'bottom', 'default', 'top', 'default', 'hidden']) {
+		for (const location of ['top', 'bottom', 'default', 'top', 'default', 'hidden', 'default']) {
 			harness.setLocation(location);
 			record(location);
 		}
@@ -907,64 +989,67 @@ suite('ActivitybarPart', () => {
 			{ location: 'default', activityBarMenubars: 1, titlebarOwns: false },
 			{ location: 'top', activityBarMenubars: 0, titlebarOwns: true },
 			{ location: 'default', activityBarMenubars: 1, titlebarOwns: false },
-			{ location: 'hidden', activityBarMenubars: 1, titlebarOwns: false },
+			{ location: 'hidden', activityBarMenubars: 0, titlebarOwns: true },
+			{ location: 'default', activityBarMenubars: 1, titlebarOwns: false },
 		]);
 	});
 
-	test('activity bar takes the compact menu when the custom title bar is hidden and releases it when shown', function () {
-		const windowConfig = {
-			titleBarStyle: 'native',
-			menuStyle: 'custom',
-			customTitleBarVisibility: 'auto',
-		};
-		const precondition = new TestConfigurationService({ window: { menuBarVisibility: 'compact', ...windowConfig } });
-		if (isWeb || isMacintosh) {
-			this.skip();
-		}
-		assert.deepStrictEqual({ nativeTitlebar: hasNativeTitlebar(precondition), nativeMenu: hasNativeMenu(precondition), menuBarVisibility: getMenuBarVisibility(precondition) }, { nativeTitlebar: true, nativeMenu: false, menuBarVisibility: 'compact' });
-		const harness = createActivityBarCompositeBar('compact', 'top', 'left', windowConfig);
-		const observed: { step: string; activityBarMenubars: number; titlebarOwns: boolean }[] = [];
-		const record = (step: string) => observed.push({ step, activityBarMenubars: harness.menubars(), titlebarOwns: isCompactMenuInTitlebar(harness.configurationService) });
+	for (const location of ['top', 'hidden']) {
+		test(`activity bar takes the compact menu when the custom title bar is hidden and releases it when shown, with the activity bar ${location}`, function () {
+			const windowConfig = {
+				titleBarStyle: 'native',
+				menuStyle: 'custom',
+				customTitleBarVisibility: 'auto',
+			};
+			const precondition = new TestConfigurationService({ window: { menuBarVisibility: 'compact', ...windowConfig } });
+			if (isWeb || isMacintosh) {
+				this.skip();
+			}
+			assert.deepStrictEqual({ nativeTitlebar: hasNativeTitlebar(precondition), nativeMenu: hasNativeMenu(precondition), menuBarVisibility: getMenuBarVisibility(precondition) }, { nativeTitlebar: true, nativeMenu: false, menuBarVisibility: 'compact' });
+			const harness = createActivityBarCompositeBar('compact', location, 'left', windowConfig);
+			const observed: { step: string; activityBarMenubars: number; titlebarOwns: boolean }[] = [];
+			const record = (step: string) => observed.push({ step, activityBarMenubars: harness.menubars(), titlebarOwns: isCompactMenuInTitlebar(harness.configurationService) });
 
-		try {
-			record('initial');
-			harness.setWindowSetting('customTitleBarVisibility', 'never');
-			record('hidden');
-			harness.setWindowSetting('customTitleBarVisibility', 'auto');
-			record('shown');
-			harness.setWindowSetting('customTitleBarVisibility', 'never');
-			record('hiddenAgain');
-			harness.setWindowSetting('customTitleBarVisibility', 'windowed');
-			record('windowed');
-			setFullscreen(true, mainWindow);
-			record('fullscreen');
-			setFullscreen(false, mainWindow);
-			record('exitFullscreen');
-			setFullscreen(true, mainWindow);
-			record('fullscreenAgain');
-			setFullscreen(false, mainWindow);
-			record('exitFullscreenAgain');
-		} finally {
-			setFullscreen(false, mainWindow);
-		}
+			try {
+				record('initial');
+				harness.setWindowSetting('customTitleBarVisibility', 'never');
+				record('hidden');
+				harness.setWindowSetting('customTitleBarVisibility', 'auto');
+				record('shown');
+				harness.setWindowSetting('customTitleBarVisibility', 'never');
+				record('hiddenAgain');
+				harness.setWindowSetting('customTitleBarVisibility', 'windowed');
+				record('windowed');
+				setFullscreen(true, mainWindow);
+				record('fullscreen');
+				setFullscreen(false, mainWindow);
+				record('exitFullscreen');
+				setFullscreen(true, mainWindow);
+				record('fullscreenAgain');
+				setFullscreen(false, mainWindow);
+				record('exitFullscreenAgain');
+			} finally {
+				setFullscreen(false, mainWindow);
+			}
 
-		const titlebar = { activityBarMenubars: 0, titlebarOwns: true };
-		const activityBar = { activityBarMenubars: 1, titlebarOwns: false };
-		assert.deepStrictEqual(observed, [
-			{ step: 'initial', ...titlebar },
-			{ step: 'hidden', ...activityBar },
-			{ step: 'shown', ...titlebar },
-			{ step: 'hiddenAgain', ...activityBar },
-			{ step: 'windowed', ...titlebar },
-			{ step: 'fullscreen', ...activityBar },
-			{ step: 'exitFullscreen', ...titlebar },
-			{ step: 'fullscreenAgain', ...activityBar },
-			{ step: 'exitFullscreenAgain', ...titlebar },
-		]);
-	});
+			const titlebar = { activityBarMenubars: 0, titlebarOwns: true };
+			const activityBar = { activityBarMenubars: 1, titlebarOwns: false };
+			assert.deepStrictEqual(observed, [
+				{ step: 'initial', ...titlebar },
+				{ step: 'hidden', ...activityBar },
+				{ step: 'shown', ...titlebar },
+				{ step: 'hiddenAgain', ...activityBar },
+				{ step: 'windowed', ...titlebar },
+				{ step: 'fullscreen', ...activityBar },
+				{ step: 'exitFullscreen', ...titlebar },
+				{ step: 'fullscreenAgain', ...activityBar },
+				{ step: 'exitFullscreenAgain', ...titlebar },
+			]);
+		});
+	}
 
-	for (const location of ['top', 'bottom']) {
-		test(`activity bar does not install the compact menu when created with the activity bar at the ${location}`, function () {
+	for (const location of ['top', 'bottom', 'hidden']) {
+		test(`activity bar does not install the compact menu when created with the activity bar location ${location}`, function () {
 			if (!compactSupported) {
 				this.skip();
 			}
@@ -1062,6 +1147,196 @@ suite('ActivitybarPart', () => {
 			{ left: openMenu('left'), right: openMenu('right') },
 			{ left: { opened: true, opensLeftward: false }, right: { opened: true, opensLeftward: true } }
 		);
+	});
+
+	// --- pinned view containers -------------------------------------------------
+
+	interface IStoredPinnedViewContainer {
+		readonly id: string;
+		readonly pinned: boolean;
+		readonly visible: boolean;
+	}
+
+	function createViewContainer(id: string): ViewContainer {
+		return { id, title: { value: id, original: id }, ctorDescriptor: new SyncDescriptor(ViewPaneContainer) };
+	}
+
+	/**
+	 * Creates a bar for the view containers of the side bar while extensions are not registered yet. The given view
+	 * containers are in the side bar unless the given locations say otherwise.
+	 */
+	function createPaneCompositeBar(pinned: IStoredPinnedViewContainer[], viewContainers: ViewContainer[], viewContainerLocations: Record<string, ViewContainerLocation> = {}) {
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		instantiationService.stub(IExtensionService, new class extends TestExtensionService {
+			override whenInstalledExtensionsRegistered(): Promise<boolean> { return new Promise(() => { }); }
+		}());
+		instantiationService.stub(IActivityService, new class extends mock<IActivityService>() {
+			override readonly onDidChangeActivity = Event.None;
+			override getViewContainerActivities() { return []; }
+		});
+		const locations = new Map(Object.entries(viewContainerLocations));
+		const getLocation = (viewContainer: ViewContainer) => locations.get(viewContainer.id) ?? ViewContainerLocation.Sidebar;
+		const onDidChangeContainerLocation = disposables.add(new Emitter<{ viewContainer: ViewContainer; from: ViewContainerLocation; to: ViewContainerLocation }>());
+		class TestViewContainerModel extends mock<IViewContainerModel>() {
+			readonly onDidChangeContainerInfoEmitter = disposables.add(new Emitter<{ title?: boolean }>());
+			override readonly onDidChangeContainerInfo = this.onDidChangeContainerInfoEmitter.event;
+			override readonly allViewDescriptors = [];
+			override readonly activeViewDescriptors = [];
+			override readonly onDidChangeActiveViewDescriptors = Event.None;
+			override title: string;
+			constructor(override readonly viewContainer: ViewContainer) {
+				super();
+				this.title = viewContainer.title.value;
+			}
+		}
+		const viewContainerModels = new Map<string, TestViewContainerModel>();
+		const getViewContainerModel = (viewContainer: ViewContainer) => {
+			let model = viewContainerModels.get(viewContainer.id);
+			if (!model) {
+				model = new TestViewContainerModel(viewContainer);
+				viewContainerModels.set(viewContainer.id, model);
+			}
+			return model;
+		};
+		instantiationService.stub(IViewDescriptorService, new class extends mock<IViewDescriptorService>() {
+			override readonly onDidChangeContainerLocation = onDidChangeContainerLocation.event;
+			override readonly onDidChangeViewContainers = Event.None;
+			override getViewContainersByLocation(location: ViewContainerLocation) { return viewContainers.filter(viewContainer => getLocation(viewContainer) === location); }
+			override getViewContainerById(id: string) { return viewContainers.find(viewContainer => viewContainer.id === id) ?? null; }
+			override getViewContainerLocation(viewContainer: ViewContainer) { return getLocation(viewContainer); }
+			override getViewContainerBadgeEnablementState() { return true; }
+			override getViewContainerModel(viewContainer: ViewContainer) { return getViewContainerModel(viewContainer); }
+		});
+		const storageService = instantiationService.get(IStorageService);
+		const storePinned = (entries: IStoredPinnedViewContainer[]) => storageService.store(ActivitybarPart.pinnedViewContainersKey, JSON.stringify(entries), StorageScope.PROFILE, StorageTarget.USER);
+		storePinned(pinned);
+
+		return {
+			createBar: (options = activityBarOptions) => disposables.add(instantiationService.createInstance(PaneCompositeBar, ViewContainerLocation.Sidebar, options, Parts.ACTIVITYBAR_PART, new StubPaneCompositePart())),
+			storageService,
+			storePinned,
+			getStoredPinned: () => JSON.parse(storageService.get(ActivitybarPart.pinnedViewContainersKey, StorageScope.PROFILE, '[]')),
+			// What a bar knows about view containers whose extensions are not registered yet
+			storePlaceholders: (placeholders: { id: string; name: string; views: { when?: string }[] }[]) => storageService.store(ActivitybarPart.placeholderViewContainersKey, JSON.stringify(placeholders), StorageScope.PROFILE, StorageTarget.MACHINE),
+			renameViewContainer: (viewContainer: ViewContainer, title: string) => {
+				const model = getViewContainerModel(viewContainer);
+				model.title = title;
+				model.onDidChangeContainerInfoEmitter.fire({ title: true });
+			},
+			moveViewContainer: (viewContainer: ViewContainer, to: ViewContainerLocation) => {
+				const from = getLocation(viewContainer);
+				locations.set(viewContainer.id, to);
+				onDidChangeContainerLocation.fire({ viewContainer, from, to });
+			}
+		};
+	}
+
+	test('a bar follows changes of its pinned view containers before extensions are registered', () => {
+		const { createBar, storePinned } = createPaneCompositeBar([{ id: 'explorer', pinned: true, visible: true }, { id: 'search', pinned: true, visible: true }], [createViewContainer('explorer'), createViewContainer('search')]);
+		const bar = createBar();
+
+		// Another window changes the pinned view containers while this window starts
+		storePinned([{ id: 'search', pinned: true, visible: true }, { id: 'explorer', pinned: false, visible: true }]);
+
+		assert.deepStrictEqual(bar.getPinnedPaneCompositeIds(), ['search']);
+	});
+
+	test('a bar keeps showing the view container of an extension when the pinned view containers change before extensions are registered', () => {
+		const { createBar, storePinned, storePlaceholders } = createPaneCompositeBar([{ id: 'explorer', pinned: true, visible: true }, { id: 'extension', pinned: true, visible: true }], [createViewContainer('explorer')]);
+		storePlaceholders([{ id: 'extension', name: 'Extension', views: [{}] }]);
+		const bar = createBar();
+
+		// Another window reorders the pinned view containers while this window starts
+		storePinned([{ id: 'extension', pinned: true, visible: true }, { id: 'explorer', pinned: true, visible: true }]);
+
+		assert.deepStrictEqual(bar.getPaneCompositeIds(), ['extension', 'explorer']);
+	});
+
+	test('a rendered bar overflows when another window adds the view container of an extension before extensions are registered', () => {
+		const { createBar, storePinned, storePlaceholders } = createPaneCompositeBar([{ id: 'explorer', pinned: true, visible: true }, { id: 'search', pinned: true, visible: true }], [createViewContainer('explorer'), createViewContainer('search')]);
+		const bar = createBar();
+		const parent = document.createElement('div');
+		fixture.appendChild(parent);
+		bar.create(parent);
+		bar.layout(48, 100);
+
+		// Another window installs an extension with a view container. Storage applies the placeholders before it reports the pinned view containers
+		storePlaceholders([{ id: 'explorer', name: 'explorer', views: [] }, { id: 'search', name: 'search', views: [] }, { id: 'extension', name: 'Extension', views: [{}] }]);
+		storePinned([{ id: 'explorer', pinned: true, visible: true }, { id: 'search', pinned: true, visible: true }, { id: 'extension', pinned: true, visible: true }]);
+
+		// Three items of 48px do not fit into 100px: the first item and the overflow action are shown
+		assert.deepStrictEqual({ visible: bar.getPaneCompositeIds(), renderedItems: parent.querySelectorAll('.composite-bar .action-item').length }, { visible: ['explorer', 'search', 'extension'], renderedItems: 2 });
+	});
+
+	// Like the panel, which measures its items
+	const measuringBarOptions: IPaneCompositeBarOptions = { ...activityBarOptions, orientation: ActionsOrientation.HORIZONTAL, compositeSize: 0, icon: false, overflowActionSize: 20, recomputeSizes: true };
+
+	test('a hidden bar measures the view container of an extension that another window added once it is shown again', () => {
+		const { createBar, storePinned, storePlaceholders } = createPaneCompositeBar([{ id: 'explorer', pinned: true, visible: true }, { id: 'search', pinned: true, visible: true }], [createViewContainer('explorer'), createViewContainer('search')]);
+		const bar = createBar(measuringBarOptions);
+		const parent = document.createElement('div');
+		fixture.appendChild(parent);
+		bar.create(parent);
+		bar.layout(100000, 35);
+		const [explorerWidth, searchWidth] = Array.from(parent.querySelectorAll('.composite-bar .action-item'), item => item.clientWidth);
+
+		// The part is hidden, and keeps the dimension of its bar. Then another window installs an extension with a view container
+		parent.style.display = 'none';
+		storePlaceholders([{ id: 'explorer', name: 'explorer', views: [] }, { id: 'search', name: 'search', views: [] }, { id: 'extension', name: 'Extension', views: [{}] }]);
+		storePinned([{ id: 'explorer', pinned: true, visible: true }, { id: 'search', pinned: true, visible: true }, { id: 'extension', pinned: true, visible: true }]);
+
+		// Shown again with room for the two items shown before: the view container of the extension overflows
+		parent.style.display = '';
+		bar.layout(explorerWidth + searchWidth, 35);
+
+		assert.deepStrictEqual({ visible: bar.getPaneCompositeIds(), renderedItems: parent.querySelectorAll('.composite-bar .action-item').length }, { visible: ['explorer', 'search', 'extension'], renderedItems: 2 });
+	});
+
+	test('a hidden bar measures a view container again once it is shown, after its title changed', () => {
+		const search = createViewContainer('search');
+		const { createBar, renameViewContainer } = createPaneCompositeBar([{ id: 'explorer', pinned: true, visible: true }, { id: 'search', pinned: true, visible: true }], [createViewContainer('explorer'), search]);
+		const bar = createBar(measuringBarOptions);
+		const parent = document.createElement('div');
+		// Like the workbench styles, which the tests do not load, each item is as wide as its label
+		parent.classList.add('label-sized-items');
+		parent.appendChild(document.createElement('style')).textContent = '.label-sized-items .actions-container { display: flex; }';
+		fixture.appendChild(parent);
+		bar.create(parent);
+		bar.layout(100000, 35);
+		const [explorerWidth, searchWidth] = Array.from(parent.querySelectorAll('.composite-bar .action-item'), item => item.clientWidth);
+
+		// The part is hidden, and keeps the dimension of its bar. Then the title of a view container gets longer
+		parent.style.display = 'none';
+		renameViewContainer(search, 'search with a much longer title');
+
+		// Shown again with room for the two items shown before: the view container with the longer title overflows
+		parent.style.display = '';
+		bar.layout(explorerWidth + searchWidth, 35);
+
+		assert.deepStrictEqual(Array.from(parent.querySelectorAll('.composite-bar .action-item'), item => item.textContent), ['explorer', '']);
+	});
+
+	test('a bar that a view container moves to keeps the pinned view containers that another window saved with the move', () => {
+		const viewContainer = createViewContainer('test');
+		const { createBar, storageService, storePinned, getStoredPinned, moveViewContainer } = createPaneCompositeBar([{ id: 'explorer', pinned: true, visible: true }, { id: 'search', pinned: true, visible: true }], [viewContainer], { test: ViewContainerLocation.Panel });
+
+		// Storage applies all changes of another window before it reports them, so the view container
+		// can move here before the bar learns about the pinned view containers saved with the move
+		let moved = false;
+		disposables.add(storageService.onDidChangeValue(StorageScope.PROFILE, ActivitybarPart.pinnedViewContainersKey, disposables)(() => {
+			if (!moved) {
+				moved = true;
+				moveViewContainer(viewContainer, ViewContainerLocation.Sidebar);
+			}
+		}));
+		createBar();
+		storePinned([{ id: 'search', pinned: true, visible: true }, { id: 'explorer', pinned: false, visible: true }]);
+
+		assert.deepStrictEqual(getStoredPinned(), [
+			{ id: 'search', pinned: true, visible: true },
+			{ id: 'explorer', pinned: false, visible: true },
+			{ id: 'test', pinned: true, visible: false }
+		]);
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();

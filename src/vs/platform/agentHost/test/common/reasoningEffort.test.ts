@@ -56,4 +56,11 @@ suite('reasoningEffort', () => {
 			undefined,
 		]);
 	});
+
+	test('prefers high effort for Kimi K3 and newer', () => {
+		assert.deepStrictEqual(
+			['kimi-k2.7-code', 'kimi-k3-copilot-picker', 'moonshotai/Kimi-K3:latest', 'kimi-k3.5', 'kimi-k4', 'accounts/fireworks/models/kimi-k3p5', 'k3-256k', 'kimi-k3x', 'k30'].map(modelId => resolveDefaultReasoningEffort(['low', 'high', 'max'], undefined, modelId)),
+			['low', 'high', 'high', 'high', 'high', 'high', 'high', 'low', 'low'],
+		);
+	});
 });

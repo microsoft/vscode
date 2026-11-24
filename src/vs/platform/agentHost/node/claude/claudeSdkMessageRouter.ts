@@ -63,7 +63,7 @@ export class ClaudeSdkMessageRouter extends Disposable {
 	) {
 		super();
 		this._editObserver = this._register(
-			instantiationService.createInstance(ClaudeFileEditObserver, _resource.toString(), _owner, dbRef),
+			instantiationService.createInstance(ClaudeFileEditObserver, _resource, _chatChannelUri, _owner, dbRef),
 		);
 		this._terminalOutputs = instantiationService.createInstance(ClaudeTerminalOutputs);
 	}

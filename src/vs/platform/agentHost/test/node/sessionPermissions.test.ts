@@ -269,6 +269,36 @@ suite('SessionPermissionManager', () => {
 		assert.deepStrictEqual(results, [ToolCallConfirmationReason.Setting, undefined]);
 	});
 
+	test('root MCP grants approve pending calls by raw server or tool identity', async () => {
+		const signal = confirmationSignal({ permissionKind: AgentPermissionKind.Mcp, mcpServerName: 'corp', mcpToolName: 'get_me' });
+		startConfirmation({ ...signal, state: { ...signal.state, toolName: 'corp-get_me' } });
+		const event: IToolApprovalEvent = {
+			toolCallId: signal.state.toolCallId, session: signal.chat, permissionKind: signal.permissionKind,
+			mcpServerName: signal.mcpServerName, mcpToolName: signal.mcpToolName,
+		};
+		const results = [];
+		for (const rule of ['Mcp(corp)', 'Mcp(corp/get_me)', 'Mcp(corp/other)']) {
+			configService.updateRootConfig({ [SessionConfigKey.Permissions]: { allow: [rule], deny: [] } });
+			results.push(await permissions.getAutoApproval(event, signal.chat.toString()));
+		}
+		assert.deepStrictEqual(results, [ToolCallConfirmationReason.Setting, ToolCallConfirmationReason.Setting, undefined]);
+	});
+
+	test('root MCP ask and deny rules use raw identity alongside allow rules', async () => {
+		const event: IToolApprovalEvent = {
+			toolCallId: 'tc-mcp', toolName: 'corp-get_me', session: URI.parse(sessionUri),
+			permissionKind: AgentPermissionKind.Mcp, mcpServerName: 'corp', mcpToolName: 'get_me',
+		};
+		configService.updateRootConfig({ [SessionConfigKey.Permissions]: { allow: ['Mcp(corp)'], deny: [], ask: ['Mcp(corp/get_me)'] } });
+		const asked = await permissions.getAutoApproval(event, sessionUri);
+		configService.updateRootConfig({ [SessionConfigKey.Permissions]: { allow: ['Mcp(corp)'], deny: ['Mcp(corp/get_me)'] } });
+		assert.deepStrictEqual({
+			asked,
+			denied: await permissions.isDeniedByPermissions(event, sessionUri),
+			otherToolDenied: await permissions.isDeniedByPermissions({ ...event, mcpToolName: 'other' }, sessionUri),
+		}, { asked: undefined, denied: true, otherToolDenied: false });
+	});
+
 	test('Read and Edit rules approve matching paths outside the working directory', async () => {
 		const target = join(outsideDir, 'allowed.txt');
 		setPermissionRules([`Read(//${target.replace(/\\/g, '/').replace(/^\//, '')})`, `Edit(//${target.replace(/\\/g, '/').replace(/^\//, '')})`]);
@@ -571,13 +601,13 @@ suite('SessionPermissionManager', () => {
 		})));
 	});
 
-	test('URL confirmations offer session and always grants for the exact hostname and scheme', () => {
+	test('URL confirmations offer session and always grants for the exact hostname, port and scheme', () => {
 		const actions = ['https://api.example.com/path', 'https://example.co.uk', 'https://127.0.0.1:8080', 'https://[::1]:8080', 'http://api.example.com/path', 'http://127.0.0.1', 'http://[::1]', 'not a URL'].map(permissionUrl => permissions.createToolReadyAction(confirmationSignal({ permissionKind: AgentPermissionKind.Url, permissionUrl }), sessionUri, 'turn'));
 		assert.deepStrictEqual(actions.map(action => action.options?.map(option => [option.id, option.label])), [
 			[['allow-once', 'Allow Once'], ['allow-session-rules:["WebFetch(api.example.com)"]', 'Allow Fetching api.example.com in this Session'], ['allow-always-rules:["WebFetch(api.example.com)"]', 'Always Allow Fetching api.example.com'], ['skip', 'Skip']],
 			[['allow-once', 'Allow Once'], ['allow-session-rules:["WebFetch(example.co.uk)"]', 'Allow Fetching example.co.uk in this Session'], ['allow-always-rules:["WebFetch(example.co.uk)"]', 'Always Allow Fetching example.co.uk'], ['skip', 'Skip']],
-			[['allow-once', 'Allow Once'], ['allow-session-rules:["WebFetch(127.0.0.1)"]', 'Allow Fetching 127.0.0.1 in this Session'], ['allow-always-rules:["WebFetch(127.0.0.1)"]', 'Always Allow Fetching 127.0.0.1'], ['skip', 'Skip']],
-			[['allow-once', 'Allow Once'], ['allow-session-rules:["WebFetch([::1])"]', 'Allow Fetching [::1] in this Session'], ['allow-always-rules:["WebFetch([::1])"]', 'Always Allow Fetching [::1]'], ['skip', 'Skip']],
+			[['allow-once', 'Allow Once'], ['allow-session-rules:["WebFetch(127.0.0.1:8080)"]', 'Allow Fetching 127.0.0.1:8080 in this Session'], ['allow-always-rules:["WebFetch(127.0.0.1:8080)"]', 'Always Allow Fetching 127.0.0.1:8080'], ['skip', 'Skip']],
+			[['allow-once', 'Allow Once'], ['allow-session-rules:["WebFetch([::1]:8080)"]', 'Allow Fetching [::1]:8080 in this Session'], ['allow-always-rules:["WebFetch([::1]:8080)"]', 'Always Allow Fetching [::1]:8080'], ['skip', 'Skip']],
 			[['allow-once', 'Allow Once'], ['allow-session-rules:["WebFetch(http://api.example.com)"]', 'Allow Fetching http://api.example.com in this Session'], ['allow-always-rules:["WebFetch(http://api.example.com)"]', 'Always Allow Fetching http://api.example.com'], ['skip', 'Skip']],
 			[['allow-once', 'Allow Once'], ['allow-session-rules:["WebFetch(http://127.0.0.1)"]', 'Allow Fetching http://127.0.0.1 in this Session'], ['allow-always-rules:["WebFetch(http://127.0.0.1)"]', 'Always Allow Fetching http://127.0.0.1'], ['skip', 'Skip']],
 			[['allow-once', 'Allow Once'], ['allow-session-rules:["WebFetch(http://[::1])"]', 'Allow Fetching http://[::1] in this Session'], ['allow-always-rules:["WebFetch(http://[::1])"]', 'Always Allow Fetching http://[::1]'], ['skip', 'Skip']],
@@ -586,6 +616,53 @@ suite('SessionPermissionManager', () => {
 	});
 
 	for (const scope of ['session', 'always']) {
+		for (const { origin, pattern } of [
+			{ origin: 'https://example.com:8443', pattern: 'example.com:8443' },
+			{ origin: 'http://localhost:3000', pattern: 'http://localhost:3000' },
+			{ origin: 'https://127.0.0.1:8080', pattern: '127.0.0.1:8080' },
+			{ origin: 'https://[::1]:8080', pattern: '[::1]:8080' },
+			{ origin: 'http://127.0.0.1:8080', pattern: 'http://127.0.0.1:8080' },
+			{ origin: 'http://[::1]:8080', pattern: 'http://[::1]:8080' },
+		]) {
+			test(`${scope} fetch grants for ${origin} preserve the port in labels and rules`, async () => {
+				setPermissionRules([]);
+				const signal = confirmationSignal({ permissionKind: AgentPermissionKind.Url, permissionUrl: `${origin}/path` });
+				const chat = signal.chat.toString();
+				const event: IToolApprovalEvent = { toolCallId: signal.state.toolCallId, session: signal.chat, permissionKind: AgentPermissionKind.Url, permissionUrl: signal.permissionUrl };
+				const before = await permissions.getAutoApproval(event, chat);
+				const option = permissions.createToolReadyAction(signal, chat, 'turn-scoped').options?.find(option => option.id.startsWith(`allow-${scope}-rules:`));
+				assert.ok(option);
+				startConfirmation(signal);
+				confirmToolCall(chat, signal.state.toolCallId, option.id);
+				const defaultPort = new URL(`${origin}/again`);
+				defaultPort.port = '';
+				const otherPort = new URL(`${origin}/again`);
+				otherPort.port = '9000';
+				const otherScheme = new URL(`${origin}/again`);
+				otherScheme.protocol = otherScheme.protocol === 'https:' ? 'http:' : 'https:';
+				const rule = `WebFetch(${pattern})`;
+				assert.deepStrictEqual({
+					before,
+					label: option.label,
+					root: configService.getRootValue(platformRootSchema, SessionConfigKey.Permissions),
+					session: manager.getSessionState(sessionUri)?.config?.values[SessionConfigKey.Permissions],
+					after: await permissions.getAutoApproval({ ...event, permissionUrl: `${origin}/again` }, chat),
+					defaultPort: await permissions.getAutoApproval({ ...event, permissionUrl: defaultPort.href }, chat),
+					otherPort: await permissions.getAutoApproval({ ...event, permissionUrl: otherPort.href }, chat),
+					otherScheme: await permissions.getAutoApproval({ ...event, permissionUrl: otherScheme.href }, chat),
+				}, {
+					before: undefined,
+					label: scope === 'session' ? `Allow Fetching ${pattern} in this Session` : `Always Allow Fetching ${pattern}`,
+					root: { allow: scope === 'always' ? [rule] : [], deny: [] },
+					session: { allow: scope === 'session' ? [rule] : [], deny: [] },
+					after: ToolCallConfirmationReason.Setting,
+					defaultPort: undefined,
+					otherPort: undefined,
+					otherScheme: undefined,
+				});
+			});
+		}
+
 		test(`HTTP ${scope} fetch grants persist and auto-approve only the approved scheme and hostname`, async () => {
 			setPermissionRules([]);
 			const signal = confirmationSignal({ permissionKind: AgentPermissionKind.Url, permissionUrl: 'http://api.example.com/path' });
@@ -1397,6 +1474,31 @@ suite('SessionPermissionManager', () => {
 		});
 	});
 
+	test('requires confirmation for Dev Container configurations despite explicit edit approval', async () => {
+		configService.updateRootConfig({
+			[AgentHostEditAutoApprovePatternsConfigKey]: {
+				'**/*': true,
+				'**/.devcontainer/**': true,
+				'**/.devcontainer.json': true,
+			},
+		});
+		const files = [
+			'.devcontainer.json',
+			join('.devcontainer', 'devcontainer.json'),
+			join('.devcontainer', 'python', 'devcontainer.json'),
+		];
+		const results = await Promise.all(['', 'nested'].flatMap(directory =>
+			files.map(file => permissions.getAutoApproval(writeEvent(join(workDir, directory, file)), sessionUri))));
+
+		assert.deepStrictEqual({
+			protectedFiles: results,
+			ordinaryFile: await permissions.getAutoApproval(writeEvent(join(workDir, '.devcontainer', 'Dockerfile')), sessionUri),
+		}, {
+			protectedFiles: [...files, ...files].map(() => undefined),
+			ordinaryFile: ToolCallConfirmationReason.NotNeeded,
+		});
+	});
+
 	test('requires confirmation for configured custom hook file location', async () => {
 		const sensitiveEditLocations = getChatSensitiveEditLocations({
 			'custom-hooks/hooks.json': true,
@@ -1585,6 +1687,24 @@ suite('SessionPermissionManager', () => {
 		const result = await permissions.getAutoApproval(readEvent(join(workDir, 'a.txt'), remoteSessionUri), remoteSessionUri);
 
 		assert.strictEqual(result, undefined);
+	});
+
+	test('auto-approves reads and writes whose resolved permission resource is inside a virtual working directory', async () => {
+		const virtualSessionUri = URI.from({ scheme: 'copilot', path: '/virtual' }).toString();
+		const root = URI.parse('vscode-vfs://github/microsoft/vscode');
+		manager.createSession(makeSummary(virtualSessionUri, root.toString()));
+		const event = (permissionKind: AgentPermissionKind, path: string): IToolApprovalEvent => ({
+			toolCallId: 'tc-virtual', session: URI.parse(virtualSessionUri), permissionKind,
+			permissionPath: `/vscode-vfs/github/microsoft/vscode${path}`, permissionResource: URI.joinPath(root, path),
+		});
+
+		const results = await Promise.all([
+			permissions.getAutoApproval(event(AgentPermissionKind.Read, '/src/a.ts'), virtualSessionUri),
+			permissions.getAutoApproval(event(AgentPermissionKind.Write, '/src/a.ts'), virtualSessionUri),
+			permissions.getAutoApproval({ ...event(AgentPermissionKind.Read, '/a.ts'), permissionResource: URI.parse('vscode-vfs://github/other/repo/a.ts') }, virtualSessionUri),
+		]);
+
+		assert.deepStrictEqual(results, [ToolCallConfirmationReason.NotNeeded, ToolCallConfirmationReason.NotNeeded, undefined]);
 	});
 
 	test('requires confirmation when a symlinked read ancestor redirects outside the working directory', async () => {

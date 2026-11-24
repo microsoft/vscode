@@ -60,9 +60,6 @@ export class ContentHoverWidgetWrapper extends Disposable implements IHoverWidge
 		this._register(this._contentHoverWidget.onDidResize(() => {
 			this._participants.forEach(participant => participant.handleResize?.());
 		}));
-		this._register(this._contentHoverWidget.onDidScroll((e) => {
-			this._participants.forEach(participant => participant.handleScroll?.(e));
-		}));
 		this._register(this._contentHoverWidget.onContentsChanged(() => {
 			this._participants.forEach(participant => participant.handleContentsChanged?.());
 		}));
@@ -149,8 +146,8 @@ export class ContentHoverWidgetWrapper extends Disposable implements IHoverWidge
 	}
 
 	private _startHoverOperationIfNecessary(anchor: HoverAnchor, mode: HoverStartMode, source: HoverStartSource, shouldFocus: boolean, insistOnKeepingHoverVisible: boolean): void {
-		const currentAnchorEqualToPreviousHover = this._hoverOperation.options && this._hoverOperation.options.anchor.equals(anchor);
-		if (currentAnchorEqualToPreviousHover) {
+		const options = this._hoverOperation.options;
+		if (options?.anchor.equals(anchor) && options.source === source) {
 			return;
 		}
 		this._hoverOperation.cancel();

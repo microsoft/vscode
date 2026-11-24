@@ -6,12 +6,13 @@
 import { localize } from '../../../nls.js';
 import { ActionsOrientation } from '../../../base/browser/ui/actionbar/actionbar.js';
 import { IActivityService } from '../../services/activity/common/activity.js';
-import { IWorkbenchLayoutService, Parts } from '../../services/layout/browser/layoutService.js';
+import { IWorkbenchLayoutService, LayoutSettings, Parts } from '../../services/layout/browser/layoutService.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { IDisposable, DisposableStore, Disposable, DisposableMap, combinedDisposable } from '../../../base/common/lifecycle.js';
 import { IColorTheme } from '../../../platform/theme/common/themeService.js';
 import { CompositeBar, ICompositeBarItem, CompositeDragAndDrop } from './compositeBar.js';
 import { Dimension, isMouseEvent } from '../../../base/browser/dom.js';
+import { mainWindow } from '../../../base/browser/window.js';
 import { createCSSRule } from '../../../base/browser/domStylesheets.js';
 import { asCSSUrl } from '../../../base/browser/cssValue.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../platform/storage/common/storage.js';
@@ -31,6 +32,7 @@ import { GestureEvent } from '../../../base/browser/touch.js';
 import { IPaneCompositePart } from './paneCompositePart.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { IViewsService } from '../../services/views/common/viewsService.js';
+import { RunOnceScheduler } from '../../../base/common/async.js';
 
 interface IPlaceholderViewContainer {
 	readonly id: string;
@@ -95,6 +97,8 @@ export class PaneCompositeBar extends Disposable {
 	private readonly compositeActions = this._register(new DisposableMap<string, { activityAction: ViewContainerActivityAction; pinnedAction: ToggleCompositePinnedAction; badgeAction: ToggleCompositeBadgeAction; dispose: () => void }>());
 
 	private hasExtensionsRegistered: boolean = false;
+	private dimension: Dimension | undefined;
+	private needsSizeRecompute = false;
 
 	constructor(
 		private readonly location: ViewContainerLocation,
@@ -109,6 +113,7 @@ export class PaneCompositeBar extends Disposable {
 		@IContextKeyService protected readonly contextKeyService: IContextKeyService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IWorkbenchLayoutService protected readonly layoutService: IWorkbenchLayoutService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -129,6 +134,19 @@ export class PaneCompositeBar extends Disposable {
 		this.compositeBar = this.createCompositeBar(cachedItems);
 		this.onDidRegisterViewContainers(this.getViewContainers());
 		this.registerListeners();
+
+		if (this.options.recomputeSizes) {
+			// Measure after the Modern UI contribution has applied the new tab geometry.
+			const recomputeSizes = this._register(new RunOnceScheduler(() => {
+				this.needsSizeRecompute = true;
+				this.recomputeSizesIfVisible();
+			}, 0));
+			this._register(configurationService.onDidChangeConfiguration(e => {
+				if (e.affectsConfiguration(LayoutSettings.MODERN_UI) || e.affectsConfiguration(LayoutSettings.MODERN_UI_EDITOR_TAB_STYLE)) {
+					recomputeSizes.schedule();
+				}
+			}));
+		}
 	}
 
 	private createCompositeBar(cachedItems: ICompositeBarItem[]) {
@@ -229,6 +247,10 @@ export class PaneCompositeBar extends Disposable {
 		this._register(this.paneCompositePart.onDidPaneCompositeOpen(e => this.onDidChangeViewContainerVisibility(e.getId(), true)));
 		this._register(this.paneCompositePart.onDidPaneCompositeClose(e => this.onDidChangeViewContainerVisibility(e.getId(), false)));
 
+		// Pinned view containers changed by another window. Also followed before extensions are
+		// registered, so that the bar never saves the pinned view containers it read before
+		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, this.options.pinnedViewContainersKey, this._store)(() => this.updateCompositeBarItemsFromStorage(false)));
+
 		// Extension registration
 		this.extensionService.whenInstalledExtensionsRegistered().then(() => {
 			if (this._store.isDisposed) {
@@ -239,7 +261,6 @@ export class PaneCompositeBar extends Disposable {
 				this.updateCompositeBarItemsFromStorage(true);
 				this.saveCachedViewContainers();
 			}));
-			this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, this.options.pinnedViewContainersKey, this._store)(() => this.updateCompositeBarItemsFromStorage(false)));
 		});
 	}
 
@@ -515,7 +536,16 @@ export class PaneCompositeBar extends Disposable {
 	}
 
 	layout(width: number, height: number): void {
-		this.compositeBar.layout(new Dimension(width, height));
+		this.dimension = new Dimension(width, height);
+		this.compositeBar.layout(this.dimension);
+		this.recomputeSizesIfVisible();
+	}
+
+	private recomputeSizesIfVisible(): void {
+		if (this.needsSizeRecompute && this.dimension && this.dimension.width > 0 && this.dimension.height > 0 && this.layoutService.isVisible(this.part, mainWindow)) {
+			this.needsSizeRecompute = false;
+			this.compositeBar.recomputeSizes();
+		}
 	}
 
 	private getViewContainer(id: string): ViewContainer | undefined {
@@ -545,7 +575,10 @@ export class PaneCompositeBar extends Disposable {
 				name: cachedViewContainer.name,
 				order: cachedViewContainer.order,
 				pinned: cachedViewContainer.pinned,
-				visible: cachedViewContainer.visible && !!this.getViewContainer(cachedViewContainer.id),
+				// Until extensions are registered, the bar shows the view containers of extensions from the cache
+				visible: this.hasExtensionsRegistered
+					? cachedViewContainer.visible && !!this.getViewContainer(cachedViewContainer.id)
+					: !this.shouldBeHidden(cachedViewContainer.id, cachedViewContainer),
 			});
 		}
 
@@ -587,6 +620,11 @@ export class PaneCompositeBar extends Disposable {
 	}
 
 	private saveCachedViewContainers(): void {
+		// The stored value can change before the bar learns about it. For example, storage applies all changes of another
+		// window before it reports them, so a view container that moved here is reported before the pinned view containers
+		// that the other window saved with it. The stored value wins, as for a change of the bar
+		this.updateCompositeBarItemsFromStorage(false);
+
 		const state: ICachedViewContainer[] = [];
 
 		const compositeItems = this.compositeBar.getCompositeBarItems();
@@ -609,7 +647,13 @@ export class PaneCompositeBar extends Disposable {
 					isBuiltin: !viewContainer.extensionId
 				});
 			} else {
-				state.push({ id: compositeItem.id, name: compositeItem.name, pinned: compositeItem.pinned, order: compositeItem.order, visible: false, isBuiltin: false });
+				// Until extensions are registered, a view container of an extension keeps what the cache knows about it.
+				// Otherwise the bar would hide it when it reads the saved state again, for example after another window
+				// changed the pinned view containers
+				const cachedViewContainer = this.hasExtensionsRegistered ? undefined : this.cachedViewContainers.find(({ id }) => id === compositeItem.id);
+				state.push(cachedViewContainer
+					? { ...cachedViewContainer, pinned: compositeItem.pinned, order: compositeItem.order }
+					: { id: compositeItem.id, name: compositeItem.name, pinned: compositeItem.pinned, order: compositeItem.order, visible: false, isBuiltin: false });
 			}
 		}
 

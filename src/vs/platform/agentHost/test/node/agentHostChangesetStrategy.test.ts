@@ -179,7 +179,7 @@ suite('AgentHostChangesetStrategy', () => {
 			getSessionGitState: resource => gitStates.get(resource),
 			getMaterializedWorktreeMeta: () => undefined,
 			setFolderGitState: async () => { },
-			resolveSessionBaseBranchName: async () => undefined,
+			resolveSessionBaseBranchRef: async () => undefined,
 			setSessionGitHubState: async () => { },
 			recordSessionMerge: async () => { },
 			attachSessionGitHubPullRequest: async () => { },
@@ -1012,16 +1012,20 @@ suite('AgentHostChangesetStrategy', () => {
 
 	test('restore and subscription refreshes keep tracked session changes after isolation changes', async () => {
 		const fixture = createFixture();
+		const chat = buildDefaultChatUri(session);
+		const chatTurnChangeset = buildTurnChangesetUri(chat, turnId);
+		fixture.subscriptions.delete(turnChangeset);
+		fixture.subscriptions.add(chatTurnChangeset);
 		addEdit(fixture.db);
 		await refresh(fixture);
-		await fixture.service.computeTurnChangeset(session, turnId);
+		await fixture.service.computeTurnChangeset(chat, turnId);
 		setIsolation(fixture.state, 'folder');
-		const published = Promise.all([nextPublication(fixture.state, sessionChangeset), nextPublication(fixture.state, turnChangeset)]);
+		const published = Promise.all([nextPublication(fixture.state, sessionChangeset), nextPublication(fixture.state, chatTurnChangeset)]);
 		fixture.service.onWorkingDirectoryAvailable(session);
 		await published;
 		assert.deepStrictEqual({
 			session: snapshot(fixture.state, sessionChangeset),
-			turn: snapshot(fixture.state, turnChangeset),
+			turn: snapshot(fixture.state, chatTurnChangeset),
 			gitCalls: fixture.gitCalls.length,
 			reads: [fixture.db.getAllFileEditsCalls, fixture.db.getFileEditsByTurnCalls],
 		}, { session: ready([trackedDiff()]), turn: ready([trackedDiff()]), gitCalls: 1, reads: [2, 1] });
@@ -1030,7 +1034,7 @@ suite('AgentHostChangesetStrategy', () => {
 	test('main branch changes retain the persisted baseline while using the session folder', async () => {
 		const fixture = createFixture();
 		await fixture.db.setMetadata(META_DIFF_BASE_BRANCH, 'release-A');
-		fixture.gitStates.set(buildDefaultChatUri(session), { baseBranchName: 'main' });
+		fixture.gitStates.set(buildDefaultChatUri(session), { baseBranchName: 'main', baseBranchRef: 'refs/remotes/origin/main' });
 		const calls: (string | undefined)[] = [];
 		fixture.git.computeSessionFileDiffs = async (_directory, options) => {
 			calls.push(options?.baseBranch);
@@ -1050,7 +1054,7 @@ suite('AgentHostChangesetStrategy', () => {
 		await fixture.db.setMetadata(META_DIFF_BASE_BRANCH, '');
 		fixture.state.dispatchServerAction(session, { type: ActionType.SessionWorkingDirectoryReplaced, directory: 'file:///repo', replacement: destination });
 		fixture.state.dispatchServerAction(main, { type: ActionType.ChatWorkingDirectorySet, directory: destination });
-		fixture.gitStates.set(main, { baseBranchName: 'main' });
+		fixture.gitStates.set(main, { baseBranchName: 'main', baseBranchRef: 'refs/remotes/origin/main' });
 		const calls: { directory: string; baseBranch: string | undefined }[] = [];
 		fixture.git.computeSessionFileDiffs = async (directory, options) => {
 			calls.push({ directory: directory.toString(), baseBranch: options?.baseBranch });
@@ -1060,7 +1064,7 @@ suite('AgentHostChangesetStrategy', () => {
 		const published = nextPublication(fixture.state, branch);
 		fixture.service.refreshBranchChangeset(main);
 		await published;
-		assert.deepStrictEqual(calls, [{ directory: destination, baseBranch: 'main' }]);
+		assert.deepStrictEqual(calls, [{ directory: destination, baseBranch: 'refs/remotes/origin/main' }]);
 	});
 
 	test('moved peer branch changes use the destination baseline after clearing inherited fork metadata', async () => {
@@ -1077,7 +1081,7 @@ suite('AgentHostChangesetStrategy', () => {
 		fixture.state.dispatchServerAction(session, { type: ActionType.SessionChatUpdated, chat: main, changes: { workingDirectories: [original] } });
 		await fixture.db.setMetadata(META_DIFF_BASE_BRANCH, 'release-A');
 		await peerDb.setMetadata(META_DIFF_BASE_BRANCH, '');
-		fixture.gitStates.set(peer, { baseBranchName: 'main' });
+		fixture.gitStates.set(peer, { baseBranchName: 'main', baseBranchRef: 'refs/remotes/origin/main' });
 		const calls: { directory: string; baseBranch: string | undefined }[] = [];
 		fixture.git.computeSessionFileDiffs = async (directory, options) => {
 			calls.push({ directory: directory.toString(), baseBranch: options?.baseBranch });
@@ -1091,7 +1095,7 @@ suite('AgentHostChangesetStrategy', () => {
 		}
 		assert.deepStrictEqual(calls, [
 			{ directory: original, baseBranch: 'release-A' },
-			{ directory: destination, baseBranch: 'main' },
+			{ directory: destination, baseBranch: 'refs/remotes/origin/main' },
 		]);
 	});
 
@@ -1108,13 +1112,13 @@ suite('AgentHostChangesetStrategy', () => {
 			});
 			await fixture.db.setMetadata(META_DIFF_BASE_BRANCH, 'release-A');
 			await peerDb.setMetadata(META_DIFF_BASE_BRANCH, 'release-A');
-			fixture.state.setSessionMeta(session, withSessionGitState(undefined, { baseBranchName: 'release-A' }));
+			fixture.state.setSessionMeta(session, withSessionGitState(undefined, { baseBranchName: 'release-A', baseBranchRef: 'refs/remotes/origin/release-A' }));
 			fixture.state.dispatchServerAction(main, { type: ActionType.ChatWorkingDirectorySet, directory: destination });
 			fixture.state.dispatchServerAction(session, { type: ActionType.SessionChatUpdated, chat: main, changes: { workingDirectories: [destination] } });
 			if (destinationBase) {
-				fixture.gitStates.set(main, { baseBranchName: destinationBase });
+				fixture.gitStates.set(main, { baseBranchName: destinationBase, baseBranchRef: `refs/remotes/origin/${destinationBase}` });
 			}
-			fixture.gitStates.set(peer, { baseBranchName: 'release-A' });
+			fixture.gitStates.set(peer, { baseBranchName: 'release-A', baseBranchRef: 'refs/remotes/origin/release-A' });
 			const calls: { directory: string; baseBranch: string | undefined }[] = [];
 			fixture.git.computeSessionFileDiffs = async (directory, options) => {
 				calls.push({ directory: directory.toString(), baseBranch: options?.baseBranch });
@@ -1127,8 +1131,8 @@ suite('AgentHostChangesetStrategy', () => {
 				await published;
 			}
 			assert.deepStrictEqual(calls, [
-				{ directory: destination, baseBranch: destinationBase },
-				{ directory: original, baseBranch: 'release-A' },
+				{ directory: destination, baseBranch: destinationBase && `refs/remotes/origin/${destinationBase}` },
+				{ directory: original, baseBranch: 'refs/remotes/origin/release-A' },
 			]);
 		});
 	}

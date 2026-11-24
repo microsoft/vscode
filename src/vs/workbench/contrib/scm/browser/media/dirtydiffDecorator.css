@@ -126,6 +126,11 @@
 	pointer-events: none;
 }
 
+.monaco-editor .dirty-diff-deleted.top:after {
+	bottom: auto;
+	top: -4px;
+}
+
 .monaco-editor .dirty-diff-deleted.primary:after {
 	border-left: 4px solid var(--vscode-editorGutter-deletedBackground);
 }
@@ -135,7 +140,7 @@
 }
 
 .monaco-workbench.monaco-enable-motion .monaco-editor .dirty-diff-deleted:after {
-	transition: border-top-width 80ms linear, border-bottom-width 80ms linear, bottom 80ms linear, opacity 0.5s;
+	transition: border-top-width 80ms linear, border-bottom-width 80ms linear, bottom 80ms linear, top 80ms linear, opacity 0.5s;
 }
 
 .monaco-editor .dirty-diff-deleted:before {
@@ -143,6 +148,11 @@
 	margin-left: 3px;
 	height: 0;
 	bottom: 0;
+}
+
+.monaco-editor .dirty-diff-deleted.top:before {
+	bottom: auto;
+	top: 0;
 }
 
 .monaco-editor .dirty-diff-deleted.primary:before {

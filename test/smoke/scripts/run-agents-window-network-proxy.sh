@@ -12,10 +12,17 @@ LOG_DIR="$ROOT/.build/logs/agents-window-network-proxy"
 TEMP_ROOT="${RUNNER_TEMP:-${AGENT_TEMPDIRECTORY:-${TMPDIR:-/tmp}}}/vscode-agents-window-network-proxy-$$"
 TEST_REPO="$TEMP_ROOT/vscode-smoketest-express"
 PROXY_AUTH="none"
-if [[ "${1:-}" == "--kerberos" ]]; then
-	PROXY_AUTH="kerberos"
-	shift
-fi
+case "${1:-}" in
+	--kerberos)
+		PROXY_AUTH="kerberos"
+		shift
+		;;
+	--basic)
+		# The proxy and its credentials come from the http.proxy setting instead of the system PAC.
+		PROXY_AUTH="basic"
+		shift
+		;;
+esac
 PROXY_GROUP="vscodeproxytest"
 PF_ANCHOR="com.apple/vscodeproxytest"
 MOCK_HOST="vscode-smoke.test"
@@ -31,6 +38,7 @@ NODE_BIN="$(command -v node)"
 KDC_BIN="/System/Library/PrivateFrameworks/Heimdal.framework/Helpers/kdc"
 KDC_PORT="61088"
 KDC_LOG="$LOG_DIR/kdc.log"
+KDC_HEIMDAL_LOG="$LOG_DIR/kdc-heimdal.log"
 KERBEROS_AUTH_LOG="$LOG_DIR/kerberos-auth.log"
 KERBEROS_CONFIG="$TEMP_ROOT/krb5.conf"
 KERBEROS_CACHE="FILE:$TEMP_ROOT/krb5cc"
@@ -38,6 +46,9 @@ KERBEROS_KEYTAB="FILE:$TEMP_ROOT/proxy.keytab"
 KERBEROS_REALM="VSCODE.PROXY.TEST"
 KERBEROS_USERNAME="PlaceholderUsername"
 KERBEROS_PASSWORD="Placeholder"
+BASIC_AUTH_HELPER="$SQUID_PREFIX/libexec/basic_ncsa_auth"
+BASIC_USERNAME="smoketest"
+BASIC_PASSWORD_FILE="$TEMP_ROOT/proxy.htpasswd"
 TLS_CA="$TEMP_ROOT/ca.pem"
 TLS_CERT="$TEMP_ROOT/server.pem"
 TLS_KEY="$TEMP_ROOT/server.key"
@@ -92,7 +103,7 @@ cleanup() {
 	fi
 
 	if [[ $exit_code -ne 0 ]]; then
-		tail -n 100 "$PAC_LOG" "$SQUID_LOG" "$SQUID_ACCESS_LOG" "$KDC_LOG" "$KERBEROS_AUTH_LOG" 2>/dev/null
+		tail -n 100 "$PAC_LOG" "$SQUID_LOG" "$SQUID_ACCESS_LOG" "$KDC_LOG" "$KDC_HEIMDAL_LOG" "$KERBEROS_AUTH_LOG" 2>/dev/null
 	fi
 	rm -rf "$TEMP_ROOT"
 	exit "$exit_code"
@@ -119,7 +130,7 @@ saved_pac_url="$(printf '%s\n' "$saved_pac_state" | sed -n 's/^URL: //p')"
 saved_pac_enabled="$(printf '%s\n' "$saved_pac_state" | sed -n 's/^Enabled: //p')"
 
 mkdir -p "$LOG_DIR" "$TEMP_ROOT"
-rm -f "$PAC_LOG" "$SQUID_ACCESS_LOG" "$SQUID_LOG" "$KDC_LOG" "$KERBEROS_AUTH_LOG"
+rm -f "$PAC_LOG" "$SQUID_ACCESS_LOG" "$SQUID_LOG" "$KDC_LOG" "$KDC_HEIMDAL_LOG" "$KERBEROS_AUTH_LOG"
 git clone --depth 1 https://github.com/microsoft/vscode-smoketest-express "$TEST_REPO"
 
 if [[ -z "$SQUID_PREFIX" || ! -x "$SQUID_BIN" ]]; then
@@ -127,16 +138,9 @@ if [[ -z "$SQUID_PREFIX" || ! -x "$SQUID_BIN" ]]; then
 	exit 1
 fi
 
-if [[ "$PROXY_AUTH" == "kerberos" ]]; then
-	PAC_FILE="$FIXTURE_DIR/test-kerberos.pac"
-	if [[ ! -x "$KDC_BIN" ]]; then
-		echo "The macOS Heimdal KDC is required at $KDC_BIN" >&2
-		exit 1
-	fi
-	if nc -z 127.0.0.1 "$KDC_PORT"; then
-		echo "Port $KDC_PORT must be available for the Kerberos KDC" >&2
-		exit 1
-	fi
+if [[ "$PROXY_AUTH" != "none" ]]; then
+	# The mock server is served over HTTPS through authenticated proxy tunnels, which cannot add the proxy header. It
+	# trusts its host name instead, which only the proxy resolves.
 	cat > "$TEMP_ROOT/tls.cnf" <<EOF
 [req]
 distinguished_name = dn
@@ -162,7 +166,31 @@ EOF
 		-keyout "$TLS_KEY" -out "$TEMP_ROOT/server.csr"
 	openssl x509 -req -in "$TEMP_ROOT/server.csr" -CA "$TLS_CA" -CAkey "$TEMP_ROOT/ca.key" \
 		-CAcreateserial -days 1 -sha256 -extfile "$TEMP_ROOT/tls.cnf" -extensions server -out "$TLS_CERT"
+fi
 
+if [[ "$PROXY_AUTH" == "basic" ]]; then
+	if [[ ! -x "$BASIC_AUTH_HELPER" ]]; then
+		echo "The Squid basic_ncsa_auth helper is required at $BASIC_AUTH_HELPER" >&2
+		exit 1
+	fi
+	BASIC_PASSWORD="$(openssl rand -hex 12)"
+	basic_password_hash="$(openssl passwd -1 "$BASIC_PASSWORD")"
+	printf '%s:%s\n' "$BASIC_USERNAME" "$basic_password_hash" > "$BASIC_PASSWORD_FILE"
+fi
+
+if [[ "$PROXY_AUTH" == "kerberos" ]]; then
+	PAC_FILE="$FIXTURE_DIR/test-kerberos.pac"
+	if [[ ! -x "$KDC_BIN" ]]; then
+		echo "The macOS Heimdal KDC is required at $KDC_BIN" >&2
+		exit 1
+	fi
+	if nc -z 127.0.0.1 "$KDC_PORT"; then
+		echo "Port $KDC_PORT must be available for the Kerberos KDC" >&2
+		exit 1
+	fi
+
+	# The readiness check below only proves the KDC's TCP listener, so make Kerberos clients use TCP instead of UDP.
+	# The KDC writes its own log to KDC_HEIMDAL_LOG, which shows whether a request arrived when a client gives up.
 	cat > "$KERBEROS_CONFIG" <<EOF
 [libdefaults]
 	default_realm = $KERBEROS_REALM
@@ -171,12 +199,15 @@ EOF
 
 [realms]
 	$KERBEROS_REALM = {
-		kdc = 127.0.0.1:$KDC_PORT
+		kdc = tcp/127.0.0.1:$KDC_PORT
 	}
 
 [domain_realm]
 	.localhost = $KERBEROS_REALM
 	localhost = $KERBEROS_REALM
+
+[logging]
+	kdc = FILE:$KDC_HEIMDAL_LOG
 
 [kdc]
 	database = {
@@ -238,6 +269,15 @@ acl authenticated proxy_auth REQUIRED
 http_access allow authenticated
 http_access deny all
 EOF
+elif [[ "$PROXY_AUTH" == "basic" ]]; then
+	cat >> "$TEMP_ROOT/squid.conf" <<EOF
+auth_param basic program $BASIC_AUTH_HELPER $BASIC_PASSWORD_FILE
+auth_param basic children 5
+auth_param basic realm vscode-smoke
+acl authenticated proxy_auth REQUIRED
+http_access allow authenticated
+http_access deny all
+EOF
 else
 	cat >> "$TEMP_ROOT/squid.conf" <<EOF
 acl all src all
@@ -295,22 +335,24 @@ if ! $pf_was_enabled; then
 	sudo pfctl -e
 fi
 
-sudo networksetup -setautoproxyurl "$primary_service" "$PAC_URL"
-pac_configured=true
-sudo networksetup -setautoproxystate "$primary_service" on
+if [[ "$PROXY_AUTH" != "basic" ]]; then
+	sudo networksetup -setautoproxyurl "$primary_service" "$PAC_URL"
+	pac_configured=true
+	sudo networksetup -setautoproxystate "$primary_service" on
 
-pac_ready=false
-for _ in {1..50}; do
-	proxy_state="$(scutil --proxy)"
-	if grep -Fq 'ProxyAutoConfigEnable : 1' <<< "$proxy_state" && grep -Fq "ProxyAutoConfigURLString : $PAC_URL" <<< "$proxy_state"; then
-		pac_ready=true
-		break
+	pac_ready=false
+	for _ in {1..50}; do
+		proxy_state="$(scutil --proxy)"
+		if grep -Fq 'ProxyAutoConfigEnable : 1' <<< "$proxy_state" && grep -Fq "ProxyAutoConfigURLString : $PAC_URL" <<< "$proxy_state"; then
+			pac_ready=true
+			break
+		fi
+		sleep 0.1
+	done
+	if ! $pac_ready; then
+		echo "SCDynamicStore did not reflect the PAC configuration within 5 seconds" >&2
+		exit 1
 	fi
-	sleep 0.1
-done
-if ! $pac_ready; then
-	echo "SCDynamicStore did not reflect the PAC configuration within 5 seconds" >&2
-	exit 1
 fi
 
 restricted_env=(
@@ -322,16 +364,23 @@ restricted_env=(
 	"TMPDIR=${TMPDIR:-/tmp}"
 	"USER=$(id -un)"
 )
-if [[ "$PROXY_AUTH" == "kerberos" ]]; then
+if [[ "$PROXY_AUTH" != "none" ]]; then
 	restricted_env+=(
-		"KRB5_CONFIG=$KERBEROS_CONFIG"
-		"KRB5CCNAME=$KERBEROS_CACHE"
-		"COPILOT_PROXY_KERBEROS_SPN=HTTP/localhost"
 		"NODE_EXTRA_CA_CERTS=$TLS_CA"
 		"SSL_CERT_FILE=$TLS_CA"
 		"VSCODE_SMOKE_TEST_MOCK_CERT=$TLS_CERT"
 		"VSCODE_SMOKE_TEST_MOCK_KEY=$TLS_KEY"
 	)
+fi
+if [[ "$PROXY_AUTH" == "kerberos" ]]; then
+	restricted_env+=(
+		"KRB5_CONFIG=$KERBEROS_CONFIG"
+		"KRB5CCNAME=$KERBEROS_CACHE"
+		"COPILOT_PROXY_KERBEROS_SPN=HTTP/localhost"
+	)
+elif [[ "$PROXY_AUTH" == "basic" ]]; then
+	# The smoke tests put this proxy, credentials included, in the http.proxy setting.
+	restricted_env+=("VSCODE_SMOKE_TEST_HTTP_PROXY=http://$BASIC_USERNAME:$BASIC_PASSWORD@127.0.0.1:43144")
 fi
 for name in BUILD_ARTIFACTSTAGINGDIRECTORY CI GITHUB_ACTIONS GITHUB_RUN_ATTEMPT GITHUB_RUN_ID GITHUB_WORKSPACE RUNNER_TEMP TF_BUILD; do
 	if [[ -n "${!name:-}" ]]; then
@@ -359,27 +408,39 @@ if run_restricted curl --fail --silent --connect-timeout 3 --noproxy '*' http://
 	exit 1
 fi
 
-if [[ "$PROXY_AUTH" == "kerberos" ]]; then
-	if curl --fail --silent --connect-timeout 3 --proxy http://localhost:43144 --noproxy '' "$PAC_URL" >/dev/null 2>&1; then
-		echo "The Kerberos proxy accepted an unauthenticated request" >&2
+if [[ "$PROXY_AUTH" != "none" ]]; then
+	# Kerberos needs the host name of the proxy's service principal.
+	proxy_url="http://$([[ "$PROXY_AUTH" == "kerberos" ]] && echo localhost || echo 127.0.0.1):43144"
+	if curl --fail --silent --connect-timeout 3 --proxy "$proxy_url" --noproxy '' "$PAC_URL" >/dev/null 2>&1; then
+		echo "The $PROXY_AUTH proxy accepted an unauthenticated request" >&2
 		exit 1
 	fi
-	if prompt_status="$(curl --silent --connect-timeout 3 --proxy http://localhost:43144 --noproxy '' --request POST --output /dev/null --write-out '%{http_connect}' "https://$MOCK_HOST:44444/responses")"; then
-		echo "The Kerberos proxy accepted an unauthenticated model tunnel" >&2
+	if prompt_status="$(curl --silent --connect-timeout 3 --proxy "$proxy_url" --noproxy '' --request POST --output /dev/null --write-out '%{http_connect}' "https://$MOCK_HOST:44444/responses")"; then
+		echo "The $PROXY_AUTH proxy accepted an unauthenticated model tunnel" >&2
 		exit 1
 	fi
 	if [[ "$prompt_status" != "407" ]]; then
 		echo "Expected HTTP 407 for an unauthenticated model request, got $prompt_status" >&2
 		exit 1
 	fi
+fi
+if [[ "$PROXY_AUTH" == "kerberos" ]]; then
 	KRB5_CONFIG="$KERBEROS_CONFIG" KRB5CCNAME="$KERBEROS_CACHE" \
-		curl --fail --silent --connect-timeout 3 --proxy http://localhost:43144 --noproxy '' --proxy-negotiate --proxy-user : "$PAC_URL" >/dev/null
+		curl --fail --silent --connect-timeout 3 --proxy "$proxy_url" --noproxy '' --proxy-negotiate --proxy-user : "$PAC_URL" >/dev/null
 	kerberos_auth_requests_before_smoke="$(wc -l < "$KERBEROS_AUTH_LOG")"
+elif [[ "$PROXY_AUTH" == "basic" ]]; then
+	curl --fail --silent --connect-timeout 3 --proxy "$proxy_url" --noproxy '' --proxy-user "$BASIC_USERNAME:$BASIC_PASSWORD" "$PAC_URL" >/dev/null
 fi
 
+# The Basic run covers the Copilot runtime and the Agent Host's own requests, which the local AgentHost suites exercise.
+# Mocha reads -g as a regular expression.
+smoke_grep='Agents Window'
+if [[ "$PROXY_AUTH" == "basic" ]]; then
+	smoke_grep='Agents Window \(local AgentHost'
+fi
 cd "$ROOT"
 run_restricted env VSCODE_SMOKE_TEST_MOCK_HOST="$MOCK_HOST" VSCODE_SMOKE_TEST_PROXY_HEADER="$PROXY_HEADER_VALUE" \
-	pnpm run smoketest-no-compile --tracing -g 'Agents Window' --fail-zero --test-repo "$TEST_REPO" --skip-stable-build "$@"
+	pnpm run smoketest-no-compile --tracing -g "$smoke_grep" --fail-zero --test-repo "$TEST_REPO" --skip-stable-build "$@"
 
 kill "$squid_pid"
 wait "$squid_pid" || true
@@ -393,7 +454,7 @@ if [[ -n "$kdc_pid" ]]; then
 	kdc_pid=""
 fi
 
-if ! grep -Fq 'GET /test.pac' "$PAC_LOG"; then
+if [[ "$PROXY_AUTH" != "basic" ]] && ! grep -Fq 'GET /test.pac' "$PAC_LOG"; then
 	echo "The macOS proxy resolver did not fetch the PAC script" >&2
 	exit 1
 fi
@@ -408,6 +469,11 @@ if [[ "$PROXY_AUTH" == "kerberos" ]]; then
 	fi
 	if ! awk -v host="$MOCK_HOST" -v user="$KERBEROS_USERNAME@$KERBEROS_REALM" 'index($0, "TCP_TUNNEL/200") && index($0, "CONNECT " host) && index($0, " " user " ") { found=1 } END { exit !found }' "$SQUID_ACCESS_LOG"; then
 		echo "The Agents Window smoke test did not establish a Kerberos-authenticated tunnel through Squid" >&2
+		exit 1
+	fi
+elif [[ "$PROXY_AUTH" == "basic" ]]; then
+	if ! awk -v host="$MOCK_HOST" -v user="$BASIC_USERNAME" 'index($0, "TCP_TUNNEL/200") && index($0, "CONNECT " host) && index($0, " " user " ") { found=1 } END { exit !found }' "$SQUID_ACCESS_LOG"; then
+		echo "The Agents Window smoke test did not establish a Basic-authenticated tunnel through Squid" >&2
 		exit 1
 	fi
 fi

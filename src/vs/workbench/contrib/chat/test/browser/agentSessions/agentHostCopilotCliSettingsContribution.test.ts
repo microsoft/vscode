@@ -14,7 +14,7 @@ import { IAgentHostEnablementService } from '../../../../../../platform/agentHos
 import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { AgentHostTerminalIgnoreDefaultAutoApproveRulesConfigKey, TERMINAL_AUTO_APPROVE_SETTING_ID, TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID, URL_AUTO_APPROVE_SETTING_ID } from '../../../../../../platform/agentHost/common/agentHostSchema.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
-import { AgentHostCopilotExecutionSubagentEnabledSettingId, AgentHostCopilotExecutionSubagentModelSettingId, AgentHostCopilotLocalMemoryEnabledSettingId, AgentHostCopilotModelCapabilityOverridesSettingId, AgentHostCopilotProgressUpdatesPromptSettingId, AgentHostCopilotSdkLogLevelSettingId, AgentHostOpus48PromptEnabledSettingId, CopilotSearchSubagentEnabledSettingId, CopilotSearchSubagentModelSettingId, CopilotExploreAgentEnabledSettingId, AgentHostShellToolInitScriptEnabledSettingId, CopilotStabilityOrderedPromptEnabledSettingId, AgentHostToolSearchDeferThresholdSettingId, AgentHostToolSearchEnabledSettingId, CopilotClaudeAdvisorEnabledSettingId, CopilotCliConfigKey, CopilotLocalIndexEnabledSettingId } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
+import { AgentHostCopilotExecutionSubagentEnabledSettingId, AgentHostCopilotExecutionSubagentModelSettingId, AgentHostCopilotLocalMemoryEnabledSettingId, AgentHostCopilotMemoryModeSettingId, AgentHostCopilotModelCapabilityOverridesSettingId, AgentHostCopilotProgressUpdatesPromptSettingId, AgentHostCopilotSdkLogLevelSettingId, AgentHostOpus48PromptEnabledSettingId, CopilotSearchSubagentEnabledSettingId, CopilotSearchSubagentGrepNudgeSettingId, CopilotSearchSubagentModelSettingId, CopilotExploreAgentEnabledSettingId, AgentHostShellToolInitScriptEnabledSettingId, CopilotStabilityOrderedPromptEnabledSettingId, CopilotSecurityReviewSecretDetectionEnabledSettingId, CopilotClaudeAdvisorEnabledSettingId, CopilotCliConfigKey, CopilotLocalIndexEnabledSettingId } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import type { ClientAnnotationsAction, INotification, IRootConfigChangedAction, SessionAction, TerminalAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import type { ConfigPropertySchema, RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
@@ -114,10 +114,12 @@ const fullSchema: Record<string, ConfigPropertySchema> = {
 	[CopilotCliConfigKey.CopilotSdkLogLevel]: { type: 'string', title: 'Copilot SDK Log Level' },
 	[CopilotCliConfigKey.Opus48Prompt]: { type: 'boolean', title: 'Opus 4.8 Agent Prompt' },
 	[CopilotCliConfigKey.StabilityOrderedPrompt]: { type: 'boolean', title: 'Stability-Ordered System Prompt' },
+	[CopilotCliConfigKey.SecurityReviewSecretDetection]: { type: 'boolean', title: 'Security Review Secret Detection' },
 	[CopilotCliConfigKey.ProgressUpdatesPrompt]: { type: 'boolean', title: 'Progress Updates Prompt' },
 	[CopilotCliConfigKey.ProgressUpdatesPromptDefaultControlled]: { type: 'boolean', title: 'Progress Updates Prompt Default Control' },
 	[CopilotCliConfigKey.ClaudeAdvisor]: { type: 'boolean', title: 'Claude Advisor Tool' },
 	[CopilotCliConfigKey.SearchSubagent]: { type: 'boolean', title: 'Search Subagent' },
+	[CopilotCliConfigKey.SearchSubagentGrepNudge]: { type: 'boolean', title: 'Search Subagent Grep Nudge' },
 	[CopilotCliConfigKey.SearchSubagentModel]: { type: 'string', title: 'Search Subagent Model' },
 	[CopilotCliConfigKey.ExploreAgent]: { type: 'boolean', title: 'Explore Agent' },
 	[CopilotCliConfigKey.ExecutionSubagent]: { type: 'boolean', title: 'Runtime Execution Subagent' },
@@ -125,9 +127,9 @@ const fullSchema: Record<string, ConfigPropertySchema> = {
 	[CopilotCliConfigKey.ExecutionSubagentDefaultControlled]: { type: 'boolean', title: 'Runtime Execution Subagent Default Control' },
 	[CopilotCliConfigKey.ExecutionSubagentModelDefaultControlled]: { type: 'boolean', title: 'Runtime Execution Subagent Model Default Control' },
 	[CopilotCliConfigKey.LocalIndexEnabled]: { type: 'boolean', title: 'Local Session Index' },
-	[CopilotCliConfigKey.ToolSearchEnabled]: { type: 'boolean', title: 'Agent Host Tool Search' },
-	[CopilotCliConfigKey.ToolSearchDeferThreshold]: { type: 'number', title: 'Tool Search Defer Threshold' },
 	[CopilotCliConfigKey.LocalMemory]: { type: 'boolean', title: 'Local Copilot Memory' },
+	[CopilotCliConfigKey.MemoryMode]: { type: 'string', title: 'Copilot Memory Placement' },
+	[CopilotCliConfigKey.MemoryModeDefaultControlled]: { type: 'boolean', title: 'Copilot Memory Placement Default Control' },
 	[CopilotCliConfigKey.AutoModeTierOverride]: { type: 'string', title: 'Auto Optimize for Override' },
 	[CopilotCliConfigKey.ModelCapabilityOverrides]: { type: 'object', title: 'Model Capability Overrides' },
 	[CopilotCliConfigKey.EnableShellInitScript]: { type: 'boolean', title: 'Shell Init Script' },
@@ -405,18 +407,19 @@ suite('AgentHostCopilotCliSettingsContribution', () => {
 			[AgentHostCopilotSdkLogLevelSettingId]: 'trace',
 			[AgentHostOpus48PromptEnabledSettingId]: true,
 			[CopilotStabilityOrderedPromptEnabledSettingId]: true,
+			[CopilotSecurityReviewSecretDetectionEnabledSettingId]: true,
 			[AgentHostCopilotProgressUpdatesPromptSettingId]: true,
 			[CopilotClaudeAdvisorEnabledSettingId]: true,
 			[CopilotSearchSubagentEnabledSettingId]: true,
+			[CopilotSearchSubagentGrepNudgeSettingId]: true,
 			[CopilotSearchSubagentModelSettingId]: 'gpt-5',
 			[CopilotExploreAgentEnabledSettingId]: false,
 			[AgentHostCopilotExecutionSubagentEnabledSettingId]: true,
 			[AgentHostCopilotExecutionSubagentModelSettingId]: ' exec-agent-b ',
 			[CopilotLocalIndexEnabledSettingId]: false,
-			[AgentHostToolSearchEnabledSettingId]: true,
-			[AgentHostToolSearchDeferThresholdSettingId]: 5.9,
 			[AgentHostCopilotModelCapabilityOverridesSettingId]: capabilityOverrides,
 			[AgentHostCopilotLocalMemoryEnabledSettingId]: true,
+			[AgentHostCopilotMemoryModeSettingId]: 'user-prompt',
 			'github.copilot.chat.autoModeTierOverride': 'intelligence',
 			[AgentHostShellToolInitScriptEnabledSettingId]: true,
 		});
@@ -425,16 +428,18 @@ suite('AgentHostCopilotCliSettingsContribution', () => {
 
 		// The shared forwarder dispatches one RootConfigChanged per key; merge them
 		// and assert the full forwarded set (order-independent).
-		assert.strictEqual(agentHostService.dispatchedActions.length, 20);
+		assert.strictEqual(agentHostService.dispatchedActions.length, 22);
 		const merged = Object.assign({}, ...agentHostService.dispatchedActions.map(a => (a.action as IRootConfigChangedAction).config));
 		assert.deepStrictEqual(merged, {
 			[CopilotCliConfigKey.CopilotSdkLogLevel]: 'trace',
 			[CopilotCliConfigKey.Opus48Prompt]: true,
 			[CopilotCliConfigKey.StabilityOrderedPrompt]: true,
+			[CopilotCliConfigKey.SecurityReviewSecretDetection]: true,
 			[CopilotCliConfigKey.ProgressUpdatesPrompt]: true,
 			[CopilotCliConfigKey.ProgressUpdatesPromptDefaultControlled]: false,
 			[CopilotCliConfigKey.ClaudeAdvisor]: true,
 			[CopilotCliConfigKey.SearchSubagent]: true,
+			[CopilotCliConfigKey.SearchSubagentGrepNudge]: true,
 			[CopilotCliConfigKey.SearchSubagentModel]: 'gpt-5',
 			[CopilotCliConfigKey.ExploreAgent]: false,
 			[CopilotCliConfigKey.ExecutionSubagent]: true,
@@ -442,9 +447,9 @@ suite('AgentHostCopilotCliSettingsContribution', () => {
 			[CopilotCliConfigKey.ExecutionSubagentDefaultControlled]: false,
 			[CopilotCliConfigKey.ExecutionSubagentModelDefaultControlled]: false,
 			[CopilotCliConfigKey.LocalIndexEnabled]: false,
-			[CopilotCliConfigKey.ToolSearchEnabled]: true,
-			[CopilotCliConfigKey.ToolSearchDeferThreshold]: 5,
 			[CopilotCliConfigKey.LocalMemory]: true,
+			[CopilotCliConfigKey.MemoryMode]: 'user-prompt',
+			[CopilotCliConfigKey.MemoryModeDefaultControlled]: false,
 			[CopilotCliConfigKey.AutoModeTierOverride]: 'intelligence',
 			[CopilotCliConfigKey.ModelCapabilityOverrides]: capabilityOverrides,
 			[CopilotCliConfigKey.EnableShellInitScript]: true,
@@ -628,6 +633,7 @@ suite('AgentHostCopilotCliSettingsContribution', () => {
 		const { agentHostService, configurationService } = setup(disposables, {});
 		agentHostService.setRootState(makeRootStateWithSchema({
 			[CopilotCliConfigKey.SearchSubagent]: fullSchema[CopilotCliConfigKey.SearchSubagent],
+			[CopilotCliConfigKey.SearchSubagentGrepNudge]: fullSchema[CopilotCliConfigKey.SearchSubagentGrepNudge],
 			[CopilotCliConfigKey.SearchSubagentModel]: fullSchema[CopilotCliConfigKey.SearchSubagentModel],
 			[CopilotCliConfigKey.ExploreAgent]: fullSchema[CopilotCliConfigKey.ExploreAgent],
 		}));
@@ -635,11 +641,13 @@ suite('AgentHostCopilotCliSettingsContribution', () => {
 
 		for (const [setting, value] of [
 			[CopilotSearchSubagentEnabledSettingId, true],
+			[CopilotSearchSubagentGrepNudgeSettingId, true],
 			[CopilotSearchSubagentModelSettingId, 'gpt-5'],
 			[CopilotExploreAgentEnabledSettingId, false],
 			[CopilotSearchSubagentModelSettingId, ''],
 			[CopilotExploreAgentEnabledSettingId, true],
 			[CopilotSearchSubagentEnabledSettingId, false],
+			[CopilotSearchSubagentGrepNudgeSettingId, false],
 		] as const) {
 			await configurationService.setUserConfiguration(setting, value);
 			configurationService.onDidChangeConfigurationEmitter.fire({
@@ -653,14 +661,17 @@ suite('AgentHostCopilotCliSettingsContribution', () => {
 
 		assert.deepStrictEqual(agentHostService.dispatchedActions.map(a => (a.action as IRootConfigChangedAction).config), [
 			{ [CopilotCliConfigKey.SearchSubagent]: false },
+			{ [CopilotCliConfigKey.SearchSubagentGrepNudge]: false },
 			{ [CopilotCliConfigKey.SearchSubagentModel]: '' },
 			{ [CopilotCliConfigKey.ExploreAgent]: true },
 			{ [CopilotCliConfigKey.SearchSubagent]: true },
+			{ [CopilotCliConfigKey.SearchSubagentGrepNudge]: true },
 			{ [CopilotCliConfigKey.SearchSubagentModel]: 'gpt-5' },
 			{ [CopilotCliConfigKey.ExploreAgent]: false },
 			{ [CopilotCliConfigKey.SearchSubagentModel]: '' },
 			{ [CopilotCliConfigKey.ExploreAgent]: true },
 			{ [CopilotCliConfigKey.SearchSubagent]: false },
+			{ [CopilotCliConfigKey.SearchSubagentGrepNudge]: false },
 		]);
 	});
 
@@ -692,6 +703,27 @@ suite('AgentHostCopilotCliSettingsContribution', () => {
 			defaultOff: { [CopilotCliConfigKey.LocalMemory]: false },
 			policyDisabled: { [CopilotCliConfigKey.LocalMemory]: false },
 			policyEnabled: { [CopilotCliConfigKey.LocalMemory]: true },
+		});
+	});
+
+	test('forwards security-review secret detection only when preview features are allowed', async () => {
+		const schema = {
+			[CopilotCliConfigKey.SecurityReviewSecretDetection]: fullSchema[CopilotCliConfigKey.SecurityReviewSecretDetection],
+		};
+		const forwarded = (service: MockAgentHostService) => Object.assign({}, ...service.dispatchedActions.map(a => (a.action as IRootConfigChangedAction).config))[CopilotCliConfigKey.SecurityReviewSecretDetection];
+		const { agentHostService, defaultAccountService } = setup(disposables, {
+			[CopilotSecurityReviewSecretDetectionEnabledSettingId]: true,
+		}, { chat_preview_features_enabled: false });
+		agentHostService.setRootState(makeRootStateWithSchema(schema));
+		await flush();
+		const policyDisabled = forwarded(agentHostService);
+
+		defaultAccountService.setPreviewFeaturesEnabled(true);
+		await flush();
+
+		assert.deepStrictEqual({ policyDisabled, policyEnabled: forwarded(agentHostService) }, {
+			policyDisabled: false,
+			policyEnabled: true,
 		});
 	});
 
@@ -771,10 +803,12 @@ suite('AgentHostCopilotCliSettingsContribution', () => {
 			[CopilotCliConfigKey.CopilotSdkLogLevel]: 'trace',
 			[CopilotCliConfigKey.Opus48Prompt]: true,
 			[CopilotCliConfigKey.StabilityOrderedPrompt]: false,
+			[CopilotCliConfigKey.SecurityReviewSecretDetection]: false,
 			[CopilotCliConfigKey.ProgressUpdatesPrompt]: false,
 			[CopilotCliConfigKey.ProgressUpdatesPromptDefaultControlled]: true,
 			[CopilotCliConfigKey.ClaudeAdvisor]: false,
 			[CopilotCliConfigKey.SearchSubagent]: false,
+			[CopilotCliConfigKey.SearchSubagentGrepNudge]: false,
 			[CopilotCliConfigKey.SearchSubagentModel]: '',
 			[CopilotCliConfigKey.ExploreAgent]: true,
 			[CopilotCliConfigKey.ExecutionSubagent]: false,
@@ -782,9 +816,9 @@ suite('AgentHostCopilotCliSettingsContribution', () => {
 			[CopilotCliConfigKey.ExecutionSubagentDefaultControlled]: true,
 			[CopilotCliConfigKey.ExecutionSubagentModelDefaultControlled]: true,
 			[CopilotCliConfigKey.LocalIndexEnabled]: true,
-			[CopilotCliConfigKey.ToolSearchEnabled]: false,
-			[CopilotCliConfigKey.ToolSearchDeferThreshold]: 1,
 			[CopilotCliConfigKey.LocalMemory]: false,
+			[CopilotCliConfigKey.MemoryMode]: 'system-prompt',
+			[CopilotCliConfigKey.MemoryModeDefaultControlled]: true,
 			[CopilotCliConfigKey.AutoModeTierOverride]: '',
 			[CopilotCliConfigKey.ModelCapabilityOverrides]: { 'preview-model-x': { family: 'claude-opus-4-8' } },
 			[CopilotCliConfigKey.EnableShellInitScript]: false,

@@ -8,9 +8,10 @@ import { BaseActionViewItem, IBaseActionViewItemOptions } from '../../../../../b
 import { IManagedHover } from '../../../../../base/browser/ui/hover/hover.js';
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IAction } from '../../../../../base/common/actions.js';
-import { isCancellationError } from '../../../../../base/common/errors.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
-import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
@@ -28,6 +29,7 @@ import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { INativeHostService, IOpenAgentsWindowOptions } from '../../../../../platform/native/common/native.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
+import { registerIcon } from '../../../../../platform/theme/common/iconRegistry.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IWorkspaceContextService, WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
@@ -35,24 +37,27 @@ import { EditorAreaFocusContext, IsSessionsWindowContext } from '../../../../com
 import { ToggleTitleBarConfigAction } from '../../../../browser/parts/titlebar/titlebarActions.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { CHAT_CATEGORY } from '../../browser/actions/chatActions.js';
-import { IChatWidget, IChatWidgetService, isIChatResourceViewContext } from '../../browser/chat.js';
+import { ChatViewId, IChatWidget, IChatWidgetService, isIChatResourceViewContext } from '../../browser/chat.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { getChatSessionTelemetryContext } from '../../common/chatService/chatServiceTelemetry.js';
-import { IChatSessionsService, isAgentHostTarget, SessionType } from '../../common/chatSessionsService.js';
+import { IChatSessionsService, isAgentHostTarget, isLocalAgentHostTarget, SessionType } from '../../common/chatSessionsService.js';
 import { IChatViewTitleActionContext } from '../../common/actions/chatActions.js';
 import { getChatSessionType, isUntitledChatSession } from '../../common/model/chatUri.js';
 import { ChatInputNotificationSeverity, IChatInputNotificationService } from '../../browser/widget/input/chatInputNotificationService.js';
-import { OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID, OPEN_AGENTS_WINDOW_PRECONDITION, OPEN_AGENTS_WINDOW_COMMAND_ID, ChatAgentLocation, ChatConfiguration, CopilotHarnessIntroductionMode, getCopilotHarnessIntroductionMode, getOpenInAgentsTitleBarHoverCardDesign } from '../../common/constants.js';
+import { AGENTS_LAUNCHER_COMMAND_ID, AGENTS_LAUNCHER_COMMAND_METADATA, OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID, OPEN_AGENTS_WINDOW_PRECONDITION, OPEN_AGENTS_WINDOW_COMMAND_ID, ChatAgentLocation, ChatConfiguration, CopilotHarnessIntroductionMode, getCopilotHarnessIntroductionMode } from '../../common/constants.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { logExperimentTrigger, logSettingExperimentTrigger } from '../../../../../platform/telemetry/common/experimentTrigger.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { AgentsWindowOpenSource, isAgentsWindowOpenSource } from '../../../../../platform/window/common/window.js';
+import { AgentsWindowOpenSource, IAgentsLauncherOptions, isAgentsWindowOpenSource } from '../../../../../platform/window/common/window.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { EditorResourceAccessor, SideBySideEditor } from '../../../../common/editor.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
+import { AGENTS_WINDOW_TITLE_BAR_ICONS_SETTING } from '../../../../../platform/chat/common/chatSettings.js';
+import { observeAgentsWindowTitleBarIconExposure } from '../../../../../platform/chat/browser/agentsWindowTitleBarIcons.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IWorkbenchAssignmentService } from '../../../../services/assignment/common/assignmentService.js';
 import { serializeChatDraft, UnsupportedChatDraftAttachmentError } from '../../common/attachments/chatDraft.js';
@@ -61,14 +66,14 @@ import { isEqual } from '../../../../../base/common/resources.js';
 import { CopilotHarnessIntroductionButtonVariant, copilotHarnessIntroductionButtonVariants, CopilotHarnessIntroductionCopyVariant, copilotHarnessIntroductionCopyVariants, copilotHarnessIntroductionFeedbackCommandId, copilotHarnessIntroductionLearnMoreCommandId, getCopilotHarnessIntroductionContent } from '../../browser/agentSessions/copilotHarnessIntroduction.js';
 import { isNewConversation } from '../../browser/widget/input/chatInputModelUtils.js';
 import { AgentsWindowUsage } from '../../common/agentsWindowUsage.js';
-import { AgentsWindowGraphicDesign } from '../../browser/agentSessions/agentsWindowGraphic.js';
-import { AgentsWindowHoverCard } from '../../browser/agentSessions/agentsWindowHoverCard.js';
+import { registerAgentsWindowTreatments } from '../../browser/agentSessions/agentsWindowTreatments.js';
 import { IAgentHostEditorActivityService } from './agentHostEditorActivity.js';
 
 const OPEN_WORKSPACE_IN_AGENTS_WINDOW_TITLE = localize2('openWorkspaceInAgentsWindow', "Open in Agents");
 const OPEN_WORKSPACE_IN_AGENTS_WINDOW_CHAT_TITLE_COMMAND_ID = 'workbench.action.chat.openWorkspaceInAgentsWindow.chatTitle';
 const OPEN_WORKSPACE_IN_AGENTS_WINDOW_TITLE_BAR_COMMAND_ID = 'workbench.action.chat.openWorkspaceInAgentsWindow.titleBar';
 const COPILOT_HARNESS_INTRODUCTION_IGNORED_STORAGE_KEY = 'chat.agentsParallelWork.copilotHarnessIntroductionIgnored';
+const openInAgentsWindowIcon = registerIcon('open-in-agents-window', Codicon.agent, localize('openInAgentsWindowIcon', "Icon for the Open in Agents Window button in the title bar."));
 
 function ensureAgentModeEnabled(configurationService: IConfigurationService): void {
 	if (configurationService.getValue<boolean>(ChatConfiguration.AgentEnabled) === false) {
@@ -77,13 +82,25 @@ function ensureAgentModeEnabled(configurationService: IConfigurationService): vo
 }
 
 function getInvokingWorkspaceFolder(accessor: ServicesAccessor): URI | undefined {
-	const workspaceContextService = accessor.get(IWorkspaceContextService);
+	return getActiveWorkspaceFolder(accessor.get(IWorkspaceContextService), () => accessor.get(IEditorService));
+}
+
+/** The window's only folder, or in a multi-root workspace the folder of the active editor. */
+export function getActiveWorkspaceFolder(workspaceContextService: IWorkspaceContextService, editorService: () => IEditorService): URI | undefined {
 	const folders = workspaceContextService.getWorkspace().folders;
 	if (folders.length <= 1) {
 		return folders[0]?.uri;
 	}
-	const resource = EditorResourceAccessor.getOriginalUri(accessor.get(IEditorService).activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
+	const resource = EditorResourceAccessor.getOriginalUri(editorService().activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
 	return resource ? workspaceContextService.getWorkspaceFolder(resource)?.uri : undefined;
+}
+
+/**
+ * A remote window's own agent host runs on its remote machine. For a session of that agent host, names the machine
+ * so the Agents Window can open the session there, and passes the window's folder, which it opens where it can't.
+ */
+export function getRemoteSessionHandoff(sessionResource: URI, remoteAuthority: string | undefined, folderUri: URI | undefined): Pick<IOpenAgentsWindowOptions, 'folderUri' | 'revealRemoteAuthority'> | undefined {
+	return remoteAuthority && isLocalAgentHostTarget(getChatSessionType(sessionResource)) ? { folderUri: folderUri?.toJSON(), revealRemoteAuthority: remoteAuthority } : undefined;
 }
 
 function isChatWidget(widget: IChatWidget | undefined): widget is IChatWidget {
@@ -261,6 +278,24 @@ export class ResetCopilotHarnessIntroductionAction extends Action2 {
 	}
 }
 
+export class AgentsLauncherAction extends Action2 {
+	constructor() {
+		super({
+			id: AGENTS_LAUNCHER_COMMAND_ID,
+			title: localize2('agentsLauncher', "Show Agents Launcher"),
+			category: CHAT_CATEGORY,
+			precondition: ContextKeyExpr.and(OPEN_AGENTS_WINDOW_PRECONDITION, ChatContextKeys.enabled),
+			f1: true,
+			metadata: AGENTS_LAUNCHER_COMMAND_METADATA,
+		});
+	}
+
+	async run(accessor: ServicesAccessor, options?: IAgentsLauncherOptions): Promise<void> {
+		ensureAgentModeEnabled(accessor.get(IConfigurationService));
+		await accessor.get(INativeHostService).showAgentsLauncher(options);
+	}
+}
+
 export class OpenAgentsWindowAction extends Action2 {
 	constructor() {
 		super({
@@ -303,9 +338,11 @@ export class OpenAgentsWindowAction extends Action2 {
 }
 
 /**
- * Opens the current chat session inside the Agents window. Visible only when
- * the active chat is a first-party agent-host session (Copilot CLI today)
- * since those are the session types the Agents window can render directly.
+ * Opens the current chat session inside the Agents window. Shown in the Chat
+ * view's title menu only when its chat is a first-party agent-host session
+ * (Copilot CLI today) since those are the session types the Agents window can
+ * render directly. The session type context key is scoped to the Chat view, so
+ * window-level menus such as the title-bar Chat menu cannot show this action.
  */
 export class OpenChatSessionInAgentsWindowAction extends Action2 {
 
@@ -319,10 +356,11 @@ export class OpenChatSessionInAgentsWindowAction extends Action2 {
 			precondition: OPEN_AGENTS_WINDOW_PRECONDITION,
 			f1: false,
 			menu: [{
-				id: MenuId.ChatTitleBarMenu,
-				group: 'c_sessions',
-				order: 0,
+				id: MenuId.ViewTitle,
+				group: '1_open',
+				order: 1,
 				when: ContextKeyExpr.and(
+					ContextKeyExpr.equals('view', ChatViewId),
 					OPEN_AGENTS_WINDOW_PRECONDITION,
 					ContextKeyExpr.or(
 						ChatContextKeys.chatSessionType.isEqualTo(SessionType.CopilotCLI),
@@ -340,7 +378,7 @@ export class OpenChatSessionInAgentsWindowAction extends Action2 {
 		const workspaceContextService = accessor.get(IWorkspaceContextService);
 
 		const commandOptions = isOpenChatSessionInAgentsWindowOptions(rest[0]) ? rest[0] : undefined;
-		const source = commandOptions?.agentsWindowOpenSource ?? AgentsWindowOpenSource.ChatTitleBar;
+		const source = commandOptions?.agentsWindowOpenSource ?? AgentsWindowOpenSource.ChatViewTitle;
 		const args = commandOptions ? rest.slice(1) : rest;
 		let sessionResource: URI | undefined;
 		let inputUri: URI | undefined;
@@ -366,9 +404,11 @@ export class OpenChatSessionInAgentsWindowAction extends Action2 {
 		const draftOptions = commandOptions?.reveal === 'new' ? getDraftHandoffOptions(accessor, sessionResource, commandOptions.transferDraft === true, inputUri) : {};
 		const hasRealSession = sessionResource && !isUntitledChatSession(sessionResource) && commandOptions?.reveal !== 'new';
 		const folderUri = getInvokingWorkspaceFolder(accessor) ?? workspaceContextService.getWorkspace().folders[0]?.uri;
+		const remote = sessionResource && hasRealSession ? getRemoteSessionHandoff(sessionResource, accessor.get(IWorkbenchEnvironmentService).remoteAuthority, folderUri) : undefined;
 		await nativeHostService.openAgentsWindow({
-			folderUri: !hasRealSession && (draftOptions.draft || folderUri?.scheme === Schemas.file) ? folderUri?.toJSON() : undefined,
+			folderUri: remote ? remote.folderUri : !hasRealSession && (draftOptions.draft || folderUri?.scheme === Schemas.file) ? folderUri?.toJSON() : undefined,
 			reveal: hasRealSession ? sessionResource?.toJSON() : commandOptions?.reveal,
+			revealRemoteAuthority: remote?.revealRemoteAuthority,
 			source,
 			...draftOptions,
 		});
@@ -376,30 +416,20 @@ export class OpenChatSessionInAgentsWindowAction extends Action2 {
 }
 
 /**
- * Users who have created fewer sessions in the Agents window than this are new to it,
- * and can see the hover card selected by {@link ChatConfiguration.TitleBarOpenInAgentsWindowRichHover}.
- */
-const RICH_HOVER_MAX_CREATED_SESSIONS = 2;
-
-/**
  * Renders the "Open in Agents" titlebar entry as an icon-only button that
- * expands to reveal a label on hover / keyboard focus. Users who are new to the
- * Agents window can see a hover card that explains it instead of a simple tooltip.
+ * expands to reveal a label on hover / keyboard focus.
  */
 class OpenWorkspaceInAgentsTitleBarWidget extends BaseActionViewItem {
 
 	private static readonly LABEL_TREATMENT = 'chatOpenInAgentsTitleBarLabel';
 	private static readonly EXPAND_ON_HOVER_TREATMENT = 'chatOpenInAgentsTitleBarExpandOnHover';
 	private readonly treatments = this._register(new MutableDisposable());
-	private readonly hoverCard = this._register(new MutableDisposable<AgentsWindowHoverCard>());
 	private readonly usage: AgentsWindowUsage;
 	private labelElement: HTMLElement | undefined;
 	private hover: IManagedHover | undefined;
-	private hoverText = '';
 	private treatmentLabel: string | undefined;
 	private treatmentsResolved = false;
 	private expansionTreatmentResolved = false;
-	private expandOnHover = true;
 	private isHovered = false;
 
 	constructor(
@@ -422,27 +452,14 @@ class OpenWorkspaceInAgentsTitleBarWidget extends BaseActionViewItem {
 			this.updateLabel();
 		}));
 		this._register(configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(ChatConfiguration.TitleBarOpenInAgentsWindowRichHover)) {
-				this.updateLabel();
+			if (e.affectsConfiguration(AGENTS_WINDOW_TITLE_BAR_ICONS_SETTING)) {
+				this.updateIcon();
 			}
 		}));
 	}
 
 	private get isEligible(): boolean {
 		return this.usage.createdSessionCount === 0;
-	}
-
-	private get isNewToAgentsWindow(): boolean {
-		return this.usage.createdSessionCount < RICH_HOVER_MAX_CREATED_SESSIONS;
-	}
-
-	/**
-	 * The graphic of the hover card that explains the Agents window to this user, or `undefined` for a simple tooltip.
-	 * Users who aren't new to the Agents window always see a simple tooltip. The card replaces the growing label,
-	 * so while it shows, the label and expansion treatments have no visible effect and are neither applied nor triggered.
-	 */
-	private get hoverCardDesign(): AgentsWindowGraphicDesign | undefined {
-		return this.isNewToAgentsWindow ? getOpenInAgentsTitleBarHoverCardDesign(this.configurationService) : undefined;
 	}
 
 	override render(container: HTMLElement): void {
@@ -452,22 +469,18 @@ class OpenWorkspaceInAgentsTitleBarWidget extends BaseActionViewItem {
 		container.setAttribute('role', 'button');
 		this._register(addDisposableListener(container, EventType.MOUSE_ENTER, () => {
 			this.isHovered = true;
-			this.logRichHoverExperimentTrigger();
 			this.logExpansionExperimentTrigger();
 		}));
 		this._register(addDisposableListener(container, EventType.MOUSE_LEAVE, () => {
 			this.isHovered = false;
 		}));
-		// The managed hover also shows on keyboard focus
-		this._register(addDisposableListener(container, EventType.FOCUS, () => this.logRichHoverExperimentTrigger()));
 		this._register(registerAgentsWindowTreatments<boolean>(
 			[OpenWorkspaceInAgentsTitleBarWidget.EXPAND_ON_HOVER_TREATMENT],
 			'OpenWorkspaceInAgentsTitleBarWidget',
 			([expandOnHover]) => {
 				this.expansionTreatmentResolved = true;
-				this.expandOnHover = expandOnHover ?? true;
 				this.logExpansionExperimentTrigger();
-				this.updateGrowth();
+				container.classList.toggle('expand-on-hover', expandOnHover ?? true);
 			},
 			this.assignmentService,
 			this.logService,
@@ -476,8 +489,10 @@ class OpenWorkspaceInAgentsTitleBarWidget extends BaseActionViewItem {
 
 		this.hover = this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), container, ''));
 
-		const icon = append(container, $('span.open-in-agents-titlebar-widget-icon'));
-		icon.setAttribute('aria-hidden', 'true');
+		this.iconElement = append(container, $('span.open-in-agents-titlebar-widget-icon'));
+		this.updateIcon();
+		this._register(observeAgentsWindowTitleBarIconExposure(this.iconElement, this.configurationService, this.telemetryService));
+		this.iconElement.setAttribute('aria-hidden', 'true');
 
 		this.labelElement = append(container, $('span.open-in-agents-titlebar-widget-label'));
 		this.updateLabel();
@@ -496,71 +511,41 @@ class OpenWorkspaceInAgentsTitleBarWidget extends BaseActionViewItem {
 		}
 	}
 
-	/**
-	 * Logged in every arm when a user who is new to the Agents window hovers or focuses the button,
-	 * which is when the simple tooltip or the hover card can show.
-	 */
-	private logRichHoverExperimentTrigger(): void {
-		if (this.isNewToAgentsWindow) {
-			logSettingExperimentTrigger(this.telemetryService, ChatConfiguration.TitleBarOpenInAgentsWindowRichHover);
+	private iconElement: HTMLElement | undefined;
+
+	private updateIcon(): void {
+		if (!this.iconElement) {
+			return;
+		}
+		const useCodicons = this.configurationService.getValue<boolean>(AGENTS_WINDOW_TITLE_BAR_ICONS_SETTING) === true;
+		this.element?.classList.toggle('codicon-icons', useCodicons);
+		const classNames = ThemeIcon.asClassNameArray(openInAgentsWindowIcon);
+		if (useCodicons) {
+			this.iconElement.classList.add(...classNames);
+		} else {
+			this.iconElement.classList.remove(...classNames);
 		}
 	}
 
 	private logExpansionExperimentTrigger(): void {
-		if (this.isHovered && this.expansionTreatmentResolved && this.hoverCardDesign === undefined) {
+		if (this.isHovered && this.expansionTreatmentResolved) {
 			logExperimentTrigger(this.telemetryService, OpenWorkspaceInAgentsTitleBarWidget.EXPAND_ON_HOVER_TREATMENT);
 		}
-	}
-
-	/**
-	 * While the hover card shows, the button stays an icon: it neither grows on pointer hover
-	 * (`expand-on-hover`) nor reveals its label on keyboard focus (`no-grow`).
-	 */
-	private updateGrowth(): void {
-		const showsHoverCard = this.hoverCardDesign !== undefined;
-		this.element?.classList.toggle('expand-on-hover', this.expandOnHover && !showsHoverCard);
-		this.element?.classList.toggle('no-grow', showsHoverCard);
 	}
 
 	protected override updateLabel(): void {
 		if (!this.element || !this.labelElement) {
 			return;
 		}
-		const eligible = this.isEligible && this.hoverCardDesign === undefined;
+		const eligible = this.isEligible;
 		if (eligible && this.treatmentsResolved) {
 			logExperimentTrigger(this.telemetryService, OpenWorkspaceInAgentsTitleBarWidget.LABEL_TREATMENT);
 		}
 		const treatmentLabel = eligible ? this.treatmentLabel : undefined;
 		this.labelElement.textContent = treatmentLabel ?? this.action.label;
-		this.hoverText = this.keybindingService.appendKeybinding(treatmentLabel ?? localize('openInAgentsHover', "Open in Agents Window"), OPEN_AGENTS_WINDOW_COMMAND_ID);
-		this.element.setAttribute('aria-label', this.hoverText);
-		this.updateGrowth();
-		this.updateHover();
-	}
-
-	private updateHover(): void {
-		if (!this.hover) {
-			return;
-		}
-		const design = this.hoverCardDesign;
-		if (!design) {
-			this.hoverCard.clear();
-			this.hover.update(this.hoverText);
-			return;
-		}
-		let card = this.hoverCard.value;
-		if (card?.design !== design) {
-			card = new AgentsWindowHoverCard({
-				design,
-				onOpen: () => {
-					this.hover?.hide();
-					void this.actionRunner.run(this.action, this._context);
-				},
-			});
-			this.hoverCard.value = card;
-		}
-		const element = card.element;
-		this.hover.update({ element: () => element, contentOwnsPadding: true });
+		const hoverText = this.keybindingService.appendKeybinding(treatmentLabel ?? localize('openInAgentsHover', "Open in Agents Window"), OPEN_AGENTS_WINDOW_COMMAND_ID);
+		this.element.setAttribute('aria-label', hoverText);
+		this.hover?.update(hoverText);
 	}
 }
 
@@ -586,52 +571,6 @@ export class OpenWorkspaceInAgentsContribution extends Disposable implements IWo
 			return instantiationService.createInstance(OpenWorkspaceInAgentsTitleBarWidget, action, options);
 		}, undefined));
 	}
-}
-
-export function registerAgentsWindowTreatments<T extends string | number | boolean = string>(
-	treatments: readonly string[],
-	logPrefix: string,
-	onChange: (values: readonly (T | undefined)[]) => void,
-	assignmentService: IWorkbenchAssignmentService,
-	logService: ILogService,
-	isValid: (value: T, name: string) => boolean = value => typeof value === 'string' && value.trim().length > 0,
-): IDisposable {
-	const store = new DisposableStore();
-	let treatmentRequest = 0;
-	let hasResolved = false;
-	const getTreatmentValue = (name: string, value: T | undefined): T | undefined => {
-		if (value === undefined || isValid(value, name)) {
-			return value;
-		}
-		logService.warn(`[${logPrefix}] Ignoring invalid ${name} treatment`);
-		return undefined;
-	};
-	const update = async (): Promise<void> => {
-		const request = ++treatmentRequest;
-		let values: (T | undefined)[];
-		try {
-			values = await Promise.all(treatments.map(name => assignmentService.getTreatment<T>(name)));
-		} catch (error) {
-			if (store.isDisposed || request !== treatmentRequest) {
-				return;
-			}
-			if (!isCancellationError(error)) {
-				logService.warn(`[${logPrefix}] Failed to resolve treatments`, error);
-			}
-			if (hasResolved) {
-				return;
-			}
-			values = treatments.map(() => undefined);
-		}
-		if (store.isDisposed || request !== treatmentRequest) {
-			return;
-		}
-		hasResolved = true;
-		onChange(values.map((value, index) => getTreatmentValue(treatments[index], value)));
-	};
-	store.add(assignmentService.onDidRefetchAssignments(() => void update()));
-	void update();
-	return store;
 }
 
 type CopilotHarnessIntroductionLifecycleEvent = {

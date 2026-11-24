@@ -12,7 +12,7 @@ import { INotificationService } from '../../../../platform/notification/common/n
 import { IAutomationDescriptor } from '../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IAutomationRunDispatch, IAutomationRunner, IAutomationRunOperation } from '../../../../workbench/contrib/chat/common/automations/automationRunner.js';
 import { AutomationMutationUncertainError, AutomationUnavailableError, IAutomationService } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
-import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
+import { ISessionsProvidersService } from '../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 
 /**
  * Client-side Run Now coordinator that requests execution through IAutomationService and observes the host result.
@@ -74,7 +74,9 @@ export class AutomationRunner implements IAutomationRunner {
 			};
 			const cancellationListener = result.cancel ? token.onCancellationRequested(forwardCancellation) : undefined;
 			try {
-				if (result.run.sessionResource) {
+				if (automation.conversation && result.run.status === 'completed') {
+					await dispatched.complete({ kind: 'queued', run: result.run });
+				} else if (result.run.sessionResource) {
 					await dispatched.complete({ kind: 'started', run: result.run, sessionResource: result.run.sessionResource });
 				} else if (token.isCancellationRequested) {
 					await dispatched.complete({ kind: 'notStarted', reason: 'cancelled', run: result.run });

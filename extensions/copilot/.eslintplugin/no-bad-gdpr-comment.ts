@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as eslint from 'eslint';
+import type { Context, CreateRule, Visitor } from '@oxlint/plugins';
 
-export default new class NoBadGDPRComment implements eslint.Rule.RuleModule {
+export default new class NoBadGDPRComment implements CreateRule {
 
-	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
+	create(context: Context): Visitor {
 
 		return {
 			['Program'](node) {
-				for (const comment of (node as eslint.AST.Program).comments) {
+				for (const comment of node.comments) {
 					if (comment.type !== 'Block' || !comment.loc) {
 						continue;
 					}

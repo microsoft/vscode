@@ -20,6 +20,11 @@ applyTo: src/vs/**
 - When adding or changing context menu entries (the `group`/`order` of menu contributions or hand-built context menu actions), follow the [`context-menus` skill](../skills/context-menus/SKILL.md) for group order and placement.
 - If a `MenuWorkbenchToolBar` lives in a widget/view that can be rendered multiple times at once, give the toolbar a scoped `IContextKeyService` which is scoped to the dom element of that widget/view and set the context keys per individual widget/view instance.
 
+## Icons Beside Wrapping Text
+
+- Don't vertically center an icon, button, or toolbar against text that can wrap or span multiple lines; it drifts between lines as the text reflows. When the icon must line up with the text, align it with the first line, or with the last line when it relates to the end of the text. For example, use `align-items: flex-start` and give the icon box the text's line height.
+- When line alignment doesn't matter, anchor controls to the content's corners instead: place toolbars in the top-right corner and buttons in the bottom-left or bottom-right corner.
+
 ## Editor/Session Actions
 
 - Don't assume the action runs on the active editor/session. An action (e.g. one contributed to some editor or session related toolbar) can be triggered for an editor/session that isn't active. The `run` method receives arguments describing the invocation context (such as the originating editor group or the originating session).

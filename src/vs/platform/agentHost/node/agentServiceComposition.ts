@@ -56,8 +56,10 @@ import { AgentHostScheduledChatMoves, IAgentHostScheduledChatMoves } from './cha
 import { ChatMoveConfigKey, chatMoveRootConfigSchema } from '../common/agentHostChatMove.js';
 import { IAgentHostArchivedChatWorkspaceService } from './chatContributions/chatArchive/archivedChatWorkspaceService.js';
 import { IAgentHostTurnTracker } from './agentHostTurnTracker.js';
+import { IAgentHostTelemetryReporter } from './agentHostTelemetryReporter.js';
 import { AgentHostSessionLifecycle, type IAgentHostSessionLifecycleAccessor } from './agentHostSessionLifecycle.js';
 import { persistSessionMetadataValues } from './shared/persistSessionMetadata.js';
+import { AgentHostPullRequestAutopilotService, IAgentHostPullRequestAutopilotService } from './agentHostPullRequestAutopilot.js';
 import { IAgentHostPullRequestStatusService } from './agentHostPullRequestStatusService.js';
 import { AgentHostPeerChatStore, IAgentHostPeerChatPersistenceService } from './agentHostPeerChatStore.js';
 import { IAgentHostChatOwnershipService } from './agentHostChatOwnershipService.js';
@@ -200,6 +202,7 @@ export function createAgentServiceComposition(
 				agents: providerService.agents,
 				hostLaunchKind: options.hostLaunchKind ?? AgentHostLaunchKind.Unknown,
 				resolveWorkingDirectoryBeforeSend: params => callbackAdapter.value.resolveWorkingDirectoryBeforeSend(params),
+				announceUnsentProvisionalSession: params => callbackAdapter.value.announceUnsentProvisionalSession(params),
 				resolveChatAttachmentTurns: resource => callbackAdapter.value.resolveChatAttachmentTurns(resource),
 			},
 		));
@@ -210,7 +213,13 @@ export function createAgentServiceComposition(
 			(chat, enabled, overrides) => agentMergeController.setEnabled(chat, enabled, overrides, callbackAdapter.sessionServerToolAccessor.getCredentialSource(URI.parse(chat))),
 		));
 		const turnTracker = accessor.get(IAgentHostTurnTracker);
+		const telemetryReporter = accessor.get(IAgentHostTelemetryReporter);
+		/** Attributes an artifact change the agent made to the client and account of the turn it made it in. */
+		const withTurnTelemetry = <T extends { readonly chat: string | undefined; readonly turnId: string | undefined }>(report: T): T => report.chat && report.turnId
+			? { ...report, clientContext: turnTracker.getClientTelemetryContext(report.chat, report.turnId), telemetryContext: turnTracker.getTelemetryContext(report.chat, report.turnId) }
+			: report;
 		const artifactIntegrationDirectory = accessor.get(IAgentHostArtifactIntegrationDirectory);
+		const artifactEventService = accessor.get(IAgentHostArtifactEventService);
 		// The artifact runtime is created after the server-tool host, so its tools bind it late.
 		const hostArtifactIntegrations: { value: IArtifactIntegrationAccess | undefined } = { value: undefined };
 		const isArtifactIntegrationsEnabled = () => configurationService.getRootValue(platformRootSchema, AgentHostArtifactIntegrationsConfigKey) === true;
@@ -260,6 +269,9 @@ export function createAgentServiceComposition(
 							reference.dispose();
 						}
 					},
+					reportArtifactRecorded: report => telemetryReporter.artifactRecorded(withTurnTelemetry(report)),
+					didRecordArtifacts: recorded => artifactEventService.acceptRecordedArtifacts(recorded),
+					reportArtifactRemoved: report => telemetryReporter.artifactRemoved(withTurnTelemetry(report)),
 				},
 				() => configurationService.getRootValue(platformRootSchema, AgentHostAgentOrchestrationLimitsConfigKey) !== 'off',
 				{
@@ -295,7 +307,7 @@ export function createAgentServiceComposition(
 		}));
 		workspaceConversionService.value = owned.add(instantiationService.createInstance(SessionWorkspaceConversionService, {
 			runWithChatCatalogLock: (session, operation) => agentService!.runWithChatCatalogLock(session, operation),
-			prepareChatWorkingDirectory: callbackAdapter.sessionServerToolAccessor.prepareChatWorkingDirectory,
+			prepareChatWorkingDirectory: (session, directory, options) => agentService!.prepareChatWorkingDirectory(session, directory, options),
 			setChatWorkingDirectory: (session, chat, directory, replaceSessionWorkspace, expectedSessionDirectories) => agentService!.setChatWorkingDirectory(session, chat, directory, replaceSessionWorkspace, expectedSessionDirectories),
 		}));
 		services.set(ISessionWorkspaceConversionService, workspaceConversionService.value);
@@ -340,9 +352,10 @@ export function createAgentServiceComposition(
 					}
 				},
 			},
-			accessor.get(IArtifactIntegrationRegistry), accessor.get(IAgentHostArtifactEventService), stateManager, configurationService, logService,
+			accessor.get(IArtifactIntegrationRegistry), artifactEventService, stateManager, configurationService, logService,
 		));
 		hostArtifactIntegrations.value = artifactRuntime.integrations;
+		services.set(IAgentHostPullRequestAutopilotService, new AgentHostPullRequestAutopilotService(artifactRuntime.integrations, isArtifactIntegrationsEnabled));
 		const collaborators: IAgentServiceCollaborators = {
 			artifactIntegrations: artifactRuntime.integrations,
 			artifactIntegrationClients: artifactIntegrationDirectory,

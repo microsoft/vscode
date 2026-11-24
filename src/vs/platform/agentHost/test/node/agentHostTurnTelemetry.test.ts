@@ -18,7 +18,8 @@ import { ServiceCollection } from '../../../instantiation/common/serviceCollecti
 import { FileService } from '../../../files/common/fileService.js';
 import { IFileService } from '../../../files/common/files.js';
 import { ILogService, LogLevel, NullLogService } from '../../../log/common/log.js';
-import { ITelemetryData, ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
+import { ITelemetryData, ITelemetryService } from '../../../telemetry/common/telemetry.js';
+import { CapturingTelemetryService as PlatformCapturingTelemetryService } from '../../../telemetry/test/common/testTelemetryService.js';
 import { TelemetryTrustedValue } from '../../../telemetry/common/telemetryUtils.js';
 import { createAgentModelByokMeta } from '../../common/agentModelByokMeta.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
@@ -44,6 +45,8 @@ import { AgentHostLocalCommands, IAgentHostLocalCommands } from '../../node/loca
 import { AgentHostChatContributions } from '../../node/agentHostChatContributionsService.js';
 import { IAgentHostPeerChatPersistenceService } from '../../node/agentHostPeerChatStore.js';
 import { registerBuiltInChatContributions } from '../../node/chatContributions/builtInChatContributions.js';
+import { IAgentHostPullRequestAutopilotService } from '../../node/agentHostPullRequestAutopilot.js';
+import { nullPullRequestAutopilotService } from './pullRequestAutopilotTestUtils.js';
 import { AgentHostChatInputService, IAgentHostChatInputService } from '../../node/agentHostChatInputService.js';
 import { AgentHostAuthenticationService, IAgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
 import { AgentHostSubscriptionService } from '../../node/agentHostSubscriptionService.js';
@@ -116,27 +119,10 @@ class FakeChangesetService implements IAgentHostChangesetService {
 	refreshChatChangesSummary(): void { }
 }
 
-class CapturingTelemetryService implements ITelemetryService {
-	declare readonly _serviceBrand: undefined;
-	readonly telemetryLevel = TelemetryLevel.USAGE;
-	readonly sessionId = 'test-session';
-	readonly machineId = 'test-machine';
-	readonly sqmId = 'test-sqm';
-	readonly devDeviceId = 'test-dev-device';
-	readonly firstSessionDate = 'test-first-session-date';
-	readonly sendErrorTelemetry = false;
-	readonly events: { eventName: string; data: ITelemetryData | undefined }[] = [];
-
-	publicLog(): void { }
-	publicLog2(eventName: string, data?: ITelemetryData): void {
-		this.events.push({ eventName, data });
+class CapturingTelemetryService extends PlatformCapturingTelemetryService<ITelemetryData | undefined> {
+	constructor() {
+		super({ captureErrors: true });
 	}
-	publicLogError(): void { }
-	publicLogError2(eventName: string, data?: ITelemetryData): void {
-		this.events.push({ eventName, data });
-	}
-	setExperimentProperty(): void { }
-	setCommonProperty(): void { }
 }
 
 /**
@@ -340,6 +326,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		chatContributions = disposables.add(new AgentHostChatContributions(logService, instantiationService));
 		services.set(IAgentHostChatContributions, chatContributions);
 		services.set(IAgentHostArtifactEventService, disposables.add(new AgentHostArtifactEventService()));
+		services.set(IAgentHostPullRequestAutopilotService, nullPullRequestAutopilotService);
 		services.set(IAgentHostArtifactIntegrationDirectory, disposables.add(new AgentHostArtifactIntegrationDirectory(disposables.add(new ArtifactIntegrationRegistry()))));
 		services.set(IAgentHostSessionPromptService, {
 			_serviceBrand: undefined,
@@ -1166,6 +1153,33 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		]);
 	});
 
+	test('completion distinguishes actual steering delivery from submission intent', () => {
+		setupSession();
+		for (const delivery of ['steering', 'idle', 'queued', 'unknown'] as const) {
+			startTurn(`original-${delivery}`);
+			Object.assign(agent, {
+				getTurnInteraction: (_chat: URI, turnId: string) => turnId === `turn-${delivery}` ? { sdkSessionId: 'sdk', interactionIds: [], interactionIdsTruncated: false, steeringDelivery: delivery } : undefined,
+			});
+			const message: Message = { text: 'follow-up', origin: { kind: MessageKind.User } };
+			applyClientAction({
+				type: ActionType.ChatPendingMessageSet, kind: PendingMessageKind.Steering, id: `pending-${delivery}`,
+				message,
+			});
+			fire(chatTurnComplete(`original-${delivery}`, 100));
+			fire({
+				type: ActionType.ChatTurnStarted, turnId: `turn-${delivery}`, startedAt: new Date().toISOString(),
+				message, queuedMessageId: `pending-${delivery}`,
+			});
+			fire(chatTurnComplete(`turn-${delivery}`, 100));
+		}
+		assert.deepStrictEqual(completedEvents().filter(event => String((event.data as Record<string, unknown>).turnId).startsWith('turn-')).map(event => {
+			const data = event.data as Record<string, unknown>;
+			return [data.steeringDelivery, data.startedWithSteering, data.receivedSteering];
+		}), [
+			['steering', true, false], ['idle', false, false], ['queued', false, false], ['unknown', false, false],
+		]);
+	});
+
 	test('request token availability is independent of success, failure, cancellation and missing snapshots', () => {
 		setupSession();
 		const observed: IAgentTurnTokenUsage = {
@@ -1182,6 +1196,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 				return turnId === 'missing' ? undefined : observed;
 			}
 		});
+
 		for (const turnId of ['success', 'failure', 'cancel', 'missing']) {
 			startTurn(turnId);
 			if (turnId === 'failure') {
@@ -1207,6 +1222,22 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		]);
 	});
 
+	test('enriches completion with observed interactions and steering origin without changing execution identity', () => {
+		setupSession();
+		Object.assign(agent, {
+			getTurnInteraction: () => ({
+				sdkSessionId: 'sdk', originalTurnId: 'original', steeredFromTurn: 'previous',
+				interactionIds: ['i1', 'i2'], interactionIdsTruncated: false,
+			}),
+		});
+		startTurn('successor');
+		fire(chatTurnComplete('successor', 100));
+		assert.deepStrictEqual(completedEvents().map(event => {
+			const data = event.data as Record<string, unknown>;
+			return [data.turnId, data.sdkSessionId, data.originalTurnId, data.steeredFromTurn, data.interactionIds, data.interactionIdsTruncated];
+		}), [['successor', 'sdk', 'original', 'previous', '["i1","i2"]', false]]);
+	});
+
 	for (const result of ['success', 'error', 'cancelled'] as const) {
 		test(`excludes token summary collection and reporting from ${result} completion timing`, () => {
 			let elapsed = 100;
@@ -1226,13 +1257,16 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 				}
 			});
 			telemetry.publicLog2 = (eventName, data) => {
+				if (!eventName) {
+					return;
+				}
 				if (eventName === 'agentHost.requestTokenUsage') {
 					elapsed += 4000;
 				}
 				if (eventName === 'agentHost.turnCompleted' || eventName === 'agentHost.requestTokenUsage') {
 					order.push(eventName);
 				}
-				telemetry.events.push({ eventName, data });
+				telemetry.events.push({ eventName, data: data as ITelemetryData | undefined });
 			};
 			turnTracker.turnStarted(agent, defaultChatUri, sessionUri.toString(), 'slow-summary', undefined, undefined, 'default', undefined, undefined);
 			const completed = turnTracker.turnCompleted(defaultChatUri, 'slow-summary', result);
@@ -1263,7 +1297,9 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 				if (eventName === 'agentHost.requestTokenUsage') {
 					throw new Error('summary reporting failed');
 				}
-				telemetry.events.push({ eventName, data });
+				if (eventName) {
+					telemetry.events.push({ eventName, data: data as ITelemetryData | undefined });
+				}
 			};
 			turnTracker.turnStarted(agent, defaultChatUri, sessionUri.toString(), 'failed-summary', undefined, undefined, 'default', undefined, undefined);
 			const completed = turnTracker.turnCompleted(defaultChatUri, 'failed-summary', result);

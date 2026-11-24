@@ -14,7 +14,7 @@ import { toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../../../base/common/map.js';
 import { Schemas } from '../../../../../../../base/common/network.js';
 import { ISettableObservable, observableValue } from '../../../../../../../base/common/observable.js';
-import { basename, relativePath } from '../../../../../../../base/common/resources.js';
+import { basename, isEqual, relativePath } from '../../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { Range } from '../../../../../../../editor/common/core/range.js';
@@ -1568,6 +1568,7 @@ suite('PromptsService', () => {
 						'description: \'VS Code specialized agent.\'',
 						'target: \'vscode\'',
 						'model: \'gpt-4\'',
+						'reasoning-effort: low',
 						'---',
 						'I am specialized for VS Code editor tasks.',
 					]
@@ -1613,6 +1614,7 @@ suite('PromptsService', () => {
 					description: 'VS Code specialized agent.',
 					target: Target.VSCode,
 					model: ['gpt-4'],
+					reasoningEffort: 'low',
 					agentInstructions: {
 						content: 'I am specialized for VS Code editor tasks.',
 						toolReferences: [],
@@ -4565,6 +4567,58 @@ suite('PromptsService', () => {
 			assert.strictEqual(discoveryInfo.files[0].status, 'skipped');
 			assert.strictEqual(discoveryInfo.files[0].skipReason, 'parse-error');
 		});
+
+		test('preserves Unicode characters in prompt slash command names', async () => {
+			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, false);
+
+			// allow-any-unicode-next-line
+			const name = '龩胤𬭳獫㰜〒６0D狛龫龨截茎疄盷㓝㏄ΩFe佨勵)エ㈱㑺惊龬㈨γ8傐𬨎';
+			const promptUri = URI.file(`/workspace/.github/prompts/${name}.prompt.md`);
+			workspaceContextService.setWorkspace(testWorkspace(URI.file('/workspace')));
+			await mockFiles(fileService, [{ path: promptUri.path, contents: ['Unicode prompt content'] }]);
+
+			const slashCommand = (await service.getPromptSlashCommands(CancellationToken.None)).find(command => isEqual(command.uri, promptUri));
+			const resolved = await service.resolvePromptSlashCommand(name, undefined, CancellationToken.None);
+			const reopened = await service.parseNew(promptUri, CancellationToken.None);
+
+			assert.deepStrictEqual({
+				name: slashCommand?.name,
+				valid: service.isValidSlashCommandName(name),
+				resolvedUri: resolved?.uri.toString(),
+				parsedUri: resolved?.parsedPromptFile?.uri.toString(),
+				reopenedUri: reopened.uri.toString(),
+			}, {
+				name,
+				valid: true,
+				resolvedUri: promptUri.toString(),
+				parsedUri: promptUri.toString(),
+				reopenedUri: promptUri.toString(),
+			});
+		});
+
+		test('sanitizes path separators and whitespace without changing the prompt URI', async () => {
+			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, false);
+			const promptUri = URI.file('/workspace/.github/prompts/review.prompt.md');
+			workspaceContextService.setWorkspace(testWorkspace(URI.file('/workspace')));
+			await mockFiles(fileService, [{ path: promptUri.path, contents: ['---', 'name: "review/ security"', '---', 'Review content'] }]);
+
+			const command = (await service.getPromptSlashCommands(CancellationToken.None)).find(command => isEqual(command.uri, promptUri));
+			const resolved = await service.resolvePromptSlashCommand('review-security', undefined, CancellationToken.None);
+			assert.deepStrictEqual({
+				name: command?.name,
+				valid: service.isValidSlashCommandName(command?.name ?? ''),
+				uri: resolved?.parsedPromptFile?.uri.toString(),
+			}, {
+				name: 'review-security',
+				valid: true,
+				uri: promptUri.toString(),
+			});
+		});
+
+		test('validates Unicode prompt names while excluding separators, whitespace and controls', () => {
+			const names = ['review', 'plugin:tool!', '\uFF160', 'cafe\u0301', '\uE234', '', 'review/security', 'review security', 'review\nsecurity', 'review\u0000security'];
+			assert.deepStrictEqual(names.map(name => service.isValidSlashCommandName(name)), [true, true, true, true, true, false, false, false, false, false]);
+		});
 	});
 
 	suite('getPromptSlashCommands - skills', () => {
@@ -5864,6 +5918,38 @@ suite('PromptsService', () => {
 			const after = await service.getHooks(CancellationToken.None);
 			assert.ok(after, 'Expected hooks result after plugin update');
 			assert.deepStrictEqual(after.hooks[HookType.PreToolUse], [{ command: 'echo after', sourceUri: URI.file('/plugins/test-plugin/hooks.json') }]);
+		});
+
+		test('refreshes hook inventory when a hooks-only plugin finishes loading', async () => {
+			testConfigService.setUserConfiguration(PromptsConfig.USE_CHAT_HOOKS, true);
+			testConfigService.setUserConfiguration(PromptsConfig.HOOKS_LOCATION_KEY, {});
+			await timeout(0);
+
+			assert.deepStrictEqual(await service.listPromptFiles(PromptsType.hook, CancellationToken.None), []);
+
+			const { plugin, hooks } = createTestPlugin('/plugins/hooks-only', []);
+			const pluginDiscovered = Event.toPromise(service.onDidChangeHooks);
+			testPluginsObservable.set([plugin], undefined);
+			await pluginDiscovered;
+			await service.listPromptFiles(PromptsType.hook, CancellationToken.None);
+
+			const hookUri = URI.file('/plugins/hooks-only/hooks.json');
+			const hooksChanged = Event.toPromise(service.onDidChangeHooks);
+			hooks.set([
+				{ type: HookType.SessionStart, originalId: 'sessionStart', hooks: [{ command: 'echo start' }], uri: hookUri },
+				{ type: HookType.UserPromptSubmit, originalId: 'userPromptSubmitted', hooks: [{ command: 'echo prompt' }], uri: hookUri },
+			], undefined);
+			await hooksChanged;
+
+			const files = await service.listPromptFiles(PromptsType.hook, CancellationToken.None);
+			assert.deepStrictEqual(files.map(file => ({
+				name: file.name,
+				storage: file.storage,
+				pluginUri: file.pluginUri,
+			})), [
+				{ name: 'hooks-only:sessionstart', storage: PromptsStorage.plugin, pluginUri: plugin.uri },
+				{ name: 'hooks-only:userpromptsubmitted', storage: PromptsStorage.plugin, pluginUri: plugin.uri },
+			]);
 		});
 
 		test('returns undefined when workspace is untrusted', async function () {

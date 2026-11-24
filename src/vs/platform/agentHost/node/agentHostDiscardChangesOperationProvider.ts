@@ -8,9 +8,7 @@ import { localize } from '../../../nls.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { ChangesetKind, parseChangesetUri } from '../common/changesetUri.js';
 import type { IChangesetOperationContribution, IChangesetOperationContext, IChangesetOperationRegistry } from '../common/agentHostChangesetOperationService.js';
-import { ChangesetOperationScope, ChangesetOperationStatus, isAhpChatChannel, type ChangesetOperation } from '../common/state/sessionState.js';
-import { isMultiRootSession } from '../common/agentHostWorkingDirectories.js';
-import { getEffectiveWorkingDirectories, getSessionSummaryWorkingDirectories } from './agentConfigurationService.js';
+import { ChangesetOperationScope, ChangesetOperationStatus, type ChangesetOperation } from '../common/state/sessionState.js';
 import { AgentHostDiscardChangesOperationHandler, getLastTurn } from './agentHostDiscardChangesOperationHandler.js';
 import { AgentHostFileEditRevert } from './agentHostFileEditRevert.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
@@ -51,7 +49,7 @@ export class AgentHostDiscardChangesOperationContribution extends Disposable imp
 				// Also offered while the turn is running, so the action is shown;
 				// the operation service disables it until the turn completes.
 				const parsed = parseChangesetUri(changesetUri);
-				return parsed?.turnId !== undefined && getLastTurn(this._stateManager, parsed.ownerUri)?.id === parsed.turnId
+				return parsed?.kind === ChangesetKind.Turn && getLastTurn(this._stateManager, parsed.ownerUri)?.id === parsed.turnId
 					? [this._createOperation(localize('agentHost.changeset.discardTurnChanges.confirmation', "Are you sure you want to discard the last turn's changes to \'{0}\'? Changes made outside of the last turn will be kept, except in a file the last turn created, which is deleted along with any later changes to it. This action cannot be undone."))]
 					: [];
 			}
@@ -59,13 +57,6 @@ export class AgentHostDiscardChangesOperationContribution extends Disposable imp
 			case ChangesetKind.WorkingSet: {
 				const owner = parseChangesetUri(changesetUri)?.ownerUri;
 				if (owner === undefined) {
-					return [];
-				}
-				// The session's changeset covers every chat's folders, a chat's only its own.
-				const workingDirectories = isAhpChatChannel(owner)
-					? getEffectiveWorkingDirectories(this._stateManager, owner)
-					: getSessionSummaryWorkingDirectories(this._stateManager, owner);
-				if (isMultiRootSession(workingDirectories)) {
 					return [];
 				}
 				// Like undoing a file in the editing session's working set, discarding a Working Set file needs no confirmation,

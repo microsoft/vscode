@@ -6,8 +6,9 @@
 import { gulp, rename, replace, filter, jsonEditor } from './lib/gulp/facade.ts';
 import * as fs from 'fs';
 import * as path from 'path';
-import es from 'event-stream';
+import { through, merge } from './lib/streams.ts';
 import vfs from 'vinyl-fs';
+import type File from 'vinyl';
 import electron from '@vscode/gulp-electron';
 import * as util from './lib/util.ts';
 import { getVersion } from './lib/getVersion.ts';
@@ -20,7 +21,7 @@ import product from '../product.json' with { type: 'json' };
 import * as crypto from 'crypto';
 import * as cp from 'child_process';
 import * as i18n from './lib/i18n.ts';
-import { getProductionDependencies } from './lib/dependencies.ts';
+import { getProductionDependencies, toPackagedLayout } from './lib/dependencies.ts';
 import { config } from './lib/electron.ts';
 import { createAsar } from './lib/asar.ts';
 import minimist from 'minimist';
@@ -45,7 +46,7 @@ const root = path.dirname(import.meta.dirname);
 const commit = getVersion(root);
 const copilotRuntimeVersion = getCopilotRuntimeVersion(path.join(root, 'node_modules'));
 if (packageJson.copilotRuntimeVersion !== copilotRuntimeVersion) {
-	throw new Error(`package.json declares Copilot runtime ${packageJson.copilotRuntimeVersion}, but @github/copilot-sdk bundles ${copilotRuntimeVersion}.`);
+	throw new Error(`package.json declares Copilot runtime ${packageJson.copilotRuntimeVersion}, but @microsoft/copilot-sdk bundles ${copilotRuntimeVersion}.`);
 }
 
 function getLockedPackageVersion(packageName: string): string {
@@ -171,7 +172,7 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 		const sourceFilterPattern = stripSourceMapsInPackagingTasks
 			? ['**', '!**/*.{js,css}.map']
 			: ['**'];
-		const sources = es.merge(src, extensions)
+		const sources = merge(src, extensions)
 			.pipe(filter(sourceFilterPattern, { dot: true }));
 
 		let version = packageJson.version;
@@ -191,7 +192,7 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 		let packageJsonContents: string;
 		const packageJsonStream = gulp.src(['package.json'], { base: '.' })
 			.pipe(jsonEditor(packageJsonUpdates))
-			.pipe(es.through(function (file) {
+			.pipe(through(function (file: File.BufferFile) {
 				packageJsonContents = file.contents.toString();
 				this.emit('data', file);
 			}));
@@ -206,7 +207,7 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 				json.version = version;
 				json.copilotVersions = {
 					runtime: copilotRuntimeVersion,
-					sdk: getLockedPackageVersion('@github/copilot-sdk'),
+					sdk: getLockedPackageVersion('@microsoft/copilot-sdk'),
 				};
 				// Stamp agentSdks from the per-platform results file produced
 				// by `build/agent-sdk/produce.ts` (an earlier pipeline step).
@@ -224,7 +225,7 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 				}
 				return json;
 			}))
-			.pipe(es.through(function (file) {
+			.pipe(through(function (file: File.BufferFile) {
 				productJsonContents = file.contents.toString();
 				this.emit('data', file);
 			}));
@@ -239,7 +240,7 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 		const jsFilter = util.filter(data => !data.isDirectory() && /\.js$/.test(data.path));
 		const root = path.resolve(path.join(import.meta.dirname, '..'));
 		const productionDependencies = getProductionDependencies(root);
-		const dependenciesSrc = productionDependencies.map(d => path.relative(root, d)).map(d => [`${d}/**`, `!${d}/**/{test,tests}/**`]).flat().concat('!**/*.mk');
+		const dependenciesSrc = productionDependencies.map(d => path.relative(root, d.source)).map(d => [`${d}/**`, `!${d}/**/{test,tests}/**`]).flat().concat('!**/*.mk');
 
 		const depFilterPattern = ['**', `!**/${config.version}/**`, '!**/bin/darwin-arm64-87/**', '!**/package-lock.json', '!**/yarn.lock'];
 		if (stripSourceMapsInPackagingTasks) {
@@ -247,6 +248,7 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 		}
 
 		const cleanedDeps = gulp.src(dependenciesSrc, { base: '.', dot: true })
+			.pipe(toPackagedLayout(productionDependencies))
 			.pipe(filter(depFilterPattern))
 			.pipe(util.cleanNodeModules(path.join(import.meta.dirname, '.moduleignore')))
 			.pipe(util.cleanNodeModules(path.join(import.meta.dirname, `.moduleignore.${process.platform}`)));
@@ -254,12 +256,13 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 		const copilotRuntimePrebuilds = gulp.src(getCopilotRuntimePrebuildFiles(platform, arch), { base: '.', dot: true, allowEmpty: true });
 		ensureOSProxyResolverPlatformPackage(platform, arch);
 		const osProxyResolverPlatformPackage = gulp.src(getOSProxyResolverPlatformFiles(platform, arch), { base: '.', dot: true, allowEmpty: true });
-		const deps = es.merge(cleanedDeps, copilotRuntimePrebuilds, osProxyResolverPlatformPackage)
-			.pipe(filter(getCopilotExcludeFilter(platform, arch)))
-			.pipe(filter(getCopilotTgrepExcludeFilter(platform, arch)))
-			.pipe(filter(getRipgrepExcludeFilter(platform, arch)))
-			.pipe(filter(getFoundryLocalExcludeFilter()))
-			.pipe(filter(getOSProxyResolverExcludeFilter(platform, arch)))
+		// `cleanedDeps` has already dropped dot files; keep those of the platform packages, such as SDK plugin manifests.
+		const deps = merge(cleanedDeps, copilotRuntimePrebuilds, osProxyResolverPlatformPackage)
+			.pipe(filter(getCopilotExcludeFilter(platform, arch), { dot: true }))
+			.pipe(filter(getCopilotTgrepExcludeFilter(platform, arch), { dot: true }))
+			.pipe(filter(getRipgrepExcludeFilter(platform, arch), { dot: true }))
+			.pipe(filter(getFoundryLocalExcludeFilter(), { dot: true }))
+			.pipe(filter(getOSProxyResolverExcludeFilter(platform, arch), { dot: true }))
 			.pipe(jsFilter)
 			.pipe(util.rewriteSourceMappingURL(sourceMappingURLBase))
 			.pipe(jsFilter.restore)
@@ -267,7 +270,7 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 				'**/*.node',
 				'**/@vscode/ripgrep-universal/bin/**',
 				// The SDK runtime wrapper and native module must remain adjacent on disk.
-				'**/@github/copilot-sdk-{darwin,linux,linuxmusl,win32}-*/**',
+				'**/@microsoft/copilot-sdk-{darwin,linux,linuxmusl,win32}-*/**',
 				// The Dev Container CLI is spawned as an external Node process,
 				// so its bundled entrypoint must be available outside the ASAR.
 				'**/@devcontainers/cli/**',
@@ -307,10 +310,10 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 			sources,
 			deps
 		];
-		let all = es.merge(...mergeStreams);
+		let all = merge(...mergeStreams);
 
 		if (platform === 'win32') {
-			all = es.merge(all, gulp.src([
+			all = merge(all, gulp.src([
 				'resources/win32/bower.ico',
 				'resources/win32/c.ico',
 				'resources/win32/code.ico',
@@ -346,7 +349,7 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 		} else if (platform === 'linux') {
 			const policyDest = gulp.src('.build/policies/linux/**', { base: '.build/policies/linux' })
 				.pipe(rename(f => f.dirname = `policies/${f.dirname}`));
-			all = es.merge(all, gulp.src('resources/linux/code.png', { base: '.' }), policyDest);
+			all = merge(all, gulp.src('resources/linux/code.png', { base: '.' }), policyDest);
 		} else if (platform === 'darwin') {
 			const shortcut = gulp.src('resources/darwin/bin/code.sh')
 				.pipe(replace('@@APPNAME@@', product.applicationName))
@@ -354,7 +357,7 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 				.pipe(rename('bin/code'));
 			const policyDest = gulp.src('.build/policies/darwin/**', { base: '.build/policies/darwin' })
 				.pipe(rename(f => f.dirname = `policies/${f.dirname}`));
-			all = es.merge(all, shortcut, policyDest);
+			all = merge(all, shortcut, policyDest);
 		}
 
 		const electronConfig = {
@@ -378,25 +381,25 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 			], { dot: true }));
 
 		if (platform === 'linux') {
-			result = es.merge(result, gulp.src('resources/completions/bash/code', { base: '.' })
+			result = merge(result, gulp.src('resources/completions/bash/code', { base: '.' })
 				.pipe(replace('@@APPNAME@@', product.applicationName))
 				.pipe(rename(function (f) { f.basename = product.applicationName; })));
 
-			result = es.merge(result, gulp.src('resources/completions/zsh/_code', { base: '.' })
+			result = merge(result, gulp.src('resources/completions/zsh/_code', { base: '.' })
 				.pipe(replace('@@APPNAME@@', product.applicationName))
 				.pipe(rename(function (f) { f.basename = '_' + product.applicationName; })));
 		}
 
 		if (platform === 'win32') {
-			result = es.merge(result, gulp.src('resources/win32/bin/code.js', { base: 'resources/win32', allowEmpty: true }));
+			result = merge(result, gulp.src('resources/win32/bin/code.js', { base: 'resources/win32', allowEmpty: true }));
 
 			if (versionedResourcesFolder) {
-				result = es.merge(result, gulp.src('resources/win32/versioned/bin/code.cmd', { base: 'resources/win32/versioned' })
+				result = merge(result, gulp.src('resources/win32/versioned/bin/code.cmd', { base: 'resources/win32/versioned' })
 					.pipe(replace('@@NAME@@', product.nameShort))
 					.pipe(replace('@@VERSIONFOLDER@@', versionedResourcesFolder))
 					.pipe(rename(function (f) { f.basename = product.applicationName; })));
 
-				result = es.merge(result, gulp.src('resources/win32/versioned/bin/code.sh', { base: 'resources/win32/versioned' })
+				result = merge(result, gulp.src('resources/win32/versioned/bin/code.sh', { base: 'resources/win32/versioned' })
 					.pipe(replace('@@NAME@@', product.nameShort))
 					.pipe(replace('@@PRODNAME@@', product.nameLong))
 					.pipe(replace('@@VERSION@@', version))
@@ -407,11 +410,11 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 					.pipe(replace('@@QUALITY@@', quality!))
 					.pipe(rename(function (f) { f.basename = product.applicationName; f.extname = ''; })));
 			} else {
-				result = es.merge(result, gulp.src('resources/win32/bin/code.cmd', { base: 'resources/win32' })
+				result = merge(result, gulp.src('resources/win32/bin/code.cmd', { base: 'resources/win32' })
 					.pipe(replace('@@NAME@@', product.nameShort))
 					.pipe(rename(function (f) { f.basename = product.applicationName; })));
 
-				result = es.merge(result, gulp.src('resources/win32/bin/code.sh', { base: 'resources/win32' })
+				result = merge(result, gulp.src('resources/win32/bin/code.sh', { base: 'resources/win32' })
 					.pipe(replace('@@NAME@@', product.nameShort))
 					.pipe(replace('@@PRODNAME@@', product.nameLong))
 					.pipe(replace('@@VERSION@@', version))
@@ -422,13 +425,13 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 					.pipe(rename(function (f) { f.basename = product.applicationName; f.extname = ''; })));
 			}
 
-			result = es.merge(result, gulp.src('resources/win32/VisualElementsManifest.xml', { base: 'resources/win32' })
+			result = merge(result, gulp.src('resources/win32/VisualElementsManifest.xml', { base: 'resources/win32' })
 				.pipe(replace('@@VERSIONFOLDER@@', versionedResourcesFolder ? `${versionedResourcesFolder}\\` : ''))
 				.pipe(rename(product.nameShort + '.VisualElementsManifest.xml')));
 
 			// Setup publishes it next to the copilot.exe shim; see build/win32/copilot.iss.
-			result = es.merge(result, gulp.src('resources/win32/bin/copilot.sh', { base: 'resources/win32' })
-				.pipe(es.through(function (file) {
+			result = merge(result, gulp.src('resources/win32/bin/copilot.sh', { base: 'resources/win32' })
+				.pipe(through(function (file: File.BufferFile) {
 					file.contents = Buffer.from(renderCopilotShimLauncher(file.contents.toString('utf8'), {
 						commit: String(commit),
 						quality: String(quality),
@@ -440,14 +443,14 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 				}))
 				.pipe(rename(f => { f.dirname = 'bin/copilot-shim'; f.basename = 'copilot'; f.extname = ''; })));
 
-			result = es.merge(result, gulp.src('.build/policies/win32/**', { base: '.build/policies/win32' })
+			result = merge(result, gulp.src('.build/policies/win32/**', { base: '.build/policies/win32' })
 				.pipe(rename(f => f.dirname = `policies/${f.dirname}`)));
 
 			if (quality === 'stable' || quality === 'insider') {
-				result = es.merge(result, gulp.src('.build/win32/appx/**', { base: '.build/win32' }));
+				result = merge(result, gulp.src('.build/win32/appx/**', { base: '.build/win32' }));
 				const rawVersion = version.replace(/-\w+$/, '').split('.');
 				const appxVersion = `${rawVersion[0]}.0.${rawVersion[1]}.${rawVersion[2]}`;
-				result = es.merge(result, gulp.src('resources/win32/appx/AppxManifest.xml', { base: '.' })
+				result = merge(result, gulp.src('resources/win32/appx/AppxManifest.xml', { base: '.' })
 					.pipe(replace('@@AppxPackageName@@', product.win32AppUserModelId))
 					.pipe(replace('@@AppxPackageVersion@@', appxVersion))
 					.pipe(replace('@@AppxPackageDisplayName@@', product.nameLong))
@@ -460,7 +463,7 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 					.pipe(rename(f => f.dirname = `appx/manifest`)));
 			}
 		} else if (platform === 'linux') {
-			result = es.merge(result, gulp.src('resources/linux/bin/code.sh', { base: '.' })
+			result = merge(result, gulp.src('resources/linux/bin/code.sh', { base: '.' })
 				.pipe(replace('@@PRODNAME@@', product.nameLong))
 				.pipe(replace('@@APPNAME@@', product.applicationName))
 				.pipe(rename('bin/' + product.applicationName)));
@@ -660,7 +663,7 @@ task.task(task.define(
 			const pathToExtensions = '.build/extensions/*';
 			const pathToSetup = 'build/win32/i18n/messages.en.isl';
 
-			return es.merge(
+			return merge(
 				gulp.src(pathToMetadata).pipe(i18n.createXlfFilesForCoreBundle()),
 				gulp.src(pathToSetup).pipe(i18n.createXlfFilesForIsl()),
 				gulp.src(pathToExtensions).pipe(i18n.createXlfFilesForExtensions())
@@ -676,7 +679,7 @@ task.task('vscode-translations-import', function () {
 			location: '../vscode-translations-import'
 		}
 	});
-	return es.merge([...i18n.defaultLanguages, ...i18n.extraLanguages].map(language => {
+	return merge([...i18n.defaultLanguages, ...i18n.extraLanguages].map(language => {
 		const id = language.id;
 		return gulp.src(`${options.location}/${id}/vscode-setup/messages.xlf`)
 			.pipe(i18n.prepareIslFiles(language))

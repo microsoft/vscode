@@ -12,7 +12,9 @@ import { Registry } from '../../../registry/common/platform.js';
 import '../../../request/common/request.js';
 import { AgentHostConfigurationSyncTarget, formatAgentHostConfigurationSyncValueForLog, getAgentHostConfigurationSyncEntries, getAgentHostConfigurationSyncTarget, getGlobalConfigurationValue, inspectValue, resolveAgentHostConfigurationSyncPatch } from '../../common/agentHostConfigurationSync.js';
 import { LOCAL_AGENT_HOST_RESOURCE_IDENTITY } from '../../common/agentHostResourceService.js';
-import { AgentHostArtifactIntegrationsConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostByokModelsEnabledDefault, AgentHostGitHubArtifactIgnoredChecksConfigKey } from '../../common/agentHostSchema.js';
+import { AgentHostArtifactIntegrationsConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostByokModelsEnabledDefault, AgentHostComputerUseEnabledConfigKey, AgentHostGitHubArtifactIgnoredChecksConfigKey } from '../../common/agentHostSchema.js';
+import { AgentHostComputerUseEnabledSettingId } from '../../common/agentService.js';
+import { computerUseConfigurationProperties } from '../../common/computerUseConfiguration.js';
 import { artifactToolsConfigurationProperties } from '../../common/artifactToolsConfiguration.js';
 import { ArtifactIntegrationsSettingId } from '../../../artifactIntegrations/common/artifactIntegration.js';
 import { AgentMergeConfigKey, AgentMergeSettingId } from '../../common/agentMerge.js';
@@ -53,6 +55,7 @@ suite('AgentHostConfigurationSync', () => {
 		properties: {
 			...artifactToolsConfigurationProperties,
 			...chatMoveConfigurationProperties,
+			...computerUseConfigurationProperties,
 			[AgentMergeSettingId.Enabled]: { type: 'boolean' as const, default: false, agentHost: { key: AgentMergeConfigKey.Enabled } },
 			[ALL_HOSTS_SETTING]: {
 				type: 'boolean' as const,
@@ -111,18 +114,28 @@ suite('AgentHostConfigurationSync', () => {
 		assert.strictEqual(getGlobalConfigurationValue(configurationService, ALL_HOSTS_SETTING), false);
 	});
 
-	test('artifact integrations are opt-in and cannot be enabled by a workspace', () => {
-		const configuration = createConfigurationService({
-			[ArtifactIntegrationsSettingId]: { workspaceValue: true, workspaceFolderValue: true },
-			[AgentMergeSettingId.Enabled]: { userValue: true },
-		});
-		const patch = resolveAgentHostConfigurationSyncPatch(configuration, AgentHostConfigurationSyncTarget.Local);
-		assert.deepStrictEqual({
-			scope: artifactToolsConfigurationProperties[ArtifactIntegrationsSettingId].scope,
-			integrations: patch[AgentHostArtifactIntegrationsConfigKey],
-			agentMerge: patch[AgentMergeConfigKey.Enabled],
-		}, { scope: ConfigurationScope.APPLICATION, integrations: false, agentMerge: true });
+	test('mirrors Computer Use opt-in and opt-out to local and remote hosts', () => {
+		const results = [AgentHostConfigurationSyncTarget.Local, AgentHostConfigurationSyncTarget.RemoteExtensionHost, AgentHostConfigurationSyncTarget.Remote].map(target =>
+			[false, true].map(enabled => resolveAgentHostConfigurationSyncPatch(createConfigurationService({
+				[AgentHostComputerUseEnabledSettingId]: { userValue: enabled, workspaceValue: !enabled },
+			}), target)[AgentHostComputerUseEnabledConfigKey]));
+		assert.deepStrictEqual(results, [[false, true], [false, true], [false, true]]);
 	});
+
+	for (const target of [AgentHostConfigurationSyncTarget.Local, AgentHostConfigurationSyncTarget.Remote]) {
+		test(`mirrors the quality-based artifact integrations default to host ${target}, ignoring workspace values`, () => {
+			const configuration = createConfigurationService({
+				[ArtifactIntegrationsSettingId]: { workspaceValue: true, workspaceFolderValue: true },
+				[AgentMergeSettingId.Enabled]: { userValue: true },
+			});
+			const patch = resolveAgentHostConfigurationSyncPatch(configuration, target);
+			assert.deepStrictEqual({
+				scope: artifactToolsConfigurationProperties[ArtifactIntegrationsSettingId].scope,
+				integrations: patch[AgentHostArtifactIntegrationsConfigKey],
+				agentMerge: patch[AgentMergeConfigKey.Enabled],
+			}, { scope: ConfigurationScope.APPLICATION, integrations: product.quality === 'insider', agentMerge: product.quality !== 'insider' });
+		});
+	}
 
 	for (const savedAgentMerge of [false, true]) {
 		test(`integration mode suppresses and restores Agent Merge without changing its ${savedAgentMerge} preference`, () => {
@@ -322,7 +335,14 @@ suite('AgentHostConfigurationSync', () => {
 			'http.webSocketAdditionalSupport',
 			'http.experimental.networkInterfaceCheckInterval',
 		];
-		const syncedProxySettingIds = ['http.proxy', 'http.proxyKerberosServicePrincipal', 'http.noProxy'];
+		const syncedProxySettingIds = [
+			'http.proxy',
+			'http.proxyKerberosServicePrincipal',
+			'http.noProxy',
+			'http.proxySupport',
+			'http.systemCertificates',
+			'http.systemCertificatesNode',
+		];
 		const local = getAgentHostConfigurationSyncEntries(AgentHostConfigurationSyncTarget.Local)
 			.filter(entry => allProxySettingIds.includes(entry.settingId))
 			.map(entry => [entry.settingId, entry.sync.key]);

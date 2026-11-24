@@ -58,10 +58,17 @@ export interface IToolApprovalEvent {
 	readonly session: URI;
 	readonly permissionKind?: AgentPermissionKind;
 	readonly permissionPath?: string;
+	readonly permissionResource?: URI;
 	readonly permissionUrl?: string;
+	readonly mcpServerName?: string;
+	readonly mcpToolName?: string;
 	readonly toolInput?: string;
 	readonly requestSandboxBypass?: boolean;
 	readonly shellLanguage?: IAgentToolPendingConfirmationSignal['shellLanguage'];
+}
+
+function getPermissionResource(e: IToolApprovalEvent): URI | undefined {
+	return e.permissionResource ?? (e.permissionPath ? URI.file(e.permissionPath) : undefined);
 }
 
 /** Standard per-tool confirmation options presented to the user. */
@@ -288,8 +295,9 @@ export class SessionPermissionManager extends Disposable {
 		const permissions = this._getPermissionRules(sessionKey);
 		const request = this._permissionRequest(e, sessionKey);
 		const context = this._permissionContext(sessionKey);
-		const writeResources = e.permissionKind === AgentPermissionKind.Write && e.permissionPath
-			? await this._resolveResourcesForApproval(URI.file(e.permissionPath)) : undefined;
+		const permissionResource = getPermissionResource(e);
+		const writeResources = e.permissionKind === AgentPermissionKind.Write && permissionResource
+			? await this._resolveResourcesForApproval(permissionResource) : undefined;
 		if (e.permissionKind === AgentPermissionKind.Write && e.permissionPath && !writeResources) {
 			return undefined;
 		}
@@ -329,9 +337,9 @@ export class SessionPermissionManager extends Disposable {
 		const surfaceScope = this._getSurfaceEditScope(sessionKey);
 		if (surfaceScope) {
 			if ((e.permissionKind === AgentPermissionKind.Write || e.permissionKind === AgentPermissionKind.Read)
-				&& e.permissionPath
+				&& permissionResource
 				&& surfaceScope.target
-				&& extUriBiasedIgnorePathCase.isEqual(URI.file(e.permissionPath), surfaceScope.target)
+				&& extUriBiasedIgnorePathCase.isEqual(permissionResource, surfaceScope.target)
 			) {
 				this._logService.trace(`[SessionPermissionManager] Auto-approving in-scope surface ${e.permissionKind} of ${e.permissionPath}`);
 				return ToolCallConfirmationReason.NotNeeded;
@@ -343,17 +351,17 @@ export class SessionPermissionManager extends Disposable {
 		}
 
 		// 4. Read auto-approval
-		if (e.permissionKind === AgentPermissionKind.Read && e.permissionPath) {
+		if (e.permissionKind === AgentPermissionKind.Read && e.permissionPath && permissionResource) {
 			if (this._isAttachmentPath(sessionKey, e.permissionPath)) {
 				this._logService.trace(`[SessionPermissionManager] Auto-approving session attachment read of ${e.permissionPath}`);
 				return ToolCallConfirmationReason.NotNeeded;
 			}
-			if (await this._isReadAutoApproved(URI.file(e.permissionPath), workingDirectories)) {
+			if (await this._isReadAutoApproved(permissionResource, workingDirectories)) {
 				this._logService.trace(`[SessionPermissionManager] Auto-approving read of ${e.permissionPath}`);
 				return ToolCallConfirmationReason.NotNeeded;
 			}
 			// The user attached this file, or a folder containing it, to the chat: that is consent to read it.
-			if (await this._isReadAutoApproved(URI.file(e.permissionPath), this._getAttachedResources(sessionKey))) {
+			if (await this._isReadAutoApproved(permissionResource, this._getAttachedResources(sessionKey))) {
 				this._logService.trace(`[SessionPermissionManager] Auto-approving read of attached ${e.permissionPath}`);
 				return ToolCallConfirmationReason.NotNeeded;
 			}
@@ -903,6 +911,8 @@ export class SessionPermissionManager extends Disposable {
 	private _permissionRequest(e: IToolApprovalEvent, sessionKey: ProtocolURI): IPermissionRequest {
 		return {
 			kind: e.permissionKind,
+			mcpServerName: e.mcpServerName,
+			mcpToolName: e.mcpToolName,
 			toolName: this._getToolNameForToolCall(sessionKey, e.toolCallId) ?? e.toolName ?? '',
 			shellLanguage: e.shellLanguage,
 			url: e.permissionUrl,
@@ -1024,8 +1034,8 @@ export class SessionPermissionManager extends Disposable {
 		} else if (e.permissionKind === AgentPermissionKind.Url && e.permissionUrl) {
 			try {
 				const url = new URL(e.permissionUrl);
-				if (url.hostname) {
-					const pattern = url.protocol === `${Schemas.https}:` ? url.hostname : `${url.protocol}//${url.hostname}`;
+				if (url.host) {
+					const pattern = url.protocol === `${Schemas.https}:` ? url.host : `${url.protocol}//${url.host}`;
 					const rules = [webFetchRule(pattern)];
 					add(localize('sessionPermissions.allowDomain', "Allow Fetching {0} in this Session", pattern), rules);
 					options.push(permissionGrantOption(localize('sessionPermissions.alwaysAllowDomain', "Always Allow Fetching {0}", pattern), rules, PermissionGrantScope.Host));

@@ -70,7 +70,7 @@ import {
 
 // Re-export everything from the protocol state module
 export {
-	ChangesetOperationScope, ChangesetOperationStatus, ChangesetStatus, CustomizationLoadStatus,
+	ChangesetFileStatus, ChangesetOperationScope, ChangesetOperationStatus, ChangesetStatus, CustomizationLoadStatus,
 	CustomizationType, MessageAttachmentKind, MessageKind,
 	PendingMessageKind,
 	PolicyState,
@@ -259,6 +259,39 @@ export interface ITurnTokenTotal {
 	readonly inputTokens: number;
 	readonly cachedTokens: number;
 	readonly outputTokens: number;
+}
+
+export interface IModelRoutedInfo {
+	readonly router: string;
+	/** The router's display name, when its file gives one. */
+	readonly routerLabel?: string;
+	/** The chosen route's name, when it has one. A chat stays on a named route by this name. */
+	readonly routeName?: string;
+	readonly chosenModel: string;
+	/**
+	 * The entry of the route's `model` that matched, when it is not the chosen model's id: a family
+	 * such as `opus`, or a model on the user's own key. A chat stays on a route without a name by it,
+	 * so the route can move to a newer model.
+	 */
+	readonly routeReference?: string;
+	/** The user's note on the chosen model, when it decided the pick. */
+	readonly preference?: string;
+	/** The thinking effort the router chose for this turn. */
+	readonly effort?: string;
+	/** The context window the router asked for, when its file sets one and the model offers a choice. */
+	readonly contextSize?: 'default' | 'long';
+	/** That context window in tokens. */
+	readonly contextTokens?: number;
+	/** The turn ran on the model's larger context window, whether the router asked for it or the model defaults to it. */
+	readonly longContext?: boolean;
+	/** The model the router moved off on this turn. */
+	readonly switchedFrom?: string;
+	/** The router had no confident pick and used the user's first model. */
+	readonly defaulted?: boolean;
+	/** The chat stayed on the model it was already running. */
+	readonly kept?: boolean;
+	/** The router routes only a chat's first turn, so later turns keep this pick without being routed. */
+	readonly firstTurnOnly?: boolean;
 }
 
 export interface IAutoModeResolvedInfo {
@@ -1298,6 +1331,13 @@ export interface ISessionGitState {
 	readonly isDetachedHead?: boolean;
 	/** Base branch the work targets (e.g. `main`). */
 	readonly baseBranchName?: string;
+	/**
+	 * Full ref of the base branch Branch Changes compares against and describes (`refs/heads/...` or
+	 * `refs/remotes/...`, e.g. `refs/remotes/origin/main`): the base recorded for the session, a short name recorded
+	 * earlier as the ref it resolves to; without a recorded base, the default branch's remote-tracking branch when it
+	 * exists, else the default branch. {@link baseBranchName} is the branch it names, without its remote.
+	 */
+	readonly baseBranchRef?: string;
 	/** Upstream tracking branch (e.g. `origin/feature`). */
 	readonly upstreamBranchName?: string;
 	/**
@@ -1504,6 +1544,7 @@ export function parseSessionGitState(value: unknown): ISessionGitState | undefin
 		branchName?: string;
 		isDetachedHead?: boolean;
 		baseBranchName?: string;
+		baseBranchRef?: string;
 		upstreamBranchName?: string;
 		defaultBranchName?: string;
 		defaultRemoteBranchName?: string;
@@ -1520,6 +1561,7 @@ export function parseSessionGitState(value: unknown): ISessionGitState | undefin
 	if (typeof raw['branchName'] === 'string') { result.branchName = raw['branchName']; }
 	if (typeof raw['isDetachedHead'] === 'boolean') { result.isDetachedHead = raw['isDetachedHead']; }
 	if (typeof raw['baseBranchName'] === 'string') { result.baseBranchName = raw['baseBranchName']; }
+	if (typeof raw['baseBranchRef'] === 'string') { result.baseBranchRef = raw['baseBranchRef']; }
 	if (typeof raw['upstreamBranchName'] === 'string') { result.upstreamBranchName = raw['upstreamBranchName']; }
 	if (typeof raw['defaultBranchName'] === 'string') { result.defaultBranchName = raw['defaultBranchName']; }
 	if (typeof raw['defaultRemoteBranchName'] === 'string') { result.defaultRemoteBranchName = raw['defaultRemoteBranchName']; }
@@ -2140,6 +2182,31 @@ export function withSessionHasWorkspaceTransitions(meta: SessionSummaryMeta | un
 		next[SESSION_META_HAS_WORKSPACE_TRANSITIONS_KEY] = true;
 	} else {
 		delete next[SESSION_META_HAS_WORKSPACE_TRANSITIONS_KEY];
+	}
+	return Object.keys(next).length > 0 ? next : undefined;
+}
+
+/**
+ * Summary metadata listing the worktrees, among a session's working directories other than its first, that the host
+ * created for single chats of the session it isolated, as `file` URI strings. They are worktrees of the session's
+ * project, which a client may offer as locations of its folder. A VS Code convention layered on the protocol's `_meta`:
+ * a host that omits it isolates chats all the same, and a client that ignores it lists no such worktree.
+ */
+export const SESSION_META_ISOLATED_CHAT_WORKTREES_KEY = 'vscode.isolatedChatWorktrees';
+
+/** The isolated chat worktrees a session's summary metadata lists; none where it lists none, or not as strings. */
+export function readSessionIsolatedChatWorktrees(meta: SessionSummaryMeta | undefined): readonly string[] {
+	const value = meta?.[SESSION_META_ISOLATED_CHAT_WORKTREES_KEY];
+	return Array.isArray(value) ? value.filter((directory): directory is string => typeof directory === 'string' && directory.length > 0) : [];
+}
+
+/** Returns summary metadata listing `worktrees` as the session's isolated chat worktrees, without the key when there are none. */
+export function withSessionIsolatedChatWorktrees(meta: SessionSummaryMeta | undefined, worktrees: readonly string[]): SessionSummaryMeta | undefined {
+	const next: { [key: string]: unknown } = { ...meta };
+	if (worktrees.length) {
+		next[SESSION_META_ISOLATED_CHAT_WORKTREES_KEY] = [...worktrees];
+	} else {
+		delete next[SESSION_META_ISOLATED_CHAT_WORKTREES_KEY];
 	}
 	return Object.keys(next).length > 0 ? next : undefined;
 }

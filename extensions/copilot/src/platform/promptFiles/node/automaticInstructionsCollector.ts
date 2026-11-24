@@ -26,13 +26,17 @@ import { escape as escapeXml } from '../../../util/vs/base/common/strings';
 import { URI } from '../../../util/vs/base/common/uri';
 import { ParsedPromptFile } from '../../../util/vs/workbench/contrib/chat/common/promptSyntax/promptFileParser';
 import { isLocation } from '../../../util/common/types';
+// eslint-disable-next-line local/code-no-restricted-zone-imports -- Pre-existing layering violation found when the zone check started resolving extensionless imports.
 import { getToolName, ToolName } from '../../../extension/tools/common/toolNames';
+// eslint-disable-next-line local/code-no-restricted-zone-imports -- Pre-existing layering violation found when the zone check started resolving extensionless imports.
 import { isCustomizationsIndex, isInstructionFile, toCustomizationsIndexReference, toInstructionFileReference } from '../../../extension/prompt/common/chatVariablesCollection';
+// eslint-disable-next-line local/code-layering, local/code-no-restricted-zone-imports -- Pre-existing layering violation found when the zone check started resolving extensionless imports.
 import { getToolReferencePromptContent } from '../../../extension/prompt/vscode-node/promptVariablesService';
 import { IExperimentationService } from '../../telemetry/common/nullExperimentationService';
 import { getChatSessionType, matchesSessionType } from '../../chat/common/sessionUtils';
 import { CopilotChatAttr, GenAiAttr, GenAiOperationName, IOTelService } from '../../otel/common';
 import { ICustomInstructionsService } from '../../customInstructions/common/customInstructionsService';
+// eslint-disable-next-line local/code-no-restricted-zone-imports -- Pre-existing layering violation found when the zone check started resolving extensionless imports.
 import { IPromptVariablesService } from '../../../extension/prompt/node/promptVariablesService';
 import { arrayEqual } from 'diff/lib/util/array.js';
 import { structuralEquals } from '../../../util/vs/base/common/equals';

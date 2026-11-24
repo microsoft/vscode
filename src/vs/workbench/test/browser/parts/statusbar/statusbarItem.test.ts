@@ -195,6 +195,23 @@ suite('StatusbarEntryItem', () => {
 		});
 	}));
 
+	test('Enter and Space activation does not reach listeners further up', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const { item } = createItem();
+		const reached: number[] = [];
+		const listener = (e: KeyboardEvent) => reached.push(e.keyCode);
+		mainWindow.addEventListener('keydown', listener);
+		try {
+			for (const keyCode of [13, 32, 27]) {
+				item.labelContainer.focus();
+				item.labelContainer.dispatchEvent(new KeyboardEvent('keydown', { keyCode, bubbles: true, cancelable: true }));
+				await timeout(0);
+			}
+		} finally {
+			mainWindow.removeEventListener('keydown', listener);
+		}
+		assert.deepStrictEqual(reached, [27]);
+	}));
+
 	test('touch activation toggles the tooltip', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const { item, isVisible } = createItem();
 		const visibility: boolean[] = [];

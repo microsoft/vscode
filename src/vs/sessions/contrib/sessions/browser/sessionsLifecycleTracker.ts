@@ -10,10 +10,10 @@ import { URI } from '../../../../base/common/uri.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { AGENTS_WINDOW_TOTAL_SESSIONS_STORAGE_KEY as TOTAL_SESSIONS_KEY } from '../../../../workbench/contrib/chat/common/constants.js';
 import { AgentsWindowUsage } from '../../../../workbench/contrib/chat/common/agentsWindowUsage.js';
-import { getGitHubPullRequestRefs, IGitHubPullRequestRef, ISession, SessionArtifactKind } from '../../../services/sessions/common/session.js';
-import { getPullRequestStatusFromIcon, PullRequestStatus } from '../../github/common/types.js';
-import { linkKey } from '../../../common/sessionLinks.js';
-import { classifySessionWorkspaceTopology, getSessionsTelemetryProviderId, hashSessionIdForTelemetry } from '../../../common/sessionsTelemetry.js';
+import { getGitHubPullRequestRefs, IGitHubPullRequestRef, ISession, SessionArtifactKind } from '../../../../workbench/services/sessions/common/session.js';
+import { getPullRequestStatusFromIcon, PullRequestStatus } from '../../../../workbench/contrib/sessions/common/github/types.js';
+import { linkKey } from '../../../../workbench/contrib/sessions/common/sessionLinks.js';
+import { classifySessionWorkspaceTopology, getSessionsTelemetryProviderId, hashSessionIdForTelemetry } from '../../../../workbench/contrib/sessions/common/sessionsTelemetry.js';
 
 function getResolvedPullRequestStatus(pullRequest: IGitHubPullRequestRef): PullRequestStatus | undefined {
 	const state = pullRequest.liveState ?? pullRequest.state;

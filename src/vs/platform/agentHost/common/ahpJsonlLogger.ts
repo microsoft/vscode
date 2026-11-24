@@ -14,7 +14,9 @@ import { isEqual, isEqualOrParent, joinPath } from '../../../base/common/resourc
 import { isUriComponents, URI, UriComponents } from '../../../base/common/uri.js';
 import { FileOperationResult, IFileService, IFileStatWithMetadata, toFileOperationResult } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
+import { AnswerShellAuthenticationExtensionMethod, RegisterGitHubEnvironmentExtensionMethod } from './agentHostExtensionProtocol.js';
 import { AHP_CANVAS_SCHEME } from './canvasUri.js';
+import { redactAgentPermissionFeedback } from './meta/agentPermissionResponseMeta.js';
 
 export type AhpLogDirection = 'c2s' | 's2c';
 
@@ -76,6 +78,7 @@ const MAX_LOG_LINE_LENGTH = 1024 * 1024;
 // length. Generous enough to keep messages useful for debugging.
 const MAX_LOGGED_STRING_LENGTH = 16 * 1024;
 const REDACTED_CANVAS_SOURCE = '<redacted canvas source>';
+const REDACTED_PERMISSION_FEEDBACK = '<redacted permission feedback>';
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === 'object' && value !== null;
@@ -183,14 +186,24 @@ export class AhpJsonlLogger extends Disposable {
 		const entry = { ...message, _ahpLog: meta };
 		// Fast path: serialize once. The vast majority of messages are small, so
 		// we only pay a single stringify and use its length to decide whether the
-		// rare oversized-message path below is needed.
-		let body = stringifyAhpLogEntry(entry);
-		if (body.length > MAX_LOG_LINE_LENGTH) {
-			// Slow path (rare): a single message carried very large payloads. Walk
-			// the object via a replacer that elides long string values, keeping the
-			// line valid JSONL instead of writing/holding the full multi-MB payload.
+		// rare oversized-message path below is needed. When the caller already
+		// measured a UTF-8 frame larger than 3x MAX_LOG_LINE_LENGTH (1 UTF-16 code
+		// unit is at most 3 UTF-8 bytes), the full JSON serialization is guaranteed
+		// to exceed MAX_LOG_LINE_LENGTH, so skip materializing the full multi-MB
+		// string first.
+		let body: string;
+		if (typeof byteLength === 'number' && byteLength > MAX_LOG_LINE_LENGTH * 3) {
 			meta.truncated = true;
 			body = stringifyAhpLogEntryTruncated(entry, MAX_LOGGED_STRING_LENGTH);
+		} else {
+			body = stringifyAhpLogEntry(entry);
+			if (body.length > MAX_LOG_LINE_LENGTH) {
+				// Slow path (rare): a single message carried very large payloads. Walk
+				// the object via a replacer that elides long string values, keeping the
+				// line valid JSONL instead of writing/holding the full multi-MB payload.
+				meta.truncated = true;
+				body = stringifyAhpLogEntryTruncated(entry, MAX_LOGGED_STRING_LENGTH);
+			}
 		}
 		const line = `${body}\n`;
 		this._enqueue(VSBuffer.fromString(line));
@@ -387,7 +400,7 @@ export class AhpJsonlLogger extends Disposable {
 }
 
 export function getAhpLogByteLength(text: string): number {
-	return VSBuffer.fromString(text).byteLength;
+	return VSBuffer.byteLength(text);
 }
 
 /** Tests whether a JSONL filename belongs to the given logical Agent Host connection. */
@@ -428,6 +441,14 @@ function _ahpReplacer(this: unknown, _key: string, value: unknown): unknown {
 		if (typeof value.authorization === 'string') {
 			return { ...value, authorization: '<redacted>' };
 		}
+		if (typeof value.password === 'string') {
+			return { ...value, password: '<redacted>' };
+		}
+		// Assisted permissions feedback is restricted telemetry, wherever a confirmation carries it.
+		const redactedMeta = isRecord(value._meta) ? redactAgentPermissionFeedback(value._meta, REDACTED_PERMISSION_FEEDBACK) : undefined;
+		if (redactedMeta) {
+			return { ...value, _meta: redactedMeta };
+		}
 		if ((value.method === 'channel/frame' || value.method === 'tcp/data') && isRecord(value.params)) {
 			return { ...value, params: { ...value.params, data: '<redacted channel payload>' } };
 		}
@@ -438,14 +459,34 @@ function _ahpReplacer(this: unknown, _key: string, value: unknown): unknown {
 			&& value.params.token !== '<redacted>' && value.params.token !== '[REDACTED]') {
 			return { ...value, params: { ...value.params, token: '<redacted>' } };
 		}
-		if (value.type === 'canvas/stateChanged' && isRecord(value.canvas) && value.canvas.url !== undefined) {
-			return { ...value, canvas: { ...value.canvas, url: REDACTED_CANVAS_SOURCE } };
+		if (value.method === RegisterGitHubEnvironmentExtensionMethod && isRecord(value.params) && value.params.credential !== undefined
+			&& value.params.credential !== '<redacted>') {
+			return { ...value, params: { ...value.params, credential: '<redacted>' } };
+		}
+		if (value.method === AnswerShellAuthenticationExtensionMethod && isRecord(value.params) && value.params.answer !== undefined
+			&& value.params.answer !== '<redacted>') {
+			return { ...value, params: { ...value.params, answer: '<redacted>' } };
+		}
+		if (value.type === 'canvas/stateChanged' && isRecord(value.canvas) && (value.canvas.uri !== undefined || value.canvas.url !== undefined)) {
+			return {
+				...value, canvas: {
+					...value.canvas,
+					...(value.canvas.uri !== undefined ? { uri: REDACTED_CANVAS_SOURCE } : {}),
+					...(value.canvas.url !== undefined ? { url: REDACTED_CANVAS_SOURCE } : {}),
+				},
+			};
 		}
 		const isCanvasResource = typeof value.resource === 'string'
 			? value.resource.toLowerCase().startsWith(`${AHP_CANVAS_SCHEME}:`)
 			: URI.isUri(value.resource) && value.resource.scheme === AHP_CANVAS_SCHEME;
-		if (isCanvasResource && isRecord(value.state) && value.state.url !== undefined) {
-			return { ...value, state: { ...value.state, url: REDACTED_CANVAS_SOURCE } };
+		if (isCanvasResource && isRecord(value.state) && (value.state.uri !== undefined || value.state.url !== undefined)) {
+			return {
+				...value, state: {
+					...value.state,
+					...(value.state.uri !== undefined ? { uri: REDACTED_CANVAS_SOURCE } : {}),
+					...(value.state.url !== undefined ? { url: REDACTED_CANVAS_SOURCE } : {}),
+				},
+			};
 		}
 	}
 	if (

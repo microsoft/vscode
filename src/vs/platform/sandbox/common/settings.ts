@@ -46,12 +46,14 @@ export const enum AgentSandboxSettingId {
 	AgentSandboxLspServers = 'chat.agent.sandbox.lspServers',
 	AgentSandboxAuthenticateGit = 'chat.agent.sandbox.credentials.authenticategit',
 	AgentSandboxAuthenticateGh = 'chat.agent.sandbox.credentials.authenticategh',
+	AgentSandboxCredentialEnvVars = 'chat.agent.sandbox.credentials.envVars',
 	AgentSandboxAllowDevToolAccess = 'chat.agent.sandbox.fileSystem.allowDevToolAccess',
 	AgentSandboxUserConfiguredPaths = 'chat.agent.sandbox.fileSystem.userConfiguredPaths',
 	AgentSandboxRetryWithAllowNetworkRequests = 'chat.agent.sandbox.retryWithAllowNetworkRequests',
 	AgentSandboxLinuxFileSystem = 'chat.agent.sandbox.fileSystem.linux',
 	AgentSandboxMacFileSystem = 'chat.agent.sandbox.fileSystem.mac',
 	AgentSandboxAdvancedRuntime = 'chat.agent.sandbox.advanced.runtime',
+	AgentSandboxProfilesEnabled = 'chat.agent.sandbox.profiles.enabled',
 }
 
 export const enum AgentSandboxEnabledValue {

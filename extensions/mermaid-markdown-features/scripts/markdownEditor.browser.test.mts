@@ -92,6 +92,28 @@ it('renders diagrams at their natural size in the VS Code theme, and follows edi
 		await page.evaluate(() => window.mermaidTest.setText('flowchart LR\n A[Recovered] --> B[Second]'));
 		await frame.locator('svg').filter({ hasText: 'Recovered' }).waitFor();
 
+		// Mermaid 12 diagrams and the upgraded external diagram/layout packages render successfully.
+		await page.evaluate(() => window.mermaidTest.setText('usecase-beta\n direction LR\n actor Developer\n OpenPreview(Open Markdown preview)\n Developer --> OpenPreview'));
+		await frame.locator('svg').filter({ hasText: 'Open Markdown preview' }).waitFor();
+		await page.evaluate(() => window.mermaidTest.setText('---\nconfig:\n  layout: tidy-tree\n---\nmindmap\n root((Project))\n  Source\n  Preview'));
+		await frame.locator('svg').filter({ hasText: 'Project' }).waitFor();
+		await page.evaluate(() => window.mermaidTest.setText('zenuml\n Controller.Get(id) {\n  Service.Get(id)\n }'));
+		await frame.locator('svg').filter({ hasText: 'Controller' }).waitFor();
+
+		// Diagram types with their own default layout keep it rather than dagre: a mindmap spreads its children around
+		// its root (cose-bilkent) instead of in a row below it, and a swimlane diagram draws its subgraphs as lanes.
+		await page.evaluate(() => window.mermaidTest.setText('mindmap\n root((Project))\n  Source\n  Preview\n  Tests\n  Docs'));
+		await frame.locator('svg').filter({ hasText: 'Docs' }).waitFor();
+		const mindmap = await frame.evaluate(() => {
+			const nodes = [...document.querySelectorAll('g.node')];
+			const root = nodes.find(node => node.textContent!.trim() === 'Project')!.getBoundingClientRect();
+			const children = nodes.filter(node => node.textContent!.trim() !== 'Project').map(node => node.getBoundingClientRect());
+			return { childAboveRoot: children.some(child => child.bottom <= root.top), childBelowRoot: children.some(child => child.top >= root.bottom) };
+		});
+		await page.evaluate(() => window.mermaidTest.setText('swimlane-beta\n subgraph Dev[Developer]\n  A[Write code]\n end\n subgraph CI[Build]\n  B[Run tests]\n end\n A --> B'));
+		await frame.locator('svg').filter({ hasText: 'Run tests' }).waitFor();
+		assert.deepEqual({ ...mindmap, lanes: await frame.locator('g.cluster.swimlane').count() }, { childAboveRoot: true, childBelowRoot: true, lanes: 2 });
+
 		// Subgraph titles stay centered unless an edge crosses them there, so the title of a subgraph whose
 		// edge enters at its top center moves to the top left. A subgraph narrower than its title is widened
 		// to keep the title off its sides.

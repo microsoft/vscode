@@ -185,13 +185,9 @@ scripts/
 
 ## Prerequisites
 
-- VS Code compiled (`out/` at the repo root):
+- VS Code compiled (`out/` at the repo root). This folder is a member of the root pnpm workspace, so the root `pnpm install` also installs its dependencies:
   ```bash
   pnpm install && pnpm run compile
-  ```
-- Dependencies installed:
-  ```bash
-  cd src/vs/sessions/test/e2e && pnpm install
   ```
 - Copilot CLI available (for `pnpm run generate` only):
   ```bash

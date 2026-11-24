@@ -28,7 +28,7 @@ export class AgentCustomizationContentExpander {
 	) {
 	}
 
-	async expandPluginContents(pluginUri: URI, groupKey: string, isBundleItem: boolean, source: AICustomizationSource, pluginLabel: string | undefined, token: CancellationToken): Promise<readonly ICustomizationItem[]> {
+	async expandPluginContents(pluginUri: URI, delivery: 'syncedFromClient' | undefined, isBundleItem: boolean, source: AICustomizationSource, pluginLabel: string | undefined, token: CancellationToken): Promise<readonly ICustomizationItem[]> {
 		// pluginUri is already an agent-host:// URI (from toRemoteUri),
 		// so use it directly as the filesystem root.
 		const fsRoot = pluginUri;
@@ -66,17 +66,17 @@ export class AgentCustomizationContentExpander {
 					continue;
 				}
 				if (promptType === PromptsType.skill) {
-					children.push(...await this.collectFromSkillDir(stat.children, pluginUri, source, groupKey, isBundleItem, pluginLabel, token));
+					children.push(...await this.collectFromSkillDir(stat.children, pluginUri, source, delivery, isBundleItem, pluginLabel, token));
 				} else if (promptType === PromptsType.agent && isBundleItem) {
 					const namespaces = await Promise.all(stat.children
 						.filter(child => child.isDirectory && !child.name.startsWith('.'))
 						.map(child => this.fileService.resolve(child.resource)));
 					children.push(...await this.collectFromRegularDir(
 						[...stat.children, ...namespaces.flatMap(namespace => namespace.children ?? [])],
-						pluginUri, source, promptType, groupKey, isBundleItem, pluginLabel, token,
+						pluginUri, source, promptType, delivery, isBundleItem, pluginLabel, token,
 					));
 				} else {
-					children.push(...await this.collectFromRegularDir(stat.children, pluginUri, source, promptType, groupKey, isBundleItem, pluginLabel, token));
+					children.push(...await this.collectFromRegularDir(stat.children, pluginUri, source, promptType, delivery, isBundleItem, pluginLabel, token));
 				}
 			}
 			children.sort((a, b) => `${a.type}:${a.name}`.localeCompare(`${b.type}:${b.name}`));
@@ -93,7 +93,7 @@ export class AgentCustomizationContentExpander {
 	 * Emits one item per skill subfolder that contains a SKILL.md file.
 	 * The skill metadata comes from SKILL.md frontmatter.
 	 */
-	private async collectFromSkillDir(entries: readonly { name: string; resource: URI; isDirectory: boolean }[], pluginUri: URI, source: AICustomizationSource, groupKey: string, isBundleItem: boolean, pluginLabel: string | undefined, token: CancellationToken): Promise<ICustomizationItem[]> {
+	private async collectFromSkillDir(entries: readonly { name: string; resource: URI; isDirectory: boolean }[], pluginUri: URI, source: AICustomizationSource, delivery: 'syncedFromClient' | undefined, isBundleItem: boolean, pluginLabel: string | undefined, token: CancellationToken): Promise<ICustomizationItem[]> {
 		type Entry = { name: string; resource: URI; isDirectory: boolean };
 		const eligible: Entry[] = [];
 		const readMetaDataPromises = [];
@@ -130,8 +130,9 @@ export class AgentCustomizationContentExpander {
 				type: PromptsType.skill,
 				name: name,
 				description,
+				argumentHint: meta.argumentHint,
 				source,
-				groupKey,
+				delivery,
 				extensionId: undefined,
 				pluginUri: isBundleItem ? undefined : pluginUri,
 				pluginLabel: isBundleItem ? undefined : pluginLabel,
@@ -147,7 +148,7 @@ export class AgentCustomizationContentExpander {
 	 * agents additionally surface userInvocable. Instruction (rules)
 	 * folders additionally accept `.mdc` files per the Open Plugins spec.
 	 */
-	private async collectFromRegularDir(entries: readonly { name: string; resource: URI; isDirectory: boolean }[], pluginUri: URI, source: AICustomizationSource, promptType: PromptsType, groupKey: string, isBundleItem: boolean, pluginLabel: string | undefined, token: CancellationToken): Promise<ICustomizationItem[]> {
+	private async collectFromRegularDir(entries: readonly { name: string; resource: URI; isDirectory: boolean }[], pluginUri: URI, source: AICustomizationSource, promptType: PromptsType, delivery: 'syncedFromClient' | undefined, isBundleItem: boolean, pluginLabel: string | undefined, token: CancellationToken): Promise<ICustomizationItem[]> {
 		type Entry = { name: string; resource: URI; isDirectory: boolean };
 		const eligible: Entry[] = [];
 		for (const child of entries) {
@@ -181,7 +182,7 @@ export class AgentCustomizationContentExpander {
 				name: meta?.name ?? stripPromptFileExtensions(child.name),
 				description: meta?.description,
 				source,
-				groupKey,
+				delivery,
 				extensionId: undefined,
 				pluginUri: isBundleItem ? undefined : pluginUri,
 				pluginLabel: isBundleItem ? undefined : pluginLabel,
@@ -196,7 +197,7 @@ export class AgentCustomizationContentExpander {
 	 * metadata. Returns `undefined` when the file is not markdown, or
 	 * when it cannot be read/parsed.
 	 */
-	private async readPromptMetadata(promptFileUri: URI, token: CancellationToken): Promise<{ name: string | undefined; description: string | undefined; userInvocable: boolean | undefined } | undefined> {
+	private async readPromptMetadata(promptFileUri: URI, token: CancellationToken): Promise<{ name: string | undefined; description: string | undefined; argumentHint: string | undefined; userInvocable: boolean | undefined } | undefined> {
 		if (extname(promptFileUri.path) !== '.md') {
 			return undefined;
 		}
@@ -209,11 +210,12 @@ export class AgentCustomizationContentExpander {
 			if (frontmatter) {
 				const name = frontmatter.getStringValue('name');
 				const description = frontmatter.getStringValue('description');
+				const argumentHint = frontmatter.getStringValue('argument-hint');
 				const userInvocableStr = frontmatter.getStringValue('user-invocable');
 				const userInvocable = userInvocableStr === 'true' ? true : userInvocableStr === 'false' ? false : undefined;
-				return { name, description, userInvocable };
+				return { name, description, argumentHint, userInvocable };
 			}
-			return { name: undefined, description: undefined, userInvocable: undefined };
+			return { name: undefined, description: undefined, argumentHint: undefined, userInvocable: undefined };
 		} catch (err) {
 			if (!isExpectedFileAccessError(err, token)) {
 				this.logService.trace(`[AgentCustomizationContentExpander] Failed to read prompt metadata ${promptFileUri.toString()}: ${err}`);

@@ -32,9 +32,11 @@ export const DirtyWorkingCopiesContext = new RawContextKey<boolean>('dirtyWorkin
 export const RemoteNameContext = new RawContextKey<string>('remoteName', '', localize('remoteName', "The name of the remote the window is connected to or an empty string if not connected to any remote"));
 
 export const VirtualWorkspaceContext = new RawContextKey<string>('virtualWorkspace', '', localize('virtualWorkspace', "The scheme of the current workspace is from a virtual file system or an empty string."));
+export const WorkspaceHasVirtualContentContext = new RawContextKey<boolean>('workspaceHasVirtualContent', false, localize('workspaceHasVirtualContent', "Whether the workspace contains any virtual folders, or has a virtual configuration and no folders."));
 export const TemporaryWorkspaceContext = new RawContextKey<boolean>('temporaryWorkspace', false, localize('temporaryWorkspace', "The scheme of the current workspace is from a temporary file system."));
 
 export const IsSessionsWindowContext = new RawContextKey<boolean>('isSessionsWindow', false, localize('isSessionsWindow', "Whether the current window is a agent sessions window."));
+export const IsPhoneLayoutContext = new RawContextKey<boolean>('sessionsIsPhoneLayout', false, localize('sessionsIsPhoneLayout', "Whether the current layout is the phone layout"));
 
 export const HasWebFileSystemAccess = new RawContextKey<boolean>('hasWebFileSystemAccess', false, true); // Support for FileSystemAccess web APIs (https://wicg.github.io/file-system-access)
 
@@ -86,6 +88,8 @@ export const ActiveEditorCanSplitInGroupContext = new RawContextKey<boolean>('ac
 export const ActiveEditorCannotCloseContext = new RawContextKey<boolean>('activeEditorCannotClose', false, localize('activeEditorCannotClose', "Whether the active editor cannot be closed through standard user actions"));
 
 // Editor Kind Context Keys
+/** The editor whose tab context menu is being shown, which may be inactive. */
+export const EditorTitleContextEditorIdContext = new RawContextKey<string>('editorTitleContextEditorId', '', localize('editorTitleContextEditorId', "The identifier of the editor whose tab context menu is being shown"));
 export const ActiveEditorContext = new RawContextKey<string | null>('activeEditor', null, { type: 'string', description: localize('activeEditor', "The identifier of the active editor") });
 export const ActiveEditorAvailableEditorIdsContext = new RawContextKey<string>('activeEditorAvailableEditorIds', '', localize('activeEditorAvailableEditorIds', "The available editor identifiers that are usable for the active editor"));
 export const TextCompareEditorVisibleContext = new RawContextKey<boolean>('textCompareEditorVisible', false, localize('textCompareEditorVisible', "Whether a text compare editor is visible"));
@@ -101,6 +105,7 @@ export const ActiveEditorGroupEmptyContext = new RawContextKey<boolean>('activeE
 export const ActiveEditorGroupIndexContext = new RawContextKey<number>('activeEditorGroupIndex', 0, localize('activeEditorGroupIndex', "The index of the active editor group"));
 export const ActiveEditorGroupLastContext = new RawContextKey<boolean>('activeEditorGroupLast', false, localize('activeEditorGroupLast', "Whether the active editor group is the last group"));
 export const ActiveEditorGroupLockedContext = new RawContextKey<boolean>('activeEditorGroupLocked', false, localize('activeEditorGroupLocked', "Whether the active editor group is locked"));
+export const EditorGroupLockActionsHiddenContext = new RawContextKey<boolean>('editorGroupLockActionsHidden', false, localize('editorGroupLockActionsHidden', "Whether the editor group hides the actions that lock and unlock it, as its owner keeps it locked"));
 export const MultipleEditorGroupsContext = new RawContextKey<boolean>('multipleEditorGroups', false, localize('multipleEditorGroups', "Whether there are multiple editor groups opened"));
 export const SingleEditorGroupsContext = MultipleEditorGroupsContext.toNegated();
 export const MultipleEditorsSelectedInGroupContext = new RawContextKey<boolean>('multipleEditorsSelectedInGroup', false, localize('multipleEditorsSelectedInGroup', "Whether multiple editors have been selected in an editor group"));
@@ -110,6 +115,7 @@ export const SelectedEditorsInGroupFileOrUntitledResourceContextKey = new RawCon
 // Editor Part Context Keys
 export const EditorPartMultipleEditorGroupsContext = new RawContextKey<boolean>('editorPartMultipleEditorGroups', false, localize('editorPartMultipleEditorGroups', "Whether there are multiple editor groups opened in an editor part"));
 export const EditorPartMaximizedEditorGroupContext = new RawContextKey<boolean>('editorPartMaximizedEditorGroup', false, localize('editorPartEditorGroupMaximized', "Editor Part has a maximized group"));
+export const EditorPartInPartGridContext = new RawContextKey<boolean>('editorPartInPartGrid', false, localize('editorPartInPartGrid', "Whether the editor part is one of the parts of a window that arranges its parts in a grid, where parts move and editors go into new parts"));
 
 export const EditorPartModalContext = new RawContextKey<boolean>('editorPartModal', false, localize('editorPartModal', "Whether focus is in a modal editor part"));
 export const EditorPartModalVisibleContext = new RawContextKey<boolean>('editorPartModalVisible', false, localize('editorPartModalVisible', "Whether a modal editor part is visible"));
@@ -126,6 +132,9 @@ export const InEditorZenModeContext = new RawContextKey<boolean>('inZenMode', fa
 export const IsMainEditorCenteredLayoutContext = new RawContextKey<boolean>('isCenteredLayout', false, localize('isMainEditorCenteredLayout', "Whether centered layout is enabled for the main editor"));
 export const SplitEditorsVertically = new RawContextKey<boolean>('splitEditorsVertically', false, localize('splitEditorsVertically', "Whether editors split vertically"));
 export const MainEditorAreaVisibleContext = new RawContextKey<boolean>('mainEditorAreaVisible', true, localize('mainEditorAreaVisible', "Whether the editor area in the main window is visible"));
+export const ChatPartEnabledContext = new RawContextKey<boolean>('chatPartEnabled', false, localize('chatPartEnabled', "Whether a feature enables the chat area of the window, shown or not"));
+export const ChatPartVisibleContext = new RawContextKey<boolean>('chatPartVisible', false, localize('chatPartVisible', "Whether the chat area is visible"));
+export const EditorAreaHiddenByChatContext = new RawContextKey<boolean>('editorAreaHiddenByChat', false, localize('editorAreaHiddenByChat', "Whether the editor area is hidden so that the chat area takes its space"));
 export const EditorTabsVisibleContext = new RawContextKey<boolean>('editorTabsVisible', true, localize('editorTabsVisible', "Whether editor tabs are visible"));
 
 //#endregion
@@ -174,6 +183,7 @@ export const NotificationsToastsVisibleContext = new RawContextKey<boolean>('not
 //#region < --- Auxiliary Bar --- >
 
 export const ActiveAuxiliaryContext = new RawContextKey<string>('activeAuxiliary', '', localize('activeAuxiliary', "The identifier of the active auxiliary panel"));
+export const AuxiliaryBarMaximizeHiddenContext = new RawContextKey<boolean>('auxiliaryBarMaximizeHidden', false, localize('auxiliaryBarMaximizeHidden', "Whether the active view container of the secondary side bar does not offer to maximize it"));
 export const AuxiliaryBarFocusContext = new RawContextKey<boolean>('auxiliaryBarFocus', false, localize('auxiliaryBarFocus', "Whether the auxiliary bar has keyboard focus"));
 export const AuxiliaryBarVisibleContext = new RawContextKey<boolean>('auxiliaryBarVisible', false, localize('auxiliaryBarVisible', "Whether the auxiliary bar is visible"));
 export const SecondarySideBarVisibleContext = new RawContextKey<boolean>('secondarySideBarVisible', false, localize('secondarySideBarVisible', "Whether the layout surface representing the secondary side bar is visible"));
@@ -194,10 +204,34 @@ export const PanelMaximizedContext = new RawContextKey<boolean>('panelMaximized'
 //#endregion
 
 
+//#region < --- Window Layout --- >
+
+/** How the window shows its chat and its editor parts. Unset in windows without layout modes. */
+export const LayoutModeContext = new RawContextKey<string | undefined>('layoutMode', undefined, { type: 'string', description: localize('layoutMode', "How the window shows its chat and its editor parts, either 'chatOnly', 'editorOnly', 'stacked' or 'sideBySide'. Unset in windows without layout modes.") });
+
+/** How the window arranges its chat and its editor parts while both show, or will next show. Unset in windows without layout modes. */
+export const SplitLayoutContext = new RawContextKey<string | undefined>('splitLayout', undefined, { type: 'string', description: localize('splitLayout', "How the window arranges its chat and its editor parts while both show, or as they will next show together, either 'stacked' or 'sideBySide'. Unset in windows without layout modes.") });
+
+/** Whether the window shows the part that holds its terminals. Unset in windows without such a part. */
+export const TerminalsVisibleContext = new RawContextKey<boolean | undefined>('terminalsVisible', undefined, { type: 'boolean', description: localize('terminalsVisible', "Whether the window shows the part that holds its terminals. Unset in windows without such a part.") });
+
+/** Where the part that holds the window's terminals sits. Unset in windows without such a part. */
+export const TerminalsPositionContext = new RawContextKey<string | undefined>('terminalsPosition', undefined, { type: 'string', description: localize('terminalsPosition', "Where the part that holds the window's terminals sits, either 'underChat', 'underEditor' or 'fullWidth'. Unset in windows without such a part.") });
+
+//#endregion
+
+
 //#region < --- Views --- >
 
 export const FocusedViewContext = new RawContextKey<string>('focusedView', '', localize('focusedView', "The identifier of the view that has keyboard focus"));
 export function getVisbileViewContextKey(viewId: string): string { return `view.${viewId}.visible`; }
+
+/**
+ * The context key that enables the command that opens a view container, and
+ * scopes its default keybinding, and so the keybindings that users assign it
+ * in the Keyboard Shortcuts editor.
+ */
+export function getEnabledViewContainerContextKey(viewContainerId: string): string { return `viewContainer.${viewContainerId}.enabled`; }
 
 //#endregion
 

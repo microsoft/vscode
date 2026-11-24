@@ -223,7 +223,7 @@ export class LocalStorageSecretStorageProvider implements ISecretStorageProvider
 
 	private loadAuthSessionFromElement(): Record<string, string> {
 		let authSessionInfo: (AuthenticationSessionInfo & { scopes: string[][] }) | undefined;
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		const authSessionElement = mainWindow.document.getElementById('vscode-workbench-auth-session');
 		const authSessionElementAttribute = authSessionElement ? authSessionElement.getAttribute('data-settings') : undefined;
 		if (authSessionElementAttribute) {
@@ -604,11 +604,11 @@ function readCookie(name: string): string | undefined {
 (function () {
 
 	// This script running at all means the page scripts were not blocked or rewritten.
-	// eslint-disable-next-line no-restricted-syntax
+	// eslint-disable-next-line eslint-js/no-restricted-syntax
 	mainWindow.document.getElementById('vscode-startup-fallback')?.remove();
 
 	// Find config by checking for DOM
-	// eslint-disable-next-line no-restricted-syntax
+	// eslint-disable-next-line eslint-js/no-restricted-syntax
 	const configElement = mainWindow.document.getElementById('vscode-workbench-web-configuration');
 	const configElementAttribute = configElement ? configElement.getAttribute('data-settings') : undefined;
 	if (!configElement || !configElementAttribute) {

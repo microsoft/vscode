@@ -6,6 +6,7 @@
 import * as sqlite3 from '@vscode/sqlite3';
 import * as fs from 'fs';
 import { Suite, Context } from 'mocha';
+import { tmpdir } from 'os';
 import { dirname, join } from 'path';
 import { Application, ApplicationOptions, IModelConfigSection, Logger } from '../../automation';
 
@@ -14,10 +15,15 @@ export interface MockLlmServer {
 	readonly url: string;
 	requestCount(): number;
 	getRequests(): readonly { readonly path: string; readonly method: string; readonly body: unknown }[];
+	closeConnections(): void;
 	close(): Promise<void>;
 }
 
-/** Checks only the latest user message so scenario tags from earlier turns cannot match. */
+/**
+ * Checks only the latest user message so scenario tags from earlier turns cannot match.
+ * The runtime may append text-only user items that contain only `<system_reminder>` blocks
+ * (for example, when deferred tools are available) after the prompt; those are skipped.
+ */
 export function latestUserInputCarriesTag(body: unknown, scenarioTag: string): boolean {
 	if (!body || typeof body !== 'object') {
 		return false;
@@ -28,18 +34,40 @@ export function latestUserInputCarriesTag(body: unknown, scenarioTag: string): b
 		return false;
 	}
 
-	const message = input.findLast((item: unknown): item is Record<string, unknown> =>
-		!!item && typeof item === 'object' && (item as Record<string, unknown>).role === 'user');
-	const content = message?.content;
-	const text = typeof content === 'string'
-		? content
-		: Array.isArray(content)
-			? content.map((part: unknown) => {
-				const text = part && typeof part === 'object' ? (part as Record<string, unknown>).text : undefined;
-				return typeof text === 'string' ? text : '';
-			}).join('')
-			: '';
-	return text.includes(scenarioTag);
+	for (let i = input.length - 1; i >= 0; i--) {
+		const item: unknown = input[i];
+		if (!item || typeof item !== 'object' || (item as Record<string, unknown>).role !== 'user') {
+			continue;
+		}
+		const content = (item as Record<string, unknown>).content;
+		const text = getMessageText(content);
+		const withoutReminders = text.replace(/<system_reminder>[\s\S]*?<\/system_reminder>/g, '');
+		if (isTextOnly(content) && withoutReminders !== text && !withoutReminders.trim()) {
+			continue;
+		}
+		return text.includes(scenarioTag);
+	}
+	return false;
+}
+
+function getMessageText(content: unknown): string {
+	if (typeof content === 'string') {
+		return content;
+	}
+	if (!Array.isArray(content)) {
+		return '';
+	}
+	return content.map((part: unknown) => {
+		const text = part && typeof part === 'object' ? (part as Record<string, unknown>).text : undefined;
+		return typeof text === 'string' ? text : '';
+	}).join('');
+}
+
+function isTextOnly(content: unknown): boolean {
+	return typeof content === 'string' || (Array.isArray(content) && content.every((part: unknown) => {
+		const record = part && typeof part === 'object' ? part as Record<string, unknown> : undefined;
+		return (record?.type === 'input_text' || record?.type === 'text') && typeof record.text === 'string';
+	}));
 }
 
 /**
@@ -363,6 +391,40 @@ export async function retryWithRestart(app: Application, testFn: () => Promise<u
 	}
 
 	throw lastError ?? new Error('retryWithRestart failed with an unknown error');
+}
+
+/**
+ * Written by `smoketest.openLocalChat` (`test/smoke/extensions/vscode-smoketest-ext-host`)
+ * once the chat view shows the new local chat it opened.
+ */
+const OPEN_LOCAL_CHAT_DONE_FILE = join(tmpdir(), 'vscode-smoketest-open-local-chat-done.txt');
+
+/**
+ * Opens a new local chat in the chat view with `smoketest.openLocalChat`, and
+ * returns once the view shows it.
+ *
+ * The command palette closes before the command has run. In a fresh window
+ * the command can run seconds later, once the extension host has activated
+ * the smoke test extension. Meanwhile the chat view can bind a session of its
+ * own, also a local one, and a message sent to it is left running in the
+ * background when the command opens its new chat. So wait for the command to
+ * finish rather than for the view to show some other local chat.
+ */
+export async function openLocalChatInChatView(app: Application): Promise<void> {
+	fs.rmSync(OPEN_LOCAL_CHAT_DONE_FILE, { force: true });
+	const previousSessionResource = await app.workbench.chat.getChatViewSessionResource();
+	await app.workbench.quickaccess.runCommand('smoketest.openLocalChat');
+
+	// The command itself waits up to 60 seconds for New Local Chat to be registered.
+	const deadline = Date.now() + 90_000;
+	while (!fs.existsSync(OPEN_LOCAL_CHAT_DONE_FILE)) {
+		if (Date.now() > deadline) {
+			throw new Error('Timed out waiting for smoketest.openLocalChat to open a new local chat');
+		}
+		await timeout(100);
+	}
+
+	await app.workbench.chat.waitForNewLocalChatViewSession(previousSessionResource);
 }
 
 export interface ITask<T> {

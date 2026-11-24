@@ -7,24 +7,42 @@ import { OperatingSystem } from '../../../base/common/platform.js';
 import { AgentSandboxEnabledValue, normalizeSandboxFileSystemPath } from '../../sandbox/common/settings.js';
 import { SandboxSettingsResolutionHelper } from '../../sandbox/common/sandboxSettingsResolutionHelper.js';
 import { platformSessionSchema } from '../common/agentHostSchema.js';
-import { AgentHostSandboxConfigKey, AgentHostSandboxKey, sandboxConfigSchema, type ISandboxConfigValue } from '../common/sandboxConfigSchema.js';
+import { AgentHostSandboxConfigKey, AgentHostSandboxKey, resolveRootSandboxConfig, sandboxConfigSchema, type ISandboxConfigValue } from '../common/sandboxConfigSchema.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
+import { resolveSessionSandboxPaths, type ISessionSandboxPaths } from '../common/sandboxPathGrant.js';
 import type { IAgentChatConfigurationTarget, IAgentConfigurationService } from './agentConfigurationService.js';
 import type { ISessionSandboxPolicy } from '../common/meta/agentSandboxPolicyMeta.js';
 
 export type { ISessionSandboxPolicy } from '../common/meta/agentSandboxPolicyMeta.js';
+
+/** The host's default sandbox values for new sessions, including the assigned sandbox profile. */
+export function getRootSandboxConfig(configuration: IAgentConfigurationService): ISandboxConfigValue | undefined {
+	return resolveRootSandboxConfig(
+		configuration.getRootValue(sandboxConfigSchema, AgentHostSandboxConfigKey.Sandbox),
+		configuration.getRootValue(sandboxConfigSchema, AgentHostSandboxConfigKey.SandboxProfile),
+	);
+}
 
 /**
  * Resolves a chat's sandbox settings for the executing Agent Host, independently
  * of the client's OS or configuration source: the chat's own selection over the
  * session's, within the session's policy floor.
  */
-export function getSessionSandboxConfig(configuration: IAgentConfigurationService, target: IAgentChatConfigurationTarget, platform: NodeJS.Platform = process.platform): ISandboxConfigValue {
+export function getSessionSandboxConfig(configuration: IAgentConfigurationService, target: IAgentChatConfigurationTarget, platform: NodeJS.Platform = process.platform, workspacePaths?: ISessionSandboxPaths): ISandboxConfigValue {
 	const sandbox = {
-		...configuration.getRootValue(sandboxConfigSchema, AgentHostSandboxConfigKey.Sandbox),
+		...getRootSandboxConfig(configuration),
 		...getSessionSandboxOverrides(configuration, target),
 	};
 	const policy = configuration.getSessionSandboxPolicy(target.session);
+	const sessionPaths = configuration.getSessionSandboxPaths(target.session);
+	if (workspacePaths || sessionPaths) {
+		const os = platform === 'win32' ? OperatingSystem.Windows : platform === 'darwin' ? OperatingSystem.Macintosh : OperatingSystem.Linux;
+		for (const paths of [workspacePaths, sessionPaths]) {
+			if (paths) {
+				sandbox[AgentHostSandboxKey.UserConfiguredPaths] = resolveSessionSandboxPaths(sandbox[AgentHostSandboxKey.UserConfiguredPaths], paths, os);
+			}
+		}
+	}
 	const addCurrentWorkingDirectory = SandboxSettingsResolutionHelper.resolveAllowAccess(
 		sandbox[AgentHostSandboxKey.AddCurrentWorkingDirectory],
 		policy?.addCurrentWorkingDirectory,

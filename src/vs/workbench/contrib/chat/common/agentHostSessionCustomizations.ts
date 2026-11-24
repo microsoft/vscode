@@ -27,7 +27,21 @@ import {
 	type ToolCallState,
 	type Turn,
 } from '../../../../platform/agentHost/common/state/sessionState.js';
-import { ISessionChatCustomization, SessionCustomizationKind } from './sessionChatCustomizations.js';
+import { getSkillCustomizations } from '../../../../platform/agentHost/common/customizationEnablement.js';
+import { readCustomizationDiscoveryMeta } from '../../../../platform/agentHost/common/meta/customizationDiscoveryMeta.js';
+import { AICustomizationSource, AICustomizationSources } from './aiCustomizationWorkspaceService.js';
+import { ISessionChatCustomization, SessionCustomizationKind } from '../../../common/sessionChatCustomizations.js';
+
+/** Maps host-reported discovery provenance to the shared customization source. */
+export function getAgentHostCustomizationSource(customization: Customization | ChildCustomization): AICustomizationSource | undefined {
+	switch (readCustomizationDiscoveryMeta(customization)?.source) {
+		case 'repository': return AICustomizationSources.local;
+		case 'user': return AICustomizationSources.user;
+		case 'plugin': return AICustomizationSources.plugin;
+		case 'builtin': return AICustomizationSources.builtin;
+		default: return undefined;
+	}
+}
 
 /**
  * A reference to a customization extracted from a chat's output stream.
@@ -286,6 +300,11 @@ export class CustomizationIndex {
 			this._add(customization, uri => getAgentHostCustomizationUri(uri, connection, customization.type === CustomizationType.Plugin ? customization : undefined));
 			for (const child of container?.children ?? []) {
 				this._add(child, uri => getAgentHostCustomizationUri(uri, connection));
+			}
+		}
+		for (const { skill, container } of getSkillCustomizations(customizations ?? [])) {
+			if (container.type === CustomizationType.McpServer) {
+				this._add(skill, uri => getAgentHostCustomizationUri(uri, connection));
 			}
 		}
 		this._reuseResolvedPaths(previous);
