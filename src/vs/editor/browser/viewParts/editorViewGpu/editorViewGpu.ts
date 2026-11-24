@@ -1258,7 +1258,9 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 			}
 		}
 		for (const run of this._lineState.indentGuidesToSend(start, counts, activeLevels)) {
-			this._applyDelta({ type: 'setIndentGuides', ...run });
+			// Named, not spread: the Monaco build's tree shaker drops interface
+			// members nothing reads by name.
+			this._applyDelta({ type: 'setIndentGuides', start: run.start, counts: run.counts, activeLevels: run.activeLevels });
 		}
 	}
 
