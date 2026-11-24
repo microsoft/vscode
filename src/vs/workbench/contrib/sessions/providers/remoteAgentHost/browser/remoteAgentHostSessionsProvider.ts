@@ -1332,6 +1332,8 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 			return;
 		}
 		this._unpublished = true;
+		// Pending first turns are listed too, so lookups must drop them even when the cache is empty.
+		this._invalidateSessionCatalog();
 		if (this._sessionCache.size > 0) {
 			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [] });
 		}

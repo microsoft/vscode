@@ -713,6 +713,33 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		});
 	}));
 
+	test('resource lookups stop finding a pending first turn as soon as its host is unpublished', async () => {
+		const provider = createProvider(disposables, connection, { openSession: true });
+		const session = provider.createNewSession(URI.parse('vscode-agent-host://localhost__4321/home/user/project'), provider.sessionTypes[0].id);
+		const chat = await provider.createNewChat(session.sessionId);
+		const draftAdvertised = new DeferredPromise<void>();
+		disposables.add(provider.onDidChangeSessions(e => {
+			if (e.added.includes(session)) {
+				draftAdvertised.complete();
+			}
+		}));
+		const request = provider.sendRequest(session.sessionId, chat.resource, { query: 'hello' });
+		await draftAdvertised.p;
+		const management = createManagementService(provider);
+		const pending = { listed: provider.getAllSessions().map(s => s.resource.toString()), found: management.getSession(session.resource)?.resource.toString() };
+
+		provider.unpublishCachedSessions();
+		const hidden = { listed: provider.getAllSessions().map(s => s.resource.toString()), found: management.getSession(session.resource)?.resource.toString() };
+
+		fireSessionAdded(connection, AgentSession.id(session.resource));
+		await request.catch(() => undefined);
+
+		assert.deepStrictEqual({ pending, hidden }, {
+			pending: { listed: [session.resource.toString()], found: session.resource.toString() },
+			hidden: { listed: [], found: undefined },
+		});
+	});
+
 	test('a restored visible chat keeps its facade while runtime fields and interactivity hydrate', () => {
 		const entry = createCloudSandboxTaskSession({ taskId: 'task', name: 'Summary' });
 		const chat = entry.session.mainChat.get();
