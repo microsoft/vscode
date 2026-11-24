@@ -14,6 +14,8 @@ import {
 	AgentTaskGitHubResourceData,
 	AgentTaskListEventsResponse,
 	AgentTaskListResponse,
+	AgentTaskRepository,
+	AgentTaskSession,
 	AgentTaskSessionEvent,
 	AgentTaskSteerRequest,
 	RequestType,
@@ -21,7 +23,7 @@ import {
 import { IAuthenticationService } from '../../../platform/authentication/common/authentication';
 import { ICAPIClientService } from '../../../platform/endpoint/common/capiClient';
 import { GithubRepoId } from '../../../platform/git/common/gitService';
-import { IOctoKitService } from '../../../platform/github/common/githubService';
+import { AuthOptions, IOctoKitService } from '../../../platform/github/common/githubService';
 import { ILogService } from '../../../platform/log/common/logService';
 import { ICloudBackendInstrumentation } from './cloudBackendTelemetry';
 import {
@@ -61,6 +63,15 @@ interface TaskClient {
 interface TaskWithEnvironment extends AgentTask {
 	readonly current_environment?: { readonly kind?: string } | null;
 	readonly clients?: readonly TaskClient[];
+}
+
+/** Additional fields on the task detail response not yet declared by the API client. */
+interface TaskWithAutomation extends AgentTaskGetResponse {
+	readonly automation_id?: string | null;
+	readonly automation_revision_id?: string | null;
+	readonly custom_agent?: { readonly is_automation?: boolean } | null;
+	readonly repository?: AgentTaskRepository & { readonly full_name?: string };
+	readonly sessions?: readonly (AgentTaskSession & { readonly event_content?: string })[];
 }
 
 /**
@@ -357,6 +368,31 @@ export class TaskApiBackend implements CloudAgentBackend {
 		}
 	}
 
+	async getInitialAutomationPrompt(task: TaskWithAutomation): Promise<string | undefined> {
+		const automationId = task.automation_id;
+		if (!automationId && task.custom_agent?.is_automation !== true) {
+			return undefined;
+		}
+		const eventContent = task.sessions?.[0]?.event_content;
+		if (typeof eventContent === 'string' && eventContent.trim()) {
+			return eventContent;
+		}
+		if (automationId) {
+			try {
+				const nwo = task.repository?.full_name?.split('/');
+				const repo = nwo?.length === 2 ? { owner: nwo[0], name: nwo[1] } : await this._resolveRepoForTask(task, {});
+				if (repo) {
+					const revision = task.automation_revision_id;
+					return await this._octoKitService.getAutomationPrompt(repo.owner, repo.name, automationId, revision && revision !== 'unknown' ? revision : undefined) ?? '';
+				}
+			} catch {
+				// Never log the response or substitute today's definition for a failed revision lookup.
+				this._logService.warn('Could not load the initial automation prompt for cloud task history.');
+			}
+		}
+		return '';
+	}
+
 	async fetchTaskEvents(taskId: string): Promise<readonly AgentTaskSessionEvent[]> {
 		const perPage = 100;
 		const events: AgentTaskSessionEvent[] = [];
@@ -390,7 +426,7 @@ export class TaskApiBackend implements CloudAgentBackend {
 	}
 
 	async createPullRequestForTask(task: AgentTaskGetResponse): Promise<AgentTaskCreatePullRequestResponse> {
-		const repo = await this._resolveRepoForTask(task);
+		const repo = await this._resolveRepoForTask(task, { createIfNone: { detail: l10n.t('Sign in to GitHub to create a pull request.') } });
 		if (!repo) {
 			throw new Error(l10n.t('Unable to determine the repository for this task.'));
 		}
@@ -407,14 +443,14 @@ export class TaskApiBackend implements CloudAgentBackend {
 	 * absent the Task API only exposes the numeric `repository.id`, which we resolve to a
 	 * name-with-owner via the GitHub REST repositories-by-id endpoint.
 	 */
-	private async _resolveRepoForTask(task: AgentTaskGetResponse): Promise<{ owner: string; name: string } | undefined> {
+	private async _resolveRepoForTask(task: AgentTaskGetResponse, authOptions: AuthOptions): Promise<{ owner: string; name: string } | undefined> {
 		const fromUrl = parseRepoFromTaskUrl(task.html_url);
 		if (fromUrl) {
 			return fromUrl;
 		}
 		const repoId = (task.repository as { id?: number } | undefined)?.id;
 		if (typeof repoId === 'number') {
-			const resolved = await this._octoKitService.getRepositoryById(repoId, { createIfNone: { detail: l10n.t('Sign in to GitHub to create a pull request.') } });
+			const resolved = await this._octoKitService.getRepositoryById(repoId, authOptions);
 			if (resolved) {
 				return resolved;
 			}
