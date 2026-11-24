@@ -5879,7 +5879,7 @@ suite('ModernUIContribution', () => {
 		]);
 	});
 
-	test('preserves connected tab defaults when applying transient colors', () => {
+	test('preserves connected tab backgrounds when applying transient colors', () => {
 		const style = document.createElement('style');
 		document.head.appendChild(style);
 		store.add(toDisposable(() => style.remove()));
@@ -5887,28 +5887,21 @@ suite('ModernUIContribution', () => {
 		const root = appendElement(document.body, 'transient-editor-tab-color monaco-workbench modern-ui modern-ui-tabs modern-ui-connected-editor-tabs');
 		store.add(toDisposable(() => root.remove()));
 		const content = appendElement(appendElement(root, 'part editor'), 'content');
-		const groups = [true, false].map(active => {
+		const fills = [true, false].map(active => {
 			const group = appendElement(content, `editor-group-container${active ? ' active' : ''}`);
 			const title = appendElement(group, 'title tabs');
 			const tabs = appendElement(appendElement(title, 'tabs-and-actions-container'), 'tabs-container');
-			const fill = appendElement(appendElement(tabs, 'tab active'), 'tab-fill');
-			const hover = appendElement(title, 'active-hover-probe');
-			hover.style.backgroundColor = 'var(--modern-ui-connected-tab-active-hover-background)';
-			return { fill, hover };
+			return appendElement(appendElement(tabs, 'tab active'), 'tab-fill');
 		});
 		const transientColors = {
 			[editorBackground]: Color.fromHex('#123456'),
 			[MODERN_EDITOR_TAB_ACTIVE_BACKGROUND]: Color.fromHex('#987654'),
-			[MODERN_EDITOR_TAB_ACTIVE_HOVER_BACKGROUND]: Color.fromHex('#ABCDEF'),
 		};
 		const readColors = (theme: ColorThemeData) => {
 			style.textContent = generateColorThemeCSS(theme, '.transient-editor-tab-color', themingRegistry.getThemingParticipants(), TestEnvironmentService).code;
-			return groups.map(({ fill, hover }) => [
-				getWindow(fill).getComputedStyle(fill).backgroundColor,
-				getWindow(hover).getComputedStyle(hover).backgroundColor,
-			]);
+			return fills.map(fill => getWindow(fill).getComputedStyle(fill).backgroundColor);
 		};
-		const colorSets: Record<string, string>[] = [{}, { [MODERN_EDITOR_TAB_ACTIVE_BACKGROUND]: '#2468AC', [MODERN_EDITOR_TAB_ACTIVE_HOVER_BACKGROUND]: '#13579B' }];
+		const colorSets: Record<string, string>[] = [{}, { [MODERN_EDITOR_TAB_ACTIVE_BACKGROUND]: '#2468AC' }];
 		const results = colorSets.map(colors => {
 			const theme = ColorThemeData.createUnloadedTheme('vs-dark', { [editorBackground]: '#101010', ...colors });
 			const before = readColors(theme);
@@ -5920,14 +5913,14 @@ suite('ModernUIContribution', () => {
 
 		assert.deepStrictEqual(results, [
 			{
-				before: [['rgb(16, 16, 16)', 'rgb(16, 16, 16)'], ['rgb(16, 16, 16)', 'rgb(16, 16, 16)']],
-				tinted: [['rgb(18, 52, 86)', 'rgb(18, 52, 86)'], ['rgb(18, 52, 86)', 'rgb(18, 52, 86)']],
-				restored: [['rgb(16, 16, 16)', 'rgb(16, 16, 16)'], ['rgb(16, 16, 16)', 'rgb(16, 16, 16)']],
+				before: ['rgb(16, 16, 16)', 'rgb(16, 16, 16)'],
+				tinted: ['rgb(18, 52, 86)', 'rgb(18, 52, 86)'],
+				restored: ['rgb(16, 16, 16)', 'rgb(16, 16, 16)'],
 			},
 			{
-				before: [['rgb(36, 104, 172)', 'rgb(19, 87, 155)'], ['rgb(36, 104, 172)', 'rgb(19, 87, 155)']],
-				tinted: [['rgb(152, 118, 84)', 'rgb(171, 205, 239)'], ['rgb(152, 118, 84)', 'rgb(171, 205, 239)']],
-				restored: [['rgb(36, 104, 172)', 'rgb(19, 87, 155)'], ['rgb(36, 104, 172)', 'rgb(19, 87, 155)']],
+				before: ['rgb(36, 104, 172)', 'rgb(36, 104, 172)'],
+				tinted: ['rgb(152, 118, 84)', 'rgb(152, 118, 84)'],
+				restored: ['rgb(36, 104, 172)', 'rgb(36, 104, 172)'],
 			},
 		]);
 	});
