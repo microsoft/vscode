@@ -423,7 +423,6 @@ suite('SessionCustomizationDiscovery', () => {
 	test('watches COPILOT_HOME settings for hook changes without offering the home as a hook directory', async () => {
 		const copilotHome = inMemoryPathToUri('/custom-copilot');
 		instantiationService.stub(ICopilotHomeService, new TestCopilotHomeService(userHome, copilotHome));
-		await fileService.createFolder(copilotHome);
 		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [workspace], userHome, inMemoryPathToUri));
 		const client = hookDiscoveryClient(async () => ({ hooks: [], warnings: [], errors: [] }));
 		await discovery.discover(client, CancellationToken.None);
@@ -439,6 +438,8 @@ suite('SessionCustomizationDiscovery', () => {
 		};
 
 		const settingsPath = '/custom-copilot/settings.json';
+		const homeCreated = await triggersRefresh(() => fileService.createFolder(copilotHome));
+		await discovery.discover(client, CancellationToken.None);
 		const unrelated = await triggersRefresh(() => seed('/custom-copilot/state.json', '{}'));
 		const created = await triggersRefresh(() => seed(settingsPath, '{}'));
 		const updated = await triggersRefresh(() => seed(settingsPath, '{"disableAllHooks": true}'));
@@ -448,7 +449,8 @@ suite('SessionCustomizationDiscovery', () => {
 			.sort();
 		const deleted = await triggersRefresh(() => fileService.del(inMemoryPathToUri(settingsPath)));
 
-		assert.deepStrictEqual({ unrelated, created, updated, deleted, hookDirectories }, {
+		assert.deepStrictEqual({ homeCreated, unrelated, created, updated, deleted, hookDirectories }, {
+			homeCreated: true,
 			unrelated: false,
 			created: true,
 			updated: true,
@@ -1127,7 +1129,7 @@ suite('SessionCustomizationDiscovery', () => {
 			.sort((a, b) => a.uri.localeCompare(b.uri));
 
 		assert.deepStrictEqual(directories, [
-			{ contents: 'rule', uri: '/home', writable: false, children: ['/home/.copilot/copilot-instructions.md'] },
+			{ contents: 'rule', uri: '/home/.copilot', writable: false, children: ['/home/.copilot/copilot-instructions.md'] },
 			{ contents: 'hook', uri: '/home/.copilot/hooks', writable: true, children: [] },
 			{ contents: 'rule', uri: '/workspace', writable: false, children: ['/workspace/.github/copilot-instructions.md', '/workspace/AGENTS.md'] },
 			{ contents: 'agent', uri: '/workspace/.github/agents', writable: true, children: ['/workspace/.github/agents/foo.agent.md'] },
@@ -1261,11 +1263,12 @@ suite('SessionCustomizationDiscovery', () => {
 	});
 
 	test('discover groups case-variant instructions and nested skills under their roots', async () => {
-		const caseVariantUserHome = URI.from({ scheme: Schemas.inMemory, path: '/HOME' });
-		await seed('/home/.copilot/copilot-instructions.md', 'user copilot instructions');
+		const copilotHome = inMemoryPathToUri('/COPILOT-HOME');
+		instantiationService.stub(ICopilotHomeService, new TestCopilotHomeService(userHome, copilotHome));
+		await seed('/copilot-home/copilot-instructions.md', 'user copilot instructions');
 		await seed('/workspace/.github/skills/bar/SKILL.md', 'skill body');
 
-		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [workspace], caseVariantUserHome, inMemoryPathToUri));
+		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [workspace], userHome, inMemoryPathToUri));
 		const client = {
 			rpc: {
 				hooks: { discover: async () => ({ hooks: [], warnings: [], errors: [] }) },
@@ -1275,8 +1278,8 @@ suite('SessionCustomizationDiscovery', () => {
 					discover: async () => ({ agents: [] }),
 				},
 				instructions: {
-					getDiscoveryPaths: async () => ({ paths: [{ path: '/home/.copilot/copilot-instructions.md', kind: 'file' }] }),
-					discover: async () => ({ sources: [{ id: 'userInstruction', label: 'User instruction', sourcePath: '/home/.copilot/copilot-instructions.md', type: 'home' }] }),
+					getDiscoveryPaths: async () => ({ paths: [{ path: '/copilot-home/copilot-instructions.md', kind: 'file' }] }),
+					discover: async () => ({ sources: [{ id: 'userInstruction', label: 'User instruction', sourcePath: '/copilot-home/copilot-instructions.md', type: 'home' }] }),
 				},
 				skills: {
 					getDiscoveryPaths: async () => ({
@@ -1300,7 +1303,7 @@ suite('SessionCustomizationDiscovery', () => {
 			}));
 
 		assert.deepStrictEqual(directories, [
-			{ contents: 'rule', uri: '/HOME', children: ['/home/.copilot/copilot-instructions.md'] },
+			{ contents: 'rule', uri: '/COPILOT-HOME', children: ['/copilot-home/copilot-instructions.md'] },
 			{ contents: 'skill', uri: '/workspace/.github/skills', children: ['/workspace/.github/skills/bar/SKILL.md'] },
 		]);
 	});
@@ -1346,6 +1349,8 @@ suite('SessionCustomizationDiscovery', () => {
 	});
 
 	test('does not fire onDidChange for unrelated changes under the workspace or user home', async () => {
+		instantiationService.stub(ICopilotHomeService, new TestCopilotHomeService(userHome, inMemoryPathToUri('/custom-copilot')));
+		await seed('/custom-copilot/copilot-instructions.md', 'copilot instructions');
 		await seed('/home/.claude/CLAUDE.md', 'user instructions');
 		await seed('/workspace/AGENTS.md', 'workspace instructions');
 		await fileService.createFolder(URI.from({ scheme: Schemas.inMemory, path: '/home/.copilot/skills' }));
@@ -1365,6 +1370,7 @@ suite('SessionCustomizationDiscovery', () => {
 						paths: [
 							{ path: '/workspace/AGENTS.md', kind: 'file' },
 							{ path: '/home/.claude/CLAUDE.md', kind: 'file' },
+							{ path: '/custom-copilot/copilot-instructions.md', kind: 'file' },
 						],
 					}),
 					discover: async () => ({ sources: [] }),
@@ -1393,7 +1399,8 @@ suite('SessionCustomizationDiscovery', () => {
 			await expectChange('unrelated file in user home', () => seed('/home/unrelated.txt')),
 			await expectChange('unrelated file in ~/.copilot', () => seed('/home/.copilot/state.json')),
 			await expectChange('unrelated file in workspace', () => seed('/workspace/src/file.ts')),
-			await expectChange('user instruction file', () => seed('/home/.claude/CLAUDE.md', 'changed')),
+			await expectChange('instruction file outside Copilot home', () => seed('/home/.claude/CLAUDE.md', 'changed')),
+			await expectChange('Copilot home instruction file', () => seed('/custom-copilot/copilot-instructions.md', 'changed')),
 			await expectChange('workspace instruction file', () => seed('/workspace/AGENTS.md', 'changed')),
 			await expectChange('user skill', () => seed('/home/.copilot/skills/new/SKILL.md', 'skill')),
 		];
@@ -1402,7 +1409,8 @@ suite('SessionCustomizationDiscovery', () => {
 			'unrelated file in user home: false',
 			'unrelated file in ~/.copilot: false',
 			'unrelated file in workspace: false',
-			'user instruction file: true',
+			'instruction file outside Copilot home: false',
+			'Copilot home instruction file: true',
 			'workspace instruction file: true',
 			'user skill: true',
 		]);
