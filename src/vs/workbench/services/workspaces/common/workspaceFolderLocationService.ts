@@ -168,6 +168,10 @@ export class WorkspaceFolderLocationService extends Disposable implements IWorks
 		return groups;
 	}
 
+	areProvidersReady(): boolean {
+		return this.providers.every(({ provider }) => provider.isReady !== false);
+	}
+
 	async resolveLocation(primary: URI, location: URI, token: CancellationToken): Promise<IResolvedFolderLocation | undefined> {
 		for (const { provider, builtIn } of [...this.providers]) {
 			try {

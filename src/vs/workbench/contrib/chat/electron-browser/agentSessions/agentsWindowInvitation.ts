@@ -37,7 +37,8 @@ import { ChatConfiguration, OPEN_AGENTS_WINDOW_PRECONDITION } from '../../common
 import { IChatModel } from '../../common/model/chatModel.js';
 import { isUntitledChatSession } from '../../common/model/chatUri.js';
 import { IAgentHostEditorActivityService } from './agentHostEditorActivity.js';
-import { getActiveWorkspaceFolder, getRemoteSessionHandoff, isAgentHostChatWidget, registerAgentsWindowTreatments } from './agentSessionsActions.js';
+import { getActiveWorkspaceFolder, getRemoteSessionHandoff, isAgentHostChatWidget } from './agentSessionsActions.js';
+import { registerAgentsWindowTreatments } from '../../browser/agentSessions/agentsWindowTreatments.js';
 
 interface IInvitationPresentation {
 	readonly invitation: IAgentsWindowInvitation;

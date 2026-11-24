@@ -34,6 +34,7 @@ import { autorun } from '../../../../base/common/observable.js';
 import { CheckoutBlockedByLocalChangesError, EMPTY_TREE_OBJECT, GitRefType } from '../../common/agentHostGitService.js';
 import type { ISessionGitState } from '../../common/state/sessionState.js';
 import { AgentHostGitService } from '../../node/agentHostGitService.js';
+import { gitServiceArguments } from './agentHostGitServiceTestUtils.js';
 import { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { GitRepositoryRootsContribution } from '../../node/chatContributions/gitRepositoryRoots/gitRepositoryRootsContribution.js';
 import type { IAgentHostChatContributionContext, ITurnEnd } from '../../common/agentHostChatContributionsService.js';
@@ -59,7 +60,7 @@ function createGitService(disposables: Pick<DisposableStore, 'add'>, logService:
 	const fileService = disposables.add(new FileService(logService));
 	disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new DiskFileSystemProvider(logService))));
 	const env: Partial<INativeEnvironmentService> = { tmpDir: URI.file(tmpdir()) };
-	return new ctor(fileService, env as INativeEnvironmentService, logService);
+	return disposables.add(new ctor(...gitServiceArguments(disposables, fileService, env as INativeEnvironmentService, logService)));
 }
 
 /** Times git commands out after 300ms by default, so that tests can observe the default timeout quickly. */
@@ -1569,6 +1570,63 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 			lastMessage: 'commit all changes',
 			committedFiles: ['staged.txt', 'tracked.txt', 'untracked.txt'],
 		});
+	});
+
+	(hasGit ? test : test.skip)('commit with all stages tracked, staged and untracked changes', async () => {
+		const dir = initRepo();
+		const fs = await import('fs/promises');
+		await fs.writeFile(join(dir, 'tracked.txt'), 'before');
+		cp.execFileSync('git', ['add', 'tracked.txt'], { cwd: dir, env, stdio: 'pipe' });
+		cp.execFileSync('git', ['commit', '-q', '-m', 'add tracked'], { cwd: dir, env, stdio: 'pipe' });
+
+		await fs.writeFile(join(dir, 'tracked.txt'), 'after');
+		await fs.writeFile(join(dir, 'staged.txt'), 'staged');
+		cp.execFileSync('git', ['add', 'staged.txt'], { cwd: dir, env, stdio: 'pipe' });
+		await fs.writeFile(join(dir, 'untracked.txt'), 'untracked');
+
+		await svc!.commit(URI.file(dir), 'commit all changes', { all: true });
+
+		const status = cp.execFileSync('git', ['status', '--porcelain'], { cwd: dir, env, encoding: 'utf8' }).trim();
+		const lastMessage = cp.execFileSync('git', ['log', '-1', '--format=%s'], { cwd: dir, env, encoding: 'utf8' }).trim();
+		const committedFiles = cp.execFileSync('git', ['diff-tree', '--no-commit-id', '--name-only', '-r', 'HEAD'], { cwd: dir, env, encoding: 'utf8' }).trim().split(/\r?\n/g).sort();
+
+		assert.deepStrictEqual({ status, lastMessage, committedFiles }, {
+			status: '',
+			lastMessage: 'commit all changes',
+			committedFiles: ['staged.txt', 'tracked.txt', 'untracked.txt'],
+		});
+	});
+
+	(hasGit ? test : test.skip)('commit with all: tracked leaves untracked files out of the commit', async () => {
+		const dir = initRepo();
+		const fs = await import('fs/promises');
+		await fs.writeFile(join(dir, 'tracked.txt'), 'before');
+		cp.execFileSync('git', ['add', 'tracked.txt'], { cwd: dir, env, stdio: 'pipe' });
+		cp.execFileSync('git', ['commit', '-q', '-m', 'add tracked'], { cwd: dir, env, stdio: 'pipe' });
+
+		await fs.writeFile(join(dir, 'tracked.txt'), 'after');
+		await fs.writeFile(join(dir, 'untracked.txt'), 'untracked');
+
+		await svc!.commit(URI.file(dir), 'commit tracked changes', { all: 'tracked' });
+
+		const status = cp.execFileSync('git', ['status', '--porcelain'], { cwd: dir, env, encoding: 'utf8' }).trim();
+		const committedFiles = cp.execFileSync('git', ['diff-tree', '--no-commit-id', '--name-only', '-r', 'HEAD'], { cwd: dir, env, encoding: 'utf8' }).trim().split(/\r?\n/g);
+
+		assert.deepStrictEqual({ status, committedFiles }, { status: '?? untracked.txt', committedFiles: ['tracked.txt'] });
+	});
+
+	(hasGit ? test : test.skip)('commit with signCommit false does not sign even when commit.gpgSign is enabled', async () => {
+		const dir = initRepo();
+		const fs = await import('fs/promises');
+		cp.execFileSync('git', ['config', 'commit.gpgSign', 'true'], { cwd: dir, env, stdio: 'pipe' });
+		// Any signing attempt fails, as when a background passphrase prompt is dismissed.
+		cp.execFileSync('git', ['config', 'gpg.program', join(dir, 'missing-gpg')], { cwd: dir, env, stdio: 'pipe' });
+		await fs.writeFile(join(dir, 'work.txt'), 'work');
+
+		await svc!.commit(URI.file(dir), 'preserve work', { all: true, signCommit: false });
+
+		const [lastMessage, signatureStatus] = cp.execFileSync('git', ['log', '-1', '--format=%s%n%G?'], { cwd: dir, env, encoding: 'utf8' }).trim().split(/\r?\n/g);
+		assert.deepStrictEqual({ lastMessage, signatureStatus }, { lastMessage: 'preserve work', signatureStatus: 'N' });
 	});
 
 	(hasGit ? test : test.skip)('createStash stashes tracked, staged and untracked changes', async () => {

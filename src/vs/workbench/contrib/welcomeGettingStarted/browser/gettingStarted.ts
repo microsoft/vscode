@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, Dimension, addDisposableListener, append, clearNode, reset } from '../../../../base/browser/dom.js';
+import { $, Dimension, addDisposableListener, append, clearNode, getActiveElement, isAncestorOfActiveElement, isHTMLElement, reset } from '../../../../base/browser/dom.js';
 import { renderFormattedText } from '../../../../base/browser/formattedTextRenderer.js';
 import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
@@ -20,7 +20,7 @@ import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { splitRecentLabel } from '../../../../base/common/labels.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ILink, LinkedText } from '../../../../base/common/linkedText.js';
-import { autorun, derived, observableValue } from '../../../../base/common/observable.js';
+import { autorun, derived, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { parse } from '../../../../base/common/marshalling.js';
 import { Schemas, matchesScheme } from '../../../../base/common/network.js';
 import { OS } from '../../../../base/common/platform.js';
@@ -36,6 +36,7 @@ import { IAccessibilityService } from '../../../../platform/accessibility/common
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, ContextKeyExpression, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -72,7 +73,11 @@ import { IHostService } from '../../../services/host/browser/host.js';
 import { IWorkbenchThemeService } from '../../../services/themes/common/workbenchThemeService.js';
 import { GettingStartedIndexList } from './gettingStartedList.js';
 import { createAgentsBanner } from '../../chat/browser/agentSessions/agentSessionsBanner.js';
-import { AgentsWindowGraphic } from '../../chat/browser/agentSessions/agentsWindowGraphic.js';
+import { AgentsWindowGraphic, AgentsWindowGraphicDesign } from '../../chat/browser/agentSessions/agentsWindowGraphic.js';
+import { WelcomeSignInCard } from '../../chat/browser/agentSessions/welcomeSignInCard.js';
+import { AgentsWindowGraphicVariant, getWelcomePageCardSurface, WelcomeSignInStyle } from '../../chat/common/constants.js';
+import { GettingStartedFocusOutline } from './gettingStartedFocusOutline.js';
+import { ISizeService } from '../../../../platform/theme/common/sizeService.js';
 import { IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
 import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
 import { AccessibleViewAction } from '../../accessibility/browser/accessibleViewActions.js';
@@ -177,6 +182,7 @@ export class GettingStartedPage extends EditorPane {
 	private detailsRenderer: GettingStartedDetailsRenderer;
 
 	private readonly categoriesSlideDisposables: DisposableStore;
+	private readonly focusOutline: GettingStartedFocusOutline;
 	private readonly categoriesSlideShown = observableValue<boolean>(this, false);
 	private layoutAgentsWindowGraphic: (() => void) | undefined;
 	private showFeaturedWalkthrough = true;
@@ -213,6 +219,8 @@ export class GettingStartedPage extends EditorPane {
 		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
 		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@ISizeService sizeService: ISizeService,
 	) {
 
 		super(GettingStartedPage.ID, group, telemetryService, themeService, storageService);
@@ -223,6 +231,7 @@ export class GettingStartedPage extends EditorPane {
 				tabindex: 0,
 				'aria-label': localize('welcomeAriaLabel', "Overview of how to get up to speed with your editor.")
 			});
+		this.focusOutline = this._register(new GettingStartedFocusOutline(this.container, sizeService, themeService));
 		this.stepMediaComponent = $('.getting-started-media');
 		this.stepMediaComponent.id = generateUuid();
 
@@ -953,16 +962,33 @@ export class GettingStartedPage extends EditorPane {
 
 		const footerChildren: HTMLElement[] = [];
 		const agentsWindowGraphic = this.categoriesSlideDisposables.add(this.instantiationService.createInstance(AgentsWindowGraphic));
+		const signInCard = this.categoriesSlideDisposables.add(this.instantiationService.createInstance(WelcomeSignInCard));
 		const agentsBanner = createAgentsBanner(
 			{
 				cssClass: 'getting-started-category.agents-banner',
-				graphic: { element: agentsWindowGraphic.element, shownDesign: agentsWindowGraphic.shownDesign, isExposed: this.categoriesSlideShown, hasMultipleEditorWindows: agentsWindowGraphic.hasMultipleEditorWindows },
+				graphic: {
+					element: agentsWindowGraphic.element,
+					design: agentsWindowGraphic.design,
+					shownDesign: agentsWindowGraphic.shownDesign,
+					signedIn: agentsWindowGraphic.signedIn,
+					isExposed: this.categoriesSlideShown,
+					bannerCopyResolved: agentsWindowGraphic.bannerCopyResolved,
+					hide: () => agentsWindowGraphic.hide(),
+				},
+				signInCard: {
+					element: signInCard.element,
+					style: signInCard.style,
+					hidden: signInCard.hidden,
+					isExposed: this.categoriesSlideShown,
+					hide: () => signInCard.hide(),
+				},
 			},
 			this.commandService,
 			this.telemetryService,
 			this.configurationService,
 			this.chatEntitlementService,
 			this.defaultAccountService,
+			this.contextMenuService,
 		);
 		this.categoriesSlideDisposables.add(agentsBanner.disposables);
 		footerChildren.push(agentsBanner.element);
@@ -974,7 +1000,11 @@ export class GettingStartedPage extends EditorPane {
 		const footer = $('.footer', {}, ...footerChildren);
 		const categoriesContainer = $('.gettingStartedCategoriesContainer', {}, header, leftColumn, rightColumn, footer,);
 		const graphic = derived(reader => agentsBanner.visible.read(reader) ? agentsWindowGraphic.shownDesign.read(reader) : undefined);
-		const layoutAgentsWindowGraphic = () => this.fitAgentsWindowGraphic(categoriesContainer, graphic.get() !== undefined);
+		const cardSurface = observableFromEvent(this,
+			this.configurationService.onDidChangeConfiguration,
+			() => getWelcomePageCardSurface(this.configurationService),
+		);
+		const layoutAgentsWindowGraphic = () => this.fitAgentsWindowGraphic(categoriesContainer, graphic.get());
 
 		const layoutLists = () => {
 			if (gettingStartedList.itemCount) {
@@ -1008,10 +1038,27 @@ export class GettingStartedPage extends EditorPane {
 		reset(this.categoriesSlide, categoriesContainer);
 		this.categoriesPageScrollbar?.scanDomNode();
 
-		// The graphics and section styles differ in height, so fit again whenever either changes
+		// The graphics, the banner's text and the section styles differ in height, so fit again whenever any of them changes
 		this.categoriesSlideDisposables.add(autorun(reader => {
-			graphic.read(reader);
+			const shownGraphic = graphic.read(reader);
+			agentsWindowGraphic.shownBannerCopy.read(reader);
+			// The banner leads the page below its title, while the other graphic sits above the button in the footer.
+			// Only move the element when its place changes. Moving it blurs its button, so focus it again.
+			const parent = shownGraphic === AgentsWindowGraphicVariant.Banner ? categoriesContainer : footer;
+			if (agentsBanner.element.parentElement !== parent) {
+				const focused = isAncestorOfActiveElement(agentsBanner.element) ? getActiveElement() : undefined;
+				parent.insertBefore(agentsBanner.element, parent === footer ? footer.firstChild : leftColumn);
+				if (isHTMLElement(focused)) {
+					focused.focus();
+				}
+			}
+			categoriesContainer.setAttribute('data-agents-window-graphic', shownGraphic ?? AgentsWindowGraphicVariant.None);
 			categoriesContainer.setAttribute('data-agents-window-section-style', agentsWindowGraphic.sectionStyle.read(reader));
+			categoriesContainer.setAttribute('data-welcome-card-surface', cardSurface.read(reader));
+			// The sign-in card replaces the sign-in button at the bottom of the page.
+			const shownSignInCard = agentsBanner.visible.read(reader) ? agentsBanner.shownSignInCard.read(reader) : undefined;
+			categoriesContainer.setAttribute('data-welcome-sign-in', shownSignInCard ?? WelcomeSignInStyle.Button);
+			categoriesContainer.classList.toggle('welcome-sign-in-card-shown', shownSignInCard !== undefined);
 			layoutAgentsWindowGraphic();
 		}));
 		this.layoutAgentsWindowGraphic = layoutAgentsWindowGraphic;
@@ -1317,6 +1364,7 @@ export class GettingStartedPage extends EditorPane {
 		this.container.classList.toggle('width-constrained', size.width <= 400);
 		this.container.classList.toggle('width-semi-constrained', size.width <= 950);
 		this.layoutAgentsWindowGraphic?.();
+		this.focusOutline.update();
 
 		this.categoriesPageScrollbar?.scanDomNode();
 		this.detailsPageScrollbar?.scanDomNode();
@@ -1327,11 +1375,12 @@ export class GettingStartedPage extends EditorPane {
 	 * Shows the Agents window graphic above the Agents window button only if the page then fits without
 	 * scrolling. With room to spare, the graphic and button are set apart from the startup checkbox.
 	 * Otherwise tighter spacing makes room for the graphic, and if that isn't enough only the button is shown.
+	 * The banner leads the page instead, so it is never dropped: without room to spare, it is only made smaller.
 	 */
-	private fitAgentsWindowGraphic(categoriesContainer: HTMLElement, graphicAvailable: boolean): void {
+	private fitAgentsWindowGraphic(categoriesContainer: HTMLElement, design: AgentsWindowGraphicDesign | undefined): void {
 		let layout: 'spacious' | 'compact' | 'dropped' | undefined;
-		if (graphicAvailable) {
-			layout = 'dropped';
+		if (design) {
+			layout = design === AgentsWindowGraphicVariant.Banner ? 'compact' : 'dropped';
 			if (categoriesContainer.isConnected && this.categoriesSlide.clientHeight > 0) {
 				for (const candidate of ['spacious', 'compact'] as const) {
 					setAgentsWindowGraphicLayout(categoriesContainer, candidate);

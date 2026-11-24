@@ -569,6 +569,32 @@ suite('AgentHostFileSystemProvider - authority registrations', () => {
 		}
 	});
 
+	test('concurrent stats above the leak threshold do not report a listener leak', async () => {
+		// The test runner fails any test that reports an unexpected error, such as a ListenerLeakError.
+		disposables.add(setGlobalLeakWarningThreshold(5));
+		const provider = disposables.add(new AgentHostFileSystemProvider());
+		const connection = new NamedConnection('connection');
+		const burstSize = 30;
+		const resolve = new DeferredPromise<void>();
+		const allResolvesStarted = new DeferredPromise<void>();
+		let resolveCalls = 0;
+		connection.resourceResolve = async params => {
+			if (++resolveCalls === burstSize) {
+				allResolvesStarted.complete();
+			}
+			await resolve.p;
+			return { uri: params.uri.toString(), type: ResourceType.File };
+		};
+		disposables.add(provider.registerAuthority('client', connection));
+
+		const pending = Array.from({ length: burstSize }, (_, index) => provider.stat(agentHostUri('client', `/workspace/file${index}.txt`)));
+		await allResolvesStarted.p;
+		resolve.complete();
+		const stats = await Promise.all(pending);
+
+		assert.deepStrictEqual(stats.map(stat => stat.type), Array(burstSize).fill(FileType.File));
+	});
+
 	test('in-flight read rejection retries after its connection is replaced', async () => {
 		const provider = disposables.add(new AgentHostFileSystemProvider());
 		const first = new NamedConnection('first');

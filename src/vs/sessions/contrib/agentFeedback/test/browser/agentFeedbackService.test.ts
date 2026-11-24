@@ -22,6 +22,9 @@ import { IAgentFeedbackVariableEntry } from '../../../../../workbench/contrib/ch
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
+import { ResponseModelState } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { IChatResponseModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { IEditorService, IVisibleEditorsChangeEvent } from '../../../../../workbench/services/editor/common/editorService.js';
 import { ISessionsChangeEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
@@ -980,8 +983,8 @@ suite('AgentFeedbackService - Submit (agent host)', () => {
 	let fileA: URI;
 	let widgetOps: string[];
 	let addedEntries: IAgentFeedbackVariableEntry[];
-	/** Resolves when the (possibly queued) request is actually sent, i.e. when `acceptInput` resolves. */
-	let acceptInputSent: DeferredPromise<void>;
+	/** Settles `acceptInput` once the (possibly queued) request is sent, with its response, or without one if it is never sent. */
+	let acceptInputSent: DeferredPromise<IChatResponseModel | undefined>;
 	/** Whether the widget hands the request over to the chat service. */
 	let acceptsRequest: boolean;
 	let providerId: string;
@@ -996,11 +999,12 @@ suite('AgentFeedbackService - Submit (agent host)', () => {
 		widgetOps = [];
 		addedEntries = [];
 		widgetLookups = [];
-		acceptInputSent = new DeferredPromise<void>();
+		acceptInputSent = new DeferredPromise<IChatResponseModel | undefined>();
 		acceptsRequest = true;
 		providerId = LOCAL_AGENT_HOST_PROVIDER_ID;
 		sessionLoaded = true;
 		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IChatEditingService, new class extends mock<IChatEditingService>() { });
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
 		instantiationService.stub(IEditorService, new class extends mock<IEditorService>() {
@@ -1037,9 +1041,9 @@ suite('AgentFeedbackService - Submit (agent host)', () => {
 				if (acceptsRequest) {
 					options?.onRequestAccepted?.();
 				}
-				await acceptInputSent.p;
+				const response = await acceptInputSent.p;
 				widgetOps.push(`sent:${query}`);
-				return undefined;
+				return response;
 			},
 		} as unknown as IChatWidget;
 		loadSession = () => {
@@ -1201,7 +1205,7 @@ suite('AgentFeedbackService - Submit (agent host)', () => {
 
 	test('keeps feedback accepted when the request is not accepted by the widget', async () => {
 		acceptsRequest = false;
-		acceptInputSent.complete();
+		acceptInputSent.complete(undefined);
 		service.addFeedback(session, fileA, r(10), 'Please simplify');
 
 		const submitted = await service.submitFeedback(session);
@@ -1214,6 +1218,52 @@ suite('AgentFeedbackService - Submit (agent host)', () => {
 			state: AgentFeedbackState.Accepted,
 		});
 	});
+
+	test('keeps accepted feedback retryable after a send failure', async () => {
+		service.addFeedback(session, fileA, r(10), 'Please simplify');
+		await service.submitFeedback(session);
+		await acceptInputSent.error(new Error('Host unavailable before delivery'));
+		await timeout(0);
+
+		assert.strictEqual(service.getFeedback(session)[0].state, AgentFeedbackState.Accepted);
+	});
+
+	test('keeps accepted feedback retryable when its queued request is dropped before it is sent', async () => {
+		service.addFeedback(session, fileA, r(10), 'Please simplify');
+		await service.submitFeedback(session);
+		await acceptInputSent.complete(undefined);
+		await timeout(0);
+
+		assert.strictEqual(service.getFeedback(session)[0].state, AgentFeedbackState.Accepted);
+	});
+
+	for (const failed of [true, false]) {
+		test(`restores only this request's unresolved feedback once its response fails: ${failed}`, async () => {
+			const earlier = service.addFeedback(session, fileA, r(10), 'Submitted earlier');
+			const resolved = service.addFeedback(session, fileA, r(20), 'Resolved by the agent');
+			const unresolved = service.addFeedback(session, fileA, r(30), 'Not resolved by the agent');
+			service.addFeedback(session, fileA, r(40), 'Not submitted');
+			service.markFeedbackSubmitted(session, [earlier.id]);
+			const response = observableValue('responseState', ResponseModelState.Pending);
+
+			await service.submitFeedback(session, { feedbackIds: [resolved.id, unresolved.id] });
+			await acceptInputSent.complete({
+				get state() { return response.get(); },
+				isIncomplete: response.map(state => state === ResponseModelState.Pending),
+			} as unknown as IChatResponseModel);
+			service.setFeedbackResolved(session, resolved.id, true);
+			await timeout(0);
+			response.set(failed ? ResponseModelState.Failed : ResponseModelState.Complete, undefined);
+			await timeout(0);
+
+			assert.deepStrictEqual(service.getFeedback(session).map(item => item.state), [
+				AgentFeedbackState.Submitted,
+				AgentFeedbackState.Resolved,
+				failed ? AgentFeedbackState.Accepted : AgentFeedbackState.Submitted,
+				AgentFeedbackState.Accepted,
+			]);
+		});
+	}
 
 	test('waits for the session model to load into the widget before submitting', async () => {
 		sessionLoaded = false;

@@ -28,6 +28,20 @@
 	outline-offset: -1px;
 }
 
+.monaco-workbench .part.editor > .content .gettingStartedContainer.focus-outline-rounded:focus-visible {
+	outline: none;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer.focus-outline-rounded:focus-visible::after {
+	content: '';
+	position: absolute;
+	inset: 0;
+	border-radius: var(--getting-started-focus-outline-radius);
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+	pointer-events: none;
+}
+
 .monaco-workbench .part.editor > .content .gettingStartedContainer.loading {
 	display: none;
 }
@@ -1073,6 +1087,184 @@
 	cursor: pointer;
 	font-family: inherit;
 	font-size: 13px;
+}
+
+/* The Agents window banner leads the page below its title (`chat.welcomePage.agentsWindowGraphic` is `banner`). The fit sets it to the `shown` layout, never `dropped`. */
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories > .gettingStartedCategoriesContainer.agents-window-graphic-shown[data-agents-window-graphic="banner"] {
+	grid-template-areas:
+		".  header header header ."
+		". agents-banner agents-banner agents-banner ."
+		". left-column . right-column ."
+		". footer footer footer .";
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer:not(.width-constrained, .height-constrained) .gettingStartedSlideCategories > .gettingStartedCategoriesContainer.agents-window-graphic-shown[data-agents-window-graphic="banner"] {
+	grid-template-rows: minmax(min-content, 10%) min-content minmax(min-content, auto) min-content;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer.height-constrained .gettingStartedSlideCategories > .gettingStartedCategoriesContainer.agents-window-graphic-shown[data-agents-window-graphic="banner"] {
+	grid-template-rows: auto min-content minmax(min-content, auto) min-content;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer.width-constrained .gettingStartedSlideCategories > .gettingStartedCategoriesContainer.agents-window-graphic-shown[data-agents-window-graphic="banner"] {
+	grid-template-rows: auto min-content min-content minmax(min-content, auto) min-content;
+	grid-template-areas: "header" "agents-banner" "left-column" "right-column" "footer";
+}
+
+/* The walkthrough tiles' surface sets the banner apart, so that its button is its only accent. Its text and button sit next to a drawing of the Agents window, centered against it, and the drawing goes when it would crowd the text. */
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories > .gettingStartedCategoriesContainer[data-agents-window-graphic="banner"] > .agents-banner {
+	grid-area: agents-banner;
+	container-type: inline-size;
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto;
+	grid-template-rows: 1fr auto auto 1fr;
+	grid-template-areas: ". drawing" "text drawing" "button drawing" ". drawing";
+	width: auto;
+	margin: var(--vscode-spacing-size120) 0 var(--vscode-spacing-size240);
+	padding: var(--vscode-spacing-size120) var(--vscode-spacing-size200);
+	border: var(--vscode-strokeThickness) solid transparent;
+	border-radius: var(--vscode-cornerRadius-medium);
+	background-color: var(--vscode-welcomePage-tileBackground);
+}
+
+/* With the tint surface (`chat.welcomePage.cardSurface`), an accent-tinted surface sets the banner apart instead. */
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories > .gettingStartedCategoriesContainer[data-welcome-card-surface="tint"][data-agents-window-graphic="banner"] > .agents-banner {
+	border-color: color-mix(in srgb, var(--vscode-focusBorder) 40%, transparent);
+	border-radius: var(--vscode-cornerRadius-large);
+	background-color: color-mix(in srgb, var(--vscode-focusBorder) 12%, transparent);
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories > .gettingStartedCategoriesContainer.agents-window-graphic-spacious[data-agents-window-graphic="banner"] > .agents-banner {
+	margin: var(--vscode-spacing-size200) 0 var(--vscode-spacing-size320);
+	padding: var(--vscode-spacing-size200) var(--vscode-spacing-size280);
+}
+
+.monaco-workbench:is(.hc-black, .hc-light) .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories > .gettingStartedCategoriesContainer[data-agents-window-graphic="banner"] > .agents-banner {
+	background-color: transparent;
+	border-color: var(--vscode-contrastBorder);
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories > .gettingStartedCategoriesContainer[data-agents-window-graphic="banner"] > .agents-banner > .agents-window-graphic-container,
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories > .gettingStartedCategoriesContainer[data-agents-window-graphic="banner"] > .agents-banner .agents-window-graphic.banner {
+	display: contents;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories > .gettingStartedCategoriesContainer[data-agents-window-graphic="banner"] > .agents-banner .agents-window-banner-text {
+	grid-area: text;
+}
+
+/* The drawing keeps its distance to the text with its own margin, so that the text can use the full width when the drawing goes. */
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories > .gettingStartedCategoriesContainer[data-agents-window-graphic="banner"] > .agents-banner .agents-window-banner-drawing {
+	grid-area: drawing;
+	align-self: center;
+	width: min(260px, 40cqi);
+	margin-inline-start: var(--vscode-spacing-size320);
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories > .gettingStartedCategoriesContainer.agents-window-graphic-spacious[data-agents-window-graphic="banner"] > .agents-banner .agents-window-banner-drawing {
+	width: min(360px, 40cqi);
+	margin-inline-start: var(--vscode-spacing-size400);
+}
+
+@container (max-width: 519px) {
+	.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories > .gettingStartedCategoriesContainer[data-agents-window-graphic="banner"] > .agents-banner .agents-window-banner-drawing {
+		display: none;
+	}
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories > .gettingStartedCategoriesContainer[data-agents-window-graphic="banner"] > .agents-banner > .agents-banner-button {
+	grid-area: button;
+	justify-self: start;
+	max-width: 100%;
+	margin: var(--vscode-spacing-size200) 0 0;
+	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size160);
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+/* The primary button has the accent's background, so its focus ring keeps a gap to stay visible. */
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories > .gettingStartedCategoriesContainer[data-agents-window-graphic="banner"] > .agents-banner > .agents-banner-button:focus-visible {
+	outline-offset: 2px;
+}
+
+/* A sign-in card (`chat.welcomePage.signIn.style`) replaces the sign-in button at the bottom of the page: the GitHub mark, what signing in brings, and the button on the walkthrough tiles' surface, so that the button is its only accent. The card is as wide as its content, up to 720px, so the button stays next to the text. A size container can't take its content's width, so the footer, which spans the page, is the container that decides when the card stacks. */
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories > .gettingStartedCategoriesContainer.welcome-sign-in-card-shown > .footer {
+	container: welcome-sign-in-card / inline-size;
+	justify-self: stretch;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories > .gettingStartedCategoriesContainer.welcome-sign-in-card-shown > .footer > .agents-banner {
+	display: grid;
+	grid-template-columns: auto minmax(0, 1fr) auto;
+	align-items: start;
+	column-gap: var(--vscode-spacing-size160);
+	width: fit-content;
+	max-width: 720px;
+	margin: var(--vscode-spacing-size80) auto var(--vscode-spacing-size160);
+	padding: var(--vscode-spacing-size160) var(--vscode-spacing-size200);
+	border: var(--vscode-strokeThickness) solid transparent;
+	border-radius: var(--vscode-cornerRadius-medium);
+	background-color: var(--vscode-welcomePage-tileBackground);
+	text-align: start;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories > .gettingStartedCategoriesContainer[data-welcome-sign-in="compactCard"] > .footer > .agents-banner {
+	align-items: center;
+	padding-block: var(--vscode-spacing-size120);
+}
+
+/* With the tint surface (`chat.welcomePage.cardSurface`), the card is tinted with the accent color, like the Agents window banner, and so are its badge and icons. */
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories > .gettingStartedCategoriesContainer.welcome-sign-in-card-shown[data-welcome-card-surface="tint"] > .footer > .agents-banner {
+	border-color: color-mix(in srgb, var(--vscode-focusBorder) 40%, transparent);
+	border-radius: var(--vscode-cornerRadius-large);
+	background-color: color-mix(in srgb, var(--vscode-focusBorder) 12%, transparent);
+}
+
+.monaco-workbench:not(.hc-black, .hc-light) .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories > .gettingStartedCategoriesContainer.welcome-sign-in-card-shown[data-welcome-card-surface="tint"] > .footer > .agents-banner .welcome-sign-in-card-mark {
+	background-color: color-mix(in srgb, var(--vscode-focusBorder) 18%, transparent);
+}
+
+.monaco-workbench:not(.hc-black, .hc-light) .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories > .gettingStartedCategoriesContainer.welcome-sign-in-card-shown[data-welcome-card-surface="tint"] > .footer > .agents-banner .welcome-sign-in-card-benefits > li > .codicon {
+	color: var(--vscode-textLink-foreground);
+}
+
+.monaco-workbench:is(.hc-black, .hc-light) .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories > .gettingStartedCategoriesContainer.welcome-sign-in-card-shown > .footer > .agents-banner {
+	background-color: transparent;
+	border-color: var(--vscode-contrastBorder);
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories > .gettingStartedCategoriesContainer.welcome-sign-in-card-shown > .footer > .agents-banner > .agents-banner-button {
+	align-self: end;
+	justify-self: end;
+	margin-inline-start: var(--vscode-spacing-size160);
+	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size160);
+	border-radius: var(--vscode-cornerRadius-small);
+	white-space: nowrap;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories > .gettingStartedCategoriesContainer.welcome-sign-in-card-shown > .footer > .agents-banner > .agents-banner-button:focus-visible {
+	outline-offset: 2px;
+}
+
+/* The page keeps its lists unspaced and their items on one line, but the card's benefits keep their distance to the title and wrap when the card is narrow. */
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories > .gettingStartedCategoriesContainer.welcome-sign-in-card-shown > .footer > .agents-banner .welcome-sign-in-card-benefits {
+	margin-top: var(--vscode-spacing-size80);
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories > .gettingStartedCategoriesContainer.welcome-sign-in-card-shown > .footer > .agents-banner .welcome-sign-in-card-benefits > li {
+	white-space: normal;
+}
+
+/* When the footer can't fit a card with 480px of content plus its padding and border, the button moves below the text, still at the card's bottom right. */
+@container welcome-sign-in-card (max-width: 521px) {
+	.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories > .gettingStartedCategoriesContainer.welcome-sign-in-card-shown > .footer > .agents-banner {
+		grid-template-columns: auto minmax(0, 1fr);
+	}
+
+	.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories > .gettingStartedCategoriesContainer.welcome-sign-in-card-shown > .footer > .agents-banner > .agents-banner-button {
+		grid-column: 2;
+		margin-top: var(--vscode-spacing-size120);
+		margin-inline-start: 0;
+	}
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories > .gettingStartedCategoriesContainer .index-list.start-container {

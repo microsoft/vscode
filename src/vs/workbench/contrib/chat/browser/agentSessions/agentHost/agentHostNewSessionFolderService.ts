@@ -148,12 +148,16 @@ export function computeDesiredWorkingDirectories(
 	workspaceFolders: readonly URI[],
 	extUri: IExtUri = extUriBiasedIgnorePathCase,
 ): readonly URI[] {
+	// Set lookups avoid quadratic scans on this hot path in large multi-root workspaces.
+	const toKey = (uri: URI) => extUri.getComparisonKey(uri);
+	const workspaceFolderSet = new ResourceSet(workspaceFolders, toKey);
 	const desired: URI[] = [primary];
+	const included = new ResourceSet([primary], toKey);
 	const addIfWorkspaceSecondary = (candidate: URI) => {
-		const alreadyIncluded = desired.some(existing => extUri.isEqual(existing, candidate));
-		if (alreadyIncluded || !workspaceFolders.some(folder => extUri.isEqual(folder, candidate))) {
+		if (included.has(candidate) || !workspaceFolderSet.has(candidate)) {
 			return;
 		}
+		included.add(candidate);
 		desired.push(candidate);
 	};
 

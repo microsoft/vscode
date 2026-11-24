@@ -1846,7 +1846,8 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 					if (canRemove && !await canRemove()) {
 						return 'inUse';
 					}
-					await this._gitService.commitAll(worktree, localize('worktreeIsolation.commitMessage', "Saving uncommitted changes before archiving session"));
+					// This commit only preserves work, so it must not prompt for a signing passphrase in the background.
+					await this._gitService.commit(worktree, localize('worktreeIsolation.commitMessage', "Saving uncommitted changes before archiving session"), { all: true, noVerify: true, signCommit: false });
 				}
 			} else if (!await this._isBranchUpToDateWithRemote(worktree, branchName, key)) {
 				return 'skipped';

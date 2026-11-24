@@ -7,187 +7,210 @@ import './media/agentsWindowGraphic.css';
 import { $, reset, setVisibility } from '../../../../../base/browser/dom.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Event } from '../../../../../base/common/event.js';
-import { Disposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, derived, IObservable, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
-import { isEqual } from '../../../../../base/common/resources.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { autorun, derived, IObservable, observableFromEvent, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { isWorkspaceIdentifier } from '../../../../../platform/workspace/common/workspace.js';
-import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
-import { IHostService } from '../../../../services/host/browser/host.js';
+import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { IWorkbenchAssignmentService } from '../../../../services/assignment/common/assignmentService.js';
+import { ChatEntitlement, IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { AgentsWindowGraphicVariant, AgentsWindowSectionStyle, ChatConfiguration, getAgentsWindowGraphicVariant, getAgentsWindowSectionStyle } from '../../common/constants.js';
+import { registerAgentsWindowTreatments } from './agentsWindowTreatments.js';
 
-/** A graphic that can be shown. {@link AgentsWindowGraphicVariant.Auto} resolves to one of these. */
-export type AgentsWindowGraphicDesign = AgentsWindowGraphicVariant.WindowComparison | AgentsWindowGraphicVariant.ManyWindowsToOne;
+/** A graphic that can be shown. */
+export type AgentsWindowGraphicDesign = AgentsWindowGraphicVariant.WindowComparison | AgentsWindowGraphicVariant.Banner;
 
-/**
- * Picks the graphic for a variant, or `undefined` for none. {@link AgentsWindowGraphicVariant.Auto} picks
- * {@link AgentsWindowGraphicVariant.ManyWindowsToOne} when more than one editor window is open and
- * {@link AgentsWindowGraphicVariant.WindowComparison} otherwise, and shows nothing while that is unknown.
- */
-export function resolveAgentsWindowGraphicDesign(variant: AgentsWindowGraphicVariant, hasMultipleEditorWindows: boolean | undefined): AgentsWindowGraphicDesign | undefined {
-	switch (variant) {
-		case AgentsWindowGraphicVariant.WindowComparison:
-		case AgentsWindowGraphicVariant.ManyWindowsToOne:
-			return variant;
-		case AgentsWindowGraphicVariant.Auto:
-			if (hasMultipleEditorWindows === undefined) {
-				return undefined;
-			}
-			return hasMultipleEditorWindows ? AgentsWindowGraphicVariant.ManyWindowsToOne : AgentsWindowGraphicVariant.WindowComparison;
-		default:
-			return undefined;
-	}
+/** The treatment whose string value replaces the title of the {@link AgentsWindowGraphicVariant.Banner}. */
+export const AGENTS_WINDOW_BANNER_TITLE_TREATMENT = 'chatWelcomeAgentsBannerTitle';
+/** The treatment whose string value replaces the description of the {@link AgentsWindowGraphicVariant.Banner}. */
+export const AGENTS_WINDOW_BANNER_DESCRIPTION_TREATMENT = 'chatWelcomeAgentsBannerDescription';
+
+/** The text of the {@link AgentsWindowGraphicVariant.Banner} that treatments replace. Each missing value keeps the default text. */
+export interface IAgentsWindowBannerCopy {
+	readonly title?: string;
+	readonly description?: string;
+}
+
+/** Whether the user hid the graphic, in every graphic and on every machine that syncs the profile. */
+const HIDDEN_STORAGE_KEY = 'chat.welcomePage.agentsWindowGraphic.hidden';
+
+/** Shows the graphic again after the user hid it, see {@link AgentsWindowGraphic.hide}. */
+export function resetAgentsWindowGraphicHidden(storageService: IStorageService): void {
+	storageService.remove(HIDDEN_STORAGE_KEY, StorageScope.PROFILE);
 }
 
 /**
- * Shows the graphic selected by {@link ChatConfiguration.WelcomePageAgentsWindowGraphic}
- * and updates it when the setting changes. The element is hidden while no graphic is shown.
+ * Shows the graphic selected by {@link ChatConfiguration.WelcomePageAgentsWindowGraphic} to signed-in users
+ * and updates it when the setting changes, unless the user hid it. The element is hidden while no graphic is shown.
  */
 export class AgentsWindowGraphic extends Disposable {
 
 	readonly element: HTMLElement;
 
+	/**
+	 * The graphic selected by the setting, or `undefined` for none. Unlike {@link shownDesign}, this ignores whether the user hid
+	 * the graphic, which only users who see one can do, so that experiment triggers that depend on it are logged alike in every arm.
+	 */
+	readonly design: IObservable<AgentsWindowGraphicDesign | undefined>;
+
+	/**
+	 * Whether the user is signed in. Graphics are only shown to signed-in users, since the Welcome page offers signed-out users to
+	 * sign in instead. Until the default account has been resolved, this follows the chat entitlement that the window restores at
+	 * startup, so that a signed-in user's graphic doesn't appear late.
+	 */
+	readonly signedIn: IObservable<boolean>;
+
 	private readonly _shownDesign = observableValue<AgentsWindowGraphicDesign | undefined>(this, undefined);
 	/** The graphic rendered in {@link element}, or `undefined` when none is. Changes after the element has been updated. */
 	readonly shownDesign: IObservable<AgentsWindowGraphicDesign | undefined> = this._shownDesign;
 
-	private readonly _hasMultipleEditorWindows = observableValue<boolean | undefined>(this, undefined);
+	private readonly _shownBannerCopy = observableValue<IAgentsWindowBannerCopy | undefined>(this, undefined);
 	/**
-	 * Whether more than one editor window is open, or `undefined` until the windows have been counted.
-	 * {@link AgentsWindowGraphicVariant.Auto} picks its graphic from this. The windows are counted for every
-	 * variant, so that the page can log an experiment trigger for this case in every experiment arm.
+	 * The treatment text rendered in the shown {@link AgentsWindowGraphicVariant.Banner}, or `undefined` while the banner shows its
+	 * default text or isn't shown. Changes together with {@link shownDesign}, after the element has been updated, so that the page
+	 * can fit the graphic again when the banner's text, and so its height, changes.
 	 */
-	readonly hasMultipleEditorWindows: IObservable<boolean | undefined> = this._hasMultipleEditorWindows;
+	readonly shownBannerCopy: IObservable<IAgentsWindowBannerCopy | undefined> = this._shownBannerCopy;
 
 	/**
-	 * How the graphic, its captions and the Agents window button should be set apart from the rest of the page,
-	 * see {@link ChatConfiguration.WelcomePageAgentsWindowSectionStyle}. The page that shows the graphic applies it.
+	 * How the {@link AgentsWindowGraphicVariant.WindowComparison} graphic, its captions and the Agents window button should be set
+	 * apart from the rest of the page, see {@link ChatConfiguration.WelcomePageAgentsWindowSectionStyle}. The page that shows the graphic applies it.
 	 */
 	readonly sectionStyle: IObservable<AgentsWindowSectionStyle>;
 
+	private readonly _bannerCopy = observableValue<IAgentsWindowBannerCopy | undefined>(this, undefined);
+	/**
+	 * Whether the treatments that replace the banner's title and description, {@link AGENTS_WINDOW_BANNER_TITLE_TREATMENT} and
+	 * {@link AGENTS_WINDOW_BANNER_DESCRIPTION_TREATMENT}, have been read. They are read while the banner is selected, and
+	 * read again when assignments are refetched. Until they have been read, the banner shows its default text.
+	 */
+	readonly bannerCopyResolved: IObservable<boolean> = this._bannerCopy.map(this, copy => copy !== undefined);
+
 	constructor(
 		@IConfigurationService configurationService: IConfigurationService,
-		@IHostService hostService: IHostService,
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
+		@IStorageService private readonly storageService: IStorageService,
+		@IWorkbenchAssignmentService assignmentService: IWorkbenchAssignmentService,
+		@ILogService logService: ILogService,
+		@IChatEntitlementService chatEntitlementService: IChatEntitlementService,
+		@IDefaultAccountService defaultAccountService: IDefaultAccountService,
 	) {
 		super();
 		this.element = $('.agents-window-graphic-container');
 
+		// The default account is `null` until it has been resolved, also for signed-in users.
+		const accountSignedOut = observableValue(this, false);
+		const updateAccount = () => accountSignedOut.set(defaultAccountService.currentDefaultAccount === null, undefined);
+		this._register(defaultAccountService.onDidChangeDefaultAccount(updateAccount));
+		defaultAccountService.getDefaultAccount().then(() => {
+			if (!this._store.isDisposed) {
+				updateAccount();
+			}
+		}, onUnexpectedError);
+		this.signedIn = derived(this, reader => !accountSignedOut.read(reader) && chatEntitlementService.entitlementObs.read(reader) !== ChatEntitlement.Unknown);
+
 		const variant = observableFromEvent(this,
 			Event.filter(configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(ChatConfiguration.WelcomePageAgentsWindowGraphic)),
 			() => getAgentsWindowGraphicVariant(configurationService),
+		);
+		this.design = variant.map(this, selected => selected === AgentsWindowGraphicVariant.None ? undefined : selected);
+		const hidden = observableFromEvent(this,
+			storageService.onDidChangeValue(StorageScope.PROFILE, HIDDEN_STORAGE_KEY, this._store),
+			() => storageService.getBoolean(HIDDEN_STORAGE_KEY, StorageScope.PROFILE, false),
 		);
 		this.sectionStyle = observableFromEvent(this,
 			Event.filter(configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(ChatConfiguration.WelcomePageAgentsWindowSectionStyle)),
 			() => getAgentsWindowSectionStyle(configurationService),
 		);
 
-		// Count the editor windows whenever the setting changes, for every variant, see hasMultipleEditorWindows
 		this._register(autorun(reader => {
-			variant.read(reader);
-			let disposed = false;
-			reader.store.add(toDisposable(() => disposed = true));
-			const update = async () => {
-				let hasMultiple = false;
-				try {
-					hasMultiple = await countEditorWindows(hostService, environmentService) > 1;
-				} catch (error) {
-					onUnexpectedError(error);
-				}
-				if (!disposed) {
-					this._hasMultipleEditorWindows.set(hasMultiple, undefined);
-				}
-			};
-			update();
+			if (this.design.read(reader) === AgentsWindowGraphicVariant.Banner) {
+				reader.store.add(registerAgentsWindowTreatments(
+					[AGENTS_WINDOW_BANNER_TITLE_TREATMENT, AGENTS_WINDOW_BANNER_DESCRIPTION_TREATMENT],
+					'AgentsWindowGraphic',
+					([title, description]) => this._bannerCopy.set({ title, description }, undefined),
+					assignmentService,
+					logService,
+				));
+			}
 		}));
 
-		const design = derived(this, reader => resolveAgentsWindowGraphicDesign(variant.read(reader), this._hasMultipleEditorWindows.read(reader)));
 		this._register(autorun(reader => {
-			const shownDesign = design.read(reader);
-			reset(this.element, ...(shownDesign ? [renderAgentsWindowGraphic(shownDesign)] : []));
+			const shownDesign = hidden.read(reader) || !this.signedIn.read(reader) ? undefined : this.design.read(reader);
+			const bannerCopy = shownDesign === AgentsWindowGraphicVariant.Banner ? this._bannerCopy.read(reader) : undefined;
+			reset(this.element, ...(shownDesign ? [renderAgentsWindowGraphic(shownDesign, bannerCopy)] : []));
 			setVisibility(!!shownDesign, this.element);
-			this._shownDesign.set(shownDesign, undefined);
+			transaction(tx => {
+				this._shownDesign.set(shownDesign, tx);
+				this._shownBannerCopy.set(bannerCopy, tx);
+			});
 		}));
+	}
+
+	/** Hides the graphic in this profile, also on other machines that sync it, until {@link resetAgentsWindowGraphicHidden}. */
+	hide(): void {
+		this.storageService.store(HIDDEN_STORAGE_KEY, true, StorageScope.PROFILE, StorageTarget.USER);
 	}
 }
 
-/** Counts the open editor windows, without the Agents window. */
-async function countEditorWindows(hostService: IHostService, environmentService: IWorkbenchEnvironmentService): Promise<number> {
-	const windows = await hostService.getWindows({ includeAuxiliaryWindows: false });
-	return windows.filter(window => !(isWorkspaceIdentifier(window.workspace) && isEqual(window.workspace.configPath, environmentService.agentSessionsWorkspace))).length;
-}
-
-export interface IAgentsWindowGraphicOptions {
-	/**
-	 * Renders a small graphic for surfaces that explain the Agents window in their own words, such as a hover:
-	 * the drawings keep only the window titles of {@link AgentsWindowGraphicVariant.WindowComparison} and have no descriptions.
-	 */
-	readonly compact?: boolean;
-}
-
 /**
- * Renders a graphic and its captions.
+ * Renders a graphic and its captions, with the banner's title and description replaced by `bannerCopy`.
  * The drawings are decorative and hidden from screen readers; the captions carry their meaning.
  */
-export function renderAgentsWindowGraphic(design: AgentsWindowGraphicDesign, options?: IAgentsWindowGraphicOptions): HTMLElement {
+export function renderAgentsWindowGraphic(design: AgentsWindowGraphicDesign, bannerCopy?: IAgentsWindowBannerCopy): HTMLElement {
 	const ids = new GraphicIds();
-	const compact = !!options?.compact;
+	const agentsWindowTitle = localize('agentsWindowGraphic.agentsWindow.title', "Agents window");
+	const newBadge = localize('agentsWindowGraphic.new', "New");
 	switch (design) {
 		case AgentsWindowGraphicVariant.WindowComparison:
-			return $(`.agents-window-graphic.window-comparison${compact ? '.compact' : ''}`, {},
+			return $('.agents-window-graphic.window-comparison', {},
 				figure(
 					graphicSvg(300, 180, editorWindow(ids, 0, 0)),
 					localize('agentsWindowGraphic.editorWindow.title', "Editor window"),
-					compact ? undefined : localize('agentsWindowGraphic.editorWindow.description', "Work on one task at a time, with AI at your side."),
+					localize('agentsWindowGraphic.editorWindow.description', "Work on one task at a time, with AI at your side."),
 				),
 				figure(
-					graphicSvg(300, 180, agentsWindow(ids, 0, 0, false, windowComparisonProjects)),
-					localize('agentsWindowGraphic.agentsWindow.title', "Agents window"),
-					compact ? undefined : localize('agentsWindowGraphic.agentsWindow.description', "Run multiple tasks at the same time, isolated from each other."),
-					compact ? undefined : localize('agentsWindowGraphic.new', "New"),
+					graphicSvg(300, 180, agentsWindow(ids, 0, 0, false)),
+					agentsWindowTitle,
+					localize('agentsWindowGraphic.agentsWindow.description', "Run multiple tasks at the same time, isolated from each other."),
+					newBadge,
 				),
 			);
-		case AgentsWindowGraphicVariant.ManyWindowsToOne:
-			return $(`.agents-window-graphic.many-windows-to-one${compact ? '.compact' : ''}`, {},
-				figure(
-					graphicSvg(672, 204,
-						...agentsWindowProjects.map(({ color, sessions }, index) => projectEditorWindow(ids, 8 + 32 * index, 8 + 36 * index, color, sessions[0].state)),
-						svg('path', 'awg-arrow', { d: 'M290 104H340M333 97L340 104L333 111' }),
-						agentsWindow(ids, 364, 14, true, agentsWindowProjects),
+		case AgentsWindowGraphicVariant.Banner:
+			// The page places the Agents window button below the text, see `.agents-window-banner-text`.
+			return $('.agents-window-graphic.banner', {},
+				$('.agents-window-banner-text', {},
+					$('.agents-window-banner-eyebrow', {},
+						$('span.agents-window-banner-icon', { 'aria-hidden': 'true' }),
+						$('span', {}, agentsWindowTitle),
+						$('span.agents-window-graphic-badge', {}, newBadge),
 					),
-					undefined,
-					compact ? undefined : localize('agentsWindowGraphic.manyWindowsToOne.description', "All your projects and agents, in one window."),
+					$('.agents-window-banner-title', { role: 'heading', 'aria-level': '2' }, bannerCopy?.title ?? localize('agentsWindowGraphic.banner.title', "All your agents, across all your projects, in one window")),
+					$('.agents-window-banner-description', {}, bannerCopy?.description ?? localize('agentsWindowGraphic.banner.description', "Built to make you more productive when working with agents. Run several at the same time, each on its own task, and review their changes independently of each other when they're ready.")),
 				),
+				$('.agents-window-banner-drawing', {}, graphicSvg(300, 180, agentsWindow(ids, 0, 0, true))),
 			);
 	}
 }
 
 type ProjectColor = 'blue' | 'purple' | 'orange';
-type AgentState = 'working' | 'waiting' | 'done';
+
+/** A session's state in the sessions list: its agent is working, it finished with results the user hasn't seen, or it opened a pull request. */
+type SessionState = 'working' | 'unread' | 'pullRequest';
 
 /** A project and its sessions in the Agents window, with the widths of the bars that stand in for their names. */
 interface IProjectSessions {
 	readonly color: ProjectColor;
 	readonly nameWidth: number;
-	readonly sessions: readonly { readonly state: AgentState; readonly titleWidth: number; readonly selected?: boolean }[];
+	readonly sessions: readonly { readonly state: SessionState; readonly titleWidth: number; readonly selected?: boolean }[];
 }
 
-/**
- * The projects in the Agents window, from top to bottom. In the second design, the editor windows stack
- * in the same order, from back to front, and each shows the state of its project's first session.
- */
+/** The projects in the Agents window, from top to bottom. The top project runs two tasks at the same time. */
 const agentsWindowProjects: readonly IProjectSessions[] = [
-	{ color: 'orange', nameWidth: 30, sessions: [{ state: 'working', titleWidth: 62, selected: true }, { state: 'done', titleWidth: 48 }] },
-	{ color: 'purple', nameWidth: 22, sessions: [{ state: 'waiting', titleWidth: 66 }] },
-	{ color: 'blue', nameWidth: 26, sessions: [{ state: 'working', titleWidth: 44 }, { state: 'done', titleWidth: 54 }] },
-];
-
-/** The same projects in the first design, where the top project runs two tasks at the same time, as its caption describes. */
-const [topProject, ...otherProjects] = agentsWindowProjects;
-const windowComparisonProjects: readonly IProjectSessions[] = [
-	{ ...topProject, sessions: [{ state: 'working', titleWidth: 62, selected: true }, { state: 'working', titleWidth: 48 }] },
-	...otherProjects,
+	{ color: 'orange', nameWidth: 30, sessions: [{ state: 'working', titleWidth: 62, selected: true }, { state: 'working', titleWidth: 48 }] },
+	{ color: 'purple', nameWidth: 22, sessions: [{ state: 'unread', titleWidth: 66 }] },
+	{ color: 'blue', nameWidth: 26, sessions: [{ state: 'working', titleWidth: 44 }, { state: 'pullRequest', titleWidth: 54 }] },
 ];
 
 /** Creates IDs that are unique across all rendered graphics, so that clip paths of several instances cannot clash. */
@@ -201,15 +224,12 @@ class GraphicIds {
 	}
 }
 
-function figure(graphic: SVGSVGElement, title: string | undefined, description: string | undefined, badge?: string): HTMLElement {
-	if (!title && !description) {
-		return $('figure.agents-window-graphic-figure', {}, graphic);
-	}
+function figure(graphic: SVGSVGElement, title: string, description: string, badge?: string): HTMLElement {
 	return $('figure.agents-window-graphic-figure', {},
 		graphic,
 		$('figcaption.agents-window-graphic-caption', {},
-			...(title ? [$('.agents-window-graphic-title', {}, title, ...(badge ? [$('span.agents-window-graphic-badge', {}, badge)] : []))] : []),
-			...(description ? [$('.agents-window-graphic-description', {}, description)] : []),
+			$('.agents-window-graphic-title', {}, title, ...(badge ? [$('span.agents-window-graphic-badge', {}, badge)] : [])),
+			$('.agents-window-graphic-description', {}, description),
 		),
 	);
 }
@@ -242,24 +262,28 @@ function spinner(cx: number, cy: number, r: number): SVGGElement {
 	);
 }
 
-function done(cx: number, cy: number, compact: boolean): SVGPathElement {
-	return svg('path', 'awg-done', { d: compact ? `M${cx - 2.4} ${cy + 0.16}l1.76 1.76l3.2-3.68` : `M${cx - 3} ${cy + 0.2}l2.2 2.2l4-4.6` });
+function done(cx: number, cy: number): SVGPathElement {
+	return svg('path', 'awg-done', { d: `M${cx - 2.4} ${cy + 0.16}l1.76 1.76l3.2-3.68` });
 }
 
-function waiting(cx: number, cy: number, halo: boolean): SVGElement[] {
-	const dot = svg('circle', 'awg-waiting', { cx, cy, r: 3 });
-	return halo ? [svg('circle', 'awg-waiting-halo', { cx, cy, r: 5.5 }), dot] : [dot];
+/** An open pull request: a branch on the left and, on the right, a line that points back into it. */
+function pullRequest(cx: number, cy: number): SVGGElement {
+	const nodes = [[cx - 3, cy - 3.5], [cx - 3, cy + 3.5], [cx + 3, cy + 3.5]];
+	return svg('g', undefined, {},
+		svg('path', 'awg-pull-request', { d: `M${cx - 3} ${cy - 3.5}v7M${cx + 3} ${cy + 3.5}v-5a2 2 0 0 0-2-2h-1M${cx + 1.5} ${cy - 5}l-1.5 1.5l1.5 1.5` }),
+		...nodes.map(([x, y]) => svg('circle', 'awg-pull-request-node', { cx: x, cy: y, r: 1.5 })),
+	);
 }
 
-/** The icon for an agent's state. Compact icons appear in title bars and in a session's progress. */
-function agentStateIcon(state: AgentState, cx: number, cy: number, compact: boolean): SVGElement[] {
+/** The icon for a session's state in the sessions list, like the Agents window shows it. */
+function sessionStateIcon(state: SessionState, cx: number, cy: number): SVGElement {
 	switch (state) {
 		case 'working':
-			return [spinner(cx, cy, compact ? 3 : 4)];
-		case 'waiting':
-			return waiting(cx, cy, !compact);
-		case 'done':
-			return [done(cx, cy, compact)];
+			return spinner(cx, cy, 4);
+		case 'unread':
+			return svg('circle', 'awg-unread', { cx, cy, r: 3 });
+		case 'pullRequest':
+			return pullRequest(cx, cy);
 	}
 }
 
@@ -279,9 +303,9 @@ function sessionsList(projects: readonly IProjectSessions[]): SVGElement[] {
 				elements.push(rect('awg-row-selected awg-radius-small', 4, rowCenter - 8, 116, 16, 4));
 			}
 			elements.push(
-				...agentStateIcon(state, sessionIconCenter, rowCenter, false),
-				// Sessions that are selected or need the user stand out.
-				bar(selected || state === 'waiting' ? 'awg-ink-strong' : 'awg-ink-medium', sessionIconCenter + 10, rowCenter - 2, titleWidth),
+				sessionStateIcon(state, sessionIconCenter, rowCenter),
+				// Sessions that are selected or unread stand out.
+				bar(selected || state === 'unread' ? 'awg-ink-strong' : 'awg-ink-medium', sessionIconCenter + 10, rowCenter - 2, titleWidth),
 			);
 		}
 	}
@@ -374,7 +398,7 @@ function editorWindow(ids: GraphicIds, x: number, y: number): SVGGElement {
 }
 
 /** Sessions grouped by project with their agents' states, and the selected session with changes to review. */
-function agentsWindow(ids: GraphicIds, x: number, y: number, shadow: boolean, projects: readonly IProjectSessions[]): SVGGElement {
+function agentsWindow(ids: GraphicIds, x: number, y: number, shadow: boolean): SVGGElement {
 	return windowFrame(ids, x, y, 300, 180, 24, { x: 105.5, y: 6.5, width: 89, height: 11 }, shadow,
 		bar('awg-ink-medium', 132, 10, 36, 3),
 
@@ -384,7 +408,7 @@ function agentsWindow(ids: GraphicIds, x: number, y: number, shadow: boolean, pr
 		rect('awg-button awg-radius-small', 8, 33, 50, 14, 4),
 		svg('path', 'awg-button-icon', { d: 'M13.5 40h5M16 37.5v5' }),
 		bar('awg-button-label', 23, 38.5, 27, 3),
-		...sessionsList(projects),
+		...sessionsList(agentsWindowProjects),
 
 		// Selected session
 		bar('awg-ink-strong', 134, 33.5, 70),
@@ -392,7 +416,7 @@ function agentsWindow(ids: GraphicIds, x: number, y: number, shadow: boolean, pr
 		bar('awg-ink-medium', 196, 51, 80, 3),
 		bar('awg-ink-medium', 196, 58, 56, 3),
 		...([['done', 80, 70], ['done', 92, 56], ['working', 104, 64]] as const).flatMap(([state, cy, width]) => [
-			...agentStateIcon(state, 139, cy, true),
+			state === 'done' ? done(139, cy) : spinner(139, cy, 3),
 			bar('awg-ink-subtle', 148, cy - 1.5, width, 3),
 		]),
 
@@ -409,39 +433,5 @@ function agentsWindow(ids: GraphicIds, x: number, y: number, shadow: boolean, pr
 
 		rect('awg-input awg-radius-medium', 134.5, 152.5, 157, 19, 6),
 		bar('awg-ink-faint', 142, 160.5, 48, 3),
-	);
-}
-
-/** A small editor window for one project, whose title shows the project and its agent's state. */
-function projectEditorWindow(ids: GraphicIds, x: number, y: number, color: ProjectColor, state: AgentState): SVGGElement {
-	const tree: [x: number, y: number, width: number][] = [[22, 28, 28], [28, 38, 16], [28, 48, 20], [22, 58, 18], [28, 68, 18], [28, 78, 14]];
-	const code: [x: number, y: number, width: number, className: string][] = [
-		[68, 28, 10, 'awg-syntax-blue'], [81, 28, 22, 'awg-syntax-yellow'],
-		[74, 38, 8, 'awg-syntax-blue'], [85, 38, 14, 'awg-ink-medium'], [102, 38, 20, 'awg-syntax-orange'],
-		[74, 48, 18, 'awg-syntax-yellow'], [95, 48, 12, 'awg-syntax-orange'],
-		[68, 58, 4, 'awg-ink-medium'],
-		[68, 78, 10, 'awg-syntax-blue'], [81, 78, 18, 'awg-syntax-yellow'],
-		[74, 88, 16, 'awg-ink-medium'], [93, 88, 22, 'awg-syntax-orange'],
-		[68, 98, 4, 'awg-ink-medium'],
-	];
-	return windowFrame(ids, x, y, 188, 112, 20, { x: 56.5, y: 5.5, width: 75, height: 10 }, true,
-		folder(color, 64, 7),
-		bar('awg-ink-medium', 77, 9, 26, 3),
-		...agentStateIcon(state, 118, 10.5, true),
-
-		rect('awg-sidebar', 0, 21, 16, 91),
-		rect('awg-icon-active', 4.5, 27.5, 7, 7, 1.5),
-		rect('awg-icon', 4.5, 41.5, 7, 7, 1.5),
-		rect('awg-sidebar', 16, 21, 44, 91),
-		rect('awg-divider', 60, 21, 1, 91),
-		...tree.map(([barX, barY, width]) => bar('awg-ink-faint', barX, barY, width, 3)),
-		...code.map(([barX, barY, width, className]) => bar(className, barX, barY, width, 3)),
-
-		rect('awg-divider', 148, 21, 1, 91),
-		rect('awg-sidebar', 149, 21, 39, 91),
-		rect('awg-surface-subtle awg-radius-small', 155, 28, 27, 14, 4),
-		bar('awg-ink-subtle', 155, 50, 26, 3),
-		bar('awg-ink-subtle', 155, 57, 22, 3),
-		bar('awg-ink-subtle', 155, 64, 16, 3),
 	);
 }

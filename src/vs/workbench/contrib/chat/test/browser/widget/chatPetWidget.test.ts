@@ -5327,6 +5327,40 @@ suite('ChatPetWidget', () => {
 		]);
 	});
 
+	test('keeps the rendering dots appearing from left to right when the speech bubble is placed on the left', async () => {
+		const { widget, firstHost, firstParent, button, layout } = createHostTransitionHarness(true, 'teleport', undefined, undefined, undefined, false,
+			service => service.setHorizontalPosition({ edge: 'left', inset: 352 }));
+		const bubble = button.querySelector<HTMLElement>('.chat-pet-speech-bubble')!;
+		const canvas = bubble.querySelector<HTMLCanvasElement>('canvas')!;
+		const readback = mainWindow.document.createElement('canvas').getContext('2d', { willReadFrequently: true })!;
+		const readPlacement = () => {
+			readback.drawImage(canvas, 0, 0);
+			const { data } = readback.getImageData(56, 40, 24, 1);
+			return {
+				left: button.classList.contains('speech-bubble-left'),
+				dots: Array.from({ length: 12 }, (_, index) => data[index * 8 + 2] < 128 ? '#' : '-').join(''),
+			};
+		};
+		widget.setHost({
+			...firstHost,
+			model: constObservable(new class extends mock<IChatModel>() {
+				override readonly hasActiveRequest = constObservable(true);
+				override readonly lastRequestObs = constObservable(undefined);
+			}()),
+		});
+		await waitForPetAnimation(() => !bubble.classList.contains('hidden'));
+		await whenSpriteLoaded(bubble.querySelector<HTMLImageElement>('img')!);
+		const besideInputEdge = readPlacement();
+		firstParent.style.width = '600px';
+		layout();
+
+		assert.deepStrictEqual({ besideInputEdge, awayFromInputEdge: readPlacement() }, {
+			// The left bubble is mirrored on screen, so its first dot is drawn at the opposite end of the canvas.
+			besideInputEdge: { left: true, dots: '--------##--' },
+			awayFromInputEdge: { left: false, dots: '--##--------' },
+		});
+	});
+
 	test('keeps wide sprites within the input without changing direction', () => {
 		assert.deepStrictEqual([
 			getChatPetWideSpriteHorizontalOffset('sleep', 'right', 932, 980, 0, 1000),

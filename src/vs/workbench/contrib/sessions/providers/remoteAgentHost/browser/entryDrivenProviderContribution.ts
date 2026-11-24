@@ -28,6 +28,8 @@ export interface IEntryDrivenProviderOptions {
 	readonly hostDescription?: IRemoteAgentHostSessionsProviderConfig['hostDescription'];
 	readonly localRegistration?: IRemoteAgentHostSessionsProviderConfig['localRegistration'];
 	readonly isVisibleInEnvironmentPicker?: IRemoteAgentHostSessionsProviderConfig['isVisibleInEnvironmentPicker'];
+	readonly successor?: IRemoteAgentHostSessionsProviderConfig['successor'];
+	readonly predecessor?: IRemoteAgentHostSessionsProviderConfig['predecessor'];
 	readonly pickerVisibilityKey?: string;
 	readonly removeLabel?: string;
 	readonly disconnectLabel?: string;
@@ -134,6 +136,8 @@ export abstract class EntryDrivenProviderContribution extends Disposable {
 			hostDescription: options.hostDescription,
 			localRegistration: options.localRegistration,
 			isVisibleInEnvironmentPicker: options.isVisibleInEnvironmentPicker,
+			successor: options.successor,
+			predecessor: options.predecessor,
 			pickerVisibilityKey: options.pickerVisibilityKey,
 			removeLabel: options.removeLabel,
 			disconnectLabel: options.disconnectLabel,

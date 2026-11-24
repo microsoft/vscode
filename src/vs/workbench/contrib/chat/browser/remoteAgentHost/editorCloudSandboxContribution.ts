@@ -170,8 +170,13 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 			].sort((a, b) => folderIndex(a.root) - folderIndex(b.root));
 		});
 		// Wrapped so a root that resolved to no repository stays distinguishable from a pending lookup.
+		// Cancel the queued Git lookup if the root is dropped (e.g. SCM found its repository meanwhile).
 		const repositories = mapObservableArrayCached(this, repositoryRoots,
-			({ root }) => observableFromPromise(this._resolveRepository(root).then(repository => ({ repository }))),
+			({ root }, store) => {
+				const cts = new CancellationTokenSource();
+				store.add(toDisposable(() => cts.dispose(true)));
+				return observableFromPromise(this._resolveRepository(root, cts.token).then(repository => ({ repository })));
+			},
 			({ key }) => key);
 		this._workspaceRepositories = derivedOpts<ReadonlySet<string> | undefined>({
 			owner: this,
@@ -362,10 +367,10 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 		return store;
 	}
 
-	private async _resolveRepository(root: URI): Promise<IGitRepository | undefined> {
+	private async _resolveRepository(root: URI, token: CancellationToken): Promise<IGitRepository | undefined> {
 		try {
 			const repository = Array.from(this._gitService.repositories).find(repository => extUriBiasedIgnorePathCase.isEqual(repository.rootUri, root))
-				?? await this._gitService.openRepository(root);
+				?? await this._gitService.openRepository(root, token);
 			if (repository && !extUriBiasedIgnorePathCase.isEqualOrParent(root, repository.rootUri)) {
 				this._editorLogService.warn('[CloudSandbox] Ignoring repository outside the requested workspace folder', root.toString(), repository.rootUri.toString());
 				return undefined;

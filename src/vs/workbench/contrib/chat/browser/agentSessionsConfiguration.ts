@@ -14,9 +14,10 @@ import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurati
 import product from '../../../../platform/product/common/product.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { ConfigurationKeyValuePairs, Extensions as WorkbenchConfigurationExtensions, IConfigurationMigrationRegistry } from '../../../common/configuration.js';
-import { AGENT_SESSION_CLEANUP_SETTINGS_TAG, ChatConfiguration, CopilotHarnessIntroductionMode, DEFAULT_AGENTS_HANDOFF_TIP_DELAY_SECONDS } from '../common/constants.js';
+import { AGENT_SESSION_CLEANUP_SETTINGS_TAG, ChatConfiguration, ChatViewSessionsOpenChatIn, CopilotHarnessIntroductionMode, DEFAULT_AGENTS_HANDOFF_TIP_DELAY_SECONDS } from '../common/constants.js';
 
 const legacyAutoArchiveMergedSessionsAfterDaysSetting = 'chat.agentSessions.autoArchiveMergedSessionsAfterDays';
+const legacyOpenSessionsInEditorSetting = 'chat.agentSessions.openInEditor';
 const legacyAutoDeleteArchivedMergedSessionsAfterDaysSetting = 'chat.agentSessions.autoDeleteArchivedMergedSessionsAfterDays';
 
 export const agentsWindowHandoffConfigurationProperties = {
@@ -131,6 +132,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		[ChatConfiguration.AgentsPickerInAttachContextMenu]: {
 			type: 'boolean',
 			default: false,
+			agentsWindow: { default: true },
 			scope: ConfigurationScope.WINDOW,
 			description: nls.localize('chat.agentsPickerInAttachContextMenu', "Controls whether the Agent picker appears in Add Context for chat inputs in the editor and Agents windows when the default agent is selected. While a non-default agent is selected, the picker appears in its usual position."),
 			tags: ['experimental'],
@@ -161,6 +163,16 @@ Registry.as<IConfigurationMigrationRegistry>(WorkbenchConfigurationExtensions.Co
 	key: 'sessions.automations.showSharedByOthers',
 	includeApplication: true,
 	migrateFn: () => ({ value: undefined }),
+}, {
+	key: legacyOpenSessionsInEditorSetting,
+	migrateUserSettingsSeparately: true,
+	migrateFn: (value, accessor) => {
+		const pairs: ConfigurationKeyValuePairs = [[legacyOpenSessionsInEditorSetting, { value: undefined }]];
+		if (typeof value === 'boolean' && accessor(ChatConfiguration.ChatViewSessionsOpenChatIn) === undefined) {
+			pairs.push([ChatConfiguration.ChatViewSessionsOpenChatIn, { value: value ? ChatViewSessionsOpenChatIn.EditorArea : ChatViewSessionsOpenChatIn.ChatPanel }]);
+		}
+		return pairs;
+	},
 }, {
 	key: legacyAutoArchiveMergedSessionsAfterDaysSetting,
 	includeApplication: true,

@@ -832,7 +832,7 @@ suite('CreatePullRequestWidget', () => {
 		const { widget, hovers } = createWidget();
 		await widget.ready;
 		select(widget, 'Agent Merge');
-		const rows = [...widget.domNode.querySelectorAll<HTMLElement>('.create-pr-agent-merge-option')];
+		const rows = [...widget.domNode.querySelectorAll<HTMLElement>('.create-pr-agent-merge .create-pr-agent-merge-option')];
 		assert.deepStrictEqual(rows.map(row => {
 			const checkbox = row.querySelector<HTMLElement>('[role="checkbox"]')!;
 			const description = element(widget, `[id="${checkbox.getAttribute('aria-describedby')}"]`);
@@ -1100,6 +1100,86 @@ suite('CreatePullRequestWidget', () => {
 		await completion.complete();
 		await timeout(0);
 		assert.deepStrictEqual({ focusedReview, checkedByKeyboard, disabled }, { focusedReview: true, checkedByKeyboard: 'true', disabled: ['true', 'true', 'true'] });
+	});
+
+	const autopilotDetails: ISessionPullRequestDetails = { ...details, agentMergeAvailable: false, agentMergeOptions: undefined, autopilotAvailable: true };
+
+	function modes(widget: CreatePullRequestWidget) {
+		return [...element(widget, '.create-pr-body [role="radiogroup"]').querySelectorAll('[role="radio"]')].map(node => `${node.textContent}${node.getAttribute('aria-checked') === 'true' ? ' (selected)' : ''}`);
+	}
+
+	function autopilotState(widget: CreatePullRequestWidget) {
+		const section = element(widget, '.create-pr-autopilot');
+		return {
+			hidden: section.hidden,
+			modeDescriptionHidden: element(widget, '.create-pr-merge-description').hidden,
+			rules: [...section.querySelectorAll<HTMLElement>('[role="checkbox"]')].filter(checkbox => !checkbox.closest('[hidden]')).map(checkbox => `${checkbox.getAttribute('aria-label')}: ${checkbox.getAttribute('aria-checked')}`),
+			policy: section.querySelector('[role="radio"][aria-checked="true"]')?.textContent,
+		};
+	}
+
+	test('Autopilot is offered only once preparation confirms it, and a remembered Agent Merge choice then selects it', async () => {
+		const generation = new DeferredPromise<ISessionPullRequestDetails>();
+		const sent: ISessionPullRequestChatOptions[] = [];
+		const { widget } = createWidget({ prepare: () => generation.p }, undefined, {
+			artifactIntegrations: true,
+			preferences: { mergeMode: 'agent', primaryAction: 'sendToChat' },
+			sendToChat: async options => { sent.push(options); },
+		});
+		const loading = modes(widget);
+		element(widget, '.create-pr-submit').click();
+		await timeout(0);
+		await generation.complete(autopilotDetails);
+		await widget.ready;
+		assert.deepStrictEqual({ loading, sent, loaded: modes(widget), state: autopilotState(widget) }, {
+			loading: ['Merge Manually (selected)', 'Auto-Merge'],
+			sent: [{ draft: false, agentMerge: false }],
+			loaded: ['Merge Manually', 'Autopilot (selected)', 'Auto-Merge'],
+			state: {
+				hidden: false,
+				modeDescriptionHidden: true,
+				rules: ['Automatically Address Reviews: true', 'Automatically Fix CI: true', 'Automatically Update Branch: true'],
+				policy: 'Off',
+			},
+		});
+	});
+
+	for (const draft of [false, true]) {
+		test(`submits the Autopilot rules shown and remembers them, requesting Mark Ready ${draft ? 'for a draft' : 'only for drafts'}`, async () => {
+			const { widget, submissions, preferences } = createWidget({ prepare: async () => autopilotDetails }, undefined, {
+				preferences: { autopilotOptions: { addressReviews: true, fixCI: true, resolveConflicts: true, markReady: true, merge: 'never' } },
+			});
+			await widget.ready;
+			select(widget, 'Autopilot');
+			if (draft) {
+				element(widget, '.create-pr-draft [role="checkbox"]').click();
+			}
+			element(widget, '.create-pr-autopilot [role="checkbox"][aria-label="Automatically Fix CI"]').click();
+			[...element(widget, '.create-pr-autopilot').querySelectorAll<HTMLElement>('[role="radio"]')].find(node => node.textContent === 'Always')!.click();
+			const state = autopilotState(widget);
+			submit(widget);
+			await timeout(0);
+			const autopilot = { addressReviews: true, fixCI: false, resolveConflicts: true, markReady: draft, merge: 'always' };
+			assert.deepStrictEqual({ state, submissions, remembered: preferences.read().autopilotOptions }, {
+				state: {
+					hidden: false,
+					modeDescriptionHidden: true,
+					rules: ['Automatically Address Reviews: true', 'Automatically Fix CI: false', 'Automatically Update Branch: true', ...(draft ? ['Automatically Mark Ready: true'] : [])],
+					policy: 'Always',
+				},
+				submissions: [{ title: details.title, description: details.description, draft, agentMerge: false, autopilot }],
+				remembered: { ...autopilot, markReady: true },
+			});
+		});
+	}
+
+	test('hides Autopilot from hosts that do not offer it', async () => {
+		const { widget } = createWidget(undefined, undefined, { artifactIntegrations: true, preferences: { mergeMode: 'autopilot' } });
+		await widget.ready;
+		assert.deepStrictEqual({ modes: modes(widget), hidden: element(widget, '.create-pr-autopilot').hidden }, {
+			modes: ['Merge Manually', 'Agent Merge (selected)', 'Auto-Merge'],
+			hidden: true,
+		});
 	});
 
 	test('manual creation remains available after preparation fails', async () => {

@@ -28,6 +28,7 @@ import { getAgentHostCustomizationSource, getAgentHostCustomizationUri } from '.
 import { readMcpServerDisplayName, readMcpServerSource } from '../../../../../../platform/agentHost/common/meta/mcpCustomizationMeta.js';
 import { readAgentCustomizationMeta } from '../../../../../../platform/agentHost/common/meta/agentCustomizationMeta.js';
 import { readCustomizationDiscoveryMeta } from '../../../../../../platform/agentHost/common/meta/customizationDiscoveryMeta.js';
+import { readSkillArgumentHint } from '../../../../../../platform/agentHost/common/meta/skillCustomizationMeta.js';
 import { readRuntimePluginEnablement } from '../../../../../../platform/agentHost/common/meta/pluginEnablementMeta.js';
 import { readCustomizationOrganizationMeta } from '../../../../../../platform/agentHost/common/meta/customizationOrganizationMeta.js';
 import { readCustomizationTeamProvided } from '../../../../../../platform/agentHost/common/meta/customizationTeamMeta.js';
@@ -258,6 +259,7 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 			type,
 			name: hookMetadata?.label ?? child.name,
 			description,
+			argumentHint: child.type === CustomizationType.Skill ? readSkillArgumentHint(child) : undefined,
 			...(child.type === CustomizationType.Hook && discovery?.hookType ? { isHookAction: true } : {}),
 			enabled: child.type === CustomizationType.McpServer ? isCustomizationEnabled(child) : child.enabled,
 			source,
@@ -535,6 +537,7 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 				type: PromptsType.skill,
 				name: skill.name,
 				description: skill.description,
+				argumentHint: readSkillArgumentHint(skill),
 				// MCP resource content stays read-only regardless of its server's configuration scope.
 				source: AICustomizationSources.plugin,
 				scope,

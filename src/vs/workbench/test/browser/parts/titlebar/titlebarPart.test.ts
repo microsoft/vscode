@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { $, append } from '../../../../../base/browser/dom.js';
 import { setFullscreen } from '../../../../../base/browser/browser.js';
 import { CodeWindow, mainWindow } from '../../../../../base/browser/window.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
@@ -57,6 +58,52 @@ function stubMenubarServices(instantiationService: TestInstantiationService): vo
 	disposables.add(instantiationService.createInstance(CustomMenubarControl));
 	disposables.dispose();
 }
+
+suite('TitlebarPart layout', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('spaces center-adjacent actions like navigation actions beside the command center', () => {
+		const measure = (inputClass: string) => {
+			const workbench = append(document.body, $('.monaco-workbench'));
+			workbench.style.setProperty('--vscode-spacing-size40', '4px');
+			workbench.style.setProperty('--vscode-spacing-size60', '6px');
+			store.add(toDisposable(() => workbench.remove()));
+			const titlebar = append(workbench, $('.part.titlebar'));
+			titlebar.style.height = '35px';
+			const container = append(titlebar, $('.titlebar-container.has-center'));
+			append(container, $('.titlebar-left'));
+			const center = append(container, $('.titlebar-center'));
+			const title = append(center, $('.window-title'));
+			const commandCenter = append(title, $('.command-center'));
+			const toolbar = append(commandCenter, $('.monaco-toolbar'));
+			const actionBar = append(toolbar, $('.monaco-action-bar'));
+			const actions = append(actionBar, $('ul.actions-container'));
+			const navigation = append(actions, $('li.action-item'));
+			navigation.style.width = '22px';
+			const input = append(actions, $(`li.action-item.${inputClass}`));
+			input.style.width = '300px';
+			const right = append(container, $('.titlebar-right'));
+			const adjacent = append(right, $('.center-adjacent-toolbar-container'));
+			adjacent.style.width = '24px';
+
+			return [1200, 800].map(width => {
+				workbench.style.width = `${width}px`;
+				return {
+					before: input.getBoundingClientRect().left - navigation.getBoundingClientRect().right,
+					after: adjacent.getBoundingClientRect().left - input.getBoundingClientRect().right,
+				};
+			});
+		};
+
+		assert.deepStrictEqual({
+			commandCenter: measure('command-center-center'),
+			agentStatus: measure('agent-status-container'),
+		}, {
+			commandCenter: [{ before: 10, after: 10 }, { before: 10, after: 10 }],
+			agentStatus: [{ before: 4, after: 4 }, { before: 4, after: 4 }],
+		});
+	});
+});
 
 suite('TitlebarPart colors', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
