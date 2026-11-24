@@ -37,6 +37,8 @@ class CheckoutStatusBar {
 			isSyncRunning: false
 		};
 
+		// The repository can run operations already, for example when it is attached again
+		this.onDidChangeOperations();
 		repository.onDidChangeOperations(this.onDidChangeOperations, this, this.disposables);
 		repository.onDidRunGitStatus(this._onDidChange.fire, this._onDidChange, this.disposables);
 		repository.onDidChangeBranchProtection(this._onDidChange.fire, this._onDidChange, this.disposables);
@@ -162,6 +164,9 @@ class SyncStatusBar {
 			remoteSourcePublishers: remoteSourcePublisherRegistry.getRemoteSourcePublishers()
 		};
 
+		// The repository can have run git status and operations already, for example when it is attached again
+		this.onDidRunGitStatus();
+		this.onDidChangeOperations();
 		repository.onDidRunGitStatus(this.onDidRunGitStatus, this, this.disposables);
 		repository.onDidChangeOperations(this.onDidChangeOperations, this, this.disposables);
 

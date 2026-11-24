@@ -507,6 +507,11 @@ suite('git smoke test', function () {
 			const repository = model.getRepository(repositoryPath)!;
 			const detachedSourceControl = repository.sourceControl;
 			const changes = () => repository.sourceControl.workingTreeGroup.resourceStates.map(r => path.basename(r.resourceUri.fsPath)).sort();
+			const buttons = () => ({
+				actionButton: repository.sourceControl.sourceControl.actionButton?.command.title,
+				statusBarCommands: repository.sourceControl.sourceControl.statusBarCommands?.map(c => c.title)
+			});
+			const beforeDetach = buttons();
 
 			repository.sourceControl.inputBox.value = 'draft';
 			repository.detach();
@@ -516,7 +521,7 @@ suite('git smoke test', function () {
 			const whileDetached = repository.workingTreeChanges.map(r => path.basename(r.resourceUri.fsPath)).sort();
 
 			repository.attach();
-			const attachedAgain = { changes: changes(), commitMessage: repository.sourceControl.inputBox.value };
+			const attachedAgain = { changes: changes(), commitMessage: repository.sourceControl.inputBox.value, ...buttons() };
 			const deadline = Date.now() + 10000;
 			while (!repository.workingTreeChanges.some(r => path.basename(r.resourceUri.fsPath) === 'untracked.txt') && Date.now() < deadline) {
 				await Promise.race([eventToPromise(repository.onDidRunGitStatus), new Promise(resolve => setTimeout(resolve, 1000))]);
@@ -532,8 +537,9 @@ suite('git smoke test', function () {
 			const committedWhileDetached = repository.sourceControl.inputBox.value;
 
 			assert.deepStrictEqual(
-				{ whileDetached, attachedAgain, refreshed, newSourceControl: repository.sourceControl !== detachedSourceControl, committedWhileDetached },
-				{ whileDetached: ['modified.txt'], attachedAgain: { changes: ['modified.txt'], commitMessage: 'draft' }, refreshed: ['modified.txt', 'untracked.txt'], newSourceControl: true, committedWhileDetached: '' });
+				{ beforeDetach, whileDetached, attachedAgain, refreshed, newSourceControl: repository.sourceControl !== detachedSourceControl, committedWhileDetached },
+				{ beforeDetach, whileDetached: ['modified.txt'], attachedAgain: { changes: ['modified.txt'], commitMessage: 'draft', ...beforeDetach }, refreshed: ['modified.txt', 'untracked.txt'], newSourceControl: true, committedWhileDetached: '' });
+			assert.ok(beforeDetach.actionButton && beforeDetach.statusBarCommands?.length, JSON.stringify(beforeDetach));
 		} finally {
 			model.close(model.getRepository(repositoryPath)!);
 			// On Windows, the closed repository's watchers can hold the folder for a moment

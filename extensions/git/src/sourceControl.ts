@@ -229,7 +229,9 @@ export class GitSourceControl implements Disposable {
 
 		if (!workspace.isAgentSessionsWorkspace) {
 			// Disable input box when the commit operation is running
-			repository.onDidChangeOperations(() => this.sourceControl.inputBox.enabled = !repository.operations.isRunning(OperationKind.Commit), null, this.disposables);
+			const updateInputBoxEnablement = () => this.sourceControl.inputBox.enabled = !repository.operations.isRunning(OperationKind.Commit);
+			repository.onDidChangeOperations(updateInputBoxEnablement, null, this.disposables);
+			updateInputBoxEnablement();
 		}
 	}
 
