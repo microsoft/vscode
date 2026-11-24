@@ -29,6 +29,37 @@ export interface INavigableSessionComment {
 	readonly id: string;
 }
 
+/**
+ * A pull request review comment to mirror as a {@link AgentFeedbackState.Created}
+ * {@link AgentFeedbackKind.PRReview} feedback item.
+ */
+export interface IPRReviewFeedbackMirror {
+	readonly resourceUri: URI;
+	readonly range: IRange;
+	readonly text: string;
+	readonly sourcePRReviewCommentId: string;
+	readonly sourcePullRequest: IFeedbackPullRequest;
+	readonly sourcePRReviewCommentAuthor?: string;
+}
+
+/** An update of an existing item for {@link IAgentFeedbackService.applyPRReviewFeedbackChanges}. */
+export interface IPRReviewFeedbackUpdate {
+	readonly feedbackId: string;
+	/** Replaces the item's text. */
+	readonly text?: string;
+	/** Backfills the item's pull request when it has none. */
+	readonly sourcePullRequest?: IFeedbackPullRequest;
+	/** Backfills the item's comment author when it has none. */
+	readonly sourcePRReviewCommentAuthor?: string;
+}
+
+/** Changes for {@link IAgentFeedbackService.applyPRReviewFeedbackChanges}. */
+export interface IPRReviewFeedbackChanges {
+	readonly add?: readonly IPRReviewFeedbackMirror[];
+	readonly update?: readonly IPRReviewFeedbackUpdate[];
+	readonly remove?: readonly string[];
+}
+
 /** Options for {@link IAgentFeedbackService.acceptFeedback}. */
 export interface IAcceptFeedbackOptions {
 	/**
@@ -175,6 +206,14 @@ export interface IAgentFeedbackService {
 	updateFeedback(sessionResource: URI, feedbackId: string, newText: string): void;
 	/** Backfill missing PR-review source details without replacing known values. */
 	updateFeedbackSourcePullRequest(sessionResource: URI, feedbackId: string, sourcePullRequest: IFeedbackPullRequest, sourcePRReviewCommentAuthor?: string): void;
+
+	/**
+	 * Apply the changes that mirror a session's pull request review comments
+	 * together: add new mirrors, update existing items and remove stale ones.
+	 * Listeners are notified once for the additions and updates and once for
+	 * the removals, rather than once per item.
+	 */
+	applyPRReviewFeedbackChanges(sessionResource: URI, changes: IPRReviewFeedbackChanges): void;
 
 	/**
 	 * Mark an existing feedback item as resolved. Resolving moves the item to

@@ -123,6 +123,7 @@ export class EditorWindowAgentFeedbackService implements IAgentFeedbackService {
 	removeFeedback(): void { }
 	updateFeedback(): void { }
 	updateFeedbackSourcePullRequest(): void { }
+	applyPRReviewFeedbackChanges(): void { }
 	setFeedbackResolved(): void { }
 	addReply(): void { }
 	getFeedback(): readonly IAgentFeedback[] { return []; }

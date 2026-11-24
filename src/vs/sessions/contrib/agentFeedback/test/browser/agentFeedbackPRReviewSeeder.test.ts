@@ -7,14 +7,14 @@ import assert from 'assert';
 import { Emitter } from '../../../../../base/common/event.js';
 import { ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { IRange, Range } from '../../../../../editor/common/core/range.js';
+import { Range } from '../../../../../editor/common/core/range.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { ICodeReviewService, ICodeReviewSuggestion, IPRReviewComment, IPRReviewState, PRReviewStateKind } from '../../../../../workbench/contrib/sessions/browser/codeReviewService.js';
-import { IAgentFeedbackContext, IAgentFeedbackService } from '../../../../../workbench/contrib/sessions/browser/agentFeedback.js';
+import { ICodeReviewService, IPRReviewComment, IPRReviewState, PRReviewStateKind } from '../../../../../workbench/contrib/sessions/browser/codeReviewService.js';
+import { IAgentFeedbackService, IPRReviewFeedbackChanges } from '../../../../../workbench/contrib/sessions/browser/agentFeedback.js';
 import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedback } from '../../../../../workbench/contrib/sessions/browser/agentFeedbackModel.js';
 import { AgentFeedbackPRReviewSeederContribution } from '../../browser/agentFeedbackPRReviewSeeder.js';
 import { focusedSessionHostServiceOf, ITestSessionWithChat } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
@@ -28,6 +28,7 @@ suite('AgentFeedbackPRReviewSeederContribution', () => {
 
 	let feedbackItems: IAgentFeedback[];
 	let loaded: boolean;
+	let applyCount: number;
 	let onDidChangeFeedback: Emitter<{ sessionResource: URI; feedbackItems: readonly IAgentFeedback[] }>;
 	let prReviewState: ISettableObservable<IPRReviewState>;
 	let activeSession: ISettableObservable<ITestSessionWithChat | undefined>;
@@ -56,6 +57,7 @@ suite('AgentFeedbackPRReviewSeederContribution', () => {
 	setup(() => {
 		feedbackItems = [];
 		loaded = true;
+		applyCount = 0;
 		onDidChangeFeedback = store.add(new Emitter());
 		prReviewState = observableValue<IPRReviewState>('prReviewState', { kind: PRReviewStateKind.None });
 		activeSession = observableValue<ITestSessionWithChat | undefined>('activeSession', makeActiveSession(LOCAL_AGENT_HOST_PROVIDER_ID));
@@ -64,32 +66,26 @@ suite('AgentFeedbackPRReviewSeederContribution', () => {
 			override onDidChangeFeedback = onDidChangeFeedback.event;
 			override hasLoadedFeedback(_sessionResource: URI): boolean { return loaded; }
 			override getFeedback(_sessionResource: URI): readonly IAgentFeedback[] { return feedbackItems; }
-			override addFeedback(sessionResource: URI, resourceUri: URI, range: IRange, text: string, _suggestion?: ICodeReviewSuggestion, _context?: IAgentFeedbackContext, sourcePRReviewCommentId?: string, _kind?: AgentFeedbackKind, state: AgentFeedbackState = AgentFeedbackState.Accepted, sourcePullRequest?: IAgentFeedback['sourcePullRequest'], sourcePRReviewCommentAuthor?: string): IAgentFeedback {
-				const feedback: IAgentFeedback = { id: generateUuid(), text, resourceUri, range, sessionResource, kind: AgentFeedbackKind.PRReview, sourcePRReviewCommentId, sourcePRReviewCommentAuthor, sourcePullRequest, state };
-				feedbackItems.push(feedback);
+			override applyPRReviewFeedbackChanges(sessionResource: URI, changes: IPRReviewFeedbackChanges): void {
+				applyCount++;
+				const removed = new Set(changes.remove);
+				for (const update of changes.update ?? []) {
+					const idx = feedbackItems.findIndex(i => i.id === update.feedbackId);
+					if (idx >= 0 && !removed.has(update.feedbackId)) {
+						const existing = feedbackItems[idx];
+						feedbackItems[idx] = {
+							...existing,
+							text: update.text ?? existing.text,
+							sourcePullRequest: existing.sourcePullRequest ?? update.sourcePullRequest,
+							sourcePRReviewCommentAuthor: existing.sourcePRReviewCommentAuthor || update.sourcePRReviewCommentAuthor,
+						};
+					}
+				}
+				for (const mirror of changes.add ?? []) {
+					feedbackItems.push({ id: generateUuid(), sessionResource, kind: AgentFeedbackKind.PRReview, state: AgentFeedbackState.Created, ...mirror });
+				}
+				feedbackItems = feedbackItems.filter(i => !removed.has(i.id));
 				onDidChangeFeedback.fire({ sessionResource, feedbackItems });
-				return feedback;
-			}
-			override removeFeedback(_sessionResource: URI, feedbackId: string): void {
-				const idx = feedbackItems.findIndex(i => i.id === feedbackId);
-				if (idx >= 0) {
-					feedbackItems.splice(idx, 1);
-					onDidChangeFeedback.fire({ sessionResource: session, feedbackItems });
-				}
-			}
-			override updateFeedback(_sessionResource: URI, feedbackId: string, newText: string): void {
-				const idx = feedbackItems.findIndex(i => i.id === feedbackId);
-				if (idx >= 0) {
-					feedbackItems[idx] = { ...feedbackItems[idx], text: newText };
-					onDidChangeFeedback.fire({ sessionResource: session, feedbackItems });
-				}
-			}
-			override updateFeedbackSourcePullRequest(_sessionResource: URI, feedbackId: string, sourcePullRequest: IAgentFeedback['sourcePullRequest'], sourcePRReviewCommentAuthor?: string): void {
-				const idx = feedbackItems.findIndex(i => i.id === feedbackId);
-				if (idx >= 0) {
-					feedbackItems[idx] = { ...feedbackItems[idx], sourcePullRequest, sourcePRReviewCommentAuthor };
-					onDidChangeFeedback.fire({ sessionResource: session, feedbackItems });
-				}
 			}
 		};
 		const codeReviewService = new class extends mock<ICodeReviewService>() {
@@ -109,6 +105,23 @@ suite('AgentFeedbackPRReviewSeederContribution', () => {
 			{ sourceId: 'thread-1', prNumber: 42, state: AgentFeedbackState.Created, text: 'Fix this' },
 			{ sourceId: 'thread-2', prNumber: 42, state: AgentFeedbackState.Created, text: 'And this' },
 		]);
+	});
+
+	test('applies all changes of a sync together, not once per comment', () => {
+		const comments = Array.from({ length: 50 }, (_, i) => prComment(`thread-${i}`, i + 1, `Comment ${i}`));
+		setComments(comments);
+		const afterSeed = { applyCount, mirrorCount: mirrors().length };
+
+		// Remove the first half, edit the rest: still one batch.
+		setComments(comments.slice(25).map(comment => ({ ...comment, body: `${comment.body} (edited)` })));
+
+		assert.deepStrictEqual({
+			afterSeed,
+			afterSync: { applyCount, mirrorCount: mirrors().length, editedCount: mirrors().filter(m => m.text.endsWith('(edited)')).length },
+		}, {
+			afterSeed: { applyCount: 1, mirrorCount: 50 },
+			afterSync: { applyCount: 2, mirrorCount: 25, editedCount: 25 },
+		});
 	});
 
 	test('does not duplicate mirrors when the PR review state re-emits', () => {
@@ -186,6 +199,7 @@ suite('AgentFeedbackPRReviewSeederContribution', () => {
 
 		// Once loaded, a feedback change re-evaluates and seeds.
 		loaded = true;
+		applyCount = 0;
 		onDidChangeFeedback.fire({ sessionResource: session, feedbackItems });
 		assert.deepStrictEqual(mirrors().map(m => m.sourceId), ['thread-1']);
 	});

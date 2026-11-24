@@ -22,7 +22,7 @@ import { IFocusedSessionHostService } from '../../../../workbench/services/sessi
 import { ISessionsProvidersService } from '../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { editingEntriesContainResource } from '../../../../workbench/contrib/chat/browser/sessionResourceMatching.js';
 import { changeMatchesResource, getActiveResourceCandidates } from './agentFeedbackEditorUtils.js';
-import { IAgentFeedbackContext, AGENT_FEEDBACK_NEW_SESSION_RESOURCE, INavigableSessionComment, IAcceptFeedbackOptions, IAgentFeedbackChangeEvent, IAgentFeedbackNavigationBearing, IAgentFeedbackNavigationChangeEvent, IAgentFeedbackCommentRevealEvent, IAgentFeedbackAddedEvent, IAgentFeedbackConvertedEvent, IAgentFeedbackReplyAddedEvent, IAgentFeedbackSubmittedEvent, ISubmitFeedbackOptions, IAgentFeedbackService } from '../../../../workbench/contrib/sessions/browser/agentFeedback.js';
+import { IAgentFeedbackContext, AGENT_FEEDBACK_NEW_SESSION_RESOURCE, INavigableSessionComment, IAcceptFeedbackOptions, IAgentFeedbackChangeEvent, IAgentFeedbackNavigationBearing, IAgentFeedbackNavigationChangeEvent, IAgentFeedbackCommentRevealEvent, IAgentFeedbackAddedEvent, IAgentFeedbackConvertedEvent, IAgentFeedbackReplyAddedEvent, IAgentFeedbackSubmittedEvent, ISubmitFeedbackOptions, IAgentFeedbackService, IPRReviewFeedbackChanges } from '../../../../workbench/contrib/sessions/browser/agentFeedback.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { IChatWidget, IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { ResponseModelState } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
@@ -453,6 +453,57 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 			sourcePullRequest: existing.sourcePullRequest ?? sourcePullRequest,
 			sourcePRReviewCommentAuthor: existing.sourcePRReviewCommentAuthor || sourcePRReviewCommentAuthor,
 		});
+	}
+
+	applyPRReviewFeedbackChanges(sessionResource: URI, changes: IPRReviewFeedbackChanges): void {
+		const backend = this._backendForSession(sessionResource);
+		const removed = new Set(changes.remove);
+		const upserts = new Map<string, IAgentFeedback>();
+		if (changes.update?.length) {
+			const existingById = new Map(backend.getItems(sessionResource).map(item => [item.id, item]));
+			for (const update of changes.update) {
+				const existing = upserts.get(update.feedbackId) ?? existingById.get(update.feedbackId);
+				if (!existing || removed.has(existing.id)) {
+					continue;
+				}
+				const next: IAgentFeedback = {
+					...existing,
+					text: update.text ?? existing.text,
+					sourcePullRequest: existing.sourcePullRequest ?? update.sourcePullRequest,
+					sourcePRReviewCommentAuthor: existing.sourcePRReviewCommentAuthor || update.sourcePRReviewCommentAuthor,
+				};
+				if (next.text !== existing.text || next.sourcePullRequest !== existing.sourcePullRequest || next.sourcePRReviewCommentAuthor !== existing.sourcePRReviewCommentAuthor) {
+					upserts.set(existing.id, next);
+				}
+			}
+		}
+		// Mirrors are created by the system, not accepted by the user, so they
+		// fire no add/convert telemetry (see addFeedback).
+		for (const mirror of changes.add ?? []) {
+			const feedback: IAgentFeedback = {
+				id: generateUuid(),
+				text: mirror.text,
+				resourceUri: mirror.resourceUri,
+				range: mirror.range,
+				sessionResource,
+				kind: AgentFeedbackKind.PRReview,
+				sourcePRReviewCommentId: mirror.sourcePRReviewCommentId,
+				sourcePRReviewCommentAuthor: mirror.sourcePRReviewCommentAuthor,
+				sourcePullRequest: mirror.sourcePullRequest,
+				state: AgentFeedbackState.Created,
+			};
+			upserts.set(feedback.id, feedback);
+		}
+
+		backend.upsertMany(sessionResource, [...upserts.values()]);
+		if (removed.size) {
+			const key = sessionResource.toString();
+			const anchor = this._navigationAnchorBySession.get(key);
+			if (anchor && removed.has(anchor.itemId)) {
+				this._navigationAnchorBySession.delete(key);
+			}
+			backend.removeMany(sessionResource, [...removed]);
+		}
 	}
 
 	setFeedbackResolved(sessionResource: URI, feedbackId: string, resolved: boolean): void {

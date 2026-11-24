@@ -961,6 +961,42 @@ suite('AgentFeedbackService - State', () => {
 		assert.strictEqual(service.getFeedback(session)[0].state, AgentFeedbackState.Submitted);
 	});
 
+	test('applyPRReviewFeedbackChanges notifies once for additions and updates and once for removals', () => {
+		const pullRequest = { owner: 'owner', repo: 'repo', number: 42 };
+		const fileB = URI.parse('file:///b.ts');
+		const legacy = service.addFeedback(session, fileA, r(1), 'legacy', undefined, undefined, 'thread-0', AgentFeedbackKind.PRReview, AgentFeedbackState.Created);
+		const stale = Array.from({ length: 10 }, (_, i) => service.addFeedback(session, fileA, r(i + 2), `stale ${i}`, undefined, undefined, `stale-${i}`, AgentFeedbackKind.PRReview, AgentFeedbackState.Created, pullRequest));
+		let feedbackChanges = 0;
+		let added = 0;
+		store.add(service.onDidChangeFeedback(() => feedbackChanges++));
+		store.add(service.onDidAddFeedback(() => added++));
+		store.add(service.onDidConvertFeedback(() => added++));
+
+		service.applyPRReviewFeedbackChanges(session, {
+			add: Array.from({ length: 20 }, (_, i) => ({ resourceUri: fileB, range: r(i + 1), text: `new ${i}`, sourcePRReviewCommentId: `thread-${i + 1}`, sourcePullRequest: pullRequest, sourcePRReviewCommentAuthor: 'reviewer' })),
+			update: [
+				{ feedbackId: legacy.id, sourcePullRequest: pullRequest, sourcePRReviewCommentAuthor: 'reviewer' },
+				{ feedbackId: legacy.id, text: 'legacy (edited)' },
+			],
+			remove: stale.map(item => item.id),
+		});
+
+		const items = service.getFeedback(session);
+		assert.deepStrictEqual({
+			feedbackChanges,
+			added,
+			count: items.length,
+			legacy: items.filter(item => item.id === legacy.id).map(item => ({ text: item.text, pullRequest: item.sourcePullRequest?.number, author: item.sourcePRReviewCommentAuthor })),
+			newMirrors: items.filter(item => item.resourceUri.toString() === fileB.toString() && item.kind === AgentFeedbackKind.PRReview && item.state === AgentFeedbackState.Created && item.sourcePullRequest?.number === 42).length,
+		}, {
+			feedbackChanges: 2,
+			added: 0,
+			count: 21,
+			legacy: [{ text: 'legacy (edited)', pullRequest: 42, author: 'reviewer' }],
+			newMirrors: 20,
+		});
+	});
+
 	test('resolving and un-resolving moves between resolved and submitted', () => {
 		const feedback = service.addFeedback(session, fileA, r(10), 'feedback');
 		// Non-agent-host submit resolves the comment directly.

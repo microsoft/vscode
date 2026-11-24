@@ -10,7 +10,7 @@ import { IWorkbenchContribution } from '../../../../workbench/common/contributio
 import { isAgentHostProviderId } from '../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { IFocusedSessionHostService } from '../../../../workbench/services/sessions/browser/sessionHost.js';
 import { ICodeReviewService, IPRReviewComment, PRReviewStateKind } from '../../../../workbench/contrib/sessions/browser/codeReviewService.js';
-import { IAgentFeedbackService } from '../../../../workbench/contrib/sessions/browser/agentFeedback.js';
+import { IAgentFeedbackService, IPRReviewFeedbackMirror, IPRReviewFeedbackUpdate } from '../../../../workbench/contrib/sessions/browser/agentFeedback.js';
 import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedback } from '../../../../workbench/contrib/sessions/browser/agentFeedbackModel.js';
 
 /**
@@ -103,47 +103,48 @@ export function syncPRReviewFeedback(agentFeedbackService: IAgentFeedbackService
 			}
 		}
 	}
-	for (const duplicate of duplicateCreatedMirrors) {
-		agentFeedbackService.removeFeedback(sessionResource, duplicate.id);
-	}
+	// Collect every change and apply them together: applying them one at a
+	// time notifies feedback listeners (and re-runs this sync) once per item.
+	const remove = duplicateCreatedMirrors.map(duplicate => duplicate.id);
+	const update: IPRReviewFeedbackUpdate[] = [];
+	const add: IPRReviewFeedbackMirror[] = [];
 
 	for (const comment of comments) {
 		const mirror = mirrorBySource.get(comment.id);
 		if (mirror && (!mirror.sourcePullRequest || (!mirror.sourcePRReviewCommentAuthor && comment.author))) {
-			agentFeedbackService.updateFeedbackSourcePullRequest(sessionResource, mirror.id, {
-				owner: comment.pullRequest.owner,
-				repo: comment.pullRequest.repo,
-				number: comment.pullRequest.number,
-			}, comment.author || undefined);
+			update.push({
+				feedbackId: mirror.id,
+				sourcePullRequest: {
+					owner: comment.pullRequest.owner,
+					repo: comment.pullRequest.repo,
+					number: comment.pullRequest.number,
+				},
+				sourcePRReviewCommentAuthor: comment.author || undefined,
+			});
 		}
 		const createdMirror = createdMirrorBySource.get(comment.id);
 		if (createdMirror) {
 			// Keep an existing un-accepted mirror in sync with edits to the
 			// upstream comment body so the agent reads the latest text.
 			if (createdMirror.text !== comment.body) {
-				agentFeedbackService.updateFeedback(sessionResource, createdMirror.id, comment.body);
+				update.push({ feedbackId: createdMirror.id, text: comment.body });
 			}
 			continue;
 		}
 		// Any existing mirror supersedes the raw PR comment in the editor.
 		if (!mirroredSourceIds.has(comment.id)) {
-			agentFeedbackService.addFeedback(
-				sessionResource,
-				comment.uri,
-				comment.range,
-				comment.body,
-				undefined,
-				undefined,
-				comment.id,
-				AgentFeedbackKind.PRReview,
-				AgentFeedbackState.Created,
-				{
+			add.push({
+				resourceUri: comment.uri,
+				range: comment.range,
+				text: comment.body,
+				sourcePRReviewCommentId: comment.id,
+				sourcePullRequest: {
 					owner: comment.pullRequest.owner,
 					repo: comment.pullRequest.repo,
 					number: comment.pullRequest.number,
 				},
-				comment.author || undefined,
-			);
+				sourcePRReviewCommentAuthor: comment.author || undefined,
+			});
 		}
 	}
 
@@ -165,8 +166,12 @@ export function syncPRReviewFeedback(agentFeedbackService: IAgentFeedbackService
 			) {
 				continue;
 			}
-			agentFeedbackService.removeFeedback(sessionResource, item.id);
+			remove.push(item.id);
 		}
+	}
+
+	if (add.length || update.length || remove.length) {
+		agentFeedbackService.applyPRReviewFeedbackChanges(sessionResource, { add, update, remove });
 	}
 }
 
