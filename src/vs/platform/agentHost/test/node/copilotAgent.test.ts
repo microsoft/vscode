@@ -22941,7 +22941,7 @@ suite('CopilotAgent', () => {
 			});
 		});
 
-		test('setClientCustomizations publishes parsed agents in SessionCustomizationUpdated', async () => {
+		test('setClientCustomizations publishes parsed children with their client source URIs', async () => {
 			const root = await fs.mkdtemp(join(os.tmpdir(), 'copilot-source-meta-'));
 			const fileService = disposables.add(new FileService(new NullLogService()));
 			disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new TestDiskFileSystemProvider(new NullLogService()))));
@@ -22953,6 +22953,11 @@ suite('CopilotAgent', () => {
 			await fileService.writeFile(
 				URI.joinPath(pluginDir, 'agents', 'helper.md'),
 				VSBuffer.fromString('---\nname: helper-agent\ndescription: helps out\n---\nbody'),
+			);
+			await fileService.createFolder(URI.joinPath(pluginDir, 'skills', 'review'));
+			await fileService.writeFile(
+				URI.joinPath(pluginDir, 'skills', 'review', 'SKILL.md'),
+				VSBuffer.fromString('---\nname: review\nuser-invocable: false\n---\nbody'),
 			);
 
 			class PluginDirSpyManager extends TestAgentPluginManager {
@@ -22995,14 +23000,21 @@ suite('CopilotAgent', () => {
 				.filter(a => (a.customization as PluginCustomization).children !== undefined);
 
 			assert.strictEqual(updatesWithChildren.length > 0, true, 'expected SessionCustomizationUpdated to carry parsed children');
-			const agentChildren = (updatesWithChildren.at(-1)!.customization as PluginCustomization).children!.filter(c => c.type === CustomizationType.Agent);
-			assert.deepStrictEqual(agentChildren, [{
+			const children = (updatesWithChildren.at(-1)!.customization as PluginCustomization).children;
+			assert.deepStrictEqual(children, [{
 				type: CustomizationType.Agent,
 				id: customizationId(URI.joinPath(pluginDir, 'agents', 'helper.md').toString()),
 				uri: URI.joinPath(pluginDir, 'agents', 'helper.md').toString(),
 				name: 'helper-agent',
 				description: 'helps out',
 				_meta: { 'vscode.sourceUri': URI.joinPath(sourceRoot, 'agents', 'helper.md').toString() },
+			}, {
+				type: CustomizationType.Skill,
+				id: customizationId(URI.joinPath(pluginDir, 'skills', 'review', 'SKILL.md').toString()),
+				uri: URI.joinPath(pluginDir, 'skills', 'review', 'SKILL.md').toString(),
+				name: 'review',
+				disableUserInvocation: true,
+				_meta: { 'vscode.sourceUri': URI.joinPath(sourceRoot, 'skills', 'review', 'SKILL.md').toString() },
 			}]);
 		});
 

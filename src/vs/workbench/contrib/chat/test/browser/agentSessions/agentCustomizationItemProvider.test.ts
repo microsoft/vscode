@@ -1156,6 +1156,7 @@ suite('AgentCustomizationItemProvider', () => {
 		const pluginUri = URI.file('/plugins/sample');
 		const agentUri = URI.joinPath(pluginUri, 'com.github.copilot', 'agents', 'helper.agent.md');
 		const ruleUri = URI.joinPath(pluginUri, 'com.github.copilot', 'rules', 'style.mdc');
+		const hookUri = URI.joinPath(pluginUri, 'com.github.copilot', 'hooks', 'hooks.json').toString();
 		let scanCount = 0;
 		const plugin: PluginCustomization = {
 			type: CustomizationType.Plugin,
@@ -1166,10 +1167,15 @@ suite('AgentCustomizationItemProvider', () => {
 			_meta: withCustomizationDiscoveryMeta(undefined, { source: 'repository' }),
 			children: [
 				{ type: CustomizationType.Agent, id: 'plugin-agent', uri: agentUri.toString(), name: 'Helper' },
+				{ type: CustomizationType.Skill, id: 'plugin-skill', uri: URI.joinPath(pluginUri, 'skills', 'review', 'SKILL.md').toString(), name: 'Review', disableUserInvocation: true },
 				{ type: CustomizationType.Rule, id: 'plugin-rule', uri: ruleUri.toString(), name: 'Style', description: 'Formatting rules', alwaysApply: true, globs: ['**/*.ts'], enabled: false },
 				{
-					type: CustomizationType.Hook, id: 'plugin-hook', uri: 'agent-discovery://copilot/hooks#plugin-hook', name: 'sessionStart', enabled: true,
+					type: CustomizationType.Hook, id: 'plugin-hook-start', uri: hookUri, name: 'sessionStart', enabled: true,
 					_meta: withCustomizationDiscoveryMeta(undefined, { source: 'plugin', sourceLabel: 'Sample Plugin', hookType: 'sessionStart' }),
+				},
+				{
+					type: CustomizationType.Hook, id: 'plugin-hook-end', uri: hookUri, name: 'sessionEnd', enabled: true,
+					_meta: withCustomizationDiscoveryMeta(undefined, { source: 'plugin', sourceLabel: 'Sample Plugin', hookType: 'sessionEnd' }),
 				},
 			],
 		};
@@ -1197,18 +1203,20 @@ suite('AgentCustomizationItemProvider', () => {
 		const items = await provider.provideChatSessionCustomizations(URI.parse('agent-host-copilot:/session'), CancellationToken.None);
 		const agent = items.find(item => item.itemKey === 'plugin-agent');
 		const rule = items.find(item => item.itemKey === 'plugin-rule');
-		const hook: ICustomizationHookItem | undefined = items.find(item => item.itemKey === 'plugin-hook');
+		const hooks: ICustomizationHookItem[] = items.filter(item => item.type === PromptsType.hook);
 
 		assert.deepStrictEqual({
 			scanCount,
 			agent: agent && { type: agent.type, name: agent.name, source: agent.source, scope: agent.scope, pluginUri: agent.pluginUri?.toString(), pluginLabel: agent.pluginLabel },
 			rule: rule && { type: rule.type, name: rule.name, description: rule.description, groupKey: rule.groupKey, badge: rule.badge, enabled: rule.enabled },
-			hook: hook && { type: hook.type, isHookAction: hook.isHookAction },
+			skillUserInvocable: items.find(item => item.itemKey === 'plugin-skill')?.userInvocable,
+			hooks: hooks.map(hook => ({ itemKey: hook.itemKey, isHookAction: hook.isHookAction })).sort((a, b) => a.itemKey!.localeCompare(b.itemKey!)),
 		}, {
 			scanCount: 0,
 			agent: { type: PromptsType.agent, name: 'Helper', source: AICustomizationSources.plugin, scope: 'workspace', pluginUri: connection.toClient(pluginUri).toString(), pluginLabel: 'Sample Plugin' },
 			rule: { type: PromptsType.instructions, name: 'Style', description: 'Formatting rules', groupKey: 'context-instructions', badge: '**/*.ts', enabled: false },
-			hook: { type: PromptsType.hook, isHookAction: true },
+			skillUserInvocable: false,
+			hooks: [{ itemKey: 'plugin-hook-end', isHookAction: true }, { itemKey: 'plugin-hook-start', isHookAction: true }],
 		});
 	});
 
@@ -1241,8 +1249,9 @@ suite('AgentCustomizationItemProvider', () => {
 		});
 	});
 
-	test('surfaces draft bundle agents skills and instructions before session state exists', async () => {
+	test('keeps bundle source files when host-published children replace the draft', async () => {
 		const bundleUri = URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/bundle' });
+		const sessionBundleUri = bundleUri.with({ path: '/session-bundle' });
 		const workspaceAgentUri = URI.file('/workspace/.github/agents/reviewer.agent.md');
 		const workspaceSkillUri = URI.file('/workspace/.github/skills/review/SKILL.md');
 		const workspaceInstructionsUri = URI.file('/workspace/.github/instructions/review.instructions.md');
@@ -1251,12 +1260,13 @@ suite('AgentCustomizationItemProvider', () => {
 		await fileService.writeFile(URI.joinPath(bundleUri, 'skills', 'review', 'SKILL.md'), VSBuffer.fromString('---\nname: Review Skill\ndescription: Reviews code\n---\nReview code.'));
 		await fileService.writeFile(URI.joinPath(bundleUri, 'rules', 'review.instructions.md'), VSBuffer.fromString('---\nname: Review Instructions\ndescription: Review rules\n---\nFollow review rules.'));
 
+		const published: Customization[] = [];
 		class TestCustomizationService extends NullAgentHostCustomizationService {
 			override getWorkingDirectories(): readonly string[] {
 				return ['file:///workspace'];
 			}
 			override getCustomizations(): readonly Customization[] {
-				return [];
+				return published;
 			}
 		}
 
@@ -1269,7 +1279,7 @@ suite('AgentCustomizationItemProvider', () => {
 			{ clientId: 'vscode', resourceUris: createAgentHostResourceUriMapper('local') },
 			undefined,
 			syncedUri => {
-				const uri = origins.get(syncedUri.toString());
+				const uri = origins.get(syncedUri.toString()) ?? origins.get(syncedUri.with({ path: syncedUri.path.replace(/^\/session-bundle\//, '/bundle/') }).toString());
 				return uri ? { uri, source: AICustomizationSources.local } : undefined;
 			},
 			fileService,
@@ -1291,6 +1301,27 @@ suite('AgentCustomizationItemProvider', () => {
 			{ type: PromptsType.agent, name: 'Reviewer', uri: workspaceAgentUri.toString() },
 			{ type: PromptsType.instructions, name: 'Review Instructions', uri: workspaceInstructionsUri.toString() },
 			{ type: PromptsType.skill, name: 'Review Skill', uri: workspaceSkillUri.toString() },
+		]);
+
+		const cacheRoot = URI.file('/host/plugin-cache/bundle');
+		const publishedChild = (type: CustomizationType.Agent | CustomizationType.Rule | CustomizationType.Skill, path: string, name: string) => {
+			const uri = URI.joinPath(cacheRoot, path).toString();
+			return { type, id: uri, uri, name, _meta: { 'vscode.sourceUri': URI.joinPath(sessionBundleUri, path).toString() } };
+		};
+		published.push({
+			type: CustomizationType.Plugin, id: sessionBundleUri.toString(), uri: sessionBundleUri.toString(), name: 'VS Code Synced Data', clientId: 'vscode',
+			load: { kind: CustomizationLoadStatus.Loaded },
+			children: [
+				publishedChild(CustomizationType.Agent, 'agents/reviewer.agent.md', 'Host Reviewer'),
+				publishedChild(CustomizationType.Rule, 'rules/review.instructions.md', 'Host Instructions'),
+				publishedChild(CustomizationType.Skill, 'skills/review/SKILL.md', 'Host Skill'),
+			],
+		});
+		const updated = await provider.provideChatSessionCustomizations(URI.parse('agent-host-codex:///draft'), CancellationToken.None);
+		assert.deepStrictEqual(updated.map(item => ({ name: item.name, uri: item.uri.toString(), source: item.source, scope: item.scope, status: item.status })), [
+			{ name: 'Host Reviewer', uri: workspaceAgentUri.toString(), source: AICustomizationSources.local, scope: 'workspace', status: 'loaded' },
+			{ name: 'Host Instructions', uri: workspaceInstructionsUri.toString(), source: AICustomizationSources.local, scope: 'workspace', status: 'loaded' },
+			{ name: 'Host Skill', uri: workspaceSkillUri.toString(), source: AICustomizationSources.local, scope: 'workspace', status: 'loaded' },
 		]);
 	});
 

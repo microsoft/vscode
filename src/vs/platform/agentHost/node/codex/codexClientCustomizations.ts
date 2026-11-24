@@ -13,6 +13,7 @@ import type { ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { CustomizationEnablementKind, type AgentSelection } from '../../common/state/protocol/state.js';
 import { CustomizationType, type ChildCustomization, type ClientPluginCustomization, type McpServerCustomization, type PluginCustomization } from '../../common/state/sessionState.js';
 import { readClientPluginMcpDefaultCwd } from '../../common/meta/clientPluginCustomizationMeta.js';
+import { withCustomizationSourceUri } from '../../common/meta/agentCustomizationMeta.js';
 import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
 import { AGENT_HOST_FILE_LINK_INSTRUCTIONS } from '../shared/fileLinkInstructions.js';
 import { toCodexMcpServerJson, type ICodexMcpServerConfigJson } from './codexMcpServers.js';
@@ -150,7 +151,7 @@ export class CodexClientCustomizationStore {
 	toCustomizations(): PluginCustomization[] {
 		return this._merged().map(plugin => {
 			const base = plugin.customization ?? plugin.synced.customization;
-			const children = base.children ?? (plugin.parsed ? parsedPluginChildren(plugin.parsed) : undefined);
+			const children = base.children ?? (plugin.parsed ? parsedPluginChildren(plugin.parsed, plugin.synced) : undefined);
 			return {
 				...base,
 				...(this._enablement.has(base.id) ? { enablement: [{ kind: CustomizationEnablementKind.Session, enabled: this._enablement.get(base.id)! }] } : {}),
@@ -161,7 +162,7 @@ export class CodexClientCustomizationStore {
 }
 
 /** Collects every child customization a parsed plugin exposes, deduped by id. */
-export function parsedPluginChildren(parsed: IParsedPlugin): ChildCustomization[] {
+export function parsedPluginChildren(parsed: IParsedPlugin, synced: ISyncedCustomization): ChildCustomization[] {
 	const byId = new Map<string, ChildCustomization>();
 	const add = (c: ChildCustomization) => { if (!byId.has(c.id)) { byId.set(c.id, c); } };
 	for (const a of parsed.agents) { add(a.customization); }
@@ -169,7 +170,12 @@ export function parsedPluginChildren(parsed: IParsedPlugin): ChildCustomization[
 	for (const r of parsed.instructions) { add(r.customization); }
 	for (const h of parsed.hooks) { add(h.customization); }
 	for (const m of parsed.mcpServers) { add(m.customization); }
-	return [...byId.values()];
+	if (!synced.pluginDir) {
+		return [...byId.values()];
+	}
+	const materializedRoot = URI.parse(synced.pluginDir.toString());
+	const sourceRoot = URI.parse(synced.customization.uri);
+	return Array.from(byId.values(), child => withCustomizationSourceUri(child, materializedRoot, sourceRoot));
 }
 
 /**

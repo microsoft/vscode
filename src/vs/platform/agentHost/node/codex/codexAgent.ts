@@ -2268,7 +2268,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		const plugins = session.clientCustomizations.plugins();
 		const candidates = plugins.map(plugin => ({
 			...plugin.synced.customization,
-			...(plugin.parsed ? { children: parsedPluginChildren(plugin.parsed) } : {}),
+			...(plugin.parsed ? { children: parsedPluginChildren(plugin.parsed, plugin.synced) } : {}),
 		}));
 		const clientPlugins = new Map<string, ClientPluginCustomization>();
 		const childEnablement = new Map<string, NonNullable<ClientPluginCustomization['childEnablement']>>();
@@ -8370,7 +8370,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			[...customizations],
 			status => {
 				if (!options?.quiet && options?.isCurrent?.() !== false) {
-					this._fire(session.owner.get(), { type: ActionType.SessionCustomizationUpdated, customization: status });
+					this._fire(session.owner.get(), { type: ActionType.SessionCustomizationUpdated, customization: { ...status, clientId } });
 				}
 			},
 		);
@@ -8378,7 +8378,10 @@ export class CodexAgent extends Disposable implements IAgent {
 			return;
 		}
 		const inputs = new Map(customizations.map(customization => [customization.uri, customization]));
-		const plugins = await Promise.all(synced.map(item => this._parseClientPlugin(session, item, inputs.get(item.customization.uri))));
+		const plugins = await Promise.all(synced.map(item => this._parseClientPlugin(session, {
+			...item,
+			customization: { ...item.customization, clientId },
+		}, inputs.get(item.customization.uri))));
 		if (session.disposed || options?.isCurrent?.() === false) {
 			return;
 		}
@@ -8452,7 +8455,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 		try {
 			const parsed = await parsePlugin(synced.pluginDir, this._fileService, session.workingDirectory, this._environmentService.userHome, synced.pluginDir);
-			const candidate = { ...synced.customization, children: parsedPluginChildren(parsed) };
+			const candidate = { ...synced.customization, children: parsedPluginChildren(parsed, synced) };
 			const clientPlugins = input ? new Map([[input.uri, input]]) : undefined;
 			const resolution = resolveCustomizationEnablement(this._customizationEnablementService, session.owner.get(), [candidate], input?.childEnablement ? new Map([[input.uri, input.childEnablement]]) : undefined, clientPlugins);
 			const resolved = resolution.customizations[0];

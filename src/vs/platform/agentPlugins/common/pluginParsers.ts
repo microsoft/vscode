@@ -1241,7 +1241,10 @@ export async function readInstructionComponents(
 	}
 
 	items.sort((a, b) => a.name.localeCompare(b.name));
-	return items;
+	return Promise.all(items.map(async item => {
+		const { name, description } = await parseRuleFile(item.uri, fileService, item.name);
+		return { ...item, name, ...(description ? { description } : {}) };
+	}));
 }
 
 /**
@@ -1353,8 +1356,7 @@ export function toSkillInvocationFlags(userInvocable: boolean | undefined, disab
 	};
 }
 
-export async function parseRuleFile(uri: URI, fileService: IFileService): Promise<{ name: string; description?: string; globs?: string[]; alwaysApply?: boolean }> {
-	const nameFromFile = basename(uri).replace(/(\.instructions)?\.md$/i, '');
+export async function parseRuleFile(uri: URI, fileService: IFileService, nameFromFile = basename(uri).replace(/(\.instructions)?\.md$/i, '')): Promise<{ name: string; description?: string; globs?: string[]; alwaysApply?: boolean }> {
 	try {
 		const content = await fileService.readFile(uri);
 		const frontmatter = parseFrontMatter(content.value.toString());
