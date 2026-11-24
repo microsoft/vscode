@@ -106,7 +106,7 @@ suite('AgentFeedbackEditorWidget', () => {
 		});
 		services.set(IAgentFeedbackService, new class extends mock<IAgentFeedbackService>() {
 			override setNavigationAnchor(_sessionResource: URI, commentId: string): void { navigations.push(commentId); }
-			override acceptFeedback(_sessionResource: URI, feedbackId: string): void { acceptedFeedbackIds.push(feedbackId); }
+			override acceptFeedback(_sessionResource: URI, feedbackIds: readonly string[]): void { acceptedFeedbackIds.push(...feedbackIds); }
 			override updateFeedback(): void { }
 			override hideFeedbackInEditor(_sessionResource: URI, feedbackId: string): void { hiddenFeedbackIds.push(feedbackId); }
 			override removeFeedback(_sessionResource: URI, feedbackId: string): void { removedFeedbackIds.push(feedbackId); }

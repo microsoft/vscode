@@ -401,25 +401,40 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 		return feedback;
 	}
 
-	acceptFeedback(sessionResource: URI, feedbackId: string, options?: IAcceptFeedbackOptions): void {
+	acceptFeedback(sessionResource: URI, feedbackIds: readonly string[], options?: IAcceptFeedbackOptions): void {
 		const backend = this._backendForSession(sessionResource);
 		const feedbackItems = backend.getItems(sessionResource);
-		const existing = feedbackItems.find(f => f.id === feedbackId);
-		if (!existing || existing.state !== AgentFeedbackState.Created) {
+		const ids = new Set(feedbackIds);
+		const accepted: IAgentFeedback[] = [];
+		for (const item of feedbackItems) {
+			if (ids.has(item.id) && item.state === AgentFeedbackState.Created) {
+				accepted.push({
+					...item,
+					state: AgentFeedbackState.Accepted,
+					...(options?.revealToAgent ? { pendingAgentReveal: true } : {}),
+				});
+			}
+		}
+		if (!accepted.length) {
 			return;
 		}
 
-		const accepted: IAgentFeedback = {
-			...existing,
-			state: AgentFeedbackState.Accepted,
-			...(options?.revealToAgent ? { pendingAgentReveal: true } : {}),
-		};
-		backend.upsert(accepted);
+		backend.upsertMany(sessionResource, accepted);
 
-		if (accepted.kind !== AgentFeedbackKind.UserReview) {
-			const resourceStr = accepted.resourceUri.toString();
-			const hasExistingFeedbackForFile = feedbackItems.some(f => f.id !== accepted.id && f.resourceUri.toString() === resourceStr);
-			this._onDidConvertFeedback.fire({ sessionResource, feedback: accepted, kind: accepted.kind, hasExistingFeedbackForFile });
+		let feedbackCountByFile: Map<string, number> | undefined;
+		for (const feedback of accepted) {
+			if (feedback.kind === AgentFeedbackKind.UserReview) {
+				continue;
+			}
+			if (!feedbackCountByFile) {
+				feedbackCountByFile = new Map();
+				for (const item of feedbackItems) {
+					const key = item.resourceUri.toString();
+					feedbackCountByFile.set(key, (feedbackCountByFile.get(key) ?? 0) + 1);
+				}
+			}
+			const hasExistingFeedbackForFile = (feedbackCountByFile.get(feedback.resourceUri.toString()) ?? 0) > 1;
+			this._onDidConvertFeedback.fire({ sessionResource, feedback, kind: feedback.kind, hasExistingFeedbackForFile });
 		}
 	}
 
@@ -863,9 +878,7 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 			return;
 		}
 
-		for (const item of submitted) {
-			backend.upsert(item);
-		}
+		backend.upsertMany(sessionResource, submitted);
 
 		this._onDidSubmitFeedback.fire({
 			sessionResource,

@@ -56,8 +56,8 @@ suite('AgentFeedbackReviewCommands', () => {
 				operations.push(`remove:${resource.toString()}:${feedbackId}`);
 			}
 
-			override acceptFeedback(resource: URI, feedbackId: string, options?: { readonly revealToAgent?: boolean }): void {
-				operations.push(`accept:${resource.toString()}:${feedbackId}:${options?.revealToAgent === true}`);
+			override acceptFeedback(resource: URI, feedbackIds: readonly string[], options?: { readonly revealToAgent?: boolean }): void {
+				operations.push(`accept:${resource.toString()}:${feedbackIds.join(',')}:${options?.revealToAgent === true}`);
 			}
 		}();
 		const sessionsManagementService = new class extends mock<ISessionsManagementService>() {
@@ -81,7 +81,7 @@ suite('AgentFeedbackReviewCommands', () => {
 		const sessionComments = getComments(instantiationService, sessionResource);
 		await reveal(instantiationService, peerChatResource, feedback.id);
 		remove(instantiationService, peerChatResource, feedback.id);
-		accept(instantiationService, peerChatResource, [feedback.id]);
+		accept(instantiationService, peerChatResource, [feedback.id, 'comment-2']);
 
 		assert.deepStrictEqual({
 			peerChatComments,
@@ -106,7 +106,7 @@ suite('AgentFeedbackReviewCommands', () => {
 				`reveal:${sessionResource.toString()}:comment-1`,
 				`get:${sessionResource.toString()}`,
 				`remove:${sessionResource.toString()}:comment-1`,
-				`accept:${sessionResource.toString()}:comment-1:true`,
+				`accept:${sessionResource.toString()}:comment-1,comment-2:true`,
 			],
 		});
 	});

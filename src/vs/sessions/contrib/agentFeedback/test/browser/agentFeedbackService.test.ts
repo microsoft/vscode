@@ -899,8 +899,43 @@ suite('AgentFeedbackService - State', () => {
 		const created = service.addFeedback(session, fileA, r(10), 'pending', undefined, undefined, undefined, AgentFeedbackKind.AgentReview, AgentFeedbackState.Created);
 		assert.strictEqual(created.state, AgentFeedbackState.Created);
 
-		service.acceptFeedback(session, created.id);
+		service.acceptFeedback(session, [created.id]);
 		assert.strictEqual(service.getFeedback(session)[0].state, AgentFeedbackState.Accepted);
+	});
+
+	test('acceptFeedback accepts a batch of created items and notifies once', () => {
+		const fileB = URI.parse('file:///b.ts');
+		const created = [
+			service.addFeedback(session, fileA, r(1), 'a1', undefined, undefined, 'thread-1', AgentFeedbackKind.PRReview, AgentFeedbackState.Created),
+			service.addFeedback(session, fileA, r(2), 'a2', undefined, undefined, 'thread-2', AgentFeedbackKind.PRReview, AgentFeedbackState.Created),
+			service.addFeedback(session, fileB, r(3), 'b1', undefined, undefined, 'thread-3', AgentFeedbackKind.PRReview, AgentFeedbackState.Created),
+		];
+		const untouched = service.addFeedback(session, fileA, r(4), 'a3', undefined, undefined, 'thread-4', AgentFeedbackKind.PRReview, AgentFeedbackState.Created);
+		let feedbackChanges = 0;
+		let navigationChanges = 0;
+		const converted: string[] = [];
+		store.add(service.onDidChangeFeedback(() => feedbackChanges++));
+		store.add(service.onDidChangeNavigation(() => navigationChanges++));
+		store.add(service.onDidConvertFeedback(e => converted.push(`${e.feedback.text}:${e.hasExistingFeedbackForFile}`)));
+
+		service.acceptFeedback(session, [...created.map(f => f.id), 'missing'], { revealToAgent: true });
+
+		assert.deepStrictEqual({
+			feedbackChanges,
+			navigationChanges,
+			converted,
+			items: service.getFeedback(session).map(f => `${f.text}:${f.state}:${f.pendingAgentReveal === true}`),
+		}, {
+			feedbackChanges: 1,
+			navigationChanges: 1,
+			converted: ['a1:true', 'a2:true', 'b1:false'],
+			items: [
+				`a1:${AgentFeedbackState.Accepted}:true`,
+				`a2:${AgentFeedbackState.Accepted}:true`,
+				`a3:${untouched.state}:false`,
+				`b1:${AgentFeedbackState.Accepted}:true`,
+			],
+		});
 	});
 
 	test('backfills a missing source pull request without replacing an existing one', () => {
@@ -916,7 +951,7 @@ suite('AgentFeedbackService - State', () => {
 	test('retains the PR author through acceptance and source backfilling', () => {
 		const sourcePullRequest = { owner: 'owner', repo: 'repo', number: 42 };
 		const created = service.addFeedback(session, fileA, r(10), 'pending', undefined, undefined, 'thread-1', AgentFeedbackKind.PRReview, AgentFeedbackState.Created, sourcePullRequest, 'reviewer');
-		service.acceptFeedback(session, created.id);
+		service.acceptFeedback(session, [created.id]);
 		service.updateFeedbackSourcePullRequest(session, created.id, sourcePullRequest, 'other-reviewer');
 
 		assert.deepStrictEqual({
@@ -956,6 +991,28 @@ suite('AgentFeedbackService - State', () => {
 		service.markFeedbackSubmitted(session);
 
 		assert.strictEqual(service.getFeedback(session)[0].state, AgentFeedbackState.Submitted);
+	});
+
+	test('markFeedbackSubmitted notifies once for the whole batch', () => {
+		for (let i = 1; i <= 20; i++) {
+			service.addFeedback(session, fileA, r(i), `feedback ${i}`);
+		}
+		let feedbackChanges = 0;
+		let navigationChanges = 0;
+		store.add(service.onDidChangeFeedback(() => feedbackChanges++));
+		store.add(service.onDidChangeNavigation(() => navigationChanges++));
+
+		service.markFeedbackSubmitted(session);
+
+		assert.deepStrictEqual({
+			feedbackChanges,
+			navigationChanges,
+			states: [...new Set(service.getFeedback(session).map(item => item.state))],
+		}, {
+			feedbackChanges: 1,
+			navigationChanges: 1,
+			states: [AgentFeedbackState.Resolved],
+		});
 	});
 
 	test('resolving and un-resolving moves between resolved and submitted', () => {

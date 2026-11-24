@@ -483,6 +483,79 @@ suite('AnnotationsAgentFeedbackItemsBackend', () => {
 		});
 	});
 
+	test('upsertMany notifies once and dispatches every item', () => {
+		const sessionResource = URI.parse('remote-agent-host:///session');
+		const annotationsUri = URI.parse('copilot:///session/annotations');
+		const resourceUris = createAgentHostResourceUriMapper('remote-test');
+		const fileResource = resourceUris.fromAgentHost(URI.file('file.ts'));
+		let state: AnnotationsState = { annotations: [] };
+		const dispatched: string[] = [];
+		const onDidChange = store.add(new Emitter<AnnotationsState>());
+		const subscription: IAgentSubscription<AnnotationsState> = {
+			get value() { return state; },
+			get verifiedValue() { return state; },
+			onDidChange: onDidChange.event,
+			onWillApplyAction: Event.None,
+			onDidApplyAction: Event.None,
+		};
+		const connection = new class extends mock<IAgentConnection>() {
+			override readonly resourceUris = resourceUris;
+			override getSubscription<T extends StateComponents>(): IReference<IAgentSubscription<ComponentToState[T]>> {
+				return {
+					object: subscription as IAgentSubscription<ComponentToState[T]>,
+					dispose() { },
+				};
+			}
+			override dispatch(_channel: string, action: ClientAnnotationsAction): void {
+				dispatched.push(action.type === ActionType.AnnotationsSet ? action.annotation.id : action.type);
+				state = annotationsReducer(state, action, () => { });
+				onDidChange.fire(state);
+			}
+		}();
+		const provider = new class extends mock<IAgentHostSessionsProvider>() {
+			override getFeedbackAnnotationsChannel() {
+				return { connection, annotationsUri };
+			}
+		}();
+		const session = new class extends mock<ISession>() {
+			override readonly providerId = 'agenthost-test';
+			override readonly sessionId = 'session';
+		}();
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
+			override onDidDeleteSession = Event.None;
+			override onDidChangeSessions = Event.None;
+			override getSession() { return session; }
+		});
+		instantiationService.stub(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
+			override getProvider<T extends ISessionsProvider>(): T {
+				return provider as unknown as T;
+			}
+		});
+		stubVisibleSessions(instantiationService, constObservable([]));
+		const backend = store.add(instantiationService.createInstance(AnnotationsAgentFeedbackItemsBackend));
+		backend.getItems(sessionResource);
+		const events: string[][] = [];
+		store.add(backend.onDidChangeItems(resource => events.push(backend.getItems(resource).map(item => `${item.id}:${item.state}`))));
+
+		backend.upsertMany(sessionResource, ['a', 'b', 'c'].map((id, i) => ({
+			id,
+			text: `Feedback ${id}`,
+			resourceUri: fileResource,
+			range: { startLineNumber: i + 1, startColumn: 1, endLineNumber: i + 1, endColumn: 1 },
+			sessionResource,
+			kind: AgentFeedbackKind.UserReview,
+			state: AgentFeedbackState.Submitted,
+		})));
+
+		assert.deepStrictEqual({ dispatched, events }, {
+			dispatched: ['a', 'b', 'c'],
+			events: [
+				['a:submitted', 'b:submitted', 'c:submitted'],
+			],
+		});
+	});
+
 	test('moves to the provider\'s new connection after a reconnect', () => {
 		const sessionResource = URI.parse('remote-agent-host:///session');
 		const annotationsUri = URI.parse('copilot:///session/annotations');

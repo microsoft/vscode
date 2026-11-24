@@ -53,6 +53,12 @@ export interface IAgentFeedbackItemsBackend {
 	/** Adds a new feedback item or replaces an existing one with the same id. */
 	upsert(feedback: IAgentFeedback): void;
 
+	/**
+	 * Adds or replaces several feedback items of one session at once, firing
+	 * {@link onDidChangeItems} at most once for the whole batch.
+	 */
+	upsertMany(sessionResource: URI, items: readonly IAgentFeedback[]): void;
+
 	/** Removes a single feedback item. */
 	remove(sessionResource: URI, feedbackId: string): void;
 
@@ -114,20 +120,29 @@ export class InMemoryAgentFeedbackItemsBackend extends Disposable implements IAg
 	}
 
 	upsert(feedback: IAgentFeedback): void {
-		const key = feedback.sessionResource.toString();
+		this.upsertMany(feedback.sessionResource, [feedback]);
+	}
+
+	upsertMany(sessionResource: URI, feedbackItems: readonly IAgentFeedback[]): void {
+		if (!feedbackItems.length) {
+			return;
+		}
+		const key = sessionResource.toString();
 		let items = this._bySession.get(key);
 		if (!items) {
 			items = [];
 			this._bySession.set(key, items);
-			this._sessionResourceByKey.set(key, feedback.sessionResource);
+			this._sessionResourceByKey.set(key, sessionResource);
 		}
-		const idx = items.findIndex(f => f.id === feedback.id);
-		if (idx >= 0) {
-			items[idx] = feedback;
-		} else {
-			items.push(feedback);
+		for (const feedback of feedbackItems) {
+			const idx = items.findIndex(f => f.id === feedback.id);
+			if (idx >= 0) {
+				items[idx] = feedback;
+			} else {
+				items.push(feedback);
+			}
 		}
-		this._onDidChangeItems.fire(feedback.sessionResource);
+		this._onDidChangeItems.fire(sessionResource);
 	}
 
 	remove(sessionResource: URI, feedbackId: string): void {
@@ -433,16 +448,36 @@ export class AnnotationsAgentFeedbackItemsBackend extends Disposable implements 
 	}
 
 	upsert(feedback: IAgentFeedback): void {
-		const channel = this._ensureChannel(feedback.sessionResource);
-		this._cacheUpsert(feedback);
-		this._emitIfChanged(feedback.sessionResource);
+		this.upsertMany(feedback.sessionResource, [feedback]);
+	}
+
+	upsertMany(sessionResource: URI, items: readonly IAgentFeedback[]): void {
+		if (!items.length) {
+			return;
+		}
+		const key = sessionResource.toString();
+		const channel = this._ensureChannel(sessionResource);
+		for (const feedback of items) {
+			this._cacheUpsert(feedback);
+		}
+		this._emitIfChanged(sessionResource);
 		if (!channel) {
 			return;
 		}
-		channel.connection.dispatch(channel.annotationsUri.toString(), {
-			type: ActionType.AnnotationsSet,
-			annotation: feedbackToAnnotation(feedback, channel.connection),
-		});
+		// Each dispatch notifies the subscription; reconcile once after the
+		// batch rather than decoding every annotation once per item.
+		this._suspendedAnnotationsReconciliation.add(key);
+		try {
+			for (const feedback of items) {
+				channel.connection.dispatch(channel.annotationsUri.toString(), {
+					type: ActionType.AnnotationsSet,
+					annotation: feedbackToAnnotation(feedback, channel.connection),
+				});
+			}
+		} finally {
+			this._suspendedAnnotationsReconciliation.delete(key);
+		}
+		this._onAnnotationsChange(sessionResource);
 	}
 
 	remove(sessionResource: URI, feedbackId: string): void {

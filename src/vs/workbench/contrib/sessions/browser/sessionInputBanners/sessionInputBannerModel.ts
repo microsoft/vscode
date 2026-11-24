@@ -491,9 +491,7 @@ export class SessionInputBannerModel extends Disposable {
 	}
 
 	private _acceptComments(state: IBaseBannerState): void {
-		for (const commentId of state.commentIds) {
-			this.feedbackService.acceptFeedback(state.sessionResource, commentId);
-		}
+		this.feedbackService.acceptFeedback(state.sessionResource, state.commentIds);
 	}
 
 	private async _submitComments(state: IBaseBannerState, query: string): Promise<void> {
