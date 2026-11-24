@@ -33,7 +33,7 @@ import { IAgentHostService, type IAgentConnection } from '../../../../../../plat
 import type { IAgentHostTcpConnection } from '../../../../../../platform/agentHost/common/agentHostTcpConnection.js';
 import { BrowserRemoteProxyEnabledSettingId } from '../../../../../../workbench/contrib/browserView/common/browserView.js';
 import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostService, NullRemoteAgentHostService, RemoteAgentHostConnectionStatus } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
-import { cloudSandboxAddress, cloudSandboxTaskResource, CloudSandboxAutoConnectOnOpenSettingId, CloudSandboxRequestError, ICloudSandboxTask } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { CLOUD_SANDBOX_TASK_SCHEME, cloudSandboxAddress, cloudSandboxTaskResource, CloudSandboxAutoConnectOnOpenSettingId, CloudSandboxRequestError, ICloudSandboxTask } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { readRemoteSessionOrigin, withRemoteSessionOrigin } from '../../../../../../platform/agentHost/common/meta/agentRemoteSessionMeta.js';
 import { AgentHostTransportFailureReason } from '../../../../../../platform/agentHost/common/state/sessionTransport.js';
 import { AhpErrorCodes, JsonRpcErrorCodes, ProtocolError } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
@@ -673,6 +673,35 @@ suite('RemoteAgentHostSessionsProvider', () => {
 			after: rebound,
 			secondAlias: secondAlias.toString(),
 		});
+	});
+
+	test('a Cloud task catalog looks up a runtime session, a task alias and a miss without enumerating its tasks or runtime sessions', () => {
+		const task: ICloudSandboxTask = { taskId: 'task', name: 'Task', environmentId: 'env', sessionId: 'task-session' };
+		const others = [0, 1, 2].map(i => ({ taskId: `other-${i}`, name: `Other ${i}`, environmentId: 'env', sessionId: `other-session-${i}` }));
+		const { runtime, catalog } = createTaskCatalog([task]);
+		catalog.setTasks([task, ...others]);
+		catalog.attach(task.taskId, runtime, task);
+		runtime.seedProvisionalSession(createSession('external', { session: AgentSession.uri('ahp-session', 'external'), provider: 'copilot', summary: 'External' }));
+		runtime.publishWithheldSession('external', { announce: true });
+		const row = catalog.getAllSessions().find(session => isEqual(session.resource, cloudSandboxTaskResource(task.taskId)))!;
+		const external = catalog.getAllSessions().find(session => session.resource.scheme !== CLOUD_SANDBOX_TASK_SCHEME)!;
+		const alias = row.previousIdentities![0].resource;
+		const externalResource = external.resource;
+		let reads = 0;
+		for (const session of catalog.getAllSessions()) {
+			// Listing the catalog reads every task's aliases and every runtime session's resource
+			const property = session.resource.scheme === CLOUD_SANDBOX_TASK_SCHEME ? 'previousIdentities' : 'resource';
+			const descriptor = Object.getOwnPropertyDescriptor(session, property)!;
+			Object.defineProperty(session, property, { configurable: true, get: () => { reads++; return descriptor.get ? descriptor.get.call(session) : descriptor.value; } });
+		}
+
+		const found = {
+			miss: catalog.getSession(URI.parse('remote-unrelated:/missing'))?.sessionId,
+			runtime: catalog.getSession(externalResource) === external,
+			alias: catalog.getSession(alias) === row,
+		};
+
+		assert.deepStrictEqual({ found, reads }, { found: { miss: undefined, runtime: true, alias: true }, reads: 0 });
 	});
 
 	test('resource lookups find a Cloud task its runtime publishes silently', () => {

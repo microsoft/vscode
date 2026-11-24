@@ -4523,18 +4523,30 @@ function isNestedChatWorkspaceAllowed(support: INestedChatWorkspaceSupport, work
 	return workspace.kind === 'folder' && workspace.isolation === 'folder' && !!support.sessionFolder && isEqual(workspace.folder, support.sessionFolder);
 }
 
-/** The cached sessions: each is followed for chat moves while it is cached. */
+/** The cached sessions, also indexed by their full resource: each is followed for chat moves while it is cached. */
 class ChatMoveTrackingSessionCache extends Map<string, AgentHostSessionAdapter> {
+	/** Keys by full resource, fragment included: an older host lists `<parent>#subagent/<id>` rows beside their parent. */
+	private readonly _keysByResource = new ResourceMap<string>();
+
 	constructor(private readonly _tracker: AgentHostChatMoveTracker<AgentHostSessionAdapter>) {
 		super();
+	}
+
+	/** The cached session whose resource is `resource`. */
+	getByResource(resource: URI): AgentHostSessionAdapter | undefined {
+		const key = this._keysByResource.get(resource);
+		const session = key !== undefined ? this.get(key) : undefined;
+		return session && isEqual(session.resource, resource) ? session : undefined;
 	}
 
 	override set(key: string, session: AgentHostSessionAdapter): this {
 		const previous = this.get(key);
 		if (previous && previous !== session) {
 			this._tracker.untrack(previous);
+			this._deleteResourceKey(previous, key);
 		}
 		super.set(key, session);
+		this._keysByResource.set(session.resource, key);
 		this._tracker.track(session, reader => session.readChatBackends(reader));
 		return this;
 	}
@@ -4543,6 +4555,7 @@ class ChatMoveTrackingSessionCache extends Map<string, AgentHostSessionAdapter> 
 		const previous = this.get(key);
 		if (previous) {
 			this._tracker.untrack(previous);
+			this._deleteResourceKey(previous, key);
 		}
 		return super.delete(key);
 	}
@@ -4551,7 +4564,14 @@ class ChatMoveTrackingSessionCache extends Map<string, AgentHostSessionAdapter> 
 		for (const session of this.values()) {
 			this._tracker.untrack(session);
 		}
+		this._keysByResource.clear();
 		super.clear();
+	}
+
+	private _deleteResourceKey(session: AgentHostSessionAdapter, key: string): void {
+		if (this._keysByResource.get(session.resource) === key) {
+			this._keysByResource.delete(session.resource);
+		}
 	}
 }
 
@@ -4702,10 +4722,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	/** Cache of adapted sessions, keyed by exact backend resource. */
 	private readonly _chatMoveTracker = this._register(new AgentHostChatMoveTracker<AgentHostSessionAdapter>());
 	readonly onDidMoveChat: Event<IChatMovedEvent> = this._chatMoveTracker.onDidMoveChat;
-	protected readonly _sessionCache: Map<string, AgentHostSessionAdapter> = new ChatMoveTrackingSessionCache(this._chatMoveTracker);
+	private readonly _indexedSessionCache = new ChatMoveTrackingSessionCache(this._chatMoveTracker);
+	protected readonly _sessionCache: Map<string, AgentHostSessionAdapter> = this._indexedSessionCache;
 	private readonly _sessionKeysByResource = new ResourceMap<string>();
-	/** Session keys by full frontend resource, fragment included, for {@link getSession}. */
-	private readonly _sessionKeysByExactResource = new ResourceMap<string>();
 
 	protected _refreshSessionWorkspaces(): void {
 		const changed: ISession[] = [];
@@ -5063,7 +5082,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			this._sessionCache.clear();
 			this._backendSessionsChanged.trigger(undefined);
 			this._sessionKeysByResource.clear();
-			this._sessionKeysByExactResource.clear();
 		}));
 
 		// Keep the state subscription of every on-screen session pinned so
@@ -5107,7 +5125,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				if (removed instanceof AgentHostSessionAdapter) {
 					this._metadataBySession.delete(removed.backendUri.toString());
 					this._sessionKeysByResource.delete(removed.resource.with({ fragment: '' }));
-					this._sessionKeysByExactResource.delete(removed.resource);
 				}
 			}
 		}));
@@ -5267,7 +5284,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		this._metadataBySession.set(rawId, meta);
 		const adapter = this._instantiationService.createInstance(AgentHostSessionAdapter, meta, this.id, resourceScheme, provider, options, this._getChatCatalogLoading(rawId), sessionId => this._acquireSessionChatDetails(sessionId));
 		this._sessionKeysByResource.set(adapter.resource.with({ fragment: '' }), rawId);
-		this._sessionKeysByExactResource.set(adapter.resource, rawId);
 		return adapter;
 	}
 
@@ -5741,10 +5757,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				return this._shouldAdvertiseAgent(pendingSession.sessionType) ? pendingSession : undefined;
 			}
 		}
-		// Not the fragment-less key map: an older host's `<parent>#subagent/<id>` row overwrites its parent's key there.
-		const key = this._sessionKeysByExactResource.get(resource);
-		const cached = key !== undefined ? this._sessionCache.get(key) : undefined;
-		if (!cached || !isEqual(cached.resource, resource) || this._isUnpublishedDraft(cached) || !this._shouldShowSavedSession(cached.agentProvider)) {
+		const cached = this._indexedSessionCache.getByResource(resource);
+		if (!cached || this._isUnpublishedDraft(cached) || !this._shouldShowSavedSession(cached.agentProvider)) {
 			return undefined;
 		}
 		return cached;
@@ -11119,7 +11133,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			this._backendSessionsChanged.trigger(undefined);
 		}
 		this._sessionKeysByResource.delete(stateOwner.resource.with({ fragment: '' }));
-		this._sessionKeysByExactResource.delete(stateOwner.resource);
 		this._runningSessionConfigs.delete(stateOwner.sessionId);
 		this._sensitiveEditLocationsBySession.delete(stateOwner.sessionId);
 		this._runningSessionConfigResolveSeq.delete(stateOwner.sessionId);

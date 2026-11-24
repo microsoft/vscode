@@ -39,6 +39,15 @@ interface ITaskActions {
 	delete(taskId: string): Promise<void>;
 }
 
+/** The resource of the environment session a task is bound to, which the task's row lists as its previous identity. */
+function cloudSandboxTaskAlias(task: ICloudSandboxTask): URI | undefined {
+	if (!task.environmentId || !task.sessionId) {
+		return undefined;
+	}
+	const authority = agentHostAuthority(cloudSandboxAddress(task.environmentId));
+	return URI.from({ scheme: remoteAgentHostSessionTypeId(authority, CLOUD_SANDBOX_AGENT_PROVIDER), path: `/${task.sessionId}` });
+}
+
 export function createCloudSandboxTaskSession(task: ICloudSandboxTask) {
 	const summary = observableValue('cloudTaskSummary', task);
 	const runtime = observableValue<ISession | undefined>('cloudTaskRuntime', undefined);
@@ -114,11 +123,11 @@ export function createCloudSandboxTaskSession(task: ICloudSandboxTask) {
 		sessionId: `${CLOUD_SANDBOX_TASK_PROVIDER_ID}:${resource.toString()}`,
 		get previousIdentities() {
 			const task = summary.get();
-			if (!task.environmentId || !task.sessionId) {
+			const previous = cloudSandboxTaskAlias(task);
+			if (!previous || !task.environmentId) {
 				return undefined;
 			}
 			const authority = agentHostAuthority(cloudSandboxAddress(task.environmentId));
-			const previous = URI.from({ scheme: remoteAgentHostSessionTypeId(authority, CLOUD_SANDBOX_AGENT_PROVIDER), path: `/${task.sessionId}` });
 			return [{ resource: previous, sessionId: `agenthost-${authority}:${previous.toString()}` }];
 		},
 		resource, providerId: CLOUD_SANDBOX_TASK_PROVIDER_ID, sessionType: CLOUD_SANDBOX_AGENT_PROVIDER, harness: 'copilot', environment: 'cloud',
@@ -153,6 +162,10 @@ export class CloudSandboxTaskSessionsProvider extends BaseAgentHostSessionsProvi
 	private readonly _providers = new Map<string, CloudSandboxSessionsProvider>();
 	private readonly _providerListeners = this._register(new DisposableMap<CloudSandboxSessionsProvider, DisposableStore>());
 	private readonly _runtimeSessions = new Map<string, ISession>();
+	/** The IDs of the tasks bound to an environment session, by that session's resource: the alias each row lists as its previous identity. */
+	private readonly _tasksByAlias = new ResourceMap<Set<string>>();
+	/** The IDs of runtime sessions by their resource. */
+	private readonly _runtimeSessionsByResource = new ResourceMap<string>();
 	private readonly _runtimeOwners = new Map<string, CloudSandboxSessionsProvider>();
 	/**
 	 * Runtime sessions taken in from a replacement before their runtime reported them added, which it still reports as added.
@@ -198,17 +211,36 @@ export class CloudSandboxTaskSessionsProvider extends BaseAgentHostSessionsProvi
 			return session && isEqual(session.resource, resource) ? session : undefined;
 		}
 		// The resource of a task's bound runtime session finds the task first, as tasks come first in `getAllSessions`.
-		for (const { session } of this._tasks.values()) {
-			if (session.previousIdentities?.some(previous => isEqual(previous.resource, resource))) {
-				return session;
+		const taskIds = this._tasksByAlias.get(resource);
+		if (taskIds?.size) {
+			const taskId = taskIds.size === 1 ? taskIds.values().next().value! : [...this._tasks.keys()].find(id => taskIds.has(id))!;
+			return this._tasks.get(taskId)?.session;
+		}
+		const sessionId = this._runtimeSessionsByResource.get(resource);
+		return sessionId !== undefined ? this._runtimeSessions.get(sessionId) : undefined;
+	}
+
+	private _setTaskAlias(taskId: string, previous: ICloudSandboxTask | undefined, task: ICloudSandboxTask | undefined): void {
+		const from = previous && cloudSandboxTaskAlias(previous);
+		const to = task && cloudSandboxTaskAlias(task);
+		if (from && to && isEqual(from, to)) {
+			return;
+		}
+		if (from) {
+			const taskIds = this._tasksByAlias.get(from);
+			taskIds?.delete(taskId);
+			if (taskIds?.size === 0) {
+				this._tasksByAlias.delete(from);
 			}
 		}
-		for (const session of this._runtimeSessions.values()) {
-			if (isEqual(session.resource, resource)) {
-				return session;
+		if (to) {
+			let taskIds = this._tasksByAlias.get(to);
+			if (!taskIds) {
+				taskIds = new Set();
+				this._tasksByAlias.set(to, taskIds);
 			}
+			taskIds.add(taskId);
 		}
-		return undefined;
 	}
 
 	override getSessionByResource(resource: URI): ISession | undefined {
@@ -242,6 +274,8 @@ export class CloudSandboxTaskSessionsProvider extends BaseAgentHostSessionsProvi
 				}
 				const entry = this._tasks.get(task.taskId);
 				if (entry) {
+					// Rebind the alias before observers of the summary look the task up by it
+					this._setTaskAlias(task.taskId, entry.summary.get(), task);
 					entry.summary.set(task, tx);
 					changed.push(entry.session);
 				} else {
@@ -260,6 +294,7 @@ export class CloudSandboxTaskSessionsProvider extends BaseAgentHostSessionsProvi
 					entry.read.set(isRead ?? false, tx);
 					entry.pendingRead.value = savedRead;
 					this._tasks.set(task.taskId, entry);
+					this._setTaskAlias(task.taskId, undefined, task);
 					added.push(entry.session);
 				}
 			}
@@ -275,6 +310,7 @@ export class CloudSandboxTaskSessionsProvider extends BaseAgentHostSessionsProvi
 			const entry = this._tasks.get(taskId);
 			if (entry) {
 				removed.push(entry.session);
+				this._setTaskAlias(taskId, entry.summary.get(), undefined);
 				this._tasks.delete(taskId);
 				this._deferredTaskAdds.delete(taskId);
 				const provider = this._providers.get(taskId);
@@ -366,7 +402,7 @@ export class CloudSandboxTaskSessionsProvider extends BaseAgentHostSessionsProvi
 					continue;
 				}
 				this._takenInByReplacement.delete(session.sessionId);
-				this._runtimeSessions.delete(session.sessionId);
+				this._deleteRuntimeSession(session.sessionId);
 				this._runtimeOwners.delete(session.sessionId);
 				const taskId = session.resource.scheme === CLOUD_SANDBOX_TASK_SCHEME ? session.resource.path.slice(1) : undefined;
 				const entry = taskId ? this._tasks.get(taskId) : undefined;
@@ -384,7 +420,9 @@ export class CloudSandboxTaskSessionsProvider extends BaseAgentHostSessionsProvi
 					continue;
 				}
 				const wasKnown = this._runtimeSessions.has(session.sessionId) && !this._takenInByReplacement.delete(session.sessionId);
+				this._deleteRuntimeSession(session.sessionId);
 				this._runtimeSessions.set(session.sessionId, session);
+				this._runtimeSessionsByResource.set(session.resource, session.sessionId);
 				this._runtimeOwners.set(session.sessionId, provider);
 				if (session.resource.scheme !== CLOUD_SANDBOX_TASK_SCHEME) {
 					if (wasKnown) {
@@ -428,6 +466,14 @@ export class CloudSandboxTaskSessionsProvider extends BaseAgentHostSessionsProvi
 		return result;
 	}
 
+	private _deleteRuntimeSession(sessionId: string): void {
+		const session = this._runtimeSessions.get(sessionId);
+		if (session && this._runtimeSessionsByResource.get(session.resource) === sessionId) {
+			this._runtimeSessionsByResource.delete(session.resource);
+		}
+		this._runtimeSessions.delete(sessionId);
+	}
+
 	detach(provider: CloudSandboxSessionsProvider): void {
 		const removed = [...this._runtimeOwners].flatMap(([id, owner]) => owner === provider ? [this._runtimeSessions.get(id)!] : []);
 		this._acceptRuntimeSessions(provider, { added: [], changed: [], removed });
@@ -445,6 +491,8 @@ export class CloudSandboxTaskSessionsProvider extends BaseAgentHostSessionsProvi
 		this._tasks.clear();
 		this._providers.clear();
 		this._runtimeSessions.clear();
+		this._runtimeSessionsByResource.clear();
+		this._tasksByAlias.clear();
 		this._runtimeOwners.clear();
 		this._pendingTasks.clear();
 		this._takenInByReplacement.clear();

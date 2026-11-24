@@ -16,7 +16,9 @@ import { toAction } from '../../../../../base/common/actions.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, IObservable, IReader, ISettableObservable, observableValue, waitForState } from '../../../../../base/common/observable.js';
-import { extUriBiasedIgnorePathCase, isEqual } from '../../../../../base/common/resources.js';
+import { ExtUri, extUriBiasedIgnorePathCase, isEqual } from '../../../../../base/common/resources.js';
+import { Schemas } from '../../../../../base/common/network.js';
+import { isLinux } from '../../../../../base/common/platform.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
@@ -279,6 +281,12 @@ class TestSessionsProvider extends mock<ISessionsProvider>() {
 	override async createSideChat(_sessionId: string, _sourceChat: URI, _turnId: string, _selection?: ISideChatSelection): Promise<IChat> { throw new Error('not implemented'); }
 }
 
+/** A scheme whose file system ignores path casing, as one registered without the `PathCaseSensitive` capability. */
+const CASE_INSENSITIVE_SCHEME = 'test-case-insensitive';
+
+/** As the URI identity service compares: file paths by the platform's casing, other schemes exactly unless their file system ignores path casing. */
+const testExtUri = new ExtUri(uri => uri.scheme === Schemas.file ? !isLinux : uri.scheme === CASE_INSENSITIVE_SCHEME);
+
 function createSessionsManagementService(
 	session: ISession,
 	disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>,
@@ -306,7 +314,7 @@ function createSessionsManagementService(
 	instantiationService.stub(IConfigurationService, configurationService);
 	instantiationService.stub(IContextKeyService, contextKeyService);
 	instantiationService.stub(ISessionsProvidersService, providersService);
-	instantiationService.stub(IUriIdentityService, { extUri: extUriBiasedIgnorePathCase });
+	instantiationService.stub(IUriIdentityService, { extUri: testExtUri });
 	instantiationService.stub(IChatWidgetService, chatWidgetService);
 	instantiationService.stub(IProgressService, new TestProgressService());
 	instantiationService.stub(IChatService, chatService);
@@ -597,6 +605,26 @@ suite('SessionsManagementService', () => {
 			found: ['first-shared', 'renamed', 'second-only', undefined],
 			lookups: ['first:/shared', 'first:/previous', 'first:/second-only', 'second:/second-only', 'first:/missing', 'second:/missing'],
 		});
+	});
+
+	test('resource lookups find a case variant of a session resource only where its scheme ignores path casing', () => {
+		const insensitive = stubSession({ sessionId: 'insensitive', resource: URI.from({ scheme: CASE_INSENSITIVE_SCHEME, path: '/Session' }), previousIdentities: [{ resource: URI.from({ scheme: CASE_INSENSITIVE_SCHEME, path: '/Previous' }), sessionId: 'previous' }] });
+		const sensitive = stubSession({ sessionId: 'sensitive', resource: URI.parse('test:///Session') });
+		const provider = new class extends TestSessionsProvider {
+			override getAllSessions(): ISession[] { return [insensitive, sensitive]; }
+			override getSession(resource: URI): ISession | undefined {
+				return this.getAllSessions().find(session => isEqual(session.resource, resource) || session.previousIdentities?.some(previous => isEqual(previous.resource, resource)));
+			}
+		}(insensitive);
+		const { service } = createSessionsManagementService(insensitive, disposables, provider);
+
+		const found = [
+			URI.from({ scheme: CASE_INSENSITIVE_SCHEME, path: '/session' }),
+			URI.from({ scheme: CASE_INSENSITIVE_SCHEME, path: '/previous' }),
+			URI.parse('test:///session'),
+		].map(resource => service.getSession(resource)?.sessionId);
+
+		assert.deepStrictEqual(found, ['insensitive', 'insensitive', undefined]);
 	});
 
 	test('resource lookups see the sessions a provider reports after a change', () => {
@@ -5618,8 +5646,8 @@ suite('SessionsManagementService', () => {
 	});
 
 	test('getSessionForChatResource returns the session that owns the chat', () => {
-		const chatA: IChat = { ...stubChat, resource: URI.parse('test:///chat-a') };
-		const chatB: IChat = { ...stubChat, resource: URI.parse('test:///CHAT-B') };
+		const chatA: IChat = { ...stubChat, resource: URI.from({ scheme: CASE_INSENSITIVE_SCHEME, path: '/chat-a' }) };
+		const chatB: IChat = { ...stubChat, resource: URI.from({ scheme: CASE_INSENSITIVE_SCHEME, path: '/CHAT-B' }) };
 		const sessionA = stubSession({
 			sessionId: 'a',
 			providerId: 'test',
@@ -5638,12 +5666,12 @@ suite('SessionsManagementService', () => {
 		};
 		const { service } = createSessionsManagementService(sessionA, disposables, provider);
 
-		const ownedChat = service.getSessionForChatResource(URI.parse('test:///chat-b'));
+		const ownedChat = service.getSessionForChatResource(URI.from({ scheme: CASE_INSENSITIVE_SCHEME, path: '/chat-b' }));
 
 		assert.deepStrictEqual({
 			sessionId: ownedChat?.session.sessionId,
 			chat: ownedChat?.chat,
-			missing: service.getSessionForChatResource(URI.parse('test:///missing')),
+			missing: service.getSessionForChatResource(URI.from({ scheme: CASE_INSENSITIVE_SCHEME, path: '/missing' })),
 		}, {
 			sessionId: 'b',
 			chat: chatB,

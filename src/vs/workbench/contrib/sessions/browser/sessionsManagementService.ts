@@ -448,6 +448,14 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 				return session;
 			}
 		}
+		// Providers match resources exactly. Where the scheme's file system ignores path casing, also find a case variant.
+		const extUri = this.uriIdentityService.extUri;
+		if (extUri.ignorePathCasing(resource)) {
+			return this._getAllSessions().find(s =>
+				extUri.isEqual(s.resource, resource)
+				|| s.previousIdentities?.some(previous => extUri.isEqual(previous.resource, resource))
+			);
+		}
 		return undefined;
 	}
 
