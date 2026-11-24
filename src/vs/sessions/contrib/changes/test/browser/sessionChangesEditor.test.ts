@@ -285,6 +285,7 @@ suite('SessionChangesEditor changed files list', () => {
 		});
 		const editor = store.add(instantiationService.createInstance(SessionChangesEditor, new TestEditorGroupView(1)));
 		editor.create(parent);
+		editor.setVisible(true);
 		editor.layout(new Dimension(800, 400));
 		const body = parent.querySelector<HTMLElement>('.session-changes-editor-body')!;
 		const read = () => {
@@ -309,17 +310,25 @@ suite('SessionChangesEditor changed files list', () => {
 		const focused = { ...read(), calls: [...calls] };
 		hostFileList.reset();
 		const offAgain = read();
+		// While another editor of its group is active, it leaves the keys it shares with that editor to it.
+		editor.setVisible(false);
+		hostFileList.set(true);
+		const hiddenPane = read();
+		editor.setVisible(true);
+		const shownPane = read();
 
 		const hiddenList = { available: true, shown: false, focusFileListInCommandPalette: true, headerBorder: 'none' };
 		const noList = { available: false, shown: false, focusFileListInCommandPalette: false, headerBorder: 'none' };
 		const list = { available: true, shown: true, focusFileListInCommandPalette: true, headerBorder: '-1px 1px rgb(1, 2, 3)' };
-		assert.deepStrictEqual({ off, focusedWhileOff, on, hidden, focused, offAgain, host: isMultiDiffEditorFileListHost(editor) }, {
+		assert.deepStrictEqual({ off, focusedWhileOff, on, hidden, focused, offAgain, hiddenPane: hiddenPane.available, shownPane, host: isMultiDiffEditorFileListHost(editor) }, {
 			off: noList,
 			focusedWhileOff: { ...noList, calls: [] },
 			on: list,
 			hidden: hiddenList,
 			focused: { ...list, calls: ['focus'] },
 			offAgain: noList,
+			hiddenPane: false,
+			shownPane: list,
 			host: true,
 		});
 	});

@@ -10,7 +10,7 @@ import * as path from 'path';
 import { fileURLToPath, pathToFileURL } from 'url';
 import type { Page } from '@playwright/test';
 import { Application, ApplicationOptions, Logger } from '../../../../automation';
-import { getCopilotSmokeTestEnv, getMockLlmServerPath, getMockLlmServerUrl, installAllHandlers, MockLlmServer, preseedChatExtensionEnablement } from '../../utils';
+import { getCopilotSmokeTestEnv, getMockLlmServerPath, getMockLlmServerUrl, installAllHandlers, MockLlmServer, openLocalChatInChatView, preseedChatExtensionEnablement } from '../../utils';
 
 const browserCommandPrefix = 'workbench.action.browser';
 
@@ -254,6 +254,38 @@ export function setup(logger: Logger): void {
 			assert.deepStrictEqual(inheritedPermission, { url: 'about:blank', camera: 'granted' });
 		});
 
+		it('does not add page overflow when highlighting scrollable content', async function () {
+			const app = this.app as Application;
+			const browserPage = await openBrowserPage(app, `${baseUrl}/overflow`, openPages);
+			const modifier = process.platform === 'darwin' ? 'Meta' : 'Control';
+			const pageSize = () => browserPage.evaluate(() => ({
+				width: document.documentElement.scrollWidth,
+				height: document.documentElement.scrollHeight,
+				viewportWidth: document.documentElement.clientWidth,
+				viewportHeight: document.documentElement.clientHeight
+			}));
+			const initialSize = await pageSize();
+			assert.deepStrictEqual(initialSize, {
+				width: initialSize.viewportWidth,
+				height: initialSize.viewportHeight,
+				viewportWidth: initialSize.viewportWidth,
+				viewportHeight: initialSize.viewportHeight
+			});
+
+			await browserPage.keyboard.press(`${modifier}+Shift+c`);
+			await browserPage.locator('[data-vscode-pick-host]').waitFor({ state: 'attached' });
+			for (const id of ['first', 'second']) {
+				const scrollArea = browserPage.locator(`#${id}`);
+				const bounds = (await scrollArea.boundingBox())!;
+				await browserPage.mouse.move(bounds.x + 30, bounds.y + 30);
+				assert.deepStrictEqual(await pageSize(), initialSize);
+				await scrollArea.evaluate(element => element.scrollTo(400, 400));
+				assert.deepStrictEqual(await pageSize(), initialSize);
+			}
+			await browserPage.keyboard.press('Escape');
+			await browserPage.locator('[data-vscode-pick-host]').waitFor({ state: 'detached' });
+		});
+
 		it('adds browser context to chat on a strict-CSP page', async function () {
 			const app = this.app as Application;
 			const browserPage = await openBrowserPage(app, `${baseUrl}/comment`, openPages);
@@ -347,9 +379,7 @@ export function setup(logger: Logger): void {
 			await workbenchPage.locator('.tab', { hasText: 'Browser Smoke Sharing' }).click();
 			await unshareButton.waitFor();
 
-			const previousSessionResource = await app.workbench.chat.getChatViewSessionResource();
-			await app.workbench.quickaccess.runCommand('smoketest.openLocalChat');
-			await app.workbench.chat.waitForNewLocalChatViewSession(previousSessionResource, 600);
+			await openLocalChatInChatView(app);
 			await app.workbench.chat.sendMessage('[scenario:browser-sharing-click-success]');
 			const successToolResult = await waitForScenarioToolResult(mockServer, 'browser-sharing-click-success');
 			assert.doesNotMatch(successToolResult, /not found/i);
@@ -639,6 +669,13 @@ function pageForRoute(route: string, requestCount: number): string {
 					}
 				});
 			</script>`);
+		case '/overflow':
+			return html('Browser Smoke Overflow', `<style>
+				.scroll-area { width: 240px; height: 180px; overflow: auto; margin: 16px; }
+				.scroll-content { width: 900px; height: 900px; background: lightblue; }
+			</style>
+				<div id="first" class="scroll-area"><div class="scroll-content">First scroll area</div></div>
+				<div id="second" class="scroll-area"><div class="scroll-content">Second scroll area</div></div>`);
 		case '/comment':
 			return html('Browser Smoke Comment', `<button id="comment-target">Comment target</button>
 				<output id="comment-keydown-count">0</output>

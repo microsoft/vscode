@@ -2952,6 +2952,24 @@ suite('TabbedModelPicker', () => {
 		});
 	});
 
+	test('a model router with a warning shows it on its row, and beside its description in its Details', () => {
+		const daily = routerModel('Daily', 'First to build, Second for quick questions.');
+		const warning = 'Route 2 (gone) is skipped.';
+		const warned: ILanguageModelChatMetadataAndIdentifier = { ...daily, metadata: { ...daily.metadata, statusIcon: Codicon.warning, warningText: { modelRouter: warning } } };
+		const { popup } = createPicker({ models: [...copilotModels, warned], selectedModelId: warned.identifier });
+		const row = Array.from(popup.querySelectorAll('.chat-model-picker-tabbed .monaco-list-row .detail'), detail => detail.textContent).filter(Boolean);
+		openDetails(popup, 'Daily');
+		assert.deepStrictEqual({
+			row,
+			description: element(popup, '.chat-model-card-description').textContent,
+			warning: element(popup, '.chat-model-card .chat-model-hover-warning-text').textContent,
+		}, {
+			row: [warning],
+			description: 'First to build, Second for quick questions.',
+			warning,
+		});
+	});
+
 	test('with no routers, the Routers tab is shown only to a chat that can write one, and says what a router is', () => {
 		let created = 0;
 		const withoutCreating = createPicker({ models: copilotModels });

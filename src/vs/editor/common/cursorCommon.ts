@@ -98,6 +98,7 @@ export class CursorConfiguration {
 			|| e.hasChanged(EditorOption.autoClosingDelete)
 			|| e.hasChanged(EditorOption.autoClosingOvertype)
 			|| e.hasChanged(EditorOption.autoSurround)
+			|| e.hasChanged(EditorOption.autoIndent)
 			|| e.hasChanged(EditorOption.useTabStops)
 			|| e.hasChanged(EditorOption.trimWhitespaceOnDelete)
 			|| e.hasChanged(EditorOption.fontInfo)

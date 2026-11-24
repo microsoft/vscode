@@ -15,6 +15,11 @@ jobs:
     variables:
       NPM_ARCH: ${{ parameters.VSCODE_ARCH }}
       VSCODE_ARCH: ${{ parameters.VSCODE_ARCH }}
+      # The build agent is x64, so Docker must be told which platform of the build image to use.
+      ${{ if eq(parameters.VSCODE_ARCH, 'x64') }}:
+        VSCODE_CONTAINER_PLATFORM: linux/amd64
+      ${{ else }}:
+        VSCODE_CONTAINER_PLATFORM: linux/${{ parameters.VSCODE_ARCH }}
       VSCODE_EXTENSION_TARGET: alpine-${{ parameters.VSCODE_ARCH }}
       BUILDS_API_URL: $(System.CollectionUri)$(System.TeamProject)/_apis/build/builds/$(Build.BuildId)/
     templateContext:
@@ -118,7 +123,7 @@ jobs:
           azureContainerRegistry: vscodehub.azurecr.io
           command: "Run an image"
           imageName: "vscode-linux-build-agent:alpine-$(VSCODE_ARCH)"
-          arguments: --pull=always
+          arguments: --pull=always --platform $(VSCODE_CONTAINER_PLATFORM)
           containerCommand: uname
         displayName: "Pull image"
 
@@ -168,6 +173,7 @@ jobs:
           FOUNDRY_LOCAL_NUGET_MODE: dotnet
           FOUNDRY_LOCAL_NUGET_FEEDS: "https://pkgs.dev.azure.com/monacotools/Monaco/_packaging/vscode/nuget/v3/index.json"
           VSCODE_REMOTE_DEPENDENCIES_CONTAINER_NAME: vscodehub.azurecr.io/vscode-linux-build-agent:alpine-$(VSCODE_ARCH)
+          VSCODE_REMOTE_DEPENDENCIES_CONTAINER_PLATFORM: $(VSCODE_CONTAINER_PLATFORM)
           VSCODE_HOST_MOUNT: "/mnt/vss/_work/1/s"
           VSCODE_NPMRC_PATH: $(NPMRC_PATH)
         displayName: Install dependencies

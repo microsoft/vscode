@@ -1599,10 +1599,11 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	});
 
-	test('observes the canvases of an inactive chat, which its chat model leaves unknown, while the reference is held', () => {
+	test('observes the canvases of an inactive chat, which its chat model leaves unknown, and contributes to its session while the reference is held', async () => {
 		agentHost.setAgents([{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: {} }]);
 		const provider = createProvider(disposables, agentHost, undefined, { activeSession: observableValue<ITestSessionWithChat | undefined>('activeSession', undefined) });
 		const rawId = 'pinned-chat-owner';
+		agentHost.addSession(createSession(rawId));
 		fireSessionAdded(agentHost, rawId);
 		const session = provider.getSessions()[0];
 		// The chat the session listing advertises, which the session never subscribes to while inactive.
@@ -1617,13 +1618,21 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const observed = read(reference?.object.get());
 		const chatModel = read(session.mainChat.get().canvases?.get());
 		const subscribedWhileHeld = [agentHost.sessionSubscribeCounts.get(chat), agentHost.sessionSubscribeCounts.get(resource)];
+		// The host restores a released chat's canvases only for a client that contributes to its session.
+		await timeout(0);
 		reference?.dispose();
+		// The host forgets the contribution when it releases the session, so observing again contributes again.
+		const again = provider.observeChatCanvases(session.sessionId, session.mainChat.get().resource);
+		await timeout(0);
+		again?.dispose();
+		const contributedTo = agentHost.dispatchedActions.filter(dispatch => dispatch.action.type === ActionType.SessionActiveClientSet).map(dispatch => dispatch.channel);
 
-		assert.deepStrictEqual({ observed, chatModel, subscribedWhileHeld, unsubscribes: [agentHost.sessionUnsubscribeCounts.get(chat), agentHost.sessionUnsubscribeCounts.get(resource)] }, {
+		assert.deepStrictEqual({ observed, chatModel, subscribedWhileHeld, contributedTo, unsubscribes: [agentHost.sessionUnsubscribeCounts.get(chat), agentHost.sessionUnsubscribeCounts.get(resource)] }, {
 			observed: [{ resource, instanceId: 'plan' }],
 			chatModel: undefined,
 			subscribedWhileHeld: [1, 1],
-			unsubscribes: [1, 1],
+			contributedTo: [AgentSession.uri('copilotcli', rawId).toString(), AgentSession.uri('copilotcli', rawId).toString()],
+			unsubscribes: [2, 2],
 		});
 	});
 
@@ -3900,7 +3909,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 	}));
 
 	for (const rejected of [false, true]) {
-		test(`archive waits for host confirmation and propagates rejection=${rejected}`, () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		test(`archive shows the session as archived until host confirmation, also over earlier host updates, and propagates rejection=${rejected}`, () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 			const backend = URI.parse('opaque-session://tenant/archiving');
 			const provider = createProvider(disposables, agentHost);
 			await timeout(0);
@@ -3920,11 +3929,13 @@ suite('LocalAgentHostSessionsProvider', () => {
 			const archive = provider.archiveSession(session.sessionId).then(() => { completed = true; });
 			const result = rejected ? assert.rejects(archive, /Archive denied/) : archive;
 			await dispatched.p;
-			const beforeAcknowledgement = completed;
+			// The host reports a status from before it applied the archive.
+			agentHost.fireNotification({ channel: 'ahp-root://', type: NotificationType.SessionSummaryChanged, session: backend.toString(), changes: { status: ProtocolSessionStatus.Idle } });
+			const beforeAcknowledgement = { completed, archived: session.isArchived.get(), archivePending: session.archivePending?.get() };
 			await acknowledgement.complete();
 			await result;
-			assert.deepStrictEqual({ beforeAcknowledgement, completed, archived: session.isArchived.get(), calls, released: agentHost.sessionUnsubscribeCounts.get(backend.toString()) }, {
-				beforeAcknowledgement: false, completed: !rejected, archived: !rejected, calls: [backend.toString()], released: 1,
+			assert.deepStrictEqual({ beforeAcknowledgement, completed, archived: session.isArchived.get(), archivePending: session.archivePending?.get(), calls, released: agentHost.sessionUnsubscribeCounts.get(backend.toString()) }, {
+				beforeAcknowledgement: { completed: false, archived: true, archivePending: true }, completed: !rejected, archived: !rejected, archivePending: false, calls: [backend.toString()], released: 1,
 			});
 		}));
 	}
@@ -3959,7 +3970,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			active, maximumActive, elapsedMs: Date.now() - started,
 			outcomes: results.map(result => result.status),
 			archived: sessions.map(session => session.isArchived.get()),
-			changes: changes.map(event => event.changed.map(session => session.sessionId)),
+			changes: changes.map(event => event.changed.map(session => session.sessionId).sort()),
 			channels: [...channels],
 			released: backends.map(resource => agentHost.sessionUnsubscribeCounts.get(resource.toString())),
 		};
@@ -3973,12 +3984,13 @@ suite('LocalAgentHostSessionsProvider', () => {
 				elapsedMs: 230,
 				outcomes: sessions.map((_, index) => index === 1 ? 'rejected' : 'fulfilled'),
 				archived: sessions.map((_, index) => index !== 1),
-				changes: Array.from({ length: 23 }, (_, batch) => sessions.slice(batch * 4, (batch + 1) * 4)
-					.filter(session => session !== sessions[1]).map(session => session.sessionId)),
+				// Each change shows the archives that started and settles those that the host confirmed or rejected before.
+				changes: Array.from({ length: 24 }, (_, event) => sessions.slice(Math.max(0, event - 1) * 4, (event + 1) * 4)
+					.map(session => session.sessionId).sort()),
 				channels: backends.map(resource => resource.toString()),
 				released: backends.map(() => 1),
 			},
-			changesAfterRetry: 24,
+			changesAfterRetry: 26,
 		});
 	}));
 
@@ -4014,14 +4026,14 @@ suite('LocalAgentHostSessionsProvider', () => {
 			active, maximumActive,
 			outcomes: results.map(batch => batch.map(result => result.status)),
 			archived: sessions.map(session => session.isArchived.get()),
-			changes: changes.map(event => event.changed.map(session => session.sessionId)),
+			changes: changes.map(event => event.changed.map(session => session.sessionId).sort()),
 			released: backends.map(resource => agentHost.sessionUnsubscribeCounts.get(resource.toString())),
 		}, {
-			betweenBatches: { active: 4, changes: 1 },
+			betweenBatches: { active: 4, changes: 2 },
 			active: 0, maximumActive: 4,
 			outcomes: [['fulfilled', 'fulfilled', 'fulfilled', 'fulfilled'], ['fulfilled', 'fulfilled', 'fulfilled', 'fulfilled']],
 			archived: sessions.map(() => true),
-			changes: [sessions.slice(0, 4), sessions.slice(4)].map(batch => batch.map(session => session.sessionId)),
+			changes: [sessions.slice(0, 4), sessions, sessions.slice(4)].map(batch => batch.map(session => session.sessionId).sort()),
 			released: backends.map(() => 1),
 		});
 	}));
@@ -8919,6 +8931,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 				_pendingWorktreePlacement: observableValue<object | undefined>('pendingWorktreePlacement', undefined),
 				_newWorktree: instantiationService.createInstance(NewWorktreeChoice, current, constObservable(true)),
 				contextKeyService: { contextMatchesRules: () => true },
+				configurationService: new TestConfigurationService({ 'chat.editorWindow.enableWorktree': true }),
 				_getWorktreeSendChoiceControl: () => mainWindow.document.createElement('div'),
 				_isRecentChatInFolder: Reflect.get(NewChatWidget.prototype, '_isRecentChatInFolder'),
 				_warnNewWorktreeUnavailable: Reflect.get(NewChatWidget.prototype, '_warnNewWorktreeUnavailable'),
@@ -17442,6 +17455,89 @@ suite('LocalAgentHostSessionsProvider', () => {
 			count: 1,
 			isDraft: true,
 			resources: [session.resource.toString()],
+		});
+	});
+
+	test('archiving a new session before its first request commits archives the draft and then the committed session', async () => {
+		const provider = createProvider(disposables, agentHost, undefined, {
+			openSession: true,
+			sendRequest: async (): Promise<ChatSendResult> => ({ kind: 'sent' as const, data: {} as ChatSendResult extends { kind: 'sent'; data: infer D } ? D : never }),
+		});
+		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+		const chat = await provider.createNewChat(session.sessionId);
+		const draftAdvertised = new DeferredPromise<void>();
+		disposables.add(provider.onDidChangeSessions(e => {
+			if (e.added.includes(session)) {
+				draftAdvertised.complete();
+			}
+		}));
+		const request = provider.sendRequest(session.sessionId, chat.resource, { query: 'hello' });
+		await draftAdvertised.p;
+		const rawId = AgentSession.id(session.resource);
+		const archiveDispatches = () => agentHost.dispatchedActions
+			.filter(dispatched => dispatched.action.type === ActionType.SessionIsArchivedChanged)
+			.map(dispatched => ({ session: AgentSession.id(dispatched.channel), action: dispatched.action }));
+
+		agentHost.dispatchConfirmed = async (channel, _subscription, action) => {
+			if (action.type === ActionType.SessionIsArchivedChanged) {
+				agentHost.dispatchedActions.push({ channel, action, clientId: agentHost.clientId, clientSeq: 0 });
+			}
+			return { channel, action, serverSeq: 1, origin: undefined };
+		};
+		await provider.archiveSession(session.sessionId);
+		const beforeCommit = { draftArchived: session.isArchived.get(), dispatched: archiveDispatches() };
+		agentHost.addSession(createSession(rawId, { summary: 'Committed Session' }));
+		fireSessionAdded(agentHost, rawId, { title: 'Committed Session' });
+		const committed = await request;
+
+		assert.deepStrictEqual({
+			beforeCommit,
+			committedArchived: committed.isArchived.get(),
+			dispatched: archiveDispatches(),
+		}, {
+			beforeCommit: { draftArchived: true, dispatched: [] },
+			committedArchived: true,
+			dispatched: [{ session: rawId, action: { type: ActionType.SessionIsArchivedChanged, isArchived: true } }],
+		});
+	});
+
+	test('unarchiving a new session after the host announces it but before commit is not undone at commit', async () => {
+		const provider = createProvider(disposables, agentHost, undefined, {
+			openSession: true,
+			sendRequest: async (): Promise<ChatSendResult> => ({ kind: 'sent' as const, data: {} as ChatSendResult extends { kind: 'sent'; data: infer D } ? D : never }),
+		});
+		await timeout(0);
+		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+		const chat = await provider.createNewChat(session.sessionId);
+		const draftAdvertised = new DeferredPromise<void>();
+		disposables.add(provider.onDidChangeSessions(e => {
+			if (e.added.includes(session)) {
+				draftAdvertised.complete();
+			}
+		}));
+		agentHost.listSessionsBarrier = new DeferredPromise<void>();
+		const request = provider.sendRequest(session.sessionId, chat.resource, { query: 'hello' });
+		await draftAdvertised.p;
+		const rawId = AgentSession.id(session.resource);
+
+		await provider.archiveSession(session.sessionId);
+		agentHost.addSession(createSession(rawId, { summary: 'Committed Session' }));
+		fireSessionAdded(agentHost, rawId, { title: 'Committed Session' });
+		await provider.unarchiveSession(session.sessionId);
+		const draftArchived = session.isArchived.get();
+		agentHost.listSessionsBarrier.complete();
+		const committed = await request;
+
+		assert.deepStrictEqual({
+			draftArchived,
+			committedArchived: committed.isArchived.get(),
+			dispatched: agentHost.dispatchedActions
+				.filter(dispatched => dispatched.action.type === ActionType.SessionIsArchivedChanged)
+				.map(dispatched => dispatched.action),
+		}, {
+			draftArchived: false,
+			committedArchived: false,
+			dispatched: [{ type: ActionType.SessionIsArchivedChanged, isArchived: false }],
 		});
 	});
 

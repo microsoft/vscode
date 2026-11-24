@@ -7,6 +7,7 @@ import assert from 'assert';
 import { getWindow, scheduleAtNextAnimationFrame } from '../../../../../base/browser/dom.js';
 import { OverlayLayoutElement } from '../../../../../base/browser/overlayLayoutElement.js';
 import { ActionBar, ActionsOrientation } from '../../../../../base/browser/ui/actionbar/actionbar.js';
+import { CenteredViewLayout } from '../../../../../base/browser/ui/centered/centeredViewLayout.js';
 import { HorizontalDirection, Menu, unthemedMenuStyles, VerticalDirection } from '../../../../../base/browser/ui/menu/menu.js';
 import { MenuBar } from '../../../../../base/browser/ui/menu/menubar.js';
 import { Orientation } from '../../../../../base/browser/ui/sash/sash.js';
@@ -15,7 +16,7 @@ import { DEFAULT_SCROLLBAR_SIZE, setGlobalDefaultScrollbarSize } from '../../../
 import { DeferredPromise } from '../../../../../base/common/async.js';
 import { Action, Separator } from '../../../../../base/common/actions.js';
 import { Color } from '../../../../../base/common/color.js';
-import { Emitter } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { combinedDisposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -110,6 +111,23 @@ function appendElement(parent: HTMLElement, className: string): HTMLElement {
 	element.className = className;
 	parent.appendChild(element);
 	return element;
+}
+
+/**
+ * Returns the corner radii, in pixels, of the clip that an element's `overflow` applies to its content: its padding
+ * edge, whose radii are its border radii less its border widths. Returns `undefined` when the element doesn't clip.
+ */
+function getContentClipRadii(element: HTMLElement): number[] | undefined {
+	const style = getWindow(element).getComputedStyle(element);
+	if (style.overflow !== 'hidden') {
+		return undefined;
+	}
+	return [
+		[style.borderTopLeftRadius, style.borderLeftWidth],
+		[style.borderTopRightRadius, style.borderRightWidth],
+		[style.borderBottomRightRadius, style.borderRightWidth],
+		[style.borderBottomLeftRadius, style.borderLeftWidth],
+	].map(([radius, width]) => Math.max(0, parseFloat(radius) - parseFloat(width)));
 }
 
 function createEditorTabLabel(parent: HTMLElement, extraClasses?: string): { label: HTMLElement; name: HTMLElement; description: HTMLElement } {
@@ -2300,17 +2318,18 @@ suite('ModernUIContribution', () => {
 		});
 	});
 
-	test('centers status bar items within the status bar background', () => {
-		const measure = (className: string, statusbarHeight: number) => {
+	test('centers status bar items within the band that shows the status bar background', () => {
+		const measure = (className: string, statusbarHeight: number, statusbarClassName = '', gapAbove = 0) => {
 			const root = document.createElement('div');
 			root.className = className;
+			root.style.setProperty('--vscode-spacing-sizeNone', '0px');
 			root.style.setProperty('--vscode-spacing-size20', '2px');
 			root.style.setProperty('--vscode-spacing-size40', '4px');
 			root.style.setProperty('--vscode-spacing-size60', '6px');
 			document.body.appendChild(root);
 			store.add(toDisposable(() => root.remove()));
 
-			const statusbar = appendElement(root, 'part statusbar');
+			const statusbar = appendElement(root, `part statusbar ${statusbarClassName}`.trim());
 			statusbar.style.width = '240px';
 			statusbar.style.height = `${statusbarHeight}px`;
 			const items = appendElement(statusbar, 'left-items items-container');
@@ -2327,17 +2346,21 @@ suite('ModernUIContribution', () => {
 				paddingBottom: statusbarStyle.paddingBottom,
 				itemHeight: itemBounds.height,
 				labelHeight: labelBounds.height,
-				centerOffset: itemBounds.top + itemBounds.height / 2 - (statusbarBounds.top + statusbarBounds.bottom) / 2,
+				centerOffset: itemBounds.top + itemBounds.height / 2 - (statusbarBounds.top - gapAbove + statusbarBounds.bottom) / 2,
 			};
 		};
 
 		assert.deepStrictEqual({
 			defaultDensity: measure('monaco-workbench modern-ui floating-panels', 28),
+			defaultDensityShellColored: measure('monaco-workbench modern-ui floating-panels', 28, 'matches-shell-background', 4),
 			compactDensity: measure('monaco-workbench modern-ui modern-ui-compact floating-panels', 26),
+			compactDensityShellColored: measure('monaco-workbench modern-ui modern-ui-compact floating-panels', 26, 'matches-shell-background'),
 			classic: measure('monaco-workbench', 22),
 		}, {
 			defaultDensity: { paddingTop: '2px', paddingBottom: '2px', itemHeight: 24, labelHeight: 24, centerOffset: 0 },
+			defaultDensityShellColored: { paddingTop: '0px', paddingBottom: '4px', itemHeight: 24, labelHeight: 24, centerOffset: 0 },
 			compactDensity: { paddingTop: '2px', paddingBottom: '2px', itemHeight: 22, labelHeight: 22, centerOffset: 0 },
+			compactDensityShellColored: { paddingTop: '2px', paddingBottom: '2px', itemHeight: 22, labelHeight: 22, centerOffset: 0 },
 			classic: { paddingTop: '0px', paddingBottom: '0px', itemHeight: 22, labelHeight: 22, centerOffset: 0 },
 		});
 	});
@@ -3111,6 +3134,65 @@ suite('ModernUIContribution', () => {
 		});
 	});
 
+	for (const modernUI of [false, true]) {
+		test(`modal editor keeps one concentric rounded clip with Modern UI ${modernUI ? 'enabled' : 'disabled'}`, () => {
+			const root = appendElement(document.body, `monaco-workbench${modernUI ? ' modern-ui floating-panels' : ''}`);
+			root.style.cssText = '--vscode-cornerRadius-large: 8px; --vscode-editorWidget-border: #778899; --vscode-shadow-xl: 0 8px 32px #0008;';
+			store.add(toDisposable(() => root.remove()));
+			const block = appendElement(root, 'monaco-modal-editor-block');
+			const resizable = appendElement(block, 'modal-editor-resizable');
+			const sash = appendElement(resizable, 'monaco-sash vertical');
+			const shadow = appendElement(resizable, 'modal-editor-shadow');
+			const part = appendElement(shadow, 'part editor modal-editor-part');
+			const header = appendElement(part, 'modal-editor-header');
+			const navigation = appendElement(header, 'modal-editor-navigation');
+			const sidebar = appendElement(part, 'modal-editor-sidebar');
+			const content = appendElement(part, 'content');
+			const targetWindow = getWindow(root);
+			const roundedClips = (element: HTMLElement) => {
+				const clips = [];
+				for (let ancestor: HTMLElement | null = element; ancestor && ancestor !== root; ancestor = ancestor.parentElement) {
+					const style = targetWindow.getComputedStyle(ancestor);
+					if (style.overflow === 'hidden' && parseFloat(style.borderRadius) > 0) {
+						clips.push(ancestor.className);
+					}
+				}
+				return clips;
+			};
+			const states = [false, true].map(hasSidebar => {
+				part.classList.toggle('has-sidebar', hasSidebar);
+				const frame = targetWindow.getComputedStyle(part);
+				return {
+					hasSidebar,
+					contentClipRadii: [
+						[frame.borderTopLeftRadius, frame.borderLeftWidth],
+						[frame.borderTopRightRadius, frame.borderRightWidth],
+						[frame.borderBottomRightRadius, frame.borderRightWidth],
+						[frame.borderBottomLeftRadius, frame.borderLeftWidth],
+					].map(([radius, width]) => parseFloat(radius) - parseFloat(width)),
+					shadowOverflow: targetWindow.getComputedStyle(shadow).overflow,
+					shadowPainted: targetWindow.getComputedStyle(shadow).boxShadow !== 'none',
+					contentRadius: targetWindow.getComputedStyle(content).borderRadius,
+					contentOverflow: targetWindow.getComputedStyle(content).overflow,
+					clips: [header, sidebar, content].map(roundedClips),
+					sashClips: roundedClips(sash),
+					navigationOverflow: targetWindow.getComputedStyle(navigation).overflow,
+				};
+			});
+			assert.deepStrictEqual(states, [false, true].map(hasSidebar => ({
+				hasSidebar,
+				contentClipRadii: [7, 7, 7, 7],
+				shadowOverflow: 'visible',
+				shadowPainted: true,
+				contentRadius: '0px',
+				contentOverflow: 'hidden',
+				clips: Array.from({ length: 3 }, () => [`part editor modal-editor-part${hasSidebar ? ' has-sidebar' : ''}`]),
+				sashClips: [],
+				navigationOverflow: 'hidden',
+			})));
+		});
+	}
+
 	test('modal editor sashes hide grips without changing resize affordances', () => {
 		const root = document.createElement('div');
 		root.className = 'monaco-workbench modern-ui';
@@ -3297,6 +3379,56 @@ suite('ModernUIContribution', () => {
 		});
 	});
 
+	test('editor tab-strip clipping follows the inside of the floating frame', () => {
+		const root = appendElement(document.body, 'monaco-workbench modern-ui floating-panels');
+		root.style.cssText = 'position: absolute; left: 20px; top: 20px; --vscode-strokeThickness: 1px; --vscode-cornerRadius-large: 8px; --vscode-editorGroup-border: #778899; --vscode-spacing-size40: 4px; --vscode-spacing-sizeNone: 0px;';
+		store.add(toDisposable(() => root.remove()));
+		const editor = appendElement(appendElement(root, 'monaco-grid-view'), 'part editor');
+		editor.style.cssText = 'width: 200px; height: 100px;';
+		const content = appendElement(editor, 'content');
+		content.style.cssText = 'width: 100%; height: 100%;';
+		const group = appendElement(content, 'editor-group-container');
+		store.add(new CenteredViewLayout(content, {
+			element: group,
+			minimumWidth: 0,
+			maximumWidth: Number.POSITIVE_INFINITY,
+			minimumHeight: 0,
+			maximumHeight: Number.POSITIVE_INFINITY,
+			onDidChange: Event.None,
+			layout: () => { },
+		}));
+		const title = appendElement(group, 'title tabs');
+		const strip = appendElement(title, 'tabs-and-actions-container');
+		strip.style.cssText = 'width: 100%; height: 32px;';
+		const strokeProbe = appendElement(root, '');
+		strokeProbe.style.cssText = 'border: var(--modern-ui-floating-card-stroke-width) solid;';
+		const targetWindow = getWindow(root);
+		const states = [];
+		for (const zoom of [1, 1.25, 1.5]) {
+			root.style.zoom = `${zoom}`;
+			root.style.setProperty('--window-device-pixel-ratio', String(targetWindow.devicePixelRatio * zoom));
+			for (const radius of [0, 1, 8, 16]) {
+				root.style.setProperty('--vscode-editorArea-cornerRadius', `${radius}px`);
+				for (const compact of [false, true, false]) {
+					root.classList.toggle('modern-ui-compact', compact);
+					// The frame clips the tab strip to its padding edge, the curve inside its stroke...
+					const clipRadius = getContentClipRadii(editor)?.[0];
+					const concentricRadius = compact ? 0 : Math.max(0, radius - parseFloat(targetWindow.getComputedStyle(strokeProbe).borderTopWidth));
+					const contentStyle = targetWindow.getComputedStyle(content);
+					states.push({
+						zoom, radius, compact,
+						concentric: clipRadius !== undefined && Math.abs(clipRadius - concentricRadius) < 0.001,
+						// ...so the content rounds no second clip inside it.
+						contentRadius: contentStyle.borderRadius,
+						overflow: contentStyle.overflow,
+						tabStripPresent: content.contains(strip),
+					});
+				}
+			}
+		}
+		assert.deepStrictEqual(states, states.map(state => ({ ...state, concentric: true, contentRadius: '0px', overflow: 'hidden', tabStripPresent: true })));
+	});
+
 	test('compact auxiliary window editors keep their outer radius', () => {
 		const root = document.createElement('div');
 		root.className = 'monaco-workbench modern-ui modern-ui-compact';
@@ -3312,7 +3444,7 @@ suite('ModernUIContribution', () => {
 
 	test('matches exposed macOS window corners without changing internal card corners', () => {
 		const root = appendElement(document.body, 'monaco-workbench modern-ui floating-panels mac macos-tahoe nostatusbar noactivitybar');
-		root.style.cssText = '--vscode-cornerRadius-large: 8px; --vscode-spacing-size40: 4px; --vscode-spacing-sizeNone: 0px; --vscode-strokeThickness: 1px; --window-zoom-factor: 1;';
+		root.style.cssText = '--vscode-cornerRadius-large: 8px; --vscode-spacing-size40: 4px; --vscode-spacing-sizeNone: 0px; --vscode-strokeThickness: 1px; --vscode-editorGroup-border: #778899; --window-zoom-factor: 1;';
 		store.add(toDisposable(() => root.remove()));
 		const grid = appendElement(root, 'monaco-grid-view');
 		const editor = appendElement(grid, 'part editor floating-editor-outer-left floating-editor-outer-right floating-editor-outer-bottom');
@@ -3330,17 +3462,22 @@ suite('ModernUIContribution', () => {
 			sidebarAbovePanel: appendElement(grid, 'part sidebar left floating-part-outer-left'),
 		};
 
-		assert.deepStrictEqual(Object.fromEntries(Object.entries(elements).map(([name, element]) => {
-			const style = getWindow(element).getComputedStyle(element);
-			return [name, [style.borderTopLeftRadius, style.borderTopRightRadius, style.borderBottomRightRadius, style.borderBottomLeftRadius]];
-		})), {
+		assert.deepStrictEqual({
+			...Object.fromEntries(Object.entries(elements).map(([name, element]) => {
+				const style = getWindow(element).getComputedStyle(element);
+				return [name, [style.borderTopLeftRadius, style.borderTopRightRadius, style.borderBottomRightRadius, style.borderBottomLeftRadius]];
+			})),
+			editorContentClip: getContentClipRadii(editor)?.map(radius => `${radius}px`),
+		}, {
 			leftActivityBar: ['8px', '0px', '0px', '12px'],
 			rightActivityBar: ['0px', '8px', '12px', '0px'],
 			sidebar: ['8px', '8px', '8px', '12px'],
 			auxiliaryBar: ['8px', '8px', '12px', '8px'],
 			panel: ['8px', '8px', '12px', '12px'],
 			editor: ['8px', '8px', '12px', '12px'],
-			editorContent: ['8px', '8px', '11px', '11px'],
+			// The card clips the editor's content inside its stroke, so the content rounds no second clip inside it.
+			editorContent: ['0px', '0px', '0px', '0px'],
+			editorContentClip: ['7px', '7px', '11px', '11px'],
 			webview: ['8px', '8px', '11px', '11px'],
 			modalWebview: ['8px', '8px', '8px', '8px'],
 			internalPanel: ['8px', '8px', '8px', '8px'],

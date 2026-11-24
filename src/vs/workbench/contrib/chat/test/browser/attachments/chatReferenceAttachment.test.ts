@@ -28,6 +28,7 @@ import { ChatReferenceAttachmentWidget } from '../../../browser/attachments/chat
 import { Disposable, IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { ILinkPresentationService } from '../../../../../../platform/dataChannel/common/dataChannel.js';
+import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { IPathService } from '../../../../../services/path/common/pathService.js';
 import { AgentHostOpenSessionLinkOpenerContribution } from '../../../browser/agentSessions/agentHost/openSessionLinkOpener.contribution.js';
 import { ISessionSummaryHoverService } from '../../../browser/agentSessions/sessionSummaryHoverService.js';
@@ -206,6 +207,7 @@ suite('ChatReferenceAttachment', () => {
 				new class extends mock<IPathService>() { }(),
 				connections,
 				new TestConfigurationService(),
+				upcastPartial<IWorkbenchEnvironmentService>({ isSessionsWindow: false }),
 			));
 			const links: string[] = [];
 			instantiationService.stub(IOpenerService, upcastPartial<IOpenerService>({

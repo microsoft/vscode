@@ -9,7 +9,7 @@ import { HoverStyle, IDelayedHoverOptions, IHoverLifecycleOptions } from '../../
 import { IconLabel } from '../../../../base/browser/ui/iconLabel/iconLabel.js';
 import { IIdentityProvider, IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
 import { LabelFuzzyScore } from '../../../../base/browser/ui/tree/abstractTree.js';
-import { IAsyncDataSource, ITreeContextMenuEvent, ITreeDragAndDrop, ITreeElementRenderDetails, ITreeNode } from '../../../../base/browser/ui/tree/tree.js';
+import { IAsyncDataSource, ITreeContextMenuEvent, ITreeDragAndDrop, ITreeElementRenderDetails, ITreeNode, ITreeSorter } from '../../../../base/browser/ui/tree/tree.js';
 import { createMatches, FuzzyScore, IMatch } from '../../../../base/common/filters.js';
 import { combinedDisposable, Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, derived, IObservable, observableValue, waitForState, constObservable, latestChangedValue, observableFromEvent, runOnChange, observableSignal, ISettableObservable } from '../../../../base/common/observable.js';
@@ -60,6 +60,7 @@ import { FileKind } from '../../../../platform/files/common/files.js';
 import { WorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { basename } from '../../../../base/common/path.js';
+import { compareFileNames, comparePaths } from '../../../../base/common/comparers.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { ScmHistoryItemResolver } from '../../multiDiffEditor/browser/scmMultiDiffSourceResolver.js';
 import { IResourceNode, ResourceTree } from '../../../../base/common/resourceTree.js';
@@ -881,6 +882,10 @@ class SCMHistoryTreeKeyboardNavigationLabelProvider implements ICompressibleKeyb
 		} else if (isSCMHistoryItemLoadMoreTreeElement(element)) {
 			// We don't want to match the load more element
 			return '';
+		} else if (isSCMHistoryItemChangeViewModelTreeElement(element)) {
+			return basename(element.historyItemChange.uri.fsPath);
+		} else if (isSCMHistoryItemChangeNode(element)) {
+			return element.name;
 		} else {
 			throw new Error('Invalid tree element');
 		}
@@ -900,6 +905,43 @@ class SCMHistoryTreeCompressionDelegate implements ITreeCompressionDelegate<Tree
 		}
 
 		return true;
+	}
+}
+
+export class SCMHistoryTreeSorter implements ITreeSorter<TreeElement> {
+
+	constructor(private readonly viewMode: () => ViewMode) { }
+
+	compare(one: TreeElement, other: TreeElement): number {
+		// History items and the load more element keep the order of the graph
+		if (!this._isHistoryItemChange(one) || !this._isHistoryItemChange(other)) {
+			return 0;
+		}
+
+		// History item changes (List)
+		if (this.viewMode() === ViewMode.List) {
+			const onePath = (one as SCMHistoryItemChangeViewModelTreeElement).historyItemChange.uri.fsPath;
+			const otherPath = (other as SCMHistoryItemChangeViewModelTreeElement).historyItemChange.uri.fsPath;
+
+			return comparePaths(onePath, otherPath);
+		}
+
+		// History item changes (Tree)
+		const oneIsDirectory = ResourceTree.isResourceNode(one);
+		const otherIsDirectory = ResourceTree.isResourceNode(other);
+
+		if (oneIsDirectory !== otherIsDirectory) {
+			return oneIsDirectory ? -1 : 1;
+		}
+
+		const oneName = ResourceTree.isResourceNode(one) ? one.name : basename((one as SCMHistoryItemChangeViewModelTreeElement).historyItemChange.uri.fsPath);
+		const otherName = ResourceTree.isResourceNode(other) ? other.name : basename((other as SCMHistoryItemChangeViewModelTreeElement).historyItemChange.uri.fsPath);
+
+		return compareFileNames(oneName, otherName);
+	}
+
+	private _isHistoryItemChange(element: TreeElement): boolean {
+		return isSCMHistoryItemChangeViewModelTreeElement(element) || isSCMHistoryItemChangeNode(element);
 	}
 }
 
@@ -2013,6 +2055,7 @@ export class SCMHistoryViewPane extends ViewPane {
 				compressionEnabled: compressionEnabled.get(),
 				dnd: new SCMHistoryTreeDragAndDrop(),
 				keyboardNavigationLabelProvider: new SCMHistoryTreeKeyboardNavigationLabelProvider(),
+				sorter: new SCMHistoryTreeSorter(() => this._treeViewModel.viewMode.get()),
 				horizontalScrolling: false,
 				multipleSelectionSupport: false,
 				twistieAdditionalCssClass: (e: unknown) => {

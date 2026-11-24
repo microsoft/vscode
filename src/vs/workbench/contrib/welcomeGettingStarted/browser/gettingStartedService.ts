@@ -38,6 +38,8 @@ import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser
 import { extensionDefaultIcon } from '../../../services/extensionManagement/common/extensionsIcons.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { GettingStartedInput } from './gettingStartedInput.js';
+import { resetAgentsWindowGraphicHidden } from '../../chat/browser/agentSessions/agentsWindowGraphic.js';
+import { resetWelcomeSignInCardHidden } from '../../chat/browser/agentSessions/welcomeSignInCard.js';
 
 export const HasMultipleNewFileEntries = new RawContextKey<boolean>('hasMultipleNewFileEntries', false);
 
@@ -746,6 +748,8 @@ registerAction2(class extends Action2 {
 			JSON.stringify([]),
 			StorageScope.PROFILE,
 			StorageTarget.USER);
+		resetAgentsWindowGraphicHidden(storageService);
+		resetWelcomeSignInCardHidden(storageService);
 
 		storageService.store(
 			walkthroughMetadataConfigurationKey,

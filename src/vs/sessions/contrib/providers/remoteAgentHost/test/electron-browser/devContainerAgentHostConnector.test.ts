@@ -289,7 +289,7 @@ suite('Dev Container Agent Host Connector', () => {
 		));
 		const source = localDevContainerEnvironmentUri('environment');
 		const available = await connector.isAvailable(source);
-		const target = await connector.createConnection(source, 'devcontainer:environment', CancellationToken.None);
+		const target = await connector.createConnection(source, 'devcontainer:environment', CancellationToken.None, { resume: true, name: 'Dev Container 2' });
 		store.add(target.transportDisposable!);
 		await connector.removeContainer(source);
 		await configuration.setUserConfiguration(DevContainerEnvironmentsEnabledSettingId, false);
@@ -298,13 +298,16 @@ suite('Dev Container Agent Host Connector', () => {
 			availableWhenDisabled: await connector.isAvailable(source),
 			localDocker: await connector.isLocalDockerAvailable(),
 			configs: configs.map(config => hasKey(config, { environmentId: true }) ? { environmentId: config.environmentId, image: config.image, name: config.name, persistUserState: config.persistUserState } : config),
+			connectionName: target.name,
 			removed,
 			workspace: target.workspaceUri.path,
 		}, {
 			available: true,
 			availableWhenDisabled: false,
 			localDocker: true,
-			configs: [{ environmentId: 'environment', image: devContainerEnvironmentImage, name: 'Dev Container on This Computer', persistUserState: true }],
+			// Named after the environment, so environments on the same host can be told apart.
+			configs: [{ environmentId: 'environment', image: devContainerEnvironmentImage, name: 'Dev Container 2', persistUserState: true }],
+			connectionName: 'Dev Container 2',
 			removed: [{ environmentId: 'environment' }],
 			workspace: '/workspaces',
 		});

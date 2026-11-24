@@ -722,8 +722,9 @@ export interface ISessionsProvider {
 	/**
 	 * Observe the live canvases of a chat whether or not its session is active, unlike
 	 * {@link IChat.canvases}. `undefined` while membership is unknown. Holding the
-	 * reference may keep the session resident. Returns `undefined` when the provider
-	 * cannot resolve the chat.
+	 * reference may keep the session resident, and contributes this client to the session
+	 * as showing it would, so a chat whose runtime was released can restore its canvases.
+	 * Returns `undefined` when the provider cannot resolve the chat.
 	 */
 	observeChatCanvases?(sessionId: string, chatResource: URI): IReference<IObservable<readonly ISessionCanvas[] | undefined>> | undefined;
 
