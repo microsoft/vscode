@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import sinon from 'sinon';
+import { DeferredPromise } from '../../../../../base/common/async.js';
 import { DecorationsService } from '../../browser/decorationsService.js';
 import { IDecorationsProvider, IDecorationData } from '../../common/decorations.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -36,6 +38,82 @@ suite('DecorationsService', function () {
 	});
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('Clears cached entries for resources that no longer exist', () => {
+		const resource = URI.parse('vscode-terminal:/test/1');
+		const otherResource = URI.parse('vscode-terminal:/test/2');
+		let calls = 0;
+		store.add(service.registerDecorationsProvider({
+			label: 'Test',
+			onDidChange: Event.None,
+			provideDecorations: () => {
+				calls++;
+				return undefined;
+			}
+		}));
+		service.getDecoration(resource, false);
+		service.getDecoration(otherResource, false);
+		service.clearCachedDecorations(resource);
+		service.clearCachedDecorations(resource);
+		service.getDecoration(otherResource, false);
+		const cache = Reflect.get(service, '_data') as { get(uri: URI): object | undefined };
+		assert.deepStrictEqual({ cached: cache.get(resource), otherCached: !!cache.get(otherResource), calls }, {
+			cached: undefined, otherCached: true, calls: 2
+		});
+	});
+
+	test('Cancels cleared requests and ignores their late results', async () => {
+		const clock = sinon.useFakeTimers();
+		try {
+			const resource = URI.parse('vscode-terminal:/test/1');
+			const pending = new DeferredPromise<IDecorationData>();
+			let cancelled = false;
+			let changes = 0;
+			store.add(service.onDidChangeDecorations(() => changes++));
+			store.add(service.registerDecorationsProvider({
+				label: 'Test',
+				onDidChange: Event.None,
+				provideDecorations: (_uri, token) => {
+					store.add(token.onCancellationRequested(() => cancelled = true));
+					return pending.p;
+				}
+			}));
+			changes = 0;
+			service.getDecoration(resource, false);
+			service.clearCachedDecorations(resource);
+			await clock.runAllAsync();
+			assert.strictEqual(changes, 1);
+			await pending.complete({ tooltip: 'stale' });
+			await clock.runAllAsync();
+			const cache = Reflect.get(service, '_data') as { get(uri: URI): object | undefined };
+			assert.deepStrictEqual({ cancelled, cached: cache.get(resource), changes }, { cancelled: true, cached: undefined, changes: 1 });
+		} finally {
+			clock.restore();
+		}
+	});
+
+	test('Notifies parents when cleared decorations no longer bubble', async () => {
+		const clock = sinon.useFakeTimers();
+		try {
+			const resource = URI.parse('test:/parent/child');
+			const parent = URI.parse('test:/parent');
+			store.add(service.registerDecorationsProvider({
+				label: 'Test',
+				onDidChange: Event.None,
+				provideDecorations: uri => uri.toString() === resource.toString() ? { letter: 'M', bubble: true } : undefined
+			}));
+			service.getDecoration(resource, false)?.dispose();
+			await clock.runAllAsync();
+			const changed = Event.toPromise(service.onDidChangeDecorations);
+			service.clearCachedDecorations(resource);
+			await clock.runAllAsync();
+			assert.deepStrictEqual({ affectsParent: (await changed).affectsResource(parent), decoration: service.getDecoration(parent, true) }, {
+				affectsParent: true, decoration: undefined
+			});
+		} finally {
+			clock.restore();
+		}
+	});
 
 
 	test('Async provider, async/evented result', function () {
