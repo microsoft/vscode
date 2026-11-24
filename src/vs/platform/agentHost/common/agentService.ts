@@ -888,9 +888,11 @@ export interface IMissionControlOptions {
 	readonly name?: string;
 	readonly accountId: string;
 	readonly credential: string;
+	/** Filesystem grants. The host resolves them and excludes network-backed ones, as it does network-backed projects. */
 	readonly roots: readonly string[];
 	/** Catalogue entries, separate from filesystem grants. Defaults to the granted roots when omitted. */
 	readonly projects?: readonly string[];
+	/** Must resolve to a local directory. */
 	readonly defaultDirectory?: string;
 	/** Host-owned default parent for repository clones; clients can only override it within existing grants. */
 	readonly cloneRoot?: string;
