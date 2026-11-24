@@ -4,11 +4,30 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as dom from '../../../../../base/browser/dom.js';
+import { mainWindow } from '../../../../../base/browser/window.js';
+import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { constObservable } from '../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
+import { CodeEditorWidget } from '../../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
+import { CompressedVirtualizedScrollView } from '../../../../../editor/browser/widget/multiDiffEditor/compressedVirtualizedScrollView.js';
+import { createCodeEditorServices } from '../../../../../editor/test/browser/testCodeEditor.js';
+import { createTextModel } from '../../../../../editor/test/common/testTextModel.js';
 import { computeFloatingWidgetPlacement, FloatingWidgetSizeModel, getCenteredTop, getConnectorPoints, getDefaultFloatingWidgetWidth, getPlacementBesideLines, getRevealScrollTop, getRowsOutlinePath, getViewZoneOffset, getWidthBesideCode, IFloatingWidgetPlacementRequest, IRect, isInTheWayOf, shouldDockFloatingWidgets } from '../../browser/commentThreadFloatingWidgetLayout.js';
+import { FloatingWidgetDockZone, FloatingWidgetRoom } from '../../browser/commentThreadFloatingWidgetRoom.js';
 
 suite('Comment thread floating widget', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	/**
+	 * Creates an editor with a view, which view zones need, in the given container.
+	 */
+	function createEditor(disposables: DisposableStore, container: HTMLElement, text: string, height: number): ICodeEditor {
+		const editor = disposables.add(createCodeEditorServices(disposables).createInstance(CodeEditorWidget, container, { dimension: { width: 400, height }, lineHeight: 20 }, { contributions: [] }));
+		editor.setModel(disposables.add(createTextModel(text)));
+		return editor;
+	}
 
 	suite('getConnectorPoints', () => {
 		const code: IRect[] = [{ top: 100, left: 50, width: 200, height: 20 }];
@@ -263,6 +282,110 @@ suite('Comment thread floating widget', () => {
 				lastAfterLine: { afterLineNumber: 5, offset: 50 },
 				aloneAfterLine: { afterLineNumber: 8, offset: 0 },
 				missing: undefined,
+			});
+		});
+	});
+
+	suite('FloatingWidgetDockZone', () => {
+		test('makes the space below the code as soon as it is requested, before the other space after the code', () => {
+			const disposables = store.add(new DisposableStore());
+			const container = dom.append(mainWindow.document.body, dom.$('div'));
+			disposables.add(toDisposable(() => container.remove()));
+			const editor = createEditor(disposables, container, 'one\ntwo\nthree\nfour', 300);
+			editor.changeViewZones(accessor => accessor.addZone({ afterLineNumber: 2, heightInPx: 30, domNode: dom.$('div') }));
+			const zone = disposables.add(new FloatingWidgetDockZone(editor));
+
+			// The code below the space moves out of the way of the widget that is placed in it at once.
+			const states: { spaceTop: number | undefined; nextLineTop: number }[] = [];
+			const captureState = () => states.push({ spaceTop: zone.getTop(), nextLineTop: editor.getTopForLineNumber(3) });
+			zone.show(2, 50);
+			captureState();
+			zone.show(2, 80);
+			captureState();
+			zone.hide();
+			captureState();
+
+			assert.deepStrictEqual(states, [
+				{ spaceTop: 40, nextLineTop: 120 },
+				{ spaceTop: 40, nextLineTop: 150 },
+				{ spaceTop: undefined, nextLineTop: 70 },
+			]);
+		});
+
+		test('finds the space below the spaces of the other widgets that are docked below the same code', () => {
+			const disposables = store.add(new DisposableStore());
+			const container = dom.append(mainWindow.document.body, dom.$('div'));
+			disposables.add(toDisposable(() => container.remove()));
+			const editor = createEditor(disposables, container, 'one\ntwo\nthree\nfour', 300);
+			const first = disposables.add(new FloatingWidgetDockZone(editor));
+			const second = disposables.add(new FloatingWidgetDockZone(editor));
+
+			first.show(2, 50);
+			second.show(2, 60);
+			const stacked = { first: first.getTop(), second: second.getTop() };
+			first.hide();
+			const alone = { first: first.getTop(), second: second.getTop() };
+
+			assert.deepStrictEqual({ stacked, alone }, {
+				stacked: { first: 40, second: 90 },
+				alone: { first: undefined, second: 40 },
+			});
+		});
+
+		test('changes the space a whole line at a time while asked to', () => {
+			const disposables = store.add(new DisposableStore());
+			const container = dom.append(mainWindow.document.body, dom.$('div'));
+			disposables.add(toDisposable(() => container.remove()));
+			const editor = createEditor(disposables, container, 'one\ntwo\nthree\nfour', 300);
+			const zone = disposables.add(new FloatingWidgetDockZone(editor));
+			let zoneChanges = 0;
+			disposables.add(editor.onDidChangeViewZones(() => zoneChanges++));
+
+			// Lines are 20px tall.
+			const nextLineTops: number[] = [];
+			for (const [height, wholeLines] of [[50, true], [55, true], [61, true], [55, false]] as const) {
+				zone.show(2, height, wholeLines);
+				nextLineTops.push(editor.getTopForLineNumber(3));
+			}
+
+			assert.deepStrictEqual({ nextLineTops, zoneChanges }, { nextLineTops: [100, 100, 120, 95], zoneChanges: 3 });
+		});
+	});
+
+	suite('FloatingWidgetRoom', () => {
+		test('scrolls the multi diff view that the editor is shown in down, but not up', () => {
+			const disposables = store.add(new DisposableStore());
+			const view = dom.append(mainWindow.document.body, dom.$('.multiDiffEditor'));
+			disposables.add(toDisposable(() => view.remove()));
+			let content: HTMLElement | undefined;
+			const scrollView = disposables.add(new CompressedVirtualizedScrollView(view, constObservable(new dom.Dimension(400, 200)), constObservable(0), context => {
+				content = context.contentDomNode;
+				return constObservable([{ size: constObservable(1000), maxScroll: constObservable({ maxScroll: 0 }), render: () => { }, hide: () => { } }]);
+			}));
+			view.appendChild(scrollView.domNode);
+			const editorContainer = dom.append(content!, dom.$('div'));
+			editorContainer.style.position = 'absolute';
+			editorContainer.style.top = '50px';
+			const room = disposables.add(new FloatingWidgetRoom(createEditor(disposables, editorContainer, 'one\ntwo', 900), () => []));
+
+			const initialTop = room.getViewport().top;
+			room.scrollDownTo(initialTop - 30);
+			const topAfterScrollingUp = room.getViewport().top;
+			room.scrollDownTo(initialTop + 120);
+			const topAfterScrollingDown = room.getViewport().top;
+			// The browser lets the view know that its content scrolled natively.
+			content!.parentElement!.dispatchEvent(new Event('scroll'));
+
+			assert.deepStrictEqual({
+				initialTop,
+				topAfterScrollingUp,
+				topAfterScrollingDown,
+				viewScrollTop: scrollView.getScrollPosition().scrollTop,
+			}, {
+				initialTop: -50,
+				topAfterScrollingUp: -50,
+				topAfterScrollingDown: 70,
+				viewScrollTop: 120,
 			});
 		});
 	});

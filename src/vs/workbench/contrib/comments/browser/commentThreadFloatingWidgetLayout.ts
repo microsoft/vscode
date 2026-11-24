@@ -68,8 +68,13 @@ export interface ICommentThreadFloatingWidgetLayout {
 	/** Distance from the left edge of the editor to the left edge of the widget. */
 	readonly left: number;
 	readonly width: number;
-	/** The height chosen by the user, or `undefined` when the widget sizes itself to its content. */
+	/** The height chosen by the user while the widget floats, or `undefined` when it sizes itself to its content. */
 	readonly height: number | undefined;
+	/**
+	 * The height chosen by the user while the widget is docked below its code, or `undefined` when it sizes itself to its
+	 * content there. It's kept apart from the floating placement and size, which don't apply while the widget is docked.
+	 */
+	readonly dockedHeight?: number;
 	/**
 	 * Whether the user moved or resized the widget. Other widgets are placed around such a widget, rather than moving
 	 * it to keep the widgets in the order of their code.

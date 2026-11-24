@@ -6,6 +6,7 @@
 import * as dom from '../../../../base/browser/dom.js';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ICodeEditor, IViewZone } from '../../../../editor/browser/editorBrowser.js';
+import { EditorOption } from '../../../../editor/common/config/editorOptions.js';
 import { EDGE_MARGIN, getViewZoneOffset, IRect } from './commentThreadFloatingWidgetLayout.js';
 
 /**
@@ -40,9 +41,23 @@ export class FloatingWidgetRoom extends Disposable {
 	 */
 	getViewport(): { top: number; height: number } {
 		const editorNode = this._editor.getContainerDomNode();
-		const view = dom.findParentWithClass(editorNode, 'multiDiffEditor');
-		const viewRect = view?.getBoundingClientRect() ?? { top: 0, height: dom.getWindow(editorNode).innerHeight };
+		const viewRect = this._getView()?.getBoundingClientRect() ?? { top: 0, height: dom.getWindow(editorNode).innerHeight };
 		return { top: this._editor.getScrollTop() + viewRect.top - editorNode.getBoundingClientRect().top, height: viewRect.height };
+	}
+
+	/**
+	 * Scrolls the view that the editor is shown in down, so that the part of the document in view starts at the given
+	 * position, in document coordinates. The multi diff editor moves the native scrolling of its content, such as when
+	 * the browser reveals a focused element in it, into its own scroll position. The content is scrolled that way, which
+	 * can't scroll it up: its native scroll position is always back at the top.
+	 */
+	scrollDownTo(top: number): void {
+		const view = this._getView();
+		const content = view && dom.findParentWithClass(this._editor.getContainerDomNode(), 'scrollContent', view);
+		const delta = top - this.getViewport().top;
+		if (content && delta > 0) {
+			content.scrollTop += delta;
+		}
 	}
 
 	/**
@@ -59,6 +74,10 @@ export class FloatingWidgetRoom extends Disposable {
 	 */
 	update(): void {
 		this._scheduler.schedule();
+	}
+
+	private _getView(): HTMLElement | null {
+		return dom.findParentWithClass(this._editor.getContainerDomNode(), 'multiDiffEditor');
 	}
 
 	/**
@@ -104,52 +123,47 @@ export class FloatingWidgetRoom extends Disposable {
  * Space right below the code of a comment thread whose widget is docked there, so that the widget covers no code, in an
  * editor that is too narrow for the widget to float beside the code.
  *
- * Like {@link FloatingWidgetRoom}, the space is made at the next animation frame, because the widget also resizes while
- * the browser delivers resize notifications, which changing the height of an editor that grows with its content would
- * delay.
+ * Unlike {@link FloatingWidgetRoom}, the space is made as soon as it's requested, so that the widget is placed in the
+ * space that the editor made, rather than over the code that the space moves out of its way. Making the space while the
+ * browser delivers resize notifications, such as when the widget resizes, doesn't resize the editor then: the multi diff
+ * editor grows its editors at the next animation frame.
  */
 export class FloatingWidgetDockZone extends Disposable {
 
 	// The space goes before the other zones after the last line of the code, so that it's right below the code.
 	private readonly _zone: IViewZone = { afterLineNumber: 0, heightInPx: 0, ordinal: 0, domNode: dom.$('div'), showInHiddenAreas: true };
 	private _zoneId: string | undefined;
-	/** The space to make at the next animation frame. */
-	private _pending: { afterLineNumber: number; height: number } | undefined;
-	private readonly _scheduler: dom.AnimationFrameScheduler;
 
 	constructor(private readonly _editor: ICodeEditor) {
 		super();
-		this._scheduler = this._register(new dom.AnimationFrameScheduler(_editor.getContainerDomNode(), () => this._apply()));
 		// A new model gets a new view, which doesn't have the space.
 		this._register(_editor.onDidChangeModel(() => this._zoneId = undefined));
 		this._register(toDisposable(() => this.hide()));
 	}
 
 	/**
-	 * Makes the space after the given line as tall as given, at the next animation frame.
+	 * Makes the space after the given line as tall as given. With `wholeLines`, the height is rounded up to whole lines of
+	 * the editor, so that a height that changes continuously, such as while the user resizes the widget, changes the space
+	 * less often: each change makes a diff editor align its sides again.
 	 */
-	show(afterLineNumber: number, height: number): void {
-		const target = this._pending ?? (this._zoneId ? { afterLineNumber: this._zone.afterLineNumber, height: this._zone.heightInPx } : undefined);
-		if (target?.afterLineNumber === afterLineNumber && target.height === height) {
+	show(afterLineNumber: number, height: number, wholeLines = false): void {
+		const lineHeight = this._editor.getOption(EditorOption.lineHeight);
+		const zoneHeight = wholeLines ? Math.ceil(height / lineHeight) * lineHeight : height;
+		if (this._zoneId && this._zone.afterLineNumber === afterLineNumber && this._zone.heightInPx === zoneHeight) {
 			return;
 		}
-		this._pending = { afterLineNumber, height };
-		this._scheduler.schedule();
-	}
-
-	/**
-	 * Makes the space now, rather than at the next animation frame, such as before scrolling to the widget in it.
-	 */
-	flush(): void {
-		if (this._scheduler.isScheduled()) {
-			this._scheduler.cancel();
-			this._apply();
-		}
+		this._zone.afterLineNumber = afterLineNumber;
+		this._zone.heightInPx = zoneHeight;
+		this._editor.changeViewZones(accessor => {
+			if (this._zoneId) {
+				accessor.layoutZone(this._zoneId);
+			} else {
+				this._zoneId = accessor.addZone(this._zone);
+			}
+		});
 	}
 
 	hide(): void {
-		this._pending = undefined;
-		this._scheduler.cancel();
 		const zoneId = this._zoneId;
 		if (zoneId) {
 			this._zoneId = undefined;
@@ -158,33 +172,20 @@ export class FloatingWidgetDockZone extends Disposable {
 	}
 
 	/**
-	 * The top of the space in document coordinates. Until the space is made, the end of the line that it will be after.
+	 * The top of the space in document coordinates, or `undefined` when the editor doesn't show the space, such as when
+	 * it has no view to show it in. Every docked widget asks for it whenever the editor scrolls, so the space is first
+	 * looked for where it usually is, first after its line, rather than among all of the editor's view zones.
 	 */
-	getTop(): number {
+	getTop(): number | undefined {
 		const viewLayout = this._editor._getViewModel()?.viewLayout;
-		const placed = viewLayout && this._zoneId ? getViewZoneOffset(viewLayout.getWhitespaces(), this._zoneId) : undefined;
-		if (viewLayout && placed) {
-			return viewLayout.getVerticalOffsetAfterLineNumber(placed.afterLineNumber) + placed.offset;
+		if (!viewLayout || !this._zoneId) {
+			return undefined;
 		}
-		const afterLineNumber = this._pending?.afterLineNumber ?? this._zone.afterLineNumber;
-		// The end of the line before the first line is the top of the first line, without the zones above it.
-		return afterLineNumber > 0 ? this._editor.getBottomForLineNumber(afterLineNumber) : this._editor.getTopForLineNumber(1, true);
-	}
-
-	private _apply(): void {
-		const pending = this._pending;
-		if (!pending) {
-			return;
+		const first = viewLayout.getWhitespaceAtVerticalOffset(this._editor.getBottomForLineNumber(this._zone.afterLineNumber));
+		if (first?.id === this._zoneId) {
+			return first.verticalOffset;
 		}
-		this._pending = undefined;
-		this._zone.afterLineNumber = pending.afterLineNumber;
-		this._zone.heightInPx = pending.height;
-		this._editor.changeViewZones(accessor => {
-			if (this._zoneId) {
-				accessor.layoutZone(this._zoneId);
-			} else {
-				this._zoneId = accessor.addZone(this._zone);
-			}
-		});
+		const placed = getViewZoneOffset(viewLayout.getWhitespaces(), this._zoneId);
+		return placed ? viewLayout.getVerticalOffsetAfterLineNumber(placed.afterLineNumber) + placed.offset : undefined;
 	}
 }
