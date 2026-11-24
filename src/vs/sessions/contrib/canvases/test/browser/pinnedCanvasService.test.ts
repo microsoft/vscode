@@ -8,7 +8,7 @@ import { IAction } from '../../../../../base/common/actions.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { constObservable, ISettableObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, ISettableObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
@@ -592,6 +592,28 @@ suite('PinnedCanvasService', () => {
 			openedChats: [],
 			notifications: [],
 		});
+	});
+
+	test('never shows a pin that binds the canvas its chat reopened under the reference of the canvas it replaces', async () => {
+		const { harness, entry, chat } = createRestoredHarness(createCanvas('plan'));
+		await harness.service.show(entry);
+		// The pin binds the canvas its chat restores, then the chat leaves the canvas for the pin to open.
+		harness.setChatCanvases(chat.resource, [createCanvas('plan')]);
+		harness.setChatCanvases(chat.resource, []);
+		await timeout(0);
+		const presented: string[] = [];
+		// A canvas view loads the canvas it reads through the reference it reads with it.
+		const observer = autorun(reader => {
+			presented.push(`${entry.reference.read(reader)?.canvas.toString()} shows ${entry.canvas.read(reader)?.resource.toString()}`);
+		});
+		const reopened = createCanvas('plan', { resource: URI.parse('ahp-canvas:/chat/plan-reopened') });
+		harness.setChatCanvases(chat.resource, [reopened]);
+		observer.dispose();
+
+		assert.deepStrictEqual(presented, [
+			'ahp-canvas:/chat/plan shows ahp-canvas:/chat/plan',
+			'ahp-canvas:/chat/plan-reopened shows ahp-canvas:/chat/plan-reopened',
+		]);
 	});
 
 	test('marks a pin unavailable when its chat does not publish the canvas it reopened in time, and reopens it when it is shown again', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
