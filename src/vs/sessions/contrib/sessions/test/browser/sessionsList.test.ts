@@ -1854,7 +1854,7 @@ suite('Sessions - SessionsList', () => {
 				opened: ['plan'],
 				contextMenus: [Menus.SidebarCanvasContext.id],
 				navigationRows: 0,
-				afterUnpin: ['Automations', 'Canvases', 'No canvases yet'],
+				afterUnpin: ['Automations', 'Canvases', 'No canvases'],
 			});
 		});
 
