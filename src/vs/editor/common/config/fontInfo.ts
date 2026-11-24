@@ -135,8 +135,8 @@ export class BareFontInfo {
 	}
 }
 
-// change this whenever `FontInfo` members are changed
-export const SERIALIZED_FONT_INFO_VERSION = 2;
+// change this whenever `FontInfo` members, or how they are measured, are changed
+export const SERIALIZED_FONT_INFO_VERSION = 3;
 
 export class FontInfo extends BareFontInfo {
 	readonly _editorStylingBrand: void = undefined;
