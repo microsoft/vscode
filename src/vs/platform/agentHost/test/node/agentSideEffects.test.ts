@@ -109,6 +109,7 @@ import { createTestAgentService, getTestAgentStateManager, getTestSessionStateSt
 import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
 import { IAgentHostChatOwnershipService } from '../../node/agentHostChatOwnershipService.js';
 import { CapturingTelemetryService } from '../common/capturingTelemetryService.js';
+import { pathRule } from '../../common/permissionRules.js';
 
 // ---- Tests ------------------------------------------------------------------
 
@@ -6313,7 +6314,242 @@ suite('AgentSideEffects', () => {
 			}, { status: ToolCallStatus.PendingConfirmation, permissions: [] });
 		});
 
-		for (const approved of [false, true]) {
+			test('Assisted confirmation respects an explicit saved Read Allow rule', async () => {
+	const workingDirectory = URI.file(resolve('/workspace'));
+	const readPath = resolve('outside-assisted-read.txt');
+
+	setupSession(workingDirectory.toString());
+
+	stateManager.setSessionConfig(sessionUri.toString(), {
+	schema: { type: 'object', properties: {} },
+	values: {
+		permissions: {
+			allow: [pathRule('Read', readPath, false)!],
+			deny: [],
+			ask: [],
+		},
+	},
+});
+	startTurn('turn-1');
+	disposables.add(sideEffects.registerProgressListener(agent));
+
+	agent.fireProgress({
+		kind: 'action',
+		resource: URI.parse(defaultChatUri),
+		action: chatToolCallStart('turn-1', 'tc-assisted-read', 'read', 'Read'),
+	});
+
+	agent.fireProgress({
+		kind: 'pending_confirmation',
+		chat: URI.parse(defaultChatUri),
+		requiresUserConfirmation: true,
+		state: {
+			status: ToolCallStatus.PendingConfirmation,
+			toolCallId: 'tc-assisted-read',
+			toolName: 'read',
+			displayName: 'Read',
+			invocationMessage: 'Read outside file',
+			confirmationTitle: 'Read file?',
+		},
+		permissionKind: AgentPermissionKind.Read,
+		permissionPath: readPath,
+	});
+
+	const result = await waitForState(stateManager, () => {
+		if (agent.respondToPermissionCalls.length > 0) {
+			return 'approved';
+		}
+
+		const part = stateManager.getSessionState(defaultChatUri)?.activeTurn?.responseParts.find(
+			part => part.kind === ResponsePartKind.ToolCall &&
+				part.toolCall.toolCallId === 'tc-assisted-read'
+		);
+
+		return part?.kind === ResponsePartKind.ToolCall &&
+			part.toolCall.status === ToolCallStatus.PendingConfirmation
+			? 'prompted'
+			: undefined;
+	});
+
+	assert.strictEqual(result, 'approved');
+
+	assert.deepStrictEqual(agent.respondToPermissionCalls, [
+		{ requestId: 'tc-assisted-read', approved: true },
+	]);
+});
+test('Assisted confirmation respects an exact saved Edit Allow rule for protected writes', async () => {
+	const workingDirectory = URI.file(resolve('/workspace'));
+	const target = URI.joinPath(workingDirectory, '.mcp.json').fsPath;
+
+	setupSession(workingDirectory.toString());
+
+	stateManager.setSessionConfig(sessionUri.toString(), {
+		schema: { type: 'object', properties: {} },
+		values: {
+			permissions: {
+				allow: [pathRule('Edit', target, false)!],
+				deny: [],
+				ask: [],
+			},
+		},
+	});
+
+	startTurn('turn-1');
+	disposables.add(sideEffects.registerProgressListener(agent));
+
+	agent.fireProgress({
+		kind: 'action',
+		resource: URI.parse(defaultChatUri),
+		action: chatToolCallStart('turn-1', 'tc-assisted-protected-write', 'write', 'Write'),
+	});
+
+	agent.fireProgress({
+		kind: 'pending_confirmation',
+		chat: URI.parse(defaultChatUri),
+		requiresUserConfirmation: true,
+		state: {
+			status: ToolCallStatus.PendingConfirmation,
+			toolCallId: 'tc-assisted-protected-write',
+			toolName: 'write',
+			displayName: 'Write',
+			invocationMessage: 'Edit MCP configuration',
+			confirmationTitle: 'Edit protected file?',
+		},
+		permissionKind: AgentPermissionKind.Write,
+		permissionPath: target,
+	});
+
+	const result = await waitForState(stateManager, () => {
+		if (agent.respondToPermissionCalls.length > 0) {
+			return 'approved';
+		}
+
+		const part = stateManager.getSessionState(defaultChatUri)?.activeTurn?.responseParts.find(
+			part => part.kind === ResponsePartKind.ToolCall &&
+				part.toolCall.toolCallId === 'tc-assisted-protected-write'
+		);
+
+		return part?.kind === ResponsePartKind.ToolCall &&
+			part.toolCall.status === ToolCallStatus.PendingConfirmation
+			? 'prompted'
+			: undefined;
+	});
+
+	assert.strictEqual(result, 'approved');
+	assert.deepStrictEqual(agent.respondToPermissionCalls, [
+		{ requestId: 'tc-assisted-protected-write', approved: true },
+	]);
+});
+
+test('Assisted confirmation does not let Ask override an explicit saved Allow', async () => {
+	const workingDirectory = URI.file(resolve('/workspace'));
+	const readPath = resolve('outside-assisted-ask.txt');
+
+	setupSession(workingDirectory.toString());
+
+	stateManager.setSessionConfig(sessionUri.toString(), {
+		schema: { type: 'object', properties: {} },
+		values: {
+			permissions: {
+				allow: [`Read(${readPath})`],
+				deny: [],
+				ask: [`Read(${readPath})`],
+			},
+		},
+	});
+
+	startTurn('turn-1');
+	disposables.add(sideEffects.registerProgressListener(agent));
+
+	agent.fireProgress({
+		kind: 'action',
+		resource: URI.parse(defaultChatUri),
+		action: chatToolCallStart('turn-1', 'tc-assisted-ask', 'read', 'Read'),
+	});
+
+	agent.fireProgress({
+		kind: 'pending_confirmation',
+		chat: URI.parse(defaultChatUri),
+		requiresUserConfirmation: true,
+		state: {
+			status: ToolCallStatus.PendingConfirmation,
+			toolCallId: 'tc-assisted-ask',
+			toolName: 'read',
+			displayName: 'Read',
+			invocationMessage: 'Read outside file',
+			confirmationTitle: 'Read file?',
+		},
+		permissionKind: AgentPermissionKind.Read,
+		permissionPath: readPath,
+	});
+
+	const result = await waitForState(stateManager, () => {
+		const part = stateManager.getSessionState(defaultChatUri)?.activeTurn?.responseParts.find(
+			part => part.kind === ResponsePartKind.ToolCall &&
+				part.toolCall.toolCallId === 'tc-assisted-ask'
+		);
+
+		return part?.kind === ResponsePartKind.ToolCall &&
+			part.toolCall.status === ToolCallStatus.PendingConfirmation
+			? 'prompted'
+			: agent.respondToPermissionCalls.length > 0
+				? 'approved'
+				: undefined;
+	});
+
+	assert.strictEqual(result, 'prompted');
+	assert.deepStrictEqual(agent.respondToPermissionCalls, []);
+});
+
+test('Assisted confirmation does not let session Allow All bypass the reviewer', async () => {
+	setupSession(URI.file(resolve('/workspace')).toString());
+
+	stateManager.setSessionConfig(sessionUri.toString(), {
+		schema: { type: 'object', properties: {} },
+		values: { autoApprove: 'autoApprove' },
+	});
+
+	startTurn('turn-1');
+	disposables.add(sideEffects.registerProgressListener(agent));
+
+	agent.fireProgress({
+		kind: 'action',
+		resource: URI.parse(defaultChatUri),
+		action: chatToolCallStart('turn-1', 'tc-assisted-allow-all', 'read', 'Read'),
+	});
+
+	agent.fireProgress({
+		kind: 'pending_confirmation',
+		chat: URI.parse(defaultChatUri),
+		requiresUserConfirmation: true,
+		state: {
+			status: ToolCallStatus.PendingConfirmation,
+			toolCallId: 'tc-assisted-allow-all',
+			toolName: 'read',
+			displayName: 'Read',
+			invocationMessage: 'Read outside file',
+			confirmationTitle: 'Read file?',
+		},
+		permissionKind: AgentPermissionKind.Read,
+		permissionPath: resolve('outside-assisted-allow-all.txt'),
+	});
+
+	const toolCall = await waitForState(stateManager, () => {
+		const part = stateManager.getSessionState(defaultChatUri)?.activeTurn?.responseParts.find(
+			part => part.kind === ResponsePartKind.ToolCall &&
+				part.toolCall.toolCallId === 'tc-assisted-allow-all'
+		);
+
+		return part?.kind === ResponsePartKind.ToolCall &&
+			part.toolCall.status === ToolCallStatus.PendingConfirmation
+			? part.toolCall
+			: undefined;
+	});
+
+	assert.strictEqual(toolCall.status, ToolCallStatus.PendingConfirmation);
+	assert.deepStrictEqual(agent.respondToPermissionCalls, []);
+});
+for (const approved of [false, true]) {
 			test(`Assisted confirmation requirements override workspace edit auto-approval (${approved})`, async () => {
 				const workingDirectory = URI.file(resolve('/workspace'));
 				setupSession(workingDirectory.toString());
