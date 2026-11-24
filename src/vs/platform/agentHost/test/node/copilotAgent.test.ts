@@ -23899,8 +23899,8 @@ suite('CopilotAgent', () => {
 				};
 				/**
 				 * Routes a turn as the host does, then sends it on the model the router chose, and runs the prompt hook
-				 * as the runtime does for a message that reaches the agent. `told` is the guidance the hook adds to the
-				 * message, or `none` for a note that ends earlier guidance.
+				 * and echoes the message as the runtime does for a message that reaches the agent. `told` is the guidance
+				 * the hook adds to the message, or `none` for a note that ends earlier guidance.
 				 */
 				const send = async (turnId: string, router: string | false = 'team', previousTurns: Turn[] = [], reachesAgent = true) => {
 					const resolution = router
@@ -23908,6 +23908,9 @@ suite('CopilotAgent', () => {
 						: undefined;
 					await h.agent.chats.sendMessage(h.chat, 'build it', [workingDirectory], undefined, turnId, undefined, h.sendContext);
 					const note = reachesAgent ? /<model_router_guidance>[^]*<\/model_router_guidance>/.exec(chatEntriesBySdkId(h.agent).get(h.sdkSessionId()!)!.chatSession.handleUserPromptSubmitted()?.additionalContext ?? '')?.[0] : undefined;
+					if (reachesAgent) {
+						h.sdkSessions.at(-1)!.emit({ id: `message-${turnId}`, timestamp: '2025-01-01T00:00:00.000Z', parentId: null, type: 'user.message', data: { content: 'build it', messageId: `message-${turnId}` } } as SessionEventPayload<'user.message'>);
+					}
 					const told = note && (/How the user wants the work done:\n(?<guidance>.*)\n/.exec(note)?.groups?.guidance ?? 'none');
 					return { kept: resolution?.routed?.kept, notices: resolution?.notices ?? [], told };
 				};

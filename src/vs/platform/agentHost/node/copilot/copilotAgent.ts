@@ -5991,6 +5991,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			await this._destroyLiveSession(target, true);
 		}
 		this._persistedChatHistory.delete(context.chatKey);
+		this._modelRouterGuidance.historyChangedElsewhere(context.chatKey);
 		return true;
 	}
 
@@ -9495,6 +9496,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		entry.releaseTurnForReplacement();
 		await this._destroyLiveSession(entry, true);
 		this._persistedChatHistory.delete(current.chatKey);
+		this._modelRouterGuidance.historyChangedElsewhere(current.chatKey);
 		const resumed = await this._ensureResolvedChatSession({ ...current, target: undefined }, turn.workingDirectories, turn.stageRecorder, token, turn.operationContext);
 		if (!resumed) {
 			throw new Error(`[Copilot] Couldn't reload session ${sdkSessionId} to take it over`);

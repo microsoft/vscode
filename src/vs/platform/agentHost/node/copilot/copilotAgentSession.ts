@@ -787,7 +787,7 @@ export interface ICopilotAgentSessionOptions {
 	readonly clientSnapshot?: IActiveClientSnapshot;
 	/** Called when the runtime rewrites this session's history in place: a compaction, a truncation or a rewind. */
 	readonly onHistoryRewritten?: () => void;
-	/** Called when the host instructions of a send reach the agent with a prompt. A send that submits no prompt delivers none. */
+	/** Called when the host instructions of a send reach the agent: the runtime has taken the prompt that carries them. */
 	readonly onHostInstructionsDelivered?: () => void;
 	/** Built-in plugin directories registered with the runtime, whose resources the agent reads like applied plugins. */
 	readonly builtinPluginDirectories?: readonly URI[];
@@ -2331,6 +2331,8 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _launchPlan: CopilotSessionLaunchPlan;
 	private readonly _onHistoryRewritten: (() => void) | undefined;
 	private readonly _onHostInstructionsDelivered: (() => void) | undefined;
+	/** A prompt was given the host instructions, and the runtime has not echoed it yet. A prompt it rejects or a hook blocks is never echoed. */
+	private _hostInstructionsHandedOut = false;
 	private readonly _modelConfigurationOwner = generateUuid();
 	private _modelConfigurationGeneration = 0;
 	private readonly _modelConfigurationRefresh = this._register(new Throttler());
@@ -7174,6 +7176,7 @@ export class CopilotAgentSession extends Disposable {
 		}
 		const turn = this._currentTurn.value;
 		this._hostInstructions = hostInstructions;
+		this._hostInstructionsHandedOut = false;
 		// Attaching a file or folder lets this chat's sandbox read it; `_prepareSdkTurn` applies the grant before the turn runs.
 		this._sandbox.addAttachments(attachments);
 		this._pendingSnapshotReminder = this._attachmentReminder(attachments);
@@ -7216,32 +7219,32 @@ export class CopilotAgentSession extends Disposable {
 
 	handleUserPromptSubmitted(): { readonly additionalContext: string } | undefined {
 		this._currentTurn.value?.timingRecorder?.markMilestone?.('promptHook');
-		const additionalContext = this._promptContext();
-		// The runtime calls the hook for a prompt it has accepted.
-		this._promptContextDelivered();
+		const additionalContext = this._takePromptContext();
 		return additionalContext ? { additionalContext } : undefined;
 	}
 
-	/** What the host adds to the next prompt besides the user's message. */
-	private _promptContext(): string | undefined {
+	/** What the host adds to the next prompt besides the user's message. Taken once, for the prompt it goes out with. */
+	private _takePromptContext(): string | undefined {
 		const parts = [
 			...(this._hostInstructions ?? []),
 			...(this._pendingSnapshotReminder ? [this._pendingSnapshotReminder] : []),
 			// Changes the user undid since the agent's last tool result.
 			...this._discardedEditNotes,
 		];
-		return parts.length > 0 ? parts.join('\n\n') : undefined;
-	}
-
-	/** The prompt that carries {@link _promptContext} reached the agent, so no later prompt repeats it. */
-	private _promptContextDelivered(): void {
-		const deliveredHostInstructions = !!this._hostInstructions?.length;
+		this._hostInstructionsHandedOut ||= !!this._hostInstructions?.length;
 		this._hostInstructions = undefined;
 		this._pendingSnapshotReminder = undefined;
 		this._discardedEditNotes = [];
-		if (deliveredHostInstructions) {
-			this._onHostInstructionsDelivered?.();
-		}
+		return parts.length > 0 ? parts.join('\n\n') : undefined;
+	}
+
+	/**
+	 * A managed hook policy keeps the runtime from calling the prompt hook, so what the hook would add rides the
+	 * prompt itself, as a steering message's reminder does.
+	 */
+	private _withPromptContextFallback(prompt: string): string {
+		const context = this._sdkHookCallbacksMayBeSuppressed ? this._takePromptContext() : undefined;
+		return context ? `${prompt}\n\n<reminder>\n${context}\n</reminder>` : prompt;
 	}
 
 	async reloadExtensions(): Promise<void> {
@@ -7682,16 +7685,10 @@ export class CopilotAgentSession extends Disposable {
 					});
 					return undefined;
 				} else {
-					// A managed hook policy keeps the runtime from calling the prompt hook, so what the hook would add rides the
-					// prompt itself, as a steering message's reminder does. The message is still recorded as the user sent it.
-					const context = this._sdkHookCallbacksMayBeSuppressed ? this._promptContext() : undefined;
-					const sent = context ? { prompt: `${prompt}\n\n<reminder>\n${context}\n</reminder>`, displayPrompt: displayPrompt ?? prompt } : { prompt, ...(displayPrompt ? { displayPrompt } : {}) };
-					const messageId = await this._wrapper.session.send({ ...sent, attachments: sdkAttachments?.length ? sdkAttachments : undefined, ...toCopilotMessageSourceOptions(messageSource, sendingTurn?.id) });
-					if (context) {
-						// Only now: a send the runtime rejects has delivered nothing.
-						this._promptContextDelivered();
-					}
-					return messageId;
+					// The message is still recorded as the user sent it.
+					const sdkPrompt = this._withPromptContextFallback(prompt);
+					const sent = sdkPrompt !== prompt ? { prompt: sdkPrompt, displayPrompt: displayPrompt ?? prompt } : { prompt, ...(displayPrompt ? { displayPrompt } : {}) };
+					return await this._wrapper.session.send({ ...sent, attachments: sdkAttachments?.length ? sdkAttachments : undefined, ...toCopilotMessageSourceOptions(messageSource, sendingTurn?.id) });
 				}
 			});
 		}), sendingTurn, abortToken, sendingTurn);
@@ -7976,7 +7973,7 @@ export class CopilotAgentSession extends Disposable {
 		let result: { started: boolean };
 		try {
 			const execution = await this._executeSdkOperation(
-				() => this._otelService.withTraceContext(traceContext, () => this._measureSdkSend(startingTurn, recorder, () => this._wrapper.session.rpc.fleet.start(rest ? { prompt: rest } : {}))),
+				() => this._otelService.withTraceContext(traceContext, () => this._measureSdkSend(startingTurn, recorder, () => this._wrapper.session.rpc.fleet.start(rest ? { prompt: this._withPromptContextFallback(rest) } : {}))),
 				startingTurn, abortToken, startingTurn,
 			);
 			if (execution.kind === 'skipped') {
@@ -11476,6 +11473,11 @@ export class CopilotAgentSession extends Disposable {
 			// The message is admitted only after required plugins are prepared.
 			this._setManagedPluginActivity(undefined);
 			const steering = this._takeMatchingPendingSteering(e.data.content, e.data.messageId);
+			if (!steering && this._hostInstructionsHandedOut) {
+				// The echo of the prompt that took the host's instructions: they have reached the agent.
+				this._hostInstructionsHandedOut = false;
+				this._onHostInstructionsDelivered?.();
+			}
 			if (steering) {
 				this._logService.trace(`[Copilot:${sessionId}] Pending message delivery: pendingId=${steering.pendingMessage.id}, sdkMessageId=${e.data.messageId}, runtimeDelivery=${e.data.delivery ?? 'unknown'}, interactionId=${e.data.interactionId}, promotedTurnId=${steering.promotedTurnId}`);
 			}
@@ -14258,6 +14260,7 @@ export class CopilotAgentSession extends Disposable {
 			this._logService.warn(`[Copilot:${this.sessionId}] Not showing a hook's prompt block on turn ${turn.id}: it is not this turn's own prompt, or the turn has ended`);
 			return;
 		}
+		this._hostInstructionsHandedOut = false;
 		this._emitAction({ type: ActionType.ChatResponsePart, turnId: turn.id, part: createPromptBlockedNotification(reason) }, undefined, true);
 	}
 
