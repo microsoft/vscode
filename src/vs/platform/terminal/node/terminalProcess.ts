@@ -612,8 +612,8 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		// Prevent lower than 0 to heal from errors
 		this._unacknowledgedCharCount = Math.max(this._unacknowledgedCharCount - charCount, 0);
 		this._logService.trace(`Flow control: Ack ${charCount} chars (unacknowledged: ${this._unacknowledgedCharCount})`);
-		if (this._isPtyPaused && this._unacknowledgedCharCount < FlowControlConstants.LowWatermarkChars) {
-			this._logService.trace(`Flow control: Resume (${this._unacknowledgedCharCount} < ${FlowControlConstants.LowWatermarkChars})`);
+		if (this._isPtyPaused && this._unacknowledgedCharCount <= FlowControlConstants.LowWatermarkChars) {
+			this._logService.trace(`Flow control: Resume (${this._unacknowledgedCharCount} <= ${FlowControlConstants.LowWatermarkChars})`);
 			this._ptyProcess?.resume();
 			this._isPtyPaused = false;
 		}
