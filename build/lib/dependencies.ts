@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import es from 'event-stream';
+import { through } from './streams.ts';
 import fs from 'fs';
 import path from 'path';
 import VinylFile from 'vinyl';
@@ -274,9 +274,9 @@ export function toPackagedLayout(dependencies: readonly IProductionDependency[])
 		}
 	}
 	if (moved.size === 0) {
-		return es.through();
+		return through();
 	}
-	return es.through(function (file: VinylFile) {
+	return through(function (file: VinylFile) {
 		for (let current = file.path; path.dirname(current) !== current; current = path.dirname(current)) {
 			const destinations = moved.get(current);
 			if (destinations) {

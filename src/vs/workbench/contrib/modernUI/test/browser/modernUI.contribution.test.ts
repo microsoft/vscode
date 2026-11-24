@@ -7,14 +7,16 @@ import assert from 'assert';
 import { getWindow, scheduleAtNextAnimationFrame } from '../../../../../base/browser/dom.js';
 import { OverlayLayoutElement } from '../../../../../base/browser/overlayLayoutElement.js';
 import { ActionBar, ActionsOrientation } from '../../../../../base/browser/ui/actionbar/actionbar.js';
+import { CenteredViewLayout } from '../../../../../base/browser/ui/centered/centeredViewLayout.js';
 import { HorizontalDirection, Menu, unthemedMenuStyles, VerticalDirection } from '../../../../../base/browser/ui/menu/menu.js';
 import { MenuBar } from '../../../../../base/browser/ui/menu/menubar.js';
 import { Orientation } from '../../../../../base/browser/ui/sash/sash.js';
-import { Pane } from '../../../../../base/browser/ui/splitview/paneview.js';
+import { DEFAULT_PANE_HEADER_SIZE, Pane, setGlobalPaneHeaderSize } from '../../../../../base/browser/ui/splitview/paneview.js';
+import { DEFAULT_SCROLLBAR_SIZE, setGlobalDefaultScrollbarSize } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { DeferredPromise } from '../../../../../base/common/async.js';
 import { Action, Separator } from '../../../../../base/common/actions.js';
 import { Color } from '../../../../../base/common/color.js';
-import { Emitter } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { combinedDisposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -29,7 +31,7 @@ import { activeContrastBorder, editorBackground, Extensions as ColorRegistryExte
 import { foreground } from '../../../../../platform/theme/common/colors/baseColors.js';
 import { Extensions as ThemeServiceExtensions, IThemingRegistry } from '../../../../../platform/theme/common/themeService.js';
 import { EDITOR_BORDER, EDITOR_GROUP_HEADER_CONNECTED_TABS_BACKGROUND, EDITOR_GROUP_HEADER_TABS_BACKGROUND, MODERN_ACTIVITY_BAR_BACKGROUND, MODERN_ACTIVITY_BAR_BORDER, MODERN_ACTIVITY_BAR_INACTIVE_BACKGROUND, MODERN_ACTIVITY_BAR_ITEM_ACTIVE_BACKGROUND, MODERN_ACTIVITY_BAR_ITEM_ACTIVE_FOREGROUND, MODERN_ACTIVITY_BAR_ITEM_HOVER_BACKGROUND, MODERN_ACTIVITY_BAR_ITEM_HOVER_FOREGROUND, MODERN_EDITOR_TAB_ACTIVE_ACTION_BACKGROUND, MODERN_EDITOR_TAB_ACTIVE_BACKGROUND, MODERN_EDITOR_TAB_ACTIVE_FOREGROUND, MODERN_EDITOR_TAB_ACTIVE_HOVER_ACTION_BACKGROUND, MODERN_EDITOR_TAB_ACTIVE_HOVER_BACKGROUND, MODERN_EDITOR_TAB_HOVER_ACTION_BACKGROUND, MODERN_EDITOR_TAB_HOVER_BACKGROUND, MODERN_EDITOR_TAB_HOVER_FOREGROUND, MODERN_EDITOR_TAB_INACTIVE_BACKGROUND, MODERN_EDITOR_TAB_SELECTED_ACTION_BACKGROUND, MODERN_PANEL_BORDER, MODERN_SASH_GRIP_FOREGROUND, MODERN_TAB_ACTIVE_BACKGROUND, MODERN_TAB_ACTIVE_FOREGROUND, MODERN_TAB_HOVER_BACKGROUND, MODERN_TAB_HOVER_FOREGROUND, MODERN_UI_INACTIVE_SHELL_BACKGROUND, MODERN_UI_SHELL_BACKGROUND, PANEL_SECTION_BORDER, PANEL_SECTION_HEADER_BORDER, SIDE_BAR_SECTION_HEADER_BORDER, SURFACE_BORDER, TAB_ACTIVE_BACKGROUND, TAB_ACTIVE_BORDER, TAB_ACTIVE_BORDER_TOP, TAB_ACTIVE_FOREGROUND, TAB_BORDER, TAB_DIVIDER, TAB_HOVER_BACKGROUND, TAB_HOVER_BORDER, TAB_HOVER_FOREGROUND, TAB_INACTIVE_BACKGROUND, TAB_INACTIVE_FOREGROUND, TAB_LAST_PINNED_BORDER, TAB_SELECTED_BACKGROUND, TAB_UNFOCUSED_ACTIVE_BACKGROUND, TAB_UNFOCUSED_HOVER_BACKGROUND, TAB_UNFOCUSED_INACTIVE_BACKGROUND, TITLE_BAR_ACTIVE_BACKGROUND, TITLE_BAR_INACTIVE_BACKGROUND } from '../../../../common/theme.js';
-import { TestEnvironmentService, TestLayoutService } from '../../../../test/browser/workbenchTestServices.js';
+import { TestEnvironmentService, TestLayoutService, TestLifecycleService } from '../../../../test/browser/workbenchTestServices.js';
 import { LayoutSettings, ModernUIDensity, ModernUIEditorTabStyle } from '../../../../services/layout/browser/layoutService.js';
 import { PRESERVE_MERGED_WORKSPACE_NAME_CASE_CLASS, PRESERVE_WORKSPACE_NAME_CASE_CLASS, shouldPreserveWorkspaceNameCase } from '../../../files/browser/views/explorerView.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -54,6 +56,7 @@ import { IWorkbenchEnvironmentService } from '../../../../services/environment/c
 import { IAuxiliaryWindow, IAuxiliaryWindowService } from '../../../../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import '../../../../browser/parts/notifications/media/notificationsCenter.css';
 import '../../../../browser/parts/notifications/media/notificationsToasts.css';
+import { DEFAULT_NOTIFICATION_ROW_HEIGHT, onDidChangeNotificationRowHeight, setNotificationRowHeight } from '../../../../browser/parts/notifications/notificationsViewer.js';
 import { testIWorkspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
 
 class ModernUITestPane extends Pane {
@@ -257,7 +260,7 @@ suite('ModernUIContribution', () => {
 		const layoutService = new ModernUITestLayoutService();
 		store.add(layoutService.onDidAddContainerEmitter);
 		const auxiliaryWindowService = new ModernUITestAuxiliaryWindowService();
-		store.add(new ModernUIContribution(configurationService, layoutService, auxiliaryWindowService));
+		store.add(new ModernUIContribution(configurationService, layoutService, auxiliaryWindowService, store.add(new TestLifecycleService())));
 		const pane = store.add(new ModernUITestPane());
 		const paneView = document.createElement('div');
 		paneView.classList.add('monaco-pane-view');
@@ -383,7 +386,7 @@ suite('ModernUIContribution', () => {
 		const layoutService = new ModernUITestLayoutService();
 		store.add(layoutService.onDidAddContainerEmitter);
 		const auxiliaryWindowService = new ModernUITestAuxiliaryWindowService();
-		const contribution = store.add(new ModernUIContribution(configurationService, layoutService, auxiliaryWindowService));
+		const contribution = store.add(new ModernUIContribution(configurationService, layoutService, auxiliaryWindowService, store.add(new TestLifecycleService())));
 		const auxiliaryContainer = document.createElement('div');
 		const getState = () => ({
 			connected: layoutService.containers.map(container => container.classList.contains('modern-ui-connected-editor-tabs')),
@@ -428,6 +431,37 @@ suite('ModernUIContribution', () => {
 			changedWhileDisabled: { connected: [false, false], modernTabs: [false, false], layoutCount: 3, auxiliaryLayoutCount: 3 },
 			reenabled: { connected: [false, false], modernTabs: [true, true], layoutCount: 4, auxiliaryLayoutCount: 4 },
 			disposed: { connected: [false, false], modernTabs: [false, false], layoutCount: 5, auxiliaryLayoutCount: 5 },
+		});
+	});
+
+	test('leaves its classes and sizes in place when disposed as the window closes', () => {
+		const configurationService = new TestConfigurationService({
+			[LayoutSettings.MODERN_UI]: true,
+			[LayoutSettings.MODERN_UI_DENSITY]: ModernUIDensity.Compact,
+		});
+		store.add(configurationService.onDidChangeConfigurationEmitter);
+		const layoutService = new ModernUITestLayoutService();
+		store.add(layoutService.onDidAddContainerEmitter);
+		const lifecycleService = store.add(new TestLifecycleService());
+		const contribution = new ModernUIContribution(configurationService, layoutService, new ModernUITestAuxiliaryWindowService(), lifecycleService);
+		// What the contribution leaves behind would otherwise apply to the tests that follow
+		store.add(toDisposable(() => {
+			setGlobalDefaultScrollbarSize(DEFAULT_SCROLLBAR_SIZE);
+			setNotificationRowHeight(DEFAULT_NOTIFICATION_ROW_HEIGHT);
+			setGlobalPaneHeaderSize(DEFAULT_PANE_HEADER_SIZE);
+		}));
+		let notificationRowHeightChanges = 0;
+		store.add(onDidChangeNotificationRowHeight(() => notificationRowHeightChanges++));
+
+		lifecycleService.willShutdown = true;
+		contribution.dispose();
+
+		assert.deepStrictEqual({
+			classes: [...layoutService.mainContainer.classList].filter(className => className.startsWith('modern-ui')),
+			notificationRowHeightChanges,
+		}, {
+			classes: ['modern-ui', 'modern-ui-compact', 'modern-ui-tabs', 'modern-ui-notifications-dialogs'],
+			notificationRowHeightChanges: 0,
 		});
 	});
 
@@ -761,7 +795,7 @@ suite('ModernUIContribution', () => {
 		store.add(configurationService.onDidChangeConfigurationEmitter);
 		const layoutService = new ModernUITestLayoutService();
 		store.add(layoutService.onDidAddContainerEmitter);
-		store.add(new ModernUIContribution(configurationService, layoutService, new ModernUITestAuxiliaryWindowService()));
+		store.add(new ModernUIContribution(configurationService, layoutService, new ModernUITestAuxiliaryWindowService(), store.add(new TestLifecycleService())));
 
 		layoutService.mainContainer.classList.add('monaco-workbench');
 		const paneView = appendElement(layoutService.mainContainer, 'monaco-pane-view');
@@ -2267,17 +2301,18 @@ suite('ModernUIContribution', () => {
 		});
 	});
 
-	test('centers status bar items within the status bar background', () => {
-		const measure = (className: string, statusbarHeight: number) => {
+	test('centers status bar items within the band that shows the status bar background', () => {
+		const measure = (className: string, statusbarHeight: number, statusbarClassName = '', gapAbove = 0) => {
 			const root = document.createElement('div');
 			root.className = className;
+			root.style.setProperty('--vscode-spacing-sizeNone', '0px');
 			root.style.setProperty('--vscode-spacing-size20', '2px');
 			root.style.setProperty('--vscode-spacing-size40', '4px');
 			root.style.setProperty('--vscode-spacing-size60', '6px');
 			document.body.appendChild(root);
 			store.add(toDisposable(() => root.remove()));
 
-			const statusbar = appendElement(root, 'part statusbar');
+			const statusbar = appendElement(root, `part statusbar ${statusbarClassName}`.trim());
 			statusbar.style.width = '240px';
 			statusbar.style.height = `${statusbarHeight}px`;
 			const items = appendElement(statusbar, 'left-items items-container');
@@ -2294,17 +2329,21 @@ suite('ModernUIContribution', () => {
 				paddingBottom: statusbarStyle.paddingBottom,
 				itemHeight: itemBounds.height,
 				labelHeight: labelBounds.height,
-				centerOffset: itemBounds.top + itemBounds.height / 2 - (statusbarBounds.top + statusbarBounds.bottom) / 2,
+				centerOffset: itemBounds.top + itemBounds.height / 2 - (statusbarBounds.top - gapAbove + statusbarBounds.bottom) / 2,
 			};
 		};
 
 		assert.deepStrictEqual({
 			defaultDensity: measure('monaco-workbench modern-ui floating-panels', 28),
+			defaultDensityShellColored: measure('monaco-workbench modern-ui floating-panels', 28, 'matches-shell-background', 4),
 			compactDensity: measure('monaco-workbench modern-ui modern-ui-compact floating-panels', 26),
+			compactDensityShellColored: measure('monaco-workbench modern-ui modern-ui-compact floating-panels', 26, 'matches-shell-background'),
 			classic: measure('monaco-workbench', 22),
 		}, {
 			defaultDensity: { paddingTop: '2px', paddingBottom: '2px', itemHeight: 24, labelHeight: 24, centerOffset: 0 },
+			defaultDensityShellColored: { paddingTop: '0px', paddingBottom: '4px', itemHeight: 24, labelHeight: 24, centerOffset: 0 },
 			compactDensity: { paddingTop: '2px', paddingBottom: '2px', itemHeight: 22, labelHeight: 22, centerOffset: 0 },
+			compactDensityShellColored: { paddingTop: '2px', paddingBottom: '2px', itemHeight: 22, labelHeight: 22, centerOffset: 0 },
 			classic: { paddingTop: '0px', paddingBottom: '0px', itemHeight: 22, labelHeight: 22, centerOffset: 0 },
 		});
 	});
@@ -2866,6 +2905,72 @@ suite('ModernUIContribution', () => {
 		});
 	});
 
+	test('connected editor and pane tab outlines use the panel border', () => {
+		const root = document.createElement('div');
+		root.className = 'monaco-workbench modern-ui modern-ui-tabs modern-ui-connected-editor-tabs';
+		for (const [name, value] of Object.entries({
+			'--vscode-editorGroupHeader-tabsBorder': '#111111',
+			'--vscode-modernPanel-border': '#222222',
+			'--vscode-contrastBorder': '#333333',
+		})) {
+			root.style.setProperty(name, value);
+		}
+		document.body.appendChild(root);
+		store.add(toDisposable(() => root.remove()));
+
+		const group = appendElement(appendElement(appendElement(root, 'part editor'), 'content'), 'editor-group-container');
+		const parts = ['sidebar', 'auxiliarybar', 'panel'].map(part => appendElement(root, `part ${part}`));
+		const borders = () => [group, ...parts].map(element => getWindow(root).getComputedStyle(element).getPropertyValue('--modern-ui-connected-tab-border').trim());
+
+		const defaults = borders();
+		root.classList.add('agent-sessions-workbench');
+		const agents = borders()[0];
+		root.classList.remove('agent-sessions-workbench');
+		root.style.removeProperty('--vscode-modernPanel-border');
+		const fallback = borders()[0];
+		root.style.setProperty('--vscode-modernPanel-border', '#222222');
+		root.style.setProperty('--modern-ui-editor-tab-custom-border', '#555555');
+		const customized = borders();
+		root.classList.add('hc-black');
+		const highContrast = borders();
+
+		assert.deepStrictEqual({ defaults, agents, fallback, customized, highContrast }, {
+			defaults: ['#222222', '#222222', '#222222', '#222222'],
+			agents: '#111111',
+			fallback: '#111111',
+			customized: ['#555555', '#222222', '#222222', '#222222'],
+			highContrast: ['#333333', '#333333', '#333333', '#333333'],
+		});
+	});
+
+	test('connected editor tab borders respect explicit color customizations', () => {
+		const theme = ColorThemeData.createUnloadedTheme('vs', {
+			[MODERN_PANEL_BORDER]: '#222222',
+			'editorGroupHeader.tabsBorder': '#111111',
+			[TAB_BORDER]: '#333333',
+		});
+		const style = document.createElement('style');
+		document.head.appendChild(style);
+		store.add(toDisposable(() => style.remove()));
+		const root = appendElement(document.body, 'connected-outline-theme monaco-workbench modern-ui modern-ui-tabs modern-ui-connected-editor-tabs');
+		store.add(toDisposable(() => root.remove()));
+		const group = appendElement(appendElement(appendElement(root, 'part editor'), 'content'), 'editor-group-container');
+		const border = (customizations: { [id: string]: string }) => {
+			theme.setCustomColors(customizations);
+			style.textContent = generateColorThemeCSS(theme, '.connected-outline-theme', themingRegistry.getThemingParticipants(), TestEnvironmentService).code;
+			return getWindow(group).getComputedStyle(group).getPropertyValue('--modern-ui-connected-tab-border').trim();
+		};
+
+		assert.deepStrictEqual([
+			border({}),
+			border({ [MODERN_PANEL_BORDER]: '#444444' }),
+			border({ 'editorGroupHeader.tabsBorder': '#555555' }),
+			border({ [TAB_BORDER]: '#666666' }),
+			border({ 'editorGroupHeader.tabsBorder': '#555555', [TAB_BORDER]: '#666666' }),
+			border({}),
+		], ['#222222', '#444444', '#555555', '#666666', '#666666', '#222222']);
+	});
+
 	test('uses the modern UI shell background color', () => {
 		const root = document.createElement('div');
 		root.className = 'monaco-workbench modern-ui floating-panels';
@@ -3011,6 +3116,65 @@ suite('ModernUIContribution', () => {
 			},
 		});
 	});
+
+	for (const modernUI of [false, true]) {
+		test(`modal editor keeps one concentric rounded clip with Modern UI ${modernUI ? 'enabled' : 'disabled'}`, () => {
+			const root = appendElement(document.body, `monaco-workbench${modernUI ? ' modern-ui floating-panels' : ''}`);
+			root.style.cssText = '--vscode-cornerRadius-large: 8px; --vscode-editorWidget-border: #778899; --vscode-shadow-xl: 0 8px 32px #0008;';
+			store.add(toDisposable(() => root.remove()));
+			const block = appendElement(root, 'monaco-modal-editor-block');
+			const resizable = appendElement(block, 'modal-editor-resizable');
+			const sash = appendElement(resizable, 'monaco-sash vertical');
+			const shadow = appendElement(resizable, 'modal-editor-shadow');
+			const part = appendElement(shadow, 'part editor modal-editor-part');
+			const header = appendElement(part, 'modal-editor-header');
+			const navigation = appendElement(header, 'modal-editor-navigation');
+			const sidebar = appendElement(part, 'modal-editor-sidebar');
+			const content = appendElement(part, 'content');
+			const targetWindow = getWindow(root);
+			const roundedClips = (element: HTMLElement) => {
+				const clips = [];
+				for (let ancestor: HTMLElement | null = element; ancestor && ancestor !== root; ancestor = ancestor.parentElement) {
+					const style = targetWindow.getComputedStyle(ancestor);
+					if (style.overflow === 'hidden' && parseFloat(style.borderRadius) > 0) {
+						clips.push(ancestor.className);
+					}
+				}
+				return clips;
+			};
+			const states = [false, true].map(hasSidebar => {
+				part.classList.toggle('has-sidebar', hasSidebar);
+				const frame = targetWindow.getComputedStyle(part);
+				return {
+					hasSidebar,
+					contentClipRadii: [
+						[frame.borderTopLeftRadius, frame.borderLeftWidth],
+						[frame.borderTopRightRadius, frame.borderRightWidth],
+						[frame.borderBottomRightRadius, frame.borderRightWidth],
+						[frame.borderBottomLeftRadius, frame.borderLeftWidth],
+					].map(([radius, width]) => parseFloat(radius) - parseFloat(width)),
+					shadowOverflow: targetWindow.getComputedStyle(shadow).overflow,
+					shadowPainted: targetWindow.getComputedStyle(shadow).boxShadow !== 'none',
+					contentRadius: targetWindow.getComputedStyle(content).borderRadius,
+					contentOverflow: targetWindow.getComputedStyle(content).overflow,
+					clips: [header, sidebar, content].map(roundedClips),
+					sashClips: roundedClips(sash),
+					navigationOverflow: targetWindow.getComputedStyle(navigation).overflow,
+				};
+			});
+			assert.deepStrictEqual(states, [false, true].map(hasSidebar => ({
+				hasSidebar,
+				contentClipRadii: [7, 7, 7, 7],
+				shadowOverflow: 'visible',
+				shadowPainted: true,
+				contentRadius: '0px',
+				contentOverflow: 'hidden',
+				clips: Array.from({ length: 3 }, () => [`part editor modal-editor-part${hasSidebar ? ' has-sidebar' : ''}`]),
+				sashClips: [],
+				navigationOverflow: 'hidden',
+			})));
+		});
+	}
 
 	test('modal editor sashes hide grips without changing resize affordances', () => {
 		const root = document.createElement('div');
@@ -3198,6 +3362,53 @@ suite('ModernUIContribution', () => {
 		});
 	});
 
+	test('editor tab-strip clipping follows the inside of the floating frame', () => {
+		const root = appendElement(document.body, 'monaco-workbench modern-ui floating-panels');
+		root.style.cssText = 'position: absolute; left: 20px; top: 20px; --vscode-strokeThickness: 1px; --vscode-cornerRadius-large: 8px; --vscode-editorGroup-border: #778899; --vscode-spacing-size40: 4px; --vscode-spacing-sizeNone: 0px;';
+		store.add(toDisposable(() => root.remove()));
+		const editor = appendElement(appendElement(root, 'monaco-grid-view'), 'part editor');
+		editor.style.cssText = 'width: 200px; height: 100px;';
+		const content = appendElement(editor, 'content');
+		content.style.cssText = 'width: 100%; height: 100%;';
+		const group = appendElement(content, 'editor-group-container');
+		store.add(new CenteredViewLayout(content, {
+			element: group,
+			minimumWidth: 0,
+			maximumWidth: Number.POSITIVE_INFINITY,
+			minimumHeight: 0,
+			maximumHeight: Number.POSITIVE_INFINITY,
+			onDidChange: Event.None,
+			layout: () => { },
+		}));
+		const title = appendElement(group, 'title tabs');
+		const strip = appendElement(title, 'tabs-and-actions-container');
+		strip.style.cssText = 'width: 100%; height: 32px;';
+		const targetWindow = getWindow(root);
+		const states = [];
+		for (const zoom of [1, 1.25, 1.5]) {
+			root.style.zoom = `${zoom}`;
+			root.style.setProperty('--window-device-pixel-ratio', String(targetWindow.devicePixelRatio * zoom));
+			for (const radius of [0, 1, 8, 16]) {
+				root.style.setProperty('--vscode-editorArea-cornerRadius', `${radius}px`);
+				for (const compact of [false, true, false]) {
+					root.classList.toggle('modern-ui-compact', compact);
+					const frame = targetWindow.getComputedStyle(editor);
+					const outerRadius = parseFloat(frame.borderTopLeftRadius);
+					const borderInset = Math.min(parseFloat(frame.borderLeftWidth), outerRadius);
+					const contentStyle = targetWindow.getComputedStyle(content);
+					const innerRadius = parseFloat(contentStyle.borderTopLeftRadius);
+					states.push({
+						zoom, radius, compact,
+						concentric: Math.abs(innerRadius + borderInset - outerRadius) < 0.001,
+						overflow: contentStyle.overflow,
+						tabStripPresent: content.contains(strip),
+					});
+				}
+			}
+		}
+		assert.deepStrictEqual(states, states.map(state => ({ ...state, concentric: true, overflow: 'hidden', tabStripPresent: true })));
+	});
+
 	test('compact auxiliary window editors keep their outer radius', () => {
 		const root = document.createElement('div');
 		root.className = 'monaco-workbench modern-ui modern-ui-compact';
@@ -3241,7 +3452,7 @@ suite('ModernUIContribution', () => {
 			auxiliaryBar: ['8px', '8px', '12px', '8px'],
 			panel: ['8px', '8px', '12px', '12px'],
 			editor: ['8px', '8px', '12px', '12px'],
-			editorContent: ['8px', '8px', '11px', '11px'],
+			editorContent: ['7px', '7px', '11px', '11px'],
 			webview: ['8px', '8px', '11px', '11px'],
 			modalWebview: ['8px', '8px', '8px', '8px'],
 			internalPanel: ['8px', '8px', '8px', '8px'],
@@ -3717,6 +3928,7 @@ suite('ModernUIContribution', () => {
 				[editorBackground]: '#ffffff',
 				'editorGroup.border': '#123456',
 				'editorGroupHeader.tabsBorder': '#445566',
+				[MODERN_PANEL_BORDER]: '#778899',
 				'editorGroupHeader.tabsBackground': '#eeeeee',
 				[EDITOR_GROUP_HEADER_CONNECTED_TABS_BACKGROUND]: '#ddeeff',
 				[MODERN_EDITOR_TAB_ACTIVE_BACKGROUND]: '#abcdef',
@@ -3742,9 +3954,9 @@ suite('ModernUIContribution', () => {
 		});
 
 		assert.deepStrictEqual(results, [
-			{ surface: ['rgb(36, 104, 172)', ...Array(4).fill('rgb(68, 85, 102)'), 'rgba(0, 0, 0, 0)'], header: 'rgb(238, 238, 238)', strip: 'rgb(221, 238, 255)', editorSplitBorder: '#123456' },
-			{ surface: ['rgba(255, 0, 0, 0.5)', ...Array(4).fill('rgb(68, 85, 102)'), 'rgba(0, 0, 0, 0)'], header: 'rgb(238, 238, 238)', strip: 'rgb(221, 238, 255)', editorSplitBorder: '#123456' },
-			{ surface: ['rgba(0, 0, 0, 0)', ...Array(4).fill('rgb(68, 85, 102)'), 'rgba(0, 0, 0, 0)'], header: 'rgb(238, 238, 238)', strip: 'rgb(221, 238, 255)', editorSplitBorder: '#123456' },
+			{ surface: ['rgb(36, 104, 172)', ...Array(4).fill('rgb(119, 136, 153)'), 'rgba(0, 0, 0, 0)'], header: 'rgb(238, 238, 238)', strip: 'rgb(221, 238, 255)', editorSplitBorder: '#123456' },
+			{ surface: ['rgba(255, 0, 0, 0.5)', ...Array(4).fill('rgb(119, 136, 153)'), 'rgba(0, 0, 0, 0)'], header: 'rgb(238, 238, 238)', strip: 'rgb(221, 238, 255)', editorSplitBorder: '#123456' },
+			{ surface: ['rgba(0, 0, 0, 0)', ...Array(4).fill('rgb(119, 136, 153)'), 'rgba(0, 0, 0, 0)'], header: 'rgb(238, 238, 238)', strip: 'rgb(221, 238, 255)', editorSplitBorder: '#123456' },
 		]);
 	});
 
@@ -4100,7 +4312,7 @@ suite('ModernUIContribution', () => {
 			for (const active of [true, false]) {
 				group.classList.toggle('active', active);
 				const highContrast = themeType.startsWith('hc-');
-				const border = highContrast ? (active ? 'rgb(255, 170, 0)' : 'rgb(136, 136, 136)') : 'rgb(37, 37, 38)';
+				const border = highContrast ? (active ? 'rgb(255, 170, 0)' : 'rgb(136, 136, 136)') : 'rgb(0, 255, 255)';
 				const frame = targetWindow.getComputedStyle(group, '::after');
 				assert.deepStrictEqual({
 					geometry: geometry(),

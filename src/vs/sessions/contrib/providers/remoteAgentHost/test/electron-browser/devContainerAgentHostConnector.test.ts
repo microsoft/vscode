@@ -9,14 +9,17 @@ import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { isCancellationError } from '../../../../../../base/common/errors.js';
 import { constObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { IChannel, ProxyChannel } from '../../../../../../base/parts/ipc/common/ipc.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { hasKey } from '../../../../../../base/common/types.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { DevContainerAgentHostSource, IDevContainerAgentHostConfig, IDevContainerAgentHostMainService, IDevContainerAgentHostUserStateReport } from '../../../../../../platform/agentHost/common/devContainerAgentHost.js';
-import { devContainerEnvironmentImage, localDevContainerEnvironmentUri } from '../../../../../../platform/agentHost/common/devContainerEnvironments.js';
+import { devContainerEnvironmentImage, devContainerEnvironmentUri, localDevContainerEnvironmentUri } from '../../../../../../platform/agentHost/common/devContainerEnvironments.js';
+import { getAgentHostExtensionInitializeResultMeta } from '../../../../../../platform/agentHost/common/agentHostExtensionProtocol.js';
 import { devContainerSamples, devContainerSampleUri, IDevContainerSampleSource } from '../../../../../../platform/agentHost/common/devContainerSamples.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { AGENT_HOST_SCHEME, agentHostAuthority } from '../../../../../../platform/agentHost/common/agentHostUri.js';
@@ -286,7 +289,7 @@ suite('Dev Container Agent Host Connector', () => {
 		));
 		const source = localDevContainerEnvironmentUri('environment');
 		const available = await connector.isAvailable(source);
-		const target = await connector.createConnection(source, 'devcontainer:environment', CancellationToken.None);
+		const target = await connector.createConnection(source, 'devcontainer:environment', CancellationToken.None, { resume: true, name: 'Dev Container 2' });
 		store.add(target.transportDisposable!);
 		await connector.removeContainer(source);
 		await configuration.setUserConfiguration(DevContainerEnvironmentsEnabledSettingId, false);
@@ -295,17 +298,111 @@ suite('Dev Container Agent Host Connector', () => {
 			availableWhenDisabled: await connector.isAvailable(source),
 			localDocker: await connector.isLocalDockerAvailable(),
 			configs: configs.map(config => hasKey(config, { environmentId: true }) ? { environmentId: config.environmentId, image: config.image, name: config.name, persistUserState: config.persistUserState } : config),
+			connectionName: target.name,
 			removed,
 			workspace: target.workspaceUri.path,
 		}, {
 			available: true,
 			availableWhenDisabled: false,
 			localDocker: true,
-			configs: [{ environmentId: 'environment', image: devContainerEnvironmentImage, name: 'Dev Container on This Computer', persistUserState: true }],
+			// Named after the environment, so environments on the same host can be told apart.
+			configs: [{ environmentId: 'environment', image: devContainerEnvironmentImage, name: 'Dev Container 2', persistUserState: true }],
+			connectionName: 'Dev Container 2',
 			removed: [{ environmentId: 'environment' }],
 			workspace: '/workspaces',
 		});
 	});
+
+	/** A connector whose shared process answers only the environment volume lookup, for environments on a remote host. */
+	function createEnvironmentConnector(entry: IRemoteAgentHostEntry, hasEnvironmentVolume: (environmentId: string) => Promise<boolean>): DevContainerAgentHostConnector {
+		const remoteService = new class extends mock<IDevContainerAgentHostMainService>() {
+			override readonly onDidOutput = Event.None;
+			override readonly onDidRelayMessage = Event.None;
+			override readonly onDidRelayActivity = Event.None;
+			override readonly onDidRelayClose = Event.None;
+			override readonly onDidCloseConnection = Event.None;
+			override async connect(config: IDevContainerAgentHostConfig) {
+				return { connectionId: config.connectionId, address: 'devcontainer:environment', name: config.name, remoteWorkspaceFolder: '/workspaces/ubuntu' };
+			}
+			override async disconnect() { }
+		}();
+		const connection = new class extends mock<IAgentConnection>() {
+			override readonly initializeResult = constObservable({ protocolVersion: '1', serverSeq: 0, snapshots: [], _meta: getAgentHostExtensionInitializeResultMeta(true, true) });
+			override readonly devContainerService = remoteService;
+		}();
+		return store.add(new DevContainerAgentHostConnector(
+			new class extends mock<ISharedProcessService>() {
+				override getChannel(): IChannel {
+					return new class extends mock<IChannel>() {
+						override async call<T>(command: string, arg?: unknown): Promise<T> {
+							if (command !== 'hasEnvironmentVolume' || !Array.isArray(arg)) {
+								throw new Error(`Must not run ${command} locally`);
+							}
+							return hasEnvironmentVolume(arg[0]) as Promise<T>;
+						}
+					}();
+				}
+			}(),
+			store.add(new TestInstantiationService()),
+			store.add(new NullLogService()),
+			new TestConfigurationService({ [DevContainerAgentHostEnabledSettingId]: true, [DevContainerEnvironmentsEnabledSettingId]: true, [RemoteAgentHostsEnabledSettingId]: true }),
+			new class extends mock<IEnvironmentService>() { }(),
+			new class extends mock<IOutputService>() {
+				override getChannel() {
+					return new class extends mock<IOutputChannel>() { override append() { } }();
+				}
+			}(),
+			new class extends mock<IFileService>() { }(),
+			new class extends mock<IRemoteAgentHostService>() {
+				override readonly configuredEntries = [entry];
+				override getConnection(): IAgentConnection { return connection; }
+			}(),
+			new class extends mock<ISessionsProvidersService>() { }(),
+			new class extends mock<IRequestService>() { }(),
+			NullTelemetryService,
+		));
+	}
+
+	const wslEntry = { name: 'Ubuntu', connection: { type: RemoteAgentHostEntryType.WSL, address: 'wsl:Ubuntu', distro: 'Ubuntu' } } satisfies IRemoteAgentHostEntry;
+
+	for (const [entry, localVolume] of [
+		[wslEntry, true],
+		[wslEntry, false],
+		[{ name: 'Build', connection: { type: RemoteAgentHostEntryType.SSH, address: 'ssh:build', hostName: 'build' } }, true],
+	] satisfies [IRemoteAgentHostEntry, boolean][]) {
+		test(`tells whether this computer's Docker engine has the volume of an environment on a ${entry.connection.type} host (${localVolume ? 'shared' : 'separate'} engine)`, async () => {
+			const asked: string[] = [];
+			const connector = createEnvironmentConnector(entry, async environmentId => {
+				asked.push(environmentId);
+				return localVolume;
+			});
+			const target = await connector.createConnection(devContainerEnvironmentUri(agentHostAuthority(getEntryAddress(entry)), 'environment'), 'devcontainer:environment', CancellationToken.None);
+			target.transportDisposable?.dispose();
+			await Promise.resolve();
+			// Only an environment on WSL needs this computer's engine to open its volume in VS Code.
+			const wsl = entry.connection.type === RemoteAgentHostEntryType.WSL;
+			assert.deepStrictEqual({ volumeOnLocalDockerEngine: target.volumeOnLocalDockerEngine, asked }, {
+				volumeOnLocalDockerEngine: wsl ? localVolume : undefined,
+				asked: wsl ? ['environment'] : [],
+			});
+		});
+	}
+
+	test('connects an environment on WSL despite a stalled volume lookup, and cancels it with the connection', () => runWithFakedTimers({}, async () => {
+		const source = devContainerEnvironmentUri(agentHostAuthority(getEntryAddress(wslEntry)), 'environment');
+		const stalled = createEnvironmentConnector(wslEntry, () => new Promise<boolean>(() => { }));
+		const timedOut = await stalled.createConnection(source, 'devcontainer:environment', CancellationToken.None);
+		timedOut.transportDisposable?.dispose();
+		await Promise.resolve();
+		const tokenSource = new CancellationTokenSource();
+		const cancelledDuringLookup = createEnvironmentConnector(wslEntry, () => {
+			tokenSource.cancel();
+			return new Promise<boolean>(() => { });
+		});
+		const cancelled = await cancelledDuringLookup.createConnection(source, 'devcontainer:environment', tokenSource.token).then(() => 'connected', error => isCancellationError(error) ? 'cancelled' : String(error));
+		tokenSource.dispose();
+		assert.deepStrictEqual({ timedOut: timedOut.volumeOnLocalDockerEngine, cancelled }, { timedOut: false, cancelled: 'cancelled' });
+	}));
 
 	for (const remote of [false, true]) {
 		test(`publishes observed support before a failed connection (remote facade: ${remote})`, async () => {

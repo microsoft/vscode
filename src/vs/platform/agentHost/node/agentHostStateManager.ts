@@ -669,7 +669,7 @@ export class AgentHostStateManager extends Disposable {
 	}
 
 	/** Permanently marks a session as used, so it is never auto-collected. */
-	private _markSessionUsed(session: URI): void {
+	markSessionUsed(session: URI): void {
 		const entry = this._sessionStates.get(session);
 		if (entry) {
 			entry.use = SessionUse.Used;
@@ -994,7 +994,7 @@ export class AgentHostStateManager extends Disposable {
 				entry.state = { ...createChatState(entry.summary), turns: restored.turns, draft: restored.draft ?? entry.draft, ...(entry.config ? { config: entry.config } : {}) };
 				entry.resolver = undefined;
 				if (restored.turns.length > 0) {
-					this._markSessionUsed(entry.session);
+					this.markSessionUsed(entry.session);
 				}
 				this._onDidResolveChatState.fire(chat);
 			}
@@ -1035,7 +1035,7 @@ export class AgentHostStateManager extends Disposable {
 			chatState.turns = turns;
 		}
 		if (turns.length > 0) {
-			this._markSessionUsed(session);
+			this.markSessionUsed(session);
 		}
 	}
 
@@ -2797,6 +2797,11 @@ export class AgentHostStateManager extends Disposable {
 		return { channel, action, serverSeq: ++this._serverSeq, origin: undefined };
 	}
 
+	/** Distinguishes two subscription baselines even if no shared state changed between them. */
+	allocateSnapshotSequence(): number {
+		return ++this._serverSeq;
+	}
+
 	/**
 	 * Dispatch a server-originated action (from the agent backend).
 	 * The action is applied to state via the reducer and emitted as an
@@ -3338,7 +3343,7 @@ export class AgentHostStateManager extends Disposable {
 		// Any turn activity permanently retires the session's unused-draft
 		// status, so a later truncate-to-zero cannot make it look collectable.
 		if (next.turns.length > 0 || next.activeTurn) {
-			this._markSessionUsed(sessionKey);
+			this.markSessionUsed(sessionKey);
 		}
 		// Active turn tracking — derive from the reducer's view of state,
 		// never from raw action turn-ids, so out-of-order lifecycle actions

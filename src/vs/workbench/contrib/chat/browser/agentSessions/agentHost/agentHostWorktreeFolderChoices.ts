@@ -22,7 +22,7 @@ import { InstantiationType, registerSingleton } from '../../../../../../platform
 import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IFolderLocation, IWorkspaceFolderLocationService } from '../../../../../../platform/workspace/common/folderLocations.js';
 import { IWorkspaceContextService, WorkbenchState } from '../../../../../../platform/workspace/common/workspace.js';
-import { getCurrentFolderLocationDescription, getFolderLocationDetail, getNewWorktreeDetail, getNewWorktreeLabel, groupFolderLocations } from '../../../../../services/workspaces/common/folderLocationSections.js';
+import { getCurrentFolderLocationDescription, getFolderLocationDetail, getNewWorktreeDetail, getNewWorktreeLabel, groupFolderLocations } from './agentHostFolderLocationSections.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { IAgentHostNewSessionFolderService } from './agentHostNewSessionFolderService.js';
 import { getLocalAgentHostSessionProvider } from './agentHostSessionUri.js';

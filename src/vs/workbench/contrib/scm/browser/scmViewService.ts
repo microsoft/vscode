@@ -14,6 +14,7 @@ import { debounce } from '../../../../base/common/decorators.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { compareFileNames, comparePaths } from '../../../../base/common/comparers.js';
 import { basename } from '../../../../base/common/resources.js';
+import { sep } from '../../../../base/common/path.js';
 import { binarySearch } from '../../../../base/common/arrays.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
@@ -27,6 +28,24 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { getSCMRepositoryIcon } from './util.js';
+
+/**
+ * Compares two repository root paths segment by segment so that a
+ * repository is immediately followed by its nested repositories.
+ */
+function compareRepositoryRootPaths(one: string, other: string): number {
+	const oneSegments = one.split(sep);
+	const otherSegments = other.split(sep);
+
+	for (let i = 0; i < Math.min(oneSegments.length, otherSegments.length); i++) {
+		const result = compareFileNames(oneSegments[i], otherSegments[i]);
+		if (result !== 0) {
+			return result;
+		}
+	}
+
+	return oneSegments.length - otherSegments.length;
+}
 
 function getProviderStorageKey(provider: ISCMProvider): string {
 	return `${provider.providerId}:${provider.label}${provider.rootUri ? `:${provider.rootUri.toString()}` : ''}`;
@@ -406,9 +425,9 @@ export class SCMViewService implements ISCMViewService {
 						}
 						repositoryView.selectionIndex = index;
 					});
-
-					this._onDidChangeRepositories.fire({ added, removed: Iterable.empty() });
 				}
+
+				this._onDidChangeRepositories.fire({ added, removed: Iterable.empty() });
 
 				this.didSelectRepository = false;
 				return;
@@ -565,7 +584,7 @@ export class SCMViewService implements ISCMViewService {
 
 		// Sort by path
 		if (this._repositoriesSortKey === 'path' && op1.repository.provider.rootUri && op2.repository.provider.rootUri) {
-			return comparePaths(op1.repository.provider.rootUri.fsPath, op2.repository.provider.rootUri.fsPath);
+			return compareRepositoryRootPaths(op1.repository.provider.rootUri.fsPath, op2.repository.provider.rootUri.fsPath);
 		}
 
 		// Sort by name, path

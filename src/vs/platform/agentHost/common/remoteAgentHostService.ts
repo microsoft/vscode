@@ -21,6 +21,7 @@ import { getGlobalConfigurationValue } from './agentHostConfigurationSync.js';
 import type { SSHAgentHostLifecycle } from './sshRemoteAgentHost.js';
 import type { AgentHostServerType } from './agentHostEndpointRegistry.js';
 import type { IDevContainerRepository } from './devContainerSamples.js';
+import type { IDevContainerVolumeFolder } from './devContainerEnvironments.js';
 import type { ConnectionDiagnosticObserver, IConnectionDiagnosticEvent, IRemoteConnectionDiagnosticEvent } from './connectionDiagnostics.js';
 import type { PathStyle } from './state/protocol/common/commands.js';
 
@@ -265,7 +266,15 @@ export type IRemoteAgentHostDevContainerConnection = {
 		| { readonly hostPath: string; readonly repository?: never; readonly environmentId?: never }
 		| { readonly repository: IDevContainerRepository; readonly hostPath?: never; readonly environmentId?: never }
 		/** A Dev Container environment, which has no source folder or repository. */
-		| { readonly environmentId: string; readonly hostPath?: never; readonly repository?: never }
+		| {
+			readonly environmentId: string;
+			/** The volume folder that the Dev Containers extension opens the environment's container by, once known from its workspace. */
+			readonly volume?: IDevContainerVolumeFolder;
+			/** Whether this computer's Docker engine has the volume, which Dev Containers needs for an environment on a WSL host. */
+			readonly volumeOnLocalDockerEngine?: boolean;
+			readonly hostPath?: never;
+			readonly repository?: never;
+		}
 	);
 
 export type RemoteAgentHostConnection = IRemoteAgentHostWebSocketConnection | IRemoteAgentHostSSHConnection | IRemoteAgentHostWSLConnection | IRemoteAgentHostTunnelConnection | IRemoteAgentHostCloudSandboxConnection | IRemoteAgentHostDevContainerConnection | IRemoteAgentHostExtensionConnection;
@@ -643,13 +652,50 @@ export function addSSHRemoteAgentHostEntry(storageService: IStorageService, entr
 	storeSSHRemoteAgentHostEntries(storageService, upsertRemoteAgentHostEntry(readSSHRemoteAgentHostEntries(storageService), entry));
 }
 
-/** Removes an SSH entry from its application storage store. */
+/** Removes an SSH entry from its application storage store, along with its disconnected flag. */
 export function removeSSHRemoteAgentHostEntry(storageService: IStorageService, address: string): void {
 	const normalizedAddress = normalizeRemoteAgentHostAddress(address);
 	storeSSHRemoteAgentHostEntries(
 		storageService,
 		readSSHRemoteAgentHostEntries(storageService).filter(entry => entryAddressKey(entry) !== normalizedAddress),
 	);
+	setRemoteAgentHostDisconnected(storageService, normalizedAddress, false);
+}
+
+/**
+ * Storage key for the addresses of SSH and WSL remotes the user disconnected.
+ * Their entries stay known so the remote remains listed, but they are not
+ * dialed until the user connects again.
+ */
+export const DISCONNECTED_REMOTE_AGENT_HOSTS_STORAGE_KEY = 'remoteAgentHost.disconnectedHosts';
+
+/** Reads the addresses of remotes the user disconnected. */
+export function readDisconnectedRemoteAgentHostAddresses(storageService: IStorageService): ReadonlySet<string> {
+	try {
+		const parsed: unknown = JSON.parse(storageService.get(DISCONNECTED_REMOTE_AGENT_HOSTS_STORAGE_KEY, StorageScope.APPLICATION) ?? '[]');
+		return new Set(Array.isArray(parsed) ? parsed.filter((address): address is string => typeof address === 'string').map(normalizeRemoteAgentHostAddress) : []);
+	} catch {
+		return new Set();
+	}
+}
+
+/** Marks or clears a remote as disconnected by the user. */
+export function setRemoteAgentHostDisconnected(storageService: IStorageService, address: string, disconnected: boolean): void {
+	const normalizedAddress = normalizeRemoteAgentHostAddress(address);
+	const addresses = new Set(readDisconnectedRemoteAgentHostAddresses(storageService));
+	if (addresses.has(normalizedAddress) === disconnected) {
+		return;
+	}
+	if (disconnected) {
+		addresses.add(normalizedAddress);
+	} else {
+		addresses.delete(normalizedAddress);
+	}
+	if (addresses.size) {
+		storageService.store(DISCONNECTED_REMOTE_AGENT_HOSTS_STORAGE_KEY, JSON.stringify([...addresses].sort()), StorageScope.APPLICATION, StorageTarget.MACHINE);
+	} else {
+		storageService.remove(DISCONNECTED_REMOTE_AGENT_HOSTS_STORAGE_KEY, StorageScope.APPLICATION);
+	}
 }
 
 function runtimeEntryTypeConfig<TConnection extends RemoteAgentHostConnection>(type: TConnection['type'], normalizedAddress: boolean, address: (connection: TConnection) => string, reconnect: IRemoteAgentHostReconnectPolicy = DEFAULT_RECONNECT_POLICY): IRuntimeEntryTypeConfig<TConnection> {
@@ -839,11 +885,11 @@ export interface IRemoteAgentHostService {
 	 * Ask the remote agent host to upgrade itself via its hosting CLI.
 	 *
 	 * Sends the host-advertised JSON-RPC method (typically
-	 * `_vscodeUpgrade`) on the existing transport — even when the handshake
-	 * has not completed (e.g. the host was just rejected for protocol
-	 * incompatibility). The hosting CLI receives the signal, checks for a
-	 * newer build, and kills+respawns the server on success. The caller
-	 * SHOULD then reconnect to re-attempt the handshake.
+	 * `_vscodeUpgrade`) on the existing transport, on a connected host or
+	 * even when the handshake has not completed (e.g. the host was just
+	 * rejected for protocol incompatibility). The hosting CLI receives the
+	 * signal, checks for a newer build, and kills+respawns the server on
+	 * success. The caller SHOULD then reconnect to re-attempt the handshake.
 	 *
 	 * Resolves with the host's status payload describing what happened
 	 * (whether an upgrade was needed, whether it was started); rejects on

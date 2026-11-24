@@ -19,11 +19,9 @@ import { IDialogService } from '../../../../../../platform/dialogs/common/dialog
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { INotification, INotificationHandle, INotificationService, Severity } from '../../../../../../platform/notification/common/notification.js';
 import { IProgress, IProgressService, IProgressStep, ProgressLocation } from '../../../../../../platform/progress/common/progress.js';
-import { IInputBox, IPickOptions, IQuickInputButton, IQuickInputHideEvent, IQuickInputService, IQuickPick, IQuickPickDidAcceptEvent, IQuickPickItem, QuickInputHideReason, QuickPickInput } from '../../../../../../platform/quickinput/common/quickInput.js';
+import { IInputBox, IQuickInputHideEvent, IQuickInputService, QuickInputHideReason } from '../../../../../../platform/quickinput/common/quickInput.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { AddPluginMarketplaceAction, InstallFromSourceAction, ManagePluginMarketplacesAction } from '../../../browser/actions/chatPluginActions.js';
-import { getPluginCustomizationMarketplaceSourceId } from '../../../browser/aiCustomization/pluginCustomizationMarketplaceProvider.js';
-import { getProviderMarketplaceSourceId } from '../../../browser/aiCustomization/customizationMarketplaceWorkbenchService.js';
 import { AICustomizationManagementCommands, AICustomizationManagementSection } from '../../../common/aiCustomizationWorkspaceService.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { ICustomizationHarnessService, ICustomizationMarketplaceInfo, ICustomizationMarketplaceManagementProvider, ICustomizationPluginInstallProvider, IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
@@ -391,21 +389,12 @@ suite('ManagePluginMarketplacesAction', () => {
 	}
 
 	class TestQuickInputService extends mock<IQuickInputService>() {
-		readonly pickSnapshots: { id: string | undefined; label: string; type: string }[][] = [];
-		readonly quickPickSnapshots: { id: string | undefined; label: string; type: string }[][] = [];
-		readonly quickPickHasBackButton: boolean[] = [];
-		readonly inputBoxSnapshots: { title: string | undefined; placeholder: string | undefined; prompt: string | undefined; hasBackButton: boolean }[] = [];
+		readonly inputBoxSnapshots: { title: string | undefined; placeholder: string | undefined; prompt: string | undefined }[] = [];
 		readonly inputValidationSnapshots: { phase: 'change' | 'accept'; value: string; message: string | undefined; severity: Severity }[] = [];
-		readonly picks: QuickPickInput<IQuickPickItem>[][] = [];
 		inputValue: string | undefined;
 		readonly inputChangeValues: string[] = [];
 		inputValueChangeBeforeAccept = true;
-		inputBackAfterAccept = false;
-		inputBackCount = 0;
-		quickPickEmptyAcceptCount = 0;
-		pickIds: (string | undefined)[] = [];
-		buttonItemIds: string[] = [];
-		readonly removedItemIds: string[] = [];
+		hideAfterAccept = false;
 		manualInput = false;
 		readonly acceptEmitter = store.add(new Emitter<void>());
 		readonly changeEmitter = store.add(new Emitter<string>());
@@ -434,7 +423,6 @@ suite('ManagePluginMarketplacesAction', () => {
 				override readonly onDidAccept = quickInputService.acceptEmitter.event;
 				override readonly onDidChangeValue = quickInputService.changeEmitter.event;
 				override readonly onDidHide = quickInputService.hideEmitter.event;
-				override readonly onDidTriggerButton = Event.None;
 				override show() {
 					this.visible = true;
 					quickInputService.showEmitter.fire();
@@ -447,89 +435,6 @@ suite('ManagePluginMarketplacesAction', () => {
 			}();
 		}
 
-		override readonly backButton: IQuickInputButton = { iconClass: 'back', tooltip: 'Back' };
-
-		override async pick<T extends IQuickPickItem>(picks: QuickPickInput<T>[], options?: IPickOptions<T>): Promise<T | undefined> {
-			this.picks.push(picks);
-			this.pickSnapshots.push(picks.map(pick => ({
-				id: pick.id,
-				label: pick.label ?? '',
-				type: pick.type ?? 'item',
-			})));
-			const buttonItemId = this.buttonItemIds.shift();
-			if (buttonItemId) {
-				const item = picks.find((pick): pick is T => pick.type !== 'separator' && pick.id === buttonItemId);
-				const button = item?.buttons?.[0];
-				if (item && button) {
-					await Promise.resolve(options?.onDidTriggerItemButton?.({
-						item,
-						button,
-						removeItem: () => this.removedItemIds.push(buttonItemId),
-					}));
-				}
-				return undefined;
-			}
-			const id = this.pickIds.shift();
-			if (!id) {
-				return undefined;
-			}
-			for (const pick of picks) {
-				if (pick.type !== 'separator' && pick.id === id) {
-					return pick;
-				}
-			}
-			return undefined;
-		}
-
-		override createQuickPick<T extends IQuickPickItem>(options: { useSeparators: true }): IQuickPick<T, { useSeparators: true }>;
-		override createQuickPick<T extends IQuickPickItem>(options?: { useSeparators: boolean }): IQuickPick<T, { useSeparators: false }>;
-		override createQuickPick<T extends IQuickPickItem>(_options?: { useSeparators: boolean }): IQuickPick<T, { useSeparators: true }> | IQuickPick<T, { useSeparators: false }> {
-			const disposables = new DisposableStore();
-			const acceptEmitter = disposables.add(new Emitter<IQuickPickDidAcceptEvent>());
-			const hideEmitter = disposables.add(new Emitter<IQuickInputHideEvent>());
-			const buttonEmitter = disposables.add(new Emitter<IQuickInputButton>());
-			const service = this;
-			return new class extends mock<IQuickPick<T>>() {
-				override title: string | undefined;
-				override placeholder: string | undefined;
-				override items: readonly T[] = [];
-				override buttons: readonly IQuickInputButton[] = [];
-				override selectedItems: readonly T[] = [];
-				override readonly onDidAccept = acceptEmitter.event;
-				override readonly onDidHide = hideEmitter.event;
-				override readonly onDidTriggerButton = buttonEmitter.event;
-
-				override show(): void {
-					service.quickPickSnapshots.push(this.items.map(item => ({ id: item.id, label: item.label, type: item.type ?? 'item' })));
-					service.quickPickHasBackButton.push(this.buttons.includes(service.backButton));
-					if (service.quickPickEmptyAcceptCount > 0) {
-						service.quickPickEmptyAcceptCount--;
-						acceptEmitter.fire({ inBackground: false });
-					}
-					const id = service.pickIds.shift();
-					if (id === 'back') {
-						buttonEmitter.fire(service.backButton);
-						return;
-					}
-					const selected = this.items.find(item => item.id === id);
-					if (selected) {
-						this.selectedItems = [selected];
-						acceptEmitter.fire({ inBackground: false });
-					} else {
-						this.hide();
-					}
-				}
-
-				override hide(): void {
-					hideEmitter.fire({ reason: QuickInputHideReason.Other });
-				}
-
-				override dispose(): void {
-					disposables.dispose();
-				}
-			}();
-		}
-
 		override createInputBox(): IInputBox {
 			if (this.manualInput) {
 				return this.inputBox;
@@ -538,13 +443,11 @@ suite('ManagePluginMarketplacesAction', () => {
 			const acceptEmitter = disposables.add(new Emitter<void>());
 			const changeValueEmitter = disposables.add(new Emitter<string>());
 			const hideEmitter = disposables.add(new Emitter<IQuickInputHideEvent>());
-			const buttonEmitter = disposables.add(new Emitter<IQuickInputButton>());
 			const service = this;
 			return new class extends mock<IInputBox>() {
 				override title: string | undefined;
 				override placeholder: string | undefined;
 				override prompt: string | undefined;
-				override buttons: readonly IQuickInputButton[] = [];
 				override value = '';
 				override busy = false;
 				override enabled = true;
@@ -553,14 +456,12 @@ suite('ManagePluginMarketplacesAction', () => {
 				override readonly onDidAccept = acceptEmitter.event;
 				override readonly onDidChangeValue = changeValueEmitter.event;
 				override readonly onDidHide = hideEmitter.event;
-				override readonly onDidTriggerButton = buttonEmitter.event;
 
 				override show(): void {
 					service.inputBoxSnapshots.push({
 						title: this.title,
 						placeholder: this.placeholder,
 						prompt: this.prompt,
-						hasBackButton: this.buttons.includes(service.backButton),
 					});
 					for (const value of service.inputChangeValues.splice(0)) {
 						this.value = value;
@@ -571,11 +472,6 @@ suite('ManagePluginMarketplacesAction', () => {
 							message: this.validationMessage,
 							severity: this.severity,
 						});
-					}
-					if (service.inputBackCount > 0) {
-						service.inputBackCount--;
-						buttonEmitter.fire(service.backButton);
-						return;
 					}
 					if (service.inputValue !== undefined) {
 						this.value = service.inputValue;
@@ -589,8 +485,8 @@ suite('ManagePluginMarketplacesAction', () => {
 							message: this.validationMessage,
 							severity: this.severity,
 						});
-						if (service.inputBackAfterAccept) {
-							buttonEmitter.fire(service.backButton);
+						if (service.hideAfterAccept) {
+							this.hide();
 						}
 					} else {
 						this.hide();
@@ -661,39 +557,19 @@ suite('ManagePluginMarketplacesAction', () => {
 		return { instantiationService, configurationService, quickInputService, notifications, commands, marketplacePolicy };
 	}
 
-	test('adds a marketplace from the management quick pick', async () => {
-		const fixture = createFixture({
-			[ChatConfiguration.PluginMarketplaces]: ['github/awesome-copilot#marketplace'],
-			[ChatConfiguration.ExtraMarketplaces]: {},
-		});
-		fixture.quickInputService.pickIds.push('addMarketplace');
-		fixture.quickInputService.inputValue = 'microsoft/vscode-marketplace';
-
+	test('opens the Plugins marketplace subpage without a quick pick or provider request', async () => {
+		const fixture = createFixture({}, false, new class extends mock<ICustomizationMarketplaceManagementProvider>() {
+			override async list(): Promise<readonly ICustomizationMarketplaceInfo[]> {
+				assert.fail('Inventory is loaded by the marketplace page, not the command');
+			}
+		}());
 		await fixture.instantiationService.invokeFunction(accessor => new ManagePluginMarketplacesAction().run(accessor));
-
-		assert.deepStrictEqual({
-			firstPick: fixture.quickInputService.pickSnapshots[0],
-			input: fixture.quickInputService.inputBoxSnapshots[0],
-			updates: fixture.configurationService.updates,
-			notifications: fixture.notifications,
-		}, {
-			firstPick: [
-				{ id: 'addMarketplace', label: '$(add) Add Marketplace...', type: 'item' },
-				{ id: 'browseMarketplaces', label: 'Browse All Marketplaces', type: 'item' },
-				{ id: undefined, label: 'Configured Marketplaces', type: 'separator' },
-				{ id: parseMarketplaceReference('github/awesome-copilot#marketplace')!.canonicalId, label: 'github/awesome-copilot#marketplace', type: 'item' },
-			],
-			input: {
-				title: 'Add Plugin Marketplace',
-				placeholder: 'owner/repo, Git URL, or local repository URI',
-				prompt: 'Only add marketplaces you trust.',
-				hasBackButton: true,
-			},
-			updates: [{
-				key: ChatConfiguration.PluginMarketplaces,
-				value: ['github/awesome-copilot#marketplace', 'microsoft/vscode-marketplace'],
+		assert.deepStrictEqual({ commands: fixture.commands, inputs: fixture.quickInputService.inputBoxSnapshots }, {
+			commands: [{
+				id: AICustomizationManagementCommands.OpenEditor,
+				args: [{ section: AICustomizationManagementSection.Plugins, sessionResource: URI.parse('local:/session'), showPluginMarketplaces: true }],
 			}],
-			notifications: [],
+			inputs: [],
 		});
 	});
 
@@ -702,14 +578,11 @@ suite('ManagePluginMarketplacesAction', () => {
 			[ChatConfiguration.PluginMarketplaces]: [],
 			[ChatConfiguration.ExtraMarketplaces]: {},
 		});
-		fixture.quickInputService.pickIds.push('addMarketplace');
 		fixture.quickInputService.inputValue = 'https://example.com/team/plugins.git#stable';
 
-		await fixture.instantiationService.invokeFunction(accessor => new ManagePluginMarketplacesAction().run(accessor));
-
-		fixture.quickInputService.pickIds.push('addMarketplace');
+		await fixture.instantiationService.invokeFunction(accessor => new AddPluginMarketplaceAction().run(accessor));
 		fixture.quickInputService.inputValue = 'file:///marketplaces/local-marketplace';
-		await fixture.instantiationService.invokeFunction(accessor => new ManagePluginMarketplacesAction().run(accessor));
+		await fixture.instantiationService.invokeFunction(accessor => new AddPluginMarketplaceAction().run(accessor));
 
 		assert.deepStrictEqual(fixture.configurationService.updates, [{
 			key: ChatConfiguration.PluginMarketplaces,
@@ -720,44 +593,17 @@ suite('ManagePluginMarketplacesAction', () => {
 		}]);
 	});
 
-	test('returns to the marketplace list from the add marketplace input', async () => {
-		const fixture = createFixture({
-			[ChatConfiguration.PluginMarketplaces]: [],
-			[ChatConfiguration.ExtraMarketplaces]: {},
-		});
-		fixture.quickInputService.pickIds.push('addMarketplace', undefined);
-		fixture.quickInputService.inputBackCount = 1;
-
-		await fixture.instantiationService.invokeFunction(accessor => new ManagePluginMarketplacesAction().run(accessor));
-
-		assert.deepStrictEqual({
-			marketplacePickCount: fixture.quickInputService.pickSnapshots.length,
-			inputs: fixture.quickInputService.inputBoxSnapshots,
-			configurationUpdates: fixture.configurationService.updates,
-		}, {
-			marketplacePickCount: 2,
-			inputs: [{
-				title: 'Add Plugin Marketplace',
-				placeholder: 'owner/repo, Git URL, or local repository URI',
-				prompt: 'Only add marketplaces you trust.',
-				hasBackButton: true,
-			}],
-			configurationUpdates: [],
-		});
-	});
-
 	test('styles marketplace validation errors and clears the styling for valid input', async () => {
 		const fixture = createFixture({
 			[ChatConfiguration.PluginMarketplaces]: ['github/awesome-copilot#marketplace'],
 			[ChatConfiguration.ExtraMarketplaces]: {},
 		});
-		fixture.quickInputService.pickIds.push('addMarketplace', undefined);
 		fixture.quickInputService.inputChangeValues.push('invalid', 'microsoft/vscode-marketplace');
 		fixture.quickInputService.inputValue = 'github/awesome-copilot#marketplace';
 		fixture.quickInputService.inputValueChangeBeforeAccept = false;
-		fixture.quickInputService.inputBackAfterAccept = true;
+		fixture.quickInputService.hideAfterAccept = true;
 
-		await fixture.instantiationService.invokeFunction(accessor => new ManagePluginMarketplacesAction().run(accessor));
+		await fixture.instantiationService.invokeFunction(accessor => new AddPluginMarketplaceAction().run(accessor));
 
 		assert.deepStrictEqual({
 			validation: fixture.quickInputService.inputValidationSnapshots,
@@ -794,263 +640,19 @@ suite('ManagePluginMarketplacesAction', () => {
 		assert.deepStrictEqual({
 			title: fixture.quickInputService.inputBoxSnapshots[0]?.title,
 			updates: fixture.configurationService.updates,
-			picks: fixture.quickInputService.pickSnapshots,
+			commands: fixture.commands,
 		}, {
 			title: 'Add Plugin Marketplace',
 			updates: [{ key: ChatConfiguration.PluginMarketplaces, value: ['owner/marketplace'] }],
-			picks: [[
-				{ id: 'addMarketplace', label: '$(add) Add Marketplace...', type: 'item' },
-				{ id: 'browseMarketplaces', label: 'Browse All Marketplaces', type: 'item' },
-				{ id: undefined, label: 'Configured Marketplaces', type: 'separator' },
-				{ id: parseMarketplaceReference('owner/marketplace')!.canonicalId, label: 'owner/marketplace', type: 'item' },
-			]],
+			commands: [{ id: ManagePluginMarketplacesAction.ID, args: [] }],
 		});
 	});
 
 	test('cancelling the direct local marketplace input does not open management', async () => {
 		const fixture = createFixture({});
 		await fixture.instantiationService.invokeFunction(accessor => new AddPluginMarketplaceAction().run(accessor));
-		assert.deepStrictEqual({
-			updates: fixture.configurationService.updates,
-			picks: fixture.quickInputService.picks,
-		}, { updates: [], picks: [] });
+		assert.deepStrictEqual({ updates: fixture.configurationService.updates, commands: fixture.commands }, { updates: [], commands: [] });
 	});
-
-	test('uses provider inventory and force-removes dependent plugins', async () => {
-		const removeCalls: { name: string; force?: boolean }[] = [];
-		const provider: ICustomizationMarketplaceManagementProvider = {
-			onDidChange: Event.None,
-			onDidChangeMarketplaces: Event.None,
-			list: async () => [{
-				name: 'VS Code Marketplace',
-				source: 'GitHub: microsoft/vscode-marketplace',
-				isDefault: false,
-				managed: false,
-				available: true,
-			}],
-			add: async () => { throw new Error('Unexpected add'); },
-			queryMarketplace: async () => ({ items: [], total: 0 }),
-			remove: async (_session, name, force) => {
-				removeCalls.push({ name, force });
-				return force ? { removed: true } : { removed: false, dependentPlugins: ['sample-plugin'] };
-			},
-			refresh: async () => [],
-		};
-		const fixture = createFixture({
-			[ChatConfiguration.PluginMarketplaces]: ['local/ignored-marketplace'],
-			[ChatConfiguration.ExtraMarketplaces]: {},
-		}, false, provider);
-		fixture.quickInputService.pickIds.push('VS Code Marketplace', 'removeMarketplace', undefined);
-
-		await fixture.instantiationService.invokeFunction(accessor => new ManagePluginMarketplacesAction().run(accessor));
-
-		assert.deepStrictEqual({
-			firstPick: fixture.quickInputService.pickSnapshots[0],
-			actions: fixture.quickInputService.quickPickSnapshots[0],
-			configurationUpdates: fixture.configurationService.updates,
-			removeCalls,
-		}, {
-			firstPick: [
-				{ id: 'addMarketplace', label: '$(add) Add Marketplace...', type: 'item' },
-				{ id: 'browseMarketplaces', label: 'Browse All Marketplaces', type: 'item' },
-				{ id: undefined, label: 'Configured Marketplaces', type: 'separator' },
-				{ id: 'VS Code Marketplace', label: 'VS Code Marketplace', type: 'item' },
-			],
-			actions: [
-				{ id: 'browsePlugins', label: 'Browse', type: 'item' },
-				{ id: 'refreshMarketplace', label: 'Refresh Marketplace', type: 'item' },
-				{ id: 'removeMarketplace', label: 'Remove Marketplace', type: 'item' },
-			],
-			configurationUpdates: [],
-			removeCalls: [
-				{ name: 'VS Code Marketplace', force: undefined },
-				{ name: 'VS Code Marketplace', force: true },
-			],
-		});
-	});
-
-	test('shows an inline remove action only for removable provider marketplaces', async () => {
-		const removeCalls: string[] = [];
-		const provider: ICustomizationMarketplaceManagementProvider = {
-			onDidChange: Event.None,
-			onDidChangeMarketplaces: Event.None,
-			list: async () => [{
-				name: 'removable-marketplace',
-				source: 'GitHub: owner/removable-marketplace',
-				isDefault: false,
-				managed: false,
-				available: true,
-			}, {
-				name: 'default-marketplace',
-				source: 'GitHub: owner/default-marketplace',
-				isDefault: true,
-				managed: false,
-				available: true,
-			}, {
-				name: 'managed-marketplace',
-				source: 'GitHub: owner/managed-marketplace',
-				isDefault: false,
-				managed: true,
-				available: true,
-			}],
-			add: async () => { throw new Error('Unexpected add'); },
-			queryMarketplace: async () => ({ items: [], total: 0 }),
-			remove: async (_session, name) => {
-				removeCalls.push(name);
-				return { removed: true };
-			},
-			refresh: async () => [],
-		};
-		const fixture = createFixture({
-			[ChatConfiguration.PluginMarketplaces]: [],
-			[ChatConfiguration.ExtraMarketplaces]: {},
-		}, false, provider);
-		fixture.quickInputService.buttonItemIds.push('removable-marketplace');
-
-		await fixture.instantiationService.invokeFunction(accessor => new ManagePluginMarketplacesAction().run(accessor));
-
-		assert.deepStrictEqual({
-			buttons: fixture.quickInputService.picks[0]
-				.filter((pick): pick is IQuickPickItem => pick.type !== 'separator' && pick.id !== 'addMarketplace' && pick.id !== 'browseMarketplaces')
-				.map(pick => [pick.id, pick.buttons?.map(button => button.tooltip)]),
-			removeCalls,
-			removedItemIds: fixture.quickInputService.removedItemIds,
-		}, {
-			buttons: [
-				['removable-marketplace', ['Remove Marketplace']],
-				['default-marketplace', undefined],
-				['managed-marketplace', undefined],
-			],
-			removeCalls: ['removable-marketplace'],
-			removedItemIds: ['removable-marketplace'],
-		});
-	});
-
-	test('labels provider marketplaces from a GitHub Team, deferring to the organization label', async () => {
-		const marketplace = (name: string, overrides: Partial<ICustomizationMarketplaceInfo>): ICustomizationMarketplaceInfo =>
-		({ name, source: `GitHub: owner/${name}`, isDefault: false, managed: false, available: true, ...overrides });
-		const provider: ICustomizationMarketplaceManagementProvider = {
-			onDidChange: Event.None,
-			onDidChangeMarketplaces: Event.None,
-			list: async () => [
-				marketplace('team', { team: true }),
-				marketplace('team-unavailable', { team: true, available: false }),
-				marketplace('team-and-managed', { team: true, managed: true }),
-				marketplace('user', {}),
-			],
-			add: async () => { throw new Error('Unexpected add'); },
-			queryMarketplace: async () => ({ items: [], total: 0 }),
-			remove: async () => { throw new Error('Unexpected remove'); },
-			refresh: async () => [],
-		};
-		const fixture = createFixture({
-			[ChatConfiguration.PluginMarketplaces]: [],
-			[ChatConfiguration.ExtraMarketplaces]: {},
-		}, false, provider);
-
-		await fixture.instantiationService.invokeFunction(accessor => new ManagePluginMarketplacesAction().run(accessor));
-
-		assert.deepStrictEqual(fixture.quickInputService.picks[0]
-			.filter((pick): pick is IQuickPickItem => pick.type !== 'separator' && pick.id !== 'addMarketplace' && pick.id !== 'browseMarketplaces')
-			.map(pick => [pick.id, pick.description, pick.buttons?.map(button => button.tooltip)]), [
-			['team', 'Managed by GitHub Team', ['Remove Marketplace']],
-			['team-unavailable', 'Managed by GitHub Team, Unavailable', ['Remove Marketplace']],
-			['team-and-managed', 'Managed by Organization', undefined],
-			['user', undefined, ['Remove Marketplace']],
-		]);
-	});
-
-	test('returns to the provider marketplace list from the marketplace actions', async () => {
-		let listCalls = 0;
-		const provider: ICustomizationMarketplaceManagementProvider = {
-			onDidChange: Event.None,
-			onDidChangeMarketplaces: Event.None,
-			list: async () => {
-				listCalls++;
-				return [{
-					name: 'provider-marketplace',
-					source: 'GitHub: owner/provider-marketplace',
-					isDefault: false,
-					managed: false,
-					available: true,
-				}];
-			},
-			add: async () => { throw new Error('Unexpected add'); },
-			queryMarketplace: async () => ({ items: [], total: 0 }),
-			remove: async () => { throw new Error('Unexpected remove'); },
-			refresh: async () => { throw new Error('Unexpected refresh'); },
-		};
-		const fixture = createFixture({
-			[ChatConfiguration.PluginMarketplaces]: [],
-			[ChatConfiguration.ExtraMarketplaces]: {},
-		}, false, provider);
-		fixture.quickInputService.pickIds.push('provider-marketplace', 'back', undefined);
-
-		await fixture.instantiationService.invokeFunction(accessor => new ManagePluginMarketplacesAction().run(accessor));
-
-		assert.deepStrictEqual({
-			listCalls,
-			marketplacePickCount: fixture.quickInputService.pickSnapshots.length,
-			actions: fixture.quickInputService.quickPickSnapshots,
-			hasBackButton: fixture.quickInputService.quickPickHasBackButton,
-		}, {
-			listCalls: 2,
-			marketplacePickCount: 2,
-			actions: [[
-				{ id: 'browsePlugins', label: 'Browse', type: 'item' },
-				{ id: 'refreshMarketplace', label: 'Refresh Marketplace', type: 'item' },
-				{ id: 'removeMarketplace', label: 'Remove Marketplace', type: 'item' },
-			]],
-			hasBackButton: [true],
-		});
-	});
-
-	for (const direct of [false, true]) {
-		test(`adds marketplaces through the provider ${direct ? 'directly from F1' : 'from management'} without updating local configuration`, async () => {
-			const addCalls: string[] = [];
-			const provider: ICustomizationMarketplaceManagementProvider = {
-				onDidChange: Event.None,
-				onDidChangeMarketplaces: Event.None,
-				list: async () => [],
-				add: async (_session, source) => {
-					addCalls.push(source);
-					return { name: 'provider-marketplace', source, isDefault: false, managed: false, available: true };
-				},
-				queryMarketplace: async () => ({ items: [], total: 0 }),
-				remove: async () => ({ removed: true }),
-				refresh: async () => [],
-			};
-			const fixture = createFixture({
-				[ChatConfiguration.PluginMarketplaces]: ['local/ignored-marketplace'],
-				[ChatConfiguration.ExtraMarketplaces]: {},
-			}, false, provider);
-			if (!direct) {
-				fixture.quickInputService.pickIds.push('addMarketplace');
-			}
-			fixture.quickInputService.manualInput = true;
-			const shown = Event.toPromise(fixture.quickInputService.showEmitter.event);
-			const result = fixture.instantiationService.invokeFunction(accessor => direct
-				? new AddPluginMarketplaceAction().run(accessor)
-				: new ManagePluginMarketplacesAction().run(accessor));
-			await shown;
-			const picksBeforeSubmission = fixture.quickInputService.picks.length;
-			fixture.quickInputService.inputBox.value = ' provider/marketplace ';
-			fixture.quickInputService.acceptEmitter.fire();
-			await result;
-
-			assert.deepStrictEqual({
-				addCalls,
-				picksBeforeSubmission,
-				picksAfterSubmission: fixture.quickInputService.picks.length,
-				configurationUpdates: fixture.configurationService.updates,
-			}, {
-				addCalls: ['provider/marketplace'],
-				picksBeforeSubmission: direct ? 0 : 1,
-				picksAfterSubmission: direct ? 1 : 2,
-				configurationUpdates: [],
-			});
-		});
-	}
 
 	test('cancelling the direct provider marketplace input does not open management', async () => {
 		const provider: ICustomizationMarketplaceManagementProvider = {
@@ -1069,7 +671,7 @@ suite('ManagePluginMarketplacesAction', () => {
 		await shown;
 		fixture.quickInputService.inputBox.hide();
 		await result;
-		assert.deepStrictEqual(fixture.quickInputService.picks, []);
+		assert.deepStrictEqual(fixture.commands, []);
 	});
 
 	test('keeps the provider input busy and shows errors inline for correction and retry', async () => {
@@ -1094,9 +696,8 @@ suite('ManagePluginMarketplacesAction', () => {
 		const fixture = createFixture({}, false, provider);
 		const quickInput = fixture.quickInputService;
 		quickInput.manualInput = true;
-		quickInput.pickIds.push('addMarketplace');
 		const shown = Event.toPromise(quickInput.showEmitter.event);
-		const result = fixture.instantiationService.invokeFunction(accessor => new ManagePluginMarketplacesAction().run(accessor));
+		const result = fixture.instantiationService.invokeFunction(accessor => new AddPluginMarketplaceAction().run(accessor));
 		await shown;
 
 		quickInput.inputBox.value = 'owner/missing';
@@ -1106,7 +707,6 @@ suite('ManagePluginMarketplacesAction', () => {
 			visible: quickInput.inputBox.visible,
 			busy: quickInput.inputBox.busy,
 			enabled: quickInput.inputBox.enabled,
-			picks: quickInput.picks.length,
 			calls: addCalls.length,
 		};
 		const failed = Event.toPromise(quickInput.validationEmitter.event);
@@ -1131,11 +731,10 @@ suite('ManagePluginMarketplacesAction', () => {
 			busyState, errorState, clearedMessage, clearedSeverity, addCalls,
 			disposed: quickInput.inputBox.disposed,
 			visible: quickInput.inputBox.visible,
-			picks: quickInput.picks.length,
 			updates: fixture.configurationService.updates,
 			notifications: fixture.notifications,
 		}, {
-			busyState: { visible: true, busy: true, enabled: false, picks: 1, calls: 1 },
+			busyState: { visible: true, busy: true, enabled: false, calls: 1 },
 			errorState: {
 				visible: true, busy: false, enabled: true, value: 'owner/missing',
 				message: 'Failed to add marketplace: Repository not found',
@@ -1149,7 +748,6 @@ suite('ManagePluginMarketplacesAction', () => {
 			],
 			disposed: true,
 			visible: false,
-			picks: 2,
 			updates: [],
 			notifications: [],
 		});
@@ -1170,9 +768,8 @@ suite('ManagePluginMarketplacesAction', () => {
 		const fixture = createFixture({}, false, provider);
 		const quickInput = fixture.quickInputService;
 		quickInput.manualInput = true;
-		quickInput.pickIds.push('addMarketplace');
 		const shown = Event.toPromise(quickInput.showEmitter.event);
-		const result = fixture.instantiationService.invokeFunction(accessor => new ManagePluginMarketplacesAction().run(accessor));
+		const result = fixture.instantiationService.invokeFunction(accessor => new AddPluginMarketplaceAction().run(accessor));
 		await shown;
 		const messages = [];
 		const severities = [];
@@ -1226,9 +823,8 @@ suite('ManagePluginMarketplacesAction', () => {
 			const fixture = createFixture({}, false, provider);
 			const quickInput = fixture.quickInputService;
 			quickInput.manualInput = true;
-			quickInput.pickIds.push('addMarketplace');
 			const shown = Event.toPromise(quickInput.showEmitter.event);
-			const result = fixture.instantiationService.invokeFunction(accessor => new ManagePluginMarketplacesAction().run(accessor));
+			const result = fixture.instantiationService.invokeFunction(accessor => new AddPluginMarketplaceAction().run(accessor));
 			await shown;
 			quickInput.inputBox.value = 'owner/marketplace';
 			quickInput.acceptEmitter.fire();
@@ -1241,199 +837,9 @@ suite('ManagePluginMarketplacesAction', () => {
 				disposed: quickInput.inputBox.disposed,
 				visible: quickInput.inputBox.visible,
 				message: quickInput.inputBox.validationMessage,
-				picks: quickInput.picks.length,
-			}, { disposed: true, visible: false, message: undefined, picks: 2 });
+			}, { disposed: true, visible: false, message: undefined });
 		});
 	}
-
-	test('returns to the provider marketplace list from the add marketplace input', async () => {
-		const addCalls: string[] = [];
-		const provider: ICustomizationMarketplaceManagementProvider = {
-			onDidChange: Event.None,
-			onDidChangeMarketplaces: Event.None,
-			list: async () => [],
-			add: async (_session, source) => {
-				addCalls.push(source);
-				return { name: 'provider-marketplace', source, isDefault: false, managed: false, available: true };
-			},
-			queryMarketplace: async () => ({ items: [], total: 0 }),
-			remove: async () => ({ removed: true }),
-			refresh: async () => [],
-		};
-		const fixture = createFixture({
-			[ChatConfiguration.PluginMarketplaces]: [],
-			[ChatConfiguration.ExtraMarketplaces]: {},
-		}, false, provider);
-		fixture.quickInputService.pickIds.push('addMarketplace', undefined);
-		fixture.quickInputService.inputBackCount = 1;
-
-		await fixture.instantiationService.invokeFunction(accessor => new ManagePluginMarketplacesAction().run(accessor));
-
-		assert.deepStrictEqual({
-			marketplacePickCount: fixture.quickInputService.pickSnapshots.length,
-			inputs: fixture.quickInputService.inputBoxSnapshots,
-			addCalls,
-		}, {
-			marketplacePickCount: 2,
-			inputs: [{
-				title: 'Add Plugin Marketplace',
-				placeholder: 'owner/repo, Git URL, or local repository URI',
-				prompt: 'Only add marketplaces you trust.',
-				hasBackButton: true,
-			}],
-			addCalls: [],
-		});
-	});
-
-	test('shows plugins from a configured marketplace in Customizations', async () => {
-		const marketplace = parseMarketplaceReference('anthropics/claude-code')!;
-		const otherMarketplace = parseMarketplaceReference('microsoft/vscode-marketplace')!;
-		const fixture = createFixture({
-			[ChatConfiguration.PluginMarketplaces]: [otherMarketplace.rawValue, marketplace.rawValue],
-			[ChatConfiguration.ExtraMarketplaces]: {},
-		});
-		fixture.quickInputService.pickIds.push(marketplace.canonicalId, 'showPlugins');
-
-		await fixture.instantiationService.invokeFunction(accessor => new ManagePluginMarketplacesAction().run(accessor));
-
-		assert.deepStrictEqual({
-			actions: fixture.quickInputService.quickPickSnapshots[0],
-			commands: fixture.commands,
-		}, {
-			actions: [
-				{ id: 'showPlugins', label: 'Browse', type: 'item' },
-				{ id: 'removeMarketplace', label: 'Remove Marketplace', type: 'item' },
-			],
-			commands: [{
-				id: AICustomizationManagementCommands.OpenMarketplace,
-				args: [{
-					section: AICustomizationManagementSection.Plugins,
-					searchQuery: '',
-					sourceId: getPluginCustomizationMarketplaceSourceId(marketplace),
-				}],
-			}],
-		});
-	});
-
-	test('returns to the marketplace list from the marketplace actions', async () => {
-		const marketplace = parseMarketplaceReference('anthropics/claude-code')!;
-		const fixture = createFixture({
-			[ChatConfiguration.PluginMarketplaces]: [marketplace.rawValue],
-			[ChatConfiguration.ExtraMarketplaces]: {},
-		});
-		fixture.quickInputService.pickIds.push(marketplace.canonicalId, 'back', undefined);
-
-		await fixture.instantiationService.invokeFunction(accessor => new ManagePluginMarketplacesAction().run(accessor));
-
-		assert.deepStrictEqual({
-			marketplacePickCount: fixture.quickInputService.pickSnapshots.length,
-			actions: fixture.quickInputService.quickPickSnapshots,
-			hasBackButton: fixture.quickInputService.quickPickHasBackButton,
-			configurationUpdates: fixture.configurationService.updates,
-			commands: fixture.commands,
-		}, {
-			marketplacePickCount: 2,
-			actions: [[
-				{ id: 'showPlugins', label: 'Browse', type: 'item' },
-				{ id: 'removeMarketplace', label: 'Remove Marketplace', type: 'item' },
-			]],
-			hasBackButton: [true],
-			configurationUpdates: [],
-			commands: [],
-		});
-	});
-
-	test('keeps marketplace actions open when accepting without a selection', async () => {
-		const marketplace = parseMarketplaceReference('anthropics/claude-code')!;
-		const fixture = createFixture({
-			[ChatConfiguration.PluginMarketplaces]: [marketplace.rawValue],
-			[ChatConfiguration.ExtraMarketplaces]: {},
-		});
-		fixture.quickInputService.pickIds.push(marketplace.canonicalId, 'removeMarketplace', undefined);
-		fixture.quickInputService.quickPickEmptyAcceptCount = 1;
-
-		await fixture.instantiationService.invokeFunction(accessor => new ManagePluginMarketplacesAction().run(accessor));
-
-		assert.deepStrictEqual({
-			actions: fixture.quickInputService.quickPickSnapshots,
-			configurationUpdates: fixture.configurationService.updates,
-		}, {
-			actions: [[
-				{ id: 'showPlugins', label: 'Browse', type: 'item' },
-				{ id: 'removeMarketplace', label: 'Remove Marketplace', type: 'item' },
-			]],
-			configurationUpdates: [{
-				key: ChatConfiguration.PluginMarketplaces,
-				value: [],
-			}],
-		});
-	});
-	for (const native of [false, true]) {
-		for (const browseAll of [false, true]) {
-			test(`browses ${browseAll ? 'all marketplaces' : 'a selected marketplace'} from ${native ? 'provider' : 'local'} management`, async () => {
-				const marketplace = {
-					name: 'team-marketplace', source: 'owner/repo', isDefault: false, managed: false, available: true,
-				};
-				const provider: ICustomizationMarketplaceManagementProvider = {
-					onDidChange: Event.None,
-					onDidChangeMarketplaces: Event.None,
-					list: async () => [marketplace],
-					add: async () => { throw new Error('Browsing must not add a marketplace'); },
-					queryMarketplace: async () => ({ items: [], total: 0 }),
-					remove: async () => { throw new Error('Browsing must not remove a marketplace'); },
-					refresh: async () => { throw new Error('Browsing must not refresh a marketplace'); },
-				};
-				const reference = parseMarketplaceReference(marketplace.source)!;
-				const fixture = createFixture({
-					[ChatConfiguration.PluginMarketplaces]: [marketplace.source],
-				}, false, native ? provider : undefined);
-				fixture.quickInputService.pickIds.push(...(browseAll
-					? ['browseMarketplaces']
-					: [native ? marketplace.name : reference.canonicalId, native ? 'browsePlugins' : 'showPlugins']));
-
-				await fixture.instantiationService.invokeFunction(accessor => new ManagePluginMarketplacesAction().run(accessor));
-
-				assert.deepStrictEqual({
-					commands: fixture.commands,
-					updates: fixture.configurationService.updates,
-				}, {
-					commands: [{
-						id: AICustomizationManagementCommands.OpenMarketplace,
-						args: [{
-							section: AICustomizationManagementSection.Plugins,
-							searchQuery: '',
-							...(browseAll ? {} : {
-								sourceId: native ? getProviderMarketplaceSourceId(marketplace.name) : getPluginCustomizationMarketplaceSourceId(reference),
-							}),
-						}],
-					}],
-					updates: [],
-				});
-			});
-		}
-	}
-
-	test('hides the default marketplace from management when the public feed replaces it', async () => {
-		const marketplace = parseMarketplaceReference('github/awesome-copilot#marketplace')!;
-		const fixture = createFixture({
-			[ChatConfiguration.PluginMarketplaces]: [marketplace.rawValue],
-			[ChatConfiguration.ExtraMarketplaces]: {},
-			[CustomizationMarketplaceConfiguration.MarketplaceEnabled]: true,
-			[CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: true,
-		}, true);
-		await fixture.instantiationService.invokeFunction(accessor => new ManagePluginMarketplacesAction().run(accessor));
-
-		assert.deepStrictEqual({
-			items: fixture.quickInputService.pickSnapshots[0],
-			configurationUpdates: fixture.configurationService.updates,
-		}, {
-			items: [
-				{ id: 'addMarketplace', label: '$(add) Add Marketplace...', type: 'item' },
-				{ id: 'browseMarketplaces', label: 'Browse All Marketplaces', type: 'item' },
-			],
-			configurationUpdates: [],
-		});
-	});
 
 	test('keeps the hidden default marketplace in add validation', async () => {
 		const marketplace = parseMarketplaceReference('github/awesome-copilot#marketplace')!;
@@ -1443,21 +849,15 @@ suite('ManagePluginMarketplacesAction', () => {
 			[CustomizationMarketplaceConfiguration.MarketplaceEnabled]: true,
 			[CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: true,
 		}, true);
-		fixture.quickInputService.pickIds.push('addMarketplace');
 		fixture.quickInputService.inputValue = marketplace.rawValue;
-		fixture.quickInputService.inputBackAfterAccept = true;
+		fixture.quickInputService.hideAfterAccept = true;
 
-		await fixture.instantiationService.invokeFunction(accessor => new ManagePluginMarketplacesAction().run(accessor));
+		await fixture.instantiationService.invokeFunction(accessor => new AddPluginMarketplaceAction().run(accessor));
 
 		assert.deepStrictEqual({
-			items: fixture.quickInputService.pickSnapshots[0],
 			validation: fixture.quickInputService.inputValidationSnapshots,
 			configurationUpdates: fixture.configurationService.updates,
 		}, {
-			items: [
-				{ id: 'addMarketplace', label: '$(add) Add Marketplace...', type: 'item' },
-				{ id: 'browseMarketplaces', label: 'Browse All Marketplaces', type: 'item' },
-			],
 			validation: [{
 				phase: 'accept',
 				value: marketplace.rawValue,
@@ -1468,182 +868,15 @@ suite('ManagePluginMarketplacesAction', () => {
 		});
 	});
 
-	test('filters provider Awesome Copilot from management when toggling the feed', async () => {
-		const marketplaces = ['awesome-copilot', 'team-plugins'].map(name => ({
-			name, source: `GitHub: github/${name}`, isDefault: name === 'awesome-copilot', managed: false, available: true,
-		}));
-		const provider: ICustomizationMarketplaceManagementProvider = {
-			onDidChange: Event.None,
-			onDidChangeMarketplaces: Event.None,
-			list: async () => marketplaces,
-			add: async () => { throw new Error('Unexpected add'); },
-			queryMarketplace: async () => ({ items: [], total: 0 }),
-			remove: async () => { throw new Error('Unexpected remove'); },
-			refresh: async () => [],
-		};
-		const fixture = createFixture({
-			[CustomizationMarketplaceConfiguration.MarketplaceEnabled]: true,
-		}, true, provider);
-		const actual = [];
-		for (const enabled of [false, true, false]) {
-			await fixture.configurationService.setUserConfiguration(CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled, enabled);
-			await fixture.instantiationService.invokeFunction(accessor => new ManagePluginMarketplacesAction().run(accessor));
-			actual.push(fixture.quickInputService.pickSnapshots.at(-1)!
-				.filter(pick => marketplaces.some(marketplace => marketplace.name === pick.id)).map(pick => pick.id));
-		}
-		assert.deepStrictEqual(actual, [
-			['awesome-copilot', 'team-plugins'],
-			['team-plugins'],
-			['awesome-copilot', 'team-plugins'],
-		]);
-	});
-
-	test('shows plugins from the default marketplace using its configured source under strict policy', async () => {
-		const marketplace = parseMarketplaceReference('github/awesome-copilot#marketplace')!;
-		const fixture = createFixture({
-			[ChatConfiguration.PluginMarketplaces]: [marketplace.rawValue],
-			[ChatConfiguration.ExtraMarketplaces]: {},
-			[CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: true,
-		}, true);
-		fixture.marketplacePolicy.allowlist = [{ source: 'github', repo: 'github/awesome-copilot', ref: 'marketplace' }];
-		fixture.quickInputService.pickIds.push(marketplace.canonicalId, 'showPlugins');
-
-		await fixture.instantiationService.invokeFunction(accessor => new ManagePluginMarketplacesAction().run(accessor));
-
-		assert.deepStrictEqual(fixture.commands, [{
-			id: AICustomizationManagementCommands.OpenMarketplace,
-			args: [{
-				section: AICustomizationManagementSection.Plugins,
-				searchQuery: '',
-				sourceId: getPluginCustomizationMarketplaceSourceId(marketplace),
-			}],
-		}]);
-	});
-
-	test('shows plugins from the default marketplace using its configured source without a public feed', async () => {
-		const marketplace = parseMarketplaceReference('github/awesome-copilot#marketplace')!;
-		const fixture = createFixture({
-			[ChatConfiguration.PluginMarketplaces]: [marketplace.rawValue],
-			[ChatConfiguration.ExtraMarketplaces]: {},
-			[CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: true,
-		});
-		fixture.quickInputService.pickIds.push(marketplace.canonicalId, 'showPlugins');
-
-		await fixture.instantiationService.invokeFunction(accessor => new ManagePluginMarketplacesAction().run(accessor));
-
-		assert.deepStrictEqual(fixture.commands, [{
-			id: AICustomizationManagementCommands.OpenMarketplace,
-			args: [{
-				section: AICustomizationManagementSection.Plugins,
-				searchQuery: '',
-				sourceId: getPluginCustomizationMarketplaceSourceId(marketplace),
-			}],
-		}]);
-	});
-
-	test('disables marketplaces outside strict policy and labels organization-managed marketplaces', async () => {
-		const defaultMarketplace = parseMarketplaceReference('github/awesome-copilot#marketplace')!;
-		const managedMarketplace = parseMarketplaceReference('microsoft/vscode-team-kit')!;
-		const fixture = createFixture({
-			[ChatConfiguration.PluginMarketplaces]: [defaultMarketplace.rawValue],
-			[ChatConfiguration.ExtraMarketplaces]: {
-				'vscode-team-kit': managedMarketplace.rawValue,
-			},
-		});
-		fixture.marketplacePolicy.allowlist = [{ source: 'github', repo: managedMarketplace.rawValue }];
-
-		await fixture.instantiationService.invokeFunction(accessor => new ManagePluginMarketplacesAction().run(accessor));
-
-		assert.deepStrictEqual(
-			fixture.quickInputService.picks[0]
-				.filter((pick): pick is IQuickPickItem => pick.type !== 'separator' && pick.id !== 'addMarketplace' && pick.id !== 'browseMarketplaces')
-				.map(pick => ({
-					id: pick.id,
-					label: pick.label,
-					description: pick.description,
-					disabled: pick.disabled,
-					pickable: pick.pickable,
-				})),
-			[
-				{
-					id: defaultMarketplace.canonicalId,
-					label: defaultMarketplace.displayLabel,
-					description: 'Disabled by Organization',
-					disabled: true,
-					pickable: false,
-				},
-				{
-					id: managedMarketplace.canonicalId,
-					label: 'vscode-team-kit',
-					description: 'Managed by Organization',
-					disabled: false,
-					pickable: true,
-				},
-			],
-		);
-	});
-
-	test('disables organization-managed marketplaces outside strict policy', async () => {
-		const managedMarketplace = parseMarketplaceReference('microsoft/vscode-team-kit')!;
-		const fixture = createFixture({
-			[ChatConfiguration.PluginMarketplaces]: [],
-			[ChatConfiguration.ExtraMarketplaces]: {
-				'vscode-team-kit': managedMarketplace.rawValue,
-			},
-		});
-		fixture.marketplacePolicy.allowlist = [{ source: 'github', repo: 'approved/catalog' }];
-
-		await fixture.instantiationService.invokeFunction(accessor => new ManagePluginMarketplacesAction().run(accessor));
-
-		assert.deepStrictEqual(
-			fixture.quickInputService.picks[0]
-				.filter((pick): pick is IQuickPickItem => pick.type !== 'separator' && pick.id !== 'addMarketplace' && pick.id !== 'browseMarketplaces')
-				.map(pick => ({
-					id: pick.id,
-					label: pick.label,
-					description: pick.description,
-					disabled: pick.disabled,
-					pickable: pick.pickable,
-				})),
-			[{
-				id: managedMarketplace.canonicalId,
-				label: 'vscode-team-kit',
-				description: 'Managed by Organization, Disabled by Organization',
-				disabled: true,
-				pickable: false,
-			}],
-		);
-	});
-
-	for (const managedLockdown of [false, true]) {
-		test(`stale user lockdown does not label a marketplace as organization-disabled (managed lockdown: ${managedLockdown})`, async () => {
-			const fixture = createFixture({
-				[ChatConfiguration.PluginMarketplaces]: [],
-				[ChatConfiguration.ExtraMarketplaces]: { enterprise: 'enterprise/catalog' },
-				'chat.plugins.strictMarketplaces': [],
-			});
-			fixture.marketplacePolicy.allowlist = managedLockdown ? [] : undefined;
-			await fixture.instantiationService.invokeFunction(accessor => new ManagePluginMarketplacesAction().run(accessor));
-			assert.deepStrictEqual(fixture.quickInputService.picks[0]
-				.filter((pick): pick is IQuickPickItem => pick.type !== 'separator' && pick.id !== 'addMarketplace' && pick.id !== 'browseMarketplaces')
-				.map(pick => ({ description: pick.description, disabled: pick.disabled, pickable: pick.pickable })), [{
-					description: managedLockdown ? 'Managed by Organization, Disabled by Organization' : 'Managed by Organization',
-					disabled: managedLockdown,
-					pickable: !managedLockdown,
-				}]);
-		});
-	}
-
 	test('stores local marketplaces outside strict policy without treating them as runtime managed', async () => {
 		const fixture = createFixture({
 			[ChatConfiguration.PluginMarketplaces]: [],
 			[ChatConfiguration.ExtraMarketplaces]: {},
 		});
 		fixture.marketplacePolicy.allowlist = [{ source: 'github', repo: 'approved/catalog' }];
-		fixture.quickInputService.pickIds.push('addMarketplace');
 		fixture.quickInputService.inputValue = 'blocked/catalog';
 
-		await fixture.instantiationService.invokeFunction(accessor => new ManagePluginMarketplacesAction().run(accessor));
+		await fixture.instantiationService.invokeFunction(accessor => new AddPluginMarketplaceAction().run(accessor));
 
 		assert.deepStrictEqual({
 			updates: fixture.configurationService.updates,

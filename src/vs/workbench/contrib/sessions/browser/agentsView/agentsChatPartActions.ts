@@ -63,7 +63,7 @@ export function registerAgentsChatPartActions(): IDisposable {
 		}
 		async run(accessor: ServicesAccessor): Promise<void> {
 			const chatPart = accessor.get(IAgentsChatPartService);
-			await chatPart.openComposer(getEditorWindowComposerTarget(accessor.get(IWorkspaceContextService), accessor.get(IEditorService)));
+			await chatPart.openComposer(getEditorWindowComposerTarget(accessor.get(IWorkspaceContextService), accessor.get(IEditorService)), { useRememberedPicks: true });
 		}
 	}));
 
@@ -195,7 +195,7 @@ export function registerAgentsChatPartActions(): IDisposable {
 			if (layoutService.isVisible(Parts.CHAT_PART)) {
 				layoutService.setPartHidden(true, Parts.CHAT_PART);
 			} else {
-				await chatPart.show(getEditorWindowComposerTarget(accessor.get(IWorkspaceContextService), accessor.get(IEditorService)));
+				await chatPart.show(getEditorWindowComposerTarget(accessor.get(IWorkspaceContextService), accessor.get(IEditorService)), { useRememberedPicks: true });
 			}
 		}
 	}));

@@ -96,7 +96,7 @@ export class WSLAgentHostContribution extends ManagedReconnectAgentHostContribut
 		}
 		const running = new Set(await this._wslService.listRunningDistros().catch(() => []));
 		for (const entry of entries) {
-			if (entry.connection.type !== RemoteAgentHostEntryType.WSL || !running.has(entry.connection.distro)) {
+			if (entry.connection.type !== RemoteAgentHostEntryType.WSL || !running.has(entry.connection.distro) || this._wslService.isDisconnected(entry.connection.distro)) {
 				continue;
 			}
 			const address = getEntryAddress(entry);
@@ -122,6 +122,17 @@ export class WSLAgentHostContribution extends ManagedReconnectAgentHostContribut
 		}));
 	}
 
+	protected override _reconcile(): void {
+		super._reconcile();
+		for (const [address, provider] of this._providerInstances) {
+			// Without a connection nothing reports its status. Like other disconnected remotes, it lists no sessions until connected again.
+			if (address.startsWith(WSL_ADDRESS_PREFIX) && this._wslService.isDisconnected(address.slice(WSL_ADDRESS_PREFIX.length)) && !this._remoteAgentHostService.connections.some(connection => connection.address === address)) {
+				provider.setConnectionStatus(RemoteAgentHostConnectionStatus.disconnected);
+				provider.unpublishCachedSessions();
+			}
+		}
+	}
+
 	protected override _getProviderOptions(entry: IRemoteAgentHostEntry) {
 		if (entry.connection.type !== RemoteAgentHostEntryType.WSL) {
 			return {};
@@ -130,6 +141,7 @@ export class WSLAgentHostContribution extends ManagedReconnectAgentHostContribut
 		return {
 			connectOnDemand: () => this._connectWSLOnDemand(distro, entry.name, address),
 			disconnectOnDemand: () => this._disconnectWSLOnDemand(distro, address),
+			removeOnDemand: () => this._removeWSLOnDemand(distro, address),
 			onDidReportConnectProgress: this._wslService.onDidReportConnectProgress,
 			autoConnect: this._autoConnect,
 		};
@@ -168,9 +180,16 @@ export class WSLAgentHostContribution extends ManagedReconnectAgentHostContribut
 
 	private async _disconnectWSLOnDemand(distro: string, address: string): Promise<void> {
 		this._reconnectStates.deleteAndDispose(distro);
-		// Drop the cached distro before tearing the connection down: the cached
-		// entry is what makes this address desired, so removing the connection
-		// first would let reconciliation re-dial it right back.
+		// Mark the distro disconnected before tearing the connection down: that
+		// removes it from the connectable entries, so reconciliation cannot re-dial
+		// it, while the cached distro keeps its provider to connect again from.
+		await this._wslService.disconnect(distro, { keepEntry: true });
+		await this._remoteAgentHostService.removeRemoteAgentHost(address);
+		this._reconcile();
+	}
+
+	private async _removeWSLOnDemand(distro: string, address: string): Promise<void> {
+		this._reconnectStates.deleteAndDispose(distro);
 		await this._wslService.disconnect(distro);
 		await this._remoteAgentHostService.removeRemoteAgentHost(address);
 		this._reconcile();

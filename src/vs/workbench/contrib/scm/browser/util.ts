@@ -87,8 +87,10 @@ const compareActions = (a: IAction, b: IAction) => {
 };
 
 export function connectPrimaryMenu(menu: IMenu, callback: (primary: IAction[], secondary: IAction[]) => void, primaryGroup?: string, arg?: unknown): IDisposable {
-	let cachedPrimary: IAction[] = [];
-	let cachedSecondary: IAction[] = [];
+	// Start without a cache so that the first update always reaches the callback, even
+	// when the menu has no actions: a recycled template must clear its previous actions
+	let cachedPrimary: IAction[] | undefined;
+	let cachedSecondary: IAction[] | undefined;
 
 	const updateActions = () => {
 		const { primary, secondary } = getActionBarActions(menu.getActions({ arg, shouldForwardArgs: true }), primaryGroup);

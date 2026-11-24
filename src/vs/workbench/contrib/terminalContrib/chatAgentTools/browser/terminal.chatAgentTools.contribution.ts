@@ -5,11 +5,23 @@
 
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
-import { localize } from '../../../../../nls.js';
-import { MenuId } from '../../../../../platform/actions/common/actions.js';
+import { localize, localize2 } from '../../../../../nls.js';
+import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
-import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
+import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
+import { Registry } from '../../../../../platform/registry/common/platform.js';
+import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../../browser/editor.js';
+import { EditorExtensions } from '../../../../common/editor.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { SandboxProfilesEditor } from './sandboxProfilesEditor.js';
+import { SandboxProfilesInput } from './sandboxProfilesInput.js';
+import { getActiveElement, isHTMLElement } from '../../../../../base/browser/dom.js';
+import { AccessibleContentProvider, AccessibleViewProviderId, AccessibleViewType } from '../../../../../platform/accessibility/browser/accessibleView.js';
+import { AccessibleViewRegistry } from '../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
+import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
+import { ActiveEditorContext } from '../../../../common/contextkeys.js';
 import { AgentSandboxSettingId } from '../../../../../platform/sandbox/common/settings.js';
 import { TerminalSettingId } from '../../../../../platform/terminal/common/terminal.js';
 import { registerWorkbenchContribution2, WorkbenchPhase, type IWorkbenchContribution } from '../../../../common/contributions.js';
@@ -48,6 +60,36 @@ import { isNumber } from '../../../../../base/common/types.js';
 registerSingleton(ITerminalSandboxService, TerminalSandboxService, InstantiationType.Delayed);
 
 // #endregion Services
+
+Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
+	EditorPaneDescriptor.create(SandboxProfilesEditor, SandboxProfilesEditor.ID, localize('sandboxProfiles', "Sandbox Profiles")),
+	[new SyncDescriptor(SandboxProfilesInput)],
+);
+AccessibleViewRegistry.register({
+	name: 'sandboxProfiles',
+	type: AccessibleViewType.Help,
+	priority: 100,
+	when: ActiveEditorContext.isEqualTo(SandboxProfilesEditor.ID),
+	getProvider() {
+		const focused = getActiveElement();
+		if (!isHTMLElement(focused) || !focused.closest('.sandbox-profiles-editor')) {
+			return undefined;
+		}
+		return new AccessibleContentProvider(AccessibleViewProviderId.SandboxProfiles, { type: AccessibleViewType.Help },
+			() => localize('sandboxProfilesHelp', "Sandbox Profiles lists the profiles saved on this machine on the left and the selected profile's settings on the right. Use New Profile to create and save a profile from your current VS Code sandbox settings, then rename it in the Name field. Use the arrow keys to move between profiles; each profile has a Delete Profile action. Use Tab to move between settings. Changes to a profile are saved automatically on this machine and update the connected remote hosts the profile is assigned to; changes that aren't valid, such as a duplicate name or invalid JSON, are not saved. Assign profiles to remote hosts in the Sandbox Profile column of Remote Environments. A profile cannot be deleted while a remote environment is assigned to it, including a disconnected environment's last-known assignment; assign those environments another profile or Default first."),
+			() => focused.focus(), AccessibilityVerbositySettingId.SandboxProfiles);
+	}
+});
+registerAction2(class extends Action2 {
+	constructor() {
+		super({ id: 'workbench.action.manageSandboxProfiles', title: localize2('manageSandboxProfiles', "Manage Sandbox Profiles"), category: localize2('sandboxCategory', "Sandbox"), f1: true, precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals(`config.${AgentSandboxSettingId.AgentSandboxProfilesEnabled}`, true)) });
+	}
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const editors = accessor.get(IEditorService);
+		const input = editors.editors.find(editor => editor instanceof SandboxProfilesInput) ?? accessor.get(IInstantiationService).createInstance(SandboxProfilesInput);
+		await editors.openEditor(input, { pinned: true, revealIfOpened: true });
+	}
+});
 
 class ShellIntegrationTimeoutMigrationContribution extends Disposable implements IWorkbenchContribution {
 	static readonly ID = 'terminal.shellIntegrationTimeoutMigration';

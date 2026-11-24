@@ -426,22 +426,30 @@ suite('WorkspaceFolderRepositories', () => {
 		assert.deepStrictEqual(ws.state, { shown: [wt1], warm: [] });
 	});
 
-	test('every order in which up to three switches of a folder begin, open, get their first status and learn their locations shows the repository of the location the folder is at', async () => {
-		type Event = { kind: 'begin' | 'register' | 'ready' | 'locations'; index: number };
-		const targets = [wt1, wt2, nested, primary];
-		const sequences: string[][] = [];
-		for (const a of targets.filter(t => t !== primary)) {
-			for (const b of targets.filter(t => t !== a)) {
-				sequences.push([a, b]);
-				for (const c of targets.filter(t => t !== b)) {
-					sequences.push([a, b, c]);
-				}
-			}
+	// About 320,000 replays in all, so one test per first two switches keeps each well inside the test timeout on slower agents.
+	type OrderEvent = { kind: 'begin' | 'register' | 'ready' | 'locations'; index: number };
+	const ordersCache = new Map<string, OrderEvent[][]>();
+	const orderTargets = [wt1, wt2, nested, primary];
+	for (const a of orderTargets.filter(t => t !== primary)) {
+		for (const b of orderTargets.filter(t => t !== a)) {
+			test(`every order in which up to three switches of a folder, starting with ${path.basename(a)} then ${path.basename(b)}, begin, open, get their first status and learn their locations shows the repository of the location the folder is at`, async () => {
+				const sequences: string[][] = [[a, b], ...orderTargets.filter(t => t !== b).map(c => [a, b, c])];
+				await checkEveryOrder(sequences);
+			});
 		}
+	}
+
+	async function checkEveryOrder(sequences: string[][]): Promise<void> {
+		type Event = OrderEvent;
 
 		// Each switch begins after the previous one and its locations are learnt after it begins, before the next switch
 		// begins if at all, or at any time for the last one. A switch opens after it begins and is ready after it opens.
 		const orders = (count: number, known: boolean[]): Event[][] => {
+			const key = `${count}:${known.map(Number).join('')}`;
+			const cached = ordersCache.get(key);
+			if (cached) {
+				return cached;
+			}
 			const all: Event[] = [];
 			for (let index = 0; index < count; index++) {
 				all.push({ kind: 'begin', index }, { kind: 'register', index }, { kind: 'ready', index });
@@ -467,6 +475,7 @@ suite('WorkspaceFolderRepositories', () => {
 				all.filter(e => !done.includes(e) && canRun(e, done)).forEach(e => visit([...done, e]));
 			};
 			visit([]);
+			ordersCache.set(key, result);
 			return result;
 		};
 
@@ -517,5 +526,5 @@ suite('WorkspaceFolderRepositories', () => {
 		}
 
 		assert.deepStrictEqual({ runs: runs > 1000, violations: violations.slice(0, 10), count: violations.length }, { runs: true, violations: [], count: 0 });
-	});
+	}
 });

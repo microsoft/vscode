@@ -248,6 +248,19 @@ abstract class AbstractChatAttachmentWidget extends Disposable {
 	}
 }
 
+/**
+ * Sets the label of a pill. The number of a GitHub issue or pull request is the suffix of the
+ * label, which the pill keeps when it shortens the rest of the label to fit.
+ */
+function setAttachmentLabel(label: IResourceLabel, attachment: IChatRequestVariableEntry, name: string, description?: string): void {
+	const reference = attachment.id.startsWith(GITHUB_CONTEXT_ATTACHMENT_ID_PREFIX) ? /^(?<name>.*\S)(?<number>\s*#\d+)$/.exec(name)?.groups : undefined;
+	if (reference) {
+		label.setLabel(reference.name, description, { suffix: reference.number, extraClasses: ['github-reference'] });
+	} else {
+		label.setLabel(name, description);
+	}
+}
+
 function modelSupportsVision(currentLanguageModel: ILanguageModelChatMetadataAndIdentifier | undefined) {
 	return isAutoLanguageModel(currentLanguageModel) || (currentLanguageModel?.metadata.capabilities?.vision ?? false);
 }
@@ -529,10 +542,8 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 		super(attachment, options, container, contextResourceLabels, currentLanguageModel, commandService, openerService, configurationService);
 		this.element.classList.add('image-attachment');
 
-		const isAutoModel = isAutoLanguageModel(currentLanguageModel);
 		const modelName = currentLanguageModel?.metadata.name;
 		const omittedState = getEffectiveImageOmittedState(attachment.omittedState, currentLanguageModel, options.isCurrentInput);
-		this.element.classList.toggle('auto-image-warning', isAutoModel);
 		const ref = attachment.references?.[0]?.reference;
 		resource = ref && URI.isUri(ref) ? ref : undefined;
 		const imageData = coerceImageBuffer(attachment.value);
@@ -549,12 +560,6 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 			ariaLabel = localize('chat.partiallyOmittedImageAttachment', "Partially omitted this image: {0}", attachment.name);
 		} else if (omittedState === OmittedState.ImageLimitExceeded) {
 			ariaLabel = localize('chat.imageLimitExceededAttachment', "Image not sent due to limit: {0}", attachment.name);
-		} else if (isAutoModel) {
-			ariaLabel = clickOffersMarkUp
-				? localize('chat.autoMarkUpImageAttachment', "Attached image, {0}. Press Enter to preview or mark it up. Image support depends on the model selected by Copilot Fusion.", attachment.name)
-				: clickMarksUp
-					? localize('chat.autoMarkUpOnlyImageAttachment', "Attached image, {0}. Press Enter to mark it up. Image support depends on the model selected by Copilot Fusion.", attachment.name)
-					: localize('chat.autoImageAttachment', "Attached image, {0}. Image support depends on the model selected by Copilot Fusion.", attachment.name);
 		} else {
 			ariaLabel = clickOffersMarkUp
 				? localize('chat.markUpImageAttachment', "Attached image, {0}. Press Enter to preview or mark it up.", attachment.name)
@@ -910,11 +915,8 @@ function createImageElements(resource: URI | undefined, name: string, fullName: 
 		disposable.add(hoverService.setupDelayedHover(element, {
 			content: hoverElement,
 			style: HoverStyle.Pointer,
+			additionalClasses: ['chat-image-attachment-hover'],
 		}));
-
-		if (isAutoLanguageModel(currentLanguageModel)) {
-			hoverElement.appendChild(dom.$('div', undefined, localize('chat.autoImageAttachmentHover', "Image support depends on the model selected by Copilot Fusion.")));
-		}
 	}
 
 	// Remove old DOM so the widget can safely re-render after hydrated bytes load.
@@ -994,7 +996,7 @@ export class PasteAttachmentWidget extends AbstractChatAttachmentWidget {
 				icon.style.color = asCssVariable(attachment.icon.color.id);
 			}
 			this.element.insertBefore(icon, this.label.element);
-			this.label.setLabel(attachment.name);
+			setAttachmentLabel(this.label, attachment, attachment.name);
 		} else {
 			this.label.setLabel(attachment.fileName, undefined, { extraClasses: classNames });
 		}
@@ -1178,7 +1180,7 @@ export class DefaultChatAttachmentWidget extends AbstractChatAttachmentWidget {
 			this.label.setLabel(attachmentLabel, description, { iconPath: resolvedIcon });
 		} else {
 			const withIcon = attachment.icon?.id ? `$(${attachment.icon.id})\u00A0${attachmentLabel}` : attachmentLabel;
-			this.label.setLabel(withIcon, description);
+			setAttachmentLabel(this.label, attachment, withIcon, description);
 		}
 	}
 

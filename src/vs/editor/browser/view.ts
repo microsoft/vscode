@@ -302,7 +302,7 @@ export class View extends ViewEventHandler {
 		this._applyLayout();
 
 		// Pointer handler
-		this._pointerHandler = this._register(new PointerHandler(this._context, this._viewController, this._createPointerHandlerHelper()));
+		this._pointerHandler = this._register(new PointerHandler(this._context, this._viewController, this._createPointerHandlerHelper(margin.getDomNode().domNode)));
 	}
 
 	private _instantiateEditContext(): AbstractEditContext {
@@ -377,9 +377,10 @@ export class View extends ViewEventHandler {
 		return laneModel;
 	}
 
-	private _createPointerHandlerHelper(): IPointerHandlerHelper {
+	private _createPointerHandlerHelper(marginDomNode: HTMLElement): IPointerHandlerHelper {
 		return {
 			viewDomNode: this.domNode.domNode,
+			marginDomNode,
 			linesContentDomNode: this._linesContent.domNode,
 			viewLinesDomNode: this._viewLines.getDomNode().domNode,
 			viewLinesGpu: this._viewLinesGpu,
