@@ -7,25 +7,26 @@ import { Dimension, h } from '../../../../base/browser/dom.js';
 import { arrayEqualsC } from '../../../../base/common/equals.js';
 import { BugIndicatingError } from '../../../../base/common/errors.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
-import { IObservable, IReader, ITransaction, autorun, autorunWithStore, constObservable, derived, derivedOpts, mapObservableArrayCached, observableValue, transaction } from '../../../../base/common/observable.js';
+import { IObservable, IReader, ISettableObservable, ITransaction, autorun, autorunWithStore, constObservable, derived, derivedOpts, mapObservableArrayCached, observableValue, runOnChange, transaction } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyValue, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
+import { bindContextKey, observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { OffsetRange } from '../../../common/core/ranges/offsetRange.js';
 import { IDiffEditorOptions } from '../../../common/config/editorOptions.js';
 import { IRange } from '../../../common/core/range.js';
 import { ISelection, Selection } from '../../../common/core/selection.js';
 import { IDiffEditor } from '../../../common/editorCommon.js';
-import { IMultiDiffResourceId } from '../../../common/multiDiffEditor.js';
+import { IMultiDiffResourceId, MULTI_DIFF_EDITOR_SYNC_SPLIT_VIEW_SETTING } from '../../../common/multiDiffEditor.js';
 import { EditorContextKeys } from '../../../common/editorContextKeys.js';
 import { ICodeEditor } from '../../editorBrowser.js';
 import { CompressedVirtualizedScrollView, ICompressedVirtualizedScrollItem, ICompressedVirtualizedScrollItemContext } from './compressedVirtualizedScrollView.js';
 import { ICompressedVirtualizedScrollLayout } from './compressedVirtualizedScrollLayout.js';
-import { binaryFilePlaceholderContentHeight, DiffEditorItemBinding, DiffEditorItemTemplate } from './diffEditorItemTemplate.js';
+import { binaryFilePlaceholderContentHeight, DiffEditorItemBinding, DiffEditorItemTemplate, ISplitViewRatioSync } from './diffEditorItemTemplate.js';
 import { IDocumentDiffItem } from './model.js';
 import { formatDiffItemKey, formatUri, ILoggedDiffItem, MultiDiffEditorLogger } from './multiDiffEditorLogging.js';
 import { IMultiDiffEditorVariantConfiguration } from './multiDiffEditorOptions.js';
@@ -79,15 +80,21 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 		private readonly _diffLayoutOptions: IObservable<IDiffEditorOptions | undefined>,
 		private readonly _diffEditorOptions: IDiffEditorOptions | undefined,
 		private readonly _paddingBottomPx: IObservable<number>,
+		splitViewRatio: ISettableObservable<number | undefined>,
 		@IContextKeyService private readonly _parentContextKeyService: IContextKeyService,
 		@IInstantiationService private readonly _parentInstantiationService: IInstantiationService,
 		@ILogService logService: ILogService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super();
 		this._logger = this._register(new MultiDiffEditorLogger(logService));
 		this._optionsOverride = derived(this, reader => {
 			return { ...this._diffEditorOptions, ...this._diffLayoutOptions.read(reader) };
 		});
+		const splitViewRatioSync: ISplitViewRatioSync = {
+			enabled: observableConfigValue(MULTI_DIFF_EDITOR_SYNC_SPLIT_VIEW_SETTING, false, configurationService),
+			ratio: splitViewRatio,
+		};
 		this._spaceBetweenPx = observableValue(this, 0);
 		const paddingBottomItem = this._paddingBottomPx.map<ICompressedVirtualizedScrollItem>(this, size => ({
 			size: constObservable(size),
@@ -129,6 +136,7 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 						this._workbenchUIElementFactory,
 						this._variantConfiguration,
 						this._optionsOverride,
+						splitViewRatioSync,
 					),
 					onDidBind: binding => {
 						const selections = binding.item.lastTemplateData.get().selections;
@@ -267,6 +275,22 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 			if (renderSideBySide !== undefined) {
 				ctxRenderSideBySide.set(renderSideBySide);
 			}
+		}));
+
+		// Files keep the shared split when syncing is turned off, including files that are not rendered.
+		this._register(runOnChange(splitViewRatioSync.enabled, (isSynced, wasSynced) => {
+			if (!wasSynced || isSynced) {
+				return;
+			}
+			const ratio = splitViewRatioSync.ratio.get();
+			transaction(tx => {
+				for (const item of this._viewModel.get()?.items.get() ?? []) {
+					const data = item.lastTemplateData.get();
+					if (data.splitViewRatio !== ratio) {
+						item.lastTemplateData.set({ ...data, splitViewRatio: ratio }, tx);
+					}
+				}
+			});
 		}));
 
 		this._logger.logStateChanges({

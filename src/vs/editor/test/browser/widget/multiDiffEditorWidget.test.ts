@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import sinon from 'sinon';
-import { Dimension } from '../../../../base/browser/dom.js';
+import { Dimension, getWindow } from '../../../../base/browser/dom.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { Emitter, Event, ValueWithChangeEvent } from '../../../../base/common/event.js';
 import { toDisposable } from '../../../../base/common/lifecycle.js';
@@ -18,6 +18,8 @@ import { AccessibilitySupport } from '../../../../platform/accessibility/common/
 import { IAccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { IActionViewItemService, NullActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
 import { IMenu, IMenuService } from '../../../../platform/actions/common/actions.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { emptyProgressRunner, IEditorProgressService } from '../../../../platform/progress/common/progress.js';
 import { InMemoryStorageService, IStorageService } from '../../../../platform/storage/common/storage.js';
@@ -32,6 +34,7 @@ import { IWorkbenchUIElementFactory } from '../../../browser/widget/multiDiffEdi
 import { EditorOption } from '../../../common/config/editorOptions.js';
 import { IDocumentDiff, IDocumentDiffProvider } from '../../../common/diff/documentDiffProvider.js';
 import { EditorContextKeys } from '../../../common/editorContextKeys.js';
+import { MULTI_DIFF_EDITOR_SYNC_SPLIT_VIEW_SETTING } from '../../../common/multiDiffEditor.js';
 import { instantiateTextModel } from '../../common/testTextModel.js';
 import { TestDiffProviderFactoryService } from '../diff/testDiffProviderFactoryService.js';
 import { createCodeEditorServices } from '../testCodeEditor.js';
@@ -823,6 +826,114 @@ suite('MultiDiffEditorWidget', () => {
 				recycledTemplate: true,
 				lastItemRatio: undefined,
 				restoredFirstItemRatio: 0.3,
+			});
+		} finally {
+			widget.setViewModel(undefined);
+			viewModel.dispose();
+			widget.dispose();
+			for (const documentItem of documentItems) {
+				documentItem.dispose();
+			}
+		}
+	}));
+
+	test('resizes the split of all files together while it is synced', () => runWithFakedTimers({}, async () => {
+		const configurationService = new TestConfigurationService({ [MULTI_DIFF_EDITOR_SYNC_SPLIT_VIEW_SETTING]: false });
+		const setSynced = (synced: boolean) => {
+			configurationService.setUserConfiguration(MULTI_DIFF_EDITOR_SYNC_SPLIT_VIEW_SETTING, synced);
+			configurationService.onDidChangeConfigurationEmitter.fire({
+				source: ConfigurationTarget.USER,
+				affectedKeys: new Set([MULTI_DIFF_EDITOR_SYNC_SPLIT_VIEW_SETTING]),
+				change: { keys: [MULTI_DIFF_EDITOR_SYNC_SPLIT_VIEW_SETTING], overrides: [] },
+				affectsConfiguration: key => key === MULTI_DIFF_EDITOR_SYNC_SPLIT_VIEW_SETTING,
+			});
+		};
+		const services = new ServiceCollection();
+		services.set(IConfigurationService, configurationService);
+		services.set(IAccessibilitySignalService, new class extends mock<IAccessibilitySignalService>() { }());
+		services.set(IActionViewItemService, new NullActionViewItemService());
+		services.set(IEditorProgressService, new class extends mock<IEditorProgressService>() {
+			override show() { return emptyProgressRunner; }
+		}());
+		services.set(IDiffProviderFactoryService, new PendingDiffProviderFactoryService());
+		services.set(IStorageService, disposables.add(new InMemoryStorageService()));
+		services.set(IMenuService, new class extends mock<IMenuService>() {
+			override createMenu(): IMenu {
+				return new class extends mock<IMenu>() {
+					override readonly onDidChange = Event.None;
+					override getActions() { return []; }
+					override dispose(): void { }
+				}();
+			}
+		}());
+		const instantiationService = createCodeEditorServices(disposables, services);
+		const documentItems: RefCounted<IDocumentDiffItem>[] = [];
+		const resources: { original: URI; modified: URI }[] = [];
+		for (let index = 0; index < 4; index++) {
+			const originalUri = URI.parse(`inmemory://original/test-${index}.js`);
+			const modifiedUri = URI.parse(`inmemory://modified/test-${index}.js`);
+			const original = disposables.add(instantiateTextModel(instantiationService, '', undefined, undefined, originalUri));
+			const modified = disposables.add(instantiateTextModel(instantiationService, 'const value = 1;', undefined, undefined, modifiedUri));
+			documentItems.push(RefCounted.createOfNonDisposable<IDocumentDiffItem>({
+				original: new DiffItemSource(originalUri, original),
+				modified: new DiffItemSource(modifiedUri, modified),
+				options: { accessibilitySupport: 'off' },
+			}, { dispose() { } }));
+			resources.push({ original: originalUri, modified: modifiedUri });
+		}
+		const container = document.createElement('div');
+		const widget = instantiationService.createInstance(
+			MultiDiffEditorWidget,
+			container,
+			{} satisfies IWorkbenchUIElementFactory,
+			{ variant: 'noCardsNonCompact' },
+		);
+		// Two of the four 500px high files fit into the viewport.
+		widget.layout(new Dimension(1200, 800));
+		const viewModel = widget.createViewModel({ documents: ValueWithChangeEvent.const(documentItems) });
+		await waitForState(viewModel.items, items => items.length === documentItems.length);
+		widget.setViewModel(viewModel);
+		const ratios = () => resources.map(resource => {
+			const editor = widget.tryGetCodeEditor(resource.modified)?.diffEditor;
+			if (!(editor instanceof DiffEditorWidget)) {
+				return 'not rendered';
+			}
+			const ratio = editor.getSplitViewRatio();
+			return ratio === undefined ? 'default' : Math.round(ratio * 100) / 100;
+		});
+		const dragSash = (index: number, deltaX: number) => {
+			const editor = widget.tryGetCodeEditor(resources[index].modified)?.diffEditor;
+			assert.ok(editor instanceof DiffEditorWidget);
+			const sash = editor.getContainerDomNode().querySelector('.monaco-sash.vertical')!;
+			const targetWindow = getWindow(sash);
+			sash.dispatchEvent(new MouseEvent('mousedown', { clientX: 600 }));
+			targetWindow.dispatchEvent(new MouseEvent('mousemove', { clientX: 600 + deltaX }));
+			targetWindow.dispatchEvent(new MouseEvent('mouseup', { clientX: 600 + deltaX }));
+		};
+
+		try {
+			widget.reveal(resources[0], { highlight: false });
+			dragSash(0, -240);
+			const notSynced = ratios();
+			setSynced(true);
+			const syncedToLastResize = ratios();
+			dragSash(1, 120);
+			const resizedTogether = ratios();
+			widget.reveal(resources[3], { highlight: false });
+			const revealedWhileSynced = ratios();
+			setSynced(false);
+			dragSash(3, -120);
+			const resizedAlone = ratios();
+			widget.reveal(resources[0], { highlight: false });
+			const revealedAfterSyncing = ratios();
+
+			assert.deepStrictEqual({ notSynced, syncedToLastResize, resizedTogether, revealedWhileSynced, resizedAlone, revealedAfterSyncing }, {
+				notSynced: [0.3, 'default', 'not rendered', 'not rendered'],
+				syncedToLastResize: [0.3, 0.3, 'not rendered', 'not rendered'],
+				resizedTogether: [0.4, 0.4, 'not rendered', 'not rendered'],
+				revealedWhileSynced: ['not rendered', 'not rendered', 0.4, 0.4],
+				resizedAlone: ['not rendered', 'not rendered', 0.4, 0.3],
+				revealedAfterSyncing: [0.4, 0.4, 'not rendered', 'not rendered'],
 			});
 		} finally {
 			widget.setViewModel(undefined);
