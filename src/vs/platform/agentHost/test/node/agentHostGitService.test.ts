@@ -9,7 +9,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { AgentHostGitService, canRestageOntoIndexCopy, formatGitError, GitCheckoutProgressParser, isRetryableWorktreeRemovalError, parseChangedPaths, parseDefaultBranchRef, parseDefaultRemoteBranchRef, parseFetchRemoteUrls, parseGitDiffRawNumstat, parseGitHubRepoFromRemote, parseGitStatusV2, parseGitWorktrees, parseHasGitHubRemote, parseSingleLsTreeEntry, parseUntrackedPaths, selectDefaultPushRemote, summarizeStderrForError } from '../../node/agentHostGitService.js';
 import { buildGitBlobUri } from '../../node/gitDiffContent.js';
 import { URI } from '../../../../base/common/uri.js';
-import { Branch, EMPTY_TREE_OBJECT, getBranchCompletions, GitRefType, IRefQuery, toBaseBranchName } from '../../common/agentHostGitService.js';
+import { Branch, EMPTY_TREE_OBJECT, getBaseBranchLabel, getBranchCompletions, GitRefType, IRefQuery, parseBaseBranchRef } from '../../common/agentHostGitService.js';
 import { needsSessionGitStateRefresh } from '../../common/state/sessionState.js';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
@@ -958,12 +958,23 @@ suite('AgentHostGitService', () => {
 		});
 	});
 
-	suite('toBaseBranchName', () => {
-		test('drops only the origin remote prefix', () => {
-			assert.deepStrictEqual(
-				['origin/main', 'refs/remotes/origin/release', 'main', 'upstream/main', '', undefined].map(baseBranch => toBaseBranchName(baseBranch)),
-				['main', 'release', 'main', 'upstream/main', undefined, undefined],
-			);
+	suite('base branch refs', () => {
+		test('parses local and remote refs at the longest remote name, and labels them without the ref prefix', () => {
+			const refs = ['refs/heads/main', 'refs/heads/lszomoru/agents/foo', 'refs/remotes/origin/main', 'refs/remotes/fork/me/release/1.90', 'refs/remotes/gone/main', 'refs/tags/v1'];
+			assert.deepStrictEqual({
+				parsed: refs.map(ref => parseBaseBranchRef(ref, ['origin', 'fork/me'])),
+				labels: ['refs/heads/main', 'refs/remotes/fork/me/release/1.90', 'origin/main'].map(getBaseBranchLabel),
+			}, {
+				parsed: [
+					{ kind: 'local', ref: 'refs/heads/main', branch: 'main' },
+					{ kind: 'local', ref: 'refs/heads/lszomoru/agents/foo', branch: 'lszomoru/agents/foo' },
+					{ kind: 'remote', ref: 'refs/remotes/origin/main', remote: 'origin', branch: 'main' },
+					{ kind: 'remote', ref: 'refs/remotes/fork/me/release/1.90', remote: 'fork/me', branch: 'release/1.90' },
+					undefined,
+					undefined,
+				],
+				labels: ['main', 'fork/me/release/1.90', 'origin/main'],
+			});
 		});
 	});
 

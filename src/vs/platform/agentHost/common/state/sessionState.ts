@@ -1332,9 +1332,10 @@ export interface ISessionGitState {
 	/** Base branch the work targets (e.g. `main`). */
 	readonly baseBranchName?: string;
 	/**
-	 * Base branch exactly as recorded for the session (e.g. `origin/main`), which Branch Changes compares against and
-	 * describes. Without a recorded base, the default branch's remote-tracking branch when it exists, else the default
-	 * branch. {@link baseBranchName} is the same branch without its remote prefix.
+	 * Base branch exactly as recorded for the session, which Branch Changes compares against and describes: a full ref
+	 * (e.g. `refs/remotes/origin/main`), or a short name (e.g. `origin/main`) for sessions recorded earlier. Without a
+	 * recorded base, the default branch's remote-tracking branch when it exists, else the default branch.
+	 * {@link baseBranchName} is the branch it names, without its remote.
 	 */
 	readonly baseBranchFullName?: string;
 	/** Upstream tracking branch (e.g. `origin/feature`). */

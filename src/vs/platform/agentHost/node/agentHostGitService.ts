@@ -6,6 +6,7 @@
 import * as cp from 'child_process';
 import * as fsPromises from 'fs/promises';
 import { cp as copyFile } from '@vscode/fs-copyfile';
+import { distinct } from '../../../base/common/arrays.js';
 import { Schemas } from '../../../base/common/network.js';
 import * as path from '../../../base/common/path.js';
 import { extUriBiasedIgnorePathCase } from '../../../base/common/resources.js';
@@ -19,7 +20,7 @@ import { ILogService } from '../../log/common/log.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { FileEditKind, type ISessionFileDiff, type ISessionGitState } from '../common/state/sessionState.js';
 import { buildGitBlobUri } from './gitDiffContent.js';
-import { CheckoutBlockedByLocalChangesError, EMPTY_TREE_OBJECT, IAddWorktreeOptions, IAgentHostGitService, IAgentHostGitWorktree, IBranch, IBranchDiffSafetyInfo, ICommitOptions, IRefQuery, IComputeSessionFileDiffsOptions, IDefaultBranch, IGitRemote, IPullOptions, IPushOptions, GitRefType, IRemoteBranch, GitRef, ITag, Branch, IWorktreeFileProgress, IDetachedHead, toBaseBranchName } from '../common/agentHostGitService.js';
+import { CheckoutBlockedByLocalChangesError, EMPTY_TREE_OBJECT, IAddWorktreeOptions, IAgentHostGitService, IAgentHostGitWorktree, IBranch, IBranchDiffSafetyInfo, ICommitOptions, IRefQuery, IComputeSessionFileDiffsOptions, IDefaultBranch, IGitRemote, IPullOptions, IPushOptions, GitRefType, IRemoteBranch, GitRef, ITag, Branch, IWorktreeFileProgress, IDetachedHead, BaseBranch, parseBaseBranchRef } from '../common/agentHostGitService.js';
 import { LRUCache } from '../../../base/common/map.js';
 import { firstParallel, Limiter, timeout } from '../../../base/common/async.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
@@ -1192,6 +1193,76 @@ export class AgentHostGitService extends Disposable implements IAgentHostGitServ
 		return this._computeSessionGitState(workingDirectory, baseBranch);
 	}
 
+	async resolveBaseBranch(workingDirectory: URI, baseBranch: string): Promise<BaseBranch | undefined> {
+		const repositoryRoot = await this.getRepositoryRoot(workingDirectory);
+		if (!repositoryRoot) {
+			return undefined;
+		}
+		return this._parseBaseBranch(repositoryRoot, baseBranch, await this._runGit(repositoryRoot, ['remote', '-v']));
+	}
+
+	async resolveMergeTargetBranch(workingDirectory: URI, baseBranch: BaseBranch): Promise<string | undefined> {
+		if (baseBranch.kind === 'local') {
+			return baseBranch.branch;
+		}
+		const repositoryRoot = await this.getRepositoryRoot(workingDirectory);
+		return repositoryRoot ? (await this._resolveMergeTarget(repositoryRoot, baseBranch))?.branch : undefined;
+	}
+
+	/** Parses a recorded base branch with the remotes `git remote -v` reported; see {@link resolveBaseBranch}. */
+	private async _parseBaseBranch(repositoryRoot: URI, baseBranch: string, remotesOutput: string | undefined): Promise<BaseBranch | undefined> {
+		const fetchRemotes = parseFetchRemotes(remotesOutput);
+		if (!fetchRemotes) {
+			// Without the remotes, only the full ref of a local branch says what it is.
+			return baseBranch.startsWith('refs/') ? parseBaseBranchRef(baseBranch, []) : undefined;
+		}
+		const remotes = distinct(fetchRemotes.map(remote => remote.name));
+		return parseBaseBranchRef(await this._toBaseBranchRef(repositoryRoot, baseBranch, remotes), remotes);
+	}
+
+	/**
+	 * Returns the full ref of a recorded base branch. A short name resolves like git resolves it, which prefers a
+	 * local branch over a remote-tracking branch of the same name (a local `origin/main` shadows the remote's
+	 * `main`). A remote's branch stays one when it has been pruned.
+	 */
+	private async _toBaseBranchRef(repositoryRoot: URI, baseBranch: string, remotes: readonly string[]): Promise<string> {
+		if (baseBranch.startsWith('refs/')) {
+			return baseBranch;
+		}
+		if (await this.branchExists(repositoryRoot, baseBranch)) {
+			return `refs/heads/${baseBranch}`;
+		}
+		return remotes.some(remote => baseBranch.startsWith(`${remote}/`)) ? `refs/remotes/${baseBranch}` : `refs/heads/${baseBranch}`;
+	}
+
+	/**
+	 * Resolves the local branch Merge merges into for a remote base, see {@link resolveMergeTargetBranch}: preferring
+	 * the branch of the same name when several track it. `undefined` when the local branches cannot be read.
+	 */
+	private async _resolveMergeTarget(repositoryRoot: URI, baseBranch: Extract<BaseBranch, { readonly kind: 'remote' }>): Promise<{ readonly branch: string | undefined } | undefined> {
+		const output = await this._runGit(repositoryRoot, ['for-each-ref', '--format=%(refname)%00%(upstream)', 'refs/heads']);
+		if (output === undefined) {
+			return undefined;
+		}
+		const localPrefix = 'refs/heads/';
+		const branches = new Set<string>();
+		const tracking: string[] = [];
+		for (const line of output.split(/\r?\n/)) {
+			const [ref, upstream] = line.split('\0');
+			if (ref.startsWith(localPrefix)) {
+				const branch = ref.substring(localPrefix.length);
+				branches.add(branch);
+				if (upstream === baseBranch.ref) {
+					tracking.push(branch);
+				}
+			}
+		}
+		if (tracking.length) {
+			return { branch: tracking.includes(baseBranch.branch) ? baseBranch.branch : tracking[0] };
+		}
+		return { branch: branches.has(baseBranch.branch) ? baseBranch.branch : undefined };
+	}
+
 	async getFetchRemoteUrls(workingDirectory: URI, preferredRemote?: string): Promise<readonly string[] | undefined> {
 		const repositoryRoot = await this.getRepositoryRoot(workingDirectory);
 		if (!repositoryRoot) {
@@ -1496,7 +1567,8 @@ export class AgentHostGitService extends Disposable implements IAgentHostGitServ
 		// Without a recorded base, compare against the default branch's start point: its remote-tracking
 		// branch when it exists, so a stale local default branch does not show unrelated upstream commits.
 		const baseBranch = configuredBaseBranch || (await hasDefaultRemoteBranch ? defaultBranch?.remoteBranchName : parseDefaultBranchRef(defaultBranchRef));
-		const baseBranchName = toBaseBranchName(baseBranch);
+		const parsedBaseBranch = baseBranch ? await this._parseBaseBranch(repositoryRoot, baseBranch, remotesOutput) : undefined;
+		const baseBranchName = parsedBaseBranch?.branch;
 		const githubRepo = parseGitHubRepoFromRemote(remotesOutput);
 		const upstreamRemote = status.upstreamBranchName?.split('/')[0];
 		// `gh pr checkout` can create a local branch whose head lives on a fork but
@@ -1506,8 +1578,8 @@ export class AgentHostGitService extends Disposable implements IAgentHostGitServ
 			!upstreamRemote && status.branchName
 				? this._getPushRemote(repositoryRoot, status.branchName)
 				: undefined,
-			baseBranch && baseBranchName && status.branchName && status.branchName !== baseBranchName
-				? this._computeBaseBranchDivergence(repositoryRoot, baseBranchName, baseBranch, status.outgoingChanges === undefined)
+			parsedBaseBranch && status.branchName && status.branchName !== parsedBaseBranch.branch
+				? this._computeBaseBranchDivergence(repositoryRoot, parsedBaseBranch, status.outgoingChanges === undefined)
 				: undefined,
 			hasDefaultRemoteBranch,
 		]);
@@ -1558,22 +1630,18 @@ export class AgentHostGitService extends Disposable implements IAgentHostGitServ
 
 	/**
 	 * Compares `HEAD` with the base branch. With `countCommits`, counts the commits `HEAD` has that `baseBranch`
-	 * lacks, the ref Branch Changes compares against. Whether `HEAD` has changes is relative to the local
-	 * `baseBranchName` when it exists: Merge merges into it, and an upstream still lacks the commits a local merge
-	 * added.
+	 * lacks, the ref Branch Changes compares against. Whether `HEAD` has changes is relative to the local branch Merge
+	 * merges into when there is one: an upstream still lacks the commits a local merge added.
 	 */
-	private async _computeBaseBranchDivergence(repositoryRoot: URI, baseBranchName: string, baseBranch: string, countCommits: boolean): Promise<{ readonly hasChanges: boolean; readonly count?: number } | undefined> {
-		const localRef = `refs/heads/${baseBranchName}`;
-		const remoteRef = `refs/remotes/origin/${baseBranchName}`;
-		const refs = await this._runGit(repositoryRoot, ['for-each-ref', '--format=%(refname)', localRef, remoteRef]);
-		if (refs === undefined) {
+	private async _computeBaseBranchDivergence(repositoryRoot: URI, baseBranch: BaseBranch, countCommits: boolean): Promise<{ readonly hasChanges: boolean; readonly count?: number } | undefined> {
+		const mergeTarget = baseBranch.kind === 'local' ? { branch: baseBranch.branch } : await this._resolveMergeTarget(repositoryRoot, baseBranch);
+		if (!mergeTarget) {
 			return undefined;
 		}
-		const refNames = new Set(refs.split(/\r?\n/g).filter(Boolean));
-		const mergeTargetRef = refNames.has(localRef) ? localRef : refNames.has(remoteRef) ? remoteRef : baseBranchName;
+		const mergeTargetRef = mergeTarget.branch !== undefined ? `refs/heads/${mergeTarget.branch}` : baseBranch.ref;
 		const [unmerged, ahead] = await Promise.all([
 			this._runGit(repositoryRoot, ['rev-list', '--max-count=1', `${mergeTargetRef}..HEAD`]),
-			countCommits ? this._runGit(repositoryRoot, ['rev-list', '--count', `${baseBranch}..HEAD`]) : undefined,
+			countCommits ? this._runGit(repositoryRoot, ['rev-list', '--count', `${baseBranch.ref}..HEAD`]) : undefined,
 		]);
 		if (unmerged === undefined) {
 			return undefined;
@@ -2511,7 +2579,7 @@ function parseGitHubHeadRepoFromRemoteSelection(remotesOutput: string | undefine
  * forms: `git@github.com:owner/repo(.git)?`, `https://github.com/owner/repo(.git)?`,
  * `ssh://git@github.com/owner/repo(.git)?`, `git://github.com/owner/repo(.git)?`.
  */
-function parseGitHubOwnerRepoFromUrl(url: string): { owner: string; repo: string } | undefined {
+export function parseGitHubOwnerRepoFromUrl(url: string): { owner: string; repo: string } | undefined {
 	// SCP-like: git@github.com:owner/repo(.git)?
 	let m = /^[^@\s]+@github\.com:([^/\s]+)\/([^/\s]+?)(?:\.git)?$/i.exec(url);
 	if (m) {

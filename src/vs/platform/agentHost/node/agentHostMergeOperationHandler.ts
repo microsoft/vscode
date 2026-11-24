@@ -25,7 +25,8 @@ export class AgentHostMergeOperationHandler implements IChangesetOperationHandle
 
 	constructor(
 		private readonly _getSessionState: (sessionKey: string) => SessionState | undefined,
-		private readonly _resolveBaseBranchName: (sessionKey: string) => Promise<string | undefined>,
+		/** Resolves the base branch recorded for a session, exactly as recorded (e.g. `refs/remotes/origin/main`). */
+		private readonly _resolveRecordedBaseBranch: (sessionKey: string) => Promise<string | undefined>,
 		private readonly _onGitStateChanged: (sessionKey: string, source?: IAgentHostCredentialSource) => Promise<void>,
 		private readonly _onMerged: (sessionKey: string, commit: string) => Promise<void>,
 		@IAgentHostGitService private readonly _gitService: IAgentHostGitService,
@@ -68,11 +69,13 @@ export class AgentHostMergeOperationHandler implements IChangesetOperationHandle
 		this._throwIfCancelled(token);
 
 		const storedGitState = readSessionGitState(sessionState._meta);
-		const targetBranch = await this._resolveBaseBranchName(scope.sourceUri);
+		const recordedBaseBranch = await this._resolveRecordedBaseBranch(scope.sourceUri);
+		const baseBranch = recordedBaseBranch ? await this._gitService.resolveBaseBranch(repositoryRoot, recordedBaseBranch) : undefined;
+		const targetBranch = baseBranch ? await this._gitService.resolveMergeTargetBranch(repositoryRoot, baseBranch) : undefined;
 		if (!targetBranch) {
 			throw new ProtocolError(JsonRpcErrorCodes.InternalError, localize('agentHost.changeset.merge.targetBranchMissing', "Could not determine the branch to merge into."));
 		}
-		const gitState = await this._gitService.getSessionGitState(worktreeRoot, targetBranch) ?? storedGitState;
+		const gitState = await this._gitService.getSessionGitState(worktreeRoot, recordedBaseBranch) ?? storedGitState;
 		const sourceBranch = gitState?.branchName ?? await this._gitService.getCurrentBranch(worktreeRoot);
 		if (!sourceBranch) {
 			throw new ProtocolError(JsonRpcErrorCodes.InternalError, localize('agentHost.changeset.merge.sourceBranchMissing', "Could not determine the worktree branch."));

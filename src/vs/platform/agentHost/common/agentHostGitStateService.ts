@@ -81,9 +81,9 @@ export interface IAgentHostGitStateService {
 	setFolderGitState(sessionKey: string, workingDirectories: readonly string[], gitState: ISessionGitState | undefined): Promise<void>;
 
 	/**
-	 * Resolves the base branch of a session exactly as recorded (e.g. `origin/main`), preferring the persisted
-	 * `META_DIFF_BASE_BRANCH` for both isolation modes. Branch Changes compares against it; `toBaseBranchName`
-	 * gives the branch Create PR and Merge target.
+	 * Resolves the base branch of a session exactly as recorded (e.g. `refs/remotes/origin/main`), preferring the
+	 * persisted `META_DIFF_BASE_BRANCH` for both isolation modes. Branch Changes compares against it;
+	 * `IAgentHostGitService.resolveBaseBranch` parses it into the branch Create PR and Merge target.
 	 */
 	resolveSessionBaseBranchFullName(sessionKey: string): Promise<string | undefined>;
 

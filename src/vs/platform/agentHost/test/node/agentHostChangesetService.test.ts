@@ -2849,7 +2849,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 		testGitStates.set(peerResource, {
 			branchName: 'chat-feature',
 			baseBranchName: 'chat-main',
-			baseBranchFullName: 'origin/chat-main',
+			baseBranchFullName: 'refs/remotes/origin/chat-main',
 		});
 		stateManager.dispatchServerAction(sessionStr, { type: ActionType.SessionReady });
 
@@ -2863,8 +2863,8 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 			reviewBaseBranches,
 		}, {
 			description: 'chat-feature → origin/chat-main',
-			diffBaseBranches: ['origin/chat-main'],
-			reviewBaseBranches: ['origin/chat-main'],
+			diffBaseBranches: ['refs/remotes/origin/chat-main'],
+			reviewBaseBranches: ['refs/remotes/origin/chat-main'],
 		});
 	});
 

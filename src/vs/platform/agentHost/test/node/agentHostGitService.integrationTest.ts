@@ -805,10 +805,11 @@ suite('AgentHostGitService - getSessionGitState (real git)', () => {
 	});
 
 	(hasGit ? test : test.skip)('reports the default branch in the session git state regardless of the configured base branch', async () => {
-		const dir = initRepo();
+		const dir = initRepo({ remote: 'https://github.com/microsoft/vscode.git' });
 		const run = (...args: string[]) => cp.execFileSync('git', args, { cwd: dir, stdio: 'pipe' });
 		run('branch', 'release');
 		run('update-ref', 'refs/remotes/origin/main', 'refs/heads/main');
+		run('update-ref', 'refs/remotes/origin/release', 'refs/heads/main');
 		run('symbolic-ref', 'refs/remotes/origin/HEAD', 'refs/remotes/origin/main');
 		const defaultBranchFields = (state: ISessionGitState | undefined) => ({
 			baseBranchName: state?.baseBranchName,
@@ -819,14 +820,53 @@ suite('AgentHostGitService - getSessionGitState (real git)', () => {
 
 		const detected = defaultBranchFields(await svc!.getSessionGitState(URI.file(dir)));
 		const configured = defaultBranchFields(await svc!.getSessionGitState(URI.file(dir), 'release'));
+		const configuredRef = defaultBranchFields(await svc!.getSessionGitState(URI.file(dir), 'refs/remotes/origin/release'));
 		// `origin/HEAD` outlives its target when the remote renames its default branch.
 		run('update-ref', '-d', 'refs/remotes/origin/main');
 		const dangling = defaultBranchFields(await svc!.getSessionGitState(URI.file(dir)));
 
-		assert.deepStrictEqual({ detected, configured, dangling }, {
+		assert.deepStrictEqual({ detected, configured, configuredRef, dangling }, {
 			detected: { baseBranchName: 'main', baseBranchFullName: 'origin/main', defaultBranchName: 'main', defaultRemoteBranchName: 'origin/main' },
 			configured: { baseBranchName: 'release', baseBranchFullName: 'release', defaultBranchName: 'main', defaultRemoteBranchName: 'origin/main' },
+			configuredRef: { baseBranchName: 'release', baseBranchFullName: 'refs/remotes/origin/release', defaultBranchName: 'main', defaultRemoteBranchName: 'origin/main' },
 			dangling: { baseBranchName: 'main', baseBranchFullName: 'main', defaultBranchName: 'main', defaultRemoteBranchName: undefined },
+		});
+	});
+
+	(hasGit ? test : test.skip)('resolves a recorded base branch the way git does, and the local branch Merge merges into', async () => {
+		const dir = initRepo({ remote: 'https://github.com/microsoft/vscode.git' });
+		const directory = URI.file(dir);
+		const run = (...args: string[]) => cp.execFileSync('git', args, { cwd: dir, stdio: 'pipe' });
+		run('remote', 'add', 'fork/me', 'https://github.com/me/vscode.git');
+		run('update-ref', 'refs/remotes/origin/main', 'HEAD');
+		run('update-ref', 'refs/remotes/fork/me/release/1.90', 'HEAD');
+		const resolve = (baseBranch: string) => svc!.resolveBaseBranch(directory, baseBranch);
+		const originMain = { kind: 'remote', ref: 'refs/remotes/origin/main', remote: 'origin', branch: 'main' } as const;
+		const forkRelease = { kind: 'remote', ref: 'refs/remotes/fork/me/release/1.90', remote: 'fork/me', branch: 'release/1.90' } as const;
+
+		const shortRemote = await resolve('origin/main');
+		const shortLocal = await resolve('main');
+		const fullRemote = await resolve('refs/remotes/fork/me/release/1.90');
+		const pruned = await resolve('origin/gone');
+		// `main` does not track `origin/main`, but has its name.
+		const sameNamedTarget = await svc!.resolveMergeTargetBranch(directory, originMain);
+		run('branch', '--no-track', 'dev');
+		run('branch', '--set-upstream-to', 'origin/main', 'dev');
+		const trackingTarget = await svc!.resolveMergeTargetBranch(directory, originMain);
+		const missingTarget = await svc!.resolveMergeTargetBranch(directory, forkRelease);
+		// Like git, a local branch shadows the remote-tracking branch of the same short name.
+		run('update-ref', 'refs/heads/origin/main', 'HEAD');
+		const ambiguous = await resolve('origin/main');
+
+		assert.deepStrictEqual({ shortRemote, shortLocal, fullRemote, pruned, ambiguous, sameNamedTarget, trackingTarget, missingTarget }, {
+			shortRemote: originMain,
+			shortLocal: { kind: 'local', ref: 'refs/heads/main', branch: 'main' },
+			fullRemote: forkRelease,
+			pruned: { kind: 'remote', ref: 'refs/remotes/origin/gone', remote: 'origin', branch: 'gone' },
+			ambiguous: { kind: 'local', ref: 'refs/heads/origin/main', branch: 'origin/main' },
+			sameNamedTarget: 'main',
+			trackingTarget: 'dev',
+			missingTarget: undefined,
 		});
 	});
 
@@ -908,7 +948,7 @@ suite('AgentHostGitService - getSessionGitState (real git)', () => {
 	});
 
 	(hasGit ? test : test.skip)('counts commits ahead of the recorded base while Merge availability follows the local base branch', async () => {
-		const dir = initRepo();
+		const dir = initRepo({ remote: 'https://github.com/microsoft/vscode.git' });
 		const env = { ...process.env, GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@t', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@t' };
 		const run = (...args: string[]) => cp.execFileSync('git', args, { cwd: dir, env, stdio: 'pipe' });
 		run('update-ref', 'refs/remotes/origin/main', 'HEAD');
@@ -923,15 +963,17 @@ suite('AgentHostGitService - getSessionGitState (real git)', () => {
 			return { baseBranchName: state?.baseBranchName, outgoingChanges: state?.outgoingChanges, hasBaseBranchChanges: state?.hasBaseBranchChanges };
 		};
 
-		const originMain = await divergence('origin/main');
-		const main = await divergence('main');
+		const originMain = await divergence('refs/remotes/origin/main');
+		const main = await divergence('refs/heads/main');
+		const legacyOriginMain = await divergence('origin/main');
 		// What Merge does: the local `main` takes the feature commits while `origin/main` stays behind.
 		run('branch', '-f', 'main', 'feature');
-		const afterLocalMerge = await divergence('origin/main');
+		const afterLocalMerge = await divergence('refs/remotes/origin/main');
 
-		assert.deepStrictEqual({ originMain, main, afterLocalMerge }, {
+		assert.deepStrictEqual({ originMain, main, legacyOriginMain, afterLocalMerge }, {
 			originMain: { baseBranchName: 'main', outgoingChanges: 1, hasBaseBranchChanges: true },
 			main: { baseBranchName: 'main', outgoingChanges: 2, hasBaseBranchChanges: true },
+			legacyOriginMain: { baseBranchName: 'main', outgoingChanges: 1, hasBaseBranchChanges: true },
 			afterLocalMerge: { baseBranchName: 'main', outgoingChanges: 1, hasBaseBranchChanges: false },
 		});
 	});

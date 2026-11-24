@@ -25,7 +25,7 @@ import { RequestFetch } from '../../../github/common/types.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE } from '../../common/agent.js';
-import type { IComputeSessionFileDiffsOptions, IDefaultBranch, IPushOptions } from '../../common/agentHostGitService.js';
+import { parseBaseBranchRef, type BaseBranch, type IComputeSessionFileDiffsOptions, type IDefaultBranch, type IGitRemote, type IPushOptions } from '../../common/agentHostGitService.js';
 import { IAgentHostSessionStateStore } from '../../common/agentHostSessionStateStore.js';
 import { getWorkingDirectoryKey, getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
 import { AgentMergeConfigKey, readAgentMergeSessionState, type AgentMergeConfiguration, type AgentMergeControllerState, type AgentMergeSessionOverrides } from '../../common/agentMerge.js';
@@ -105,8 +105,16 @@ class TestGitService extends TestAgentHostGitService {
 	createdBranch: string | undefined;
 	onMutation: ((operation: string) => void) | undefined;
 	branchChanges: readonly ISessionFileDiff[] | undefined = [{ after: { uri: 'file:///repo/file.ts', content: { uri: 'file:///repo/file.ts' } } }];
+	remotes: readonly IGitRemote[] = [{ name: 'origin', url: 'https://github.com/microsoft/vscode.git' }];
 
 	override async getCurrentBranch(): Promise<string | undefined> { return 'feature/test'; }
+	override async getFetchRemotes(): Promise<readonly IGitRemote[] | undefined> { return this.remotes; }
+	override async resolveBaseBranch(_workingDirectory: URI, baseBranch: string): Promise<BaseBranch | undefined> {
+		const remotes = this.remotes.map(remote => remote.name);
+		const ref = baseBranch.startsWith('refs/') ? baseBranch
+			: remotes.some(remote => baseBranch.startsWith(`${remote}/`)) ? `refs/remotes/${baseBranch}` : `refs/heads/${baseBranch}`;
+		return parseBaseBranchRef(ref, remotes);
+	}
 	override async getDefaultBranch(): Promise<IDefaultBranch | undefined> { return { name: 'main', startPoint: 'main' }; }
 	override async getRepositoryRoot(): Promise<URI | undefined> { return URI.file('/repo'); }
 	override async branchExists(_repositoryRoot: URI, branchName: string): Promise<boolean> {
@@ -166,6 +174,7 @@ class TestGitHubClient {
 	lastBody: string | undefined;
 	lastHead: string | undefined;
 	lastBase: string | undefined;
+	lastRepository: RepositoryRef | undefined;
 	readonly findRequests: { branch: string; headOwner: string | undefined }[] = [];
 	readonly lookupPriorities: ApiRequestOptions['priority'][] = [];
 
@@ -192,9 +201,10 @@ class TestGitHubClient {
 					return client.existing ? [client.existing] : [];
 				}
 
-				override async create(_repository: RepositoryRef, { title, body, head, base, draft }: CreatePullRequestRequest): Promise<PullRequest> {
+				override async create(repository: RepositoryRef, { title, body, head, base, draft }: CreatePullRequestRequest): Promise<PullRequest> {
 					client.onMutation?.('createPullRequest');
 					client.calls.push(`createPullRequest:${draft}`);
+					client.lastRepository = repository;
 					client.lastTitle = title;
 					client.lastBody = body;
 					client.lastHead = head;
@@ -1513,6 +1523,29 @@ suite('AgentHostPullRequestOperationHandler', () => {
 			diffBaseBranches: ['origin/release'],
 			pullRequestBase: 'release',
 		});
+	});
+
+	test('creates the pull request in the repository of the remote the base branch is on, from the fork the branch is pushed to', async () => {
+		const createPullRequest = async (gitState: ISessionGitState) => {
+			const gitService = new TestGitService();
+			gitService.remotes = [
+				{ name: 'origin', url: 'https://github.com/fork-owner/vscode.git' },
+				{ name: 'upstream', url: 'https://github.com/microsoft/vscode.git' },
+			];
+			gitService.gitState = gitState;
+			const gitHubClient = new TestGitHubClient();
+			const { handler, session } = setup(disposables, gitService, gitHubClient, { baseBranch: 'refs/remotes/upstream/main' });
+			await handler.invoke({ channel: buildSessionChangesetUri(session.toString()), operationId: AgentHostPullRequestOperationHandler.OPERATION_CREATE_PR }, CancellationToken.None);
+			return { repository: gitHubClient.lastRepository, head: gitHubClient.lastHead, base: gitHubClient.lastBase, diffBaseBranches: gitService.diffBaseBranches };
+		};
+		const forkGitState: ISessionGitState = { hasGitHubRemote: true, branchName: 'feature/test', githubOwner: 'fork-owner', githubRepo: 'vscode' };
+		const expected = { repository: { owner: 'microsoft', repo: 'vscode' }, head: 'fork-owner:feature/test', base: 'main', diffBaseBranches: ['refs/remotes/upstream/main'] };
+
+		assert.deepStrictEqual({
+			upstream: await createPullRequest({ ...forkGitState, githubHeadOwner: 'fork-owner', upstreamBranchName: 'origin/feature/test' }),
+			// Without an upstream or push remote, the push defaults to the GitHub remote `origin`.
+			defaultPushRemote: await createPullRequest(forkGitState),
+		}, { upstream: expected, defaultPushRemote: expected });
 	});
 
 	test('enables Agent Merge after creating the pull request, preserves overrides, and clears stale controller state', async () => {
