@@ -385,13 +385,14 @@ suite('SessionCustomizationDiscovery', () => {
 			.filter(customization => customization.contents === 'hook')
 			.map(customization => ({
 				uri: URI.parse(customization.uri).path,
+				name: customization.name,
 				children: (customization.children ?? []).map(child => URI.parse(child.uri).path).sort(),
 			}))
 			.sort((a, b) => a.uri.localeCompare(b.uri));
 
 		assert.deepStrictEqual(hookDirectories, [
-			{ uri: '/home/.copilot/hooks', children: [] },
-			{ uri: '/workspace/.github/hooks', children: [] },
+			{ uri: '/home/.copilot/hooks', name: '~/.copilot', children: [] },
+			{ uri: '/workspace/.github/hooks', name: '.github', children: [] },
 		]);
 	});
 
@@ -401,8 +402,8 @@ suite('SessionCustomizationDiscovery', () => {
 		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [workspace], userHome, inMemoryPathToUri));
 		const hookDirectories = (await discovery.discover(hookDiscoveryClient(async () => ({ hooks: [], warnings: [], errors: [] })), CancellationToken.None))
 			.filter(customization => customization.contents === 'hook')
-			.map(customization => URI.parse(customization.uri).path)
-			.sort();
+			.map(customization => ({ uri: URI.parse(customization.uri).path, name: customization.name }))
+			.sort((a, b) => a.uri.localeCompare(b.uri));
 		await timeout(50);
 
 		let changed = false;
@@ -411,7 +412,10 @@ suite('SessionCustomizationDiscovery', () => {
 		await timeout(50);
 
 		assert.deepStrictEqual({ hookDirectories, changed }, {
-			hookDirectories: ['/custom-copilot/hooks', '/workspace/.github/hooks'],
+			hookDirectories: [
+				{ uri: '/custom-copilot/hooks', name: 'custom-copilot' },
+				{ uri: '/workspace/.github/hooks', name: '.github' },
+			],
 			changed: true,
 		});
 	});

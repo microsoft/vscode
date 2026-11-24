@@ -456,7 +456,9 @@ export class SessionCustomizationDiscovery extends Disposable {
 		}
 		for (const root of searchRoots.user) {
 			if (root.type === DiscoveredType.Hook) {
-				add(joinPath(this._copilotHomeService.home, ...root.path), root.name);
+				const { home, source } = this._copilotHomeService;
+				const name = source === 'userHome' ? root.name : basename(home.path) || home.fsPath;
+				add(joinPath(home, ...root.path), name);
 			}
 		}
 		for (const root of workspaceFixedDiscoveryFiles) {
