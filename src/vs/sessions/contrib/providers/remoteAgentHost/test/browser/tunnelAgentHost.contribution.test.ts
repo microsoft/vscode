@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, observableValue } from '../../../../../../base/common/observable.js';
@@ -523,6 +524,51 @@ suite('TunnelAgentHostContribution', () => {
 				{ tunnelId: renamed.tunnelId, clusterId: renamed.clusterId, name: 'New Name', protocolVersion: 6, authProvider: 'microsoft' },
 			],
 			connected: [{ name: 'New Name', authProvider: 'microsoft' }],
+		});
+	});
+
+	test('an older discovery that completes last does not undo a newer rename', async () => {
+		const pendingDiscoveries: DeferredPromise<ITunnelInfo[]>[] = [];
+		const tunnelService = store.add(new class extends StubTunnelService {
+			override listTunnels(): Promise<ITunnelInfo[]> {
+				const discovery = new DeferredPromise<ITunnelInfo[]>();
+				pendingDiscoveries.push(discovery);
+				return discovery.p;
+			}
+		}());
+		const instantiationService = createInstantiationService();
+		instantiationService.stub(ITunnelAgentHostService, tunnelService);
+		instantiationService.stub(IRemoteAgentHostService, store.add(new StubRemoteAgentHostService()) as unknown as IRemoteAgentHostService);
+		instantiationService.stub(ISessionsProvidersService, store.add(new StubSessionsProvidersService()) as unknown as ISessionsProvidersService);
+		instantiationService.stub(IConfigurationService, new TestConfigurationService({ [RemoteAgentHostsEnabledSettingId]: true }));
+		instantiationService.stub(INotificationService, { notify: () => ({ close() { } }) } as unknown as INotificationService);
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(IAuthenticationService, { onDidChangeSessions: Event.None } as unknown as IAuthenticationService);
+		instantiationService.stub(ITelemetryService, { publicLog2: () => { } } as unknown as ITelemetryService);
+		instantiationService.stub(IHostService, new StubHostService());
+		instantiationService.stub(IRemoteTunnelService, store.add(new StubRemoteTunnelService()));
+		instantiationService.stub(IAgentHostFilterService, new StubFilterService() as unknown as IAgentHostFilterService);
+		const contribution = store.add(instantiationService.createInstance(TestTunnelContribution));
+		const tunnel: ITunnelInfo = { tunnelId: 'tunnel-renamed', clusterId: 'use', name: 'New Name', tags: [], protocolVersion: 6, hostConnectionCount: 1 };
+		const address = `${TUNNEL_ADDRESS_PREFIX}${tunnel.tunnelId}`;
+		tunnelService.setCached([{ tunnelId: tunnel.tunnelId, clusterId: tunnel.clusterId, name: 'Old Name', protocolVersion: 6, authProvider: 'github' }]);
+		const testable = contribution as unknown as { _silentStatusCheck(): Promise<void> };
+
+		const older = testable._silentStatusCheck();
+		const newer = testable._silentStatusCheck();
+		pendingDiscoveries[1].complete([tunnel]);
+		await newer;
+		pendingDiscoveries[0].complete([{ ...tunnel, name: 'Old Name' }]);
+		await older;
+
+		assert.deepStrictEqual({
+			discoveries: pendingDiscoveries.length,
+			label: contribution.stubProviders.get(address)!.label,
+			cached: tunnelService.getCachedTunnels().map(cached => cached.name),
+		}, {
+			discoveries: 2,
+			label: 'New Name',
+			cached: ['New Name'],
 		});
 	});
 
