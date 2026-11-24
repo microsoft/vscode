@@ -2210,8 +2210,12 @@ suite('CopilotAgentSession', () => {
 			readonly thenOtherMessage?: boolean;
 			/** The id of a root message the runtime echoes while the send is still in flight. */
 			readonly echoedDuringSend?: string;
+			/** The turn also goes idle while the send is still in flight. */
+			readonly idleDuringSend?: boolean;
+			/** The runtime does not start the fleet. */
+			readonly fleetNotStarted?: boolean;
 		}
-		const sendWith = async ({ prompt = 'hello', suppressHooks = false, rejected = false, echoed = true, thenOtherMessage = false, echoedDuringSend }: ISendCase) => {
+		const sendWith = async ({ prompt = 'hello', suppressHooks = false, rejected = false, echoed = true, thenOtherMessage = false, echoedDuringSend, idleDuringSend = false, fleetNotStarted = false }: ISendCase) => {
 			let delivered = 0;
 			const { session, runtime, mockSession } = await createAgentSession(disposables, { onHostInstructionsDelivered: () => delivered++ });
 			mockSession.commandListResult = { commands: [{ name: 'fleet', kind: 'builtin', description: 'Start fleet', allowDuringAgentExecution: false }] };
@@ -2222,8 +2226,14 @@ suite('CopilotAgentSession', () => {
 				});
 			}
 			if (echoedDuringSend) {
-				mockSession.onSend = () => mockSession.fire('user.message', { content: prompt, messageId: echoedDuringSend, turnId: 'sdk-turn' } as SessionEventPayload<'user.message'>['data']);
+				mockSession.onSend = () => {
+					mockSession.fire('user.message', { content: prompt, messageId: echoedDuringSend, turnId: 'sdk-turn' } as SessionEventPayload<'user.message'>['data']);
+					if (idleDuringSend) {
+						mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
+					}
+				};
 			}
+			mockSession.fleetStartResult = { started: !fleetNotStarted };
 			if (rejected) {
 				const closed = Promise.reject(new Error('The connection closed.'));
 				closed.catch(() => { });
@@ -2255,7 +2265,12 @@ suite('CopilotAgentSession', () => {
 			suppressedHooksEarlyEcho: (await sendWith({ suppressHooks: true, echoed: false, echoedDuringSend: 'message-1' })).delivered,
 			// Another root message echoed during a send that is then rejected is not that send's prompt.
 			suppressedHooksOtherEchoThenRejected: (await sendWith({ suppressHooks: true, rejected: true, echoed: false, echoedDuringSend: 'provider-message' })).delivered,
+			// The turn can be over before its send returns the prompt's id.
+			suppressedHooksEarlyEchoAndIdle: (await sendWith({ suppressHooks: true, echoed: false, echoedDuringSend: 'message-1', idleDuringSend: true })).delivered,
 			suppressedHooksFleet: (await sendWith({ prompt: '/fleet build it', suppressHooks: true, echoed: false })).prompts,
+			// A fleet start returns no message id: its prompt is the root message of the turn it started.
+			suppressedHooksFleetEchoed: (await sendWith({ prompt: '/fleet build it', suppressHooks: true })).delivered,
+			suppressedHooksFleetNotStarted: (await sendWith({ prompt: '/fleet build it', suppressHooks: true, fleetNotStarted: true })).delivered,
 			fleet: (await sendWith({ prompt: '/fleet build it', echoed: false })).prompts,
 		}, {
 			hook: { prompts: ['hello'], displayPrompt: undefined, hook: 'A note.', beforeEcho: 0, delivered: 1 },
@@ -2265,7 +2280,10 @@ suite('CopilotAgentSession', () => {
 			suppressedHooksRejected: 0,
 			suppressedHooksEarlyEcho: 1,
 			suppressedHooksOtherEchoThenRejected: 0,
+			suppressedHooksEarlyEchoAndIdle: 1,
 			suppressedHooksFleet: [`build it${reminder}`],
+			suppressedHooksFleetEchoed: 1,
+			suppressedHooksFleetNotStarted: 0,
 			fleet: ['build it'],
 		});
 	});

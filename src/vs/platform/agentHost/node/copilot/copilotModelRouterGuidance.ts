@@ -16,7 +16,7 @@ interface IChatGuidance {
 	turn?: { readonly id: string; readonly routed?: IRouteGuidance };
 	/** What the agent was last told, when that is known. */
 	told?: IRouteGuidance;
-	/** The note handed out for a message, until the message reaches the agent with it. */
+	/** The note handed out for a message, until the message is seen to reach the agent with it. */
 	pending?: IRouteGuidance;
 	/** The chat's history can hold a note: one sent here, or one in turns from before this host knew the chat. */
 	mayHoldNote?: boolean;
@@ -33,8 +33,9 @@ interface IChatGuidance {
  *
  * What a chat was told is not always known: a chat that already has turns when this host first
  * routes it, such as one restored after a restart, a fork or an import, can hold a note in its
- * history, and a rewrite of the history can drop a note or bring an older one back. Such a chat is
- * told again on its next routed turn, also when the route has no guidance.
+ * history, a rewrite of the history can drop a note or bring an older one back, and a note handed
+ * out with a message that was not seen to reach the agent may have reached it. Such a chat is told
+ * again on its next routed turn, also when the route has no guidance.
  *
  * Kept in memory only.
  */
@@ -89,8 +90,12 @@ export class CopilotModelRouterGuidance {
 		if (!state) {
 			return undefined;
 		}
-		// A note that was handed out and never reached the agent is not this message's.
-		state.pending = undefined;
+		if (state.pending) {
+			// A note was handed out and its message was never seen to reach the agent. It may still have, so what the chat was told is not known.
+			state.pending = undefined;
+			state.told = undefined;
+			state.mayHoldNote = true;
+		}
 		const routed = state.turn && state.turn.id === turnId ? state.turn.routed : undefined;
 		if (!routed || state.told && structuralEquals(state.told.guidance, routed.guidance)) {
 			return undefined;
