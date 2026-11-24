@@ -10,8 +10,7 @@ import type { IChatPillSection } from '../../../../browser/chatPills.js';
 import { createSessionSubagentsPillData, type IChatSubagentPillEntry } from '../../../chat/browser/sessionSubagentsPill.js';
 import { ISessionChatPillVisibilityService } from '../../../chat/common/sessionChatPills.js';
 import { ISessionsService } from '../sessionsService.js';
-import { ChatOriginKind, IChat, isActiveSessionStatus } from '../../common/session.js';
-import { IActiveSession } from '../../common/sessionsManagement.js';
+import { ChatOriginKind, IChat, isActiveSessionStatus, ISession } from '../../../../services/sessions/common/session.js';
 import type { ISessionChatPillsDebugData } from './sessionChatInputToolbarDebug.js';
 
 /** Supplies the viewed chat's direct subagents, grouped and filtered by their activity status. */
@@ -28,7 +27,7 @@ export class SessionBackgroundActivitiesControl extends Disposable {
 	private readonly _pillData: ReturnType<typeof createSessionSubagentsPillData>;
 
 	constructor(
-		session: IObservable<IActiveSession | undefined>,
+		session: IObservable<ISession | undefined>,
 		chat: IObservable<IChat | undefined>,
 		enabled: IObservable<boolean>,
 		visible: IObservable<boolean>,
@@ -68,7 +67,7 @@ export class SessionBackgroundActivitiesControl extends Disposable {
 		this._debugData.set(data, undefined);
 	}
 
-	private _collectSubagents(session: IActiveSession, parentChat: IChat, reader: IReader): IChat[] {
+	private _collectSubagents(session: ISession, parentChat: IChat, reader: IReader): IChat[] {
 		return session.chats.read(reader)
 			.filter(chat =>
 				chat.origin?.kind === ChatOriginKind.Tool &&

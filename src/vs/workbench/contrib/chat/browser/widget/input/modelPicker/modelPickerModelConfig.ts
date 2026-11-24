@@ -222,7 +222,7 @@ export function getModelConfigDisplayValues(
 			const total = getModelContextWindowTotal(model.metadata);
 			if (Number.isFinite(total) && total > 0) {
 				const label = formatTokenCount(total);
-				values.push({ group, label: localize('chat.modelPicker.maxContextValue', "Max {0}", label), description: localize('chat.modelPicker.maxContext', "Max context: {0}", label) });
+				values.push({ group, label, description: localize('chat.modelPicker.configValue', "{0}: {1}", localize('chat.context.header', "Context"), label) });
 			}
 		}
 	}

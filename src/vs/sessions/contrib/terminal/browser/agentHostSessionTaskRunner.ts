@@ -18,7 +18,7 @@ import { isAgentHostProvider } from '../../../../workbench/contrib/sessions/comm
 import { ISessionTaskRunner } from '../../chat/browser/sessionTaskRunner.js';
 import { osToTaskTargetOS, resolveTaskCommand } from '../../chat/browser/taskCommand.js';
 import { ITaskEntry, ISessionsTasksService } from '../../chat/browser/sessionsTasksService.js';
-import { IChat, ISession } from '../../../../workbench/contrib/sessions/common/session.js';
+import { IChat, ISession } from '../../../../workbench/services/sessions/common/session.js';
 import { ISessionsProvidersService } from '../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { IConfigurationResolverService } from '../../../../workbench/services/configurationResolver/common/configurationResolver.js';
 import { IWorkspaceFolderData } from '../../../../platform/workspace/common/workspace.js';
@@ -221,7 +221,7 @@ export class AgentHostSessionTaskRunner implements ISessionTaskRunner {
 	}
 
 	private _getAddress(session: ISession): string | undefined {
-		const provider = this._sessionsProvidersService.getProvider(session.providerId);
+		const provider = this._sessionsProvidersService.getProvider(session.providerId, session.sessionId);
 		if (!provider || !isAgentHostProvider(provider)) {
 			return undefined;
 		}

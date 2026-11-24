@@ -5,13 +5,13 @@
 
 import { gulp, rename, filter, jsonEditor } from './lib/gulp/facade.ts';
 import * as path from 'path';
-import es from 'event-stream';
+import { merge } from './lib/streams.ts';
 import * as util from './lib/util.ts';
 import { getVersion } from './lib/getVersion.ts';
 import * as task from './lib/gulp/task.ts';
 import { writeISODate } from './lib/date.ts';
 import product from '../product.json' with { type: 'json' };
-import { getFlatProductionDependencies } from './lib/dependencies.ts';
+import { getFlatProductionDependencies, toPackagedLayout } from './lib/dependencies.ts';
 import vfs from 'vinyl-fs';
 import packageJson from '../package.json' with { type: 'json' };
 import { compileApiProposalNamesTask, copyCodiconsTask } from './lib/compilation.ts';
@@ -39,7 +39,7 @@ function packageTask(sourceFolderName: string, destinationFolderName: string) {
 
 		const extensions = gulp.src('.build/web/extensions/**', { base: '.build/web', dot: true });
 
-		const sources = es.merge(src, extensions)
+		const sources = merge(src, extensions)
 			.pipe(filter(['**', '!**/*.{js,css}.map'], { dot: true }));
 
 		const name = product.nameShort;
@@ -48,23 +48,24 @@ function packageTask(sourceFolderName: string, destinationFolderName: string) {
 
 		const license = gulp.src(['remote/LICENSE'], { base: 'remote', allowEmpty: true });
 
-		// `remote/web` is a member of the `remote` workspace, which installs most of its dependencies in
-		// `remote/node_modules`. The web build packages them flat, in its own `node_modules`.
-		const deps = es.merge(...getFlatProductionDependencies(WEB_FOLDER).map(({ folder, base }) => {
-			const d = path.relative(REPO_ROOT, folder);
-			return gulp.src([`${d}/**`, `!${d}/node_modules/**`, `!${d}/**/{test,tests}/**`, `!${d}/.bin/**`], { base: path.relative(REPO_ROOT, base), dot: true });
+		// `remote/web` is a member of the `remote` workspace. The web build packages its production
+		// dependencies flat, in its own `node_modules`.
+		const deps = merge(...getFlatProductionDependencies(WEB_FOLDER).map(dependency => {
+			const d = path.relative(REPO_ROOT, dependency.source);
+			return gulp.src([`${d}/**`, `!${d}/node_modules/**`, `!${d}/**/{test,tests}/**`, `!${d}/.bin/**`], { base: path.relative(REPO_ROOT, dependency.base), dot: true })
+				.pipe(toPackagedLayout([dependency]));
 		}))
 			.pipe(filter(['**', '!**/package-lock.json']))
 			.pipe(util.cleanNodeModules(path.join(import.meta.dirname, '.webignore')));
 
 		const favicon = gulp.src('resources/server/favicon.ico', { base: 'resources/server' });
 		const manifest = gulp.src('resources/server/manifest.json', { base: 'resources/server' });
-		const pwaicons = es.merge(
+		const pwaicons = merge(
 			gulp.src('resources/server/code-192.png', { base: 'resources/server' }),
 			gulp.src('resources/server/code-512.png', { base: 'resources/server' })
 		);
 
-		const all = es.merge(
+		const all = merge(
 			packageJsonStream,
 			license,
 			sources,

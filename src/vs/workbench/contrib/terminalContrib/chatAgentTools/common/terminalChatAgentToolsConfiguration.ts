@@ -286,6 +286,16 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			mode: 'auto'
 		}
 	},
+	[AgentSandboxSettingId.AgentSandboxProfilesEnabled]: {
+		included: false,
+		type: 'boolean',
+		default: false,
+		tags: ['experimental', 'chatPermissions'],
+		experiment: {
+			mode: 'auto'
+		},
+		markdownDescription: localize('agentSandbox.profilesEnabled', "Whether to show sandbox profiles: the **Manage Sandbox Profiles** command and the Sandbox Profile column in Remote Environments. Remote environments keep applying a profile that is already assigned when this is turned off."),
+	},
 	[AgentSandboxSettingId.AgentSandboxEnabled]: {
 		managedSettingsPresentation: read => SandboxSettingsResolutionHelper.resolveEnabled(undefined, read(COPILOT_SANDBOX_ENABLED_KEY) === true),
 		order: 10,
@@ -427,6 +437,38 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		markdownDescription: localize('agentSandbox.authenticateGh', "Use your GitHub account for gh commands inside the sandbox. Applies only to the Copilot Agent Host harness."),
 		type: 'boolean',
 		default: true,
+		restricted: true,
+	},
+	[AgentSandboxSettingId.AgentSandboxCredentialEnvVars]: {
+		order: 53,
+		keywords: ['Sandbox', 'sandboxing'],
+		tags: ['chatPermissions'],
+		markdownDescription: localize('agentSandbox.credentialEnvVars', "Mask the named environment variables inside the Copilot Agent Host sandbox. For each variable, list the HTTPS hosts that may receive its value in `injectHosts`. Enter variable names, not secret values."),
+		type: ['object', 'null'],
+		default: null,
+		defaultSnippets: [{
+			body: { '${1:ENV_VAR_NAME}': { injectHosts: ['${2:api.example.com}'] } },
+		}],
+		propertyNames: {
+			description: localize('agentSandbox.credentialEnvVars.name', "Name of an environment variable to mask, not its secret value."),
+			examples: ['ENV_VAR_NAME'],
+		},
+		additionalProperties: {
+			type: 'object',
+			defaultSnippets: [{
+				body: { injectHosts: ['${1:api.example.com}'] },
+			}],
+			properties: {
+				injectHosts: {
+					type: 'array',
+					description: localize('agentSandbox.credentialEnvVars.injectHosts', "HTTPS destination hosts where the sandbox may inject this environment variable's value. Host patterns are validated by the runtime."),
+					items: { type: 'string' },
+					defaultSnippets: [{ body: ['${1:api.example.com}'] }],
+				},
+			},
+			required: ['injectHosts'],
+			additionalProperties: false,
+		},
 		restricted: true,
 	},
 	[AgentSandboxSettingId.AgentSandboxAllowDevToolAccess]: {

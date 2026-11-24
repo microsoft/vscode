@@ -12,13 +12,12 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
-import { IActiveSession } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ICodeReviewService, ICodeReviewSuggestion, IPRReviewComment, IPRReviewState, PRReviewStateKind } from '../../../../../workbench/contrib/sessions/browser/codeReviewService.js';
 import { IAgentFeedbackContext, IAgentFeedbackService } from '../../../../../workbench/contrib/sessions/browser/agentFeedback.js';
 import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedback } from '../../../../../workbench/contrib/sessions/browser/agentFeedbackModel.js';
 import { AgentFeedbackPRReviewSeederContribution } from '../../browser/agentFeedbackPRReviewSeeder.js';
-import { focusedSessionHostServiceOf } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { focusedSessionHostServiceOf, ITestSessionWithChat } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('AgentFeedbackPRReviewSeederContribution', () => {
 
@@ -31,7 +30,7 @@ suite('AgentFeedbackPRReviewSeederContribution', () => {
 	let loaded: boolean;
 	let onDidChangeFeedback: Emitter<{ sessionResource: URI; feedbackItems: readonly IAgentFeedback[] }>;
 	let prReviewState: ISettableObservable<IPRReviewState>;
-	let activeSession: ISettableObservable<IActiveSession | undefined>;
+	let activeSession: ISettableObservable<ITestSessionWithChat | undefined>;
 
 	function prComment(id: string, line: number, body: string): IPRReviewComment {
 		return { id, pullRequest, uri: fileA, range: new Range(line, 1, line, 1), body, author: 'reviewer' };
@@ -47,8 +46,8 @@ suite('AgentFeedbackPRReviewSeederContribution', () => {
 			.map(i => ({ sourceId: i.sourcePRReviewCommentId, prNumber: i.sourcePullRequest?.number, state: i.state, text: i.text }));
 	}
 
-	function makeActiveSession(providerId: string): IActiveSession {
-		return new class extends mock<IActiveSession>() {
+	function makeActiveSession(providerId: string): ITestSessionWithChat {
+		return new class extends mock<ITestSessionWithChat>() {
 			override readonly resource = session;
 			override readonly providerId = providerId;
 		};
@@ -59,7 +58,7 @@ suite('AgentFeedbackPRReviewSeederContribution', () => {
 		loaded = true;
 		onDidChangeFeedback = store.add(new Emitter());
 		prReviewState = observableValue<IPRReviewState>('prReviewState', { kind: PRReviewStateKind.None });
-		activeSession = observableValue<IActiveSession | undefined>('activeSession', makeActiveSession(LOCAL_AGENT_HOST_PROVIDER_ID));
+		activeSession = observableValue<ITestSessionWithChat | undefined>('activeSession', makeActiveSession(LOCAL_AGENT_HOST_PROVIDER_ID));
 
 		const feedbackService = new class extends mock<IAgentFeedbackService>() {
 			override onDidChangeFeedback = onDidChangeFeedback.event;

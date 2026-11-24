@@ -1022,14 +1022,18 @@ suite('OnboardingScenarioService', () => {
 		});
 
 		const { service } = createService({}, assignment);
+		const reached: { scenarioId: string; excluded: boolean }[] = [];
+		const listener = service.onDidReachWouldShow(scenarioId => reached.push({ scenarioId, excluded: assignment.isExcluded('onb-tour-q3:12345') }));
 		service.start();
 		await timeout(0);
 		await timeout(0);
+		listener.dispose();
 
-		// No tour shown, not marked shown (re-eligible later), but the id now flows.
+		// No tour shown, not marked shown (re-eligible later), but the id now flows, also
+		// for events logged when the would-show moment is announced.
 		assert.deepStrictEqual(
-			{ runs: presentation.runs, shown: service.hasBeenShown('exp-control'), excluded: assignment.isExcluded('onb-tour-q3:12345') },
-			{ runs: [], shown: false, excluded: false }
+			{ runs: presentation.runs, shown: service.hasBeenShown('exp-control'), excluded: assignment.isExcluded('onb-tour-q3:12345'), reached: reached[0] },
+			{ runs: [], shown: false, excluded: false, reached: { scenarioId: 'exp-control', excluded: false } }
 		);
 	});
 

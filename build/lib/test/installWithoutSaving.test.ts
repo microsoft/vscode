@@ -31,7 +31,7 @@ suite('installWithoutSaving', () => {
 				'build/rspack/package.json', 'build/pnpm-lock.yaml', 'build/pnpm-workspace.yaml',
 				'build/vite/package.json',
 			],
-			member: ['extensions/git/package.json', 'extensions/pnpm-lock.yaml', 'extensions/pnpm-workspace.yaml'],
+			member: ['extensions/git/package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml'],
 		});
 		assert.throws(() => getFilesToRestore(['not/a/project']), /not a pnpm project folder/);
 	});

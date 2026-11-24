@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { localize, localize2 } from '../../../../../nls.js';
@@ -17,16 +18,53 @@ import { Menus } from '../menus.js';
 import { resolveDevContainerSourceWorkspace } from '../openInVSCodeUtils.js';
 import { isAgentHostProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../common/agentHostSessionsProvider.js';
 import { SessionsListRearrangeContext } from '../../common/contextkeys.js';
-import { ISessionsPartService } from '../sessionsPartService.js';
+import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsProvidersService } from '../sessionsProvidersService.js';
 import { ISessionsRecentWorkspacesService } from '../sessionsRecentWorkspacesService.js';
 import { ISessionsService } from '../sessionsService.js';
-import { getMainWindowHost, ISessionHostService } from '../sessionHost.js';
+import { getMainWindowHost, ISessionHostService } from '../../../../services/sessions/browser/sessionHost.js';
 import { ICustomViewService } from '../customView.js';
 import { WindowCanvasInput, IWindowCanvasService } from '../windowCanvas.js';
-import { inheritableSessionTarget, ISessionsManagementService } from '../../common/sessionsManagement.js';
+import { ICreateNewSessionOptions, inheritableSessionTarget, ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { NEW_SESSION_ACTION_ID } from '../../common/chatConstants.js';
 import { INewSessionComposerService } from '../newSessionComposerService.js';
+import { ISessionDraftsService } from '../sessionDraftsService.js';
+import { ISession, isSessionCreated } from '../../../../services/sessions/common/session.js';
+
+/** The folder, provider and agent a new session inherits ({@link getInheritedNewSessionTarget}). */
+export interface IInheritedNewSessionTarget extends Pick<ICreateNewSessionOptions, 'providerId' | 'sessionTypeId'> {
+	readonly folderUri?: URI;
+	/** Whether the new session starts in a Dev Container, as `session` does. */
+	readonly requireDevContainer?: boolean;
+}
+
+/**
+ * What a new session started from `session` inherits: its workspace folder (the source folder of its Dev Container), and
+ * its provider and agent where that folder offers them. Nothing without a session or a workspace, such as for a
+ * quick chat, for which callers pass no session.
+ */
+export function getInheritedNewSessionTarget(sessionsManagementService: ISessionsManagementService, sessionsProvidersService: ISessionsProvidersService, session: ISession | undefined): IInheritedNewSessionTarget {
+	const activeFolderUri = session?.workspace.get()?.uri;
+	const activeProvider = activeFolderUri && session ? sessionsProvidersService.getProvider(session.providerId, session.sessionId) : undefined;
+	const devContainerSource = resolveDevContainerSourceWorkspace(activeProvider);
+	const folderUri = devContainerSource?.folderUri ?? activeFolderUri;
+	const draftRequestsDevContainer = !!session && !!activeProvider && isAgentHostProvider(activeProvider)
+		&& activeProvider.isDevContainerRequested?.(session.sessionId) === true;
+	const containerSourceProviderId = devContainerSource?.providerId ?? (draftRequestsDevContainer ? session?.providerId : undefined);
+	const inheritedTarget = inheritableSessionTarget(
+		sessionsManagementService,
+		devContainerSource && session
+			? { providerId: devContainerSource.providerId, sessionType: session.sessionType }
+			: session,
+		folderUri,
+	);
+	return {
+		folderUri,
+		...(containerSourceProviderId ? { providerId: containerSourceProviderId } : {}),
+		...inheritedTarget,
+		...(containerSourceProviderId ? { requireDevContainer: true } : {}),
+	};
+}
 
 export class NewChatInSessionsWindowAction extends Action2 {
 
@@ -34,6 +72,7 @@ export class NewChatInSessionsWindowAction extends Action2 {
 		super({
 			id: NEW_SESSION_ACTION_ID,
 			title: localize2('sessions.newSession.label', "New Session"),
+			icon: Codicon.add,
 			category: CHAT_CATEGORY,
 			f1: true,
 			keybinding: {
@@ -73,6 +112,9 @@ export class NewChatInSessionsWindowAction extends Action2 {
 		// New sessions open in the main window, from the session it shows.
 		const mainWindowHost = getMainWindowHost(accessor.get(ISessionHostService));
 		const activeSession = mainWindowHost.session.get();
+		if (!options?.toSide) {
+			accessor.get(ISessionDraftsService).stowAndClear();
+		}
 		const sendPrompt = (): void => {
 			if (!options?.prompt) {
 				return;
@@ -108,7 +150,7 @@ export class NewChatInSessionsWindowAction extends Action2 {
 		}
 		// Clear the no-workspace latch before unsetNewSession(), or the replacement composer recreates the quick chat.
 		const isQuickChat = activeSession?.isQuickChat?.get() ?? false;
-		if (isQuickChat && activeSession?.isCreated?.get() === false && !options?.toSide) {
+		if (isQuickChat && activeSession && !isSessionCreated(activeSession) && !options?.toSide) {
 			const recentWorkspacesService = accessor.get(ISessionsRecentWorkspacesService);
 			const partService = accessor.get(ISessionsPartService);
 			if (recentWorkspacesService.isNoWorkspaceChecked()) {
@@ -120,28 +162,9 @@ export class NewChatInSessionsWindowAction extends Action2 {
 			sendPrompt();
 			return;
 		}
-		const activeFolderUri = isQuickChat ? undefined : activeSession?.workspace.get()?.uri;
-		const activeProvider = activeFolderUri && activeSession
-			? accessor.get(ISessionsProvidersService).getProvider(activeSession.providerId)
-			: undefined;
-		const devContainerSource = resolveDevContainerSourceWorkspace(activeProvider);
-		const folderUri = devContainerSource?.folderUri ?? activeFolderUri;
-		const draftRequestsDevContainer = !!activeSession && !!activeProvider && isAgentHostProvider(activeProvider)
-			&& activeProvider.isDevContainerRequested?.(activeSession.sessionId) === true;
-		const containerSourceProviderId = devContainerSource?.providerId ?? (draftRequestsDevContainer ? activeSession?.providerId : undefined);
-		const inheritedTarget = inheritableSessionTarget(
-			sessionsManagementService,
-			devContainerSource && activeSession
-				? { providerId: devContainerSource.providerId, sessionType: activeSession.sessionType }
-				: activeSession,
-			folderUri,
-		);
 		const { session } = await sessionsService.openNewSession({
-			folderUri,
 			toSide: options?.toSide,
-			...(containerSourceProviderId ? { providerId: containerSourceProviderId } : {}),
-			...inheritedTarget,
-			...(containerSourceProviderId ? { requireDevContainer: true } : {}),
+			...getInheritedNewSessionTarget(sessionsManagementService, accessor.get(ISessionsProvidersService), isQuickChat ? undefined : activeSession),
 		});
 		sendPrompt();
 		return session?.resource;

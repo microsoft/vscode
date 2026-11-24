@@ -38,7 +38,7 @@ import { CopilotCloudSessionsProvider, ExternalSessionsMode, filterCloudSessions
 import { CloudTaskOwnership } from '../cloudTaskOwnership';
 import { TaskApiBackend, TaskApiError, parseRepoFromTaskUrl, isCloudCodingAgentTask } from '../taskApiBackend';
 import { CloudSessionData } from '../../vscode/cloudAgentBackend';
-import { IChatDelegationSummaryService } from '../../copilotcli/common/delegationSummaryService';
+import { IChatDelegationSummaryService } from '../../common/delegationSummaryService';
 import { IPullRequestFileChangesService } from '../pullRequestFileChangesService';
 import { isActiveTaskState, isFailedTaskState } from '../../vscode/copilotCodingAgentUtils';
 import { NullCloudBackendInstrumentation } from '../cloudBackendTelemetry';
@@ -1575,12 +1575,6 @@ class FakeTaskApiClient implements ITaskApiClient {
 	async createPRForTask(owner: string, repo: string, taskId: string): Promise<AgentTaskCreatePullRequestResponse> {
 		this.createPRCalls.push({ owner, repo, taskId });
 		return this._createPRResult;
-	}
-	async archiveTask(_owner: string, _repo: string, taskId: string): Promise<AgentTask> {
-		return { id: taskId } as unknown as AgentTask;
-	}
-	async unarchiveTask(_owner: string, _repo: string, taskId: string): Promise<AgentTask> {
-		return { id: taskId } as unknown as AgentTask;
 	}
 }
 

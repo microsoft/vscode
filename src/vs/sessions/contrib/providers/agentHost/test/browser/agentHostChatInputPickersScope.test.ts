@@ -23,9 +23,9 @@ import { InMemoryStorageService } from '../../../../../../platform/storage/commo
 import { IsSessionsWindowContext } from '../../../../../../workbench/common/contextkeys.js';
 import { ChatContextKeys } from '../../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { SessionUsesExperimentalComposerLayoutContext } from '../../../../../../workbench/contrib/sessions/common/contextkeys.js';
-import { ActiveSessionHost, bindSessionHostScopeContext, createMainWindowInstantiationService, createSessionHostServices, InSessionHostScopeContext, ISessionHost, ISessionHostService, SessionHostKind } from '../../../../../../workbench/contrib/sessions/browser/sessionHost.js';
-import '../../../../../../workbench/contrib/sessions/providers/agentHost/browser/agentHostAgentPicker.js';
-import '../../../../../../workbench/contrib/sessions/providers/agentHost/browser/agentHostSessionConfigPicker.js';
+import { bindSessionHostScopeContext, createMainWindowInstantiationService, createSessionHostServices, InSessionHostScopeContext, ISessionHost, ISessionHostService, SessionHost, SessionHostKind } from '../../../../../../workbench/services/sessions/browser/sessionHost.js';
+import '../../browser/agentHostAgentPicker.contribution.js';
+import '../../browser/agentHostSessionConfigPicker.contribution.js';
 
 /** The pickers of the session a chat input shows, contributed to the workbench's chat input menus. */
 const PICKERS = new Set([
@@ -43,7 +43,7 @@ suite('Agent Host chat input pickers: session host scopes', () => {
 	setup(() => store = disposables.add(new DisposableStore()));
 
 	function hostOf(kind: SessionHostKind, contextKeyService: IContextKeyService, parent?: ISessionHost): ISessionHost {
-		return new ActiveSessionHost({ kind, parent, session: constObservable(undefined), contextKeyService, windowId: kind === SessionHostKind.MainWindow ? constObservable(mainWindow.vscodeWindowId) : undefined });
+		return new SessionHost({ kind, parent, session: constObservable(undefined), chat: constObservable(undefined), contextKeyService, windowId: kind === SessionHostKind.MainWindow ? constObservable(mainWindow.vscodeWindowId) : undefined });
 	}
 
 	function hasHost(instantiationService: IInstantiationService): boolean {
@@ -57,6 +57,7 @@ suite('Agent Host chat input pickers: session host scopes', () => {
 	function setUpScopes() {
 		const root = store.add(new ContextKeyService(new TestConfigurationService()));
 		// Everything else the pickers need holds: only the scope tells them apart.
+		ChatContextKeys.enabled.bindTo(root).set(true);
 		ChatContextKeys.chatIsAgentHostSession.bindTo(root).set(true);
 		IsSessionsWindowContext.bindTo(root).set(true);
 		const gridHost = hostOf(SessionHostKind.MainWindow, root);

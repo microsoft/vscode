@@ -238,16 +238,6 @@ export class OTelSqliteStore {
 			: this._ensureDb().prepare(sql).all() as unknown as SessionRow[];
 	}
 
-	/**
-	 * List sessions within a time window (chronicle-style).
-	 * @param sinceMs Epoch ms — only return sessions that started after this time
-	 */
-	getSessionsSince(sinceMs: number): SessionRow[] {
-		return this._ensureDb().prepare(
-			'SELECT * FROM sessions WHERE started_at >= ? ORDER BY started_at DESC'
-		).all(sinceMs) as unknown as SessionRow[];
-	}
-
 	cleanup(maxAgeMs: number = DEFAULT_MAX_AGE_MS): number {
 		const cutoffMs = Date.now() - maxAgeMs;
 		const result = this._ensureDb().prepare('DELETE FROM spans WHERE start_time_ms < ?').run(cutoffMs);

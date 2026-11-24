@@ -26,6 +26,7 @@ import { Codicon } from '../../../common/codicons.js';
 import { ThemeIcon } from '../../../common/themables.js';
 import { SetMap } from '../../../common/map.js';
 import { Emitter, Event, EventBufferer, Relay } from '../../../common/event.js';
+import { onUnexpectedError } from '../../../common/errors.js';
 import { fuzzyScore, FuzzyScore } from '../../../common/filters.js';
 import { KeyCode } from '../../../common/keyCodes.js';
 import { Disposable, DisposableStore, dispose, IDisposable, toDisposable } from '../../../common/lifecycle.js';
@@ -320,6 +321,10 @@ interface ITreeRendererOptions<T> {
 	readonly twistieAdditionalCssClass?: (element: T) => string | undefined;
 }
 
+interface ITreeRendererConstructionOptions<T> extends ITreeRendererOptions<T> {
+	readonly identityProvider?: IIdentityProvider<T>;
+}
+
 interface Collection<T> {
 	readonly elements: T[];
 	readonly onDidChange: Event<T[]>;
@@ -357,7 +362,9 @@ export class TreeRenderer<T, TFilterData, TRef, TTemplateData> implements IListR
 
 	private shouldRenderIndentGuides: boolean = false;
 	private activeIndentNodes = new Set<ITreeNode<T, TFilterData>>();
+	private activeIndentNodeIds = new Set<string>();
 	private indentGuidesDisposable: IDisposable = Disposable.None;
+	private readonly identityProvider: IIdentityProvider<T> | undefined;
 
 	private readonly disposables = new DisposableStore();
 
@@ -367,9 +374,10 @@ export class TreeRenderer<T, TFilterData, TRef, TTemplateData> implements IListR
 		onDidChangeCollapseState: Event<ICollapseStateChangeEvent<T, TFilterData>>,
 		private readonly activeNodes: Collection<ITreeNode<T, TFilterData>>,
 		private readonly renderedIndentGuides: SetMap<ITreeNode<T, TFilterData>, HTMLDivElement>,
-		options: ITreeRendererOptions<T> = {}
+		options: ITreeRendererConstructionOptions<T> = {}
 	) {
 		this.templateId = renderer.templateId;
+		this.identityProvider = options.identityProvider;
 		this.updateOptions(options);
 
 		Event.map(onDidChangeCollapseState, e => e.node)(this.onDidChangeNodeTwistieState, this, this.disposables);
@@ -548,7 +556,7 @@ export class TreeRenderer<T, TFilterData, TRef, TTemplateData> implements IListR
 			const parent = this.model.getNode(parentRef);
 			const guide = $<HTMLDivElement>('.indent-guide', { style: `width: ${this.indent}px` });
 
-			if (this.activeIndentNodes.has(parent)) {
+			if (this.isActiveIndentNode(parent)) {
 				guide.classList.add('active');
 			}
 
@@ -602,6 +610,34 @@ export class TreeRenderer<T, TFilterData, TRef, TTemplateData> implements IListR
 		});
 
 		this.activeIndentNodes = set;
+		this.activeIndentNodeIds = new Set();
+
+		if (this.identityProvider) {
+			for (const node of set) {
+				if (node.depth > 0) {
+					this.activeIndentNodeIds.add(this.identityProvider.getId(node.element).toString());
+				}
+			}
+		}
+	}
+
+	/**
+	 * Whether the guides of a node's children are active. A node that replaced an active node of the
+	 * same identity, such as when `setChildren` replaces every node, is active too: the active nodes
+	 * only update a tick after the model changes, and until then its guides would hide and fade back in.
+	 */
+	private isActiveIndentNode(node: ITreeNode<T, TFilterData>): boolean {
+		if (this.activeIndentNodes.has(node)) {
+			return true;
+		}
+
+		if (!this.identityProvider || node.depth === 0 || this.activeIndentNodeIds.size === 0 || !this.activeIndentNodeIds.has(this.identityProvider.getId(node.element).toString())) {
+			return false;
+		}
+
+		// Track the node, so that the next update of the active nodes deactivates its guides if it is no longer active.
+		this.activeIndentNodes.add(node);
+		return true;
 	}
 
 	dispose(): void {
@@ -807,6 +843,8 @@ export interface IFindWidgetStyles {
 export interface IFindWidgetOptions {
 	readonly history?: string[];
 	readonly styles?: IFindWidgetStyles;
+	/** Returns focus to the results when they span more than one tree. */
+	readonly focusTree?: () => void;
 }
 
 const unthemedFindWidgetStyles: IFindWidgetStyles = {
@@ -896,6 +934,7 @@ class FindWidget<T, TFilterData> extends Disposable {
 
 		const emitter = this._register(new DomEmitter(this.findInput.inputBox.inputElement, 'keydown'));
 		const onKeyDown = Event.chain(emitter.event, $ => $.map(e => new StandardKeyboardEvent(e)));
+		const focusTree = options?.focusTree ?? (() => this.tree.domFocus());
 
 		this._register(onKeyDown((e) => {
 			// Using equals() so we reserve modified keys for future use
@@ -904,7 +943,7 @@ class FindWidget<T, TFilterData> extends Disposable {
 				e.preventDefault();
 				e.stopPropagation();
 				this.findInput.inputBox.addToHistory();
-				this.tree.domFocus();
+				focusTree();
 				return;
 			}
 			if (e.equals(KeyCode.DownArrow)) {
@@ -913,7 +952,7 @@ class FindWidget<T, TFilterData> extends Disposable {
 				if (this.findInput.inputBox.isAtLastInHistory() || this.findInput.inputBox.isNowhereInHistory()) {
 					// Retain original pre-history DownArrow behavior
 					this.findInput.inputBox.addToHistory();
-					this.tree.domFocus();
+					focusTree();
 				} else {
 					// Downward through history
 					this.findInput.inputBox.showNextValue();
@@ -3483,7 +3522,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 				}
 
 				activeNodesEmitter.fire([...set.values()]);
-			});
+			}).catch(onUnexpectedError);
 		}));
 
 		this.onDidChangeActiveNodesRelay.input = activeNodesEmitter.event;

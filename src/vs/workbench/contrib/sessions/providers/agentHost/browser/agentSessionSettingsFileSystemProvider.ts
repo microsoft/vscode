@@ -10,9 +10,9 @@ import { localize } from '../../../../../../nls.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { SessionConfigPropertySchema } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { IAgentHostSessionsProvider } from '../../../common/agentHostSessionsProvider.js';
+import { IAgentHostSessionsProvider, isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from '../../../browser/sessionsProvidersService.js';
-import { ISession, toSessionId } from '../../../common/session.js';
+import { ISession, toSessionId } from '../../../../../services/sessions/common/session.js';
 import {
 	AbstractMultiProviderAgentHostConfigSchemaRegistrar,
 	AbstractSessionsAgentHostConfigFileSystemProvider,
@@ -49,6 +49,11 @@ export function agentSessionSettingsUri(session: ISession): URI {
 interface ISessionSettingsContext extends IAgentHostSettingsContext {
 	/** Reconstructed {@link ISession.sessionId}. */
 	readonly sessionId: string;
+}
+
+/** All of the provider's sessions, including those outside its listing scope when it reports them. */
+function getAllSessionsOf(provider: IAgentHostSessionsProvider): readonly ISession[] {
+	return provider.getAllSessions?.() ?? provider.getSessions();
 }
 
 function parseSessionSettingsUri(uri: URI): ISessionSettingsContext | undefined {
@@ -136,6 +141,11 @@ export class AgentSessionSettingsFileSystemProvider extends AbstractSessionsAgen
 		return parseSessionSettingsUri(resource);
 	}
 
+	protected override _resolveTarget(ctx: ISessionSettingsContext): IAgentHostSessionsProvider | undefined {
+		const provider = this._sessionsProvidersService.getProvider(ctx.providerId, ctx.sessionId);
+		return provider && isAgentHostProvider(provider) ? provider : undefined;
+	}
+
 	protected _serialize(provider: IAgentHostSessionsProvider, ctx: ISessionSettingsContext): string {
 		return serializeSessionSettings(provider, ctx.sessionId);
 	}
@@ -149,7 +159,7 @@ export class AgentSessionSettingsFileSystemProvider extends AbstractSessionsAgen
 	}
 
 	protected _ensureSchemaRegistered(provider: IAgentHostSessionsProvider, ctx: ISessionSettingsContext): void {
-		const session = provider.getSessions().find(s => s.sessionId === ctx.sessionId);
+		const session = getAllSessionsOf(provider).find(s => s.sessionId === ctx.sessionId);
 		if (session) {
 			this._schemaRegistrar.ensureRegistered(session);
 		}
@@ -196,12 +206,13 @@ export class AgentSessionSettingsSchemaRegistrar extends AbstractMultiProviderAg
 	}
 
 	protected _getConfig(session: ISession): IAgentHostConfigLike | undefined {
-		const provider = this._sessionsProvidersService.getProvider<IAgentHostSessionsProvider>(session.providerId);
+		const provider = this._sessionsProvidersService.getProvider<IAgentHostSessionsProvider>(session.providerId, session.sessionId);
 		return provider?.getSessionOwnConfig(session.sessionId);
 	}
 
 	protected _targetsForProvider(provider: IAgentHostSessionsProvider): readonly ISession[] {
-		return provider.getSessions();
+		// Also the sessions outside its listing scope, whose schemas are registered as they are read
+		return getAllSessionsOf(provider);
 	}
 
 	protected _observeProvider(
@@ -211,12 +222,13 @@ export class AgentSessionSettingsSchemaRegistrar extends AbstractMultiProviderAg
 	): IDisposable {
 		const store = new DisposableStore();
 		store.add(provider.onDidChangeSessionConfig(sessionId => {
-			const session = provider.getSessions().find(s => s.sessionId === sessionId);
+			const session = getAllSessionsOf(provider).find(s => s.sessionId === sessionId);
 			if (session) {
 				onChanged(session);
 			}
 		}));
-		store.add(provider.onDidChangeSessions(e => {
+		// Also the removals outside its listing scope, whose schemas are registered too
+		store.add((provider.onDidChangeAllSessions ?? provider.onDidChangeSessions)(e => {
 			for (const removed of e.removed) {
 				onRemoved(removed);
 			}

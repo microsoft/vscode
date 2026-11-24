@@ -20,7 +20,7 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { NEW_UNTITLED_FILE_COMMAND_ID } from '../../../../workbench/contrib/files/browser/fileConstants.js';
 import { AgentsWindowMenus } from '../../../browser/agentsWindowMenus.js';
-import { AgentWorkbenchLayout, ISessionsHostLayoutService } from '../../../../workbench/contrib/sessions/browser/sessionsHostLayoutService.js';
+import { AgentWorkbenchLayout, ISessionsHostLayoutService } from '../../../../workbench/services/sessions/browser/sessionsHostLayoutService.js';
 import { EmptyFileEditor, EmptyFileEditorFocusedContext, OPEN_FILE_IN_EMPTY_EDITOR_COMMAND_ID } from './emptyFileEditor.js';
 import { EmptyFileEditorAccessibilityHelp } from './emptyFileEditorAccessibility.js';
 import { EmptyFileEditorInput, EmptyFileEditorSerializer } from '../../../../workbench/contrib/sessions/browser/emptyFileEditorInput.js';

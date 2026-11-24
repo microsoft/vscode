@@ -66,6 +66,7 @@ import { TestAccessibilityService } from '../../../../platform/accessibility/tes
 import { IActionViewItemService, NullActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
 import { IChatPhoneInputPresenter } from '../../../contrib/chat/browser/widget/input/chatPhoneInputPresenter.js';
 import { IChatPasteTargetService } from '../../../contrib/chat/browser/chat.js';
+import { IChatWindowService } from '../../../contrib/chatWindow/browser/chatWindow.js';
 import { ChatPasteTargetService } from '../../../contrib/chat/browser/attachments/chatPasteTargetService.js';
 import { IMenuService } from '../../../../platform/actions/common/actions.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
@@ -110,10 +111,10 @@ import { AGENT_FEEDBACK_NEW_SESSION_RESOURCE, IAgentFeedbackService } from '../.
 import { IChatEditingService } from '../../../contrib/chat/common/editing/chatEditingService.js';
 import { ISessionsManagementService } from '../../../contrib/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../contrib/sessions/browser/sessionsService.js';
-import { ISessionsHostLayoutService } from '../../../contrib/sessions/browser/sessionsHostLayoutService.js';
+import { ISessionsHostLayoutService } from '../../../services/sessions/browser/sessionsHostLayoutService.js';
 import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
-import { ActiveSessionHost, SessionHostKind } from '../../../contrib/sessions/browser/sessionHost.js';
-import { ISessionChangesStatsCache, SessionChangesStatsCache } from '../../../contrib/sessions/common/sessionChangesStatsCache.js';
+import { SessionHost, SessionHostKind } from '../../../services/sessions/browser/sessionHost.js';
+import { ISessionChangesStatsCache, SessionChangesStatsCache } from '../../../services/sessions/common/sessionChangesStatsCache.js';
 import { ICodeReviewService, PRReviewStateKind } from '../../../contrib/sessions/browser/codeReviewService.js';
 import { constObservable } from '../../../../base/common/observable.js';
 import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
@@ -819,10 +820,10 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
 	definePartialInstance(ISessionsService, {
 		_serviceBrand: undefined,
 		// The main window's host, which shows no session.
-		gridHost: new ActiveSessionHost({
+		gridHost: new SessionHost({
 			kind: SessionHostKind.MainWindow,
 			parent: undefined,
-			session: constObservable(undefined),
+			session: constObservable(undefined), chat: constObservable(undefined),
 			contextKeyService: () => { throw new Error('The fixture grid host binds no context keys'); },
 			windowId: constObservable(mainWindow.vscodeWindowId),
 		}),
@@ -908,6 +909,8 @@ export function registerWorkbenchServices(registration: ServiceRegistration): vo
 		async whenInitialized(): Promise<void> { },
 	};
 	registration.defineInstance(IAccountPolicyGateService, accountPolicyGateService);
+	// No chat windows: the command center's session widget asks for one only as the user picks a session
+	registration.definePartialInstance(IChatWindowService, { getWindow: () => undefined });
 	registration.defineInstance(IContextMenuService, {
 		showContextMenu: () => { },
 		onDidShowContextMenu: () => ({ dispose: () => { } }),
@@ -928,6 +931,8 @@ export function registerWorkbenchServices(registration: ServiceRegistration): vo
 		getUriLabel: (uri: URI) => uri.path,
 		getUriBasenameLabel: (uri: URI) => uri.path.split('/').pop() ?? '',
 		getWorkspaceLabel: () => '',
+		getFolderLocationLabel: () => undefined,
+		registerWorkspaceLabelDecorator: () => ({ dispose: () => { } }),
 		getHostLabel: () => '',
 		getSeparator: () => '/',
 		registerFormatter: () => ({ dispose: () => { } }),
@@ -958,13 +963,13 @@ export function registerWorkbenchServices(registration: ServiceRegistration): vo
 		setImpl: () => ({ dispose: () => { } }),
 	});
 
-	// Workspace trust stubs so chat-input fixtures can instantiate the model
-	// picker (ModelPickerWidget reads workspace trust to detect Restricted Mode).
-	// Reports the workspace as trusted so the picker renders normally.
+	// Chat-input fixtures use trusted workspace and folder state.
 	registration.defineInstance(IWorkspaceTrustManagementService, new class extends mock<IWorkspaceTrustManagementService>() {
 		override onDidChangeTrust = Event.None;
+		override onDidChangeTrustedFolders = Event.None;
 		override readonly workspaceTrustInitialized = Promise.resolve();
 		override isWorkspaceTrusted() { return true; }
+		override async getUriTrustInfo(uri: URI) { return { uri, trusted: true }; }
 	}());
 	registration.defineInstance(IWorkspaceTrustRequestService, new class extends mock<IWorkspaceTrustRequestService>() {
 		override async requestWorkspaceTrust() { return true; }

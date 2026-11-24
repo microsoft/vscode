@@ -11,24 +11,26 @@ import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
 import { Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, derived, IObservable, IReader, observableSignalFromEvent, observableValue, observableValueOpts } from '../../../../base/common/observable.js';
+import { IObservable, IReader, autorun, derived, observableSignalFromEvent, observableValue, observableValueOpts } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
-import { ArtifactAction, ArtifactActionRejectedError, ArtifactAuthenticationRequest, ArtifactAuthenticationRequiredError, ArtifactAvailability, ArtifactContributionView, ArtifactDetails, ArtifactDetailsItem, ArtifactGroupPresentation, ArtifactIcon, ArtifactJsonValue, ArtifactPreparation, ArtifactPrompt, ArtifactRecord, ArtifactResourceMatch, IArtifactActionContext, IArtifactAutomationContext, IArtifactBindingContext, IArtifactDetailsModel, IArtifactIntegration, IArtifactIntegrationBinding, IArtifactResourceContext, isArtifactOptionEnabled, isArtifactRunSettled } from '../../../artifactIntegrations/common/artifactIntegration.js';
+import { ArtifactAction, ArtifactActionRejectedError, ArtifactAuthenticationRequest, ArtifactAuthenticationRequiredError, ArtifactAvailability, ArtifactContributionView, ArtifactDetails, ArtifactDetailsItem, ArtifactGroupPresentation, ArtifactIcon, ArtifactJsonValue, ArtifactPreparation, ArtifactPrompt, ArtifactRecord, ArtifactResourceMatch, ArtifactRun, IArtifactActionContext, IArtifactAutomationContext, IArtifactBindingContext, IArtifactDetailsModel, IArtifactIntegration, IArtifactIntegrationBinding, IArtifactResourceContext, isArtifactOptionEnabled, isArtifactRunSettled } from '../../../artifactIntegrations/common/artifactIntegration.js';
 import { ArtifactConfigurationConflictError, ArtifactRetryLimitError } from '../../../artifactIntegrations/common/artifactIntegrationStore.js';
-import { firstCredentialFailure, FragmentState, GitHubFragmentError, PullRequestCheck, PullRequestCore, PullRequestRef, PullRequestReviewThread, PullRequestSnapshot, PullRequestSubscription } from '../../../github/common/githubPullRequestService.js';
 import { IGitHubAccountClient } from '../../../github/common/account/account.js';
+import { FragmentState, GitHubFragmentError, PullRequestCheck, PullRequestCore, PullRequestMergeability, PullRequestMergeQueueRemoval, PullRequestRef, PullRequestReviewThread, PullRequestSnapshot, PullRequestSubscription, firstCredentialFailure } from '../../../github/common/githubPullRequestService.js';
 import { IGitHubClient } from '../../../github/common/githubService.js';
 import { GitHubRequestError, isSamlEnforcementError } from '../../../github/common/githubTransport.js';
 import { ApiRequestError, MutationUncertainError } from '../../../github/common/missionControl/missionControlClient.js';
 import { isPullRequestFeedbackAuthor } from '../../../github/common/pullRequestFeedback.js';
 import { ILogService } from '../../../log/common/log.js';
+import { IAgentHostCredentialSource, getCapturedCredentialSourceKey, isAuthRequiredError } from '../../common/agentHostCredentials.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
-import { getCapturedCredentialSourceKey, IAgentHostCredentialSource, isAuthRequiredError } from '../../common/agentHostCredentials.js';
+import { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
 import { AgentHostGitHubArtifactIgnoredChecksConfigKey, platformRootSchema } from '../../common/agentHostSchema.js';
-import { getPullRequestArtifactChecks, getPullRequestArtifactCheckState, getPullRequestArtifactFailedChecks, getPullRequestArtifactThreads, GitHubPullRequestArtifactTarget, gitHubPullRequestArtifactIntegrationId, gitHubPullRequestArtifactOptions, gitHubPullRequestArtifactWorkspaceSettingsKey, isArtifactDataObject, isCurrentPullRequestFragment, isPullRequestArtifactMergeable, isPullRequestArtifactReadyForReview, parseGitHubPullRequestArtifact, readGitHubPullRequestArtifactWorkspaceSettings } from '../../common/githubPullRequestArtifact.js';
-import { AuthRequiredReason } from '../../common/state/sessionActions.js';
+import { GitHubPullRequestArtifactTarget, getPullRequestArtifactCheckState, getPullRequestArtifactChecks, getPullRequestArtifactFailedChecks, getPullRequestArtifactMissingRequiredChecks, getPullRequestArtifactThreads, gitHubPullRequestArtifactIntegrationId, gitHubPullRequestArtifactOptions, gitHubPullRequestArtifactWorkspaceSettingsKey, isArtifactDataObject, isCurrentPullRequestFragment, isPullRequestArtifactMergeable, isPullRequestArtifactReadyForReview, parseGitHubPullRequestArtifact, readGitHubPullRequestArtifactWorkspaceSettings } from '../../common/githubPullRequestArtifact.js';
+import { ActionType, AuthRequiredReason } from '../../common/state/sessionActions.js';
+import { getPullRequestRepairActivityLabel } from '../../common/systemTurnActivity.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { IAgentHostGitHubEndpointService } from '../agentHostGitHubEndpointService.js';
 import { IAgentHostGitHubService } from '../agentHostGitHubService.js';
@@ -42,6 +44,8 @@ const resolvedThreadReadLag = 30_000;
 const reviewThreadIcon: ArtifactIcon = { id: 'comment-discussion', colorId: 'editorWarning.foreground' };
 const checkStateOrder = { pending: 0, failed: 1, skipped: 2, passed: 3 };
 const automationPollInterval = 60_000;
+/** How long a checkout probe stands when no Git state refresh reports a change, for a chat whose folder nobody watches. */
+const workspaceProbeMaxAge = 30_000;
 const unchangedRepairCooldown = 10 * 60_000;
 const undispatchedRetryDelay = 30_000;
 
@@ -73,19 +77,6 @@ async function withAuthenticationRecovery<T>(operation: () => Promise<T>, owner:
 	}
 }
 
-async function withSignal<T>(token: CancellationToken, operation: (signal: AbortSignal) => Promise<T>): Promise<T> {
-	if (token.isCancellationRequested) {
-		throw new CancellationError();
-	}
-	const controller = new AbortController();
-	const listener = token.onCancellationRequested(() => controller.abort(new CancellationError()));
-	try {
-		return await operation(controller.signal);
-	} finally {
-		listener.dispose();
-	}
-}
-
 /**
  * Whether a pull request mutation's own response refused it, such as a merge after the base branch moved. GitHub did
  * not apply such a request, whereas other failures may have taken effect and must be reconciled.
@@ -111,7 +102,7 @@ class GitHubPullRequestArtifactResource extends Disposable {
 		readonly ref: PullRequestRef,
 		client: IReference<IGitHubClient>,
 		/** Runs a mutation with an API client for the same account as the observing client. */
-		readonly withApiClient: <T>(signal: AbortSignal, operation: (api: IGitHubAccountClient) => Promise<T>) => Promise<T>,
+		readonly withApiClient: <T>(cancellationToken: CancellationToken, operation: (api: IGitHubAccountClient) => Promise<T>) => Promise<T>,
 		private readonly requestAuthentication: (error: GitHubFragmentError) => void,
 	) {
 		super();
@@ -123,9 +114,20 @@ class GitHubPullRequestArtifactResource extends Disposable {
 			const failure = firstCredentialFailure(snapshot, pullRequestFragments);
 			if (failure) {
 				this.requireAuthentication(failure);
-			} else if (pullRequestFragments.every(fragment => snapshot[fragment].status === 'ready' && snapshot[fragment].complete)) {
+			} else if (snapshot.core.status === 'ready' && pullRequestFragments.every(fragment => snapshot[fragment].status === 'ready' || snapshot[fragment].status === 'error')) {
+				// Every fragment answered since the refusal and GitHub accepted the credential for the pull request;
+				// a fragment that keeps failing for another reason, such as an overloaded queue, must not hold sign-in.
 				this.authenticationError.set(undefined, undefined);
 				this.requestedAuthentication = false;
+			}
+		}));
+		this._register(this.client.credentials.onDidInvalidate(event => {
+			// A refusal an action received leaves the fragments healthy, so a same-token reauthorization produces no new
+			// observation; read the pull request again to revalidate access instead of replaying the action.
+			if (event.reason === 'reauthorization' && this.authenticationError.get()) {
+				void this.subscription.refresh(undefined, CancellationToken.None, { authoritative: true }).catch(() => {
+					// A renewed refusal reaches the snapshot and requires authentication again.
+				});
 			}
 		}));
 	}
@@ -201,6 +203,7 @@ export class GitHubPullRequestArtifactIntegration implements IArtifactIntegratio
 	readonly id = gitHubPullRequestArtifactIntegrationId;
 	readonly label = localize('prArtifact.integration', "GitHub Pull Request");
 	readonly groupLabel = localize('prArtifact.groupLabel', "Pull Requests");
+	readonly artifactKind = localize('prArtifact.kind', "PR");
 	readonly description = 'GitHub pull request links recorded as artifacts rather than references';
 	readonly automationOptions = gitHubPullRequestArtifactOptions;
 	readonly onDidChange: Event<void>;
@@ -214,6 +217,7 @@ export class GitHubPullRequestArtifactIntegration implements IArtifactIntegratio
 		@IAgentHostArtifactEventService private readonly events: AgentHostArtifactEventService,
 		@ILogService private readonly logService: ILogService,
 		@IAgentHostGitHubEndpointService private readonly endpoint: IAgentHostGitHubEndpointService,
+		@IAgentHostGitStateService private readonly gitState: IAgentHostGitStateService,
 	) {
 		this.onDidChange = github.onDidChangeRepositoryClient;
 	}
@@ -227,11 +231,12 @@ export class GitHubPullRequestArtifactIntegration implements IArtifactIntegratio
 			return undefined;
 		}
 		const chat = artifact.origin?.chat;
-		return this.withAuthentication(target, token, () => withSignal(token, async signal => {
+		return this.withAuthentication(target, token, async () => {
+			CancellationToken.throwIfCanceled(token);
 			const source = chat ? this.github.captureSessionCredentialSource(chat, undefined, this.stateManager.getChatOwner(chat)) : undefined;
-			const client = this.github.acquireRepositoryClient(signal, source, chat);
+			const client = this.github.acquireRepositoryClient(token, source, chat);
 			try {
-				const credential = await client.object.credentials.getCredential(signal);
+				const credential = await client.object.credentials.getCredential(token);
 				if (credential.account.host.toLowerCase() !== target.apiHost) {
 					throw new Error(localize('prArtifact.accountHost', "The GitHub account does not belong to this pull request's host."));
 				}
@@ -245,7 +250,7 @@ export class GitHubPullRequestArtifactIntegration implements IArtifactIntegratio
 			} finally {
 				client.dispose();
 			}
-		}));
+		});
 	}
 
 	async createResource(match: ArtifactResourceMatch, _context: IArtifactResourceContext, token: CancellationToken): Promise<GitHubPullRequestArtifactResource> {
@@ -257,16 +262,17 @@ export class GitHubPullRequestArtifactIntegration implements IArtifactIntegratio
 		if (!context) {
 			throw new Error('The pull request credential context is unavailable');
 		}
-		return this.withAuthentication(target, token, () => withSignal(token, async signal => {
-			const client = this.github.acquireRepositoryClient(signal, context.source, context.chat);
+		return this.withAuthentication(target, token, async () => {
+			CancellationToken.throwIfCanceled(token);
+			const client = this.github.acquireRepositoryClient(token, context.source, context.chat);
 			try {
-				const credential = await client.object.credentials.getCredential(signal);
+				const credential = await client.object.credentials.getCredential(token);
 				if (credentialScope(credential.account, context.source) !== match.credentialScope || credential.account.host.toLowerCase() !== target.apiHost) {
 					throw new Error(localize('prArtifact.accountChanged', "The GitHub account or host changed while loading this pull request."));
 				}
 				const ref = { ...credential.account, owner: target.owner, repo: target.repo, number: target.number };
-				return new GitHubPullRequestArtifactResource(target, ref, client, async (signal, operation) => {
-					const api = this.github.acquireRepositoryApiClient(signal, context.source, context.chat);
+				return new GitHubPullRequestArtifactResource(target, ref, client, async (token, operation) => {
+					const api = this.github.acquireRepositoryApiClient(token, context.source, context.chat);
 					try {
 						if (!structuralEquals(api.authorization, client.object.authorization)) {
 							throw new Error(localize('prArtifact.accountChanged', "The GitHub account or host changed while loading this pull request."));
@@ -280,7 +286,7 @@ export class GitHubPullRequestArtifactIntegration implements IArtifactIntegratio
 				client.dispose();
 				throw error;
 			}
-		}));
+		});
 	}
 
 	getAuthenticationRequest(resource: URI, token: CancellationToken, artifact: ArtifactRecord): ArtifactAuthenticationRequest {
@@ -313,12 +319,17 @@ export class GitHubPullRequestArtifactIntegration implements IArtifactIntegratio
 	}
 
 	private requestAuthentication(target: GitHubPullRequestArtifactTarget, error: GitHubFragmentError): void {
-		this.stateManager.emitAuthRequired({ resource: this.endpoint.getRepoResource(), reason: AuthRequiredReason.Required });
-		this.logService.warn(`[GitHubPullRequestArtifact] GitHub refused repository access (${error.kind}): ${target.owner}/${target.repo}#${target.number}${isSamlEnforcementError(error.message) ? '; organization SSO authorization is required' : ''}`);
+		const singleSignOn = isSamlEnforcementError(error.message);
+		// Signing in again cannot authorize a credential for an organization's single sign-on, so asking clients to
+		// would only repeat the sign-in dialog; the artifact's Sign In opens GitHub's authorization page instead.
+		if (!singleSignOn) {
+			this.stateManager.emitAuthRequired({ resource: this.endpoint.getRepoResource(), reason: AuthRequiredReason.Required });
+		}
+		this.logService.warn(`[GitHubPullRequestArtifact] GitHub refused repository access (${error.kind}): ${target.owner}/${target.repo}#${target.number}${singleSignOn ? '; organization SSO authorization is required' : ''}`);
 	}
 
 	createBinding(resource: GitHubPullRequestArtifactResource, context: IArtifactBindingContext): IArtifactIntegrationBinding {
-		return new GitHubPullRequestArtifactBinding(resource, context, resource.client, this.git, this.stateManager, this.configuration, this.events, this.logService);
+		return new GitHubPullRequestArtifactBinding(resource, context, resource.client, this.git, this.stateManager, this.configuration, this.events, this.logService, this.gitState);
 	}
 }
 
@@ -332,7 +343,11 @@ type WorkspaceState = { readonly kind: 'ready'; readonly checkout: Checkout } | 
 type RepairCheckpoint = { readonly runId: string; readonly chat: string; readonly directory: string; readonly commit: string; readonly headSha?: string };
 /** `operation` is recorded immediately before a merge or enqueue is dispatched; older checkpoints lack it. */
 type MutationCheckpoint = { readonly runId: string; readonly headSha: string; readonly operation?: 'merge' | 'enqueue'; readonly phase?: 'preparing' | 'dispatching' };
-type Checkpoint = { readonly version: 1; readonly generation: number; readonly repair: RepairCheckpoint | null; readonly mutation: MutationCheckpoint | null };
+/**
+ * `queuedHead` is the head the pull request was last seen in its merge queue with, until it leaves the queue. Older
+ * checkpoints lack it.
+ */
+type Checkpoint = { readonly version: 1; readonly generation: number; readonly repair: RepairCheckpoint | null; readonly mutation: MutationCheckpoint | null; readonly queuedHead?: string };
 
 function readCheckpoint(value: ArtifactJsonValue | undefined): Checkpoint {
 	if (value === undefined) {
@@ -365,7 +380,10 @@ function readCheckpoint(value: ArtifactJsonValue | undefined): Checkpoint {
 		}
 		mutation = { runId, headSha, ...(operation ? { operation } : {}), ...(phase ? { phase } : {}) };
 	}
-	return { version: 1, generation: value.generation, repair, mutation };
+	if (value.queuedHead !== undefined && typeof value.queuedHead !== 'string') {
+		throw new Error('Invalid GitHub pull request merge queue checkpoint');
+	}
+	return { version: 1, generation: value.generation, repair, mutation, ...(value.queuedHead !== undefined ? { queuedHead: value.queuedHead } : {}) };
 }
 
 class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIntegrationBinding {
@@ -373,11 +391,18 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 	readonly actions: readonly ArtifactAction[];
 	private readonly workspaces = observableValueOpts<Readonly<Record<string, WorkspaceState>>>({ owner: this, equalsFn: structuralEquals }, {});
 	private workspaceRevision = 0;
+	/** What the last conclusive checkout probe was based on and when; the same inputs give the same answer until the checkout changes, which a Git state refresh reports. */
+	private lastWorkspaceProbe: string | undefined;
+	private lastWorkspaceProbeAt = 0;
+	/** Counts the announced Git state refreshes and the turn ends of the session, so that a probe that started before one is not taken for current. */
+	private gitRefreshGeneration = 0;
+	private probingWorkspace: string | undefined;
 	private readonly automationError = observableValue<string | undefined>(this, undefined);
 	/** Threads resolved from their details row, by resolution time, hidden until GitHub's thread list reflects it. */
 	private readonly resolvedThreads = observableValue<ReadonlyMap<string, number>>(this, new Map());
 	private readonly hostChanges;
 	private readonly checkpointWrites = new Sequencer();
+	private readonly mergeQueueTracking = new Sequencer();
 	private refreshedAutomationRevision: number | undefined;
 	private nextAutomationPollAt: number | undefined;
 	private reconcilingRun = false;
@@ -392,26 +417,38 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 		private readonly configuration: IAgentConfigurationService,
 		events: AgentHostArtifactEventService,
 		private readonly logService: ILogService,
+		gitState: IAgentHostGitStateService,
 	) {
 		super();
+		const sessionGitRefreshes = Event.filter(gitState.onDidRefreshSessionGitState, key => key === context.session || stateManager.getChatOwner(key) === context.session);
+		// An agent may have changed a checkout nobody watches during its turn.
+		const sessionTurnEnds = Event.filter(stateManager.onDidEmitEnvelope, envelope => envelope.action.type === ActionType.ChatTurnComplete && stateManager.getChatOwner(envelope.channel) === context.session);
 		this.hostChanges = observableSignalFromEvent(this, Event.any<unknown>(
 			Event.filter(events.onDidChange, event => event.channel === context.session || stateManager.getChatOwner(event.channel) === context.session),
+			sessionGitRefreshes,
+			sessionTurnEnds,
 			configuration.onDidRootConfigChange,
 			Event.filter(configuration.onDidSessionConfigChange, event => event.session === context.session),
 		));
 		const refreshWorkspace = this._register(new RunOnceScheduler(() => { void this.refreshWorkspaces(); }, 50));
+		this._register(Event.any<unknown>(sessionGitRefreshes, sessionTurnEnds)(() => { this.gitRefreshGeneration++; }));
 		this._register(autorun(reader => this.pruneResolvedThreads(resource.snapshot.read(reader).reviewThreads)));
+		this._register(autorun(reader => {
+			resource.snapshot.read(reader);
+			void this.mergeQueueTracking.queue(() => this.trackMergeQueue()).catch(error => this.logService.warn('[GitHubPullRequestArtifact] Could not track the merge queue', error));
+		}));
 		this._register(autorun(reader => {
 			resource.snapshot.read(reader);
 			this.hostChanges.read(reader);
 			refreshWorkspace.schedule();
 		}));
 		this.actions = [
-			this.promptAction('fixCI', 'github-action', localize('prArtifact.fixCI', "Fix Checks")),
-			this.promptAction('addressReviews', 'comment-discussion', localize('prArtifact.addressReviews', "Address Comments")),
+			this.promptAction('fixCI', 'lightbulb', localize('prArtifact.fixCI', "Fix Checks")),
+			this.promptAction('addressReviews', 'comment', localize('prArtifact.addressReviews', "Address Comments")),
 			this.promptAction('resolveConflicts', 'git-compare', localize('prArtifact.updateBranch', "Resolve Conflicts / Update Branch")),
 			this.codeAction('markReady', 'git-pull-request', localize('prArtifact.markReady', "Mark Ready")),
 			this.codeAction('merge', 'git-merge', localize('prArtifact.merge', "Merge")),
+			this.codeAction('enqueue', 'git-merge', localize('prArtifact.enqueue', "Add to Merge Queue")),
 		];
 		this.view = derived(this, reader => {
 			this.hostChanges.read(reader);
@@ -436,11 +473,17 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 			const failedRequired = checks.length > 0 && getPullRequestArtifactFailedChecks(snapshot).length > 0;
 			const mergeability = snapshot.mergeability;
 			const conflicting = hasCore && open && hasPresentationData(mergeability, core.headSha) && mergeability.value.mergeable === 'CONFLICTING';
+			const queued = hasCore ? getQueuedMergeability(snapshot) : undefined;
+			const removal = hasCore ? getMergeQueueRemoval(snapshot, false) : undefined;
+			const queueFailures = removal?.failedChecks ?? [];
+			// The base branch requires the queue, so a value read for an earlier head still applies while the current head loads.
+			const queueRequired = !!mergeability.value?.mergeQueueRequired;
 			const visibleActions = new Set([
 				...threads.length ? ['addressReviews'] : [],
-				...failedRequired ? ['fixCI'] : [],
+				...failedRequired || queueFailures.length ? ['fixCI'] : [],
 				...hasPresentationData(mergeability, core?.headSha) && (conflicting || mergeability.value.mergeStateStatus === 'BEHIND') ? ['resolveConflicts'] : [],
-				core?.draft ? 'markReady' : 'merge',
+				// A queued pull request has nothing left to merge; its queue section shows its progress instead.
+				...core?.draft ? ['markReady'] : queued ? [] : [queueRequired ? 'enqueue' : 'merge'],
 			]);
 			const resourceAvailability = this.availability(snapshot);
 			const availability: ArtifactAvailability = error && resourceAvailability.kind === 'available' ? { kind: 'error', reason: error } : resourceAvailability;
@@ -448,8 +491,10 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 				availability,
 				main: { label: `#${resource.target.number}`, icon: this.mainIcon(snapshot), detailsId: 'main', description: core ? `${this.stateLabel(snapshot)}: ${core.title}` : localize('prArtifact.loading', "Loading pull request.") },
 				groupId: gitHubPullRequestArtifactIntegrationId,
-				...(hasCore && core ? { group: getPullRequestGroupPresentation(core, { needsRepair: open && (failedRequired || conflicting), hasComments: threads.length > 0 }) } : {}),
+				...(hasCore && core ? { group: getPullRequestGroupPresentation(core, { needsRepair: open && (failedRequired || conflicting || queueFailures.length > 0), hasComments: threads.length > 0 }) } : {}),
 				sections: [
+					...(queued ? [{ id: 'mergeQueue', detailsId: 'main', ...getMergeQueuePresentation(queued) }]
+						: removal ? [{ id: 'mergeQueue', detailsId: queueFailures.length ? 'mergeQueue' : 'main', ...getMergeQueueRemovalPresentation(removal) }] : []),
 					...(checks.length ? [{
 						id: 'checks', detailsId: 'checks',
 						icon: checksIcon,
@@ -472,6 +517,7 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 				lists: hasCore ? [
 					{ id: 'checks', label: localize('prArtifact.checks', "Checks"), icon: checks.length ? checksIcon : { id: 'checklist' }, detailsId: 'checks' },
 					{ id: 'comments', label: localize('prArtifact.comments', "Comments"), icon: threads.length ? reviewThreadIcon : { id: reviewThreadIcon.id }, detailsId: 'comments' },
+					...queueFailures.length ? [{ id: 'mergeQueue', label: localize('prArtifact.mergeQueueChecks', "Merge Queue"), icon: checkIcon('failed'), detailsId: 'mergeQueue' }] : [],
 				] : [],
 				stateActions: this.actions.filter(action => hasCore && open && visibleActions.has(action.id)).map(action => {
 					const enabled = availability.kind === 'available' && this.applicable(action.id, snapshot, false);
@@ -482,7 +528,8 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 					const repair = option.id === 'addressReviews' || option.id === 'fixCI' || option.id === 'resolveConflicts';
 					const unchangedMerge = option.id === 'merge' && configuration.values.merge === 'ifUnchanged';
 					const pendingSettings = option.id === 'markReady' && this.configuration.getSessionConfigValues(context.session)?.[gitHubPullRequestArtifactWorkspaceSettingsKey(context.artifact.id)] === undefined;
-					const available = !!open && availability.kind === 'available' && (!repair || !!context.artifact.origin)
+					// A refresh, which follows every Autopilot change, keeps the last known state; automation waits for current state before acting.
+					const available = !!open && (availability.kind === 'available' || availability.kind === 'stale') && (!repair || !!context.artifact.origin)
 						&& !pendingSettings && (!unchangedMerge || (workspace?.kind === 'ready' && !workspace.checkout.dirty));
 					return {
 						id: option.id, available,
@@ -555,7 +602,9 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 		return core?.state === 'merged' ? localize('prArtifact.merged', "Merged")
 			: core?.state === 'closed' ? localize('prArtifact.closed', "Closed")
 				: core?.draft ? localize('prArtifact.draft', "Draft pull request")
-					: localize('prArtifact.open', "Open pull request");
+					: getQueuedMergeability(snapshot) ? localize('prArtifact.inMergeQueue', "In merge queue")
+						: getMergeQueueRemoval(snapshot, false) ? localize('prArtifact.removedFromMergeQueue', "Removed from merge queue")
+							: localize('prArtifact.open', "Open pull request");
 	}
 
 	private ignoredChecks(): readonly string[] | undefined {
@@ -577,7 +626,7 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 	}
 
 	acquireDetails(detailsId: string): IArtifactDetailsModel {
-		if (detailsId !== 'main' && detailsId !== 'checks' && detailsId !== 'comments') {
+		if (detailsId !== 'main' && detailsId !== 'checks' && detailsId !== 'comments' && detailsId !== 'mergeQueue') {
 			throw new Error('Unknown pull request artifact details');
 		}
 		const lease = this.resource.acquireDetails();
@@ -592,39 +641,46 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 				const snapshot = this.resource.snapshot.read(reader);
 				const view = this.view.read(reader);
 				const main = detailsId === 'main';
-				const ids = main ? ['resolveConflicts', 'markReady', 'merge'] : detailsId === 'checks' ? ['fixCI'] : ['addressReviews'];
+				const queue = detailsId === 'mergeQueue';
+				const ids = main ? ['resolveConflicts', 'markReady', 'merge'] : detailsId === 'checks' || queue ? ['fixCI'] : ['addressReviews'];
 				const exposed = view.lists?.some(list => list.detailsId === detailsId);
+				const removal = (main || queue) && view.availability.kind !== 'authenticationRequired' ? getMergeQueueRemoval(snapshot, false) : undefined;
+				const queueChecks = exposed && queue ? removal?.failedChecks ?? [] : [];
 				const checks = exposed && detailsId === 'checks' && hasPresentationData(snapshot.checks, snapshot.core.value?.headSha)
 					&& snapshot.checks.value.headSha === snapshot.core.value?.headSha
 					? getPullRequestArtifactChecks(snapshot).toSorted((a, b) => checkStateOrder[checkPresentationState(a)] - checkStateOrder[checkPresentationState(b)]) : [];
 				const completedWithoutFailure = checks.filter(check => getPullRequestArtifactCheckState(check) === 'passed').length;
 				const threads = exposed && detailsId === 'comments' && hasPresentationData(snapshot.reviewThreads, snapshot.core.value?.headSha) ? this.threads(snapshot, reader) : [];
-				const fragment = main ? snapshot.core : detailsId === 'checks' ? snapshot.checks : snapshot.reviewThreads;
-				const total = main ? 0 : detailsId === 'checks' ? checks.length : threads.length;
+				const fragment = main ? snapshot.core : detailsId === 'checks' ? snapshot.checks : queue ? snapshot.mergeability : snapshot.reviewThreads;
+				const total = main ? 0 : detailsId === 'checks' ? checks.length : queue ? queueChecks.length : threads.length;
 				const start = pageStart(snapshot, total, reader);
 				const description = detailsId === 'checks'
 					? localize('prArtifact.checksDescription', "Shows required and optional CI checks for the current pull request revision, ordered by running, failing, skipped, then passed.")
-					: localize('prArtifact.commentsDescription', "Shows unresolved review comments from repository contributors with owner, member, or collaborator access, and from Copilot.");
+					: queue ? localize('prArtifact.mergeQueueChecksDescription', "Shows the checks that failed on {0}, the commit that the merge queue tested this pull request in, combined with the base branch and the pull requests ahead of it. Some checks only run in the merge queue, so they are not among the pull request's own checks.", removal?.mergeGroupSha?.slice(0, 7) ?? '')
+						: localize('prArtifact.commentsDescription', "Shows unresolved review comments from repository contributors with owner, member, or collaborator access, and from Copilot.");
+				const queued = main && view.availability.kind !== 'authenticationRequired' ? getQueuedMergeability(snapshot) : undefined;
 				const details: ArtifactDetails = {
 					availability: view.availability.kind === 'authenticationRequired' ? view.availability : fragment.error ? { kind: 'error', reason: fragment.error.message }
 						: fragment.status === 'loading' || fragment.status === 'missing' ? { kind: 'loading' }
 							: fragment.status === 'stale' ? { kind: 'stale', reason: localize('prArtifact.detailsStale', "Showing the last known state while refreshing.") } : view.availability,
 					title: main ? snapshot.core.value?.title ?? `#${this.resource.target.number}` : detailsId === 'checks'
 						? checks.length ? localize('prArtifact.checksTitle', "Checks ({0}/{1})", completedWithoutFailure, checks.length) : localize('prArtifact.checks', "Checks")
-						: localize('prArtifact.commentsTitle', "Comments ({0})", threads.length),
-					description: main ? undefined : total > 200
+						: queue ? localize('prArtifact.mergeQueueChecksTitle', "Merge Queue ({0} failed)", queueChecks.length)
+							: localize('prArtifact.commentsTitle', "Comments ({0})", threads.length),
+					description: main ? queued ? getMergeQueuePresentation(queued).description : removal ? getMergeQueueRemovalPresentation(removal).description : undefined : total > 200
 						? localize('prArtifact.detailsDescriptionPage', "{0}\nShowing {1}-{2} of {3}.", description, start + 1, Math.min(start + 200, total), total) : description,
 					links: ids.flatMap(id => [
-						...view.stateActions.some(action => action.id === id) ? [{ kind: 'action' as const, actionId: id }] : [],
+						// Merging a pull request whose base branch requires a merge queue adds it to the queue instead.
+						...view.stateActions.filter(action => action.id === id || (id === 'merge' && action.id === 'enqueue')).map(action => ({ kind: 'action' as const, actionId: action.id })),
 						{ kind: 'automation' as const, optionId: id },
 					]),
 					completeness: start + 200 < total ? 'partial' : 'complete',
-					...(main ? {} : {
+					...(main || queue ? {} : {
 						itemActions: [detailsId === 'checks'
 							? { id: 'rerunCheck', iconId: 'debug-rerun', label: localize('prArtifact.rerunCheck', "Rerun Check") }
 							: { id: 'resolveThread', iconId: 'check', label: localize('prArtifact.resolveThread', "Resolve Comment") }],
 					}),
-					items: main ? [] : detailsId === 'checks' ? checks.slice(start, start + 200).map(check => ({
+					items: main ? [] : queue ? queueChecks.slice(start, start + 200).map(check => this.checkItem(check)) : detailsId === 'checks' ? checks.slice(start, start + 200).map(check => ({
 						...this.checkItem(check),
 						...(this.rerunnableJob(snapshot, check) ? { actions: ['rerunCheck'] } : {}),
 					})) : threads.slice(start, start + 200).map(thread => {
@@ -645,7 +701,8 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 				}
 				const snapshot = this.resource.snapshot.get();
 				const list = this.view.get().lists?.find(list => list.detailsId === detailsId);
-				const total = !list ? 0 : detailsId === 'checks' ? getPullRequestArtifactChecks(snapshot).length : this.threads(snapshot).length;
+				const total = !list ? 0 : detailsId === 'checks' ? getPullRequestArtifactChecks(snapshot).length
+					: detailsId === 'mergeQueue' ? getMergeQueueRemoval(snapshot, false)?.failedChecks?.length ?? 0 : this.threads(snapshot).length;
 				const start = pageStart(snapshot, total);
 				if (start + 200 < total) {
 					page.set({ headSha: snapshot.core.value?.headSha, offset: start + 200 }, undefined);
@@ -706,18 +763,18 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 			throw new Error(localize('prArtifact.checkNotRerunnable', "This check is no longer failing on the pull request's current revision, or GitHub Actions cannot rerun it."));
 		}
 		const repository = { owner: this.resource.target.owner, repo: this.resource.target.repo };
-		await withSignal(token, signal => this.resource.withAuthentication(() => this.resource.withApiClient(signal, async api => {
+		await this.resource.withAuthentication(() => this.resource.withApiClient(token, async api => {
 			// The details link is integration data, so confirm with GitHub that the job is this check's run on the current head.
-			const workflowJob = await api.actions.getJob(repository, job.jobId, signal, { caller });
+			const workflowJob = await api.actions.getJob(repository, job.jobId, token, { caller });
 			if (workflowJob.run_id !== job.runId || workflowJob.head_sha !== headSha || !workflowJob.check_run_url.endsWith(`/check-runs/${check.id}`)) {
 				throw new Error(localize('prArtifact.checkNotRerunnable', "This check is no longer failing on the pull request's current revision, or GitHub Actions cannot rerun it."));
 			}
 			// GitHub rejects job reruns while other jobs of the same workflow run are still in progress.
-			if ((await api.actions.getRun(repository, job.runId, signal, { caller })).status !== 'completed') {
+			if ((await api.actions.getRun(repository, job.runId, token, { caller })).status !== 'completed') {
 				throw new Error(localize('prArtifact.workflowRunning', "The workflow of {0} is still running. Rerun the check after it finishes.", check.name));
 			}
-			await api.actions.rerunJob(repository, job.jobId, signal, { caller });
-		}), token));
+			await api.actions.rerunJob(repository, job.jobId, token, { caller });
+		}), token);
 		this.github.pullRequests.invalidatePullRequest(this.resource.ref, ['checks']);
 	}
 
@@ -726,7 +783,7 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 		if (!this.threads(this.resource.snapshot.get()).some(thread => thread.id === threadId)) {
 			throw new Error(localize('prArtifact.threadNotResolvable', "This review thread is already resolved or no longer available."));
 		}
-		const resolution = await withSignal(token, signal => this.resource.withAuthentication(() => this.resource.withApiClient(signal, api => api.reviews.resolveThread(threadId, signal, { caller })), token));
+		const resolution = await this.resource.withAuthentication(() => this.resource.withApiClient(token, api => api.reviews.resolveThread(threadId, token, { caller })), token);
 		if (resolution.isResolved) {
 			this.resolvedThreads.set(new Map([...this.resolvedThreads.get(), [threadId, Date.now()]]), undefined);
 		}
@@ -739,7 +796,8 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 		}
 		switch (actionId) {
 			case 'addressReviews': return isCurrentPullRequestFragment(snapshot.reviewThreads) && this.threads(snapshot).length > 0;
-			case 'fixCI': return isCurrentPullRequestFragment(snapshot.checks, snapshot.core.value.headSha) && getPullRequestArtifactFailedChecks(snapshot).length > 0;
+			case 'fixCI': return (isCurrentPullRequestFragment(snapshot.checks, snapshot.core.value.headSha) && getPullRequestArtifactFailedChecks(snapshot).length > 0)
+				|| !!getMergeQueueRemoval(snapshot, true)?.failedChecks?.length;
 			case 'resolveConflicts': return isCurrentPullRequestFragment(snapshot.mergeability, snapshot.core.value.headSha)
 				&& (snapshot.mergeability.value.mergeable === 'CONFLICTING' || snapshot.mergeability.value.mergeStateStatus === 'BEHIND');
 			case 'markReady': {
@@ -750,6 +808,7 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 				return ignoredChecks !== undefined && isPullRequestArtifactReadyForReview(snapshot, ignoredChecks);
 			}
 			case 'merge': return isPullRequestArtifactMergeable(snapshot, automatic);
+			case 'enqueue': return isPullRequestArtifactMergeable(snapshot, automatic) && snapshot.mergeability.value!.mergeQueueRequired;
 			default: return false;
 		}
 	}
@@ -767,8 +826,23 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 		if (snapshot.core.value?.state !== 'open') {
 			return localize('prArtifact.terminal', "This pull request is closed or merged.");
 		}
-		return actionId === 'merge' ? localize('prArtifact.cannotMerge', "GitHub has not confirmed that this pull request can be merged, or it is already queued for merging.")
-			: undefined;
+		if (actionId !== 'merge' && actionId !== 'enqueue') {
+			return undefined;
+		}
+		const missing = snapshot.checks.value?.headSha === snapshot.core.value?.headSha ? getPullRequestArtifactMissingRequiredChecks(snapshot) : [];
+		const mergeability = hasPresentationData(snapshot.mergeability, snapshot.core.value?.headSha) ? snapshot.mergeability.value : undefined;
+		// With GitHub auto-merge on, the action stays unavailable after the checks report, because GitHub merges or queues it.
+		return mergeability?.autoMergeEnabled
+			? mergeability.mergeQueueRequired
+				? localize('prArtifact.autoMergeQueue', "GitHub auto-merge is on for this pull request, so GitHub adds it to the merge queue once it can be merged.")
+				: localize('prArtifact.autoMergeDirect', "GitHub auto-merge is on for this pull request, so GitHub merges it once it can be merged.")
+			: missing.length
+				? localize('prArtifact.requiredChecksMissing', "GitHub blocks merging until these required checks report on the current revision: {0}. If their workflow has finished, rerun it.", missing.join(', '))
+				: mergeability?.mergeStateStatus === 'BLOCKED'
+					? localize('prArtifact.mergeBlocked', "GitHub blocks merging this pull request until the base branch's rules are met, such as required reviews or checks.")
+					: actionId === 'enqueue'
+						? localize('prArtifact.cannotEnqueue', "GitHub has not confirmed that this pull request can be added to the merge queue.")
+						: localize('prArtifact.cannotMerge', "GitHub has not confirmed that this pull request can be merged, or it is already queued for merging.");
 	}
 
 	/**
@@ -816,25 +890,82 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 
 	/** Verifies the recording chat's checkout, which merging only unchanged pull requests requires to stay clean. */
 	private async refreshWorkspaces(): Promise<void> {
-		const revision = ++this.workspaceRevision;
 		const core = this.resource.snapshot.get().core.value;
 		const chat = this.context.artifact.origin?.chat ?? this.stateManager.getSessionState(this.context.session)?.defaultChat;
 		if (!core || core.state !== 'open' || !chat) {
+			this.workspaceRevision++;
+			this.lastWorkspaceProbe = undefined;
+			// The pending probe is superseded and can no longer clear its own marker.
+			this.probingWorkspace = undefined;
 			this.workspaces.set({}, undefined);
 			return;
 		}
+		const directories = this.configuration.getEffectiveWorkingDirectories(chat);
+		const probe = JSON.stringify([chat, directories, core.headRef, core.headSha, core.repositoryNameWithOwner, core.headRepositoryNameWithOwner, this.gitRefreshGeneration]);
+		if ((probe === this.lastWorkspaceProbe && Date.now() - this.lastWorkspaceProbeAt < workspaceProbeMaxAge) || probe === this.probingWorkspace) {
+			return;
+		}
+		const revision = ++this.workspaceRevision;
+		this.lastWorkspaceProbe = undefined;
+		this.probingWorkspace = probe;
+		let conclusive = false;
 		const workspaces: Record<string, WorkspaceState> = {};
 		try {
 			const checkout = await this.checkout(chat, core);
 			workspaces[chat] = checkout ? { kind: 'ready', checkout } : { kind: 'missing' };
+			conclusive = true;
 		} catch (error) {
 			this.logService.warn('[GitHubPullRequestArtifact] Could not verify chat checkout', error);
 			workspaces[chat] = { kind: 'unavailable', reason: toErrorMessage(error) };
+		}
+		if (revision === this.workspaceRevision) {
+			this.probingWorkspace = undefined;
 		}
 		const currentCore = this.resource.snapshot.get().core.value;
 		if (!this._store.isDisposed && revision === this.workspaceRevision && currentCore?.state === 'open' && currentCore.headSha === core.headSha) {
 			this.workspaces.set(workspaces, undefined);
 			this.automationError.set(undefined, undefined);
+			if (conclusive) {
+				this.lastWorkspaceProbe = probe;
+				this.lastWorkspaceProbeAt = Date.now();
+			}
+		}
+	}
+
+	/**
+	 * Remembers the head the pull request is queued with, and posts a notice when it leaves the merge queue without
+	 * merging. A removal is only noticed for a pull request seen in the queue, so recording one that already left posts
+	 * nothing, and it is noticed after a restart.
+	 */
+	private async trackMergeQueue(): Promise<void> {
+		const snapshot = this.resource.snapshot.get();
+		const core = snapshot.core.value;
+		if (this._store.isDisposed || !isCurrentPullRequestFragment(snapshot.core) || !core) {
+			return;
+		}
+		const queuedHead = readCheckpoint(this.context.state.read().value).queuedHead;
+		if (core.state === 'open' && getQueuedMergeability(snapshot)) {
+			if (queuedHead !== core.headSha) {
+				await this.writeCheckpoint(previous => ({ ...previous, queuedHead: core.headSha }));
+			}
+			return;
+		}
+		const mergeability = snapshot.mergeability;
+		if (!queuedHead || (core.state === 'open' && (mergeability.status !== 'ready' || mergeability.headSha !== core.headSha))) {
+			return;
+		}
+		const removal = core.state === 'open' && core.headSha === queuedHead ? getMergeQueueRemoval(snapshot, false) : undefined;
+		// Leaving the queue shows in mergeability before GitHub reports why; without a reason, wait for it.
+		if (core.state === 'open' && core.headSha === queuedHead && !removal) {
+			return;
+		}
+		await this.writeCheckpoint(({ queuedHead: _, ...previous }) => previous);
+		if (removal && this.context.postNotice) {
+			try {
+				await this.context.postNotice(localize('prArtifact.mergeQueueRemovalNotice', "#{0}: {1}", this.resource.target.number, getMergeQueueRemovalPresentation(removal).description));
+			} catch (error) {
+				this.logService.warn('[GitHubPullRequestArtifact] Could not post the merge queue removal notice', error);
+			}
 		}
 	}
 
@@ -846,7 +977,7 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 	}
 
 	private promptAction(id: 'addressReviews' | 'fixCI' | 'resolveConflicts', iconId: string, label: string): ArtifactAction {
-		return { id, iconId, label, kind: 'prompt', prepare: (context, token) => this.preparePrompt(id, context, token) };
+		return { id, iconId, label, activityLabel: getPullRequestRepairActivityLabel(id), kind: 'prompt', prepare: (context, token) => this.preparePrompt(id, context, token) };
 	}
 
 	private async preparePrompt(id: 'addressReviews' | 'fixCI' | 'resolveConflicts', context: IArtifactActionContext, token: CancellationToken): Promise<ArtifactPreparation<ArtifactPrompt>> {
@@ -899,20 +1030,39 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 			}
 			lines.push(`There are ${threads.length} eligible unresolved threads. The quoted preview is bounded; retrieve the full thread content and any remaining eligible threads before claiming all feedback is addressed.`);
 		} else if (id === 'fixCI') {
-			lines.push('Investigate and fix every failing check below. They are the required checks and the jobs a required check waits for. Read the actual diagnostics and logs. A transient failure may be rerun instead of changing code. Report missing tools or inaccessible logs as blockers; do not claim they were fixed.');
 			const failures = getPullRequestArtifactFailedChecks(snapshot);
-			for (const check of failures.slice(0, 100)) {
-				lines.push(quote(JSON.stringify(check)));
+			const removal = getMergeQueueRemoval(snapshot, true);
+			const queueFailures = removal?.failedChecks ?? [];
+			details = [];
+			if (failures.length || !queueFailures.length) {
+				lines.push('Investigate and fix every failing check below. They are the required checks and the jobs a required check waits for. Read the actual diagnostics and logs. A transient failure may be rerun instead of changing code. Report missing tools or inaccessible logs as blockers; do not claim they were fixed.');
+				for (const check of failures.slice(0, 100)) {
+					lines.push(quote(JSON.stringify(check)));
+				}
+				lines.push(`There are ${failures.length} failing checks. Retrieve any checks omitted from this bounded preview.`);
+				details.push({
+					availability: { kind: 'available' },
+					title: localize('prArtifact.failingChecksTitle', "Failing Checks ({0})", failures.length),
+					description: localize('prArtifact.failingChecksDescription', "Shows the failing required checks, and the jobs they wait for, that this action asked to fix."),
+					links: [],
+					items: failures.slice(0, 100).map(check => this.checkItem(check)),
+					completeness: failures.length > 100 ? 'partial' : 'complete',
+				});
 			}
-			lines.push(`There are ${failures.length} failing checks. Retrieve any checks omitted from this bounded preview.`);
-			details = [{
-				availability: { kind: 'available' },
-				title: localize('prArtifact.failingChecksTitle', "Failing Checks ({0})", failures.length),
-				description: localize('prArtifact.failingChecksDescription', "Shows the failing required checks, and the jobs they wait for, that this action asked to fix."),
-				links: [],
-				items: failures.slice(0, 100).map(check => this.checkItem(check)),
-				completeness: failures.length > 100 ? 'partial' : 'complete',
-			}];
+			if (removal && queueFailures.length) {
+				lines.push(`The merge queue removed this pull request because the checks below failed on its merge group commit ${removal.mergeGroupSha}, which combined this pull request with the base branch and the pull requests ahead of it in the queue. Some of them only run in the merge queue, so they are not among the pull request's own checks, and rerunning them cannot return it to the queue. Read their logs and reproduce each failure with this pull request on the current base branch. Fix the failures this pull request causes. If a failure is transient or caused by another pull request of the merge group, change nothing for it and report it, so that the pull request can be added to the queue again.`);
+				for (const check of queueFailures.slice(0, 100)) {
+					lines.push(quote(JSON.stringify(check)));
+				}
+				details.push({
+					availability: { kind: 'available' },
+					title: localize('prArtifact.failingMergeQueueChecksTitle', "Failing Merge Queue Checks ({0})", queueFailures.length),
+					description: localize('prArtifact.failingMergeQueueChecksDescription', "Shows the checks that failed in the merge queue and removed this pull request from it, which this action asked to fix."),
+					links: [],
+					items: queueFailures.slice(0, 100).map(check => this.checkItem(check)),
+					completeness: queueFailures.length > 100 ? 'partial' : 'complete',
+				});
+			}
 		} else {
 			lines.push(`Update the PR branch against its base ${JSON.stringify(snapshot.core.value.baseRef)} and resolve conflicts, preserving both sides' intended changes.`);
 		}
@@ -924,6 +1074,15 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 	private isRequestedHead(context: IArtifactActionContext, snapshot: PullRequestSnapshot): boolean {
 		return context.run.source !== 'automation'
 			|| (isArtifactDataObject(context.run.input) && context.run.input.headSha === snapshot.core.value?.headSha);
+	}
+
+	/**
+	 * Whether an automatic merge may act on the pull request's current removal from its merge queue, if it has one: only
+	 * the timeout it was requested for. A removal it was not requested for, such as one by a person, stands.
+	 */
+	private isAuthorizedAfterRemoval(context: IArtifactActionContext, snapshot: PullRequestSnapshot): boolean {
+		const removal = context.run.source === 'automation' ? getMergeQueueRemoval(snapshot, true) : undefined;
+		return !removal || (isMergeQueueTimeout(removal.reason) && isArtifactDataObject(context.run.input) && context.run.input.afterMergeQueueRemoval === removal.id);
 	}
 
 	private isInvocationCurrent(context: IArtifactActionContext, token: CancellationToken): boolean {
@@ -941,7 +1100,7 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 		return !!option && isArtifactOptionEnabled(option, configuration.values[option.id]) && configuration.generations[option.id] === context.run.generation;
 	}
 
-	private codeAction(id: 'markReady' | 'merge', iconId: string, label: string): ArtifactAction {
+	private codeAction(id: 'markReady' | 'merge' | 'enqueue', iconId: string, label: string): ArtifactAction {
 		return {
 			id, iconId, label, kind: 'code', executionScope: 'resource',
 			prepare: async (context, token) => {
@@ -949,14 +1108,18 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 				if (!this.applicable(id, snapshot, context.run.source === 'automation') || !this.isRequestedHead(context, snapshot)) {
 					return { kind: 'skip', reason: this.actionDisabledReason(id, snapshot) };
 				}
+				if (!this.isAuthorizedAfterRemoval(context, snapshot)) {
+					return { kind: 'skip', reason: localize('prArtifact.removalNotAuthorized', "The pull request was removed from the merge queue, and automatic merging does not add it again for this removal.") };
+				}
 				const headSha = snapshot.core.value!.headSha;
 				await this.writeCheckpoint(previous => ({ ...previous, mutation: { runId: context.run.id, headSha, phase: 'preparing' } }));
 				return {
 					kind: 'ready',
 					value: {
-						run: ({ token, runId }) => withSignal(token, async signal => {
+						run: async ({ token, runId }) => {
+							CancellationToken.throwIfCanceled(token);
 							const current = await this.resource.refresh(token);
-							if (current.core.value?.headSha !== headSha || !this.applicable(id, current, context.run.source === 'automation')) {
+							if (current.core.value?.headSha !== headSha || !this.applicable(id, current, context.run.source === 'automation') || !this.isAuthorizedAfterRemoval(context, current)) {
 								return { kind: 'skipped', reason: localize('prArtifact.stateChanged', "The pull request changed before the action could run.") };
 							}
 							if (id === 'markReady') {
@@ -968,12 +1131,13 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 									return { kind: 'skipped', reason: localize('prArtifact.authorizationChanged', "The action's authorization changed before it could run.") };
 								}
 								const pullRequestId = current.core.value.id;
-								await this.resource.mutate(() => this.resource.withApiClient(signal, api => api.pullRequests.markReadyForReview(pullRequestId, signal, { caller })), token);
+								await this.resource.mutate(() => this.resource.withApiClient(token, api => api.pullRequests.markReadyForReview(pullRequestId, token, { caller })), token);
 								this.github.pullRequests.invalidatePullRequest(this.resource.ref, ['core', 'mergeability']);
 								return { kind: 'completed', summary: localize('prArtifact.markedReady', "Pull request marked ready for review.") };
 							}
-							const preparation = await this.resource.withAuthentication(() => this.github.mutations.prepareMerge(this.resource.ref, headSha, signal), token);
-							if (preparation.snapshot.core.value?.headSha !== headSha || !isPullRequestArtifactMergeable(preparation.snapshot, context.run.source === 'automation')) {
+							const preparation = await this.resource.withAuthentication(() => this.github.mutations.prepareMerge(this.resource.ref, headSha, token), token);
+							if (preparation.snapshot.core.value?.headSha !== headSha || !isPullRequestArtifactMergeable(preparation.snapshot, context.run.source === 'automation')
+								|| (id === 'enqueue' && !preparation.snapshot.mergeability.value?.mergeQueueRequired) || !this.isAuthorizedAfterRemoval(context, preparation.snapshot)) {
 								return { kind: 'skipped', reason: localize('prArtifact.mergeChanged', "GitHub's merge requirements changed.") };
 							}
 							if (context.run.source === 'automation' && !await this.unchangedForMerge()) {
@@ -991,12 +1155,12 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 							}
 							const authorization = { confirmed: true as const, authorizationId: runId };
 							if (!method) {
-								await this.resource.mutate(() => this.github.mutations.enqueue(preparation, authorization, signal), token);
+								await this.resource.mutate(() => this.github.mutations.enqueue(preparation, authorization, token), token);
 								return { kind: 'completed', summary: localize('prArtifact.enqueued', "Pull request added to the merge queue.") };
 							}
-							await this.resource.mutate(() => this.github.mutations.merge(preparation, { method, authorization }, signal), token);
+							await this.resource.mutate(() => this.github.mutations.merge(preparation, { method, authorization }, token), token);
 							return { kind: 'completed', summary: localize('prArtifact.mergeCompleted', "Pull request merged.") };
-						}),
+						},
 					},
 				};
 			},
@@ -1134,10 +1298,23 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 	}
 
 	private occurrenceKey(id: string, snapshot: PullRequestSnapshot): string {
+		const queueFailures = id === 'fixCI' ? getMergeQueueRemoval(snapshot, true)?.failedChecks ?? [] : [];
+		const removal = id === 'merge' ? getMergeQueueRemoval(snapshot, true) : undefined;
 		const state = id === 'addressReviews' ? this.threads(snapshot).map(thread => [thread.id, ...thread.comments.filter(comment => isPullRequestFeedbackAuthor(comment.author)).map(comment => [comment.id, comment.updatedAt ?? comment.createdAt, comment.body])])
-			: id === 'fixCI' ? getPullRequestArtifactFailedChecks(snapshot).map(check => [check.id, check.status, check.conclusion])
-				: id === 'resolveConflicts' ? snapshot.core.value?.baseSha : id;
+			: id === 'fixCI' ? [...getPullRequestArtifactFailedChecks(snapshot).map(check => [check.id, check.status, check.conclusion]), ...queueFailures.map(check => ['mergeQueue', check.id])]
+				: id === 'resolveConflicts' ? snapshot.core.value?.baseSha
+					// Adding the pull request to the merge queue again after a removal is a new occurrence.
+					: removal ? [id, removal.id] : id;
 		return createHash('sha256').update(JSON.stringify([snapshot.core.value?.headSha, state])).digest('hex');
+	}
+
+	/**
+	 * Whether automatic merging may add the pull request's head to the merge queue again after it was removed: only once,
+	 * after its checks timed out. Other removals stand until the pull request changes.
+	 */
+	private mayRequeueAutomatically(removal: PullRequestMergeQueueRemoval, headSha: string, runs: readonly ArtifactRun[]): boolean {
+		return isMergeQueueTimeout(removal.reason) && !runs.some(run => run.optionId === 'merge' && run.dispatched && isArtifactDataObject(run.input)
+			&& run.input.headSha === headSha && typeof run.input.afterMergeQueueRemoval === 'string');
 	}
 
 	private async evaluate(context: IArtifactAutomationContext, isCurrent: () => boolean): Promise<number | undefined> {
@@ -1151,7 +1328,7 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 		}
 		const uncertain = runs.find(run => run.indeterminate);
 		if (uncertain) {
-			if (uncertain.actionKind === 'code' && (uncertain.actionId === 'markReady' || uncertain.actionId === 'merge')) {
+			if (uncertain.actionKind === 'code' && (uncertain.actionId === 'markReady' || uncertain.actionId === 'merge' || uncertain.actionId === 'enqueue')) {
 				if (this.reconcilingRun) {
 					return undispatchedRetryDelay;
 				}
@@ -1196,6 +1373,10 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 			} else if (id === 'merge' && !await this.unchangedForMerge()) {
 				continue;
 			}
+			const removal = id === 'merge' ? getMergeQueueRemoval(snapshot, true) : undefined;
+			if (removal && !this.mayRequeueAutomatically(removal, snapshot.core.value.headSha, runs)) {
+				continue;
+			}
 			if (!isCurrent()) {
 				return;
 			}
@@ -1220,7 +1401,7 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 			await context.runAutomation({
 				optionId: id, actionId: id, configurationRevision: configuration.revision, occurrenceKey,
 				reason: this.actions.find(action => action.id === id)!.label,
-				input: { headSha: snapshot.core.value.headSha },
+				input: { headSha: snapshot.core.value.headSha, ...(removal ? { afterMergeQueueRemoval: removal.id } : {}) },
 				...(previous ? { retryOf: previous.id } : {}),
 			});
 			return;
@@ -1235,6 +1416,114 @@ function hasPresentationData<T>(fragment: FragmentState<T>, headSha?: string): f
 		&& (headSha === undefined || fragment.headSha === headSha);
 }
 
+/**
+ * The mergeability of an open pull request whose current head is in a merge queue. While a pull request is queued,
+ * GitHub does not compute whether it can be merged, so the fragment stays incomplete and is only presentable.
+ */
+function getQueuedMergeability(snapshot: PullRequestSnapshot): PullRequestMergeability | undefined {
+	const core = snapshot.core.value;
+	const mergeability = snapshot.mergeability;
+	return core?.state === 'open' && hasPresentationData(mergeability, core.headSha) && mergeability.value.mergeQueueEntryId ? mergeability.value : undefined;
+}
+
+/**
+ * Why an open pull request that is not queued last left its merge queue without merging, while its current head was not
+ * changed since. Merging, conflicts, failed checks and hand removals keep it out of the queue until it changes or is added
+ * again. `authoritative` requires a complete read for actions.
+ */
+function getMergeQueueRemoval(snapshot: PullRequestSnapshot, authoritative: boolean): PullRequestMergeQueueRemoval | undefined {
+	const core = snapshot.core.value;
+	const mergeability = snapshot.mergeability;
+	const current = core?.state === 'open' && (authoritative ? isCurrentPullRequestFragment(mergeability, core.headSha) : hasPresentationData(mergeability, core.headSha));
+	const value = current ? mergeability.value : undefined;
+	return value && !value.mergeQueueEntryId ? value.mergeQueueRemoval : undefined;
+}
+
+/** GitHub does not document a reason for a check timeout, so any reason naming one counts. */
+function isMergeQueueTimeout(reason: string): boolean {
+	return /timed?_?out/i.test(reason);
+}
+
+/** The compact label, icon and plain-text explanation of a pull request's last removal from its merge queue. */
+function getMergeQueueRemovalPresentation(removal: PullRequestMergeQueueRemoval): { readonly icon: ArtifactIcon; readonly label: string; readonly description: string } {
+	if (removal.reason === 'failed_checks') {
+		const names = removal.failedChecks?.map(check => check.name);
+		return {
+			icon: { id: 'error-compact', colorId: 'errorForeground' },
+			label: localize('prArtifact.queueRemovedFailedChecks', "Removed: checks failed"),
+			description: names?.length
+				? localize('prArtifact.queueRemovedFailedChecksNamed', "Removed from the merge queue because checks failed on its merge group: {0}. Fix them, then add the new commit to the queue again.", names.join(', '))
+				: localize('prArtifact.queueRemovedFailedChecksDescription', "Removed from the merge queue because checks failed on its merge group. Fix them, then add the new commit to the queue again."),
+		};
+	}
+	if (removal.reason === 'merge_conflict') {
+		return {
+			icon: { id: 'git-compare', colorId: 'editorWarning.foreground' },
+			label: localize('prArtifact.queueRemovedConflict', "Removed: conflict"),
+			description: localize('prArtifact.queueRemovedConflictDescription', "Removed from the merge queue because it conflicts with the base branch or with the pull requests ahead of it. Update the branch, or add it to the queue again once those pull requests have merged."),
+		};
+	}
+	if (isMergeQueueTimeout(removal.reason)) {
+		return {
+			icon: { id: 'clock', colorId: 'editorWarning.foreground' },
+			label: localize('prArtifact.queueRemovedTimeout', "Removed: timed out"),
+			description: localize('prArtifact.queueRemovedTimeoutDescription', "Removed from the merge queue because its checks did not report in time. Add it to the queue again to retry."),
+		};
+	}
+	if (removal.reason === 'manual') {
+		return {
+			icon: { id: 'circle-slash', colorId: 'descriptionForeground' },
+			label: removal.removedBy ? localize('prArtifact.queueRemovedBy', "Removed by {0}", removal.removedBy) : localize('prArtifact.queueRemovedManually', "Removed from queue"),
+			description: removal.removedBy
+				? localize('prArtifact.queueRemovedByDescription', "{0} removed it from the merge queue. It is not added to the queue again automatically until it changes.", removal.removedBy)
+				: localize('prArtifact.queueRemovedManuallyDescription', "Someone removed it from the merge queue. It is not added to the queue again automatically until it changes."),
+		};
+	}
+	return {
+		icon: { id: 'warning', colorId: 'editorWarning.foreground' },
+		label: localize('prArtifact.queueRemoved', "Removed from queue"),
+		description: localize('prArtifact.queueRemovedOther', "Removed from the merge queue ({0}). It is not added to the queue again automatically until it changes.", removal.reason),
+	};
+}
+
+/** The compact label, icon and plain-text status of a queued pull request's merge queue entry. */
+function getMergeQueuePresentation(mergeability: PullRequestMergeability): { readonly icon: ArtifactIcon; readonly label: string; readonly description: string } {
+	const position = mergeability.mergeQueuePosition;
+	const minutes = mergeability.mergeQueueEstimatedTimeToMerge === undefined ? undefined : Math.max(1, Math.round(mergeability.mergeQueueEstimatedTimeToMerge / 60));
+	const progress = position !== undefined && minutes !== undefined ? localize('prArtifact.queuePositionEstimate', "Position {0} in the queue; GitHub estimates that it merges in about {1} min.", position, minutes)
+		: position !== undefined ? localize('prArtifact.queuePosition', "Position {0} in the queue.", position)
+			: minutes !== undefined ? localize('prArtifact.queueEstimate', "GitHub estimates that it merges in about {0} min.", minutes)
+				: undefined;
+	const describe = (status: string) => progress ? localize('prArtifact.queueStatusProgress', "{0} {1}", status, progress) : status;
+	switch (mergeability.mergeQueueEntryState) {
+		case 'UNMERGEABLE':
+			return {
+				icon: { id: 'error-compact', colorId: 'errorForeground' },
+				label: localize('prArtifact.queueUnmergeable', "Unmergeable"),
+				description: describe(localize('prArtifact.queueUnmergeableDescription', "In the merge queue, but GitHub currently can't merge it, for example because checks failed or it conflicts with the pull requests ahead of it. GitHub may remove it from the queue.")),
+			};
+		case 'MERGEABLE':
+		case 'LOCKED':
+			return {
+				icon: { id: 'git-merge', colorId: 'charts.purple' },
+				label: localize('prArtifact.queueMerging', "Merging"),
+				description: describe(mergeability.mergeQueueEntryState === 'LOCKED'
+					? localize('prArtifact.queueLocked', "In the merge queue: GitHub is merging it now.")
+					: localize('prArtifact.queueMergeable', "In the merge queue: its checks passed, and it merges after the pull requests ahead of it.")),
+			};
+		default:
+			return {
+				icon: { id: 'clock', colorId: 'editorWarning.foreground' },
+				label: minutes !== undefined ? localize('prArtifact.queuedEstimateLabel', "Queued, ~{0} min", minutes) : localize('prArtifact.queuedLabel', "Queued"),
+				description: describe(mergeability.mergeQueueEntryState === 'AWAITING_CHECKS'
+					? localize('prArtifact.queueAwaitingChecks', "In the merge queue: waiting for the checks of its merge group.")
+					: mergeability.mergeQueueEntryState === 'QUEUED'
+						? localize('prArtifact.queueWaiting', "In the merge queue: waiting for its merge group to start.")
+						: localize('prArtifact.queueUnknownState', "In the merge queue.")),
+			};
+	}
+}
+
 function checkPresentationState(check: PullRequestCheck): 'passed' | 'pending' | 'failed' | 'skipped' {
 	const state = getPullRequestArtifactCheckState(check);
 	return state === 'passed' && check.type === 'checkRun' && check.conclusion?.toUpperCase() === 'SKIPPED' ? 'skipped' : state;
@@ -1244,7 +1533,7 @@ function checkIcon(state: ReturnType<typeof checkPresentationState>): ArtifactIc
 	return state === 'passed' ? { id: 'pass-filled-compact', colorId: 'charts.green' }
 		: state === 'failed' ? { id: 'error-compact', colorId: 'errorForeground' }
 			: state === 'skipped' ? { id: 'skip', colorId: 'descriptionForeground' }
-				: { id: 'sync-compact', colorId: 'editorWarning.foreground' };
+				: { id: 'circle-filled-compact', colorId: 'editorWarning.foreground' };
 }
 
 type PullRequestDisplayState = 'open' | 'draft' | 'merged' | 'closed';

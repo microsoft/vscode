@@ -23,14 +23,14 @@ import { OpenAgentHostStateFileAction as WorkbenchOpenAgentHostStateFileAction }
 import { ChatContextKeys } from '../../../../../chat/common/actions/chatContextKeys.js';
 import { buildLocalCopilotLogsUri, buildRemoteCopilotLogsUri, getCopilotCliSessionRawId, resolveEventsUri } from '../../../../../chat/browser/copilotCliEventsUri.js';
 import { IAgentHostSessionsProvider } from '../../../../common/agentHostSessionsProvider.js';
-import { IChat } from '../../../../common/session.js';
-import { IActiveSession, ISessionsManagementService } from '../../../../common/sessionsManagement.js';
+import { IChat } from '../../../../../../services/sessions/common/session.js';
+import { ISessionsManagementService } from '../../../../common/sessionsManagement.js';
 import { ISessionsProvider } from '../../../../common/sessionsProvider.js';
 import { ISessionsService } from '../../../../browser/sessionsService.js';
 import { ISessionsProvidersService } from '../../../../browser/sessionsProvidersService.js';
 import { IsAgentHostSession } from '../../../../browser/sessionScopedContextKeys.js';
 import { OpenAgentHostStateFileAction } from '../../browser/openAgentHostStateFileAction.js';
-import { stubMissingSessionHostsFromSessionsService } from '../../../../test/browser/sessionHostTestUtils.js';
+import { ITestSessionWithChat, stubMissingSessionHostsFromSessionsService } from '../../../../test/browser/sessionHostTestUtils.js';
 
 suite('Open Agent Host State File', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -226,14 +226,14 @@ suite('Open Agent Host State File', () => {
 		const activeChat = new class extends mock<IChat>() {
 			override readonly resource = clientPeerChat;
 		}();
-		const activeSession = new class extends mock<IActiveSession>() {
+		const activeSession = new class extends mock<ITestSessionWithChat>() {
 			override readonly resource = clientSession;
 			override readonly providerId = 'local-agent-host';
 			override readonly activeChat = constObservable(activeChat);
 		}();
 		const sessionsService = new class extends mock<ISessionsService>() {
 			readonly activeSession = constObservable(activeSession);
-			readonly windowSessions = constObservable<readonly IActiveSession[]>([]);
+			readonly windowSessions = constObservable<readonly ITestSessionWithChat[]>([]);
 		}();
 		const provider = new class extends mock<IAgentHostSessionsProvider>() {
 			override readonly id = 'local-agent-host';

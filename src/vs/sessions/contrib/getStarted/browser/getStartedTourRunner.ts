@@ -29,14 +29,14 @@ import { IViewsService } from '../../../../workbench/services/views/common/views
 import { ICustomViewService } from '../../../../workbench/contrib/sessions/browser/customView.js';
 import { ISessionsRecentWorkspacesService } from '../../../../workbench/contrib/sessions/browser/sessionsRecentWorkspacesService.js';
 import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { IFocusedSessionHostService } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
-import { ISession, SessionStatus } from '../../../../workbench/contrib/sessions/common/session.js';
+import { IFocusedSessionHostService } from '../../../../workbench/services/sessions/browser/sessionHost.js';
+import { ISession, isSessionCreated, SessionStatus } from '../../../../workbench/services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { SessionChangesEditorInput } from '../../../../workbench/contrib/sessions/browser/changes/sessionChangesEditorInput.js';
+import { SessionChangesEditorInput } from '../../../../workbench/contrib/sessionChanges/browser/sessionChangesEditorInput.js';
 import { IChangesViewService } from '../../../../workbench/contrib/sessions/common/changesViewService.js';
 import { VIEW_SESSION_CHANGES_COMMAND_ID } from '../../../../workbench/contrib/sessions/common/changes.js';
-import { ISessionChangesService } from '../../../../workbench/contrib/sessions/common/sessionChangesService.js';
-import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../../../../workbench/contrib/sessions/browser/automationsConstants.js';
+import { ISessionChangesService } from '../../../../workbench/services/sessions/common/sessionChangesService.js';
+import { AUTOMATIONS_CUSTOM_VIEW_ID, AUTOMATIONS_TOUR_SEEN_KEY } from '../../../../workbench/contrib/sessions/browser/automationsConstants.js';
 import { SessionsList } from '../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
 import { SessionsView, SessionsViewId } from '../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
 import { GetStartedItemId } from '../common/getStartedChecklist.js';
@@ -105,6 +105,7 @@ export class GetStartedTourRunner extends Disposable {
 		const id = `${SHOW_ME_SCENARIO_PREFIX}${item}`;
 		const scenario: IOnboardingScenario<ISpotlightPayload> = {
 			id,
+			seenKey: item === GetStartedItemId.Automation ? AUTOMATIONS_TOUR_SEEN_KEY : undefined,
 			repeatable: true,
 			when: ChatContextKeys.enabled,
 			trigger: { kind: 'command', commandId: id },
@@ -148,7 +149,7 @@ export class GetStartedTourRunner extends Disposable {
 			},
 			showNewSession: async () => {
 				this._customViewService.hideCustomView();
-				if (this._focusedSessionHostService.focusedHost.get().session.get()?.isCreated.get()) {
+				if (isSessionCreated(this._focusedSessionHostService.focusedHost.get().session.get())) {
 					await this._sessionsService.openNewSession();
 				}
 			},
@@ -169,7 +170,7 @@ export class GetStartedTourRunner extends Disposable {
 			},
 		};
 		return {
-			onNewSessionView: !this._focusedSessionHostService.focusedHost.get().session.get()?.isCreated.get(),
+			onNewSessionView: !isSessionCreated(this._focusedSessionHostService.focusedHost.get().session.get()),
 			currentProject: item === GetStartedItemId.SecondProject ? await this._revealCurrentProject(sessions, store) : undefined,
 			suggestedProjects: item === GetStartedItemId.SecondProject ? await this._getSuggestedProjects(sessions) : [],
 			sessionWithChanges: sessionWithChanges && { fileCount: sessionWithChanges.fileCount },
@@ -215,7 +216,7 @@ export class GetStartedTourRunner extends Disposable {
 	/** The active session when it has changes, otherwise the most recently updated session with changes. */
 	private _findSessionWithChanges(sessions: readonly ISession[]): ISessionWithChanges | undefined {
 		const active = this._focusedSessionHostService.focusedHost.get().session.get();
-		if (active?.isCreated.get() && !active.isArchived.get()) {
+		if (active && isSessionCreated(active) && !active.isArchived.get()) {
 			const fileCount = this._changesViewService.activeSessionChangesSummaryObs.get()?.files ?? active.changesSummary?.get()?.files ?? 0;
 			if (fileCount > 0) {
 				return { session: active, fileCount };

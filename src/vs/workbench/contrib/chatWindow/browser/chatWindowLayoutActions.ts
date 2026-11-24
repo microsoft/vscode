@@ -27,8 +27,6 @@ export interface IChatWindowLayoutModeChoice {
 	readonly mode: ChatWindowLayoutMode;
 	readonly id: string;
 	readonly title: ILocalizedString;
-	/** Its title in the Layout submenu. */
-	readonly shortTitle: string;
 	readonly icon: ThemeIcon;
 }
 
@@ -37,25 +35,21 @@ export const chatWindowLayoutModeChoices: readonly IChatWindowLayoutModeChoice[]
 	mode: ChatWindowLayoutMode.ChatOnly,
 	id: 'workbench.action.chatWindow.showChatOnly',
 	title: localize2('chatWindowLayoutChatOnly', "Show Chat Only"),
-	shortTitle: localize('chatWindowLayoutChatOnly.short', "Chat Only"),
 	icon: Codicon.layoutSidebarLeft,
 }, {
 	mode: ChatWindowLayoutMode.EditorOnly,
 	id: 'workbench.action.chatWindow.showEditorOnly',
 	title: localize2('chatWindowLayoutEditorOnly', "Show Editor Only"),
-	shortTitle: localize('chatWindowLayoutEditorOnly.short', "Editor Only"),
 	icon: Codicon.layoutSidebarRight,
 }, {
 	mode: ChatWindowLayoutMode.Stacked,
 	id: 'workbench.action.chatWindow.showEditorAboveChat',
 	title: localize2('chatWindowLayoutStacked', "Show Chat and Editor Stacked"),
-	shortTitle: localize('chatWindowLayoutStacked.short', "Stacked"),
 	icon: Codicon.splitVertical,
 }, {
 	mode: ChatWindowLayoutMode.SideBySide,
 	id: 'workbench.action.chatWindow.showSideBySide',
 	title: localize2('chatWindowLayoutSideBySide', "Show Chat and Editor Side by Side"),
-	shortTitle: localize('chatWindowLayoutSideBySide.short', "Side by Side"),
 	icon: Codicon.splitHorizontal,
 }];
 

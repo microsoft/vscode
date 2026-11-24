@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BrowserViewChangeEvent, BrowserViewEventData, BrowserViewCommandId, BrowserViewPresentation, BrowserViewSessionSelector, BrowserViewStorageScope, getBrowserViewSessionAffinity, getBrowserViewSessionNetwork, IBrowserViewEditorOpenOptions, IBrowserViewInfo, IBrowserViewNetwork, IBrowserViewOwner, IBrowserViewService, IBrowserViewTheme, ipcBrowserViewChannelName, reviveBrowserViewInfo, IBrowserViewSessionOptions, toBrowserViewSessionOptions } from '../../../../platform/browserView/common/browserView.js';
+import { BrowserViewChangeEvent, BrowserViewEventData, BrowserViewCommandId, BrowserViewPresentation, BrowserViewSessionSelector, BrowserViewStorageScope, getBrowserViewRemoteFile, getBrowserViewSessionAffinity, getBrowserViewSessionNetwork, IBrowserViewEditorOpenOptions, IBrowserViewInfo, IBrowserViewNetwork, IBrowserViewOwner, IBrowserViewNetworkFileSystem, IBrowserViewRemoteNetwork, IBrowserViewService, IBrowserViewTheme, ipcBrowserViewChannelName, reviveBrowserViewInfo, IBrowserViewSessionOptions, toBrowserViewSessionOptions } from '../../../../platform/browserView/common/browserView.js';
 import { matchesBrowserViewSandboxSession } from '../../../../platform/browserView/common/browserViewGroup.js';
-import { BrowserRemoteProxyEnabledSettingId, BrowserViewEventEmitters, createBrowserViewEventEmitters, BrowserViewSharingState, IBrowserViewWorkbenchService, IBrowserViewModel, BrowserViewModel, IBrowserViewContextualFilter, IBrowserViewFilterContext, IBrowserViewOpenHandler, IBrowserViewWorkbenchCreateOptions, IBrowserViewNetworkProxyProvider, IBrowserViewNetworkResolver, IBrowserViewNetworkStatus, IBrowserViewSessionRequest } from '../common/browserView.js';
+import { BrowserRemoteProxyEnabledSettingId, BrowserViewEventEmitters, createBrowserViewEventEmitters, BrowserViewSharingState, getLocalFileBrowserViewSession, IBrowserViewWorkbenchService, IBrowserViewModel, BrowserViewModel, IBrowserViewContextualFilter, IBrowserViewFilterContext, IBrowserViewOpenHandler, IBrowserViewWorkbenchCreateOptions, IBrowserViewNetworkProxyProvider, IBrowserViewNetworkResolver, IBrowserViewNetworkStatus, IBrowserViewSessionRequest, normalizeBrowserViewUrl } from '../common/browserView.js';
 import { IMainProcessService } from '../../../../platform/ipc/common/mainProcessService.js';
 import { ProxyChannel } from '../../../../base/parts/ipc/common/ipc.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -15,7 +15,7 @@ import { IKeybindingService } from '../../../../platform/keybinding/common/keybi
 import { Disposable, DisposableMap, DisposableStore, IDisposable, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { ACTIVE_GROUP, AUX_WINDOW_GROUP, IEditorService, PreferredGroup, SIDE_GROUP, USE_MODAL_EDITOR_SETTING, UseModalEditorMode } from '../../../services/editor/common/editorService.js';
-import { getWindowById } from '../../../../base/browser/dom.js';
+import { getWindow, getWindowById } from '../../../../base/browser/dom.js';
 import { IUnattendedRestartService } from '../../../services/lifecycle/common/unattendedRestart.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -37,12 +37,14 @@ import { ChatEditorInput } from '../../chat/browser/widgetHosts/editor/chatEdito
 import { IChatWidgetService } from '../../chat/browser/chat.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { URI } from '../../../../base/common/uri.js';
-import { isEqual } from '../../../../base/common/resources.js';
+import { extUri, isEqual } from '../../../../base/common/resources.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { getCopilotRootPaths } from '../../../../platform/environment/common/copilotHome.js';
 import { ICopilotHomeService } from '../../../services/environment/common/copilotHomeService.js';
 import { localChatSessionType } from '../../chat/common/chatSessionsService.js';
 import { INativeWorkbenchEnvironmentService } from '../../../services/environment/electron-browser/environmentService.js';
+import { FileSystemProviderCapabilities, IFileService } from '../../../../platform/files/common/files.js';
+import { AGENT_HOST_SCHEME } from '../../../../platform/agentHost/common/agentHostUri.js';
 import { ITunnelProxyInfo } from '../../../../platform/tunnel/common/tunnelProxy.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { DeferredPromise, raceCancellationError, raceTimeout } from '../../../../base/common/async.js';
@@ -53,6 +55,12 @@ import { localize } from '../../../../nls.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 
 export const BrowserMaxHistoryEntriesSettingId = 'workbench.browser.maxHistoryEntries';
+export const BrowserUserAgentSettingId = 'workbench.browser.userAgent';
+
+/** The renderer shares Electron's default user agent with the browser views. */
+export function getDefaultBrowserUserAgent(): string {
+	return mainWindow.navigator.userAgent;
+}
 export const BrowserNewTabPlacementSettingId = 'workbench.browser.newTabPlacement';
 const OPEN_BROWSER_NAVIGATION_TIMEOUT_MS = 30_000;
 /** How long creation waits for the local extension host to provide network proxies. */
@@ -163,6 +171,7 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@ILabelService private readonly labelService: ILabelService,
+		@IFileService private readonly fileService: IFileService,
 		@IUnattendedRestartService unattendedRestartService: IUnattendedRestartService,
 	) {
 		super();
@@ -185,6 +194,11 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		this._register(this.workspaceTrustManagementService.onDidChangeTrustedFolders(() => void this._updateWindowConfiguration()));
 		this._register(this.workspaceTrustManagementService.onDidChangeTrust(() => void this._updateWindowConfiguration()));
 		this._register(this.workspaceContextService.onDidChangeWorkspaceFolders(() => void this._updateWindowConfiguration()));
+		this._register(Event.any<{ readonly scheme: string }>(this.fileService.onDidChangeFileSystemProviderRegistrations, this.fileService.onDidChangeFileSystemProviderCapabilities)(e => {
+			if (e.scheme === Schemas.vscodeRemote) {
+				void this._updateWindowConfiguration();
+			}
+		}));
 		this._register(this.contextKeyService.onDidChangeContext(e => {
 			if (e.affectsSome(chatEnabledKeys)) {
 				void this._updateWindowConfiguration();
@@ -198,7 +212,7 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 			) {
 				this.notificationService.info(localize('browser.networkFilteringEnabled', "Agent access to browser tabs was revoked because network filtering was enabled."));
 			}
-			if (e.affectsConfiguration(BrowserMaxHistoryEntriesSettingId) || e.affectsConfiguration(BrowserRemoteProxyEnabledSettingId)) {
+			if (e.affectsConfiguration(BrowserMaxHistoryEntriesSettingId) || e.affectsConfiguration(BrowserUserAgentSettingId) || e.affectsConfiguration(BrowserRemoteProxyEnabledSettingId)) {
 				void this._updateWindowConfiguration();
 			}
 		}));
@@ -294,12 +308,16 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		}
 		this._networkResolver = resolver;
 		const statusListener = resolver.onDidChangeNetworkStatus(() => this._onDidChangeNetworkStatus.fire());
+		const fileAccessListener = resolver.onDidChangeFileAccess?.(() => void this._updateWindowConfiguration());
 		this._onDidChangeNetworkStatus.fire();
+		void this._updateWindowConfiguration();
 		return toDisposable(() => {
 			statusListener.dispose();
+			fileAccessListener?.dispose();
 			if (this._networkResolver === resolver) {
 				this._networkResolver = undefined;
 				this._onDidChangeNetworkStatus.fire();
+				void this._updateWindowConfiguration();
 			}
 		});
 	}
@@ -425,8 +443,9 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		}
 
 		if (placement === 'sideGroup') {
+			// Beside the active group, or beside the group it hands editors off to, such as while a chat is active.
 			const direction = preferredSideBySideGroupDirection(this.configurationService);
-			const group = this.editorGroupsService.addGroup(this.editorGroupsService.activeGroup, direction);
+			const group = this.editorGroupsService.addGroup(handOffFromSelfTitledEditor(this.editorGroupsService.activeGroup, this.editorGroupsService), direction);
 			// Lock the group so that other (non-browser) editors are not opened
 			// into it. Browser tabs still open here because we target it directly.
 			group.lock(true);
@@ -509,7 +528,7 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		return input;
 	}
 
-	async createExternalBrowserView(initialUrl: string, openSource?: IBrowserViewWorkbenchCreateOptions['openSource'], networkOwner?: IBrowserViewOwner): Promise<IBrowserViewModel> {
+	async createExternalBrowserView(initialUrl: string, openSource?: IBrowserViewWorkbenchCreateOptions['openSource'], networkOwner?: IBrowserViewOwner, onCreated?: (model: IBrowserViewModel) => void): Promise<IBrowserViewModel> {
 		// Embedded pages have no network indicator, so they require their owner's network, resolved even while
 		// proxying is disabled, rather than silently load from the local network. It is resolved before any
 		// asynchronous work, so an owner that goes away meanwhile cannot leave the view on the local network.
@@ -547,6 +566,7 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 			hold?.dispose();
 		}
 		try {
+			onCreated?.(model);
 			await model.loadURL(initialUrl);
 			return model;
 		} catch (error) {
@@ -564,7 +584,7 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		if (!this._known.has(id)) {
 			// Capture the opening context before any asynchronous work.
 			const owner = createOptions?.owner ?? { type: 'user' };
-			const requested = createOptions?.session ?? this._resolveSessionRequest(owner, data.session);
+			const requested = createOptions?.session ?? this._resolveSessionRequest(owner, data.session, associatedResource);
 			data = { ...data, session: typeof requested === 'string' ? undefined : requested };
 			const cancellation = new CancellationTokenSource();
 			const input = this.instantiationService.createInstance(BrowserEditorInput, data, async () => {
@@ -584,7 +604,7 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 						session,
 						initialAudiences: createOptions?.initialAudiences,
 						sandboxNetworkRestrictions: createOptions?.sandboxNetworkRestrictions,
-						initialUrl: createOptions ? createOptions.initialUrl : data.url,
+						initialUrl: createOptions ? createOptions.initialUrl : input.url && normalizeBrowserViewUrl(input.url),
 						openSource: createOptions?.openSource
 					});
 				} finally {
@@ -621,12 +641,16 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 	}
 
 	/** Fill missing session options from the opening context and configured storage. */
-	private _resolveSessionRequest(owner: IBrowserViewOwner, request?: IBrowserViewSessionRequest): IBrowserViewSessionOptions {
+	private _resolveSessionRequest(owner: IBrowserViewOwner, request?: IBrowserViewSessionRequest, associatedResource?: URI): IBrowserViewSessionOptions {
 		if (request?.scope !== undefined) {
 			return request;
 		}
 		if (!request) {
 			const network = this.resolveNetwork(owner);
+			const localFileSession = getLocalFileBrowserViewSession(associatedResource, network);
+			if (localFileSession) {
+				return localFileSession;
+			}
 			request = { network, affinity: network && this._networkResolver?.resolveStorageAffinity?.(owner) };
 		}
 		const configured = this.configurationService.getValue<BrowserViewStorageScope | 'default'>('workbench.browser.dataStorage') ?? 'default';
@@ -863,10 +887,8 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 	 */
 	private async _openEditorForCreatedView(view: BrowserEditorInput, owner: IBrowserViewOwner, options: IBrowserViewEditorOpenOptions): Promise<void> {
 		// Give registered handlers a chance to prevent the editor from opening.
-		for (const handler of this._openHandlers) {
-			if (!handler.shouldOpenEditor(view, owner, options)) {
-				return;
-			}
+		if (!this._shouldOpenEditor(view, owner, options)) {
+			return;
 		}
 
 		// Resolve target group: auxiliary window, parent's group, or default
@@ -881,7 +903,8 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		} else {
 			// Keep the browser docked in the main editor area even when editors
 			// are forced modal via `workbench.editor.useModal: 'all'`.
-			targetGroup = await this.getPreferredGroup();
+			const widget = owner.type === 'agent' ? this.chatWidgetService.getWidgetBySessionResource(URI.parse(owner.sessionId)) : undefined;
+			targetGroup = await this.getPreferredGroup(undefined, widget ? getWindow(widget.domNode).vscodeWindowId : undefined);
 		}
 
 		const editorOptions = {
@@ -908,7 +931,21 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 			}
 		}
 
+		// The active session may have changed while resolving the target group.
+		if (!this._shouldOpenEditor(view, owner, options)) {
+			return;
+		}
+
 		void this.editorService.openEditor(view, editorOptions, group);
+	}
+
+	private _shouldOpenEditor(view: BrowserEditorInput, owner: IBrowserViewOwner, options: IBrowserViewEditorOpenOptions): boolean {
+		for (const handler of this._openHandlers) {
+			if (!handler.shouldOpenEditor(view, owner, options)) {
+				return false;
+			}
+		}
+		return true;
 	}
 
 	/**
@@ -927,25 +964,56 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 	}
 
 	private _updateWindowConfiguration(): Promise<void> {
+		const trustedRoots = this._getTrustedFileRoots();
+		const trustAllFiles = !this.workspaceTrustEnablementService.isWorkspaceTrustEnabled();
 		return this._browserViewService.updateWindowConfiguration(this._mainWindowId, {
 			theme: this._getTheme(),
 			keybindings: this._getKeybindings(),
 			aiFeaturesDisabled: !this.contextKeyService.contextMatchesRules(ChatContextKeys.enabled),
+			userAgent: this._getUserAgent(),
 			maxHistoryEntries: this.configurationService.getValue<number>(BrowserMaxHistoryEntriesSettingId),
-			networkProxies: this._getNetworkProxies(),
-			trustedFileRoots: this._getTrustedFileRoots(),
-			trustAllFiles: !this.workspaceTrustEnablementService.isWorkspaceTrustEnabled(),
+			remoteNetworks: this._getRemoteNetworks(trustedRoots, trustAllFiles),
+			trustedLocalFileRoots: trustedRoots.filter(root => root.scheme === Schemas.file).map(root => root.fsPath),
+			trustAllLocalFiles: trustAllFiles,
 		});
 	}
 
-	private _getNetworkProxies(): { [authority: string]: ITunnelProxyInfo } {
-		const networkProxies: { [authority: string]: ITunnelProxyInfo } = {};
+	/** Returns the configured user agent, or `undefined` when it matches the default so views keep following Electron's. */
+	private _getUserAgent(): string | undefined {
+		const userAgent = this.configurationService.getValue<string>(BrowserUserAgentSettingId)?.trim();
+		return userAgent && userAgent !== getDefaultBrowserUserAgent() ? userAgent : undefined;
+	}
+
+	/** The remote networks with a published proxy, each with the trusted folders on its file system. */
+	private _getRemoteNetworks(trustedRoots: readonly URI[], trustAllFiles: boolean): { [authority: string]: IBrowserViewRemoteNetwork } {
+		const remoteRoots = trustedRoots.flatMap(root => getBrowserViewRemoteFile(root) ?? []);
+		const remoteNetworks: { [authority: string]: IBrowserViewRemoteNetwork } = {};
 		for (const [authority, entry] of this._networkProxies) {
-			if (entry.info) {
-				networkProxies[authority] = entry.info;
+			if (!entry.info) {
+				continue;
 			}
+			const fileSystem = this.getNetworkFileSystem({ authority });
+			const { scheme } = fileSystem;
+			remoteNetworks[authority] = {
+				proxy: entry.info,
+				...fileSystem,
+				trustedRoots: remoteRoots.filter(root => root.scheme === scheme && extUri.isEqualAuthority(root.authority, authority)).map(root => root.fileUri.path),
+				trustAllFiles: scheme === Schemas.vscodeRemote && trustAllFiles,
+			};
 		}
-		return networkProxies;
+		return remoteNetworks;
+	}
+
+	getNetworkFileSystem(network: IBrowserViewNetwork): IBrowserViewNetworkFileSystem {
+		if (network.authority === this.environmentService.remoteAuthority) {
+			// Defaults to case-sensitive, which is the strict choice, until the remote's file system is registered.
+			const root = URI.from({ scheme: Schemas.vscodeRemote, authority: network.authority, path: '/' });
+			return {
+				scheme: Schemas.vscodeRemote,
+				caseSensitive: !this.fileService.hasProvider(root) || this.fileService.hasCapability(root, FileSystemProviderCapabilities.PathCaseSensitive)
+			};
+		}
+		return { scheme: AGENT_HOST_SCHEME, caseSensitive: this._networkResolver?.isPathCaseSensitive?.(network) ?? true };
 	}
 
 	private _getKeybindings(): { [commandId: string]: string } {
@@ -979,21 +1047,18 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		};
 	}
 
-	private _getTrustedFileRoots(): string[] {
+	/** The candidate trusted roots on any file system. Local ones go to the window configuration as paths; remote ones are matched to the network of their scheme and authority. */
+	private _getTrustedFileRoots(): URI[] {
 		// Trust Copilot roots so agents can create HTML files and open them in the browser.
-		const roots = new Set(getCopilotRootPaths(this.environmentService.userHome.fsPath, this.copilotHomeService.home.fsPath));
+		const roots = getCopilotRootPaths(this.environmentService.userHome.fsPath, this.copilotHomeService.home.fsPath).map(path => URI.file(path));
 		if (this.workspaceTrustManagementService.isWorkspaceTrusted()) {
 			for (const folder of this.workspaceContextService.getWorkspace().folders) {
-				if (folder.uri.scheme === Schemas.file) {
-					roots.add(folder.uri.fsPath);
-				}
+				roots.push(folder.uri);
 			}
 		}
-		for (const uri of this.workspaceTrustManagementService.getTrustedUris()) {
-			if (uri.scheme === Schemas.file) {
-				roots.add(uri.fsPath);
-			}
-		}
-		return [...roots];
+		// The resolver applies workspace trust to each session folder itself.
+		roots.push(...this._networkResolver?.getTrustedFileRoots?.() ?? []);
+		roots.push(...this.workspaceTrustManagementService.getTrustedUris());
+		return roots;
 	}
 }

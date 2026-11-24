@@ -8,19 +8,20 @@ import { ChangedFile } from '../../../../../../platform/github/common/core/core.
 import { IssueComment } from '../../../../../../platform/github/common/core/issues.js';
 import { ReviewComment } from '../../../../../../platform/github/common/core/reviews.js';
 import { IGitHubPullRequestContext, IGitHubPullRequestContextComment } from '../../../common/github/types.js';
-import { GitHubApiClient } from '../githubApiClient.js';
+import { GitHubApiClient } from '../../../../../services/github/browser/githubApiClient.js';
 
 export class GitHubPullRequestContextFetcher {
 	constructor(private readonly _client: GitHubApiClient) { }
 
 	getPullRequestContext(owner: string, repo: string, number: number): Promise<IGitHubPullRequestContext> {
-		return this._client.withClient(async (client, signal) => {
+		return this._client.withClient(async (client, cancellationToken) => {
 			const repository = { owner, repo };
+			const options = { caller: 'githubPullRequestContextFetcher' };
 			const [pullRequest, files, issueComments, reviewComments] = await Promise.all([
-				client.pullRequests.get(repository, number, signal),
-				client.pullRequests.listFiles(repository, number, signal, { query: { page: 1, per_page: 100 }, maxPages: 100 }),
-				client.issues.listComments(repository, number, signal, { query: { page: 1, per_page: 100 }, maxPages: 100 }),
-				client.reviews.listComments(repository, number, signal, { query: { page: 1, per_page: 100 }, maxPages: 100 }),
+				client.pullRequests.get(repository, number, cancellationToken, options),
+				client.pullRequests.listFiles(repository, number, cancellationToken, { ...options, query: { page: 1, per_page: 100 }, maxPages: 100 }),
+				client.issues.listComments(repository, number, cancellationToken, { ...options, query: { page: 1, per_page: 100 }, maxPages: 100 }),
+				client.reviews.listComments(repository, number, cancellationToken, { ...options, query: { page: 1, per_page: 100 }, maxPages: 100 }),
 			]);
 			return {
 				owner,

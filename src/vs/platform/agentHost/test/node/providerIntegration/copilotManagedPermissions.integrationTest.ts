@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { CopilotClient, ToolSet, type CopilotSession, type ManagedSettingsPermissions, type PermissionRequest, type SessionConfig } from '@github/copilot-sdk';
+import { RuntimeConnection, CopilotClient, ToolSet, type CopilotSession, type ManagedSettingsPermissions, type PermissionRequest, type CreateSessionOptions } from '@microsoft/copilot-sdk';
 import { mkdtemp, readFile, rm, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
-import { Emitter } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { join } from '../../../../../base/common/path.js';
 import { isWindows } from '../../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -37,11 +37,17 @@ suite('Agent Host Provider Integration - Copilot managed permissions', function 
 		this.timeout(60_000);
 		const home = await mkdtemp(`${tmpdir()}/copilot-managed-modes-`);
 		const client = new CopilotClient({
-			mode: 'empty', baseDirectory: home, useLoggedInUser: false,
-			env: createCopilotCliEnvironment(createIsolatedProviderEnvironment(home, {
-				PATH: process.env.PATH, SystemRoot: process.env.SystemRoot, WINDIR: process.env.WINDIR,
-				COPILOT_TELEMETRY_ENABLED: 'false',
-			})),
+			mode: 'empty',
+			runtime: RuntimeConnection.forSpawnedStdio({
+				baseDirectory: home,
+				env: createCopilotCliEnvironment(createIsolatedProviderEnvironment(home, {
+					PATH: process.env.PATH, SystemRoot: process.env.SystemRoot, WINDIR: process.env.WINDIR,
+					COPILOT_TELEMETRY_ENABLED: 'false',
+				})),
+			}),
+			github: {
+				useLoggedInUser: false,
+			},
 		});
 		const results: boolean[][] = [];
 		try {
@@ -52,10 +58,23 @@ suite('Agent Host Provider Integration - Copilot managed permissions', function 
 			];
 			for (const permissions of restrictions) {
 				const session = await client.createSession({
-					workingDirectory: home, enableManagedSettings: true,
-					featureFlags: { AUTO_APPROVAL: true }, enableExperimentalMode: true,
-					availableTools: [], managedSettings: { permissions },
-					onPermissionRequest: async () => ({ kind: 'reject' }),
+					workingDirectory: home,
+					github: {
+						fetchManagedSettings: true,
+					},
+					experiments: {
+						flags: { AUTO_APPROVAL: true },
+						enableExperimentalMode: true,
+					},
+					tools: {
+						availableTools: [],
+					},
+					policy: {
+						managedSettings: { permissions },
+					},
+					permissions: {
+						onRequest: async () => ({ kind: 'reject' }),
+					},
 				});
 				try {
 					const modes: boolean[] = [];
@@ -85,6 +104,7 @@ suite('Agent Host Provider Integration - Copilot managed permissions', function 
 			const models = store.add(new Emitter<IByokLmModelInfo[]>());
 			store.add(registry.register('client', {
 				onDidChangeModels: models.event,
+				onDidDelta: Event.None,
 				chat: async () => ({
 					responseId: 'managed-permissions-response',
 					output: [{ type: 'message', content: [{ type: 'text', text: 'ready' }] }],
@@ -95,16 +115,20 @@ suite('Agent Host Provider Integration - Copilot managed permissions', function 
 			const handle = store.add(await proxy.start());
 			const client = new CopilotClient({
 				mode: 'empty',
-				baseDirectory: directory,
-				useLoggedInUser: false,
-				env: createCopilotCliEnvironment(createIsolatedProviderEnvironment(directory, {
-					PATH: process.env.PATH,
-					SystemRoot: process.env.SystemRoot,
-					WINDIR: process.env.WINDIR,
-					ComSpec: process.env.ComSpec,
-					PATHEXT: process.env.PATHEXT,
-					COPILOT_TELEMETRY_ENABLED: 'false',
-				})),
+				runtime: RuntimeConnection.forSpawnedStdio({
+					baseDirectory: directory,
+					env: createCopilotCliEnvironment(createIsolatedProviderEnvironment(directory, {
+						PATH: process.env.PATH,
+						SystemRoot: process.env.SystemRoot,
+						WINDIR: process.env.WINDIR,
+						ComSpec: process.env.ComSpec,
+						PATHEXT: process.env.PATHEXT,
+						COPILOT_TELEMETRY_ENABLED: 'false',
+					})),
+				}),
+				github: {
+					useLoggedInUser: false,
+				},
 			});
 			const matchingCommand = isWindows ? 'Write-Output' : 'echo';
 			const configuration = new class extends TestConfigurationService {
@@ -129,22 +153,33 @@ suite('Agent Host Provider Integration - Copilot managed permissions', function 
 			}
 			const requests: { kind: PermissionRequest['kind']; managedApprovalRequired: boolean }[] = [];
 			const sessionId = `managed-permissions-${restriction.replaceAll(' ', '-')}`;
-			const config: SessionConfig = {
+			const config: CreateSessionOptions = {
 				sessionId,
 				workingDirectory: directory,
-				availableTools: new ToolSet().addBuiltIn('*'),
-				model: 'test-model',
-				provider: {
-					type: 'openai',
-					wireApi: 'responses',
-					baseUrl: handle.providerBaseUrl('test'),
-					bearerToken: `${handle.nonce}.${sessionId}`,
+				tools: {
+					availableTools: new ToolSet().addBuiltIn('*'),
 				},
-				managedSettings: { permissions },
-				onPermissionRequest: request => {
-					requests.push({ kind: request.kind, managedApprovalRequired: request.managedApprovalRequired === true });
-					// Observe URL permissions without making external network requests.
-					return { kind: request.kind === 'url' ? 'reject' : 'approve-once' };
+				model: 'test/test-model',
+				github: { capi: { enabled: false } },
+				inference: {
+					providers: [{
+						name: 'test',
+						type: 'openai',
+						wireApi: 'responses',
+						baseUrl: handle.providerBaseUrl('test'),
+						bearerToken: `${handle.nonce}.${sessionId}`,
+					}],
+					models: [{ provider: 'test', id: 'test-model' }],
+				},
+				policy: {
+					managedSettings: { permissions },
+				},
+				permissions: {
+					onRequest: request => {
+						requests.push({ kind: request.kind, managedApprovalRequired: request.managedApprovalRequired === true });
+						// Observe URL permissions without making external network requests.
+						return { kind: request.kind === 'url' ? 'reject' : 'approve-once' };
+					},
 				},
 			};
 			let session: CopilotSession | undefined;
@@ -163,7 +198,7 @@ suite('Agent Host Provider Integration - Copilot managed permissions', function 
 						await client.start();
 						session = await client.resumeSession(sessionId, {
 							...config,
-							managedSettings: phase === 'removed' ? undefined : config.managedSettings,
+							policy: { ...config.policy, managedSettings: phase === 'removed' ? undefined : config.policy?.managedSettings },
 						});
 					}
 					await session.rpc.tools.initializeAndValidate();
@@ -194,7 +229,7 @@ suite('Agent Host Provider Integration - Copilot managed permissions', function 
 						requests: phase === 'removed' ? [{ kind: 'url', managedApprovalRequired: false }] : [],
 					} : {
 						result: 'success',
-						requests: managedShellApprovalRequired || isWindows ? [{ kind: 'shell', managedApprovalRequired: managedShellApprovalRequired }] : [],
+						requests: managedShellApprovalRequired ? [{ kind: 'shell', managedApprovalRequired: true }] : [],
 					}, phase);
 
 					if (managedShellApprovalRequired) {

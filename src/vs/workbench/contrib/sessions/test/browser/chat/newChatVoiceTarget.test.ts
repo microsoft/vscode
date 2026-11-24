@@ -12,11 +12,10 @@ import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js'
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IChatWidget, IChatWidgetService } from '../../../../chat/browser/chat.js';
 import { IChatViewModel } from '../../../../chat/common/model/chatViewModel.js';
-import { IActiveSession } from '../../../common/sessionsManagement.js';
-import { IChat } from '../../../common/session.js';
+import { IChat } from '../../../../../services/sessions/common/session.js';
 import { ISessionsService } from '../../../browser/sessionsService.js';
 import { INewChatVoiceComposer, NEW_CHAT_VOICE_SENTINEL, NewChatVoiceTargetService } from '../../../browser/chat/newChatVoice.js';
-import { focusedSessionHostServiceOf } from '../sessionHostTestUtils.js';
+import { focusedSessionHostServiceOf, ITestSessionWithChat, withCreatedStatus } from '../sessionHostTestUtils.js';
 
 suite('NewChatVoiceTargetService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -31,21 +30,21 @@ suite('NewChatVoiceTargetService', () => {
 		});
 	}
 
-	function makeActiveSession(isCreated: boolean, chatResource: URI): IActiveSession {
-		return upcastPartial<IActiveSession>({
-			isCreated: observableValue<boolean>('isCreated', isCreated),
+	function makeActiveSession(isCreated: boolean, chatResource: URI): ITestSessionWithChat {
+		return upcastPartial<ITestSessionWithChat>({
+			...withCreatedStatus(observableValue<boolean>('isCreated', isCreated)),
 			activeChat: observableValue<IChat>('activeChat', upcastPartial<IChat>({ resource: chatResource })),
 		});
 	}
 
 	function setup() {
 		const store = disposables.add(new DisposableStore());
-		const activeSession = observableValue<IActiveSession | undefined>('activeSession', undefined);
+		const activeSession = observableValue<ITestSessionWithChat | undefined>('activeSession', undefined);
 		const focusEmitter = store.add(new Emitter<void>());
 		let focusedResource: URI | undefined;
 
 		const sessionsService = new class extends mock<ISessionsService>() {
-			readonly activeSession: ISettableObservable<IActiveSession | undefined> = activeSession;
+			readonly activeSession: ISettableObservable<ITestSessionWithChat | undefined> = activeSession;
 		}();
 		const chatWidgetService = new class extends mock<IChatWidgetService>() {
 			override readonly onDidChangeFocusedSession = focusEmitter.event;

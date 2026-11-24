@@ -7,14 +7,14 @@ import { CancellationToken } from '../../../../../../base/common/cancellation.js
 import { Issue } from '../../../../../../platform/github/common/core/issues.js';
 import { ApiRequestOptions } from '../../../../../../platform/github/common/client/request.js';
 import { GitHubIssueState, GitHubIssueStateReason, IGitHubIssue } from '../../../common/github/types.js';
-import { GitHubApiClient } from '../githubApiClient.js';
+import { GitHubApiClient } from '../../../../../services/github/browser/githubApiClient.js';
 
 export class GitHubIssueFetcher {
 	constructor(readonly client: GitHubApiClient) { }
 
 	getIssue(owner: string, repo: string, issueNumber: number, token?: CancellationToken, options?: ApiRequestOptions): Promise<IGitHubIssue> {
-		return this.client.withClient(async (client, signal) => {
-			const issue = await client.issues.get({ owner, repo }, issueNumber, signal, options);
+		return this.client.withClient(async (client, cancellationToken) => {
+			const issue = await client.issues.get({ owner, repo }, issueNumber, cancellationToken, { ...options, caller: options?.caller ?? 'githubIssueFetcher' });
 			return {
 				number: issue.number,
 				title: issue.title,

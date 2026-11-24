@@ -10,6 +10,7 @@ import { structuralEquals } from '../../../base/common/equals.js';
 import { Disposable, DisposableMap, DisposableStore, IReference, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, IObservable, observableSignal, observableValue, observableValueOpts, waitForState } from '../../../base/common/observable.js';
 import { CancellationError, isCancellationError } from '../../../base/common/errors.js';
+import { escapeMarkdownSyntaxTokens } from '../../../base/common/htmlContent.js';
 import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
 import { ArtifactActor, ArtifactAuthenticationRequest, ArtifactJsonValue, ArtifactAuthenticationRequiredError, ArtifactAutomationConfiguration, ArtifactAutomationOption, artifactBindingId, ArtifactContributionSnapshot, ArtifactContributionView, ArtifactRecord, ArtifactSnapshot, getArtifactMainContribution, IArtifactDetailsModel, IArtifactIntegrationAccess, IArtifactModel, isArtifactOptionEnabled, isArtifactRunSettled } from './artifactIntegration.js';
@@ -17,7 +18,7 @@ import { applyArtifactAutomationSelection, artifactOptionConsent, disableArtifac
 import { isArtifactActionDescriptor, isArtifactAuthenticationRequest, isArtifactJsonValue } from './artifactIntegrationValidation.js';
 import { hasValidArtifactPresentationReferences, isArtifactContributionView, isArtifactDetails } from './artifactPresentationValidation.js';
 import { ArtifactExecutionService, IArtifactExecutionBinding } from './artifactExecutionService.js';
-import { getArtifactAutomationNotices } from './artifactIntegrationNotices.js';
+import { getArtifactAutomationNotices, IArtifactAutomationNoticeLabels } from './artifactIntegrationNotices.js';
 import { IArtifactIntegrationRegistry, IRegisteredArtifactIntegration } from './artifactIntegrationRegistry.js';
 import { ArtifactConfigurationConflictError, ArtifactIntegrationState, ArtifactIntegrationStore, ArtifactStoredBinding } from './artifactIntegrationStore.js';
 import { ArtifactAutomationNotice, ArtifactSessionState, IArtifactIntegrationStorage, IArtifactRuntime, isArtifactRuntimeAvailable } from './artifactRuntime.js';
@@ -73,9 +74,13 @@ export class ArtifactIntegrationService extends Disposable implements IArtifactI
 		if (this.runtime.postNotice) {
 			const posts = new SequencerByKey<string>();
 			let previous = this.ledger.state.get();
+			const labels: IArtifactAutomationNoticeLabels = {
+				getAgentName: chat => this.runtime.getAgentName?.(chat),
+				getArtifactKind: integrationId => this.registry.integrations.get().find(integration => integration.id === integrationId)?.artifactKind,
+			};
 			this._register(autorun(reader => {
 				const current = this.ledger.state.read(reader);
-				const notices = getArtifactAutomationNotices(previous, current);
+				const notices = getArtifactAutomationNotices(previous, current, labels);
 				previous = current;
 				for (const notice of notices) {
 					void posts.queue(notice.session, async () => {
@@ -231,8 +236,9 @@ export class ArtifactIntegrationService extends Disposable implements IArtifactI
 		}
 		const stored = this.ledger.state.get().bindings.find(binding => binding.session === session && binding.artifact.id === artifactId)?.artifact;
 		const current = sessionState.artifacts.find(artifact => artifact.id === artifactId);
+		// A stored origin was captured when the binding was first changed and is kept; a binding stored without one adopts the current origin.
 		const artifact = current
-			? stored?.resource === current.resource ? { ...current, origin: stored.origin } : current
+			? stored?.resource === current.resource ? { ...current, origin: stored.origin ?? current.origin } : current
 			: sessionState.availability.kind !== 'available' ? stored : undefined;
 		if (!artifact) {
 			reference.dispose();
@@ -361,6 +367,23 @@ class ArtifactModel extends Disposable implements IArtifactModel {
 			initial = false;
 		}));
 		await this.refresh();
+		// Integrations read the origin when they bind, so an artifact that gains its first origin is bound again. That
+		// cancels active work, so it waits until the artifact's runs settle. An origin the model has is never replaced.
+		this._register(autorun(reader => {
+			const current = this.sessionReference.object.read(reader).artifacts.find(artifact => artifact.id === this.artifact.id && artifact.resource === this.artifact.resource);
+			if (this.artifact.origin || !current?.origin) {
+				return;
+			}
+			const state = this.ledger.state.read(reader);
+			const bindingIds = new Set(state.bindings.filter(binding => binding.session === this.session && binding.artifact.id === this.artifact.id).map(binding => binding.id));
+			if (state.runs.some(run => bindingIds.has(run.bindingId) && !isArtifactRunSettled(run))) {
+				return;
+			}
+			this.artifact = { ...this.artifact, origin: current.origin };
+			this.bindings.clearAndDisposeAll();
+			this.bindingsChanged.trigger(undefined);
+			void this.refresh().catch(error => this.logService.error('[ArtifactIntegrations] Could not refresh integrations', error));
+		}));
 		this._register(autorun(reader => {
 			this.bindingsChanged.read(reader);
 			const state = this.ledger.state.read(reader);
@@ -582,6 +605,7 @@ class ArtifactBinding extends Disposable {
 					state.bindings = state.bindings.map(candidate => candidate.id === this.id ? { ...binding, checkpoint: { revision: expectedRevision + 1, value } } : candidate);
 				}),
 			},
+			...this.runtime.postNotice ? { postNotice: (content: string) => this.postStatusNotice(content) } : {},
 		}, { authority: this.runtime.authority, runtimeId: this.registration.runtimeId }, token).catch(error => {
 			if (!(error instanceof ArtifactAuthenticationRequiredError) || token.isCancellationRequested) {
 				throw error;
@@ -634,6 +658,14 @@ class ArtifactBinding extends Disposable {
 					}
 					state.bindings = state.bindings.map(candidate => candidate.id === this.id
 						? { ...candidate, options: reconciled.options, configuration: reconciled.configuration } : candidate);
+				});
+			}
+			const origin = this.artifact.origin;
+			if (origin && !stored.artifact.origin && stored.artifact.resource === this.artifact.resource) {
+				// A binding stored before its artifact had an origin captures the one it gained; a captured origin never changes.
+				await this.ledger.transact(state => {
+					state.bindings = state.bindings.map(candidate => candidate.id === this.id && !candidate.artifact.origin
+						? { ...candidate, artifact: { ...candidate.artifact, origin } } : candidate);
 				});
 			}
 		}
@@ -748,6 +780,16 @@ class ArtifactBinding extends Disposable {
 		}
 		state.bindings.push(this.unstored);
 		return this.unstored;
+	}
+
+	private async postStatusNotice(content: string): Promise<void> {
+		const state = this.sessionState.get();
+		const artifact = state.artifacts.find(artifact => artifact.id === this.artifact.id && artifact.resource === this.artifact.resource);
+		if (!artifact || state.availability.kind !== 'available' || state.deleted || !this.runtime.postNotice
+			|| this._store.isDisposed || !isArtifactRuntimeAvailable(this.runtime) || !this.runtime.isOwner()) {
+			throw new Error(localize('artifactStatusNoticeUnavailable', "The artifact notice cannot be posted because its session or runtime is unavailable."));
+		}
+		await this.runtime.postNotice({ session: this.session, artifact, kind: 'status', content: escapeMarkdownSyntaxTokens(content), iconId: this.view.get().main?.icon.id });
 	}
 
 	async ensureStored(): Promise<void> {

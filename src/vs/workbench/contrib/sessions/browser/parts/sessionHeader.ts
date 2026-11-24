@@ -7,12 +7,13 @@ import { Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
+import { IMenuActionOptions } from '../../../../../platform/actions/common/actions.js';
 import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { SessionHeaderTargetsChatContext, SessionToolbarShowsSessionContext } from '../../common/contextkeys.js';
-import { IActiveSession } from '../../common/sessionsManagement.js';
-import { ISessionsService } from '../sessionsService.js';
 import { SessionHeaderBar } from './sessionHeaderBar.js';
+import { ISessionPaneContent } from '../../../../services/sessions/common/sessionPane.js';
+import { ISession } from '../../../../services/sessions/common/session.js';
 
 /**
  * Session-scoped header whose title follows the session's active chat.
@@ -26,6 +27,8 @@ export class SessionHeader extends Disposable {
 
 	get element(): HTMLElement { return this._bar.element; }
 	get titleElement(): HTMLElement { return this._bar.titleElement; }
+	/** See {@link SessionHeaderBar.menuActionOptions}. */
+	get menuActionOptions(): IMenuActionOptions { return this._bar.menuActionOptions; }
 	get visible(): boolean { return this._bar.visible; }
 	get height(): number { return this._bar.height; }
 	get onDidChangeVisibility(): Event<boolean> { return this._bar.onDidChangeVisibility; }
@@ -34,7 +37,6 @@ export class SessionHeader extends Disposable {
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@ISessionsService private readonly _sessionsService: ISessionsService,
 	) {
 		super();
 		this._headerTargetsChatKey = SessionHeaderTargetsChatContext.bindTo(contextKeyService);
@@ -42,37 +44,55 @@ export class SessionHeader extends Disposable {
 		this._bar = this._register(instantiationService.createInstance(SessionHeaderBar, undefined));
 	}
 
-	setSession(session: IActiveSession | undefined): void {
+	/** Shows the content of a pane: its session, its chat and its state. */
+	setSession(content: ISessionPaneContent | undefined): void {
 		this._sessionDisposables.clear();
-		if (!session) {
+		if (!content) {
 			this._headerTargetsChatKey.reset();
 			this._toolbarShowsSessionKey.reset();
 			this._bar.setContext(undefined);
 			return;
 		}
-		const closeSession = () => this._sessionsService.closeSession(session);
+		const { session, chat } = content;
+		const closeSession = () => content.close();
 		this._sessionDisposables.add(autorun(reader => {
-			const activeChat = session.activeChat.read(reader);
+			const activeChat = chat.read(reader);
 			const targetsChat = !!activeChat && !isEqual(activeChat.resource, session.mainChat.read(reader).resource);
 			this._headerTargetsChatKey.set(targetsChat);
 			this._toolbarShowsSessionKey.set(true);
 			this._bar.setContext({
 				session,
-				chat: session.activeChat,
+				chat,
+				isDetached: content.state.isDetached,
 				actionsTargetChat: targetsChat,
 				closeSession,
 			});
 		}));
 	}
 
-	/** See {@link SessionHeaderBar.setWindowChrome}. */
-	setWindowChrome(shown: boolean): void {
-		this._bar.setWindowChrome(shown);
+	/**
+	 * Shows `session`, a new session not created yet, such as of a composer, titled as new, with the actions of its session;
+	 * nothing while undefined. `close` closes what shows it, such as on a middle-click of its title, as a chat's header does.
+	 */
+	setDraftSession(session: ISession | undefined, close?: () => void): void {
+		this._sessionDisposables.clear();
+		if (!session) {
+			this.setSession(undefined);
+			return;
+		}
+		this._headerTargetsChatKey.set(false);
+		this._toolbarShowsSessionKey.set(true);
+		this._bar.setContext({ session, chat: session.mainChat, isDraft: true, closeSession: close });
 	}
 
-	/** See {@link SessionHeaderBar.setActionsHost}. */
-	setActionsHost(host: HTMLElement | undefined): void {
-		this._bar.setActionsHost(host);
+	/** See {@link SessionHeaderBar.setDragsEditor}. */
+	setDragsEditor(dragsEditor: boolean): void {
+		this._bar.setDragsEditor(dragsEditor);
+	}
+
+	/** See {@link SessionHeaderBar.setShowsWorkingProgress}. */
+	setShowsWorkingProgress(shows: boolean): void {
+		this._bar.setShowsWorkingProgress(shows);
 	}
 
 	setVisible(visible: boolean): void {

@@ -13,7 +13,7 @@ import { ICustomViewGridPartService } from '../../services/customView/browser/cu
 import { CustomViewGridPart } from './customViewGridPart.js';
 import { MobileCustomViewGridPart } from './mobile/mobileCustomViewGridPart.js';
 import { IAgentWorkbenchLayoutService } from '../workbench.js';
-import { createMainWindowInstantiationService } from '../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { createMainWindowInstantiationService } from '../../../workbench/services/sessions/browser/sessionHost.js';
 
 /**
  * Owns the lifecycle of the {@link CustomViewGridPart}. Selects the mobile vs.

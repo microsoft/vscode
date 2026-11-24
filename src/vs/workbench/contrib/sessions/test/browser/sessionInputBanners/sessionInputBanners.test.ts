@@ -30,12 +30,11 @@ import { IChatWidget, IChatWidgetService } from '../../../../chat/browser/chat.j
 import type { IChatResponseModel } from '../../../../chat/common/model/chatModel.js';
 import { TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
 import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../common/agentHostSessionsProvider.js';
-import { IActiveSession } from '../../../common/sessionsManagement.js';
-import { IChat, IGitHubPullRequestRef, ISessionWorkspace, SessionStatus } from '../../../common/session.js';
+import { IChat, IGitHubPullRequestRef, ISessionWorkspace, SessionStatus } from '../../../../../services/sessions/common/session.js';
 import { ISessionsProvider } from '../../../common/sessionsProvider.js';
 import { ISessionsProvidersService } from '../../../browser/sessionsProvidersService.js';
-import { ActiveSessionHost, ISessionHost, SessionHostKind } from '../../../browser/sessionHost.js';
-import { stubSessionHosts } from '../sessionHostTestUtils.js';
+import { ISessionHost, SessionHost, SessionHostKind } from '../../../../../services/sessions/browser/sessionHost.js';
+import { ITestSessionWithChat, stubSessionHosts } from '../sessionHostTestUtils.js';
 import { ISessionsService } from '../../../browser/sessionsService.js';
 import { IAgentFeedbackService, ISubmitFeedbackOptions } from '../../../browser/agentFeedback.js';
 import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedback } from '../../../browser/agentFeedbackModel.js';
@@ -62,7 +61,7 @@ suite('SessionInputBanners', () => {
 				resource: URI.parse(`local-agent-host-chat:/${id}/main`),
 				workspace: observableValue<ISessionWorkspace | undefined>('workspace', workspaceWithPullRequests(`/${id}`, [pullRequest(prNumber)])),
 			});
-			return new class extends mock<IActiveSession>() {
+			return new class extends mock<ITestSessionWithChat>() {
 				override readonly sessionId = id;
 				override readonly resource = URI.parse(`local-agent-host:/${id}`);
 				override readonly providerId = LOCAL_AGENT_HOST_PROVIDER_ID;
@@ -84,14 +83,17 @@ suite('SessionInputBanners', () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		// The chat window of session A has focus: it is the globally active session.
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			readonly activeSession = observableValue<IActiveSession | undefined>('activeSession', windowA);
-			readonly mainWindowActiveSession = observableValue<IActiveSession | undefined>('mainWindowActiveSession', main);
+			readonly activeSession = observableValue<ITestSessionWithChat | undefined>('activeSession', windowA);
+			readonly mainWindowActiveSession = observableValue<ITestSessionWithChat | undefined>('mainWindowActiveSession', main);
 		}());
 		const agentHostProvider = new class extends mock<IAgentHostSessionsProvider>() {
 			override readonly id = LOCAL_AGENT_HOST_PROVIDER_ID;
+			override readonly onDidChangeSessions = Event.None;
+			override readonly onDidChangeSessionConfig = Event.None;
 			override getAgentMergeClientStateObservable() { return observableValue<AgentMergeSessionState>('agentMergeState', { enabled: false }); }
 		}();
 		instantiationService.stub(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
+			override readonly onDidChangeProviders = Event.None;
 			override getProvider<T extends ISessionsProvider>(): T | undefined {
 				return agentHostProvider as unknown as T;
 			}
@@ -124,7 +126,7 @@ suite('SessionInputBanners', () => {
 
 		// Each chat window scopes its views to its own session; the main window to the session it shows.
 		const contextKeyService = upcastPartial<IContextKeyService>({});
-		const hostOf = (kind: SessionHostKind, session: IActiveSession) => new ActiveSessionHost({ kind, parent: undefined, session: constObservable<IActiveSession | undefined>(session), contextKeyService });
+		const hostOf = (kind: SessionHostKind, session: ITestSessionWithChat) => new SessionHost({ kind, parent: undefined, session: constObservable<ITestSessionWithChat | undefined>(session), chat: constObservable(session?.activeChat?.get()), contextKeyService });
 		const bannersIn = (host: ISessionHost) => {
 			const banners = store.add(instantiationService.createChild(new ServiceCollection([ISessionHost, host])).createInstance(SessionInputBanners));
 			// Every chat window's session view is active, as is the main window's.
@@ -135,7 +137,7 @@ suite('SessionInputBanners', () => {
 			windowA: bannersIn(hostOf(SessionHostKind.ChatWindow, windowA)),
 			windowB: bannersIn(hostOf(SessionHostKind.ChatWindow, windowB)),
 			// A pane of the main window shows the banners of the main window's session.
-			main: bannersIn(new ActiveSessionHost({ kind: SessionHostKind.Pane, parent: hostOf(SessionHostKind.MainWindow, main), session: constObservable<IActiveSession | undefined>(windowA), contextKeyService })),
+			main: bannersIn(new SessionHost({ kind: SessionHostKind.Pane, parent: hostOf(SessionHostKind.MainWindow, main), session: constObservable<ITestSessionWithChat | undefined>(windowA), chat: constObservable(windowA?.activeChat?.get()), contextKeyService })),
 		}, {
 			windowA: '1 check failed',
 			windowB: '2 out of 2 checks failed',
@@ -157,7 +159,7 @@ suite('SessionInputBanners', () => {
 			workspace: observableValue<ISessionWorkspace | undefined>('secondaryWorkspace', workspaceWithPullRequests('/workspace-secondary', [secondaryPullRequest])),
 		});
 		const activeChat = observableValue<IChat>('activeChat', mainChat);
-		const session = new class extends mock<IActiveSession>() {
+		const session = new class extends mock<ITestSessionWithChat>() {
 			override readonly sessionId = 'session-1';
 			override readonly resource = sessionResource;
 			override readonly providerId = LOCAL_AGENT_HOST_PROVIDER_ID;
@@ -168,14 +170,17 @@ suite('SessionInputBanners', () => {
 			override readonly isCreated = constObservable(true);
 		}();
 		const sessionsService = new class extends mock<ISessionsService>() {
-			readonly activeSession = observableValue<IActiveSession | undefined>('activeSession', session);
+			readonly activeSession = observableValue<ITestSessionWithChat | undefined>('activeSession', session);
 		}();
 		const agentMergeState = observableValue<AgentMergeSessionState>('agentMergeState', { enabled: false });
 		const agentHostProvider = new class extends mock<IAgentHostSessionsProvider>() {
 			override readonly id = LOCAL_AGENT_HOST_PROVIDER_ID;
+			override readonly onDidChangeSessions = Event.None;
+			override readonly onDidChangeSessionConfig = Event.None;
 			override getAgentMergeClientStateObservable() { return agentMergeState; }
 		}();
 		const sessionsProvidersService = new class extends mock<ISessionsProvidersService>() {
+			override readonly onDidChangeProviders = Event.None;
 			override getProvider<T extends ISessionsProvider>(): T | undefined {
 				return agentHostProvider as unknown as T;
 			}

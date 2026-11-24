@@ -11,7 +11,7 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IRectangle } from '../../../../../platform/window/common/window.js';
 import { IHostService } from '../../../../../workbench/services/host/browser/host.js';
-import { ISession } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { ISession } from '../../../../../workbench/services/sessions/common/session.js';
 import { openChatWindowAtDragEnd } from '../../browser/chatWindowDragOut.js';
 
 suite('Chat Window Drag Out', () => {

@@ -118,14 +118,19 @@ export async function loadLocalResource(
 	}
 }
 
-export function getResourceToLoad(
+/** Used only by tests; returns a resource when its lexical and resolved paths are contained in an allowed root. */
+export async function getResourceToLoad(
 	requestUri: URI,
 	roots: ReadonlyArray<URI>,
 	uriIdentityService: IUriIdentityService,
+	fileService: IFileService,
 	remoteOS?: OperatingSystem,
-): URI | undefined {
+): Promise<URI | undefined> {
 	const request = toContainmentRequest(requestUri, roots, remoteOS);
 	if (!request || !isContainedInAnyRoot(request.resource, request.roots, uriIdentityService, request.forcePosixSemantics)) {
+		return undefined;
+	}
+	if (await checkResolvedContainment(request, fileService, uriIdentityService, remoteOS) !== Containment.Contained) {
 		return undefined;
 	}
 	return normalizeResourcePath(request.requestUri);

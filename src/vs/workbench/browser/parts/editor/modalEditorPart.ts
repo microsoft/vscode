@@ -59,7 +59,7 @@ const MODAL_SIDEBAR_BORDER_RIGHT = 1; // matches CSS border-right on sidebar con
 const MODAL_FOCUSABLE_SELECTOR = 'a[href], area[href], button, input, select, textarea, iframe, object, embed, [contenteditable="true"], [tabindex]';
 
 function getModalTabbableElements(modalElement: HTMLElement): HTMLElement[] {
-	// eslint-disable-next-line no-restricted-syntax
+	// eslint-disable-next-line eslint-js/no-restricted-syntax
 	const elements = Array.from(modalElement.querySelectorAll<HTMLElement>(MODAL_FOCUSABLE_SELECTOR))
 		.filter(element => {
 			if (element.tabIndex < 0 || element.matches(':disabled') || element.closest('[inert]')) {
@@ -328,6 +328,7 @@ export class ModalEditorPart {
 			this.editorPartsView,
 			modalElement,
 			options,
+			() => toolbar.focus(),
 		));
 		disposables.add(this.editorPartsView.registerPart(editorPart));
 		editorPart.create(editorPartContainer);
@@ -435,7 +436,7 @@ export class ModalEditorPart {
 		disposables.add(modalEditorService.onDidEditorsChange(() => editorPart.enforceModalPartOptions()));
 
 		// Create global toolbar
-		disposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, actionBarContainer, MenuId.ModalEditorTitle, {
+		const toolbar = disposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, actionBarContainer, MenuId.ModalEditorTitle, {
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
 			highlightToggledItems: true,
 			menuOptions: { shouldForwardArgs: true }
@@ -988,6 +989,7 @@ class ModalEditorPartImpl extends EditorPart implements IModalEditorPart {
 		editorPartsView: IEditorPartsView,
 		public readonly modalElement: HTMLElement,
 		options: IModalEditorPartOptions | undefined,
+		public readonly focusToolbar: () => void,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
 		@IConfigurationService configurationService: IConfigurationService,

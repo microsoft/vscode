@@ -146,6 +146,10 @@ export class MockChatSessionsService implements IChatSessionsService {
 		return typeof this.sessionItemControllers.get(sessionType)?.controller.setChatSessionItemArchived === 'function';
 	}
 
+	getPreviousChatSessionResource(resource: URI): URI | undefined {
+		return this.sessionItemControllers.get(resource.scheme)?.controller.getPreviousSessionResource?.(resource);
+	}
+
 	setChatSessionItemArchived(sessionResource: URI, archived: boolean): void {
 		const sessionType = getChatSessionType(sessionResource);
 		const controller = this.sessionItemControllers.get(sessionType)?.controller;

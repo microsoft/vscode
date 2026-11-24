@@ -6,7 +6,6 @@
 import { IReader } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { getCanvasReferenceKey } from '../../canvases/common/canvas.js';
 import {
 	SessionHasChangesContext,
 	SessionHasCachedChangesContext,
@@ -40,9 +39,10 @@ import {
 	SessionActiveChatCanvasReferenceKeysContext,
 	SessionHasGitRepositoryContext,
 } from './contextkeys.js';
-import { ChatOriginKind, getChatCapabilities, IChat, isActiveSessionStatus, isSideChatOf, ISession, SessionStatus } from './session.js';
-import { ISessionChangesStatsCache, readChatChangesStats, readSessionChangesStats } from './sessionChangesStatsCache.js';
-import { IActiveSession, IHostSession } from './sessionsManagement.js';
+import { ChatOriginKind, getChatCapabilities, IChat, isActiveSessionStatus, isSessionCreated, isSideChatOf, ISession, isWorkspacelessQuickChat, SessionStatus } from '../../../services/sessions/common/session.js';
+import { ISessionChangesStatsCache, readChatChangesStats, readSessionChangesStats } from '../../../services/sessions/common/sessionChangesStatsCache.js';
+import { getCanvasReferenceKey } from '../../../common/canvasReference.js';
+import { IPaneViewState } from '../../../services/sessions/common/sessionPane.js';
 
 /**
  * The set of session context keys bound to a single {@link IContextKeyService}.
@@ -200,34 +200,26 @@ function setSessionContextKeysUnbuffered(session: ISession | undefined, contextK
 }
 
 /**
- * Sets every context key that can be derived from an {@link IActiveSession} on
- * the given context key service. This is a superset of
- * {@link setSessionContextKeys} that also applies the keys which only exist on
- * an active (visible) session, then delegates to it for the shared keys.
+ * Sets every context key of the session a host shows: the keys of {@link setSessionContextKeys}, and the keys of the chat
+ * it shows of it, which the session does not select for every place that shows it, and of the state of the pane that
+ * shows it. Without a pane, as for a chat window or a composer, the session is not pinned and shows no tab strip. Its
+ * workspace is that of the chat it shows, or of the session while it shows no chat of it, such as a composer's draft.
  *
  * See {@link setSessionContextKeys} for the `reader` and `undefined` semantics.
  */
-export function setActiveSessionContextKeys(session: IActiveSession | undefined, contextKeyService: IContextKeyService, reader: IReader | undefined, changesStatsCache?: ISessionChangesStatsCache): void {
-	setHostSessionContextKeys(session, session?.activeChat.read(reader), contextKeyService, reader, changesStatsCache);
-}
-
-/**
- * Sets the keys of {@link setActiveSessionContextKeys} for the session a host shows and the chat it shows of it, which
- * the session does not select for every place that shows it.
- */
-export function setHostSessionContextKeys(session: IHostSession | undefined, chat: IChat | undefined, contextKeyService: IContextKeyService, reader: IReader | undefined, changesStatsCache?: ISessionChangesStatsCache): void {
+export function setHostSessionContextKeys(session: ISession | undefined, chat: IChat | undefined, paneState: IPaneViewState | undefined, contextKeyService: IContextKeyService, reader: IReader | undefined, changesStatsCache?: ISessionChangesStatsCache): void {
 	contextKeyService.bufferChangeEvents(() => {
 		setSessionContextKeysUnbuffered(session, contextKeyService, reader, changesStatsCache);
 		const keys = getBoundKeys(contextKeyService);
-		keys.isCreated.set(session?.isCreated.read(reader) ?? false);
-		keys.sticky.set(session?.sticky.read(reader) ?? false);
+		keys.isCreated.set(isSessionCreated(session, reader));
+		keys.sticky.set(paneState?.sticky.read(reader) ?? false);
 		const focusedChat = chat;
 		const activeChatStats = focusedChat ? readChatChangesStats(focusedChat, reader) : undefined;
 		const worktreePending = session?.worktreePending?.read(reader) ?? false;
 		keys.hasChanges.set(!worktreePending && !!activeChatStats && (activeChatStats.insertions > 0 || activeChatStats.deletions > 0));
 		const mainChat = session?.mainChat?.read(reader);
 		const isMainChat = mainChat && focusedChat && isEqual(mainChat.resource, focusedChat.resource);
-		const cachedFiles = activeChatStats === undefined && isMainChat && session ? changesStatsCache?.get(session.sessionId, reader)?.files ?? 0 : 0;
+		const cachedFiles = activeChatStats === undefined && isMainChat && session && !isWorkspacelessQuickChat(session, focusedChat, reader) ? changesStatsCache?.get(session.sessionId, reader)?.files ?? 0 : 0;
 		keys.hasCachedChanges.set(!worktreePending && cachedFiles > 0);
 
 		// Count committed (non-draft) chats: untitled in-composer drafts are excluded
@@ -240,12 +232,12 @@ export function setHostSessionContextKeys(session: IHostSession | undefined, cha
 
 		// The tab strip is shown when the session has more than one chat (counting
 		// closed chats) or its single remaining chat's title diverged from the session title.
-		keys.shouldShowChatTabs.set(session?.shouldShowChatTabs.read(reader) ?? false);
+		keys.shouldShowChatTabs.set(paneState?.tabs.shouldShowChatTabs.read(reader) ?? false);
 
 		// More than one open chat tab (incl. drafts): scopes chat-to-chat navigation
 		// so it stays a no-op when only a single open chat remains (e.g. a single
 		// chat with a diverged title, or one open + one closed chat).
-		keys.hasMultipleOpenChats.set((session?.visibleChatTabs.read(reader).length ?? 0) > 1);
+		keys.hasMultipleOpenChats.set((paneState?.tabs.visibleChatTabs.read(reader).length ?? 0) > 1);
 
 		// The active chat can be closed (hidden) from the tab strip when it is a
 		// non-main chat — including read-only subagent chats, which surface as
@@ -267,9 +259,10 @@ export function setHostSessionContextKeys(session: IHostSession | undefined, cha
 		// so they are closeable but not deletable.
 		keys.activeChatIsDeletable.set(!!activeChat && getChatCapabilities(activeChat, session, reader).canDelete);
 		keys.activeChatIsUntitled.set(activeChat?.status.read(reader) === SessionStatus.Untitled);
-		const workspace = activeChat?.workspace.read(reader);
+		const workspace = activeChat ? activeChat.workspace.read(reader) : session?.workspace.read(reader);
 		keys.workspaceIsVirtual.set(workspace?.isVirtualWorkspace ?? true);
 		keys.hasWorkspace.set(!!workspace?.label);
+		keys.isQuickChat.set(!!session && isWorkspacelessQuickChat(session, activeChat, reader));
 
 		const allChats = session?.chats.read(reader) ?? [];
 		keys.activeChatHasSideChats.set(!!activeChat && allChats.some(chat => isSideChatOf(chat, activeChat.resource)));

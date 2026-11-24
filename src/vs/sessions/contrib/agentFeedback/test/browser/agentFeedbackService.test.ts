@@ -23,14 +23,15 @@ import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IEditorService, IVisibleEditorsChangeEvent } from '../../../../../workbench/services/editor/common/editorService.js';
-import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISessionsChangeEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { ISessionGridPane } from '../../../../../workbench/services/sessions/browser/sessionGridPane.js';
 import { whenChatWidgetForSession } from '../../../../../workbench/contrib/sessions/browser/chat/chatWidgetUtils.js';
-import { IChat, ISession, ISessionFileChange, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { IChat, ISession, ISessionFileChange, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ISessionsProvider } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
-import { stubFocusedSessionHostFromSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { ITestSessionWithChat, stubFocusedSessionHostFromSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 function r(startLine: number, endLine: number = startLine): Range {
 	return new Range(startLine, 1, endLine, 1);
@@ -94,7 +95,7 @@ suite('AgentFeedbackService - Ordering', () => {
 		instantiationService.stub(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
 			override onDidChangeProviders = Event.None;
 		});
-		instantiationService.stub(ISessionsService, { activeSession: observableValue<IActiveSession | undefined>('activeSession', undefined) } as unknown as ISessionsService);
+		instantiationService.stub(ISessionsService, { activeSession: observableValue<ITestSessionWithChat | undefined>('activeSession', undefined) } as unknown as ISessionsService);
 		stubFocusedSessionHostFromSessionsService(instantiationService);
 
 		service = store.add(instantiationService.createInstance(AgentFeedbackService));
@@ -223,6 +224,25 @@ suite('AgentFeedbackService - Ordering', () => {
 		service.getNextFeedback(session, true);
 		bearing = service.getNavigationBearing(session);
 		assert.strictEqual(bearing.activeIdx, 2);
+	});
+
+	test('passive navigation anchors keep their reveal intent across feedback changes', () => {
+		const f1 = service.addFeedback(session, fileA, r(5), 'A:5');
+		service.addFeedback(session, fileA, r(20), 'A:20');
+		const reveals: boolean[] = [];
+		store.add(service.onDidChangeNavigation(event => reveals.push(event.reveal)));
+
+		service.setNavigationAnchor(session, f1.id, { reveal: false });
+		const passiveBearing = service.getNavigationBearing(session);
+		service.addFeedback(session, fileB, r(1), 'B:1');
+		service.getNextFeedback(session, true);
+		const revealedBearing = service.getNavigationBearing(session);
+
+		assert.deepStrictEqual({ passiveBearing, revealedBearing, reveals }, {
+			passiveBearing: { activeIdx: 0, totalCount: 2, reveal: false },
+			revealedBearing: { activeIdx: 1, totalCount: 3, reveal: true },
+			reveals: [false, false, true],
+		});
 	});
 
 	test('revealFeedback anchors the matching session editor comment so its widget expands', async () => {
@@ -393,7 +413,7 @@ suite('AgentFeedbackService - getSessionForFile', () => {
 	let service: IAgentFeedbackService;
 	let visibleEditorsEmitter: Emitter<IVisibleEditorsChangeEvent>;
 	let visiblePanes: any[];
-	let activeSessionObs: ISettableObservable<IActiveSession | undefined>;
+	let activeSessionObs: ISettableObservable<ITestSessionWithChat | undefined>;
 	let sessions: Map<string, ISession>;
 	let sessionsChangedEmitter: Emitter<ISessionsChangeEvent>;
 	let providersChangedEmitter: Emitter<ISessionsProvidersChangeEvent>;
@@ -431,7 +451,7 @@ suite('AgentFeedbackService - getSessionForFile', () => {
 	}
 
 	function setActiveSession(s: ISession | undefined): void {
-		activeSessionObs.set(s as IActiveSession | undefined, undefined);
+		activeSessionObs.set(s as ITestSessionWithChat | undefined, undefined);
 	}
 
 	function setVisibleEditors(panes: any[]): void {
@@ -443,7 +463,7 @@ suite('AgentFeedbackService - getSessionForFile', () => {
 	setup(() => {
 		visibleEditorsEmitter = store.add(new Emitter<IVisibleEditorsChangeEvent>());
 		visiblePanes = [];
-		activeSessionObs = observableValue<IActiveSession | undefined>('activeSession', undefined);
+		activeSessionObs = observableValue<ITestSessionWithChat | undefined>('activeSession', undefined);
 		sessions = new Map<string, ISession>();
 		sessionsChangedEmitter = store.add(new Emitter<ISessionsChangeEvent>());
 		providersChangedEmitter = store.add(new Emitter<ISessionsProvidersChangeEvent>());
@@ -500,7 +520,7 @@ suite('AgentFeedbackService - getSessionForFile', () => {
 		const activeSession = {
 			...makeSession(sessionS1, SessionStatus.InProgress, { changes: [aggregateChange] }),
 			activeChat: observableValue('activeChat', activeChat),
-		} as unknown as IActiveSession;
+		} as unknown as ITestSessionWithChat;
 		setActiveSession(activeSession);
 
 		assert.deepStrictEqual(service.getChatChanges(sessionS1).map(change => change.modifiedUri?.toString()), [
@@ -862,7 +882,7 @@ suite('AgentFeedbackService - State', () => {
 					: undefined;
 			}
 		});
-		instantiationService.stub(ISessionsService, { activeSession: observableValue<IActiveSession | undefined>('activeSession', undefined), visibleSessionPanes: observableValue<readonly IActiveSession[]>('visibleSessionPanes', []) } as unknown as ISessionsService);
+		instantiationService.stub(ISessionsService, { activeSession: observableValue<ITestSessionWithChat | undefined>('activeSession', undefined), visibleSessionPanes: observableValue<readonly ITestSessionWithChat[]>('visibleSessionPanes', []), panes: observableValue<readonly ISessionGridPane[]>('panes', []) } as unknown as ISessionsService);
 		stubFocusedSessionHostFromSessionsService(instantiationService);
 
 		service = store.add(instantiationService.createInstance(AgentFeedbackService));
@@ -998,7 +1018,7 @@ suite('AgentFeedbackService - Submit (agent host)', () => {
 				return { providerId, sessionId: 'session-1' } as unknown as ISession;
 			}
 		});
-		instantiationService.stub(ISessionsService, { activeSession: observableValue<IActiveSession | undefined>('activeSession', undefined), visibleSessionPanes: observableValue<readonly IActiveSession[]>('visibleSessionPanes', []) } as unknown as ISessionsService);
+		instantiationService.stub(ISessionsService, { activeSession: observableValue<ITestSessionWithChat | undefined>('activeSession', undefined), visibleSessionPanes: observableValue<readonly ITestSessionWithChat[]>('visibleSessionPanes', []), panes: observableValue<readonly ISessionGridPane[]>('panes', []) } as unknown as ISessionsService);
 		stubFocusedSessionHostFromSessionsService(instantiationService);
 
 		const onDidChangeViewModel = store.add(new Emitter<IChatWidgetViewModelChangeEvent>());
@@ -1255,13 +1275,13 @@ suite('whenChatWidgetForSession', () => {
 		const host = createWidgetHost();
 		host.load();
 
-		assert.strictEqual(await whenChatWidgetForSession(host.service, session, 0), host.widget);
+		assert.strictEqual(await whenChatWidgetForSession(host.service, session, { timeoutMs: 0 }), host.widget);
 	});
 
 	test('resolves once a widget loads the session', async () => {
 		const host = createWidgetHost();
 
-		const pending = whenChatWidgetForSession(host.service, session, 5000);
+		const pending = whenChatWidgetForSession(host.service, session, { timeoutMs: 5000 });
 		await timeout(0);
 		host.load();
 
@@ -1271,7 +1291,7 @@ suite('whenChatWidgetForSession', () => {
 	test('resolves undefined when no widget loads the session in time', async () => {
 		const host = createWidgetHost();
 
-		assert.strictEqual(await whenChatWidgetForSession(host.service, session, 1), undefined);
+		assert.strictEqual(await whenChatWidgetForSession(host.service, session, { timeoutMs: 1 }), undefined);
 	});
 
 	test('resolves when a widget that already has the session is added later', async () => {
@@ -1285,7 +1305,7 @@ suite('whenChatWidgetForSession', () => {
 			override getWidgetBySessionResource(_resource: URI): IChatWidget | undefined { return widgets[0]; }
 		};
 
-		const pending = whenChatWidgetForSession(service, session, 5000);
+		const pending = whenChatWidgetForSession(service, session, { timeoutMs: 5000 });
 		await timeout(0);
 		widgets = [widget];
 		onDidAddWidget.fire(widget);

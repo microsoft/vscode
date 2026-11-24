@@ -61,6 +61,7 @@ src/vs/sessions/contrib/canvases/** @ulugbekna @jruales
 build/azure-pipelines/** @lszomoru
 build/azure-pipelines/common/sanity-tests.yml @dmitrivMS
 build/lib/i18n.ts @TylerLeonhardt
+build/next/mobilePolicy.json @osortega
 resources/linux/debian/** @rzhao271
 resources/linux/rpm/** @rzhao271
 
@@ -118,6 +119,9 @@ test/sanity/** @dmitrivMS
 src/vs/sessions/services/sessions/** @sandy081 @lszomoru
 src/vs/workbench/contrib/sessions/common/** @sandy081 @lszomoru
 src/vs/workbench/contrib/sessions/browser/*Service.ts @sandy081 @lszomoru
+src/vs/workbench/services/sessions/** @sandy081 @lszomoru
+src/vs/workbench/browser/parts/sessions/** @sandy081 @lszomoru
+src/vs/workbench/services/editor/*/diffEditorOptionsService.ts @sandy081 @lszomoru
 
 # Agents Window architecture specifications and their routing policy.
 /src/vs/sessions/*.md @sandy081

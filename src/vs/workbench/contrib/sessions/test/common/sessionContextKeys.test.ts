@@ -5,20 +5,38 @@
 
 import assert from 'assert';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { constObservable, observableValue, autorun, ISettableObservable } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, IReader, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { ContextKeyValue, IContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyValue, IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
-import { getCanvasReferenceKey } from '../../../canvases/common/canvas.js';
-import { IChatSessionFileChange } from '../../../chat/common/chatSessionsService.js';
-import { SessionActiveChatCanArchiveContext, SessionActiveChatCanvasReferenceKeysContext, SessionActiveChatHasSideChatsContext, SessionActiveChatResourceContext, SessionHasCachedChangesContext, SessionHasChangesContext, SessionHasGitRepositoryContext, SessionHasMultipleCommittedChatsContext, SessionHasWorkspaceContext, SessionIsActiveContext, SessionIsCreatedContext, SessionIsReadContext, SessionProviderIdContext, SessionSupportsSideChatContext, SessionWorkspaceIsVirtualContext } from '../../common/contextkeys.js';
-import { ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionChangeset, ISessionWorkspace, SessionStatus } from '../../common/session.js';
-import { IActiveSession } from '../../common/sessionsManagement.js';
-import { setActiveSessionContextKeys, setSessionContextKeys } from '../../common/sessionContextKeys.js';
-import { SessionChangesStatsCache } from '../../common/sessionChangesStatsCache.js';
+import { IsQuickChatSessionContext, SessionActiveChatCanArchiveContext, SessionActiveChatCanvasReferenceKeysContext, SessionActiveChatHasSideChatsContext, SessionActiveChatResourceContext, SessionHasCachedChangesContext, SessionHasChangesContext, SessionHasGitRepositoryContext, SessionHasMultipleCommittedChatsContext, SessionHasWorkspaceContext, SessionIsActiveContext, SessionIsCreatedContext, SessionIsReadContext, SessionProviderIdContext, SessionSupportsSideChatContext, SessionWorkspaceIsVirtualContext } from '../../common/contextkeys.js';
+import { ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionChangeset, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { setHostSessionContextKeys, setSessionContextKeys } from '../../common/sessionContextKeys.js';
+import { ISessionChangesStatsCache, SessionChangesStatsCache } from '../../../../services/sessions/common/sessionChangesStatsCache.js';
+import { getCanvasReferenceKey } from '../../../../common/canvasReference.js';
+import { IChatSessionFileChange } from '../../../../common/chatSessionFileChange.js';
+import { IPaneViewState } from '../../../../services/sessions/common/sessionPane.js';
+
+/** What a pane shows: `chat` of `session`, with its tab strip of `tabs`, shown while `showTabs`. */
+function paneShowing(session: ISession, chat: IChat, tabs: readonly IChat[], showTabs: boolean): { readonly session: ISession; readonly chat: IChat; readonly state: IPaneViewState } {
+	return {
+		session,
+		chat,
+		state: {
+			sticky: constObservable(false),
+			tabs: { openChats: constObservable(tabs), closedChats: constObservable([]), lastClosedChat: undefined, visibleChatTabs: constObservable(tabs), shouldShowChatTabs: constObservable(showTabs) },
+			isDetached: false,
+		},
+	};
+}
+
+/** Sets the keys of the host of a pane that shows `shown`. */
+function setPaneKeys(shown: ReturnType<typeof paneShowing>, contextKeyService: IContextKeyService, reader: IReader | undefined, changesStatsCache?: ISessionChangesStatsCache): void {
+	setHostSessionContextKeys(shown.session, shown.chat, shown.state, contextKeyService, reader, changesStatsCache);
+}
 
 function createSession(hasGitRepository: ISettableObservable<boolean>): ISession {
 	return upcastPartial<ISession>({
@@ -204,21 +222,14 @@ suite('Session Context Keys', () => {
 				isVirtualWorkspace: true,
 			}),
 		};
-		const session = upcastPartial<IActiveSession>({
-			...stubSession({
-				sessionId: 'a',
-				workspace: constObservable(sessionWorkspace),
-				chats: constObservable([activeChat]),
-				mainChat: constObservable(activeChat),
-			}),
-			isCreated: constObservable(true),
-			sticky: constObservable(false),
-			activeChat: constObservable(activeChat),
-			visibleChatTabs: constObservable([activeChat]),
-			shouldShowChatTabs: constObservable(false),
-		});
+		const session = paneShowing(stubSession({
+			sessionId: 'a',
+			workspace: constObservable(sessionWorkspace),
+			chats: constObservable([activeChat]),
+			mainChat: constObservable(activeChat),
+		}), activeChat, [activeChat], false);
 
-		setActiveSessionContextKeys(session, contextKeyService, undefined);
+		setPaneKeys(session, contextKeyService, undefined);
 
 		assert.deepStrictEqual({
 			hasWorkspace: SessionHasWorkspaceContext.getValue(contextKeyService),
@@ -228,6 +239,69 @@ suite('Session Context Keys', () => {
 			hasWorkspace: true,
 			isVirtualWorkspace: true,
 			hasGitRepository: true,
+		});
+	});
+
+	test('publishes the workspace of the session while no chat of it is known, such as the draft of a new-session composer, and that of the chat once it is', () => {
+		const contextKeyService = store.add(new MockContextKeyService());
+		const draftWorkspace: ISessionWorkspace = {
+			uri: URI.file('/draft'),
+			label: 'draft',
+			icon: Codicon.rootFolder,
+			folders: [{ root: URI.file('/draft'), workingDirectory: URI.file('/draft'), name: 'draft', description: undefined }],
+			requiresWorkspaceTrust: false,
+			isVirtualWorkspace: false,
+		};
+		const draft = stubSession({ sessionId: 'draft', workspace: constObservable(draftWorkspace) });
+		const shownChat = observableValue<IChat | undefined>('shownChat', undefined);
+		store.add(autorun(reader => setHostSessionContextKeys(draft, shownChat.read(reader), undefined, contextKeyService, reader)));
+		const describe = () => ({
+			hasWorkspace: SessionHasWorkspaceContext.getValue(contextKeyService),
+			isVirtualWorkspace: SessionWorkspaceIsVirtualContext.getValue(contextKeyService),
+			isQuickChat: IsQuickChatSessionContext.getValue(contextKeyService),
+		});
+
+		const noChat = describe();
+		shownChat.set(stubChat, undefined);
+
+		assert.deepStrictEqual({ noChat, chatWithoutWorkspace: describe() }, {
+			noChat: { hasWorkspace: true, isVirtualWorkspace: false, isQuickChat: false },
+			chatWithoutWorkspace: { hasWorkspace: false, isVirtualWorkspace: true, isQuickChat: false },
+		});
+	});
+
+	test('publishes a chat of a quick chat that works in a folder of its own as a chat with a workspace', () => {
+		const contextKeyService = store.add(new MockContextKeyService());
+		const listContextKeyService = store.add(new MockContextKeyService());
+		const parent = stubChat;
+		const child = {
+			...stubChat,
+			resource: URI.parse('test:///child'),
+			workspace: constObservable<ISessionWorkspace>({
+				uri: URI.file('/child'),
+				label: 'child',
+				icon: Codicon.rootFolder,
+				folders: [{ root: URI.file('/child'), workingDirectory: URI.file('/child'), name: 'child', description: undefined }],
+				requiresWorkspaceTrust: false,
+				isVirtualWorkspace: false,
+			}),
+		};
+		const session = stubSession({ sessionId: 'quick', isQuickChat: constObservable(true), chats: constObservable([parent, child]) });
+		const shownChat = observableValue<IChat>('shownChat', child);
+		store.add(autorun(reader => setHostSessionContextKeys(session, shownChat.read(reader), undefined, contextKeyService, reader)));
+		setSessionContextKeys(session, listContextKeyService, undefined);
+		const describe = () => ({
+			isQuickChat: IsQuickChatSessionContext.getValue(contextKeyService),
+			hasWorkspace: SessionHasWorkspaceContext.getValue(contextKeyService),
+		});
+
+		const childShown = describe();
+		shownChat.set(parent, undefined);
+
+		assert.deepStrictEqual({ childShown, parentShown: describe(), session: IsQuickChatSessionContext.getValue(listContextKeyService) }, {
+			childShown: { isQuickChat: false, hasWorkspace: true },
+			parentShown: { isQuickChat: true, hasWorkspace: false },
+			session: true,
 		});
 	});
 
@@ -241,20 +315,13 @@ suite('Session Context Keys', () => {
 		};
 		const canvases = observableValue('canvases', [canvas]);
 		const activeChat = { ...stubChat, canvases };
-		const session = upcastPartial<IActiveSession>({
-			...stubSession({
-				sessionId: 'canvases',
-				chats: constObservable([activeChat]),
-				mainChat: constObservable(activeChat),
-			}),
-			isCreated: constObservable(true),
-			sticky: constObservable(false),
-			activeChat: constObservable(activeChat),
-			visibleChatTabs: constObservable([activeChat]),
-			shouldShowChatTabs: constObservable(false),
-		});
+		const session = paneShowing(stubSession({
+			sessionId: 'canvases',
+			chats: constObservable([activeChat]),
+			mainChat: constObservable(activeChat),
+		}), activeChat, [activeChat], false);
 
-		store.add(autorun(reader => setActiveSessionContextKeys(session, contextKeyService, reader)));
+		store.add(autorun(reader => setPaneKeys(session, contextKeyService, reader)));
 		const initial = SessionActiveChatCanvasReferenceKeysContext.getValue(contextKeyService);
 		canvases.set([], undefined);
 
@@ -263,8 +330,8 @@ suite('Session Context Keys', () => {
 			removed: SessionActiveChatCanvasReferenceKeysContext.getValue(contextKeyService),
 		}, {
 			initial: [getCanvasReferenceKey({
-				providerId: session.providerId,
-				session: session.resource,
+				providerId: session.session.providerId,
+				session: session.session.resource,
 				chat: activeChat.resource,
 				canvas: canvas.resource,
 			})],
@@ -282,20 +349,13 @@ suite('Session Context Keys', () => {
 			isArchived,
 			capabilities: constObservable({ canRename: true, canArchive: true, canDelete: true }),
 		};
-		const session = upcastPartial<IActiveSession>({
-			...stubSession({
-				sessionId: 'archive',
-				chats: constObservable([activeChat]),
-				mainChat: constObservable(stubChat),
-			}),
-			isCreated: constObservable(true),
-			sticky: constObservable(false),
-			activeChat: constObservable(activeChat),
-			visibleChatTabs: constObservable([activeChat]),
-			shouldShowChatTabs: constObservable(false),
-		});
+		const session = paneShowing(stubSession({
+			sessionId: 'archive',
+			chats: constObservable([activeChat]),
+			mainChat: constObservable(stubChat),
+		}), activeChat, [activeChat], false);
 
-		store.add(autorun(reader => setActiveSessionContextKeys(session, contextKeyService, reader)));
+		store.add(autorun(reader => setPaneKeys(session, contextKeyService, reader)));
 		const archived = SessionActiveChatCanArchiveContext.getValue(contextKeyService);
 		isArchived.set(false, undefined);
 
@@ -347,26 +407,19 @@ suite('setSessionContextKeys - changes', () => {
 				}
 			}
 		});
-		const createActiveSession = (sessionId: string, providerId: string, changes: readonly IChatSessionFileChange[], isCreated: boolean): IActiveSession => {
+		const createActiveSession = (sessionId: string, providerId: string, changes: readonly IChatSessionFileChange[]): ReturnType<typeof paneShowing> => {
 			const chat = { ...stubChat, resource: URI.parse(`test:///${sessionId}/chat`), changes: constObservable(changes) };
-			return upcastPartial<IActiveSession>({
-				...stubSession({
-					sessionId,
-					providerId,
-					mainChat: constObservable(chat),
-					chats: constObservable([chat]),
-				}),
-				isCreated: constObservable(isCreated),
-				sticky: constObservable(false),
-				activeChat: constObservable(chat),
-				visibleChatTabs: constObservable([chat]),
-				shouldShowChatTabs: constObservable(false),
-			});
+			return paneShowing(stubSession({
+				sessionId,
+				providerId,
+				mainChat: constObservable(chat),
+				chats: constObservable([chat]),
+			}), chat, [chat], false);
 		};
-		const first = createActiveSession('first', 'first-provider', [change], true);
-		const second = createActiveSession('second', 'second-provider', [], false);
-		setActiveSessionContextKeys(first, contextKeyService, undefined);
-		setActiveSessionContextKeys(second, contextKeyService, undefined);
+		const first = createActiveSession('first', 'first-provider', [change]);
+		const second = createActiveSession('second', 'second-provider', []);
+		setPaneKeys(first, contextKeyService, undefined);
+		setPaneKeys(second, contextKeyService, undefined);
 
 		assert.deepStrictEqual({
 			unbufferedKeys: contextKeyService.unbufferedKeys,
@@ -417,6 +470,20 @@ suite('setSessionContextKeys - changes', () => {
 		});
 	});
 
+	test('does not report the cached changes of a quick chat on its main chat, which has no workspace', () => {
+		const contextKeyService = disposables.add(new MockContextKeyService());
+		const cache = disposables.add(new SessionChangesStatsCache(disposables.add(new TestStorageService())));
+		cache.set('a', { files: 1, insertions: 4, deletions: 0 });
+		const mainChat = { ...stubChat, changesets: constObservable<readonly ISessionChangeset[] | undefined>(undefined) };
+		const session = (isQuickChat: boolean) => stubSession({ sessionId: 'a', mainChat: constObservable(mainChat), isQuickChat: constObservable(isQuickChat) });
+		const hasCachedChanges = (isQuickChat: boolean) => {
+			setHostSessionContextKeys(session(isQuickChat), mainChat, undefined, contextKeyService, undefined, cache);
+			return SessionHasCachedChangesContext.getValue(contextKeyService);
+		};
+
+		assert.deepStrictEqual({ quickChat: hasCachedChanges(true), workspaceSession: hasCachedChanges(false) }, { quickChat: false, workspaceSession: true });
+	});
+
 	test('uses active chat changes in active session scopes', () => {
 		const contextKeyService = disposables.add(new MockContextKeyService());
 		const chatChanges = observableValue<readonly IChatSessionFileChange[]>('chatChanges', []);
@@ -428,20 +495,15 @@ suite('setSessionContextKeys - changes', () => {
 			changes: chatChanges,
 			isRead: constObservable(true),
 		});
-		const session = upcastPartial<IActiveSession>({
+		const session = paneShowing({
 			...stubSession({
 				sessionId: 'a',
 			}),
-			isCreated: constObservable(true),
-			sticky: constObservable(false),
-			activeChat: constObservable(activeChat),
 			chats: constObservable([activeChat]),
 			mainChat: constObservable(activeChat),
-			visibleChatTabs: constObservable([activeChat]),
-			shouldShowChatTabs: constObservable(false),
-		});
+		}, activeChat, [activeChat], false);
 
-		disposables.add(autorun(reader => setActiveSessionContextKeys(session, contextKeyService, reader)));
+		disposables.add(autorun(reader => setPaneKeys(session, contextKeyService, reader)));
 		const withoutChatChanges = SessionHasChangesContext.getValue(contextKeyService);
 		chatChanges.set([change], undefined);
 
@@ -463,17 +525,12 @@ suite('setSessionContextKeys - changes', () => {
 			...stubChat,
 			changesets,
 		});
-		const session = upcastPartial<IActiveSession>({
+		const session = paneShowing({
 			...stubSession({ sessionId: 'a', mainChat: constObservable(activeChat) }),
-			isCreated: constObservable(true),
-			sticky: constObservable(false),
-			activeChat: constObservable(activeChat),
 			chats: constObservable([activeChat]),
-			visibleChatTabs: constObservable([activeChat]),
-			shouldShowChatTabs: constObservable(false),
-		});
+		}, activeChat, [activeChat], false);
 
-		disposables.add(autorun(reader => setActiveSessionContextKeys(session, contextKeyService, reader, cache)));
+		disposables.add(autorun(reader => setPaneKeys(session, contextKeyService, reader, cache)));
 		const beforeReported = SessionHasCachedChangesContext.getValue(contextKeyService);
 		changesets.set([], undefined);
 
@@ -526,37 +583,19 @@ suite('setSessionContextKeys - side chat', () => {
 		const sideChat = { ...stubChat, resource: URI.parse('test:///chat/side'), origin: { kind: ChatOriginKind.SideChat, parentChat: mainChat.resource }, status: constObservable(SessionStatus.Completed) };
 		const toolChat = { ...stubChat, resource: URI.parse('test:///chat/tool'), origin: { kind: ChatOriginKind.Tool }, status: constObservable(SessionStatus.Completed) };
 
-		const withSideChat = upcastPartial<IActiveSession>({
-			...stubSession({ sessionId: 'side', chats: constObservable([mainChat, sideChat]), mainChat: constObservable(mainChat) }),
-			isCreated: constObservable(true),
-			sticky: constObservable(false),
-			activeChat: constObservable(mainChat),
-			visibleChatTabs: constObservable([mainChat, sideChat]),
-			shouldShowChatTabs: constObservable(true),
-		});
-		setActiveSessionContextKeys(withSideChat, contextKeyService, undefined);
+		const withSideChat = paneShowing(stubSession({ sessionId: 'side', chats: constObservable([mainChat, sideChat]), mainChat: constObservable(mainChat) }), mainChat, [mainChat, sideChat], true);
+		setPaneKeys(withSideChat, contextKeyService, undefined);
 		const withSideChatCommittedChats = SessionHasMultipleCommittedChatsContext.getValue(contextKeyService);
 		const mainChatHasSideChats = SessionActiveChatHasSideChatsContext.getValue(contextKeyService);
 		const mainChatResource = SessionActiveChatResourceContext.getValue(contextKeyService);
 
-		const withUnrelatedActiveChat = upcastPartial<IActiveSession>({
-			...withSideChat,
-			chats: constObservable([mainChat, peerChat, sideChat]),
-			activeChat: constObservable(peerChat),
-		});
-		setActiveSessionContextKeys(withUnrelatedActiveChat, contextKeyService, undefined);
+		const withUnrelatedActiveChat = paneShowing({ ...withSideChat.session, chats: constObservable([mainChat, peerChat, sideChat]) }, peerChat, [mainChat, sideChat], true);
+		setPaneKeys(withUnrelatedActiveChat, contextKeyService, undefined);
 		const peerChatHasSideChats = SessionActiveChatHasSideChatsContext.getValue(contextKeyService);
 		const peerChatResource = SessionActiveChatResourceContext.getValue(contextKeyService);
 
-		const withToolChat = upcastPartial<IActiveSession>({
-			...stubSession({ sessionId: 'tool', chats: constObservable([mainChat, toolChat]), mainChat: constObservable(mainChat) }),
-			isCreated: constObservable(true),
-			sticky: constObservable(false),
-			activeChat: constObservable(mainChat),
-			visibleChatTabs: constObservable([mainChat]),
-			shouldShowChatTabs: constObservable(false),
-		});
-		setActiveSessionContextKeys(withToolChat, contextKeyService, undefined);
+		const withToolChat = paneShowing(stubSession({ sessionId: 'tool', chats: constObservable([mainChat, toolChat]), mainChat: constObservable(mainChat) }), mainChat, [mainChat], false);
+		setPaneKeys(withToolChat, contextKeyService, undefined);
 		assert.deepStrictEqual({
 			withSideChatCommittedChats,
 			mainChatHasSideChats,

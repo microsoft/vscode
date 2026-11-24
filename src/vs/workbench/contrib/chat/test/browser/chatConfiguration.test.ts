@@ -4,20 +4,28 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { timeout } from '../../../../../base/common/async.js';
+import { Event } from '../../../../../base/common/event.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { runWithFakedTimers } from '../../../../../base/test/common/virtualScheduling/index.js';
 import { AgentHostConfigurationSyncScope, ConfigurationScope, Extensions as ConfigurationExtensions, getConfigurationExperimentName, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
-import { ConfigurationMigration, Extensions as WorkbenchConfigurationExtensions, IConfigurationMigrationRegistry } from '../../../../common/configuration.js';
-import { ChatConfiguration } from '../../common/constants.js';
+import { ConfigurationMigration, ConfigurationMigrationWorkbenchContribution, Extensions as WorkbenchConfigurationExtensions, IConfigurationMigrationRegistry } from '../../../../common/configuration.js';
+import { ChatConfiguration, ChatViewSessionsOpenChatIn } from '../../common/constants.js';
 import { CustomizationMarketplaceConfiguration } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
-import { IConfigurationService, IConfigurationValue } from '../../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationService, IConfigurationValue } from '../../../../../platform/configuration/common/configuration.js';
 import { chatProgressConfigurationProperties, legacyChatThinkingConfigurationProperties } from '../../browser/chatProgressConfiguration.js';
 import { customizationMarketplaceConfigurationProperties, isAgentFinderPublicFeedAvailable, isCustomizationMarketplaceValueFromDefault } from '../../browser/aiCustomization/customizationMarketplaceConfiguration.js';
 import { AgentHostCopilotPolicyHelperSettingId, CopilotCliConfigKey, CopilotImageGenerationEnabledSettingId, CopilotImageGenerationModelSettingId } from '../../../../../platform/agentHost/common/copilotCliConfig.js';
+import { AgentHostConfigurationSyncTarget, resolveAgentHostConfigurationSyncPatch } from '../../../../../platform/agentHost/common/agentHostConfigurationSync.js';
+import { AGENTS_WINDOW_TITLE_BAR_ICONS_SETTING, AgentHostCopilotM365EnabledSettingId } from '../../../../../platform/chat/common/chatSettings.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import '../../browser/agentSessionsConfiguration.js';
 import { copilotPolicyHelperConfigurationProperties } from '../../browser/copilotPolicyHelperConfiguration.js';
 import { IPluginMarketplaceService } from '../../common/plugins/pluginMarketplaceService.js';
+import { IWorkspaceContextService, WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
+import { testIWorkspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
 
 const configurationProperties = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
 const registeredAgentSessionsSettings = [
@@ -25,6 +33,8 @@ const registeredAgentSessionsSettings = [
 	ChatConfiguration.AutoDeleteMarkedAsDoneMergedSessionsAfterDays,
 ].map(key => configurationProperties[key] !== undefined);
 const agentsPickerSetting = configurationProperties[ChatConfiguration.AgentsPickerInAttachContextMenu];
+const agentsWindowTitleBarIconsSetting = configurationProperties[AGENTS_WINDOW_TITLE_BAR_ICONS_SETTING];
+const copilotM365Setting = configurationProperties[AgentHostCopilotM365EnabledSettingId];
 const migrations = Registry.as<IConfigurationMigrationRegistry & { readonly migrations: readonly ConfigurationMigration[] }>(WorkbenchConfigurationExtensions.ConfigurationMigration).migrations;
 const legacyAutoArchiveMigration = migrations.find(migration => migration.key === 'chat.agentSessions.autoArchiveMergedSessionsAfterDays');
 const legacyAutoDeleteArchivedMigration = migrations.find(migration => migration.key === 'chat.agentSessions.autoDeleteArchivedMergedSessionsAfterDays');
@@ -35,7 +45,7 @@ const persistentProgressSetting = chatProgressConfigurationProperties[ChatConfig
 
 suite('Chat configuration', () => {
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('defines a hidden machine-local policy helper with serializable removal', () => {
 		const setting = copilotPolicyHelperConfigurationProperties[AgentHostCopilotPolicyHelperSettingId];
@@ -86,6 +96,49 @@ suite('Chat configuration', () => {
 		assert.deepStrictEqual(registeredAgentSessionsSettings, [true, true]);
 	});
 
+	test('registers one default-off, restart-required Copilot M365 rollout setting', () => {
+		assert.deepStrictEqual({
+			keys: Object.keys(configurationProperties).filter(key => key.startsWith('chat.agentHost.copilot.m365.')),
+			type: copilotM365Setting.type,
+			default: copilotM365Setting.default,
+			scope: copilotM365Setting.scope,
+			tags: copilotM365Setting.tags?.filter(tag => tag !== 'onExP'),
+			experiment: copilotM365Setting.experiment,
+			treatment: getConfigurationExperimentName(AgentHostCopilotM365EnabledSettingId, copilotM365Setting.experiment!),
+			restartRequired: copilotM365Setting.markdownDescription?.includes('requires restarting VS Code'),
+			agentHost: copilotM365Setting.agentHost,
+			policy: copilotM365Setting.policy,
+		}, {
+			keys: ['chat.agentHost.copilot.m365.enabled'],
+			type: 'boolean',
+			default: false,
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['experimental', 'advanced'],
+			experiment: { mode: 'startup' },
+			treatment: 'config.chat.agentHost.copilot.m365.enabled',
+			restartRequired: true,
+			agentHost: { key: CopilotCliConfigKey.M365Enabled },
+			policy: undefined,
+		});
+	});
+
+	test('mirrors the configured Copilot M365 flag to Agent Host root configuration', () => {
+		const targets = [
+			AgentHostConfigurationSyncTarget.Local,
+			AgentHostConfigurationSyncTarget.RemoteExtensionHost,
+			AgentHostConfigurationSyncTarget.Remote,
+		];
+		assert.deepStrictEqual([undefined, true, false, 'invalid'].map(value => {
+			const configurationService = new TestConfigurationService({ [AgentHostCopilotM365EnabledSettingId]: value });
+			return targets.map(target => resolveAgentHostConfigurationSyncPatch(configurationService, target)[CopilotCliConfigKey.M365Enabled]);
+		}), [
+			[false, false, false],
+			[true, true, true],
+			[false, false, false],
+			[false, false, false],
+		]);
+	});
+
 	test('registers the existing Agent picker setting for both editor and Agents windows', () => {
 		assert.deepStrictEqual({
 			key: ChatConfiguration.AgentsPickerInAttachContextMenu,
@@ -99,6 +152,24 @@ suite('Chat configuration', () => {
 			default: false,
 			scope: ConfigurationScope.WINDOW,
 			experiment: { mode: 'auto' },
+		});
+	});
+
+	test('registers the Agents Window title-bar icon setting as an experiment-controlled preview', () => {
+		assert.deepStrictEqual({
+			type: agentsWindowTitleBarIconsSetting.type,
+			default: agentsWindowTitleBarIconsSetting.default,
+			scope: agentsWindowTitleBarIconsSetting.scope,
+			tags: agentsWindowTitleBarIconsSetting.tags,
+			experiment: agentsWindowTitleBarIconsSetting.experiment,
+			treatment: getConfigurationExperimentName(AGENTS_WINDOW_TITLE_BAR_ICONS_SETTING, agentsWindowTitleBarIconsSetting.experiment!),
+		}, {
+			type: 'boolean',
+			default: true,
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['experimental', 'onExP'],
+			experiment: { mode: 'auto' },
+			treatment: 'config.chat.agentsWindowTitleBarIcons.enabled',
 		});
 	});
 
@@ -230,7 +301,7 @@ suite('Chat configuration', () => {
 			labels: setting.enumItemLabels,
 			descriptions: setting.enumDescriptions.length,
 		}, {
-			settings: ['chat.progressBorder.enabled', 'chat.persistentProgress', 'chat.persistentProgressVerbosity'],
+			settings: ['chat.progressBorder.enabled', 'chat.persistentProgress', 'chat.persistentProgressVerbosity', 'chat.responseStats', 'chat.responseStatsTokens'],
 			type: 'string',
 			default: 'draw',
 			values: ['off', 'draw', 'drawMonochrome', 'drawMonochromeNoIcon'],
@@ -371,11 +442,81 @@ suite('Chat configuration', () => {
 		});
 	});
 
+	test('removes the shared automation visibility setting from application and user settings', async () => {
+		const key = 'sessions.automations.showSharedByOthers';
+		const migration = migrations.find(migration => migration.key === key);
+		assert.deepStrictEqual({
+			registeredSetting: configurationProperties[key],
+			includeApplication: migration?.includeApplication,
+			enabled: await migration?.migrateFn(true, () => undefined),
+			disabled: await migration?.migrateFn(false, () => undefined),
+		}, {
+			registeredSetting: undefined,
+			includeApplication: true,
+			enabled: { value: undefined },
+			disabled: { value: undefined },
+		});
+	});
+
 	test('does not overwrite the auto mark as done setting during migration', async () => {
 		assert.deepStrictEqual(await legacyAutoArchiveMigration?.migrateFn(15, () => 30), [
 			['chat.agentSessions.autoArchiveMergedSessionsAfterDays', { value: undefined }],
 		]);
 	});
+
+	test('migrates opening sessions in editors to opening the chats of sessions in the editor area, unless where they open is already set', async () => {
+		const key = 'chat.agentSessions.openInEditor';
+		const migration = migrations.find(migration => migration.key === key);
+		assert.deepStrictEqual({
+			migrateUserSettingsSeparately: migration?.migrateUserSettingsSeparately,
+			enabled: await migration?.migrateFn(true, () => undefined),
+			enabledWithOpenChatInSet: await migration?.migrateFn(true, () => ChatViewSessionsOpenChatIn.ChatArea),
+			disabled: await migration?.migrateFn(false, () => undefined),
+		}, {
+			migrateUserSettingsSeparately: true,
+			enabled: [[key, { value: undefined }], [ChatConfiguration.ChatViewSessionsOpenChatIn, { value: ChatViewSessionsOpenChatIn.EditorArea }]],
+			enabledWithOpenChatInSet: [[key, { value: undefined }]],
+			disabled: [[key, { value: undefined }], [ChatConfiguration.ChatViewSessionsOpenChatIn, { value: ChatViewSessionsOpenChatIn.ChatPanel }]],
+		});
+	});
+
+	test('keeps a layer that disabled opening sessions in editors over a lower layer that enabled it', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const key = 'chat.agentSessions.openInEditor';
+		const updates: { key: string; value: unknown; target: ConfigurationTarget | undefined }[] = [];
+		const configurationService = new class extends TestConfigurationService {
+			override inspect<T>(inspectKey: string): IConfigurationValue<T> {
+				return inspectKey === key ? {
+					user: { value: false as T },
+					userLocal: { value: true as T },
+					userRemote: { value: false as T },
+					workspace: { value: false as T },
+				} : {};
+			}
+
+			override updateValue(updateKey: string, value: unknown, _overrides?: unknown, target?: ConfigurationTarget): Promise<void> {
+				updates.push({ key: updateKey, value, target });
+				return Promise.resolve();
+			}
+		}();
+		const workspaceService = new class extends mock<IWorkspaceContextService>() {
+			override readonly onDidChangeWorkspaceFolders = Event.None;
+			override getWorkbenchState(): WorkbenchState { return WorkbenchState.FOLDER; }
+			override getWorkspace() { return testIWorkspace({ id: 'test', folders: [] }); }
+		}();
+
+		disposables.add(new ConfigurationMigrationWorkbenchContribution(configurationService, workspaceService));
+		// Virtual time advances only after pending microtasks settle, so the migration's writes finish first.
+		await timeout(1000);
+
+		assert.deepStrictEqual(updates, [
+			{ key, value: undefined, target: ConfigurationTarget.USER_LOCAL },
+			{ key: ChatConfiguration.ChatViewSessionsOpenChatIn, value: ChatViewSessionsOpenChatIn.EditorArea, target: ConfigurationTarget.USER_LOCAL },
+			{ key, value: undefined, target: ConfigurationTarget.USER_REMOTE },
+			{ key: ChatConfiguration.ChatViewSessionsOpenChatIn, value: ChatViewSessionsOpenChatIn.ChatPanel, target: ConfigurationTarget.USER_REMOTE },
+			{ key, value: undefined, target: ConfigurationTarget.WORKSPACE },
+			{ key: ChatConfiguration.ChatViewSessionsOpenChatIn, value: ChatViewSessionsOpenChatIn.ChatPanel, target: ConfigurationTarget.WORKSPACE },
+		]);
+	}));
 
 	test('migrates the auto delete archived setting to auto delete marked as done', async () => {
 		assert.deepStrictEqual({

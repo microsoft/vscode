@@ -8,7 +8,7 @@ import { Gesture, EventType as TouchEventType } from '../../../../../../base/bro
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
-import { autorun, IObservable } from '../../../../../../base/common/observable.js';
+import { autorun } from '../../../../../../base/common/observable.js';
 import { localize } from '../../../../../../nls.js';
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../../../platform/actionWidget/browser/actionList.js';
@@ -24,9 +24,8 @@ import type { IInstantiationService } from '../../../../../../platform/instantia
 import { Target } from '../../../../chat/common/promptSyntax/promptTypes.js';
 import { AICustomizationManagementCommands } from '../../../../chat/browser/aiCustomization/aiCustomizationManagement.js';
 import { AICustomizationManagementSection } from '../../../../chat/common/aiCustomizationWorkspaceService.js';
-import type { ISession } from '../../../common/session.js';
-import type { IHostSession } from '../../../common/sessionsManagement.js';
-import type { ISessionChatSource } from '../../../browser/sessionHost.js';
+import type { ISession } from '../../../../../services/sessions/common/session.js';
+import type { ISessionChatSource } from '../../../../../services/sessions/browser/sessionHost.js';
 import { reportNewChatPickerClosed } from '../../../browser/newChatPickerTelemetry.js';
 import { CopilotCLISessionType } from '../../agentHost/browser/baseAgentHostSessionsProvider.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -57,6 +56,8 @@ export class ModePickerModel extends Disposable {
 
 	private _selectedModeId: string | undefined = undefined;
 	private _sessionResource: URI | undefined;
+	/** The resource discovery runs for: the chat the surface shows, else its session. */
+	private _discoveryResource: URI | undefined;
 	private _chatModes: IChatModes | undefined;
 
 	get selectedMode(): IChatMode {
@@ -87,12 +88,17 @@ export class ModePickerModel extends Disposable {
 		this._onDidChange.fire();
 	}
 
-	setSession(session: ISession | undefined, selectedModeId: string | undefined): void {
+	/**
+	 * Shows the modes of `session` for the chat of it that the surface shows, `chatResource`, which discovery runs for:
+	 * chats of one session may discover different agents. Without a chat, discovery runs for the session.
+	 */
+	setSession(session: ISession | undefined, selectedModeId: string | undefined, chatResource?: URI): void {
 		if (!session) {
 			if (!this._sessionResource) {
 				return;
 			}
 			this._sessionResource = undefined;
+			this._discoveryResource = undefined;
 			this._modeChangeListener.clear();
 			this._chatModesDisposable.value = undefined;
 			this._chatModes = undefined;
@@ -101,7 +107,7 @@ export class ModePickerModel extends Disposable {
 			return;
 		}
 
-		this._setSession(session, selectedModeId);
+		this._setSession(session, selectedModeId, chatResource ?? session.resource);
 	}
 
 	getAvailableModes(): IChatMode[] {
@@ -127,17 +133,17 @@ export class ModePickerModel extends Disposable {
 		return result;
 	}
 
-	private _setSession(session: ISession, selectedModeId: string | undefined): void {
-		const sessionResource = session.resource;
-		if (this._sessionResource?.toString() === sessionResource.toString()) {
+	private _setSession(session: ISession, selectedModeId: string | undefined, discoveryResource: URI): void {
+		if (this._discoveryResource?.toString() === discoveryResource.toString()) {
 			if (this._selectedModeId !== selectedModeId) {
 				this._selectedModeId = selectedModeId;
 				this._onDidChange.fire();
 			}
 			return;
 		}
-		this._sessionResource = sessionResource;
-		const modes = this.chatModeService.createModes(sessionResource);
+		this._sessionResource = session.resource;
+		this._discoveryResource = discoveryResource;
+		const modes = this.chatModeService.createModes(discoveryResource);
 		this._chatModesDisposable.value = modes;
 		this._chatModes = modes;
 		this._modeChangeListener.value = modes.onDidChange(() => {
@@ -163,25 +169,26 @@ interface IModePickerModelEntry {
 	disposalGeneration: number;
 }
 
-/** Retains each surface's model across synchronous toolbar rebuilds. */
+/** Retains each surface's model across synchronous toolbar rebuilds. The mode is that of the surface's chat. */
 export class ScopedModePickerModelCache extends Disposable {
-	private readonly entries = new Map<IObservable<IHostSession | undefined>, IModePickerModelEntry>();
+	private readonly entries = new Map<ISessionChatSource, IModePickerModelEntry>();
 
 	constructor(private readonly acceptsSession: (session: ISession) => boolean) {
 		super();
 	}
 
-	acquire(session: IObservable<IHostSession | undefined>, instantiationService: IInstantiationService): IDisposable & { readonly model: ModePickerModel } {
-		let entry = this.entries.get(session);
+	acquire(source: ISessionChatSource, instantiationService: IInstantiationService): IDisposable & { readonly model: ModePickerModel } {
+		let entry = this.entries.get(source);
 		if (!entry) {
 			const store = new DisposableStore();
 			const model = store.add(instantiationService.createInstance(ModePickerModel));
 			store.add(autorun(reader => {
-				const scopedSession = session.read(reader);
-				model.setSession(scopedSession && this.acceptsSession(scopedSession) ? scopedSession : undefined, scopedSession?.mode.read(reader)?.id);
+				const scopedSession = source.session.read(reader);
+				const chat = source.chat.read(reader);
+				model.setSession(scopedSession && this.acceptsSession(scopedSession) ? scopedSession : undefined, chat?.mode.read(reader)?.id, chat?.resource);
 			}));
 			entry = { model, store, references: 0, disposalGeneration: 0 };
-			this.entries.set(session, entry);
+			this.entries.set(source, entry);
 		}
 
 		entry.references++;
@@ -194,17 +201,17 @@ export class ScopedModePickerModelCache extends Disposable {
 					return;
 				}
 				disposed = true;
-				this.release(session, entry);
+				this.release(source, entry);
 			},
 		};
 	}
 
-	private release(session: IObservable<IHostSession | undefined>, entry: IModePickerModelEntry): void {
+	private release(source: ISessionChatSource, entry: IModePickerModelEntry): void {
 		entry.references--;
 		const disposalGeneration = ++entry.disposalGeneration;
 		queueMicrotask(() => {
-			if (entry.references === 0 && entry.disposalGeneration === disposalGeneration && this.entries.get(session) === entry) {
-				this.entries.delete(session);
+			if (entry.references === 0 && entry.disposalGeneration === disposalGeneration && this.entries.get(source) === entry) {
+				this.entries.delete(source);
 				entry.store.dispose();
 			}
 		});

@@ -27,7 +27,7 @@ import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService, IWo
 import { AgentHostProtocolClient } from '../../browser/agentHostProtocolClient.js';
 import { EditorWindowRemoteAgentHostService } from '../../browser/remoteAgentHostServiceImpl.js';
 import { IAgentHostResourceService } from '../../common/agentHostResourceService.js';
-import { IRemoteAgentHostService, RemoteAgentHostAutoConnectSettingId, RemoteAgentHostsEnabledSettingId } from '../../common/remoteAgentHostService.js';
+import { getEntryAddress, IRemoteAgentHostService, RemoteAgentHostAutoConnectSettingId, RemoteAgentHostsEnabledSettingId } from '../../common/remoteAgentHostService.js';
 import { type IProtocolTransport } from '../../common/state/sessionTransport.js';
 import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
 import { AHP_UNSUPPORTED_PROTOCOL_VERSION, JsonRpcErrorCodes, isJsonRpcRequest, type JsonRpcRequest, type ProtocolMessage } from '../../common/state/sessionProtocol.js';
@@ -129,6 +129,8 @@ class MockWSLMainService extends Disposable implements IWSLRemoteAgentHostMainSe
 	listRunningDistros(): Promise<string[]> {
 		return this.runningDistros;
 	}
+
+	async terminateDistro(): Promise<void> { }
 
 	async connect(config: IWSLAgentHostConfig): Promise<IWSLConnectResult> {
 		this.connectCalls.push(config);
@@ -417,6 +419,30 @@ suite('WSLRemoteAgentHostService (renderer)', () => {
 			connectCalls: 2,
 			transportCount: 1,
 			connectionCount: 1,
+		});
+	});
+
+	test('disconnect keeping the entry stops dialing the distro until a user reconnect', async () => {
+		await connect();
+		const snapshot = () => ({
+			cached: service.getCachedDistros().map(cached => cached.distro),
+			entries: remoteAgentHostService.configuredEntries.map(getEntryAddress),
+			disconnected: service.isDisconnected('Ubuntu'),
+			connections: service.connections.length,
+		});
+
+		await service.disconnect('Ubuntu', { keepEntry: true });
+		const afterDisconnect = snapshot();
+		const reconnect = service.reconnect('Ubuntu', 'Ubuntu');
+		while (transports.length < 2) {
+			await Event.toPromise(remoteAgentHostService.onDidChangeConnections);
+		}
+		await transports[1].completeInitialize();
+		await reconnect;
+
+		assert.deepStrictEqual({ afterDisconnect, afterReconnect: snapshot() }, {
+			afterDisconnect: { cached: ['Ubuntu'], entries: [], disconnected: true, connections: 0 },
+			afterReconnect: { cached: ['Ubuntu'], entries: ['wsl:Ubuntu'], disconnected: false, connections: 1 },
 		});
 	});
 

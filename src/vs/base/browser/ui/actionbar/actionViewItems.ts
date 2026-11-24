@@ -259,6 +259,13 @@ export class BaseActionViewItem extends Disposable implements IActionViewItem {
 		}
 	}
 
+	/**
+	 * Hides the item's hover if it shows, and cancels one that is about to show.
+	 */
+	protected hideHover(): void {
+		this.customHover?.hide();
+	}
+
 	protected updateClass(): void {
 		// implement in subclass
 	}

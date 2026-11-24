@@ -47,7 +47,7 @@ export class OpenAgentHostStateFileAction extends Action2 {
 			return;
 		}
 		const activeSession = target?.session;
-		const provider = activeSession ? sessionsProvidersService.getProvider(activeSession.providerId) : undefined;
+		const provider = activeSession ? sessionsProvidersService.getProvider(activeSession.providerId, activeSession.sessionId) : undefined;
 		const activeChat = target?.chat;
 		const chatTarget = activeChat?.resource.fragment
 			? { backendResource: provider && isAgentHostProvider(provider) ? provider.getBackendChatResource(activeChat.resource) : undefined }

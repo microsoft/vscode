@@ -5,6 +5,7 @@
 
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import type { IPinnedCanvasService } from './pinnedCanvases.js';
 
 export const ISessionsListPresentation = createDecorator<ISessionsListPresentation>('sessionsListPresentation');
 export type SessionNameKind = 'newGroup' | 'group' | 'session' | 'chat';
@@ -13,6 +14,9 @@ export type SessionNameKind = 'newGroup' | 'group' | 'session' | 'chat';
 export interface ISessionsListPresentation {
 	readonly _serviceBrand: undefined;
 	readonly sectionRowHeight: number | undefined;
+	/** Full list row height, including inset spacing, for a phone quick chat without a second line. */
+	readonly titleOnlyQuickChatRowHeight?: number;
+	readonly pinnedCanvases?: IPinnedCanvasService;
 	editName(kind: SessionNameKind, value: string, editInline: () => boolean, accept: (value: string) => void | Promise<void>): boolean;
 	renderHeader(container: HTMLElement): IDisposable;
 	decorateList(container: HTMLElement, refresh: () => void, isAtTop: () => boolean): IDisposable;

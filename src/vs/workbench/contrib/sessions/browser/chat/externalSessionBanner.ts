@@ -26,7 +26,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../../pla
 import { defaultButtonStyles, defaultSelectBoxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { ChatConfiguration } from '../../../chat/common/constants.js';
 import { SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING } from '../../common/sessionConfig.js';
-import { ISession } from '../../common/session.js';
+import { ISession } from '../../../../services/sessions/common/session.js';
 
 const EXTERNAL_SESSION_BANNER_DISMISSED_STORAGE_KEY = 'sessions.externalSessionBanner.dismissed';
 const DAY = 24 * 60 * 60 * 1000;
@@ -261,7 +261,7 @@ export class ExternalSessionBanner extends Disposable {
 				mode: ChatExternalSessionsMode.Recent,
 				item: {
 					text: localize('externalSessionBanner.select.recent', "Recent"),
-					description: localize('externalSessionBanner.select.recent.description', "Show up to the 2 most recent external sessions updated in the last 7 days. Once at least 2 local sessions exist, external sessions older than the second-newest local session are hidden."),
+					description: localize('externalSessionBanner.select.recent.description', "Show the 2 most recently updated external sessions from the last 7 days, hiding any that are older than your 2 newest local sessions."),
 				},
 			},
 			{

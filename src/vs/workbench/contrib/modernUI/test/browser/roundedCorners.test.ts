@@ -5,16 +5,75 @@
 
 import assert from 'assert';
 import { $, append, getWindow } from '../../../../../base/browser/dom.js';
+import { Dialog } from '../../../../../base/browser/ui/dialog/dialog.js';
 import { List } from '../../../../../base/browser/ui/list/listWidget.js';
 import { ResizableHTMLElement } from '../../../../../base/browser/ui/resizable/resizable.js';
 import { range } from '../../../../../base/common/arrays.js';
 import { retry } from '../../../../../base/common/async.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { defaultButtonStyles, defaultCheckboxStyles, defaultDialogStyles, defaultInputBoxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import '../../../../../editor/contrib/suggest/browser/media/suggest.css';
 import '../../../../services/suggest/browser/media/suggest.css';
 import '../../browser/media/roundedCorners.css';
+import '../../browser/media/frostedGlass.css';
 import '../../browser/media/suggestWidget.css';
+
+suite('Dialog corners', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const { modern, glass } of [false, true].flatMap(modern => [false, true].map(glass => ({ modern, glass })))) {
+		test(`matches the dialog frame with Modern UI ${modern ? 'enabled' : 'disabled'} and glass ${glass ? 'enabled' : 'disabled'}`, async () => {
+			const root = append(document.body, $('.monaco-workbench'));
+			store.add(toDisposable(() => root.remove()));
+			root.classList.toggle('modern-ui', modern);
+			root.classList.toggle('modern-ui-frosted-glass', glass);
+			root.style.setProperty('--vscode-cornerRadius-large', '8px');
+			root.style.setProperty('--vscode-cornerRadius-xLarge', '12px');
+			root.style.setProperty('--vscode-editorWidget-background', '#eeeeee');
+			root.style.setProperty('--vscode-widget-border', '#80808080');
+			const dialog = store.add(new Dialog(root, 'Confirmation', ['Cancel'], {
+				buttonStyles: defaultButtonStyles,
+				checkboxStyles: defaultCheckboxStyles,
+				inputBoxStyles: defaultInputBoxStyles,
+				dialogStyles: defaultDialogStyles,
+			}));
+			const result = dialog.show();
+			const surface = root.querySelector<HTMLElement>('.monaco-dialog-box')!;
+			const shadow = surface.parentElement!;
+			const targetWindow = getWindow(surface);
+			const expectedRadius = modern ? '8px' : '12px';
+			const supportsGlass = CSS.supports('backdrop-filter', 'blur(12px)')
+				&& CSS.supports('background-color', 'color-mix(in srgb, black 92%, transparent)')
+				&& targetWindow.matchMedia('(prefers-reduced-transparency: no-preference) and (forced-colors: none)').matches;
+			const paint = targetWindow.getComputedStyle(shadow, '::before');
+			assert.deepStrictEqual({
+				surfaceRadius: targetWindow.getComputedStyle(surface).borderRadius,
+				shadowRadius: targetWindow.getComputedStyle(shadow).borderRadius,
+				surfaceFilter: targetWindow.getComputedStyle(surface, '::before').backdropFilter,
+				paintFilter: paint.backdropFilter,
+				paintRadius: glass && supportsGlass ? paint.borderRadius : undefined,
+				paintBorderWidth: glass && supportsGlass ? paint.borderTopWidth : undefined,
+				paintSize: glass && supportsGlass ? [parseFloat(paint.width), parseFloat(paint.height)] : undefined,
+				surfaceBorderWidth: targetWindow.getComputedStyle(surface).borderTopWidth,
+				matchingBounds: shadow.getBoundingClientRect().toJSON(),
+			}, {
+				surfaceRadius: expectedRadius,
+				shadowRadius: expectedRadius,
+				surfaceFilter: 'none',
+				paintFilter: glass && supportsGlass ? 'blur(12px)' : 'none',
+				paintRadius: glass && supportsGlass ? expectedRadius : undefined,
+				paintBorderWidth: glass && supportsGlass ? '0px' : undefined,
+				paintSize: glass && supportsGlass ? [surface.offsetWidth, surface.offsetHeight] : undefined,
+				surfaceBorderWidth: '1px',
+				matchingBounds: surface.getBoundingClientRect().toJSON(),
+			});
+
+			dialog.dispose();
+			await result;
+		});
+	}
+});
 
 suite('Suggestion menu corners', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -122,16 +181,24 @@ suite('Suggestion menu corners', () => {
 				const style = getWindow(listElement).getComputedStyle(listElement);
 				const focusedRow = listElement.querySelector<HTMLElement>('.monaco-list-row.focused')!;
 				const rowBounds = focusedRow.getBoundingClientRect();
+				const clip = kind === 'editor' ? widget : listElement;
+				const clipBounds = clip.getBoundingClientRect();
 				assert.deepStrictEqual({
 					corners: corners(listElement),
 					overflow: [style.overflowX, style.overflowY],
+					clipCorners: corners(clip),
+					clipOverflow: getWindow(clip).getComputedStyle(clip).overflow,
+					outsideCornerHit: focusedRow.contains(document.elementFromPoint(clipBounds.left + 1, clipBounds.top + 1)),
 					viewport: [bounds.width, bounds.height],
 					scrollTop: list.scrollTop,
 					focusedRow: [focusedRow.dataset.index, rowBounds.top - bounds.top, rowBounds.height],
 					interiorHit: listElement.contains(document.elementFromPoint(bounds.left + 8, bounds.top + 1)),
 				}, {
-					corners: withStatusBar ? ['8px', '8px', '0px', '0px'] : ['8px', '8px', '8px', '8px'],
+					corners: kind === 'editor' ? ['0px', '0px', '0px', '0px'] : withStatusBar ? ['8px', '8px', '0px', '0px'] : ['8px', '8px', '8px', '8px'],
 					overflow: ['hidden', 'hidden'],
+					clipCorners: kind === 'workbench' && withStatusBar ? ['8px', '8px', '0px', '0px'] : ['8px', '8px', '8px', '8px'],
+					clipOverflow: 'hidden',
+					outsideCornerHit: false,
 					viewport: [200, 60],
 					scrollTop: 30,
 					focusedRow: ['1', -10, 20],
@@ -141,17 +208,19 @@ suite('Suggestion menu corners', () => {
 		}
 
 		test(`${workbenchClass} ${kind} keeps the footer seam at the control tier`, () => {
-			const { list, rows, listElement } = createList(1, true);
+			const { widget, list, rows, listElement } = createList(1, true);
 			const single = rows().map(corners);
 			list.splice(0, 1, range(3));
 			assert.deepStrictEqual({
 				single,
 				rows: rows().map(corners),
 				viewportBottom: corners(listElement).slice(2),
+				widgetOverflow: getWindow(widget).getComputedStyle(widget).overflow,
 			}, {
 				single: [['8px', '8px', '4px', '4px']],
 				rows: [['8px', '8px', '4px', '4px'], controlCorners, controlCorners],
 				viewportBottom: ['0px', '0px'],
+				widgetOverflow: kind === 'editor' ? 'hidden' : 'visible',
 			});
 		});
 
@@ -173,10 +242,18 @@ suite('Suggestion menu corners', () => {
 			}
 		});
 
-		test(`${workbenchClass} ${kind} leaves classic suggestion rows unchanged`, () => {
-			const { root, rows } = createList(1);
+		test(`${workbenchClass} ${kind} leaves classic suggestions unchanged`, () => {
+			const { root, widget, rows, listElement } = createList(1);
 			root.classList.remove(workbenchClass);
-			assert.deepStrictEqual(rows().map(corners), [['0px', '0px', '0px', '0px']]);
+			assert.deepStrictEqual({
+				rows: rows().map(corners),
+				viewport: corners(listElement),
+				widgetOverflow: getWindow(widget).getComputedStyle(widget).overflow,
+			}, {
+				rows: [['0px', '0px', '0px', '0px']],
+				viewport: kind === 'editor' ? ['8px', '8px', '8px', '8px'] : ['0px', '0px', '0px', '0px'],
+				widgetOverflow: 'visible',
+			});
 		});
 	}
 

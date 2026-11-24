@@ -26,7 +26,7 @@
 
 .modern-ui .monaco-grid-view .part.editor:not(.modal-editor-part) {
 	border: var(--vscode-strokeThickness) solid var(--vscode-editorGroup-border, color-mix(in srgb, var(--vscode-foreground) 12%, transparent));
-	border-radius: var(--vscode-cornerRadius-large);
+	border-radius: var(--vscode-editorArea-cornerRadius, var(--vscode-cornerRadius-large));
 	box-sizing: border-box;
 	overflow: hidden;
 	background-color: var(--vscode-editor-background);
@@ -35,6 +35,11 @@
 /* Notebook fixed overlays escape the editor card's clipping, so round their overflow-clipping content. */
 .modern-ui .notebookOverlay {
 	border-radius: var(--vscode-cornerRadius-large);
+}
+
+/* Share the snapped card stroke so the content curve stays concentric at fractional zoom. */
+.monaco-workbench.modern-ui.floating-panels > .monaco-grid-view .part.editor:not(.modal-editor-part) {
+	border-width: var(--modern-ui-floating-card-stroke-width);
 }
 
 .monaco-workbench.modern-ui.floating-panels.modern-ui-compact > .monaco-grid-view .part.editor:not(.modal-editor-part),

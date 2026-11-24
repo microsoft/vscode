@@ -645,6 +645,21 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 	}
 
 	/**
+	 * Returns the split view ratio the user chose by resizing the sash,
+	 * or `undefined` if the default ratio is used.
+	 */
+	getSplitViewRatio(): number | undefined {
+		return this._sashLayout.sashRatio.get();
+	}
+
+	/**
+	 * Sets the split view ratio, or resets it to the default ratio when `undefined`.
+	 */
+	setSplitViewRatio(ratio: number | undefined, tx?: ITransaction): void {
+		this._sashLayout.sashRatio.set(ratio, tx);
+	}
+
+	/**
 	 * @deprecated Use `this.getDiffComputationResult().changes2` instead.
 	 */
 	getLineChanges(): ILineChange[] | null {

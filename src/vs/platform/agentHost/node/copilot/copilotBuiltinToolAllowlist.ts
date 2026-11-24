@@ -37,11 +37,14 @@ export const COPILOT_ENABLED_BUILTIN_TOOL_NAMES: readonly string[] = [
 	// Turn control: plan mode and autopilot (`task_complete`, `exit_plan_mode`), elicitation, image generation.
 	'ask_user', 'task_complete', 'exit_plan_mode', 'image_generation',
 	// Agents, skills and tool search
-	'task', 'execution_subagent', 'list_agents', 'read_agent', 'write_agent', 'skill', RUNTIME_TOOL_SEARCH_TOOL_NAME, 'tool_search_tool_regex',
+	'task', 'execution_subagent', 'list_agents', 'read_agent', 'write_agent', 'skill', 'read_resource', RUNTIME_TOOL_SEARCH_TOOL_NAME, 'tool_search_tool_regex',
 	// Stores and Copilot Memory
 	'sql', 'session_store_sql', 'store_memory', 'vote_memory',
 	// Canvases
 	'list_canvas_capabilities', 'open_canvas', 'invoke_canvas_action',
+	// Fine-tuned secret detection scope submission. The runtime adds it only to the security-review
+	// subagent, and only when the `SECURITY_REVIEW_FINE_TUNED_MODEL` feature flag is on.
+	'submit_security_review_scope',
 ];
 
 /**

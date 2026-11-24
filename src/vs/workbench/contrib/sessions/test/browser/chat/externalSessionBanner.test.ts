@@ -15,7 +15,7 @@ import { ChatExternalSessionsMode } from '../../../../../../platform/chat/common
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
-import { ISession } from '../../../common/session.js';
+import { ISession } from '../../../../../services/sessions/common/session.js';
 import { SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING } from '../../../common/sessionConfig.js';
 import { ExternalSessionBanner, getExternalSessionBannerSelectedMode, getExternalSessionVisibilityConfirmation, shouldConfirmExternalSessionVisibilityChange } from '../../../browser/chat/externalSessionBanner.js';
 

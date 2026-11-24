@@ -17,6 +17,7 @@ import { DeferredPromise, Promises } from '../../../../base/common/async.js';
 import { toDisposable } from '../../../../base/common/lifecycle.js';
 import sinon from 'sinon';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { mock } from '../../../../base/test/common/mock.js';
 import { MissionControlControlVerifier, type IMissionControlSigningKey } from '../../node/missionControl/missionControlControl.js';
 import { MissionControlProtocolServer, toMissionControlSocket, type IMissionControlRelayRecovery, type IMissionControlSocket, type MissionControlPublishDiagnostic } from '../../node/missionControl/missionControlProtocolServer.js';
 import { MissionControlEnvironment } from '../../node/missionControl/missionControlEnvironment.js';
@@ -25,7 +26,8 @@ import { getConnectionDiagnosticError, type IConnectionDiagnosticEvent } from '.
 import { getConnectionTelemetryError } from '../../common/connectionTelemetry.js';
 import type { IProtocolTransport } from '../../common/state/sessionTransport.js';
 import { MissionControlSessionMirror } from '../../node/missionControl/missionControlSessionMirror.js';
-import { NullLogService } from '../../../log/common/log.js';
+import { ILogService, NullLogService } from '../../../log/common/log.js';
+import { TestInstantiationService } from '../../../instantiation/test/common/instantiationServiceMock.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { ROOT_STATE_URI } from '../../common/state/sessionState.js';
 import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
@@ -38,7 +40,14 @@ import { basename } from '../../../../base/common/resources.js';
 import { DEFAULT_MAX_CHUNK_BYTES, Reassembler } from '../../common/webPubSub/chunking.js';
 import { parseInbound } from '../../common/webPubSub/framing.js';
 import type { ProtocolMessage } from '../../common/state/sessionProtocol.js';
-import type { IMissionControlOptions } from '../../common/agentService.js';
+import { IAgentService, IConnectionTrackerService, type IMissionControlOptions } from '../../common/agentService.js';
+import { ISessionDataService } from '../../common/sessionDataService.js';
+import { AgentHostManagementService } from '../../node/agentHostManagementService.js';
+import { IAgentHostAuthenticationController } from '../../node/agentHostAuthenticationService.js';
+import { IAgentHostSystemWakeService } from '../../node/agentHostSystemWakeService.js';
+import { IAgentHostMacAccessibilityTrustService } from '../../node/agentHostMacAccessibilityTrustService.js';
+import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
+import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 
 const prefix = 'user.owner.env.environment';
 const order = BigInt('0xffffffff00000000ffffffffffffffffbce6faada7179e84f3b9cac2fc632551');
@@ -108,6 +117,43 @@ class FakeWpsSocket extends EventEmitter implements IMissionControlSocket {
 
 suite('Mission Control WPS', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('returns structured configuration failures for Management IPC without losing their original causes', async () => {
+		const instantiation = store.add(new TestInstantiationService());
+		instantiation.stub(ISessionDataService, new class extends mock<ISessionDataService>() { }());
+		instantiation.stub(ILogService, new NullLogService());
+		instantiation.stub(IAgentHostSystemWakeService, new class extends mock<IAgentHostSystemWakeService>() { }());
+		instantiation.stub(IAgentHostMacAccessibilityTrustService, new class extends mock<IAgentHostMacAccessibilityTrustService>() { }());
+		instantiation.stub(ITelemetryService, NullTelemetryService);
+		instantiation.stub(IAgentHostAuthenticationController, new class extends mock<IAgentHostAuthenticationController>() { }());
+		const management = instantiation.createInstance(AgentHostManagementService,
+			new class extends mock<IAgentService>() { }(),
+			new class extends mock<IConnectionTrackerService>() { }(),
+			async () => { },
+		);
+		const environment = store.add(new MissionControlEnvironment({
+			userDataPath: '/unused',
+			name: 'Test',
+			fetch,
+			attach: () => toDisposable(() => { }),
+			onError: () => { },
+		}));
+		management.setMissionControl(environment);
+		const failure = new Error('Socket error', {
+			cause: Object.assign(new Error('Network failed; token=private-token'), { code: 'ETIMEDOUT', status: 401 }),
+		});
+		const configure = sinon.stub(environment, 'configure').rejects(failure);
+		store.add(toDisposable(() => configure.restore()));
+		const result = await management.configureMissionControl(undefined, 'owner');
+		assert.deepStrictEqual(result, {
+			error: {
+				name: 'Error', message: 'Socket error', code: undefined, status: undefined, requestId: undefined,
+				cause: {
+					name: 'Error', message: 'Network failed; token=[redacted]', code: 'ETIMEDOUT', status: 401, requestId: undefined, cause: undefined,
+				},
+			},
+		});
+	});
 
 	function signingFixture(kid = 'test-key', owner = 'owner') {
 		const { privateKey, publicKey } = generateKeyPairSync('ec', { namedCurve: 'prime256v1' });
@@ -249,7 +295,7 @@ suite('Mission Control WPS', () => {
 		));
 		const ready = server.connect();
 		socket.emit('message', JSON.stringify({ type: 'system', event: 'connected' }));
-		await assert.rejects(ready, /connection closed before joining/);
+		await assert.rejects(ready, /Mission Control WPS operation rejected/);
 		assert.deepStrictEqual({ closed: socket.closed, errors: errors.map(error => error.message) }, {
 			closed: true, errors: ['Mission Control WPS operation rejected'],
 		});
@@ -272,14 +318,14 @@ suite('Mission Control WPS', () => {
 		));
 		const ready = server.connect();
 		socket.emit('message', JSON.stringify({ type: 'system', event: 'connected' }));
-		await assert.rejects(ready, /connection closed before joining/);
+		await assert.rejects(ready, /Access denied; token=\[redacted\]/);
 		send.restore();
 		const disconnected = store.add(new MissionControlProtocolServer(
 			{ url: 'ws://127.0.0.1/fake', access_token: 'fake-token', groups: { control: `${prefix}.control` } },
 			'owner', 'environment', new MissionControlControlVerifier('environment', 'owner', [key]),
 			() => new FakeWpsSocket(), error => errors.push(error.message),
 		));
-		const timedOut = assert.rejects(disconnected.connect(), /connection closed before joining/);
+		const timedOut = assert.rejects(disconnected.connect(), { message: 'Mission Control WPS acknowledgement timed out', code: 'ETIMEDOUT' });
 		await clock.tickAsync(30_000);
 		await timedOut;
 		assert.deepStrictEqual(errors, ['Mission Control WPS operation rejected: Access denied; token=[redacted]', 'Mission Control WPS acknowledgement timed out']);
@@ -321,6 +367,21 @@ suite('Mission Control WPS', () => {
 		socket.emit('close', 1006);
 		server.dispose();
 		assert.deepStrictEqual({ closed: socket.closed, errors }, { closed: true, errors: [failure] });
+	});
+
+	test('preserves the original network failure when relay startup fails', async () => {
+		const { key } = signingFixture();
+		const socket = new FakeWpsSocket();
+		const server = store.add(new MissionControlProtocolServer(
+			{ url: 'ws://127.0.0.1/fake', access_token: 'fake-token', groups: { control: `${prefix}.control` } },
+			'owner', 'environment', new MissionControlControlVerifier('environment', 'owner', [key]),
+			() => socket,
+		));
+		const ready = server.connect();
+		const failure = Object.assign(new Error('Socket connection timed out'), { code: 'ETIMEDOUT' });
+		socket.emit('error', failure);
+		await assert.rejects(ready, error => error === failure);
+		assert.strictEqual(socket.closed, true);
 	});
 
 	test('does not report socket events after intentional disposal', async () => {
@@ -2227,6 +2288,85 @@ suite('Mission Control WPS', () => {
 		});
 	}
 
+	for (const status of [403, 408, 504]) {
+		for (const retryFails of [false, true]) {
+			test(`registration retry after HTTP ${status} waits for Retry-After and ${retryFails ? 'rejects the final failure' : 'awaits the relay handshake'}`, async () => {
+				const path = await mkdtemp(join(process.cwd(), '.build', 'mission-control-registration-retry-'));
+				const clock = sinon.useFakeTimers({ now: Date.UTC(2026, 9, 2), toFake: ['Date', 'setTimeout', 'clearTimeout'] });
+				let service: MissionControlEnvironment | undefined;
+				try {
+					const { key } = signingFixture();
+					const registrations: number[] = [];
+					const socket = new FakeWpsSocket();
+					const socketCreated = new DeferredPromise<void>();
+					let sockets = 0;
+					const environment = {
+						id: 'environment', kind: 'user-local', user_id: 'owner', owner_id: 'owner', owner_type: 'user',
+						webpubsub: { url: 'ws://127.0.0.1/fake', access_token: 'fake-token', subprotocol: 'json.reliable.webpubsub.azure.v1', groups: { control: `${prefix}.control` } },
+					};
+					service = store.add(new MissionControlEnvironment({
+						userDataPath: path,
+						name: 'Test Machine',
+						fetch: async input => {
+							const url = new URL(input.toString());
+							if (url.pathname.endsWith('/register')) {
+								registrations.push(clock.now - Date.UTC(2026, 9, 2));
+								if (registrations.length === 1) {
+									return Response.json({}, { status, headers: status === 403 ? {} : { 'Retry-After': '2' } });
+								}
+								if (retryFails) {
+									return Response.json({}, { status: 403 });
+								}
+							}
+							return Response.json(url.pathname.endsWith('/jwks.json') ? { keys: [key] } : environment);
+						},
+						attach: () => toDisposable(() => { }),
+						onError: () => { },
+						socketFactory: () => {
+							sockets++;
+							socketCreated.complete();
+							return socket;
+						},
+					}));
+					const options: IMissionControlOptions = {
+						baseUrl: 'http://127.0.0.1:9999/', accountId: 'owner', credential: 'fake-token', roots: [path],
+					};
+					await assert.rejects(service.configure(options), { statusCode: status });
+					const retryAt = status === 403 ? 0 : 2000;
+					if (retryAt) {
+						await clock.tickAsync(500);
+					}
+					let settled = false;
+					const configuring = service.configure(options).finally(() => { settled = true; });
+					const outcome = retryFails ? assert.rejects(configuring, { statusCode: 403 }) : configuring;
+					if (retryAt) {
+						await clock.tickAsync(1499);
+					}
+					const beforeDeadline = { registrations: [...registrations], sockets, settled };
+					if (retryAt) {
+						await clock.tickAsync(1);
+					}
+					let beforeHandshake: boolean | undefined;
+					if (!retryFails) {
+						await socketCreated.p;
+						beforeHandshake = settled;
+						socket.emit('message', JSON.stringify({ type: 'system', event: 'connected' }));
+					}
+					await outcome;
+					assert.deepStrictEqual({ beforeDeadline, registrations, sockets, beforeHandshake, settled }, {
+						beforeDeadline: { registrations: [0], sockets: 0, settled: false },
+						registrations: [0, retryAt], sockets: retryFails ? 0 : 1,
+						beforeHandshake: retryFails ? undefined : false, settled: true,
+					});
+				} finally {
+					service?.dispose();
+					clock.restore();
+					await rm(path, { recursive: true });
+				}
+			});
+		}
+	}
+
 	test('failed relay startup marks the registered environment offline with its custom name', async () => {
 		const name = 'headless-build-machine';
 		const path = await mkdtemp(join(tmpdir(), 'mission-control-failed-start-'));
@@ -2255,7 +2395,7 @@ suite('Mission Control WPS', () => {
 				}
 			}
 			));
-			await assert.rejects(service.configure({ baseUrl: 'http://127.0.0.1:9999/', accountId: 'owner', credential: 'fake-local-token', roots: [path], name }), /connection closed before joining/);
+			await assert.rejects(service.configure({ baseUrl: 'http://127.0.0.1:9999/', accountId: 'owner', credential: 'fake-local-token', roots: [path], name }), /Mission Control WPS operation rejected/);
 			assert.deepStrictEqual({ requests, closed: socket.closed }, {
 				requests: [
 					{ path: '/cmc_internal/api/agents/environments/register', status: undefined, name },
@@ -2505,6 +2645,7 @@ suite('Mission Control WPS', () => {
 				tokens: number[];
 				directory: string;
 				attachments: { initialRoots: readonly string[]; getRoots: () => readonly string[]; getProjects: () => readonly string[]; defaultDirectory?: string; useLocalCredentials?: boolean; rootMeta?: Record<string, unknown>; server: MissionControlProtocolServer }[];
+				credentialModes: boolean[];
 				readonly projectUpdates: number;
 				signedSpawn: (clientId: string, nonce: string) => object;
 				requests: { path: string; credential: string | null; body?: Record<string, unknown> }[];
@@ -2514,6 +2655,7 @@ suite('Mission Control WPS', () => {
 				refreshPolicy: () => void;
 				/** Resolves once `count` errors were reported, without advancing the fake clock. */
 				waitForErrors: (count: number) => Promise<void>;
+				waitForCheckIns: (count: number) => Promise<void>;
 				setSessionEventsFormats: (formats: readonly string[] | undefined) => void;
 			}) => Promise<void>,
 			bootstrapLifetime?: number,
@@ -2539,6 +2681,8 @@ suite('Mission Control WPS', () => {
 				const tokens: number[] = [];
 				const requests: { path: string; credential: string | null; body?: Record<string, unknown> }[] = [];
 				const attachments: { initialRoots: readonly string[]; getRoots: () => readonly string[]; getProjects: () => readonly string[]; defaultDirectory?: string; useLocalCredentials?: boolean; rootMeta?: Record<string, unknown>; server: MissionControlProtocolServer }[] = [];
+				const credentialModes: boolean[] = [];
+				let useLocalCredentials = false;
 				let projectUpdates = 0;
 				let signingKeyRequests = 0;
 				let delayedHeartbeat: { started: DeferredPromise<void>; response: DeferredPromise<Response> } | undefined;
@@ -2547,6 +2691,8 @@ suite('Mission Control WPS', () => {
 				let policyReported: DeferredPromise<void> | undefined;
 				const policyChanged = store.add(new Emitter<void>());
 				const errorReported = store.add(new Emitter<void>());
+				const checkInCompleted = store.add(new Emitter<void>());
+				let completedCheckIns = 0;
 				let identityApiBase = 'https://api.github.com';
 				const identityAuthorityChanged = store.add(new Emitter<void>());
 				const environment = {
@@ -2595,7 +2741,13 @@ suite('Mission Control WPS', () => {
 						}
 						return Response.json(url.pathname === '/user' ? { id: 123, type: 'User' } : url.pathname.endsWith('/jwks.json') ? { keys: [key] } : environment);
 					},
-					attach: (server, initialRoots, getRoots, getProjects, defaultDirectory, useLocalCredentials) => {
+					configureExecutionAuthentication: value => {
+						const changed = useLocalCredentials !== value;
+						useLocalCredentials = value;
+						credentialModes.push(value);
+						return changed;
+					},
+					attach: (server, initialRoots, getRoots, getProjects, defaultDirectory) => {
 						attachments.push({ initialRoots, getRoots, getProjects, defaultDirectory, useLocalCredentials, rootMeta: server.rootMeta, server });
 						return { dispose() { } };
 					},
@@ -2604,7 +2756,13 @@ suite('Mission Control WPS', () => {
 						errors.push(error instanceof Error ? error.message : String(error));
 						errorReported.fire();
 					},
-					onDiagnostic: event => diagnostics.push(event),
+					onDiagnostic: event => {
+						diagnostics.push(event);
+						if (event.phase === 'checkIn' && event.outcome === 'succeeded') {
+							completedCheckIns++;
+							checkInCompleted.fire();
+						}
+					},
 					socketFactory: () => {
 						const socket = new FakeWpsSocket(true, overrides.manualPublishAcks);
 						sockets.push(socket);
@@ -2620,7 +2778,7 @@ suite('Mission Control WPS', () => {
 				const options: IMissionControlOptions = { baseUrl: 'https://api.github.com', live: true, accountId: '123', credential: 'fake-token', roots: openWorkspace ? [path] : [], ...(overrides.ignoreRemoteControlPolicy ? { ignoreRemoteControlPolicy: true } : {}) };
 				await service.configure(options);
 				await run({
-					service, clock, heartbeats, diagnostics, errors, sockets, options, tokens, directory: path, attachments, requests, signedSpawn: signed,
+					service, clock, heartbeats, diagnostics, errors, sockets, options, tokens, directory: path, attachments, credentialModes, requests, signedSpawn: signed,
 					setSessionEventsFormats: formats => { environment.webpubsub.session_events_formats = formats; },
 					get projectUpdates() { return projectUpdates; },
 					delayHeartbeat: () => {
@@ -2652,6 +2810,11 @@ suite('Mission Control WPS', () => {
 							await Event.toPromise(errorReported.event);
 						}
 					},
+					waitForCheckIns: async count => {
+						while (completedCheckIns < count) {
+							await Event.toPromise(checkInCompleted.event);
+						}
+					},
 				});
 			} finally {
 				service?.dispose();
@@ -2674,15 +2837,20 @@ suite('Mission Control WPS', () => {
 				});
 		});
 
-		test('failed heartbeats use server pacing and retain their retry budget through policy refreshes', async () => {
+		test('failed heartbeats slow down after the retry budget and recover without policy refreshes resetting it', async () => {
 			const failure = { status: 429, retryAfter: '2', body: JSON.stringify({ error_code: 'rate_limit_exceeded' }) };
-			await withEnvironment([{}, ...Array.from({ length: 8 }, () => failure)], async ({ clock, heartbeats, sockets, errors, refreshPolicy }) => {
+			await withEnvironment([{}, ...Array.from({ length: 8 }, () => failure), {}, failure], async ({ clock, heartbeats, sockets, errors, refreshPolicy, waitForCheckIns }) => {
 				await clock.tickAsync(61_000);
 				refreshPolicy();
-				await clock.tickAsync(299_000);
-				assert.deepStrictEqual({ heartbeats, errors, closed: sockets[0].closed }, {
-					heartbeats: [0, 60_000, 62_000, 64_000, 68_000].map(time => ({ time, status: 'online' })),
-					errors: Array(4).fill('Mission Control request failed (429) code=rate_limit_exceeded'),
+				await clock.tickAsync(306_999);
+				const beforeRecovery = { requests: heartbeats.length, closed: sockets[0].closed };
+				await clock.tickAsync(1);
+				await waitForCheckIns(2);
+				await clock.tickAsync(62_000);
+				assert.deepStrictEqual({ beforeRecovery, heartbeats, errors, closed: sockets[0].closed }, {
+					beforeRecovery: { requests: 9, closed: false },
+					heartbeats: [0, 60_000, 62_000, 64_000, 68_000, 128_000, 188_000, 248_000, 308_000, 368_000, 428_000, 430_000].map(time => ({ time, status: 'online' })),
+					errors: Array(9).fill('Mission Control request failed (429) code=rate_limit_exceeded'),
 					closed: false,
 				});
 			});
@@ -2697,51 +2865,53 @@ suite('Mission Control WPS', () => {
 				refreshPolicy();
 				await clock.tickAsync(59_000);
 				await waitForErrors(2);
-				await clock.tickAsync(240_000);
+				await clock.tickAsync(60_000);
+				await waitForErrors(3);
 				assert.deepStrictEqual({
 					signingKeyRequests: requests.filter(request => request.path.endsWith('/jwks.json')).length,
 					heartbeats,
 					errors,
 				}, {
-					signingKeyRequests: 3,
-					heartbeats: [0, 60_000, 120_000, 180_000, 240_000, 300_000, 360_000].map(time => ({ time, status: 'online' })),
-					errors: [
-						'Mission Control request failed (503) code=service_unavailable',
-						'Mission Control request failed (503) code=service_unavailable',
-						'Mission Control request retry budget exhausted; reconfigure the environment to reconnect.',
-					],
+					signingKeyRequests: 4,
+					heartbeats: [0, 60_000, 120_000, 180_000, 240_000, 300_000, 360_000, 420_000].map(time => ({ time, status: 'online' })),
+					errors: Array(3).fill('Mission Control request failed (503) code=service_unavailable'),
 				});
 			}, undefined, false, { failSigningKeyRefresh: true });
 		});
 
-		test('heartbeat failures and disconnected-relay recovery share one retry budget', async () => {
+		test('heartbeat failures and disconnected-relay recovery share a retry budget without stopping recovery', async () => {
 			const failure = { status: 503, retryAfter: '2', body: JSON.stringify({ error_code: 'service_unavailable' }) };
 			await withEnvironment([{}, failure], async ({ clock, heartbeats, tokens, sockets, errors }) => {
 				await clock.tickAsync(60_000);
 				sockets[0].emit('close', 1006);
-				await clock.tickAsync(300_000);
-				assert.deepStrictEqual({ heartbeats, tokens, closed: sockets[0].closed, errors }, {
-					heartbeats: [0, 60_000].map(time => ({ time, status: 'online' })),
-					tokens: [62_000, 64_000, 68_000], closed: true,
+				await clock.tickAsync(127_999);
+				const beforeRecovery = { tokens: [...tokens], sockets: sockets.length };
+				await clock.tickAsync(1);
+				assert.deepStrictEqual({ beforeRecovery, heartbeats, tokens, closed: sockets.map(socket => socket.closed), errors }, {
+					beforeRecovery: { tokens: [62_000, 64_000, 68_000, 128_000], sockets: 1 },
+					heartbeats: [0, 60_000, 188_000].map(time => ({ time, status: 'online' })),
+					tokens: [62_000, 64_000, 68_000, 128_000, 188_000], closed: [true, false],
 					errors: [
 						'Mission Control request failed (503) code=service_unavailable',
 						'Mission Control WPS socket closed (code 1006)',
-						...Array(3).fill('Mission Control request failed (503) code=service_unavailable'),
+						...Array(4).fill('Mission Control request failed (503) code=service_unavailable'),
 					],
 				});
 			}, undefined, false, {
-				tokenReplies: Array.from({ length: 8 }, () => ({ status: 503, retryAfter: '2', body: { error_code: 'service_unavailable' } })),
+				tokenReplies: Array.from({ length: 4 }, () => ({ status: 503, retryAfter: '2', body: { error_code: 'service_unavailable' } })),
 			});
 		});
 
-		for (const [status, code] of [[401, 'unauthenticated'], [403, 'forbidden'], [501, 'not_implemented']] as const) {
-			test(`${code} stops check-ins until an explicit credential reconfiguration`, async () => {
-				await withEnvironment([{}, { status, body: JSON.stringify({ error_code: code }) }], async ({ service, clock, sockets, heartbeats, errors, options }) => {
-					await clock.tickAsync(300_000);
+		for (const [status, code] of [[401, 'unauthenticated'], [403, 'forbidden'], [404, 'environment_not_found'], [501, 'not_implemented']] as const) {
+			test(`heartbeat ${code} preserves the relay and recovers without credential reconfiguration`, async () => {
+				await withEnvironment([{}, { status, body: JSON.stringify({ error_code: code }) }], async ({ clock, sockets, heartbeats, errors }) => {
+					await clock.tickAsync(119_999);
 					const before = { requests: heartbeats.length, closed: sockets[0].closed };
-					await service.configure({ ...options, credential: 'replacement-token' });
-					assert.deepStrictEqual({ before, requests: heartbeats.length, sockets: sockets.length, lastClosed: sockets.at(-1)?.closed, errors }, {
-						before: { requests: 2, closed: true }, requests: 3, sockets: 2, lastClosed: false,
+					await clock.tickAsync(1);
+					assert.deepStrictEqual({ before, heartbeats, sockets: sockets.length, closed: sockets[0].closed, errors }, {
+						before: { requests: 2, closed: false },
+						heartbeats: [0, 60_000, 120_000].map(time => ({ time, status: 'online' })),
+						sockets: 1, closed: false,
 						errors: [`Mission Control request failed (${status}) code=${code}`],
 					});
 				});
@@ -2762,22 +2932,76 @@ suite('Mission Control WPS', () => {
 			});
 		}
 
-		test('token internal_error stops after two retries rather than polling indefinitely', async () => {
+		for (const retryAfter of [undefined, '90']) {
+			test(`credential replacement after a heartbeat 401 ${retryAfter ? 'honors server pacing' : 'does not wait for background recovery'}`, async () => {
+				await withEnvironment([{}, { status: 401, retryAfter }], async ({ service, options, clock, sockets, tokens, errors }) => {
+					await clock.tickAsync(60_000);
+					const configuring = service.configure({ ...options, credential: 'replacement-token' });
+					if (retryAfter) {
+						await clock.tickAsync(89_999);
+						assert.deepStrictEqual({ tokens, sockets: sockets.length }, { tokens: [], sockets: 1 });
+						await clock.tickAsync(1);
+					}
+					await configuring;
+					assert.deepStrictEqual({ tokens, closed: sockets.map(socket => socket.closed), errors }, {
+						tokens: [retryAfter ? 150_000 : 60_000], closed: [true, false],
+						errors: ['Mission Control request failed (401)'],
+					});
+				});
+			});
+		}
+
+		for (const [status, code] of [[401, 'unauthenticated'], [404, 'environment_not_found']] as const) {
+			test(`relay recovery resumes after a token ${code} without reconfiguration`, async () => {
+				await withEnvironment([], async ({ clock, tokens, sockets, errors }) => {
+					sockets[0].emit('close', 1006);
+					await clock.tickAsync(60_499);
+					const beforeRecovery = { tokens: [...tokens], sockets: sockets.length };
+					await clock.tickAsync(1);
+					assert.deepStrictEqual({ beforeRecovery, tokens, closed: sockets.map(socket => socket.closed), errors }, {
+						beforeRecovery: { tokens: [500], sockets: 1 },
+						tokens: [500, 60_500], closed: [true, false],
+						errors: ['Mission Control WPS socket closed (code 1006)', `Mission Control request failed (${status}) code=${code}`],
+					});
+				}, undefined, false, { tokenReplies: [{ status, body: { error_code: code } }] });
+			});
+		}
+
+		test('withdrawal cancels slow recovery after a failed heartbeat', async () => {
+			await withEnvironment([{}, { status: 401 }], async ({ service, options, clock, heartbeats, sockets, errors }) => {
+				await clock.tickAsync(60_000);
+				await service.configure(undefined, options.accountId);
+				const requestsAfterWithdrawal = heartbeats.length;
+				await clock.tickAsync(300_000);
+				assert.deepStrictEqual({ requestsAfterWithdrawal, heartbeats, closed: sockets[0].closed, enabled: service.isEnabled, errors }, {
+					requestsAfterWithdrawal: 3,
+					heartbeats: [{ time: 0, status: 'online' }, { time: 60_000, status: 'online' }, { time: 60_000, status: 'offline' }],
+					closed: true, enabled: false, errors: ['Mission Control request failed (401)'],
+				});
+			});
+		});
+
+		test('token internal_error slows down after two retries and eventually recovers', async () => {
+			const random = sinon.stub(Math, 'random').returns(0);
+			store.add(toDisposable(() => random.restore()));
 			await withEnvironment([], async ({ clock, tokens, errors, sockets }) => {
-				await clock.tickAsync(600_000);
-				assert.deepStrictEqual({ attempts: tokens.length, errors, closed: sockets[0].closed }, {
-					attempts: 3, errors: Array(3).fill('Mission Control request failed (500) code=internal_error'), closed: false,
+				await clock.tickAsync(273_000);
+				assert.deepStrictEqual({ tokens, errors, closed: sockets[0].closed }, {
+					tokens: [90_000, 91_000, 93_000, 153_000, 213_000, 273_000],
+					errors: Array(5).fill('Mission Control request failed (500) code=internal_error'), closed: false,
 				});
 			}, 120_000, false, {
 				tokenReplies: Array.from({ length: 5 }, () => ({ status: 500, body: { error_code: 'internal_error' } })),
 			});
 		});
 
-		test('token rate limits beyond the elapsed budget stop without an early retry', async () => {
+		test('token rate limits beyond the elapsed budget recover without an early retry', async () => {
 			await withEnvironment([], async ({ clock, tokens, sockets, errors }) => {
-				await clock.tickAsync(600_000);
-				assert.deepStrictEqual({ tokens, closed: sockets[0].closed, errors }, {
-					tokens: [90_000], closed: false, errors: ['Mission Control request failed (429) code=rate_limit_exceeded'],
+				await clock.tickAsync(389_999);
+				const beforeDeadline = tokens.length;
+				await clock.tickAsync(1);
+				assert.deepStrictEqual({ beforeDeadline, tokens, closed: sockets[0].closed, errors }, {
+					beforeDeadline: 1, tokens: [90_000, 390_000], closed: false, errors: ['Mission Control request failed (429) code=rate_limit_exceeded'],
 				});
 			}, 120_000, false, {
 				tokenReplies: [{ status: 429, retryAfter: '300', body: { error_code: 'rate_limit_exceeded' } }],
@@ -2787,16 +3011,62 @@ suite('Mission Control WPS', () => {
 		test('credential reconfiguration cannot bypass a token Retry-After', async () => {
 			await withEnvironment([], async ({ service, options, clock, tokens, sockets, errors }) => {
 				await clock.tickAsync(100_000);
-				await service.configure({ ...options, credential: 'replacement-token' });
+				let configured = false;
+				const configuring = service.configure({ ...options, credential: 'replacement-token' }).then(() => { configured = true; });
 				await clock.tickAsync(34_999);
-				const beforeDeadline = { tokens: [...tokens], sockets: sockets.length };
+				const beforeDeadline = { tokens: [...tokens], sockets: sockets.length, configured };
 				await clock.tickAsync(1);
-				assert.deepStrictEqual({ beforeDeadline, tokens, sockets: sockets.length, errors }, {
-					beforeDeadline: { tokens: [90_000], sockets: 1 }, tokens: [90_000, 135_000], sockets: 2,
+				await configuring;
+				assert.deepStrictEqual({ beforeDeadline, tokens, sockets: sockets.length, configured, errors }, {
+					beforeDeadline: { tokens: [90_000], sockets: 1, configured: false }, tokens: [90_000, 135_000], sockets: 2, configured: true,
 					errors: ['Mission Control request failed (429) code=rate_limit_exceeded'],
 				});
 			}, 120_000, false, {
 				tokenReplies: [{ status: 429, retryAfter: '45', body: { error_code: 'rate_limit_exceeded' } }],
+			});
+		});
+
+		test('withdrawing cancels configuration waiting for a token Retry-After', async () => {
+			await withEnvironment([], async ({ service, options, clock, tokens, sockets, errors }) => {
+				await clock.tickAsync(100_000);
+				const configuring = service.configure({ ...options, credential: 'replacement-token' });
+				await clock.tickAsync(0);
+				await service.configure(undefined, options.accountId);
+				await configuring;
+				await clock.tickAsync(60_000);
+				assert.deepStrictEqual({ enabled: service.isEnabled, tokens, sockets: sockets.length, errors }, {
+					enabled: false, tokens: [90_000], sockets: 1,
+					errors: ['Mission Control request failed (429) code=rate_limit_exceeded'],
+				});
+			}, 120_000, false, {
+				tokenReplies: [{ status: 429, retryAfter: '45', body: { error_code: 'rate_limit_exceeded' } }],
+			});
+		});
+
+		test('retrying unchanged credentials still awaits recovery after a failed token refresh', async () => {
+			await withEnvironment([], async ({ service, options, clock, tokens, sockets, errors }) => {
+				await clock.tickAsync(100_000);
+				const updated = { ...options, credential: 'replacement-token' };
+				const firstFailure = assert.rejects(service.configure(updated), { statusCode: 408 });
+				await clock.tickAsync(35_000);
+				await firstFailure;
+				await clock.tickAsync(500);
+				let configured = false;
+				const configuring = service.configure(updated).then(() => { configured = true; });
+				await clock.tickAsync(1499);
+				const beforeDeadline = { tokens: [...tokens], sockets: sockets.length, configured };
+				await clock.tickAsync(1);
+				await configuring;
+				assert.deepStrictEqual({ beforeDeadline, tokens, sockets: sockets.length, configured, errors }, {
+					beforeDeadline: { tokens: [90_000, 135_000], sockets: 1, configured: false },
+					tokens: [90_000, 135_000, 137_000], sockets: 2, configured: true,
+					errors: ['Mission Control request failed (429) code=rate_limit_exceeded'],
+				});
+			}, 120_000, false, {
+				tokenReplies: [
+					{ status: 429, retryAfter: '45', body: { error_code: 'rate_limit_exceeded' } },
+					{ status: 408, retryAfter: '2', body: {} },
+				],
 			});
 		});
 
@@ -3063,7 +3333,7 @@ suite('Mission Control WPS', () => {
 					await clock.tickAsync(1);
 					assert.deepStrictEqual({ beforeDeadline, heartbeats, errors }, {
 						beforeDeadline: 2,
-						heartbeats: [{ time: 0, status: 'online' }, { time: 60_000, status: 'online' }, ...(response.status === 200 ? [{ time: 300_000, status: 'online' }] : [])],
+						heartbeats: [{ time: 0, status: 'online' }, { time: 60_000, status: 'online' }, { time: 300_000, status: 'online' }],
 						errors: [response.error],
 					});
 				});
@@ -3296,18 +3566,29 @@ suite('Mission Control WPS', () => {
 
 		test('rejects owner and live scope conflicts without replacing the first grant', async () => {
 			await withEnvironment([], async ({ service, options, sockets, attachments, directory }) => {
+				const categories: (string | undefined)[] = [];
 				for (const conflicting of [
 					{ ...options, accountId: 'other', roots: [directory] },
 					{ ...options, baseUrl: 'https://other.test', roots: [directory] },
 					{ ...options, requireConnectionBinding: true, roots: [directory] },
 				]) {
-					await assert.rejects(service.configure(conflicting), /another local account|already configured/);
+					await assert.rejects(service.configure(conflicting), error => {
+						categories.push(getConnectionTelemetryError(getConnectionDiagnosticError(error)).errorCategory);
+						return error instanceof Error && /another local account|already configured/.test(error.message);
+					});
 				}
-				assert.deepStrictEqual({ enabled: service.isEnabled, sockets: sockets.length, closed: sockets[0].closed, roots: attachments[0].getRoots() }, {
-					enabled: true, sockets: 1, closed: false, roots: [],
+				assert.deepStrictEqual({ enabled: service.isEnabled, sockets: sockets.length, closed: sockets[0].closed, roots: attachments[0].getRoots(), categories }, {
+					enabled: true, sockets: 1, closed: false, roots: [], categories: ['conflict', 'conflict', 'conflict'],
 				});
 				await service.configure(undefined);
 				await assert.rejects(service.configure({ ...options, accountId: 'other' }), /another local account/);
+			});
+		});
+
+		test('categorizes shared directories that cannot be resolved as file-system failures', async () => {
+			await withEnvironment([], async ({ service, options, directory }) => {
+				await assert.rejects(service.configure({ ...options, projects: [join(directory, 'missing')] }), error =>
+					getConnectionTelemetryError(getConnectionDiagnosticError(error)).errorCategory === 'fileSystem');
 			});
 		});
 
@@ -3345,6 +3626,67 @@ suite('Mission Control WPS', () => {
 					closed: [true, true, false],
 					errors: [],
 				});
+			});
+		});
+
+		test('validates owner configuration before selecting execution credentials and attaching the relay', async () => {
+			await withEnvironment([], async ({ service, options, delayIdentity, credentialModes, attachments, sockets }) => {
+				const identity = delayIdentity();
+				const configuring = service.configure({ ...options, useLocalCredentials: true });
+				await identity.started;
+				assert.deepStrictEqual({ credentialModes, connections: sockets.length }, { credentialModes: [], connections: 1 });
+				await identity.complete(Response.json({ id: 123, type: 'User' }));
+				await configuring;
+				const wrongIdentity = delayIdentity();
+				const rejected = assert.rejects(service.configure({ ...options, credential: 'wrong-owner-token', useLocalCredentials: false }), /does not match the Agent Host owner/);
+				await wrongIdentity.started;
+				await wrongIdentity.complete(Response.json({ id: 456, type: 'User' }));
+				await rejected;
+				await assert.rejects(service.configure({ ...options, accountId: 'other', useLocalCredentials: false }), /another local account/);
+				await assert.rejects(service.configure({ ...options, requireConnectionBinding: true, useLocalCredentials: false }), /already configured/);
+				assert.deepStrictEqual({
+					credentialModes,
+					delegation: attachments.map(attachment => attachment.useLocalCredentials),
+					closed: sockets.map(socket => socket.closed),
+				}, { credentialModes: [true], delegation: [false, true], closed: [true, false] });
+			});
+		});
+
+		test('preserves execution credentials when registration is withdrawn or the mode is omitted', async () => {
+			await withEnvironment([], async ({ service, options, credentialModes, attachments, sockets }) => {
+				await service.configure({ ...options, useLocalCredentials: true });
+				await service.configure(options);
+				await service.configure(undefined, options.accountId);
+				assert.deepStrictEqual({ credentialModes, closed: sockets.map(socket => socket.closed) }, { credentialModes: [true], closed: [true, true] });
+				await service.configure(options);
+				await service.configure({ ...options, useLocalCredentials: false });
+				assert.deepStrictEqual({
+					credentialModes,
+					delegation: attachments.map(attachment => attachment.useLocalCredentials),
+				}, { credentialModes: [true, false], delegation: [false, true, true, false] });
+			});
+		});
+
+		test('keeps the validated host credential choice when registration fails', async () => {
+			let policyUnavailable = false;
+			await withEnvironment([], async ({ service, options, credentialModes, attachments }) => {
+				await service.configure(undefined, options.accountId);
+				policyUnavailable = true;
+				await assert.rejects(service.configure({ ...options, useLocalCredentials: true }), /Device policy unavailable/);
+				assert.deepStrictEqual({ credentialModes, enabled: service.isEnabled }, { credentialModes: [true], enabled: false });
+				policyUnavailable = false;
+				await service.configure(options);
+				assert.deepStrictEqual({
+					credentialModes,
+					delegation: attachments.map(attachment => attachment.useLocalCredentials),
+				}, { credentialModes: [true], delegation: [false, true] });
+			}, undefined, false, {
+				getRemoteControlPolicy: async () => {
+					if (policyUnavailable) {
+						throw new Error('Device policy unavailable');
+					}
+					return undefined;
+				},
 			});
 		});
 

@@ -8,14 +8,22 @@ import { Event } from '../../../../../base/common/event.js';
 import { constObservable, IObservable } from '../../../../../base/common/observable.js';
 import { ThemeIcon, themeColorFromId } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { mock } from '../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IChatService } from '../../../../contrib/chat/common/chatService/chatService.js';
+import { ChatConfiguration, ChatResponseStats } from '../../../../contrib/chat/common/constants.js';
+import { IChatModel, IChatRequestModel, IChatResponseModel } from '../../../../contrib/chat/common/model/chatModel.js';
+import { MockChatService } from '../../../../contrib/chat/test/common/chatService/mockChatService.js';
 import { SessionHeader } from '../../../../contrib/sessions/browser/parts/sessionHeader.js';
 import { ISessionsListModelService } from '../../../../contrib/sessions/browser/sessionsListModelService.js';
-import { IChat, ISessionCapabilities, SessionStatus } from '../../../../contrib/sessions/common/session.js';
-import { IActiveSession, ISessionsManagementService } from '../../../../contrib/sessions/common/sessionsManagement.js';
+import { IChat, ISessionCapabilities, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { ISessionsManagementService } from '../../../../contrib/sessions/common/sessionsManagement.js';
+import { ITestSessionWithChat, testPaneContentOf } from '../../../../contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../fixtureUtils.js';
 
 import '../../../../contrib/sessions/browser/parts/media/chatCompositeBar.css';
+import { ISessionHost } from '../../../../services/sessions/browser/sessionHost.js';
 
 interface IMockSessionOptions {
 	readonly title: string;
@@ -24,7 +32,7 @@ interface IMockSessionOptions {
 	readonly supportsRename?: boolean;
 }
 
-function createMockSession(options: IMockSessionOptions): IActiveSession {
+function createMockSession(options: IMockSessionOptions): ITestSessionWithChat {
 	const capabilities: ISessionCapabilities = {
 		supportsMultipleChats: false,
 		supportsRename: options.supportsRename ?? true,
@@ -37,7 +45,7 @@ function createMockSession(options: IMockSessionOptions): IActiveSession {
 		override readonly capabilities = constObservable({ canRename: options.supportsRename ?? true, canArchive: false, canDelete: false });
 	}();
 
-	return new class extends mock<IActiveSession>() {
+	return new class extends mock<ITestSessionWithChat>() {
 		override readonly sessionId = `local:${options.title}`;
 		override readonly resource = URI.parse(`vscode-session://session/${Math.random().toString(36).slice(2)}`);
 		override readonly capabilities = constObservable(capabilities);
@@ -74,12 +82,30 @@ function createMockListModelService(): ISessionsListModelService {
 	}();
 }
 
-function renderHeader(ctx: ComponentFixtureContext, session: IActiveSession, withBackground = false): void {
+/** A chat service whose model of the session's chat has worked for 2m 43s and waits for a confirmation, which keeps that time still. */
+function createChatServiceWithRunningResponse(session: ITestSessionWithChat): IChatService {
+	const response = upcastPartial<IChatResponseModel>({
+		isIncomplete: constObservable(true),
+		confirmationAdjustedTimestamp: constObservable(1000),
+		isPendingConfirmation: constObservable({ startedWaitingAt: 164_000 }),
+		usageObs: constObservable({ kind: 'usage', promptTokens: 18_000, completionTokens: 310, latestModelCall: { duration: 5000 } }),
+	});
+	const chatService = new MockChatService();
+	chatService.addSession(upcastPartial<IChatModel>({
+		sessionResource: session.mainChat.get().resource,
+		lastRequestObs: constObservable(upcastPartial<IChatRequestModel>({ response })),
+	}));
+	return chatService;
+}
+
+function renderHeader(ctx: ComponentFixtureContext, session: ITestSessionWithChat, withBackground = false, hovered = false, responseStats = false): void {
 	const { container, disposableStore } = ctx;
 	const instantiationService = createEditorServices(disposableStore, {
 		colorTheme: ctx.theme,
 		additionalServices: reg => {
+			reg.defineInstance(ISessionHost, upcastPartial<ISessionHost>({ commandContext: { sessionHostId: 'fixture-pane' } }));
 			registerWorkbenchServices(reg);
+			reg.defineInstance(IChatService, responseStats ? createChatServiceWithRunningResponse(session) : new MockChatService());
 			reg.defineInstance(ISessionsListModelService, createMockListModelService());
 			reg.defineInstance(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 				override readonly onDidChangeSessions = Event.None;
@@ -87,6 +113,14 @@ function renderHeader(ctx: ComponentFixtureContext, session: IActiveSession, wit
 			}());
 		},
 	});
+
+	if (responseStats) {
+		const configurationService = instantiationService.get(IConfigurationService);
+		if (!(configurationService instanceof TestConfigurationService)) {
+			throw new Error('Expected fixture configuration service');
+		}
+		configurationService.setUserConfiguration(ChatConfiguration.ResponseStats, ChatResponseStats.Title);
+	}
 
 	container.style.width = '420px';
 	container.style.setProperty('--session-view-background', 'var(--vscode-agentsPanel-background, var(--vscode-sideBar-background))');
@@ -104,8 +138,11 @@ function renderHeader(ctx: ComponentFixtureContext, session: IActiveSession, wit
 	}
 
 	const header = disposableStore.add(instantiationService.createInstance(SessionHeader));
-	header.setSession(session);
+	header.setSession(testPaneContentOf(session, () => { }));
 	headerHost.appendChild(header.element);
+	if (hovered) {
+		header.element.querySelector<HTMLElement>('.chat-composite-bar-session-title')?.classList.add('hovered');
+	}
 }
 
 export default defineThemedFixtureGroup({ path: 'sessions/' }, {
@@ -131,5 +168,23 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		render: ctx => renderHeader(ctx, createMockSession({
 			title: 'Investigate and fix the flaky integration test in the notebook editor viewport rendering pipeline',
 		})),
+	}),
+	SessionHeader_Hover: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['The pointer is over the editable chat title. In high contrast themes, a dashed active-contrast boundary surrounds the title without outlining the full header.'],
+		render: ctx => renderHeader(ctx, createMockSession({ title: 'Unclear message' }), false, true),
+	}),
+	SessionHeader_ResponseStats: defineComponentFixture({
+		render: ctx => renderHeader(ctx, createMockSession({
+			title: 'Investigate flaky test',
+			status: SessionStatus.InProgress,
+		}), false, false, true),
+	}),
+	SessionHeader_ResponseStatsLongTitle: defineComponentFixture({
+		render: ctx => renderHeader(ctx, createMockSession({
+			title: 'Investigate and fix the flaky integration test in the notebook editor viewport rendering pipeline',
+			status: SessionStatus.InProgress,
+		}), false, false, true),
 	}),
 });

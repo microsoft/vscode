@@ -309,6 +309,24 @@ suite('AgentHostSandboxForwarder', () => {
 		}]);
 	});
 
+	test('reconnecting never replaces the sandbox profile another client selected on the host', () => {
+		const { remote } = setup(disposables, { [AgentSandboxSettingId.AgentSandboxEnabled]: AgentSandboxEnabledValue.On });
+		const rootState = rootStateWithSandboxSchema();
+		const connection = remote.addConnection('remote.example:9000');
+		connection.setRootState({
+			...rootState,
+			config: {
+				...rootState.config!,
+				values: {
+					...rootState.config!.values,
+					[AgentHostSandboxConfigKey.SandboxProfile]: { id: 'strict', name: 'Strict', sandbox: { allowNetwork: false } },
+				},
+			},
+		});
+
+		assert.deepStrictEqual(connection.dispatched.map(action => action.type === ActionType.RootConfigChanged && { keys: Object.keys(action.config), replace: action.replace }), [{ keys: [AgentHostSandboxConfigKey.Sandbox], replace: undefined }]);
+	});
+
 	test('fans out workbench setting changes to all connected agent hosts', () => {
 		const { local, remote, configurationService } = setup(disposables, { [AgentSandboxSettingId.AgentSandboxEnabled]: AgentSandboxEnabledValue.On });
 		local.setRootState(rootStateWithSandboxSchema());
@@ -411,6 +429,34 @@ suite('AgentHostSandboxForwarder', () => {
 			type: ActionType.RootConfigChanged,
 			config: { [AgentHostSandboxConfigKey.Sandbox]: { [AgentHostSandboxKey.UserConfiguredPaths]: value } },
 		})));
+	});
+
+	test('forwards credential host maps to local and remote hosts and omits them on reset', async () => {
+		const key = AgentSandboxSettingId.AgentSandboxCredentialEnvVars;
+		const initial = { API_TOKEN: { injectHosts: ['api.example.org'] } };
+		const changed = { OTHER_TOKEN: { injectHosts: ['other.example.org'] } };
+		const { local, remote, configurationService } = setup(disposables, { [key]: initial });
+		const remoteConnection = remote.addConnection('remote.example:9000');
+		for (const connection of [local, remoteConnection]) {
+			connection.setRootState(rootStateWithSandboxSchema());
+		}
+		for (const value of [changed, {}, null]) {
+			await configurationService.setUserConfiguration(key, value);
+			configurationService.onDidChangeConfigurationEmitter.fire({
+				source: ConfigurationTarget.USER,
+				affectsConfiguration: section => section === key,
+				affectedKeys: new Set([key]),
+				change: { keys: [key], overrides: [] },
+			});
+			for (const connection of [local, remoteConnection]) {
+				connection.setRootState(rootStateWithSandboxSchema(value === null ? {} : { credentials: { envVars: value } }));
+			}
+		}
+		const expected = [initial, changed, {}, null].map(envVars => ({
+			type: ActionType.RootConfigChanged,
+			config: { sandbox: envVars === null ? {} : { credentials: { envVars } } },
+		}));
+		assert.deepStrictEqual([local.dispatched, remoteConnection.dispatched], [expected, expected]);
 	});
 
 	test('does not forward the removed masked environment variables setting to local or remote hosts', async () => {

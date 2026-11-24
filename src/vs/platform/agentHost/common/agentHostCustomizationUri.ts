@@ -12,14 +12,27 @@ import { buildMcpResourceUri } from './mcpResourceUri.js';
  */
 export const AGENT_BUILTIN_CUSTOMIZATION_SCHEME = 'agent-builtin';
 
+/** Read-only source templates for host-owned skills, served through resourceRead. */
+export const AGENT_BUILTIN_SKILL_SCHEME = 'agent-builtin-skill';
+
 /** Discovery records whose provider has not reported readable source content. */
 export const AGENT_DISCOVERY_CUSTOMIZATION_SCHEME = 'agent-discovery';
 
 /**
- * Checks raw host URIs and client-wrapped Agent Host URIs for the built-in customization scheme.
+ * Scheme used for the in-memory plugin filesystem backing synced customizations.
+ *
+ * URIs under this scheme are served by a registered in-memory filesystem provider
+ * and are reachable by the agent host via `fetchContent`.
+ */
+export const SYNCED_CUSTOMIZATION_SCHEME = 'vscode-synced-customization';
+export const SYNCED_CUSTOMIZATION_DISPLAY_NAME = 'VS Code Synced Data';
+
+/**
+ * Recognizes built-in discovery records and readable skill sources, including client-wrapped URIs.
  */
 export function isAgentBuiltinCustomizationUri(resource: URI): boolean {
-	return fromAgentHostUri(resource).scheme === AGENT_BUILTIN_CUSTOMIZATION_SCHEME;
+	const scheme = fromAgentHostUri(resource).scheme;
+	return scheme === AGENT_BUILTIN_CUSTOMIZATION_SCHEME || scheme === AGENT_BUILTIN_SKILL_SCHEME;
 }
 
 export function hasReadableCustomizationContent(resource: URI): boolean {

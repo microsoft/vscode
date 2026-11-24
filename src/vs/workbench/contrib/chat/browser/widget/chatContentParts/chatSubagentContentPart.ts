@@ -6,7 +6,6 @@
 import * as dom from '../../../../../../base/browser/dom.js';
 import { $, AnimationFrameScheduler, DisposableResizeObserver } from '../../../../../../base/browser/dom.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
-import { Action } from '../../../../../../base/common/actions.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Lazy } from '../../../../../../base/common/lazy.js';
@@ -17,18 +16,11 @@ import { rcut } from '../../../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { localize } from '../../../../../../nls.js';
-import { IActionViewItemService } from '../../../../../../platform/actions/browser/actionViewItemService.js';
-import { HiddenItemStrategy, WorkbenchToolBar } from '../../../../../../platform/actions/browser/toolbar.js';
-import { IMenuService, MenuId, MenuItemAction } from '../../../../../../platform/actions/common/actions.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
-import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IMarkdownRenderer } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
-import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
-import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID } from '../../../common/constants.js';
 import { getSubagentIsActive, IChatHookPart, IChatToolInvocation, IChatToolInvocationSerialized, isLegacyChatTerminalToolInvocationData, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { IChatRendererContent, isResponseVM } from '../../../common/model/chatViewModel.js';
 import { IRunSubagentToolInputParams } from '../../../common/tools/builtinTools/runSubagentTool.js';
@@ -43,7 +35,7 @@ import { ChatThinkingStyleContentPart, createThinkingIcon } from './chatThinking
 import { ChatToolInvocationPart } from './toolInvocationParts/chatToolInvocationPart.js';
 import { getToolInvocationIcon } from './toolInvocationParts/chatToolPartUtilities.js';
 import { FusionPhasePillActionViewItem, type ISubagentPhaseContext } from './fusionPhasePillActionViewItem.js';
-import { IInlineSubagentDetailsContext, ISubagentActivity, OpenSubagentChatActionViewItem } from './chatSubagentOpenChat.js';
+import { IInlineSubagentDetailsContext, ISubagentActivity, SubagentChatToolbar } from './chatSubagentOpenChat.js';
 import './media/chatSubagentContent.css';
 
 const MAX_TITLE_LENGTH = 100;
@@ -155,8 +147,7 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 	// The subagent tool invocation, kept so the "Open Subagent" action can re-read
 	// the subagent chat resource as it arrives/changes.
 	private readonly _subagentToolInvocation: IChatToolInvocation | IChatToolInvocationSerialized;
-	private _openChatToolbar: WorkbenchToolBar | undefined;
-	private readonly _openChatActionViewRegistration = this._register(new MutableDisposable());
+	private _openChatToolbar: SubagentChatToolbar | undefined;
 
 	// Confirmation auto-expand tracking
 	private toolsWaitingForConfirmation: number = 0;
@@ -267,46 +258,12 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 			return;
 		}
 		const isPhase = this._isPhasePresentation();
-		const menuAction = this._getOpenChatMenuAction() ?? this._register(new Action(
-			CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID,
-			localize('chat.subagent.openChat', "Open Subagent"),
-			undefined,
-			false,
-			context => this.commandService.executeCommand(CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, context),
-		));
-		const actionViewItemProvider = this.actionViewItemService.lookUp(MenuId.ChatSubagentContent, CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID);
-		if (!isPhase && !actionViewItemProvider) {
-			this._openChatActionViewRegistration.value = Event.once(Event.filter(
-				this.actionViewItemService.onDidChange,
-				menuId => menuId === MenuId.ChatSubagentContent
-			))(() => {
-				this._openChatActionViewRegistration.clear();
-				this._openChatToolbar?.setActions([menuAction]);
-				this._updateOpenChatToolbarContext();
-			});
-		}
-
 		const container = $('.chat-subagent-open-chat-toolbar');
 		this.headerContainer.appendChild(container);
-		this._openChatToolbar = this._register(this.instantiationService.createInstance(WorkbenchToolBar, container, {
-			hiddenItemStrategy: HiddenItemStrategy.Ignore,
-			actionViewItemProvider: (action, options) => isPhase
-				? this.instantiationService.createInstance(FusionPhasePillActionViewItem, undefined, action, { ...options, showElapsedOnly: true }, false)
-				: this.actionViewItemService.lookUp(MenuId.ChatSubagentContent, CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID)?.(action, options, this.instantiationService, dom.getWindow(container).vscodeWindowId)
-				?? this.instantiationService.createInstance(OpenSubagentChatActionViewItem, undefined, action, options, !this.environmentService.isSessionsWindow),
-		}));
-		this._openChatToolbar.setActions([menuAction]);
+		this._openChatToolbar = this._register(this.instantiationService.createInstance(SubagentChatToolbar, container, isPhase
+			? (action, options) => this.instantiationService.createInstance(FusionPhasePillActionViewItem, undefined, action, { ...options, showElapsedOnly: true }, false)
+			: undefined));
 		this._updateOpenChatOnlyMode();
-	}
-
-	private _getOpenChatMenuAction(): MenuItemAction | undefined {
-		for (const [, actions] of this.menuService.getMenuActions(MenuId.ChatSubagentContent, this.contextKeyService, { shouldForwardArgs: true })) {
-			const action = actions.find(action => action.id === CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID);
-			if (action instanceof MenuItemAction) {
-				return action;
-			}
-		}
-		return undefined;
 	}
 
 	private _updateOpenChatOnlyMode(): void {
@@ -357,23 +314,23 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 				...(this.isActive && displayedTool ? { activeToolCallId: displayedTool.callId, activeToolLabel: displayedTool.label, activeToolIcon: displayedTool.icon, activeToolSubagent: displayedTool.subagent } : {}),
 			};
 			if (data?.kind === 'subagent' && data.presentation === 'phase') {
-				this._openChatToolbar.context = {
+				this._openChatToolbar.setContext({
 					...commonContext,
 					presentation: 'phase',
 					phaseStatus: data.phaseStatus,
 					activityLabel: data.activityDescription ? new MarkdownString().appendText(data.activityDescription).value : undefined,
 					...(chatResource ? { chatResource, isChatAvailable: data.isChatAvailable } : {}),
-				} satisfies ISubagentPhaseContext;
+				} satisfies ISubagentPhaseContext);
 			} else if (chatResource) {
-				this._openChatToolbar.context = { ...commonContext, chatResource, isChatAvailable: data?.kind === 'subagent' ? data.isChatAvailable : undefined };
+				this._openChatToolbar.setContext({ ...commonContext, chatResource, isChatAvailable: data?.kind === 'subagent' ? data.isChatAvailable : undefined });
 			} else {
-				this._openChatToolbar.context = {
+				this._openChatToolbar.setContext({
 					...commonContext,
 					presentation: 'inline',
 					expanded: this.isExpanded(),
 					contentId: this.detailsId,
 					toggleDetails: this.toggleDetails,
-				} satisfies IInlineSubagentDetailsContext;
+				} satisfies IInlineSubagentDetailsContext);
 			}
 			this._updateOpenChatOnlyMode();
 		}
@@ -408,11 +365,6 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 		@IHoverService hoverService: IHoverService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IActionViewItemService private readonly actionViewItemService: IActionViewItemService,
-		@IMenuService private readonly menuService: IMenuService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@ICommandService private readonly commandService: ICommandService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 	) {
 		// Extract subagent metadata from the tool invocation
 		const { description, isDefaultDescription, agentDisplayName, agentName, prompt, modelName, credits } = ChatSubagentContentPart.extractSubagentInfo(toolInvocation);

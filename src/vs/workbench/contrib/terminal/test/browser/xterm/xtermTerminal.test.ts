@@ -32,6 +32,7 @@ import { workbenchInstantiationService } from '../../../../../test/browser/workb
 import { TestLifecycleService } from '../../../../../test/common/workbenchTestServices.js';
 import { TestWebglAddon, TestXtermAddonImporter } from './xtermTestUtils.js';
 import { stub } from 'sinon';
+import { registerTestIframe } from '../../../../../../base/test/browser/testWindow.js';
 
 registerColors();
 
@@ -115,6 +116,28 @@ suite('XtermTerminal', () => {
 		strictEqual(xterm.raw.cols, 80);
 		strictEqual(xterm.raw.rows, 30);
 	});
+
+	for (const buffer of ['normal', 'alternate'] as const) {
+		test(`setBufferLineWrapped updates the active ${buffer} buffer`, async () => {
+			xterm.raw.resize(5, 3);
+			if (buffer === 'alternate') {
+				await write('\x1b[?1049h');
+			}
+			await write('12345678901');
+			const before = Array.from({ length: 3 }, (_, lineIndex) => xterm.raw.buffer.active.getLine(lineIndex)?.isWrapped);
+			xterm.setBufferLineWrapped(1, false);
+			const after = Array.from({ length: 3 }, (_, lineIndex) => xterm.raw.buffer.active.getLine(lineIndex)?.isWrapped);
+			deepStrictEqual({
+				activeBuffer: xterm.raw.buffer.active.type,
+				before,
+				after
+			}, {
+				activeBuffer: buffer,
+				before: [false, true, true],
+				after: [false, false, true]
+			});
+		});
+	}
 
 	for (const buffer of ['normal', 'alternate'] as const) {
 		test(`clearBuffer should ${buffer === 'normal' ? 'clear rich and partial command history including scrollback' : 'preserve normal-buffer command history and decorations when clearing the alternate buffer'}`, async () => {
@@ -432,6 +455,7 @@ suite('XtermTerminal', () => {
 		const iframe = document.createElement('iframe');
 		document.body.appendChild(iframe);
 		store.add(toDisposable(() => iframe.remove()));
+		store.add(registerTestIframe(iframe));
 		const auxiliaryDocument = iframe.contentDocument!;
 		const auxiliaryContainer = document.createElement('div');
 		auxiliaryDocument.body.appendChild(auxiliaryContainer);
@@ -475,6 +499,7 @@ suite('XtermTerminal', () => {
 		const iframe = document.createElement('iframe');
 		document.body.appendChild(iframe);
 		store.add(toDisposable(() => iframe.remove()));
+		store.add(registerTestIframe(iframe));
 		const auxiliaryDocument = iframe.contentDocument!;
 		const auxiliaryContainer = document.createElement('div');
 		auxiliaryDocument.body.appendChild(auxiliaryContainer);
@@ -509,6 +534,7 @@ suite('XtermTerminal', () => {
 		const iframe = document.createElement('iframe');
 		document.body.appendChild(iframe);
 		store.add(toDisposable(() => iframe.remove()));
+		store.add(registerTestIframe(iframe));
 		const auxiliaryContainer = document.createElement('div');
 		iframe.contentDocument!.body.appendChild(auxiliaryContainer);
 		auxiliaryContainer.appendChild(xterm.raw.element!);

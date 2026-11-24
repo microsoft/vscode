@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import type { SessionEvent, SessionEventPayload, ToolExecutionCompleteContentResource, ToolExecutionCompleteResult } from '@github/copilot-sdk';
+import type { SessionEvent, SessionEventPayload, ToolExecutionCompleteContentResource, ToolExecutionCompleteResult } from '@microsoft/copilot-sdk';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -77,6 +77,43 @@ suite('mapSessionEvents — history replay', () => {
 			[undefined, undefined, undefined],
 			['copilot-cli-v1', undefined, undefined],
 		]);
+	});
+
+	test('replays whether a native view call named a file or a directory', async () => {
+		const views: Record<string, { readonly viewType?: string; readonly success?: boolean }> = {
+			file: { viewType: 'file' },
+			directory: { viewType: 'directory' },
+			failed: { viewType: 'file', success: false },
+			unreported: {},
+		};
+		const events: ISessionEvent[] = [
+			{ type: 'user.message', data: { interactionId: 'message', content: 'Read files' } },
+			...Object.entries(views).flatMap(([toolCallId, { viewType, success = true }]): ISessionEvent[] => [
+				{ type: 'tool.execution_start', data: { toolCallId, toolName: 'view', arguments: { path: `/workspace/${toolCallId}` } } },
+				{ type: 'tool.execution_complete', data: { toolCallId, success, toolTelemetry: viewType ? { properties: { viewType } } : undefined } },
+			]),
+		];
+		const types = await Promise.all([undefined, new Set<string>()].map(async clientToolNames => {
+			const result = await mapSessionEvents(session, undefined, toSessionEvents(events), { clientToolNames });
+			return result.turns.flatMap(turn => turn.responseParts.flatMap(part =>
+				part.kind === ResponsePartKind.ToolCall ? [readToolCallMeta(part.toolCall)['vscode.viewedResourceType']] : []));
+		}));
+		assert.deepStrictEqual(types, [
+			[undefined, undefined, undefined, undefined],
+			['file', 'directory', undefined, undefined],
+		]);
+	});
+
+	test('replays a call to a tool the session does not offer with its own error code', async () => {
+		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents([
+			{ type: 'user.message', data: { interactionId: 'message', content: 'Read files' } },
+			{ type: 'tool.execution_start', data: { toolCallId: 'invented', toolName: 'view_range', arguments: {} } },
+			{ type: 'tool.execution_complete', data: { toolCallId: 'invented', success: false, error: { message: 'Tool \'view_range\' does not exist.', code: 'failure' }, toolTelemetry: { properties: { failure_reason: 'not_found' } } } },
+			{ type: 'tool.execution_start', data: { toolCallId: 'failed', toolName: 'view', arguments: { path: '/workspace/missing' } } },
+			{ type: 'tool.execution_complete', data: { toolCallId: 'failed', success: false, error: { message: 'Path does not exist', code: 'failure' } } },
+		]));
+		assert.deepStrictEqual(turns.flatMap(turn => turn.responseParts.flatMap(part =>
+			part.kind === ResponsePartKind.ToolCall && part.toolCall.status === ToolCallStatus.Completed ? [part.toolCall.error?.code] : [])), ['toolNotFound', 'failure']);
 	});
 
 	test('replays available MCP links through the recorded server channel', async () => {
@@ -796,7 +833,68 @@ suite('mapSessionEvents — history replay', () => {
 		});
 	}
 
+	test('restores completion notifications with the mapped child chats', async () => {
+		const chats = new Map([
+			['task-a', 'ahp-chat:/11111111-1111-5111-8111-111111111111'],
+			['task-b', 'ahp-chat:/22222222-2222-5222-8222-222222222222'],
+		]);
+		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents([
+			{ type: 'user.message', data: { content: 'Review' } },
+			{ type: 'system.notification', data: { content: 'Finished', kind: { type: 'agent_completed', agentId: 'agent-b', agentType: 'review', status: 'failed' } } },
+			{ type: 'subagent.started', agentId: 'agent-a', data: { toolCallId: 'task-a', agentName: 'review', agentDisplayName: 'First', agentDescription: '' } },
+			{ type: 'subagent.completed', agentId: 'agent-b', data: { toolCallId: 'task-b', agentName: 'review', agentDisplayName: 'Second' } },
+			{ type: 'system.notification', data: { content: 'Finished', kind: { type: 'agent_idle', agentId: 'agent-a', agentType: 'review' } } },
+		]), { resolveSubagentChatUri: toolCallId => chats.get(toolCallId)! });
+		assert.deepStrictEqual(turns.flatMap(turn => turn.responseParts.flatMap(part => part.kind === ResponsePartKind.SystemNotification ? [part.content] : [])), [
+			'[Second](ahp-chat:/22222222-2222-5222-8222-222222222222) failed',
+			'[First](ahp-chat:/11111111-1111-5111-8111-111111111111) is complete',
+		]);
+	});
+
 	for (const hasExecutionEvents of [true, false]) {
+		test(`restores linked read recipients (${hasExecutionEvents ? 'execution events' : 'tool request fallback'})`, async () => {
+			const parameters = { agent_id: 'renderer-agent', wait: false };
+			const chat = 'ahp-chat:/11111111-1111-5111-8111-111111111111';
+			const { turns } = await mapSessionEvents(session, undefined, toSessionEvents([
+				{ type: 'user.message', data: { content: 'Read the review.' } },
+				{ type: 'assistant.message', data: { messageId: 'read-request', content: '', toolRequests: [{ toolCallId: 'tc-read', name: 'read_agent', arguments: parameters }] } },
+				...(hasExecutionEvents ? [{ type: 'tool.execution_start', data: { toolCallId: 'tc-read', toolName: 'read_agent', arguments: parameters } }] : []),
+				{ type: 'tool.execution_complete', data: { toolCallId: 'tc-read', success: true } },
+				{ type: 'subagent.started', agentId: 'renderer-agent', data: { toolCallId: 'renderer-task', agentName: 'code-review', agentDisplayName: 'Renderer reviewer', agentDescription: '' } },
+			]), { resolveSubagentChatUri: () => chat });
+			assert.deepStrictEqual(turns.flatMap(turn => turn.responseParts.flatMap(part => part.kind === ResponsePartKind.ToolCall
+				&& part.toolCall.toolCallId === 'tc-read' && part.toolCall.status === ToolCallStatus.Completed
+				? [{ invocation: part.toolCall.invocationMessage, completed: part.toolCall.pastTenseMessage, input: part.toolCall.toolInput }]
+				: [])), [{
+					invocation: { markdown: `Read agent [Renderer reviewer](${chat})` },
+					completed: { markdown: `Read agent [Renderer reviewer](${chat})` },
+					input: JSON.stringify(parameters, null, 2),
+				}]);
+		});
+
+		test(`restores linked write recipients (${hasExecutionEvents ? 'execution events' : 'tool request fallback'})`, async () => {
+			const parameters = { agent_ids: ['renderer-agent', 'history-agent'], message: 'Follow up' };
+			const events: ISessionEvent[] = [
+				{ type: 'user.message', data: { content: 'Continue the review.' } },
+				{ type: 'assistant.message', data: { messageId: 'write-request', content: '', toolRequests: [{ toolCallId: 'tc-write', name: 'write_agent', arguments: parameters }] } },
+				...(hasExecutionEvents ? [{ type: 'tool.execution_start', data: { toolCallId: 'tc-write', toolName: 'write_agent', arguments: parameters } }] : []),
+				{ type: 'tool.execution_complete', data: { toolCallId: 'tc-write', success: true } },
+				{ type: 'subagent.started', agentId: 'renderer-agent', data: { toolCallId: 'renderer-task', agentName: 'code-review', agentDisplayName: 'Renderer reviewer', agentDescription: '' } },
+				{ type: 'subagent.completed', agentId: 'history-agent', data: { toolCallId: 'history-task', agentName: 'code-review', agentDisplayName: 'History reviewer' } },
+			];
+			const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events), {
+				resolveSubagentChatUri: toolCallId => `ahp-chat:/opaque/${toolCallId}`,
+			});
+			assert.deepStrictEqual(turns.flatMap(turn => turn.responseParts.flatMap(part => part.kind === ResponsePartKind.ToolCall
+				&& part.toolCall.toolCallId === 'tc-write' && part.toolCall.status === ToolCallStatus.Completed
+				? [{ invocation: part.toolCall.invocationMessage, completed: part.toolCall.pastTenseMessage, input: part.toolCall.toolInput }]
+				: [])), [{
+					invocation: { markdown: 'Write to agents [Renderer reviewer](ahp-chat:/opaque/renderer-task), [History reviewer](ahp-chat:/opaque/history-task)' },
+					completed: { markdown: 'Write to agents [Renderer reviewer](ahp-chat:/opaque/renderer-task), [History reviewer](ahp-chat:/opaque/history-task)' },
+					input: JSON.stringify(parameters, null, 2),
+				}]);
+		});
+
 		test(`restores write recipients from background completion notifications (${hasExecutionEvents ? 'execution events' : 'tool request fallback'})`, async () => {
 			const parameters = { agent_ids: ['renderer-agent', 'history-agent'], message: 'Follow up' };
 			const events: ISessionEvent[] = [
@@ -1443,6 +1541,25 @@ suite('mapSessionEvents — history replay', () => {
 				pastTenseMessage: displayName,
 				meta: { mcpServerName: 'GitHub', mcpToolName: 'issue_read' },
 			});
+		});
+	}
+
+	for (const source of ['toolRequest', 'execution_start'] as const) {
+		test(`restores the MCP server display name from ${source}`, async () => {
+			const serverName = 'github-copilot-connector-9839aae413778b24b512';
+			const toolName = `${serverName}-slack_read_thread`;
+			const mcp = { mcpServerName: serverName, mcpServerDisplayName: 'Slack', mcpToolName: 'slack_read_thread' };
+			const events: ISessionEvent[] = [
+				{ type: 'user.message', data: { interactionId: 'm1', content: 'Read the thread' } },
+				{ type: 'assistant.message', data: { messageId: 'm2', content: '', toolRequests: [{ toolCallId: 'tc-mcp', name: toolName, ...(source === 'toolRequest' ? mcp : {}) }] } },
+				...(source === 'execution_start' ? [{ type: 'tool.execution_start', data: { toolCallId: 'tc-mcp', toolName, ...mcp } } satisfies ISessionEvent] : []),
+				{ type: 'tool.execution_complete', data: { toolCallId: 'tc-mcp', success: true, result: { content: 'Thread' } } },
+			];
+
+			const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events));
+			const part = turns[0].responseParts[0];
+			assert.ok(part.kind === ResponsePartKind.ToolCall);
+			assert.deepStrictEqual(readToolCallMeta(part.toolCall), { mcpServerName: serverName, 'vscode.mcpServerDisplayName': 'Slack', mcpToolName: 'slack_read_thread' });
 		});
 	}
 
@@ -2564,6 +2681,25 @@ suite('mapSessionEvents — history replay', () => {
 			}
 		}
 	}
+
+	test('a message the host sent for an automation, an agent or itself starts a turn, unlike a runtime injection', async () => {
+		const events: ISessionEvent[] = [
+			{ type: 'user.message', id: 'automation-event', data: { content: 'Run the nightly task', source: 'automation-ahp-automation:/nightly', clientTurnId: 'turn-1' } },
+			{ type: 'assistant.message', data: { content: 'Done.', toolRequests: [] } },
+			{ type: 'user.message', id: 'injected-event', data: { content: 'Continue', source: 'system' } },
+			{ type: 'user.message', id: 'agent-event', data: { content: 'Review this', source: 'agent-copilot:/coordinator', clientTurnId: 'turn-2' } },
+			{ type: 'user.message', id: 'injected-agent-event', data: { content: 'Injected context', source: 'agent' } },
+			{ type: 'user.message', id: 'system-event', data: { content: 'Continue in the requested workspace.', source: 'system', clientTurnId: 'turn-3' } },
+		];
+
+		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events));
+
+		assert.deepStrictEqual(turns.map(turn => ({ id: turn.id, message: turn.message.text })), [
+			{ id: 'automation-event', message: 'Run the nightly task' },
+			{ id: 'agent-event', message: 'Review this' },
+			{ id: 'system-event', message: 'Continue in the requested workspace.' },
+		]);
+	});
 
 	test('synthetic user messages do not start a new turn', async () => {
 		const events: ISessionEvent[] = [

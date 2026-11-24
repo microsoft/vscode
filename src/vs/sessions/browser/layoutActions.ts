@@ -6,6 +6,7 @@
 import { alert } from '../../base/browser/ui/aria/aria.js';
 import { Codicon } from '../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../base/common/keyCodes.js';
+import { assertReturnsDefined } from '../../base/common/types.js';
 import { localize, localize2 } from '../../nls.js';
 import { Categories } from '../../platform/action/common/actionCommonCategories.js';
 import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../platform/actions/common/actions.js';
@@ -20,10 +21,86 @@ import { TogglePanelAction } from '../../workbench/browser/parts/panel/panelActi
 import { LayoutDensityMenu } from '../../workbench/browser/actions/layoutDensityActions.js';
 import { IsAuxiliaryWindowContext, IsWindowAlwaysOnTopContext, LayoutModeContext, PanelVisibleContext, SideBarVisibleContext } from '../../workbench/common/contextkeys.js';
 import { IWorkbenchLayoutService, Parts } from '../../workbench/services/layout/browser/layoutService.js';
-import { SessionsWelcomeVisibleContext, DesktopLayoutContext, IsPhoneLayoutContext } from '../../workbench/contrib/sessions/common/contextkeys.js';
+import { SessionsWelcomeVisibleContext, DesktopLayoutContext, IsPhoneLayoutContext, SessionActivityBarSizeContext } from '../../workbench/contrib/sessions/common/contextkeys.js';
+import { MenuActivityBarSize } from '../../workbench/browser/parts/activitybar/menuActivityBar.js';
+import { setSessionActivityBarSize } from '../../workbench/browser/parts/sessions/sessionActivityBarHost.js';
+import { IStorageService } from '../../platform/storage/common/storage.js';
 import { CustomViewVisibleContext, SessionActivityBarLayoutActionsContext } from '../common/agentsWindowContextKeys.js';
 import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
-import { SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING, SESSION_ACTIVITY_BAR_SETTING } from '../../workbench/contrib/sessions/common/sessionConfig.js';
+import { SESSION_ACTIVITY_BAR_FIXED_COLUMN_SETTING, SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING, SESSION_ACTIVITY_BAR_SETTING, SESSIONS_FLOATING_DETAILS_SETTING, SESSIONS_DETAILS_POSITION_SETTING } from '../../workbench/contrib/sessions/common/sessionConfig.js';
+
+MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
+	title: localize('detailsPosition', "Details Position"),
+	submenu: Menus.DetailsPosition,
+	group: '3_workbench_layout_move',
+	order: 7,
+	when: ContextKeyExpr.and(DesktopLayoutContext, IsPhoneLayoutContext.negate()),
+});
+
+for (const [position, title, menuTitle] of [
+	['left', localize2('detailsLeft', "Move Details Left"), localize('detailsPositionLeft', "Left")],
+	['right', localize2('detailsRight', "Move Details Right"), localize('detailsPositionRight', "Right")],
+	['top', localize2('detailsTop', "Move Details Above Editor"), localize('detailsPositionAbove', "Above Editor")],
+	['bottom', localize2('detailsBottom', "Move Details Below Editor"), localize('detailsPositionBelow', "Below Editor")],
+] as const) {
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: `workbench.action.agentSessions.detailsPosition.${position}`,
+				title,
+				category: Categories.View,
+				f1: true,
+				precondition: ContextKeyExpr.and(DesktopLayoutContext, IsPhoneLayoutContext.negate()),
+				toggled: ContextKeyExpr.and(
+					ContextKeyExpr.equals(`config.${SESSIONS_DETAILS_POSITION_SETTING}`, position),
+					ContextKeyExpr.notEquals(`config.${SESSIONS_FLOATING_DETAILS_SETTING}`, true),
+				),
+			});
+		}
+
+		override async run(accessor: ServicesAccessor): Promise<void> {
+			const configurationService = accessor.get(IConfigurationService);
+			await configurationService.updateValue(SESSIONS_DETAILS_POSITION_SETTING, position);
+			await configurationService.updateValue(SESSIONS_FLOATING_DETAILS_SETTING, false);
+		}
+	});
+	const positionCommand = {
+		...assertReturnsDefined(MenuRegistry.getCommand(`workbench.action.agentSessions.detailsPosition.${position}`)),
+		title: menuTitle,
+	};
+	const positionOrder = position === 'top' ? 1 : position === 'bottom' ? 2 : position === 'left' ? 3 : 4;
+	MenuRegistry.appendMenuItems([
+		{ id: Menus.DetailsPosition, item: { command: positionCommand, order: positionOrder } },
+		{ id: Menus.DetailsToggle, item: { command: positionCommand, group: '2_organize', order: positionOrder } },
+	]);
+}
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.agentSessions.toggleFloatingDetails',
+			title: localize2('floatingDetails', "Floating Details Panel"),
+			category: Categories.View,
+			f1: true,
+			precondition: ContextKeyExpr.and(DesktopLayoutContext, IsPhoneLayoutContext.negate()),
+			toggled: ContextKeyExpr.equals(`config.${SESSIONS_FLOATING_DETAILS_SETTING}`, true),
+		});
+	}
+
+	override run(accessor: ServicesAccessor): Promise<void> {
+		const configurationService = accessor.get(IConfigurationService);
+		return configurationService.updateValue(SESSIONS_FLOATING_DETAILS_SETTING, !configurationService.getValue<boolean>(SESSIONS_FLOATING_DETAILS_SETTING));
+	}
+});
+
+const floatingDetailsCommand = {
+	...assertReturnsDefined(MenuRegistry.getCommand('workbench.action.agentSessions.toggleFloatingDetails')),
+	title: localize('detailsPositionFloating', "Floating"),
+};
+MenuRegistry.appendMenuItems([
+	{ id: Menus.DetailsPosition, item: { command: floatingDetailsCommand, order: 5 } },
+	{ id: Menus.DetailsToggle, item: { command: floatingDetailsCommand, group: '2_organize', order: 5 } },
+]);
 
 MenuRegistry.appendMenuItem(AgentsWindowMenus.TitleBarContext, {
 	title: localize('layoutDensity', "Layout Density"),
@@ -83,10 +160,10 @@ registerAction2(class ToggleSessionActivityBarAction extends Action2 {
 MenuRegistry.appendMenuItem(Menus.SessionActivityBarContext, {
 	command: {
 		id: TOGGLE_SESSION_ACTIVITY_BAR_COMMAND_ID,
-		title: localize('hideSessionActivityBar', "Hide Session Activity Bar"),
+		title: localize('hideSessionActivityBarShort', "Hide"),
 	},
-	group: 'navigation',
-	order: 1,
+	group: '3_visibility',
+	order: 0,
 });
 
 export const TOGGLE_SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_COMMAND_ID = 'workbench.action.agentSessions.toggleSessionActivityBarLayoutActions';
@@ -115,9 +192,89 @@ MenuRegistry.appendMenuItem(Menus.SessionActivityBarContext, {
 		title: localize('showSessionActivityBarLayoutActions', "Show Layout Actions"),
 		toggled: ContextKeyExpr.equals(`config.${SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING}`, true),
 	},
-	group: 'navigation',
+	group: '1_layoutActions',
 	order: 0,
 });
+
+MenuRegistry.appendMenuItem(Menus.SessionActivityBarContext, {
+	title: localize('sessionActivityBarSize', "Size"),
+	submenu: Menus.SessionActivityBarSize,
+	group: '2_configure',
+	order: 1,
+	// The column of a chat window always shows the bar at the chosen size; the main window's only while docked.
+	when: ContextKeyExpr.and(DesktopLayoutContext, ContextKeyExpr.or(LayoutModeContext, ContextKeyExpr.equals(`config.${SESSION_ACTIVITY_BAR_FIXED_COLUMN_SETTING}`, true))),
+});
+
+export const TOGGLE_SESSION_ACTIVITY_BAR_FIXED_COLUMN_COMMAND_ID = 'workbench.action.agentSessions.toggleSessionActivityBarFixedColumn';
+
+registerAction2(class ToggleSessionActivityBarFixedColumnAction extends Action2 {
+	constructor() {
+		super({
+			id: TOGGLE_SESSION_ACTIVITY_BAR_FIXED_COLUMN_COMMAND_ID,
+			title: localize2('toggleSessionActivityBarFixedColumn', "Toggle Session Activity Bar Docked or Floating"),
+			category: Categories.View,
+			f1: true,
+			precondition: ContextKeyExpr.and(DesktopLayoutContext, ContextKeyExpr.equals(`config.${SESSION_ACTIVITY_BAR_SETTING}`, true)),
+			toggled: ContextKeyExpr.equals(`config.${SESSION_ACTIVITY_BAR_FIXED_COLUMN_SETTING}`, true),
+		});
+	}
+
+	override run(accessor: ServicesAccessor): Promise<void> {
+		const configurationService = accessor.get(IConfigurationService);
+		return configurationService.updateValue(SESSION_ACTIVITY_BAR_FIXED_COLUMN_SETTING, !configurationService.getValue<boolean>(SESSION_ACTIVITY_BAR_FIXED_COLUMN_SETTING));
+	}
+});
+
+MenuRegistry.appendMenuItem(Menus.SessionActivityBarContext, {
+	title: localize('sessionActivityBarPosition', "Position"),
+	submenu: Menus.SessionActivityBarPosition,
+	group: '2_configure',
+	order: 0,
+	// Chat windows always show the bar in a column of their own.
+	when: ContextKeyExpr.and(DesktopLayoutContext, LayoutModeContext.toNegated()),
+});
+
+for (const [docked, order, title] of [
+	[true, 0, localize2('sessionActivityBarPosition.docked', "Docked")],
+	[false, 1, localize2('sessionActivityBarPosition.floating', "Floating")],
+] as const) {
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: `workbench.action.agentSessions.setSessionActivityBarPosition.${docked ? 'docked' : 'floating'}`,
+				title,
+				precondition: DesktopLayoutContext,
+				toggled: ContextKeyExpr.equals(`config.${SESSION_ACTIVITY_BAR_FIXED_COLUMN_SETTING}`, docked),
+				menu: { id: Menus.SessionActivityBarPosition, order },
+			});
+		}
+
+		override run(accessor: ServicesAccessor): Promise<void> {
+			return accessor.get(IConfigurationService).updateValue(SESSION_ACTIVITY_BAR_FIXED_COLUMN_SETTING, docked);
+		}
+	});
+}
+
+for (const [size, order, title] of [
+	[MenuActivityBarSize.Normal, 0, localize2('sessionActivityBarSize.normal', "Normal")],
+	[MenuActivityBarSize.Compact, 1, localize2('sessionActivityBarSize.compact', "Compact")],
+] as const) {
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: `workbench.action.agentSessions.setSessionActivityBarSize.${size}`,
+				title,
+				precondition: DesktopLayoutContext,
+				toggled: SessionActivityBarSizeContext.isEqualTo(size),
+				menu: { id: Menus.SessionActivityBarSize, order },
+			});
+		}
+
+		override run(accessor: ServicesAccessor): void {
+			setSessionActivityBarSize(accessor.get(IStorageService), size);
+		}
+	});
+}
 
 // Register Icons
 const panelCloseIcon = registerIcon('agent-panel-close', Codicon.close, localize('agentPanelCloseIcon', "Icon to close the panel."));

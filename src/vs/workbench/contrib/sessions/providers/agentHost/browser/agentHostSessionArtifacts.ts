@@ -8,7 +8,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { readSessionArtifacts, SessionArtifactType, type ISessionArtifact as IProtocolSessionArtifact } from '../../../../../../platform/agentHost/common/sessionArtifacts.js';
 import type { SessionMeta } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { linkKey } from '../../../common/sessionLinks.js';
-import { SessionArtifactKind, type ISessionArtifact } from '../../../common/session.js';
+import { SessionArtifactKind, type ISessionArtifact } from '../../../../../services/sessions/common/session.js';
 import { parseGitHubArtifactLink } from '../../../common/github/sessionGitHubReferences.js';
 
 const kindByType: ReadonlyMap<SessionArtifactType, SessionArtifactKind> = new Map([

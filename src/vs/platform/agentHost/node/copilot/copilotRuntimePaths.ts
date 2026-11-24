@@ -10,6 +10,8 @@ import { URI } from '../../../../base/common/uri.js';
 export interface ICopilotRuntimePaths {
 	readonly runtimePath: string;
 	readonly sdkPath: string;
+	/** Base directory for plugins bundled with the SDK platform package. */
+	readonly pluginsPath: string;
 	readonly extensionSdkPath?: string;
 	readonly extensionBootstrapPath?: string;
 }
@@ -56,24 +58,24 @@ export async function resolveCopilotRuntimePaths(nodeModulesUri: URI): Promise<I
 		}
 	}
 
-	throw new Error(`Unable to resolve @github/copilot SDK runtime paths. Tried: ${tried.join(', ')}`);
+	throw new Error(`Unable to resolve @microsoft/copilot-sdk runtime paths. Tried: ${tried.join(', ')}`);
 }
 
 /**
- * Returns the folders that may hold the platform packages of `@github/copilot-sdk`: the `@github`
+ * Returns the folders that may hold the platform packages of `@microsoft/copilot-sdk`: the `@microsoft`
  * folder of `nodeModulesUri`, where the product build and a flat `node_modules` put them, and the
- * folder that holds the real path of `@github/copilot-sdk`, where a symlinked `node_modules` (pnpm's
+ * folder that holds the real path of `@microsoft/copilot-sdk`, where a symlinked `node_modules` (pnpm's
  * isolated layout) puts the optional dependencies of that package.
  */
 async function getCopilotSdkScopeCandidates(nodeModulesUri: URI): Promise<URI[]> {
-	const scopeUri = URI.joinPath(nodeModulesUri, '@github');
+	const scopeUri = URI.joinPath(nodeModulesUri, '@microsoft');
 	try {
 		const realScopeUri = URI.file(dirname(await fs.realpath(URI.joinPath(scopeUri, 'copilot-sdk').fsPath)));
 		if (realScopeUri.fsPath !== scopeUri.fsPath) {
 			return [scopeUri, realScopeUri];
 		}
 	} catch {
-		// No @github/copilot-sdk in this node_modules (for example in the packaged product's
+		// No @microsoft/copilot-sdk in this node_modules (for example in the packaged product's
 		// node_modules.asar.unpacked); only the platform packages are there.
 	}
 	return [scopeUri];
@@ -103,6 +105,7 @@ async function resolveCopilotRuntimePathsInPackage(packageUri: URI, platformPack
 		return {
 			runtimePath,
 			sdkPath,
+			pluginsPath: URI.joinPath(packageUri, 'plugins').fsPath,
 			...(extensionExists && extensionBootstrapExists ? {
 				extensionSdkPath: extensionSdkUri.fsPath,
 				extensionBootstrapPath,

@@ -24,14 +24,14 @@ import { getExcludes, ISearchConfiguration, ISearchService, QueryType } from '..
 import { IAgentFeedbackAddedEvent, IAgentFeedbackConvertedEvent, IAgentFeedbackReplyAddedEvent, IAgentFeedbackService, IAgentFeedbackSubmittedEvent } from '../../../../workbench/contrib/sessions/browser/agentFeedback.js';
 import { AgentFeedbackKind } from '../../../../workbench/contrib/sessions/browser/agentFeedbackModel.js';
 import { ISessionsTasksService } from '../../chat/browser/sessionsTasksService.js';
-import { IChat, ISession, ISessionWorkspace, SessionStatus } from '../../../../workbench/contrib/sessions/common/session.js';
+import { IChat, ISession, ISessionWorkspace, SessionStatus } from '../../../../workbench/services/sessions/common/session.js';
 import { ISendRequestSentEvent, ISessionsChangeEvent, ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { IFocusedSessionHostService } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { IFocusedSessionHostService } from '../../../../workbench/services/sessions/browser/sessionHost.js';
 import { ISendRequestOptions, ISessionChangesetOperationInvokedEvent, ISessionsProvider } from '../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { classifySessionWorkspaceTopology, getNonArchivedSessionListCount, getSessionsTelemetryProviderId, hashSessionIdForTelemetry } from '../../../../workbench/contrib/sessions/common/sessionsTelemetry.js';
-import { ISessionsPartService } from '../../../../workbench/contrib/sessions/browser/sessionsPartService.js';
+import { ISessionsPartService } from '../../../../workbench/services/sessions/browser/sessionsPartService.js';
 import { ISessionsWindowUsageService } from '../../../services/sessions/browser/sessionsWindowUsageService.js';
 import { getSessionsTelemetryCopilotSku } from './sessionsAccountTelemetry.js';
 import { ISessionLifecycleSummary, SessionDoneReason, SessionsLifecycleTracker } from './sessionsLifecycleTracker.js';
@@ -321,7 +321,7 @@ export class SessionsTelemetryContribution extends Disposable implements IWorkbe
 		}
 
 		const allSessions = this._sessionsManagementService.getSessions();
-		const visibleSessionsCount = this._sessionsService.visibleSessions.get().filter(s => s !== undefined).length;
+		const visibleSessionsCount = this._sessionsService.slotPanes.get().filter(pane => pane.session.get() !== undefined).length;
 		const nonArchivedSessionListCount = getNonArchivedSessionListCount(allSessions);
 		// Snapshot all synchronous fields now so the event reflects the state at
 		// the time of the send, not when the async file-count fetch resolves.

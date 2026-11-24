@@ -26,6 +26,7 @@ import {
 	type ITunnelDiscoveryOptions,
 	type ITunnelVisibility,
 	type TunnelAutoConnectMode,
+	type TunnelGatewayServerType,
 } from '../../../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -202,7 +203,7 @@ export class WebTunnelAgentHostService extends Disposable implements ITunnelAgen
 				results.push(info);
 			}
 
-			const withActiveHost = results.filter(t => t.hostConnectionCount > 0).length;
+			const withActiveHost = results.filter(t => t.hostConnectionCount !== undefined && t.hostConnectionCount > 0).length;
 			this._logService.info(
 				`${LOG_PREFIX} Discovery complete: total=${discovered.length}, accepted=${results.length}, withActiveHost=${withActiveHost}, droppedByProtocolVersion=${droppedByProtocolVersion}, droppedMissingIds=${withoutIds}`
 			);
@@ -336,6 +337,11 @@ export class WebTunnelAgentHostService extends Disposable implements ITunnelAgen
 		await this._remoteAgentHostService.removeRemoteAgentHost(address);
 	}
 
+	getSelectedServerType(_address: string): TunnelGatewayServerType | 'unknown' | undefined {
+		// The embedder's discovery provider connects without reporting the gateway's selection.
+		return undefined;
+	}
+
 	// Auth
 
 	async getAuthProvider(options?: { silent?: boolean }): Promise<'github' | 'microsoft' | undefined> {
@@ -362,6 +368,10 @@ export class WebTunnelAgentHostService extends Disposable implements ITunnelAgen
 			protocolVersion: tunnel.protocolVersion,
 			authProvider,
 		});
+	}
+
+	updateCachedTunnel(tunnel: ITunnelInfo): void {
+		this._storage.updateCachedTunnel(tunnel);
 	}
 
 	removeCachedTunnel(tunnelId: string): void {

@@ -13,35 +13,37 @@ import { URI } from '../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { ArtifactRecord, getArtifactActionAvailability, IArtifactDetailsModel, isArtifactRunSettled } from '../../../artifactIntegrations/common/artifactIntegration.js';
+import { ArtifactRecord, IArtifactDetailsModel, getArtifactActionAvailability, isArtifactRunSettled } from '../../../artifactIntegrations/common/artifactIntegration.js';
 import { ArtifactIntegrationRegistry } from '../../../artifactIntegrations/common/artifactIntegrationRegistry.js';
 import { ArtifactIntegrationService } from '../../../artifactIntegrations/common/artifactIntegrationService.js';
-import { ArtifactPromptOutcome, ArtifactPromptRequest, ArtifactPromptState, IArtifactIntegrationStorage, IArtifactRuntime } from '../../../artifactIntegrations/common/artifactRuntime.js';
-import { GitHubCredentialInvalidation, IGitHubCredentials } from '../../../github/common/githubCredentialService.js';
+import { ArtifactAutomationNotice, ArtifactPromptOutcome, ArtifactPromptRequest, ArtifactPromptState, IArtifactIntegrationStorage, IArtifactRuntime } from '../../../artifactIntegrations/common/artifactRuntime.js';
+import { RepositoryRef } from '../../../github/common/client/types.js';
 import { IActionsClient, WorkflowJob, WorkflowRun } from '../../../github/common/core/actions.js';
 import { IPullRequestsClient } from '../../../github/common/core/pullRequests.js';
 import { IReviewsClient } from '../../../github/common/core/reviews.js';
-import { RepositoryRef } from '../../../github/common/client/types.js';
+import { GitHubCredentialInvalidation, IGitHubCredentials } from '../../../github/common/githubCredentialService.js';
+import { PullRequestMutationApi } from '../../../github/common/githubPullRequestMutationService.js';
+import { PullRequestMergeQueueRemoval, PullRequestSnapshot } from '../../../github/common/githubPullRequestService.js';
 import { IGitHubClient } from '../../../github/common/githubService.js';
 import { GitHubRequestError } from '../../../github/common/githubTransport.js';
-import { PullRequestMutationApi } from '../../../github/common/githubPullRequestMutationService.js';
 import { IPullRequestResources } from '../../../github/common/pullRequestResourceService.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
-import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js';
+import { IAgentHostGitService } from '../../common/agentHostGitService.js';
+import { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
 import { AgentHostGitHubArtifactIgnoredChecksConfigKey, platformSessionSchema } from '../../common/agentHostSchema.js';
 import { arePullRequestArtifactChecksReady, gitHubPullRequestArtifactIntegrationId, gitHubPullRequestArtifactWorkspaceSettingsKey } from '../../common/githubPullRequestArtifact.js';
-import { AuthRequiredParams, AuthRequiredReason, NotificationType } from '../../common/state/sessionActions.js';
+import { ActionType, AuthRequiredParams, AuthRequiredReason, NotificationType } from '../../common/state/sessionActions.js';
 import { AhpErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
-import { buildChatUri, buildDefaultChatUri, SessionStatus } from '../../common/state/sessionState.js';
+import { MessageKind, SessionStatus, buildChatUri, buildDefaultChatUri } from '../../common/state/sessionState.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
-import { AgentHostGitHubService } from '../../node/agentHostGitHubService.js';
 import { AgentHostGitHubEndpointService } from '../../node/agentHostGitHubEndpointService.js';
+import { AgentHostGitHubService } from '../../node/agentHostGitHubService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentHostArtifactEventService } from '../../node/artifactIntegrations/agentHostArtifactRuntime.js';
-import { getPullRequestGroupPresentation, GitHubPullRequestArtifactIntegration } from '../../node/artifactIntegrations/githubPullRequestArtifactIntegration.js';
+import { GitHubPullRequestArtifactIntegration, getPullRequestGroupPresentation } from '../../node/artifactIntegrations/githubPullRequestArtifactIntegration.js';
 import { createPullRequestArtifactSnapshot } from '../common/githubPullRequestArtifactTestUtils.js';
 import { createTestGitHubService } from './testGitHubService.js';
 
@@ -104,7 +106,7 @@ async function fixture(store: DisposableStore, initial = createPullRequestArtifa
 			if (credentialError) {
 				throw credentialError;
 			}
-			return { account: { host: URI.parse(endpoint.getApiBaseUri()).authority, accountId }, token: 'test-token', generation: 1, signal: new AbortController().signal };
+			return { account: { host: URI.parse(endpoint.getApiBaseUri()).authority, accountId }, token: 'test-token', generation: 1, cancellationToken: CancellationToken.None };
 		}
 	}();
 	const client = new class extends mock<IGitHubClient>() {
@@ -142,7 +144,7 @@ async function fixture(store: DisposableStore, initial = createPullRequestArtifa
 			}
 		}();
 	}();
-	const github = createTestGitHubService(client, Event.map(invalidated.event, () => undefined), {
+	const github = createTestGitHubService(client, Event.map(Event.filter(invalidated.event, event => event.reason !== 'reauthorization'), () => undefined), {
 		actions: new class extends mock<IActionsClient>() {
 			override async getRun(_repository: RepositoryRef, runId: number) {
 				return upcastPartial<WorkflowRun>({ id: runId, status: workflowStatus });
@@ -193,13 +195,19 @@ async function fixture(store: DisposableStore, initial = createPullRequestArtifa
 		const isolatedGithub = store.add(new AgentHostGitHubService({}, authentication, endpoint, logService, NullTelemetryService));
 		github.captureSessionCredentialSource = (...args) => isolatedGithub.captureSessionCredentialSource(...args);
 	}
-	const integration = new GitHubPullRequestArtifactIntegration(github, git, stateManager, configuration, events, logService, endpoint);
+	const gitRefreshes = store.add(new Emitter<string>());
+	const gitState = new class extends mock<IAgentHostGitStateService>() {
+		override readonly onDidRefreshSessionGitState = gitRefreshes.event;
+	};
+	const integration = new GitHubPullRequestArtifactIntegration(github, git, stateManager, configuration, events, logService, endpoint, gitState);
 	const registry = store.add(new ArtifactIntegrationRegistry());
 	store.add(registry.register(integration, 'test'));
 	let stored: string | undefined;
+	const notices: ArtifactAutomationNotice[] = [];
 	const runtime: IArtifactRuntime = {
 		authority: { id: 'test', targetHost: 'self', location: 'host' },
 		available: constObservable(true),
+		postNotice: async notice => { notices.push(notice); },
 		isOwner: () => !store.isDisposed,
 		acquireSession: async () => ({ object: constObservable({ availability: { kind: 'available' as const }, archived: false, artifacts: [artifact] }), dispose: () => { } }),
 		authorize: async () => ({ kind: 'allowed' }),
@@ -234,7 +242,7 @@ async function fixture(store: DisposableStore, initial = createPullRequestArtifa
 	await timeout(100);
 	let request = 0;
 	return {
-		model, service, runtime, integration, snapshot, artifact, session, chat, directory, configuration, mutations, prompts, stateManager, authenticationRequests, endpoint, checkoutRequests, logService, storage,
+		model, service, runtime, integration, snapshot, artifact, session, chat, directory, configuration, mutations, prompts, notices, stateManager, authenticationRequests, endpoint, checkoutRequests, logService, storage,
 		setCheckout: (value: { branch?: string; commit?: string; dirty?: boolean; remote?: string; directory?: string }) => {
 			if (value.directory) {
 				branches.set(value.directory, value.branch ?? branch);
@@ -244,14 +252,19 @@ async function fixture(store: DisposableStore, initial = createPullRequestArtifa
 			commit = value.commit ?? commit;
 			dirty = value.dirty ?? dirty;
 			remote = value.remote ?? remote;
+			// A checkout that changed is announced by the Git state refresh that observed it.
+			gitRefreshes.fire(session);
 			configuration.updateSessionConfig(session, { checkoutRevision: ++request });
 		},
+		refreshGitState: () => gitRefreshes.fire(session),
 		setAccount: (id: string) => { accountId = id; invalidated.fire({ reason: 'account' }); },
 		reauthenticate: () => {
 			credentialError = undefined;
 			acquireError = undefined;
 			invalidated.fire({ reason: 'replacement' });
 		},
+		/** Same-token reauthorization: the credential and repository client are kept. */
+		reauthorize: () => invalidated.fire({ reason: 'reauthorization' }),
 		onRefresh: (hook: () => void | Promise<void>) => { refreshHook = hook; },
 		onMutation: (hook: () => void | Promise<void>) => { mutationHook = hook; },
 		onPrepareMerge: (hook: () => Promise<void>) => { prepareMergeHook = hook; },
@@ -269,6 +282,18 @@ async function fixture(store: DisposableStore, initial = createPullRequestArtifa
 			await completePrompt(kind);
 			await timeout(100);
 		},
+	};
+}
+
+/** A pull request whose base branch requires a merge queue, at `headSha`, which last left the queue with `removal`. */
+function removedFromQueue(removal: PullRequestMergeQueueRemoval | undefined, headSha = 'head'): PullRequestSnapshot {
+	const base = createPullRequestArtifactSnapshot();
+	return {
+		...base,
+		core: { ...base.core, value: { ...base.core.value!, headSha } },
+		checks: { ...base.checks, headSha, value: { ...base.checks.value!, headSha } },
+		reviewThreads: { ...base.reviewThreads, headSha },
+		mergeability: { ...base.mergeability, headSha, value: { ...base.mergeability.value!, headSha, mergeQueueRequired: true, ...removal ? { mergeQueueRemoval: removal } : {} } },
 	};
 }
 
@@ -442,7 +467,7 @@ suite('GitHub pull request artifact integration', () => {
 	}));
 
 	for (const fragment of ['core', 'checks', 'reviewThreads', 'mergeability'] as const) {
-		test(`requests repository authorization for a SAML refusal in ${fragment}`, () => run(async store => {
+		test(`offers single sign-on authorization without challenging repository credentials for a SAML refusal in ${fragment}`, () => run(async store => {
 			const base = createPullRequestArtifactSnapshot();
 			const refused = {
 				...base,
@@ -473,7 +498,7 @@ suite('GitHub pull request artifact integration', () => {
 				recovery,
 				prompts: f.prompts, mutations: f.mutations,
 			}, {
-				requests: [{ resource: f.endpoint.getRepoResource(), reason: AuthRequiredReason.Required }],
+				requests: [],
 				availability: { kind: 'authenticationRequired', reason: message },
 				loadingAvailability: { kind: 'authenticationRequired', reason: message },
 				details: { kind: 'authenticationRequired', reason: message },
@@ -484,7 +509,7 @@ suite('GitHub pull request artifact integration', () => {
 			f.snapshot.set(base, undefined);
 			const recovered = f.model.snapshot.get().contributions[0].view.availability;
 			f.snapshot.set(refused, undefined);
-			assert.deepStrictEqual({ recovered, requests: f.authenticationRequests.length }, { recovered: { kind: 'available' }, requests: 2 });
+			assert.deepStrictEqual({ recovered, requests: f.authenticationRequests.length }, { recovered: { kind: 'available' }, requests: 0 });
 		}));
 	}
 
@@ -501,10 +526,16 @@ suite('GitHub pull request artifact integration', () => {
 				await f.invoke('markReady');
 			}
 
-			assert.deepStrictEqual(f.model.snapshot.get().contributions[0].view.availability, {
-				kind: 'authenticationRequired',
-				reason: 'Authorize your GitHub account for octo\'s single sign-on to see the state of this pull request.',
-				authorizationUrl: ssoAuthorizationUrl,
+			assert.deepStrictEqual({
+				availability: f.model.snapshot.get().contributions[0].view.availability,
+				requests: f.authenticationRequests,
+			}, {
+				availability: {
+					kind: 'authenticationRequired',
+					reason: 'Authorize your GitHub account for octo\'s single sign-on to see the state of this pull request.',
+					authorizationUrl: ssoAuthorizationUrl,
+				},
+				requests: [],
 			});
 		}));
 	}
@@ -594,7 +625,7 @@ suite('GitHub pull request artifact integration', () => {
 		f.snapshot.set({
 			...base,
 			checks: { ...base.checks, value: { ...base.checks.value!, checks: [{ id: 'ci', name: 'CI', type: 'checkRun', status: 'COMPLETED', conclusion: 'FAILURE' }] } },
-			mergeability: { ...base.mergeability, status: 'error', complete: false, error: { kind: 'authorization', message: 'Resource protected by organization SAML enforcement.' } },
+			mergeability: { ...base.mergeability, status: 'error', complete: false, error: { kind: 'authorization', message: 'Repository access denied' } },
 		}, undefined);
 		await timeout(100);
 		const blockedPrompts = f.prompts.length;
@@ -614,7 +645,7 @@ suite('GitHub pull request artifact integration', () => {
 			const base = createPullRequestArtifactSnapshot();
 			const draft = { ...base, core: { ...base.core, value: { ...base.core.value!, draft: true } } };
 			const f = await fixture(store, draft);
-			const fail = () => { throw new GitHubRequestError('Resource protected by organization SAML enforcement.', 'authorization', 403); };
+			const fail = () => { throw new GitHubRequestError('Repository access denied', 'authorization', 403); };
 			if (phase === 'refresh') {
 				f.onRefresh(fail);
 			} else if (phase === 'dispatchRefresh') {
@@ -638,7 +669,7 @@ suite('GitHub pull request artifact integration', () => {
 				refused, requests: f.authenticationRequests.length, mutations: f.mutations,
 				runs: f.service.ledger.state.get().runs.length,
 			}, {
-				refused: { kind: 'authenticationRequired', reason: 'Authorize your GitHub account for octo\'s single sign-on to see the state of this pull request.' },
+				refused: { kind: 'authenticationRequired', reason: 'Sign in to GitHub to see the state of this pull request.' },
 				requests: 1, mutations: [], runs: 1,
 			});
 		}));
@@ -671,6 +702,34 @@ suite('GitHub pull request artifact integration', () => {
 		const f = await fixture(store, { ...base, core: { ...base.core, status: 'error', complete: false, error: { kind: 'server', message: 'Temporarily unavailable' } } });
 		f.snapshot.set({ ...base, checks: { ...base.checks, status: 'error', complete: false, error: { kind: 'rateLimit', message: 'Retry later' } } }, undefined);
 		assert.deepStrictEqual(f.authenticationRequests, []);
+	}));
+
+	test('revalidates an action refusal after same-token reauthorization without replaying the action', () => run(async store => {
+		const base = createPullRequestArtifactSnapshot();
+		const f = await fixture(store, { ...base, core: { ...base.core, value: { ...base.core.value!, draft: true } } });
+		f.onMutation(() => { throw new GitHubRequestError('Repository access denied', 'authorization', 403); });
+		await f.invoke('markReady');
+		const refused = f.model.snapshot.get().contributions[0].view.availability.kind;
+		let revalidations = 0;
+		f.onMutation(() => { });
+		f.onRefresh(() => { revalidations++; f.snapshot.set({ ...f.snapshot.get() }, undefined); });
+		f.reauthorize();
+		await waitForState(f.model.snapshot, snapshot => snapshot.contributions[0]?.view.availability.kind === 'available');
+		assert.deepStrictEqual({ refused, revalidated: revalidations > 0, requests: f.authenticationRequests.length, mutations: f.mutations },
+			{ refused: 'authenticationRequired', revalidated: true, requests: 1, mutations: [] });
+	}));
+
+	test('clears sign-in once the pull request loads again even while another fragment keeps failing', () => run(async store => {
+		const base = createPullRequestArtifactSnapshot();
+		const f = await fixture(store, { ...base, core: { ...base.core, status: 'error', complete: false, error: { kind: 'authentication', message: 'Bad credentials' } } });
+		const availability = () => f.model.snapshot.get().contributions[0].view.availability;
+		const refused = availability();
+		f.snapshot.set({ ...base, checks: { ...base.checks, status: 'loading', complete: false } }, undefined);
+		const loading = availability();
+		f.snapshot.set({ ...base, checks: { ...base.checks, status: 'error', complete: false, error: { kind: 'overloaded', message: 'GitHub request capacity exceeded' } } }, undefined);
+		const settled = availability();
+		const signIn = { kind: 'authenticationRequired', reason: 'Sign in to GitHub to see the state of this pull request.' };
+		assert.deepStrictEqual({ refused, loading, settled, requests: f.authenticationRequests.length }, { refused: signIn, loading: signIn, settled: { kind: 'available' }, requests: 1 });
 	}));
 
 	test('keeps CI visible for open/draft PRs and comments only when qualifying threads remain', () => run(async store => {
@@ -727,7 +786,7 @@ suite('GitHub pull request artifact integration', () => {
 		}
 		const registered = [
 			['fixCI', 'Fix Checks'], ['addressReviews', 'Address Comments'],
-			['resolveConflicts', 'Resolve Conflicts / Update Branch'], ['markReady', 'Mark Ready'], ['merge', 'Merge'],
+			['resolveConflicts', 'Resolve Conflicts / Update Branch'], ['markReady', 'Mark Ready'], ['merge', 'Merge'], ['enqueue', 'Add to Merge Queue'],
 		];
 		assert.deepStrictEqual(states, [
 			{ actions: [['fixCI', true], ['addressReviews', true], ['resolveConflicts', true], ['markReady', true]], details: [['resolveConflicts', 'markReady'], ['fixCI'], ['addressReviews']], registered },
@@ -782,6 +841,28 @@ suite('GitHub pull request artifact integration', () => {
 		}));
 	}
 
+	test('probes the checkout once for unchanged inputs and again after a Git state refresh or a turn end', () => run(async store => {
+		const open = itemActionSnapshot();
+		const f = await fixture(store, open);
+		await f.model.configure(gitHubPullRequestArtifactIntegrationId, 0, { merge: 'ifUnchanged' });
+		await timeout(100);
+		const initial = f.checkoutRequests.length;
+
+		for (let i = 0; i < 10; i++) {
+			f.snapshot.set({ ...open }, undefined);
+			await timeout(60);
+		}
+		const afterEvents = f.checkoutRequests.length - initial;
+		f.refreshGitState();
+		await timeout(100);
+		const afterGitRefresh = f.checkoutRequests.length - initial;
+		f.stateManager.dispatchServerAction(f.chat, { type: ActionType.ChatTurnStarted, turnId: 'turn', startedAt: new Date().toISOString(), message: { text: 'Fix it', origin: { kind: MessageKind.User } } });
+		f.stateManager.dispatchServerAction(f.chat, { type: ActionType.ChatTurnComplete, turnId: 'turn', duration: 1 });
+		await timeout(100);
+
+		assert.deepStrictEqual({ afterEvents, afterGitRefresh, afterTurnEnd: f.checkoutRequests.length - initial }, { afterEvents: 0, afterGitRefresh: 1, afterTurnEnd: 2 });
+	}));
+
 	test('does not publish an in-flight checkout after the pull request closes', () => run(async store => {
 		const open = itemActionSnapshot();
 		const closed = { ...open, core: { ...open.core, value: { ...open.core.value!, state: 'closed' as const } } };
@@ -811,6 +892,33 @@ suite('GitHub pull request artifact integration', () => {
 		});
 	}));
 
+	test('probes the checkout again when the pull request reopens after closing during a probe', () => run(async store => {
+		const open = itemActionSnapshot();
+		const closed = { ...open, core: { ...open.core, value: { ...open.core.value!, state: 'closed' as const } } };
+		const f = await fixture(store, open);
+		await f.model.configure(gitHubPullRequestArtifactIntegrationId, 0, { merge: 'ifUnchanged' });
+		await timeout(100);
+		const initial = f.checkoutRequests.length;
+		const entered = new DeferredPromise<void>();
+		const resume = new DeferredPromise<void>();
+		f.onCheckout(async () => {
+			await entered.complete();
+			await resume.p;
+		});
+		f.refreshGitState();
+		await entered.p;
+		f.snapshot.set(closed, undefined);
+		// The close is observed while the probe is pending.
+		await timeout(100);
+		await resume.complete();
+		await timeout(0);
+		f.onCheckout(undefined);
+		f.snapshot.set(open, undefined);
+		await timeout(100);
+
+		assert.strictEqual(f.checkoutRequests.length - initial, 2);
+	}));
+
 	test('keeps an applicable merge action visible when permissions prevent execution', () => run(async store => {
 		const base = createPullRequestArtifactSnapshot();
 		const f = await fixture(store, {
@@ -820,6 +928,164 @@ suite('GitHub pull request artifact integration', () => {
 			id: 'merge', enabled: false,
 			disabledReason: 'GitHub has not confirmed that this pull request can be merged, or it is already queued for merging.',
 		}]);
+	}));
+
+	test('shows why a pull request left the merge queue and lets Fix Checks repair the checks that failed only there', () => run(async store => {
+		const failed = { id: '2', name: 'Windows / Electron-Unit', type: 'checkRun' as const, status: 'COMPLETED', conclusion: 'FAILURE', detailsUrl: 'https://github.com/octo/repo/actions/runs/9/job/2' };
+		const f = await fixture(store, removedFromQueue({ id: 'R1', reason: 'failed_checks', removedAt: '2026-11-17T07:09:23Z', mergeGroupSha: 'group-sha', failedChecks: [failed] }));
+		const queue = store.add(await f.model.acquireDetails(gitHubPullRequestArtifactIntegrationId, 'mergeQueue'));
+		const view = f.model.snapshot.get().contributions[0].view;
+		const presented = {
+			main: view.main?.description,
+			sections: view.sections.map(section => [section.id, section.icon.id, section.label, section.detailsId]),
+			lists: view.lists?.map(list => list.id),
+			actions: view.stateActions.map(action => [action.id, action.enabled]),
+			queue: [queue.details.get().title, queue.details.get().items.map(item => [item.label, item.resource]), queue.details.get().links],
+		};
+		await f.invoke('fixCI');
+		const prompt = f.prompts[0];
+		await f.finishPrompt();
+		assert.deepStrictEqual({
+			presented,
+			prompt: prompt.prompt.text.includes('failed on its merge group commit group-sha') && prompt.prompt.text.includes(JSON.stringify(failed)),
+			promptDetails: prompt.presentation?.details.map(details => [details.title, details.items.map(item => item.label)]),
+		}, {
+			presented: {
+				main: 'Removed from merge queue: Example change',
+				sections: [['mergeQueue', 'error-compact', 'Removed: checks failed', 'mergeQueue'], ['checks', 'pass-filled-compact', '1/1', 'checks']],
+				lists: ['checks', 'comments', 'mergeQueue'],
+				actions: [['fixCI', true], ['enqueue', true]],
+				queue: ['Merge Queue (1 failed)', [['Windows / Electron-Unit', failed.detailsUrl]], [{ kind: 'action', actionId: 'fixCI' }, { kind: 'automation', optionId: 'fixCI' }]],
+			},
+			prompt: true,
+			promptDetails: [['Failing Merge Queue Checks (1)', ['Windows / Electron-Unit']]],
+		});
+	}));
+
+	for (const reason of ['failed_checks', 'merge_conflict', 'manual', 'timed_out'] as const) {
+		test(`automatic merging re-adds a pull request removed from the merge queue (${reason}) only when allowed`, () => run(async store => {
+			const removal = (id: string) => ({ id, reason, removedAt: '2026-11-17T07:09:23Z', ...reason === 'manual' ? { removedBy: 'octocat' } : {} });
+			const f = await fixture(store, removedFromQueue(removal('R1')));
+			await f.model.configure(gitHubPullRequestArtifactIntegrationId, 0, { merge: 'always' });
+			await timeout(1_000);
+			await f.service.whenIdle();
+			const sameCommit = [...f.mutations];
+			// The merge queue removes the same commit again.
+			f.snapshot.set(removedFromQueue(removal('R2')), undefined);
+			await timeout(1_000);
+			await f.service.whenIdle();
+			const again = [...f.mutations];
+			// A new commit is a new candidate for the queue.
+			f.snapshot.set(removedFromQueue(undefined, 'head-2'), undefined);
+			await timeout(1_000);
+			await f.service.whenIdle();
+			assert.deepStrictEqual({ sameCommit, again, newCommit: f.mutations }, reason === 'timed_out'
+				? { sameCommit: ['queue'], again: ['queue'], newCommit: ['queue', 'queue'] }
+				: { sameCommit: [], again: [], newCommit: ['queue'] });
+		}));
+	}
+
+	test('automatic merging does not re-add a pull request whose removal changes while the run prepares', () => run(async store => {
+		const timedOut = { id: 'R1', reason: 'timed_out', removedAt: '2026-11-17T07:09:23Z' };
+		const f = await fixture(store, removedFromQueue(timedOut));
+		// A person removes the same commit again after the run was scheduled for the timeout.
+		f.onPrepareMerge(async () => {
+			f.snapshot.set(removedFromQueue({ id: 'R2', reason: 'manual', removedAt: '2026-11-17T07:19:23Z', removedBy: 'octocat' }), undefined);
+		});
+		await f.model.configure(gitHubPullRequestArtifactIntegrationId, 0, { merge: 'always' });
+		await timeout(1_000);
+		await f.service.whenIdle();
+		assert.deepStrictEqual({
+			mutations: f.mutations,
+			runs: f.service.ledger.state.get().runs.map(run => [run.actionId, run.state]),
+		}, { mutations: [], runs: [['merge', 'skipped']] });
+	}));
+
+	test('automation reconciles an uncertain manual Add to Merge Queue once GitHub confirms the merge', () => run(async store => {
+		const queueRequired = removedFromQueue(undefined);
+		const f = await fixture(store, queueRequired);
+		f.onMerge(async () => { throw new GitHubRequestError('GitHub unavailable', 'network'); });
+		const uncertain = await f.invoke('enqueue');
+		await f.model.configure(gitHubPullRequestArtifactIntegrationId, 0, { merge: 'always' });
+		f.snapshot.set({ ...queueRequired, core: { ...queueRequired.core, value: { ...queueRequired.core.value!, state: 'merged' } } }, undefined);
+		await timeout(31_000);
+		await f.service.whenIdle();
+		assert.deepStrictEqual({
+			uncertain: [uncertain.state, !!uncertain.indeterminate],
+			runs: f.service.ledger.state.get().runs.map(run => [run.actionId, run.state, !!run.indeterminate]),
+			mutations: f.mutations,
+		}, { uncertain: ['interrupted', true], runs: [['enqueue', 'completed', false]], mutations: [] });
+	}));
+
+	test('posts one notice when a pull request it saw in the merge queue leaves it without merging', () => run(async store => {
+		const queued = removedFromQueue(undefined);
+		const inQueue = { ...queued, mergeability: { ...queued.mergeability, complete: false, value: { ...queued.mergeability.value!, mergeable: 'UNKNOWN' as const, mergeQueueEntryId: 'MQE1', mergeQueueEntryState: 'AWAITING_CHECKS' as const } } };
+		const removed = removedFromQueue({ id: 'R1', reason: 'manual', removedAt: '2026-11-17T07:09:23Z', removedBy: 'octocat' });
+		// A pull request that already left the queue when it was recorded posts nothing.
+		const f = await fixture(store, removed);
+		await timeout(100);
+		const recorded = f.notices.length;
+		f.snapshot.set(inQueue, undefined);
+		await timeout(100);
+		f.snapshot.set(removed, undefined);
+		await timeout(100);
+		f.snapshot.set({ ...removed }, undefined);
+		f.snapshot.set(inQueue, undefined);
+		await timeout(100);
+		f.snapshot.set({ ...queued, core: { ...queued.core, value: { ...queued.core.value!, state: 'merged' } } }, undefined);
+		await timeout(100);
+		assert.deepStrictEqual({ recorded, notices: f.notices.map(notice => [notice.kind, notice.content, notice.artifact.origin?.chat]) }, {
+			recorded: 0,
+			notices: [['status', '\\#42: octocat removed it from the merge queue. It is not added to the queue again automatically until it changes.', f.chat]],
+		});
+	}));
+
+	test('offers adding a ready pull request to a required merge queue, then shows its queue entry instead of an action', () => run(async store => {
+		const base = createPullRequestArtifactSnapshot();
+		const queueRequired = { ...base, mergeability: { ...base.mergeability, value: { ...base.mergeability.value!, mergeQueueRequired: true } } };
+		const f = await fixture(store, queueRequired);
+		const main = store.add(await f.model.acquireDetails(gitHubPullRequestArtifactIntegrationId, 'main'));
+		const presentation = () => {
+			const view = f.model.snapshot.get().contributions[0].view;
+			return {
+				main: view.main?.description,
+				queue: view.sections.filter(section => section.id === 'mergeQueue').map(section => [section.icon.id, section.label, section.description]),
+				actions: view.stateActions.map(action => [action.id, action.enabled, action.disabledReason]),
+				details: [main.details.get().description, main.details.get().links.flatMap(link => link.kind === 'action' ? [link.actionId] : [])],
+			};
+		};
+		const ready = presentation();
+		// A push invalidates mergeability, but the base branch still requires the queue while the new head's state loads.
+		f.snapshot.set({
+			...queueRequired, core: { ...queueRequired.core, value: { ...queueRequired.core.value!, headSha: 'head-2' } },
+			mergeability: { ...queueRequired.mergeability, status: 'stale', complete: false },
+		}, undefined);
+		const pushed = presentation().actions;
+		f.snapshot.set({ ...queueRequired, mergeability: { ...queueRequired.mergeability, value: { ...queueRequired.mergeability.value!, autoMergeEnabled: true } } }, undefined);
+		const autoMerge = presentation();
+		f.snapshot.set(queueRequired, undefined);
+		const enqueued = await f.invoke('enqueue');
+		// Like GitHub, a queued pull request's mergeability is not computed, so the fragment stays incomplete.
+		f.snapshot.set({
+			...queueRequired, mergeability: {
+				...queueRequired.mergeability, complete: false, value: {
+					...queueRequired.mergeability.value!, mergeable: 'UNKNOWN', mergeStateStatus: 'UNKNOWN',
+					mergeQueueEntryId: 'MQE1', mergeQueueEntryState: 'AWAITING_CHECKS', mergeQueuePosition: 2, mergeQueueEstimatedTimeToMerge: 899,
+				},
+			},
+		}, undefined);
+		const queuedStatus = 'In the merge queue: waiting for the checks of its merge group. Position 2 in the queue; GitHub estimates that it merges in about 15 min.';
+		assert.deepStrictEqual({ ready, pushed, autoMerge, enqueued: [enqueued.state, f.mutations], queued: presentation() }, {
+			ready: { main: 'Open pull request: Example change', queue: [], actions: [['enqueue', true, undefined]], details: [undefined, ['enqueue']] },
+			pushed: [['enqueue', false, 'GitHub has not confirmed that this pull request can be added to the merge queue.']],
+			autoMerge: {
+				main: 'Open pull request: Example change', queue: [],
+				actions: [['enqueue', false, 'GitHub auto-merge is on for this pull request, so GitHub adds it to the merge queue once it can be merged.']],
+				details: [undefined, ['enqueue']],
+			},
+			enqueued: ['completed', ['queue']],
+			queued: { main: 'In merge queue: Example change', queue: [['clock', 'Queued, ~15 min', queuedStatus]], actions: [], details: [queuedStatus, []] },
+		});
 	}));
 
 	test('waits for loaded section data and retains it during same-head polling', () => run(async store => {
@@ -864,7 +1130,7 @@ suite('GitHub pull request artifact integration', () => {
 		});
 	}));
 
-	test('retains same-head lists when a refresh is cancelled and restarted without authorizing stale actions', () => run(async store => {
+	test('retains same-head lists when a refresh is cancelled and restarted without authorizing stale actions, while Autopilot rules stay available', () => run(async store => {
 		const base = createPullRequestArtifactSnapshot();
 		const ready = {
 			...base, checks: {
@@ -904,7 +1170,7 @@ suite('GitHub pull request artifact integration', () => {
 		assert.deepStrictEqual(states, ['loading', 'stale', 'loading'].map(status => ({
 			status, sections: ['checks', 'comments'], lists: ['checks', 'comments'],
 			items: [['failed'], ['thread']], detailsAvailability: [status, status],
-			enabledActions: [], enabledAutomation: [],
+			enabledActions: [], enabledAutomation: ['addressReviews', 'fixCI', 'resolveConflicts', 'markReady', 'merge'],
 		})));
 	}));
 
@@ -1048,7 +1314,7 @@ suite('GitHub pull request artifact integration', () => {
 			},
 			title: 'Checks (2/4)',
 			items: [
-				{ id: 'pending', icon: { id: 'sync-compact', colorId: 'editorWarning.foreground' } },
+				{ id: 'pending', icon: { id: 'circle-filled-compact', colorId: 'editorWarning.foreground' } },
 				{ id: 'failed', icon: { id: 'error-compact', colorId: 'errorForeground' } },
 				{ id: 'skipped', icon: { id: 'skip', colorId: 'descriptionForeground' } },
 				{ id: 'passed', icon: { id: 'pass-filled-compact', colorId: 'charts.green' } },
@@ -1125,7 +1391,7 @@ suite('GitHub pull request artifact integration', () => {
 			states.push({ icon: section?.icon, label: section?.label, description: section?.description, title: details.details.get().title, checksReady: arePullRequestArtifactChecksReady(snapshot) });
 		}
 		assert.deepStrictEqual(states, [
-			{ icon: { id: 'sync-compact', colorId: 'editorWarning.foreground' }, label: '0/1', description: '0 of 1 checks passed; 0 failed.', title: 'Checks (0/1)', checksReady: false },
+			{ icon: { id: 'circle-filled-compact', colorId: 'editorWarning.foreground' }, label: '0/1', description: '0 of 1 checks passed; 0 failed.', title: 'Checks (0/1)', checksReady: false },
 			{ icon: { id: 'pass-filled-compact', colorId: 'charts.green' }, label: '1/1', description: '1 of 1 checks passed; 0 failed.', title: 'Checks (1/1)', checksReady: true },
 			{ icon: { id: 'skip', colorId: 'descriptionForeground' }, label: '1/1', description: '1 of 1 checks completed without failure; 0 failed; 1 skipped.', title: 'Checks (1/1)', checksReady: true },
 		]);
@@ -2314,7 +2580,7 @@ suite('GitHub pull request artifact integration', () => {
 			} else {
 				f.onMerge(fail);
 			}
-			const uncertain = await f.invoke('merge');
+			const uncertain = await f.invoke(scenario === 'enqueue' ? 'enqueue' : 'merge');
 			await f.service.whenIdle();
 			if (scenario === 'unrecorded operation') {
 				await f.service.ledger.transact(state => {

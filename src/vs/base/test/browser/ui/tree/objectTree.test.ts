@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { addDisposableListener } from '../../../../browser/dom.js';
 import { IIdentityProvider, IListVirtualDelegate } from '../../../../browser/ui/list/list.js';
-import { TreeRenderer } from '../../../../browser/ui/tree/abstractTree.js';
+import { RenderIndentGuides, TreeRenderer } from '../../../../browser/ui/tree/abstractTree.js';
 import { ICompressedTreeNode } from '../../../../browser/ui/tree/compressedObjectTreeModel.js';
 import { CompressibleObjectTree, ICompressibleTreeRenderer, ObjectTree } from '../../../../browser/ui/tree/objectTree.js';
 import { ObjectTreeModel } from '../../../../browser/ui/tree/objectTreeModel.js';
@@ -262,6 +263,24 @@ suite('ObjectTree', function () {
 		}
 		disposeTemplate(): void { }
 	}
+
+	suite('Lifecycle', () => {
+		const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+		test('disposing with a pending active-node update does not reject', async () => {
+			const unhandledRejections: string[] = [];
+			store.add(addDisposableListener(mainWindow, 'unhandledrejection', event => unhandledRejections.push(String(event.reason))));
+			const tree = store.add(new ObjectTree<number>('test', document.createElement('div'), new Delegate(), [new Renderer()]));
+
+			tree.setChildren(null, [{ element: 1 }, { element: 2 }]);
+			tree.setFocus([1]);
+			tree.setSelection([2]);
+			tree.dispose();
+			await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => mainWindow.setTimeout(resolve, 0)));
+
+			assert.deepStrictEqual(unhandledRejections, []);
+		});
+	});
 
 	test('applies renderer row class names', function () {
 		const container = document.createElement('div');
@@ -597,6 +616,44 @@ suite('ObjectTree', function () {
 				afterSetChildren: { selection: [11, 21, 31], renderedSelection: [11, 21, 31] },
 				afterRerender: { selection: [11, 21, 31], renderedSelection: [11, 21, 31] },
 				afterClick: { selection: [1], renderedSelection: [1] }
+			});
+		} finally {
+			tree.dispose();
+		}
+	});
+
+	test('active indent guides stay active while setChildren replaces their parent nodes', async function () {
+		const container = document.createElement('div');
+		container.style.width = '200px';
+		container.style.height = '400px';
+
+		const tree = new ObjectTree<number>('test', container, new Delegate(), [new Renderer()], { identityProvider: new IdentityProvider(), renderIndentGuides: RenderIndentGuides.OnHover });
+		const getRowsWithActiveGuide = () => [...container.querySelectorAll('.monaco-list-row')]
+			.filter(row => row.querySelector('.indent-guide.active'))
+			.sort((a, b) => parseInt(a.getAttribute('data-index')!) - parseInt(b.getAttribute('data-index')!))
+			.map(row => Number(row.querySelector('.monaco-tl-contents')!.textContent));
+
+		try {
+			tree.layout(400);
+			tree.setChildren(null, [{ element: 1, children: [{ element: 11 }, { element: 12 }] }, { element: 2, children: [{ element: 21 }] }]);
+			tree.setSelection([11]);
+			await timeout(0);
+			const selected = getRowsWithActiveGuide();
+
+			tree.setChildren(null, [{ element: 101, children: [{ element: 111 }, { element: 112 }] }, { element: 102, children: [{ element: 121 }] }]);
+			const replaced = getRowsWithActiveGuide();
+			await timeout(0);
+			const replacedSettled = getRowsWithActiveGuide();
+
+			tree.setChildren(null, [{ element: 201, children: [{ element: 212 }] }, { element: 202, children: [{ element: 221 }] }]);
+			await timeout(0);
+			const selectionRemovedSettled = getRowsWithActiveGuide();
+
+			assert.deepStrictEqual({ selected, replaced, replacedSettled, selectionRemovedSettled }, {
+				selected: [11, 12],
+				replaced: [111, 112],
+				replacedSettled: [111, 112],
+				selectionRemovedSettled: [],
 			});
 		} finally {
 			tree.dispose();

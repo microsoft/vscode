@@ -5,7 +5,7 @@
 
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
-import { ResourceMap } from '../../../../../../base/common/map.js';
+import { ResourceMap, ResourceSet } from '../../../../../../base/common/map.js';
 import { extUriBiasedIgnorePathCase, isEqual, type IExtUri } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -148,12 +148,16 @@ export function computeDesiredWorkingDirectories(
 	workspaceFolders: readonly URI[],
 	extUri: IExtUri = extUriBiasedIgnorePathCase,
 ): readonly URI[] {
+	// Set lookups avoid quadratic scans on this hot path in large multi-root workspaces.
+	const toKey = (uri: URI) => extUri.getComparisonKey(uri);
+	const workspaceFolderSet = new ResourceSet(workspaceFolders, toKey);
 	const desired: URI[] = [primary];
+	const included = new ResourceSet([primary], toKey);
 	const addIfWorkspaceSecondary = (candidate: URI) => {
-		const alreadyIncluded = desired.some(existing => extUri.isEqual(existing, candidate));
-		if (alreadyIncluded || !workspaceFolders.some(folder => extUri.isEqual(folder, candidate))) {
+		if (included.has(candidate) || !workspaceFolderSet.has(candidate)) {
 			return;
 		}
+		included.add(candidate);
 		desired.push(candidate);
 	};
 
@@ -201,6 +205,25 @@ export interface IAgentHostNewSessionFolderService {
 	setFolder(sessionResource: URI, folder: URI, options?: { readonly updateDefault?: boolean }): void;
 
 	/**
+	 * Whether the given session resource, not yet shown, is to start in a new worktree of its folder, which its initial
+	 * configuration then asks for, such as for New Chat in Worktree.
+	 */
+	isNewWorktree(sessionResource: URI): boolean;
+
+	/**
+	 * Record that the given session resource starts in a new worktree of its folder: its initial configuration asks for one
+	 * from the start, so that it shows and sends so before any picker could change it. Choosing a folder for it, or clearing
+	 * it, forgets that.
+	 */
+	setNewWorktree(sessionResource: URI): void;
+
+	/** Whether the user chose where the given session resource works, in its folder chip or New Worktree checkbox. */
+	isIsolationChosen(sessionResource: URI): boolean;
+
+	/** Record that the user chose where the given session resource works, which clearing it forgets. */
+	setIsolationChosen(sessionResource: URI): void;
+
+	/**
 	 * Forget any choice recorded for the given session resource.
 	 */
 	clear(sessionResource: URI): void;
@@ -233,6 +256,8 @@ export class AgentHostNewSessionFolderService extends Disposable implements IAge
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _folders = new ResourceMap<URI>();
+	private readonly _newWorktree = new ResourceSet();
+	private readonly _isolationChosen = new ResourceSet();
 
 	/**
 	 * The most recently chosen folder in this window. Window-level "sticky"
@@ -292,6 +317,7 @@ export class AgentHostNewSessionFolderService extends Disposable implements IAge
 			this._defaultFolder = folder;
 		}
 		const existing = this._folders.get(sessionResource);
+		this._newWorktree.delete(sessionResource);
 		if (existing?.toString() === folder.toString()) {
 			return;
 		}
@@ -299,8 +325,27 @@ export class AgentHostNewSessionFolderService extends Disposable implements IAge
 		this._onDidChangeFolder.fire(sessionResource);
 	}
 
+	isNewWorktree(sessionResource: URI): boolean {
+		return this._newWorktree.has(sessionResource);
+	}
+
+	setNewWorktree(sessionResource: URI): void {
+		this._newWorktree.add(sessionResource);
+	}
+
+	isIsolationChosen(sessionResource: URI): boolean {
+		return this._isolationChosen.has(sessionResource);
+	}
+
+	setIsolationChosen(sessionResource: URI): void {
+		this._isolationChosen.add(sessionResource);
+	}
+
 	clear(sessionResource: URI): void {
-		if (this._folders.delete(sessionResource)) {
+		const hadNewWorktree = this._newWorktree.delete(sessionResource);
+		this._isolationChosen.delete(sessionResource);
+		const hadFolder = this._folders.delete(sessionResource);
+		if (hadFolder || hadNewWorktree) {
 			this._onDidChangeFolder.fire(sessionResource);
 		}
 	}

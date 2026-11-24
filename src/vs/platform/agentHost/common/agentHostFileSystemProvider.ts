@@ -5,13 +5,17 @@
 
 import { decodeBase64, VSBuffer } from '../../../base/common/buffer.js';
 import { disposableTimeout, Limiter } from '../../../base/common/async.js';
+import { CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { type ISettableObservable, observableValue, waitForState } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
 import { createFileSystemProviderError, FileChangeType, FilePermission, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, IFileChange, IFileDeleteOptions, IFileOverwriteOptions, IFileSystemProvider, IFileSystemProviderWithFileRealpathCapability, IFileWriteOptions, IStat, IWatchOptions, toFileSystemProviderErrorCode } from '../../files/common/files.js';
+import { getAgentHostPathStyle, type IAgentHostEnvironmentConnection } from './agentHostPathStyle.js';
 import { fromAgentHostUri, isAgentHostContentRefUri, toAgentHostUri } from './agentHostUri.js';
 import { MCP_RESOURCE_SCHEME } from './mcpResourceUri.js';
-import { ContentEncoding, type CreateResourceWatchParams, type DirectoryEntry, type ResourceCopyParams, type ResourceCopyResult, type ResourceDeleteParams, type ResourceDeleteResult, type ResourceListResult, type ResourceMkdirParams, type ResourceMkdirResult, type ResourceMoveParams, type ResourceMoveResult, type ResourceReadResult, type ResourceRequestParams, type ResourceRequestResult, type ResourceResolveParams, type ResourceResolveResult, type ResourceWriteParams, type ResourceWriteResult } from './state/protocol/commands.js';
+import { AGENT_BUILTIN_CUSTOMIZATION_SCHEME, AGENT_BUILTIN_SKILL_SCHEME } from './agentHostCustomizationUri.js';
+import { ContentEncoding, PathStyle, type CreateResourceWatchParams, type DirectoryEntry, type ResourceCopyParams, type ResourceCopyResult, type ResourceDeleteParams, type ResourceDeleteResult, type ResourceListResult, type ResourceMkdirParams, type ResourceMkdirResult, type ResourceMoveParams, type ResourceMoveResult, type ResourceReadResult, type ResourceRequestParams, type ResourceRequestResult, type ResourceResolveParams, type ResourceResolveResult, type ResourceWriteParams, type ResourceWriteResult } from './state/protocol/commands.js';
 import { AhpErrorCodes } from './state/protocol/errors.js';
 import { ProtocolError } from './state/sessionProtocol.js';
 import { ActionType, type ActionEnvelope } from './state/sessionActions.js';
@@ -23,7 +27,7 @@ import { ROOT_STATE_URI } from './state/sessionState.js';
  * Both {@link IAgentConnection} (client→server) and client-exposed
  * filesystems (server→client) satisfy this contract.
  */
-export interface IRemoteFilesystemConnection {
+export interface IRemoteFilesystemConnection extends IAgentHostEnvironmentConnection {
 	/** Fires when the same logical connection recovers its transport or expired relay authorization. */
 	readonly onDidReconnect?: Event<void>;
 	resourceList(uri: URI): Promise<ResourceListResult>;
@@ -137,6 +141,22 @@ export function agentHostRemotePath(uri: URI): string {
 	return fromAgentHostUri(uri).path;
 }
 
+/**
+ * This provider is path-case-sensitive as a whole because it also serves posix hosts,
+ * but a Windows host may report a change with different casing than the watch
+ * (for example a lowercased drive letter, as `URI.toString()` produces), which would never
+ * match the watched resource. Re-case the event path to the watched one when they only
+ * differ by case.
+ */
+function matchWatchedPathCase(uri: URI, watchedPath: string): URI {
+	const prefix = watchedPath.endsWith('/') ? watchedPath.slice(0, -1) : watchedPath;
+	const path = uri.path;
+	if (path.length < prefix.length || (path.length > prefix.length && path[prefix.length] !== '/') || path.slice(0, prefix.length).toLowerCase() !== prefix.toLowerCase()) {
+		return uri;
+	}
+	return uri.with({ path: prefix + path.slice(prefix.length) });
+}
+
 // ---- Abstract base ----------------------------------------------------------
 
 interface IAuthorityEntry {
@@ -150,8 +170,12 @@ interface IAuthorityEntry {
 	 * Empty while the entry is inside the grace window.
 	 */
 	connections: IRemoteFilesystemConnection[];
-	activeConnectionVersion: number;
-	readonly onDidChangeActiveConnection: Emitter<void>;
+	/**
+	 * Incremented whenever the active connection changes, including when
+	 * the entry enters the grace window or is evicted. In-flight operations
+	 * wait on it, so a burst of concurrent reads adds one observer each.
+	 */
+	readonly activeConnectionVersion: ISettableObservable<number>;
 	/**
 	 * Pending eviction timer; armed while {@link connections} is empty,
 	 * cleared on re-registration or eviction.
@@ -240,8 +264,7 @@ export abstract class AHPFileSystemProvider extends Disposable implements IFileS
 		if (!entry) {
 			entry = {
 				connections: [connection],
-				activeConnectionVersion: 0,
-				onDidChangeActiveConnection: new Emitter<void>(),
+				activeConnectionVersion: observableValue(this, 0),
 				expiry: new MutableDisposable<IDisposable>(),
 			};
 			this._authorities.set(authority, entry);
@@ -275,8 +298,7 @@ export abstract class AHPFileSystemProvider extends Disposable implements IFileS
 	}
 
 	private _notifyActiveConnectionChanged(authority: string, entry: IAuthorityEntry): void {
-		entry.activeConnectionVersion++;
-		entry.onDidChangeActiveConnection.fire();
+		entry.activeConnectionVersion.set(entry.activeConnectionVersion.get() + 1, undefined);
 		this._onDidChangeConnection.fire(authority);
 	}
 
@@ -289,7 +311,6 @@ export abstract class AHPFileSystemProvider extends Disposable implements IFileS
 		this._authorities.delete(authority);
 		entry.expiry.dispose();
 		this._notifyActiveConnectionChanged(authority, entry);
-		entry.onDidChangeActiveConnection.dispose();
 	}
 
 	override dispose(): void {
@@ -299,7 +320,6 @@ export abstract class AHPFileSystemProvider extends Disposable implements IFileS
 			entry.expiry.dispose();
 			entry.connections.length = 0;
 			this._notifyActiveConnectionChanged(authority, entry);
-			entry.onDidChangeActiveConnection.dispose();
 		}
 		super.dispose();
 	}
@@ -325,9 +345,10 @@ export abstract class AHPFileSystemProvider extends Disposable implements IFileS
 		const handleHolder = store.add(new MutableDisposable<IDisposable>());
 		const reconnectListener = store.add(new MutableDisposable<IDisposable>());
 		const authority = resource.authority;
+		const remoteResource = this._decodeUri(resource);
 		const params: CreateResourceWatchParams = {
 			channel: ROOT_STATE_URI,
-			uri: this._decodeUri(resource).toString(),
+			uri: remoteResource.toString(),
 			recursive: opts.recursive,
 			...(opts.excludes.length > 0 ? { excludes: { items: [...opts.excludes] } } : {}),
 			...(opts.includes && opts.includes.length > 0
@@ -388,10 +409,18 @@ export abstract class AHPFileSystemProvider extends Disposable implements IFileS
 					handle.dispose();
 					return;
 				}
-				const sub = handle.onDidChange(changes => this._onDidChangeFile.fire(changes.map(c => ({
-					resource: this._encodeUri(c.resource, resource.authority),
-					type: c.type,
-				}))));
+				const sub = handle.onDidChange(changes => {
+					// Read per batch so a watch attached before the handshake picks up the host's path style.
+					// Only Windows-style hosts are re-cased: re-casing is lossy and would alias distinct files
+					// on case-sensitive posix volumes (including macOS). Unknown hosts stay case-sensitive.
+					const caseInsensitive = getAgentHostPathStyle(target) === PathStyle.Windows;
+					this._onDidChangeFile.fire(changes.map(c => ({
+						resource: this._encodeUri(caseInsensitive ? matchWatchedPathCase(c.resource, remoteResource.path) : c.resource, resource.authority),
+						type: c.type,
+						// Correlated watchers (such as the browser's auto-reload) only receive events carrying their ID.
+						...(opts.correlationId !== undefined ? { cId: opts.correlationId } : {}),
+					})));
+				});
 				handleHolder.value = toDisposable(() => {
 					sub.dispose();
 					handle.dispose();
@@ -431,7 +460,9 @@ export abstract class AHPFileSystemProvider extends Disposable implements IFileS
 		return isAgentHostContentRefUri(resource)
 			|| decoded.scheme === 'session-db'
 			|| decoded.scheme === 'git-blob'
-			|| decoded.scheme === MCP_RESOURCE_SCHEME;
+			|| decoded.scheme === MCP_RESOURCE_SCHEME
+			|| decoded.scheme === AGENT_BUILTIN_SKILL_SCHEME
+			|| (decoded.scheme === AGENT_BUILTIN_CUSTOMIZATION_SCHEME && decoded.path.startsWith('/skill/'));
 	}
 
 	async stat(resource: URI): Promise<IStat> {
@@ -612,48 +643,37 @@ export abstract class AHPFileSystemProvider extends Disposable implements IFileS
 		}
 
 		const active = entry.connections.at(-1);
+		const version = entry.activeConnectionVersion.get();
 		if (active) {
-			return { connection: active, entry, version: entry.activeConnectionVersion };
+			return { connection: active, entry, version };
 		}
-		const version = entry.activeConnectionVersion;
-		const changed = Event.toPromise(entry.onDidChangeActiveConnection.event);
-		const current = this._authorities.get(authority);
-		if (current !== entry || current.activeConnectionVersion !== version) {
-			changed.cancel();
-			return this._getConnectionState(authority);
-		}
-		try {
-			await changed;
-		} finally {
-			changed.cancel();
-		}
+		// Eviction and provider disposal also bump the version, so this settles.
+		await waitForState(entry.activeConnectionVersion, v => v !== version);
 		return this._getConnectionState(authority);
 	}
 
 	private async _readFromConnection<T>(authority: string, operation: (connection: IRemoteFilesystemConnection) => Promise<T>): Promise<T> {
 		while (true) {
 			const { connection, entry, version } = await this._getConnectionState(authority);
-			const changed = Event.toPromise(entry.onDidChangeActiveConnection.event);
-			const current = this._authorities.get(authority);
-			if (current !== entry || current.activeConnectionVersion !== version) {
-				changed.cancel();
+			if (this._authorities.get(authority) !== entry || entry.activeConnectionVersion.get() !== version) {
 				continue;
 			}
+			const stopWaiting = new CancellationTokenSource();
 			try {
 				const result = await Promise.race([
 					operation(connection).then(value => ({ kind: 'result' as const, value })),
-					changed.then(() => ({ kind: 'connectionChanged' as const })),
+					waitForState(entry.activeConnectionVersion, v => v !== version, undefined, stopWaiting.token).then(() => ({ kind: 'connectionChanged' as const })),
 				]);
 				if (result.kind === 'result') {
 					return result.value;
 				}
 			} catch (error) {
 				const latest = this._authorities.get(authority);
-				if (latest === entry && latest.activeConnectionVersion === version) {
+				if (latest === entry && latest.activeConnectionVersion.get() === version) {
 					throw error;
 				}
 			} finally {
-				changed.cancel();
+				stopWaiting.dispose(true);
 			}
 		}
 	}

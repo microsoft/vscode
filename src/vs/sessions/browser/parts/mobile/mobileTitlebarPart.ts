@@ -21,8 +21,8 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 import { ACCOUNTS_AVATAR_SETTING, IAuthenticationService } from '../../../../workbench/services/authentication/common/authentication.js';
-import { getMainWindowHost, ISessionHost, ISessionHostService } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
-import { ISessionFileChange } from '../../../../workbench/contrib/sessions/common/session.js';
+import { getMainWindowHost, ISessionHost, ISessionHostService } from '../../../../workbench/services/sessions/browser/sessionHost.js';
+import { ISessionFileChange } from '../../../../workbench/services/sessions/common/session.js';
 import { IsNewChatSessionContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { SideBarVisibleContext } from '../../../../workbench/common/contextkeys.js';
 import { AgentsWindowMenus } from '../../agentsWindowMenus.js';

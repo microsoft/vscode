@@ -12,17 +12,18 @@ import { IAccessibilityService } from '../../../../../platform/accessibility/com
 import { TestAccessibilityService } from '../../../../../platform/accessibility/test/common/testAccessibilityService.js';
 import { IMenu, IMenuService, MenuId, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { mock } from '../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { derived, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { DEFAULT_EDITOR_PART_OPTIONS } from '../../../../browser/parts/editor/editor.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
-import { ChatInteractivity, ChatOriginKind, IChat, ISessionCapabilities, SessionStatus } from '../../../../contrib/sessions/common/session.js';
-import { IActiveSession, ISessionsManagementService } from '../../../../contrib/sessions/common/sessionsManagement.js';
+import { ChatInteractivity, ChatOriginKind, IChat, ISessionCapabilities, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { ISessionsManagementService } from '../../../../contrib/sessions/common/sessionsManagement.js';
+import { ITestSessionWithChat } from '../../../../contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { ISessionsProvidersService } from '../../../../contrib/sessions/browser/sessionsProvidersService.js';
 import { ISessionsListModelService } from '../../../../contrib/sessions/browser/sessionsListModelService.js';
 import { ChatCompositeBar, IChatCompositeBarDelegate } from '../../../../contrib/sessions/browser/parts/chatCompositeBar.js';
 import { applySessionViewThemeColors } from '../../../../contrib/sessions/browser/parts/sessionBarStyles.js';
-import { applyAgentsPartCardStyles } from '../../../../contrib/sessions/browser/parts/agentsPartCard.js';
+import { applyAgentsPartCardStyles } from '../../../../browser/parts/sessions/agentsPartCard.js';
 import { Menus } from '../../../../contrib/sessions/browser/menus.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../fixtureUtils.js';
 import { IChatWidgetFixtureHandle, renderChatWidget } from '../chat/chatWidget.fixture.js';
@@ -31,8 +32,10 @@ import '../../../../contrib/modernUI/browser/media/tabs.css';
 import '../../../../contrib/modernUI/browser/connectedEditorTabs.js';
 import '../../../../contrib/sessions/browser/parts/media/chatCompositeBar.css';
 import '../../../../../sessions/browser/media/workbench.css';
-import '../../../../contrib/sessions/browser/parts/media/sessionsPart.css';
+import '../../../../browser/parts/sessions/media/sessionsPart.css';
+import '../../../../contrib/sessions/browser/parts/media/sessionsGridContent.css';
 import '../../../../contrib/sessions/browser/parts/media/chatGroupsView.css';
+import { ISessionHost } from '../../../../services/sessions/browser/sessionHost.js';
 
 // ============================================================================
 // Mock helpers
@@ -57,8 +60,11 @@ function createMockChat(options: IMockChatOptions): IChat {
 	}();
 }
 
-function createMockSession(chats: readonly IChat[], activeChat: IChat, sessionTitle = 'Session'): IActiveSession {
-	return new class extends mock<IActiveSession>() {
+/** A session fake with the tab strip the bar shows. */
+type IMockSession = ITestSessionWithChat & { readonly shouldShowChatTabs: IObservable<boolean> };
+
+function createMockSession(chats: readonly IChat[], activeChat: IChat, sessionTitle = 'Session'): IMockSession {
+	return new class extends mock<IMockSession>() {
 		override readonly sessionId = 'mock:session';
 		override readonly title: IObservable<string> = observableValue('title', sessionTitle);
 		override readonly openChats: IObservable<readonly IChat[]> = observableValue('openChats', chats);
@@ -73,13 +79,16 @@ function createMockSession(chats: readonly IChat[], activeChat: IChat, sessionTi
 		override readonly activeChat: IObservable<IChat> = observableValue('activeChat', activeChat);
 		override readonly capabilities: IObservable<ISessionCapabilities> = observableValue('capabilities', { supportsMultipleChats: true });
 		override readonly isCreated: IObservable<boolean> = observableValue('isCreated', true);
+		override readonly status = this.isCreated.map(created => created ? SessionStatus.Completed : SessionStatus.Untitled);
 		override readonly isArchived: IObservable<boolean> = observableValue('isArchived', false);
 	}();
 }
 
-function createMockDelegate(session: IActiveSession, chats: readonly IChat[], activeChat: IChat): IChatCompositeBarDelegate {
+function createMockDelegate(session: IMockSession, chats: readonly IChat[], activeChat: IChat): IChatCompositeBarDelegate {
 	return {
 		session,
+		isDetached: false,
+		closePane: () => { },
 		chats: observableValue('chats', chats),
 		activeChatResource: observableValue('activeChatResource', activeChat.resource.toString()),
 		mainChatResource: observableValue('mainChatResource', chats[0].resource.toString()),
@@ -99,6 +108,7 @@ function renderBar(ctx: ComponentFixtureContext, chats: readonly IChat[], active
 	const instantiationService = createEditorServices(disposableStore, {
 		colorTheme: ctx.theme,
 		additionalServices: (reg) => {
+			reg.defineInstance(ISessionHost, upcastPartial<ISessionHost>({ commandContext: { sessionHostId: 'fixture-pane' } }));
 			registerWorkbenchServices(reg);
 			reg.defineInstance(IAccessibilityService, new class extends TestAccessibilityService {
 				override isMotionReduced(): boolean { return options.reducedMotion ?? false; }
@@ -179,7 +189,7 @@ function renderBar(ctx: ComponentFixtureContext, chats: readonly IChat[], active
 async function renderStickyMessageFrame(ctx: ComponentFixtureContext, width: number): Promise<void> {
 	const chat = createMockChat({ title: 'Review panel edges' });
 	const content = renderBar(ctx, [chat], chat, { width });
-	const chatView = $('.chat-view');
+	const chatView = $('.chat-view.sessions-chat');
 	content.style.height = '320px';
 	content.appendChild(chatView);
 	let handle: IChatWidgetFixtureHandle | undefined;

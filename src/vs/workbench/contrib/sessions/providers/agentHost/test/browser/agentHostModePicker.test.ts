@@ -44,8 +44,7 @@ import { IOpenSettingsOptions, IPreferencesService } from '../../../../../../ser
 import { AGENT_HOST_PERMISSIONS_SETTINGS_QUERY, MODE_PERMISSIONS_PICKER_OPEN_ATTRIBUTE } from '../../../../../chat/browser/agentSessions/agentHost/agentHostModePickerPresentation.js';
 import { IAgentHostSessionsProvider } from '../../../../common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../browser/sessionsProvidersService.js';
-import { IActiveSession } from '../../../../common/sessionsManagement.js';
-import { IChat } from '../../../../common/session.js';
+import { IChat } from '../../../../../../services/sessions/common/session.js';
 import { ISessionConfigProvider, ISessionsProvider } from '../../../../common/sessionsProvider.js';
 import { AgentHostModePicker } from '../../browser/agentHostModePicker.js';
 import { AgentHostPermissionPickerDelegate } from '../../browser/agentHostPermissionPickerDelegate.js';
@@ -53,7 +52,7 @@ import { PickerActionViewItem } from '../../browser/agentHostSessionConfigPicker
 import '../../../../../chat/browser/widget/media/chat.css';
 import '../../../../browser/chat/media/chatWidget.css';
 import '../../../../browser/chat/media/chatInput.css';
-import { sessionChatSourceOf } from '../../../../browser/sessionHost.js';
+import { ITestSessionWithChat, testChatSourceOf } from '../../../../test/browser/sessionHostTestUtils.js';
 
 suite('AgentHostModePicker', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -105,7 +104,7 @@ suite('AgentHostModePicker', () => {
 			override trackSessionConfigOperation(): void { }
 		}();
 		const providers = new Map<string, ISessionsProvider>([[provider.id, provider]]);
-		const session = observableValue<IActiveSession | undefined>('session', new class extends mock<IActiveSession>() {
+		const session = observableValue<ITestSessionWithChat | undefined>('session', new class extends mock<ITestSessionWithChat>() {
 			override readonly providerId = provider.id;
 			override readonly sessionId = 'test-session';
 			override readonly sessionType = 'copilotcli';
@@ -206,8 +205,8 @@ suite('AgentHostModePicker', () => {
 		instantiationService.stub(IAgentHostEnablementService, { enabled: constObservable(true), managedSandboxEnforced, managedSandboxAllowsBypass: constObservable(false) });
 		instantiationService.set(IManagedSettingsService, new NullManagedSettingsService());
 
-		const picker = store.add(instantiationService.createInstance(AgentHostModePicker, sessionChatSourceOf(session)));
-		const permissionDelegate = store.add(instantiationService.createInstance(AgentHostPermissionPickerDelegate, sessionChatSourceOf(session)));
+		const picker = store.add(instantiationService.createInstance(AgentHostModePicker, testChatSourceOf(session)));
+		const permissionDelegate = store.add(instantiationService.createInstance(AgentHostPermissionPickerDelegate, testChatSourceOf(session)));
 		const container = dom.append(document.body, dom.$('div'));
 		store.add({ dispose: () => container.remove() });
 		const trigger = picker.render(container);
@@ -613,7 +612,7 @@ suite('AgentHostModePicker', () => {
 		const { trigger, actionWidget, session, writes } = setup();
 		trigger.click();
 		const selection = actionWidget.select('Allow all');
-		session.set(new class extends mock<IActiveSession>() {
+		session.set(new class extends mock<ITestSessionWithChat>() {
 			override readonly providerId = 'local-agent-host';
 			override readonly sessionId = 'another-session';
 			override readonly sessionType = 'copilotcli';
@@ -787,7 +786,7 @@ suite('AgentHostModePicker', () => {
 		phone.set(true, undefined);
 		record();
 		phone.set(false, undefined);
-		session.set(new class extends mock<IActiveSession>() {
+		session.set(new class extends mock<ITestSessionWithChat>() {
 			override readonly providerId = 'local-agent-host';
 			override readonly sessionId = 'claude-session';
 			override readonly sessionType = 'claude';

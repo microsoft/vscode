@@ -38,11 +38,11 @@ import { ArtifactDetailsContextView } from '../../../../../workbench/contrib/ses
 import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { IChatWidget, IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatRequestViewModel, IChatViewModel } from '../../../../../workbench/contrib/chat/common/model/chatViewModel.js';
-import { IChat, ISession } from '../../../../../workbench/contrib/sessions/common/session.js';
-import { IActiveSession, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { IFocusedSessionHostService } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { IChat, ISession } from '../../../../../workbench/services/sessions/common/session.js';
+import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { IFocusedSessionHostService } from '../../../../../workbench/services/sessions/browser/sessionHost.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { focusedSessionHostServiceOf, stubSessionHosts } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { focusedSessionHostServiceOf, ITestSessionWithChat, stubSessionHosts } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 const observedAt = Date.UTC(2026, 0, 12, 9);
 const chat = 'fixture-chat';
@@ -70,7 +70,7 @@ interface IArtifactFixtureOptions {
 	/** Index of a group artifact pinned into a pill of its own. */
 	readonly pinned?: number;
 	readonly openGroup?: boolean;
-	/** Index of the group row to open details for from the open group dropdown. */
+	/** Index of the group row whose first status section, or Details section, opens its details from the open group dropdown. */
 	readonly openGroupDetails?: number;
 }
 
@@ -233,7 +233,7 @@ function pullRequest(state: PullRequestState, options: IPullRequestFixtureOption
 		],
 		merged: [section('checks', '6/6', Codicon.passFilledCompact, chartsGreen, 'All 6 checks passed')],
 		closed: [],
-		loading: [section('availability', 'Loading status', Codicon.sync, chartsForeground)],
+		loading: [section('availability', 'Loading status', Codicon.circleFilled, chartsForeground)],
 		unavailable: [],
 	};
 	const automationOptions: readonly ArtifactAutomationOption[] = [
@@ -251,8 +251,8 @@ function pullRequest(state: PullRequestState, options: IPullRequestFixtureOption
 		authentication: state === 'unavailable' ? { enabled: true } : undefined,
 		actions: [
 			{ id: 'markReady', label: 'Mark Ready', iconId: Codicon.gitPullRequest.id, kind: 'code' },
-			{ id: 'fixChecks', label: 'Fix Checks', iconId: Codicon.tools.id, kind: 'prompt' },
-			{ id: 'addressComments', label: 'Address Comments', iconId: Codicon.commentDiscussion.id, kind: 'prompt' },
+			{ id: 'fixChecks', label: 'Fix Checks', iconId: Codicon.lightbulb.id, kind: 'prompt' },
+			{ id: 'addressComments', label: 'Address Comments', iconId: Codicon.comment.id, kind: 'prompt' },
 			{ id: 'merge', label: 'Merge', iconId: Codicon.gitMerge.id, kind: 'code' },
 			{ id: 'refresh', label: 'Refresh Status', iconId: Codicon.refresh.id, kind: 'code' },
 		],
@@ -481,7 +481,7 @@ async function render(context: ComponentFixtureContext, data: IArtifactFixtureDa
 	caption.style.fontSize = 'var(--vscode-fontSize-body2)';
 	const previewOperation = (label: string) => { caption.textContent = `Preview only: ${label}`; };
 	const activityChat = URI.parse('artifact-demo:/chat');
-	const activeSession = new class extends mock<IActiveSession>() {
+	const activeSession = new class extends mock<ITestSessionWithChat>() {
 		override readonly activeChat = constObservable(new class extends mock<IChat>() { override readonly resource = activityChat; }());
 	}();
 	const activityWidget = new class extends mock<IChatWidget>() {
@@ -611,21 +611,27 @@ async function render(context: ComponentFixtureContext, data: IArtifactFixtureDa
 	row.content.appendChild(widget.element);
 	if (openDetails) {
 		const sectionIndex = data.contribution.view.sections.findIndex(section => section.detailsId === openDetails);
-		const button = openDetails === 'actions' ? widget.element.querySelector<HTMLElement>('.artifact-integration-pill > .chat-pill-button')
-			: widget.element.querySelectorAll<HTMLElement>('.artifact-pill-sections [role="button"]')[sectionIndex];
-		if (!button) {
+		const main = widget.element.querySelector<HTMLElement>('.artifact-integration-pill > .chat-pill-button');
+		const section = widget.element.querySelectorAll<HTMLElement>('.artifact-pill-sections [role="button"]')[sectionIndex];
+		if (openDetails === 'actions' && main) {
+			// The whole artifact's details, which its Details section opens while it has no status sections.
+			controller.toggle(presentation, main);
+		} else if (section) {
+			section.click();
+		} else {
 			throw new Error(`Missing artifact details control: ${openDetails}`);
 		}
-		button.click();
 		await Promise.resolve();
 		const detailsId = data.contribution.view.main?.detailsId;
 		const expectedDetails = detailsId ? data.details[detailsId] : undefined;
 		const availability = data.contribution.view.availability;
-		const expectedTitle = availability.kind === 'authenticationRequired' ? data.artifact.label : expectedDetails?.title;
-		const expectedContent = availability.kind === 'authenticationRequired' ? [availability.reason, 'Sign In'] : expectedDetails ? [expectedDetails.title] : undefined;
+		const authenticationRequired = availability.kind === 'authenticationRequired';
+		const expectedTitle = authenticationRequired ? data.artifact.label : expectedDetails?.title;
+		const expectedContent = authenticationRequired ? [availability.reason] : expectedDetails ? [expectedDetails.title] : undefined;
 		const panel = container.querySelector('.artifact-integration-panel');
 		if (!expectedTitle || !expectedContent || panel?.querySelector('h2')?.textContent !== expectedTitle
-			|| expectedContent.some(text => !panel.textContent?.includes(text))) {
+			|| expectedContent.some(text => !panel.textContent?.includes(text))
+			|| (authenticationRequired && !panel.querySelector('.artifact-header-actions [aria-label^="Sign In"]'))) {
 			throw new Error(`The artifact details did not render: ${openDetails}`);
 		}
 		if (options.showListInfo !== undefined) {
@@ -702,7 +708,7 @@ async function renderGroup(
 		rows[0]?.classList.add('hovered');
 		return;
 	}
-	rows[options.openGroupDetails]?.querySelector<HTMLElement>('.artifact-group-row-main')?.click();
+	rows[options.openGroupDetails]?.querySelector<HTMLElement>('.artifact-group-row-status')?.click();
 	await waitForFixtureDomCondition(container, () => !!container.querySelector('.artifact-integration-panel h2'), disposableStore);
 }
 

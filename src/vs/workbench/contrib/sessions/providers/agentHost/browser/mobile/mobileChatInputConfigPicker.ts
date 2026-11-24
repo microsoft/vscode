@@ -21,16 +21,16 @@ import { IWorkbenchContribution } from '../../../../../../common/contributions.j
 import { ChatContextKeys } from '../../../../../chat/common/actions/chatContextKeys.js';
 import { type ILanguageModelChatMetadataAndIdentifier } from '../../../../../chat/common/languageModels.js';
 import { IChatPhoneInputPresenter } from '../../../../../chat/browser/widget/input/chatPhoneInputPresenter.js';
+import { renderModelChipChevron } from '../../../../../chat/browser/widget/input/chatInputPickerActionItem.js';
 import { getModelProviderIcon } from '../../../../../chat/browser/widget/input/modelPicker/modelProviderIcons.js';
 import { ChatPetAchievementIds, didExplicitlySwitchChatPetModel } from '../../../../../chat/browser/chatPetAchievements.js';
 import { IChatPetService } from '../../../../../chat/browser/chatPetService.js';
 import { Menus } from '../../../../browser/menus.js';
 import { SessionUsesCombinedConfigPickerContext, IsPhoneLayoutContext } from '../../../../common/contextkeys.js';
 import { type IAgentHostSessionsProvider, isAgentHostProvider } from '../../../../common/agentHostSessionsProvider.js';
-import { IHostSession } from '../../../../common/sessionsManagement.js';
-import { IChat } from '../../../../common/session.js';
+import { IChat, ISession } from '../../../../../../services/sessions/common/session.js';
 import { ISessionsProvidersService } from '../../../../browser/sessionsProvidersService.js';
-import { IFocusedSessionHostService, ISessionChatSource, ISessionHost } from '../../../../browser/sessionHost.js';
+import { IFocusedSessionHostService, ISessionChatSource, ISessionHost } from '../../../../../../services/sessions/browser/sessionHost.js';
 import { isWellKnownModeSchema } from '../agentHostPermissionPickerDelegate.js';
 import { getAgentHostModeIcon } from '../agentHostModeIcon.js';
 import { INewChatModelPickerService } from '../../../../browser/chat/newChatModelPicker.js';
@@ -42,7 +42,7 @@ const MOBILE_CHAT_INPUT_CONFIG_PICKER_ID = 'sessions.agentHost.mobileChatInputCo
 
 interface IMobileConfigContext {
 	readonly provider: IAgentHostSessionsProvider;
-	readonly session: IHostSession;
+	readonly session: ISession;
 	readonly chat: IChat;
 	readonly modeItems: readonly { value: string; label: string; description?: string }[];
 	readonly currentMode: string | undefined;
@@ -77,7 +77,7 @@ class MobileChatInputConfigPicker extends Disposable {
 	private _slotElement: HTMLElement | undefined;
 	private _triggerElement: HTMLElement | undefined;
 
-	private readonly _session: IObservable<IHostSession | undefined>;
+	private readonly _session: IObservable<ISession | undefined>;
 	private readonly _chat: IObservable<IChat | undefined>;
 
 	constructor(
@@ -95,8 +95,17 @@ class MobileChatInputConfigPicker extends Disposable {
 		this._chat = source.chat;
 		this._register(this._newChatModelPickerService.registerModelPicker({
 			getDomNode: () => this._triggerElement,
-			open: () => { void this._showSheet(); },
+			open: () => { void this.show(); },
 			switchToModel: modelIdentifier => this._switchToModel(modelIdentifier),
+		}));
+		this._register(autorun(reader => {
+			this._phonePresenter.enabled.read(reader);
+			if (this._phonePresenter.supportsUnifiedConfiguration) {
+				reader.store.add(this._phonePresenter.registerSessionModelPicker({
+					getSessionContext: () => createChatPhoneInputSessionContext(this._session.read(undefined), this._chat.read(undefined)),
+					selectModel: identifier => this._switchToModel(identifier),
+				}));
+			}
 		}));
 
 		// Re-render the trigger whenever the active session, its config,
@@ -107,6 +116,7 @@ class MobileChatInputConfigPicker extends Disposable {
 			this._session.read(reader);
 			this._chat.read(reader);
 			this._selectionModel.state.read(reader);
+			this._phonePresenter.enabled.read(reader);
 			this._updateTrigger();
 		}));
 		this._register(this._sessionsProvidersService.onDidChangeProviders(e => {
@@ -149,19 +159,21 @@ class MobileChatInputConfigPicker extends Disposable {
 		const trigger = dom.append(slot, dom.$('a.action-label'));
 		trigger.tabIndex = 0;
 		trigger.role = 'button';
+		trigger.ariaHasPopup = 'dialog';
+		trigger.ariaExpanded = 'false';
 		this._triggerElement = trigger;
 
 		this._renderDisposables.add(Gesture.addTarget(trigger));
 		for (const eventType of [dom.EventType.CLICK, TouchEventType.Tap]) {
 			this._renderDisposables.add(dom.addDisposableListener(trigger, eventType, e => {
 				dom.EventHelper.stop(e, true);
-				this._showSheet();
+				void this.show();
 			}));
 		}
 		this._renderDisposables.add(dom.addDisposableListener(trigger, dom.EventType.KEY_DOWN, e => {
 			if (e.key === 'Enter' || e.key === ' ') {
 				dom.EventHelper.stop(e, true);
-				this._showSheet();
+				void this.show();
 			}
 		}));
 
@@ -174,7 +186,7 @@ class MobileChatInputConfigPicker extends Disposable {
 		if (!session || !chat) {
 			return undefined;
 		}
-		const provider = this._sessionsProvidersService.getProvider(session.providerId);
+		const provider = this._sessionsProvidersService.getProvider(session.providerId, session.sessionId);
 		if (!provider || !isAgentHostProvider(provider)) {
 			return undefined;
 		}
@@ -228,7 +240,9 @@ class MobileChatInputConfigPicker extends Disposable {
 		// Leading icon: the current mode's icon if a mode is selected,
 		// otherwise nothing.
 		const modeIcon = ctx.currentMode ? getAgentHostModeIcon(ctx.currentMode) : undefined;
-		if (modeIcon) {
+		const unified = this._phonePresenter.supportsUnifiedConfiguration;
+		this._triggerElement.classList.toggle('chat-phone-input-chip', !!unified);
+		if (!unified && modeIcon) {
 			dom.append(this._triggerElement, renderIcon(modeIcon));
 		}
 
@@ -238,7 +252,7 @@ class MobileChatInputConfigPicker extends Disposable {
 		const currentModel = ctx.currentModelId
 			? ctx.modelItems.find(m => m.identifier === ctx.currentModelId)
 			: undefined;
-		if (currentModel) {
+		if (!unified && currentModel) {
 			dom.append(this._triggerElement, renderIcon(getModelProviderIcon(currentModel)));
 		}
 		const labelText = currentModel?.metadata.name
@@ -247,6 +261,9 @@ class MobileChatInputConfigPicker extends Disposable {
 				: localize('mobileChatInputConfigPicker.noModelsLabel', "No models available"));
 		const labelSpan = dom.append(this._triggerElement, dom.$('span.chat-input-picker-label'));
 		labelSpan.textContent = labelText;
+		if (unified) {
+			dom.append(this._triggerElement, renderModelChipChevron());
+		}
 
 		const ariaParts: string[] = [];
 		if (ctx.currentMode) {
@@ -278,8 +295,8 @@ class MobileChatInputConfigPicker extends Disposable {
 		return selected;
 	}
 
-	private async _showSheet(): Promise<void> {
-		if (!this._triggerElement) {
+	async show(anchor = this._triggerElement): Promise<void> {
+		if (!anchor) {
 			return;
 		}
 		// Sheet's mode row writes through `setSessionConfigValue`; the
@@ -293,7 +310,7 @@ class MobileChatInputConfigPicker extends Disposable {
 		// the new-session and opened-chat buttons render the exact
 		// same Mode + Model rows. The presenter's agent-host branch
 		// reads the active session's provider-owned config and models.
-		const trigger = this._triggerElement;
+		const trigger = anchor;
 		const beforeCtx = ctx;
 		const target = createChatPhoneInputTarget(createChatPhoneInputSessionContext(beforeCtx?.session, beforeCtx?.chat), this._uriIdentityService);
 		const beforeMode = beforeCtx?.currentMode;
@@ -364,7 +381,7 @@ export class MobileChatInputConfigPickerAction extends Action2 {
 				id: Menus.NewSessionChatInputToolbar,
 				group: 'navigation',
 				order: 0,
-				when: ContextKeyExpr.and(SessionUsesCombinedConfigPickerContext, IsPhoneLayoutContext),
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, SessionUsesCombinedConfigPickerContext, IsPhoneLayoutContext),
 			}],
 		});
 	}
@@ -401,7 +418,7 @@ export class MobileChatInputConfigPickerContribution extends Disposable implemen
 		this._register(autorun(reader => {
 			providersChanged.read(reader);
 			const session = focusedSessionHostService.focusedHost.read(reader).session.read(reader);
-			usesCombinedPicker.set(!!session && sessionsProvidersService.getProvider(session.providerId)?.usesCombinedNewSessionConfigPicker === true);
+			usesCombinedPicker.set(!!session && sessionsProvidersService.getProvider(session.providerId, session.sessionId)?.usesCombinedNewSessionConfigPicker === true);
 		}));
 
 		for (const menu of [Menus.AutomationsDialogInputToolbar, Menus.NewSessionChatInputToolbar]) {
@@ -426,6 +443,10 @@ class MobileChatInputConfigPickerActionViewItem extends BaseActionViewItem {
 	override render(container: HTMLElement): void {
 		this._picker.render(container);
 		container.classList.add('chat-input-picker-item');
+	}
+
+	show(anchor: HTMLElement): void {
+		void this._picker.show(anchor);
 	}
 
 	override dispose(): void {

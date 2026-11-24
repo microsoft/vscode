@@ -7,8 +7,9 @@ import { Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { IObservable, IReader } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { IHostSession, IShownChat } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISession } from '../../../../../workbench/services/sessions/common/session.js';
 import { DesktopOwnerCompositionStore } from './desktopOwnerCompositionStore.js';
+import { IShownChat } from '../../../../../workbench/services/sessions/common/sessionPane.js';
 
 /**
  * Shared controller state that desktop layout strategies read/coordinate
@@ -35,7 +36,7 @@ export interface IDesktopLayoutContext {
 	/** The session and chat the main window shows, from its host. */
 	shownByMainWindow(reader?: IReader): IShownChat | undefined;
 	/** The session the main window shows, from its host. */
-	readonly mainWindowSession: IObservable<IHostSession | undefined>;
+	readonly mainWindowSession: IObservable<ISession | undefined>;
 	ownerKeyFor(shown: IShownChat, reader?: IReader): URI | undefined;
 	compositionKeyFor(shown: IShownChat, reader?: IReader): URI | undefined;
 	readonly compositionStore: DesktopOwnerCompositionStore;

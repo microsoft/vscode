@@ -117,6 +117,39 @@
 	opacity: 0.6;
 }
 
+/* Alternate folder location: icon, name and branch-style description */
+.agent-status-label.has-folder-location {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 4px;
+}
+
+.agent-status-pill.compact-mode .agent-status-label.has-folder-location {
+	justify-content: flex-start;
+}
+
+.agent-status-label .folder-location-name-group,
+.agent-status-label .folder-location-branch-group {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	min-width: 0;
+}
+
+.agent-status-label .folder-location-name,
+.agent-status-label .folder-location-branch {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.agent-status-label .folder-location-icon,
+.agent-status-label .folder-location-branch-icon {
+	flex-shrink: 0;
+	font-size: var(--vscode-codiconFontSize-compact);
+}
+
 /* Compact mode: left-aligned label, no icon */
 .agent-status-pill.compact-mode .agent-status-label {
 	text-align: left;

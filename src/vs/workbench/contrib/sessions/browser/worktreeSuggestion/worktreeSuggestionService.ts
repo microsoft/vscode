@@ -29,23 +29,23 @@ import { OnboardingOutcome } from '../../../onboarding/common/onboardingScenario
 import { IOnboardingScenarioService, ONBOARDING_ENABLED_CONFIG } from '../../../onboarding/common/onboardingScenarioService.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
-import { AgentWorkbenchLayout, ISessionsHostLayoutService } from '../sessionsHostLayoutService.js';
+import { AgentWorkbenchLayout, ISessionsHostLayoutService } from '../../../../services/sessions/browser/sessionsHostLayoutService.js';
 import { isAgentHostProvider } from '../../common/agentHostSessionsProvider.js';
 import { IsPhoneLayoutContext } from '../../common/contextkeys.js';
 import { isDevContainerWorktreeEnabled } from '../../common/devContainerAgentHostService.js';
 import { ISessionsProvidersService } from '../sessionsProvidersService.js';
-import { ISessionFileChange, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../common/session.js';
-import { IHostSession } from '../../common/sessionsManagement.js';
+import { ISessionFileChange, isSessionCreated, UNCOMMITTED_CHANGES_CHANGESET_ID, ISession } from '../../../../services/sessions/common/session.js';
 import { ISessionsProvider } from '../../common/sessionsProvider.js';
+import { ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { CHANGES_VIEW_ID } from '../../common/changes.js';
-import { ISessionChangesService } from '../../common/sessionChangesService.js';
+import { ISessionChangesService } from '../../../../services/sessions/common/sessionChangesService.js';
 import { createWorktreeSuggestionTour } from '../tours/worktreeSuggestionTour.js';
 import { isWorktreeSuggestionVariant, WORKTREE_SUGGESTION_MIN_CREATED_SESSIONS, WORKTREE_SUGGESTION_SETTING, WORKTREE_SUGGESTION_TOUR_ID, WorktreeSuggestionVariant } from '../../common/worktreeSuggestion.js';
 import { formatChangeStats, getChangedFileAriaDescription, getChangedFileLabel, getChangedFilesRoot, getChangedFileUri, getMoreFilesLabel, getSendInWorktreeLabel, getSendLabel, getUncommittedChangesMessage } from './worktreeSuggestionPresentation.js';
 
 /** A new session that would start in a folder with uncommitted changes. */
 export interface IWorktreeSuggestion {
-	readonly session: IHostSession;
+	readonly session: ISession;
 	/** Number of files with uncommitted changes in the session's folder. */
 	readonly uncommittedChanges: number;
 	/** The folder's checked-out branch, when known. */
@@ -87,7 +87,7 @@ export interface IWorktreeSuggestionService {
 	 * available. It ignores state that only the treatments write, such as a closed hint or a spotlight
 	 * that was already shown, so it can decide the experiment trigger.
 	 */
-	getSuggestion(session: IHostSession | undefined, reader: IReader | undefined): IWorktreeSuggestion | undefined;
+	getSuggestion(session: ISession | undefined, reader: IReader | undefined): IWorktreeSuggestion | undefined;
 
 	/** Logs the experiment trigger once a suggestion would appear in any arm. */
 	reportWouldShow(): void;
@@ -132,6 +132,12 @@ export interface IWorktreeSuggestionService {
 	/** Whether the user closed the inline hint, which then never shows again. */
 	isHintClosed(reader: IReader | undefined): boolean;
 
+	/**
+	 * Whether the user started a session in a new worktree, after which New Worktree is recommended less
+	 * prominently. A preview starts without one, but records one the user starts during it.
+	 */
+	hasCreatedWorktreeSession(reader: IReader | undefined): boolean;
+
 	/** Stops showing the inline hint. */
 	closeHint(suggestion: IWorktreeSuggestion): void;
 
@@ -153,7 +159,10 @@ export interface IWorktreeSuggestionService {
 	 */
 	setPreview(variant: WorktreeSuggestionVariant | undefined): void;
 
-	/** Forgets earlier responses, so a closed hint and a spotlight that was shown can appear again. */
+	/**
+	 * Forgets earlier responses and sessions started in a new worktree, so a closed hint, a spotlight that
+	 * was shown and the prominent recommendation can appear again.
+	 */
 	reset(): void;
 }
 
@@ -164,9 +173,11 @@ const STATE_STORAGE_KEY = 'sessions.worktreeSuggestion.state';
 interface IWorktreeSuggestionState {
 	/** Whether the user closed the inline hint. */
 	readonly hintClosed: boolean;
+	/** Whether the user started a session in a new worktree. */
+	readonly worktreeSessionCreated: boolean;
 }
 
-const INITIAL_STATE: IWorktreeSuggestionState = { hintClosed: false };
+const INITIAL_STATE: IWorktreeSuggestionState = { hintClosed: false, worktreeSessionCreated: false };
 
 type WorktreeSuggestionAction = 'shown' | 'opened' | 'reviewed' | 'accepted' | 'declined' | 'dismissed';
 
@@ -218,6 +229,7 @@ export class WorktreeSuggestionService extends Disposable implements IWorktreeSu
 		@ISessionsHostLayoutService private readonly _layoutService: ISessionsHostLayoutService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@ILogService private readonly _logService: ILogService,
+		@ISessionsManagementService sessionsManagementService: ISessionsManagementService,
 	) {
 		super();
 
@@ -254,9 +266,15 @@ export class WorktreeSuggestionService extends Disposable implements IWorktreeSu
 			watchProviders(event.added);
 		}));
 		watchProviders(_sessionsProvidersService.getProviders({ includeSessionBackends: true }));
+
+		this._register(sessionsManagementService.onDidSendRequest(({ isNewSession, newSessionConfig }) => {
+			if (isNewSession && newSessionConfig?.isolation === 'worktree') {
+				this._recordWorktreeSessionCreated();
+			}
+		}));
 	}
 
-	getSuggestion(session: IHostSession | undefined, reader: IReader | undefined): IWorktreeSuggestion | undefined {
+	getSuggestion(session: ISession | undefined, reader: IReader | undefined): IWorktreeSuggestion | undefined {
 		if (!session || this._chatEntitlementService.sentimentObs.read(reader).hidden) {
 			return undefined;
 		}
@@ -267,12 +285,12 @@ export class WorktreeSuggestionService extends Disposable implements IWorktreeSu
 		if (this._phoneLayout.read(reader)) {
 			return undefined;
 		}
-		if (session.isCreated.read(reader) || session.loading.read(reader)
+		if (isSessionCreated(session, reader) || session.loading.read(reader)
 			|| session.isNewSessionRequestInProgress?.read(reader) || session.isQuickChat?.read(reader)) {
 			return undefined;
 		}
 		// Only providers that report the isolation pick of a draft can show and change it.
-		const provider = this._sessionsProvidersService.getProvider(session.providerId);
+		const provider = this._sessionsProvidersService.getProvider(session.providerId, session.sessionId);
 		if (!session.worktreePending || session.worktreePending.read(reader) || !provider?.setIsolationMode) {
 			return undefined;
 		}
@@ -325,7 +343,7 @@ export class WorktreeSuggestionService extends Disposable implements IWorktreeSu
 
 	async useWorktree(variant: WorktreeSuggestionVariant, suggestion: IWorktreeSuggestion): Promise<boolean> {
 		try {
-			const provider = this._sessionsProvidersService.getProvider(suggestion.session.providerId);
+			const provider = this._sessionsProvidersService.getProvider(suggestion.session.providerId, suggestion.session.sessionId);
 			if (!provider?.setIsolationMode) {
 				throw new Error(`Provider '${suggestion.session.providerId}' cannot change the isolation of a new session.`);
 			}
@@ -411,6 +429,10 @@ export class WorktreeSuggestionService extends Disposable implements IWorktreeSu
 	closeHint(suggestion: IWorktreeSuggestion): void {
 		this._updateState({ hintClosed: true });
 		this._report(WorktreeSuggestionVariant.InlineHint, 'dismissed', suggestion);
+	}
+
+	hasCreatedWorktreeSession(reader: IReader | undefined): boolean {
+		return this._getState(reader).worktreeSessionCreated;
 	}
 
 	canShowSpotlight(): boolean {
@@ -502,9 +524,13 @@ export class WorktreeSuggestionService extends Disposable implements IWorktreeSu
 		if (this._preview.read(reader) !== undefined) {
 			return this._previewState.read(reader);
 		}
+		return this._getStoredState(reader);
+	}
+
+	private _getStoredState(reader: IReader | undefined): IWorktreeSuggestionState {
 		this._stateChanged.read(reader);
 		const state = this._storageService.getObject<Partial<IWorktreeSuggestionState>>(STATE_STORAGE_KEY, StorageScope.PROFILE);
-		return { hintClosed: state?.hintClosed === true };
+		return { hintClosed: state?.hintClosed === true, worktreeSessionCreated: state?.worktreeSessionCreated === true };
 	}
 
 	private _updateState(update: Partial<IWorktreeSuggestionState>): void {
@@ -513,5 +539,16 @@ export class WorktreeSuggestionService extends Disposable implements IWorktreeSu
 			return;
 		}
 		this._storageService.store(STATE_STORAGE_KEY, { ...this._getState(undefined), ...update }, StorageScope.PROFILE, StorageTarget.MACHINE);
+	}
+
+	/** Unlike a response to a suggestion, a session started in a new worktree is stored during a preview too. */
+	private _recordWorktreeSessionCreated(): void {
+		if (this._preview.get() !== undefined) {
+			this._previewState.set({ ...this._previewState.get(), worktreeSessionCreated: true }, undefined);
+		}
+		const stored = this._getStoredState(undefined);
+		if (!stored.worktreeSessionCreated) {
+			this._storageService.store(STATE_STORAGE_KEY, { ...stored, worktreeSessionCreated: true }, StorageScope.PROFILE, StorageTarget.MACHINE);
+		}
 	}
 }

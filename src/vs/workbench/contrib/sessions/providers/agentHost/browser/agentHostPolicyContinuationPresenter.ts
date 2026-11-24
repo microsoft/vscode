@@ -12,7 +12,7 @@ import { IChatWidget } from '../../../../chat/browser/chat.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from '../../../browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../browser/sessionsService.js';
-import { IFocusedSessionHostService } from '../../../browser/sessionHost.js';
+import { IFocusedSessionHostService } from '../../../../../services/sessions/browser/sessionHost.js';
 import { LocalAgentHostSessionsProvider } from './localAgentHostSessionsProvider.js';
 
 export class SessionsAgentHostPolicyContinuationPresenter implements IAgentHostPolicyContinuationPresenter {

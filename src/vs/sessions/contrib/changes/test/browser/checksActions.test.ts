@@ -13,12 +13,11 @@ import { CommandsRegistry } from '../../../../../platform/commands/common/comman
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IChatWidget, IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
-import { IActiveSession } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { IChat } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { IChat } from '../../../../../workbench/services/sessions/common/session.js';
 import { IGitHubService, IGitHubSessionPullRequestObservables } from '../../../../../workbench/contrib/sessions/browser/github/githubService.js';
 import { GitHubPullRequestCIModel } from '../../../../../workbench/contrib/sessions/browser/github/models/githubPullRequestCIModel.js';
 import { FIX_CI_CHECKS_COMMAND_ID } from '../../browser/checksActions.js';
-import { ITestSessionsService, stubSessionHostsFromSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { ITestSessionsService, ITestSessionWithChat, stubSessionHostsFromSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 
 suite('Fix Checks', () => {
@@ -51,7 +50,7 @@ suite('Fix Checks', () => {
 		const sessionResource = URI.parse('local-agent-host:/session');
 		const secondChat = URI.parse('local-agent-host-chat:/session/second');
 		// A session that shows its second chat, such as in a window of its own.
-		const session = new class extends mock<IActiveSession>() {
+		const session = new class extends mock<ITestSessionWithChat>() {
 			override readonly sessionId = 'session';
 			override readonly resource = sessionResource;
 			override readonly activeChat = constObservable(new class extends mock<IChat>() {

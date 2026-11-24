@@ -5,7 +5,7 @@
 
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IChatPhoneInputSessionContext } from '../../chat/browser/widget/input/chatPhoneInputPresenter.js';
-import { IChat, ISession } from '../common/session.js';
+import { IChat, ISession } from '../../../services/sessions/common/session.js';
 
 export interface IChatPhoneInputTarget {
 	readonly providerId: string;
@@ -14,13 +14,13 @@ export interface IChatPhoneInputTarget {
 }
 
 /** The phone input context of `chat` of `session`, the chat its host shows. */
-export function createChatPhoneInputSessionContext(session: Pick<ISession, 'providerId' | 'sessionId' | 'sessionType' | 'modelId'> | undefined, chat: Pick<IChat, 'resource'> | undefined): IChatPhoneInputSessionContext | undefined {
+export function createChatPhoneInputSessionContext(session: Pick<ISession, 'providerId' | 'sessionId' | 'sessionType'> | undefined, chat: Pick<IChat, 'resource' | 'modelId'> | undefined): IChatPhoneInputSessionContext | undefined {
 	return session && chat ? {
 		providerId: session.providerId,
 		sessionId: session.sessionId,
 		sessionType: session.sessionType,
 		chatResource: chat.resource,
-		modelId: session.modelId.get(),
+		modelId: chat.modelId.get(),
 	} : undefined;
 }
 

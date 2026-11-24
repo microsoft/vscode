@@ -247,9 +247,11 @@ export class MarketplaceExtensionRowRenderer implements IListRenderer<IAgentsWin
 		const publisher = templateDisposables.add(this.instantiationService.createInstance(PublisherWidget, DOM.append(nameRow, $('span.agents-window-extension-publisher', { 'aria-hidden': 'true' })), true));
 		const installCount = templateDisposables.add(this.instantiationService.createInstance(InstallCountWidget, DOM.append(nameRow, $('span.agents-window-extension-install-count', { 'aria-hidden': 'true' })), true));
 		const ratings = templateDisposables.add(this.instantiationService.createInstance(RatingsWidget, DOM.append(nameRow, $('span.agents-window-extension-rating', { 'aria-hidden': 'true' })), true));
-		const warning = DOM.append(nameRow, $('span.agents-window-extension-warning', { 'aria-hidden': 'true' }));
-		warning.classList.add(...ThemeIcon.asClassNameArray(Codicon.warningCompact));
 		const description = DOM.append(details, $('span.agents-window-extension-description'));
+
+		// Next to the Install button, like the warning of installed extensions is next to their switch.
+		const warning = DOM.append(container, $('span.agents-window-extension-warning', { 'aria-hidden': 'true' }));
+		warning.classList.add(...ThemeIcon.asClassNameArray(Codicon.warningCompact));
 
 		const actionsContainer = DOM.append(container, $('.agents-window-extension-marketplace-actions'));
 		const actionRunner = templateDisposables.add(new MarketplaceInstallActionRunner(this.onDidInstall));
@@ -282,7 +284,7 @@ export class MarketplaceExtensionRowRenderer implements IListRenderer<IAgentsWin
 
 		// Installs the preferred version that the extension has, and offers the other version in a menu.
 		const installAction = templateDisposables.add(this.instantiationService.createInstance(InstallDropdownAction));
-		// The Agents window has no Extensions editor, so the extension stays in the Extensions section of Agent Customizations.
+		// Installing from a row keeps users in the list, rather than opening the extension's page like the Extensions view.
 		installAction.opensExtensionEditor = false;
 		// Users install extensions here to use them here, and extensions that don't support the Agents window are disabled
 		// there by default. The extensions service enables them as it installs them, even if the section closes meanwhile.

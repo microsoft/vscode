@@ -108,7 +108,11 @@ export function truncate(value: string, maxLength: number, suffix = Ellipsis): s
 		return value;
 	}
 
-	return `${value.substr(0, maxLength)}${suffix}`;
+	if (maxLength > 0 && isHighSurrogate(value.charCodeAt(maxLength - 1)) && isLowSurrogate(value.charCodeAt(maxLength))) {
+		maxLength--;
+	}
+
+	return `${value.substring(0, maxLength)}${suffix}`;
 }
 
 export function truncateMiddle(value: string, maxLength: number, suffix = Ellipsis): string {
@@ -702,6 +706,16 @@ export const UNUSUAL_LINE_TERMINATORS = /[\u2028\u2029]/; // LINE SEPARATOR (LS)
  */
 export function containsUnusualLineTerminators(str: string): boolean {
 	return UNUSUAL_LINE_TERMINATORS.test(str);
+}
+
+/**
+ * Replaces control, format (such as bidirectional overrides and zero-width
+ * characters) and line or paragraph separator characters with visible
+ * `\u{…}` escapes, so displayed text cannot hide characters, break a line,
+ * or reorder how it reads.
+ */
+export function escapeControlAndFormatCharacters(str: string): string {
+	return str.replace(/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/gu, character => `\\u{${character.codePointAt(0)?.toString(16)}}`);
 }
 
 export function isFullWidthCharacter(charCode: number): boolean {

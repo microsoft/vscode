@@ -462,6 +462,35 @@ suite('ChatModelConfigurationStore', () => {
 		}
 	}
 
+	test('a started chat shows the values its session runs with over preferences it inherited but never set', async () => {
+		const storage = store.add(new InMemoryStorageService());
+		const control = createControllableService();
+		control.setSchema(schemaWithContextSize, ['thinkingEffort', 'contextSize']);
+		await createStore(storage, control.service).setModelConfiguration(MODEL, { thinkingEffort: 'low', contextSize: 1_000_000 });
+		const report = {
+			models: { [MODEL]: { defaults: { thinkingEffort: 'medium', contextSize: 200_000 }, readOnly: [] } },
+			current: {
+				id: MODEL, config: {
+					thinkingEffort: 'high', contextSize: 200_000,
+					[modelConfigurationSourceKey('thinkingEffort')]: 'default',
+					[modelConfigurationSourceKey('contextSize')]: 'default',
+				}
+			},
+		};
+		const draft = createStore(storage, control.service);
+		draft.setSessionModelConfiguration(report);
+		const started = createStore(storage, control.service, () => false);
+		started.restoreModelConfiguration(MODEL, { thinkingEffort: 'high' }, false);
+		started.setSessionModelConfiguration(report);
+		const restored = started.getModelConfiguration(MODEL);
+		await started.setModelConfiguration(MODEL, { contextSize: 1_000_000 });
+		assert.deepStrictEqual({ draft: draft.getModelConfiguration(MODEL), restored, picked: started.getModelConfiguration(MODEL) }, {
+			draft: { thinkingEffort: 'low', contextSize: 1_000_000, [modelConfigurationSourceKey('thinkingEffort')]: 'explicit', [modelConfigurationSourceKey('contextSize')]: 'explicit' },
+			restored: { thinkingEffort: 'high', contextSize: 200_000, [modelConfigurationSourceKey('thinkingEffort')]: 'explicit', [modelConfigurationSourceKey('contextSize')]: 'default' },
+			picked: { thinkingEffort: 'high', contextSize: 1_000_000, [modelConfigurationSourceKey('thinkingEffort')]: 'explicit', [modelConfigurationSourceKey('contextSize')]: 'explicit' },
+		});
+	});
+
 	for (const started of [false, true]) {
 		test(`standard read-only defaults apply without provenance metadata, started=${started}`, async () => {
 			const storage = store.add(new InMemoryStorageService());
@@ -1126,6 +1155,7 @@ suite('ChatModelConfigurationStore', () => {
 				_currentSessionTypeObservable: observableValue<string | undefined>('test.sessionType', undefined),
 				_modelSessionTypeOverride: observableValue('test.modelSessionTypeOverride', undefined),
 				_currentLanguageModel: observableValue('test.selectedModel', selectedModel),
+				chatSessionsService: { getChatSessionContribution: () => undefined },
 				chatModeService: { createModes: () => modes },
 				selectedToolsModel: { resetSessionEnablementState() { } },
 				sessionTypeHasOwnModelPool: () => false,

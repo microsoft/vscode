@@ -6,41 +6,46 @@
 import assert from 'assert';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { Emitter } from '../../../../../base/common/event.js';
-import { constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, derived, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
-import { ActiveSessionHost, getMainWindowHost, getWindowHost, ISessionHost, SessionHostKind, shownChatOf } from '../../browser/sessionHost.js';
+import { getMainWindowHost, getWindowHost, IFocusedSessionHostService, ISessionHost, SessionHost, SessionHostKind, shownChatOf } from '../../../../services/sessions/browser/sessionHost.js';
 import { FocusedSessionHostService, SessionHostService } from '../../browser/sessionHostService.js';
-import { IChat } from '../../common/session.js';
-import { IActiveSession } from '../../common/sessionsManagement.js';
-import { sessionsServiceWithGridHost } from './sessionHostTestUtils.js';
+import { IChat, ISession } from '../../../../services/sessions/common/session.js';
+import { ISessionsService } from '../../browser/sessionsService.js';
+import { chatOfShown, ITestSessionsService, ITestShownChat, sessionOfShown, sessionsServiceWithGridHost, stubSessionHostsFromSessionsService, TestShown, withCreatedStatus, navigationServiceOf } from './sessionHostTestUtils.js';
 
 function chat(path: string): IChat {
 	return upcastPartial<IChat>({ resource: URI.parse(`chat:/${path}`) });
 }
 
-function session(id: string, activeChat: IChat, options?: { readonly created?: boolean; readonly mainChat?: IChat }): IActiveSession {
-	return upcastPartial<IActiveSession>({
-		sessionId: id,
-		resource: URI.parse(`session:/${id}`),
-		isCreated: constObservable(options?.created ?? true),
-		activeChat: constObservable(activeChat),
-		mainChat: constObservable(options?.mainChat ?? activeChat),
-	});
+/** A host's view of a session: the session `id`, and `chat` of it. */
+function session(id: string, chat: IChat, options?: { readonly created?: boolean; readonly mainChat?: IChat }): ITestShownChat {
+	return {
+		session: upcastPartial<ISession>({
+			sessionId: id,
+			resource: URI.parse(`session:/${id}`),
+			...withCreatedStatus(constObservable(options?.created ?? true)),
+			mainChat: constObservable(options?.mainChat ?? chat),
+		}),
+		chat,
+	};
 }
 
 const contextKeyService = upcastPartial<IContextKeyService>({});
 const CHAT_WINDOW_ID = 4242;
 
-function host(kind: SessionHostKind, parent: ISessionHost | undefined, value: IObservable<IActiveSession | undefined>, options?: { readonly windowId?: number; readonly loadingChat?: URI }): ActiveSessionHost {
-	return new ActiveSessionHost({
+function host(kind: SessionHostKind, parent: ISessionHost | undefined, value: IObservable<ITestShownChat | undefined>, options?: { readonly windowId?: number; readonly loadingChat?: URI }): SessionHost {
+	return new SessionHost({
 		kind,
 		parent,
-		session: value,
+		session: derived(reader => sessionOfShown(value.read(reader))),
+		chat: derived(reader => chatOfShown(value.read(reader), reader)),
 		contextKeyService,
 		windowId: options?.windowId !== undefined ? constObservable(options.windowId) : undefined,
 		loadingChat: options?.loadingChat ? constObservable(options.loadingChat) : undefined,
@@ -62,15 +67,15 @@ suite('SessionHost', () => {
 	const sessionAInWindow = session('a', sideChat);
 	const sessionB = session('b', otherChat);
 
-	function createService(groups: readonly IEditorGroup[] = [], mainSession: IObservable<IActiveSession | undefined> = constObservable(sessionA)) {
+	function createService(groups: readonly IEditorGroup[] = [], mainSession: IObservable<ITestShownChat | undefined> = constObservable(sessionA)) {
 		const mainHost = host(SessionHostKind.MainWindow, undefined, mainSession, { windowId: mainWindow.vscodeWindowId });
 		const editorGroupsService = upcastPartial<IEditorGroupsService>({ getGroup: id => groups.find(group => group.id === id) });
-		const service = disposables.add(new SessionHostService(sessionsServiceWithGridHost(mainHost), editorGroupsService));
+		const service = disposables.add(new SessionHostService(navigationServiceOf(sessionsServiceWithGridHost(mainHost)), editorGroupsService));
 		return { service, mainHost };
 	}
 
 	test('what a host shows derives from its session and chat', () => {
-		const value = observableValue<IActiveSession | undefined>('session', undefined);
+		const value = observableValue<ITestShownChat | undefined>('session', undefined);
 		const loading = host(SessionHostKind.ChatWindow, undefined, value, { loadingChat: sideChat.resource });
 		const composer = host(SessionHostKind.Composer, undefined, value);
 		const snapshot = (target: ISessionHost) => ({ kind: target.content.get().kind, chat: target.chatResource.get()?.toString(), session: target.session.get()?.sessionId });
@@ -165,8 +170,8 @@ suite('SessionHost', () => {
 		}, {
 			isMainHost: true,
 			sameEachTime: true,
-			main: { session: sessionA.resource.toString(), chat: mainChat.resource.toString() },
-			chatWindow: { session: sessionAInWindow.resource.toString(), chat: sideChat.resource.toString() },
+			main: { session: sessionA.session.resource.toString(), chat: mainChat.resource.toString() },
+			chatWindow: { session: sessionAInWindow.session.resource.toString(), chat: sideChat.resource.toString() },
 		});
 	});
 
@@ -181,9 +186,9 @@ suite('SessionHost', () => {
 			mainChat: describe(service.getHostOfChat(mainChat.resource)),
 			sideChat: describe(service.getHostOfChat(sideChat.resource)),
 			notShown: describe(service.getHostOfChat(otherChat.resource)),
-			hostsOfSession: service.getHostsOfSession(sessionA.resource).map(describe),
+			hostsOfSession: service.getHostsOfSession(sessionA.session.resource).map(describe),
 			chats: [mainHost, chatWindow].map(target => target.chat.get()?.resource.toString()),
-			shown: [sessionA.resource, sideChat.resource, sessionB.resource, otherChat.resource].map(resource => service.isShown(resource)),
+			shown: [sessionA.session.resource, sideChat.resource, sessionB.session.resource, otherChat.resource].map(resource => service.isShown(resource)),
 		}, {
 			mainChat: SessionHostKind.Pane,
 			sideChat: SessionHostKind.ChatWindow,
@@ -203,7 +208,7 @@ suite('SessionHost', () => {
 		disposables.add(service.registerHost(host(SessionHostKind.AutomationDialog, mainHost, constObservable(sessionA))));
 
 		assert.deepStrictEqual({
-			hostsOfSession: service.getHostsOfSession(sessionA.resource).map(describe),
+			hostsOfSession: service.getHostsOfSession(sessionA.session.resource).map(describe),
 			ofChat: describe(service.getHostOfChat(mainChat.resource)),
 			ofDraft: describe(service.getHostOfChat(sideChat.resource)),
 		}, {
@@ -214,9 +219,9 @@ suite('SessionHost', () => {
 	});
 
 	test('a chat moving between hosts is found in the host that shows it now', () => {
-		const paneSession = observableValue<IActiveSession | undefined>('pane', sessionA);
+		const paneSession = observableValue<ITestShownChat | undefined>('pane', sessionA);
 		const { service, mainHost } = createService([], paneSession);
-		const windowSession = observableValue<IActiveSession | undefined>('window', undefined);
+		const windowSession = observableValue<ITestShownChat | undefined>('window', undefined);
 		disposables.add(service.registerHost(host(SessionHostKind.Pane, mainHost, paneSession)));
 		disposables.add(service.registerHost(host(SessionHostKind.ChatWindow, undefined, windowSession, { windowId: CHAT_WINDOW_ID })));
 
@@ -252,7 +257,7 @@ suite('SessionHost', () => {
 	test('a chat window that gains focus before its host knows its window becomes the focused host once it does', () => {
 		const { service } = createService();
 		const windowId = observableValue<number | undefined>('windowId', undefined);
-		const chatWindow = new ActiveSessionHost({ kind: SessionHostKind.ChatWindow, parent: undefined, session: constObservable(sessionAInWindow), contextKeyService, windowId });
+		const chatWindow = new SessionHost({ kind: SessionHostKind.ChatWindow, parent: undefined, session: constObservable(sessionAInWindow.session), chat: constObservable(sessionAInWindow.chat), contextKeyService, windowId });
 		disposables.add(service.registerHost(chatWindow));
 		const onDidChangeActiveWindow = disposables.add(new Emitter<number>());
 		const focused = disposables.add(new FocusedSessionHostService(service, upcastPartial<IHostService>({ hasFocus: true, onDidChangeActiveWindow: onDidChangeActiveWindow.event })));
@@ -267,7 +272,7 @@ suite('SessionHost', () => {
 
 	test('while the focused window restores its chat, the previously focused host stays focused until it has loaded', () => {
 		const { service } = createService();
-		const windowSession = observableValue<IActiveSession | undefined>('window', undefined);
+		const windowSession = observableValue<ITestShownChat | undefined>('window', undefined);
 		disposables.add(service.registerHost(host(SessionHostKind.ChatWindow, undefined, windowSession, { windowId: CHAT_WINDOW_ID, loadingChat: sideChat.resource })));
 		const onDidChangeActiveWindow = disposables.add(new Emitter<number>());
 		const focused = disposables.add(new FocusedSessionHostService(service, upcastPartial<IHostService>({ hasFocus: false, onDidChangeActiveWindow: onDidChangeActiveWindow.event })));
@@ -298,5 +303,32 @@ suite('SessionHost', () => {
 		const withFocus = describe(focused.getFocusedHost());
 
 		assert.deepStrictEqual({ inBackground, withFocus }, { inBackground: SessionHostKind.ChatWindow, withFocus: SessionHostKind.MainWindow });
+	});
+});
+
+suite('stubSessionHostsFromSessionsService', () => {
+
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('the focused host is the window of the active entry, also while two windows show one session', () => {
+		const inB = session('S', chat('b'));
+		const inC: ITestShownChat = { session: inB.session, chat: chat('c') };
+		const active = observableValue<TestShown | undefined>('active', inB);
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(ISessionsService, upcastPartial<ITestSessionsService>({ activeSession: active, windowSessions: constObservable([inB, inC]) }));
+		stubSessionHostsFromSessionsService(instantiationService);
+		const focusedSessionHostService = instantiationService.get(IFocusedSessionHostService);
+		const focused = () => {
+			const host = focusedSessionHostService.getFocusedHost();
+			return { kind: host.kind, window: host.windowId.get(), chat: host.chat.get()?.resource.path };
+		};
+
+		const before = focused();
+		active.set(inC, undefined);
+
+		assert.deepStrictEqual({ before, after: focused() }, {
+			before: { kind: SessionHostKind.ChatWindow, window: 1000, chat: '/b' },
+			after: { kind: SessionHostKind.ChatWindow, window: 1001, chat: '/c' },
+		});
 	});
 });

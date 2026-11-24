@@ -12,11 +12,11 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { WorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
-import { IChat, ISession } from '../../../../../workbench/contrib/sessions/common/session.js';
-import { IActiveSession, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { IChat, ISession } from '../../../../../workbench/services/sessions/common/session.js';
+import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { SessionsWorkspaceFolderLabelService } from '../../browser/workspaceFolderLabelService.js';
-import { focusedSessionHostServiceOf } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { focusedSessionHostServiceOf, TestShown } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('Sessions - Workspace Folder Label Service', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -47,11 +47,13 @@ suite('Sessions - Workspace Folder Label Service', () => {
 			});
 		};
 		const sessionsService = new class extends mock<ISessionsService>() {
-			readonly activeSession = observableValue<IActiveSession | undefined>(this, new class extends mock<IActiveSession>() {
-				override readonly workspace = session.workspace;
-				override readonly activeChat = observableValue<IChat>(this, new class extends mock<IChat>() {
+			readonly activeSession = observableValue<TestShown | undefined>(this, {
+				session: new class extends mock<ISession>() {
 					override readonly workspace = session.workspace;
-				});
+				},
+				chat: new class extends mock<IChat>() {
+					override readonly workspace = session.workspace;
+				},
 			});
 		};
 		const uriIdentityService = new class extends mock<IUriIdentityService>() {
@@ -93,7 +95,7 @@ suite('Sessions - Workspace Folder Label Service', () => {
 			});
 		};
 		const sessionsService = new class extends mock<ISessionsService>() {
-			readonly activeSession = observableValue<IActiveSession | undefined>(this, undefined);
+			readonly activeSession = observableValue<TestShown | undefined>(this, undefined);
 		};
 		const sessionsManagementService = new class extends mock<ISessionsManagementService>() {
 			override getSessions(): ISession[] {

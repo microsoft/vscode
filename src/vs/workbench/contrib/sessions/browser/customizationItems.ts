@@ -17,6 +17,8 @@ import { AGENT_HOST_COPILOT_CLI_SESSION_TYPE, countEnabledCustomizationTools, IA
 import { getCustomizationToolSets } from '../../chat/browser/agentSessions/agentHost/copilotCliBuiltinToolSet.js';
 import { agentIcon, instructionsIcon, mcpServerIcon, pluginIcon, skillIcon, hookIcon, toolsIcon } from '../../chat/browser/aiCustomization/aiCustomizationIcons.js';
 import { extensionsViewIcon } from '../../extensions/browser/extensionsIcons.js';
+import { VIEWLET_ID as EXTENSIONS_VIEWLET_ID } from '../../extensions/common/extensions.js';
+import { getEnabledViewContainerContextKey } from '../../../common/contextkeys.js';
 import { EXTENSIONS_AGENTS_WINDOW_MANAGEMENT } from '../../../../platform/extensions/common/extensions.js';
 import { IReader } from '../../../../base/common/observable.js';
 import { AICustomizationManagementSection } from '../../chat/common/aiCustomizationWorkspaceService.js';
@@ -34,8 +36,8 @@ export interface ICustomizationItemConfig {
 	readonly isMcp?: boolean;
 	readonly isPlugins?: boolean;
 	readonly isTools?: boolean;
-	/** If set, a badge signals installed extensions that can be enabled in the Agents window. */
-	readonly showsExtensionSuggestions?: boolean;
+	/** Whether the reduced Customizations section still shows the item, rather than listing it under More. */
+	readonly showWhenReduced?: boolean;
 	/** Additional `when` clause beyond the standard harness-visibility gate. */
 	readonly when?: ContextKeyExpression;
 	/** If set, the Command Palette also offers the item, with this title and category, and its default keybinding, if any. */
@@ -43,6 +45,12 @@ export interface ICustomizationItemConfig {
 		readonly title: ILocalizedString;
 		readonly category: ILocalizedString;
 		readonly keybinding?: number;
+		/**
+		 * If set, a context key, kept in sync with where the sidebar offers the item, that scopes the default keybinding.
+		 * Lets the keybindings that users assign a command with the same ID in editor windows, which the Keyboard
+		 * Shortcuts editor scopes to that command's context key, apply to the item's command too.
+		 */
+		readonly enablementContextKey?: string;
 	};
 }
 
@@ -98,6 +106,7 @@ export const CUSTOMIZATION_ITEMS: ICustomizationItemConfig[] = [
 		icon: pluginIcon,
 		section: AICustomizationManagementSection.Plugins,
 		isPlugins: true,
+		showWhenReduced: true,
 	},
 	{
 		id: 'sessions.customization.canvases',
@@ -115,6 +124,7 @@ export const CUSTOMIZATION_ITEMS: ICustomizationItemConfig[] = [
 		icon: mcpServerIcon,
 		section: AICustomizationManagementSection.McpServers,
 		isMcp: true,
+		showWhenReduced: true,
 	},
 	{
 		id: 'sessions.customization.skills',
@@ -122,6 +132,7 @@ export const CUSTOMIZATION_ITEMS: ICustomizationItemConfig[] = [
 		icon: skillIcon,
 		section: AICustomizationManagementSection.Skills,
 		modelSection: AICustomizationManagementSection.Skills,
+		showWhenReduced: true,
 	},
 	{
 		id: 'sessions.customization.instructions',
@@ -129,6 +140,7 @@ export const CUSTOMIZATION_ITEMS: ICustomizationItemConfig[] = [
 		icon: instructionsIcon,
 		section: AICustomizationManagementSection.Instructions,
 		modelSection: AICustomizationManagementSection.Instructions,
+		showWhenReduced: true,
 	},
 	{
 		id: 'sessions.customization.agents',
@@ -152,17 +164,18 @@ export const CUSTOMIZATION_ITEMS: ICustomizationItemConfig[] = [
 		isTools: true,
 	},
 	{
-		id: 'sessions.customization.extensions',
+		// The ID of Show Extensions in editor windows, so the keybindings that users assign it there apply in the Agents window too.
+		id: EXTENSIONS_VIEWLET_ID,
 		label: localize('extensions', "Extensions"),
 		icon: extensionsViewIcon,
 		section: AICustomizationManagementSection.Extensions,
-		showsExtensionSuggestions: true,
 		when: ContextKeyExpr.equals(`config.${EXTENSIONS_AGENTS_WINDOW_MANAGEMENT}`, true),
 		command: {
 			title: localize2('manageExtensions', "Manage Extensions..."),
 			category: ExtensionsLocalizedLabel,
 			// Like the Extensions view in editor windows.
 			keybinding: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyX,
+			enablementContextKey: getEnabledViewContainerContextKey(EXTENSIONS_VIEWLET_ID),
 		},
 	},
 	{

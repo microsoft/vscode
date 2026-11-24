@@ -23,13 +23,14 @@ import { ICustomViewService } from '../../../../../workbench/contrib/sessions/br
 import { IWindowCanvasService } from '../../../../../workbench/contrib/sessions/browser/windowCanvas.js';
 import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { ISessionWorkspace } from '../../../../../workbench/contrib/sessions/common/session.js';
-import { IActiveSession, ICreateNewSessionOptions, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISessionWorkspace } from '../../../../../workbench/services/sessions/common/session.js';
+import { ICreateNewSessionOptions, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { INewSessionComposerService } from '../../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
+import { ISessionDraftsService } from '../../../../../workbench/contrib/sessions/browser/sessionDraftsService.js';
 import { NewChatInSessionsWindowAction } from '../../../../../workbench/contrib/sessions/browser/chat/newSessionAction.js';
 import { NEW_SESSION_ACTION_ID } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
 import { appendNewSessionTitleBarMenuItem } from '../../browser/newSessionTitleBarMenu.js';
-import { ITestSessionsService, stubMissingSessionHostsFromSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { ITestSessionsService, ITestSessionWithChat, stubMissingSessionHostsFromSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('NewChatInSessionsWindowAction', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -37,6 +38,7 @@ suite('NewChatInSessionsWindowAction', () => {
 
 	function createCommand(options: { active?: boolean; available?: boolean; creationFailed?: boolean } = {}) {
 		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(ISessionDraftsService, { stowAndClear: () => undefined });
 		const opened: { target: ICreateNewSessionOptions | undefined; preserveNavigation: boolean | undefined }[] = [];
 		let navigations = 0;
 		instantiationService.stub(INewSessionComposerService, {
@@ -46,13 +48,13 @@ suite('NewChatInSessionsWindowAction', () => {
 			isQuickChatTargetAvailable: () => options.available ?? true,
 		});
 		instantiationService.stub(ISessionsService, upcastPartial<ITestSessionsService>({
-			activeSession: constObservable(options.active ? upcastPartial<IActiveSession>({
+			activeSession: constObservable(options.active ? upcastPartial<ITestSessionWithChat>({
 				providerId: 'other-provider',
 				sessionType: 'other-agent',
 			}) : undefined),
 			openQuickChat: (target, preserveNavigation) => {
 				opened.push({ target, preserveNavigation });
-				return options.creationFailed ? undefined : upcastPartial<IActiveSession>({ resource });
+				return options.creationFailed ? undefined : upcastPartial<NonNullable<ReturnType<ISessionsService['openQuickChat']>>>({ resource });
 			},
 		}));
 		stubMissingSessionHostsFromSessionsService(instantiationService);
@@ -123,6 +125,7 @@ suite('NewChatInSessionsWindowAction', () => {
 
 	test('uses the provider creation target instead of the active backend workspace', async () => {
 		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(ISessionDraftsService, { stowAndClear: () => undefined });
 		const backendResource = URI.parse('remote-provider:/existing');
 		const backendFolder = URI.parse('vscode-agent-host://sandbox/repo');
 		const creationTarget = { providerId: 'cloud-creator', folderUri: URI.parse('github-remote-file://github/owner/repo/HEAD') };
@@ -136,13 +139,13 @@ suite('NewChatInSessionsWindowAction', () => {
 			isNewSessionTargetAvailable: (folder, target) => isEqual(folder, creationTarget.folderUri) && target?.providerId === creationTarget.providerId,
 		});
 		instantiationService.stub(ISessionsService, upcastPartial<ITestSessionsService>({
-			activeSession: constObservable(upcastPartial<IActiveSession>({
+			activeSession: constObservable(upcastPartial<ITestSessionWithChat>({
 				providerId: 'sandbox-backend', sessionType: 'copilot', resource: backendResource,
 				workspace: constObservable(upcastPartial<ISessionWorkspace>({ uri: backendFolder })),
 			})),
 			openNewSession: async options => {
 				opened.push(options);
-				return { session: upcastPartial<IActiveSession>({ resource }), trustDeclined: false };
+				return { session: upcastPartial<ITestSessionWithChat>({ resource }), trustDeclined: false };
 			},
 		}));
 		stubMissingSessionHostsFromSessionsService(instantiationService);
@@ -157,6 +160,26 @@ suite('NewChatInSessionsWindowAction', () => {
 		const fixture = createCommand({ available: false, active: true });
 		await assert.rejects(async () => fixture.run({ noWorkspace: true, agentHostProvider: 'copilotcli' }), /unavailable/);
 		assert.deepStrictEqual(fixture.opened, []);
+	});
+
+	test('New Session stows and clears before reusing the composer, but not when opening to the side', async () => {
+		const instantiationService = store.add(new TestInstantiationService());
+		const calls: string[] = [];
+		instantiationService.stub(INewSessionComposerService, { notifyUserNavigation() { } });
+		instantiationService.stub(ISessionDraftsService, { stowAndClear: () => { calls.push('save and clear'); return undefined; } });
+		instantiationService.stub(ICustomViewService, { activeCustomView: constObservable(undefined) });
+		instantiationService.stub(IWindowCanvasService, { openNewSession: () => undefined });
+		instantiationService.stub(ISessionsProvidersService, { getProvider: () => undefined });
+		instantiationService.stub(ISessionsManagementService, {});
+		instantiationService.stub(ISessionsService, upcastPartial<ITestSessionsService>({
+			activeSession: constObservable(undefined),
+			openNewSession: async () => { calls.push('open'); return { session: undefined, trustDeclined: false }; },
+		}));
+		stubMissingSessionHostsFromSessionsService(instantiationService);
+		for (const toSide of [false, true]) {
+			await instantiationService.invokeFunction(accessor => new NewChatInSessionsWindowAction().run(accessor, { toSide }));
+		}
+		assert.deepStrictEqual(calls, ['save and clear', 'open', 'open']);
 	});
 
 	test('surfaces failure to create an explicitly targeted session', async () => {

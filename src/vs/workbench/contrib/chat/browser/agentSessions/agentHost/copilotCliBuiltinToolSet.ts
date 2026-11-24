@@ -37,6 +37,7 @@ function getCopilotCliTools(): readonly { readonly name: string; readonly descri
 		{ name: 'glob', description: localize('copilotCliTool.glob', "Find files matching patterns") },
 		{ name: 'grep (or rg)', description: localize('copilotCliTool.grep', "Search for text in files") },
 		{ name: 'skill', description: localize('copilotCliTool.skill', "Invoke custom skills") },
+		{ name: 'read_resource', description: localize('copilotCliTool.readResource', "Read MCP resources") },
 		{ name: 'web_fetch', description: localize('copilotCliTool.webFetch', "Fetch and parse web content") },
 	];
 }

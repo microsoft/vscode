@@ -13,27 +13,28 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { CHAT_DELEGATE_TO_AGENT_HOST_SESSION_COMMAND_ID, IAgentHostDelegationRequest } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
 import type { SessionView } from '../../../../../workbench/contrib/sessions/browser/parts/sessionView.js';
-import { IFocusedSessionHostService, ISessionHost, ISessionHostService, SessionHostKind } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
-import { ISessionsPartService } from '../../../../../workbench/contrib/sessions/browser/sessionsPartService.js';
+import { IFocusedSessionHostService, ISessionHost, ISessionHostService, SessionHostKind } from '../../../../../workbench/services/sessions/browser/sessionHost.js';
+import { ISessionsPartService } from '../../../../../workbench/services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { ISession, ISessionWorkspace } from '../../../../../workbench/contrib/sessions/common/session.js';
-import { IActiveSession, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISession, ISessionWorkspace } from '../../../../../workbench/services/sessions/common/session.js';
+import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import '../../browser/agentHostDelegation.js';
+import { ITestSessionWithChat, testGridPanes } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('Sessions - Agent Host delegation', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	function session(id: string): IActiveSession {
+	function session(id: string): ITestSessionWithChat {
 		const folder = URI.file(`/${id}`);
-		return upcastPartial<IActiveSession>({
+		return upcastPartial<ITestSessionWithChat>({
 			sessionId: id,
 			resource: URI.parse(`test:///${id}`),
 			workspace: constObservable(upcastPartial<ISessionWorkspace>({ folders: [{ root: folder, workingDirectory: folder, name: id, description: undefined }] })),
 		});
 	}
 
-	async function delegate(focused: { kind: SessionHostKind; session: IActiveSession }, gridSessions: readonly IActiveSession[], gridActive: IActiveSession): Promise<{ folder: string | undefined; anchor: string | undefined }> {
+	async function delegate(focused: { kind: SessionHostKind; session: ITestSessionWithChat }, gridSessions: readonly ITestSessionWithChat[], gridActive: ITestSessionWithChat): Promise<{ folder: string | undefined; anchor: string | undefined }> {
 		const result: { folder: string | undefined; anchor: string | undefined } = { folder: undefined, anchor: undefined };
 		const created = upcastPartial<ISession>({ sessionId: 'delegated' });
 		const instantiationService = new TestInstantiationService();
@@ -43,7 +44,8 @@ suite('Sessions - Agent Host delegation', () => {
 			getFocusedHost: () => upcastPartial<ISessionHost>({ kind: focused.kind, session: constObservable(focused.session), chat: constObservable(undefined) }),
 		}));
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			override readonly visibleSessions = constObservable(gridSessions);
+			readonly gridShown = constObservable(gridSessions);
+			override readonly slotPanes = testGridPanes(this.gridShown);
 			override insertAt(_session: ISession | undefined, targetSessionId: string | undefined) { result.anchor = targetSessionId; }
 		});
 		instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() {

@@ -3,7 +3,6 @@
   "displayName": "Markdown Checkbox Count Demo",
   "description": "Demonstrates a Markdown code block editor communicating with its extension host.",
   "version": "0.0.1",
-  "packageManager": "pnpm@12.16.0",
   "publisher": "vscode-samples",
   "private": true,
   "engines": {

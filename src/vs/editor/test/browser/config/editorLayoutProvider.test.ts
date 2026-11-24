@@ -665,7 +665,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 	}
 
 	test('issue #236999: the minimap scale does not jump when the pixel ratio crosses 2', () => {
-		const pixelRatios = [1, 1.5, 1.99, 2, 2.5];
+		const pixelRatios = [1, 1.25, 1.5, 1.75, 1.96, 1.9999998, 2, 2.5];
 		const actual = [1, 2, 3].map(minimapScale => pixelRatios.map(pixelRatio => computeLayoutInfo({
 			...minimapInput,
 			lineNumbersDigitCount: 1,
@@ -674,9 +674,9 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			pixelRatio,
 		}).minimap.minimapScale));
 		assert.deepStrictEqual(actual, [
-			[1, 1, 1, 2, 2],
-			[2, 3, 3, 4, 4],
-			[3, 4, 5, 6, 6],
+			[1, 1, 1, 1, 2, 2, 2, 2],
+			[2, 2, 3, 3, 4, 4, 4, 4],
+			[3, 3, 4, 5, 6, 6, 6, 6],
 		]);
 	});
 

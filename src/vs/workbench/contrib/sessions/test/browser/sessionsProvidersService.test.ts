@@ -97,6 +97,22 @@ suite('SessionsProvidersService', () => {
 		});
 	});
 
+	test('routes session operations to acquired executions without registering more providers', () => {
+		const { service } = createService();
+		const execution = provider('execution');
+		const catalog = upcastPartial<ISessionsProvider>({
+			id: 'catalog', order: 0,
+			getSessionProvider: sessionId => sessionId === 'ready' ? execution : undefined,
+		});
+		store.add(service.registerProvider(catalog));
+		assert.deepStrictEqual({
+			catalog: service.getProvider('catalog'),
+			unopened: service.getProvider('catalog', 'unopened'),
+			ready: service.getProvider('catalog', 'ready'),
+			registered: service.getProviders(),
+		}, { catalog, unopened: catalog, ready: execution, registered: [catalog] });
+	});
+
 	test('keeps early backends unavailable until their owner registers and gates them on its lifetime', () => {
 		const { service } = createService();
 		const cloud = provider('cloud');

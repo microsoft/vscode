@@ -61,6 +61,7 @@ suite('EditorHeaderControl', () => {
 		const container = $('.title');
 		const control = store.add(instantiationService.createInstance(EditorHeaderControl, container, groupView, groupsView, { headerPrimary: menuId }, options.showHeader === true, options.reserveHeaderSpace, options.showHeaderFor));
 		return {
+			container,
 			control,
 			heights,
 			hasActions,
@@ -75,6 +76,17 @@ suite('EditorHeaderControl', () => {
 			},
 		};
 	}
+
+	test('positions the header beside left-docked content and clears the offset when docking changes', () => {
+		const header = createHeader({ showHeader: true, reserveHeaderSpace: () => true });
+		header.activate(store.add(new TestHeaderEditorInput()));
+		const states = [[340, 260], [440, 300], [600, 0]].map(([width, left]) => {
+			header.control.layout(width, left);
+			const style = header.container.querySelector<HTMLElement>('.editor-group-header')!.style;
+			return { width: style.width, left: style.marginLeft };
+		});
+		assert.deepStrictEqual(states, [{ width: '340px', left: '260px' }, { width: '440px', left: '300px' }, { width: '600px', left: '' }]);
+	});
 
 	for (const tabHeight of ['default', 'compact'] as const) {
 		test(`reserves header height across tab and delayed menu changes (${tabHeight})`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {

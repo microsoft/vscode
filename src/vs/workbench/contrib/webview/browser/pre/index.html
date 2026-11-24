@@ -5,7 +5,7 @@
 	<meta charset="UTF-8">
 
 	<meta http-equiv="Content-Security-Policy"
-		content="default-src 'none'; script-src 'sha256-29YeDbmHnhN2BgMJKVq7vDCMiuya6rpEctI6SkJFfJc=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
+		content="default-src 'none'; script-src 'sha256-mJlW7V1HtPghR7DIVKkjtQB+P4WPEn1mv458ONAbG60=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
 
 	<!-- Disable pinch zooming -->
 	<meta name="viewport"
@@ -1074,6 +1074,7 @@
 				newFrame.title = data.title;
 				newFrame.setAttribute('id', 'pending-frame');
 				newFrame.setAttribute('frameborder', '0');
+				newFrame.allowFullscreen = !!options.allowFullscreen;
 
 				const sandboxRules = new Set(['allow-same-origin', 'allow-pointer-lock']);
 				if (options.allowScripts) {
@@ -1085,7 +1086,11 @@
 				}
 				newFrame.setAttribute('sandbox', Array.from(sandboxRules).join(' '));
 
-				const allowRules = ['cross-origin-isolated;', 'autoplay;', 'local-network-access;'];
+				const allowRules = ['cross-origin-isolated;', 'autoplay;'];
+				const supportedFeatures = /** @type {HTMLIFrameElement & { featurePolicy?: { features(): string[] } }} */ (newFrame).featurePolicy?.features();
+				if (supportedFeatures?.includes('local-network-access')) {
+					allowRules.push('local-network-access;');
+				}
 				if (!isFirefox && options.allowScripts) {
 					allowRules.push('clipboard-read;', 'clipboard-write;');
 				}
@@ -1114,6 +1119,11 @@
 
 					// Workaround for https://bugs.chromium.org/p/chromium/issues/detail?id=978325
 					setTimeout(() => {
+						// If the frame is no longer mounted, loading has stopped
+						if (!newFrame.parentElement) {
+							return;
+						}
+
 						contentDocument.open();
 						contentDocument.write(newDocument);
 						contentDocument.close();
@@ -1144,6 +1154,11 @@
 					}, 10);
 				} else {
 					assertIsDefined(newFrame.contentWindow).addEventListener('DOMContentLoaded', e => {
+						// If the frame is no longer mounted, loading has stopped
+						if (!newFrame.parentElement) {
+							return;
+						}
+
 						const contentDocument = e.target ? (/** @type {HTMLDocument} */ (e.target)) : undefined;
 						onFrameLoaded(assertIsDefined(contentDocument));
 					});
@@ -1191,7 +1206,9 @@
 							const postSize = () => {
 								hostMessaging.postMessage('updated-intrinsic-content-size', {
 									width: docEl.offsetWidth,
-									height: docEl.offsetHeight
+									height: options.includeHorizontalScrollbarInContentHeight
+										? Math.ceil(docEl.getBoundingClientRect().height + Math.max(0, contentWindow.innerHeight - docEl.clientHeight))
+										: docEl.offsetHeight
 								});
 							};
 
@@ -1211,17 +1228,28 @@
 				 * @param {HTMLIFrameElement} newFrame
 				 */
 				function hookupOnLoadHandlers(newFrame) {
+					// If the frame is no longer mounted, loading has stopped
+					if (!newFrame.parentElement) {
+						return;
+					}
+
 					clearTimeout(loadTimeout);
 					loadTimeout = undefined;
 					loadTimeout = setTimeout(() => {
 						clearTimeout(loadTimeout);
 						loadTimeout = undefined;
+						if (!newFrame.parentElement) {
+							return;
+						}
 						onLoad(assertIsDefined(newFrame.contentDocument), assertIsDefined(newFrame.contentWindow));
 					}, 200);
 
 					const contentWindow = assertIsDefined(newFrame.contentWindow);
 
 					contentWindow.addEventListener('load', function (e) {
+						if (!newFrame.parentElement) {
+							return;
+						}
 						const contentDocument = /** @type {Document} */ (e.target);
 
 						if (loadTimeout) {
@@ -1325,6 +1353,11 @@
 					return;
 				}
 				const contentDocument = assertIsDefined(target.contentDocument);
+				// Commands invoked from host menus run while focus is outside the webview, and browsers
+				// such as Chrome reject native clipboard commands in an unfocused document.
+				if (!contentDocument.hasFocus()) {
+					target.contentWindow?.focus();
+				}
 				const lastFocused = lastFocusedElements.get(contentDocument);
 				const selection = contentDocument.getSelection();
 				// Restoring focus to an input would discard a selection in non-focusable content.

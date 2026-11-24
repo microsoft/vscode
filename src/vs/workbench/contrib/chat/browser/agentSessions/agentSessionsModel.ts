@@ -28,11 +28,12 @@ import { IWorkspaceTrustManagementService } from '../../../../../platform/worksp
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
 import { Extensions, IOutputChannelRegistry, IOutputService } from '../../../../services/output/common/output.js';
-import { ChatSessionRefreshReason, ChatSessionStatus as AgentSessionStatus, IChatSessionFileChange, IChatSessionFileChange2, IChatSessionItem, IChatSessionsService, isSessionInProgressStatus, ResolvedChatSessionsExtensionPoint } from '../../common/chatSessionsService.js';
+import { ChatSessionRefreshReason, ChatSessionStatus as AgentSessionStatus, IChatSessionItem, IChatSessionsService, isSessionInProgressStatus, ResolvedChatSessionsExtensionPoint } from '../../common/chatSessionsService.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
 import { IChatWidgetService } from '../chat.js';
 import { dedupeMigratedCopilotCliSessions, legacyCopilotCliResource } from '../copilotCliEventsUri.js';
 import { AgentSessionProviders, getAgentSessionProvider, getAgentSessionProviderIcon, getAgentSessionProviderName, isAgentHostTarget, isBuiltInAgentSessionProvider } from './agentSessions.js';
+import { IChatSessionFileChange, IChatSessionFileChange2 } from '../../../../common/chatSessionFileChange.js';
 
 //#region Interfaces, Types
 
@@ -58,6 +59,7 @@ export interface IAgentSessionsModel {
 	readonly resolved: boolean;
 
 	readonly sessions: IAgentSession[];
+	readonly sessionsIncludingAutomationRuns?: IAgentSession[];
 	getSession(resource: URI): IAgentSession | undefined;
 
 	/**
@@ -326,6 +328,7 @@ export interface IMarshalledAgentSessionContext {
 
 	readonly session: IAgentSession;
 	readonly sessions: IAgentSession[]; // support for multi-selection
+	readonly showAutomationRuns?: boolean;
 }
 
 export function isMarshalledAgentSessionContext(thing: unknown): thing is IMarshalledAgentSessionContext {
@@ -335,6 +338,28 @@ export function isMarshalledAgentSessionContext(thing: unknown): thing is IMarsh
 	}
 
 	return false;
+}
+
+/**
+ * Adapts the argument of the shared sessions list menu, an array of selected sessions
+ * that only share a `resource` with agent sessions, to the marshalled context the agent
+ * session actions expect. Any other context is returned unchanged. Returns `undefined`
+ * when none of the selected sessions is a known agent session.
+ */
+export function toAgentSessionContext(context: IAgentSession | IMarshalledAgentSessionContext | readonly { readonly resource: URI }[] | undefined, getSession: (resource: URI) => IAgentSession | undefined): IAgentSession | IMarshalledAgentSessionContext | undefined {
+	if (!Array.isArray(context)) {
+		return context as IAgentSession | IMarshalledAgentSessionContext | undefined;
+	}
+
+	const sessions: IAgentSession[] = [];
+	for (const candidate of context as readonly { readonly resource: URI }[]) {
+		const session = URI.isUri(candidate?.resource) ? getSession(candidate.resource) : undefined;
+		if (session) {
+			sessions.push(session);
+		}
+	}
+
+	return sessions.length > 0 ? { $mid: MarshalledId.AgentSessionContext, session: sessions[0], sessions } : undefined;
 }
 
 //#endregion
@@ -541,8 +566,11 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 
 	private _sessions: ResourceMap<IInternalAgentSession>;
 	get sessions(): IAgentSession[] {
-		return this._dedupeMigratedCopilotCliSessions(Array.from(this._sessions.values()))
-			.filter(session => session.metadata?.isAutomation !== true);
+		return this.sessionsIncludingAutomationRuns.filter(session => session.metadata?.isAutomation !== true);
+	}
+
+	get sessionsIncludingAutomationRuns(): IAgentSession[] {
+		return this._dedupeMigratedCopilotCliSessions(Array.from(this._sessions.values()));
 	}
 
 	private readonly resolvers = this._register(new DisposableMap<string, ThrottledDelayer<void>>());
@@ -941,12 +969,12 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 			});
 			return this.sessionStates.get(session.resource);
 		}
-		const legacy = session.legacyResource;
+		const previous = this.chatSessionsService.getPreviousChatSessionResource?.(session.resource);
+		const legacy = previous ?? session.legacyResource;
 		if (!legacy) {
 			return undefined;
 		}
-		// Cross-scheme and self-referential mappings are rejected defensively.
-		if (legacy.scheme !== session.resource.scheme || legacy.toString() === session.resource.toString()) {
+		if ((!previous && legacy.scheme !== session.resource.scheme) || legacy.toString() === session.resource.toString()) {
 			return undefined;
 		}
 		const prev = this.sessionStates.get(legacy);

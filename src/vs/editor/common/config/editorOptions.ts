@@ -2826,14 +2826,15 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 	/**
 	 * Computes the minimap scale in device pixels from the configured `editor.minimap.scale`.
 	 * The configured scale is doubled on high DPI screens. Between a pixel ratio of 1 and 2,
-	 * the scale grows with the pixel ratio, so that changing the zoom level only slightly
-	 * doesn't change the minimap size abruptly.
+	 * the scale grows with the pixel ratio. The tolerance keeps a pixel ratio slightly below
+	 * a whole step (e.g. a slightly negative zoom level on a high DPI screen) at that step,
+	 * instead of shrinking the minimap abruptly.
 	 */
 	private static _computeMinimapScale(configuredScale: number, pixelRatio: number): number {
 		if (pixelRatio >= 2) {
 			return Math.round(configuredScale * 2);
 		}
-		return Math.max(configuredScale, Math.floor(configuredScale * pixelRatio));
+		return Math.max(configuredScale, Math.floor(configuredScale * pixelRatio + 0.125));
 	}
 
 	private static _computeMinimapLayout(input: IMinimapLayoutInput, memory: ComputeOptionsMemory): EditorMinimapLayoutInfo {
@@ -4791,6 +4792,7 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 				'editor.inlineSuggest.fontFamily': {
 					type: 'string',
 					default: defaults.fontFamily,
+					restricted: true,
 					description: nls.localize('inlineSuggest.fontFamily', "Controls the font family of the inline suggestions.")
 				},
 				'editor.inlineSuggest.edits.allowCodeShifting': {
@@ -5110,6 +5112,11 @@ export interface ISuggestOptions {
 	 */
 	selectionMode?: 'always' | 'never' | 'whenTriggerCharacter' | 'whenQuickSuggestion';
 	/**
+	 * Show suggestions again when Backspace follows their closing because nothing matched what
+	 * was typed, and keep them open when it deletes back to a trigger character. Defaults to false.
+	 */
+	reopenOnDelete?: boolean;
+	/**
 	 * Enable or disable icons in suggestions. Defaults to true.
 	 */
 	showIcons?: boolean;
@@ -5268,6 +5275,7 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, ISuggestOptio
 			localityBonus: false,
 			shareSuggestSelections: false,
 			selectionMode: 'always',
+			reopenOnDelete: false,
 			showIcons: true,
 			showStatusBar: false,
 			preview: false,
@@ -5348,6 +5356,12 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, ISuggestOptio
 					type: 'boolean',
 					default: defaults.snippetsPreventQuickSuggestions,
 					description: nls.localize('suggest.snippetsPreventQuickSuggestions', "Controls whether an active snippet prevents quick suggestions.")
+				},
+				'editor.suggest.reopenOnDelete': {
+					type: 'boolean',
+					default: defaults.reopenOnDelete,
+					tags: ['advanced'],
+					description: nls.localize('suggest.reopenOnDelete', "Controls whether Backspace shows suggestions again after they closed because nothing matched what was typed, and keeps them open when it deletes back to a trigger character.")
 				},
 				'editor.suggest.showIcons': {
 					type: 'boolean',
@@ -5539,6 +5553,7 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, ISuggestOptio
 			localityBonus: boolean(input.localityBonus, this.defaultValue.localityBonus),
 			shareSuggestSelections: boolean(input.shareSuggestSelections, this.defaultValue.shareSuggestSelections),
 			selectionMode: stringSet(input.selectionMode, this.defaultValue.selectionMode, ['always', 'never', 'whenQuickSuggestion', 'whenTriggerCharacter']),
+			reopenOnDelete: boolean(input.reopenOnDelete, this.defaultValue.reopenOnDelete),
 			showIcons: boolean(input.showIcons, this.defaultValue.showIcons),
 			showStatusBar: boolean(input.showStatusBar, this.defaultValue.showStatusBar),
 			preview: boolean(input.preview, this.defaultValue.preview),
@@ -5624,6 +5639,24 @@ class SmartSelect extends BaseEditorOption<EditorOption.smartSelect, ISmartSelec
 			selectLeadingAndTrailingWhitespace: boolean((input as ISmartSelectOptions).selectLeadingAndTrailingWhitespace, this.defaultValue.selectLeadingAndTrailingWhitespace),
 			selectSubwords: boolean((input as ISmartSelectOptions).selectSubwords, this.defaultValue.selectSubwords),
 		};
+	}
+}
+
+//#endregion
+
+//#region tabFocusMode
+
+class EditorTabFocusMode extends EditorBooleanOption<EditorOption.tabFocusMode> {
+
+	constructor() {
+		super(
+			EditorOption.tabFocusMode, 'tabFocusMode', false,
+			{ markdownDescription: nls.localize('tabFocusMode', "Controls whether the editor receives tabs or defers them to the workbench for navigation.") }
+		);
+	}
+
+	public override compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: boolean): boolean {
+		return env.tabFocusMode;
 	}
 }
 
@@ -7063,9 +7096,7 @@ export const EditorOptions = {
 		}
 	)),
 	pixelRatio: register(new EditorPixelRatio()),
-	tabFocusMode: register(new EditorBooleanOption(EditorOption.tabFocusMode, 'tabFocusMode', false,
-		{ markdownDescription: nls.localize('tabFocusMode', "Controls whether the editor receives tabs or defers them to the workbench for navigation.") }
-	)),
+	tabFocusMode: register(new EditorTabFocusMode()),
 	layoutInfo: register(new EditorLayoutInfoComputer()),
 	wrappingInfo: register(new EditorWrappingInfoComputer()),
 	wrappingIndent: register(new WrappingIndentOption()),

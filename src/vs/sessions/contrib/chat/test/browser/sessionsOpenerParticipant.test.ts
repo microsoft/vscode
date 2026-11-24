@@ -13,7 +13,7 @@ import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/
 import { openSessionByResource } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsOpener.js';
 import { SessionsOpenerParticipantContribution } from '../../browser/sessionsOpenerParticipant.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { ISession } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { ISession } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 
 suite('SessionsOpenerParticipant', () => {

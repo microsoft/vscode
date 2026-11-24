@@ -21,7 +21,6 @@ import { getGitHubRemoteInfo, IGitHubRemoteInfo } from '../../../../workbench/co
 import { getOnboardingDeveloperModeVariation, isOnboardingDeveloperModeEnabled, OnboardingDeveloperModeVariations, ONBOARDING_DEVELOPER_MODE_VARIATIONS_CONFIG } from '../../../../workbench/contrib/onboarding/common/onboardingScenarioService.js';
 import { IWorkbenchAssignmentService } from '../../../../workbench/services/assignment/common/assignmentService.js';
 import { isAgentHostProviderId } from '../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
-import { IHostSession } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { INewSessionComposer, INewSessionComposerService, INewSessionPromptOption, INewSessionPromptOptionsController, NEW_SESSION_PROMPT_TYPING_DURATION_MS, NewSessionPromptOptionsProgress, NewSessionPromptOptionsState } from '../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
 import { getGitHubRepositoryFromUri } from '../../../../workbench/contrib/sessions/common/github/utils.js';
 import { GitHubRequestError } from '../../../../platform/github/common/githubTypes.js';
@@ -31,6 +30,7 @@ import { IGitHubService } from '../../../../workbench/contrib/sessions/browser/g
 import { computeIssueIcon, computePullRequestIcon, GitHubIssueState, GitHubPullRequestState } from '../../../../workbench/contrib/sessions/common/github/types.js';
 import { resolveGitHubRepositoryFromGitConfig } from '../../../../workbench/contrib/sessions/browser/gitHubRepositoryResolver.js';
 import { NEW_SESSION_VIEW_V3_GITHUB_PROMPT_VARIATION, NEW_SESSION_VIEW_V3_OPTIONS_VARIATION, NEW_SESSION_VIEW_V3_PROMPT_VARIATION, NEW_SESSION_VIEW_V3_TOUR_ID, NEW_SESSION_VIEW_V3_VARIATION_TREATMENT } from './tours/newSessionViewV3Tour.js';
+import { isSessionCreated, ISession } from '../../../../workbench/services/sessions/common/session.js';
 
 /**
  * Per-stage budgets are sized so the longest dependent chain of timed lookups fits inside `totalMs`:
@@ -141,7 +141,7 @@ interface INewSessionViewV3PromptOptionsPlan {
 }
 
 interface INewSessionViewV3RepositoryContext {
-	readonly session: IHostSession;
+	readonly session: ISession;
 	readonly workspaceUri: string;
 	readonly folderUri: string;
 	readonly repository: IGitHubRemoteInfo;
@@ -266,7 +266,7 @@ export class NewSessionViewV3PromptRunner {
 		private readonly _assignmentService: IWorkbenchAssignmentService,
 		private readonly _configurationService: IConfigurationService,
 		/** The session the main window shows, whose new-session composer the prompt fills. */
-		private readonly _mainWindowSession: IObservable<IHostSession | undefined>,
+		private readonly _mainWindowSession: IObservable<ISession | undefined>,
 		private readonly _newSessionComposerService: INewSessionComposerService,
 		private readonly _gitService: IGitService,
 		private readonly _fileService: IFileService,
@@ -400,7 +400,7 @@ export class NewSessionViewV3PromptRunner {
 		}
 		this._logService.info(`${LOG_PREFIX} Showing prompt option loading skeletons.`);
 		const state = await resolveOptions(token);
-		if (token.isCancellationRequested || this._newSessionComposerService.activeComposer.get() !== composer || this._mainWindowSession.get()?.isCreated.get()) {
+		if (token.isCancellationRequested || this._newSessionComposerService.activeComposer.get() !== composer || isSessionCreated(this._mainWindowSession.get())) {
 			composer.showPromptOptions(undefined);
 			this._logService.trace(`${LOG_PREFIX} Prompt option resolution was cancelled or its composer is no longer active.`);
 			this._reportStrategy(configuredVariation, 'options', configuredFallbackReason ?? latestPlan?.fallbackReason ?? 'requestFailed', false, latestPlan?.lookup);
@@ -425,7 +425,7 @@ export class NewSessionViewV3PromptRunner {
 
 	private _getActiveComposer(): INewSessionComposer | undefined {
 		const activeSession = this._mainWindowSession.get();
-		if (activeSession?.isCreated.get()) {
+		if (isSessionCreated(activeSession)) {
 			return undefined;
 		}
 		return this._newSessionComposerService.activeComposer.get();
@@ -903,7 +903,7 @@ export class NewSessionViewV3PromptRunner {
 				this._logService.trace(`${LOG_PREFIX} No active draft session is available for repository resolution.`);
 				return undefined;
 			}
-			if (activeSession.isCreated.get()) {
+			if (isSessionCreated(activeSession)) {
 				this._logService.trace(`${LOG_PREFIX} The active session is already created, so the V3 new-session prompt cannot resolve its repository.`);
 				return undefined;
 			}
@@ -974,7 +974,7 @@ export class NewSessionViewV3PromptRunner {
 		return undefined;
 	}
 
-	private _waitForAgentHostRepository(activeSession: IHostSession, token: CancellationToken): Promise<AgentHostRepositoryResolution> {
+	private _waitForAgentHostRepository(activeSession: ISession, token: CancellationToken): Promise<AgentHostRepositoryResolution> {
 		return new Promise((resolve, reject) => {
 			const disposables = new DisposableStore();
 			const reaction = disposables.add(new MutableDisposable());
@@ -983,7 +983,7 @@ export class NewSessionViewV3PromptRunner {
 				resolve(result);
 			};
 			reaction.value = autorun(reader => {
-				if (this._mainWindowSession.read(reader) !== activeSession || activeSession.isCreated.read(reader)) {
+				if (this._mainWindowSession.read(reader) !== activeSession || isSessionCreated(activeSession, reader)) {
 					finish({ kind: 'sessionChanged' });
 					return;
 				}
@@ -1013,7 +1013,7 @@ export class NewSessionViewV3PromptRunner {
 		});
 	}
 
-	private _logWorkspaceSnapshot(activeSession: IHostSession): void {
+	private _logWorkspaceSnapshot(activeSession: ISession): void {
 		const workspace = activeSession.workspace.get();
 		const folder = workspace?.folders[0];
 		const gitRepository = folder?.gitRepository;
@@ -1021,7 +1021,7 @@ export class NewSessionViewV3PromptRunner {
 		this._logService.info(`${LOG_PREFIX} Workspace snapshot: provider='${activeSession.providerId}', sessionType='${activeSession.sessionType}', workspace='${workspace?.uri.toString() ?? 'none'}', root='${folder?.root.toString() ?? 'none'}', workingDirectory='${folder?.workingDirectory.toString() ?? 'none'}', gitRepository='${gitRepository?.uri.toString() ?? 'none'}', hasGitHubRemote=${String(gitRepository?.hasGitHubRemote)}, gitHubRepository='${gitHubInfo ? `${gitHubInfo.owner}/${gitHubInfo.repo}` : 'none'}'.`);
 	}
 
-	private _createRepositoryContext(session: IHostSession, workspaceUri: string, folderUri: string, repository: IGitHubRemoteInfo): INewSessionViewV3RepositoryContext {
+	private _createRepositoryContext(session: ISession, workspaceUri: string, folderUri: string, repository: IGitHubRemoteInfo): INewSessionViewV3RepositoryContext {
 		return {
 			session,
 			workspaceUri,
@@ -1154,7 +1154,7 @@ export class NewSessionViewV3PromptRunner {
 
 	private _animatePrompt(prompt: string, taskPlaceholder: string, token: CancellationToken): Promise<boolean> | boolean {
 		const activeSession = this._mainWindowSession.get();
-		if (activeSession?.isCreated.get()) {
+		if (isSessionCreated(activeSession)) {
 			this._logService.warn(`${LOG_PREFIX} Skipping prompt insertion because the active session was created before animation started.`);
 			return false;
 		}

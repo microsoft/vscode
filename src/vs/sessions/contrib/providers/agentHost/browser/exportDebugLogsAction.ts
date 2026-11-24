@@ -43,7 +43,7 @@ export class ExportAgentHostDebugLogsAction extends Action2 {
 			return;
 		}
 		const activeSession = target?.session;
-		const provider = activeSession ? sessionsProvidersService.getProvider(activeSession.providerId) : undefined;
+		const provider = activeSession ? sessionsProvidersService.getProvider(activeSession.providerId, activeSession.sessionId) : undefined;
 		const activeProvider = provider && isAgentHostProvider(provider) ? provider : undefined;
 		const activeChat = target?.chat;
 		const activeSessionContext: IActiveAgentHostSessionForExport | undefined = activeSession && activeProvider

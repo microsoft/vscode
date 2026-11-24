@@ -18,19 +18,19 @@ import { IOpenerService } from '../../../../../../platform/opener/common/opener.
 import { NullOpenerService } from '../../../../../../platform/opener/test/common/nullOpenerService.js';
 import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { SessionInputPickerVisibility } from '../../../common/sessionPickerVisibility.js';
-import { IActiveSession } from '../../../common/sessionsManagement.js';
 import { NEW_SESSION_BANNERS_MIN_CREATED_SESSIONS, NewSessionBannerPriority, NewSessionBanners } from '../../../common/newSessionBanners.js';
 import { WorktreeSuggestionVariant } from '../../../common/worktreeSuggestion.js';
 import { WorktreeSuggestionController } from '../../../browser/worktreeSuggestion/worktreeSuggestionController.js';
 import { IWorktreeSuggestionService, WorktreeSpotlightChoice } from '../../../browser/worktreeSuggestion/worktreeSuggestionService.js';
 import { TestWorktreeSuggestionService } from './worktreeSuggestionTestUtils.js';
+import { ITestSessionWithChat } from '../sessionHostTestUtils.js';
 
 suite('WorktreeSuggestionController', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	function createController(variant: WorktreeSuggestionVariant, options: { isolationPicker?: boolean; createdSessions?: number } = {}) {
 		const service = new TestWorktreeSuggestionService(variant);
-		const session = new class extends mock<IActiveSession>() { override readonly sessionId = 'draft'; }();
+		const session = new class extends mock<ITestSessionWithChat>() { override readonly sessionId = 'draft'; }();
 		const composer: string[] = [];
 		const onDidChangeInput = store.add(new Emitter<void>());
 		let input = '';

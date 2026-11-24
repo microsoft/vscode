@@ -1,0 +1,44 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import { URI } from '../../base/common/uri.js';
+
+export interface ICanvas {
+	readonly resource: URI;
+	readonly instanceId: string | undefined;
+	readonly title: string;
+	readonly status?: string;
+	readonly source: URI | undefined;
+	/** Owning extension identifier, when the host reports it. */
+	readonly extensionId?: string;
+	/** Provider-local canvas type identifier, when the host reports it. */
+	readonly canvasId?: string;
+	/** The canvas's icon, a PNG data URI, when the host sends one. */
+	readonly icon?: URI;
+}
+
+export interface ICanvasOwner {
+	readonly providerId: string;
+	readonly session: URI;
+	readonly chat: URI;
+}
+
+/** Options for opening a new canvas of a registered canvas type. */
+export interface ICanvasOpenOptions {
+	/** Asks the user again about the canvas's extension after they declined it, which starts a new runtime for the chat. */
+	readonly retryDeniedConsent?: boolean;
+}
+
+export interface ICanvasReference extends ICanvasOwner {
+	readonly canvas: URI;
+}
+
+export function canvasOwnerKey(owner: ICanvasOwner): string {
+	return `${owner.providerId}\u0000${owner.session.toString()}\u0000${owner.chat.toString()}`;
+}
+
+export function getCanvasReferenceKey(reference: ICanvasReference): string {
+	return `${canvasOwnerKey(reference)}\u0000${reference.canvas.toString()}`;
+}

@@ -17,7 +17,7 @@ import { MarshalledId } from '../../../../../base/common/marshallingIds.js';
 import { marked } from '../../../../../base/common/marked/marked.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { equals } from '../../../../../base/common/objects.js';
-import { IObservable, IReader, autorun, constObservable, derived, derivedOpts, observableFromEvent, observableSignal, observableSignalFromEvent, observableValue, observableValueOpts, registerAutorunSelfDisposable, transaction } from '../../../../../base/common/observable.js';
+import { IObservable, IReader, ISettableObservable, autorun, constObservable, derived, derivedOpts, observableFromEvent, observableSignal, observableSignalFromEvent, observableValue, observableValueOpts, registerAutorunSelfDisposable, transaction } from '../../../../../base/common/observable.js';
 import { basename, isEqual } from '../../../../../base/common/resources.js';
 import { hasKey, WithDefinedProps } from '../../../../../base/common/types.js';
 import { isUriComponents, URI, UriDto } from '../../../../../base/common/uri.js';
@@ -1982,7 +1982,7 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 			this._response.clear();
 		}
 		// Compute elapsed generation time before setting terminal state
-		this._elapsedMs ??= Math.max(0, completedAt - this.confirmationAdjustedTimestamp.get());
+		this._recordElapsedMs(completionTimestamp);
 
 		// Canceled sessions can be considered 'Complete'
 		const state = !!this._result?.errorDetails && this._result.errorDetails.code !== 'canceled' ? ResponseModelState.Failed : ResponseModelState.Complete;
@@ -2016,10 +2016,17 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 			}
 		}
 
-		this._elapsedMs ??= Math.max(0, completedAt - this.confirmationAdjustedTimestamp.get());
+		this._recordElapsedMs(completionTimestamp);
 		this._completionTimestamp = completionTimestamp;
 		this._modelState.set({ value: ResponseModelState.Cancelled, completedAt }, undefined);
 		this._onDidChange.fire({ reason: 'completedRequest' });
+	}
+
+	/** Records the working time up to a known completion. Without one it stays unknown: counting up to now would add the time since. */
+	private _recordElapsedMs(completionTimestamp: number | undefined): void {
+		if (completionTimestamp !== undefined) {
+			this._elapsedMs ??= Math.max(0, completionTimestamp - this.confirmationAdjustedTimestamp.get());
+		}
 	}
 
 	setFollowups(followups: IChatFollowup[] | undefined): void {
@@ -2092,7 +2099,7 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 			modelTotals: this.usage?.modelTotals,
 			sessionCopilotCredits: this.usage?.sessionCopilotCredits,
 			sessionCopilotCreditsStatus: this.usage?.sessionCopilotCreditsStatus,
-			elapsedMs: this.elapsedMs ?? (this.completedAt ? Math.max(0, this.completedAt - this.confirmationAdjustedTimestamp.get()) : undefined),
+			elapsedMs: this.elapsedMs ?? (this.completionTimestamp ? Math.max(0, this.completionTimestamp - this.confirmationAdjustedTimestamp.get()) : undefined),
 		} satisfies WithDefinedProps<Omit<ISerializableChatResponseData, 'timestamp' | 'latestModelCall' | 'contextUsage'>> & Pick<ISerializableChatResponseData, 'latestModelCall' | 'contextUsage'>;
 	}
 }
@@ -2144,6 +2151,9 @@ export interface IChatModel extends IDisposable {
 	readonly isReadOnly: IObservable<boolean>;
 	readonly isInputBlocked: IObservable<boolean>;
 	readonly historyStatus?: IObservable<IChatSessionHistoryStatus | undefined>;
+	readonly loadOlderHistory?: () => Promise<void>;
+	readonly olderHistoryCursor?: IObservable<string | undefined>;
+	readonly olderHistoryUnavailable?: IObservable<boolean>;
 	readonly modelConfigurationState?: IObservable<IAgentModelConfigurationReport | undefined>;
 	/** Provider-reported active shells across all turns; undefined allows transcript-based detection. */
 	readonly backgroundShellCount?: IObservable<number | undefined>;
@@ -3044,6 +3054,9 @@ export class ChatModel extends Disposable implements IChatModel {
 	readonly isReadOnly: IObservable<boolean>;
 	readonly isInputBlocked: IObservable<boolean>;
 	readonly historyStatus: IObservable<IChatSessionHistoryStatus | undefined>;
+	loadOlderHistory?: () => Promise<void>;
+	readonly olderHistoryCursor = observableValue<string | undefined>(this, undefined);
+	readonly olderHistoryUnavailable = observableValue(this, false);
 	readonly modelConfigurationState: IObservable<IAgentModelConfigurationReport | undefined> | undefined;
 	readonly backgroundShellCount: IObservable<number | undefined> | undefined;
 	readonly canvasContext: IObservable<ICanvasContext | undefined> | undefined;
@@ -3224,9 +3237,18 @@ export class ChatModel extends Disposable implements IChatModel {
 		return this._canUseTools;
 	}
 
-	private _disableBackgroundKeepAlive: boolean;
+	private readonly _backgroundKeepAliveDisabled: ISettableObservable<boolean>;
 	get willKeepAlive(): boolean {
-		return !this._disableBackgroundKeepAlive;
+		return !this._backgroundKeepAliveDisabled.get();
+	}
+
+	/**
+	 * Stops this model from keeping itself alive while it runs a request, waits
+	 * for input or has edits. Used once the session it is bound to is gone, so the
+	 * model is released with its last holder.
+	 */
+	disableBackgroundKeepAlive(): void {
+		this._backgroundKeepAliveDisabled.set(true, undefined);
 	}
 
 	public dataSerializer?: IChatDataSerializerLog;
@@ -3266,7 +3288,7 @@ export class ChatModel extends Disposable implements IChatModel {
 			this._sessionResource = LocalChatSessionUri.forSession(this._sessionId);
 		}
 
-		this._disableBackgroundKeepAlive = initialModelProps.disableBackgroundKeepAlive ?? false;
+		this._backgroundKeepAliveDisabled = observableValue(this, initialModelProps.disableBackgroundKeepAlive ?? false);
 
 		this._timestamp = (isValidFullData && initialData.creationDate) || Date.now();
 		this._requests = initialData ? this._deserialize(initialData) : [];
@@ -3340,12 +3362,12 @@ export class ChatModel extends Disposable implements IChatModel {
 
 		// Retain a reference to itself when a request is in progress, so the ChatModel stays alive in the background
 		// only while running a request. TODO also keep it alive for 5min or so so we don't have to dispose/restore too often?
-		if (this.initialLocation === ChatAgentLocation.Chat && !initialModelProps.disableBackgroundKeepAlive) {
+		if (this.initialLocation === ChatAgentLocation.Chat) {
 			const selfRef = this._register(new MutableDisposable<IChatModelReference>());
 			this._register(autorun(r => {
 				const inProgress = this.requestInProgress.read(r);
 				const needsInput = this.requestNeedsInput.read(r);
-				const shouldStayAlive = inProgress || !!needsInput;
+				const shouldStayAlive = !this._backgroundKeepAliveDisabled.read(r) && (inProgress || !!needsInput);
 				if (shouldStayAlive && !selfRef.value) {
 					selfRef.value = chatService.acquireExistingSession(this._sessionResource, 'ChatModel#requestInProgressKeepAlive');
 				} else if (!shouldStayAlive && selfRef.value) {
@@ -3364,19 +3386,17 @@ export class ChatModel extends Disposable implements IChatModel {
 					: this.chatEditingService.createEditingSession(this)
 		);
 
-		if (!this._disableBackgroundKeepAlive) {
-			// todo@connor4312: hold onto a reference so background sessions don't
-			// trigger early disposal. This will be cleaned up with the globalization of edits.
-			const selfRef = this._register(new MutableDisposable<IChatModelReference>());
-			this._register(autorun(r => {
-				const hasModified = session.entries.read(r).some(e => e.state.read(r) === ModifiedFileEntryState.Modified);
-				if (hasModified && !selfRef.value) {
-					selfRef.value = this.chatService.acquireExistingSession(this._sessionResource, 'ChatModel#modifiedEditsKeepAlive');
-				} else if (!hasModified && selfRef.value) {
-					selfRef.clear();
-				}
-			}));
-		}
+		// todo@connor4312: hold onto a reference so background sessions don't
+		// trigger early disposal. This will be cleaned up with the globalization of edits.
+		const selfRef = this._register(new MutableDisposable<IChatModelReference>());
+		this._register(autorun(r => {
+			const hasModified = !this._backgroundKeepAliveDisabled.read(r) && session.entries.read(r).some(e => e.state.read(r) === ModifiedFileEntryState.Modified);
+			if (hasModified && !selfRef.value) {
+				selfRef.value = this.chatService.acquireExistingSession(this._sessionResource, 'ChatModel#modifiedEditsKeepAlive');
+			} else if (!hasModified && selfRef.value) {
+				selfRef.clear();
+			}
+		}));
 
 		this._register(autorun(reader => {
 			this._setDisabledRequests(session.requestDisablement.read(reader));
@@ -3662,8 +3682,10 @@ export class ChatModel extends Disposable implements IChatModel {
 			throw new BugIndicatingError('Invalid chat request insertion index');
 		}
 		const replacedRequest = insertion?.replace ? this._requests[index] : undefined;
-		const editedFileEvents = [...this.currentEditedFileEvents.values()];
-		this.currentEditedFileEvents.clear();
+		const editedFileEvents = insertion ? [] : [...this.currentEditedFileEvents.values()];
+		if (!insertion) {
+			this.currentEditedFileEvents.clear();
+		}
 		const requestTimestamp = timestamp === undefined
 			? Date.now()
 			: typeof timestamp === 'number' && Number.isFinite(timestamp) && timestamp > 0
@@ -3705,6 +3727,8 @@ export class ChatModel extends Disposable implements IChatModel {
 			requestId: request.id,
 			isCompleteAddedRequest,
 			codeBlockInfos: undefined,
+			// A request that started elsewhere has been answered since then, not since it was added here.
+			timestamp: requestTimestamp,
 		});
 		this._requests.splice(index, replacedRequest ? 1 : 0, request);
 		markChat(this.sessionResource, ChatPerfMark.RequestUiUpdated);

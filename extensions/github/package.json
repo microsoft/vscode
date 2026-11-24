@@ -222,12 +222,12 @@
       {
         "view": "scm",
         "contents": "%welcome.publishFolder%",
-        "when": "config.git.enabled && git.state == initialized && workbenchState == folder && git.parentRepositoryCount == 0 && git.unsafeRepositoryCount == 0 && git.closedRepositoryCount == 0"
+        "when": "config.git.enabled && git.state == initialized && workbenchState == folder && git.parentRepositoryCount == 0 && git.unsafeRepositoryCount == 0 && git.closedRepositoryCount == 0 && !git.openingLocation"
       },
       {
         "view": "scm",
         "contents": "%welcome.publishWorkspaceFolder%",
-        "when": "config.git.enabled && git.state == initialized && workbenchState == workspace && workspaceFolderCount != 0 && git.parentRepositoryCount == 0 && git.unsafeRepositoryCount == 0 && git.closedRepositoryCount == 0"
+        "when": "config.git.enabled && git.state == initialized && workbenchState == workspace && workspaceFolderCount != 0 && git.parentRepositoryCount == 0 && git.unsafeRepositoryCount == 0 && git.closedRepositoryCount == 0 && !git.openingLocation"
       }
     ],
     "markdown.previewStyles": [
@@ -240,17 +240,12 @@
     "watch": "gulp watch-extension:github"
   },
   "dependencies": {
-    "@octokit/graphql": "8.2.0",
-    "@octokit/graphql-schema": "14.4.0",
-    "@octokit/rest": "21.1.0",
-    "tunnel": "^0.0.6",
     "@vscode/extension-telemetry": "^1.0.0"
   },
   "devDependencies": {
     "@types/mocha": "^10.0.10",
     "@types/node": "24.x",
-    "mocha": "^10.8.2",
-    "tslib": "^2.6.3"
+    "mocha": "^10.8.2"
   },
   "repository": {
     "type": "git",

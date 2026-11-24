@@ -21,12 +21,11 @@ import { ITelemetryService } from '../../../../../../../platform/telemetry/commo
 import { NullTelemetryService } from '../../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IAgentHostSessionsProvider } from '../../../../common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../browser/sessionsProvidersService.js';
-import { IActiveSession } from '../../../../common/sessionsManagement.js';
 import { ISessionsService } from '../../../../browser/sessionsService.js';
 import { ISessionsProvider } from '../../../../common/sessionsProvider.js';
 import { AgentHostClaudePermissionModePicker } from '../../browser/agentHostClaudePermissionModePicker.js';
 import { IAgentHostSessionEnumPickerItem } from '../../browser/agentHostModePicker.js';
-import { sessionChatSourceOf } from '../../../../browser/sessionHost.js';
+import { ITestSessionWithChat, testChatSourceOf } from '../../../../test/browser/sessionHostTestUtils.js';
 
 const PROVIDER_ID = 'local-agent-host';
 const SESSION_ID = 'local-agent-host:s1';
@@ -97,10 +96,10 @@ function setupPicker(store: Pick<ReturnType<typeof ensureNoDisposablesAreLeakedI
 			onHide = delegate.onHide;
 		},
 	});
-	const sessionObs = observableValue<IActiveSession | undefined>('activeSession', { providerId: PROVIDER_ID, sessionId: SESSION_ID, activeChat: constObservable({ resource: URI.parse('agent-host-claude:/session') }) } as unknown as IActiveSession);
+	const sessionObs = observableValue<ITestSessionWithChat | undefined>('activeSession', { providerId: PROVIDER_ID, sessionId: SESSION_ID, activeChat: constObservable({ resource: URI.parse('agent-host-claude:/session') }) } as unknown as ITestSessionWithChat);
 	instantiationService.set(ISessionsService, new (class extends mock<ISessionsService>() {
 		readonly activeSession = sessionObs;
-		readonly windowSessions = constObservable<readonly IActiveSession[]>([]);
+		readonly windowSessions = constObservable<readonly ITestSessionWithChat[]>([]);
 	})());
 	instantiationService.set(ISessionsProvidersService, new (class extends mock<ISessionsProvidersService>() {
 		override readonly onDidChangeProviders = Event.None;
@@ -118,7 +117,7 @@ function setupPicker(store: Pick<ReturnType<typeof ensureNoDisposablesAreLeakedI
 	instantiationService.stub(ITelemetryService, NullTelemetryService);
 	instantiationService.stub(IHoverService, { ...NullHoverService });
 
-	const picker = store.add(instantiationService.createInstance(AgentHostClaudePermissionModePicker, sessionChatSourceOf(sessionObs)));
+	const picker = store.add(instantiationService.createInstance(AgentHostClaudePermissionModePicker, testChatSourceOf(sessionObs)));
 	const container = document.createElement('div');
 	picker.render(container);
 	const trigger = container.querySelector<HTMLElement>('a.action-label');

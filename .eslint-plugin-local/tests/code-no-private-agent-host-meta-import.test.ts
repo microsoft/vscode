@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { ESLint, RuleTester } from 'eslint';
+import { RuleTester } from 'oxlint/plugins-dev';
+import { getRepositoryFileRules } from '../../build/lib/oxlintConfig.ts';
 import { suite, test } from 'node:test';
 import { posix } from 'path';
-import tseslint from 'typescript-eslint';
 import rule from '../code-no-private-agent-host-meta-import.ts';
 
 RuleTester.describe = suite;
@@ -42,11 +42,11 @@ const importForms = [
 	{ name: 'import type expression', code: (source: string) => `type Metadata = import('${source}').Metadata;` },
 ];
 
-function errors(directory: string): RuleTester.TestCaseError[] {
+function errors(directory: string): RuleTester.Error[] {
 	return [{ messageId: 'privateMetadata', data: { directory: `${metadataDirectory}/${directory}` } }];
 }
 
-new RuleTester({ languageOptions: { parser: tseslint.parser } }).run('code-no-private-agent-host-meta-import', rule, {
+new RuleTester({ languageOptions: { sourceType: 'module', parserOptions: { lang: 'ts' } } }).run('code-no-private-agent-host-meta-import', rule, {
 	valid: [
 		...featureFiles.flatMap(filename => importForms.map(form => ({
 			name: `${form.name} through a domain helper from ${filename}`,
@@ -227,8 +227,7 @@ new RuleTester({ languageOptions: { parser: tseslint.parser } }).run('code-no-pr
 });
 
 test('private agent-host metadata boundary is registered for all feature locations', async () => {
-	const eslint = new ESLint({ cwd: repositoryRoot });
 	const filenames = [...featureFiles, `${metadataDirectory}/agentToolCallMeta.ts`, 'build/agentHost/feature.ts'];
-	const configurations = await Promise.all(filenames.map(filename => eslint.calculateConfigForFile(filename)));
-	assert.deepStrictEqual(configurations.map(configuration => configuration.rules['local/code-no-private-agent-host-meta-import']), filenames.map(() => [2]));
+	const configurations = await Promise.all(filenames.map(filename => getRepositoryFileRules(filename)));
+	assert.deepStrictEqual(configurations.map(configuration => configuration?.['local/code-no-private-agent-host-meta-import']), filenames.map(() => ['error']));
 });

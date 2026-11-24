@@ -150,6 +150,7 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 						binding.item.lastTemplateData.set({
 							expandedContentHeight: binding.getExpandedContentHeight(),
 							selections: binding.editor.getSelections() ?? undefined,
+							splitViewRatio: binding.editor.getSplitViewRatio(),
 						}, tx);
 					},
 				}));
@@ -893,6 +894,7 @@ class VirtualizedViewItem extends Disposable implements ILoggedDiffItem, ICompre
 		this.viewModel.lastTemplateData.set({
 			expandedContentHeight: binding.getExpandedContentHeight(),
 			selections: binding.editor.getSelections() ?? undefined,
+			splitViewRatio: binding.editor.getSplitViewRatio(),
 		}, tx);
 	}
 

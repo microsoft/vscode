@@ -159,6 +159,21 @@ suite('Arrays', () => {
 		assert.deepStrictEqual(d.added, [5, 9, 11]);
 	});
 
+	test('sortedDiff and delta handle large arrays without overflowing the call stack (#349117)', () => {
+		function compare(a: number, b: number): number {
+			return a - b;
+		}
+
+		const large = Array.from({ length: 200_000 }, (_, i) => i + 1);
+		const removedResult = arrays.delta(large, [], compare);
+		assert.strictEqual(removedResult.removed.length, 200_000);
+		assert.strictEqual(removedResult.added.length, 0);
+
+		const insertedResult = arrays.delta([0], large, compare);
+		assert.strictEqual(insertedResult.removed.length, 1);
+		assert.strictEqual(insertedResult.added.length, 200_000);
+	});
+
 	test('binarySearch', () => {
 		function compare(a: number, b: number): number {
 			return a - b;

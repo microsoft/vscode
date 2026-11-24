@@ -15,7 +15,7 @@ import { ILifecycleService, ShutdownReason } from '../../../../../workbench/serv
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
-import { isActiveSessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { isActiveSessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 
 export class LocalAgentHostLifecycleContribution extends Disposable implements IWorkbenchContribution {
 

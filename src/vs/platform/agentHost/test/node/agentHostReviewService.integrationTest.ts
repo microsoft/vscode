@@ -23,6 +23,7 @@ import { NullLogService } from '../../../log/common/log.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { DiskFileSystemProvider } from '../../../files/node/diskFileSystemProvider.js';
 import { AgentHostGitService } from '../../node/agentHostGitService.js';
+import { gitServiceArguments } from './agentHostGitServiceTestUtils.js';
 import { AgentHostReviewService } from '../../node/agentHostReviewService.js';
 import { buildReviewedRefName } from '../../common/agentHostReviewService.js';
 import { createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
@@ -59,7 +60,7 @@ suite.skip('AgentHostReviewService (real git)', () => {
 		const fileService = store.add(new FileService(logService));
 		store.add(fileService.registerProvider(Schemas.file, store.add(new DiskFileSystemProvider(logService))));
 		const env: Partial<INativeEnvironmentService> = { tmpDir: URI.file(tmpdir()) };
-		const gitService = new AgentHostGitService(fileService, env as INativeEnvironmentService, logService);
+		const gitService = store.add(new AgentHostGitService(...gitServiceArguments(store, fileService, env as INativeEnvironmentService, logService)));
 		db = new TestSessionDatabase();
 		const sessionDataService = createSessionDataService(db);
 		const stateManager = disposables.add(new AgentHostStateManager(logService));

@@ -5,8 +5,8 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { readToolCallPresentation } from '../../common/meta/agentToolCallMeta.js';
-import { ToolCallContributorKind, ToolCallStatus, ToolCallConfirmationReason, type ToolCallCompletedState, type ToolCallPendingConfirmationState, type StringOrMarkdown } from '../../common/state/protocol/state.js';
+import { readToolCallPresentation, readToolCallResponseMarkdown } from '../../common/meta/agentToolCallMeta.js';
+import { ToolCallContributorKind, ToolCallStatus, ToolCallConfirmationReason, ToolResultContentType, type ToolCallCompletedState, type ToolCallPendingConfirmationState, type StringOrMarkdown } from '../../common/state/protocol/state.js';
 
 function call(toolName: string, overrides?: Partial<ToolCallCompletedState>): ToolCallCompletedState {
 	return {
@@ -42,6 +42,7 @@ suite('Copilot app tool presentation compatibility', () => {
 		{ names: ['exit_plan_mode'], kind: undefined, completed: 'Finished plan' },
 		{ names: ['respond_to_session_plan'], kind: undefined, completed: 'Responded to plan' },
 		{ names: ['skill'], kind: undefined, completed: 'Read skill' },
+		{ names: ['read_resource'], kind: undefined, completed: 'Read MCP resource' },
 		{ names: ['show_file'], kind: undefined, completed: 'Showed file' },
 		{ names: ['web_search'], kind: undefined, completed: 'Searched the web' },
 		{ names: ['web_fetch'], kind: undefined, completed: 'Fetched webpage' },
@@ -158,6 +159,30 @@ suite('Copilot app tool presentation compatibility', () => {
 			failed: { toolKind: 'search', invocationMessage: 'Search failed', pastTenseMessage: 'Search failed' },
 			readCommand: 'read', shellInteraction: undefined,
 		});
+	});
+
+	test('a successful task_complete call carries its whole summary as response text', () => {
+		const long = `## Changes\n\n${'- Updated a file\n'.repeat(400)}`;
+		const output = [{ type: ToolResultContentType.Text as const, text: 'Summary from the result.' }];
+		const completed = (overrides?: Partial<ToolCallCompletedState>) => call('task_complete', { toolInput: JSON.stringify({ summary: 'Fixed **the parser**.' }), ...overrides });
+		assert.deepStrictEqual([
+			completed(),
+			completed({ toolInput: JSON.stringify({ summary: long }) }),
+			completed({ toolInput: '{"summary":" "}', content: output }),
+			completed({ toolInput: undefined, content: output }),
+			completed({ toolInput: '{}' }),
+			completed({ success: false }),
+			completed({ _meta: { toolKind: 'read' } }),
+			completed({ _meta: { ui: { resourceUri: 'ui://app' } } }),
+			completed({ contributor: { kind: ToolCallContributorKind.MCP, customizationId: 'server' } }),
+			call('update_todo', { toolInput: JSON.stringify({ summary: 'Fixed **the parser**.' }) }),
+		].map(value => readToolCallResponseMarkdown(value)), [
+			'\n\n**Task completed:**\n\nFixed **the parser**.',
+			`\n\n**Task completed:**\n\n${long}`,
+			'\n\n**Task completed:**\n\nSummary from the result.',
+			'\n\n**Task completed:**\n\nSummary from the result.',
+			undefined, undefined, undefined, undefined, undefined, undefined,
+		]);
 	});
 
 	test('native GitHub code search requires the expected title and no MCP contributor', () => {

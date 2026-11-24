@@ -33,6 +33,8 @@ import type { ResolveSessionConfigResult } from '../../../../../../platform/agen
 import type { InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/common/commands.js';
 import { CustomizationType, type ClientPluginCustomization, type ConfigSchema, type SessionActiveClient } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
+import { ILifecycleService } from '../../../../../services/lifecycle/common/lifecycle.js';
+import { TestLifecycleService } from '../../../../../test/common/workbenchTestServices.js';
 import { IWorkspaceContextService, IWorkspace, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, WorkbenchState } from '../../../../../../platform/workspace/common/workspace.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { MessageKind, StateComponents, TurnState, type AgentInfo, type ComponentToState, type RootState, type Turn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
@@ -42,9 +44,12 @@ import { IChatService } from '../../../common/chatService/chatService.js';
 import type { IChatModel, IChatModelInputState, IInputModel } from '../../../common/model/chatModel.js';
 import { AgentHostUntitledProvisionalSessionService } from '../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { AgentHostNewSessionFolderService, IAgentHostNewSessionFolderService } from '../../../browser/agentSessions/agentHost/agentHostNewSessionFolderService.js';
+import { openPreparedAgentHostChat, prepareNewAgentHostChat } from '../../../browser/agentSessions/agentHost/agentHostNewChatActions.js';
+import { TestNotificationService } from '../../../../../../platform/notification/test/common/testNotificationService.js';
 import { AgentHostImportConversationStore, IAgentHostImportConversationStore } from '../../../browser/agentSessions/agentHost/agentHostImportConversationStore.js';
 import { areCustomizationScopeRootsEqual, IAgentHostActiveClientService } from '../../../browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { getLocalAgentHostSessionProvider } from '../../../browser/agentSessions/agentHost/agentHostSessionUri.js';
+import { testIWorkspace } from '../../../../../../platform/workspace/test/common/testWorkspace.js';
 
 // ---- Mocks -----------------------------------------------------------------
 
@@ -163,8 +168,15 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		this.dispatched.push({ channel, ...action } as IDispatchedAction);
 	}
 
-	override getSubscription<T extends StateComponents>(_kind: T, _resource: URI, _owner: string): IReference<IAgentSubscription<ComponentToState[T]>> {
-		const subscription = new class extends mock<IAgentSubscription<ComponentToState[T]>>() { };
+	/** Default chats the host advertises in session state, by backend session; drafts sync their composer to them. */
+	readonly defaultChats = new Map<string, URI>();
+
+	override getSubscription<T extends StateComponents>(_kind: T, resource: URI, _owner: string): IReference<IAgentSubscription<ComponentToState[T]>> {
+		const defaultChat = this.defaultChats.get(resource.toString());
+		const subscription = new class extends mock<IAgentSubscription<ComponentToState[T]>>() {
+			override readonly value = (defaultChat ? { defaultChat } : undefined) as ComponentToState[T] | undefined;
+			override readonly onDidChange = Event.None;
+		};
 		this._heldSubscriptions.add(subscription);
 		return { object: subscription, dispose: () => this._heldSubscriptions.delete(subscription) };
 	}
@@ -258,15 +270,21 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 	let warnings: string[];
 	let importStore: AgentHostImportConversationStore;
 	let provisional: AgentHostUntitledProvisionalSessionService;
+	let lifecycleService: TestLifecycleService;
 	let folderService: IAgentHostNewSessionFolderService;
 	let cleanup: DisposableStore;
 	let workspaceTrusted: boolean;
 	let untrustedFolders: Set<string>;
+	let trustCheck: DeferredPromise<boolean> | undefined;
+	let onDidChangeTrust: Emitter<boolean>;
+	let onDidChangeTrustedFolders: Emitter<void>;
 	let workspaceFolders: URI[];
 	let workspaceConfiguration: URI | null;
 	let workspaceName: string | undefined;
 	let workbenchState: WorkbenchState;
 	let isSessionsWindow: boolean;
+	let remoteAuthority: string | undefined;
+	let insta: TestInstantiationService;
 	let customizations: ReturnType<typeof observableValue<readonly ClientPluginCustomization[]>>;
 	let onDidChangeWorkspaceFolders: Emitter<IWorkspaceFoldersChangeEvent>;
 	let acquiredScopeRoots: string[][];
@@ -285,15 +303,19 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		warnings = [];
 		workspaceTrusted = true;
 		untrustedFolders = new Set<string>();
+		trustCheck = undefined;
+		onDidChangeTrust = ds.add(new Emitter<boolean>());
+		onDidChangeTrustedFolders = ds.add(new Emitter<void>());
 		workspaceFolders = [];
 		workspaceConfiguration = null;
 		workspaceName = undefined;
 		workbenchState = WorkbenchState.EMPTY;
 		isSessionsWindow = false;
+		remoteAuthority = undefined;
 		acquiredScopeRoots = [];
 		legacyApprovalRestricted = false;
 		onDidChangeWorkspaceFolders = ds.add(new Emitter<IWorkspaceFoldersChangeEvent>());
-		const insta = ds.add(new TestInstantiationService());
+		insta = ds.add(new TestInstantiationService());
 		insta.stub(IAgentHostService, agentHost);
 		insta.stub(IAgentHostConnectionsService, {
 			onDidChangeSessionResolution: onDidChangeSessionResolution.event,
@@ -335,24 +357,28 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 			}
 		}();
 		insta.stub(IConfigurationService, configurationService);
-		insta.stub(IWorkbenchEnvironmentService, { get isSessionsWindow() { return isSessionsWindow; } } as Partial<IWorkbenchEnvironmentService>);
+		insta.stub(IWorkbenchEnvironmentService, { get isSessionsWindow() { return isSessionsWindow; }, get remoteAuthority() { return remoteAuthority; } } as Partial<IWorkbenchEnvironmentService>);
 		insta.stub(IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() {
 			override readonly onDidChangeWorkspaceFolders = onDidChangeWorkspaceFolders.event;
 			override getWorkspace(): IWorkspace {
-				return {
+				return testIWorkspace({
 					id: 'workspace',
 					folders: workspaceFolders.map(uri => ({ uri } as IWorkspaceFolder)),
 					configuration: workspaceConfiguration,
 					name: workspaceName,
-				};
+				});
 			}
 			override getWorkbenchState(): WorkbenchState { return workbenchState; }
 		});
 		insta.stub(IWorkspaceTrustManagementService, new class extends mock<IWorkspaceTrustManagementService>() {
+			override readonly onDidChangeTrust = onDidChangeTrust.event;
+			override readonly onDidChangeTrustedFolders = onDidChangeTrustedFolders.event;
 			override isWorkspaceTrusted(): boolean { return workspaceTrusted; }
-			override async getUriTrustInfo(uri: URI) { return { uri, trusted: !untrustedFolders.has(uri.toString()) }; }
+			override async getUriTrustInfo(uri: URI) { return { uri, trusted: trustCheck ? await trustCheck.p : !untrustedFolders.has(uri.toString()) }; }
 		});
 		insta.stub(IUriIdentityService, { extUri: new ExtUri(() => false) } as Partial<IUriIdentityService> as IUriIdentityService);
+		lifecycleService = ds.add(new TestLifecycleService());
+		insta.stub(ILifecycleService, lifecycleService);
 		folderService = ds.add(insta.createInstance(AgentHostNewSessionFolderService));
 		insta.stub(IAgentHostNewSessionFolderService, folderService);
 		importStore = new AgentHostImportConversationStore();
@@ -360,8 +386,8 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		customizations = observableValue<readonly ClientPluginCustomization[]>('customizations', []);
 		insta.stub(IAgentHostActiveClientService, {
 			areScopeRootsEqual: (first, second) => areCustomizationScopeRootsEqual(first, second, new ExtUri(() => false)),
-			acquireScope: (_sessionType: string, roots: readonly URI[]) => {
-				acquiredScopeRoots.push(roots.map(root => root.toString()));
+			acquireScope: (_sessionType: string, roots: readonly URI[] | undefined) => {
+				acquiredScopeRoots.push((roots ?? []).map(root => root.toString()));
 				return {
 					customizations,
 					customAgents: constObservable([]),
@@ -489,6 +515,40 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		}, { created: ['gpt-6-luna'], disposed: 0, sameBackend: true });
 	});
 
+	for (const prewarm of [true, false]) {
+		test(`syncs the composer to its pre-warmed draft, but not an untouched one, and clears it when the draft graduates (prewarm=${prewarm})`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			await configurationService.setUserConfiguration(AgentHostPrewarmSessionsSettingId, prewarm);
+			const ui = untitledChatUri(`composer-sync-${prewarm}`);
+			const state = (inputText: string): IChatModelInputState => ({
+				inputText, attachments: [], selections: [], contrib: {}, mode: { id: 'agent', kind: ChatModeKind.Agent },
+				selectedModel: { identifier: 'gpt-6-luna', metadata: {} as ILanguageModelChatMetadata },
+			});
+			const input = observableValue<IChatModelInputState>('input', state(''));
+			changingChatInputStates.set(ui, input);
+			const created = URI.parse(`${COPILOT_CLI_AGENT_PROVIDER_ID}:/composer-sync-${prewarm}`);
+			const channel = `${created.toString()}/default-chat`;
+			agentHost.returnedSession = created;
+			agentHost.defaultChats.set(created.toString(), URI.parse(channel));
+			await provisional.getOrCreate(ui, COPILOT_CLI_AGENT_PROVIDER_ID, undefined);
+			// Untouched, the composer still matches the draft's launch.
+			await timeout(1000);
+			input.set(state('fix the build'), undefined);
+			await timeout(1000);
+			// Clearing the text again is still published.
+			input.set(state(''), undefined);
+			await timeout(1000);
+			await provisional.tryRebind(ui, ui.with({ path: '/composer-sync-real' }), COPILOT_CLI_AGENT_PROVIDER_ID);
+
+			const drafts = agentHost.dispatched.filter(action => action.type === ActionType.ChatDraftChanged).map(action => ({ channel: action.channel, draft: (action as unknown as { draft?: unknown }).draft }));
+			const draft = (text: string) => ({ text, origin: { kind: MessageKind.User }, model: { id: 'gpt-6-luna' } });
+			assert.deepStrictEqual(drafts, prewarm ? [
+				{ channel, draft: draft('fix the build') },
+				{ channel, draft: draft('') },
+				{ channel, draft: undefined },
+			] : []);
+		}));
+	}
+
 	test('a chip still showing a disposed draft does not recreate its backend', async () => {
 		// The chat view releases its old model before the widget shows the new
 		// one, so the old draft's chips reattach to it while it is being disposed.
@@ -512,6 +572,42 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 			created: [backend?.toString()],
 			disposed: [backend?.toString()],
 			mapping: undefined,
+		});
+	});
+
+	test('a draft\'s backend is disposed once, as the window shuts down rather than as the service disposes', async () => {
+		const backend = await provisional.getOrCreate(untitledChatUri('shutdown'), 'copilot', undefined);
+
+		lifecycleService.fireShutdown();
+		await Promise.all(lifecycleService.shutdownJoiners);
+		const disposedOnShutdown = agentHost.disposeAttempts.map(uri => uri.toString());
+		provisional.dispose();
+
+		assert.deepStrictEqual({
+			disposedOnShutdown,
+			disposeAttempts: agentHost.disposeAttempts.map(uri => uri.toString()),
+		}, {
+			disposedOnShutdown: [backend?.toString()],
+			disposeAttempts: [backend?.toString()],
+		});
+	});
+
+	test('a remote window leaves its drafts to be disposed with the service, as its remote connection ends during shutdown', async () => {
+		remoteAuthority = 'ssh-remote+test';
+		const remoteProvisional = insta.createInstance(AgentHostUntitledProvisionalSessionService);
+		const backend = await remoteProvisional.getOrCreate(untitledChatUri('remote-shutdown'), 'copilot', undefined);
+
+		lifecycleService.fireShutdown();
+		await Promise.all(lifecycleService.shutdownJoiners);
+		const disposedOnShutdown = agentHost.disposeAttempts.map(uri => uri.toString());
+		remoteProvisional.dispose();
+
+		assert.deepStrictEqual({
+			disposedOnShutdown,
+			disposeAttempts: agentHost.disposeAttempts.map(uri => uri.toString()),
+		}, {
+			disposedOnShutdown: [],
+			disposeAttempts: [backend?.toString()],
 		});
 	});
 
@@ -1813,6 +1909,66 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		});
 	});
 
+	for (const selectedFolder of [false, true]) {
+		test(`preparation defers untrusted ${selectedFolder ? 'selected folders in a trusted workspace' : 'workspaces without a folder'} until trust is granted`, async () => {
+			const ui = untitledChatUri('untrusted-config');
+			const folder = URI.file('/untrusted-target');
+			if (selectedFolder) {
+				workspaceFolders = [URI.file('/trusted-workspace'), folder];
+				folderService.setFolder(ui, folder);
+				untrustedFolders.add(folder.toString());
+			} else {
+				workspaceTrusted = false;
+			}
+			const resolved: ResolveSessionConfigResult = { schema: makeSchema(true), values: { isolation: 'folder' } };
+			agentHost.resolveQueue = [resolved, resolved];
+
+			await provisional.prepareSessionConfig(ui);
+			const blocked = { requests: [...agentHost.resolveCalls], prepared: provisional.getPreparedSessionConfig(ui) };
+			workspaceTrusted = true;
+			untrustedFolders.clear();
+			await provisional.prepareSessionConfig(ui);
+
+			assert.deepStrictEqual({
+				blocked,
+				requests: agentHost.resolveCalls,
+				prepared: provisional.getPreparedSessionConfig(ui),
+				created: agentHost.createCalls,
+			}, {
+				blocked: { requests: [], prepared: undefined },
+				requests: [{ provider: 'copilot', workingDirectory: selectedFolder ? folder : undefined, config: { isolation: 'folder' } }],
+				prepared: resolved,
+				created: [],
+			});
+		});
+	}
+
+	for (const change of ['folder', 'cancellation', 'disposal', 'connection'] as const) {
+		test(`preparation does not dispatch after ${change} during target trust resolution`, async () => {
+			const ui = untitledChatUri('pending-trust');
+			workspaceFolders = [URI.file('/workspace')];
+			trustCheck = new DeferredPromise<boolean>();
+			agentHost.resolveQueue = [{ schema: makeSchema(true), values: { isolation: 'folder' } }];
+			const cts = ds.add(new CancellationTokenSource());
+			const preparation = provisional.prepareSessionConfig(ui, cts.token);
+			if (change === 'folder') {
+				const folder = URI.file('/other-folder');
+				workspaceFolders.push(folder);
+				folderService.setFolder(ui, folder);
+			} else if (change === 'cancellation') {
+				cts.cancel();
+			} else if (change === 'disposal') {
+				onDidDisposeChatSession.fire({ sessionResources: [ui], reason: 'disposed' });
+			} else {
+				sessionResolutions.set(ui, undefined);
+				onDidChangeSessionResolution.fire();
+			}
+			await trustCheck.complete(true);
+			await preparation;
+			assert.deepStrictEqual({ requests: agentHost.resolveCalls, prepared: provisional.getPreparedSessionConfig(ui) }, { requests: [], prepared: undefined });
+		});
+	}
+
 	test('prepared defaults remain editable while provisional creation is pending', async () => {
 		const ui = URI.parse('agent-host-copilotcli:/untitled-prepared-edit');
 		agentHost.resolveQueue = [{ schema: makeSchema(true), values: { isolation: 'folder', mode: 'autopilot' } }];
@@ -1873,6 +2029,84 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		});
 	}
 
+	test('a new chat to start in a new worktree asks the host for one from its first configuration, until a folder is chosen for it', async () => {
+		const seeded = URI.parse('agent-host-copilotcli:/untitled-in-worktree');
+		const plain = URI.parse('agent-host-copilotcli:/untitled-in-folder');
+		const folder = URI.file('/workspace');
+		workspaceFolders = [folder];
+		folderService.setNewWorktree(seeded);
+		agentHost.resolveQueue = [
+			{ schema: makeSchema(true), values: { isolation: 'worktree' } },
+			{ schema: makeSchema(true), values: { isolation: 'folder' } },
+		];
+
+		await provisional.prepareSessionConfig(seeded);
+		await provisional.prepareSessionConfig(plain);
+		const prepared = provisional.getPreparedSessionConfig(seeded)?.values.isolation;
+		folderService.setFolder(seeded, folder);
+
+		assert.deepStrictEqual({
+			requested: agentHost.resolveCalls.map(call => call.config?.isolation),
+			prepared,
+			// Choosing a folder forgets the seed, so its prepared configuration no longer applies
+			afterFolderChosen: { seeded: folderService.isNewWorktree(seeded), prepared: provisional.getPreparedSessionConfig(seeded) },
+		}, {
+			requested: ['worktree', 'folder'],
+			prepared: 'worktree',
+			afterFolderChosen: { seeded: false, prepared: undefined },
+		});
+	});
+
+	test('a new chat in a worktree that no chat model takes leaves nothing prepared or seeded behind', async () => {
+		interface IProvisionalMaps { readonly [name: string]: ResourceMap<unknown> }
+		const maps = provisional as unknown as IProvisionalMaps;
+		const retained = (resource: URI) => ({
+			seeded: folderService.isNewWorktree(resource),
+			maps: ['_preparedConfigs', '_resolvedConfigs', '_resolvedConfigRequestSeq', '_resolvedConfigConnections', '_sessionCreationMetadata'].filter(name => maps[name].size > 0),
+		});
+		const unsupportedSchema: ConfigSchema = { type: 'object', properties: { isolation: { type: 'string', title: 'Isolation', enum: ['folder'], default: 'folder' } } };
+		workspaceFolders = [URI.file('/workspace')];
+		const notifications = new TestNotificationService();
+		// The host's session resolution stays as it is: each new chat waits up to its short deadline
+		const noResolutionChanges = { onDidChangeSessionResolution: Event.None };
+		const results: Record<string, unknown> = {};
+
+		// Rejected again and again, as each New Chat in Worktree asks once more
+		const unsupported = URI.parse('agent-host-copilotcli:/untitled-unsupported');
+		const unsupportedRuns: unknown[] = [];
+		for (let run = 0; run < 3; run++) {
+			agentHost.resolveQueue = [{ schema: unsupportedSchema, values: { isolation: 'folder' } }];
+			unsupportedRuns.push({ opened: await prepareNewAgentHostChat(unsupported, folderService, provisional, noResolutionChanges, notifications, CancellationToken.None, 100), ...retained(unsupported) });
+		}
+		results.unsupported = unsupportedRuns;
+
+		// No answer from the host: every attempt to prepare fails
+		const notReady = URI.parse('agent-host-copilotcli:/untitled-not-ready');
+		agentHost.resolveQueue = [];
+		results.notReady = { opened: await prepareNewAgentHostChat(notReady, folderService, provisional, noResolutionChanges, notifications, CancellationToken.None, 100), ...retained(notReady) };
+
+		for (const [name, open] of [
+			['openThrows', async () => { throw new Error('open failed'); }],
+			['opensNothing', async () => undefined],
+		] as const) {
+			const resource = URI.parse(`agent-host-copilotcli:/untitled-${name}`);
+			agentHost.resolveQueue = [{ schema: makeSchema(true), values: { isolation: 'worktree' } }];
+			const prepared = await prepareNewAgentHostChat(resource, folderService, provisional, noResolutionChanges, notifications, CancellationToken.None, 100);
+			const beforeOpen = retained(resource);
+			const opened = await openPreparedAgentHostChat(resource, open, folderService, provisional).catch((error: Error) => error.message);
+			results[name] = { prepared: prepared?.toString(), beforeOpen, opened, ...retained(resource) };
+		}
+
+		const nothing = { seeded: false, maps: [] };
+		const preparedInWorktree = { seeded: true, maps: ['_preparedConfigs', '_resolvedConfigConnections'] };
+		assert.deepStrictEqual(results, {
+			unsupported: [{ opened: undefined, ...nothing }, { opened: undefined, ...nothing }, { opened: undefined, ...nothing }],
+			notReady: { opened: undefined, ...nothing },
+			openThrows: { prepared: 'agent-host-copilotcli:/untitled-openThrows', beforeOpen: preparedInWorktree, opened: 'open failed', ...nothing },
+			opensNothing: { prepared: 'agent-host-copilotcli:/untitled-opensNothing', beforeOpen: preparedInWorktree, opened: undefined, ...nothing },
+		});
+	});
+
 	test('discards preparation for a superseded working directory', async () => {
 		const ui = URI.parse('agent-host-copilotcli:/untitled-folder-changed');
 		workspaceFolders = [URI.file('/old-folder')];
@@ -1917,8 +2151,23 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		assert.deepStrictEqual({ prepared: provisional.getPreparedSessionConfig(ui), warnings }, { prepared: undefined, warnings: [] });
 	});
 
+	test('preparation timeout prevents dispatch after a delayed trust check', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const ui = untitledChatUri('trust-timeout');
+		workspaceFolders = [URI.file('/workspace')];
+		trustCheck = new DeferredPromise<boolean>();
+		agentHost.resolveQueue = [{ schema: makeSchema(true), values: {} }];
+		const preparation = provisional.prepareSessionConfig(ui);
+		await timeout(1000);
+		await preparation;
+		await trustCheck.complete(true);
+		await timeout(0);
+		assert.deepStrictEqual({ requests: agentHost.resolveCalls, prepared: provisional.getPreparedSessionConfig(ui), warnings: warnings.length }, {
+			requests: [], prepared: undefined, warnings: 1,
+		});
+	}));
+
 	for (const changeWhilePending of [true, false]) {
-		for (const change of ['restart', 'disposal', 'connection'] as const) {
+		for (const change of ['restart', 'disposal', 'connection', 'workspace trust', 'folder trust'] as const) {
 			test(`invalidates prepared configuration on ${change} ${changeWhilePending ? 'during' : 'after'} resolution`, async () => {
 				const ui = URI.parse('agent-host-copilotcli:/untitled-invalidated');
 				const answer = new DeferredPromise<ResolveSessionConfigResult>();
@@ -1929,6 +2178,11 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 						agentHost.fireAgentHostStart();
 					} else if (change === 'disposal') {
 						onDidDisposeChatSession.fire({ sessionResources: [ui], reason: 'disposed' });
+					} else if (change === 'workspace trust') {
+						workspaceTrusted = false;
+						onDidChangeTrust.fire(false);
+					} else if (change === 'folder trust') {
+						onDidChangeTrustedFolders.fire();
 					} else {
 						sessionResolutions.set(ui, undefined);
 						onDidChangeSessionResolution.fire();

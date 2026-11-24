@@ -69,7 +69,51 @@
 
 			& .monaco-dialog-box {
 				--vscode-editorWidget-background: transparent;
+			}
+
+			/* Paint behind the dialog border instead of clipping the glass to its inner edge. */
+			& .monaco-dialog-modal-block .dialog-shadow {
+				position: relative;
 				--modern-ui-glass-background: var(--modern-ui-glass-dialog-background);
+			}
+
+			& .spotlight-callout {
+				--modern-ui-glass-background: var(--modern-ui-glass-dialog-background);
+				background: transparent;
+				border-color: transparent;
+			}
+
+			/* The pointer and callout meet without overlapping translucent paint. */
+			& .spotlight-callout-pointer::after {
+				background: var(--modern-ui-glass-dialog-background);
+				clip-path: polygon(100% 0, 100% 100%, 0 100%);
+				backdrop-filter: blur(12px);
+			}
+
+			/* Paint the border separately so it can be interrupted at the pointer. */
+			& .spotlight-callout::after {
+				content: '';
+				position: absolute;
+				inset: calc(-1 * var(--vscode-strokeThickness));
+				border: var(--vscode-strokeThickness) solid var(--vscode-widget-border, transparent);
+				border-radius: inherit;
+				pointer-events: none;
+			}
+
+			& .spotlight-callout-pointer.top + .spotlight-callout::after {
+				clip-path: polygon(0 0, calc(var(--spotlight-pointer-offset, 50%) - var(--vscode-spacing-size100) * 0.6) 0, calc(var(--spotlight-pointer-offset, 50%) - var(--vscode-spacing-size100) * 0.6) var(--vscode-strokeThickness), calc(var(--spotlight-pointer-offset, 50%) + var(--vscode-spacing-size100) * 0.6) var(--vscode-strokeThickness), calc(var(--spotlight-pointer-offset, 50%) + var(--vscode-spacing-size100) * 0.6) 0, 100% 0, 100% 100%, 0 100%);
+			}
+
+			& .spotlight-callout-pointer.right + .spotlight-callout::after {
+				clip-path: polygon(0 0, 100% 0, 100% calc(var(--spotlight-pointer-offset, 50%) - var(--vscode-spacing-size100) * 0.6), calc(100% - var(--vscode-strokeThickness)) calc(var(--spotlight-pointer-offset, 50%) - var(--vscode-spacing-size100) * 0.6), calc(100% - var(--vscode-strokeThickness)) calc(var(--spotlight-pointer-offset, 50%) + var(--vscode-spacing-size100) * 0.6), 100% calc(var(--spotlight-pointer-offset, 50%) + var(--vscode-spacing-size100) * 0.6), 100% 100%, 0 100%);
+			}
+
+			& .spotlight-callout-pointer.bottom + .spotlight-callout::after {
+				clip-path: polygon(0 0, 100% 0, 100% 100%, calc(var(--spotlight-pointer-offset, 50%) + var(--vscode-spacing-size100) * 0.6) 100%, calc(var(--spotlight-pointer-offset, 50%) + var(--vscode-spacing-size100) * 0.6) calc(100% - var(--vscode-strokeThickness)), calc(var(--spotlight-pointer-offset, 50%) - var(--vscode-spacing-size100) * 0.6) calc(100% - var(--vscode-strokeThickness)), calc(var(--spotlight-pointer-offset, 50%) - var(--vscode-spacing-size100) * 0.6) 100%, 0 100%);
+			}
+
+			& .spotlight-callout-pointer.left + .spotlight-callout::after {
+				clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%, 0 calc(var(--spotlight-pointer-offset, 50%) + var(--vscode-spacing-size100) * 0.6), var(--vscode-strokeThickness) calc(var(--spotlight-pointer-offset, 50%) + var(--vscode-spacing-size100) * 0.6), var(--vscode-strokeThickness) calc(var(--spotlight-pointer-offset, 50%) - var(--vscode-spacing-size100) * 0.6), 0 calc(var(--spotlight-pointer-offset, 50%) - var(--vscode-spacing-size100) * 0.6));
 			}
 
 			& .notifications-center,
@@ -86,9 +130,11 @@
 
 			& .quick-input-widget:not(.quick-input-widget-overlay),
 			& .action-widget,
-			& .monaco-hover,
+			& .monaco-resizable-hover,
+			& .monaco-hover:not(.monaco-resizable-hover > .monaco-hover),
 			& .agent-feedback-widget-item,
-			& .monaco-dialog-box,
+			& .monaco-dialog-modal-block .dialog-shadow,
+			& .spotlight-callout,
 			& .notifications-center,
 			& .notifications-toasts .notification-toast.notification-fade-in-done,
 			&.monaco-reduce-motion .notifications-toasts .notification-toast.notification-fade-in {
@@ -98,12 +144,27 @@
 				&::before {
 					content: '';
 					position: absolute;
-					inset: 0;
+					/* Centering a content-box copy with the inherited border recreates the host border box. */
+					box-sizing: content-box;
+					left: 50%;
+					top: 50%;
+					width: 100%;
+					height: 100%;
 					z-index: -1;
+					transform: translate(-50%, -50%);
+					border: inherit;
+					border-color: transparent;
 					border-radius: inherit;
+					clip-path: padding-box;
 					pointer-events: none;
 					background-color: var(--modern-ui-glass-background);
+					background-clip: padding-box;
 					backdrop-filter: blur(12px);
+				}
+
+				&:is(.spotlight-callout)::before {
+					clip-path: border-box;
+					background-clip: border-box;
 				}
 			}
 		}

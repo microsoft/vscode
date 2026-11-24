@@ -5,9 +5,17 @@ applyTo: "src/vs/platform/agentHost/**,src/vs/workbench/contrib/chat/browser/age
 
 # AHP interoperability
 
+This document contains durable, cross-cutting interoperability rules for VS Code's AHP clients and hosts. Keep it focused on stable protocol boundaries and reusable implementation guidance; do not add task-specific details, historical facts, or individual bug-fix behavior that belongs in code, tests, issues, or pull requests.
+
 AHP clients communicate with any conforming Agent Host, not only the local VS Code Agent Host. Treat host-advertised session and chat URIs, identifiers, state, and capabilities as authoritative. Do not derive or reinterpret them using the local host's URI format, provider names, or implementation conventions. Helpers that construct IDs for the local host are not a substitute for reading IDs supplied by a remote host.
 
-Use standard AHP fields and negotiated capabilities for shared behavior. If VS Code needs an optional extension, use a namespaced `_meta` value with a typed reader that validates its shape before use. Do not make the extension a requirement for other hosts, and do not use `_meta` to replace a standard protocol field or to justify assuming a particular host implementation.
+## Protocol constructs before `_meta`
+
+- Agents **MUST NOT** use `_meta` to express information or behavior that existing protocol constructs can express. Check the standard fields, state, actions, commands, and negotiated capabilities before adding or extending metadata.
+- If a requirement cannot be satisfied without `_meta`, agents **SHOULD** open an issue in [microsoft/agent-host-protocol](https://github.com/microsoft/agent-host-protocol/issues) describing the requirement and the protocol gap, rather than silently treating a private extension as the protocol.
+- Alternate Agent Host and UI implementations may neither provide nor understand `_meta`. Any use of `_meta` **MUST** fall back gracefully in both directions: clients must remain functional when a host omits the metadata, and hosts must remain functional when a client omits or ignores it. Preserve standard protocol behavior without the extension; do not make metadata a requirement for interoperability or use it to assume a particular host or UI implementation.
+
+For optional extensions that still need `_meta`, use namespaced keys and typed readers that validate each value's shape before use.
 
 When changing an AHP client, cover a conforming host that advertises valid but different URIs and identifiers, as well as absent optional extensions. Test the behavior at the client boundary, not only against the local VS Code host.
 

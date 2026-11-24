@@ -31,9 +31,10 @@ export const ActiveSessionCanvasReferenceContext = new RawContextKey<string>('ac
 //#region < --- Custom View Grid --- >
 
 export const CustomViewVisibleContext = new RawContextKey<boolean>('customViewVisible', false, localize('customViewVisible', "Whether a custom view is shown in place of the sessions grid. The side panel and the panel are hidden while it is."));
-export const InboxCanvasFocusContext = new RawContextKey<boolean>('inboxCanvasFocus', false, localize('inboxCanvasFocus', "Whether the Inbox canvas has keyboard focus"));
 export const AutomationsCustomViewFocusContext = new RawContextKey<boolean>('automationsCustomViewFocus', false, localize('automationsCustomViewFocus', "Whether the Automations custom view has keyboard focus"));
 export const AutomationsHasItemsContext = new RawContextKey<boolean>('automationsHasItems', false, localize('automationsHasItems', "Whether there is at least one automation"));
+export const AutomationsHasOthersContext = new RawContextKey<boolean>('automationsHasOthers', false, localize('automationsHasOthers', "Whether there is a shared automation not known to be created by the current user"));
+export const ShowSharedAutomationsByOthersContext = new RawContextKey<boolean>('automationsShowSharedByOthers', false, localize('automationsShowSharedByOthers', "Whether shared automations created by others are shown"));
 
 //#endregion
 
@@ -62,6 +63,7 @@ export const HasDockedDetailsContext = new RawContextKey<boolean>('agentSessions
 export const DesktopChangesTabMissingContext = new RawContextKey<boolean>('agentSessionsDesktopChangesTabMissing', false, localize('agentSessionsDesktopChangesTabMissing', "Whether the desktop session supports a Changes editor but its tab is not currently open"));
 export const DesktopFilesTabMissingContext = new RawContextKey<boolean>('agentSessionsDesktopFilesTabMissing', false, localize('agentSessionsDesktopFilesTabMissing', "Whether the desktop session supports a Files tab but its tab is not currently open"));
 export const DesktopChangesTabAvailableContext = new RawContextKey<boolean>('agentSessionsDesktopChangesTabAvailable', false, localize('agentSessionsDesktopChangesTabAvailable', "Whether the desktop session supports a Changes editor"));
+export const ActiveSideChatTabContext = new RawContextKey<string>('sessionsActiveSideChatTab', '', localize('sessionsActiveSideChatTab', "The resource of the side chat whose tab is the active editor of the side panel"));
 export const DesktopFilesTabAvailableContext = new RawContextKey<boolean>('agentSessionsDesktopFilesTabAvailable', false, localize('agentSessionsDesktopFilesTabAvailable', "Whether the desktop session supports a Files editor"));
 
 //#endregion

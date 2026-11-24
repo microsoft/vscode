@@ -12,8 +12,7 @@ import { BrowserEditorInput } from '../../../browserView/common/browserEditorInp
 import { browserViewUrlMatches, BrowserViewSharingState, getAgentBrowserViewsNewestFirst, IBrowserViewWorkbenchService } from '../../../browserView/common/browserView.js';
 import { getChatPillEntries, type IChatPillEntry, type IChatPillSection } from '../../../../browser/chatPills.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
-import { ChatOriginKind, IChat } from '../../common/session.js';
-import { IActiveSession } from '../../common/sessionsManagement.js';
+import { ChatOriginKind, IChat, ISession } from '../../../../services/sessions/common/session.js';
 import type { ISessionChatPillsDebugData } from './sessionChatInputToolbarDebug.js';
 
 const NO_URLS: ReadonlySet<string> = new Set();
@@ -49,7 +48,7 @@ export class SessionBrowsersControl extends Disposable {
 	private readonly _browserListeners = this._register(new MutableDisposable<DisposableStore>());
 
 	constructor(
-		session: IObservable<IActiveSession | undefined>,
+		session: IObservable<ISession | undefined>,
 		chat: IObservable<IChat | undefined>,
 		enabled: IObservable<boolean>,
 		visible: IObservable<boolean>,
@@ -115,7 +114,7 @@ export class SessionBrowsersControl extends Disposable {
 		this._browsersChanged.trigger(undefined);
 	}
 
-	private _collectOwnerIds(session: IActiveSession, chat: IChat, reader: IReader): ReadonlySet<string> {
+	private _collectOwnerIds(session: ISession, chat: IChat, reader: IReader): ReadonlySet<string> {
 		const ownerIds = new Set<string>([chat.resource.toString()]);
 		for (const candidate of session.chats.read(reader)) {
 			if (candidate.origin?.kind === ChatOriginKind.Tool && candidate.origin.parentChat && isEqual(candidate.origin.parentChat, chat.resource)) {

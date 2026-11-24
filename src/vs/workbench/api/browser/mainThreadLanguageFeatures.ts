@@ -185,6 +185,16 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 		}));
 	}
 
+	// --- structural diff
+
+	$registerStructuralDiffProvider(handle: number, selector: IDocumentFilterDto[]): void {
+		this._registrations.set(handle, this._languageFeaturesService.structuralDiffProvider.register(selector, {
+			provideStructuralDiff: (originalModel, modifiedModel, context, token) => {
+				return this._proxy.$provideStructuralDiff(handle, originalModel.uri, originalModel.getVersionId(), modifiedModel.uri, modifiedModel.getVersionId(), context, token);
+			}
+		}));
+	}
+
 	// --- code lens
 
 	$registerCodeLensSupport(handle: number, selector: IDocumentFilterDto[], eventHandle: number | undefined): void {
