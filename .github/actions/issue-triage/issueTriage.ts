@@ -224,10 +224,11 @@ export function createRestClient(token: string, apiUrl = 'https://api.github.com
 }
 
 /**
- * Splits a list of logins separated by commas or whitespace, without `@` prefixes and duplicates.
+ * Splits a list of logins separated by commas or whitespace, stripping `@` prefixes and the backticks
+ * that safe-output sanitization adds around mentions, and removing duplicates.
  */
 function parseLogins(logins: string): string[] {
-	const parsed = logins.split(/[\s,]+/).map(login => login.replace(/^@/, '')).filter(login => login);
+	const parsed = logins.split(/[\s,]+/).map(login => login.replace(/^`(@[^`]+)`$/, '$1').replace(/^@/, '')).filter(login => login);
 	return [...new Map(parsed.map(login => [login.toLowerCase(), login])).values()];
 }
 

@@ -153,11 +153,13 @@ suite('Issue Triage', () => {
 			const externals = Array.from({ length: 20 }, (_, index) => `external-${index}`);
 			const results = [
 				await checkTeamMembers(github, 'microsoft', 'vscode', '@member, other-team-writer former-member, member, copilot', stateFile),
+				await checkTeamMembers(github, 'microsoft', 'vscode', '`@member`, @member, member, `@other-team-writer`', stateFile),
 				await checkTeamMembers(github, 'microsoft', 'vscode', externals.slice(0, 12).join(','), stateFile),
 				await checkTeamMembers(github, 'microsoft', 'vscode', [...externals.slice(10, 18), 'member', 'admin-member'].join(','), stateFile),
 			];
 			assert.deepStrictEqual(results, [
 				{ members: ['member'], notMembers: ['other-team-writer', 'former-member', 'copilot'], notChecked: [] },
+				{ members: ['member'], notMembers: ['other-team-writer'], notChecked: [] },
 				{ members: [], notMembers: externals.slice(0, 10), notChecked: externals.slice(10, 12) },
 				{ members: ['member'], notMembers: externals.slice(10, 16), notChecked: [...externals.slice(16, 18), 'admin-member'] },
 			]);
@@ -186,6 +188,8 @@ suite('Issue Triage', () => {
 			const results: Record<string, string[]> = {};
 			for (const [name, assignees, labels, currentAssignees, staged, detectionConclusion] of [
 				['assigns the first member', '@Former-Member, member, admin-member', ['triage-needed', 'stale'], ['placeholder'], false, 'success'],
+				['sanitized mentions', '`@other-team-writer`, `@member`, admin-member', ['stale'], ['placeholder'], false, 'success'],
+				['malformed or blocked mentions', '`@member, @member`, `@member`suffix, `@copilot`, `@renovate[bot]`', ['stale'], ['placeholder'], false, 'success'],
 				['staged', 'member', ['triage-needed', 'stale'], ['placeholder'], true, 'success'],
 				['threat detection flagged the output', 'member', ['stale'], ['placeholder'], false, 'warning'],
 				['nobody on the team in the first 10', `copilot other-team-writer, former-member, ${externals.join(', ')}, member`, ['stale'], ['placeholder'], false, 'success'],
@@ -217,6 +221,18 @@ suite('Issue Triage', () => {
 					'DELETE /repos/microsoft/vscode/issues/100/labels/triage-needed',
 					'DELETE /repos/microsoft/vscode/issues/100/labels/stale',
 					'Assigned member to #100.',
+				],
+				'sanitized mentions': [
+					'GET /repos/microsoft/vscode/collaborators/other-team-writer/permission',
+					'GET /repos/microsoft/vscode/collaborators/member/permission',
+					'POST /repos/microsoft/vscode/issues/100/assignees',
+					'DELETE /repos/microsoft/vscode/issues/100/labels/stale',
+					'Assigned member to #100.',
+				],
+				'malformed or blocked mentions': [
+					'POST /repos/microsoft/vscode/issues/100/labels',
+					'warning: Not assigning anybody: none of the proposed owners is a member of the team.',
+					'Labeled #100 triage-needed, so that a person triages it.',
 				],
 				'staged': [
 					'GET /repos/microsoft/vscode/collaborators/member/permission',
