@@ -2330,7 +2330,6 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			const mainChat = element.mainChat.read(reader);
 			const timeDate = getSessionRowUpdatedAt(element, mainChat, reader, this.options.grouping(), this.options.showMetadataWhileActive?.(element));
 
-			const parts: HTMLElement[] = [];
 			if (
 				eligible &&
 				this.options.externalApplicationBadgeMode?.read(reader) === ExternalSessionApplicationBadgeMode.Details
@@ -2342,15 +2341,11 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 				);
 				DOM.append(badgeEl, $('span.session-external-application-badge-label', undefined, badgeLabel));
 				reader.store.add(this.hoverService.setupDelayedHoverAtMouse(badgeEl, { content: badgeLabel }));
-				parts.push(badgeEl);
 			}
 
 			const statusMessage = getSessionStatusMessage(sessionStatus, description)
 				?? (sessionStatus === SessionStatus.Completed ? this.options.getCompletedStatusMessage?.(element, reader) : undefined);
 			if (sessionStatus !== SessionStatus.InProgress || !hideDetails) {
-				if (parts.length > 0) {
-					DOM.append(template.detailsRow, $('span.session-separator.has-separator'));
-				}
 				let icon: ThemeIcon;
 				if (isQuickChat) {
 					icon = Codicon.commentDiscussion;
@@ -2361,49 +2356,32 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 				}
 				const typeIconEl = DOM.append(template.detailsRow, $('span.session-details-icon'));
 				DOM.append(typeIconEl, $(`span${ThemeIcon.asCSSSelector(icon)}`));
-				parts.push(typeIconEl);
 			}
 
 			if (!hideDetails && badgeLabel) {
 				const badgeEl = DOM.append(template.detailsRow, $('span.session-badge'));
 				badgeEl.textContent = badgeLabel;
-				parts.push(badgeEl);
 			}
 
 			const triage = this.options.getTriageDescription?.(element, reader);
 			if (triage) {
-				if (parts.length > 0) {
-					DOM.append(template.detailsRow, $('span.session-separator.has-separator'));
-				}
 				const label = DOM.append(template.detailsRow, $('span.session-description', undefined, triage));
 				reader.store.add(this.hoverService.setupDelayedHoverAtMouse(label, { content: triage }));
-				parts.push(label);
 			}
 
 			if (searchHint) {
-				if (parts.length > 0) {
-					DOM.append(template.detailsRow, $('span.session-separator.has-separator'));
-				}
 				const hintEl = DOM.append(template.detailsRow, $('span.session-search-hint'));
 				renderSearchHint(hintEl, searchHint, reader.store);
-				parts.push(hintEl);
 			}
 
 			// Diff stats
 			if (!isQuickChat && !hideDetails && diffStats) {
-				if (parts.length > 0) {
-					DOM.append(template.detailsRow, $('span.session-separator.has-separator'));
-				}
 				const diffEl = DOM.append(template.detailsRow, $('span.session-diff'));
 				DOM.append(diffEl, $('span.session-diff-added')).textContent = `+${diffStats.insertions}`;
 				DOM.append(diffEl, $('span.session-diff-removed')).textContent = `-${diffStats.deletions}`;
-				parts.push(diffEl);
 			}
 
 			if (statusMessage !== undefined) {
-				if (parts.length > 0) {
-					DOM.append(template.detailsRow, $('span.session-separator.has-separator'));
-				}
 				const statusEl = DOM.append(template.detailsRow, $('span.session-description'));
 				if (typeof statusMessage === 'string') {
 					descriptionDisposable.clear();
@@ -2411,15 +2389,11 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 				} else {
 					descriptionDisposable.value = this.markdownRendererService.render(statusMessage, { sanitizerConfig: { replaceWithPlaintext: true } }, statusEl);
 				}
-				parts.push(statusEl);
 			} else {
 				descriptionDisposable.clear();
 			}
 
 			if (timeDate) {
-				if (parts.length > 0) {
-					DOM.append(template.detailsRow, $('span.session-separator.has-separator'));
-				}
 				const timeEl = DOM.append(template.detailsRow, $('span.session-time'));
 				const definiteTimeDate = timeDate;
 				const formatTime = () => formatSessionListTime(definiteTimeDate);

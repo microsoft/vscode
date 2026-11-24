@@ -12395,6 +12395,51 @@ suite('Sessions - SessionsList', () => {
 	});
 
 	suite('session row spacing', () => {
+		test('uses spacing instead of dot separators between session metadata', () => {
+			const changesSummary = observableValue<ISessionChangesSummary | undefined>('summary', { files: 1, additions: 12, deletions: 3 });
+			const source = createTestSession('Session', { workspaceLabel: 'vscode' });
+			const session = { ...source.session, changesSummary };
+			const render = (grouping: SessionsGrouping) => {
+				const harness = createListHarness(disposables, [session]);
+				const container = harness.createContainer();
+				container.style.setProperty('--vscode-spacing-size80', '8px');
+				const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+					grouping: () => grouping,
+					sorting: () => SessionsSorting.Created,
+					onSessionOpen: () => { },
+				}));
+				list.layout(300, 400);
+				return () => {
+					const details = container.querySelector('.session-item .session-details-row');
+					assert.ok(details);
+					return {
+						parts: [...details.children].map(element => element.className),
+						gap: mainWindow.getComputedStyle(details).columnGap,
+					};
+				};
+			};
+			const workspace = render(SessionsGrouping.Workspace);
+			const date = render(SessionsGrouping.Date);
+			const withChanges = { workspace: workspace(), date: date() };
+			source.status.set(SessionStatus.Error, undefined);
+			const withStatus = workspace();
+			source.status.set(SessionStatus.Completed, undefined);
+			changesSummary.set(undefined, undefined);
+			const withoutChanges = { workspace: workspace(), date: date() };
+
+			assert.deepStrictEqual({ withChanges, withStatus, withoutChanges }, {
+				withChanges: {
+					workspace: { parts: ['session-details-icon', 'session-diff', 'session-time'], gap: '8px' },
+					date: { parts: ['session-details-icon', 'session-badge', 'session-diff', 'session-time'], gap: '8px' },
+				},
+				withStatus: { parts: ['session-details-icon', 'session-diff', 'session-description', 'session-time'], gap: '8px' },
+				withoutChanges: {
+					workspace: { parts: ['session-details-icon', 'session-time'], gap: '8px' },
+					date: { parts: ['session-details-icon', 'session-badge', 'session-time'], gap: '8px' },
+				},
+			});
+		});
+
 		for (const status of [SessionStatus.InProgress, SessionStatus.NeedsInput]) {
 			test(`flat-list active metadata matches its accessible label when enabled (${status})`, () => {
 				const source = createTestSession('Cloud run', { workspaceLabel: 'owner/repo', status });
