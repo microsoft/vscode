@@ -64,6 +64,8 @@ type CopilotExtensionSource = 'project' | 'user' | 'plugin' | 'session';
  */
 export class CopilotProjectExtensionLaunchPolicy {
 	private readonly _admittedRoots = new ResourceMap<number>();
+	/** Admissions holding a directory that could not be canonicalized; while any exist, no launch record is pruned. */
+	private _unresolvedAdmissionDirectories = 0;
 	private readonly _workspacelessRoots = new ResourceMap<number>();
 	/** Admitted worktrees the host created as a session's working directory, with the repository whose trust they inherit. */
 	private readonly _inheritingWorktrees = new Map<string, { readonly worktree: URI; readonly repository: URI; count: number }>();
@@ -74,10 +76,11 @@ export class CopilotProjectExtensionLaunchPolicy {
 	private readonly _canonicalTrustedRoots = new Map<string, Promise<URI | undefined>>();
 	/**
 	 * Project extension launches this policy allowed, by requested entrypoint and canonical module. The policy is shared by
-	 * every session, and a later decision for the same entrypoint says nothing about instances already running, so a
-	 * record is dropped only once no live session admits its module.
+	 * every session, and a later decision for the same entrypoint says nothing about instances already running. Launch
+	 * requests name no session, and a chat may run a module that another chat's folder supplies, so a record is dropped
+	 * only once no open chat lies in the folder the runtime discovered it in (`discoveryRoot`); without one, never.
 	 */
-	private readonly _allowedLaunches = new Map<string, { readonly module: URI; readonly extensionName: string }>();
+	private readonly _allowedLaunches = new Map<string, { readonly module: URI; readonly extensionName: string; readonly discoveryRoot: URI | undefined }>();
 
 	constructor(
 		private readonly _configurationService: IAgentConfigurationService,
@@ -127,8 +130,8 @@ export class CopilotProjectExtensionLaunchPolicy {
 		const revokedExtensionNames = new Set<string>();
 		if (change.contracted) {
 			for (const [key, launch] of [...this._allowedLaunches]) {
-				if (!this._isAdmitted(launch.module)) {
-					// No live session admits it, so no session runs it.
+				if (launch.discoveryRoot && !this._mayRunFrom(launch.discoveryRoot)) {
+					// No open chat lies in the folder the runtime discovered it in, so no session runs it.
 					if (this._allowedLaunches.get(key) === launch) {
 						this._allowedLaunches.delete(key);
 					}
@@ -152,13 +155,17 @@ export class CopilotProjectExtensionLaunchPolicy {
 	 */
 	async acquireAdmission(directories: readonly URI[], scratchFolder: ICopilotScratchFolder | undefined, createdWorktree?: ICopilotCreatedWorktree): Promise<ICopilotProjectExtensionLaunchAdmission> {
 		const roots: URI[] = [];
+		let unresolvedDirectories = 0;
 		for (const directory of directories) {
 			const root = await this._canonicalFileUri(directory, `extension launch root '${directory.fsPath}'`);
 			if (root) {
 				roots.push(root);
 				this._admittedRoots.set(root, (this._admittedRoots.get(root) ?? 0) + 1);
+			} else {
+				unresolvedDirectories++;
 			}
 		}
+		this._unresolvedAdmissionDirectories += unresolvedDirectories;
 
 		const admittedWorkspacelessRoot = scratchFolder ? await this._canonicalScratchFolder(scratchFolder, roots) : undefined;
 		if (admittedWorkspacelessRoot) {
@@ -181,6 +188,7 @@ export class CopilotProjectExtensionLaunchPolicy {
 			for (const root of roots) {
 				this._releaseReference(this._admittedRoots, root);
 			}
+			this._unresolvedAdmissionDirectories -= unresolvedDirectories;
 			if (admittedWorkspacelessRoot) {
 				this._releaseReference(this._workspacelessRoots, admittedWorkspacelessRoot);
 			}
@@ -238,7 +246,10 @@ export class CopilotProjectExtensionLaunchPolicy {
 
 		let launchModulePath = modulePath;
 		if (source === 'project') {
-			const module = await this._canonicalFileUri(URI.file(modulePath));
+			const [module, discoveryRoot] = await Promise.all([
+				this._canonicalFileUri(URI.file(modulePath)),
+				this._canonicalDiscoveryRoot(modulePath),
+			]);
 			if (!module || basename(module) !== 'extension.mjs') {
 				this._logService.trace(`[Copilot] Project extension launch denied because its entrypoint could not be resolved: ${modulePath}`);
 				return {};
@@ -252,7 +263,7 @@ export class CopilotProjectExtensionLaunchPolicy {
 				return {};
 			}
 			// The runtime names a project extension after the folder it discovered, which a symlink may resolve elsewhere.
-			this._allowedLaunches.set(`${modulePath}\n${module.toString()}`, { module, extensionName: basename(dirname(URI.file(modulePath))) });
+			this._allowedLaunches.set(`${modulePath}\n${module.toString()}`, { module, extensionName: basename(dirname(URI.file(modulePath))), discoveryRoot });
 			launchModulePath = module.fsPath;
 		}
 
@@ -319,6 +330,29 @@ export class CopilotProjectExtensionLaunchPolicy {
 
 	private _isAdmitted(resource: URI): boolean {
 		return [...this._admittedRoots.keys()].some(root => extUriBiasedIgnorePathCase.isEqualOrParent(resource, root));
+	}
+
+	/**
+	 * Whether a chat that could run an extension discovered under `discoveryRoot` may still be open: an admitted folder
+	 * lies in it (the runtime discovers from a chat's canonical repository root, which may be above its folders), or an
+	 * admitted folder could not be canonicalized and so cannot be ruled out.
+	 */
+	private _mayRunFrom(discoveryRoot: URI): boolean {
+		return this._unresolvedAdmissionDirectories > 0
+			|| [...this._admittedRoots.keys()].some(root => extUriBiasedIgnorePathCase.isEqualOrParent(root, discoveryRoot));
+	}
+
+	/**
+	 * The canonical folder whose `.github/extensions/<name>/extension.mjs` the runtime requested, or `undefined` when the
+	 * requested path has another shape or the folder can't be resolved, in which case its launch record is never pruned.
+	 */
+	private async _canonicalDiscoveryRoot(modulePath: string): Promise<URI | undefined> {
+		const extensionsFolder = dirname(dirname(URI.file(modulePath)));
+		const githubFolder = dirname(extensionsFolder);
+		if (basename(extensionsFolder) !== 'extensions' || basename(githubFolder) !== '.github') {
+			return undefined;
+		}
+		return this._canonicalFileUri(dirname(githubFolder));
 	}
 
 	private _readTrust(): IAgentHostWorkspaceTrust | undefined {
