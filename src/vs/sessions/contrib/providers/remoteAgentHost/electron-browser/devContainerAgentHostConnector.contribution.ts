@@ -554,8 +554,10 @@ export class DevContainerAgentHostConnector extends Disposable implements IDevCo
 			|| (environment && sourceEntry ? localize('devContainerEnvironment.connectionName', "Dev Container on {0}", sourceEntry.name)
 				: localEnvironment ? localize('devContainerEnvironment.localConnectionName', "Dev Container on This Computer")
 					: sourceEntry ? `${basename(workspaceUri)} Dev Container (${sourceEntry.name})` : `${basename(workspaceUri)} Dev Container`);
+		// The host and the log name an environment as it is currently renamed, read on every connect to follow later renames.
+		const hostName = () => (environment ? this._remoteAgentHostService.getDisplayNameOverride(address) : undefined) ?? name;
 		const connectionStore = new DisposableStore();
-		const outputWriter = connectionStore.add(new DevContainerOutputWriter(mainService, connectionId, workspaceUri, this._getOutputLabel(workspaceUri), environment ? name : workspaceUri.fsPath, this._outputService));
+		const outputWriter = connectionStore.add(new DevContainerOutputWriter(mainService, connectionId, workspaceUri, this._getOutputLabel(workspaceUri), environment ? hostName() : workspaceUri.fsPath, this._outputService));
 		// Whether each connection keeps user state on a volume.
 		const connectionIds = new Map<string, boolean>();
 		const cancellationListener = token.onCancellationRequested(() => {
@@ -605,7 +607,7 @@ export class DevContainerAgentHostConnector extends Disposable implements IDevCo
 			let result = await connect({
 				connectionId,
 				...source,
-				name,
+				name: hostName(),
 				resume: options?.resume ?? true,
 				...(options?.sandboxEnabled !== undefined ? { sandboxEnabled: options.sandboxEnabled } : {}),
 			}, false);
@@ -641,7 +643,7 @@ export class DevContainerAgentHostConnector extends Disposable implements IDevCo
 					result = await connect({
 						connectionId: reconnectConnectionId,
 						...source,
-						name,
+						name: hostName(),
 						resume: false,
 						...(options?.sandboxEnabled !== undefined ? { sandboxEnabled: options.sandboxEnabled } : {}),
 					}, true);
@@ -682,7 +684,8 @@ export class DevContainerAgentHostConnector extends Disposable implements IDevCo
 			};
 			return {
 				address,
-				name: result.name,
+				// Not the renamed name the host echoes, which would become the default name and outlast clearing the rename.
+				name,
 				hostWorkspaceFolder: result.hostWorkspaceFolder,
 				repository: result.repository,
 				volumeOnLocalDockerEngine,

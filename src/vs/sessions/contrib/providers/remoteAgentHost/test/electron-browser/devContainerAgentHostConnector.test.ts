@@ -238,6 +238,8 @@ suite('Dev Container Agent Host Connector', () => {
 	test('routes Dev Container environments on this computer to the local service without a source host', async () => {
 		const configs: IDevContainerAgentHostConfig[] = [];
 		const removed: DevContainerAgentHostSource[] = [];
+		const output: string[] = [];
+		const displayNames = new Map<string, string>();
 		const configuration = new TestConfigurationService({
 			[DevContainerEnvironmentsEnabledSettingId]: true,
 			[DevContainerAgentHostEnabledSettingId]: true,
@@ -276,21 +278,31 @@ suite('Dev Container Agent Host Connector', () => {
 			new class extends mock<IEnvironmentService>() { }(),
 			new class extends mock<IOutputService>() {
 				override getChannel() {
-					return new class extends mock<IOutputChannel>() { override append() { } }();
+					return new class extends mock<IOutputChannel>() { override append(value: string) { output.push(value); } }();
 				}
 			}(),
 			new class extends mock<IFileService>() {
 				override async exists(): Promise<never> { throw new Error('Environments do not have a host path'); }
 			}(),
-			new class extends mock<IRemoteAgentHostService>() { override readonly configuredEntries = []; }(),
+			new class extends mock<IRemoteAgentHostService>() {
+				override readonly configuredEntries = [];
+				override getDisplayNameOverride(address: string) { return displayNames.get(address); }
+			}(),
 			new class extends mock<ISessionsProvidersService>() { }(),
 			new class extends mock<IRequestService>() { }(),
 			NullTelemetryService,
 		));
 		const source = localDevContainerEnvironmentUri('environment');
 		const available = await connector.isAvailable(source);
-		const target = await connector.createConnection(source, 'devcontainer:environment', CancellationToken.None, { resume: true, name: 'Dev Container 2' });
-		store.add(target.transportDisposable!);
+		const connect = async () => {
+			const target = await connector.createConnection(source, 'devcontainer:environment', CancellationToken.None, { resume: true, name: 'Dev Container 2' });
+			store.add(target.transportDisposable!);
+			return target;
+		};
+		const target = await connect();
+		// A rename in Remote Environments names the environment on the host from its next connection on.
+		displayNames.set('devcontainer:environment', 'Renamed');
+		const renamed = await connect();
 		await connector.removeContainer(source);
 		await configuration.setUserConfiguration(DevContainerEnvironmentsEnabledSettingId, false);
 		assert.deepStrictEqual({
@@ -298,7 +310,8 @@ suite('Dev Container Agent Host Connector', () => {
 			availableWhenDisabled: await connector.isAvailable(source),
 			localDocker: await connector.isLocalDockerAvailable(),
 			configs: configs.map(config => hasKey(config, { environmentId: true }) ? { environmentId: config.environmentId, image: config.image, name: config.name, persistUserState: config.persistUserState } : config),
-			connectionName: target.name,
+			headings: output.filter(value => value.includes('Starting')).map(value => value.trim()),
+			connectionNames: [target.name, renamed.name],
 			removed,
 			workspace: target.workspaceUri.path,
 		}, {
@@ -306,8 +319,13 @@ suite('Dev Container Agent Host Connector', () => {
 			availableWhenDisabled: false,
 			localDocker: true,
 			// Named after the environment, so environments on the same host can be told apart.
-			configs: [{ environmentId: 'environment', image: devContainerEnvironmentImage, name: 'Dev Container 2', persistUserState: true }],
-			connectionName: 'Dev Container 2',
+			configs: [
+				{ environmentId: 'environment', image: devContainerEnvironmentImage, name: 'Dev Container 2', persistUserState: true },
+				{ environmentId: 'environment', image: devContainerEnvironmentImage, name: 'Renamed', persistUserState: true },
+			],
+			headings: ['--- Starting Dev Container for Dev Container 2 ---', '--- Starting Dev Container for Renamed ---'],
+			// The rename applies on top as the address's display name, so clearing it restores the environment's name.
+			connectionNames: ['Dev Container 2', 'Dev Container 2'],
 			removed: [{ environmentId: 'environment' }],
 			workspace: '/workspaces',
 		});
@@ -356,6 +374,7 @@ suite('Dev Container Agent Host Connector', () => {
 			new class extends mock<IRemoteAgentHostService>() {
 				override readonly configuredEntries = [entry];
 				override getConnection(): IAgentConnection { return connection; }
+				override getDisplayNameOverride() { return undefined; }
 			}(),
 			new class extends mock<ISessionsProvidersService>() { }(),
 			new class extends mock<IRequestService>() { }(),
