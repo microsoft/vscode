@@ -92,7 +92,8 @@ import { AGENT_MD_FILENAME } from '../../common/promptSyntax/config/promptFileLo
 import { PromptsConfig } from '../../common/promptSyntax/config/config.js';
 import { getAttributeDefinition, getTarget } from '../../common/promptSyntax/languageProviders/promptFileAttributes.js';
 import { INewPromptOptions, NEW_PROMPT_COMMAND_ID, NEW_INSTRUCTIONS_COMMAND_ID, NEW_AGENT_COMMAND_ID, NEW_SKILL_COMMAND_ID } from '../promptSyntax/newPromptFileActions.js';
-import { showConfigureHooksQuickPick } from '../promptSyntax/hookActions.js';
+import { createCopilotHook } from '../promptSyntax/hookActions.js';
+import { Range } from '../../../../../editor/common/core/range.js';
 import { resolveWorkspaceTargetDirectory, resolveUserTargetDirectory, CustomizationLocationPicker } from './customizationCreatorService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { AICustomizationSources, IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
@@ -4175,28 +4176,20 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 		if (type === PromptsType.hook) {
 			const preferredStorage = target === 'user' ? PromptsStorage.user : PromptsStorage.local;
-			if (this.workspaceService.isSessionsWindow) {
-				// Sessions: show hooks filtered to Copilot CLI (GitHub Copilot) hook types
-				await this.instantiationService.invokeFunction(showConfigureHooksQuickPick, {
-					openEditor: async (resource) => {
-						await this.showEmbeddedEditor(resource, basename(resource), PromptsType.hook, preferredStorage, preferredStorage === PromptsStorage.local);
-						return;
-					},
-					target: Target.GitHubCopilot,
-					preferredStorage,
-					workspaceFolder,
-				});
-			} else {
-				// Core: use the default core behaviour
-				await this.instantiationService.invokeFunction(showConfigureHooksQuickPick, {
-					openEditor: async (resource) => {
-						await this.showEmbeddedEditor(resource, basename(resource), PromptsType.hook, preferredStorage, preferredStorage === PromptsStorage.local);
-						return;
-					},
-					preferredStorage,
-					workspaceFolder,
-				});
-			}
+			const isWorkspace = preferredStorage === PromptsStorage.local;
+			await this.instantiationService.invokeFunction(createCopilotHook, {
+				storage: preferredStorage,
+				projectRoot: workspaceFolder ?? this.workspaceService.getActiveProjectRoot(),
+				openEditor: async (resource, selection) => {
+					await this.showEmbeddedEditor(resource, basename(resource), PromptsType.hook, preferredStorage, isWorkspace);
+					if (selection) {
+						const range = new Range(selection.startLineNumber, selection.startColumn, selection.endLineNumber ?? selection.startLineNumber, selection.endColumn ?? selection.startColumn);
+						this.embeddedEditor?.setSelection(range);
+						this.embeddedEditor?.revealRangeInCenter(range);
+					}
+				},
+			});
+			this.listWidget.refresh();
 			return;
 		}
 		const sessionResource = this.harnessService.activeSessionResource.get();
