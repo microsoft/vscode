@@ -14982,6 +14982,79 @@ suite('ChatListRenderer', () => {
 		});
 	}
 
+	for (const rendersAgain of [false, true]) {
+		test(`a row that moves in the DOM remounts its Mermaid output once, also when the list does not render it again (rendersAgain=${rendersAgain})`, async () => {
+			const disposables = store.add(new DisposableStore());
+			const instantiationService = workbenchInstantiationService(undefined, disposables);
+			const configurationService = new TestConfigurationService();
+			configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Off);
+			configurationService.setUserConfiguration(ChatConfiguration.IncrementalRendering, false);
+			configurationService.setUserConfiguration(ChatConfiguration.CheckpointsEnabled, false);
+			configurationService.setUserConfiguration('workbench.reduceMotion', 'on');
+			instantiationService.stub(IConfigurationService, configurationService);
+			instantiationService.stub(IChatService, new MockChatService());
+			instantiationService.stub(IChatModelFeedbackSurveyService, new MockChatModelFeedbackSurveyService());
+			instantiationService.stub(IChatAgentService, disposables.add(instantiationService.createInstance(ChatAgentService)));
+			instantiationService.stub(IAiEditTelemetryService, { createSuggestionId: () => undefined! });
+			const outputStates = new Map<string, IOutputPartState>();
+			instantiationService.stub(IChatOutputPartStateCache, {
+				get: key => outputStates.get(key),
+				set: (key, state) => outputStates.set(key, state),
+			});
+			const remounts: boolean[] = [];
+			instantiationService.stub(IChatOutputRendererService, {
+				hasCodeBlockRenderer: identifier => identifier === 'mermaid',
+				renderCodeBlock: async (_identifier, _data, parent) => {
+					const output = dom.append(parent, dom.$('div', undefined, 'Rendered diagram'));
+					return {
+						webview: upcastPartial<RenderedOutputPart['webview']>({ onDidUpdateState: Event.None }),
+						onDidChangeHeight: Event.None,
+						reinitialize: () => remounts.push(parent.isConnected),
+						dispose: () => output.remove(),
+					};
+				},
+			});
+
+			const model = disposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+			const viewModel = disposables.add(instantiationService.createInstance(ChatViewModel, model, undefined));
+			const request = model.addRequest({
+				text: 'Diagram',
+				parts: [new ChatRequestTextPart(new OffsetRange(0, 7), new Range(1, 1, 1, 8), 'Diagram')],
+			}, { variables: [] }, 0);
+			const response = viewModel.getItems().find(isResponseVM);
+			assert.ok(response);
+			const container = dom.append(mainWindow.document.body, dom.$('div'));
+			disposables.add(toDisposable(() => container.remove()));
+			const renderer = disposables.add(instantiationService.createInstance(
+				ChatListItemRenderer, {} as ChatEditorOptions, {},
+				{
+					getListLength: () => 1, onDidScroll: () => Disposable.None, container,
+					currentChatMode: () => ChatModeKind.Agent, isStickyScrollEnabled: () => false,
+					refreshStickyScroll: () => { }, stickyScrollTopPadding: 0,
+				},
+				undefined, viewModel,
+			));
+			const template = renderer.renderTemplate(container);
+			disposables.add(toDisposable(() => renderer.disposeTemplate(template)));
+			const node = { element: response, children: [], depth: 0, visibleChildrenCount: 0, visibleChildIndex: 0, collapsible: false, collapsed: false, visible: true, filterData: undefined };
+			model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('```mermaid\ngraph TD\n```') });
+			renderer.renderElement(node, 0, template);
+			await timeout(0);
+
+			// As moving the view that shows the chat in the workbench moves the list's rows, without the list rendering them again
+			const moved = dom.append(mainWindow.document.body, dom.$('div'));
+			disposables.add(toDisposable(() => moved.remove()));
+			moved.appendChild(container);
+			if (rendersAgain) {
+				renderer.renderElement(node, 0, template);
+			}
+			await timeout(0);
+
+			assert.deepStrictEqual({ remounts, mounted: template.renderedPartsMounted }, { remounts: [true], mounted: true });
+			request.response?.complete();
+		});
+	}
+
 	test('a queued render from a virtualized row does not claim code block registrations owned by another template', async () => {
 		const disposables = store.add(new DisposableStore());
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
