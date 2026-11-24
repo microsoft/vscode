@@ -20,7 +20,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { mock } from '../../../../base/test/common/mock.js';
 import { MissionControlControlVerifier, type IMissionControlSigningKey } from '../../node/missionControl/missionControlControl.js';
 import { MissionControlProtocolServer, toMissionControlSocket, type IMissionControlRelayRecovery, type IMissionControlSocket, type MissionControlPublishDiagnostic } from '../../node/missionControl/missionControlProtocolServer.js';
-import { MissionControlEnvironment } from '../../node/missionControl/missionControlEnvironment.js';
+import { MissionControlEnvironment, selectLocalMissionControlDirectories } from '../../node/missionControl/missionControlEnvironment.js';
 import { MissionControlAuthentication, MissionControlSealing, sealMissionControlCredential } from '../../node/missionControl/missionControlAuthentication.js';
 import { getConnectionDiagnosticError, type IConnectionDiagnosticEvent } from '../../common/connectionDiagnostics.js';
 import { getConnectionTelemetryError } from '../../common/connectionTelemetry.js';
@@ -3590,6 +3590,35 @@ suite('Mission Control WPS', () => {
 				await assert.rejects(service.configure({ ...options, projects: [join(directory, 'missing')] }), error =>
 					getConnectionTelemetryError(getConnectionDiagnosticError(error)).errorCategory === 'fileSystem');
 			});
+		});
+
+		test('excludes network-backed roots and projects while sharing the remaining local directories', () => {
+			assert.deepStrictEqual(selectLocalMissionControlDirectories({
+				roots: ['C:\\', '\\\\server\\share\\', '/home/user', '\\\\server\\share\\project'],
+				projects: ['C:\\project', '\\\\server\\share\\project'],
+				defaultDirectory: 'C:\\Users\\test',
+			}), {
+				roots: ['C:\\', '/home/user'],
+				projects: ['C:\\project'],
+				defaultDirectory: 'C:\\Users\\test',
+				excluded: ['\\\\server\\share\\', '\\\\server\\share\\project'],
+			});
+		});
+
+		test('rejects a network-backed default directory or no remaining local root as invalid configuration', () => {
+			const outcomes = [
+				{ roots: ['C:\\'], defaultDirectory: '\\\\server\\home' },
+				{ roots: ['\\\\server\\share\\', '\\\\wsl.localhost\\Ubuntu\\home'] },
+				{ roots: [] },
+			].map(directories => {
+				try {
+					selectLocalMissionControlDirectories(directories);
+					return 'accepted';
+				} catch (error) {
+					return getConnectionTelemetryError(getConnectionDiagnosticError(error)).errorCategory;
+				}
+			});
+			assert.deepStrictEqual(outcomes, ['invalidConfiguration', 'invalidConfiguration', 'accepted']);
 		});
 
 		test('reports changed and removed managed policy immediately without parsing it or losing heartbeat Retry-After', async () => {

@@ -338,6 +338,7 @@ export class MissionControlHost extends Disposable {
 				return true;
 			},
 			updateProjects: () => this._projects.initialize(),
+			onExcludedDirectory: path => this._logService.info(`[AgentHost] Mission Control is not sharing a network-backed directory; path=${path}`),
 			onError: error => {
 				this._publishTelemetry.flush();
 				this._logService.error(`[AgentHost] Mission Control failure: ${formatConnectionDiagnosticError(getConnectionDiagnosticError(error))}`);

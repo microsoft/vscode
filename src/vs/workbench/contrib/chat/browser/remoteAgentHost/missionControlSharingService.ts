@@ -292,15 +292,7 @@ export class MissionControlSharingService extends Disposable implements IMission
 		const drives = Array.from({ length: 26 }, (_, index) => URI.from({ scheme: Schemas.file, path: `/${String.fromCharCode(65 + index)}:/` }));
 		const checks = await Promise.all(drives.map(async (drive): Promise<{ readonly root?: URI; readonly failure?: { readonly drive: URI; readonly error: unknown } }> => {
 			try {
-				if (!(await this._fileService.stat(drive)).isDirectory) {
-					return {};
-				}
-				const canonical = await this._fileService.realpath(drive);
-				if (canonical?.fsPath.replace(/\\/g, '/').startsWith('//')) {
-					this._logService.info('[Mission Control] Excluding a network-backed drive from local filesystem sharing', drive.toString());
-					return {};
-				}
-				return { root: drive };
+				return (await this._fileService.stat(drive)).isDirectory ? { root: drive } : {};
 			} catch (error) {
 				return error instanceof Error && toFileOperationResult(error) === FileOperationResult.FILE_NOT_FOUND ? {} : { failure: { drive, error } };
 			}
