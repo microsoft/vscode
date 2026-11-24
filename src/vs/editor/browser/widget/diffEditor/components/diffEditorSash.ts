@@ -10,17 +10,18 @@ import { DiffEditorOptions } from '../diffEditorOptions.js';
 
 export class SashLayout {
 	public readonly sashLeft = derivedWithSetter(this, reader => {
-		const ratio = this._sashRatio.read(reader) ?? this._options.splitViewDefaultRatio.read(reader);
+		const ratio = this.sashRatio.read(reader) ?? this._options.splitViewDefaultRatio.read(reader);
 		return this._computeSashLeft(ratio, reader);
 	}, (value, tx) => {
 		const contentWidth = this.dimensions.width.get();
-		this._sashRatio.set(value / contentWidth, tx);
+		this.sashRatio.set(value / contentWidth, tx);
 	});
 
-	private readonly _sashRatio = observableValue<number | undefined>(this, undefined);
+	/** The user-chosen ratio of the original side, or `undefined` to use the default ratio. */
+	public readonly sashRatio = observableValue<number | undefined>(this, undefined);
 
 	public resetSash(): void {
-		this._sashRatio.set(undefined, undefined);
+		this.sashRatio.set(undefined, undefined);
 	}
 
 	constructor(
