@@ -14,7 +14,7 @@ import { observableValue } from '../../../../../../base/common/observable.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { CommandsRegistry, ICommandService } from '../../../../../../platform/commands/common/commands.js';
-import { IConfigurationChangeEvent } from '../../../../../../platform/configuration/common/configuration.js';
+import { IConfigurationChangeEvent, IConfigurationOverrides, IConfigurationValue } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
@@ -29,6 +29,21 @@ import { createAgentsBanner, isAgentsWindowAvailable } from '../../../browser/ag
 import { AGENTS_WINDOW_BANNER_DESCRIPTION_TREATMENT, AGENTS_WINDOW_BANNER_TITLE_TREATMENT, AgentsWindowGraphic } from '../../../browser/agentSessions/agentsWindowGraphic.js';
 import { resetWelcomeSignInCardHidden, WelcomeSignInCard } from '../../../browser/agentSessions/welcomeSignInCard.js';
 import { AgentsWindowGraphicVariant, ChatConfiguration, OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID, WelcomeSignInStyle } from '../../../common/constants.js';
+
+/**
+ * Reports the `assigned` settings as the defaults that experiments assign, unlike `TestConfigurationService`, which reports every
+ * setting as the user's, and the `userSettings` as values that the user set themselves.
+ */
+class ExperimentConfigurationService extends TestConfigurationService {
+	constructor(assigned: Record<string, unknown>, private readonly userSettings: Record<string, unknown> = {}) {
+		super({ ...assigned, ...userSettings });
+	}
+
+	override inspect<T>(key: string, overrides?: IConfigurationOverrides): IConfigurationValue<T> {
+		const inspected = super.inspect<T>(key, overrides);
+		return Object.hasOwn(this.userSettings, key) ? inspected : { ...inspected, defaultValue: inspected.value, userValue: undefined, userLocalValue: undefined };
+	}
+}
 
 suite('AgentsBanner', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -405,11 +420,11 @@ suite('AgentsBanner graphic', () => {
 	}
 
 	/** Creates the banner with the graphic, like the Welcome page does. The user is signed in unless `signedIn` is false. */
-	function createBannerWithGraphic(variant: string, telemetryService: TestExperimentTriggerTelemetryService, options: { agentEnabled?: boolean; exposed?: boolean; signedIn?: boolean; getTreatment?: (name: string) => Promise<string | undefined> } = {}) {
-		const configurationService = new TestConfigurationService({
+	function createBannerWithGraphic(variant: string, telemetryService: TestExperimentTriggerTelemetryService, options: { agentEnabled?: boolean; exposed?: boolean; signedIn?: boolean; getTreatment?: (name: string) => Promise<string | undefined>; userSettings?: Record<string, unknown> } = {}) {
+		const configurationService = new ExperimentConfigurationService({
 			[ChatConfiguration.WelcomePageAgentsWindowGraphic]: variant,
 			[ChatConfiguration.AgentEnabled]: options.agentEnabled ?? true,
-		});
+		}, options.userSettings);
 		store.add(configurationService.onDidChangeConfigurationEmitter);
 		store.add(CommandsRegistry.registerCommand(OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID, () => { }));
 		const signedIn = options.signedIn ?? true;
@@ -619,6 +634,22 @@ suite('AgentsBanner graphic', () => {
 		});
 	}
 
+	test('logs no trigger for a setting that the user configured, since its experiment then does not change what they see', async () => {
+		const triggers = [];
+		for (const [variant, userSettings] of [
+			[AgentsWindowGraphicVariant.WindowComparison, { [ChatConfiguration.WelcomePageAgentsWindowSectionStyle]: 'card' }],
+			[AgentsWindowGraphicVariant.Banner, { [ChatConfiguration.WelcomePageAgentsWindowGraphic]: 'banner', [ChatConfiguration.WelcomePageCardSurface]: 'tint' }],
+		] as const) {
+			const telemetryService = new TestExperimentTriggerTelemetryService();
+			createBannerWithGraphic(variant, telemetryService, { userSettings });
+			await timeout(0);
+			triggers.push(telemetryService.triggers);
+		}
+
+		// The banner's copy comes from treatments, which users can't configure.
+		assert.deepStrictEqual(triggers, [[graphicTreatment], bannerCopyTreatments]);
+	});
+
 	test('offers to hide the graphic from its context menu, with the mouse or the keyboard, and keeps the button', async () => {
 		const telemetryService = new RecordingTelemetryService();
 		const banner = createBannerWithGraphic(AgentsWindowGraphicVariant.Banner, telemetryService);
@@ -694,6 +725,7 @@ suite('AgentsBanner graphic', () => {
 suite('AgentsBanner sign-in card', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const styleTreatment = `config.${ChatConfiguration.WelcomePageSignInStyle}`;
+	const signInEnabledTreatment = `config.${ChatConfiguration.WelcomePageSignInEnabled}`;
 	const signInCardSurfaceTreatment = `config.${ChatConfiguration.WelcomePageCardSurface}`;
 	const account = new class extends mock<IDefaultAccount>() { }();
 
@@ -709,11 +741,11 @@ suite('AgentsBanner sign-in card', () => {
 	}
 
 	/** Creates the banner with the sign-in card, like the Welcome page does. The user is signed out unless `signedIn` is true. */
-	function createBannerWithSignInCard(style: string, options: { signedIn?: boolean; signInEnabled?: boolean; exposed?: boolean; storageService?: InMemoryStorageService } = {}) {
-		const configurationService = new TestConfigurationService({
+	function createBannerWithSignInCard(style: string, options: { signedIn?: boolean; signInEnabled?: boolean; exposed?: boolean; storageService?: InMemoryStorageService; userSettings?: Record<string, unknown> } = {}) {
+		const configurationService = new ExperimentConfigurationService({
 			[ChatConfiguration.WelcomePageSignInStyle]: style,
 			[ChatConfiguration.WelcomePageSignInEnabled]: options.signInEnabled ?? true,
-		});
+		}, options.userSettings);
 		store.add(configurationService.onDidChangeConfigurationEmitter);
 		store.add(CommandsRegistry.registerCommand(OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID, () => { }));
 		const onDidChangeDefaultAccount = store.add(new Emitter<IDefaultAccount | null>());
@@ -784,9 +816,9 @@ suite('AgentsBanner sign-in card', () => {
 			states.push({ style, beforeExposure, ...await banner.state() });
 		}
 
-		// The card surface only applies to cards, so its trigger waits for one.
-		const button = { button: 'Sign in to GitHub', primary: false, text: '', card: undefined, beforeExposure: [], triggers: [styleTreatment] };
-		const cardTriggers = [styleTreatment, signInCardSurfaceTreatment];
+		// Whether sign-in is offered is an experiment too, and the card surface only applies to cards, so its trigger waits for one.
+		const button = { button: 'Sign in to GitHub', primary: false, text: '', card: undefined, beforeExposure: [], triggers: [signInEnabledTreatment, styleTreatment] };
+		const cardTriggers = [signInEnabledTreatment, styleTreatment, signInCardSurfaceTreatment];
 		assert.deepStrictEqual(states, [
 			{ style: 'button', ...button },
 			{ style: 'copilotCard', card: 'copilotCard', text: 'Build software with GitHub Copilot agentsTry the free GitHub Copilot featuresHand off tasks to powerful agents that plan, code and testRun several agents at once in the new Agents window', button: 'Sign in to GitHub', primary: true, beforeExposure: [], triggers: cardTriggers },
@@ -797,7 +829,7 @@ suite('AgentsBanner sign-in card', () => {
 		]);
 	});
 
-	test('shows no card and logs no trigger while signed in or while sign-in is disabled, and removes the card on sign-in', async () => {
+	test('shows no card while signed in or while sign-in is disabled, and removes the card on sign-in', async () => {
 		const signedOut = createBannerWithSignInCard(WelcomeSignInStyle.GitHubCard);
 		const beforeSignIn = await signedOut.state();
 		signedOut.signIn();
@@ -809,11 +841,24 @@ suite('AgentsBanner sign-in card', () => {
 			afterSignIn: await signedOut.state(),
 		}, {
 			signedIn: { card: undefined, text: '', button: 'Try out the new Agents window', primary: false, triggers: [] },
-			signInDisabled: { card: undefined, text: '', button: 'Try out the new Agents window', primary: false, triggers: [] },
+			// Signed-out users see whether sign-in is offered in every arm of its experiment, but only offered sign-in shows a style.
+			signInDisabled: { card: undefined, text: '', button: 'Try out the new Agents window', primary: false, triggers: [signInEnabledTreatment] },
 			beforeSignIn: { card: 'githubCard', button: 'Sign in to GitHub' },
-			// The user was offered sign-in, so the trigger stays logged.
-			afterSignIn: { card: undefined, text: '', button: 'Try out the new Agents window', primary: false, triggers: [styleTreatment, signInCardSurfaceTreatment] },
+			// The user was offered sign-in, so the triggers stay logged.
+			afterSignIn: { card: undefined, text: '', button: 'Try out the new Agents window', primary: false, triggers: [signInEnabledTreatment, styleTreatment, signInCardSurfaceTreatment] },
 		});
+	});
+
+	test('logs no trigger for a setting that the user configured, since its experiment then does not change what they see', async () => {
+		const triggers = [];
+		for (const userSettings of [
+			{ [ChatConfiguration.WelcomePageSignInEnabled]: true },
+			{ [ChatConfiguration.WelcomePageSignInStyle]: WelcomeSignInStyle.GitHubCard, [ChatConfiguration.WelcomePageCardSurface]: 'neutral' },
+		]) {
+			triggers.push((await createBannerWithSignInCard(WelcomeSignInStyle.GitHubCard, { userSettings }).state()).triggers);
+		}
+
+		assert.deepStrictEqual(triggers, [[styleTreatment, signInCardSurfaceTreatment], [signInEnabledTreatment]]);
 	});
 
 	test('hides the card from its context menu in the profile, keeps the sign-in button, and still logs the trigger', async () => {
@@ -834,12 +879,12 @@ suite('AgentsBanner sign-in card', () => {
 		}, {
 			menu: ['Hide'],
 			afterHide: {
-				card: undefined, text: '', button: 'Sign in to GitHub', primary: false, triggers: [styleTreatment, signInCardSurfaceTreatment],
+				card: undefined, text: '', button: 'Sign in to GitHub', primary: false, triggers: [signInEnabledTreatment, styleTreatment, signInCardSurfaceTreatment],
 				menu: undefined,
 				events: [{ name: 'agentsBanner.clicked', data: { source: 'welcomePage', action: 'hideSignInCard' } }],
 			},
 			// Hiding the card applies to every style, but doesn't change who counts in the experiment.
-			otherPage: { card: undefined, text: '', button: 'Sign in to GitHub', primary: false, triggers: [styleTreatment, signInCardSurfaceTreatment] },
+			otherPage: { card: undefined, text: '', button: 'Sign in to GitHub', primary: false, triggers: [signInEnabledTreatment, styleTreatment, signInCardSurfaceTreatment] },
 			afterReset: 'copilotCard',
 		});
 	});

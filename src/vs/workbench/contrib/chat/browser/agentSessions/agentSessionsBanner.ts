@@ -14,7 +14,7 @@ import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { autorun, derived, IObservable, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { localize } from '../../../../../nls.js';
 import { ICommandService, CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IConfigurationService, isConfigured } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { logExperimentTrigger, logSettingExperimentTrigger } from '../../../../../platform/telemetry/common/experimentTrigger.js';
@@ -83,7 +83,8 @@ export interface IAgentsBannerOptions {
 	 * {@link AgentsWindowGraphicVariant.Banner}, since the surface applies to the banner. The triggers of
 	 * {@link AGENTS_WINDOW_BANNER_TITLE_TREATMENT} and {@link AGENTS_WINDOW_BANNER_DESCRIPTION_TREATMENT} are logged once,
 	 * in addition, `bannerCopyResolved` is true, that is, once the banner shows the text of the user's experiment arm.
-	 * None of the triggers depends on whether the user hid the graphic.
+	 * None of the triggers depends on whether the user hid the graphic. The trigger of a setting that the user configured isn't
+	 * logged, since their value overrides the one the experiment assigns.
 	 *
 	 * While `shownDesign` is {@link AgentsWindowGraphicVariant.Banner}, the button is the banner's primary action.
 	 * While a graphic is shown, the banner's context menu offers to hide it with `hide`.
@@ -102,10 +103,12 @@ export interface IAgentsBannerOptions {
 	 * unless the style is {@link WelcomeSignInStyle.Button} or the user hid the card. The button is then the card's primary action,
 	 * and the banner's context menu offers to hide the card with `hide`.
 	 *
-	 * The setting's experiment trigger is logged in every experiment arm once the banner is visible and offers sign-in while
-	 * `isExposed` is true, that is, when the user could see the card. The trigger of {@link ChatConfiguration.WelcomePageCardSurface}
-	 * is logged in the same moment once `style` shows a card, since the surface applies to the card. Neither depends on whether
-	 * the user hid the card.
+	 * The experiment trigger of {@link ChatConfiguration.WelcomePageSignInEnabled}, which decides whether signed-out users are offered
+	 * sign-in at all, is logged in every experiment arm once the banner is visible to a resolved signed-out user while `isExposed` is
+	 * true, that is, when the user could see the button. The trigger of {@link ChatConfiguration.WelcomePageSignInStyle} is logged in the
+	 * same moment once the button offers sign-in, and the trigger of {@link ChatConfiguration.WelcomePageCardSurface} once `style` shows
+	 * a card, since the surface applies to the card. None depends on whether the user hid the card, and the trigger of a setting that
+	 * the user configured isn't logged.
 	 */
 	readonly signInCard?: {
 		readonly element: HTMLElement;
@@ -183,13 +186,13 @@ export function createAgentsBanner(
 			if (!visible.read(reader) || !signedIn.read(reader) || !isExposed.read(reader)) {
 				return;
 			}
-			logSettingExperimentTrigger(telemetryService, ChatConfiguration.WelcomePageAgentsWindowGraphic);
+			logUnconfiguredSettingExperimentTrigger(telemetryService, configurationService, ChatConfiguration.WelcomePageAgentsWindowGraphic);
 			const selected = design.read(reader);
 			if (selected === AgentsWindowGraphicVariant.WindowComparison) {
-				logSettingExperimentTrigger(telemetryService, ChatConfiguration.WelcomePageAgentsWindowSectionStyle);
+				logUnconfiguredSettingExperimentTrigger(telemetryService, configurationService, ChatConfiguration.WelcomePageAgentsWindowSectionStyle);
 			}
 			if (selected === AgentsWindowGraphicVariant.Banner) {
-				logSettingExperimentTrigger(telemetryService, ChatConfiguration.WelcomePageCardSurface);
+				logUnconfiguredSettingExperimentTrigger(telemetryService, configurationService, ChatConfiguration.WelcomePageCardSurface);
 				if (bannerCopyResolved.read(reader)) {
 					logExperimentTrigger(telemetryService, AGENTS_WINDOW_BANNER_TITLE_TREATMENT);
 					logExperimentTrigger(telemetryService, AGENTS_WINDOW_BANNER_DESCRIPTION_TREATMENT);
@@ -203,10 +206,14 @@ export function createAgentsBanner(
 			setVisibility(shownSignInCard.read(reader) !== undefined, cardElement);
 		}));
 		disposables.add(autorun(reader => {
-			if (visible.read(reader) && offerSignIn.read(reader) && isExposed.read(reader)) {
-				logSettingExperimentTrigger(telemetryService, ChatConfiguration.WelcomePageSignInStyle);
+			if (!visible.read(reader) || !signedOut.read(reader) || !isExposed.read(reader)) {
+				return;
+			}
+			logUnconfiguredSettingExperimentTrigger(telemetryService, configurationService, ChatConfiguration.WelcomePageSignInEnabled);
+			if (signInEnabled.read(reader)) {
+				logUnconfiguredSettingExperimentTrigger(telemetryService, configurationService, ChatConfiguration.WelcomePageSignInStyle);
 				if (style.read(reader) !== WelcomeSignInStyle.Button) {
-					logSettingExperimentTrigger(telemetryService, ChatConfiguration.WelcomePageCardSurface);
+					logUnconfiguredSettingExperimentTrigger(telemetryService, configurationService, ChatConfiguration.WelcomePageCardSurface);
 				}
 			}
 		}));
@@ -250,6 +257,16 @@ export function createAgentsBanner(
 	}));
 
 	return { element, disposables, visible, shownSignInCard };
+}
+
+/**
+ * Logs the experiment trigger of an experiment-controlled setting, unless the user configured the setting. Their value then overrides
+ * the one the experiment assigns, so the experiment doesn't change what they see.
+ */
+function logUnconfiguredSettingExperimentTrigger(telemetryService: ITelemetryService, configurationService: IConfigurationService, settingId: string): void {
+	if (!isConfigured(configurationService.inspect(settingId))) {
+		logSettingExperimentTrigger(telemetryService, settingId);
+	}
 }
 
 /**
