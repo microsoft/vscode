@@ -4704,6 +4704,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	readonly onDidMoveChat: Event<IChatMovedEvent> = this._chatMoveTracker.onDidMoveChat;
 	protected readonly _sessionCache: Map<string, AgentHostSessionAdapter> = new ChatMoveTrackingSessionCache(this._chatMoveTracker);
 	private readonly _sessionKeysByResource = new ResourceMap<string>();
+	/** Session keys by full frontend resource, fragment included, for {@link getSession}. */
+	private readonly _sessionKeysByExactResource = new ResourceMap<string>();
 
 	protected _refreshSessionWorkspaces(): void {
 		const changed: ISession[] = [];
@@ -5061,6 +5063,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			this._sessionCache.clear();
 			this._backendSessionsChanged.trigger(undefined);
 			this._sessionKeysByResource.clear();
+			this._sessionKeysByExactResource.clear();
 		}));
 
 		// Keep the state subscription of every on-screen session pinned so
@@ -5104,6 +5107,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				if (removed instanceof AgentHostSessionAdapter) {
 					this._metadataBySession.delete(removed.backendUri.toString());
 					this._sessionKeysByResource.delete(removed.resource.with({ fragment: '' }));
+					this._sessionKeysByExactResource.delete(removed.resource);
 				}
 			}
 		}));
@@ -5263,6 +5267,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		this._metadataBySession.set(rawId, meta);
 		const adapter = this._instantiationService.createInstance(AgentHostSessionAdapter, meta, this.id, resourceScheme, provider, options, this._getChatCatalogLoading(rawId), sessionId => this._acquireSessionChatDetails(sessionId));
 		this._sessionKeysByResource.set(adapter.resource.with({ fragment: '' }), rawId);
+		this._sessionKeysByExactResource.set(adapter.resource, rawId);
 		return adapter;
 	}
 
@@ -5736,7 +5741,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				return this._shouldAdvertiseAgent(pendingSession.sessionType) ? pendingSession : undefined;
 			}
 		}
-		const key = this._sessionKeysByResource.get(resource.with({ fragment: '' }));
+		// Not the fragment-less key map: an older host's `<parent>#subagent/<id>` row overwrites its parent's key there.
+		const key = this._sessionKeysByExactResource.get(resource);
 		const cached = key !== undefined ? this._sessionCache.get(key) : undefined;
 		if (!cached || !isEqual(cached.resource, resource) || this._isUnpublishedDraft(cached) || !this._shouldShowSavedSession(cached.agentProvider)) {
 			return undefined;
@@ -11113,6 +11119,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			this._backendSessionsChanged.trigger(undefined);
 		}
 		this._sessionKeysByResource.delete(stateOwner.resource.with({ fragment: '' }));
+		this._sessionKeysByExactResource.delete(stateOwner.resource);
 		this._runningSessionConfigs.delete(stateOwner.sessionId);
 		this._sensitiveEditLocationsBySession.delete(stateOwner.sessionId);
 		this._runningSessionConfigResolveSeq.delete(stateOwner.sessionId);

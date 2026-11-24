@@ -2064,6 +2064,26 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	});
 
+	test('getSession finds a parent session that an older host also lists as a subagent fragment row', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const parent = createSession('parent', { summary: 'Parent' });
+		const subagent = { ...parent, session: parent.session.with({ fragment: 'subagent/call-1' }), summary: 'Subagent' };
+		agentHost.listSessions = async () => [subagent, parent];
+		const provider = createProvider(disposables, agentHost);
+		await timeout(0);
+		const parentResource = URI.parse('agent-host-copilotcli:/parent');
+		const fragmentResource = parentResource.with({ fragment: 'subagent/call-1' });
+
+		assert.deepStrictEqual({
+			listed: provider.getAllSessions().map(session => session.resource.toString()).sort(),
+			parent: provider.getSession(parentResource)?.resource.toString(),
+			fragment: provider.getSession(fragmentResource)?.resource.toString(),
+		}, {
+			listed: [parentResource.toString(), fragmentResource.toString()],
+			parent: parentResource.toString(),
+			fragment: fragmentResource.toString(),
+		});
+	}));
+
 	test('resource lookups see sessions added and removed before the change event is debounced', () => {
 		agentHost.setAgents([{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: {} }]);
 		const provider = createProvider(disposables, agentHost);
