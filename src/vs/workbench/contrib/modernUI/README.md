@@ -17,7 +17,7 @@ The floating editor's content curve follows the inside of its frame, accounting 
 
 ## Suggestion menu corners
 
-Editor and workbench suggestion menus use the Outer radius on their first item's upper corners and their last item's lower corners. These styles are shared with the Agents window, where they apply independently of the main workbench's Modern UI setting. These boundaries follow logical list positions, not virtualized DOM order; a single-item menu receives all four corners. The rounded list viewport clips partially scrolled highlights without clipping the workbench widget's resize sashes. Interior corners stay at the Control tier, and a visible status bar keeps the last row at that tier rather than rounding the footer seam.
+Editor and workbench suggestion menus use the Outer radius on their first item's upper corners and their last item's lower corners. These styles are shared with the Agents window, where they apply independently of the main workbench's Modern UI setting. These boundaries follow logical list positions, not virtualized DOM order; a single-item menu receives all four corners. The editor widget clips partially scrolled highlights and its status bar; its list keeps a square clip, because Chromium applies one rounded clip per draw quad and nesting rounded clips forces offscreen render surfaces. The widget's four clip radii stay equal, including with a status bar, so macOS can apply them through Core Animation rather than a render surface. The workbench widget instead keeps its rounded list viewport, without clipping its resize sashes. Interior corners stay at the Control tier, and a visible status bar keeps the last row at that tier rather than rounding the footer seam.
 
 ## Editor tab style
 
