@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { assignHostSandboxProfile } from '../../../../../../../platform/agentHost/common/sandboxProfiles.js';
 import { useFakeTimers } from 'sinon';
 import * as dom from '../../../../../../../base/browser/dom.js';
 import '../../../../../../../base/browser/ui/codicons/codiconStyles.js';
@@ -17,6 +18,7 @@ import { observableValue } from '../../../../../../../base/common/observable.js'
 import { isWindows, OperatingSystem } from '../../../../../../../base/common/platform.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
+import { Emitter } from '../../../../../../../base/common/event.js';
 import { mock, upcastPartial } from '../../../../../../../base/test/common/mock.js';
 import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
 import { IContextMenuService } from '../../../../../../../platform/contextview/browser/contextView.js';
@@ -32,6 +34,14 @@ import { MANAGE_EXTENSION_COMMAND_ID } from '../../../../../../../platform/exten
 import { INotification, INotificationActions, INotificationService, NoOpNotification } from '../../../../../../../platform/notification/common/notification.js';
 import { IProgress } from '../../../../../../../platform/progress/common/progress.js';
 import { IOpenerService } from '../../../../../../../platform/opener/common/opener.js';
+import { IAgentHostConnectionsService } from '../../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { AgentHostSandboxConfigKey } from '../../../../../../../platform/agentHost/common/sandboxConfigSchema.js';
+import { TestSandboxProfilesHost } from '../../../../../../../platform/agentHost/test/common/sandboxProfilesTestUtils.js';
+import { SeparatorSelectOption } from '../../../../../../../base/browser/ui/selectBox/selectBox.js';
+import { ISandboxProfile, readSandboxProfiles, writeSandboxProfiles } from '../../../../../../../platform/sandbox/common/sandboxProfiles.js';
+import { AgentSandboxSettingId } from '../../../../../../../platform/sandbox/common/settings.js';
+import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IStorageService, StorageScope } from '../../../../../../../platform/storage/common/storage.js';
 import { getIconsStyleSheet } from '../../../../../../../platform/theme/browser/iconsStyleSheet.js';
 import { IResourceEditorInput } from '../../../../../../../platform/editor/common/editor.js';
@@ -233,6 +243,7 @@ suite('RemotesWidget', () => {
 		parent.style.height = '640px';
 		store.add(toDisposable(() => parent.remove()));
 		const instantiationService = workbenchInstantiationService(undefined, store);
+		(instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(AgentSandboxSettingId.AgentSandboxProfilesEnabled, true);
 		if (storageService) {
 			instantiationService.stub(IStorageService, storageService);
 		}
@@ -317,13 +328,28 @@ suite('RemotesWidget', () => {
 			}
 		}());
 		const model = store.add(new TestRemotesModel());
+		const hosts = new Map<string, TestSandboxProfilesHost>();
+		const onDidChangeConnections = store.add(new Emitter<void>());
+		instantiationService.stub(IAgentHostConnectionsService, new class extends mock<IAgentHostConnectionsService>() {
+			override readonly onDidChangeConnections = onDidChangeConnections.event;
+			override getConnectionByAddress(address: string) { return hosts.get(address); }
+		}());
 		const widget = store.add(instantiationService.createInstance(TestRemotesWidget, parent, model, operatingSystem));
 		if (grouping !== 'default') {
 			widget.setGrouping(grouping);
 			widget.focusFirstRow();
 		}
 		widget.layout();
-		return { widget, parent, model, errors, notifications, clipboard, hoverContents, mouseHoverTargets, opened, commands, sessionActions, activeComposer, documentation, settings, storageService: instantiationService.get(IStorageService), configRequests: () => configRequests, failConfig: (error: Error) => { configFailure = error; } };
+		const addHost = (address: string, host: TestSandboxProfilesHost) => {
+			hosts.set(address, store.add(host));
+			onDidChangeConnections.fire();
+			return host;
+		};
+		const disconnectHost = (address: string) => {
+			hosts.delete(address);
+			onDidChangeConnections.fire();
+		};
+		return { widget, parent, model, addHost, disconnectHost, errors, notifications, clipboard, hoverContents, mouseHoverTargets, opened, commands, sessionActions, activeComposer, documentation, settings, storageService: instantiationService.get(IStorageService), configurationService: instantiationService.get(IConfigurationService) as TestConfigurationService, configRequests: () => configRequests, failConfig: (error: Error) => { configFailure = error; } };
 	}
 
 	function feedbackGeometry(parent: HTMLElement, selectors: readonly string[]): number[][] {
@@ -526,7 +552,7 @@ suite('RemotesWidget', () => {
 			}, {
 				tables: 1,
 				trees: 0,
-				columns: ['Name', 'Status', 'Last Activity', 'System', 'Type', '', ''],
+				columns: ['Name', 'Status', 'Last Activity', 'System', 'Type', 'Sandbox Profile', '', ''],
 				roots: operatingSystem === OperatingSystem.Windows ? ['Dev Tunnels', 'WSL', 'SSH'] : ['Dev Tunnels', 'SSH'],
 				switches: 0,
 				checkboxes: 0,
@@ -731,11 +757,11 @@ suite('RemotesWidget', () => {
 		const empty = parent.querySelector('.remotes-message')?.textContent;
 		parent.querySelector<HTMLElement>('[data-empty-action="clearFilter"]')!.click();
 		assert.deepStrictEqual({ ungrouped, byMethod, byAvailability, empty, restored: columns() }, {
-			ungrouped: ['Name', 'Status', 'Last Activity', 'System', 'Type'],
-			byMethod: ['Name', 'Status', 'Last Activity', 'System'],
-			byAvailability: ['Name', 'Last Activity', 'System', 'Type'],
+			ungrouped: ['Name', 'Status', 'Last Activity', 'System', 'Type', 'Sandbox Profile'],
+			byMethod: ['Name', 'Status', 'Last Activity', 'System', 'Sandbox Profile'],
+			byAvailability: ['Name', 'Last Activity', 'System', 'Type', 'Sandbox Profile'],
 			empty: 'No environments match your filters.Clear Filter',
-			restored: ['Name', 'Last Activity', 'System', 'Type'],
+			restored: ['Name', 'Last Activity', 'System', 'Type', 'Sandbox Profile'],
 		});
 	});
 
@@ -1424,7 +1450,7 @@ suite('RemotesWidget', () => {
 			accessibleCount: widget.getAccessibilityContent().includes('Active sessions: 2'),
 			connections: model.connectionChanges,
 		}, {
-			columns: ['Name', 'Status', 'Last Activity', 'System', 'Type', '', ''],
+			columns: ['Name', 'Status', 'Last Activity', 'System', 'Type', 'Sandbox Profile', '', ''],
 			known: ['Connected', '', 'Linux', 'SSH'], missing: ['Available', '', '', 'Dev Tunnel'], unknowns: false, accessibleCount: false, connections: [],
 		});
 	});
@@ -1986,13 +2012,13 @@ suite('RemotesWidget', () => {
 				&& accessible.indexOf('Connection type: SSH') < accessible.indexOf('Address: build.example.com'),
 		}, {
 			layouts: [
-				['Name', 'Status', 'Last Activity', 'System', 'Type'],
-				['Name', 'Status', 'Last Activity', 'System', 'Type'],
-				['Name', 'Status', 'Last Activity', 'System'],
-				['Name', 'Status', 'System'],
+				['Name', 'Status', 'Last Activity', 'System', 'Type', 'Sandbox Profile'],
+				['Name', 'Status', 'Last Activity', 'System', 'Type', 'Sandbox Profile'],
+				['Name', 'Status', 'Last Activity', 'System', 'Sandbox Profile'],
+				['Name', 'Status', 'System', 'Sandbox Profile'],
 				['Name', 'Status'],
-				['Name', 'Status', 'Last Activity', 'System'],
-				['Name', 'Status', 'Last Activity', 'System', 'Type'],
+				['Name', 'Status', 'Last Activity', 'System', 'Sandbox Profile'],
+				['Name', 'Status', 'Last Activity', 'System', 'Type', 'Sandbox Profile'],
 			].map(columns => ({ columns, fits: true, height: 28 })),
 			matches: [1, 1, 1], copies: [remote.id], connections: [], accessibleOrder: true,
 		});
@@ -2022,6 +2048,118 @@ suite('RemotesWidget', () => {
 			sessionActions: ['open', 'agenthost-remote-build'], connections: [{ id: 'ssh:build', connected: false }],
 			restored: { label: 'Connect', visible: true },
 		});
+	});
+
+	test('lists this machine\'s profiles, assigns a copy to the host without connecting, and is disabled for disconnected or unsupported hosts', () => {
+		const { parent, addHost, model, storageService } = createWidget();
+		const laptop = addHost('tunnel:laptop', new TestSandboxProfilesHost());
+		const strict: ISandboxProfile = { id: 'strict', name: 'Strict', settings: { [AgentSandboxSettingId.AgentSandboxAllowNetwork]: false } };
+		writeSandboxProfiles(storageService, [strict]);
+		const picker = (id: string) => parent.querySelector<HTMLSelectElement>(`[data-remote-id="${id}"] select`)!;
+		const state = (id: string) => ({ disabled: picker(id).disabled, dimmed: picker(id).closest('.remotes-sandbox-profile-picker')!.classList.contains('disabled'), title: picker(id).title, options: Array.from(picker(id).options, option => option.text), selected: picker(id).options[picker(id).selectedIndex]?.text });
+		const listed = state('tunnel:laptop');
+		picker('tunnel:laptop').selectedIndex = 1;
+		picker('tunnel:laptop').dispatchEvent(new Event('change'));
+		const assigned = laptop.values[AgentHostSandboxConfigKey.SandboxProfile];
+		picker('tunnel:laptop').selectedIndex = 0;
+		picker('tunnel:laptop').dispatchEvent(new Event('change'));
+		const disconnected = state('ssh:build');
+		addHost('ssh:build', new TestSandboxProfilesHost(false));
+		assert.deepStrictEqual({
+			listed, assigned, cleared: laptop.values[AgentHostSandboxConfigKey.SandboxProfile], disconnected, unsupported: state('ssh:build'), connections: model.connectionChanges,
+		}, {
+			listed: { disabled: false, dimmed: false, title: '', options: ['Default', 'Strict'], selected: 'Default' },
+			assigned: { id: 'strict', name: 'Strict', sandbox: { allowNetwork: false } },
+			cleared: {},
+			disconnected: { disabled: true, dimmed: true, title: '', options: ['Default'], selected: 'Default' },
+			unsupported: { disabled: true, dimmed: true, title: '', options: ['Default'], selected: 'Default' },
+			connections: [],
+		});
+	});
+
+	test('a disconnected host shows its last-known assignment, disabled, also after reopening; reconnecting shows the host\'s current assignment without writing to it', () => {
+		const first = createWidget();
+		const host = new TestSandboxProfilesHost();
+		first.addHost('tunnel:laptop', host);
+		assignHostSandboxProfile(host, { id: 's1', name: 'S1', settings: {} });
+		const state = (device: typeof first) => {
+			const picker = device.parent.querySelector<HTMLSelectElement>('[data-remote-id="tunnel:laptop"] select')!;
+			return { disabled: picker.disabled, selected: picker.options[picker.selectedIndex].text, label: picker.getAttribute('aria-label') };
+		};
+		const connected = state(first);
+		first.disconnectHost('tunnel:laptop');
+		const disconnected = state(first);
+		const reopened = createWidget(OperatingSystem.Macintosh, 'type', 900, first.storageService);
+		const reopenedState = state(reopened);
+		// Another device assigns S2 while this machine is offline.
+		assignHostSandboxProfile(host, { id: 's2', name: 'S2', settings: {} });
+		first.addHost('tunnel:laptop', host);
+		const reconnected = state(first);
+		first.disconnectHost('tunnel:laptop');
+		assert.deepStrictEqual({ connected, disconnected, reopened: reopenedState, reconnected, host: (host.values[AgentHostSandboxConfigKey.SandboxProfile] as { id: string }).id, disconnectedAgain: state(first) }, {
+			connected: { disabled: false, selected: 'S1 (on host)', label: 'Sandbox profile for Laptop' },
+			disconnected: { disabled: true, selected: 'S1 (on host)', label: 'Sandbox profile for Laptop: S1, last known. Connect to Laptop to refresh or change it.' },
+			reopened: { disabled: true, selected: 'S1 (on host)', label: 'Sandbox profile for Laptop: S1, last known. Connect to Laptop to refresh or change it.' },
+			reconnected: { disabled: false, selected: 'S2 (on host)', label: 'Sandbox profile for Laptop' },
+			host: 's2',
+			disconnectedAgain: { disabled: true, selected: 'S2 (on host)', label: 'Sandbox profile for Laptop: S2, last known. Connect to Laptop to refresh or change it.' },
+		});
+	});
+	test('another device sees the assigned profile, can save it to its own profiles, and the last assignment wins', () => {
+		const host = store.add(new TestSandboxProfilesHost());
+		const deviceA = createWidget();
+		const deviceB = createWidget();
+		const strict: ISandboxProfile = { id: 'strict', name: 'Strict', settings: { [AgentSandboxSettingId.AgentSandboxAllowNetwork]: false } };
+		const open: ISandboxProfile = { id: 'open', name: 'Open', settings: { [AgentSandboxSettingId.AgentSandboxAllowNetwork]: true } };
+		writeSandboxProfiles(deviceA.storageService, [strict]);
+		writeSandboxProfiles(deviceB.storageService, [open]);
+		deviceA.addHost('tunnel:laptop', host);
+		deviceB.addHost('tunnel:laptop', host);
+		const picker = (device: typeof deviceA) => device.parent.querySelector<HTMLSelectElement>('[data-remote-id="tunnel:laptop"] select')!;
+		const state = (device: typeof deviceA) => ({ options: Array.from(picker(device).options, option => option.text), selected: picker(device).options[picker(device).selectedIndex]?.text });
+		const choose = (device: typeof deviceA, text: string) => {
+			const select = picker(device);
+			select.selectedIndex = Array.from(select.options, option => option.text).indexOf(text);
+			select.dispatchEvent(new Event('change'));
+		};
+		choose(deviceA, 'Strict');
+		const seenByB = state(deviceB);
+		choose(deviceB, 'Save "Strict" to My Profiles');
+		const savedByB = { state: state(deviceB), library: readSandboxProfiles(deviceB.storageService).map(profile => [profile.id, profile.name, profile.settings[AgentSandboxSettingId.AgentSandboxAllowNetwork]]), host: (host.values[AgentHostSandboxConfigKey.SandboxProfile] as { id: string }).id };
+		choose(deviceB, 'Open');
+		assert.deepStrictEqual({ seenByB, savedByB, seenByA: state(deviceA), host: (host.values[AgentHostSandboxConfigKey.SandboxProfile] as { id: string }).id }, {
+			seenByB: { options: ['Default', 'Open', SeparatorSelectOption.text, 'Strict (on host)', 'Save "Strict" to My Profiles'], selected: 'Strict (on host)' },
+			savedByB: { state: { options: ['Default', 'Open', 'Strict'], selected: 'Strict' }, library: [['open', 'Open', true], ['strict', 'Strict', false]], host: 'strict' },
+			seenByA: { options: ['Default', 'Strict', SeparatorSelectOption.text, 'Open (on host)', 'Save "Open" to My Profiles'], selected: 'Open (on host)' },
+			host: 'open',
+		});
+	});
+
+	test('sandbox profile picker keeps navigation keys from moving table focus and is hidden on non-remote rows', () => {
+		const { parent } = createWidget();
+		parent.querySelector('[data-remote-id="tunnel:laptop"] .remotes-name')!.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 }));
+		const picker = parent.querySelector<HTMLSelectElement>('[data-remote-id="tunnel:laptop"] select')!;
+		for (const [key, keyCode] of [['ArrowDown', 40], ['ArrowUp', 38]] as const) {
+			picker.dispatchEvent(new KeyboardEvent('keydown', { key, keyCode, bubbles: true, cancelable: true }));
+		}
+		const sandboxProfileCells = [...parent.querySelectorAll<HTMLElement>('.monaco-list-row .remotes-sandboxProfile-column')];
+		assert.deepStrictEqual({
+			focusedRemote: parent.querySelector<HTMLElement>('.monaco-list-row.focused [data-remote-id]')?.dataset.remoteId,
+			hiddenOnRemoteRows: sandboxProfileCells.some(cell => cell.closest('[data-remote-id]') && cell.classList.contains('remotes-cell-action-hidden')),
+			hiddenOnOtherRows: sandboxProfileCells.filter(cell => !cell.closest('[data-remote-id]')).every(cell => cell.classList.contains('remotes-cell-action-hidden')),
+		}, { focusedRemote: 'tunnel:laptop', hiddenOnRemoteRows: false, hiddenOnOtherRows: true });
+	});
+
+	test('shows the sandbox profile column only while sandbox profiles are enabled', () => {
+		const { parent, widget, configurationService } = createWidget();
+		widget.layout();
+		const hidden = () => parent.querySelector('.remotes-hide-sandbox-profile') !== null;
+		const setEnabled = (enabled: boolean) => {
+			configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxProfilesEnabled, enabled);
+			configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectsConfiguration: (key: string) => key === AgentSandboxSettingId.AgentSandboxProfilesEnabled }));
+			return hidden();
+		};
+		assert.deepStrictEqual({ enabled: hidden(), disabled: setEnabled(false), reenabled: setEnabled(true) }, { enabled: false, disabled: true, reenabled: false });
 	});
 
 	test('keeps trailing content and actions clear of the vertical scrollbar through resizing', async () => {
@@ -3596,6 +3734,37 @@ suite('RemotesWidget', () => {
 			deleteFeedback: 'The tunnel service is unavailable',
 			deletions: ['tunnel:laptop'],
 			errors: [],
+		});
+	});
+
+	test('the details pages scroll content that does not fit', async () => {
+		const results: Record<string, { fitsViewport: boolean; scrolledToEnd: boolean; sliderFollowsNativeScroll: boolean }> = {};
+		for (const page of ['troubleshoot', 'locationPreference']) {
+			const { parent, widget, model } = createWidget();
+			model.troubleshootingInfo = { ssh: { alias: 'build', hostName: 'build.example.com', user: 'dev', port: 22, hasSavedHostKey: true } };
+			runMenuAction(parent, 'ssh:build', page);
+			await timeout(0);
+			parent.style.height = '200px';
+			widget.layout();
+			const details = parent.querySelector<HTMLElement>('.remotes-environment-details')!;
+			const viewport = details.querySelector<HTMLElement>(':scope > .monaco-scrollable-element')!;
+			const body = viewport.querySelector<HTMLElement>('.remotes-details-body')!;
+			const slider = viewport.querySelector<HTMLElement>(':scope > .scrollbar.vertical > .slider')!;
+			const wheel = new WheelEvent('wheel', { deltaY: 10000, bubbles: true, cancelable: true });
+			// Chromium gives synthetic legacy deltas the wrong sign; keep both representations consistent.
+			Object.defineProperty(wheel, 'wheelDeltaY', { value: -10000 });
+			body.dispatchEvent(wheel);
+			const fitsViewport = body.getBoundingClientRect().bottom <= viewport.getBoundingClientRect().bottom + 1;
+			const scrolledToEnd = body.scrollTop > 0 && Math.abs(body.scrollTop - (body.scrollHeight - body.clientHeight)) <= 1;
+			const sliderTopAtEnd = slider.offsetTop;
+			// Moving focus scrolls the body natively, as this does.
+			body.scrollTop = 0;
+			body.dispatchEvent(new Event('scroll'));
+			results[page] = { fitsViewport, scrolledToEnd, sliderFollowsNativeScroll: sliderTopAtEnd > 0 && slider.offsetTop === 0 };
+		}
+		assert.deepStrictEqual(results, {
+			troubleshoot: { fitsViewport: true, scrolledToEnd: true, sliderFollowsNativeScroll: true },
+			locationPreference: { fitsViewport: true, scrolledToEnd: true, sliderFollowsNativeScroll: true },
 		});
 	});
 

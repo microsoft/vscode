@@ -128,14 +128,14 @@ import { COMPUTER_USE_PLUGIN_NAME } from './copilotComputerUsePlugin.js';
 import { CopilotComputerUseActivation } from './copilotComputerUseActivationTool.js';
 import { reportComputerUseActivation, reportComputerUseState } from './copilotComputerUseTelemetry.js';
 import { classifyComputerUsePrompt, type CopilotComputerUsePermissionSetup, type ICopilotComputerUseSetupChat, type IComputerUsePermissionPrompt } from './copilotComputerUsePermissionSetup.js';
-import { CopilotToolName, getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getSandboxPathGrantConfirmation, getSdkImageGenerationMetadata, getToolIntention, getShellLanguage, getStreamingInvocationMessage, getSubagentMetadata, getPhaseTaskCompleteMarkdown, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, getToolSummaryInputContract, getViewedResourceType, isAgentCoordinationTool, isCopilotSdkToolOutputFile, isEditTool, isHiddenTool, isShellHelperTool, isShellTool, isTaskCompleteTool, parseCopilotStreamingToolInput, synthesizeSkillToolCall, tryStringify, getAssistedApprovalNotice, type TaskCompletionReview } from './copilotToolDisplay.js';
+import { CopilotToolName, getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getSandboxPathGrantConfirmation, getSdkImageGenerationMetadata, getToolIntention, getShellLanguage, getStreamingInvocationMessage, getSubagentMetadata, getPhaseTaskCompleteMarkdown, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, getToolSummaryInputContract, getViewedResourceType, getSdkToolCallError, isAgentCoordinationTool, isCopilotSdkToolOutputFile, isEditTool, isHiddenTool, isShellHelperTool, isShellTool, isTaskCompleteTool, parseCopilotStreamingToolInput, synthesizeSkillToolCall, tryStringify, getAssistedApprovalNotice, type TaskCompletionReview } from './copilotToolDisplay.js';
 import { imageGenerationToolMetaKey } from '../../common/meta/agentImageGenerationMeta.js';
 import { COPILOT_VIRTUAL_SESSION_STATE_PATH, copilotSdkPathToUri, createCopilotSdkPathMapper, resolveCopilotSdkPath, toCopilotWorkspace, type ICopilotSdkPathMapper } from './copilotWorkspace.js';
 import { toAgentClientUri } from '../../common/agentClientUri.js';
 import { FileEditTracker } from '../shared/fileEditTracker.js';
 import { ICopilotApiService, type IRestrictedTelemetryContext } from '../shared/copilotApiService.js';
 import type { IAgentHostRestrictedTelemetryContext } from '../agentHostRestrictedTelemetry.js';
-import { buildChatErrorInfoFromCopilotSdkFields } from './copilotSdkChatError.js';
+import { buildChatErrorInfoFromCopilotSdkFields, isCopilotSdkHookError } from './copilotSdkChatError.js';
 import { getMcpSkillCustomizationUri, getMcpSkillName } from '../../common/agentHostCustomizationUri.js';
 import { CopilotMcpServerLogs } from './copilotMcpServerLogs.js';
 import { applyMcpServerRuntimeStates, buildMcpChannel, buildMcpTopLevelCustomizationId, getMcpServerCustomizations, McpCustomizationController, mcpSkillDisplayName, type IMcpServerProvenance, type IMcpSkill, type ISdkMcpServer } from '../shared/mcpCustomizationController.js';
@@ -907,8 +907,12 @@ interface ICanvasOpenOperation {
 	readonly stopwatch: StopWatch;
 	/** How many consent requests for the open's extension people had been shown when it started. */
 	readonly consentShownBefore: number;
+	/** Reads the open's extension as the runtime lists it just before the open. */
+	readonly extensionRead: Promise<CanvasOpenExtension | undefined>;
 	/** The open's extension as the runtime listed it just before the open. */
 	extension?: CanvasOpenExtension;
+	/** Whether the client was asked a consent request this open waited for. */
+	consentShown?: boolean;
 	/** Whether telemetry reported how the open ended, which it does once. */
 	reported?: boolean;
 }
@@ -5439,7 +5443,33 @@ export class CopilotAgentSession extends Disposable {
 		}
 	}
 
-	async listCanvases(): Promise<AgentCanvasDefinitionSnapshot> {
+	/**
+	 * Lists the canvases once the runtime's extensions have settled, waiting at most `timeoutMs` for them, and then lists
+	 * the canvases registered so far. Nothing asks a draft that has not started to list its canvases again, so an
+	 * unsettled snapshot, which an extension that never finishes starting would cause, would leave its caller with none.
+	 */
+	async listSettledCanvases(timeoutMs: number): Promise<AgentCanvasDefinitionSnapshot> {
+		const deadline = Date.now() + timeoutMs;
+		while (true) {
+			const changed = Event.toPromise(Event.any(Event.signal(this._wrapper.onExtensionsLoaded), Event.signal(this._wrapper.onCanvasRegistryChanged), this._onDidAddExtensionConsentGate.event));
+			try {
+				const remaining = deadline - Date.now();
+				const snapshot = await this.listCanvases({ includeStarting: remaining <= 0 });
+				if (snapshot !== undefined || this._store.isDisposed) {
+					return snapshot;
+				}
+				await raceTimeout(changed, Math.max(0, deadline - Date.now()));
+			} finally {
+				changed.cancel();
+			}
+		}
+	}
+
+	/**
+	 * Lists the canvases the runtime registered. While an extension is starting, other than one waiting for consent, the
+	 * snapshot is unsettled, `undefined`, unless `includeStarting` asks for the canvases registered so far.
+	 */
+	async listCanvases(options?: { readonly includeStarting?: boolean }): Promise<AgentCanvasDefinitionSnapshot> {
 		if (!this._wrapper.canvasRuntimeEnabled) {
 			throw new Error('Canvases are disabled for this session.');
 		}
@@ -5452,11 +5482,15 @@ export class CopilotAgentSession extends Disposable {
 			this.publishCanvases();
 			return undefined;
 		}
-		if (extensions.extensions.some(extension => extension.status === 'starting')) {
+		// An extension waiting for the user's consent stays starting until a turn or a canvas open shows the request, so it does not hold the listing.
+		const starting = extensions.extensions.some(extension => extension.status === 'starting' && !this.hasPendingExtensionConsent(extension.id));
+		if (starting && !options?.includeStarting) {
 			this._markCanvasRegistryUnsettled();
 			return undefined;
 		}
-		this._publishSettledCanvasRegistry();
+		if (!starting) {
+			this._publishSettledCanvasRegistry();
+		}
 		const extensionSources = new Map(extensions.extensions.map(extension => [extension.id, this._canvasExtensionSource(extension.source)]));
 		const definitions = await Promise.all(result.canvases.map(async canvas => {
 			const icon = await this._readCanvasIcon(canvas.icon, canvas.extensionId);
@@ -5532,7 +5566,11 @@ export class CopilotAgentSession extends Disposable {
 			this._answerExtensionConsent(answer.consentId, answer.optionId);
 			return this._awaitCanvasOpen(shownFor);
 		}
-		const operation: ICanvasOpenOperation = { request, outcome: new DeferredPromise(), ready: this._syncPermissionModeBeforeCanvasOpen(), stopwatch: StopWatch.create(), consentShownBefore: this._extensionConsentShownCount(request.extensionId) };
+		const operation: ICanvasOpenOperation = {
+			request, outcome: new DeferredPromise(), ready: this._syncPermissionModeBeforeCanvasOpen(), stopwatch: StopWatch.create(), consentShownBefore: this._extensionConsentShownCount(request.extensionId),
+			// Read before the open starts, alongside the permission mode sync, so it tells whether the open starts the extension.
+			extensionRead: this._readCanvasOpenExtension(this._wrapper, request.extensionId),
+		};
 		// A client that stops waiting, for example while it asks for consent, must not leave the failure unhandled.
 		operation.outcome.p.catch(() => undefined);
 		this._canvasOpens.add(operation);
@@ -5560,12 +5598,14 @@ export class CopilotAgentSession extends Disposable {
 	/** Shows the client consent the open waits for, or waits for the open, bounded like other control-plane requests while nobody is asked. */
 	private async _awaitCanvasOpen(operation: ICanvasOpenOperation): Promise<AgentCanvasOpenResult> {
 		await operation.ready;
+		const extension = await operation.extensionRead;
 		while (true) {
-			const gate = [...this._extensionConsentGates.values()].find(candidate => !candidate.decision.isSettled && this._canvasOpenDependsOn(operation.request, candidate));
+			const gate = [...this._extensionConsentGates.values()].find(candidate => !candidate.decision.isSettled && this._canvasOpenWaitsFor(operation.request, extension, candidate));
 			if (gate) {
 				const unattended = this._unattendedExtensionConsent();
 				if (!unattended) {
 					gate.presentedToClient = true;
+					operation.consentShown = true;
 					this._noteExtensionConsentShown(gate.consent.extensionName);
 					this._canvasConsentOpens.set(canvasConsentOpenKey(gate.consent.id, operation.request.instanceId), operation);
 					return { kind: 'consentRequired', consent: gate.consent };
@@ -5600,6 +5640,31 @@ export class CopilotAgentSession extends Disposable {
 		return !request.extensionId || request.extensionId === gate.consent.extensionName;
 	}
 
+	/**
+	 * Whether an open waits for a consent request, so the client must be asked it. An open that starts its extension waits
+	 * for any: the runtime does not finish starting an extension while another one waits for consent.
+	 */
+	private _canvasOpenWaitsFor(request: IAgentCanvasOpenRequest, extension: CanvasOpenExtension | undefined, gate: IExtensionConsentGate): boolean {
+		return this._canvasOpenDependsOn(request, gate) || extension?.status !== 'running';
+	}
+
+	/**
+	 * Waits, before an open starts its extension, until no other extension waits for consent. The runtime would not finish
+	 * starting the open's extension until then, and fails the start when the person takes long to answer.
+	 */
+	private async _awaitOtherExtensionConsents(operation: ICanvasOpenOperation): Promise<void> {
+		if (operation.extension?.status === 'running') {
+			return;
+		}
+		while (true) {
+			const pending = [...this._extensionConsentGates.values()].filter(gate => !gate.decision.isSettled && !this._canvasOpenDependsOn(operation.request, gate));
+			if (!pending.length) {
+				return;
+			}
+			await raceCancellationError(Promise.race(pending.map(gate => gate.decision.p)), this._lifetimeCts.token);
+		}
+	}
+
 	private async _runCanvasOpen(operation: ICanvasOpenOperation): Promise<AgentCanvasOpenResult> {
 		const { request } = operation;
 		if (this._deferredCanvasCloseInstanceIds.has(request.instanceId)) {
@@ -5609,8 +5674,6 @@ export class CopilotAgentSession extends Disposable {
 		if (!wrapper.canvasRuntimeEnabled) {
 			throw new Error('Canvases are disabled for this session.');
 		}
-		// Read before the open starts, alongside the permission mode sync, so it tells whether the open starts the extension.
-		const extension = this._readCanvasOpenExtension(wrapper, request.extensionId);
 		const wasIgnored = this._ignoredRestoredCanvasInstanceIds.has(request.instanceId);
 		let latestEvent: SessionEventPayload<'session.canvas.opened' | 'session.canvas.closed' | 'session.canvas.unavailable'> | undefined;
 		const listener = wasIgnored ? wrapper.onEvent(event => {
@@ -5623,7 +5686,8 @@ export class CopilotAgentSession extends Disposable {
 		try {
 			// A failed permission mode sync fails the open before it starts, never as a consent denial.
 			await operation.ready;
-			operation.extension = await extension;
+			operation.extension = await operation.extensionRead;
+			await this._awaitOtherExtensionConsents(operation);
 			let canvas: Awaited<ReturnType<CopilotSession['rpc']['canvas']['open']>>;
 			try {
 				canvas = await wrapper.session.rpc.canvas.open(request);
@@ -5690,7 +5754,7 @@ export class CopilotAgentSession extends Disposable {
 			return;
 		}
 		operation.reported = true;
-		this._reportCanvasHostOpen('user', operation.extension, operation.stopwatch, outcome, this._extensionConsentShownCount(operation.request.extensionId) > operation.consentShownBefore);
+		this._reportCanvasHostOpen('user', operation.extension, operation.stopwatch, outcome, operation.consentShown === true || this._extensionConsentShownCount(operation.request.extensionId) > operation.consentShownBefore);
 	}
 
 	private _noteExtensionConsentShown(extensionName: string): void {
@@ -6059,7 +6123,8 @@ export class CopilotAgentSession extends Disposable {
 				continue;
 			}
 			const instanceId = projection.canvas.instanceId;
-			if (this._deferredCanvasCloseInstanceIds.has(instanceId)) {
+			// Applying the closes settled those the runtime had open, or never restored; both stay closed.
+			if (this._deferredCanvasCloseInstanceIds.has(instanceId) || this._settledDeferredCanvasCloseInstanceIds.has(instanceId)) {
 				this._canvasByInstanceId.delete(instanceId);
 				continue;
 			}
@@ -6126,17 +6191,31 @@ export class CopilotAgentSession extends Disposable {
 			return;
 		}
 		let reopened: Awaited<ReturnType<CopilotSession['rpc']['canvas']['open']>> | undefined;
-		try {
-			reopened = await raceTimeout(wrapper.session.rpc.canvas.open({
-				extensionId,
-				canvasId,
-				instanceId,
-				...(projection.input !== undefined ? { input: projection.input } : {}),
-			}), this._controlPlaneRpcTimeoutMs);
-		} catch (error) {
-			this._reportCanvasHostOpen('restore', extension, stopwatch, this._store.isDisposed ? 'cancelled' : this._extensionConsentDenialFor(extensionId) ? 'consentDenied' : getCanvasOpenFailure(error) ?? 'error', askedForConsent());
-			this._logService.warn(`[Copilot:${this.sessionId}] Failed to reopen a restored canvas: ${getErrorMessage(error)}`);
-			return;
+		// A runtime that just launched can list a canvas before its extension registers it, which a change reports. Other
+		// extensions report changes too, so each change allows another attempt until one deadline.
+		const deadline = Date.now() + this._controlPlaneRpcTimeoutMs;
+		while (true) {
+			const registryChanged = Event.toPromise(Event.any(Event.signal(wrapper.onExtensionsLoaded), Event.signal(wrapper.onCanvasRegistryChanged)));
+			try {
+				reopened = await raceTimeout(wrapper.session.rpc.canvas.open({
+					extensionId,
+					canvasId,
+					instanceId,
+					...(projection.input !== undefined ? { input: projection.input } : {}),
+				}), this._controlPlaneRpcTimeoutMs);
+				break;
+			} catch (error) {
+				const remaining = deadline - Date.now();
+				if (getCanvasOpenFailure(error) === 'unavailable' && remaining > 0 && await raceTimeout(registryChanged.then(() => true), remaining)
+					&& !this._store.isDisposed && this._wrapper === wrapper && this._isCurrentCanvasProjection(projection)) {
+					continue;
+				}
+				this._reportCanvasHostOpen('restore', extension, stopwatch, this._store.isDisposed ? 'cancelled' : this._extensionConsentDenialFor(extensionId) ? 'consentDenied' : getCanvasOpenFailure(error) ?? 'error', askedForConsent());
+				this._logService.warn(`[Copilot:${this.sessionId}] Failed to reopen a restored canvas: ${getErrorMessage(error)}`);
+				return;
+			} finally {
+				registryChanged.cancel();
+			}
 		}
 		this._reportCanvasHostOpen('restore', extension, stopwatch, reopened ? 'opened' : 'timeout', askedForConsent());
 		if (!reopened) {
@@ -10438,7 +10517,7 @@ export class CopilotAgentSession extends Disposable {
 	 * Decides whether a Copilot extension may load with privileged capabilities or read sensitive environment variables.
 	 * The runtime asks while the extension starts, never for a tool call. A stored or session decision answers at once;
 	 * otherwise the request waits, without blocking resumes or turns, to be shown in the next turn or to a client opening
-	 * one of the extension's canvases, whichever answers first.
+	 * one of the extension's canvases, or a canvas whose extension must start, which the runtime holds back until then.
 	 */
 	private async _handleExtensionConsentRequest(request: Extract<PermissionRequest, { kind: 'extension-permission-access' | 'extension-env-access' }>): Promise<PermissionRequestResult | AttributedPermissionResult> {
 		// A plugin is named after its package, which another source can reuse, so its access to secrets is remembered only for the install it was granted to.
@@ -12211,7 +12290,7 @@ export class CopilotAgentSession extends Disposable {
 					content: content.length > 0 ? content : undefined,
 					structuredContent: e.data.result?.structuredContent as Record<string, unknown> | undefined,
 					resultMetadata: getSdkMcpResultMeta(e.data.result),
-					error: e.data.error,
+					error: getSdkToolCallError(e.data),
 				};
 				if (nonPtyCompletion?.shouldRetire) {
 					this._nonPtyShellTerminals.finalizeToolCall(e.data.toolCallId, nonPtyCompletion.result?.exitCode, authoritativeOutput);
@@ -12637,6 +12716,10 @@ export class CopilotAgentSession extends Disposable {
 				this._heldSessionErrorReports.push(reportError);
 			} else {
 				reportError();
+			}
+			// The failed hook's own hook.end is shown as a warning, and the runtime continues the turn.
+			if (isCopilotSdkHookError(e.data)) {
+				return;
 			}
 			const parentToolCallId = this._parentToolCallIdForSubagentEvent(e);
 			if (turn) {

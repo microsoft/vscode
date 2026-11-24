@@ -107,6 +107,13 @@ export function mergeChatSensitiveEditLocations(...locationSets: readonly (reado
 	return [...locations.values()].sort((a, b) => a.path < b.path ? -1 : a.path > b.path ? 1 : Number(b.isDirectory) - Number(a.isDirectory));
 }
 
+/** Reads the sensitive-edit locations of a session config value, skipping malformed entries. */
+export function readChatSensitiveEditLocations(value: unknown): readonly IChatSensitiveEditLocation[] {
+	return Array.isArray(value)
+		? value.filter((location): location is IChatSensitiveEditLocation => typeof location?.path === 'string' && typeof location.isDirectory === 'boolean')
+		: [];
+}
+
 export const enum ChatExternalSessionsMode {
 	Recent = 'recent',
 	None = 'none',

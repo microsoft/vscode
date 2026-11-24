@@ -2181,6 +2181,31 @@ export function withSessionHasWorkspaceTransitions(meta: SessionSummaryMeta | un
 	return Object.keys(next).length > 0 ? next : undefined;
 }
 
+/**
+ * Summary metadata listing the worktrees, among a session's working directories other than its first, that the host
+ * created for single chats of the session it isolated, as `file` URI strings. They are worktrees of the session's
+ * project, which a client may offer as locations of its folder. A VS Code convention layered on the protocol's `_meta`:
+ * a host that omits it isolates chats all the same, and a client that ignores it lists no such worktree.
+ */
+export const SESSION_META_ISOLATED_CHAT_WORKTREES_KEY = 'vscode.isolatedChatWorktrees';
+
+/** The isolated chat worktrees a session's summary metadata lists; none where it lists none, or not as strings. */
+export function readSessionIsolatedChatWorktrees(meta: SessionSummaryMeta | undefined): readonly string[] {
+	const value = meta?.[SESSION_META_ISOLATED_CHAT_WORKTREES_KEY];
+	return Array.isArray(value) ? value.filter((directory): directory is string => typeof directory === 'string' && directory.length > 0) : [];
+}
+
+/** Returns summary metadata listing `worktrees` as the session's isolated chat worktrees, without the key when there are none. */
+export function withSessionIsolatedChatWorktrees(meta: SessionSummaryMeta | undefined, worktrees: readonly string[]): SessionSummaryMeta | undefined {
+	const next: { [key: string]: unknown } = { ...meta };
+	if (worktrees.length) {
+		next[SESSION_META_ISOLATED_CHAT_WORKTREES_KEY] = [...worktrees];
+	} else {
+		delete next[SESSION_META_ISOLATED_CHAT_WORKTREES_KEY];
+	}
+	return Object.keys(next).length > 0 ? next : undefined;
+}
+
 /** Whether a provider-native session has not yet been adopted by the host. */
 export function readSessionExternal(meta: SessionSummaryMeta | undefined): boolean {
 	return meta?.[SESSION_META_EXTERNAL_KEY] === true;

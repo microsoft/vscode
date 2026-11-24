@@ -132,7 +132,7 @@ export class CommitCommandsCenter {
 		for (const provider of this.postCommitCommandsProviderRegistry.getPostCommitCommandsProviders()) {
 			const commands = provider.getCommands(new ApiRepository(this.repository));
 			commandGroups.push((commands ?? []).map(c => {
-				return { command: 'git.commit', title: c.title, tooltip: c.tooltip, arguments: [this.repository.sourceControl, c.command] };
+				return { command: 'git.commit', title: c.title, tooltip: c.tooltip, arguments: [this.repository.sourceControl.sourceControl, c.command] };
 			}));
 		}
 
@@ -203,8 +203,8 @@ export class CommitCommandsCenter {
 		}
 
 		return [
-			{ command: 'git.commit', title: l10n.t('{0} Commit', icon ?? '$(check)'), tooltip, arguments: [this.repository.sourceControl, null] },
-			{ command: 'git.commitAmend', title: l10n.t('{0} Commit (Amend)', icon ?? '$(check)'), tooltip, arguments: [this.repository.sourceControl, null] },
+			{ command: 'git.commit', title: l10n.t('{0} Commit', icon ?? '$(check)'), tooltip, arguments: [this.repository.sourceControl.sourceControl, null] },
+			{ command: 'git.commitAmend', title: l10n.t('{0} Commit (Amend)', icon ?? '$(check)'), tooltip, arguments: [this.repository.sourceControl.sourceControl, null] },
 		];
 	}
 

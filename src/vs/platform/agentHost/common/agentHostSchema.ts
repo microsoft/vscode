@@ -725,6 +725,9 @@ export const AgentHostAhpJsonlLoggingEnabledConfigKey = 'ahpJsonlLoggingEnabled'
 /** Root config key controlling automatic pull request association for the checked-out branch. */
 export const AgentHostAutoAttachPullRequestsConfigKey = 'autoAttachPullRequests';
 
+/** Root config key controlling whether the host shares identical read-only git commands and caps how many run at once. */
+export const AgentHostGitCoalesceReadsConfigKey = 'gitCoalesceReads';
+
 /**
  * Root config key forwarded from the renderer's
  * `chat.agentHost.experimental.overlapProviderPreparation` setting. When
@@ -1175,6 +1178,12 @@ export const platformRootSchema = createSchema({
 		title: localize('agentHost.config.autoAttachPullRequests.title', "Automatic Pull Request Association"),
 		description: localize('agentHost.config.autoAttachPullRequests.description', "Whether the Agent Host automatically discovers and associates a pull request for the currently checked-out branch. When disabled, only pull requests recorded as artifacts or explicitly associated by session actions are considered."),
 		default: true,
+	}),
+	[AgentHostGitCoalesceReadsConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.gitCoalesceReads.title', "Share Git Reads"),
+		description: localize('agentHost.config.gitCoalesceReads.description', "Whether the Agent Host shares one process between identical read-only git commands that run at the same time, and limits how many read-only git commands run at once."),
+		default: false,
 	}),
 	[ModelRouterEnabledConfigKey]: schemaProperty<boolean>({
 		type: 'boolean',

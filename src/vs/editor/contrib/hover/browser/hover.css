@@ -79,18 +79,22 @@
 }
 
 .monaco-editor .monaco-hover .hover-row .verbosity-actions {
+	display: flex;
+	flex-direction: column;
+	justify-content: flex-end;
 	border-right: 1px solid var(--vscode-editorHoverWidget-border);
 	width: 22px;
 	overflow-y: clip;
 }
 
+/* Rests at the bottom of the hover row and stays in view while the row is scrolled past the viewport bottom. */
 .monaco-editor .monaco-hover .hover-row .verbosity-actions-inner {
 	display: flex;
 	flex-direction: column;
 	padding-left: 5px;
 	padding-right: 5px;
-	justify-content: flex-end;
-	position: relative;
+	position: sticky;
+	bottom: 0;
 }
 
 .monaco-editor .monaco-hover .hover-row .verbosity-actions-inner .codicon {
