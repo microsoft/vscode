@@ -23,6 +23,7 @@ import { IContextMenuService, IContextViewService } from '../../../../../platfor
 import { IQuickInputService, IQuickPick, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
 import { QuickInputService } from '../../../../../platform/quickinput/browser/quickInputService.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
+import { IWorkspaceFolderLocationService } from '../../../../../platform/workspace/common/folderLocations.js';
 import { IOutlineModelService } from '../../../../../editor/contrib/documentSymbols/browser/outlineModel.js';
 import { BrowserEditor } from '../../../../../workbench/contrib/browserView/electron-browser/browserEditor.js';
 import '../../../../../workbench/contrib/browserView/electron-browser/features/browserNavigationFeatures.js';
@@ -178,6 +179,13 @@ async function renderFilesEmptyState(context: ComponentFixtureContext, searchVal
 			}());
 			registration.defineInstance(IUriIdentityService, new class extends mock<IUriIdentityService>() {
 				override readonly extUri = resourceUtils.extUri;
+			}());
+			registration.defineInstance(IWorkspaceFolderLocationService, new class extends mock<IWorkspaceFolderLocationService>() {
+				override readonly onDidChangeLocation = Event.None;
+				override readonly onDidChangeLocations = Event.None;
+				override readonly onDidChangeProviders = Event.None;
+				override isAtAlternateLocation(): boolean { return false; }
+				override canSetLocation(): boolean { return false; }
 			}());
 			registration.defineInstance(IQuickChatService, new class extends mock<IQuickChatService>() { }());
 			registration.defineInstance(ICustomEditorLabelService, new class extends mock<ICustomEditorLabelService>() {
