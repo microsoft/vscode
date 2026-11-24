@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { workbenchInstantiationService, TestServiceAccessor, ITestTextFileEditorModelManager } from '../../../../test/browser/workbenchTestServices.js';
+import { workbenchInstantiationService, TestServiceAccessor, ITestTextFileEditorModelManager, TestTextFileService } from '../../../../test/browser/workbenchTestServices.js';
 import { ensureNoDisposablesAreLeakedInTestSuite, toResource } from '../../../../../base/test/common/utils.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { TextFileEditorModel } from '../../common/textFileEditorModel.js';
 import { FileOperation } from '../../../../../platform/files/common/files.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { EncodingMode, TextFileOperationError, TextFileOperationResult } from '../../common/textfiles.js';
+import { EncodingMode, TextFileEditorModelState, TextFileOperationError, TextFileOperationResult } from '../../common/textfiles.js';
 
 suite('Files - TextFileService', () => {
 
@@ -88,8 +88,12 @@ suite('Files - TextFileService', () => {
 	});
 
 	test('saveAs - does not replace a binary target when the encoding cannot represent all characters', async function () {
+
+		// The shared test text file service is created before the code editor service that Save As needs
+		const textFileService = disposables.add(instantiationService.createInstance(TestTextFileService));
+
 		const model: TextFileEditorModel = disposables.add(instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8', undefined));
-		(<ITestTextFileEditorModelManager>accessor.textFileService.files).add(model.resource, model);
+		(<ITestTextFileEditorModelManager>textFileService.files).add(model.resource, model);
 
 		await model.resolve();
 		await model.setEncoding('windows1252', EncodingMode.Encode);
@@ -97,15 +101,19 @@ suite('Files - TextFileService', () => {
 
 		const target = toResource.call(this, '/path/binary.txt');
 		const deleted: string[] = [];
-		accessor.fileService.del = async resource => { deleted.push(resource.toString()); throw new Error('deleted'); };
+		accessor.fileService.del = async resource => { deleted.push(resource.toString()); };
+		accessor.fileService.writeOperations.length = 0;
 
-		accessor.textFileService.setReadStreamErrorOnce(new TextFileOperationError('binary', TextFileOperationResult.FILE_IS_BINARY));
-		const error = await accessor.textFileService.saveAs(model.resource, target).then(() => undefined, error => error);
-		assert.deepStrictEqual({ result: (<TextFileOperationError>error)?.textFileOperationResult, deleted, dirty: model.isDirty() }, { result: TextFileOperationResult.FILE_ENCODING_LOSSY, deleted: [], dirty: true });
+		textFileService.setReadStreamErrorOnce(new TextFileOperationError('binary', TextFileOperationResult.FILE_IS_BINARY));
+		const result = await textFileService.saveAs(model.resource, target);
+		const targetModel = disposables.add(textFileService.files.get(target)!);
+		assert.deepStrictEqual(
+			{ result, deleted, writes: accessor.fileService.writeOperations.length, sourceDirty: model.isDirty(), targetValue: targetModel.textEditorModel?.getValue(), targetDirty: targetModel.isDirty(), targetError: targetModel.hasState(TextFileEditorModelState.ERROR) },
+			{ result: undefined, deleted: [], writes: 0, sourceDirty: true, targetValue: 'Ω', targetDirty: true, targetError: true }
+		);
 
-		accessor.textFileService.setReadStreamErrorOnce(new TextFileOperationError('binary', TextFileOperationResult.FILE_IS_BINARY));
-		const ignoredError = await accessor.textFileService.saveAs(model.resource, target, { ignoreEncodingLoss: true }).then(() => undefined, error => error);
-		assert.deepStrictEqual({ error: (<Error>ignoredError)?.message, deleted }, { error: 'deleted', deleted: [target.toString()] });
+		assert.strictEqual(await targetModel.save({ ignoreEncodingLoss: true }), true);
+		assert.deepStrictEqual({ deleted, writes: accessor.fileService.writeOperations.length, targetDirty: targetModel.isDirty() }, { deleted: [], writes: 1, targetDirty: false });
 	});
 
 	test('revert - file', async function () {

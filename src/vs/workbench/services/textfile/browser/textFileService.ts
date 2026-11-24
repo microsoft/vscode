@@ -33,7 +33,7 @@ import { IPathService } from '../../path/common/pathService.js';
 import { IWorkingCopyFileService, IFileOperationUndoRedoInfo, ICreateFileOperation } from '../../workingCopy/common/workingCopyFileService.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkspaceContextService, WORKSPACE_EXTENSION } from '../../../../platform/workspace/common/workspace.js';
-import { UTF8, UTF8_with_bom, UTF16be, UTF16le, encodingExists, toEncodeReadable, toDecodeStream, IDecodeStreamResult, DecodeStreamError, DecodeStreamErrorKind, isLossyEncoding, SUPPORTED_ENCODINGS } from '../common/encoding.js';
+import { UTF8, UTF8_with_bom, UTF16be, UTF16le, encodingExists, toEncodeReadable, toDecodeStream, IDecodeStreamResult, DecodeStreamError, DecodeStreamErrorKind } from '../common/encoding.js';
 import { consumeStream, ReadableStream } from '../../../../base/common/stream.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -527,31 +527,27 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 			} catch (error) {
 				// if the target already exists and was not created by us, it is possible
 				// that we cannot resolve the target as text model if it is binary or too
-				// large. in that case we have to delete the target file first and then
-				// re-run the operation.
-				if (targetExists) {
-					if (
-						(<TextFileOperationError>error).textFileOperationResult === TextFileOperationResult.FILE_IS_BINARY ||
-						(<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_TOO_LARGE
-					) {
-
-						// Do not delete the target when saving would replace characters
-						// that its encoding cannot represent: the save would be refused
-						if (!options?.ignoreEncodingLoss) {
-							const { encoding } = await this.encoding.getWriteEncoding(target, { encoding: sourceModelEncoding });
-							const sourceTextModel = sourceModel instanceof BaseTextEditorModel ? sourceModel.textEditorModel : sourceModel as ITextModel;
-							if (sourceTextModel && await isLossyEncoding(sourceTextModel.createSnapshot(), encoding)) {
-								throw new TextFileOperationError(localize('lossyEncoding', "Some characters cannot be represented in the encoding '{0}'.", SUPPORTED_ENCODINGS[encoding]?.labelShort ?? encoding), TextFileOperationResult.FILE_ENCODING_LOSSY, { encoding });
-							}
-						}
-
-						await this.fileService.del(target);
-
-						return this.doSaveAsTextFile(sourceModel, source, target, options);
-					}
+				// large. in that case we resolve the target from the contents of the source,
+				// so that the file on disk is only replaced when the save goes through (it
+				// can still be refused, e.g. when the encoding cannot represent all characters).
+				if (
+					!targetExists ||
+					(
+						(<TextFileOperationError>error).textFileOperationResult !== TextFileOperationResult.FILE_IS_BINARY &&
+						(<FileOperationError>error).fileOperationResult !== FileOperationResult.FILE_TOO_LARGE
+					)
+				) {
+					throw error;
 				}
 
-				throw error;
+				const sourceContents = sourceModel instanceof BaseTextEditorModel ? sourceModel.textEditorModel : sourceModel as ITextModel;
+				if (!sourceContents) {
+					await this.fileService.del(target);
+
+					return this.doSaveAsTextFile(sourceModel, source, target, options);
+				}
+
+				targetModel = await this.files.resolve(target, { encoding: sourceModelEncoding, contents: createTextBufferFactoryFromSnapshot(sourceContents.createSnapshot()) });
 			}
 		}
 

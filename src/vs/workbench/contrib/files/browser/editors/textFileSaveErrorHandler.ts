@@ -32,6 +32,7 @@ import { Schemas } from '../../../../../base/common/network.js';
 import { IPreferencesService } from '../../../../services/preferences/common/preferences.js';
 import { IEditorIdentifier, SaveReason, SideBySideEditor } from '../../../../common/editor.js';
 import { hash } from '../../../../../base/common/hash.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
 
 export const CONFLICT_RESOLUTION_CONTEXT = 'saveConflictResolutionContext';
 export const CONFLICT_RESOLUTION_SCHEME = 'conflictResolution';
@@ -147,7 +148,7 @@ export class TextFileSaveErrorHandler extends Disposable implements ISaveErrorHa
 			const saveAsSource = (options as ITextFileSaveAsOptions).from;
 			if (saveAsSource) {
 				primaryActions.push(this.instantiationService.createInstance(SaveAsIgnoreEncodingLossAction, saveAsSource, model.resource, options));
-				primaryActions.push(this.instantiationService.createInstance(SaveModelAsAction, saveAsSource));
+				primaryActions.push(this.instantiationService.createInstance(SaveAsOtherTargetAction, saveAsSource, model));
 			} else {
 				primaryActions.push(this.instantiationService.createInstance(SaveModelIgnoreEncodingLossAction, model, options));
 				primaryActions.push(this.instantiationService.createInstance(SaveModelAsAction, model.resource));
@@ -428,6 +429,20 @@ class SaveModelIgnoreEncodingLossAction extends Action {
 	}
 }
 
+/**
+ * Finds the editors that show the source of a "Save As": all of them for an
+ * untitled source, since its editors close in every group when it is reverted,
+ * otherwise the one that "Save As" would act on.
+ */
+function findEditorsToReplaceOnSaveAs(editorService: IEditorService, source: URI): readonly IEditorIdentifier[] {
+	if (source.scheme === Schemas.untitled) {
+		return editorService.findEditors(source, { supportSideBySide: SideBySideEditor.PRIMARY });
+	}
+
+	const editor = findEditorToSaveAs(editorService, source);
+	return editor ? [editor] : [];
+}
+
 class SaveAsIgnoreEncodingLossAction extends Action {
 
 	constructor(
@@ -435,26 +450,92 @@ class SaveAsIgnoreEncodingLossAction extends Action {
 		private target: URI,
 		private options: ITextFileSaveOptions,
 		@ITextFileService private readonly textFileService: ITextFileService,
-		@IEditorService private readonly editorService: IEditorService
+		@IEditorService private readonly editorService: IEditorService,
+		@ILogService private readonly logService: ILogService
 	) {
 		super('workbench.files.action.saveAsIgnoreEncodingLoss', localize('saveAnyway', "Save Anyway"));
 	}
 
 	override async run(): Promise<void> {
-		const editor = findEditorToSaveAs(this.editorService, this.source);
+		const editors = findEditorsToReplaceOnSaveAs(this.editorService, this.source);
 
 		const { from, ...options } = this.options as ITextFileSaveAsOptions;
-		const target = await this.textFileService.saveAs(from ?? this.source, this.target, { ...options, ignoreEncodingLoss: true, reason: SaveReason.EXPLICIT });
-		if (!target || !editor) {
-			return;
+		const source = from ?? this.source;
+
+		let target: URI | undefined;
+		const targetModel = this.textFileService.files.get(this.target);
+		if (targetModel && !targetModel.isDisposed()) {
+
+			// The target already holds the contents of the "Save As", and maybe
+			// edits made to it since: save it as it is rather than copying the
+			// source over it again
+			if (!await targetModel.save({ ...options, from: source, ignoreEncodingLoss: true, reason: SaveReason.EXPLICIT })) {
+				return;
+			}
+
+			target = this.target;
+			try {
+				await this.textFileService.revert(source);
+			} catch (error) {
+				this.logService.error(error); // reverting the source must not interrupt the "Save As"
+			}
+
+			if (source.scheme === Schemas.untitled) {
+				this.textFileService.untitled.notifyDidSave(source, target);
+			}
+		} else {
+			target = await this.textFileService.saveAs(source, this.target, { ...options, ignoreEncodingLoss: true, reason: SaveReason.EXPLICIT });
+			if (!target) {
+				return;
+			}
 		}
 
 		// Show the target where the source was, as "Save As" does
 		const replacement = { resource: target, options: { pinned: true } };
-		if (!editor.editor.isDisposed()) {
-			await this.editorService.replaceEditors([{ editor: editor.editor, replacement }], editor.groupId);
-		} else {
-			await this.editorService.openEditor(replacement, editor.groupId); // untitled editors close when their model reverts
+		for (const editor of editors) {
+			if (!editor.editor.isDisposed()) {
+				await this.editorService.replaceEditors([{ editor: editor.editor, replacement }], editor.groupId);
+			} else {
+				await this.editorService.openEditor(replacement, editor.groupId); // untitled editors close when their model reverts
+			}
+		}
+	}
+}
+
+class SaveAsOtherTargetAction extends Action {
+
+	private readonly targetVersionId: number | undefined;
+
+	constructor(
+		private source: URI,
+		private target: ITextFileEditorModel,
+		@IEditorService private readonly editorService: IEditorService
+	) {
+		super('workbench.files.action.saveModelAs', SAVE_FILE_AS_LABEL.value);
+
+		this.targetVersionId = target.textEditorModel?.getAlternativeVersionId();
+	}
+
+	override async run(): Promise<void> {
+		const editor = findEditorToSaveAs(this.editorService, this.source);
+		if (!editor) {
+			return;
+		}
+
+		const result = await this.editorService.save(editor, { saveAs: true, reason: SaveReason.EXPLICIT });
+		if (!result.success) {
+			return;
+		}
+
+		// The source now lives elsewhere: drop the contents that the failed
+		// "Save As" left in the target, unless they were edited since
+		const target = this.target;
+		if (!target.isDisposed() && target.isDirty() && target.textEditorModel?.getAlternativeVersionId() === this.targetVersionId) {
+			try {
+				await target.revert();
+			} catch (error) {
+				await target.revert({ soft: true }); // the target on disk cannot be read as text, for example when it is binary
+			}
 		}
 	}
 }
