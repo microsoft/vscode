@@ -396,7 +396,6 @@ suite('git smoke test', function () {
 				count: repository.sourceControl.sourceControl.count,
 				commitTemplate: repository.sourceControl.sourceControl.commitTemplate,
 				...withInputBox ? { inputBox: repository.sourceControl.sourceControl.inputBox.value } : {},
-				isHidden: repository.sourceControl.sourceControl.isHidden,
 				// Commit hashes depend on the time of the commits
 				statusBarCommands: repository.sourceControl.sourceControl.statusBarCommands?.map(c => c.title.replace(/\b[0-9a-f]{8}\b/, '<commit>')),
 				actionButton: repository.sourceControl.sourceControl.actionButton?.command.title
@@ -442,7 +441,7 @@ suite('git smoke test', function () {
 			await apiRepository.status();
 			actual.template = read(false);
 
-			const empty = { merge: [], index: [], workingTree: [], untracked: [], count: 0, commitTemplate: '', isHidden: false };
+			const empty = { merge: [], index: [], workingTree: [], untracked: [], count: 0, commitTemplate: '' };
 			const onTopic = { ...empty, statusBarCommands: ['$(git-branch) topic', '$(cloud-upload)'], actionButton: '$(cloud-upload) Publish Branch' };
 			assert.deepStrictEqual(actual, {
 				opened: {
@@ -556,7 +555,7 @@ suite('git smoke test', function () {
 			// Outside the workspace, so it opens as a repository in a parent folder would
 			const repository = (await model.openRepository(repositoryPath, false, true, true))!;
 			await repository.whenFirstStatus;
-			const state = () => ({ isAttached: repository.isAttached, inApi: git.getRepository(Uri.file(repositoryPath)) !== null });
+			const state = () => ({ isDetached: repository.isDetached, inApi: git.getRepository(Uri.file(repositoryPath)) !== null });
 			const detached = { ...state(), changes: repository.workingTreeChanges.map(r => path.basename(r.resourceUri.fsPath)) };
 
 			const openedDetached = await model.openRepository(repositoryPath, false, true, true);
@@ -571,9 +570,9 @@ suite('git smoke test', function () {
 			const afterAttachedOpens = { sameRepository: openedAttached === repository, changes: apiRepository?.state.workingTreeChanges.map(c => path.basename(c.uri.fsPath)) };
 
 			assert.deepStrictEqual({ detached, afterDetachedOpen, afterOpen, afterAttachedOpens, opened }, {
-				detached: { isAttached: false, inApi: false, changes: ['modified.txt'] },
-				afterDetachedOpen: { isAttached: false, inApi: false, sameRepository: true },
-				afterOpen: { isAttached: true, inApi: true, sameRepository: true },
+				detached: { isDetached: true, inApi: false, changes: ['modified.txt'] },
+				afterDetachedOpen: { isDetached: true, inApi: false, sameRepository: true },
+				afterOpen: { isDetached: false, inApi: true, sameRepository: true },
 				afterAttachedOpens: { sameRepository: true, changes: ['modified.txt'] },
 				opened: [path.basename(repositoryPath)]
 			});

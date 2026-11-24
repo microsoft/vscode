@@ -96,8 +96,6 @@ export class GitSourceControl implements Disposable {
 	get inputBox(): SourceControlInputBox { return this.sourceControl.inputBox; }
 	readonly artifactProvider: GitArtifactProvider;
 
-	readonly isHidden: boolean;
-
 	/**
 	 * The root of the repository that this source control is shown under, if any.
 	 */
@@ -145,18 +143,8 @@ export class GitSourceControl implements Disposable {
 					: new ThemeIcon('worktree')
 				: new ThemeIcon('repo');
 
-		// Hidden
-		// This is a temporary solution to hide:
-		// * repositories in the empty window
-		// * worktrees created by Copilot when the main repository
-		//   is opened. Users can still manually open the worktree
-		//   from the Repositories view.
-		this.isHidden = workspace.workspaceFolders === undefined ||
-			(repository.kind === 'worktree' &&
-				isCopilotWorktreeFolder(repository.root) && parent !== undefined);
-
 		const root = Uri.file(repository.root);
-		this.sourceControl = scm.createSourceControl('git', 'Git', root, icon, this.isHidden, parent);
+		this.sourceControl = scm.createSourceControl('git', 'Git', root, icon, undefined, parent);
 		this.sourceControl.contextValue = repository.kind;
 		const activeRepositoryRoot = repository.dotGit.isBare ? repository.dotGit.commonPath : parentRoot;
 		this.sourceControl.activeRepositoryName = repository.kind === 'worktree' && activeRepositoryRoot
