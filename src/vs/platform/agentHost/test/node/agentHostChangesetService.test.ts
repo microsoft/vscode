@@ -62,7 +62,7 @@ const TEST_GIT_STATE_SERVICE: IAgentHostGitStateService = {
 	getSessionGitState: session => testGitStates.get(session),
 	getMaterializedWorktreeMeta: () => undefined,
 	setFolderGitState: async () => { },
-	resolveSessionBaseBranchFullName: async session => testGitStates.get(session)?.baseBranchName,
+	resolveSessionBaseBranchRef: async session => testGitStates.get(session)?.baseBranchName,
 	setSessionGitHubState: async () => { },
 	recordSessionMerge: async () => { },
 	attachSessionGitHubPullRequest: async () => { },
@@ -500,7 +500,7 @@ suite.skip('AgentHostChangesetService', () => {
 				workingDirectories: ['file:///wd'],
 				defaultChat: buildDefaultChatUri(sessionStr),
 			});
-			localStateManager.setSessionMeta(sessionStr, withSessionGitState(undefined, { baseBranchName: 'main', baseBranchFullName: 'refs/remotes/origin/main' }));
+			localStateManager.setSessionMeta(sessionStr, withSessionGitState(undefined, { baseBranchName: 'main', baseBranchRef: 'refs/remotes/origin/main' }));
 
 			localChangesets.refreshSessionChangeset(sessionStr);
 			await waitForChangesetReady(localStateManager, buildSessionChangesetUri(sessionStr));
@@ -535,7 +535,7 @@ suite.skip('AgentHostChangesetService', () => {
 				workingDirectories: ['file:///wd'],
 				defaultChat: buildDefaultChatUri(sessionStr),
 			});
-			localStateManager.setSessionMeta(sessionStr, withSessionGitState(undefined, { baseBranchName: 'main', baseBranchFullName: 'refs/remotes/origin/main' }));
+			localStateManager.setSessionMeta(sessionStr, withSessionGitState(undefined, { baseBranchName: 'main', baseBranchRef: 'refs/remotes/origin/main' }));
 
 			localChangesets.refreshSessionChangeset(sessionStr);
 			await waitForChangesetReady(localStateManager, buildSessionChangesetUri(sessionStr));
@@ -2849,7 +2849,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 		testGitStates.set(peerResource, {
 			branchName: 'chat-feature',
 			baseBranchName: 'chat-main',
-			baseBranchFullName: 'refs/remotes/origin/chat-main',
+			baseBranchRef: 'refs/remotes/origin/chat-main',
 		});
 		stateManager.dispatchServerAction(sessionStr, { type: ActionType.SessionReady });
 
@@ -2986,7 +2986,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 		testGitStates.set(peerResource, {
 			branchName: 'chat-feature',
 			baseBranchName: 'chat-main',
-			baseBranchFullName: 'refs/remotes/origin/chat-main',
+			baseBranchRef: 'refs/remotes/origin/chat-main',
 		});
 		svc.refreshChangesetCatalog(peerResource);
 		const withChatGit = stateManager.getChatState(peerResource)?.changesets;

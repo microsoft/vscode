@@ -85,7 +85,7 @@ export interface IAgentHostGitStateService {
 	 * persisted `META_DIFF_BASE_BRANCH` for both isolation modes. Branch Changes compares against it;
 	 * `IAgentHostGitService.resolveBaseBranch` parses it into the branch Create PR and Merge target.
 	 */
-	resolveSessionBaseBranchFullName(sessionKey: string): Promise<string | undefined>;
+	resolveSessionBaseBranchRef(sessionKey: string): Promise<string | undefined>;
 
 	/**
 	 * Returns the GitHub state of the folder a session, chat channel or folder

@@ -90,7 +90,7 @@ suite('AgentHostCatalogListReader', () => {
 				hasGitHubRemote: true,
 				branchName: 'feature',
 				baseBranchName: 'main',
-				baseBranchFullName: 'refs/remotes/origin/main',
+				baseBranchRef: 'refs/remotes/origin/main',
 				upstreamBranchName: 'origin/feature',
 				defaultBranchName: 'main',
 				defaultRemoteBranchName: 'origin/main',

@@ -30,7 +30,7 @@ function createNoopGitStateService(): IAgentHostGitStateService {
 		getSessionGitState: () => undefined,
 		getMaterializedWorktreeMeta: () => undefined,
 		setFolderGitState: async () => { },
-		resolveSessionBaseBranchFullName: async () => undefined,
+		resolveSessionBaseBranchRef: async () => undefined,
 		setSessionGitHubState: async () => { },
 		recordSessionMerge: async () => { },
 		attachSessionGitHubPullRequest: async () => { },
@@ -78,7 +78,7 @@ suite('AgentHostReviewService', () => {
 		const chatGitState: ISessionGitState = {
 			branchName: 'chat-feature',
 			baseBranchName: 'chat-main',
-			baseBranchFullName: 'refs/remotes/origin/chat-main',
+			baseBranchRef: 'refs/remotes/origin/chat-main',
 		};
 		const gitStateService: IAgentHostGitStateService = {
 			_serviceBrand: undefined,
@@ -88,7 +88,7 @@ suite('AgentHostReviewService', () => {
 			getSessionGitState: owner => owner === chat ? chatGitState : undefined,
 			getMaterializedWorktreeMeta: () => undefined,
 			setFolderGitState: async () => { },
-			resolveSessionBaseBranchFullName: async () => undefined,
+			resolveSessionBaseBranchRef: async () => undefined,
 			setSessionGitHubState: async () => { },
 			recordSessionMerge: async () => { },
 			attachSessionGitHubPullRequest: async () => { },

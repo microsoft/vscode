@@ -75,7 +75,7 @@ export function getBaseBranchLabel(baseBranch: string): string {
  * default branch's ref again.
  */
 export function getGitStateBaseBranch(gitState: ISessionGitState | undefined): string | undefined {
-	const baseBranch = gitState?.baseBranchFullName;
+	const baseBranch = gitState?.baseBranchRef;
 	return baseBranch?.startsWith('refs/') ? baseBranch : undefined;
 }
 
@@ -454,7 +454,7 @@ export interface IAgentHostGitService {
 	 * is the branch it names, as {@link resolveBaseBranch} parses it.
 	 * Without one, the base is the default branch's remote-tracking branch
 	 * when it exists, else the default branch. The state reports the base
-	 * as {@link ISessionGitState.baseBranchFullName}.
+	 * as {@link ISessionGitState.baseBranchRef}.
 	 */
 	getSessionGitState(workingDirectory: URI, baseBranch?: string): Promise<ISessionGitState | undefined>;
 	/**

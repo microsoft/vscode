@@ -36,7 +36,7 @@ class TestGitService extends mock<IAgentHostGitService>() {
 	targetDirty = false;
 	mergeError: Error | undefined;
 	mergeCommit: string | undefined = 'merge-sha';
-	baseBranchFullName: string | undefined;
+	baseBranchRef: string | undefined;
 	/** The local branch tracking each remote-tracking ref. */
 	readonly trackingBranches = new Map<string, string>();
 
@@ -53,7 +53,7 @@ class TestGitService extends mock<IAgentHostGitService>() {
 		return {
 			branchName: this.sourceBranch,
 			baseBranchName: 'main',
-			...(this.baseBranchFullName ? { baseBranchFullName: this.baseBranchFullName } : {}),
+			...(this.baseBranchRef ? { baseBranchRef: this.baseBranchRef } : {}),
 			uncommittedChanges: this.sourceDirty ? 1 : 0,
 			outgoingChanges: 1,
 		};
@@ -159,7 +159,7 @@ async function setup(disposables: Pick<DisposableStore, 'add'>, options: ISetupO
 	gitService.targetDirty = options.targetDirty ?? false;
 	gitService.mergeError = options.mergeError;
 	gitService.mergeCommit = options.missingMergeCommit ? undefined : 'merge-sha';
-	gitService.baseBranchFullName = options.gitStateBaseBranch;
+	gitService.baseBranchRef = options.gitStateBaseBranch;
 	const trackedBaseBranch = options.persistedBaseBranch ?? options.gitStateBaseBranch;
 	if (trackedBaseBranch && options.trackingBranch) {
 		gitService.trackingBranches.set(trackedBaseBranch, options.trackingBranch);

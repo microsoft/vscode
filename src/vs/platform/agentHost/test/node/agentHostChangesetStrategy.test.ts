@@ -179,7 +179,7 @@ suite('AgentHostChangesetStrategy', () => {
 			getSessionGitState: resource => gitStates.get(resource),
 			getMaterializedWorktreeMeta: () => undefined,
 			setFolderGitState: async () => { },
-			resolveSessionBaseBranchFullName: async () => undefined,
+			resolveSessionBaseBranchRef: async () => undefined,
 			setSessionGitHubState: async () => { },
 			recordSessionMerge: async () => { },
 			attachSessionGitHubPullRequest: async () => { },
@@ -1034,7 +1034,7 @@ suite('AgentHostChangesetStrategy', () => {
 	test('main branch changes retain the persisted baseline while using the session folder', async () => {
 		const fixture = createFixture();
 		await fixture.db.setMetadata(META_DIFF_BASE_BRANCH, 'release-A');
-		fixture.gitStates.set(buildDefaultChatUri(session), { baseBranchName: 'main', baseBranchFullName: 'refs/remotes/origin/main' });
+		fixture.gitStates.set(buildDefaultChatUri(session), { baseBranchName: 'main', baseBranchRef: 'refs/remotes/origin/main' });
 		const calls: (string | undefined)[] = [];
 		fixture.git.computeSessionFileDiffs = async (_directory, options) => {
 			calls.push(options?.baseBranch);
@@ -1054,7 +1054,7 @@ suite('AgentHostChangesetStrategy', () => {
 		await fixture.db.setMetadata(META_DIFF_BASE_BRANCH, '');
 		fixture.state.dispatchServerAction(session, { type: ActionType.SessionWorkingDirectoryReplaced, directory: 'file:///repo', replacement: destination });
 		fixture.state.dispatchServerAction(main, { type: ActionType.ChatWorkingDirectorySet, directory: destination });
-		fixture.gitStates.set(main, { baseBranchName: 'main', baseBranchFullName: 'refs/remotes/origin/main' });
+		fixture.gitStates.set(main, { baseBranchName: 'main', baseBranchRef: 'refs/remotes/origin/main' });
 		const calls: { directory: string; baseBranch: string | undefined }[] = [];
 		fixture.git.computeSessionFileDiffs = async (directory, options) => {
 			calls.push({ directory: directory.toString(), baseBranch: options?.baseBranch });
@@ -1081,7 +1081,7 @@ suite('AgentHostChangesetStrategy', () => {
 		fixture.state.dispatchServerAction(session, { type: ActionType.SessionChatUpdated, chat: main, changes: { workingDirectories: [original] } });
 		await fixture.db.setMetadata(META_DIFF_BASE_BRANCH, 'release-A');
 		await peerDb.setMetadata(META_DIFF_BASE_BRANCH, '');
-		fixture.gitStates.set(peer, { baseBranchName: 'main', baseBranchFullName: 'refs/remotes/origin/main' });
+		fixture.gitStates.set(peer, { baseBranchName: 'main', baseBranchRef: 'refs/remotes/origin/main' });
 		const calls: { directory: string; baseBranch: string | undefined }[] = [];
 		fixture.git.computeSessionFileDiffs = async (directory, options) => {
 			calls.push({ directory: directory.toString(), baseBranch: options?.baseBranch });
@@ -1112,13 +1112,13 @@ suite('AgentHostChangesetStrategy', () => {
 			});
 			await fixture.db.setMetadata(META_DIFF_BASE_BRANCH, 'release-A');
 			await peerDb.setMetadata(META_DIFF_BASE_BRANCH, 'release-A');
-			fixture.state.setSessionMeta(session, withSessionGitState(undefined, { baseBranchName: 'release-A', baseBranchFullName: 'refs/remotes/origin/release-A' }));
+			fixture.state.setSessionMeta(session, withSessionGitState(undefined, { baseBranchName: 'release-A', baseBranchRef: 'refs/remotes/origin/release-A' }));
 			fixture.state.dispatchServerAction(main, { type: ActionType.ChatWorkingDirectorySet, directory: destination });
 			fixture.state.dispatchServerAction(session, { type: ActionType.SessionChatUpdated, chat: main, changes: { workingDirectories: [destination] } });
 			if (destinationBase) {
-				fixture.gitStates.set(main, { baseBranchName: destinationBase, baseBranchFullName: `refs/remotes/origin/${destinationBase}` });
+				fixture.gitStates.set(main, { baseBranchName: destinationBase, baseBranchRef: `refs/remotes/origin/${destinationBase}` });
 			}
-			fixture.gitStates.set(peer, { baseBranchName: 'release-A', baseBranchFullName: 'refs/remotes/origin/release-A' });
+			fixture.gitStates.set(peer, { baseBranchName: 'release-A', baseBranchRef: 'refs/remotes/origin/release-A' });
 			const calls: { directory: string; baseBranch: string | undefined }[] = [];
 			fixture.git.computeSessionFileDiffs = async (directory, options) => {
 				calls.push({ directory: directory.toString(), baseBranch: options?.baseBranch });

@@ -53,7 +53,7 @@ export class AgentHostPullRequestOperationContribution extends Disposable implem
 		this._registry = registry;
 		const store = new DisposableStore();
 		const getSessionState = (sessionKey: string) => this._stateManager.getSessionState(sessionKey);
-		const resolveBaseBranch = (sessionKey: string) => this._gitStateService.resolveSessionBaseBranchFullName(sessionKey);
+		const resolveBaseBranch = (sessionKey: string) => this._gitStateService.resolveSessionBaseBranchRef(sessionKey);
 		const onCreated = (event: PullRequestCreatedEvent) => this.recordCreatedPullRequest(event);
 		const createPrHandler = this._instantiationService.createInstance(AgentHostPullRequestOperationHandler, false, undefined, false, getSessionState, resolveBaseBranch, onCreated);
 		const createDraftPrHandler = this._instantiationService.createInstance(AgentHostPullRequestOperationHandler, true, undefined, false, getSessionState, resolveBaseBranch, onCreated);

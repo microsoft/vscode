@@ -35,7 +35,7 @@ export class AgentHostMergeOperationContribution extends Disposable implements I
 		const handler = this._instantiationService.createInstance(
 			AgentHostMergeOperationHandler,
 			(sessionKey: string) => this._stateManager.getSessionState(sessionKey),
-			(sessionKey: string) => this._gitStateService.resolveSessionBaseBranchFullName(sessionKey),
+			(sessionKey: string) => this._gitStateService.resolveSessionBaseBranchRef(sessionKey),
 			(sessionKey: string, source?: IAgentHostCredentialSource) => this._onGitStateChanged(sessionKey, source),
 			(sessionKey: string, commit: string) => this._gitStateService.recordSessionMerge(sessionKey, commit),
 		);

@@ -1527,7 +1527,7 @@ suite('AgentHostPullRequestOperationHandler', () => {
 
 	test('without a recorded base, computes the changes against the base the git state names', async () => {
 		const gitService = new TestGitService();
-		gitService.gitState = { hasGitHubRemote: true, branchName: 'feature/test', githubOwner: 'microsoft', githubRepo: 'vscode', baseBranchName: 'main', baseBranchFullName: 'refs/remotes/origin/main' };
+		gitService.gitState = { hasGitHubRemote: true, branchName: 'feature/test', githubOwner: 'microsoft', githubRepo: 'vscode', baseBranchName: 'main', baseBranchRef: 'refs/remotes/origin/main' };
 		const gitHubClient = new TestGitHubClient();
 		const { handler, session } = setup(disposables, gitService, gitHubClient, { withoutRecordedBase: true });
 

@@ -1607,7 +1607,7 @@ export class AgentHostGitService extends Disposable implements IAgentHostGitServ
 			branchName: status.branchName,
 			isDetachedHead: status.isDetachedHead,
 			baseBranchName,
-			baseBranchFullName: baseBranch,
+			baseBranchRef: baseBranch,
 			upstreamBranchName: status.upstreamBranchName,
 			defaultBranchName: defaultBranch?.branchName,
 			defaultRemoteBranchName: defaultRemoteBranchExists
