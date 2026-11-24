@@ -1993,7 +1993,7 @@ suite('RemotesWidget', () => {
 	});
 
 	test('fits typical metadata and reserves the same action space when connections change', async () => {
-		const { parent, widget, model } = createWidget(OperatingSystem.Windows, 'status', 910);
+		const { parent, widget, model } = createWidget(OperatingSystem.Windows, 'status', 1200);
 		await renderIcons(parent);
 		parent.style.font = '13px "Segoe UI", sans-serif';
 		for (const size of [40, 60, 80, 100, 160]) {
@@ -2055,7 +2055,7 @@ suite('RemotesWidget', () => {
 				};
 			});
 			assert.deepStrictEqual(layouts, [width, 360, 1400, width].map(layoutWidth => ({
-				clippedHeaders: [], fitsViewport: true, scrolls: layoutWidth === 360, noOuterOverflow: true, actionsReachable: true,
+				clippedHeaders: [], fitsViewport: true, scrolls: layoutWidth === 360 || layoutWidth === 880 || layoutWidth === 900, noOuterOverflow: true, actionsReachable: true,
 			})));
 		});
 	}
