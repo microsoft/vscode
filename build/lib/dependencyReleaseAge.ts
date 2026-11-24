@@ -108,6 +108,9 @@ export function splitPackageKey(key: string): { readonly name: string; readonly 
 /** The fields of a pnpm lockfile `resolution`. Any other field fails the check, rather than being read as the registry. */
 const PNPM_RESOLUTION_FIELDS = new Set(['integrity', 'tarball', 'type', 'repo', 'commit', 'directory', 'path']);
 
+/** A version that a registry publishes, rather than a git, URL or path specifier in the version field. */
+const SEMVER = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
+
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
@@ -151,7 +154,7 @@ function pnpmSource(version: string, resolution: Record<string, string>): Packag
 	if (resolution.integrity === undefined) {
 		throw new Error(`cannot read the source of ${version}`);
 	}
-	return { kind: 'registry' };
+	return SEMVER.test(version) ? { kind: 'registry' } : { kind: 'other', description: `the version specifier ${version}` };
 }
 
 /**
@@ -192,12 +195,14 @@ interface IPackageLockEntry {
 	readonly link?: boolean;
 	readonly inBundle?: boolean;
 	readonly bundled?: boolean;
+	readonly extraneous?: boolean;
 	readonly dependencies?: Record<string, IPackageLockEntry>;
 }
 
-function npmSource(entry: IPackageLockEntry): PackageSource {
+function npmSource(version: string, entry: IPackageLockEntry): PackageSource {
 	if (entry.resolved === undefined || entry.resolved.startsWith(NPM_REGISTRY)) {
-		return { kind: 'registry' };
+		// Version 1 lockfiles may give a git or URL specifier as the version, with no resolved URL.
+		return SEMVER.test(version) ? { kind: 'registry' } : { kind: 'other', description: `the version specifier ${version}` };
 	}
 	if (entry.resolved.startsWith('file:')) {
 		return { kind: 'local' };
@@ -208,13 +213,22 @@ function npmSource(entry: IPackageLockEntry): PackageSource {
 /** Lists the installed packages of an npm lockfile, of version 1 (`dependencies`) or 2 and 3 (`packages`). */
 export function parsePackageLockfile(text: string): ILockedPackage[] {
 	assertNoConflictMarkers(text);
-	const lockfile = JSON.parse(text) as { readonly packages?: Record<string, IPackageLockEntry>; readonly dependencies?: Record<string, IPackageLockEntry> };
+	const lockfile: unknown = JSON.parse(text);
+	if (!isRecord(lockfile) || ![1, 2, 3].includes(lockfile.lockfileVersion as number)) {
+		throw new Error('is not an npm lockfile of version 1, 2 or 3');
+	}
+	// Versions 2 and 3 list every installed package in `packages`, version 1 in nested `dependencies`.
+	const entries = lockfile.lockfileVersion === 1 ? undefined : lockfile.packages;
+	if (lockfile.lockfileVersion === 1 ? lockfile.dependencies !== undefined && !isRecord(lockfile.dependencies) : !isRecord(entries)) {
+		throw new Error(`has no ${lockfile.lockfileVersion === 1 ? 'dependencies' : 'packages'} mapping`);
+	}
 	const packages: ILockedPackage[] = [];
 	const add = (name: string, entry: IPackageLockEntry) => {
 		if (typeof entry !== 'object' || entry === null || (entry.version !== undefined && typeof entry.version !== 'string') || (entry.resolved !== undefined && typeof entry.resolved !== 'string') || typeof name !== 'string') {
 			throw new Error(`cannot read the entry of ${name}`);
 		}
-		if (entry.link || entry.inBundle || entry.bundled) {
+		// Links, bundled packages and extraneous packages, which npm ci doesn't install, have no source of their own.
+		if (entry.link || entry.inBundle || entry.bundled || entry.extraneous) {
 			return;
 		}
 		if (!entry.version) {
@@ -224,19 +238,25 @@ export function parsePackageLockfile(text: string): ILockedPackage[] {
 			packages.push({ ecosystem: 'npm', name, version: entry.version, source: { kind: 'local' } });
 			return;
 		}
-		packages.push({ ecosystem: 'npm', name, version: entry.version, source: npmSource(entry) });
+		packages.push({ ecosystem: 'npm', name, version: entry.version, source: npmSource(entry.version, entry) });
 	};
-	if (lockfile.packages) {
-		for (const [key, entry] of Object.entries(lockfile.packages)) {
+	if (isRecord(entries)) {
+		for (const [key, entry] of Object.entries(entries as Record<string, IPackageLockEntry>)) {
 			const modules = key.lastIndexOf('node_modules/');
 			// The root and the workspace packages are not installed from a registry.
 			if (modules !== -1) {
-				add(entry.name ?? key.slice(modules + 'node_modules/'.length), entry);
+				add(isRecord(entry) && entry.name !== undefined ? entry.name as string : key.slice(modules + 'node_modules/'.length), entry);
 			}
 		}
 	} else {
-		const visit = (dependencies: Record<string, IPackageLockEntry> | undefined) => {
-			for (const [name, entry] of Object.entries(dependencies ?? {})) {
+		const visit = (dependencies: unknown) => {
+			if (dependencies === undefined) {
+				return;
+			}
+			if (!isRecord(dependencies)) {
+				throw new Error('has dependencies that are not a mapping');
+			}
+			for (const [name, entry] of Object.entries(dependencies as Record<string, IPackageLockEntry>)) {
 				add(name, entry);
 				visit(entry.dependencies);
 			}
@@ -246,18 +266,11 @@ export function parsePackageLockfile(text: string): ILockedPackage[] {
 	return packages;
 }
 
-/** Reads a TOML string value, `"..."` or `'...'`, with an optional trailing comment. */
-function readTomlString(value: string): string | undefined {
-	const match = /^(?:"((?:[^"\\]|\\.)*)"|'([^']*)')\s*(?:#.*)?$/.exec(value.trim());
-	if (!match) {
-		return undefined;
-	}
-	return match[2] ?? match[1].replace(/\\(["\\])/g, '$1');
-}
-
 /**
- * Lists the `[[package]]` entries of a Cargo lockfile. Packages without a `source` are crates of the workspace. Throws on a
- * package whose name, version or source it cannot read, so that a lockfile the check cannot read fails it.
+ * Lists the `[[package]]` entries of a Cargo lockfile. Packages without a `source` are crates of the workspace. Cargo
+ * writes the lockfile in a fixed layout, and the reader accepts only that layout in the `[[package]]` tables: `name`,
+ * `version`, `source` and `checksum` as plain double-quoted strings, and `dependencies` as an array of them. Anything
+ * else, such as quoted keys, escapes or an unterminated array, fails the check, rather than being read as no source.
  */
 export function parseCargoLockfile(text: string): ILockedPackage[] {
 	assertNoConflictMarkers(text);
@@ -265,6 +278,7 @@ export function parseCargoLockfile(text: string): ILockedPackage[] {
 	let current: Record<string, string> | undefined;
 	// Other tables, such as [metadata] or [[patch.unused]], don't list installed packages.
 	let inOtherTable = false;
+	let inDependencies = false;
 	const flush = () => {
 		if (current) {
 			if (!current.name || !current.version) {
@@ -283,33 +297,54 @@ export function parseCargoLockfile(text: string): ILockedPackage[] {
 	const lines = text.split(/\r?\n/);
 	for (let index = 0; index < lines.length; index++) {
 		const line = lines[index];
-		const header = /^\s*\[/.test(line) ? line.replace(/#.*$/, '').trim() : undefined;
-		if (header !== undefined) {
-			flush();
-			inOtherTable = header !== '[[package]]';
-			if (header === '[[package]]') {
-				current = {};
-			} else if (/^\[+\s*["']?package\b/.test(header)) {
-				throw new Error(`line ${index + 1}: unexpected package table: ${line}`);
+		const fail = (): never => {
+			throw new Error(`line ${index + 1}: cannot read: ${line.slice(0, 120)}`);
+		};
+		if (inDependencies) {
+			if (line === ']') {
+				inDependencies = false;
+			} else if (!/^ "[^"\\]*",$/.test(line)) {
+				fail();
 			}
 			continue;
 		}
-		const field = /^\s*["']?(name|version|source|package)["']?\s*=(.*)$/.exec(line);
-		if (!field || inOtherTable) {
+		if (line.trim() === '' || /^#/.test(line)) {
+			continue;
+		}
+		if (line.startsWith('[')) {
+			flush();
+			inOtherTable = line !== '[[package]]';
+			if (!inOtherTable) {
+				current = {};
+			} else if (!/^\[\[?[A-Za-z][\w.-]*\]\]?$/.test(line) || /^\[\[?package\b/.test(line)) {
+				fail();
+			}
+			continue;
+		}
+		if (inOtherTable) {
 			continue;
 		}
 		if (!current) {
-			// The lockfile format version is the only one of these keys outside of a package.
-			if (field[1] === 'version' && /^\s*\d+\s*(#.*)?$/.test(field[2])) {
-				continue;
+			// The format version is the only top-level key that Cargo writes.
+			if (!/^version = \d+$/.test(line)) {
+				fail();
 			}
-			throw new Error(`line ${index + 1}: unexpected ${field[1]} outside of a [[package]]: ${line}`);
+			continue;
 		}
-		const value = field[1] === 'package' ? undefined : readTomlString(field[2]);
-		if (value === undefined || Object.hasOwn(current, field[1])) {
-			throw new Error(`line ${index + 1}: cannot read the ${field[1]} of a [[package]]: ${line}`);
+		const field = /^(name|version|source|checksum) = "([^"\\]*)"$/.exec(line);
+		if (field) {
+			if (Object.hasOwn(current, field[1])) {
+				fail();
+			}
+			current[field[1]] = field[2];
+		} else if (line === 'dependencies = [') {
+			inDependencies = true;
+		} else if (!/^dependencies = \[( "[^"\\]*",)* ?\]$/.test(line)) {
+			fail();
 		}
-		current[field[1]] = value;
+	}
+	if (inDependencies) {
+		throw new Error('has an unterminated dependencies array');
 	}
 	flush();
 	return packages;
@@ -527,8 +562,9 @@ function readAt(cwd: string, revision: string, file: string): string | undefined
 	}
 }
 
+/** Lists paths NUL-separated, so that git doesn't quote the ones with unusual characters. */
 function listLockfiles(cwd: string, revision: string): string[] {
-	return git(cwd, 'ls-tree', '-r', '--name-only', revision).split('\n').filter(isLockfile);
+	return git(cwd, 'ls-tree', '-r', '-z', '--name-only', revision).split('\0').filter(isLockfile);
 }
 
 /** The policy of the nearest pnpm-workspace.yaml at or above the folder of the lockfile, or of the root one for Cargo. */
@@ -558,27 +594,67 @@ export function packageManagerPackage(packageJson: string | undefined): ILockedP
 	return match ? { ecosystem: 'npm', name: match[1], version: match[2], source: { kind: 'registry' } } : undefined;
 }
 
+/**
+ * The stricter of the policies of the base and the head, so that a change can't relax the policy that checks it: the
+ * larger minimumReleaseAge, and only the exclusions that both list.
+ */
+export function stricterPolicy(base: IReleaseAgePolicy, head: IReleaseAgePolicy): IReleaseAgePolicy {
+	const ages = [base.minimumReleaseAge, head.minimumReleaseAge].filter(age => age !== undefined);
+	return {
+		minimumReleaseAge: ages.length ? Math.max(...ages) : undefined,
+		exclude: head.exclude.filter(pattern => base.exclude.includes(pattern)),
+		file: head.file ?? base.file,
+	};
+}
+
 export interface ICheckResult {
 	readonly lockfiles: readonly string[];
 	readonly checked: number;
 	readonly violations: readonly IViolation[];
 	readonly errors: readonly string[];
+	/** Changes of the release-age policy, which the check reports but doesn't apply. */
+	readonly notices: readonly string[];
 }
 
 /** Checks the lockfiles that differ between the base and the head commits. */
 export async function checkRevisions(base: string, head: string, registry: IRegistry, now: Date, cwd = process.cwd()): Promise<ICheckResult> {
-	const changedFiles = git(cwd, 'diff', '--name-only', '--no-renames', base, head).split('\n').filter(Boolean);
+	const changedFiles = git(cwd, 'diff', '--name-only', '-z', '--no-renames', base, head).split('\0').filter(Boolean);
+	// Registry versions that the base already locks, which pass the age check. Only registry entries count: a git crate
+	// foo@1.0.0 doesn't make a newly published foo@1.0.0 on crates.io older.
 	const lockedOnBase = new Set<string>();
 	const errors: string[] = [];
+	const notices: string[] = [];
 	for (const lockfile of listLockfiles(cwd, base)) {
 		try {
 			for (const pkg of parseLockfile(lockfile, readAt(cwd, base, lockfile) ?? '')) {
-				lockedOnBase.add(packageId(pkg));
+				if (pkg.source.kind === 'registry') {
+					lockedOnBase.add(packageId(pkg));
+				}
 			}
 		} catch {
 			// A broken lockfile of the base locks nothing.
 		}
 	}
+
+	// A change to a policy is read, so that one the check can't read fails it, and reported. The check applies the
+	// stricter of the base and the head policies (see stricterPolicy).
+	for (const file of changedFiles.filter(file => path.posix.basename(file) === 'pnpm-workspace.yaml')) {
+		const headText = readAt(cwd, head, file);
+		if (headText === undefined) {
+			continue;
+		}
+		try {
+			const headPolicy = parseReleaseAgePolicy(headText, file);
+			const baseText = readAt(cwd, base, file);
+			const basePolicy = baseText === undefined ? undefined : parseReleaseAgePolicy(baseText, file);
+			if (!basePolicy || basePolicy.minimumReleaseAge !== headPolicy.minimumReleaseAge || basePolicy.exclude.join('\n') !== headPolicy.exclude.join('\n')) {
+				notices.push(`${file} changes the release-age policy. This check applies the stricter of the policies of the base and of this change.`);
+			}
+		} catch (error) {
+			errors.push(`${file}: ${error instanceof Error ? error.message : String(error)}`);
+		}
+	}
+	const policyFor = (file: string): IReleaseAgePolicy => stricterPolicy(findPolicy(cwd, base, file), findPolicy(cwd, head, file));
 
 	const changes: ILockfileChange[] = [];
 	for (const lockfile of changedFiles.filter(isLockfile)) {
@@ -587,7 +663,9 @@ export async function checkRevisions(base: string, head: string, registry: IRegi
 			continue;
 		}
 		let added: ILockedPackage[];
+		let policy: IReleaseAgePolicy;
 		try {
+			policy = policyFor(lockfile);
 			const baseText = readAt(cwd, base, lockfile);
 			let basePackages: ILockedPackage[] = [];
 			try {
@@ -600,7 +678,7 @@ export async function checkRevisions(base: string, head: string, registry: IRegi
 			errors.push(`${lockfile}: ${error instanceof Error ? error.message : String(error)}`);
 			continue;
 		}
-		changes.push({ lockfile, added, policy: findPolicy(cwd, head, lockfile) });
+		changes.push({ lockfile, added, policy });
 	}
 
 	if (changedFiles.includes('package.json')) {
@@ -613,7 +691,7 @@ export async function checkRevisions(base: string, head: string, registry: IRegi
 		try {
 			const headPackageManager = packageManagerPackage(readAt(cwd, head, 'package.json'));
 			if (headPackageManager && (!basePackageManager || packageId(basePackageManager) !== packageId(headPackageManager))) {
-				changes.push({ lockfile: 'package.json', added: [headPackageManager], policy: findPolicy(cwd, head, 'package.json') });
+				changes.push({ lockfile: 'package.json', added: [headPackageManager], policy: policyFor('package.json') });
 			}
 		} catch (error) {
 			errors.push(`package.json: ${error instanceof Error ? error.message : String(error)}`);
@@ -626,6 +704,7 @@ export async function checkRevisions(base: string, head: string, registry: IRegi
 		checked: changes.reduce((count, change) => count + change.added.length, 0),
 		violations,
 		errors,
+		notices,
 	};
 }
 
@@ -658,6 +737,9 @@ async function main(argv: readonly string[]): Promise<number> {
 		return 1;
 	}
 
+	for (const notice of result.notices) {
+		console.log(`::notice title=Dependency release age::${escapeAnnotation(notice)}`);
+	}
 	for (const error of result.errors) {
 		console.log(`::error title=Dependency release age::${escapeAnnotation(`Cannot read ${error}`)}`);
 	}

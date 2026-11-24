@@ -106,8 +106,25 @@ suite('dependencyReleaseAge', () => {
 				'node_modules/fork': { version: '1.0.0', resolved: 'git+ssh://git@github.com/owner/fork.git#0123abc' },
 				'node_modules/mirror': { version: '1.0.0', resolved: 'https://mirror.example.com/mirror/-/mirror-1.0.0.tgz' },
 				'node_modules/bundled': { version: '1.0.0', inBundle: true },
+				'node_modules/packageMocks/keytar': { extraneous: true },
 			},
 		});
+		// Version 1 lockfiles may give a git specifier as the version, with no resolved URL.
+		const version1 = JSON.stringify({
+			lockfileVersion: 1,
+			dependencies: {
+				'left-pad': { version: '1.3.0' },
+				electron: { version: 'github:owner/electron#0123abc', dependencies: { nested: { version: '2.0.0' } } },
+			},
+		});
+		assert.deepStrictEqual(parsePackageLockfile(version1), [
+			npm('left-pad', '1.3.0'),
+			npm('electron', 'github:owner/electron#0123abc', { kind: 'other', description: 'the version specifier github:owner/electron#0123abc' }),
+			npm('nested', '2.0.0'),
+		]);
+		for (const text of ['{}', '{"lockfileVersion": 3, "packages": []}', '{"lockfileVersion": 4, "packages": {}}', '{"lockfileVersion": 1, "dependencies": []}']) {
+			assert.throws(() => parsePackageLockfile(text), Error, text);
+		}
 		assert.deepStrictEqual(parsePackageLockfile(lockfile), [
 			npm('hono', '4.13.18'),
 			npm('@scope/b', '1.0.0'),
@@ -178,21 +195,27 @@ suite('dependencyReleaseAge', () => {
 			assert.throws(() => parsePnpmLockfile(text), Error, text);
 		}
 	});
-	test('reads the TOML string forms of Cargo lockfile fields, and fails on packages it cannot read', () => {
+	test('reads only the layout that Cargo writes, and fails on any other Cargo lockfile syntax', () => {
 		const cargoPackage = (...fields: string[]) => ['version = 4', '', '[[package]]', ...fields, ''].join('\n');
-		assert.deepStrictEqual([
-			...parseCargoLockfile(cargoPackage('name = "a"', 'version = "1.0.0"', 'source = "git+https://github.com/owner/a#0123abc" # comment')),
-			...parseCargoLockfile(cargoPackage(`name = 'b'`, `version = '1.0.0'`, `source = 'registry+https://github.com/rust-lang/crates.io-index'`)),
-		], [
+		assert.deepStrictEqual(parseCargoLockfile(cargoPackage('name = "a"', 'version = "1.0.0"', 'source = "git+https://github.com/owner/a#0123abc"', 'dependencies = [ "b",]')), [
 			{ ecosystem: 'crates', name: 'a', version: '1.0.0', source: { kind: 'other', description: 'git repository https://github.com/owner/a#0123abc' } },
-			{ ecosystem: 'crates', name: 'b', version: '1.0.0', source: { kind: 'registry' } },
 		]);
 		for (const text of [
-			cargoPackage('name = "serde"', 'version = "1.0.228'),
-			cargoPackage('name = "serde"'),
+			// Quoted and escaped keys, which TOML reads as source.
+			cargoPackage('name = "serde"', 'version = "1.0.228"', '"source" = "git+https://github.com/owner/serde"'),
+			cargoPackage('name = "serde"', 'version = "1.0.228"', '"\\u0073ource" = "git+https://github.com/owner/serde"'),
+			// Literal strings, escapes, comments and multi-line strings.
+			cargoPackage(`name = 'serde'`, 'version = "1.0.228"'),
+			cargoPackage('name = "serde"', 'version = "1.0.228"', 'source = "git+https://github.com/owner/serde\\u0023"'),
+			cargoPackage('name = "serde"', 'version = "1.0.228"', 'source = "registry+https://github.com/rust-lang/crates.io-index" # comment'),
 			cargoPackage('name = "serde"', 'version = "1.0.228"', 'source = """git+https://github.com/owner/serde"""'),
+			// An unterminated string or array, a missing version, a duplicate key, and packages written another way.
+			cargoPackage('name = "serde"', 'version = "1.0.228'),
+			cargoPackage('name = "serde"', 'version = "1.0.228"', 'dependencies = [', ' "b",'),
+			cargoPackage('name = "serde"'),
 			cargoPackage('name = "serde"', 'version = "1.0.228"', 'source = "a"', 'source = "b"'),
 			'version = 4\n\npackage = [{ name = "serde", version = "1.0.228" }]\n',
+			'version = 4\n\n[package]\nname = "serde"\nversion = "1.0.228"\n',
 		]) {
 			assert.throws(() => parseCargoLockfile(text), Error, text);
 		}
@@ -357,6 +380,8 @@ suite('dependencyReleaseAge', () => {
 			write('pnpm-lock.yaml', lockfile('a@1.0.0', 'shared@1.0.0'));
 			write('build/pnpm-workspace.yaml', 'minimumReleaseAge: 1440\nminimumReleaseAgeExclude:\n  - excluded\n');
 			write('build/pnpm-lock.yaml', lockfile('b@1.0.0'));
+			const crate = (source: string) => `version = 4\n\n[[package]]\nname = "foo"\nversion = "1.0.0"\nsource = "${source}"\n`;
+			write('cli/Cargo.lock', crate('git+https://github.com/owner/foo#0123abc'));
 			git('add', '.');
 			git('commit', '--quiet', '-m', 'base');
 			const base = git('rev-parse', 'HEAD');
@@ -364,11 +389,20 @@ suite('dependencyReleaseAge', () => {
 			write('package.json', '{"packageManager": "pnpm@12.17.0"}');
 			write('pnpm-lock.yaml', lockfile('a@1.0.0', 'a@2.0.0', 'shared@1.0.0'));
 			write('build/pnpm-lock.yaml', lockfile('b@1.0.0', 'b@2.0.0', 'excluded@1.0.0', 'shared@1.0.0'));
-			git('commit', '--quiet', '-am', 'head');
+			// A lockfile in a folder whose name git quotes, unless it lists paths NUL-separated.
+			write('café/pnpm-lock.yaml', lockfile('c@1.0.0'));
+			// The same crate version from crates.io is a different package than the git one that the base locks.
+			write('cli/Cargo.lock', crate('registry+https://github.com/rust-lang/crates.io-index'));
+			// A change can't relax the policy that checks it.
+			write('pnpm-workspace.yaml', 'minimumReleaseAge: 0\nminimumReleaseAgeExclude:\n  - \'*\'\n');
+			git('add', '.');
+			git('commit', '--quiet', '-m', 'head');
 
 			const registry = fakeRegistry({
 				'a@2.0.0': { kind: 'published', publishedAt: daysAgo(2) },
 				'b@2.0.0': { kind: 'published', publishedAt: daysAgo(2) },
+				'c@1.0.0': { kind: 'published', publishedAt: daysAgo(2) },
+				'foo@1.0.0': { kind: 'published', publishedAt: daysAgo(2) },
 				'pnpm@12.17.0': { kind: 'published', publishedAt: daysAgo(10) },
 			});
 			const result = await checkRevisions(base, 'HEAD', registry, now, dir);
@@ -377,15 +411,23 @@ suite('dependencyReleaseAge', () => {
 				checked: result.checked,
 				violations: result.violations.map(violation => `${violation.lockfile}: ${violation.name}@${violation.version}`),
 				errors: result.errors,
+				notices: result.notices,
 				lookups: registry.lookups.sort(),
 			}, {
-				lockfiles: ['build/pnpm-lock.yaml', 'pnpm-lock.yaml', 'package.json'],
-				checked: 5,
+				lockfiles: ['build/pnpm-lock.yaml', 'café/pnpm-lock.yaml', 'cli/Cargo.lock', 'pnpm-lock.yaml', 'package.json'],
+				checked: 7,
 				// build/ allows b@2.0.0 after a day, and the root lockfile already locks shared@1.0.0.
-				violations: ['pnpm-lock.yaml: a@2.0.0'],
+				violations: ['café/pnpm-lock.yaml: c@1.0.0', 'cli/Cargo.lock: foo@1.0.0', 'pnpm-lock.yaml: a@2.0.0'],
 				errors: [],
-				lookups: ['npm:a@2.0.0', 'npm:b@2.0.0', 'npm:pnpm@12.17.0'],
+				notices: ['pnpm-workspace.yaml changes the release-age policy. This check applies the stricter of the policies of the base and of this change.'],
+				lookups: ['crates:foo@1.0.0', 'npm:a@2.0.0', 'npm:b@2.0.0', 'npm:c@1.0.0', 'npm:pnpm@12.17.0'],
 			});
+
+			// A change to only the policy fails when the check can't read it.
+			git('checkout', '--quiet', '-b', 'policy', base);
+			write('pnpm-workspace.yaml', 'minimumReleaseAge: 7d\n');
+			git('commit', '--quiet', '-am', 'policy');
+			assert.deepStrictEqual((await checkRevisions(base, 'HEAD', fakeRegistry({}), now, dir)).errors.map(error => error.split(':')[0]), ['pnpm-workspace.yaml']);
 		} finally {
 			fs.rmSync(dir, { recursive: true, force: true });
 		}
