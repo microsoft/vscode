@@ -5,6 +5,8 @@
 
 import 'mocha';
 import * as assert from 'assert';
+import * as os from 'os';
+import * as path from 'path';
 import { workspace, extensions, Uri, commands } from 'vscode';
 import { findPullRequestTemplates, pickPullRequestTemplate } from '../pushErrorHandler.js';
 
@@ -36,6 +38,19 @@ suite('github smoke test', function () {
 		urisSorted.sort();
 
 		assert.deepStrictEqual(urisSorted, expectedValuesSorted);
+	});
+
+	test('should find lowercase template in .github folder', async function () {
+		// Created at runtime since a lowercase and an uppercase template can't live side by side on case-insensitive file systems
+		const root = Uri.file(path.join(os.tmpdir(), `vscode-github-test-${Date.now()}`));
+		await workspace.fs.writeFile(Uri.joinPath(root, '.github', 'pull_request_template.md'), new TextEncoder().encode('# Template'));
+
+		try {
+			const uris = await findPullRequestTemplates(root);
+			assert.deepStrictEqual(uris.map(x => path.posix.relative(root.path, x.path)), ['.github/pull_request_template.md']);
+		} finally {
+			await workspace.fs.delete(root, { recursive: true });
+		}
 	});
 
 	test('selecting non-default quick-pick item should correspond to a template', async () => {
