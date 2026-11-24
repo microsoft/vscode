@@ -292,10 +292,9 @@ async getExplicitPermissionAutoApproval(
 	const workingDirectories = workDirs?.map(d => URI.parse(d));
 
 	// Evaluate explicit saved Shell rules without implicit defaults.
-	if (e.permissionKind === AgentPermissionKind.Shell) {
-		if (!e.toolInput || !e.shellLanguage) {
-			return undefined;
-		}
+	if (!e.toolInput || !e.shellLanguage || this._configService.getRootValue(platformRootSchema, AgentHostTerminalAutoApproveEnabledConfigKey) === false) {
+    return undefined;
+}
 
 		const result = await this._evaluateShellAutoApproval(
 			e,

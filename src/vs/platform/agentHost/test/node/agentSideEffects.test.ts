@@ -6327,7 +6327,7 @@ suite('AgentSideEffects', () => {
 		permissions: {
 			allow: [pathRule('Read', readPath, false)!],
 			deny: [],
-			ask: [pathRule('Read', readPath, false)!],
+			ask: [],
 		},
 	},
 });
