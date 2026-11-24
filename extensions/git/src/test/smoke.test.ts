@@ -155,6 +155,38 @@ suite('git smoke test', function () {
 		assert.strictEqual(repository.state.indexChanges.length, 0);
 	});
 
+	test('closes a deinitialized submodule repository', async function () {
+		const submoduleSource = fs.mkdtempSync(path.join(os.tmpdir(), 'vscode-git-submodule-'));
+		const submodulePath = file('submodule');
+
+		try {
+			cp.execFileSync('git', ['init', '-b', 'main'], { cwd: submoduleSource });
+			cp.execFileSync('git', ['config', 'user.name', 'testuser'], { cwd: submoduleSource });
+			cp.execFileSync('git', ['config', 'user.email', 'monacotools@example.com'], { cwd: submoduleSource });
+			cp.execFileSync('git', ['config', 'commit.gpgsign', 'false'], { cwd: submoduleSource });
+			fs.writeFileSync(path.join(submoduleSource, 'README.md'), 'submodule');
+			cp.execFileSync('git', ['add', '.'], { cwd: submoduleSource });
+			cp.execFileSync('git', ['commit', '-m', 'initial commit'], { cwd: submoduleSource });
+
+			cp.execFileSync('git', ['-c', 'protocol.file.allow=always', 'submodule', 'add', submoduleSource, 'submodule'], { cwd });
+			await commands.executeCommand('git.openRepository', submodulePath);
+			assert(git.repositories.some(repository => repository.rootUri.fsPath === submodulePath));
+
+			const onDidCloseSubmodule = eventToPromise(git.onDidCloseRepository);
+
+			cp.execFileSync('git', ['submodule', 'deinit', '-f', '--', 'submodule'], { cwd });
+			await repository.status();
+			const closedRepository = await onDidCloseSubmodule;
+
+			assert.strictEqual(closedRepository.rootUri.fsPath, submodulePath);
+			assert(!git.repositories.some(repository => repository.rootUri.fsPath === submodulePath));
+		} finally {
+			cp.execFileSync('git', ['reset', '--hard', 'HEAD'], { cwd });
+			fs.rmSync(submodulePath, { recursive: true, force: true });
+			fs.rmSync(submoduleSource, { recursive: true, force: true });
+		}
+	});
+
 	test('reads non-UTF-8 encoded commit messages as UTF-8', async function () {
 		const expectCommitMessage = 'テスト';
 		const commitMessage = Buffer.from('a5c6a5b9a5c8', 'hex'); // Encoded in EUC-JP
