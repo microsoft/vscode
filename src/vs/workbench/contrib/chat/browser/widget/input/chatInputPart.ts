@@ -4126,6 +4126,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				verticalScrollbarSize: 7,
 			};
 		options.stickyScroll = { enabled: false };
+		// Keep the input's text in its parent's composited layer. The input box clips its contents with
+		// rounded corners inside the rounded side bar card, and Chromium applies one rounded clip per draw
+		// quad, so a layer of its own under both clips gets render surfaces that cost GPU time per keystroke.
+		options.disableLayerHinting = true;
 
 		this._inputEditorElement = dom.append(editorContainer, $(chatInputEditorContainerSelector));
 		const editorOptions = getSimpleCodeEditorWidgetOptions();

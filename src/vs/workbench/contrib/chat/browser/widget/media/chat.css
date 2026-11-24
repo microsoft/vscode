@@ -1327,17 +1327,12 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	--chat-input-working-border-color1: var(--vscode-chat-inputWorkingBorderColor1);
 }
 
-/* Keep contents inside the input box. Not applied in compact mode, where
-	the former overflow:hidden created a BFC that caused a ResizeObserver ↔
-	layout feedback loop when toolbars share width with the editor. The clip is
-	deliberately square (the box's own border-radius still rounds its border
-	and background): the box sits inside the rounded auxiliary bar card,
-	Chromium applies one rounded clip per draw quad, and Blink gives every outer
-	rounded clip around another one a render surface, so a rounded
-	`overflow: hidden` here adds render surfaces around the input's text and
-	costs GPU time on every keystroke. */
+/* Prevent contents from covering border corners. Not applied in compact mode
+	because overflow:hidden creates a BFC that causes a ResizeObserver ↔ layout
+	feedback loop when toolbars share width with the editor. */
 .interactive-session .interactive-input-part:not(.compact) .chat-input-container {
-	clip-path: inset(0);
+	/* Prevent contents from covering border corner */
+	overflow: hidden;
 }
 
 @keyframes chat-input-working-border-spin {
@@ -1358,10 +1353,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	border-radius: inherit;
 	padding: var(--chat-input-working-border-width);
 	container-type: size;
-	/* Masking alone does not keep the oversized gradient out of ancestor scroll areas.
-		The mask is square, so this clip also rounds the ring. It nests inside the
-		auxiliary bar card's rounded clip and costs render passes, but only while the
-		ring is shown; a square clip would change the comet's corners. */
+	/* Masking alone does not keep the oversized gradient out of ancestor scroll areas. */
 	overflow: clip;
 	-webkit-mask:
 		linear-gradient(#000 0 0) content-box,
@@ -1418,7 +1410,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		rely on a visible focus/container outline for accessibility. */
 	border-color: var(--vscode-input-border, transparent);
 	overflow: visible;
-	clip-path: none;
 
 	> .chat-editor-container {
 		overflow: hidden;

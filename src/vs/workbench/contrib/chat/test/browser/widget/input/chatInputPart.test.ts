@@ -1509,9 +1509,7 @@ suite('ChatInputPart', () => {
 		});
 	});
 
-	test('decorative input borders do not increase ancestor scroll overflow, and the input clips its contents without a rounded clip', async () => {
-		// Chromium applies one rounded clip per draw quad, so a rounded clip on the input, inside the rounded
-		// auxiliary bar card, makes every keystroke draw the input through offscreen render passes.
+	test('decorative input borders do not increase ancestor scroll overflow', async () => {
 		const snapshots = [];
 		for (const compact of [false, true]) {
 			for (const working of [false, true]) {
@@ -1523,31 +1521,24 @@ suite('ChatInputPart', () => {
 				inputPart.classList.toggle('compact', compact);
 				const input = dom.append(inputPart, dom.$('.chat-input-container'));
 				input.classList.toggle('working', working);
-				input.style.cssText = 'width: 400px; height: 40px; --chat-input-radius: 8px;';
-				const content = dom.append(input, dom.$('div'));
-				content.style.cssText = 'position: absolute; top: 0; left: 380px; width: 60px; height: 20px;';
+				input.style.cssText = 'width: 400px; height: 40px;';
 				await retry(async () => assert.strictEqual(mainWindow.getComputedStyle(input).position, 'relative'), 10, 100);
 				const before = { width: host.scrollWidth, height: host.scrollHeight };
 				dom.append(input, dom.$('.chat-input-working-border'));
 				dom.append(input, dom.$('.chat-input-working-border.chat-input-working-border-glow'));
-				const style = mainWindow.getComputedStyle(input);
-				const bounds = input.getBoundingClientRect();
 				snapshots.push({
 					compact,
 					working,
 					widthIncrease: host.scrollWidth - before.width,
 					heightIncrease: host.scrollHeight - before.height,
-					radius: style.borderTopLeftRadius,
-					roundedClip: style.overflow !== 'visible',
-					contentsClipped: mainWindow.document.elementFromPoint(bounds.right + 10, bounds.top + 10) !== content,
 				});
 			}
 		}
 		assert.deepStrictEqual(snapshots, [
-			{ compact: false, working: false, widthIncrease: 0, heightIncrease: 0, radius: '8px', roundedClip: false, contentsClipped: true },
-			{ compact: false, working: true, widthIncrease: 0, heightIncrease: 0, radius: '8px', roundedClip: false, contentsClipped: false },
-			{ compact: true, working: false, widthIncrease: 0, heightIncrease: 0, radius: '8px', roundedClip: false, contentsClipped: false },
-			{ compact: true, working: true, widthIncrease: 0, heightIncrease: 0, radius: '8px', roundedClip: false, contentsClipped: false },
+			{ compact: false, working: false, widthIncrease: 0, heightIncrease: 0 },
+			{ compact: false, working: true, widthIncrease: 0, heightIncrease: 0 },
+			{ compact: true, working: false, widthIncrease: 0, heightIncrease: 0 },
+			{ compact: true, working: true, widthIncrease: 0, heightIncrease: 0 },
 		]);
 	});
 
