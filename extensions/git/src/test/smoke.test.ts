@@ -537,7 +537,7 @@ suite('git smoke test', function () {
 		}
 	});
 
-	test('a repository opened detached is not in the git API until an extension opens it, and other opens leave it detached', async function () {
+	test('a repository opened detached is not in the git API until any other open attaches it and returns it', async function () {
 		const model = getModel();
 		const repositoryPath = await fs.promises.realpath(await fs.promises.mkdtemp(path.join(os.tmpdir(), 'git-smoke-')));
 		const runGit = (command: string) => cp.execSync(`git ${command}`, { cwd: repositoryPath, stdio: 'pipe' });
@@ -559,16 +559,22 @@ suite('git smoke test', function () {
 			const state = () => ({ isAttached: repository.isAttached, inApi: git.getRepository(Uri.file(repositoryPath)) !== null });
 			const detached = { ...state(), changes: repository.workingTreeChanges.map(r => path.basename(r.resourceUri.fsPath)) };
 
-			await model.openRepository(repositoryPath);
-			const afterOtherOpen = state();
+			const openedDetached = await model.openRepository(repositoryPath, false, true, true);
+			const afterDetachedOpen = { ...state(), sameRepository: openedDetached === repository };
+
+			// As a visible editor's folder or a folder scan opens it
+			const openedAgain = await model.openRepository(repositoryPath);
+			const afterOpen = { ...state(), sameRepository: openedAgain === repository };
 
 			const apiRepository = await git.openRepository(Uri.file(repositoryPath));
-			const afterExtensionOpen = { ...state(), sameRepository: model.getRepository(repositoryPath) === repository, changes: apiRepository?.state.workingTreeChanges.map(c => path.basename(c.uri.fsPath)) };
+			const openedAttached = await model.openRepository(repositoryPath);
+			const afterAttachedOpens = { sameRepository: openedAttached === repository, changes: apiRepository?.state.workingTreeChanges.map(c => path.basename(c.uri.fsPath)) };
 
-			assert.deepStrictEqual({ detached, afterOtherOpen, afterExtensionOpen, opened }, {
+			assert.deepStrictEqual({ detached, afterDetachedOpen, afterOpen, afterAttachedOpens, opened }, {
 				detached: { isAttached: false, inApi: false, changes: ['modified.txt'] },
-				afterOtherOpen: { isAttached: false, inApi: false },
-				afterExtensionOpen: { isAttached: true, inApi: true, sameRepository: true, changes: ['modified.txt'] },
+				afterDetachedOpen: { isAttached: false, inApi: false, sameRepository: true },
+				afterOpen: { isAttached: true, inApi: true, sameRepository: true },
+				afterAttachedOpens: { sameRepository: true, changes: ['modified.txt'] },
 				opened: [path.basename(repositoryPath)]
 			});
 		} finally {

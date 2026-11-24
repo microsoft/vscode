@@ -723,13 +723,11 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 	}
 
 	/**
-	 * Returns the repository that it opened detached, or the detached repository that it found, see `detached`.
+	 * Opens the repository at `repoPath`, attaching it if it is detached, and returns it, or `undefined` if it does not
+	 * open, for example because it is ignored or not trusted.
 	 *
-	 * @param openIfClosed Whether the user or an extension asked to open the repository. Such an open also attaches the
-	 * detached repository that it finds, which then is not kept warm anymore.
-	 * @param detached Whether the repository opens detached, for a location that a workspace folder switched to, see
-	 * `openSwitchedLocation`. A detached repository at the location is returned as is. Other opens, for example of a
-	 * visible editor, leave the detached repositories alone.
+	 * @param detached Whether to open the repository without attaching it, for a location that a workspace folder
+	 * switched to, see `openSwitchedLocation`. A detached repository at the path stays detached.
 	 */
 	@sequentialize
 	async openRepository(repoPath: string, openIfClosed = false, openIfParent = false, detached = false): Promise<Repository | undefined> {
@@ -737,12 +735,12 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 		const existingRepository = await this.getRepositoryExact(repoPath);
 		if (existingRepository) {
 			this.logger.trace(`[Model][openRepository] Repository for path ${repoPath} already exists: ${existingRepository.root}`);
-			return undefined;
+			return existingRepository;
 		}
 
 		const detachedRepository = this.getDetachedRepository(repoPath);
 		if (detachedRepository) {
-			return this.openDetachedRepository(detachedRepository, openIfClosed, detached);
+			return this.openDetachedRepository(detachedRepository, detached);
 		}
 
 		const config = workspace.getConfiguration('git', Uri.file(repoPath));
@@ -760,12 +758,12 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 			const existingRepository = await this.getRepositoryExact(repositoryRoot);
 			if (existingRepository) {
 				this.logger.trace(`[Model][openRepository] Repository for path ${repositoryRoot} already exists: ${existingRepository.root}`);
-				return undefined;
+				return existingRepository;
 			}
 
 			const detachedRepository = this.getDetachedRepository(repositoryRoot);
 			if (detachedRepository) {
-				return this.openDetachedRepository(detachedRepository, openIfClosed, detached);
+				return this.openDetachedRepository(detachedRepository, detached);
 			}
 
 			if (this.shouldRepositoryBeIgnored(repositoryRoot)) {
@@ -849,7 +847,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 				this._repositoryCache.update(repository.remotes, [], repository.root);
 			});
 
-			return detached ? repository : undefined;
+			return repository;
 		} catch (err) {
 			// noop
 			this.logger.trace(`[Model][openRepository] Opening repository for path='${repoPath}' failed. Error:${err}`);
@@ -1077,19 +1075,15 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 	}
 
 	/**
-	 * An open of a detached repository, see {@link openRepository}.
+	 * An open of a detached repository, see {@link openRepository}. A repository that it attaches is not kept warm anymore.
 	 */
-	private openDetachedRepository(repository: Repository, openIfClosed: boolean, detached: boolean): Repository | undefined {
+	private openDetachedRepository(repository: Repository, detached: boolean): Repository {
 		this.logger.trace(`[Model][openRepository] Repository is detached: ${repository.root}`);
-		if (detached) {
-			return repository;
-		}
-
-		if (openIfClosed) {
+		if (!detached) {
 			this.workspaceFolderRepositories.delete(repository);
 			this.attachRepository(repository, false);
 		}
-		return undefined;
+		return repository;
 	}
 
 	private getDetachedRepository(repoPath: string): Repository | undefined {
