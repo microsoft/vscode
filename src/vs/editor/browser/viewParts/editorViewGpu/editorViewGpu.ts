@@ -4,13 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './editorViewGpu.css';
-import type { EditorView, EditorViewConfig, EditorViewModule, CursorInput, CursorStyle, DecorationInput, DecorationRangeInput, FoldingControlInput, LineInput, ModelDeltaInput, SelectionInput, TokenInput } from './editorViewTypes.js';
-import { addDisposableListener, EventType, getWindow, WindowIntervalTimer } from '../../../../base/browser/dom.js';
+import type { EditorView, EditorViewConfig, EditorViewGroup, EditorViewModule, CursorInput, CursorStyle, DecorationInput, DecorationRangeInput, FoldingControlInput, LineInput, ModelDeltaInput, SelectionInput, TokenInput } from './editorViewTypes.js';
+import { addDisposableListener, EventType, getWindow, onDidUnregisterWindow, WindowIntervalTimer } from '../../../../base/browser/dom.js';
 import { createFastDomNode, type FastDomNode } from '../../../../base/browser/fastDomNode.js';
 import { Color } from '../../../../base/common/color.js';
 import { equals } from '../../../../base/common/arrays.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Emitter, type Event } from '../../../../base/common/event.js';
+import { markAsSingleton, type IDisposable } from '../../../../base/common/lifecycle.js';
 import { resolveAmdNodeModulePath } from '../../../../amdX.js';
 import { editorBackground, editorForeground, editorSelectionBackground, editorSelectionForeground, editorInactiveSelection } from '../../../../platform/theme/common/colorRegistry.js';
 import { isHighContrast } from '../../../../platform/theme/common/theme.js';
@@ -161,6 +162,31 @@ function spliceUnsent<T>(array: (T | undefined)[], start: number, deleteCount: n
 	for (const value of tail) {
 		array.push(value);
 	}
+}
+
+/**
+ * The editors of a window share one WebGPU device and glyph atlas through its
+ * group, which is disposed with the window. `null` once a window's group
+ * failed to give an editor a renderer, for example without WebGPU: the
+ * window's editors then render with devices of their own.
+ */
+const editorViewGroups = new Map<Window, EditorViewGroup | null>();
+let editorViewGroupsListener: IDisposable | undefined;
+
+function editorViewGroup(mod: EditorViewModule, targetWindow: Window): EditorViewGroup | undefined {
+	if (!mod.EditorViewGroup) {
+		return undefined;
+	}
+	let group = editorViewGroups.get(targetWindow);
+	if (group === undefined) {
+		group = new mod.EditorViewGroup();
+		editorViewGroups.set(targetWindow, group);
+		editorViewGroupsListener ??= markAsSingleton(onDidUnregisterWindow(window => {
+			editorViewGroups.get(window)?.dispose();
+			editorViewGroups.delete(window);
+		}));
+	}
+	return group ?? undefined;
 }
 
 /**
@@ -408,12 +434,27 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 			}
 
 			const { width, height, dpr } = this._measure();
-			this._editorView = await mod.EditorView.create(this.canvas.domNode, {
+			const options = {
 				width: Math.max(1, Math.round(width * dpr)),
 				height: Math.max(1, Math.round(height * dpr)),
 				config: this._buildConfig(),
 				onRendererLost: () => this._onRendererLost(),
-			});
+			};
+			const targetWindow = getWindow(this._editorRoot);
+			const group = editorViewGroup(mod, targetWindow);
+			try {
+				this._editorView = await mod.EditorView.create(this.canvas.domNode, { ...options, group });
+			} catch (err) {
+				if (!group || this._disposed) {
+					throw err;
+				}
+				// The window's later editors render with devices of their own,
+				// which can fall back to WebGL2; its earlier ones keep the group.
+				if (editorViewGroups.get(targetWindow) === group) {
+					editorViewGroups.set(targetWindow, null);
+				}
+				this._editorView = await mod.EditorView.create(this.canvas.domNode, options);
+			}
 			if (this._disposed) {
 				this._editorView.dispose();
 				this._editorView = undefined;

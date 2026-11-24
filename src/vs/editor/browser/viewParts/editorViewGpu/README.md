@@ -273,6 +273,21 @@ no renderer can be created, for example when the browser has disabled WebGPU
 after repeated GPU crashes or does not restore a WebGL2 context within five
 seconds, the editor falls back to DOM rendering as after a failed start.
 
+## One device per window
+
+The editors of a window share one WebGPU device and glyph atlas through the
+package's `EditorViewGroup`, which the adapter creates for the window on its
+first editor and disposes when the window closes. They draw with one set of
+pipelines, the frames they render in a task are submitted at once, and a glyph
+rasterized for one is drawn by all. VS Code builds a new view for every model
+an editor shows, so without the group every tab switch, peek view, diff side
+and notebook cell scrolled into view acquired a device and filled an atlas of
+its own. After a device loss every editor of the window reports it, and they
+recover onto one new device. A group needs WebGPU: if it fails to give an
+editor a renderer, the window's later editors create devices of their own,
+which can fall back to WebGL2. Packages without `EditorViewGroup` (npm 0.0.1)
+give every editor its own device.
+
 ## Decoration probes in auxiliary windows
 
 Decoration probe elements are created in the main-window DOM realm even when

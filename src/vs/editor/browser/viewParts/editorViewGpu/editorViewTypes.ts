@@ -267,6 +267,16 @@ export interface EditorView {
 	dispose(): void;
 }
 
+/**
+ * Editor views that share one WebGPU device and glyph atlas (absent in npm
+ * 0.0.1): the views draw with one set of pipelines, every canvas they render
+ * in a task is submitted at once, and a glyph rasterized for one is drawn by
+ * all. Needs WebGPU; dispose it after its views.
+ */
+export interface EditorViewGroup {
+	dispose(): void;
+}
+
 export interface EditorViewModule {
 	EditorView: {
 		create(canvas: HTMLCanvasElement, options: {
@@ -275,6 +285,10 @@ export interface EditorViewModule {
 			config: EditorViewConfig;
 			/** Called when the renderer loses its GPU device or WebGL2 context. Ignored by npm 0.0.1. */
 			onRendererLost?: (reason: string) => void;
+			/** Share the group's WebGPU device and glyph atlas; creating the renderer rejects without WebGPU. */
+			group?: EditorViewGroup;
 		}): Promise<EditorView>;
 	};
+	/** Absent in npm 0.0.1. */
+	EditorViewGroup?: new () => EditorViewGroup;
 }
