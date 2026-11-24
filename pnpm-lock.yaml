@@ -170,7 +170,7 @@ overrides:
   yauzl: ^3.3.1
   vscode-css-languageservice>vscode-languageserver-types: 3.18.3
   lodash-es: 4.18.1
-  '@vscode/web-editors@0.0.2-76>@vscode/hubrpc': 0.0.2-20
+  '@vscode/web-editors@0.0.2-150>@vscode/hubrpc': 0.0.2-54
   '@vscode/web-editors@0.0.2-104>@vscode/hubrpc': 0.0.2-54
   '@vscode/web-editors@0.0.2-41>@vscode/hubrpc': 0.0.2-15
   '@azure/msal-node-extensions@5.3.2>keytar': file:extensions/microsoft-authentication/packageMocks/keytar
@@ -202,8 +202,8 @@ importers:
         specifier: ^3.2.13
         version: 3.2.13(tslib@2.8.1)
       '@microsoft/copilot-sdk':
-        specifier: 2.0.1
-        version: 2.0.1
+        specifier: 2.0.2-unstable.45286541461.g05667ac
+        version: 2.0.2-unstable.45286541461.g05667ac
       '@microsoft/dev-tunnels-connections':
         specifier: ^1.3.61
         version: 1.3.61(@microsoft/dev-tunnels-ssh-tcp@3.12.22)(@microsoft/dev-tunnels-ssh@3.12.22)
@@ -235,8 +235,8 @@ importers:
         specifier: ^0.1.1
         version: 0.1.5
       '@vscode/diff':
-        specifier: 0.0.2-145
-        version: 0.0.2-145
+        specifier: 0.0.2-154
+        version: 0.0.2-154
       '@vscode/fs-copyfile':
         specifier: 2.0.0
         version: 2.0.0
@@ -454,9 +454,6 @@ importers:
       '@types/windows-foreground-love':
         specifier: ^0.3.0
         version: 0.3.0
-      '@types/winreg':
-        specifier: ^1.2.30
-        version: 1.2.30
       '@types/ws':
         specifier: ^8.18.1
         version: 8.18.1
@@ -493,15 +490,9 @@ importers:
       '@vscode/test-electron':
         specifier: ^2.4.0
         version: 2.4.0
-      '@vscode/test-web':
-        specifier: ^0.0.81
-        version: 0.0.81(kerberos@2.1.1)
       '@webgpu/types':
         specifier: ^0.1.66
         version: 0.1.66
-      ansi-colors:
-        specifier: ^3.2.3
-        version: 3.2.3
       asar:
         specifier: ^3.0.3
         version: 3.0.3
@@ -574,9 +565,6 @@ importers:
       gulp-sourcemaps:
         specifier: ^3.0.0
         version: 3.0.0
-      husky:
-        specifier: ^0.13.1
-        version: 0.13.4
       innosetup:
         specifier: ^6.4.1
         version: 6.4.1
@@ -697,9 +685,6 @@ importers:
         specifier: 5.5.4
         version: 5.5.4
     devDependencies:
-      '@types/mocha':
-        specifier: ^10.0.10
-        version: 10.0.10
       '@types/node':
         specifier: 24.x
         version: 24.12.4
@@ -1133,9 +1118,6 @@ importers:
       jsonc-parser:
         specifier: ^3.3.1
         version: 3.3.1
-      monaco-editor:
-        specifier: 0.44.0
-        version: 0.44.0
       openai:
         specifier: ^6.7.0
         version: 6.7.0(ws@8.21.0)(zod@4.4.3)
@@ -1198,8 +1180,8 @@ importers:
   extensions/css-language-features:
     dependencies:
       vscode-languageclient:
-        specifier: ^10.1.1
-        version: 10.1.1
+        specifier: ^11.0.0
+        version: 11.0.0
       vscode-uri:
         specifier: ^3.2.0
         version: 3.2.0
@@ -1214,11 +1196,11 @@ importers:
         specifier: ^0.0.18
         version: 0.0.18
       vscode-css-languageservice:
-        specifier: ^7.0.0-next.2
-        version: 7.0.0-next.2
+        specifier: ^7.0.0-next.4
+        version: 7.0.0-next.4
       vscode-languageserver:
-        specifier: ^10.1.1
-        version: 10.1.1
+        specifier: ^11.0.0
+        version: 11.0.0
       vscode-uri:
         specifier: ^3.2.0
         version: 3.2.0
@@ -1227,8 +1209,8 @@ importers:
         specifier: 24.x
         version: 24.12.4
       glob:
-        specifier: ^5.0.13
-        version: 5.0.15
+        specifier: ^14.0.6
+        version: 14.0.6
 
   extensions/debug-auto-launch:
     devDependencies:
@@ -1412,8 +1394,8 @@ importers:
         specifier: ^0.9.9
         version: 0.9.9(tslib@2.8.1)
       vscode-languageclient:
-        specifier: ^10.1.1
-        version: 10.1.1
+        specifier: ^11.0.0
+        version: 11.0.0
       vscode-uri:
         specifier: ^3.2.0
         version: 3.2.0
@@ -1428,17 +1410,17 @@ importers:
         specifier: ^0.0.18
         version: 0.0.18
       vscode-css-languageservice:
-        specifier: ^7.0.0-next.2
-        version: 7.0.0-next.2
+        specifier: ^7.0.0-next.4
+        version: 7.0.0-next.4
       vscode-html-languageservice:
-        specifier: ^6.0.0-next.2
-        version: 6.0.0-next.2
+        specifier: ^6.0.0-next.3
+        version: 6.0.0-next.3
       vscode-languageserver:
-        specifier: ^10.1.1
-        version: 10.1.1
+        specifier: ^11.0.0
+        version: 11.0.0
       vscode-languageserver-textdocument:
-        specifier: ^1.0.14
-        version: 1.0.14
+        specifier: ^1.0.16
+        version: 1.0.16
       vscode-uri:
         specifier: ^3.2.0
         version: 3.2.0
@@ -1447,8 +1429,8 @@ importers:
         specifier: 24.x
         version: 24.12.4
       glob:
-        specifier: ^5.0.13
-        version: 5.0.15
+        specifier: ^14.0.6
+        version: 14.0.6
 
   extensions/ipynb:
     dependencies:
@@ -1499,24 +1481,15 @@ importers:
         specifier: ^0.8.0
         version: 0.8.0
       vscode-languageclient:
-        specifier: ^10.1.1
-        version: 10.1.1
+        specifier: ^11.0.0
+        version: 11.0.0
     devDependencies:
-      '@types/glob':
-        specifier: 7.1.3
-        version: 7.1.3
-      '@types/mocha':
-        specifier: ^10.0.10
-        version: 10.0.10
       '@types/node':
         specifier: 24.x
         version: 24.12.4
       glob:
-        specifier: ^5.0.13
-        version: 5.0.15
-      mocha:
-        specifier: ^10.8.2
-        version: 10.8.2
+        specifier: ^14.0.6
+        version: 14.0.6
 
   extensions/json-language-features/server:
     dependencies:
@@ -1527,11 +1500,11 @@ importers:
         specifier: ^0.8.0
         version: 0.8.0
       vscode-json-languageservice:
-        specifier: ^6.0.0-next.4
-        version: 6.0.0-next.4
+        specifier: ^6.0.0-next.5
+        version: 6.0.0-next.5
       vscode-languageserver:
-        specifier: ^10.1.1
-        version: 10.1.1
+        specifier: ^11.0.0
+        version: 11.0.0
       vscode-uri:
         specifier: ^3.1.0
         version: 3.2.0
@@ -1546,14 +1519,14 @@ importers:
         specifier: ^0.9.8
         version: 0.9.8(tslib@2.8.1)
       '@vscode/markdown-editor':
-        specifier: 0.0.2-179
-        version: 0.0.2-179
+        specifier: 0.0.2-184
+        version: 0.0.2-184
       '@vscode/observables':
         specifier: ^0.1.1-0
         version: 0.1.1-0
       '@vscode/web-editors':
-        specifier: ^0.0.2-41
-        version: 0.0.2-76(zod@4.4.3)
+        specifier: ^0.0.2-150
+        version: 0.0.2-150(zod@4.4.3)
       dompurify:
         specifier: ^3.4.10
         version: 3.4.16
@@ -1610,8 +1583,8 @@ importers:
         specifier: ^1.57.0
         version: 1.57.0
       '@vscode/hubrpc':
-        specifier: 0.0.2-20
-        version: 0.0.2-20(zod@4.4.3)
+        specifier: 0.0.2-54
+        version: 0.0.2-54(zod@4.4.3)
       '@vscode/markdown-it-katex':
         specifier: ^1.1.1
         version: 1.1.1
@@ -2150,9 +2123,6 @@ importers:
       file-loader:
         specifier: ^6.2.0
         version: 6.2.0(webpack@5.105.4)
-      glob:
-        specifier: ^5.0.13
-        version: 5.0.15
       playwright:
         specifier: ^1.61.1
         version: 1.61.1
@@ -2303,6 +2273,21 @@ importers:
       '@playwright/test':
         specifier: ^1.61.1
         version: 1.61.1
+      '@types/glob':
+        specifier: ^5.0.38
+        version: 5.0.38
+      '@types/minimatch':
+        specifier: ^3.0.3
+        version: 3.0.3
+      '@types/minimist':
+        specifier: ^1.2.1
+        version: 1.2.5
+      '@types/mocha':
+        specifier: ^10.0.10
+        version: 10.0.10
+      '@types/node':
+        specifier: 24.x
+        version: 24.13.2
       '@vscode/v8-heap-parser':
         specifier: ^0.1.0
         version: 0.1.0
@@ -3804,6 +3789,9 @@ packages:
     resolution: {integrity: sha512-wgm9Ehl2jpeqP3zw/7mo3kRHFp5MEDhqAdwy1fTGkHAwnkGOVsgpvQhL8B5n1qlb01jV3n/bI0ZfZp5lWA1k4w==}
     engines: {node: '>=18.0.0'}
 
+  '@isaacs/nonrecursive-glob-match@1.1.0':
+    resolution: {integrity: sha512-GPm/Dbvk5RLmhRnxXIa7nTpK0xtl4E0wj0MslsuNiJ1FIROU+2+9lgUC/dgF7Ey4QCWhfEsgxilMRMCdHPfDfw==}
+
   '@istanbuljs/load-nyc-config@1.1.0':
     resolution: {integrity: sha512-VjeHSlIzpv/NyD3N0YuHfXOPDIixcA1q2ZV98wsMqcYlPmv2n3Yb2lYP9XMElnaFVXg5A7YLTeLu6V84uQDjmQ==}
     engines: {node: '>=8'}
@@ -4061,52 +4049,52 @@ packages:
   '@microsoft/applicationinsights-web-snippet@1.0.1':
     resolution: {integrity: sha512-2IHAOaLauc8qaAitvWS+U931T+ze+7MNWrDHY47IENP5y2UA0vqJDu67kWZDdpCN1fFC77sfgfB+HV7SrKshnQ==}
 
-  '@microsoft/copilot-sdk-darwin-arm64@2.0.1':
-    resolution: {integrity: sha512-KqBScY+1w5/znWkWMnLvyiXz/xlk4DXc5EcXUABT/z0jbE2tpJLiTfnmewAUiGvC9jLi+tmEzy2346zUm9+0YQ==}
+  '@microsoft/copilot-sdk-darwin-arm64@2.0.2-unstable.45286541461.g05667ac':
+    resolution: {integrity: sha512-v9GwENsVMN6LVvtW6H2FVygOz7tSpKC4XGlUU2TFkey6msTynRsFSViPUmC7vpWqoXHrfuj812jyvQaLqlVW/w==}
     cpu: [arm64]
     os: [darwin]
 
-  '@microsoft/copilot-sdk-darwin-x64@2.0.1':
-    resolution: {integrity: sha512-thwynJE+nNQRHn2f4DxsXXsDHF66sOAquOyZwmGH9Z6y/VXyNWskKW6lXCuGl5aBxSvZA3UQpEVsKZ8XAVy4OQ==}
+  '@microsoft/copilot-sdk-darwin-x64@2.0.2-unstable.45286541461.g05667ac':
+    resolution: {integrity: sha512-uKMadJIfU69HXCtvjQT2ioYpTdTQ1dAiLI6bChXB9S+seyQz9PWrRFz5RYmWmaGnYlesBjG614v95YRQH6mCtw==}
     cpu: [x64]
     os: [darwin]
 
-  '@microsoft/copilot-sdk-linux-arm64@2.0.1':
-    resolution: {integrity: sha512-NTgh6x6HDp/YvYKPsw9hmRK7Pgt4TzwoNayGFIdtI0PStvJKCjxKjI32Ip9aoBuCPIwM5P6W5sUT8ZhsPYcANw==}
+  '@microsoft/copilot-sdk-linux-arm64@2.0.2-unstable.45286541461.g05667ac':
+    resolution: {integrity: sha512-iIUcWh9oKUFPg1tze7w0WWj5dJRhOLogvDHXfVcO7son+brXJWsXPcPt6znqgiHf4rdgPez5zu/FdOVii2Pm1w==}
     cpu: [arm64]
     os: [linux]
     libc: [glibc]
 
-  '@microsoft/copilot-sdk-linux-x64@2.0.1':
-    resolution: {integrity: sha512-yT4YouoPuK9ReXG2FySTxSWXejMh++Eh35fkVFyQoLHptWBia8dsSHaORt1scFA5bWgyuk/QwB2fJV0tots1TA==}
+  '@microsoft/copilot-sdk-linux-x64@2.0.2-unstable.45286541461.g05667ac':
+    resolution: {integrity: sha512-/AHn012mv+c5AgehuwwHU3sbjl5H0eCaSIXNAvbo2YY2Q5bdldFF1XbEf/JdJuFAWnEFBX40U7mPUHZP4khl2w==}
     cpu: [x64]
     os: [linux]
     libc: [glibc]
 
-  '@microsoft/copilot-sdk-linuxmusl-arm64@2.0.1':
-    resolution: {integrity: sha512-wwPihies9JL3uqeCn0+dvk5Nw8h8afdRppB/ZCQyhyprEcnuU9nauYX1noSeaBnMkFn9noLmR8l7TDfpiVIB1Q==}
+  '@microsoft/copilot-sdk-linuxmusl-arm64@2.0.2-unstable.45286541461.g05667ac':
+    resolution: {integrity: sha512-9BW8ICPEmw0RWNzCYSX0EVf/CGLdgFpXkVOjZ98UReqb7PYvAvIwho7TtPn3K4uXrd3k8el7MjaiEWz6/7oy7A==}
     cpu: [arm64]
     os: [linux]
     libc: [musl]
 
-  '@microsoft/copilot-sdk-linuxmusl-x64@2.0.1':
-    resolution: {integrity: sha512-kdpjVoPe37cIbsOGDrkV5m95F+kY1OQHNeI1jnuwMGHL/KQ+pNc/vgzVfBwxI6sicleqRXFy8+XLJftN96ZjZA==}
+  '@microsoft/copilot-sdk-linuxmusl-x64@2.0.2-unstable.45286541461.g05667ac':
+    resolution: {integrity: sha512-kfKBVXHwXHkPnHpRAdfnVIsyrrc8E1wL9uoT12Pcer3e67Rc3Ueu7S2fvfQi8NGqu9MrW+IyUh9Nng5fkT4Dxg==}
     cpu: [x64]
     os: [linux]
     libc: [musl]
 
-  '@microsoft/copilot-sdk-win32-arm64@2.0.1':
-    resolution: {integrity: sha512-O6wrd/GpKrREpq4iijhoYVQBSO7xkk1aflvMFqr1xBrcgp+WqoSVXkwJtKP3YfsJ/NjwwFPXyJ0EOLHP6RQ1YA==}
+  '@microsoft/copilot-sdk-win32-arm64@2.0.2-unstable.45286541461.g05667ac':
+    resolution: {integrity: sha512-8OlQ4c88SwyxKVZ1Qu9LlN2hCevHGaDMmMAJ4qYmEopCAqp2cr/ZW0UpgIF0FglxmVO4k1aa9xvq0BDXueqDOw==}
     cpu: [arm64]
     os: [win32]
 
-  '@microsoft/copilot-sdk-win32-x64@2.0.1':
-    resolution: {integrity: sha512-psjAzQUhOSsHQtUioGGgfuiHPI10VMA+1f0Lpa6h40P0jiF9904j/o7+zv8MOxO77ai/JacWwlbG4ib6Z0d08A==}
+  '@microsoft/copilot-sdk-win32-x64@2.0.2-unstable.45286541461.g05667ac':
+    resolution: {integrity: sha512-5zsScrn8fd0M8ewJouNC4+EfBUnxhvlXJSza8b7zXW5BJGUUfHbmWkMkvkIXjkMOD7IPvEpyLU48UNQjJY7PsQ==}
     cpu: [x64]
     os: [win32]
 
-  '@microsoft/copilot-sdk@2.0.1':
-    resolution: {integrity: sha512-5ENTz3aTL2duoa9VcfWH9pZjxBlQdIqBu3uN9M/lzggz1Gj0fXh3oCsjZ/a/8qp5N1JDHIcS0FqhH6VJtf0GTg==}
+  '@microsoft/copilot-sdk@2.0.2-unstable.45286541461.g05667ac':
+    resolution: {integrity: sha512-VFiMmF/UsXGy00c0rXji3xj45/5jAmVEBBp/ct/081zNR4Yyu9NUjQHxRKK/JEc6L47Q/UCi2enfiQS3UtomCQ==}
     engines: {node: ^20.19.0 || >=22.12.0}
 
   '@microsoft/dev-tunnels-connections@1.3.61':
@@ -5294,6 +5282,9 @@ packages:
   '@types/geojson@7946.0.16':
     resolution: {integrity: sha512-6C8nqWur3j98U6+lXDfTUWIfgvZU+EumvpHKcYjujKH7woYyLj2sUmff0tRhrqM7BohUw7Pz3ZB1jj2gW9Fvmg==}
 
+  '@types/glob@5.0.38':
+    resolution: {integrity: sha512-rTtf75rwyP9G2qO5yRpYtdJ6aU1QqEhWbtW55qEgquEDa6bXW0s2TWZfDm02GuppjEozOWG/F2UnPq5hAQb+gw==}
+
   '@types/glob@7.1.1':
     resolution: {integrity: sha512-1Bh06cbWJUHMC97acuD6UMG29nMt0Aqz1vF3guLfG+kHHJhy3AyohZFFxYk2f7Q1SQIrNwvncxAE0N/9s70F2w==}
 
@@ -5507,9 +5498,6 @@ packages:
   '@types/windows-foreground-love@0.3.0':
     resolution: {integrity: sha512-tFUVA/fiofNqOh6lZlymvQiQYPY+cZXZPR9mn9wN6/KS8uwx0zgH4Ij/jmFyRYr+x+DGZWEIeknS2BMi7FZJAQ==}
 
-  '@types/winreg@1.2.30':
-    resolution: {integrity: sha512-c4m/hnOI1j34i8hXlkZzelE6SXfOqaTWhBp0UgBuwmpiafh22OpsE261Rlg//agZtQHIY5cMgbkX8bnthUFrmA==}
-
   '@types/ws@8.18.1':
     resolution: {integrity: sha512-ThVF6DCVhA8kUGy+aazFQ4kXQ7E1Ty7A3ypFOe0IcJV8O/M511G99AW24irKrW56Wt44yG9+ij8FaqoBGkuBXg==}
 
@@ -5650,8 +5638,8 @@ packages:
   '@vscode/diff@0.0.2-0':
     resolution: {integrity: sha512-gmwM9W6mLnqNxcCd0u9WTuL3JJjaAuicoNcPWNEbHFe8OS8SvdQ6q+txVQTwLT6ezUnXQ6e8sQwmjPSE384yxQ==}
 
-  '@vscode/diff@0.0.2-145':
-    resolution: {integrity: sha512-atPcmNrAU4B8OsbrmqYlHbZREt//m8z52o400YA8uuvq3Be5wnmIhLoLqhMum7Jv7kRC0FE+m3WAUbaZF681wg==}
+  '@vscode/diff@0.0.2-154':
+    resolution: {integrity: sha512-jP325CWXSEbXOT9PLZ546xamxw7/SDj+a+pwCBE5xCrP35tjkXsPHYp/WMT8q9XEsvohVM6zV2+RMKIWOCS8qg==}
 
   '@vscode/emmet-helper@2.11.0':
     resolution: {integrity: sha512-QLxjQR3imPZPQltfbWRnHU6JecWTF1QSWhx3GAKQpslx7y3Dp6sIIXhKjiUJ/BR9FX8PVthjr9PD6pNwOJfAzw==}
@@ -5689,11 +5677,6 @@ packages:
     peerDependencies:
       zod: ^4.4.3
 
-  '@vscode/hubrpc@0.0.2-20':
-    resolution: {integrity: sha512-v0SvPtUC2I/Gx1Ep3fmyvSQ1CoGUAQHSPvM5qr3IEe2DIIHiT5d0vGdxfR6kAekJ58P6N586CgQAm06ZcKD1Mg==}
-    peerDependencies:
-      zod: ^4.4.3
-
   '@vscode/hubrpc@0.0.2-54':
     resolution: {integrity: sha512-hShcLRaaXLEHvy7y+VGSFacyEz77iHVDxXw5gnmnNad2Tp6XZueAI6NYj/Q7tleTr5KoPNxRBftQyyE4Ggp4tQ==}
     peerDependencies:
@@ -5712,8 +5695,8 @@ packages:
   '@vscode/l10n@0.0.18':
     resolution: {integrity: sha512-KYSIHVmslkaCDyw013pphY+d7x1qV8IZupYfeIfzNA+nsaWHbn5uPuQRvdRFsa9zFzGeudPuoGoZ1Op4jrJXIQ==}
 
-  '@vscode/markdown-editor@0.0.2-179':
-    resolution: {integrity: sha512-wEKzkmRdtVwqgYUUSIiMed8eTQXKB0VITzMRSENo4pAKFWlZFdMJ/X8fXliHgMWUfo7/4kUdO/mabQe+XXNuNw==}
+  '@vscode/markdown-editor@0.0.2-184':
+    resolution: {integrity: sha512-MCoEVhbmi/p6cueeUqoZtYfjAY0xjwIzuThYRQglCLz5JWLvFdb9NWcpDl0bGQROIw4nTZSW8D6uaVQfkpgEoQ==}
 
   '@vscode/markdown-it-katex@1.1.1':
     resolution: {integrity: sha512-3KTlbsRBPJQLE2YmLL7K6nunTlU+W9T5+FjfNdWuIUKgxSS6HWLQHaO3L4MkJi7z7MpIPpY+g4N+cWNBPE/MSA==}
@@ -5880,11 +5863,11 @@ packages:
   '@vscode/web-editors@0.0.2-104':
     resolution: {integrity: sha512-4RKc3aJV8IifzWbllCWFEEpRDD/qnPV6TprMB3mNcfxti9oNri51TL/HrouZsxVut35hEK/5hkEX0mLoDmgUiQ==}
 
+  '@vscode/web-editors@0.0.2-150':
+    resolution: {integrity: sha512-ejJL4VJ3rMijSq/C9fkxuG+s4gy37sM6Ag6i6umsjitpjODMIqiVblV9K968CsWTvUcH8XCLr8f2q8/XhyypjA==}
+
   '@vscode/web-editors@0.0.2-41':
     resolution: {integrity: sha512-HAaDy/gdiSk0Yp38lpZ1Je1Cd7NcWuq1W+aUxwRO/JlOijmsJuZXukAdlIL78hLb0eT+Awrr8VGseY42FUT8rA==}
-
-  '@vscode/web-editors@0.0.2-76':
-    resolution: {integrity: sha512-XqJJeYLr9QrpnuPDAYQFpYLLehXEzsI+hiaXIvTBV5ByJwwIPhUAqL1DFUdYJ7e86hzMG0vreg6x5P35mwkSaQ==}
 
   '@vscode/webview-ui-toolkit@1.4.0':
     resolution: {integrity: sha512-modXVHQkZLsxgmd5yoP3ptRC/G8NBDD+ob+ngPiWNQdlrH6H1xR/qgOBD85bfU3BhOB5sZzFWBwwhp9/SfoHww==}
@@ -6727,9 +6710,6 @@ packages:
   chunk-data@0.1.0:
     resolution: {integrity: sha512-zFyPtyC0SZ6Zu79b9sOYtXZcgrsXe0RpePrzRyj52hYVFG1+Rk6rBqjjOEk+GNQwc3PIX+86teQMok970pod1g==}
     engines: {node: '>=20'}
-
-  ci-info@1.6.0:
-    resolution: {integrity: sha512-vsGdkwSCDpWmP80ncATX7iea5DWQemg1UgCW5J8tqjU3lYw4FBYuj89J0CTVomA7BEfvSZd84GmHko+MxFQU2A==}
 
   cjs-module-lexer@2.2.0:
     resolution: {integrity: sha512-4bHTS2YuzUvtoLjdy+98ykbNB5jS0+07EvFNXerqZQJ89F7DI6ET7OQo/HJuW6K0aVsKA9hj9/RVb2kQVOrPDQ==}
@@ -7854,9 +7834,6 @@ packages:
     resolution: {integrity: sha512-S8KoZgRZN+a5rNwqTxlZZePjT/4cnm0ROV70LedRHZ0p8u9fRID0hJUZQpkKLzro8LfmC8sx23bY6tVNxv8pQA==}
     engines: {node: '>= 18.0.0'}
 
-  find-parent-dir@0.3.1:
-    resolution: {integrity: sha512-o4UcykWV/XN9wm+jMEtWLPlV8RXCZnMhQI6F6OdHeSez7iiJWePw8ijOlskJZMsaQoGR/b7dH6lO02HhaTN7+A==}
-
   find-replace@5.0.2:
     resolution: {integrity: sha512-Y45BAiE3mz2QsrN2fb5QEtO4qb44NcS7en/0y9PEVsg351HsLeVclP8QPMH79Le9sH3rs5RSwJu99W0WPZO43Q==}
     engines: {node: '>=14'}
@@ -8113,6 +8090,10 @@ packages:
     engines: {node: 20 || >=22}
     deprecated: Old versions of glob are not supported, and contain widely publicized security vulnerabilities, which have been fixed in the current version. Please update. Support for old versions may be purchased (at exorbitant rates) by contacting i@izs.me
     hasBin: true
+
+  glob@14.0.6:
+    resolution: {integrity: sha512-OwXjVP2svY5EyLY75Vek96C8qK43gqrt4xsZ+qSILdnaEiJPXkd62mcfUSNx/TQErQRdu5uM5kF67sfONragKw==}
+    engines: {node: 18 || 20 || >=22}
 
   glob@5.0.15:
     resolution: {integrity: sha512-c9IPMazfRITpmAAKi22dK1VKxGDX9ehhqfABDriL/lzO92xcUKEJPQHrVA/2YHSNFB4iFlykVmWvwo48nr3OxA==}
@@ -8372,9 +8353,6 @@ packages:
     resolution: {integrity: sha512-ag87y7cJJ9/3+GxFr8Oy4O5faDsGRGnBGsJj/YjOSsSx/5eadKLYTMPlzuR6obgoCDDm0abAAZitXXQkMOPSpA==}
     engines: {node: '>= 20'}
 
-  husky@0.13.4:
-    resolution: {integrity: sha512-kafsK/82ndSVKJe1IoR/z7NKkiI2LYM6H+VNI/YlKOeoOXEJTpD65TNu05Zx7pzSZzLuAdMt4fHgpUsnd6HJ7A==}
-
   iconv-lite@0.6.3:
     resolution: {integrity: sha512-4fCk79wshMdzMp2rH06qWrJE4iolqLhCUH+OiuIgU++RB0+94NlDL81atO7GX55uUKueo0txHNtvEyI6D7WdMw==}
     engines: {node: '>=0.10.0'}
@@ -8515,10 +8493,6 @@ packages:
   is-callable@1.2.7:
     resolution: {integrity: sha512-1BC0BVFhS/p0qtw6enp8e+8OD0UrK0oFLztSjNzhcKA3WDuJxxAPXzPuPtKkjEY9UUoEWlX/8fgKeu2S8i9JTA==}
     engines: {node: '>= 0.4'}
-
-  is-ci@1.2.1:
-    resolution: {integrity: sha512-s6tfsaQaQi3JNciBH6shVqEDvhGut0SUXr31ag8Pd8BBbVVlcGfWhpPmEOoM6RJ5TFhbypvf5yyRw/VXW1IiWg==}
-    hasBin: true
 
   is-core-module@2.16.1:
     resolution: {integrity: sha512-UfoeMA6fIJ8wTYFEUjelnaGI67v6+N7qXJEvQuIGa99l4xsCruSYOVSQ0uPANn4dAzm8lkYPaKLrrijLq7x23w==}
@@ -9526,6 +9500,10 @@ packages:
     resolution: {integrity: sha512-vpLQEs+VLCr1nU0BXS07maYoFwlDAH0gngQuuttxIwutDFEMHq2blX+8vpgxDdK3J1PwjCJiep77OitTZ4Ll1A==}
     engines: {node: 18 || 20 || >=22}
 
+  minimatch@11.0.8:
+    resolution: {integrity: sha512-nFQuYSTVrGvysVBps5Ih+0BdnYFN/Cj3C816r6+p7yK+FHrVLGE4O4N9AFwykrlNlvM2HYt+Rad1Uiro6h88Ig==}
+    engines: {node: 20 || >=22}
+
   minimatch@3.1.5:
     resolution: {integrity: sha512-VgjWUsnnT6n+NUk6eZq77zeFdpW2LWDzP6zFGrCbHXiYNul5Dzqk2HHQ5uFH2DNW5Xbp8+jVzaeNt94ssEEl4w==}
 
@@ -9774,10 +9752,6 @@ packages:
 
   normalize-package-data@2.5.0:
     resolution: {integrity: sha512-/5CMN3T0R4XTj4DcGaexo+roZSdSFW/0AOOTROrjxzCG1wrWXEsGbRKevjlIL+ZDE4sZlJr5ED4YW0yqmkK+eA==}
-
-  normalize-path@1.0.0:
-    resolution: {integrity: sha512-7WyT0w8jhpDStXRq5836AMmihQwq2nrUVQrgjvUo/p/NZf9uy/MeJ246lBJVmWuYXMlJuG9BNZHF0hWjfTbQUA==}
-    engines: {node: '>=0.10.0'}
 
   normalize-path@2.1.1:
     resolution: {integrity: sha512-3pKJwH184Xo/lnH6oyP1q2pMd7HcypqqmRs91/6/i2CGtWwIKGCkOOMTm/zXbgTEWHw1uNpNi/igc3ePOYHb6w==}
@@ -10089,6 +10063,10 @@ packages:
   path-scurry@2.0.0:
     resolution: {integrity: sha512-ypGJsmGtdXUOeM5u93TyeIEfEhM6s+ljAhrk5vAvSx8uyY/02OvrZnA0YNGUrPXfpJMgI1ODd3nwz8Npx4O4cg==}
     engines: {node: 20 || >=22}
+
+  path-scurry@3.0.0:
+    resolution: {integrity: sha512-1pTbQqH1wIwMi/eleQ5leFTTCkzFsPcgXNjwOA8YGGW/W4/kHT3dssE7Z6NH+zuqNLOzOB0uaD61yl7cAcVhgg==}
+    engines: {node: 18 || 20 || >=22}
 
   path-to-regexp@1.9.0:
     resolution: {integrity: sha512-xIp7/apCFJuUHdDLWe8O1HIkb0kQrOMb/0u6FXQjemHn/ii5LrIzU6bdECnsiTF/GjZkMEKg1xdiZwNqDYlZ6g==}
@@ -11805,18 +11783,18 @@ packages:
       jsdom:
         optional: true
 
-  vscode-css-languageservice@7.0.0-next.2:
-    resolution: {integrity: sha512-fC+0QQhQInm8UWBRN6LVhQ7C6eb+bpvdyMGsj2fOzIh4YatGjwS/GaAP3NHz9HKiZH3IltfWv6shRQriqDEDJg==}
+  vscode-css-languageservice@7.0.0-next.4:
+    resolution: {integrity: sha512-deGlIqpIimwkRwlIKzFeHrRCYqRSZfJEVouz7T+Ca+sKIegAlXeJXNQJG+stdSYWpkVj0e3Vy+xzUo6A/aYXlQ==}
 
   vscode-grammar-updater@1.1.0:
     resolution: {integrity: sha512-rWcJXyEFK27Mh9bxfBTLaul0KiGQk0GMXj2qTDH9cy3UZVx5MrF035B03os1w4oIXwl/QDhdLnsBK0j2SNiL1A==}
     hasBin: true
 
-  vscode-html-languageservice@6.0.0-next.2:
-    resolution: {integrity: sha512-qIDd+QA2GaChyABgR1chw9CQAdUVebl9jOPlxqt+pKnJo1+Xj9BMlJZXQ8gS6ZqaRi8Z/Boz7cQkG/gIP7h0xw==}
+  vscode-html-languageservice@6.0.0-next.3:
+    resolution: {integrity: sha512-vLraHzjYUN9hTreVDQHTR9bANU0VZMzYId19DmvHBZNpOXZqlwqIM7337mfnuk1OUnD8SRe6FEaxZvwENylcRg==}
 
-  vscode-json-languageservice@6.0.0-next.4:
-    resolution: {integrity: sha512-r65oYpzysoBz2J7/eyP7rU8bApUxvbBkLxvdkxdtbTnvmxO8Jv5Ls2+dqejXduRXU0Pue4XMl1wnypzvJbHi4g==}
+  vscode-json-languageservice@6.0.0-next.5:
+    resolution: {integrity: sha512-NmlN50yOP573pmBHZi+U91PFthPj4Xhye+R349XmnVGJaqoIQVM7rsaZRu9q9wOKhkH+qUoL6M5JvOYBo0WvAQ==}
 
   vscode-jsonrpc@10.0.0:
     resolution: {integrity: sha512-USSfxg0vDIpTQqlQBGxF3mBARyoS8cU7LHLpbYNh6dOJt32dlskxPWB0Irrh5TllTmyf7oNLAvqDqzklbwwnpA==}
@@ -11834,12 +11812,8 @@ packages:
     resolution: {integrity: sha512-kdjOSJ2lLIn7r1rtrMbbNCHjyMPfRnowdKjBQ+mGq6NAW5QY2bEZC/khaC5OR8svbbjvLEaIXkOq45e2X9BIbQ==}
     engines: {node: '>=14.0.0'}
 
-  vscode-jsonrpc@9.0.2:
-    resolution: {integrity: sha512-SbQSV9yRemARxeXw6LU5sS6Zq0e9/DgCCX5yelH263ZQWukbTk8EF8fjTrr1dziasf4GwlJbvTwFnTrnQFWZXQ==}
-    engines: {node: '>=14.0.0'}
-
-  vscode-languageclient@10.1.1:
-    resolution: {integrity: sha512-EbwIF+KUbwxD5jumQNpiBCv7BJM3Rierv4hcbw/p5jdsnwFFpR/B2VmwqfH4p5XsK46nkH3ugA3WtwJekHHJEw==}
+  vscode-languageclient@11.0.0:
+    resolution: {integrity: sha512-kVyeGLfyd1M74PbMNPfFkgRnhMYgnt6YGc5uXr/tNMzCpfZ0wFtfiqmqX1M05kkdNgV0HSozEUPvgggJbyIAYw==}
     engines: {vscode: ^1.91.0}
 
   vscode-languageclient@9.0.1:
@@ -11849,14 +11823,14 @@ packages:
   vscode-languageserver-protocol@3.17.5:
     resolution: {integrity: sha512-mb1bvRJN8SVznADSGWM9u/b07H7Ecg0I3OgXDuLdn307rl/J3A9YD6/eYOssqhecL27hK1IPZAsaqh00i/Jljg==}
 
-  vscode-languageserver-protocol@3.18.3:
-    resolution: {integrity: sha512-DF49+WeV5py4zO5hhobp60jjsDSK0lAqA0OuKBLBvp423HPWQcCbhZz3JgyfIewsEz2f8U+X75xNIFHdiXZm2w==}
+  vscode-languageserver-protocol@3.18.5:
+    resolution: {integrity: sha512-FW4fBMzZ99N8xeob4py0l050wgCoRgTpEq5Xcsb9lM1bc29UKGR/wSV+4knaqFxssFHajy7OzNiKP/m3U1ZEuA==}
 
   vscode-languageserver-textdocument@1.0.12:
     resolution: {integrity: sha512-cxWNPesCnQCcMPeenjKKsOCKQZ/L6Tv19DTRIGuLWe32lyzWhihGVJ/rcckZXJxfdKCFvRLS3fpBIsV/ZGX4zA==}
 
-  vscode-languageserver-textdocument@1.0.14:
-    resolution: {integrity: sha512-EQyqJMi552E4ZTf46izQ4Fj6XquqxCySR3J5ZSD1SisMf6RfpeOWHxGBE8Gr6V0/3GHIGdAzDn8F8+1nTGCnoQ==}
+  vscode-languageserver-textdocument@1.0.16:
+    resolution: {integrity: sha512-qeNEuOi9a3qkqRf7Gfez2WL2VwlBTLCNekHBGO9kxPVUp9XuY15yfTJ9jwvOwKI0I2MhUUfZq95NSp+LK1CLQg==}
 
   vscode-languageserver-types@3.17.5:
     resolution: {integrity: sha512-Ld1VelNuX9pdF39h2Hgaeb5hEZM2Z3jUrrMgWQAu82jMtZp7p3vJT3BzToKtZI7NgQssZje5o0zryOrhQvzQAg==}
@@ -11864,8 +11838,11 @@ packages:
   vscode-languageserver-types@3.18.3:
     resolution: {integrity: sha512-XIlzJ7Qp/jzSI1ds7/FwPAWrPeTZA7pAtlW4hdJ1J6xXWJL6dR9QYnDhJOdLzdKhUQ5Mm6mvUMw+3DcOQQasPw==}
 
-  vscode-languageserver@10.1.1:
-    resolution: {integrity: sha512-/cG04Fiq99rEtoDrfPpv0k6NyUFlck5GNtZLQZv1rxkBkc/4FrJNvEKTN5k1Si3O1hRguP++ciYlX9cdjdYxFQ==}
+  vscode-languageserver-types@3.18.5:
+    resolution: {integrity: sha512-kPd6+JQNz3HMJvjKlqUxERSlZHAntl/aGpsk7ImwIh0ewDKDcjgAEyVSYciPiOJD3ftbK9IrfiqUeTZLSbCizw==}
+
+  vscode-languageserver@11.0.0:
+    resolution: {integrity: sha512-dOyMIyq0PNVJhTkj+FZoi3H8N3WffNSZEepfbQT+x2E16x1ONPacSx00DoVRqyVKO7PN35ixj/l2RQwQmStkNg==}
     hasBin: true
 
   vscode-languageserver@9.0.1:
@@ -14388,6 +14365,8 @@ snapshots:
     dependencies:
       minipass: 7.1.3
 
+  '@isaacs/nonrecursive-glob-match@1.1.0': {}
+
   '@istanbuljs/load-nyc-config@1.1.0':
     dependencies:
       camelcase: 5.3.1
@@ -14689,45 +14668,45 @@ snapshots:
 
   '@microsoft/applicationinsights-web-snippet@1.0.1': {}
 
-  '@microsoft/copilot-sdk-darwin-arm64@2.0.1':
+  '@microsoft/copilot-sdk-darwin-arm64@2.0.2-unstable.45286541461.g05667ac':
     optional: true
 
-  '@microsoft/copilot-sdk-darwin-x64@2.0.1':
+  '@microsoft/copilot-sdk-darwin-x64@2.0.2-unstable.45286541461.g05667ac':
     optional: true
 
-  '@microsoft/copilot-sdk-linux-arm64@2.0.1':
+  '@microsoft/copilot-sdk-linux-arm64@2.0.2-unstable.45286541461.g05667ac':
     optional: true
 
-  '@microsoft/copilot-sdk-linux-x64@2.0.1':
+  '@microsoft/copilot-sdk-linux-x64@2.0.2-unstable.45286541461.g05667ac':
     optional: true
 
-  '@microsoft/copilot-sdk-linuxmusl-arm64@2.0.1':
+  '@microsoft/copilot-sdk-linuxmusl-arm64@2.0.2-unstable.45286541461.g05667ac':
     optional: true
 
-  '@microsoft/copilot-sdk-linuxmusl-x64@2.0.1':
+  '@microsoft/copilot-sdk-linuxmusl-x64@2.0.2-unstable.45286541461.g05667ac':
     optional: true
 
-  '@microsoft/copilot-sdk-win32-arm64@2.0.1':
+  '@microsoft/copilot-sdk-win32-arm64@2.0.2-unstable.45286541461.g05667ac':
     optional: true
 
-  '@microsoft/copilot-sdk-win32-x64@2.0.1':
+  '@microsoft/copilot-sdk-win32-x64@2.0.2-unstable.45286541461.g05667ac':
     optional: true
 
-  '@microsoft/copilot-sdk@2.0.1':
+  '@microsoft/copilot-sdk@2.0.2-unstable.45286541461.g05667ac':
     dependencies:
       koffi: 3.2.1
       lossless-json: 4.3.3
       vscode-jsonrpc: 10.0.0
       zod: 4.6.7
     optionalDependencies:
-      '@microsoft/copilot-sdk-darwin-arm64': 2.0.1
-      '@microsoft/copilot-sdk-darwin-x64': 2.0.1
-      '@microsoft/copilot-sdk-linux-arm64': 2.0.1
-      '@microsoft/copilot-sdk-linux-x64': 2.0.1
-      '@microsoft/copilot-sdk-linuxmusl-arm64': 2.0.1
-      '@microsoft/copilot-sdk-linuxmusl-x64': 2.0.1
-      '@microsoft/copilot-sdk-win32-arm64': 2.0.1
-      '@microsoft/copilot-sdk-win32-x64': 2.0.1
+      '@microsoft/copilot-sdk-darwin-arm64': 2.0.2-unstable.45286541461.g05667ac
+      '@microsoft/copilot-sdk-darwin-x64': 2.0.2-unstable.45286541461.g05667ac
+      '@microsoft/copilot-sdk-linux-arm64': 2.0.2-unstable.45286541461.g05667ac
+      '@microsoft/copilot-sdk-linux-x64': 2.0.2-unstable.45286541461.g05667ac
+      '@microsoft/copilot-sdk-linuxmusl-arm64': 2.0.2-unstable.45286541461.g05667ac
+      '@microsoft/copilot-sdk-linuxmusl-x64': 2.0.2-unstable.45286541461.g05667ac
+      '@microsoft/copilot-sdk-win32-arm64': 2.0.2-unstable.45286541461.g05667ac
+      '@microsoft/copilot-sdk-win32-x64': 2.0.2-unstable.45286541461.g05667ac
 
   '@microsoft/dev-tunnels-connections@1.3.61(@microsoft/dev-tunnels-ssh-tcp@3.12.22)(@microsoft/dev-tunnels-ssh@3.12.22)':
     dependencies:
@@ -15832,6 +15811,11 @@ snapshots:
 
   '@types/geojson@7946.0.16': {}
 
+  '@types/glob@5.0.38':
+    dependencies:
+      '@types/minimatch': 3.0.3
+      '@types/node': 24.13.2
+
   '@types/glob@7.1.1':
     dependencies:
       '@types/events': 3.0.0
@@ -15842,6 +15826,7 @@ snapshots:
     dependencies:
       '@types/minimatch': 3.0.3
       '@types/node': 24.12.4
+    optional: true
 
   '@types/hast@3.0.4':
     dependencies:
@@ -16032,8 +16017,6 @@ snapshots:
 
   '@types/windows-foreground-love@0.3.0': {}
 
-  '@types/winreg@1.2.30': {}
-
   '@types/ws@8.18.1':
     dependencies:
       '@types/node': 24.12.4
@@ -16199,7 +16182,7 @@ snapshots:
 
   '@vscode/diff@0.0.2-0': {}
 
-  '@vscode/diff@0.0.2-145': {}
+  '@vscode/diff@0.0.2-154': {}
 
   '@vscode/emmet-helper@2.11.0':
     dependencies:
@@ -16296,15 +16279,6 @@ snapshots:
       - bufferutil
       - utf-8-validate
 
-  '@vscode/hubrpc@0.0.2-20(zod@4.4.3)':
-    dependencies:
-      '@hpke/core': 1.9.0
-      ws: 8.21.3
-      zod: 4.4.3
-    transitivePeerDependencies:
-      - bufferutil
-      - utf-8-validate
-
   '@vscode/hubrpc@0.0.2-54(zod@4.4.3)':
     dependencies:
       '@hpke/core': 1.9.0
@@ -16335,7 +16309,7 @@ snapshots:
 
   '@vscode/l10n@0.0.18': {}
 
-  '@vscode/markdown-editor@0.0.2-179':
+  '@vscode/markdown-editor@0.0.2-184':
     dependencies:
       '@vscode/codicons': 0.0.46-36
       '@vscode/diff': 0.0.2-0
@@ -16578,17 +16552,17 @@ snapshots:
       - utf-8-validate
       - zod
 
-  '@vscode/web-editors@0.0.2-41(zod@4.6.7)':
+  '@vscode/web-editors@0.0.2-150(zod@4.4.3)':
     dependencies:
-      '@vscode/hubrpc': 0.0.2-15(zod@4.6.7)
+      '@vscode/hubrpc': 0.0.2-54(zod@4.4.3)
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
       - zod
 
-  '@vscode/web-editors@0.0.2-76(zod@4.4.3)':
+  '@vscode/web-editors@0.0.2-41(zod@4.6.7)':
     dependencies:
-      '@vscode/hubrpc': 0.0.2-20(zod@4.4.3)
+      '@vscode/hubrpc': 0.0.2-15(zod@4.6.7)
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
@@ -17501,8 +17475,6 @@ snapshots:
   chromium-pickle-js@0.2.0: {}
 
   chunk-data@0.1.0: {}
-
-  ci-info@1.6.0: {}
 
   cjs-module-lexer@2.2.0: {}
 
@@ -18777,8 +18749,6 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  find-parent-dir@0.3.1: {}
-
   find-replace@5.0.2: {}
 
   find-up@1.1.2:
@@ -19084,6 +19054,12 @@ snapshots:
       minipass: 7.1.2
       package-json-from-dist: 1.0.0
       path-scurry: 2.0.0
+
+  glob@14.0.6:
+    dependencies:
+      minimatch: 11.0.8
+      minipass: 7.1.3
+      path-scurry: 3.0.0
 
   glob@5.0.15:
     dependencies:
@@ -19465,13 +19441,6 @@ snapshots:
       - kerberos
       - supports-color
 
-  husky@0.13.4:
-    dependencies:
-      chalk: 1.1.3
-      find-parent-dir: 0.3.1
-      is-ci: 1.2.1
-      normalize-path: 1.0.0
-
   iconv-lite@0.6.3:
     dependencies:
       safer-buffer: 2.1.2
@@ -19595,10 +19564,6 @@ snapshots:
   is-buffer@1.1.6: {}
 
   is-callable@1.2.7: {}
-
-  is-ci@1.2.1:
-    dependencies:
-      ci-info: 1.6.0
 
   is-core-module@2.16.1:
     dependencies:
@@ -20755,6 +20720,11 @@ snapshots:
     dependencies:
       brace-expansion: 5.0.12
 
+  minimatch@11.0.8:
+    dependencies:
+      '@isaacs/nonrecursive-glob-match': 1.1.0
+      brace-expansion: 5.0.12
+
   minimatch@3.1.5:
     dependencies:
       brace-expansion: 1.1.21
@@ -21052,8 +21022,6 @@ snapshots:
       resolve: 1.22.1
       semver: 5.7.2
       validate-npm-package-license: 3.0.4
-
-  normalize-path@1.0.0: {}
 
   normalize-path@2.1.1:
     dependencies:
@@ -21376,6 +21344,11 @@ snapshots:
     dependencies:
       lru-cache: 11.1.0
       minipass: 7.1.2
+
+  path-scurry@3.0.0:
+    dependencies:
+      lru-cache: 11.5.1
+      minipass: 7.1.3
 
   path-to-regexp@1.9.0:
     dependencies:
@@ -23305,10 +23278,10 @@ snapshots:
     transitivePeerDependencies:
       - msw
 
-  vscode-css-languageservice@7.0.0-next.2:
+  vscode-css-languageservice@7.0.0-next.4:
     dependencies:
       '@vscode/l10n': 0.0.18
-      vscode-languageserver-textdocument: 1.0.12
+      vscode-languageserver-textdocument: 1.0.16
       vscode-languageserver-types: 3.18.3
       vscode-uri: 3.2.0
 
@@ -23317,19 +23290,19 @@ snapshots:
       cson-parser: 4.0.9
       fast-plist: 0.1.2
 
-  vscode-html-languageservice@6.0.0-next.2:
+  vscode-html-languageservice@6.0.0-next.3:
     dependencies:
       '@vscode/l10n': 0.0.18
-      vscode-languageserver-textdocument: 1.0.14
-      vscode-languageserver-types: 3.18.3
+      vscode-languageserver-textdocument: 1.0.16
+      vscode-languageserver-types: 3.18.5
       vscode-uri: 3.2.0
 
-  vscode-json-languageservice@6.0.0-next.4:
+  vscode-json-languageservice@6.0.0-next.5:
     dependencies:
       '@vscode/l10n': 0.0.18
       jsonc-parser: 4.0.0-next.1
-      vscode-languageserver-textdocument: 1.0.14
-      vscode-languageserver-types: 3.18.3
+      vscode-languageserver-textdocument: 1.0.16
+      vscode-languageserver-types: 3.18.5
       vscode-uri: 3.2.0
 
   vscode-jsonrpc@10.0.0: {}
@@ -23340,14 +23313,12 @@ snapshots:
 
   vscode-jsonrpc@8.2.1: {}
 
-  vscode-jsonrpc@9.0.2: {}
-
-  vscode-languageclient@10.1.1:
+  vscode-languageclient@11.0.0:
     dependencies:
       minimatch: 10.2.6
       semver: 7.8.5
-      vscode-languageserver-protocol: 3.18.3
-      vscode-languageserver-textdocument: 1.0.14
+      vscode-languageserver-protocol: 3.18.5
+      vscode-languageserver-textdocument: 1.0.16
 
   vscode-languageclient@9.0.1:
     dependencies:
@@ -23360,22 +23331,24 @@ snapshots:
       vscode-jsonrpc: 8.2.0
       vscode-languageserver-types: 3.17.5
 
-  vscode-languageserver-protocol@3.18.3:
+  vscode-languageserver-protocol@3.18.5:
     dependencies:
-      vscode-jsonrpc: 9.0.2
-      vscode-languageserver-types: 3.18.3
+      vscode-jsonrpc: 10.0.0
+      vscode-languageserver-types: 3.18.5
 
   vscode-languageserver-textdocument@1.0.12: {}
 
-  vscode-languageserver-textdocument@1.0.14: {}
+  vscode-languageserver-textdocument@1.0.16: {}
 
   vscode-languageserver-types@3.17.5: {}
 
   vscode-languageserver-types@3.18.3: {}
 
-  vscode-languageserver@10.1.1:
+  vscode-languageserver-types@3.18.5: {}
+
+  vscode-languageserver@11.0.0:
     dependencies:
-      vscode-languageserver-protocol: 3.18.3
+      vscode-languageserver-protocol: 3.18.5
 
   vscode-languageserver@9.0.1:
     dependencies:

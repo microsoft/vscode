@@ -16,7 +16,6 @@
 			"semver",
 			"sinon",
 			"trusted-types",
-			"winreg",
 			"wicg-file-system-access"
 		],
 		"plugins": [

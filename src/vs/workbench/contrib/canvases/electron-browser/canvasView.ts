@@ -12,7 +12,7 @@ import { CodeWindow } from '../../../../base/browser/window.js';
 import { disposableTimeout } from '../../../../base/common/async.js';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
-import { Emitter } from '../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { matchesScheme } from '../../../../base/common/network.js';
 import { autorun, IObservable, observableValue } from '../../../../base/common/observable.js';
@@ -119,6 +119,7 @@ export class CanvasView extends Disposable {
 	private modelCanvas: string | undefined;
 	private readonly modelLifetime = this._register(new DisposableStore());
 	private readonly pendingVisibleLayout = this._register(new MutableDisposable());
+	private readonly loadDialogListener = this._register(new MutableDisposable());
 	private readonly reconnectTimeout = this._register(new MutableDisposable());
 	private readonly currentInput = observableValue<ICanvasViewInput | undefined>(this, undefined);
 	private readonly viewVisible = observableValue(this, false);
@@ -311,6 +312,7 @@ export class CanvasView extends Disposable {
 		} else {
 			this._detach(localize('canvas.loading', "Loading canvas…"));
 		}
+		this.loadDialogListener.clear();
 		const sequence = ++this.loadSequence;
 		this.loadingKey = key;
 		this._updateReloadButton();
@@ -319,7 +321,28 @@ export class CanvasView extends Disposable {
 		let reused = false;
 		try {
 			const source = canvas.source;
-			const resolution = await this.canvasService.resolveCanvasModel(input.reference, source, reload);
+			const resolution = await this.canvasService.resolveCanvasModel(input.reference, source, reload, model => {
+				if (!this._isCurrent(input, source, sequence)) {
+					return;
+				}
+				const attachForDialog = () => {
+					if (!this._isCurrent(input, source, sequence)) {
+						return;
+					}
+					if (!this._claim(model)) {
+						this.yieldedKey = key;
+						return;
+					}
+					this._setModel(model);
+					this.modelCanvas = getCanvasReferenceKey(input.reference);
+					this._setReconnecting(false);
+				};
+				if (model.pendingDialog) {
+					attachForDialog();
+				} else {
+					this.loadDialogListener.value = Event.once(Event.filter(model.onDidChangeDialog, dialog => !!dialog))(attachForDialog);
+				}
+			});
 			const model = resolution.model;
 			reused = resolution.reused;
 			if (!this._isCurrent(input, source, sequence)) {
@@ -354,6 +377,7 @@ export class CanvasView extends Disposable {
 			}
 		} finally {
 			if (sequence === this.loadSequence && this.loadingKey === key) {
+				this.loadDialogListener.clear();
 				this.loadingKey = undefined;
 				this._updateReloadButton();
 			}
@@ -392,7 +416,7 @@ export class CanvasView extends Disposable {
 	}
 
 	private _yield(): void {
-		const key = this.loadedKey;
+		const key = this.loadedKey ?? this.loadingKey;
 		this._detach(localize('canvas.shownElsewhere', "This canvas is shown in another view."));
 		this.yieldedKey = key;
 	}
@@ -499,6 +523,7 @@ export class CanvasView extends Disposable {
 	}
 
 	private _invalidateLoad(): void {
+		this.loadDialogListener.clear();
 		this.loadSequence++;
 		this.loadingKey = undefined;
 		this.loadedKey = undefined;

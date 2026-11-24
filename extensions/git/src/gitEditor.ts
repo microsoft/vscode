@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as path from 'path';
-import { CancellationToken, DocumentLink, DocumentLinkProvider, l10n, Range, TabInputText, TextDocument, Uri, window, workspace } from 'vscode';
+import { CancellationToken, DocumentLink, DocumentLinkProvider, l10n, Range, Tab, TabInputText, TextDocument, Uri, window, workspace } from 'vscode';
 import { IIPCHandler, IIPCServer } from './ipc/ipcServer';
 import { ITerminalEnvironmentProvider } from './terminal';
 import { EmptyDisposable, IDisposable } from './util';
@@ -40,12 +40,23 @@ export class GitEditor implements IIPCHandler, ITerminalEnvironmentProvider {
 			const doc = await workspace.openTextDocument(uri);
 			await window.showTextDocument(doc, { preview: false });
 
+			const isCommitMessageTab = (tab: Tab) => tab.input instanceof TabInputText && tab.input.uri.toString() === uri.toString();
+
 			return new Promise((c) => {
 				const onDidClose = window.tabGroups.onDidChangeTabs(async (tabs) => {
-					if (tabs.closed.some(t => t.input instanceof TabInputText && t.input.uri.toString() === uri.toString())) {
-						onDidClose.dispose();
-						return c(true);
+					if (!tabs.closed.some(isCommitMessageTab)) {
+						return;
 					}
+
+					// Moving the editor to another group or window opens it there
+					// before closing it in the source group, so only continue once
+					// the commit message is no longer open anywhere
+					if (window.tabGroups.all.some(group => group.tabs.some(isCommitMessageTab))) {
+						return;
+					}
+
+					onDidClose.dispose();
+					return c(true);
 				});
 			});
 		}

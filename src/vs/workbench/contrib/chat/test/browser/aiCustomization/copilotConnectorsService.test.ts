@@ -646,6 +646,24 @@ suite('CopilotConnectorsService', () => {
 		}, { authorizationRequired: true, signIn: [], consent: [], requests: [] });
 	});
 
+	test('a Microsoft default account is treated as signed out and never as a GitHub account', async () => {
+		const fixture = createFixture([]);
+		fixture.setAccount({
+			authenticationProvider: { id: 'microsoft', name: 'Microsoft', enterprise: false },
+			accountName: 'alice',
+			sessionId: 's1',
+			enterprise: false,
+		});
+		const source = new CopilotConnectorsMarketplaceProvider(fixture.service, fixture.configurationService);
+		await assert.rejects(source.query({}, CancellationToken.None), /Sign in to view connectors/);
+		assert.deepStrictEqual({
+			account: fixture.service.account,
+			signIn: fixture.signInCalls,
+			consent: fixture.consentCalls,
+			requests: fixture.requests,
+		}, { account: undefined, signIn: [], consent: [], requests: [] });
+	});
+
 	test('signing in to browse requests only ordinary GitHub scopes and exposes catalog status', async () => {
 		const fixture = createFixture([{ body: catalogResponse('connected') }]);
 		fixture.setAccount(null);

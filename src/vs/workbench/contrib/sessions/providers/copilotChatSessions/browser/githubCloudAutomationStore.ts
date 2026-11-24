@@ -5,7 +5,7 @@
 
 import { Limiter, Sequencer } from '../../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
-import { IDefaultAccount } from '../../../../../../base/common/defaultAccount.js';
+import { asGitHubAccount, IGitHubDefaultAccount } from '../../../../../../base/common/defaultAccount.js';
 import { CancellationError, getErrorMessage, isCancellationError } from '../../../../../../base/common/errors.js';
 import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { LRUCache } from '../../../../../../base/common/map.js';
@@ -522,7 +522,7 @@ export class GitHubCloudAutomationStore extends Disposable {
 								const creator = entry.definition.created_by.login;
 								if ((entry.definition.ownership ?? entry.definition.owner_type) === 'repository'
 									&& !!creator
-									&& creator.toLowerCase() !== this.defaultAccountService.currentDefaultAccount?.accountName.toLowerCase()) {
+									&& creator.toLowerCase() !== asGitHubAccount(this.defaultAccountService.currentDefaultAccount)?.accountName.toLowerCase()) {
 									return undefined;
 								}
 								this.removeEntry(entry, historyToken);
@@ -605,7 +605,7 @@ export class GitHubCloudAutomationStore extends Disposable {
 		});
 	}
 
-	private async refreshRepositories(account: IDefaultAccount, cancellationToken: CancellationToken, client: IGitHubAccountClient, options: ApiRequestOptions): Promise<void> {
+	private async refreshRepositories(account: IGitHubDefaultAccount, cancellationToken: CancellationToken, client: IGitHubAccountClient, options: ApiRequestOptions): Promise<void> {
 		const repositories = this.readRepositories(account.accountName);
 		for (const repository of this.targetRepositories.values()) {
 			repositories.set(repositoryKey(repository), repository);
@@ -719,7 +719,7 @@ export class GitHubCloudAutomationStore extends Disposable {
 		this.clientStore.clear();
 		this.refreshPromise = undefined;
 		this.operations = new Sequencer();
-		const account = this.defaultAccountService.currentDefaultAccount;
+		const account = asGitHubAccount(this.defaultAccountService.currentDefaultAccount);
 		const lifetime = this.lifetime.token;
 		transaction(tx => {
 			this.taskAccess.set(account && !account.enterprise ? {
@@ -805,11 +805,11 @@ export class GitHubCloudAutomationStore extends Disposable {
 		});
 	}
 
-	private requireAccount(): IDefaultAccount {
+	private requireAccount(): IGitHubDefaultAccount {
 		if (this._store.isDisposed) {
 			throw new CancellationError();
 		}
-		const account = this.defaultAccountService.currentDefaultAccount;
+		const account = asGitHubAccount(this.defaultAccountService.currentDefaultAccount);
 		if (!account || account.enterprise) {
 			throw new Error(localize('cloudAutomations.signIn', "Sign in to GitHub.com with repository access to manage cloud automations."));
 		}

@@ -46,7 +46,7 @@ import { IModelCardOptions, IPricingDisclosure, ModelCard } from './modelPickerC
 import { ModelRouterDetails } from './modelPickerRouterDetails.js';
 import { getPreferredSpeedVariant, IModelSpeedVariants } from './modelPickerVariants.js';
 import { getModelBadge, getOrganizationDefaultDescription, getOrganizationDefaultModel, organizationDefaultLabel } from './modelPickerBadges.js';
-import { buildModelToProviderGroupMap, createModelAction, createUnavailableModelItem, getUnavailableReason, IModelPickerOrganizationSupport, IProviderGroupInfo, requiresNewerVSCode } from './modelPickerItemPrimitives.js';
+import { buildModelToProviderGroupMap, createModelAction, createUnavailableModelItem, getModelRouterWarning, getUnavailableReason, IModelPickerOrganizationSupport, IProviderGroupInfo, requiresNewerVSCode } from './modelPickerItemPrimitives.js';
 import { getModelPickerAccessibilityProvider, getModelPickerControlModels, NEW_MODEL_ROUTER_ACTION_ID } from './modelPickerItems.js';
 import { compareModelNames } from './modelPickerLineage.js';
 import { filterModelPickerControlModelsForEntitlement, filterModelPickerModelsForEntitlement, getFusionDiscountPercent, getFusionTierLabel, getHydraFusionTierLabel, getRoutingModelBadge, isAutoModel, isHydraFusionModel, isHydraFusionUpgradeOnly, isModelComparisonSupported, isModelRouter } from './modelPickerPresentation.js';
@@ -836,8 +836,10 @@ export class TabbedModelPicker extends Disposable {
 			controlModels: isBuiltIn ? context.controlModels : {},
 			preferredSpeedVariants: this._preferredSpeedVariants,
 			// Only the built-in provider curates a shortlist. A provider the user added
-			// gets a tab of its own, which is already the whole of what it offers.
-			showSuggested: isBuiltIn,
+			// gets a tab of its own, which is already the whole of what it offers. An agent
+			// that requires models has already narrowed the list to the ones it allows,
+			// so none of them is folded away.
+			showSuggested: isBuiltIn && !context.agentModelPreferences?.required,
 			// Only the built-in provider has a curated catalogue to compare against.
 			showUnavailable: isBuiltIn && context.unavailableContext.show,
 			alwaysShowUnavailableModelIds: isBuiltIn && isHydraFusionUpgradeOnly(this._entitlementService.entitlement)
@@ -1402,10 +1404,11 @@ export class TabbedModelPicker extends Disposable {
 			&& !getModelConfigProperty(model, context.configurationAccess, MODEL_CONFIG_GROUP_EFFORT, useModelConfigurationSchema)
 			&& !getModelConfigProperty(model, context.configurationAccess, MODEL_CONFIG_GROUP_CONTEXT, useModelConfigurationSchema);
 		const hasDetails = (!isHydraFusionModel(model) || !!ownTierLabel) && !fusionWithoutConfiguration;
-		// A router's description, or its error, is shown on the row as well as in its details: as a
+		// A router's warning, or else its description, is shown on the row as well as in its details: as a
 		// second line in its tab, and in the tooltip of a search result, which stays on one line.
 		const fileDescription = model.metadata.detailsResource ? model.metadata.tooltip : undefined;
-		const descriptionLine = providerLabel ? undefined : fileDescription;
+		const fileLine = getModelRouterWarning(model) ?? fileDescription;
+		const descriptionLine = providerLabel ? undefined : fileLine;
 		return {
 			item: {
 				...action,
@@ -1447,7 +1450,7 @@ export class TabbedModelPicker extends Disposable {
 			toolbarDialogActionIds: [MODEL_DETAILS_ACTION_ID, LOCAL_MODEL_DETAILS_ACTION_ID],
 			tooltip: isAutoModel(model) && model.metadata.autoModelFusion
 				? [ILanguageModelChatMetadata.getFusionSummary(), defaultDescription].filter(Boolean).join('\n')
-				: [rowLabel, summary, defaultDescription, fileDescription].filter(Boolean).join(' \u00b7 '),
+				: [rowLabel, summary, defaultDescription, fileLine].filter(Boolean).join(' \u00b7 '),
 		};
 	}
 

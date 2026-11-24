@@ -30,7 +30,7 @@ function createNoopGitStateService(): IAgentHostGitStateService {
 		getSessionGitState: () => undefined,
 		getMaterializedWorktreeMeta: () => undefined,
 		setFolderGitState: async () => { },
-		resolveSessionBaseBranchName: async () => undefined,
+		resolveSessionBaseBranchRef: async () => undefined,
 		setSessionGitHubState: async () => { },
 		recordSessionMerge: async () => { },
 		attachSessionGitHubPullRequest: async () => { },
@@ -78,6 +78,7 @@ suite('AgentHostReviewService', () => {
 		const chatGitState: ISessionGitState = {
 			branchName: 'chat-feature',
 			baseBranchName: 'chat-main',
+			baseBranchRef: 'refs/remotes/origin/chat-main',
 		};
 		const gitStateService: IAgentHostGitStateService = {
 			_serviceBrand: undefined,
@@ -87,7 +88,7 @@ suite('AgentHostReviewService', () => {
 			getSessionGitState: owner => owner === chat ? chatGitState : undefined,
 			getMaterializedWorktreeMeta: () => undefined,
 			setFolderGitState: async () => { },
-			resolveSessionBaseBranchName: async () => undefined,
+			resolveSessionBaseBranchRef: async () => undefined,
 			setSessionGitHubState: async () => { },
 			recordSessionMerge: async () => { },
 			attachSessionGitHubPullRequest: async () => { },
@@ -120,7 +121,7 @@ suite('AgentHostReviewService', () => {
 		));
 
 		await service.setReviewState(buildBranchChangesetUri(folderOwner), ['file:///chat/file.ts'], true);
-		await service.getReviewedPaths(folderOwner, URI.parse('file:///chat'), 'chat-main');
+		await service.getReviewedPaths(folderOwner, URI.parse('file:///chat'), 'refs/remotes/origin/chat-main');
 
 		assert.deepStrictEqual({
 			openedDatabases,
@@ -128,7 +129,7 @@ suite('AgentHostReviewService', () => {
 			reviewedRefsAreShared: new Set(reviewedRefs).size === 1,
 		}, {
 			openedDatabases: [],
-			baseBranches: ['chat-main', 'chat-main'],
+			baseBranches: ['refs/remotes/origin/chat-main', 'refs/remotes/origin/chat-main'],
 			reviewedRefsAreShared: false,
 		});
 	});

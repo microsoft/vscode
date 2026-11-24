@@ -1194,13 +1194,15 @@ export type IAgentHostToolInvokedEvent = LanguageModelToolInvokedEvent & IAgentH
 	mcpSourceKind?: McpServerSource;
 };
 
-export type IAgentHostToolInvokedClassification = Omit<LanguageModelToolInvokedClassification, 'provider' | 'chatSessionId' | 'owner' | 'comment'> & IAgentHostEventClassification & IAgentHostSubagentKindClassification & {
+export type IAgentHostToolInvokedClassification = Omit<LanguageModelToolInvokedClassification, 'provider' | 'chatSessionId' | 'toolId' | 'toolSourceKind' | 'owner' | 'comment'> & IAgentHostEventClassification & IAgentHostSubagentKindClassification & {
+	toolId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The ID of the tool used; for a tool the session does not offer (toolSourceKind unknown), a SHA-256 hash of the requested name.' };
+	toolSourceKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Who provides the tool: agentHost, mcp, client, or unknown (a tool the session does not offer).' };
 	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The Agent Host provider that invoked the tool.' };
 	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The Agent Host session identifier.' };
 	chatSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The chat identifier within the Agent Host session.' };
 	isSubagentSession: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the tool call belongs to a subagent session.' };
 	mcpSourceKind?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Configuration source of an MCP tool: user, workspace, plugin, builtin, managed, or account. Managed MCP tools include Copilot connectors.' };
-	errorCode: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'The tool failure code, when available.' };
+	errorCode: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'The tool failure code, when available; toolNotFound when the session does not offer the tool.' };
 	owner: 'roblourens';
 	comment: 'Tracks Agent Host tool invocations with Agent Host correlation and optional failure codes.';
 };
@@ -1417,6 +1419,12 @@ export interface IAgentHostSkillInvokedReport extends IAgentHostTurnAttributedRe
 	sdkEventId: string;
 	trigger: string | undefined;
 	isSubagentInvocation: boolean;
+	/** Where the runtime discovered the skill, bounded to its known values. */
+	skillSource: string;
+	/** Who shipped the skill: `vscode`, `runtime`, or `other`. */
+	skillOrigin: string;
+	/** The skill name, only when VS Code or the bundled runtime shipped the skill. */
+	skillName: string | undefined;
 }
 
 type IAgentHostSkillInvokedEvent = IAgentHostEventTelemetry & {
@@ -1427,11 +1435,14 @@ type IAgentHostSkillInvokedEvent = IAgentHostEventTelemetry & {
 	sdkEventId: string;
 	trigger: string;
 	isSubagentInvocation: boolean;
+	skillSource: string;
+	skillOrigin: string;
+	skillName: string | undefined;
 };
 
 type IAgentHostSkillInvokedClassification = IAgentHostEventClassification & {
 	owner: 'bhavyaus';
-	comment: 'Records what triggered each agent host skill invocation, to tell skills the agent chose apart from skills the user ran. Skill identity is on copilotSdk/skill_invoked, joined by sdkEventId.';
+	comment: 'Records what triggered each agent host skill invocation and where the skill came from, to tell skills the agent chose apart from skills the user ran and to measure built-in skills. Names only skills that VS Code or the bundled Copilot runtime ship; other skills are identified by hash on copilotSdk/skill_invoked, joined by sdkEventId.';
 	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent host provider that invoked the skill.' };
 	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent host session identifier.' };
 	chatSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The chat identifier within the agent host session; the subagent chat for subagent invocations.' };
@@ -1439,6 +1450,9 @@ type IAgentHostSkillInvokedClassification = IAgentHostEventClassification & {
 	sdkEventId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The SDK skill invocation event identifier; equals event_id on copilotSdk/skill_invoked.' };
 	trigger: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'What triggered the invocation: agent-invoked (the model chose the skill), user-invoked (slash command or UI), context-load (preloaded by a custom agent or subagent), or unknown.' };
 	isSubagentInvocation: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether a subagent, rather than the main agent, invoked the skill.' };
+	skillSource: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Where the runtime discovered the skill: project, inherited, personal-copilot, personal-agents, custom, plugin, builtin, remote, sdk, mcp, other, or unknown.' };
+	skillOrigin: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Who shipped the skill: vscode (installed with VS Code or served by the agent host), runtime (built into the Copilot runtime or one of its bundled plugins), or other.' };
+	skillName: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Name of a skill that VS Code or the bundled Copilot runtime ship. Absent for every other skill, whose name could identify a user.' };
 };
 
 export type AgentHostRepoInfoResult = 'success' | 'filesChanged' | 'diffTooLarge' | 'noChanges' | 'tooManyChanges' | 'mergeBaseTooOld' | 'virtualFileSystem' | 'tooManyCommits';
@@ -2241,8 +2255,9 @@ export class AgentHostTelemetryReporter {
 	}
 
 	/**
-	 * Records what triggered a skill invocation. Skill identity (hashed name, plugin) stays on the
-	 * forwarded runtime `copilotSdk/skill_invoked`; join the two on `sdkEventId` = `event_id`.
+	 * Records what triggered a skill invocation and where the skill came from. Only built-in skills are
+	 * named; other skills keep their hashed identity on the forwarded runtime `copilotSdk/skill_invoked`;
+	 * join the two on `sdkEventId` = `event_id`.
 	 */
 	skillInvoked(report: IAgentHostSkillInvokedReport): void {
 		const agentSessionId = AgentSession.id(report.owner);
@@ -2256,6 +2271,9 @@ export class AgentHostTelemetryReporter {
 			sdkEventId: report.sdkEventId,
 			trigger: report.trigger !== undefined && skillInvocationTriggers.has(report.trigger) ? report.trigger : 'unknown',
 			isSubagentInvocation: report.isSubagentInvocation,
+			skillSource: report.skillSource,
+			skillOrigin: report.skillOrigin,
+			skillName: report.skillName,
 		});
 	}
 

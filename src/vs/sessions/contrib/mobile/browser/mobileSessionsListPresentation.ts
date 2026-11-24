@@ -17,6 +17,7 @@ import { renderMobileSessionToolbar } from './mobileSessionToolbar.js';
 export class MobileSessionsListPresentation implements ISessionsListPresentation {
 	declare readonly _serviceBrand: undefined;
 	readonly sectionRowHeight = 44;
+	readonly titleOnlyQuickChatRowHeight = 52;
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,

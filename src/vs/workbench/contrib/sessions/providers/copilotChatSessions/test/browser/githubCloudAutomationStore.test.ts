@@ -1413,4 +1413,12 @@ suite('GitHubCloudAutomationStore', () => {
 			assert.deepStrictEqual({ calls: api.calls, state: store.catalogueState.get() }, { calls: [], state: 'unavailable' });
 		});
 	}
+
+	test('rejects reads and creation when signed into a Microsoft account', async () => {
+		const { store, api, changeAccount } = setup();
+		changeAccount({ authenticationProvider: { id: 'microsoft', name: 'Microsoft', enterprise: false }, accountName: 'alice', sessionId: 's1', enterprise: false });
+		await assert.rejects(store.refresh(), /Sign in to GitHub.com/);
+		await assert.rejects(store.create(workspace, createValue), /Sign in to GitHub.com/);
+		assert.deepStrictEqual({ calls: api.calls, state: store.catalogueState.get() }, { calls: [], state: 'unavailable' });
+	});
 });

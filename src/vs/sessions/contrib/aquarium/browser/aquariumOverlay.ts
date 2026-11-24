@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, addDisposableGenericMouseDownListener, addDisposableGenericMouseMoveListener, addDisposableListener, EventType, getWindow, scheduleAtNextAnimationFrame } from '../../../../base/browser/dom.js';
+import { $, addDisposableGenericMouseDownListener, addDisposableGenericMouseMoveListener, addDisposableListener, EventType, getActiveWindow, getWindow, scheduleAtNextAnimationFrame } from '../../../../base/browser/dom.js';
 import { createInstantHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { Codicon } from '../../../../base/common/codicons.js';
@@ -17,6 +17,7 @@ import { IContextKey, IContextKeyService } from '../../../../platform/contextkey
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { IHostService } from '../../../../workbench/services/host/browser/host.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { SessionsAquariumActiveContext } from '../../../common/agentsWindowContextKeys.js';
 import { disposeSharedFishDefs, Fish, pickRandomSpecies } from './fish.js';
@@ -55,6 +56,20 @@ const ACTIVE_FRAME_INTERVAL_MS = 1000 / 30;
 const DART_RATE_PER_SECOND = 0.04;
 const DART_IMPULSE = 150;
 
+/**
+ * Off-state fish: each toggle plays a few brief attention-grabbing wiggles and
+ * then rests for good. A wiggle is a one-shot animation rather than a loop, so
+ * an idle window produces no frames between or after them.
+ */
+const MAX_WIGGLES = 3;
+const WIGGLE_INTERVAL_MS = 12_000;
+/**
+ * The longest a toggle keeps the wiggle class. Longer than the animation in
+ * aquarium.css, so a wiggle that plays through ends on its own first.
+ */
+const WIGGLE_MAX_RUN_MS = 1_000;
+const WIGGLE_CLASS = 'wiggle';
+
 const ENABLED_STORAGE_KEY = 'sessions.developerJoy.enabled';
 const ACTION_VISIBLE_STORAGE_KEY = 'sessions.aquarium.action.visible';
 
@@ -75,6 +90,12 @@ interface IFoodPellet {
 interface IMountedToggle {
 	readonly button: HTMLButtonElement;
 	hostVisible: boolean;
+	/** How many more times this toggle may wiggle, see {@link MAX_WIGGLES}. */
+	remainingWiggles: number;
+	/** Starts one wiggle, which ends on its own, see {@link WIGGLE_MAX_RUN_MS}. */
+	startWiggle(): void;
+	/** Ends the wiggle in progress, if any. */
+	endWiggle(): void;
 }
 
 export class AquariumService extends Disposable implements IAquariumService {
@@ -89,6 +110,7 @@ export class AquariumService extends Disposable implements IAquariumService {
 	private readonly activeContextKey: IContextKey<boolean>;
 	private readonly streak: FishFeedingStreak;
 	private readonly hungerRefreshScheduler: RunOnceScheduler;
+	private readonly wiggleScheduler: RunOnceScheduler;
 	private readonly _actionVisible = observableValue(this, true);
 	readonly actionVisible: IObservable<boolean> = this._actionVisible;
 
@@ -100,6 +122,7 @@ export class AquariumService extends Disposable implements IAquariumService {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IHostService private readonly hostService: IHostService,
 	) {
 		super();
 
@@ -110,6 +133,7 @@ export class AquariumService extends Disposable implements IAquariumService {
 		this.hungerRefreshScheduler = this._register(new RunOnceScheduler(() => {
 			this.updateAllToggleButtonsVisual(!!this.activeRef.value);
 		}, 0));
+		this.wiggleScheduler = this._register(new RunOnceScheduler(() => this.wiggle(), WIGGLE_INTERVAL_MS));
 
 		this._register(this.storageService.onDidChangeValue(StorageScope.APPLICATION, ACTION_VISIBLE_STORAGE_KEY, this._store)(() => {
 			this.setActionVisible(this.storageService.getBoolean(ACTION_VISIBLE_STORAGE_KEY, StorageScope.APPLICATION, true));
@@ -119,6 +143,9 @@ export class AquariumService extends Disposable implements IAquariumService {
 				this.applyFeatureEnabledState();
 			}
 		}));
+		this._register(this.hostService.onDidChangeFocus(() => this.updateWiggle()));
+		this._register(this.hostService.onDidChangeActiveWindow(() => this.updateWiggle()));
+		this._register(this.accessibilityService.onDidChangeReducedMotion(() => this.updateWiggle()));
 	}
 
 	mountToggle(parent: HTMLElement): IMountedToggleHandle {
@@ -133,6 +160,20 @@ export class AquariumService extends Disposable implements IAquariumService {
 			e.stopPropagation();
 			this.toggle();
 		}));
+		// A wiggle keeps its class for one run only: hover and keyboard focus hold
+		// the animation back in CSS, so a class left behind would play the wiggle
+		// whenever they end. The run is over when the animation finishes or is
+		// cancelled, when the pointer or focus leaves the toggle, and after
+		// WIGGLE_MAX_RUN_MS at the latest, as an animation that never starts
+		// fires no event at all.
+		const wiggleTimeout = store.add(new RunOnceScheduler(() => button.classList.remove(WIGGLE_CLASS), WIGGLE_MAX_RUN_MS));
+		const endWiggle = () => {
+			wiggleTimeout.cancel();
+			button.classList.remove(WIGGLE_CLASS);
+		};
+		for (const type of [EventType.ANIMATION_END, 'animationcancel', EventType.MOUSE_LEAVE, EventType.BLUR]) {
+			store.add(addDisposableListener(button, type, endWiggle));
+		}
 		const hoverDelegate = store.add(createInstantHoverDelegate());
 		store.add(this.hoverService.setupManagedHover(
 			hoverDelegate,
@@ -142,11 +183,21 @@ export class AquariumService extends Disposable implements IAquariumService {
 
 		parent.appendChild(button);
 
-		const mount: IMountedToggle = { button, hostVisible: true };
+		const mount: IMountedToggle = {
+			button,
+			hostVisible: true,
+			remainingWiggles: MAX_WIGGLES,
+			startWiggle: () => {
+				button.classList.add(WIGGLE_CLASS);
+				wiggleTimeout.schedule();
+			},
+			endWiggle,
+		};
 		this.mounts.add(mount);
 		this.applyFeatureEnabledStateForButton(button);
 		this.reconcileActivation();
 		this.scheduleHungerRefresh();
+		this.updateWiggle();
 
 		return {
 			setHostVisible: (visible: boolean) => {
@@ -155,6 +206,7 @@ export class AquariumService extends Disposable implements IAquariumService {
 				}
 				mount.hostVisible = visible;
 				this.reconcileActivation();
+				this.updateWiggle();
 			},
 			dispose: () => {
 				store.dispose();
@@ -164,6 +216,7 @@ export class AquariumService extends Disposable implements IAquariumService {
 					this.hungerRefreshScheduler.cancel();
 				}
 				this.reconcileActivation();
+				this.updateWiggle();
 			},
 		};
 	}
@@ -188,6 +241,7 @@ export class AquariumService extends Disposable implements IAquariumService {
 		for (const mount of this.mounts) {
 			this.applyFeatureEnabledStateForButton(mount.button);
 		}
+		this.updateWiggle();
 	}
 
 	/**
@@ -241,10 +295,56 @@ export class AquariumService extends Disposable implements IAquariumService {
 		} else if (this.isFeatureEnabled()) {
 			this.reconcileActivation();
 		}
+		this.updateWiggle();
 	}
 
 	private applyFeatureEnabledStateForButton(button: HTMLButtonElement): void {
 		button.style.display = this.isFeatureEnabled() && this._actionVisible.get() ? '' : 'none';
+	}
+
+	/**
+	 * Whether the toggle shows the off-state fish where someone can watch it
+	 * move: in the focused window, with motion not reduced.
+	 */
+	private canWiggle(mount: IMountedToggle): boolean {
+		return mount.hostVisible
+			&& !this.activeRef.value
+			&& this.isFeatureEnabled()
+			&& this._actionVisible.get()
+			&& !this.accessibilityService.isMotionReduced()
+			&& this.hostService.hasFocus
+			&& getWindow(mount.button) === getActiveWindow();
+	}
+
+	/**
+	 * Keeps the next wiggle scheduled only while some toggle can still play
+	 * one, and stops a wiggle in progress on toggles that no longer can.
+	 */
+	private updateWiggle(): void {
+		let wigglePending = false;
+		for (const mount of this.mounts) {
+			if (!this.canWiggle(mount)) {
+				mount.endWiggle();
+			} else if (mount.remainingWiggles > 0) {
+				wigglePending = true;
+			}
+		}
+		if (!wigglePending) {
+			this.wiggleScheduler.cancel();
+		} else if (!this.wiggleScheduler.isScheduled()) {
+			this.wiggleScheduler.schedule();
+		}
+	}
+
+	/** Plays one wiggle on every toggle that still may, then lines up the next. */
+	private wiggle(): void {
+		for (const mount of this.mounts) {
+			if (mount.remainingWiggles > 0 && this.canWiggle(mount)) {
+				mount.remainingWiggles--;
+				mount.startWiggle();
+			}
+		}
+		this.updateWiggle();
 	}
 
 	private updateToggleButtonVisual(button: HTMLButtonElement, active: boolean): void {
@@ -342,6 +442,7 @@ export class AquariumService extends Disposable implements IAquariumService {
 			this.updateToggleButtonVisual(mount.button, active);
 		}
 		this.scheduleHungerRefresh();
+		this.updateWiggle();
 	}
 
 	private scheduleHungerRefresh(): void {

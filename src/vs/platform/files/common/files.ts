@@ -170,9 +170,13 @@ export interface IFileService {
 	 * The optional parameter overwrite can be set to replace an existing file at the location.
 	 * Atomic moves require a provider with `FileAtomicRename` support and never fall back to copying or deleting the target.
 	 *
+	 * The optional cancellation token can stop a move across file system providers while
+	 * the contents are being copied. A cancelled move leaves the source in place, removes
+	 * the partially copied target and rejects with a `CancellationError`.
+	 *
 	 * Emits a `FileOperation.MOVE` file operation event when successful.
 	 */
-	move(source: URI, target: URI, overwrite?: boolean, options?: { readonly atomic?: boolean }): Promise<IFileStatWithMetadata>;
+	move(source: URI, target: URI, overwrite?: boolean, options?: { readonly atomic?: boolean }, token?: CancellationToken): Promise<IFileStatWithMetadata>;
 
 	/**
 	 * Find out if a move operation is possible given the arguments. No changes on disk will
@@ -184,9 +188,14 @@ export interface IFileService {
 	 * Copies the file/folder to a path identified by the resource. A folder is copied
 	 * recursively.
 	 *
+	 * The optional cancellation token can stop a copy that is performed by reading and
+	 * writing the contents, such as a copy across file system providers. A cancelled copy
+	 * removes the partially copied target and rejects with a `CancellationError`. Copies
+	 * that a file system provider performs natively cannot be stopped once started.
+	 *
 	 * Emits a `FileOperation.COPY` file operation event when successful.
 	 */
-	copy(source: URI, target: URI, overwrite?: boolean): Promise<IFileStatWithMetadata>;
+	copy(source: URI, target: URI, overwrite?: boolean, token?: CancellationToken): Promise<IFileStatWithMetadata>;
 
 	/**
 	 * Find out if a copy operation is possible given the arguments. No changes on disk will

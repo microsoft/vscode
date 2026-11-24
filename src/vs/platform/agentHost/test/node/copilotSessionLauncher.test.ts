@@ -5,9 +5,12 @@
 
 import type { CopilotClient, CopilotSession, PermissionHandler, PermissionRequest, ResumeSessionOptions, CreateSessionOptions, Tool, Verbosity } from '@microsoft/copilot-sdk';
 import assert from 'assert';
+import { existsSync, mkdirSync, renameSync, writeFileSync } from 'fs';
 import { CopilotMcpServerLogs, mcpDiagnosticEntryToLogRecord } from '../../node/copilot/copilotMcpServerLogs.js';
 import type { IOtlpLogRecord } from '../../common/otlp/otlpLogEmitter.js';
-import { homedir } from 'os';
+import { mkdir, mkdtemp, realpath, rm, symlink } from 'fs/promises';
+import { homedir, tmpdir } from 'os';
+import { join } from '../../../../base/common/path.js';
 import { hasKey } from '../../../../base/common/types.js';
 import { isDeepStrictEqual } from 'util';
 import { useFakeTimers } from 'sinon';
@@ -16,12 +19,13 @@ import { VSBuffer } from '../../../../base/common/buffer.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
-import { isLinux } from '../../../../base/common/platform.js';
+import { isLinux, isWindows } from '../../../../base/common/platform.js';
 import { basename, isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { PluginFormat, toParsedAgent, type IMcpServerDefinition, type IParsedRule } from '../../../agentPlugins/common/pluginParsers.js';
+import { readAgentCustomizationMeta } from '../../common/meta/agentCustomizationMeta.js';
 import { ICopilotHomeService } from '../../../environment/common/copilotHome.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
 import { FileOperationError, FileOperationResult, IFileService, type IFileContent, type IFileStatWithMetadata } from '../../../files/common/files.js';
@@ -32,7 +36,7 @@ import { McpServerType } from '../../../mcp/common/mcpPlatformTypes.js';
 import type { TerminalSandboxEngine } from '../../../sandbox/common/terminalSandboxEngine.js';
 import { type ITelemetryService, TelemetryConfiguration, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import type { IByokLmBridgeConnection, IByokLmChatRequest, IByokLmChatResult, IByokLmModelInfo } from '../../common/agentHostByokLm.js';
-import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpSkillsEnabledConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostWorkspaceTrustConfigKey, platformSessionSchema, type IAgentHostWorkspaceTrust, type SchemaValues } from '../../common/agentHostSchema.js';
+import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostHooksEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpSkillsEnabledConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostWorkspaceTrustConfigKey, platformSessionSchema, type IAgentHostWorkspaceTrust, type SchemaValues } from '../../common/agentHostSchema.js';
 import type { IAgentHostManagedSettingsPermissions } from '../../common/agentHostManagedSettings.js';
 import { toClientPluginMcpDefaultCwdsMeta } from '../../common/meta/clientPluginCustomizationMeta.js';
 import { withAgentToolFullReferenceName, withAgentToolOrigin } from '../../common/meta/agentToolDefinitionMeta.js';
@@ -67,7 +71,7 @@ import { ISessionSandboxPathService } from '../../node/sessionSandboxPathService
 import { IWorkspaceSandboxPathService, WorkspaceSandboxPathService } from '../../node/workspaceSandboxPathService.js';
 import { AgentHostStorageService } from '../../node/agentHostStorageService.js';
 import type { SandboxConfig, SandboxNetworkPolicy } from '../../node/copilot/sandboxConfigForSdk.js';
-import { composeByokSessionConfig, CopilotSessionLauncher, filterClientToolNames, findLocalModelDirectFamily, getCopilotAgentSelection, getCopilotAgentSelectionName, getCopilotAutoTier, getCopilotCustomAgents, getCopilotReasoningEffort, getCopilotWorkingDirectoryTrust, isCopilotReasoningEffort, mergeByokSessionConfig, synthesizeByokSessionConfig, withLocalModelSessionConfig, normalizeToolFilterPatterns, resolveConfiguredReasoningEffortOverride, resolveCopilotAutoTier, resolveCopilotReasoningEffort, toSdkToolFilterPatterns, type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotClientToolConfiguration, type ICopilotSessionRuntime } from '../../node/copilot/copilotSessionLauncher.js';
+import { composeByokSessionConfig, CopilotSessionLauncher, filterClientToolNames, findLocalModelDirectFamily, getCopilotAgentCustomization, getCopilotAgentSelection, getCopilotAgentSelectionName, getCopilotAutoTier, getCopilotCustomAgents, getCopilotRuntimeWorkingDirectory, getCopilotReasoningEffort, getCopilotWorkingDirectoryTrust, isCopilotReasoningEffort, mergeByokSessionConfig, synthesizeByokSessionConfig, withLocalModelSessionConfig, normalizeToolFilterPatterns, resolveConfiguredReasoningEffortOverride, resolveCopilotAutoTier, resolveCopilotReasoningEffort, toSdkToolFilterPatterns, type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotClientToolConfiguration, type ICopilotSessionRuntime } from '../../node/copilot/copilotSessionLauncher.js';
 import { getSdkCustomAgentName } from '../../node/copilot/copilotPluginConverters.js';
 import { createUnmanagedCopilotSettings } from './copilotTestEvents.js';
 import { buildChatUri, buildDefaultChatUri, ROOT_STATE_URI, SessionStatus } from '../../common/state/sessionState.js';
@@ -640,7 +644,8 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const appBundleRoot = URI.file('/application').fsPath;
 
-	function setup(kind: 'create' | 'resume', reportPolicy = true, enforced = false, allowBypass = false, allowOutbound?: boolean, sandboxUpdateError?: Error, sandboxToggles?: Pick<SandboxConfig, 'sandboxMcpServers' | 'sandboxLspServers' | 'allowDevToolAccess' | 'addCurrentWorkingDirectory' | 'auth'>, allowLocalNetwork?: boolean, networkHosts?: Pick<SandboxNetworkPolicy, 'allowedHosts' | 'blockedHosts'>) {
+	function setup(launch: 'create' | 'resume' | { kind: 'create' | 'resume'; copilotHome: URI }, reportPolicy = true, enforced = false, allowBypass = false, allowOutbound?: boolean, sandboxUpdateError?: Error, sandboxToggles?: Pick<SandboxConfig, 'sandboxMcpServers' | 'sandboxLspServers' | 'allowDevToolAccess' | 'addCurrentWorkingDirectory' | 'auth'>, allowLocalNetwork?: boolean, networkHosts?: Pick<SandboxNetworkPolicy, 'allowedHosts' | 'blockedHosts'>) {
+		const { kind, copilotHome } = typeof launch === 'string' ? { kind: launch, copilotHome: undefined } : launch;
 		const manager = store.add(new AgentHostStateManager(new NullLogService()));
 		const configuration = store.add(new AgentConfigurationService(manager, new NullLogService()));
 		const owner = 'copilot:/sess-1';
@@ -717,7 +722,7 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 			? { ...shared, kind, model: undefined }
 			: { ...shared, kind, fallback: { model: undefined } };
 		const logService = new CapturingLogService();
-		const launcher = createTestLauncher(undefined, {}, logService, noopSessionOpenTelemetry, configuration);
+		const launcher = createTestLauncher(undefined, {}, logService, noopSessionOpenTelemetry, configuration, undefined, undefined, undefined, copilotHome);
 		let attachedSession: CopilotSession | undefined;
 		let sessionClosed = false;
 		const services = new ServiceCollection(
@@ -758,7 +763,7 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 		}));
 		const runtime: ICopilotSessionRuntime = {
 			...testRuntime,
-			getLaunchSandboxConfig: isResume => sandbox.getLaunchConfig(isResume),
+			getLaunchSandboxConfig: (isResume, requestExtensions) => sandbox.getLaunchConfig(isResume, requestExtensions ? copilotHome : undefined),
 			applyLaunchSandbox: async (session, isResume) => {
 				await sandbox.applyLaunchConfig(session, isResume);
 				attachedSession = session;
@@ -1081,21 +1086,21 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 
 	for (const kind of ['create', 'resume'] as const) {
 		test(`${kind} grants Canvas data writes only when extensions are enabled`, async () => {
-			const home = URI.file('/copilot-home');
-			const openedPaths: Array<readonly string[] | undefined> = [];
-			for (const enabled of [false, true]) {
-				const fixture = setup(kind);
-				fixture.configuration.updateRootConfig({ [AgentHostCanvasesEnabledConfigKey]: enabled });
-				fixture.configuration.updateSessionConfig(fixture.owner, { sandboxEnabled: 'on' });
+			const copilotHome = URI.file(await mkdtemp(join(tmpdir(), 'canvas-grant-')));
+			try {
+				const openedPaths: Array<readonly string[] | undefined> = [];
+				for (const enabled of [false, true]) {
+					const fixture = setup({ kind, copilotHome });
+					fixture.configuration.updateRootConfig({ [AgentHostCanvasesEnabledConfigKey]: enabled });
+					fixture.configuration.updateSessionConfig(fixture.owner, { sandboxEnabled: 'on' });
 
-				store.add(await fixture.launcher.launch(fixture.plan, {
-					...fixture.runtime,
-					getLaunchSandboxConfig: (isResume, requestExtensions) => fixture.sandbox.getLaunchConfig(isResume, requestExtensions ? home : undefined),
-				}));
-				openedPaths.push(fixture.captured?.permissions?.sandbox?.userPolicy?.filesystem?.readwritePaths);
+					store.add(await fixture.launcher.launch(fixture.plan, fixture.runtime));
+					openedPaths.push(fixture.captured?.permissions?.sandbox?.userPolicy?.filesystem?.readwritePaths);
+				}
+				assert.deepStrictEqual(openedPaths, [undefined, [URI.joinPath(copilotHome, 'extension-data').fsPath]]);
+			} finally {
+				await rm(copilotHome.fsPath, { recursive: true, force: true });
 			}
-
-			assert.deepStrictEqual(openedPaths, [undefined, [URI.joinPath(home, 'extension-data').fsPath]]);
 		});
 
 		test(`${kind} passes the launch sandbox config when the SDK session opens and repeats it for older runtimes`, async () => {
@@ -2222,6 +2227,20 @@ suite('getCopilotAgentSelectionName', () => {
 		assert.deepStrictEqual([...uris, nativeUri, URI.parse('client-agent:/missing')].map(uri =>
 			getCopilotAgentSelectionName(customizations, uri.toString())),
 			[...uris.map(uri => getSdkCustomAgentName(uri)), 'opaque-native-sdk-id', undefined]);
+		// The agent host reads a selected agent's parsed options (e.g. its Assisted permissions instructions) back by name.
+		assert.deepStrictEqual([...uris.map(uri => getSdkCustomAgentName(uri)), 'opaque-native-sdk-id', 'unknown'].map(name =>
+			getCopilotAgentCustomization(customizations, name)?.uri),
+			[...uris.map(uri => uri.toString()), nativeUri.toString(), undefined]);
+	});
+
+	test('carries an agent file\'s Assisted permissions instructions to the selected agent', () => {
+		const uri = URI.parse('client-agent:/fixer');
+		const customizations = {
+			plugins: [], nativeAgents: [], additionalRootInstructions: [],
+			discoveredAgents: [toParsedAgent({ uri, name: 'Fixer', assistedApprovalInstructions: 'Always ask before pushing.' })],
+		};
+		const agent = getCopilotAgentCustomization(customizations, getSdkCustomAgentName(uri));
+		assert.deepStrictEqual(agent && readAgentCustomizationMeta(agent)['vscode.assistedApprovalInstructions'], 'Always ask before pushing.');
 	});
 
 	test('keeps plugin and standalone SDK identities stable across cache revisions', () => {
@@ -3196,6 +3215,48 @@ suite('CopilotSessionLauncher canvas config', () => {
 
 		await assert.rejects(() => launcher.launch(plan, testRuntime), /Extension SDK path is unavailable/);
 	});
+
+	for (const kind of ['create', 'resume'] as const) {
+		test(`prepares fresh canvas storage before SDK ${kind} only when granted`, async () => {
+			const home = URI.file(await mkdtemp(URI.joinPath(URI.file(homedir()), '.vscode-canvas-test-').fsPath));
+			try {
+				const directory = URI.joinPath(home, 'extension-data');
+				const canvas = URI.joinPath(directory, 'test-canvas');
+				const session = upcastPartial<CopilotSession>({
+					sessionId: 'canvas-storage', on: () => () => { }, disconnect: async () => { },
+					rpc: upcastPartial<CopilotSession['rpc']>({
+						agent: upcastPartial<CopilotSession['rpc']['agent']>(emptyAgentCatalog),
+						options: upcastPartial({ update: async () => ({ success: true }) }),
+					}),
+				});
+				const launcher = createTestLauncher(undefined, { [AgentHostCanvasesEnabledConfigKey]: true }, undefined, undefined, undefined, undefined, undefined, undefined, home);
+				for (const granted of [false, true]) {
+					const client = returningSession(session, () => {
+						assert.strictEqual(existsSync(directory.fsPath), granted);
+						if (granted) {
+							mkdirSync(canvas.fsPath);
+							writeFileSync(URI.joinPath(canvas, 'state.tmp').fsPath, '{}');
+							renameSync(URI.joinPath(canvas, 'state.tmp').fsPath, URI.joinPath(canvas, 'state.json').fsPath);
+						}
+					});
+					const base = {
+						client, sessionId: session.sessionId, extensionSdkPath: '/copilot-sdk',
+						workingDirectory: testWorkingDirectory, resolvedAgentName: undefined,
+						snapshot: { discoveredAgents: [], additionalRootInstructions: [], tools: [], plugins: [], mcpServers: {} },
+						activeClientToolSet: new ActiveClientToolSet(), shellManager: undefined,
+						githubCredentials: CopilotGitHubSessionCredentials.fromToken(undefined),
+					};
+					store.add(await launcher.launch(kind === 'create' ? { ...base, kind, model: undefined } : { ...base, kind, fallback: { model: undefined } }, {
+						...testRuntime,
+						getLaunchSandboxConfig: () => ({ enabled: true, userPolicy: { filesystem: { readwritePaths: granted ? [directory.fsPath] : [] } } }),
+					}));
+				}
+				assert.ok(existsSync(URI.joinPath(canvas, 'state.json').fsPath));
+			} finally {
+				await rm(home.fsPath, { recursive: true, force: true });
+			}
+		});
+	}
 
 	test('does not request canvas extensions or rendering for ephemeral sessions', async () => {
 		let captured: Parameters<CopilotClient['createSession']>[0] | undefined;
@@ -4236,7 +4297,7 @@ suite('CopilotSessionLauncher resume config', () => {
 		snapshot: CopilotSessionLaunchPlan['snapshot'] = { discoveredAgents: [], additionalRootInstructions: [], tools: [], plugins: [], mcpServers: {} },
 		createClientSdkTools: ICopilotSessionRuntime['createClientSdkTools'] = () => [],
 		runtimeOverrides: Partial<ICopilotSessionRuntime> = {},
-		planOverrides: Pick<CopilotSessionLaunchPlan, 'modelRouterGuidance' | 'isEphemeral' | 'additionalDirectories'> = {},
+		planOverrides: Pick<CopilotSessionLaunchPlan, 'isEphemeral' | 'additionalDirectories'> = {},
 	): Promise<ResumeSessionOptions> {
 		const plan = {
 			kind: 'resume',
@@ -4323,16 +4384,6 @@ suite('CopilotSessionLauncher resume config', () => {
 		assert.deepStrictEqual(changes.map(tools => isDeepStrictEqual(appliedConfiguration.sessionConfig, appliedConfiguration.resolve(tools).sessionConfig)), [true, true, false, false, false, true, false]);
 	});
 
-	test('tells the main agent the guidance of the chat\'s model router route, but not an ephemeral session', async () => {
-		const store = disposables.add(new DisposableStore());
-		const modelRouterGuidance = { router: 'Team', route: 'feature', guidance: 'Plan first.' };
-		const content = async (isEphemeral: boolean) => (await buildResumeConfig(createLauncher(store, {}), undefined, undefined, undefined, {}, { modelRouterGuidance, isEphemeral })).systemMessage?.content ?? '';
-		assert.deepStrictEqual({
-			chat: /<model_router_guidance>[^]*"Team" chose its "feature" route[^]*Plan first\.[^]*<\/model_router_guidance>$/.test(await content(false)),
-			ephemeral: (await content(true)).includes('model_router_guidance'),
-		}, { chat: true, ephemeral: false });
-	});
-
 	test('sends the hooks of custom agents only when every session folder is trusted', async () => {
 		const store = disposables.add(new DisposableStore());
 		const workspaceAgent = URI.file('/workspace/.github/agents/guard.agent.md');
@@ -4361,6 +4412,41 @@ suite('CopilotSessionLauncher resume config', () => {
 			allFoldersTrusted: ['guard.agent.md', 'helper.agent.md', 'copied.agent.md'],
 			additionalFolderUntrusted: [],
 			primaryFolderUntrusted: [],
+		});
+	});
+
+	test('chat.useHooks off leaves out repository, custom agent and VS Code-run plugin hooks, but keeps VS Code\'s own callbacks', async () => {
+		const store = disposables.add(new DisposableStore());
+		const agent = URI.file('/workspace/.github/agents/guard.agent.md');
+		const snapshot: CopilotSessionLaunchPlan['snapshot'] = {
+			discoveredAgents: [{ name: 'guard', uri: agent, customization: { type: CustomizationType.Agent, id: agent.toString(), uri: agent.toString(), name: 'guard' } }],
+			additionalRootInstructions: [], tools: [], mcpServers: {},
+			// A plugin without a folder, whose hooks VS Code runs through SDK callbacks.
+			plugins: [{
+				format: PluginFormat.Copilot, mcpServers: [], agents: [], skills: [], instructions: [],
+				hooks: [{ type: 'SessionStart', commands: [{ command: 'echo start' }], uri: URI.file('/plugin/hooks.json'), originalId: 'SessionStart', customization: { type: CustomizationType.Hook, id: 'hook:start', uri: 'file:///plugin/hooks.json', name: 'hooks.json' } }],
+			}],
+		};
+		const configFor = async (hooksEnabled: boolean | undefined) => {
+			const config = await buildResumeConfig(createLauncher(store, {
+				[AgentHostWorkspaceTrustConfigKey]: { enabled: true, trustedUris: [URI.file('/workspace').toString()] },
+				[AgentHostHooksEnabledConfigKey]: hooksEnabled,
+			}, '---\nname: guard\nhooks:\n  sessionStart:\n    - type: command\n      bash: echo hi\n---\nBody'), undefined, snapshot);
+			return {
+				repositoryHooks: config.hooks?.enableRepositoryHooks,
+				customAgentHooks: config.agents?.definitions?.find(definition => definition.name === getSdkCustomAgentName(agent))?.hooks !== undefined,
+				handlers: Object.keys(config.hooks?.handlers ?? {}).sort(),
+			};
+		};
+		const vscodeCallbacks = ['onPostToolUse', 'onPostToolUseFailure', 'onPreToolUse', 'onUserPromptSubmitted'];
+		assert.deepStrictEqual({
+			unset: await configFor(undefined),
+			on: await configFor(true),
+			off: await configFor(false),
+		}, {
+			unset: { repositoryHooks: true, customAgentHooks: true, handlers: [...vscodeCallbacks, 'onSessionStart'].sort() },
+			on: { repositoryHooks: true, customAgentHooks: true, handlers: [...vscodeCallbacks, 'onSessionStart'].sort() },
+			off: { repositoryHooks: false, customAgentHooks: false, handlers: vscodeCallbacks },
 		});
 	});
 
@@ -5312,6 +5398,31 @@ suite('CopilotSessionLauncher working directory trust', () => {
 			resumeUntrusted: ['false'],
 			workspaceless: ['false'],
 		});
+	});
+
+	test('gives the runtime the real path of a folder opened through a symbolic link', async function () {
+		if (isWindows) {
+			this.skip(); // Creating symbolic links needs extra privileges on Windows.
+		}
+		const root = await realpath(await mkdtemp(join(tmpdir(), 'copilot-working-directory-')));
+		try {
+			const real = join(root, 'repo');
+			await mkdir(real);
+			await symlink(real, join(root, 'link'));
+			assert.deepStrictEqual({
+				linked: await getCopilotRuntimeWorkingDirectory({ workingDirectory: URI.file(join(root, 'link')) }),
+				real: await getCopilotRuntimeWorkingDirectory({ workingDirectory: URI.file(real) }),
+				missing: await getCopilotRuntimeWorkingDirectory({ workingDirectory: URI.file(join(root, 'missing')) }),
+				virtual: await getCopilotRuntimeWorkingDirectory({ workingDirectory: URI.from({ scheme: 'vscode-vfs', path: '/repos/project' }) }),
+			}, {
+				linked: real,
+				real,
+				missing: join(root, 'missing'),
+				virtual: URI.from({ scheme: 'vscode-vfs', path: '/repos/project' }).fsPath,
+			});
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
 	});
 
 	test('grants no trust to workspace-less, folderless, or non-file working directories, even with trust disabled', async () => {

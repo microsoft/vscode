@@ -27,6 +27,7 @@ import { TestInstantiationService } from '../../../../../../platform/instantiati
 import { getSingletonServiceDescriptors } from '../../../../../../platform/instantiation/common/extensions.js';
 import { ICloudSandboxAgentHostService, ICloudSandboxApiService } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { IMissionControlEnvironmentService } from '../../../../../../platform/agentHost/common/missionControlEnvironment.js';
+import { type ISSHRemoteAgentHostService } from '../../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { IUserDataProfileService } from '../../../../../../workbench/services/userDataProfile/common/userDataProfile.js';
 import { IUserDataProfile } from '../../../../../../platform/userDataProfile/common/userDataProfile.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
@@ -577,6 +578,8 @@ interface IProviderOwnerHarness {
 	_configurationService: { getValue(key: string): boolean };
 	_remoteAgentHostService: { readonly configuredEntries: readonly IRemoteAgentHostEntry[] };
 	_extensionRemoteAgentHostsService: Pick<IExtensionRemoteAgentHostsService, 'hosts'>;
+	_sshService: Pick<ISSHRemoteAgentHostService, 'disconnectedEntries'>;
+	_disconnectedEntries: ISSHRemoteAgentHostService['disconnectedEntries'];
 	_entryType: RemoteAgentHostEntryType;
 	_providerStores: Map<string, undefined> & { deleteAndDispose(address: string): void };
 	_providerInstances: Map<string, { readonly label: string; readonly defaultLabel: string }>;
@@ -622,6 +625,8 @@ suite('Remote agent host provider ownership', () => {
 		contribution._configurationService = { getValue: () => true };
 		contribution._remoteAgentHostService = { configuredEntries: entries };
 		contribution._extensionRemoteAgentHostsService = { hosts: constObservable([]) };
+		contribution._sshService = { disconnectedEntries: constObservable([]) };
+		contribution._disconnectedEntries = contribution._sshService.disconnectedEntries;
 		contribution._entryType = entryType;
 		const providerStores = new Map<string, undefined>();
 		contribution._providerStores = Object.assign(providerStores, {

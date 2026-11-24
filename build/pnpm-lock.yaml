@@ -280,9 +280,6 @@ importers:
       '@types/xml2js':
         specifier: 0.0.33
         version: 0.0.33
-      '@vscode/iconv-lite-umd':
-        specifier: 0.7.1
-        version: 0.7.1
       '@vscode/vsce':
         specifier: 4.1.1
         version: 4.1.1
@@ -1283,9 +1280,6 @@ packages:
 
   '@vscode/component-explorer@0.2.1-161':
     resolution: {integrity: sha512-uu77irXrCz+WB/A8Pt9liKu7VZd+QAICfzeFInAgfOzGN1nFud4J7V9pb1A7uwNmAgIIcL6tX0MNpC4p8KuINg==}
-
-  '@vscode/iconv-lite-umd@0.7.1':
-    resolution: {integrity: sha512-tK6k0DXFHW7q5+GGuGZO+phpAqpxO4WXl+BLc/8/uOk3RsM2ssAL3CQUQDb1TGfwltjsauhN6S4ghYZzs4sPFw==}
 
   '@vscode/rollup-plugin-esm-url@1.0.1-1':
     resolution: {integrity: sha512-vNmIR3ZyiwACUi8qnXhKNukoXaFkOM9skiqVOVHNKJTBb7kJS+evtyadrBc/fMm1y303WQWBNA90E7fCCsE2Sw==}
@@ -3389,8 +3383,6 @@ snapshots:
       react: 18.3.1
       react-dom: 18.3.1(react@18.3.1)
       zod: 4.4.3
-
-  '@vscode/iconv-lite-umd@0.7.1': {}
 
   '@vscode/rollup-plugin-esm-url@1.0.1-1(rollup@4.59.0)':
     dependencies:

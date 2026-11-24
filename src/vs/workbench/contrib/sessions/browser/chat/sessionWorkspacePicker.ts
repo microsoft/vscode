@@ -42,7 +42,7 @@ import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { IFolderLocation } from '../../../../../platform/workspace/common/folderLocations.js';
 import { FolderLocationKind, getCurrentFolderLocationDescription, getFolderLocationDetail, getNewWorktreeDetail, getNewWorktreeLabel, groupFolderLocations } from '../../../chat/browser/agentSessions/agentHost/agentHostFolderLocationSections.js';
-import { IGitHubInfo, isActiveSessionStatus, ISessionWorkspace, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_GITHUB, SESSION_WORKSPACE_GROUP_LOCAL, SESSION_WORKSPACE_GROUP_REMOTE } from '../../../../services/sessions/common/session.js';
+import { IGitHubInfo, isActiveSessionStatus, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISessionWorkspaceBrowseOptions, SESSION_WORKSPACE_GROUP_GITHUB, SESSION_WORKSPACE_GROUP_LOCAL, SESSION_WORKSPACE_GROUP_REMOTE } from '../../../../services/sessions/common/session.js';
 import { ISessionsProvidersService } from '../sessionsProvidersService.js';
 import { cloneRepository } from '../cloneRepository.js';
 import { IAgentHostFilterService } from '../../common/agentHostFilter.js';
@@ -145,6 +145,7 @@ export interface IWorkspacePickerItem {
 }
 
 export interface IWorkspacePickerOptions {
+	readonly searchWorkspaceTargetDirectly?: boolean;
 	readonly environment?: IObservable<ISessionCreationEnvironment | undefined>;
 	readonly environmentPickerEnabled?: IObservable<boolean>;
 	readonly onUserSelection?: () => void;
@@ -1038,7 +1039,7 @@ export class WorkspacePicker extends Disposable {
 	 * subclass that opts to render a different UI but reuse the
 	 * selection semantics. Treats unavailable workspaces as a no-op.
 	 */
-	protected async _dispatchPickerItem(item: IWorkspacePickerItem): Promise<boolean> {
+	protected async _dispatchPickerItem(item: IWorkspacePickerItem, browseOptions?: ISessionWorkspaceBrowseOptions): Promise<boolean> {
 		const generation = ++this._selectionGeneration;
 		this._reportPickerClosed(item);
 		if (item.run) {
@@ -1052,7 +1053,7 @@ export class WorkspacePicker extends Disposable {
 			return false;
 		}
 		if (item.browseActionIndex !== undefined || item.browseAction) {
-			const selection = await this._executeBrowseAction(item.browseActionIndex, item.browseAction);
+			const selection = await this._executeBrowseAction(item.browseActionIndex, item.browseAction, browseOptions);
 			const folderUri = selection?.workspace.folders[0]?.root;
 			if (!folderUri || generation !== this._selectionGeneration) {
 				return false;
@@ -1615,7 +1616,7 @@ export class WorkspacePicker extends Disposable {
 	/**
 	 * Executes a provider browse action referenced directly or by picker index.
 	 */
-	private async _executeBrowseAction(actionIndex: number | undefined, browseAction?: ISessionWorkspaceBrowseAction): Promise<IBrowsedWorkspaceSelection | undefined> {
+	private async _executeBrowseAction(actionIndex: number | undefined, browseAction?: ISessionWorkspaceBrowseAction, options?: ISessionWorkspaceBrowseOptions): Promise<IBrowsedWorkspaceSelection | undefined> {
 		const action = browseAction ?? (actionIndex !== undefined ? this._getAllBrowseActions()[actionIndex] : undefined);
 		if (!action) {
 			return undefined;
@@ -1623,7 +1624,7 @@ export class WorkspacePicker extends Disposable {
 
 		// Let the action-list widget hide before a browse action opens another picker.
 		await Promise.resolve();
-		if (action.providerId && !this._isWorkspaceProviderVisible(action.providerId)) {
+		if (options?.token.isCancellationRequested || action.providerId && !this._isWorkspaceProviderVisible(action.providerId)) {
 			return undefined;
 		}
 		try {
@@ -1635,8 +1636,8 @@ export class WorkspacePicker extends Disposable {
 			const currentWorkspace = action.attachesContext && this._selectedFolderUri
 				? (actionProvider?.resolveWorkspace(this._selectedFolderUri) ?? this._selectedResolved?.workspace)
 				: (this._getSelectedRepositoryWorkspace() ?? this._selectedResolved?.workspace);
-			const workspace = await action.run(currentWorkspace);
-			return workspace ? { workspace, providerId: action.providerId, action } : undefined;
+			const workspace = await action.run(currentWorkspace, options);
+			return workspace && !options?.token.isCancellationRequested ? { workspace, providerId: action.providerId, action } : undefined;
 		} catch {
 			// browse action was cancelled or failed
 		}

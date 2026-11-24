@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { timeout } from '../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
+import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { constObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -62,7 +63,7 @@ suite('Sessions - Bulk archive undo', () => {
 		const sessionArchived = store.add(new Emitter<ISession>());
 		const archived: string[] = [];
 		const restored: string[] = [];
-		const state = { failArchive: '', failRestore: '', confirmed: true, launching: false, notices: 0, message: '', undo: async () => { } };
+		const state = { failArchive: '', failRestore: '', confirmed: true, launching: false, notices: 0, message: '', undo: async () => { }, started: [] as string[], onStart: () => { }, gate: Promise.resolve() };
 		instantiationService.stub(IDialogService, new class extends mock<IDialogService>() {
 			override async confirm() { return { confirmed: state.confirmed }; }
 		});
@@ -88,12 +89,18 @@ suite('Sessions - Bulk archive undo', () => {
 				return sessions.find(entry => entry.session.resource.toString() === resource.toString())?.session;
 			}
 			override async archiveSession(session: ISession) {
+				state.started.push(session.sessionId);
+				state.onStart();
+				await state.gate;
 				if (session.sessionId === state.failArchive) {
 					throw new Error('archive failed');
 				}
 				archived.push(session.sessionId);
 				sessions.find(entry => entry.session === session)!.isArchived.set(true, undefined);
 				sessionArchived.fire(session);
+			}
+			override archiveSessions(targets: readonly ISession[]) {
+				return Promise.allSettled(targets.map(session => this.archiveSession(session)));
 			}
 			override async unarchiveSession(session: ISession) {
 				if (session.sessionId === state.failRestore) {
@@ -386,6 +393,105 @@ suite('Sessions - Bulk archive undo', () => {
 		await test.state.undo();
 		assert.deepStrictEqual({ message: test.state.message, restored: test.restored }, { message: '1 marked done', restored: ['first'] });
 	});
+
+	test('archives a batch without waiting for each session in turn', async () => {
+		const test = setup();
+		const gate = new DeferredPromise<void>();
+		const firstStarted = new DeferredPromise<void>();
+		test.state.gate = gate.p;
+		test.state.onStart = () => firstStarted.complete();
+		const run = test.run();
+		await firstStarted.p;
+		const startedBeforeCompletion = [...test.state.started];
+		gate.complete();
+		await run;
+		assert.deepStrictEqual({ startedBeforeCompletion, archived: test.archived, message: test.state.message }, { startedBeforeCompletion: ['first', 'second'], archived: ['first', 'second'], message: '2 marked done' });
+	});
+
+	test('a failed archive does not stop the rest of the batch', async () => {
+		const test = setup();
+		test.state.failArchive = 'first';
+		await assert.rejects(test.run(), /archive failed/);
+		await test.state.undo();
+		assert.deepStrictEqual({ message: test.state.message, restored: test.restored }, { message: '1 marked done', restored: ['second'] });
+	});
+
+	test('a lone cancellation remains identifiable and successful archives stay undoable', async () => {
+		const harness = setup();
+		const cancellation = new CancellationError();
+		const archiveSession = harness.managementService.archiveSession;
+		harness.managementService.archiveSession = async session => {
+			if (session.sessionId === 'second') {
+				throw cancellation;
+			}
+			await archiveSession(session);
+		};
+
+		const error = await harness.run().catch(error => {
+			if (!(error instanceof Error)) {
+				throw error;
+			}
+			return error;
+		});
+		await harness.state.undo();
+
+		assert.deepStrictEqual({
+			isCancellation: isCancellationError(error),
+			sameError: error === cancellation,
+			message: harness.state.message,
+			restored: harness.restored,
+		}, {
+			isCancellation: true, sameError: true,
+			message: '1 marked done', restored: ['first'],
+		});
+	});
+
+	test('multiple archive failures retain their causes with a concise summary', async () => {
+		const harness = setup();
+		const failure = new Error('archive failed');
+		harness.managementService.archiveSession = async () => { throw failure; };
+
+		const error = await harness.run().then(() => assert.fail('Expected archive failures'), error => {
+			if (!(error instanceof AggregateError)) {
+				throw error;
+			}
+			return error;
+		});
+
+		assert.deepStrictEqual({
+			name: error.name,
+			message: error.message,
+			causes: error.errors,
+			notices: harness.state.notices,
+		}, {
+			name: 'AggregateError',
+			message: 'archive failed (2 errors in total)',
+			causes: [failure, failure],
+			notices: 0,
+		});
+	});
+
+	test('a failed archive waits for a later success before reporting and offering Undo', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const harness = setup(ChatSessionArchiveActionWording.MarkAsDone, true);
+		harness.state.failArchive = 'first';
+		const archiveSession = harness.managementService.archiveSession;
+		harness.managementService.archiveSession = async session => {
+			if (session.sessionId === 'second') {
+				await timeout(10);
+			}
+			await archiveSession(session);
+		};
+
+		await assert.rejects(harness.run('group'), /archive failed/);
+		const afterArchive = { archived: [...harness.archived], message: harness.state.message, notices: harness.state.notices };
+		await harness.state.undo();
+
+		assert.deepStrictEqual({ afterArchive, restored: harness.restored, group: harness.groupsService.getGroup(harness.group.id)?.name }, {
+			afterArchive: { archived: ['second'], message: '1 marked done', notices: 1 },
+			restored: ['second'],
+			group: 'Group',
+		});
+	}));
 
 	test('undo can retry a partial restore failure without restoring successful sessions twice', async () => {
 		const test = setup();

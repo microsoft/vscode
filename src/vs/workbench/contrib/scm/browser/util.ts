@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ISCMHistoryItem, SCMHistoryItemChangeViewModelTreeElement, SCMHistoryItemLoadMoreTreeElement, SCMHistoryItemViewModelTreeElement } from '../common/history.js';
-import { ISCMResource, ISCMRepository, ISCMResourceGroup, ISCMInput, ISCMActionButton, ISCMViewService, ISCMProvider } from '../common/scm.js';
+import { ISCMResource, ISCMRepository, ISCMResourceGroup, ISCMInput, ISCMActionButton, ISCMViewService, ISCMProvider, ISCMRepositoryNoticeElement } from '../common/scm.js';
 import { IMenu, MenuItemAction } from '../../../../platform/actions/common/actions.js';
 import { IActionViewItemProvider } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
@@ -36,6 +36,10 @@ export function isSCMInput(element: unknown): element is ISCMInput {
 
 export function isSCMActionButton(element: unknown): element is ISCMActionButton {
 	return (element as ISCMActionButton).type === 'actionButton';
+}
+
+export function isSCMRepositoryNotice(element: unknown): element is ISCMRepositoryNoticeElement {
+	return (element as ISCMRepositoryNoticeElement).type === 'repositoryNotice';
 }
 
 export function isSCMResourceGroup(element: unknown): element is ISCMResourceGroup {
@@ -87,8 +91,10 @@ const compareActions = (a: IAction, b: IAction) => {
 };
 
 export function connectPrimaryMenu(menu: IMenu, callback: (primary: IAction[], secondary: IAction[]) => void, primaryGroup?: string, arg?: unknown): IDisposable {
-	let cachedPrimary: IAction[] = [];
-	let cachedSecondary: IAction[] = [];
+	// Start without a cache so that the first update always reaches the callback, even
+	// when the menu has no actions: a recycled template must clear its previous actions
+	let cachedPrimary: IAction[] | undefined;
+	let cachedSecondary: IAction[] | undefined;
 
 	const updateActions = () => {
 		const { primary, secondary } = getActionBarActions(menu.getActions({ arg, shouldForwardArgs: true }), primaryGroup);

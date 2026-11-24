@@ -10,7 +10,7 @@ import { localize } from '../../../nls.js';
 import { readMcpServerDisplayName } from '../common/meta/mcpCustomizationMeta.js';
 import { SYNCED_CUSTOMIZATION_SCHEME } from '../common/agentHostCustomizationUri.js';
 import type { IAgent, IAgentChatContext } from '../common/agent.js';
-import { getSkillCustomizations, isCustomizationEnabled, isSkillEligibleForUserInvocation } from '../common/customizationEnablement.js';
+import { getSkillCustomizations, isCustomizationEnabled, isSkillContainerEnabled, isSkillEligibleForUserInvocation } from '../common/customizationEnablement.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import { CompletionItem, CompletionItemKind, CompletionsParams } from '../common/state/protocol/commands.js';
 import { MessageAttachmentKind } from '../common/state/protocol/state.js';
@@ -100,8 +100,7 @@ export class AgentHostSkillCompletionProvider extends Disposable implements IAge
 			}
 		}
 		const undiscoveredServers = customizations.flatMap(customization => {
-			const containerEnabled = customization.type === CustomizationType.Directory ? customization.enabled : isCustomizationEnabled(customization);
-			if (!containerEnabled) {
+			if (!isSkillContainerEnabled(customization)) {
 				return [];
 			}
 			const servers = customization.type === CustomizationType.McpServer ? [customization]
