@@ -9,7 +9,7 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { suite, test } from 'node:test';
-import { addedPackages, checkChanges, checkRevisions, createPublicRegistry, isExcluded, packageManagerPackage, parseCargoLockfile, parsePackageLockfile, parsePnpmLockfile, parseReleaseAgePolicy, type ILockedPackage, type IRegistry, type Release } from '../dependencyReleaseAge.ts';
+import { addedPackages, cargoSource, checkChanges, checkRevisions, createPublicRegistry, isExcluded, packageManagerPackage, parseCargoLockfile, parsePackageLockfile, parsePnpmLockfile, parseReleaseAgePolicy, type ILockedPackage, type IRegistry, type Release } from '../dependencyReleaseAge.ts';
 
 const repositoryRoot = path.resolve(import.meta.dirname, '../../..');
 const now = new Date('2026-11-23T12:00:00Z');
@@ -146,7 +146,7 @@ suite('dependencyReleaseAge', () => {
 		assert.deepStrictEqual(parseCargoLockfile(lockfile), [
 			{ ecosystem: 'crates', name: 'code-cli', version: '0.1.0', source: { kind: 'local' } },
 			{ ecosystem: 'crates', name: 'serde', version: '1.0.228', source: { kind: 'registry' } },
-			{ ecosystem: 'crates', name: 'tunnels', version: '0.1.0', source: { kind: 'other', description: 'git repository https://github.com/microsoft/dev-tunnels?rev=0123abc#0123abc' } },
+			{ ecosystem: 'crates', name: 'tunnels', version: '0.1.0', source: { kind: 'allowed', description: 'git repository https://github.com/microsoft/dev-tunnels?rev=0123abc#0123abc' } },
 		]);
 	});
 
@@ -198,6 +198,29 @@ suite('dependencyReleaseAge', () => {
 		}
 	});
 
+	test('allows any revision of the allowed Cargo git repositories, and no look-alike or other git repository', async () => {
+		const sources = [
+			'git+https://github.com/microsoft/vscode-russh?branch=main#fd4f608a83753f9f3e137f95600faffede71cf65',
+			'git+https://github.com/microsoft/dev-tunnels?rev=0123abc#0123abc',
+			'git+https://github.com/microsoft/vscode-russh-evil?branch=main#0123abc',
+			'git+https://github.com/microsoft/vscode-russh/evil?branch=main#0123abc',
+			'git+https://github.com.example.com/microsoft/vscode-russh?branch=main#0123abc',
+			'git+https://user@github.com/microsoft/vscode-russh?branch=main#0123abc',
+			'git+https://github.com/someone/vscode-russh?branch=main#0123abc',
+			'git+http://github.com/microsoft/vscode-russh?branch=main#0123abc',
+		];
+		assert.deepStrictEqual(sources.map(source => cargoSource(source).kind), ['allowed', 'allowed', 'other', 'other', 'other', 'other', 'other', 'other']);
+
+		// A bump of an allowed repository needs neither a crates.io release nor a lookup.
+		const registry = fakeRegistry({});
+		const violations = await checkChanges([{
+			lockfile: 'cli/Cargo.lock',
+			policy: { ...policy, exclude: [] },
+			added: sources.slice(0, 3).map((source, index) => ({ ecosystem: 'crates', name: `crate${index}`, version: '0.1.0', source: cargoSource(source) })),
+		}], new Set(), registry, now);
+		assert.deepStrictEqual(violations.map(violation => violation.name), ['crate2']);
+		assert.deepStrictEqual(registry.lookups, []);
+	});
 	test('reads the release-age policy of the pnpm-workspace.yaml files of the repository', () => {
 		assert.deepStrictEqual(parseReleaseAgePolicy('packages:\n  - a\nminimumReleaseAge: 10080\nminimumReleaseAgeExclude:\n  - \'@vscode/*\'\n  # comment\n  - electron # comment\nnodeLinker: isolated\n', 'pnpm-workspace.yaml'), policy);
 		assert.deepStrictEqual(parseReleaseAgePolicy('minimumReleaseAge: 1440\nminimumReleaseAgeExclude: []\nminimumReleaseAgeStrict: true\n', 'a.yaml'), { minimumReleaseAge: 1440, exclude: [], file: 'a.yaml' });

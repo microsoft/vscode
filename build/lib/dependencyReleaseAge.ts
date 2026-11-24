@@ -21,6 +21,8 @@ export type Ecosystem = 'npm' | 'crates';
 export type PackageSource =
 	| { readonly kind: 'registry' }
 	| { readonly kind: 'local' }
+	/** A git repository of ALLOWED_CARGO_GIT_REPOSITORIES, which is neither checked for its source nor for its age. */
+	| { readonly kind: 'allowed'; readonly description: string }
 	| { readonly kind: 'other'; readonly description: string };
 
 export interface ILockedPackage {
@@ -54,6 +56,31 @@ export interface IViolation {
 
 const NPM_REGISTRY = 'https://registry.npmjs.org/';
 const CRATES_IO_SOURCES = ['registry+https://github.com/rust-lang/crates.io-index', 'sparse+https://index.crates.io/'];
+
+/**
+ * The git repositories that Cargo.lock may take crates from at any revision, though they're not on crates.io: the Dev
+ * Tunnels SDK, and the SSH library that it and the CLI use. They're compared with the whole host and path of the source.
+ */
+const ALLOWED_CARGO_GIT_REPOSITORIES = new Set(['https://github.com/microsoft/dev-tunnels', 'https://github.com/microsoft/vscode-russh']);
+
+/** The source of a Cargo package: crates.io, a git repository that ALLOWED_CARGO_GIT_REPOSITORIES lists, or another one. */
+export function cargoSource(source: string): PackageSource {
+	if (CRATES_IO_SOURCES.includes(source)) {
+		return { kind: 'registry' };
+	}
+	if (source.startsWith('git+')) {
+		const description = `git repository ${source.slice(4)}`;
+		let url: URL | undefined;
+		try {
+			url = new URL(source.slice(4));
+		} catch {
+			// Then it isn't allowed.
+		}
+		const repository = url && !url.username && !url.password && !url.port ? `${url.protocol}//${url.hostname}${url.pathname}` : undefined;
+		return repository && ALLOWED_CARGO_GIT_REPOSITORIES.has(repository) ? { kind: 'allowed', description } : { kind: 'other', description };
+	}
+	return { kind: 'other', description: `registry ${source}` };
+}
 
 const LOCKFILE_NAMES = new Set(['pnpm-lock.yaml', 'package-lock.json', 'Cargo.lock']);
 
@@ -248,9 +275,7 @@ export function parseCargoLockfile(text: string): ILockedPackage[] {
 				ecosystem: 'crates',
 				name: current.name,
 				version: current.version,
-				source: source === undefined ? { kind: 'local' }
-					: CRATES_IO_SOURCES.includes(source) ? { kind: 'registry' }
-						: { kind: 'other', description: source.startsWith('git+') ? `git repository ${source.slice(4)}` : `registry ${source}` },
+				source: source === undefined ? { kind: 'local' } : cargoSource(source),
 			});
 		}
 		current = undefined;
@@ -376,7 +401,7 @@ export async function checkChanges(changes: readonly ILockfileChange[], lockedOn
 	for (const { lockfile, added, policy } of changes) {
 		for (const pkg of added) {
 			const violation = (message: string) => violations.push({ lockfile, name: pkg.name, version: pkg.version, message });
-			if (pkg.source.kind === 'local') {
+			if (pkg.source.kind === 'local' || pkg.source.kind === 'allowed') {
 				continue;
 			}
 			if (pkg.source.kind === 'other') {
