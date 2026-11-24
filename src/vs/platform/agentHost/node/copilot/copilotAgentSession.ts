@@ -5669,6 +5669,8 @@ export class CopilotAgentSession extends Disposable {
 			throw new Error('Canvases are disabled for this session.');
 		}
 		const wasIgnored = this._ignoredRestoredCanvasInstanceIds.has(request.instanceId);
+		// An open of a canvas this chat lists reopens that lifetime, which may wait for consent.
+		const projected = this._canvasByInstanceId.get(request.instanceId);
 		let latestEvent: SessionEventPayload<'session.canvas.opened' | 'session.canvas.closed' | 'session.canvas.unavailable'> | undefined;
 		const listener = wasIgnored ? wrapper.onEvent(event => {
 			if (!event.agentId
@@ -5682,9 +5684,16 @@ export class CopilotAgentSession extends Disposable {
 			await operation.ready;
 			operation.extension = await operation.extensionRead;
 			await this._awaitOtherExtensionConsents(operation);
+			const current = this._canvasByInstanceId.get(request.instanceId);
+			// A lifetime closed meanwhile stays closed.
+			if (projected && (!current || !isEqual(current.resource, projected.resource))) {
+				return { kind: 'failed', failure: 'dismissed' };
+			}
+			// The runtime coalesces concurrent opens of an instance with the first one's input, so a reopen keeps the lifetime's input.
+			const sameCanvas = current && current.canvas.canvasId === request.canvasId && (!request.extensionId || current.canvas.extensionId === request.extensionId);
 			let canvas: Awaited<ReturnType<CopilotSession['rpc']['canvas']['open']>>;
 			try {
-				canvas = await wrapper.session.rpc.canvas.open(request);
+				canvas = await wrapper.session.rpc.canvas.open(sameCanvas && current.input !== undefined ? { ...request, input: current.input } : request);
 			} catch (error) {
 				const denied = operation.denied ?? this._extensionConsentDenialFor(request.extensionId);
 				if (denied) {

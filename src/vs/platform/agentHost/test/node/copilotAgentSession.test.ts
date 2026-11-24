@@ -6437,6 +6437,48 @@ suite('CopilotAgentSession', () => {
 			replacement.session.dispose();
 		});
 
+		test('reopens a restoring canvas a client opens with its input, unless it was closed while the open waited for consent', async () => {
+			const input = { path: '/logs/events.jsonl' };
+			const results = [];
+			for (const closeWhileWaiting of [false, true]) {
+				const { handoff } = await takeCanvasesFromPreviousRuntime({ ...preview, input, url: 'https://example.test/previous' });
+				const otherAnswer = new DeferredPromise<PermissionRequestResult>();
+				const replacement = await createAgentSession(disposables, {
+					resume: true,
+					canvasHandoff: handoff,
+					configureMockSession: mock => {
+						mock.extensions.push({ id: preview.extensionId, name: 'preview', source: 'project', status: 'dormant' });
+						mock.onCanvasOpen = async params => {
+							await otherAnswer.p;
+							return { ...preview, input: params.input, url: 'https://example.test/reopened' };
+						};
+					},
+				});
+				void replacement.runtime.handlePermissionRequest({ kind: 'extension-permission-access', extensionName: 'user:pr-health', capabilities: ['register hooks'] }).then(result => otherAnswer.complete(result));
+				assert.strictEqual(replacement.session.adoptCanvasHandoff(handoff), true);
+				const request = { canvasId: preview.canvasId, extensionId: preview.extensionId, instanceId: preview.instanceId };
+				const asked = await replacement.session.openCanvas(request);
+				if (closeWhileWaiting) {
+					await replacement.session.closeCanvas({ resource: handoff.projections[0].resource });
+				}
+				const opened = asked.kind === 'consentRequired'
+					? await replacement.session.openCanvas(request, { kind: 'consent', consentId: asked.consent.id, optionId: AgentExtensionConsentOption.NotNow })
+					: asked;
+				await timeout(0);
+				results.push({
+					opened,
+					openInputs: replacement.mockSession.canvasOpenCalls.map(call => call.input),
+					members: summarizeCanvasSignals(replacement.signals).membership.at(-1)?.length,
+				});
+				replacement.session.dispose();
+			}
+
+			assert.deepStrictEqual(results, [
+				{ opened: { kind: 'opened' }, openInputs: [input, input], members: 1 },
+				{ opened: { kind: 'failed', failure: 'dismissed' }, openInputs: [input], members: 0 },
+			]);
+		});
+
 		test('restores a handed-over canvas whose icon is shown again at any step of its restoration, unless it is closed', async () => {
 			const icon = toCanvasIconDataUri(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64'));
 			const results = [];

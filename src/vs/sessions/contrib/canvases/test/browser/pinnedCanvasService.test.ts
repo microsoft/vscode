@@ -618,6 +618,26 @@ suite('PinnedCanvasService', () => {
 		});
 	});
 
+	test('does not open a restoring canvas again while its open is pending, and ignores a denial that arrives after it is unpinned', async () => {
+		const canvas = createCanvas('plan');
+		const consent = { id: 'consent', kind: 'environment', extensionName: 'user:canvases', displayName: 'Canvases', items: ['TOKEN'], persistable: true } as const;
+		const answer = new DeferredPromise<void>();
+		const { harness, entry, chat } = createRestoredHarness(canvas, { openCanvas: () => answer.p });
+
+		await harness.service.show(entry);
+		harness.setChatCanvases(chat.resource, [canvas]);
+		harness.setLive({ ...canvas, source: undefined }, canvas.resource);
+		await harness.service.show(entry);
+		harness.setLive({ ...canvas, status: 'starting', source: undefined }, canvas.resource);
+		await timeout(0);
+		const opensWhilePending = harness.openedCanvases.length;
+		harness.service.unpin(entry);
+		answer.error(new CanvasExtensionConsentDeniedError(consent, true));
+		await timeout(0);
+
+		assert.deepStrictEqual({ opensWhilePending, notifications: harness.notifications }, { opensWhilePending: 1, notifications: [] });
+	});
+
 	test('reopens a shown pin through its chat when its chat no longer lists its canvas, and binds once the chat publishes it after unrelated changes', async () => {
 		const opened = new DeferredPromise<void>();
 		const { harness, entry, chat } = createRestoredHarness(createCanvas('plan'), { openCanvas: () => opened.p });
