@@ -1672,7 +1672,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			this._register(autorun(reader => this._onDidChangeAccountContext(this._accountService.state.read(reader))));
 			this._register(this._entraAuthentication.onDidRevoke(() => {
 				void this._requestClientRestart('Microsoft authentication cleared').catch(error => this._logService.error('[Copilot] Failed to restart runtime after Microsoft authentication was cleared', error));
-				void this._authenticationSequencer.queue(() => this._applyKeptGitHubCredential())
+				void this._applyKeptGitHubCredentialWhenSettled()
 					.catch(error => this._logService.error('[Copilot] Failed to apply the GitHub credential kept during Microsoft authentication', error));
 			}));
 		}
@@ -4099,6 +4099,18 @@ export class CopilotAgent extends Disposable implements IAgent {
 			}
 			return this._applyGitHubAuthentication(token, expiresIn, endpointGeneration, _meta);
 		});
+	}
+
+	/** The shared store deletes a signed-out token only when its request settles, so this waits for GitHub authentication in flight first. The wait is outside the sequencer because that request may be waiting on it. */
+	private async _applyKeptGitHubCredentialWhenSettled(): Promise<void> {
+		const settled = this._authenticationService.whenAuthenticationSettled(this._gitHubEndpointService.getCopilotResource().resource);
+		if (settled) {
+			await settled;
+			if (this._store.isDisposed) {
+				return;
+			}
+		}
+		await this._authenticationSequencer.queue(() => this._applyKeptGitHubCredential());
 	}
 
 	/** Applies the GitHub credential the shared store kept while a Microsoft account was in use, unless one was applied meanwhile. Asks for the Microsoft credential when no GitHub token ends up applied. */

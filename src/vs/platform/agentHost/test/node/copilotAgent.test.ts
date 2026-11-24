@@ -82,7 +82,7 @@ import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostAutoReplyEnable
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { toClientPluginMcpDefaultCwdsMeta, toClientPluginStandaloneMeta } from '../../common/meta/clientPluginCustomizationMeta.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
-import { AgentSession, AgentExtensionConsentOption, type AgentCanvasOpenAnswer, type AgentCanvasOpenResult, GITHUB_COPILOT_PROTECTED_RESOURCE, type AgentSignal, type AuthenticateParams, type IAgentCanvasInfo, type IAgentChatAdoptionResult, type IAgentChatSessionSettings, type IAgentChatContext, type IAgentChatMetadata, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentDiscoveredChat, type IAgentMaterializeChatEvent, type IAgentPrewarmClaim, type IAgentSpawnChatEvent, fixedChatOwnerRef, type IAgentChatOwnerRef } from '../../common/agent.js';
+import { AgentSession, type IAgent, AgentExtensionConsentOption, type AgentCanvasOpenAnswer, type AgentCanvasOpenResult, GITHUB_COPILOT_PROTECTED_RESOURCE, type AgentSignal, type AuthenticateParams, type IAgentCanvasInfo, type IAgentChatAdoptionResult, type IAgentChatSessionSettings, type IAgentChatContext, type IAgentChatMetadata, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentDiscoveredChat, type IAgentMaterializeChatEvent, type IAgentPrewarmClaim, type IAgentSpawnChatEvent, fixedChatOwnerRef, type IAgentChatOwnerRef } from '../../common/agent.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { subagentChatUri } from '../../common/agentHostChatMinting.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, createUnknownAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
@@ -6553,6 +6553,84 @@ suite('CopilotAgent', () => {
 		await Promise.all([held, ended]);
 		await idle();
 		assert.deepStrictEqual({ applied: applied(), published, account: accountKind() }, { applied: undefined, published: [copilotEntraDiscoveryResource], account: 'legacy' });
+	});
+
+	/** A second provider on the GitHub resource whose authenticate stays pending until the test completes the call. */
+	function holdGitHubAuthentication() {
+		const calls: DeferredPromise<void>[] = [];
+		const provider = upcastPartial<IAgent>({
+			id: 'held',
+			getProtectedResources: () => [GITHUB_COPILOT_PROTECTED_RESOURCE],
+			authenticate: async () => {
+				const call = new DeferredPromise<void>();
+				calls.push(call);
+				await call.p;
+				return true;
+			},
+		});
+		return { provider, calls };
+	}
+
+	test('a GitHub sign-out in flight when the Microsoft account ends is what the host ends on, not the kept token', async () => {
+		const { agent, authenticationService, gitHub, published, sendGitHub, endMicrosoft, applied, idle, accountKind } = await useMicrosoftAccount({ githubToken: 'kept' });
+		published.length = 0;
+		let release!: () => void;
+		const sequencer = (agent as unknown as { _authenticationSequencer: { queue(task: () => Promise<void>): Promise<void> } })._authenticationSequencer;
+		const held = sequencer.queue(() => new Promise<void>(resolve => release = resolve));
+		const signedOut = sendGitHub('');
+		const ended = endMicrosoft();
+		await timeout(0);
+		release();
+		await Promise.all([held, signedOut, ended]);
+		await timeout(0);
+		await idle();
+		assert.deepStrictEqual(
+			{ store: authenticationService.getAuthToken(gitHub), applied: applied(), account: accountKind(), published },
+			{ store: undefined, applied: undefined, account: 'legacy', published: [copilotEntraDiscoveryResource] });
+	});
+
+	test('a GitHub sign-out held before its commit when the Microsoft account ends is what the host ends on, not the kept token', async () => {
+		const { agent, authenticationService, gitHub, published, endMicrosoft, applied, idle, accountKind } = await useMicrosoftAccount({ githubToken: 'kept' });
+		published.length = 0;
+		const { provider, calls } = holdGitHubAuthentication();
+		const signedOut = authenticationService.authenticate({ ...gitHub, token: '' }, [agent, provider]);
+		await timeout(0);
+		const ended = endMicrosoft();
+		await timeout(0);
+		calls[0].complete();
+		await Promise.all([signedOut, ended]);
+		await timeout(0);
+		await idle();
+		assert.deepStrictEqual(
+			{ store: authenticationService.getAuthToken(gitHub), applied: applied(), account: accountKind(), published },
+			{ store: undefined, applied: undefined, account: 'legacy', published: [copilotEntraDiscoveryResource] });
+	});
+
+	test('a GitHub sign-out sent after the Microsoft account ended leaves no live token and an empty store', async () => {
+		const { authenticationService, gitHub, sendGitHub, endMicrosoft, applied, idle } = await useMicrosoftAccount({ githubToken: 'kept' });
+		await endMicrosoft();
+		await idle();
+		await sendGitHub('');
+		await idle();
+		assert.deepStrictEqual({ store: authenticationService.getAuthToken(gitHub), applied: applied() }, { store: undefined, applied: undefined });
+	});
+
+	test('a GitHub sign-out replaced by a newer one while the kept step waits is what the host ends on, not the kept token', async () => {
+		const { agent, authenticationService, gitHub, endMicrosoft, applied, idle } = await useMicrosoftAccount({ githubToken: 'kept' });
+		const { provider, calls } = holdGitHubAuthentication();
+		const first = authenticationService.authenticate({ ...gitHub, token: '' }, [agent, provider]);
+		await timeout(0);
+		const ended = endMicrosoft();
+		await timeout(0);
+		const second = authenticationService.authenticate({ ...gitHub, token: '' }, [agent, provider]);
+		await timeout(0);
+		calls[0].complete();
+		await timeout(0);
+		calls[1].complete();
+		await Promise.all([first, second, ended]);
+		await timeout(0);
+		await idle();
+		assert.deepStrictEqual({ store: authenticationService.getAuthToken(gitHub), applied: applied() }, { store: undefined, applied: undefined });
 	});
 
 	test('a Microsoft credential supplied again before the kept step runs is not asked for again', async () => {

@@ -662,6 +662,42 @@ suite('AgentHostAuthenticationScope', () => {
 		});
 	});
 
+	test('whenAuthenticationSettled waits for an untargeted request for the resource and the request that replaces it', async () => {
+		const service = store.add(new AgentHostAuthenticationService(new NullLogService()));
+		const gates = new Map(['first', 'second', 'targeted', 'other'].map(token => [token, new DeferredPromise<void>()]));
+		const provider = new class extends mock<IAgent>() {
+			override getProtectedResources() { return [{ resource }]; }
+			override async authenticate() { return true; }
+			override async handleAuthenticationToken(params: AuthenticateParams) {
+				await gates.get(params.token)?.p;
+				return true;
+			}
+		}();
+		const idle = service.whenAuthenticationSettled(resource);
+		const targeted = service.authenticate({ resource, token: 'targeted', target: { kind: AuthenticateTargetKind.McpServer, session: 'ahp-session:/target', customizationId: 'mcp' } }, [provider]);
+		const other = service.authenticate({ resource: 'https://other.test', token: 'other' }, [provider]);
+		const ignored = service.whenAuthenticationSettled(resource);
+		const first = service.authenticate({ resource, token: 'first' }, [provider]);
+		const waiting = service.whenAuthenticationSettled(resource)!;
+		let settled = false;
+		void waiting.then(() => settled = true);
+		const second = service.authenticate({ resource, token: 'second' }, [provider]);
+		gates.get('first')!.complete();
+		await first;
+		await timeout(0);
+		const settledAfterReplacedRequest = settled;
+		gates.get('second')!.complete();
+		await second;
+		await waiting;
+		const settledWithOthersInFlight = settled;
+		gates.get('targeted')!.complete();
+		gates.get('other')!.complete();
+		await Promise.all([targeted, other]);
+		assert.deepStrictEqual({ idle, ignored, settledAfterReplacedRequest, settledWithOthersInFlight }, {
+			idle: undefined, ignored: undefined, settledAfterReplacedRequest: false, settledWithOthersInFlight: true,
+		});
+	});
+
 	test('MCP completion does not capture or replay an unrelated resource', async () => {
 		const service = store.add(new AgentHostAuthenticationService(new NullLogService()));
 		const completions: string[] = [];
