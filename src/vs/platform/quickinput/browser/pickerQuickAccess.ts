@@ -5,6 +5,7 @@
 
 import { timeout } from '../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
+import { Event } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { IKeyMods, IQuickPickDidAcceptEvent, IQuickPickSeparator, IQuickPick, IQuickPickItem, IQuickInputButton, isKeyModified } from '../common/quickInput.js';
 import { IQuickAccessProvider, IQuickAccessProviderRunOptions } from '../common/quickAccess.js';
@@ -407,7 +408,14 @@ export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem
 		disposables.add(picker.onDidTriggerItemButton(({ button, item }) => buttonTrigger(button, item)));
 		disposables.add(picker.onDidTriggerSeparatorButton(({ button, separator }) => buttonTrigger(button, separator)));
 
+		disposables.add(this.onDidChangePicks(() => updatePickerItems()));
+
 		return disposables;
+	}
+
+	/** Fires when the provider's data changes and the open picker needs new picks. */
+	protected get onDidChangePicks(): Event<void> {
+		return Event.None;
 	}
 
 	/**

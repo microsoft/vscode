@@ -11,6 +11,7 @@ import { CancellationToken } from '../../../base/common/cancellation.js';
 import { TestServiceAccessor, workbenchInstantiationService, createEditorPart } from './workbenchTestServices.js';
 import { DisposableStore, toDisposable, IDisposable } from '../../../base/common/lifecycle.js';
 import { timeout } from '../../../base/common/async.js';
+import { Emitter, Event } from '../../../base/common/event.js';
 import { PickerQuickAccessProvider, FastAndSlowPicks, IPickerQuickAccessItem } from '../../../platform/quickinput/browser/pickerQuickAccess.js';
 import { URI } from '../../../base/common/uri.js';
 import { IEditorGroupsService } from '../../services/editor/common/editorGroupsService.js';
@@ -444,6 +445,42 @@ suite('QuickAccess', () => {
 
 		disposables.dispose();
 
+		restore();
+	});
+
+	test('quick pick access - asks for the picks again when they change while the picker is open', () => {
+		const registry = (Registry.as<IQuickAccessRegistry>(Extensions.Quickaccess));
+		const restore = (registry as QuickAccessRegistry).clear();
+		const localDisposables = new DisposableStore();
+		const onDidChangePicks = localDisposables.add(new Emitter<void>());
+		let label = 'Before';
+
+		class ChangingTestQuickPickProvider extends PickerQuickAccessProvider<IQuickPickItem> {
+
+			constructor() {
+				super('changing');
+			}
+
+			protected override get onDidChangePicks(): Event<void> {
+				return onDidChangePicks.event;
+			}
+
+			protected _getPicks(): Array<IQuickPickItem> {
+				return [{ label }];
+			}
+		}
+
+		localDisposables.add(registry.registerQuickAccessProvider({ ctor: ChangingTestQuickPickProvider, prefix: 'changing', helpEntries: [] }));
+
+		accessor.quickInputService.quickAccess.show('changing');
+		const picker = accessor.quickInputService.currentQuickInput as IQuickPick<IQuickPickItem>;
+		label = 'After';
+		onDidChangePicks.fire();
+
+		assert.deepStrictEqual(picker.items.map(item => item.label), ['After']);
+
+		picker.hide();
+		localDisposables.dispose();
 		restore();
 	});
 

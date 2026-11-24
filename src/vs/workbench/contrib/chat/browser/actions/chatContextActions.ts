@@ -33,7 +33,8 @@ import { AnythingQuickAccessProviderRunOptions } from '../../../../../platform/q
 import { IQuickInputService, IQuickPickItem, IQuickPickItemWithResource, QuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
 import { resolveCommandsContext } from '../../../../browser/parts/editor/editorCommandsContext.js';
 import { ResourceContextKey } from '../../../../common/contextkeys.js';
-import { EditorResourceAccessor, isEditorCommandsContext, isEditorInput, SideBySideEditor } from '../../../../common/editor.js';
+import { EditorResourceAccessor, isEditorCommandsContext, isResourceEditorInput, SideBySideEditor } from '../../../../common/editor.js';
+import { IResourceEditorInput } from '../../../../../platform/editor/common/editor.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { BrowserEditorInput } from '../../../browserView/common/browserEditorInput.js';
@@ -472,9 +473,9 @@ function isIQuickPickItemWithResource(obj: unknown): obj is IQuickPickItemWithRe
 		&& URI.isUri((obj as IQuickPickItemWithResource).resource));
 }
 
-function isAnythingQuickPickItemWithBrowserEditor(obj: unknown): obj is IAnythingQuickPickItem & { readonly editor: NonNullable<IAnythingQuickPickItem['editor']> } {
+function isAnythingQuickPickItemWithBrowserEditor(obj: unknown): obj is IAnythingQuickPickItem & { readonly editor: BrowserEditorInput | IResourceEditorInput } {
 	const editor = (obj as IAnythingQuickPickItem | undefined)?.editor;
-	return editor instanceof BrowserEditorInput || (!!editor && !isEditorInput(editor) && editor.options?.override === BrowserEditorInput.EDITOR_ID);
+	return editor instanceof BrowserEditorInput || (isResourceEditorInput(editor) && editor.options?.override === BrowserEditorInput.EDITOR_ID);
 }
 
 

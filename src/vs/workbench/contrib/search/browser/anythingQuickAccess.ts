@@ -30,7 +30,7 @@ import { localize } from '../../../../nls.js';
 import { IWorkingCopyService } from '../../../services/workingCopy/common/workingCopyService.js';
 import { IMenuService } from '../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IWorkbenchEditorConfiguration, EditorResourceAccessor, isEditorInput } from '../../../common/editor.js';
+import { IWorkbenchEditorConfiguration, EditorResourceAccessor, isEditorInput, isResourceEditorInput, IUntypedEditorInput, isResourceMergeEditorInput, isResourceDiffEditorInput, isResourceSideBySideEditorInput, SideBySideEditor, DEFAULT_EDITOR_ASSOCIATION } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from '../../../services/editor/common/editorService.js';
 import { IRange } from '../../../../editor/common/core/range.js';
@@ -48,8 +48,9 @@ import { PickerEditorState, IWorkbenchQuickAccessConfiguration } from '../../../
 import { GotoSymbolQuickAccessProvider } from '../../codeEditor/browser/quickaccess/gotoSymbolQuickAccess.js';
 import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { ScrollType, IEditor } from '../../../../editor/common/editorCommon.js';
-import { Event } from '../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { assertReturnsDefined } from '../../../../base/common/types.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { stripIcons } from '../../../../base/common/iconLabels.js';
@@ -70,7 +71,7 @@ import { IEditorGroupsService } from '../../../services/editor/common/editorGrou
 import { IExternalUriOpenerService, ILinkHandler } from '../../externalUriOpener/common/externalUriOpenerService.js';
 
 export interface IAnythingQuickPickItem extends IPickerQuickAccessItem, IQuickPickItemWithResource {
-	readonly editor?: EditorInput | IResourceEditorInput;
+	readonly editor?: EditorInput | IUntypedEditorInput;
 }
 
 interface IEditorSymbolAnythingQuickPickItem extends IAnythingQuickPickItem {
@@ -110,7 +111,8 @@ interface IAnythingPickState extends IDisposable {
  * A row of recently opened files: the editor it opens and the history entries it is shown for.
  */
 interface IEditorHistoryRow {
-	editor: EditorInput | IResourceEditorInput;
+	editor: EditorInput | IUntypedEditorInput;
+	readonly resource: URI | undefined;
 	readonly entries: Array<EditorInput | IResourceEditorInput>;
 
 	/** Whether the row is shown for an entry under another location of the workspace folder. */
@@ -133,6 +135,11 @@ class WorkspaceFolderLocations extends Disposable {
 	private locations: readonly URI[] = [];
 	private loading: Promise<void> | undefined = undefined;
 	private loadCts: CancellationTokenSource | undefined = undefined;
+
+	private readonly _onDidChange = this._register(new Emitter<void>());
+
+	/** Fires when the locations of the folder are known after they were asked for again. */
+	readonly onDidChange = this._onDidChange.event;
 
 	constructor(
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
@@ -166,8 +173,12 @@ class WorkspaceFolderLocations extends Disposable {
 
 		const folder = this.getFolder();
 		if (!folder) {
+			const hadLocations = this.locations.length > 0;
 			this.locations = [];
 			this.loading = undefined;
+			if (hadLocations) {
+				this._onDidChange.fire();
+			}
 			return;
 		}
 
@@ -184,6 +195,10 @@ class WorkspaceFolderLocations extends Disposable {
 				if (this.loadCts === cts) {
 					this.loading = undefined;
 				}
+			}
+
+			if (!cts.token.isCancellationRequested) {
+				this._onDidChange.fire();
 			}
 		})();
 	}
@@ -374,6 +389,10 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		this.workspaceFolderLocations = this._register(instantiationService.createInstance(WorkspaceFolderLocations));
 		this.workspaceSymbolsQuickAccess = this._register(instantiationService.createInstance(SymbolsQuickAccessProvider));
 		this.editorSymbolsQuickAccess = this.instantiationService.createInstance(GotoSymbolQuickAccessProvider);
+	}
+
+	protected override get onDidChangePicks(): Event<void> {
+		return this.workspaceFolderLocations.onDidChange;
 	}
 
 	private get configuration() {
@@ -807,8 +826,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		// Perform filtering
 		const editorHistoryScorerAccessor = query.containsPathSeparator ? quickPickItemScorerAccessor : this.labelOnlyEditorHistoryPickAccessor; // Only match on label of the editor unless the search includes path separators
 		const editorHistoryPicks: Array<IAnythingQuickPickItem> = [];
-		for (const { editor, entries } of this.getEditorHistory()) {
-			const resource = editor.resource;
+		for (const { editor, entries, resource } of this.getEditorHistory()) {
 			if (!resource) {
 				continue;
 			}
@@ -844,12 +862,22 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 	private getEditorHistory(): IEditorHistoryRow[] {
 		const result: IEditorHistoryRow[] = [];
 
-		const rows = new ResourceMap<IEditorHistoryRow>(uri => this.uriIdentityService.extUri.getComparisonKey(uri));
+		// Rows of the same file opened with the same editor are shown once
+		const rows = new Map<string, IEditorHistoryRow>();
 		for (const entry of this.historyService.getHistory()) {
-			const resource = isEditorInput(entry) ? EditorResourceAccessor.getOriginalUri(entry) : entry.resource;
-			const moved = resource && this.workspaceFolderLocations.toCurrentLocation(resource);
+			const resource = EditorResourceAccessor.getOriginalUri(entry, { supportSideBySide: SideBySideEditor.PRIMARY });
+			const untyped = isEditorInput(entry) ? entry.toUntyped() : entry;
+			const movedResource = resource && this.workspaceFolderLocations.toCurrentLocation(resource);
+			let movedEditor = movedResource ? this.toCurrentLocationEditor(untyped) : undefined;
+			const moved = movedEditor ? movedResource : undefined;
 			const target = moved ?? resource;
-			const row = target ? rows.get(target) : undefined;
+			const rowKey = target && isResourceEditorInput(untyped) ? `${untyped.options?.override ?? DEFAULT_EDITOR_ASSOCIATION.id}|${this.uriIdentityService.extUri.getComparisonKey(target)}` : undefined;
+			const row = rowKey ? rows.get(rowKey) : undefined;
+
+			// A moved diff or side by side editor keeps its name, but not a description of where it was
+			if (isEditorInput(entry) && (isResourceDiffEditorInput(movedEditor) || isResourceSideBySideEditorInput(movedEditor))) {
+				movedEditor = { ...movedEditor, label: movedEditor.label ?? entry.getName(), description: undefined };
+			}
 
 			// An entry for a file shown for an entry under another location joins that row,
 			// which then opens the entry under the current location where there is one
@@ -864,18 +892,50 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 			}
 
 			const newRow: IEditorHistoryRow = {
-				editor: moved ? (isEditorInput(entry) ? { resource: moved } : { ...entry, resource: moved }) : entry,
+				editor: movedEditor ?? entry,
+				resource: EditorResourceAccessor.getOriginalUri(movedEditor ?? entry),
 				entries: [entry],
 				mapped: !!moved,
 				exact: !moved
 			};
 			result.push(newRow);
-			if (target && !row) {
-				rows.set(target, newRow);
+			if (rowKey && !row) {
+				rows.set(rowKey, newRow);
 			}
 		}
 
 		return result;
+	}
+
+	private toCurrentLocationEditor(editor: IUntypedEditorInput | undefined): IUntypedEditorInput | undefined {
+		if (isResourceMergeEditorInput(editor)) {
+			const input1 = this.toCurrentLocationEditor(editor.input1);
+			const input2 = this.toCurrentLocationEditor(editor.input2);
+			const base = this.toCurrentLocationEditor(editor.base);
+			const result = this.toCurrentLocationEditor(editor.result);
+			if (isResourceEditorInput(input1) && isResourceEditorInput(input2) && isResourceEditorInput(base) && isResourceEditorInput(result)) {
+				return { ...editor, input1, input2, base, result };
+			}
+		} else if (isResourceDiffEditorInput(editor)) {
+			const original = this.toCurrentLocationEditor(editor.original);
+			const modified = this.toCurrentLocationEditor(editor.modified);
+			if (isResourceEditorInput(original) && isResourceEditorInput(modified)) {
+				return { ...editor, original, modified };
+			}
+		} else if (isResourceSideBySideEditorInput(editor)) {
+			const primary = this.toCurrentLocationEditor(editor.primary);
+			const secondary = this.toCurrentLocationEditor(editor.secondary);
+			if (isResourceEditorInput(primary) && isResourceEditorInput(secondary)) {
+				return { ...editor, primary, secondary };
+			}
+		} else if (isResourceEditorInput(editor)) {
+			const resource = this.workspaceFolderLocations.toCurrentLocation(editor.resource);
+			if (resource) {
+				return { ...editor, resource };
+			}
+		}
+
+		return undefined;
 	}
 
 	//#endregion
@@ -1344,7 +1404,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 	//#region Helpers
 
-	private createAnythingPick(resourceOrEditor: URI | EditorInput | IResourceEditorInput, configuration: { openSideBySideDirection: 'right' | 'down' | undefined }, fileSearchDelegate?: IAnythingQuickAccessFileSearchDelegate, includeOpenToSideButton = true, historyEntries?: readonly (EditorInput | IResourceEditorInput)[]): IAnythingQuickPickItem {
+	private createAnythingPick(resourceOrEditor: URI | EditorInput | IUntypedEditorInput, configuration: { openSideBySideDirection: 'right' | 'down' | undefined }, fileSearchDelegate?: IAnythingQuickAccessFileSearchDelegate, includeOpenToSideButton = true, historyEntries?: readonly (EditorInput | IResourceEditorInput)[]): IAnythingQuickPickItem {
 		const showOpenToSideButton = includeOpenToSideButton && this._editorGroupsService.supportsSplitting;
 		const isEditorHistoryEntry = !!historyEntries;
 
@@ -1363,9 +1423,9 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 			extraClasses = resourceOrEditor.getLabelExtraClasses();
 			icon = resourceOrEditor.getIcon();
 		} else {
-			resource = URI.isUri(resourceOrEditor) ? resourceOrEditor : resourceOrEditor.resource;
+			resource = URI.isUri(resourceOrEditor) ? resourceOrEditor : assertReturnsDefined(EditorResourceAccessor.getOriginalUri(resourceOrEditor, { supportSideBySide: SideBySideEditor.PRIMARY }));
 			const customLabel = this.customEditorLabelService.getName(resource);
-			label = customLabel || basenameOrAuthority(resource);
+			label = customLabel || ((isResourceDiffEditorInput(resourceOrEditor) || isResourceSideBySideEditorInput(resourceOrEditor)) && resourceOrEditor.label) || basenameOrAuthority(resource);
 			description = fileSearchDelegate?.getItemDescription
 				? fileSearchDelegate.getItemDescription(resource)
 				: this.labelService.getUriLabel(!!customLabel ? resource : dirname(resource), { relative: true });
@@ -1446,7 +1506,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		};
 	}
 
-	private async openAnything(resourceOrEditor: URI | EditorInput | IResourceEditorInput, options: { keyMods?: IKeyMods; preserveFocus?: boolean; range?: IRange; forceOpenSideBySide?: boolean; forcePinned?: boolean }): Promise<void> {
+	private async openAnything(resourceOrEditor: URI | EditorInput | IUntypedEditorInput, options: { keyMods?: IKeyMods; preserveFocus?: boolean; range?: IRange; forceOpenSideBySide?: boolean; forcePinned?: boolean }): Promise<void> {
 
 		// Craft some editor options based on quick access usage
 		const editorOptions: ITextEditorOptions = {
@@ -1470,7 +1530,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 		// Open editor (untyped)
 		else {
-			let resourceEditorInput: IResourceEditorInput;
+			let resourceEditorInput: IUntypedEditorInput;
 			if (URI.isUri(resourceOrEditor)) {
 				resourceEditorInput = {
 					resource: resourceOrEditor,
