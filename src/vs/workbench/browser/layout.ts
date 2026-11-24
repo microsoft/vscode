@@ -3380,6 +3380,19 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		if (!isHorizontal(panelPostion)) {
 			result.push(nodes.editor);
 			nodes.editor.size = availableWidth - activityBarSize - sideBarSize - panelSize - auxiliaryBarSize;
+
+			// Under a maximized secondary side bar, a maximized panel keeps the editor area hidden until the panel is restored
+			// too. The editor area then shows at this width, after the other parts, so it is the width that they leave it once
+			// they show again at their sizes, not the width beside them while they are hidden (see `getPartsLayoutState`)
+			const restored = this.stateModel.getRuntimeValue(LayoutStateKeys.AUXILIARYBAR_WAS_LAST_MAXIMIZED) ? this.stateModel.getRuntimeValue(LayoutStateKeys.AUXILIARYBAR_LAST_NON_MAXIMIZED_VISIBILITY) : undefined;
+			if (restored?.panelVisible && !restored.editorVisible && !this.stateModel.getRuntimeValue(LayoutStateKeys.EDITOR_HIDDEN_BY_CHAT)) {
+				nodes.editor.size = Math.max(0, availableWidth - activityBarSize
+					- (restored.sideBarVisible ? nodes.sideBar.size : 0)
+					- (nodes.chat && this.chatPartHiddenByLayout ? nodes.chat.size : 0)
+					- this.stateModel.getRuntimeValue(LayoutStateKeys.PANEL_LAST_NON_MAXIMIZED_WIDTH)
+					- this.stateModel.getRuntimeValue(LayoutStateKeys.AUXILIARYBAR_LAST_NON_MAXIMIZED_SIZE));
+			}
+
 			if (nodes.chat) {
 				this.insertChatNodeBesideEditor(result, nodes.editor, nodes.chat);
 			}

@@ -1112,6 +1112,58 @@ suite('Workbench layout chat part', () => {
 			assert.deepStrictEqual(focus.focused, ['auxiliarybar']);
 		});
 
+		test('a secondary side bar maximized over a maximized panel, restored and then the panel, gives the parts their widths from before', () => {
+			const widths = (layout: Layout, views: Map<Parts, Part>) => [Parts.SIDEBAR_PART, Parts.EDITOR_PART, Parts.PANEL_PART, Parts.AUXILIARYBAR_PART]
+				.map(part => `${part.split('.').pop()} ${currentGrid(layout).getViewSize(views.get(part)!).width}x${currentGrid(layout).getViewSize(views.get(part)!).height}`);
+			const before: Record<string, string[]> = {};
+			const restored: Record<string, string[]> = {};
+			for (const panel of [Position.BOTTOM, Position.LEFT, Position.RIGHT]) {
+				const maximized = createStateLayout(undefined, { ...configuration, panel });
+				before[panel] = widths(maximized.layout, maximized.views);
+				maximized.layout.toggleMaximizedPanel();
+				maximized.layout.toggleMaximizedAuxiliaryBar();
+
+				const { layout, views } = createStateLayout(undefined, { ...configuration, panel });
+				layout.applyPartsLayoutState(maximized.layout.getPartsLayoutState());
+				layout.toggleMaximizedAuxiliaryBar();
+				layout.toggleMaximizedPanel();
+				restored[panel] = widths(layout, views);
+			}
+
+			assert.deepStrictEqual(restored, before);
+		});
+
+		test('a window that starts with the secondary side bar maximized over a maximized panel on the left or right gives the parts their widths from before, also beside the chat part', () => {
+			const widths = (layout: Layout, views: Map<Parts, Part>) => [Parts.SIDEBAR_PART, Parts.CHAT_PART, Parts.EDITOR_PART, Parts.PANEL_PART, Parts.AUXILIARYBAR_PART]
+				.filter(part => views.has(part))
+				.map(part => `${part.split('.').pop()} ${currentGrid(layout).getViewSize(views.get(part)!).width}`);
+			const before: Record<string, string[]> = {};
+			const restored: Record<string, string[]> = {};
+			for (const panel of [Position.LEFT, Position.RIGHT]) {
+				for (const layoutConfiguration of [{ ...configuration, panel }, { ...chatConfiguration, panel }]) {
+					const key = `${panel}${layoutConfiguration.chat ? ' with the chat part' : ''}`;
+					const maximized = createStateLayout(undefined, layoutConfiguration);
+					before[key] = widths(maximized.layout, maximized.views);
+					maximized.layout.toggleMaximizedPanel();
+					maximized.layout.toggleMaximizedAuxiliaryBar();
+					// The sizes as the layout saves them as the window closes (see `createWorkbenchLayout`)
+					const grid = currentGrid(maximized.layout);
+					const initialization = new Map<string, unknown>([
+						['sideBar.size', grid.getViewCachedVisibleSize(maximized.views.get(Parts.SIDEBAR_PART)!)],
+						['panel.size', grid.getViewCachedVisibleSize(maximized.views.get(Parts.PANEL_PART)!)],
+						['auxiliaryBar.size', grid.getViewSize(maximized.views.get(Parts.AUXILIARYBAR_PART)!).width],
+					]);
+
+					const { layout, views } = createStateLayout({ ...maximized.save(), initialization }, layoutConfiguration);
+					layout.toggleMaximizedAuxiliaryBar();
+					layout.toggleMaximizedPanel();
+					restored[key] = widths(layout, views);
+				}
+			}
+
+			assert.deepStrictEqual(restored, before);
+		});
+
 		test('a banner that shows keeps showing', () => {
 			const { layout, views } = createStateLayout();
 			layout.setPartHidden(false, Parts.BANNER_PART);
