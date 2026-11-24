@@ -109,6 +109,7 @@ import { createTestAgentService, getTestAgentStateManager, getTestSessionStateSt
 import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
 import { IAgentHostChatOwnershipService } from '../../node/agentHostChatOwnershipService.js';
 import { CapturingTelemetryService } from '../common/capturingTelemetryService.js';
+import { pathRule } from '../../common/permissionRules.js';
 
 // ---- Tests ------------------------------------------------------------------
 
@@ -6321,16 +6322,15 @@ suite('AgentSideEffects', () => {
 	setupSession(workingDirectory.toString());
 
 	stateManager.setSessionConfig(sessionUri.toString(), {
-		schema: { type: 'object', properties: {} },
-		values: {
-			permissions: {
-				allow: [`Read(${readPath})`],
-				deny: [],
-				ask: [],
-			},
+	schema: { type: 'object', properties: {} },
+	values: {
+		permissions: {
+			allow: [pathRule('Read', readPath, false)!],
+			deny: [],
+			ask: [pathRule('Read', readPath, false)!],
 		},
-	});
-
+	},
+});
 	startTurn('turn-1');
 	disposables.add(sideEffects.registerProgressListener(agent));
 

@@ -278,11 +278,6 @@ async getExplicitPermissionAutoApproval(
 		return undefined;
 	}
 
-	// Keep shell commands under reviewer control.
-	if (e.permissionKind === AgentPermissionKind.Shell) {
-		return undefined;
-	}
-
 	const permissions = this._getPermissionRules(sessionKey);
 
 	// No explicit Allow or Ask rules to evaluate.
@@ -295,6 +290,24 @@ async getExplicitPermissionAutoApproval(
 
 	const workDirs = getEffectiveWorkingDirectories(this._stateManager, sessionKey);
 	const workingDirectories = workDirs?.map(d => URI.parse(d));
+
+	// Evaluate explicit saved Shell rules without implicit defaults.
+	if (e.permissionKind === AgentPermissionKind.Shell) {
+		if (!e.toolInput || !e.shellLanguage) {
+			return undefined;
+		}
+
+		const result = await this._evaluateShellAutoApproval(
+			e,
+			workingDirectories,
+			sessionKey,
+			true
+		);
+
+		return result === 'approved'
+			? ToolCallConfirmationReason.Setting
+			: undefined;
+	}
 
 	const permissionResource = getPermissionResource(e);
 
@@ -789,22 +802,31 @@ async getExplicitPermissionAutoApproval(
 	 * rules that govern write tool calls: the destination must resolve to a
 	 * path inside the working directory and must not match a denied glob.
 	 */
-	private async _evaluateShellAutoApproval(e: IToolApprovalEvent, workingDirectories: readonly URI[] | undefined, sessionKey: ProtocolURI): Promise<CommandApprovalResult> {
-		const writeDestinations: string[] = [];
-		const result = this._commandAutoApprover.shouldAutoApprove(e.toolInput ?? '', {
-			...this._shellAutoApproveOptions(sessionKey, this._permissionRequest(e, sessionKey)),
-			isWriteDestApproved: dest => {
-				writeDestinations.push(dest);
-				return true;
-			},
-		});
-		if (result !== 'approved' || writeDestinations.length === 0) {
-			return result;
-		}
-		const approvals = await Promise.all(writeDestinations.map(dest => this._isShellWriteDestApproved(dest, workingDirectories, sessionKey)));
-		return approvals.every(approved => approved) ? 'approved' : 'noMatch';
+private async _evaluateShellAutoApproval(
+	e: IToolApprovalEvent,
+	workingDirectories: readonly URI[] | undefined,
+	sessionKey: ProtocolURI,
+	explicitRulesOnly = false
+): Promise<CommandApprovalResult> {
+	const writeDestinations: string[] = [];
+	const result = this._commandAutoApprover.shouldAutoApprove(e.toolInput ?? '', {
+		...this._shellAutoApproveOptions(sessionKey, this._permissionRequest(e, sessionKey)),
+		...(explicitRulesOnly ? { defaultRules: {} } : {}),
+		isWriteDestApproved: dest => {
+			writeDestinations.push(dest);
+			return true;
+		},
+	});
+	if (result !== 'approved' || writeDestinations.length === 0) {
+		return result;
 	}
-
+	const approvals = await Promise.all(
+		writeDestinations.map(dest =>
+			this._isShellWriteDestApproved(dest, workingDirectories, sessionKey)
+		)
+	);
+	return approvals.every(approved => approved) ? 'approved' : 'noMatch';
+}
 	private _shellAutoApproveOptions(sessionKey: ProtocolURI, request: IPermissionRequest): IShouldAutoApproveOptions {
 		const permissions = this._getPermissionRules(sessionKey);
 		const context = this._permissionContext(sessionKey);
