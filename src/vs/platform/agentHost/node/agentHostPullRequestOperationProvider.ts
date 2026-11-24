@@ -268,7 +268,8 @@ export class AgentHostPullRequestOperationContribution extends Disposable implem
 		this._logService.info(`[AgentHostPullRequestOperationContribution] Advertised operations changed: session=${sessionKey}, primary=${primary}, operations=[${advertised}]`);
 	}
 
-	async recordCreatedPullRequest(event: PullRequestCreatedEvent): Promise<void> {
+	/** Records the pull request as an artifact of the chat Create PR was used from, and returns the artifact's ID. */
+	async recordCreatedPullRequest(event: PullRequestCreatedEvent): Promise<string> {
 		const sessionKey = event.sessionKey;
 
 		const chat = event.conversationChat ?? resolveChangesetOwnerScope(this._stateManager, event.ownerUri).sourceUri;
@@ -279,12 +280,21 @@ export class AgentHostPullRequestOperationContribution extends Disposable implem
 		});
 		// The pull request belongs to the folder it was created from.
 		const folder = resolveGitHubStateFolder(this._stateManager, event.ownerUri);
-		const { artifact, outcome } = await artifacts.mutate(collection => collection.addOrPromoteArtifact({
-			type: SessionArtifactType.PullRequest,
-			label: event.pullRequestTitle ?? '',
-			isArtifact: true,
-			link: event.pullRequestUrl,
-		}, generateUuid));
+		// The chat is the origin that the artifact's automation, such as Autopilot's repairs, sends its prompts to. A promoted
+		// or already recorded entry keeps an origin it has; one recorded without an origin gets this chat.
+		const { artifact, outcome } = await artifacts.mutate(collection => {
+			const result = collection.addOrPromoteArtifact({
+				type: SessionArtifactType.PullRequest,
+				label: event.pullRequestTitle ?? '',
+				isArtifact: true,
+				link: event.pullRequestUrl,
+			}, generateUuid, { chat });
+			if (result.artifact.origin) {
+				return result;
+			}
+			const withOrigin = { ...result.artifact, origin: { chat } };
+			return { ...result, artifact: withOrigin, artifacts: result.artifacts.map(candidate => candidate.id === withOrigin.id ? withOrigin : candidate) };
+		});
 		this._telemetryReporter.artifactRecorded({
 			...getArtifactChangeOwner(this._stateManager, chat, sessionKey),
 			chat,
@@ -303,5 +313,6 @@ export class AgentHostPullRequestOperationContribution extends Disposable implem
 
 		this._registry?.onDidChangeOperations(sessionKey);
 		void this._registry?.refreshSessionGitState(event.ownerUri, event.credentialSource);
+		return artifact.id;
 	}
 }

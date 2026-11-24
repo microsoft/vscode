@@ -17,7 +17,7 @@ The shared management editor and contracts live under:
 
 The Agents Window contributes:
 
-- the customizations tree and overview under `vs/sessions/contrib/aiCustomizationTreeView/`;
+- the customizations tree under `vs/sessions/contrib/aiCustomizationTreeView/`;
 - Sessions-specific workspace and harness adapters under `vs/sessions/contrib/chat/`;
 - Sessions sidebar entry points under `vs/sessions/contrib/sessions/`.
 
@@ -181,6 +181,8 @@ In the Agents Window, the customization harness and project root track the chat 
 The management-editor command may select a section, target a session type, reveal a URI-addressable customization, and open migration mode for a targeted migration category. Operations that migrate files bind destination resolution and confirmation to their initiating session and stop if the active session changes.
 
 Provider-backed items retain provider identity through the shared contract. Shared widgets must not import or branch on provider implementations.
+
+A provider may also report section notices: problems with a section as a whole, such as hook files the runtime could not load. The list shows them above its search box rather than as items, and they are not part of the extension API.
 
 Host-reported MCP provenance distinguishes user, workspace, plugin, built-in, managed-catalog, and signed-in-account sources. Account-contributed servers retain that source through protocol metadata and display a signed-in-account explanation when the runtime does not expose an editable definition. Tool telemetry reports only the bounded source kind, never the account identity.
 

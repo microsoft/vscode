@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Codicon } from '../../../../../base/common/codicons.js';
-import { localize } from '../../../../../nls.js';
 import { AgentHostFilterService } from '../../../../../workbench/contrib/sessions/browser/agentHostFilterService.js';
 import { IAgentHostFilterEntry } from '../../../../../workbench/contrib/sessions/common/agentHostFilter.js';
 
@@ -12,24 +10,9 @@ export function isImplicitlyConnectedHost(entry: IAgentHostFilterEntry): boolean
 	return entry.grouped && !entry.connectable && entry.sessionCreationProviderId !== undefined;
 }
 
-function presentHost(host: IAgentHostFilterEntry): IAgentHostFilterEntry {
-	return host.id === 'githubsandbox'
-		? { ...host, label: localize('cloud', "Cloud"), description: host.label, icon: Codicon.cloud }
-		: host;
-}
-
-/** The experimental client prefers Cloud and presents the provider name as its description. */
+/** The phone prefers places that don't need an explicit connection. */
 export class MobileAgentHostFilterService extends AgentHostFilterService {
 	protected override automaticSelectionRank(entry: IAgentHostFilterEntry): number {
 		return isImplicitlyConnectedHost(entry) ? -1 : super.automaticSelectionRank(entry);
-	}
-
-	override get hosts(): readonly IAgentHostFilterEntry[] {
-		return super.hosts.map(presentHost);
-	}
-
-	override get selectedHost(): IAgentHostFilterEntry | undefined {
-		const host = super.selectedHost;
-		return host && presentHost(host);
 	}
 }

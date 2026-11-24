@@ -26,16 +26,17 @@ import { INativeWorkbenchEnvironmentService } from '../../../../services/environ
 import { ICopilotHomeService } from '../../../../../platform/environment/common/copilotHome.js';
 import { TestCopilotHomeService } from '../../../../../platform/environment/test/common/testCopilotHomeService.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
-import { IResourceEditorInput } from '../../../../../platform/editor/common/editor.js';
+import { IEditorOptions, IResourceEditorInput } from '../../../../../platform/editor/common/editor.js';
 import { reviveBrowserEditorViewState } from '../../common/browserEditorInput.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { IBrowserViewNetworkResolver, IBrowserViewWorkbenchService } from '../../common/browserView.js';
 import { IBrowserZoomService } from '../../common/browserZoomService.js';
 import { BrowserViewWorkbenchService } from '../../electron-browser/browserViewWorkbenchService.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
-import { IEditorGroup, IEditorGroupsService, IEditorPart } from '../../../../services/editor/common/editorGroupsService.js';
-import { ACTIVE_GROUP, IEditorService, PreferredGroup, SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
+import { IEditorGroup, IEditorGroupsService, IEditorPart, IModalEditorPart } from '../../../../services/editor/common/editorGroupsService.js';
+import { ACTIVE_GROUP, IEditorService, PreferredGroup, SIDE_GROUP, USE_MODAL_EDITOR_SETTING } from '../../../../services/editor/common/editorService.js';
 import { IUnattendedRestartService } from '../../../../services/lifecycle/common/unattendedRestart.js';
+import { IChatWidget, IChatWidgetService } from '../../../chat/browser/chat.js';
 import '../../electron-browser/features/browserTabManagementFeatures.js';
 
 suite('BrowserViewWorkbenchService', () => {
@@ -243,6 +244,78 @@ suite('BrowserViewWorkbenchService', () => {
 		assert.deepStrictEqual({ preferred: typeof preferred === 'object' ? (preferred as IEditorGroup).id : preferred, addedBeside }, { preferred: 3, addedBeside: [2] });
 	});
 
+	for (const stage of ['preferred group', 'group finder']) {
+		test(`rechecks open handlers after awaiting the ${stage}`, async () => {
+			const resolving = new DeferredPromise<void>();
+			const resume = new DeferredPromise<boolean>();
+			const group = upcastPartial<IEditorGroup>({ id: 1 });
+			const { service, events, instantiationService } = createService(undefined, upcastPartial<IEditorGroupsService>({
+				activeGroup: group,
+				activeModalEditorPart: stage === 'group finder' ? upcastPartial<IModalEditorPart>({
+					groups: [],
+					close: () => {
+						void resolving.complete();
+						return resume.p;
+					},
+				}) : undefined,
+			}));
+			events.fire([{ type: 'snapshot', windowId: 1, views: [] }, []]);
+			service.getPreferredGroup = async () => {
+				if (stage === 'preferred group') {
+					void resolving.complete();
+					await resume.p;
+				}
+				return group;
+			};
+			let active = true;
+			const decisions: boolean[] = [];
+			store.add(service.registerOpenHandler({
+				shouldOpenEditor: () => {
+					decisions.push(active);
+					return active;
+				},
+			}));
+			let opened = false;
+			instantiationService.stub(IEditorService, 'openEditor', async () => { opened = true; return undefined; });
+			const input = store.add(await service.createBrowserView({ owner: { type: 'user' }, session: { scope: BrowserViewStorageScope.Global } }, {}));
+			await resolving.p;
+			active = false;
+			await resume.complete(true);
+			await timeout(0);
+
+			assert.deepStrictEqual({ decisions, opened, disposed: input.isDisposed() }, {
+				decisions: [true, false], opened: false, disposed: false,
+			});
+		});
+	}
+
+	for (const modalMode of ['some', 'off', 'all']) {
+		test(`automatically opens agent pages in their chat widget's window with modal editors ${modalMode}`, async () => {
+			const focusedGroup = upcastPartial<IEditorGroup>({ id: 1, editors: [] });
+			const owningGroup = upcastPartial<IEditorGroup>({ id: 2, editors: [] });
+			const mainGroup = upcastPartial<IEditorGroup>({ id: 3, editors: [] });
+			const { service, events, configurationService, instantiationService } = createService(undefined, upcastPartial<IEditorGroupsService>({
+				activeGroup: focusedGroup,
+				mainPart: upcastPartial<IEditorPart>({ activeGroup: mainGroup }),
+				getPart: () => upcastPartial<IEditorPart>({ activeGroup: owningGroup }),
+			}));
+			await configurationService.setUserConfiguration(USE_MODAL_EDITOR_SETTING, modalMode);
+			events.fire([{ type: 'snapshot', windowId: 1, views: [] }, []]);
+			instantiationService.stub(IChatWidgetService, 'getWidgetBySessionResource', () => upcastPartial<IChatWidget>({ domNode: mainWindow.document.body }));
+			const opened = new DeferredPromise<PreferredGroup | undefined>();
+			instantiationService.stub(IEditorService, 'openEditor', async (_editor: EditorInput, _options?: IEditorOptions, group?: PreferredGroup) => {
+				await opened.complete(group);
+				return undefined;
+			});
+
+			store.add(await service.createBrowserView({
+				owner: { type: 'agent', sessionId: 'chat:/owner' },
+				session: { scope: BrowserViewStorageScope.Global },
+			}, {}));
+			assert.strictEqual(await opened.p, modalMode === 'all' ? mainGroup : owningGroup);
+		});
+	}
+
 	for (const { name, savedUrl, requestedUrl } of [
 		{ name: 'uses the requested URL', savedUrl: 'http://localhost:3000/previous', requestedUrl: 'http://localhost:3000/requested' },
 		{ name: 'normalizes the requested URL', savedUrl: 'http://localhost:3000/requested', requestedUrl: 'localhost:3000/requested' },
@@ -328,6 +401,17 @@ suite('BrowserViewWorkbenchService', () => {
 		});
 		replacement?.dispose();
 		await Promise.resolve();
+	});
+
+	test('attaches an unlisted view before starting its initial navigation', async () => {
+		const { service, loadedUrls } = createService();
+		let beforeAttachment: typeof loadedUrls | undefined;
+		const model = store.add(await service.createExternalBrowserView('https://example.test/preview', 'canvas', undefined, () => {
+			beforeAttachment = [...loadedUrls];
+		}));
+		assert.deepStrictEqual({ beforeAttachment, afterAttachment: loadedUrls }, {
+			beforeAttachment: [], afterAttachment: [{ id: model.id, url: 'https://example.test/preview' }],
+		});
 	});
 
 	test('keeps unlisted views out of workbench discovery across hydration and creation events', async () => {

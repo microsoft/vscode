@@ -120,7 +120,7 @@ suite('Sessions Contribution', () => {
 		});
 	});
 
-	test('indents sessions list items by default with an advanced automatic experiment', () => {
+	test('indents sessions list items by default outside Stable with an advanced automatic experiment', () => {
 		assert.deepStrictEqual({
 			type: indentItemsProperty.type,
 			default: indentItemsProperty.default,

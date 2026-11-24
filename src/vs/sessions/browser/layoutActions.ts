@@ -25,7 +25,7 @@ import { SessionsWelcomeVisibleContext, DesktopLayoutContext, IsPhoneLayoutConte
 import { MenuActivityBarSize } from '../../workbench/browser/parts/activitybar/menuActivityBar.js';
 import { setSessionActivityBarSize } from '../../workbench/browser/parts/sessions/sessionActivityBarHost.js';
 import { IStorageService } from '../../platform/storage/common/storage.js';
-import { CustomViewAllowsPanelContext, CustomViewVisibleContext, SessionActivityBarDockedContext, SessionActivityBarLayoutActionsContext } from '../common/agentsWindowContextKeys.js';
+import { CustomViewAllowsPanelContext, CustomViewVisibleContext, SessionActivityBarLayoutActionsContext } from '../common/agentsWindowContextKeys.js';
 import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
 import { SESSION_ACTIVITY_BAR_FIXED_COLUMN_SETTING, SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING, SESSION_ACTIVITY_BAR_SETTING, SESSIONS_FLOATING_DETAILS_SETTING, SESSIONS_DETAILS_POSITION_SETTING } from '../../workbench/contrib/sessions/common/sessionConfig.js';
 
@@ -359,7 +359,6 @@ const titleBarPanelWhen = ContextKeyExpr.and(
 	IsPhoneLayoutContext.negate(),
 	CustomViewVisibleContext.negate(),
 	SessionActivityBarLayoutActionsContext.negate(),
-	SessionActivityBarDockedContext.negate(),
 );
 const sessionActivityBarPanelWhen = ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionActivityBarLayoutActionsContext);
 const panelAvailable = ContextKeyExpr.or(CustomViewVisibleContext.negate(), CustomViewAllowsPanelContext);

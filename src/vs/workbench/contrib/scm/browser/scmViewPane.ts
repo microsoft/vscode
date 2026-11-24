@@ -1910,10 +1910,15 @@ export class SCMViewPane extends ViewPane {
 			return;
 		}
 
+		// The active editor can show the resource itself or, as for staged changes,
+		// the modified side of its diff, which may not be the source file
+		const matchesUri = (resource: ISCMResource) => this.uriIdentityService.extUri.isEqual(resource.sourceUri, uri)
+			|| this.uriIdentityService.extUri.isEqual(resource.multiDiffEditorModifiedUri, uri);
+
 		// Do not set focus/selection when the resource is already focused and selected
 		const representsResource = (element: TreeElement) => {
 			const resource = isSCMResource(element) ? element : isSCMStructuralDiffElement(element) ? element.resource : undefined;
-			return resource !== undefined && this.uriIdentityService.extUri.isEqual(resource.sourceUri, uri);
+			return resource !== undefined && matchesUri(resource);
 		};
 		if (this.tree.getFocus().some(representsResource) && this.tree.getSelection().some(representsResource)) {
 			return;
@@ -1932,9 +1937,8 @@ export class SCMViewPane extends ViewPane {
 						// go backwards from last group
 						for (let j = repository.provider.groups.length - 1; j >= 0; j--) {
 							const groupItem = repository.provider.groups[j];
-							const resource = this.viewMode === ViewMode.Tree
-								? groupItem.resourceTree.getNode(uri)?.element
-								: groupItem.resources.find(r => this.uriIdentityService.extUri.isEqual(r.sourceUri, uri));
+							const resource = (this.viewMode === ViewMode.Tree ? groupItem.resourceTree.getNode(uri)?.element : undefined)
+								?? groupItem.resources.find(matchesUri);
 
 							if (resource) {
 								await this.tree.expandTo(resource);

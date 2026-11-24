@@ -4,12 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { nativeImage, screen, WebContentsView, webContents } from 'electron';
+import { randomUUID } from 'crypto';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { Schemas } from '../../../base/common/network.js';
 import { BrowserViewDevToolsDockSide, composeDevToolsScreenshot } from '../common/browserViewCompositor.js';
-import { IBrowserViewAudience, IBrowserViewBounds, IBrowserViewDevToolsStateEvent, IBrowserViewFocusEvent, IBrowserViewKeyDownEvent, IBrowserViewState, IBrowserViewNavigationEvent, IBrowserViewLoadingEvent, IBrowserViewLoadError, IBrowserViewTitleChangeEvent, IBrowserViewFaviconChangeEvent, IBrowserViewCaptureScreenshotOptions, IBrowserViewFindInPageOptions, IBrowserViewFindInPageResult, IBrowserViewVisibilityEvent, browserViewIsolatedWorldId, browserZoomFactors, browserZoomDefaultIndex, IBrowserViewOwner, IBrowserViewEditorOpenOptions, IBrowserViewPermissionRequestEvent, equalsBrowserViewAudience, isBrowserViewAssociatedResourceNavigation, remoteUrlToFileUrl, matchesBrowserViewAudience, IBrowserViewHost, BrowserViewPresentation, getBrowserViewPopupAction, BROWSER_REMOTE_FILE_SCHEMES, getBrowserViewPathComparer } from '../common/browserView.js';
+import { IBrowserViewAudience, IBrowserViewBounds, IBrowserViewDevToolsStateEvent, IBrowserViewFocusEvent, IBrowserViewKeyDownEvent, IBrowserViewState, IBrowserViewNavigationEvent, IBrowserViewLoadingEvent, IBrowserViewLoadError, IBrowserViewTitleChangeEvent, IBrowserViewFaviconChangeEvent, IBrowserViewCaptureScreenshotOptions, IBrowserViewFindInPageOptions, IBrowserViewFindInPageResult, IBrowserViewVisibilityEvent, browserViewIsolatedWorldId, browserZoomFactors, browserZoomDefaultIndex, IBrowserViewOwner, IBrowserViewEditorOpenOptions, IBrowserViewPermissionRequestEvent, equalsBrowserViewAudience, isBrowserViewAssociatedResourceNavigation, remoteUrlToFileUrl, matchesBrowserViewAudience, IBrowserViewHost, BrowserViewPresentation, getBrowserViewPopupAction, BROWSER_REMOTE_FILE_SCHEMES, getBrowserViewPathComparer, getBrowserViewAuthenticationOrigin } from '../common/browserView.js';
 import { BrowserViewEmulator } from './browserViewEmulator.js';
 import { BrowserViewInspector } from './browserViewInspector.js';
 import { IWindowsMainService } from '../../windows/electron-main/windows.js';
@@ -27,6 +28,9 @@ import { logBrowserOpen } from '../common/browserViewTelemetry.js';
 import { BrowserViewReportedFocus } from '../common/browserViewFocus.js';
 import { URI } from '../../../base/common/uri.js';
 import { BrowserViewFavicon } from './browserViewFavicon.js';
+import { BrowserViewDialogs } from './browserViewDialogs.js';
+import { RunOnceScheduler } from '../../../base/common/async.js';
+import { getPermissionOrigin } from './browserSessionPermissions.js';
 
 enum NewPageLocation {
 	Foreground = 'foreground',
@@ -40,6 +44,7 @@ enum NewPageLocation {
  */
 export class BrowserView extends Disposable {
 	private readonly _view: WebContentsView;
+	private readonly _dialogProbeToken = randomUUID();
 	private readonly _faviconRequestCache = new Map<string, Promise<string>>();
 	presentation = BrowserViewPresentation.Listed;
 
@@ -60,6 +65,7 @@ export class BrowserView extends Disposable {
 	readonly debugger: BrowserViewDebugger;
 	readonly emulator: BrowserViewEmulator;
 	readonly inspector: BrowserViewInspector;
+	readonly dialogs = this._register(new BrowserViewDialogs());
 
 	private _ownerWindow: ICodeWindow;
 	private _owner: IBrowserViewOwner;
@@ -120,6 +126,8 @@ export class BrowserView extends Disposable {
 
 	private readonly _onDidRequestPermission = this._register(new Emitter<IBrowserViewPermissionRequestEvent>());
 	readonly onDidRequestPermission: Event<IBrowserViewPermissionRequestEvent> = this._onDidRequestPermission.event;
+
+	readonly onDidChangeDialog = this.dialogs.onDidChangeDialog;
 
 	private readonly _onDidChangePermissions = this._register(new Emitter<ISerializedBrowserPermissionsSnapshot>());
 	readonly onDidChangePermissions: Event<ISerializedBrowserPermissionsSnapshot> = this._onDidChangePermissions.event;
@@ -265,6 +273,7 @@ export class BrowserView extends Disposable {
 		});
 
 		this.debugger = new BrowserViewDebugger(this);
+		this._registerDialogs();
 		this.emulator = this._register(new BrowserViewEmulator(this, this.logService));
 		this.inspector = this._register(new BrowserViewInspector(this));
 
@@ -319,6 +328,7 @@ export class BrowserView extends Disposable {
 
 	private setupEventListeners(): void {
 		const webContents = this._view.webContents;
+		let navigationOrigin: string | undefined;
 
 		// DevTools state events
 		webContents.on('devtools-opened', () => {
@@ -414,7 +424,10 @@ export class BrowserView extends Disposable {
 				fireLoadingEvent(true);
 			}
 		});
-		webContents.on('did-stop-loading', () => fireLoadingEvent(false));
+		webContents.on('did-stop-loading', () => {
+			navigationOrigin = undefined;
+			fireLoadingEvent(false);
+		});
 		webContents.on('did-fail-load', (e, errorCode, errorDescription, validatedURL, isMainFrame) => {
 			if (isMainFrame) {
 				// Ignore ERR_ABORTED (-3) which is the expected error when user stops a page load.
@@ -446,7 +459,7 @@ export class BrowserView extends Disposable {
 
 		this.session.trust.installCertErrorHandler(webContents);
 
-		webContents.on('login', (event, _details, authInfo, callback) => {
+		webContents.on('login', (event, details, authInfo, callback) => {
 			// Automatically supply proxy auth credentials for the tunnel proxy.
 			if (this.session.remote.proxy) {
 				const { username, password } = this.session.remote.proxy.credentials;
@@ -456,9 +469,23 @@ export class BrowserView extends Disposable {
 					callback(username, password);
 				}
 			}
+			if (authInfo.isProxy) {
+				return;
+			}
+			event.preventDefault();
+			const origin = getBrowserViewAuthenticationOrigin(details.url, webContents.mainFrame.origin, navigationOrigin);
+			if (!origin) {
+				callback();
+				return;
+			}
+			this.dialogs.request({ type: 'login', origin }, response => {
+				callback(response.accept ? response.username : undefined, response.accept ? response.password : undefined);
+			});
 		});
 
 		webContents.on('render-process-gone', (_event, details) => {
+			navigationOrigin = undefined;
+			this.dialogs.settleAll();
 			this._lastError = {
 				url: webContents.getURL(),
 				errorCode: details.exitCode,
@@ -469,6 +496,17 @@ export class BrowserView extends Disposable {
 		});
 
 		// Navigation events (when URL actually changes)
+		webContents.on('did-start-navigation', event => {
+			if (event.isMainFrame && !event.isSameDocument) {
+				this.dialogs.settleAll();
+				navigationOrigin = URL.parse(event.url)?.origin;
+			}
+		});
+		webContents.on('did-redirect-navigation', event => {
+			if (event.isMainFrame) {
+				navigationOrigin = URL.parse(event.url)?.origin;
+			}
+		});
 		webContents.on('did-navigate', (_, url) => fireNavigationEvent(url));
 		webContents.on('did-navigate-in-page', (_, url, isMainFrame) => {
 			// Ignore subframe (iframe) navigations: they must not rewrite the
@@ -682,12 +720,67 @@ export class BrowserView extends Disposable {
 			sandboxSessionId: this.session.sandboxSessionId,
 			storageKeys: { ...this.session.history.storageKeys, ...this.session.permissions.storageKeys },
 			permissions: this.session.permissions.serialize(),
+			pendingDialog: this.dialogs.pendingDialog,
 			browserZoomIndex: this._browserZoomIndex,
 			elementSelectionState: this.inspector.elementSelectionState,
 			isAreaSelectionActive: this.inspector.isAreaSelectionActive,
 			device: this.emulator.device,
 			audiences: [...this._audiences]
 		};
+	}
+
+	private _registerDialogs(): void {
+		const contents = this.webContents;
+		// Replace Electron's native message boxes with the same per-tab queue as sign-in.
+		contents.removeAllListeners('-run-dialog');
+		contents.removeAllListeners('-cancel-dialogs');
+		contents.ipc.on('vscode:browserView:dialogProbe', event => {
+			event.returnValue = this._dialogProbeToken;
+		});
+		(contents as NodeJS.EventEmitter).on('-run-dialog', (info: { frame: Electron.WebFrameMain; dialogType: 'alert' | 'confirm' | 'prompt'; messageText: string; defaultPromptText?: string }, callback: (accept: boolean, text: string) => void) => {
+			if (info.dialogType === 'confirm' && info.messageText === this._dialogProbeToken) {
+				callback(true, '');
+				return;
+			}
+			void this.debugger.enableFrameEvents().catch(error => this.logService.error('Failed to watch browser dialog frame', error));
+			const isValid = () => !info.frame.isDestroyed() && !info.frame.detached;
+			this.dialogs.request({
+				type: info.dialogType, origin: getPermissionOrigin(info.frame.url, info.frame.origin), message: info.messageText, defaultPrompt: info.defaultPromptText,
+			}, response => {
+				if (isValid()) {
+					callback(response.accept, response.promptText ?? '');
+				}
+			}, isValid);
+		});
+		(contents as NodeJS.EventEmitter).on('-cancel-dialogs', () => this.dialogs.settleJavaScriptDialogs());
+		// CDP reports detachment before Electron marks the WebFrameMain as disposed.
+		const cancelDetachedDialogs = this._register(new RunOnceScheduler(() => this.dialogs.cancelInvalid(), 0));
+		this._register(this.debugger.onDidDetachFrame(() => cancelDetachedDialogs.schedule()));
+		contents.ipc.on('vscode:browserView:prompt', (event, message, defaultPrompt) => {
+			const frame = event.senderFrame;
+			if (!frame || typeof message !== 'string' || typeof defaultPrompt !== 'string') {
+				event.returnValue = null;
+				return;
+			}
+			void this.debugger.enableFrameEvents().catch(error => this.logService.error('Failed to watch browser dialog frame', error));
+			this.dialogs.request({ type: 'prompt', origin: getPermissionOrigin(frame.url, frame.origin), message, defaultPrompt }, response => {
+				event.returnValue = response.accept ? response.promptText ?? '' : null;
+			}, () => !frame.isDestroyed() && !frame.detached);
+		});
+		this._register(this.debugger.registerCommandInterceptor((method, params, session) => {
+			if (session?.targetId !== this.debugger.targetId) {
+				return undefined;
+			}
+			if (method === 'Page.handleJavaScriptDialog') {
+				const pending = this.dialogs.pendingDialog;
+				if (!pending || pending.type === 'login') {
+					return undefined;
+				}
+				const response = params as { accept: boolean; promptText?: string };
+				return this.dialogs.respond(pending.requestId, response) ? Promise.resolve({}) : Promise.reject(new Error('The dialog is no longer pending'));
+			}
+			return undefined;
+		}));
 	}
 
 	get audiences(): readonly IBrowserViewAudience[] {
@@ -1180,6 +1273,7 @@ export class BrowserView extends Disposable {
 			return;
 		}
 		this._isDisposed = true;
+		this.dialogs.settleAll();
 
 		// Dispose debugger. This detaches debug sessions first.
 		this.debugger.dispose();

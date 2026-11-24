@@ -13,9 +13,9 @@ import { StatusbarAlignment, IStatusbarService, IStatusbarEntry, IStatusbarEntry
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IAction, Separator, toAction } from '../../../../base/common/actions.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
-import { STATUS_BAR_BACKGROUND, STATUS_BAR_FOREGROUND, STATUS_BAR_INACTIVE_BACKGROUND, STATUS_BAR_NO_FOLDER_BACKGROUND, STATUS_BAR_ITEM_HOVER_BACKGROUND, STATUS_BAR_BORDER, STATUS_BAR_NO_FOLDER_FOREGROUND, STATUS_BAR_NO_FOLDER_BORDER, STATUS_BAR_ITEM_COMPACT_HOVER_BACKGROUND, STATUS_BAR_ITEM_FOCUS_BORDER, STATUS_BAR_FOCUS_BORDER } from '../../../common/theme.js';
+import { getModernUIShellBackground, STATUS_BAR_BACKGROUND, STATUS_BAR_FOREGROUND, STATUS_BAR_INACTIVE_BACKGROUND, STATUS_BAR_NO_FOLDER_BACKGROUND, STATUS_BAR_ITEM_HOVER_BACKGROUND, STATUS_BAR_BORDER, STATUS_BAR_NO_FOLDER_FOREGROUND, STATUS_BAR_NO_FOLDER_BORDER, STATUS_BAR_ITEM_COMPACT_HOVER_BACKGROUND, STATUS_BAR_ITEM_FOCUS_BORDER, STATUS_BAR_FOCUS_BORDER } from '../../../common/theme.js';
 import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
-import { contrastBorder, activeContrastBorder } from '../../../../platform/theme/common/colorRegistry.js';
+import { ColorIdentifier, contrastBorder, activeContrastBorder } from '../../../../platform/theme/common/colorRegistry.js';
 import { EventHelper, addDisposableListener, EventType, clearNode, getWindow, isHTMLElement, $ } from '../../../../base/browser/dom.js';
 import { createStyleSheet } from '../../../../base/browser/domStylesheets.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
@@ -736,6 +736,7 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 		container.style.boxShadow = this.getId() === Parts.STATUSBAR_PART && this.layoutService.isFloatingPanelsEnabled() && !isHighContrast(this.theme.type) && backgroundColor
 			? `0 1px 0 ${backgroundColor}`
 			: '';
+		container.classList.toggle('matches-shell-background', this.isPaintedWithShellBackground(inactiveBackground ? STATUS_BAR_INACTIVE_BACKGROUND : background, isInactive));
 		const foregroundColor = this.getColor(styleOverride?.foreground ?? (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? STATUS_BAR_FOREGROUND : STATUS_BAR_NO_FOLDER_FOREGROUND)) || '';
 		container.style.color = foregroundColor;
 		const itemBorderColor = this.getColor(STATUS_BAR_ITEM_FOCUS_BORDER);
@@ -784,6 +785,23 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 	override layout(width: number, height: number, top: number, left: number): void {
 		super.layout(width, height, top, left);
 		super.layoutContents(width, height);
+	}
+
+	/**
+	 * Whether the main status bar looks like the floating panels' shell, so the gap above it reads as part of it.
+	 */
+	private isPaintedWithShellBackground(background: ColorIdentifier, isInactive: boolean): boolean {
+		if (this.getId() !== Parts.STATUSBAR_PART || !this.layoutService.isFloatingPanelsEnabled()) {
+			return false;
+		}
+
+		const shellBackground = getModernUIShellBackground(this.theme, isInactive);
+		if (!shellBackground) {
+			return false;
+		}
+
+		const paintedBackground = this.theme.getColor(background)?.makeOpaque(shellBackground) ?? shellBackground;
+		return paintedBackground.equals(shellBackground);
 	}
 
 	overrideStyle(style: IStatusbarStyleOverride): IDisposable {

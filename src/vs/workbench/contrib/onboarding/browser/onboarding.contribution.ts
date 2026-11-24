@@ -15,6 +15,7 @@ import product from '../../../../platform/product/common/product.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { workbenchConfigurationNodeBase } from '../../../common/configuration.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
+import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
 import { onboardingPresentationRegistry } from '../common/onboardingPresentation.js';
 import { onboardingScenarioRegistry } from '../common/onboardingRegistry.js';
 import { onboardingSequenceStepPresentationRegistry } from '../common/onboardingSequence.js';
@@ -93,7 +94,7 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			default: product.quality !== 'insider',
 			tags: ['experimental', 'advanced'],
-			description: localize('onboarding.spotlight.backdrop', "Controls whether onboarding spotlights dim the rest of the window behind the highlighted element. Takes effect the next time a spotlight is shown.")
+			description: localize('onboarding.spotlight.backdrop', "Controls whether onboarding spotlights dim and block the rest of the window behind the highlighted element. When disabled, the rest of the window stays interactive while a spotlight is shown. Takes effect the next time a spotlight is shown.")
 		},
 		[SPOTLIGHT_CLOSE_BUTTON_CONFIG]: {
 			type: 'boolean',
@@ -127,12 +128,19 @@ class OnboardingContribution extends Disposable implements IWorkbenchContributio
 	constructor(
 		@IOnboardingScenarioService onboardingService: IOnboardingScenarioService,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@ILifecycleService lifecycleService: ILifecycleService,
 	) {
 		super();
 		// Keep the developer-mode setting's default ids in sync with the scenarios
-		// registered so far (and any registered later, e.g. session tours).
+		// registered so far (and any registered later, e.g. session tours), but not
+		// as their owners unregister them while the window closes: updating the
+		// setting then reconfigures the workbench for nothing.
 		refreshDeveloperModeConfiguration();
-		this._register(onboardingScenarioRegistry.onDidChange(() => refreshDeveloperModeConfiguration()));
+		this._register(onboardingScenarioRegistry.onDidChange(() => {
+			if (!lifecycleService.willShutdown) {
+				refreshDeveloperModeConfiguration();
+			}
+		}));
 		const spotlight = this._register(instantiationService.createInstance(SpotlightPresentation));
 		this._register(onboardingPresentationRegistry.register(spotlight));
 		this._register(onboardingSequenceStepPresentationRegistry.register(spotlight));

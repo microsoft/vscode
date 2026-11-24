@@ -20,7 +20,7 @@ import { CustomizationLoadStatus, CustomizationType, type AgentCustomization, ty
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
-import { type CustomizationSourceFolderReadiness, ICustomizationItem, ICustomizationItemAction, ICustomizationItemProvider, ICustomizationSourceFolder, type IAgentFileToolInventoryEntry } from '../../../common/customizationHarnessService.js';
+import { type CustomizationSourceFolderReadiness, ICustomizationItem, ICustomizationItemAction, ICustomizationItemProvider, ICustomizationSectionNotice, ICustomizationSourceFolder, type IAgentFileToolInventoryEntry } from '../../../common/customizationHarnessService.js';
 import { SYNCED_CUSTOMIZATION_SCHEME } from '../../../../../services/agentHost/common/agentHostFileSystemService.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
@@ -28,6 +28,7 @@ import { getAgentHostCustomizationSource, getAgentHostCustomizationUri } from '.
 import { readMcpServerDisplayName, readMcpServerSource } from '../../../../../../platform/agentHost/common/meta/mcpCustomizationMeta.js';
 import { readAgentCustomizationMeta } from '../../../../../../platform/agentHost/common/meta/agentCustomizationMeta.js';
 import { readCustomizationDiscoveryMeta } from '../../../../../../platform/agentHost/common/meta/customizationDiscoveryMeta.js';
+import { readSkillArgumentHint } from '../../../../../../platform/agentHost/common/meta/skillCustomizationMeta.js';
 import { readRuntimePluginEnablement } from '../../../../../../platform/agentHost/common/meta/pluginEnablementMeta.js';
 import { readCustomizationOrganizationMeta } from '../../../../../../platform/agentHost/common/meta/customizationOrganizationMeta.js';
 import { readCustomizationTeamProvided } from '../../../../../../platform/agentHost/common/meta/customizationTeamMeta.js';
@@ -178,13 +179,16 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 
 	private toDirectoryItems(customization: DirectoryCustomization, source: AICustomizationSource, scope: AICustomizationScope | undefined, isRemote: boolean, workingDirectories: readonly string[]): ICustomizationItem[] {
 		const items: ICustomizationItem[] = [];
-		if (!customization.children?.length && customization.contents === CustomizationType.Hook
+		if (!customization.children?.length && customization.contents === CustomizationType.Hook && customization.enabled === false
 			&& !hasReadableCustomizationContent(URI.parse(customization.uri))
-			&& (customization.load?.kind === CustomizationLoadStatus.Error || customization.load?.kind === CustomizationLoadStatus.Degraded)) {
+			&& customization.load?.kind === CustomizationLoadStatus.Degraded) {
+			// A disabled, degraded directory without hooks still explains why hooks won't run, such as hooks being turned off.
+			// Other directories without hooks that report a problem are shown as section notices instead.
 			items.push({
 				itemKey: customization.id, uri: this.toRemoteUri(customization.uri), type: PromptsType.hook,
 				name: customization.name, source, description: customization.load.message,
 				extensionId: undefined, pluginUri: undefined,
+				enabled: false, status: 'degraded', statusMessage: customization.load.message, badge: localize('customizationWontRun', "Won't run"), badgeTooltip: customization.load.message,
 			});
 		}
 		// A disabled directory that reports a degraded load explains why its disabled children won't run.
@@ -255,6 +259,7 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 			type,
 			name: hookMetadata?.label ?? child.name,
 			description,
+			argumentHint: child.type === CustomizationType.Skill ? readSkillArgumentHint(child) : undefined,
 			...(child.type === CustomizationType.Hook && discovery?.hookType ? { isHookAction: true } : {}),
 			enabled: child.type === CustomizationType.McpServer ? isCustomizationEnabled(child) : child.enabled,
 			source,
@@ -390,6 +395,28 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 		return this._customAgentsService.getAgentFileToolInventory?.(sessionResource);
 	}
 
+	async provideSectionNotices(sessionResource: URI, type: PromptsType): Promise<readonly ICustomizationSectionNotice[]> {
+		if (type !== PromptsType.hook) {
+			return [];
+		}
+		const notices: ICustomizationSectionNotice[] = [];
+		for (const customization of this.getCustomizations(sessionResource)) {
+			// A hook directory with no files of its own that failed to load reports problems with the section's hooks,
+			// such as files that could not be loaded, rather than with an item.
+			// Disabled directories without hooks explain why hooks won't run and are listed as rows instead.
+			if (isDirectoryCustomization(customization) && customization.contents === CustomizationType.Hook && !customization.children?.length
+				&& customization.enabled !== false && !hasReadableCustomizationContent(URI.parse(customization.uri))
+				&& (customization.load?.kind === CustomizationLoadStatus.Error || customization.load?.kind === CustomizationLoadStatus.Degraded)) {
+				notices.push({
+					severity: customization.load.kind === CustomizationLoadStatus.Error ? 'error' : 'warning',
+					title: customization.name,
+					message: customization.load.message,
+				});
+			}
+		}
+		return notices;
+	}
+
 	async provideChatSessionCustomizations(sessionResource: URI, token: CancellationToken): Promise<ICustomizationItem[]> {
 		const items = new Map<string, ICustomizationSkillItem>();
 		const workingDirectories = this._customAgentsService.getWorkingDirectories(sessionResource);
@@ -510,6 +537,7 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 				type: PromptsType.skill,
 				name: skill.name,
 				description: skill.description,
+				argumentHint: readSkillArgumentHint(skill),
 				// MCP resource content stays read-only regardless of its server's configuration scope.
 				source: AICustomizationSources.plugin,
 				scope,
@@ -570,7 +598,8 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 	 */
 	private async getCustomAgentHooks(items: readonly ICustomizationItem[]): Promise<ICustomizationHookItem[]> {
 		// The host lists agent files whose hooks the session leaves out, as in an untrusted folder, as hooks that won't run. A session
-		// leaves out the hooks of every custom agent when any of its folders is untrusted, including agents the host could not list.
+		// leaves out the hooks of every custom agent when any of its folders is untrusted or hooks are turned off, including agents the
+		// host could not list, so the host also publishes a row with the reason when hooks are turned off.
 		const notRunningItems = items.filter(item => item.type === PromptsType.hook && item.enabled === false && item.status === 'degraded');
 		const notRunning = new ResourceSet(notRunningItems.map(item => item.uri));
 		const notRunningMessage = notRunningItems[0]?.statusMessage;

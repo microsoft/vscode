@@ -309,7 +309,7 @@ suite('Dev Container Agent Host Service', () => {
 			createConnection: async (workspaceUri, address) => {
 				createdUris.push(workspaceUri);
 				await options.beforeConnect?.();
-				return { address, name: 'Dev Container on Build', workspaceUri: URI.from({ scheme: AGENT_HOST_SCHEME, authority: agentHostAuthority(address), path: '/workspaces' }), transportFactory: () => undefined as never, defaultDirectory: '/workspaces' };
+				return { address, name: 'Dev Container on Build', workspaceUri: URI.from({ scheme: AGENT_HOST_SCHEME, authority: agentHostAuthority(address), path: '/workspaces/ubuntu-2' }), transportFactory: () => undefined as never, defaultDirectory: '/workspaces/ubuntu-2' };
 			},
 			removeContainer: async workspaceUri => {
 				removedUris.push(workspaceUri);
@@ -366,13 +366,14 @@ suite('Dev Container Agent Host Service', () => {
 			deleted: { environments: service.environments.get(), providerDisposed: provider.disposed, stored: storage.get('devContainerAgentHost.environments', StorageScope.APPLICATION) },
 		}, {
 			hostsWhileDisconnected: [],
-			environment: { sourceAddress: 'ssh:build', providerId: provider.id, workspaceUri: agentHostUri(agentHostAuthority(environment.address), '/workspaces').toString() },
+			environment: { sourceAddress: 'ssh:build', providerId: provider.id, workspaceUri: agentHostUri(agentHostAuthority(environment.address), '/workspaces/ubuntu-2').toString() },
 			providerConfig: { name: 'Dev Container', host: 'ssh:build', canRemove: false, sourceWorkspace: undefined },
-			stagedEntry: { type: RemoteAgentHostEntryType.DevContainer, address: environment.address, environmentId: findDevContainerEnvironment(createdUris[0])?.environmentId, hostAuthority: 'ssh-remote+build' },
+			// Open in VS Code identifies the container by the volume and folder of its workspace.
+			stagedEntry: { type: RemoteAgentHostEntryType.DevContainer, address: environment.address, environmentId: findDevContainerEnvironment(createdUris[0])?.environmentId, volume: { volumeName: 'ubuntu-2', folder: 'ubuntu-2' }, hostAuthority: 'ssh-remote+build' },
 			sources: [agentHostAuthority('ssh:build'), agentHostAuthority('ssh:build'), agentHostAuthority('ssh:build')],
-			created: { status: 'connected', connected: true, defaultDirectory: '/workspaces' },
+			created: { status: 'connected', connected: true, defaultDirectory: '/workspaces/ubuntu-2' },
 			hostDisconnected: { status: 'disconnected', connected: false, defaultDirectory: undefined },
-			hostReconnected: { status: 'connected', connected: true, defaultDirectory: '/workspaces' },
+			hostReconnected: { status: 'connected', connected: true, defaultDirectory: '/workspaces/ubuntu-2' },
 			deleted: { environments: [], providerDisposed: true, stored: undefined },
 		});
 	});

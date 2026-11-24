@@ -1722,7 +1722,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			return;
 		}
 		if (this.chatPhoneInputPresenter.enabled.get()) {
-			this._showCombinedPhonePickerSheet();
+			this._showCombinedPhonePickerSheet('model');
 			return;
 		}
 		this.modelWidget?.show();
@@ -1756,7 +1756,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	public openModePicker(anchor?: HTMLElement): void {
 		if (this.chatPhoneInputPresenter.enabled.get()) {
-			this._showCombinedPhonePickerSheet();
+			this._showCombinedPhonePickerSheet('mode');
 			return;
 		}
 		if (this.modeWidget?.isConnected) {
@@ -1777,11 +1777,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 	}
 
-	private _showCombinedPhonePickerSheet(): void {
+	private _showCombinedPhonePickerSheet(initialSection: 'mode' | 'model'): void {
 		const target = this.inputActionsToolbar.getElement();
 		this.chatPhoneInputPresenter
 			.showCombinedModeAndModelSheet(target, {
 				kind: 'delegates',
+				initialSection,
 				modeDelegate: this._createModePickerDelegate(),
 				modelDelegate: this._createModelPickerDelegate(),
 			})
@@ -4089,7 +4090,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.historyNavigationBackwardsEnablement = historyNavigationBackwardsEnablement;
 		this.historyNavigationForewardsEnablement = historyNavigationForwardsEnablement;
 
-		const options: IEditorConstructionOptions = getSimpleEditorOptions(this.configurationService);
+		const options: IEditorConstructionOptions = {
+			...getSimpleEditorOptions(this.configurationService),
+			// Monaco measures the font during construction, before the live font-size binding runs.
+			...getChatInputEditorMetrics(this.options.inputEditorOptions, this.chatLayoutService.fontSize.get()),
+		};
 		options.overflowWidgetsDomNode = this.options.editorOverflowWidgetsDomNode;
 		options.pasteAs = EditorOptions.pasteAs.defaultValue;
 		options.readOnly = false;
@@ -4111,6 +4116,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			showStatusBar: false,
 			insertMode: 'insert',
 			fitWidthToDetails: true,
+			reopenOnDelete: true,
 		};
 		options.scrollbar = this.options.renderStyle === 'compact'
 			? { ...(options.scrollbar ?? {}), vertical: 'hidden' }

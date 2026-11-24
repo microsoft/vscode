@@ -135,6 +135,8 @@ export interface IAgentSideEffectsOptions {
 	 * Provided by {@link AgentService}.
 	 */
 	readonly resolveWorkingDirectoryBeforeSend?: (params: { session: ProtocolURI; chat: ProtocolURI; turnId: string; prompt: string; credentials?: IAgentHostCredentialSource; agentMergeTurn?: boolean; onResolved?: (workingDirectories: readonly URI[]) => void }) => Promise<readonly URI[] | undefined>;
+	/** Announces a provisional session whose turn was cancelled before reaching its agent, which never materialized it. */
+	readonly announceUnsentProvisionalSession?: (params: { session: ProtocolURI; workingDirectories: readonly URI[] | undefined }) => void;
 	/** Resolves a referenced chat's turns, hydrating its owning session when needed. */
 	readonly resolveChatAttachmentTurns?: (resource: ProtocolURI) => Promise<readonly Turn[]>;
 	/** Resolves the recorded owner of a chat that may not be loaded. */
@@ -2230,6 +2232,7 @@ export class AgentSideEffects extends Disposable {
 		// handed the prompt can discard the checkpoint it already started.
 		let checkpointCapture: Promise<void> | undefined;
 		let dispatchedToProvider = false;
+		let resolvedWorkingDirectories: readonly URI[] | undefined;
 		try {
 			const credentials = options.credentials ? captureCredentialSource(options.credentials, agent.getProtectedResources()) : undefined;
 			this._turnTracker.setCurrentStage(turnChannel, turnId, failureStage);
@@ -2247,7 +2250,7 @@ export class AgentSideEffects extends Disposable {
 					checkpointCapture.catch(() => { /* surfaced by the await below or by the provider */ });
 				}
 			};
-			const resolvedWorkingDirectories = await this._options.resolveWorkingDirectoryBeforeSend?.({ session: options.sessionChannel, chat, turnId, prompt: message.text, ...(credentials ? { credentials } : {}), ...(agentMergeTurn ? { agentMergeTurn } : {}), onResolved: captureCheckpoint });
+			resolvedWorkingDirectories = await this._options.resolveWorkingDirectoryBeforeSend?.({ session: options.sessionChannel, chat, turnId, prompt: message.text, ...(credentials ? { credentials } : {}), ...(agentMergeTurn ? { agentMergeTurn } : {}), onResolved: captureCheckpoint });
 			captureCheckpoint(resolvedWorkingDirectories);
 			const chatContext = this._chatContext(options.sessionChannel, chat);
 			const clientOperationContext = {
@@ -2400,6 +2403,11 @@ export class AgentSideEffects extends Disposable {
 				});
 			}
 			this._failSessionCreationIfStillCreating(sessionChannel, error);
+		} finally {
+			// A turn can be cancelled at any stage before dispatch, and each one leaves its provisional session unannounced.
+			if (!dispatchedToProvider && this._cancelledTurnIds.get(turnChannel)?.has(turnId)) {
+				this._announceUnsentProvisionalSession(sessionChannel, resolvedWorkingDirectories);
+			}
 		}
 	}
 
@@ -2630,6 +2638,12 @@ export class AgentSideEffects extends Disposable {
 		const summary = this._stateManager.getSessionSummary(sessionChannel);
 		if (summary) {
 			this._stateManager.markSessionPersisted(sessionChannel, summary);
+		}
+	}
+
+	private _announceUnsentProvisionalSession(sessionChannel: ProtocolURI, workingDirectories: readonly URI[] | undefined): void {
+		if (this._stateManager.getSessionState(sessionChannel)?.lifecycle === SessionLifecycle.Creating) {
+			this._options.announceUnsentProvisionalSession?.({ session: sessionChannel, workingDirectories });
 		}
 	}
 

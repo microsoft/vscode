@@ -12,7 +12,6 @@ import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurati
 import { EXTENSION_IDENTIFIER_PATTERN } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { EXTENSIONS_AGENTS_WINDOW_AUTO_ENABLE, EXTENSIONS_AGENTS_WINDOW_AUTO_ENABLE_EXTENSIONS, EXTENSIONS_AGENTS_WINDOW_MANAGEMENT, MANAGE_EXTENSION_COMMAND_ID } from '../../../../platform/extensions/common/extensions.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
-import product from '../../../../platform/product/common/product.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { aiCustomizationManagementSectionRegistry } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementSectionRegistry.js';
@@ -34,7 +33,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			type: 'boolean',
 			scope: ConfigurationScope.APPLICATION,
 			description: localize('extensions.experimental.agentsWindowManagement', "When enabled, you can choose which installed extensions run in the Agents window, and install extensions from the Marketplace, from the Extensions section of Agent Customizations. When disabled, extensions that don't support the Agents window stay disabled there, and your previous choices are kept but ignored."),
-			default: product.quality !== 'stable',
+			default: true,
 			tags: ['experimental'],
 			experiment: { mode: 'auto' },
 		},
@@ -42,7 +41,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			type: 'boolean',
 			scope: ConfigurationScope.APPLICATION,
 			markdownDescription: localize('extensions.experimental.agentsWindowSuggestions', "When enabled, the Agents window suggests installed extensions that add AI features, such as tools, MCP servers, or skills. The Extensions section of Agent Customizations lists them in an AI Features group, and its entry point shows a badge while they are disabled, until you open the section. Requires `#{0}#`.", EXTENSIONS_AGENTS_WINDOW_MANAGEMENT),
-			default: product.quality !== 'stable',
+			default: true,
 			tags: ['experimental'],
 			experiment: { mode: 'auto' },
 		},

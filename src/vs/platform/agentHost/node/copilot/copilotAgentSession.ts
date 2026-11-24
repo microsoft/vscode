@@ -86,7 +86,7 @@ import { isAgentFeedbackAnnotationsAttachment, renderAgentFeedbackAnnotationsAtt
 import { isHostSnapshotAttachment } from '../../common/meta/agentSnapshotAttachmentMeta.js';
 import { ISessionDatabase, ISessionDataService, MAX_TERMINAL_OUTPUT_BYTES } from '../../common/sessionDataService.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
-import { BackgroundWorkKind, ConfirmationOptionKind, MessageAttachmentKind, ToolCallContributorKind, type BackgroundWork, type FileEdit, type MessageAttachment, type ModelSelection, type ToolCallContributor, type ToolDefinition } from '../../common/state/protocol/state.js';
+import { BackgroundWorkKind, ConfirmationOptionKind, MessageAttachmentKind, ToolCallContributorKind, type BackgroundWork, type FileEdit, type MessageAttachment, type ModelSelection, type SystemNotificationResponsePart, type ToolCallContributor, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { ActionType, isChatAction, type ChatAction, type ChatToolCallReadyAction, type SessionAction } from '../../common/state/sessionActions.js';
 import { subagentChatUri } from '../../common/agentHostChatMinting.js';
 import { MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolResultContentType, TurnState, buildSubagentSessionUri, createErrorResponsePart, isHostNoticeTurn, isSubagentSession, lastAttributableTurnId, type CanvasState, type Customization, type Message, type PendingMessage, type ChatInputAnswer, type ChatInputOption, type ChatInputQuestion, type ChatInputRequest, type ToolCallResult, type ToolResultContent, type ToolResultTerminalContent, type Turn, type ITurnTokenTotal, type UsageInfo, type IContextAttributionData, type ISessionPromptCacheState } from '../../common/state/sessionState.js';
@@ -98,6 +98,7 @@ import { getCopilotSdkToolResourceUri } from './copilotSdkMeta.js';
 import { isAutoModel } from './modelIdentifiers.js';
 import { readAgentCustomizationMeta } from '../../common/meta/agentCustomizationMeta.js';
 import { areCopilotCustomAgentHooksTrusted, clientToolNamesFromSnapshot, composeByokSessionConfig, findLocalModelDirectFamily, getCopilotAgentCustomization, getCopilotWorkingDirectoryTrust, isCopilotSessionTelemetryEnabled, isMcpServerExplicitlyProjected, resolveCopilotSessionManagedSettings, toSessionConfigMcpServers, type CopilotChatSurface, type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotClientToolConfiguration, type ICopilotSessionLauncher, type ICopilotSessionRuntime } from './copilotSessionLauncher.js';
+import type { ICopilotCreatedWorktree, ICopilotProjectExtensionTrustReconciliation } from './copilotProjectExtensionLaunchPolicy.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, NON_DEFERRED_CLIENT_TOOL_NAMES, RUNTIME_TOOL_SEARCH_TOOL_NAME, searchToolsWithoutClient } from './toolSearchDeferral.js';
 import { ActiveClientToolSet, structuralToolsEqual } from '../activeClientState.js';
 import { IAgentHostClientConnectionService } from '../agentHostClientConnectionService.js';
@@ -113,6 +114,8 @@ import type { IUnsandboxedCommandConfirmationRequest, ShellManager } from './cop
 import { NonPtyShellTerminalStreams, type INonPtyShellToolCompletion } from './copilotNonPtyShellTerminals.js';
 import { readCopilotSessionEvents, restoreStoredShellOutputs } from './copilotSessionHistory.js';
 import { CopilotGrepSearchNudge } from './copilotGrepSearchNudge.js';
+import { createHookFailureNotification, createHookWarningNotification, createPromptBlockedNotification, CopilotHookWarnings } from './copilotHookNotices.js';
+import { CopilotHookToolDenials } from './copilotHookToolDenials.js';
 import { CopilotSessionSandbox } from './copilotSessionSandbox.js';
 import { reportCopilotRuntimeRestart, type CopilotRuntimeMutation, type CopilotRuntimeRestartEvent } from './copilotRuntimeRestartTelemetry.js';
 import type { CopilotSandboxCertificate } from './copilotSandboxCertificate.js';
@@ -125,7 +128,7 @@ import { COMPUTER_USE_PLUGIN_NAME } from './copilotComputerUsePlugin.js';
 import { CopilotComputerUseActivation } from './copilotComputerUseActivationTool.js';
 import { reportComputerUseActivation, reportComputerUseState } from './copilotComputerUseTelemetry.js';
 import { classifyComputerUsePrompt, type CopilotComputerUsePermissionSetup, type ICopilotComputerUseSetupChat, type IComputerUsePermissionPrompt } from './copilotComputerUsePermissionSetup.js';
-import { CopilotToolName, getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getSandboxPathGrantConfirmation, getSdkImageGenerationMetadata, getToolIntention, getShellLanguage, getStreamingInvocationMessage, getSubagentMetadata, getPhaseTaskCompleteMarkdown, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, getToolSummaryInputContract, getViewedResourceType, isAgentCoordinationTool, isCopilotSdkToolOutputFile, isEditTool, isHiddenTool, isShellHelperTool, isShellTool, isTaskCompleteTool, parseCopilotStreamingToolInput, synthesizeSkillToolCall, tryStringify, getAssistedApprovalNotice, type TaskCompletionReview } from './copilotToolDisplay.js';
+import { CopilotToolName, getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getSandboxPathGrantConfirmation, getSdkImageGenerationMetadata, getToolIntention, getShellLanguage, getStreamingInvocationMessage, getSubagentMetadata, getPhaseTaskCompleteMarkdown, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, getToolSummaryInputContract, getViewedResourceType, getSdkToolCallError, isAgentCoordinationTool, isCopilotSdkToolOutputFile, isEditTool, isHiddenTool, isShellHelperTool, isShellTool, isTaskCompleteTool, parseCopilotStreamingToolInput, synthesizeSkillToolCall, tryStringify, getAssistedApprovalNotice, type TaskCompletionReview } from './copilotToolDisplay.js';
 import { imageGenerationToolMetaKey } from '../../common/meta/agentImageGenerationMeta.js';
 import { COPILOT_VIRTUAL_SESSION_STATE_PATH, copilotSdkPathToUri, createCopilotSdkPathMapper, resolveCopilotSdkPath, toCopilotWorkspace, type ICopilotSdkPathMapper } from './copilotWorkspace.js';
 import { toAgentClientUri } from '../../common/agentClientUri.js';
@@ -727,6 +730,12 @@ const DETACHED_SHELL_OUTPUT_WAIT_MS = 30_000;
 const MANAGED_PLUGINS_EVENT_TYPE = 'managed_plugins';
 /** Type of the `session.info` event sent when plugins required by the organization are ready. */
 const MANAGED_PLUGINS_COMPLETE_EVENT_TYPE = 'managed_plugins_complete';
+/** Type of the `session.warning` event sent when a hook blocks a prompt; its message is the hook's reason. */
+const PROMPT_BLOCKED_WARNING_TYPE = 'policy_blocked';
+/** Type of the `session.warning` event about a hook, such as its stderr when it exits with code 2 where that does not block. */
+const HOOK_WARNING_TYPE = 'hook';
+/** Type of the `session.warning` event sent when part of a hook's answer was not used. */
+const HOOK_OUTPUT_WARNING_TYPE = 'hook_output';
 
 function hasParentPathSegment(filePath: string): boolean {
 	return filePath.split(/[\\/]/).includes('..');
@@ -898,8 +907,12 @@ interface ICanvasOpenOperation {
 	readonly stopwatch: StopWatch;
 	/** How many consent requests for the open's extension people had been shown when it started. */
 	readonly consentShownBefore: number;
+	/** Reads the open's extension as the runtime lists it just before the open. */
+	readonly extensionRead: Promise<CanvasOpenExtension | undefined>;
 	/** The open's extension as the runtime listed it just before the open. */
 	extension?: CanvasOpenExtension;
+	/** Whether the client was asked a consent request this open waited for. */
+	consentShown?: boolean;
 	/** Whether telemetry reported how the open ended, which it does once. */
 	reported?: boolean;
 }
@@ -1149,6 +1162,10 @@ class CopilotTurn extends Disposable {
 	/** Root SDK correlations are valid only while their owning protocol turn is active. */
 	readonly sdkTurnIds = new Set<string>();
 	readonly interactionIds = new Set<string>();
+	/** The id `session.send` returned for this turn's prompt; a `policy_blocked` warning for it carries the same id. */
+	sentMessageId: string | undefined;
+	/** Settles once `send` has finished with this turn, including showing a prompt block that arrived early. */
+	readonly sendReturned = new DeferredPromise<void>();
 	activeSdkTurnId: string | undefined;
 	imageGenerationSdkTurnId: string | undefined;
 	toolCallRounds = 0;
@@ -1214,6 +1231,9 @@ class CopilotTurn extends Disposable {
 		}
 	}
 
+	/** Whether the runtime echoed this turn's prompt as a root `user.message`; a prompt a hook blocked never is. */
+	get hasUserMessage(): boolean { return this._eventId.isResolved; }
+
 	markCompleted(): void { this._state = 'completed'; }
 	markAborted(): void { this._state = 'aborted'; }
 
@@ -1238,6 +1258,7 @@ class CopilotTurn extends Disposable {
 		this.sdkTurnIds.clear();
 		this.interactionIds.clear();
 		this.activeSdkTurnId = undefined;
+		void this.sendReturned.complete();
 		if (!this._eventId.isSettled) {
 			this._eventId.error(new Error(`Turn ${this.id} was disposed before its SDK event id was recorded`));
 		}
@@ -1601,6 +1622,7 @@ export class CopilotAgentSession extends Disposable {
 	/** File edit tracker for this session. */
 	private readonly _editTracker: FileEditTracker;
 	private readonly _grepSearchNudge: CopilotGrepSearchNudge;
+	private readonly _hookToolDenials = new CopilotHookToolDenials();
 	private readonly _pendingOutputCaptures = new Set<Promise<void>>();
 	/**
 	 * The current protocol turn and its per-turn bookkeeping, or `undefined`
@@ -1662,6 +1684,8 @@ export class CopilotAgentSession extends Disposable {
 	get isEphemeral(): boolean { return this._launchPlan.isEphemeral === true; }
 	/** Whether this session's runtime was launched with canvases, which only a relaunch changes. */
 	get canvasRuntimeEnabled(): boolean { return this._wrapper?.canvasRuntimeEnabled === true; }
+	/** Whether VS Code's `chat.useHooks` setting allowed hooks when this runtime launched. */
+	get hooksEnabled(): boolean { return this._wrapper?.launchHooksEnabled !== false; }
 	/** The model router agent plan this session was launched with, compared by identity. */
 	get modelRouterGuidance(): IModelRouterGuidance | undefined { return this._launchPlan.isEphemeral ? undefined : this._launchPlan.modelRouterGuidance; }
 
@@ -2156,6 +2180,10 @@ export class CopilotAgentSession extends Disposable {
 	/** SDK session wrapper, set by {@link initializeSession}. */
 	private _wrapper!: CopilotSessionWrapper;
 	private readonly _mcpServerLogs: CopilotMcpServerLogs;
+	/** Workspace-trust reconciliations in flight, which {@link destroySession} lets finish before disconnecting. */
+	private readonly _projectExtensionTrustReconciliations = new Set<Promise<void>>();
+	/** Set once {@link destroySession} starts: trust reconciliation sends a retiring runtime no further requests. */
+	private _retiring = false;
 	private readonly _wrapperDisposables = this._register(new DisposableStore());
 	/** Session error reports deferred while this session is an unclaimed pre-warmed session. */
 	private _heldSessionErrorReports: (() => void)[] | undefined;
@@ -2443,6 +2471,11 @@ export class CopilotAgentSession extends Disposable {
 	private _publishedWaitActivity: string | undefined;
 	/** Plugin preparation failure reported while no turn was waiting; shown in the next sent turn. */
 	private _unshownManagedPluginFailure: string | undefined;
+	/** Root hook failures and warnings reported while no turn could show them; shown in the next sent turn. */
+	private _unshownHookFailures: SystemNotificationResponsePart[] = [];
+	/** A prompt block that arrived before its `session.send` returned. */
+	private _earlyPromptBlock: { readonly messageId: string; readonly reason: string } | undefined;
+	private readonly _hookWarnings = new CopilotHookWarnings();
 	/**
 	 * Provisional Fusion tool starts held back from the transcript until a
 	 * phase chat, a permission request, or a client tool handler surfaces the tool, keyed by tool call id.
@@ -4640,6 +4673,17 @@ export class CopilotAgentSession extends Disposable {
 		};
 	}
 
+	/** The folder a workspace-less chat was launched in: the scratch folder the host allocated for it. */
+	get workspacelessFolder(): URI | undefined {
+		return this._launchPlan.workspaceless ? this._launchPlan.workingDirectory : undefined;
+	}
+
+	/** The worktree the host created as this session's working directory, with the repository whose trust it inherits. */
+	get createdWorktree(): ICopilotCreatedWorktree | undefined {
+		const { workingDirectory, worktreeRepository } = this._launchPlan;
+		return workingDirectory && worktreeRepository ? { worktree: workingDirectory, repository: worktreeRepository } : undefined;
+	}
+
 	get customizationDirectory(): URI | undefined {
 		return this._customizationDirectory;
 	}
@@ -5399,7 +5443,33 @@ export class CopilotAgentSession extends Disposable {
 		}
 	}
 
-	async listCanvases(): Promise<AgentCanvasDefinitionSnapshot> {
+	/**
+	 * Lists the canvases once the runtime's extensions have settled, waiting at most `timeoutMs` for them, and then lists
+	 * the canvases registered so far. Nothing asks a draft that has not started to list its canvases again, so an
+	 * unsettled snapshot, which an extension that never finishes starting would cause, would leave its caller with none.
+	 */
+	async listSettledCanvases(timeoutMs: number): Promise<AgentCanvasDefinitionSnapshot> {
+		const deadline = Date.now() + timeoutMs;
+		while (true) {
+			const changed = Event.toPromise(Event.any(Event.signal(this._wrapper.onExtensionsLoaded), Event.signal(this._wrapper.onCanvasRegistryChanged), this._onDidAddExtensionConsentGate.event));
+			try {
+				const remaining = deadline - Date.now();
+				const snapshot = await this.listCanvases({ includeStarting: remaining <= 0 });
+				if (snapshot !== undefined || this._store.isDisposed) {
+					return snapshot;
+				}
+				await raceTimeout(changed, Math.max(0, deadline - Date.now()));
+			} finally {
+				changed.cancel();
+			}
+		}
+	}
+
+	/**
+	 * Lists the canvases the runtime registered. While an extension is starting, other than one waiting for consent, the
+	 * snapshot is unsettled, `undefined`, unless `includeStarting` asks for the canvases registered so far.
+	 */
+	async listCanvases(options?: { readonly includeStarting?: boolean }): Promise<AgentCanvasDefinitionSnapshot> {
 		if (!this._wrapper.canvasRuntimeEnabled) {
 			throw new Error('Canvases are disabled for this session.');
 		}
@@ -5412,11 +5482,15 @@ export class CopilotAgentSession extends Disposable {
 			this.publishCanvases();
 			return undefined;
 		}
-		if (extensions.extensions.some(extension => extension.status === 'starting')) {
+		// An extension waiting for the user's consent stays starting until a turn or a canvas open shows the request, so it does not hold the listing.
+		const starting = extensions.extensions.some(extension => extension.status === 'starting' && !this.hasPendingExtensionConsent(extension.id));
+		if (starting && !options?.includeStarting) {
 			this._markCanvasRegistryUnsettled();
 			return undefined;
 		}
-		this._publishSettledCanvasRegistry();
+		if (!starting) {
+			this._publishSettledCanvasRegistry();
+		}
 		const extensionSources = new Map(extensions.extensions.map(extension => [extension.id, this._canvasExtensionSource(extension.source)]));
 		const definitions = await Promise.all(result.canvases.map(async canvas => {
 			const icon = await this._readCanvasIcon(canvas.icon, canvas.extensionId);
@@ -5441,7 +5515,11 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	async listExtensions(): Promise<readonly IAgentExtensionInfo[]> {
-		const result = await this._awaitControlPlaneRpc('rpc.extensions.list', this._wrapper.session.rpc.extensions.list());
+		return this._listExtensions(this._wrapper);
+	}
+
+	private async _listExtensions(wrapper: CopilotSessionWrapper): Promise<readonly IAgentExtensionInfo[]> {
+		const result = await this._awaitControlPlaneRpc('rpc.extensions.list', wrapper.session.rpc.extensions.list());
 		if (!result || !Array.isArray(result.extensions)) {
 			throw new Error('Copilot returned an invalid live extension inventory.');
 		}
@@ -5488,7 +5566,11 @@ export class CopilotAgentSession extends Disposable {
 			this._answerExtensionConsent(answer.consentId, answer.optionId);
 			return this._awaitCanvasOpen(shownFor);
 		}
-		const operation: ICanvasOpenOperation = { request, outcome: new DeferredPromise(), ready: this._syncPermissionModeBeforeCanvasOpen(), stopwatch: StopWatch.create(), consentShownBefore: this._extensionConsentShownCount(request.extensionId) };
+		const operation: ICanvasOpenOperation = {
+			request, outcome: new DeferredPromise(), ready: this._syncPermissionModeBeforeCanvasOpen(), stopwatch: StopWatch.create(), consentShownBefore: this._extensionConsentShownCount(request.extensionId),
+			// Read before the open starts, alongside the permission mode sync, so it tells whether the open starts the extension.
+			extensionRead: this._readCanvasOpenExtension(this._wrapper, request.extensionId),
+		};
 		// A client that stops waiting, for example while it asks for consent, must not leave the failure unhandled.
 		operation.outcome.p.catch(() => undefined);
 		this._canvasOpens.add(operation);
@@ -5516,12 +5598,14 @@ export class CopilotAgentSession extends Disposable {
 	/** Shows the client consent the open waits for, or waits for the open, bounded like other control-plane requests while nobody is asked. */
 	private async _awaitCanvasOpen(operation: ICanvasOpenOperation): Promise<AgentCanvasOpenResult> {
 		await operation.ready;
+		const extension = await operation.extensionRead;
 		while (true) {
-			const gate = [...this._extensionConsentGates.values()].find(candidate => !candidate.decision.isSettled && this._canvasOpenDependsOn(operation.request, candidate));
+			const gate = [...this._extensionConsentGates.values()].find(candidate => !candidate.decision.isSettled && this._canvasOpenWaitsFor(operation.request, extension, candidate));
 			if (gate) {
 				const unattended = this._unattendedExtensionConsent();
 				if (!unattended) {
 					gate.presentedToClient = true;
+					operation.consentShown = true;
 					this._noteExtensionConsentShown(gate.consent.extensionName);
 					this._canvasConsentOpens.set(canvasConsentOpenKey(gate.consent.id, operation.request.instanceId), operation);
 					return { kind: 'consentRequired', consent: gate.consent };
@@ -5556,6 +5640,31 @@ export class CopilotAgentSession extends Disposable {
 		return !request.extensionId || request.extensionId === gate.consent.extensionName;
 	}
 
+	/**
+	 * Whether an open waits for a consent request, so the client must be asked it. An open that starts its extension waits
+	 * for any: the runtime does not finish starting an extension while another one waits for consent.
+	 */
+	private _canvasOpenWaitsFor(request: IAgentCanvasOpenRequest, extension: CanvasOpenExtension | undefined, gate: IExtensionConsentGate): boolean {
+		return this._canvasOpenDependsOn(request, gate) || extension?.status !== 'running';
+	}
+
+	/**
+	 * Waits, before an open starts its extension, until no other extension waits for consent. The runtime would not finish
+	 * starting the open's extension until then, and fails the start when the person takes long to answer.
+	 */
+	private async _awaitOtherExtensionConsents(operation: ICanvasOpenOperation): Promise<void> {
+		if (operation.extension?.status === 'running') {
+			return;
+		}
+		while (true) {
+			const pending = [...this._extensionConsentGates.values()].filter(gate => !gate.decision.isSettled && !this._canvasOpenDependsOn(operation.request, gate));
+			if (!pending.length) {
+				return;
+			}
+			await raceCancellationError(Promise.race(pending.map(gate => gate.decision.p)), this._lifetimeCts.token);
+		}
+	}
+
 	private async _runCanvasOpen(operation: ICanvasOpenOperation): Promise<AgentCanvasOpenResult> {
 		const { request } = operation;
 		if (this._deferredCanvasCloseInstanceIds.has(request.instanceId)) {
@@ -5565,8 +5674,6 @@ export class CopilotAgentSession extends Disposable {
 		if (!wrapper.canvasRuntimeEnabled) {
 			throw new Error('Canvases are disabled for this session.');
 		}
-		// Read before the open starts, alongside the permission mode sync, so it tells whether the open starts the extension.
-		const extension = this._readCanvasOpenExtension(wrapper, request.extensionId);
 		const wasIgnored = this._ignoredRestoredCanvasInstanceIds.has(request.instanceId);
 		let latestEvent: SessionEventPayload<'session.canvas.opened' | 'session.canvas.closed' | 'session.canvas.unavailable'> | undefined;
 		const listener = wasIgnored ? wrapper.onEvent(event => {
@@ -5579,7 +5686,8 @@ export class CopilotAgentSession extends Disposable {
 		try {
 			// A failed permission mode sync fails the open before it starts, never as a consent denial.
 			await operation.ready;
-			operation.extension = await extension;
+			operation.extension = await operation.extensionRead;
+			await this._awaitOtherExtensionConsents(operation);
 			let canvas: Awaited<ReturnType<CopilotSession['rpc']['canvas']['open']>>;
 			try {
 				canvas = await wrapper.session.rpc.canvas.open(request);
@@ -5646,7 +5754,7 @@ export class CopilotAgentSession extends Disposable {
 			return;
 		}
 		operation.reported = true;
-		this._reportCanvasHostOpen('user', operation.extension, operation.stopwatch, outcome, this._extensionConsentShownCount(operation.request.extensionId) > operation.consentShownBefore);
+		this._reportCanvasHostOpen('user', operation.extension, operation.stopwatch, outcome, operation.consentShown === true || this._extensionConsentShownCount(operation.request.extensionId) > operation.consentShownBefore);
 	}
 
 	private _noteExtensionConsentShown(extensionName: string): void {
@@ -6480,7 +6588,13 @@ export class CopilotAgentSession extends Disposable {
 			createComputerUseActivationTools: () => this._computerUseActivation.createTools(),
 			createModelRouterTools: () => this._modelRouterTools?.() ?? [],
 			reloadExtensions: () => this.reloadExtensions(),
-			handlePreToolUse: input => this._handlePreToolUse(input),
+			handlePreToolUse: async input => {
+				const output = await this._handlePreToolUse(input);
+				if (output?.permissionDecision === 'deny') {
+					this._hookToolDenials.recordSelfDenial(input.toolCallId);
+				}
+				return output;
+			},
 			handlePostToolUse: input => this._handlePostToolUse(input),
 			handlePostToolUseFailure: input => this._handlePostToolUseFailure(input),
 			handleUserPromptSubmitted: () => this.handleUserPromptSubmitted(),
@@ -7145,6 +7259,8 @@ export class CopilotAgentSession extends Disposable {
 			this._hostInstructions = undefined;
 			this._pendingSnapshotReminder = undefined;
 			throw err;
+		} finally {
+			void turn?.sendReturned.complete();
 		}
 	}
 
@@ -7172,6 +7288,87 @@ export class CopilotAgentSession extends Disposable {
 
 	async reconcileExtensions(): Promise<void> {
 		await this._awaitControlPlaneRpc('rpc.extensions.reconcile', this._wrapper.session.rpc.extensions.reconcile());
+	}
+
+	/**
+	 * Applies a workspace-trust change to this session's project extensions. The SDK consults the launch provider only
+	 * when it starts an extension, so: a running extension whose launch lost trust is stopped by a reload, which
+	 * relaunches only those still allowed, and refused (`failed`) ones are retried once trust expands.
+	 * Sessions without affected project extensions are left alone. Throws only when a revocation fails; a failed retry
+	 * leaves refused extensions refused, and is logged.
+	 */
+	async reconcileProjectExtensionsAfterTrustChange(reconciliation: ICopilotProjectExtensionTrustReconciliation): Promise<void> {
+		if (!reconciliation.expanded && reconciliation.revokedExtensionNames.size === 0) {
+			return;
+		}
+		const run = this._reconcileProjectExtensionsAfterTrustChange(reconciliation, this._wrapper);
+		this._projectExtensionTrustReconciliations.add(run);
+		try {
+			await run;
+		} finally {
+			this._projectExtensionTrustReconciliations.delete(run);
+		}
+	}
+
+	private async _reconcileProjectExtensionsAfterTrustChange(reconciliation: ICopilotProjectExtensionTrustReconciliation, wrapper: CopilotSessionWrapper): Promise<void> {
+		// Configuration refresh resumes the same SDK session in a new runtime, which RPCs addressed to this one would reach.
+		const isCurrent = () => !this._store.isDisposed && !this._retiring && this._wrapper === wrapper && wrapper.lifecycleState === 'active';
+		const listProjectExtensions = async () => (await this._listExtensions(wrapper)).filter(extension => extension.source === 'project');
+		if (!isCurrent()) {
+			return;
+		}
+		let projectExtensions: readonly IAgentExtensionInfo[];
+		try {
+			projectExtensions = await listProjectExtensions();
+		} catch (error) {
+			if (!isCurrent()) {
+				return;
+			}
+			// Without the inventory, a revoked extension may still run here.
+			if (reconciliation.revokedExtensionNames.size > 0) {
+				throw error;
+			}
+			this._logService.warn(`[Copilot:${this.sessionId}] Skipping the retry of refused project extensions after workspace trust expanded: ${getErrorMessage(error)}`);
+			return;
+		}
+		if (!isCurrent()) {
+			return;
+		}
+		// The runtime names a project extension after its folder, as the policy recorded its revoked launch.
+		const revoked = projectExtensions.filter(extension => (extension.status === 'running' || extension.status === 'starting') && reconciliation.revokedExtensionNames.has(extension.name));
+		if (revoked.length) {
+			this._logService.info(`[Copilot:${this.sessionId}] Reloading extensions after workspace trust was revoked for ${revoked.map(extension => extension.id).join(', ')}`);
+			this._recordRuntimeMutation('extensionsReload');
+			await this._awaitControlPlaneRpc('rpc.extensions.reload', wrapper.session.rpc.extensions.reload());
+			if (!reconciliation.expanded || !isCurrent()) {
+				return;
+			}
+			try {
+				projectExtensions = await listProjectExtensions();
+			} catch (error) {
+				if (isCurrent()) {
+					this._logService.warn(`[Copilot:${this.sessionId}] Skipping the retry of refused project extensions after workspace trust expanded: ${getErrorMessage(error)}`);
+				}
+				return;
+			}
+			if (!isCurrent()) {
+				return;
+			}
+		}
+		if (!reconciliation.expanded || !projectExtensions.some(extension => extension.status === 'failed')) {
+			return;
+		}
+		// Host-only and not persisted: it retries refused launches under the session's current enablement, and leaves
+		// running extensions alone.
+		this._logService.info(`[Copilot:${this.sessionId}] Reconciling extensions after workspace trust expanded`);
+		try {
+			await this._awaitControlPlaneRpc('rpc.extensions.reconcile', wrapper.session.rpc.extensions.reconcile());
+		} catch (error) {
+			// The runtime also reports extensions the launch provider still refuses as a failure; they stay refused.
+			if (isCurrent()) {
+				this._logService.warn(`[Copilot:${this.sessionId}] Retrying refused project extensions after workspace trust expanded did not complete: ${getErrorMessage(error)}`);
+			}
+		}
 	}
 
 	/**
@@ -7518,8 +7715,9 @@ export class CopilotAgentSession extends Disposable {
 						messages: [{ prompt }],
 						requestHeaders: { Authorization: '******' },
 					});
+					return undefined;
 				} else {
-					await this._wrapper.session.send({ prompt, attachments: sdkAttachments?.length ? sdkAttachments : undefined, ...(displayPrompt ? { displayPrompt } : {}), ...toCopilotMessageSourceOptions(messageSource, sendingTurn?.id) });
+					return await this._wrapper.session.send({ prompt, attachments: sdkAttachments?.length ? sdkAttachments : undefined, ...(displayPrompt ? { displayPrompt } : {}), ...toCopilotMessageSourceOptions(messageSource, sendingTurn?.id) });
 				}
 			});
 		}), sendingTurn, abortToken, sendingTurn);
@@ -7527,6 +7725,13 @@ export class CopilotAgentSession extends Disposable {
 			return;
 		}
 		this._logService.info(`[Copilot:${this.sessionId}] session.send() returned`);
+		if (sendingTurn && typeof execution.value === 'string') {
+			sendingTurn.sentMessageId = execution.value;
+			if (this._earlyPromptBlock?.messageId === execution.value) {
+				this._showPromptBlock(sendingTurn, this._earlyPromptBlock.reason);
+				this._earlyPromptBlock = undefined;
+			}
+		}
 	}
 
 	private _rewriteMcpSkillReferences(prompt: string): string {
@@ -8320,6 +8525,10 @@ export class CopilotAgentSession extends Disposable {
 	 * truncation or fork operations that modify the session files).
 	 */
 	async destroySession(): Promise<void> {
+		this._retiring = true;
+		// A trust reconciliation already in flight finishes against this runtime before it disconnects, so it can't reach a
+		// runtime that resumes the same SDK session afterwards; it issues nothing new once retiring.
+		await Promise.allSettled([...this._projectExtensionTrustReconciliations]);
 		this._clearCanvasProjection();
 		try {
 			await this._editTracker.flushAttribution();
@@ -10293,7 +10502,7 @@ export class CopilotAgentSession extends Disposable {
 	 * Decides whether a Copilot extension may load with privileged capabilities or read sensitive environment variables.
 	 * The runtime asks while the extension starts, never for a tool call. A stored or session decision answers at once;
 	 * otherwise the request waits, without blocking resumes or turns, to be shown in the next turn or to a client opening
-	 * one of the extension's canvases, whichever answers first.
+	 * one of the extension's canvases, or a canvas whose extension must start, which the runtime holds back until then.
 	 */
 	private async _handleExtensionConsentRequest(request: Extract<PermissionRequest, { kind: 'extension-permission-access' | 'extension-env-access' }>): Promise<PermissionRequestResult | AttributedPermissionResult> {
 		// A plugin is named after its package, which another source can reuse, so its access to secrets is remembered only for the install it was granted to.
@@ -11307,6 +11516,8 @@ export class CopilotAgentSession extends Disposable {
 			} else if (!this._currentTurn.value) {
 				this._beginProviderInitiatedTurn(e);
 			}
+			// Only now does a steering or provider-initiated message have its own turn.
+			this._showUnshownHookFailures();
 			const turn = this._currentTurn.value;
 			if (turn) {
 				if (steering) {
@@ -11868,6 +12079,7 @@ export class CopilotAgentSession extends Disposable {
 		}));
 
 		const handleToolComplete = (e: SessionEventPayload<'tool.execution_complete'>): void => {
+			const deniedByHook = this._hookToolDenials.takeDenial(e.data.toolCallId, e.data);
 			this._approvedDuplicablePermissionSignatures.delete(e.data.toolCallId);
 			this._clientToolReadyWaits.delete(e.data.toolCallId);
 			const held = this._pendingClientToolReplacement?.calls.get(e.data.toolCallId);
@@ -11942,6 +12154,9 @@ export class CopilotAgentSession extends Disposable {
 			const viewedResourceType = e.data.success && tracked.meta?.['vscode.toolInputContract'] ? getViewedResourceType(tracked.toolName, e.data.toolTelemetry) : undefined;
 			if (viewedResourceType) {
 				tracked.meta = { ...tracked.meta, 'vscode.viewedResourceType': viewedResourceType };
+			}
+			if (deniedByHook) {
+				tracked.meta = { ...tracked.meta, 'vscode.deniedByHook': deniedByHook };
 			}
 			this._emitPendingImageReady(tracked);
 
@@ -12060,7 +12275,7 @@ export class CopilotAgentSession extends Disposable {
 					content: content.length > 0 ? content : undefined,
 					structuredContent: e.data.result?.structuredContent as Record<string, unknown> | undefined,
 					resultMetadata: getSdkMcpResultMeta(e.data.result),
-					error: e.data.error,
+					error: getSdkToolCallError(e.data),
 				};
 				if (nonPtyCompletion?.shouldRetire) {
 					this._nonPtyShellTerminals.finalizeToolCall(e.data.toolCallId, nonPtyCompletion.result?.exitCode, authoritativeOutput);
@@ -12319,6 +12534,14 @@ export class CopilotAgentSession extends Disposable {
 			if (turn.hasPendingToolCompletions) {
 				const abortToken = this._abortToken;
 				await turn.drainToolCompletions();
+				if (this._store.isDisposed || abortToken.isCancellationRequested || this._currentTurn.value !== turn) {
+					return;
+				}
+			}
+			// A block can arrive with its idle before the send it belongs to returns; let the send show it before the turn ends.
+			if (this._earlyPromptBlock && turn.sentMessageId === undefined && !turn.hasUserMessage) {
+				const abortToken = this._abortToken;
+				await turn.sendReturned.p;
 				if (this._store.isDisposed || abortToken.isCancellationRequested || this._currentTurn.value !== turn) {
 					return;
 				}
@@ -14030,6 +14253,53 @@ export class CopilotAgentSession extends Disposable {
 		}, undefined, true);
 	}
 
+	/**
+	 * Shows a hook notice where it happened: in its subagent's chat, or in the
+	 * root turn. A root notice reported while no turn can show it, such as
+	 * between turns or after a cancellation, is shown in the next sent turn
+	 * instead of being lost.
+	 */
+	private _showHookNotice(part: SystemNotificationResponsePart, e: { readonly agentId?: string }): void {
+		const parentToolCallId = this._parentToolCallIdForSubagentEvent(e);
+		if (parentToolCallId) {
+			this._emitAction({ type: ActionType.ChatResponsePart, turnId: this._turnId, part }, parentToolCallId);
+			return;
+		}
+		// A failure from an unknown subagent is still shown, in the root chat.
+		const turn = this._currentTurn.value;
+		if (turn && (turn.isPending || !this._dropLateRootTurnEvents)) {
+			this._emitAction({ type: ActionType.ChatResponsePart, turnId: turn.id, part }, undefined, true);
+			return;
+		}
+		this._unshownHookFailures.push(part);
+	}
+
+	/**
+	 * Shows the reason a hook blocked a turn's prompt in that turn, while it is
+	 * still the active turn. The block names the runtime request it belongs to,
+	 * which for a steering message is the running turn's request, so it is
+	 * shown only on a turn whose own prompt never reached the runtime as a
+	 * `user.message`: a blocked prompt is never echoed.
+	 */
+	private _showPromptBlock(turn: CopilotTurn, reason: string): void {
+		if (turn !== this._currentTurn.value || turn.hasUserMessage) {
+			this._logService.warn(`[Copilot:${this.sessionId}] Not showing a hook's prompt block on turn ${turn.id}: it is not this turn's own prompt, or the turn has ended`);
+			return;
+		}
+		this._emitAction({ type: ActionType.ChatResponsePart, turnId: turn.id, part: createPromptBlockedNotification(reason) }, undefined, true);
+	}
+
+	/** Shows root hook failures that were reported while no turn could show them. */
+	private _showUnshownHookFailures(): void {
+		const turn = this._currentTurn.value;
+		if (!turn) {
+			return;
+		}
+		for (const part of this._unshownHookFailures.splice(0)) {
+			this._emitAction({ type: ActionType.ChatResponsePart, turnId: turn.id, part }, undefined, true);
+		}
+	}
+
 	private _emitFusionProgress(update: ICopilotFusionProgressUpdate, trustedRootTurn = false): void {
 		const turn = this._currentTurn.value;
 		if (!turn) {
@@ -14586,6 +14856,23 @@ export class CopilotAgentSession extends Disposable {
 				this._slashCommandProvider.clearCache();
 				this._onDidChangeRuntimePlugins.fire();
 			}
+			if (e.data.warningType === PROMPT_BLOCKED_WARNING_TYPE && !e.agentId && e.data.originatingMessageId) {
+				const turn = this._currentTurn.value;
+				if (turn?.sentMessageId === e.data.originatingMessageId) {
+					this._showPromptBlock(turn, e.data.message);
+				} else {
+					// Its send may not have returned yet; a block for another request, such as a steering message, is never matched.
+					this._earlyPromptBlock = { messageId: e.data.originatingMessageId, reason: e.data.message };
+				}
+			}
+			// Shown only once that hook's hook.end follows directly; any other, such as a hook file that could not be loaded, is only logged.
+			if (e.data.warningType === HOOK_WARNING_TYPE) {
+				this._hookWarnings.hold(e, e.data.message);
+			}
+			// Sent after the hook ended, without naming it.
+			if (e.data.warningType === HOOK_OUTPUT_WARNING_TYPE) {
+				this._showHookNotice(createHookWarningNotification(undefined, e.data.message), e);
+			}
 		}));
 
 		store.add(wrapper.onSessionModelChange(e => {
@@ -14922,6 +15209,14 @@ export class CopilotAgentSession extends Disposable {
 
 		store.add(wrapper.onHookEnd(e => {
 			this._logService.trace(`[Copilot:${sessionId}] Hook ended: ${e.data.hookType} (${e.data.hookInvocationId}), success=${e.data.success}`);
+			for (const message of this._hookWarnings.hookEnded(e)) {
+				this._showHookNotice(createHookWarningNotification(e.data.hookType, message), e);
+			}
+			const failure = createHookFailureNotification(e.data);
+			if (failure) {
+				this._showHookNotice(failure, e);
+			}
+			this._hookToolDenials.recordHookEnd(e.data);
 		}));
 
 		store.add(wrapper.onSystemMessage(e => {
