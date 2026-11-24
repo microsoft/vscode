@@ -116,11 +116,11 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 					let label, icon, id;
 					if (mode.source?.storage === PromptsStorage.extension) {
 						icon = Codicon.file;
-						id = `viewAgent:${mode.id}`;
+						id = 'viewAgent';
 						label = localize('viewModeConfiguration', "View {0} agent", mode.label.get());
 					} else {
 						icon = Codicon.edit;
-						id = `editAgent:${mode.id}`;
+						id = 'editAgent';
 						label = localize('editModeConfiguration', "Edit {0} agent", mode.label.get());
 					}
 

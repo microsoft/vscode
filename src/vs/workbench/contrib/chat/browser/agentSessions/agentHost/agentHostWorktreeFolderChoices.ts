@@ -286,11 +286,12 @@ export class AgentHostWorktreeFolderChoices extends Disposable {
 		}
 		const folders: IActionWidgetDropdownAction[] = [];
 		const worktrees: IActionWidgetDropdownAction[] = [];
+		let choiceIndex = 0;
 		for (const section of groupFolderLocations(this._choices().map(choice => ({ item: choice, kind: choice.kind, current: choice.current })))) {
 			for (const choice of section.items) {
 				(section.kind === 'worktree' ? worktrees : folders).push({
 					...action,
-					id: `agentHostFolder.${choice.uri.toString()}`,
+					id: `agentHostFolder.${choiceIndex++}`,
 					label: choice.label,
 					detail: section.kind === 'worktree' ? undefined : getFolderLocationDetail(),
 					description: choice.current ? getCurrentFolderLocationDescription() : undefined,

@@ -641,6 +641,28 @@ export function getNestedChatDefaultChangesetId(chatWorkspace: ISessionWorkspace
  */
 export const TURN_CHANGES_CHANGESET_ID = 'turn';
 
+/** Changeset ids that VS Code and agent hosts define, as opposed to ids a provider makes up for its own changesets. */
+const WELL_KNOWN_CHANGESET_IDS: ReadonlySet<string> = new Set([
+	BRANCH_CHANGES_CHANGESET_ID,
+	UNCOMMITTED_CHANGES_CHANGESET_ID,
+	SESSION_CHANGES_CHANGESET_ID,
+	TURN_CHANGES_CHANGESET_ID,
+	'working-set',
+	'compare-turns',
+	'agent-merge',
+]);
+
+/**
+ * The well-known id of a changeset: its own id when well known, {@link TURN_CHANGES_CHANGESET_ID} for the changes of
+ * a specific turn, and `other` for any id a provider defines.
+ */
+export function getWellKnownChangesetId(changesetId: string): string {
+	if (WELL_KNOWN_CHANGESET_IDS.has(changesetId)) {
+		return changesetId;
+	}
+	return changesetId.startsWith(`${TURN_CHANGES_CHANGESET_ID}:`) ? TURN_CHANGES_CHANGESET_ID : 'other';
+}
+
 export interface ISessionChangeset {
 	/** Unique identifier for the changeset. */
 	readonly id: string;

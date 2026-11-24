@@ -324,7 +324,7 @@ suite('StandardChatInputPillSources', () => {
 		assert.deepStrictEqual({
 			stable: descriptor === updatedDescriptor,
 			labels: pills.labels(),
-			unpin: contextActions.find(action => action.id.includes('.unpin.'))?.label,
+			unpin: contextActions.find(action => action.id.endsWith('.unpin'))?.label,
 		}, {
 			stable: true,
 			labels: ['Documentation', 'Other'],

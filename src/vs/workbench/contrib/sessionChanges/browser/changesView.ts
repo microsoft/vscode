@@ -73,7 +73,7 @@ import { ISessionChangesService } from './sessionChangesService.js';
 import { createSessionActionsInstantiationService } from './sessionActionsHost.js';
 import { getWindowHost, ISessionHost, SessionHostKind } from '../../../services/sessions/browser/sessionHost.js';
 import { CIStatusWidget } from './checksWidget.js';
-import { BRANCH_CHANGES_CHANGESET_ID, GITHUB_REMOTE_FILE_SCHEME, IChat, ISessionChangeset, ISessionFolder, ISessionChangesetOperation, ISessionChangesSummary, ISessionWorkspace, isSessionCreated, SESSION_CHANGES_CHANGESET_ID, SessionChangesetOperationScope, SessionChangesetOperationStatus, SessionStatus, TURN_CHANGES_CHANGESET_ID, UNCOMMITTED_CHANGES_CHANGESET_ID, ISession } from '../../../services/sessions/common/session.js';
+import { BRANCH_CHANGES_CHANGESET_ID, getWellKnownChangesetId, GITHUB_REMOTE_FILE_SCHEME, IChat, ISessionChangeset, ISessionFolder, ISessionChangesetOperation, ISessionChangesSummary, ISessionWorkspace, isSessionCreated, SESSION_CHANGES_CHANGESET_ID, SessionChangesetOperationScope, SessionChangesetOperationStatus, SessionStatus, TURN_CHANGES_CHANGESET_ID, UNCOMMITTED_CHANGES_CHANGESET_ID, ISession } from '../../../services/sessions/common/session.js';
 import { isAgentHostProviderId } from '../../sessions/common/agentHostSessionsProvider.js';
 import { ISessionsManagementService } from '../../sessions/common/sessionsManagement.js';
 import { Orientation } from '../../../../base/browser/ui/sash/sash.js';
@@ -2352,7 +2352,7 @@ export class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem 
 
 				return changesets.map(changeset => ({
 					...action,
-					id: `agents.changes.changeset.${changeset.id}`,
+					id: `agents.changes.changeset.${getWellKnownChangesetId(changeset.id)}`,
 					label: changeset.label,
 					detail: changeset.description,
 					checked: selectedChangeset?.id === changeset.id,

@@ -120,9 +120,9 @@ export class AgentHostFolderPickerActionItem extends ChatInputPickerActionViewIt
 						}
 					});
 				}
-				return this._workspaceContextService.getWorkspace().folders.map(folder => ({
+				return this._workspaceContextService.getWorkspace().folders.map((folder, index) => ({
 					...action,
-					id: `agentHostFolder.${folder.uri.toString()}`,
+					id: `agentHostFolder.${index}`,
 					label: folder.name,
 					checked: selected?.toString() === folder.uri.toString(),
 					icon: { id: 'folder' },

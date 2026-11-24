@@ -293,11 +293,11 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 
 		const that = this;
 		let counter = 0;
-		for (const provider of providers) {
+		for (const [index, provider] of providers.entries()) {
 			disposables.add(registerAction2(class extends Action2 {
 				constructor() {
 					super({
-						id: `agentSessions.filter.toggleExclude:${provider.id}.${menuId.id.toLowerCase()}`,
+						id: `agentSessions.filter.toggleExclude.${index}.${menuId.id.toLowerCase()}`,
 						title: provider.label,
 						menu: {
 							id: menuId,
@@ -362,7 +362,7 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 			disposables.add(registerAction2(class extends Action2 {
 				constructor() {
 					super({
-						id: `agentSessions.filter.selectWorktree:${encodeURIComponent(option.key)}.${menuId.id.toLowerCase()}`,
+						id: `agentSessions.filter.selectWorktree.${index}.${menuId.id.toLowerCase()}`,
 						title: option.label,
 						menu: {
 							id: worktreesMenuId,

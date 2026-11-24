@@ -12,7 +12,7 @@ import { PROTOCOL_VERSION } from '../../../../platform/agentHost/common/state/pr
 import { ITelemetryService, normalizeModelRouterTelemetryId } from '../../../../platform/telemetry/common/telemetry.js';
 import { reportSessionArtifactOpen, SessionArtifactOpenSource } from '../../../common/sessionArtifactOpenTelemetry.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID, REMOTE_AGENT_HOST_PROVIDER_PREFIX } from './agentHostSessionsProvider.js';
-import { ISession, SessionArtifactKind } from '../../../services/sessions/common/session.js';
+import { getWellKnownChangesetId, ISession, SessionArtifactKind } from '../../../services/sessions/common/session.js';
 
 /** Bounded provider categories emitted by Agents window telemetry. */
 export type SessionsTelemetryProviderId = 'default-copilot' | 'local-agent-host' | 'remote-agent-host' | 'other';
@@ -216,11 +216,11 @@ type ChangesViewVersionModeChangeEvent = {
 type ChangesViewVersionModeChangeClassification = {
 	owner: 'osortega';
 	comment: 'Tracks when the user switches the version mode in the Changes panel (Branch Changes, Session Changes, Last Turn).';
-	mode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The version mode selected by the user.' };
+	mode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The well-known id of the changeset selected by the user, or other for a provider-defined changeset.' };
 };
 
-export function logChangesViewVersionModeChange(telemetryService: ITelemetryService, mode: string): void {
-	telemetryService.publicLog2<ChangesViewVersionModeChangeEvent, ChangesViewVersionModeChangeClassification>('vscodeAgents.changesView/versionModeChange', { mode });
+export function logChangesViewVersionModeChange(telemetryService: ITelemetryService, changesetId: string): void {
+	telemetryService.publicLog2<ChangesViewVersionModeChangeEvent, ChangesViewVersionModeChangeClassification>('vscodeAgents.changesView/versionModeChange', { mode: getWellKnownChangesetId(changesetId) });
 }
 
 type ChangesViewFileSelectEvent = {

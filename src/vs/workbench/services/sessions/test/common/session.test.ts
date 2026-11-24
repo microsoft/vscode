@@ -11,8 +11,19 @@ import { constObservable, IObservable } from '../../../../../base/common/observa
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { getChatHarness, getSessionFolderGitHubRepository, getSessionOwnedGitHubPullRequestRefs, hasMixedChatHarnesses, IChat, ISession, getSessionPresentationWorkspace, getSessionStatusMessage, getSessionWorkspaceKind, getUntitledSessionTitle, IGitHubInfo, isActiveSessionStatus, ISessionFolder, ISessionTurnFileChange, ISessionWorkspace, sessionFileChangesEqual, sessionTurnFileChangesEqual, SessionStatus, SessionWorkspaceKind, sessionWorkspaceEqual } from '../../common/session.js';
+import { getChatHarness, getWellKnownChangesetId, getSessionFolderGitHubRepository, getSessionOwnedGitHubPullRequestRefs, hasMixedChatHarnesses, IChat, ISession, getSessionPresentationWorkspace, getSessionStatusMessage, getSessionWorkspaceKind, getUntitledSessionTitle, IGitHubInfo, isActiveSessionStatus, ISessionFolder, ISessionTurnFileChange, ISessionWorkspace, sessionFileChangesEqual, sessionTurnFileChangesEqual, SessionStatus, SessionWorkspaceKind, sessionWorkspaceEqual } from '../../common/session.js';
 import { IChatSessionFileChange, IChatSessionFileChange2 } from '../../../../common/chatSessionFileChange.js';
+
+suite('getWellKnownChangesetId', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('keeps well-known changeset ids, reads turn changesets as turn, and reports any other id as other', () => {
+		assert.deepStrictEqual(
+			['branch', 'uncommitted', 'session', 'turn', 'agent-merge', 'turn:vscode-chat-session://local/abc', 'host-defined/changes'].map(getWellKnownChangesetId),
+			['branch', 'uncommitted', 'session', 'turn', 'agent-merge', 'turn', 'other'],
+		);
+	});
+});
 
 suite('getSessionFolderGitHubRepository', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();

@@ -362,6 +362,7 @@ export class WorkspacePicker extends Disposable {
 	private readonly _triggerContents = new Map<HTMLElement, IWorkspacePickerTriggerElements>();
 	private readonly _contextSelections = new Map<string, ISessionWorkspace[]>();
 	private readonly _workspaceItemIds = new Map<string, number>();
+	private readonly _remoteItemIds = new Map<string, number>();
 	private readonly _renderDisposables = this._register(new DisposableStore());
 	private readonly _additionalRepositorySelections = new Map<string, IAttachedRepositorySelection>();
 	private readonly _additionalFolderSelections = new Map<string, IResolvedFolderWorkspace>();
@@ -1928,7 +1929,7 @@ export class WorkspacePicker extends Disposable {
 				return undefined;
 			}
 			const usingDevContainer = !!this._selectedDevContainerFolderUri && this.uriIdentityService.extUri.isEqual(this._selectedDevContainerFolderUri, folderUri);
-			const actionId = `workspacePicker.devContainer.${providerId}.${devContainerActionIndex++}`;
+			const actionId = `workspacePicker.devContainer.${devContainerActionIndex++}`;
 			const selectMode = (preferDevContainer: boolean): void => {
 				item.preferDevContainer = preferDevContainer;
 			};
@@ -2034,7 +2035,7 @@ export class WorkspacePicker extends Disposable {
 			previousRecentWorkspaceIsRepository = recentWorkspaceIsRepository;
 			const submenuActions = modeActions
 				? [new SubmenuAction(
-					`workspacePicker.devContainer.${providerId}.${devContainerActionIndex}.options`,
+					`workspacePicker.devContainer.${devContainerActionIndex}.options`,
 					'',
 					modeActions,
 				)]
@@ -2184,7 +2185,7 @@ export class WorkspacePicker extends Disposable {
 				const status = provider.connectionStatus!.get();
 				const statusDescription = getRemoteHostStatusDescription(provider, status);
 				const action = toAction({
-					id: `workspacePicker.remote.${provider.id}`,
+					id: `workspacePicker.remote.${getOrSet(this._remoteItemIds, provider.id, this._remoteItemIds.size)}`,
 					label: provider.label,
 					tooltip: statusDescription,
 					enabled: true,
@@ -2435,7 +2436,7 @@ export class WorkspacePicker extends Disposable {
 	getEnvironmentActions(environment: ISessionCreationEnvironment): IAction[] {
 		const provider = environment.kind === 'remote' && this.sessionsProvidersService.getProvider(environment.providerIds[0]);
 		return provider && isAgentHostProvider(provider) ? [toAction({
-			id: `environmentPicker.manage.${provider.id}`,
+			id: 'environmentPicker.manage',
 			label: localize('workspacePicker.manageRemoteHost', "Manage {0}", provider.label),
 			run: () => {
 				this.actionWidgetService.hide();
@@ -2984,7 +2985,7 @@ export class WorkspacePicker extends Disposable {
 					group: { title: '', icon: this._getAllowedFolderIcon(presentation) ?? this._getWorkspaceIcon(resolved.workspace) },
 					disabled: this._isProviderUnavailable(resolved.providerId),
 					item: {
-						id: `workspacePicker.workspace.${this.uriIdentityService.extUri.getComparisonKey(folderUri)}`,
+						id: `workspacePicker.workspace.${getOrSet(this._workspaceItemIds, this.uriIdentityService.extUri.getComparisonKey(folderUri), this._workspaceItemIds.size)}`,
 						folderUri,
 						providerId: resolved.providerId,
 						checked: (!newWorktreeSelected && this._isSelectedFolder(folderUri)) || undefined,
