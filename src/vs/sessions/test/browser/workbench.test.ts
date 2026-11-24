@@ -3070,37 +3070,118 @@ suite('Sessions - Workbench', () => {
 		});
 	});
 
+	function createDesktopGridHost(options: IHostOptions & { detailsPosition: 'right' | 'bottom'; savedEditorWidth?: number }) {
+		const windowWidth = options.windowWidth ?? 900;
+		const host = Object.assign(createHost({
+			...options,
+			single: true,
+			windowWidth,
+			partVisibility: { sidebar: false, editor: false, auxiliaryBar: false, ...options.partVisibility },
+		}), {
+			_detailsPosition: options.detailsPosition,
+			_panelAlignment: 'justify' as PanelAlignment,
+			_savedPartSizes: { editor: options.savedEditorWidth },
+			layoutPolicy: {
+				getPartSizes: () => ({ sideBarSize: 280, auxiliaryBarSize: 300, panelSize: 250 }),
+				viewportClass: { get: () => 'desktop' },
+			},
+			titleBarPartView: { minimumHeight: 30 },
+		});
+		const views = new Map<Parts, TestPartView>();
+		const grid = store.add(SerializableGrid.deserialize<ISerializableView>(createDesktopGridDescriptor.call(host, windowWidth, 800), {
+			fromJSON: ({ type }: { type: Parts }) => {
+				const view = store.add(new TestPartView(type));
+				views.set(type, view);
+				return view;
+			},
+		}, { proportionalLayout: false }));
+		grid.layout(windowWidth, 800);
+		const editor = views.get(Parts.EDITOR_PART)!;
+		const sessions = views.get(Parts.SESSIONS_PART)!;
+		Object.assign(host, { workbenchGrid: grid, editorPartView: editor, sessionsPartView: sessions });
+		store.add(editor.onDidLayout(({ width }) => onEditorNodeResized.call(host, width)));
+		return {
+			host, grid, editor, sessions,
+			resizeWindow: (width: number) => {
+				Object.assign(host, { _mainContainerDimension: { width, height: 800 } });
+				grid.layout(width, 800);
+			},
+		};
+	}
+
+	test('a resized desktop editor restores on activation after Sessions minimizes it', () => {
+		const { host, grid, editor, sessions } = createDesktopGridHost({ windowWidth: 900, detailsPosition: 'right' });
+		host.setEditorHidden(false);
+		const initial = grid.getViewSize(editor).width;
+		restoreEditorPartOnActivation.call(host);
+		const untouched = grid.getViewSize(editor).width;
+		grid.resizeView(editor, { width: 600 });
+		restoreSessionsPartOnActivation.call(host);
+		const minimized = grid.getViewSize(editor).width;
+		restoreEditorPartOnActivation.call(host);
+
+		assert.deepStrictEqual({ initial, untouched, minimized, restored: grid.getViewSize(editor).width, sessions: grid.getViewSize(sessions).width }, {
+			initial: 300, untouched: 300, minimized: 300, restored: 600, sessions: 300,
+		});
+	});
+
+	test('activation distinguishes a restored minimum width from an untouched startup default', () => {
+		const results = [undefined, 300].map(savedEditorWidth => {
+			const { host, grid, editor } = createDesktopGridHost({
+				windowWidth: 900,
+				detailsPosition: 'right',
+				partVisibility: { editor: true },
+				savedEditorWidth,
+			});
+			restoreEditorPartOnActivation.call(host);
+			return grid.getViewSize(editor).width;
+		});
+		assert.deepStrictEqual(results, [300, 600]);
+	});
+
+	for (const restored of [false, true]) {
+		test(`first Editor reveal refreshes untouched stacked Details defaults after window growth (${restored ? 'restored' : 'revealed'} Details)`, () => {
+			const results = [];
+			for (const savedWidth of [undefined, 420]) {
+				for (const manualWidth of [undefined, 380]) {
+					const { host, grid, editor, resizeWindow } = createDesktopGridHost({
+						windowWidth: 900,
+						detailsPosition: 'bottom',
+						partVisibility: { auxiliaryBar: restored },
+						savedEditorWidth: savedWidth,
+					});
+					if (!restored) {
+						host.setAuxiliaryBarHidden(false);
+					}
+					const initial = grid.getViewSize(editor).width;
+					if (manualWidth !== undefined) {
+						grid.resizeView(editor, { width: manualWidth });
+					}
+					resizeWindow(1440);
+					const beforeReveal = grid.getViewSize(editor).width;
+					host.setEditorHidden(false);
+					const revealed = grid.getViewSize(editor).width;
+					restoreEditorPartOnActivation.call(host);
+					results.push({ savedWidth, manualWidth, initial, beforeReveal, revealed, focused: grid.getViewSize(editor).width });
+				}
+			}
+			assert.deepStrictEqual(results, [
+				{ savedWidth: undefined, manualWidth: undefined, initial: 300, beforeReveal: 300, revealed: 480, focused: 480 },
+				{ savedWidth: undefined, manualWidth: 380, initial: 300, beforeReveal: 380, revealed: 380, focused: 380 },
+				{ savedWidth: 420, manualWidth: undefined, initial: 420, beforeReveal: 420, revealed: 420, focused: 420 },
+				{ savedWidth: 420, manualWidth: 380, initial: 420, beforeReveal: 380, revealed: 380, focused: 380 },
+			]);
+		});
+	}
+
 	test('defaults the desktop side pane to at most a third of the workbench', () => {
 		const results = [];
 		for (const position of ['right', 'bottom'] as const) {
 			for (const windowWidth of [900, 1440, 2400]) {
-				const host = Object.assign(createHost({
-					single: true,
+				const { host, grid, editor } = createDesktopGridHost({
 					windowWidth,
-					partVisibility: { editor: false, auxiliaryBar: false },
-				}), {
-					_detailsPosition: position,
-					_panelAlignment: 'justify' as PanelAlignment,
-					layoutPolicy: {
-						getPartSizes: () => ({ sideBarSize: 280, auxiliaryBarSize: 300, panelSize: 250 }),
-						viewportClass: { get: () => 'desktop' },
-					},
-					titleBarPartView: { minimumHeight: 30 },
-				});
-				const views = new Map<Parts, TestPartView>();
-				const grid = store.add(SerializableGrid.deserialize<ISerializableView>(createDesktopGridDescriptor.call(host, windowWidth, 800), {
-					fromJSON: ({ type }: { type: Parts }) => {
-						const view = store.add(new TestPartView(type));
-						views.set(type, view);
-						return view;
-					},
-				}, { proportionalLayout: false }));
-				grid.layout(windowWidth, 800);
-				const editor = views.get(Parts.EDITOR_PART)!;
-				Object.assign(host, {
-					workbenchGrid: grid,
-					editorPartView: editor,
-					sessionsPartView: views.get(Parts.SESSIONS_PART)!,
+					detailsPosition: position,
+					partVisibility: { sidebar: true },
 				});
 				host.setEditorHidden(false);
 				const opened = grid.getViewSize(editor).width;

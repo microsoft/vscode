@@ -1227,8 +1227,7 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 			return;
 		}
 
-		// A pane whose default is already the minimum has not been minimized.
-		if (this._defaultEditorPartWidth <= this.editorPartView.minimumWidth) {
+		if (this._isEditorPartAtDefaultWidth) {
 			return;
 		}
 
@@ -1552,6 +1551,10 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 
 	protected get _defaultEditorPartWidth(): number {
 		return EDITOR_PART_DEFAULT_WIDTH;
+	}
+
+	protected get _isEditorPartAtDefaultWidth(): boolean {
+		return false;
 	}
 
 	protected _editorNodeSize(effectiveEditorWidth: number, _effectiveAuxBarWidth: number): number {
