@@ -13,7 +13,7 @@ import { generateUuid } from '../../../../base/common/uuid.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
-import { ExtensionSignatureVerificationCode, getTargetPlatform, IExtensionGalleryService, IGalleryExtension, IGalleryExtensionAssets, InstallOperation } from '../../common/extensionManagement.js';
+import { ExtensionManagementError, ExtensionManagementErrorCode, ExtensionSignatureVerificationCode, getTargetPlatform, IExtensionGalleryService, IGalleryExtension, IGalleryExtensionAssets, InstallOperation } from '../../common/extensionManagement.js';
 import { getGalleryExtensionId } from '../../common/extensionManagementUtil.js';
 import { ExtensionsDownloader } from '../../node/extensionDownloader.js';
 import { IExtensionSignatureVerificationResult, IExtensionSignatureVerificationService } from '../../node/extensionSignatureVerificationService.js';
@@ -80,6 +80,37 @@ suite('ExtensionDownloader Tests', () => {
 				await fileService.writeFile(location, VSBuffer.fromString('extension signature'));
 			},
 		});
+	});
+
+	test('does not retry when the extension download runs out of space', async () => {
+		let attempts = 0;
+		const error = new ExtensionManagementError('No space left on device', ExtensionManagementErrorCode.InsufficientStorage);
+		instantiationService.stub(IExtensionGalleryService, {
+			async download() {
+				attempts++;
+				throw error;
+			},
+		});
+		const downloader = aTestObject({ verificationResult: true });
+
+		await assert.rejects(downloader.download(aGalleryExtension('a'), InstallOperation.Update, false), error);
+
+		assert.strictEqual(attempts, 1);
+	});
+
+	test('still retries a failed download when storage is available', async () => {
+		let attempts = 0;
+		instantiationService.stub(IExtensionGalleryService, {
+			async download() {
+				attempts++;
+				throw new Error('Connection lost');
+			},
+		});
+		const downloader = aTestObject({ verificationResult: true });
+
+		await assert.rejects(downloader.download(aGalleryExtension('a'), InstallOperation.Update, false), { name: ExtensionManagementErrorCode.Download, message: 'Connection lost' });
+
+		assert.strictEqual(attempts, 3);
 	});
 
 	test('download completes successfully if verification is disabled by options', async () => {

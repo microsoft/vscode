@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as sinon from 'sinon';
 import { VSBuffer, bufferToStream } from '../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
@@ -19,7 +20,7 @@ import { TestConfigurationService } from '../../../configuration/test/common/tes
 import { IEnvironmentService } from '../../../environment/common/environment.js';
 import { TargetPlatform } from '../../../extensions/common/extensions.js';
 import { resolveMarketplaceHeaders } from '../../../externalServices/common/marketplace.js';
-import { IFileService } from '../../../files/common/files.js';
+import { createFileSystemProviderError, FileSystemProviderErrorCode, IFileService } from '../../../files/common/files.js';
 import { createInMemoryFileService } from '../../../files/test/common/inMemoryFileService.js';
 import { NullLogService } from '../../../log/common/log.js';
 import product from '../../../product/common/product.js';
@@ -27,7 +28,7 @@ import { IProductService } from '../../../product/common/productService.js';
 import { AuthInfo, Credentials, IRequestService } from '../../../request/common/request.js';
 import { InMemoryStorageService, IStorageService } from '../../../storage/common/storage.js';
 import { TelemetryConfiguration, TELEMETRY_SETTING_ID } from '../../../telemetry/common/telemetry.js';
-import { ExtensionBlockingOrigin, ExtensionBlockingScope, InstallOperation, StatisticType } from '../../common/extensionManagement.js';
+import { ExtensionBlockingOrigin, ExtensionBlockingScope, ExtensionManagementErrorCode, InstallOperation, StatisticType } from '../../common/extensionManagement.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { AllowedExtensionsService } from '../../common/allowedExtensionsService.js';
 import { ExtensionGalleryManifestStatus, ExtensionGalleryResourceType, IExtensionGalleryManifest, IExtensionGalleryManifestService } from '../../common/extensionGalleryManifest.js';
@@ -242,6 +243,22 @@ suite('Extension Gallery Service', () => {
 			assert.deepStrictEqual(requestService.authorizationHeaders, ['Bearer resource-token', ...expectedHeaders]);
 		});
 	}
+
+	test('reports insufficient storage when writing an extension download', async () => {
+		const requestService = new RecordingRequestService(options => requestContext(200, options.url?.includes('/latest') ? rawLatestExtension() : {}));
+		const galleryService = createExtensionGalleryService(requestService);
+		const [extension] = await galleryService.getExtensions([{ id: 'publisher.extension', uuid: 'extension-uuid' }], CancellationToken.None);
+		const location = joinPath(environmentService.serviceMachineIdResource, '..', 'extension.vsix');
+		const writeFile = sinon.stub(fileService, 'writeFile').rejects(
+			createFileSystemProviderError('No space left on device', FileSystemProviderErrorCode.FileExceedsStorageQuota),
+		);
+
+		try {
+			await assert.rejects(galleryService.download(extension, location, InstallOperation.Update), { name: ExtensionManagementErrorCode.InsufficientStorage });
+		} finally {
+			writeFile.restore();
+		}
+	});
 
 	test('VSIX fallback preserves request headers without forwarding the private token', async () => {
 		const downloadHeaders: IRequestOptions['headers'][] = [];

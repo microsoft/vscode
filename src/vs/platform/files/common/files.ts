@@ -924,6 +924,7 @@ export function toFileSystemProviderErrorCode(error: Error | undefined | null): 
 		case FileSystemProviderErrorCode.FileNotADirectory: return FileSystemProviderErrorCode.FileNotADirectory;
 		case FileSystemProviderErrorCode.FileNotFound: return FileSystemProviderErrorCode.FileNotFound;
 		case FileSystemProviderErrorCode.FileTooLarge: return FileSystemProviderErrorCode.FileTooLarge;
+		case FileSystemProviderErrorCode.FileExceedsStorageQuota: return FileSystemProviderErrorCode.FileExceedsStorageQuota;
 		case FileSystemProviderErrorCode.FileWriteLocked: return FileSystemProviderErrorCode.FileWriteLocked;
 		case FileSystemProviderErrorCode.NoPermissions: return FileSystemProviderErrorCode.NoPermissions;
 		case FileSystemProviderErrorCode.Unavailable: return FileSystemProviderErrorCode.Unavailable;
@@ -955,6 +956,8 @@ export function toFileOperationResult(error: Error): FileOperationResult {
 			return FileOperationResult.FILE_MOVE_CONFLICT;
 		case FileSystemProviderErrorCode.FileTooLarge:
 			return FileOperationResult.FILE_TOO_LARGE;
+		case FileSystemProviderErrorCode.FileExceedsStorageQuota:
+			return FileOperationResult.FILE_EXCEEDS_STORAGE_QUOTA;
 		default:
 			return FileOperationResult.FILE_OTHER_ERROR;
 	}
@@ -1532,7 +1535,8 @@ export const enum FileOperationResult {
 	FILE_TOO_LARGE,
 	FILE_INVALID_PATH,
 	FILE_NOT_DIRECTORY,
-	FILE_OTHER_ERROR
+	FILE_OTHER_ERROR,
+	FILE_EXCEEDS_STORAGE_QUOTA
 }
 
 //#endregion
