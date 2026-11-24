@@ -441,8 +441,8 @@ export function getRemoteRowMenuActions(entry: RemoteTableEntry, onAction: (entr
 						? localize('remotes.sharedByRemote', "Shared by Remote Computer")
 						: localize('remotes.sharedByAnotherAccount', "Shared by Another Account")
 					: share
-					? localize('remotes.stopSharingAsGitHubEnvironment', "Stop Sharing as GitHub Environment")
-					: localize('remotes.shareAsGitHubEnvironment', "Share as GitHub Environment"),
+						? localize('remotes.stopSharingAsGitHubEnvironment', "Stop Sharing as GitHub Environment")
+						: localize('remotes.shareAsGitHubEnvironment', "Share as GitHub Environment"),
 			icon: share?.state === 'connecting' ? connectionProgressIcon : Codicon.github,
 			enabled: ready && share?.state !== 'connecting' && share?.state !== 'unavailable',
 		})] : [],
