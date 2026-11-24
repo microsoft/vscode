@@ -821,7 +821,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 					transcriptOverlayNode.classList.remove('has-transcript');
 					transcriptOverlay.replaceChildren();
 					const hint = $('span.partial');
-					const kb = this.keybindingService.lookupKeybinding('agentsVoice.pushToTalk');
+					const kb = this.keybindingService.lookupKeybinding('workbench.action.chat.voiceInputMode.holdToTalk');
 					const kbLabel = kb?.getLabel();
 					hint.textContent = kbLabel
 						? localize('voiceMode.pttHint', "Hold {0} to talk", kbLabel)

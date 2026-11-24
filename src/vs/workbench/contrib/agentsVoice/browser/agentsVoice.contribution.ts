@@ -26,7 +26,7 @@ import { URI } from '../../../../base/common/uri.js';
 import * as nls from '../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { Extensions as ConfigurationExtensions, ConfigurationScope, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
-import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { SegmentedVoiceInputModePillInactive } from '../../chat/browser/voiceInputMode/voiceInputModeContextKeys.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
@@ -61,7 +61,6 @@ import { IChatExecuteActionContext } from '../../chat/browser/actions/chatExecut
 
 // --- Context Keys ---
 
-export const AGENTS_VOICE_WIDGET_FOCUSED = new RawContextKey<boolean>('agentsVoiceWidgetFocused', false);
 const AGENTS_VOICE_INITIATED_HERE = ContextKeyExpr.equals('agentsVoiceInitiatedHere', true);
 const VOICE_ACTIVE_ON_SURFACE = ContextKeyExpr.or(IsSessionsWindowContext.negate(), AGENTS_VOICE_INITIATED_HERE)!;
 
@@ -569,7 +568,6 @@ registerAction2(class extends Action2 {
 	}
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const storageService = accessor.get(IStorageService);
-		storageService.remove(AgentsVoiceStorageKeys.OnboardingCompleted, StorageScope.PROFILE);
 		storageService.remove(AgentsVoiceStorageKeys.IntroBannerShown, StorageScope.APPLICATION);
 	}
 });
@@ -583,14 +581,6 @@ registerAction2(class extends Action2 {
 			title: nls.localize2('agentsVoicePushToTalk', "Voice Mode: Push to Talk"),
 			f1: true,
 			precondition: AGENTS_VOICE_ENABLED,
-			keybinding: {
-				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Space,
-				when: ContextKeyExpr.and(
-					AGENTS_VOICE_WIDGET_FOCUSED,
-					ContextKeyExpr.not('inputFocus'),
-				),
-			},
 		});
 	}
 	async run(accessor: ServicesAccessor): Promise<void> {
