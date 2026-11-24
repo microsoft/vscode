@@ -27,10 +27,16 @@ import { AgentHostRequestService } from './agentHostRequestService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import type { IAgentServiceCallbackBinder, IAgentServiceCallbacks } from './agentService.js';
 import type { IArtifactServerToolAccessor } from './shared/artifactServerTools.js';
+import type { IAutomationResultToolAccessor } from './shared/automationResultServerTools.js';
 import type { IAgentServiceSessionServerToolAccessor } from './shared/sessionServerTools.js';
 
 export class AgentServiceCallbackAdapter implements IAgentServiceCallbackBinder {
 	private callbacks: IAgentServiceCallbacks | undefined;
+
+	readonly automationResultToolAccessor: IAutomationResultToolAccessor = {
+		canReportResult: session => this.value.automationResultToolAccessor.canReportResult(session),
+		reportResult: (context, report) => this.value.automationResultToolAccessor.reportResult(context, report),
+	};
 
 	readonly sessionServerToolAccessor: IAgentServiceSessionServerToolAccessor = {
 		getCredentialSource: chat => this.value.sessionServerToolAccessor.getCredentialSource(chat),

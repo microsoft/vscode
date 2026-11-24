@@ -132,7 +132,7 @@ import { ISessionsProvidersService } from '../sessionsProvidersService.js';
 import { createSessionSummaryHover, getChatSummaryHoverData, getDistinctChatHarnessLabel, getSessionDiffStats, getSessionSummaryHoverData } from '../sessionHoverContent.js';
 import { getScheduledRequestsCardKey, renderScheduledRequestsCard } from './sessionScheduledRequestsCard.js';
 import { IChatScheduledRequest } from '../../../chat/common/model/chatViewModel.js';
-import { SessionStatusIcon } from '../sessionStatusIcon.js';
+import { renderSessionStatusMessageIcon, SessionStatusIcon } from '../sessionStatusIcon.js';
 import { ChatAutomationsEnabledContext } from '../../../chat/common/automations/automationsEnabled.js';
 import { AICustomizationManagementEditorInput } from '../../../chat/browser/aiCustomization/aiCustomizationManagementEditorInput.js';
 import { IAutomationService } from '../../../chat/common/automations/automationService.js';
@@ -1765,6 +1765,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			getAdditionalContextKeys?: SessionContextKeyProvider;
 			showMetadataWhileActive?: (session: ISession) => boolean;
 			getCompletedStatusMessage?: (session: ISession, reader: IReader | undefined) => string | undefined;
+			getStatusMessagePresentation?: (session: ISession, reader: IReader | undefined) => { readonly icon: ThemeIcon; readonly text: string } | undefined;
 			getTriageDescription?: (session: ISession, reader: IReader | undefined) => string | undefined;
 			onboardingTarget?: IObservable<ISessionOnboardingTarget | undefined>;
 			isRenderedInExternalSection?: (session: ISession) => boolean;
@@ -2430,7 +2431,8 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 				parts.push(diffEl);
 			}
 
-			if (statusMessage !== undefined) {
+			const messagePresentation = this.options.getStatusMessagePresentation?.(element, reader);
+			if (statusMessage !== undefined && !messagePresentation) {
 				if (parts.length > 0) {
 					DOM.append(template.detailsRow, $('span.session-separator.has-separator'));
 				}
@@ -2459,8 +2461,18 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 					timeEl.textContent = formatTime();
 				}, 60_000);
 				timeDisposable.value = toDisposable(() => targetWindow.clearInterval(interval));
+				parts.push(timeEl);
 			} else {
 				timeDisposable.clear();
+			}
+			if (statusMessage !== undefined && messagePresentation) {
+				if (parts.length > 0) {
+					DOM.append(template.detailsRow, $('span.session-separator.has-separator'));
+				}
+				const statusEl = DOM.append(template.detailsRow, $('span.session-description'));
+				const text = typeof statusMessage === 'string' ? statusMessage : renderAsPlaintext(statusMessage, { omitMarkdownSyntax: true });
+				reader.store.add(renderSessionStatusMessageIcon(statusEl, messagePresentation.icon, text, this.hoverService));
+				DOM.append(statusEl, $('span', undefined, ` ${messagePresentation.text}`));
 			}
 		}));
 
@@ -2946,9 +2958,12 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 		const runs = this.automationService.runs.read(reader).map(run => {
 			const sessionResource = run.sessionResource;
 			const session = sessionResource && sessionsByResource.get(this.uriIdentityService.extUri.getComparisonKey(sessionResource));
-			return { automationId: run.automationId, status: run.status, session };
-		}).filter(({ status, session }) => {
+			return { ...run, session };
+		}).filter(({ status, session, resultNeedsAttention }) => {
 			if (!session || !this.isSessionListed(session, reader)) {
+				return true;
+			}
+			if (resultNeedsAttention && !session.isRead.read(reader) && !session.isArchived.read(reader)) {
 				return true;
 			}
 			const sessionStatus = session.status.read(reader);
@@ -2959,12 +2974,18 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 		if (runs.some(({ status, session }) => status === 'running' && session?.status.read(reader) === SessionStatus.NeedsInput)) {
 			return SessionStatus.NeedsInput;
 		}
+		if (runs.some(run => run.resultNeedsAttention && (run.session
+			? !run.session.isRead.read(reader) && !run.session.isArchived.read(reader)
+			: run.hasSession === false && run.isRead !== true))) {
+			return SessionStatus.NeedsInput;
+		}
 
 		if (runs.some(({ automationId, status }) => personalAutomationIds.has(automationId) && (status === 'pending' || status === 'running'))) {
 			return SessionStatus.InProgress;
 		}
-		const hasUnreadRun = runs.some(({ status, session }) => (status === 'completed' || status === 'failed')
-			&& !!session && !session.isRead.read(reader) && !session.isArchived.read(reader));
+		const hasUnreadRun = runs.some(({ status, session, hasSession, isRead, result }) => (status === 'completed' || status === 'failed')
+			&& (session ? !session.isRead.read(reader) && !session.isArchived.read(reader)
+				: hasSession === false && result !== undefined && isRead !== true));
 		if (hasUnreadRun) {
 			return SessionStatus.Completed;
 		}
@@ -11081,6 +11102,8 @@ export interface ISessionsFlatListOptions {
 	readonly showMetadataWhileActive?: (session: ISession) => boolean;
 	/** Short outcome shown before the time of a completed row, such as "Cancelled". */
 	readonly getCompletedStatusMessage?: (session: ISession, reader: IReader | undefined) => string | undefined;
+	/** Shows a compact icon and text after the timestamp, retaining the full status message in the hover and accessible label. */
+	readonly getStatusMessagePresentation?: (session: ISession, reader: IReader | undefined) => { readonly icon: ThemeIcon; readonly text: string } | undefined;
 	/** Whether opening a row immediately marks its session as read. Defaults to `true`. */
 	readonly markSessionReadOnOpen?: boolean;
 	/**
@@ -11181,6 +11204,7 @@ export class SessionsFlatList extends Disposable {
 				getAdditionalContextKeys: this.options.getAdditionalContextKeys,
 				showMetadataWhileActive: this.options.showMetadataWhileActive,
 				getCompletedStatusMessage: this.options.getCompletedStatusMessage,
+				getStatusMessagePresentation: this.options.getStatusMessagePresentation,
 			},
 			approvalModel,
 			this.options.ciFixModel,

@@ -39,7 +39,7 @@ import { normalizeRemoteAgentHostAddress } from '../../../../../platform/agentHo
 import { IMissionControlEnvironmentService } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { WorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
-import type { IAutomationDescriptor, IAutomationRun, IAutomationSchedule, AutomationTarget } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
+import { getAutomationRunResultMessage, isSessionlessAutomationRun, type IAutomationDescriptor, type IAutomationRun, type IAutomationSchedule, type AutomationTarget } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { type AutomationCatalogueState, type AutomationHistoryState, type IAutomationProviderDescriptor, type IAutomationRefreshOptions, IAutomationService, type IUpdateAutomationOptions } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { CHAT_AUTOMATIONS_ENABLED_SETTING, CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { IAutomationRunner } from '../../../../../workbench/contrib/chat/common/automations/automationRunner.js';
@@ -77,7 +77,7 @@ import { ISessionsService } from '../../../../../workbench/contrib/sessions/brow
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING, SESSIONS_SEND_LATER_ENABLED_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { ISession, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
-import { SessionStatusIcon } from '../../../../../workbench/contrib/sessions/browser/sessionStatusIcon.js';
+import { renderSessionStatusMessageIcon, SessionStatusIcon } from '../../../../../workbench/contrib/sessions/browser/sessionStatusIcon.js';
 
 import { AbstractCustomView, ICustomViewService } from '../../../../../workbench/contrib/sessions/browser/customView.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
@@ -1648,18 +1648,44 @@ class AutomationCardsSection extends Disposable {
 
 //#region AutomationHistorySection
 
+function getAutomationRunResultPresentation(run: IAutomationRun): { readonly icon: ThemeIcon; readonly text: string } | undefined {
+	const message = getAutomationRunResultMessage(run);
+	if (message === undefined) {
+		return undefined;
+	}
+	if (run.status === 'failed') {
+		return { icon: Codicon.errorCompact, text: message };
+	}
+	const report = run.result;
+	if (!report) {
+		return { icon: Codicon.question, text: message };
+	}
+	switch (report.outcome) {
+		case 'success': return { icon: Codicon.passCompact, text: report.summary };
+		case 'noOp': return { icon: Codicon.circleSlashCompact, text: report.summary };
+		case 'needsAttention': return { icon: Codicon.warningCompact, text: report.summary };
+	}
+}
+
 /** Combines authoritative run history with newer local conversation progress. */
 class AutomationRunSession implements ISession {
 	readonly run: ISettableObservable<IAutomationRun>;
 	private readonly progress = derived(this, reader => automationRunWithLocalProgress(this.run.read(reader), this.chatModels.read(reader), reader));
 	readonly status = derived(this, reader => {
 		const run = this.progress.read(reader);
+		if (!run.externalResource) {
+			return this.session.status.read(reader);
+		}
 		return run.status === 'completed' ? SessionStatus.Completed
 			: run.status === 'failed' ? SessionStatus.Error
 				: run.needsInput ? SessionStatus.NeedsInput : SessionStatus.InProgress;
 	});
 	readonly description = derived(this, reader => {
 		const state = this.status.read(reader);
+		const resultMessage = getAutomationRunResultMessage(this.run.read(reader));
+		if (resultMessage && (state === SessionStatus.Completed || state === SessionStatus.Error)) {
+			return new MarkdownString().appendText(resultMessage);
+		}
 		if (state === SessionStatus.Completed || state === SessionStatus.Error) {
 			return undefined;
 		}
@@ -1676,7 +1702,7 @@ class AutomationRunSession implements ISession {
 	/** Outcome shown for a completed run, such as a cancellation. */
 	readonly completedStatusMessage = derived(this, reader => {
 		const run = this.progress.read(reader);
-		return run.status === 'completed' ? run.statusDescription : undefined;
+		return getAutomationRunResultMessage(run) ?? (run.status === 'completed' ? run.statusDescription : undefined);
 	});
 
 	constructor(readonly session: ISession, run: IAutomationRun, private readonly chatModels: IObservable<readonly IChatModel[]>) {
@@ -1792,6 +1818,7 @@ class AutomationHistorySection extends Disposable {
 		const visibleRuns = runs.filter(run =>
 			sessions.has(run.id)
 			|| !!run.externalResource
+			|| isSessionlessAutomationRun(run)
 		);
 		const historyOwners = new Map<string, IAutomationRun>();
 		for (const run of runs) {
@@ -1801,7 +1828,7 @@ class AutomationHistorySection extends Disposable {
 		}
 		this.updateHistoryOwners(historyOwners);
 		transaction(tx => {
-			this.currentRuns.set(sessionRuns, tx);
+			this.currentRuns.set(visibleRuns, tx);
 			this.currentSessions.set(historySessions, tx);
 		});
 		const activeElement = DOM.getActiveElement();
@@ -1913,7 +1940,7 @@ class AutomationHistorySection extends Disposable {
 		for (const run of runs) {
 			const session = sessions.get(run.id);
 			if (session) {
-				if (run.externalResource) {
+				if (run.externalResource || run.result !== undefined) {
 					let projected = this.cloudSessions.get(run.id);
 					if (!projected || projected.session !== session) {
 						projected = new AutomationRunSession(session, run, this.chatModels);
@@ -2031,6 +2058,9 @@ class AutomationHistorySection extends Disposable {
 			onContextMenuAction: (action, session) => this.handleSessionAction(action, session, runsBySession),
 			showMetadataWhileActive: session => runsBySession.get(session.resource.toString())?.externalResource !== undefined,
 			getCompletedStatusMessage: (session, reader) => session instanceof AutomationRunSession ? session.completedStatusMessage.read(reader) : undefined,
+			getStatusMessagePresentation: (session, reader) => session instanceof AutomationRunSession
+				&& (session.status.read(reader) === SessionStatus.Completed || session.status.read(reader) === SessionStatus.Error)
+				? getAutomationRunResultPresentation(session.run.read(reader)) : undefined,
 			getAdditionalContextKeys: (session, reader) => {
 				const run = this.currentRuns.read(reader).find(run => isEqual(run.sessionResource, session.resource));
 				return [
@@ -2135,7 +2165,11 @@ class AutomationHistorySection extends Disposable {
 		if (run.externalResource) {
 			DOM.append(detailsRow, $('span.session-separator.has-separator', { 'aria-hidden': 'true' }));
 		}
-		const timestamp = run.externalResource ? DOM.append(detailsRow, $('span.session-time')) : undefined;
+		const timestamp = run.externalResource || isSessionlessAutomationRun(run) ? DOM.append(detailsRow, $('span.session-time')) : undefined;
+		if (isSessionlessAutomationRun(run)) {
+			DOM.append(detailsRow, $('span.session-separator.has-separator', { 'aria-hidden': 'true' }));
+			detailsRow.appendChild(description);
+		}
 		let timeDate = new Date(run.updatedAt ?? run.completedAt ?? run.startedAt);
 		if (timestamp) {
 			const targetWindow = DOM.getWindow(timestamp);
@@ -2144,7 +2178,25 @@ class AutomationHistorySection extends Disposable {
 		}
 		const titleHover = disposables.add(new MutableDisposable());
 		const detailsHover = disposables.add(new MutableDisposable());
+		const resultIcon = disposables.add(new MutableDisposable());
 		let updateActions: (() => void) | undefined;
+		let markRead: Button | undefined;
+		if (isSessionlessAutomationRun(run)) {
+			const actions = DOM.append(element, $('.automations-run-actions'));
+			markRead = disposables.add(new Button(actions, { ...defaultButtonStyles, secondary: true }));
+			markRead.label = localize('automationRunMarkRead', "Mark as Read");
+			disposables.add(markRead.onDidClick(async () => {
+				try {
+					if (!this.automationService.markSessionlessRunRead) {
+						throw new Error(localize('automationRunReadUnavailable', "This run cannot be marked as read."));
+					}
+					this.automationService.markSessionlessRunRead(currentRun.id);
+				} catch (error) {
+					this.logService.error('[Automations] Failed to mark run read', error);
+					await this.dialogService.error(localize('automationMarkReadFailed', "Failed to mark automation run as read."), getErrorMessage(error));
+				}
+			}));
+		}
 		if (run.externalResource) {
 			const actions = DOM.append(element, $('.automations-run-actions'));
 			const toolbar = disposables.add(this.instantiationService.createInstance(WorkbenchToolBar, actions, { telemetrySource: 'automationRun' }));
@@ -2231,14 +2283,24 @@ class AutomationHistorySection extends Disposable {
 						: run.status === 'running' ? localize('automationRunCloudRunning', "Running on GitHub")
 							: run.status === 'completed' ? localize('automationRunCloudCompleted', "Completed on GitHub")
 								: localize('automationRunCloudFailed', "Failed on GitHub: {0}", run.errorMessage ?? ''))
-					: localize('automationRunWorking', "Working...");
-				description.textContent = run.externalResource && run.status === 'completed' && !run.statusDescription ? '' : label;
+					: getAutomationRunResultMessage(run) ?? localize('automationRunWorking', "Working...");
+				resultIcon.clear();
+				DOM.clearNode(description);
+				const outcomePresentation = getAutomationRunResultPresentation(run);
+				if (outcomePresentation) {
+					resultIcon.value = renderSessionStatusMessageIcon(description, outcomePresentation.icon, label, this.hoverService);
+					DOM.append(description, $('span', undefined, ` ${outcomePresentation.text}`));
+				} else {
+					description.textContent = run.externalResource && run.status === 'completed' && !run.statusDescription ? '' : label;
+				}
 				statusSeparator?.classList.toggle('has-separator', !!description.textContent);
 				timeDate = new Date(run.updatedAt ?? run.completedAt ?? run.startedAt);
+				if (timestamp) {
+					timestamp.textContent = formatSessionListTime(timeDate);
+				}
 				let details = label;
 				if (repository && timestamp && run.externalResource) {
 					repository.textContent = run.externalResource.path.split('/').filter(Boolean).slice(0, 2).join('/');
-					timestamp.textContent = formatSessionListTime(timeDate);
 					details = localize('automationRunDetails', "{0}, {1}, {2}", repository.textContent, label, timeDate.toLocaleString());
 				}
 				element.setAttribute('aria-label', localize('automationRunState', "{0}, {1}", title, details));
@@ -2256,9 +2318,15 @@ class AutomationHistorySection extends Disposable {
 					}
 				}
 				titleHover.value = this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), titleElement, title);
-				detailsHover.value = this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), detailsRow, details);
+				detailsHover.value = outcomePresentation ? undefined : this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), detailsRow, details);
 				if (run.externalResource) {
 					statusIcon.setStatus(run.status === 'completed' ? SessionStatus.Completed : run.status === 'failed' ? SessionStatus.Error : run.needsInput ? SessionStatus.NeedsInput : SessionStatus.InProgress, true, false);
+				} else if (isSessionlessAutomationRun(run)) {
+					statusIcon.setStatus(run.resultNeedsAttention && !run.isRead ? SessionStatus.NeedsInput : run.status === 'failed' ? SessionStatus.Error : SessionStatus.Completed, run.isRead === true, false);
+					element.classList.toggle('unread', run.isRead !== true);
+					if (markRead) {
+						markRead.enabled = run.isRead !== true;
+					}
 				}
 				updateActions?.();
 			},
@@ -2497,6 +2565,12 @@ async function markAllAutomationRunsRead(
 		const unreadSessions = new Map<string, ISession>();
 		for (const run of runs) {
 			if (!run.sessionResource) {
+				if (isSessionlessAutomationRun(run) && run.isRead !== true) {
+					if (!automationService.markSessionlessRunRead) {
+						throw new Error(localize('automationRunReadUnavailable', "This run cannot be marked as read."));
+					}
+					automationService.markSessionlessRunRead(run.id);
+				}
 				continue;
 			}
 			const key = uriIdentityService.extUri.getComparisonKey(run.sessionResource);
@@ -2523,6 +2597,9 @@ async function markAllAutomationRunsRead(
 }
 
 function isUnreadAutomationRun(run: IAutomationRun, session: ISession | undefined, reader: IReader): boolean {
+	if (isSessionlessAutomationRun(run)) {
+		return run.isRead !== true;
+	}
 	const state = run.externalResource ? session?.status.read(reader) : undefined;
 	const completed = state !== undefined ? state === SessionStatus.Completed || state === SessionStatus.Error : run.status === 'completed' || run.status === 'failed';
 	return completed && !!session && !session.isRead.read(reader);

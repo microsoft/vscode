@@ -18,6 +18,7 @@ import { IAgentHostSessionsProvider } from '../../../../../workbench/contrib/ses
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ISessionsProvider, ISessionsProviderAutomations } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { ProviderAutomationService } from '../../browser/providerAutomationService.js';
+import { InMemoryStorageService, IStorageService } from '../../../../../platform/storage/common/storage.js';
 
 function automation(providerId: string): IAutomationDescriptor {
 	return {
@@ -111,7 +112,7 @@ class TestAuthority extends mock<ISessionsProviderAutomations>() {
 suite('ProviderAutomationService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function setup(providers: ISessionsProvider[] = [], settled = true) {
+	function setup(providers: ISessionsProvider[] = [], settled = true, storage: IStorageService = disposables.add(new InMemoryStorageService())) {
 		const changed = disposables.add(new Emitter<ISessionsProvidersChangeEvent>());
 		const initialProvidersSettled = observableValue('settled', settled);
 		const providerService = upcastPartial<ISessionsProvidersService>({
@@ -120,7 +121,7 @@ suite('ProviderAutomationService', () => {
 			getProvider: <T extends ISessionsProvider>(id: string) => providers.find(provider => provider.id === id) as T | undefined,
 		});
 		return {
-			service: disposables.add(new ProviderAutomationService(initialProvidersSettled, providerService)),
+			service: disposables.add(new ProviderAutomationService(initialProvidersSettled, providerService, storage)),
 			initialProvidersSettled,
 			addProvider: (provider: ISessionsProvider) => {
 				providers.push(provider);
@@ -136,6 +137,26 @@ suite('ProviderAutomationService', () => {
 	function provider(store: TestAuthority): ISessionsProvider {
 		return upcastPartial<ISessionsProvider>({ id: store.providerId, label: store.providerId, automations: store });
 	}
+
+	test('acknowledges only sessionless terminal runs and retains read state across reload and disconnect', () => {
+		const authority = new TestAuthority('local');
+		const run: IAutomationRun = {
+			id: 'local:opaque-run', automationId: 'local-automation', status: 'failed', trigger: 'manual',
+			startedAt: '2026-01-01', hasSession: false, result: null, resultNeedsAttention: true,
+		};
+		authority.runs.set([run, { ...run, id: 'hydrating', hasSession: true }], undefined);
+		const storage = disposables.add(new InMemoryStorageService());
+		const owner = provider(authority);
+		const first = setup([owner], true, storage);
+		first.service.markSessionlessRunRead(run.id);
+		assert.throws(() => first.service.markSessionlessRunRead('hydrating'), /without a session/);
+		first.removeProvider(owner);
+		first.addProvider(owner);
+		const restored = setup([owner], true, storage);
+		assert.deepStrictEqual(restored.service.runs.get().map(run => ({ id: run.id, isRead: run.isRead })), [
+			{ id: 'local:opaque-run', isRead: true }, { id: 'hydrating', isRead: undefined },
+		]);
+	});
 
 	test('settles a provider-less window as unavailable, not empty-ready or perpetually loading', () => {
 		const { service, initialProvidersSettled } = setup([], false);

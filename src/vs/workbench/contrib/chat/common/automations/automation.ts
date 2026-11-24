@@ -5,6 +5,7 @@
 
 import { URI } from '../../../../../base/common/uri.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { localize } from '../../../../../nls.js';
 import type { AutomationDisableCondition, JsonPrimitive, Message } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import type { AutomationTrigger } from '../../../../../platform/github/common/missionControl/automations.js';
 
@@ -200,4 +201,33 @@ export interface IAutomationRun {
 	readonly errorMessage?: string;
 	readonly needsInput?: boolean;
 	readonly statusDescription?: string;
+	/** Undefined on hosts without reporting; null when a participating terminal run has no report. */
+	readonly result?: { readonly outcome: 'success' | 'noOp' | 'needsAttention'; readonly summary: string } | null;
+	readonly resultNeedsAttention?: boolean;
+	/** Authoritative membership, independent of whether the client has resolved the session. */
+	readonly hasSession?: boolean;
+	/** Client-local acknowledgement for a terminal run that never created a session. */
+	readonly isRead?: boolean;
+}
+
+export function getAutomationRunResultMessage(run: IAutomationRun): string | undefined {
+	if (run.result === undefined) {
+		return undefined;
+	}
+
+	if (run.status === 'failed') {
+		return run.errorMessage;
+	}
+	if (run.result === null) {
+		return localize('automationResultUnavailable', "Result unavailable");
+	}
+	switch (run.result.outcome) {
+		case 'success': return localize('automationResultSuccess', "Succeeded: {0}", run.result.summary);
+		case 'noOp': return localize('automationResultNoOp', "Nothing to do: {0}", run.result.summary);
+		case 'needsAttention': return localize('automationResultNeedsAttention', "Needs attention: {0}", run.result.summary);
+	}
+}
+
+export function isSessionlessAutomationRun(run: IAutomationRun): boolean {
+	return run.hasSession === false && run.result !== undefined && (run.status === 'completed' || run.status === 'failed');
 }

@@ -21,7 +21,7 @@ import { TestConfigurationService } from '../../../../../../platform/configurati
 import type { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { getAgentHostExtensionInitializeResultMeta } from '../../../../../../platform/agentHost/common/agentHostExtensionProtocol.js';
 import { nextAutomationCronOccurrence } from '../../../../../../platform/agentHost/common/automationCron.js';
-import { AgentHostScheduledChatExistingConversationCapabilityMetaKey, getAgentHostScheduledChat, withAgentHostAutomationHistoryState, withAgentHostOneTimeRun } from '../../../../../../platform/agentHost/common/meta/agentHostAutomationsMeta.js';
+import { AgentHostScheduledChatExistingConversationCapabilityMetaKey, getAgentHostScheduledChat, withAgentHostAutomationHistoryState, withAgentHostAutomationResult, withAgentHostOneTimeRun } from '../../../../../../platform/agentHost/common/meta/agentHostAutomationsMeta.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { isAutomationAfterDateExpired } from '../../../../../../platform/agentHost/common/automationDisableConditions.js';
 import { AutomationCatalogSubscription, type IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
@@ -1932,6 +1932,45 @@ suite('AgentHostAutomationStore', () => {
 		});
 	});
 
+	test('projects serialized result metadata without confusing task outcome, lifecycle, or unresolved membership', async () => {
+		const connection = disposables.add(new TestAutomationConnection());
+		const storage = disposables.add(new InMemoryStorageService());
+		const store = disposables.add(new AgentHostAutomationStore('host', connection, undefined, new NullLogService(), storage, activeClientService));
+		const created = await store.createAutomation(createOptions());
+		const create = connection.dispatched[0].action;
+		assert.ok(create.type === ActionType.AutomationCreateRequested);
+		const at = '2026-01-01T00:00:00Z';
+		const summary: AutomationRunSummary = {
+			resource: 'ahp-automation-run:/opaque/nested/result', automation: create.resource,
+			origin: { kind: AutomationRunOriginKind.Manual }, sessionCount: 0,
+			lifecycle: { status: AutomationRunStatus.Completed, createdAt: at, startedAt: at, completedAt: at },
+		};
+		const project = (patch: Partial<AutomationRunSummary>) => {
+			connection.setAutomation(JSON.parse(JSON.stringify({
+				resource: create.resource, definition: create.definition, operations: [AutomationOperation.Run],
+				createdAt: at, modifiedAt: at, runs: [{ ...summary, ...patch }],
+			})));
+			const run = store.runsFor(created.id).get()[0];
+			return { result: run.result, attention: run.resultNeedsAttention, hasSession: run.hasSession };
+		};
+		const report = { outcome: 'needsAttention', summary: 'Sign in to GitHub.' } as const;
+		assert.deepStrictEqual([
+			project({}),
+			project({ _meta: withAgentHostAutomationResult(undefined) }),
+			project({ _meta: withAgentHostAutomationResult(undefined, report) }),
+			project({ _meta: withAgentHostAutomationResult(undefined, { outcome: 'success', summary: 'Done' }), lifecycle: { status: AutomationRunStatus.Failed, createdAt: at, completedAt: at, error: { errorType: 'failed', message: 'Execution failed' } } }),
+			project({ _meta: withAgentHostAutomationResult(undefined), lifecycle: { status: AutomationRunStatus.Cancelled, createdAt: at, completedAt: at } }),
+			project({ _meta: withAgentHostAutomationResult(undefined, report), sessionCount: 1 }),
+		], [
+			{ result: undefined, attention: undefined, hasSession: undefined },
+			{ result: null, attention: false, hasSession: false },
+			{ result: report, attention: true, hasSession: false },
+			{ result: { outcome: 'success', summary: 'Done' }, attention: true, hasSession: false },
+			{ result: null, attention: false, hasSession: false },
+			{ result: report, attention: true, hasSession: true },
+		]);
+	});
+
 	test('defaults new cron triggers to the client local time zone rather than UTC', async () => {
 		const connection = disposables.add(new TestAutomationConnection());
 		const storage = disposables.add(new InMemoryStorageService());
@@ -3216,7 +3255,7 @@ suite('AgentHostAutomationStore', () => {
 				override getProviders() { return [provider]; }
 				override getProvider<T extends ISessionsProvider>(id: string): T | undefined { return id === provider.id ? provider as T : undefined; }
 			}();
-			const service = disposables.add(new ProviderAutomationService(constObservable(true), registry));
+			const service = disposables.add(new ProviderAutomationService(constObservable(true), registry, disposables.add(new InMemoryStorageService())));
 			const errors: string[] = [];
 			const runner = new AutomationRunner(service, registry, new NullLogService(), upcastPartial<INotificationService>({
 				error: message => errors.push(String(message)),
@@ -3306,7 +3345,7 @@ suite('AgentHostAutomationStore', () => {
 		const service = disposables.add(new ProviderAutomationService(constObservable(true), upcastPartial<ISessionsProvidersService>({
 			onDidChangeProviders: Event.None,
 			getProviders: () => providers,
-		})));
+		}), storage));
 		const remoteAutomation = service.automations.get().find(automation => automation.target.providerId === 'remote')!;
 		await service.updateAutomation(remoteAutomation.id, { name: 'Updated remote' });
 		const expected = service.getAutomation(remoteAutomation.id)!;

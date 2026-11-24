@@ -362,6 +362,8 @@ export interface IAutomationService extends IAutomationStore {
 	/** Whether the specified provider currently accepts new definitions. */
 	canCreateAutomation(providerId: string | undefined): boolean;
 	getProviderConfiguration?(providerId: string | undefined): IAutomationProviderConfiguration | undefined;
+	/** Acknowledges a terminal run with no session; session-backed runs use the session's read API. */
+	markSessionlessRunRead?(id: string): void;
 }
 
 export type AutomationUnavailableReasonCode = 'disconnected' | 'initializing' | 'disabled' | 'unsupported' | 'incompatible';

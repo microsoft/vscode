@@ -201,6 +201,14 @@ The host evaluates the final date against admission time, including catch-up run
 
 Cloud automations have no end-date support; the cloud provider rejects non-empty `disableConditions` on create and update instead of dropping them.
 
+## Local run results
+
+The local desktop Agent Host offers `report_automation_result` to an active automation's main chat. An outgoing-turn contribution supplies reporting guidance through host instructions without rewriting the saved prompt. The tool durably records an agent claim (`success`, `noOp`, or `needsAttention`, plus a plain-text summary); it does not finish the run or send a notification. Execution lifecycle remains authoritative, and execution errors take precedence over a reported success in presentation. Scheduled chats do not participate.
+
+This proof of concept publishes final results in catalogue and paginated-history summaries through the optional `vscode.automationResult` metadata envelope (`version: 1`, optional `report`). A participating run without a report displays Result unavailable; absent or unsupported metadata retains legacy behavior. Reports remain private host storage until execution ends. The run channel carries only its immutable participation marker because the current protocol has no run-metadata-change action.
+
+The Automations view displays the summary without requiring the transcript. Unread results needing attention and participating failed runs use the existing yellow sidebar attention presentation without changing session status or fabricating an input request. Other terminal results keep ordinary unread behavior. Session-backed runs reuse session read state; terminal runs that never acquired a session have client-local acknowledgement keyed by provider-scoped run identity, retained across disconnects and removed on acknowledged history deletion. This acknowledgement is not cross-device protocol read state.
+
 ## Persistence and retained history
 
 Canonical definitions, schedule cursors, manual request IDs, and run state live in Agent Host storage. Before session creation, the host journals the allocated backend URI and resolved provider. It durably links the session before sending the initial prompt. Interrupted creation is recovered or cleaned up using that recorded identity; recovery never resends the prompt and retries failed cleanup when providers return.

@@ -285,6 +285,7 @@ export function createAgentServiceComposition(
 					getIntegrations: () => artifactIntegrationDirectory.integrations.get(),
 					acquireArtifact: acquireIntegratedArtifact,
 				},
+				callbackAdapter.automationResultToolAccessor,
 			),
 		);
 		services.set(IAgentHostServerToolService, serverToolHost);

@@ -794,6 +794,11 @@
 			}
 		}
 
+		.session-status-message-icon {
+			font-size: var(--vscode-codiconFontSize-compact, 12px);
+			vertical-align: text-bottom;
+		}
+
 		.session-diff {
 			font-variant-numeric: tabular-nums;
 			overflow: hidden;

@@ -15,7 +15,7 @@ import { IMissionControlEnvironmentService } from '../../../../../platform/agent
 import { IRemoteAgentHostService, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { AccessibilityVerbositySettingId } from '../../../../../workbench/contrib/accessibility/browser/accessibilityConfiguration.js';
-import { IAutomationDescriptor, IAutomationRun, IAutomationSchedule } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
+import { getAutomationRunResultMessage, isSessionlessAutomationRun, IAutomationDescriptor, IAutomationRun, IAutomationSchedule } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { AutomationCatalogueState, type AutomationHistoryState, type IAutomationProviderDescriptor, IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { automationScheduleToLocal, DAYS_OF_WEEK } from '../../../../../workbench/contrib/chat/common/automations/schedule.js';
 import { automationTriggerSummary } from '../../../../../workbench/contrib/chat/common/automations/automationTriggers.js';
@@ -52,6 +52,7 @@ class AutomationsCustomViewAccessibilityHelp implements IAccessibleViewImplement
 		const pluginTemplatesVisible = templates.some(template => !!template.source);
 		const content = [
 			localize('automationsCustomView.help.overview', "You are in the Automations view. It contains available automation cards followed by run history. Loading, unavailable, and error messages indicate that the catalogue may be incomplete."),
+			localize('automationsCustomView.help.results', "After the timestamp, local automation results show an outcome icon followed by a short summary: a check for success, a slashed circle for nothing to do, a warning for needs attention, and a question mark for Result unavailable. Hover over the icon for the outcome and summary, or Tab to it and press Enter or Space. Escape closes the hover. Result unavailable means the agent did not report a result. Summaries are also available in the Accessible View. An unread result needing attention makes the Automations indicator yellow. Mark as Read acknowledges the result without resolving its cause. Runs that failed before creating a session have a Mark as Read button; Mark all as read includes them."),
 			localize('automationsCustomView.help.settings', "By default, Shared automations and run history only include shared automations you created. When cloud automations are enabled, the View options menu in the view header offers Refresh cloud automations to reload definitions and history. When shared automations created by others or with unknown creators are discovered, this menu also offers Show automations created by others to include their automations and runs. This preference is remembered. Use the arrow keys to reach View options, Enter or Space to open its menu, and Escape to close it."),
 			localize('automationsCustomView.help.manageRemotes', "When a dev tunnel is disconnected and remote management is enabled, the unavailable message shows how many dev tunnels are detected followed by Manage Remotes. Tab to this link and press Enter or Space to open Remote Environments, where you can manage dev tunnels. GitHub Environments do not appear in Automations warnings or this count."),
 			localize('automationsCustomView.help.disabled', "Disabled automations sort last within Your automations or Shared automations. The View options menu always offers Show disabled automations, even when cloud automations are disabled. It starts unchecked; activate it to show or hide your disabled automations. Your choice is remembered on this machine. When no cards remain visible, the empty state and Built-in Templates are shown. Shared automations, run history, and the Accessible View are not filtered."),
@@ -146,6 +147,7 @@ class AutomationsCustomViewAccessibleView implements IAccessibleViewImplementati
 							!isLocalAutomationRunStarting(run, hasCatalogedSession, hasSession)
 							&& (
 								!!run.externalResource
+								|| isSessionlessAutomationRun(run)
 								|| (!!run.sessionResource && hasCatalogedSession(run.sessionResource))
 							)
 						);
@@ -285,6 +287,13 @@ export function buildAutomationsAccessibleContent(automations: readonly IAutomat
 			));
 			if (run.errorMessage) {
 				lines.push(localize('automationsAccessibleView.runError', "Error: {0}", run.errorMessage));
+			}
+			const resultMessage = getAutomationRunResultMessage(run);
+			if (resultMessage && resultMessage !== run.errorMessage) {
+				lines.push(resultMessage);
+			}
+			if (isSessionlessAutomationRun(run)) {
+				lines.push(run.isRead ? localize('automationResultRead', "Read") : localize('automationResultUnread', "Unread. Mark as Read is available."));
 			}
 			if (run.externalResource) {
 				lines.push(localize('automationsAccessibleView.externalRun', "Open on GitHub: {0}", run.externalResource.toString()));

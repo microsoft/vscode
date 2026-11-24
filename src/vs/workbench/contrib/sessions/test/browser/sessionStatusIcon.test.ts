@@ -8,8 +8,10 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { addDisposableListener } from '../../../../../base/browser/dom.js';
+import { NullHoverService } from '../../../../../platform/hover/test/browser/nullHoverService.js';
 import { TestAccessibilityService } from '../../../../../platform/accessibility/test/common/testAccessibilityService.js';
-import { SessionStatusIcon } from '../../browser/sessionStatusIcon.js';
+import { renderSessionStatusMessageIcon, SessionStatusIcon } from '../../browser/sessionStatusIcon.js';
 import { ISessionsListModelService } from '../../browser/sessionsListModelService.js';
 import { SessionStatus } from '../../../../services/sessions/common/session.js';
 
@@ -36,6 +38,20 @@ function getRenderedIcons(container: HTMLElement): IRenderedIcon[] {
 
 suite('Sessions - SessionStatusIcon', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('status message hover activation does not open its containing row', () => {
+		const container = document.createElement('div');
+		store.add(renderSessionStatusMessageIcon(container, Codicon.warning, 'Sign in to GitHub.', NullHoverService));
+		let rowActivations = 0;
+		store.add(addDisposableListener(container, 'keydown', () => rowActivations++));
+		store.add(addDisposableListener(container, 'click', () => rowActivations++));
+		const icon = container.firstElementChild!;
+		for (const key of ['Enter', ' ']) {
+			icon.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }));
+		}
+		icon.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+		assert.strictEqual(rowActivations, 0);
+	});
 
 	test('snaps on session rebind and cross-fades same-session status changes', () => {
 		const container = document.createElement('div');

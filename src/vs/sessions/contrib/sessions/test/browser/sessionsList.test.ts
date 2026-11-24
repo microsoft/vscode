@@ -2500,6 +2500,19 @@ suite('Sessions - SessionsList', () => {
 
 			needsInputStatus.set(SessionStatus.InProgress, undefined);
 			assert.strictEqual(renderer.automationStatus.get(), SessionStatus.InProgress);
+
+			runs.set([{
+				id: 'result', automationId: 'automation', status: 'completed', trigger: 'manual',
+				startedAt: '2026-08-10T00:00:00.000Z', hasSession: false, result: null, isRead: false,
+				resultNeedsAttention: true,
+			}], undefined);
+			const attention = renderer.automationStatus.get();
+			runs.set([{ ...runs.get()[0], resultNeedsAttention: false }], undefined);
+			const ordinaryUnread = renderer.automationStatus.get();
+			runs.set([{ ...runs.get()[0], isRead: true }], undefined);
+			assert.deepStrictEqual({ attention, ordinaryUnread, read: renderer.automationStatus.get() }, {
+				attention: SessionStatus.NeedsInput, ordinaryUnread: SessionStatus.Completed, read: undefined,
+			});
 		});
 
 		test('ignores runs whose session the Sessions list shows while that row reflects the run', () => {

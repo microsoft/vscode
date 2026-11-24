@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { upcastPartial } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { getAgentHostAutomationScheduleKind, withAgentHostAutomationScheduleKind } from '../../common/meta/agentHostAutomationsMeta.js';
+import { getAgentHostAutomationResult, getAgentHostAutomationScheduleKind, withAgentHostAutomationResult, withAgentHostAutomationScheduleKind } from '../../common/meta/agentHostAutomationsMeta.js';
 import type { AutomationDefinition } from '../../common/state/protocol/state.js';
 
 suite('Agent Host Automation schedule metadata', () => {
@@ -28,6 +28,7 @@ suite('Agent Host Automation schedule metadata', () => {
 			cleared: original,
 			clearedLastKey: {},
 		});
+
 	});
 
 	test('ignores absent and unrecognized editing preferences', () => {
@@ -35,5 +36,32 @@ suite('Agent Host Automation schedule metadata', () => {
 		assert.deepStrictEqual(values.map(value => getAgentHostAutomationScheduleKind(upcastPartial<AutomationDefinition>({
 			_meta: { 'vscode.automationScheduleKind': value },
 		}))), values.map(() => undefined));
+	});
+});
+
+suite('Agent Host Automation result metadata', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('round trips a report and distinguishes a missing report from unsupported metadata', () => {
+		const report = { outcome: 'needsAttention', summary: 'GitHub authentication failed.' } as const;
+		const meta = withAgentHostAutomationResult({ vendor: true }, report);
+		assert.deepStrictEqual({
+			meta,
+			result: getAgentHostAutomationResult(JSON.parse(JSON.stringify({ _meta: meta }))),
+			missing: getAgentHostAutomationResult({ _meta: withAgentHostAutomationResult(undefined) }),
+			unsupported: getAgentHostAutomationResult({}),
+		}, {
+			meta: { vendor: true, 'vscode.automationResult': { version: 1, report } },
+			result: { version: 1, report },
+			missing: { version: 1 },
+			unsupported: undefined,
+		});
+	});
+
+	test('rejects malformed or unknown result envelopes without treating them as success', () => {
+		const values = [null, true, [], { version: 2 }, { version: 1, report: null },
+			{ version: 1, report: { outcome: 'success', summary: ' ' } },
+			{ version: 1, report: { outcome: 'unknown', summary: 'Done' } }];
+		assert.deepStrictEqual(values.map(value => getAgentHostAutomationResult({ _meta: { 'vscode.automationResult': value } })), values.map(() => undefined));
 	});
 });

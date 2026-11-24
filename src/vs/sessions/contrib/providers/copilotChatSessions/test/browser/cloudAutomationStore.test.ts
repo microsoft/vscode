@@ -266,7 +266,7 @@ suite('CloudAutomationStore', () => {
 			onDidChangeProviders: Event.None, getProviders: () => [provider],
 			getProvider: <T extends ISessionsProvider>() => provider as T,
 		});
-		const service = disposables.add(new ProviderAutomationService(constObservable(true), providers));
+		const service = disposables.add(new ProviderAutomationService(constObservable(true), providers, disposables.add(new InMemoryStorageService())));
 		const sessions = upcastPartial<ISessionsManagementService>({
 			getSessionTypesForFolder: () => [{ providerId: 'cloud', sessionType: upcastPartial<ISessionType>({ id: 'cloud-agent' }) }],
 		});

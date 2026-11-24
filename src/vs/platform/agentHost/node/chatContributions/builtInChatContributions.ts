@@ -7,6 +7,7 @@ import { DisposableStore, type IDisposable } from '../../../../base/common/lifec
 import { IAgentHostChatContributions } from '../../common/agentHostChatContributionsService.js';
 import { AdditionalWorktreeLifecycleContribution } from './additionalWorktreeLifecycle/additionalWorktreeLifecycleContribution.js';
 import { ArtifactToolsContribution } from './artifactTools/artifactToolsContribution.js';
+import { AutomationResultsContribution } from './automationResults/automationResultsContribution.js';
 import { ArtifactRunsContribution } from './artifactRuns/artifactRunsContribution.js';
 import { ChatArchiveContribution } from './chatArchive/chatArchiveContribution.js';
 import { ChatConfigContribution } from './chatConfig/chatConfigContribution.js';
@@ -70,6 +71,7 @@ export function registerBuiltInChatContributions(
 	registrations.add(contributions.registerContribution(MarkdownPlanRichLinksContribution));
 	registrations.add(contributions.registerContribution(WorkspaceContextContribution));
 	registrations.add(contributions.registerContribution(ArtifactToolsContribution));
+	registrations.add(contributions.registerContribution(AutomationResultsContribution));
 	registrations.add(contributions.registerContribution(ArtifactRunsContribution));
 	registrations.add(contributions.registerContribution(ChatSurfaceContribution));
 	registrations.add(contributions.registerContribution(RemoteSessionOriginContribution));

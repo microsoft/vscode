@@ -6,6 +6,7 @@
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { derived, IObservable, IReader, observableSignalFromEvent } from '../../../../base/common/observable.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { localize } from '../../../../nls.js';
 import { AutomationTarget, IAutomationDescriptor, IAutomationRun } from '../../../../workbench/contrib/chat/common/automations/automation.js';
 import { AutomationCatalogueState, AutomationMutationGuard, AutomationUnavailableError, assertAutomationTargetAuthority, combineAutomationCatalogueStates, IAutomationCustomizationChoice, IAutomationProviderDescriptor, IAutomationRefreshOptions, IAutomationRunRequestResult, IAutomationService, ICreateAutomationOptions, IDeleteAutomationOptions, IGuardedAutomationUpdateResult, serializeAutomationEditableState, IUpdateAutomationOptions } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
@@ -23,6 +24,7 @@ export class ProviderAutomationService extends Disposable implements IAutomation
 
 	private readonly providersChanged;
 	private readonly runsForCache = new Map<string, IObservable<readonly IAutomationRun[]>>();
+	private static readonly READ_RUNS_KEY = 'automations.sessionlessReadRuns';
 
 	readonly automations: IObservable<readonly IAutomationDescriptor[]>;
 	readonly runs: IObservable<readonly IAutomationRun[]>;
@@ -43,6 +45,7 @@ export class ProviderAutomationService extends Disposable implements IAutomation
 	constructor(
 		initialProvidersSettled: IObservable<boolean>,
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
+		@IStorageService private readonly storageService: IStorageService,
 	) {
 		super();
 		this.providersChanged = observableSignalFromEvent(this, sessionsProvidersService.onDidChangeProviders);
@@ -84,10 +87,32 @@ export class ProviderAutomationService extends Disposable implements IAutomation
 			return this.getStores(reader).flatMap(store => [...store.automations.read(reader)])
 				.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 		});
+		const readRunsChanged = observableSignalFromEvent(this, storageService.onDidChangeValue(StorageScope.PROFILE, ProviderAutomationService.READ_RUNS_KEY, this._store));
 		this.runs = derived(this, reader => {
+			readRunsChanged.read(reader);
+			const readRuns = this.readSessionlessRuns();
 			return this.getStores(reader).flatMap(store => [...store.runs.read(reader)])
+				.map(run => run.hasSession === false && run.result !== undefined
+					? { ...run, isRead: Object.hasOwn(readRuns, run.id) } : run)
 				.sort((a, b) => b.startedAt.localeCompare(a.startedAt));
 		});
+	}
+
+	private readSessionlessRuns(): Record<string, string> {
+		return this.storageService.getObject<Record<string, string>>(ProviderAutomationService.READ_RUNS_KEY, StorageScope.PROFILE, {});
+	}
+
+	markSessionlessRunRead(id: string): void {
+		const run = this.runs.get().find(run => run.id === id);
+		if (!run || run.hasSession !== false || run.result === undefined || (run.status !== 'completed' && run.status !== 'failed')) {
+			throw new Error('Only terminal automation runs without a session can be acknowledged here.');
+		}
+		this.storageService.store(ProviderAutomationService.READ_RUNS_KEY, { ...this.readSessionlessRuns(), [id]: run.automationId }, StorageScope.PROFILE, StorageTarget.MACHINE);
+	}
+
+	private clearSessionlessReadRuns(automationId: string): void {
+		const remaining = Object.fromEntries(Object.entries(this.readSessionlessRuns()).filter(([, owner]) => owner !== automationId));
+		this.storageService.store(ProviderAutomationService.READ_RUNS_KEY, remaining, StorageScope.PROFILE, StorageTarget.MACHINE);
 	}
 
 	getAutomation(id: string): IAutomationDescriptor | undefined {
@@ -180,6 +205,7 @@ export class ProviderAutomationService extends Disposable implements IAutomation
 			throw new AutomationUnavailableError(localize('automations.deleteRetainedHistoryUnavailable', "This automation's retained run history cannot currently be deleted."));
 		}
 		await store.deleteAutomationHistory(id);
+		this.clearSessionlessReadRuns(id);
 		this.runsForCache.delete(id);
 	}
 
@@ -193,6 +219,9 @@ export class ProviderAutomationService extends Disposable implements IAutomation
 			throw new AutomationUnavailableError(localize('automations.deleteHistoryUnsupported', "This automation's provider does not support choosing whether to delete run history."));
 		}
 		await store.deleteAutomation(id, mutationGuard, options);
+		if (options?.deleteHistory === true) {
+			this.clearSessionlessReadRuns(id);
+		}
 		this.runsForCache.delete(id);
 	}
 

@@ -10,13 +10,14 @@ import { ActionBar } from '../../../../../base/browser/ui/actionbar/actionbar.js
 import { Menu, unthemedMenuStyles } from '../../../../../base/browser/ui/menu/menu.js';
 import { Action } from '../../../../../base/common/actions.js';
 import '../../../../../base/browser/ui/codicons/codicon/codicon-modifiers.css';
+import '../../../../../base/browser/ui/codicons/codiconStyles.js';
 import '../../../../browser/media/style.css';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IProgressService, ProgressLocation } from '../../../../../platform/progress/common/progress.js';
 import { IContextMenuDelegate } from '../../../../../base/browser/contextmenu.js';
 import { DataTransfers } from '../../../../../base/browser/dnd.js';
-import { EventType, getWindow, ModifierKeyEmitter } from '../../../../../base/browser/dom.js';
+import { $, EventType, getWindow, ModifierKeyEmitter } from '../../../../../base/browser/dom.js';
 import { GestureEvent, EventType as TouchEventType } from '../../../../../base/browser/touch.js';
 import { setARIAContainer } from '../../../../../base/browser/ui/aria/aria.js';
 import type { IDelayedHoverOptions } from '../../../../../base/browser/ui/hover/hover.js';
@@ -56,6 +57,7 @@ import { MockContextKeyService, MockKeybindingService } from '../../../../../pla
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { getIconsStyleSheet } from '../../../../../platform/theme/browser/iconsStyleSheet.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IAutomationDescriptor, IAutomationRun, IAutomationSchedule, AutomationTarget } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IAutomationDialogResult, IAutomationDialogService, IShowAutomationDialogOptions } from '../../../../../workbench/contrib/chat/common/automations/automationDialogService.js';
@@ -232,6 +234,10 @@ class FakeAutomationService extends mock<IAutomationService>() {
 
 	setRuns(value: readonly IAutomationRun[]): void {
 		this.runValue.set(value, undefined);
+	}
+
+	override markSessionlessRunRead(id: string): void {
+		this.setRuns(this.runValue.get().map(run => run.id === id ? { ...run, isRead: true } : run));
 	}
 
 	setCatalogueState(value: AutomationCatalogueState): void {
@@ -927,6 +933,79 @@ suite('AutomationsCardsWidget', () => {
 		return { agentPluginService, automationService, automationDialogService, commandService, configurationService, contextKeyService, contextMenuService, dialogService, instantiationService, keybindingService, logService, missionControlEnvironmentService, remoteAgentHostService, runner, sessionsManagementService, sessionsService, shownAutomationSessionIds, telemetryService, widget, refreshErrors, opened, chatModels, windowFocus, actionFactories, disabledFilter, toggleDisabled };
 	}
 
+	test('shows unclipped outcome icons after the timestamp with summaries after the icons', async () => {
+		const tooltips = new Map<HTMLElement, string>();
+		const hoverService: IHoverService = {
+			...NullHoverService,
+			setupDelayedHover: (element, options, lifecycle) => {
+				const resolved = typeof options === 'function' ? options() : options;
+				if (element.classList.contains('session-status-message-icon')) {
+					tooltips.set(element, String(resolved.content));
+				}
+				return NullHoverService.setupDelayedHover(element, options, lifecycle);
+			},
+		};
+		const { widget, automationService, sessionsManagementService } = setup('archive', hoverService);
+		const iconStyles = $('style');
+		iconStyles.textContent = disposables.add(getIconsStyleSheet(undefined)).getCSS().toString();
+		widget.element.appendChild(iconStyles);
+		await document.fonts.load('12px codicon');
+		automationService.setAutomations([automation()]);
+		sessionsManagementService.sessionStatus.set(SessionStatus.Completed, undefined);
+		const presentations = [];
+		for (const result of [
+			{ outcome: 'success', summary: 'Approved the eligible PR.' },
+			{ outcome: 'noOp', summary: 'No eligible PRs.' },
+			{ outcome: 'needsAttention', summary: 'Sign in to GitHub.' },
+			null,
+		] as const) {
+			automationService.setRuns([run({ result })]);
+			widget.layout(1000, 700);
+			const icon = widget.element.querySelector<HTMLElement>('.session-status-message-icon')!;
+			const timestamp = widget.element.querySelector('.automations-run-session-list .session-time')!;
+			const iconBounds = icon.getBoundingClientRect();
+			const rowBounds = icon.closest('.session-details-row')!.getBoundingClientRect();
+			const descriptionBounds = icon.parentElement!.getBoundingClientRect();
+			presentations.push({
+				icon: icon.className.replace('session-status-message-icon codicon codicon-', ''),
+				text: icon.nextElementSibling?.textContent?.trim(),
+				afterTimestamp: !!(timestamp.compareDocumentPosition(icon) & Node.DOCUMENT_POSITION_FOLLOWING),
+				unclipped: iconBounds.height > 0 && iconBounds.top >= Math.max(rowBounds.top, descriptionBounds.top)
+					&& iconBounds.bottom <= Math.min(rowBounds.bottom, descriptionBounds.bottom)
+					? true : { iconBounds: iconBounds.toJSON(), rowBounds: rowBounds.toJSON(), descriptionBounds: descriptionBounds.toJSON() },
+				label: icon.getAttribute('aria-label'),
+				hover: tooltips.get(icon),
+				focusable: icon.tabIndex,
+			});
+		}
+		assert.deepStrictEqual(presentations, [
+			{ icon: 'pass-compact', text: 'Approved the eligible PR.', afterTimestamp: true, unclipped: true, label: 'Succeeded: Approved the eligible PR.', hover: 'Succeeded: Approved the eligible PR.', focusable: 0 },
+			{ icon: 'circle-slash-compact', text: 'No eligible PRs.', afterTimestamp: true, unclipped: true, label: 'Nothing to do: No eligible PRs.', hover: 'Nothing to do: No eligible PRs.', focusable: 0 },
+			{ icon: 'warning-compact', text: 'Sign in to GitHub.', afterTimestamp: true, unclipped: true, label: 'Needs attention: Sign in to GitHub.', hover: 'Needs attention: Sign in to GitHub.', focusable: 0 },
+			{ icon: 'question', text: 'Result unavailable', afterTimestamp: true, unclipped: true, label: 'Result unavailable', hover: 'Result unavailable', focusable: 0 },
+		]);
+	});
+
+	test('renders and acknowledges sessionless failures without treating unresolved sessions as sessionless', () => {
+		const { widget, automationService } = setup();
+		automationService.setAutomations([automation()]);
+		const failure = run({ status: 'failed', sessionResource: undefined, hasSession: false, result: null, resultNeedsAttention: true, isRead: false, errorMessage: 'Workspace preparation failed.' });
+		automationService.setRuns([failure, { ...failure, id: 'hydrating', hasSession: true }]);
+		const rows = widget.element.querySelectorAll('.automations-temporary-run');
+		const button = rows[0].querySelector<HTMLElement>('.monaco-button')!;
+		const icon = rows[0].querySelector('.session-status-message-icon')!;
+		const timestamp = rows[0].querySelector('.session-time')!;
+		const before = {
+			count: rows.length, summary: icon.getAttribute('aria-label'), markAll: isMarkAllReadVisible(widget),
+			afterTimestamp: !!(timestamp.compareDocumentPosition(icon) & Node.DOCUMENT_POSITION_FOLLOWING),
+			textAfterIcon: icon.nextElementSibling?.textContent?.trim(),
+		};
+		button.click();
+		assert.deepStrictEqual({ before, read: automationService.runs.get()[0].isRead, markAll: isMarkAllReadVisible(widget) }, {
+			before: { count: 1, summary: 'Workspace preparation failed.', markAll: true, afterTimestamp: true, textAfterIcon: 'Workspace preparation failed.' }, read: true, markAll: false,
+		});
+	});
+
 	test('pending scheduled chats move out of Automations only while Send Later is enabled', async () => {
 		const { widget, automationService, configurationService } = setup();
 		const schedule: IAutomationSchedule = { interval: 'once', runAt: '2027-01-01T10:00:00.000Z', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 };
@@ -945,6 +1024,7 @@ suite('AutomationsCardsWidget', () => {
 				change: { keys: [SESSIONS_SEND_LATER_ENABLED_SETTING], overrides: [] },
 				source: ConfigurationTarget.USER,
 			});
+
 		};
 		await setEnabled(true);
 		const whileEnabled = cardCount();

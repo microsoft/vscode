@@ -48,7 +48,7 @@ import { SCHEDULED_WORK_WAKE_NETWORK_CAP_MS, SCHEDULED_WORK_WAKE_SETTLE_MS } fro
 import type { IAgentHostMcpAuthenticationRequest } from '../../common/agentHostExtensionProtocol.js';
 import { McpAuthRequiredReason, McpServerStatus, SessionOriginKind, type Customization, type McpAuthRequirement } from '../../common/state/protocol/channels-session/state.js';
 import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
-import { getAgentHostAutomationHistoryState, getAgentHostOneTimeRun, getAgentHostScheduledChat, withAgentHostAutomationHistoryState, withAgentHostScheduledChat, type IAgentHostScheduledChatConversation } from '../../common/meta/agentHostAutomationsMeta.js';
+import { getAgentHostAutomationHistoryState, getAgentHostAutomationResult, getAgentHostOneTimeRun, getAgentHostScheduledChat, withAgentHostAutomationHistoryState, withAgentHostScheduledChat, type IAgentHostScheduledChatConversation } from '../../common/meta/agentHostAutomationsMeta.js';
 
 class RecordingAutomationTelemetry extends NullTelemetryServiceShape {
 	readonly events: { readonly name: string; readonly data: Record<string, unknown> }[] = [];
@@ -165,6 +165,7 @@ suite('AgentHostAutomationService', () => {
 			}
 		}();
 		const service = new AgentHostAutomationService({
+			supportsRunResults: execution?.supportsRunResults,
 			supportsOneTimeAutomation: execution?.supportsOneTimeAutomation,
 			supportsExistingConversation: execution?.supportsExistingConversation,
 			prepareConversation: execution?.prepareConversation,
@@ -183,6 +184,87 @@ suite('AgentHostAutomationService', () => {
 	async function enableAndCreate(service: AgentHostAutomationService, resource = 'ahp-automation:/review-changes'): Promise<void> {
 		await service.handleCreate(createAction(resource));
 	}
+
+	async function startReportingRun() {
+		const session = 'mock:/result';
+		const chat = buildDefaultChatUri(session);
+		const started = new DeferredPromise<void>();
+		const service = createService({
+			supportsRunResults: true,
+			createSession: async (_template, run) => {
+				stateManager.createSession({
+					resource: session, provider: 'mock', title: '', status: SessionStatus.Idle,
+					createdAt: run.lifecycle.createdAt, modifiedAt: run.lifecycle.createdAt, defaultChat: chat,
+					origin: { kind: SessionOriginKind.Automation, automation: run.automation, run: run.resource },
+				});
+				return URI.parse(session);
+			},
+			startSession: async (_session, message) => {
+				stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnStarted, turnId: 'result-turn', startedAt: new Date().toISOString(), message });
+				await started.complete();
+			},
+		});
+		await enableAndCreate(service);
+		const run = await service.runAutomation({ channel: AUTOMATION_CATALOG_URI, automation: createAction().resource, requestId: 'result' });
+		await started.p;
+		return { service, run, context: { sessionUri: session, chatUri: chat, turnId: 'result-turn' } };
+	}
+
+	for (const outcome of ['success', 'noOp', 'needsAttention'] as const) {
+		test(`publishes the ${outcome} report only after completion and retains it on restore`, async () => {
+			const { service, run, context } = await startReportingRun();
+			const report = { outcome, summary: 'Final task summary' };
+			await service.reportResult(context, report);
+			const staged = getAgentHostAutomationResult(stateManager.getAutomationCatalogState()!.entries[0].runs[0]);
+			stateManager.dispatchServerAction(context.chatUri, chatTurnComplete(context.turnId, 0));
+			await service.fetchAutomationRuns({ channel: AUTOMATION_CATALOG_URI, automation: createAction().resource });
+			const completed = getAgentHostAutomationResult(stateManager.getAutomationCatalogState()!.entries[0].runs[0]);
+			await assert.rejects(service.reportResult(context, report), /active run/);
+			service.dispose();
+			createService({ supportsRunResults: true });
+			assert.deepStrictEqual({
+				staged, completed,
+				restored: getAgentHostAutomationResult(stateManager.getAutomationCatalogState()!.entries[0].runs[0]),
+				runChannel: getAgentHostAutomationResult(stateManager.getAutomationRunState(run.resource)!),
+			}, { staged: { version: 1 }, completed: { version: 1, report }, restored: { version: 1, report }, runChannel: { version: 1 } });
+		});
+	}
+
+	test('reporting rejects unrelated chats and stale turns, and a failed write preserves the previous report', async () => {
+		const { service, context } = await startReportingRun();
+		const report = { outcome: 'noOp', summary: 'No eligible PRs.' } as const;
+		await service.reportResult(context, report);
+		const writes = writeAttempts;
+		await service.reportResult(context, report);
+		assert.strictEqual(writeAttempts, writes);
+		await assert.rejects(service.reportResult({ ...context, chatUri: 'ahp-chat:/other' }, report), /active run/);
+		await assert.rejects(service.reportResult({ ...context, turnId: 'old-turn' }, report), /active run/);
+		writeFailures = 1;
+		await assert.rejects(service.reportResult(context, { outcome: 'success', summary: 'Should not be recorded' }), /storage unavailable/);
+		stateManager.dispatchServerAction(context.chatUri, chatTurnComplete(context.turnId, 0));
+		await service.fetchAutomationRuns({ channel: AUTOMATION_CATALOG_URI, automation: createAction().resource });
+		assert.deepStrictEqual(getAgentHostAutomationResult(stateManager.getAutomationCatalogState()!.entries[0].runs[0]), { version: 1, report });
+	});
+
+	test('participating runs without a report remain explicit, including failures before session creation', async () => {
+		const { service, context } = await startReportingRun();
+		stateManager.dispatchServerAction(context.chatUri, chatTurnComplete(context.turnId, 0));
+		await service.fetchAutomationRuns({ channel: AUTOMATION_CATALOG_URI, automation: createAction().resource });
+		const completed = stateManager.getAutomationCatalogState()!.entries[0].runs[0];
+		service.dispose();
+		const failing = createService({ supportsRunResults: true });
+		const requested = await failing.runAutomation({ channel: AUTOMATION_CATALOG_URI, automation: createAction().resource, requestId: 'failing-result' });
+		await Event.toPromise(Event.filter(stateManager.onDidEmitEnvelope, envelope =>
+			envelope.action.type === ActionType.AutomationRunLifecycleChanged && envelope.channel === requested.resource && envelope.action.lifecycle.status === AutomationRunStatus.Failed));
+		const failed = stateManager.getAutomationCatalogState()!.entries[0].runs.find(run => run.resource === requested.resource)!;
+		assert.deepStrictEqual({
+			completed: { lifecycle: completed.lifecycle.status, result: getAgentHostAutomationResult(completed) },
+			failed: { lifecycle: failed.lifecycle.status, sessions: failed.sessionCount, result: getAgentHostAutomationResult(failed) },
+		}, {
+			completed: { lifecycle: 'completed', result: { version: 1 } },
+			failed: { lifecycle: 'failed', sessions: 0, result: { version: 1 } },
+		});
+	});
 
 	test('silently authenticates run-linked MCP servers once per challenge', async () => {
 		const session = URI.parse('mock:/mcp-run');

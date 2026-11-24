@@ -13,8 +13,31 @@ import { asCssVariable } from '../../../../platform/theme/common/colorUtils.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISessionsListModelService } from './sessionsListModelService.js';
+import { HoverStyle } from '../../../../base/browser/ui/hover/hover.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 
 const $ = DOM.$;
+
+/** Renders a compact status message whose full text remains accessible through its label and hover. */
+export function renderSessionStatusMessageIcon(container: HTMLElement, icon: ThemeIcon, message: string, hoverService: IHoverService): IDisposable {
+	const store = new DisposableStore();
+	const element = DOM.append(container, $(`span.session-status-message-icon${ThemeIcon.asCSSSelector(icon)}`, {
+		tabindex: '0',
+		role: 'img',
+		'aria-label': message,
+	}));
+	store.add(hoverService.setupDelayedHover(element, { content: message, style: HoverStyle.Pointer }, {
+		groupId: 'session-status-messages',
+		setupKeyboardEvents: true,
+	}));
+	store.add(DOM.addDisposableListener(element, DOM.EventType.KEY_DOWN, event => {
+		if (event.key === 'Enter' || event.key === ' ') {
+			DOM.EventHelper.stop(event, true);
+		}
+	}));
+	store.add(DOM.addDisposableListener(element, DOM.EventType.CLICK, event => DOM.EventHelper.stop(event, true)));
+	return store;
+}
 
 // Duration of the cross-fade when the icon swaps to a different glyph/variant.
 const ICON_SWAP_FADE_MS = 180;

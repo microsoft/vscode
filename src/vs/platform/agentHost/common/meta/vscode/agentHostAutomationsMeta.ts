@@ -20,6 +20,46 @@ const AgentHostAutomationHistoryStateMetaKey = 'vscode.automationHistoryState';
 const AgentHostAutomationScheduleKindMetaKey = 'vscode.automationScheduleKind';
 const AgentHostAutomationCreationIdMetaKey = 'vscode.automationCreationId';
 
+export const AgentHostAutomationResultMetaKey = 'vscode.automationResult';
+
+export interface IAgentHostAutomationResult {
+	readonly outcome: 'success' | 'noOp' | 'needsAttention';
+	readonly summary: string;
+}
+
+/** Presence marks a participating run; an absent report is not evidence of task success. */
+export interface IAgentHostAutomationResultEnvelope {
+	readonly version: 1;
+	readonly report?: IAgentHostAutomationResult;
+}
+
+export function parseAgentHostAutomationResult(value: unknown): IAgentHostAutomationResult | undefined {
+	if (!value || typeof value !== 'object' || Array.isArray(value)) {
+		return undefined;
+	}
+	const { outcome, summary } = value as Record<string, unknown>;
+	return (outcome === 'success' || outcome === 'noOp' || outcome === 'needsAttention')
+		&& typeof summary === 'string' && summary.trim().length > 0
+		? { outcome, summary: summary.trim() } : undefined;
+}
+
+export function getAgentHostAutomationResult(value: { readonly _meta?: Record<string, unknown> }): IAgentHostAutomationResultEnvelope | undefined {
+	const envelope = value._meta?.[AgentHostAutomationResultMetaKey];
+	if (!envelope || typeof envelope !== 'object' || Array.isArray(envelope)) {
+		return undefined;
+	}
+	const { version, report } = envelope as Record<string, unknown>;
+	if (version !== 1) {
+		return undefined;
+	}
+	const parsed = parseAgentHostAutomationResult(report);
+	return report === undefined ? { version: 1 } : parsed ? { version: 1, report: parsed } : undefined;
+}
+
+export function withAgentHostAutomationResult(meta: Record<string, unknown> | undefined, report?: IAgentHostAutomationResult): Record<string, unknown> {
+	return { ...meta, [AgentHostAutomationResultMetaKey]: { version: 1, ...(report ? { report } : {}) } };
+}
+
 /** Reads the client-owned handoff receipt without interpreting a host resource URI. */
 export function getAgentHostAutomationCreationId(definition: AutomationDefinition): string | undefined {
 	const id = definition._meta?.[AgentHostAutomationCreationIdMetaKey];

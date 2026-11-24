@@ -11,6 +11,7 @@ import { createArtifactIntegrationServerToolGroup, type IArtifactIntegrationTool
 import { createArtifactServerToolGroup, type IArtifactServerToolAccessor } from './artifactServerTools.js';
 import { createSessionIsolationToolGroup, type ISessionIsolationToolAccessor } from './sessionIsolationTools.js';
 import { createSessionMoveToolGroup, moveSessionToolDisplay } from './sessionMoveTools.js';
+import { createAutomationResultServerToolGroup, type IAutomationResultToolAccessor } from './automationResultServerTools.js';
 
 /**
  * Builds the server-tool groups contributed to every agent host session, in
@@ -30,13 +31,14 @@ import { createSessionMoveToolGroup, moveSessionToolDisplay } from './sessionMov
  * runs only with both `sessionAccessor` and `areAgentOrchestrationLimitsEnabled`,
  * as the host provides them, and is otherwise left out.
  */
-export function buildServerToolGroups(sessionAccessor?: ISessionServerToolAccessor, agentMergeAccessor?: IAgentMergeToolAccessor, artifactAccessor?: IArtifactServerToolAccessor, areAgentOrchestrationLimitsEnabled?: () => boolean, isolationAccessor?: ISessionIsolationToolAccessor, artifactIntegrationAccessor?: IArtifactIntegrationToolAccessor): readonly IServerToolGroup[] {
+export function buildServerToolGroups(sessionAccessor?: ISessionServerToolAccessor, agentMergeAccessor?: IAgentMergeToolAccessor, artifactAccessor?: IArtifactServerToolAccessor, areAgentOrchestrationLimitsEnabled?: () => boolean, isolationAccessor?: ISessionIsolationToolAccessor, artifactIntegrationAccessor?: IArtifactIntegrationToolAccessor, automationResultAccessor?: IAutomationResultToolAccessor): readonly IServerToolGroup[] {
 	return [
 		feedbackServerToolGroup,
 		createSessionServerToolGroup(sessionAccessor, areAgentOrchestrationLimitsEnabled),
 		createAgentMergeServerToolGroup(agentMergeAccessor),
 		createArtifactServerToolGroup(artifactAccessor),
 		createArtifactIntegrationServerToolGroup(artifactIntegrationAccessor),
+		createAutomationResultServerToolGroup(automationResultAccessor),
 		createSessionIsolationToolGroup(isolationAccessor),
 		// Only where it can run, which takes the host's limits too: the pure display path below displays it through `moveSessionToolDisplay`.
 		...(sessionAccessor && areAgentOrchestrationLimitsEnabled ? [createSessionMoveToolGroup(sessionAccessor, areAgentOrchestrationLimitsEnabled)] : []),

@@ -46,8 +46,9 @@ import { AuthenticateTargetKind } from '../common/state/sessionProtocol.js';
 import { getMcpServerCustomizations } from './shared/mcpCustomizationController.js';
 import { McpServerStatus, type AutomationSessionOrigin, type McpAuthRequirement } from '../common/state/protocol/channels-session/state.js';
 import type { IAgentHostMcpAuthenticationRequest } from '../common/agentHostExtensionProtocol.js';
-import { agentHostAutomationSessionOrigin, getAgentHostAutomationHistoryState, getAgentHostOneTimeRun, getAgentHostScheduledChat, withAgentHostAutomationHistoryState, withAgentHostOneTimeRun, withAgentHostScheduledChat, type IAgentHostScheduledChat, type IAgentHostScheduledChatConversation } from '../common/meta/agentHostAutomationsMeta.js';
+import { agentHostAutomationSessionOrigin, getAgentHostAutomationHistoryState, getAgentHostAutomationResult, getAgentHostOneTimeRun, getAgentHostScheduledChat, parseAgentHostAutomationResult, withAgentHostAutomationHistoryState, withAgentHostAutomationResult, withAgentHostOneTimeRun, withAgentHostScheduledChat, type IAgentHostAutomationResult, type IAgentHostScheduledChat, type IAgentHostScheduledChatConversation } from '../common/meta/agentHostAutomationsMeta.js';
 import { readMcpServerConnectorName } from '../common/meta/mcpCustomizationMeta.js';
+import type { IServerToolExecutionContext } from './shared/agentServerToolHost.js';
 
 const STORAGE_KEY = 'automations';
 const SCHEDULE_CURSORS_META_KEY = 'vscode.scheduleCursors';
@@ -97,10 +98,12 @@ interface IStoredAutomations {
 	readonly historyDeletions?: readonly IStoredHistoryDeletion[];
 	readonly historyDeletionReceipts?: readonly IStoredHistoryDeletionReceipt[];
 	readonly oneTimeCreationResources?: readonly string[];
+	readonly runResults?: Readonly<Record<string, IAgentHostAutomationResult>>;
 }
 
 /** Host-side session operations for executing an Automation's saved template. */
 export interface IAgentHostAutomationExecution {
+	readonly supportsRunResults?: boolean;
 	readonly supportsOneTimeAutomation?: boolean;
 	readonly supportsExistingConversation?: boolean;
 	/** Resolves the exact existing target without submitting; the returned callback performs normal queue admission. */
@@ -146,6 +149,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 
 	private _catalog: AutomationState | undefined;
 	private _runs = new Map<string, AutomationRunState>();
+	private _runResults = new Map<string, IAgentHostAutomationResult>();
 	private _runProviders = new Map<string, string>();
 	private _manualRunRequests = new Map<string, IStoredManualRunRequest>();
 	private _sessionCreations = new Map<string, IStoredSessionCreation>();
@@ -196,6 +200,14 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 			...stored?.catalog.automations.filter(entry => entry.definition.triggers.some(trigger => trigger.kind === AutomationTriggerKind.OneTime)).map(entry => entry.resource) ?? [],
 		]);
 		this._runs = new Map(stored?.runs?.map(run => [run.resource, migrateLegacyScheduledChatRun(run)]));
+		for (const [resource, value] of Object.entries(stored?.runResults ?? {})) {
+			const report = parseAgentHostAutomationResult(value);
+			if (report && this._runs.has(resource)) {
+				this._runResults.set(resource, report);
+			} else {
+				this._logService.warn('[AgentHostAutomationService] Ignoring invalid or orphaned automation result.');
+			}
+		}
 		this._runProviders = new Map(Object.entries(stored?.runProviders ?? {}));
 		this._sessionCreations = new Map(stored?.sessionCreations?.map(creation => [creation.run, creation]));
 		this._historyDeletions = new Map(stored?.historyDeletions?.map(deletion => [deletion.automation, deletion]));
@@ -207,7 +219,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		}
 		this._catalog = stored?.catalog ? {
 			entries: stored.catalog.automations.map(automation => {
-				const restored = withRunWindow(migrateStoredAutomation(automation), this._runs, RUN_HISTORY_PAGE_SIZE);
+				const restored = withRunWindow(migrateStoredAutomation(automation), this._runs, RUN_HISTORY_PAGE_SIZE, this._runResults);
 				return { ...restored, operations: this._operationsForItem(restored) };
 			}),
 			...(stored.catalog._meta ? { _meta: stored.catalog._meta } : {}),
@@ -556,7 +568,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 			operations: state === 'retained' ? [AutomationOperation.Remove] : [],
 			runs: [],
 			_meta: withAgentHostAutomationHistoryState(undefined, state),
-		}, this._runs, RUN_HISTORY_PAGE_SIZE);
+		}, this._runs, RUN_HISTORY_PAGE_SIZE, this._runResults);
 	}
 
 	private _runHistoryDeletion(resource: string): Promise<readonly string[]> {
@@ -731,7 +743,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 				operations: [AutomationOperation.Remove],
 				runs: [],
 				_meta: withAgentHostAutomationHistoryState(undefined, 'retained'),
-			}, this._runs, RUN_HISTORY_PAGE_SIZE);
+			}, this._runs, RUN_HISTORY_PAGE_SIZE, this._runResults);
 			catalog = automationReducer(catalog, { type: ActionType.AutomationSet, automation }, this._log);
 		}
 		if (catalog !== this._catalog || providers.size !== this._runProviders.size) {
@@ -771,7 +783,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 			throw new Error(`Automation run-history cursor is no longer available: ${params.cursor}`);
 		}
 		const terminalLimit = Number(automation.runsNextCursor) + RUN_HISTORY_PAGE_SIZE;
-		const updated = withRunWindow(automation, this._runs, terminalLimit);
+		const updated = withRunWindow(automation, this._runs, terminalLimit, this._runResults);
 		const next = automationReducer(catalog, { type: ActionType.AutomationSet, automation: updated }, this._log);
 		await this._persist(next, this._runs, this._manualRunRequests);
 		this._catalog = next;
@@ -834,8 +846,10 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		sessionCreations: ReadonlyMap<string, IStoredSessionCreation> = this._sessionCreations,
 		historyDeletions: ReadonlyMap<string, IStoredHistoryDeletion> = this._historyDeletions,
 		historyDeletionReceipts: ReadonlyMap<string, IStoredHistoryDeletionReceipt> = this._historyDeletionReceipts,
+		runResults: ReadonlyMap<string, IAgentHostAutomationResult> = this._runResults,
 	): Promise<void> {
 		const nextRunProviders = new Map([...runProviders].filter(([resource]) => runs.has(resource)));
+		const nextRunResults = new Map([...runResults].filter(([resource]) => runs.has(resource)));
 		const oneTimeCreationResources = new Set([
 			...this._oneTimeCreationResources,
 			...catalog.entries.filter(entry => entry.definition.triggers.some(trigger => trigger.kind === AutomationTriggerKind.OneTime)).map(entry => entry.resource),
@@ -847,6 +861,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 				...(catalog._meta ? { _meta: catalog._meta } : {}),
 			},
 			runs: [...runs.values()],
+			...(nextRunResults.size ? { runResults: Object.fromEntries(nextRunResults) } : {}),
 			...(nextRunProviders.size > 0 ? { runProviders: Object.fromEntries(nextRunProviders) } : {}),
 			manualRunRequests: [...manualRunRequests.values()],
 			...(oneTimeCreationResources.size ? { oneTimeCreationResources: [...oneTimeCreationResources] } : {}),
@@ -855,6 +870,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 			...(historyDeletionReceipts.size > 0 ? { historyDeletionReceipts: [...historyDeletionReceipts.values()] } : {}),
 		});
 		this._runProviders = nextRunProviders;
+		this._runResults = nextRunResults;
 		this._sessionCreations = new Map(sessionCreations);
 		this._historyDeletions = new Map(historyDeletions);
 		this._historyDeletionReceipts = new Map(historyDeletionReceipts);
@@ -992,7 +1008,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 								...(catchUp ? { catchUp: true } : {}),
 							}, createdAt);
 							nextRuns.set(run.resource, run);
-							automation = withRunSummary(this._consumeOneTime(automation, run), nextRuns);
+							automation = withRunSummary(this._consumeOneTime(automation, run), nextRuns, this._runResults);
 							claimed.push({ run, definition: automation.definition });
 						}
 						delete cursors[trigger.id];
@@ -1016,7 +1032,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 								...(catchUp ? { catchUp: true } : {}),
 							}, createdAt);
 							nextRuns.set(run.resource, run);
-							automation = withRunSummary(automation, nextRuns);
+							automation = withRunSummary(automation, nextRuns, this._runResults);
 							claimed.push({ run, definition: automation.definition });
 							claimedForAutomation = true;
 						}
@@ -1179,14 +1195,40 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 	}
 
 	private _createRunState(automation: string, origin: AutomationRunOrigin, createdAt: string): AutomationRunState {
+		const scheduledChat = getAgentHostScheduledChat(this._catalog?.entries.find(entry => entry.resource === automation)?.definition);
 		return {
 			resource: URI.from({ scheme: 'ahp-automation-run', path: `/${generateUuid()}` }).toString(),
 			automation,
 			origin,
-			...(getAgentHostScheduledChat(this._catalog?.entries.find(entry => entry.resource === automation)?.definition) ? { _meta: withAgentHostScheduledChat(undefined, {}) } : {}),
+			...(scheduledChat ? { _meta: withAgentHostScheduledChat(undefined, {}) }
+				: this._execution.supportsRunResults ? { _meta: withAgentHostAutomationResult(undefined) } : {}),
 			lifecycle: { status: AutomationRunStatus.Pending, createdAt },
 			sessions: [],
 		};
+	}
+
+	canReportResult(session: string): boolean {
+		return this._execution.supportsRunResults === true && [...this._runs.values()].some(run =>
+			run.lifecycle.status === AutomationRunStatus.Running && getAgentHostAutomationResult(run) !== undefined
+			&& (run.sessions.includes(session) || this._sessionCreations.get(run.resource)?.session === session));
+	}
+
+	async reportResult(context: IServerToolExecutionContext, report: IAgentHostAutomationResult): Promise<void> {
+		await this._enqueueMutation(async () => {
+			const run = this._activeRunForChat(context.chatUri);
+			const chat = this._stateManager.getChatState(context.chatUri);
+			if (!this.canReportResult(context.sessionUri) || !run || !run.sessions.includes(context.sessionUri)
+				|| !context.turnId || chat?.activeTurn?.id !== context.turnId) {
+				throw new Error('Automation results can only be reported by the active run in its main chat.');
+			}
+			const previous = this._runResults.get(run.resource);
+			if (previous?.outcome === report.outcome && previous.summary === report.summary) {
+				return;
+			}
+			const reports = new Map(this._runResults).set(run.resource, report);
+			await this._persist(this._requireCatalog(), this._runs, this._manualRunRequests, this._runProviders,
+				this._sessionCreations, this._historyDeletions, this._historyDeletionReceipts, reports);
+		});
 	}
 
 	private async _startRun(initialRun: AutomationRunState, definition: AutomationDefinition): Promise<void> {
@@ -1597,7 +1639,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		}
 		const nextRuns = new Map(this._runs);
 		nextRuns.set(run.resource, run);
-		const automation = withRunSummary(this._consumeOneTime(existing, run), nextRuns);
+		const automation = withRunSummary(this._consumeOneTime(existing, run), nextRuns, this._runResults);
 		return automationReducer(catalog, { type: ActionType.AutomationSet, automation }, this._log);
 	}
 
@@ -1977,7 +2019,7 @@ function isStoredManualRunRequest(value: unknown): value is IStoredManualRunRequ
 		&& typeof request['run'] === 'string';
 }
 
-function toRunSummary(run: AutomationRunState): AutomationRunSummary {
+function toRunSummary(run: AutomationRunState, reports: ReadonlyMap<string, IAgentHostAutomationResult>): AutomationRunSummary {
 	return {
 		resource: run.resource,
 		automation: run.automation,
@@ -1985,13 +2027,14 @@ function toRunSummary(run: AutomationRunState): AutomationRunSummary {
 		lifecycle: run.lifecycle,
 		primarySession: run.primarySession,
 		sessionCount: run.sessions.length,
-		_meta: run._meta,
+		_meta: isTerminalLifecycle(run.lifecycle) && getAgentHostAutomationResult(run)
+			? withAgentHostAutomationResult(run._meta, reports.get(run.resource)) : run._meta,
 	};
 }
 
-function withRunSummary(automation: AutomationEntry, allRuns: ReadonlyMap<string, AutomationRunState>): AutomationEntry {
+function withRunSummary(automation: AutomationEntry, allRuns: ReadonlyMap<string, AutomationRunState>, reports: ReadonlyMap<string, IAgentHostAutomationResult>): AutomationEntry {
 	const terminalLimit = Math.max(RUN_HISTORY_PAGE_SIZE, automation.runs.filter(candidate => isTerminalLifecycle(candidate.lifecycle)).length);
-	const window = withRunWindow(automation, allRuns, terminalLimit);
+	const window = withRunWindow(automation, allRuns, terminalLimit, reports);
 	const runs = window.runs;
 	const hasActiveRun = runs.some(candidate => !isTerminalLifecycle(candidate.lifecycle));
 	return {
@@ -2002,10 +2045,10 @@ function withRunSummary(automation: AutomationEntry, allRuns: ReadonlyMap<string
 	};
 }
 
-function withRunWindow(automation: AutomationEntry, allRuns: ReadonlyMap<string, AutomationRunState>, terminalLimit: number): AutomationEntry {
+function withRunWindow(automation: AutomationEntry, allRuns: ReadonlyMap<string, AutomationRunState>, terminalLimit: number, reports: ReadonlyMap<string, IAgentHostAutomationResult>): AutomationEntry {
 	const summaries = [...allRuns.values()]
 		.filter(run => run.automation === automation.resource)
-		.map(toRunSummary)
+		.map(run => toRunSummary(run, reports))
 		.sort((first, second) => Date.parse(second.lifecycle.createdAt) - Date.parse(first.lifecycle.createdAt));
 	const active = summaries.filter(summary => !isTerminalLifecycle(summary.lifecycle));
 	const terminal = summaries.filter(summary => isTerminalLifecycle(summary.lifecycle));

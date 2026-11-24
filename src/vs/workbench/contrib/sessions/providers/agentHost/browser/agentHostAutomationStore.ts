@@ -17,7 +17,7 @@ import { AgentSession } from '../../../../../../platform/agentHost/common/agent.
 import { generateUuid, isUUID } from '../../../../../../base/common/uuid.js';
 import { localize } from '../../../../../../nls.js';
 import { type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
-import { getAgentHostAutomationCreationId, getAgentHostAutomationHistoryState, getAgentHostAutomationScheduleKind, getAgentHostOneTimeRun, getAgentHostScheduledChat, supportsAgentHostAutomationHistory, supportsAgentHostAutomationHistoryDeletionState, supportsAgentHostAutomationHistoryReceipts, supportsAgentHostScheduledChatExistingConversation, withAgentHostAutomationCreationId, withAgentHostAutomationScheduleKind, withAgentHostScheduledChat } from '../../../../../../platform/agentHost/common/meta/agentHostAutomationsMeta.js';
+import { getAgentHostAutomationCreationId, getAgentHostAutomationHistoryState, getAgentHostAutomationResult, getAgentHostAutomationScheduleKind, getAgentHostOneTimeRun, getAgentHostScheduledChat, supportsAgentHostAutomationHistory, supportsAgentHostAutomationHistoryDeletionState, supportsAgentHostAutomationHistoryReceipts, supportsAgentHostScheduledChatExistingConversation, withAgentHostAutomationCreationId, withAgentHostAutomationScheduleKind, withAgentHostScheduledChat } from '../../../../../../platform/agentHost/common/meta/agentHostAutomationsMeta.js';
 import { applyLegacyAutomationSessionConfig } from '../../../../../../platform/agentHost/common/automationConfig.js';
 import { getAutomationDisableConditionsError, isAutomationAfterDateExpired } from '../../../../../../platform/agentHost/common/automationDisableConditions.js';
 import { validateAutomationRunAt, validateDurableAutomationMessage } from '../../../../../../platform/agentHost/common/automationRequest.js';
@@ -651,6 +651,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 	private _projectRun(run: AutomationRunSummary): IAutomationRun {
 		const lifecycle = run.lifecycle;
 		const primarySession = run.primarySession ? this._projectSessionResource(run.primarySession) : undefined;
+		const result = isTerminalRun(run) ? getAgentHostAutomationResult(run) : undefined;
 		return {
 			id: this._resourceId(run.resource),
 			automationId: this._resourceId(run.automation),
@@ -659,6 +660,12 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 				? 'manual'
 				: run.origin.catchUp ? 'catch_up' : 'schedule',
 			sessionResource: primarySession,
+			...(result ? {
+				result: result.report ?? null,
+				resultNeedsAttention: lifecycle.status === AutomationRunStatus.Failed
+					|| lifecycle.status === AutomationRunStatus.Completed && result.report?.outcome === 'needsAttention',
+				hasSession: run.sessionCount > 0 || run.primarySession !== undefined,
+			} : {}),
 			startedAt: lifecycle.status === AutomationRunStatus.Pending ? lifecycle.createdAt : lifecycle.startedAt ?? lifecycle.createdAt,
 			completedAt: lifecycle.status === AutomationRunStatus.Completed || lifecycle.status === AutomationRunStatus.Failed || lifecycle.status === AutomationRunStatus.Cancelled
 				? lifecycle.completedAt

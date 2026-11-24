@@ -116,6 +116,7 @@ import { AgentServerToolHost } from './shared/agentServerToolHost.js';
 import { type IAddSessionWorkingDirectoryOptions, type IAgentServiceSessionServerToolAccessor, type IPreparedChatWorkingDirectory, type IChatContextSnapshot, type IRenameTitleResult, type ISessionCreationDefaults, type ISessionServerToolMove, type SessionServerToolMoveAnchor, validateRenameTitle } from './shared/sessionServerTools.js';
 import { AGENT_HOST_TITLE_SOURCE_AGENT, AGENT_HOST_TITLE_SOURCE_AUTO, AGENT_HOST_TITLE_SOURCE_USER, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, parseSessionWorkingDirectories, persistSessionMetadataValues, SESSION_ARTIFACTS_KEY, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY, SESSION_WORKING_DIRECTORIES_KEY, SESSION_ORIGIN_KEY } from './shared/persistSessionMetadata.js';
 import { type IArtifactServerToolAccessor } from './shared/artifactServerTools.js';
+import type { IAutomationResultToolAccessor } from './shared/automationResultServerTools.js';
 import { SessionArtifacts } from './shared/sessionArtifacts.js';
 import { readSessionAdditionalWorktrees, writeSessionAdditionalWorktrees, type ISessionAdditionalWorktree } from './shared/sessionAdditionalWorktrees.js';
 import { sessionWorktreeFolderRepositoryRoot, WORKTREE_FOLDERS_KEY, withSessionWorktreeFolders } from './shared/sessionWorktreeFolders.js';
@@ -890,6 +891,7 @@ export interface IAgentServiceCallbacks {
 	readonly resolveChatAttachmentTurns: NonNullable<IAgentSideEffectsOptions['resolveChatAttachmentTurns']>;
 	readonly sessionServerToolAccessor: IAgentServiceSessionServerToolAccessor;
 	readonly artifactServerToolAccessor: IArtifactServerToolAccessor;
+	readonly automationResultToolAccessor: IAutomationResultToolAccessor;
 	/** Writes list-visible session metadata through the `sessions_v2` catalog and awaits the sync receipt. */
 	readonly persistListVisibleSessionState: (session: string, values: Readonly<Record<string, string>>) => Promise<void>;
 	/** Queues a background `sessions_v2` catalog sync for the session, optionally with metadata overrides. */
@@ -1374,6 +1376,7 @@ export class AgentService extends Disposable implements IAgentService {
 		);
 		this._catalogListReader = new AgentHostCatalogListReader(this._orchestratorDatabase);
 		this._automationService = this._register(instantiationService.createInstance(AgentHostAutomationService, {
+			supportsRunResults: this._hostLaunchKind === AgentHostLaunchKind.VSCodeMainProcess,
 			supportsOneTimeAutomation: this._hostLaunchKind === AgentHostLaunchKind.VSCodeMainProcess,
 			supportsExistingConversation: this._hostLaunchKind === AgentHostLaunchKind.VSCodeMainProcess,
 			prepareConversation: async (conversation, message, messageId) => {
@@ -1501,6 +1504,10 @@ export class AgentService extends Disposable implements IAgentService {
 			resolveChatAttachmentTurns: resource => this._resolveChatAttachmentTurns(resource),
 			sessionServerToolAccessor: this._createSessionServerToolAccessor(),
 			artifactServerToolAccessor: this._createArtifactServerToolAccessor(),
+			automationResultToolAccessor: {
+				canReportResult: session => this._automationService.canReportResult(session),
+				reportResult: (context, report) => this._automationService.reportResult(context, report),
+			},
 			persistListVisibleSessionState: (session, values) => this._persistListVisibleSessionState(URI.parse(session), values),
 			queueCatalogSync: (session, values) => this._queueCatalogSync(URI.parse(session), values),
 			persistMetadata: async (resource, values) => this._peerChatStore.persistMetadata(
