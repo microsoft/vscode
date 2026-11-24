@@ -8,9 +8,11 @@ import { Event } from '../../../../../base/common/event.js';
 import { ResourceMap, ResourceSet } from '../../../../../base/common/map.js';
 import { OS } from '../../../../../base/common/platform.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { basename, dirname } from '../../../../../base/common/resources.js';
+import { basename, dirname, extname, isEqual, joinPath } from '../../../../../base/common/resources.js';
 import { localize } from '../../../../../nls.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
+import { FileOperationEvent, IFileService } from '../../../../../platform/files/common/files.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IAICustomizationWorkspaceService, AICustomizationSources } from '../../common/aiCustomizationWorkspaceService.js';
@@ -22,6 +24,9 @@ import { ICustomizationItem, ICustomizationItemProvider, ICustomizationSourceFol
 import { BUILTIN_STORAGE } from './aiCustomizationManagement.js';
 import { getFriendlyName, isChatExtensionItem } from './aiCustomizationItemSource.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
+import { PromptsConfig } from '../../common/promptSyntax/config/config.js';
+import { HOOKS_SOURCE_FOLDER } from '../../common/promptSyntax/config/promptFileLocations.js';
+import { findGitRoot } from '../promptSyntax/hookUtils.js';
 
 /**
  * Adapts the rich promptsService model to the same provider-shaped items
@@ -36,8 +41,13 @@ export class PromptsServiceCustomizationItemProvider implements ICustomizationIt
 		@IAICustomizationWorkspaceService private readonly workspaceService: IAICustomizationWorkspaceService,
 		@IProductService private readonly productService: IProductService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IFileService private readonly fileService: IFileService,
 	) {
 		this.onDidChange = Event.any(
+			// Hook files at the repository root aren't watched by the prompts service when Local
+			// doesn't read parent repositories, so refresh when one is written through VS Code.
+			Event.filter(this.fileService.onDidRunOperation, e => isRepositoryHookFileOperation(e)),
 			this.promptsService.onDidChangeCustomAgents,
 			this.promptsService.onDidChangeSlashCommands,
 			this.promptsService.onDidChangeSkills,
@@ -189,6 +199,7 @@ export class PromptsServiceCustomizationItemProvider implements ICustomizationIt
 
 	private async fetchPromptServiceHooks(items: ICustomizationItem[], disabledUris: ResourceSet, promptType: PromptsType): Promise<void> {
 		const hookFiles = await this.promptsService.listPromptFiles(PromptsType.hook, CancellationToken.None);
+		const listedHookFiles = new ResourceSet(hookFiles.map(f => f.uri));
 
 		// Non-plugin hooks: return raw file items — expansion into individual
 		// hook entries is handled by ItemProviderItemSource.fetchItems().
@@ -206,6 +217,8 @@ export class PromptsServiceCustomizationItemProvider implements ICustomizationIt
 				userInvocable: undefined
 			});
 		}
+
+		await this.fetchRepositoryRootHooks(items, listedHookFiles, promptType);
 
 		// Agent-embedded hooks (not in sessions window).
 		const agents = !this.workspaceService.isSessionsWindow ? await this.promptsService.getCustomAgents(CancellationToken.None) : [];
@@ -236,6 +249,52 @@ export class PromptsServiceCustomizationItemProvider implements ICustomizationIt
 						userInvocable: undefined
 					});
 				}
+			}
+		}
+	}
+
+	/**
+	 * Lists hook files in `.github/hooks` at the root of the git repository that contains a
+	 * workspace folder, when Local doesn't read hooks from there. New Hook creates hooks at the
+	 * repository root for Copilot, so they must stay manageable here even though Local won't run them.
+	 */
+	private async fetchRepositoryRootHooks(items: ICustomizationItem[], listedHookFiles: ResourceSet, promptType: PromptsType): Promise<void> {
+		if (this.configurationService.getValue<boolean>(PromptsConfig.USE_CUSTOMIZATIONS_IN_PARENT_REPOS)) {
+			return;
+		}
+		const message = localize('hookRepositoryRootNotRunning', "Local agents only run hooks from the open folder. Turn on the {0} setting to run hooks from the repository root.", PromptsConfig.USE_CUSTOMIZATIONS_IN_PARENT_REPOS);
+		const visitedRoots = new ResourceSet();
+		for (const folder of this.workspaceContextService.getWorkspace().folders) {
+			const gitRoot = await findGitRoot(this.fileService, folder.uri);
+			if (!gitRoot || isEqual(gitRoot, folder.uri) || this.workspaceContextService.getWorkspaceFolder(gitRoot) || visitedRoots.has(gitRoot)) {
+				continue;
+			}
+			visitedRoots.add(gitRoot);
+			let children;
+			try {
+				children = (await this.fileService.resolve(joinPath(gitRoot, HOOKS_SOURCE_FOLDER))).children ?? [];
+			} catch {
+				continue;
+			}
+			for (const child of children) {
+				if (child.isDirectory || extname(child.resource).toLowerCase() !== '.json' || listedHookFiles.has(child.resource)) {
+					continue;
+				}
+				listedHookFiles.add(child.resource);
+				items.push({
+					uri: child.resource,
+					type: promptType,
+					name: getFriendlyName(child.name),
+					source: PromptsStorage.local,
+					enabled: false,
+					status: 'degraded',
+					statusMessage: message,
+					badge: localize('customizationWontRun', "Won't run"),
+					badgeTooltip: message,
+					extensionId: undefined,
+					pluginUri: undefined,
+					userInvocable: undefined
+				});
 			}
 		}
 	}
@@ -333,4 +392,10 @@ export class PromptsServiceCustomizationItemProvider implements ICustomizationIt
 		});
 	}
 
+}
+
+function isRepositoryHookFileOperation(e: FileOperationEvent): boolean {
+	const resource = e.target?.resource ?? e.resource;
+	const hooksFolder = dirname(resource);
+	return extname(resource).toLowerCase() === '.json' && basename(hooksFolder) === 'hooks' && basename(dirname(hooksFolder)) === '.github';
 }

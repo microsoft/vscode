@@ -6,7 +6,7 @@
 import { ParseError, parse as parseJSONC } from '../../../../../base/common/json.js';
 import { setProperty, applyEdits } from '../../../../../base/common/jsonEdit.js';
 import { FormattingOptions } from '../../../../../base/common/jsonFormatter.js';
-import { basename, dirname, isEqual, joinPath } from '../../../../../base/common/resources.js';
+import { basename, joinPath } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
@@ -25,7 +25,7 @@ import { toHookType } from '../../common/promptSyntax/hookSchema.js';
 import { resolveCopilotCliHookType } from '../../common/promptSyntax/hookCopilotCliCompat.js';
 import { buildNewCopilotHookFile, buildNewHookEntry, HookSourceFormat } from '../../common/promptSyntax/hookCompatibility.js';
 import { ITextEditorSelection } from '../../../../../platform/editor/common/editor.js';
-import { findHookCommandSelection } from './hookUtils.js';
+import { findGitRoot, findHookCommandSelection } from './hookUtils.js';
 import { ICopilotHomeService } from '../../../../services/environment/common/copilotHomeService.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
@@ -70,24 +70,6 @@ export function getHookFilesPolicyBlock(configurationService: Pick<IConfiguratio
 		return 'pluginOnly';
 	}
 	return undefined;
-}
-
-/**
- * Finds the root of the git repository that contains `folder`, or `undefined` when it isn't in one.
- * A `.git` entry can be a folder or, for worktrees and submodules, a file.
- */
-export async function findGitRoot(fileService: Pick<IFileService, 'exists'>, folder: URI): Promise<URI | undefined> {
-	let current = folder;
-	while (true) {
-		if (await fileService.exists(joinPath(current, '.git'))) {
-			return current;
-		}
-		const parent = dirname(current);
-		if (isEqual(parent, current)) {
-			return undefined;
-		}
-		current = parent;
-	}
 }
 
 /**
