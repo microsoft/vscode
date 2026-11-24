@@ -757,6 +757,11 @@ export class SCMRepositoriesViewPane extends ViewPane {
 	}
 
 	private async updateChildren(element?: TreeElement): Promise<void> {
+		// Repository events can still be handled after the view has been disposed
+		if (this._store.isDisposed) {
+			return;
+		}
+
 		return this.updateChildrenThrottler.queue(
 			() => this.treeOperationSequencer.queue(async () => {
 				if (element && this.tree.hasNode(element)) {
@@ -769,6 +774,10 @@ export class SCMRepositoriesViewPane extends ViewPane {
 	}
 
 	private async expand(element: TreeElement): Promise<void> {
+		if (this._store.isDisposed) {
+			return;
+		}
+
 		await this.treeOperationSequencer.queue(() => this.tree.expand(element, true));
 	}
 

@@ -5,14 +5,17 @@
 
 import 'mocha';
 import assert from 'assert';
-import { workspace, commands, window, Uri, WorkspaceEdit, Range, TextDocument, extensions, TabInputTextDiff, TabInputNotebook, TabInputNotebookDiff } from 'vscode';
+import { workspace, commands, window, Uri, WorkspaceEdit, Range, TextDocument, extensions, TabInputTextDiff, TabInputCustom, TabInputNotebook, TabInputNotebookDiff } from 'vscode';
 import * as cp from 'child_process';
 import * as fs from 'fs';
+import * as os from 'os';
 import * as path from 'path';
 import type { GitExtension, API, Repository } from '../api/git';
 import { Status } from '../api/git.constants';
 import { eventToPromise } from '../util';
 import { Git, findGit } from '../git';
+import type { GitExtensionImpl } from '../api/extension';
+import type { Model } from '../model';
 
 suite('git smoke test', function () {
 	const cwd = workspace.workspaceFolders![0].uri.fsPath;
@@ -36,6 +39,10 @@ suite('git smoke test', function () {
 		const end = doc.lineAt(doc.lineCount - 1).range.end;
 		edit.replace(doc.uri, new Range(end, end), text);
 		await workspace.applyEdit(edit);
+	}
+
+	function getModel(): Model {
+		return (extensions.getExtension<GitExtension>('vscode.git')!.exports as GitExtensionImpl).model!;
 	}
 
 	let git: API;
@@ -237,6 +244,32 @@ suite('git smoke test', function () {
 		}
 	});
 
+	test('stages the resource of the active custom editor', async function () {
+		const imageFileName = 'image.png';
+		const image = uri(imageFileName);
+
+		// 1x1 transparent PNG
+		fs.writeFileSync(image.fsPath, Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'base64'));
+
+		try {
+			await repository.status();
+			assert(repository.state.workingTreeChanges.some(change => change.uri.path === image.path && change.status === Status.UNTRACKED));
+
+			await commands.executeCommand('vscode.open', image);
+			assert(window.tabGroups.activeTabGroup.activeTab?.input instanceof TabInputCustom);
+
+			// git.stage without an argument resolves the resource from the active custom editor
+			await commands.executeCommand('git.stage');
+			assert(repository.state.indexChanges.some(change => change.uri.path === image.path && change.status === Status.INDEX_ADDED));
+		} finally {
+			// Remove the image so the following tests start from a clean tree
+			await commands.executeCommand('workbench.action.closeActiveEditor');
+			cp.execSync(`git rm --cached --ignore-unmatch -q ${imageFileName}`, { cwd });
+			fs.unlinkSync(image.fsPath);
+			await repository.status();
+		}
+	});
+
 	// diabled because of https://github.com/microsoft/vscode/issues/327142
 	test.skip('opens notebook diff and file from active notebook editor', async function () {
 		const committed = JSON.stringify({ cells: [{ cell_type: 'code', source: ['x = 1'], metadata: {}, outputs: [], execution_count: null }], metadata: {}, nbformat: 4, nbformat_minor: 5 });
@@ -262,6 +295,204 @@ suite('git smoke test', function () {
 			// Restore the committed content so the following tests start from a clean tree
 			fs.writeFileSync(file('notebook.ipynb'), committed);
 			await repository.status();
+		}
+	});
+
+	test('a closed repository runs the operations of an extension that still holds it', async function () {
+		const model = getModel();
+		const repositoryPath = await fs.promises.realpath(await fs.promises.mkdtemp(path.join(os.tmpdir(), 'git-smoke-')));
+		cp.execSync('git init -b main', { cwd: repositoryPath });
+		cp.execSync('git -c user.name=testuser -c user.email=monacotools@example.com commit --allow-empty -m "initial commit"', { cwd: repositoryPath });
+
+		try {
+			const apiRepository = (await git.openRepository(Uri.file(repositoryPath)))!;
+			apiRepository.inputBox.value = 'draft';
+
+			const onDidCloseRepository = eventToPromise(git.onDidCloseRepository);
+			model.close(model.getRepository(repositoryPath)!);
+			const closedRepository = await onDidCloseRepository;
+
+			await apiRepository.status();
+			const commit = await apiRepository.getCommit('HEAD');
+			assert.deepStrictEqual(
+				{ repositories: git.repositories.map(r => r.rootUri.fsPath), closedInputBox: closedRepository.inputBox.value, message: commit.message },
+				{ repositories: [cwd], closedInputBox: 'draft', message: 'initial commit' });
+		} finally {
+			// On Windows, the closed repository's watchers can hold the folder for a moment
+			await fs.promises.rm(repositoryPath, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
+		}
+	});
+
+	test('closing a parent repository closes its worktree', async function () {
+		const model = getModel();
+
+		// The worktree finds its parent by the path of the common .git folder, which git reports in full. Unlike
+		// fs.realpathSync, the native real path also expands Windows short names such as RUNNER~1.
+		const base = await fs.promises.realpath(await fs.promises.mkdtemp(path.join(os.tmpdir(), 'git-smoke-')));
+		const parentPath = path.join(base, 'parent');
+		const worktreePath = path.join(base, 'worktree');
+		fs.mkdirSync(parentPath);
+		cp.execSync('git init -b main', { cwd: parentPath });
+		cp.execSync('git -c user.name=testuser -c user.email=monacotools@example.com commit --allow-empty -m "initial commit"', { cwd: parentPath });
+		cp.execSync(`git worktree add -b worktree "${worktreePath}"`, { cwd: parentPath });
+
+		try {
+			const parentRepository = (await git.openRepository(Uri.file(parentPath)))!;
+			const worktreeRepository = (await git.openRepository(Uri.file(worktreePath)))!;
+			const worktreeFoundParent = model.getRepository(worktreeRepository.rootUri)!.parentRoot !== undefined;
+
+			// The worktree closes while its parent is still open. Compare URIs rather than paths, because on
+			// Windows Uri.fsPath lowercases the drive letter.
+			const parentOpenWhenWorktreeCloses: boolean[] = [];
+			const listener = git.onDidCloseRepository(r => {
+				if (r.rootUri.toString() === worktreeRepository.rootUri.toString()) {
+					parentOpenWhenWorktreeCloses.push(git.getRepository(parentRepository.rootUri) !== null);
+				}
+			});
+			model.close(model.getRepository(parentRepository.rootUri)!);
+			listener.dispose();
+
+			// An extension that still holds the worktree can run operations on it
+			const commit = await worktreeRepository.getCommit('HEAD');
+			assert.deepStrictEqual(
+				{ worktreeFoundParent, repositories: git.repositories.map(r => r.rootUri.fsPath), parentOpenWhenWorktreeCloses, message: commit.message },
+				{ worktreeFoundParent: true, repositories: [cwd], parentOpenWhenWorktreeCloses: [true], message: 'initial commit' });
+		} finally {
+			// On Windows, the closed repositories' watchers can hold the folder for a moment
+			await fs.promises.rm(base, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
+		}
+	});
+
+	test('the source control shows the status, commit messages and visibility of its repository', async function () {
+		const model = getModel();
+		const repositoryPath = await fs.promises.realpath(await fs.promises.mkdtemp(path.join(os.tmpdir(), 'git-smoke-')));
+		const runGit = (command: string) => cp.execSync(`git ${command}`, { cwd: repositoryPath, stdio: 'pipe' });
+		runGit('init -b main');
+		runGit('config user.name testuser');
+		runGit('config user.email monacotools@example.com');
+		runGit('config commit.gpgsign false');
+		fs.writeFileSync(path.join(repositoryPath, 'modified.txt'), 'one\n');
+		fs.writeFileSync(path.join(repositoryPath, 'staged.txt'), 'one\n');
+		fs.writeFileSync(path.join(repositoryPath, 'conflict.txt'), 'base\n');
+		runGit('add .');
+		runGit('commit -m "initial commit"');
+		fs.writeFileSync(path.join(repositoryPath, 'modified.txt'), 'two\n');
+		fs.writeFileSync(path.join(repositoryPath, 'staged.txt'), 'two\n');
+		runGit('add staged.txt');
+		fs.writeFileSync(path.join(repositoryPath, 'untracked.txt'), 'new\n');
+
+		try {
+			const apiRepository = (await git.openRepository(Uri.file(repositoryPath)))!;
+			const sourceControl = model.getRepository(repositoryPath)!.sourceControl;
+			const resources = (group: { resourceStates: { resourceUri: Uri; type: number }[] }) => group.resourceStates.map(r => `${path.basename(r.resourceUri.fsPath)}:${r.type}`).sort();
+
+			// Core puts the commit template into an empty input box on its own, so the input box is read only after
+			// the extension wrote it
+			const read = (withInputBox: boolean) => ({
+				merge: resources(sourceControl.mergeGroup),
+				index: resources(sourceControl.indexGroup),
+				workingTree: resources(sourceControl.workingTreeGroup),
+				untracked: resources(sourceControl.untrackedGroup),
+				count: sourceControl.sourceControl.count,
+				commitTemplate: sourceControl.sourceControl.commitTemplate,
+				...withInputBox ? { inputBox: sourceControl.sourceControl.inputBox.value } : {},
+				isHidden: sourceControl.sourceControl.isHidden,
+				// Commit hashes depend on the time of the commits
+				statusBarCommands: sourceControl.sourceControl.statusBarCommands?.map(c => c.title.replace(/\b[0-9a-f]{8}\b/, '<commit>')),
+				actionButton: sourceControl.sourceControl.actionButton?.command.title
+			});
+
+			// The main thread sends each input box value back, and a value that arrives late overwrites a newer one. A
+			// round trip to the main thread makes sure that it sent back the last value before the next step changes
+			// the input box.
+			const waitForInputBox = async () => { await commands.getCommands(); };
+
+			const actual: Record<string, ReturnType<typeof read> & { inputBoxEnabled?: boolean[] }> = {};
+			await apiRepository.status();
+			actual.opened = read(false);
+
+			apiRepository.inputBox.value = 'draft';
+			await waitForInputBox();
+			const inputBoxEnabled: boolean[] = [];
+			const operationsListener = model.getRepository(repositoryPath)!.onDidChangeOperations(() => {
+				if (inputBoxEnabled.at(-1) !== sourceControl.sourceControl.inputBox.enabled) {
+					inputBoxEnabled.push(sourceControl.sourceControl.inputBox.enabled);
+				}
+			});
+			await apiRepository.commit('second commit');
+			operationsListener.dispose();
+			actual.committed = { ...read(true), inputBoxEnabled };
+			await waitForInputBox();
+
+			runGit('add .');
+			runGit('commit -m "work in progress"');
+			runGit('checkout -b topic');
+			fs.writeFileSync(path.join(repositoryPath, 'conflict.txt'), 'topic\n');
+			runGit('commit -am "topic change"');
+			runGit('checkout main');
+			fs.writeFileSync(path.join(repositoryPath, 'conflict.txt'), 'main\n');
+			runGit('commit -am "main change"');
+			runGit('checkout topic');
+			assert.throws(() => runGit('rebase main'));
+			await apiRepository.status();
+			actual.rebasing = read(true);
+			await waitForInputBox();
+
+			runGit('rebase --abort');
+			await apiRepository.status();
+			actual.rebaseAborted = read(true);
+
+			fs.writeFileSync(path.join(repositoryPath, '.git', 'template.txt'), 'subject from template\n');
+			runGit('config commit.template .git/template.txt');
+			await apiRepository.status();
+			actual.template = read(false);
+
+			model.getRepository(repositoryPath)!.setWarm(true);
+			actual.warm = read(false);
+			model.getRepository(repositoryPath)!.setWarm(false);
+			actual.shown = read(false);
+
+			const empty = { merge: [], index: [], workingTree: [], untracked: [], count: 0, commitTemplate: '', isHidden: false };
+			const onTopic = { ...empty, statusBarCommands: ['$(git-branch) topic', '$(cloud-upload)'], actionButton: '$(cloud-upload) Publish Branch' };
+			assert.deepStrictEqual(actual, {
+				opened: {
+					...empty,
+					index: [`staged.txt:${Status.INDEX_MODIFIED}`],
+					workingTree: [`modified.txt:${Status.MODIFIED}`, `untracked.txt:${Status.UNTRACKED}`],
+					count: 3,
+					statusBarCommands: ['$(git-branch-staged-changes) main*+', '$(cloud-upload)'],
+					actionButton: '$(check) Commit'
+				},
+				committed: {
+					...empty,
+					workingTree: [`modified.txt:${Status.MODIFIED}`, `untracked.txt:${Status.UNTRACKED}`],
+					count: 2,
+					inputBox: '',
+					statusBarCommands: ['$(git-branch-changes) main*', '$(cloud-upload)'],
+					actionButton: '$(check) Commit',
+					inputBoxEnabled: [false, true]
+				},
+				rebasing: {
+					...empty,
+					merge: [`conflict.txt:${Status.BOTH_MODIFIED}`],
+					count: 1,
+					commitTemplate: 'topic change',
+					inputBox: 'topic change',
+					statusBarCommands: ['$(git-commit) <commit>! (Rebasing)', '$(cloud-upload)'],
+					actionButton: '$(check) Continue'
+				},
+				rebaseAborted: { ...onTopic, inputBox: '' },
+				template: { ...onTopic, commitTemplate: 'subject from template' },
+				warm: { ...onTopic, commitTemplate: 'subject from template', isHidden: true },
+				shown: { ...onTopic, commitTemplate: 'subject from template' }
+			});
+		} finally {
+			const repository = model.getRepository(repositoryPath);
+			if (repository) {
+				model.close(repository);
+			}
+			// On Windows, the closed repository's watchers can hold the folder for a moment
+			await fs.promises.rm(repositoryPath, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
 		}
 	});
 

@@ -203,6 +203,7 @@ export class GitHubPullRequestArtifactIntegration implements IArtifactIntegratio
 	readonly id = gitHubPullRequestArtifactIntegrationId;
 	readonly label = localize('prArtifact.integration', "GitHub Pull Request");
 	readonly groupLabel = localize('prArtifact.groupLabel', "Pull Requests");
+	readonly artifactKind = localize('prArtifact.kind', "PR");
 	readonly description = 'GitHub pull request links recorded as artifacts rather than references';
 	readonly automationOptions = gitHubPullRequestArtifactOptions;
 	readonly onDidChange: Event<void>;

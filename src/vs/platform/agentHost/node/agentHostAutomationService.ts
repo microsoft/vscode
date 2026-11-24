@@ -18,7 +18,7 @@ import { IFileService } from '../../files/common/files.js';
 import { INativeEnvironmentService } from '../../environment/common/environment.js';
 import { IAgentPluginManager } from '../common/agentPluginManager.js';
 import { AgentHostAutomationCustomizations } from './agentHostAutomationCustomizations.js';
-import { getAutomationTelemetryIsolation, getAutomationTelemetryMode, getAutomationTelemetryPermissionLevel, getAutomationTelemetryProvider, logAutomationCreated, logAutomationUpdated, logAutomationDeleted, logAutomationRunCreated, logAutomationRunCompleted, logAutomationRunStarted, type AutomationRunOutcome, type IAutomationConfigurationTelemetry, type IAutomationDefinitionTelemetry, type IAutomationRunTelemetry } from './agentHostAutomationTelemetry.js';
+import { getAutomationTelemetryIsolation, getAutomationTelemetryMode, getAutomationTelemetryPermissionLevel, getAutomationTelemetryProvider, getScheduleKind, logAutomationCreated, logAutomationUpdated, logAutomationDeleted, logAutomationRunCreated, logAutomationRunCompleted, logAutomationRunStarted, type AutomationRunOutcome, type IAutomationConfigurationTelemetry, type IAutomationDefinitionTelemetry, type IAutomationRunTelemetry } from './agentHostAutomationTelemetry.js';
 import { toTelemetryModel } from './agentHostTelemetryReporter.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { AgentSession } from '../common/agent.js';
@@ -1765,17 +1765,19 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 			...this._configurationTelemetry(automation.definition.session),
 			automationId: automation.resource,
 			enabled: automation.definition.enabled,
-			scheduleKind: automation.definition.triggers.length === 0 ? 'manual' : 'scheduled',
+			scheduleKind: getScheduleKind(automation.definition),
 		};
 	}
 
 	private _runTelemetry(run: AutomationRunState): IAutomationRunTelemetry {
 		const session = run.primarySession;
 		const snapshotProvider = this._runProviders.get(run.resource);
+		const automation = this._catalog?.entries.find(candidate => candidate.resource === run.automation);
 		return {
 			automationId: run.automation,
 			runId: AgentSession.id(run.resource),
 			trigger: run.origin.kind === AutomationRunOriginKind.Manual ? 'manual' : run.origin.catchUp ? 'catch_up' : run.origin.scheduledFor ? 'schedule' : 'event',
+			scheduleKind: automation ? getScheduleKind(automation.definition) : undefined,
 			runCreatedAt: run.lifecycle.createdAt,
 			provider: session ? getAutomationTelemetryProvider(snapshotProvider ?? this._stateManager.getSessionSummary(session)?.provider) : 'default',
 			agentSessionId: session ? AgentSession.id(session) : undefined,

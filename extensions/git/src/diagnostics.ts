@@ -55,7 +55,7 @@ export class GitCommitInputBoxDiagnosticsManager {
 
 	private onDidChangeConfiguration(): void {
 		for (const repository of this.model.repositories) {
-			this.onDidChangeTextDocument(repository.inputBox.document);
+			this.onDidChangeTextDocument(repository.sourceControl.inputBox.document);
 		}
 	}
 

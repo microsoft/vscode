@@ -6,9 +6,11 @@
 import { decodeHex } from '../../../base/common/buffer.js';
 import { Event } from '../../../base/common/event.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
+import type { IObservable } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import type { AgentHostEndpointAddress, AgentHostServerType } from './agentHostEndpointRegistry.js';
+import type { IRemoteAgentHostEntry } from './remoteAgentHostService.js';
 import type { RemoteAgentHostLocationPreference } from './remoteAgentHostLocationPreference.js';
 import type { IRelayMessage } from './relayTransport.js';
 import { AgentHostTransportFailureReason, NonReconnectableTransportError } from './state/sessionTransport.js';
@@ -246,11 +248,26 @@ export interface ISSHRemoteAgentHostService {
 	connect(config: SSHAgentHostConnectionRequest): Promise<ISSHAgentHostConnection>;
 
 	/**
-	 * Disconnect an SSH-bootstrapped connection by host address.
-	 * Tears down the SSH tunnel, stops the remote agent host, and removes its
-	 * persisted SSH entry.
+	 * Persisted SSH entries the user disconnected. They are excluded from the
+	 * dialed entries until {@link clearDisconnected} or a connect restores them.
 	 */
-	disconnect(host: string): Promise<void>;
+	readonly disconnectedEntries: IObservable<readonly IRemoteAgentHostEntry[]>;
+
+	/**
+	 * Disconnect an SSH-bootstrapped connection by its SSH connection key.
+	 * Tears down the SSH tunnel and stops the remote agent host. Removes the
+	 * persisted SSH entries for that key unless `keepEntry` is set, in which
+	 * case they are marked as disconnected and are not dialed until the user
+	 * connects again.
+	 */
+	disconnect(host: string, options?: { readonly keepEntry?: boolean }): Promise<void>;
+
+	/**
+	 * Restore the disconnected SSH entries an entry address or SSH connection
+	 * key identifies, so they are dialed again. The next dial is treated as
+	 * user-initiated.
+	 */
+	clearDisconnected(address: string): void;
 
 	/** List SSH config host aliases (excluding wildcards). */
 	listSSHConfigHosts(): Promise<string[]>;

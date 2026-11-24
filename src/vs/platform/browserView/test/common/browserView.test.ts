@@ -8,10 +8,29 @@ import { AGENT_HOST_SCHEME, toAgentHostUri } from '../../../agentHost/common/age
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { extUri, extUriIgnorePathCase } from '../../../../base/common/resources.js';
-import { BrowserViewPresentation, getBrowserViewRemoteFile, BrowserViewStorageScope, getAgentBrowserViewCreationDefaults, getBrowserViewPopupAction, remoteUrlToFileUrl, isBrowserViewAssociatedResourceNavigation, isBrowserViewStorageScopeShareableWithAgent, isInMemoryStorageScope, matchesBrowserViewAudience } from '../../common/browserView.js';
+import { BrowserViewPresentation, getBrowserViewRemoteFile, BrowserViewStorageScope, getAgentBrowserViewCreationDefaults, getBrowserViewPopupAction, remoteUrlToFileUrl, isBrowserViewAssociatedResourceNavigation, isBrowserViewStorageScopeShareableWithAgent, isInMemoryStorageScope, matchesBrowserViewAudience, getBrowserViewAuthenticationOrigin } from '../../common/browserView.js';
 
 suite('BrowserView', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('allows sign-in only for the current or pending top-level origin', () => {
+		const origin = 'https://example.com';
+		assert.deepStrictEqual({
+			sameOriginFrame: getBrowserViewAuthenticationOrigin(`${origin}/private-frame`, origin, undefined),
+			pendingNavigation: getBrowserViewAuthenticationOrigin('https://next.example/private', origin, 'https://next.example'),
+			siblingNavigation: getBrowserViewAuthenticationOrigin(`${origin}/private-frame`, origin, 'https://next.example'),
+			crossOrigin: getBrowserViewAuthenticationOrigin('https://other.example/private', origin, undefined),
+			opaqueOrigin: getBrowserViewAuthenticationOrigin('file:///private', 'null', undefined),
+			invalidUrl: getBrowserViewAuthenticationOrigin('invalid', origin, undefined),
+		}, {
+			sameOriginFrame: origin,
+			pendingNavigation: 'https://next.example',
+			siblingNavigation: origin,
+			crossOrigin: undefined,
+			opaqueOrigin: undefined,
+			invalidUrl: undefined,
+		});
+	});
 
 	test('maps vscode-remote URLs of the session network to file URLs', () => {
 		const network = { authority: 'ssh-remote+Host' };
@@ -96,6 +115,10 @@ suite('BrowserView', () => {
 			customScheme: getBrowserViewPopupAction(BrowserViewPresentation.Unlisted, 'vscode://settings', true),
 			blank: getBrowserViewPopupAction(BrowserViewPresentation.Unlisted, 'about:blank', true),
 			remote: getBrowserViewPopupAction(BrowserViewPresentation.Unlisted, 'https://example.com/', true, true),
+			sessionLink: getBrowserViewPopupAction(BrowserViewPresentation.Unlisted, 'agent-host-session://copilotcli/abc?chat=def', true, false, true),
+			sessionLinkNoGesture: getBrowserViewPopupAction(BrowserViewPresentation.Unlisted, 'agent-host-session://copilotcli/abc', false, false, true),
+			sessionLinkNotAllowed: getBrowserViewPopupAction(BrowserViewPresentation.Unlisted, 'agent-host-session://copilotcli/abc', true),
+			sessionLinkRemote: getBrowserViewPopupAction(BrowserViewPresentation.Unlisted, 'agent-host-session://copilotcli/abc', true, true, true),
 		}, {
 			listed: { action: 'integrated', consumeUserGesture: false },
 			https: { action: 'external', consumeUserGesture: true },
@@ -104,6 +127,10 @@ suite('BrowserView', () => {
 			customScheme: { action: 'deny', consumeUserGesture: false },
 			blank: { action: 'deny', consumeUserGesture: false },
 			remote: { action: 'deny', consumeUserGesture: true },
+			sessionLink: { action: 'external', consumeUserGesture: true },
+			sessionLinkNoGesture: { action: 'deny', consumeUserGesture: false },
+			sessionLinkNotAllowed: { action: 'deny', consumeUserGesture: false },
+			sessionLinkRemote: { action: 'deny', consumeUserGesture: true },
 		});
 	});
 

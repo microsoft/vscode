@@ -17,9 +17,10 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../ba
 import { IAgentHostConnectionsService } from '../../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IAgentHostEnablementService } from '../../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { identityAgentHostResourceUriMapper } from '../../../../../../../platform/agentHost/common/agentHostUri.js';
+import { getWorkingDirectoryScopeId } from '../../../../../../../platform/agentHost/common/agentHostWorkingDirectories.js';
 import { AgentSession, IAgentHostService, type IAgentSessionMetadata } from '../../../../../../../platform/agentHost/common/agentService.js';
 import type { INotification } from '../../../../../../../platform/agentHost/common/state/sessionActions.js';
-import { SessionStatus, withSessionGitState, type RootState, type SessionSummary } from '../../../../../../../platform/agentHost/common/state/sessionState.js';
+import { SESSION_META_ISOLATED_CHAT_WORKTREES_KEY, SessionStatus, withFolderScopeGitState, withSessionGitState, withSessionIsolatedChatWorktrees, type RootState, type SessionSummary } from '../../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IFileService } from '../../../../../../../platform/files/common/files.js';
 import { ILabelService } from '../../../../../../../platform/label/common/label.js';
 import { ILogService, NullLogService } from '../../../../../../../platform/log/common/log.js';
@@ -291,6 +292,36 @@ suite('AgentHostWorktreeLocations', () => {
 		assert.deepStrictEqual({ remoteResolved, remoteListings, remoteRealpaths: provider.realpathsRead, localListings: local.listings() }, { remoteResolved: undefined, remoteListings: 0, remoteRealpaths: [], localListings: 1 });
 	});
 
+	test('of a session working in the folder, offers the worktrees its agent host lists as created for chats of it that it isolated, by their own branch: not another folder of it, nor any where the agent host lists none', () => {
+		const isolated = URI.file('/work/vscode.worktrees/isolated').toString();
+		const unrelated = URI.file('/work/other').toString();
+		const listed = URI.file('/work/vscode.worktrees/gone').toString();
+		const multiChat = (meta: SessionSummary['_meta']) => upcastPartial<SessionSummary>({
+			...session('/work/vscode', '/work/vscode'),
+			workingDirectories: [primary.toString(), isolated, unrelated],
+			_meta: meta,
+		});
+		const marked = withFolderScopeGitState(withSessionIsolatedChatWorktrees(undefined, [isolated, listed]), getWorkingDirectoryScopeId([isolated]), { branchName: 'agents/isolated' }, [isolated]);
+		const describe = (sessions: SessionSummary[]) => getAgentHostSessionWorktrees(sessions, primary).map(({ uri, description }) => ({ path: uri.path, description }));
+
+		assert.deepStrictEqual({
+			marked: describe([multiChat(marked)]),
+			// The same folder in another form, such as without its escapes
+			otherForm: describe([upcastPartial<SessionSummary>({
+				...session('/work/vscode', '/work/vscode'),
+				workingDirectories: [primary.toString(), URI.file('/work/vscode.worktrees/my wt').toString()],
+				_meta: withSessionIsolatedChatWorktrees(undefined, [URI.file('/work/vscode.worktrees/my wt').toString(true)]),
+			})]),
+			olderHost: describe([multiChat(undefined)]),
+			malformed: describe([multiChat({ [SESSION_META_ISOLATED_CHAT_WORKTREES_KEY]: isolated })]),
+		}, {
+			marked: [{ path: '/work/vscode.worktrees/isolated', description: 'agents/isolated' }],
+			otherForm: [{ path: '/work/vscode.worktrees/my wt', description: undefined }],
+			olderHost: [],
+			malformed: [],
+		});
+	});
+
 	test('describes a worktree by its name and the branch its session reports, without one where it reports none', () => {
 		const locations = getAgentHostSessionWorktrees([
 			session('/work/vscode.worktrees/feature', '/work/vscode', { branchName: 'agents/feature' }),
@@ -382,6 +413,22 @@ suite('AgentHostWorktreeLocations', () => {
 		await tick();
 
 		assert.deepStrictEqual({ beforeStart, listings: provider.listings(), offered: paths(await provider.provideLocations(primary, CancellationToken.None)) }, { beforeStart: 0, listings: 1, offered: ['/work/vscode.worktrees/feature'] });
+	});
+
+	test('is ready once it has listed the local agent host\'s sessions, which it tells, not while they load nor after a listing that failed', async () => {
+		const loading = new DeferredPromise<void>();
+		const provider = createProvider([session('/work/vscode.worktrees/feature', '/work/vscode')], { loading: loading.p, listFailures: 1 });
+		const service = createService(provider);
+		await provider.provideLocations(primary, CancellationToken.None);
+		const whileLoading = service.areProvidersReady();
+		await loading.complete();
+		await tick();
+		const afterFailure = service.areProvidersReady();
+		const becameReady = Event.toPromise(Event.filter(service.onDidChangeLocations, () => service.areProvidersReady()));
+		await provider.provideLocations(primary, CancellationToken.None);
+		await becameReady;
+
+		assert.deepStrictEqual({ whileLoading, afterFailure, ready: service.areProvidersReady() }, { whileLoading: false, afterFailure: false, ready: true });
 	});
 
 	test('resolves a worktree also before the local agent host\'s sessions are listed, such as to restore the folder\'s location, once they are', async () => {

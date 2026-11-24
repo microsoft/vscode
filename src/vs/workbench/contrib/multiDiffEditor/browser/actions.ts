@@ -9,10 +9,12 @@ import { URI } from '../../../../base/common/uri.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
 import { Selection } from '../../../../editor/common/core/selection.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
+import { MULTI_DIFF_EDITOR_SYNC_SPLIT_VIEW_SETTING } from '../../../../editor/common/multiDiffEditor.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
 import { ILocalizedString, localize, localize2 } from '../../../../nls.js';
 import { Action2, MenuId, MenuRegistry } from '../../../../platform/actions/common/actions.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { ITextEditorOptions, TextEditorSelectionRevealType } from '../../../../platform/editor/common/editor.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
@@ -37,21 +39,43 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	when: ContextKeyExpr.and(ActiveEditorContext.isEqualTo(MultiDiffEditor.ID), IsSessionsWindowContext.toNegated()),
 });
 
+export class ToggleSyncSplitViewAction extends Action2 {
+	static readonly ID = 'multiDiffEditor.toggleSyncSplitView';
+	static readonly TITLE = localize2('resizeAllDiffsTogether', "Resize All Diffs Together");
+	static readonly TOGGLED = ContextKeyExpr.equals(`config.${MULTI_DIFF_EDITOR_SYNC_SPLIT_VIEW_SETTING}`, true);
+
+	constructor() {
+		super({
+			id: ToggleSyncSplitViewAction.ID,
+			title: ToggleSyncSplitViewAction.TITLE,
+			toggled: ToggleSyncSplitViewAction.TOGGLED,
+			menu: {
+				id: MenuId.EditorTitle,
+				group: '1_diff',
+				order: 20,
+				when: ContextKeyExpr.and(
+					ActiveEditorContext.isEqualTo(MultiDiffEditor.ID),
+					IsSessionsWindowContext.toNegated(),
+					ContextKeyExpr.notEquals('config.diffEditor.renderSideBySide', false),
+				),
+			},
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const configurationService = accessor.get(IConfigurationService);
+		await configurationService.updateValue(MULTI_DIFF_EDITOR_SYNC_SPLIT_VIEW_SETTING, !configurationService.getValue<boolean>(MULTI_DIFF_EDITOR_SYNC_SPLIT_VIEW_SETTING));
+	}
+}
+
 // The Agents window offers Toggle Details instead of Toggle Files, and contributes
-// the Files View & Position submenu to its own editor title menu.
+// the Files View & Position submenu to the editor title menu of its chat windows.
 const filesViewWhen = ContextKeyExpr.and(ActiveMultiDiffEditorHasFileListContext, IsSessionsWindowContext.toNegated());
 
-MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
-	submenu: MultiDiffEditorFilesViewAndPositionMenu,
-	title: localize('filesViewAndPosition', "Files View & Position"),
-	group: 'z_files',
-	when: filesViewWhen,
-});
-
-// Toggle Files, with a dropdown that puts the list on either side of the diffs.
+// Toggle Files, with a dropdown that switches the list between a list and a tree, and puts it on either side of the diffs.
 MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	submenu: MultiDiffEditorFileListToggleMenu,
-	title: localize('filesPosition', "Files Position"),
+	title: localize('filesViewAndPosition', "Files View & Position"),
 	icon: Codicon.listFlat,
 	isSplitButton: { excludePrimaryActionFromDropdown: true },
 	isAlwaysShown: true,
@@ -267,12 +291,16 @@ abstract class SetFileListViewModeAction extends Action2 {
 			title,
 			toggled: MultiDiffEditorFileListViewModeContext.isEqualTo(_viewMode),
 			precondition: ActiveMultiDiffEditorHasFileListContext,
-			menu: {
+			menu: [{
 				id: MultiDiffEditorFilesViewAndPositionMenu,
 				group: '1_view',
 				order: _viewMode === 'list' ? 1 : 2,
 				when: ActiveMultiDiffEditorHasFileListContext,
-			},
+			}, {
+				id: MultiDiffEditorFileListToggleMenu,
+				group: '1_view',
+				order: _viewMode === 'list' ? 1 : 2,
+			}],
 		});
 	}
 

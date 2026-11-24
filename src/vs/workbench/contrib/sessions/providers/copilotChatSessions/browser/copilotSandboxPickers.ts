@@ -10,7 +10,7 @@ import { Action2, registerAction2 } from '../../../../../../platform/actions/com
 import { ContextKeyExpr } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IWorkbenchContribution } from '../../../../../common/contributions.js';
 import { Menus } from '../../../browser/menus.js';
-import { SessionProviderIdContext, IsNewChatSessionContext } from '../../../common/contextkeys.js';
+import { SessionIsCreatedContext, SessionProviderIdContext } from '../../../common/contextkeys.js';
 import { CLOUD_SANDBOX_CREATION_PROVIDER_ID, COPILOT_PROVIDER_ID } from '../common/copilotChatSessions.js';
 import { ChatContextKeys } from '../../../../chat/common/actions/chatContextKeys.js';
 import { ISessionHost } from '../../../../../services/sessions/browser/sessionHost.js';
@@ -26,7 +26,8 @@ const IsActiveCopilotChatSessionProvider = ContextKeyExpr.equals(SessionProvider
 
 // -- Actions --
 
-const IsNewCloudSession = ContextKeyExpr.and(IsNewChatSessionContext, ChatContextKeys.enabled, ContextKeyExpr.or(
+// The composer's own draft, not the Agents window's active session, which differs for a composer of its own such as the Agents Launcher.
+const IsNewCloudSession = ContextKeyExpr.and(SessionIsCreatedContext.negate(), ChatContextKeys.enabled, ContextKeyExpr.or(
 	IsActiveCopilotChatSessionProvider,
 	SessionProviderIdContext.isEqualTo(CLOUD_SANDBOX_CREATION_PROVIDER_ID),
 ));

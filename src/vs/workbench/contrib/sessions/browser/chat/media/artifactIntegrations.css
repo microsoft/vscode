@@ -55,8 +55,6 @@
 .artifact-integration-panel {
 	display: flex;
 	flex-direction: column;
-	gap: var(--vscode-spacing-size80);
-	padding: var(--vscode-spacing-size120);
 	box-sizing: border-box;
 	font-size: var(--vscode-fontSize-body1);
 	overflow-wrap: anywhere;
@@ -67,12 +65,14 @@
 	outline: none;
 }
 
+/* The header stays in place above the scrolled content; its bottom padding separates the two. */
 .artifact-details-header {
 	display: flex;
 	flex-wrap: wrap;
 	align-items: flex-start;
 	gap: var(--vscode-spacing-size40) var(--vscode-spacing-size120);
 	flex-shrink: 0;
+	padding: var(--vscode-spacing-size120) var(--vscode-spacing-size120) var(--vscode-spacing-size80);
 }
 
 .artifact-details-title-icon {
@@ -127,9 +127,30 @@
 	flex: 1 1 auto;
 }
 
+/*
+ * Once scrolled, content fades under the header instead of being cut at a hard line. The viewport spans the panel and
+ * never scrolls horizontally, so the fade does too, and pointer events pass through to the content beneath it.
+ */
+.artifact-details-scrollable > .shadow.top {
+	left: 0;
+	height: var(--vscode-spacing-size160);
+	background: linear-gradient(to bottom, var(--vscode-editorWidget-background), transparent);
+	pointer-events: none;
+}
+
 .artifact-details-body {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size80);
+	box-sizing: border-box;
+	padding: 0 var(--vscode-spacing-size120) var(--vscode-spacing-size120);
 	overflow: hidden;
 	min-width: 0;
+}
+
+/* Sections keep their height and the body scrolls instead. */
+.artifact-details-body > * {
+	flex-shrink: 0;
 }
 
 .artifact-details-description-content {
@@ -148,16 +169,10 @@
 	margin: 0;
 }
 
-.artifact-details-lower-scrollable {
-	min-height: 0;
-	flex-shrink: 0;
-}
-
 .artifact-details-lower-content {
 	display: flex;
 	flex-direction: column;
 	gap: var(--vscode-spacing-size120);
-	overflow: hidden;
 }
 
 .artifact-controls {

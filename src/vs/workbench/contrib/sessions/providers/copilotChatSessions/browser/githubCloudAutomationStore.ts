@@ -19,6 +19,7 @@ import { ApiRequestOptions } from '../../../../../../platform/github/common/clie
 import { IGitHubAccountClient } from '../../../../../../platform/github/common/account/account.js';
 import { AutomationDetail, AutomationRepositoryConfiguration, AutomationToolGroup, CreateAutomationRequest, EditAutomationRequest, IAutomationsClient } from '../../../../../../platform/github/common/missionControl/automations.js';
 import { ApiRequestError, MutationUncertainError } from '../../../../../../platform/github/common/missionControl/missionControlClient.js';
+import { ListModelsResponse } from '../../../../../../platform/github/common/missionControl/models.js';
 import { Task } from '../../../../../../platform/github/common/missionControl/tasks.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
@@ -40,6 +41,11 @@ export interface ICloudAutomationEntry {
 export type CloudAutomationToolCatalog =
 	| { readonly kind: 'loading' }
 	| { readonly kind: 'ready'; readonly groups: readonly AutomationToolGroup[] }
+	| { readonly kind: 'error' };
+
+export type CloudAutomationModelCatalog =
+	| { readonly kind: 'loading' }
+	| { readonly kind: 'ready'; readonly catalog: ListModelsResponse }
 	| { readonly kind: 'error' };
 
 export interface ICloudAutomationHistoryEntry {
@@ -72,6 +78,7 @@ export class GitHubCloudAutomationStore extends Disposable {
 	private readonly cachedTools = observableValue<CloudAutomationToolCatalog | undefined>(this, undefined);
 	readonly toolCatalog: IObservable<CloudAutomationToolCatalog | undefined> = this.cachedTools;
 	readonly triggerCatalog = observableValue<AutomationTriggerCatalog | undefined>(this, undefined);
+	readonly modelCatalog = observableValue<CloudAutomationModelCatalog | undefined>(this, undefined);
 
 	constructor(
 		private readonly resolveRepositoryUri: (workspace: URI) => URI | undefined | Promise<URI | undefined>,
@@ -257,6 +264,29 @@ export class GitHubCloudAutomationStore extends Disposable {
 
 	canManageRepository(repository: RepositoryRef): boolean {
 		return this.repositoryConfigurations.get(repositoryKey(repository))?.can_manage_automations === true;
+	}
+
+	loadModels(retry = false): void {
+		const current = this.modelCatalog.get();
+		if (current && (!retry || current.kind !== 'error')) {
+			return;
+		}
+		const cancellationToken = this.lifetime.token;
+		this.modelCatalog.set({ kind: 'loading' }, undefined);
+		void (async () => {
+			try {
+				this.requireAccount();
+				const catalog = await this.withClient(cancellationToken, (client, cancellationToken) => client.missionControlModels.list(cancellationToken, { caller: 'cloudAutomations' }));
+				CancellationToken.throwIfCanceled(cancellationToken);
+				this.modelCatalog.set({ kind: 'ready', catalog }, undefined);
+			} catch (error) {
+				if (cancellationToken.isCancellationRequested || this._store.isDisposed) {
+					return;
+				}
+				this.logService.warn('[CloudAutomations] Failed to load automation models', error);
+				this.modelCatalog.set({ kind: 'error' }, undefined);
+			}
+		})();
 	}
 
 	/** Loads the account's tool catalog once per account lifetime; a failed load can be retried. */
@@ -690,6 +720,7 @@ export class GitHubCloudAutomationStore extends Disposable {
 			this.uncertain.set(false, tx);
 			this.cachedTools.set(undefined, tx);
 			this.triggerCatalog.set(undefined, tx);
+			this.modelCatalog.set(undefined, tx);
 			this.state.set(account && !account.enterprise ? 'loading' : 'unavailable', tx);
 		});
 	}

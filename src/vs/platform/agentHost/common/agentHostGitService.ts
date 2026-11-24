@@ -111,6 +111,24 @@ export interface IPullOptions {
 	readonly rebase?: boolean;
 }
 
+/** Options for {@link IAgentHostGitService.commit}. */
+export interface ICommitOptions {
+	/**
+	 * true      - stage tracked and untracked changes before committing
+	 * 'tracked' - stage only changes to tracked files before committing
+	 * undefined - commit only what is already staged
+	 */
+	readonly all?: boolean | 'tracked';
+	/**
+	 * true      - sign the commit
+	 * false     - do not sign the commit
+	 * undefined - use the repository/global git config
+	 */
+	readonly signCommit?: boolean;
+	/** When true, the pre-commit and commit-msg hooks are skipped (`--no-verify`). */
+	readonly noVerify?: boolean;
+}
+
 export const IAgentHostGitService = createDecorator<IAgentHostGitService>('agentHostGitService');
 
 /** Error thrown when checkout would overwrite local working-tree changes. */
@@ -326,6 +344,9 @@ export interface IAgentHostGitService {
 	 */
 	commitAll(workingDirectory: URI, message: string): Promise<void>;
 
+	/** Creates a commit in the repository containing {@link workingDirectory}. */
+	commit(workingDirectory: URI, message: string, options?: ICommitOptions): Promise<void>;
+
 	/**
 	 * Merges `branchName` into the currently checked-out branch. A failed merge is aborted before the error is rethrown.
 	 */
@@ -459,6 +480,12 @@ export interface IAgentHostGitService {
 	 * Missing refs are tolerated.
 	 */
 	deleteRefs(repositoryRoot: URI, refs: readonly string[]): Promise<void>;
+
+	/**
+	 * Reports the git read telemetry gathered so far. The host calls this on graceful shutdown,
+	 * before the telemetry collector is unloaded, so the final window is not lost.
+	 */
+	flushTelemetry?(): void;
 
 	/**
 	 * Resolves a ref/object expression to its OID, e.g. `revParse(repo, 'refs/agents/abc/...')`

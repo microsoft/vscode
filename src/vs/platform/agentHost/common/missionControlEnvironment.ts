@@ -136,6 +136,7 @@ export interface IRemoteGitHubEnvironmentSharingService {
 	confirmDisconnect(address: string, name: string): Promise<boolean>;
 	/**
 	 * Called when the user keeps sharing a remote on disconnect, before the remote disconnects, so that its sessions can continue through its GitHub environment.
+	 * The environment has been discovered by then, unless discovering it timed out.
 	 */
 	registerKeepSharingHandler(handler: (address: string, environmentId: string) => void): IDisposable;
 }

@@ -75,7 +75,9 @@ export type LocalAgentHostRegistration = 'devTunnel' | 'githubEnvironment';
 export function getAgentHostConnectionStatusLabel(status: RemoteAgentHostConnectionStatus): string {
 	return status.kind === 'connected' ? localize('agentHost.connected', "Connected")
 		: status.kind === 'connecting' ? localize('agentHost.connecting', "Connecting")
-			: localize('agentHost.disconnected', "Disconnected");
+			: status.kind === 'reconnecting' ? localize('agentHost.reconnecting', "Reconnecting")
+				: status.kind === 'incompatible' ? localize('agentHost.updateRequired', "Update required")
+					: localize('agentHost.disconnected', "Disconnected");
 }
 
 /**
@@ -188,6 +190,28 @@ export interface IAgentHostMcpServer {
 }
 
 /**
+ * Another provider that continues an agent host provider's host
+ * ({@link IAgentHostSessionsProvider.successor}).
+ */
+export interface IAgentHostSuccessor {
+	/** The provider new session selections move to. */
+	readonly providerId: string;
+	/** Maps a resource, such as a folder or file, of the replaced provider to the same resource on {@link providerId}, or `undefined` when it is not one. */
+	mapResource(resource: URI): URI | undefined;
+}
+
+/**
+ * Another provider whose host an agent host provider takes over
+ * ({@link IAgentHostSessionsProvider.predecessor}).
+ */
+export interface IAgentHostPredecessor {
+	/** The provider whose new session selections move to the provider taking over. */
+	readonly providerId: string;
+	/** Maps a resource, such as a folder or file, of {@link providerId} to the same resource on the provider taking over, or `undefined` when it is not one. */
+	mapResource(resource: URI): URI | undefined;
+}
+
+/**
  * Extended sessions provider for agent host providers (local and remote).
  * Adds remote connection properties and dynamic session configuration.
  */
@@ -197,6 +221,8 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	// -- Remote Connection (optional, used by remote agent host providers) --
 	/** Connection status observable, present on remote providers. */
 	readonly connectionStatus?: IObservable<RemoteAgentHostConnectionStatus>;
+	/** Successful session-list revision for this connection; zero means the host list has not resolved. */
+	readonly sessionListVersion?: IObservable<number>;
 	/** Progress messages during on-demand connect. */
 	readonly onDidReportConnectProgress?: Event<IAgentHostConnectProgress>;
 	/** Opens this host's connection log, including while connecting. */
@@ -272,6 +298,16 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	readonly isVisibleInEnvironmentPicker?: IObservable<boolean>;
 	/** Reveals this host after an explicit picker selection without changing its availability. */
 	showInEnvironmentPicker?(): void;
+	/**
+	 * Set while another provider continues this host, such as a shared remote's direct connection once it is connected
+	 * again: a new session selected on this provider moves to it.
+	 */
+	readonly successor?: IObservable<IAgentHostSuccessor | undefined>;
+	/**
+	 * Set while this provider takes over another provider's host, such as a shared remote's GitHub environment while
+	 * the remote is disconnected with Keep Sharing: a new session selected on that provider moves to this one.
+	 */
+	readonly predecessor?: IObservable<IAgentHostPredecessor | undefined>;
 	readonly removeLabel?: string;
 	readonly disconnectLabel?: string;
 

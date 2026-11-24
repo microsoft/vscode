@@ -476,13 +476,15 @@ export class CodeBlockPart extends Disposable {
 		}
 
 		const editorBorder = 2;
-		width = width - editorBorder - (this.currentCodeBlockData?.renderOptions?.reserveWidth ?? 0);
+		// A request bubble with a code block may span the row (see chat.css), less its horizontal padding
+		const requestBubblePadding = isRequestVM(this.currentCodeBlockData?.element) ? 24 : 0;
+		width = width - editorBorder - requestBubblePadding - (this.currentCodeBlockData?.renderOptions?.reserveWidth ?? 0);
 		// !!!!
 		// Important: Using here postponeRendering = true to avoid doing a sync layout on the editor
 		// which can be very expensive if there are many code blocks being laid out at once.
 		// This allows multiple editors to coordinate and render together at the next animation frame.
 		// !!!!
-		this.editor.layout({ width: isRequestVM(this.currentCodeBlockData?.element) ? width * 0.9 : width, height }, /* postponeRendering */ true);
+		this.editor.layout({ width, height }, /* postponeRendering */ true);
 		this.updatePaddingForLayout();
 	}
 
@@ -492,6 +494,7 @@ export class CodeBlockPart extends Disposable {
 
 	render(data: ICodeBlockData, width: number) {
 		this.currentCodeBlockData = data;
+		this.element.classList.toggle('chat-request-code-block', isRequestVM(data.element));
 		if (data.parentContextKeyService) {
 			this.contextKeyService.updateParent(data.parentContextKeyService);
 		}

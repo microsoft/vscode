@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { compareFileNames, comparePaths } from '../../../../base/common/comparers.js';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
-import { derived, IObservable, observableFromEvent } from '../../../../base/common/observable.js';
+import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { autorun, derived, IObservable, observableFromEvent } from '../../../../base/common/observable.js';
 import { IResourceNode, ResourceTree } from '../../../../base/common/resourceTree.js';
 import { URI } from '../../../../base/common/uri.js';
 import type { MultiDiffEditorVariant } from '../../../../editor/common/multiDiffEditor.js';
@@ -13,7 +13,7 @@ import { localize } from '../../../../nls.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ConfigurationScope, Extensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
-import { ContextKeyExpr, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
@@ -56,10 +56,10 @@ export const ActiveMultiDiffEditorHasFileListContext = ContextKeyExpr.and(
 	MultiDiffEditorFileListAvailableContext,
 )!;
 
-/** The submenu that switches the changed files list between a list and a tree, and moves it to either side of the diffs. */
+/** The submenu that switches the changed files list between a list and a tree, and moves it to either side of the diffs. The chat windows of the Agents window offer it in their editor title menu. */
 export const MultiDiffEditorFilesViewAndPositionMenu = new MenuId('MultiDiffEditorFilesViewAndPosition');
 
-/** The Toggle Files split button of the editor title, whose dropdown puts the changed files list on either side of the diffs. */
+/** The Toggle Files split button of the editor title, whose dropdown switches the changed files list between a list and a tree, and puts it on either side of the diffs. */
 export const MultiDiffEditorFileListToggleMenu = new MenuId('MultiDiffEditorFileListToggle');
 
 /**
@@ -204,6 +204,35 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 		},
 	},
 });
+
+/** The state of the changed files list of an editor pane, which {@link bindMultiDiffEditorFileListContextKeys} reflects in context keys. */
+export interface IMultiDiffEditorFileListState {
+	readonly available: IObservable<boolean>;
+	readonly visible: IObservable<boolean>;
+	readonly viewMode: IObservable<MultiDiffEditorFileListViewMode>;
+	readonly position: IObservable<MultiDiffEditorFileListPosition>;
+}
+
+/**
+ * Binds the context keys of the changed files list of an editor pane to `contextKeyService`, the context of its editor group.
+ * The other editor panes of the group share that context and can bind the same keys, so a pane only sets them while it is
+ * visible, as the active editor of its group, and sets them again whenever it becomes visible.
+ */
+export function bindMultiDiffEditorFileListContextKeys(contextKeyService: IContextKeyService, paneVisible: IObservable<boolean>, state: IMultiDiffEditorFileListState): IDisposable {
+	const available = MultiDiffEditorFileListAvailableContext.bindTo(contextKeyService);
+	const enabled = MultiDiffEditorFileListEnabledContext.bindTo(contextKeyService);
+	const viewMode = MultiDiffEditorFileListViewModeContext.bindTo(contextKeyService);
+	const position = MultiDiffEditorFileListPositionContext.bindTo(contextKeyService);
+	return autorun(reader => {
+		if (!paneVisible.read(reader)) {
+			return;
+		}
+		available.set(state.available.read(reader));
+		enabled.set(state.visible.read(reader));
+		viewMode.set(state.viewMode.read(reader));
+		position.set(state.position.read(reader));
+	});
+}
 
 /**
  * An editor pane that hosts the changed files list of a multi diff editor, such as the workbench's multi diff editor.

@@ -22,7 +22,7 @@ import { InMemoryStorageService, IStorageService, StorageScope } from '../../../
 import { ChatDynamicVariableModel } from '../../../../chat/browser/attachments/chatDynamicVariables.js';
 import { IChatAgentService } from '../../../../chat/common/participants/chatAgents.js';
 import { IChatVariablesService, IDynamicVariable } from '../../../../chat/common/attachments/chatVariables.js';
-import { IChatRequestVariableEntry, toPasteVariableEntry } from '../../../../chat/common/attachments/chatVariableEntries.js';
+import { IChatRequestVariableEntry, toFileVariableEntry, toPasteVariableEntry } from '../../../../chat/common/attachments/chatVariableEntries.js';
 import { IChatDraft } from '../../../../chat/common/attachments/chatDraft.js';
 import { IModelPickerComparison } from '../../../../chat/browser/widget/input/modelPicker/modelPickerComparison.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../../chat/common/constants.js';
@@ -590,7 +590,7 @@ suite('SharedChatInputComposer', () => {
 			const widget = {
 				getInput: () => state.text,
 				setInput: (value: string) => { state.text = value; content.fire(); },
-				inputEditor: { onDidChangeModelContent: content.event, getModel: () => undefined },
+				inputEditor: { onDidChangeModelContent: content.event, getModel: () => undefined, getValue: () => state.text },
 				viewModel: { sessionResource: URI.parse('draft:/chat') },
 				supportsFileReferences: true,
 				attachmentModel: {
@@ -682,6 +682,54 @@ suite('SharedChatInputComposer', () => {
 			}, {
 				input: { text: 'keep me', attachments: ['context'], references: ['a'] },
 				snapshot: { text: 'keep me', attachments: ['context'], references: ['a'] },
+			});
+		});
+
+		test('remaps the resources of its attachments and inline references, and of context queued before rendering, keeping its prompt and the snapshot in step', () => {
+			const wsl = (path: string) => URI.from({ scheme: 'vscode-agent-host', authority: 'wsl', path: `/file/-/project${path}` });
+			const mapResource = (resource: URI) => resource.authority === 'wsl' ? resource.with({ authority: 'env' }) : undefined;
+			const file = toFileVariableEntry(wsl('/a.ts'));
+			const snapshot = new ComposerInputSnapshot();
+			const { widget, state } = createEventfulWidget('Fix #a.ts', [file, context], [{ id: file.id, range: new Range(1, 5, 1, 10), isAttachmentReference: true, data: undefined }, reference('c')]);
+			const composer = createSnapshotComposer(widget, snapshot);
+			store.add(Reflect.get(SharedChatInputComposer.prototype, '_trackInputSnapshot').call(composer, widget) as IDisposable);
+			composer.remapDraftResources(mapResource);
+			const queued = [toFileVariableEntry(wsl('/b.ts')), context];
+			const unrendered = createSnapshotComposer({}, snapshot, queued);
+			Reflect.set(unrendered, '_widget', undefined);
+			Reflect.set(unrendered, '_remapsBeforeRestore', []);
+			unrendered.remapDraftResources(mapResource);
+
+			assert.deepStrictEqual({
+				input: { text: state.text, attachments: state.attachments.map(entry => entry.id), references: state.references.map(entry => entry.id) },
+				snapshot: { text: snapshot.get().input.inputText, attachments: snapshot.get().input.attachments.map(entry => entry.id), references: ids(snapshot.get().input) },
+				queued: queued.map(entry => entry.id),
+			}, {
+				input: { text: 'Fix #a.ts', attachments: ['vscode-agent-host://env/file/-/project/a.ts', 'context'], references: ['vscode-agent-host://env/file/-/project/a.ts', 'c'] },
+				snapshot: { text: 'Fix #a.ts', attachments: ['vscode-agent-host://env/file/-/project/a.ts', 'context'], references: ['vscode-agent-host://env/file/-/project/a.ts', 'c'] },
+				queued: ['vscode-agent-host://env/file/-/project/b.ts', 'context'],
+			});
+		});
+
+		test('remaps the saved input it restores as it renders by a remap before rendering, and writes it to the snapshot', () => {
+			const wsl = (path: string) => URI.from({ scheme: 'vscode-agent-host', authority: 'wsl', path: `/file/-/project${path}` });
+			const file = toFileVariableEntry(wsl('/a.ts'));
+			const snapshot = new ComposerInputSnapshot({ input: { inputText: 'Fix #a.ts', attachments: [file], references: [{ id: file.id, range: new Range(1, 5, 1, 10), isAttachmentReference: true, data: undefined }] } });
+			const { widget, state } = createEventfulWidget('', [], []);
+			const composer = createSnapshotComposer({}, snapshot, [toFileVariableEntry(wsl('/b.ts'))]);
+			Reflect.set(composer, '_widget', undefined);
+			Reflect.set(composer, '_remapsBeforeRestore', []);
+			composer.remapDraftResources(resource => resource.authority === 'wsl' ? resource.with({ authority: 'env' }) : undefined);
+			Reflect.set(composer, '_widget', widget);
+			Reflect.get(SharedChatInputComposer.prototype, '_restoreInput').call(composer, widget);
+
+			const env = (path: string) => `vscode-agent-host://env/file/-/project${path}`;
+			assert.deepStrictEqual({
+				input: { text: state.text, attachments: state.attachments.map(entry => entry.id), references: state.references.map(entry => entry.id) },
+				snapshot: { text: snapshot.get().input.inputText, attachments: snapshot.get().input.attachments.map(entry => entry.id), references: ids(snapshot.get().input) },
+			}, {
+				input: { text: 'Fix #a.ts', attachments: [env('/b.ts'), env('/a.ts')], references: [env('/a.ts')] },
+				snapshot: { text: 'Fix #a.ts', attachments: [env('/b.ts'), env('/a.ts')], references: [env('/a.ts')] },
 			});
 		});
 

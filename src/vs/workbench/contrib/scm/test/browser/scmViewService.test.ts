@@ -207,4 +207,95 @@ suite('SCMViewService', () => {
 			scmViewService.dispose();
 		}));
 	}
+
+	test('notifies when a repository that is not in the previous state is added during restoration in single selection mode', () => runWithFakedTimers({}, async () => {
+		const onDidAddRepository = disposables.add(new Emitter<ISCMRepository>());
+		const scmService = new class extends mock<ISCMService>() {
+			override readonly onDidAddRepository = onDidAddRepository.event;
+			override readonly onDidRemoveRepository = Event.None;
+			override readonly repositories = [];
+		}();
+
+		const editorService = new class extends mock<IEditorService>() {
+			override readonly onDidActiveEditorChange = Event.None;
+		}();
+
+		const extensionService = new class extends mock<IExtensionService>() {
+			override readonly onWillStop = Event.None;
+		}();
+
+		const instantiationService = new class extends mock<IInstantiationService>() {
+			override createInstance = (() => ({})) as IInstantiationService['createInstance'];
+		}();
+
+		const restored = createRepository('restored');
+		const newRepository = createRepository('new');
+
+		const storageService = disposables.add(new TestStorageService());
+		storageService.store('scm:view:visibleRepositories', JSON.stringify({
+			all: [`git:Git:${restored.provider.rootUri!.toString()}`],
+			visible: [0],
+			sortKey: 'path'
+		}), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+
+		const scmViewService = new SCMViewService(scmService, new MockContextKeyService(), editorService, extensionService, instantiationService,
+			new TestConfigurationService({ scm: { repositories: { selectionMode: 'single' } } }), storageService, new (mock<IWorkspaceContextService>())());
+
+		const notifiedRepositories: string[][] = [];
+		disposables.add(scmViewService.onDidChangeRepositories(() => notifiedRepositories.push(scmViewService.repositories.map(r => r.id))));
+
+		// The new repository is added while the repositories are still loading, after the restored one was selected
+		onDidAddRepository.fire(restored);
+		onDidAddRepository.fire(newRepository);
+
+		assert.deepStrictEqual({
+			notifiedRepositories,
+			visible: scmViewService.visibleRepositories.map(r => r.id)
+		}, {
+			notifiedRepositories: [['restored'], ['new', 'restored']],
+			visible: ['restored']
+		});
+
+		scmViewService.dispose();
+	}));
+
+	test('sorts repositories by full path, keeping nested repositories after their parent', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const instantiationService = workbenchInstantiationService({
+			configurationService: () => new TestConfigurationService({ 'scm.repositories.sortOrder': 'path' })
+		}, disposables);
+
+		const repositories = [
+			'/ws/a', '/ws/b', '/ws/a/common1', '/ws/a/x', '/ws/a/common1/foo', '/ws/a/common1/foo/bar',
+			'/ws/a/x/common2', '/ws/b/common1', '/ws/b/y', '/ws/b/common1/foo', '/ws/b/y/common2'
+		].map(path => new class extends mock<ISCMRepository>() {
+			override readonly id = path;
+			override readonly provider = new class extends mock<ISCMProvider>() {
+				override readonly id = path;
+				override readonly providerId = 'git';
+				override readonly label = 'Git';
+				override readonly rootUri = URI.file(path);
+				override readonly isHidden = constObservable(false);
+			}();
+		}());
+
+		instantiationService.stub(ISCMService, new class extends mock<ISCMService>() {
+			override readonly repositories = repositories;
+			override readonly onDidAddRepository = Event.None;
+			override readonly onDidRemoveRepository = Event.None;
+			override getRepository(): ISCMRepository | undefined { return undefined; }
+		}());
+		instantiationService.stub(IEditorService, new class extends mock<IEditorService>() {
+			override readonly activeEditor = undefined;
+			override readonly onDidActiveEditorChange = Event.None;
+		}());
+
+		const scmViewService = disposables.add(instantiationService.createInstance(SCMViewService));
+		const menus = disposables.add(scmViewService.menus as SCMMenus);
+		disposables.add(menus.titleMenu);
+
+		assert.deepStrictEqual(scmViewService.repositories.map(r => r.provider.rootUri?.path), [
+			'/ws/a', '/ws/a/common1', '/ws/a/common1/foo', '/ws/a/common1/foo/bar', '/ws/a/x', '/ws/a/x/common2',
+			'/ws/b', '/ws/b/common1', '/ws/b/common1/foo', '/ws/b/y', '/ws/b/y/common2'
+		]);
+	}));
 });

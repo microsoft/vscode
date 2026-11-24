@@ -732,6 +732,7 @@
 	}
 }
 
+/* NOTE- BLOCKQUOTE_HORIZONTAL_INSET in chatMarkdownContentPart.ts sizes request code blocks to this padding and border */
 .interactive-item-container .value .rendered-markdown blockquote {
 	margin: 0px;
 	padding: 0px 16px 0 10px;
@@ -1098,6 +1099,8 @@ following list content ends up with no space above it. Add a matching top margin
 have to be updated for changes to the rules above, or to support more deeply nested lists. */
 .interactive-item-container .value .rendered-markdown ul .interactive-result-code-block {
 	margin-left: -24px;
+	/* The dedented block is wider than the list item */
+	max-width: none;
 }
 
 .interactive-item-container .value .rendered-markdown ul ul .interactive-result-code-block {
@@ -1106,6 +1109,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-item-container .value .rendered-markdown ol .interactive-result-code-block {
 	margin-left: -28px;
+	/* The dedented block is wider than the list item */
+	max-width: none;
 }
 
 .interactive-item-container .value .rendered-markdown ol ol .interactive-result-code-block {
@@ -2450,8 +2455,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .chat-attached-context .chat-attached-context-attachment.show-file-icons.warning,
-.chat-attached-context .chat-attached-context-attachment.show-file-icons.partial-warning,
-.chat-attached-context .chat-attached-context-attachment.show-file-icons.auto-image-warning {
+.chat-attached-context .chat-attached-context-attachment.show-file-icons.partial-warning {
 	border-color: var(--vscode-notificationsWarningIcon-foreground);
 }
 
@@ -2679,6 +2683,36 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	white-space: nowrap;
 	text-overflow: ellipsis;
 	text-decoration: inherit;
+}
+
+/*
+ * The pills of the issues and pull requests of a repository differ only by their number. A pill that is
+ * shortened to fit shortens the repository and keeps the number, which is the suffix of its label.
+ */
+.interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-icon-label.github-reference .monaco-icon-name-container {
+	min-width: 0;
+}
+
+/* The number is not clipped at its box either, which would dim the edge of its first character. */
+.interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-icon-label.github-reference .monaco-icon-suffix-container {
+	flex-shrink: 0;
+	overflow: visible;
+}
+
+/* The number reads as part of the name rather than as a description of it. */
+.interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-icon-label.github-reference .label-suffix {
+	color: inherit;
+}
+
+/* A block shows an ellipsis for the part of the repository that is cut off, which a flex container does not. */
+.interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-icon-label.github-reference .monaco-highlighted-label {
+	display: block;
+}
+
+/* The icon of the label takes the height of its line, which centers it as the flex container did. */
+.interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-icon-label.github-reference .monaco-highlighted-label .codicon {
+	line-height: inherit;
+	vertical-align: top;
 }
 
 .interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-icon-label .monaco-button.codicon.codicon-close-compact,
@@ -3873,15 +3907,63 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	white-space: pre;
 }
 
-/* Trailing stats follow the phrase, label or activities, after the same separator. */
+/* Trailing stats follow the phrase, label or activities, after the same separator. Those keep their width and the stats
+	take what is left of the row, so a narrow row truncates the stats instead of wrapping its label or drawing them over it. */
+.chat-working-progress > .chat-working-progress-trailing-stats {
+	flex: 1 1 0;
+	min-width: 0;
+	/* No wider than their text, so their hover does not reach into the empty rest of the row. */
+	max-width: max-content;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
 .chat-working-progress > .chat-working-progress-trailing-stats::before {
 	content: ' \00b7  ';
 	white-space: pre;
 }
 
-/* The slot of the activities' chevron, which shows on hover, already sets them apart. */
+/* After activities, the separator rests in the slot of their chevron instead, so that slot leaves no gap. */
 .chat-working-progress-has-activities > .chat-working-progress-trailing-stats::before {
-	content: '\00b7  ';
+	content: none;
+}
+
+/* The same space follows the slot as leads it, so what the slot shows sits midway between the label and the stats. */
+.chat-working-progress-has-activities > .chat-working-progress-trailing-stats {
+	margin-inline-start: var(--vscode-spacing-size20);
+}
+
+.chat-working-progress-has-trailing-stats .chat-working-activities .chat-pill-button {
+	position: relative;
+}
+
+.chat-working-progress-has-trailing-stats .chat-working-activities .chat-pill-button::after {
+	content: '\00b7';
+	position: absolute;
+	inset-block: 0;
+	inset-inline-end: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: var(--vscode-codiconFontSize-compact);
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-chat-font-size-body-s);
+	transition: opacity 100ms ease-in-out;
+}
+
+/* The chevron takes the separator's place in the states that show it, so nothing moves. */
+.chat-working-progress-has-trailing-stats .chat-working-activities .chat-pill-button:is(:hover, .hovered, :focus-visible, [aria-expanded="true"])::after {
+	opacity: 0;
+}
+
+.monaco-reduce-motion .chat-working-progress-has-trailing-stats .chat-working-activities .chat-pill-button::after {
+	transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.chat-working-progress-has-trailing-stats .chat-working-activities .chat-pill-button::after {
+		transition: none;
+	}
 }
 
 .chat-working-activities {
@@ -3893,7 +3975,9 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	min-width: 0;
 }
 
-.chat-working-activities .monaco-action-bar .chat-dropdown-pill {
+/* Named with both of the widget's classes to outrank the pill sizing in `chatPills.css`, which otherwise ties on
+	specificity and, loaded later, keeps a pill at its full width in a row too narrow for it. */
+.chat-pills.chat-working-activities .monaco-action-bar .chat-dropdown-pill {
 	max-width: 100%;
 	flex-shrink: 1;
 	min-width: 0;
@@ -4010,6 +4094,11 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	flex-direction: row;
 	padding: 8px 12px;
 	gap: 6px;
+}
+
+/* The mute button uses the chat input notice action's styles; it sits on the right. */
+.chat-notification-widget .chat-notification-widget-action {
+	margin-left: auto;
 }
 
 .interactive-item-container .chat-confirmation-widget .interactive-result-code-block,
@@ -4460,6 +4549,12 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		position: relative;
 	}
 
+	/* Request code blocks are laid out to the row width, see CodeBlockPart.layout */
+	.interactive-item-container.interactive-request .value .rendered-markdown.chat-markdown-has-code-block {
+		box-sizing: border-box;
+		max-width: 100%;
+	}
+
 	.chat-request-disclosure {
 		width: 100%;
 	}
@@ -4668,8 +4763,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	}
 
 	.interactive-item-container.interactive-request .value .chat-request-attachment-cards .chat-attached-context-attachment.image-attachment.warning,
-	.interactive-item-container.interactive-request .value .chat-request-attachment-cards .chat-attached-context-attachment.image-attachment.partial-warning,
-	.interactive-item-container.interactive-request .value .chat-request-attachment-cards .chat-attached-context-attachment.image-attachment.auto-image-warning {
+	.interactive-item-container.interactive-request .value .chat-request-attachment-cards .chat-attached-context-attachment.image-attachment.partial-warning {
 		border-color: var(--vscode-notificationsWarningIcon-foreground);
 	}
 

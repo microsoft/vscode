@@ -48,6 +48,8 @@ import { defaultInputBoxStyles, defaultToggleStyles } from '../../../../platform
 import { IFileIconTheme, IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceFolderLocationService } from '../../../../platform/workspace/common/folderLocations.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { OpenFolderAction } from '../../../browser/actions/workspaceActions.js';
 import { ResourceListDnDHandler } from '../../../browser/dnd.js';
 import { ResourceLabels } from '../../../browser/labels.js';
@@ -178,6 +180,9 @@ export class SearchView extends ViewPane {
 
 	private delayedRefresh: Delayer<void>;
 	private changedWhileHidden: boolean;
+	private rerunWhenVisible = false;
+	/** The workspace folders the last search ran in, to tell whether a Folder Location change made its results stale. */
+	private searchedFolders: URI[] | undefined;
 
 	private searchWithoutFolderMessageElement: HTMLElement | undefined;
 
@@ -239,6 +244,8 @@ export class SearchView extends ViewPane {
 		@IAccessibilitySignalService private readonly accessibilitySignalService: IAccessibilitySignalService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ISCMService private readonly scmService: ISCMService,
+		@IWorkspaceFolderLocationService private readonly folderLocationService: IWorkspaceFolderLocationService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 	) {
 
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
@@ -302,6 +309,7 @@ export class SearchView extends ViewPane {
 		this._register(this.fileService.onDidFilesChange(e => this.onFilesChanged(e)));
 		this._register(this.textFileService.untitled.onWillDispose(model => this.onUntitledDidDispose(model.resource)));
 		this._register(this.contextService.onDidChangeWorkbenchState(() => this.onDidChangeWorkbenchState()));
+		this._register(this.folderLocationService.onDidChangeLocation(() => this.onDidChangeFolderLocation()));
 		this._register(this.searchHistoryService.onDidClearHistory(() => this.clearHistory()));
 		this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(e)));
 
@@ -432,6 +440,39 @@ export class SearchView extends ViewPane {
 		}
 	}
 
+	private onDidChangeFolderLocation(): void {
+		if (!this.searchWidget?.searchInput?.getValue() || !this.isOtherThanCurrentFolders(this.searchedFolders)) {
+			return;
+		}
+		if (this.isVisible()) {
+			this.rerunSearchForNewLocation();
+		} else {
+			this.viewModel.cancelSearch(true);
+			this.viewModel.cancelAISearch(true);
+			this.rerunWhenVisible = true;
+		}
+	}
+
+	/**
+	 * Whether `folders`, which a search ran in, are other than the current workspace folders, for example
+	 * because the Folder Location changed since. `false` when nothing has been searched yet.
+	 */
+	private isOtherThanCurrentFolders(folders: URI[] | undefined): boolean {
+		if (!folders) {
+			return false;
+		}
+		const current = this.contextService.getWorkspace().folders;
+		return folders.length !== current.length || folders.some((folder, index) => !this.uriIdentityService.extUri.isEqual(folder, current[index].uri));
+	}
+
+	/**
+	 * Reruns the current query for the new Folder Location. Clears the AI results of the previous
+	 * location, but does not request AI results or keyword suggestions the user did not ask for.
+	 */
+	private rerunSearchForNewLocation(): void {
+		this.triggerQueryChange({ shouldKeepAIResults: false, shouldUpdateAISearch: false, skipAISearch: true });
+	}
+
 	private refreshInputs() {
 		this.pauseSearching = true;
 		this.searchWidget.setValue(this.viewModel.searchResult.query?.contentPattern.pattern ?? '');
@@ -466,6 +507,8 @@ export class SearchView extends ViewPane {
 		// this call will also dispose of the old model
 		this.searchViewModelWorkbenchService.searchModel = searchModel;
 		this.viewModel = searchModel;
+		// Quick Search queries the workspace folders themselves
+		this.searchedFolders = searchModel.searchResult.query?.folderQueries.map(folderQuery => folderQuery.folder);
 		this.tree.setInput(this.viewModel.searchResult);
 
 		await this.onSearchResultsChanged();
@@ -626,7 +669,11 @@ export class SearchView extends ViewPane {
 	private async onVisibilityChanged(visible: boolean): Promise<void> {
 		this.viewletVisible.set(visible);
 		if (visible) {
-			if (this.changedWhileHidden) {
+			if (this.rerunWhenVisible) {
+				this.rerunWhenVisible = false;
+				this.changedWhileHidden = false;
+				this.rerunSearchForNewLocation();
+			} else if (this.changedWhileHidden) {
 				// Render if results changed while viewlet was hidden - #37818
 				await this.refreshAndUpdateCount();
 				this.changedWhileHidden = false;
@@ -1586,7 +1633,7 @@ export class SearchView extends ViewPane {
 		this.searchWidget.focus(false);
 	}
 
-	triggerQueryChange(_options?: { preserveFocus?: boolean; triggeredOnType?: boolean; delay?: number; shouldKeepAIResults?: boolean; shouldUpdateAISearch?: boolean }): void {
+	triggerQueryChange(_options?: { preserveFocus?: boolean; triggeredOnType?: boolean; delay?: number; shouldKeepAIResults?: boolean; shouldUpdateAISearch?: boolean; skipAISearch?: boolean }): void {
 		const options = { preserveFocus: true, triggeredOnType: false, delay: 0, ..._options };
 
 		if (options.triggeredOnType && !this.searchConfig.searchOnType) { return; }
@@ -1595,7 +1642,7 @@ export class SearchView extends ViewPane {
 
 			const delay = options.triggeredOnType ? options.delay : 0;
 			this.triggerQueryDelayer.trigger(() => {
-				this._onQueryChanged(options.preserveFocus, options.triggeredOnType, options.shouldKeepAIResults, options.shouldUpdateAISearch);
+				this._onQueryChanged(options.preserveFocus, options.triggeredOnType, options.shouldKeepAIResults, options.shouldUpdateAISearch, options.skipAISearch);
 			}, delay);
 		}
 	}
@@ -1608,7 +1655,7 @@ export class SearchView extends ViewPane {
 		return this.inputPatternIncludes.getValue().trim();
 	}
 
-	private _onQueryChanged(preserveFocus: boolean, triggeredOnType = false, shouldKeepAIResults = false, shouldUpdateAISearch = false): void {
+	private _onQueryChanged(preserveFocus: boolean, triggeredOnType = false, shouldKeepAIResults = false, shouldUpdateAISearch = false, skipAISearch = false): void {
 		if (!(this.searchWidget.searchInput?.inputBox.isInputValid())) {
 			return;
 		}
@@ -1697,17 +1744,27 @@ export class SearchView extends ViewPane {
 			return;
 		}
 
+		const searchedFolders = this.searchedFolders = folderResources.map(folder => folder.uri);
 		this.validateQuery(query).then(() => {
+			// The Folder Location changed while validating: the query is for the previous location, and a rerun is under way or pending
+			if (this.isOtherThanCurrentFolders(searchedFolders)) {
+				return;
+			}
+
 			if (!shouldKeepAIResults && shouldUpdateAISearch && this.tree.hasNode(this.searchResult.aiTextSearchResult)) {
 				this.tree.collapse(this.searchResult.aiTextSearchResult);
 			}
 
-			this.onQueryTriggered(query, options, excludePatternText, includePatternText, triggeredOnType, shouldKeepAIResults, shouldUpdateAISearch);
+			this.onQueryTriggered(query, options, excludePatternText, includePatternText, triggeredOnType, shouldKeepAIResults, shouldUpdateAISearch, skipAISearch);
 
 			if (!preserveFocus) {
 				this.searchWidget.focus(false, undefined, true); // focus back to input field
 			}
-		}, onQueryValidationError);
+		}, err => {
+			if (!this.isOtherThanCurrentFolders(searchedFolders)) {
+				onQueryValidationError(err);
+			}
+		});
 	}
 
 	private validateQuery(query: ITextQuery): Promise<void> {
@@ -1732,7 +1789,7 @@ export class SearchView extends ViewPane {
 		});
 	}
 
-	private onQueryTriggered(query: ITextQuery, options: ITextQueryBuilderOptions, excludePatternText: string, includePatternText: string, triggeredOnType: boolean, shouldKeepAIResults: boolean, shouldUpdateAISearch: boolean): void {
+	private onQueryTriggered(query: ITextQuery, options: ITextQueryBuilderOptions, excludePatternText: string, includePatternText: string, triggeredOnType: boolean, shouldKeepAIResults: boolean, shouldUpdateAISearch: boolean, skipAISearch: boolean): void {
 		this.addToSearchHistoryDelayer.trigger(() => {
 			this.searchWidget.searchInput?.onSearchSubmit();
 			this.inputPatternExcludes.onSearchSubmit();
@@ -1745,7 +1802,7 @@ export class SearchView extends ViewPane {
 		}
 
 		this.currentSearchQ = this.currentSearchQ
-			.then(() => this.doSearch(query, excludePatternText, includePatternText, triggeredOnType, shouldKeepAIResults, shouldUpdateAISearch))
+			.then(() => this.doSearch(query, excludePatternText, includePatternText, triggeredOnType, shouldKeepAIResults, shouldUpdateAISearch, skipAISearch))
 			.then(() => undefined, () => undefined);
 	}
 
@@ -1971,7 +2028,7 @@ export class SearchView extends ViewPane {
 		});
 	}
 
-	private doSearch(query: ITextQuery, excludePatternText: string, includePatternText: string, triggeredOnType: boolean, shouldKeepAIResults: boolean, shouldUpdateAISearch: boolean): Thenable<void> {
+	private doSearch(query: ITextQuery, excludePatternText: string, includePatternText: string, triggeredOnType: boolean, shouldKeepAIResults: boolean, shouldUpdateAISearch: boolean, skipAISearch: boolean): Thenable<void> {
 		let progressComplete: () => void;
 		this.progressService.withProgress({ location: this.getProgressLocation(), delay: triggeredOnType ? 300 : 0 }, _progress => {
 			return new Promise<void>(resolve => progressComplete = resolve);
@@ -2005,14 +2062,14 @@ export class SearchView extends ViewPane {
 			this.viewModel.searchResult.setAIQueryUsingTextQuery(query);
 		}
 
-		if (this.configurationService.getValue<ISearchConfigurationProperties>('search').searchView.keywordSuggestions) {
+		if (!skipAISearch && this.configurationService.getValue<ISearchConfigurationProperties>('search').searchView.keywordSuggestions) {
 			this.getKeywordSuggestions();
 		}
 
 		return result.asyncResults.then((complete) => {
 			clearTimeout(slowTimer);
 			const config = this.configurationService.getValue<ISearchConfigurationProperties>('search').searchView.semanticSearchBehavior;
-			if (complete.results.length === 0 && config === SemanticSearchBehavior.RunOnEmpty) {
+			if (!skipAISearch && complete.results.length === 0 && config === SemanticSearchBehavior.RunOnEmpty) {
 				this.logService.info(`SearchView: Requesting semantic results on empty search.`);
 				this.model.searchResult.aiTextSearchResult.hidden = false;
 			}
