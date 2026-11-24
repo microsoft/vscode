@@ -8,6 +8,8 @@ import { $, append } from '../../../base/browser/dom.js';
 import { Grid, Direction, ISerializableView, ISerializedGrid, ISerializedNode, Orientation, SerializableGrid } from '../../../base/browser/ui/grid/grid.js';
 import { LayoutPriority } from '../../../base/browser/ui/splitview/splitview.js';
 import { mainWindow } from '../../../base/browser/window.js';
+import { DeferredPromise, timeout } from '../../../base/common/async.js';
+import { errorHandler, setUnexpectedErrorHandler } from '../../../base/common/errors.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { toDisposable } from '../../../base/common/lifecycle.js';
 import { mock, upcastPartial } from '../../../base/test/common/mock.js';
@@ -1068,6 +1070,70 @@ suite('Workbench layout chat part', () => {
 			layout.applyPartsLayoutState(layout.getPartsLayoutState());
 
 			assert.strictEqual(currentGrid(layout).isViewVisible(views.get(Parts.BANNER_PART)!), true);
+		});
+
+		test('a state that applies before the grid exists changes nothing, and reports an error', () => {
+			const errors: unknown[] = [];
+			const previousHandler = errorHandler.getUnexpectedErrorHandler();
+			setUnexpectedErrorHandler(error => errors.push(error));
+			store.add(toDisposable(() => setUnexpectedErrorHandler(previousHandler)));
+			const createGridDescriptor = (layout: Layout) => (Reflect.get(layout, 'createGridDescriptor') as () => ISerializedGrid).call(layout);
+			const { layout, descriptor } = createLayout(chatConfiguration);
+			const state = layout.getPartsLayoutState();
+
+			layout.applyPartsLayoutState({ ...state, panel: { ...state.panel, maximized: true } });
+
+			assert.deepStrictEqual({ descriptor: createGridDescriptor(layout), errors: errors.length }, { descriptor, errors: 1 });
+		});
+
+		test('a view container that opens once the extensions register does not show its part when another state hid it meanwhile', async () => {
+			const open = async (hideMeanwhile: boolean) => {
+				const { layout } = createStateLayout();
+				const registered = new DeferredPromise<void>();
+				let isRegistered = false;
+				let active: string | undefined;
+				const opened: string[] = [];
+				Object.assign(layout, {
+					extensionService: { whenInstalledExtensionsRegistered: () => registered.p },
+					paneCompositeService: {
+						getActivePaneComposite: () => active ? {} : undefined,
+						getLastActivePaneCompositeId: (location: ViewContainerLocation) => location === ViewContainerLocation.Sidebar ? 'extensionViewContainer' : undefined,
+						getPaneComposite: () => isRegistered ? {} : undefined,
+						hideActivePaneComposite: () => active = undefined,
+						// As a part opens a view container: once it is registered, showing the part when it is hidden
+						openPaneComposite: async (id: string | undefined) => {
+							if (!isRegistered) {
+								await registered.p;
+							}
+							if (!id) {
+								return undefined;
+							}
+							opened.push(id);
+							active = id;
+							if (!layout.isVisible(Parts.SIDEBAR_PART)) {
+								layout.setPartHidden(false, Parts.SIDEBAR_PART);
+							}
+							return {};
+						},
+					},
+				});
+				const state = layout.getPartsLayoutState();
+
+				layout.applyPartsLayoutState(state);
+				if (hideMeanwhile) {
+					layout.applyPartsLayoutState({ ...state, sideBar: { ...state.sideBar, visible: false } });
+				}
+				isRegistered = true;
+				registered.complete();
+				await timeout(0);
+
+				return { sideBarVisible: layout.isVisible(Parts.SIDEBAR_PART), opened };
+			};
+
+			assert.deepStrictEqual({ hiddenMeanwhile: await open(true), shownMeanwhile: await open(false) }, {
+				hiddenMeanwhile: { sideBarVisible: false, opened: [] },
+				shownMeanwhile: { sideBarVisible: true, opened: ['extensionViewContainer'] },
+			});
 		});
 	});
 });
