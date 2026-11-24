@@ -82,7 +82,7 @@ import { ClaudeSessionConfigKey } from '../../../../../../platform/agentHost/com
 import { AgentHostCodexApprovalsPicker } from './agentHostCodexApprovalsPicker.js';
 import { getOrganizationDefaultApprovalLevel, isAutoApproveValuePolicyRestricted } from '../../../../chat/common/agentHostConfigPolicy.js';
 import { getPermissionLevelBadge } from '../../../../chat/browser/agentSessions/agentHost/agentHostModePickerPresentation.js';
-import { BRANCH_PICKER_MAX_VISIBLE_ITEMS, ensureSelectedBranchPickerItem, filterBranchPickerItems } from '../../../../chat/browser/agentSessions/agentHost/agentHostBranchPicker.js';
+import { ensureSelectedBranchPickerItem, filterBranchPickerItems, getBranchPickerListOptions, IPinnedBranchGroup, takePinnedBranchItems } from '../../../../chat/browser/agentSessions/agentHost/agentHostBranchPicker.js';
 import { CodexSessionConfigKey } from '../../../../../../platform/agentHost/common/codexSessionConfigKeys.js';
 import { type IChat, type ISessionChangeset, UNCOMMITTED_CHANGES_CHANGESET_ID, ISession } from '../../../../../services/sessions/common/session.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
@@ -211,19 +211,6 @@ function toActionItems(property: string, items: readonly IConfigPickerItem[], cu
 	return actionItems;
 }
 
-/** A branch pinned above the remaining branches. */
-interface IPinnedBranch {
-	readonly name: string | undefined;
-	/** Remote-tracking branches are listed even when missing from the results. */
-	readonly isRemote: boolean;
-}
-
-/** Pinned branches listed together under a labeled separator. */
-interface IPinnedBranchGroup {
-	readonly label: string;
-	readonly branches: readonly IPinnedBranch[];
-}
-
 /**
  * The branch groups pinned, in order, above the remaining branches.
  *
@@ -266,59 +253,6 @@ function getPinnedBranchGroups(currentValue: unknown, branchContext: IBranchPick
 			],
 		},
 	];
-}
-
-/**
- * Removes the pinned branches from `actionItems` and returns them grouped, each
- * group after the first under a separator labeled with its name, followed by a
- * separator labeled "Branches" before the remaining branches. Every branch
- * carries its group name as its group title so screen readers, which skip
- * separators, announce it, including in the first group; the remaining
- * branches are updated in place. A branch is pinned once, in its first group;
- * missing remote-tracking branches are created when they match `query`.
- */
-function takePinnedBranchItems(actionItems: IActionListItem<IConfigPickerItem>[], groups: readonly IPinnedBranchGroup[], query: string | undefined): IActionListItem<IConfigPickerItem>[] {
-	const withGroupTitle = (item: IActionListItem<IConfigPickerItem>, title: string): IActionListItem<IConfigPickerItem> => ({ ...item, group: { ...item.group, title } });
-	const pinnedItems: IActionListItem<IConfigPickerItem>[] = [];
-	const pinnedNames = new Set<string>();
-	for (const group of groups) {
-		const groupItems: IActionListItem<IConfigPickerItem>[] = [];
-		for (const { name, isRemote } of group.branches) {
-			if (!name || pinnedNames.has(name)) {
-				continue;
-			}
-			const index = actionItems.findIndex(item => item.item?.value === name);
-			const item: IActionListItem<IConfigPickerItem> | undefined = index >= 0
-				? actionItems.splice(index, 1)[0]
-				: isRemote && (!query || name.toLowerCase().includes(query))
-					? {
-						kind: ActionListItemKind.Action,
-						label: name,
-						group: { title: '', icon: Codicon.gitBranch },
-						item: { id: name, value: name, label: name },
-					}
-					: undefined;
-			if (item) {
-				pinnedNames.add(name);
-				groupItems.push(withGroupTitle(item, group.label));
-			}
-		}
-		if (groupItems.length > 0) {
-			// The first group needs no separator above it.
-			if (pinnedItems.length > 0) {
-				pinnedItems.push({ kind: ActionListItemKind.Separator, label: group.label });
-			}
-			pinnedItems.push(...groupItems);
-		}
-	}
-	if (pinnedItems.length > 0 && actionItems.length > 0) {
-		const remainingLabel = localize('agentHostSessionConfig.otherBranchesGroup', "Branches");
-		pinnedItems.push({ kind: ActionListItemKind.Separator, label: remainingLabel });
-		for (let i = 0; i < actionItems.length; i++) {
-			actionItems[i] = withGroupTitle(actionItems[i], remainingLabel);
-		}
-	}
-	return pinnedItems;
 }
 
 function isSelectedValue(currentValue: unknown | undefined, itemValue: string): boolean {
@@ -1271,8 +1205,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		this._openedPickerSessionId = sessionId;
 		trigger.setAttribute('aria-expanded', 'true');
 		repositoryConfigContainer?.setAttribute(PICKER_OPEN_ATTRIBUTE, 'true');
-		// Count the branches rather than the items, which add the default branch's remote only for worktrees.
-		const showFilter = (branchCompletions ?? items).length > 10;
+		const filterPlaceholder = localize('agentHostSessionConfig.filter', "Filter options...");
 		this._actionWidgetService.show<IConfigPickerItem>(
 			`agentHostSessionConfig.${property}`,
 			false,
@@ -1295,13 +1228,15 @@ export class AgentHostSessionConfigPicker extends Disposable {
 				},
 				getWidgetAriaLabel: () => localize('agentHostSessionConfig.ariaLabel', "{0} Picker", schema.title),
 			},
-			{
-				...(showFilter ? { showFilter: true, filterPlaceholder: localize('agentHostSessionConfig.filter', "Filter options...") } : {}),
-				className: isolationRecommendation?.className,
-				minWidth: isolationRecommendation?.minWidth ?? 255,
-				anchorPosition: AnchorPosition.BELOW,
-				maxVisibleItems: isBranchPicker ? BRANCH_PICKER_MAX_VISIBLE_ITEMS : undefined,
-			},
+			isBranchPicker
+				// Count the branches rather than the items, which add the default branch's remote only for worktrees.
+				? getBranchPickerListOptions((branchCompletions ?? items).length, filterPlaceholder)
+				: {
+					...(items.length > 10 ? { showFilter: true, filterPlaceholder } : {}),
+					className: isolationRecommendation?.className,
+					minWidth: isolationRecommendation?.minWidth ?? 255,
+					anchorPosition: AnchorPosition.BELOW,
+				},
 		);
 		this._pickerPresentation.value = isolationRecommendation?.onDidShow?.(optionItems, items => {
 			this._actionWidgetService.updateItems(items, undefined, { preserveScrollPosition: true });
