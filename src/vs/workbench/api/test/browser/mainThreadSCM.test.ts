@@ -25,18 +25,29 @@ import { SingleProxyRPCProtocol } from '../common/testRPCProtocol.js';
 suite('MainThreadSCM', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('applies the visibility changes of source controls in the order they were made, also while a source control registers', async () => {
+	const inputBox = (id: string) => URI.from({ scheme: 'vscode-scm', path: `${id}/scm/input` });
+	const resolvedInputBox = () => ({ object: { textEditorModel: {} as ITextModel } as IResolvedTextEditorModel, dispose() { } });
+
+	/**
+	 * A main thread whose source control `C` registers late, because its input box model resolves late.
+	 */
+	function createMainThread() {
 		const providers = new Map<string, ISCMProvider>();
+		const events: string[] = [];
 		const scmService = new class extends mock<ISCMService>() {
 			override registerSCMProvider(provider: ISCMProvider): ISCMRepository {
 				providers.set(provider.label, provider);
+				events.push(`add ${provider.label}`);
 				return new class extends mock<ISCMRepository>() {
 					override readonly provider = provider;
 					override readonly input = new class extends mock<ISCMRepository['input']>() {
 						override readonly value = '';
 						override readonly onDidChange = Event.None;
 					}();
-					override dispose(): void { provider.dispose(); }
+					override dispose(): void {
+						events.push(`remove ${provider.label}`);
+						provider.dispose();
+					}
 				}();
 			}
 		}();
@@ -45,13 +56,11 @@ suite('MainThreadSCM', () => {
 			override readonly focusedRepository = undefined;
 		}();
 
-		// The input box model of the source control `C` resolves late, which delays its registration
 		const lateInputBox = new DeferredPromise<IReference<IResolvedTextEditorModel>>();
 		const textModelService = new class extends mock<ITextModelService>() {
 			override registerTextModelContentProvider() { return Disposable.None; }
 			override createModelReference(resource: URI): Promise<IReference<IResolvedTextEditorModel>> {
-				const reference = { object: { textEditorModel: {} as ITextModel } as IResolvedTextEditorModel, dispose() { } };
-				return resource.path.includes('/C/') ? lateInputBox.p : Promise.resolve(reference);
+				return resource.path.includes('/C/') ? lateInputBox.p : Promise.resolve(resolvedInputBox());
 			}
 		}();
 
@@ -68,16 +77,33 @@ suite('MainThreadSCM', () => {
 		);
 		disposables.add({ dispose: () => mainThread.dispose() });
 
-		const inputBox = (id: string) => URI.from({ scheme: 'vscode-scm', path: `${id}/scm/input` });
+		return { mainThread, providers, events, lateInputBox };
+	}
+
+	test('applies the visibility changes of source controls in the order they were made, also while a source control registers', async () => {
+		const { mainThread, providers, lateInputBox } = createMainThread();
 		await mainThread.$registerSourceControl(0, undefined, 'git', 'A', undefined, undefined, false, inputBox('/A'));
 		const registerC = mainThread.$registerSourceControl(1, undefined, 'git', 'C', undefined, undefined, true, inputBox('/C/'));
 
 		// Show C and hide A, then show A again: the second change must not be undone by the first one
 		const first = mainThread.$setSourceControlsHidden([[1, false], [0, true]]);
 		const second = mainThread.$setSourceControlsHidden([[0, false]]);
-		lateInputBox.complete({ object: { textEditorModel: {} as ITextModel } as IResolvedTextEditorModel, dispose() { } });
+		lateInputBox.complete(resolvedInputBox());
 		await Promise.all([registerC, first, second]);
 
 		assert.deepStrictEqual({ A: providers.get('A')!.isHidden.get(), C: providers.get('C')!.isHidden.get() }, { A: false, C: false });
+	});
+
+	test('removes a source control after the source controls registered before it, so that replacing one never leaves none', async () => {
+		const { mainThread, events, lateInputBox } = createMainThread();
+		await mainThread.$registerSourceControl(0, undefined, 'git', 'A', undefined, undefined, false, inputBox('/A'));
+
+		// Replace A by C, whose registration waits for its input box model
+		const registerC = mainThread.$registerSourceControl(1, undefined, 'git', 'C', undefined, undefined, false, inputBox('/C/'));
+		const unregisterA = mainThread.$unregisterSourceControl(0);
+		lateInputBox.complete(resolvedInputBox());
+		await Promise.all([registerC, unregisterA]);
+
+		assert.deepStrictEqual(events, ['add A', 'add C', 'remove A']);
 	});
 });
