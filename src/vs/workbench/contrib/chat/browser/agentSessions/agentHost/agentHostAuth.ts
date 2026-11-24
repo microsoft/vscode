@@ -1247,6 +1247,8 @@ export function getAgentHostSignInOptions(scopes: readonly string[]): IChatSetup
 		telemetrySource: ChatSetupSource.AgentHost,
 		forceSignInDialog: true,
 		additionalScopes: scopes,
+		// Someone signed in without the default scopes, for example through Settings Sync, is asked only for what the Agent Host needs.
+		keepMinimalSignIn: true,
 		dialogTitle: localize('agentHost.signInDialogTitle', "Sign in to use GitHub Copilot"),
 		disableChatViewReveal: true,
 	};

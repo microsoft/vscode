@@ -104,6 +104,8 @@ export interface IChatSetupRunOptions {
 	readonly autoDismissOnSignIn?: boolean;
 	readonly cancellationToken?: CancellationToken;
 	readonly additionalScopes?: readonly string[];
+	/** Ask an account that is already signed in without the default scopes, for example through Settings Sync, only for {@link additionalScopes}. */
+	readonly keepMinimalSignIn?: boolean;
 	readonly forceAnonymous?: ChatSetupAnonymous;
 	readonly dialogIcon?: ThemeIcon;
 	readonly dialogTitle?: string;

@@ -2116,7 +2116,7 @@ suite('DefaultAccountProvider sign in scopes', () => {
 		readonly options: Record<string, unknown>;
 	}
 
-	async function signIn(options?: Parameters<DefaultAccountProvider['signIn']>[0], configuration: Record<string, boolean | string> = {}): Promise<ICreateSessionCall[]> {
+	async function signIn(options?: Parameters<DefaultAccountProvider['signIn']>[0], configuration: Record<string, boolean | string> = {}, sessionsByProvider: Record<string, readonly AuthenticationSession[]> = {}): Promise<ICreateSessionCall[]> {
 		const calls: ICreateSessionCall[] = [];
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IConfigurationService, new TestConfigurationService(configuration));
@@ -2124,7 +2124,7 @@ suite('DefaultAccountProvider sign in scopes', () => {
 			declaredProviders: [],
 			isAuthenticationProviderRegistered: () => true,
 			getAccounts: async () => [],
-			getSessions: async () => [],
+			getSessions: async (providerId: string) => sessionsByProvider[providerId] ?? [],
 			createSession: async (_providerId: string, scopes: readonly string[], sessionOptions: Record<string, unknown>) => {
 				calls.push({ scopes: [...scopes], options: sessionOptions });
 				return { id: 'session', accessToken: 'token', account: { id: 'account', label: 'octocat' }, scopes: [...scopes] };
@@ -2158,7 +2158,7 @@ suite('DefaultAccountProvider sign in scopes', () => {
 				default: { id: 'github', name: 'GitHub' },
 				enterprise: { id: 'github-enterprise', name: 'GitHub Enterprise' },
 				enterpriseProviderConfig: 'github.copilot.advanced.authProvider',
-				scopes: [['read:user', 'user:email', 'repo']],
+				scopes: [['read:user', 'user:email', 'repo'], ['user:email'], ['read:user']],
 			},
 			tokenEntitlementUrl: '',
 			entitlementUrl: 'https://api.github.com/copilot_internal/user',
@@ -2167,6 +2167,10 @@ suite('DefaultAccountProvider sign in scopes', () => {
 		}));
 		await provider.signIn(options);
 		return calls;
+	}
+
+	function session(id: string, scopes: string[]): AuthenticationSession {
+		return { id, accessToken: `${id}-token`, account: { id: 'account', label: 'octocat' }, scopes };
 	}
 
 	test('widens the default scopes and never forwards the scope option to the session', async () => {
@@ -2196,6 +2200,27 @@ suite('DefaultAccountProvider sign in scopes', () => {
 			publicFeedOnly: [{ scopes: ['read:user', 'user:email', 'repo'], options: {} }],
 			enabled: [{ scopes: ['read:user', 'user:email', 'repo'], options: {} }],
 			enterprise: [{ scopes: ['read:user', 'user:email', 'repo'], options: {} }],
+		});
+	});
+
+	test('keeps a minimal sign-in minimal only when asked to', async () => {
+		const settingsSync = session('settings-sync', ['user:email']);
+		const copilot = session('copilot', ['read:user', 'user:email', 'repo']);
+		const agentHost = { additionalScopes: ['read:user', 'user:email'], keepMinimalSignIn: true };
+		assert.deepStrictEqual({
+			minimal: await signIn(agentHost, {}, { github: [settingsSync] }),
+			minimalWithoutOption: await signIn({ additionalScopes: agentHost.additionalScopes }, {}, { github: [settingsSync] }),
+			defaultScopesGranted: await signIn(agentHost, {}, { github: [settingsSync, copilot] }),
+			signedOut: await signIn(agentHost),
+			minimalOnAnotherProvider: await signIn(agentHost, { 'github.copilot.advanced.authProvider': 'github-enterprise' }, { github: [settingsSync] }),
+		}, {
+			// Signed in without the default scopes, for example through Settings Sync: only the requested scopes.
+			minimal: [{ scopes: ['read:user', 'user:email'], options: {} }],
+			minimalWithoutOption: [{ scopes: ['read:user', 'user:email', 'repo'], options: {} }],
+			defaultScopesGranted: [{ scopes: ['read:user', 'user:email', 'repo'], options: {} }],
+			signedOut: [{ scopes: ['read:user', 'user:email', 'repo'], options: {} }],
+			// A sign-in to a provider without a session is a new sign-in, which asks for the default scopes.
+			minimalOnAnotherProvider: [{ scopes: ['read:user', 'user:email', 'repo'], options: {} }],
 		});
 	});
 

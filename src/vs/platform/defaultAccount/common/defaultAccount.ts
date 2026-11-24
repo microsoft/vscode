@@ -69,7 +69,11 @@ export interface IDefaultAccountProvider {
 	resolveGitHubUrl(path: string): string | undefined;
 
 	refresh(options?: IDefaultAccountRefreshOptions): Promise<IDefaultAccount | null>;
-	signIn(options?: { additionalScopes?: readonly string[];[key: string]: unknown }): Promise<IDefaultAccount | null>;
+	/**
+	 * Signs in with the default scopes and any `additionalScopes`. With `keepMinimalSignIn`, an account that is already
+	 * signed in without the default scopes, for example through Settings Sync, is asked only for the `additionalScopes`.
+	 */
+	signIn(options?: { additionalScopes?: readonly string[]; keepMinimalSignIn?: boolean;[key: string]: unknown }): Promise<IDefaultAccount | null>;
 	signOut(): Promise<void>;
 }
 
@@ -96,7 +100,11 @@ export interface IDefaultAccountService {
 	getDefaultAccountAuthenticationProvider(): IDefaultAccountAuthenticationProvider;
 	setDefaultAccountProvider(provider: IDefaultAccountProvider): void;
 	refresh(options?: IDefaultAccountRefreshOptions): Promise<IDefaultAccount | null>;
-	signIn(options?: { additionalScopes?: readonly string[];[key: string]: unknown }): Promise<IDefaultAccount | null>;
+	/**
+	 * Signs in with the default scopes and any `additionalScopes`. With `keepMinimalSignIn`, an account that is already
+	 * signed in without the default scopes, for example through Settings Sync, is asked only for the `additionalScopes`.
+	 */
+	signIn(options?: { additionalScopes?: readonly string[]; keepMinimalSignIn?: boolean;[key: string]: unknown }): Promise<IDefaultAccount | null>;
 	signOut(): Promise<void>;
 
 	/**

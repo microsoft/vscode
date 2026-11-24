@@ -27268,6 +27268,7 @@ suite('AgentHostChatContribution', () => {
 						telemetrySource: 'agentHost',
 						forceSignInDialog: true,
 						additionalScopes: ['read:user'],
+						keepMinimalSignIn: true,
 						dialogTitle: 'Sign in to use GitHub Copilot',
 						disableChatViewReveal: true,
 						returnResult: true,

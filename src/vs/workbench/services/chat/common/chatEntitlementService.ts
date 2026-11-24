@@ -1532,9 +1532,10 @@ export class ChatEntitlementRequests extends Disposable {
 		}
 	}
 
-	async signIn(options?: { useSocialProvider?: string; additionalScopes?: readonly string[] }): Promise<{ defaultAccount?: IDefaultAccount; entitlements?: IEntitlements }> {
+	async signIn(options?: { useSocialProvider?: string; additionalScopes?: readonly string[]; keepMinimalSignIn?: boolean }): Promise<{ defaultAccount?: IDefaultAccount; entitlements?: IEntitlements }> {
 		const defaultAccount = await this.defaultAccountService.signIn({
 			additionalScopes: options?.additionalScopes,
+			keepMinimalSignIn: options?.keepMinimalSignIn,
 			extraAuthorizeParameters: { get_started_with: 'copilot-vscode' },
 			provider: options?.useSocialProvider
 		});
