@@ -190,7 +190,8 @@
 	outline-offset: calc(-1 * var(--vscode-strokeThickness));
 }
 
-.artifact-group-pill-hover-title {
+.artifact-group-pill-hover-title,
+.artifact-group-row-main-hover-label {
 	font-weight: var(--vscode-fontWeight-semiBold);
 }
 
