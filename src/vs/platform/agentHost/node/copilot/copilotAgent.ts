@@ -978,7 +978,7 @@ class CopilotChatEntry extends Disposable {
 		onDidRequireAuth: () => void,
 		private readonly _onDidChangeRuntimePlugins: () => void,
 		private readonly _onDidReloadRuntimeContributions: () => void,
-		onDidRejectModelSourceCredential: (model: string) => void,
+		onDidRejectModelSourceCredential: (rejection: { readonly model: string; readonly turnStartedAt: number }) => void,
 	) {
 		super();
 		if (anchor) {
@@ -1389,7 +1389,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private _modelSourceModels: readonly ICopilotModelSourceModel[] = [];
 	/** Waiters for draining model sources whose models running turns still use. */
 	private readonly _modelSourceIdleWaiters = new Set<{ readonly id: string; readonly resolve: () => void }>();
-	private readonly _onDidRejectModelSourceCredential = this._register(new Emitter<string>());
+	private readonly _onDidRejectModelSourceCredential = this._register(new Emitter<{ readonly id: string; readonly turnStartedAt: number }>());
 	readonly onDidRejectModelSourceCredential = this._onDidRejectModelSourceCredential.event;
 	private _byokModels: readonly IAgentModelInfo[] = [];
 	private _lastByokModelsEnabledConfig: unknown = Symbol('uninitialized');
@@ -11638,10 +11638,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 			void activeClient.pluginController.refreshDiscovery();
 		}, () => {
 			void activeClient.pluginController.publishIfRuntimePluginsChanged();
-		}, model => {
+		}, ({ model, turnStartedAt }) => {
 			const source = this._modelSourceModels.find(candidate => candidate.id === model);
 			if (source) {
-				this._onDidRejectModelSourceCredential.fire(source.modelSourceId);
+				this._onDidRejectModelSourceCredential.fire({ id: source.modelSourceId, turnStartedAt });
 			}
 		});
 	}

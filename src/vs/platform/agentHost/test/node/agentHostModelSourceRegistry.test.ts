@@ -168,13 +168,17 @@ suite('AgentHostModelSourceRegistry', () => {
 		registry.handleClientAction(set({ id: 'source' }), 'client-a', 1);
 		authenticate(registry, 'source', 'secret', { accountId: 'key-1' });
 
-		registry.rejectCredential('source');
+		// A turn that started before this key was delivered was refused with an earlier one.
+		registry.rejectCredential('source', 0);
+		const keptForEarlierTurn = state.modelSource('source')?.state;
+		registry.rejectCredential('source', Date.now());
 		const rejected = { state: state.modelSource('source')?.state, accountId: state.modelSource('source')?.accountId, served: agent.lastServed };
 		const servedCount = agent.served.length;
 		// Without a credential there is nothing more to drop.
-		registry.rejectCredential('source');
+		registry.rejectCredential('source', Date.now());
 
-		assert.deepStrictEqual({ rejected, unchangedAfterRepeat: agent.served.length === servedCount }, {
+		assert.deepStrictEqual({ keptForEarlierTurn, rejected, unchangedAfterRepeat: agent.served.length === servedCount }, {
+			keptForEarlierTurn: { kind: 'ready' },
 			rejected: { state: { kind: 'authRequired', reason: 'rejected', description: 'The endpoint rejected the API key.' }, accountId: 'key-1', served: { source: false } },
 			unchangedAfterRepeat: true,
 		});

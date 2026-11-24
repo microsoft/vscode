@@ -1061,6 +1061,7 @@ class DirectUsageAccumulator {
 }
 
 class CopilotTurn extends Disposable {
+	readonly startedAt = Date.now();
 	timingRecorder: IAgentProviderSendStageRecorder | undefined;
 	completionReferences: readonly ICopilotCompletionReference[] = [];
 	completionReferenceText = '';
@@ -2427,8 +2428,8 @@ export class CopilotAgentSession extends Disposable {
 	readonly onMcpNotification = this._onMcpNotification.event;
 	private readonly _onDidRequireAuth = this._register(new Emitter<void>());
 	readonly onDidRequireAuth = this._onDidRequireAuth.event;
-	private readonly _onDidRejectModelSourceCredential = this._register(new Emitter<string>());
-	/** Fires with the selected model's id when the endpoint of its registered model source rejected the credential. */
+	private readonly _onDidRejectModelSourceCredential = this._register(new Emitter<{ readonly model: string; readonly turnStartedAt: number }>());
+	/** Fires with the selected model's id when the endpoint of its registered model source rejected the credential of a turn. */
 	readonly onDidRejectModelSourceCredential = this._onDidRejectModelSourceCredential.event;
 	/**
 	 * Fires when the runtime finishes preparing organization-required plugins,
@@ -12825,7 +12826,8 @@ export class CopilotAgentSession extends Disposable {
 				// A registered model source's endpoint answers without Copilot's request IDs; its rejection says nothing about the GitHub credential.
 				const model = this._requestedModel?.id;
 				if (model && isModelSourceModelId(model) && !e.data.serviceRequestId && !e.data.providerCallId) {
-					this._onDidRejectModelSourceCredential.fire(model);
+					// Without a turn, the request's credential is unknown, so a credential delivered since is never dropped.
+					this._onDidRejectModelSourceCredential.fire({ model, turnStartedAt: turn?.startedAt ?? 0 });
 				} else {
 					this._onDidRequireAuth.fire();
 				}

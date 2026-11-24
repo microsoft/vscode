@@ -43,6 +43,8 @@ interface IModelSourceEntry {
 	/** The clients that registered this definition, from each `Set`'s origin. Never in state. */
 	readonly contributors: Set<string>;
 	credential: string | undefined;
+	/** When the host accepted {@link credential}, in `Date.now()` time. */
+	credentialSince: number;
 	/** The `accountId` sent with the credential the host most recently accepted, which outlives it to say what happened to it. */
 	accountId: string | undefined;
 	credentialResource: ProtectedResourceMetadata | undefined;
@@ -129,6 +131,7 @@ export class AgentHostModelSourceRegistry extends Disposable {
 		entry.lease.clear();
 		if (params.token) {
 			entry.credential = params.token;
+			entry.credentialSince = Date.now();
 			entry.accountId = params.accountId;
 			entry.state = { kind: ModelSourceStatus.Ready };
 			entry.listed = true;
@@ -149,12 +152,14 @@ export class AgentHostModelSourceRegistry extends Disposable {
 	}
 
 	/**
-	 * Drops a credential the source's endpoint rejected. A client replaces it
-	 * rather than sending the same one again.
+	 * Drops a credential the source's endpoint rejected in a turn that started
+	 * at `turnStartedAt`. A client replaces it rather than sending the same one
+	 * again. A credential delivered after the turn started is kept: the endpoint
+	 * rejected an earlier one.
 	 */
-	rejectCredential(id: string): void {
+	rejectCredential(id: string, turnStartedAt: number): void {
 		const entry = this._entries.get(id);
-		if (!entry?.credential) {
+		if (!entry?.credential || entry.credentialSince > turnStartedAt) {
 			return;
 		}
 		this._logService.warn(`[AgentHostModelSourceRegistry] The endpoint of model source ${id} rejected its credential`);
@@ -252,6 +257,7 @@ export class AgentHostModelSourceRegistry extends Disposable {
 			definition,
 			contributors: new Set([clientId]),
 			credential: undefined,
+			credentialSince: 0,
 			accountId: undefined,
 			credentialResource: undefined,
 			state: { kind: ModelSourceStatus.Starting },

@@ -4289,7 +4289,7 @@ suite('CopilotAgentSession', () => {
 			});
 			const rejected: string[] = [];
 			let gitHubSignIns = 0;
-			disposables.add(session.onDidRejectModelSourceCredential(model => rejected.push(model)));
+			disposables.add(session.onDidRejectModelSourceCredential(({ model }) => rejected.push(model)));
 			disposables.add(session.onDidRequireAuth(() => gitHubSignIns++));
 
 			mockSession.fire('session.error', { errorType: 'authentication', statusCode: 401, message: 'Unauthorized' } as SessionEventPayload<'session.error'>['data']);

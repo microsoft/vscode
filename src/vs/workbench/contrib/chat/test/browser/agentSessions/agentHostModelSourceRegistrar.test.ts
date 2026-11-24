@@ -8,7 +8,6 @@ import { timeout } from '../../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
-import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import type { AuthenticateParams, AuthenticateResult } from '../../../../../../platform/agentHost/common/agent.js';
 import { AgentHostByokDirectEndpointsSettingId, AgentHostByokModelsEnabledSettingId, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
@@ -338,7 +337,7 @@ suite('AgentHostModelSourceRegistrar', () => {
 		});
 	});
 
-	test('asks again for a key it could not read', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+	test('asks again for a key it could not read once the host\'s state changes', async () => {
 		const { connection, root, models } = createRegistrar();
 		await timeout(0);
 		models.keys.delete('customendpoint/Example');
@@ -346,13 +345,15 @@ suite('AgentHostModelSourceRegistrar', () => {
 		await timeout(0);
 		const keysWhileUnreadable = connection.keys.length;
 		models.keys.set('customendpoint/Example', 'key-1');
-		await timeout(5_000);
+		// A reconnect, for example.
+		root.snapshot();
+		await timeout(0);
 
 		assert.deepStrictEqual({ keysWhileUnreadable, keys: connection.keys.map(key => key.token) }, {
 			keysWhileUnreadable: 0,
 			keys: ['key-1'],
 		});
-	}));
+	});
 
 	test('asks before using a remote host, and registers only the endpoints it can reach', async () => {
 		const remote = createRegistrar({ kind: AgentHostClientConnectionKind.SSH, models: [{ id: 'public', url: PUBLIC_URL }, { id: 'private', url: PRIVATE_URL }] });

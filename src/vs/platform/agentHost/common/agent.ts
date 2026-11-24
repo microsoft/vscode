@@ -2203,9 +2203,10 @@ export interface IAgent {
 
 	/**
 	 * Fires with a registered model source's `id` when its endpoint rejected the
-	 * credential, so the host drops it and asks for another one.
+	 * credential of a turn that started at `turnStartedAt` (`Date.now()` time), so
+	 * the host drops that credential and asks for another one.
 	 */
-	readonly onDidRejectModelSourceCredential?: Event<string>;
+	readonly onDidRejectModelSourceCredential?: Event<{ readonly id: string; readonly turnStartedAt: number }>;
 
 	/**
 	 * Reads a registered model source's definition. Throws, with a message for

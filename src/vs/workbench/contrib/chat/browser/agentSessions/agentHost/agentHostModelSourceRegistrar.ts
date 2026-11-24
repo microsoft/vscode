@@ -7,8 +7,7 @@ import { CancellationToken } from '../../../../../../base/common/cancellation.js
 import { toErrorMessage } from '../../../../../../base/common/errorMessage.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { hash } from '../../../../../../base/common/hash.js';
-import { Disposable, DisposableMap, DisposableStore } from '../../../../../../base/common/lifecycle.js';
-import { disposableTimeout } from '../../../../../../base/common/async.js';
+import { Disposable, DisposableMap } from '../../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../../nls.js';
 import { AgentHostByokDirectEndpointsSettingId, AgentHostByokModelsEnabledSettingId, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IAgentHostConnectionsService, type IAgentHostConnectionInfo } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
@@ -547,8 +546,6 @@ interface IConnectionModelSourceDelegate {
 	onDidChangeServedModels(): void;
 }
 
-const MAX_DELIVERY_RETRY_DELAY = 60_000;
-
 /** The model sources and credential deliveries of this window on one agent host connection. */
 class ConnectionModelSourceRegistrar extends Disposable {
 
@@ -566,9 +563,6 @@ class ConnectionModelSourceRegistrar extends Disposable {
 	private readonly _removing = new Set<string>();
 	/** The delivery of each source's key in progress, until it is sent or given up. */
 	private readonly _delivering = new Map<string, object>();
-	/** Failed deliveries by source, for backing off. */
-	private readonly _deliveryFailures = new Map<string, number>();
-	private readonly _pending = this._register(new DisposableStore());
 	private _sources: readonly IByokModelSource[] | undefined;
 	private _removeAll = false;
 	private _servedModels: ReadonlySet<string> = new Set();
@@ -703,7 +697,6 @@ class ConnectionModelSourceRegistrar extends Disposable {
 		this._rejected.delete(id);
 		this._inFlight.delete(id);
 		this._delivering.delete(id);
-		this._deliveryFailures.delete(id);
 	}
 
 	private _updateServedModels(desired: ReadonlyMap<string, IDesiredModelSource>, current: ReadonlyMap<string, ModelSource>): void {
@@ -756,7 +749,6 @@ class ConnectionModelSourceRegistrar extends Disposable {
 		this._known.set(id, entry);
 		this._removedElsewhere.delete(id);
 		this._delivering.delete(id);
-		this._deliveryFailures.delete(id);
 		this._inFlight.add(id);
 		const isCurrent = () => this._known.get(id) === entry;
 		this._connection.dispatchConfirmed(ROOT_STATE_URI, this._connection.rootState, { type: ActionType.RootModelSourceSet, modelSource }, CancellationToken.None).then(envelope => {
@@ -796,31 +788,15 @@ class ConnectionModelSourceRegistrar extends Disposable {
 		}
 		const delivery = {};
 		this._delivering.set(existing.id, delivery);
-		const store = this._pending.add(new DisposableStore());
-		const isCurrent = () => !store.isDisposed && this._delivering.get(existing.id) === delivery;
-		const retry = () => {
-			const failures = (this._deliveryFailures.get(existing.id) ?? 0) + 1;
-			this._deliveryFailures.set(existing.id, failures);
-			disposableTimeout(() => {
-				if (this._delivering.get(existing.id) === delivery) {
-					this._delivering.delete(existing.id);
-					this._sync();
-				}
-			}, Math.min(MAX_DELIVERY_RETRY_DELAY, 1000 * 2 ** failures), this._pending);
-		};
+		const isCurrent = () => !this._store.isDisposed && this._delivering.get(existing.id) === delivery;
 		this._delegate.resolveApiKey(source).then(async apiKey => {
-			if (!isCurrent()) {
-				return;
-			}
-			if (!apiKey) {
-				// The key changed or was unreadable while it was read; ask again later rather than never.
-				retry();
+			// A key that changed or was unreadable while it was read is asked for again on the next state change.
+			if (!isCurrent() || !apiKey) {
 				return;
 			}
 			// Another client may have changed the host's definition while the key was read.
 			const latest = this._currentModelSource(existing.id);
 			if (!latest || !canSendKey(latest, entry)) {
-				this._delivering.delete(existing.id);
 				return;
 			}
 			await this._connection.authenticate({
@@ -829,18 +805,16 @@ class ConnectionModelSourceRegistrar extends Disposable {
 				...(source.accountId !== undefined ? { accountId: source.accountId } : {}),
 				target: { kind: AuthenticateTargetKind.ModelSource, modelSourceId: existing.id },
 			});
-			// The host reports the source's new state before it answers, so the next sync doesn't deliver again.
+		}).catch(error => {
+			if (isCurrent()) {
+				this._logService.warn(`[AgentHostModelSourceRegistrar] Failed to deliver the API key of the BYOK provider group ${existing.displayName}: ${toErrorMessage(error)}`);
+			}
+		}).finally(() => {
+			// The host reports the source's new state before it answers, so the next sync delivers again only if it still needs the key.
 			if (isCurrent()) {
 				this._delivering.delete(existing.id);
 			}
-			this._deliveryFailures.delete(existing.id);
-		}).catch(error => {
-			if (!isCurrent()) {
-				return;
-			}
-			this._logService.warn(`[AgentHostModelSourceRegistrar] Failed to deliver the API key of the BYOK provider group ${existing.displayName}: ${toErrorMessage(error)}`);
-			retry();
-		}).finally(() => this._pending.delete(store));
+		});
 	}
 
 	private _currentModelSource(id: string): ModelSource | undefined {

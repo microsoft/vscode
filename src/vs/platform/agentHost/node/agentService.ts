@@ -2192,7 +2192,7 @@ export class AgentService extends Disposable implements IAgentService {
 			this._setupChatDiscoveryForProvider(provider);
 			subscriptions.add(provider.onDidChangeChatData(e => this._onChatDataChanged(e)));
 			if (provider.onDidRejectModelSourceCredential) {
-				subscriptions.add(provider.onDidRejectModelSourceCredential(id => this._modelSourceRegistry.rejectCredential(id)));
+				subscriptions.add(provider.onDidRejectModelSourceCredential(({ id, turnStartedAt }) => this._modelSourceRegistry.rejectCredential(id, turnStartedAt)));
 			}
 			if (provider.onDidChangeChatHistory) {
 				subscriptions.add(provider.onDidChangeChatHistory(event => {
