@@ -409,9 +409,10 @@ export function buildLinkDevContainerStateCommand(options: IDevContainerStateLin
 		'    if [ -d "$dst" ]; then : > "$dst.deferred"; fi',
 		'    skip running "it exists and the container was already running"; return 0',
 		'  fi',
-		'  if [ ! -L "$src" ] && [ -d "$dst" ] && untrusted_files "$dst"; then',
-		// The container's folder stays in use, see above.
-		'    if [ -d "$src" ]; then : > "$dst.deferred"; fi',
+		// Also for an earlier link, e.g., after another container user wrote to the folder.
+		'  if [ -d "$dst" ] && untrusted_files "$dst"; then',
+		// The container's folder stays in use, see above. The link would keep using the volume's folder.
+		'    if [ -L "$src" ]; then rm -f "$src"; elif [ -d "$src" ]; then : > "$dst.deferred"; fi',
 		'    skip untrusted "a user other than root or the container user owns or can change files in $state/$rel"; return 0',
 		'  fi',
 		'  for parent in "$@"; do',
