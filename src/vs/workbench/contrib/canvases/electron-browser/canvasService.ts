@@ -20,6 +20,8 @@ import { GroupModelChangeKind } from '../../../common/editor.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
@@ -33,6 +35,11 @@ interface ICanvasPresentation {
 	admitted: boolean;
 	opened: boolean;
 	restoreActive: boolean;
+	/**
+	 * Whether its editor was the active one when the editors of a folder location were swapped out, by location key,
+	 * from least to most recently recorded. Only a window without working sets of its own swaps its editors this way.
+	 */
+	activeByLocation: Map<string, boolean> | undefined;
 	/** Created only to retain the model of a canvas that another surface presents, not as an editor. */
 	external: boolean;
 	requestId: string | undefined;
@@ -51,6 +58,9 @@ interface ICanvasLookup {
 }
 
 const settledWorkingSet: ICanvasWorkingSetState = Object.freeze({ owner: undefined, restoring: false, applying: false });
+
+/** The most folder locations a canvas remembers whether it was the active editor at. */
+const MAX_REMEMBERED_LOCATIONS = 20;
 
 export class CanvasService extends Disposable implements ICanvasService {
 
@@ -75,6 +85,8 @@ export class CanvasService extends Disposable implements ICanvasService {
 	private readonly workingSetState: IObservable<ICanvasWorkingSetState>;
 	private readonly applyingWorkingSet: IObservable<boolean>;
 	private restoreSettled: DeferredPromise<boolean> | undefined;
+	/** The folder location whose editors the editor area holds: it changes only once a working-set swap is done. */
+	private settledLocation: string | undefined;
 
 	constructor(
 		@ICanvasContextService private readonly contextService: ICanvasContextService,
@@ -86,6 +98,8 @@ export class CanvasService extends Disposable implements ICanvasService {
 		@IConfigurationService configurationService: IConfigurationService,
 		@ILogService private readonly logService: ILogService,
 		@INotificationService private readonly notificationService: INotificationService,
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 	) {
 		super();
 		this.enabled = observableFromEvent(this, Event.any(
@@ -126,6 +140,15 @@ export class CanvasService extends Disposable implements ICanvasService {
 				this.reconcileRestoredPresentations(state.owner);
 				this.restoreSettled?.complete(true);
 				this.restoreSettled = undefined;
+			}));
+		} else {
+			this.settledLocation = this.getLocationKey();
+			this._register(editorGroupsService.onDidChangeApplyingWorkingSet(applying => {
+				if (applying) {
+					this.rememberActiveCanvasesByLocation();
+				} else {
+					this.settledLocation = this.getLocationKey();
+				}
 			}));
 		}
 		this._register(toDisposable(() => this.restoreSettled?.complete(false)));
@@ -637,6 +660,7 @@ export class CanvasService extends Disposable implements ICanvasService {
 			admitted: false,
 			opened: false,
 			restoreActive: false,
+			activeByLocation: undefined,
 			external: false,
 			requestId: undefined,
 			canvas,
@@ -659,6 +683,49 @@ export class CanvasService extends Disposable implements ICanvasService {
 			}
 			this.workingSetSuspensions.add(input);
 		}
+	}
+
+	/**
+	 * The folder location has already changed when its editors are swapped. Each canvas remembers whether it was the
+	 * active editor at the location being left, and is restored as the active editor where it was so before. At a location
+	 * it was not open at before, it keeps whether it was the active editor at the location being left.
+	 * A canvas that an earlier swap closed and that is not open again yet, as when applying the editors of a location failed
+	 * and its editor area is emptied instead, or whose owner stays hidden, records nothing: it is restored as it was at the
+	 * location being entered, and otherwise keeps how it is restored.
+	 * A working set applied without changing the folder location, as source control working sets are, leaves how canvases
+	 * are restored unchanged.
+	 */
+	private rememberActiveCanvasesByLocation(): void {
+		const leaving = this.settledLocation;
+		const entering = this.getLocationKey();
+		if (leaving === entering) {
+			return;
+		}
+		for (const [key, presentation] of this.presentations) {
+			if (!presentation.opened) {
+				const remembered = entering !== undefined ? presentation.activeByLocation?.get(entering) : undefined;
+				if (remembered !== undefined) {
+					presentation.restoreActive = remembered;
+				}
+				continue;
+			}
+			const input = this.inputs.get(key);
+			const active = !!input && this.editorService.activeEditor === input;
+			if (leaving !== undefined) {
+				const locations = presentation.activeByLocation ??= new Map();
+				locations.delete(leaving);
+				locations.set(leaving, active);
+				if (locations.size > MAX_REMEMBERED_LOCATIONS) {
+					locations.delete(locations.keys().next().value!);
+				}
+			}
+			presentation.restoreActive = (entering !== undefined ? presentation.activeByLocation?.get(entering) : undefined) ?? active;
+		}
+	}
+
+	private getLocationKey(): string | undefined {
+		const folder = this.workspaceContextService.getWorkspace().folders.at(0);
+		return folder && this.uriIdentityService.extUri.getComparisonKey(folder.uri);
 	}
 
 	private reconcileRestoredPresentations(owner: ICanvasWorkingSetOwner | undefined): void {
@@ -755,6 +822,7 @@ export class CanvasService extends Disposable implements ICanvasService {
 		presentation.admitted = false;
 		presentation.opened = false;
 		presentation.restoreActive = false;
+		presentation.activeByLocation = undefined;
 		presentation.external = true;
 		this.presentationsChanged.trigger(undefined);
 	}
