@@ -1639,9 +1639,13 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 		const { additionalScopes, keepMinimalSignIn, ...sessionOptions } = options ?? {};
 		const defaultAccountScopes = this.defaultAccountConfig.authenticationProvider.scopes[0];
 		let scopes = additionalScopes ? distinct([...defaultAccountScopes, ...additionalScopes]) : defaultAccountScopes;
-		if (keepMinimalSignIn && additionalScopes?.length && await this.isSignedInWithoutDefaultScopes(authProvider.id)) {
-			this.logService.info('[DefaultAccount] Requesting only the additional scopes because the account is signed in without the default scopes');
-			scopes = distinct(additionalScopes);
+		if (keepMinimalSignIn && additionalScopes?.length) {
+			const minimalScopes = await this.getMinimalSignInScopes(authProvider.id);
+			if (minimalScopes) {
+				this.logService.info('[DefaultAccount] Requesting the scopes of the existing sign-in instead of the default scopes because it was signed in without them');
+				// Unlike the additional scopes alone, these keep the new session usable as the default account's, whichever account signs in.
+				scopes = distinct([...minimalScopes, ...additionalScopes]);
+			}
 		}
 		const session = await this.authenticationService.createSession(authProvider.id, scopes, sessionOptions);
 		for (const preferredExtension of this.defaultAccountConfig.preferredExtensions) {
@@ -1652,17 +1656,21 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 	}
 
 	/**
-	 * Whether the provider has a session the default account can use, but none that grants the default scopes, as
-	 * after signing in through Settings Sync.
+	 * The accepted scopes of an existing sign-in the default account can use, when the provider has no session that grants
+	 * the default scopes, as after signing in through Settings Sync.
 	 */
-	private async isSignedInWithoutDefaultScopes(authProviderId: string): Promise<boolean> {
+	private async getMinimalSignInScopes(authProviderId: string): Promise<string[] | undefined> {
 		const allScopes = this.defaultAccountConfig.authenticationProvider.scopes;
+		const [defaultScopes, ...minimalScopeSets] = allScopes;
 		try {
 			const sessions = await this.findMatchingProviderSession(authProviderId, allScopes);
-			return !!sessions && !sessions.some(session => this.scopesMatch(session.scopes, allScopes[0]));
+			if (!sessions || sessions.some(session => this.scopesMatch(session.scopes, defaultScopes))) {
+				return undefined;
+			}
+			return minimalScopeSets.find(minimalScopes => sessions.some(session => this.scopesMatch(session.scopes, minimalScopes)));
 		} catch (error) {
 			this.logService.warn('[DefaultAccount] Unable to check the scopes of the existing sign-in; requesting the default scopes', getErrorMessage(error));
-			return false;
+			return undefined;
 		}
 	}
 

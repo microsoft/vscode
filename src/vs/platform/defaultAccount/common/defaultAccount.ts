@@ -70,8 +70,8 @@ export interface IDefaultAccountProvider {
 
 	refresh(options?: IDefaultAccountRefreshOptions): Promise<IDefaultAccount | null>;
 	/**
-	 * Signs in with the default scopes and any `additionalScopes`. With `keepMinimalSignIn`, an account that is already
-	 * signed in without the default scopes, for example through Settings Sync, is asked only for the `additionalScopes`.
+	 * Signs in with the default scopes and any `additionalScopes`. With `keepMinimalSignIn`, when the account is already
+	 * signed in without the default scopes, for example through Settings Sync, that sign-in's scopes replace the default scopes.
 	 */
 	signIn(options?: { additionalScopes?: readonly string[]; keepMinimalSignIn?: boolean;[key: string]: unknown }): Promise<IDefaultAccount | null>;
 	signOut(): Promise<void>;
@@ -101,8 +101,8 @@ export interface IDefaultAccountService {
 	setDefaultAccountProvider(provider: IDefaultAccountProvider): void;
 	refresh(options?: IDefaultAccountRefreshOptions): Promise<IDefaultAccount | null>;
 	/**
-	 * Signs in with the default scopes and any `additionalScopes`. With `keepMinimalSignIn`, an account that is already
-	 * signed in without the default scopes, for example through Settings Sync, is asked only for the `additionalScopes`.
+	 * Signs in with the default scopes and any `additionalScopes`. With `keepMinimalSignIn`, when the account is already
+	 * signed in without the default scopes, for example through Settings Sync, that sign-in's scopes replace the default scopes.
 	 */
 	signIn(options?: { additionalScopes?: readonly string[]; keepMinimalSignIn?: boolean;[key: string]: unknown }): Promise<IDefaultAccount | null>;
 	signOut(): Promise<void>;
