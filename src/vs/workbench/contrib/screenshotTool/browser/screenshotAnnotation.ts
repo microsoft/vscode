@@ -1618,6 +1618,10 @@ export class ScreenshotAnnotationEditor {
 		editor.addEventListener('select', sync);
 		editor.addEventListener('keydown', e => {
 			e.stopPropagation();
+			if (e.isComposing || e.keyCode === 229) {
+				// Leave Escape and Enter to an IME that is still composing
+				return;
+			}
 			if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
 				e.preventDefault();
 				this.commitTextEdit();
