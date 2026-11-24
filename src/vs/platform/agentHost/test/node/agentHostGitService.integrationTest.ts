@@ -1086,6 +1086,37 @@ suite('AgentHostGitService - computeSessionFileDiffs (real git)', () => {
 		});
 	});
 
+	(hasGit ? test : test.skip)('preserves local base branch and excludes unpushed commits when local base is ahead of origin', async () => {
+		const fs = await import('fs/promises');
+		const { dir, run } = initRepo();
+		await fs.writeFile(join(dir, 'base.txt'), 'base\n');
+		run('add', '.');
+		run('commit', '-q', '-m', 'base');
+		run('update-ref', 'refs/remotes/origin/main', 'HEAD');
+
+		// Local main adds an unpushed commit.
+		await fs.writeFile(join(dir, 'unpushed.txt'), 'unpushed\n');
+		run('add', '.');
+		run('commit', '-q', '-m', 'unpushed');
+
+		// Feature branch starts from local main and makes changes.
+		run('checkout', '-q', '-b', 'feature');
+		await fs.writeFile(join(dir, 'feature.txt'), 'feature\n');
+		run('add', '.');
+		run('commit', '-q', '-m', 'feature');
+
+		const result = await svc!.computeSessionFileDiffs(URI.file(dir), { sessionUri: 'copilot:/s', baseBranch: 'main' });
+		assert.ok(result, 'expected diffs');
+		const paths = result.map(d => d.after?.uri ?? d.before?.uri);
+		assert.deepStrictEqual({
+			feature: paths.some(p => p?.endsWith('feature.txt')),
+			unpushed: paths.some(p => p?.endsWith('unpushed.txt')),
+		}, {
+			feature: true,
+			unpushed: false,
+		});
+	});
+
 	(hasGit ? test : test.skip)('returns no diffs for a clean repo', async () => {
 		const fs = await import('fs/promises');
 		const { dir, run } = initRepo();
@@ -2866,6 +2897,62 @@ suite('AgentHostGitService - resolveBranchBaselineCommit (real git)', () => {
 
 		const result = await svc!.resolveBranchBaselineCommit(URI.file(tmpRoot!), 'main');
 		assert.strictEqual(result, baseCommit);
+	});
+
+	(hasGit ? test : test.skip)('preserves local base branch when local base branch is ahead of origin (unpushed commits)', async () => {
+		const fs = await import('fs/promises');
+		const run = initRepo();
+		await fs.writeFile(join(tmpRoot!, 'base.txt'), 'base\n');
+		run('add', '.');
+		run('commit', '-q', '-m', 'base');
+		run('update-ref', 'refs/remotes/origin/main', 'HEAD');
+
+		// Local main has an unpushed commit.
+		await fs.writeFile(join(tmpRoot!, 'unpushed.txt'), 'unpushed\n');
+		run('add', '.');
+		run('commit', '-q', '-m', 'unpushed');
+		const localMainCommit = run('rev-parse', 'HEAD').toString().trim();
+
+		// Feature branch branched off local main.
+		run('checkout', '-q', '-b', 'feature');
+		await fs.writeFile(join(tmpRoot!, 'feature.txt'), 'feature\n');
+		run('add', '.');
+		run('commit', '-q', '-m', 'feature');
+
+		// Baseline commit should be local main (localMainCommit), not origin/main.
+		const result = await svc!.resolveBranchBaselineCommit(URI.file(tmpRoot!), 'main');
+		assert.strictEqual(result, localMainCommit);
+	});
+
+	(hasGit ? test : test.skip)('prefers origin remote tracking branch when local base branch is stale (behind origin)', async () => {
+		const fs = await import('fs/promises');
+		const run = initRepo();
+		await fs.writeFile(join(tmpRoot!, 'base.txt'), 'base\n');
+		run('add', '.');
+		run('commit', '-q', '-m', 'base');
+		run('update-ref', 'refs/remotes/origin/main', 'HEAD');
+
+		// Feature branch branched off base.
+		run('checkout', '-q', '-b', 'feature');
+
+		// Meanwhile, origin/main moves ahead (e.g. simulated fetch from remote).
+		run('checkout', '-q', '-b', 'remote-work', 'main');
+		await fs.writeFile(join(tmpRoot!, 'remote.txt'), 'remote\n');
+		run('add', '.');
+		run('commit', '-q', '-m', 'remote');
+		const newOriginCommit = run('rev-parse', 'HEAD').toString().trim();
+		run('update-ref', 'refs/remotes/origin/main', 'HEAD');
+
+		// Feature merges origin/main and adds a commit.
+		run('checkout', '-q', 'feature');
+		run('merge', '-q', '--no-ff', 'origin/main', '-m', 'merge origin');
+		await fs.writeFile(join(tmpRoot!, 'feature.txt'), 'feature\n');
+		run('add', '.');
+		run('commit', '-q', '-m', 'feature');
+
+		// Baseline commit against stale 'main' should resolve to origin/main (newOriginCommit).
+		const result = await svc!.resolveBranchBaselineCommit(URI.file(tmpRoot!), 'main');
+		assert.strictEqual(result, newOriginCommit);
 	});
 
 	(hasGit ? test : test.skip)('falls back to HEAD when no base branch is given', async () => {

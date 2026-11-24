@@ -950,17 +950,27 @@ export class AgentHostGitService extends Disposable implements IAgentHostGitServ
 	/**
 	 * Resolves the merge-base commit-ish the Branch Changes baseline is anchored
 	 * on. With a base branch, prefers the corresponding `origin/<base>`
-	 * remote-tracking ref when it exists so branch changes match a PR-style
-	 * comparison even if the local base branch is stale. Without a usable base,
-	 * falls back to `HEAD` (surfaces uncommitted work but no committed-on-branch
-	 * work). For empty repos with no `HEAD`, falls back to the empty-tree object.
-	 * Always resolves to a commit-ish (never `undefined`) once the repository
-	 * root is known.
+	 * remote-tracking ref when the local base branch is stale (behind or diverged)
+	 * so branch changes match a PR-style comparison. When the local base branch
+	 * already contains all commits of `origin/<base>` (e.g. it has unpushed commits),
+	 * the local base branch is preserved so its unpushed commits are not misattributed
+	 * to the session. Without a usable base, falls back to `HEAD` (surfaces uncommitted
+	 * work but no committed-on-branch work). For empty repos with no `HEAD`, falls
+	 * back to the empty-tree object. Always resolves to a commit-ish (never `undefined`)
+	 * once the repository root is known.
 	 */
 	private async _resolveBranchMergeBaseCommit(repositoryRoot: URI, baseBranch?: string): Promise<string> {
 		let mergeBaseCommit: string | undefined;
 		if (baseBranch) {
-			const resolvedBase = await this._resolveRemoteTrackingBranch(repositoryRoot, baseBranch) ?? baseBranch;
+			let resolvedBase = baseBranch;
+			const remoteBranch = await this._resolveRemoteTrackingBranch(repositoryRoot, baseBranch);
+			if (remoteBranch) {
+				const hasLocalBase = (await this._runGit(repositoryRoot, ['rev-parse', '--verify', '--quiet', `${baseBranch}^{commit}`])) !== undefined;
+				const isRemoteAncestor = hasLocalBase && (await this._runGit(repositoryRoot, ['merge-base', '--is-ancestor', remoteBranch, baseBranch])) !== undefined;
+				if (!isRemoteAncestor) {
+					resolvedBase = remoteBranch;
+				}
+			}
 			mergeBaseCommit = (await this._runGit(repositoryRoot, ['merge-base', 'HEAD', resolvedBase]))?.trim();
 		}
 		if (!mergeBaseCommit) {
