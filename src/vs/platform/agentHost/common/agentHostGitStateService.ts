@@ -65,7 +65,8 @@ export interface IAgentHostGitStateService {
 	readonly onDidChangeSessionGitHubState: Event<string>;
 
 	/**
-	 * Refreshes the git state for a given session.
+	 * Refreshes the git state for a given session. Resolves once a refresh that started after the call has
+	 * published what it read; refreshes of a session are at most one every 5 seconds, but callers do not wait out that pause.
 	 * @param sessionKey The key of the session for which to refresh the git state.
 	 * @param workingDirectory Optional working directory override; when omitted, the session summary's working directory is used.
 	 */

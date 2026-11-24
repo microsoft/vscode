@@ -837,6 +837,8 @@ suite('AgentHostGitStateService', () => {
 		h.setGitResult(chatGitState);
 		await h.service.refreshSessionGitState(chat, undefined);
 		const afterRefresh = h.service.getSessionGitState(chat);
+		// The refresh resolves once it published its state; the database copy is written when the store flushes.
+		await h.whenStateStoreIdle();
 		const persistedAfterRefresh = await h.db.getMetadata(META_GIT_DATA_STATE);
 		h.setGitResult(undefined);
 		await h.service.refreshSessionGitState(chat, undefined);
@@ -904,6 +906,26 @@ suite('AgentHostGitStateService', () => {
 		assert.strictEqual(h.runEvents.length - before, 1);
 	}));
 
+	test('a refresh resolves once it published what it read, while the next refresh still waits for the pause', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const h = createHarness();
+		seedSession(h.stateManager, { workingDirectory: WORKING_DIRECTORY });
+		h.setGitResult({ branchName: 'feature', baseBranchName: 'main' });
+		// Writing the state lets virtual time advance a little, so count the 5 second pauses each refresh waited out.
+		const start = Date.now();
+		const pausesWaited = () => Math.floor((Date.now() - start) / 5_000);
+
+		await h.service.refreshSessionGitState(SESSION, undefined, undefined, { force: true });
+		const first = { pausesWaited: pausesWaited(), reads: h.gitCalls.length, announced: h.runEvents.length };
+		h.setGitResult({ branchName: 'feature', baseBranchName: 'main', uncommittedChanges: 1 });
+		await h.service.refreshSessionGitState(SESSION, undefined);
+		const second = { pausesWaited: pausesWaited(), reads: h.gitCalls.length, announced: h.runEvents.length, uncommittedChanges: h.service.getSessionGitState(SESSION)?.uncommittedChanges };
+
+		assert.deepStrictEqual({ first, second }, {
+			first: { pausesWaited: 0, reads: 1, announced: 1 },
+			second: { pausesWaited: 1, reads: 2, announced: 2, uncommittedChanges: 1 },
+		});
+	}));
+
 	test('chats of one folder refreshing together share one read of its Git state; forced refreshes share a read only with each other', async () => {
 		const h = createHarness();
 		seedSession(h.stateManager, { workingDirectory: WORKING_DIRECTORY });
@@ -914,7 +936,7 @@ suite('AgentHostGitStateService', () => {
 		});
 		const overlapping = addChats('overlapping');
 		const forced = addChats('forced');
-		// Reading Git takes a while, so the chats' refreshes overlap. Each refresh then pauses before it can repeat, so they stay pending until the service is disposed.
+		// Reading Git takes a while, so the chats' refreshes overlap. Each refresh then pauses before it can repeat, until the service is disposed.
 		const realTimeout = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms));
 		const read = new DeferredPromise<ISessionGitState | undefined>();
 		h.setGitResultPromise(read.p);
