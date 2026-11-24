@@ -9,7 +9,7 @@ import { Command, commands, Disposable, MessageOptions, Position, QuickPickItem,
 import TelemetryReporter from '@vscode/extension-telemetry';
 import type { CommitOptions, RemoteSourcePublisher, Remote, Branch, Ref } from './api/git';
 import { ForcePushMode, GitErrorCodes, RefType, Status } from './api/git.constants';
-import { Git, GitError, Repository as GitRepository, Stash, Worktree } from './git';
+import { getCantRemoveFilePath, Git, GitError, Repository as GitRepository, Stash, Worktree } from './git';
 import { Model } from './model';
 import { GitResourceGroup, Repository, Resource, ResourceGroupType } from './repository';
 import { DiffEditorSelectionHunkToolbarContext, LineChange, applyLineChanges, getIndexDiffInformation, getModifiedRange, getWorkingTreeDiffInformation, intersectDiffWithRange, invertLineChange, toLineChanges, toLineRanges, compareLineChanges } from './staging';
@@ -5683,6 +5683,14 @@ export class CommandCenter {
 						choices.set(l10n.t('Show Changes'), () => commands.executeCommand('workbench.view.scm'));
 						options.modal = false;
 						break;
+					case GitErrorCodes.CantRemoveFile: {
+						const filePath = getCantRemoveFilePath(err.stderr || '');
+
+						message = filePath
+							? l10n.t('Git could not remove or replace "{0}". Make sure the file is not open in another application, then try again.', filePath)
+							: l10n.t('Git could not remove or replace a file. Make sure the file is not open in another application, then try again.');
+						break;
+					}
 					default: {
 						const hintLines = (err.stderr || err.stdout || err.message || String(err))
 							.replace(/^error: /mi, '')

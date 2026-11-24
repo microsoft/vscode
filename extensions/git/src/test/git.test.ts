@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'mocha';
-import { findGit, Git, GitStatusParser, parseGitCommits, parseGitFileLog, parseGitmodules, parseLsTree, parseLsFiles, parseGitRemotes, parseCoAuthors, getWorktreePathFromGitdir } from '../git';
+import { findGit, Git, GitStatusParser, parseGitCommits, parseGitFileLog, parseGitmodules, parseLsTree, parseLsFiles, parseGitRemotes, parseCoAuthors, getWorktreePathFromGitdir, getCantRemoveFilePath } from '../git';
 import * as assert from 'assert';
 import * as fs from 'fs';
 import * as os from 'os';
@@ -802,6 +802,40 @@ suite('git', () => {
 					{ name: 'Jane Doe', email: 'jane@example.com' }
 				]
 			);
+		});
+	});
+
+	suite('getCantRemoveFilePath', () => {
+		test('git clean failure', () => {
+			assert.strictEqual(getCantRemoveFilePath('warning: failed to remove data/thing.csv: Invalid argument\n'), 'data/thing.csv');
+		});
+
+		test('git checkout failure', () => {
+			assert.strictEqual(getCantRemoveFilePath('error: unable to unlink old \'src/a.txt\': Permission denied\n'), 'src/a.txt');
+		});
+
+		test('Windows line endings', () => {
+			assert.strictEqual(getCantRemoveFilePath('warning: failed to remove thing.csv: Invalid argument\r\n'), 'thing.csv');
+		});
+
+		test('path that contains a colon and spaces', () => {
+			assert.strictEqual(getCantRemoveFilePath('warning: failed to remove my file: v2.txt: Device or resource busy\n'), 'my file: v2.txt');
+		});
+
+		test('C-quoted path from git clean', () => {
+			assert.strictEqual(getCantRemoveFilePath('warning: failed to remove "d/caf\\303\\251 \\"q\\".txt": Permission denied\n'), 'd/café "q".txt');
+			assert.strictEqual(getCantRemoveFilePath('warning: failed to remove "tab\\there\\\\x.txt": Invalid argument\n'), 'tab\there\\x.txt');
+			assert.strictEqual(getCantRemoveFilePath('warning: failed to remove "日本 \\"q\\".txt": Invalid argument\n'), '日本 "q".txt');
+		});
+
+		test('first failure when several files fail', () => {
+			assert.strictEqual(getCantRemoveFilePath('warning: failed to remove a.txt: Permission denied\nwarning: failed to remove b.txt: Permission denied\n'), 'a.txt');
+		});
+
+		test('unrelated errors', () => {
+			assert.strictEqual(getCantRemoveFilePath(''), undefined);
+			assert.strictEqual(getCantRemoveFilePath('fatal: not a git repository (or any of the parent directories): .git\n'), undefined);
+			assert.strictEqual(getCantRemoveFilePath('error: pathspec \'a.txt\' did not match any file(s) known to git\n'), undefined);
 		});
 	});
 
