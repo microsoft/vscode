@@ -7,7 +7,7 @@ import { Dimension, h } from '../../../../base/browser/dom.js';
 import { arrayEqualsC } from '../../../../base/common/equals.js';
 import { BugIndicatingError } from '../../../../base/common/errors.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
-import { IObservable, IReader, ISettableObservable, ITransaction, autorun, autorunWithStore, constObservable, derived, derivedOpts, mapObservableArrayCached, observableValue, runOnChange, transaction } from '../../../../base/common/observable.js';
+import { IObservable, IReader, ISettableObservable, ITransaction, autorun, autorunWithStore, constObservable, derived, derivedOpts, mapObservableArrayCached, observableValue, transaction } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -277,15 +277,20 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 			}
 		}));
 
-		// Files keep the shared split when syncing is turned off, including files that are not rendered.
-		this._register(runOnChange(splitViewRatioSync.enabled, (isSynced, wasSynced) => {
-			if (!wasSynced || isSynced) {
+		// Files keep the shared split once they stop being synced, including files that are not rendered: when syncing is
+		// turned off, and when their view model is detached or replaced, as syncing could be turned off before it is back.
+		let syncedItems = new Set<DocumentDiffItemViewModel>();
+		this._register(autorun(reader => {
+			const items = new Set(splitViewRatioSync.enabled.read(reader) ? this._viewModel.read(reader)?.items.read(reader) : undefined);
+			const unsyncedItems = [...syncedItems].filter(item => !items.has(item) && item.isAlive.read(undefined));
+			syncedItems = items;
+			if (unsyncedItems.length === 0) {
 				return;
 			}
-			const ratio = splitViewRatioSync.ratio.get();
+			const ratio = splitViewRatioSync.ratio.read(undefined);
 			transaction(tx => {
-				for (const item of this._viewModel.get()?.items.get() ?? []) {
-					const data = item.lastTemplateData.get();
+				for (const item of unsyncedItems) {
+					const data = item.lastTemplateData.read(undefined);
 					if (data.splitViewRatio !== ratio) {
 						item.lastTemplateData.set({ ...data, splitViewRatio: ratio }, tx);
 					}

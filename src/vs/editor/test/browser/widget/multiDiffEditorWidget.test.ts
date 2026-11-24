@@ -926,14 +926,22 @@ suite('MultiDiffEditorWidget', () => {
 			const resizedAlone = ratios();
 			widget.reveal(resources[0], { highlight: false });
 			const revealedAfterSyncing = ratios();
+			// Syncing is turned off while the files are detached, such as while another editor is active.
+			setSynced(true);
+			widget.setViewModel(undefined);
+			setSynced(false);
+			widget.setViewModel(viewModel);
+			widget.reveal(resources[3], { highlight: false });
+			const turnedOffWhileDetached = ratios();
 
-			assert.deepStrictEqual({ notSynced, syncedToLastResize, resizedTogether, revealedWhileSynced, resizedAlone, revealedAfterSyncing }, {
+			assert.deepStrictEqual({ notSynced, syncedToLastResize, resizedTogether, revealedWhileSynced, resizedAlone, revealedAfterSyncing, turnedOffWhileDetached }, {
 				notSynced: [0.3, 'default', 'not rendered', 'not rendered'],
 				syncedToLastResize: [0.3, 0.3, 'not rendered', 'not rendered'],
 				resizedTogether: [0.4, 0.4, 'not rendered', 'not rendered'],
 				revealedWhileSynced: ['not rendered', 'not rendered', 0.4, 0.4],
 				resizedAlone: ['not rendered', 'not rendered', 0.4, 0.3],
 				revealedAfterSyncing: [0.4, 0.4, 'not rendered', 'not rendered'],
+				turnedOffWhileDetached: ['not rendered', 'not rendered', 0.3, 0.3],
 			});
 		} finally {
 			widget.setViewModel(undefined);
