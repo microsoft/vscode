@@ -400,7 +400,7 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 			return [];
 		}
 		const notices: ICustomizationSectionNotice[] = [];
-		for (const customization of this.getCustomizations(sessionResource)) {
+		for (const customization of this._customAgentsService.getCustomizations(sessionResource)) {
 			// A hook directory with no files of its own that failed to load reports problems with the section's hooks,
 			// such as files that could not be loaded, rather than with an item.
 			// Disabled directories without hooks explain why hooks won't run and are listed as rows instead.
