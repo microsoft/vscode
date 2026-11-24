@@ -168,7 +168,7 @@ export interface IDiscoverCanvasEntry {
 	readonly run: (accessor: ServicesAccessor) => Promise<void>;
 }
 
-/** Entries that help find or author canvases, offered whenever the active chat supports canvases and by New Canvas. */
+/** Entries that help find or author canvases, offered whenever the active chat supports canvases and by Open Canvas. */
 export const discoverCanvasEntries: readonly IDiscoverCanvasEntry[] = [{
 	key: 'discover:create',
 	commandId: CREATE_SESSION_CANVAS_COMMAND_ID,

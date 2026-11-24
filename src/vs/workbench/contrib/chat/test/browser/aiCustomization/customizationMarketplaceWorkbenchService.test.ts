@@ -999,6 +999,43 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 		assert.deepStrictEqual({ afterChanged, afterRemoved: changes }, { afterChanged: 0, afterRemoved: 1 });
 	});
 
+	test('ignores session changes of a Microsoft default account', () => {
+		const authenticationChanges = store.add(new Emitter<{ providerId: string; label: string; event: AuthenticationSessionsChangeEvent }>());
+		const defaultAccount = {
+			authenticationProvider: { id: 'microsoft', name: 'Microsoft', enterprise: false },
+			accountName: 'alice',
+			sessionId: 's1',
+			enterprise: false,
+		};
+		const service = createService(
+			createConfiguration([]),
+			new class extends mock<ICustomizationMarketplaceService>() {
+				override readonly sources = [];
+				override async query() { return { items: [] }; }
+			}(),
+			new class extends mock<ICopilotConnectorsService>() { }(),
+			undefined,
+			undefined,
+			[],
+			{ active: false, onDidChange: Event.None },
+			new TestDataTelemetryService(),
+			new class extends mock<IDefaultAccountService>() {
+				override readonly currentDefaultAccount = defaultAccount;
+				override readonly onDidChangeDefaultAccount = Event.None;
+			}(),
+			new class extends mock<IAuthenticationService>() {
+				override readonly onDidChangeSessions = authenticationChanges.event;
+			}(),
+		);
+		let changes = 0;
+		store.add(service.onDidChangeSources(() => changes++));
+		const session = { id: defaultAccount.sessionId, accessToken: '', account: { id: 'alice', label: 'alice' }, scopes: [] };
+
+		authenticationChanges.fire({ providerId: 'microsoft', label: 'Microsoft', event: { added: [], removed: [session], changed: [] } });
+
+		assert.deepStrictEqual({ changes }, { changes: 0 });
+	});
+
 	test('uses SDK authentication recovery for the GitHub Feed', async () => {
 		const configuration = createConfiguration([CustomizationMarketplaceSources.AgentFinderPublicFeed.id]);
 		const signIns: CancellationToken[] = [];

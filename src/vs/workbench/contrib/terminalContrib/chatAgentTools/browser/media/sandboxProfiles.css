@@ -58,8 +58,16 @@
 	padding: var(--vscode-spacing-size160) var(--vscode-spacing-size120) 0 var(--vscode-spacing-size240);
 }
 
-.sandbox-profiles-editor .sidebar-view .section-heading {
-	margin-bottom: var(--vscode-spacing-size80);
+.sandbox-profiles-editor .new-profile-button {
+	display: flex;
+	align-items: center;
+	height: 40px;
+	box-sizing: border-box;
+	padding-bottom: var(--vscode-spacing-size80);
+}
+
+.sandbox-profiles-editor .profiles-empty .section-description {
+	margin-top: var(--vscode-spacing-size80);
 }
 
 .sandbox-profiles-editor .profile-list-item {
@@ -75,15 +83,6 @@
 	overflow: hidden;
 	white-space: nowrap;
 	text-overflow: ellipsis;
-}
-
-.sandbox-profiles-editor .profile-list-item-label.new-profile {
-	font-style: italic;
-}
-
-/* The Settings editor's rule for read-only lists is scoped to its own DOM. */
-.sandbox-profiles-editor .setting-list-hide-add-button .setting-list-new-row {
-	display: none;
 }
 
 .sandbox-profiles-editor .profile-list-item-actions {
@@ -354,8 +353,7 @@
 	margin: 0 var(--vscode-spacing-size40);
 }
 
-.sandbox-profiles-editor .setting-item-value .monaco-text-button,
-.sandbox-profiles-editor .profile-actions .monaco-text-button {
+.sandbox-profiles-editor .setting-item-value .monaco-text-button {
 	width: initial;
 	white-space: nowrap;
 }
@@ -363,18 +361,4 @@
 .sandbox-profiles-editor .monaco-text-button.setting-list-addButton {
 	display: inline-block;
 	margin-top: var(--vscode-spacing-size40);
-}
-
-/* Actions */
-
-.sandbox-profiles-editor .profile-actions {
-	display: flex;
-	flex: none;
-	gap: var(--vscode-spacing-size80);
-	padding: var(--vscode-spacing-size120) 0;
-	border-top: var(--vscode-strokeThickness) solid var(--vscode-widget-border, var(--vscode-panel-border));
-}
-
-.sandbox-profiles-editor .profile-actions[hidden] {
-	display: none;
 }

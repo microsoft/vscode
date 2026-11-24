@@ -159,7 +159,7 @@ suite('RemotesModel', () => {
 			getPreference: key => locationPreferences.get(key),
 			setPreference: (key, preference) => { locationPreferences.set(key, preference); },
 		});
-		instantiationService.stub(IProductService, { nameShort: 'Code - OSS', nameLong: 'Code - OSS', version: '1.140.0', commit: 'client-commit', quality: 'insider', date: '2026-11-20T00:00:00.000Z' });
+		instantiationService.stub(IProductService, { nameShort: 'Code - OSS', nameLong: 'Code - OSS', version: '1.140.0', commit: 'client-commit', quality: 'insider', date: '2026-11-20T00:00:00.000Z', serverDataFolderName: '.vscode-server-insiders' });
 		instantiationService.stub(IProgressService, new TestProgressService());
 		instantiationService.stub(IRemoteTunnelService, {
 			onDidChangeTunnelStatus: tunnelStatusChanged.event,
@@ -779,7 +779,7 @@ suite('RemotesModel', () => {
 				{ id: 'devcontainer:local', description: 'This Computer', connectsWithHost: undefined },
 				{ id: 'devcontainer:wsl:Ubuntu', description: 'Ubuntu', connectsWithHost: true },
 			],
-			details: ['This removes the container and its Docker volume from this computer, including all files in the container. Sessions that ran in it can no longer continue.'],
+			details: ['This removes the container and its Docker volume from this computer, including all files in the container. Sessions that ran in it are removed too.'],
 			deletions: ['devcontainer:local'],
 		});
 	});
@@ -802,7 +802,7 @@ suite('RemotesModel', () => {
 		assert.deepStrictEqual({ saved, forgottenHosts, remainingTrust: [...trustedHostKeys.keys()], confirmations: confirmations.map(({ message, detail }) => ({ message, detail })), forgotten, forgetAgain, connectionChanges }, {
 			saved: {
 				lastStep: { phase: 'transport.connect', outcome: 'failed', timestamp: 2, error: 'Error: Host key verification failed' },
-				ssh: { alias: 'removed', hostName: 'build.example', user: 'developer', port: 22, hasSavedHostKey: true },
+				ssh: { alias: 'removed', hostName: 'build.example', user: 'developer', port: 22, remoteLog: '.vscode-server-insiders/cli/agent-host-insider.log', hasSavedHostKey: true },
 				versions: { client: { name: 'Code - OSS', version: '1.140.0', build: { commit: 'client-commit', quality: 'insider', date: '2026-11-20T00:00:00.000Z' } } },
 			},
 			forgottenHosts: ['build.example:22'],
@@ -829,7 +829,7 @@ suite('RemotesModel', () => {
 		trustedHostKeys.set('direct-key:2222', [{ keyType: 'ssh-ed25519', fingerprint: 'SHA256:alias', addedAt: 0 }]);
 		await model.forgetSSHHostKey('ssh:dev@direct.example:2222');
 		assert.deepStrictEqual({ ssh: legacy.ssh, resolvedSSHHosts, forgottenHosts, remainingTrust: [...trustedHostKeys.keys()] }, {
-			ssh: { host: 'direct.example', hostName: 'direct.internal', user: 'dev', port: 2222, hasSavedHostKey: true },
+			ssh: { host: 'direct.example', hostName: 'direct.internal', user: 'dev', port: 2222, remoteLog: '.vscode-server-insiders/cli/agent-host-insider.log', hasSavedHostKey: true },
 			resolvedSSHHosts: ['direct.example', 'direct.example'],
 			forgottenHosts: ['direct-key:2222'],
 			remainingTrust: ['direct.internal:2222'],

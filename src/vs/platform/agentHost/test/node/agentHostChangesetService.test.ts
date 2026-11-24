@@ -62,7 +62,7 @@ const TEST_GIT_STATE_SERVICE: IAgentHostGitStateService = {
 	getSessionGitState: session => testGitStates.get(session),
 	getMaterializedWorktreeMeta: () => undefined,
 	setFolderGitState: async () => { },
-	resolveSessionBaseBranchName: async session => testGitStates.get(session)?.baseBranchName,
+	resolveSessionBaseBranchRef: async session => testGitStates.get(session)?.baseBranchName,
 	setSessionGitHubState: async () => { },
 	recordSessionMerge: async () => { },
 	attachSessionGitHubPullRequest: async () => { },
@@ -500,12 +500,12 @@ suite.skip('AgentHostChangesetService', () => {
 				workingDirectories: ['file:///wd'],
 				defaultChat: buildDefaultChatUri(sessionStr),
 			});
-			localStateManager.setSessionMeta(sessionStr, withSessionGitState(undefined, { baseBranchName: 'main' }));
+			localStateManager.setSessionMeta(sessionStr, withSessionGitState(undefined, { baseBranchName: 'main', baseBranchRef: 'refs/remotes/origin/main' }));
 
 			localChangesets.refreshSessionChangeset(sessionStr);
 			await waitForChangesetReady(localStateManager, buildSessionChangesetUri(sessionStr));
 
-			assert.deepStrictEqual(computeCalls, [{ baseBranch: 'main' }]);
+			assert.deepStrictEqual(computeCalls, [{ baseBranch: 'refs/remotes/origin/main' }]);
 		});
 
 		test('session changeset keeps persisted diff base ahead of _meta.git base branch', async () => {
@@ -535,7 +535,7 @@ suite.skip('AgentHostChangesetService', () => {
 				workingDirectories: ['file:///wd'],
 				defaultChat: buildDefaultChatUri(sessionStr),
 			});
-			localStateManager.setSessionMeta(sessionStr, withSessionGitState(undefined, { baseBranchName: 'main' }));
+			localStateManager.setSessionMeta(sessionStr, withSessionGitState(undefined, { baseBranchName: 'main', baseBranchRef: 'refs/remotes/origin/main' }));
 
 			localChangesets.refreshSessionChangeset(sessionStr);
 			await waitForChangesetReady(localStateManager, buildSessionChangesetUri(sessionStr));
@@ -2849,17 +2849,22 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 		testGitStates.set(peerResource, {
 			branchName: 'chat-feature',
 			baseBranchName: 'chat-main',
+			baseBranchRef: 'refs/remotes/origin/chat-main',
 		});
+		stateManager.dispatchServerAction(sessionStr, { type: ActionType.SessionReady });
 
+		svc.refreshChangesetCatalog(peerResource);
 		svc.refreshBranchChangeset(peerResource);
 		await waitForChangesetReady(stateManager, branchUri);
 
 		assert.deepStrictEqual({
+			description: stateManager.getChatState(peerResource)?.changesets?.find(changeset => changeset.changeKind === 'branch')?.description,
 			diffBaseBranches,
 			reviewBaseBranches,
 		}, {
-			diffBaseBranches: ['chat-main'],
-			reviewBaseBranches: ['chat-main'],
+			description: 'chat-feature → origin/chat-main',
+			diffBaseBranches: ['refs/remotes/origin/chat-main'],
+			reviewBaseBranches: ['refs/remotes/origin/chat-main'],
 		});
 	});
 
@@ -2901,7 +2906,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 				diffBases,
 			}, {
 				descriptions: ['feature → origin/release', 'feature → origin/release'],
-				diffBases: ['release'],
+				diffBases: ['origin/release'],
 			});
 		});
 	}
@@ -2981,6 +2986,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 		testGitStates.set(peerResource, {
 			branchName: 'chat-feature',
 			baseBranchName: 'chat-main',
+			baseBranchRef: 'refs/remotes/origin/chat-main',
 		});
 		svc.refreshChangesetCatalog(peerResource);
 		const withChatGit = stateManager.getChatState(peerResource)?.changesets;
@@ -3006,7 +3012,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 			defaultChatWithoutLiveGit: ['branch', 'uncommitted', 'turn', 'compare-turns'],
 			withoutChatGit: ['session', 'turn'],
 			withChatGit: ['branch', 'uncommitted', 'session', 'turn', 'compare-turns'],
-			branchDescription: 'chat-feature → chat-main',
+			branchDescription: 'chat-feature → origin/chat-main',
 		});
 	});
 

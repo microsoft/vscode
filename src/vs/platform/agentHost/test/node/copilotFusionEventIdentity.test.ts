@@ -29,6 +29,7 @@ suite('CopilotFusionRequestCorrelation', () => {
 	for (const boundary of [
 		event('abort', { reason: 'user_initiated' }),
 		event('session.idle', {}, { ephemeral: true }),
+		event('session.error', { errorType: 'authentication', message: 'Not signed in' }, { ephemeral: true }),
 		event('session.fusion_completed', data.completed),
 	]) {
 		test(`does not recover abandoned routing across ${boundary.type}`, () => {
@@ -38,6 +39,16 @@ suite('CopilotFusionRequestCorrelation', () => {
 			assert.strictEqual(correlation.getPrecedingResolution(event('user.message', { content: 'Next request' }, { parentId: 'route' })), undefined);
 		});
 	}
+
+	test('keeps routing across a failed hook\'s session error, which the runtime continues past', () => {
+		const correlation = new CopilotFusionRequestCorrelation();
+		correlation.observe(event('session.fusion_resolved', data.resolved, { id: 'route' }));
+		correlation.observe(event('session.error', { errorType: 'hook', message: 'userPromptSubmitted hook failed in the session sandbox' }, { ephemeral: true }));
+		assert.deepStrictEqual(
+			correlation.getPrecedingResolution(event('user.message', { content: 'Request' }, { parentId: 'route' })),
+			{ fusionId: data.resolved.fusionId, turnId: data.resolved.turnId },
+		);
+	});
 
 	test('does not substitute a subagent resolution for the root resolution', () => {
 		const correlation = new CopilotFusionRequestCorrelation();

@@ -121,6 +121,7 @@
 		"editor.wordHighlightStrongBackground": "#27678280",
 		"editor.findMatchBackground": "#27678290",
 		"editor.findMatchHighlightBackground": "#27678280",
+		"editor.findMatchBorder": "#3994BC",
 		"editor.findRangeHighlightBackground": "#FFFFFF13",
 		"editor.hoverHighlightBackground": "#FFFFFF13",
 		"editor.lineHighlightBackground": "#242526",

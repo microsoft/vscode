@@ -5,6 +5,7 @@
 
 import * as dom from '../../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../../base/browser/keyboardEvent.js';
+import { IMouseEvent } from '../../../../../../base/browser/mouseEvent.js';
 import { status } from '../../../../../../base/browser/ui/aria/aria.js';
 import { Button } from '../../../../../../base/browser/ui/button/button.js';
 import { createInstantHoverDelegate } from '../../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
@@ -52,7 +53,7 @@ import { ISessionsProvidersService } from '../../../browser/sessionsProvidersSer
 import { INewSessionComposerService } from '../../../browser/newSessionComposerService.js';
 import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
 import { getVisibleRemoteKinds, ICustomizationRemote, IRemotesModel, RemoteKind, remoteKindLabels } from './remotesModel.js';
-import { getConnectionProblem, getGitHubEnvironmentLabel, getServerUpdateLabel, getRemoteActivityTime, getRemoteAddressLabel, getRemoteAvailabilityLabel, getRemoteMetadataDetails, getRemoteMetadataLabel, getRemoteStatusGroup, getRemoteTypeLabel, IRemoteEmptyEntry, IRemoteTableRow, remoteStatusGroups as statusGroups, RemotesTableRenderer, RemoteRowAction, RemoteTableEntry } from './remotesTable.js';
+import { getConnectionProblem, getGitHubEnvironmentLabel, getServerUpdateLabel, getRemoteActivityTime, getRemoteAddressLabel, getRemoteAvailabilityLabel, getRemoteMetadataDetails, getRemoteMetadataLabel, getRemoteRowMenuActions, getRemoteStatusGroup, getRemoteTypeLabel, IRemoteEmptyEntry, IRemoteTableRow, remoteStatusGroups as statusGroups, RemotesTableRenderer, RemoteRowAction, RemoteTableEntry } from './remotesTable.js';
 import { RemoteEnvironmentDetails, RemoteEnvironmentDetailsMode } from './remoteEnvironmentDetails.js';
 import './media/remotesWidget.css';
 import '../../../browser/media/disclosure.css';
@@ -391,6 +392,28 @@ export class RemotesWidget extends Disposable {
 			if (event.element?.entry.type === 'group' && event.browserEvent?.type !== dom.EventType.KEY_DOWN) {
 				this.toggleGroup(event.element.entry.id);
 			}
+		}));
+		this._register(this.table.onContextMenu(event => {
+			// Inline controls can have focus without the table focusing their row, such as a Sandbox Profile selector
+			// restoring focus when it closes. A keyboard menu from such a control is for the control's row.
+			const target = event.browserEvent.target;
+			const controlRow = dom.isKeyboardEvent(event.browserEvent) && dom.isHTMLElement(target) ? nameRenderer.getRowContaining(target) : undefined;
+			const row = controlRow ?? event.element;
+			const actions = row ? getRemoteRowMenuActions(row.entry, (entry, action) => this.runRowAction(entry, action)) : [];
+			if (!row || !actions.length) {
+				return;
+			}
+			dom.EventHelper.stop(event.browserEvent, true);
+			// The list has no anchor for a focused row scrolled out of view, so reveal the row and anchor the menu to it.
+			let anchor: HTMLElement | IMouseEvent | null | undefined = controlRow ? nameRenderer.getRowElement(controlRow.id) : event.anchor;
+			if (!anchor && event.index !== undefined) {
+				this.table.reveal(event.index);
+				anchor = nameRenderer.getRowElement(row.id);
+			}
+			contextMenuService.showContextMenu({
+				getAnchor: () => anchor ?? this.table.getHTMLElement(),
+				getActions: () => actions,
+			});
 		}));
 		this._register(dom.addDisposableListener(this.table.getHTMLElement(), dom.EventType.KEY_DOWN, event => {
 			if (!dom.isHTMLElement(event.target) || !event.target.classList.contains('monaco-list')) {

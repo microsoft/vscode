@@ -13,11 +13,13 @@ With Modern UI enabled, `window.density.layout` set to `default` keeps the workb
 
 Standard HC Connected editors use the editor card's perimeter and `modernPanel.border`, without a second inset group frame. Compact layout shares its square grid-edge seams with adjacent panels. Agents-window detail editors keep their separately owned frame and use `agentsPanel.border`; tab focus and selection accents remain independent of either frame.
 
-The floating editor's content curve follows the inside of its frame, accounting for the snapped border width so tab-strip corners stay concentric with the card, including with a customized editor-area radius or fractional zoom.
+The floating editor's content curve follows the inside of its frame: the card clips its content to its padding edge, so tab-strip corners stay concentric with the card, including with a customized editor-area radius or fractional zoom. The content rounds no second clip inside the card, because Chromium applies one rounded clip per draw quad and would draw the editor through offscreen render passes.
+
+Modal editors keep one rounded clip on the part itself, with equal radii on all four corners. It clips the header, optional sidebar and square content to the curve inside its border. The shadow wrapper paints but does not clip. This applies with or without Modern UI: Chromium supports one rounded clip per draw quad, so nesting another forces offscreen render surfaces. Unequal corner radii also force a render surface on macOS.
 
 ## Suggestion menu corners
 
-Editor and workbench suggestion menus use the Outer radius on their first item's upper corners and their last item's lower corners. These styles are shared with the Agents window, where they apply independently of the main workbench's Modern UI setting. These boundaries follow logical list positions, not virtualized DOM order; a single-item menu receives all four corners. The rounded list viewport clips partially scrolled highlights without clipping the workbench widget's resize sashes. Interior corners stay at the Control tier, and a visible status bar keeps the last row at that tier rather than rounding the footer seam.
+Editor and workbench suggestion menus use the Outer radius on their first item's upper corners and their last item's lower corners. These styles are shared with the Agents window, where they apply independently of the main workbench's Modern UI setting. These boundaries follow logical list positions, not virtualized DOM order; a single-item menu receives all four corners. The editor widget clips partially scrolled highlights and its status bar; its list keeps a square clip, because Chromium applies one rounded clip per draw quad and nesting rounded clips forces offscreen render surfaces. The widget's four clip radii stay equal, including with a status bar, so macOS can apply them through Core Animation rather than a render surface. The workbench widget instead keeps its rounded list viewport, without clipping its resize sashes. Interior corners stay at the Control tier, and a visible status bar keeps the last row at that tier rather than rounding the footer seam.
 
 ## Editor tab style
 

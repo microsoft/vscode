@@ -54,7 +54,7 @@ import {
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { isChatWorkspaceless } from './agentChatContext.js';
 import { IAgentConfigurationService, getSessionSummaryWorkingDirectories } from './agentConfigurationService.js';
-import { IAgentHostGitService, resolveDiffBaseBranchName } from '../common/agentHostGitService.js';
+import { IAgentHostGitService } from '../common/agentHostGitService.js';
 import { IAgentHostCheckpointService } from '../common/agentHostCheckpointService.js';
 import { NodeWorkerDiffComputeService } from './diffComputeService.js';
 import { computeSessionDiffs, computeTurnDiffs, computeUnionedDiffs, computeWorkingSetFiles, type IIncrementalDiffOptions, type ISessionDiffSource } from './sessionDiffAggregator.js';
@@ -2650,13 +2650,14 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	}
 
 	/**
-	 * Resolves the Branch Changes base branch, reused by the diff computation
-	 * and the review-status lookup so both are keyed on the same baseline.
+	 * Resolves the Branch Changes base branch exactly as recorded, reused by the
+	 * diff computation and the review-status lookup so both are keyed on the
+	 * same baseline.
 	 */
 	private async _resolveBranchBaseBranch(session: ProtocolURI): Promise<string | undefined> {
 		const source = resolveBranchChangesetScopeForOwner(this._stateManager, session)?.sourceUri ?? session;
 		const snapshot = await this._sessionStateStore.load(URI.parse(this._containingSessionUri(source)));
-		return resolveDiffBaseBranchName(this._getBranchBaseBranch(source, snapshot), undefined);
+		return this._getBranchBaseBranch(source, snapshot);
 	}
 
 	/** Selects the persisted folder base before the Git-state fallback for both the catalogue and diff computation. */
@@ -2666,9 +2667,9 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		const persistedBaseBranch = snapshot && (!sourceIsDefaultChat || isSessionFolder)
 			? readSessionBaseBranch(snapshot, sourceIsDefaultChat ? undefined : source)
 			: undefined;
-		const gitStateBaseBranch = this._gitStateService.getSessionGitState?.(source)?.baseBranchName
+		const gitStateBaseBranch = this._gitStateService.getSessionGitState?.(source)?.baseBranchRef
 			?? (isSessionFolder && (!isAhpChatChannel(source) || sourceIsDefaultChat)
-				? readSessionGitState(this._stateManager.getSessionState(this._containingSessionUri(source))?._meta)?.baseBranchName
+				? readSessionGitState(this._stateManager.getSessionState(this._containingSessionUri(source))?._meta)?.baseBranchRef
 				: undefined);
 		if (!persistedBaseBranch && gitStateBaseBranch) {
 			this._logService.debug(`[AgentHostChangesetService] Using _meta.git base branch fallback for Branch Changes in ${source}: ${gitStateBaseBranch}`);

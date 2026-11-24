@@ -181,16 +181,24 @@ suite('Suggestion menu corners', () => {
 				const style = getWindow(listElement).getComputedStyle(listElement);
 				const focusedRow = listElement.querySelector<HTMLElement>('.monaco-list-row.focused')!;
 				const rowBounds = focusedRow.getBoundingClientRect();
+				const clip = kind === 'editor' ? widget : listElement;
+				const clipBounds = clip.getBoundingClientRect();
 				assert.deepStrictEqual({
 					corners: corners(listElement),
 					overflow: [style.overflowX, style.overflowY],
+					clipCorners: corners(clip),
+					clipOverflow: getWindow(clip).getComputedStyle(clip).overflow,
+					outsideCornerHit: focusedRow.contains(document.elementFromPoint(clipBounds.left + 1, clipBounds.top + 1)),
 					viewport: [bounds.width, bounds.height],
 					scrollTop: list.scrollTop,
 					focusedRow: [focusedRow.dataset.index, rowBounds.top - bounds.top, rowBounds.height],
 					interiorHit: listElement.contains(document.elementFromPoint(bounds.left + 8, bounds.top + 1)),
 				}, {
-					corners: withStatusBar ? ['8px', '8px', '0px', '0px'] : ['8px', '8px', '8px', '8px'],
+					corners: kind === 'editor' ? ['0px', '0px', '0px', '0px'] : withStatusBar ? ['8px', '8px', '0px', '0px'] : ['8px', '8px', '8px', '8px'],
 					overflow: ['hidden', 'hidden'],
+					clipCorners: kind === 'workbench' && withStatusBar ? ['8px', '8px', '0px', '0px'] : ['8px', '8px', '8px', '8px'],
+					clipOverflow: 'hidden',
+					outsideCornerHit: false,
 					viewport: [200, 60],
 					scrollTop: 30,
 					focusedRow: ['1', -10, 20],
@@ -200,17 +208,19 @@ suite('Suggestion menu corners', () => {
 		}
 
 		test(`${workbenchClass} ${kind} keeps the footer seam at the control tier`, () => {
-			const { list, rows, listElement } = createList(1, true);
+			const { widget, list, rows, listElement } = createList(1, true);
 			const single = rows().map(corners);
 			list.splice(0, 1, range(3));
 			assert.deepStrictEqual({
 				single,
 				rows: rows().map(corners),
 				viewportBottom: corners(listElement).slice(2),
+				widgetOverflow: getWindow(widget).getComputedStyle(widget).overflow,
 			}, {
 				single: [['8px', '8px', '4px', '4px']],
 				rows: [['8px', '8px', '4px', '4px'], controlCorners, controlCorners],
 				viewportBottom: ['0px', '0px'],
+				widgetOverflow: kind === 'editor' ? 'hidden' : 'visible',
 			});
 		});
 
@@ -232,10 +242,18 @@ suite('Suggestion menu corners', () => {
 			}
 		});
 
-		test(`${workbenchClass} ${kind} leaves classic suggestion rows unchanged`, () => {
-			const { root, rows } = createList(1);
+		test(`${workbenchClass} ${kind} leaves classic suggestions unchanged`, () => {
+			const { root, widget, rows, listElement } = createList(1);
 			root.classList.remove(workbenchClass);
-			assert.deepStrictEqual(rows().map(corners), [['0px', '0px', '0px', '0px']]);
+			assert.deepStrictEqual({
+				rows: rows().map(corners),
+				viewport: corners(listElement),
+				widgetOverflow: getWindow(widget).getComputedStyle(widget).overflow,
+			}, {
+				rows: [['0px', '0px', '0px', '0px']],
+				viewport: kind === 'editor' ? ['8px', '8px', '8px', '8px'] : ['0px', '0px', '0px', '0px'],
+				widgetOverflow: 'visible',
+			});
 		});
 	}
 

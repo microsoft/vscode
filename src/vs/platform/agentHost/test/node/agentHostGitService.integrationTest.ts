@@ -804,28 +804,73 @@ suite('AgentHostGitService - getSessionGitState (real git)', () => {
 		});
 	});
 
-	(hasGit ? test : test.skip)('reports the default branch in the session git state regardless of the configured base branch', async () => {
-		const dir = initRepo();
+	(hasGit ? test : test.skip)('reports the full ref of the base branch, and the default branch regardless of the configured base branch, in the session git state', async () => {
+		const dir = initRepo({ remote: 'https://github.com/microsoft/vscode.git' });
 		const run = (...args: string[]) => cp.execFileSync('git', args, { cwd: dir, stdio: 'pipe' });
 		run('branch', 'release');
 		run('update-ref', 'refs/remotes/origin/main', 'refs/heads/main');
+		run('update-ref', 'refs/remotes/origin/release', 'refs/heads/main');
 		run('symbolic-ref', 'refs/remotes/origin/HEAD', 'refs/remotes/origin/main');
 		const defaultBranchFields = (state: ISessionGitState | undefined) => ({
 			baseBranchName: state?.baseBranchName,
+			baseBranchRef: state?.baseBranchRef,
 			defaultBranchName: state?.defaultBranchName,
 			defaultRemoteBranchName: state?.defaultRemoteBranchName,
 		});
 
 		const detected = defaultBranchFields(await svc!.getSessionGitState(URI.file(dir)));
 		const configured = defaultBranchFields(await svc!.getSessionGitState(URI.file(dir), 'release'));
+		const configuredRemote = defaultBranchFields(await svc!.getSessionGitState(URI.file(dir), 'origin/main'));
+		const configuredRef = defaultBranchFields(await svc!.getSessionGitState(URI.file(dir), 'refs/remotes/origin/release'));
+		const removedRemoteRef = defaultBranchFields(await svc!.getSessionGitState(URI.file(dir), 'refs/remotes/upstream/main'));
 		// `origin/HEAD` outlives its target when the remote renames its default branch.
 		run('update-ref', '-d', 'refs/remotes/origin/main');
 		const dangling = defaultBranchFields(await svc!.getSessionGitState(URI.file(dir)));
 
-		assert.deepStrictEqual({ detected, configured, dangling }, {
-			detected: { baseBranchName: 'main', defaultBranchName: 'main', defaultRemoteBranchName: 'origin/main' },
-			configured: { baseBranchName: 'release', defaultBranchName: 'main', defaultRemoteBranchName: 'origin/main' },
-			dangling: { baseBranchName: 'main', defaultBranchName: 'main', defaultRemoteBranchName: undefined },
+		assert.deepStrictEqual({ detected, configured, configuredRemote, configuredRef, removedRemoteRef, dangling }, {
+			detected: { baseBranchName: 'main', baseBranchRef: 'refs/remotes/origin/main', defaultBranchName: 'main', defaultRemoteBranchName: 'origin/main' },
+			configured: { baseBranchName: 'release', baseBranchRef: 'refs/heads/release', defaultBranchName: 'main', defaultRemoteBranchName: 'origin/main' },
+			configuredRemote: { baseBranchName: 'main', baseBranchRef: 'refs/remotes/origin/main', defaultBranchName: 'main', defaultRemoteBranchName: 'origin/main' },
+			configuredRef: { baseBranchName: 'release', baseBranchRef: 'refs/remotes/origin/release', defaultBranchName: 'main', defaultRemoteBranchName: 'origin/main' },
+			removedRemoteRef: { baseBranchName: undefined, baseBranchRef: 'refs/remotes/upstream/main', defaultBranchName: 'main', defaultRemoteBranchName: 'origin/main' },
+			dangling: { baseBranchName: 'main', baseBranchRef: 'refs/heads/main', defaultBranchName: 'main', defaultRemoteBranchName: undefined },
+		});
+	});
+
+	(hasGit ? test : test.skip)('resolves a recorded base branch the way git does, and the local branch Merge merges into', async () => {
+		const dir = initRepo({ remote: 'https://github.com/microsoft/vscode.git' });
+		const directory = URI.file(dir);
+		const run = (...args: string[]) => cp.execFileSync('git', args, { cwd: dir, stdio: 'pipe' });
+		run('remote', 'add', 'fork/me', 'https://github.com/me/vscode.git');
+		run('update-ref', 'refs/remotes/origin/main', 'HEAD');
+		run('update-ref', 'refs/remotes/fork/me/release/1.90', 'HEAD');
+		const resolve = (baseBranch: string) => svc!.resolveBaseBranch(directory, baseBranch);
+		const originMain = { kind: 'remote', ref: 'refs/remotes/origin/main', remote: 'origin', branch: 'main' } as const;
+		const forkRelease = { kind: 'remote', ref: 'refs/remotes/fork/me/release/1.90', remote: 'fork/me', branch: 'release/1.90' } as const;
+
+		const shortRemote = await resolve('origin/main');
+		const shortLocal = await resolve('main');
+		const fullRemote = await resolve('refs/remotes/fork/me/release/1.90');
+		const pruned = await resolve('origin/gone');
+		// `main` does not track `origin/main`, but has its name.
+		const sameNamedTarget = await svc!.resolveMergeTargetBranch(directory, originMain);
+		run('branch', '--no-track', 'dev');
+		run('branch', '--set-upstream-to', 'origin/main', 'dev');
+		const trackingTarget = await svc!.resolveMergeTargetBranch(directory, originMain);
+		const missingTarget = await svc!.resolveMergeTargetBranch(directory, forkRelease);
+		// Like git, a local branch shadows the remote-tracking branch of the same short name.
+		run('update-ref', 'refs/heads/origin/main', 'HEAD');
+		const ambiguous = await resolve('origin/main');
+
+		assert.deepStrictEqual({ shortRemote, shortLocal, fullRemote, pruned, ambiguous, sameNamedTarget, trackingTarget, missingTarget }, {
+			shortRemote: originMain,
+			shortLocal: { kind: 'local', ref: 'refs/heads/main', branch: 'main' },
+			fullRemote: forkRelease,
+			pruned: { kind: 'remote', ref: 'refs/remotes/origin/gone', remote: 'origin', branch: 'gone' },
+			ambiguous: { kind: 'local', ref: 'refs/heads/origin/main', branch: 'origin/main' },
+			sameNamedTarget: 'main',
+			trackingTarget: 'dev',
+			missingTarget: undefined,
 		});
 	});
 
@@ -904,6 +949,37 @@ suite('AgentHostGitService - getSessionGitState (real git)', () => {
 		} finally {
 			await rmDirWithRetry(remoteDir);
 		}
+	});
+
+	(hasGit ? test : test.skip)('counts commits ahead of the recorded base while Merge availability follows the local base branch', async () => {
+		const dir = initRepo({ remote: 'https://github.com/microsoft/vscode.git' });
+		const env = { ...process.env, GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@t', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@t' };
+		const run = (...args: string[]) => cp.execFileSync('git', args, { cwd: dir, env, stdio: 'pipe' });
+		run('update-ref', 'refs/remotes/origin/main', 'HEAD');
+		run('checkout', '-q', '-b', 'upstream');
+		run('commit', '-q', '--allow-empty', '-m', 'upstream');
+		run('update-ref', 'refs/remotes/origin/main', 'HEAD');
+		// The feature branch starts from `origin/main`, which the local `main` lags behind, and has no upstream.
+		run('checkout', '-q', '--no-track', '-b', 'feature', 'origin/main');
+		run('commit', '-q', '--allow-empty', '-m', 'feature');
+		const divergence = async (baseBranch: string) => {
+			const state = await svc!.getSessionGitState(URI.file(dir), baseBranch);
+			return { baseBranchName: state?.baseBranchName, outgoingChanges: state?.outgoingChanges, hasBaseBranchChanges: state?.hasBaseBranchChanges };
+		};
+
+		const originMain = await divergence('refs/remotes/origin/main');
+		const main = await divergence('refs/heads/main');
+		const legacyOriginMain = await divergence('origin/main');
+		// What Merge does: the local `main` takes the feature commits while `origin/main` stays behind.
+		run('branch', '-f', 'main', 'feature');
+		const afterLocalMerge = await divergence('refs/remotes/origin/main');
+
+		assert.deepStrictEqual({ originMain, main, legacyOriginMain, afterLocalMerge }, {
+			originMain: { baseBranchName: 'main', outgoingChanges: 1, hasBaseBranchChanges: true },
+			main: { baseBranchName: 'main', outgoingChanges: 2, hasBaseBranchChanges: true },
+			legacyOriginMain: { baseBranchName: 'main', outgoingChanges: 1, hasBaseBranchChanges: true },
+			afterLocalMerge: { baseBranchName: 'main', outgoingChanges: 1, hasBaseBranchChanges: false },
+		});
 	});
 });
 
@@ -1053,7 +1129,7 @@ suite('AgentHostGitService - computeSessionFileDiffs (real git)', () => {
 		assert.ok(paths.some(p => p?.endsWith('b.txt')), `expected b.txt in diff; got ${paths.join(', ')}`);
 	});
 
-	(hasGit ? test : test.skip)('prefers origin base branch when local base branch is stale', async () => {
+	(hasGit ? test : test.skip)('diffs against the base branch exactly as recorded when its local and remote-tracking refs differ', async () => {
 		const fs = await import('fs/promises');
 		const { dir, run } = initRepo();
 		await fs.writeFile(join(dir, 'shared.txt'), 'base\n');
@@ -1074,15 +1150,16 @@ suite('AgentHostGitService - computeSessionFileDiffs (real git)', () => {
 		run('add', '.');
 		run('commit', '-q', '-m', 'feature');
 
-		const result = await svc!.computeSessionFileDiffs(URI.file(dir), { sessionUri: 'copilot:/s', baseBranch: 'main' });
-		assert.ok(result, 'expected diffs');
-		const paths = result.map(d => d.after?.uri ?? d.before?.uri);
+		const changedFiles = async (baseBranch: string) => (await svc!.computeSessionFileDiffs(URI.file(dir), { sessionUri: 'copilot:/s', baseBranch }))
+			?.map(diff => URI.parse(diff.after?.uri ?? diff.before!.uri).path.split('/').pop())
+			.sort();
+		// The local `main` is stale: it lacks the upstream commit that `origin/main` and the feature branch have.
 		assert.deepStrictEqual({
-			feature: paths.some(p => p?.endsWith('feature.txt')),
-			upstream: paths.some(p => p?.endsWith('upstream.txt')),
+			'origin/main': await changedFiles('origin/main'),
+			main: await changedFiles('main'),
 		}, {
-			feature: true,
-			upstream: false,
+			'origin/main': ['feature.txt'],
+			main: ['feature.txt', 'upstream.txt'],
 		});
 	});
 

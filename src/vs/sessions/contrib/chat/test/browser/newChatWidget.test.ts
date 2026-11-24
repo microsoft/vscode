@@ -71,7 +71,7 @@ import { SessionInputPickerVisibility } from '../../../../../workbench/contrib/s
 import { IChatRequestVariableEntry, toFileVariableEntry, toPasteVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { getAdditionalFolderContextId, getAdditionalRepositoryContextId } from '../../../../../workbench/contrib/sessions/common/newChatContextIds.js';
-import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID, REMOTE_AGENT_HOST_PROVIDER_PREFIX } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
+import { IAgentHostPredecessor, IAgentHostSessionsProvider, IAgentHostSuccessor, LOCAL_AGENT_HOST_PROVIDER_ID, REMOTE_AGENT_HOST_PROVIDER_PREFIX } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { AgentCustomization } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { INewSessionTargetLabels, NewSessionComposerService } from '../../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
 import { ComposerInputSnapshot } from '../../../../../workbench/contrib/sessions/common/newChatDraftState.js';
@@ -1527,6 +1527,109 @@ suite('NewChatWidget', () => {
 				announcements: calls.filter(call => call.startsWith('Environment:')),
 				openedPickers: calls.filter(call => call === 'openWorkspacePicker').length,
 			}, { environment: 'local', announcements: ['Environment: This Computer'], openedPickers: 0 });
+		});
+
+		for (const { devContainer, hosted, requested } of [
+			{ devContainer: false, hosted: true, requested: undefined },
+			{ devContainer: false, hosted: true, requested: 'claude' },
+			{ devContainer: true, hosted: false, requested: undefined },
+			{ devContainer: false, hosted: false, requested: 'claude' },
+		]) {
+			test(`follows the provider that continues the selected host in the background with the draft, its requested agent, Dev Container, requested target and selection origin (devContainer: ${devContainer}, hosted: ${hosted}, requested: ${requested})`, async () => {
+				const { harness, calls } = createHarness(true);
+				const environment: ISessionCreationEnvironment = { id: 'agenthost-env', kind: 'remote', label: 'GitHub Environment', icon: Codicon.github, providerIds: ['agenthost-env'] };
+				const direct: ISessionCreationEnvironment = { id: 'agenthost-wsl', kind: 'remote', label: 'WSL', icon: Codicon.remote, providerIds: ['agenthost-wsl'] };
+				const directFolder = URI.from({ scheme: 'vscode-agent-host', authority: 'wsl', path: '/file/-/project' });
+				const requestedType = requested ? { sessionTypeId: requested } : undefined;
+				const target = observableValue<INewSessionTarget | undefined>('target', { folderUri: folder, providerId: 'agenthost-env', modelId: 'model', ...requestedType });
+				const selections: { origin: WorkspaceSelectionOrigin; persist: boolean }[] = [];
+				const created: { pick: IPreferredSessionType | undefined; background: boolean | undefined }[] = [];
+				const { setSelectedWorkspace } = harness._workspacePicker;
+				const picker = Object.assign(harness._workspacePicker, {
+					selectionSnapshot: { origin: WorkspaceSelectionOrigin.User },
+					selectedResolved: undefined as { providerId: string } | undefined,
+					setSelectedWorkspace: (uri: URI, options: { providerId: string; preferDevContainer: boolean; persist: boolean; origin: WorkspaceSelectionOrigin }): void => {
+						selections.push({ origin: options.origin, persist: options.persist });
+						picker.selectedResolved = { providerId: options.providerId };
+						setSelectedWorkspace(uri, options);
+					},
+				});
+				if (devContainer) {
+					Object.assign(harness.sessionsProvidersService.getProvider(LOCAL_AGENT_HOST_PROVIDER_ID)!, { isDevContainerRequested: () => true });
+				}
+				harness._pickedEnvironment.set(environment, undefined);
+				// The main composer waits for the agent the user picked; a hosted composer, for the one its host requests. The
+				// picker returns only a pick for the composer's current provider.
+				const userPick: IPreferredSessionType = hosted ? { sessionTypeId: 'codex' } : requested ? { providerId: 'agenthost-env', sessionTypeId: requested } : { providerId: 'agenthost-wsl', sessionTypeId: 'codex' };
+				Object.assign(harness._newChatInput, {
+					sessionTypePicker: { getUserPickedSessionType: (): IPreferredSessionType | undefined => !userPick.providerId || harness._pickedEnvironment.get()?.providerIds.includes(userPick.providerId) ? userPick : undefined },
+					remapDraftResources: (mapResource: (resource: URI) => URI | undefined) => calls.push(`remapDraft:${mapResource(folder)?.authority}`),
+				});
+				if (hosted) {
+					harness._draftHost = { requestedTarget: target, setRequestedTarget: next => target.set(next, undefined) };
+				}
+				const follow = Reflect.get(NewChatWidget.prototype, '_followSuccessor') as (this: unknown, folderUri: URI, providerId: string, successorFolderUri: URI, successorProviderId: string, mapResource: (resource: URI) => URI | undefined) => Promise<void>;
+				const reconcile = Reflect.get(NewChatWidget.prototype, '_reconcileWorkspaceEnvironment') as (this: unknown, options: ISelectWorkspaceOptions) => void;
+				const getProviderEnvironment = Reflect.get(NewChatWidget.prototype, '_getProviderEnvironment') as (this: unknown, providerId: string) => ISessionCreationEnvironment | undefined;
+				const requestsDevContainer = Reflect.get(NewChatWidget.prototype, '_requestsDevContainer') as (this: unknown, folderUri: URI | undefined) => boolean;
+
+				await follow.call(Object.assign(harness, {
+					_environments: constObservable([local, environment, direct]),
+					uriIdentityService: { extUri },
+					options: {},
+					_store: { isDisposed: false },
+					_reconcileWorkspaceEnvironment(options: ISelectWorkspaceOptions) { reconcile.call(this, options); },
+					_getProviderEnvironment(providerId: string) { return getProviderEnvironment.call(this, providerId); },
+					_requestsDevContainer(folderUri: URI | undefined) { return requestsDevContainer.call(this, folderUri); },
+					_onWorkspaceSelected: async (_folderUri: URI, pick: IPreferredSessionType | undefined, background: boolean | undefined) => { created.push({ pick, background }); calls.push('createDraft'); },
+				}), folder, 'agenthost-env', directFolder, 'agenthost-wsl', resource => extUri.isEqual(resource, folder) ? directFolder : undefined);
+
+				assert.deepStrictEqual({
+					environment: harness._pickedEnvironment.get()?.id,
+					folder: harness._workspacePicker.selectedFolderUri,
+					devContainerFolder: harness._preferredDevContainerFolderUri,
+					target: target.get(),
+					selections,
+					created,
+					calls,
+				}, {
+					environment: devContainer ? 'container:agenthost-wsl' : 'agenthost-wsl',
+					folder: directFolder,
+					devContainerFolder: devContainer ? directFolder : undefined,
+					target: hosted ? { folderUri: directFolder, providerId: 'agenthost-wsl', modelId: 'model', ...requestedType } : { folderUri: folder, providerId: 'agenthost-env', modelId: 'model', ...requestedType },
+					selections: [{ origin: WorkspaceSelectionOrigin.User, persist: !hosted }],
+					created: [{ pick: { providerId: 'agenthost-wsl', sessionTypeId: requested ?? 'copilot' }, background: true }],
+					calls: ['remapDraft:wsl', 'saveDraft', 'cancelUpgrade', 'cancelCreation', `workspace:agenthost-wsl:${devContainer}`, 'createDraft', devContainer ? 'Environment: Dev Container for Folder' : 'Environment: WSL'],
+				});
+			});
+		}
+
+		test('continues the selected host with its successor first, otherwise with a provider that declares it its predecessor', () => {
+			const directFolder = URI.from({ scheme: 'vscode-agent-host', authority: 'wsl', path: '/file/-/project' });
+			const environmentFolder = URI.from({ scheme: 'vscode-agent-host', authority: 'env', path: '/file/-/project' });
+			const successor = observableValue<IAgentHostSuccessor | undefined>('successor', undefined);
+			const predecessors = new Map(['agenthost-env', 'agenthost-other'].map(id => [id, observableValue<IAgentHostPredecessor | undefined>(id, undefined)]));
+			const providers = ['agenthost-wsl', ...predecessors.keys()].map(id => upcastPartial<IAgentHostSessionsProvider>({ id, successor: id === 'agenthost-wsl' ? successor : undefined, predecessor: predecessors.get(id) }));
+			const selected = { providerId: 'agenthost-wsl' };
+			const read = () => {
+				const continuation = (Reflect.get(NewChatWidget.prototype, '_readContinuation') as (this: unknown, reader: IReader | undefined) => { successorFolderUri: URI; successorProviderId: string; mapResource(resource: URI): URI | undefined } | undefined).call({
+					_workspacePicker: { selectedFolderUri: directFolder, selectedResolved: selected },
+					sessionsProvidersService: { getProviders: () => providers, getProvider: (id: string) => providers.find(provider => provider.id === id) },
+				}, undefined);
+				const mapped = continuation?.mapResource(file);
+				return continuation && `${continuation.successorProviderId} ${continuation.successorFolderUri.authority} ${mapped?.authority}${mapped?.path}`;
+			};
+			const file = directFolder.with({ path: `${directFolder.path}/a.ts` });
+			const toEnvironment = (resource: URI) => resource.with({ authority: environmentFolder.authority });
+			const states = [read()];
+			predecessors.get('agenthost-other')!.set({ providerId: 'agenthost-ssh', mapResource: toEnvironment }, undefined);
+			predecessors.get('agenthost-env')!.set({ providerId: 'agenthost-wsl', mapResource: () => undefined }, undefined);
+			states.push(read());
+			predecessors.get('agenthost-env')!.set({ providerId: 'agenthost-wsl', mapResource: toEnvironment }, undefined);
+			states.push(read());
+			successor.set({ providerId: 'agenthost-other', mapResource: resource => resource }, undefined);
+			states.push(read());
+			assert.deepStrictEqual(states, [undefined, undefined, 'agenthost-env env env/file/-/project/a.ts', 'agenthost-other wsl wsl/file/-/project/a.ts']);
 		});
 
 		function createFolderlessHarness(quickChat = true, optOutEnabled = true) {
@@ -3413,6 +3516,36 @@ suite('NewChatWidget', () => {
 			accountKey: 'github:initial-session',
 			profileName: 'Octo Cat',
 		});
+	});
+
+	// Pins existing behaviour: the profile fetch already rejects a default account that is not a GitHub account.
+	test('does not fetch a GitHub profile for a Microsoft default account', async () => {
+		const profileRequests: string[] = [];
+		const githubProfileName = observableValue<string | undefined>('githubProfileName', 'stale');
+		const harness = {
+			_githubProfileAccountKey: 'github:stale',
+			_githubProfileName: githubProfileName,
+			enabled: { get: () => true },
+			_store: { isDisposed: false },
+			configurationService: { getValue: <T>(_key: string): T | undefined => undefined },
+			defaultAccountService: {
+				currentDefaultAccount: { authenticationProvider: { id: 'microsoft', enterprise: false }, sessionId: 's1' },
+				async getDefaultAccount() { return this.currentDefaultAccount; },
+			},
+			logService: { warn: () => assert.fail('Unexpected profile warning') },
+			async _fetchGitHubProfileName(providerId: string, _enterprise: boolean, sessionId: string) {
+				profileRequests.push(`${providerId}:${sessionId}`);
+				return 'Alice';
+			},
+		};
+
+		await refreshGitHubProfileName.call(harness);
+
+		assert.deepStrictEqual({
+			profileRequests,
+			accountKey: harness._githubProfileAccountKey,
+			profileName: githubProfileName.get(),
+		}, { profileRequests: [], accountKey: undefined, profileName: undefined });
 	});
 
 	test('distinguishes providers when profile requests complete out of order', async () => {

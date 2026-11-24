@@ -62,7 +62,7 @@ class NewCanvasSessionAction extends Action2 {
 	constructor() {
 		super({
 			id: NEW_CANVAS_SESSION_COMMAND_ID,
-			title: localize2('newCanvasSession', "New Canvas..."),
+			title: localize2('newCanvasSession', "Open Canvas"),
 			category: SessionsCategories.Sessions,
 			icon: Codicon.add,
 			f1: true,

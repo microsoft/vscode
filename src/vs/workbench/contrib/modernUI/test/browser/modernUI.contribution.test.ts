@@ -113,6 +113,23 @@ function appendElement(parent: HTMLElement, className: string): HTMLElement {
 	return element;
 }
 
+/**
+ * Returns the corner radii, in pixels, of the clip that an element's `overflow` applies to its content: its padding
+ * edge, whose radii are its border radii less its border widths. Returns `undefined` when the element doesn't clip.
+ */
+function getContentClipRadii(element: HTMLElement): number[] | undefined {
+	const style = getWindow(element).getComputedStyle(element);
+	if (style.overflow !== 'hidden') {
+		return undefined;
+	}
+	return [
+		[style.borderTopLeftRadius, style.borderLeftWidth],
+		[style.borderTopRightRadius, style.borderRightWidth],
+		[style.borderBottomRightRadius, style.borderRightWidth],
+		[style.borderBottomLeftRadius, style.borderLeftWidth],
+	].map(([radius, width]) => Math.max(0, parseFloat(radius) - parseFloat(width)));
+}
+
 function createEditorTabLabel(parent: HTMLElement, extraClasses?: string): { label: HTMLElement; name: HTMLElement; description: HTMLElement } {
 	const label = appendElement(parent, `tab-label monaco-icon-label codicon codicon-settings${extraClasses ? ` ${extraClasses}` : ''}`);
 	const labelContainer = appendElement(label, 'monaco-icon-label-container');
@@ -3117,6 +3134,65 @@ suite('ModernUIContribution', () => {
 		});
 	});
 
+	for (const modernUI of [false, true]) {
+		test(`modal editor keeps one concentric rounded clip with Modern UI ${modernUI ? 'enabled' : 'disabled'}`, () => {
+			const root = appendElement(document.body, `monaco-workbench${modernUI ? ' modern-ui floating-panels' : ''}`);
+			root.style.cssText = '--vscode-cornerRadius-large: 8px; --vscode-editorWidget-border: #778899; --vscode-shadow-xl: 0 8px 32px #0008;';
+			store.add(toDisposable(() => root.remove()));
+			const block = appendElement(root, 'monaco-modal-editor-block');
+			const resizable = appendElement(block, 'modal-editor-resizable');
+			const sash = appendElement(resizable, 'monaco-sash vertical');
+			const shadow = appendElement(resizable, 'modal-editor-shadow');
+			const part = appendElement(shadow, 'part editor modal-editor-part');
+			const header = appendElement(part, 'modal-editor-header');
+			const navigation = appendElement(header, 'modal-editor-navigation');
+			const sidebar = appendElement(part, 'modal-editor-sidebar');
+			const content = appendElement(part, 'content');
+			const targetWindow = getWindow(root);
+			const roundedClips = (element: HTMLElement) => {
+				const clips = [];
+				for (let ancestor: HTMLElement | null = element; ancestor && ancestor !== root; ancestor = ancestor.parentElement) {
+					const style = targetWindow.getComputedStyle(ancestor);
+					if (style.overflow === 'hidden' && parseFloat(style.borderRadius) > 0) {
+						clips.push(ancestor.className);
+					}
+				}
+				return clips;
+			};
+			const states = [false, true].map(hasSidebar => {
+				part.classList.toggle('has-sidebar', hasSidebar);
+				const frame = targetWindow.getComputedStyle(part);
+				return {
+					hasSidebar,
+					contentClipRadii: [
+						[frame.borderTopLeftRadius, frame.borderLeftWidth],
+						[frame.borderTopRightRadius, frame.borderRightWidth],
+						[frame.borderBottomRightRadius, frame.borderRightWidth],
+						[frame.borderBottomLeftRadius, frame.borderLeftWidth],
+					].map(([radius, width]) => parseFloat(radius) - parseFloat(width)),
+					shadowOverflow: targetWindow.getComputedStyle(shadow).overflow,
+					shadowPainted: targetWindow.getComputedStyle(shadow).boxShadow !== 'none',
+					contentRadius: targetWindow.getComputedStyle(content).borderRadius,
+					contentOverflow: targetWindow.getComputedStyle(content).overflow,
+					clips: [header, sidebar, content].map(roundedClips),
+					sashClips: roundedClips(sash),
+					navigationOverflow: targetWindow.getComputedStyle(navigation).overflow,
+				};
+			});
+			assert.deepStrictEqual(states, [false, true].map(hasSidebar => ({
+				hasSidebar,
+				contentClipRadii: [7, 7, 7, 7],
+				shadowOverflow: 'visible',
+				shadowPainted: true,
+				contentRadius: '0px',
+				contentOverflow: 'hidden',
+				clips: Array.from({ length: 3 }, () => [`part editor modal-editor-part${hasSidebar ? ' has-sidebar' : ''}`]),
+				sashClips: [],
+				navigationOverflow: 'hidden',
+			})));
+		});
+	}
+
 	test('modal editor sashes hide grips without changing resize affordances', () => {
 		const root = document.createElement('div');
 		root.className = 'monaco-workbench modern-ui';
@@ -3324,6 +3400,8 @@ suite('ModernUIContribution', () => {
 		const title = appendElement(group, 'title tabs');
 		const strip = appendElement(title, 'tabs-and-actions-container');
 		strip.style.cssText = 'width: 100%; height: 32px;';
+		const strokeProbe = appendElement(root, '');
+		strokeProbe.style.cssText = 'border: var(--modern-ui-floating-card-stroke-width) solid;';
 		const targetWindow = getWindow(root);
 		const states = [];
 		for (const zoom of [1, 1.25, 1.5]) {
@@ -3333,21 +3411,22 @@ suite('ModernUIContribution', () => {
 				root.style.setProperty('--vscode-editorArea-cornerRadius', `${radius}px`);
 				for (const compact of [false, true, false]) {
 					root.classList.toggle('modern-ui-compact', compact);
-					const frame = targetWindow.getComputedStyle(editor);
-					const outerRadius = parseFloat(frame.borderTopLeftRadius);
-					const borderInset = Math.min(parseFloat(frame.borderLeftWidth), outerRadius);
+					// The frame clips the tab strip to its padding edge, the curve inside its stroke...
+					const clipRadius = getContentClipRadii(editor)?.[0];
+					const concentricRadius = compact ? 0 : Math.max(0, radius - parseFloat(targetWindow.getComputedStyle(strokeProbe).borderTopWidth));
 					const contentStyle = targetWindow.getComputedStyle(content);
-					const innerRadius = parseFloat(contentStyle.borderTopLeftRadius);
 					states.push({
 						zoom, radius, compact,
-						concentric: Math.abs(innerRadius + borderInset - outerRadius) < 0.001,
+						concentric: clipRadius !== undefined && Math.abs(clipRadius - concentricRadius) < 0.001,
+						// ...so the content rounds no second clip inside it.
+						contentRadius: contentStyle.borderRadius,
 						overflow: contentStyle.overflow,
 						tabStripPresent: content.contains(strip),
 					});
 				}
 			}
 		}
-		assert.deepStrictEqual(states, states.map(state => ({ ...state, concentric: true, overflow: 'hidden', tabStripPresent: true })));
+		assert.deepStrictEqual(states, states.map(state => ({ ...state, concentric: true, contentRadius: '0px', overflow: 'hidden', tabStripPresent: true })));
 	});
 
 	test('compact auxiliary window editors keep their outer radius', () => {
@@ -3365,7 +3444,7 @@ suite('ModernUIContribution', () => {
 
 	test('matches exposed macOS window corners without changing internal card corners', () => {
 		const root = appendElement(document.body, 'monaco-workbench modern-ui floating-panels mac macos-tahoe nostatusbar noactivitybar');
-		root.style.cssText = '--vscode-cornerRadius-large: 8px; --vscode-spacing-size40: 4px; --vscode-spacing-sizeNone: 0px; --vscode-strokeThickness: 1px; --window-zoom-factor: 1;';
+		root.style.cssText = '--vscode-cornerRadius-large: 8px; --vscode-spacing-size40: 4px; --vscode-spacing-sizeNone: 0px; --vscode-strokeThickness: 1px; --vscode-editorGroup-border: #778899; --window-zoom-factor: 1;';
 		store.add(toDisposable(() => root.remove()));
 		const grid = appendElement(root, 'monaco-grid-view');
 		const editor = appendElement(grid, 'part editor floating-editor-outer-left floating-editor-outer-right floating-editor-outer-bottom');
@@ -3383,17 +3462,22 @@ suite('ModernUIContribution', () => {
 			sidebarAbovePanel: appendElement(grid, 'part sidebar left floating-part-outer-left'),
 		};
 
-		assert.deepStrictEqual(Object.fromEntries(Object.entries(elements).map(([name, element]) => {
-			const style = getWindow(element).getComputedStyle(element);
-			return [name, [style.borderTopLeftRadius, style.borderTopRightRadius, style.borderBottomRightRadius, style.borderBottomLeftRadius]];
-		})), {
+		assert.deepStrictEqual({
+			...Object.fromEntries(Object.entries(elements).map(([name, element]) => {
+				const style = getWindow(element).getComputedStyle(element);
+				return [name, [style.borderTopLeftRadius, style.borderTopRightRadius, style.borderBottomRightRadius, style.borderBottomLeftRadius]];
+			})),
+			editorContentClip: getContentClipRadii(editor)?.map(radius => `${radius}px`),
+		}, {
 			leftActivityBar: ['8px', '0px', '0px', '12px'],
 			rightActivityBar: ['0px', '8px', '12px', '0px'],
 			sidebar: ['8px', '8px', '8px', '12px'],
 			auxiliaryBar: ['8px', '8px', '12px', '8px'],
 			panel: ['8px', '8px', '12px', '12px'],
 			editor: ['8px', '8px', '12px', '12px'],
-			editorContent: ['7px', '7px', '11px', '11px'],
+			// The card clips the editor's content inside its stroke, so the content rounds no second clip inside it.
+			editorContent: ['0px', '0px', '0px', '0px'],
+			editorContentClip: ['7px', '7px', '11px', '11px'],
 			webview: ['8px', '8px', '11px', '11px'],
 			modalWebview: ['8px', '8px', '8px', '8px'],
 			internalPanel: ['8px', '8px', '8px', '8px'],

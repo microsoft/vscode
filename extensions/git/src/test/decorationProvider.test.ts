@@ -62,4 +62,12 @@ suite('git ignore decorations', () => {
 
 		assert.deepStrictEqual({ checkedPaths, decoration: await decoration }, { checkedPaths: [], decoration: undefined });
 	});
+
+	test('does not decorate resources that are not files', async () => {
+		const decoration = provider.provideFileDecoration(Uri.file(path.join(root, 'ignored.txt')).with({ scheme: 'custom' }));
+
+		clock.tick(500);
+
+		assert.deepStrictEqual({ checkedPaths, decoration: await decoration }, { checkedPaths: [], decoration: undefined });
+	});
 });
