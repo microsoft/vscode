@@ -753,7 +753,8 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		// - we still have files to open
 		// - user forces an empty window (e.g. via command line)
 		// - no window has opened yet
-		if (filesToOpen || (maybeOpenEmptyWindow && (openConfig.forceEmpty || usedWindows.length === 0))) {
+		const hasNonSessionsWindow = usedWindows.some(window => !window.config?.isSessionsWindow);
+		if (filesToOpen || (maybeOpenEmptyWindow && (openConfig.forceEmpty || !hasNonSessionsWindow))) {
 			const remoteAuthority = filesToOpen ? filesToOpen.remoteAuthority : openConfig.remoteAuthority;
 
 			addUsedWindow(await this.doOpenEmpty(openConfig, openFolderInNewWindow, remoteAuthority, filesToOpen), !!filesToOpen);
@@ -918,7 +919,8 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		// Extract paths: from previous session
 		else {
 			pathsToOpen = await this.doGetPathsFromLastSession();
-			if (pathsToOpen.length === 0) {
+			const hasNonSessionsPath = pathsToOpen.some(path => !this.isAgentSessionsPath(path));
+			if (!hasNonSessionsPath) {
 				pathsToOpen.push(EMPTY_WINDOW); // add an empty window if we did not have windows to restore
 			}
 
@@ -1145,6 +1147,10 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		}
 
 		return restoreWindows;
+	}
+
+	private isAgentSessionsPath(path: IPathToOpen): boolean {
+		return isWorkspacePathToOpen(path) && isEqual(path.workspace.configPath, this.environmentMainService.agentSessionsWorkspace);
 	}
 
 	private async doGetWorkspaceMatchingFoldersFromLastSession(remoteAuthority: string | undefined, folders: ISingleFolderWorkspacePathToOpen[]): Promise<IWorkspaceIdentifier | undefined> {

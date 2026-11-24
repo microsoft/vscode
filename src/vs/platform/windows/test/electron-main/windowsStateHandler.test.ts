@@ -8,9 +8,17 @@ import { tmpdir } from 'os';
 import { join } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { IWindowState as IWindowUIState, WindowMode } from '../../../window/electron-main/window.js';
-import { getWindowsStateStoreData, IWindowsState, IWindowState, restoreWindowsState } from '../../electron-main/windowsStateHandler.js';
+import { Emitter } from '../../../../base/common/event.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { IWindowState as IWindowUIState, WindowMode, ICodeWindow } from '../../../window/electron-main/window.js';
+import { INativeWindowConfiguration } from '../../../window/common/window.js';
+import { getWindowsStateStoreData, IWindowsState, IWindowState, restoreWindowsState, WindowsStateHandler } from '../../electron-main/windowsStateHandler.js';
+import { IWindowsMainService } from '../../electron-main/windows.js';
 import { IWorkspaceIdentifier } from '../../../workspace/common/workspace.js';
+import { IStateService } from '../../../state/node/state.js';
+import { ILifecycleMainService } from '../../../lifecycle/electron-main/lifecycleMainService.js';
+import { NullLogService } from '../../../log/common/log.js';
+import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 
 suite('Windows State Storing', () => {
 
@@ -216,6 +224,192 @@ suite('Windows State Storing', () => {
 			}
 		};
 		assertEqualWindowsState(expected, windowsState, 'v1_32_empty_window');
+	});
+
+	suite('sessions window behavior', () => {
+		const disposables = new DisposableStore();
+
+		teardown(() => {
+			disposables.clear();
+		});
+
+		function createMockWindow(id: number, options?: { isSessionsWindow?: boolean; folderUri?: URI; workspace?: IWorkspaceIdentifier; backupPath?: string }): ICodeWindow {
+			return {
+				id,
+				config: options?.isSessionsWindow ? { isSessionsWindow: true } as INativeWindowConfiguration : {} as INativeWindowConfiguration,
+				openedWorkspace: options?.folderUri ? { id: 'folder-' + id, uri: options.folderUri } : options?.workspace,
+				backupPath: options?.backupPath,
+				remoteAuthority: undefined,
+				isExtensionDevelopmentHost: false,
+				isExtensionTestHost: false,
+				serializeWindowState: () => ({ mode: WindowMode.Normal, x: 10 * id, y: 10 * id, width: 800, height: 600 }),
+			} as unknown as ICodeWindow;
+		}
+
+		test('closing regular window saves lastClosedState when sessions window remains open', () => {
+			const onBeforeCloseWindow = new Emitter<ICodeWindow>();
+			const onBeforeShutdown = new Emitter<void>();
+			const onWillShutdown = new Emitter<void>();
+			const onDidChangeWindowsCount = new Emitter<{ oldCount: number; newCount: number }>();
+			const onDidDestroyWindow = new Emitter<ICodeWindow>();
+
+			const storage = new Map<string, unknown>();
+			const stateService: IStateService = {
+				_serviceBrand: undefined,
+				getItem: (key: string) => storage.get(key),
+				setItem: (key: string, data: unknown) => storage.set(key, data),
+				removeItem: (key: string) => storage.delete(key),
+			} as unknown as IStateService;
+
+			let openWindows: ICodeWindow[] = [];
+			const windowsMainService: IWindowsMainService = {
+				getWindows: () => openWindows,
+				getWindowCount: () => openWindows.length,
+				getLastActiveWindow: () => openWindows[openWindows.length - 1],
+				onDidChangeWindowsCount: onDidChangeWindowsCount.event,
+				onDidDestroyWindow: onDidDestroyWindow.event,
+			} as unknown as IWindowsMainService;
+
+			const lifecycleMainService: ILifecycleMainService = {
+				onBeforeCloseWindow: onBeforeCloseWindow.event,
+				onBeforeShutdown: onBeforeShutdown.event,
+				onWillShutdown: onWillShutdown.event,
+				quitRequested: false,
+			} as unknown as ILifecycleMainService;
+
+			disposables.add(new WindowsStateHandler(
+				windowsMainService,
+				stateService,
+				lifecycleMainService,
+				new NullLogService(),
+				new TestConfigurationService()
+			));
+
+			const regularWindow = createMockWindow(1, { folderUri: URI.file('/test/folder') });
+			const sessionsWindow = createMockWindow(2, { isSessionsWindow: true });
+			openWindows = [regularWindow, sessionsWindow];
+
+			// 1. Regular window closes while sessions window is still open
+			onBeforeCloseWindow.fire(regularWindow);
+			openWindows = [sessionsWindow];
+
+			// 2. Sessions window closes last, followed by shutdown
+			onBeforeCloseWindow.fire(sessionsWindow);
+			openWindows = [];
+			onBeforeShutdown.fire();
+
+			// Verify: lastActiveWindow saved to state is the regular window, NOT the sessions window!
+			const savedState = stateService.getItem<any>(WindowsStateHandler.windowsStateStorageKey);
+			assert.ok(savedState);
+			const restoredState = restoreWindowsState(savedState);
+			assert.ok(restoredState.lastActiveWindow);
+			assertEqualURI(restoredState.lastActiveWindow.folderUri, URI.file('/test/folder'));
+		});
+
+		test('onBeforeShutdown ignores sessions window when selecting lastActiveWindow', () => {
+			const onBeforeCloseWindow = new Emitter<ICodeWindow>();
+			const onBeforeShutdown = new Emitter<void>();
+			const onWillShutdown = new Emitter<void>();
+			const onDidChangeWindowsCount = new Emitter<{ oldCount: number; newCount: number }>();
+			const onDidDestroyWindow = new Emitter<ICodeWindow>();
+
+			const storage = new Map<string, unknown>();
+			const stateService: IStateService = {
+				_serviceBrand: undefined,
+				getItem: (key: string) => storage.get(key),
+				setItem: (key: string, data: unknown) => storage.set(key, data),
+				removeItem: (key: string) => storage.delete(key),
+			} as unknown as IStateService;
+
+			const regularWindow = createMockWindow(1, { folderUri: URI.file('/test/workspace') });
+			const sessionsWindow = createMockWindow(2, { isSessionsWindow: true });
+			const openWindows = [regularWindow, sessionsWindow];
+
+			const windowsMainService: IWindowsMainService = {
+				getWindows: () => openWindows,
+				getWindowCount: () => openWindows.length,
+				getLastActiveWindow: () => sessionsWindow, // sessions window was focused when user quit
+				onDidChangeWindowsCount: onDidChangeWindowsCount.event,
+				onDidDestroyWindow: onDidDestroyWindow.event,
+			} as unknown as IWindowsMainService;
+
+			const lifecycleMainService: ILifecycleMainService = {
+				onBeforeCloseWindow: onBeforeCloseWindow.event,
+				onBeforeShutdown: onBeforeShutdown.event,
+				onWillShutdown: onWillShutdown.event,
+				quitRequested: false,
+			} as unknown as ILifecycleMainService;
+
+			disposables.add(new WindowsStateHandler(
+				windowsMainService,
+				stateService,
+				lifecycleMainService,
+				new NullLogService(),
+				new TestConfigurationService()
+			));
+
+			// User quits with both windows open and sessions window active
+			onBeforeShutdown.fire();
+
+			const savedState = stateService.getItem<any>(WindowsStateHandler.windowsStateStorageKey);
+			assert.ok(savedState);
+			const restoredState = restoreWindowsState(savedState);
+			// lastActiveWindow must be the regular window, not the sessions window
+			assert.ok(restoredState.lastActiveWindow);
+			assertEqualURI(restoredState.lastActiveWindow.folderUri, URI.file('/test/workspace'));
+			// openedWindows preserves both
+			assert.strictEqual(restoredState.openedWindows.length, 2);
+		});
+
+		test('closing only a sessions window does not save it as lastClosedState', () => {
+			const onBeforeCloseWindow = new Emitter<ICodeWindow>();
+			const onBeforeShutdown = new Emitter<void>();
+			const onWillShutdown = new Emitter<void>();
+			const onDidChangeWindowsCount = new Emitter<{ oldCount: number; newCount: number }>();
+			const onDidDestroyWindow = new Emitter<ICodeWindow>();
+
+			const storage = new Map<string, unknown>();
+			const stateService: IStateService = {
+				_serviceBrand: undefined,
+				getItem: (key: string) => storage.get(key),
+				setItem: (key: string, data: unknown) => storage.set(key, data),
+				removeItem: (key: string) => storage.delete(key),
+			} as unknown as IStateService;
+
+			const sessionsWindow = createMockWindow(1, { isSessionsWindow: true });
+			let openWindows = [sessionsWindow];
+
+			const windowsMainService: IWindowsMainService = {
+				getWindows: () => openWindows,
+				getWindowCount: () => openWindows.length,
+				getLastActiveWindow: () => sessionsWindow,
+				onDidChangeWindowsCount: onDidChangeWindowsCount.event,
+				onDidDestroyWindow: onDidDestroyWindow.event,
+			} as unknown as IWindowsMainService;
+
+			const lifecycleMainService: ILifecycleMainService = {
+				onBeforeCloseWindow: onBeforeCloseWindow.event,
+				onBeforeShutdown: onBeforeShutdown.event,
+				onWillShutdown: onWillShutdown.event,
+				quitRequested: false,
+			} as unknown as ILifecycleMainService;
+
+			disposables.add(new WindowsStateHandler(
+				windowsMainService,
+				stateService,
+				lifecycleMainService,
+				new NullLogService(),
+				new TestConfigurationService()
+			));
+
+			onBeforeCloseWindow.fire(sessionsWindow);
+			openWindows = [];
+			onBeforeShutdown.fire();
+
+			const savedState = stateService.getItem<IWindowsState>(WindowsStateHandler.windowsStateStorageKey);
+			assert.ok(savedState);
+			assert.strictEqual(savedState.lastActiveWindow, undefined);
+		});
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();
