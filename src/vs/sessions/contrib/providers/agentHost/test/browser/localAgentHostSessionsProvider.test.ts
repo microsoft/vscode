@@ -2028,6 +2028,42 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.deepStrictEqual({ listed, inspects }, { listed: 50, inspects: 2 });
 	});
 
+	test('getSession finds by key exactly the saved sessions the agent gates list, without listing them', () => {
+		let listings = 0;
+		const configurationService = new class extends TestConfigurationService {
+			override inspect<T>(key: string) {
+				const value = super.inspect<T>(key);
+				return { ...value, policyValue: key === 'chat.agentHost.claudeAgent.enabled' ? value.value : undefined };
+			}
+		}({ 'chat.agentHost.claudeAgent.enabled': false, [AgentHostCodexAgentEnabledSettingId]: false });
+		const provider = createProvider(disposables, agentHost, undefined, {
+			configurationService,
+			isSessionsWindow: true,
+			providerCtor: class extends LocalAgentHostSessionsProvider {
+				override getAllSessions(): ISession[] {
+					listings++;
+					return super.getAllSessions();
+				}
+			},
+		});
+		fireSessionAdded(agentHost, 'copilot-saved');
+		fireSessionAdded(agentHost, 'claude-saved', { provider: 'claude' });
+		fireSessionAdded(agentHost, 'codex-saved', { provider: 'codex' });
+		const resources = ['agent-host-copilotcli:/copilot-saved', 'agent-host-claude:/claude-saved', 'agent-host-codex:/codex-saved', 'agent-host-copilotcli:/missing'].map(resource => URI.parse(resource));
+		const lookUp = () => resources.map(resource => provider.getSession(resource)?.resource.toString());
+		listings = 0;
+		const codexDisabled = lookUp();
+		configurationService.setUserConfiguration(AgentHostCodexAgentEnabledSettingId, true);
+		fireConfigChange(configurationService, AgentHostCodexAgentEnabledSettingId);
+		const codexEnabled = lookUp();
+
+		assert.deepStrictEqual({ listings, codexDisabled, codexEnabled }, {
+			listings: 0,
+			codexDisabled: [resources[0].toString(), resources[1].toString(), undefined, undefined],
+			codexEnabled: [resources[0].toString(), resources[1].toString(), resources[2].toString(), undefined],
+		});
+	});
+
 	test('resource lookups see sessions added and removed before the change event is debounced', () => {
 		agentHost.setAgents([{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: {} }]);
 		const provider = createProvider(disposables, agentHost);
@@ -17479,16 +17515,19 @@ suite('LocalAgentHostSessionsProvider', () => {
 		agentHost.addSession(createSession(rawId, { summary: 'Committed Session' }));
 		fireSessionAdded(agentHost, rawId, { title: 'Committed Session' });
 		const advertised = provider.getSessions().filter(candidate => isEqual(candidate.resource, session.resource));
+		const foundIsDraft = provider.getSession(session.resource) === session;
 		agentHost.listSessionsBarrier.complete();
 		await request;
 
 		assert.deepStrictEqual({
 			count: advertised.length,
 			isDraft: advertised[0] === session,
+			foundIsDraft,
 			resources: advertised.map(candidate => candidate.resource.toString()),
 		}, {
 			count: 1,
 			isDraft: true,
+			foundIsDraft: true,
 			resources: [session.resource.toString()],
 		});
 	});

@@ -192,8 +192,27 @@ export class CloudSandboxTaskSessionsProvider extends BaseAgentHostSessionsProvi
 		];
 	}
 
+	override getSession(resource: URI): ISession | undefined {
+		if (resource.scheme === CLOUD_SANDBOX_TASK_SCHEME) {
+			const session = this._tasks.get(resource.path.slice(1))?.session;
+			return session && isEqual(session.resource, resource) ? session : undefined;
+		}
+		// The resource of a task's bound runtime session finds the task first, as tasks come first in `getAllSessions`.
+		for (const { session } of this._tasks.values()) {
+			if (session.previousIdentities?.some(previous => isEqual(previous.resource, resource))) {
+				return session;
+			}
+		}
+		for (const session of this._runtimeSessions.values()) {
+			if (isEqual(session.resource, resource)) {
+				return session;
+			}
+		}
+		return undefined;
+	}
+
 	override getSessionByResource(resource: URI): ISession | undefined {
-		return this.getAllSessions().find(session => isEqual(session.resource, resource) || session.previousIdentities?.some(previous => isEqual(previous.resource, resource)));
+		return this.getSession(resource);
 	}
 
 	async resolveSessionResource(resource: URI): Promise<URI | undefined> {
@@ -215,7 +234,6 @@ export class CloudSandboxTaskSessionsProvider extends BaseAgentHostSessionsProvi
 		const added: ISession[] = [];
 		const changed: ISession[] = [];
 		const legacyReadStates = new Map<string, ResourceMap<boolean>>();
-		let rebound = false;
 		transaction(tx => {
 			for (const task of tasks) {
 				if (this._providers.get(task.taskId)?.isSessionWithheld(cloudSandboxTaskResource(task.taskId))) {
@@ -224,9 +242,6 @@ export class CloudSandboxTaskSessionsProvider extends BaseAgentHostSessionsProvi
 				}
 				const entry = this._tasks.get(task.taskId);
 				if (entry) {
-					const previous = entry.summary.get();
-					// The task's previous identity follows its environment and session
-					rebound ||= previous.environmentId !== task.environmentId || previous.sessionId !== task.sessionId;
 					entry.summary.set(task, tx);
 					changed.push(entry.session);
 				} else {
@@ -247,10 +262,6 @@ export class CloudSandboxTaskSessionsProvider extends BaseAgentHostSessionsProvi
 					this._tasks.set(task.taskId, entry);
 					added.push(entry.session);
 				}
-			}
-			// Before observers of this update run, as they may look the tasks up
-			if (rebound || added.length) {
-				this._invalidateSessionCatalog();
 			}
 		});
 		if (announce && (added.length || changed.length)) {
@@ -348,8 +359,6 @@ export class CloudSandboxTaskSessionsProvider extends BaseAgentHostSessionsProvi
 		const added: ISession[] = [];
 		const removed: ISession[] = [];
 		const changed = new Set<ISession>();
-		// Runtime sessions outside a task are listed as they are, also when taken in silently
-		let listedRuntimeChanged = false;
 		transaction(tx => {
 			for (const session of event.removed) {
 				if (this._runtimeSessions.get(session.sessionId) !== session && this._takenInByReplacement.has(session.sessionId)) {
@@ -367,7 +376,6 @@ export class CloudSandboxTaskSessionsProvider extends BaseAgentHostSessionsProvi
 						changed.add(entry.session);
 					}
 				} else {
-					listedRuntimeChanged ||= session.resource.scheme !== CLOUD_SANDBOX_TASK_SCHEME;
 					removed.push(session);
 				}
 			}
@@ -376,7 +384,6 @@ export class CloudSandboxTaskSessionsProvider extends BaseAgentHostSessionsProvi
 					continue;
 				}
 				const wasKnown = this._runtimeSessions.has(session.sessionId) && !this._takenInByReplacement.delete(session.sessionId);
-				listedRuntimeChanged ||= session.resource.scheme !== CLOUD_SANDBOX_TASK_SCHEME && this._runtimeSessions.get(session.sessionId) !== session;
 				this._runtimeSessions.set(session.sessionId, session);
 				this._runtimeOwners.set(session.sessionId, provider);
 				if (session.resource.scheme !== CLOUD_SANDBOX_TASK_SCHEME) {
@@ -412,9 +419,6 @@ export class CloudSandboxTaskSessionsProvider extends BaseAgentHostSessionsProvi
 						}
 					}
 				}
-			}
-			if (listedRuntimeChanged) {
-				this._invalidateSessionCatalog();
 			}
 		});
 		const result = { added, removed, changed: [...changed] };

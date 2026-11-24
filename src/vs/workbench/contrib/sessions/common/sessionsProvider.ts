@@ -444,6 +444,12 @@ export interface ISessionsProvider {
 	getAllSessions?(): ISession[];
 
 	/**
+	 * The session of {@link getAllSessions} that `resource` names, by its {@link ISession.resource} or one of its
+	 * {@link ISession.previousIdentities}, looked up without listing every session.
+	 */
+	getSession(resource: URI): ISession | undefined;
+
+	/**
 	 * Lists only the sessions of `scope` from then on, in {@link getSessions} and {@link onDidChangeSessions}, such as those
 	 * of an editor window's folders; {@link getAllSessions} still finds every session. Without it, the provider lists every
 	 * session also where a window scopes its listing.
@@ -469,17 +475,6 @@ export interface ISessionsProvider {
 	 * Without it, {@link onDidChangeSessions} reports every change.
 	 */
 	readonly onDidChangeAllSessions?: Event<ISessionChangeEvent>;
-
-	/**
-	 * Fires synchronously whenever a resource lookup over {@link getAllSessions} may resolve differently:
-	 * a session is listed or no longer listed (also when that is not announced, e.g. a silent publish or a
-	 * visibility change), a listed session is replaced by another object for the same session, or the
-	 * resources a session is found by change (its {@link ISession.resource} or {@link ISession.previousIdentities}).
-	 * It fires before the (possibly debounced) {@link onDidChangeSessions} and {@link onDidChangeAllSessions}.
-	 * Consumers that cache the session set by resource invalidate it here; without it, they
-	 * invalidate on {@link onDidChangeSessions} and {@link onDidChangeAllSessions}.
-	 */
-	readonly onDidChangeSessionCatalog?: Event<void>;
 
 	/**
 	 * Fires when a chat moved between this provider's sessions, after both

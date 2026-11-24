@@ -193,21 +193,6 @@ function mergeSessionChangeEvents(events: readonly ISessionChangeEvent[]): ISess
 	};
 }
 
-/**
- * Merges the session changes fired while paused, and reports every change synchronously,
- * also while paused, so the session catalog is never observed stale.
- */
-class SessionChangeEmitter extends PauseableEmitter<ISessionChangeEvent> {
-	constructor(private readonly _onWillFire: (change: ISessionChangeEvent) => void) {
-		super({ merge: mergeSessionChangeEvents });
-	}
-
-	override fire(change: ISessionChangeEvent): void {
-		this._onWillFire(change);
-		super.fire(change);
-	}
-}
-
 function debounceSessionChangeEvents(notifications: Event<ISessionChangeEvent>, immediate: Event<ISessionChangeEvent>, disposable: DisposableStore): Event<ISessionChangeEvent> {
 	const event: Event<ISessionChangeEvent> = (listener, thisArgs) => {
 		const store = new DisposableStore();
@@ -4657,23 +4642,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	protected readonly _onDidChangeSessionTypes = this._register(new Emitter<void>());
 	readonly onDidChangeSessionTypes: Event<void> = this._onDidChangeSessionTypes.event;
 
-	private readonly _onDidChangeSessionCatalog = this._register(new Emitter<void>());
-	readonly onDidChangeSessionCatalog: Event<void> = this._onDidChangeSessionCatalog.event;
-
-	protected readonly _onDidChangeSessions = this._register(new SessionChangeEmitter(change => {
-		// Changed-only events keep the catalog; an empty event re-filters it (e.g. a gate flip).
-		if (change.added.length || change.removed.length || !change.changed.length) {
-			this._onDidChangeSessionCatalog.fire();
-		}
-	}));
-
-	/**
-	 * Signals {@link onDidChangeSessionCatalog} where a subclass changes its sessions, their facades or the
-	 * resources they are found by, without announcing it as an added, removed or emptied change event.
-	 */
-	protected _invalidateSessionCatalog(): void {
-		this._onDidChangeSessionCatalog.fire();
-	}
+	protected readonly _onDidChangeSessions = this._register(new PauseableEmitter<ISessionChangeEvent>({ merge: mergeSessionChangeEvents }));
 	private readonly _archiveSessionLimiter = this._register(new Limiter<void>(4));
 	private _archiveSessionBatches = 0;
 	private readonly _pendingArchiveSessionChanges = new Map<string, ISession>();
@@ -5307,7 +5276,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 		const cached = this.createAdapter(meta);
 		this._sessionCache.set(rawId, cached);
-		this._onDidChangeSessionCatalog.fire();
 		this._backendSessionsChanged.trigger(undefined);
 		this._onDidChangeSessionsFromNotifications.fire({ added: [cached], removed: [], changed: [] });
 		this._syncActiveClient();
@@ -5395,7 +5363,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	}
 
 	protected _onSessionPolicyChanged(): void {
-		this._onDidChangeSessionCatalog.fire();
 		this._connectionChanged.trigger(undefined);
 		for (const cached of this._sessionCache.values()) {
 			if (!this._isAgentDisabledByPolicy(cached.agentProvider)) {
@@ -5755,6 +5722,26 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			}
 		}
 		return sessions;
+	}
+
+	/**
+	 * The session of {@link getAllSessions} with the given resource, looked up by key rather than by listing every
+	 * session. Unlike {@link getSessionByResource}, it does not keep the session's state subscribed.
+	 */
+	getSession(resource: URI): ISession | undefined {
+		this._ensureSessionCache();
+		// A pending first turn hides the cached session of the same resource, as in `getAllSessions`.
+		for (const pendingSession of this._pendingSessions.values()) {
+			if (isEqual(pendingSession.resource, resource)) {
+				return this._shouldAdvertiseAgent(pendingSession.sessionType) ? pendingSession : undefined;
+			}
+		}
+		const key = this._sessionKeysByResource.get(resource.with({ fragment: '' }));
+		const cached = key !== undefined ? this._sessionCache.get(key) : undefined;
+		if (!cached || !isEqual(cached.resource, resource) || this._isUnpublishedDraft(cached) || !this._shouldShowSavedSession(cached.agentProvider)) {
+			return undefined;
+		}
+		return cached;
 	}
 
 	protected getResourceLabelHomes(): { readonly uri: URI; readonly label: string }[] {
@@ -6133,7 +6120,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 		this._newSessions.set(newSession.sessionId, newSession);
 		this._unpublishedDraftSessions.add(newSession.session.resource);
-		this._onDidChangeSessionCatalog.fire();
 		this._onDidChangeDraftSessions.fire();
 		newSession.observeClientCustomAgents(activeClientScope.customAgents, () => {
 			this._reconcileNewSessionAgent(newSession);
@@ -9699,11 +9685,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	private async _graduateNewSession(newSession: NewSession, chatResource: URI, explicitTitle: string | undefined, onDidCommit?: (committedSession: ISession) => void): Promise<ISession> {
 		const newSessionRawId = chatResource.path.replace(/^\//, '');
 		this._unpublishedDraftSessions.delete(newSession.session.resource);
-		this._onDidChangeSessionCatalog.fire();
 		// This skeleton is replaced by the committed AgentHostSession once it arrives.
 		const skeleton = newSession.session;
 		this._pendingSessions.set(newSession.sessionId, skeleton);
-		this._onDidChangeSessionCatalog.fire();
 		this._onDidChangeSessions.fire({ added: [skeleton], removed: [], changed: [] });
 
 		try {
@@ -9730,7 +9714,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				// that any synchronous listener calling getSessions() sees only
 				// the committed session and not both.
 				this._pendingSessions.delete(newSession.sessionId);
-				this._onDidChangeSessionCatalog.fire();
 				this._replaceSession({ from: skeleton, to: committedSession });
 				return committedSession;
 			}
@@ -9740,7 +9723,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			// Defensive clear: covers the failure path where the try block
 			// never reached the explicit clear above.
 			this._pendingSessions.delete(newSession.sessionId);
-			this._onDidChangeSessionCatalog.fire();
 		}
 
 		// On failure: drop the eager subscription without firing
@@ -10603,7 +10585,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 					cached.setMeta(cached.sessionMeta);
 				}
 				this._sessionCache.set(rawId, cached);
-				this._onDidChangeSessionCatalog.fire();
 				this._backendSessionsChanged.trigger(tx);
 			}
 		}));
@@ -10633,7 +10614,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			replacement.setTitleFromUser(previous.title.get());
 		}
 		this._sessionCache.set(rawId, replacement);
-		this._onDidChangeSessionCatalog.fire();
 		if (state) {
 			this._applySessionStateUpdate(replacement.sessionId, state);
 		}
@@ -10809,7 +10789,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 						} else {
 							const cached = this.createAdapter(meta);
 							this._sessionCache.set(rawId, cached);
-							this._onDidChangeSessionCatalog.fire();
 							createdAdapter = true;
 							added.push(cached);
 						}
@@ -10868,7 +10847,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 					}
 					this._sessionCache.delete(key);
 					this._unpublishedDraftSessions.delete(cached.resource);
-					this._onDidChangeSessionCatalog.fire();
 					this._backendSessionsChanged.trigger(undefined);
 					this._runningSessionConfigs.delete(cached.sessionId);
 					this._sensitiveEditLocationsBySession.delete(cached.sessionId);
@@ -11099,7 +11077,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 		const cached = this.createAdapter(meta);
 		this._sessionCache.set(rawId, cached);
-		this._onDidChangeSessionCatalog.fire();
 		this._backendSessionsChanged.trigger(undefined);
 		this._onDidChangeSessionsFromNotifications.fire({ added: [cached], removed: [], changed: [] });
 		this._syncActiveClient();
@@ -11133,7 +11110,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (cached) {
 			this._sessionCache.delete(rawId);
 			this._unpublishedDraftSessions.delete(cached.resource);
-			this._onDidChangeSessionCatalog.fire();
 			this._backendSessionsChanged.trigger(undefined);
 		}
 		this._sessionKeysByResource.delete(stateOwner.resource.with({ fragment: '' }));

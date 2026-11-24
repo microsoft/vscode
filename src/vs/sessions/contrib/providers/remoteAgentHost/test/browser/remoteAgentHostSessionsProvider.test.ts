@@ -683,11 +683,16 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		runtime.seedProvisionalSession(createSession(task.sessionId!, { session: AgentSession.uri('ahp-session', task.sessionId!), provider: 'copilot', summary: task.name }));
 		catalog.setTasks([task]);
 		const management = createManagementService(catalog);
-		const withheld = management.getSession(resource)?.resource.toString();
+		const lookUp = () => ({ task: management.getSession(resource)?.resource.toString(), runtime: runtime.getSession(resource)?.sessionId, runtimeListed: runtime.getAllSessions().map(session => session.sessionId) });
+		const withheld = lookUp();
 
 		runtime.publishWithheldSession(task.sessionId!, { announce: false });
 
-		assert.deepStrictEqual({ withheld, published: management.getSession(resource)?.resource.toString() }, { withheld: undefined, published: resource.toString() });
+		const published = lookUp();
+		assert.deepStrictEqual({ withheld, published }, {
+			withheld: { task: undefined, runtime: undefined, runtimeListed: [] },
+			published: { task: resource.toString(), runtime: published.runtimeListed[0], runtimeListed: [published.runtimeListed[0]] },
+		});
 	});
 
 	test('resource lookups find cached sessions as soon as a reconnect republishes them, before the host lists them', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {

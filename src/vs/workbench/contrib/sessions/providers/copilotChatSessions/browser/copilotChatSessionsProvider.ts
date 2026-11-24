@@ -1399,6 +1399,12 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		return Array.from(this._sessionCache.values(), chat => this._chatToSession(chat));
 	}
 
+	getSession(resource: URI): ISession | undefined {
+		this._ensureSessionCache();
+		const chat = this._sessionCache.get(resource.toString());
+		return chat ? this._chatToSession(chat) : undefined;
+	}
+
 	// -- Session Lifecycle --
 
 	async resolveSessionResource(resource: URI): Promise<URI | undefined> {
@@ -1514,7 +1520,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		}
 	}
 
-	getSession(sessionId: string): ICopilotChatSession | undefined {
+	getSessionById(sessionId: string): ICopilotChatSession | undefined {
 		const newSession = this._newSessions.get(sessionId);
 		if (newSession) {
 			return newSession;
@@ -1695,7 +1701,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		if (draft && this._usesSandbox(draft)) {
 			return this._sandboxModelsSnapshot(desiredModelId);
 		}
-		const session = this.getSession(sessionId);
+		const session = this.getSessionById(sessionId);
 		if (session instanceof RemoteNewSession) {
 			// Cloud sessions: models come from the extension-host `models` option
 			// group rather than from registered language models. Synthesize
@@ -1747,7 +1753,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		// back to Auto. When it has no models, the picker shows a "No models
 		// available" state instead. Derive this from the contribution's
 		// declarative `showAutoModel` flag rather than hardcoding session types.
-		const sessionType = this.getSession(sessionId)?.sessionType;
+		const sessionType = this.getSessionById(sessionId)?.sessionType;
 		const showAutoModel = !sessionType || this.chatSessionsService.supportsAutoModelForSessionType(sessionType);
 		return {
 			showUnavailableFeatured: false,

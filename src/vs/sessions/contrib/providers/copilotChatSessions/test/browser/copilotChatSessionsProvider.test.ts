@@ -1466,7 +1466,7 @@ suite('CopilotChatSessionsProvider', () => {
 			provider.prepareNewSessionWhileComposing(draft.sessionId);
 			await assert.rejects(provider.prepareNewSession(draft.sessionId, CancellationToken.None, 'hello'), /Cloud session creation is not available for your account/);
 			await assert.rejects(provider.sendRequest(draft.sessionId, draft.mainChat.get().resource, { query: 'hello' }), /Cloud session creation is not available for your account/);
-			assert.deepStrictEqual({ preparations: prepare.callCount, draftRetained: provider.getSession(draft.sessionId) !== undefined }, { preparations: 0, draftRetained: true });
+			assert.deepStrictEqual({ preparations: prepare.callCount, draftRetained: provider.getSessionById(draft.sessionId) !== undefined }, { preparations: 0, draftRetained: true });
 		});
 	}
 
@@ -1646,6 +1646,30 @@ suite('CopilotChatSessionsProvider', () => {
 			unscoped: 'another,elsewhere,here',
 			changes: ['added=another,elsewhere removed= changed='],
 		});
+	});
+
+	test('looks a session up by its resource, also outside its listing scope, without listing every session', () => {
+		const repository = (name: string) => URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: `/owner/${name}` });
+		const resource = (name: string) => URI.from({ scheme: AgentSessionProviders.Cloud, path: `/${name}` });
+		model.addSession(createMockAgentSession(resource('here'), { title: 'here', metadata: { owner: 'owner', name: 'here' } }));
+		model.addSession(createMockAgentSession(resource('elsewhere'), { title: 'elsewhere', metadata: { owner: 'owner', name: 'elsewhere' } }));
+		model.addSession(createMockAgentSession(URI.from({ scheme: AgentSessionProviders.Background, path: '/cli' }), { providerType: AgentSessionProviders.Background, metadata: { repositoryPath: '/test/repo' } }));
+		const provider = createProvider(disposables, model);
+		provider.setListingScope({ folders: observableValue<readonly URI[]>('folders', [repository('here')]) });
+		const listed = provider.getAllSessions().find(session => session.title.get() === 'elsewhere');
+		let enumerations = 0;
+		const getAllSessions = provider.getAllSessions;
+		provider.getAllSessions = () => { enumerations++; return getAllSessions.call(provider); };
+		provider.getSessions = () => { enumerations++; return []; };
+
+		const lookups = ['here', 'elsewhere', 'missing'].map(name => provider.getSession(resource(name))?.title.get());
+
+		assert.deepStrictEqual({
+			lookups,
+			sameAsListed: provider.getSession(resource('elsewhere')) === listed,
+			otherProvider: provider.getSession(URI.from({ scheme: AgentSessionProviders.Background, path: '/cli' })),
+			enumerations,
+		}, { lookups: ['here', 'elsewhere', undefined], sameAsListed: true, otherProvider: undefined, enumerations: 0 });
 	});
 
 	test('tells who listens already how its listing changes as a listing scope is set', () => {
@@ -1990,7 +2014,7 @@ suite('CopilotChatSessionsProvider', () => {
 	test('new session config captures cloud provider options', async () => {
 		const provider = createProvider(disposables, model);
 		const session = provider.createNewSession(URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, path: '/owner/repository' }), CopilotCloudSessionType.id);
-		const providerSession = provider.getSession(session.sessionId) as RemoteNewSession;
+		const providerSession = provider.getSessionById(session.sessionId) as RemoteNewSession;
 		providerSession.setOption('customOption', { id: 'selected', name: 'Selected' });
 		const config = await provider.getNewSessionConfig(session.sessionId);
 		providerSession.setOption('customOption', { id: 'changed', name: 'Changed' });
@@ -3175,7 +3199,7 @@ suite('CopilotChatSessionsProvider', () => {
 			};
 
 			const sessionInfo = provider.createNewSession(workspace, CopilotCloudSessionType.id, { automationConfiguration });
-			const session = provider.getSession(sessionInfo.sessionId);
+			const session = provider.getSessionById(sessionInfo.sessionId);
 			const captured = await provider.getAutomationSessionConfiguration(sessionInfo.sessionId);
 
 			assert.deepStrictEqual({
@@ -3509,7 +3533,7 @@ suite('CopilotChatSessionsProvider', () => {
 				const fixture = createDraftPreparationFixture();
 				const { provider, provisionRequests } = createSandboxProvider({ providerMode: 'sandbox', draftPreparation: fixture.preparation });
 				const draft = provider.createQuickChat(CopilotSandboxSessionType.id);
-				const session = provider.getSession(draft.sessionId);
+				const session = provider.getSessionById(draft.sessionId);
 				assert.ok(session instanceof RemoteNewSession);
 				provider.prepareNewSessionWhileComposing(draft.sessionId);
 				await fixture.allocationStarted;
@@ -3555,7 +3579,7 @@ suite('CopilotChatSessionsProvider', () => {
 					},
 				});
 				const draft = provider.createQuickChat(CopilotSandboxSessionType.id);
-				const session = provider.getSession(draft.sessionId);
+				const session = provider.getSessionById(draft.sessionId);
 				assert.ok(session instanceof RemoteNewSession);
 				provider.prepareNewSessionWhileComposing(draft.sessionId);
 				await fixture.allocationStarted;
@@ -3694,7 +3718,7 @@ suite('CopilotChatSessionsProvider', () => {
 					},
 				});
 				const draft = provider.createQuickChat(sessionTypeId);
-				const original = provider.getSession(draft.sessionId);
+				const original = provider.getSessionById(draft.sessionId);
 				provider.prepareNewSessionWhileComposing(draft.sessionId);
 				await fixture.allocationStarted;
 				const preparing = provider.prepareNewSession(draft.sessionId, cancellation.token, 'final prompt');
@@ -3706,7 +3730,7 @@ suite('CopilotChatSessionsProvider', () => {
 				await fixture.deleted;
 
 				assert.deepStrictEqual({
-					calls: fixture.calls, sameDraft: provider.getSession(draft.sessionId) === original,
+					calls: fixture.calls, sameDraft: provider.getSessionById(draft.sessionId) === original,
 					status: draft.status.get(), active: draft.isNewSessionRequestInProgress?.get(), published: provisioned.published,
 				}, {
 					calls: ['reserve', 'delete:task-new:account-a'], sameDraft: true,
@@ -3727,7 +3751,7 @@ suite('CopilotChatSessionsProvider', () => {
 					},
 				});
 				const draft = provider.createQuickChat(sessionTypeId);
-				const original = provider.getSession(draft.sessionId);
+				const original = provider.getSessionById(draft.sessionId);
 				provider.prepareNewSessionWhileComposing(draft.sessionId);
 				await fixture.allocationStarted;
 				await fixture.allocation.complete('env-new');
@@ -3736,7 +3760,7 @@ suite('CopilotChatSessionsProvider', () => {
 				await assert.rejects(provider.prepareNewSession(draft.sessionId, CancellationToken.None, 'retry prompt'), /already been claimed/);
 
 				assert.deepStrictEqual({
-					calls: fixture.calls, submissions, sameDraft: provider.getSession(draft.sessionId) === original,
+					calls: fixture.calls, submissions, sameDraft: provider.getSessionById(draft.sessionId) === original,
 					status: draft.status.get(), active: draft.isNewSessionRequestInProgress?.get(),
 				}, {
 					calls: ['reserve'], submissions: 1, sameDraft: true, status: SessionStatus.Untitled, active: false,
@@ -3942,7 +3966,7 @@ suite('CopilotChatSessionsProvider', () => {
 					preparation.discard = async resource => { discarded.push(resource); };
 					const { provider, provisionRequests } = createSandboxProvider({ providerMode, draftPreparation: preparation });
 					const draft = provider.createQuickChat(sessionTypeId);
-					const session = provider.getSession(draft.sessionId);
+					const session = provider.getSessionById(draft.sessionId);
 					assert.ok(session instanceof RemoteNewSession);
 					provider.prepareNewSessionWhileComposing(draft.sessionId);
 
@@ -3977,7 +4001,7 @@ suite('CopilotChatSessionsProvider', () => {
 					},
 				});
 				const draft = provider.createNewSession(repoWorkspace, sessionTypeId);
-				const original = provider.getSession(draft.sessionId);
+				const original = provider.getSessionById(draft.sessionId);
 				assert.ok(original instanceof RemoteNewSession);
 				const workspace = draft.workspace.get();
 				const chatResource = draft.mainChat.get().resource;
@@ -4021,7 +4045,7 @@ suite('CopilotChatSessionsProvider', () => {
 
 				assert.deepStrictEqual({
 					duringPreparation,
-					sameDraft: provider.getSession(draft.sessionId) === original,
+					sameDraft: provider.getSessionById(draft.sessionId) === original,
 					sameWorkspace: draft.workspace.get() === workspace,
 					sameChat: extUri.isEqual(draft.mainChat.get().resource, chatResource),
 					composerRestored: !composer.disposed && view.element.contains(composer.element),
@@ -4164,7 +4188,7 @@ suite('CopilotChatSessionsProvider', () => {
 						},
 					});
 					const draft = provider.createNewSession(repoWorkspace, sessionTypeId);
-					const original = provider.getSession(draft.sessionId);
+					const original = provider.getSessionById(draft.sessionId);
 					const cancellation = disposables.add(new CancellationTokenSource());
 					const preparation = provider.prepareNewSession(draft.sessionId, cancellation.token, 'Review this file');
 					const rejected = assert.rejects(preparation, /Canceled/);
@@ -4183,7 +4207,7 @@ suite('CopilotChatSessionsProvider', () => {
 					assert.deepStrictEqual({
 						requests: provisionRequests.length,
 						cancelled: requestToken?.isCancellationRequested,
-						retained: provider.getSession(draft.sessionId) === original,
+						retained: provider.getSessionById(draft.sessionId) === original,
 						status: draft.status.get(),
 						progress: draft.preparationProgress?.get(),
 						published: provisioned.published,
@@ -4301,7 +4325,7 @@ suite('CopilotChatSessionsProvider', () => {
 			test(`${providerMode} creates a repo-less quick-chat draft without provisioning a sandbox`, () => {
 				const { provider, provisionRequests } = createSandboxProvider({ providerMode });
 				const draft = provider.createQuickChat(sessionTypeId);
-				const session = provider.getSession(draft.sessionId);
+				const session = provider.getSessionById(draft.sessionId);
 				assert.ok(session instanceof RemoteNewSession);
 
 				assert.deepStrictEqual({
@@ -5084,7 +5108,7 @@ suite('CopilotChatSessionsProvider', () => {
 				getOptionGroups: () => cloudModelOptionGroup('synthetic-cloud-model', 'claude-sonnet-4.6'),
 			});
 			const sessionInfo = provider.createNewSession(repoWorkspace, CopilotCloudSessionType.id);
-			const session = provider.getSession(sessionInfo.sessionId)!;
+			const session = provider.getSessionById(sessionInfo.sessionId)!;
 			provider.setModel(sessionInfo.sessionId, session.mainChat.get().resource, 'synthetic-cloud-model', ChatModelSource.Chosen);
 
 			await provider.sendRequest(sessionInfo.sessionId, session.mainChat.get().resource, { query: 'fix it' });
@@ -5108,7 +5132,7 @@ suite('CopilotChatSessionsProvider', () => {
 				getOptionGroups: () => cloudModelOptionGroup('synthetic-cloud-model', 'claude-sonnet-4.6'),
 			});
 			const sessionInfo = provider.createNewSession(repoWorkspace, CopilotCloudSessionType.id);
-			const session = provider.getSession(sessionInfo.sessionId)!;
+			const session = provider.getSessionById(sessionInfo.sessionId)!;
 			provider.setModel(sessionInfo.sessionId, session.mainChat.get().resource, 'synthetic-cloud-model', ChatModelSource.Chosen);
 
 			const sent = provider.sendRequest(sessionInfo.sessionId, session.mainChat.get().resource, { query: 'fix it' });
@@ -5135,7 +5159,7 @@ suite('CopilotChatSessionsProvider', () => {
 				getOptionGroups: () => cloudModelOptionGroup('synthetic-cloud-model', 'claude-sonnet-4.6'),
 			});
 			const sessionInfo = provider.createNewSession(repoWorkspace, CopilotCloudSessionType.id);
-			const session = provider.getSession(sessionInfo.sessionId)!;
+			const session = provider.getSessionById(sessionInfo.sessionId)!;
 			provider.setModel(sessionInfo.sessionId, session.mainChat.get().resource, 'synthetic-cloud-model', ChatModelSource.Chosen);
 
 			await provider.sendRequest(sessionInfo.sessionId, session.mainChat.get().resource, { query: 'fix it' });
@@ -5156,7 +5180,7 @@ suite('CopilotChatSessionsProvider', () => {
 			});
 			provider.sandboxModelWaitMs = 1;
 			const sessionInfo = provider.createNewSession(repoWorkspace, CopilotCloudSessionType.id);
-			const session = provider.getSession(sessionInfo.sessionId)!;
+			const session = provider.getSessionById(sessionInfo.sessionId)!;
 			provider.setModel(sessionInfo.sessionId, session.mainChat.get().resource, 'synthetic-cloud-model', ChatModelSource.Chosen);
 
 			await provider.sendRequest(sessionInfo.sessionId, session.mainChat.get().resource, { query: 'fix it' });
@@ -5170,7 +5194,7 @@ suite('CopilotChatSessionsProvider', () => {
 		test('provisions a sandbox and replaces the draft with the committed session', async () => {
 			const { provider, provisionRequests, cloudSends } = createSandboxProvider({ provision: async () => provisionedSession() });
 			const sessionInfo = provider.createNewSession(repoWorkspace, CopilotCloudSessionType.id);
-			const session = provider.getSession(sessionInfo.sessionId)!;
+			const session = provider.getSessionById(sessionInfo.sessionId)!;
 
 			const replacements: { from: string; to: string }[] = [];
 			disposables.add(provider.onDidReplaceSession(e => replacements.push({ from: e.from.sessionId, to: e.to.sessionId })));
@@ -5209,7 +5233,7 @@ suite('CopilotChatSessionsProvider', () => {
 			const provisioned = provisionedSession();
 			const { provider } = createSandboxProvider({ provision: async () => provisioned });
 			const sessionInfo = provider.createNewSession(repoWorkspace, CopilotCloudSessionType.id);
-			const session = provider.getSession(sessionInfo.sessionId)!;
+			const session = provider.getSessionById(sessionInfo.sessionId)!;
 
 			// The sandbox session is seeded before connecting so a discovery pass reconciles
 			// against it, but it must stay out of the list until the placeholder goes away —
@@ -5223,7 +5247,7 @@ suite('CopilotChatSessionsProvider', () => {
 			const provisioned = provisionedSession(async () => { throw new Error('send failed'); });
 			const { provider } = createSandboxProvider({ provision: async () => provisioned });
 			const sessionInfo = provider.createNewSession(repoWorkspace, CopilotCloudSessionType.id);
-			const session = provider.getSession(sessionInfo.sessionId)!;
+			const session = provider.getSessionById(sessionInfo.sessionId)!;
 
 			await assert.rejects(() => provider.sendRequest(sessionInfo.sessionId, session.mainChat.get().resource, { query: 'fix it' }));
 
@@ -5235,7 +5259,7 @@ suite('CopilotChatSessionsProvider', () => {
 		test('a failed provision removes the placeholder instead of stranding it in the list', async () => {
 			const { provider } = createSandboxProvider();
 			const sessionInfo = provider.createNewSession(repoWorkspace, CopilotCloudSessionType.id);
-			const session = provider.getSession(sessionInfo.sessionId)!;
+			const session = provider.getSessionById(sessionInfo.sessionId)!;
 
 			const removed: string[] = [];
 			disposables.add(provider.onDidChangeSessions(e => removed.push(...e.removed.map(s => s.sessionId))));

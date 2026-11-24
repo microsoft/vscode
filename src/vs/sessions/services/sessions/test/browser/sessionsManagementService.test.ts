@@ -255,6 +255,9 @@ class TestSessionsProvider extends mock<ISessionsProvider>() {
 	}
 
 	override getSessions(): ISession[] { return [this._session]; }
+	override getSession(resource: URI): ISession | undefined {
+		return (this.getAllSessions?.() ?? this.getSessions()).find(session => isEqual(session.resource, resource) || session.previousIdentities?.some(previous => isEqual(previous.resource, resource)));
+	}
 	override resolveWorkspace(_folderUri: URI): ISessionWorkspace | undefined { return undefined; }
 	override createNewSession(_folderUri?: URI, _sessionTypeId?: string): ISession { return this._session; }
 	override getSessionTypes(_folderUri: URI): ISessionType[] { return [...this.sessionTypes]; }
@@ -556,35 +559,43 @@ suite('SessionsManagementService', () => {
 		}, { listed: ['listed'], maintenance: ['listed', 'hidden'], found: 'hidden', changes: ['changed hidden'] });
 	});
 
-	test('repeated resource lookups do not enumerate the session catalog', () => {
+	test('resource lookups ask providers in order and never enumerate their sessions', () => {
 		const previousResource = URI.parse('test:///previous');
-		const sessions = Array.from({ length: 590 }, (_, index) => stubSession({
-			sessionId: `session-${index}`,
-			providerId: 'test',
-			...(index === 589 ? { previousIdentities: [{ resource: previousResource, sessionId: 'previous' }] } : {}),
-		}));
+		const shared = URI.parse('test:///shared');
 		let enumerations = 0;
-		const provider = new class extends TestSessionsProvider {
-			override getSessions(): ISession[] { return sessions; }
+		const lookups: string[] = [];
+		const createProvider = (id: string, order: number, sessions: ISession[]) => new class extends TestSessionsProvider {
+			override readonly id = id;
+			override readonly order = order;
+			override getSessions(): ISession[] {
+				enumerations++;
+				return sessions;
+			}
 			override getAllSessions(): ISession[] {
 				enumerations++;
 				return sessions;
 			}
+			override getSession(resource: URI): ISession | undefined {
+				lookups.push(`${id}:${resource.path}`);
+				return sessions.find(session => isEqual(session.resource, resource) || session.previousIdentities?.some(previous => isEqual(previous.resource, resource)));
+			}
 		}(sessions[0]);
-		const { service } = createSessionsManagementService(sessions[0], disposables, provider);
-		service.getSession(sessions[589].resource);
+		const first = createProvider('first', 0, [
+			stubSession({ sessionId: 'first-shared', providerId: 'first', resource: shared }),
+			stubSession({ sessionId: 'renamed', providerId: 'first', previousIdentities: [{ resource: previousResource, sessionId: 'previous' }] }),
+		]);
+		const second = createProvider('second', 1, [
+			stubSession({ sessionId: 'second-shared', providerId: 'second', resource: shared }),
+			stubSession({ sessionId: 'second-only', providerId: 'second' }),
+		]);
+		const { service } = createSessionsManagementService(stubSession({ sessionId: 'first-shared', providerId: 'first', resource: shared }), disposables, [second, first]);
 		enumerations = 0;
-		const found = [];
-		for (let index = 0; index < 20; index++) {
-			found.push([
-				service.getSession(sessions[589].resource)?.sessionId,
-				service.getSession(previousResource)?.sessionId,
-				service.getSession(URI.parse('test:///missing'))?.sessionId,
-			]);
-		}
-		assert.deepStrictEqual({ enumerations, found }, {
+		lookups.length = 0;
+		const found = [shared, previousResource, URI.parse('test:///second-only'), URI.parse('test:///missing')].map(resource => service.getSession(resource)?.sessionId);
+		assert.deepStrictEqual({ enumerations, found, lookups }, {
 			enumerations: 0,
-			found: Array.from({ length: 20 }, () => ['session-589', 'session-589', undefined]),
+			found: ['first-shared', 'renamed', 'second-only', undefined],
+			lookups: ['first:/shared', 'first:/previous', 'first:/second-only', 'second:/second-only', 'first:/missing', 'second:/missing'],
 		});
 	});
 
@@ -609,13 +620,12 @@ suite('SessionsManagementService', () => {
 		});
 	});
 
-	test('a chat move listener finds the destination session, which the provider lists before its catalog change', () => {
+	test('a chat move listener finds the destination session the provider lists when it reports the move', () => {
 		const source = stubSession({ sessionId: 'source', providerId: 'test' });
 		const destination = stubSession({ sessionId: 'destination', providerId: 'test' });
 		const onDidMoveChat = disposables.add(new Emitter<IChatMovedEvent>());
 		let sessions = [source];
 		const provider = new class extends TestSessionsProvider {
-			override readonly onDidChangeSessionCatalog = Event.None;
 			override readonly onDidMoveChat = onDidMoveChat.event;
 			override getSessions(): ISession[] { return sessions; }
 		}(source);
