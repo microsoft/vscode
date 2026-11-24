@@ -129,7 +129,8 @@ suite('AgentHostReviewService', () => {
 			reviewedRefsAreShared: new Set(reviewedRefs).size === 1,
 		}, {
 			openedDatabases: [],
-			baseBranches: ['refs/remotes/origin/chat-main', 'refs/remotes/origin/chat-main'],
+			// getReviewedPaths finds no reviewed ref, so it never resolves the baseline.
+			baseBranches: ['refs/remotes/origin/chat-main'],
 			reviewedRefsAreShared: false,
 		});
 	});
@@ -185,6 +186,61 @@ suite('AgentHostReviewService', () => {
 			ref: buildReviewedRefName(`${AgentSession.id(session)}-workspace-${getWorkingDirectoryScopeId([workingDirectory.toString()])}`),
 			commit: 'legacy-commit',
 		}]);
+	});
+
+	test('does not resolve the baseline when nothing was reviewed', async () => {
+		const session = 'mock:/session';
+		const workingDirectory = URI.file('/workspace');
+		const folderOwner = buildFolderChangesetOwnerUri(session, getWorkingDirectoryScopeId([workingDirectory.toString()]));
+		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		stateManager.createSession({
+			resource: session,
+			provider: 'mock',
+			title: 'Session',
+			status: SessionStatus.Idle,
+			createdAt: new Date(0).toISOString(),
+			modifiedAt: new Date(0).toISOString(),
+			workingDirectories: [workingDirectory.toString()],
+			defaultChat: buildDefaultChatUri(session),
+		});
+		const gitCalls: string[] = [];
+		const gitService = createNoopGitService();
+		gitService.getRepositoryRoot = async resource => {
+			gitCalls.push('getRepositoryRoot');
+			return resource;
+		};
+		gitService.resolveBranchBaselineCommit = async () => {
+			gitCalls.push('resolveBranchBaselineCommit');
+			return 'baseline';
+		};
+		gitService.revParse = async (_root, expression) => {
+			gitCalls.push(`revParse ${expression}`);
+			return expression === 'baseline^{tree}' ? 'baseline-tree' : undefined;
+		};
+		gitService.captureWorkingTreeAsTree = async () => {
+			gitCalls.push('captureWorkingTreeAsTree');
+			return 'working-tree';
+		};
+		const service = disposables.add(new AgentHostReviewService(
+			stateManager,
+			gitService,
+			dataServiceFor(),
+			createTestSessionStateStore(disposables.add(new AgentHostDatabase(':memory:')), dataServiceFor()),
+			createNoopGitStateService(),
+			new NullLogService(),
+			createTestChatOwnershipService(stateManager),
+		));
+
+		const reviewedPaths = await service.getReviewedPaths(folderOwner, workingDirectory, 'main');
+
+		assert.deepStrictEqual({ reviewedPaths: [...reviewedPaths], gitCalls }, {
+			reviewedPaths: [],
+			gitCalls: [
+				'getRepositoryRoot',
+				`revParse ${buildReviewedRefName(`${AgentSession.id(session)}-workspace-${getWorkingDirectoryScopeId([workingDirectory.toString()])}`)}`,
+				`revParse ${buildReviewedRefName(AgentSession.id(session))}`,
+			],
+		});
 	});
 
 	test('copies multi-root folder-scoped review refs without loaded source state', async () => {
