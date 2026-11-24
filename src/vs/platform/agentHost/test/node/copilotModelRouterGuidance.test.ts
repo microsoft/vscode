@@ -78,8 +78,12 @@ suite('CopilotModelRouterGuidance', () => {
 		assert.deepStrictEqual({ never, note: state.noteFor(chat, 't4') }, { never: [undefined, undefined, undefined], note: modelRouterGuidanceNote(guidance()) });
 	});
 
-	test('a message that does not reach the agent has told the chat nothing', () => {
+	test('a note whose message is not seen to reach the agent is sent with the next routed turn, also one back on the guidance the chat was told', () => {
 		const state = new CopilotModelRouterGuidance();
+		const back = new CopilotModelRouterGuidance();
+		turn(back, 't1', guidance());
+		// The note for the other route may have reached the agent unseen.
+		turn(back, 't2', guidance('other'), { reachesAgent: false });
 		assert.deepStrictEqual({
 			stopped: turn(state, 't1', guidance(), { reachesAgent: false }),
 			// The next turn is sent on a model picked by hand: the stopped turn's note is not its own.
@@ -87,7 +91,9 @@ suite('CopilotModelRouterGuidance', () => {
 			withoutTurnId: state.noteFor(chat, undefined),
 			nextRouted: turn(state, 't3', guidance()),
 			then: turn(state, 't4', guidance()),
-		}, { stopped: 'feature', unrouted: undefined, withoutTurnId: undefined, nextRouted: 'feature', then: undefined });
+			backOnFirstRoute: turn(back, 't3', guidance()),
+			backThen: turn(back, 't4', guidance()),
+		}, { stopped: 'feature', unrouted: undefined, withoutTurnId: undefined, nextRouted: 'feature', then: undefined, backOnFirstRoute: 'feature', backThen: undefined });
 	});
 
 	test('a routing that finishes after a later turn entered does not replace that turn\'s', () => {

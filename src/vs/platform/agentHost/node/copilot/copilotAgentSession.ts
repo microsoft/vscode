@@ -2333,8 +2333,10 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _onHostInstructionsDelivered: (() => void) | undefined;
 	/** The turn whose prompt was given the host instructions, until the runtime echoes that prompt. A prompt it rejects or a hook blocks is never echoed. */
 	private _hostInstructionsHandedOutTo: CopilotTurn | undefined;
-	/** The ids of the root messages echoed in that turn before its send returned the prompt's id. */
-	private _hostInstructionsEarlyEchoes: (string | undefined)[] = [];
+	/** The ids of the root messages echoed in that turn since. */
+	private _hostInstructionsEchoes: (string | undefined)[] = [];
+	/** The prompt the runtime accepted for the turn being sent: by the message id its send returned or, for a fleet start, which returns none, without one. */
+	private _acceptedPrompt: { readonly turn: CopilotTurn; readonly messageId: string | undefined } | undefined;
 	private readonly _modelConfigurationOwner = generateUuid();
 	private _modelConfigurationGeneration = 0;
 	private readonly _modelConfigurationRefresh = this._register(new Throttler());
@@ -4176,7 +4178,6 @@ export class CopilotAgentSession extends Disposable {
 		}
 		// What this turn's prompt was to carry is not for a later prompt. A turn can end without one: a command, or a stop before the send.
 		this._hostInstructions = undefined;
-		this._hostInstructionsHandedOutTo = undefined;
 		this._pendingSnapshotReminder = undefined;
 		this._currentTurn.clear();
 		this._computerUseSetup?.()?.cancelChat(this._computerUseSetupChat);
@@ -7182,8 +7183,8 @@ export class CopilotAgentSession extends Disposable {
 		}
 		const turn = this._currentTurn.value;
 		this._hostInstructions = hostInstructions;
-		this._hostInstructionsHandedOutTo = undefined;
-		this._hostInstructionsEarlyEchoes = [];
+		this._forgetHostInstructionsHandOut();
+		this._acceptedPrompt = undefined;
 		// Attaching a file or folder lets this chat's sandbox read it; `_prepareSdkTurn` applies the grant before the turn runs.
 		this._sandbox.addAttachments(attachments);
 		this._pendingSnapshotReminder = this._attachmentReminder(attachments);
@@ -7217,7 +7218,7 @@ export class CopilotAgentSession extends Disposable {
 				this._clearActiveTurn();
 			}
 			this._hostInstructions = undefined;
-			this._hostInstructionsHandedOutTo = undefined;
+			this._forgetHostInstructionsHandOut();
 			this._pendingSnapshotReminder = undefined;
 			throw err;
 		} finally {
@@ -7240,8 +7241,8 @@ export class CopilotAgentSession extends Disposable {
 			...this._discardedEditNotes,
 		];
 		if (this._hostInstructions?.length) {
+			this._forgetHostInstructionsHandOut();
 			this._hostInstructionsHandedOutTo = this._currentTurn.value;
-			this._hostInstructionsEarlyEchoes = [];
 		}
 		this._hostInstructions = undefined;
 		this._pendingSnapshotReminder = undefined;
@@ -7249,19 +7250,29 @@ export class CopilotAgentSession extends Disposable {
 		return parts.length > 0 ? parts.join('\n\n') : undefined;
 	}
 
+	private _forgetHostInstructionsHandOut(): void {
+		this._hostInstructionsHandedOutTo = undefined;
+		this._hostInstructionsEchoes = [];
+	}
+
 	/**
-	 * A root message was echoed in the turn whose prompt took the host instructions. They have reached the agent
-	 * when that message is the prompt, which the id its send returns tells. An echo can come before that id.
+	 * The host instructions have reached the agent when the runtime has accepted the prompt that took them and
+	 * has echoed it, in any order. `event` is the one that just happened in `turn`: the runtime accepted its
+	 * prompt, as `messageId` when it gives one, or echoed the root message `messageId`.
 	 */
-	private _confirmHostInstructions(turn: CopilotTurn, echoedMessageId?: string): void {
-		if (this._hostInstructionsHandedOutTo !== turn) {
+	private _confirmHostInstructions(turn: CopilotTurn, event: 'accepted' | 'echoed', messageId: string | undefined): void {
+		if (event === 'accepted') {
+			this._acceptedPrompt = { turn, messageId };
+		} else if (this._hostInstructionsHandedOutTo === turn) {
+			this._hostInstructionsEchoes.push(messageId);
+		}
+		const prompt = this._acceptedPrompt;
+		if (this._hostInstructionsHandedOutTo !== turn || prompt?.turn !== turn) {
 			return;
 		}
-		if (turn.sentMessageId === undefined) {
-			this._hostInstructionsEarlyEchoes.push(echoedMessageId);
-		} else if (turn.sentMessageId === echoedMessageId || this._hostInstructionsEarlyEchoes.includes(turn.sentMessageId)) {
-			this._hostInstructionsHandedOutTo = undefined;
-			this._hostInstructionsEarlyEchoes = [];
+		// Without an id, the prompt is the root message of the turn it started.
+		if (prompt.messageId === undefined ? this._hostInstructionsEchoes.length > 0 : this._hostInstructionsEchoes.includes(prompt.messageId)) {
+			this._forgetHostInstructionsHandOut();
 			this._onHostInstructionsDelivered?.();
 		}
 	}
@@ -7726,7 +7737,7 @@ export class CopilotAgentSession extends Disposable {
 		this._logService.info(`[Copilot:${this.sessionId}] session.send() returned`);
 		if (sendingTurn && typeof execution.value === 'string') {
 			sendingTurn.sentMessageId = execution.value;
-			this._confirmHostInstructions(sendingTurn);
+			this._confirmHostInstructions(sendingTurn, 'accepted', execution.value);
 			if (this._earlyPromptBlock?.messageId === execution.value) {
 				this._showPromptBlock(sendingTurn, this._earlyPromptBlock.reason);
 				this._earlyPromptBlock = undefined;
@@ -8024,6 +8035,10 @@ export class CopilotAgentSession extends Disposable {
 				return;
 			}
 			throw err;
+		}
+		if (result.started) {
+			// The runtime took the fleet prompt. A fleet start returns no message id for it.
+			this._confirmHostInstructions(startingTurn, 'accepted', undefined);
 		}
 		if (!startingTurn || this._currentTurn.value !== startingTurn) {
 			// A terminal `session.idle` already ended this turn while the RPC was in flight.
@@ -11503,7 +11518,7 @@ export class CopilotAgentSession extends Disposable {
 			this._setManagedPluginActivity(undefined);
 			const steering = this._takeMatchingPendingSteering(e.data.content, e.data.messageId);
 			if (!steering && this._currentTurn.value) {
-				this._confirmHostInstructions(this._currentTurn.value, e.data.messageId);
+				this._confirmHostInstructions(this._currentTurn.value, 'echoed', e.data.messageId);
 			}
 			if (steering) {
 				this._logService.trace(`[Copilot:${sessionId}] Pending message delivery: pendingId=${steering.pendingMessage.id}, sdkMessageId=${e.data.messageId}, runtimeDelivery=${e.data.delivery ?? 'unknown'}, interactionId=${e.data.interactionId}, promotedTurnId=${steering.promotedTurnId}`);
@@ -14290,7 +14305,7 @@ export class CopilotAgentSession extends Disposable {
 			this._logService.warn(`[Copilot:${this.sessionId}] Not showing a hook's prompt block on turn ${turn.id}: it is not this turn's own prompt, or the turn has ended`);
 			return;
 		}
-		this._hostInstructionsHandedOutTo = undefined;
+		this._forgetHostInstructionsHandOut();
 		this._emitAction({ type: ActionType.ChatResponsePart, turnId: turn.id, part: createPromptBlockedNotification(reason) }, undefined, true);
 	}
 
