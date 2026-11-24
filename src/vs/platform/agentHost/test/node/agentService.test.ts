@@ -9114,13 +9114,14 @@ suite('AgentService (node dispatcher)', () => {
 	});
 
 	suite('createSession', () => {
-		for (const { name, defaultBranch, repository, expected } of [
+		for (const { name, defaultBranch, branch, repository, expected } of [
 			{ name: 'default branch upstream', defaultBranch: { kind: GitRefType.Head, name: 'main', ref: 'refs/heads/main', upstream: { name: 'origin/main', ref: 'refs/remotes/origin/main', remote: 'origin' } }, repository: true, expected: 'refs/remotes/origin/main' },
 			{ name: 'remote default branch', defaultBranch: { kind: GitRefType.RemoteHead, name: 'upstream/main', ref: 'refs/remotes/upstream/main', remote: 'upstream' }, repository: true, expected: 'refs/remotes/upstream/main' },
 			{ name: 'local default branch', defaultBranch: { kind: GitRefType.Head, name: 'main', ref: 'refs/heads/main' }, repository: true, expected: 'refs/heads/main' },
-			{ name: 'selected branch fallback', defaultBranch: undefined, repository: true, expected: 'feature' },
+			{ name: 'selected branch fallback', defaultBranch: undefined, branch: { kind: GitRefType.Head, name: 'feature', ref: 'refs/heads/feature' }, repository: true, expected: 'refs/heads/feature' },
+			{ name: 'unborn selected branch fallback', defaultBranch: undefined, branch: undefined, repository: true, expected: 'feature' },
 			{ name: 'non-Git folder', defaultBranch: undefined, repository: false, expected: undefined },
-		] satisfies { name: string; defaultBranch: Branch | undefined; repository: boolean; expected: string | undefined }[]) {
+		] satisfies { name: string; defaultBranch: Branch | undefined; branch?: Branch; repository: boolean; expected: string | undefined }[]) {
 			for (const provisional of [false, true]) {
 				test(`records the ${name} diff base on folder session send, not draft creation (provisional: ${provisional})`, async () => {
 					const db = new TestSessionDatabase();
@@ -9129,6 +9130,7 @@ suite('AgentService (node dispatcher)', () => {
 					git.getRepositoryRoot = async () => repository ? directory : undefined;
 					git.getDefaultBranch2 = async () => defaultBranch;
 					git.getCurrentBranch = async () => 'feature';
+					git.getBranch = async (_directory, branchName) => branchName === 'feature' ? branch : undefined;
 					const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, git));
 					const agent = disposables.add(new MockAgent('copilot'));
 					const createChat = agent.chats.createChat;

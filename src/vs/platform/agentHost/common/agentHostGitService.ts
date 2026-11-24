@@ -80,15 +80,23 @@ export function getGitStateBaseBranch(gitState: ISessionGitState | undefined): s
 }
 
 /**
- * Selects the full ref a session records as its default base, preferring the default branch's upstream over the branch
- * itself. Without a default branch, it is `fallbackBranch`, a branch name that readers resolve the way git does.
+ * Resolves the full ref a new session records as its base: the default branch's upstream, else the default branch. Without a
+ * default branch (no remotes, or a remote without a `HEAD`), `fallbackBranch` resolved the way git does, or its name when it names
+ * no branch yet (an unborn branch), which readers resolve the same way.
  */
-export function resolveDefaultBaseBranchRef(defaultBranch: Branch | undefined, fallbackBranch: string | undefined): string | undefined {
-	return defaultBranch?.kind === GitRefType.Head
-		? defaultBranch.upstream?.ref ?? defaultBranch.ref
-		: defaultBranch?.kind === GitRefType.RemoteHead
-			? defaultBranch.ref
-			: fallbackBranch;
+export async function resolveDefaultBaseBranchRef(gitService: IAgentHostGitService, repositoryRoot: URI, fallbackBranch: string | undefined): Promise<string | undefined> {
+	const defaultBranch = await gitService.getDefaultBranch2(repositoryRoot);
+	if (defaultBranch?.kind === GitRefType.Head) {
+		return defaultBranch.upstream?.ref ?? defaultBranch.ref;
+	}
+	if (defaultBranch?.kind === GitRefType.RemoteHead) {
+		return defaultBranch.ref;
+	}
+	if (!fallbackBranch) {
+		return fallbackBranch;
+	}
+	const branch = await gitService.getBranch(repositoryRoot, fallbackBranch);
+	return branch?.ref ?? fallbackBranch;
 }
 
 /**

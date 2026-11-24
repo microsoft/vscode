@@ -898,6 +898,34 @@ suite('WorktreeIsolation', () => {
 		});
 	});
 
+	test('records the selected remote branch as the full base ref when the repository has no default branch', async () => {
+		const gitService = createGitService();
+		gitService.getDefaultBranch2 = async () => undefined;
+		gitService.getBranch = async (_root, name) => name === 'origin/feature'
+			? { ref: `refs/remotes/${name}`, name, remote: 'origin', kind: GitRefType.RemoteHead }
+			: undefined;
+		const isolation = createIsolation(disposables, { gitService });
+
+		await isolation.resolveWorkingDirectory({
+			sessionUri,
+			sessionId,
+			workingDirectory: repoRoot,
+			config: {
+				[SessionConfigKey.Isolation]: 'worktree',
+				[SessionConfigKey.Branch]: 'origin/feature',
+			},
+			prompt: 'do a thing',
+		});
+
+		assert.deepStrictEqual({
+			startPoint: addWorktreeCalls[0]?.commitish,
+			diffBaseBranch: await db.getMetadata(META_DIFF_BASE_BRANCH),
+		}, {
+			startPoint: 'origin/feature',
+			diffBaseBranch: 'refs/remotes/origin/feature',
+		});
+	});
+
 	test('uses an explicitly selected remote branch as the worktree start point', async () => {
 		const gitService = createGitService();
 		const operations: string[] = [];

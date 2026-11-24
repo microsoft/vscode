@@ -1196,9 +1196,8 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 			? config[SessionConfigKey.WorktreeBranchPrefix] as string
 			: undefined;
 
-		// Get the default branch, preferring its upstream ref when available
-		const defaultBranch = await this._gitService.getDefaultBranch2(repositoryRoot);
-		const baseBranch = resolveDefaultBaseBranchRef(defaultBranch, selectedBranch);
+		// The base is the default branch, preferring its upstream ref when available, else the selected branch
+		const baseBranch = await resolveDefaultBaseBranchRef(this._gitService, repositoryRoot, selectedBranch);
 
 		const { worktreePath, branchName } = await this._worktreeCreationSequencer.queue(repositoryRoot.toString(), async () => {
 			const worktreesRoot = getWorktreesRoot(repositoryRoot);
@@ -2030,7 +2029,7 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 			return undefined;
 		}
 		// The base is the default branch's upstream when it has one, like the base a new worktree records.
-		const baseBranch = resolveDefaultBaseBranchRef(await this._gitService.getDefaultBranch2(primaryRoot).catch(() => undefined), undefined);
+		const baseBranch = await resolveDefaultBaseBranchRef(this._gitService, primaryRoot, undefined).catch(() => undefined);
 		return { worktreeRoot, primaryRoot, baseBranch };
 	}
 

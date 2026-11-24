@@ -2037,12 +2037,11 @@ export class AgentService extends Disposable implements IAgentService {
 				if (!persistedBase && (!isDefaultChat || resolveGitHubStateFolder(this._stateManager, source).isSessionFolder)) {
 					const repositoryRoot = await this._gitService.getRepositoryRoot(resolved);
 					if (repositoryRoot) {
-						const defaultBranch = await this._gitService.getDefaultBranch2(repositoryRoot);
 						const configuredBranch = config[SessionConfigKey.Branch];
 						const fallbackBranch = typeof configuredBranch === 'string'
 							? configuredBranch
 							: await this._gitService.getCurrentBranch(repositoryRoot);
-						const baseBranch = resolveDefaultBaseBranchRef(defaultBranch, fallbackBranch);
+						const baseBranch = await resolveDefaultBaseBranchRef(this._gitService, repositoryRoot, fallbackBranch);
 						if (baseBranch) {
 							await this._sessionStateStore.writeMetadata(session, isDefaultChat ? session : URI.parse(source), {
 								[META_DIFF_BASE_BRANCH]: baseBranch,
