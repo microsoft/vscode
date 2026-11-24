@@ -8724,7 +8724,7 @@ suite('Sessions - SessionsList', () => {
 			(source.isConnected ? source : listNode)?.dispatchEvent(new DragEvent('dragend', { bubbles: true, dataTransfer }));
 		}
 
-		function render(grouping = SessionsGrouping.Workspace, sectionMemberships: ReadonlyMap<string, string> = new Map(), liveGroups = false, settings: Readonly<Record<string, unknown>> = {}) {
+		function render(grouping = SessionsGrouping.Workspace, sectionMemberships: ReadonlyMap<string, string> = new Map(), liveGroups = false, settings: Readonly<Record<string, unknown>> = {}, productQuality?: string) {
 			let currentGrouping = grouping;
 			const now = Date.now();
 			const session = (title: string, minutesAgo: number) => createTestSession(title, { workspaceLabel: 'vscode', repository: grouping === SessionsGrouping.Repository ? 'microsoft/vscode' : undefined, createdAt: new Date(now - minutesAgo * 60_000) }).session;
@@ -8741,6 +8741,9 @@ suite('Sessions - SessionsList', () => {
 				sectionMemberships,
 				memberships,
 			});
+			if (productQuality !== undefined) {
+				harness.instantiationService.stub(IProductService, { ...TestProductService, quality: productQuality });
+			}
 			if (liveGroups) {
 				const storageService = harness.instantiationService.get(IStorageService);
 				storageService.store('sessionsListControl.groups', JSON.stringify({
@@ -9005,7 +9008,7 @@ suite('Sessions - SessionsList', () => {
 				const { container } = render(SessionsGrouping.Workspace, new Map(), false, {
 					'workbench.tree.renderIndentGuides': 'onHover',
 					[SESSIONS_LIST_INDENT_ITEMS_SETTING]: indentItems,
-				});
+				}, 'insider');
 				for (const size of [2, 6, 10, 16]) {
 					container.style.setProperty(`--vscode-spacing-size${size * 10}`, `${size}px`);
 				}
