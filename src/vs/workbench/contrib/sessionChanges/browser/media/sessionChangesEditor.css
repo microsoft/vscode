@@ -239,6 +239,23 @@
 	flex-shrink: 0;
 }
 
+/* The pen after the base branch name: muted at rest, and its own target while the picker is hovered. */
+.changes-picker-action-rich .action-label > .changes-picker-base-branch-edit {
+	padding: var(--vscode-spacing-size40);
+	border-radius: var(--vscode-cornerRadius-small);
+	color: var(--vscode-descriptionForeground);
+}
+
+.changes-picker-action-rich .action-label:hover > .changes-picker-base-branch-edit {
+	color: inherit;
+}
+
+.changes-picker-action-rich .action-label > .changes-picker-base-branch-edit:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+	outline: var(--vscode-strokeThickness) dashed var(--vscode-toolbar-hoverOutline);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+}
+
 .session-changes-editor-header-right {
 	flex: 0 2 auto;
 	min-width: 0;

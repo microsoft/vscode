@@ -21,7 +21,8 @@ import { ChangesetOperation, ChangesetOperationScope, type ChangesetFile, Change
 import { ActionType } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { ChangesetStatus, Changeset, isHostNoticeTurn, lastAttributableTurnId, MessageKind, StateComponents, TurnState, type ChangesetState, type ChatState, type ChatSummary, type SessionState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
-import { ISessionChangeset, ISessionChangesetCapabilities, ISessionChangesetOperation, ISessionChangesetOperationTarget, ISessionFileChange, ISessionTurnFileChange, SessionChangesetOperationScope, SessionChangesetOperationStatus, sessionFileChangesEqual } from '../../../../../services/sessions/common/session.js';
+import { ISessionChangeset, ISessionChangesetBaseBranchSelection, ISessionChangesetCapabilities, ISessionChangesetOperation, ISessionChangesetOperationTarget, ISessionFileChange, ISessionTurnFileChange, SessionChangesetOperationScope, SessionChangesetOperationStatus, sessionFileChangesEqual } from '../../../../../services/sessions/common/session.js';
+import { AgentHostBaseBranchSelection } from './agentHostBaseBranchSelection.js';
 import { changesetFileToChange } from './agentHostDiffs.js';
 import { AgentHostPullRequestCreation } from './agentHostPullRequestCreation.js';
 import { IAgentHostAdapterOptions } from './baseAgentHostSessionsProvider.js';
@@ -354,6 +355,7 @@ abstract class AbstractAgentHostChangeset implements ISessionChangeset {
 	readonly isLoadingChanges: IObservable<boolean>;
 	readonly changes: IObservable<readonly ISessionFileChange[]>;
 	readonly operations: IObservable<readonly ISessionChangesetOperation[]>;
+	readonly baseBranchSelection: IObservable<ISessionChangesetBaseBranchSelection | undefined>;
 
 	readonly capabilities: ISessionChangesetCapabilities;
 
@@ -503,9 +505,15 @@ abstract class AbstractAgentHostChangeset implements ISessionChangeset {
 			(operationId, metadata) => this._invokeOperation(operationId, undefined, metadata),
 			chat => this._options.getBackendChatResource?.(chat),
 		);
+		const baseBranchSelection = new AgentHostBaseBranchSelection(
+			() => this._options.getConnection(),
+			() => this.channelUriObs.get(),
+			(operationId, metadata) => this._invokeOperation(operationId, undefined, metadata),
+		);
+		this.baseBranchSelection = derived(this, reader => baseBranchSelection.isAvailable(operationsObs.read(reader)) ? baseBranchSelection : undefined);
 		this.operations = derivedOpts({ equalsFn: arrayEqualsC(structuralEquals) }, reader => {
 			const locallyRunningOperationCounts = this._locallyRunningOperationCounts.read(reader);
-			return pullRequestCreation.mapOperations(operationsObs.read(reader))
+			return pullRequestCreation.mapOperations(baseBranchSelection.mapOperations(operationsObs.read(reader)))
 				.map(operation => locallyRunningOperationCounts.has(operation.id) && operation.status !== SessionChangesetOperationStatus.Running
 					? { ...operation, status: SessionChangesetOperationStatus.Running }
 					: operation);
