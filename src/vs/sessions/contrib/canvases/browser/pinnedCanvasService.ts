@@ -728,24 +728,42 @@ export class PinnedCanvasService extends Disposable implements IPinnedCanvasServ
 	}
 
 	/**
-	 * Opens a canvas its chat is restoring, which shows any consent request its extension's start waits for. The chat then
-	 * publishes the canvas's source; when the open fails otherwise, the chat keeps restoring it as before.
+	 * Opens a canvas its chat is restoring, which shows any consent request its extension's start waits for, and waits
+	 * for the restore. The chat then publishes the canvas's source; when the restore fails, the canvas stays unavailable.
 	 */
 	private openRestoringCanvas(pin: PinnedCanvas, open: IRestoringCanvasOpen, chat: IChat, type: Pick<ISessionCanvasDefinition, 'canvasId' | 'extensionId'>): void {
 		this.sessionsManagementService.openCanvas(open.session, chat, type, pin.identity.instanceId).then(() => {
 			open.pending = false;
 		}, error => {
 			open.pending = false;
-			// An outcome for a canvas lifetime the pin no longer shows, or a pin that was removed, is not reported.
-			if (!this.getEntry(pin) || !pin.isBoundTo(open.session) || !isEqual(pin.boundCanvas, open.resource)) {
+			if (!this.isCurrentRestoringOpen(pin, open)) {
 				return;
 			}
 			if (error instanceof CanvasExtensionConsentDeniedError) {
-				notifyCanvasOpenFailure(this.notificationService, error, pin.title.get(), options => this.retryReopen(pin, type, options));
+				notifyCanvasOpenFailure(this.notificationService, error, pin.title.get(), options => this.retryRestoringOpen(pin, open, chat, type, options));
 			} else {
 				this.logService.warn(`[PinnedCanvasService] Opening a restoring canvas failed: ${toErrorMessage(error)}`);
 			}
 		});
+	}
+
+	/** Whether `pin` is still pinned and shows the session and canvas lifetime `open` was for, so its outcome is reported. */
+	private isCurrentRestoringOpen(pin: PinnedCanvas, open: IRestoringCanvasOpen): boolean {
+		return this.pins.get().includes(pin) && pin.isBoundTo(open.session) && isEqual(pin.boundCanvas, open.resource);
+	}
+
+	/**
+	 * Asks again about the declined extension of the canvas lifetime `open` was for. When a newer session or lifetime
+	 * superseded it, only shows the pin, which reconnects through those.
+	 */
+	private async retryRestoringOpen(pin: PinnedCanvas, open: IRestoringCanvasOpen, chat: IChat, type: Pick<ISessionCanvasDefinition, 'canvasId' | 'extensionId'>, options: ICanvasOpenOptions | undefined): Promise<void> {
+		if (!this.pins.get().includes(pin)) {
+			return;
+		}
+		if (this.isCurrentRestoringOpen(pin, open)) {
+			await this.sessionsManagementService.openCanvas(open.session, chat, type, pin.identity.instanceId, options);
+		}
+		await this.show(pin);
 	}
 
 	/**

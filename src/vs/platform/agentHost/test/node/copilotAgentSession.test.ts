@@ -6437,6 +6437,36 @@ suite('CopilotAgentSession', () => {
 			replacement.session.dispose();
 		});
 
+		test('waits for the restore of a canvas a client opens instead of opening it again, and does not desynchronize when the restore is slow', async () => {
+			const { handoff } = await takeCanvasesFromPreviousRuntime({ ...preview, url: 'https://example.test/previous' });
+			const reopen = new DeferredPromise<Awaited<ReturnType<CopilotSession['rpc']['canvas']['open']>>>();
+			const replacement = await createAgentSession(disposables, {
+				resume: true,
+				canvasHandoff: handoff,
+				controlPlaneRpcTimeoutMs: 20,
+				configureMockSession: mock => {
+					mock.onCanvasOpen = () => reopen.p;
+				},
+			});
+			const resource = handoff.projections[0].resource.toString();
+			assert.strictEqual(replacement.session.adoptCanvasHandoff(handoff), true);
+			await timeout(0);
+			const opened = await replacement.session.openCanvas({ canvasId: preview.canvasId, extensionId: preview.extensionId, instanceId: preview.instanceId });
+			const desynchronized = replacement.session.requiresControlPlaneResync;
+			// The runtime still reports the restore once the provider has started.
+			replacement.mockSession.fire('session.canvas.opened', { ...preview, url: 'https://example.test/late' });
+			reopen.complete({ ...preview, url: 'https://example.test/late' });
+
+			assert.deepStrictEqual({ opened, desynchronized, runtimeOpens: replacement.mockSession.canvasOpenCalls.length, ...summarizeCanvasSignals(replacement.signals) }, {
+				opened: { kind: 'failed', failure: 'unavailable' },
+				desynchronized: false,
+				runtimeOpens: 1,
+				states: [{ resource, url: undefined }, { resource, url: 'https://example.test/late' }],
+				membership: [[resource]],
+			});
+			replacement.session.dispose();
+		});
+
 		test('reopens a restoring canvas a client opens with its input, unless it was closed while the open waited for consent', async () => {
 			const input = { path: '/logs/events.jsonl' };
 			const results = [];
@@ -6474,7 +6504,7 @@ suite('CopilotAgentSession', () => {
 			}
 
 			assert.deepStrictEqual(results, [
-				{ opened: { kind: 'opened' }, openInputs: [input, input], members: 1 },
+				{ opened: { kind: 'opened' }, openInputs: [input], members: 1 },
 				{ opened: { kind: 'failed', failure: 'dismissed' }, openInputs: [input], members: 0 },
 			]);
 		});
