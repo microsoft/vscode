@@ -461,9 +461,10 @@ function shellQuote(value: string): string {
 
 /** Whether a Docker or Podman error reports that the target is mounted more than once. */
 export function isDevContainerDuplicateMountError(errorText: string, target: string): boolean {
+	// Paths are case-sensitive and the reported destination must be the whole target.
 	const escapedTarget = escapeRegExp(target.replace(/\/+$/, ''));
-	return new RegExp(`Duplicate mount point: ${escapedTarget}/*(?![\\w./-])`, 'i').test(errorText)
-		|| new RegExp(`(?<![\\w./-])"?${escapedTarget}/*"?: duplicate mount destination`, 'i').test(errorText);
+	return new RegExp(`[Dd]uplicate mount point: ${escapedTarget}/*(?=$|[\\s"'\\\\,;)]|\\.(?:\\s|$))`, 'm').test(errorText)
+		|| new RegExp(`(?<=^|[\\s'(])"?${escapedTarget}/*"?: [Dd]uplicate mount destination`, 'm').test(errorText);
 }
 
 /**
@@ -495,9 +496,9 @@ export function getDevContainerUpErrorCause(result: { readonly description?: unk
 	if (upErrorConfigPattern.test(`${description}\n${message}`)) {
 		return 'config';
 	}
-	// Command lines can contain arguments such as mounts.
+	// Command lines, including the Dev Containers extension's log of the CLI invocation, can contain arguments such as mounts.
 	const text = `${description}\n${message}\n${output}`.replace(/\x1b\[[0-9;?]*[A-Za-z]/g, '').split(/\r?\n/)
-		.filter(line => !/^\s*(?:\[\d+ ms\]\s*)?(?:Start|Stop \(\d+ ms\)): /.test(line))
+		.filter(line => !/^\s*(?:\[\d+ ms\]\s*)?(?:Start: |Stop \(\d+ ms\): |Running Dev Containers CLI: )/.test(line))
 		.map(line => line.replace(new RegExp(`${failedCommandPattern}.*`), '$1'))
 		.join('\n');
 	return upErrorTextPatterns.find(([, pattern]) => pattern.test(text))?.[0] || 'other';
