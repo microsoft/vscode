@@ -2568,6 +2568,33 @@ suite('DefaultAccountProvider Microsoft account', () => {
 		});
 	});
 
+	test('a failed Microsoft lookup does not leave a refresh requirement that appeared meanwhile unapplied for a GitHub default account', async () => {
+		const { world, provider } = await createWorld({
+			rememberedAccountLabel: 'stale',
+			microsoftSessions: [session('s1', 'alice')],
+			githubSessions: [githubSession('octocat')],
+			managedSettingsUrl: 'https://api.github.com/copilot_internal/managed_settings',
+			onRequest: url => url.endsWith('/copilot_internal/user') ? { chat_enabled: true } : {},
+		});
+		const requestsBefore = world.requests.length;
+
+		world.nativeManagedSettings = nativeRequirement;
+		world.failMicrosoftLookup = true;
+		await provider.refresh();
+
+		assert.deepStrictEqual({
+			provider: provider.defaultAccount?.authenticationProvider.id,
+			accountName: provider.defaultAccount?.accountName,
+			requests: world.requests.slice(requestsBefore).map(url => url.split('?')[0]),
+			freshness: provider.managedSettingsFreshness.state,
+		}, {
+			provider: 'github',
+			accountName: 'octocat',
+			requests: ['https://api.github.com/copilot_internal/managed_settings'],
+			freshness: ManagedSettingsFreshnessState.Satisfied,
+		});
+	});
+
 	test('an unavailable Microsoft provider is not read and the GitHub account is the default account', async () => {
 		const { world, provider } = await createWorld({ rememberedAccountLabel: 'alice', microsoftProviderAvailable: false, microsoftSessions: [session('s1', 'alice')], githubSessions: [githubSession('octocat')] });
 

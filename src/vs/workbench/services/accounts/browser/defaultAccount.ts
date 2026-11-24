@@ -657,12 +657,13 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 				}
 			} catch (error) {
 				this.logService.error('[DefaultAccount] Error while reading the Microsoft default account', getErrorMessage(error));
-				// A failed lookup is neither a sign-in nor a sign-out: keep the current account, whatever it is.
+				// A failed lookup is neither a sign-in nor a sign-out: keep the current account.
+				// A GitHub account goes on to the GitHub path below, which resolves it together with its managed settings.
 				const keptAccount = this._defaultAccount;
 				if (!keptAccount || !asGitHubAccount(keptAccount.defaultAccount)) {
 					this.blockManagedSettingsFreshnessWithoutToken(refreshRequirement);
+					return keptAccount;
 				}
-				return keptAccount;
 			}
 		}
 
