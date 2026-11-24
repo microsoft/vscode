@@ -692,10 +692,15 @@ export class CanvasService extends Disposable implements ICanvasService {
 	 * A canvas that an earlier swap closed and that is not open again yet, as when applying the editors of a location failed
 	 * and its editor area is emptied instead, or whose owner stays hidden, records nothing: it is restored as it was at the
 	 * location being entered, and otherwise keeps how it is restored.
+	 * A working set applied without changing the folder location, as source control working sets are, leaves how canvases
+	 * are restored unchanged.
 	 */
 	private rememberActiveCanvasesByLocation(): void {
 		const leaving = this.settledLocation;
 		const entering = this.getLocationKey();
+		if (leaving === entering) {
+			return;
+		}
 		for (const [key, presentation] of this.presentations) {
 			if (!presentation.opened) {
 				const remembered = entering !== undefined ? presentation.activeByLocation?.get(entering) : undefined;

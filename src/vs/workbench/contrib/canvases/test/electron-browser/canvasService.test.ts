@@ -501,13 +501,20 @@ suite('CanvasService', () => {
 			return harness;
 		}
 
-		test('as it was when a working set is applied without changing the location', async () => {
+		test('in the background when a working set is applied without changing the location, as source control working sets are', async () => {
 			const harness = await createOpenHarness();
-			assert.deepStrictEqual([
-				await switchTo(harness, '/workspace', true),
-				await switchTo(harness, '/workspace', true),
-				await switchTo(harness, '/workspace', false),
-			], [false, false, true]);
+			await switchTo(harness, '/worktree', true);
+			await switchTo(harness, '/workspace', true);
+			// The working set being applied restores a text editor as the active one, which the canvas must not replace.
+			const input = harness.opened[harness.opened.length - 1];
+			harness.setActiveInput(input);
+			harness.setApplyingWorkingSet(true);
+			harness.setActiveInput(upcastPartial<EditorInput>({}));
+			harness.openEditors.length = 0;
+			input.dispose();
+			harness.setApplyingWorkingSet(false);
+			await timeout(0);
+			assert.deepStrictEqual(harness.openOptions[harness.openOptions.length - 1]?.inactive, true);
 		});
 
 		test('active when it was the active editor there, as after visiting a worktree', async () => {
@@ -547,6 +554,19 @@ suite('CanvasService', () => {
 				opened: harness.opened.length,
 				inactive: harness.openOptions[harness.openOptions.length - 1]?.inactive,
 			}, { opened: 4, inactive: true });
+		});
+
+		test('active as it was at the location left when its owner stayed hidden across swaps to two locations it was not open at', async () => {
+			const harness = await createOpenHarness();
+			harness.visible.set(new Set(), undefined);
+			await switchTo(harness, '/worktreeC', true);
+			await switchTo(harness, '/worktreeD', false);
+			harness.visible.set(new Set([canvasOwnerKey(harness.owner)]), undefined);
+			await timeout(0);
+			assert.deepStrictEqual({
+				opened: harness.opened.length,
+				inactive: harness.openOptions[harness.openOptions.length - 1]?.inactive,
+			}, { opened: 2, inactive: false });
 		});
 
 		test('active when applying the editors of the location failed and its editor area is emptied instead', async () => {
