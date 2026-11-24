@@ -593,8 +593,9 @@ class AutomationCardsSection extends Disposable {
 			} else {
 				rendered.summary.removeAttribute('aria-description');
 			}
+			const showEmptyState = group.automations.every(automation => !showDisabled && !automation.enabled);
+			rendered.section.style.display = group.ownership === 'repository' && showEmptyState ? 'none' : '';
 			if (rendered.emptyState) {
-				const showEmptyState = group.automations.every(automation => !showDisabled && !automation.enabled);
 				if (!showEmptyState && DOM.isHTMLElement(activeElement) && rendered.emptyState.contains(activeElement)) {
 					rendered.summary.focus();
 					movedEmptyStateFocus = true;
@@ -671,6 +672,8 @@ class AutomationCardsSection extends Disposable {
 			if (hiddenCard?.style.display === 'none') {
 				const hiddenAutomation = automations.find(automation => this.persistentCards.get(automation.id)?.element === hiddenCard);
 				this.focusHiddenAutomation(hiddenAutomation?.ownership);
+			} else if (activeElement.closest<HTMLElement>('.automations-ownership-section')?.style.display === 'none') {
+				this.focusHiddenAutomation('repository');
 			} else if (!nextContainer.contains(activeElement) && !this.isVisibleTemplateElement(activeElement)) {
 				this.focusVisibleState(visibleAutomations, catalogueState);
 			} else if (!DOM.isActiveElement(activeElement)) {
@@ -712,9 +715,11 @@ class AutomationCardsSection extends Disposable {
 		const grid = DOM.append(section, $('.automations-ownership-grid'));
 		grid.setAttribute('role', 'group');
 		grid.setAttribute('aria-labelledby', title.id);
-		const emptyState = DOM.append(section, $('.automations-ownership-empty.automations-cards-empty'));
-		this.renderEmptyState(emptyState, disposables, ownership);
-		emptyState.style.display = 'none';
+		const emptyState = ownership === 'repository' ? undefined : DOM.append(section, $('.automations-ownership-empty.automations-cards-empty'));
+		if (emptyState) {
+			this.renderEmptyState(emptyState, disposables, ownership);
+			emptyState.style.display = 'none';
+		}
 		return { section, summary, title, grid, emptyState, disposables };
 	}
 
@@ -1568,7 +1573,12 @@ class AutomationCardsSection extends Disposable {
 
 	private focusHiddenAutomation(ownership = 'user'): void {
 		if (this.visibleContainer === this.container) {
-			this.ownershipSections.get(ownership)?.summary.focus();
+			const section = this.ownershipSections.get(ownership);
+			if (section && section.section.style.display !== 'none') {
+				section.summary.focus();
+			} else {
+				(this.ownershipSections.get('user')?.summary ?? this.focusRoot).focus();
+			}
 		} else {
 			this.focusVisibleState([], this.automationService.catalogueState.get());
 		}

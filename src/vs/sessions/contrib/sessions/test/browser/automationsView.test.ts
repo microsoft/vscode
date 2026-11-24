@@ -1094,11 +1094,18 @@ suite('AutomationsCardsWidget', () => {
 		automationService.setAutomations([automation({ enabled: false }), automation({ id: 'shared', ownership: 'repository' })]);
 		const templates = widget.element.querySelector<HTMLDetailsElement>('.automations-built-in-templates')!;
 		const disabled = widget.element.querySelector<HTMLElement>('.automations-card-wrapper')!;
+		const empty = widget.element.querySelector<HTMLElement>('.automations-ownership-empty')!;
 		assert.deepStrictEqual({
 			templatesVisible: templates.checkVisibility(), disabledDisplay: disabled.style.display,
 			onboardingAvailable: !!resolveOnboardingTarget(getWindow(widget.element), 'sessions.automations.templates'),
-			emptyVisible: widget.element.querySelector<HTMLElement>('.automations-ownership-empty')!.checkVisibility(),
-		}, { templatesVisible: true, disabledDisplay: 'none', onboardingAvailable: true, emptyVisible: true });
+			emptyVisible: empty.checkVisibility(),
+			title: empty.querySelector('h3')?.textContent,
+			description: empty.querySelector('p')?.textContent,
+			createVisible: empty.querySelector<HTMLElement>('.automations-cards-create-button')!.checkVisibility(),
+		}, {
+			templatesVisible: true, disabledDisplay: 'none', onboardingAvailable: true, emptyVisible: true,
+			title: 'No enabled automations', description: 'Your disabled automations are hidden. Show disabled', createVisible: true,
+		});
 	});
 
 	test('only hidden disabled automations show the empty state and templates until revealed', () => {
@@ -1182,9 +1189,9 @@ suite('AutomationsCardsWidget', () => {
 		});
 	}
 
-	test('hidden disabled shared cards have their own inline recovery without changing personal cards', () => {
+	test('hidden disabled shared cards hide their section until revealed from view options', () => {
 		const storage = hiddenDisabledStorage();
-		const { widget, automationService, disabledFilter } = setup('archive', NullHoverService, undefined, storage);
+		const { widget, automationService, disabledFilter, toggleDisabled } = setup('archive', NullHoverService, undefined, storage);
 		setShowSharedAutomationsByOthers(storage, true);
 		automationService.setCatalogueState('ready');
 		automationService.setAutomations([
@@ -1193,22 +1200,23 @@ suite('AutomationsCardsWidget', () => {
 			automation({ id: 'other-shared', ownership: 'repository', isCreatedByCurrentUser: false, enabled: false }),
 		]);
 		const sections = [...widget.element.querySelectorAll<HTMLElement>('.automations-ownership-section')];
-		const reveal = sections[1].querySelector<HTMLElement>('.monaco-link')!;
-		const before = sections.map(section => ({
+		const state = () => sections.map(section => ({
+			visible: section.checkVisibility(),
 			cards: [...section.querySelectorAll<HTMLElement>('.automations-card-wrapper')].filter(card => card.checkVisibility()).length,
-			recovery: section.querySelector<HTMLElement>('.automations-show-disabled')!.checkVisibility(),
 		}));
-		reveal.focus();
-		dispatchKeydown(reveal, { key: ' ', keyCode: 32 });
+		const before = state();
+		toggleDisabled();
+		const shown = state();
+		toggleDisabled();
 		assert.deepStrictEqual({
-			before, checked: disabledFilter().checked,
+			before, shown, hiddenAgain: state(), checked: disabledFilter().checked,
 			stored: storage.getBoolean(SHOW_DISABLED_AUTOMATIONS_STORAGE_KEY, StorageScope.PROFILE),
-			focusedShared: sections[1].contains(document.activeElement),
-			visibleShared: [...sections[1].querySelectorAll<HTMLElement>('.automations-card-wrapper')].filter(card => card.checkVisibility()).length,
-			recoveryVisible: reveal.checkVisibility(),
+			sharedEmptyStates: sections[1].querySelectorAll('.automations-ownership-empty').length,
 		}, {
-			before: [{ cards: 1, recovery: false }, { cards: 0, recovery: true }],
-			checked: true, stored: true, focusedShared: true, visibleShared: 2, recoveryVisible: false,
+			before: [{ visible: true, cards: 1 }, { visible: false, cards: 0 }],
+			shown: [{ visible: true, cards: 1 }, { visible: true, cards: 2 }],
+			hiddenAgain: [{ visible: true, cards: 1 }, { visible: false, cards: 0 }],
+			checked: false, stored: false, sharedEmptyStates: 0,
 		});
 	});
 
@@ -1256,20 +1264,40 @@ suite('AutomationsCardsWidget', () => {
 		});
 	});
 
-	test('refresh enabling the last hidden shared card moves focus out of its empty state', () => {
+	test('refresh enabling the last hidden shared card reveals its section without moving focus', () => {
 		const { widget, automationService } = setup('archive', NullHoverService, undefined, hiddenDisabledStorage());
 		const personal = automation();
 		const shared = automation({ id: 'shared', ownership: 'repository', isCreatedByCurrentUser: true, enabled: false });
 		automationService.setAutomations([personal, shared]);
 		const section = widget.element.querySelectorAll<HTMLElement>('.automations-ownership-section')[1];
-		const reveal = section.querySelector<HTMLElement>('.monaco-link')!;
-		reveal.focus();
+		const personalCard = widget.element.querySelector<HTMLElement>('.automations-card-main')!;
+		personalCard.focus();
 		automationService.setAutomations([personal, { ...shared, enabled: true }]);
 		assert.deepStrictEqual({
-			focusedSummary: document.activeElement === section.querySelector('summary'),
+			focusedPersonal: document.activeElement === personalCard,
 			focusVisible: (document.activeElement as HTMLElement).checkVisibility(),
-			recoveryVisible: reveal.checkVisibility(),
-		}, { focusedSummary: true, focusVisible: true, recoveryVisible: false });
+			sharedVisible: section.checkVisibility(),
+		}, { focusedPersonal: true, focusVisible: true, sharedVisible: true });
+	});
+
+	test('filtering the shared section while its collapsed summary is focused restores visible focus', () => {
+		const { widget, automationService, toggleDisabled } = setup();
+		automationService.setCatalogueState('ready');
+		automationService.setAutomations([automation(), automation({ id: 'shared', ownership: 'repository', enabled: false })]);
+		const sections = [...widget.element.querySelectorAll<HTMLDetailsElement>('.automations-ownership-section')];
+		sections[1].open = false;
+		sections[1].querySelector<HTMLElement>('summary')!.focus();
+		toggleDisabled();
+		const hidden = {
+			sharedVisible: sections[1].checkVisibility(),
+			focusedPersonal: document.activeElement === sections[0].querySelector('summary'),
+			focusVisible: (document.activeElement as HTMLElement).checkVisibility(),
+		};
+		toggleDisabled();
+		assert.deepStrictEqual({ hidden, shown: { visible: sections[1].checkVisibility(), expanded: sections[1].open } }, {
+			hidden: { sharedVisible: false, focusedPersonal: true, focusVisible: true },
+			shown: { visible: true, expanded: false },
+		});
 	});
 
 	for (const shared of [false, true]) {
@@ -1290,7 +1318,7 @@ suite('AutomationsCardsWidget', () => {
 		});
 	}
 
-	test('editing a shared card out of the filter restores focus to the shared section', async () => {
+	test('editing the last shared card out of the filter restores focus to the personal section', async () => {
 		const { widget, automationService, automationDialogService } = setup('archive', NullHoverService, undefined, hiddenDisabledStorage());
 		automationService.setCatalogueState('ready');
 		const shared = automation({ id: 'shared', ownership: 'repository', isCreatedByCurrentUser: true });
@@ -1302,7 +1330,11 @@ suite('AutomationsCardsWidget', () => {
 		main.focus();
 		main.click();
 		await timeout(0);
-		assert.strictEqual(document.activeElement, section.querySelector('summary'));
+		assert.deepStrictEqual({
+			focusedPersonal: document.activeElement === widget.element.querySelector('.automations-ownership-summary'),
+			sharedVisible: section.checkVisibility(),
+			focusVisible: (document.activeElement as HTMLElement).checkVisibility(),
+		}, { focusedPersonal: true, sharedVisible: false, focusVisible: true });
 	});
 
 	test('creating a disabled shared card restores focus to the shared section', async () => {
