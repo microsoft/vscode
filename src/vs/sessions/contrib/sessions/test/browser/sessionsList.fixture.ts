@@ -670,7 +670,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		view: { height: 300 },
 	}, {
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['An empty Later group shows a muted "No session" placeholder row below its header, between the populated Release work group and the vscode-docs workspace section.'],
+		expectedVisualDescriptions: ['An empty Later group shows a muted "No sessions" placeholder row below its header, between the populated Release work group and the vscode-docs workspace section.'],
 	}),
 	SessionsList_Groups_EmptyHoveredHeader: defineSessionsListFixture({
 		sessions: GROUP_SESSIONS.filter(session => session.id !== 'flaky' && session.id !== 'guide'),
@@ -679,7 +679,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		interaction: { hovered: { group: 'later' } },
 	}, {
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['The pointer is over the empty Later group header. The header shows its hover background, a chevron in place of the group icon, and New Session and Delete Group actions on the right. Its "No session" placeholder row remains below.'],
+		expectedVisualDescriptions: ['The pointer is over the empty Later group header. The header shows its hover background, a chevron in place of the group icon, and New Session and Delete Group actions on the right. Its "No sessions" placeholder row remains below.'],
 	}),
 	SessionsList_Groups_Rename: defineSessionsListFixture({
 		sessions: GROUP_SESSIONS,
@@ -780,7 +780,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 	}, {
 		labels: { kind: 'screenshot' },
 		additionalThemes: ['darkHighContrast'],
-		expectedVisualDescriptions: ['Release work lists its subgroups Hotfixes and Docs, each stepped in one level, above its own session. Hotfixes lists its Urgent subgroup, stepped in another level, above its session, and each session lines up with its own group header. The empty Docs subgroup shows a stepped-in "No session" placeholder. Triage and the vscode-docs workspace section follow at the top level.'],
+		expectedVisualDescriptions: ['Release work lists its subgroups Hotfixes and Docs, each stepped in one level, above its own session. Hotfixes lists its Urgent subgroup, stepped in another level, above its session, and each session lines up with its own group header. The empty Docs subgroup shows a stepped-in "No sessions" placeholder. Triage and the vscode-docs workspace section follow at the top level.'],
 	}),
 	SessionsList_NestedGroups_IndentItems: defineSessionsListFixture({
 		sessions: NESTED_GROUP_SESSIONS,
@@ -789,7 +789,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		settings: { [SESSIONS_LIST_INDENT_ITEMS_SETTING]: true },
 	}, {
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['With indented items, every session and the "No session" placeholder starts one level to the right of its group or workspace section header. Subgroups Hotfixes and Docs start where the sessions of Release work start, and Urgent and its session step in one level further, so each level of the hierarchy is indented by the same amount.'],
+		expectedVisualDescriptions: ['With indented items, every session and the "No sessions" placeholder starts one level to the right of its group or workspace section header. Subgroups Hotfixes and Docs start where the sessions of Release work start, and Urgent and its session step in one level further, so each level of the hierarchy is indented by the same amount.'],
 	}),
 	SessionsList_NestedChatHierarchies_IndentItems: defineSessionsListFixture({
 		sessions: NESTED_CHAT_HIERARCHY_SESSIONS,
@@ -825,7 +825,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		interaction: { createSubgroupIn: 'hotfixes' },
 	}, {
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['A new subgroup shows its focused name editor, containing "New Group", as the first subgroup of Hotfixes, above Urgent and stepped in two levels, followed by a stepped-in "No session" placeholder.'],
+		expectedVisualDescriptions: ['A new subgroup shows its focused name editor, containing "New Group", as the first subgroup of Hotfixes, above Urgent and stepped in two levels, followed by a stepped-in "No sessions" placeholder.'],
 	}),
 	SessionsList_NestedGroups_HoveredSubgroupHeader: defineSessionsListFixture({
 		sessions: NESTED_GROUP_SESSIONS,

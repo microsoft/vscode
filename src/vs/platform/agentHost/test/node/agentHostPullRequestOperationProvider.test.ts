@@ -43,7 +43,7 @@ const nullGitStateService = new class implements IAgentHostGitStateService {
 	async refreshSessionGitState(): Promise<void> { }
 	getMaterializedWorktreeMeta(): undefined { return undefined; }
 	async setFolderGitState(): Promise<void> { }
-	async resolveSessionBaseBranchName(): Promise<string | undefined> { return undefined; }
+	async resolveSessionBaseBranchRef(): Promise<string | undefined> { return undefined; }
 	async getSessionGitHubState(): Promise<ISessionGitHubState | undefined> { return undefined; }
 	async setSessionGitHubState(): Promise<void> { }
 	async recordSessionMerge(): Promise<void> { }
@@ -231,7 +231,7 @@ suite('AgentHostPullRequestOperationContribution', () => {
 			refreshSessionGitState: async () => { },
 			getMaterializedWorktreeMeta: () => undefined,
 			setFolderGitState: async () => { },
-			resolveSessionBaseBranchName: async () => undefined,
+			resolveSessionBaseBranchRef: async () => undefined,
 			setSessionGitHubState: async (key, state) => { recordedGitHubStates.push([key, state]); },
 			recordSessionMerge: async () => { },
 			attachSessionGitHubPullRequest: async () => { },

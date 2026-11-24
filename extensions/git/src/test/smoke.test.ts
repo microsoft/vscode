@@ -402,14 +402,17 @@ suite('git smoke test', function () {
 				actionButton: sourceControl.sourceControl.actionButton?.command.title
 			});
 
+			// The main thread sends each input box value back, and a value that arrives late overwrites a newer one. A
+			// round trip to the main thread makes sure that it sent back the last value before the next step changes
+			// the input box.
+			const waitForInputBox = async () => { await commands.getCommands(); };
+
 			const actual: Record<string, ReturnType<typeof read> & { inputBoxEnabled?: boolean[] }> = {};
 			await apiRepository.status();
 			actual.opened = read(false);
 
-			// The main thread sends each input box value back. A round trip to it makes sure that it sent back the
-			// draft before the commit resets the input box.
 			apiRepository.inputBox.value = 'draft';
-			await commands.getCommands();
+			await waitForInputBox();
 			const inputBoxEnabled: boolean[] = [];
 			const operationsListener = model.getRepository(repositoryPath)!.onDidChangeOperations(() => {
 				if (inputBoxEnabled.at(-1) !== sourceControl.sourceControl.inputBox.enabled) {
@@ -419,6 +422,7 @@ suite('git smoke test', function () {
 			await apiRepository.commit('second commit');
 			operationsListener.dispose();
 			actual.committed = { ...read(true), inputBoxEnabled };
+			await waitForInputBox();
 
 			runGit('add .');
 			runGit('commit -m "work in progress"');
@@ -432,6 +436,7 @@ suite('git smoke test', function () {
 			assert.throws(() => runGit('rebase main'));
 			await apiRepository.status();
 			actual.rebasing = read(true);
+			await waitForInputBox();
 
 			runGit('rebase --abort');
 			await apiRepository.status();

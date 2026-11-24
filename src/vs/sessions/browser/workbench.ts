@@ -1227,6 +1227,11 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 			return;
 		}
 
+		// A pane whose default is already the minimum has not been minimized.
+		if (this._defaultEditorPartWidth <= this.editorPartView.minimumWidth) {
+			return;
+		}
+
 		this._restoreMinimizedPartOnActivation(this.editorPartView, this.sessionsPartView);
 	}
 
@@ -1543,6 +1548,10 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 
 	protected _defaultSideBarSize(policySideBarSize: number): number {
 		return policySideBarSize;
+	}
+
+	protected get _defaultEditorPartWidth(): number {
+		return EDITOR_PART_DEFAULT_WIDTH;
 	}
 
 	protected _editorNodeSize(effectiveEditorWidth: number, _effectiveAuxBarWidth: number): number {
@@ -1932,7 +1941,7 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 		// was stored. A plain `?? 600` would let `0` through and build the editor node at
 		// `0`, which the grid then clamps to its 300px minimum on every reload.
 		const savedEditorWidth = this._savedPartSizes.editor;
-		const editorSize = savedEditorWidth !== undefined && savedEditorWidth >= EDITOR_PART_MINIMUM_WIDTH ? savedEditorWidth : EDITOR_PART_DEFAULT_WIDTH;
+		const editorSize = savedEditorWidth !== undefined && savedEditorWidth >= EDITOR_PART_MINIMUM_WIDTH ? savedEditorWidth : this._defaultEditorPartWidth;
 		const titleBarHeight = this.titleBarPartView?.minimumHeight ?? 30;
 
 		// Calculate right section width — when sidebar is hidden it takes no space

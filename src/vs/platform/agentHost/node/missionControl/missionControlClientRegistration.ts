@@ -17,8 +17,10 @@ import type { MissionControlEnvironment } from './missionControlEnvironment.js';
 
 export interface IMissionControlClientRegistrationOptions {
 	readonly homeDirectory: string;
-	/** Overrides the host's default environment name. */
+	/** Overrides the host's default environment name when the client does not name this host. */
 	readonly name?: string;
+	/** Decorates a client's name for this host, for example with the application name. */
+	readonly formatClientName?: (name: string) => string;
 	readonly getFileSystemRoots?: () => Promise<readonly string[]>;
 }
 
@@ -37,6 +39,8 @@ export class MissionControlClientRegistration extends Disposable implements IPro
 	private readonly _instanceId = generateUuid();
 	private readonly _queue = new Sequencer();
 	private _registration: IAgentHostGitHubEnvironmentStatus['registration'];
+	/** The name the registration was configured with; the environment cannot change it while it is configured. */
+	private _registrationName: string | undefined;
 	/** The environment reports itself enabled while a client registration is still being configured. */
 	private _registering = false;
 
@@ -58,7 +62,7 @@ export class MissionControlClientRegistration extends Disposable implements IPro
 		};
 	}
 
-	register(accountId: string, credential: string): Promise<IAgentHostGitHubEnvironmentRegistration> {
+	register(accountId: string, credential: string, clientName?: string): Promise<IAgentHostGitHubEnvironmentRegistration> {
 		return this._queue.queue(async () => {
 			if (this._registration === undefined && this._environment.isEnabled) {
 				throw new Error('This agent host is already registered as a GitHub environment by its host.');
@@ -67,6 +71,8 @@ export class MissionControlClientRegistration extends Disposable implements IPro
 				throw new Error('This agent host is already registered as a GitHub environment by another account.');
 			}
 			const home = this._options.homeDirectory;
+			// Registering again refreshes the credential of the existing registration.
+			const configuredName = this._registration !== undefined ? this._registrationName : this._getName(clientName);
 			this._registering = true;
 			try {
 				const fileSystemRoots = await (this._options.getFileSystemRoots ?? getFileSystemRoots)();
@@ -78,13 +84,14 @@ export class MissionControlClientRegistration extends Disposable implements IPro
 					projects: [],
 					defaultDirectory: home,
 					live: true,
-					...(this._options.name ? { name: this._options.name } : {}),
+					...(configuredName ? { name: configuredName } : {}),
 				});
 				const environmentId = this._environment.environmentId;
 				if (!environmentId) {
 					throw new Error('GitHub environment registration did not return an environment ID.');
 				}
 				const name = this._environment.environmentName;
+				this._registrationName = configuredName;
 				this._setRegistration({ accountId, environmentId, name });
 				return { environmentId, name };
 			} catch (error) {
@@ -112,6 +119,11 @@ export class MissionControlClientRegistration extends Disposable implements IPro
 				this._setRegistration(undefined);
 			}
 		});
+	}
+
+	private _getName(clientName: string | undefined): string | undefined {
+		const name = clientName?.trim();
+		return name ? this._options.formatClientName?.(name) ?? name : this._options.name;
 	}
 
 	private _setRegistration(registration: IAgentHostGitHubEnvironmentStatus['registration']): void {

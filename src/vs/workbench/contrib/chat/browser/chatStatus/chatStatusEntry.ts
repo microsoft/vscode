@@ -20,8 +20,8 @@ import { IInlineCompletionsService } from '../../../../../editor/browser/service
 
 import { ChatStatusDashboard } from './chatStatusDashboard.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
-import { $ as h, disposableWindowInterval } from '../../../../../base/browser/dom.js';
-import { isNewUser } from './chatStatus.js';
+import { $ as h, disposableWindowInterval, getWindow } from '../../../../../base/browser/dom.js';
+import { isNewUser, SHOW_CHAT_STATUS_DASHBOARD_COMMAND_ID } from './chatStatus.js';
 import product from '../../../../../platform/product/common/product.js';
 import { isCompletionsEnabled } from '../../../../../editor/common/services/completionsEnablement.js';
 import { CHAT_SETUP_ACTION_ID } from '../actions/chatActions.js';
@@ -34,6 +34,8 @@ import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/brow
 import { ChatStatusPromo } from './chatStatusPromo.js';
 import { ILifecycleService, LifecyclePhase } from '../../../../services/lifecycle/common/lifecycle.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
+import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 
 /**
  * Tracks whether Copilot is currently blocked by a reached quota limit, has
@@ -139,6 +141,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 		@IStorageService private readonly storageService: IStorageService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@ILifecycleService lifecycleService: ILifecycleService,
+		@IHoverService private readonly hoverService: IHoverService,
 	) {
 		super();
 
@@ -185,6 +188,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 		this.update();
 
 		this.registerListeners();
+		this._register(CommandsRegistry.registerCommand(SHOW_CHAT_STATUS_DASHBOARD_COMMAND_ID, () => this.showDashboard()));
 
 		this.initializeQuotaResumeState();
 	}
@@ -202,6 +206,16 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 			this.entry?.dispose();
 			this.entry = undefined;
 		}
+	}
+
+	private showDashboard(): boolean {
+		// The entry renders the anchor, so its parent is the entry, which the hover belongs to
+		const element = this.entryAnchor.parentElement;
+		if (!this.entry || !element || !this.statusbarService.isEntryVisible('chat.statusBarEntry') || !this.layoutService.isVisible(Parts.STATUSBAR_PART, getWindow(element))) {
+			return false;
+		}
+		this.hoverService.showManagedHover(element);
+		return true;
 	}
 
 	private registerListeners(): void {

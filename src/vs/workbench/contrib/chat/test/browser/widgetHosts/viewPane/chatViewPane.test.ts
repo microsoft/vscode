@@ -483,6 +483,7 @@ suite('ChatViewPane sessions refresh', () => {
 			agentSessionsService: {
 				model: { resolve: async (_provider: string | undefined, _onError: undefined, reason?: ChatSessionRefreshReason) => { reasons.push(reason); } },
 			},
+			onDidChangeContentHeight: Event.None,
 			dispose: () => { },
 			setVisible: () => { },
 		});

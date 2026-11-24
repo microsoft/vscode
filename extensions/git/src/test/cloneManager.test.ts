@@ -8,24 +8,22 @@ import * as assert from 'assert';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { CloneManager } from '../cloneManager';
+import { CloneManager, type CloneOptions } from '../cloneManager';
 import type { RepositoryCacheInfo } from '../repositoryCache';
 import * as sinon from 'sinon';
 import { CancellationTokenSource, ProgressLocation, window } from 'vscode';
 import type { ICloneOptions } from '../git';
 
 interface ICloneManagerHarness {
-	cloneRepository(url: string, parentPath?: string): Promise<string | undefined>;
+	cloneRepository(url: string, parentPath?: string, options?: CloneOptions): Promise<string | undefined>;
+	doPostCloneAction?(target: string, postCloneAction?: 'none'): Promise<void>;
 }
 
 const tryOpenExistingRepository = Reflect.get(CloneManager.prototype, 'tryOpenExistingRepository') as (
 	this: ICloneManagerHarness,
 	cachedRepository: RepositoryCacheInfo[],
 	url: string,
-	postCloneAction?: 'none',
-	parentPath?: string,
-	ref?: string,
-	returnRepositoryPath?: boolean,
+	options: CloneOptions,
 ) => Promise<string | undefined>;
 
 suite('CloneManager', () => {
@@ -85,11 +83,60 @@ suite('CloneManager', () => {
 					calls.push({ url, parentPath });
 					return '/repos/recloned';
 				},
-			}, [{ workspacePath, repositoryPath }], 'https://github.com/microsoft/vscode.git', 'none', '/repos', undefined, true);
+			}, [{ workspacePath, repositoryPath }], 'https://github.com/microsoft/vscode.git', { postCloneAction: 'none', parentPath: '/repos', returnRepositoryPath: true });
 
 			assert.deepStrictEqual({ result, calls }, {
 				result: '/repos/recloned',
 				calls: [{ url: 'https://github.com/microsoft/vscode.git', parentPath: '/repos' }],
+			});
+		} finally {
+			await fs.promises.rm(workspacePath, { recursive: true, force: true });
+		}
+	});
+
+	test('clones again with the same options when a cached repository was deleted but its workspace still exists', async () => {
+		const workspacePath = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'vscode-git-clone-manager-'));
+		const repositoryPath = path.join(workspacePath, 'deleted-repository');
+		const calls: string[] = [];
+		try {
+			const result = await tryOpenExistingRepository.call({
+				cloneRepository: async (url, parentPath, options) => {
+					calls.push(`clone ${url} into ${parentPath} (recursive: ${options?.recursive})`);
+					return '/repos/recloned';
+				},
+				doPostCloneAction: async target => {
+					calls.push(`open ${target}`);
+				},
+			}, [{ workspacePath, repositoryPath }], 'https://github.com/microsoft/vscode.git', { postCloneAction: 'none', parentPath: '/repos', recursive: true });
+
+			assert.deepStrictEqual({ result, calls }, {
+				result: '/repos/recloned',
+				calls: ['clone https://github.com/microsoft/vscode.git into /repos (recursive: true)'],
+			});
+		} finally {
+			await fs.promises.rm(workspacePath, { recursive: true, force: true });
+		}
+	});
+
+	test('opens a cached repository that still exists instead of cloning again', async () => {
+		const workspacePath = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'vscode-git-clone-manager-'));
+		const repositoryPath = path.join(workspacePath, 'repository');
+		const calls: string[] = [];
+		try {
+			await fs.promises.mkdir(repositoryPath);
+			const result = await tryOpenExistingRepository.call({
+				cloneRepository: async url => {
+					calls.push(`clone ${url}`);
+					return '/repos/recloned';
+				},
+				doPostCloneAction: async target => {
+					calls.push(`open ${target}`);
+				},
+			}, [{ workspacePath, repositoryPath }], 'https://github.com/microsoft/vscode.git', { postCloneAction: 'none', parentPath: '/repos' });
+
+			assert.deepStrictEqual({ result, calls }, {
+				result: workspacePath,
+				calls: [`open ${workspacePath}`],
 			});
 		} finally {
 			await fs.promises.rm(workspacePath, { recursive: true, force: true });
