@@ -26,13 +26,6 @@ export interface IIssueReporterMediaFormat {
 	readonly maxBytes: number;
 }
 
-export interface IIssueReporterVideoMetadata {
-	readonly width: number;
-	readonly height: number;
-	readonly durationMs?: number;
-	readonly thumbnailDataUrl: string;
-}
-
 export function getIssueReporterMediaFormat(name: string, type = ''): IIssueReporterMediaFormat {
 	const inferredType = getMediaMime(name);
 	const declaredType = type.split(';', 1)[0].trim().toLowerCase();
@@ -195,96 +188,6 @@ export function readIssueReporterImage(
 			image.src = dataUrl;
 		} catch {
 			fail();
-		}
-	});
-}
-
-export function readIssueReporterVideo(
-	source: string,
-	token: CancellationToken,
-	createVideo: () => HTMLVideoElement = () => $('video'),
-): Promise<IIssueReporterVideoMetadata> {
-	if (token.isCancellationRequested) {
-		return Promise.reject(new CancellationError());
-	}
-	return new Promise((resolve, reject) => {
-		const video = createVideo();
-		const store = new DisposableStore();
-		let finished = false;
-		let duration: number | undefined;
-		const finish = (metadata?: IIssueReporterVideoMetadata, error?: Error) => {
-			if (finished) {
-				return;
-			}
-			finished = true;
-			store.dispose();
-			if (metadata) {
-				resolve(metadata);
-			} else {
-				reject(error ?? new Error(localize('videoDecodeFailed', "The video could not be decoded. It may be damaged or use an unsupported format or codec.")));
-			}
-		};
-		const captureFrame = () => {
-			try {
-				const canvas = $<HTMLCanvasElement>('canvas');
-				const scale = Math.min(1, 640 / video.videoWidth, 360 / video.videoHeight);
-				canvas.width = Math.max(1, Math.round(video.videoWidth * scale));
-				canvas.height = Math.max(1, Math.round(video.videoHeight * scale));
-				const context = canvas.getContext('2d');
-				if (!context) {
-					finish();
-					return;
-				}
-				context.drawImage(video, 0, 0, canvas.width, canvas.height);
-				finish({ width: video.videoWidth, height: video.videoHeight, durationMs: duration === undefined ? undefined : Math.round(duration * 1000), thumbnailDataUrl: canvas.toDataURL('image/jpeg', 0.7) });
-			} catch {
-				finish();
-			}
-		};
-		const seekThumbnail = () => {
-			if (duration === undefined) {
-				captureFrame();
-				return;
-			}
-			const position = Math.min(0.5, duration / 2);
-			if (video.currentTime === position) {
-				captureFrame();
-			} else {
-				try {
-					video.currentTime = position;
-				} catch {
-					finish();
-				}
-			}
-		};
-		store.add(toDisposable(() => {
-			video.pause();
-			video.removeAttribute('src');
-			video.load();
-			video.remove();
-		}));
-		store.add(addDisposableListener(video, 'loadeddata', () => {
-			if (!video.videoWidth || !video.videoHeight) {
-				finish();
-			} else if (Number.isFinite(video.duration) && video.duration > 0) {
-				duration = video.duration;
-				seekThumbnail();
-			} else {
-				captureFrame();
-			}
-		}, { once: true }));
-		store.add(addDisposableListener(video, 'seeked', captureFrame));
-		store.add(addDisposableListener(video, 'error', () => finish()));
-		store.add(token.onCancellationRequested(() => finish(undefined, new CancellationError())));
-		store.add(new TimeoutTimer(() => finish(), 10000));
-		video.muted = true;
-		video.playsInline = true;
-		video.preload = 'auto';
-		try {
-			video.src = source;
-			video.load();
-		} catch {
-			finish();
 		}
 	});
 }
