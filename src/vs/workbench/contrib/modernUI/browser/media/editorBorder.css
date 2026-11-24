@@ -32,17 +32,6 @@
 	background-color: var(--vscode-editor-background);
 }
 
-/*
- * The card above already clips its content to its rounded corners, so the content must not round
- * its own clip as well, as floatingPanels.css does for every editor part. Chromium applies one
- * rounded clip per draw quad, so nested rounded clips make it draw the editor through offscreen
- * render passes on every frame that changes it (scrolling, typing) instead of handing the
- * editor's layers to the system compositor.
- */
-.monaco-workbench.modern-ui .monaco-grid-view .part.editor:not(.modal-editor-part) > .content {
-	border-radius: 0;
-}
-
 /* Notebook fixed overlays escape the editor card's clipping, so round their overflow-clipping content. */
 .modern-ui .notebookOverlay {
 	border-radius: var(--vscode-cornerRadius-large);
