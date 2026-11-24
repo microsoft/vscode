@@ -11,14 +11,16 @@ import { IFileQueryBuilderOptions, QueryBuilder } from '../../../services/search
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { getOutOfWorkspaceEditorResources, extractRangeFromFilter, getSearchNoResultsActions, IAnythingQuickAccessFileSearchDelegate, IAnythingQuickAccessProviderRunOptions, IWorkbenchSearchConfiguration } from '../common/search.js';
 import { ISearchService, ISearchComplete } from '../../../services/search/common/search.js';
-import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceFolderLocationService } from '../../../../platform/workspace/common/folderLocations.js';
 import { untildify } from '../../../../base/common/labels.js';
 import { IPathService } from '../../../services/path/common/pathService.js';
 import { URI } from '../../../../base/common/uri.js';
 import { toLocalResource, dirname, basenameOrAuthority } from '../../../../base/common/resources.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
-import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { DisposableStore, IDisposable, toDisposable, MutableDisposable, Disposable } from '../../../../base/common/lifecycle.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { getIconClasses } from '../../../../editor/common/services/getIconClasses.js';
@@ -32,7 +34,7 @@ import { IWorkbenchEditorConfiguration, EditorResourceAccessor, isEditorInput } 
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from '../../../services/editor/common/editorService.js';
 import { IRange } from '../../../../editor/common/core/range.js';
-import { ThrottledDelayer } from '../../../../base/common/async.js';
+import { raceTimeout, ThrottledDelayer } from '../../../../base/common/async.js';
 import { top } from '../../../../base/common/arrays.js';
 import { FileQueryCacheState } from '../common/cacheState.js';
 import { IHistoryService } from '../../../services/history/common/history.js';
@@ -104,6 +106,120 @@ interface IAnythingPickState extends IDisposable {
 }
 
 
+/**
+ * The known locations of the workspace folder where it can be at other locations, such as its worktrees, so that recently
+ * opened files under another of them can be shown and opened under the location it is at now.
+ */
+class WorkspaceFolderLocations extends Disposable {
+
+	/** How long a first ask for picks waits for the locations to be known. */
+	private static readonly LOAD_TIMEOUT = 200;
+
+	/** The known locations of the folder, its own location first. */
+	private locations: readonly URI[] = [];
+	private loading: Promise<void> | undefined = undefined;
+	private loadCts: CancellationTokenSource | undefined = undefined;
+
+	constructor(
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@IWorkspaceFolderLocationService private readonly folderLocationService: IWorkspaceFolderLocationService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
+	) {
+		super();
+
+		this._register(folderLocationService.onDidChangeLocation(() => this.load()));
+		this._register(folderLocationService.onDidChangeLocations(() => this.load()));
+		this._register(folderLocationService.onDidChangeProviders(() => this.load()));
+		this._register(contextService.onDidChangeWorkspaceFolders(() => this.load()));
+		this._register(contextService.onDidChangeWorkbenchState(() => this.load()));
+		this._register(toDisposable(() => this.loadCts?.dispose(true)));
+		this.load();
+	}
+
+	private getFolder(): IWorkspaceFolder | undefined {
+		const folders = this.contextService.getWorkspace().folders;
+		if (folders.length !== 1) {
+			return undefined;
+		}
+
+		const folder = folders[0];
+		return this.folderLocationService.isAtAlternateLocation(folder) || this.folderLocationService.canSetLocation(folder) ? folder : undefined;
+	}
+
+	private load(): void {
+		this.loadCts?.dispose(true);
+		this.loadCts = undefined;
+
+		const folder = this.getFolder();
+		if (!folder) {
+			this.locations = [];
+			this.loading = undefined;
+			return;
+		}
+
+		const cts = this.loadCts = new CancellationTokenSource();
+		this.loading = (async () => {
+			try {
+				const locations = await this.folderLocationService.getFolderLocations(folder, cts.token);
+				if (!cts.token.isCancellationRequested) {
+					this.locations = locations.map(location => location.uri);
+				}
+			} catch (error) {
+				onUnexpectedError(error);
+			} finally {
+				if (this.loadCts === cts) {
+					this.loading = undefined;
+				}
+			}
+		})();
+	}
+
+	/**
+	 * Resolves once the locations of the folder are known, or after a short time, or returns `undefined` where they are known
+	 * already. While they reload, those known for the folder's own location are kept, as they do not depend on the location
+	 * the folder is at.
+	 */
+	whenLoaded(): Promise<void> | undefined {
+		if (!this.loading) {
+			return undefined;
+		}
+
+		const folder = this.getFolder();
+		const primary = folder && (this.folderLocationService.isAtAlternateLocation(folder) ? this.contextService.getWorkspace().uri : folder.uri);
+		if (primary && this.locations.length > 0 && this.uriIdentityService.extUri.isEqual(this.locations[0], primary)) {
+			return undefined;
+		}
+
+		return raceTimeout(this.loading, WorkspaceFolderLocations.LOAD_TIMEOUT);
+	}
+
+	/**
+	 * The same file under the location the folder is at now, where `resource` is under another of its locations.
+	 */
+	toCurrentLocation(resource: URI): URI | undefined {
+		const folder = this.getFolder();
+		if (!folder || this.locations.length === 0) {
+			return undefined;
+		}
+
+		// The innermost location that has the file, as a worktree can be inside the folder
+		const extUri = this.uriIdentityService.extUri;
+		let location: URI | undefined;
+		for (const candidate of [folder.uri, ...this.locations]) {
+			if (extUri.isEqualOrParent(resource, candidate) && (!location || candidate.path.length > location.path.length)) {
+				location = candidate;
+			}
+		}
+
+		if (!location || extUri.isEqual(location, folder.uri)) {
+			return undefined;
+		}
+
+		const path = extUri.relativePath(location, resource);
+		return path ? extUri.joinPath(folder.uri, path) : undefined;
+	}
+}
+
 export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnythingQuickPickItem> {
 
 	static PREFIX = '';
@@ -119,6 +235,8 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 	private static SYMBOL_PICKS_MERGE_DELAY = 200; // allow some time to merge fast and slow picks to reduce flickering
 
 	private readonly pickState: IAnythingPickState;
+
+	private readonly workspaceFolderLocations: WorkspaceFolderLocations;
 
 	private _linkSourceGroup: number | undefined;
 	/** Whether this run offers actions of other features when nothing matches. */
@@ -238,6 +356,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		}(this, instantiationService));
 
 		this.fileQueryBuilder = this.instantiationService.createInstance(QueryBuilder);
+		this.workspaceFolderLocations = this._register(instantiationService.createInstance(WorkspaceFolderLocations));
 		this.workspaceSymbolsQuickAccess = this._register(instantiationService.createInstance(SymbolsQuickAccessProvider));
 		this.editorSymbolsQuickAccess = this.instantiationService.createInstance(GotoSymbolQuickAccessProvider);
 	}
@@ -318,7 +437,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		return toDisposable(() => this.clearDecorations(activeEditorControl));
 	}
 
-	protected _getPicks(originalFilter: string, disposables: DisposableStore, token: CancellationToken, runOptions?: IAnythingQuickAccessProviderRunOptions): Picks<IAnythingQuickPickItem> | Promise<Picks<IAnythingQuickPickItem>> | FastAndSlowPicks<IAnythingQuickPickItem> | null {
+	protected _getPicks(originalFilter: string, disposables: DisposableStore, token: CancellationToken, runOptions?: IAnythingQuickAccessProviderRunOptions): Picks<IAnythingQuickPickItem> | Promise<Picks<IAnythingQuickPickItem> | FastAndSlowPicks<IAnythingQuickPickItem>> | FastAndSlowPicks<IAnythingQuickPickItem> | null {
 		if (runOptions?.filesOnly) {
 			return this.getAdditionalPicks(
 				prepareQuery(originalFilter),
@@ -394,7 +513,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		// search without prior filtering, you could not paste a file name
 		// including the `@` character to open it (e.g. /some/file@path)
 		// refs: https://github.com/microsoft/vscode/issues/93845
-		return this.doGetPicks(
+		const doGetPicks = () => this.doGetPicks(
 			filter,
 			{
 				...runOptions,
@@ -403,6 +522,11 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 			disposables,
 			token
 		);
+
+		// Recently opened files are shown under the location the workspace folder is at
+		// now, so wait for its locations to be known where they are not yet
+		const locationsLoaded = this.workspaceFolderLocations.whenLoaded();
+		return locationsLoaded ? locationsLoaded.then(doGetPicks) : doGetPicks();
 	}
 
 	private _supportsLinks(runOptions?: IAnythingQuickAccessProviderRunOptions): boolean {
@@ -658,7 +782,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 		// Just return all history entries if not searching
 		if (!query.normalized) {
-			return this.historyService.getHistory().map(editor => this.createAnythingPick(editor, configuration));
+			return this.getEditorHistory().map(({ editor, entry }) => this.createAnythingPick(editor, configuration, undefined, undefined, entry));
 		}
 
 		if (!this.configuration.includeHistory) {
@@ -668,13 +792,13 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		// Perform filtering
 		const editorHistoryScorerAccessor = query.containsPathSeparator ? quickPickItemScorerAccessor : this.labelOnlyEditorHistoryPickAccessor; // Only match on label of the editor unless the search includes path separators
 		const editorHistoryPicks: Array<IAnythingQuickPickItem> = [];
-		for (const editor of this.historyService.getHistory()) {
+		for (const { editor, entry } of this.getEditorHistory()) {
 			const resource = editor.resource;
 			if (!resource) {
 				continue;
 			}
 
-			const editorHistoryPick = this.createAnythingPick(editor, configuration);
+			const editorHistoryPick = this.createAnythingPick(editor, configuration, undefined, undefined, entry);
 
 			const { score, labelMatch, descriptionMatch } = scoreItemFuzzy(editorHistoryPick, query, false, editorHistoryScorerAccessor, this.pickState.scorerCache);
 			if (!score) {
@@ -696,6 +820,32 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 		// Perform sorting
 		return editorHistoryPicks.sort(createItemsByFuzzyScoreComparator(query, false, editorHistoryScorerAccessor, this.pickState.scorerCache));
+	}
+
+	/**
+	 * The editor history, where an entry under another location of the workspace folder is the same
+	 * file under the location the folder is at now, once only.
+	 */
+	private getEditorHistory(): Array<{ editor: EditorInput | IResourceEditorInput; entry: EditorInput | IResourceEditorInput }> {
+		const result: Array<{ editor: EditorInput | IResourceEditorInput; entry: EditorInput | IResourceEditorInput }> = [];
+
+		// Whether a resource was shown and whether that was for an entry under another location
+		const shown = new ResourceMap<boolean>(uri => this.uriIdentityService.extUri.getComparisonKey(uri));
+		for (const entry of this.historyService.getHistory()) {
+			const resource = isEditorInput(entry) ? EditorResourceAccessor.getOriginalUri(entry) : entry.resource;
+			const moved = resource && this.workspaceFolderLocations.toCurrentLocation(resource);
+			const target = moved ?? resource;
+			if (target) {
+				const shownMoved = shown.get(target);
+				if (shownMoved !== undefined && (moved || shownMoved)) {
+					continue;
+				}
+				shown.set(target, !!moved || !!shownMoved);
+			}
+			result.push({ editor: moved ? { resource: moved } : entry, entry });
+		}
+
+		return result;
 	}
 
 	//#endregion
@@ -1164,9 +1314,9 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 	//#region Helpers
 
-	private createAnythingPick(resourceOrEditor: URI | EditorInput | IResourceEditorInput, configuration: { openSideBySideDirection: 'right' | 'down' | undefined }, fileSearchDelegate?: IAnythingQuickAccessFileSearchDelegate, includeOpenToSideButton = true): IAnythingQuickPickItem {
+	private createAnythingPick(resourceOrEditor: URI | EditorInput | IResourceEditorInput, configuration: { openSideBySideDirection: 'right' | 'down' | undefined }, fileSearchDelegate?: IAnythingQuickAccessFileSearchDelegate, includeOpenToSideButton = true, historyEntry?: EditorInput | IResourceEditorInput): IAnythingQuickPickItem {
 		const showOpenToSideButton = includeOpenToSideButton && this._editorGroupsService.supportsSplitting;
-		const isEditorHistoryEntry = !URI.isUri(resourceOrEditor);
+		const isEditorHistoryEntry = !!historyEntry;
 
 		let resource: URI | undefined;
 		let label: string;
@@ -1239,8 +1389,8 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 				}
 
 				const removeFromHistoryButtonIndex = showOpenToSideButton ? 1 : 0;
-				if (buttonIndex === removeFromHistoryButtonIndex && !URI.isUri(resourceOrEditor)) {
-					this.historyService.removeFromHistory(resourceOrEditor);
+				if (buttonIndex === removeFromHistoryButtonIndex && historyEntry) {
+					this.historyService.removeFromHistory(historyEntry);
 
 					return TriggerAction.REMOVE_ITEM;
 				}

@@ -17,7 +17,7 @@ import { IOutlineModelService } from '../../../../../editor/contrib/documentSymb
 import { NullCommandService } from '../../../../../platform/commands/test/common/nullCommandService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { ViewColumn } from '../../../../../platform/editor/common/editor.js';
+import { IResourceEditorInput, ViewColumn } from '../../../../../platform/editor/common/editor.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { INotificationService, NotificationMessage } from '../../../../../platform/notification/common/notification.js';
 import { IOpenerService, OpenOptions } from '../../../../../platform/opener/common/opener.js';
@@ -31,6 +31,15 @@ import { IQuickChatService } from '../../../chat/browser/chat.js';
 import { IExternalUriOpenerService, ILinkHandler } from '../../../externalUriOpener/common/externalUriOpenerService.js';
 import { AnythingQuickAccessProvider, IAnythingQuickPickItem } from '../../browser/anythingQuickAccess.js';
 import { IAnythingQuickAccessProviderRunOptions } from '../../common/search.js';
+import { Event } from '../../../../../base/common/event.js';
+import { hasKey } from '../../../../../base/common/types.js';
+import { IWorkspaceFolderLocationService } from '../../../../../platform/workspace/common/folderLocations.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { testWorkspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
+import { TestContextService } from '../../../../test/common/workbenchTestServices.js';
+import { IHistoryService } from '../../../../services/history/common/history.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { EditorInput } from '../../../../common/editor/editorInput.js';
 
 suite('AnythingQuickAccess - links', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -118,6 +127,7 @@ suite('AnythingQuickAccess - links', () => {
 			search: {}
 		});
 		instantiationService.stub(IConfigurationService, configurationService);
+		instantiationService.stub(IWorkspaceFolderLocationService, folderLocationService(undefined));
 		provider = store.add(instantiationService.createInstance(TestAnythingQuickAccessProvider));
 	});
 
@@ -409,5 +419,91 @@ suite('AnythingQuickAccess - links', () => {
 		const pick = await getLinkPick('https://example.com/another');
 		await pick.accept?.({ ...NO_KEY_MODS, alt: true }, { inBackground: false });
 		assert.deepStrictEqual(activatedGroups, [1]);
+	});
+});
+
+/**
+ * A folder location service for a single folder that can switch between `locations` (its own location first), or that cannot
+ * switch locations when `locations` is `undefined`.
+ */
+function folderLocationService(locations: URI[] | undefined): Partial<IWorkspaceFolderLocationService> {
+	return {
+		onDidChangeLocation: Event.None,
+		onDidChangeLocations: Event.None,
+		onDidChangeProviders: Event.None,
+		isAtAlternateLocation: () => false,
+		canSetLocation: () => !!locations,
+		getFolderLocations: async () => (locations ?? []).map(uri => ({ uri, label: uri.path })),
+	};
+}
+
+suite('AnythingQuickAccess - folder locations', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	class TestAnythingQuickAccessProvider extends AnythingQuickAccessProvider {
+		async getHistoryPicks(): Promise<IAnythingQuickPickItem[]> {
+			const picks = await this._getPicks('', store.add(new DisposableStore()), CancellationToken.None);
+			assert.ok(picks && !Array.isArray(picks) && hasKey(picks, { additionalPicks: true }));
+			return (hasKey(picks.picks, { items: true }) ? picks.picks.items : picks.picks).filter((pick): pick is IAnythingQuickPickItem => pick.type !== 'separator');
+		}
+	}
+
+	function setup(current: string, locations: string[], history: string[]) {
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		const opened: string[] = [];
+		const removed: string[] = [];
+		instantiationService.stub(IWorkspaceContextService, new TestContextService(testWorkspace(URI.file(current))));
+		instantiationService.stub(IWorkspaceFolderLocationService, folderLocationService(locations.map(location => URI.file(location))));
+		instantiationService.stub(IHistoryService, {
+			getHistory: () => history.map(path => ({ resource: URI.file(path) })),
+			removeFromHistory: (input: EditorInput | IResourceEditorInput) => { removed.push(input.resource!.path); }
+		});
+		instantiationService.stub(IEditorService, 'openEditor', async (input: IResourceEditorInput) => { opened.push(input.resource!.path); return undefined; });
+		instantiationService.stub(ISearchService, {
+			fileSearch: async () => ({ results: [], messages: [] }),
+			clearCache: async () => { }
+		});
+		instantiationService.stub(IQuickChatService, {});
+		instantiationService.stub(IOutlineService, {});
+		instantiationService.stub(IOutlineModelService, {});
+		const provider = store.add(instantiationService.createInstance(TestAnythingQuickAccessProvider));
+		return { provider, opened, removed };
+	}
+
+	for (const { name, current, locations, history, expected } of [
+		{
+			name: 'shows recently opened files of a worktree under the folder it is back at',
+			current: '/work/folder',
+			locations: ['/work/folder', '/work/worktree'],
+			history: ['/work/worktree/src/app.ts', '/work/folder/src/app.ts', '/work/worktree/README.md', '/elsewhere/other.ts'],
+			expected: ['/work/folder/src/app.ts', '/work/folder/README.md', '/elsewhere/other.ts'],
+		},
+		{
+			name: 'shows recently opened files of the folder under the worktree it is at',
+			current: '/work/worktree',
+			locations: ['/work/folder', '/work/worktree'],
+			history: ['/work/folder/src/app.ts', '/work/worktree/src/app.ts'],
+			expected: ['/work/worktree/src/app.ts'],
+		},
+		{
+			name: 'maps a file of a worktree nested in the folder by the worktree',
+			current: '/work/folder',
+			locations: ['/work/folder', '/work/folder/.worktrees/one'],
+			history: ['/work/folder/.worktrees/one/src/app.ts', '/work/folder/src/other.ts'],
+			expected: ['/work/folder/src/app.ts', '/work/folder/src/other.ts'],
+		},
+	]) {
+		test(name, async () => {
+			const { provider } = setup(current, locations, history);
+			assert.deepStrictEqual((await provider.getHistoryPicks()).map(pick => pick.resource?.path), expected);
+		});
+	}
+
+	test('opens the file under the current location and removes the entry it is shown for', async () => {
+		const { provider, opened, removed } = setup('/work/folder', ['/work/folder', '/work/worktree'], ['/work/worktree/src/app.ts']);
+		const [pick] = await provider.getHistoryPicks();
+		await pick.accept?.(NO_KEY_MODS, { inBackground: false });
+		pick.trigger?.(pick.buttons!.length - 1, NO_KEY_MODS);
+		assert.deepStrictEqual({ opened, removed }, { opened: ['/work/folder/src/app.ts'], removed: ['/work/worktree/src/app.ts'] });
 	});
 });
