@@ -4,12 +4,71 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as path from 'path';
-import { Disposable, l10n, LogOutputChannel, scm, SourceControl, SourceControlInputBox, ThemeIcon, Uri, workspace } from 'vscode';
+import { Disposable, l10n, LogOutputChannel, ProgressLocation, scm, SourceControl, SourceControlInputBox, ThemeIcon, Uri, window, workspace } from 'vscode';
 import { GitArtifactProvider } from './artifactProvider';
 import { GitQuickDiffProvider, StagedResourceQuickDiffProvider } from './quickDiffProvider';
 import type { GitResourceGroup, IRepositoryResolver, Repository } from './repository';
-import { dispose, filterEvent, isCopilotWorktreeFolder } from './util';
+import { debounceEvent, dispose, EmptyDisposable, eventToPromise, filterEvent, IDisposable, isCopilotWorktreeFolder, onceEvent } from './util';
+import { OperationKind } from './operation';
 import { Status } from './api/git.constants';
+
+class ProgressManager {
+
+	private enabled = false;
+	private disposable: IDisposable = EmptyDisposable;
+	private readonly disposables: IDisposable[] = [];
+
+	constructor(private repository: Repository) {
+		const onDidChange = filterEvent(workspace.onDidChangeConfiguration, e => e.affectsConfiguration('git', Uri.file(this.repository.root)));
+		onDidChange(_ => this.updateEnablement(), null, this.disposables);
+		this.updateEnablement();
+	}
+
+	private updateEnablement(): void {
+		const config = workspace.getConfiguration('git', Uri.file(this.repository.root));
+		const showProgress = config.get<boolean>('showProgress') === true && !workspace.isAgentSessionsWorkspace;
+
+		if (showProgress) {
+			this.enable();
+		} else {
+			this.disable();
+		}
+	}
+
+	private enable(): void {
+		if (this.enabled) {
+			return;
+		}
+
+		const start = onceEvent(filterEvent(this.repository.onDidChangeOperations, () => this.repository.operations.shouldShowProgress()));
+		const end = onceEvent(filterEvent(debounceEvent(this.repository.onDidChangeOperations, 300), () => !this.repository.operations.shouldShowProgress()));
+
+		const setup = () => {
+			this.disposable = start(() => {
+				const promise = eventToPromise(end).then(() => setup());
+				window.withProgress({ location: ProgressLocation.SourceControl }, () => promise);
+			});
+		};
+
+		setup();
+		this.enabled = true;
+	}
+
+	private disable(): void {
+		if (!this.enabled) {
+			return;
+		}
+
+		this.disposable.dispose();
+		this.disposable = EmptyDisposable;
+		this.enabled = false;
+	}
+
+	dispose(): void {
+		this.disable();
+		dispose(this.disposables);
+	}
+}
 
 /**
  * The view model of a repository: owns its source control, with its resource groups, input box and providers, and
@@ -142,12 +201,24 @@ export class GitSourceControl implements Disposable {
 		onDidChangeCountBadge(this.setCountBadge, this, this.disposables);
 		repository.onDidChangeResources(this.updateResourceStates, this, this.disposables);
 		this.updateResourceStates();
+
+		repository.onDidChangeWarm(this.setWarm, this, this.disposables);
+
+		// Shows or clears the validation warning of a repository with too many changes
+		repository.onDidCheckStatusLimit(() => this.sourceControl.inputBox.validateInput = this.sourceControl.inputBox.validateInput, null, this.disposables);
+
+		this.disposables.push(new ProgressManager(repository));
+
+		if (!workspace.isAgentSessionsWorkspace) {
+			// Disable input box when the commit operation is running
+			repository.onDidChangeOperations(() => this.sourceControl.inputBox.enabled = !repository.operations.isRunning(OperationKind.Commit), null, this.disposables);
+		}
 	}
 
 	/**
 	 * Hides or shows the source control as the one of a warm repository, see {@link Repository.isWarm}.
 	 */
-	setWarm(isWarm: boolean): void {
+	private setWarm(isWarm: boolean): void {
 		if (!isWarm) {
 			// A repository is shown as the one of a workspace folder's current location, so even a worktree that is
 			// hidden when its main repository is open (see the constructor) is shown

@@ -27,7 +27,7 @@ import { IPushErrorHandlerRegistry } from './pushError';
 import { IRemoteSourcePublisherRegistry } from './remotePublisher';
 import { StatusBarCommands } from './statusbar';
 import { toGitUri } from './uri';
-import { anyEvent, combinedDisposable, debounceEvent, dispose, EmptyDisposable, eventToPromise, filterEvent, find, getCommitShortHash, IDisposable, isDescendant, isLinuxSnap, isRemote, isWindows, Limiter, onceEvent, pathEquals, relativePath } from './util';
+import { anyEvent, combinedDisposable, dispose, EmptyDisposable, eventToPromise, filterEvent, find, getCommitShortHash, IDisposable, isDescendant, isLinuxSnap, isRemote, isWindows, Limiter, pathEquals, relativePath } from './util';
 import { IFileWatcher, watch } from './watch';
 import { ISourceControlHistoryItemDetailsProviderRegistry } from './historyItemDetailsProvider';
 import { RepositoryCache } from './repositoryCache';
@@ -360,71 +360,6 @@ interface GitResourceGroups {
 	workingTreeGroup?: Resource[];
 }
 
-class ProgressManager {
-
-	private enabled = false;
-	private disposable: IDisposable = EmptyDisposable;
-	private readonly disposables: IDisposable[] = [];
-
-	constructor(private repository: Repository) {
-		const onDidChange = filterEvent(workspace.onDidChangeConfiguration, e => e.affectsConfiguration('git', Uri.file(this.repository.root)));
-		onDidChange(_ => this.updateEnablement(), null, this.disposables);
-		this.updateEnablement();
-
-		if (!workspace.isAgentSessionsWorkspace) {
-			this.repository.onDidChangeOperations(() => {
-				// Disable input box when the commit operation is running
-				this.repository.sourceControl.sourceControl.inputBox.enabled = !this.repository.operations.isRunning(OperationKind.Commit);
-			}, null, this.disposables);
-		}
-	}
-
-	private updateEnablement(): void {
-		const config = workspace.getConfiguration('git', Uri.file(this.repository.root));
-		const showProgress = config.get<boolean>('showProgress') === true && !workspace.isAgentSessionsWorkspace;
-
-		if (showProgress) {
-			this.enable();
-		} else {
-			this.disable();
-		}
-	}
-
-	private enable(): void {
-		if (this.enabled) {
-			return;
-		}
-
-		const start = onceEvent(filterEvent(this.repository.onDidChangeOperations, () => this.repository.operations.shouldShowProgress()));
-		const end = onceEvent(filterEvent(debounceEvent(this.repository.onDidChangeOperations, 300), () => !this.repository.operations.shouldShowProgress()));
-
-		const setup = () => {
-			this.disposable = start(() => {
-				const promise = eventToPromise(end).then(() => setup());
-				window.withProgress({ location: ProgressLocation.SourceControl }, () => promise);
-			});
-		};
-
-		setup();
-		this.enabled = true;
-	}
-
-	private disable(): void {
-		if (!this.enabled) {
-			return;
-		}
-
-		this.disposable.dispose();
-		this.disposable = EmptyDisposable;
-		this.enabled = false;
-	}
-
-	dispose(): void {
-		this.disable();
-		dispose(this.disposables);
-	}
-}
-
 class FileEventLogger {
 
 	private eventDisposable: IDisposable = EmptyDisposable;
@@ -738,6 +673,12 @@ export class Repository implements Disposable {
 	 */
 	readonly onDidResetCommitMessage: Event<string> = this._onDidResetCommitMessage.event;
 
+	private _onDidCheckStatusLimit = new EventEmitter<void>();
+	/**
+	 * Fires each time git status reports whether the repository has more changes than `git.statusLimit`.
+	 */
+	readonly onDidCheckStatusLimit: Event<void> = this._onDidCheckStatusLimit.event;
+
 	private _onDidChangeResources = new EventEmitter<void>();
 	/**
 	 * Fires when `mergeChanges`, `indexChanges`, `workingTreeChanges` or `untrackedChanges` change.
@@ -941,7 +882,7 @@ export class Repository implements Disposable {
 	get parentRoot(): string | undefined { return this._sourceControl.parentRoot; }
 
 	private _onDidChangeWarm = new EventEmitter<boolean>();
-	private readonly onDidChangeWarm: Event<boolean> = this._onDidChangeWarm.event;
+	readonly onDidChangeWarm: Event<boolean> = this._onDidChangeWarm.event;
 
 	private didRunFirstStatus!: () => void;
 
@@ -1083,8 +1024,6 @@ export class Repository implements Disposable {
 		actionButton.onDidChange(() => this.sourceControl.sourceControl.actionButton = actionButton.button, this, this.sourceControlDisposables);
 		this.sourceControl.sourceControl.actionButton = actionButton.button;
 
-		const progressManager = new ProgressManager(this);
-		this.sourceControlDisposables.push(progressManager);
 	}
 
 	/**
@@ -3142,8 +3081,7 @@ export class Repository implements Disposable {
 			this.telemetryReporter.sendTelemetryEvent('statusSlow', { ignoreSubmodules: String(ignoreSubmodules), didHitLimit: String(didHitLimit), didWarnAboutLimit: String(this.didWarnAboutLimit) }, { statusLength, totalTime });
 		}
 
-		// Triggers or clears any validation warning
-		this.sourceControl.inputBox.validateInput = this.sourceControl.inputBox.validateInput;
+		this._onDidCheckStatusLimit.fire();
 
 		const config = workspace.getConfiguration('git');
 		const shouldIgnore = config.get<boolean>('ignoreLimitWarning') === true;
@@ -3342,7 +3280,6 @@ export class Repository implements Disposable {
 
 		this.logger.trace(`[Repository][setWarm] ${isWarm ? 'Keeping repository warm' : 'Showing repository'}: ${this.root}`);
 		this._isWarm = isWarm;
-		this._sourceControl.setWarm(isWarm);
 		this._onDidChangeWarm.fire(isWarm);
 	}
 
