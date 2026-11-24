@@ -49,8 +49,8 @@ export interface IAgentHostAuthenticationService {
 	getAuthCredential(request: IAgentHostAuthTokenRequest, includeExpired?: boolean): IAgentHostAuthCredential | undefined;
 	/** Forgets the resource's credentials and in-flight writes without signing out an external account. */
 	invalidateAuthTokens(resource: string): void;
-	/** Returns undefined when no untargeted authenticate request for the resource is in flight, otherwise a promise that resolves once none is. */
-	whenAuthenticationSettled(resource: string): Promise<void> | undefined;
+	/** Resolves once no untargeted authenticate request for the resource is in flight. The other members work without it; a caller about to act on a stored token while such a request may be in flight awaits it first. */
+	whenAuthenticationSettled(resource: string): Promise<void>;
 	getSessionCredentialBinding(session: string, usage?: 'execution' | 'agentMerge'): IAgentHostCredentialSource | undefined;
 	getSessionCredentialSource(session: string, usage?: 'execution' | 'agentMerge'): IAgentHostCredentialSource | undefined;
 	getSessionCredentialPrincipal(session: string): IAgentHostCredentialPrincipal | undefined;
@@ -413,17 +413,12 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 		}
 	}
 
-	whenAuthenticationSettled(resource: string): Promise<void> | undefined {
+	async whenAuthenticationSettled(resource: string): Promise<void> {
 		const pendingRequests = () => [...this._authenticationRequests.values()].filter(request => !request.target && request.resource === resource);
-		if (pendingRequests().length === 0) {
-			return undefined;
+		// A request is completed when it is replaced as well, so look again for the one that replaced it.
+		for (let pending = pendingRequests(); pending.length > 0; pending = pendingRequests()) {
+			await Promise.all(pending.map(request => request.completed.p));
 		}
-		return (async () => {
-			// A request is completed when it is replaced as well, so look again for the one that replaced it.
-			for (let pending = pendingRequests(); pending.length > 0; pending = pendingRequests()) {
-				await Promise.all(pending.map(request => request.completed.p));
-			}
-		})();
 	}
 
 	getAuthAccountId(request: IAgentHostAuthTokenRequest): string | undefined {

@@ -4103,12 +4103,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	/** The shared store deletes a signed-out token only when its request settles, so this waits for GitHub authentication in flight first. The wait is outside the sequencer because that request may be waiting on it. */
 	private async _applyKeptGitHubCredentialWhenSettled(): Promise<void> {
-		const settled = this._authenticationService.whenAuthenticationSettled(this._gitHubEndpointService.getCopilotResource().resource);
-		if (settled) {
-			await settled;
-			if (this._store.isDisposed) {
-				return;
-			}
+		await this._authenticationService.whenAuthenticationSettled(this._gitHubEndpointService.getCopilotResource().resource);
+		if (this._store.isDisposed) {
+			return;
 		}
 		await this._authenticationSequencer.queue(() => this._applyKeptGitHubCredential());
 	}

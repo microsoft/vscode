@@ -673,12 +673,18 @@ suite('AgentHostAuthenticationScope', () => {
 				return true;
 			}
 		}();
-		const idle = service.whenAuthenticationSettled(resource);
+		let idleSettled = false;
+		void service.whenAuthenticationSettled(resource).then(() => idleSettled = true);
+		await timeout(0);
+		const idleSettledAtOnce = idleSettled;
 		const targeted = service.authenticate({ resource, token: 'targeted', target: { kind: AuthenticateTargetKind.McpServer, session: 'ahp-session:/target', customizationId: 'mcp' } }, [provider]);
 		const other = service.authenticate({ resource: 'https://other.test', token: 'other' }, [provider]);
-		const ignored = service.whenAuthenticationSettled(resource);
+		let ignoredSettled = false;
+		void service.whenAuthenticationSettled(resource).then(() => ignoredSettled = true);
+		await timeout(0);
+		const ignoredSettledWhileOthersPending = ignoredSettled;
 		const first = service.authenticate({ resource, token: 'first' }, [provider]);
-		const waiting = service.whenAuthenticationSettled(resource)!;
+		const waiting = service.whenAuthenticationSettled(resource);
 		let settled = false;
 		void waiting.then(() => settled = true);
 		const second = service.authenticate({ resource, token: 'second' }, [provider]);
@@ -693,8 +699,8 @@ suite('AgentHostAuthenticationScope', () => {
 		gates.get('targeted')!.complete();
 		gates.get('other')!.complete();
 		await Promise.all([targeted, other]);
-		assert.deepStrictEqual({ idle, ignored, settledAfterReplacedRequest, settledWithOthersInFlight }, {
-			idle: undefined, ignored: undefined, settledAfterReplacedRequest: false, settledWithOthersInFlight: true,
+		assert.deepStrictEqual({ idleSettledAtOnce, ignoredSettledWhileOthersPending, settledAfterReplacedRequest, settledWithOthersInFlight }, {
+			idleSettledAtOnce: true, ignoredSettledWhileOthersPending: true, settledAfterReplacedRequest: false, settledWithOthersInFlight: true,
 		});
 	});
 
