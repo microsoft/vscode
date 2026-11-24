@@ -293,7 +293,7 @@ suite('Detect Changes', () => {
 	});
 
 	test('Dependency Release Age runs for changes to a lockfile, the pnpm configuration or the root package.json', async () => {
-		const dependencies = async (...filenames: string[]) => (await detect(filenames.map(filename => ({ filename }))))['dependencies'];
+		const dependencies = async (...filenames: string[]) => (await detect(filenames.map(filename => ({ filename })))).dependencies;
 		assert.deepStrictEqual(await Promise.all([
 			dependencies('pnpm-lock.yaml'),
 			dependencies('remote/pnpm-lock.yaml'),

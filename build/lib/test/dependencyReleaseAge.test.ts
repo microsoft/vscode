@@ -23,7 +23,7 @@ function fakeRegistry(releases: Record<string, Release>): IRegistry & { readonly
 		lookups,
 		async release(ecosystem, name, version) {
 			lookups.push(`${ecosystem}:${name}@${version}`);
-			return releases[`${name}@${version}`] ?? { notFound: true };
+			return releases[`${name}@${version}`] ?? { kind: 'notFound' };
 		},
 	};
 }
@@ -189,10 +189,10 @@ suite('dependencyReleaseAge', () => {
 
 	test('reports added versions that are too new, missing or from other sources, with the date they become allowed', async () => {
 		const registry = fakeRegistry({
-			'fresh@1.0.0': { publishedAt: new Date('2026-11-20T08:30:00Z') },
-			'mature@1.0.0': { publishedAt: daysAgo(8) },
-			'@vscode/fresh@1.0.0': { publishedAt: daysAgo(1) },
-			'serde@1.0.229': { publishedAt: daysAgo(2) },
+			'fresh@1.0.0': { kind: 'published', publishedAt: new Date('2026-11-20T08:30:00Z') },
+			'mature@1.0.0': { kind: 'published', publishedAt: daysAgo(8) },
+			'@vscode/fresh@1.0.0': { kind: 'published', publishedAt: daysAgo(1) },
+			'serde@1.0.229': { kind: 'published', publishedAt: daysAgo(2) },
 		});
 		const violations = await checkChanges([
 			{
@@ -248,11 +248,11 @@ suite('dependencyReleaseAge', () => {
 			registry.release('npm', 'missing', '1.0.0'),
 			registry.release('crates', 'serde', '1.0.228'),
 		]), [
-			{ publishedAt: new Date('2026-11-01T00:00:00Z') },
+			{ kind: 'published', publishedAt: new Date('2026-11-01T00:00:00Z') },
 			// Unpublished: the packument dates it, but lists no such version.
-			{ notFound: true },
-			{ notFound: true },
-			{ publishedAt: new Date('2026-09-01T00:00:00Z') },
+			{ kind: 'notFound' },
+			{ kind: 'notFound' },
+			{ kind: 'published', publishedAt: new Date('2026-09-01T00:00:00Z') },
 		]);
 		await assert.rejects(registry.release('npm', 'down', '1.0.0'), /GET https:\/\/registry\.npmjs\.org\/down failed: HTTP 500/);
 		assert.strictEqual(requests.filter(url => url.endsWith('@scope%2Fname')).length, 2);
@@ -288,9 +288,9 @@ suite('dependencyReleaseAge', () => {
 			git('commit', '--quiet', '-am', 'head');
 
 			const registry = fakeRegistry({
-				'a@2.0.0': { publishedAt: daysAgo(2) },
-				'b@2.0.0': { publishedAt: daysAgo(2) },
-				'pnpm@12.17.0': { publishedAt: daysAgo(10) },
+				'a@2.0.0': { kind: 'published', publishedAt: daysAgo(2) },
+				'b@2.0.0': { kind: 'published', publishedAt: daysAgo(2) },
+				'pnpm@12.17.0': { kind: 'published', publishedAt: daysAgo(10) },
 			});
 			const result = await checkRevisions(base, 'HEAD', registry, now, dir);
 			assert.deepStrictEqual({

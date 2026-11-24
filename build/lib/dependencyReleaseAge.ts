@@ -37,7 +37,7 @@ export interface IReleaseAgePolicy {
 	readonly file: string | undefined;
 }
 
-export type Release = { readonly publishedAt: Date } | { readonly notFound: true };
+export type Release = { readonly kind: 'published'; readonly publishedAt: Date } | { readonly kind: 'notFound' };
 
 export interface IRegistry {
 	/** Throws when the registry cannot be reached. */
@@ -345,7 +345,7 @@ export async function checkChanges(changes: readonly ILockfileChange[], lockedOn
 				continue;
 			}
 			checks.push(registry.release(pkg.ecosystem, pkg.name, pkg.version).then(release => {
-				if ('notFound' in release) {
+				if (release.kind === 'notFound') {
 					violation(`${pkg.name}@${pkg.version} is not published on ${pkg.ecosystem === 'npm' ? 'registry.npmjs.org' : 'crates.io'}.`);
 					return;
 				}
@@ -435,14 +435,14 @@ export function createPublicRegistry(get: FetchJson = fetchJson, retryDelaysMs =
 				}
 				const { time, versions } = (await packument) ?? {};
 				const published = versions?.[version] ? time?.[version] : undefined;
-				return published ? { publishedAt: new Date(published) } : { notFound: true };
+				return published ? { kind: 'published', publishedAt: new Date(published) } : { kind: 'notFound' };
 			}
 			const body = await cratesLimit(() => getWithRetries(`https://crates.io/api/v1/crates/${encodeURIComponent(name)}/${encodeURIComponent(version)}`, {
 				'accept': 'application/json',
 				'user-agent': 'microsoft/vscode dependency release age check (https://github.com/microsoft/vscode)',
 			})) as { readonly version?: { readonly created_at?: string } } | undefined;
 			const created = body?.version?.created_at;
-			return created ? { publishedAt: new Date(created) } : { notFound: true };
+			return created ? { kind: 'published', publishedAt: new Date(created) } : { kind: 'notFound' };
 		},
 	};
 }
@@ -536,10 +536,19 @@ export async function checkRevisions(base: string, head: string, registry: IRegi
 	}
 
 	if (changedFiles.includes('package.json')) {
-		const basePackageManager = packageManagerPackage(readAt(cwd, base, 'package.json'));
-		const headPackageManager = packageManagerPackage(readAt(cwd, head, 'package.json'));
-		if (headPackageManager && (!basePackageManager || packageId(basePackageManager) !== packageId(headPackageManager))) {
-			changes.push({ lockfile: 'package.json', added: [headPackageManager], policy: findPolicy(cwd, head, 'package.json') });
+		let basePackageManager: ILockedPackage | undefined;
+		try {
+			basePackageManager = packageManagerPackage(readAt(cwd, base, 'package.json'));
+		} catch {
+			// Then the pnpm version of the head counts as added.
+		}
+		try {
+			const headPackageManager = packageManagerPackage(readAt(cwd, head, 'package.json'));
+			if (headPackageManager && (!basePackageManager || packageId(basePackageManager) !== packageId(headPackageManager))) {
+				changes.push({ lockfile: 'package.json', added: [headPackageManager], policy: findPolicy(cwd, head, 'package.json') });
+			}
+		} catch (error) {
+			errors.push(`package.json: ${error instanceof Error ? error.message : String(error)}`);
 		}
 	}
 
