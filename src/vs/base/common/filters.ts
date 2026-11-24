@@ -198,6 +198,29 @@ function getAlternateCodes(code: number): ArrayLike<number> | undefined {
 	return result;
 }
 
+/**
+ * Whether `queryCode`, the last character of a query and possibly a Hangul syllable an IME is
+ * still composing, starts the Hangul syllable `targetCode`, comparing their keystrokes.
+ */
+// allow-any-unicode-next-line
+// For example ㅌ (x) and 터 (xj) both start 턱 (xjr), so typing ㅌ already finds 터미널.
+function startsHangulSyllable(queryCode: number, targetCode: number): boolean {
+	if (targetCode < 0xAC00 || targetCode > 0xD7A3) {
+		return false;
+	}
+	const query = getKoreanAltChars(queryCode);
+	const target = getKoreanAltChars(targetCode);
+	if (!query || !target || query.length >= target.length) {
+		return false;
+	}
+	for (let i = 0; i < query.length; i++) {
+		if (query[i] !== target[i]) {
+			return false;
+		}
+	}
+	return true;
+}
+
 function isAlphanumeric(code: number): boolean {
 	return isLower(code) || isUpper(code) || isNumber(code);
 }
@@ -405,8 +428,9 @@ function _matchesWords(word: string, target: string, wordIndex: number, targetIn
 
 function _matchesWordsCompute(word: string, target: string, wordIndex: number, targetIndex: number, contiguous: boolean, memo: Map<number, IMatch[] | null>): IMatch[] | null {
 	let targetIndexOffset = 0;
+	const partialHangul = wordIndex === word.length - 1 && startsHangulSyllable(word.charCodeAt(wordIndex), target.charCodeAt(targetIndex));
 
-	if (!charactersMatch(word.charCodeAt(wordIndex), target.charCodeAt(targetIndex))) {
+	if (!partialHangul && !charactersMatch(word.charCodeAt(wordIndex), target.charCodeAt(targetIndex))) {
 		// Verify alternate characters before exiting
 		const altChars = getAlternateCodes(word.charCodeAt(wordIndex));
 		if (!altChars) {
@@ -436,7 +460,7 @@ function _matchesWordsCompute(word: string, target: string, wordIndex: number, t
 
 	// If the characters don't exactly match, then they must be word separators (see charactersMatch(...)).
 	// We don't want to include this in the matches but we don't want to throw the target out all together so we return `result`.
-	if (word.charCodeAt(wordIndex) !== target.charCodeAt(targetIndex)) {
+	if (!partialHangul && word.charCodeAt(wordIndex) !== target.charCodeAt(targetIndex)) {
 		// Verify alternate characters before exiting
 		const altChars = getAlternateCodes(word.charCodeAt(wordIndex));
 		if (!altChars) {
