@@ -26,7 +26,7 @@ import { InMemoryFileSystemProvider } from '../../../../../../platform/files/com
 import { FileService } from '../../../../../../platform/files/common/fileService.js';
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { extUriBiasedIgnorePathCase } from '../../../../../../base/common/resources.js';
-import { getInboxWorkspaceFilter, getInboxWorkspaceOptions, getSessionFilterOptions, getWorktreeFilterKeys, listsQuickChatsIn, sessionFilterKey, SessionsListFilters, SessionsWorktreeOpener } from '../../../browser/views/sessionsListFilters.js';
+import { getInboxWorkspaceFilter, getInboxWorkspaceOptions, getSessionFilterActionId, getSessionFilterOptions, getWorktreeFilterKeys, listsQuickChatsIn, SessionFilter, sessionFilterKey, SessionsListFilters, SessionsWorktreeOpener } from '../../../browser/views/sessionsListFilters.js';
 import { AutomationSessionsListMode, SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING } from '../../../common/sessionConfig.js';
 
 suite('SessionsListFilters', () => {
@@ -36,6 +36,28 @@ suite('SessionsListFilters', () => {
 	function createFilters(storage = store.add(new InMemoryStorageService()), configurationService: IConfigurationService = new TestConfigurationService()): SessionsListFilters {
 		return store.add(new SessionsListFilters(storage, store.add(new NullLogService()), configurationService, upcastPartial<IUriIdentityService>({ extUri: extUriBiasedIgnorePathCase })));
 	}
+
+	test('names built-in filter options in their action ids and only the kind of any other, kept unique by index', () => {
+		const filters: SessionFilter[] = [
+			{ kind: 'harness', id: 'copilot' },
+			{ kind: 'environment', id: 'local' },
+			{ kind: 'environment', id: 'agenthost-ssh%3Aalice%40devbox' },
+			{ kind: 'application', environment: 'cloud', id: 'slack' },
+			{ kind: 'application', environment: 'local', id: 'my_team_bot' },
+			{ kind: 'application', environment: 'agenthost-ssh%3Aalice%40devbox', id: 'vscode' },
+			{ kind: 'worktree', id: '/home/alice/repo' },
+		];
+
+		assert.deepStrictEqual(filters.map((filter, index) => getSessionFilterActionId(filter, index)), [
+			'sessionsViewPane.filter.harness.copilot',
+			'sessionsViewPane.filter.environment.local',
+			'sessionsViewPane.filter.environment.remote-agent-host.2',
+			'sessionsViewPane.filter.application.cloud.slack',
+			'sessionsViewPane.filter.application.local.other.4',
+			'sessionsViewPane.filter.application.remote-agent-host.vscode.5',
+			'sessionsViewPane.filter.worktree.6',
+		]);
+	});
 
 	test('tells apart worktree folders whose paths differ only in case where their file system does, such as an agent host\'s', () => {
 		// The URI identity of the window, with an agent host's file system, which is case sensitive

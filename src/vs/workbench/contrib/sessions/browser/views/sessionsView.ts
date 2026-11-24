@@ -39,7 +39,7 @@ import { SessionsList, SessionsGrouping, SessionsSorting } from './sessionsList.
 import { ISession } from '../../../../services/sessions/common/session.js';
 import { ISessionComparisonService } from '../../common/sessionComparison.js';
 import { ISessionsProvidersService } from '../sessionsProvidersService.js';
-import { getSessionFilterEnvironments, getSessionFilterOptions, ISessionFilterOption, listsQuickChatsIn, SessionsWorktreeOpener } from './sessionsListFilters.js';
+import { getSessionFilterActionId, getSessionFilterEnvironments, getSessionFilterOptions, ISessionFilterOption, listsQuickChatsIn, SessionsWorktreeOpener } from './sessionsListFilters.js';
 import { AICustomizationShortcutsWidget } from '../aiCustomizationShortcutsWidget.js';
 import { AgentHostShortcutsWidget } from '../agentHostShortcutsWidget.js';
 import { Action2, IMenuService, MenuRegistry, registerAction2, SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
@@ -1046,7 +1046,7 @@ export class SessionsView extends ViewPane {
 					: option.filter.kind === 'application' ? Menus.SessionsViewSource
 						: option.filter.kind === 'worktree' ? Menus.SessionsViewWorktree
 							: Menus.SessionsViewHarness;
-				const id = `sessionsViewPane.filter.${option.filter.kind}.${index}`;
+				const id = getSessionFilterActionId(option.filter, index);
 				const contextKey = new RawContextKey(id, option.checked).bindTo(this.scopedContextKeyService);
 				contextKey.set(option.checked);
 				reader.store.add(toDisposable(() => contextKey.reset()));

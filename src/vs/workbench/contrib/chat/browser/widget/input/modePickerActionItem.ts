@@ -113,20 +113,18 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 			const toolbarActions: IAction[] = [];
 			if (mode.kind === ChatModeKind.Agent && !isDisabledViaPolicy) {
 				if (mode.uri) {
-					let label, icon, id;
+					let label, icon;
 					if (mode.source?.storage === PromptsStorage.extension) {
 						icon = Codicon.file;
-						id = 'viewAgent';
 						label = localize('viewModeConfiguration', "View {0} agent", mode.label.get());
 					} else {
 						icon = Codicon.edit;
-						id = 'editAgent';
 						label = localize('editModeConfiguration', "Edit {0} agent", mode.label.get());
 					}
 
 					const modeResource = mode.uri;
 					toolbarActions.push({
-						id,
+						id: getModeConfigurationActionId(mode, this._productService),
 						label,
 						tooltip: label,
 						class: ThemeIcon.asClassName(icon),
@@ -352,6 +350,15 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 		element.ariaLabel = state;
 		return null;
 	}
+}
+
+/**
+ * The id of a mode's Edit Agent or View Agent action. A built-in mode keeps its name; any other is named only by where
+ * its file comes from, such as the workspace, the user's prompts, an extension or a plugin.
+ */
+export function getModeConfigurationActionId(mode: IChatMode, productService: IProductService): string {
+	const action = mode.source?.storage === PromptsStorage.extension ? 'viewAgent' : 'editAgent';
+	return `${action}:${isModeConsideredBuiltIn(mode, productService) ? mode.name.get() : mode.source?.storage ?? 'other'}`;
 }
 
 export function isModeConsideredBuiltIn(mode: IChatMode, productService: IProductService): boolean {

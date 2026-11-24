@@ -154,7 +154,7 @@ import { BlockedSessionReason, BlockedSessions } from '../blockedSessions.js';
 import { IInboxSessionAttention, ISessionAttentionService, InboxNotificationPriority, InboxTab } from '../../common/sessionAttentionService.js';
 import { KeybindingLabel } from '../../../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
 import { IPinnedCanvas, IPinnedCanvasService, PINNED_CANVAS_PAGE_ID, PinnedCanvasConnectedContext, PinnedCanvasState } from '../pinnedCanvases.js';
-import { logSessionsInteraction } from '../../common/sessionsTelemetry.js';
+import { getSessionsTelemetryEnvironmentId, logSessionsInteraction } from '../../common/sessionsTelemetry.js';
 import { getInboxPullRequestMergeOperation, getSessionInboxDescription, getSessionInboxPriority, getSessionInboxSection, SessionInboxSection, sessionInboxSections } from '../../common/sessionInbox.js';
 import { ISessionGridPane } from '../../../../services/sessions/browser/sessionGridPane.js';
 import { IShownChat } from '../../../../services/sessions/common/sessionPane.js';
@@ -10083,8 +10083,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 		if (sources.length < 2) {
 			return [];
 		}
-		return sources.map(({ environment }, index) => toAction({
-			id: `${NEW_SESSION_IN_ENVIRONMENT_ACTION_ID}.${index}`,
+		return sources.map(({ environment }) => toAction({
+			id: `${NEW_SESSION_IN_ENVIRONMENT_ACTION_ID}.${getSessionsTelemetryEnvironmentId(environment.id)}`,
 			label: environment.id === 'cloud'
 				? localize('newSessionInCloud', "New Session in {0}", environment.label)
 				: localize('newSessionOnEnvironment', "New Session on {0}", environment.label),

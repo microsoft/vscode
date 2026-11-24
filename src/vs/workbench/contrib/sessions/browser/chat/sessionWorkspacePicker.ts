@@ -63,6 +63,7 @@ import { IWorkspaceSelectionSnapshot, WorkspaceSelectionOrigin, WorkspaceSession
 import { type IResolvedFolderWorkspace, SessionWorkspaceFallback } from './sessionWorkspaceFallback.js';
 import { IChatRequestVariableEntry } from '../../../chat/common/attachments/chatVariableEntries.js';
 import { ADDITIONAL_FOLDER_CONTEXT_ID_PREFIX, ADDITIONAL_REPOSITORY_CONTEXT_ID_PREFIX, getAdditionalFolderContextId, getAdditionalRepositoryContextId } from '../../common/newChatContextIds.js';
+import { getSessionsTelemetryProviderId } from '../../common/sessionsTelemetry.js';
 import { registerPickerKeybindingPresentation } from './newChatPickerKeybinding.js';
 import { getNoWorkspaceChoicePresentation } from './noWorkspaceChoice.js';
 import { createSessionPickerToolbar } from './sessionPickerToolbar.js';
@@ -1929,7 +1930,7 @@ export class WorkspacePicker extends Disposable {
 				return undefined;
 			}
 			const usingDevContainer = !!this._selectedDevContainerFolderUri && this.uriIdentityService.extUri.isEqual(this._selectedDevContainerFolderUri, folderUri);
-			const actionId = `workspacePicker.devContainer.${devContainerActionIndex++}`;
+			const actionId = `workspacePicker.devContainer.${getSessionsTelemetryProviderId(providerId)}.${devContainerActionIndex++}`;
 			const selectMode = (preferDevContainer: boolean): void => {
 				item.preferDevContainer = preferDevContainer;
 			};
@@ -2035,7 +2036,7 @@ export class WorkspacePicker extends Disposable {
 			previousRecentWorkspaceIsRepository = recentWorkspaceIsRepository;
 			const submenuActions = modeActions
 				? [new SubmenuAction(
-					`workspacePicker.devContainer.${devContainerActionIndex}.options`,
+					`workspacePicker.devContainer.${getSessionsTelemetryProviderId(providerId)}.${devContainerActionIndex}.options`,
 					'',
 					modeActions,
 				)]
@@ -2185,7 +2186,7 @@ export class WorkspacePicker extends Disposable {
 				const status = provider.connectionStatus!.get();
 				const statusDescription = getRemoteHostStatusDescription(provider, status);
 				const action = toAction({
-					id: `workspacePicker.remote.${getOrSet(this._remoteItemIds, provider.id, this._remoteItemIds.size)}`,
+					id: `workspacePicker.remote.${getSessionsTelemetryProviderId(provider.id)}.${getOrSet(this._remoteItemIds, provider.id, this._remoteItemIds.size)}`,
 					label: provider.label,
 					tooltip: statusDescription,
 					enabled: true,
@@ -2436,7 +2437,7 @@ export class WorkspacePicker extends Disposable {
 	getEnvironmentActions(environment: ISessionCreationEnvironment): IAction[] {
 		const provider = environment.kind === 'remote' && this.sessionsProvidersService.getProvider(environment.providerIds[0]);
 		return provider && isAgentHostProvider(provider) ? [toAction({
-			id: 'environmentPicker.manage',
+			id: `environmentPicker.manage.${getSessionsTelemetryProviderId(provider.id)}`,
 			label: localize('workspacePicker.manageRemoteHost', "Manage {0}", provider.label),
 			run: () => {
 				this.actionWidgetService.hide();

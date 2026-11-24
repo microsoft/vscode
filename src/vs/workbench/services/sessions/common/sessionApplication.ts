@@ -43,6 +43,11 @@ export function getSessionApplication(name: string, title?: string): ISessionApp
 	return { id: name, label: title || name.replace(/_/g, ' ').toLowerCase().split(' ').map(uppercaseFirstLetter).join(' ') };
 }
 
+/** The id of a session application when it is one VS Code knows, otherwise `other`, since producers choose any other name. */
+export function getKnownSessionApplicationIdOrOther(id: string): string {
+	return getKnownSessionApplicationId(id) === id ? id : 'other';
+}
+
 function getKnownSessionApplicationId(name: string): KnownSessionApplicationId | undefined {
 	switch (name) {
 		// Generic task event types do not identify the creating application, including in older caches.

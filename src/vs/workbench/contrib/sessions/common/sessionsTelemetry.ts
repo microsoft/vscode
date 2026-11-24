@@ -28,6 +28,11 @@ export function getSessionsTelemetryProviderId(providerId: string): SessionsTele
 	return 'other';
 }
 
+/** Keeps the built-in `local` and `cloud` environments and reduces any other, such as a remote agent host's, to its provider category. */
+export function getSessionsTelemetryEnvironmentId(environmentId: string): string {
+	return environmentId === 'local' || environmentId === 'cloud' ? environmentId : getSessionsTelemetryProviderId(environmentId);
+}
+
 /** Removes the remote connection authority from an agent session type identifier. */
 export function getSessionsTelemetryAgentId(sessionTypeId: string): string {
 	return parseRemoteAgentHostHarness(sessionTypeId) ?? sessionTypeId;

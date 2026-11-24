@@ -13,6 +13,7 @@ import { getSessionWorktreeFolder, getWorktreeFilterKey, getWorktreeFilterOption
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
+import { isRemoteAgentHostSessionType } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { IChatSessionsService } from '../../common/chatSessionsService.js';
 import { ILocalChatAvailabilityService } from '../../common/localChatAvailability.js';
 import { runOnChange } from '../../../../../base/common/observable.js';
@@ -294,10 +295,12 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 		const that = this;
 		let counter = 0;
 		for (const [index, provider] of providers.entries()) {
+			// Built-in providers keep their id; a remote agent host's or any other contributed type is named by its kind.
+			const providerKey = getAgentSessionProvider(provider.id) ? provider.id : `${isRemoteAgentHostSessionType(provider.id) ? 'remote-agent-host' : 'other'}.${index}`;
 			disposables.add(registerAction2(class extends Action2 {
 				constructor() {
 					super({
-						id: `agentSessions.filter.toggleExclude.${index}.${menuId.id.toLowerCase()}`,
+						id: `agentSessions.filter.toggleExclude:${providerKey}.${menuId.id.toLowerCase()}`,
 						title: provider.label,
 						menu: {
 							id: menuId,

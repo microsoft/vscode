@@ -10,6 +10,7 @@ import { Event } from '../../../../../../../base/common/event.js';
 import { MutableDisposable, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../../base/common/uri.js';
+import { ExtensionIdentifier } from '../../../../../../../platform/extensions/common/extensions.js';
 import { upcastPartial } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { IActionWidgetService } from '../../../../../../../platform/actionWidget/browser/actionWidget.js';
@@ -32,7 +33,7 @@ import { TestExperimentTriggerTelemetryService } from '../../../../../../../plat
 import { IWorkbenchAssignmentService } from '../../../../../../services/assignment/common/assignmentService.js';
 import { TestProductService } from '../../../../../../test/common/workbenchTestServices.js';
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
-import { createAgentPickerInAttachContext, ModePickerActionItem } from '../../../../browser/widget/input/modePickerActionItem.js';
+import { createAgentPickerInAttachContext, getModeConfigurationActionId, ModePickerActionItem } from '../../../../browser/widget/input/modePickerActionItem.js';
 import { ChatInputPart, getToolbarPickerResponsiveItems } from '../../../../browser/widget/input/chatInputPart.js';
 import { ChatInputPickerResponsiveLayout } from '../../../../browser/widget/input/chatInputPickerResponsiveLayout.js';
 import { OpenModePickerAction } from '../../../../browser/actions/chatExecuteActions.js';
@@ -43,7 +44,7 @@ import { ChatContextKeys } from '../../../../common/actions/chatContextKeys.js';
 import { IWorkbenchEnvironmentService } from '../../../../../../services/environment/common/environmentService.js';
 import { IChatAgentService } from '../../../../common/participants/chatAgents.js';
 import { Target } from '../../../../common/promptSyntax/promptTypes.js';
-import { PromptsStorage } from '../../../../common/promptSyntax/service/promptsService.js';
+import { IAgentSource, PromptsStorage } from '../../../../common/promptSyntax/service/promptsService.js';
 
 suite('ModePickerActionItem Add Context', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -396,4 +397,36 @@ suite('ModePickerActionItem host Ask', () => {
 			});
 		}
 	}
+});
+
+suite('getModeConfigurationActionId', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('names a built-in agent and only the source of any other', () => {
+		const agent = (name: string, source: IAgentSource) => new CustomChatMode({
+			id: `file:///home/alice/.github/agents/${name}.agent.md`,
+			uri: URI.file(`/home/alice/.github/agents/${name}.agent.md`),
+			name,
+			source,
+			target: Target.Undefined,
+			agentInstructions: { content: '', toolReferences: [] },
+			visibility: { userInvocable: true, agentInvocable: false },
+			enabled: true,
+		});
+		const agents = [
+			agent('Plan', { storage: PromptsStorage.builtIn }),
+			agent('Reviewer', { storage: PromptsStorage.local }),
+			agent('Mine', { storage: PromptsStorage.user }),
+			agent('Acme', { storage: PromptsStorage.extension, extensionId: new ExtensionIdentifier('acme.agents') }),
+			agent('Packaged', { storage: PromptsStorage.plugin, pluginUri: URI.file('/home/alice/plugins/tools') }),
+		];
+
+		assert.deepStrictEqual(agents.map(mode => getModeConfigurationActionId(mode, TestProductService)), [
+			'editAgent:Plan',
+			'editAgent:local',
+			'editAgent:user',
+			'viewAgent:extension',
+			'editAgent:plugin',
+		]);
+	});
 });

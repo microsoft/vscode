@@ -15,11 +15,12 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
-import { getSessionApplication, UNKNOWN_SESSION_APPLICATION_ID } from '../../../../services/sessions/common/sessionApplication.js';
+import { getKnownSessionApplicationIdOrOther, getSessionApplication, UNKNOWN_SESSION_APPLICATION_ID } from '../../../../services/sessions/common/sessionApplication.js';
 import { ISession, ISessionEnvironment } from '../../../../services/sessions/common/session.js';
 import { isAgentHostProvider } from '../../common/agentHostSessionsProvider.js';
 import { AutomationSessionsListMode, SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING } from '../../common/sessionConfig.js';
 import { ISessionsProvider } from '../../common/sessionsProvider.js';
+import { getSessionsTelemetryEnvironmentId } from '../../common/sessionsTelemetry.js';
 
 export type SessionFilter =
 	| { readonly kind: 'harness' | 'environment' | 'worktree'; readonly id: string }
@@ -85,6 +86,20 @@ function isInboxScope(value: unknown): value is IInboxScope {
 
 export function sessionFilterKey(filter: SessionFilter): string {
 	return JSON.stringify(filter.kind === 'application' ? [filter.kind, filter.environment, filter.id] : [filter.kind, filter.id]);
+}
+
+/**
+ * The action id of a filter option, which is also the name of its context key. It names built-in harnesses,
+ * environments and applications. Any other, such as a remote agent host or a worktree, is named by its kind and the
+ * option's index, which keeps the id unique.
+ */
+export function getSessionFilterActionId(filter: SessionFilter, index: number): string {
+	const ids = filter.kind === 'application' ? [filter.environment, filter.id] : filter.kind === 'worktree' ? [] : [filter.id];
+	const names = filter.kind === 'application'
+		? [getSessionsTelemetryEnvironmentId(filter.environment), getKnownSessionApplicationIdOrOther(filter.id)]
+		: filter.kind === 'environment' ? [getSessionsTelemetryEnvironmentId(filter.id)] : ids;
+	const named = filter.kind !== 'worktree' && names.every((name, i) => name === ids[i]);
+	return ['sessionsViewPane.filter', filter.kind, ...names, ...named ? [] : [index]].join('.');
 }
 
 /**
