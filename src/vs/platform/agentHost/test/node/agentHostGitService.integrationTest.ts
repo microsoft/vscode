@@ -804,7 +804,7 @@ suite('AgentHostGitService - getSessionGitState (real git)', () => {
 		});
 	});
 
-	(hasGit ? test : test.skip)('reports the default branch in the session git state regardless of the configured base branch', async () => {
+	(hasGit ? test : test.skip)('reports the full ref of the base branch, and the default branch regardless of the configured base branch, in the session git state', async () => {
 		const dir = initRepo({ remote: 'https://github.com/microsoft/vscode.git' });
 		const run = (...args: string[]) => cp.execFileSync('git', args, { cwd: dir, stdio: 'pipe' });
 		run('branch', 'release');
@@ -820,15 +820,19 @@ suite('AgentHostGitService - getSessionGitState (real git)', () => {
 
 		const detected = defaultBranchFields(await svc!.getSessionGitState(URI.file(dir)));
 		const configured = defaultBranchFields(await svc!.getSessionGitState(URI.file(dir), 'release'));
+		const configuredRemote = defaultBranchFields(await svc!.getSessionGitState(URI.file(dir), 'origin/main'));
 		const configuredRef = defaultBranchFields(await svc!.getSessionGitState(URI.file(dir), 'refs/remotes/origin/release'));
+		const removedRemoteRef = defaultBranchFields(await svc!.getSessionGitState(URI.file(dir), 'refs/remotes/upstream/main'));
 		// `origin/HEAD` outlives its target when the remote renames its default branch.
 		run('update-ref', '-d', 'refs/remotes/origin/main');
 		const dangling = defaultBranchFields(await svc!.getSessionGitState(URI.file(dir)));
 
-		assert.deepStrictEqual({ detected, configured, configuredRef, dangling }, {
+		assert.deepStrictEqual({ detected, configured, configuredRemote, configuredRef, removedRemoteRef, dangling }, {
 			detected: { baseBranchName: 'main', baseBranchRef: 'refs/remotes/origin/main', defaultBranchName: 'main', defaultRemoteBranchName: 'origin/main' },
-			configured: { baseBranchName: 'release', baseBranchRef: 'release', defaultBranchName: 'main', defaultRemoteBranchName: 'origin/main' },
+			configured: { baseBranchName: 'release', baseBranchRef: 'refs/heads/release', defaultBranchName: 'main', defaultRemoteBranchName: 'origin/main' },
+			configuredRemote: { baseBranchName: 'main', baseBranchRef: 'refs/remotes/origin/main', defaultBranchName: 'main', defaultRemoteBranchName: 'origin/main' },
 			configuredRef: { baseBranchName: 'release', baseBranchRef: 'refs/remotes/origin/release', defaultBranchName: 'main', defaultRemoteBranchName: 'origin/main' },
+			removedRemoteRef: { baseBranchName: undefined, baseBranchRef: 'refs/remotes/upstream/main', defaultBranchName: 'main', defaultRemoteBranchName: 'origin/main' },
 			dangling: { baseBranchName: 'main', baseBranchRef: 'refs/heads/main', defaultBranchName: 'main', defaultRemoteBranchName: undefined },
 		});
 	});

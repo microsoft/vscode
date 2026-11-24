@@ -212,7 +212,7 @@ export interface ISessionGitRepository {
 	readonly branchName?: string;
 	/** Name of the base branch. */
 	readonly baseBranchName: string | undefined;
-	/** Base branch exactly as recorded for the session, a full ref (e.g. `refs/remotes/origin/main`) or, for sessions recorded earlier, a short name (e.g. `origin/main`). Branch Changes shows it without its `refs/heads/` or `refs/remotes/` prefix. {@link baseBranchName} is the branch it names, without its remote. */
+	/** Full ref of the base branch Branch Changes compares against (e.g. `refs/remotes/origin/main`), shown without its `refs/heads/` or `refs/remotes/` prefix. {@link baseBranchName} is the branch it names, without its remote. Absent when the host does not report it. */
 	readonly baseBranchRef?: string;
 	/** Whether the base branch is protected (drives PR vs merge workflow). */
 	readonly baseBranchProtected?: boolean;

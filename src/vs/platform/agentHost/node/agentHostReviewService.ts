@@ -12,7 +12,7 @@ import { ILogService } from '../../log/common/log.js';
 import { AgentSession } from '../common/agent.js';
 import { buildFolderChangesetOwnerUri, ChangesetKind, parseChangesetUri, parseFolderChangesetOwnerUri } from '../common/changesetUri.js';
 import { getWorkingDirectoryScopeId } from '../common/agentHostWorkingDirectories.js';
-import { EMPTY_TREE_OBJECT, getGitStateBaseBranch, IAgentHostGitService } from '../common/agentHostGitService.js';
+import { EMPTY_TREE_OBJECT, IAgentHostGitService } from '../common/agentHostGitService.js';
 import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
 import { buildReviewedRefName, IAgentHostReviewService } from '../common/agentHostReviewService.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
@@ -89,8 +89,8 @@ export class AgentHostReviewService extends Disposable implements IAgentHostRevi
 		const persistedBaseBranch = readSessionBaseBranch(await this._sessionStateStore.load(URI.parse(scope.sessionUri)), this._chatOwnership.isRegisteredDefaultChat(scope.sourceUri) ? undefined : scope.sourceUri);
 
 		const workingDirectory = URI.parse(scope.workingDirectories[0]);
-		const gitStateBaseBranch = getGitStateBaseBranch(this._gitStateService.getSessionGitState?.(scope.sourceUri))
-			?? (!isAhpChatChannel(scope.sourceUri) || this._chatOwnership.isRegisteredDefaultChat(scope.sourceUri) ? getGitStateBaseBranch(readSessionGitState(sessionState._meta)) : undefined);
+		const gitStateBaseBranch = this._gitStateService.getSessionGitState?.(scope.sourceUri)?.baseBranchRef
+			?? (!isAhpChatChannel(scope.sourceUri) || this._chatOwnership.isRegisteredDefaultChat(scope.sourceUri) ? readSessionGitState(sessionState._meta)?.baseBranchRef : undefined);
 		const baseBranch = persistedBaseBranch || gitStateBaseBranch;
 		await this._sequencer.queue(parsed.ownerUri, async () => {
 			for (const resource of resources) {

@@ -68,18 +68,6 @@ export function getBaseBranchLabel(baseBranch: string): string {
 }
 
 /**
- * Returns the base branch a session's Git state compares against, the fallback
- * when the session recorded none. Only a full ref (e.g. `refs/remotes/origin/main`)
- * is trusted: a short base in Git state was derived by an older build and can
- * name a stale local branch, so it is ignored and the git service derives the
- * default branch's ref again.
- */
-export function getGitStateBaseBranch(gitState: ISessionGitState | undefined): string | undefined {
-	const baseBranch = gitState?.baseBranchRef;
-	return baseBranch?.startsWith('refs/') ? baseBranch : undefined;
-}
-
-/**
  * Resolves the full ref a new session records as its base: the default branch's upstream, else the default branch. Without a
  * default branch (no remotes, or a remote without a `HEAD`), `fallbackBranch` resolved the way git does, or its name when it names
  * no branch yet (an unborn branch), which readers resolve the same way.
@@ -453,8 +441,11 @@ export interface IAgentHostGitService {
 	 * ahead are counted against it, and {@link ISessionGitState.baseBranchName}
 	 * is the branch it names, as {@link resolveBaseBranch} parses it.
 	 * Without one, the base is the default branch's remote-tracking branch
-	 * when it exists, else the default branch. The state reports the base
-	 * as {@link ISessionGitState.baseBranchRef}.
+	 * when it exists, else the default branch. The state reports the full ref
+	 * of the base as {@link ISessionGitState.baseBranchRef}: the ref
+	 * {@link resolveBaseBranch} parses it to (a short `origin/main` is
+	 * `refs/remotes/origin/main`), else a full ref that does not parse (e.g.
+	 * of a removed remote) as recorded, else nothing.
 	 */
 	getSessionGitState(workingDirectory: URI, baseBranch?: string): Promise<ISessionGitState | undefined>;
 	/**

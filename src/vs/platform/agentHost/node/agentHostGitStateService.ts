@@ -15,7 +15,7 @@ import { CopilotCliVSCodeAssignmentContextKey } from '../common/copilotCliConfig
 import { logSettingExperimentTrigger } from '../../telemetry/common/experimentTrigger.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { getSessionRelatedPullRequestUrls, isAhpChatChannel, ISessionGitHubState, ISessionWithDefaultChat, readFolderGitHubState, readFolderScopeGitState, readSessionGitData, readSessionGitHubData, readSessionGitState, readSessionSourceControlState, SessionLifecycle, SessionSourceControlOutcome, withInitialSessionPullRequest, withMostRecentRelatedSessionPullRequest, withMostRecentSessionPullRequest, withFolderGitHubState, withFolderScopeGitState, withSessionGitState, withSessionSourceControlState, type ISessionGitState, type ISessionSourceControlState, type SessionSummaryMeta } from '../common/state/sessionState.js';
-import { getGitStateBaseBranch, IAgentHostGitService } from '../common/agentHostGitService.js';
+import { IAgentHostGitService } from '../common/agentHostGitService.js';
 import { ActionType } from '../common/state/sessionActions.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentHostSessionStateStore, SessionStateMirrorFlush } from '../common/agentHostSessionStateStore.js';
@@ -961,7 +961,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 	 */
 	async resolveSessionBaseBranchRef(sessionKey: string): Promise<string | undefined> {
 		const state = this._getStateForGitScope(sessionKey);
-		const gitStateBaseBranch = getGitStateBaseBranch(this.getSessionGitState(sessionKey));
+		const gitStateBaseBranch = this.getSessionGitState(sessionKey)?.baseBranchRef;
 		const isSessionFolder = resolveGitHubStateFolder(this._stateManager, sessionKey).isSessionFolder;
 		if (!isSessionFolder && this._chatOwnership.isRegisteredDefaultChat(sessionKey)) {
 			return gitStateBaseBranch;

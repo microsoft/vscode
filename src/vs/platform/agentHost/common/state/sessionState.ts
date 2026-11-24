@@ -1332,11 +1332,11 @@ export interface ISessionGitState {
 	/** Base branch the work targets (e.g. `main`). */
 	readonly baseBranchName?: string;
 	/**
-	 * Ref of the base branch Branch Changes compares against and describes (e.g. `refs/remotes/origin/main`), exactly
-	 * as recorded for the session; a session recorded earlier may still hold a short name (e.g. `origin/main`). Without
-	 * a recorded base, the default branch's remote-tracking branch when it exists, else the default branch.
-	 * {@link baseBranchName} is the branch it names, without its remote. As the fallback for a session that recorded no
-	 * base, only a full ref is trusted; a short name saved by an older build is ignored and the base derived again.
+	 * Full ref of the base branch Branch Changes compares against and describes (`refs/heads/...` or
+	 * `refs/remotes/...`, e.g. `refs/remotes/origin/main`): the base recorded for the session, a short name recorded
+	 * earlier as the ref it resolves to; without a recorded base, the default branch's remote-tracking branch when it
+	 * exists, else the default branch. {@link baseBranchName} is the branch it names, without its remote. Git state
+	 * saved by older builds kept a short name under `baseBranchFullName`, which is no longer read.
 	 */
 	readonly baseBranchRef?: string;
 	/** Upstream tracking branch (e.g. `origin/feature`). */

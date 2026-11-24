@@ -35,7 +35,7 @@ import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import type { ISessionDataService } from '../../common/sessionDataService.js';
 import { ChangesetOperationTargetKind } from '../../common/state/protocol/channels-changeset/commands.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { SESSION_META_GITHUB_DATA_KEY, SESSION_META_GITHUB_KEY, SessionSourceControlOutcome, SessionStatus, buildChatUri, buildDefaultChatUri, getAllSessionRelatedPullRequestUrls, getSessionRelatedPullRequestUrls, readFolderScopeGitState, readSessionGitHubData, readSessionGitHubState, readSessionGitHubStateInput, readSessionGitState, readSessionSourceControlState, withFolderScopeGitState, withInitialSessionPullRequest, withMigratedSessionGitHubState, withMostRecentRelatedSessionPullRequest, withMostRecentSessionPullRequest, withReplacedFolderGitHubState, withSessionGitHubState, withSessionGitState, type ISessionGitHubState, type ISessionGitState } from '../../common/state/sessionState.js';
+import { SESSION_META_GIT_KEY, SESSION_META_GITHUB_DATA_KEY, SESSION_META_GITHUB_KEY, SessionSourceControlOutcome, SessionStatus, buildChatUri, buildDefaultChatUri, getAllSessionRelatedPullRequestUrls, getSessionRelatedPullRequestUrls, readFolderScopeGitState, readSessionGitHubData, readSessionGitHubState, readSessionGitHubStateInput, readSessionGitState, readSessionSourceControlState, withFolderScopeGitState, withInitialSessionPullRequest, withMigratedSessionGitHubState, withMostRecentRelatedSessionPullRequest, withMostRecentSessionPullRequest, withReplacedFolderGitHubState, withSessionGitHubState, withSessionGitState, type ISessionGitHubState, type ISessionGitState, type SessionMeta } from '../../common/state/sessionState.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostAuthenticationScope } from '../../node/agentHostAuthenticationScope.js';
 import { AgentHostAuthenticationService, type IAgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
@@ -1647,16 +1647,17 @@ suite('AgentHostGitStateService', () => {
 		}));
 	}
 
-	test('existing folder sessions without a persisted base trust only a full ref from their Git state', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-		const gitStates: Record<string, ISessionGitState> = {
-			fullRef: { branchName: 'feature', baseBranchName: 'main', baseBranchRef: 'refs/remotes/origin/main' },
-			shortName: { branchName: 'feature', baseBranchName: 'main', baseBranchRef: 'main' },
-			branchNameOnly: { branchName: 'feature', baseBranchName: 'main' },
+	test('existing folder sessions without a persisted base fall back to the base branch ref of their Git state, which Git state saved by 1.148 lacks', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const savedMeta: Record<string, SessionMeta | undefined> = {
+			baseBranchRef: withSessionGitState(undefined, { branchName: 'feature', baseBranchName: 'main', baseBranchRef: 'refs/remotes/origin/main' }),
+			// 1.148 saved a short name under a key that is no longer read.
+			savedBy1148: { [SESSION_META_GIT_KEY]: { branchName: 'feature', baseBranchName: 'main', baseBranchFullName: 'main' } },
 		};
 		const refreshed: Record<string, { baseBranches: Array<string | undefined>; persisted: string | undefined }> = {};
-		for (const [kind, gitState] of Object.entries(gitStates)) {
+		for (const [kind, meta] of Object.entries(savedMeta)) {
 			const h = createHarness();
-			seedSession(h.stateManager, { workingDirectory: WORKING_DIRECTORY, isolation: 'folder', gitState });
+			seedSession(h.stateManager, { workingDirectory: WORKING_DIRECTORY, isolation: 'folder' });
+			h.stateManager.setSessionMeta(SESSION, meta);
 			h.setGitResult({ branchName: 'feature', baseBranchName: 'main', baseBranchRef: 'refs/remotes/origin/main' });
 
 			await h.service.refreshSessionGitState(SESSION, undefined);
@@ -1665,9 +1666,8 @@ suite('AgentHostGitStateService', () => {
 		}
 
 		assert.deepStrictEqual(refreshed, {
-			fullRef: { baseBranches: ['refs/remotes/origin/main'], persisted: undefined },
-			shortName: { baseBranches: [undefined], persisted: undefined },
-			branchNameOnly: { baseBranches: [undefined], persisted: undefined },
+			baseBranchRef: { baseBranches: ['refs/remotes/origin/main'], persisted: undefined },
+			savedBy1148: { baseBranches: [undefined], persisted: undefined },
 		});
 	}));
 
