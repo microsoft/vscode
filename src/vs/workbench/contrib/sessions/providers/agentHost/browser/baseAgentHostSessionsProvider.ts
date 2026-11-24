@@ -9421,6 +9421,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			agentIdSilent: contribution?.type,
 			attachedContext,
 			hideFromTranscript: options.hideFromTranscript,
+			queue: options.queue,
 			agentHostMessageOrigin: readAgentMessageDelegationMeta({ _meta: options.metadata }) ? { kind: MessageKind.Agent } : undefined,
 			onDidCreateResponse: options.onDidCreateResponse,
 			metadata: options.metadata,

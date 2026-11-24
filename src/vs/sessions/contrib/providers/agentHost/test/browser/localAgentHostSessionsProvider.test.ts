@@ -71,7 +71,7 @@ import { VisibleSessions } from '../../../../../../workbench/services/sessions/b
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService, ResourceTrustRequestOptions } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { IChatWidget, IChatWidgetService } from '../../../../../../workbench/contrib/chat/browser/chat.js';
 import { buildLocalSessionStateUri } from '../../../../../../workbench/contrib/chat/browser/copilotCliEventsUri.js';
-import { IChatService, type ChatSendResult, type IChatModelReference, type IChatSendRequestData, type IChatSendRequestOptions } from '../../../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { ChatRequestQueueKind, IChatService, type ChatSendResult, type IChatModelReference, type IChatSendRequestData, type IChatSendRequestOptions } from '../../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatSessionsService } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IChatWidgetHistoryService } from '../../../../../../workbench/contrib/chat/common/widget/chatWidgetHistoryService.js';
 import { CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
@@ -4770,6 +4770,32 @@ suite('LocalAgentHostSessionsProvider', () => {
 			{ model: pinnedId, configuration: { reasoningEffort: 'low' } },
 			{ model: pinnedId, configuration: { reasoningEffort: 'medium' } },
 		]);
+	});
+
+	test('a follow-up request is queued behind the request in progress when asked', async () => {
+		const sent: (ChatRequestQueueKind | undefined)[] = [];
+		const provider = createProvider(disposables, agentHost, undefined, {
+			openSession: true,
+			acquireOrLoadSession: async () => new ImmortalReference(new class extends mock<IChatModel>() {
+				override readonly inputModel = new class extends mock<IInputModel>() {
+					override readonly state = constObservable<IChatModelInputState | undefined>(undefined);
+					override setState(): void { }
+					override clearState(): void { }
+				}();
+			}()),
+			sendRequest: async (resource, _message, options) => {
+				sent.push(options?.queue);
+				if (sent.length === 1) {
+					agentHost.addSession(createSession(AgentSession.id(resource), { summary: 'Queued Session' }));
+				}
+				return { kind: 'queued' as const, deferred: new Promise<ChatSendResult>(() => { }) };
+			},
+		});
+		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+		const chat = await provider.createNewChat(session.sessionId);
+		const committed = await provider.sendRequest(session.sessionId, chat.resource, { query: 'first' });
+		await provider.sendRequest(committed.sessionId, committed.resource, { query: 'second', queue: ChatRequestQueueKind.Queued });
+		assert.deepStrictEqual(sent, [undefined, ChatRequestQueueKind.Queued]);
 	});
 
 	test('setAgent with undefined clears the cached agent selection', () => {
