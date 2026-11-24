@@ -152,6 +152,23 @@ suite('ScmMultiDiffSourceResolver', () => {
 
 		assert.deepStrictEqual({ resolvedDuringProgress, resources: source.resources.value.length }, { resolvedDuringProgress: false, resources: 0 });
 	});
+
+	test('stops waiting for SCM progress when resources are added to an empty group', async () => {
+		const fixture = createProgressFixture([]);
+
+		await timeout(0);
+		const resolvedBeforeResources = fixture.isResolved();
+		fixture.addResource(createResource('/repository/app.js'));
+		const source = await fixture.sourcePromise;
+
+		assert.deepStrictEqual({
+			resolvedBeforeResources,
+			resources: source.resources.value.map(resource => resource.goToFileUri?.path),
+		}, {
+			resolvedBeforeResources: false,
+			resources: ['/repository/app.js'],
+		});
+	});
 });
 
 suite('ScmHistoryItemResolver', () => {
