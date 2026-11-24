@@ -33,6 +33,7 @@ import { withMcpServerSourceMeta, withMcpServerSourcePluginMeta } from '../../co
 import { AgentHostHooksEnabledConfigKey, AgentHostWorkspaceTrustConfigKey, platformRootSchema } from '../../common/agentHostSchema.js';
 import { isAgentHostWorkspaceTrusted } from '../../common/agentHostWorkspaceTrust.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
+import { ICopilotHomeService } from '../../../environment/common/copilotHome.js';
 import { Promises } from '../../../../base/node/pfs.js';
 
 type AgentsDiscoverRequest = Parameters<CopilotClient['rpc']['agents']['discover']>[0];
@@ -111,22 +112,21 @@ interface IFixedDiscoveryFile {
 
 type PathToUri = (path: string) => URI;
 
+/** `workspace` roots are relative to each working directory; `user` roots are relative to the Copilot home (`COPILOT_HOME`, or `~/.copilot`). */
 const searchRoots: { workspace: ISearchRoot[]; user: ISearchRoot[] } = {
 	workspace: [
 		{ path: ['.github', 'hooks'], recursive: true, type: DiscoveredType.Hook, name: '.github' },
 	],
 	user: [
-		{ path: ['.copilot', 'hooks'], recursive: true, type: DiscoveredType.Hook, name: '~/.copilot' },
+		{ path: ['hooks'], recursive: true, type: DiscoveredType.Hook, name: '~/.copilot' },
 	],
 };
 
-const fixedDiscoveryFiles: { workspace: IFixedDiscoveryFile[]; user: IFixedDiscoveryFile[] } = {
-	workspace: [
-		{ path: ['.github', 'copilot'], filenames: ['settings.json', 'settings.local.json'], type: DiscoveredType.Hook },
-		{ path: ['.claude'], filenames: ['settings.json', 'settings.local.json'], type: DiscoveredType.Hook },
-	],
-	user: [],
-};
+/** Files relative to each working directory. */
+const workspaceFixedDiscoveryFiles: IFixedDiscoveryFile[] = [
+	{ path: ['.github', 'copilot'], filenames: ['settings.json', 'settings.local.json'], type: DiscoveredType.Hook },
+	{ path: ['.claude'], filenames: ['settings.json', 'settings.local.json'], type: DiscoveredType.Hook },
+];
 
 interface IDiscoveredRuntimeHooks {
 	/** The hooks the runtime loaded, or a failed discovery with no hooks. */
@@ -202,8 +202,8 @@ function isTriggered(e: FileChangesEvent, resource: URI, trigger: WatchTrigger):
 /**
  * Discovers customization files (agents, skills, instructions, and hooks)
  * under well-known directories of the session's working directories and the
- * user's home, and emits {@link onDidChange} when any of those directories
- * change on disk.
+ * user's home, and emits {@link onDidChange} when watched directories or
+ * files (including Copilot home settings) change on disk.
  *
  *
  * Workspace roots take precedence over user-home roots when the same URI is
@@ -233,6 +233,7 @@ export class SessionCustomizationDiscovery extends Disposable {
 		@IFileService private readonly _fileService: IFileService,
 		@ILogService private readonly _logService: ILogService,
 		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
+		@ICopilotHomeService private readonly _copilotHomeService: ICopilotHomeService,
 	) {
 		super();
 		this._register({ dispose: () => this._disposeAllWatchers() });
@@ -455,19 +456,14 @@ export class SessionCustomizationDiscovery extends Disposable {
 		}
 		for (const root of searchRoots.user) {
 			if (root.type === DiscoveredType.Hook) {
-				add(joinPath(this._userHome, ...root.path), root.name);
+				add(joinPath(this._copilotHomeService.home, ...root.path), root.name);
 			}
 		}
-		for (const root of fixedDiscoveryFiles.workspace) {
+		for (const root of workspaceFixedDiscoveryFiles) {
 			if (root.type === DiscoveredType.Hook) {
 				for (const workingDirectory of this._hookWorkingDirectories) {
 					add(joinPath(workingDirectory, ...root.path), basename(joinPath(workingDirectory, ...root.path).path));
 				}
-			}
-		}
-		for (const root of fixedDiscoveryFiles.user) {
-			if (root.type === DiscoveredType.Hook) {
-				add(joinPath(this._userHome, ...root.path), basename(joinPath(this._userHome, ...root.path).path));
 			}
 		}
 		return [...byUri.values()];
@@ -477,6 +473,8 @@ export class SessionCustomizationDiscovery extends Disposable {
 		const nextWatchRootUris = new ResourceMap<IWatchSpec>();
 		const toResolve = new ResourceSet();
 		const recursiveByDirectory = new ResourceMap<boolean>();
+		// User hook settings are a watch target, not a directory for creating hooks.
+		const filesToWatch = [joinPath(this._copilotHomeService.home, 'settings.json')];
 
 		for (const discoveredDir of discoveredDirectories) {
 			throwIfCancelled(token);
@@ -499,17 +497,21 @@ export class SessionCustomizationDiscovery extends Disposable {
 			}
 
 			for (const file of discoveredDir.files) {
-				throwIfCancelled(token);
+				filesToWatch.push(file.uri);
+			}
+		}
 
-				let currentFilePath = file.uri;
-				while (!this._isDiscoveryBoundary(currentFilePath)) {
-					const parent = uriDirname(currentFilePath);
-					if (extUriBiasedIgnorePathCase.isEqual(parent, currentFilePath)) {
-						break;
-					}
-					toResolve.add(parent);
-					currentFilePath = parent;
+		for (const file of filesToWatch) {
+			throwIfCancelled(token);
+
+			let current = file;
+			while (!this._isDiscoveryBoundary(current)) {
+				const parent = uriDirname(current);
+				if (extUriBiasedIgnorePathCase.isEqual(parent, current)) {
+					break;
 				}
+				toResolve.add(parent);
+				current = parent;
 			}
 		}
 
@@ -547,21 +549,21 @@ export class SessionCustomizationDiscovery extends Disposable {
 				}
 				current = parent;
 			}
+		}
 
-			for (const file of discoveredDir.files) {
-				throwIfCancelled(token);
+		for (const file of filesToWatch) {
+			throwIfCancelled(token);
 
-				let currentFilePath = file.uri;
-				while (!this._isDiscoveryBoundary(currentFilePath)) {
-					const parent = uriDirname(currentFilePath);
-					if (extUriBiasedIgnorePathCase.isEqual(parent, currentFilePath)) {
-						break;
-					}
-					if (existingDirectories.has(parent)) {
-						addWatch(nextWatchRootUris, parent, false, currentFilePath, currentFilePath === file.uri ? WatchTrigger.Resource : WatchTrigger.Existence);
-					}
-					currentFilePath = parent;
+			let current = file;
+			while (!this._isDiscoveryBoundary(current)) {
+				const parent = uriDirname(current);
+				if (extUriBiasedIgnorePathCase.isEqual(parent, current)) {
+					break;
 				}
+				if (existingDirectories.has(parent)) {
+					addWatch(nextWatchRootUris, parent, false, current, current === file ? WatchTrigger.Resource : WatchTrigger.Existence);
+				}
+				current = parent;
 			}
 		}
 
@@ -1221,14 +1223,9 @@ export class SessionCustomizationDiscovery extends Disposable {
 		}
 
 		const fixedHookDirectoryUris = type === CustomizationType.Hook
-			? new ResourceSet([
-				...this._hookWorkingDirectories.flatMap(workingDirectory => fixedDiscoveryFiles.workspace
-					.filter(root => root.type === DiscoveredType.Hook)
-					.map(root => joinPath(workingDirectory, ...root.path))),
-				...fixedDiscoveryFiles.user
-					.filter(root => root.type === DiscoveredType.Hook)
-					.map(root => joinPath(this._userHome, ...root.path)),
-			])
+			? new ResourceSet(this._hookWorkingDirectories.flatMap(workingDirectory => workspaceFixedDiscoveryFiles
+				.filter(root => root.type === DiscoveredType.Hook)
+				.map(root => joinPath(workingDirectory, ...root.path))))
 			: undefined;
 
 		const agentInstructionDirectoryUris = new ResourceSet(

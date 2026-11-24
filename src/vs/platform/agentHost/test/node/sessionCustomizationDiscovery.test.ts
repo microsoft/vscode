@@ -30,6 +30,8 @@ import { SessionCustomizationDiscovery, type SessionDiscoveredCustomization } fr
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentHostHooksEnabledConfigKey, AgentHostWorkspaceTrustConfigKey, type IAgentHostWorkspaceTrust } from '../../common/agentHostSchema.js';
+import { ICopilotHomeService } from '../../../environment/common/copilotHome.js';
+import { TestCopilotHomeService } from '../../../environment/test/common/testCopilotHomeService.js';
 
 type AgentsDiscoverRequest = Parameters<CopilotClient['rpc']['agents']['discover']>[0];
 
@@ -54,6 +56,7 @@ suite('SessionCustomizationDiscovery', () => {
 
 		workspace = URI.from({ scheme: Schemas.inMemory, path: '/workspace' });
 		userHome = URI.from({ scheme: Schemas.inMemory, path: '/home' });
+		instantiationService.stub(ICopilotHomeService, new TestCopilotHomeService(userHome));
 	});
 
 
@@ -390,6 +393,64 @@ suite('SessionCustomizationDiscovery', () => {
 			{ uri: '/home/.copilot/hooks', children: [] },
 			{ uri: '/workspace/.github/hooks', children: [] },
 		]);
+	});
+
+	test('resolves the user hook directory under COPILOT_HOME and watches it', async () => {
+		instantiationService.stub(ICopilotHomeService, new TestCopilotHomeService(userHome, inMemoryPathToUri('/custom-copilot')));
+		await fileService.createFolder(inMemoryPathToUri('/custom-copilot/hooks'));
+		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [workspace], userHome, inMemoryPathToUri));
+		const hookDirectories = (await discovery.discover(hookDiscoveryClient(async () => ({ hooks: [], warnings: [], errors: [] })), CancellationToken.None))
+			.filter(customization => customization.contents === 'hook')
+			.map(customization => URI.parse(customization.uri).path)
+			.sort();
+		await timeout(50);
+
+		let changed = false;
+		disposables.add(discovery.onDidChange(() => changed = true));
+		await seed('/custom-copilot/hooks/new.json', '{}');
+		await timeout(50);
+
+		assert.deepStrictEqual({ hookDirectories, changed }, {
+			hookDirectories: ['/custom-copilot/hooks', '/workspace/.github/hooks'],
+			changed: true,
+		});
+	});
+
+	test('watches COPILOT_HOME settings for hook changes without offering the home as a hook directory', async () => {
+		const copilotHome = inMemoryPathToUri('/custom-copilot');
+		instantiationService.stub(ICopilotHomeService, new TestCopilotHomeService(userHome, copilotHome));
+		await fileService.createFolder(copilotHome);
+		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [workspace], userHome, inMemoryPathToUri));
+		const client = hookDiscoveryClient(async () => ({ hooks: [], warnings: [], errors: [] }));
+		await discovery.discover(client, CancellationToken.None);
+		await timeout(50);
+
+		let changed = false;
+		disposables.add(discovery.onDidChange(() => changed = true));
+		const triggersRefresh = async (action: () => Promise<unknown>) => {
+			changed = false;
+			await action();
+			await timeout(50);
+			return changed;
+		};
+
+		const settingsPath = '/custom-copilot/settings.json';
+		const unrelated = await triggersRefresh(() => seed('/custom-copilot/state.json', '{}'));
+		const created = await triggersRefresh(() => seed(settingsPath, '{}'));
+		const updated = await triggersRefresh(() => seed(settingsPath, '{"disableAllHooks": true}'));
+		const hookDirectories = (await discovery.discover(client, CancellationToken.None))
+			.filter(customization => customization.contents === 'hook')
+			.map(customization => URI.parse(customization.uri).path)
+			.sort();
+		const deleted = await triggersRefresh(() => fileService.del(inMemoryPathToUri(settingsPath)));
+
+		assert.deepStrictEqual({ unrelated, created, updated, deleted, hookDirectories }, {
+			unrelated: false,
+			created: true,
+			updated: true,
+			deleted: true,
+			hookDirectories: ['/custom-copilot/hooks', '/workspace/.github/hooks'],
+		});
 	});
 
 	for (const nativeRepositoryHook of [false, true]) {
