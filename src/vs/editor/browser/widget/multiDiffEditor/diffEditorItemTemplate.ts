@@ -440,6 +440,8 @@ export class DiffEditorItemTemplate extends VirtualizedItemTemplate<DocumentDiff
 				this._dataStore.clear();
 				this._viewModel.set(item, tx);
 				this.editor.updateOptions(updateOptions(value.options ?? {}));
+				// The template is recycled across items, so restore the split this item had.
+				this.editor.setSplitViewRatio(item.lastTemplateData.get().splitViewRatio, tx);
 				this.editor.setDiffModel(item.diffEditorViewModelRef, tx);
 			});
 		} finally {
