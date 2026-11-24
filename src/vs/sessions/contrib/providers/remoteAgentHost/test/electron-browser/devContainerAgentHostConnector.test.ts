@@ -510,7 +510,7 @@ suite('Dev Container Agent Host Connector', () => {
 				}(),
 			));
 			await assert.rejects(connector.createConnection(URI.file('/project'), 'devcontainer:project', CancellationToken.None), /Lifecycle failed/);
-			const unset = { reason: undefined, step: undefined, target: undefined, skipReasons: undefined, exitCode: undefined, restoredFolders: undefined, movedFolders: undefined, createdFolders: undefined, existingFolders: undefined, skippedFolders: undefined, scriptUser: undefined, capChown: undefined, capDacOverride: undefined, capDacReadSearch: undefined, capFowner: undefined, stateOwner: undefined, capDropChown: undefined, privileged: undefined, usernsMode: undefined, readonlyRootfs: undefined, runtime: undefined, errorMessage: undefined, enabled: true, sample: false, remote: false };
+			const unset = { reason: undefined, step: undefined, target: undefined, skipReasons: undefined, exitCode: undefined, restoredFolders: undefined, movedFolders: undefined, createdFolders: undefined, existingFolders: undefined, skippedFolders: undefined, scriptUser: undefined, capChown: undefined, capDacOverride: undefined, capDacReadSearch: undefined, capFowner: undefined, stateOwner: undefined, volumeOwner: undefined, capDropChown: undefined, privileged: undefined, usernsMode: undefined, readonlyRootfs: undefined, runtime: undefined, errorMessage: undefined, enabled: true, sample: false, remote: false };
 			assert.deepStrictEqual({ persistUserState: configs.map(config => config.persistUserState), events }, {
 				persistUserState: [true],
 				events: [

@@ -744,6 +744,7 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 			...(progress.scriptUser ? { scriptUser: progress.scriptUser } : {}),
 			...(progress.capChown !== undefined ? { capChown: progress.capChown, capDacOverride: progress.capDacOverride, capDacReadSearch: progress.capDacReadSearch, capFowner: progress.capFowner } : {}),
 			...(progress.stateOwner ? { stateOwner: progress.stateOwner } : {}),
+			...(progress.volumeOwner ? { volumeOwner: progress.volumeOwner } : {}),
 		};
 		try {
 			const mount = findDevContainerStateMount(await this._getContainerMounts(connectionId, containerId, token));

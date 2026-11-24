@@ -1281,6 +1281,7 @@ suite('Dev Container Agent Host Main Service', () => {
 			{ name: 'missingCapabilities', setup: service => { service.containerMounts = [...service.containerMounts, stateMount]; service.linkStateResult = { stdout: 'vscode-state:step:capabilities\nvscode-state:uid:root\nvscode-state:capEff:00000000a80425fa\nvscode-state:missing:CAP_CHOWN\nvscode-state:skipped:missingCapabilities\n', code: 0 }; } },
 			{ name: 'homeCapabilities', setup: service => { service.containerMounts = [...service.containerMounts, stateMount]; service.linkStateResult = { stdout: 'vscode-state:step:capabilities\nvscode-state:uid:root\nvscode-state:capEff:00000000a80425f9\nvscode-state:step:home\nvscode-state:missing:CAP_DAC_OVERRIDE\nvscode-state:missing:CAP_DAC_READ_SEARCH\nvscode-state:skipped:missingCapabilities\n', code: 0 }; } },
 			{ name: 'readOnlyRootfs', setup: service => { service.containerMounts = [...service.containerMounts, stateMount]; service.linkStateResult = { stdout: 'vscode-state:step:rootfs\nvscode-state:skipped:readOnlyRootfs\n', code: 0 }; } },
+			{ name: 'untrustedState', setup: service => { service.containerMounts = [...service.containerMounts, stateMount]; service.linkStateResult = { stdout: 'vscode-state:step:stateFolder\nvscode-state:stateOwner:root\nvscode-state:volumeOwner:other\nvscode-state:skipped:untrustedState\n', code: 0 }; } },
 			{ name: 'userCommands', setup: service => { service.containerMounts = [...service.containerMounts, stateMount]; service.userCommandsExitCode = 1; } },
 		];
 		const results: Record<string, { connected: boolean; reports: Omit<IDevContainerAgentHostUserStateReport, 'connectionId'>[] }> = {};
@@ -1308,6 +1309,7 @@ suite('Dev Container Agent Host Main Service', () => {
 			missingCapabilities: { connected: true, reports: [added, up, { stage: 'link', outcome: 'missingCapabilities', step: 'capabilities', target: 'workspaces', ...progress, scriptUser: 'root', capChown: false, capDacOverride: true, capDacReadSearch: false, capFowner: true }, succeeded] },
 			homeCapabilities: { connected: true, reports: [added, up, { stage: 'link', outcome: 'missingCapabilities', step: 'home', target: 'workspaces', ...progress, scriptUser: 'root', capChown: true, capDacOverride: false, capDacReadSearch: false, capFowner: true }, succeeded] },
 			readOnlyRootfs: { connected: true, reports: [added, up, { stage: 'link', outcome: 'readOnlyRootfs', step: 'rootfs', target: 'workspaces', ...progress }, succeeded] },
+			untrustedState: { connected: true, reports: [added, up, { stage: 'link', outcome: 'untrustedState', step: 'stateFolder', target: 'workspaces', ...progress, stateOwner: 'root', volumeOwner: 'other' }, succeeded] },
 			userCommands: { connected: false, reports: [added, up, { stage: 'link', outcome: 'linked', target: 'workspaces', ...progress }, { stage: 'userCommands', outcome: 'failed', reason: 'exitCode', exitCode: 1, errorMessage: 'postCreateCommand from devcontainer.json failed with exit code 1.\nnpm ERR! Your cache folder contains root-owned files: ~/.npm, run: sudo chown -R <user> ~/.npm' }] },
 		});
 	});
