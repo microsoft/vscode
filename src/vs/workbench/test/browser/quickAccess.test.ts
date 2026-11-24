@@ -10,7 +10,7 @@ import { IQuickPick, IQuickPickItem, IQuickInputService, IKeyMods, IQuickPickDid
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { TestServiceAccessor, workbenchInstantiationService, createEditorPart } from './workbenchTestServices.js';
 import { DisposableStore, toDisposable, IDisposable } from '../../../base/common/lifecycle.js';
-import { timeout } from '../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../base/common/async.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { PickerQuickAccessProvider, FastAndSlowPicks, IPickerQuickAccessItem } from '../../../platform/quickinput/browser/pickerQuickAccess.js';
 import { URI } from '../../../base/common/uri.js';
@@ -518,6 +518,54 @@ suite('QuickAccess', () => {
 		onDidChangePicks.fire();
 
 		assert.deepStrictEqual({ active: picker.activeItems.map(item => item.label), refreshed: picker.activeItems[0] !== before }, { active: ['Two'], refreshed: true });
+
+		picker.hide();
+		localDisposables.dispose();
+		restore();
+	});
+
+	test('quick pick access - keeps the active pick from the slow picks when the picks change while the picker is open', async () => {
+		const registry = (Registry.as<IQuickAccessRegistry>(Extensions.Quickaccess));
+		const restore = (registry as QuickAccessRegistry).clear();
+		const localDisposables = new DisposableStore();
+		const onDidChangePicks = localDisposables.add(new Emitter<void>());
+		let slowPicks = new DeferredPromise<IQuickPickItem[]>();
+
+		class ChangingFastAndSlowTestQuickPickProvider extends PickerQuickAccessProvider<IQuickPickItem> {
+
+			constructor() {
+				super('changingFastAndSlow');
+			}
+
+			protected override get onDidChangePicks(): Event<void> {
+				return onDidChangePicks.event;
+			}
+
+			protected override getPickIdentity(pick: IQuickPickItem): string {
+				return pick.label;
+			}
+
+			protected _getPicks(): FastAndSlowPicks<IQuickPickItem> {
+				return { picks: [{ label: 'One' }], additionalPicks: slowPicks.p, mergeDelay: 1 };
+			}
+		}
+
+		localDisposables.add(registry.registerQuickAccessProvider({ ctor: ChangingFastAndSlowTestQuickPickProvider, prefix: 'changingFastAndSlow', helpEntries: [] }));
+
+		accessor.quickInputService.quickAccess.show('changingFastAndSlow');
+		const picker = accessor.quickInputService.currentQuickInput as IQuickPick<IQuickPickItem>;
+		await slowPicks.complete([{ label: 'Two' }]);
+		await timeout(2);
+		picker.activeItems = [picker.items[1] as IQuickPickItem];
+
+		slowPicks = new DeferredPromise<IQuickPickItem[]>();
+		onDidChangePicks.fire();
+		await timeout(2);
+		const activeWithFastPicks = picker.activeItems.map(item => item.label);
+		await slowPicks.complete([{ label: 'Two' }]);
+		await timeout(0);
+
+		assert.deepStrictEqual({ activeWithFastPicks, active: picker.activeItems.map(item => item.label) }, { activeWithFastPicks: ['One'], active: ['Two'] });
 
 		picker.hide();
 		localDisposables.dispose();

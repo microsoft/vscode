@@ -177,6 +177,10 @@ export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem
 
 			const providedPicks = this._getPicks(picksFilter, picksDisposables, picksToken, runOptions);
 
+			const findPickByIdentity = (items: readonly Pick<T>[]): T | undefined => {
+				return activeIdentity !== undefined ? items.find((item): item is T => item.type !== 'separator' && this.getPickIdentity(item) === activeIdentity) : undefined;
+			};
+
 			const applyPicks = (picks: Picks<T>, skipEmpty?: boolean): boolean => {
 				let items: readonly Pick<T>[];
 				let activeItem: T | undefined = undefined;
@@ -204,9 +208,7 @@ export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem
 				}
 
 				picker.items = items;
-				if (!activeItem && activeIdentity !== undefined) {
-					activeItem = items.find((item): item is T => item.type !== 'separator' && this.getPickIdentity(item) === activeIdentity);
-				}
+				activeItem ??= findPickByIdentity(items);
 				if (activeItem) {
 					picker.activeItems = [activeItem];
 				}
@@ -217,6 +219,7 @@ export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem
 			const applyFastAndSlowPicks = async (fastAndSlowPicks: FastAndSlowPicks<T>): Promise<void> => {
 				let fastPicksApplied = false;
 				let slowPicksApplied = false;
+				let activeAfterFastPicks: T | undefined = undefined;
 
 				await Promise.all([
 
@@ -236,6 +239,7 @@ export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem
 
 						if (!slowPicksApplied) {
 							fastPicksApplied = applyPicks(fastAndSlowPicks.picks, true /* skip over empty to reduce flicker */);
+							activeAfterFastPicks = picker.activeItems[0];
 						}
 					})(),
 
@@ -284,9 +288,14 @@ export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem
 									}
 								}
 
+								// On a refresh, the pick that was active before wins over the
+								// fallback, unless the user moved since the fast picks were applied
+								const items = [...picks, ...additionalPicks];
+								const identityActivePick = fallbackActivePick === activeAfterFastPicks ? findPickByIdentity(items) : undefined;
+
 								applyPicks({
-									items: [...picks, ...additionalPicks],
-									active: activePick || additionalActivePick || fallbackActivePick
+									items,
+									active: activePick || additionalActivePick || identityActivePick || fallbackActivePick
 								});
 							}
 						} finally {
