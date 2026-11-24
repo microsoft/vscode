@@ -2910,7 +2910,8 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		// unread. Processed after the loop so `setRead` does not re-enter mid-iteration.
 		const sessionsToMarkUnread: IAgentSession[] = [];
 
-		for (const session of this.agentSessionsService.model.sessions) {
+		const model = this.agentSessionsService.model;
+		for (const session of model.sessionsIncludingAutomationRuns ?? model.sessions) {
 			// Only Copilot Cloud sessions surface in the Agents window through this provider.
 			if (session.providerType !== AgentSessionProviders.Cloud) {
 				continue;
