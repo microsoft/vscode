@@ -8,7 +8,7 @@ import { DeferredPromise } from '../../../../../base/common/async.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { constObservable, IReader, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, IReader, ISettableObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { IAgentHostTerminalCreateOptions, IAgentHostTerminalProfileInfo, IAgentHostTerminalService } from '../../../../../workbench/contrib/terminal/browser/agentHostTerminalService.js';
 import { ITerminalProfileService, TERMINAL_VIEW_ID, TerminalCommandId } from '../../../../../workbench/contrib/terminal/common/terminal.js';
 import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
@@ -32,6 +32,7 @@ import { IFileService } from '../../../../../platform/files/common/files.js';
 import { ContextKeyExpression, ContextKeyValue, IContext, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
+import { IPartVisibilityChangeEvent, IWorkbenchLayoutService, Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { ISessionsChangeEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ISessionsProvider } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
@@ -334,6 +335,7 @@ suite('SessionsTerminalContribution', () => {
 	let terminalViewVisible: boolean;
 	let terminalGroupCount: number;
 	let viewVisibilityEmitter: Emitter<{ id: string; visible: boolean }>;
+	let partVisibilityEmitter: Emitter<IPartVisibilityChangeEvent>;
 
 	setup(() => {
 		createdTerminals = [];
@@ -516,6 +518,10 @@ suite('SessionsTerminalContribution', () => {
 			override isViewVisible(id: string): boolean { return id === TERMINAL_VIEW_ID && terminalViewVisible; }
 			override onDidChangeViewVisibility = viewVisibilityEmitter.event;
 		});
+		partVisibilityEmitter = store.add(new Emitter<IPartVisibilityChangeEvent>());
+		instantiationService.stub(IWorkbenchLayoutService, new class extends mock<IWorkbenchLayoutService>() {
+			override onDidChangePartVisibility = partVisibilityEmitter.event;
+		});
 
 		contribution = store.add(instantiationService.createInstance(SessionsTerminalContribution));
 	});
@@ -569,6 +575,12 @@ suite('SessionsTerminalContribution', () => {
 		viewVisibilityEmitter.fire({ id: TERMINAL_VIEW_ID, visible: true });
 	}
 
+	/** Shows the panel over a terminal view that stayed visible while a custom view hid the panel. */
+	function showPanelOverVisibleTerminalView(): void {
+		terminalViewVisible = true;
+		partVisibilityEmitter.fire({ partId: Parts.PANEL_PART, visible: true });
+	}
+
 	/** A terminal the terminal view or the user creates in the panel. */
 	function createPanelTerminal(): TestTerminalInstance {
 		const instance = makeTerminalInstance(nextInstanceId++, HOME_DIR.fsPath);
@@ -590,8 +602,26 @@ suite('SessionsTerminalContribution', () => {
 		assert.deepStrictEqual({ operations: visibilityOperations, created: createdTerminals.length }, { operations: [], created: 1 });
 	});
 
-	for (const opensEmpty of [false, true]) {
-		test(`showing the terminal view ${opensEmpty ? 'empty' : 'with session terminals'} in a custom view gives it its own terminal and leaves the hidden session alone`, async () => {
+	test('the session panel showing again while a custom view closes leaves the session terminals alone', async () => {
+		activeSessionObs.set(makeAgentSession({ worktree: HOME_DIR, providerType: AgentSessionProviders.Background }), undefined);
+		await tick();
+		activeCustomViewObs.set(upcastPartial<ICustomViewDescriptor>({ id: 'automations' }), undefined);
+		await tick();
+		visibilityOperations.length = 0;
+
+		// The workbench restores the session's panel before this contribution's autorun sees the custom view close.
+		transaction(tx => {
+			activeCustomViewObs.set(undefined, tx);
+			partVisibilityEmitter.fire({ partId: Parts.PANEL_PART, visible: true });
+		});
+		await tick();
+
+		assert.deepStrictEqual({ operations: visibilityOperations, created: createdTerminals.length }, { operations: [], created: 1 });
+	});
+
+	for (const [opensEmpty, viewStayedVisible] of [[false, false], [true, false], [false, true]]) {
+		const shown = viewStayedVisible ? 'showing the panel over a terminal view that stayed visible' : `showing the terminal view ${opensEmpty ? 'empty' : 'with session terminals'}`;
+		test(`${shown} in a custom view gives it its own terminal and leaves the hidden session alone`, async () => {
 			terminalViewVisible = false;
 			activeSessionObs.set(makeAgentSession({ worktree: URI.file('/worktree'), providerType: AgentSessionProviders.Background }), undefined);
 			await tick();
@@ -602,7 +632,11 @@ suite('SessionsTerminalContribution', () => {
 			activeCustomViewObs.set(upcastPartial<ICustomViewDescriptor>({ id: 'automations' }), undefined);
 			await tick();
 
-			showTerminalView(opensEmpty);
+			if (viewStayedVisible) {
+				showPanelOverVisibleTerminalView();
+			} else {
+				showTerminalView(opensEmpty);
+			}
 			// The terminal view creates a terminal when it opens empty.
 			const viewTerminal = opensEmpty ? createPanelTerminal() : undefined;
 			await tick();

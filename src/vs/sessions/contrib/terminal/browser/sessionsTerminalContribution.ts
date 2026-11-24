@@ -23,6 +23,7 @@ import { TerminalCapability } from '../../../../platform/terminal/common/capabil
 import { TerminalLocation } from '../../../../platform/terminal/common/terminal.js';
 import { IPathService } from '../../../../workbench/services/path/common/pathService.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
+import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { isAgentHostProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { getMainWindowHost, ISessionHost, ISessionHostService } from '../../../../workbench/services/sessions/browser/sessionHost.js';
@@ -167,6 +168,7 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		@ICustomViewService private readonly _customViewService: ICustomViewService,
 		@IViewsService private readonly _viewsService: IViewsService,
 		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
+		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 	) {
 		super();
 		this._mainWindowHost = getMainWindowHost(sessionHostService);
@@ -280,13 +282,20 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 			// the session's terminal, so do not create a second one.
 			this._terminalViewOpenedEmpty = e.visible && this._terminalGroupService.groups.length === 0;
 			if (e.visible && this._activeCustomViewId) {
-				void this._isolateCustomViewTerminals(this._activeCustomViewId, this._terminalViewOpenedEmpty).catch(error => {
-					this._logService.error('[SessionsTerminal] Failed to show custom-view terminals', error);
-				});
+				this._showCustomViewTerminals(this._activeCustomViewId, this._terminalViewOpenedEmpty);
 				return;
 			}
 			if (e.visible && !this._terminalViewOpenedEmpty) {
 				this._onTerminalViewShown();
+			}
+		}));
+		// A custom view only hides the panel's grid node, so the terminal view can stay visible behind it, and showing the
+		// panel there again does not change the view's visibility.
+		this._register(layoutService.onDidChangePartVisibility(e => {
+			// The workbench can show the session's panel before this contribution learns that the custom view closed.
+			const customViewId = this._customViewService.activeCustomView.get()?.id;
+			if (e.partId === Parts.PANEL_PART && e.visible && customViewId && customViewId === this._activeCustomViewId && this._viewsService.isViewVisible(TERMINAL_VIEW_ID)) {
+				this._showCustomViewTerminals(customViewId, false);
 			}
 		}));
 		this._register(this._terminalService.onDidCreateInstance(instance => {
@@ -468,6 +477,12 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		this._activeKey = undefined;
 		this._activeAgentHostAddress = undefined;
 		this._activeSessionId = undefined;
+	}
+
+	private _showCustomViewTerminals(customViewId: string, viewOpenedEmpty: boolean): void {
+		void this._isolateCustomViewTerminals(customViewId, viewOpenedEmpty).catch(error => {
+			this._logService.error('[SessionsTerminal] Failed to show custom-view terminals', error);
+		});
 	}
 
 	/**
