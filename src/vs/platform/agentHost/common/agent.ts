@@ -1707,8 +1707,6 @@ export interface IAgentModelSourceDescription {
 	 * takes one. A client passes `resource.resource` back to `authenticate`.
 	 */
 	readonly credentialResource?: ProtectedResourceMetadata;
-	/** Every origin the credential is sent to, such as `https://api.example.com`. Present whenever `credentialResource` is. */
-	readonly credentialOrigins?: readonly string[];
 }
 
 // ---- Agent signals (sent via IAgent.onDidChatProgress) ----------------------

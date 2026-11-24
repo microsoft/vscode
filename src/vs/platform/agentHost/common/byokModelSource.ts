@@ -133,11 +133,6 @@ function canonicalJson(value: unknown): string {
 	return JSON.stringify(value);
 }
 
-/** Every origin a definition's API key is sent to, in model order. */
-export function getByokEndpointsCredentialOrigins(definition: IByokEndpointsDefinition): string[] {
-	return [...new Set(definition.models.map(model => new URL(model.endpoint.baseUrl).origin))];
-}
-
 /**
  * Validates a definition in {@link BYOK_ENDPOINTS_MODEL_SOURCE_FORMAT}. Throws,
  * with a message for the user, for anything the format doesn't define, since an

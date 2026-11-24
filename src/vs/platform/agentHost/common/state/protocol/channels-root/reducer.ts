@@ -90,7 +90,7 @@ export function rootReducer(state: RootState, action: RootAction, log?: (msg: st
 
 // ─── Model source registry helpers ───────────────────────────────────────────
 
-const HOST_REPORTED_FIELDS = ['state', 'credentialNonce', 'credentialResource', 'credentialOrigins', 'accountId'] as const;
+const HOST_REPORTED_FIELDS = ['state', 'credentialResource', 'accountId'] as const;
 
 type HostReportedFields = Partial<Pick<ModelSource, typeof HOST_REPORTED_FIELDS[number]>>;
 

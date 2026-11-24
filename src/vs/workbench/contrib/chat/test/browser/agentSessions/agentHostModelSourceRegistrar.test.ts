@@ -62,8 +62,8 @@ class FakeRootSubscription implements IAgentSubscription<RootState> {
 	}
 
 	/** Reports a source's status, as the host does. */
-	report(state: ModelSourceState, credentialNonce: string, options: { readonly id?: string; readonly resource?: string; readonly origins?: string[]; readonly accountId?: string } = {}): void {
-		this.apply({ type: ActionType.RootModelSourceStateChanged, id: options.id ?? SOURCE_ID, state, credentialNonce, credentialResource: { resource: options.resource ?? 'https://models.example.test/v1' }, credentialOrigins: options.origins ?? ['https://models.example.test'], ...(options.accountId ? { accountId: options.accountId } : {}) });
+	report(state: ModelSourceState, options: { readonly id?: string; readonly resource?: string; readonly accountId?: string } = {}): void {
+		this.apply({ type: ActionType.RootModelSourceStateChanged, id: options.id ?? SOURCE_ID, state, credentialResource: { resource: options.resource ?? 'https://models.example.test/v1' }, ...(options.accountId ? { accountId: options.accountId } : {}) });
 	}
 
 	dispose(): void {
@@ -75,7 +75,7 @@ class FakeRootSubscription implements IAgentSubscription<RootState> {
 /** An agent host connection that applies model source actions to its root state and records delivered keys. */
 class FakeConnection extends mock<IAgentConnection>() {
 	readonly actions: ClientModelSourceAction[] = [];
-	readonly keys: { readonly token: string; readonly nonce: string | undefined; readonly accountId: string | undefined }[] = [];
+	readonly keys: { readonly token: string; readonly accountId: string | undefined }[] = [];
 	override readonly clientId = 'window-1';
 
 	constructor(override readonly rootState: FakeRootSubscription, override readonly clientConnectionKind: AgentHostClientConnectionKind) {
@@ -93,13 +93,13 @@ class FakeConnection extends mock<IAgentConnection>() {
 	}
 
 	override async authenticate(params: AuthenticateParams): Promise<AuthenticateResult> {
-		this.keys.push({ token: params.token, nonce: params.target?.kind === 'modelSource' ? params.target.credentialNonce : undefined, accountId: params.accountId });
+		this.keys.push({ token: params.token, accountId: params.accountId });
 		return { authenticated: true };
 	}
 
 	/** The definitions this window registered. */
 	get definitions(): Record<string, unknown>[] {
-		return this.actions.flatMap(action => action.type === ActionType.RootModelSourceSet ? [action.definition] : []);
+		return this.actions.flatMap(action => action.type === ActionType.RootModelSourceSet ? [action.modelSource.definition] : []);
 	}
 }
 
@@ -160,7 +160,7 @@ suite('AgentHostModelSourceRegistrar', () => {
 	function createRegistrar(options: { readonly kind?: AgentHostClientConnectionKind; readonly formats?: readonly string[]; readonly models?: readonly { readonly id: string; readonly url: string }[]; readonly existing?: readonly ModelSource[] } = {}) {
 		const disposables = store.add(new DisposableStore());
 		const root = disposables.add(new FakeRootSubscription({
-			agents: [{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: { modelSourceRegistration: { formats: [...options.formats ?? [BYOK_ENDPOINTS_MODEL_SOURCE_FORMAT]] } } }],
+			agents: [{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: { modelSourceRegistration: { formats: (options.formats ?? [BYOK_ENDPOINTS_MODEL_SOURCE_FORMAT]).map(format => ({ format })) } } }],
 			activeSessions: 0,
 			modelSources: [...options.existing ?? []],
 		}));
@@ -217,8 +217,8 @@ suite('AgentHostModelSourceRegistrar', () => {
 
 	/** A source another window or device registered, with another definition. */
 	function otherCopy(modelSource: ModelSource): Extract<ClientModelSourceAction, { readonly type: ActionType.RootModelSourceSet }> {
-		const { state: _state, credentialNonce: _nonce, credentialResource: _resource, credentialOrigins: _origins, accountId: _account, ...rest } = modelSource;
-		return { type: ActionType.RootModelSourceSet, modelSource: { ...rest, nonce: 'other' }, definition: { models: [{ id: 'gpt-x', endpoint: { type: 'openai', wireApi: 'completions', baseUrl: 'https://elsewhere.example.test/v1' } }], requiresCredential: true } };
+		const { state: _state, credentialResource: _resource, accountId: _account, ...rest } = modelSource;
+		return { type: ActionType.RootModelSourceSet, modelSource: { ...rest, definition: { models: [{ id: 'gpt-x', endpoint: { type: 'openai', wireApi: 'completions', baseUrl: 'https://elsewhere.example.test/v1' } }], requiresCredential: true }, nonce: 'other' } };
 	}
 
 	test('registers each provider group with the local host, delivers its key, and removes it when turned off', async () => {
@@ -226,13 +226,13 @@ suite('AgentHostModelSourceRegistrar', () => {
 		await timeout(0);
 		const registered = modelSources()[0];
 
-		root.report({ kind: ModelSourceStatus.AuthRequired, reason: ModelSourceAuthRequiredReason.Required }, 'nonce-1');
+		root.report({ kind: ModelSourceStatus.AuthRequired, reason: ModelSourceAuthRequiredReason.Required });
 		await timeout(0);
 		const first = connection.keys[0]?.accountId;
-		root.report({ kind: ModelSourceStatus.Ready }, 'nonce-2', { accountId: first });
+		root.report({ kind: ModelSourceStatus.Ready }, { accountId: first });
 		const served = [...statusService.locallyServedModels];
 		// The endpoint refused the key: it is not sent again until the user replaces it.
-		root.report({ kind: ModelSourceStatus.AuthRequired, reason: ModelSourceAuthRequiredReason.Rejected }, 'nonce-3', { accountId: first });
+		root.report({ kind: ModelSourceStatus.AuthRequired, reason: ModelSourceAuthRequiredReason.Rejected }, { accountId: first });
 		await timeout(0);
 		const keysBeforeReplacement = connection.keys.length;
 		changeGroups(() => {
@@ -245,7 +245,6 @@ suite('AgentHostModelSourceRegistrar', () => {
 
 		assert.deepStrictEqual({
 			registered: { ...registered, nonce: registered.nonce.startsWith('sha1-') },
-			definition: connection.definitions[0],
 			served,
 			keysBeforeReplacement,
 			keys: connection.keys.map(key => ({ ...key, accountId: key.accountId === first ? 'first' : key.accountId ? 'replaced' : undefined })),
@@ -253,16 +252,17 @@ suite('AgentHostModelSourceRegistrar', () => {
 			remaining: modelSources(),
 			servedAfterRemoval: [...statusService.locallyServedModels],
 		}, {
-			// The definition travels on the action, and only its nonce is in state.
-			registered: { id: SOURCE_ID, provider: 'copilotcli', displayName: 'Example', format: BYOK_ENDPOINTS_MODEL_SOURCE_FORMAT, nonce: true, retention: ModelSourceRetentionPolicy.Host },
-			definition: {
-				models: [{ id: 'gpt-x', name: 'GPT-X', endpoint: { type: 'openai', wireApi: 'completions', baseUrl: 'https://models.example.test/v1' }, toolCalling: true, maxInputTokens: 100, maxOutputTokens: 20, maxContextWindowTokens: 120, aliases: ['customendpoint/Example/gpt-x'] }],
-				requiresCredential: true,
+			registered: {
+				id: SOURCE_ID, provider: 'copilotcli', displayName: 'Example', format: BYOK_ENDPOINTS_MODEL_SOURCE_FORMAT, nonce: true, retention: ModelSourceRetentionPolicy.Host,
+				definition: {
+					models: [{ id: 'gpt-x', name: 'GPT-X', endpoint: { type: 'openai', wireApi: 'completions', baseUrl: 'https://models.example.test/v1' }, toolCalling: true, maxInputTokens: 100, maxOutputTokens: 20, maxContextWindowTokens: 120, aliases: ['customendpoint/Example/gpt-x'] }],
+					requiresCredential: true,
+				},
 			},
 			// While the host serves it, the bridge doesn't list it.
 			served: ['customendpoint/Example/gpt-x'],
 			keysBeforeReplacement: 1,
-			keys: [{ token: 'key-1', nonce: 'nonce-1', accountId: 'first' }, { token: 'key-2', nonce: 'nonce-3', accountId: 'replaced' }],
+			keys: [{ token: 'key-1', accountId: 'first' }, { token: 'key-2', accountId: 'replaced' }],
 			actions: [ActionType.RootModelSourceSet, ActionType.RootModelSourceRemoved],
 			remaining: [],
 			servedAfterRemoval: [],
@@ -274,8 +274,8 @@ suite('AgentHostModelSourceRegistrar', () => {
 		await timeout(0);
 		const ours = probe.modelSources()[0];
 		const differing = otherCopy(ours);
-		const unchanged = createRegistrar({ existing: [{ ...ours, state: { kind: ModelSourceStatus.Ready }, credentialNonce: 'nonce-1', credentialResource: { resource: 'https://models.example.test/v1' }, credentialOrigins: ['https://models.example.test'], accountId: 'another-device-key' }] });
-		const different = createRegistrar({ existing: [{ ...differing.modelSource, state: { kind: ModelSourceStatus.AuthRequired, reason: ModelSourceAuthRequiredReason.Required }, credentialNonce: 'nonce-1', credentialResource: { resource: 'https://elsewhere.example.test/v1' }, credentialOrigins: ['https://elsewhere.example.test'] }] });
+		const unchanged = createRegistrar({ existing: [{ ...ours, state: { kind: ModelSourceStatus.Ready }, credentialResource: { resource: 'https://models.example.test/v1' }, accountId: 'another-device-key' }] });
+		const different = createRegistrar({ existing: [{ ...differing.modelSource, state: { kind: ModelSourceStatus.AuthRequired, reason: ModelSourceAuthRequiredReason.Required }, credentialResource: { resource: 'https://elsewhere.example.test/v1' } }] });
 		const unsupported = createRegistrar({ formats: ['example.test/other@1'] });
 		await timeout(0);
 
@@ -290,6 +290,19 @@ suite('AgentHostModelSourceRegistrar', () => {
 			different: { actions: 0, nonce: 'other', keys: 0 },
 			unsupported: 0,
 		});
+	});
+
+	test('never sends a key for a host definition that would send it elsewhere, whatever its nonce', async () => {
+		const { connection, root, modelSources } = createRegistrar();
+		await timeout(0);
+		// Another client registers a definition that sends the key elsewhere under this window's nonce, which a host that doesn't
+		// compare definitions accepts as a re-registration.
+		const ours = modelSources()[0];
+		root.apply({ type: ActionType.RootModelSourceSet, modelSource: { ...otherCopy(ours).modelSource, nonce: ours.nonce } });
+		root.report({ kind: ModelSourceStatus.AuthRequired, reason: ModelSourceAuthRequiredReason.Required });
+		await timeout(0);
+
+		assert.deepStrictEqual({ nonce: modelSources()[0].nonce === ours.nonce, keys: connection.keys.length }, { nonce: true, keys: 0 });
 	});
 
 	test('adds back a source another client removed only after reconnecting, and removes one the user deleted', async () => {
@@ -329,15 +342,15 @@ suite('AgentHostModelSourceRegistrar', () => {
 		const { connection, root, models } = createRegistrar();
 		await timeout(0);
 		models.keys.delete('customendpoint/Example');
-		root.report({ kind: ModelSourceStatus.AuthRequired, reason: ModelSourceAuthRequiredReason.Required }, 'nonce-1');
+		root.report({ kind: ModelSourceStatus.AuthRequired, reason: ModelSourceAuthRequiredReason.Required });
 		await timeout(0);
 		const keysWhileUnreadable = connection.keys.length;
 		models.keys.set('customendpoint/Example', 'key-1');
 		await timeout(5_000);
 
-		assert.deepStrictEqual({ keysWhileUnreadable, keys: connection.keys.map(key => ({ token: key.token, nonce: key.nonce })) }, {
+		assert.deepStrictEqual({ keysWhileUnreadable, keys: connection.keys.map(key => key.token) }, {
 			keysWhileUnreadable: 0,
-			keys: [{ token: 'key-1', nonce: 'nonce-1' }],
+			keys: ['key-1'],
 		});
 	}));
 

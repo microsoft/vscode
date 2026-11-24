@@ -33,8 +33,7 @@ suite('Copilot model sources', () => {
 			azure: { provider: { ...azure.runtimeProvider, name: undefined } },
 			gemini: { provider: { ...gemini.runtimeProvider, name: undefined }, model: { ...gemini.runtimeModel, provider: undefined } },
 		}, {
-			// Every destination of the key, which a client checks before it sends one.
-			description: { credentialResource: { resource: 'https://models.example.test/v1' }, credentialOrigins: ['https://models.example.test', 'https://anthropic.example.test', 'https://res.openai.azure.com', 'https://generativelanguage.googleapis.com'] },
+			description: { credentialResource: { resource: 'https://models.example.test/v1' } },
 			gpt: {
 				idIsSelectionId: true,
 				servable: true,

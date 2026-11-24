@@ -2778,7 +2778,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			capabilities: {
 				multipleChats: { fork: true, sideChat: true },
 				multipleWorkingDirectories: { immutablePrimary: true },
-				modelSourceRegistration: { formats: [...COPILOT_MODEL_SOURCE_FORMATS] },
+				modelSourceRegistration: { formats: COPILOT_MODEL_SOURCE_FORMATS.map(format => ({ format })) },
 			},
 		};
 	}

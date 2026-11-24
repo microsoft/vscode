@@ -92,7 +92,6 @@ import { AgentHostInputRequestTracker } from './agentHostInputRequestTracker.js'
 import { AgentHostLocalTurns } from './agentHostLocalTurns.js';
 import { IAgentHostSessionTitleController } from './agentHostSessionTitleController.js';
 import { AgentHostStateManager, resolveChatStateForUri } from './agentHostStateManager.js';
-import { MODEL_SOURCE_GRACE_PERIOD } from './agentHostModelSourceRegistry.js';
 import { IAgentConfigurationService, isChatConfigCompletion } from './agentConfigurationService.js';
 import { IAgentHostSessionStateStore } from '../common/agentHostSessionStateStore.js';
 import { createAgentChatContext, getSessionChatsForFanOut } from './agentChatContext.js';
@@ -624,11 +623,7 @@ export class AgentSideEffects extends Disposable {
 				...(modelSources.length ? { modelSources } : {}),
 				customizations: customizations?.length ? [...customizations] : undefined,
 				protectedResources: protectedResources.length > 0 ? protectedResources : undefined,
-				capabilities: d.capabilities ? {
-					...d.capabilities,
-					// The host, not the agent, keeps a departed client's registrations through the grace period.
-					...(d.capabilities.modelSourceRegistration ? { modelSourceRegistration: { ...d.capabilities.modelSourceRegistration, gracePeriod: MODEL_SOURCE_GRACE_PERIOD } } : {}),
-				} : undefined,
+				capabilities: d.capabilities ? { ...d.capabilities } : undefined,
 			};
 		});
 		if (equals(this._lastAgentInfos, infos)) {

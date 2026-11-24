@@ -24884,7 +24884,7 @@ suite('AgentService (node dispatcher)', () => {
 	suite('authenticate', () => {
 
 		test('serves a registered model source: its credential reaches the agent, and its models are published under it', async () => {
-			const agent = disposables.add(new MockAgent('copilot', { modelSourceRegistration: { formats: ['example.test/source@1'] } }));
+			const agent = disposables.add(new MockAgent('copilot', { modelSourceRegistration: { formats: [{ format: 'example.test/source@1' }] } }));
 			const provider: IAgent = agent;
 			const served: (string | undefined)[][] = [];
 			provider.describeModelSource = () => ({ credentialResource: { resource: 'https://models.example.test/v1' } });
@@ -24895,9 +24895,8 @@ suite('AgentService (node dispatcher)', () => {
 			registerTestAgentProvider(service, provider);
 			const stateManager = getStateManager(service);
 
-			service.dispatchModelSourceAction({ type: ActionType.RootModelSourceSet, modelSource: { id: 'source', provider: 'copilot', displayName: 'Example', format: 'example.test/source@1', nonce: 'v1' }, definition: {} }, 'client-1', 1);
-			const credentialNonce = stateManager.rootState.modelSources?.[0].credentialNonce ?? '';
-			const result = await service.authenticate({ resource: 'https://models.example.test/v1', token: 'secret', target: { kind: AuthenticateTargetKind.ModelSource, modelSourceId: 'source', credentialNonce } });
+			service.dispatchModelSourceAction({ type: ActionType.RootModelSourceSet, modelSource: { id: 'source', provider: 'copilot', displayName: 'Example', format: 'example.test/source@1', definition: {}, nonce: 'v1' } }, 'client-1', 1);
+			const result = await service.authenticate({ resource: 'https://models.example.test/v1', token: 'secret', target: { kind: AuthenticateTargetKind.ModelSource, modelSourceId: 'source' } });
 			const agentInfo = stateManager.rootState.agents.find(info => info.provider === 'copilot');
 
 			assert.deepStrictEqual({

@@ -133,10 +133,7 @@ export function isModelSourceAuthenticateTarget(target: ProtocolAuthenticateTarg
 	return target?.kind === ProtocolAuthenticateTargetKind.ModelSource;
 }
 
-/**
- * The consumer an `authenticate` target names, for keying credentials by
- * target. A model source's credential nonce is not part of its identity.
- */
+/** The consumer an `authenticate` target names, for keying credentials by target. */
 export function getAuthenticateTargetIdentity(target: ProtocolAuthenticateTarget): readonly string[] {
 	return isMcpServerAuthenticateTarget(target)
 		? [target.kind, target.session, target.customizationId]

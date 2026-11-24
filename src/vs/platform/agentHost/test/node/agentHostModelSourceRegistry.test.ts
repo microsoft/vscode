@@ -47,14 +47,14 @@ class TestAgent extends mock<IAgent>() {
 	readonly served: (readonly IAgentModelSource[])[] = [];
 
 	override getDescriptor(): IAgentDescriptor {
-		return { provider: 'copilotcli', displayName: 'Test', description: '', capabilities: { modelSourceRegistration: { formats: [FORMAT] } } };
+		return { provider: 'copilotcli', displayName: 'Test', description: '', capabilities: { modelSourceRegistration: { formats: [{ format: FORMAT }] } } };
 	}
 
 	override describeModelSource(source: Pick<IAgentModelSource, 'definition'>): IAgentModelSourceDescription {
 		if (source.definition.invalid) {
 			throw new Error('The definition is not valid.');
 		}
-		return typeof source.definition.endpoint === 'string' ? { credentialResource: { resource: source.definition.endpoint }, credentialOrigins: [new URL(source.definition.endpoint).origin] } : {};
+		return typeof source.definition.endpoint === 'string' ? { credentialResource: { resource: source.definition.endpoint } } : {};
 	}
 
 	override setModelSources(sources: readonly IAgentModelSource[]): void {
@@ -88,18 +88,17 @@ class TestAgent extends mock<IAgent>() {
 	}
 }
 
-function set(modelSource: Partial<ModelSource> & Pick<ModelSource, 'id'>, definition: Record<string, unknown> = { endpoint: RESOURCE }): ClientModelSourceAction {
+function set(modelSource: Partial<Omit<ModelSource, 'definition'>> & Pick<ModelSource, 'id'>, definition: Record<string, unknown> = { endpoint: RESOURCE }): ClientModelSourceAction {
 	return {
 		type: ActionType.RootModelSourceSet,
-		modelSource: { provider: 'copilotcli', displayName: 'Example', format: FORMAT, nonce: JSON.stringify(definition), ...modelSource },
-		definition,
+		modelSource: { provider: 'copilotcli', displayName: 'Example', format: FORMAT, definition, nonce: JSON.stringify(definition), ...modelSource },
 	};
 }
 
-function authenticate(registry: AgentHostModelSourceRegistry, modelSourceId: string, credentialNonce: string | undefined, token: string, options: { readonly resource?: string; readonly accountId?: string } = {}): number | 'ok' {
+function authenticate(registry: AgentHostModelSourceRegistry, modelSourceId: string, token: string, options: { readonly resource?: string; readonly accountId?: string } = {}): number | 'ok' {
 	const params: AuthenticateParams = { resource: options.resource ?? RESOURCE, token, ...(options.accountId ? { accountId: options.accountId } : {}) };
 	try {
-		registry.authenticate(params, { kind: AuthenticateTargetKind.ModelSource, modelSourceId, credentialNonce: credentialNonce ?? '' });
+		registry.authenticate(params, { kind: AuthenticateTargetKind.ModelSource, modelSourceId });
 		return 'ok';
 	} catch (error) {
 		return error instanceof ProtocolError ? error.code : -1;
@@ -117,51 +116,49 @@ suite('AgentHostModelSourceRegistry', () => {
 		return { registry, state, agent };
 	}
 
-	test('asks for a credential, holds it in memory, and fences every change with a new nonce', () => {
+	test('asks for a credential, holds it in memory, and drops it when the definition changes', () => {
 		const { registry, state, agent } = createRegistry();
 		const observe = () => {
 			const modelSource = state.modelSource('source');
-			return { state: modelSource?.state, credentialOrigins: modelSource?.credentialOrigins, accountId: modelSource?.accountId, served: agent.lastServed };
+			return { state: modelSource?.state, accountId: modelSource?.accountId, served: agent.lastServed };
 		};
 
 		registry.handleClientAction(set({ id: 'source' }), 'client-a', 1);
-		const required = observe();
-		const requiredNonce = state.modelSource('source')?.credentialNonce;
+		const required = { ...observe(), definition: state.modelSource('source')?.definition };
 		const rejectedDeliveries = {
-			staleNonce: authenticate(registry, 'source', 'stale', 'secret'),
-			otherResource: authenticate(registry, 'source', requiredNonce, 'secret', { resource: 'https://other.example.test' }),
-			unknownSource: authenticate(registry, 'missing', requiredNonce, 'secret'),
+			otherResource: authenticate(registry, 'source', 'secret', { resource: 'https://other.example.test' }),
+			unknownSource: authenticate(registry, 'missing', 'secret'),
 		};
-		const delivered = authenticate(registry, 'source', requiredNonce, 'secret', { accountId: 'key-1' });
+		const delivered = authenticate(registry, 'source', 'secret', { accountId: 'key-1' });
+		// A later delivery replaces the credential the host holds.
+		const replaced = authenticate(registry, 'source', 'secret-2', { accountId: 'key-2' });
 		const ready = observe();
-		const readyNonce = state.modelSource('source')?.credentialNonce;
 
-		// Another client registering the same definition, with a new name or retention, keeps the credential and its nonce.
+		// Another client registering the same definition, with a new name or retention, keeps the credential.
 		registry.handleClientAction(set({ id: 'source', displayName: 'Renamed', retention: ModelSourceRetentionPolicy.Host }), 'client-b', 1);
-		const reregistered = { ...observe(), displayName: state.modelSource('source')?.displayName, sameNonce: state.modelSource('source')?.credentialNonce === readyNonce };
+		const reregistered = { ...observe(), displayName: state.modelSource('source')?.displayName };
 		// The same nonce must not carry a different definition, since the source keeps its credential.
 		registry.handleClientAction(set({ id: 'source', nonce: JSON.stringify({ endpoint: RESOURCE }) }, { endpoint: 'https://evil.example.test/v1' }), 'client-b', 2);
 
-		const revoked = authenticate(registry, 'source', readyNonce, '');
+		const revoked = authenticate(registry, 'source', '');
 		const afterRevocation = observe();
-		const revokedNonce = state.modelSource('source')?.credentialNonce;
 
-		// A new definition drops any credential and starts over with a new nonce.
+		// A new definition drops any credential and starts over.
 		registry.handleClientAction(set({ id: 'source' }, { endpoint: 'https://moved.example.test/v1' }), 'client-a', 2);
-		const moved = observe();
-		const distinctNonces = new Set([requiredNonce, readyNonce, revokedNonce, state.modelSource('source')?.credentialNonce]).size;
+		const moved = { ...observe(), resource: state.modelSource('source')?.credentialResource?.resource };
 
-		assert.deepStrictEqual({ required, rejectedDeliveries, delivered, ready, reregistered, revoked, afterRevocation, moved, distinctNonces, rejections: state.rejections.length }, {
-			required: { state: { kind: 'authRequired', reason: 'required' }, credentialOrigins: ['https://models.example.test'], accountId: undefined, served: {} },
-			rejectedDeliveries: { staleNonce: -32011, otherResource: -32602, unknownSource: -32602 },
+		assert.deepStrictEqual({ required, rejectedDeliveries, delivered, replaced, ready, reregistered, revoked, afterRevocation, moved, rejections: state.rejections.length }, {
+			// The host's state keeps the definition, so every client can check where a key would go.
+			required: { state: { kind: 'authRequired', reason: 'required' }, accountId: undefined, served: {}, definition: { endpoint: RESOURCE } },
+			rejectedDeliveries: { otherResource: -32602, unknownSource: -32602 },
 			delivered: 'ok',
-			ready: { state: { kind: 'ready' }, credentialOrigins: ['https://models.example.test'], accountId: 'key-1', served: { source: true } },
-			reregistered: { state: { kind: 'ready' }, credentialOrigins: ['https://models.example.test'], accountId: 'key-1', served: { source: true }, displayName: 'Renamed', sameNonce: true },
+			replaced: 'ok',
+			ready: { state: { kind: 'ready' }, accountId: 'key-2', served: { source: true } },
+			reregistered: { state: { kind: 'ready' }, accountId: 'key-2', served: { source: true }, displayName: 'Renamed' },
 			revoked: 'ok',
 			// A revoked key is never replayed, `accountId` still names it, and the models stay listed so selections keep resolving.
-			afterRevocation: { state: { kind: 'authRequired', reason: 'revoked' }, credentialOrigins: ['https://models.example.test'], accountId: 'key-1', served: { source: false } },
-			moved: { state: { kind: 'authRequired', reason: 'required' }, credentialOrigins: ['https://moved.example.test'], accountId: undefined, served: { source: false } },
-			distinctNonces: 4,
+			afterRevocation: { state: { kind: 'authRequired', reason: 'revoked' }, accountId: 'key-2', served: { source: false } },
+			moved: { state: { kind: 'authRequired', reason: 'required' }, accountId: undefined, served: { source: false }, resource: 'https://moved.example.test/v1' },
 			rejections: 1,
 		});
 	});
@@ -169,17 +166,16 @@ suite('AgentHostModelSourceRegistry', () => {
 	test('drops a credential its endpoint rejected, so a client replaces it rather than sending it again', () => {
 		const { registry, state, agent } = createRegistry();
 		registry.handleClientAction(set({ id: 'source' }), 'client-a', 1);
-		authenticate(registry, 'source', state.modelSource('source')?.credentialNonce, 'secret', { accountId: 'key-1' });
-		const readyNonce = state.modelSource('source')?.credentialNonce;
+		authenticate(registry, 'source', 'secret', { accountId: 'key-1' });
 
 		registry.rejectCredential('source');
-		const rejected = { state: state.modelSource('source')?.state, accountId: state.modelSource('source')?.accountId, newNonce: state.modelSource('source')?.credentialNonce !== readyNonce, served: agent.lastServed };
+		const rejected = { state: state.modelSource('source')?.state, accountId: state.modelSource('source')?.accountId, served: agent.lastServed };
 		const servedCount = agent.served.length;
 		// Without a credential there is nothing more to drop.
 		registry.rejectCredential('source');
 
 		assert.deepStrictEqual({ rejected, unchangedAfterRepeat: agent.served.length === servedCount }, {
-			rejected: { state: { kind: 'authRequired', reason: 'rejected', description: 'The endpoint rejected the API key.' }, accountId: 'key-1', newNonce: true, served: { source: false } },
+			rejected: { state: { kind: 'authRequired', reason: 'rejected', description: 'The endpoint rejected the API key.' }, accountId: 'key-1', served: { source: false } },
 			unchangedAfterRepeat: true,
 		});
 	});
@@ -187,7 +183,7 @@ suite('AgentHostModelSourceRegistry', () => {
 	test('lets running turns finish before removing a source its last contributor left, unless a client registers it again', async () => {
 		const { registry, state, agent } = createRegistry();
 		registry.handleClientAction(set({ id: 'source' }), 'client-a', 1);
-		authenticate(registry, 'source', state.modelSource('source')?.credentialNonce, 'secret');
+		authenticate(registry, 'source', 'secret');
 		registry.handleClientAction(set({ id: 'returning' }, {}), 'client-a', 2);
 
 		registry.removeClient('client-a');

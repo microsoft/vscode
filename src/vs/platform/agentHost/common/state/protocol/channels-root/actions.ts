@@ -8,7 +8,7 @@
 
 import type { AgentInfo, ModelSource, ModelSourceState } from './state.js';
 import type { TerminalInfo } from '../channels-terminal/state.js';
-import type { ProtectedResourceMetadata, URI } from '../common/state.js';
+import type { ProtectedResourceMetadata } from '../common/state.js';
 import { ActionType } from '../common/actions.js';
 
 // ─── Root Actions ────────────────────────────────────────────────────────────
@@ -71,14 +71,12 @@ export interface RootConfigChangedAction {
 }
 
 /**
- * Adds a model source, or updates the one with the same `id`. The reducer
- * stores `modelSource` without the definition:
+ * Adds a model source, or updates the one with the same `id`:
  *
  * - **Add.** When no model source has the `id`, appends `modelSource`.
  * - **Re-register.** When one has, with the same `provider`, `format`, and
- *   `nonce`, keeps its host-reported fields (`state`, `credentialNonce`,
- *   `credentialResource`, `credentialOrigins`, and `accountId`) and takes
- *   the other fields from the action.
+ *   `nonce`, keeps its host-reported fields (`state`, `credentialResource`,
+ *   and `accountId`) and takes everything else from the action.
  * - **Update.** When any of the three differs, replaces the source. Its
  *   host-reported fields are absent until the host reports again with
  *   {@link RootModelSourceStateChangedAction}.
@@ -93,14 +91,11 @@ export interface RootConfigChangedAction {
  */
 export interface RootModelSourceSetAction {
 	type: ActionType.RootModelSourceSet;
-	/** The model source to add or update, matched by `id`, without host-reported fields. */
-	modelSource: ModelSource;
 	/**
-	 * How to reach the source, in `modelSource.format`: endpoint, wire format,
-	 * models, and so on. The host hands it to the agent, and the reducer
-	 * doesn't store it. MUST NOT contain a credential.
+	 * The model source to add or update, matched by `id`, including its
+	 * `definition`, without host-reported fields.
 	 */
-	definition: Record<string, unknown>;
+	modelSource: ModelSource;
 }
 
 /**
@@ -120,9 +115,8 @@ export interface RootModelSourceRemovedAction {
 
 /**
  * Updates a model source's host-reported fields together: `state`,
- * `credentialNonce`, `credentialResource`, `credentialOrigins`, and
- * `accountId`. A no-op when no model source has `id`. Other fields of the
- * source are preserved. Only the host dispatches it.
+ * `credentialResource`, and `accountId`. A no-op when no model source has
+ * `id`. Other fields of the source are preserved. Only the host dispatches it.
  *
  * @category Root Actions
  * @stability 1.0
@@ -134,15 +128,11 @@ export interface RootModelSourceStateChangedAction {
 	id: string;
 	/** The new status. */
 	state: ModelSourceState;
-	/** The model source's current credential nonce. */
-	credentialNonce: string;
 	/**
 	 * Replaces the source's `credentialResource`. Absent clears it, for a
 	 * source that needs no credential.
 	 */
 	credentialResource?: ProtectedResourceMetadata;
-	/** Replaces the source's `credentialOrigins`. Absent clears it. */
-	credentialOrigins?: URI[];
 	/** Replaces the source's `accountId`. Absent clears it. */
 	accountId?: string;
 }

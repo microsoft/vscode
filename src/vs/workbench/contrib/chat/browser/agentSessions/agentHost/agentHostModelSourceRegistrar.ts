@@ -15,10 +15,10 @@ import { IAgentHostConnectionsService, type IAgentHostConnectionInfo } from '../
 import { AgentHostClientConnectionKind } from '../../../../../../platform/agentHost/common/agentHostTelemetry.js';
 import { CUSTOM_ENDPOINT_BYOK_VENDOR, findCustomEndpointModelSettings, resolveCustomEndpointRuntimeEndpoint, type CustomEndpointRuntimeEndpointResolution, type ICustomEndpointModelSettings } from '../../../../../../platform/agentHost/common/byokCustomEndpoint.js';
 import { ANTHROPIC_BYOK_ENDPOINT, GEMINI_BYOK_ENDPOINT, getGeminiByokModelId, getOllamaByokEndpoint, getOpenAIByokEndpoint, OPENROUTER_BYOK_ENDPOINT, resolveAzureRuntimeEndpoint, resolveCustomOAIRuntimeEndpoint, XAI_BYOK_ENDPOINT } from '../../../../../../platform/agentHost/common/byokVendorEndpoints.js';
-import { BYOK_ENDPOINTS_MODEL_SOURCE_FORMAT, getByokEndpointsCredentialOrigins, getByokEndpointsCredentialResource, getByokEndpointsNonce, getByokModelSourceId, isByokModelSourceId, parseByokModelSourceId, readByokEndpointsDefinition, type IByokEndpoint, type IByokEndpointModel, type IByokEndpointsDefinition } from '../../../../../../platform/agentHost/common/byokModelSource.js';
+import { BYOK_ENDPOINTS_MODEL_SOURCE_FORMAT, getByokEndpointsCredentialResource, getByokEndpointsNonce, getByokModelSourceId, isByokModelSourceId, parseByokModelSourceId, readByokEndpointsDefinition, type IByokEndpoint, type IByokEndpointModel, type IByokEndpointsDefinition } from '../../../../../../platform/agentHost/common/byokModelSource.js';
 import { ModelSourceAuthRequiredReason, ModelSourceRetentionPolicy, ModelSourceStatus, type ModelSource, type RootState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
-import { AhpErrorCodes, AuthenticateTargetKind, ProtocolError } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
+import { AuthenticateTargetKind } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { ROOT_STATE_URI } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
@@ -564,8 +564,8 @@ class ConnectionModelSourceRegistrar extends Disposable {
 	private readonly _inFlight = new Set<string>();
 	/** Removals this window dispatched whose echo hasn't arrived. */
 	private readonly _removing = new Set<string>();
-	/** The credential nonce and `accountId` each source's key is being delivered for. */
-	private readonly _delivering = new Map<string, string>();
+	/** The delivery of each source's key in progress, until it is sent or given up. */
+	private readonly _delivering = new Map<string, object>();
 	/** Failed deliveries by source, for backing off. */
 	private readonly _deliveryFailures = new Map<string, number>();
 	private readonly _pending = this._register(new DisposableStore());
@@ -727,7 +727,7 @@ class ConnectionModelSourceRegistrar extends Disposable {
 		// The local host is shared by this user's windows, so its sources outlive the window that registered them.
 		const retention = this._connection.clientConnectionKind === AgentHostClientConnectionKind.Local ? ModelSourceRetentionPolicy.Host : ModelSourceRetentionPolicy.ContributingClient;
 		for (const agent of root.agents) {
-			if (!agent.capabilities?.modelSourceRegistration?.formats.includes(BYOK_ENDPOINTS_MODEL_SOURCE_FORMAT)) {
+			if (!agent.capabilities?.modelSourceRegistration?.formats.some(info => info.format === BYOK_ENDPOINTS_MODEL_SOURCE_FORMAT)) {
 				continue;
 			}
 			for (const source of sources) {
@@ -740,6 +740,7 @@ class ConnectionModelSourceRegistrar extends Disposable {
 						provider: agent.provider,
 						displayName: source.group,
 						format: BYOK_ENDPOINTS_MODEL_SOURCE_FORMAT,
+						definition: source.definition,
 						nonce: source.nonce,
 						retention,
 					},
@@ -750,7 +751,7 @@ class ConnectionModelSourceRegistrar extends Disposable {
 	}
 
 	private _dispatchModelSource(entry: IDesiredModelSource): void {
-		const { modelSource, definition } = entry;
+		const { modelSource } = entry;
 		const id = modelSource.id;
 		this._known.set(id, entry);
 		this._removedElsewhere.delete(id);
@@ -758,7 +759,7 @@ class ConnectionModelSourceRegistrar extends Disposable {
 		this._deliveryFailures.delete(id);
 		this._inFlight.add(id);
 		const isCurrent = () => this._known.get(id) === entry;
-		this._connection.dispatchConfirmed(ROOT_STATE_URI, this._connection.rootState, { type: ActionType.RootModelSourceSet, modelSource, definition }, CancellationToken.None).then(envelope => {
+		this._connection.dispatchConfirmed(ROOT_STATE_URI, this._connection.rootState, { type: ActionType.RootModelSourceSet, modelSource }, CancellationToken.None).then(envelope => {
 			if (!isCurrent()) {
 				return;
 			}
@@ -782,20 +783,18 @@ class ConnectionModelSourceRegistrar extends Disposable {
 	/**
 	 * Sends the group's key when the host needs it, as the source's state
 	 * allows. Never sends a key the host reported as rejected, or one it holds
-	 * from another window or device that the user didn't replace here, and never
-	 * to a destination that isn't in this window's copy of the definition.
+	 * from another window or device that the user didn't replace here, and only
+	 * for a host definition that sends it nowhere this window's copy doesn't.
 	 */
 	private _deliverCredential(existing: ModelSource, entry: IDesiredModelSource): void {
 		const { source, definition } = entry;
-		const credentialNonce = existing.credentialNonce;
-		const resource = existing.credentialResource?.resource;
-		const delivery = JSON.stringify([credentialNonce, source.accountId ?? null]);
-		if (!definition.requiresCredential || credentialNonce === undefined || resource === undefined
+		const resource = getByokEndpointsCredentialResource(definition)?.resource;
+		if (resource === undefined || this._delivering.has(existing.id)
 			|| !needsCredential(existing, source.accountId, accountId => this._delegate.wasReplaced(source, accountId))
-			|| resource !== getByokEndpointsCredentialResource(definition)?.resource || !hasOnlyOrigins(existing, definition)
-			|| this._delivering.get(existing.id) === delivery) {
+			|| !canSendKey(existing, entry)) {
 			return;
 		}
+		const delivery = {};
 		this._delivering.set(existing.id, delivery);
 		const store = this._pending.add(new DisposableStore());
 		const isCurrent = () => !store.isDisposed && this._delivering.get(existing.id) === delivery;
@@ -818,24 +817,35 @@ class ConnectionModelSourceRegistrar extends Disposable {
 				retry();
 				return;
 			}
+			// Another client may have changed the host's definition while the key was read.
+			const latest = this._currentModelSource(existing.id);
+			if (!latest || !canSendKey(latest, entry)) {
+				this._delivering.delete(existing.id);
+				return;
+			}
 			await this._connection.authenticate({
 				resource,
 				token: apiKey,
 				...(source.accountId !== undefined ? { accountId: source.accountId } : {}),
-				target: { kind: AuthenticateTargetKind.ModelSource, modelSourceId: existing.id, credentialNonce },
+				target: { kind: AuthenticateTargetKind.ModelSource, modelSourceId: existing.id },
 			});
+			// The host reports the source's new state before it answers, so the next sync doesn't deliver again.
+			if (isCurrent()) {
+				this._delivering.delete(existing.id);
+			}
 			this._deliveryFailures.delete(existing.id);
 		}).catch(error => {
 			if (!isCurrent()) {
 				return;
 			}
-			// A changed source fences the stale nonce; the next root state update asks again.
-			if (error instanceof ProtocolError && error.code === AhpErrorCodes.Conflict) {
-				return;
-			}
 			this._logService.warn(`[AgentHostModelSourceRegistrar] Failed to deliver the API key of the BYOK provider group ${existing.displayName}: ${toErrorMessage(error)}`);
 			retry();
 		}).finally(() => this._pending.delete(store));
+	}
+
+	private _currentModelSource(id: string): ModelSource | undefined {
+		const root = this._connection.rootState.value;
+		return root && !(root instanceof Error) ? root.modelSources?.find(modelSource => modelSource.id === id) : undefined;
 	}
 }
 
@@ -868,10 +878,29 @@ function needsCredential(existing: ModelSource, accountId: string | undefined, w
 	}
 }
 
-/** Whether every destination the host sends the key to is in the window's copy of the definition. */
-function hasOnlyOrigins(existing: ModelSource, definition: IByokEndpointsDefinition): boolean {
-	const origins = new Set(getByokEndpointsCredentialOrigins(definition));
-	return !!existing.credentialOrigins?.length && existing.credentialOrigins.every(origin => origins.has(origin));
+/**
+ * Whether this window may send its key for the host's copy of a source: the
+ * same agent, format, and credential resource, and a definition whose every
+ * endpoint the key reaches is one this window's copy sends it to. It compares
+ * the definition itself, since another client chooses the `nonce`.
+ */
+function canSendKey(existing: ModelSource, { modelSource, definition }: IDesiredModelSource): boolean {
+	const resource = getByokEndpointsCredentialResource(definition)?.resource;
+	if (resource === undefined || existing.provider !== modelSource.provider || existing.format !== modelSource.format || existing.credentialResource?.resource !== resource) {
+		return false;
+	}
+	let held: IByokEndpointsDefinition;
+	try {
+		held = readByokEndpointsDefinition(existing.definition);
+	} catch {
+		return false;
+	}
+	const endpoints = new Set(definition.models.map(model => endpointKey(model.endpoint)));
+	return held.requiresCredential && held.models.every(model => endpoints.has(endpointKey(model.endpoint)));
+}
+
+function endpointKey(endpoint: IByokEndpoint): string {
+	return JSON.stringify([endpoint.type, endpoint.wireApi ?? null, endpoint.baseUrl, endpoint.azureApiVersion ?? null]);
 }
 
 /** Whether the host's source has this window's definition: the same agent, format, and nonce. */

@@ -9,7 +9,6 @@ import { disposableTimeout } from '../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { Disposable, MutableDisposable, toDisposable, type IDisposable } from '../../../base/common/lifecycle.js';
 import { equals } from '../../../base/common/objects.js';
-import { generateUuid } from '../../../base/common/uuid.js';
 import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
 import type { AuthenticateParams, IAgent, IAgentModelSource } from '../common/agent.js';
@@ -17,7 +16,7 @@ import type { IAgentHostClientTelemetryContext } from '../common/agentHostTeleme
 import type { ModelSourceAuthenticateTarget } from '../common/state/protocol/commands.js';
 import { ModelSourceAuthRequiredReason, ModelSourceRetentionPolicy, ModelSourceStatus, type ModelSource, type ModelSourceState, type ProtectedResourceMetadata, type RootState } from '../common/state/protocol/state.js';
 import { ActionType, type ActionOrigin, type ClientModelSourceAction, type StateAction } from '../common/state/sessionActions.js';
-import { AhpErrorCodes, JsonRpcErrorCodes, ProtocolError } from '../common/state/sessionProtocol.js';
+import { JsonRpcErrorCodes, ProtocolError } from '../common/state/sessionProtocol.js';
 import { ROOT_STATE_URI } from '../common/state/sessionState.js';
 
 /** The parts of the host's state manager that {@link AgentHostModelSourceRegistry} uses. */
@@ -28,16 +27,13 @@ export interface IAgentHostModelSourceRegistryState {
 	rejectClientAction(channel: string, action: StateAction, origin: ActionOrigin, reason: string): void;
 }
 
-/**
- * How long the host keeps counting a disconnected client as a contributor.
- * Advertised as the capability's `gracePeriod`.
- */
+/** How long the host keeps counting a disconnected client as a contributor. */
 export const MODEL_SOURCE_GRACE_PERIOD = 30_000;
 
 /** The host-reported fields of a model source, which a client never sends. */
-const HOST_REPORTED_FIELDS = ['state', 'credentialNonce', 'credentialResource', 'credentialOrigins', 'accountId'] as const;
+const HOST_REPORTED_FIELDS = ['state', 'credentialResource', 'accountId'] as const;
 
-/** What the host knows about a model source beyond root state. Never published: it holds the definition and the credential. */
+/** What the host knows about a model source beyond root state. Never published: it holds the credential. */
 interface IModelSourceEntry {
 	readonly provider: string;
 	readonly format: string;
@@ -46,13 +42,10 @@ interface IModelSourceEntry {
 	readonly definition: Record<string, unknown>;
 	/** The clients that registered this definition, from each `Set`'s origin. Never in state. */
 	readonly contributors: Set<string>;
-	/** The source's generation. Any change to the definition or the credential issues a new one. */
-	credentialNonce: string;
 	credential: string | undefined;
 	/** The `accountId` sent with the credential the host most recently accepted, which outlives it to say what happened to it. */
 	accountId: string | undefined;
 	credentialResource: ProtectedResourceMetadata | undefined;
-	credentialOrigins: readonly string[] | undefined;
 	state: ModelSourceState;
 	/** Whether the agent lists the source's models: from its first `ready` until it is withdrawn. */
 	listed: boolean;
@@ -67,7 +60,7 @@ interface IModelSourceEntry {
 
 /**
  * The host side of the AHP model source registry. Validates client
- * registrations, keeps their definitions and contributing clients privately,
+ * registrations, keeps their contributing clients privately,
  * reports each source's status, holds credentials in memory, and hands the
  * sources each agent serves to it with {@link IAgent.setModelSources}. The
  * agent owns the definition format.
@@ -110,24 +103,21 @@ export class AgentHostModelSourceRegistry extends Disposable {
 					return;
 				}
 				this._state.dispatchClientAction(ROOT_STATE_URI, action, origin, clientContext);
-				this._apply(action.modelSource, action.definition, clientId);
+				this._apply(action.modelSource, clientId);
 				return;
 			}
 		}
 	}
 
 	/**
-	 * Installs, rotates, or (with an empty token) revokes a source's
-	 * credential. Throws a {@link ProtocolError} for an unknown source, a stale
-	 * nonce, or a resource other than the source's credential resource.
+	 * Installs, replaces, or (with an empty token) revokes a source's
+	 * credential. Throws a {@link ProtocolError} for an unknown source, or a
+	 * resource other than the source's credential resource.
 	 */
 	authenticate(params: AuthenticateParams, target: ModelSourceAuthenticateTarget): void {
 		const entry = this._entries.get(target.modelSourceId);
 		if (!entry || !this._findModelSource(target.modelSourceId)) {
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'The authentication target must identify a registered model source');
-		}
-		if (target.credentialNonce !== entry.credentialNonce) {
-			throw new ProtocolError(AhpErrorCodes.Conflict, 'The model source changed since this credential was requested');
 		}
 		if (!entry.credentialResource) {
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'The model source does not take a credential');
@@ -135,7 +125,7 @@ export class AgentHostModelSourceRegistry extends Disposable {
 		if (params.resource !== entry.credentialResource.resource) {
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'The resource must be the model source\'s credential resource');
 		}
-		entry.credentialNonce = generateUuid();
+		// A new credential, or a revocation, ends the previous credential's lease.
 		entry.lease.clear();
 		if (params.token) {
 			entry.credential = params.token;
@@ -144,10 +134,8 @@ export class AgentHostModelSourceRegistry extends Disposable {
 			entry.listed = true;
 			// A static key delivered with a lifetime is a lease: it lapses unless renewed.
 			if (params.expiresIn !== undefined) {
-				const credentialNonce = entry.credentialNonce;
 				entry.lease.value = disposableTimeout(() => {
-					if (this._entries.get(target.modelSourceId) === entry && entry.credentialNonce === credentialNonce) {
-						entry.credentialNonce = generateUuid();
+					if (this._entries.get(target.modelSourceId) === entry) {
 						this._dropCredential(target.modelSourceId, entry, { kind: ModelSourceStatus.AuthRequired, reason: ModelSourceAuthRequiredReason.Expired });
 					}
 				}, Math.max(0, params.expiresIn) * 1000);
@@ -170,7 +158,6 @@ export class AgentHostModelSourceRegistry extends Disposable {
 			return;
 		}
 		this._logService.warn(`[AgentHostModelSourceRegistry] The endpoint of model source ${id} rejected its credential`);
-		entry.credentialNonce = generateUuid();
 		this._dropCredential(id, entry, { kind: ModelSourceStatus.AuthRequired, reason: ModelSourceAuthRequiredReason.Rejected, description: localize('modelSource.credentialRejected', "The endpoint rejected the API key.") });
 	}
 
@@ -208,14 +195,15 @@ export class AgentHostModelSourceRegistry extends Disposable {
 	}
 
 	private _validate(action: Extract<ClientModelSourceAction, { readonly type: ActionType.RootModelSourceSet }>): string | undefined {
-		const { modelSource, definition } = action;
+		const { modelSource } = action;
+		const definition = modelSource?.definition;
 		if (typeof modelSource?.id !== 'string' || !modelSource.id || typeof modelSource.nonce !== 'string' || !modelSource.nonce
 			|| typeof definition !== 'object' || definition === null || Array.isArray(definition)) {
 			return 'A model source needs an id, a nonce, and a definition object';
 		}
 		const agent = this._getAgent(modelSource.provider);
 		const formats = agent?.getDescriptor().capabilities?.modelSourceRegistration?.formats;
-		if (!agent?.describeModelSource || !agent.setModelSources || !formats?.includes(modelSource.format)) {
+		if (!agent?.describeModelSource || !agent.setModelSources || !formats?.some(info => info.format === modelSource.format)) {
 			return `The agent '${modelSource.provider}' does not serve model sources in the format '${modelSource.format}'`;
 		}
 		if (HOST_REPORTED_FIELDS.some(field => modelSource[field] !== undefined)) {
@@ -236,7 +224,8 @@ export class AgentHostModelSourceRegistry extends Disposable {
 		return entry.provider === modelSource.provider && entry.format === modelSource.format && entry.nonce === modelSource.nonce;
 	}
 
-	private _apply(modelSource: ModelSource, definition: Record<string, unknown>, clientId: string): void {
+	private _apply(modelSource: ModelSource, clientId: string): void {
+		const { definition } = modelSource;
 		const previous = this._entries.get(modelSource.id);
 		if (previous && this._isReregistration(previous, modelSource)) {
 			// A re-registration, or a new name or retention: the reducer kept the host-reported fields, and the credential stays.
@@ -262,11 +251,9 @@ export class AgentHostModelSourceRegistry extends Disposable {
 			nonce: modelSource.nonce,
 			definition,
 			contributors: new Set([clientId]),
-			credentialNonce: generateUuid(),
 			credential: undefined,
 			accountId: undefined,
 			credentialResource: undefined,
-			credentialOrigins: undefined,
 			state: { kind: ModelSourceStatus.Starting },
 			// Models whose upstream identity didn't change keep their IDs, and stay listed while a new credential is requested.
 			listed: previous?.listed === true && previous.provider === modelSource.provider,
@@ -277,7 +264,6 @@ export class AgentHostModelSourceRegistry extends Disposable {
 		try {
 			const description = agent.describeModelSource!({ id: modelSource.id, format: modelSource.format, definition });
 			entry.credentialResource = description.credentialResource;
-			entry.credentialOrigins = description.credentialOrigins;
 			if (description.credentialResource) {
 				entry.state = { kind: ModelSourceStatus.AuthRequired, reason: ModelSourceAuthRequiredReason.Required };
 			} else {
@@ -326,9 +312,7 @@ export class AgentHostModelSourceRegistry extends Disposable {
 			type: ActionType.RootModelSourceStateChanged,
 			id,
 			state: entry.state,
-			credentialNonce: entry.credentialNonce,
 			...(entry.credentialResource ? { credentialResource: entry.credentialResource } : {}),
-			...(entry.credentialOrigins ? { credentialOrigins: [...entry.credentialOrigins] } : {}),
 			...(entry.accountId !== undefined ? { accountId: entry.accountId } : {}),
 		});
 	}

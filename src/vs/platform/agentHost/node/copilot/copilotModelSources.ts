@@ -7,7 +7,7 @@ import type { NamedProviderConfig, ProviderModelConfig } from '@microsoft/copilo
 import { createHash } from 'crypto';
 import { localize } from '../../../../nls.js';
 import type { IAgentModelSource, IAgentModelSourceDescription } from '../../common/agent.js';
-import { BYOK_ENDPOINTS_MODEL_SOURCE_FORMAT, getByokEndpointsCredentialOrigins, getByokEndpointsCredentialResource, readByokEndpointsDefinition, type IByokEndpointModel } from '../../common/byokModelSource.js';
+import { BYOK_ENDPOINTS_MODEL_SOURCE_FORMAT, getByokEndpointsCredentialResource, readByokEndpointsDefinition, type IByokEndpointModel } from '../../common/byokModelSource.js';
 
 /** The definition formats the Copilot agent reads registered model sources in. */
 export const COPILOT_MODEL_SOURCE_FORMATS: readonly string[] = [BYOK_ENDPOINTS_MODEL_SOURCE_FORMAT];
@@ -66,7 +66,7 @@ export function describeCopilotModelSource(source: Pick<IAgentModelSource, 'form
 	}
 	const definition = readByokEndpointsDefinition(source.definition);
 	const credentialResource = getByokEndpointsCredentialResource(definition);
-	return credentialResource ? { credentialResource, credentialOrigins: getByokEndpointsCredentialOrigins(definition) } : {};
+	return credentialResource ? { credentialResource } : {};
 }
 
 /**
