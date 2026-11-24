@@ -6,7 +6,6 @@ description: |
   Visual Studio Code is a new choice of tool that combines the
   simplicity of a code editor with what developers need for the core
   edit-build-debug cycle.
-license: '@@LICENSE@@'
 contact: https://github.com/microsoft/vscode
 issues: https://github.com/microsoft/vscode/issues
 source-code: https://github.com/microsoft/vscode

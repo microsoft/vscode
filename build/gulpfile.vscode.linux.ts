@@ -322,7 +322,6 @@ function prepareSnapPackage(arch: SnapArchitecture) {
 		const snapcraft = gulp.src('resources/linux/snap/snapcraft.yaml', { base: '.' })
 			.pipe(replace('@@NAME@@', product.applicationName))
 			.pipe(replace('@@VERSION@@', commit!.substr(0, 8)))
-			.pipe(replace('@@LICENSE@@', product.licenseName))
 			// Possible run-on values https://snapcraft.io/docs/architectures
 			.pipe(replace('@@ARCHITECTURE@@', architecture))
 			.pipe(replace('@@MULTIARCH@@', multiarch))
