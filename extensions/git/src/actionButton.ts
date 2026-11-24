@@ -186,9 +186,14 @@ export class ActionButton {
 			return [];
 		}
 
-		// Not a branch (tag, detached)
+		// Not a branch (tag, detached) - push/sync require a branch, but amend does not
 		if (this.state.HEAD?.type === RefType.Tag || !this.state.HEAD?.name) {
-			return [];
+			const tooltip = this.state.isCommitInProgress ? l10n.t('Committing Changes...') : l10n.t('Commit Changes');
+
+			return [[
+				{ command: 'git.commit', title: l10n.t('{0} Commit', '$(check)'), tooltip, arguments: [this.repository.sourceControl.sourceControl, null] },
+				{ command: 'git.commitAmend', title: l10n.t('{0} Commit (Amend)', '$(check)'), tooltip, arguments: [this.repository.sourceControl.sourceControl, null] },
+			]];
 		}
 
 		// Commit
