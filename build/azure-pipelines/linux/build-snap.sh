@@ -33,8 +33,8 @@ done
 
 # Make sure we get latest packages
 sudo apt-get update
-sudo apt-get upgrade -y
-sudo apt-get install -y curl apt-transport-https ca-certificates gcc
+sudo DEBIAN_FRONTEND=noninteractive apt-get upgrade -y
+sudo DEBIAN_FRONTEND=noninteractive apt-get install -y curl apt-transport-https ca-certificates gcc
 
 # Define variables
 SNAP_ROOT="$(pwd)/.build/linux/snap/$VSCODE_ARCH"
@@ -61,8 +61,8 @@ BUILD_VERSION="$(date +%s)"
 SNAP_FILENAME="code-$VSCODE_QUALITY-$VSCODE_ARCH-$BUILD_VERSION.snap"
 SNAP_PATH="$SNAP_ROOT/$SNAP_FILENAME"
 case $VSCODE_ARCH in
-  x64) SNAPCRAFT_TARGET_ARGS="" ;;
-  *) SNAPCRAFT_TARGET_ARGS="--target-arch $VSCODE_ARCH" ;;
+  x64) SNAPCRAFT_TARGET_ARGS=() ;;
+  *) SNAPCRAFT_TARGET_ARGS=(--build-for "$VSCODE_ARCH") ;;
 esac
 (
   set -o pipefail
@@ -74,7 +74,7 @@ esac
   # or created a partial output snap.
   # Three backoffs with jitter, then a final attempt (0 means no more retries).
   for delay in 30 60 120 0; do
-    if sudo --preserve-env snapcraft pack --destructive-mode $SNAPCRAFT_TARGET_ARGS --output "$SNAP_PATH" 2>&1 | tee "$snapcraftLog"; then
+    if sudo --preserve-env snapcraft pack --destructive-mode "${SNAPCRAFT_TARGET_ARGS[@]}" --output "$SNAP_PATH" 2>&1 | tee "$snapcraftLog"; then
       break
     else
       exitCodes=("${PIPESTATUS[@]}")

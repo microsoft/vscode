@@ -152,7 +152,7 @@ steps:
           mkdir -p .build/linux/snap/openssl
           tar -xzf $(Build.ArtifactStagingDirectory)/vscode-internal-openssl-prebuilt-0.0.11.tgz --strip-components=3 --directory=.build/linux/snap/openssl package/x64-linux/lib/libcrypto.a package/x64-linux/lib/libssl.a
           pnpm run gulp "vscode-linux-$(VSCODE_ARCH)-prepare-snap"
-          sudo -E docker run -e VSCODE_ARCH -e VSCODE_QUALITY -v $(pwd):/work -w /work vscodehub.azurecr.io/vscode-linux-build-agent:snapcraft-x64@sha256:1760be43aa5ed50aa5add1e21394cee57d66391b461305a61e5b21e9e36b6ad4 /bin/bash -c "./build/azure-pipelines/linux/build-snap.sh"
+          sudo -E docker run -e VSCODE_ARCH -e VSCODE_QUALITY -v $(pwd):/work -w /work vscodehub.azurecr.io/vscode-linux-build-agent:snapcraft-x64@sha256:a6f7a226c224c732e590707c03b838d4e55bc38fd6d30dee774bdf151aa334e2 /bin/bash -c "./build/azure-pipelines/linux/build-snap.sh"
 
           SNAP_ROOT="$(pwd)/.build/linux/snap/$(VSCODE_ARCH)"
           SNAP_EXTRACTED_PATH=$(find $SNAP_ROOT -maxdepth 1 -type d -name 'code-*')
