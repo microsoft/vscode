@@ -457,7 +457,7 @@ export class RemoteGitHubEnvironmentSharingService extends Disposable implements
 		}
 		let registration;
 		try {
-			registration = await connection.registerGitHubEnvironment(session.account.id, session.accessToken);
+			registration = await connection.registerGitHubEnvironment(session.account.id, session.accessToken, this._getEnvironmentName(address));
 		} catch (error) {
 			// The host withdraws a failed registration, which must not look like another client stopped sharing.
 			const share = this._stored.get().get(address);
@@ -473,6 +473,18 @@ export class RemoteGitHubEnvironmentSharingService extends Disposable implements
 		}
 		// The host reports its new status before it responds.
 		this._setStored(address, createStoredShare(session.account.id, registration.environmentId, connection.gitHubEnvironment.get()?.instanceId));
+	}
+
+	/**
+	 * The name this window shows for a remote, so that its GitHub environment is listed under the same name. WSL agent
+	 * hosts name themselves after their distribution and computer, which tells them apart in other applications.
+	 */
+	private _getEnvironmentName(address: string): string | undefined {
+		const entry = this._remoteAgentHostService.getEntryByAddress(address);
+		if (!entry || entry.connection.type === RemoteAgentHostEntryType.WSL) {
+			return undefined;
+		}
+		return (this._remoteAgentHostService.getDisplayNameOverride(address) ?? entry.name).trim() || undefined;
 	}
 
 	private async _unregister(address: string, accountId: string): Promise<void> {

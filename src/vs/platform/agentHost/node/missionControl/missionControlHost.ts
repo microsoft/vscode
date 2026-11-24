@@ -268,10 +268,15 @@ class MissionControlPublishTelemetry extends Disposable {
 }
 
 export function getMissionControlEnvironmentName(product: IProductService, machineName = hostname()): string {
+	return formatMissionControlEnvironmentName(product, machineName.replace(/\.local$/i, ''));
+}
+
+/** Adds the application name to an environment name, keeping the name itself as given. */
+export function formatMissionControlEnvironmentName(product: IProductService, name: string): string {
 	const applicationName = product.quality === 'stable' ? 'VS Code'
 		: product.quality === 'insider' ? 'VS Code Insiders'
 			: product.nameShort === 'Code - OSS' || product.nameShort === 'Code - OSS Dev' ? 'VS Code OSS' : product.nameShort;
-	return `${machineName.replace(/\.local$/i, '')} (${applicationName})`;
+	return `${name} (${applicationName})`;
 }
 
 /** Entry-owned adapter from the native runtime graph to the registration lifecycle. */
