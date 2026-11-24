@@ -1334,7 +1334,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	and background): the box sits inside the rounded auxiliary bar card,
 	Chromium applies one rounded clip per draw quad, and Blink gives every outer
 	rounded clip around another one a render surface, so a rounded
-	`overflow: hidden` here makes every keystroke draw offscreen render passes. */
+	`overflow: hidden` here adds render surfaces around the input's text and
+	costs GPU time on every keystroke. */
 .interactive-session .interactive-input-part:not(.compact) .chat-input-container {
 	clip-path: inset(0);
 }
