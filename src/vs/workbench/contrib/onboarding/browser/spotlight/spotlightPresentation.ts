@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { raceCancellation, timeout } from '../../../../../base/common/async.js';
+import { timeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { isCancellationError, onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { autorun, derived, IObservable, observableFromEvent, waitForState } from '../../../../../base/common/observable.js';
 import { IConfigurationService, isConfigured } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
@@ -28,21 +29,10 @@ const TARGET_RESOLVE_TIMEOUT = 2000;
 const TARGET_POLL_INTERVAL = 50;
 const TARGET_ANIMATION_SETTLE_TIMEOUT = 600;
 /**
- * How long a step waits after modal UI closes before it comes back. Modal UI often hands over to more modal UI
- * after a short asynchronous gap, such as a folder picked in the Quick Input that opens a trust dialog.
+ * How long modal UI must stay closed before a step shows. Modal UI often hands over to more modal UI after a short
+ * asynchronous gap, such as a folder picked in the Quick Input that opens a trust dialog.
  */
 const MODAL_UI_SETTLE_DELAY = 200;
-
-/** Waits {@link MODAL_UI_SETTLE_DELAY}, or until `token` is cancelled. */
-async function waitForModalUiToSettle(token: CancellationToken): Promise<void> {
-	try {
-		await timeout(MODAL_UI_SETTLE_DELAY, token);
-	} catch (error) {
-		if (!isCancellationError(error)) {
-			throw error;
-		}
-	}
-}
 
 function shouldAbortOnMissingTarget(behavior: SpotlightMissingTargetBehavior | undefined): boolean {
 	return behavior?.kind === 'abort' || (behavior?.kind === 'wait' && behavior.onTimeout === 'abort');
@@ -72,8 +62,11 @@ export class SpotlightPresentation extends Disposable implements IOnboardingPres
 	readonly kind = SPOTLIGHT_PRESENTATION_KIND;
 	readonly countsAsVisualStep = true;
 
-	private readonly _onWillShowModalUi: Event<void>;
-	private readonly _onDidHideModalUi: Event<void>;
+	/** Whether a dialog is showing or queued. */
+	private readonly _dialogVisible: IObservable<boolean>;
+	private readonly _quickInputVisible: IObservable<boolean>;
+	/** Modal UI that a spotlight never shows over. It listens to the dialog and Quick Input services only while observed. */
+	private readonly _modalUiVisible: IObservable<boolean>;
 
 	constructor(
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
@@ -81,12 +74,13 @@ export class SpotlightPresentation extends Disposable implements IOnboardingPres
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IDialogService private readonly dialogService: IDialogService,
-		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@IDialogService dialogService: IDialogService,
+		@IQuickInputService quickInputService: IQuickInputService,
 	) {
 		super();
-		this._onWillShowModalUi = Event.any(this.dialogService.onWillShowDialog, this.quickInputService.onShow);
-		this._onDidHideModalUi = Event.any(this.dialogService.onDidShowDialog, this.quickInputService.onHide);
+		this._dialogVisible = observableFromEvent(this, Event.any(dialogService.onWillShowDialog, dialogService.onDidShowDialog), () => dialogService.hasDialog);
+		this._quickInputVisible = observableFromEvent(this, Event.any(quickInputService.onShow, quickInputService.onHide), () => !!quickInputService.currentQuickInput);
+		this._modalUiVisible = derived(this, reader => this._dialogVisible.read(reader) || this._quickInputVisible.read(reader));
 	}
 
 	async run(scenario: IOnboardingScenario, context: IOnboardingRunContext): Promise<IOnboardingRunResult> {
@@ -96,7 +90,7 @@ export class SpotlightPresentation extends Disposable implements IOnboardingPres
 
 	async runStep(sequenceStep: IOnboardingSequenceStep, context: IOnboardingSequenceStepContext): Promise<IOnboardingSequenceStepResult> {
 		const step = sequenceStep.payload as ISpotlightStep;
-		await this._waitForNoModalUi(context.cancellationToken);
+		await this._waitForModalUiToClose(context.cancellationToken);
 		if (context.cancellationToken.isCancellationRequested) {
 			return { action: 'abort', shown: false };
 		}
@@ -207,7 +201,7 @@ export class SpotlightPresentation extends Disposable implements IOnboardingPres
 			while (index >= 0 && index < stepCount && !aborted) {
 				const step = steps[index];
 
-				await this._waitForNoModalUi(targetResolutionCancellation.token);
+				await this._waitForModalUiToClose(targetResolutionCancellation.token);
 				if (aborted) {
 					break;
 				}
@@ -300,17 +294,13 @@ export class SpotlightPresentation extends Disposable implements IOnboardingPres
 		overlay.setBackdropVisible(backdrop);
 		overlay.setTitleCloseButton(this.configurationService.getValue<boolean>(SPOTLIGHT_CLOSE_BUTTON_CONFIG) === true);
 		if (backdrop) {
-			// A dialog dims the window while it shows and clears the dimming when it closes.
+			// A dialog dims the window itself while it shows, and clears the dimming when it closes.
 			// The Quick Input dims nothing, so the window is not dimmed while the spotlight steps aside for it.
-			const updateDimming = () => {
-				if (!this._isModalUiVisible()) {
-					this.hostService.setWindowDimmed(targetWindow, true);
-				} else if (!this.dialogService.hasDialog) {
-					this.hostService.setWindowDimmed(targetWindow, false);
+			store.add(autorun(reader => {
+				if (!this._dialogVisible.read(reader)) {
+					this.hostService.setWindowDimmed(targetWindow, !this._quickInputVisible.read(reader));
 				}
-			};
-			updateDimming();
-			store.add(Event.any(this.quickInputService.onShow, this._onDidHideModalUi)(updateDimming));
+			}));
 			store.add(toDisposable(() => this.hostService.setWindowDimmed(targetWindow, false)));
 		}
 
@@ -321,21 +311,19 @@ export class SpotlightPresentation extends Disposable implements IOnboardingPres
 		return overlay;
 	}
 
-	/** Whether modal UI that a spotlight never shows over is open: a dialog, showing or queued, or the Quick Input. */
-	private _isModalUiVisible(): boolean {
-		return this.dialogService.hasDialog || !!this.quickInputService.currentQuickInput;
-	}
-
-	private async _waitForNoModalUi(cancellationToken: CancellationToken): Promise<void> {
-		while (this._isModalUiVisible() && !cancellationToken.isCancellationRequested) {
-			const store = new DisposableStore();
-			try {
-				await raceCancellation(Event.toPromise(this._onDidHideModalUi, store), cancellationToken);
-			} finally {
-				store.dispose();
+	/**
+	 * Waits until no modal UI is open, checking again {@link MODAL_UI_SETTLE_DELAY} after it closes, or until `token`
+	 * is cancelled. Returns at once when no modal UI is open.
+	 */
+	private async _waitForModalUiToClose(token: CancellationToken): Promise<void> {
+		try {
+			while (this._modalUiVisible.get() && !token.isCancellationRequested) {
+				await waitForState(this._modalUiVisible, visible => !visible, undefined, token);
+				await timeout(MODAL_UI_SETTLE_DELAY, token);
 			}
-			if (!this._isModalUiVisible()) {
-				await waitForModalUiToSettle(cancellationToken);
+		} catch (error) {
+			if (!isCancellationError(error)) {
+				throw error;
 			}
 		}
 	}
@@ -568,23 +556,15 @@ export class SpotlightPresentation extends Disposable implements IOnboardingPres
 
 		// Modal UI hides the step, which keeps listening so the outcome of what the user does there can still advance it.
 		let suspended = false;
-		let resumeRequest = 0;
-		const suspend = () => {
-			if (!ended && !suspended) {
-				suspended = true;
-				overlay.hide();
+		const restore = async () => {
+			// Restore only once what the user did there settled, such as a folder picked in the Quick Input and the trust
+			// dialog that follows it, so a step that is about to advance or hide again does not flash.
+			while (!ended && (this._modalUiVisible.get() || pendingSelection)) {
+				await this._waitForModalUiToClose(cancellation.token);
+				await pendingSelection?.catch(() => undefined);
+				await this._waitForTargetReady(context.targetWindow, target.element);
 			}
-		};
-		const resume = async () => {
-			const request = ++resumeRequest;
-			// Let what the user did there settle first, such as a folder picked in the Quick Input and the trust dialog that
-			// follows it, so a step that is about to advance or hide again does not flash.
-			await waitForModalUiToSettle(cancellation.token);
-			while (pendingSelection && !ended) {
-				await pendingSelection.catch(() => undefined);
-			}
-			await this._waitForTargetReady(context.targetWindow, target.element);
-			if (ended || request !== resumeRequest || this._isModalUiVisible()) {
+			if (ended) {
 				return;
 			}
 			suspended = false;
@@ -599,16 +579,15 @@ export class SpotlightPresentation extends Disposable implements IOnboardingPres
 			// Without the backdrop, a restored step leaves focus where the closed UI returned it outside the spotlight.
 			await render(rendered || preserveFocus);
 		};
-		stepStore.add(this._onWillShowModalUi(suspend));
-		stepStore.add(this._onDidHideModalUi(() => {
-			if (suspended && !this._isModalUiVisible()) {
-				void resume();
+		stepStore.add(autorun(reader => {
+			if (this._modalUiVisible.read(reader) && !suspended && !ended) {
+				suspended = true;
+				overlay.hide();
+				void restore();
 			}
 		}));
 
-		if (this._isModalUiVisible()) {
-			suspend();
-		} else {
+		if (!suspended) {
 			await render(preserveFocus);
 		}
 

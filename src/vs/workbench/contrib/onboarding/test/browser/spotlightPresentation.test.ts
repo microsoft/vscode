@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { $, addDisposableListener, EventType, scheduleAtNextAnimationFrame } from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
-import { DeferredPromise, disposableTimeout } from '../../../../../base/common/async.js';
+import { DeferredPromise, disposableTimeout, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { hasKey } from '../../../../../base/common/types.js';
@@ -1268,6 +1268,13 @@ suite('SpotlightPresentation', () => {
 			return new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
 		}
 
+		/** Runs virtual time well past the settle delay and then the next frames, so a step that would restore has restored. */
+		async function settle(): Promise<void> {
+			await timeout(1000);
+			await nextFrame();
+			await nextFrame();
+		}
+
 		function overlayState(container: HTMLElement) {
 			const overlay = container.querySelector<HTMLElement>('.spotlight-overlay')!;
 			return {
@@ -1281,7 +1288,7 @@ suite('SpotlightPresentation', () => {
 			[...container.querySelectorAll<HTMLElement>('.monaco-button')].at(-1)!.click();
 		}
 
-		test('hides the step while a dialog is open, ignores Escape in the dialog and restores the step when it closes', async () => {
+		test('hides the step while a dialog is open, ignores Escape in the dialog and restores the step when it closes', () => runWithFakedTimers({}, async () => {
 			const container = createContainer();
 			const dialogService = createDialogService();
 			const dimming: boolean[] = [];
@@ -1318,9 +1325,9 @@ suite('SpotlightPresentation', () => {
 				result: { outcome: OnboardingOutcome.Completed, shown: true, dismissReason: OnboardingDismissReason.Completed, lastStepIndex: 1, stepCount: 2 },
 				dimming: [true, true, false],
 			});
-		});
+		}));
 
-		test('advances without restoring the step when the dialog accepts its pending selection', async () => {
+		test('advances without restoring the step when the dialog accepts its pending selection', () => runWithFakedTimers({}, async () => {
 			const container = createContainer();
 			const dialogService = createDialogService();
 			const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
@@ -1344,8 +1351,7 @@ suite('SpotlightPresentation', () => {
 			const dialog = showDialog(dialogService);
 			dialog.item.close();
 			await dialog.result;
-			await nextFrame();
-			await nextFrame();
+			await settle();
 			const beforeAcceptance = overlayState(container).visible;
 			await acceptance.complete(true);
 
@@ -1354,9 +1360,9 @@ suite('SpotlightPresentation', () => {
 				opens: 1,
 				result: { outcome: OnboardingOutcome.Completed, shown: true, dismissReason: OnboardingDismissReason.Completed, lastStepIndex: 1, stepCount: 2 },
 			});
-		});
+		}));
 
-		test('hides the step while the Quick Input is open, leaves Escape to it, does not dim the window and restores the step when it closes', async () => {
+		test('hides the step while the Quick Input is open, leaves Escape to it, does not dim the window and restores the step when it closes', () => runWithFakedTimers({}, async () => {
 			const container = createContainer();
 			const quickInput = new FakeQuickInputService();
 			const dimming: boolean[] = [];
@@ -1392,9 +1398,9 @@ suite('SpotlightPresentation', () => {
 				result: { outcome: OnboardingOutcome.Completed, shown: true, dismissReason: OnboardingDismissReason.Completed, lastStepIndex: 1, stepCount: 2 },
 				dimming: [true, false, true, false],
 			});
-		});
+		}));
 
-		test('keeps the step hidden when a folder picked in the Quick Input is decided by a later dialog', async () => {
+		test('keeps the step hidden when a folder picked in the Quick Input is decided by a later dialog', () => runWithFakedTimers({}, async () => {
 			const container = createContainer();
 			const dialogService = createDialogService();
 			const quickInput = new FakeQuickInputService();
@@ -1419,8 +1425,7 @@ suite('SpotlightPresentation', () => {
 			const whileQuickInput = overlayState(container).visible;
 			quickInput.hide();
 			// The picker reports the folder a little after the Quick Input closes, and the trust dialog follows.
-			await nextFrame();
-			await nextFrame();
+			await timeout(50);
 			selected.fire(acceptance.p);
 			const beforeDialog = overlayState(container).visible;
 			const dialog = showDialog(dialogService);
@@ -1434,10 +1439,10 @@ suite('SpotlightPresentation', () => {
 				opens: 1,
 				result: { outcome: OnboardingOutcome.Completed, shown: true, dismissReason: OnboardingDismissReason.Completed, lastStepIndex: 1, stepCount: 2 },
 			});
-		});
+		}));
 
 		for (const change of ['targetRemoved', 'contextChanged'] as const) {
-			test(`moves on instead of restoring a step whose target or context the dialog changed (${change})`, async () => {
+			test(`moves on instead of restoring a step whose target or context the dialog changed (${change})`, () => runWithFakedTimers({}, async () => {
 				const container = createContainer();
 				const dialogService = createDialogService();
 				const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
@@ -1477,12 +1482,12 @@ suite('SpotlightPresentation', () => {
 					shown: ['workspace', 'model'],
 					opens: 1,
 				});
-			});
+			}));
 		}
 
 		for (const ui of ['dialog', 'quickInput'] as const) {
 			for (const runAsSequenceStep of [false, true]) {
-				test(`does not start a step until an open ${ui} closes (runAsSequenceStep: ${runAsSequenceStep})`, async () => {
+				test(`does not start a step until an open ${ui} closes (runAsSequenceStep: ${runAsSequenceStep})`, () => runWithFakedTimers({}, async () => {
 					const container = createContainer();
 					const dialogService = createDialogService();
 					const quickInput = new FakeQuickInputService();
@@ -1505,8 +1510,7 @@ suite('SpotlightPresentation', () => {
 							...context, cancellationToken: CancellationToken.None, stepIndex: 0, visualStepIndex: 0, visualStepCount: 1, canGoBack: false, isLastVisualStep: true,
 						})
 						: presentation.run(createScenario('test.modal.waiting', step), context);
-					await nextFrame();
-					await nextFrame();
+					await settle();
 					const whileOpen = { prepared, shown };
 					if (dialog) {
 						dialog.item.close();
@@ -1520,7 +1524,7 @@ suite('SpotlightPresentation', () => {
 						shown: 1,
 						completed: true,
 					});
-				});
+				}));
 			}
 		}
 	});
