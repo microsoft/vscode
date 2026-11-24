@@ -321,8 +321,9 @@ registerAction2(class NewSessionForWorkspaceAction extends Action2 {
 			? latest(getNewSessionSources(context.sessions, accessor.get(ISessionsProvidersService), sessionsManagementService).map(({ session }) => session))
 			: undefined;
 		const like = source ?? context.sessions.find(session => canStartNewSessionLike(session, sessionsManagementService));
-		// An environment whose sessions have no workspace to start in, such as an extension's host of jobs, still starts there.
-		return like || !context.environment ? openNewSessionLike(accessor, like) : openNewSessionLike(accessor, latest(context.sessions), true);
+		// A workspace or environment section whose sessions have no workspace to start in, such as those of an extension's
+		// host of jobs, still starts in their environment. A repository section spans environments, so it keeps the composer's.
+		return like || context.repository ? openNewSessionLike(accessor, like) : openNewSessionLike(accessor, latest(context.sessions), true);
 	}
 });
 

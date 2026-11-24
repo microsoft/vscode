@@ -84,7 +84,13 @@ export class InlineModelDecorationsComputer implements IInlineDecorationsCompute
 	}
 
 	public getDecorations(viewRange: Range, onlyMinimapDecorations: boolean, onlyMarginDecorations: boolean): IViewDecorationsCollection {
-		const modelDecorations = this.context.getModelDecorations(viewRange, onlyMinimapDecorations, onlyMarginDecorations);
+		return this.getDecorationsFromModelDecorations(viewRange, this.context.getModelDecorations(viewRange, onlyMinimapDecorations, onlyMarginDecorations));
+	}
+
+	/**
+	 * Like {@link getDecorations}, for the model decorations of `viewRange` that the caller has already read.
+	 */
+	public getDecorationsFromModelDecorations(viewRange: Range, modelDecorations: IModelDecoration[]): IViewDecorationsCollection {
 		const startLineNumber = viewRange.startLineNumber;
 		const endLineNumber = viewRange.endLineNumber;
 

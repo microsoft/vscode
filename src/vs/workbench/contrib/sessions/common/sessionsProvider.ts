@@ -221,6 +221,8 @@ export interface ISendRequestOptions {
 	readonly title?: string;
 	/** Hide this request and its response from the chat transcript. */
 	readonly hideFromTranscript?: boolean;
+	/** Queue the request behind the chat's request in progress instead of rejecting it. Agent Host providers honor it. */
+	readonly queue?: IChatSendRequestOptions['queue'];
 }
 
 /** Options for forking a chat within a session. */
@@ -722,8 +724,9 @@ export interface ISessionsProvider {
 	/**
 	 * Observe the live canvases of a chat whether or not its session is active, unlike
 	 * {@link IChat.canvases}. `undefined` while membership is unknown. Holding the
-	 * reference may keep the session resident. Returns `undefined` when the provider
-	 * cannot resolve the chat.
+	 * reference may keep the session resident, and contributes this client to the session
+	 * as showing it would, so a chat whose runtime was released can restore its canvases.
+	 * Returns `undefined` when the provider cannot resolve the chat.
 	 */
 	observeChatCanvases?(sessionId: string, chatResource: URI): IReference<IObservable<readonly ISessionCanvas[] | undefined>> | undefined;
 

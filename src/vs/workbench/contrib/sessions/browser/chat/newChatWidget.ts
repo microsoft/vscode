@@ -849,7 +849,7 @@ export class NewChatWidget extends Disposable {
 				this._newChatInput.focus();
 				return;
 			}
-			await this._onWorkspaceSelected(this._workspacePicker.selectedFolderUri, pick);
+			await this._selectSessionType(this._workspacePicker.selectedFolderUri, pick);
 			this._newChatInput.focus();
 		}));
 		this._register(this.sessionsManagementService.onDidChangeSessionTypes(() => this._restoreNoWorkspaceDraft()));
@@ -891,6 +891,42 @@ export class NewChatWidget extends Disposable {
 			previousFolderUri = folderUri;
 			this._syncWorkspacePickerFromSessionWorkspace(workspace);
 		}));
+
+		this._register(autorun(reader => {
+			providersChanged.read(reader);
+			workspacePickerSelectionChanged.read(reader);
+			const continuation = this._readContinuation(reader);
+			if (continuation) {
+				void this._followSuccessor(continuation.folderUri, continuation.providerId, continuation.successorFolderUri, continuation.successorProviderId, continuation.mapResource);
+			}
+		}));
+	}
+
+	/**
+	 * The provider that continues the selected workspace's host, such as a shared remote's direct connection that is
+	 * connected again, whose GitHub environment then becomes unavailable, or the GitHub environment that takes over a
+	 * remote disconnected with Keep Sharing.
+	 */
+	private _readContinuation(reader: IReader): { folderUri: URI; providerId: string; successorFolderUri: URI; successorProviderId: string; mapResource: (resource: URI) => URI | undefined } | undefined {
+		const folderUri = this._workspacePicker.selectedFolderUri;
+		const providerId = this._workspacePicker.selectedResolved?.providerId;
+		if (!folderUri || !providerId) {
+			return undefined;
+		}
+		const provider = this.sessionsProvidersService.getProvider(providerId);
+		const successor = provider && isAgentHostProvider(provider) ? provider.successor?.read(reader) : undefined;
+		const successorFolderUri = successor?.mapResource(folderUri);
+		if (successor && successorFolderUri) {
+			return { folderUri, providerId, successorFolderUri, successorProviderId: successor.providerId, mapResource: resource => successor.mapResource(resource) };
+		}
+		for (const candidate of this.sessionsProvidersService.getProviders()) {
+			const predecessor = candidate.id !== providerId && isAgentHostProvider(candidate) ? candidate.predecessor?.read(reader) : undefined;
+			const candidateFolderUri = predecessor?.providerId === providerId ? predecessor.mapResource(folderUri) : undefined;
+			if (predecessor && candidateFolderUri) {
+				return { folderUri, providerId, successorFolderUri: candidateFolderUri, successorProviderId: candidate.id, mapResource: resource => predecessor.mapResource(resource) };
+			}
+		}
+		return undefined;
 	}
 
 	private _trackSessionPreparation(): IDisposable {
@@ -1741,6 +1777,29 @@ export class NewChatWidget extends Disposable {
 		this.newSessionComposerService.notifyUserWorkspaceSelection();
 	}
 
+	/**
+	 * Replaces the draft of `folderUri` with one of the agent the user picked. Where the user chose New Worktree for the
+	 * replaced draft, or one is still requested for it, the new draft works in a new worktree too, as a preference: it is
+	 * dropped where the picked agent cannot work in one.
+	 */
+	private async _selectSessionType(folderUri: URI | undefined, pick: IPreferredSessionType | undefined): Promise<void> {
+		const pending = this._pendingWorktreePlacement.get();
+		const pendingForFolder = !!folderUri && !!pending && this.uriIdentityService.extUri.isEqual(pending.folderUri, folderUri);
+		const chosen = !!this._newWorktree?.isUserChosen() && this._newWorktree.isSelected();
+		const placement: IPendingWorktreePlacement | undefined = folderUri && isWorktreeSupportEnabled(this.configurationService) && (chosen || pendingForFolder)
+			? { folderUri, sessionId: undefined, previousSessionId: this._session.get()?.sessionId, isPreference: pendingForFolder ? pending.isPreference : true }
+			: undefined;
+		this._pendingWorktreePlacement.set(placement, undefined);
+		let result: IOpenNewSessionResult | undefined;
+		try {
+			result = await this._onWorkspaceSelected(folderUri, pick);
+		} finally {
+			if (placement) {
+				this._bindWorktreePlacement(placement, result);
+			}
+		}
+	}
+
 	private _warnNewWorktreeUnavailable(): void {
 		this.notificationService.warn(localize('newChatWidget.newWorktreeUnavailable', "This agent cannot start a session in a new worktree. The new chat works in the folder."));
 	}
@@ -2325,6 +2384,7 @@ export class NewChatWidget extends Disposable {
 		folderUri: URI,
 		userPick = this._newChatInput.sessionTypePicker.getUserPickedSessionType(),
 		handoff?: { readonly token: CancellationToken; readonly providerId?: string; readonly preferDevContainer?: boolean },
+		background?: boolean,
 	): Promise<IOpenNewSessionResult> {
 		this._pendingPreferredUpgrade.clear();
 		const creationCts = new CancellationTokenSource(handoff?.token);
@@ -2340,7 +2400,7 @@ export class NewChatWidget extends Disposable {
 		let changedWhilePending = false;
 		pendingChange.add(this.sessionsManagementService.onDidChangeSessionTypes(() => changedWhilePending = true));
 		let result: IOpenNewSessionResult;
-		const creation = this._createSessionNow(folderUri, userPick, creationCts.token, handoff?.providerId);
+		const creation = this._createSessionNow(folderUri, userPick, creationCts.token, handoff?.providerId, background);
 		this._pendingWorkspaceCreation = creation;
 		try {
 			result = await creation;
@@ -2386,7 +2446,7 @@ export class NewChatWidget extends Disposable {
 		//    (first) type, which can change as the folder's session-type list
 		//    grows.
 		if (!result.session || !userPick || !this._isPreferredServable(folderUri, userPick)) {
-			this._scheduleRecreateOnProviderChange(folderUri, userPick, result.session, changedWhilePending);
+			this._scheduleRecreateOnProviderChange(folderUri, userPick, result.session, changedWhilePending, background);
 		}
 		return result;
 	}
@@ -2448,7 +2508,7 @@ export class NewChatWidget extends Disposable {
 		return !!folderUri && !!target?.requireDevContainer && !!target.folderUri && this.uriIdentityService.extUri.isEqual(target.folderUri, folderUri);
 	}
 
-	private async _createSessionNow(folderUri: URI, userPick: IPreferredSessionType | undefined, token: CancellationToken, providerId?: string): Promise<IOpenNewSessionResult> {
+	private async _createSessionNow(folderUri: URI, userPick: IPreferredSessionType | undefined, token: CancellationToken, providerId?: string, background?: boolean): Promise<IOpenNewSessionResult> {
 		// Prefer the user's explicit pick when its provider can serve the
 		// folder; otherwise fall back to the preferred (first) session type.
 		const preferredPick = userPick && this._isPreferredServable(folderUri, userPick)
@@ -2466,6 +2526,7 @@ export class NewChatWidget extends Disposable {
 				preserveNavigation: true,
 				...(this._draftHost ? { draftSlot: this._draftHost.slot } : this._preserveCustomView ? { preserveCustomView: true } : {}),
 				...(environment?.kind === 'container' || this._requestsDevContainer(folderUri) ? { requireDevContainer: true } : undefined),
+				...(background ? { background: true } : undefined),
 				...(preferredPick
 					? { providerId: preferredPick.providerId, sessionTypeId: preferredPick.sessionTypeId }
 					: fallbackProviderId
@@ -2482,16 +2543,16 @@ export class NewChatWidget extends Disposable {
 		}
 	}
 
-	private _scheduleRecreateOnProviderChange(folderUri: URI, userPick: IPreferredSessionType | undefined, created: ISession | undefined, replayMissedChange: boolean): void {
+	private _scheduleRecreateOnProviderChange(folderUri: URI, userPick: IPreferredSessionType | undefined, created: ISession | undefined, replayMissedChange: boolean, background?: boolean): void {
 		const store = new DisposableStore();
-		store.add(this.sessionsManagementService.onDidChangeSessionTypes(() => this._recreateOnProviderChange(folderUri, userPick, created)));
+		store.add(this.sessionsManagementService.onDidChangeSessionTypes(() => this._recreateOnProviderChange(folderUri, userPick, created, background)));
 		this._pendingPreferredUpgrade.value = store;
 		if (replayMissedChange) {
-			this._recreateOnProviderChange(folderUri, userPick, created);
+			this._recreateOnProviderChange(folderUri, userPick, created, background);
 		}
 	}
 
-	private _recreateOnProviderChange(folderUri: URI, userPick: IPreferredSessionType | undefined, created: ISession | undefined): void {
+	private _recreateOnProviderChange(folderUri: URI, userPick: IPreferredSessionType | undefined, created: ISession | undefined, background?: boolean): void {
 		if (created) {
 			const active = this._session.get();
 			if (active?.sessionId !== created.sessionId || isSessionCreated(active)) {
@@ -2521,7 +2582,7 @@ export class NewChatWidget extends Disposable {
 				}
 			}
 		}
-		void this._createNewSession(folderUri, userPick);
+		void this._createNewSession(folderUri, userPick, undefined, background);
 	}
 
 	selectNoWorkspace(options?: ICreateNewSessionOptions, selectionOptions?: ISelectNoWorkspaceOptions): ISession | undefined {
@@ -2835,6 +2896,56 @@ export class NewChatWidget extends Disposable {
 			}
 		}
 		if (this._pickedEnvironment.get() === environment) {
+			this.accessibilityService.status(localize('environmentPicker.selected', "Environment: {0}", environment.label));
+		}
+	}
+
+	/**
+	 * Moves the selected workspace to the provider that continues its host, such as a shared remote's direct connection
+	 * once it is connected again or the GitHub environment of a remote disconnected with Keep Sharing, keeping the input,
+	 * the agent and a Dev Container where the new provider offers them. It happens in the background: focus stays where it is.
+	 */
+	private async _followSuccessor(folderUri: URI, providerId: string, successorFolderUri: URI, successorProviderId: string, mapResource: (resource: URI) => URI | undefined): Promise<void> {
+		const session = this._session.get();
+		if (session && isSessionCreated(session)) {
+			return;
+		}
+		const extUri = this.uriIdentityService.extUri;
+		const host = this._draftHost;
+		// Read before the environment changes: the picker returns only a pick for the composer's current provider.
+		const userPick = host ? undefined : this._newChatInput.sessionTypePicker.getUserPickedSessionType();
+		const sessionProvider = session ? this.sessionsProvidersService.getProvider(session.providerId, session.sessionId) : undefined;
+		const preferDevContainer = this._environment.get()?.kind === 'container'
+			|| extUri.isEqual(this._preferredDevContainerFolderUri, folderUri)
+			|| this._requestsDevContainer(folderUri)
+			|| (!!session && !!sessionProvider && isAgentHostProvider(sessionProvider) && sessionProvider.isDevContainerRequested?.(session.sessionId) === true);
+		// The source's files, such as attached ones, cannot be read once it disconnects.
+		this._newChatInput.remapDraftResources(mapResource);
+		this._newChatInput.saveState();
+		this._pendingPreferredUpgrade.clear();
+		this._newSessionCreation.clear();
+		this._reconcileWorkspaceEnvironment({ providerId: successorProviderId, preferDevContainer });
+		this._preferredDevContainerFolderUri = preferDevContainer ? successorFolderUri : undefined;
+		const target = host?.requestedTarget?.get();
+		if (host?.setRequestedTarget && target && extUri.isEqual(target.folderUri, folderUri)) {
+			host.setRequestedTarget({ ...target, folderUri: successorFolderUri, providerId: target.providerId === providerId ? successorProviderId : target.providerId }, 'background');
+		}
+		// What a hosted composer follows is not the main composer's selection.
+		this._workspacePicker.setSelectedWorkspace(successorFolderUri, { fireEvent: false, providerId: successorProviderId, persist: !host, preferDevContainer, origin: this._workspacePicker.selectionSnapshot.origin });
+		// The agent the draft waits for, such as one its host requests or the user picked that the shared host did not
+		// offer, goes before the one it fell back to. The new provider can advertise its agents only later: an explicit
+		// pick upgrades the draft once it does.
+		const requested = target && extUri.isEqual(target.folderUri, folderUri) ? target : userPick;
+		const sessionTypeId = (requested && (!requested.providerId || requested.providerId === providerId) ? requested.sessionTypeId : undefined) ?? session?.sessionType;
+		const pick = sessionTypeId ? { providerId: successorProviderId, sessionTypeId } : undefined;
+		await this._onWorkspaceSelected(successorFolderUri, pick, true);
+		const environment = this._environment.get();
+		if (
+			environment && !this._store.isDisposed
+			&& (this.options.hostVisible?.get() ?? true) && (this.options.inputVisible?.get() ?? true)
+			&& extUri.isEqual(this._workspacePicker.selectedFolderUri, successorFolderUri)
+			&& this._workspacePicker.selectedResolved?.providerId === successorProviderId
+		) {
 			this.accessibilityService.status(localize('environmentPicker.selected', "Environment: {0}", environment.label));
 		}
 	}
@@ -3585,7 +3696,7 @@ export class NewChatWidget extends Disposable {
 	 * {@link ISessionsService.openNewSession} itself — a single gate shared
 	 * by every path that creates a concrete session for a folder.
 	 */
-	private async _onWorkspaceSelected(folderUri: URI | undefined, userPick?: IPreferredSessionType): Promise<void> {
+	private async _onWorkspaceSelected(folderUri: URI | undefined, userPick?: IPreferredSessionType, background?: boolean): Promise<IOpenNewSessionResult | undefined> {
 		this._workspaceSelectionCleared = !folderUri && this._workspaceOptOutEnabled.get();
 		const workspaceOptOutTarget = this._workspaceSelectionCleared ? this._workspaceOptOutTarget.get() : undefined;
 		// Cancel any in-flight upgrade for a previous selection.
@@ -3627,7 +3738,7 @@ export class NewChatWidget extends Disposable {
 			return;
 		}
 
-		const result = await this._createNewSession(folderUri, userPick);
+		const result = await this._createNewSession(folderUri, userPick, undefined, background);
 		if (refreshingPromptOptions && !result.session) {
 			this._newChatInput.showPromptOptions(undefined);
 		}
@@ -3635,6 +3746,7 @@ export class NewChatWidget extends Disposable {
 			// Don't leave the picker showing the declined folder as selected.
 			this._workspacePicker.removeFromRecents(folderUri);
 		}
+		return result;
 	}
 
 	private async _refreshPromptOptions(): Promise<void> {

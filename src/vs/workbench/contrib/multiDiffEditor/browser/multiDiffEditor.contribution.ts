@@ -12,7 +12,7 @@ import { WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/
 import { EditorExtensions, IEditorFactoryRegistry } from '../../../common/editor.js';
 import { MultiDiffEditor } from './multiDiffEditor.js';
 import { MultiDiffEditorInput, MultiDiffEditorResolverContribution, MultiDiffEditorSerializer } from './multiDiffEditorInput.js';
-import { CollapseAllAction, ExpandAllAction, FocusFileListAction, GoToFileAction, GoToNextChangeAction, GoToPreviousChangeAction, OpenMultiDiffEditorLayoutDebugAction, PositionFileListLeftAction, PositionFileListRightAction, ToggleFileListAction, ViewFileListAsListAction, ViewFileListAsTreeAction } from './actions.js';
+import { CollapseAllAction, ExpandAllAction, FocusFileListAction, GoToFileAction, GoToNextChangeAction, GoToPreviousChangeAction, OpenMultiDiffEditorLayoutDebugAction, PositionFileListLeftAction, PositionFileListRightAction, ToggleFileListAction, ToggleSyncSplitViewAction, ViewFileListAsListAction, ViewFileListAsTreeAction } from './actions.js';
 import { IMultiDiffSourceResolverService, MultiDiffSourceResolverService } from './multiDiffSourceResolverService.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { OpenScmGroupAction, ScmMultiDiffSourceResolverContribution } from './scmMultiDiffSourceResolver.js';
@@ -30,6 +30,7 @@ registerAction2(PositionFileListRightAction);
 registerAction2(CollapseAllAction);
 registerAction2(ExpandAllAction);
 registerAction2(OpenMultiDiffEditorLayoutDebugAction);
+registerAction2(ToggleSyncSplitViewAction);
 
 
 registerSingleton(IMultiDiffSourceResolverService, MultiDiffSourceResolverService, InstantiationType.Delayed);

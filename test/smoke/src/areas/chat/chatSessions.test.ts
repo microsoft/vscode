@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import * as fs from 'fs';
 import * as path from 'path';
 import { Application, Chat, Logger } from '../../../../automation';
-import { dumpFailureDiagnostics, getCopilotSmokeTestEnv, getMockLlmServerPath, getMockLlmServerUrl, installAllHandlers, MockLlmServer, preseedChatExtensionEnablement } from '../../utils';
+import { dumpFailureDiagnostics, getCopilotSmokeTestEnv, getMockLlmServerPath, getMockLlmServerUrl, installAllHandlers, MockLlmServer, openLocalChatInChatView, preseedChatExtensionEnablement } from '../../utils';
 import { runInTerminalScenario, shellEchoResponseMatcher } from './shellScenarios';
 
 /**
@@ -192,15 +192,7 @@ async function openSession(app: Application, session: { readonly command: string
 		await app.workbench.quickaccess.runCommand(session.command);
 		await app.workbench.chat.waitForChatEditor(600);
 	} else {
-		// Wait for the command to bind a new local session to the view, not
-		// just any session. The view can open first with its default Agent Host
-		// Copilot session while the command still waits for the local chat
-		// command to register, as when this test is the first of the suite in
-		// a cold window. A prompt sent then goes to that session and never gets
-		// the local reply.
-		const previousSessionResource = await app.workbench.chat.getChatViewSessionResource();
-		await app.workbench.quickaccess.runCommand(session.command);
-		await app.workbench.chat.waitForNewLocalChatViewSession(previousSessionResource, 600);
+		await openLocalChatInChatView(app);
 	}
 }
 

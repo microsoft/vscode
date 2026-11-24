@@ -258,12 +258,14 @@
 	color: var(--vscode-descriptionForeground, #999999);
 }
 
-/* Off-state fish: brief attention-grabbing wiggle every 12s. The
- * keyframes hold the rest pose for ~93% of the cycle and only animate during
- * the first ~7%. */
-.agents-aquarium-toggle:not(.active) .codicon {
+/* Off-state fish: one brief attention-grabbing wiggle. AquariumService sets
+ * `.wiggle` for a single run at a time instead of looping the animation, so
+ * nothing animates (and no frames are produced) while the fish rests. Keep the
+ * duration below WIGGLE_MAX_RUN_MS in aquariumOverlay.ts, which is when the
+ * service takes `.wiggle` back at the latest. */
+.agents-aquarium-toggle.wiggle .codicon {
 	transform-origin: 50% 50%;
-	animation: agents-aquarium-toggle-wiggle 12s ease-in-out infinite;
+	animation: agents-aquarium-toggle-wiggle 840ms ease-in-out;
 }
 
 /* No need to nag once the user is engaging with the button. */
@@ -276,20 +278,17 @@
 	0% {
 		transform: rotate(0deg) scale(1);
 	}
-	1.5% {
+	21% {
 		transform: rotate(-12deg) scale(1.08);
 	}
-	3% {
+	43% {
 		transform: rotate(10deg) scale(1.08);
 	}
-	4.5% {
+	64% {
 		transform: rotate(-8deg) scale(1.05);
 	}
-	6% {
+	86% {
 		transform: rotate(6deg) scale(1.03);
-	}
-	7% {
-		transform: rotate(0deg) scale(1);
 	}
 	100% {
 		transform: rotate(0deg) scale(1);
@@ -298,11 +297,25 @@
 
 /* --- Reduced motion --- */
 
+/* `.monaco-reduce-motion` follows the `workbench.reduceMotion` setting; the
+ * media query below only sees the OS preference. */
+.monaco-reduce-motion .agents-aquarium-fish-strip,
+.monaco-reduce-motion .agents-aquarium-water::before,
+.monaco-reduce-motion .agents-aquarium-water::after,
+.monaco-reduce-motion .agents-aquarium-toggle.wiggle .codicon {
+	animation: none;
+}
+
+.monaco-reduce-motion .agents-aquarium-water,
+.monaco-reduce-motion .agents-aquarium-fish {
+	transition: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
 	.agents-aquarium-fish-strip,
 	.agents-aquarium-water::before,
 	.agents-aquarium-water::after,
-	.agents-aquarium-toggle:not(.active) .codicon {
+	.agents-aquarium-toggle.wiggle .codicon {
 		animation: none;
 	}
 

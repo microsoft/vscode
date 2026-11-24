@@ -1624,7 +1624,7 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
-		test('lists pinned canvases under a Canvases header below Automations in the navigation list, highlights the shown one, opens New Canvas from the header, and hides them while canvases are disabled', async () => {
+		test('lists pinned canvases under a Canvases header below Automations in the navigation list, highlights the shown one, opens Open Canvas from the header, and hides them while canvases are disabled', async () => {
 			const activeCustomView = observableValue<ICustomViewDescriptor | undefined>(disposables, undefined);
 			const createPin = (id: string, title: string, chatTitle: string | undefined, state: PinnedCanvasState) => upcastPartial<IPinnedCanvas>({
 				id,
@@ -1854,7 +1854,7 @@ suite('Sessions - SessionsList', () => {
 				opened: ['plan'],
 				contextMenus: [Menus.SidebarCanvasContext.id],
 				navigationRows: 0,
-				afterUnpin: ['Automations', 'Canvases', 'No canvases yet'],
+				afterUnpin: ['Automations', 'Canvases', 'No canvases'],
 			});
 		});
 
@@ -8602,6 +8602,32 @@ suite('Sessions - SessionsList', () => {
 	});
 
 	suite('empty group filter', () => {
+		test('shows the empty group placeholder when expanded', () => {
+			const group: ISessionGroup = { id: 'empty', name: 'In review', createdAt: 1 };
+			const harness = createListHarness(disposables, [], { groups: [group] });
+			const container = harness.createContainer();
+			const list = harness.store.add(harness.instantiationService.createInstance(TestSessionsList, container, {
+				grouping: () => SessionsGrouping.Workspace,
+				sorting: () => SessionsSorting.Created,
+				onSessionOpen: () => { },
+			}));
+			list.layout(300, 400);
+			list.setItemCollapsed({ group: group.id }, true);
+			const collapsed = container.querySelector('.session-placeholder-label')?.textContent;
+			list.setItemCollapsed({ group: group.id }, false);
+			const placeholder = container.querySelector<HTMLElement>('.session-placeholder-label');
+
+			assert.deepStrictEqual({
+				collapsed,
+				label: placeholder?.textContent,
+				ariaLabel: placeholder?.closest('.monaco-list-row')?.getAttribute('aria-label'),
+			}, {
+				collapsed: undefined,
+				label: 'No sessions',
+				ariaLabel: 'No sessions. Use Add to Group from a session\'s context menu, or drag it into this group.',
+			});
+		});
+
 		test('migrates removed filters and keeps empty groups visible', () => {
 			const emptyGroup: ISessionGroup = { id: 'empty', name: 'Empty Group', createdAt: 2 };
 			const populatedGroup: ISessionGroup = { id: 'populated', name: 'Populated Group', createdAt: 1 };
@@ -8774,7 +8800,7 @@ suite('Sessions - SessionsList', () => {
 			(source.isConnected ? source : listNode)?.dispatchEvent(new DragEvent('dragend', { bubbles: true, dataTransfer }));
 		}
 
-		function render(grouping = SessionsGrouping.Workspace, sectionMemberships: ReadonlyMap<string, string> = new Map(), liveGroups = false, settings: Readonly<Record<string, unknown>> = {}) {
+		function render(grouping = SessionsGrouping.Workspace, sectionMemberships: ReadonlyMap<string, string> = new Map(), liveGroups = false, settings: Readonly<Record<string, unknown>> = {}, productQuality?: string) {
 			let currentGrouping = grouping;
 			const now = Date.now();
 			const session = (title: string, minutesAgo: number) => createTestSession(title, { workspaceLabel: 'vscode', repository: grouping === SessionsGrouping.Repository ? 'microsoft/vscode' : undefined, createdAt: new Date(now - minutesAgo * 60_000) }).session;
@@ -8791,6 +8817,9 @@ suite('Sessions - SessionsList', () => {
 				sectionMemberships,
 				memberships,
 			});
+			if (productQuality !== undefined) {
+				harness.instantiationService.stub(IProductService, { ...TestProductService, quality: productQuality });
+			}
 			if (liveGroups) {
 				const storageService = harness.instantiationService.get(IStorageService);
 				storageService.store('sessionsListControl.groups', JSON.stringify({
@@ -9032,7 +9061,7 @@ suite('Sessions - SessionsList', () => {
 						'    Patch CVE',
 						'  Fix login',
 						'  Docs',
-						'  No session',
+						'  No sessions',
 						'Ship notes',
 						'Triage',
 						'Flaky test',
@@ -9055,7 +9084,7 @@ suite('Sessions - SessionsList', () => {
 				const { container } = render(SessionsGrouping.Workspace, new Map(), false, {
 					'workbench.tree.renderIndentGuides': 'onHover',
 					[SESSIONS_LIST_INDENT_ITEMS_SETTING]: indentItems,
-				});
+				}, 'insider');
 				for (const size of [2, 6, 10, 16]) {
 					container.style.setProperty(`--vscode-spacing-size${size * 10}`, `${size}px`);
 				}
@@ -9077,7 +9106,7 @@ suite('Sessions - SessionsList', () => {
 					'    Patch CVE',
 					'  Fix login',
 					'  Docs',
-					'  No session',
+					'  No sessions',
 					'Ship notes',
 					'Triage',
 					'Flaky test',
@@ -9091,7 +9120,7 @@ suite('Sessions - SessionsList', () => {
 					'      Patch CVE',
 					'    Fix login',
 					'  Docs',
-					'    No session',
+					'    No sessions',
 					'  Ship notes',
 					'Triage',
 					'  Flaky test',
@@ -12392,6 +12421,79 @@ suite('Sessions - SessionsList', () => {
 	});
 
 	suite('session row spacing', () => {
+		test('uses spacing instead of dot separators between session metadata', () => {
+			const changesSummary = observableValue<ISessionChangesSummary | undefined>('summary', { files: 1, additions: 12, deletions: 3 });
+			const source = createTestSession('Session', { workspaceLabel: 'vscode' });
+			const session = { ...source.session, changesSummary };
+			const render = (grouping: SessionsGrouping) => {
+				const harness = createListHarness(disposables, [session]);
+				const container = harness.createContainer();
+				container.style.setProperty('--vscode-spacing-size80', '8px');
+				const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+					grouping: () => grouping,
+					sorting: () => SessionsSorting.Created,
+					onSessionOpen: () => { },
+				}));
+				list.layout(300, 400);
+				return () => {
+					const details = container.querySelector('.session-item .session-details-row');
+					assert.ok(details);
+					return {
+						parts: [...details.children].map(element => element.className),
+						gap: mainWindow.getComputedStyle(details).columnGap,
+					};
+				};
+			};
+			const workspace = render(SessionsGrouping.Workspace);
+			const date = render(SessionsGrouping.Date);
+			const withChanges = { workspace: workspace(), date: date() };
+			source.status.set(SessionStatus.Error, undefined);
+			const withStatus = workspace();
+			source.status.set(SessionStatus.Completed, undefined);
+			changesSummary.set(undefined, undefined);
+			const withoutChanges = { workspace: workspace(), date: date() };
+
+			assert.deepStrictEqual({ withChanges, withStatus, withoutChanges }, {
+				withChanges: {
+					workspace: { parts: ['session-details-icon', 'session-diff', 'session-time'], gap: '8px' },
+					date: { parts: ['session-details-icon', 'session-badge', 'session-diff', 'session-time'], gap: '8px' },
+				},
+				withStatus: { parts: ['session-details-icon', 'session-diff', 'session-description', 'session-time'], gap: '8px' },
+				withoutChanges: {
+					workspace: { parts: ['session-details-icon', 'session-time'], gap: '8px' },
+					date: { parts: ['session-details-icon', 'session-badge', 'session-time'], gap: '8px' },
+				},
+			});
+		});
+
+		test('flat lists opt into metadata separators without changing the default', () => {
+			const source = createTestSession('History run', { workspaceLabel: 'vscode' });
+			const changesSummary = observableValue<ISessionChangesSummary | undefined>('summary', { files: 1, additions: 12, deletions: 3 });
+			const session = { ...source.session, changesSummary };
+			const renderers = [undefined, true].map(showMetadataSeparators => {
+				const harness = createListHarness(disposables, [session]);
+				const container = harness.createContainer();
+				const list = harness.store.add(harness.instantiationService.createInstance(SessionsFlatList, container, {
+					onSessionOpen: () => { },
+					showMetadataSeparators,
+				}));
+				list.setSessions([session]);
+				list.layout(300, 400);
+				return () => [...container.querySelectorAll('.session-details-row > .session-separator')]
+					.map(separator => separator.nextElementSibling?.className);
+			});
+			const completed = renderers.map(render => render());
+			source.status.set(SessionStatus.Error, undefined);
+			const error = renderers.map(render => render());
+			source.status.set(SessionStatus.Completed, undefined);
+			changesSummary.set(undefined, undefined);
+			assert.deepStrictEqual({ completed, error, withoutChanges: renderers.map(render => render()) }, {
+				completed: [[], ['session-diff', 'session-time']],
+				error: [[], ['session-diff', 'session-description', 'session-time']],
+				withoutChanges: [[], ['session-time']],
+			});
+		});
+
 		for (const status of [SessionStatus.InProgress, SessionStatus.NeedsInput]) {
 			test(`flat-list active metadata matches its accessible label when enabled (${status})`, () => {
 				const source = createTestSession('Cloud run', { workspaceLabel: 'owner/repo', status });

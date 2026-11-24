@@ -1107,6 +1107,16 @@ suite('CloudAutomationStore', () => {
 		});
 	}
 
+	test('read refresh rejects an initialized Microsoft account without GitHub requests', async () => {
+		const initialAccount = new DeferredPromise<IDefaultAccount | null>();
+		const { provider, api, set } = setup(new NullLogService(), undefined, undefined, initialAccount);
+		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
+		const refresh = provider.refresh();
+		await initialAccount.complete({ authenticationProvider: { id: 'microsoft', name: 'Microsoft', enterprise: false }, accountName: 'alice', sessionId: 's1', enterprise: false });
+		await assert.rejects(refresh, /Sign in to GitHub.com and enable cloud automations/);
+		assert.deepStrictEqual({ state: provider.catalogueState.get(), calls: api.calls }, { state: 'unavailable', calls: [] });
+	});
+
 	test('read refresh retries successfully after a catalogue error', async () => {
 		const { provider, api, set } = setup();
 		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);

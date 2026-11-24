@@ -42,6 +42,8 @@ export class TestAgentHostGitService implements IAgentHostGitService {
 	pull(...args: Parameters<IAgentHostGitService['pull']>) { return defaultGitService.pull(...args); }
 	push(...args: Parameters<IAgentHostGitService['push']>) { return defaultGitService.push(...args); }
 	getSessionGitState(...args: Parameters<IAgentHostGitService['getSessionGitState']>) { return defaultGitService.getSessionGitState(...args); }
+	resolveBaseBranch(...args: Parameters<IAgentHostGitService['resolveBaseBranch']>) { return defaultGitService.resolveBaseBranch(...args); }
+	resolveMergeTargetBranch(...args: Parameters<IAgentHostGitService['resolveMergeTargetBranch']>) { return defaultGitService.resolveMergeTargetBranch(...args); }
 	computeSessionFileDiffs(...args: Parameters<IAgentHostGitService['computeSessionFileDiffs']>) { return defaultGitService.computeSessionFileDiffs(...args); }
 	resolveBranchBaselineCommit(...args: Parameters<IAgentHostGitService['resolveBranchBaselineCommit']>) { return defaultGitService.resolveBranchBaselineCommit(...args); }
 	showBlob(...args: Parameters<IAgentHostGitService['showBlob']>) { return defaultGitService.showBlob(...args); }
@@ -96,6 +98,8 @@ export function createNoopGitService(): IAgentHostGitService {
 		pull: async () => { },
 		push: async () => { },
 		getSessionGitState: async () => undefined,
+		resolveBaseBranch: async () => undefined,
+		resolveMergeTargetBranch: async () => undefined,
 		computeSessionFileDiffs: async () => undefined,
 		resolveBranchBaselineCommit: async () => undefined,
 		showBlob: async () => undefined,

@@ -596,6 +596,7 @@ export class AutomationHistorySection extends Disposable {
 			showSessionHover: false,
 			alwaysConsumeMouseWheel: false,
 			useCompactQuickChatRows: false,
+			showMetadataSeparators: true,
 			toolbarMenuId: this.options.toolbarMenuId ?? Menus.AutomationsHistoryItem,
 			toolbarTelemetrySource: this.options.toolbarTelemetrySource ?? 'automationsView.historyRow',
 			contextMenuId: this.options.contextMenuId ?? Menus.AutomationsHistoryItemContext,

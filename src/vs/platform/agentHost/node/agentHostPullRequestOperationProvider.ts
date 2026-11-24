@@ -53,15 +53,15 @@ export class AgentHostPullRequestOperationContribution extends Disposable implem
 		this._registry = registry;
 		const store = new DisposableStore();
 		const getSessionState = (sessionKey: string) => this._stateManager.getSessionState(sessionKey);
-		const resolveBaseBranchName = (sessionKey: string) => this._gitStateService.resolveSessionBaseBranchName(sessionKey);
+		const resolveBaseBranch = (sessionKey: string) => this._gitStateService.resolveSessionBaseBranchRef(sessionKey);
 		const onCreated = (event: PullRequestCreatedEvent) => this.recordCreatedPullRequest(event);
-		const createPrHandler = this._instantiationService.createInstance(AgentHostPullRequestOperationHandler, false, undefined, false, getSessionState, resolveBaseBranchName, onCreated);
-		const createDraftPrHandler = this._instantiationService.createInstance(AgentHostPullRequestOperationHandler, true, undefined, false, getSessionState, resolveBaseBranchName, onCreated);
-		const createAutoMergePrHandler = this._instantiationService.createInstance(AgentHostPullRequestOperationHandler, false, 'MERGE', false, getSessionState, resolveBaseBranchName, onCreated);
-		const createAutoSquashPrHandler = this._instantiationService.createInstance(AgentHostPullRequestOperationHandler, false, 'SQUASH', false, getSessionState, resolveBaseBranchName, onCreated);
-		const createAutoRebasePrHandler = this._instantiationService.createInstance(AgentHostPullRequestOperationHandler, false, 'REBASE', false, getSessionState, resolveBaseBranchName, onCreated);
-		const createAgentMergePrHandler = this._instantiationService.createInstance(AgentHostPullRequestOperationHandler, false, undefined, true, getSessionState, resolveBaseBranchName, onCreated);
-		const createDraftAgentMergePrHandler = this._instantiationService.createInstance(AgentHostPullRequestOperationHandler, true, undefined, true, getSessionState, resolveBaseBranchName, onCreated);
+		const createPrHandler = this._instantiationService.createInstance(AgentHostPullRequestOperationHandler, false, undefined, false, getSessionState, resolveBaseBranch, onCreated);
+		const createDraftPrHandler = this._instantiationService.createInstance(AgentHostPullRequestOperationHandler, true, undefined, false, getSessionState, resolveBaseBranch, onCreated);
+		const createAutoMergePrHandler = this._instantiationService.createInstance(AgentHostPullRequestOperationHandler, false, 'MERGE', false, getSessionState, resolveBaseBranch, onCreated);
+		const createAutoSquashPrHandler = this._instantiationService.createInstance(AgentHostPullRequestOperationHandler, false, 'SQUASH', false, getSessionState, resolveBaseBranch, onCreated);
+		const createAutoRebasePrHandler = this._instantiationService.createInstance(AgentHostPullRequestOperationHandler, false, 'REBASE', false, getSessionState, resolveBaseBranch, onCreated);
+		const createAgentMergePrHandler = this._instantiationService.createInstance(AgentHostPullRequestOperationHandler, false, undefined, true, getSessionState, resolveBaseBranch, onCreated);
+		const createDraftAgentMergePrHandler = this._instantiationService.createInstance(AgentHostPullRequestOperationHandler, true, undefined, true, getSessionState, resolveBaseBranch, onCreated);
 		store.add(registry.registerChangesetOperationHandler(AgentHostPullRequestOperationHandler.OPERATION_CREATE_PR, createPrHandler));
 		store.add(registry.registerChangesetOperationHandler(PREPARE_PULL_REQUEST_OPERATION_ID, {
 			captureCredentialSource: (params, source) => createPrHandler.captureCredentialSource(params, source),

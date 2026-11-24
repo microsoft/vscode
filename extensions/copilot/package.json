@@ -5517,6 +5517,10 @@
       ],
       "commandPalette": [
         {
+          "command": "github.copilot.open.walkthrough",
+          "when": "!isSessionsWindow"
+        },
+        {
           "command": "github.copilot.report",
           "when": "false"
         },
@@ -5570,6 +5574,10 @@
         },
         {
           "command": "github.copilot.chat.explain",
+          "when": "false"
+        },
+        {
+          "command": "github.copilot.chat.attachFile",
           "when": "false"
         },
         {

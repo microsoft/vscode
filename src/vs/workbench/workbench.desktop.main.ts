@@ -202,9 +202,6 @@ import './contrib/remoteTunnel/electron-browser/remoteTunnel.contribution.js';
 import './contrib/chat/electron-browser/chat.contribution.js';
 import './contrib/chat/electron-browser/tunnelHost.contribution.js';
 
-// Copilot Voice
-import './contrib/agentsVoice/electron-browser/agentsVoiceNativeCommands.js';
-
 // Encryption
 import './contrib/encryption/electron-browser/encryption.contribution.js';
 
