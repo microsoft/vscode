@@ -1825,6 +1825,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			collapsedSessionIds?: IObservable<ReadonlySet<string>>;
 			getAdditionalContextKeys?: SessionContextKeyProvider;
 			showMetadataWhileActive?: (session: ISession) => boolean;
+			showMetadataSeparators?: boolean;
 			getCompletedStatusMessage?: (session: ISession, reader: IReader | undefined) => string | undefined;
 			getTriageDescription?: (session: ISession, reader: IReader | undefined) => string | undefined;
 			onboardingTarget?: IObservable<ISessionOnboardingTarget | undefined>;
@@ -2329,8 +2330,12 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 				: getSessionDiffStats(element, reader);
 			const mainChat = element.mainChat.read(reader);
 			const timeDate = getSessionRowUpdatedAt(element, mainChat, reader, this.options.grouping(), this.options.showMetadataWhileActive?.(element));
+			const appendSeparator = () => {
+				if (this.options.showMetadataSeparators && template.detailsRow.childElementCount > 0) {
+					DOM.append(template.detailsRow, $('span.session-separator.has-separator', { 'aria-hidden': 'true' }));
+				}
+			};
 
-			const parts: HTMLElement[] = [];
 			if (
 				eligible &&
 				this.options.externalApplicationBadgeMode?.read(reader) === ExternalSessionApplicationBadgeMode.Details
@@ -2342,15 +2347,12 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 				);
 				DOM.append(badgeEl, $('span.session-external-application-badge-label', undefined, badgeLabel));
 				reader.store.add(this.hoverService.setupDelayedHoverAtMouse(badgeEl, { content: badgeLabel }));
-				parts.push(badgeEl);
 			}
 
 			const statusMessage = getSessionStatusMessage(sessionStatus, description)
 				?? (sessionStatus === SessionStatus.Completed ? this.options.getCompletedStatusMessage?.(element, reader) : undefined);
 			if (sessionStatus !== SessionStatus.InProgress || !hideDetails) {
-				if (parts.length > 0) {
-					DOM.append(template.detailsRow, $('span.session-separator.has-separator'));
-				}
+				appendSeparator();
 				let icon: ThemeIcon;
 				if (isQuickChat) {
 					icon = Codicon.commentDiscussion;
@@ -2361,49 +2363,36 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 				}
 				const typeIconEl = DOM.append(template.detailsRow, $('span.session-details-icon'));
 				DOM.append(typeIconEl, $(`span${ThemeIcon.asCSSSelector(icon)}`));
-				parts.push(typeIconEl);
 			}
 
 			if (!hideDetails && badgeLabel) {
 				const badgeEl = DOM.append(template.detailsRow, $('span.session-badge'));
 				badgeEl.textContent = badgeLabel;
-				parts.push(badgeEl);
 			}
 
 			const triage = this.options.getTriageDescription?.(element, reader);
 			if (triage) {
-				if (parts.length > 0) {
-					DOM.append(template.detailsRow, $('span.session-separator.has-separator'));
-				}
+				appendSeparator();
 				const label = DOM.append(template.detailsRow, $('span.session-description', undefined, triage));
 				reader.store.add(this.hoverService.setupDelayedHoverAtMouse(label, { content: triage }));
-				parts.push(label);
 			}
 
 			if (searchHint) {
-				if (parts.length > 0) {
-					DOM.append(template.detailsRow, $('span.session-separator.has-separator'));
-				}
+				appendSeparator();
 				const hintEl = DOM.append(template.detailsRow, $('span.session-search-hint'));
 				renderSearchHint(hintEl, searchHint, reader.store);
-				parts.push(hintEl);
 			}
 
 			// Diff stats
 			if (!isQuickChat && !hideDetails && diffStats) {
-				if (parts.length > 0) {
-					DOM.append(template.detailsRow, $('span.session-separator.has-separator'));
-				}
+				appendSeparator();
 				const diffEl = DOM.append(template.detailsRow, $('span.session-diff'));
 				DOM.append(diffEl, $('span.session-diff-added')).textContent = `+${diffStats.insertions}`;
 				DOM.append(diffEl, $('span.session-diff-removed')).textContent = `-${diffStats.deletions}`;
-				parts.push(diffEl);
 			}
 
 			if (statusMessage !== undefined) {
-				if (parts.length > 0) {
-					DOM.append(template.detailsRow, $('span.session-separator.has-separator'));
-				}
+				appendSeparator();
 				const statusEl = DOM.append(template.detailsRow, $('span.session-description'));
 				if (typeof statusMessage === 'string') {
 					descriptionDisposable.clear();
@@ -2411,15 +2400,12 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 				} else {
 					descriptionDisposable.value = this.markdownRendererService.render(statusMessage, { sanitizerConfig: { replaceWithPlaintext: true } }, statusEl);
 				}
-				parts.push(statusEl);
 			} else {
 				descriptionDisposable.clear();
 			}
 
 			if (timeDate) {
-				if (parts.length > 0) {
-					DOM.append(template.detailsRow, $('span.session-separator.has-separator'));
-				}
+				appendSeparator();
 				const timeEl = DOM.append(template.detailsRow, $('span.session-time'));
 				const definiteTimeDate = timeDate;
 				const formatTime = () => formatSessionListTime(definiteTimeDate);
@@ -9199,7 +9185,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			element,
 			collapsible: true,
 			collapsed: resolveCollapsed(element, this.getSavedCollapseState(element.id) ? ObjectTreeElementCollapseState.PreserveOrCollapsed : ObjectTreeElementCollapseState.PreserveOrExpanded),
-			children: pins.length > 0 ? pins : [{ element: { placeholder: true as const, sectionId: CANVASES_SECTION_ID, label: localize('noCanvases', "No canvases yet") } }],
+			children: pins.length > 0 ? pins : [{ element: { placeholder: true as const, sectionId: CANVASES_SECTION_ID, label: localize('noCanvases', "No canvases") } }],
 		};
 	}
 
@@ -11404,6 +11390,8 @@ export interface ISessionsFlatListOptions {
 	readonly getAdditionalContextKeys?: SessionContextKeyProvider;
 	/** Keeps repository and time visible alongside progress in history views. */
 	readonly showMetadataWhileActive?: (session: ISession) => boolean;
+	/** Keeps dot separators between metadata items in history views. Defaults to `false`. */
+	readonly showMetadataSeparators?: boolean;
 	/** Short outcome shown before the time of a completed row, such as "Cancelled". */
 	readonly getCompletedStatusMessage?: (session: ISession, reader: IReader | undefined) => string | undefined;
 	/** Whether opening a row immediately marks its session as read. Defaults to `true`. */
@@ -11516,6 +11504,7 @@ export class SessionsFlatList extends Disposable {
 				reportExternalApplicationBadgeShowFromExperimentTrigger,
 				getAdditionalContextKeys: this.options.getAdditionalContextKeys,
 				showMetadataWhileActive: this.options.showMetadataWhileActive,
+				showMetadataSeparators: this.options.showMetadataSeparators,
 				getCompletedStatusMessage: this.options.getCompletedStatusMessage,
 			},
 			approvalModel,

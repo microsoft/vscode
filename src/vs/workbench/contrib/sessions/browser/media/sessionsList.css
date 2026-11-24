@@ -783,7 +783,7 @@
 	}
 
 	.session-details-row {
-		gap: 4px;
+		gap: var(--vscode-spacing-size80);
 		font-size: var(--vscode-fontSize-label2, 11px);
 		line-height: 15px;
 		max-height: 15px;

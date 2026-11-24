@@ -10,7 +10,7 @@ import * as path from 'path';
 import { fileURLToPath, pathToFileURL } from 'url';
 import type { Page } from '@playwright/test';
 import { Application, ApplicationOptions, Logger } from '../../../../automation';
-import { getCopilotSmokeTestEnv, getMockLlmServerPath, getMockLlmServerUrl, installAllHandlers, MockLlmServer, preseedChatExtensionEnablement } from '../../utils';
+import { getCopilotSmokeTestEnv, getMockLlmServerPath, getMockLlmServerUrl, installAllHandlers, MockLlmServer, openLocalChatInChatView, preseedChatExtensionEnablement } from '../../utils';
 
 const browserCommandPrefix = 'workbench.action.browser';
 
@@ -379,9 +379,7 @@ export function setup(logger: Logger): void {
 			await workbenchPage.locator('.tab', { hasText: 'Browser Smoke Sharing' }).click();
 			await unshareButton.waitFor();
 
-			const previousSessionResource = await app.workbench.chat.getChatViewSessionResource();
-			await app.workbench.quickaccess.runCommand('smoketest.openLocalChat');
-			await app.workbench.chat.waitForNewLocalChatViewSession(previousSessionResource, 600);
+			await openLocalChatInChatView(app);
 			await app.workbench.chat.sendMessage('[scenario:browser-sharing-click-success]');
 			const successToolResult = await waitForScenarioToolResult(mockServer, 'browser-sharing-click-success');
 			assert.doesNotMatch(successToolResult, /not found/i);

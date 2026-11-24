@@ -102,7 +102,7 @@ export const sessionsListConfigurationProperties = {
 	[SESSIONS_LIST_CANVASES_SECTION_SETTING]: {
 		type: 'boolean',
 		tags: ['experimental'],
-		description: localize('sessions.list.canvasesSection', "Controls whether canvases pinned to the sidebar are listed in a Canvases section, whose New Canvas action starts a session with a canvas without sending a message. Pinned canvases otherwise follow the navigation shortcuts."),
+		description: localize('sessions.list.canvasesSection', "Controls whether canvases pinned to the sidebar are listed in a Canvases section, whose Open Canvas action starts a session with a canvas without sending a message. Pinned canvases otherwise follow the navigation shortcuts."),
 		default: false,
 		experiment: { mode: 'auto' }
 	},
