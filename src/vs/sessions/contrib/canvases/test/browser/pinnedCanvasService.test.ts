@@ -638,6 +638,47 @@ suite('PinnedCanvasService', () => {
 		assert.deepStrictEqual({ opensWhilePending, notifications: harness.notifications }, { opensWhilePending: 1, notifications: [] });
 	});
 
+	test('does not open a restoring canvas while a reopen of it is pending', async () => {
+		const canvas = createCanvas('plan');
+		const answer = new DeferredPromise<void>();
+		const { harness, entry, chat } = createRestoredHarness(canvas, { openCanvas: () => answer.p });
+
+		await harness.service.show(entry);
+		// The chat lacks the canvas, so the pin reopens it; the chat then lists it while it restores it.
+		harness.setChatCanvases(chat.resource, []);
+		await timeout(0);
+		harness.setChatCanvases(chat.resource, [canvas]);
+		harness.setLive({ ...canvas, source: undefined }, canvas.resource);
+		await timeout(0);
+		const opens = harness.openedCanvases.length;
+		answer.complete();
+
+		assert.deepStrictEqual({ opens, state: entry.state.get() }, { opens: 1, state: PinnedCanvasState.Pending });
+	});
+
+	test('does not report a denied open of a canvas lifetime its pin no longer shows', async () => {
+		const canvas = createCanvas('plan');
+		const consent = { id: 'consent', kind: 'environment', extensionName: 'user:canvases', displayName: 'Canvases', items: ['TOKEN'], persistable: true } as const;
+		const answer = new DeferredPromise<void>();
+		const { harness, entry, chat } = createRestoredHarness(canvas, { openCanvas: () => answer.p });
+
+		await harness.service.show(entry);
+		harness.setChatCanvases(chat.resource, [canvas]);
+		harness.setLive({ ...canvas, source: undefined }, canvas.resource);
+		await timeout(0);
+		const reopened = createCanvas('plan', { resource: URI.parse('ahp-canvas:/chat/plan-reopened') });
+		harness.setChatCanvases(chat.resource, [reopened]);
+		harness.setLive(reopened, reopened.resource);
+		answer.error(new CanvasExtensionConsentDeniedError(consent, true));
+		await timeout(0);
+
+		assert.deepStrictEqual({ state: entry.state.get(), canvas: entry.reference.get()?.canvas.toString(), notifications: harness.notifications }, {
+			state: PinnedCanvasState.Live,
+			canvas: 'ahp-canvas:/chat/plan-reopened',
+			notifications: [],
+		});
+	});
+
 	test('reopens a shown pin through its chat when its chat no longer lists its canvas, and binds once the chat publishes it after unrelated changes', async () => {
 		const opened = new DeferredPromise<void>();
 		const { harness, entry, chat } = createRestoredHarness(createCanvas('plan'), { openCanvas: () => opened.p });

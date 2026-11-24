@@ -676,7 +676,8 @@ export class PinnedCanvasService extends Disposable implements IPinnedCanvasServ
 			// A chat lists a canvas it restores before the canvas has a source. A shown pin keeps observing its chat, which lets the chat restore it.
 			const restoring = canvas?.source === undefined && this.isPinShown(pin, reader);
 			// The restore waits while the canvas's extension start is held behind consent that only a turn or an open asks for, so the pin opens it.
-			if (restoring && canvas?.instanceId !== undefined && canvasId && extensionId && pin.reconnecting.read(reader)) {
+			// A reopen of the canvas while its chat lacked it already did.
+			if (restoring && canvas?.instanceId !== undefined && canvasId && extensionId && pin.reconnecting.read(reader) && !pin.isReopening(session, reader)) {
 				const open = pin.claimOpenWhileRestoring(session, bound, reader);
 				if (open) {
 					this.openRestoringCanvas(pin, open, chat, { canvasId, extensionId });
@@ -735,7 +736,8 @@ export class PinnedCanvasService extends Disposable implements IPinnedCanvasServ
 			open.pending = false;
 		}, error => {
 			open.pending = false;
-			if (!this.getEntry(pin)) {
+			// An outcome for a canvas lifetime the pin no longer shows, or a pin that was removed, is not reported.
+			if (!this.getEntry(pin) || !pin.isBoundTo(open.session) || !isEqual(pin.boundCanvas, open.resource)) {
 				return;
 			}
 			if (error instanceof CanvasExtensionConsentDeniedError) {
