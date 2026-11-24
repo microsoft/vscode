@@ -450,20 +450,21 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 				incomplete ||= !container.children;
 				continue;
 			}
-			if (container.type === CustomizationType.Directory && !isInspectedType(container.contents)) {
+			if (container.type === CustomizationType.Directory && container.contents !== CustomizationType.McpServer && !isInspectedType(container.contents)) {
 				continue;
 			}
-			incomplete ||= !container.children || container.load?.kind === CustomizationLoadStatus.Error || container.load?.kind === CustomizationLoadStatus.Degraded || container.load?.kind === CustomizationLoadStatus.Loading;
+			incomplete ||= !container.children || (container.load !== undefined && container.load.kind !== CustomizationLoadStatus.Loaded)
+				|| container.children.some(child => child.type === CustomizationType.McpServer && !child.children);
 			if (container.type === CustomizationType.Directory) {
+				if (container.contents === CustomizationType.McpServer) {
+					continue;
+				}
 				for (const child of this.toDirectoryItems(container, roots)) {
 					items.push({ ...child, enabled: container.enabled && child.enabled !== false });
 				}
 			} else {
 				const scope = AICustomizationScopes.fromSource(getAgentHostCustomizationSource(container) ?? AICustomizationSources.plugin);
 				for (const child of container.children ?? []) {
-					if (child.type === CustomizationType.McpServer) {
-						incomplete ||= !child.children;
-					}
 					if (isInspectedType(child.type)) {
 						const item = this.toChildItem(child, AICustomizationSources.plugin, scope, container.clientId !== undefined);
 						if (item) {

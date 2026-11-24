@@ -23,7 +23,7 @@ import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { ExtensionIdentifier, IExtensionDescription } from '../../../../../../platform/extensions/common/extensions.js';
-import { CustomizationLoadStatus, CustomizationType, type AgentCustomization, type ClientPluginCustomization, type Customization, type HookCustomization, type McpServerCustomization, type PluginCustomization, type SkillCustomization } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { CustomizationLoadStatus, CustomizationType, type AgentCustomization, type ClientPluginCustomization, type Customization, type DirectoryCustomization, type HookCustomization, type McpServerCustomization, type PluginCustomization, type SkillCustomization } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { createAgentHostResourceUriMapper, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { CustomizationEnablementKind, McpServerStatus, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { AgentCustomizationItemProvider } from '../../../browser/agentSessions/agentHost/agentCustomizationItemProvider.js';
@@ -92,6 +92,11 @@ suite('AgentCustomizationItemProvider', () => {
 		publish([plugin]);
 		const server: McpServerCustomization = { type: CustomizationType.McpServer, id: 's', name: 'Server', uri: 'mcp-config:/s', state: { kind: McpServerStatus.Ready } };
 		const agent: AgentCustomization = { type: CustomizationType.Agent, id: 'known', name: 'Known', uri: 'agent-discovery:/known' };
+		const directory: DirectoryCustomization = { type: CustomizationType.Directory, contents: CustomizationType.McpServer, id: 'mcp', name: 'MCP servers', uri: 'agent-discovery:/mcp', enabled: true, writable: false };
+		publish([{ ...directory, children: [], load: { kind: CustomizationLoadStatus.Error, message: 'Discovery failed' } }]);
+		publish([{ ...directory, children: [server] }, { ...plugin, children: [agent] }]);
+		publish([{ ...directory, children: [] }]);
+		publish([{ ...directory, children: [{ ...server, children: [{ type: CustomizationType.Skill, id: 's1', name: 'Found skill', uri: 'agent-discovery:/s1' }] }] }]);
 		publish([server, { ...plugin, children: [agent] }]);
 		publish([{ ...plugin, children: [server, agent] }]);
 		publish([{ ...server, children: [] }, { ...plugin, children: [agent, { ...server, children: [] }] }]);
@@ -112,6 +117,7 @@ suite('AgentCustomizationItemProvider', () => {
 		assert.deepStrictEqual(states.map(state => state.kind === 'ready' ? [state.incomplete, state.items.map(item =>
 			[item.name, item.enabled, hasReadableCustomizationContent(item.uri) ? item.uri.toString() : undefined, item.pluginUri?.toString()])] : state.kind), [
 			'loading', 'unavailable', [true, []],
+			[true, []], [true, known], [false, []], [false, [['Found skill', true, undefined, undefined]]],
 			[true, known], [true, known], [false, known],
 			[false, [['Review B', true, toAgentHostUri(URI.file('/host/cache/b.agent.md'), 'host').toString(), undefined], ['Check B', false, undefined, undefined]]],
 			'error', [false, []],

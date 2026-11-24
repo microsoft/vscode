@@ -11,14 +11,12 @@ import { IQuickInputService } from '../../../../platform/quickinput/common/quick
 import { Extensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
-import { AccessibleContentProvider, AccessibleViewProviderId, AccessibleViewType } from '../../../../platform/accessibility/browser/accessibleView.js';
-import { getActiveElement, isHTMLElement } from '../../../../base/browser/dom.js';
+import { AccessibleViewType } from '../../../../platform/accessibility/browser/accessibleView.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
-import { AccessibilityVerbositySettingId } from '../../../../workbench/contrib/accessibility/browser/accessibilityConfiguration.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { Menus } from '../../../../workbench/contrib/sessions/browser/menus.js';
 import { IsPhoneLayoutContext, SessionItemIsMultiSelectionContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
@@ -119,20 +117,6 @@ for (const type of [AccessibleViewType.Help, AccessibleViewType.View]) {
 		priority: 110,
 		type,
 		when: MobileCustomizationsFocus,
-		getProvider: () => {
-			const focused = getActiveElement();
-			const page = focused?.closest<HTMLElement>('.mobile-navigation-page');
-			if (!page || !isHTMLElement(focused)) {
-				return undefined;
-			}
-			return new AccessibleContentProvider(
-				AccessibleViewProviderId.MobileSessionCustomizations, { type },
-				() => type === AccessibleViewType.Help
-					? localize('mobileCustomizationsHelp', "Inspect the selected session's instructions, skills, and agents. Tab between items and press Enter to read one. Use Back or Escape to return without changing sessions.")
-					: page.innerText,
-				() => focused.focus(),
-				AccessibilityVerbositySettingId.CustomizationDiscovery,
-			);
-		},
+		getProvider: () => MobileCustomizationsInspector.getAccessibleProvider(type),
 	});
 }

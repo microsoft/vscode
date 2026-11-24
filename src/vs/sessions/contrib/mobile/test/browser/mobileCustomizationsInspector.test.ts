@@ -5,14 +5,14 @@
 
 import assert from 'assert';
 import * as dom from '../../../../../base/browser/dom.js';
-import { DeferredPromise } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Event } from '../../../../../base/common/event.js';
-import { toDisposable } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { AccessibleViewType } from '../../../../../platform/accessibility/browser/accessibleView.js';
 import { ILayoutService } from '../../../../../platform/layout/browser/layoutService.js';
 import { ICustomizationHarnessService, ICustomizationItem, ICustomizationItemProvider, IHarnessDescriptor, SessionCustomizationInventory } from '../../../../../workbench/contrib/chat/common/customizationHarnessService.js';
 import { ISessionsProvidersService, SessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
@@ -39,7 +39,7 @@ suite('MobileCustomizationsInspector', () => {
 		const closed = services.createInstance(MobileCustomizationsInspector).open(session);
 		const pages = () => [...container.querySelectorAll<HTMLElement>('.mobile-navigation-page:not(.closing)')];
 		const back = () => pages().at(-1)?.querySelector<HTMLButtonElement>('button[aria-label="Back"]')?.click();
-		return { session, providers, pages, back, closed, message: () => pages().at(-1)?.querySelector('[role=status]')?.textContent };
+		return { session, providers, container, pages, back, closed, message: () => pages().at(-1)?.querySelector('[role=status]')?.textContent };
 	}
 
 	const managementOnly: ICustomizationItemProvider = {
@@ -96,10 +96,11 @@ suite('MobileCustomizationsInspector', () => {
 			const detail = view.message();
 			inventory.set({ kind: 'ready', items: [{ ...item, name: 'Updated reviewer' }] }, undefined);
 			const updatedRow = view.pages()[0].querySelector<HTMLButtonElement>('.mobile-customizations-row')!;
-			const focusRestored = new DeferredPromise<void>();
-			store.add(dom.addDisposableListener(updatedRow, 'focus', () => focusRestored.complete()));
+			const detailPage = view.pages()[1];
+			const childrenChanged = dom.sharedMutationObserver.observe(view.container, store.add(new DisposableStore()), { childList: true });
+			const detailClosed = Event.toPromise(Event.filter(childrenChanged, () => !detailPage.isConnected));
 			view.back();
-			await focusRestored.p;
+			await detailClosed;
 			assert.deepStrictEqual({ loading, requests, detail, focusRestored: dom.getActiveElement() === updatedRow }, {
 				loading: 'Loading customizations…', requests: [view.session.resource.toString()],
 				detail: 'This provider doesn\'t share source text for this item.', focusRestored: true,
@@ -111,6 +112,59 @@ suite('MobileCustomizationsInspector', () => {
 			await view.closed;
 		}
 		assert.ok(released);
+	});
+
+	test('Accessible View refreshes when the list and source finish loading', async () => {
+		const inventory = observableValue<SessionCustomizationInventory>('inventory', { kind: 'loading' });
+		const view = open({ ...managementOnly, observeSessionCustomizations: () => inventory });
+		try {
+			const list = store.add(MobileCustomizationsInspector.getAccessibleProvider(AccessibleViewType.View)!);
+			const listChanged = Event.toPromise(list.onDidChangeContent!);
+			const loadingList = list.provideContent().includes('Loading customizations');
+			inventory.set({ kind: 'ready', items: [{ ...item, uri: URI.file('/repo/reviewer.agent.md') }] }, undefined);
+			await listChanged;
+			const loadedList = list.provideContent().includes(item.name);
+			view.pages()[0].querySelector<HTMLButtonElement>('.mobile-customizations-row')!.click();
+			const reader = store.add(MobileCustomizationsInspector.getAccessibleProvider(AccessibleViewType.View)!);
+			const sourceChanged = Event.toPromise(reader.onDidChangeContent!);
+			const loadingSource = reader.provideContent().includes('Loading source');
+			await sourceChanged;
+			const article = view.pages()[1].querySelector('article')?.textContent;
+			assert.deepStrictEqual({ loadingList, loadedList, loadingSource, loadedSource: !!article && reader.provideContent().includes(article) }, {
+				loadingList: true, loadedList: true, loadingSource: true, loadedSource: true,
+			});
+		} finally {
+			while (view.pages().length) {
+				view.back();
+			}
+			await view.closed;
+		}
+	});
+
+	test('closing accessibility overlays restores the refreshed row or Back if the row disappeared', async () => {
+		const inventory = observableValue<SessionCustomizationInventory>('inventory', { kind: 'ready', items: [item] });
+		const view = open({ ...managementOnly, observeSessionCustomizations: () => inventory });
+		const outside = dom.append(view.container, dom.$('button'));
+		const row = () => view.pages()[0].querySelector<HTMLButtonElement>('.mobile-customizations-row')!;
+		try {
+			row().focus();
+			const help = store.add(MobileCustomizationsInspector.getAccessibleProvider(AccessibleViewType.Help)!);
+			outside.focus();
+			inventory.set({ kind: 'ready', items: [{ ...item, name: 'Updated reviewer' }] }, undefined);
+			help.onClose();
+			const restoredRow = dom.getActiveElement() === row();
+
+			const reader = store.add(MobileCustomizationsInspector.getAccessibleProvider(AccessibleViewType.View)!);
+			outside.focus();
+			inventory.set({ kind: 'ready', items: [] }, undefined);
+			reader.onClose();
+			assert.deepStrictEqual({ restoredRow, restoredBack: dom.getActiveElement() === view.pages()[0].querySelector('[aria-label="Back"]') }, {
+				restoredRow: true, restoredBack: true,
+			});
+		} finally {
+			view.back();
+			await view.closed;
+		}
 	});
 
 	test('distinguishes unavailable, failed, incomplete and confirmed empty inventories', async () => {

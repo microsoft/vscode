@@ -7,13 +7,16 @@ import * as dom from '../../../../base/browser/dom.js';
 import { renderMarkdown } from '../../../../base/browser/markdownRenderer.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { Event } from '../../../../base/common/event.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
+import { Lazy } from '../../../../base/common/lazy.js';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, derived, observableFromEvent, observableSignalFromEvent } from '../../../../base/common/observable.js';
 import { isEqualOrParent, relativePath } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { parseFrontMatter } from '../../../../base/common/yaml.js';
 import { localize } from '../../../../nls.js';
+import { AccessibleContentProvider, AccessibleViewProviderId, AccessibleViewType } from '../../../../platform/accessibility/browser/accessibleView.js';
 import { hasReadableCustomizationContent } from '../../../../platform/agentHost/common/agentHostCustomizationUri.js';
 import { IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
@@ -21,6 +24,7 @@ import { ILabelService } from '../../../../platform/label/common/label.js';
 import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
+import { AccessibilityVerbositySettingId } from '../../../../workbench/contrib/accessibility/browser/accessibilityConfiguration.js';
 import { AICustomizationItemNormalizer, getCustomizationListItemScope, IAICustomizationListItem } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationItemSource.js';
 import { getChatMarkdownRenderOptions } from '../../../../workbench/contrib/chat/browser/widget/chatContentMarkdownRenderer.js';
 import { AICustomizationManagementSection as Section } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
@@ -61,7 +65,47 @@ function sourceLabel(item: IAICustomizationListItem): string {
 	}
 }
 
+interface IInspectorPage {
+	readonly api: IMobileContentSheetApi;
+	readonly contentChanges: Lazy<Event<void>>;
+	readonly rowById?: ReadonlyMap<string, HTMLButtonElement>;
+}
+
 export class MobileCustomizationsInspector {
+	private static readonly pages = new WeakMap<HTMLElement, IInspectorPage>();
+
+	static getAccessibleProvider(type: AccessibleViewType): AccessibleContentProvider | undefined {
+		const focused = dom.getActiveElement();
+		const sheet = focused?.closest<HTMLElement>('.mobile-navigation-page');
+		const page = sheet && this.pages.get(sheet);
+		if (!page || !dom.isHTMLElement(focused)) {
+			return undefined;
+		}
+		const provider = new AccessibleContentProvider(
+			AccessibleViewProviderId.MobileSessionCustomizations, { type },
+			() => type === AccessibleViewType.Help
+				? localize('mobileCustomizationsHelp', "Inspect the selected session's instructions, skills, and agents. Tab between items and press Enter to read one. Use Back or Escape to return without changing sessions.")
+				: page.api.sheet.innerText,
+			() => {
+				if (!this.pages.has(page.api.sheet)) {
+					return;
+				}
+				const id = focused.dataset.itemId;
+				const target = focused.isConnected ? focused : id && page.rowById?.get(id);
+				if (target) {
+					target.focus({ preventScroll: true });
+				} else {
+					page.api.focusHeader();
+				}
+			},
+			AccessibilityVerbositySettingId.CustomizationDiscovery,
+		);
+		if (type === AccessibleViewType.View) {
+			provider.onDidChangeContent = page.contentChanges.value;
+		}
+		return provider;
+	}
+
 	private readonly normalizer: AICustomizationItemNormalizer;
 
 	constructor(
@@ -78,6 +122,7 @@ export class MobileCustomizationsInspector {
 	}
 
 	open(session: ISession): Promise<void> {
+		const rowById = new Map<string, HTMLButtonElement>();
 		return this.showPage(localize('customizations', "Customizations"), (body, api, store) => {
 			const target = dom.append(body, dom.$('.mobile-customizations-target'));
 			icon(target, Codicon.repo);
@@ -87,7 +132,6 @@ export class MobileCustomizationsInspector {
 			}));
 			const message = dom.append(body, dom.$('p.mobile-customizations-message', { role: 'status' }));
 			const list = dom.append(body, dom.$('.mobile-customizations-list'));
-			const rowById = new Map<string, HTMLButtonElement>();
 			const clearList = () => {
 				rowById.clear();
 				dom.clearNode(list);
@@ -195,7 +239,7 @@ export class MobileCustomizationsInspector {
 					api.focusHeader();
 				}
 			}
-		});
+		}, rowById);
 	}
 
 	private showItem(session: ISession, title: string, item: IAICustomizationListItem): Promise<void> {
@@ -241,10 +285,15 @@ export class MobileCustomizationsInspector {
 		});
 	}
 
-	private showPage(title: string, render: (body: HTMLElement, api: IMobileContentSheetApi, store: DisposableStore) => void): Promise<void> {
+	private showPage(title: string, render: (body: HTMLElement, api: IMobileContentSheetApi, store: DisposableStore) => void, rowById?: ReadonlyMap<string, HTMLButtonElement>): Promise<void> {
 		return showMobileContentSheet(this.layoutService.mainContainer, title, (body, api) => {
 			const store = new DisposableStore();
 			MobileCustomizationsFocus.bindTo(store.add(this.contextKeyService.createScoped(api.sheet))).set(true);
+			MobileCustomizationsInspector.pages.set(api.sheet, {
+				api, rowById,
+				contentChanges: new Lazy(() => Event.signal(dom.sharedMutationObserver.observe(body, store, { childList: true, subtree: true, characterData: true }))),
+			});
+			store.add(toDisposable(() => MobileCustomizationsInspector.pages.delete(api.sheet)));
 			body.classList.add('mobile-customizations');
 			render(body, api, store);
 			return store;
