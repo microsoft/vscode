@@ -906,6 +906,15 @@ class AgentHostCopilotConnectorAuthorization {
 		// `authorize` rejects with a CancellationError when connectors are disabled, which would otherwise look like
 		// a dismissed sign-in. Offer to enable them instead (#346107).
 		while (this._configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled) !== true) {
+			if (this._configurationService.inspect<boolean>(CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled).policyValue === false) {
+				// Locked off by policy: enabling cannot work, so explain instead of offering the action.
+				this._notificationService.notify({
+					severity: Severity.Warning,
+					message: localize('agentHost.mcpConnectorsPolicyDisabled', "{0} requires Copilot connectors, but Copilot connectors are disabled by your organization's policy.", label),
+				});
+				this._logService.info(`[AgentHost] Copilot Connector authorization for ${label} was blocked by policy`);
+				return false;
+			}
 			if (!await this._promptToEnableConnectors(label)) {
 				status(localize('agentHost.mcpAuthenticationCancelled', "Authentication for {0} was cancelled.", label));
 				this._logService.info(`[AgentHost] Copilot Connector authorization for ${label} was cancelled`);
