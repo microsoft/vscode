@@ -427,6 +427,33 @@ suite('AgentHostDiscardChangesOperationHandler', () => {
 		]);
 	});
 
+	test('restores a Branch Changes file inside a submodule in the submodule', async () => {
+		const { handler, gitService, stateManager, session } = setup(disposables);
+		const submodule = URI.file('/repo/lib');
+		gitService.repositoryRoots.set(submodule.toString(), submodule);
+		const owner = buildDefaultChatUri(session.toString());
+		const channel = buildBranchChangesetUri(owner);
+		const target = URI.joinPath(submodule, 'lib.txt');
+		addChangesetFile(stateManager, channel, {
+			before: {
+				uri: target.toString(),
+				content: { uri: buildGitBlobUri(owner, 'submodule-baseline', 'lib.txt', target.path) },
+			},
+			after: { uri: target.toString(), content: { uri: target.toString() } },
+		});
+
+		await handler.invoke({
+			channel,
+			operationId: AgentHostDiscardChangesOperationHandler.OPERATION_DISCARD_CHANGES,
+			target: makeResourceTarget(target),
+		}, CancellationToken.None);
+
+		assert.deepStrictEqual(gitService.restoreCalls, [
+			{ workingDirectory: submodule.toString(), paths: ['lib.txt'], options: { staged: true, ref: 'submodule-baseline' } },
+			{ workingDirectory: submodule.toString(), paths: ['lib.txt'], options: { ref: 'submodule-baseline' } },
+		]);
+	});
+
 	test('rejects a resource that is not part of Branch Changes', async () => {
 		const { handler, gitService, stateManager, session } = setup(disposables);
 		const owner = buildDefaultChatUri(session.toString());

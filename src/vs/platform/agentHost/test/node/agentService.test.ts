@@ -5778,6 +5778,18 @@ suite('AgentService (node dispatcher)', () => {
 			assert.strictEqual(result.data, 'blob:src/app.ts');
 		});
 
+		test('git-blob of a file inside a submodule resolves against the submodule', async () => {
+			const repoA = URI.file('/workspace/repoA');
+			const submodule = URI.joinPath(repoA, 'lib');
+			const showBlobCalls: Array<{ workingDirectory: string; ref: string; repoRelativePath: string }> = [];
+			const gitService = createBlobGitService(new Map([[repoA.toString(), repoA], [submodule.toString(), submodule]]), showBlobCalls);
+			const { service: localService, session } = await createBlobSession(gitService, [repoA]);
+
+			await localService.resourceRead(URI.parse(buildGitBlobUri(session.toString(), 'submoduleSha', 'lib.txt', '/workspace/repoA/lib/lib.txt')));
+
+			assert.deepStrictEqual(showBlobCalls, [{ workingDirectory: submodule.toString(), ref: 'submoduleSha', repoRelativePath: 'lib.txt' }]);
+		});
+
 		test('git-blob owned by a peer chat resolves against the peer working directory', async () => {
 			const sessionRoot = URI.file('/workspace/session');
 			const peerRoot = URI.file('/workspace/peer');
