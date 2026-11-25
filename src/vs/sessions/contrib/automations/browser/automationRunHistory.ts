@@ -42,7 +42,7 @@ import { IChatModel } from '../../../../workbench/contrib/chat/common/model/chat
 import { Menus } from '../../../../workbench/contrib/sessions/browser/menus.js';
 import { SessionStatusIcon } from '../../../../workbench/contrib/sessions/browser/sessionStatusIcon.js';
 import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { SessionsFlatList } from '../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
+import { SessionsFlatList } from '../../../../workbench/contrib/sessions/browser/views/sessionsFlatList.js';
 import { formatSessionListTime } from '../../../../workbench/contrib/sessions/browser/views/sessionsListRenderers.js';
 import { SessionItemStatusContext } from '../../../../workbench/contrib/sessions/browser/views/sessionsListCommon.js';
 import { SessionIsArchivedContext, SessionIsReadContext, SessionSupportsRenameContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
