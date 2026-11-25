@@ -13,7 +13,7 @@ import { IMarkdownString, MarkdownString, markdownStringEqual } from '../../../.
 import { Disposable, DisposableMap, DisposableStore, IDisposable, IReference, MutableDisposable, ReferenceCollection, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { CounterSet, mapsStrictEqualIgnoreOrder, ResourceMap, ResourceSet } from '../../../../../../base/common/map.js';
 import { deepClone, equals } from '../../../../../../base/common/objects.js';
-import { constObservable, derived, derivedOpts, IObservable, IReader, ISettableObservable, ITransaction, mapObservableArrayCached, observableFromEvent, observableSignal, observableSignalFromEvent, observableValueOpts, recomputeInitiallyAndOnChange, subtransaction, transaction, waitForState, autorun, observableValue } from '../../../../../../base/common/observable.js';
+import { constObservable, derived, derivedOpts, IObservable, IReader, ISettableObservable, ITransaction, mapObservableArrayCached, observableFromEvent, observableSignal, observableSignalFromEvent, observableValueOpts, recomputeInitiallyAndOnChange, runOnChange, subtransaction, transaction, waitForState, autorun, observableValue } from '../../../../../../base/common/observable.js';
 import { basename, dirname, extUriIgnorePathCase, getComparisonKey, isEqual, isEqualOrParent, joinPath, relativePath } from '../../../../../../base/common/resources.js';
 import { themeColorFromId, ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -4992,6 +4992,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	protected _cacheInitialized = false;
 	protected readonly _sessionListVersion = observableValue(this, 0);
 	readonly sessionListVersion: IObservable<number> = this._sessionListVersion;
+	/** Triggers after every applied session listing; unlike {@link _sessionListVersion}, a connection change does not reset it. */
+	private readonly _sessionListingApplied = observableSignal(this);
 
 	private static readonly SESSION_REFRESH_RETRY_MIN_MS = 1_000;
 	private static readonly SESSION_REFRESH_RETRY_MAX_MS = 30_000;
@@ -10847,6 +10849,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			if (added.length > 0 || removed.length > 0 || changed.length > 0) {
 				this._onDidChangeSessions.fire({ added, removed, changed });
 			}
+			this._sessionListingApplied.trigger(undefined);
 			this._syncActiveClient();
 			for (const cached of removed) {
 				(cached as AgentHostSessionAdapter).dispose();
@@ -10925,8 +10928,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	/**
 	 * Resolves the freshly committed backend session for an in-flight send.
 	 * A committed session preserves the draft URI, preventing unrelated sessions from replacing it.
-	 * Resolves `undefined` when the connection is lost, or when `requestEnded` settles without the host having announced
-	 * the session: the host announces a session when it starts its first request, so it no longer commits that session.
+	 * Resolves `undefined` when the connection is lost, or when the first session listing applied after `requestEnded`
+	 * settles doesn't include the session: the host announces a session when it starts its first request.
 	 */
 	private async _waitForNewSession(expectedScheme: string, ownRawId: string, token: CancellationToken, requestEnded?: Promise<unknown>): Promise<ISession | undefined> {
 		const matches = (session: ISession): boolean => session.resource.scheme === expectedScheme && session.resource.path.substring(1) === ownRawId;
@@ -10948,11 +10951,12 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 					}
 				}));
 				waitDisposables.add(this.onConnectionLost(() => resolve(undefined)));
-				// A host announces a session whose first request failed just after that request's error, so list once more.
-				void requestEnded?.then(async () => {
+				// Only a listing applied after the request ended shows the host won't announce the session, so a failed listing
+				// waits for its retry. A host announces a session whose first request failed just after that request's error.
+				void requestEnded?.then(() => {
 					if (!waitDisposables.isDisposed) {
-						await this._refreshSessions();
-						resolve(find());
+						waitDisposables.add(runOnChange(this._sessionListingApplied, () => resolve(find())));
+						void this._refreshSessions();
 					}
 				});
 			});

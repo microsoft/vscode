@@ -5387,14 +5387,19 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		});
 	}
 
-	test('a new session whose host lists it only after its first request ended is committed', async () => {
+	test('a new session whose host lists it only after its first request ended is committed, also after a failed listing', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const ended = new DeferredPromise<void>();
 		const listedAfterSend = new DeferredPromise<void>();
 		let sent = false;
+		let failNextListing = true;
 		// Like a host that announces a session whose first request failed just after the request's error.
 		const host = new class extends MockAgentConnection {
 			override async listSessions(): Promise<IAgentSessionMetadata[]> {
 				if (ended.isSettled) {
+					if (failNextListing) {
+						failNextListing = false;
+						throw new Error('Listing failed');
+					}
 					return super.listSessions();
 				}
 				if (sent) {
@@ -5425,7 +5430,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 			committed: committed.title.get(),
 			sessions: provider.getSessions().map(s => s.title.get()),
 		}, { committed: 'Failed Start', sessions: ['Failed Start'] });
-	});
+	}));
 
 	// ---- Session data adapter -------
 
