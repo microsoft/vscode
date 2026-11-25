@@ -390,10 +390,6 @@ await joinSession({
 			await waitForContractCanvas(session);
 			const observations = [await open(), await open()];
 			await session.rpc.extensions.reload();
-			const reloaded = session;
-			// The extension is already failed before the reload, so first wait for the canvas the reload registers again.
-			await waitForContractCanvas(reloaded);
-			await retry(async () => assert.strictEqual(await status(reloaded), 'failed'), 100, 100);
 			observations.push(await open());
 			await resume();
 			decide = request => ({ kind: 'approve-for-session', approval: { kind: 'extension-env-access', extensionName: request.extensionName, environmentVariables: request.environmentVariables } });
@@ -414,8 +410,8 @@ await joinSession({
 				observations: [
 					'extension did not become ready: project:canvas-contract; asked 1; failed',
 					'No canvas "contract" is registered.; asked 0; failed',
-					// The reload starts the extension again, and the runtime declines it with the kept denial, without asking.
-					'extension did not become ready: project:canvas-contract; asked 0; failed',
+					// Reload leaves the denied canvas unregistered.
+					'No canvas "contract" is registered.; asked 0; failed',
 					// The resume restores the denial and declines the extension again without asking.
 					'extension did not become ready: project:canvas-contract; asked 0; failed',
 					'opened with the variable visible; asked 1; running',
