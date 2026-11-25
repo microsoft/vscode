@@ -91,8 +91,6 @@ class ArtifactAutopilotRule extends Disposable {
 
 class ArtifactAutopilotGroup extends ArtifactDetailsCard {
 	private readonly toggle: Switch;
-	/** The switch for all rules with its visible label, set apart from the disclosure that expands them. */
-	private readonly toggleAll = $('.artifact-autopilot-toggle-all');
 	private readonly summary = $('span.artifact-card-summary.artifact-autopilot-summary');
 	private readonly rules = this._register(new DisposableMap<string, ArtifactAutopilotRule>());
 	private readonly hoverLifecycleOptions = { groupId: generateUuid() };
@@ -104,16 +102,9 @@ class ArtifactAutopilotGroup extends ArtifactDetailsCard {
 		this.data = data;
 		this.element.classList.add('artifact-autopilot-group');
 		this.toggle = this._register(new Switch({ ariaLabel: data.toggleLabel }));
-		this.toggle.domNode.id = generateUuid();
-		// The switch's accessible name starts with this text, so assistive technology does not need it twice.
-		const label = $<HTMLLabelElement>('label.artifact-autopilot-toggle-all-label', { 'aria-hidden': 'true' }, localize('artifactAutopilot.toggleAll', "Toggle All"));
-		label.htmlFor = this.toggle.domNode.id;
-		append<HTMLElement>(this.toggleAll, this.toggle.domNode, label);
-		append(this.heading, this.toggleAll, this.summary);
-		this.addHeadingControl(this.toggleAll);
-		for (const target of [this.toggle.domNode, label]) {
-			this._register(hoverService.setupDelayedHover(target, () => ({ content: this.data.description, style: HoverStyle.Pointer }), this.hoverLifecycleOptions));
-		}
+		append(this.heading, this.toggle.domNode, this.summary);
+		this.addHeadingControl(this.toggle.domNode);
+		this._register(hoverService.setupDelayedHover(this.toggle.domNode, () => ({ content: this.data.description, style: HoverStyle.Pointer }), this.hoverLifecycleOptions));
 		this._register(this.toggle.onChange(enabled => {
 			const focused = getActiveElement() === this.toggle.domNode;
 			const promise = this.data.setEnabled(enabled);
@@ -132,7 +123,6 @@ class ArtifactAutopilotGroup extends ArtifactDetailsCard {
 		this.updateHeading(data.title, data.expanded);
 		this.toggle.checked = data.checked;
 		this.toggle.disabled = data.disabled;
-		this.toggleAll.classList.toggle('disabled', data.disabled);
 		this.toggle.setAriaLabel(data.toggleLabel);
 		this.toggle.domNode.setAttribute('aria-description', data.summary);
 		this.summary.textContent = data.summary;

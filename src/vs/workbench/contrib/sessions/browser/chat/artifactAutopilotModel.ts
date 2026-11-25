@@ -66,9 +66,8 @@ export class ArtifactAutopilotModel extends Disposable {
 					disabled: !eligible.length,
 					summary: unavailable ? localize('artifactAutopilot.unavailable', "{0} on, {1} unavailable", enabled, unavailable)
 						: localize('artifactAutopilot.enabled', "{0} of {1} on", enabled, eligible.length),
-					// Starts with the switch's visible "Toggle All" label, so the control can be found by the text shown.
-					toggleLabel: groups.length > 1 ? localize('artifactAutopilot.toggleProviderRules', "Toggle All Autopilot Rules: {0}", contribution.label)
-						: localize('artifactAutopilot.toggleAllRules', "Toggle All Autopilot Rules"),
+					toggleLabel: groups.length > 1 ? localize('artifactAutopilot.providerRules', "All Available Autopilot Rules: {0}", contribution.label)
+						: localize('artifactAutopilot.allRules', "All Available Autopilot Rules"),
 					description: localize('artifactAutopilot.masterHelp', "On while any rule is on. Turn on to enable all available rules for this provider using the policies shown in their dropdowns, or turn off to disable all enabled rules. Unavailable rules are not enabled."),
 					rules: options.map(option => this.rule(contribution, option, snapshot)),
 					setExpanded: expanded => {

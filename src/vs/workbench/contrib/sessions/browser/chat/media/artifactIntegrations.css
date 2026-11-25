@@ -202,11 +202,6 @@
 	outline-offset: -1px;
 }
 
-/* The ring is for keyboard focus only; the workbench's generic focus rule also rings mouse focus. */
-.monaco-workbench .artifact-card-disclosure:focus:not(:focus-visible) {
-	outline: none;
-}
-
 .artifact-details-card {
 	border: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, var(--vscode-dropdown-border, var(--vscode-widget-border)));
 	border-radius: var(--vscode-cornerRadius-medium);
@@ -237,8 +232,7 @@
 }
 
 .artifact-card-title {
-	/* The chevron's side bearing sits in the card's inset, so its glyph starts where the content below does. */
-	margin: 0 0 0 calc(-1 * var(--vscode-spacing-size40));
+	margin: 0;
 	min-width: 0;
 }
 
@@ -252,14 +246,10 @@
 	width: auto;
 	min-width: 0;
 	max-width: 100%;
-	padding: 0 var(--vscode-spacing-size40) 0 0;
-	gap: var(--vscode-spacing-size20);
+	padding: 0;
+	gap: var(--vscode-spacing-size40);
 	font-size: var(--vscode-fontSize-label1);
 	font-weight: var(--vscode-fontWeight-semiBold);
-}
-
-.artifact-card-title .artifact-card-disclosure .codicon {
-	margin: 0;
 }
 
 .artifact-card-disclosure .monaco-button-mdlabel {
