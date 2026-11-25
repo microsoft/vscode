@@ -17,7 +17,7 @@ import { IOutlineModelService } from '../../../../../editor/contrib/documentSymb
 import { NullCommandService } from '../../../../../platform/commands/test/common/nullCommandService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { IResourceEditorInput, ViewColumn } from '../../../../../platform/editor/common/editor.js';
+import { ViewColumn } from '../../../../../platform/editor/common/editor.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { INotificationService, NotificationMessage } from '../../../../../platform/notification/common/notification.js';
 import { IOpenerService, OpenOptions } from '../../../../../platform/opener/common/opener.js';
@@ -26,27 +26,11 @@ import { IQuickInputService, IQuickPickSeparator, NO_KEY_MODS } from '../../../.
 import { IEditorGroup, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { IOutlineService } from '../../../../services/outline/browser/outline.js';
 import { ISearchService } from '../../../../services/search/common/search.js';
-import { TestFileEditorInput, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
-import { DiffEditorInput } from '../../../../common/editor/diffEditorInput.js';
+import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { IQuickChatService } from '../../../chat/browser/chat.js';
 import { IExternalUriOpenerService, ILinkHandler } from '../../../externalUriOpener/common/externalUriOpenerService.js';
 import { AnythingQuickAccessProvider, IAnythingQuickPickItem } from '../../browser/anythingQuickAccess.js';
 import { IAnythingQuickAccessProviderRunOptions } from '../../common/search.js';
-import { Event } from '../../../../../base/common/event.js';
-import { hasKey } from '../../../../../base/common/types.js';
-import { IWorkspaceFolderLocationService } from '../../../../../platform/workspace/common/folderLocations.js';
-import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
-import { testWorkspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
-import { TestContextService } from '../../../../test/common/workbenchTestServices.js';
-import { IHistoryService } from '../../../../services/history/common/history.js';
-import { IEditorService } from '../../../../services/editor/common/editorService.js';
-import { EditorInput } from '../../../../common/editor/editorInput.js';
-import { extUriIgnorePathCase } from '../../../../../base/common/resources.js';
-import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
-import { EditorResourceAccessor, IUntypedEditorInput, SideBySideEditor } from '../../../../common/editor.js';
-import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
-import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
-import { cloneAndChange } from '../../../../../base/common/objects.js';
 
 suite('AnythingQuickAccess - links', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -134,7 +118,6 @@ suite('AnythingQuickAccess - links', () => {
 			search: {}
 		});
 		instantiationService.stub(IConfigurationService, configurationService);
-		instantiationService.stub(IWorkspaceFolderLocationService, folderLocationService(undefined));
 		provider = store.add(instantiationService.createInstance(TestAnythingQuickAccessProvider));
 	});
 
@@ -427,261 +410,4 @@ suite('AnythingQuickAccess - links', () => {
 		await pick.accept?.({ ...NO_KEY_MODS, alt: true }, { inBackground: false });
 		assert.deepStrictEqual(activatedGroups, [1]);
 	});
-});
-
-/**
- * A folder location service for a single folder that can switch between `locations` (its own location first), or that cannot
- * switch locations when `locations` is `undefined`.
- */
-function folderLocationService(locations: URI[] | undefined, loaded?: Promise<void>): Partial<IWorkspaceFolderLocationService> {
-	return {
-		onDidChangeLocation: Event.None,
-		onDidChangeLocations: Event.None,
-		onDidChangeProviders: Event.None,
-		isAtAlternateLocation: () => false,
-		canSetLocation: () => !!locations,
-		getFolderLocations: async () => {
-			await loaded;
-			return (locations ?? []).map(uri => ({ uri, label: uri.path }));
-		},
-	};
-}
-
-suite('AnythingQuickAccess - folder locations', () => {
-	const store = ensureNoDisposablesAreLeakedInTestSuite();
-
-	class TestAnythingQuickAccessProvider extends AnythingQuickAccessProvider {
-		async getHistoryPicks(filter = ''): Promise<IAnythingQuickPickItem[]> {
-			const picks = await this._getPicks(filter, store.add(new DisposableStore()), CancellationToken.None);
-			assert.ok(picks && !Array.isArray(picks) && hasKey(picks, { additionalPicks: true }));
-			return (hasKey(picks.picks, { items: true }) ? picks.picks.items : picks.picks).filter((pick): pick is IAnythingQuickPickItem => pick.type !== 'separator');
-		}
-	}
-
-	class TestTypedEditorInput extends EditorInput {
-
-		constructor(readonly resource: URI, private readonly untyped: IUntypedEditorInput) {
-			super();
-		}
-
-		override get typeId(): string {
-			return 'testTypedEditorInput';
-		}
-
-		override toUntyped(): IUntypedEditorInput {
-			return this.untyped;
-		}
-	}
-
-	function setup(current: string, locations: string[], history: Array<string | EditorInput>, { ignorePathCasing, loaded }: { ignorePathCasing?: boolean; loaded?: Promise<void> } = {}) {
-		const instantiationService = workbenchInstantiationService(undefined, store);
-		if (ignorePathCasing) {
-			instantiationService.stub(IUriIdentityService, { extUri: extUriIgnorePathCase });
-		}
-		const opened: string[] = [];
-		const openedEditors: Array<EditorInput | IUntypedEditorInput> = [];
-		const removed: string[] = [];
-		const entries = history.map(entry => typeof entry === 'string' ? { resource: URI.file(entry) } : entry);
-		instantiationService.stub(IWorkspaceContextService, new TestContextService(testWorkspace(URI.file(current))));
-		instantiationService.stub(IWorkspaceFolderLocationService, folderLocationService(locations.map(location => URI.file(location)), loaded));
-		instantiationService.stub(IHistoryService, {
-			getHistory: () => entries,
-			removeFromHistory: (input: EditorInput | IResourceEditorInput) => { removed.push(input.resource!.path); }
-		});
-		instantiationService.stub(IEditorService, 'openEditor', async (input: EditorInput | IUntypedEditorInput) => {
-			opened.push(EditorResourceAccessor.getOriginalUri(input, { supportSideBySide: SideBySideEditor.PRIMARY })!.path);
-			openedEditors.push(input);
-			return undefined;
-		});
-		instantiationService.stub(ISearchService, {
-			fileSearch: async () => ({ results: [], messages: [] }),
-			clearCache: async () => { }
-		});
-		instantiationService.stub(IQuickChatService, {});
-		instantiationService.stub(IOutlineService, {});
-		instantiationService.stub(IOutlineModelService, {});
-		const provider = store.add(instantiationService.createInstance(TestAnythingQuickAccessProvider));
-		return { provider, opened, openedEditors, removed, entries, quickInputService: instantiationService.get(IQuickInputService) };
-	}
-
-	for (const { name, current, locations, history, expected, ignorePathCasing } of [
-		{
-			name: 'shows recently opened files of a worktree under the folder it is back at',
-			current: '/work/folder',
-			locations: ['/work/folder', '/work/worktree'],
-			history: ['/work/worktree/src/app.ts', '/work/folder/src/app.ts', '/work/worktree/README.md', '/elsewhere/other.ts'],
-			expected: ['/work/folder/src/app.ts', '/work/folder/README.md', '/elsewhere/other.ts'],
-		},
-		{
-			name: 'shows recently opened files of the folder under the worktree it is at',
-			current: '/work/worktree',
-			locations: ['/work/folder', '/work/worktree'],
-			history: ['/work/folder/src/app.ts', '/work/worktree/src/app.ts'],
-			expected: ['/work/worktree/src/app.ts'],
-		},
-		{
-			name: 'maps a file of a worktree nested in the folder by the worktree',
-			current: '/work/folder',
-			locations: ['/work/folder', '/work/folder/.worktrees/one'],
-			history: ['/work/folder/.worktrees/one/src/app.ts', '/work/folder/src/other.ts'],
-			expected: ['/work/folder/src/app.ts', '/work/folder/src/other.ts'],
-		},
-		{
-			name: 'maps files of a worktree on a drive letter',
-			current: '/c:/work/folder',
-			locations: ['/c:/work/folder', '/c:/work/worktree'],
-			history: ['/c:/work/worktree/src/app.ts', '/d:/work/worktree/src/other.ts'],
-			expected: ['/c:/work/folder/src/app.ts', '/d:/work/worktree/src/other.ts'],
-		},
-		{
-			name: 'maps files of a worktree whose path differs in case where path casing is ignored',
-			current: '/c:/work/folder',
-			locations: ['/c:/work/folder', '/C:/Work/Worktree'],
-			history: ['/c:/work/worktree/src/app.ts', '/c:/work/folder/src/APP.ts'],
-			expected: ['/c:/work/folder/src/APP.ts'],
-			ignorePathCasing: true,
-		},
-		{
-			name: 'maps files of a worktree on a network share',
-			current: '//server/share/folder',
-			locations: ['//server/share/folder', '//server/share/worktree'],
-			history: ['//server/share/worktree/src/app.ts', '//other/share/worktree/src/other.ts'],
-			expected: ['//server/share/folder/src/app.ts', '//other/share/worktree/src/other.ts'],
-		},
-	]) {
-		test(name, async () => {
-			const { provider } = setup(current, locations, history, { ignorePathCasing });
-			assert.deepStrictEqual((await provider.getHistoryPicks()).map(pick => pick.resource?.toString()), expected.map(path => URI.file(path).toString()));
-		});
-	}
-
-	test('opens the file under the current location and removes the entry it is shown for', async () => {
-		const { provider, opened, removed } = setup('/work/folder', ['/work/folder', '/work/worktree'], ['/work/worktree/src/app.ts']);
-		const [pick] = await provider.getHistoryPicks();
-		await pick.accept?.(NO_KEY_MODS, { inBackground: false });
-		pick.trigger?.(pick.buttons!.length - 1, NO_KEY_MODS);
-		assert.deepStrictEqual({ opened, removed }, { opened: ['/work/folder/src/app.ts'], removed: ['/work/worktree/src/app.ts'] });
-	});
-
-	test('opens the entry of the folder and removes all entries a file is shown for', async () => {
-		const { provider, opened, removed, entries } = setup('/work/folder', ['/work/folder', '/work/worktree'], ['/work/worktree/src/app.ts', '/work/folder/src/app.ts']);
-		const picks = await provider.getHistoryPicks();
-		await picks[0].accept?.(NO_KEY_MODS, { inBackground: false });
-		picks[0].trigger?.(picks[0].buttons!.length - 1, NO_KEY_MODS);
-		assert.deepStrictEqual({ picks: picks.length, editor: picks[0].editor === entries[1], opened, removed }, {
-			picks: 1,
-			editor: true,
-			opened: ['/work/folder/src/app.ts'],
-			removed: ['/work/worktree/src/app.ts', '/work/folder/src/app.ts']
-		});
-	});
-
-	function editorInput(location: string, kind: string): IUntypedEditorInput {
-		const resource = (name: string) => ({ resource: URI.file(`${location}/src/${name}.ts`) });
-		switch (kind) {
-			case 'merge':
-				return { input1: resource('one'), input2: resource('two'), base: resource('base'), result: resource('app'), options: { override: 'mergeEditor' } };
-			case 'diff':
-				return { original: resource('base'), modified: resource('app') };
-			case 'side by side':
-				return { primary: resource('app'), secondary: resource('other') };
-			default:
-				return { ...resource('app'), options: { override: kind } };
-		}
-	}
-
-	function snapshot(value: object): object {
-		return cloneAndChange(value, value => URI.isUri(value) ? value.toString() : value instanceof EditorInput ? value : undefined);
-	}
-
-	/** The editor a mapped history entry opens: a diff or side by side editor keeps the name of the entry, but not its description. */
-	function mappedEditorInput(kind: string, entry: EditorInput): IUntypedEditorInput {
-		const editor = editorInput('/work/folder', kind);
-		return kind === 'diff' || kind === 'side by side' ? { ...editor, label: entry.getName(), description: undefined } : editor;
-	}
-
-	for (const kind of ['default', 'customEditor', 'notebook', 'merge', 'diff', 'side by side']) {
-		test(`opens a mapped ${kind} editor with its full editor input`, async () => {
-			const editor = store.add(new TestTypedEditorInput(URI.file('/work/worktree/src/app.ts'), editorInput('/work/worktree', kind)));
-			const { provider, openedEditors } = setup('/work/folder', ['/work/folder', '/work/worktree'], [editor]);
-			const [pick] = await provider.getHistoryPicks();
-			await pick.accept?.(NO_KEY_MODS, { inBackground: false });
-			assert.deepStrictEqual(snapshot({ resource: pick.resource, editor: openedEditors[0] }), snapshot({
-				resource: URI.file('/work/folder/src/app.ts'),
-				editor: { ...mappedEditorInput(kind, editor), options: { ...editorInput('/work/folder', kind).options, preserveFocus: false, pinned: true, selection: undefined } }
-			}));
-		});
-	}
-
-	test('keeps a merge editor with repository-specific sides separate from a file row', async () => {
-		const untyped = {
-			input1: { resource: URI.from({ scheme: 'git', path: '/work/worktree/src/app.ts', query: '{"ref":"1"}' }) },
-			input2: { resource: URI.file('/work/worktree/src/two.ts') },
-			base: { resource: URI.file('/work/worktree/src/base.ts') },
-			result: { resource: URI.file('/work/worktree/src/app.ts') }
-		};
-		const editor = store.add(new TestTypedEditorInput(untyped.result.resource, untyped));
-		const { provider } = setup('/work/folder', ['/work/folder', '/work/worktree'], ['/work/folder/src/app.ts', '/work/worktree/src/app.ts', editor]);
-		assert.deepStrictEqual(snapshot((await provider.getHistoryPicks()).map(pick => pick.editor)), snapshot([{ resource: URI.file('/work/folder/src/app.ts') }, editor]));
-	});
-
-	test('keeps mapped compound and custom editors separate from a file row for the same resource', async () => {
-		const kinds = ['merge', 'diff', 'side by side', 'customEditor'];
-		const editors = kinds.map(kind => store.add(new TestTypedEditorInput(URI.file('/work/worktree/src/app.ts'), editorInput('/work/worktree', kind))));
-		const { provider } = setup('/work/folder', ['/work/folder', '/work/worktree'], ['/work/folder/src/app.ts', ...editors]);
-		assert.deepStrictEqual(snapshot((await provider.getHistoryPicks()).map(pick => pick.editor)), snapshot([
-			{ resource: URI.file('/work/folder/src/app.ts') },
-			...kinds.map((kind, index) => mappedEditorInput(kind, editors[index]))
-		]));
-	});
-
-	test('shows a file opened with the same editor in the worktree and the folder once', async () => {
-		const [worktree, folder] = ['/work/worktree', '/work/folder'].map(location => store.add(new TestTypedEditorInput(URI.file(`${location}/src/app.ts`), editorInput(location, 'notebook'))));
-		const { provider } = setup('/work/folder', ['/work/folder', '/work/worktree'], [worktree, folder]);
-		const picks = await provider.getHistoryPicks();
-		assert.deepStrictEqual(picks.map(pick => pick.editor), [folder]);
-	});
-
-	test('does not match a diff editor that is not moved when filtering', async () => {
-		const diff = store.add(new DiffEditorInput('app.ts (Working Tree)', undefined, store.add(new TestFileEditorInput(URI.file('/elsewhere/src/base.ts'), 'test')), store.add(new TestFileEditorInput(URI.file('/elsewhere/src/app.ts'), 'test')), undefined, new class extends mock<IEditorService>() { }));
-		const { provider } = setup('/work/folder', ['/work/folder', '/work/worktree'], ['/elsewhere/src/app.ts', diff]);
-		assert.deepStrictEqual((await provider.getHistoryPicks('app')).map(pick => pick.resource?.toString()), [URI.file('/elsewhere/src/app.ts').toString()]);
-	});
-
-	test('shows recently opened files under the current location again once its locations are known', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-		const loaded = new DeferredPromise<void>();
-		const kinds = ['customEditor', 'merge'];
-		const editors = kinds.map(kind => store.add(new TestTypedEditorInput(URI.file('/work/worktree/src/app.ts'), editorInput('/work/worktree', kind))));
-		const { provider, quickInputService } = setup('/work/folder', ['/work/folder', '/work/worktree'], ['/work/worktree/src/app.ts', ...editors], { loaded: loaded.p });
-		const picker = store.add(quickInputService.createQuickPick<IAnythingQuickPickItem>({ useSeparators: true }));
-		const beforeShown = Event.toPromise(Event.filter(picker.onDidChangeActive, picks => picks[0]?.resource?.path === '/work/worktree/src/app.ts'));
-		store.add(provider.provide(picker, CancellationToken.None));
-		picker.show();
-		await beforeShown;
-		const before = picker.items.filter(pick => pick.type !== 'separator').map(pick => pick.editor);
-		await loaded.complete();
-		await timeout(0);
-		const after = picker.items.filter(pick => pick.type !== 'separator').map(pick => pick.editor);
-		picker.hide();
-		assert.deepStrictEqual(snapshot({ before, after }), snapshot({
-			before: [{ resource: URI.file('/work/worktree/src/app.ts') }, ...editors],
-			after: [{ resource: URI.file('/work/folder/src/app.ts') }, ...kinds.map(kind => editorInput('/work/folder', kind))]
-		}));
-	}));
-
-	test('keeps the recently opened file the user moved to when its locations are known', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-		const loaded = new DeferredPromise<void>();
-		const { provider, quickInputService } = setup('/work/folder', ['/work/folder', '/work/worktree'], ['/work/worktree/src/first.ts', '/work/worktree/src/app.ts'], { loaded: loaded.p });
-		const picker = store.add(quickInputService.createQuickPick<IAnythingQuickPickItem>({ useSeparators: true }));
-		const beforeShown = Event.toPromise(Event.filter(picker.onDidChangeActive, picks => picks[0]?.resource?.path === '/work/worktree/src/first.ts'));
-		store.add(provider.provide(picker, CancellationToken.None));
-		picker.show();
-		await beforeShown;
-		picker.activeItems = picker.items.filter((pick): pick is IAnythingQuickPickItem => pick.type !== 'separator').slice(1, 2);
-		await loaded.complete();
-		await timeout(0);
-		const active = picker.activeItems.map(pick => pick.resource?.path);
-		picker.hide();
-		assert.deepStrictEqual(active, ['/work/folder/src/app.ts']);
-	}));
 });

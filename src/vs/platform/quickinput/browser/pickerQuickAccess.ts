@@ -5,7 +5,6 @@
 
 import { timeout } from '../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
-import { Event } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { IKeyMods, IQuickPickDidAcceptEvent, IQuickPickSeparator, IQuickPick, IQuickPickItem, IQuickInputButton, isKeyModified } from '../common/quickInput.js';
 import { IQuickAccessProvider, IQuickAccessProviderRunOptions } from '../common/quickAccess.js';
@@ -156,7 +155,7 @@ export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem
 		// Set initial picks and update on type
 		let picksCts: CancellationTokenSource | undefined = undefined;
 		const picksDisposable = disposables.add(new MutableDisposable());
-		const updatePickerItems = async (activeIdentity?: string) => {
+		const updatePickerItems = async () => {
 			// Cancel any previous ask for picks and busy
 			picksCts?.dispose(true);
 			picker.busy = false;
@@ -176,10 +175,6 @@ export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem
 			}
 
 			const providedPicks = this._getPicks(picksFilter, picksDisposables, picksToken, runOptions);
-
-			const findPickByIdentity = (items: readonly Pick<T>[]): T | undefined => {
-				return activeIdentity !== undefined ? items.find((item): item is T => item.type !== 'separator' && this.getPickIdentity(item) === activeIdentity) : undefined;
-			};
 
 			const applyPicks = (picks: Picks<T>, skipEmpty?: boolean): boolean => {
 				let items: readonly Pick<T>[];
@@ -208,7 +203,6 @@ export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem
 				}
 
 				picker.items = items;
-				activeItem ??= findPickByIdentity(items);
 				if (activeItem) {
 					picker.activeItems = [activeItem];
 				}
@@ -219,7 +213,6 @@ export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem
 			const applyFastAndSlowPicks = async (fastAndSlowPicks: FastAndSlowPicks<T>): Promise<void> => {
 				let fastPicksApplied = false;
 				let slowPicksApplied = false;
-				let activeAfterFastPicks: T | undefined = undefined;
 
 				await Promise.all([
 
@@ -239,7 +232,6 @@ export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem
 
 						if (!slowPicksApplied) {
 							fastPicksApplied = applyPicks(fastAndSlowPicks.picks, true /* skip over empty to reduce flicker */);
-							activeAfterFastPicks = picker.activeItems[0];
 						}
 					})(),
 
@@ -288,14 +280,9 @@ export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem
 									}
 								}
 
-								// On a refresh, the pick that was active before wins over the
-								// fallback, unless the user moved since the fast picks were applied
-								const items = [...picks, ...additionalPicks];
-								const identityActivePick = fallbackActivePick === activeAfterFastPicks ? findPickByIdentity(items) : undefined;
-
 								applyPicks({
-									items,
-									active: activePick || additionalActivePick || identityActivePick || fallbackActivePick
+									items: [...picks, ...additionalPicks],
+									active: activePick || additionalActivePick || fallbackActivePick
 								});
 							}
 						} finally {
@@ -420,26 +407,7 @@ export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem
 		disposables.add(picker.onDidTriggerItemButton(({ button, item }) => buttonTrigger(button, item)));
 		disposables.add(picker.onDidTriggerSeparatorButton(({ button, separator }) => buttonTrigger(button, separator)));
 
-		// Keep the active pick when the provider's data changes under the user
-		disposables.add(this.onDidChangePicks(() => {
-			const activeItem = picker.activeItems[0];
-			updatePickerItems(activeItem ? this.getPickIdentity(activeItem) : undefined);
-		}));
-
 		return disposables;
-	}
-
-	/** Fires when the provider's data changes and the open picker needs new picks. */
-	protected get onDidChangePicks(): Event<void> {
-		return Event.None;
-	}
-
-	/**
-	 * Returns an identity for a pick that stays the same when the picks are refreshed
-	 * through `onDidChangePicks`, so that the active pick is kept across the refresh.
-	 */
-	protected getPickIdentity(pick: T): string | undefined {
-		return undefined;
 	}
 
 	/**
