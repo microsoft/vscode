@@ -2494,13 +2494,14 @@ suite('RemotesWidget', () => {
 					? { ...remote, availability: state === 'offline' ? 'offline' : 'online', connectionStatus: RemoteAgentHostConnectionStatus.disconnected } : remote), undefined);
 			}
 			const row = parent.querySelector<HTMLElement>('[data-remote-id="ssh:build"]')!;
+			const marked = () => !!parent.querySelector('[data-remote-id="ssh:build"] .remotes-picker-hidden:not([hidden])');
 			row.click();
 			const before = getMenuAction(parent, 'ssh:build', 'visibility').label;
 			runMenuAction(parent, 'ssh:build', 'visibility');
 			await timeout(0);
 			const hidden = {
 				label: getMenuAction(parent, 'ssh:build', 'visibility').label,
-				dimmed: row.classList.contains('remotes-row-hidden'),
+				marked: marked(),
 				connection: getRowStatus(row),
 				accessible: widget.getAccessibilityContent().includes('Build server (hidden from environment picker)'),
 			};
@@ -2512,12 +2513,12 @@ suite('RemotesWidget', () => {
 			await timeout(0);
 			assert.deepStrictEqual({
 				before, hidden, retained,
-				restored: model.remotes.get().find(remote => remote.id === 'ssh:build')?.hidden,
+				restored: model.remotes.get().find(remote => remote.id === 'ssh:build')?.hidden, restoredMarked: marked(),
 				visibilityChanges: model.visibilityChanges, connectionChanges: model.connectionChanges, managementChanges: model.managementChanges,
 			}, {
 				before: 'Hide from Environment Picker',
-				hidden: { label: 'Show in Environment Picker', dimmed: true, connection: state === 'offline' ? 'Offline' : state === 'connected' ? 'Connected' : 'Available', accessible: true },
-				retained: 1, restored: false,
+				hidden: { label: 'Show in Environment Picker', marked: true, connection: state === 'offline' ? 'Offline' : state === 'connected' ? 'Connected' : 'Available', accessible: true },
+				retained: 1, restored: false, restoredMarked: false,
 				visibilityChanges: [{ id: 'ssh:build', hidden: true }, { id: 'ssh:build', hidden: false }],
 				connectionChanges: [], managementChanges: [],
 			});
@@ -2572,9 +2573,10 @@ suite('RemotesWidget', () => {
 			};
 			model.remotes.set([remote], undefined);
 			const row = parent.querySelector<HTMLElement>('[data-remote-id]')!;
+			const marked = () => !!row.querySelector('.remotes-picker-hidden:not([hidden])');
 			const action = getMenuAction(parent, remote.id, 'visibility');
 			const unavailable = {
-				label: action.label, tooltip: action.tooltip, disabled: !action.enabled,
+				label: action.label, tooltip: action.tooltip, disabled: !action.enabled, marked: marked(),
 				accessible: widget.getAccessibilityContent().includes('not shown in environment picker: This remote can\'t appear as a separate entry'),
 			};
 			runMenuAction(parent, remote.id, 'visibility');
@@ -2583,7 +2585,7 @@ suite('RemotesWidget', () => {
 			assert.deepStrictEqual({
 				unavailable,
 				restored: {
-					label: restoredAction.label, disabled: !restoredAction.enabled,
+					label: restoredAction.label, disabled: !restoredAction.enabled, marked: marked(),
 					unavailableClass: row.classList.contains('remotes-row-picker-unavailable'),
 				},
 				visibilityChanges: model.visibilityChanges, connectionChanges: model.connectionChanges,
@@ -2591,11 +2593,11 @@ suite('RemotesWidget', () => {
 				unavailable: {
 					label: 'Show in Environment Picker',
 					tooltip: 'This remote can\'t appear as a separate entry in the environment picker.',
-					disabled: true, accessible: true,
+					disabled: true, marked: false, accessible: true,
 				},
 				restored: {
 					label: hidden ? 'Show in Environment Picker' : 'Hide from Environment Picker',
-					disabled: false, unavailableClass: false,
+					disabled: false, marked: hidden, unavailableClass: false,
 				},
 				visibilityChanges: [], connectionChanges: [],
 			});
