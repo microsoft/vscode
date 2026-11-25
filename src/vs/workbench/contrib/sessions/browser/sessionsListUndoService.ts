@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { isWeb } from '../../../../base/common/platform.js';
 import { localize } from '../../../../nls.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
@@ -34,7 +35,8 @@ export interface ISessionsListChange {
 	undo(): Promise<void>;
 	/**
 	 * Completes the change once Undo is no longer offered for it: its notice expires, is dismissed or replaced, or the
-	 * window closes, which waits for it. Without a sessions list to offer Undo, it runs right away. A failure is reported.
+	 * window closes, which waits for it; in the web, which can't wait, leaving the page asks to stay until it completes.
+	 * Without a sessions list to offer Undo, it runs right away. A failure is reported.
 	 */
 	commit?(): Promise<void>;
 }
@@ -124,6 +126,16 @@ export class SessionsListUndoService extends Disposable implements ISessionsList
 				});
 			}
 		}));
+		if (isWeb) {
+			// The web can't wait for changes to complete as the page unloads, so end Undo as leaving begins and ask the browser
+			// to keep the page while what Undo was offered for completes, as for files that are being saved.
+			this._register(lifecycleService.onBeforeShutdown(event => {
+				if (this.current) {
+					this.end(this.current);
+				}
+				event.veto(this.pendingCommits.size > 0, 'veto.sessionsListUndo');
+			}));
+		}
 	}
 
 	offerUndo(change: ISessionsListChange): boolean {

@@ -140,7 +140,7 @@ Providers can't restore deleted sessions, so deleting sessions from the list is 
 
 ## Undo
 
-`ISessionsListUndoService` offers Undo for changes made from the list, in the notice of the window's Sessions view (the most recently rendered one, if there are several), which presents it. A change joins the notice that offers to undo changes of the same kind, which then counts them all, restarts its countdown, and undoes all of them, latest first; a change of another kind replaces the notice, ending Undo for the changes it offered. A change that can't be reverted once made stays provisional while Undo is offered for it, and completes once Undo no longer is: when its notice expires, is dismissed or replaced, its Sessions view goes away, or the window closes, which waits for it. Without a Sessions view, a change completes right away.
+`ISessionsListUndoService` offers Undo for changes made from the list, in the notice of the window's Sessions view (the most recently rendered one, if there are several), which presents it. A change joins the notice that offers to undo changes of the same kind, which then counts them all, restarts its countdown, and undoes all of them, latest first; a change of another kind replaces the notice, ending Undo for the changes it offered. A change that can't be reverted once made stays provisional while Undo is offered for it, and completes once Undo no longer is: when its notice expires, is dismissed or replaced, its Sessions view goes away, or the window closes, which waits for it. The web can't wait as a page unloads, so there leaving the page ends Undo and asks to stay while those changes complete. Without a Sessions view, a change completes right away.
 
 ## Durable user intent
 

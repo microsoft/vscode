@@ -5,9 +5,11 @@
 
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
+import { isWeb } from '../../../../../base/common/platform.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
+import { ShutdownReason } from '../../../../services/lifecycle/common/lifecycle.js';
 import { TestLifecycleService } from '../../../../test/common/workbenchTestServices.js';
 import { ISessionsListChange, ISessionsListNotice, ISessionsListUndoPresenter, SessionsListUndoService } from '../../browser/sessionsListUndoService.js';
 
@@ -142,5 +144,26 @@ suite('SessionsListUndoService', () => {
 		assert.deepStrictEqual({ closed: test.shown[0].closed, joiners: test.lifecycleService.shutdownJoiners.length, settledBeforeCommit, settled, errors: test.errors }, {
 			closed: true, joiners: 1, settledBeforeCommit: false, settled: true, errors: [error],
 		});
+	});
+
+	test('in the web, leaving the page ends Undo and asks to stay while what it was offered for completes; elsewhere, closing the window waits for it instead', async () => {
+		const test = setup();
+		const log: string[] = [];
+		const commit = new DeferredPromise<void>();
+		test.service.offerUndo(change('deleted', 1, log, 'pending', { commit: () => { log.push('commit pending'); return commit.p; } }));
+		const leave = () => {
+			let vetoed = false;
+			test.lifecycleService.fireBeforeShutdown({ reason: ShutdownReason.QUIT, veto: value => { vetoed ||= value === true; }, finalVeto: () => { } });
+			return vetoed;
+		};
+
+		const whileCompleting = leave();
+		await commit.complete();
+		await timeout(0);
+		const completed = leave();
+
+		assert.deepStrictEqual({ closed: test.shown[0].closed, log, whileCompleting, completed }, isWeb
+			? { closed: true, log: ['commit pending'], whileCompleting: true, completed: false }
+			: { closed: false, log: [], whileCompleting: false, completed: false });
 	});
 });
