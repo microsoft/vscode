@@ -134,7 +134,8 @@ export class ArtifactAutopilotModel extends Disposable {
 		return {
 			id, label: option.label, checked, disabled,
 			description: [
-				...describeArtifactAutomationConsent(contribution, option, { location: this.location(contribution, snapshot) }),
+				// The mode a rule is on with explains what it adds, such as When Not Changed turning merging off after a repair.
+				...describeArtifactAutomationConsent(contribution, option, { location: this.location(contribution, snapshot), value: checked ? value : undefined }),
 				checked && grant?.kind === 'agent'
 					? grant.autoApproved
 						? localize('artifactAutopilot.agentAutoApprovedGrant', "Turned on by the agent (auto-approved).")

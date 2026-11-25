@@ -2364,7 +2364,7 @@ suite('Artifact Integration Presentation', () => {
 				...contribution, options: [{
 					id: 'merge', kind: 'enum', label: 'Merge Automatically When Ready', description: 'Choose a merge policy.',
 					actionIds: ['merge'], maxAttempts: 1, defaultValue: 'off', disabledValue: 'off',
-					choices: [{ value: 'off', label: 'Off' }, { value: 'ifUnchanged', label: 'When Not Changed' }, { value: 'always', label: 'Always' }],
+					choices: [{ value: 'off', label: 'Off' }, { value: 'ifUnchanged', label: 'When Not Changed', description: 'Merges only while unchanged.' }, { value: 'always', label: 'Always' }],
 				}],
 				configuration: { ...contribution.configuration, values: { merge: value } },
 			}));
@@ -2770,9 +2770,14 @@ suite('Artifact Integration Presentation', () => {
 				choice(panel, label).click();
 				await settle(f);
 				const accessible = f.controller.getAccessibilityProvider(AccessibleViewType.View);
+				const content = accessible?.provideContent() ?? '';
+				const hover = f.hovers.get(rule.querySelector<HTMLElement>('.artifact-autopilot-rule-label')!);
+				const hoverContent = typeof hover === 'function' ? hover().content : hover?.content;
 				selections.push({
 					selected: selectedChoices(panel), badge: automationBadge(a)?.textContent ?? null,
-					accessible: accessible?.provideContent().includes(`Merge Automatically When Ready: ${label}.`),
+					accessible: content.includes(`Merge Automatically When Ready: ${label}.`),
+					// The mode's explanation, on the label's hover and in the Accessible View.
+					mode: [content, String(hoverContent)].map(text => /Mode: [^.]+\.(?: Merges only while unchanged\.)?/.exec(text)?.[0] ?? null),
 				});
 				accessible?.dispose();
 			}
@@ -2782,9 +2787,9 @@ suite('Artifact Integration Presentation', () => {
 					choicesFirst: true, labelAfterChoices: true, noSwitch: true, height: 24, badge: null,
 				},
 				selections: [
-					{ selected: ['Always'], badge: '1', accessible: true },
-					{ selected: ['When Not Changed'], badge: '1', accessible: true },
-					{ selected: ['Off'], badge: null, accessible: true },
+					{ selected: ['Always'], badge: '1', accessible: true, mode: ['Mode: Always.', 'Mode: Always.'] },
+					{ selected: ['When Not Changed'], badge: '1', accessible: true, mode: ['Mode: When Not Changed. Merges only while unchanged.', 'Mode: When Not Changed. Merges only while unchanged.'] },
+					{ selected: ['Off'], badge: null, accessible: true, mode: [null, null] },
 				],
 				configured: [
 					{ integrationId: 'test', revision: 4, values: { merge: 'always' } },
@@ -2817,6 +2822,58 @@ suite('Artifact Integration Presentation', () => {
 				initialTabStops: ['Off'], moved: { focused: 'Always', selected: ['Off'], writes: 0 },
 				focused: 'When Not Changed', selected: ['When Not Changed'], tabStops: ['When Not Changed'],
 				configured: [{ integrationId: 'test', revision: 4, values: { merge: 'ifUnchanged' } }],
+			});
+		});
+
+		test('an update that selects another enum choice keeps the tab stop on the focused one, so Tab still wraps', async () => {
+			const f = fixture();
+			const a = f.artifact();
+			useEnumAutomation(a);
+			const panel = await open(f, a);
+			button(panel, 'Autopilot').click();
+			const press = (key: string, keyCode: number) => getActiveElement()!.dispatchEvent(new KeyboardEvent('keydown', { key, keyCode, bubbles: true }));
+			choice(panel, 'Off').focus();
+			press('ArrowRight', 39);
+			press('ArrowRight', 39);
+			// Selected by another client while focus is on Always.
+			updateContribution(a, contribution => ({ ...contribution, configuration: { ...contribution.configuration, revision: 5, values: { merge: 'ifUnchanged' } } }));
+			await settle(f);
+			const updated = {
+				focused: getActiveElement()?.textContent, selected: selectedChoices(panel),
+				tabStops: choices(panel).filter(choice => choice.tabIndex === 0).map(choice => choice.textContent),
+			};
+			press('Tab', 9);
+			assert.deepStrictEqual({ updated, wrapped: getActiveElement() === panel.querySelector('.artifact-details-title-link'), writes: a.configured }, {
+				updated: { focused: 'Always', selected: ['When Not Changed'], tabStops: ['Always'] }, wrapped: true, writes: [],
+			});
+		});
+
+		test('enum choices wrap onto more rows in a narrow panel instead of being clipped', async () => {
+			const f = fixture();
+			const a = f.artifact();
+			useEnumAutomation(a);
+			const panel = await open(f, a);
+			button(panel, 'Autopilot').click();
+			const radio = panel.querySelector<HTMLElement>('.artifact-autopilot-choices')!;
+			const content = radio.closest<HTMLElement>('.artifact-card-content')!;
+			const layout = () => {
+				const bounds = content.getBoundingClientRect();
+				const options = choices(panel).map(choice => choice.getBoundingClientRect());
+				return {
+					wrapped: new Set(options.map(option => Math.round(option.top))).size > 1,
+					inside: options.every(option => option.left >= bounds.left && option.right <= bounds.right),
+					reachable: choices(panel).every(choice => {
+						const option = choice.getBoundingClientRect();
+						return choice.contains(mainWindow.document.elementFromPoint(option.left + option.width / 2, option.top + option.height / 2));
+					}),
+				};
+			};
+			const wide = layout();
+			panel.style.width = '200px';
+			const narrow = layout();
+			assert.deepStrictEqual({ wide, narrow }, {
+				wide: { wrapped: false, inside: true, reachable: true },
+				narrow: { wrapped: true, inside: true, reachable: true },
 			});
 		});
 

@@ -88,7 +88,10 @@ class ArtifactAutopilotRule extends Disposable {
 
 	private updateChoices(radio: Radio, choices: NonNullable<IArtifactAutopilotRuleViewData['choices']>, disabled: boolean): void {
 		const index = choices.items.findIndex(choice => choice.value === choices.value);
-		if (!equals(choices.items, this.choiceItems, (a, b) => a.value === b.value && a.label === b.label && a.description === b.description)) {
+		const active = getActiveElement();
+		const focusedIndex = radio.optionElements.findIndex(element => element === active);
+		const replaced = !equals(choices.items, this.choiceItems, (a, b) => a.value === b.value && a.label === b.label && a.description === b.description);
+		if (replaced) {
 			this.choiceItems = choices.items;
 			this.choiceHovers.clear();
 			radio.setItems(choices.items.map((choice, itemIndex) => ({ text: choice.label, isActive: itemIndex === index })));
@@ -114,6 +117,9 @@ class ArtifactAutopilotRule extends Disposable {
 			for (const element of radio.optionElements) {
 				element.tabIndex = -1;
 			}
+		} else if (!replaced && focusedIndex !== -1) {
+			// Selecting another choice moves the tab stop to it, so give it back to the focused one, which Tab must still leave from.
+			radio.focusItem(focusedIndex);
 		}
 	}
 
