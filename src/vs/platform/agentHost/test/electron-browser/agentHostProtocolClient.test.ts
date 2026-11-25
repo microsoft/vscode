@@ -1902,7 +1902,7 @@ suite('AgentHostProtocolClient', () => {
 			return request.params as AuthenticateParams;
 		}
 
-		test('seals provider and targeted MCP credentials with separate keys without changing scopes or addressing', async () => {
+		test('seals provider and targeted MCP credentials with separate keys without changing scopes, addressing or the ID token', async () => {
 			const { client, transport } = createClient();
 			const sealed: IMissionControlCredentialSealingRequest[] = [];
 			disposables.add(client.registerAuthenticationTokenSealer(async request => {
@@ -1911,31 +1911,15 @@ suite('AgentHostProtocolClient', () => {
 			}));
 			await initialize(client, transport);
 			const target = { kind: AuthenticateTargetKind.McpServer, session: 'opaque-session://tenant/id', customizationId: 'server/one' };
-			const provider = await acknowledgeAuthentication(transport, client.authenticate({ resource, token: 'provider-token', scopes: ['write', 'read'], expiresIn: 300 }));
+			const provider = await acknowledgeAuthentication(transport, client.authenticate({ resource, token: 'provider-token', scopes: ['write', 'read'], expiresIn: 300, idToken: 'id-token' }));
 			const mcp = await acknowledgeAuthentication(transport, client.authenticate({ resource, token: 'mcp-token', scopes: ['read'], target }));
 			assert.deepStrictEqual({
 				sealed: sealed.map(request => [request.token, request.resource, request.key.use, request.challenge]),
 				provider, mcp,
 			}, {
 				sealed: [['provider-token', resource, 'auth-token', challenge], ['mcp-token', resource, 'mcp-auth-token', challenge]],
-				provider: { channel: ROOT_STATE_URI, resource, token: 'copilot-sealed.v1.auth-token.ciphertext', scopes: ['read', 'write'], expiresIn: 300 },
+				provider: { channel: ROOT_STATE_URI, resource, token: 'copilot-sealed.v1.auth-token.ciphertext', scopes: ['read', 'write'], expiresIn: 300, idToken: 'id-token' },
 				mcp: { channel: ROOT_STATE_URI, resource, token: 'copilot-sealed.v1.mcp-auth-token.ciphertext', scopes: ['read'], target },
-			});
-		});
-
-		test('omits the ID token wherever the token is sealed, and sends it on an unencrypted connection', async () => {
-			const sealing = createClient();
-			disposables.add(sealing.client.registerAuthenticationTokenSealer(async request => `copilot-sealed.v1.${request.key.key_id}.ciphertext`));
-			await initialize(sealing.client, sealing.transport);
-			const sealed = await acknowledgeAuthentication(sealing.transport, sealing.client.authenticate({ resource, token: 'provider-token', idToken: 'id-token' }));
-			const alreadySealed = await acknowledgeAuthentication(sealing.transport, sealing.client.authenticate({ resource, token: 'copilot-sealed.v1.external.ciphertext', idToken: 'id-token' }));
-			const direct = createClient();
-			await initialize(direct.client, direct.transport, { 'copilot.encryptionKeys': [] }, {});
-			const unencrypted = await acknowledgeAuthentication(direct.transport, direct.client.authenticate({ resource, token: 'provider-token', idToken: 'id-token' }));
-			assert.deepStrictEqual({ sealed, alreadySealed, unencrypted }, {
-				sealed: { channel: ROOT_STATE_URI, resource, token: 'copilot-sealed.v1.auth-token.ciphertext', scopes: undefined },
-				alreadySealed: { channel: ROOT_STATE_URI, resource, token: 'copilot-sealed.v1.external.ciphertext', scopes: undefined },
-				unencrypted: { channel: ROOT_STATE_URI, resource, token: 'provider-token', scopes: undefined, idToken: 'id-token' },
 			});
 		});
 
