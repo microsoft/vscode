@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'mocha';
-import { findGit, Git, GitStatusParser, parseGitCommits, parseGitFileLog, parseGitmodules, parseLsTree, parseLsFiles, parseGitRemotes, parseCoAuthors, getWorktreePathFromGitdir } from '../git';
+import { findGit, Git, GitStatusParser, parseGitCommits, parseGitFileLog, parseGitmodules, parseLsTree, parseLsFiles, parseGitRemotes, parseCoAuthors, getWorktreePathFromGitdir, stripCommitMessageComments } from '../git';
 import * as assert from 'assert';
 import * as path from 'path';
 import { LogOutputChannel, window } from 'vscode';
@@ -735,6 +735,34 @@ suite('git', () => {
 					{ name: 'Copilot', email: '223556219+Copilot@users.noreply.github.com' },
 					{ name: 'Jane Doe', email: 'jane@example.com' }
 				]
+			);
+		});
+	});
+
+	suite('stripCommitMessageComments', () => {
+		test('keeps the blank lines of a commit template', () => {
+			const template = [
+				'# Instruction for summary format',
+				'<summary>',
+				'# Leave the next line blank',
+				'',
+				'# Optional, additional stuff to add instructions..',
+				'',
+				'# Instructions for issue link',
+				'Issue-Link:',
+				''
+			].join('\n');
+
+			assert.deepStrictEqual(
+				[stripCommitMessageComments(template), stripCommitMessageComments(template.replace(/\n/g, '\r\n'))],
+				['<summary>\n\nIssue-Link:', '<summary>\n\nIssue-Link:']
+			);
+		});
+
+		test('removes comments of a merge message and keeps indented lines', () => {
+			assert.deepStrictEqual(
+				stripCommitMessageComments('Merge branch \'x\'\n\n  - indented\n \n\n# Conflicts:\n#\ta.txt\n'),
+				'Merge branch \'x\'\n\n  - indented'
 			);
 		});
 	});
