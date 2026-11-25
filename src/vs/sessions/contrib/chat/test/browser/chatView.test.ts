@@ -1017,8 +1017,11 @@ suite('Sessions - Chat View', () => {
 		needsConversation: IObservable<boolean>;
 	} {
 		const response: ChatResponseModel = disposables.add(new ChatResponseModel({
-			responseContent: parts, session: createChatModel(URI.parse('test:/input-parity')), requestId: 'input', codeBlockInfos: undefined,
+			responseContent: [], session: createChatModel(URI.parse('test:/input-parity')), requestId: 'input', codeBlockInfos: undefined,
 		}));
+		for (const part of parts) {
+			response.updateContent(part);
+		}
 		const request: IChatRequestModel = upcastPartial<IChatRequestModel>({ response });
 		const model: IChatModel = upcastPartial<IChatModel>({ lastRequestObs: constObservable(request) });
 		const currentModel: ISettableObservable<IChatModel | undefined> = observableValue('currentModel', model);
@@ -1034,8 +1037,11 @@ suite('Sessions - Chat View', () => {
 
 	test('input-only views retain shared question controls and expose transcript-only input actions', (): void => {
 		const tool: IChatToolInvocation = upcastPartial<IChatToolInvocation>({
-			kind: 'toolInvocation', toolId: 'editFile', source: { type: 'internal' },
-			state: constObservable({ type: IChatToolInvocation.StateKind.WaitingForConfirmation, confirmationMessages: { title: 'Allow edit?' } }),
+			kind: 'toolInvocation', toolId: 'editFile', source: { type: 'internal', label: 'Test' },
+			state: constObservable<IChatToolInvocation.State>({
+				type: IChatToolInvocation.StateKind.WaitingForConfirmation, confirmationMessages: { title: 'Allow edit?' },
+				parameters: undefined, confirm: (): void => { },
+			}),
 		});
 		const elicitation: IChatElicitationRequest = upcastPartial<IChatElicitationRequest>({
 			kind: 'elicitation2', title: '', state: constObservable(ElicitationState.Pending),
@@ -1043,7 +1049,7 @@ suite('Sessions - Chat View', () => {
 		const cases: { name: string; parts: IChatProgressResponseContent[]; expanded: boolean }[] = [
 			{ name: 'question form', parts: [{ kind: 'questionCarousel', questions: [{ id: 'name', type: 'text', title: 'Name', required: true }], allowSkip: true }], expanded: false },
 			{ name: 'carousel approval', parts: [tool], expanded: false },
-			{ name: 'untitled approval', parts: [{ ...tool, state: constObservable({ type: IChatToolInvocation.StateKind.WaitingForConfirmation }) }], expanded: true },
+			{ name: 'untitled approval', parts: [{ ...tool, state: constObservable<IChatToolInvocation.State>({ ...tool.state.get(), confirmationMessages: undefined }) }], expanded: true },
 			{ name: 'untitled confirmation', parts: [{ kind: 'confirmation', title: '', message: 'Continue?', data: {} }], expanded: true },
 			{ name: 'answered confirmation', parts: [{ kind: 'confirmation', title: 'Continue?', message: '', data: {}, isUsed: true }], expanded: false },
 			{ name: 'untitled elicitation', parts: [elicitation], expanded: true },
@@ -1058,8 +1064,11 @@ suite('Sessions - Chat View', () => {
 
 	test('input-only views react to new controls, carousel settings, authentication and response replacement', async (): Promise<void> => {
 		const tool: IChatToolInvocation = upcastPartial<IChatToolInvocation>({
-			kind: 'toolInvocation', toolId: 'editFile', source: { type: 'internal' },
-			state: constObservable({ type: IChatToolInvocation.StateKind.WaitingForConfirmation, confirmationMessages: { title: 'Allow edit?' } }),
+			kind: 'toolInvocation', toolId: 'editFile', source: { type: 'internal', label: 'Test' },
+			state: constObservable<IChatToolInvocation.State>({
+				type: IChatToolInvocation.StateKind.WaitingForConfirmation, confirmationMessages: { title: 'Allow edit?' },
+				parameters: undefined, confirm: (): void => { },
+			}),
 		});
 		const { response, currentModel, enabled, configuration, needsConversation } = createInputOnlyConversationGate([tool]);
 		const states: boolean[] = [];
@@ -1079,10 +1088,16 @@ suite('Sessions - Chat View', () => {
 		const servers: ISettableObservable<readonly IChatMcpAuthenticationRequiredServer[]> = observableValue('servers', [{ id: 'test', name: 'Test', resource: 'test:/server' }]);
 		response.updateContent({ kind: 'mcpAuthenticationRequired', sessionResource: URI.parse('test:/input-parity'), servers, isUsed: false });
 		servers.set([], undefined);
-		currentModel.set(undefined, undefined);
-		response.setResult({ errorDetails: { message: 'Old response', confirmationButtons: [{ label: 'Retry', data: {} }] } });
 		enabled.set(false, undefined);
-		assert.deepStrictEqual(states, [false, true, false, true, false, true, false, true, false]);
+		response.setResult({ errorDetails: { message: 'Temporarily disabled', confirmationButtons: [{ label: 'Retry', data: {} }] } });
+		enabled.set(true, undefined);
+		response.setResult({});
+		const replacement = createInputOnlyConversationGate([{ kind: 'confirmation', title: '', message: 'New chat', data: {} }]);
+		currentModel.set(replacement.currentModel.get(), undefined);
+		response.setResult({ errorDetails: { message: 'Old response', confirmationButtons: [{ label: 'Retry', data: {} }] } });
+		replacement.response.cancel();
+		currentModel.set(undefined, undefined);
+		assert.deepStrictEqual(states, [false, true, false, true, false, true, false, true, false, true, false, true, false]);
 	});
 
 	test('summarizes only the exact comparison evaluator chat, or its legacy main chat', () => {

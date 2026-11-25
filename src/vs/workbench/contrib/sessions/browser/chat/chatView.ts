@@ -21,7 +21,7 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
@@ -1340,7 +1340,7 @@ export class ChatView extends AbstractChatView {
 			return model ? { model, changed: observableSignalFromEvent(this, model.onDidChange) } : undefined;
 		});
 		const confirmationCarouselEnabled: IObservable<boolean> = observableFromEvent(this,
-			Event.filter(this.configurationService.onDidChangeConfiguration, event => event.affectsConfiguration(ChatConfiguration.ToolConfirmationCarousel)),
+			Event.filter(this.configurationService.onDidChangeConfiguration, (event: IConfigurationChangeEvent): boolean => event.affectsConfiguration(ChatConfiguration.ToolConfirmationCarousel)),
 			(): boolean => this.configurationService.getValue<boolean>(ChatConfiguration.ToolConfirmationCarousel));
 		return derived(this, (reader: IReader): boolean => {
 			const current: { model: IChatResponseModel; changed: IObservable<void> } | undefined = response.read(reader);
@@ -1678,21 +1678,20 @@ export function getInputOnlyResponseText(finalResponse: string): string | undefi
 
 /**
  * Whether the chat waits for input that only its conversation shows. The input shows questions, and tool approvals in
- * its confirmation carousel when that is enabled; other approvals, confirmations, plan reviews and elicitations show
- * only in the conversation.
+ * its confirmation carousel when that is enabled. Keep other actionable response content visible in the conversation.
  */
 function needsConversationForInput(response: IChatResponseModel, confirmationCarouselEnabled: boolean, reader: IReader): boolean {
 	if (response.result?.errorDetails?.confirmationButtons?.length) {
 		return true;
 	}
 	// Authentication actions can remain usable after a response completes.
-	if (response.response.value.some(part => part.kind === 'mcpAuthenticationRequired' && !part.isUsed && part.servers.read(reader).length > 0)) {
+	if (response.response.value.some((part: IChatProgressResponseContent): boolean => part.kind === 'mcpAuthenticationRequired' && !part.isUsed && part.servers.read(reader).length > 0)) {
 		return true;
 	}
 	if (response.isComplete || response.isCanceled) {
 		return false;
 	}
-	if (response.pendingToolInvocations.read(reader).some(tool => !confirmationCarouselEnabled || !isCarouselToolConfirmation(tool, tool.state.read(reader)))) {
+	if (response.pendingToolInvocations.read(reader).some((tool: IChatToolInvocation): boolean => !confirmationCarouselEnabled || !isCarouselToolConfirmation(tool, tool.state.read(reader)))) {
 		return true;
 	}
 	return response.response.value.some(part => {
