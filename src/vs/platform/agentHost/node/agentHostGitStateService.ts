@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { equals as objectEquals } from '../../../base/common/objects.js';
-import { extUriBiasedIgnorePathCase, isEqual } from '../../../base/common/resources.js';
+import { isEqual } from '../../../base/common/resources.js';
 import { isDefined } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { Emitter } from '../../../base/common/event.js';
@@ -756,13 +756,13 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 					nonRepositoryFolders.add(folderKey);
 				}
 			}
-			if (gitState && await this._applyAdditionalFolderGitState(sessionKey, workingDirectory, gitState, credentials)) {
+			if (gitState && this._applyAdditionalFolderGitState(sessionKey, workingDirectory, gitState, credentials)) {
 				changed = true;
 			}
 		}
 		// A folder that left the session loses the state recorded for it here
 		for (const folder of recorded) {
-			if (!currentFolders.slice(1).includes(folder) && await this._clearFolderState(sessionKey, folder)) {
+			if (!currentFolders.slice(1).includes(folder) && this._clearFolderState(sessionKey, folder)) {
 				changed = true;
 			}
 		}
@@ -782,12 +782,12 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 	 * chat's folder. A different GitHub repository replaces the folder's GitHub state, so the previous repository's pull
 	 * request does not carry over. Returns whether the folder's state changed.
 	 */
-	private async _applyAdditionalFolderGitState(sessionKey: string, workingDirectory: string, gitState: ISessionGitState, credentials: IRepositoryCredentialContext): Promise<boolean> {
+	private _applyAdditionalFolderGitState(sessionKey: string, workingDirectory: string, gitState: ISessionGitState, credentials: IRepositoryCredentialContext): boolean {
 		let changed = false;
 		const previousGitState = readFolderScopeGitState(this._stateManager.getSessionState(sessionKey)?._meta, getWorkingDirectoryScopeId([workingDirectory]));
 		if (!objectEquals(previousGitState, gitState)) {
 			changed = true;
-			await this.setFolderGitState(sessionKey, [workingDirectory], gitState);
+			this._persistInBackground(this.setFolderGitState(sessionKey, [workingDirectory], gitState));
 		}
 		if (credentials.sponsorUnavailable || !gitState.githubOwner || !gitState.githubRepo) {
 			return changed;
@@ -797,7 +797,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 		const repositoryChanged = currentGitHubState?.owner !== gitState.githubOwner || currentGitHubState.repo !== gitState.githubRepo;
 		if (repositoryChanged) {
 			changed = true;
-			await this._applySessionGitHubState(folder, this._stateManager.getSessionState(sessionKey)?._meta, currentGitHubState, { owner: gitState.githubOwner, repo: gitState.githubRepo });
+			this._persistInBackground(this._applySessionGitHubState(folder, this._stateManager.getSessionState(sessionKey)?._meta, currentGitHubState, { owner: gitState.githubOwner, repo: gitState.githubRepo }));
 		}
 		if (repositoryChanged || previousGitState?.branchName !== gitState.branchName) {
 			// Not awaited, so a slow lookup does not hold the session's refresh; the folder's GitHub state announces the result
@@ -880,7 +880,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 		}
 		const discovered = this._discoveredRoots(repositories, folders);
 		for (const root of this._discoveredRoots(previous, folders)) {
-			if (!discovered.includes(root) && await this._clearFolderState(sessionKey, root)) {
+			if (!discovered.includes(root) && this._clearFolderState(sessionKey, root)) {
 				changed = true;
 			}
 		}
@@ -891,7 +891,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 				break;
 			}
 			if (gitState) {
-				if (await this._applyAdditionalFolderGitState(sessionKey, root, gitState, credentials)) {
+				if (this._applyAdditionalFolderGitState(sessionKey, root, gitState, credentials)) {
 					changed = true;
 				}
 			} else if (!await this._gitService.getRepositoryRoot(URI.parse(root)).catch(() => URI.parse(root))) {
@@ -922,11 +922,19 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 	}
 
 	/**
+	 * Waits for no state save of a folder other than a session's first: each updates the session's metadata at once, and
+	 * the saves, which a session state store may coalesce for a long time, must not hold its refresh or its discovery.
+	 */
+	private _persistInBackground(save: Promise<void>): void {
+		save.catch(error => this._logService.warn('[AgentHostGitStateService] Failed to persist the Git state of a folder', error));
+	}
+
+	/**
 	 * Removes the folder-scope Git state and the GitHub state recorded for a folder that left the session, or for a
 	 * repository root that is no longer found, unless it is a folder of the session or of one of its chats, whose state
 	 * is theirs. Returns whether anything was removed.
 	 */
-	private async _clearFolderState(sessionKey: string, root: string): Promise<boolean> {
+	private _clearFolderState(sessionKey: string, root: string): boolean {
 		const state = this._stateManager.getSessionState(sessionKey);
 		const scope = getWorkingDirectoryScopeId([root]);
 		const owned = (this._stateManager.getSessionSummary(sessionKey)?.workingDirectories ?? []).some(folder => getWorkingDirectoryScopeId([folder]) === scope)
@@ -937,13 +945,13 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 		let removed = false;
 		if (readFolderScopeGitState(state._meta, scope)) {
 			removed = true;
-			await this.setFolderGitState(sessionKey, [root], undefined);
+			this._persistInBackground(this.setFolderGitState(sessionKey, [root], undefined));
 		}
 		const folderKey = getWorkingDirectoryKey(root);
 		if (readFolderGitHubState(this._stateManager.getSessionState(sessionKey)?._meta, folderKey)) {
 			removed = true;
 			this._stateManager.setSessionMeta(sessionKey, withFolderGitHubState(this._stateManager.getSessionState(sessionKey)?._meta, folderKey, undefined));
-			await this._saveGitHubState({ sessionUri: sessionKey, sourceUri: sessionKey, folderKey, isSessionFolder: false });
+			this._persistInBackground(this._saveGitHubState({ sessionUri: sessionKey, sourceUri: sessionKey, folderKey, isSessionFolder: false, workingDirectory: root }));
 		}
 		return removed;
 	}
@@ -1031,7 +1039,8 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 			if (this._predatesSession(folder.sessionUri, pr)) {
 				nextGitHubState = { ...nextGitHubState, ...withInitialSessionPullRequest(latestGitHubState, pr.html_url) };
 			}
-			await this._applySessionGitHubState(folder, latestMeta, latestGitHubState, nextGitHubState);
+			// Its save does not hold the folder's next lookup
+			this._persistInBackground(this._applySessionGitHubState(folder, latestMeta, latestGitHubState, nextGitHubState));
 		} catch (error) {
 			this._logService.warn(`[AgentHostGitStateService] Failed to find the pull request of folder ${folder.workingDirectory} of ${folder.sessionUri}`, error);
 		}

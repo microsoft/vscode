@@ -7816,17 +7816,20 @@ suite('AgentService (node dispatcher)', () => {
 			const agent = new MockAgent('copilot');
 			disposables.add(toDisposable(() => agent.dispose()));
 			registerTestAgentProvider(svc, agent);
-			const session = await svc.createSession({ legacyChatUris: true, provider: 'copilot' });
+			const atCreate = { 'file:///work': { scanSubfolders: false, scanMaxDepth: 1, scanIgnoredFolders: [], detectSubmodules: true } };
+			const session = await svc.createSession({ legacyChatUris: true, provider: 'copilot', config: { [SessionConfigKey.RepositoryDetection]: atCreate } });
+			const created = getStateManager(svc).getSessionState(session.toString())?.config?.values[SessionConfigKey.RepositoryDetection];
 			const envelopePromise = Event.toPromise(Event.filter(svc.onDidAction, envelope => envelope.origin?.clientSeq === 1));
-			const repositoryDetection = { 'file:///work': { scanSubfolders: true, scanMaxDepth: 1, scanIgnoredFolders: ['node_modules'], detectSubmodules: true } };
+			const changed = { 'file:///work': { scanSubfolders: true, scanMaxDepth: 1, scanIgnoredFolders: ['node_modules'], detectSubmodules: true } };
 
-			svc.dispatchAction(session.toString(), { type: ActionType.SessionConfigChanged, config: { [SessionConfigKey.RepositoryDetection]: repositoryDetection } }, 'agents-window-client', 1, AgentHostClientType.AgentsWindow);
+			svc.dispatchAction(session.toString(), { type: ActionType.SessionConfigChanged, config: { [SessionConfigKey.RepositoryDetection]: changed } }, 'agents-window-client', 1, AgentHostClientType.AgentsWindow);
 			const envelope = await envelopePromise;
 
 			assert.deepStrictEqual({
+				created,
 				rejectionReason: envelope.rejectionReason,
 				value: getStateManager(svc).getSessionState(session.toString())?.config?.values[SessionConfigKey.RepositoryDetection],
-			}, { rejectionReason: undefined, value: repositoryDetection });
+			}, { created: atCreate, rejectionReason: undefined, value: changed });
 		});
 
 		test('rejects client writes to host-owned Agent Merge controller state', async () => {

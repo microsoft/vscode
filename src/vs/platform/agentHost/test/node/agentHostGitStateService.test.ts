@@ -3081,7 +3081,7 @@ suite('AgentHostGitStateService', () => {
 
 		await h.service.refreshSessionGitState(SESSION, undefined);
 		// The pull request of the other folder is looked up after the refresh
-		await timeout(0);
+		await timeout(1_000);
 
 		const meta = h.stateManager.getSessionState(SESSION)?._meta;
 		assert.deepStrictEqual({
@@ -3119,7 +3119,7 @@ suite('AgentHostGitStateService', () => {
 		}));
 
 		const refresh = h.service.refreshSessionGitState(SESSION, undefined);
-		await timeout(0);
+		await timeout(1_000);
 		h.stateManager.removeSession(SESSION);
 		await reads.complete({ branchName: 'main' });
 		await refresh;
@@ -3144,7 +3144,7 @@ suite('AgentHostGitStateService', () => {
 			h.setGitResultForFolder('file:///wd/vscode-docs', { branchName: 'docs-main' });
 			await h.service.refreshSessionGitState(SESSION, undefined);
 			// Discovery runs after the refresh
-			await timeout(0);
+			await timeout(1_000);
 			const meta = h.stateManager.getSessionState(SESSION)?._meta;
 			return {
 				scans,
@@ -3216,7 +3216,7 @@ suite('AgentHostGitStateService', () => {
 		setOptions(1);
 
 		await h.service.refreshSessionGitState(SESSION, undefined);
-		await timeout(0);
+		await timeout(1_000);
 
 		assert.deepStrictEqual(readSessionRepositories(h.stateManager.getSessionState(SESSION)?._meta), undefined);
 	}));
@@ -3285,7 +3285,7 @@ suite('AgentHostGitStateService', () => {
 		setOptions({ [SessionConfigKey.RepositoryDetection]: { [getWorkingDirectoryKey(WORKING_DIRECTORY)]: { scanSubfolders: true, scanMaxDepth: 1, scanIgnoredFolders: [], detectSubmodules: false } } });
 		const refresh = async (force: boolean) => {
 			await h.service.refreshSessionGitState(SESSION, undefined, { force });
-			await timeout(0);
+			await timeout(1_000);
 		};
 		const read = () => ({ scans, repositories: readSessionRepositories(h.stateManager.getSessionState(SESSION)?._meta)?.[getWorkingDirectoryKey(WORKING_DIRECTORY)]?.length, docsBranch: readFolderScopeGitState(h.stateManager.getSessionState(SESSION)?._meta, getWorkingDirectoryScopeId(['file:///wd/docs']))?.branchName });
 
@@ -3329,7 +3329,7 @@ suite('AgentHostGitStateService', () => {
 		h.stateManager.setSessionConfig(SESSION, { schema: { type: 'object', properties: {} }, values: { [SessionConfigKey.RepositoryDetection]: { [getWorkingDirectoryKey(sub)]: options, [getWorkingDirectoryKey(other)]: options } } });
 
 		await h.service.refreshSessionGitState(SESSION, undefined);
-		await timeout(0);
+		await timeout(1_000);
 
 		const repositories = readSessionRepositories(h.stateManager.getSessionState(SESSION)?._meta);
 		assert.deepStrictEqual({ sub: repositories?.[getWorkingDirectoryKey(sub)], other: repositories?.[getWorkingDirectoryKey(other)], budgets: budgets.size }, {
@@ -3349,7 +3349,7 @@ suite('AgentHostGitStateService', () => {
 		h.setGitResultForFolder(api, { branchName: 'feature', baseBranchName: 'main', hasGitHubRemote: true, githubOwner: 'contoso', githubRepo: 'api' });
 		h.setPullRequest('feature', createTestPullRequestSummary(12, { html_url: 'https://github.com/contoso/api/pull/12' }));
 		await h.service.refreshSessionGitState(SESSION, undefined);
-		await timeout(0);
+		await timeout(1_000);
 		const before = readFolderGitHubState(h.stateManager.getSessionState(SESSION)?._meta, getWorkingDirectoryKey(api));
 
 		// Same branch, another repository: its pull request is not the previous one's
@@ -3357,7 +3357,7 @@ suite('AgentHostGitStateService', () => {
 		h.setPullRequest('feature', createTestPullRequestSummary(30, { html_url: 'https://github.com/fabrikam/api/pull/30' }));
 		await timeout(5_000);
 		await h.service.refreshSessionGitState(SESSION, undefined);
-		await timeout(0);
+		await timeout(1_000);
 
 		assert.deepStrictEqual({ before, after: readFolderGitHubState(h.stateManager.getSessionState(SESSION)?._meta, getWorkingDirectoryKey(api)), lookups: h.pullRequestCalls }, {
 			before: { owner: 'contoso', repo: 'api', pullRequestUrls: ['https://github.com/contoso/api/pull/12'], pullRequestBranchName: 'feature' },
@@ -3470,7 +3470,7 @@ suite('AgentHostGitStateService', () => {
 		h.stateManager.setSessionConfig(SESSION, { schema: { type: 'object', properties: {} }, values: { [SessionConfigKey.RepositoryDetection]: { [getWorkingDirectoryKey(WORKING_DIRECTORY)]: { scanSubfolders: true, scanMaxDepth: 1, scanIgnoredFolders: [], detectSubmodules: false } } } });
 
 		await h.service.refreshSessionGitState(SESSION, undefined);
-		await timeout(0);
+		await timeout(1_000);
 
 		assert.deepStrictEqual(readSessionRepositories(h.stateManager.getSessionState(SESSION)?._meta)?.[getWorkingDirectoryKey(WORKING_DIRECTORY)], [{ root: 'file:///c%3A/wd/docs', kind: 'nested' }]);
 	}));

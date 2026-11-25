@@ -29,7 +29,7 @@ suite('Agent session repositories metadata', () => {
 			absent: readSessionRepositories({}),
 			notAnObject: readSessionRepositories({ [VSCODE_SESSION_REPOSITORIES_META_KEY]: ['file:///work'] }),
 			roundTrip: readSessionRepositories(withSessionRepositories({ 'vscode.other': 1 }, { work: read!.work })),
-			keepsOtherMeta: withSessionRepositories({ 'vscode.other': 1 }, {})['vscode.other'],
+			keepsOtherMeta: withSessionRepositories({ 'vscode.other': 1 }, {})?.['vscode.other'],
 		}, {
 			work: [{ root: 'file:///work', kind: 'folder' }, { root: 'file:///work/docs', kind: 'nested' }],
 			many: 64,
