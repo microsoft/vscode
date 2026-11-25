@@ -66,6 +66,25 @@ interface OpenRepository extends Disposable {
 	detach(): void;
 }
 
+/**
+ * Options for `Model.openRepository`.
+ */
+interface OpenRepositoryOptions {
+	/**
+	 * Open the repository even if the user closed it.
+	 */
+	readonly openIfClosed?: boolean;
+	/**
+	 * Open the repository even if it is in a parent folder of the workspace that `git.openRepositoryInParentFolders`
+	 * would not open.
+	 */
+	readonly openIfParent?: boolean;
+	/**
+	 * Whether the repository is the one of a location that a workspace folder switched to, see `Repository.attach`.
+	 */
+	readonly isFolderLocation?: boolean;
+}
+
 class ClosedRepositoriesManager {
 
 	private _repositories: Set<string>;
@@ -581,7 +600,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 	 * the location anymore once it is open.
 	 */
 	private async openSwitchedLocation(opening: ILocationOpening): Promise<void> {
-		const repository = await this.locationOpens.track(this.openRepository(opening.location, false, false, true));
+		const repository = await this.locationOpens.track(this.openRepository(opening.location, { isFolderLocation: true }));
 		if (repository) {
 			this.workspaceFolderRepositories.setOpenedRepository(opening, repository);
 		}
@@ -714,12 +733,9 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 	/**
 	 * Opens the repository at `repoPath`, attaching it if it is detached, and returns it, or `undefined` if it does not
 	 * open, for example because it is ignored or not trusted.
-	 *
-	 * @param isFolderLocation Whether the repository is the one of a location that a workspace folder switched to, see
-	 * `Repository.attach`.
 	 */
 	@sequentialize
-	async openRepository(repoPath: string, openIfClosed = false, openIfParent = false, isFolderLocation = false): Promise<Repository | undefined> {
+	async openRepository(repoPath: string, { openIfClosed = false, openIfParent = false, isFolderLocation = false }: OpenRepositoryOptions = {}): Promise<Repository | undefined> {
 		this.logger.trace(`[Model][openRepository] Repository: ${repoPath}`);
 		const existingRepository = await this.getRepositoryExact(repoPath);
 		if (existingRepository) {
