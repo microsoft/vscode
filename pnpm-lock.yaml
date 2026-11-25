@@ -1118,9 +1118,6 @@ importers:
       openai:
         specifier: ^6.7.0
         version: 6.7.0(ws@8.21.0)(zod@4.4.3)
-      undici:
-        specifier: ^7.24.1
-        version: 7.29.1
       vscode-languageserver-protocol:
         specifier: ^3.17.5
         version: 3.17.5
