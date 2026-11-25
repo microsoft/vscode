@@ -7,9 +7,9 @@ import assert from 'assert';
 import sinon from 'sinon';
 import { Dimension, getWindow } from '../../../../base/browser/dom.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
-import { DeferredPromise, timeout } from '../../../../base/common/async.js';
+import { DeferredPromise, installFakeRunWhenIdle, timeout } from '../../../../base/common/async.js';
 import { Emitter, Event, ValueWithChangeEvent } from '../../../../base/common/event.js';
-import { toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, waitForState } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { mock } from '../../../../base/test/common/mock.js';
@@ -47,6 +47,13 @@ import { createCodeEditorServices } from '../testCodeEditor.js';
 suite('MultiDiffEditorWidget', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	setup(() => {
+		// Unlike test editors, the editors of a multi diff editor have every registered editor contribution, and create most
+		// of them when the window is idle. A run of all test files registers workbench contributions too, which need services
+		// that these tests do not provide.
+		disposables.add(installFakeRunWhenIdle(() => Disposable.None));
+	});
 
 	teardown(() => {
 		sinon.restore();
