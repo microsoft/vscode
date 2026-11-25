@@ -391,6 +391,8 @@ await joinSession({
 			const observations = [await open(), await open()];
 			await session.rpc.extensions.reload();
 			const reloaded = session;
+			// The extension is already failed before the reload, so first wait for the canvas the reload registers again.
+			await waitForContractCanvas(reloaded);
 			await retry(async () => assert.strictEqual(await status(reloaded), 'failed'), 100, 100);
 			observations.push(await open());
 			await resume();
