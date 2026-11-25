@@ -830,6 +830,13 @@ export class ModalEditorPart {
 		};
 		const modalOptionsListener = disposables.add(new MutableDisposable());
 		const contentSizeListener = disposables.add(new MutableDisposable());
+
+		// A modal that fits its content also fits its editor group's title, such as the tabs it shows with more editors
+		disposables.add(editorPart.onDidChangeEditorPartOptions(() => {
+			if (editorPart.fitsContent) {
+				layoutModal();
+			}
+		}));
 		disposables.add(Event.runAndSubscribe(modalEditorService.onDidActiveEditorChange, () => {
 			const activeEditor = editorPart.activeGroup.activeEditor;
 			modalOptionsListener.value = isModalEditorOptionsProvider(activeEditor) ? activeEditor.onDidChangeModalEditorOptions?.(updateModalOptions) : undefined;

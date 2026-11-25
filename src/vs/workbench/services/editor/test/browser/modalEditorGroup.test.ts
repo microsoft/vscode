@@ -1342,11 +1342,14 @@ suite('Modal Editor Group', () => {
 			const { parts } = await createParts('all');
 			const modalPart = await parts.createModalEditorPart({ sidebar: { sidebarWidth: 200, render: () => toDisposable(() => { }) } });
 
-			await modalPart.activeGroup.openEditor(createTestFileEditorInput(URI.file('foo/default'), TEST_EDITOR_INPUT_ID), { pinned: true });
+			const otherInput = createTestFileEditorInput(URI.file('foo/default'), TEST_EDITOR_INPUT_ID);
+			await modalPart.activeGroup.openEditor(otherInput, { pinned: true });
 			await modalPart.activeGroup.openEditor(createFitToContentInput({ width: 500, height: 300 }), { pinned: true });
 			const pane = modalPart.activeGroup.activeEditorPane as TestFitToContentEditorPane;
+			const withTabs = pane.lastLayoutSize;
+			await modalPart.activeGroup.closeEditor(otherInput);
 
-			assert.deepStrictEqual(pane.lastLayoutSize, { width: 500, height: 300 });
+			assert.deepStrictEqual({ withTabs, withoutTabs: pane.lastLayoutSize }, { withTabs: { width: 500, height: 300 }, withoutTabs: { width: 500, height: 300 } });
 
 			await modalPart.close();
 		});
