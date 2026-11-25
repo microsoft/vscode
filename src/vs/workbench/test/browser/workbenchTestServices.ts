@@ -172,7 +172,7 @@ import { IHistoryService } from '../../services/history/common/history.js';
 import { IHostService, IToastOptions, IToastResult } from '../../services/host/browser/host.js';
 import { LabelService } from '../../services/label/common/labelService.js';
 import { ILanguageDetectionService } from '../../services/languageDetection/common/languageDetectionWorkerService.js';
-import { IPartVisibilityChangeEvent, IWorkbenchLayoutService, PanelAlignment, Position as PartPosition, Parts, SINGLE_WINDOW_PARTS } from '../../services/layout/browser/layoutService.js';
+import { IPartVisibilityChangeEvent, IPartsLayoutState, IWorkbenchLayoutService, PanelAlignment, Position as PartPosition, Parts, SINGLE_WINDOW_PARTS } from '../../services/layout/browser/layoutService.js';
 import { ILifecycleService, InternalBeforeShutdownEvent, IWillShutdownEventJoiner, ShutdownReason, WillShutdownEvent } from '../../services/lifecycle/common/lifecycle.js';
 import { IUnattendedRestartService, UnattendedRestartService } from '../../services/lifecycle/common/unattendedRestart.js';
 import { IPaneCompositePartService } from '../../services/panecomposite/browser/panecomposite.js';
@@ -719,6 +719,8 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	isAuxiliaryBarMaximized(): boolean { return false; }
 	hideAuxiliaryBarMaximize(): IDisposable { return Disposable.None; }
 	isAuxiliaryBarMaximizeHidden(): boolean { return false; }
+	getPartsLayoutState(): IPartsLayoutState | undefined { return undefined; }
+	applyPartsLayoutState(_state: IPartsLayoutState): void { }
 	getMenubarVisibility(): MenuBarVisibility { throw new Error('not implemented'); }
 	toggleMenuBar(): void { }
 	getSideBarPosition() { return 0; }
