@@ -695,7 +695,8 @@ suite('ExtensionsActions', () => {
 			.then(extensions => {
 				const gallery = aGalleryExtension('a');
 				const extension = extensions[0];
-				extension.gallery = gallery;
+				assert.ok(extension instanceof Extension);
+				extension.setGallery(gallery, /* useDeprecationFlag */ true);
 				installEvent.fire({ identifier: gallery.identifier, source: gallery, profileLocation: null! });
 				testObject.extension = extension;
 				assert.ok(!testObject.enabled);

@@ -418,6 +418,50 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		assert.deepStrictEqual(blockingOrigins, [ExtensionBlockingOrigin.Policy, ExtensionBlockingOrigin.Service, undefined]);
 	});
 
+	for (const useDeprecationFlag of [false, true]) {
+		test(`setGallery updates gallery metadata with Marketplace deprecation ${useDeprecationFlag ? 'enabled' : 'disabled'}`, () => {
+			const local = aLocalExtension('deprecated');
+			const legacy: IDeprecationInfo = { additionalInfo: 'Legacy message' };
+			const marketplace: IDeprecationInfo = { source: 'marketplace', additionalInfo: 'Publisher message' };
+			const gallery = aGalleryExtension('deprecated', {
+				deprecationInfo: marketplace,
+				blockingInfo: { origin: ExtensionBlockingOrigin.Service, scope: ExtensionBlockingScope.Extension }
+			});
+			const extension = instantiationService.createInstance(Extension, () => ExtensionState.Installed, () => undefined, undefined, local, undefined, undefined);
+			extension.setExtensionsControlManifest({ malicious: [], search: [], deprecated: { 'pub.deprecated': legacy } });
+			extension.setGallery(gallery, useDeprecationFlag);
+			const initial = {
+				gallery: extension.gallery === gallery,
+				deprecation: extension.deprecationInfo,
+				blocking: extension.blockingInfo,
+				installedBlocking: extension.installedBlockingInfo
+			};
+			extension.setGallery(gallery, !useDeprecationFlag);
+			const toggledDeprecation = extension.deprecationInfo;
+			const refreshed = aGalleryExtension('deprecated');
+			extension.setGallery(refreshed, useDeprecationFlag);
+			assert.deepStrictEqual({
+				initial,
+				toggledDeprecation,
+				refreshed: {
+					gallery: extension.gallery === refreshed,
+					deprecation: extension.deprecationInfo,
+					blocking: extension.blockingInfo,
+					installedBlocking: extension.installedBlockingInfo
+				}
+			}, {
+				initial: {
+					gallery: true,
+					deprecation: useDeprecationFlag ? marketplace : legacy,
+					blocking: gallery.blockingInfo,
+					installedBlocking: gallery.blockingInfo
+				},
+				toggledDeprecation: useDeprecationFlag ? legacy : marketplace,
+				refreshed: { gallery: true, deprecation: legacy, blocking: undefined, installedBlocking: undefined }
+			});
+		});
+	}
+
 	test('Marketplace deprecation selects whole records and preserves operational migrations', () => {
 		const marketplace: IDeprecationInfo = { source: 'marketplace', additionalInfo: 'Publisher message' };
 		const legacy: IDeprecationInfo = { disallowInstall: true, extension: { id: 'pub.legacy', displayName: 'Legacy' }, settings: ['legacy.setting'] };
@@ -624,7 +668,8 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 			instantiationService.stub(IExtensionGalleryService, 'getExtensions', async (_infos: IExtensionInfo[], options: IExtensionQueryOptions) =>
 				options.queryAllVersions ? hasCompatibleVersion ? [compatible] : [] : [latest]);
 			testObject = await aWorkbenchService();
-			(testObject.local[0] as Extension).gallery = compatible;
+			const previousGallery = hasCompatibleVersion ? aGalleryExtension(local.manifest.name, { version: '0.9.0' }) : compatible;
+			(testObject.local[0] as Extension).setGallery(previousGallery, /* useDeprecationFlag */ true);
 			const changes: (IDeprecationInfo | undefined)[] = [];
 			disposableStore.add(testObject.onChange(e => { if (e === testObject.local[0]) { changes.push(e.deprecationInfo); } }));
 			await testObject.checkForUpdates();
