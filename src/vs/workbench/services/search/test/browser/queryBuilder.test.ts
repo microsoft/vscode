@@ -19,7 +19,8 @@ import { TestPathService, TestEnvironmentService } from '../../../../test/browse
 import { TestContextService } from '../../../../test/common/workbenchTestServices.js';
 import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
 import { Workspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
-import { extUriBiasedIgnorePathCase } from '../../../../../base/common/resources.js';
+import { ExtUri, extUriBiasedIgnorePathCase } from '../../../../../base/common/resources.js';
+import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 
 const DEFAULT_EDITOR_CONFIG = {};
@@ -1114,6 +1115,26 @@ suite('QueryBuilder', () => {
 				});
 
 			assert(query.contentPattern.isCaseSensitive);
+		});
+	});
+
+	test('ignoreGlobCaseForFolders follows the case sensitivity of the searched file systems', () => {
+		instantiationService.stub(IUriIdentityService, { extUri: new ExtUri(uri => uri.scheme === 'insensitive') });
+		instantiationService.stub(IPathService, new TestPathService(undefined, 'insensitive'));
+		const builder = instantiationService.createInstance(QueryBuilder);
+		const insensitiveFolder = URI.from({ scheme: 'insensitive', path: '/root' });
+		const sensitiveFolder = URI.from({ scheme: 'sensitive', path: '/root' });
+
+		assert.deepStrictEqual({
+			insensitive: builder.ignoreGlobCaseForFolders([insensitiveFolder]),
+			sensitive: builder.ignoreGlobCaseForFolders([sensitiveFolder]),
+			mixed: builder.ignoreGlobCaseForFolders([insensitiveFolder, sensitiveFolder]),
+			noFoldersUsesDefaultScheme: builder.ignoreGlobCaseForFolders([]),
+		}, {
+			insensitive: true,
+			sensitive: false,
+			mixed: false,
+			noFoldersUsesDefaultScheme: true,
 		});
 	});
 

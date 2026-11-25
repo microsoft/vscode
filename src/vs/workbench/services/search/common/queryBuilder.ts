@@ -115,6 +115,16 @@ export class QueryBuilder {
 	) {
 	}
 
+	/**
+	 * Whether glob patterns should match paths case-insensitively when searching the given folders.
+	 * This follows the file systems hosting the folders (e.g. the remote OS for remote folders) rather
+	 * than the OS of the client, and is only `true` when every folder is on a case-insensitive file system.
+	 */
+	ignoreGlobCaseForFolders(folderResources: readonly URI[]): boolean {
+		const resources = folderResources.length ? folderResources : [URI.from({ scheme: this.pathService.defaultUriScheme, path: '/' })];
+		return resources.every(resource => this.uriIdentityService.extUri.ignorePathCasing(resource));
+	}
+
 	aiText(contentPattern: string, folderResources?: uri[], options: ITextQueryBuilderOptions = {}): IAITextQuery {
 		const commonQuery = this.commonQuery(folderResources?.map(toWorkspaceFolder), options);
 		return {
