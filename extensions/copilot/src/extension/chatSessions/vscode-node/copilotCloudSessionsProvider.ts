@@ -1470,7 +1470,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 	}
 
 	private async fetchSessionList(repoIds: GithubRepoId[] | undefined) {
-		const sessions = await this._backend.fetchSessionList(repoIds, vscode.workspace.isAgentSessionsWorkspace);
+		const sessions = await this._backend.fetchSessionList(repoIds, vscode.workspace.isAgentManaged);
 		const ownedTaskIds = this._ownership.getOwnedTaskIds();
 		const isExternal = (taskId: string) => !ownedTaskIds.has(taskId);
 		this._recentInternalActivityCutoff ??= { value: getRecentInternalActivityCutoff(sessions, isExternal) };
@@ -1495,8 +1495,8 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 		const exactItemsToRefresh = new Map(this.explicitlyResolvedSessions);
 		this.chatSessionItemsPromise = (async (): Promise<vscode.ChatSessionItem[]> => {
 			const repoIds = await getRepoId(this._gitService);
-			this.logService.debug(`copilotCloudSessionsProvider#provideChatSessionItems: repoIds=${JSON.stringify(repoIds?.map(r => ({ org: r.org, repo: r.repo, host: r.host })))}, isAgentSessionsWorkspace=${vscode.workspace.isAgentSessionsWorkspace}`);
-			const canDiscover = vscode.workspace.isAgentSessionsWorkspace || this.isGitHubRepoOrEmpty(repoIds);
+			this.logService.debug(`copilotCloudSessionsProvider#provideChatSessionItems: repoIds=${JSON.stringify(repoIds?.map(r => ({ org: r.org, repo: r.repo, host: r.host })))}, isAgentManaged=${vscode.workspace.isAgentManaged}`);
+			const canDiscover = vscode.workspace.isAgentManaged || this.isGitHubRepoOrEmpty(repoIds);
 			const { sessions: sessionList, expiresAt, isExternal } = canDiscover
 				? await this.fetchSessionList(repoIds)
 				: { sessions: [], expiresAt: Infinity, isExternal: (taskId: string) => !this._ownership.getOwnedTaskIds().has(taskId) };
@@ -1804,7 +1804,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 	private getPullRequestBadge(repoIds: GithubRepoId[] | undefined, pr: PullRequestSearchItem): vscode.MarkdownString | undefined {
 		if (
 			vscode.workspace.workspaceFolders === undefined || // empty window
-			vscode.workspace.isAgentSessionsWorkspace ||       // agent sessions workspace
+			vscode.workspace.isAgentManaged ||                 // agent-managed workspace
 			(repoIds && repoIds.length > 1)                    // multiple repositories
 		) {
 			const badgeLabel = `${pr.repository.owner.login}/${pr.repository.name}`;

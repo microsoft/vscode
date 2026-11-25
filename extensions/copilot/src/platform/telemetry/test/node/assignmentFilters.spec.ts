@@ -21,7 +21,7 @@ import { CopilotAssignmentsFilterProvider, GitHubAccountFilterProvider } from '.
 vi.mock('vscode', async importOriginal => ({
 	...await importOriginal<typeof import('vscode')>(),
 	env: { appRoot: '.', devDeviceId: 'test-device' },
-	workspace: { isAgentSessionsWorkspace: false },
+	workspace: { isAgentManaged: false },
 }));
 
 vi.mock('vscode-tas-client', () => ({

@@ -57,7 +57,7 @@ vi.mock('vscode', async () => {
 		},
 		workspace: {
 			get workspaceFolders() { return []; },
-			get isAgentSessionsWorkspace() { return false; },
+			get isAgentManaged() { return false; },
 			asRelativePath: vi.fn((uri: vscode.Uri) => uri.path),
 		},
 		window: {
@@ -1221,8 +1221,8 @@ describe('cloud session visibility', () => {
 				.toEqual({ before: ['expiring'], after: [], fetches: 2 });
 		});
 
-		it.each([false, true])('refreshes at the cutoff without another catalog request (Agents Window: %s)', async isAgentSessionsWorkspace => {
-			vi.spyOn(vscode.workspace, 'isAgentSessionsWorkspace', 'get').mockReturnValue(isAgentSessionsWorkspace);
+		it.each([false, true])('refreshes at the cutoff without another catalog request (Agents Window: %s)', async isAgentManaged => {
+			vi.spyOn(vscode.workspace, 'isAgentManaged', 'get').mockReturnValue(isAgentManaged);
 			fetchSessionList.mockResolvedValue([session('expiring', now - 30 * day + 1000)]);
 			const provider = createProvider();
 			const changes = vi.fn();
