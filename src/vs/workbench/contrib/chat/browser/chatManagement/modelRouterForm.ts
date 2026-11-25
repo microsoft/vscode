@@ -155,6 +155,7 @@ export class ModelRouterForm extends Disposable {
 
 	/** Measures the fields again, as the text of one that grows with it wraps differently at another width. */
 	layout(): void {
+		this.descriptionInput.layout();
 		for (const control of this.routeControls) {
 			control.layout?.();
 		}
