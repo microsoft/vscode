@@ -119,7 +119,7 @@ function renderRow(entry: ModelRouterTreeEntry, template: IModelRouterRowTemplat
 	template.label.textContent = getLabel(entry);
 	template.detail.textContent = detail;
 	// The detail is cut to one line, so the rest is in its hover.
-	template.elementDisposables.add(hoverService.setupDelayedHover(template.detail, { content: detail }));
+	template.elementDisposables.add(hoverService.setupDelayedHoverAtMouse(template.detail, { content: detail }));
 }
 
 class ModelRouterRouteRenderer implements ITreeRenderer<ModelRouterTreeEntry, void, IModelRouterRowTemplate> {
@@ -287,7 +287,7 @@ class ModelRouterRenderer implements ITreeRenderer<ModelRouterTreeEntry, void, I
 }
 
 /** What the routers get from the editor that shows them. */
-export interface IModelRoutersWidgetHost {
+interface IModelRoutersWidgetHost {
 	/**
 	 * Gets the editor out of the way of what the routers open next, such as a file or a chat, which a modal editor
 	 * would cover. Resolves to false when the editor stays where it is, and the routers then open nothing.

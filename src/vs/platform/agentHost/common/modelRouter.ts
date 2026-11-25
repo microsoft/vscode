@@ -192,7 +192,7 @@ export function modelRouterFile(folder: URI, name: string): URI {
  * What a router file is written from: a router as {@link parseModelRouter} reads one, where what has a default can be
  * left out. The `name` is for a router whose name is not its file's.
  */
-export type IModelRouterDraft = Pick<IModelRouter, 'description' | 'routes'> & Partial<Pick<IModelRouter, 'name' | 'displayName' | 'effort' | 'contextSize' | 'switching' | 'guidance'>>;
+type IModelRouterDraft = Pick<IModelRouter, 'description' | 'routes'> & Partial<Pick<IModelRouter, 'name' | 'displayName' | 'effort' | 'contextSize' | 'switching' | 'guidance'>>;
 
 /**
  * The text of a router file for `draft`. {@link parseModelRouter} reads the same router back from it, so a router

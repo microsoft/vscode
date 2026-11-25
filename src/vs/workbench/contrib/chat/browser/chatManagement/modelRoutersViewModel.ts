@@ -52,14 +52,14 @@ export interface IRoutableModel {
 }
 
 /** A router as the form holds it: what the user typed, and what the form has no field for as it was read. */
-export interface IModelRouterInput {
+interface IModelRouterInput {
 	/** As typed, such as "Daily Driver". A new router's file is named after it, and it is the name the router shows. */
 	readonly name: string;
 	readonly description: string;
 	readonly routes: readonly IModelRouterRouteInput[];
 }
 
-export interface IModelRouterRouteInput {
+interface IModelRouterRouteInput {
 	readonly name: string;
 	/** What the file writes for the route's models, in preference order. The form shows the first. */
 	readonly models: readonly string[];

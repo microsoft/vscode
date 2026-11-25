@@ -171,10 +171,6 @@
 	border-radius: var(--vscode-cornerRadius-medium);
 }
 
-.vscode-high-contrast .model-routers-widget .model-router-form-route {
-	border-color: var(--vscode-contrastBorder);
-}
-
 .model-routers-widget .model-router-form-route-header {
 	display: flex;
 	align-items: center;

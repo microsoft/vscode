@@ -924,12 +924,6 @@ export class TabbedModelPicker extends Disposable {
 				tooltip: localize('chat.modelPicker.addProvider', "Add Models..."),
 				disabledReason: context.manageModelsDisabledReason,
 				run: () => {
-					// From the Routers tab, what is added is a router.
-					const createModelRouter = this._activeDestination === MODEL_PICKER_ROUTERS_DESTINATION ? this._createModelRouter(context) : undefined;
-					if (createModelRouter) {
-						createModelRouter();
-						return;
-					}
 					this._widget.hide();
 					context.onManageModels();
 				},
