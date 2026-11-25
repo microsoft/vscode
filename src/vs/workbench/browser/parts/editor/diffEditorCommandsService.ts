@@ -25,6 +25,19 @@ function hasDiffEditorWidthBasedLayoutReset(pane: IEditorPane): pane is IEditorP
 	return 'resetDiffEditorWidthBasedLayout' in pane && typeof pane.resetDiffEditorWidthBasedLayout === 'function';
 }
 
+/**
+ * An editor pane that lays out its diffs by a view mode of its own rather than by the diff editor settings, such as the
+ * Changes editor of sessions. The view mode commands set its view mode while it is the active editor.
+ */
+export interface IDiffEditorViewModeOwner {
+	setDiffEditorViewMode(mode: DiffEditorViewMode): void;
+	toggleDiffEditorRenderSideBySide(): void;
+}
+
+function isDiffEditorViewModeOwner(pane: IEditorPane | undefined): pane is IEditorPane & IDiffEditorViewModeOwner {
+	return !!pane && typeof (pane as Partial<IDiffEditorViewModeOwner>).setDiffEditorViewMode === 'function' && typeof (pane as Partial<IDiffEditorViewModeOwner>).toggleDiffEditorRenderSideBySide === 'function';
+}
+
 export const IDiffEditorCommandsService = createDecorator<IDiffEditorCommandsService>('diffEditorCommandsService');
 
 /** Which side of the active diff editor to focus. */
@@ -74,6 +87,12 @@ export class DiffEditorCommandsService implements IDiffEditorCommandsService {
 	) { }
 
 	async toggleRenderSideBySide(args: unknown[]): Promise<void> {
+		const viewModeOwner = this.getActiveDiffEditorViewModeOwner(args);
+		if (viewModeOwner) {
+			viewModeOwner.toggleDiffEditorRenderSideBySide();
+			return;
+		}
+
 		const modifiedResource = this.getActiveDiffModifiedResource(args);
 		if (!modifiedResource) {
 			return;
@@ -85,6 +104,12 @@ export class DiffEditorCommandsService implements IDiffEditorCommandsService {
 	}
 
 	async setViewMode(args: unknown[], mode: DiffEditorViewMode): Promise<void> {
+		const viewModeOwner = this.getActiveDiffEditorViewModeOwner(args);
+		if (viewModeOwner) {
+			viewModeOwner.setDiffEditorViewMode(mode);
+			return;
+		}
+
 		const activeDiffEditor = this.getActiveDiffEditor(args);
 		const control = activeDiffEditor?.control;
 		const modifiedResource = control?.getModifiedEditor().getModel()?.uri;
@@ -219,6 +244,15 @@ export class DiffEditorCommandsService implements IDiffEditorCommandsService {
 				}
 			}
 		], activeGroup);
+	}
+
+	/** The active editor when it lays out its diffs by its own view mode, unless the command targets the diff of a resource. */
+	private getActiveDiffEditorViewModeOwner(args: unknown[]): IDiffEditorViewModeOwner | undefined {
+		if (args[0] instanceof URI) {
+			return undefined;
+		}
+		const pane = this.editorService.activeEditorPane;
+		return isDiffEditorViewModeOwner(pane) ? pane : undefined;
 	}
 
 	private getActiveTextDiffEditor(args: unknown[]): TextDiffEditor | undefined {

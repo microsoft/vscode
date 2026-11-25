@@ -13,7 +13,7 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { IChat, ISessionChangeset, ISessionFileChange } from '../../../../../workbench/services/sessions/common/session.js';
-import { ChangesetReviewAction } from '../../browser/changesetReviewActions.js';
+import { ChangesetReviewAction } from '../../../../../workbench/contrib/sessionChanges/browser/changesEditorActions.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ITestSessionWithChat, stubSessionHostsFromSessionsService, testGridPanes } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { IChangesSessionObservables, IChangesViewService } from '../../../../../workbench/contrib/sessions/common/changesViewService.js';
