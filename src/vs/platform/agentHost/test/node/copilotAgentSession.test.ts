@@ -27843,27 +27843,29 @@ Use the attached image as context.
 			});
 		}
 
-		test('a phase message chunk that arrives only whole still shows after a chunk that streamed', async () => {
-			const { session, mockSession, signals } = await createAgentSession(disposables);
-			session.resetTurnState('fusion-turn');
-			const repair = { ...fusionTestData.started, phaseId: 'phase-3', phaseKind: 'repair' } as const;
-			const fusion = { ...liveFusion('phase-3'), phaseKind: repair.phaseKind, role: repair.role, conversationScope: repair.conversationScope };
-			const provisional = { ephemeral: true } as const;
+		for (const [name, whole] of [['new', { content: 'Then the lexer', reasoningText: 'Lexer next' }], ['repeated', { content: 'Checking the parser', reasoningText: 'Parser first' }]] as const) {
+			test(`a phase message chunk that arrives only whole with ${name} content still shows after a chunk that streamed`, async () => {
+				const { session, mockSession, signals } = await createAgentSession(disposables);
+				session.resetTurnState('fusion-turn');
+				const repair = { ...fusionTestData.started, phaseId: 'phase-3', phaseKind: 'repair' } as const;
+				const fusion = { ...liveFusion('phase-3'), phaseKind: repair.phaseKind, role: repair.role, conversationScope: repair.conversationScope };
+				const provisional = { ephemeral: true } as const;
 
-			mockSession.fire('session.fusion_resolved', fusionTestData.resolved);
-			mockSession.fire('assistant.fusion_phase_started', repair);
-			mockSession.fire('assistant.reasoning_delta', { reasoningId: 'r-0', deltaContent: 'Parser first', fusion }, provisional);
-			mockSession.fire('assistant.message_delta', { messageId: 'call-0', deltaContent: 'Checking the parser', fusion }, provisional);
-			mockSession.fire('assistant.message', { messageId: 'call-0', apiCallId: 'call', chunkIndex: 0, chunkCount: 2, content: 'Checking the parser', reasoningText: 'Parser first', fusion }, provisional);
-			mockSession.fire('assistant.message', { messageId: 'call-1', apiCallId: 'call', chunkIndex: 1, chunkCount: 2, content: 'Then the lexer', reasoningText: 'Lexer next', fusion }, provisional);
+				mockSession.fire('session.fusion_resolved', fusionTestData.resolved);
+				mockSession.fire('assistant.fusion_phase_started', repair);
+				mockSession.fire('assistant.reasoning_delta', { reasoningId: 'r-0', deltaContent: 'Parser first', fusion }, provisional);
+				mockSession.fire('assistant.message_delta', { messageId: 'call-0', deltaContent: 'Checking the parser', fusion }, provisional);
+				mockSession.fire('assistant.message', { messageId: 'call-0', apiCallId: 'call', chunkIndex: 0, chunkCount: 2, content: 'Checking the parser', reasoningText: 'Parser first', fusion }, provisional);
+				mockSession.fire('assistant.message', { messageId: 'call-1', apiCallId: 'call', chunkIndex: 1, chunkCount: 2, ...whole, fusion }, provisional);
 
-			assert.deepStrictEqual(streamedFusionTranscript(signals), [
-				'fusion:fusion-1:phase-3: reasoning Parser first',
-				'fusion:fusion-1:phase-3: text Checking the parser',
-				'fusion:fusion-1:phase-3: reasoning Lexer next',
-				'fusion:fusion-1:phase-3: text Then the lexer',
-			]);
-		});
+				assert.deepStrictEqual(streamedFusionTranscript(signals), [
+					'fusion:fusion-1:phase-3: reasoning Parser first',
+					'fusion:fusion-1:phase-3: text Checking the parser',
+					`fusion:fusion-1:phase-3: reasoning ${whole.reasoningText}`,
+					`fusion:fusion-1:phase-3: text ${whole.content}`,
+				]);
+			});
+		}
 
 		test('steering while a phase chat streams reasoning ends that reasoning in the preempted turn', async () => {
 			const { session, mockSession, signals } = await createAgentSession(disposables);

@@ -2489,10 +2489,10 @@ export class CopilotAgentSession extends Disposable {
 	/** Fusion reasoning already shown, by message and text, so a message's committed copy doesn't show it again. */
 	private readonly _shownFusionReasoning = new Set<string>();
 	/**
-	 * The text and reasoning each staged Fusion phase has streamed since its last complete message, by phase tool call id.
-	 * Each chunk of the phase's complete provisional message then shows only what its stream did not.
+	 * The text and reasoning each staged Fusion phase has streamed and no complete message chunk has claimed yet, by phase tool call id,
+	 * and whether it streamed any reasoning. Each chunk of the phase's complete provisional message then shows only what its stream did not.
 	 */
-	private readonly _streamedFusionPhaseOutput = new Map<string, { text: string; reasoning: string }>();
+	private readonly _streamedFusionPhaseOutput = new Map<string, { text: string; reasoning: string; hasReasoning: boolean }>();
 	/** `task_complete` calls already shown in a provisional phase, reported again when their phase commits. */
 	private readonly _provisionalFusionTaskCompletions = new Map<string, ITaskCompletion>();
 	/**
@@ -12587,11 +12587,12 @@ export class CopilotAgentSession extends Disposable {
 			if (e.type === 'assistant.message_delta' && isInlinePhase) {
 				return;
 			}
-			const streamed = this._streamedFusionPhaseOutput.get(phaseToolCallId) ?? { text: '', reasoning: '' };
+			const streamed = this._streamedFusionPhaseOutput.get(phaseToolCallId) ?? { text: '', reasoning: '', hasReasoning: false };
 			this._streamedFusionPhaseOutput.set(phaseToolCallId, streamed);
 			const contentParentToolCallId = isInlinePhase ? undefined : this._fusionPhaseContentParentToolCallId(phaseToolCallId);
 			if (e.type === 'assistant.reasoning_delta') {
 				streamed.reasoning += e.data.deltaContent;
+				streamed.hasReasoning = true;
 				this._emitReasoningDelta(e.data.deltaContent, contentParentToolCallId);
 			} else {
 				streamed.text += e.data.deltaContent;
@@ -12599,13 +12600,22 @@ export class CopilotAgentSession extends Disposable {
 			}
 		};
 		/**
-		 * Whether this chunk's text and reasoning already streamed, compared with what its phase actually streamed,
-		 * so a chunk that arrives only whole still shows. Streamed reasoning is not shown again, here or in the committed copy.
+		 * Whether this chunk's text and reasoning already streamed, matched against what its phase streamed and no earlier
+		 * chunk claimed, so a chunk that arrives only whole still shows, even when it repeats earlier output.
+		 * Streamed reasoning is not shown again, here or in the committed copy.
 		 */
 		const takeStreamedFusionPhaseOutput = (e: SessionEventPayload<'assistant.message'>, phaseToolCallId: string): { readonly text: boolean; readonly reasoning: boolean; readonly streamedReasoning: boolean } => {
 			const streamed = this._streamedFusionPhaseOutput.get(phaseToolCallId);
-			const wasStreamed = (whole: string | undefined, stream: string | undefined) => !!whole?.trim() && !!stream?.includes(whole.trim());
-			const result = { text: wasStreamed(e.data.content, streamed?.text), reasoning: wasStreamed(e.data.reasoningText, streamed?.reasoning), streamedReasoning: !!streamed?.reasoning };
+			const claim = (whole: string | undefined, stream: 'text' | 'reasoning'): boolean => {
+				const text = whole?.trim();
+				const index = text && streamed ? streamed[stream].indexOf(text) : -1;
+				if (!text || !streamed || index < 0) {
+					return false;
+				}
+				streamed[stream] = streamed[stream].slice(index + text.length);
+				return true;
+			};
+			const result = { text: claim(e.data.content, 'text'), reasoning: claim(e.data.reasoningText, 'reasoning'), streamedReasoning: !!streamed?.hasReasoning };
 			if (result.reasoning && e.data.reasoningText) {
 				this._shownFusionReasoning.add(JSON.stringify([e.data.messageId, e.data.reasoningText]));
 			}
@@ -14667,7 +14677,7 @@ export class CopilotAgentSession extends Disposable {
 		this._streamedFusionPhaseOutput.delete(phaseToolCallId);
 		if (this._fusionPhases.get(phaseToolCallId)?.presentation !== 'inline') {
 			this._reasoningTiming.finish(phaseToolCallId);
-		} else if (streamed?.reasoning) {
+		} else if (streamed?.hasReasoning) {
 			this._reasoningTiming.finish(undefined);
 		}
 	}
