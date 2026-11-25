@@ -24,6 +24,7 @@ const terminalDescriptors = '\n- ' + [
 	'`\${workspaceFolder}`: ' + localize('workspaceFolder', "the workspace in which the terminal was launched."),
 	'`\${workspaceFolderName}`: ' + localize('workspaceFolderName', "the `name` of the workspace in which the terminal was launched."),
 	'`\${local}`: ' + localize('local', "indicates a local terminal in a remote workspace."),
+	'`\${host}`: ' + localize('host', "the name of the remote agent host the terminal runs on."),
 	'`\${process}`: ' + localize('process', "the name of the terminal process."),
 	'`\${progress}`: ' + localize('progress', "the progress state as reported by the `OSC 9;4` sequence."),
 	'`\${separator}`: ' + localize('separator', "a conditional separator {0} that only shows when it's surrounded by variables with values or static text.", '(` - `)'),
@@ -365,7 +366,7 @@ export const terminalConfiguration: IStringDictionary<IConfigurationPropertySche
 	},
 	[TerminalSettingId.TerminalDescription]: {
 		'type': 'string',
-		'default': '${task}${separator}${local}${separator}${cwdFolder}',
+		'default': '${task}${separator}${local}${separator}${host}${separator}${cwdFolder}',
 		'markdownDescription': terminalDescription
 	},
 	[TerminalSettingId.RightClickBehavior]: {

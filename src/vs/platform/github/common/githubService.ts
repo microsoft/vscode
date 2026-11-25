@@ -3,37 +3,37 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken, CancellationTokenSource, cancelOnDispose } from '../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { CancellationError } from '../../../base/common/errors.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, IReference, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { IGitHubAnonymousClient } from './anonymous/anonymous.js';
 import { AnonymousClient } from './anonymous/anonymousClient.js';
+import { BackoffGate } from './backoff.js';
 import { LocalApiRequestProvider } from './client/localApiRequestProvider.js';
 import { LocalConnectorsRequestProvider, connectorsAccount } from './client/localConnectorsRequestProvider.js';
-import { BufferedApiRequestProvider } from './client/request.js';
 import { LocalMissionControlRequestProvider, missionControlAccount } from './client/localMissionControlRequestProvider.js';
+import { BufferedApiRequestProvider } from './client/request.js';
 import { GitHubCredentialService, IGitHubCredentials } from './githubCredentialService.js';
-import { BackoffGate } from './backoff.js';
 import { deriveGitHubEndpoints, normalizeReadApiBaseUri, resolveReadApiUrl } from './githubEndpoints.js';
 import { GitHubHostCapabilitiesService } from './githubHostCapabilitiesService.js';
 import { PullRequestMutationApi } from './githubPullRequestMutationService.js';
 import { GitHubQueryApi } from './githubQueryService.js';
 import { GitHubQueryService } from './githubQueryServiceImpl.js';
+import { GitHubRateLimitCoordinator } from './githubRateLimitCoordinator.js';
 import { GitHubRequestMetadata } from './githubRequestMetadata.js';
 import { GitHubRequestTelemetry } from './githubRequestTelemetry.js';
-import { RequestQueue } from './requestQueue.js';
-import { GitHubRateLimitCoordinator } from './githubRateLimitCoordinator.js';
-import { systemRequestScheduler } from './scheduler.js';
 import { GitHubBootstrapReadOptions, GitHubRestResponse, GitHubTransport, IGitHubTransport } from './githubTransport.js';
 import { GitHubAuthorizationContext, GitHubBootstrapClientOptions, GitHubClientOptions, GitHubCredentialChange, GitHubRequestError, GitHubServiceOptions, IGitHubCredentialProvider, IGitHubEndpointProvider } from './githubTypes.js';
-import { BootstrapAccount } from './types.js';
+import { MissionControlClient } from './missionControl/missionControlClient.js';
 import { PullRequestMutationService } from './pullRequestMutationService.js';
 import { PullRequestQueryService } from './pullRequestQueryService.js';
 import { IPullRequestResources, PullRequestResourceService } from './pullRequestResourceService.js';
-import { MissionControlClient } from './missionControl/missionControlClient.js';
+import { RequestQueue } from './requestQueue.js';
+import { systemRequestScheduler } from './scheduler.js';
+import { BootstrapAccount } from './types.js';
 
 export const IGitHubService = createDecorator<IGitHubService>('gitHubService');
 
@@ -73,7 +73,7 @@ export interface IGitHubRequestProviderScope extends IDisposable {
 /** Explicit-credential reads that do not depend on account selection or accepted-token publication. */
 export interface IGitHubBootstrapClient {
 	readonly apiBaseUri: string;
-	get<T>(path: string, signal: AbortSignal, options?: GitHubBootstrapReadOptions): Promise<GitHubRestResponse<T>>;
+	get<T>(path: string, cancellationToken: CancellationToken, options?: GitHubBootstrapReadOptions): Promise<GitHubRestResponse<T>>;
 }
 
 /** Authorization-scoped GitHub operations and resources shared by equivalent client leases. */
@@ -194,9 +194,9 @@ export class GitHubService extends Disposable implements IGitHubService {
 		const scope = ++this._nextRequestProviderScope;
 		const lifetime = new DisposableStore();
 		this._requestProviderScopes.set(scope, lifetime);
-		const controller = new AbortController();
+		const controller = new CancellationTokenSource();
 		lifetime.add(toDisposable(() => {
-			controller.abort(new CancellationError());
+			controller.dispose(true);
 			for (const [key, entry] of this._clients) {
 				if (entry.scope === scope) {
 					this._clients.delete(key);
@@ -208,10 +208,12 @@ export class GitHubService extends Disposable implements IGitHubService {
 		const release = toDisposable(() => this._requestProviderScopes.deleteAndDispose(scope));
 		return {
 			acquireClient: options => {
-				controller.signal.throwIfAborted();
+				CancellationToken.throwIfCanceled(controller.token);
 				const lease = new DisposableStore();
-				const leaseController = new AbortController();
-				lease.add(toDisposable(() => leaseController.abort(new CancellationError())));
+				const leaseController = new CancellationTokenSource();
+				lease.add(toDisposable(() => leaseController.dispose(true)));
+				let cancellationError: GitHubRequestError | undefined;
+				const getCancellationError = () => cancellationError;
 				try {
 					const client = lease.add(this._acquireClient(options, credentialProvider, scope)).object;
 					const missionControl = MissionControlClient.normalizeOptions(options.missionControl);
@@ -222,18 +224,23 @@ export class GitHubService extends Disposable implements IGitHubService {
 					const invalidated = lease.add(new Emitter<void>());
 					const credentialsChanged = lease.add(new Emitter<void>());
 					const invalidate = () => {
-						leaseController.abort(new GitHubRequestError('GitHub client grant is no longer available', 'authentication'));
+						if (!leaseController.token.isCancellationRequested) {
+							cancellationError = new GitHubRequestError('GitHub client grant is no longer available', 'authentication');
+							leaseController.cancel();
+						}
 						invalidated.fire();
 					};
 					lease.add(client.onDidInvalidate(invalidate));
 					lease.add(client.credentials.onDidInvalidate(event => {
-						if (event.credential && missionControl) {
-							client.transport.invalidateAccount(missionControlAccount(missionControl.endpoint, event.credential.account), event.credential.signal.reason);
+						// A reauthorized credential is still valid for the accounts derived from it.
+						const credential = event.reason === 'reauthorization' ? undefined : event.credential;
+						if (credential && missionControl) {
+							client.transport.invalidateAccount(missionControlAccount(missionControl.endpoint, credential.account), credential.cancellationError);
 						}
-						if (event.credential && connectorsHost) {
-							const account = connectorsAccount(connectorsHost, event.credential.account);
-							if (account !== event.credential.account) {
-								client.transport.invalidateAccount(account, event.credential.signal.reason);
+						if (credential && connectorsHost) {
+							const account = connectorsAccount(connectorsHost, credential.account);
+							if (account !== credential.account) {
+								client.transport.invalidateAccount(account, credential.cancellationError);
 							}
 						}
 						if (event.reason === 'account') {
@@ -242,20 +249,20 @@ export class GitHubService extends Disposable implements IGitHubService {
 							credentialsChanged.fire();
 						}
 					}));
-					const signal = AbortSignal.any([controller.signal, leaseController.signal]);
+					const cancellationToken = CancellationToken.any([controller.token, leaseController.token], lease);
 					return {
 						object: {
 							authorization: client.authorization,
-							rest: new LocalApiRequestProvider(apiBaseUri, client.transport, client.credentials, 'rest', signal),
-							graphql: new LocalApiRequestProvider(client.endpoint.getGraphQlUri(), client.transport, client.credentials, 'graphql', signal),
-							missionControl: missionControl && new LocalMissionControlRequestProvider(missionControl.endpoint, client.credentials, client.transport, this._logService, signal),
+							rest: new LocalApiRequestProvider(apiBaseUri, client.transport, client.credentials, 'rest', cancellationToken, getCancellationError),
+							graphql: new LocalApiRequestProvider(client.endpoint.getGraphQlUri(), client.transport, client.credentials, 'graphql', cancellationToken, getCancellationError),
+							missionControl: missionControl && new LocalMissionControlRequestProvider(missionControl.endpoint, client.credentials, client.transport, this._logService, cancellationToken, getCancellationError),
 							connectors: connectorsApiBaseUri
-								? new LocalConnectorsRequestProvider(connectorsApiBaseUri, client.credentials, client.transport, signal)
+								? new LocalConnectorsRequestProvider(connectorsApiBaseUri, client.credentials, client.transport, cancellationToken, getCancellationError)
 								: undefined,
 							onDidInvalidate: invalidated.event,
 							onDidChangeCredentials: credentialsChanged.event,
 							rawContent: apiBaseUri === defaults.apiBaseUri && defaults.rawBaseUri
-								? new LocalApiRequestProvider(defaults.rawBaseUri, client.transport, undefined, 'rawContent', signal)
+								? new LocalApiRequestProvider(defaults.rawBaseUri, client.transport, undefined, 'rawContent', cancellationToken, getCancellationError)
 								: undefined,
 						},
 						dispose: () => lease.dispose(),
@@ -295,18 +302,18 @@ export class GitHubService extends Disposable implements IGitHubService {
 		}
 		const retained = client;
 		retained.references++;
-		const controller = new AbortController();
-		const signal = AbortSignal.any([controller.signal, retained.signal]);
+		const lifetime = new DisposableStore();
+		const cancellationToken = CancellationToken.any([cancelOnDispose(lifetime), retained.cancellationToken], lifetime);
 		const release = toDisposable(() => {
-			controller.abort(new CancellationError());
+			lifetime.dispose();
 			if (--retained.references === 0 && this._anonymousClient.value === retained) {
 				this._anonymousClient.clear();
 			}
 		});
 		return {
 			object: {
-				rest: new LocalApiRequestProvider(apiBaseUri, retained.transport, undefined, 'rest', signal),
-				rawContent: rawBaseUri ? new LocalApiRequestProvider(rawBaseUri, retained.transport, undefined, 'rawContent', signal) : undefined,
+				rest: new LocalApiRequestProvider(apiBaseUri, retained.transport, undefined, 'rest', cancellationToken),
+				rawContent: rawBaseUri ? new LocalApiRequestProvider(rawBaseUri, retained.transport, undefined, 'rawContent', cancellationToken) : undefined,
 			},
 			dispose: () => release.dispose(),
 		};
@@ -372,13 +379,11 @@ export class GitHubService extends Disposable implements IGitHubService {
 
 class AnonymousClientEntry extends Disposable {
 	references = 0;
-	readonly signal: AbortSignal;
+	readonly cancellationToken: CancellationToken;
 
 	constructor(readonly transport: GitHubTransport) {
 		super();
-		const controller = new AbortController();
-		this.signal = controller.signal;
-		this._register(toDisposable(() => controller.abort(new CancellationError())));
+		this.cancellationToken = cancelOnDispose(this._store);
 		this._register(transport);
 	}
 }
@@ -420,7 +425,7 @@ class GitHubClient extends Disposable implements IGitHubClient {
 			coordination: { queue, rateLimits },
 		}, telemetry));
 		this.credentials = this._register(new GitHubCredentialService(undefined, undefined, this.transport, {
-			getToken: signal => credentialProvider.getToken(this.authorization, signal),
+			getToken: cancellationToken => credentialProvider.getToken(this.authorization, cancellationToken),
 			invalidateToken: token => credentialProvider.invalidateToken?.(this.authorization, token),
 			onDidChangeToken: credentialProvider.onDidChangeToken && Event.signal(Event.filter(credentialProvider.onDidChangeToken, change =>
 				change.providerId === this.authorization.providerId && (!change.sessionIds || change.sessionIds.includes(this.authorization.sessionId)))),
@@ -491,9 +496,9 @@ class GitHubBootstrapClient extends Disposable implements IGitHubBootstrapClient
 		}, telemetry));
 	}
 
-	async get<T>(path: string, signal: AbortSignal, options: GitHubBootstrapReadOptions = {}): Promise<GitHubRestResponse<T>> {
-		signal.throwIfAborted();
+	async get<T>(path: string, cancellationToken: CancellationToken, options: GitHubBootstrapReadOptions = {}): Promise<GitHubRestResponse<T>> {
+		CancellationToken.throwIfCanceled(cancellationToken);
 		const { url, apiBasePath } = resolveReadApiUrl(this.apiBaseUri, path);
-		return this._transport.bootstrapGet<T>(this._account, this._credential.token, apiBasePath, { ...options, url: url.href }, signal);
+		return this._transport.bootstrapGet<T>(this._account, this._credential.token, apiBasePath, { ...options, url: url.href }, cancellationToken);
 	}
 }

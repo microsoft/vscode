@@ -6,9 +6,7 @@
 import { $ } from '../../../../../base/browser/dom.js';
 import { constObservable, IObservable } from '../../../../../base/common/observable.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
-// eslint-disable-next-line local/code-import-patterns
-import { AbstractCustomView, ICustomViewDescriptor } from '../../../../../sessions/services/customView/browser/customView.js';
-// eslint-disable-next-line local/code-import-patterns
+import { AbstractCustomView, ICustomViewDescriptor } from '../../../../contrib/sessions/browser/customView.js';
 import { CustomViewNode } from '../../../../../sessions/browser/parts/customViewNode.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../fixtureUtils.js';
 

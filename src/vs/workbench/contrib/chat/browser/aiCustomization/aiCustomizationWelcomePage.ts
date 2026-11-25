@@ -41,6 +41,7 @@ export interface IWelcomePageCallbacks {
 	selectSectionWithMarketplace(section: AICustomizationManagementSection): void;
 	openInstalled?(target: IInstalledCustomizationTarget): void;
 	openMarketplaceItem(resource: ICustomizationMarketplaceResource, origin: ICustomizationMarketplaceOrigin): void;
+	marketplaceNavigationChanged?(): void;
 	closeEditor(): void;
 	reviewMigrations(): void;
 	/**
@@ -49,8 +50,9 @@ export interface IWelcomePageCallbacks {
 	 *
 	 * @param options.newChat When true, always opens a new chat instead of
 	 * reusing the active one.
+	 * @param options.generateCustomizations Treat the query as customization preferences and select the creation prompt for the destination harness.
 	 */
-	prefillChat(query: string, options?: { isPartialQuery?: boolean; newChat?: boolean }): void;
+	prefillChat(query: string, options?: { isPartialQuery?: boolean; newChat?: boolean; generateCustomizations?: boolean }): void;
 }
 
 export interface IInstalledCustomizationTarget {
@@ -79,10 +81,10 @@ export interface IAICustomizationWelcomePageImplementation extends IDisposable {
 	layout?(dimension: DOM.Dimension | undefined): void;
 	getAccessibilityContent?(): string;
 	restoreMarketplaceItemFocus?(origin: ICustomizationMarketplaceOrigin): void;
-	setSearchQuery?(value: string): void;
-	showMarketplace?(query: string, sourceId: string | undefined): void;
+	setSearchQuery?(value: string, preserveFocus?: boolean): void;
+	showMarketplace?(query: string, sourceId: string | undefined, preserveFocus?: boolean): void;
 	resetFilters?(): void;
-	reset?(): void;
+	reset?(preserveFocus?: boolean): void;
 }
 
 /**
@@ -187,8 +189,8 @@ export class AICustomizationWelcomePage extends Disposable {
 		this.implementation.value?.focus();
 	}
 
-	reset(): void {
-		this.implementation.value?.reset?.();
+	reset(preserveFocus?: boolean): void {
+		this.implementation.value?.reset?.(preserveFocus);
 	}
 
 	resetFilters(): void {
@@ -218,11 +220,11 @@ export class AICustomizationWelcomePage extends Disposable {
 		}
 	}
 
-	setSearchQuery(value: string): void {
-		this.implementation.value?.setSearchQuery?.(value);
+	setSearchQuery(value: string, preserveFocus?: boolean): void {
+		this.implementation.value?.setSearchQuery?.(value, preserveFocus);
 	}
 
-	showMarketplace(query: string, sourceId: string | undefined): void {
-		this.implementation.value?.showMarketplace?.(query, sourceId);
+	showMarketplace(query: string, sourceId: string | undefined, preserveFocus?: boolean): void {
+		this.implementation.value?.showMarketplace?.(query, sourceId, preserveFocus);
 	}
 }

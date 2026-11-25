@@ -54,10 +54,16 @@ class DoubleResourceMap<V> {
 		const ownerMap = this._byResource.get(resource);
 		if (ownerMap) {
 			removedA = ownerMap.delete(owner);
+			if (ownerMap.size === 0) {
+				this._byResource.delete(resource);
+			}
 		}
 		const resourceMap = this._byOwner.get(owner);
 		if (resourceMap) {
 			removedB = resourceMap.delete(resource);
+			if (resourceMap.size === 0) {
+				this._byOwner.delete(owner);
+			}
 		}
 		if (removedA !== removedB) {
 			throw new Error('illegal state');

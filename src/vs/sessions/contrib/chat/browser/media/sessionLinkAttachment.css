@@ -1,0 +1,25 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* The status icon of the linked session, in the box that the icons of other pills take. */
+.interactive-session .chat-attached-context .chat-session-link-attachment .chat-session-link-attachment-icon {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	align-self: center;
+	flex-shrink: 0;
+	width: 16px;
+	height: 16px;
+	margin-right: var(--vscode-spacing-size40);
+}
+
+.interactive-session .chat-attached-context .chat-session-link-attachment .chat-session-link-attachment-icon:first-child {
+	margin-left: var(--vscode-spacing-size40);
+}
+
+/* The status glyphs keep their base size, as in the sessions list, rather than scaling base glyphs that have compact variants. */
+.interactive-session .chat-attached-context .chat-session-link-attachment .chat-session-link-attachment-icon > .codicon {
+	font-size: var(--vscode-codiconFontSize, 16px);
+}

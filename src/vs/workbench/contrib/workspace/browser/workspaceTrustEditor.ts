@@ -5,7 +5,7 @@
 
 import { $, addDisposableListener, addStandardDisposableListener, append, clearNode, Dimension, EventHelper, EventType, isAncestorOfActiveElement } from '../../../../base/browser/dom.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
-import { ButtonBar } from '../../../../base/browser/ui/button/button.js';
+import { ButtonBar, IButton } from '../../../../base/browser/ui/button/button.js';
 import { IMessage, InputBox, MessageType } from '../../../../base/browser/ui/inputbox/inputBox.js';
 import { DomScrollableElement } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { ITableRenderer, ITableVirtualDelegate } from '../../../../base/browser/ui/table/table.js';
@@ -178,18 +178,18 @@ export class WorkspaceTrustedUrisTable extends Disposable {
 		addButton.label = localize('addButton', "Add Folder");
 
 		this._register(addButton.onDidClick(async () => {
-			const uri = await this.fileDialogService.showOpenDialog({
+			const uris = await this.fileDialogService.showOpenDialog({
 				canSelectFiles: false,
 				canSelectFolders: true,
-				canSelectMany: false,
+				canSelectMany: true,
 				defaultUri: this.currentWorkspaceUri,
-				openLabel: localize('trustUri', "Trust Folder"),
-				title: localize('selectTrustedUri', "Select Folder To Trust")
+				openLabel: localize('trustUris', "Trust Folders"),
+				title: localize('selectTrustedUris', "Select Folders to Trust")
 			});
 
-			if (uri?.length) {
+			if (uris?.length) {
 				try {
-					await this.addTrustedUri(uri[0]);
+					await this.addTrustedUris(uris);
 				} catch (error) {
 					onUnexpectedError(error);
 				}
@@ -201,21 +201,35 @@ export class WorkspaceTrustedUrisTable extends Disposable {
 		}));
 	}
 
-	private async addTrustedUri(uri: URI): Promise<void> {
-		await this.workspaceTrustManagementService.setUrisTrust([uri], true);
+	private async addTrustedUris(uris: URI[]): Promise<void> {
+		// A single call trusts either all of the folders or, when one of them cannot be trusted, none of them.
+		await this.workspaceTrustManagementService.setUrisTrust(uris, true);
 		if (this._store.isDisposed) {
 			return;
 		}
 
-		// Resolve the folder's own stored (canonical) entry: after adding it, the longest trusted match is that
+		// Resolve each folder's own stored (canonical) entry: after adding it, the longest trusted match is that
 		// exact entry, even when canonicalization changed its path. Implicitly trusted (virtual or remote)
 		// folders resolve to themselves and have no row, so unrelated or parent rows are never selected.
-		const trustInfo = await this.workspaceTrustManagementService.getUriTrustInfo(uri);
-		if (this._store.isDisposed || !trustInfo.trusted) {
+		const trustInfos = await Promise.all(uris.map(uri => this.workspaceTrustManagementService.getUriTrustInfo(uri)));
+		if (this._store.isDisposed) {
 			return;
 		}
 
-		this.selectTrustedUriEntry({ uri: trustInfo.uri, parentOfWorkspaceItem: false });
+		// The table is single-select: select the topmost of the folders' rows.
+		let topmostIndex = -1;
+		for (const trustInfo of trustInfos) {
+			if (trustInfo.trusted) {
+				const index = this.getIndexOfTrustedUriEntry({ uri: trustInfo.uri, parentOfWorkspaceItem: false });
+				if (index !== -1 && (topmostIndex === -1 || index < topmostIndex)) {
+					topmostIndex = index;
+				}
+			}
+		}
+
+		if (topmostIndex !== -1) {
+			this.selectTrustedUriEntry(this.table.row(topmostIndex));
+		}
 	}
 
 	private getIndexOfTrustedUriEntry(item: ITrustedUriItem): number {
@@ -368,7 +382,7 @@ export class WorkspaceTrustedUrisTable extends Disposable {
 		return null;
 	}
 
-	acceptEdit(item: ITrustedUriItem, uri: URI) {
+	async acceptEdit(item: ITrustedUriItem, uri: URI): Promise<void> {
 		const trustedFolders = this.workspaceTrustManagementService.getTrustedUris();
 		const index = trustedFolders.findIndex(u => this.uriService.extUri.isEqual(u, item.uri));
 
@@ -378,8 +392,14 @@ export class WorkspaceTrustedUrisTable extends Disposable {
 			trustedFolders[index] = uri;
 		}
 
-		this.workspaceTrustManagementService.setTrustedUris(trustedFolders);
-		this._onDidAcceptEdit.fire(item);
+		try {
+			await this.workspaceTrustManagementService.setTrustedUris(trustedFolders);
+			if (!this._store.isDisposed) {
+				this._onDidAcceptEdit.fire(item);
+			}
+		} catch (error) {
+			onUnexpectedError(error);
+		}
 	}
 
 	rejectEdit(item: ITrustedUriItem) {
@@ -596,7 +616,6 @@ class TrustedUriPathColumnRenderer implements ITableRenderer<ITrustedUriItem, IT
 
 			const pathToUse = templateData.pathInput.value;
 			const uri = hasDriveLetter(pathToUse) ? item.uri.with({ path: posix.sep + toSlashes(pathToUse) }) : item.uri.with({ path: pathToUse });
-			templateData.pathLabel.innerText = this.formatPath(uri);
 
 			if (uri) {
 				this.table.acceptEdit(item, uri);
@@ -804,7 +823,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 				this.rootElement.focus();
 			} else if (event.equals(KeyMod.CtrlCmd | KeyCode.Enter)) {
 				if (this.workspaceTrustManagementService.canSetWorkspaceTrust()) {
-					this.workspaceTrustManagementService.setWorkspaceTrust(!this.workspaceTrustManagementService.isWorkspaceTrusted());
+					this.workspaceTrustManagementService.setWorkspaceTrust(!this.workspaceTrustManagementService.isWorkspaceTrusted()).catch(onUnexpectedError);
 				}
 			}
 		}));
@@ -894,6 +913,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 
 	private rendering = false;
 	private readonly rerenderDisposables: DisposableStore = this._register(new DisposableStore());
+	private readonly actionButtons = new Map<string, IButton>();
 	@debounce(100)
 	private async render() {
 		// The debounced render can fire after the editor pane (and its scoped
@@ -908,7 +928,9 @@ export class WorkspaceTrustEditor extends EditorPane {
 		}
 
 		this.rendering = true;
+		const focusedAction = Array.from(this.actionButtons).find(([, button]) => button.hasFocus())?.[0];
 		this.rerenderDisposables.clear();
+		this.actionButtons.clear();
 
 		const isWorkspaceTrusted = this.workspaceTrustManagementService.isWorkspaceTrusted();
 		this.rootElement.classList.toggle('trusted', isWorkspaceTrusted);
@@ -975,6 +997,9 @@ export class WorkspaceTrustEditor extends EditorPane {
 
 		this.bodyScrollBar.getDomNode().style.height = `calc(100% - ${this.headerContainer.clientHeight}px)`;
 		this.bodyScrollBar.scanDomNode();
+		if (focusedAction) {
+			(this.actionButtons.get(focusedAction) ?? this.headerContainer).focus();
+		}
 		this.rendering = false;
 	}
 
@@ -1078,31 +1103,47 @@ export class WorkspaceTrustEditor extends EditorPane {
 				this.addTrustedTextToElement(this.untrustedContainer);
 			}
 		} else {
-			if (this.workspaceTrustManagementService.canSetWorkspaceTrust()) {
+			if (!this.workspaceTrustManagementService.isWorkspaceTrustSourceResolved()) {
+				const description = append(this.trustedContainer, $('.workspace-trust-untrusted-description'));
+				description.innerText = localize('unresolvedTrustSource', "The source repository for this workspace could not be verified. You can keep reviewing files in Restricted Mode. Make sure the repository extension is enabled and you are signed in, then retry.");
+				this.createButtonRow(this.trustedContainer, [{
+					action: this.rerenderDisposables.add(new Action('workspace.trust.button.action.retry', localize('retryTrustSource', "Retry Source Check"), undefined, true, async () => {
+						await this.workspaceTrustManagementService.resolveWorkspaceTrust();
+					}))
+				}]);
+			} else if (this.workspaceTrustManagementService.canSetWorkspaceTrust()) {
 				this.addTrustButtonToElement(this.trustedContainer);
 			}
 		}
 	}
 
-	private createButtonRow(parent: HTMLElement, buttonInfo: { action: Action; keybinding: ResolvedKeybinding }[], enabled?: boolean): void {
+	private createButtonRow(parent: HTMLElement, buttonInfo: { action: Action; keybinding?: ResolvedKeybinding }[], enabled?: boolean): void {
 		const buttonRow = append(parent, $('.workspace-trust-buttons-row'));
 		const buttonContainer = append(buttonRow, $('.workspace-trust-buttons'));
 		const buttonBar = this.rerenderDisposables.add(new ButtonBar(buttonContainer));
 
 		for (const { action, keybinding } of buttonInfo) {
 			const button = buttonBar.addButtonWithDescription(defaultButtonStyles);
+			this.actionButtons.set(action.id, button);
 
 			button.label = action.label;
 			button.enabled = enabled !== undefined ? enabled : action.enabled;
-			button.description = keybinding.getLabel()!;
-			button.element.ariaLabel = action.label + ', ' + localize('keyboardShortcut', "Keyboard Shortcut: {0}", keybinding.getAriaLabel()!);
+			button.description = keybinding?.getLabel() ?? '';
+			button.element.ariaLabel = keybinding ? action.label + ', ' + localize('keyboardShortcut', "Keyboard Shortcut: {0}", keybinding.getAriaLabel()!) : action.label;
 
-			this.rerenderDisposables.add(button.onDidClick(e => {
+			this.rerenderDisposables.add(button.onDidClick(async e => {
 				if (e) {
 					EventHelper.stop(e, true);
 				}
 
-				action.run();
+				button.enabled = false;
+				try {
+					await action.run();
+				} catch (error) {
+					onUnexpectedError(error);
+				} finally {
+					button.enabled = enabled !== undefined ? enabled : action.enabled;
+				}
 			}));
 		}
 	}

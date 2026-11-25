@@ -11,15 +11,16 @@ import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { type MarkedExtension, type Token, type Tokens } from '../../../../../base/common/marked/marked.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
-import { IMarkdownRenderer, IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
+import { IMarkdownRenderer, IMarkdownRendererService, openLinkFromMarkdown } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import product from '../../../../../platform/product/common/product.js';
 import { Schemas } from '../../../../../base/common/network.js';
-import { AGENT_HOST_SCHEME } from '../../../../../platform/agentHost/common/agentHostUri.js';
+import { AGENT_HOST_SCHEME, getLocalAgentHostWindowSchemes } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { AGENT_HOST_SESSION_LINK_SCHEME } from '../../../../../platform/agentHost/common/openSessionLink.js';
+import { AHP_CHAT_SCHEME } from '../../../../../platform/agentHost/common/state/sessionState.js';
 
 const trustedChatImageSources = new Map([
 	['raw.githubusercontent.com', '/'],
@@ -166,7 +167,7 @@ export function getChatMarkdownRenderOptions(options?: MarkdownRenderOptions): M
 				override: allowedChatMarkdownHtmlTags,
 			},
 			...options?.sanitizerConfig,
-			allowedLinkSchemes: { augment: [product.urlProtocol, 'copilot-skill', Schemas.vscodeBrowser, AGENT_HOST_SCHEME, AGENT_HOST_SESSION_LINK_SCHEME] },
+			allowedLinkSchemes: { augment: [product.urlProtocol, 'copilot-skill', Schemas.vscodeBrowser, AGENT_HOST_SCHEME, AGENT_HOST_SESSION_LINK_SCHEME, AHP_CHAT_SCHEME, ...getLocalAgentHostWindowSchemes()] },
 			remoteImageIsAllowed: uri => isRemoteImageAllowed(uri)
 				|| (uri.scheme === AGENT_HOST_SCHEME && options?.sanitizerConfig?.remoteImageIsAllowed?.(uri) === true),
 		}
@@ -179,7 +180,7 @@ export function getChatMarkdownRenderOptions(options?: MarkdownRenderOptions): M
 export class ChatContentMarkdownRenderer implements IMarkdownRenderer {
 	constructor(
 		@ILanguageService languageService: ILanguageService,
-		@IOpenerService openerService: IOpenerService,
+		@IOpenerService private readonly openerService: IOpenerService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
@@ -193,6 +194,11 @@ export class ChatContentMarkdownRenderer implements IMarkdownRenderer {
 		}
 
 		options = getChatMarkdownRenderOptions(options);
+		if (!options.actionHandler) {
+			// Links open with the opener of the renderer's scope, such as of the window that shows the chat, not the global one.
+			const openerService = this.openerService;
+			options = { ...options, actionHandler: (link, markdownString) => openLinkFromMarkdown(openerService, link, markdownString.isTrusted) };
+		}
 
 		const mdWithBody: IMarkdownString = (markdown && markdown.supportHtml) ?
 			{
@@ -219,7 +225,7 @@ export class ChatContentMarkdownRenderer implements IMarkdownRenderer {
 
 	private attachCustomHover(result: IRenderedMarkdown): IRenderedMarkdown {
 		const store = new DisposableStore();
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		result.element.querySelectorAll('a').forEach((element) => {
 			if (element.title) {
 				let title = element.title;

@@ -49,7 +49,7 @@ $runLog     = Join-Path $OutDir 'run.log'
 if (-not (Test-Path $ossDir))     { throw "OSS scripts not found at $ossDir" }
 if (-not (Test-Path $cglicenses)) { throw "cglicenses.json not found at $cglicenses" }
 if (-not (Test-Path (Join-Path $RepoRoot 'node_modules'))) {
-    Write-Warning "No node_modules at $RepoRoot - run 'npm i' there first or the presence index will be empty."
+    Write-Warning "No node_modules at $RepoRoot - run 'pnpm install' there first or the presence index will be empty."
 }
 New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
 
@@ -59,12 +59,12 @@ function Invoke-OssScript {
     Push-Location $ossDir
     try {
         Write-Host "==> tsx $Script $($ScriptArgs -join ' ')" -ForegroundColor Cyan
-        # npm/tsx write warnings to stderr; with ErrorActionPreference=Stop that
+        # pnpm/tsx write warnings to stderr; with ErrorActionPreference=Stop that
         # would become a terminating error. Scope it to Continue and rely on the
         # real exit code instead.
         $prevEAP = $ErrorActionPreference
         $ErrorActionPreference = 'Continue'
-        & npx --yes tsx $Script @ScriptArgs 2>&1 | Tee-Object -FilePath $runLog -Append
+        & pnpm dlx tsx $Script @ScriptArgs 2>&1 | Tee-Object -FilePath $runLog -Append
         $code = $LASTEXITCODE
         $ErrorActionPreference = $prevEAP
         if ($code -ne 0) { throw "$Script exited with code $code" }

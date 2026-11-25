@@ -8,7 +8,7 @@ import * as assert from 'assert';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { commands, extensions, LogOutputChannel, Uri, window } from 'vscode';
+import { commands, ConfigurationTarget, extensions, LogOutputChannel, Uri, window, workspace } from 'vscode';
 import type { API, GitExtension, Repository } from '../api/git';
 import { ForcePushMode, GitErrorCodes, RefType } from '../api/git.constants';
 import { findGit, Git, GitError, Repository as GitRepository } from '../git';
@@ -63,6 +63,19 @@ suite('git stack operations', () => {
 			['rebase', '--rebase-merges', '--onto', 'new-base', 'old-base'],
 			['rebase', '--abort'],
 			['rebase', '--continue']
+		]);
+	});
+
+	test('merge passes -S only when commit signing is requested', async () => {
+		const { repository, calls } = recordingRepository();
+		await repository.merge('feature');
+		await repository.merge('feature', { signCommit: false });
+		await repository.merge('feature', { signCommit: true });
+
+		assert.deepStrictEqual(calls, [
+			['merge', 'feature'],
+			['merge', 'feature'],
+			['merge', '-S', 'feature']
 		]);
 	});
 
@@ -221,6 +234,35 @@ suite('git stack operations', () => {
 			assert.deepStrictEqual({ parent: rebased.parents[0], changed: rebased.hash !== previous }, { parent: newBase, changed: true });
 		});
 
+		test('merge signs the merge commit only when git.enableCommitSigning is enabled', async () => {
+			await repository.createBranch('feature', true);
+			await commit('feature\n', 'feature', 'feature.txt');
+			await repository.checkout('main');
+			await commit('main\n', 'main', 'main.txt');
+
+			// A missing signing program makes `git merge -S` fail, which shows whether signing was requested
+			await git.exec(root, ['config', 'gpg.program', path.join(directory, 'missing-gpg')]);
+
+			const config = workspace.getConfiguration('git');
+			try {
+				await config.update('enableCommitSigning', true, ConfigurationTarget.Global);
+				const enabled = await repository.merge('feature').then(
+					() => 'merged',
+					(error: { stderr?: string }) => /gpg failed to sign/.test(error.stderr ?? '') ? 'signing requested' : String(error));
+				if (enabled !== 'merged') {
+					await repository.mergeAbort();
+				}
+
+				await config.update('enableCommitSigning', undefined, ConfigurationTarget.Global);
+				await repository.merge('feature');
+				const disabled = (await repository.getCommit('HEAD')).parents.length;
+
+				assert.deepStrictEqual({ enabled, disabled }, { enabled: 'signing requested', disabled: 2 });
+			} finally {
+				await config.update('enableCommitSigning', undefined, ConfigurationTarget.Global);
+			}
+		});
+
 		test('rebases through a detached worktree opened with the public API', async () => {
 			const oldBase = (await repository.getCommit('HEAD')).hash;
 			await repository.createBranch('feature', true);
@@ -304,6 +346,40 @@ suite('git stack operations', () => {
 			} finally {
 				await closeRepository(temporaryRepository);
 				await repository.deleteWorktree(worktreePath, { force: true });
+			}
+		});
+
+		test('git.commit continues a rebase whose index matches HEAD while untracked files exist', async () => {
+			await repository.createBranch('feature', true);
+			await commit('feature\n', 'feature');
+			await repository.checkout('main');
+			const newBase = await commit('main\n', 'main');
+			await repository.checkout('feature');
+			await assert.rejects(repository.rebase('main'), { gitErrorCode: GitErrorCodes.Conflict });
+
+			// Resolving with "ours" (HEAD during a rebase) leaves nothing staged
+			await git.exec(root, ['checkout', '--ours', '--', 'tracked.txt']);
+			await git.exec(root, ['add', '--', 'tracked.txt']);
+			await fs.promises.writeFile(path.join(root, 'untracked.txt'), 'untracked\n');
+			await repository.status();
+
+			const config = workspace.getConfiguration('git');
+			try {
+				await config.update('suggestSmartCommit', false, ConfigurationTarget.Global);
+				await commands.executeCommand('git.commit', repository.rootUri);
+				await repository.status();
+
+				assert.deepStrictEqual({
+					rebaseCommit: repository.state.rebaseCommit,
+					head: (await repository.getCommit('HEAD')).hash,
+					status: (await git.exec(root, ['status', '--porcelain'])).stdout
+				}, {
+					rebaseCommit: undefined,
+					head: newBase,
+					status: '?? untracked.txt\n'
+				});
+			} finally {
+				await config.update('suggestSmartCommit', undefined, ConfigurationTarget.Global);
 			}
 		});
 

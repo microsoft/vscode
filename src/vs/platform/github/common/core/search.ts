@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { ApiPaginationOptions } from '../client/request.js';
 import { PageOptions } from '../client/types.js';
 import { Account, Connection, CursorOptions, RepositoryIdentity } from './core.js';
@@ -24,6 +25,10 @@ export interface RepositorySearchItem extends Omit<RepositoryIdentity, 'owner'> 
 	readonly owner: Account | null;
 	/** Default branch name. */
 	readonly default_branch: string;
+	/** HTTPS clone URL. */
+	readonly clone_url: string;
+	/** SSH clone URL. */
+	readonly ssh_url: string;
 	/** Primary language, or null. */
 	readonly language: string | null;
 	/** Star count. */
@@ -106,14 +111,14 @@ export type SearchIssuesOptions = ApiPaginationOptions<PageOptions & {
 export interface ISearchClient {
 
 	/** GET /search/repositories: return one page of repository matches. */
-	repositories(query: string, signal: AbortSignal, options?: SearchRepositoriesOptions): Promise<SearchPage<RepositorySearchItem>>;
+	repositories(query: string, cancellationToken: CancellationToken, options?: SearchRepositoriesOptions): Promise<SearchPage<RepositorySearchItem>>;
 
 	/** GET /search/issues: search issues only and return one page of matches. */
-	issues(query: string, signal: AbortSignal, options?: SearchIssuesOptions): Promise<SearchPage<IssueSearchItem>>;
+	issues(query: string, cancellationToken: CancellationToken, options?: SearchIssuesOptions): Promise<SearchPage<IssueSearchItem>>;
 
 	/** GET /search/issues: search issues and PRs, using is:issue or is:pr to restrict the query. */
-	issuesAndPullRequests(query: string, signal: AbortSignal, options?: SearchIssuesOptions): Promise<SearchPage<IssueSearchItem>>;
+	issuesAndPullRequests(query: string, cancellationToken: CancellationToken, options?: SearchIssuesOptions): Promise<SearchPage<IssueSearchItem>>;
 
 	/** GraphQL PR search with cursor pagination, defaulting to 100 per page; GitHub exposes at most 1,000 results. */
-	pullRequests(query: string, signal: AbortSignal, options?: ApiPaginationOptions<CursorOptions>): Promise<Connection<PullRequestSearchItem>>;
+	pullRequests(query: string, cancellationToken: CancellationToken, options?: ApiPaginationOptions<CursorOptions>): Promise<Connection<PullRequestSearchItem>>;
 }

@@ -25,5 +25,8 @@
   },
   "dependencies": {
     "typescript": "5.5.4"
+  },
+  "devDependencies": {
+    "@types/node": "24.x"
   }
 }

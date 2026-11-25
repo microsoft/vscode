@@ -178,7 +178,50 @@ export interface IAgentProviderTurnTelemetryContext {
 	 * {@link IAgentChatContext.reportPrewarmedSession}; absent otherwise.
 	 */
 	readonly prewarmedSessionDiscardReason?: string;
+	/**
+	 * For a turn that used a pre-warmed session: how long after the turn
+	 * started the session became ready (0 when it was ready before), which
+	 * is time the send spent waiting for it.
+	 */
+	readonly prewarmReadyAfterTurnStartMs?: number;
+	/**
+	 * For a turn that used a pre-warmed session: how long the session had
+	 * been ready before the turn started (0 when it became ready during the turn).
+	 */
+	readonly prewarmReadyBeforeTurnStartMs?: number;
+	/** For a turn that used a pre-warmed session: the draft's warm launches, including the used one. */
+	readonly prewarmLaunchCount?: number;
+	/** For a turn that used a pre-warmed session: whether its background warm-up had finished. */
+	readonly prewarmWarmUpComplete?: boolean;
+	/**
+	 * Why this turn's send materialized a deferred provider session without a
+	 * pre-warmed one to claim or discard, reported through
+	 * {@link IAgentChatContext.reportPrewarmSkipped}; absent otherwise.
+	 */
+	readonly prewarmSkipReason?: AgentHostPrewarmSkipReason;
 }
+
+/**
+ * Why a draft had no pre-warmed provider session when its first send
+ * materialized it:
+ * - `notRequested`: the host never considered warming the draft;
+ * - `awaitingActiveClient`, `customizationsPending`: the send arrived while
+ *   the warm gate still waited for the client's tools or the customization
+ *   enablement, or enablement stayed pending (as for a worktree draft);
+ * - `untrustedFolder`: one of the draft's folders is not trusted;
+ * - `disabled`: the prewarm experiment setting is off;
+ * - `warmFailed`: the warm launch failed;
+ * - `expired`: the warm launch stayed unclaimed for its lifetime;
+ * - `released`: the runtime that held the warm launch was torn down.
+ */
+export type AgentHostPrewarmSkipReason = 'notRequested' | 'awaitingActiveClient' | 'customizationsPending' | 'untrustedFolder' | 'disabled' | 'warmFailed' | 'expired' | 'released';
+
+/**
+ * Tool call `error.code` for a call naming a tool the session does not offer,
+ * usually a name the model invented. Tool invocation telemetry reports such a
+ * call apart from a tool that ran and failed.
+ */
+export const TOOL_NOT_FOUND_ERROR_CODE = 'toolNotFound';
 
 export function createUnknownAgentHostClientTelemetryContext(clientType: AgentHostClientType): IAgentHostClientTelemetryContext {
 	return {

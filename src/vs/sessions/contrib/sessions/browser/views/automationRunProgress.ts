@@ -5,8 +5,19 @@
 
 import { IReader } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { IAutomationRun } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IChatModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
+
+export function isLocalAutomationRunStarting(run: IAutomationRun, hasPresentedSession: (resource: URI) => boolean, hasSession: (resource: URI) => boolean): boolean {
+	if (run.externalResource || run.status === 'failed') {
+		return false;
+	}
+	if (!run.sessionResource) {
+		return run.status === 'pending' || run.status === 'running';
+	}
+	return !hasPresentedSession(run.sessionResource) && (run.status !== 'completed' || hasSession(run.sessionResource));
+}
 
 /** Overlays newer local conversation progress without changing authoritative history. */
 export function automationRunWithLocalProgress(run: IAutomationRun, models: Iterable<IChatModel>, reader?: IReader): IAutomationRun {

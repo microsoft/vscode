@@ -95,6 +95,8 @@ export class OnboardingScenarioService extends Disposable implements IOnboarding
 	 */
 	private readonly _openedAssignmentContextIds: Set<string>;
 	private readonly _onDidChangeOpenedIds = this._register(new Emitter<void>());
+	private readonly _onDidReachWouldShow = this._register(new Emitter<string>());
+	readonly onDidReachWouldShow = this._onDidReachWouldShow.event;
 
 	private _started = false;
 	private _stopped = false;
@@ -327,6 +329,7 @@ export class OnboardingScenarioService extends Disposable implements IOnboarding
 		if (experiment?.active && !this._isDeveloperMode(scenario.id)) {
 			// Record the would-show moment in both arms, before any onboarding UI changes user behavior.
 			this._openGate(experiment.assignmentContextId);
+			this._onDidReachWouldShow.fire(scenario.id);
 			return experiment.behavior;
 		}
 		return true;

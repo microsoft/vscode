@@ -7,9 +7,12 @@
     "compile": "node ../../../node_modules/typescript/bin/tsc6"
   },
   "devDependencies": {
+    "@playwright/test": "^1.61.1",
+    "@types/minimist": "^1.2.1",
     "@types/node": "24.x",
     "@types/rimraf": "^2.0.4",
     "@types/tmp": "0.1.0",
+    "minimist": "^1.2.8",
     "rimraf": "^2.6.1",
     "tmp": "0.2.7",
     "tree-kill": "1.2.2",

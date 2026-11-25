@@ -3,11 +3,41 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { type Artifact, requestAZDOAPI } from './publish.ts';
 import { retry } from './retry.ts';
 
-async function getPipelineArtifacts(): Promise<Artifact[]> {
-	const result = await requestAZDOAPI<{ readonly value: Artifact[] }>('artifacts');
+// Uses only Node built-ins, so jobs that don't install the build dependencies
+// (such as the CLI jobs) can run it too
+function getBuildsApiUrl(): string {
+	const { BUILDS_API_URL, SYSTEM_COLLECTIONURI, SYSTEM_TEAMPROJECT, BUILD_BUILDID } = process.env;
+
+	if (BUILDS_API_URL) {
+		return BUILDS_API_URL;
+	}
+
+	if (!SYSTEM_COLLECTIONURI || !SYSTEM_TEAMPROJECT || !BUILD_BUILDID) {
+		throw new Error('Missing BUILDS_API_URL, or SYSTEM_COLLECTIONURI, SYSTEM_TEAMPROJECT and BUILD_BUILDID');
+	}
+
+	return `${SYSTEM_COLLECTIONURI.replace(/\/?$/, '/')}${encodeURIComponent(SYSTEM_TEAMPROJECT)}/_apis/build/builds/${BUILD_BUILDID}/`;
+}
+
+async function getPipelineArtifacts(): Promise<{ readonly name: string }[]> {
+	const token = process.env.SYSTEM_ACCESSTOKEN;
+
+	if (!token) {
+		throw new Error('Missing SYSTEM_ACCESSTOKEN');
+	}
+
+	const res = await fetch(`${getBuildsApiUrl()}artifacts?api-version=6.0`, {
+		headers: { Authorization: `Bearer ${token}` },
+		signal: AbortSignal.timeout(2 * 60 * 1000),
+	});
+
+	if (!res.ok) {
+		throw new Error(`Unexpected status code: ${res.status}`);
+	}
+
+	const result = await res.json() as { readonly value: { readonly name: string }[] };
 	return result.value.filter(a => !/sbom$/.test(a.name));
 }
 

@@ -3,13 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { EditorInput } from '../../../common/editor/editorInput.js';
+import { EditorInput, IEditorCloseHandler } from '../../../common/editor/editorInput.js';
 import { EditorInputCapabilities, IUntypedEditorInput } from '../../../common/editor.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { localize } from '../../../../nls.js';
+import { ConfirmResult } from '../../../../platform/dialogs/common/dialogs.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { IImageCarouselCollection } from './imageCarouselTypes.js';
 
@@ -21,13 +22,26 @@ export class ImageCarouselEditorInput extends EditorInput {
 	private _resource: URI;
 	private _name: string;
 
+	/** Set by the editor while it shows a markup, so that closing the editor first asks to discard the markup's changes. */
+	markUpCloseHandler: IEditorCloseHandler | undefined;
+
+	override readonly closeHandler: IEditorCloseHandler = {
+		showConfirm: () => !!this.markUpCloseHandler?.showConfirm(),
+		confirm: async editors => this.markUpCloseHandler?.confirm(editors) ?? ConfirmResult.DONT_SAVE,
+	};
+
 	override get capabilities(): EditorInputCapabilities {
 		return super.capabilities | EditorInputCapabilities.Singleton | EditorInputCapabilities.RequiresModal;
 	}
 
+	/**
+	 * @param markUpOnly Opens the start image's markup (see `ICarouselImage.markUp`) instead of a preview, and closes the
+	 * editor when the markup ends.
+	 */
 	constructor(
 		public readonly collection: IImageCarouselCollection,
-		public readonly startIndex: number = 0
+		public readonly startIndex: number = 0,
+		public readonly markUpOnly = false,
 	) {
 		super();
 		this._resource = URI.from({

@@ -68,7 +68,7 @@ suite('Onboarding presentation isolation', () => {
 		const layout = new class extends TestLayoutService {
 			override getContainer(): HTMLElement { return container; }
 		};
-		const spotlight = store.add(new SpotlightPresentation(layout, host, contextKeys));
+		const spotlight = store.add(new SpotlightPresentation(layout, host, contextKeys, new TestConfigurationService(), NullTelemetryService));
 		store.add(onboardingPresentationRegistry.register(spotlight));
 		store.add(onboardingSequenceStepPresentationRegistry.register(spotlight));
 		function target(id: string) {

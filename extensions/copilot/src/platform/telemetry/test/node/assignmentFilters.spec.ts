@@ -4,15 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
+// eslint-disable-next-line local/code-layering, local/code-no-restricted-zone-imports -- Pre-existing layering violation found when the zone check started resolving extensionless imports.
 import { getUserKind } from '../../../../extension/completions-core/vscode-node/lib/src/auth/orgs';
 import { mock } from '../../../../util/common/test/simpleMock';
 import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
 import { platform, PlatformToString } from '../../../../util/vs/base/common/platform';
 import { CopilotToken, createTestExtendedTokenInfo } from '../../../authentication/common/copilotToken';
 import { CopilotTokenStore } from '../../../authentication/common/copilotTokenStore';
+import { INTEGRATION_ID } from '../../../endpoint/common/licenseAgreement';
 import { packageJson } from '../../../env/common/packagejson';
 import { ILogService } from '../../../log/common/logService';
-import { CopilotAssignmentsFilterProvider } from '../../vscode-node/microsoftExperimentationService';
+import { UserInfoStore } from '../../node/baseExperimentationService';
+// eslint-disable-next-line local/code-layering -- Pre-existing layering violation found when the zone check started resolving extensionless imports.
+import { CopilotAssignmentsFilterProvider, GitHubAccountFilterProvider } from '../../vscode-node/microsoftExperimentationService';
 
 vi.mock('vscode', async importOriginal => ({
 	...await importOriginal<typeof import('vscode')>(),
@@ -30,6 +34,7 @@ describe('CopilotAssignmentsFilterProvider', () => {
 
 	function createProvider() {
 		const tokenStore = disposables.add(new CopilotTokenStore());
+		tokenStore.authenticationState = 'signedIn';
 		const logService = new class extends mock<ILogService>() {
 			override trace(): void { }
 			override warn(): void { }
@@ -40,13 +45,14 @@ describe('CopilotAssignmentsFilterProvider', () => {
 	it('emits new TAS parameters without legacy headers or Market', () => {
 		const { tokenStore, provider } = createProvider();
 		tokenStore.copilotToken = new CopilotToken(createTestExtendedTokenInfo({
-			token: 'tid=tracking-id;sn=1;fcv1=1',
+			token: 'tid=tracking-id;sn=1;fcv1=1;st=proxima',
 			sku: 'enterprise',
 			organization_list: ['4535c7beffc844b46bb1ed4aa04d759a'],
 			enterprise_list: [42],
 		}));
 
 		expect(Object.fromEntries(provider.getFilters())).toEqual({
+			integratorid: INTEGRATION_ID,
 			vscode_core_platform: PlatformToString(platform),
 			vscode_core_windowkind: 'editor',
 			devdeviceid: 'test-device',
@@ -59,19 +65,21 @@ describe('CopilotAssignmentsFilterProvider', () => {
 			github_core_copilotsku: 'enterprise',
 			github_core_issn: '1',
 			github_core_isfcv1: '1',
+			github_core_isproxima: '1',
 			vscode_core_copilotchatextensionversion: packageJson.version.split('-')[0],
 		});
+
 	});
 
 	it('uses current token values after refresh and clears account values on sign-out', () => {
 		const { tokenStore, provider } = createProvider();
 		const tokens = [
 			new CopilotToken(createTestExtendedTokenInfo({
-				token: 'sn=1;fcv1=1',
+				token: 'sn=1;fcv1=1;st=prod-eu',
 				sku: 'enterprise',
 				organization_list: ['a5db0bcaae94032fe715fb34a5e4bce2'],
 			})),
-			new CopilotToken(createTestExtendedTokenInfo({ token: 'sn=0;fcv1=0', sku: 'pro', organization_list: ['unrecognized-org'] })),
+			new CopilotToken(createTestExtendedTokenInfo({ token: 'sn=0;fcv1=0;st=dotcom', sku: 'pro', organization_list: ['unrecognized-org'] })),
 			new CopilotToken(createTestExtendedTokenInfo({ token: 'tid=test', sku: undefined })),
 			undefined,
 		];
@@ -84,12 +92,13 @@ describe('CopilotAssignmentsFilterProvider', () => {
 				filters.get('github_core_copilotsku'),
 				filters.get('github_core_issn'),
 				filters.get('github_core_isfcv1'),
+				filters.get('github_core_isproxima'),
 			];
 		})).toEqual([
-			['a5db0bcaae94032fe715fb34a5e4bce2', 'enterprise', '1', '1'],
-			[undefined, 'pro', '0', '0'],
-			[undefined, undefined, '0', '0'],
-			[undefined, undefined, '0', '0'],
+			['a5db0bcaae94032fe715fb34a5e4bce2', 'enterprise', '1', '1', '1'],
+			[undefined, 'pro', '0', '0', '0'],
+			[undefined, undefined, '0', '0', '0'],
+			[undefined, undefined, '0', '0', '0'],
 		]);
 	});
 
@@ -152,6 +161,33 @@ describe('CopilotAssignmentsFilterProvider', () => {
 			[knownOrganizations[0], knownOrganizations[0]],
 			['', undefined],
 			['', undefined],
+		]);
+	});
+});
+
+describe('GitHubAccountFilterProvider', () => {
+	it('emits Proxima only as a legacy TAS header', () => {
+		let isProxima = false;
+		const userInfoStore = new class extends mock<UserInfoStore>() {
+			override get isProxima(): boolean {
+				return isProxima;
+			}
+		}();
+		const logService = new class extends mock<ILogService>() {
+			override trace(): void { }
+		}();
+		const provider = new GitHubAccountFilterProvider(userInfoStore, logService);
+
+		expect([false, true].map(value => {
+			isProxima = value;
+			const filters = provider.getFilters();
+			return {
+				legacy: filters.get('X-GitHub-Copilot-IsProxima'),
+				edge: filters.get('github_core_isproxima'),
+			};
+		})).toEqual([
+			{ legacy: '0', edge: undefined },
+			{ legacy: '1', edge: undefined },
 		]);
 	});
 });

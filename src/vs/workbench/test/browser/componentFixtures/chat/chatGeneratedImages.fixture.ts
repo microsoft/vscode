@@ -209,7 +209,7 @@ const batchGridInput = z.object({
 	harness: z.enum(['Copilot', 'Codex']).default('Copilot'),
 });
 
-async function renderBatchGrid(context: ComponentFixtureContext): Promise<void> {
+async function renderBatchGrid(context: ComponentFixtureContext, firstVariant = 0): Promise<void> {
 	const input = batchGridInput.parse(context.input);
 	context.container.classList.add('monaco-reduce-motion');
 	let completeButton: Button | undefined;
@@ -239,7 +239,7 @@ async function renderBatchGrid(context: ComponentFixtureContext): Promise<void> 
 				: { kind: 'generatedImage' },
 			resultDetails: running ? undefined : {
 				input: `{"prompt":"Landscape ${index + 1}"}`,
-				output: [{ type: 'embed', value: createImage(width, height, index), mimeType: 'image/png' }],
+				output: [{ type: 'embed', value: createImage(width, height, firstVariant + index), mimeType: 'image/png' }],
 			},
 		};
 	});
@@ -276,7 +276,7 @@ async function renderBatchGrid(context: ComponentFixtureContext): Promise<void> 
 					content: [], toolSpecificData: { kind: 'generatedImage' },
 					toolResultDetails: {
 						input: `{"prompt":"Landscape ${next + 1}"}`,
-						output: [{ type: 'embed', value: createImage(width, height, next), mimeType: 'image/png' }],
+						output: [{ type: 'embed', value: createImage(width, height, firstVariant + next), mimeType: 'image/png' }],
 					},
 				});
 				next++;
@@ -493,7 +493,9 @@ export default defineThemedFixtureGroup({ path: 'chat/generatedImages/' }, {
 	BatchGridNarrow: defineComponentFixture({
 		virtualTime: { enabled: false },
 		expectedVisualDescriptions: ['The download action remains beside the batch status without overflowing the narrow chat.'],
-		render: context => renderBatchGrid({ ...context, input: { width: 360, count: 10 } }),
+		// Use images that the wider batch fixtures don't render: in a shared page, Chromium can draw these small thumbnails
+		// from those fixtures' cached larger decodes, so the antialiasing would depend on which fixtures rendered first.
+		render: context => renderBatchGrid({ ...context, input: { width: 360, count: 10 } }, 10),
 	}),
 	BatchGridInProgress: defineComponentFixture({
 		virtualTime: { enabled: false },

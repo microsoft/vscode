@@ -27,6 +27,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { TerminalCapabilityStore } from '../../../../../platform/terminal/common/capabilities/terminalCapabilityStore.js';
 import { formatMessageForTerminal } from '../../../../../platform/terminal/common/terminalStrings.js';
+import { parseMarkSequence, ShellIntegrationOscPs } from '../../../../../platform/terminal/common/xterm/shellIntegrationAddon.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IEditorConfiguration } from '../../../../browser/parts/editor/textEditor.js';
 import { EditorModel } from '../../../../common/editor/editorModel.js';
@@ -424,8 +425,10 @@ export class TerminalMessagePeek extends Disposable implements IPeekOutputRender
 
 	/** Active terminal instance. */
 	private readonly terminal = this._register(new MutableDisposable<IDetachedTerminalInstance>());
+	private readonly terminalProcessInfo = this._register(new MutableDisposable<DetachedProcessInfo>());
 	/** Listener for streaming result data */
 	private readonly outputDataListener = this._register(new MutableDisposable());
+	private readonly outputMarkListener = this._register(new MutableDisposable());
 
 	constructor(
 		private readonly container: HTMLElement,
@@ -458,12 +461,14 @@ export class TerminalMessagePeek extends Disposable implements IPeekOutputRender
 			updateCwd: () => { },
 		});
 
-		return this.terminal.value = await this.terminalService.createDetachedTerminal({
+		const processInfo = this.terminalProcessInfo.value = new DetachedProcessInfo({ initialCwd: cwd.value });
+		const terminal = await this.terminalService.createDetachedTerminal({
 			rows: 10,
 			cols: 80,
 			readonly: true,
+			disableShellIntegrationReporting: true,
 			capabilities,
-			processInfo: new DetachedProcessInfo({ initialCwd: cwd.value }),
+			processInfo,
 			colorProvider: {
 				getBackgroundColor: theme => {
 					const terminalBackground = theme.getColor(TERMINAL_BACKGROUND_COLOR);
@@ -480,6 +485,12 @@ export class TerminalMessagePeek extends Disposable implements IPeekOutputRender
 				},
 			}
 		});
+		if (this._store.isDisposed) {
+			terminal.dispose();
+			return undefined;
+		}
+
+		return this.terminal.value = terminal;
 	}
 
 	public async update(subject: InspectSubject): Promise<boolean> {
@@ -559,14 +570,35 @@ export class TerminalMessagePeek extends Disposable implements IPeekOutputRender
 		}
 
 		const terminal = await this.makeTerminal();
+		if (!terminal || this._store.isDisposed) {
+			return;
+		}
+
+		// Only the selected message needs hidden output markers. Tracking every
+		// message makes xterm update thousands of unused markers as output scrolls.
+		const selectedMarker = opts.subject instanceof MessageSubject && opts.subject.message.type === TestMessageType.Output
+			? opts.subject.message.marker : undefined;
+		const selectedMarks = selectedMarker === undefined ? undefined : new Set([getMarkId(selectedMarker, true), getMarkId(selectedMarker, false)]);
+		this.outputMarkListener.value = terminal.xterm.registerOscHandler(ShellIntegrationOscPs.VSCode, data => {
+			if (!data.startsWith('SetMark;')) {
+				return false;
+			}
+			const mark = parseMarkSequence(data.split(';').slice(1));
+			return !!mark.hidden && (!mark.id || !selectedMarks?.has(mark.id));
+		});
 		let didWriteData = false;
 
-		const pendingWrites = new MutableObservableValue(0);
+		let pendingWrites = 0;
+		let resolveWrites: (() => void) | undefined;
 		if (result instanceof LiveTestResult) {
 			for (const chunk of opts.doInitialWrite(target, result)) {
 				didWriteData ||= chunk.byteLength > 0;
-				pendingWrites.value++;
-				terminal.xterm.write(chunk.buffer, () => pendingWrites.value--);
+				pendingWrites++;
+				terminal.xterm.write(chunk.buffer, () => {
+					if (--pendingWrites === 0) {
+						resolveWrites?.();
+					}
+				});
 			}
 		} else {
 			didWriteData = true;
@@ -596,14 +628,9 @@ export class TerminalMessagePeek extends Disposable implements IPeekOutputRender
 
 		// Ensure pending writes finish, otherwise the selection in `updateForTestSubject`
 		// can happen before the markers are processed.
-		if (pendingWrites.value > 0) {
+		if (pendingWrites > 0) {
 			await new Promise<void>(resolve => {
-				const l = pendingWrites.onDidChange(() => {
-					if (pendingWrites.value === 0) {
-						l.dispose();
-						resolve();
-					}
-				});
+				resolveWrites = resolve;
 			});
 		}
 
@@ -630,8 +657,10 @@ export class TerminalMessagePeek extends Disposable implements IPeekOutputRender
 
 	private clear() {
 		this.outputDataListener.clear();
+		this.outputMarkListener.clear();
 		this.xtermLayoutDelayer.cancel();
 		this.terminal.clear();
+		this.terminalProcessInfo.clear();
 	}
 
 	public layout(dimensions: dom.IDimension) {

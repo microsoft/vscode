@@ -14,6 +14,7 @@ import { escapeRegExpCharacters } from '../../../../base/common/strings.js';
 import { assertReturnsDefined } from '../../../../base/common/types.js';
 import './parameterHints.css';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from '../../../browser/editorBrowser.js';
+import { getEditorMarkdownSanitizerConfig } from '../../../browser/editorMarkdownSanitizer.js';
 import { EditorOption } from '../../../common/config/editorOptions.js';
 import { EDITOR_FONT_DEFAULTS } from '../../../common/config/fontInfo.js';
 import * as languages from '../../../common/languages.js';
@@ -270,6 +271,7 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 	private renderMarkdownDocs(markdown: IMarkdownString): IRenderedMarkdown {
 		const renderedContents = this.renderDisposeables.add(this.markdownRendererService.render(markdown, {
 			context: this.editor,
+			sanitizerConfig: getEditorMarkdownSanitizerConfig(this.editor),
 			asyncRenderCallback: () => {
 				this.domNodes?.scrollbar.scanDomNode();
 			}
@@ -356,7 +358,7 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 		const height = Math.max(this.editor.getLayoutInfo().height / 4, 250);
 		const maxHeight = `${height}px`;
 		this.domNodes.element.style.maxHeight = maxHeight;
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		const wrapper = this.domNodes.element.getElementsByClassName('phwrapper') as HTMLCollectionOf<HTMLElement>;
 		if (wrapper.length) {
 			wrapper[0].style.maxHeight = maxHeight;

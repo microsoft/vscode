@@ -54,6 +54,13 @@ suite('AgentSessionsCache', () => {
 		assert.deepStrictEqual(loaded.changes, summary);
 	});
 
+	test('round-trips the automation marker', () => {
+		const { cache } = createCache();
+		cache.saveCachedSessions([{ ...createSession(undefined), metadata: { isAutomation: true } }]);
+
+		assert.deepStrictEqual(cache.loadCachedSessions()[0].metadata, { isAutomation: true });
+	});
+
 	test('round-trips session chat children', () => {
 		const { cache } = createCache();
 		const session = createSession(undefined);

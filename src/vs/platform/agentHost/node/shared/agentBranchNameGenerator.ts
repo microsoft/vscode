@@ -4,15 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ILogService } from '../../../log/common/log.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { createDecorator } from '../../../instantiation/common/instantiation.js';
+import { AGENT_BRANCH_PREFIX } from '../../common/worktreePaths.js';
 import { ICopilotApiService, type ICopilotUtilityChatMessage } from './copilotApiService.js';
 
-/**
- * Branch-name prefix for worktree-isolated agent sessions, e.g.
- * `agents/add-feature`. Shared by every agent-host provider (Copilot, Codex,
- * Claude) via {@link WorktreeIsolation}.
- */
-export const AGENT_BRANCH_PREFIX = 'agents/';
 const AGENT_BRANCH_SESSION_ID_SUFFIX_LENGTH = 8;
 const MAX_BRANCH_NAME_HINT_LENGTH = 48;
 const MIN_GENERATED_BRANCH_NAME_LENGTH = 8;
@@ -20,9 +17,11 @@ const MAX_BRANCH_NAME_CANDIDATES = 100;
 
 export interface IAgentBranchNameGeneratorRequest {
 	readonly sessionId: string;
+	/** Agent session the branch is for, used only to attribute the utility model call in telemetry. */
+	readonly agentSessionId?: string;
 	readonly message?: string;
 	readonly githubToken?: string;
-	readonly signal?: AbortSignal;
+	readonly cancellationToken?: CancellationToken;
 	/**
 	 * Optional prefix prepended before the built-in {@link AGENT_BRANCH_PREFIX}
 	 * when constructing the branch name (e.g. the user's `git.branchPrefix`
@@ -63,14 +62,16 @@ export class AgentBranchNameGenerator implements IAgentBranchNameGenerator {
 			return undefined;
 		}
 
+		const lifetime = new DisposableStore();
 		try {
 			const rawBranchName = await this._copilotApiService.utilityChatCompletion(request.githubToken, {
 				messages: this._buildBranchNamePrompt(message),
+				telemetry: { source: 'git-branch', agentSessionId: request.agentSessionId },
 			}, {
-				signal: request.signal,
+				signal: request.cancellationToken && CancellationToken.toAbortSignal(request.cancellationToken, lifetime),
 			});
 
-			if (request.signal?.aborted) {
+			if (request.cancellationToken?.isCancellationRequested) {
 				return undefined;
 			}
 
@@ -92,6 +93,8 @@ export class AgentBranchNameGenerator implements IAgentBranchNameGenerator {
 		} catch (err) {
 			this._logService.warn('[AgentBranchNameGenerator] Failed to generate branch name', err);
 			return undefined;
+		} finally {
+			lifetime.dispose();
 		}
 	}
 

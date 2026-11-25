@@ -54,11 +54,10 @@ export interface McAuthOptions {
 /**
  * HTTP client for the Mission Control agent-session API.
  *
- * Wraps the four endpoints used by the Copilot CLI `/remote` command:
+ * Wraps the three endpoints used by the Copilot CLI `/remote` command:
  *  - `POST   /agents/sessions`                         — create session
  *  - `POST   /agents/sessions/{id}/events`             — submit events (+ ack completed commands)
  *  - `GET    /agents/sessions/{id}/commands`           — poll for steering commands
- *  - `DELETE /agents/sessions/{id}`                    — tear down session
  *
  * All requests are routed through {@link IFetcherService} so proxy, custom CA,
  * and telemetry configuration are applied consistently. Authentication uses a
@@ -161,26 +160,6 @@ export class MissionControlApiClient {
 			return data.commands ?? [];
 		} catch {
 			return [];
-		}
-	}
-
-	/**
-	 * Tear down a Mission Control session. Best-effort: failures are swallowed
-	 * so `/remote off` always completes locally even if the server is unreachable.
-	 */
-	async deleteSession(sessionId: string): Promise<void> {
-		try {
-			const { url, headers } = await this._buildRequest(`${SESSIONS_PATH}/${sessionId}`, {});
-			await this._fetcherService.fetch(url, {
-				callSite: 'copilotcli.mc.deleteSession',
-				// FetchOptions.method is typed narrowly (GET/POST/PUT) but the
-				// underlying fetcher forwards any string, so DELETE works at runtime.
-				method: 'DELETE' as 'POST',
-				headers,
-				timeout: REQUEST_TIMEOUT_MS,
-			});
-		} catch (err) {
-			this._logService.warn(`[MissionControlApiClient] deleteSession error: ${err}`);
 		}
 	}
 

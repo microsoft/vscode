@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { SessionEvent, ToolExecutionCompleteEvent, ToolExecutionStartEvent } from '@github/copilot/sdk';
 import * as l10n from '@vscode/l10n';
 import { ILogger } from '../../../platform/log/common/logService';
 import { URI } from '../../../util/vs/base/common/uri';
 import { ChatResponseCodeblockUriPart, ChatResponseMarkdownPart, ChatResponsePullRequestPart, ChatResponseTextEditPart, ChatResponseThinkingProgressPart, ChatToolInvocationPart, MarkdownString } from '../../../vscodeTypes';
 import type { ExtendedChatResponsePart } from 'vscode';
+import type { RenderedSessionEvent, SessionEventLike, ToolExecutionCompleteEvent, ToolExecutionStartEvent } from './sessionEventTypes';
 
 /**
  * A tool invocation entry tracked between `tool.execution_start` and
@@ -164,7 +164,9 @@ function extractPRMetadata(content: string): { cleanedContent: string; prPart?: 
  * the equivalent `subagent.*` SDK types before invoking — both follow the same
  * CMC OpenAPI schema, only the event-type names differ.
  */
-export function appendResponsePartsForEvent<TToolCall>(event: SessionEvent, ctx: ResponseEventRenderContext<TToolCall>): boolean {
+export function appendResponsePartsForEvent<TToolCall>(sessionEvent: SessionEventLike, ctx: ResponseEventRenderContext<TToolCall>): boolean {
+	// Events of other types fall through the switch and are left to the caller.
+	const event = sessionEvent as RenderedSessionEvent;
 	if (event.type !== 'assistant.message') {
 		flushPendingAssistantMessage(ctx);
 	}
@@ -233,6 +235,7 @@ export function appendResponsePartsForEvent<TToolCall>(event: SessionEvent, ctx:
 			ctx.currentResponseParts.push(new ChatResponseMarkdownPart(new MarkdownString(`_Aborted: ${event.data.reason}_`)));
 			return true;
 		}
+		default:
+			return false;
 	}
-	return false;
 }

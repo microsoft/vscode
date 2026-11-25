@@ -357,7 +357,10 @@
 	gap: var(--vscode-spacing-size20);
 }
 
-.modern-ui.monaco-workbench .scm-view .monaco-list-row .resource > .name > .monaco-icon-label::after {
+.modern-ui.monaco-workbench .scm-view .monaco-list-row .resource > .name > .monaco-icon-label::after,
+.modern-ui.monaco-workbench .scm-view .monaco-list-row .resource > .name > .monaco-icon-label > .monaco-decoration-badge-content,
+.modern-ui.monaco-workbench .scm-view .scm-structural-change-status,
+.modern-ui.monaco-workbench .scm-view .monaco-list-row .resource-group > .count {
 	margin-right: var(--vscode-spacing-size40);
 }
 

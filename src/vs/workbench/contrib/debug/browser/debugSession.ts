@@ -545,11 +545,15 @@ export class DebugSession implements IDebugSession {
 			const args: DebugProtocol.SetExceptionBreakpointsArguments = this.capabilities.supportsExceptionFilterOptions ? {
 				filters: [],
 				filterOptions: exbpts.map(exb => {
+					const filterOptions: DebugProtocol.ExceptionFilterOptions = { filterId: exb.filter };
 					if (exb.condition) {
-						return { filterId: exb.filter, condition: exb.condition };
+						filterOptions.condition = exb.condition;
+					}
+					if (exb.mode) {
+						filterOptions.mode = exb.mode;
 					}
 
-					return { filterId: exb.filter };
+					return filterOptions;
 				})
 			} : { filters: exbpts.map(exb => exb.filter) };
 

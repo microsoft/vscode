@@ -11,8 +11,9 @@ import { ColorScheme } from '../../../../../../platform/theme/common/theme.js';
 import { IColorTheme } from '../../../../../../platform/theme/common/themeService.js';
 import { chatDictationActiveMicGlow, chatVoiceGlowBaseColor, chatVoiceListeningGlow, chatVoiceSpeakingGlow } from '../../../common/widget/chatColors.js';
 import { resolveDictationMicAccent } from '../../../browser/speechToText/dictationMicGlow.js';
-import { computeVoiceMicGlowBoxShadow, DEFAULT_VOICE_GLOW_COLORS, GlowThemeKind, resolveVoiceGlowColors, resolveVoiceRimAccent, shouldRenderVoiceInputGlow } from '../../../browser/voiceClient/voiceGlow.js';
+import { DEFAULT_VOICE_GLOW_COLORS, GlowThemeKind, resolveVoiceGlowColors, resolveVoiceRimAccent, shouldRenderVoiceInputGlow } from '../../../browser/voiceClient/voiceGlow.js';
 import { createVoiceGlowController, createVoiceRimLight } from '../../../browser/voiceClient/voiceGlowController.js';
+import { registerTestIframe } from '../../../../../../base/test/browser/testWindow.js';
 
 suite('VoiceGlow', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -38,7 +39,6 @@ suite('VoiceGlow', () => {
 			active: target.classList.contains('voice-active'),
 			listening: target.classList.contains('voice-listening'),
 			warmRims: target.querySelectorAll('.voice-glow-rim-warm').length,
-			micShadow: computeVoiceMicGlowBoxShadow(0, colors),
 		};
 		controller.clear();
 		assert.deepStrictEqual({
@@ -49,7 +49,6 @@ suite('VoiceGlow', () => {
 			active: true,
 			listening: true,
 			warmRims: 0,
-			micShadow: '0 0 3px rgba(88,166,255,0.2)',
 			activeAfterClear: false,
 		});
 	});
@@ -75,6 +74,7 @@ suite('VoiceGlow', () => {
 		const iframe = document.createElement('iframe');
 		document.body.appendChild(iframe);
 		disposables.add(toDisposable(() => iframe.remove()));
+		disposables.add(registerTestIframe(iframe));
 
 		const auxiliaryDocument = iframe.contentDocument!;
 		const target = auxiliaryDocument.createElement('div');

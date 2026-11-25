@@ -17,15 +17,15 @@ import { IEditorGroup, IEditorGroupsService } from '../../../../../workbench/ser
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
-import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
+import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
+import { AgentWorkbenchLayout } from '../../../../../workbench/services/sessions/browser/sessionsHostLayoutService.js';
 import { NEW_CHANGES_TAB_COMMAND_ID } from '../../../editor/browser/addTabActions.js';
-import { SessionActivityBarActivityService } from '../../../../services/activity/common/sessionActivityBarActivityService.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { IChat, ISessionChangesSummary, ISessionFileChange, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
-import { ISessionChangesStatsCache } from '../../../../services/sessions/common/sessionChangesStatsCache.js';
-import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
+import { SessionActivityBarActivityService } from '../../../../../workbench/contrib/sessions/common/sessionActivityBarActivityService.js';
+import { IChat, ISessionChangesSummary, ISessionFileChange, ISessionWorkspace } from '../../../../../workbench/services/sessions/common/session.js';
+import { ISessionChangesStatsCache } from '../../../../../workbench/services/sessions/common/sessionChangesStatsCache.js';
 import { ChangesActivityContribution, hasNewChanges, MAX_SEEN_CHANGES_CHATS, SeenChangesStore } from '../../browser/changesActivity.js';
-import { ISessionChangesService } from '../../browser/sessionChangesService.js';
+import { ISessionChangesService } from '../../../../../workbench/contrib/sessionChanges/browser/sessionChangesService.js';
+import { focusedSessionHostServiceOf, ITestSessionWithChat } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('Sessions - Changes Activity', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -84,7 +84,7 @@ suite('Sessions - Changes Activity Contribution', () => {
 			changesets: constObservable([]),
 			changes,
 		});
-		const session = upcastPartial<IActiveSession>({
+		const session = upcastPartial<ITestSessionWithChat>({
 			resource: sessionResource,
 			sessionId: 'provider:session',
 			activeChat: constObservable(chat),
@@ -108,7 +108,7 @@ suite('Sessions - Changes Activity Contribution', () => {
 				onDidToggleSidePane: Event.None,
 				isSidePaneVisible: () => sidePaneVisible,
 			}),
-			upcastPartial<ISessionsService>({ activeSession: constObservable(session) }),
+			focusedSessionHostServiceOf(constObservable(session)),
 			upcastPartial<ISessionChangesService>({ getSessionResource: resource => resource.toString() === changesEditorResource.toString() ? sessionResource : undefined }),
 			upcastPartial<ISessionChangesStatsCache>({ get: () => undefined }),
 			upcastPartial<IEditorService>({
@@ -128,8 +128,8 @@ suite('Sessions - Changes Activity Contribution', () => {
 				sessionSummary.set(undefined, tx);
 				changes.set(value, tx);
 			}),
-			showChangesEditor: (where: 'main' | 'auxiliaryWindow' | undefined) => {
-				visibleEditorPanes = where ? [upcastPartial<IVisibleEditorPane>({ input: changesEditor, group: where === 'main' ? mainGroup : auxiliaryWindowGroup })] : [];
+			showChangesEditor: (where: 'main' | 'auxiliaryWindow' | undefined, withoutInput = false) => {
+				visibleEditorPanes = where ? [upcastPartial<IVisibleEditorPane>({ input: withoutInput ? undefined : changesEditor, group: where === 'main' ? mainGroup : auxiliaryWindowGroup })] : [];
 				onDidVisibleEditorsChange.fire();
 			},
 			setSidePaneVisible: (visible: boolean) => {
@@ -175,5 +175,14 @@ suite('Sessions - Changes Activity Contribution', () => {
 		harness.resolveSummary([fileChange(4)]);
 
 		assert.deepStrictEqual({ whileOnlySummaryKnown, afterFilesLoaded: harness.badge() }, { whileOnlySummaryKnown: false, afterFilesLoaded: false });
+	});
+
+	test('treats a visible pane without an input as not viewing the changes', () => {
+		const harness = createHarness();
+
+		harness.showChangesEditor('main', true);
+		harness.setChanges([fileChange(1)]);
+
+		assert.strictEqual(harness.badge(), true);
 	});
 });

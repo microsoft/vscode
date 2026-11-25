@@ -39,8 +39,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { autorun, derived, IObservable, observableValue } from '../../../../base/common/observable.js';
 import { FloatingEditorToolbarWidget } from '../../../../editor/contrib/floatingMenu/browser/floatingMenu.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { MULTI_DIFF_EDITOR_ID, MultiDiffEditorFileListAvailableContext, MultiDiffEditorFileListEnabledContext, MultiDiffEditorFileListPositionContext, MultiDiffEditorFileListViewMode, MultiDiffEditorFileListViewModeContext, MultiDiffEditorFileListVisibleContext, multiDiffEditorExperimentalFileListSetting, observableMultiDiffEditorFileListPosition, observableMultiDiffEditorFileListViewMode, observableMultiDiffEditorFileListVisible, observableWorkbenchMultiDiffEditorVariant, sortMultiDiffEditorFileListItems } from '../common/multiDiffEditor.js';
-import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
+import { bindMultiDiffEditorFileListContextKeys, MULTI_DIFF_EDITOR_ID, MultiDiffEditorFileListEnabledContext, MultiDiffEditorFileListViewMode, observableMultiDiffEditorFileListPosition, observableMultiDiffEditorFileListViewMode, observableMultiDiffEditorFileListVisible, observableWorkbenchMultiDiffEditorVariant, sortMultiDiffEditorFileListItems, toggleMultiDiffEditorFileList } from '../common/multiDiffEditor.js';
 import { MultiDiffEditorWithFileListWidget } from './multiDiffEditorWithFileListWidget.js';
 
 type ResourceOrder = (resources: readonly MultiDiffEditorItem[]) => readonly MultiDiffEditorItem[];
@@ -66,6 +65,10 @@ export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEdito
 	/** The order of the file list, which the diffs follow while it is used. */
 	private _fileListResourceOrder: IObservable<ResourceOrder> | undefined;
 	private readonly _inputResourceOrder = this._register(new MutableDisposable());
+	/** Whether the input offers the changed files list. */
+	private readonly _fileListAvailable = observableValue(this, true);
+	/** Whether the pane is visible, as the active editor of its group. */
+	private readonly _paneVisible = observableValue(this, false);
 
 	public get viewModel(): MultiDiffEditorViewModel | undefined {
 		return this._viewModel;
@@ -107,34 +110,26 @@ export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEdito
 
 	protected createEditor(parent: HTMLElement): void {
 		const variant = observableWorkbenchMultiDiffEditorVariant(this, this.configurationService);
-		if (this.configurationService.getValue<boolean>(multiDiffEditorExperimentalFileListSetting)) {
-			const fileListVisible = observableMultiDiffEditorFileListVisible(this, this.configurationService, this.storageService, this._store);
-			const fileListViewMode = observableMultiDiffEditorFileListViewMode(this, this.storageService, this._store);
-			const fileListPosition = observableMultiDiffEditorFileListPosition(this, this.storageService, this._store);
-			this._fileListResourceOrder = fileListViewMode.map(this, viewMode => fileListResourceOrders[viewMode]);
-			this._register(bindContextKey(MultiDiffEditorFileListAvailableContext, this.contextKeyService, () => true));
-			this._register(bindContextKey(MultiDiffEditorFileListEnabledContext, this.contextKeyService, reader => fileListVisible.read(reader)));
-			this._register(bindContextKey(MultiDiffEditorFileListViewModeContext, this.contextKeyService, reader => fileListViewMode.read(reader)));
-			this._register(bindContextKey(MultiDiffEditorFileListPositionContext, this.contextKeyService, reader => fileListPosition.read(reader)));
-			this._multiDiffEditorWithFileListWidget = this._register(this.instantiationService.createInstance(
-				MultiDiffEditorWithFileListWidget,
-				parent,
-				this.instantiationService.createInstance(WorkbenchUIElementFactory),
-				{ variant: variant.get() },
-				fileListVisible,
-				fileListViewMode,
-				fileListPosition,
-			));
-			this._register(bindContextKey(MultiDiffEditorFileListVisibleContext, this.contextKeyService, reader => this._multiDiffEditorWithFileListWidget!.isFileListVisible.read(reader)));
-			this._multiDiffEditorWidget = this._multiDiffEditorWithFileListWidget.multiDiffEditorWidget;
-		} else {
-			this._multiDiffEditorWidget = this._register(this.instantiationService.createInstance(
-				MultiDiffEditorWidget,
-				parent,
-				this.instantiationService.createInstance(WorkbenchUIElementFactory),
-				{ variant: variant.get() },
-			));
-		}
+		const fileListVisible = observableMultiDiffEditorFileListVisible(this, this._fileListAvailable, this.storageService, this._store);
+		const fileListViewMode = observableMultiDiffEditorFileListViewMode(this, this.storageService, this._store);
+		const fileListPosition = observableMultiDiffEditorFileListPosition(this, this.storageService, this._store);
+		this._fileListResourceOrder = fileListViewMode.map(this, viewMode => fileListResourceOrders[viewMode]);
+		this._register(bindMultiDiffEditorFileListContextKeys(this.contextKeyService, this._paneVisible, {
+			available: this._fileListAvailable,
+			visible: fileListVisible,
+			viewMode: fileListViewMode,
+			position: fileListPosition,
+		}));
+		this._multiDiffEditorWithFileListWidget = this._register(this.instantiationService.createInstance(
+			MultiDiffEditorWithFileListWidget,
+			parent,
+			this.instantiationService.createInstance(WorkbenchUIElementFactory),
+			{ variant: variant.get() },
+			fileListVisible,
+			fileListViewMode,
+			fileListPosition,
+		));
+		this._multiDiffEditorWidget = this._multiDiffEditorWithFileListWidget.multiDiffEditorWidget;
 		let currentVariant = variant.get();
 		this._register(autorun(reader => {
 			const nextVariant = variant.read(reader);
@@ -168,12 +163,13 @@ export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEdito
 
 	override async setInput(input: MultiDiffEditorInput, options: IMultiDiffEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		await super.setInput(input, options, context, token);
-		// Order the diffs like the file list before the view model is created. The input keeps
-		// the order when it is no longer shown, so that the diffs do not move when it is shown again.
+		this._fileListAvailable.set(input.showFileList, undefined);
+		// Order the diffs like the file list before the view model is created, unless the input has none. The input keeps
+		// the order when the list is no longer shown, so that the diffs do not move when it is shown again.
 		const fileListResourceOrder = this._fileListResourceOrder;
-		if (fileListResourceOrder) {
-			this._inputResourceOrder.value = autorun(reader => input.setResourceOrder(fileListResourceOrder.read(reader)));
-		}
+		this._inputResourceOrder.value = fileListResourceOrder && input.showFileList
+			? autorun(reader => input.setResourceOrder(fileListResourceOrder.read(reader)))
+			: undefined;
 		this._viewModel = await input.getViewModel();
 		this._contentOverlay.value?.updateResource(input.resource);
 
@@ -196,6 +192,11 @@ export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEdito
 		this._applyOptions(options);
 	}
 
+	protected override setEditorVisible(visible: boolean): void {
+		this._paneVisible.set(visible, undefined);
+		super.setEditorVisible(visible);
+	}
+
 	private _applyOptions(options: IMultiDiffEditorOptions | undefined): void {
 		const viewState = options?.viewState;
 		if (!viewState || !viewState.revealData) {
@@ -216,16 +217,18 @@ export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEdito
 	}
 
 	layout(dimension: DOM.Dimension): void {
-		if (this._multiDiffEditorWithFileListWidget) {
-			this._multiDiffEditorWithFileListWidget.layout(dimension);
-		} else {
-			this._multiDiffEditorWidget!.layout(dimension);
-		}
+		this._multiDiffEditorWithFileListWidget!.layout(dimension);
 	}
 
-	/** Moves keyboard focus to the file list, if it is shown. */
+	/** Moves focus into the changed files list, showing it first when the user has hidden it. Does nothing unless the input offers the list. */
 	public focusFileList(): void {
-		this._multiDiffEditorWithFileListWidget?.focusFileList();
+		if (!this._multiDiffEditorWithFileListWidget || !this._fileListAvailable.get()) {
+			return;
+		}
+		if (!MultiDiffEditorFileListEnabledContext.getValue(this.contextKeyService)) {
+			toggleMultiDiffEditorFileList(this.storageService);
+		}
+		this._multiDiffEditorWithFileListWidget.focusFileList();
 	}
 
 	override getControl(): ICompositeControl | undefined {

@@ -3,16 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from '../../../base/common/cancellation.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { IServerChannel, ProxyChannel } from '../../../base/parts/ipc/common/ipc.js';
 import { IDevContainerAgentHostMainService } from './devContainerAgentHost.js';
 
-/** Keeps discovery cancellation out of ProxyChannel's serialized method arguments. */
+/** Delivers sandbox support and user state facts without buffering, so they arrive before a rejected connect RPC disposes its listeners. */
 export function createDevContainerAgentHostChannel(service: IDevContainerAgentHostMainService, store: DisposableStore): IServerChannel {
-	const proxy = ProxyChannel.fromService(service, store, { unbufferedEvents: ['onDidChangeSandboxSupport'] });
-	return {
-		listen: (context, event, arg) => proxy.listen(context, event, arg),
-		call: (context, command, args, token) => proxy.call(context, command, command === 'listDevContainers' ? [token ?? CancellationToken.None] : args, token),
-	};
+	return ProxyChannel.fromService(service, store, { unbufferedEvents: ['onDidChangeSandboxSupport', 'onDidReportUserState'] });
 }

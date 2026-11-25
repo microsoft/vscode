@@ -3,10 +3,49 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DeferredPromise } from '../../base/common/async.js';
+import { DeferredPromise, raceTimeout } from '../../base/common/async.js';
 import { Event, Emitter } from '../../base/common/event.js';
 import { Disposable } from '../../base/common/lifecycle.js';
-import { IDialogArgs, IDialogResult } from '../../platform/dialogs/common/dialogs.js';
+import { OperatingSystem } from '../../base/common/platform.js';
+import { localize } from '../../nls.js';
+import { IDialogArgs, IDialogHandler, IDialogResult } from '../../platform/dialogs/common/dialogs.js';
+import { getRemoteName } from '../../platform/remote/common/remoteHosts.js';
+import { IRemoteAgentService } from '../services/remote/common/remoteAgentService.js';
+
+export async function showAboutDialog(handler: IDialogHandler, about: { title: string; details: string; detailsToCopy: string }, remoteAgentService: IRemoteAgentService): Promise<void> {
+	const connection = remoteAgentService.getConnection();
+	if (!connection) {
+		return handler.about(about.title, about.details, about.detailsToCopy);
+	}
+
+	const remoteName = getRemoteName(connection.remoteAuthority);
+	const connectionType = new Map([
+		['ssh-remote', localize('aboutRemoteConnectionSSH', "SSH")],
+		['wsl', localize('aboutRemoteConnectionWSL', "WSL")],
+		['dev-container', localize('aboutRemoteConnectionDevContainer', "Dev Container")],
+		['attached-container', localize('aboutRemoteConnectionAttachedContainer', "Attached Container")],
+		['tunnel', localize('aboutRemoteConnectionTunnel', "Tunnel")],
+		['codespaces', localize('aboutRemoteConnectionCodespaces', "Codespaces")],
+	]).get(remoteName ?? '') ?? localize('aboutRemoteConnectionOther', "Other");
+
+	const env = connection.isConnected ? await raceTimeout(remoteAgentService.getEnvironment(), 500) : undefined;
+	const os = env && new Map([
+		[OperatingSystem.Windows, 'Windows'],
+		[OperatingSystem.Macintosh, 'macOS'],
+		[OperatingSystem.Linux, 'Linux'],
+	]).get(env.os);
+
+	if (!os || !env) {
+		const connectionLine = localize('aboutRemoteConnectionType', "Remote connection: {0}", connectionType);
+		return handler.about(about.title, `${about.details}\n${connectionLine}`, `${about.detailsToCopy}\n${connectionLine}`);
+	}
+
+	// About is commonly pasted into public issues. Only include known architecture labels.
+	const platform = ['arm', 'arm64', 'ia32', 'x64'].includes(env.arch) ? `${os} ${env.arch}` : os;
+	const connectionLine = localize('aboutRemoteConnectionType', "Remote connection: {0}", connectionType);
+	const line = localize('aboutRemoteOS', "Remote OS: {0}", platform);
+	return handler.about(about.title, `${about.details}\n${connectionLine}\n${line}`, `${about.detailsToCopy}\n${connectionLine}\n${line}`);
+}
 
 export interface IDialogViewItem {
 	readonly args: IDialogArgs;

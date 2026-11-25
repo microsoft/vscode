@@ -12,12 +12,13 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAgentConnection, type AuthenticateParams } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IAgentHostAdvertisedAuthenticationResolver } from '../../../../../../platform/agentHost/common/agentHostAdvertisedAuthentication.js';
+import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IAgentHostMcpAuthenticationRequest } from '../../../../../../platform/agentHost/common/agentHostExtensionProtocol.js';
 import { ICloudSandboxAgentHostService } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
-import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostService, RemoteAgentHostConnectionStatus } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { IRemoteAgentHostConnectionInfo, type IRemoteAgentHostEntry, IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { AuthenticateTargetKind } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { McpAuthRequiredReason } from '../../../../../../platform/agentHost/common/state/protocol/channels-session/state.js';
-import { type INotification } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
+import { AuthRequiredReason, type INotification } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
@@ -27,6 +28,7 @@ import { ILogService, NullLogService } from '../../../../../../platform/log/comm
 import { IProgressService, type IProgressStep } from '../../../../../../platform/progress/common/progress.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
+import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IAgentHostFileSystemService } from '../../../../../services/agentHost/common/agentHostFileSystemService.js';
 import { IAuthenticationMcpAccessService } from '../../../../../services/authentication/browser/authenticationMcpAccessService.js';
 import { IAuthenticationMcpService } from '../../../../../services/authentication/browser/authenticationMcpService.js';
@@ -61,13 +63,16 @@ suite('Remote Agent Host silent MCP authentication', () => {
 		},
 	};
 
-	function fixture(customization?: IRemoteAgentHostConnectionCustomization, allowed = true, isSessionsWindow = true, address = 'cloudsandbox:remote') {
+	function fixture(customization?: IRemoteAgentHostConnectionCustomization, allowed = true, isSessionsWindow = true, address = 'cloudsandbox:remote', configuredEntries: readonly IRemoteAgentHostEntry[] = []) {
 		const instantiation = store.add(new TestInstantiationService());
 		const connectionsChanged = store.add(new Emitter<void>());
 		const notifications = store.add(new Emitter<INotification>());
 		const opened: { steps: IProgressStep[]; settled: Promise<unknown> }[] = [];
 		const sent: AuthenticateParams[] = [];
 		const sessionOptions: boolean[] = [];
+		const authenticationSent = new DeferredPromise<void>();
+		const authenticationError = new DeferredPromise<void>();
+		const errors: unknown[][] = [];
 		let handler: ((request: IAgentHostMcpAuthenticationRequest) => Promise<boolean>) | undefined;
 		let registered = true;
 		const connection = new class extends mock<IAgentConnection>() {
@@ -83,12 +88,14 @@ suite('Remote Agent Host silent MCP authentication', () => {
 			}
 			override async authenticate(params: AuthenticateParams) {
 				sent.push(params);
+				void authenticationSent.complete();
 				return { authenticated: true };
 			}
 		}();
 		instantiation.stub(IRemoteAgentHostService, new class extends mock<IRemoteAgentHostService>() {
 			override readonly onDidChangeConnections = connectionsChanged.event;
 			override readonly onDidChangeDisplayName = Event.None;
+			override readonly configuredEntries = configuredEntries;
 			override get connections() {
 				return registered ? [new class extends mock<IRemoteAgentHostConnectionInfo>() {
 					override readonly address = address;
@@ -136,15 +143,23 @@ suite('Remote Agent Host silent MCP authentication', () => {
 			}
 		}());
 		instantiation.stub(IConfigurationService, new TestConfigurationService());
-		instantiation.stub(ILogService, store.add(new NullLogService()));
+		instantiation.stub(ILogService, store.add(new class extends NullLogService {
+			override error(...args: unknown[]) {
+				errors.push(args);
+				void authenticationError.complete();
+			}
+		}()));
 		instantiation.stub(IAgentHostAdvertisedAuthenticationResolver, { takePendingSessionRemovals: () => [] });
 		instantiation.stub(ILabelService, { getHostLabel: () => 'Remote' });
 		instantiation.stub(ITelemetryService, NullTelemetryService);
+		instantiation.stub(IWorkspaceContextService, { onDidChangeWorkspaceFolders: Event.None, onDidChangeWorkbenchState: Event.None });
+		instantiation.stub(IAgentHostConnectionsService, {});
 		store.add(instantiation.createInstance(RemoteAgentHostContribution));
 		return {
 			authenticate: (value: IAgentHostMcpAuthenticationRequest) => { assert.ok(handler); return handler(value); }, sent, sessionOptions,
-			notifications, opened,
+			notifications, opened, authenticationSent: authenticationSent.p, authenticationError: authenticationError.p, errors,
 			removeConnection: () => { registered = false; connectionsChanged.fire(); },
+			shown: () => handler !== undefined,
 		};
 	}
 
@@ -159,6 +174,18 @@ suite('Remote Agent Host silent MCP authentication', () => {
 			assert.strictEqual(context.opened.length, 1);
 		});
 	}
+
+	test('an editor window shows the hosts its extensions register, as those its workspace lists', () => {
+		const address = 'remote.example:8081';
+		const registered: IRemoteAgentHostEntry = { name: 'Jobs', connection: { type: RemoteAgentHostEntryType.Extension, address, extensionId: 'publisher.jobs', extensionDisplayName: 'Jobs' } };
+		assert.deepStrictEqual({
+			registeredByAnExtension: fixture(undefined, true, false, address, [registered]).shown(),
+			neitherRegisteredNorListed: fixture(undefined, true, false, address).shown(),
+		}, {
+			registeredByAnExtension: true,
+			neitherRegisteredNorListed: false,
+		});
+	});
 
 	test('Agents window leaves progress to the session provider', () => {
 		const context = fixture();
@@ -185,6 +212,71 @@ suite('Remote Agent Host silent MCP authentication', () => {
 			authenticated: true, sent: [{ target: request.target, resource: 'https://docs.example/mcp', scopes: ['read'], token: 'docs-token' }],
 		});
 	});
+
+	test('renews an expired relay identity without authorization-server metadata or a provider session', async () => {
+		const identity = new DeferredPromise<AuthenticateParams>();
+		const calls: { environmentId: string; resource: string; renew: boolean }[] = [];
+		const customization = createCloudSandboxConnectionCustomization('cloudsandbox:remote',
+			new class extends mock<ICloudSandboxAgentHostService>() {
+				override resolveUserLocalAuthentication(environmentId: string, resource: string, renew = false) {
+					calls.push({ environmentId, resource, renew });
+					return identity.p;
+				}
+			}(), true);
+		const context = fixture(customization);
+		const challenge: INotification = {
+			type: 'auth/required', channel: 'ahp-root://', reason: AuthRequiredReason.Expired,
+			resource: { resource: 'https://api.github.com' },
+		};
+		context.notifications.fire(challenge);
+		context.notifications.fire(challenge);
+		await identity.complete({ resource: 'https://api.github.com', token: 'fresh-identity-token', expiresIn: 120 });
+		await context.authenticationSent;
+		assert.deepStrictEqual({ calls, sent: context.sent, sessionOptions: context.sessionOptions, errors: context.errors }, {
+			calls: [{ environmentId: 'remote', resource: 'https://api.github.com', renew: true }],
+			sent: [{ resource: 'https://api.github.com', token: 'fresh-identity-token', expiresIn: 120, scopes: undefined }],
+			sessionOptions: [],
+			errors: [],
+		});
+	});
+
+	test('user-local expiry challenges for other resources retain provider recovery', async () => {
+		const customization = createCloudSandboxConnectionCustomization('cloudsandbox:remote',
+			new class extends mock<ICloudSandboxAgentHostService>() { }(), true);
+		const context = fixture(customization);
+		context.notifications.fire({
+			type: 'auth/required', channel: 'ahp-root://', reason: AuthRequiredReason.Expired,
+			resource: request.auth.resource,
+		});
+		await context.authenticationSent;
+		assert.deepStrictEqual({ sent: context.sent, errors: context.errors }, {
+			sent: [{ resource: 'https://docs.example/mcp', scopes: ['read'], token: 'docs-token', accountId: '["docs-provider","account",null]' }],
+			errors: [],
+		});
+	});
+
+	for (const removed of [false, true]) {
+		test(`identity renewal ${removed ? 'disconnection' : 'failure'} never sends a fallback credential`, async () => {
+			const identity = new DeferredPromise<AuthenticateParams>();
+			const customization = createCloudSandboxConnectionCustomization('cloudsandbox:remote',
+				new class extends mock<ICloudSandboxAgentHostService>() {
+					override resolveUserLocalAuthentication() { return identity.p; }
+				}(), true);
+			const context = fixture(customization);
+			context.notifications.fire({
+				type: 'auth/required', channel: 'ahp-root://', reason: AuthRequiredReason.Expired,
+				resource: { resource: 'https://api.github.com' },
+			});
+			if (removed) {
+				context.removeConnection();
+				await identity.complete({ resource: 'https://api.github.com', token: 'fresh-identity-token' });
+			} else {
+				await identity.error(new Error('Identity renewal failed'));
+			}
+			await context.authenticationError;
+			assert.deepStrictEqual({ sent: context.sent, sessionOptions: context.sessionOptions }, { sent: [], sessionOptions: [] });
+		});
+	}
 
 	test('denied MCP access never seals or sends a credential', async () => {
 		let sealed = false;

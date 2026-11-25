@@ -230,7 +230,7 @@ export class PortsAttributes extends Disposable {
 				attributes.elevateIfNeeded = (found.elevateIfNeeded !== undefined) ? found.elevateIfNeeded : attributes.elevateIfNeeded;
 				attributes.label = found.label ?? attributes.label;
 				attributes.requireLocalPort = (found.requireLocalPort !== undefined) ? found.requireLocalPort : attributes.requireLocalPort;
-				attributes.protocol = found.protocol;
+				attributes.protocol = found.protocol ?? attributes.protocol;
 			} else {
 				// It's a range or regex, which means that if the attribute is already set, we keep it
 				attributes.onAutoForward = attributes.onAutoForward ?? found.onAutoForward;
@@ -558,7 +558,7 @@ export class TunnelModel extends Disposable {
 
 	private async addStorageKeyPostfix(prefix: string): Promise<string | undefined> {
 		const workspace = this.workspaceContextService.getWorkspace();
-		const workspaceHash = workspace.configuration ? hash(workspace.configuration.path) : (workspace.folders.length > 0 ? hash(workspace.folders[0].uri.path) : undefined);
+		const workspaceHash = workspace.uri ? hash(workspace.uri.path) : undefined;
 		if (workspaceHash === undefined) {
 			this.logService.debug('Could not get workspace hash for forwarded ports storage key.');
 			return undefined;

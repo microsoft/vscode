@@ -1,0 +1,79 @@
+name: Restore pnpm store cache
+description: Points pnpm at a store beside the workspace for the rest of the job, and restores it from the cache, so that `pnpm install` only downloads the packages that the store doesn't have.
+
+inputs:
+  key-prefix:
+    description: Prefix for the cache key, which names the install roots that the job installs. Jobs that install the same install roots share a store. The hashes of the platform, the pnpm version and the lockfiles are appended automatically.
+    required: true
+  lookup-only:
+    description: When 'true', doesn't download the store when the cache has it for these lockfiles (sets cache-hit). When the cache doesn't have it, the latest store of other lockfiles is restored, as when 'false'.
+    default: 'false'
+
+outputs:
+  cache-hit:
+    description: "'true' when the cache has the store of these lockfiles."
+    value: ${{ steps.lookup.outputs.cache-hit == 'true' || steps.restore.outputs.cache-hit == 'true' }}
+
+# The store is beside the workspace, where the workspace images keep it (see
+# .github/workflows/workspace_image/README.md): on the volume of the workspace, so that pnpm can hard
+# link from it, also on the Dev Drive of the Windows jobs. pnpm's metadata cache is inside it: it also
+# keeps the log of the lockfiles that passed the supply-chain policies, which pnpm then doesn't check
+# again (https://pnpm.io/continuous-integration).
+#
+# actions/cache doesn't save paths with `..` segments, and an absolute path would make the cache
+# version differ between runners whose workspaces have other paths. So the cache restores the store to
+# `.build/pnpm-store`, which has the same path on every runner, and the store is then moved beside the
+# workspace, which renames it on the same volume. save-pnpm-store moves it back to save it.
+#
+# A store holds the files of every package that it ever installed, so when the cache doesn't have the
+# store of these lockfiles, for example after a dependency change, the latest store of the same prefix
+# is restored, and pnpm downloads only the packages that it is missing. Save the store with
+# .github/actions/save-pnpm-store after the last installation of the job. A failing cache step doesn't
+# fail the job: pnpm then installs without the cached store.
+runs:
+  using: composite
+  steps:
+    - name: Prepare pnpm store cache key
+      if: runner.os != 'Windows'
+      shell: bash
+      run: node build/azure-pipelines/common/computePnpmStoreCacheKey.ts
+
+    - name: Prepare pnpm store cache key
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: node build/azure-pipelines/common/computePnpmStoreCacheKey.ts
+
+    - name: Check pnpm store cache
+      id: lookup
+      if: inputs.lookup-only == 'true'
+      continue-on-error: true
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: .build/pnpm-store
+        key: ${{ inputs.key-prefix }}-${{ hashFiles('.build/pnpmstorebase') }}-${{ hashFiles('.build/pnpmstorelockfiles') }}
+        lookup-only: 'true'
+
+    - name: Restore pnpm store cache
+      id: restore
+      if: steps.lookup.outputs.cache-hit != 'true'
+      continue-on-error: true
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: .build/pnpm-store
+        key: ${{ inputs.key-prefix }}-${{ hashFiles('.build/pnpmstorebase') }}-${{ hashFiles('.build/pnpmstorelockfiles') }}
+        restore-keys: ${{ inputs.key-prefix }}-${{ hashFiles('.build/pnpmstorebase') }}-
+
+    - name: Move pnpm store beside the workspace
+      if: steps.restore.outputs.cache-matched-key != ''
+      continue-on-error: true
+      shell: node {0}
+      run: |
+        const fs = require('fs');
+        fs.rmSync(process.env.pnpm_config_store_dir, { recursive: true, force: true });
+        fs.renameSync('.build/pnpm-store', process.env.pnpm_config_store_dir);
+
+    - name: Export pnpm store cache key
+      shell: node {0}
+      run: require('fs').appendFileSync(process.env.GITHUB_ENV, `PNPM_STORE_CACHE_KEY=${process.env.KEY}\n`);
+      env:
+        KEY: ${{ steps.restore.outputs.cache-primary-key || steps.lookup.outputs.cache-primary-key }}

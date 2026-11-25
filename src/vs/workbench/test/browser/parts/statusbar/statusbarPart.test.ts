@@ -16,7 +16,7 @@ import { MainStatusbarPart } from '../../../../browser/parts/statusbar/statusbar
 import { LayoutSettings } from '../../../../services/layout/browser/layoutService.js';
 import { TestContextMenuService, TestHostService, TestLayoutService, workbenchInstantiationService } from '../../workbenchTestServices.js';
 import { mock } from '../../../../../base/test/common/mock.js';
-import { STATUS_BAR_BACKGROUND, STATUS_BAR_INACTIVE_BACKGROUND, STATUS_BAR_NO_FOLDER_BACKGROUND } from '../../../../common/theme.js';
+import { MODERN_UI_INACTIVE_SHELL_BACKGROUND, MODERN_UI_SHELL_BACKGROUND, STATUS_BAR_BACKGROUND, STATUS_BAR_INACTIVE_BACKGROUND, STATUS_BAR_NO_FOLDER_BACKGROUND } from '../../../../common/theme.js';
 import { WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
@@ -324,6 +324,60 @@ suite('StatusbarPart', () => {
 		assert.deepStrictEqual({ whileDebugging, whileEmpty }, {
 			whileDebugging: 'rgb(68, 68, 68)',
 			whileEmpty: 'rgb(51, 51, 51)',
+		});
+	});
+
+	test('marks the main status bar when it is painted with the modern UI shell color', () => {
+		// Not imported from the debug contribution to avoid depending on a higher layer here.
+		const debuggingBackground = 'statusBar.debuggingBackground';
+		const configurationService = new TestConfigurationService();
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IConfigurationService, configurationService);
+		instantiationService.stub(IHoverService, new class extends mock<IHoverService>() { });
+		const hostService = new TestHostService();
+		const layoutService = new TestFloatingPanelsLayoutService();
+		layoutService.floatingPanelsEnabled = true;
+		const themeService = new TestThemeService(new TestColorTheme({
+			[STATUS_BAR_BACKGROUND]: '#191a1b',
+			[STATUS_BAR_INACTIVE_BACKGROUND]: '#121314',
+			[MODERN_UI_SHELL_BACKGROUND]: '#191a1b',
+			[MODERN_UI_INACTIVE_SHELL_BACKGROUND]: '#121314',
+			[debuggingBackground]: '#3994bc',
+		}));
+		const part = store.add(new TestMainStatusbarPart(
+			instantiationService,
+			themeService,
+			new TestContextService(),
+			store.add(new TestStorageService()),
+			layoutService,
+			new TestContextMenuService(),
+			store.add(new ContextKeyService(configurationService)),
+			configurationService,
+			hostService,
+		));
+		const container = document.createElement('div');
+		part.create(container);
+		const matchesShell = () => container.classList.contains('matches-shell-background');
+
+		const sameColor = matchesShell();
+		hostService.setFocus(false);
+		const sameInactiveColor = matchesShell();
+		hostService.setFocus(true);
+		const debugging = part.overrideStyle({ priority: 10, background: debuggingBackground });
+		const ownColor = matchesShell();
+		debugging.dispose();
+		themeService.setTheme(new TestColorTheme({ [MODERN_UI_SHELL_BACKGROUND]: '#000000' }));
+		const withoutColor = matchesShell();
+		layoutService.floatingPanelsEnabled = false;
+		part.updateStyles();
+		const classicLayout = matchesShell();
+
+		assert.deepStrictEqual({ sameColor, sameInactiveColor, ownColor, withoutColor, classicLayout }, {
+			sameColor: true,
+			sameInactiveColor: true,
+			ownColor: false,
+			withoutColor: true,
+			classicLayout: false,
 		});
 	});
 });

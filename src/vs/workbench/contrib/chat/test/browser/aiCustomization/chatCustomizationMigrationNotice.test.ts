@@ -31,6 +31,7 @@ import { CustomizationMigrationType, ICustomizationMigrationHint, ICustomization
 import { ChatConfiguration } from '../../../common/constants.js';
 import { PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { ICustomizationMigrationTelemetryService } from '../../../common/promptSyntax/service/customizationMigrationTelemetryService.js';
+import { IWorkbenchLayoutService } from '../../../../../services/layout/browser/layoutService.js';
 
 class TestMigrationService extends mock<ICustomizationMigrationService>() {
 	readonly requests: URI[] = [];
@@ -70,7 +71,7 @@ class TestMigrationTelemetryService extends mock<ICustomizationMigrationTelemetr
 suite('ChatCustomizationMigrationNotice', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function setup(showNotice = true) {
+	function setup(showNotice = true, phone = false) {
 		const instantiation = store.add(new TestInstantiationService());
 		const storage = store.add(new InMemoryStorageService());
 		const changed = store.add(new Emitter<void>());
@@ -108,6 +109,10 @@ suite('ChatCustomizationMigrationNotice', () => {
 		instantiation.stub(ILogService, new class extends mock<ILogService>() { }());
 		instantiation.stub(IHoverService, new class extends mock<IHoverService>() { }());
 		instantiation.stub(IOpenerService, new class extends mock<IOpenerService>() { }());
+		const mainContainer = dom.$('div');
+		mainContainer.classList.toggle('phone-layout', phone);
+		const layoutChanged = store.add(new Emitter<dom.IDimension>());
+		instantiation.stub(IWorkbenchLayoutService, { mainContainer, onDidLayoutMainContainer: layoutChanged.event });
 
 		const notice = store.add(instantiation.createInstance(
 			ChatCustomizationMigrationNotice,
@@ -119,8 +124,36 @@ suite('ChatCustomizationMigrationNotice', () => {
 			visible => visibility.push(visible),
 			undefined,
 		));
-		return { notice, context, hint, migrations, migrationTelemetry, storage, changed, commands, availability, visibility, get focusCount() { return focusCount; } };
+		return {
+			notice, context, hint, migrations, migrationTelemetry, storage, changed, commands, availability, visibility,
+			setPhoneLayout(phone: boolean) {
+				mainContainer.classList.toggle('phone-layout', phone);
+				layoutChanged.fire({ width: phone ? 390 : 1024, height: 844 });
+			},
+			get focusCount() { return focusCount; },
+		};
 	}
+
+	test('does not advertise migration management on phones and follows layout changes', async () => {
+		const env = setup(true, true);
+		const snapshot = () => ({
+			requests: env.migrations.requests.length,
+			visible: env.notice.element.style.display !== 'none',
+			available: env.availability.at(-1),
+		});
+		await timeout(0);
+		const phone = snapshot();
+		env.setPhoneLayout(false);
+		await timeout(0);
+		const desktop = snapshot();
+		env.setPhoneLayout(true);
+		await timeout(0);
+		assert.deepStrictEqual([phone, desktop, snapshot()], [
+			{ requests: 0, visible: false, available: false },
+			{ requests: 1, visible: true, available: true },
+			{ requests: 1, visible: false, available: false },
+		]);
+	});
 
 	test('shows, opens, and dismisses the migration notice', async () => {
 		const env = setup();
@@ -163,6 +196,30 @@ suite('ChatCustomizationMigrationNotice', () => {
 			available: env.availability.at(-1),
 		}, {
 			visible: false,
+			available: true,
+		});
+	});
+
+	test('coalesces synchronous discovery changes using the latest session context', async () => {
+		const env = setup(false);
+		for (let i = 0; i < 3; i++) {
+			env.changed.fire();
+		}
+		const latestContext = {
+			...env.context.get()!,
+			sessionResource: URI.parse('vscode-chat-session://local/materialized'),
+		};
+		env.context.set(latestContext, undefined);
+		const synchronousRequests = env.migrations.requests.length;
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			synchronousRequests,
+			requests: env.migrations.requests,
+			available: env.availability.at(-1),
+		}, {
+			synchronousRequests: 0,
+			requests: [latestContext.sessionResource],
 			available: true,
 		});
 	});

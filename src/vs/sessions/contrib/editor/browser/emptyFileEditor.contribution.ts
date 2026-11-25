@@ -19,11 +19,11 @@ import { EditorExtensions, IEditorFactoryRegistry } from '../../../../workbench/
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { NEW_UNTITLED_FILE_COMMAND_ID } from '../../../../workbench/contrib/files/browser/fileConstants.js';
-import { Menus } from '../../../browser/menus.js';
-import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
+import { AgentsWindowMenus } from '../../../browser/agentsWindowMenus.js';
+import { AgentWorkbenchLayout, ISessionsHostLayoutService } from '../../../../workbench/services/sessions/browser/sessionsHostLayoutService.js';
 import { EmptyFileEditor, EmptyFileEditorFocusedContext, OPEN_FILE_IN_EMPTY_EDITOR_COMMAND_ID } from './emptyFileEditor.js';
 import { EmptyFileEditorAccessibilityHelp } from './emptyFileEditorAccessibility.js';
-import { EmptyFileEditorInput, EmptyFileEditorSerializer } from './emptyFileEditorInput.js';
+import { EmptyFileEditorInput, EmptyFileEditorSerializer } from '../../../../workbench/contrib/sessions/browser/emptyFileEditorInput.js';
 import { EmptyFileEditorSearchPickerFocusedContext } from './emptyFileEditorSearch.js';
 
 /**
@@ -37,7 +37,7 @@ class DesktopEmptyFileEditorContribution extends Disposable implements IWorkbenc
 	static readonly ID = 'workbench.contrib.sessions.desktopEmptyFileEditor';
 
 	constructor(
-		@IAgentWorkbenchLayoutService layoutService: IAgentWorkbenchLayoutService,
+		@ISessionsHostLayoutService layoutService: ISessionsHostLayoutService,
 	) {
 		super();
 
@@ -75,7 +75,7 @@ registerAction2(class extends Action2 {
 				primary: KeyMod.CtrlCmd | KeyCode.KeyP,
 			},
 			menu: {
-				id: Menus.EmptyFileEditorActions,
+				id: AgentsWindowMenus.EmptyFileEditorActions,
 				group: 'navigation',
 				order: 1,
 			},
@@ -89,7 +89,7 @@ registerAction2(class extends Action2 {
 		}
 	}
 });
-MenuRegistry.appendMenuItem(Menus.EmptyFileEditorActions, {
+MenuRegistry.appendMenuItem(AgentsWindowMenus.EmptyFileEditorActions, {
 	command: {
 		id: NEW_UNTITLED_FILE_COMMAND_ID,
 		title: localize2('emptyFileEditor.newFile', "New File"),

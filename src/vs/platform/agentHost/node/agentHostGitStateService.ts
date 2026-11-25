@@ -8,25 +8,25 @@ import { isEqual } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { Emitter } from '../../../base/common/event.js';
 import { ILogService } from '../../log/common/log.js';
-import { IAgentHostGitStateService, IPullRequestLookupFailure, IRecordedPullRequestAssociationResult, META_GIT_DATA_STATE, META_GIT_STATE, META_GITHUB_DATA_STATE, META_PENDING_RECORDED_PULL_REQUESTS, META_SOURCE_CONTROL_STATE } from '../common/agentHostGitStateService.js';
+import { IAgentHostGitStateService, IPullRequestLookupFailure, IRefreshSessionGitStateOptions, IRecordedPullRequestAssociationResult, META_GIT_DATA_STATE, META_GIT_STATE, META_GITHUB_DATA_STATE, META_PENDING_RECORDED_PULL_REQUESTS, META_SOURCE_CONTROL_STATE } from '../common/agentHostGitStateService.js';
 import { AgentHostAutoAttachPullRequestsConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
 import { AgentHostAutoAttachPullRequestsSettingId } from '../common/agentService.js';
 import { CopilotCliVSCodeAssignmentContextKey } from '../common/copilotCliConfig.js';
 import { logSettingExperimentTrigger } from '../../telemetry/common/experimentTrigger.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
-import { getSessionRelatedPullRequestUrls, isAhpChatChannel, ISessionGitHubState, ISessionWithDefaultChat, readFolderGitHubState, readFolderScopeGitState, readSessionGitData, readSessionGitHubData, readSessionGitState, readSessionSourceControlState, SessionLifecycle, SessionSourceControlOutcome, withInitialSessionPullRequest, withMostRecentRelatedSessionPullRequest, withMostRecentSessionPullRequest, withFolderGitHubState, withFolderScopeGitState, withSessionGitState, withSessionSourceControlState, type ISessionGitState, type ISessionSourceControlState, type SessionSummaryMeta } from '../common/state/sessionState.js';
-import { IAgentHostGitService, resolveDiffBaseBranchName } from '../common/agentHostGitService.js';
+import { getSessionRelatedPullRequestUrls, isAhpChatChannel, ISessionGitHubState, ISessionWithDefaultChat, parseSubagentSessionUri, readFolderGitHubState, readFolderScopeGitState, readSessionGitData, readSessionGitHubData, readSessionGitState, readSessionSourceControlState, SessionLifecycle, SessionSourceControlOutcome, withInitialSessionPullRequest, withMostRecentRelatedSessionPullRequest, withMostRecentSessionPullRequest, withFolderGitHubState, withFolderScopeGitState, withSessionGitState, withSessionSourceControlState, type ISessionGitState, type ISessionSourceControlState, type SessionSummaryMeta } from '../common/state/sessionState.js';
+import { IAgentHostGitService } from '../common/agentHostGitService.js';
+import { ActionType } from '../common/state/sessionActions.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentHostSessionStateStore, SessionStateMirrorFlush } from '../common/agentHostSessionStateStore.js';
-import { IAgentConfigurationService } from './agentConfigurationService.js';
+import { getEffectiveWorkingDirectories, IAgentConfigurationService } from './agentConfigurationService.js';
 import { PullRequestSummary } from '../../github/common/core/pullRequests.js';
 import { getPullRequestUrlKey } from '../../github/common/githubUrls.js';
 import { GitHubRequestError } from '../../github/common/githubTypes.js';
 import { IAgentHostGitHubService } from './agentHostGitHubService.js';
 import { IAgentHostGitHubEndpointService } from './agentHostGitHubEndpointService.js';
-import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
-import { CancellationTokenSource } from '../../../base/common/cancellation.js';
-import { ThrottlerByKey, SequencerByKey, timeout } from '../../../base/common/async.js';
+import { Disposable, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { DeferredPromise, SequencerByKey, disposableTimeout } from '../../../base/common/async.js';
 import { isCancellationError } from '../../../base/common/errors.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { IAgentHostAuthenticationService } from './agentHostAuthenticationService.js';
@@ -41,6 +41,30 @@ interface IRepositoryCredentialContext {
 	readonly key: string;
 	readonly source: IAgentHostCredentialSource | undefined;
 	readonly sponsorUnavailable?: boolean;
+	/** The caller passed the credential source, rather than it being looked up for the key. */
+	readonly explicit?: boolean;
+}
+
+// We want to ensure that we refresh the git state at most every 5 seconds in
+// order to avoid excessive git operations and excessive traffic between the
+// server and the client(s).
+const GIT_STATE_REFRESH_COOLDOWN_MS = 5_000;
+
+/** Every refresh request of one key made since its lane's current read started, merged into the next read. */
+interface IPendingGitStateRefresh {
+	readonly credentials: IRepositoryCredentialContext;
+	/** Announce even when nothing changed, and never share a read that started before the request. */
+	readonly force: boolean;
+	/** Start as soon as no read of the key runs, without waiting out the cooldown. */
+	readonly immediate: boolean;
+	/** Completes once the read that serves these requests has published what it read. */
+	readonly done: DeferredPromise<void>;
+}
+
+/** The refreshes of one key: its current read or cooldown, and the requests waiting for the next read. A key without a lane is idle. */
+interface IGitStateRefreshLane {
+	phase: { readonly kind: 'reading' } | { readonly kind: 'coolingDown'; readonly timer: IDisposable };
+	pending: IPendingGitStateRefresh | undefined;
 }
 
 const PULL_REQUEST_CREATION_CLOCK_SKEW_MS = 5 * 60_000;
@@ -63,8 +87,12 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 	private readonly _onDidChangeSessionGitHubState = this._register(new Emitter<string>());
 	readonly onDidChangeSessionGitHubState = this._onDidChangeSessionGitHubState.event;
 
-	private readonly _gitStateRefreshThrottler = this._register(new ThrottlerByKey<string>());
-	private readonly _gitStateRefreshCancellationTokenSource = new CancellationTokenSource();
+	/** Refresh lanes of the keys whose Git state is being read or cooling down. */
+	private readonly _gitStateRefreshLanes = new Map<string, IGitStateRefreshLane>();
+	/** Reads of a folder's Git state in flight, by folder and base branch. */
+	private readonly _gitStateReads = new Map<string, Promise<ISessionGitState | undefined>>();
+	/** Keys whose first refresh has been announced, with their containing session. */
+	private readonly _announcedGitStateRefreshes = new Map<string, string>();
 	private readonly _gitStateSaves = new SequencerByKey<string>();
 
 	/**
@@ -97,10 +125,29 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 		super();
 
 		this._pullRequestAssociationResolver = this._register(new AgentHostPullRequestAssociationResolver(this._gitService, _gitHubService, this._logService));
-		this._register(toDisposable(() => this._gitStateRefreshCancellationTokenSource.dispose(true)));
+		// Reads in flight finish and complete their own requests; those waiting for a later read complete without one.
+		this._register(toDisposable(() => {
+			for (const lane of this._gitStateRefreshLanes.values()) {
+				if (lane.phase.kind === 'coolingDown') {
+					lane.phase.timer.dispose();
+				}
+				lane.pending?.done.complete();
+			}
+			this._gitStateRefreshLanes.clear();
+		}));
+		this._register(this._stateManager.onDidEmitEnvelope(envelope => {
+			if (envelope.action.type === ActionType.SessionChatRemoved) {
+				this._announcedGitStateRefreshes.delete(envelope.action.chat);
+			}
+		}));
 		this._register(this._stateManager.onDidRemoveSession(sessionKey => {
 			this._pullRequestAssociationResolver.removeSession(sessionKey);
 			this._pendingPullRequests.delete(sessionKey);
+			for (const [key, session] of this._announcedGitStateRefreshes) {
+				if (key === sessionKey || session === sessionKey) {
+					this._announcedGitStateRefreshes.delete(key);
+				}
+			}
 			for (const [key, session] of this._unavailableCredentialSessions) {
 				if (session === sessionKey) {
 					this._unavailableCredentialSessions.delete(key);
@@ -132,9 +179,9 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 		}));
 	}
 
-	async attachSessionGitHubPullRequest(sessionKey: string, workingDirectory: URI | undefined, source?: IAgentHostCredentialSource): Promise<IPullRequestLookupFailure | void> {
+	async attachSessionGitHubPullRequest(sessionKey: string, source?: IAgentHostCredentialSource): Promise<IPullRequestLookupFailure | void> {
 		const credentials = this._captureCredentials(sessionKey, source);
-		await this._refreshSessionGitState(sessionKey, workingDirectory, credentials);
+		await this._refreshSessionGitState(sessionKey, credentials);
 		if (isAhpChatChannel(sessionKey) && !this._chatOwnership.isRegisteredDefaultChat(sessionKey)) {
 			const folder = resolveGitHubStateFolder(this._stateManager, sessionKey);
 			if (folder.folderKey !== undefined) {
@@ -363,7 +410,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 		try {
 			const captured = this._gitHubService.captureSessionCredentialSource(key, source, session);
 			this._unavailableCredentialSessions.delete(key);
-			return { key, source: captured };
+			return { key, source: captured, explicit: source !== undefined };
 		} catch (error) {
 			if (source || !isAuthRequiredError(error)) {
 				this._logService.error(`[AgentHostGitStateService] Failed to capture credentials for ${key}`, error);
@@ -417,25 +464,39 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 			: state;
 	}
 
-	async refreshSessionGitState(sessionKey: string, workingDirectory: URI | undefined, source?: IAgentHostCredentialSource): Promise<void> {
-		return this._refreshSessionGitState(sessionKey, workingDirectory, this._captureCredentials(sessionKey, source));
+	/**
+	 * The directory a refresh of a key reads: its primary working directory, or, for a subagent session without one
+	 * of its own, the one its parent session's default chat works in. A chat whose state is not restored yet reads the
+	 * folder its catalog entry records.
+	 */
+	private _resolveGitStateWorkingDirectory(key: string): string | undefined {
+		if (isAhpChatChannel(key)) {
+			// Before its state is restored, a chat's folders are those recorded in its catalog entry, not its session's.
+			return getEffectiveWorkingDirectories(this._stateManager, key)?.[0];
+		}
+		const workingDirectory = this._getStateForGitScope(key)?.workingDirectories?.[0];
+		if (workingDirectory !== undefined) {
+			return workingDirectory;
+		}
+		const subagent = parseSubagentSessionUri(key);
+		if (!subagent) {
+			return undefined;
+		}
+		// A subagent works where its parent's default chat does, which can be a worktree the parent's summary does not name.
+		const parent = subagent.parentSession.toString();
+		return getEffectiveWorkingDirectories(this._stateManager, parent)?.[0] ?? this._resolveGitStateWorkingDirectory(parent);
 	}
 
-	private async _refreshSessionGitState(sessionKey: string, workingDirectory: URI | undefined, credentials: IRepositoryCredentialContext): Promise<void> {
-		const sessionState = this._getStateForGitScope(sessionKey);
-		if (sessionState?.lifecycle === SessionLifecycle.Failed) {
+	async refreshSessionGitState(sessionKey: string, source?: IAgentHostCredentialSource, options?: IRefreshSessionGitStateOptions): Promise<void> {
+		return this._refreshSessionGitState(sessionKey, this._captureCredentials(sessionKey, source), options);
+	}
+
+	private async _refreshSessionGitState(sessionKey: string, credentials: IRepositoryCredentialContext, options?: IRefreshSessionGitStateOptions): Promise<void> {
+		if (this._getStateForGitScope(sessionKey)?.lifecycle === SessionLifecycle.Failed) {
 			return;
 		}
-		const initialPrimaryWorkingDirectory = sessionState?.workingDirectories?.[0];
 
-		if (!workingDirectory) {
-			const workingDirectoryStr = initialPrimaryWorkingDirectory;
-			if (workingDirectoryStr) {
-				workingDirectory = URI.parse(workingDirectoryStr);
-			}
-		}
-
-		if (!workingDirectory) {
+		if (!this._resolveGitStateWorkingDirectory(sessionKey)) {
 			if (isAhpChatChannel(sessionKey) && this.getSessionGitState(sessionKey)) {
 				await this._setChatGitState(sessionKey, undefined);
 				this._onDidRefreshSessionGitState.fire(sessionKey);
@@ -443,89 +504,195 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 			return;
 		}
 
-		await this._gitStateRefreshThrottler.queue(sessionKey, async () => {
-			try {
-				this._logService.trace(`[AgentHostGitStateService][refreshSessionGitState] Refreshing git state for ${sessionKey}, ${workingDirectory?.fsPath}`);
+		return this._queueGitStateRefresh(sessionKey, {
+			credentials,
+			force: !!options?.force,
+			immediate: !!options?.immediate,
+		});
+	}
 
-				const baseBranchName = await this.resolveSessionBaseBranchName(sessionKey);
-				const gitState = await this._gitService.getSessionGitState(workingDirectory, baseBranchName);
-				const currentWorkingDirectory = this._getStateForGitScope(sessionKey)?.workingDirectories?.[0];
-				const primaryWorkingDirectoryChanged = initialPrimaryWorkingDirectory === undefined
-					? currentWorkingDirectory !== undefined
-					: currentWorkingDirectory === undefined || !isEqual(URI.parse(initialPrimaryWorkingDirectory), URI.parse(currentWorkingDirectory));
-				if (primaryWorkingDirectoryChanged) {
-					return;
+	/**
+	 * Reads of a key run one at a time and at most once per {@link GIT_STATE_REFRESH_COOLDOWN_MS}, unless
+	 * a request is immediate. A request made while a read runs or cools down waits for the next read, which
+	 * serves every request merged into it until then.
+	 */
+	private _queueGitStateRefresh(sessionKey: string, request: Omit<IPendingGitStateRefresh, 'done'>): Promise<void> {
+		if (this._store.isDisposed) {
+			return Promise.resolve();
+		}
+		const lane = this._gitStateRefreshLanes.get(sessionKey);
+		if (!lane) {
+			const refresh: IPendingGitStateRefresh = { ...request, done: new DeferredPromise<void>() };
+			this._startGitStateRefresh(sessionKey, refresh);
+			return refresh.done.p;
+		}
+		const pending = lane.pending;
+		const merged: IPendingGitStateRefresh = pending ? {
+			// A background refresh must not replace the credentials an operation passed.
+			credentials: pending.credentials.explicit && !request.credentials.explicit ? pending.credentials : request.credentials,
+			force: pending.force || request.force,
+			immediate: pending.immediate || request.immediate,
+			done: pending.done,
+		} : { ...request, done: new DeferredPromise<void>() };
+		lane.pending = merged;
+		if (lane.phase.kind === 'coolingDown' && merged.immediate) {
+			this._endGitStateRefreshLane(sessionKey, lane);
+		}
+		return merged.done.p;
+	}
+
+	private _startGitStateRefresh(sessionKey: string, refresh: IPendingGitStateRefresh): void {
+		const lane: IGitStateRefreshLane = { phase: { kind: 'reading' }, pending: undefined };
+		this._gitStateRefreshLanes.set(sessionKey, lane);
+		void this._runGitStateRefresh(sessionKey, lane, refresh);
+	}
+
+	private async _runGitStateRefresh(sessionKey: string, lane: IGitStateRefreshLane, refresh: IPendingGitStateRefresh): Promise<void> {
+		let coolDown = true;
+		try {
+			coolDown = await this._readAndPublishGitState(sessionKey, refresh);
+		} finally {
+			refresh.done.complete();
+			if (!this._store.isDisposed) {
+				if (coolDown && !lane.pending?.immediate) {
+					const timer = disposableTimeout(() => this._endGitStateRefreshLane(sessionKey, lane), GIT_STATE_REFRESH_COOLDOWN_MS);
+					lane.phase = { kind: 'coolingDown', timer };
+				} else {
+					this._endGitStateRefreshLane(sessionKey, lane);
 				}
-				// An `undefined` result is inconclusive: it is returned both when
-				// Git could not be queried (e.g. `git status` timed out) and when
-				// no repository was found. Keep the last known state so a
-				// transient failure does not drop the Git-backed changesets from
-				// the catalogue.
-				if (gitState) {
-					const previousGitState = this.getSessionGitState(sessionKey);
-					const gitStateChanged = !objectEquals(previousGitState, gitState);
-					if (gitStateChanged) {
-						if (isAhpChatChannel(sessionKey)) {
-							await this._setChatGitState(sessionKey, gitState);
-						} else {
-							await this._setSessionGitState(sessionKey, gitState);
-						}
-					}
+			}
+		}
+	}
 
-					const folder = isAhpChatChannel(sessionKey) ? resolveGitHubStateFolder(this._stateManager, sessionKey) : undefined;
-					// The session folder is refreshed and looked up through the session itself.
-					if (!credentials.sponsorUnavailable && folder && !folder.isSessionFolder && gitState.githubOwner && gitState.githubRepo) {
-						const currentGitHubState = this.getGitHubState(sessionKey);
-						if (currentGitHubState?.owner !== gitState.githubOwner || currentGitHubState.repo !== gitState.githubRepo) {
-							await this.setSessionGitHubState(sessionKey, {
-								owner: gitState.githubOwner,
-								repo: gitState.githubRepo
-							} satisfies ISessionGitHubState);
-						}
-						if (gitStateChanged && previousGitState?.branchName !== gitState.branchName) {
-							await this._queueFolderPullRequestLookup(folder, credentials);
-						}
-					}
+	/** Makes the key idle, then starts the read its pending requests wait for, if any. */
+	private _endGitStateRefreshLane(sessionKey: string, lane: IGitStateRefreshLane): void {
+		if (lane.phase.kind === 'coolingDown') {
+			lane.phase.timer.dispose();
+		}
+		this._gitStateRefreshLanes.delete(sessionKey);
+		const pending = lane.pending;
+		lane.pending = undefined;
+		if (pending) {
+			this._startGitStateRefresh(sessionKey, pending);
+		}
+	}
 
-					if (!credentials.sponsorUnavailable && !isAhpChatChannel(sessionKey) && gitState.githubOwner && gitState.githubRepo) {
-						const currentGitHubState = this.getGitHubState(sessionKey);
-						if (currentGitHubState?.owner !== gitState.githubOwner || currentGitHubState.repo !== gitState.githubRepo) {
-							await this.setSessionGitHubState(sessionKey, {
-								owner: gitState.githubOwner,
-								repo: gitState.githubRepo
-							} satisfies ISessionGitHubState);
-						}
+	/**
+	 * Reads the Git state of the directory a key resolves to when the read starts, and publishes what changed.
+	 * @returns Whether the key cools down before its next read; it does not when it resolved to no directory, or when
+	 * the result was dropped because the key moved to another directory during the read.
+	 */
+	private async _readAndPublishGitState(sessionKey: string, refresh: IPendingGitStateRefresh): Promise<boolean> {
+		const { credentials, force } = refresh;
+		const workingDirectory = this._resolveGitStateWorkingDirectory(sessionKey);
+		if (!workingDirectory) {
+			return false;
+		}
+		// A refresh announces itself only when it observed something new, when it is the first one, or when its caller knows the checkout changed in ways the state does not describe.
+		let announce = force || !this._announcedGitStateRefreshes.has(sessionKey);
+		try {
+			const workingDirectoryUri = URI.parse(workingDirectory);
+			this._logService.trace(`[AgentHostGitStateService][refreshSessionGitState] Refreshing git state for ${sessionKey}, ${workingDirectoryUri.fsPath}`);
 
-						// The working copy switched to a different branch:
-						// look for a pull request that belongs to the new
-						// branch. The previously known pull request keeps
-						// being reported until a new one is found. Awaited
-						// so the refresh event below carries the pull
-						// request of the new branch rather than stale
-						// GitHub state.
-						if (gitStateChanged && previousGitState?.branchName !== gitState.branchName) {
-							await this._queuePullRequestLookup(sessionKey, credentials);
-						}
+			const baseBranchRef = await this.resolveSessionBaseBranchRef(sessionKey);
+			const gitState = await this._readGitState(workingDirectoryUri, baseBranchRef, force);
+			const currentWorkingDirectory = this._resolveGitStateWorkingDirectory(sessionKey);
+			if (currentWorkingDirectory === undefined || !isEqual(workingDirectoryUri, URI.parse(currentWorkingDirectory))) {
+				// Not cooling down lets a refresh of the key's new working directory start right away.
+				return false;
+			}
+			// An `undefined` result is inconclusive: it is returned both when
+			// Git could not be queried (e.g. `git status` timed out) and when
+			// no repository was found. Keep the last known state so a
+			// transient failure does not drop the Git-backed changesets from
+			// the catalogue.
+			if (gitState) {
+				const previousGitState = this.getSessionGitState(sessionKey);
+				const gitStateChanged = !objectEquals(previousGitState, gitState);
+				if (gitStateChanged) {
+					announce = true;
+					if (isAhpChatChannel(sessionKey)) {
+						await this._setChatGitState(sessionKey, gitState);
+					} else {
+						await this._setSessionGitState(sessionKey, gitState);
 					}
 				}
 
+				const folder = isAhpChatChannel(sessionKey) ? resolveGitHubStateFolder(this._stateManager, sessionKey) : undefined;
+				// The session folder is refreshed and looked up through the session itself.
+				if (!credentials.sponsorUnavailable && folder && !folder.isSessionFolder && gitState.githubOwner && gitState.githubRepo) {
+					const currentGitHubState = this.getGitHubState(sessionKey);
+					if (currentGitHubState?.owner !== gitState.githubOwner || currentGitHubState.repo !== gitState.githubRepo) {
+						announce = true;
+						await this.setSessionGitHubState(sessionKey, {
+							owner: gitState.githubOwner,
+							repo: gitState.githubRepo
+						} satisfies ISessionGitHubState);
+					}
+					if (gitStateChanged && previousGitState?.branchName !== gitState.branchName) {
+						await this._queueFolderPullRequestLookup(folder, credentials);
+					}
+				}
+
+				if (!credentials.sponsorUnavailable && !isAhpChatChannel(sessionKey) && gitState.githubOwner && gitState.githubRepo) {
+					const currentGitHubState = this.getGitHubState(sessionKey);
+					if (currentGitHubState?.owner !== gitState.githubOwner || currentGitHubState.repo !== gitState.githubRepo) {
+						announce = true;
+						await this.setSessionGitHubState(sessionKey, {
+							owner: gitState.githubOwner,
+							repo: gitState.githubRepo
+						} satisfies ISessionGitHubState);
+					}
+
+					// The working copy switched to a different branch:
+					// look for a pull request that belongs to the new
+					// branch. The previously known pull request keeps
+					// being reported until a new one is found. Awaited
+					// so the refresh event below carries the pull
+					// request of the new branch rather than stale
+					// GitHub state.
+					if (gitStateChanged && previousGitState?.branchName !== gitState.branchName) {
+						await this._queuePullRequestLookup(sessionKey, credentials);
+					}
+				}
+			}
+
+			if (announce) {
+				this._announcedGitStateRefreshes.set(sessionKey, isAhpChatChannel(sessionKey) ? this._chatOwnership.getChatOwner(sessionKey) ?? sessionKey : sessionKey);
 				this._onDidRefreshSessionGitState.fire(sessionKey);
-				void this.reconcilePendingRecordedPullRequests(sessionKey).catch(error =>
-					this._logService.warn(`[AgentHostGitStateService] Failed to reconcile pending pull requests for ${sessionKey}`, error));
-
-				// We want to ensure that we refresh the git state at
-				// most every 5 seconds in order to avoid excessive git
-				// operations and excessive traffic between the server
-				// and the client(s).
-				await timeout(5_000, this._gitStateRefreshCancellationTokenSource.token);
-			} catch (error) {
-				if (isCancellationError(error)) {
-					return;
-				}
-
+			}
+			void this.reconcilePendingRecordedPullRequests(sessionKey).catch(error =>
+				this._logService.warn(`[AgentHostGitStateService] Failed to reconcile pending pull requests for ${sessionKey}`, error));
+		} catch (error) {
+			if (!isCancellationError(error)) {
 				this._logService.warn(`[AgentHostGitStateService][refreshSessionGitState] Failed to compute git state for ${sessionKey}:`, error);
 			}
-		});
+		}
+		return true;
+	}
+
+	/**
+	 * Chats working in the same folder refresh independently. Those refreshing while a read of the folder is in
+	 * flight share it. A forced refresh knows the checkout just changed, which a read that started earlier may not
+	 * reflect, so it only shares a read another forced refresh started.
+	 */
+	private _readGitState(workingDirectory: URI, baseBranchRef: string | undefined, fresh: boolean): Promise<ISessionGitState | undefined> {
+		const key = `${workingDirectory.toString()}\0${baseBranchRef ?? ''}`;
+		const freshKey = `${key}\0fresh`;
+		const inFlight = this._gitStateReads.get(freshKey) ?? (fresh ? undefined : this._gitStateReads.get(key));
+		if (inFlight) {
+			return inFlight;
+		}
+		const read = this._gitService.getSessionGitState(workingDirectory, baseBranchRef);
+		const readKey = fresh ? freshKey : key;
+		this._gitStateReads.set(readKey, read);
+		const clear = () => {
+			if (this._gitStateReads.get(readKey) === read) {
+				this._gitStateReads.delete(readKey);
+			}
+		};
+		read.then(clear, clear);
+		return read;
 	}
 
 	getSessionGitState(sessionKey: string): ISessionGitState | undefined {
@@ -549,6 +716,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 			...(currentGitState?.hasGitRemote !== undefined ? { hasGitRemote: currentGitState.hasGitRemote } : {}),
 			...(currentGitState?.hasGitHubRemote !== undefined ? { hasGitHubRemote: currentGitState.hasGitHubRemote } : {}),
 			...(currentGitState?.baseBranchName !== undefined ? { baseBranchName: currentGitState.baseBranchName } : {}),
+			...(currentGitState?.baseBranchRef !== undefined ? { baseBranchRef: currentGitState.baseBranchRef } : {}),
 			...(currentGitState?.defaultBranchName !== undefined ? { defaultBranchName: currentGitState.defaultBranchName } : {}),
 			...(currentGitState?.defaultRemoteBranchName !== undefined ? { defaultRemoteBranchName: currentGitState.defaultRemoteBranchName } : {}),
 			...(currentGitState?.githubOwner !== undefined ? { githubOwner: currentGitState.githubOwner } : {}),
@@ -578,10 +746,10 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 			return { pending: [], unmatched: [...urls] };
 		}
 		const workingDirectory = URI.parse(workingDirectoryString);
-		const baseBranchName = await this.resolveSessionBaseBranchName(chat);
+		const baseBranchRef = await this.resolveSessionBaseBranchRef(chat);
 		let gitState: ISessionGitState | undefined;
 		try {
-			gitState = await this._gitService.getSessionGitState(workingDirectory, baseBranchName);
+			gitState = await this._gitService.getSessionGitState(workingDirectory, baseBranchRef);
 		} catch (error) {
 			this._logService.warn(`[AgentHostGitStateService] Could not read the checkout while recording a pull request for ${folder.sessionUri}`, error);
 		}
@@ -689,10 +857,10 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 				const chatEntries = valid.filter(entry => entry.chat === chat);
 				const { workingDirectory, branchName, owner, repo } = chatEntries[0];
 				const directory = URI.parse(workingDirectory);
-				const baseBranchName = await this.resolveSessionBaseBranchName(chat);
+				const baseBranchRef = await this.resolveSessionBaseBranchRef(chat);
 				let gitState: ISessionGitState | undefined;
 				try {
-					gitState = await this._gitService.getSessionGitState(directory, baseBranchName);
+					gitState = await this._gitService.getSessionGitState(directory, baseBranchRef);
 				} catch (error) {
 					this._logService.warn(`[AgentHostGitStateService] Could not read the checkout for a pending pull request in ${session}`, error);
 					continue;
@@ -733,7 +901,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 				}
 				let latestGitState: ISessionGitState | undefined;
 				try {
-					latestGitState = await this._gitService.getSessionGitState(directory, baseBranchName);
+					latestGitState = await this._gitService.getSessionGitState(directory, baseBranchRef);
 				} catch (error) {
 					this._logService.warn(`[AgentHostGitStateService] Could not confirm the checkout for a pending pull request in ${session}`, error);
 					continue;
@@ -898,9 +1066,14 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 		});
 	}
 
-	async resolveSessionBaseBranchName(sessionKey: string): Promise<string | undefined> {
+	/**
+	 * Resolves the base branch recorded for `sessionKey` exactly as recorded (e.g. `refs/remotes/origin/main`), falling
+	 * back to the full ref its Git state names. Without either, it is `undefined` and the git service derives the default
+	 * branch's ref.
+	 */
+	async resolveSessionBaseBranchRef(sessionKey: string): Promise<string | undefined> {
 		const state = this._getStateForGitScope(sessionKey);
-		const gitStateBaseBranch = this.getSessionGitState(sessionKey)?.baseBranchName;
+		const gitStateBaseBranch = this.getSessionGitState(sessionKey)?.baseBranchRef;
 		const isSessionFolder = resolveGitHubStateFolder(this._stateManager, sessionKey).isSessionFolder;
 		if (!isSessionFolder && this._chatOwnership.isRegisteredDefaultChat(sessionKey)) {
 			return gitStateBaseBranch;
@@ -918,7 +1091,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 		}
 		try {
 			const persisted = await this._sessionStateStore.readBaseBranchWithoutImport(URI.parse(session), isChat && !this._chatOwnership.isRegisteredDefaultChat(sessionKey) ? sessionKey : undefined);
-			return resolveDiffBaseBranchName(persisted, gitStateBaseBranch);
+			return persisted || gitStateBaseBranch;
 		} catch (error) {
 			this._logService.warn(`[AgentHostGitStateService] Failed to read the persisted base branch for ${sessionKey}`, error);
 			return gitStateBaseBranch;

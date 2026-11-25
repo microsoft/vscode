@@ -78,4 +78,33 @@ suite('Sessions - Native Titlebar Part', () => {
 			]);
 		});
 	}
+
+	(isMacintosh ? test.skip : test)('marks the title bar that draws its own window controls, so that its last actions keep only their inset before them', () => {
+		const marked = (controlsStyle: string) => {
+			const configuration = new TestConfigurationService({ window: { titleBarStyle: 'custom', controlsStyle } });
+			const instantiationService = workbenchInstantiationService({ configurationService: () => configuration }, store);
+			instantiationService.stub(INativeHostService, new TestNativeHostService());
+			instantiationService.stub(INativeWorkbenchEnvironmentService, new class extends mock<INativeWorkbenchEnvironmentService>() {
+				override readonly os = { release: '6.0.0', hostname: 'test', arch: 'x64' };
+			}());
+			const container = append(mainWindow.document.body, $('.monaco-workbench.agent-sessions-workbench'));
+			store.add(toDisposable(() => container.remove()));
+			const part = store.add(instantiationService.createInstance(NativeTitlebarPart, Parts.TITLEBAR_PART, mainWindow));
+			part.create(append(container, $('.part.titlebar')));
+			return {
+				marked: !!part.element.querySelector('.sessions-titlebar-container.custom-window-controls'),
+				controls: part.element.querySelectorAll('.titlebar-right > .window-controls-container .window-icon').length,
+			};
+		};
+
+		assert.deepStrictEqual({
+			native: marked('native'),
+			custom: marked('custom'),
+			hidden: marked('hidden'),
+		}, {
+			native: { marked: false, controls: 0 },
+			custom: { marked: true, controls: 3 },
+			hidden: { marked: false, controls: 0 },
+		});
+	});
 });

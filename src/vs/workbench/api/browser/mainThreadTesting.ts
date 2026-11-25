@@ -5,6 +5,7 @@
 
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
+import { onUnexpectedError } from '../../../base/common/errors.js';
 import { Event } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { ISettableObservable, observableValue, transaction } from '../../../base/common/observable.js';
@@ -19,8 +20,9 @@ import { LiveTestResult } from '../../contrib/testing/common/testResult.js';
 import { ITestResultService } from '../../contrib/testing/common/testResultService.js';
 import { IMainThreadTestController, ITestService } from '../../contrib/testing/common/testService.js';
 import { CoverageDetails, ExtensionRunTestsRequest, IFileCoverage, ITestItem, ITestMessage, ITestRunProfile, ITestRunTask, ResolvedTestRunRequest, TestControllerCapability, TestResultState, TestRunProfileBitset, TestsDiffOp } from '../../contrib/testing/common/testTypes.js';
+import { SerializableObjectWithBuffers } from '../../services/extensions/common/proxyIdentifier.js';
 import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions/common/extHostCustomers.js';
-import { ExtHostContext, ExtHostTestingShape, ILocationDto, ITestControllerPatch, MainContext, MainThreadTestingShape } from '../common/extHost.protocol.js';
+import { ExtHostContext, ExtHostTestingShape, ILocationDto, ITestControllerPatch, MainContext, MainThreadTestingShape, TestRunUpdate } from '../common/extHost.protocol.js';
 
 @extHostNamedCustomer(MainContext.MainThreadTesting)
 export class MainThreadTesting extends Disposable implements MainThreadTestingShape {
@@ -129,6 +131,29 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 	/**
 	 * @inheritdoc
 	 */
+	$applyTestRunUpdates(controllerId: string, runId: string, updates: SerializableObjectWithBuffers<TestRunUpdate[]>): void {
+		for (const update of updates.value) {
+			try {
+				switch (update.type) {
+					case 'tests':
+						this.$addTestsToRun(controllerId, runId, update.tests);
+						break;
+					case 'state':
+						this.$updateTestStateInRun(runId, update.taskId, update.testId, update.state, update.duration);
+						break;
+					case 'messages':
+						this.$appendTestMessagesInRun(runId, update.taskId, update.testId, update.messages);
+						break;
+					case 'output':
+						this.$appendOutputToRun(runId, update.taskId, typeof update.output === 'string' ? VSBuffer.fromString(update.output) : update.output, update.location, update.testId);
+						break;
+				}
+			} catch (error) {
+				onUnexpectedError(error);
+			}
+		}
+	}
+
 	$addTestsToRun(controllerId: string, runId: string, tests: ITestItem.Serialized[]): void {
 		this.withLiveRun(runId, r => r.addTestChainToRun(controllerId,
 			tests.map(t => ITestItem.deserialize(this.uriIdentityService, t))));

@@ -55,7 +55,7 @@ export class AgentPluginRecommendations extends Disposable implements IWorkbench
 		let fetched: readonly IMarketplacePlugin[] = this._pluginMarketplaceService.lastFetchedPlugins.get();
 		if (fetched.length === 0) {
 			try {
-				fetched = await this._pluginMarketplaceService.fetchMarketplacePlugins(CancellationToken.None);
+				fetched = await this._pluginMarketplaceService.fetchMarketplacePlugins(CancellationToken.None, undefined, { priority: 'background' });
 			} catch {
 				return;
 			}

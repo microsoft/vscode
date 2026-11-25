@@ -5,6 +5,7 @@
 
 import { Disposable, DisposableMap } from '../../../../../../base/common/lifecycle.js';
 import { LRUCache } from '../../../../../../base/common/map.js';
+import { hasKey } from '../../../../../../base/common/types.js';
 import { localize } from '../../../../../../nls.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
@@ -48,8 +49,11 @@ export class AgentHostSandboxNotifications extends Disposable implements IWorkbe
 				// A chat's failed change is in its own entry; the session-level one is the default chat's or an older host's.
 				for (const state of [readSessionSandboxState(envelope.action), ...readChatSandboxStates(envelope.action).values()]) {
 					const error = state?.error;
-					const key = error && `${envelope.channel}\n${error.clientSeq}`;
-					if (!error || !key || error.clientId !== connection.clientId || reported.get(key)) {
+					if (!error || (hasKey(error, { clientId: true }) && error.clientId !== connection.clientId)) {
+						continue;
+					}
+					const key = `${envelope.channel}\n${hasKey(error, { id: true }) ? `host:${error.id}` : `client:${error.clientSeq}`}`;
+					if (reported.get(key)) {
 						continue;
 					}
 					reported.set(key, true);

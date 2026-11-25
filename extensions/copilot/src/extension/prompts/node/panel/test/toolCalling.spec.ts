@@ -28,7 +28,7 @@ import { renderPromptElement } from '../../base/promptRenderer';
 import { ChatToolCalls, getInvalidImagePlaceholder } from '../toolCalling';
 import { ChatImageMimeType } from '../../../../conversation/common/languageModelChatMessageHelpers';
 import { nonImages, realImages } from '../../../../../util/common/test/imageFixtures';
-import { URI } from 'vscode-uri';
+import { URI } from '../../../../../util/vs/base/common/uri';
 
 class CapturingChatHookService implements IChatHookService {
 	declare readonly _serviceBrand: undefined;

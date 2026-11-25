@@ -18,6 +18,8 @@ import { runWithFakedTimers } from '../../../../../base/test/common/virtualSched
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
 import { IAccessibleViewService } from '../../../../../platform/accessibility/browser/accessibleView.js';
+import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
+import { TestAccessibilityService } from '../../../../../platform/accessibility/test/common/testAccessibilityService.js';
 import type { IActionListItem } from '../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
 import { AGENT_HOST_TERMINAL_MAX_CONTENT_LENGTH } from '../../../../../platform/agentHost/common/terminalConstants.js';
@@ -25,6 +27,7 @@ import { IContextKeyService } from '../../../../../platform/contextkey/common/co
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { ILayoutService } from '../../../../../platform/layout/browser/layoutService.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { INotificationService, type NotificationMessage } from '../../../../../platform/notification/common/notification.js';
 import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
@@ -33,7 +36,7 @@ import type { IChatPillEntry } from '../../../../browser/chatPills.js';
 import { IDetachedTerminalInstance, IDetachedXtermTerminal, IDetachedXTermOptions, ITerminalService } from '../../../terminal/browser/terminal.js';
 import { SessionBackgroundShellsControl, type IChatBackgroundShellsSource } from '../../browser/sessionBackgroundShellsControl.js';
 import { sessionBackgroundShellsPillOptions } from '../../browser/sessionChatPillOptions.js';
-import type { ChatBackgroundShellOutput, IChatBackgroundShell } from '../../common/sessionChatPills.js';
+import type { ChatBackgroundShellOutput, IChatBackgroundShell } from '../../../../common/chatBackgroundShell.js';
 
 suite('SessionBackgroundShellsControl', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -320,6 +323,10 @@ suite('SessionBackgroundShellsControl', () => {
 		instantiationService.stub(ILanguageService, {});
 		instantiationService.stub(IModelService, {});
 		instantiationService.stub(IFileService, {});
+		instantiationService.stub(IAccessibilityService, new TestAccessibilityService());
+		instantiationService.stub(ILayoutService, new class extends mock<ILayoutService>() {
+			override getContainer() { return mainWindow.document.body; }
+		}());
 		const shells = constObservable<readonly IChatBackgroundShell[]>([{
 			id: 'stream', description: 'Stream', command: 'stream.sh', startedAt: new Date(0).toISOString(),
 			output: constObservable<ChatBackgroundShellOutput>({ status: 'running', text: 'step 1\n' }),

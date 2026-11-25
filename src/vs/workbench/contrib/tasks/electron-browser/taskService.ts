@@ -22,6 +22,7 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { IWorkspaceEditingService } from '../../../services/workspaces/common/workspaceEditing.js';
 import { IMarkerService } from '../../../../platform/markers/common/markers.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
@@ -98,7 +99,8 @@ export class TaskService extends AbstractTaskService {
 		@IAccessibilitySignalService accessibilitySignalService: IAccessibilitySignalService,
 		@IChatService _chatService: IChatService,
 		@IChatAgentService _chatAgentService: IChatAgentService,
-		@IHostService _hostService: IHostService
+		@IHostService _hostService: IHostService,
+		@IWorkspaceEditingService workspaceEditingService: IWorkspaceEditingService
 	) {
 		super(configurationService,
 			markerService,
@@ -138,7 +140,8 @@ export class TaskService extends AbstractTaskService {
 			instantiationService,
 			_chatService,
 			_chatAgentService,
-			_hostService
+			_hostService,
+			workspaceEditingService
 		);
 		this._register(lifecycleService.onBeforeShutdown(event => event.veto(this.beforeShutdown(), 'veto.tasks')));
 	}

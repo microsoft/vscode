@@ -68,6 +68,7 @@ function getSessionToolNames(supportsWorkspaceChange: boolean): readonly Session
 		SessionServerToolName.GetCurrentSession,
 		...(supportsWorkspaceChange ? [SessionServerToolName.SetWorkspace] : []),
 		SessionServerToolName.CreateSession,
+		SessionServerToolName.ArchiveChat,
 		SessionServerToolName.SendMessage,
 		SessionServerToolName.GetSessionContext,
 		SessionServerToolName.DeleteSession,

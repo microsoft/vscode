@@ -6,12 +6,14 @@
 import assert from 'assert';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { basename } from '../../../../base/common/path.js';
+import type * as vscode from 'vscode';
+import { timeout } from '../../../../base/common/async.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { ILogService, NullLogService } from '../../../../platform/log/common/log.js';
 import { IWorkspaceFolderData } from '../../../../platform/workspace/common/workspace.js';
 import { MainThreadWorkspace } from '../../browser/mainThreadWorkspace.js';
-import { IMainContext, IWorkspaceData, MainContext, ITextSearchComplete, MainThreadTelemetryShape } from '../../common/extHost.protocol.js';
+import { IMainContext, IWorkspaceData, MainContext, ITextSearchComplete, MainThreadTelemetryShape, MainThreadWorkspaceShape } from '../../common/extHost.protocol.js';
 import { RelativePattern } from '../../common/extHostTypes.js';
 import { ExtHostWorkspace } from '../../common/extHostWorkspace.js';
 import { mock } from '../../../../base/test/common/mock.js';
@@ -45,7 +47,7 @@ function createExtHostWorkspace(mainContext: IMainContext, data: IWorkspaceData,
 
 suite('ExtHostWorkspace', function () {
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	function assertAsRelativePath(workspace: ExtHostWorkspace, input: string, expected: string, includeWorkspace?: boolean) {
 		const actual = workspace.getRelativePath(input, includeWorkspace);
@@ -268,6 +270,73 @@ suite('ExtHostWorkspace', function () {
 		ws.$acceptWorkspaceData({ id: 'foo', name: 'Test', folders: [aWorkspaceFolderData(URI.parse('foo:bar3'), 0), aWorkspaceFolderData(URI.parse('foo:bar'), 1)] });
 
 		assert.notStrictEqual(firstFolder, ws.workspace!.folders[0]);
+	});
+
+	suite('workspace folder locations', function () {
+
+		function create(folders = [aWorkspaceFolderData(URI.parse('foo:bar'), 0, 'bar')]) {
+			const rpc = new TestRPCProtocol();
+			let requests = 0;
+			rpc.set(MainContext.MainThreadWorkspace, new class extends mock<MainThreadWorkspaceShape>() {
+				override $getWorkspaceFolderLocations(): void { requests++; }
+			});
+			const ws = createExtHostWorkspace(rpc, { id: 'foo', name: 'Test', folders }, new NullLogService());
+			return { ws, requests: () => requests };
+		}
+
+		const view = (folder: vscode.WorkspaceFolder | undefined) => folder?.locations?.map(l => [l.uri.toString(), l.name]);
+
+		test('locations are undefined and resolution starts on the first subscription only', async function () {
+			const { ws, requests } = create();
+
+			await timeout(0);
+			assert.deepStrictEqual({ locations: ws.getWorkspaceFolders()![0].locations, requests: requests() }, { locations: undefined, requests: 0 });
+
+			store.add(ws.onDidChangeWorkspaceFolderLocations(() => { }));
+			store.add(ws.onDidChangeWorkspaceFolderLocations(() => { }));
+			await timeout(0);
+			assert.strictEqual(requests(), 1);
+		});
+
+		test('locations are set in place and fire an event once per change, ignoring unknown folders', function () {
+			const { ws } = create();
+			const folder = ws.getWorkspaceFolders()![0];
+			const events: string[][] = [];
+			store.add(ws.onDidChangeWorkspaceFolderLocations(e => events.push(e.workspaceFolders.map(f => f.uri.toString()))));
+
+			const locations = [{ uri: URI.parse('foo:bar'), name: 'main' }, { uri: URI.parse('foo:wt'), name: 'wt' }];
+			const dto = [{ folder: URI.parse('foo:unknown'), locations }, { folder: URI.parse('foo:bar'), locations }];
+			ws.$acceptWorkspaceFolderLocations(dto);
+			ws.$acceptWorkspaceFolderLocations(dto);
+			ws.$acceptWorkspaceFolderLocations([{ folder: URI.parse('foo:bar'), locations: [locations[0], { ...locations[1], name: 'renamed' }] }]);
+
+			assert.deepStrictEqual({ same: ws.getWorkspaceFolders()![0] === folder, locations: view(folder), events }, {
+				same: true,
+				locations: [['foo:bar', 'main'], ['foo:wt', 'renamed']],
+				events: [['foo:bar'], ['foo:bar']]
+			});
+		});
+
+		test('locations are kept while the folder is reused', function () {
+			const { ws } = create();
+			const folder = ws.getWorkspaceFolders()![0];
+			ws.$acceptWorkspaceFolderLocations([{ folder: URI.parse('foo:bar'), locations: [{ uri: URI.parse('foo:bar'), name: 'main' }] }]);
+			ws.$acceptWorkspaceData({ id: 'foo', name: 'Test', folders: [aWorkspaceFolderData(URI.parse('foo:other'), 0), aWorkspaceFolderData(URI.parse('foo:bar'), 1, 'bar')] });
+
+			assert.deepStrictEqual({ same: ws.getWorkspaceFolders()![1] === folder, other: ws.getWorkspaceFolders()![0].locations, kept: view(folder) }, {
+				same: true, other: undefined, kept: [['foo:bar', 'main']]
+			});
+		});
+
+		test('locations of a Windows drive folder match regardless of drive letter case', function () {
+			const { ws } = create([aWorkspaceFolderData(URI.from({ scheme: 'file', path: '/C:/work/repo' }), 0, 'repo')]);
+			const events: number[] = [];
+			store.add(ws.onDidChangeWorkspaceFolderLocations(() => events.push(1)));
+
+			ws.$acceptWorkspaceFolderLocations([{ folder: URI.from({ scheme: 'file', path: '/c:/work/repo' }), locations: [{ uri: URI.from({ scheme: 'file', path: '/C:/work/repo' }), name: 'repo' }] }]);
+
+			assert.deepStrictEqual({ locations: view(ws.getWorkspaceFolders()![0]), events: events.length }, { locations: [['file:///c%3A/work/repo', 'repo']], events: 1 });
+		});
 	});
 
 	test('updateWorkspaceFolders - invalid arguments', function () {

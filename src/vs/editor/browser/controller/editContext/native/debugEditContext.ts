@@ -187,7 +187,7 @@ function createDiv(text: string, selectionStart: number, selectionEnd: number) {
 	const afterNode = document.createTextNode(after);
 	ret.appendChild(afterNode);
 
-	// eslint-disable-next-line no-restricted-syntax
+	// eslint-disable-next-line eslint-js/no-restricted-syntax
 	document.body.appendChild(ret);
 
 	return {
@@ -210,7 +210,7 @@ function createRect(rect: DOMRect, color: 'green' | 'blue' | 'red') {
 	ret.style.width = rect.width + 'px';
 	ret.style.height = rect.height + 'px';
 
-	// eslint-disable-next-line no-restricted-syntax
+	// eslint-disable-next-line eslint-js/no-restricted-syntax
 	document.body.appendChild(ret);
 
 	return {

@@ -8,262 +8,12 @@ import { createTextDocument } from '../../test/textDocument';
 import { TextDocumentManager } from '../../textDocumentManager';
 import {
 	BlockPositionType,
-	BlockTrimmer,
 	getBlockPositionType,
 	TerseBlockTrimmer,
-	VerboseBlockTrimmer,
 } from '../blockTrimmer';
 const x = TextDocumentManager;
 console.log(x);
 
-suite('VerboseBlockTrimmer', function () {
-	test('.getCompletionTrimOffset() returns undefined when it is under the line limit', async function () {
-		await testCompletionTrimming(dedent`
-			function twoWayMerge<T>(sortedList1: T[], sortedList2: T[]): T[] {
-				let mergedList: T[] = [];
-				let i = 0;
-				let j = 0;
-				âšwhile (i < sortedList1.length && j < sortedList2.length) {
-					if (compareNumbers(sortedList1[i], sortedList2[j]) <= 0) {
-						mergedList.push(sortedList1[i]);
-						i++;
-					} else {
-						mergedList.push(sortedList2[j]);
-						j++;
-					}
-				}
-		`);
-	});
-
-	test('.getCompletionTrimOffset() does not trim trailing newlines', async function () {
-		await testCompletionTrimming(
-			dedent`
-			function twoWayMerge<T>(sortedList1: T[], sortedList2: T[]): T[] {
-				let mergedList: T[] = [];
-				let i = 0;
-				let j = 0;
-				âšwhile (i < sortedList1.length && j < sortedList2.length) {
-					if (compareNumbers(sortedList1[i], sortedList2[j]) <= 0) {
-						mergedList.push(sortedList1[i]);
-						i++;
-					} else {
-						mergedList.push(sortedList2[j]);
-						j++;
-					}
-				}
-			` + '\n'
-		);
-	});
-
-	test('.getCompletionTrimOffset() trims to the containing block even if under the limit', async function () {
-		await testCompletionTrimming(dedent`
-			function twoWayMerge<T>(sortedList1: T[], sortedList2: T[]): T[] {
-				âšlet mergedList: T[] = [];
-				let i = 0;
-				let j = 0;
-			}âœ‚ï¸
-			const merged = twoWayMerge([1, 2, 3], [4, 5, 6]);
-		`);
-	});
-
-	test('.getCompletionTrimOffset() trims at a blank line when one is found', async function () {
-		await testCompletionTrimming(dedent`
-			function twoWayMerge<T>(sortedList1: T[], sortedList2: T[]): T[] {
-				âšlet mergedList: T[] = [];
-				let i = 0;
-				let j = 0;âœ‚ï¸
-
-				while (i < sortedList1.length && j < sortedList2.length) {
-					if (compareNumbers(sortedList1[i], sortedList2[j]) <= 0) {
-						mergedList.push(sortedList1[i]);
-						i++;
-					} else {
-						mergedList.push(sortedList2[j]);
-						j++;
-					}
-				}
-
-				while (i < sortedList1.length) {
-					mergedList.push(sortedList1[i]);
-					i++;
-				}
-		`);
-	});
-
-	test('.getCompletionTrimOffset() trims at a statement when no blank lines are present', async function () {
-		await testCompletionTrimming(dedent`
-			function twoWayMerge<T>(sortedList1: T[], sortedList2: T[]): T[] {
-				âšlet mergedList: T[] = [];
-				let i = 0;
-				let j = 0;âœ‚ï¸
-				while (i < sortedList1.length && j < sortedList2.length) {
-					if (compareNumbers(sortedList1[i], sortedList2[j]) <= 0) {
-						mergedList.push(sortedList1[i]);
-						i++;
-					} else {
-						mergedList.push(sortedList2[j]);
-						j++;
-					}
-				}
-		`);
-	});
-
-	test('.getCompletionTrimOffset() trims at a child statement when the first statement is over the limit', async function () {
-		await testCompletionTrimming(dedent`
-			function twoWayMerge<T>(sortedList1: T[], sortedList2: T[]): T[] {
-				let mergedList: T[] = [];
-				let i = 0;
-				let j = 0;
-				âšwhile (i < sortedList1.length && j < sortedList2.length) {
-					// compareNumbers has the following return values:
-					// -1 if sortedList1[i] < sortedList2[j]
-					// 0 if sortedList1[i] === sortedList2[j]
-					// 1 if sortedList1[i] > sortedList2[j]
-					if (compareNumbers(sortedList1[i], sortedList2[j]) <= 0) {
-						// sortedList1[i] is less than or equal to sortedList2[j]
-						mergedList.push(sortedList1[i]);
-						i++;
-					}âœ‚ï¸ else {
-						// sortedList1[i] is greater than sortedList2[j]
-						mergedList.push(sortedList2[j]);
-						j++;
-					}
-				}
-		`);
-	});
-
-	test('.getCompletionTrimOffset() trims at a top-level statement when no containing block is present', async function () {
-		await testCompletionTrimming(dedent`
-			const a = 1;
-			âšconst b = 2;
-			const c = 3;
-			const d = 4;
-			const e = 5;
-			const f = 6;
-			const g = 7;
-			const h = 8;
-			const i = 9;
-			const j = 10;
-			const k = 11;âœ‚ï¸
-			const l = 12;
-		`);
-	});
-
-	test('.getCompletionTrimOffset() trims before a statement that begins past the line limit', async function () {
-		await testCompletionTrimming(dedent`
-			const a = 1;
-			âšconst b = 2;
-			const c = 3;
-			const d = 4;
-			const e = 5;
-			const f = 6;
-			const g = 7;âœ‚ï¸
-			// comment 1
-			// comment 2
-			// comment 3
-			// comment 4
-			// comment 5
-			const h = 8;
-		`);
-	});
-
-	test('.getCompletionTrimOffset() trims trailing, non-statement text that goes over the line limit', async function () {
-		await testCompletionTrimming(dedent`
-			const a = 1;
-			âšconst b = 2;
-			const c = 3;
-			const d = 4;âœ‚ï¸
-			// comment 1
-			// comment 2
-			// comment 3
-			// comment 4
-			// comment 5
-			// comment 6
-			// comment 7
-			// comment 8
-		`);
-	});
-
-	test('.getCompletionTrimOffset() trims to the first statement when it is unsplittable even if over the limit', async function () {
-		await testCompletionTrimming(dedent`
-			function foo(arg: boolean) {
-				âšif (arg) {
-					// comment 1
-					// comment 2
-					// comment 3
-					// comment 4
-					// comment 5
-					// comment 6
-					// comment 7
-					// comment 8
-					// comment 9
-					// comment 10
-				}âœ‚ï¸
-				return;
-		`);
-	});
-
-	test('.getCompletionTrimOffset() trims to the first statement when it begins past the limit', async function () {
-		await testCompletionTrimming(dedent`
-			function foo(arg: boolean) {
-				âš// comment 1
-				// comment 2
-				// comment 3
-				// comment 4
-				// comment 5
-				// comment 6
-				// comment 7
-				// comment 8
-				// comment 9
-				// comment 10
-				// comment 11
-				const str = arg ? 'true' : 'false';âœ‚ï¸
-				console.log(str);
-		`);
-	});
-
-	test('.getCompletionTrimOffset() trims to the first statement when it begins past the limit even if unsplittable', async function () {
-		await testCompletionTrimming(dedent`
-			function foo(arg: boolean) {
-				âš// comment 1
-				// comment 2
-				// comment 3
-				// comment 4
-				// comment 5
-				// comment 6
-				// comment 7
-				// comment 8
-				// comment 9
-				// comment 10
-				// comment 11
-				if (arg) {
-					// comment 12
-				}âœ‚ï¸
-				return;
-		`);
-	});
-
-	test('.getCompletionTrimOffset() trims to the first statement before non-statement content', async function () {
-		await testCompletionTrimming(dedent`
-			function exâšample(flag) {
-				flag = !flag;âœ‚ï¸
-				if (flag) {
-					flag = !flag;
-					if (!flag) {
-						flag = !flag;
-						if (flag) {
-							flag = !flag;
-							if (!flag) {
-								flag = !flag;
-								if (flag) {
-									flag = !flag;
-		`);
-	});
-
-	async function testCompletionTrimming(textWithCompletion: string): Promise<void> {
-		await testCompletionTrimmingWithTrimmer(textWithCompletion, VerboseBlockTrimmer);
-	}
-});
 
 suite('TerseBlockTrimmer', function () {
 	test('.getCompletionTrimOffset() returns undefined for a single statement under the line limit', async function () {
@@ -497,18 +247,10 @@ suite('TerseBlockTrimmer', function () {
 		);
 	});
 
-	async function testCompletionTrimming(textWithCompletion: string, languageId = 'typescript'): Promise<void> {
-		await testCompletionTrimmingWithTrimmer(textWithCompletion, TerseBlockTrimmer, languageId);
-	}
 });
 
-interface BlockTrimmerConstructor {
-	new(languageId: string, prefix: string, completion: string): BlockTrimmer;
-}
-
-async function testCompletionTrimmingWithTrimmer(
+async function testCompletionTrimming(
 	textWithCompletion: string,
-	blockTrimmerType: BlockTrimmerConstructor,
 	languageId = 'typescript'
 ): Promise<void> {
 	const cursorMarker = 'âš';
@@ -519,7 +261,7 @@ async function testCompletionTrimmingWithTrimmer(
 	const trimmed = textWithCompletion.substring(cursorPos + cursorMarker.length, trimPos === -1 ? undefined : trimPos);
 	const completion = trimmed + (trimPos === -1 ? '' : textWithCompletion.substring(trimPos + trimMarker.length));
 	const expectedOffset = trimPos === -1 ? undefined : trimmed.length;
-	const trimmer = new blockTrimmerType(languageId, prefix, completion);
+	const trimmer = new TerseBlockTrimmer(languageId, prefix, completion);
 
 	const actualOffset = await trimmer.getCompletionTrimOffset();
 

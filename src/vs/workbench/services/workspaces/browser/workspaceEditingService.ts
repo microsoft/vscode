@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IWorkspaceFolderLocationService } from '../../../../platform/workspace/common/folderLocations.js';
 import { IWorkspaceContextService, toWorkspaceIdentifier } from '../../../../platform/workspace/common/workspace.js';
 import { IJSONEditingService } from '../../configuration/common/jsonEditing.js';
 import { IWorkspacesService } from '../../../../platform/workspaces/common/workspaces.js';
@@ -19,7 +20,7 @@ import { IWorkspaceEditingService } from '../common/workspaceEditing.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
-import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
+import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { IWorkbenchConfigurationService } from '../../configuration/common/configuration.js';
 import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 import { IUserDataProfileService } from '../../userDataProfile/common/userDataProfile.js';
@@ -45,8 +46,10 @@ export class BrowserWorkspaceEditingService extends AbstractWorkspaceEditingServ
 		@IUserDataProfilesService userDataProfilesService: IUserDataProfilesService,
 		@IUserDataProfileService userDataProfileService: IUserDataProfileService,
 		@ILogService logService: ILogService,
+		@IWorkspaceFolderLocationService workspaceFolderLocationService: IWorkspaceFolderLocationService,
+		@IWorkspaceTrustEnablementService workspaceTrustEnablementService: IWorkspaceTrustEnablementService,
 	) {
-		super(jsonEditingService, contextService, configurationService, notificationService, commandService, fileService, textFileService, workspacesService, environmentService, fileDialogService, dialogService, hostService, uriIdentityService, workspaceTrustManagementService, userDataProfilesService, userDataProfileService, logService);
+		super(jsonEditingService, contextService, configurationService, notificationService, commandService, fileService, textFileService, workspacesService, environmentService, fileDialogService, dialogService, hostService, uriIdentityService, workspaceTrustManagementService, userDataProfilesService, userDataProfileService, logService, workspaceFolderLocationService, workspaceTrustEnablementService);
 	}
 
 	async enterWorkspace(workspaceUri: URI): Promise<void> {

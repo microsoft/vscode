@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { scopesMatch } from '../../../../base/common/oauth.js';
@@ -14,6 +15,7 @@ import { GitHubAuthorizationContext, GitHubClientOptions, GitHubCredentialChange
 import { IGitHubCredentialBroker } from '../../../../platform/github/common/remote/ipc.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationService } from '../../authentication/common/authentication.js';
+import { toGitHubAuthorizationContext } from '../common/githubService.js';
 
 interface IGitHubSessionGrant {
 	readonly accountId: string;
@@ -64,8 +66,8 @@ export class WorkbenchGitHubCredentialProvider extends Disposable implements IGi
 		}));
 	}
 
-	async getSessions(providerId: string, signal: AbortSignal): Promise<readonly AuthenticationSession[]> {
-		signal.throwIfAborted();
+	async getSessions(providerId: string, cancellationToken: CancellationToken): Promise<readonly AuthenticationSession[]> {
+		CancellationToken.throwIfCanceled(cancellationToken);
 		let state = this._sessions.get(providerId);
 		if (!state) {
 			state = { version: 0, grants: new Map() };
@@ -74,7 +76,7 @@ export class WorkbenchGitHubCredentialProvider extends Disposable implements IGi
 		while (true) {
 			const version = state.version;
 			const sessions = await this._authenticationService.getSessions(providerId, [], { silent: true }, true);
-			signal.throwIfAborted();
+			CancellationToken.throwIfCanceled(cancellationToken);
 			if (state.version !== version) {
 				continue;
 			}
@@ -83,39 +85,33 @@ export class WorkbenchGitHubCredentialProvider extends Disposable implements IGi
 		}
 	}
 
-	async resolveClient(authorization: GitHubAuthorizationContext, signal: AbortSignal): Promise<GitHubClientOptions> {
+	async resolveClient(authorization: GitHubAuthorizationContext, cancellationToken: CancellationToken): Promise<GitHubClientOptions> {
 		if (authorization.providerId !== 'github' && authorization.providerId !== 'github-enterprise') {
 			throw new GitHubRequestError(localize('githubProviderUnavailable', "The selected authentication provider is not a GitHub provider."), 'authentication');
 		}
-		const session = await this.getSession(authorization, signal);
+		const session = await this.getSession(authorization, cancellationToken);
 		if (!session) {
 			throw new GitHubRequestError(localize('githubGrantUnavailable', "The selected GitHub session or permissions are no longer available."), 'authentication');
 		}
 		const issuer = session.authorizationServer?.toString();
-		if (issuer !== undefined) {
-			normalizeReadApiBaseUri(issuer);
-		}
-		const endpoints = deriveGitHubEndpoints(issuer);
+		const endpoints = deriveGitHubEndpoints(issuer === undefined ? undefined : normalizeReadApiBaseUri(issuer));
 		if (authorization.providerId === 'github' ? endpoints.enterpriseHost !== undefined : !issuer || endpoints.enterpriseHost === undefined) {
 			throw new GitHubRequestError(localize('githubEndpointUnavailable', "The selected GitHub session does not identify a matching GitHub endpoint."), 'authentication');
 		}
 		return {
-			authorization: {
-				providerId: authorization.providerId, sessionId: session.id, accountId: session.account.id,
-				scopes: [...session.scopes], authorizationServer: issuer,
-			},
+			authorization: toGitHubAuthorizationContext(authorization.providerId, session),
 			apiBaseUri: endpoints.apiBaseUri,
 			graphQlUri: endpoints.graphQlUri,
 			missionControl: getWorkbenchMissionControlOptions(authorization.providerId, endpoints.enterpriseHost),
 		};
 	}
 
-	async getToken(context: GitHubAuthorizationContext, signal: AbortSignal): Promise<string | undefined> {
-		return (await this.getSession(context, signal))?.accessToken;
+	async getToken(context: GitHubAuthorizationContext, cancellationToken: CancellationToken): Promise<string | undefined> {
+		return (await this.getSession(context, cancellationToken))?.accessToken;
 	}
 
-	private async getSession(context: GitHubAuthorizationContext, signal: AbortSignal): Promise<AuthenticationSession | undefined> {
-		const sessions = await this.getSessions(context.providerId, signal);
+	private async getSession(context: GitHubAuthorizationContext, cancellationToken: CancellationToken): Promise<AuthenticationSession | undefined> {
+		const sessions = await this.getSessions(context.providerId, cancellationToken);
 		return sessions.find(session => session.id === context.sessionId
 			&& (context.accountId === undefined || session.account.id === context.accountId)
 			&& session.authorizationServer?.toString() === context.authorizationServer

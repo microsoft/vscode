@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../../nls.js';
+import { getErrorMessage } from '../../../../../base/common/errors.js';
+import { validateAutomationCron } from '../../../../../platform/agentHost/common/automationCron.js';
 import { IAutomationSchedule } from './automation.js';
 
 /** Projects a fixed UTC schedule into local wall-clock fields using a Date.getTimezoneOffset() value. */
@@ -34,6 +36,18 @@ function shiftSchedule(schedule: IAutomationSchedule, minutes: number): IAutomat
 			? ((schedule.scheduleDay + Math.floor(shifted / 1440)) % 7 + 7) % 7
 			: schedule.scheduleDay,
 	};
+}
+
+export function getAutomationCronValidationError(expression: string, timeZone: string): string | undefined {
+	if (!expression.trim()) {
+		return undefined;
+	}
+	try {
+		validateAutomationCron(expression, timeZone);
+		return undefined;
+	} catch (error) {
+		return getErrorMessage(error);
+	}
 }
 
 export const DAYS_OF_WEEK: readonly string[] = [

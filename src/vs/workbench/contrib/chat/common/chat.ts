@@ -3,7 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { appendEscapedMarkdownInlineCode, MarkdownString, type IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { ResourceSet } from '../../../../base/common/map.js';
+import { escapeControlAndFormatCharacters } from '../../../../base/common/strings.js';
+import { localize } from '../../../../nls.js';
 import { chatEditingSessionIsReady } from './editing/chatEditingService.js';
 import { IChatModel } from './model/chatModel.js';
 import { isLegacyChatTerminalToolInvocationData, type IChatSessionStats, type IChatTerminalToolInvocationData, type ILegacyChatTerminalToolInvocationData } from './chatService/chatService.js';
@@ -36,6 +39,34 @@ export function migrateLegacyTerminalToolSpecificData(data: IChatTerminalToolInv
 		} satisfies IChatTerminalToolInvocationData;
 	}
 	return data;
+}
+
+/**
+ * Describes where a terminal command runs, for display before it is approved.
+ * Control and format characters are shown as escapes so a directory name
+ * containing them cannot break the line or reorder how it reads.
+ */
+export function getTerminalExecutionTargetMessage(data: Pick<IChatTerminalToolInvocationData, 'executionTarget'>): IMarkdownString | undefined {
+	const lines = describeTerminalExecutionTarget(data, appendEscapedMarkdownInlineCode);
+	return lines.length ? new MarkdownString(lines.join('  \n')) : undefined;
+}
+
+/** Plain-text form of {@link getTerminalExecutionTargetMessage} for screen readers. */
+export function getTerminalExecutionTargetDescription(data: Pick<IChatTerminalToolInvocationData, 'executionTarget'>): string | undefined {
+	const lines = describeTerminalExecutionTarget(data, value => value);
+	return lines.length ? lines.join(', ') : undefined;
+}
+
+function describeTerminalExecutionTarget(data: Pick<IChatTerminalToolInvocationData, 'executionTarget'>, formatValue: (value: string) => string): string[] {
+	const target = data.executionTarget;
+	const lines: string[] = [];
+	if (target?.workingDirectory) {
+		lines.push(localize('chat.terminal.workingDirectory', "Working directory: {0}", formatValue(escapeControlAndFormatCharacters(target.workingDirectory))));
+	}
+	if (target?.environment) {
+		lines.push(localize('chat.terminal.environment', "Environment: {0}", formatValue(escapeControlAndFormatCharacters(target.environment))));
+	}
+	return lines;
 }
 
 export async function awaitStatsForSession(model: IChatModel): Promise<IChatSessionStats | undefined> {

@@ -8,8 +8,8 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { IQuickInputService, IQuickPickItem } from '../../../../../../platform/quickinput/common/quickInput.js';
 import { IRemoteAgentHostEntry, RemoteAgentHostEntryType } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ICachedTunnel } from '../../../../../../platform/agentHost/common/tunnelAgentHost.js';
-import { IAgentHostSessionsProvider } from '../../../../../common/agentHostSessionsProvider.js';
-import { ISessionsProvider } from '../../../../../services/sessions/common/sessionsProvider.js';
+import { IAgentHostSessionsProvider } from '../../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
+import { ISessionsProvider } from '../../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { collectRemoteAgentHostLocationTargets, findAgentHostProviderForTarget, pickRemoteAgentHostLocationTarget } from '../../electron-browser/remoteAgentHostLocationPreferenceCommand.js';
 
 /**

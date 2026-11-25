@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { IDiffChange, LcsDiff, StringDiffSequence } from '../../../common/diff/diff.js';
+import { IDiffChange, LcsDiff, stringDiff, StringDiffSequence } from '../../../common/diff/diff.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../utils.js';
 
 function createArray<T>(length: number, value: T): T[] {
@@ -96,6 +96,49 @@ suite('Diff', () => {
 		lcsTest('fooBar', 'myfooBar', 'fooBar'); // all insertions
 		lcsTest('fooBar', 'fooMyBar', 'fooBar'); // all insertions
 		lcsTest('fooBar', 'fooBar', 'fooBar'); // identical sequences
+	});
+
+	test('stringDiff does not split surrogate pairs', () => {
+		for (const pretty of [false, true]) {
+			assert.deepStrictEqual(stringDiff('𫟹', '𫔍', pretty), [{
+				originalStart: 0,
+				originalLength: 2,
+				modifiedStart: 0,
+				modifiedLength: 2,
+			}]);
+			assert.deepStrictEqual(stringDiff('a😀b', 'a😃b', pretty), [{
+				originalStart: 1,
+				originalLength: 2,
+				modifiedStart: 1,
+				modifiedLength: 2,
+			}]);
+			assert.deepStrictEqual(stringDiff('😀a', '😀b', pretty), [{
+				originalStart: 2,
+				originalLength: 1,
+				modifiedStart: 2,
+				modifiedLength: 1,
+			}]);
+		}
+	});
+
+	test('stringDiff maps insertions and deletions at surrogate pair boundaries', () => {
+		assert.deepStrictEqual({
+			insertion: stringDiff('a', 'a😀', false),
+			deletion: stringDiff('😀a', 'a', false),
+		}, {
+			insertion: [{
+				originalStart: 1,
+				originalLength: 0,
+				modifiedStart: 1,
+				modifiedLength: 2,
+			}],
+			deletion: [{
+				originalStart: 0,
+				originalLength: 2,
+				modifiedStart: 0,
+				modifiedLength: 0,
+			}],
+		});
 	});
 });
 

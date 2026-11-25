@@ -431,7 +431,7 @@ export class MissionControlProtocolServer extends Disposable implements IProtoco
 	private readonly _sweep = this._register(new IntervalTimer());
 	private readonly _ackTimeout = this._register(new RunOnceScheduler(() => {
 		this._reportPublishFailure('ackTimeout');
-		const error = new Error('Mission Control WPS acknowledgement timed out');
+		const error = Object.assign(new Error('Mission Control WPS acknowledgement timed out'), { code: 'ETIMEDOUT' });
 		// An unconfirmed resumption continues its recovery; a timeout on a confirmed resumed socket that has not
 		// acknowledged anything would only repeat, so it closes instead.
 		if (this._ready.isSettled && this._resumption && (this._confirming || this._recoveries === 0 || this._acknowledgedSinceRecovery)) {
@@ -1033,7 +1033,7 @@ export class MissionControlProtocolServer extends Disposable implements IProtoco
 			}
 		} catch (error) {
 			this._reportPublishFailure('socketFailure');
-			this._closeInfo ??= { reason: 'sendFailure', activeClients: this._lanes.size, attempts: 0 };
+			this._closeInfo ??= { reason: 'sendFailure', activeClients: this._lanes.size, attempts: 0, error: error instanceof Error ? error : new Error(String(error)) };
 			this.dispose();
 			throw error;
 		} finally {
@@ -1101,9 +1101,10 @@ export class MissionControlProtocolServer extends Disposable implements IProtoco
 				// A request resent after recovery may already have been processed.
 				if ((group || pending) && fields.success !== true && (fields.error as { name?: string } | undefined)?.name !== 'Duplicate') {
 					this._reportPublishFailure('publishRejected');
-					this._closeInfo ??= { reason: 'publishRejected', activeClients: this._lanes.size, attempts: 0 };
+					const error = new Error(`Mission Control WPS operation rejected${fields.error ? `: ${getConnectionDiagnosticError(fields.error).message}` : ''}`);
+					this._closeInfo ??= { reason: 'publishRejected', activeClients: this._lanes.size, attempts: 0, error };
 					this.dispose();
-					throw new Error(`Mission Control WPS operation rejected${fields.error ? `: ${getConnectionDiagnosticError(fields.error).message}` : ''}`);
+					throw error;
 				}
 				this._acknowledgedSinceRecovery = true;
 				if (pending) {
@@ -1231,7 +1232,7 @@ export class MissionControlProtocolServer extends Disposable implements IProtoco
 		} catch (error) {
 			this._onError(error instanceof Error ? error : new Error(String(error)));
 			if (!this._ready.isSettled) {
-				this._closeInfo ??= { reason: 'protocolError', activeClients: this._lanes.size, attempts: 0 };
+				this._closeInfo ??= { reason: 'protocolError', activeClients: this._lanes.size, attempts: 0, error: error instanceof Error ? error : new Error(String(error)) };
 				this.dispose();
 			}
 		}
@@ -1317,7 +1318,7 @@ export class MissionControlProtocolServer extends Disposable implements IProtoco
 				operationId: '', phase: 'relayConnection', timestamp: Date.now(), outcome: 'info', connected: false,
 			});
 			if (!this._ready.isSettled) {
-				this._ready.error(new Error('Mission Control WPS connection closed before joining control group'));
+				this._ready.error(this._closeInfo.error ?? new Error('Mission Control WPS connection closed before joining control group'));
 			}
 			this._socket?.close();
 			this._socket = undefined;

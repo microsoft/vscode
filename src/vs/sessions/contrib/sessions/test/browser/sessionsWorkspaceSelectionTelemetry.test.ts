@@ -19,14 +19,15 @@ import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/
 import { AgentsWindowOpenSource } from '../../../../../platform/window/common/window.js';
 import { ILifecycleService, ShutdownReason } from '../../../../../workbench/services/lifecycle/common/lifecycle.js';
 import { TestLifecycleService } from '../../../../../workbench/test/common/workbenchTestServices.js';
-import { IWorkspaceSelectionSnapshot, WorkspaceSelectionOrigin } from '../../../../common/workspaceSelection.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { ISessionWorkspace } from '../../../../services/sessions/common/session.js';
-import { IActiveSession, ISendRequestSentEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ISendRequestOptions } from '../../../../services/sessions/common/sessionsProvider.js';
-import { INewSessionComposerService, NewSessionComposerService } from '../../../chat/browser/newSessionComposerService.js';
+import { IWorkspaceSelectionSnapshot, WorkspaceSelectionOrigin } from '../../../../../workbench/services/sessions/common/workspaceSelection.js';
+import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { ISessionWorkspace } from '../../../../../workbench/services/sessions/common/session.js';
+import { ISendRequestSentEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISendRequestOptions } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
+import { INewSessionComposerService, NewSessionComposerService } from '../../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
 import { FIRST_TIME_WINDOW_OPEN_DURATION_LIMIT_MS } from '../../browser/sessionsWindowOpenTelemetry.js';
 import { SessionsWorkspaceSelectionTelemetry } from '../../browser/sessionsWorkspaceSelectionTelemetry.js';
+import { ITestSessionsService, ITestSessionWithChat, stubFocusedSessionHostFromSessionsService, withCreatedStatus } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('SessionsWorkspaceSelectionTelemetry', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -38,7 +39,7 @@ suite('SessionsWorkspaceSelectionTelemetry', () => {
 		const lifecycleService = disposables.add(new TestLifecycleService());
 		const selectionChanged = disposables.add(new Emitter<void>());
 		const requestSent = disposables.add(new Emitter<ISendRequestSentEvent>());
-		const activeSession = observableValue<IActiveSession | undefined>('activeSession', undefined);
+		const activeSession = observableValue<ITestSessionWithChat | undefined>('activeSession', undefined);
 		const events: { name: string; data?: ITelemetryData }[] = [];
 		let selection: IWorkspaceSelectionSnapshot | undefined;
 		disposables.add(composerService.registerComposer({
@@ -48,7 +49,8 @@ suite('SessionsWorkspaceSelectionTelemetry', () => {
 			showPromptOptions: () => false,
 		}));
 		instantiationService.stub(INewSessionComposerService, composerService);
-		instantiationService.stub(ISessionsService, upcastPartial<ISessionsService>({ activeSession }));
+		instantiationService.stub(ISessionsService, upcastPartial<ITestSessionsService>({ activeSession }));
+		stubFocusedSessionHostFromSessionsService(instantiationService);
 		instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({ onDidSendRequest: requestSent.event }));
 		instantiationService.stub(IUriIdentityService, upcastPartial<IUriIdentityService>({ extUri }));
 		instantiationService.stub(ITelemetryService, upcastPartial<ITelemetryService>({ publicLog2: (name, data) => { events.push({ name, data }); } }));
@@ -66,8 +68,8 @@ suite('SessionsWorkspaceSelectionTelemetry', () => {
 				selectionChanged.fire();
 			},
 			setReady(folderUri: URI) {
-				activeSession.set(upcastPartial<IActiveSession>({
-					isCreated: observableValue('created', false),
+				activeSession.set(upcastPartial<ITestSessionWithChat>({
+					...withCreatedStatus(observableValue('created', false)),
 					loading: observableValue('loading', false),
 					workspace: observableValue<ISessionWorkspace>('workspace', {
 						uri: folderUri, label: 'workspace', icon: Codicon.folder,
@@ -102,6 +104,7 @@ suite('SessionsWorkspaceSelectionTelemetry', () => {
 				data: {
 					source: 'keyboardShortcut',
 					workspaceArgumentKind: 'local',
+					workspaceArgumentRemoteKind: 'none',
 					workspaceArgumentIsDefault: true,
 					observationReason: 'firstRequest',
 					observationDurationMs: 400,

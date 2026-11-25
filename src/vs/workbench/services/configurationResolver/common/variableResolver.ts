@@ -13,7 +13,7 @@ import { URI as uri } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { IWorkspaceFolderData } from '../../../../platform/workspace/common/workspace.js';
-import { allVariableKinds, IConfigurationResolverService, VariableError, VariableKind } from './configurationResolver.js';
+import { allVariableKinds, IConfigurationResolverService, ResolvedConfiguration, VariableError, VariableKind } from './configurationResolver.js';
 import { ConfigurationResolverExpression, IResolvedValue, Replacement } from './configurationResolverExpression.js';
 
 interface IVariableResolveContext {
@@ -80,7 +80,7 @@ export abstract class AbstractVariableResolverService implements IConfigurationR
 		return expr.toObject();
 	}
 
-	public async resolveAsync<T>(folder: IWorkspaceFolderData | undefined, config: T): Promise<T extends ConfigurationResolverExpression<infer R> ? R : T> {
+	public async resolveAsync<T>(folder: IWorkspaceFolderData | undefined, config: T): Promise<ResolvedConfiguration<T>> {
 		const expr = ConfigurationResolverExpression.parse(config);
 
 		for (const replacement of expr.unresolved()) {
@@ -90,7 +90,7 @@ export abstract class AbstractVariableResolverService implements IConfigurationR
 			}
 		}
 
-		return expr.toObject() as (T extends ConfigurationResolverExpression<infer R> ? R : T);
+		return expr.toObject() as ResolvedConfiguration<T>;
 	}
 
 	public resolveWithInteractionReplace(folder: IWorkspaceFolderData | undefined, config: unknown): Promise<unknown> {

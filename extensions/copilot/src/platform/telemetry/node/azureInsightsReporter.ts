@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// Need to set this env variable even before import to avoid stat beat
+// Disables Statsbeat for CommonJS output such as chat-lib. Bundled builds disable it in .esbuild.mts
+// because bundlers evaluate imports before this assignment.
 process.env.APPLICATION_INSIGHTS_NO_STATSBEAT = 'true';
 
 import * as appInsights from 'applicationinsights';
@@ -13,6 +14,7 @@ import { ICopilotTokenStore } from '../../authentication/common/copilotTokenStor
 import { ICAPIClientService } from '../../endpoint/common/capiClient';
 import { IEnvService } from '../../env/common/envService';
 import { createTrackingIdGetter, TelemetryProperties } from '../common/telemetry';
+import { setCommonCpuProperty } from './cpuModels';
 
 export function wrapEventNameForPrefixRemoval(eventName: string): string {
 	return `wrapped-telemetry-event-name-${eventName}-wrapped-telemetry-event-name`;
@@ -121,7 +123,7 @@ function decorateWithCommonProperties(properties: TelemetryProperties, envServic
 	properties['common_os'] = os.platform();
 	properties['common_platformversion'] = os.release();
 	properties['common_arch'] = os.arch();
-	properties['common_cpu'] = Array.from(new Set(os.cpus().map(c => c.model))).join();
+	setCommonCpuProperty(properties);
 
 	// We have editor-agnostic fields but keep the vs-specific ones for backward compatibility
 	properties['common_vscodemachineid'] = envService.machineId;

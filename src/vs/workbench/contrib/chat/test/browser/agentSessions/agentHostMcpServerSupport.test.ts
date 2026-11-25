@@ -292,7 +292,7 @@ suite('agentHostMcpServerSupport', () => {
 		}
 	}
 
-	test('reports unsupported configuration without changing existing direct forwarding', async () => {
+	test('does not deliver unsupported configurations', async () => {
 		const root = URI.file('/workspace');
 		const servers = [
 			makeMcpServer({
@@ -308,6 +308,12 @@ suite('agentHostMcpServerSupport', () => {
 				collectionId: 'mcp.config.usrlocal',
 				provenance: McpCollectionProvenance.UserProfile,
 				launch: stdioLaunch('${workspaceFolder}'),
+			}),
+			makeMcpServer({
+				id: 'mcp.config.usrlocal.input',
+				collectionId: 'mcp.config.usrlocal',
+				provenance: McpCollectionProvenance.UserProfile,
+				launch: { ...stdioLaunch(), env: { TOOL_PATH: '${input:TOOL_PATH}', LITERAL_VAR: '1' } },
 			}),
 			makeMcpServer({
 				id: 'mcp.config.workspace.workspace',
@@ -332,8 +338,13 @@ suite('agentHostMcpServerSupport', () => {
 			},
 			{
 				name: 'mcp.config.usrlocal.folder',
-				delivery: AgentHostMcpServerDelivery.ClientForwarded,
+				delivery: AgentHostMcpServerDelivery.NotDelivered,
 				compatibility: { kind: 'unsupported', reasons: [AgentHostMcpSupportReason.UnresolvedConfiguration] },
+			},
+			{
+				name: 'mcp.config.usrlocal.input',
+				delivery: AgentHostMcpServerDelivery.NotDelivered,
+				compatibility: { kind: 'unsupported', reasons: [AgentHostMcpSupportReason.RequiresUserInteraction] },
 			},
 			{
 				name: 'mcp.config.workspace.workspace',

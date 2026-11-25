@@ -8,11 +8,12 @@ import { ICodeEditor } from '../../../../../../editor/browser/editorBrowser.js';
 import { EditorContributionInstantiation, registerEditorContribution } from '../../../../../../editor/browser/editorExtensions.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IChatAgentService } from '../../../../chat/common/participants/chatAgents.js';
-import { EmptyTextEditorHintContribution } from '../../../../codeEditor/browser/emptyTextEditorHint/emptyTextEditorHint.js';
+import { EmptyTextEditorHintContribution } from '../../../../codeEditor/browser/emptyTextEditorHint/emptyTextEditorHintController.js';
 import { IInlineChatSessionService } from '../../../../inlineChat/browser/inlineChatSessionService.js';
 import { getNotebookEditorFromEditorPane } from '../../notebookBrowser.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { IEditorResolverService } from '../../../../../services/editor/common/editorResolverService.js';
 
 export class EmptyCellEditorHintContribution extends EmptyTextEditorHintContribution {
 	public static readonly CONTRIB_ID = 'notebook.editor.contrib.emptyCellEditorHint';
@@ -22,14 +23,16 @@ export class EmptyCellEditorHintContribution extends EmptyTextEditorHintContribu
 		@IConfigurationService configurationService: IConfigurationService,
 		@IInlineChatSessionService inlineChatSessionService: IInlineChatSessionService,
 		@IChatAgentService chatAgentService: IChatAgentService,
-		@IInstantiationService instantiationService: IInstantiationService
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IEditorResolverService editorResolverService: IEditorResolverService,
 	) {
 		super(
 			editor,
 			configurationService,
 			inlineChatSessionService,
 			chatAgentService,
-			instantiationService
+			instantiationService,
+			editorResolverService,
 		);
 
 		const activeEditor = getNotebookEditorFromEditorPane(this._editorService.activeEditorPane);

@@ -19,8 +19,6 @@ import { RunCommandExecutionServiceImpl } from '../../../platform/commands/vscod
 import { IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { ConfigurationServiceImpl } from '../../../platform/configuration/vscode/configurationServiceImpl';
 import { CustomInstructionsService, ICustomInstructionsService } from '../../../platform/customInstructions/common/customInstructionsService';
-import { IDebugOutputService } from '../../../platform/debug/common/debugOutputService';
-import { DebugOutputServiceImpl } from '../../../platform/debug/vscode/debugOutputServiceImpl';
 import { IDialogService } from '../../../platform/dialog/common/dialogService';
 import { DialogServiceImpl } from '../../../platform/dialog/vscode/dialogServiceImpl';
 import { EditSurvivalTrackerService, IEditSurvivalTrackerService } from '../../../platform/editSurvivalTracking/common/editSurvivalTrackerService';
@@ -110,7 +108,6 @@ export function registerServices(builder: IInstantiationServiceBuilder, extensio
 
 	builder.define(IInteractionService, new SyncDescriptor(InteractionService));
 	builder.define(ICopilotTokenStore, new CopilotTokenStore());
-	builder.define(IDebugOutputService, new DebugOutputServiceImpl());
 	builder.define(IDialogService, new DialogServiceImpl());
 	builder.define(IEnvService, new EnvServiceImpl());
 	builder.define(IFileSystemService, new VSCodeFileSystemService());

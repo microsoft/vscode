@@ -13,11 +13,6 @@ interface CacheContext {
 	prefix: string;
 	/** The prompt to send to the model. */
 	prompt: Prompt;
-	/**
-	 * If true, add an extra newline at the end of the prefix of the prompt. This is used to get a completion for the next line.
-	 * Unset if the feature is disabled.
-	 */
-	requestForNextLine?: boolean;
 }
 
 /** Appends completions to existing entry in cache or creates new entry. */

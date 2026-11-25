@@ -7,7 +7,7 @@ import { ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGro
 import { IRunScriptCustomTaskWidgetState, RunScriptCustomTaskWidget, WORKTREE_CREATED_RUN_ON } from '../../browser/runScriptCustomTaskWidget.js';
 
 // Ensure color registrations are loaded
-import '../../../../common/theme.js';
+import '../../../../../workbench/contrib/sessions/common/theme.js';
 import '../../../../../platform/theme/common/colors/inputColors.js';
 
 const filledLabel = 'Start Dev Server';

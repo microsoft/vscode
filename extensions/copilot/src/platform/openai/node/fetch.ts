@@ -15,6 +15,8 @@ export enum FetchResponseKind {
 export interface ChatResults {
 	type: FetchResponseKind.Success;
 	chatCompletions: AsyncIterable<ChatCompletion>;
+	/** HTTP correlation retained even when the stream emits no completions. */
+	modelRequestId?: RequestId;
 }
 
 export interface ChatRequestFailed {

@@ -6,14 +6,15 @@
 import assert from 'assert';
 import { MobileSessionsPart } from '../../browser/parts/mobile/mobileSessionsPart.js';
 import { Parts } from '../../../workbench/services/layout/browser/layoutService.js';
+import { ISessionsPartContentLayout } from '../../../workbench/browser/parts/sessions/sessionsPartContent.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 
 suite('Sessions - Mobile Sessions Part', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('layouts the internal session grid at full phone dimensions', () => {
+	test('lays out the content at full phone dimensions', () => {
 		let layoutContentsArgs: readonly [number, number] | undefined;
-		let gridLayoutArgs: readonly [number, number, number, number] | undefined;
+		let gridLayoutArgs: readonly [number, number, number, number, ISessionsPartContentLayout] | undefined;
 
 		const part = {
 			layoutService: {
@@ -30,16 +31,14 @@ suite('Sessions - Mobile Sessions Part', () => {
 					contentSize: { width: width - 2, height: height - 4 },
 				};
 			},
-			_gridWidget: {
-				layout: (width: number, height: number, top: number, left: number) => {
-					gridLayoutArgs = [width, height, top, left];
-				},
+			layoutContent: (width: number, height: number, top: number, left: number, options: ISessionsPartContentLayout) => {
+				gridLayoutArgs = [width, height, top, left, options];
 			},
 		};
 
 		MobileSessionsPart.prototype.layout.call(part as unknown as MobileSessionsPart, 390, 796, 48, 0);
 
 		assert.deepStrictEqual(layoutContentsArgs, [390, 796]);
-		assert.deepStrictEqual(gridLayoutArgs, [388, 792, 48, 0]);
+		assert.deepStrictEqual(gridLayoutArgs, [388, 792, 48, 0, { phoneLayout: true, gap: undefined }]);
 	});
 });

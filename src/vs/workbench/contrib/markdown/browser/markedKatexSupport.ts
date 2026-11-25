@@ -73,6 +73,10 @@ export class MarkedKatexSupport {
 			const prop = style[i];
 			if (allowedProperties.includes(prop)) {
 				const value = style.getPropertyValue(prop);
+				// KaTeX only positions elements relative to their normal position.
+				if (prop === 'position' && value !== 'relative') {
+					continue;
+				}
 				// Allow through lists of numbers with units or bare words like 'block'
 				// Main goal is to block things like 'url()'.
 				if (/^(([\d\.\-]+\w*\s?)+|\w+)$/.test(value)) {
@@ -152,7 +156,7 @@ export class MarkedKatexSupport {
 
 	public static ensureKatexStyles(window: CodeWindow) {
 		const doc = window.document;
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		if (!doc.querySelector('link.katex')) {
 			const katexStyle = document.createElement('link');
 			katexStyle.classList.add('katex');

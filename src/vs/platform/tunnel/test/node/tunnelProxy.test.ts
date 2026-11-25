@@ -54,6 +54,18 @@ function createMockConnectFn(targetPort: number): ITunnelConnectFn {
 	};
 }
 
+function createDuplexConnectFn(targetPort: number): ITunnelConnectFn {
+	return async () => {
+		const net = await import('net');
+		const socket = net.createConnection({ host: '127.0.0.1', port: targetPort });
+		await new Promise<void>((resolve, reject) => {
+			socket.once('connect', resolve);
+			socket.once('error', reject);
+		});
+		return { stream: socket, leftover: VSBuffer.alloc(0) };
+	};
+}
+
 /**
  * A generic {@link ISocket} that is **not** a {@link NodeSocket}, backed by a
  * raw `net.Socket`, used to emulate a managed / exec-server transport. Reaching
@@ -234,7 +246,6 @@ async function proxyConnect(
 	});
 }
 
-
 suite('TunnelProxy', () => {
 
 	const ds = ensureNoDisposablesAreLeakedInTestSuite();
@@ -330,6 +341,19 @@ suite('TunnelProxy', () => {
 		});
 		assert.strictEqual(res.statusCode, 200);
 		assert.strictEqual(res.body, `ECHO GET /some/path`);
+	});
+
+	test('forwards authenticated HTTP GET through a direct Duplex connector', async () => {
+		const proxy = ds.add(new TunnelProxy(createDuplexConnectFn(targetPort), new NullLogService()));
+		const info = await proxy.start();
+		const res = await proxyRequest(info, {
+			path: `http://127.0.0.1:${targetPort}/duplex?secret=redacted`,
+			auth: true,
+		});
+		assert.deepStrictEqual({ statusCode: res.statusCode, body: res.body }, {
+			statusCode: 200,
+			body: 'ECHO GET /duplex?secret=redacted',
+		});
 	});
 
 	test('forwards authenticated HTTP POST to target', async () => {

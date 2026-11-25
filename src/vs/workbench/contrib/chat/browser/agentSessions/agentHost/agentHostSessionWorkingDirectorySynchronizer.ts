@@ -59,6 +59,7 @@ import { SequencerByKey } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { ResourceSet } from '../../../../../../base/common/map.js';
 import { autorun } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
@@ -286,7 +287,7 @@ export class AgentHostSessionWorkingDirectorySynchronizer extends Disposable imp
 			return;
 		}
 
-		const current = state.workingDirectories?.map(directory => URI.parse(directory)) ?? [];
+		const current = state.workingDirectories?.map(directory => registration.connection.resourceUris.fromAgentHost(URI.parse(directory))) ?? [];
 		if (current.length === 0) {
 			return;
 		}
@@ -298,8 +299,11 @@ export class AgentHostSessionWorkingDirectorySynchronizer extends Disposable imp
 			this._uriIdentityService.extUri,
 		);
 		// `slice(1)` on both sides keeps the immutable primary out of the diff.
-		const additions = desired.slice(1).filter(directory => !current.some(existing => this._uriIdentityService.extUri.isEqual(existing, directory)));
-		const removals = current.slice(1).filter(directory => !desired.some(expected => this._uriIdentityService.extUri.isEqual(expected, directory)));
+		const toKey = (uri: URI) => this._uriIdentityService.extUri.getComparisonKey(uri);
+		const currentSet = new ResourceSet(current, toKey);
+		const desiredSet = new ResourceSet(desired, toKey);
+		const additions = desired.slice(1).filter(directory => !currentSet.has(directory));
+		const removals = current.slice(1).filter(directory => !desiredSet.has(directory));
 		if (additions.length === 0 && removals.length === 0) {
 			return;
 		}
@@ -321,14 +325,14 @@ export class AgentHostSessionWorkingDirectorySynchronizer extends Disposable imp
 				for (const directory of additions) {
 					registration.connection.dispatch(session.toString(), {
 						type: ActionType.SessionWorkingDirectorySet,
-						directory: directory.toString(),
+						directory: registration.connection.resourceUris.toAgentHost(directory).toString(),
 					});
 				}
 			}
 			for (const directory of removals) {
 				registration.connection.dispatch(session.toString(), {
 					type: ActionType.SessionWorkingDirectoryRemoved,
-					directory: directory.toString(),
+					directory: registration.connection.resourceUris.toAgentHost(directory).toString(),
 				});
 			}
 		} finally {

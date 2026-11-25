@@ -107,7 +107,7 @@ export const TAB_BORDER = registerColor('tab.border', {
 	hcLight: contrastBorder,
 }, localize('tabBorder', "Border around tabs. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
 
-export const TAB_DIVIDER = registerColor('tab.divider', TAB_BORDER, localize('tabDivider', "Color of dividers between editor tabs."));
+export const TAB_DIVIDER = registerColor('tab.divider', TAB_BORDER, localize('tabDivider', "Color of dividers between tabs."));
 
 export const TAB_LAST_PINNED_BORDER = registerColor('tab.lastPinnedBorder', {
 	dark: treeIndentGuidesStroke,
@@ -795,6 +795,19 @@ export const TITLE_BAR_INACTIVE_BACKGROUND = registerColor('titleBar.inactiveBac
 export const MODERN_UI_SHELL_BACKGROUND = registerColor('modernUI.shellBackground', TITLE_BAR_ACTIVE_BACKGROUND, localize('modernUIShellBackground', "Background color of the shell visible around floating workbench surfaces when the modern UI is enabled."));
 
 export const MODERN_UI_INACTIVE_SHELL_BACKGROUND = registerColor('modernUI.inactiveShellBackground', TITLE_BAR_INACTIVE_BACKGROUND, localize('modernUIInactiveShellBackground', "Background color of the shell visible around floating workbench surfaces when the window is inactive and the modern UI is enabled."));
+
+/**
+ * Resolves the opaque shell color that the modern UI paints around its floating surfaces.
+ */
+export function getModernUIShellBackground(theme: IColorTheme, isInactive: boolean): Color | undefined {
+	const workbenchBackground = WORKBENCH_BACKGROUND(theme);
+	const resolve = (id: string) => theme.getColor(id)?.makeOpaque(workbenchBackground);
+
+	return resolve(isInactive ? MODERN_UI_INACTIVE_SHELL_BACKGROUND : MODERN_UI_SHELL_BACKGROUND)
+		?? resolve(MODERN_UI_SHELL_BACKGROUND)
+		?? resolve(isInactive ? TITLE_BAR_INACTIVE_BACKGROUND : TITLE_BAR_ACTIVE_BACKGROUND)
+		?? resolve(TITLE_BAR_ACTIVE_BACKGROUND);
+}
 
 export const TITLE_BAR_BORDER = registerColor('titleBar.border', {
 	dark: null,

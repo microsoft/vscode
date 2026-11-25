@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Separator } from '../../../../../base/common/actions.js';
-import { coalesce } from '../../../../../base/common/arrays.js';
 import { posix as pathPosix, win32 as pathWin32 } from '../../../../../base/common/path.js';
 import { OperatingSystem } from '../../../../../base/common/platform.js';
 import { escapeRegExpCharacters } from '../../../../../base/common/strings.js';
 import { localize } from '../../../../../nls.js';
+import { suggestAutoApproveRuleKeys } from '../../../../../platform/terminal/common/autoApprove/suggestAutoApproveRules.js';
 import type { TerminalNewAutoApproveButtonData } from '../../../chat/browser/widget/chatContentParts/toolInvocationParts/chatTerminalToolConfirmationSubPart.js';
 import type { ToolConfirmationAction } from '../../../chat/common/tools/languageModelToolsService.js';
 import type { ICommandApprovalResultWithReason } from './tools/commandLineAnalyzer/autoApprove/commandLineAutoApprover.js';
@@ -104,7 +104,7 @@ export function isMultilineCommand(command: string): boolean {
 	return /(?<!\\)\n/.test(normalized);
 }
 
-export function generateAutoApproveActions(commandLine: string, subCommands: string[], autoApproveResult: { subCommandResults: ICommandApprovalResultWithReason[]; commandLineResult: ICommandApprovalResultWithReason }, options?: { skipSessionScoped?: boolean }): ToolConfirmationAction[] {
+export function generateAutoApproveActions(commandLine: string, subCommands: string[], autoApproveResult: { subCommandResults: ICommandApprovalResultWithReason[]; commandLineResult: ICommandApprovalResultWithReason }): ToolConfirmationAction[] {
 	const actions: ToolConfirmationAction[] = [];
 
 	// We shouldn't offer configuring rules for commands that are explicitly denied since it
@@ -118,78 +118,7 @@ export function generateAutoApproveActions(commandLine: string, subCommands: str
 			return autoApproveResult.subCommandResults[index].result !== 'approved';
 		});
 
-		// Some commands should not be recommended as they are too permissive generally. This only
-		// applies to sub-commands, we still want to offer approving of the exact the command line
-		// however as it's very specific.
-		const neverAutoApproveCommands = new Set([
-			// Shell interpreters
-			'bash', 'sh', 'zsh', 'fish', 'ksh', 'csh', 'tcsh', 'dash',
-			'pwsh', 'powershell', 'powershell.exe', 'cmd', 'cmd.exe',
-			// Script interpreters
-			'python', 'python3', 'node', 'ruby', 'perl', 'php', 'lua',
-			// Direct execution commands
-			'eval', 'exec', 'source', 'sudo', 'su', 'doas',
-			// Network tools that can download and execute code
-			'curl', 'wget', 'invoke-restmethod', 'invoke-webrequest', 'irm', 'iwr',
-		]);
-
-		// Commands where we want to suggest the sub-command (eg. `foo bar` instead of `foo`)
-		const commandsWithSubcommands = new Set(['git', 'npm', 'npx', 'yarn', 'docker', 'kubectl', 'cargo', 'dotnet', 'mvn', 'gradle']);
-
-		// Commands where we want to suggest the sub-command of a sub-command (eg. `foo bar baz`
-		// instead of `foo`)
-		const commandsWithSubSubCommands = new Set(['npm run', 'yarn run']);
-
-		// Helper function to find the first non-flag argument after a given index
-		const findNextNonFlagArg = (parts: string[], startIndex: number): number | undefined => {
-			for (let i = startIndex; i < parts.length; i++) {
-				if (!parts[i].startsWith('-')) {
-					return i;
-				}
-			}
-			return undefined;
-		};
-
-		// For each unapproved sub-command (within the overall command line), decide whether to
-		// suggest new rules for the command, a sub-command, a sub-command of a sub-command or to
-		// not suggest at all.
-		//
-		// This includes support for detecting flags between the commands, so `mvn -DskipIT test a`
-		// would suggest `mvn -DskipIT test` as that's more useful than only suggesting the exact
-		// command line.
-		const subCommandsToSuggest = Array.from(new Set(coalesce(unapprovedSubCommands.map(command => {
-			const parts = command.trim().split(/\s+/);
-			const baseCommand = parts[0].toLowerCase();
-
-			// Security check: Never suggest auto-approval for dangerous interpreter commands
-			if (neverAutoApproveCommands.has(baseCommand)) {
-				return undefined;
-			}
-
-			if (commandsWithSubcommands.has(baseCommand)) {
-				// Find the first non-flag argument after the command
-				const subCommandIndex = findNextNonFlagArg(parts, 1);
-				if (subCommandIndex !== undefined) {
-					// Check if this is a sub-sub-command case
-					const baseSubCommand = `${parts[0]} ${parts[subCommandIndex]}`.toLowerCase();
-					if (commandsWithSubSubCommands.has(baseSubCommand)) {
-						// Look for the second non-flag argument after the first subcommand
-						const subSubCommandIndex = findNextNonFlagArg(parts, subCommandIndex + 1);
-						if (subSubCommandIndex !== undefined) {
-							// Include everything from command to sub-sub-command (including flags)
-							return parts.slice(0, subSubCommandIndex + 1).join(' ');
-						}
-						return undefined;
-					} else {
-						// Include everything from command to subcommand (including flags)
-						return parts.slice(0, subCommandIndex + 1).join(' ');
-					}
-				}
-				return undefined;
-			} else {
-				return parts[0];
-			}
-		}))));
+		const { subCommandKeys: subCommandsToSuggest, offerExactCommandLine } = suggestAutoApproveRuleKeys(commandLine, unapprovedSubCommands);
 
 		if (subCommandsToSuggest.length > 0) {
 			let subCommandLabel: string;
@@ -199,19 +128,17 @@ export function generateAutoApproveActions(commandLine: string, subCommands: str
 				subCommandLabel = `Commands ${subCommandsToSuggest.map(e => `\`${e} \u2026\``).join(', ')}`;
 			}
 
-			if (!options?.skipSessionScoped) {
-				actions.push({
-					label: `Allow ${subCommandLabel} in this Session`,
-					data: {
-						type: 'newRule',
-						rule: subCommandsToSuggest.map(key => ({
-							key,
-							value: true,
-							scope: 'session'
-						}))
-					} satisfies TerminalNewAutoApproveButtonData
-				});
-			}
+			actions.push({
+				label: `Allow ${subCommandLabel} in this Session`,
+				data: {
+					type: 'newRule',
+					rule: subCommandsToSuggest.map(key => ({
+						key,
+						value: true,
+						scope: 'session'
+					}))
+				} satisfies TerminalNewAutoApproveButtonData
+			});
 			actions.push({
 				label: `Allow ${subCommandLabel} in this Workspace`,
 				data: {
@@ -240,30 +167,21 @@ export function generateAutoApproveActions(commandLine: string, subCommands: str
 			actions.push(new Separator());
 		}
 
-		// Allow exact command line, don't do this if it's just the first sub-command's first
-		// word or if it's an exact match for special sub-commands
-		const firstSubcommandFirstWord = unapprovedSubCommands.length > 0 ? unapprovedSubCommands[0].split(' ')[0] : '';
-		if (
-			firstSubcommandFirstWord !== commandLine &&
-			!commandsWithSubcommands.has(commandLine) &&
-			!commandsWithSubSubCommands.has(commandLine)
-		) {
-			if (!options?.skipSessionScoped) {
-				actions.push({
-					label: localize('autoApprove.exactCommand1', 'Allow Exact Command Line in this Session'),
-					data: {
-						type: 'newRule',
-						rule: {
-							key: `/^${escapeRegExpCharacters(commandLine)}$/`,
-							value: {
-								approve: true,
-								matchCommandLine: true
-							},
-							scope: 'session'
-						}
-					} satisfies TerminalNewAutoApproveButtonData
-				});
-			}
+		if (offerExactCommandLine) {
+			actions.push({
+				label: localize('autoApprove.exactCommand1', 'Allow Exact Command Line in this Session'),
+				data: {
+					type: 'newRule',
+					rule: {
+						key: `/^${escapeRegExpCharacters(commandLine)}$/`,
+						value: {
+							approve: true,
+							matchCommandLine: true
+						},
+						scope: 'session'
+					}
+				} satisfies TerminalNewAutoApproveButtonData
+			});
 			actions.push({
 				label: localize('autoApprove.exactCommand2', 'Allow Exact Command Line in this Workspace'),
 				data: {
@@ -301,17 +219,15 @@ export function generateAutoApproveActions(commandLine: string, subCommands: str
 
 
 	// Allow all commands for this session
-	if (!options?.skipSessionScoped) {
-		actions.push({
-			label: localize('allowSession', 'Allow All Commands in this Session'),
-			tooltip: localize('allowSessionTooltip', 'Allow this tool to run in this session without confirmation.'),
-			data: {
-				type: 'sessionApproval'
-			} satisfies TerminalNewAutoApproveButtonData
-		});
+	actions.push({
+		label: localize('allowSession', 'Allow All Commands in this Session'),
+		tooltip: localize('allowSessionTooltip', 'Allow this tool to run in this session without confirmation.'),
+		data: {
+			type: 'sessionApproval'
+		} satisfies TerminalNewAutoApproveButtonData
+	});
 
-		actions.push(new Separator());
-	}
+	actions.push(new Separator());
 
 	// Always show configure option
 	actions.push({

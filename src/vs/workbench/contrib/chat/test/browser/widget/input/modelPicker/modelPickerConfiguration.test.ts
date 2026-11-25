@@ -222,8 +222,8 @@ suite('ModelPickerConfiguration', () => {
 		const model = createModel();
 		assert.deepStrictEqual(render({ ...model, metadata: { ...model.metadata, configurationSchema: undefined, maxContextWindowTokens: 200000 } }), {
 			visible: true,
-			label: 'Max 200K',
-			ariaLabel: 'Test Model details, Max context: 200K',
+			label: '200K',
+			ariaLabel: 'Test Model details, Context: 200K',
 		});
 	});
 

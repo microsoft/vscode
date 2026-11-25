@@ -20,12 +20,17 @@ import { AuthenticateTargetKind } from '../../../common/state/sessionProtocol.js
 import { AgentHostStateManager } from '../../../node/agentHostStateManager.js';
 import { getCustomizationEnablementKey, type CustomizationEnablementResolution, type ICustomizationEnablementTarget } from '../../../node/agentHostCustomizationEnablementService.js';
 import { CodexAgent } from '../../../node/codex/codexAgent.js';
-import { extractUserInputText } from '../../../node/codex/codexMapAppServerEvents.js';
+import { createCodexSessionMapState, extractUserInputText } from '../../../node/codex/codexMapAppServerEvents.js';
 import type { UserInput } from '../../../node/codex/protocol/generated/v2/UserInput.js';
 import { CodexClientCustomizationStore, type ICodexClientPlugin } from '../../../node/codex/codexClientCustomizations.js';
 import type { ICodexMcpServerConfigJson, ICodexMcpServerEntry } from '../../../node/codex/codexMcpServers.js';
 import type { ItemGuardianApprovalReviewCompletedNotification } from '../../../node/codex/protocol/generated/v2/ItemGuardianApprovalReviewCompletedNotification.js';
 import type { GuardianWarningNotification } from '../../../node/codex/protocol/generated/v2/GuardianWarningNotification.js';
+import type { CommandExecutionApprovalDecision } from '../../../node/codex/protocol/generated/v2/CommandExecutionApprovalDecision.js';
+import type { CommandExecutionRequestApprovalParams } from '../../../node/codex/protocol/generated/v2/CommandExecutionRequestApprovalParams.js';
+import type { CommandExecutionRequestApprovalResponse } from '../../../node/codex/protocol/generated/v2/CommandExecutionRequestApprovalResponse.js';
+import { PendingRequestRegistry } from '../../../common/pendingRequestRegistry.js';
+import { toToolCallMeta } from '../../../common/meta/agentToolCallMeta.js';
 import { targetForMcpServer } from '../../../node/shared/customizationEnablementGate.js';
 import { McpCustomizationController, type IMcpCustomizationControllerOptions } from '../../../node/shared/mcpCustomizationController.js';
 import { createGitHubMcpServerConfiguration, getGitHubMcpTools } from '../../../node/shared/githubMcpServer.js';
@@ -116,6 +121,39 @@ interface ICodexGuardianReviewHarness {
 	readonly _sessions: Map<string, ICodexGuardianReviewSession>;
 	_hostTurnId(session: ICodexGuardianReviewSession, appTurnId: string): string;
 	_fire(sessionUri: URI, action: ChatAction): void;
+}
+
+interface ICodexCommandApprovalHarness {
+	_handleCommandApprovalRequestRpc(params: CommandExecutionRequestApprovalParams): Promise<{ readonly result: CommandExecutionRequestApprovalResponse }>;
+	respondToPermissionRequest(requestId: string, approved: boolean): void;
+}
+
+function createCommandApprovalHarness() {
+	const actions: ChatAction[] = [];
+	const session = {
+		sessionId: 'session',
+		sessionUri: AgentSession.uri(CODEX_AGENT_PROVIDER_ID, 'session'),
+		agentMergeTurn: false,
+		acceptedForSession: new Set<string>(),
+		pendingCommandApprovals: new PendingRequestRegistry<CommandExecutionApprovalDecision>(),
+		mapState: createCodexSessionMapState(),
+	};
+	const agent: ICodexCommandApprovalHarness = Object.assign(Object.create(CodexAgent.prototype), {
+		_logService: new NullLogService(),
+		_subagentsByThreadId: new Map(),
+		_sessionIdByThreadId: new Map([['thread', session.sessionId]]),
+		_sessions: new Map([[session.sessionId, session]]),
+		_fire: (_sessionUri: URI, action: ChatAction) => actions.push(action),
+	});
+	/** Starts a request for `./test.sh` that differs from the others only in where it runs. */
+	const request = (itemId: string, cwd: string, environmentId: string | null = 'local') => {
+		session.mapState.itemToToolCall.set(itemId, { toolCallId: itemId, turnId: 'turn', toolName: 'shell', output: '', meta: toToolCallMeta({ toolKind: 'terminal' }) });
+		return agent._handleCommandApprovalRequestRpc({
+			kind: 'command', threadId: 'thread', turnId: 'app-turn', itemId, startedAtMs: 0, environmentId,
+			command: `/bin/zsh -lc './test.sh'`, cwd, reason: 'Run the tests',
+		});
+	};
+	return { agent, actions, request };
 }
 
 function resolveConversationSession(harness: ICodexConversationResolverHarness, address: URI, context?: URI | IAgentChatContext): URI | undefined {
@@ -391,6 +429,75 @@ suite('CodexAgent', () => {
 				},
 			],
 			handledReviewIds: ['timed-out', 'aborted'],
+		});
+	});
+
+	test('command approvals show where the command runs and keep their decisions', async () => {
+		const { agent, actions, request } = createCommandApprovalHarness();
+		const respond = (pending: Promise<{ readonly result: CommandExecutionRequestApprovalResponse }>, toolCallId: string, approved: boolean) => {
+			agent.respondToPermissionRequest(toolCallId, approved);
+			return pending;
+		};
+
+		const decisions = [
+			await respond(request('web', '/work/web'), 'web', true),
+			await respond(request('api', '/work/api'), 'api', false),
+			await respond(request('remote', '/srv/app', 'remote'), 'remote', true),
+		];
+
+		const pendingConfirmation = (toolCallId: string, _meta: Record<string, unknown>): ChatAction => ({
+			type: ActionType.ChatToolCallReady,
+			turnId: 'turn',
+			toolCallId,
+			invocationMessage: './test.sh',
+			toolInput: './test.sh',
+			confirmationTitle: 'Run the tests',
+			_meta,
+		});
+		assert.deepStrictEqual({ decisions, actions }, {
+			decisions: [{ result: { decision: 'accept' } }, { result: { decision: 'decline' } }, { result: { decision: 'accept' } }],
+			actions: [
+				pendingConfirmation('web', { toolKind: 'terminal', 'vscode.terminalWorkingDirectory': '/work/web' }),
+				pendingConfirmation('api', { toolKind: 'terminal', 'vscode.terminalWorkingDirectory': '/work/api' }),
+				pendingConfirmation('remote', { toolKind: 'terminal', 'vscode.terminalWorkingDirectory': '/srv/app', 'vscode.terminalEnvironment': 'remote' }),
+			],
+		});
+	});
+
+	test('the approve-anyway card for a denied command names the directory it would run in', async () => {
+		const actions: ChatAction[] = [];
+		const session = {
+			sessionId: 'session',
+			sessionUri: URI.parse('codex:/session'),
+			currentTurnId: 'host-turn',
+			hostTurnIdByAppTurnId: new Map([['app-turn', 'host-turn']]),
+			handledGuardianReviews: new Set<string>(),
+			pendingGuardianReviewCards: new Set<string>(),
+			pendingCommandApprovals: new PendingRequestRegistry<CommandExecutionApprovalDecision>(),
+		};
+		const harness: ICodexGuardianReviewHarness = {
+			_logService: new NullLogService(),
+			_sessionIdByThreadId: new Map([['thread', session.sessionId]]),
+			_sessions: new Map([[session.sessionId, session]]),
+			_hostTurnId: (reviewSession, appTurnId) => reviewSession.hostTurnIdByAppTurnId.get(appTurnId) ?? appTurnId,
+			_fire: (_sessionUri, action) => {
+				actions.push(action);
+				if (action.type === ActionType.ChatToolCallReady) {
+					session.pendingCommandApprovals.respond(action.toolCallId, 'decline');
+				}
+			},
+		};
+
+		await handleGuardianReviewCompleted(harness, {
+			threadId: 'thread', turnId: 'app-turn', startedAtMs: 10, completedAtMs: 20, reviewId: 'denied', targetItemId: null, decisionSource: 'agent',
+			review: { status: 'denied', riskLevel: null, userAuthorization: null, rationale: null },
+			action: { type: 'command', source: 'shell', command: `/bin/zsh -lc './test.sh'`, cwd: '/work/api' },
+		});
+
+		const card = actions.find(action => action.type === ActionType.ChatToolCallReady);
+		assert.deepStrictEqual(card?.type === ActionType.ChatToolCallReady ? { title: card.confirmationTitle, message: card.invocationMessage } : undefined, {
+			title: 'Approve anyway',
+			message: { markdown: '```\n./test.sh\n```\n\nWorking directory: `/work/api`' },
 		});
 	});
 

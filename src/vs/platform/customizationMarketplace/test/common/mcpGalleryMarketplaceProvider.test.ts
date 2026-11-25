@@ -9,12 +9,13 @@ import { CancellationError } from '../../../../base/common/errors.js';
 import { URI } from '../../../../base/common/uri.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { IConfigurationOverrides, IConfigurationService } from '../../../configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { IMcpGalleryManifest, IMcpGalleryManifestService, McpGalleryManifestStatus, McpGalleryResourceType } from '../../../mcp/common/mcpGalleryManifest.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { CustomizationMarketplaceMediaType } from '../../common/customizationMarketplaceService.js';
 import { getCustomizationMarketplaceSourceInfos, McpGalleryMarketplaceProvider } from '../../common/mcpGalleryMarketplaceProvider.js';
-import { GalleryMcpServerStatus, IGalleryMcpServer, IMcpGalleryService, IMcpGalleryQueryPageOptions, mcpGalleryServiceUrlConfig } from '../../../mcp/common/mcpManagement.js';
+import { GalleryMcpServerStatus, IGalleryMcpServer, IMcpGalleryService, IMcpGalleryQueryPageOptions, mcpGalleryServiceEnablementConfig, mcpGalleryServiceUrlConfig } from '../../../mcp/common/mcpManagement.js';
 import { McpGalleryInvalidCursorError } from '../../../mcp/common/mcpGalleryService.js';
 
 suite('McpGalleryMarketplaceProvider', () => {
@@ -41,7 +42,8 @@ suite('McpGalleryMarketplaceProvider', () => {
 	const manifest = (url: string) => new class extends mock<IMcpGalleryManifestService>() {
 		override async getMcpGalleryManifest() { return { url, version: 'v0.1', resources: [] }; }
 	}();
-	const configuration = (url = customUrl) => new TestConfigurationService({
+	const configuration = (url = customUrl, enabled: boolean | undefined = true) => new TestConfigurationService({
+		...(enabled === undefined ? {} : { [mcpGalleryServiceEnablementConfig]: enabled }),
 		[mcpGalleryServiceUrlConfig]: url,
 	});
 
@@ -279,12 +281,29 @@ suite('McpGalleryMarketplaceProvider', () => {
 		});
 	});
 
-	test('advertises the MCP Gallery platform source only when available', () => {
+	test('advertises the MCP Gallery platform source only when available and enabled', () => {
+		const sourceIds = (configurationService: IConfigurationService, productService = product) =>
+			getCustomizationMarketplaceSourceInfos(McpGalleryManifestStatus.Available, configurationService, productService).map(source => source.id);
+		const unsetConfiguration = new class extends mock<IConfigurationService>() {
+			override getValue<T>(section?: string | IConfigurationOverrides): T {
+				return (section === mcpGalleryServiceUrlConfig ? productUrl : undefined) as T;
+			}
+		}();
 		assert.deepStrictEqual({
-			available: getCustomizationMarketplaceSourceInfos(McpGalleryManifestStatus.Available).map(source => source.id),
-			unavailable: getCustomizationMarketplaceSourceInfos(McpGalleryManifestStatus.Unavailable).map(source => source.id),
+			enabled: sourceIds(configuration(productUrl, true)),
+			disabled: sourceIds(configuration(productUrl, false)),
+			unset: sourceIds(unsetConfiguration),
+			matchingProductUrl: sourceIds(configuration(`${productUrl}/`, false)),
+			custom: sourceIds(configuration(customUrl, false)),
+			withoutProductMetadata: sourceIds(configuration(undefined, false), {} as IProductService),
+			unavailable: getCustomizationMarketplaceSourceInfos(McpGalleryManifestStatus.Unavailable, configuration(), product).map(source => source.id),
 		}, {
-			available: ['mcpGallery'],
+			enabled: ['mcpGallery'],
+			disabled: [],
+			unset: ['mcpGallery'],
+			matchingProductUrl: [],
+			custom: ['mcpGallery'],
+			withoutProductMetadata: ['mcpGallery'],
 			unavailable: [],
 		});
 	});
@@ -405,6 +424,54 @@ suite('McpGalleryMarketplaceProvider', () => {
 			id: 'mcpGallery.default', sourceId: 'mcpGallery', urls: [productUrl, productUrl], identifier: `default:${server.name}`, priority: 0,
 			installation: { kind: 'mcpGallery', name: server.name, registry: 'default', registryUrl: productUrl },
 			repeated: [`default:${server.name}`],
+		});
+	});
+
+	test('queries the product registry unless the default registry is explicitly disabled', async () => {
+		let galleryCalls = 0;
+		let manifestCalls = 0;
+		const gallery = new class extends mock<IMcpGalleryService>() {
+			override async queryPage() {
+				galleryCalls++;
+				return { items: [], total: 0 };
+			}
+		}();
+		const manifests = new class extends mock<IMcpGalleryManifestService>() {
+			override async getDefaultMcpGalleryManifest(): Promise<IMcpGalleryManifest> {
+				manifestCalls++;
+				return { url: productUrl, version: 'v0.1', resources: [] };
+			}
+		}();
+		const pages = [
+			await new McpGalleryMarketplaceProvider('default', gallery, manifests, new TestConfigurationService({
+				[mcpGalleryServiceEnablementConfig]: false,
+			}), product).query({}, CancellationToken.None),
+			await new McpGalleryMarketplaceProvider('default', gallery, manifests, new TestConfigurationService(), product).query({}, CancellationToken.None),
+		];
+
+		assert.deepStrictEqual({ pages: pages.map(page => ({ items: page.items, total: page.total })), galleryCalls, manifestCalls }, {
+			pages: [{ items: [], total: 0 }, { items: [], total: 0 }],
+			galleryCalls: 1,
+			manifestCalls: 1,
+		});
+	});
+
+	test('continues to query a distinct custom registry when the default registry is disabled', async () => {
+		const registryUrls: string[] = [];
+		const gallery = new class extends mock<IMcpGalleryService>() {
+			override async queryPage(_options: IMcpGalleryQueryPageOptions, _token: CancellationToken, registry?: IMcpGalleryManifest) {
+				registryUrls.push(registry?.url ?? '');
+				return { items: [server], total: 1 };
+			}
+		}();
+		const page = await new McpGalleryMarketplaceProvider('custom', gallery, manifest(customUrl), configuration(customUrl, false), product).query({}, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			registryUrls,
+			identifiers: page.items.map(item => item.identifier),
+		}, {
+			registryUrls: [customUrl],
+			identifiers: [`custom:${server.name}`],
 		});
 	});
 

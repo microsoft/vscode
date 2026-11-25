@@ -7,15 +7,17 @@ import { CancellationToken } from '../../../../../../base/common/cancellation.js
 import { ResourceSet } from '../../../../../../base/common/map.js';
 import { basename, isEqualOrParent } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { isRemoteAgentHostSessionType, parseAgentHostHarness } from '../../../../../../platform/agentHost/common/agentHostSessionType.js';
+import { isCopilotAgentHostProvider, isRemoteAgentHostSessionType, parseAgentHostHarness } from '../../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { CustomizationEnablementKind, type AgentCustomization, CustomizationType, type URI as ProtocolURI } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { customizationId, type ClientPluginCustomization } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { withCustomizationEnablement } from '../../../../../../platform/agentHost/common/customizationEnablement.js';
+import { toAgentCustomizationMeta } from '../../../../../../platform/agentHost/common/meta/agentCustomizationMeta.js';
 import { AICustomizationSource, AICustomizationSources } from '../../../common/aiCustomizationWorkspaceService.js';
 import { PromptFileSource, PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 import { IPromptsService, isUserToggleableCustomization, matchesSessionType, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { type ICustomizationSyncProvider } from '../../../common/customizationHarnessService.js';
 import { IAgentPlugin, IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
+import { isContributionEnabled } from '../../../common/enablement.js';
 import { IMcpService } from '../../../../mcp/common/mcpTypes.js';
 import { IConfigurationResolverService } from '../../../../../services/configurationResolver/common/configurationResolver.js';
 import { SYNCED_CUSTOMIZATION_SCHEME, type ISyncableFile, type ISyncableMcpServer, type SyncedCustomizationBundler } from './syncedCustomizationBundler.js';
@@ -62,6 +64,8 @@ export interface ILocalCustomizationFile {
 	readonly disabled: boolean;
 	readonly pluginUri?: URI;
 	readonly extensionId?: string;
+	/** Display name of the contributing extension, when {@link extensionId} is set. */
+	readonly extensionLabel?: string;
 }
 
 /**
@@ -119,6 +123,7 @@ export async function enumerateLocalCustomizationsForHarness(
 						source,
 						pluginUri: file.pluginUri,
 						extensionId: file.extension?.identifier.value,
+						extensionLabel: file.extension ? file.extension.displayName || file.extension.identifier.value : undefined,
 						disabled: syncProvider.isDisabled(file.uri) || (userToggleable && userDisabled.has(file.uri)),
 					});
 				}
@@ -138,6 +143,10 @@ export async function enumerateLocalCustomizationsForHarness(
  * the picker before that state exists, so this mirrors the same eligibility
  * rules used by {@link resolveCustomizationRefs} without waiting for the host
  * to parse the plugin or synthetic bundle.
+ *
+ * Pass `enumerated` when the caller already ran
+ * {@link enumerateLocalCustomizationsForHarness} for the same session type
+ * and options, to avoid listing every customization folder again.
  */
 export async function resolveLocalCustomAgents(
 	fileService: IFileService,
@@ -146,12 +155,13 @@ export async function resolveLocalCustomAgents(
 	agentPluginService: IAgentPluginService,
 	sessionType: string,
 	options: ILocalCustomizationSyncOptions | undefined,
+	enumerated?: readonly ILocalCustomizationFile[],
 ): Promise<readonly AgentCustomization[]> {
 	const plugins = agentPluginService.plugins.get();
 	const result: AgentCustomization[] = [];
 	const parser = new PromptFileParser();
 	const pending: Promise<void>[] = [];
-	const enumerated = await enumerateLocalCustomizationsForHarness(promptsService, syncProvider, sessionType, CancellationToken.None, options);
+	enumerated ??= await enumerateLocalCustomizationsForHarness(promptsService, syncProvider, sessionType, CancellationToken.None, options);
 
 	for (const agent of enumerated) {
 		if (agent.type !== PromptsType.agent || agent.disabled) {
@@ -163,17 +173,22 @@ export async function resolveLocalCustomAgents(
 		if (agent.source === AICustomizationSources.plugin && !plugin) {
 			continue;
 		}
+		if (plugin?.copilotCliInstallation && !isContributionEnabled(plugin.enablement.get())) {
+			continue;
+		}
 		const pluginAgent = plugin?.agents.get().find(candidate => candidate.uri.toString() === agent.uri.toString());
 		pending.push((async () => {
 			let name = pluginAgent?.name ?? basename(agent.uri, '.agent.md');
 			let description = pluginAgent?.description;
 			let disableUserInvocation: boolean | undefined;
+			let welcomeMessage: string | undefined;
 			try {
 				const content = await fileService.readFile(agent.uri);
 				const header = parser.parse(agent.uri, content.value.toString()).header;
 				name = header?.name ?? name;
 				description = header?.description ?? description;
 				disableUserInvocation = header?.userInvocable === false || undefined;
+				welcomeMessage = header?.welcomeMessage;
 			} catch {
 				// The host will parse the full agent after session creation. Keep the
 				// discovery metadata as a best-effort draft fallback if the file moved.
@@ -185,6 +200,7 @@ export async function resolveLocalCustomAgents(
 				name,
 				description,
 				disableUserInvocation,
+				...(welcomeMessage ? { _meta: toAgentCustomizationMeta({ 'vscode.welcomeMessage': welcomeMessage }) } : {}),
 			});
 		})());
 	}
@@ -194,7 +210,7 @@ export async function resolveLocalCustomAgents(
 }
 
 /**
- * Collects declaratively forwardable MCP servers, excluding plugin-sourced servers, duplicate built-ins, and workspace-discovered servers other than resolvable `.vscode/mcp.json` entries.
+ * Collects MCP servers with resolved, representable configurations, excluding plugin-sourced servers, duplicate built-ins, and workspace-discovered servers other than `.vscode/mcp.json` entries.
  * Copilot-home `mcp-config.json` (`COPILOT_HOME`, otherwise `~/.copilot`) is runtime-discovered only by the window's own Copilot host on the same machine and is never forwarded.
  */
 export async function collectNonPluginMcpServers(mcpService: IMcpService, configurationResolverService: IConfigurationResolverService, sessionType: string, workingDirectories: readonly URI[], windowRemoteAuthority: string | null): Promise<ISyncableMcpServer[]> {
@@ -240,12 +256,17 @@ function isStandaloneSkillOrAgent(file: ISyncableFile): boolean {
  * message.
  *
  * Every eligible local file is synced unless the user opted out. Files
- * belonging to installed plugins are de-duped to a single plugin ref;
+ * belonging to client-provided plugins are de-duped to a single plugin ref;
+ * Copilot discovers its SDK-managed installations natively;
  * remaining loose files are bundled into a synthetic Open Plugin. Standalone
  * user and workspace skills and agents, together with the MCP servers that
  * VS Code forwards (user, workspace, or extension-contributed), go into a
  * separate standalone bundle so that the host does not deliver them as
  * plugin-provided content.
+ *
+ * Pass `enumerated` when the caller already ran
+ * {@link enumerateLocalCustomizationsForHarness} for the same session type
+ * and options, to avoid listing every customization folder again.
  */
 export async function resolveCustomizationRefs(
 	fileService: IFileService,
@@ -259,8 +280,9 @@ export async function resolveCustomizationRefs(
 	options: ILocalCustomizationSyncOptions | undefined,
 	workingDirectories: readonly URI[] = [],
 	windowRemoteAuthority: string | null = null,
+	enumerated?: readonly ILocalCustomizationFile[],
 ): Promise<ClientPluginCustomization[]> {
-	const enumerated = await enumerateLocalCustomizationsForHarness(promptsService, syncProvider, sessionType, CancellationToken.None, options);
+	enumerated ??= await enumerateLocalCustomizationsForHarness(promptsService, syncProvider, sessionType, CancellationToken.None, options);
 	const enabled = enumerated.filter(e => !e.disabled);
 
 	const plugins = agentPluginService.plugins.get();
@@ -268,6 +290,10 @@ export async function resolveCustomizationRefs(
 	const looseFiles: ISyncableFile[] = [];
 
 	const addPluginRef = (plugin: IAgentPlugin) => {
+		if (plugin.copilotCliInstallation && isCopilotAgentHostProvider(parseAgentHostHarness(sessionType) ?? sessionType)) {
+			// Native installations use SDK enablement; legacy client decisions are not migrated.
+			return;
+		}
 		const key = plugin.uri.toString();
 		if (!pluginRefs.has(key)) {
 			const promise = (async (): Promise<ClientPluginCustomization> => {
@@ -285,7 +311,9 @@ export async function resolveCustomizationRefs(
 					name: plugin.label,
 					enablement: withCustomizationEnablement(undefined, CustomizationEnablementKind.Global, {
 						kind: CustomizationEnablementKind.Global,
-						enabled: agentPluginService.enablementModel.readProfileEnabled(key),
+						enabled: plugin.copilotCliInstallation
+							? isContributionEnabled(plugin.enablement.get())
+							: agentPluginService.enablementModel.readProfileEnabled(key),
 					}),
 				};
 				if (nonce !== undefined) {
@@ -305,26 +333,16 @@ export async function resolveCustomizationRefs(
 			}
 			addPluginRef(plugin);
 		} else {
-			looseFiles.push({ uri: entry.uri, type: entry.type, source: entry.source, extensionId: entry.extensionId, pluginUri: entry.pluginUri });
+			looseFiles.push({ uri: entry.uri, type: entry.type, source: entry.source, extensionId: entry.extensionId, extensionLabel: entry.extensionLabel, pluginUri: entry.pluginUri });
 		}
 	}
 
 	// Plugin prompt discovery is not guaranteed to be hydrated before an agent
-	// host registration resolves (notably in the Agents window). Include every
-	// enabled plugin with a concrete contribution directly; `pluginRefs`
+	// host registration resolves (notably in the Agents window), and plugins can
+	// ship content only the agent host runtime understands (for example Copilot
+	// extensions with canvases). Include every installed plugin; `pluginRefs`
 	// de-duplicates those already found through prompt-file enumeration.
 	for (const plugin of plugins) {
-		if (pluginRefs.has(plugin.uri.toString())) {
-			continue;
-		}
-		if (plugin.hooks.get().length === 0
-			&& plugin.commands.get().length === 0
-			&& plugin.skills.get().length === 0
-			&& plugin.agents.get().length === 0
-			&& plugin.instructions.get().length === 0
-			&& plugin.mcpServerDefinitions.get().length === 0) {
-			continue;
-		}
 		addPluginRef(plugin);
 	}
 

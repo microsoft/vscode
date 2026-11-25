@@ -12,6 +12,7 @@ import * as path from '../../../../../base/common/path.js';
 import { autorun, waitForState } from '../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../log/common/log.js';
+import { setAdvertisedAutoModeTiers } from '../../../common/autoModeTiers.js';
 import type { ITelemetryService } from '../../../../telemetry/common/telemetry.js';
 import { IDLE_UNLOAD_MS, SYSTEM_DRAIN_TIMEOUT_MS } from '../../../node/copilot/localModelBridge/shim/constants.js';
 import { acquireProcessLock, type IProcessLockOptions } from '../../../node/copilot/localModelBridge/shim/processLock.js';
@@ -393,6 +394,25 @@ suite('localModel server supervisor (§5.8)', () => {
 			error: { code: 'crashed', message: 'Qwen 0.5B stopped unexpectedly. Auto is using cloud models. Select Retry to restart it.', actions: ['retry'] },
 			events: ['ready', 'crash', 'restart', 'crash', 'restart', 'crash'],
 		});
+	});
+
+	test('the crashed error names Copilot Fusion while Auto is presented as Fusion', async () => {
+		const { supervisor, spawner, clock } = createSupervisor();
+		await supervisor.start(createPlan());
+		setAdvertisedAutoModeTiers(['balance', 'hydrafusion'], true);
+		try {
+			for (const backoff of [5_000, 30_000]) {
+				spawner.running!.exit(1);
+				await waitForState(supervisor.state, state => state.server === 'starting');
+				clock.advance(backoff);
+				await waitForState(supervisor.state, state => state.server === 'ready');
+			}
+			spawner.running!.exit(1);
+			await waitForState(supervisor.state, state => state.server === 'error');
+			assert.deepStrictEqual(supervisor.state.get().error, { code: 'crashed', message: 'Qwen 0.5B stopped unexpectedly. Copilot Fusion is using cloud models. Select Retry to restart it.', actions: ['retry'] });
+		} finally {
+			setAdvertisedAutoModeTiers(undefined);
+		}
 	});
 
 	test('a user stop drains with no timeout; Stop Now ends the drain and terminates the server', async () => {

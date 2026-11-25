@@ -7,6 +7,7 @@ import assert from 'assert';
 import { DeferredPromise } from '../../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../../../base/common/event.js';
+import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../../../../platform/log/common/log.js';
@@ -93,6 +94,7 @@ suite('RunSubagentTool', () => {
 	function createInvokableTool(opts: {
 		allowInvocationsFromSubagents: boolean;
 		capturedRequests: IChatAgentRequest[];
+		capturedProgress?: IChatProgress[];
 		currentModeInstructions?: IChatRequestModeInstructions;
 		customAgents?: ICustomAgent[];
 		models?: Map<string, ILanguageModelChatMetadata>;
@@ -130,7 +132,7 @@ suite('RunSubagentTool', () => {
 							applyCodeBlockSuggestionId: undefined,
 						} : undefined
 					}],
-					acceptResponseProgress: () => { },
+					acceptResponseProgress: (_request: object, part: IChatProgress) => { opts.capturedProgress?.push(part); },
 				} as unknown as IChatModel;
 			},
 		};
@@ -168,6 +170,22 @@ suite('RunSubagentTool', () => {
 
 	const countTokens = async () => 0;
 	const noProgress: ToolProgress = { report() { } };
+
+	test('forwards each edit as standalone structured metadata without synthetic fences', async () => {
+		const capturedProgress: IChatProgress[] = [];
+		const { tool, mockChatAgentService } = createInvokableTool({ allowInvocationsFromSubagents: false, capturedRequests: [], capturedProgress });
+		const uri = URI.file('/workspace/edited.ts');
+		mockChatAgentService.invokeAgent = async (_id, _request, progress) => {
+			progress([{ kind: 'codeblockUri', uri, isEdit: true }, { kind: 'codeblockUri', uri, isEdit: true }]);
+			progress([{ kind: 'markdownContent', content: new MarkdownString('The edits succeeded.') }]);
+			return {};
+		};
+		const invocation = { ...createInvocation(URI.parse('test://session')), chatStreamToolCallId: 'agent/" & %' };
+		await tool.invoke(invocation, countTokens, noProgress, CancellationToken.None);
+		assert.deepStrictEqual(capturedProgress, [0, 1].map(() => ({
+			kind: 'codeblockUri', uri, isEdit: true, subAgentInvocationId: invocation.chatStreamToolCallId, isStandalone: true,
+		})));
+	});
 
 	suite('resultText trimming', () => {
 		test('trims leading empty codeblocks (```\\n```) from result', () => {

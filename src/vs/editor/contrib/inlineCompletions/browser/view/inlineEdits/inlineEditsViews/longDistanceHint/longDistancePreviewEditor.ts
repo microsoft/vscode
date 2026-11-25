@@ -32,6 +32,7 @@ export interface ILongDistancePreviewProps {
 	diff: DetailedLineRangeMapping[];
 	model: SimpleInlineSuggestModel;
 	inlineSuggestInfo: InlineSuggestionGutterMenuData;
+	showInlineEditMenu?: boolean;
 	/**
 	 * The URI of the file the edit targets.
 	 * When undefined (or same as the editor's model URI), the edit targets the current file.
@@ -130,7 +131,7 @@ export class LongDistancePreviewEditor extends Disposable {
 				const state = this._state.read(reader);
 				if (!state) { return undefined; }
 				const props = this._properties.read(reader);
-				if (!props) { return undefined; }
+				if (!props || props.showInlineEditMenu === false) { return undefined; }
 				return new InlineEditsGutterIndicatorData(
 					props.inlineSuggestInfo,
 					LineRange.ofLength(state.targetLineNumber, 1),

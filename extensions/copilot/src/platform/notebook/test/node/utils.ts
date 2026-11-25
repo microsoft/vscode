@@ -5,7 +5,6 @@
 import * as fs from 'fs';
 import * as path from '../../../../util/vs/base/common/path';
 import type * as vscode from 'vscode';
-import { BaseAlternativeNotebookContentProvider } from '../../../../platform/notebook/common/alternativeContentProvider';
 import { SimulationWorkspace } from '../../../../platform/test/node/simulationWorkspace';
 import { ExtHostNotebookDocumentData } from '../../../../util/common/test/shims/notebookDocument';
 import { Uri } from '../../../../vscodeTypes';
@@ -32,15 +31,6 @@ export function fixture(relativePath: RelativeFilePath<'$dir/fixtures'>): string
 	const filePath = path.join(__dirname, 'fixtures', relativePath);
 	return filePath;
 }
-export function getAlternativeNotebookSnapshotPath(data: ITestFile, extension: string): string {
-	return addSecondaryExtension(data.filePath, [extension]);
-}
-
-function addSecondaryExtension(filePath: string, extensions: string[]): string {
-	return filePath + '.' + extensions.join('.');
-}
-
-
 export function docPathInFixture(pathWithinFixturesDir: string, type: 'summarized' | 'selection') {
 	const dirname = path.dirname(pathWithinFixturesDir);
 	const basename = path.basename(pathWithinFixturesDir);
@@ -56,16 +46,6 @@ interface ITestFile {
 	filePath: string;
 	formattingOptions?: vscode.FormattingOptions;
 }
-export async function generateAlternativeContent(
-	filePromise: ITestFile | Promise<ITestFile>,
-	contentProvider: BaseAlternativeNotebookContentProvider,
-): Promise<{ content: string; notebook: vscode.NotebookDocument }> {
-	const notebook = await loadNotebook(filePromise);
-
-	const content = contentProvider.getAlternativeDocument(notebook).getText();
-	return { content, notebook };
-}
-
 export async function loadNotebook(filePromise: ITestFile | Promise<ITestFile>, simulationWorkspace?: SimulationWorkspace) {
 	const file = await filePromise;
 	const uri = Uri.file(file.filePath);

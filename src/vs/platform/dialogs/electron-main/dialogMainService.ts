@@ -34,6 +34,11 @@ export interface IDialogMainService {
 	showMessageBox(options: electron.MessageBoxOptions, window?: electron.BrowserWindow): Promise<electron.MessageBoxReturnValue>;
 	showSaveDialog(options: electron.SaveDialogOptions, window?: electron.BrowserWindow): Promise<electron.SaveDialogReturnValue>;
 	showOpenDialog(options: electron.OpenDialogOptions, window?: electron.BrowserWindow): Promise<electron.OpenDialogReturnValue>;
+
+	/**
+	 * Whether a message box or file dialog is showing or waiting to show.
+	 */
+	hasOpenDialogs(): boolean;
 }
 
 interface IInternalNativeOpenDialogOptions extends INativeOpenDialogOptions {
@@ -148,6 +153,10 @@ export class DialogMainService implements IDialogMainService {
 		} else {
 			return this.noWindowDialogueQueue as unknown as Queue<T>;
 		}
+	}
+
+	hasOpenDialogs(): boolean {
+		return this.noWindowDialogueQueue.size > 0 || Array.from(this.windowDialogQueues.values()).some(queue => queue.size > 0);
 	}
 
 	showMessageBox(rawOptions: electron.MessageBoxOptions, window?: electron.BrowserWindow): Promise<electron.MessageBoxReturnValue> {

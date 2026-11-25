@@ -81,7 +81,18 @@ export interface IDocumentDiff {
 	 * Only set if verification was requested, which happens for a sample of diffs.
 	 */
 	readonly validity?: LinesDiffValidity;
+
+	/**
+	 * Why the requested algorithm's result was replaced by the built-in algorithm's result, if it was.
+	 */
+	readonly fallback?: DiffFallbackReason;
 }
+
+/**
+ * Why a diff from `@vscode/diff` was replaced by one from the built-in algorithm:
+ * the package threw, or a sampled verification found its diff invalid.
+ */
+export type DiffFallbackReason = 'error' | 'invalid';
 
 
 export const nullDocumentDiff: IDocumentDiff = Object.freeze({

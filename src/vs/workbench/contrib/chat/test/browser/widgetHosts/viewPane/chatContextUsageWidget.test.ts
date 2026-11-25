@@ -4,14 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { mainWindow } from '../../../../../../../base/browser/window.js';
 import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
-import { Disposable } from '../../../../../../../base/common/lifecycle.js';
+import { toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { IObservable } from '../../../../../../../base/common/observable.js';
 import { upcastPartial } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
+import { NullHoverService } from '../../../../../../../platform/hover/test/browser/nullHoverService.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { MockContextKeyService } from '../../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { InMemoryStorageService } from '../../../../../../../platform/storage/common/storage.js';
@@ -151,10 +152,7 @@ suite('ChatContextUsageWidget', () => {
 	}
 
 	function createWidget(instantiationService: IInstantiationService = {} as IInstantiationService, languageModelsService: ILanguageModelsService = createLanguageModelsService()): ChatContextUsageWidget {
-		const hoverService = {
-			setupDelayedHover: () => Disposable.None,
-			showInstantHover: () => { },
-		} as unknown as IHoverService;
+		const hoverService = { ...NullHoverService };
 		return store.add(new ChatContextUsageWidget(
 			hoverService,
 			instantiationService,
@@ -190,6 +188,35 @@ suite('ChatContextUsageWidget', () => {
 	function usage(actualModelId?: string): IChatUsage {
 		return { kind: 'usage', promptTokens: 50_000, completionTokens: 4_000, actualModelId };
 	}
+
+	test('unchanged usage does not mutate the DOM on streamed response updates', () => {
+		const widget = createWidget();
+		const changed = store.add(new Emitter<void>());
+		widget.update(createRequest(CONCRETE_MODEL, usage(), changed.event));
+		const observer = new mainWindow.MutationObserver(() => { });
+		store.add(toDisposable(() => observer.disconnect()));
+		observer.observe(widget.domNode, { attributes: true, childList: true, characterData: true, subtree: true });
+
+		for (let i = 0; i < 40; i++) {
+			changed.fire();
+		}
+		const unchangedMutations = observer.takeRecords().length;
+		widget.update(createRequest(CONCRETE_MODEL, { kind: 'usage', promptTokens: 80_000, completionTokens: 10_000 }));
+
+		assert.deepStrictEqual({
+			unchangedMutations,
+			label: widget.domNode.querySelector('.percentage-label')?.textContent,
+			ariaLabel: widget.domNode.getAttribute('aria-label'),
+			warning: widget.domNode.classList.contains('warning'),
+			visible: widget.isVisible.get(),
+		}, {
+			unchangedMutations: 0,
+			label: '83%',
+			ariaLabel: 'Context window usage: 83%',
+			warning: true,
+			visible: true,
+		});
+	});
 
 	test('stays hidden when the session has a cost but no context usage', () => {
 		const { widget } = createWidgetWithData();

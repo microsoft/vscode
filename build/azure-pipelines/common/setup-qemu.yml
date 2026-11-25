@@ -1,0 +1,30 @@
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the MIT License. See License.txt in the project root for license information.
+
+parameters:
+  - name: condition
+    type: string
+    default: succeeded()
+
+steps:
+  - task: Docker@1
+    inputs:
+      azureSubscriptionEndpoint: vscode
+      azureContainerRegistry: vscodehub.azurecr.io
+      command: "Run an image"
+      imageName: "cache/docker/tonistiigi/binfmt:qemu-v10.2.3-68@sha256:400a4873b838d1b89194d982c45e5fb3cda4593fbfd7e08a02e76b03b21166f0"
+      containerCommand: --version
+    displayName: Pull QEMU image
+    condition: ${{ parameters.condition }}
+
+  # Register once before dependency installs, which may run concurrently.
+  - script: |
+      set -euo pipefail
+      jq --version
+      BINFMT_IMAGE=vscodehub.azurecr.io/cache/docker/tonistiigi/binfmt:qemu-v10.2.3-68@sha256:400a4873b838d1b89194d982c45e5fb3cda4593fbfd7e08a02e76b03b21166f0
+      sudo docker run --rm --privileged --pull=never --platform linux/amd64 "$BINFMT_IMAGE" --uninstall 'qemu-*' |
+        jq -e 'if any(.emulators[]?; startswith("qemu-")) then error("Failed to remove existing QEMU handlers") else . end'
+      sudo docker run --rm --privileged --pull=never --platform linux/amd64 "$BINFMT_IMAGE" --install arm64,arm |
+        jq -e 'if (.supported | index("linux/arm64") != null and index("linux/arm/v7") != null) then . else error("ARM64/ARM emulation is unavailable") end'
+    displayName: Register Docker QEMU
+    condition: ${{ parameters.condition }}

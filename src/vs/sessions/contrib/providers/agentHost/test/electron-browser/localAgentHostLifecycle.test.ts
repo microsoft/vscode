@@ -15,11 +15,11 @@ import { IChatEntitlementService } from '../../../../../../workbench/services/ch
 import { INativeWorkbenchEnvironmentService } from '../../../../../../workbench/services/environment/electron-browser/environmentService.js';
 import { ILifecycleService, InternalBeforeShutdownEvent, ShutdownReason } from '../../../../../../workbench/services/lifecycle/common/lifecycle.js';
 import { TestLifecycleService } from '../../../../../../workbench/test/common/workbenchTestServices.js';
-import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../common/agentHostSessionsProvider.js';
-import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
-import { ISession, SessionStatus } from '../../../../../services/sessions/common/session.js';
-import { ISessionsManagementService } from '../../../../../services/sessions/common/sessionsManagement.js';
-import { ISessionsProvider } from '../../../../../services/sessions/common/sessionsProvider.js';
+import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
+import { ISessionsProvidersService } from '../../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { ISession, SessionStatus } from '../../../../../../workbench/services/sessions/common/session.js';
+import { ISessionsManagementService } from '../../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISessionsProvider } from '../../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { LocalAgentHostLifecycleContribution } from '../../electron-browser/localAgentHostLifecycle.contribution.js';
 
 suite('Local Agent Host Lifecycle', () => {

@@ -9,7 +9,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { FileSystemFileSearchProvider } from '../../../../workbench/services/search/common/fileSystemFileSearchProvider.js';
 import { ISearchService, SearchProviderType } from '../../../../workbench/services/search/common/search.js';
-import { GITHUB_REMOTE_FILE_SCHEME } from '../../../services/sessions/common/session.js';
+import { GITHUB_REMOTE_FILE_SCHEME } from '../../../../workbench/services/sessions/common/session.js';
 import { GitHubFileSystemProvider } from './githubFileSystemProvider.js';
 
 // --- View registration is currently disabled in favor of the "Add Context" picker.

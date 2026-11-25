@@ -81,6 +81,10 @@ export class BaseTelemetryService implements ITelemetryService {
 		this._ghTelemetrySender.sendExceptionTelemetry(maybeError, origin);
 	}
 
+	get isRestrictedTelemetryActive(): boolean {
+		return this._ghTelemetrySender.isEnhancedTelemetryEnabled;
+	}
+
 	sendEnhancedGHTelemetryEvent(eventName: string, properties?: TelemetryEventProperties | undefined, measurements?: TelemetryEventMeasurements | undefined): void {
 		properties = this._addSku({ ...properties, ...this._sharedProperties });
 		this._ghTelemetrySender.sendEnhancedTelemetryEvent(eventName, properties, measurements);

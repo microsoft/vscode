@@ -73,11 +73,9 @@ describe('MissionControlApiClient', () => {
 		await client.createSession(1, 2, 'task-1', {});
 		await client.submitEvents('mc-session', [], []);
 		await client.getPendingCommands('mc-session');
-		await client.deleteSession('mc-session');
 
-		expect(requests).toHaveLength(4);
+		expect(requests).toHaveLength(3);
 		expect(requests.map(({ options }) => options.headers?.['Copilot-Integration-Id'])).toEqual([
-			INTEGRATION_ID,
 			INTEGRATION_ID,
 			INTEGRATION_ID,
 			INTEGRATION_ID,
@@ -86,7 +84,6 @@ describe('MissionControlApiClient', () => {
 			'https://api.github.test/agents/sessions',
 			'https://api.github.test/agents/sessions/mc-session/events',
 			'https://api.github.test/agents/sessions/mc-session/commands',
-			'https://api.github.test/agents/sessions/mc-session',
 		]);
 	});
 });

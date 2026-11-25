@@ -53,6 +53,7 @@ function renderActionList(context: ComponentFixtureContext, navigation: 'keyboar
 		throw new Error('Expected a model row with context-window details');
 	}
 	if (navigation === 'mouse') {
+		row.classList.add('hovered');
 		row.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, movementX: 1 }));
 	}
 	if (row.getBoundingClientRect().right - description.getBoundingClientRect().right < 12) {
@@ -67,6 +68,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/actionList' }, {
 	}),
 	MouseNavigation: defineComponentFixture({
 		additionalThemes: ['light2026', 'darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['The pointer-focused action-list row uses the list hover fill. In high contrast themes, it has a dashed active-contrast boundary rather than a solid keyboard-focus boundary.'],
 		render: context => renderActionList(context, 'mouse'),
 	}),
 	NarrowContextDetails: defineComponentFixture({

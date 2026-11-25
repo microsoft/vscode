@@ -41,6 +41,7 @@ suite('Files - ExplorerService', () => {
 	let fileService: TestFileService;
 	let item: NewExplorerItem;
 	let calls: string[];
+	let visibilityChecks: string[];
 	let focusDuringRender: boolean;
 
 	const editableData: IEditableData = {
@@ -50,6 +51,7 @@ suite('Files - ExplorerService', () => {
 
 	setup(() => {
 		calls = [];
+		visibilityChecks = [];
 		focusDuringRender = false;
 		focusChanged = store.add(new Emitter<boolean>());
 		fileService = store.add(new TestFileService());
@@ -74,7 +76,8 @@ suite('Files - ExplorerService', () => {
 			override hasPhantomElements(): boolean {
 				return false;
 			}
-			override isItemVisible(): boolean {
+			override isItemVisible(stat: ExplorerItem): boolean {
+				visibilityChecks.push(stat.name);
 				return true;
 			}
 		});
@@ -709,4 +712,27 @@ suite('Files - ExplorerService', () => {
 
 		assert.deepStrictEqual({ afterUnrelatedAdd, calls }, { afterUnrelatedAdd: [], calls: ['refresh'] });
 	}));
+
+	for (const query of ['', 'ref=main']) {
+		test(`only checks the visibility of items on the path to a deleted file (query: '${query}')`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const configurationService = new TestConfigurationService();
+			const add = (parent: ExplorerItem, name: string, isDirectory: boolean) => {
+				const child = new ExplorerItem(joinPath(parent.resource, name), fileService, configurationService, NullFilesConfigurationService, parent, isDirectory);
+				child._isDirectoryResolved = isDirectory;
+				parent.addChild(child);
+				return child;
+			};
+			const root = explorerService.roots[0];
+			const folder = add(root, 'folder', true);
+			folder.resource = folder.resource.with({ query });
+			add(root, 'other.txt', false);
+			add(folder, 'a.txt', false);
+			const deleted = add(folder, 'b.txt', false);
+
+			fileService.fireFileChanges(new FileChangesEvent([{ resource: deleted.resource, type: FileChangeType.DELETED }], false));
+			await timeout(500);
+
+			assert.deepStrictEqual({ visibilityChecks, calls }, { visibilityChecks: ['folder', 'b.txt'], calls: ['refresh'] });
+		}));
+	}
 });

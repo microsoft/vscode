@@ -185,6 +185,8 @@ export interface IToolInvocation {
 	toolId: string;
 	/** Explicitly authorizes scoped tools for this logical session, independently of the presentation context. */
 	toolSessionResource?: URI;
+	/** Authoritative originating chat, independent of an optional rendering context. Does not authorize tool approval. */
+	originatingChatResource?: URI;
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	parameters: Record<string, any>;
 	tokenBudget?: number;
@@ -254,6 +256,8 @@ export interface IToolInvocationPreparationContext {
 	toolCallId: string;
 	chatRequestId?: string;
 	chatSessionResource: URI | undefined;
+	/** Authoritative originating chat, when supplied by the tool dispatcher. */
+	originatingChatResource?: URI;
 	chatInteractionId?: string;
 	/** The {@link IToolInvocationContext.requestId} of the invocation. */
 	invocationRequestId?: string;
@@ -399,6 +403,20 @@ export interface IToolConfirmationMessages {
 		/** String representation of the arguments for this combination */
 		arguments?: string;
 	};
+	/**
+	 * Offers an optional feedback field with the decision. What the user types is kept only on
+	 * the live invocation (see `IChatToolInvocation.confirmationFeedback`) and is never persisted.
+	 */
+	feedback?: IToolConfirmationFeedback;
+}
+
+/** An optional free-text field that accompanies a confirmation decision. */
+export interface IToolConfirmationFeedback {
+	/** Names the field, both visibly and for assistive technologies. */
+	readonly label: string;
+	readonly placeholder?: string;
+	/** Explains what the feedback is for, shown below the field. */
+	readonly description?: string;
 }
 
 export interface IToolConfirmationAction {
@@ -728,6 +746,12 @@ export interface ILanguageModelToolsService {
 	// tool names in prompt and agent files ('full reference names')
 	getFullReferenceNames(): Iterable<string>;
 	getFullReferenceName(tool: IToolData | IToolSet, toolSet?: IToolSet): string;
+	/**
+	 * Creates a function that returns the names {@link getFullReferenceName} returns, from one snapshot of the
+	 * tools and tool sets. Each {@link getFullReferenceName} call computes the names of all tools and tool sets,
+	 * so use this to name many of them at once.
+	 */
+	createFullReferenceNameResolver(): (tool: IToolData | IToolSet, toolSet?: IToolSet) => string;
 	getFullReferenceNameMap(): Map<IToolData | IToolSet, string>;
 	getToolByFullReferenceName(fullReferenceName: string): IToolData | IToolSet | undefined;
 	getDeprecatedFullReferenceNames(): Map<string, Set<string>>;

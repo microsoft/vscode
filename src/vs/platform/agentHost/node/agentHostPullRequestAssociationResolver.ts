@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken, cancelOnDispose } from '../../../base/common/cancellation.js';
+import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
 import { equals as objectEquals } from '../../../base/common/objects.js';
-import type { IAgentHostCredentialSource } from '../common/agentHostCredentials.js';
-import { Disposable, DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { ApiRequestOptions } from '../../github/common/client/request.js';
 import { RepositoryRef } from '../../github/common/client/types.js';
@@ -13,8 +13,9 @@ import { IPullRequestsClient, PullRequestSummary } from '../../github/common/cor
 import { MissingCommitError } from '../../github/common/githubTypes.js';
 import { getPullRequestUrlKey } from '../../github/common/githubUrls.js';
 import { ILogService } from '../../log/common/log.js';
+import type { IAgentHostCredentialSource } from '../common/agentHostCredentials.js';
 import { parseUpstreamBranchName, type IAgentHostGitService } from '../common/agentHostGitService.js';
-import { readSessionArtifacts, SessionArtifactType } from '../common/sessionArtifacts.js';
+import { SessionArtifactType, readSessionArtifacts } from '../common/sessionArtifacts.js';
 import { readSessionGitHubState, readSessionGitState, withMostRecentSessionPullRequest, type ISessionGitHubState, type ISessionGitState, type ISessionWithDefaultChat, type SessionSummaryMeta } from '../common/state/sessionState.js';
 import { IAgentHostGitHubService } from './agentHostGitHubService.js';
 
@@ -98,7 +99,7 @@ function getPullRequestArtifactUrls(meta: SessionSummaryMeta | undefined): strin
 export class AgentHostPullRequestAssociationResolver extends Disposable {
 
 	private readonly _restrictedResolutions = new Map<string, IRestrictedPullRequestResolution>();
-	private readonly _abortController = new AbortController();
+	private readonly _disposeToken = cancelOnDispose(this._store);
 
 	constructor(
 		private readonly _gitService: IAgentHostGitService,
@@ -106,7 +107,6 @@ export class AgentHostPullRequestAssociationResolver extends Disposable {
 		private readonly _logService: ILogService,
 	) {
 		super();
-		this._register(toDisposable(() => this._abortController.abort()));
 	}
 
 	resetRestrictedState(): void {
@@ -137,13 +137,13 @@ export class AgentHostPullRequestAssociationResolver extends Disposable {
 		const upstreamBranch = githubHeadOwner ? parseUpstreamBranchName(gitState?.upstreamBranchName) : undefined;
 		const headBranch = upstreamBranch?.branch ?? branchName;
 		const headOwner = githubHeadOwner ?? owner;
-		const signal = this._abortController.signal;
+		const cancellationToken = this._disposeToken;
 		const store = new DisposableStore();
 		try {
-			const client = store.add(this._gitHubService.acquireRepositoryApiClient(signal, source, session));
+			const client = store.add(this._gitHubService.acquireRepositoryApiClient(cancellationToken, source, session));
 			const repository = { owner, repo };
 			const options = { priority: 'background', caller: 'agentHost.pullRequestAssociation' } as const;
-			const pullRequestByBranch = await findPullRequestByHeadBranch(client.pullRequests, repository, `${headOwner}:${headBranch}`, signal, { ...options, allowedPullRequestUrls });
+			const pullRequestByBranch = await findPullRequestByHeadBranch(client.pullRequests, repository, `${headOwner}:${headBranch}`, cancellationToken, { ...options, allowedPullRequestUrls });
 			if (pullRequestByBranch || requireHeadBranch) {
 				return pullRequestByBranch;
 			}
@@ -158,7 +158,7 @@ export class AgentHostPullRequestAssociationResolver extends Disposable {
 			}
 			let pullRequests: readonly PullRequestSummary[];
 			try {
-				pullRequests = await client.pullRequests.listForCommit(repository, headSha, signal, { ...options, query: { per_page: maximumCommitPullRequests } });
+				pullRequests = await client.pullRequests.listForCommit(repository, headSha, cancellationToken, { ...options, query: { per_page: maximumCommitPullRequests } });
 			} catch (error) {
 				if (error instanceof MissingCommitError) {
 					return undefined;
@@ -429,12 +429,12 @@ export class AgentHostPullRequestAssociationResolver extends Disposable {
 }
 
 /** Finds a branch PR, restricting selection to caller-approved URLs when supplied. */
-export async function findPullRequestByHeadBranch(client: IPullRequestsClient, repository: RepositoryRef, head: string, signal: AbortSignal, options: ApiRequestOptions & { readonly allowedPullRequestUrls?: readonly string[] } = {}): Promise<PullRequestSummary | undefined> {
+export async function findPullRequestByHeadBranch(client: IPullRequestsClient, repository: RepositoryRef, head: string, cancellationToken: CancellationToken, options: ApiRequestOptions & { readonly allowedPullRequestUrls?: readonly string[] } = {}): Promise<PullRequestSummary | undefined> {
 	const { allowedPullRequestUrls, ...requestOptions } = options;
 	if (allowedPullRequestUrls?.length === 0) {
 		return undefined;
 	}
-	const pullRequests = await client.list(repository, signal, {
+	const pullRequests = await client.list(repository, cancellationToken, {
 		...requestOptions,
 		query: { head, state: 'all', sort: 'updated', direction: 'desc', per_page: allowedPullRequestUrls ? 100 : 1 },
 	});

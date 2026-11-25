@@ -8,7 +8,6 @@ import { readFileSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { CopilotCliConfigKey } from '../../../../common/copilotCliConfig.js';
 import type { ResourceReadResult, SubscribeResult } from '../../../../common/state/protocol/commands.js';
 import { ContentEncoding } from '../../../../common/state/protocol/common/commands.js';
 import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
@@ -361,13 +360,6 @@ export function defineCopilotRuntimeToolsTests(context: IAgentHostE2ETestContext
 		const clientId = 'runtime-claude-tool-search';
 		const { sessionUri } = await createSession(clientId);
 		const chatUri = defaultChatChannel(sessionUri);
-		await context.client.call<SubscribeResult>('subscribe', { channel: ROOT_STATE_URI });
-		context.client.dispatch({
-			channel: ROOT_STATE_URI,
-			clientSeq: 1,
-			action: { type: ActionType.RootConfigChanged, config: { [CopilotCliConfigKey.ToolSearchEnabled]: true } },
-		});
-		await context.client.waitForNotification(n => isActionNotification(n, ActionType.RootConfigChanged), 30_000);
 		try {
 			const description = 'Search the client catalog by natural-language query for the get_magic_word tool.';
 			const inputSchema: ToolDefinition['inputSchema'] = { type: 'object', properties: { query: { type: 'string' } }, required: ['query'] };
@@ -447,12 +439,6 @@ export function defineCopilotRuntimeToolsTests(context: IAgentHostE2ETestContext
 			});
 		} finally {
 			context.client.clearReceived();
-			context.client.dispatch({
-				channel: ROOT_STATE_URI,
-				clientSeq: 200,
-				action: { type: ActionType.RootConfigChanged, config: { [CopilotCliConfigKey.ToolSearchEnabled]: false } },
-			});
-			await context.client.waitForNotification(n => isActionNotification(n, ActionType.RootConfigChanged), 30_000);
 		}
 	});
 

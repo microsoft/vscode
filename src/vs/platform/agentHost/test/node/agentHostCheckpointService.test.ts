@@ -326,6 +326,7 @@ suite('AgentHostCheckpointService', () => {
 						break;
 					case 'turn start':
 						await service.captureTurnStartCheckpoint(session, chat, 'turn-5', directories);
+						await service.discardTurnStartCheckpoint(session, chat, 'turn-5');
 						break;
 					case 'turn end':
 						await service.captureTurnCheckpoint(session, chat, 'turn-5', directories);
@@ -365,17 +366,101 @@ suite('AgentHostCheckpointService', () => {
 
 	test('captures a missing baseline from the pre-turn tree before the agent can edit', async () => {
 		const trees = ['tree-before-first-turn', 'tree-after-first-turn'];
-		const { chat, commitCalls, session, service, workingDirectory } = createTestService(async () => trees.shift(), { baseline: false, previous: false });
+		const { chat, commitCalls, gitService, session, service, workingDirectory } = createTestService(async () => trees.shift(), { baseline: false, previous: false });
+		let lookups = 0;
+		const revParse = gitService.revParse;
+		gitService.revParse = async (...args) => {
+			lookups++;
+			return revParse(...args);
+		};
 
 		await service.captureTurnStartCheckpoint(session, chat, 'turn-1', [workingDirectory]);
+		const turnStartLookups = lookups;
 		await service.captureTurnCheckpoint(session, chat, 'turn-1', [workingDirectory]);
 
-		assert.deepStrictEqual(commitCalls, [
-			{ tree: 'tree-before-first-turn', parent: undefined },
-			{ tree: 'tree-before-first-turn', parent: 'commit-1' },
-			{ tree: 'tree-after-first-turn', parent: 'commit-2' },
-		]);
+		assert.deepStrictEqual({ turnStartLookups, commitCalls }, {
+			turnStartLookups: 1,
+			commitCalls: [
+				{ tree: 'tree-before-first-turn', parent: undefined },
+				{ tree: 'tree-before-first-turn', parent: 'commit-1' },
+				{ tree: 'tree-after-first-turn', parent: 'commit-2' },
+			],
+		});
 	});
+
+	test('turn start resolves before baseline publication while turn end waits for it', async () => {
+		const baselineWriting = new DeferredPromise<void>();
+		const releaseBaseline = new DeferredPromise<void>();
+		const trees = ['tree-before-turn', 'tree-after-turn'];
+		const { chat, commitCalls, gitService, session, service, workingDirectory } = createTestService(async () => trees.shift(), { baseline: false, previous: false });
+		const baselineRef = buildCheckpointRefName(AgentSession.id(session), 0);
+		const updateRef = gitService.updateRef;
+		gitService.updateRef = async (...args) => {
+			if (args[1] === baselineRef) {
+				baselineWriting.complete();
+				await releaseBaseline.p;
+			}
+			await updateRef(...args);
+		};
+		let startResolved = false;
+		const start = service.captureTurnStartCheckpoint(session, chat, 'turn-1', [workingDirectory]).then(() => {
+			startResolved = true;
+		});
+		await baselineWriting.p;
+		const end = service.captureTurnCheckpoint(session, chat, 'turn-1', [workingDirectory]);
+		await timeout(0);
+		const beforePublication = { startResolved, commitCalls: [...commitCalls] };
+		releaseBaseline.complete();
+		await Promise.all([start, end]);
+
+		assert.deepStrictEqual({
+			beforePublication,
+			commitCalls,
+			pair: await service.getTurnCheckpointPair(session, chat, 'turn-1', workingDirectory),
+		}, {
+			beforePublication: {
+				startResolved: true,
+				commitCalls: [{ tree: 'tree-before-turn', parent: undefined }],
+			},
+			commitCalls: [
+				{ tree: 'tree-before-turn', parent: undefined },
+				{ tree: 'tree-before-turn', parent: 'commit-1' },
+				{ tree: 'tree-after-turn', parent: 'commit-2' },
+			],
+			pair: { parent: 'commit-2', current: buildCheckpointRefName(AgentSession.id(session), 1) },
+		});
+	});
+
+	for (const explicitChat of [false, true]) {
+		test(`checkpoint reads wait for queued turn-end publication (explicit chat=${explicitChat})`, async () => {
+			const { chat, gitService, session, service, workingDirectory } = createTestService(async () => 'tree', { previous: false });
+			await service.captureTurnStartCheckpoint(session, chat, 'turn-1', [workingDirectory]);
+			const publishing = new DeferredPromise<void>();
+			const releasePublication = new DeferredPromise<void>();
+			const updateRef = gitService.updateRef;
+			gitService.updateRef = async (...args) => {
+				publishing.complete();
+				await releasePublication.p;
+				await updateRef(...args);
+			};
+			const end = service.captureTurnCheckpoint(session, chat, 'turn-1', [workingDirectory]);
+			await publishing.p;
+			let readResolved = false;
+			const read = service.getTurnCheckpointPair(session, explicitChat ? chat : undefined, 'turn-1', workingDirectory).then(pair => {
+				readResolved = true;
+				return pair;
+			});
+			await timeout(0);
+			const resolvedBeforePublication = readResolved;
+			releasePublication.complete();
+			const [pair] = await Promise.all([read, end]);
+
+			assert.deepStrictEqual({ resolvedBeforePublication, pair }, {
+				resolvedBeforePublication: false,
+				pair: { parent: 'commit-1', current: buildCheckpointRefName(AgentSession.id(session), 1) },
+			});
+		});
+	}
 
 	test('discard waits for an in-flight turn-start capture', async () => {
 		const captureStarted = new DeferredPromise<void>();
@@ -516,6 +601,30 @@ suite('AgentHostCheckpointService', () => {
 			commitCalls: [{ tree: 'turn-start-tree', parent: undefined }],
 			baselineExists: false,
 		});
+	});
+
+	test('overlaps baseline lookups but deletes checkpoint refs serially', async () => {
+		const { service, session, gitService } = createTestService(async () => undefined, { previous: false, repositoryRootOf: dir => dir });
+		const directories = ['file:///a', 'file:///b', 'file:///c'];
+		let reads = 0, peakReads = 0, writes = 0, peakWrites = 0;
+		const deleted: string[] = [];
+		gitService.revParse = async root => {
+			peakReads = Math.max(peakReads, ++reads);
+			await Promise.resolve();
+			reads--;
+			return root.path === '/b' ? undefined : 'baseline';
+		};
+		gitService.deleteRefs = async (root, refs) => {
+			peakWrites = Math.max(peakWrites, ++writes);
+			await Promise.resolve();
+			writes--;
+			deleted.push(...refs.map(ref => `${root.path}:${ref}`));
+		};
+
+		await service.deleteCheckpoints(session, directories);
+
+		const ref = buildCheckpointRefName(AgentSession.id(session), 0);
+		assert.deepStrictEqual({ peakReads, peakWrites, deleted: deleted.sort() }, { peakReads: 2, peakWrites: 1, deleted: [`/a:${ref}`, `/c:${ref}`] });
 	});
 
 	test('preserves a reused legacy checkpoint ref as an empty turn', async () => {

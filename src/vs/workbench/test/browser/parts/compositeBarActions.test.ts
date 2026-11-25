@@ -90,6 +90,9 @@ suite('CompositeBarActionViewItem', () => {
 				fontSize: style.fontSize,
 				spinning: content.classList.contains('codicon-modifier-spin'),
 				label: container.getAttribute('aria-label'),
+				decorativeCap: container.querySelector('.active-item-indicator > .tab-connected-edge')?.getAttribute('aria-hidden'),
+				decorativeDivider: container.querySelector('.tab-divider')?.getAttribute('aria-hidden'),
+				legacyDividerDisplay: mainWindow.getComputedStyle(container.querySelector('.tab-divider')!).display,
 			}, {
 				width: layout.size,
 				height: layout.size,
@@ -100,10 +103,31 @@ suite('CompositeBarActionViewItem', () => {
 				fontSize: '12px',
 				spinning: true,
 				label: 'Testing - Tests are running',
+				decorativeCap: 'true',
+				decorativeDivider: 'true',
+				legacyDividerDisplay: 'none',
 			});
 
 			action.activities = [{ badge: numberBadge }];
 			assert.deepStrictEqual(numberState(), initialNumberState);
 		});
 	}
+
+	test('keeps the descriptions of number badges in the label while an icon badge is shown', () => {
+		const container = append(workbench, $('li.action-item'));
+		const action = store.add(new CompositeBarAction({ id: 'testing', name: 'Explorer' }));
+		const viewItem = store.add(workbenchInstantiationService(undefined, store).createInstance(CompositeBarActionViewItem, action, {
+			icon: true,
+			colors: () => ({}),
+			hoverOptions: { position: () => HoverPosition.RIGHT },
+		}, () => true));
+		viewItem.render(container);
+
+		action.activities = [
+			{ badge: new NumberBadge(2, () => '2 unsaved files') },
+			{ badge: new IconBadge(spinningLoading, () => `'project' is open at feature-x`) }
+		];
+
+		assert.strictEqual(container.getAttribute('aria-label'), `Explorer - 'project' is open at feature-x - 2 unsaved files`);
+	});
 });

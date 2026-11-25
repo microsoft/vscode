@@ -1028,6 +1028,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		this._cancelBackend();
 		this._teardown();
 		this._setState(ChatSpeechToTextState.Idle);
+		this._accessibilitySignalService.playSignal(AccessibilitySignal.dictationDisconnected);
 		this._notificationService.error(message);
 	}
 
@@ -1052,6 +1053,12 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 	 */
 	private async _startLocalSession(window: Window & typeof globalThis, generation: number): Promise<void> {
 		const local = this._localTranscription;
+		// Keep monitoring after Ready: native session startup and inference can still fail.
+		this._localSessionDisposables.add(local.onDidChangeModelStatus(status => {
+			if (generation === this._sessionGeneration) {
+				this._handleModelStatus(status);
+			}
+		}));
 		this._localSessionDisposables.add(local.onDidTranscribe(result => {
 			// The local service returns the full cumulative transcript each time.
 			this._emitTranscript(result.text, result.finalizedText ?? '', result.isFinal);
@@ -1114,15 +1121,14 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 				this._updateDownloadNotification(this._lastModelStatus);
 			}
 		}));
-		// Register the status listener BEFORE snapshotting the current status. A
-		// Downloading→Ready/Error transition can land between the snapshot and the
-		// subscription; if it did, the completion event would be missed and the
-		// spinner and download notification would be stranded for the rest of the
-		// recording. Registering first, then re-querying, makes the handoff
-		// race-free — any transition is caught by the listener, and the snapshot
-		// settles the current state.
-		this._localSessionDisposables.add(this._localTranscription.onDidChangeModelStatus(status => this._handleModelStatus(status)));
-		this._localTranscription.getModelStatus().then(status => this._handleModelStatus(status), () => { /* errors also surface via onDidChangeModelStatus */ });
+		// Re-query after enabling preparation UI so a Ready/Error transition
+		// cannot leave the spinner and download notification stranded.
+		const generation = this._sessionGeneration;
+		this._localTranscription.getModelStatus().then(status => {
+			if (generation === this._sessionGeneration) {
+				this._handleModelStatus(status);
+			}
+		}, () => { /* errors also surface via onDidChangeModelStatus */ });
 	}
 
 	/**
@@ -1286,6 +1292,10 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 			return;
 		}
 		this._logService.error('[chat-stt] failed to stream audio to transcription', err);
+		// A dropped connection leaves the socket closing, so the next audio chunk fails before a close event arrives.
+		if (this._activeBackend === 'mai' && !this._transcriptionClient.isConnected) {
+			this._accessibilitySignalService.playSignal(AccessibilitySignal.dictationDisconnected);
+		}
 		this._failSession('audio', localize('chatStt.audioError', "Speech-to-text stopped because audio could not be sent for transcription: {0}", toErrorMessage(err instanceof Error ? err : new Error(String(err)))));
 	}
 
@@ -1340,6 +1350,9 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 			}
 			this._sessionErrorCode = this._sessionErrorCode || 'transcribe';
 			this._logService.error('[chat-stt] final transcription failed', err);
+			if (this._activeBackend === 'nemo') {
+				this._notificationService.error(localize('chatStt.localTranscribeError', "Could not finish on-device speech-to-text: {0}", toErrorMessage(err)));
+			}
 		}
 
 		const cleanupEnabled = this._configurationService.getValue<boolean>(LLM_CLEANUP_SETTING) === true;

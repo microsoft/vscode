@@ -63,13 +63,6 @@ describe('TtlCache', () => {
 		expect(cache.get('key')).toBe('new');
 	});
 
-	it('delete removes entry', () => {
-		const cache = new TtlCache<string>(5000);
-		cache.set('key', 'value');
-		cache.delete('key');
-		expect(cache.get('key')).toBeUndefined();
-	});
-
 	it('clear removes all entries', () => {
 		const cache = new TtlCache<string>(5000);
 		cache.set('a', '1');
@@ -77,17 +70,6 @@ describe('TtlCache', () => {
 		cache.clear();
 		expect(cache.get('a')).toBeUndefined();
 		expect(cache.get('b')).toBeUndefined();
-	});
-
-	it('has returns true for non-expired entries and false otherwise', () => {
-		const cache = new TtlCache<string>(1000);
-		expect(cache.has('key')).toBe(false);
-
-		cache.set('key', 'value');
-		expect(cache.has('key')).toBe(true);
-
-		vi.advanceTimersByTime(1000);
-		expect(cache.has('key')).toBe(false);
 	});
 
 	it('supports per-entry TTL override', () => {
@@ -170,17 +152,5 @@ describe('SingleSlotTtlCache', () => {
 		cache.set('key', 'value');
 		cache.clear();
 		expect(cache.get('key')).toBeUndefined();
-	});
-
-	it('has returns true for non-expired matching key', () => {
-		const cache = new SingleSlotTtlCache<string>(1000);
-		expect(cache.has('key')).toBe(false);
-
-		cache.set('key', 'value');
-		expect(cache.has('key')).toBe(true);
-		expect(cache.has('other')).toBe(false);
-
-		vi.advanceTimersByTime(1000);
-		expect(cache.has('key')).toBe(false);
 	});
 });

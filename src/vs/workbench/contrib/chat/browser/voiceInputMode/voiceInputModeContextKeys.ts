@@ -23,8 +23,6 @@ const VisibleDictation = ContextKeyExpr.and(DictationConfigured, DictationButton
  * In every other single-mode case the standalone controls (gated on the negation
  * below) take over.
  */
-// Structured as AND(VisibleVoiceMode, OR(...)) rather than a flat OR of ANDs so
-// the shared VisibleVoiceMode term is only listed once.
 export const SegmentedVoiceInputModePillActive: ContextKeyExpression = ContextKeyExpr.and(
 	VisibleVoiceMode,
 	ContextKeyExpr.or(
@@ -33,5 +31,8 @@ export const SegmentedVoiceInputModePillActive: ContextKeyExpression = ContextKe
 	),
 )!;
 
-/** Standalone voice/dictation controls show when the pill does not apply. */
-export const SegmentedVoiceInputModePillInactive: ContextKeyExpression = SegmentedVoiceInputModePillActive.negate();
+/** Standalone controls use the negated factors to avoid expanding the already normalized active expression. */
+export const SegmentedVoiceInputModePillInactive: ContextKeyExpression = ContextKeyExpr.or(
+	VisibleVoiceMode.negate(),
+	ContextKeyExpr.and(VisibleDictation.negate(), AGENTS_VOICE_CONNECTED.negate()),
+)!;

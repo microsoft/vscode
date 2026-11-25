@@ -7,7 +7,7 @@ import assert from 'assert';
 import { alert, setARIAContainer } from '../../../../../../../base/browser/ui/aria/aria.js';
 import { DeferredPromise, timeout } from '../../../../../../../base/common/async.js';
 import { Emitter } from '../../../../../../../base/common/event.js';
-import { DisposableStore, toDisposable } from '../../../../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { McpServerStatus } from '../../../../../../../platform/agentHost/common/state/protocol/state.js';
@@ -36,7 +36,9 @@ suite('ChatMcpAuthenticationContentPart', () => {
 	let instantiationService: TestInstantiationService;
 	let configurationService: TestConfigurationService;
 
-	suiteSetup(() => registerChatAccessibilityActions());
+	let accessibilityActions: IDisposable;
+	suiteSetup(() => accessibilityActions = registerChatAccessibilityActions());
+	suiteTeardown(() => accessibilityActions.dispose());
 
 	setup(() => {
 		disposables = store.add(new DisposableStore());

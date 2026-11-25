@@ -6,9 +6,11 @@
 import assert from 'assert';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ChatFindModel } from '../../../browser/widget/chatFind/chatFindModel.js';
 import { ChatTreeItem } from '../../../browser/chat.js';
+import { IChatRequestViewModel } from '../../../common/model/chatViewModel.js';
 
 /** Builds a minimal fake request item satisfying `isRequestVM` (`'message' in item`). */
 function fakeRequest(id: string, messageText: string): ChatTreeItem {
@@ -47,7 +49,60 @@ function toolInvocation(invocationMessage: string, pastTenseMessage?: string, is
 }
 
 suite('ChatFindModel', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('a strict prepend reads each completed row only once for the same query and options', () => {
+		const reads: string[] = [];
+		function row(id: string) {
+			return upcastPartial<IChatRequestViewModel>({
+				id, dataId: id, isComplete: true, message: { text: '', parts: [] },
+				get messageText() { reads.push(id); return 'needle'; },
+			});
+		}
+		const items = [row('3')];
+		const model = store.add(new ChatFindModel(() => items));
+		const options = { isRegex: false, matchCase: false, wholeWord: false };
+		model.setQuery('needle', options);
+		items.unshift(row('2'));
+		model.recompute();
+		items.unshift(row('1'));
+		model.recompute();
+		assert.deepStrictEqual({ reads, matches: model.matches.map(m => m.itemId) }, { reads: ['3', '2', '1'], matches: ['3', '2', '1'] });
+	});
+
+	test('rescans live, versioned, replaced and renderer-invalidated rows and changed options', () => {
+		let version = 0;
+		let complete = false;
+		let text = 'Needle';
+		const row = () => upcastPartial<IChatRequestViewModel>({
+			id: 'row', message: { text: '', parts: [] },
+			get dataId() { return String(version); },
+			get isComplete() { return complete; },
+			get messageText() { return text; },
+		});
+		let item = row();
+		const model = store.add(new ChatFindModel(() => [item]));
+		const options = { isRegex: false, matchCase: true, wholeWord: false };
+		model.setQuery('needle', options);
+		const counts = [model.matches.length];
+		const refresh = () => { model.recompute(); counts.push(model.matches.length); };
+		text = 'needle';
+		refresh();
+		complete = true;
+		refresh();
+		text = 'Needle';
+		version++;
+		refresh();
+		text = 'needle needle';
+		item = row();
+		refresh();
+		text = 'Needle Needle';
+		model.invalidateRenderedRow(item);
+		refresh();
+		model.setQuery('needle', { ...options, matchCase: false });
+		counts.push(model.matches.length);
+		assert.deepStrictEqual(counts, [0, 1, 1, 0, 2, 0, 2]);
+	});
 
 	test('finds matches across a user request and response markdown', () => {
 		const items = [

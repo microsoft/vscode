@@ -13,8 +13,6 @@ import { MockRunCommandExecutionService } from '../../../platform/commands/commo
 import { IRunCommandExecutionService } from '../../../platform/commands/common/runCommandExecutionService';
 import { IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { DefaultsOnlyConfigurationService } from '../../../platform/configuration/common/defaultsOnlyConfigurationService';
-import { IDebugOutputService } from '../../../platform/debug/common/debugOutputService';
-import { DebugOutputServiceImpl } from '../../../platform/debug/vscode/debugOutputServiceImpl';
 import { IDialogService } from '../../../platform/dialog/common/dialogService';
 import { IDiffService } from '../../../platform/diff/common/diffService';
 import { DiffServiceImpl } from '../../../platform/diff/node/diffServiceImpl';
@@ -94,8 +92,6 @@ import { ExtensionTextDocumentManager } from '../../../platform/workspace/vscode
 import { GithubAvailableEmbeddingTypesService, IGithubAvailableEmbeddingTypesService } from '../../../platform/workspaceChunkSearch/common/githubAvailableEmbeddingTypes';
 import { IRerankerService, RerankerService } from '../../../platform/workspaceChunkSearch/common/rerankerService';
 import { SyncDescriptor } from '../../../util/vs/platform/instantiation/common/descriptors';
-import { IToolResultContentRenderer } from '../../agentDebug/common/toolResultRenderer';
-import { ToolResultContentRenderer } from '../../agentDebug/vscode-node/toolResultContentRenderer';
 import { GitHubOrgChatResourcesService, IGitHubOrgChatResourcesService } from '../../agents/vscode-node/githubOrgChatResourcesService';
 import { CommandServiceImpl, ICommandService } from '../../commands/node/commandService';
 import { ICopilotInlineCompletionItemProviderService, NullCopilotInlineCompletionItemProviderService } from '../../completions/common/copilotInlineCompletionItemProviderService';
@@ -188,7 +184,6 @@ export function createExtensionTestingServices(): TestingServiceCollection {
 	testingServiceCollection.define(IAlternativeNotebookContentEditGenerator, new SyncDescriptor(AlternativeNotebookContentEditGenerator));
 	testingServiceCollection.define(IDiffService, new SyncDescriptor(DiffServiceImpl));
 	testingServiceCollection.define(ICompletionsFetchService, new SyncDescriptor(CompletionsFetchService));
-	testingServiceCollection.define(IDebugOutputService, new SyncDescriptor(DebugOutputServiceImpl));
 	testingServiceCollection.define(IUserFeedbackService, new SyncDescriptor(UserFeedbackService));
 	testingServiceCollection.define(ITerminalService, new SyncDescriptor(TerminalServiceImpl));
 	testingServiceCollection.define(IConversationStore, new SyncDescriptor(ConversationStore));
@@ -219,7 +214,6 @@ export function createExtensionTestingServices(): TestingServiceCollection {
 	testingServiceCollection.define(IRerankerService, new SyncDescriptor(RerankerService));
 	testingServiceCollection.define(IOTelSqliteStore, new OTelSqliteStore(':memory:'));
 	testingServiceCollection.define(ISessionStore, new SessionStore(':memory:'));
-	testingServiceCollection.define(IToolResultContentRenderer, new SyncDescriptor(ToolResultContentRenderer));
 	testingServiceCollection.define(IGitHubOrgChatResourcesService, new SyncDescriptor(GitHubOrgChatResourcesService));
 
 	return testingServiceCollection;

@@ -10,6 +10,7 @@ import { IObservable } from '../../../../util/vs/base/common/observableInternal'
 import { observableValue } from '../../../../util/vs/base/common/observableInternal/observables/observableValue';
 import { URI } from '../../../../util/vs/base/common/uri';
 import { IGitService, RepoContext } from '../../../git/common/gitService';
+// eslint-disable-next-line local/code-layering -- Pre-existing layering violation found when the zone check started resolving extensionless imports.
 import { Branch, Change, Commit, CommitOptions, CommitShortStat, DiffChange, LogOptions, Ref, RefQuery, Repository, RepositoryAccessDetails } from '../../../git/vscode/git';
 
 /**

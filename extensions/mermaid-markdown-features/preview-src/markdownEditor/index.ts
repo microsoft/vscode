@@ -5,6 +5,7 @@
 import { WebEditorClient } from '@vscode/web-editors';
 import mermaid from 'mermaid';
 import { buildMermaidConfig, createMermaidErrorElement, loadExtensionConfig, registerMermaidAddons, renderMermaidBlocksInElement } from '../shared';
+import { placeSubgraphTitlesIn } from '../shared/subgraphTitles';
 import { VsCodeMermaidThemeTracker } from '../shared/vsCodeTheme';
 
 // Renders one `mermaid` code block inside the Markdown editor, like the Markdown preview renders it.
@@ -66,7 +67,12 @@ async function main(): Promise<void> {
 		staging.append(diagram);
 		root.setAttribute('aria-busy', 'true');
 		try {
-			await renderMermaidBlocksInElement(staging, (element, html) => { element.innerHTML = html; }, abort.signal);
+			await renderMermaidBlocksInElement(staging, (element, html, _contentHash, isError) => {
+				element.innerHTML = html;
+				if (!isError) {
+					placeSubgraphTitlesIn(element);
+				}
+			}, abort.signal);
 		} catch (error) {
 			if (abort.signal.aborted) {
 				return;

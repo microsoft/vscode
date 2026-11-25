@@ -8,7 +8,7 @@ import { getErrorMessage } from '../../../../../../base/common/errors.js';
 import type { ILogService } from '../../../../../../platform/log/common/log.js';
 import { ICustomizationHarnessService, type AgentFileToolAvailability } from '../../customizationHarnessService.js';
 import { Target } from '../promptTypes.js';
-import { knownGithubCopilotTools } from './promptFileAttributes.js';
+import { knownGithubCopilotToolNamespaces, knownGithubCopilotTools } from './promptFileAttributes.js';
 import { resolveMatchingAgentFileHarnesses } from './promptModelResolver.js';
 
 export interface IAgentFileTool {
@@ -40,8 +40,10 @@ export async function resolveAgentFileTools(target: Target, harnessService: ICus
 	const tools: IAgentFileTool[] = [
 		...knownGithubCopilotTools.map(tool => ({ ...tool, availability: 'available' as const, harnessId: 'github-copilot' })),
 		{ name: '*', availability: 'available', harnessId: 'github-copilot' },
+		...knownGithubCopilotToolNamespaces.map(tool => ({ ...tool, availability: 'available' as const, harnessId: 'github-copilot' })),
 	];
-	tools.push(...inventories.flatMap((inventory, index) => inventory?.map(tool => ({
+	const staticToolNames = new Set(tools.map(tool => tool.name));
+	tools.push(...inventories.flatMap((inventory, index) => inventory?.filter(tool => !staticToolNames.has(tool.name)).map(tool => ({
 		...tool,
 		harnessId: descriptors[index].id,
 	})) ?? []));

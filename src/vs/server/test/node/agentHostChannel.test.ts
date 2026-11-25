@@ -162,32 +162,33 @@ suite('AgentHostChannel', () => {
 
 	test('passes the resolver environment to the server-owned launch on each connection', async () => {
 		const ipc = ds.add(new FakeIPCServer());
-		const options: (IAgentHostIpcConnectionOptions | undefined)[] = [];
+		const options = new Map<string, IAgentHostIpcConnectionOptions | undefined>();
 		const channel = ds.add(new AgentHostChannel<string>(
 			ipc as unknown as IPCServer<string>,
-			async connectionOptions => {
-				options.push(connectionOptions);
+			async (connectionOptions, ctx) => {
+				options.set(ctx, connectionOptions);
 				return { socketPath: 'agent-host.sock' };
 			},
 			new NullLogService(),
 			() => ds.add(new FakeUpstream()),
 		));
 		channel.listen('first', 'frame');
-		const beforeConnect = options.length;
+		const beforeConnect = options.size;
 		await channel.call('first', 'connect', {
 			env: { GITHUB_TOKEN: 'codespace-token', GH_TOKEN: null, EMPTY: '' },
 			debugEnv: { Github_Token: 'debug-token' },
+			preferredAgentLocation: 'editor',
 		});
-		await channel.call('second', 'connect', { env: { GITHUB_TOKEN: 'refreshed-codespace-token' } });
+		await channel.call('second', 'connect', { env: { GITHUB_TOKEN: 'refreshed-codespace-token' }, preferredAgentLocation: 'dedicated' });
 		await channel.call('third', 'connect');
 
-		assert.deepStrictEqual({ beforeConnect, options }, {
+		assert.deepStrictEqual({ beforeConnect, options: Object.fromEntries(options) }, {
 			beforeConnect: 0,
-			options: [
-				{ env: { GITHUB_TOKEN: 'codespace-token', GH_TOKEN: null, EMPTY: '' }, debugEnv: { Github_Token: 'debug-token' } },
-				{ env: { GITHUB_TOKEN: 'refreshed-codespace-token' } },
-				undefined,
-			],
+			options: {
+				first: { env: { GITHUB_TOKEN: 'codespace-token', GH_TOKEN: null, EMPTY: '' }, debugEnv: { Github_Token: 'debug-token' }, preferredAgentLocation: 'editor' },
+				second: { env: { GITHUB_TOKEN: 'refreshed-codespace-token' }, preferredAgentLocation: 'dedicated' },
+				third: undefined,
+			},
 		});
 	});
 
@@ -198,7 +199,7 @@ suite('AgentHostChannel', () => {
 		assert.deepStrictEqual(upstreams.get('upstream-0')!.connectOptions, [undefined]);
 	});
 
-	test('rejects malformed connection environments before starting the host', async () => {
+	test('rejects malformed connection options before starting the host', async () => {
 		const ipc = ds.add(new FakeIPCServer());
 		let resolveCount = 0;
 		const channel = ds.add(new AgentHostChannel<string>(
@@ -211,8 +212,8 @@ suite('AgentHostChannel', () => {
 			() => ds.add(new FakeUpstream()),
 		));
 
-		for (const options of [null, [], 'secret', { env: null }, { env: [] }, { env: 'secret' }, { env: { GITHUB_TOKEN: 123 } }, { debugEnv: null }, { debugEnv: [] }, { debugEnv: 'secret' }, { debugEnv: { GITHUB_TOKEN: 123 } }]) {
-			await assert.rejects(channel.call('renderer', 'connect', options), /Invalid agent host connection environment/);
+		for (const options of [null, [], 'secret', { env: null }, { env: [] }, { env: 'secret' }, { env: { GITHUB_TOKEN: 123 } }, { debugEnv: null }, { debugEnv: [] }, { debugEnv: 'secret' }, { debugEnv: { GITHUB_TOKEN: 123 } }, { preferredAgentLocation: null }, { preferredAgentLocation: 'standalone' }, { preferredAgentLocation: {} }, { preferredAgentLocation: 1 }]) {
+			await assert.rejects(channel.call('renderer', 'connect', options), /Invalid agent host connection options/);
 		}
 		assert.strictEqual(resolveCount, 0);
 	});

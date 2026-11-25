@@ -1,9 +1,0 @@
-{
-	"question": "typescript constructor",
-	"exampleIncludeGlobs": [ "*.ts" ],
-	"queryShouldFind": [
-		[ "example.ts", [
-				"constructor"
-			] ]
-	]
-}

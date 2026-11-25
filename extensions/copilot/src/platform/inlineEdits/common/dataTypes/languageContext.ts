@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Range } from '../../../../util/vs/editor/common/core/range';
-import { Diagnostic, Uri } from '../../../../vscodeTypes';
+import { Diagnostic } from '../../../../vscodeTypes';
 import { ContextItem, ContextKind, SnippetContext, TraitContext, type DiagnosticBagContext } from '../../../languageServer/common/languageContextService';
 
 export type LanguageContextEntry = {
@@ -38,7 +38,7 @@ type SerializedDiagnosticBagContext = {
 	kind: ContextKind.DiagnosticBag;
 	priority: number;
 	uri: string;
-	values: Omit<SerializedDiagnostic, 'uri'>[];
+	values: SerializedDiagnostic[];
 };
 
 type SerializedContextItem = SerializedSnippetContext | SerializedTraitContext | SerializedDiagnosticBagContext;
@@ -106,8 +106,7 @@ function serializeDiagnosticBagContext(context: DiagnosticBagContext): Serialize
 	};
 }
 
-export type SerializedDiagnostic = {
-	uri: string;
+type SerializedDiagnostic = {
 	severity: 'Error' | 'Warning' | 'Information' | 'Hint';
 	message: string;
 	source: string;
@@ -115,24 +114,12 @@ export type SerializedDiagnostic = {
 	range: string;
 };
 
-function serializeDiagnostic(diagnostic: Diagnostic): Omit<SerializedDiagnostic, 'uri'>;
-function serializeDiagnostic(diagnostic: Diagnostic, resource: Uri): SerializedDiagnostic;
-function serializeDiagnostic(diagnostic: Diagnostic, resource?: Uri): SerializedDiagnostic | Omit<SerializedDiagnostic, 'uri'> {
-	const result: SerializedDiagnostic | Omit<SerializedDiagnostic, 'uri'> = {
+function serializeDiagnostic(diagnostic: Diagnostic): SerializedDiagnostic {
+	return {
 		severity: diagnostic.severity === 0 ? 'Error' : diagnostic.severity === 1 ? 'Warning' : diagnostic.severity === 2 ? 'Information' : 'Hint',
 		message: diagnostic.message,
 		source: diagnostic.source || '',
 		code: diagnostic.code && !(typeof diagnostic.code === 'number') && !(typeof diagnostic.code === 'string') ? diagnostic.code.value : diagnostic.code,
 		range: new Range(diagnostic.range.start.line + 1, diagnostic.range.start.character + 1, diagnostic.range.end.line + 1, diagnostic.range.end.character + 1).toString(),
 	};
-	if (resource) {
-		(result as SerializedDiagnostic).uri = resource.toString();
-	}
-	return result;
-}
-
-export function serializeFileDiagnostics(diagnostics: [Uri, Diagnostic[]][]): SerializedDiagnostic[] {
-	return diagnostics.flatMap(([resource, diags]) =>
-		diags.map(diagnostic => serializeDiagnostic(diagnostic, resource))
-	);
 }

@@ -37,6 +37,7 @@ export function getToolGroupSummary(
 	let directorySteps = 0;
 	let diagnosticSteps = 0;
 	let failed = 0;
+	let blockedByHook = 0;
 	let skipped = 0;
 	let denied = 0;
 	let unfinished = 0;
@@ -55,6 +56,10 @@ export function getToolGroupSummary(
 		}
 		if (confirmation?.type === ToolConfirmKind.Skipped || summary?.kind === 'skipped') {
 			skipped++;
+			continue;
+		}
+		if (summary?.kind === 'blockedByHook') {
+			blockedByHook++;
 			continue;
 		}
 		const resultDetails = IChatToolInvocation.resultDetails(tool);
@@ -171,6 +176,13 @@ export function getToolGroupSummary(
 		addLabel(
 			diagnostics.size === 1 ? localize('toolSummary.checkedPath', "Checked {0} for problems", basename(first) || first.path) : localize('toolSummary.checkedPaths', "Checked {0} paths for problems", diagnostics.size),
 			diagnostics.size === 1 ? localize('toolSummary.checkedPath.continued', "checked {0} for problems", basename(first) || first.path) : localize('toolSummary.checkedPaths.continued', "checked {0} paths for problems", diagnostics.size), diagnosticSteps);
+	}
+	if (blockedByHook > 0) {
+		labels.push({
+			text: blockedByHook === 1 ? localize('toolSummary.blockedByHook', "1 tool call blocked by a hook") : localize('toolSummary.blockedByHookPlural', "{0} tool calls blocked by hooks", blockedByHook),
+			steps: blockedByHook,
+			overflowDetail: localize('toolSummary.blockedByHookOverflow', "{0} blocked by hooks", blockedByHook),
+		});
 	}
 	if (failed > 0) {
 		labels.push({

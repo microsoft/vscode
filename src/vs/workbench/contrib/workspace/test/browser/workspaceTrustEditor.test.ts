@@ -8,23 +8,34 @@ import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/s
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { errorHandler } from '../../../../../base/common/errors.js';
-import { Emitter } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { normalizeDriveLetter } from '../../../../../base/common/labels.js';
+import { toDisposable } from '../../../../../base/common/lifecycle.js';
+import { isWindows } from '../../../../../base/common/platform.js';
+import { basename } from '../../../../../base/common/resources.js';
 import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IFileDialogService, IOpenDialogOptions } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustUriInfo } from '../../../../../platform/workspace/common/workspaceTrust.js';
-import { TestEditorGroupView, TestFileDialogService, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
+import { TestEditorGroupView, TestFileDialogService, TestWorkbenchExtensionEnablementService, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { TestWorkspaceTrustManagementService } from '../../../../test/common/workbenchTestServices.js';
+import { WorkspaceTrustedUrisTable, WorkspaceTrustEditor } from '../../browser/workspaceTrustEditor.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { mock } from '../../../../../base/test/common/mock.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
+import { IWorkbenchConfigurationService } from '../../../../services/configuration/common/configuration.js';
 import { IWorkbenchExtensionEnablementService } from '../../../../services/extensionManagement/common/extensionManagement.js';
 import { IExtensionManifestPropertiesService } from '../../../../services/extensions/common/extensionManifestPropertiesService.js';
-import { IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
-import { WorkspaceTrustedUrisTable, WorkspaceTrustEditor } from '../../browser/workspaceTrustEditor.js';
+import { WorkspaceTrustEditorInput } from '../../../../services/workspaces/browser/workspaceTrustEditorInput.js';
 
 class PickerFileDialogService extends TestFileDialogService {
 	nextPick: URI[] | undefined;
+	readonly openDialogOptions: IOpenDialogOptions[] = [];
 
-	override showOpenDialog(_options: IOpenDialogOptions): Promise<URI[] | undefined> {
+	override showOpenDialog(options: IOpenDialogOptions): Promise<URI[] | undefined> {
+		this.openDialogOptions.push(options);
 		return Promise.resolve(this.nextPick);
 	}
 }
@@ -41,10 +52,15 @@ class FakeWorkspaceTrustManagementService extends TestWorkspaceTrustManagementSe
 	override onDidChangeTrustedFolders = this._onDidChangeTrustedFoldersEmitter.event;
 
 	private entries: URI[];
+	verificationGate: Promise<void> | undefined;
 	completionGate: Promise<void> | undefined;
 	failure: Error | undefined;
+	/** Like the real service, rejects the whole batch before any change when one of its URIs cannot be trusted. */
+	rejects: ((uri: URI) => boolean) | undefined;
+	trustInfoGate: Promise<void> | undefined;
 	autoTrusted: ((uri: URI) => boolean) | undefined;
 	canonicalize: ((uri: URI) => URI) | undefined;
+	readonly calls: URI[][] = [];
 
 	constructor(entries: URI[]) {
 		super();
@@ -56,6 +72,7 @@ class FakeWorkspaceTrustManagementService extends TestWorkspaceTrustManagementSe
 	}
 
 	override async getUriTrustInfo(uri: URI): Promise<IWorkspaceTrustUriInfo> {
+		await this.trustInfoGate;
 		const canonical = this.getCanonicalUri(uri);
 		if (this.autoTrusted?.(canonical)) {
 			return { trusted: true, uri: canonical };
@@ -67,8 +84,12 @@ class FakeWorkspaceTrustManagementService extends TestWorkspaceTrustManagementSe
 	}
 
 	override async setUrisTrust(uris: URI[], trusted: boolean): Promise<void> {
+		this.calls.push(uris);
 		if (this.failure) {
 			throw this.failure;
+		}
+		if (uris.some(uri => this.rejects?.(uri))) {
+			throw new Error('unverified source');
 		}
 
 		let changed = false;
@@ -92,6 +113,16 @@ class FakeWorkspaceTrustManagementService extends TestWorkspaceTrustManagementSe
 		await this.completionGate;
 	}
 
+	override async setTrustedUris(uris: URI[]): Promise<void> {
+		await this.verificationGate;
+		if (this.failure) {
+			throw this.failure;
+		}
+		this.entries = uris.map(uri => this.getCanonicalUri(uri));
+		this._onDidChangeTrustedFoldersEmitter.fire();
+		await this.completionGate;
+	}
+
 	private getCanonicalUri(uri: URI): URI {
 		return (this.canonicalize?.(uri) ?? uri).with({ query: null, fragment: null });
 	}
@@ -110,6 +141,155 @@ interface ITableState {
 	readonly tableHasDomFocus: boolean;
 }
 
+suite('WorkspaceTrustEditor source recovery', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	let container: HTMLElement;
+	let retries: number;
+	let resolved: boolean;
+	let resolveOnRetry: boolean;
+	let allowTrustChanges: boolean;
+	let trustChanges: number;
+	let retryGate: DeferredPromise<void> | undefined;
+	let retryFailure: Error | undefined;
+
+	setup(async () => {
+		retries = 0;
+		resolved = false;
+		resolveOnRetry = false;
+		allowTrustChanges = true;
+		trustChanges = 0;
+		retryGate = undefined;
+		retryFailure = undefined;
+		container = mainWindow.document.createElement('div');
+		mainWindow.document.body.appendChild(container);
+
+		const changed = store.add(new Emitter<void>());
+		const trustService = store.add(new class extends TestWorkspaceTrustManagementService {
+			override onDidChangeTrustedFolders = changed.event;
+			override isWorkspaceTrusted() { return false; }
+			override getTrustedUris() { return []; }
+			override canSetWorkspaceTrust() { return resolved && allowTrustChanges; }
+			override isWorkspaceTrustSourceResolved() { return resolved; }
+			override async setWorkspaceTrust() { trustChanges++; }
+			override async resolveWorkspaceTrust() {
+				retries++;
+				await retryGate?.p;
+				if (retryFailure) {
+					throw retryFailure;
+				}
+				resolved = resolveOnRetry;
+				changed.fire();
+			}
+		});
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		instantiationService.stub(IWorkspaceTrustManagementService, trustService);
+		instantiationService.stub(IExtensionsWorkbenchService, { onChange: Event.None, local: [] });
+		instantiationService.stub(IWorkbenchConfigurationService, Object.assign(new TestConfigurationService(), {
+			restrictedSettings: { default: [] },
+			onDidChangeRestrictedSettings: Event.None,
+		}));
+		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestWorkbenchExtensionEnablementService());
+		instantiationService.stub(IExtensionManifestPropertiesService, new class extends mock<IExtensionManifestPropertiesService>() { });
+		const editor = store.add(instantiationService.createInstance(WorkspaceTrustEditor, new TestEditorGroupView(1)));
+		editor.create(container);
+		await editor.setInput(store.add(new WorkspaceTrustEditorInput()), {}, {}, CancellationToken.None);
+		await timeout(150);
+	});
+
+	teardown(() => container.remove());
+
+	function retryButton(): HTMLElement | null {
+		return container.querySelector('[aria-label="Retry Source Check"] .monaco-button');
+	}
+
+	test('explains an unverified source and retries without granting trust', async () => {
+		assert.ok(container.textContent?.includes('source repository for this workspace could not be verified'));
+		assert.strictEqual(container.querySelector('[aria-label^="Trust,"]'), null);
+		retryGate = new DeferredPromise<void>();
+		resolveOnRetry = true;
+		const button = retryButton()!;
+		button.focus();
+		button.click();
+		assert.strictEqual(button.getAttribute('aria-disabled'), 'true');
+		assert.strictEqual(retries, 1);
+		await retryGate.complete();
+		await timeout(150);
+
+		assert.strictEqual(retryButton(), null);
+		assert.ok(container.querySelector('.workspace-trust-editor.untrusted'));
+		const trustButton = Array.from(container.querySelectorAll('.monaco-button')).find(button => button.textContent === 'Trust');
+		assert.ok(trustButton);
+		const focusedHeading = mainWindow.document.activeElement === container.querySelector('.workspace-trust-header');
+		mainWindow.document.activeElement!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, repeat: true, bubbles: true }));
+		await timeout(0);
+		assert.deepStrictEqual({ focusedHeading, trustChanges }, { focusedHeading: true, trustChanges: 0 });
+	});
+
+	test('an unsuccessful check stays restricted and can be retried again', async () => {
+		const button = retryButton()!;
+		button.focus();
+		button.click();
+		await timeout(150);
+
+		assert.strictEqual(retries, 1);
+		assert.strictEqual(resolved, false);
+		assert.strictEqual(retryButton()!.getAttribute('aria-disabled'), 'false');
+		assert.ok(container.textContent?.includes('source repository for this workspace could not be verified'));
+		assert.notStrictEqual(retryButton(), button);
+		assert.strictEqual(mainWindow.document.activeElement, retryButton());
+	});
+
+	test('focuses the editor heading when a successful retry leaves no trust action', async () => {
+		resolveOnRetry = true;
+		allowTrustChanges = false;
+		retryButton()!.focus();
+		retryButton()!.click();
+		await timeout(150);
+
+		assert.strictEqual(retryButton(), null);
+		assert.strictEqual(mainWindow.document.activeElement, container.querySelector('.workspace-trust-header'));
+	});
+
+	for (const phase of ['during the request', 'before the debounced render']) {
+		test(`does not take focus back when the user leaves the action ${phase}`, async () => {
+			retryGate = new DeferredPromise<void>();
+			retryButton()!.focus();
+			retryButton()!.click();
+			if (phase === 'before the debounced render') {
+				await retryGate.complete();
+				await timeout(0);
+			}
+			const otherControl = container.appendChild(mainWindow.document.createElement('button'));
+			otherControl.textContent = 'Other control';
+			otherControl.focus();
+			if (phase === 'during the request') {
+				await retryGate.complete();
+			}
+			await timeout(150);
+
+			assert.strictEqual(retries, 1);
+			assert.strictEqual(mainWindow.document.activeElement, otherControl);
+		});
+	}
+
+	test('reports retry errors and re-enables the action', async () => {
+		retryFailure = new Error('Retry failed');
+		const errors: unknown[] = [];
+		const previousHandler = errorHandler.getUnexpectedErrorHandler();
+		errorHandler.setUnexpectedErrorHandler(error => errors.push(error));
+		try {
+			retryButton()!.click();
+			await timeout(0);
+		} finally {
+			errorHandler.setUnexpectedErrorHandler(previousHandler);
+		}
+
+		assert.deepStrictEqual(errors, [retryFailure]);
+		assert.strictEqual(retryButton()!.getAttribute('aria-disabled'), 'false');
+		assert.strictEqual(resolved, false);
+	});
+});
+
 suite('WorkspaceTrustedUrisTable', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -118,7 +298,7 @@ suite('WorkspaceTrustedUrisTable', () => {
 	let trustService: FakeWorkspaceTrustManagementService;
 	let table: WorkspaceTrustedUrisTable;
 
-	const folder = (name: string) => URI.file(`/trusted/${name}`);
+	const folder = (name: string) => URI.file(isWindows ? `c:\\trusted\\${name}` : `/trusted/${name}`);
 	const label = (element: Element | null | undefined) => element?.getAttribute('aria-label')?.match(/[\\/]trusted[\\/](?<name>[^\s\\/]+) on /)?.groups?.name;
 
 	setup(() => {
@@ -165,6 +345,14 @@ suite('WorkspaceTrustedUrisTable', () => {
 		row.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 }));
 	}
 
+	function acceptInlineEdit(name: string, newName: string): void {
+		const row = Array.from(container.querySelectorAll('.monaco-list-row')).find(row => label(row) === name)!;
+		row.querySelector<HTMLElement>('.codicon-workspace-trust-editor-edit-folder')!.click();
+		const input = row.querySelector<HTMLInputElement>('.input-mode input')!;
+		input.value = folder(newName).fsPath;
+		input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
+	}
+
 	async function addFolder(pick: URI[] | undefined): Promise<void> {
 		dialogService.nextPick = pick;
 		getAddButton().focus();
@@ -193,27 +381,28 @@ suite('WorkspaceTrustedUrisTable', () => {
 		]);
 	});
 
-	test('reveals the added folder in the surrounding scrollable element', async () => {
-		// Mirrors the editor: the table is laid out to fit all rows inside a constrained-height
-		// scrollable body that is scrolled down to the Add Folder button.
-		const content = mainWindow.document.createElement('div');
-		const scrollableElement = store.add(new DomScrollableElement(content, { vertical: ScrollbarVisibility.Auto }));
-		const viewport = scrollableElement.getDomNode();
-		// max-height rather than height: the browser test page renders in quirks mode, where the
-		// table's `height: 100%` would otherwise resolve against this constrained ancestor.
-		viewport.style.maxHeight = '200px';
-		content.style.maxHeight = '200px';
-		const spacer = content.appendChild(mainWindow.document.createElement('div'));
-		spacer.style.height = '300px';
-		content.appendChild(container);
-		mainWindow.document.body.appendChild(viewport);
-		try {
+	for (const pick of [['a-first'], ['zz-end', 'a-first']]) {
+		test(`reveals the topmost added folder in the surrounding scrollable element (${pick.join(', ')})`, async () => {
+			// Mirrors the editor: the table is laid out to fit all rows inside a constrained-height
+			// scrollable body that is scrolled down to the Add Folder button.
+			const content = mainWindow.document.createElement('div');
+			const scrollableElement = store.add(new DomScrollableElement(content, { vertical: ScrollbarVisibility.Auto }));
+			const viewport = scrollableElement.getDomNode();
+			// max-height rather than height: the browser test page renders in quirks mode, where the
+			// table's `height: 100%` would otherwise resolve against this constrained ancestor.
+			viewport.style.maxHeight = '200px';
+			content.style.maxHeight = '200px';
+			const spacer = content.appendChild(mainWindow.document.createElement('div'));
+			spacer.style.height = '300px';
+			content.appendChild(container);
+			mainWindow.document.body.appendChild(viewport);
+			store.add(toDisposable(() => viewport.remove()));
 			createTable(Array.from({ length: 20 }, (_, i) => `n-${String(i).padStart(2, '0')}`), scrollableElement);
 			scrollableElement.scanDomNode();
 			scrollableElement.setScrollPosition({ scrollTop: Number.MAX_SAFE_INTEGER });
 			const scrollTopBefore = scrollableElement.getScrollPosition().scrollTop;
 
-			await addFolder([folder('a-first')]);
+			await addFolder(pick.map(folder));
 
 			const row = Array.from(container.querySelectorAll('.monaco-list-row')).find(row => label(row) === 'a-first')!;
 			const rowRect = row.getBoundingClientRect();
@@ -223,9 +412,69 @@ suite('WorkspaceTrustedUrisTable', () => {
 				rowVisible: rowRect.top >= viewportRect.top && rowRect.bottom <= viewportRect.bottom,
 				focused: getState().focused,
 			}, { scrolledUp: true, rowVisible: true, focused: ['a-first'] });
-		} finally {
-			viewport.remove();
+		});
+	}
+
+	test('trusts every picked folder in one call and focuses the topmost picked row', async () => {
+		const results: { state: ITableState; calls: string[][] }[] = [];
+		for (const pick of [['z-new', 'm-new'], ['z-new', 'b-existing', 'm-new']]) {
+			container.replaceChildren();
+			createTable(['b-existing', 'z-last']);
+			selectRow('z-last');
+			await addFolder(pick.map(folder));
+			results.push({ state: getState(), calls: trustService.calls.map(call => call.map(uri => basename(uri))) });
 		}
+
+		assert.deepStrictEqual(results, [
+			{ state: focusedState(['b-existing', 'm-new', 'z-last', 'z-new'], 'm-new'), calls: [['z-new', 'm-new']] },
+			{ state: focusedState(['b-existing', 'm-new', 'z-last', 'z-new'], 'b-existing'), calls: [['z-new', 'b-existing', 'm-new']] },
+		]);
+	});
+
+	test('focuses the topmost picked row that gets an entry', async () => {
+		createTable(['c-two', 'z-last']);
+		selectRow('z-last');
+		trustService.autoTrusted = uri => uri.path.endsWith('/a-implicit');
+		await addFolder([folder('a-implicit'), folder('m-new')]);
+		assert.deepStrictEqual(getState(), focusedState(['c-two', 'm-new', 'z-last'], 'm-new'));
+	});
+
+	test('trusts none of the picked folders when one of them is rejected', async () => {
+		createTable(['c-two', 'z-last']);
+		selectRow('z-last');
+		trustService.rejects = uri => uri.path.endsWith('/m-bad');
+		const errors: unknown[] = [];
+		const previousHandler = errorHandler.getUnexpectedErrorHandler();
+		errorHandler.setUnexpectedErrorHandler(error => errors.push(error));
+		try {
+			await addFolder([folder('a-good'), folder('m-bad')]);
+		} finally {
+			errorHandler.setUnexpectedErrorHandler(previousHandler);
+		}
+		assert.deepStrictEqual({
+			trusted: trustService.getTrustedUris().map(uri => basename(uri)),
+			errors: errors.length,
+			selected: getState().selected,
+			addButtonFocused: mainWindow.document.activeElement === getAddButton(),
+		}, { trusted: ['c-two', 'z-last'], errors: 1, selected: ['z-last'], addButtonFocused: true });
+	});
+
+	test('keeps focus on the add button when no picked folder gets an entry', async () => {
+		createTable(['c-two', 'z-last']);
+		selectRow('z-last');
+		trustService.autoTrusted = () => true;
+		await addFolder([folder('a-implicit'), folder('m-implicit')]);
+		assert.deepStrictEqual([getState().rows, getState().selected, mainWindow.document.activeElement === getAddButton()], [['c-two', 'z-last'], ['z-last'], true]);
+	});
+
+	test('add picks several folders while edit picks one', async () => {
+		createTable(['c-two']);
+		await addFolder(undefined);
+		await table.edit({ uri: folder('c-two'), parentOfWorkspaceItem: false }, true);
+		assert.deepStrictEqual(dialogService.openDialogOptions.map(({ canSelectMany, title, openLabel }) => ({ canSelectMany, title, openLabel })), [
+			{ canSelectMany: true, title: 'Select Folders to Trust', openLabel: 'Trust Folders' },
+			{ canSelectMany: false, title: 'Select Folder To Trust', openLabel: 'Trust Folder' },
+		]);
 	});
 
 	test('moves focus only after the addition completes', async () => {
@@ -264,7 +513,7 @@ suite('WorkspaceTrustedUrisTable', () => {
 		for (const existing of [['c-two', 'z-last'], ['c-two', 'm-middle', 'z-last']]) {
 			container.replaceChildren();
 			createTable(existing);
-			trustService.canonicalize = uri => uri.with({ path: uri.path.replace(/^\/alias\//, '/trusted/') });
+			trustService.canonicalize = uri => uri.with({ path: uri.path.replace(/^\/alias\//, folder('').path) });
 			selectRow('z-last');
 			await addFolder([URI.file('/alias/m-middle')]);
 			results.push(getState());
@@ -338,11 +587,133 @@ suite('WorkspaceTrustedUrisTable', () => {
 		assert.deepStrictEqual([errors, getState().selected, mainWindow.document.activeElement === getAddButton()], [[trustService.failure], ['z-last'], true]);
 	});
 
+	test('does not accept an edit until trust persistence completes', async () => {
+		createTable(['c-two']);
+		const gate = new DeferredPromise<void>();
+		trustService.completionGate = gate.p;
+		let accepted = 0;
+		store.add(table.onDidAcceptEdit(() => accepted++));
+		const edit = table.acceptEdit({ uri: folder('c-two'), parentOfWorkspaceItem: false }, folder('m-middle'));
+		const acceptedBeforeCompletion = accepted;
+		gate.complete();
+		await edit;
+
+		assert.deepStrictEqual({
+			acceptedBeforeCompletion,
+			accepted,
+			trustedUris: trustService.getTrustedUris().map(uri => uri.toString()),
+		}, {
+			acceptedBeforeCompletion: 0,
+			accepted: 1,
+			trustedUris: [folder('m-middle').toString()],
+		});
+	});
+
+	test('reports a failed edit without accepting it or changing stored trust', async () => {
+		createTable(['c-two']);
+		trustService.failure = new Error('source could not be verified');
+		let accepted = 0;
+		store.add(table.onDidAcceptEdit(() => accepted++));
+		const errors: unknown[] = [];
+		const previousHandler = errorHandler.getUnexpectedErrorHandler();
+		errorHandler.setUnexpectedErrorHandler(error => errors.push(error));
+		try {
+			await table.acceptEdit({ uri: folder('c-two'), parentOfWorkspaceItem: false }, folder('m-middle'));
+		} finally {
+			errorHandler.setUnexpectedErrorHandler(previousHandler);
+		}
+
+		assert.deepStrictEqual({
+			errors,
+			accepted,
+			trustedUris: trustService.getTrustedUris().map(uri => uri.toString()),
+		}, {
+			errors: [trustService.failure],
+			accepted: 0,
+			trustedUris: [folder('c-two').toString()],
+		});
+	});
+
+	test('inline editing shows the saved path until verification and then the canonical path', async () => {
+		createTable(['c-two']);
+		const gate = new DeferredPromise<void>();
+		trustService.verificationGate = gate.p;
+		trustService.canonicalize = uri => uri.path === folder('m-middle').path ? folder('verified-source') : uri;
+
+		acceptInlineEdit('c-two', 'm-middle');
+		const pendingLabel = container.querySelector('.path-label')!.textContent;
+		const pendingUris = trustService.getTrustedUris().map(uri => uri.toString());
+		await gate.complete();
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			pendingLabel,
+			pendingUris,
+			label: container.querySelector('.path-label')!.textContent,
+			trustedUris: trustService.getTrustedUris().map(uri => uri.toString()),
+		}, {
+			pendingLabel: normalizeDriveLetter(folder('c-two').fsPath),
+			pendingUris: [folder('c-two').toString()],
+			label: normalizeDriveLetter(folder('verified-source').fsPath),
+			trustedUris: [folder('verified-source').toString()],
+		});
+	});
+
+	test('inline editing keeps the saved path visible when verification fails', async () => {
+		createTable(['c-two']);
+		const gate = new DeferredPromise<void>();
+		trustService.verificationGate = gate.p;
+		trustService.failure = new Error('source could not be verified');
+		const errors: unknown[] = [];
+		const previousHandler = errorHandler.getUnexpectedErrorHandler();
+		errorHandler.setUnexpectedErrorHandler(error => errors.push(error));
+		let pendingLabel: string | null;
+		try {
+			acceptInlineEdit('c-two', 'm-middle');
+			pendingLabel = container.querySelector('.path-label')!.textContent;
+			await gate.complete();
+			await timeout(0);
+		} finally {
+			errorHandler.setUnexpectedErrorHandler(previousHandler);
+		}
+
+		assert.deepStrictEqual({
+			pendingLabel,
+			errors,
+			label: container.querySelector('.path-label')!.textContent,
+			trustedUris: trustService.getTrustedUris().map(uri => uri.toString()),
+		}, {
+			pendingLabel: normalizeDriveLetter(folder('c-two').fsPath),
+			errors: [trustService.failure],
+			label: normalizeDriveLetter(folder('c-two').fsPath),
+			trustedUris: [folder('c-two').toString()],
+		});
+	});
+
 	test('does not touch the table when disposed during the addition', async () => {
 		createTable(['c-two', 'z-last']);
 		const gate = new DeferredPromise<void>();
 		trustService.completionGate = gate.p;
 		await addFolder([folder('m-middle')]);
+		const list = container.querySelector('.monaco-list');
+		const errors: unknown[] = [];
+		const previousHandler = errorHandler.getUnexpectedErrorHandler();
+		errorHandler.setUnexpectedErrorHandler(error => errors.push(error));
+		try {
+			table.dispose();
+			gate.complete();
+			await timeout(0);
+		} finally {
+			errorHandler.setUnexpectedErrorHandler(previousHandler);
+		}
+		assert.deepStrictEqual([errors, mainWindow.document.activeElement === list], [[], false]);
+	});
+
+	test('does not touch the table when disposed while resolving the added folders', async () => {
+		createTable(['c-two', 'z-last']);
+		const gate = new DeferredPromise<void>();
+		trustService.trustInfoGate = gate.p;
+		await addFolder([folder('m-middle'), folder('a-first')]);
 		const list = container.querySelector('.monaco-list');
 		const errors: unknown[] = [];
 		const previousHandler = errorHandler.getUnexpectedErrorHandler();
@@ -416,7 +787,7 @@ suite('WorkspaceTrustEditor', () => {
 		// Native scrolling, e.g. the browser revealing a control focused with Tab.
 		const scrollNatively = (scrollTop: number) => {
 			body.scrollTop = scrollTop;
-			body.dispatchEvent(new Event('scroll'));
+			body.dispatchEvent(new mainWindow.Event('scroll'));
 			return !!scrollableNode.querySelector(':scope > .shadow.top');
 		};
 

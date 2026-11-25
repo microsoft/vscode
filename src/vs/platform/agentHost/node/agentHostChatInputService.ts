@@ -52,6 +52,15 @@ export class AgentHostChatInputService extends Disposable implements IAgentHostC
 		super();
 		// Fired while the previous session still holds the chat's input state, also when it ends by moving its chat.
 		this._register(this._chatOwnership.onDidChangeChatOwner(({ chat, previous }) => this.transfer(previous, chat)));
+		this._register(this._stateManager.onDidResolveChatState(chat => {
+			const owner = this._chatOwnership.getChatOwner(chat);
+			const restriction = owner !== undefined
+				? this._providers.getProviderForChat(owner, chat)?.chats.getInputRestriction?.(URI.parse(chat))
+				: undefined;
+			if (restriction) {
+				this.setBlocked(chat, restriction);
+			}
+		}));
 	}
 
 	prepareChat(chat: URI): Promise<void> {
@@ -63,11 +72,14 @@ export class AgentHostChatInputService extends Disposable implements IAgentHostC
 		const state = this._stateManager.getChatState(chatKey);
 		const sessionState = this._stateManager.getSessionState(session);
 		const previous = readChatInputState(sessionState, chatKey);
-		const provider = this._providers.getProviderForSession(session);
+		const provider = this._providers.getProviderForChat(session, chatKey);
 		if (this._store.isDisposed || !state || !sessionState || !provider?.chats.prepareChat || state.activeTurn
 			|| state.interactivity === ChatInteractivity.Hidden
 			|| isSessionStatusArchived(sessionState.status) || isSessionStatusArchived(state.status)
 			|| (isChatReadOnly(state.interactivity, false) && !previous)) {
+			return Promise.resolve();
+		}
+		if (!previous && provider.chats.getInputRestriction && !provider.chats.getInputRestriction(chat)) {
 			return Promise.resolve();
 		}
 		const existing = this._pending.get(chat);

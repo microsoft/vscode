@@ -11,9 +11,7 @@
  * @author Michael Ficarra
  */
 
-import { TSESTree } from '@typescript-eslint/utils';
-import * as eslint from 'eslint';
-import type * as ESTree from 'estree';
+import type { Context, CreateRule, ESTree } from '@oxlint/plugins';
 
 //------------------------------------------------------------------------------
 // Rule Definition
@@ -52,8 +50,8 @@ export default {
 		]
 	},
 
-	create(context: eslint.Rule.RuleContext) {
-		const config = context.options[0] || {},
+	create(context: Context) {
+		const config = (context.options[0] || {}) as { allowShortCircuit?: boolean; allowTernary?: boolean; allowTaggedTemplates?: boolean },
 			allowShortCircuit = config.allowShortCircuit || false,
 			allowTernary = config.allowTernary || false,
 			allowTaggedTemplates = config.allowTaggedTemplates || false;
@@ -63,7 +61,7 @@ export default {
 		 * @param node any node
 		 * @returns whether the given node structurally represents a directive
 		 */
-		function looksLikeDirective(node: TSESTree.Node): boolean {
+		function looksLikeDirective(node: ESTree.Node): boolean {
 			return node.type === 'ExpressionStatement' &&
 				node.expression.type === 'Literal' && typeof node.expression.value === 'string';
 		}
@@ -88,7 +86,7 @@ export default {
 		 * @param node a Program or BlockStatement node
 		 * @returns the leading sequence of directive nodes in the given node's body
 		 */
-		function directives(node: TSESTree.Program | TSESTree.BlockStatement): TSESTree.Node[] {
+		function directives(node: ESTree.Program | ESTree.BlockStatement): ESTree.Node[] {
 			return takeWhile(looksLikeDirective, node.body);
 		}
 
@@ -98,7 +96,7 @@ export default {
 		 * @param ancestors the given node's ancestors
 		 * @returns whether the given node is considered a directive in its current position
 		 */
-		function isDirective(node: TSESTree.Node, ancestors: TSESTree.Node[]): boolean {
+		function isDirective(node: ESTree.Node, ancestors: ESTree.Node[]): boolean {
 			const parent = ancestors[ancestors.length - 1],
 				grandparent = ancestors[ancestors.length - 2];
 
@@ -112,7 +110,7 @@ export default {
 		 * @param node any node
 		 * @returns whether the given node is a valid expression
 		 */
-		function isValidExpression(node: TSESTree.Node): boolean {
+		function isValidExpression(node: ESTree.Node): boolean {
 			if (allowTernary) {
 
 				// Recursive check for ternary and logical expressions
@@ -140,12 +138,12 @@ export default {
 		}
 
 		return {
-			ExpressionStatement(node: TSESTree.ExpressionStatement) {
-				if (!isValidExpression(node.expression) && !isDirective(node, context.sourceCode.getAncestors(node as ESTree.Node) as TSESTree.Node[])) {
-					context.report({ node: node as ESTree.Node, message: `Expected an assignment or function call and instead saw an expression. ${node.expression}` });
+			ExpressionStatement(node: ESTree.ExpressionStatement) {
+				if (!isValidExpression(node.expression) && !isDirective(node, context.sourceCode.getAncestors(node) as ESTree.Node[])) {
+					context.report({ node, message: `Expected an assignment or function call and instead saw an expression. ${node.expression}` });
 				}
 			}
 		};
 
 	}
-};
+} satisfies CreateRule;

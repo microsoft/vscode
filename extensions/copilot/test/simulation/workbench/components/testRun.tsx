@@ -8,22 +8,18 @@ import { ChevronUp20Regular } from '@fluentui/react-icons';
 import * as mobxlite from 'mobx-react-lite';
 import * as React from 'react';
 import { getTextPart } from '../../../../src/platform/chat/common/globalStringUtils';
-import { IDiagnostic, IDiagnosticComparison, IRange, ISerializedFileEdit, ISerializedNesUserEditsHistory, InterceptedRequest } from '../../shared/sharedTypes';
-import { EvaluationError } from '../stores/amlResults';
-import { ISimulationTest } from '../stores/simulationTestsProvider';
+import { IDiagnosticComparison, IRange, ISerializedFileEdit, ISerializedNesUserEditsHistory, InterceptedRequest } from '../../shared/sharedTypes';
 import { IResolvedFile, InitialWorkspaceState, InteractionWorkspaceState, WorkspaceState } from '../stores/simulationWorkspaceState';
 import { TestRun } from '../stores/testRun';
 import { isToolCall } from '../utils/utils';
 import { DisplayOptions } from './app';
 import { DiffEditor } from './diffEditor';
 import { Editor } from './editor';
-import { ErrorComparison } from './errorComparison';
 import { OutputView } from './output';
 import { RequestView } from './request';
 import { TestCaseSummary } from './testCaseSummary';
 
 type TestRunViewProps = {
-	readonly test: ISimulationTest;
 	readonly run: TestRun;
 	readonly baseline: TestRun | undefined;
 	readonly displayOptions: DisplayOptions;
@@ -31,12 +27,12 @@ type TestRunViewProps = {
 };
 
 export const TestRunView = mobxlite.observer(
-	({ test, run, baseline, displayOptions, closeTestRunView }: TestRunViewProps) => {
+	({ run, baseline, displayOptions, closeTestRunView }: TestRunViewProps) => {
 		return (
 			<div className='testRun'>
 				<div className='foldingBar' onClick={closeTestRunView}><ChevronUp20Regular /></div>
 				<div className='content'>
-					<TestRunVisualization test={test} run={run} baseline={baseline} displayOptions={displayOptions} />
+					<TestRunVisualization run={run} baseline={baseline} displayOptions={displayOptions} />
 					{run.error !== undefined && <ErrorMessageBar error={run.error} />}
 				</div>
 			</div>
@@ -130,7 +126,7 @@ class OutputRenderData {
 }
 
 const TestRunVisualization = mobxlite.observer(
-	({ test, run, baseline, displayOptions }: Omit<TestRunViewProps, 'closeTestRunView'>) => {
+	({ run, baseline, displayOptions }: Omit<TestRunViewProps, 'closeTestRunView'>) => {
 		if (!run.requests.resolved || !run.inlineChatWorkspaceStates.resolved || !run.nextEditSuggestion.resolved) {
 			return <>PENDING</>;
 		}
@@ -149,7 +145,7 @@ const TestRunVisualization = mobxlite.observer(
 			// Optimize rendering for simple case
 			files = files.update(run.inlineChatWorkspaceStates.value[0]);
 			result.push(
-				<InteractionState key={`single-state-step`} test={test} files={files} state={run.inlineChatWorkspaceStates.value[1]} requests={[]} expectedDiff={run.expectedDiff} />
+				<InteractionState key={`single-state-step`} files={files} state={run.inlineChatWorkspaceStates.value[1]} requests={[]} expectedDiff={run.expectedDiff} />
 			);
 		} else {
 			let stepNumber = 1;
@@ -161,7 +157,7 @@ const TestRunVisualization = mobxlite.observer(
 				} else {
 					const requests = requestRenderer.take(state.requestCount);
 					result.push(
-						<InteractionState key={`state-step-${stepNumber++}`} test={test} files={files} state={state} requests={requests} expectedDiff={run.expectedDiff} />
+						<InteractionState key={`state-step-${stepNumber++}`} files={files} state={state} requests={requests} expectedDiff={run.expectedDiff} />
 					);
 				}
 				files = files.update(state);
@@ -218,15 +214,14 @@ const TestRunVisualization = mobxlite.observer(
 );
 
 const InteractionState = mobxlite.observer(
-	({ test, files, state, requests, expectedDiff }: { test: ISimulationTest; files: WorkspaceFileState; state: InteractionWorkspaceState; requests: RequestRenderData[]; expectedDiff?: string }) => {
+	({ files, state, requests, expectedDiff }: { files: WorkspaceFileState; state: InteractionWorkspaceState; requests: RequestRenderData[]; expectedDiff?: string }) => {
 		return (
 			<div>
 				<UserQuery key={`step-query`} text={state.interaction.query} />
 				{!state.interaction.query.startsWith('/') && <ChosenIntent key={`step-intent`} detectedIntent={state.interaction.detectedIntent} actualIntent={state.interaction.actualIntent} />}
 				<Requests key={'step-requests'} requests={requests} />
-				<ChangedFiles key={`step-changed`} files={files} state={state} test={test} />
+				<ChangedFiles key={`step-changed`} files={files} state={state} />
 				{expectedDiff && <ExpectedDiff expectedDiff={expectedDiff} />}
-				<ErrorComparison key={`step-error-comparison`} test={test} />
 			</div>
 		);
 	}
@@ -265,11 +260,10 @@ const Requests = mobxlite.observer(
 type ChangedFilesProps = {
 	readonly files: WorkspaceFileState;
 	readonly state: InteractionWorkspaceState;
-	readonly test: ISimulationTest;
 };
 
 const ChangedFiles = mobxlite.observer(
-	({ files, state, test }: ChangedFilesProps) => {
+	({ files, state }: ChangedFilesProps) => {
 		const result: React.ReactElement[] = [];
 		for (let changedFileIndex = 0; changedFileIndex < state.changedFiles.value.length; changedFileIndex++) {
 			const changedFile = state.changedFiles.value[changedFileIndex];
@@ -280,7 +274,7 @@ const ChangedFiles = mobxlite.observer(
 				prevFile = undefined;
 			}
 
-			const fileDiagnostics = state.diagnostics?.[changedFile.workspacePath] ?? getDiagnosticsFromTest(test, changedFileIndex);
+			const fileDiagnostics = state.diagnostics?.[changedFile.workspacePath];
 			result.push(
 				<ChangedFile
 					key={`changedFile-${changedFileIndex}`}
@@ -296,20 +290,6 @@ const ChangedFiles = mobxlite.observer(
 		return <div>{result}</div>;
 	}
 );
-function getDiagnosticsFromTest(testRun: ISimulationTest, index: number): IDiagnosticComparison | undefined {
-	if (index === 0 && testRun.errorsOnlyInBefore && testRun.errorsOnlyInAfter) {
-		const toDiagnostics = (errors: EvaluationError[]): IDiagnostic[] => {
-			return errors.map(error => {
-				return {
-					message: error.message,
-					range: { start: { line: error.startLine, character: error.startColumn }, end: { line: error.endLine, character: error.endColumn } }
-				};
-			});
-		};
-		return { before: toDiagnostics(testRun.errorsOnlyInBefore), after: toDiagnostics(testRun.errorsOnlyInAfter) };
-	}
-	return undefined;
-}
 
 type ChangedFileProps = {
 	readonly changedFile: IResolvedFile;

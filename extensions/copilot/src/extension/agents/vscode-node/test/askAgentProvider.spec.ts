@@ -3,10 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { assert } from 'chai';
 import * as os from 'os';
 import * as path from 'path';
-import { afterEach, beforeEach, suite, test } from 'vitest';
+import { afterEach, assert, beforeEach, suite, test } from 'vitest';
 import * as vscode from 'vscode';
 import { ConfigKey, IConfigurationService } from '../../../../platform/configuration/common/configurationService';
 import { InMemoryConfigurationService } from '../../../../platform/configuration/test/common/inMemoryConfigurationService';

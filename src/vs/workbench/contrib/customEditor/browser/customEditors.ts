@@ -25,7 +25,7 @@ import { DiffEditorInput } from '../../../common/editor/diffEditorInput.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { ActiveCustomEditorDiffCanToggleLayoutContext, ActiveCustomEditorTextDiffContext } from '../../../common/contextkeys.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
-import { CONTEXT_ACTIVE_CUSTOM_EDITOR_ID, CONTEXT_FOCUSED_CUSTOM_EDITOR_IS_EDITABLE, CustomEditorCapabilities, CustomEditorDiffEditorLayout, CustomEditorInfo, CustomEditorInfoCollection, ICustomEditorModelManager, ICustomEditorService } from '../common/customEditor.js';
+import { CONTEXT_ACTIVE_CUSTOM_EDITOR_ID, CONTEXT_FOCUSED_CUSTOM_EDITOR_IS_EDITABLE, CustomEditorCapabilities, CustomEditorDiffEditorLayout, CustomEditorInfo, CustomEditorInfoCollection, ICustomEditorModelManager, ICustomEditorService, isCustomEditorCompatibleInput } from '../common/customEditor.js';
 import { CustomEditorModelManager } from '../common/customEditorModelManager.js';
 import { IEditorGroup, IEditorGroupContextKeyProvider, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorResolverService, RegisteredEditorPriority } from '../../../services/editor/common/editorResolverService.js';
@@ -185,7 +185,11 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 			return diffInfo.viewType;
 		}
 
-		return input instanceof CustomEditorInput && input.resource ? input.viewType : '';
+		if (input instanceof CustomEditorInput && input.resource) {
+			return input.viewType;
+		}
+
+		return isCustomEditorCompatibleInput(input) ? input.customEditorViewType : '';
 	}
 
 	private getActiveCustomEditorDiffCanToggleLayout(group: IEditorGroup): boolean {

@@ -1,0 +1,269 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/*
+ * Native components in a chat response. The agent chooses components and semantic variants; this
+ * stylesheet owns how they look. Text follows the chat type scale, so it tracks the chat font
+ * settings, and every color is a theme token, so visuals follow the active theme.
+ */
+
+/*
+ * The visual has no frame of its own, so its focus ring stands clear of the content instead of crossing
+ * it. The second selector outranks the workbench's inset ring for focusable elements.
+ */
+.chat-native-components:focus-visible,
+.monaco-workbench .chat-native-components[tabindex="0"]:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: var(--vscode-spacing-size40);
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+/* A click inside the visual focuses it as well. That needs no ring, and the workbench's inset one would cross the content. */
+.monaco-workbench .chat-native-components[tabindex="0"]:focus:not(:focus-visible) {
+	outline: none;
+}
+
+.chat-native-components-notice {
+	padding-bottom: var(--vscode-spacing-size80);
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-chat-font-size-body-s);
+}
+
+/* Layout */
+
+.chat-native-components-content,
+.chat-native-stack,
+.chat-native-disclosure-content {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size120);
+}
+
+.chat-native-components-content {
+	color: var(--vscode-foreground);
+	user-select: text;
+}
+
+/* Columns share the width equally and wrap to fewer columns, down to one, as the chat narrows. */
+.chat-native-columns {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(min(100%, 10em), 1fr));
+	gap: var(--vscode-spacing-size120) var(--vscode-spacing-size160);
+	align-items: start;
+}
+
+.chat-native-components-content > *,
+.chat-native-stack > *,
+.chat-native-columns > *,
+.chat-native-disclosure-content > * {
+	min-width: 0;
+}
+
+/* Text: a long unbroken string wraps rather than widening the chat. A table scrolls instead. */
+
+.chat-native-components-content {
+	overflow-wrap: anywhere;
+}
+
+.chat-native-table {
+	overflow-wrap: normal;
+}
+
+/* A heading sits closer to what it introduces than to what precedes it. */
+.chat-native-text.heading {
+	margin-bottom: calc(var(--vscode-spacing-size60) * -1);
+	font-size: var(--vscode-chat-font-size-body-l);
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.chat-native-text.caption {
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-chat-font-size-body-s);
+}
+
+/* Icons: outrank the workbench's base codicon size and the chat Markdown rules for inline icons. */
+
+.chat-native-components .chat-native-components-content .chat-native-icon.codicon,
+.interactive-item-container .value .rendered-markdown .chat-native-components .chat-native-icon.codicon {
+	position: static;
+	flex-shrink: 0;
+	font-size: var(--vscode-codiconFontSize-compact);
+}
+
+/* A tone colors its icon only. Text keeps the foreground color, so its contrast never depends on the tone. */
+
+.chat-native-icon.positive {
+	color: var(--vscode-charts-green);
+}
+
+.chat-native-icon.negative {
+	color: var(--vscode-charts-red);
+}
+
+.chat-native-icon.warning {
+	color: var(--vscode-charts-yellow);
+}
+
+/* Metric: the value leads; its label and detail stay quiet. */
+
+.chat-native-metric {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size20);
+}
+
+.chat-native-metric-label,
+.chat-native-metric-detail {
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-chat-font-size-body-s);
+}
+
+.chat-native-metric-value {
+	font-size: var(--vscode-chat-font-size-body-xxl);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	line-height: 1.2;
+}
+
+.chat-native-metric-value,
+.chat-native-metric-detail {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+}
+
+/* Badge */
+
+.chat-native-badges {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--vscode-spacing-size60);
+}
+
+.chat-native-badge {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+	box-sizing: border-box;
+	max-width: 100%;
+	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size80);
+	border: var(--vscode-strokeThickness) solid var(--vscode-chat-requestBorder);
+	border-radius: var(--vscode-cornerRadius-circle);
+	font-size: var(--vscode-chat-font-size-body-s);
+	line-height: 1.4;
+}
+
+/* Table: the same treatment as a Markdown table in a response. */
+
+.chat-native-table-scroll {
+	overflow-x: auto;
+}
+
+.chat-native-table {
+	border: var(--vscode-strokeThickness) solid var(--vscode-chat-requestBorder);
+	border-radius: var(--vscode-cornerRadius-medium);
+	border-collapse: separate;
+	border-spacing: 0;
+	text-align: start;
+}
+
+.chat-native-table caption {
+	padding-bottom: var(--vscode-spacing-size40);
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-chat-font-size-body-s);
+	text-align: start;
+}
+
+.chat-native-table th,
+.chat-native-table td {
+	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size60);
+	border: var(--vscode-strokeThickness) solid var(--vscode-chat-requestBorder);
+	border-top: none;
+	border-left: none;
+	vertical-align: top;
+}
+
+.chat-native-table th {
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.chat-native-table th:last-child,
+.chat-native-table td:last-child {
+	border-right: none;
+}
+
+.chat-native-table tbody tr:last-child td {
+	border-bottom: none;
+}
+
+.chat-native-table .align-end,
+.chat-native-chart-value {
+	font-variant-numeric: tabular-nums;
+	text-align: end;
+}
+
+/* Bar chart: one row per bar, with the labels, bars and values aligned in shared columns. */
+
+.chat-native-chart {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size60);
+}
+
+.chat-native-chart-title {
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+/* The values keep their width as long as the bars keep theirs, then wrap. */
+.chat-native-chart-plot {
+	display: grid;
+	grid-template-columns: fit-content(40%) minmax(40px, 1fr) minmax(0, max-content);
+	gap: var(--vscode-spacing-size60) var(--vscode-spacing-size80);
+	color: var(--vscode-charts-foreground);
+}
+
+.chat-native-chart-row {
+	display: grid;
+	grid-column: 1 / -1;
+	grid-template-columns: subgrid;
+	align-items: center;
+}
+
+.chat-native-chart-bar {
+	height: var(--vscode-spacing-size80);
+	border-radius: var(--vscode-cornerRadius-xSmall);
+	background-color: var(--vscode-charts-blue);
+}
+
+/* Disclosure */
+
+.chat-native-disclosure-summary {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+	width: fit-content;
+	max-width: 100%;
+	border-radius: var(--vscode-cornerRadius-small);
+	cursor: pointer;
+	list-style: none;
+}
+
+.chat-native-disclosure-summary::-webkit-details-marker {
+	display: none;
+}
+
+.chat-native-disclosure-summary:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: var(--vscode-spacing-size20);
+}
+
+.chat-native-disclosure[open] > .chat-native-disclosure-summary > .chat-native-icon {
+	transform: rotate(90deg);
+}
+
+/* Aligns the content with the summary text, past the chevron. */
+.chat-native-disclosure-content {
+	padding-block-start: var(--vscode-spacing-size80);
+	padding-inline-start: var(--vscode-spacing-size160);
+}

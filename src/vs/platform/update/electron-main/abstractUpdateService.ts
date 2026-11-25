@@ -21,7 +21,7 @@ import { IRequestService } from '../../request/common/request.js';
 import { StorageScope, StorageTarget } from '../../storage/common/storage.js';
 import { IApplicationStorageMainService } from '../../storage/electron-main/storageMainService.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
-import { AvailableForDownload, DisablementReason, IUpdate, IUpdateService, State, StateType, UpdateType } from '../common/update.js';
+import { AvailableForDownload, DisablementReason, IQuitAndInstallOptions, IUpdate, IUpdateService, State, StateType, UpdateType } from '../common/update.js';
 
 const LAST_KNOWN_VERSION_STORAGE_KEY = 'abstractUpdateService/lastKnownVersion';
 
@@ -71,9 +71,17 @@ export function getUpdateRequestHeaders(productVersion: string): Record<string, 
 	return undefined;
 }
 
+export type UpdateErrorEvent = {
+	messageHash: string;
+	state?: string;
+	earlyStaging?: boolean;
+};
+
 export type UpdateErrorClassification = {
 	owner: 'joaomoreno';
 	messageHash: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The hash of the error message.' };
+	state?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The update service state when the error occurred.' };
+	earlyStaging?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether macOS early update staging was enabled for the active update attempt.' };
 	comment: 'This is used to know how often VS Code updates have failed.';
 };
 
@@ -531,7 +539,7 @@ export abstract class AbstractUpdateService extends Disposable implements IUpdat
 		// noop
 	}
 
-	async quitAndInstall(): Promise<void> {
+	async quitAndInstall(options?: IQuitAndInstallOptions): Promise<void> {
 		this.logService.trace('update#quitAndInstall, state = ', this.state.type);
 
 		if (this.state.type !== StateType.Ready) {
@@ -540,12 +548,17 @@ export abstract class AbstractUpdateService extends Disposable implements IUpdat
 
 		if (this.supportsUpdateOverwrite && !this._hasCheckedForOverwriteOnQuit) {
 			this._hasCheckedForOverwriteOnQuit = true;
-			const didOverwrite = await this.checkForOverwriteUpdates(true);
+			const didOverwrite = await this.checkForOverwriteUpdates(!options?.unattended);
 
 			if (didOverwrite) {
 				this.logService.info('update#quitAndInstall(): overwrite update detected, postponing quitAndInstall');
 				return;
 			}
+		}
+
+		if (options?.token?.isCancellationRequested) {
+			this.logService.info('update#quitAndInstall(): cancelled before shutting down');
+			return;
 		}
 
 		// Remember the Ready state so we can restore it if the quit is vetoed
@@ -563,7 +576,7 @@ export abstract class AbstractUpdateService extends Disposable implements IUpdat
 			}
 
 			this.logService.trace('update#quitAndInstall(): running raw#quitAndInstall()');
-			this.doQuitAndInstall();
+			this.doQuitAndInstall(options);
 		});
 
 		return Promise.resolve(undefined);
@@ -657,7 +670,7 @@ export abstract class AbstractUpdateService extends Disposable implements IUpdat
 			return undefined;
 		}
 
-		const url = this.buildUpdateFeedUrl(this.quality, commit ?? this.productService.commit!, { internalOrg: this.getInternalOrg() });
+		const url = this.getUpdateFeedUrl(this.quality, commit ?? this.productService.commit!, { internalOrg: this.getInternalOrg() });
 
 		if (!url) {
 			return undefined;
@@ -697,11 +710,15 @@ export abstract class AbstractUpdateService extends Disposable implements IUpdat
 		return this._internalOrg;
 	}
 
+	async setEarlyStagingDefault(_enabled: boolean): Promise<void> {
+		// noop
+	}
+
 	protected getUpdateType(): UpdateType {
 		return UpdateType.Archive;
 	}
 
-	protected doQuitAndInstall(): void {
+	protected doQuitAndInstall(options?: IQuitAndInstallOptions): void {
 		// noop
 	}
 
@@ -719,6 +736,10 @@ export abstract class AbstractUpdateService extends Disposable implements IUpdat
 	 */
 	protected async cancelUpdate(): Promise<void> {
 		await this.cancelPendingUpdate();
+	}
+
+	protected getUpdateFeedUrl(quality: string, commit: string, options?: IUpdateURLOptions): string | undefined {
+		return this.buildUpdateFeedUrl(quality, commit, options);
 	}
 
 	protected abstract buildUpdateFeedUrl(quality: string, commit: string, options?: IUpdateURLOptions): string | undefined;

@@ -19,7 +19,7 @@ OS policy state:
   `CFPreferences` read path, not MDM profile installation or live notifications.
 
 Set `VSCODE_SMOKE_TEST_POLICY=1` in the test process environment
-and run `npm run smoketest-no-compile -- --tracing -g "Policy Plumbing"`.
+and run `pnpm run smoketest-no-compile --tracing -g "Policy Plumbing"`.
 The desktop CI steps opt in explicitly and retain the usual npm invocation.
 The policy suite is disabled by default in ordinary local smoke runs because it
 modifies OS-level policy state outside the temporary VS Code profile. Running

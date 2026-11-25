@@ -39,12 +39,16 @@
 	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
+.monaco-workbench .monaco-action-bar:not(.vertical) .action-item .action-label.chat-input-picker-split:hover:not(.disabled) {
+	outline: none;
+}
+
 .chat-input-picker-split:not(.disabled, [aria-disabled='true']) > .chat-input-picker-split-button:not([aria-disabled='true']):is(:hover, .hovered, [aria-expanded='true']) {
 	background-color: var(--vscode-toolbar-activeBackground, var(--vscode-toolbar-hoverBackground));
 	color: var(--vscode-foreground);
 }
 
-.monaco-workbench .chat-input-picker-split-button:focus-visible,
+.monaco-workbench .chat-input-picker-split-button:is(:focus-visible, .focus-visible),
 .monaco-workbench .chat-input-picker-focus-scope :is(.action-label, .monaco-button):focus-visible {
 	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
 	outline-offset: calc(-1 * var(--vscode-strokeThickness));
@@ -54,4 +58,14 @@
 .monaco-workbench .chat-input-picker-focus-scope :is(.action-label, .monaco-button):focus:not(:focus-visible),
 .monaco-workbench .chat-input-picker-focus-scope.pointer-focus :is(.action-label, .chat-input-picker-split-button, .monaco-button):focus {
 	outline: none;
+}
+
+.monaco-workbench:is(.hc-black, .hc-light) .chat-input-picker-split:not(.disabled, [aria-disabled='true']) > .chat-input-picker-split-button:not([aria-disabled='true'], [aria-expanded='true'], :focus-visible, .focus-visible):is(:hover, .hovered) {
+	outline: var(--vscode-strokeThickness, 1px) dashed var(--vscode-contrastActiveBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness, 1px));
+}
+
+.monaco-workbench:is(.hc-black, .hc-light) .chat-input-picker-split:not(.disabled, [aria-disabled='true']) > .chat-input-picker-split-button:not([aria-disabled='true'], :focus-visible, .focus-visible)[aria-expanded='true'] {
+	outline: var(--vscode-strokeThickness, 1px) solid var(--vscode-contrastActiveBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness, 1px));
 }

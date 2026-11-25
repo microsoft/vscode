@@ -104,6 +104,8 @@ export class TerminalTabbedView extends Disposable {
 		this._tabList = this._register(this._instantiationService.createInstance(TerminalTabList, this._tabListElement));
 		this._tabListDomElement = this._tabList.getHTMLElement();
 		this._chatEntry = this._register(this._instantiationService.createInstance(TerminalTabsChatEntry, tabListContainer, this._tabContainer));
+		const listResizeObserver = this._register(new dom.DisposableResizeObserver('TerminalTabbedView.tabsList', () => this._tabList.layout(), dom.getWindow(parentElement)));
+		this._register(listResizeObserver.observe(this._tabListElement));
 
 		const terminalOuterContainer = $('.terminal-outer-container');
 		this._terminalContainer = $('.terminal-groups-container');
@@ -212,6 +214,7 @@ export class TerminalTabbedView extends Disposable {
 
 	private _updateChatTerminalsEntry(): void {
 		this._chatEntry?.update();
+		this._tabList.layout();
 	}
 
 	private _getLastListWidth(): number {
@@ -235,7 +238,7 @@ export class TerminalTabbedView extends Disposable {
 		const ctx = offscreenCanvas.getContext('2d');
 		if (ctx) {
 			const style = dom.getWindow(this._tabListElement).getComputedStyle(this._tabListElement);
-			ctx.font = `${style.fontStyle} ${style.fontSize} ${style.fontFamily}`;
+			ctx.font = `${style.fontStyle} ${style.fontSize} ${style.fontFamily}`.trimStart();
 			const maxInstanceWidth = this._terminalGroupService.instances.reduce((p, c) => {
 				return Math.max(p, ctx.measureText(c.title + (c.description || '')).width + this._getAdditionalWidth(c));
 			}, 0);
@@ -303,7 +306,7 @@ export class TerminalTabbedView extends Disposable {
 	private _addTabTree() {
 		this._splitView.addView({
 			element: this._tabContainer,
-			layout: width => this._tabList.layout(this._height || 0, width),
+			layout: width => this._tabList.layout(undefined, width),
 			minimumSize: TerminalTabsListSizes.NarrowViewWidth,
 			maximumSize: TerminalTabsListSizes.MaximumWidth,
 			onDidChange: () => Disposable.None,

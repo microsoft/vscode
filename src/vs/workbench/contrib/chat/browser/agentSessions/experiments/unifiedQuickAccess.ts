@@ -269,16 +269,16 @@ export class UnifiedQuickAccess extends Disposable {
 			this._currentDisposables.delete(showDisposable);
 
 			// Find the quick input widget container via layout service
-			// eslint-disable-next-line no-restricted-syntax
+			// eslint-disable-next-line eslint-js/no-restricted-syntax
 			const quickInputWidget = this.layoutService.activeContainer.querySelector('.quick-input-widget');
 			if (!quickInputWidget) {
 				return;
 			}
 
 			// Find the header element (contains input box) and list element
-			// eslint-disable-next-line no-restricted-syntax
+			// eslint-disable-next-line eslint-js/no-restricted-syntax
 			const header = quickInputWidget.querySelector('.quick-input-header');
-			// eslint-disable-next-line no-restricted-syntax
+			// eslint-disable-next-line eslint-js/no-restricted-syntax
 			const list = quickInputWidget.querySelector('.quick-input-list');
 			if (!header || !list) {
 				return;

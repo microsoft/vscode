@@ -13,6 +13,7 @@ import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { parseSessionDbUri } from '../../common/sessionDbUri.js';
 import { mapSessionEventsToHistoryRecords } from './historyRecordFixtures.js';
 import { mapSessionEvents as mapSessionEventsWithRouting } from '../../node/copilot/mapSessionEvents.js';
+import { createCopilotSdkPathMapper, toCopilotWorkspace } from '../../node/copilot/copilotWorkspace.js';
 import { toSessionEvents, type ISessionEvent } from './copilotTestEvents.js';
 
 suite('mapSessionEventsToHistoryRecords', () => {
@@ -22,7 +23,7 @@ suite('mapSessionEventsToHistoryRecords', () => {
 	const session = AgentSession.uri('copilot', 'test-session');
 
 	function mapSessionEvents(session: URI, db: undefined, events: Parameters<typeof mapSessionEventsWithRouting>[2]) {
-		return mapSessionEventsWithRouting(session, db, events, URI.parse(buildChatUri(session, 'default')), session);
+		return mapSessionEventsWithRouting(session, db, events, URI.parse(buildChatUri(session, 'default')), session, createCopilotSdkPathMapper(toCopilotWorkspace(URI.file(process.cwd()))));
 	}
 
 	teardown(async () => {
@@ -86,6 +87,8 @@ suite('mapSessionEventsToHistoryRecords', () => {
 			{ type: 'tool.execution_complete', data: { toolCallId: 'tc-read', success: true, result: { content: 'file contents' } } },
 			{ type: 'tool.execution_start', data: { toolCallId: 'tc-task-complete', toolName: 'task_complete', arguments: { summary: 'Reviewed index.html.' } } },
 			{ type: 'tool.execution_complete', data: { toolCallId: 'tc-task-complete', success: true, result: { content: 'Reviewed index.html.' } } },
+			// Runtimes that predate completion reviews report the completion without an outcome.
+			{ type: 'session.task_complete', data: { summary: 'Reviewed index.html.', success: true } },
 		];
 
 		const result = await mapSessionEvents(session, undefined, toSessionEvents(events));

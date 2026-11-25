@@ -533,9 +533,13 @@ export class ExtensionEditor extends EditorPane {
 		this.transientDisposables.clear();
 
 		const token = this.transientDisposables.add(new CancellationTokenSource()).token;
+		// Rendering another extension, or clearing the editor, stops rendering this one, which would otherwise show it once its
+		// manifest arrives.
+		let isDisposed = false;
+		this.transientDisposables.add(toDisposable(() => { isDisposed = true; }));
 
 		const gallery = await this.getGalleryVersionToShow(extension, (this.options as IExtensionEditorOptions)?.showPreReleaseVersion);
-		if (token.isCancellationRequested) {
+		if (isDisposed) {
 			return;
 		}
 
@@ -560,7 +564,7 @@ export class ExtensionEditor extends EditorPane {
 		}
 
 		const manifest = await this.extensionManifest.get().promise;
-		if (token.isCancellationRequested) {
+		if (isDisposed) {
 			return;
 		}
 
@@ -674,7 +678,14 @@ export class ExtensionEditor extends EditorPane {
 		const contentContainer = append(details, $('.content-container'));
 		const additionalDetailsContainer = append(details, $('.additional-details-container'));
 
-		const layout = () => details.classList.toggle('narrow', this.dimension && this.dimension.width < 500);
+		const layout = () => {
+			details.classList.toggle('narrow', this.dimension && this.dimension.width < 500);
+			// The Features tab shows a list of features next to the feature that it shows, which don't fit next to the additional
+			// details in narrower editors, such as the extension pages of the Agents window.
+			if (this.dimension && id === ExtensionEditorTab.Features && contentContainer.clientWidth < ExtensionFeaturesTab.PREFERRED_WIDTH) {
+				details.classList.add('narrow');
+			}
+		};
 		layout();
 		this.contentDisposables.add(toDisposable(arrays.insert(this.layoutParticipants, { layout })));
 

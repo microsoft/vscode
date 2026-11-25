@@ -7,7 +7,7 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { ChatPetAchievementIds, hasChatPetImageAttachment } from '../../../../workbench/contrib/chat/browser/chatPetAchievements.js';
 import { IChatPetService } from '../../../../workbench/contrib/chat/browser/chatPetService.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 
 export class SessionsChatPetAchievementContribution extends Disposable implements IWorkbenchContribution {
 

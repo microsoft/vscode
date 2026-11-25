@@ -8,8 +8,7 @@ import { autorun, IObservable, ISettableObservable, observableValue } from '../.
 import { isEqual } from '../../base/common/resources.js';
 import { URI } from '../../base/common/uri.js';
 import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
-import { IActiveSession } from '../services/sessions/common/sessionsManagement.js';
-import { ISession } from '../services/sessions/common/session.js';
+import { IChat, ISession } from '../../workbench/services/sessions/common/session.js';
 
 export const SESSIONS_LAYOUT_SCOPE_SETTING = 'sessions.experimental.layoutScope';
 export type ChatLayoutMode = 'session-shared' | 'chat-shared' | 'chat';
@@ -78,14 +77,14 @@ export class ChatLayoutContext extends Disposable {
 	private readonly _state: ISettableObservable<IChatLayoutSnapshot>;
 	readonly state: IObservable<IChatLayoutSnapshot>;
 
-	constructor(presentation: ChatLayoutPresentation, activeSession: IObservable<IActiveSession | undefined>) {
+	constructor(presentation: ChatLayoutPresentation, session: IObservable<ISession | undefined>, chat: IObservable<IChat | undefined>) {
 		super();
 		this._state = observableValue<IChatLayoutSnapshot>(this, Object.freeze({ owner: undefined, presentation: presentation.state.get(), generation: 0 }));
 		this.state = this._state;
 		this._register(autorun(reader => {
-			const session = activeSession.read(reader);
-			const chat = session?.activeChat.read(reader);
-			const owner = session && chat ? Object.freeze({ sessionResource: session.resource, chatResource: chat.resource }) : undefined;
+			const shownSession = session.read(reader);
+			const shownChat = chat.read(reader);
+			const owner = shownSession && shownChat ? Object.freeze({ sessionResource: shownSession.resource, chatResource: shownChat.resource }) : undefined;
 			const currentPresentation = presentation.state.read(reader);
 			const previous = this._state.read(undefined);
 			if (!chatLayoutOwnersEqual(owner, previous.owner) || currentPresentation !== previous.presentation) {

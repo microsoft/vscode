@@ -11,21 +11,6 @@ export namespace AsyncIterUtils {
 		}
 	}
 
-	export async function* mapWithReturn<T0, R0, N, T1, R1 = R0>(
-		iterable: AsyncIterable<T0, R0, N>,
-		mapItem: (item: T0) => T1,
-		mapReturn: (ret: R0) => R1,
-	): AsyncGenerator<T1, R1, N> {
-		const iter = iterable[Symbol.asyncIterator]();
-		let v: IteratorResult<T0, R0>;
-
-		while (!((v = await iter.next()).done)) {
-			yield mapItem(v.value);
-		}
-
-		return mapReturn(v.value);
-	}
-
 	export async function* filter<T>(iterable: AsyncIterable<T>, filterItem: (item: T) => boolean): AsyncIterable<T> {
 		for await (const item of iterable) {
 			if (filterItem(item)) {
@@ -46,25 +31,6 @@ export namespace AsyncIterUtils {
 		for (const item of arr) {
 			yield item;
 		}
-	}
-
-	export async function* fromArrayWithReturn<T, R>(arr: T[], returnValue: R): AsyncGenerator<T, R> {
-		for (const item of arr) {
-			yield item;
-		}
-		return returnValue;
-	}
-
-	export async function toArrayWithReturn<T, R>(iterable: AsyncIterable<T, R>): Promise<[T[], ret: R]> {
-		const iter = iterable[Symbol.asyncIterator]();
-		const arr: T[] = [];
-		let v: IteratorResult<T, R>;
-
-		while (!((v = await iter.next()).done)) {
-			arr.push(v.value);
-		}
-
-		return [arr, v.value];
 	}
 
 	export async function drainUntilReturn<T, R>(iterable: AsyncIterable<T, R>): Promise<R> {

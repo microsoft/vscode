@@ -8,9 +8,9 @@ import { isThenable } from './async.js';
 import { CharCode } from './charCode.js';
 import { isEqualOrParent } from './extpath.js';
 import { LRUCache } from './map.js';
-import { basename, extname, posix, sep } from './path.js';
+import { basename, extname, isAbsolute, posix, sep } from './path.js';
 import { isLinux } from './platform.js';
-import { endsWithIgnoreCase, equalsIgnoreCase, escapeRegExpCharacters, ltrim } from './strings.js';
+import { endsWithIgnoreCase, equalsIgnoreCase, escapeRegExpCharacters, ltrim, rtrim } from './strings.js';
 
 export interface IRelativePattern {
 
@@ -596,6 +596,299 @@ export function parse(arg1: string | IExpression | IRelativePattern, options: IG
 	// Glob with Expression
 	return parsedExpression(arg1, options);
 }
+
+//#region Exclude exceptions
+
+const EXCLUDE_EXCEPTION_PREFIX = '!';
+const VERSION_CONTROL_FOLDERS = ['.git', '.svn', '.hg', '.jj'];
+
+/**
+ * Regular expression source that matches the keys of exclude exceptions, for use in JSON schemas.
+ */
+export const EXCLUDE_EXCEPTION_KEY_PATTERN = '^\\s*!';
+
+/**
+ * An exclude expression parsed with support for `!`-prefixed exception keys.
+ */
+export interface IParsedExcludeExpression {
+
+	/**
+	 * Matches like {@link parse}, except that a path covered by an exception never matches.
+	 * When the expression has no exceptions, this is the result of {@link parse}.
+	 */
+	readonly matches: ParsedExpression;
+
+	/**
+	 * Matches the exclude patterns only, ignoring exceptions.
+	 */
+	readonly matchesExclude: ParsedExpression;
+
+	/**
+	 * The patterns of the enabled exceptions, see {@link getExcludeExceptions}.
+	 */
+	readonly exceptions: readonly string[];
+
+	/**
+	 * Whether the path or one of its parent folders matches an exception. Paths in version
+	 * control folders are not excepted, see {@link getFoldersSkippedByExcludeExceptions}.
+	 */
+	isExcepted(path: string, basename?: string): boolean;
+
+	/**
+	 * Whether an exception could match a path below the folder, so that the
+	 * folder must be traversed even when it is excluded. Version control folders
+	 * are skipped, see {@link getFoldersSkippedByExcludeExceptions}.
+	 */
+	couldExceptionMatchBeneath(folderPath: string): boolean;
+}
+
+/**
+ * Whether the key of an exclude expression is an exception, i.e. starts with `!`.
+ */
+export function isExcludeException(pattern: string): boolean {
+	return pattern.trimStart().startsWith(EXCLUDE_EXCEPTION_PREFIX);
+}
+
+/**
+ * Rewrites a pattern starting with `!` so that it matches a literal `!`
+ * instead of being treated as an exclude exception.
+ */
+export function escapeExcludeException(pattern: string): string {
+	const trimmed = pattern.trimStart();
+
+	return trimmed.startsWith(EXCLUDE_EXCEPTION_PREFIX) ? `{!}${trimmed.substring(EXCLUDE_EXCEPTION_PREFIX.length)}` : pattern;
+}
+
+/**
+ * Returns the patterns, without the leading `!`, of the enabled exceptions of an exclude expression. Paths
+ * matching an exception, and everything beneath them, are never excluded. Exceptions are relative to the
+ * folder that is searched or shown, so absolute exceptions are ignored.
+ */
+export function getExcludeExceptions(expression: IExpression | undefined): string[] {
+	const exceptions: string[] = [];
+	if (!expression) {
+		return exceptions;
+	}
+
+	for (const key of Object.keys(expression)) {
+		if (expression[key] !== true || !isExcludeException(key)) {
+			continue;
+		}
+
+		const pattern = rtrim(key.trimStart().substring(EXCLUDE_EXCEPTION_PREFIX.length).trim(), GLOB_SPLIT);
+		if (pattern && !isAbsolute(pattern)) {
+			exceptions.push(pattern);
+		}
+	}
+
+	return exceptions;
+}
+
+/**
+ * Returns the version control folders (such as `.git`) that exclude exceptions do not look into or re-include,
+ * unless an exception names the folder, because they are large and rarely contain files to re-include.
+ */
+export function getFoldersSkippedByExcludeExceptions(exceptions: readonly string[]): string[] {
+	const namedSegments = new Set(exceptions.flatMap(exception => expandBraces(exception).flatMap(pattern => splitGlobAware(pattern, GLOB_SPLIT))));
+
+	return VERSION_CONTROL_FOLDERS.filter(folder => !namedSegments.has(folder));
+}
+
+/**
+ * Expands the brace groups of a pattern into its alternatives, for example `{a,b}/c` into `a/c` and `b/c`.
+ * Like the rest of the glob support, braces do not nest.
+ */
+function expandBraces(pattern: string): string[] {
+	const start = pattern.indexOf('{');
+	const end = start === -1 ? -1 : pattern.indexOf('}', start);
+	if (end === -1) {
+		return [pattern];
+	}
+
+	const prefix = pattern.substring(0, start);
+	const alternatives = splitGlobAware(pattern.substring(start + 1, end), ',');
+	const suffixes = expandBraces(pattern.substring(end + 1));
+
+	return (alternatives.length ? alternatives : ['']).flatMap(alternative => suffixes.map(suffix => `${prefix}${alternative}${suffix}`));
+}
+
+/**
+ * Returns a copy of the expression without exception keys, for consumers
+ * that only understand plain exclude patterns.
+ */
+export function withoutExcludeExceptions(expression: IExpression): IExpression {
+	const result: IExpression = Object.create(null);
+	for (const key of Object.keys(expression)) {
+		if (!isExcludeException(key)) {
+			result[key] = expression[key];
+		}
+	}
+
+	return result;
+}
+
+/**
+ * Parses an exclude expression that may contain `!`-prefixed exception keys.
+ * A path is excluded when it matches an exclude pattern (or is below an excluded
+ * folder) and neither the path nor one of its parent folders matches an exception.
+ */
+export function parseExcludeExpression(expression: IExpression, options: IGlobOptions = {}): IParsedExcludeExpression {
+	const exceptions = getExcludeExceptions(expression);
+	const hasExceptionKeys = Object.keys(expression).some(isExcludeException);
+	const matchesExclude = parse(hasExceptionKeys ? withoutExcludeExceptions(expression) : expression, options);
+	if (!exceptions.length) {
+		return {
+			matches: matchesExclude,
+			matchesExclude,
+			exceptions,
+			isExcepted: () => false,
+			couldExceptionMatchBeneath: () => false
+		};
+	}
+
+	const exceptionExpression: IExpression = Object.create(null);
+	for (const exception of exceptions) {
+		exceptionExpression[exception] = true;
+		exceptionExpression[`${exception}${GLOB_SPLIT}${GLOBSTAR}`] = true;
+	}
+
+	const matchesException = parse(exceptionExpression, { ...options, trimForExclusions: false });
+	const exceptionSegments = exceptions.map(exception => parseSegmentMatchers(exception, !!options.ignoreCase));
+	const skippedFolders = new Set(getFoldersSkippedByExcludeExceptions(exceptions));
+	const toSegments = (path: string) => {
+		const trimmed = rtrim(rtrim(path, GLOB_SPLIT), '\\');
+		return trimmed ? trimmed.split(/[/\\]/) : [];
+	};
+	const isInSkippedFolder = (segments: string[]) => segments.some(segment => skippedFolders.has(segment));
+	const isExcepted = (path: string, basename?: string) => !!matchesException(path, basename) && !isInSkippedFolder(toSegments(path));
+
+	const matches: ParsedExpression = (path, basename, hasSibling) => {
+		const result = matchesExclude(path, basename, hasSibling);
+		if (isThenable(result)) {
+			return result.then(pattern => pattern && !isExcepted(path, basename) ? pattern : null);
+		}
+
+		return result && !isExcepted(path, basename) ? result : null;
+	};
+
+	return {
+		matches,
+		matchesExclude,
+		exceptions,
+		isExcepted,
+		couldExceptionMatchBeneath: folderPath => {
+			const segments = toSegments(folderPath);
+			return !isInSkippedFolder(segments) && exceptionSegments.some(matchers => couldMatchBeneath(matchers, segments));
+		}
+	};
+}
+
+/**
+ * The exclude checks that a walk of a folder tree needs, for example an {@link IParsedExcludeExpression}.
+ */
+export interface IExcludeTreeEvaluator {
+	matchesExclude(path: string, basename?: string, hasSibling?: (name: string) => boolean): unknown;
+	isExcepted(path: string, basename?: string): boolean;
+	couldExceptionMatchBeneath(folderPath: string): boolean;
+}
+
+export interface IExcludeTreeEntry {
+	readonly path: string;
+	readonly basename?: string;
+	readonly isDirectory: boolean;
+
+	/**
+	 * Whether the parent folder is excluded, as evaluated for the parent.
+	 */
+	readonly isParentExcluded: boolean;
+
+	/**
+	 * Whether something besides the exclude patterns hides the entry, for example an ignore file. Exceptions override it too.
+	 */
+	readonly isHidden?: () => boolean;
+
+	readonly hasSibling?: (name: string) => boolean;
+}
+
+/**
+ * Evaluates an entry while walking a folder tree. It is excluded when it or its parent folder is excluded and no
+ * exception matches it. It is visited when it is not excluded, or is a folder that an exception could match beneath.
+ */
+export function evaluateExcludeTreeEntry(evaluator: IExcludeTreeEvaluator, entry: IExcludeTreeEntry): { isExcluded: boolean; isVisited: boolean } {
+	const isMatched = entry.isParentExcluded || !!evaluator.matchesExclude(entry.path, entry.basename, entry.hasSibling) || !!entry.isHidden?.();
+	const isExcluded = isMatched && !evaluator.isExcepted(entry.path, entry.basename);
+
+	return { isExcluded, isVisited: !isExcluded || (entry.isDirectory && evaluator.couldExceptionMatchBeneath(entry.path)) };
+}
+
+type SegmentMatcher = typeof GLOBSTAR | ((segment: string) => boolean);
+
+function parseSegmentMatchers(pattern: string, ignoreCase: boolean): SegmentMatcher[] {
+	return splitGlobAware(pattern, GLOB_SPLIT).map(segment => {
+		if (segment === GLOBSTAR) {
+			return GLOBSTAR;
+		}
+
+		if (segment.includes(GLOB_SPLIT) || hasGlobstarAlternative(segment)) {
+			return GLOBSTAR; // a brace expansion with a path separator or a globstar, e.g. `{a/b,c}` or `{**,c}`, can span any number of segments
+		}
+
+		try {
+			const regExp = new RegExp(`^${parseRegExp(segment)}$`, ignoreCase ? 'i' : undefined);
+
+			return (value: string) => regExp.test(value);
+		} catch {
+			return () => false;
+		}
+	});
+}
+
+/**
+ * Whether a brace group of the segment has an alternative that is a globstar, such as `{**,c}`. A globstar
+ * inside an alternative, such as `**.js`, matches within a single segment like `*`.
+ */
+function hasGlobstarAlternative(segment: string): boolean {
+	for (const match of segment.matchAll(/\{(?<alternatives>[^}]*)\}/g)) {
+		if (splitGlobAware(match.groups?.alternatives ?? '', ',').includes(GLOBSTAR)) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
+/**
+ * Whether the pattern could match a path that starts with the given folder segments.
+ */
+function couldMatchBeneath(matchers: SegmentMatcher[], folderSegments: string[]): boolean {
+	const visited = new Set<number>();
+	const visit = (matcherIndex: number, folderIndex: number): boolean => {
+		if (folderIndex === folderSegments.length) {
+			return true;
+		}
+
+		if (matcherIndex === matchers.length) {
+			return false;
+		}
+
+		const key = matcherIndex * (folderSegments.length + 1) + folderIndex;
+		if (visited.has(key)) {
+			return false;
+		}
+		visited.add(key);
+
+		const matcher = matchers[matcherIndex];
+		if (matcher === GLOBSTAR) {
+			return visit(matcherIndex + 1, folderIndex) || visit(matcherIndex, folderIndex + 1);
+		}
+
+		return matcher(folderSegments[folderIndex]) && visit(matcherIndex + 1, folderIndex + 1);
+	};
+
+	return visit(0, 0);
+}
+
+//#endregion
 
 export function isRelativePattern(obj: unknown): obj is IRelativePattern {
 	const rp = obj as IRelativePattern | undefined | null;

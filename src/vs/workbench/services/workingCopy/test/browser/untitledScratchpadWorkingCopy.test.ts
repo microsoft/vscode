@@ -13,16 +13,9 @@ import { consumeReadable, consumeStream, isReadable, isReadableStream } from '..
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { IUntitledFileWorkingCopyModelFactory, UntitledFileWorkingCopy } from '../../common/untitledFileWorkingCopy.js';
-import { TestUntitledFileWorkingCopyModel } from './untitledFileWorkingCopy.test.js';
+import { UntitledFileWorkingCopy } from '../../common/untitledFileWorkingCopy.js';
+import { TestUntitledFileWorkingCopyModel, TestUntitledFileWorkingCopyModelFactory } from './untitledFileWorkingCopy.test.js';
 import { TestServiceAccessor, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
-
-export class TestUntitledFileWorkingCopyModelFactory implements IUntitledFileWorkingCopyModelFactory<TestUntitledFileWorkingCopyModel> {
-
-	async createModel(resource: URI, contents: VSBufferReadableStream, token: CancellationToken): Promise<TestUntitledFileWorkingCopyModel> {
-		return new TestUntitledFileWorkingCopyModel(resource, (await streamToBuffer(contents)).toString());
-	}
-}
 
 suite('UntitledScratchpadWorkingCopy', () => {
 

@@ -10,6 +10,7 @@ import { IFilesConfigurationService, AutoSaveMode } from '../../filesConfigurati
 import { IWorkingCopyService } from '../common/workingCopyService.js';
 import { IWorkingCopy, IWorkingCopyIdentifier, WorkingCopyCapabilities } from '../common/workingCopy.js';
 import { ILifecycleService, ShutdownReason } from '../../lifecycle/common/lifecycle.js';
+import { IUnattendedRestartService } from '../../lifecycle/common/unattendedRestart.js';
 import { ConfirmResult, IFileDialogService, IDialogService, getFileNamesMessage } from '../../../../platform/dialogs/common/dialogs.js';
 import { WorkbenchState, IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { isMacintosh } from '../../../../base/common/platform.js';
@@ -43,8 +44,34 @@ export class NativeWorkingCopyBackupTracker extends WorkingCopyBackupTracker imp
 		@IProgressService private readonly progressService: IProgressService,
 		@IWorkingCopyEditorService workingCopyEditorService: IWorkingCopyEditorService,
 		@IEditorService editorService: IEditorService,
+		@IUnattendedRestartService unattendedRestartService: IUnattendedRestartService,
 	) {
 		super(workingCopyBackupService, workingCopyService, logService, lifecycleService, filesConfigurationService, workingCopyEditorService, editorService);
+
+		this._register(unattendedRestartService.registerParticipant({ check: () => this.getUnattendedRestartBlocker() }));
+	}
+
+	private getUnattendedRestartBlocker(): string | undefined {
+		const modifiedWorkingCopies = this.workingCopyService.modifiedWorkingCopies;
+		if (modifiedWorkingCopies.length === 0) {
+			return undefined;
+		}
+
+		if (!this.filesConfigurationService.isHotExitEnabled) {
+			return 'workingCopy.hotExitDisabled'; // shutdown would ask to save
+		}
+
+		for (const workingCopy of modifiedWorkingCopies) {
+			if (!(workingCopy.capabilities & WorkingCopyCapabilities.Untitled) && this.filesConfigurationService.getAutoSaveMode(workingCopy.resource).mode !== AutoSaveMode.OFF) {
+				return 'workingCopy.autoSavePending'; // shutdown would save and run save participants
+			}
+
+			if (!this.workingCopyBackupService.hasBackupSync(workingCopy, this.getContentVersion(workingCopy))) {
+				return 'workingCopy.backupPending';
+			}
+		}
+
+		return undefined;
 	}
 
 	protected async onFinalBeforeShutdown(reason: ShutdownReason): Promise<boolean> {

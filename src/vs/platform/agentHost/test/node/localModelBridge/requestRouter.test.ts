@@ -9,6 +9,7 @@ import {
 	adaptLocalJsonResponse,
 	adaptLocalRequestBody,
 	buildFallbackChatRequest,
+	buildFallbackResponsesRequest,
 	buildInjectedAutoRequest,
 	classifyLocalModelRequest,
 	computeLocalModelLimits,
@@ -26,6 +27,7 @@ import {
 	readLocalPromptProgress,
 	resolveLocalModelCapiBaseUrls,
 	SseCommitScanner,
+	toChatCompletionFromResponses,
 	toStreamingLocalRequestBody,
 	type ILocalModelBufferedRequest,
 	type LocalModelJsonBody,
@@ -193,7 +195,7 @@ suite('LocalModel requestRouter', () => {
 				},
 			},
 			token: 'jwt-for-fallback',
-			fallback: { id: 'cloud-model', maxContextWindowTokens: 200000, maxPromptTokens: 168000, maxOutputTokens: 64000, reasoningEfforts: undefined },
+			fallback: { id: 'cloud-model', endpoint: 'chatCompletions', maxContextWindowTokens: 200000, maxPromptTokens: 168000, maxOutputTokens: 64000, reasoningEfforts: undefined },
 			limits: { maxContextWindowTokens: 200000, maxPromptTokens: 148976, maxOutputTokens: 50000 },
 			expiresAtMs: 1791400000000,
 		});
@@ -232,7 +234,7 @@ suite('LocalModel requestRouter', () => {
 		const serving = createServingSnapshot();
 		const evaluate = (response: LocalModelJsonBody) => {
 			const outcome = evaluateAutoResponse(response, serving);
-			return outcome.kind === 'reissue' ? `reissue:${outcome.reason}` : outcome.kind;
+			return outcome.kind === 'reissue' ? `reissue:${outcome.reason}` : outcome.kind === 'patch' ? `patch:${outcome.fallback.endpoint}` : outcome.kind;
 		};
 		const { cloud_fallback_model: fallback, ...withoutFallback } = A2_RESPONSE;
 		assert.deepStrictEqual([
@@ -241,16 +243,21 @@ suite('LocalModel requestRouter', () => {
 			evaluate(A2_RESPONSE),
 			evaluate({ ...withoutFallback, fallback_model: fallback }),
 			evaluate(withoutFallback),
-			evaluate({ ...A2_RESPONSE, cloud_fallback_model: { id: 'cloud-model', supported_endpoints: ['/responses'] } }),
+			evaluate({ ...A2_RESPONSE, cloud_fallback_model: { id: 'cloud-model', supported_endpoints: ['/responses', 'ws:/responses'] } }),
+			evaluate({ ...A2_RESPONSE, cloud_fallback_model: { id: 'cloud-model', supported_endpoints: ['/v1/messages'] } }),
+			evaluate({ ...A2_RESPONSE, cloud_fallback_model: { id: 'cloud-model' } }),
 			evaluate({ ...A2_RESPONSE, cloud_fallback_model: { id: 'other-local', supported_endpoints: ['/chat/completions'] } }),
 			evaluate({ ...A2_RESPONSE, session_token: undefined }),
 			evaluate({ prompt: 'no selection' }),
 		], [
 			'notOurs',
 			'reissue:otherLocalModel',
-			'patch',
-			'patch',
+			'patch:chatCompletions',
+			'patch:chatCompletions',
 			'reissue:noFallback',
+			// A Responses-only fallback (most current models) is called through the Responses API.
+			'patch:responses',
+			'reissue:fallbackNotChat',
 			'reissue:fallbackNotChat',
 			'reissue:fallbackNotChat',
 			'reissue:noSessionToken',
@@ -375,9 +382,9 @@ suite('LocalModel requestRouter', () => {
 			'content-length': '2',
 			'copilot-session-token': 'stale',
 		});
-		const fallback = { id: 'cloud-model', maxOutputTokens: 64000, reasoningEfforts: ['low', 'high'] };
+		const fallback = { id: 'cloud-model', endpoint: 'chatCompletions', maxOutputTokens: 64000, reasoningEfforts: ['low', 'high'] } as const;
 		const request = buildFallbackChatRequest(original, { model: 'mai-code-1.1-flash-local', max_tokens: 100000, reasoning_effort: 'medium', stream: true }, fallback, 'jwt-for-fallback');
-		const withoutEffort = buildFallbackChatRequest(original, { model: 'mai-code-1.1-flash-local', reasoning_effort: 'medium' }, { id: 'cloud-model' }, 'jwt-for-fallback');
+		const withoutEffort = buildFallbackChatRequest(original, { model: 'mai-code-1.1-flash-local', reasoning_effort: 'medium' }, { id: 'cloud-model', endpoint: 'chatCompletions' }, 'jwt-for-fallback');
 		assert.deepStrictEqual({
 			url: request.url.href,
 			headers: Object.fromEntries(request.headers.entries()),
@@ -388,6 +395,106 @@ suite('LocalModel requestRouter', () => {
 			headers: { 'authorization': 'Bearer capi', 'copilot-integration-id': 'vscode-chat', 'x-github-api-version': '2025-05-01', 'copilot-session-token': 'jwt-for-fallback' },
 			body: { model: 'cloud-model', max_tokens: 64000, reasoning_effort: 'low', stream: true },
 			withoutEffort: { model: 'cloud-model' },
+		});
+	});
+
+	test('builds a non-streaming Responses API fallback request from the runtime\'s chat completions request', () => {
+		const original = buffered('https://copilot-proxy.contoso.com/api/chat/completions', '{}', 'POST', {
+			'authorization': '******',
+			'copilot-integration-id': 'vscode-chat',
+			'content-length': '2',
+			'copilot-session-token': 'stale',
+		});
+		const request = buildFallbackResponsesRequest(original, {
+			model: 'mai-code-1.1-flash-local',
+			stream: true,
+			max_tokens: 100000,
+			reasoning_effort: 'medium',
+			temperature: 0.1,
+			copilot_thread_id: 't',
+			tool_choice: 'auto',
+			parallel_tool_calls: false,
+			tools: [{ type: 'function', function: { name: 'read', description: 'Reads a file.', parameters: { type: 'object', properties: { path: { type: 'string' } } } } }, { type: 'web_search' }],
+			messages: [
+				{ role: 'system', content: 'Be brief.' },
+				{ role: 'user', content: [{ type: 'text', text: 'What is in ' }, { type: 'image_url', image_url: { url: 'data:image/png;base64,AA', detail: 'low' } }] },
+				{ role: 'assistant', content: null, reasoning_text: 'thinking', reasoning_opaque: 'opaque', tool_calls: [{ id: 'call_1', type: 'function', function: { name: 'read', arguments: '{"path":"a.ts"}' } }] },
+				{ role: 'tool', tool_call_id: 'call_1', content: [{ type: 'text', text: 'const a = 1;' }] },
+				{ role: 'assistant', content: 'It defines a.' },
+				{ role: 'user', content: 'Thanks' },
+			],
+		}, { id: 'gpt-6-luna', endpoint: 'responses', maxOutputTokens: 64000, reasoningEfforts: ['low', 'high'] }, 'jwt-for-fallback');
+		const minimal = buildFallbackResponsesRequest(original, { reasoning_effort: 'high', tools: [{ type: 'web_search' }], tool_choice: 'required', messages: [{ role: 'user', content: 'hi' }] }, { id: 'gpt-6-luna', endpoint: 'responses' }, 'jwt-for-fallback');
+		let unknownRole: string | undefined;
+		try {
+			buildFallbackResponsesRequest(original, { messages: [{ role: 'function', content: 'x' }] }, { id: 'gpt-6-luna', endpoint: 'responses' }, 'jwt-for-fallback');
+		} catch (error) {
+			unknownRole = error instanceof Error ? error.message : 'not an Error';
+		}
+		assert.deepStrictEqual({
+			url: request.url.href,
+			headers: Object.fromEntries(request.headers.entries()),
+			body: JSON.parse(decode(request.body)),
+			minimal: JSON.parse(decode(minimal.body)),
+			unknownRole,
+		}, {
+			url: 'https://copilot-proxy.contoso.com/api/responses',
+			headers: { 'authorization': '******', 'copilot-integration-id': 'vscode-chat', 'copilot-session-token': 'jwt-for-fallback' },
+			body: {
+				model: 'gpt-6-luna',
+				// Earlier reasoning is not replayed: nothing tells which model produced it.
+				input: [
+					{ type: 'message', role: 'system', content: [{ type: 'input_text', text: 'Be brief.' }] },
+					{ type: 'message', role: 'user', content: [{ type: 'input_text', text: 'What is in ' }, { type: 'input_image', image_url: 'data:image/png;base64,AA', detail: 'low' }] },
+					{ type: 'function_call', call_id: 'call_1', name: 'read', arguments: '{"path":"a.ts"}' },
+					{ type: 'function_call_output', call_id: 'call_1', output: 'const a = 1;' },
+					{ type: 'message', role: 'assistant', content: [{ type: 'output_text', text: 'It defines a.' }] },
+					{ type: 'message', role: 'user', content: [{ type: 'input_text', text: 'Thanks' }] },
+				],
+				store: false,
+				stream: false,
+				tools: [{ type: 'function', name: 'read', description: 'Reads a file.', parameters: { type: 'object', properties: { path: { type: 'string' } } }, strict: false }],
+				tool_choice: 'auto',
+				parallel_tool_calls: false,
+				max_output_tokens: 64000,
+				reasoning: { effort: 'low' },
+			},
+			// No function tools and no reasoning efforts declared for F: neither tools nor reasoning are sent.
+			minimal: { model: 'gpt-6-luna', input: [{ type: 'message', role: 'user', content: [{ type: 'input_text', text: 'hi' }] }], store: false, stream: false },
+			unknownRole: 'A message role has no Responses API equivalent',
+		});
+	});
+
+	test('translates the Responses API fallback answer to a chat completion, or to one chunk for a streaming request', () => {
+		const completed: LocalModelJsonBody = {
+			id: 'resp_1', object: 'response', created_at: 1791400000, model: 'gpt-6-luna', status: 'completed', error: null,
+			output: [
+				{ type: 'reasoning', id: 'rs_1', summary: [], encrypted_content: 'secret' },
+				{ type: 'message', id: 'msg_1', role: 'assistant', content: [{ type: 'output_text', text: 'Reading ', annotations: [] }, { type: 'output_text', text: 'a.ts' }] },
+				{ type: 'function_call', id: 'fc_1', call_id: 'call_1', name: 'read', arguments: '{"path":"a.ts"}' },
+			],
+			usage: { input_tokens: 120, input_tokens_details: { cached_tokens: 100 }, output_tokens: 30, total_tokens: 150 },
+		};
+		const call = { id: 'call_1', type: 'function', function: { name: 'read', arguments: '{"path":"a.ts"}' } };
+		const usage = { prompt_tokens: 120, completion_tokens: 30, total_tokens: 150 };
+		assert.deepStrictEqual({
+			completion: toChatCompletionFromResponses(completed, 'gpt-6-luna', false),
+			chunk: toChatCompletionFromResponses(completed, 'gpt-6-luna', true),
+			incomplete: toChatCompletionFromResponses({ status: 'incomplete', output: [{ type: 'message', content: [{ type: 'output_text', text: 'Trunc' }] }] }, 'gpt-6-luna', false)?.choices,
+			failed: toChatCompletionFromResponses({ status: 'failed', error: { message: 'boom' } }, 'gpt-6-luna', false),
+		}, {
+			completion: {
+				id: 'resp_1', object: 'chat.completion', created: 1791400000, model: 'gpt-6-luna',
+				choices: [{ index: 0, message: { role: 'assistant', content: 'Reading a.ts', tool_calls: [call] }, finish_reason: 'tool_calls' }],
+				usage,
+			},
+			chunk: {
+				id: 'resp_1', object: 'chat.completion.chunk', created: 1791400000, model: 'gpt-6-luna',
+				choices: [{ index: 0, delta: { role: 'assistant', content: 'Reading a.ts', tool_calls: [{ index: 0, ...call }] }, finish_reason: 'tool_calls' }],
+				usage,
+			},
+			incomplete: [{ index: 0, message: { role: 'assistant', content: 'Trunc' }, finish_reason: 'length' }],
+			failed: undefined,
 		});
 	});
 

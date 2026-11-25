@@ -362,12 +362,13 @@ export class ContinueInlineChatInChatViewAction extends AbstractInlineChatAction
 			id: 'inlineChat2.continueInChat',
 			title: localize2('continueInChat', "Ask in Chat"),
 			icon: Codicon.chatSparkle,
-			precondition: ContextKeyExpr.and(CTX_INLINE_CHAT_VISIBLE, CTX_INLINE_CHAT_TERMINATED),
+			// It continues in local chat, which the Agents view does not show
+			precondition: ContextKeyExpr.and(CTX_INLINE_CHAT_VISIBLE, CTX_INLINE_CHAT_TERMINATED, ChatContextKeys.agentsViewActive.negate()),
 			menu: [{
 				id: MenuId.ChatEditorInlineExecute,
 				group: 'navigation',
 				order: 2,
-				when: CTX_INLINE_CHAT_TERMINATED
+				when: ContextKeyExpr.and(CTX_INLINE_CHAT_TERMINATED, ChatContextKeys.agentsViewActive.negate())
 			}]
 		});
 	}

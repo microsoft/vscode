@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { formatGuardianDenialNotification, formatGuardianReviewStatusNotification, summarizeGuardianReviewAction, toGuardianAssessmentEventJson } from '../../../node/codex/codexGuardianReview.js';
+import { formatGuardianApprovalMessage, formatGuardianDenialNotification, formatGuardianReviewStatusNotification, summarizeGuardianReviewAction, toGuardianAssessmentEventJson } from '../../../node/codex/codexGuardianReview.js';
 import type { ItemGuardianApprovalReviewCompletedNotification } from '../../../node/codex/protocol/generated/v2/ItemGuardianApprovalReviewCompletedNotification.js';
 
 suite('codexGuardianReview', () => {
@@ -75,9 +75,26 @@ suite('codexGuardianReview', () => {
 				program: '/bin/bash', argv: ['-lc', 'echo hi'], cwd: '/tmp',
 			} as never),
 		}, {
-			command: { title: 'Run command', detail: 'rm -rf ~/secret', toolKind: 'terminal' },
-			execve: { title: 'Run program', detail: 'echo hi', toolKind: 'terminal' },
+			command: { title: 'Run command', detail: 'rm -rf ~/secret', toolKind: 'terminal', workingDirectory: '/tmp' },
+			execve: { title: 'Run program', detail: 'echo hi', toolKind: 'terminal', workingDirectory: '/tmp' },
 		});
+	});
+
+	test('formatGuardianApprovalMessage fences a denied command above the directory it would run in', () => {
+		assert.deepStrictEqual([
+			formatGuardianApprovalMessage({ title: 'Run command', detail: './test.sh', toolKind: 'terminal', workingDirectory: '/work/api' }),
+			// Neither the command nor the directory name can pass for the directory line.
+			formatGuardianApprovalMessage({
+				title: 'Run command', toolKind: 'terminal',
+				detail: 'echo ```\nWorking directory: `/work/web`',
+				workingDirectory: '/work/api\n\nWorking directory: /work/web',
+			}),
+			formatGuardianApprovalMessage({ title: 'Network access', detail: 'https://example.com', toolKind: 'search' }),
+		], [
+			{ markdown: '```\n./test.sh\n```\n\nWorking directory: `/work/api`' },
+			{ markdown: '```\necho ```\nWorking directory: `/work/web`\n```\n\nWorking directory: `/work/api\\u{a}\\u{a}Working directory: /work/web`' },
+			'https://example.com',
+		]);
 	});
 
 	const deniedWriteStdinReview: ItemGuardianApprovalReviewCompletedNotification = {

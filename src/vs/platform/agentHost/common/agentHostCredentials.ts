@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { IDisposable } from '../../../base/common/lifecycle.js';
+import type { Event } from '../../../base/common/event.js';
 import { isExpired } from '../../../base/common/date.js';
 import { isObject } from '../../../base/common/types.js';
 import type { AuthenticateParams, IAgentHostAuthTokenRequest } from './agent.js';
@@ -29,6 +30,14 @@ export interface IAgentHostScopedCredential {
 export interface IAgentHostCredentialSource {
 	readonly principal?: IAgentHostCredentialPrincipal;
 	getCredential(request: IAgentHostAuthTokenRequest): IAgentHostScopedCredential | undefined;
+	/** Creates a chat-bound authority to re-sponsor unsent work after an authenticated reconnect. */
+	createQueuedCredentialSource?(chat: string): IAgentHostQueuedCredentialSource;
+}
+
+export interface IAgentHostQueuedCredentialSource {
+	readonly onDidChange: Event<void>;
+	/** Returns a live, authorized sponsor for this pending message, never a disposed source. */
+	resolve(): IAgentHostCredentialSource | undefined;
 }
 
 export interface IAgentHostAuthenticationScope extends IAgentHostCredentialSource, IDisposable {

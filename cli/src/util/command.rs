@@ -214,7 +214,8 @@ fn apply_detach_flags_tokio(cmd: &mut tokio::process::Command) {
 /// Kills and processes and all of its children.
 #[cfg(windows)]
 pub async fn kill_tree(process_id: u32) -> Result<(), CodeError> {
-	capture_command("taskkill", &["/t", "/pid", &process_id.to_string()]).await?;
+	capture_command_and_check_status("taskkill", &["/f", "/t", "/pid", &process_id.to_string()])
+		.await?;
 	Ok(())
 }
 
@@ -303,6 +304,50 @@ pub async fn kill_tree(process_id: u32) -> Result<(), CodeError> {
 		.collect();
 	join_all(kill_futures).await;
 	Ok(())
+}
+
+#[cfg(all(test, windows))]
+mod windows_tests {
+	use super::*;
+	use std::time::Duration;
+	use tokio::io::AsyncBufReadExt;
+
+	#[tokio::test]
+	async fn kill_tree_terminates_process_without_console_window() {
+		let mut child = new_tokio_command("powershell")
+			.args([
+				"-NoProfile",
+				"-NonInteractive",
+				"-Command",
+				"Write-Output 'ready'; Start-Sleep -Seconds 30",
+			])
+			.stdin(Stdio::null())
+			.stdout(Stdio::piped())
+			.kill_on_drop(true)
+			.spawn()
+			.unwrap();
+		let pid = child.id().unwrap();
+		let mut stdout = tokio::io::BufReader::new(child.stdout.take().unwrap()).lines();
+		assert_eq!(
+			tokio::time::timeout(Duration::from_secs(10), stdout.next_line())
+				.await
+				.unwrap()
+				.unwrap()
+				.as_deref(),
+			Some("ready")
+		);
+		kill_tree(pid).await.unwrap();
+		tokio::time::timeout(Duration::from_secs(10), child.wait())
+			.await
+			.unwrap()
+			.unwrap();
+	}
+
+	#[tokio::test]
+	async fn kill_tree_reports_taskkill_failure() {
+		// Windows process IDs are multiples of four, so this cannot target a live process.
+		assert!(kill_tree(u32::MAX).await.is_err());
+	}
 }
 
 #[cfg(all(test, not(windows)))]

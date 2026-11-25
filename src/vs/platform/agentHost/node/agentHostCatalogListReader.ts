@@ -159,6 +159,7 @@ export class AgentHostCatalogListReader {
 			project: data.project,
 			workingDirectories: [...data.workingDirectories],
 			changes: data.changes,
+			...(data.origin ? { origin: data.origin } : {}),
 			...(model ? { model } : {}),
 			chats: data.chats.map(chat => ({
 				chat: chat.uri,

@@ -84,11 +84,6 @@ export class VSCodeAPIContextElement extends PromptElement<VSCodeAPIContextProps
 		super(props);
 	}
 
-	async renderAsString(): Promise<string> {
-		const snippets = await this.getSnippets(undefined);
-		return `Below are some potentially relevant code samples related to VS Code extension development. You may use information from these samples to help you answer the question if you believe it is relevant.\n${snippets.join('\n\n')}`;
-	}
-
 	private async getSnippets(token: CancellationToken | undefined): Promise<string[]> {
 		await this.apiEmbeddingsIndex.updateIndex();
 		if (token?.isCancellationRequested) {

@@ -4,11 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { ESLint, RuleTester } from 'eslint';
 import { suite, test } from 'node:test';
+import { RuleTester } from 'oxlint/plugins-dev';
+import { getRepositoryFileRules } from '../oxlintConfig.ts';
 import * as path from 'path';
-import tseslint from 'typescript-eslint';
 import rule from '../../../.eslint-plugin-local/code-no-legacy-notification-parsing.ts';
+
 
 RuleTester.describe = suite;
 RuleTester.it = test;
@@ -24,7 +25,7 @@ const source = '../../../../platform/notification/common/notificationLegacy.js';
 const bridgeSource = '../../../platform/notification/common/notificationLegacy.js';
 const options = [{ allowedFiles }];
 
-new RuleTester({ languageOptions: { parser: tseslint.parser } }).run('code-no-legacy-notification-parsing', rule, {
+new RuleTester({ languageOptions: { sourceType: 'module' } }).run('code-no-legacy-notification-parsing', rule, {
 	valid: [
 		...allowedFiles.map(filename => ({
 			filename: path.join(root, filename),
@@ -110,22 +111,30 @@ new RuleTester({ languageOptions: { parser: tseslint.parser } }).run('code-no-le
 	],
 });
 
-test('notification capability restriction is enabled for core in the repository config', async () => {
-	const linter = new ESLint({ cwd: root });
-	const code = `import { legacyExtensionLinkParsing } from '${bridgeSource}';`;
-	const filenames = [
-		allowedFiles[0],
-		allowedFiles[1],
-		'src/vs/workbench/api/browser/mainThreadSomethingElse.ts',
-		'src/vs/workbench/test/common/another.test.ts',
-	];
-	const results = await Promise.all(filenames.map(filePath => linter.lintText(code, { filePath: path.join(root, filePath) })));
-	assert.deepStrictEqual(results.map(result => result.flatMap(file => file.messages
-		.filter(message => message.ruleId === 'local/code-no-legacy-notification-parsing')
-		.map(message => ({ id: message.messageId, severity: message.severity })))), [
-		[],
-		[],
-		[{ id: 'restrictedCapability', severity: 2 }],
-		[{ id: 'restrictedCapability', severity: 2 }],
-	]);
+const repositoryFiles = [
+	allowedFiles[0],
+	allowedFiles[1],
+	'src/vs/workbench/api/browser/mainThreadSomethingElse.ts',
+	'src/vs/workbench/test/common/another.test.ts',
+];
+const repositoryConfigurations = await Promise.all(repositoryFiles.map(file => getRepositoryFileRules(file)));
+// The options come from the configuration, so they are JSON values.
+const repositoryOptions = repositoryConfigurations[0]!['local/code-no-legacy-notification-parsing'].slice(1) as NonNullable<RuleTester.ValidTestCase['options']>;
+
+test('notification capability restriction is enabled for core in the repository config', () => {
+	assert.deepStrictEqual(repositoryConfigurations.map(configuration => configuration?.['local/code-no-legacy-notification-parsing']), repositoryFiles.map(() => ['error', ...repositoryOptions]));
+});
+
+new RuleTester({ languageOptions: { sourceType: 'module' } }).run('code-no-legacy-notification-parsing with the repository options', rule, {
+	valid: repositoryFiles.slice(0, 2).map(file => ({
+		filename: path.join(root, file),
+		options: repositoryOptions,
+		code: `import { legacyExtensionLinkParsing } from '${bridgeSource}';`,
+	})),
+	invalid: repositoryFiles.slice(2).map(file => ({
+		filename: path.join(root, file),
+		options: repositoryOptions,
+		code: `import { legacyExtensionLinkParsing } from '${bridgeSource}';`,
+		errors: [{ messageId: 'restrictedCapability' }],
+	})),
 });

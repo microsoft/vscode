@@ -215,7 +215,7 @@ export class RenderLinesResult {
 		}
 
 		// Find the view line index based on the element
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		const viewLines = container.querySelectorAll('.view-line');
 		let viewLineIndex = -1;
 		for (let i = 0; i < viewLines.length; i++) {

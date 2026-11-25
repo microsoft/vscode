@@ -23,11 +23,12 @@ import { AccessibilityVerbositySettingId } from '../../../../../workbench/contri
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
-import { IMobileContentSheetApi } from '../../../../browser/parts/mobile/mobilePickerSheet.js';
-import { isPhoneLayout } from '../../../../browser/parts/mobile/mobileLayout.js';
-import { IConnectionDiagnosticsService, IConnectionDiagnosticsSnapshot, ShowConnectionDiagnosticsCommandId } from './connectionDiagnostics.js';
-import './connectionDiagnosticsService.js';
-import { ConnectionDiagnosticsReport, showConnectionDiagnosticsSheet } from './connectionDiagnosticsReport.js';
+import { IMobileContentSheetApi } from '../../../../../workbench/contrib/sessions/browser/mobile/mobilePickerSheet.js';
+import { isPhoneLayout } from '../../../../../workbench/browser/parts/sessions/mobileLayout.js';
+import { IConnectionDiagnosticsService, IConnectionDiagnosticsSnapshot, ShowConnectionDiagnosticsCommandId } from '../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/connectionDiagnostics.js';
+import { ConnectionDiagnosticsService } from '../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/connectionDiagnosticsService.js';
+import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
+import { ConnectionDiagnosticsReport, showConnectionDiagnosticsSheet } from '../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/connectionDiagnosticsReport.js';
 
 const connectionDiagnosticsFocused = new RawContextKey<boolean>('connectionDiagnosticsFocused', false);
 
@@ -176,7 +177,7 @@ export class ConnectionDiagnosticsContribution extends Disposable {
 				? localize('connectionDiagnostics.help.webCopy', "Copy Diagnostics and Download Diagnostics include the entire displayed snapshot, including collapsed sections. Review host names and addresses before sharing. Refresh re-runs host discovery and then captures current local state.")
 				: localize('connectionDiagnostics.help.copy', "Copy Diagnostics and Download Diagnostics include the entire displayed snapshot, including collapsed sections. Review host names and addresses before sharing. Refresh reads current local state without discovery, authentication, or connection changes."),
 			localize('connectionDiagnostics.help.view', "Open the report as plain text with {0}.", '<keybinding:editor.action.accessibleView>'),
-			localize('connectionDiagnostics.help.logs', "Snapshots include recorded connection stages and a bounded excerpt of the local Window log. Copy and Download use the captured text without collecting new logs. Known credentials are redacted; review messages before sharing."),
+			localize('connectionDiagnostics.help.connectionLogs', "Snapshots include recorded connection stages and a bounded excerpt of connection lines from the local Window log and, on desktop, the Shared log, which records SSH, WSL, Dev Tunnel, and Dev Container connection setup. Copy and Download use the captured text without collecting new logs. Known credentials and your home folder are redacted; review messages before sharing."),
 			localize('connectionDiagnostics.help.close', "Escape or Close dismisses diagnostics. Closing this accessible view returns to the diagnostics snapshot."),
 		].join('\n\n');
 		const provider = new AccessibleContentProvider(
@@ -228,3 +229,5 @@ for (const type of [AccessibleViewType.Help, AccessibleViewType.View]) {
 		getProvider: () => getWorkbenchContribution<ConnectionDiagnosticsContribution>(ConnectionDiagnosticsContribution.ID).getAccessibleProvider(type),
 	});
 }
+
+registerSingleton(IConnectionDiagnosticsService, ConnectionDiagnosticsService, InstantiationType.Delayed);

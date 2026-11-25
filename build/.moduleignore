@@ -222,7 +222,7 @@ zone.js/dist/**
 @xterm/xterm-addon-*/out-test/**
 
 # @github/copilot - strip unneeded binaries and files
-# Agent Host uses the runtime bundled with @github/copilot-sdk.
+# Agent Host uses the runtime bundled with @microsoft/copilot-sdk.
 @github/copilot/**
 
 # Standalone Copilot CLI platform packages are not product dependencies.
@@ -236,14 +236,14 @@ zone.js/dist/**
 @github/copilot-win32-x64/**
 
 # The selected SDK platform package is re-added during packaging.
-@github/copilot-sdk-darwin-arm64/**
-@github/copilot-sdk-darwin-x64/**
-@github/copilot-sdk-linux-arm64/**
-@github/copilot-sdk-linux-x64/**
-@github/copilot-sdk-linuxmusl-arm64/**
-@github/copilot-sdk-linuxmusl-x64/**
-@github/copilot-sdk-win32-arm64/**
-@github/copilot-sdk-win32-x64/**
+@microsoft/copilot-sdk-darwin-arm64/**
+@microsoft/copilot-sdk-darwin-x64/**
+@microsoft/copilot-sdk-linux-arm64/**
+@microsoft/copilot-sdk-linux-x64/**
+@microsoft/copilot-sdk-linuxmusl-arm64/**
+@microsoft/copilot-sdk-linuxmusl-x64/**
+@microsoft/copilot-sdk-win32-arm64/**
+@microsoft/copilot-sdk-win32-x64/**
 
 # @vscode/os-proxy-resolver platform binaries - selected target is re-added during packaging
 @vscode/os-proxy-resolver-darwin-arm64/**
@@ -257,18 +257,18 @@ zone.js/dist/**
 @vscode/os-proxy-resolver-win32-x64-msvc/**
 
 # Do not allow an SDK canary to restore the standalone CLI transitively.
-@github/copilot-sdk/node_modules/@github/copilot/**
-@github/copilot-sdk/node_modules/@github/copilot-darwin-arm64/**
-@github/copilot-sdk/node_modules/@github/copilot-darwin-x64/**
-@github/copilot-sdk/node_modules/@github/copilot-linux-arm64/**
-@github/copilot-sdk/node_modules/@github/copilot-linux-x64/**
-@github/copilot-sdk/node_modules/@github/copilot-linuxmusl-arm64/**
-@github/copilot-sdk/node_modules/@github/copilot-linuxmusl-x64/**
-@github/copilot-sdk/node_modules/@github/copilot-win32-arm64/**
-@github/copilot-sdk/node_modules/@github/copilot-win32-x64/**
+@microsoft/copilot-sdk/node_modules/@github/copilot/**
+@microsoft/copilot-sdk/node_modules/@github/copilot-darwin-arm64/**
+@microsoft/copilot-sdk/node_modules/@github/copilot-darwin-x64/**
+@microsoft/copilot-sdk/node_modules/@github/copilot-linux-arm64/**
+@microsoft/copilot-sdk/node_modules/@github/copilot-linux-x64/**
+@microsoft/copilot-sdk/node_modules/@github/copilot-linuxmusl-arm64/**
+@microsoft/copilot-sdk/node_modules/@github/copilot-linuxmusl-x64/**
+@microsoft/copilot-sdk/node_modules/@github/copilot-win32-arm64/**
+@microsoft/copilot-sdk/node_modules/@github/copilot-win32-x64/**
 
-# @github/copilot-sdk uses Koffi only for its in-process FFI transport.
-# VS Code uses RuntimeConnection.forStdio.
+# @microsoft/copilot-sdk uses Koffi only for its in-process FFI transport.
+# VS Code uses RuntimeConnection.forSpawnedStdio.
 koffi/**
 @koromix/koffi-*/**
 

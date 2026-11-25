@@ -3,13 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import es from 'event-stream';
+import { Readable } from 'stream';
+import { through, merge } from '../lib/streams.ts';
 import Vinyl from 'vinyl';
 import vfs from 'vinyl-fs';
 import { filter, gzip, azureStorage } from '../lib/gulp/facade.ts';
 import mime from 'mime';
 import { ClientAssertionCredential } from '@azure/identity';
 import { VinylStat } from '../lib/util.ts';
+import { getWebCdnConfiguration, validateMobileWebCdnIdentity } from './web/cdnConfiguration.ts';
 
 const commit = process.env['BUILD_SOURCEVERSION'];
 const credential = new ClientAssertionCredential(process.env['AZURE_TENANT_ID']!, process.env['AZURE_CLIENT_ID']!, () => Promise.resolve(process.env['AZURE_ID_TOKEN']!));
@@ -66,7 +68,7 @@ const MimeTypesToCompress = new Set([
 	'text/x-java-source'
 ]);
 
-function wait(stream: es.ThroughStream): Promise<void> {
+function wait(stream: NodeJS.ReadableStream): Promise<void> {
 	return new Promise<void>((c, e) => {
 		stream.on('end', () => c());
 		stream.on('error', (err) => e(err));
@@ -74,19 +76,23 @@ function wait(stream: es.ThroughStream): Promise<void> {
 }
 
 async function main(): Promise<void> {
+	const configuration = getWebCdnConfiguration(process.argv.slice(2), process.env.VSCODE_QUALITY, commit);
+	if (configuration.mobile) {
+		await validateMobileWebCdnIdentity(configuration.source, process.env.VSCODE_QUALITY!, commit!);
+	}
 	const files: string[] = [];
 	const options = (compressed: boolean) => ({
 		account: process.env.AZURE_STORAGE_ACCOUNT,
 		credential,
 		container: '$web',
-		prefix: `${process.env.VSCODE_QUALITY}/${commit}/`,
+		prefix: configuration.prefix,
 		contentSettings: {
 			contentEncoding: compressed ? 'gzip' : undefined,
 			cacheControl: 'max-age=31536000, public'
 		}
 	});
 
-	const all = vfs.src('**', { cwd: '../vscode-web', base: '../vscode-web', dot: true })
+	const all = vfs.src(configuration.patterns, { cwd: configuration.source, base: configuration.source, dot: true })
 		.pipe(filter(f => !f.isDirectory()));
 
 	const compressed = all
@@ -98,8 +104,8 @@ async function main(): Promise<void> {
 		.pipe(filter(f => !MimeTypesToCompress.has(mime.lookup(f.path))))
 		.pipe(azureStorage.upload(options(false)));
 
-	const out = es.merge(compressed, uncompressed)
-		.pipe(es.through(function (f) {
+	const out = merge(compressed, uncompressed)
+		.pipe(through(function (f) {
 			console.log('Uploaded:', f.relative);
 			files.push(f.relative);
 			this.emit('data', f);
@@ -114,7 +120,7 @@ async function main(): Promise<void> {
 		stat: new VinylStat({ mode: 0o666 })
 	});
 
-	const filesOut = es.readArray([listing])
+	const filesOut = Readable.from([listing])
 		.pipe(gzip({ append: false }))
 		.pipe(azureStorage.upload(options(true)));
 

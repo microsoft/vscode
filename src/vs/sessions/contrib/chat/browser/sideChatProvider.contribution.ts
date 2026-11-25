@@ -4,23 +4,25 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { raceTimeout } from '../../../../base/common/async.js';
-import { Event } from '../../../../base/common/event.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { derived, IObservable, IReader } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
-import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
+import { IChatWidget, IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { isRequestVM } from '../../../../workbench/contrib/chat/common/model/chatViewModel.js';
 import { IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatSideChatOrigin, IChatSideChatProvider, IChatSideChatRequestOptions, IChatSideChatSelection, IChatSideChatService } from '../../../../workbench/contrib/chat/common/chatSideChatService.js';
 import { IWorkbenchEnvironmentService } from '../../../../workbench/services/environment/common/environmentService.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
-import { ChatInteractivity, ChatOriginKind, IChat, ISession, SessionStatus } from '../../../services/sessions/common/session.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { ISessionsPartService } from '../../../../workbench/services/sessions/browser/sessionsPartService.js';
+import { ChatInteractivity, ChatOriginKind, IChat, ISession, SessionStatus } from '../../../../workbench/services/sessions/common/session.js';
+import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISessionHostService } from '../../../../workbench/services/sessions/browser/sessionHost.js';
+import { IChatHostOpenerService } from '../../../../workbench/services/sessions/browser/chatHostOpener.js';
 import { createAndSendSideChat } from './sideChatOrchestration.js';
+import { readPaneSessions } from '../../../../workbench/services/sessions/browser/sessionGridPane.js';
 
 const SIDE_CHAT_SOURCE_REVEAL_TIMEOUT = 2_000;
 
@@ -38,6 +40,8 @@ export class SessionsSideChatProviderContribution extends Disposable implements 
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@ISessionsService private readonly sessionsService: ISessionsService,
 		@ISessionsPartService private readonly sessionsPartService: ISessionsPartService,
+		@ISessionHostService private readonly sessionHostService: ISessionHostService,
+		@IChatHostOpenerService private readonly chatHostOpenerService: IChatHostOpenerService,
 		@IChatService private readonly chatService: IChatService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
@@ -63,7 +67,7 @@ export class SessionsSideChatProviderContribution extends Disposable implements 
 			throw new Error(`Side chats are not supported for ${sessionResource.toString()}`);
 		}
 		const { session, chatResource, turnId } = source;
-		await createAndSendSideChat(this.sessionsManagementService, this.sessionsService, this.sessionsPartService, session, chatResource, turnId, { query, attachedContext: options?.attachedContext }, selection);
+		await createAndSendSideChat(this.sessionsManagementService, this.sessionsService, this.sessionsPartService, this.sessionHostService, this.chatHostOpenerService, session, chatResource, turnId, { query, attachedContext: options?.attachedContext }, selection, options?.includeSourceContext);
 	}
 
 	/** Observes the source metadata for a side chat. */
@@ -110,38 +114,48 @@ export class SessionsSideChatProviderContribution extends Disposable implements 
 			return;
 		}
 
-		const widget = this.chatWidgetService.getWidgetBySessionResource(sessionResource);
 		await this.sessionsService.openChat(resolved.session, origin.sourceSessionResource);
 
-		if (!widget) {
-			return;
+		// The source shows in the side chat's widget once that switches to it, or in a widget of its own, such as the grid's
+		// while the side chat shows in the side pane. Either may still be loading it.
+		const sourceWidget = await this._whenWidgetShows(origin.sourceSessionResource);
+		const item = sourceWidget?.viewModel?.getItems().find(item => item.id === origin.sourceTurnId);
+		if (sourceWidget && item && isRequestVM(item)) {
+			sourceWidget.reveal(item);
 		}
+	}
 
-		if (!widget.viewModel || !this.uriIdentityService.extUri.isEqual(widget.viewModel.sessionResource, origin.sourceSessionResource)) {
-			const viewModelChanged = Event.toPromise(Event.filter(widget.onDidChangeViewModel, event =>
-				event.currentSessionResource !== undefined && this.uriIdentityService.extUri.isEqual(event.currentSessionResource, origin.sourceSessionResource)
-			), this._store);
-			try {
-				if (!await raceTimeout(viewModelChanged, SIDE_CHAT_SOURCE_REVEAL_TIMEOUT)) {
-					return;
+	/** The widget that shows the chat `sessionResource`, once one does within {@link SIDE_CHAT_SOURCE_REVEAL_TIMEOUT}. */
+	private async _whenWidgetShows(sessionResource: URI): Promise<IChatWidget | undefined> {
+		const shown = this.chatWidgetService.getWidgetBySessionResource(sessionResource);
+		if (shown) {
+			return shown;
+		}
+		const store = new DisposableStore();
+		try {
+			const showing = new Promise<IChatWidget>(resolve => {
+				const watch = (widget: IChatWidget) => {
+					const resolveIfShown = () => {
+						if (this.uriIdentityService.extUri.isEqual(widget.viewModel?.sessionResource, sessionResource)) {
+							resolve(widget);
+						}
+					};
+					store.add(widget.onDidChangeViewModel(resolveIfShown));
+					resolveIfShown();
+				};
+				for (const widget of this.chatWidgetService.getAllWidgets()) {
+					watch(widget);
 				}
-			} finally {
-				viewModelChanged.cancel();
-			}
-		}
-
-		const item = widget.viewModel?.getItems().find(item => item.id === origin.sourceTurnId);
-		if (item && isRequestVM(item)) {
-			widget.reveal(item);
+				store.add(this.chatWidgetService.onDidAddWidget(watch));
+			});
+			return await raceTimeout(showing, SIDE_CHAT_SOURCE_REVEAL_TIMEOUT);
+		} finally {
+			store.dispose();
 		}
 	}
 
 	private _resolveSessionChat(sessionResource: URI, reader?: IReader): { session: ISession; chat: IChat } | undefined {
-		const visibleSessions = reader ? this.sessionsService.visibleSessions.read(reader) : this.sessionsService.visibleSessions.get();
-		for (const session of visibleSessions) {
-			if (!session) {
-				continue;
-			}
+		for (const session of readPaneSessions(this.sessionsService.slotPanes, reader)) {
 
 			const chats = reader ? session.chats.read(reader) : session.chats.get();
 			const chat = chats.find(chat => this.uriIdentityService.extUri.isEqual(chat.resource, sessionResource));

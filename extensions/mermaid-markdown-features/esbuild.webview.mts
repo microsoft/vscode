@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import path from 'path';
 import esbuild, { type Plugin } from 'esbuild';
+import { resolvePackageDirectory } from '../esbuild-common.mts';
 import { run } from '../esbuild-webview-common.mts';
 
 const rootDir = import.meta.dirname;
@@ -48,7 +49,7 @@ await Promise.all([
 		entryPoints: {
 			'index': path.join(chatSrcDir, 'index.ts'),
 			'index-editor': path.join(chatSrcDir, 'index-editor.ts'),
-			'codicon': path.join(rootDir, 'node_modules', '@vscode', 'codicons', 'dist', 'codicon.css'),
+			'codicon': path.join(resolvePackageDirectory(rootDir, '@vscode/codicons'), 'dist', 'codicon.css'),
 		},
 		srcDir: chatSrcDir,
 		outdir: path.join(rootDir, 'chat-webview-out'),

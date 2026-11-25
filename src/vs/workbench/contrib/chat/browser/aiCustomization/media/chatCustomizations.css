@@ -1,0 +1,159 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.chat-customizations-action-item {
+	position: relative;
+}
+
+.chat-customizations-action-item.migration-available::after {
+	content: '';
+	position: absolute;
+	top: var(--vscode-spacing-size20);
+	right: var(--vscode-spacing-size20);
+	width: var(--vscode-spacing-size60);
+	height: var(--vscode-spacing-size60);
+	border-radius: var(--vscode-cornerRadius-circle);
+	background-color: var(--vscode-activityWarningBadge-background, var(--vscode-editorWarning-foreground));
+	pointer-events: none;
+}
+
+.monaco-hover.chat-customizations-hover .hover-contents {
+	width: 280px;
+	max-width: calc(100vw - 32px);
+}
+
+.monaco-hover.workbench-hover.chat-customizations-hover .markdown-hover .hover-contents {
+	padding-top: var(--vscode-spacing-size80);
+}
+
+.chat-customizations-hover .hover-contents p:first-child {
+	margin-bottom: var(--vscode-spacing-size40);
+}
+
+.chat-customizations-hover .hover-contents p:nth-of-type(2) {
+	margin-top: 0;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label1);
+	overflow-wrap: anywhere;
+}
+
+.chat-customizations-hover table {
+	width: 100%;
+	border-collapse: collapse;
+}
+
+/* Keep column headers and the icon-only settings label available to screen readers. */
+.chat-customizations-hover thead,
+.chat-customizations-hover .hover-contents hr + p > a:last-child > span:not(.codicon) {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	overflow: hidden;
+	clip-path: inset(50%);
+	white-space: nowrap;
+}
+
+.chat-customizations-hover td {
+	padding: var(--vscode-spacing-size40) 0;
+}
+
+.chat-customizations-hover td:last-child {
+	padding-left: var(--vscode-spacing-size160);
+	font-variant-numeric: tabular-nums;
+}
+
+.monaco-hover.chat-customizations-hover a {
+	text-decoration: var(--text-link-decoration, none);
+}
+
+.hc-black .monaco-hover.chat-customizations-hover a,
+.hc-light .monaco-hover.chat-customizations-hover a {
+	text-decoration: underline;
+}
+
+.monaco-hover.chat-customizations-hover td a {
+	display: inline-block;
+	color: var(--vscode-foreground);
+}
+
+.chat-customizations-hover td a > .codicon,
+.chat-customizations-hover .hover-contents hr + p > a:first-child > .codicon {
+	margin-right: var(--vscode-spacing-size80);
+}
+
+.monaco-hover.chat-customizations-hover td a:hover {
+	color: var(--vscode-textLink-activeForeground);
+}
+
+.monaco-hover.chat-customizations-hover .hover-contents ul {
+	list-style: none;
+	padding-left: 0;
+}
+
+.chat-customizations-hover li {
+	padding: var(--vscode-spacing-size40) 0;
+}
+
+.chat-customizations-hover li > .codicon {
+	margin-right: var(--vscode-spacing-size60);
+	color: var(--vscode-editorWarning-foreground);
+}
+
+.chat-customizations-hover li em {
+	display: flex;
+	padding-left: var(--vscode-spacing-size240);
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label2);
+	font-style: normal;
+	white-space: nowrap;
+}
+
+.chat-customizations-hover li em a {
+	min-width: 0;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
+.monaco-hover.chat-customizations-hover .markdown-hover .hover-contents .codicon {
+	font-size: var(--vscode-codiconFontSize);
+	margin-bottom: 0;
+}
+
+.monaco-hover.chat-customizations-hover .hover-contents hr {
+	margin: var(--vscode-spacing-size80) 0;
+	border: none;
+	border-top: var(--vscode-strokeThickness) solid var(--vscode-editorHoverWidget-border);
+	height: 0;
+}
+
+.chat-customizations-hover .hover-contents hr + p {
+	font-size: var(--vscode-fontSize-label1);
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--vscode-spacing-size80);
+}
+
+.chat-customizations-hover .hover-contents hr + p > a {
+	display: inline-flex;
+	align-items: center;
+}
+
+.monaco-hover.workbench-hover.chat-customizations-hover .markdown-hover .hover-contents hr + p > a > .codicon {
+	margin-bottom: 0;
+}
+
+.chat-customizations-hover .hover-contents hr + p > a:last-child {
+	flex-shrink: 0;
+	padding: var(--vscode-spacing-size40);
+	/* Align the glyph with the counts while preserving its padded hit target. */
+	margin-right: calc(-1 * var(--vscode-spacing-size40));
+	color: var(--vscode-descriptionForeground);
+}
+
+.chat-customizations-hover .hover-contents hr + p > a:last-child:hover {
+	color: var(--vscode-textLink-activeForeground);
+}

@@ -80,6 +80,20 @@ suite('ChatQuestionCarouselHelpers', () => {
 				[1, 0],
 			);
 		});
+
+		test('lists yes before no for a yes/no question, whatever its declared order or default', () => {
+			const yesNo: IChatQuestion = {
+				id: 'q_bool',
+				type: 'singleSelect',
+				title: 'Continue?',
+				options: [
+					{ id: 'n', label: 'false', value: 'false' },
+					{ id: 'y', label: 'true', value: 'true' },
+				],
+				defaultValue: 'n',
+			};
+			assert.deepStrictEqual(getOptionsWithDefaultsFirst(yesNo).map(o => o.originalIndex), [1, 0]);
+		});
 	});
 
 	suite('getDisplayedQuestionText', () => {

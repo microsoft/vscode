@@ -42,7 +42,7 @@ export const unicodeFilter = Object.freeze<string[]>([
 	'!LICENSES.chromium.html',
 	'!**/LICENSE',
 
-	'!**/*.{dll,exe,png,bmp,jpg,gif,scpt,cur,ttf,woff,eot,template,ico,icns,opus,wasm}',
+	'!**/*.{dll,exe,png,bmp,jpg,gif,webp,scpt,cur,ttf,woff,eot,template,ico,icns,opus,wasm}',
 	'!**/test/**',
 	'!**/*.test.ts',
 	'!**/*.{d.ts,json,md}',
@@ -102,7 +102,8 @@ export const indentationFilter = Object.freeze<string[]>([
 	'!resources/linux/snap/electron-launch',
 	'!build/ext.js',
 	'!build/darwin/patch-dmg.py',
-	'!build/npm/gyp/patches/gyp_spectre_mitigation_support.patch',
+	'!build/npm/patches/*.patch',
+	'!scripts/agent-host-protocol.patch',
 	'!product.overrides.json',
 	'!src/vs/platform/endpoint/common/licenseAgreement.ts',
 
@@ -148,12 +149,12 @@ export const indentationFilter = Object.freeze<string[]>([
 	'!src/vs/*/**/*.d.ts',
 	'!src/typings/**/*.d.ts',
 	'!extensions/**/*.d.ts',
-	'!**/*.{svg,exe,png,bmp,jpg,gif,scpt,bat,cmd,cur,ttf,woff,eot,md,ps1,psm1,template,yaml,yml,d.ts.recipe,ico,icns,plist,opus,admx,adml,wasm}',
+	'!**/*.{svg,exe,png,bmp,jpg,gif,webp,scpt,bat,cmd,cur,ttf,woff,eot,md,ps1,psm1,template,yaml,yml,d.ts.recipe,ico,icns,plist,opus,admx,adml,wasm}',
 	'!build/{lib,download,linux,darwin}/**/*.js',
 	'!build/**/*.sh',
 	'!build/azure-pipelines/**/*.js',
 	'!build/azure-pipelines/**/*.config',
-	'!build/npm/gyp/custom-headers/**',
+	'!build/npm/headers/**',
 	'!**/Dockerfile',
 	'!**/Dockerfile.*',
 	'!**/*.Dockerfile',
@@ -186,6 +187,7 @@ export const copyrightFilter = Object.freeze<string[]>([
 	'!**/*.cmd',
 	'!**/*.ico',
 	'!**/*.gif',
+	'!**/*.webp',
 	'!**/*.opus',
 	'!**/*.mp3',
 	'!**/*.icns',
@@ -207,7 +209,7 @@ export const copyrightFilter = Object.freeze<string[]>([
 	'!build/**/*.init',
 	'!build/darwin/patch-dmg.py',
 	'!build/linux/libcxx-fetcher.*',
-	'!build/npm/gyp/custom-headers/**',
+	'!build/npm/headers/**',
 	'!resources/linux/snap/snapcraft.yaml',
 	'!resources/win32/bin/code.js',
 	'!resources/completions/**',
@@ -257,7 +259,7 @@ export const tsFormattingFilter = Object.freeze<string[]>([
 	'!extensions/copilot/**',
 ]);
 
-export const eslintFilter = Object.freeze<string[]>([
+export const lintFilter = Object.freeze<string[]>([
 	'**/*.{js,cjs,mjs}',
 	'**/*.{ts,tsx,mts,cts}',
 	'.eslint-plugin-local/**/*.ts',

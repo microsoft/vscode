@@ -13,8 +13,8 @@ import { ChatOnboardingTarget } from '../../../../workbench/contrib/chat/common/
 import { isNewSessionPickerTryoutPayload, NEW_SESSION_PICKER_TRYOUT_PRESENTATION_KIND, NewSessionPickerTryoutPayload } from '../../../../workbench/contrib/chat/common/onboarding/newSessionPickerTryout.js';
 import { IOnboardingTarget, registerOnboardingTargetProvider } from '../../../../workbench/contrib/onboarding/browser/onboarding.js';
 import { IOnboardingTryoutPresentationDefinition, IOnboardingTryoutRunContext, IOnboardingTryoutService, IOnboardingTryoutUnavailable, OnboardingTryoutAvailability, OnboardingTryoutPreparation, registerOnboardingTryoutPresentation } from '../../../../workbench/contrib/onboarding/common/onboardingTryout.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { INewSessionComposer, INewSessionComposerService } from './newSessionComposerService.js';
+import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { INewSessionComposer, INewSessionComposerService } from '../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
 
 export class NewSessionPickerTryoutPresentation extends Disposable implements IOnboardingTryoutPresentationDefinition<NewSessionPickerTryoutPayload> {
 	readonly kind = NEW_SESSION_PICKER_TRYOUT_PRESENTATION_KIND;

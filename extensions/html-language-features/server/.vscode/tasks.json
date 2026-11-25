@@ -2,8 +2,8 @@
 	"version": "2.0.0",
 	"tasks": [
 		{
-			"label": "npm run watch",
-			"command": "npm i",
+			"label": "pnpm run watch",
+			"command": "pnpm run",
 			"args": ["watch"],
 			"type": "shell",
 			"presentation": {

@@ -12,6 +12,7 @@ import { ChatLocation } from '../../../../../platform/chat/common/commonTypes';
 import { MockChatMLFetcher } from '../../../../../platform/chat/test/common/mockChatMLFetcher';
 import { rawPartAsThinkingData } from '../../../../../platform/endpoint/common/thinkingDataContainer';
 import { MockEndpoint } from '../../../../../platform/endpoint/test/node/mockEndpoint';
+// eslint-disable-next-line local/code-layering -- Pre-existing layering violation found when the zone check started resolving extensionless imports.
 import { ExtensionContributedChatEndpoint } from '../../../../../platform/endpoint/vscode-node/extChatEndpoint';
 import { IChatEndpoint } from '../../../../../platform/networking/common/networking';
 import { ITestingServicesAccessor } from '../../../../../platform/test/node/services';
@@ -23,7 +24,9 @@ import { Event } from '../../../../../util/vs/base/common/event';
 import { SyncDescriptor } from '../../../../../util/vs/platform/instantiation/common/descriptors';
 import { IInstantiationService } from '../../../../../util/vs/platform/instantiation/common/instantiation';
 import { LanguageModelChatToolMode, LanguageModelTextPart, LanguageModelToolResult } from '../../../../../vscodeTypes';
+// eslint-disable-next-line local/code-layering -- Pre-existing layering violation found when the zone check started resolving extensionless imports.
 import { IBYOKStorageService } from '../../../../byok/vscode-node/byokStorageService';
+// eslint-disable-next-line local/code-layering -- Pre-existing layering violation found when the zone check started resolving extensionless imports.
 import { CustomEndpointBYOKModelProvider } from '../../../../byok/vscode-node/customEndpointProvider';
 import { ConversationStore, IConversationStore } from '../../../../conversationStore/node/conversationStore';
 import { IIntentService, IntentService } from '../../../../intents/node/intentService';

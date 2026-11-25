@@ -8,7 +8,7 @@
 		"generate": "node generate.cjs",
 		"test": "node test.cjs"
 	},
-	"dependencies": {
-		"@playwright/cli": "latest"
+	"devDependencies": {
+		"@playwright/cli": "^0.1.22"
 	}
 }

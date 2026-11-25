@@ -46,11 +46,11 @@ extends:
   parameters:
     workingDirectory: ./extensions/copilot
     l10nSourcePaths: ./extensions/copilot/src
-    nodeVersion: 22.21.x
+    nodeVersion: 24.x
     # The copilot extension is bundled with esbuild and vendors prebuilt native
     # modules (e.g. @os-theme, @picovoice/pvrecorder-node) that depend on a
-    # newer GLIBC than the template's sysroot check allows. The main product
-    # build (product-copilot.yml) ships these natives without a sysroot or GLIBC
+    # newer GLIBC than the template's sysroot check allows. The product build
+    # (copilot/builtin-steps.yml) ships these natives without a sysroot or GLIBC
     # check, so disable the sysroot here for parity; this also skips the GLIBC/
     # GLIBCXX verification that would otherwise fail on those vendored natives.
     buildPlatforms:
@@ -60,10 +60,10 @@ extends:
         codesignPaths: []
     # Copilot handles localization itself via copilot/l10n-steps.yml (importing
     # translated strings from the microsoft/vscode-extensions-loc checkout),
-    # mirroring product-copilot.yml. Disable the template's own l10n jobs and
-    # the import-localized-files step: the latter runs before buildSteps and
-    # expects an implicit self checkout, which is unavailable here because
-    # build-steps.yml checks out microsoft/vscode-capi.
+    # like the product build (copilot/builtin-steps.yml). Disable the template's
+    # own l10n jobs and the import-localized-files step: the latter runs before
+    # buildSteps and expects an implicit self checkout, which is unavailable here
+    # because build-steps.yml checks out microsoft/vscode-capi.
     l10nShouldProcess: false
 
     cgIgnoreDirectories: $(Build.SourcesDirectory)/extensions/copilot/script

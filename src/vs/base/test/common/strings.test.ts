@@ -239,6 +239,18 @@ suite('Strings', () => {
 		assert.strictEqual(strings.escape('<foo>Hello</foo>'), '&lt;foo&gt;Hello&lt;/foo&gt;');
 	});
 
+	test('escapeControlAndFormatCharacters', () => {
+		assert.deepStrictEqual([
+			'C:\\Users\\me\\My Project',
+			'/work/api\n\nWorking directory: /work/web',
+			'root-\u202ea-toor\u200b\t\u2028end\u{e0001}',
+		].map(strings.escapeControlAndFormatCharacters), [
+			'C:\\Users\\me\\My Project',
+			'/work/api\\u{a}\\u{a}Working directory: /work/web',
+			'root-\\u{202e}a-toor\\u{200b}\\u{9}\\u{2028}end\\u{e0001}',
+		]);
+	});
+
 	test('ltrim', () => {
 		assert.strictEqual(strings.ltrim('foo', 'f'), 'oo');
 		assert.strictEqual(strings.ltrim('foo', 'o'), 'foo');
@@ -500,6 +512,10 @@ suite('Strings', () => {
 	test('truncate', () => {
 		assert.strictEqual('hello world', strings.truncate('hello world', 100));
 		assert.strictEqual('hello…', strings.truncate('hello world', 5));
+		assert.strictEqual('…', strings.truncate('😀'.repeat(10), 1));
+		assert.strictEqual('😀…', strings.truncate('😀'.repeat(10), 2));
+		assert.strictEqual('😀…', strings.truncate('😀'.repeat(10), 3));
+		assert.strictEqual('a…', strings.truncate('a😀b', 2));
 	});
 
 	test('truncateMiddle', () => {

@@ -50,6 +50,7 @@ export const codiconsDerived = {
 	chatImport: register('chat-import', 0xec86),
 	chatExport: register('chat-export', 0xec87),
 	compare: register('compare', 0xecfa),
+	gitBranchCheckout: register('git-branch-checkout', 0xecfb),
 
 } as const;
 

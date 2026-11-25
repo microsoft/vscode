@@ -249,6 +249,17 @@ export function isUnreportedCheckSuite(check: PullRequestCheck): boolean {
 	return check.id.startsWith(unreportedCheckSuitePrefix);
 }
 
+const missingRequiredCheckPrefix = 'required:';
+
+/**
+ * Stands in for a required check that has not reported on the head at all, the
+ * way GitHub lists it as expected, so that it shows as pending rather than
+ * leaving the pull request looking ready while GitHub blocks merging.
+ */
+export function toMissingRequiredCheck(name: string): PullRequestCheck {
+	return { id: `${missingRequiredCheckPrefix}${name}`, type: 'statusContext', name, status: 'EXPECTED', required: true };
+}
+
 export type PullRequestChecksStatus = 'pending' | 'success' | 'failure';
 
 /**

@@ -6,7 +6,6 @@
 import assert from 'assert';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -59,7 +58,7 @@ class LockableInMemoryFileSystemProvider extends InMemoryFileSystemProvider {
 
 suite('AgentPluginManager', () => {
 
-	const disposables = new DisposableStore();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let fileService: FileService;
 	let provider: LockableInMemoryFileSystemProvider;
 	let manager: AgentPluginManager;
@@ -73,8 +72,6 @@ suite('AgentPluginManager', () => {
 		manager = new AgentPluginManager(basePath, fileService, new NullLogService());
 	});
 
-	teardown(() => disposables.clear());
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function pluginUri(name: string): string {
 		return URI.from({ scheme: Schemas.inMemory, path: `/plugins/${name}` }).toString();

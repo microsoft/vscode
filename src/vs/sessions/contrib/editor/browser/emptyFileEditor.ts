@@ -20,11 +20,11 @@ import { IEditorOpenContext } from '../../../../workbench/common/editor.js';
 import { NEW_UNTITLED_FILE_COMMAND_ID } from '../../../../workbench/contrib/files/browser/fileConstants.js';
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { IEditorGroup } from '../../../../workbench/services/editor/common/editorGroupsService.js';
-import { Menus } from '../../../browser/menus.js';
-import { SessionsEmptyStateActions } from '../../../browser/parts/sessionsEmptyStateActions.js';
-import { SessionsEmptyStateLayout } from '../../../browser/parts/sessionsEmptyStateLayout.js';
+import { AgentsWindowMenus } from '../../../browser/agentsWindowMenus.js';
+import { SessionsEmptyStateActions } from '../../../../workbench/browser/parts/sessions/sessionsEmptyStateActions.js';
+import { SessionsEmptyStateLayout } from '../../../../workbench/browser/parts/sessions/sessionsEmptyStateLayout.js';
 import { EmptyFileEditorSearch } from './emptyFileEditorSearch.js';
-import { EmptyFileEditorInput } from './emptyFileEditorInput.js';
+import { EmptyFileEditorInput } from '../../../../workbench/contrib/sessions/browser/emptyFileEditorInput.js';
 
 export const EmptyFileEditorFocusedContext = new RawContextKey<boolean>('emptyFileEditorFocused', false, localize('emptyFileEditorFocused', "Whether focus is in the empty Files editor."));
 export const OPEN_FILE_IN_EMPTY_EDITOR_COMMAND_ID = 'workbench.action.agentSessions.openFileInEmptyEditor';
@@ -74,7 +74,7 @@ export class EmptyFileEditor extends EditorPane {
 		const scopedContextKeyService = this._register(this.contextKeyService.createScoped(container));
 		EmptyFileEditorFocusedContext.bindTo(scopedContextKeyService).set(true);
 		const scopedInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContextKeyService])));
-		this._register(scopedInstantiationService.createInstance(SessionsEmptyStateActions, actions, Menus.EmptyFileEditorActions, {
+		this._register(scopedInstantiationService.createInstance(SessionsEmptyStateActions, actions, AgentsWindowMenus.EmptyFileEditorActions, {
 			ariaLabel: localize('emptyFileEditor.actions', "Files"),
 			telemetrySource: 'emptyFileEditor.actions',
 			menuOptions: { arg: this },

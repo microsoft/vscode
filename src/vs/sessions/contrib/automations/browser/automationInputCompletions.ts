@@ -21,7 +21,7 @@ import { IChatInputCompletionItem, IChatSessionsService, isAgentHostTarget } fro
 import { getChatSessionType } from '../../../../workbench/contrib/chat/common/model/chatUri.js';
 import { AgentHostInputCompletionsBase } from '../../../../workbench/contrib/chat/browser/widget/input/editor/agentHostInputCompletionsBase.js';
 import { registerChatInputReferenceDecorationType } from '../../../../workbench/contrib/chat/browser/widget/input/editor/chatInputReferenceDecorations.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 
 const ACCEPT_AUTOMATION_SKILL_COMPLETION_COMMAND = 'sessions.automations.acceptSkillCompletion';
 const AUTOMATION_SKILL_DECORATION_TYPE = 'automation-skill-reference';

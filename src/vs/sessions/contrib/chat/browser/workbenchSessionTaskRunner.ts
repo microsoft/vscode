@@ -8,7 +8,7 @@ import { IDisposable, toDisposable } from '../../../../base/common/lifecycle.js'
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { TaskRunSource } from '../../../../workbench/contrib/tasks/common/tasks.js';
 import { ITaskService } from '../../../../workbench/contrib/tasks/common/taskService.js';
-import { IChat, ISession } from '../../../services/sessions/common/session.js';
+import { IChat, ISession } from '../../../../workbench/services/sessions/common/session.js';
 import { ISessionTaskRunner } from './sessionTaskRunner.js';
 import { ITaskEntry } from './sessionsTasksService.js';
 

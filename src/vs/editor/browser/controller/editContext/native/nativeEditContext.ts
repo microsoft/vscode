@@ -5,14 +5,14 @@
 
 import './nativeEditContext.css';
 import { isFirefox } from '../../../../../base/browser/browser.js';
-import { addDisposableListener, getActiveElement, getWindow, getWindowId } from '../../../../../base/browser/dom.js';
+import { addDisposableListener, getActiveElement, getShadowRoot, getWindow, getWindowId } from '../../../../../base/browser/dom.js';
 import { FastDomNode } from '../../../../../base/browser/fastDomNode.js';
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { EditorOption } from '../../../../common/config/editorOptions.js';
 import { EndOfLinePreference, IModelDeltaDecoration } from '../../../../common/model.js';
-import { ViewConfigurationChangedEvent, ViewCursorStateChangedEvent, ViewDecorationsChangedEvent, ViewFlushedEvent, ViewLinesChangedEvent, ViewLinesDeletedEvent, ViewLinesInsertedEvent, ViewScrollChangedEvent, ViewZonesChangedEvent } from '../../../../common/viewEvents.js';
+import { ViewConfigurationChangedEvent, ViewCursorStateChangedEvent, ViewDecorationsChangedEvent, ViewFlushedEvent, ViewFocusChangedEvent, ViewLinesChangedEvent, ViewLinesDeletedEvent, ViewLinesInsertedEvent, ViewScrollChangedEvent, ViewZonesChangedEvent } from '../../../../common/viewEvents.js';
 import { ViewContext } from '../../../../common/viewModel/viewContext.js';
 import { RestrictedRenderingContext, RenderingContext, HorizontalPosition } from '../../../view/renderingContext.js';
 import { ViewController } from '../../../view/viewController.js';
@@ -237,11 +237,22 @@ export class NativeEditContext extends AbstractEditContext {
 			this._context.viewModel.onCompositionEnd();
 		}));
 		let reenableTracking: boolean = false;
+		this._register(addDisposableListener(this._imeTextArea.domNode, 'blur', e => {
+			// Focus moved to another element while IME is disabled (a null relatedTarget means the window lost focus)
+			if (reenableTracking && e.relatedTarget && e.relatedTarget !== this.domNode.domNode) {
+				reenableTracking = false;
+				this._focusTracker.resume();
+			}
+		}));
 		this._register(IME.onDidChange(() => {
 			if (IME.enabled && reenableTracking) {
-				this._focusTracker.resume();
-				this.domNode.focus();
 				reenableTracking = false;
+				this._focusTracker.resume();
+				const shadowRoot = getShadowRoot(this._imeTextArea.domNode);
+				const activeElement = shadowRoot ? shadowRoot.activeElement : this._imeTextArea.domNode.ownerDocument.activeElement;
+				if (activeElement === this._imeTextArea.domNode) {
+					this.domNode.focus();
+				}
 			}
 			if (!IME.enabled && this.isFocused()) {
 				this._focusTracker.pause();
@@ -287,6 +298,12 @@ export class NativeEditContext extends AbstractEditContext {
 	}
 
 	public override onBeforeRender(viewportData: ViewportData): void {
+		// The edit context bounds are only used while this editor has focus,
+		// and reading them can force a synchronous layout (e.g. on every scroll frame).
+		if (!this.isFocused()) {
+			this._parentBounds = null;
+			return;
+		}
 		// We need to read the position of the container dom node
 		// It is best to do this before we begin touching the DOM at all
 		// Because the sync layout will be fast if we do it here
@@ -295,12 +312,21 @@ export class NativeEditContext extends AbstractEditContext {
 
 	public override prepareRender(ctx: RenderingContext): void {
 		this._screenReaderSupport.prepareRender(ctx);
-		this._updateSelectionAndControlBoundsData(ctx);
+		if (this._parentBounds) {
+			this._updateSelectionAndControlBoundsData(ctx);
+		}
 	}
 
 	public render(ctx: RestrictedRenderingContext): void {
 		this._screenReaderSupport.render(ctx);
-		this._updateSelectionAndControlBounds();
+		if (this._parentBounds) {
+			this._updateSelectionAndControlBounds(this._parentBounds);
+		}
+	}
+
+	public override onFocusChanged(e: ViewFocusChangedEvent): boolean {
+		// Render to update the edit context bounds, which are skipped while unfocused
+		return true;
 	}
 
 	public override onCursorStateChanged(e: ViewCursorStateChangedEvent): boolean {
@@ -546,7 +572,7 @@ export class NativeEditContext extends AbstractEditContext {
 		}
 	}
 
-	private _updateSelectionAndControlBounds() {
+	private _updateSelectionAndControlBounds(parentBounds: DOMRect) {
 		const options = this._context.configuration.options;
 		const contentLeft = options.get(EditorOption.layoutInfo).contentLeft;
 
@@ -554,9 +580,8 @@ export class NativeEditContext extends AbstractEditContext {
 		const verticalOffsetStart = this._context.viewLayout.getVerticalOffsetForLineNumber(viewSelection.startLineNumber);
 		const verticalOffsetEnd = this._context.viewLayout.getVerticalOffsetAfterLineNumber(viewSelection.endLineNumber);
 
-		// !!! Make sure this doesn't force an extra layout
-		// !!! by using the cached parent bounds read in onBeforeRender
-		const parentBounds = this._parentBounds!;
+		// !!! parentBounds must be the cached bounds read in onBeforeRender
+		// !!! to make sure this doesn't force an extra layout
 		const top = parentBounds.top + verticalOffsetStart - this._scrollTop;
 		const height = verticalOffsetEnd - verticalOffsetStart;
 		let left = parentBounds.left + contentLeft - this._scrollLeft;
@@ -580,7 +605,8 @@ export class NativeEditContext extends AbstractEditContext {
 		const options = this._context.configuration.options;
 		const typicalHalfWidthCharacterWidth = options.get(EditorOption.fontInfo).typicalHalfwidthCharacterWidth;
 		const contentLeft = options.get(EditorOption.layoutInfo).contentLeft;
-		const parentBounds = this._parentBounds!;
+		// The bounds are not cached if no render happened since this editor gained focus
+		const parentBounds = this._parentBounds ?? this._parent.getBoundingClientRect();
 
 		const characterBounds: DOMRect[] = [];
 		const offsetTransformer = new PositionOffsetTransformer(this._editContext.text);

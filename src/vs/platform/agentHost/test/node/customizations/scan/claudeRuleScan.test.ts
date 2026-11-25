@@ -7,9 +7,10 @@ import assert from 'assert';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IFileService } from '../../../../../files/common/files.js';
+import { createInMemoryFileService } from '../../../../../files/test/common/inMemoryFileService.js';
 import { CustomizationType } from '../../../../common/state/protocol/state.js';
 import { scanClaudeRules } from '../../../../node/claude/customizations/scan/claudeRuleScan.js';
-import { claudeTestUserHome as userHome, claudeTestWorkspace as workspace, createInMemoryFileService, seedFile } from '../claudeCustomizationTestUtils.js';
+import { claudeTestUserHome as userHome, claudeTestWorkspace as workspace, seedFile } from '../claudeCustomizationTestUtils.js';
 
 suite('claudeRuleScan', () => {
 

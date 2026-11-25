@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { Emitter } from '../../../../../base/common/event.js';
-import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
 
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 
@@ -74,11 +74,7 @@ class TestModalEditorResizeHost extends Disposable {
 
 suite('Modal Editor Resize', () => {
 
-	const disposables = new DisposableStore();
-
-	teardown(() => disposables.clear());
-
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('double-click from default size maximizes', () => {
 		const host = disposables.add(new TestModalEditorResizeHost());

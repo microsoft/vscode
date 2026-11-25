@@ -56,7 +56,7 @@ import { isToolCallLimitCancellation, ISwitchToAutoOnRateLimitConfirmation } fro
 import { ChatTelemetry, ChatTelemetryBuilder } from './chatParticipantTelemetry';
 import { IntentInvocationMetadata } from './conversation';
 import { IDocumentContext } from './documentContext';
-import { IBuildPromptResult, IIntent, IIntentInvocation, IResponseProcessor, TelemetryData } from './intents';
+import { IBuildPromptResult, IIntent, IIntentInvocation, IResponseProcessor } from './intents';
 import { ConversationalBaseTelemetryData, createTelemetryWithId, getModeNameForTelemetry, sendModelMessageTelemetry } from './telemetry';
 
 export interface IDefaultIntentRequestHandlerOptions {
@@ -648,7 +648,6 @@ class DefaultToolCallingLoop extends ToolCallingLoop<IDefaultToolLoopOptions> {
 				promptTokenLength,
 				result.references,
 				options.invocation.endpoint,
-				result.metadata.getAll(TelemetryData) ?? [],
 				tools.length,
 				toolTokenCount
 			);

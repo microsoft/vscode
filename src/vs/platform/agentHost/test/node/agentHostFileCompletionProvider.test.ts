@@ -6,7 +6,6 @@
 import assert from 'assert';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../base/common/errors.js';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
@@ -56,9 +55,7 @@ function assertResourceUri(attachment: MessageAttachment | undefined, expected: 
 
 suite('AgentHostFileCompletionProvider', () => {
 
-	const disposables = new DisposableStore();
-	teardown(() => disposables.clear());
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('announces "@" and "#" as trigger characters via IAgentHostCompletions', () => {
 		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));

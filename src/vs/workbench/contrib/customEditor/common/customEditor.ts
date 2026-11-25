@@ -12,6 +12,7 @@ import * as nls from '../../../../nls.js';
 import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IRevertOptions, ISaveOptions } from '../../../common/editor.js';
+import { EditorInput } from '../../../common/editor/editorInput.js';
 import { globMatchesResource, priorityToRank, RegisteredEditorPriority, RegisteredEditorPriorityInfo } from '../../../services/editor/common/editorResolverService.js';
 
 export const ICustomEditorService = createDecorator<ICustomEditorService>('customEditorService');
@@ -22,6 +23,24 @@ export const CONTEXT_ACTIVE_CUSTOM_EDITOR_ID = new RawContextKey<string>('active
 });
 
 export const CONTEXT_FOCUSED_CUSTOM_EDITOR_IS_EDITABLE = new RawContextKey<boolean>('focusedCustomEditorIsEditable', false);
+
+/**
+ * A built-in editor input that replaced a custom editor contributed by an extension. Extensions
+ * keep seeing it as that custom editor, for example in the tab API and the `activeCustomEditorId`
+ * context key.
+ */
+export interface ICustomEditorCompatibleInput {
+	/**
+	 * View type of the custom editor that the input replaced.
+	 */
+	readonly customEditorViewType: string;
+	readonly resource: URI;
+}
+
+export function isCustomEditorCompatibleInput(input: EditorInput | undefined): input is EditorInput & ICustomEditorCompatibleInput {
+	const candidate = input as (EditorInput & Partial<ICustomEditorCompatibleInput>) | undefined;
+	return typeof candidate?.customEditorViewType === 'string' && URI.isUri(candidate.resource);
+}
 
 export interface CustomEditorCapabilities {
 	readonly supportsMultipleEditorsPerDocument?: boolean;

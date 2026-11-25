@@ -9,7 +9,8 @@ import { getAgentSessionProviderIcon, getAgentSessionProviderName } from './agen
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { IChatEditorOptions } from '../widgetHosts/editor/chatEditor.js';
 import { ChatViewPaneTarget, IChatWidget, IChatWidgetService, isIChatViewViewContext } from '../chat.js';
-import { ChatConfiguration } from '../../common/constants.js';
+import { ChatConfiguration, ChatViewSessionsOpenChatIn } from '../../common/constants.js';
+import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { ACTIVE_GROUP, SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
 import { IEditorOptions } from '../../../../../platform/editor/common/editor.js';
 import { IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
@@ -27,7 +28,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IProgressService, ProgressLocation } from '../../../../../platform/progress/common/progress.js';
 import { migratedCopilotCliResource } from '../copilotCliEventsUri.js';
-import { adoptLegacyCopilotCliResource, isLegacyMigrationEnabledAtStartup, LEGACY_MIGRATION_OPEN_TIMEOUT_MS, reportLegacyMigrationOpen } from './agentHost/agentHostLegacyMigration.js';
+import { adoptLegacyCopilotCliResource, canOpenLegacyCopilotCliResource, LEGACY_MIGRATION_OPEN_TIMEOUT_MS, reportLegacyMigrationOpen } from './agentHost/agentHostLegacyMigration.js';
 import { SESSION_META_EHCLI_ADOPTABLE_KEY } from '../../../../../platform/agentHost/common/state/sessionState.js';
 
 //#region Session Opener Registry
@@ -101,7 +102,6 @@ async function resolveMigratedSessionForOpen(accessor: ServicesAccessor, resourc
 	const logService = accessor.get(ILogService);
 	const agentSessionsService = accessor.get(IAgentSessionsService);
 	const telemetryService = accessor.get(ITelemetryService);
-	const configurationService = accessor.get(IConfigurationService);
 	const connection = accessor.get(IAgentHostConnectionsService).ambientConnection;
 
 	// External sessions (origin "other") are never migrated — the host declines
@@ -124,7 +124,7 @@ async function resolveMigratedSessionForOpen(accessor: ServicesAccessor, resourc
 	return accessor.get(IProgressService).withProgress(
 		{ location: ProgressLocation.Window, title: localize('chat.openingSession', "Opening chat…") },
 		async () => {
-			const migrated = await adoptLegacyCopilotCliResource(connection, resource, logService, configurationService, telemetryService, 'open', LEGACY_MIGRATION_OPEN_TIMEOUT_MS);
+			const migrated = await adoptLegacyCopilotCliResource(connection, resource, logService, telemetryService, 'open', LEGACY_MIGRATION_OPEN_TIMEOUT_MS);
 			if (!migrated) {
 				// Not adopted. This also covers timeout/failure/no-connection, so
 				// re-check the marker on the refreshed result: only an external
@@ -174,6 +174,7 @@ function createFallbackAgentSession(resource: URI): IAgentSession {
 export async function openSessionByResource(accessor: ServicesAccessor, resource: URI, openOptions?: ISessionOpenOptions): Promise<IChatWidget | undefined> {
 	const instantiationService = accessor.get(IInstantiationService);
 	const logService = accessor.get(ILogService);
+	const chatSessionsService = accessor.get(IChatSessionsService);
 
 	const twin = migratedCopilotCliResource(resource);
 	// A superseded legacy resource is redirected (and adopted) before anything
@@ -181,7 +182,7 @@ export async function openSessionByResource(accessor: ServicesAccessor, resource
 	const migratedSession = await resolveMigratedSessionForOpen(accessor, resource);
 	if (migratedSession) {
 		resource = migratedSession.resource;
-	} else if (twin && instantiationService.invokeFunction(accessor => isLegacyMigrationEnabledAtStartup(accessor.get(IConfigurationService)) && (!accessor.get(IAgentSessionsService).getSession(resource) || !accessor.get(IChatSessionsService).getChatSessionContribution?.(resource.scheme)))) {
+	} else if (twin && (!instantiationService.invokeFunction(accessor => accessor.get(IAgentSessionsService).getSession(resource)) || !await canOpenLegacyCopilotCliResource(chatSessionsService, resource))) {
 		resource = twin;
 	}
 
@@ -211,7 +212,7 @@ export async function openSessionByResource(accessor: ServicesAccessor, resource
 }
 
 /**
- * With `chat.agentSessions.openInEditor`, sessions open like files: an existing
+ * While `chat.viewSessions.openChatIn` is `editorArea`, sessions open like files: an existing
  * editor is revealed, including an inactive tab without a widget, while a session
  * shown in the Chat view opens in a new editor, which moves it out of the Chat view.
  */
@@ -223,6 +224,7 @@ export function shouldRevealSessionEditor(chatWidgetService: IChatWidgetService,
 export async function openSession(accessor: ServicesAccessor, session: IAgentSession, openOptions?: ISessionOpenOptions, alreadyResolved?: boolean): Promise<IChatWidget | undefined> {
 	const instantiationService = accessor.get(IInstantiationService);
 	const logService = accessor.get(ILogService);
+	const chatSessionsService = accessor.get(IChatSessionsService);
 
 	logService.trace(`[AgentSessions] openSession start: ${session.resource.toString()}`);
 
@@ -234,7 +236,7 @@ export async function openSession(accessor: ServicesAccessor, session: IAgentSes
 		const migratedSession = await resolveMigratedSessionForOpen(accessor, session.resource);
 		if (migratedSession) {
 			session = migratedSession;
-		} else if (twin && instantiationService.invokeFunction(accessor => isLegacyMigrationEnabledAtStartup(accessor.get(IConfigurationService)) && !accessor.get(IChatSessionsService).getChatSessionContribution?.(session.resource.scheme))) {
+		} else if (twin && !await canOpenLegacyCopilotCliResource(chatSessionsService, session.resource)) {
 			session = { ...session, resource: twin, providerType: getChatSessionType(twin) };
 		}
 	}
@@ -262,6 +264,7 @@ async function openSessionDefault(accessor: ServicesAccessor, session: IAgentSes
 	const configurationService = accessor.get(IConfigurationService);
 	const notificationService = accessor.get(INotificationService);
 	const logService = accessor.get(ILogService);
+	const environmentService = accessor.get(IWorkbenchEnvironmentService);
 
 	try {
 		session.setRead(true); // mark as read when opened
@@ -283,7 +286,8 @@ async function openSessionDefault(accessor: ServicesAccessor, session: IAgentSes
 		logService.trace(`[AgentSessions] openSession: provider '${session.providerType}' activated for ${session.resource.toString()}`);
 
 		let target: typeof SIDE_GROUP | typeof ACTIVE_GROUP | typeof ChatViewPaneTarget | undefined;
-		if (configurationService.getValue<boolean>(ChatConfiguration.OpenSessionsInEditor)) {
+		// The Agents window keeps its own presentation: the setting is shared with it
+		if (configurationService.getValue<string>(ChatConfiguration.ChatViewSessionsOpenChatIn) === ChatViewSessionsOpenChatIn.EditorArea && !environmentService.isSessionsWindow) {
 			// Like files: a click opens the session in the active group, a modifier-click to the side.
 			target = openOptions?.sideBySide ? SIDE_GROUP : ACTIVE_GROUP;
 			options = { ...options, revealIfOpened: !openOptions?.sideBySide && shouldRevealSessionEditor(chatWidgetService, session.resource) };

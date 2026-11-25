@@ -12,6 +12,7 @@ import { InstantiationType, registerSingleton } from '../../../../../../platform
 export interface IOutputPartState {
 	height: number;
 	webviewState?: string;
+	showingSource?: boolean;
 }
 
 export const IChatOutputPartStateCache = createDecorator<IChatOutputPartStateCache>('IChatOutputPartStateCache');
@@ -65,7 +66,11 @@ export class ChatOutputPartStateCache implements IChatOutputPartStateCache {
 			for (const key in data) {
 				const state = data[key];
 				if (typeof state.height === 'number') {
-					this._cache.set(key, { height: state.height, webviewState: typeof state.webviewState === 'string' ? state.webviewState : undefined });
+					this._cache.set(key, {
+						height: state.height,
+						webviewState: typeof state.webviewState === 'string' ? state.webviewState : undefined,
+						showingSource: typeof state.showingSource === 'boolean' ? state.showingSource : undefined,
+					});
 				}
 			}
 		} catch {

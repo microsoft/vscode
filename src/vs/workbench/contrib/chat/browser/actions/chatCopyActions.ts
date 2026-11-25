@@ -5,7 +5,7 @@
 
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import * as dom from '../../../../../base/browser/dom.js';
-import { disposableTimeout } from '../../../../../base/common/async.js';
+import { CopyFeedback } from '../../../../../base/browser/ui/button/copyFeedback.js';
 import { IActionRunner } from '../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
@@ -43,13 +43,15 @@ import { IAgentHostUntitledProvisionalSessionService } from '../agentSessions/ag
 import { isUntitledChatSession } from '../../common/model/chatUri.js';
 
 const CopyItemActionId = 'workbench.action.chat.copyItem';
-const copyFeedbackDuration = 1200;
 const copyIconClasses = ThemeIcon.asClassNameArray(Codicon.copy);
 const copiedIconClasses = ThemeIcon.asClassNameArray(Codicon.check);
 
 export class ChatCopyActionViewItem extends MenuEntryActionViewItem {
 
-	private readonly copiedStateReset = this._register(new MutableDisposable());
+	private readonly feedback = this._register(new CopyFeedback(copied => {
+		this.copied = copied;
+		this.renderCopiedState();
+	}));
 	private readonly actionRunnerListener = this._register(new MutableDisposable());
 	private copied = false;
 
@@ -125,13 +127,7 @@ export class ChatCopyActionViewItem extends MenuEntryActionViewItem {
 				return;
 			}
 
-			this.copied = true;
-			this.renderCopiedState();
-			this.copiedStateReset.value = disposableTimeout(() => {
-				this.copied = false;
-				this.renderCopiedState();
-			}, copyFeedbackDuration);
-			status(localize('interactive.copyItem.status', "Copied to clipboard"));
+			this.feedback.show();
 		});
 	}
 }
@@ -429,7 +425,7 @@ export function registerChatCopyActions() {
 
 			// Otherwise, fallback to querying from the active element
 			if (!selectedElement) {
-				// eslint-disable-next-line no-restricted-syntax
+				// eslint-disable-next-line eslint-js/no-restricted-syntax
 				selectedElement = activeElement?.querySelector(`.${katexContainerClassName}`) ?? null;
 			}
 

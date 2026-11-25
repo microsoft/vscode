@@ -8,32 +8,27 @@ import { getErrorCode } from '../../../../../../base/common/errors.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
-import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
-import { ChatConfiguration } from '../../../common/constants.js';
 import { AgentSession, IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { getTelemetryMigrationErrorMessage, getTelemetryMigrationSessionId } from '../../../../../../platform/agentHost/common/agentTelemetryCorrelation.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import type { SessionState } from '../../../../../../platform/agentHost/common/state/protocol/channels-session/state.js';
 import { COPILOT_CLI_AGENT_PROVIDER, getCopilotCliSessionRawId, migratedCopilotCliResource } from '../../copilotCliEventsUri.js';
+import { isUntitledChatSession } from '../../../common/model/chatUri.js';
+import { IChatSessionsService } from '../../../common/chatSessionsService.js';
 
 /**
- * Startup-frozen value of {@link ChatConfiguration.MigrateLegacyCopilotCliSessions}.
- * Migration is a one-time, one-way operation, so enabling the setting only takes
- * effect on the next window reload: until then an open must behave as if it were
- * still off. {@link primeLegacyMigrationStartupSnapshot} captures the value once at
- * startup; before that (only in tests) the live value is used so each test's stub
- * is honored in isolation.
+ * Whether the extension-host Copilot CLI provider can still open a legacy resource that was
+ * not adopted. Before the Copilot extension activates its contribution can look available
+ * although the extension will not register the provider, so an available contribution is
+ * confirmed by resolving it. That waits only where opening the legacy resource would wait anyway.
  */
-let _legacyMigrationEnabledAtStartup: boolean | undefined;
-
-export function primeLegacyMigrationStartupSnapshot(configurationService: IConfigurationService): void {
-	_legacyMigrationEnabledAtStartup = configurationService.getValue<boolean>(ChatConfiguration.MigrateLegacyCopilotCliSessions) === true;
-}
-
-export function isLegacyMigrationEnabledAtStartup(configurationService: IConfigurationService): boolean {
-	return _legacyMigrationEnabledAtStartup ?? (configurationService.getValue<boolean>(ChatConfiguration.MigrateLegacyCopilotCliSessions) === true);
+export async function canOpenLegacyCopilotCliResource(chatSessionsService: IChatSessionsService, resource: URI): Promise<boolean> {
+	if (!chatSessionsService.getChatSessionContribution?.(resource.scheme)) {
+		return false;
+	}
+	return chatSessionsService.canResolveChatSession ? chatSessionsService.canResolveChatSession(resource.scheme) : true;
 }
 
 /**
@@ -62,28 +57,24 @@ export type LegacyMigrationProbeSource = 'open' | 'restore';
 
 type LegacyMigrationProbeEvent = {
 	source: string;
-	outcome: 'adopted' | 'declined' | 'timedOut' | 'settingDisabled' | 'noConnection' | 'failed';
-	reason: 'adopted' | 'initialStateError' | 'stateChangeError' | 'subscriptionError' | 'missingErrorEvent' | 'emptyState' | 'timedOut' | 'settingDisabled' | 'noConnection' | 'invalidSessionId' | 'exception';
+	outcome: 'adopted' | 'declined' | 'timedOut' | 'noConnection' | 'failed';
+	reason: 'adopted' | 'initialStateError' | 'stateChangeError' | 'subscriptionError' | 'missingErrorEvent' | 'emptyState' | 'timedOut' | 'noConnection' | 'invalidSessionId' | 'exception';
 	migrationSessionId: string | undefined;
 	errorCode: string | undefined;
 	errorMessage: string | undefined;
-	settingEnabledAtStartup: boolean;
-	settingEnabledNow: boolean;
 	durationMs: number;
 	timeoutMs: number;
 };
 
 type LegacyMigrationProbeClassification = {
 	source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Entry point that probed: open (user opened a session) or restore (startup/editor restore).' };
-	outcome: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Probe outcome: adopted (the host migrated the session; the caller may still fall back if it does not surface — see agentHost.legacyCopilotCliMigrationOpen), declined (host refused, e.g. not an adoptable legacy chat), timedOut (no answer within the budget), settingDisabled, noConnection, or failed (probe threw).' };
+	outcome: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Probe outcome: adopted (the host migrated the session; the caller may still fall back if it does not surface — see agentHost.legacyCopilotCliMigrationOpen), declined (host refused, e.g. not an adoptable legacy chat), timedOut (no answer within the budget), noConnection, or failed (probe threw).' };
 	durationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds spent probing before the outcome was known.' };
 	timeoutMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The probe budget that applied, so timeouts can be correlated with the entry point.' };
 	reason: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Bounded probe decision or subscription failure path. Does not infer provider eligibility from an error.' };
 	migrationSessionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'SHA-1 of the backend session URI, shared with host and open diagnostics. Identifies a session, not an individual retry.' };
 	errorCode: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'Exception or protocol error code, when supplied by the failed subscription or probe.' };
 	errorMessage: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'Error message from the failed subscription or probe, cleaned by the telemetry service.' };
-	settingEnabledAtStartup: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The frozen migration setting used for this probe.' };
-	settingEnabledNow: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The current migration setting, to distinguish a pending restart from a disabled setting.' };
 	owner: 'vijayupadya';
 	comment: 'Counts adopt-on-open probe attempts for legacy extension-host Copilot CLI sessions. The host-side agentHost.legacyCopilotCliMigration event only fires once migration starts, so without this there is no denominator for a success rate and a silently-unmigrated open is indistinguishable from a user having no legacy sessions.';
 };
@@ -107,21 +98,19 @@ export async function adoptLegacyCopilotCliResource(
 	connection: IAgentConnection | undefined,
 	resource: URI,
 	logService: ILogService,
-	configurationService: IConfigurationService,
 	telemetryService: ITelemetryService,
 	source: LegacyMigrationProbeSource,
 	timeoutMs: number = LEGACY_MIGRATION_TIMEOUT_MS,
 ): Promise<URI | undefined> {
 	const twin = migratedCopilotCliResource(resource);
-	if (!twin) {
+	// An unsaved draft has no history to migrate, and probing it can wait on a cold host.
+	if (!twin || isUntitledChatSession(resource)) {
 		return undefined;
 	}
 	const startedAt = Date.now();
 	const rawId = getCopilotCliSessionRawId(twin);
 	const backendSession = rawId ? AgentSession.uri(COPILOT_CLI_AGENT_PROVIDER, rawId) : undefined;
 	const migrationSessionId = backendSession ? getTelemetryMigrationSessionId(backendSession) : undefined;
-	const settingEnabledAtStartup = isLegacyMigrationEnabledAtStartup(configurationService);
-	const settingEnabledNow = configurationService.getValue<boolean>(ChatConfiguration.MigrateLegacyCopilotCliSessions) === true;
 	// Reported only for resources that are actually legacy sessions, so the event
 	// counts migration opportunities rather than every open in the product.
 	const report = (outcome: LegacyMigrationProbeEvent['outcome'], reason: LegacyMigrationProbeEvent['reason'], error?: unknown) => {
@@ -132,8 +121,6 @@ export async function adoptLegacyCopilotCliResource(
 			migrationSessionId,
 			errorCode: getErrorCode(error),
 			errorMessage: getTelemetryMigrationErrorMessage(error, resource),
-			settingEnabledAtStartup,
-			settingEnabledNow,
 			durationMs: Date.now() - startedAt,
 			timeoutMs,
 		};
@@ -145,16 +132,6 @@ export async function adoptLegacyCopilotCliResource(
 	};
 	if (!connection) {
 		report('noConnection', 'noConnection');
-		return undefined;
-	}
-	// The host restores a session whether or not it adopts it, so a successful
-	// probe does not by itself mean migration happened. Gate on the setting here:
-	// without it we would move sessions onto the agent host for users who never
-	// opted in — including external ones, which are never adopted at all. The gate
-	// is the startup-frozen value: enabling migration takes effect on the next
-	// window reload, so an open before reload behaves as if it were still off.
-	if (!settingEnabledAtStartup) {
-		report('settingDisabled', 'settingDisabled');
 		return undefined;
 	}
 	if (!backendSession) {
@@ -185,8 +162,18 @@ export async function adoptLegacyCopilotCliResource(
 	}
 }
 
+/**
+ * Which list row a migration open started from. An agent-host row carries the
+ * exact backend session URI, so its report correlates with the host's event
+ * however the host addresses the session.
+ */
+export type LegacyMigrationOpenRow =
+	| { readonly entry: 'legacyRow' }
+	| { readonly entry: 'agentHostRow'; readonly backendSession: URI };
+
 type LegacyMigrationOpenEvent = {
 	source: string;
+	entry: LegacyMigrationOpenRow['entry'];
 	surfaced: boolean;
 	migrationSessionId: string | undefined;
 	reason: 'surfaced' | 'sessionNotSurfaced' | 'resolveFailed';
@@ -196,7 +183,8 @@ type LegacyMigrationOpenEvent = {
 
 type LegacyMigrationOpenClassification = {
 	source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Entry point that opened: open (user opened a session) or restore (startup/editor restore).' };
-	surfaced: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the migrated session was found and opened. False means the open fell back to the legacy session the host had just migrated away from.' };
+	entry: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The row opened: legacyRow (the extension-host session, adopted through the client probe) or agentHostRow (the un-adopted session listed by the agent host, which the host adopts when the open subscribes to it, with no probe event).' };
+	surfaced: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the migrated session was found and opened. False means the open fell back to the legacy session the host had just migrated away from, or, for agentHostRow, that the host did not adopt the session within the open budget.' };
 	migrationSessionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'SHA-1 of the backend session URI, shared with probe and host diagnostics; not an attempt identifier.' };
 	reason: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether resolution succeeded, returned no session, or encountered a provider/resolution error.' };
 	errorCode: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'Exception or protocol error code when resolving the migrated session failed.' };
@@ -210,12 +198,15 @@ type LegacyMigrationOpenClassification = {
  * succeeding does not mean the caller could open it, and that fallback is the
  * failure this telemetry exists to catch.
  */
-export function reportLegacyMigrationOpen(telemetryService: ITelemetryService, source: LegacyMigrationProbeSource, resource: URI, surfaced: boolean, error?: unknown): void {
+export function reportLegacyMigrationOpen(telemetryService: ITelemetryService, source: LegacyMigrationProbeSource, resource: URI, surfaced: boolean, error?: unknown, row: LegacyMigrationOpenRow = { entry: 'legacyRow' }): void {
 	const rawId = getCopilotCliSessionRawId(resource);
 	const data: LegacyMigrationOpenEvent = {
 		source,
+		entry: row.entry,
 		surfaced,
-		migrationSessionId: rawId ? getTelemetryMigrationSessionId(AgentSession.uri(COPILOT_CLI_AGENT_PROVIDER, rawId)) : undefined,
+		migrationSessionId: row.entry === 'agentHostRow'
+			? getTelemetryMigrationSessionId(row.backendSession)
+			: rawId ? getTelemetryMigrationSessionId(AgentSession.uri(COPILOT_CLI_AGENT_PROVIDER, rawId)) : undefined,
 		reason: error !== undefined ? 'resolveFailed' : surfaced ? 'surfaced' : 'sessionNotSurfaced',
 		errorCode: getErrorCode(error),
 		errorMessage: getTelemetryMigrationErrorMessage(error, resource),

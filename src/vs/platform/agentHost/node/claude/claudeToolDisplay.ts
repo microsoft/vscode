@@ -8,6 +8,7 @@ import { appendEscapedMarkdownInlineCode, escapeMarkdownLinkLabel } from '../../
 import { basename } from '../../../../base/common/resources.js';
 import { truncate } from '../../../../base/common/strings.js';
 import { URI } from '../../../../base/common/uri.js';
+import { AgentPermissionKind } from '../../common/agent.js';
 import { getStreamingCreateMessage, getStreamingEditMessage, getStreamingReplaceMessage, streamingToolTextLineCount } from '../../common/streamingToolCallDisplay.js';
 import { toToolCallMeta, type IToolCallMeta, type ToolKind } from '../../common/meta/agentToolCallMeta.js';
 import type { StringOrMarkdown } from '../../common/state/protocol/state.js';
@@ -21,27 +22,10 @@ import { getServerToolDisplay } from '../shared/serverToolGroups.js';
  * here (and is snapshot-tested in
  * [claudeToolDisplay.test.ts](../../test/node/claudeToolDisplay.test.ts))
  * so renames of either the SDK tool names or the host's `permissionKind`
- * union flow through compile-checks and the snapshot diff.
+ * enum flow through compile-checks and the snapshot diff.
  *
  * No I/O, no DI; safe to import from any layer of `agentHost`.
  */
-
-/**
- * Auto-approval kind reported alongside `pending_confirmation` signals
- * (see `IAgentToolPendingConfirmationSignal.permissionKind` in
- * [agentService.ts:317](../../common/agentService.ts#L317)).
- *
- * Phase 7 only emits the subset relevant to Claude's built-in tools —
- * `hook` and `memory` are reserved for later phases.
- */
-export type ClaudePermissionKind =
-	| 'shell'
-	| 'write'
-	| 'mcp'
-	| 'read'
-	| 'url'
-	| 'skill'
-	| 'custom-tool';
 
 /**
  * Phase 8.5 — rendering hint for the workbench. Drives terminal /
@@ -73,7 +57,7 @@ type ClaudeToolPathField = 'file_path' | 'notebook_path' | 'path' | 'url';
  * {@link getClaudeToolDisplayName}.
  */
 interface ClaudeToolRow {
-	readonly permissionKind: ClaudePermissionKind;
+	readonly permissionKind: AgentPermissionKind;
 	/** Field on `tool_input` carrying the path/url for this tool, if any. */
 	readonly pathField?: ClaudeToolPathField;
 	/** True for tools whose execution writes to disk and is tracked by `FileEditTracker` (Phase 8). */
@@ -95,41 +79,41 @@ const TOOL_ROWS: { readonly [toolName: string]: ClaudeToolRow } = {
 	// Shell tools — no `language` is carried. The SDK calls its generic
 	// command tool `Bash`, but the command may invoke bash, pwsh, or any
 	// other executable, so claiming a specific dialect would be misleading.
-	Bash: { permissionKind: 'shell', toolKind: 'terminal' },
-	BashOutput: { permissionKind: 'shell', toolKind: 'terminal' },
-	KillBash: { permissionKind: 'shell', toolKind: 'terminal' },
+	Bash: { permissionKind: AgentPermissionKind.Shell, toolKind: 'terminal' },
+	BashOutput: { permissionKind: AgentPermissionKind.Shell, toolKind: 'terminal' },
+	KillBash: { permissionKind: AgentPermissionKind.Shell, toolKind: 'terminal' },
 
 	// read tools
-	Read: { permissionKind: 'read', pathField: 'file_path', toolKind: 'read' },
-	Glob: { permissionKind: 'read', pathField: 'path', toolKind: 'search' },
-	Grep: { permissionKind: 'read', pathField: 'path', toolKind: 'search' },
-	LS: { permissionKind: 'read', pathField: 'path' },
-	NotebookRead: { permissionKind: 'read', pathField: 'notebook_path', toolKind: 'read' },
+	Read: { permissionKind: AgentPermissionKind.Read, pathField: 'file_path', toolKind: 'read' },
+	Glob: { permissionKind: AgentPermissionKind.Read, pathField: 'path', toolKind: 'search' },
+	Grep: { permissionKind: AgentPermissionKind.Read, pathField: 'path', toolKind: 'search' },
+	LS: { permissionKind: AgentPermissionKind.Read, pathField: 'path' },
+	NotebookRead: { permissionKind: AgentPermissionKind.Read, pathField: 'notebook_path', toolKind: 'read' },
 
 	// write tools
-	Write: { permissionKind: 'write', pathField: 'file_path', isFileEdit: true },
-	Edit: { permissionKind: 'write', pathField: 'file_path', isFileEdit: true },
-	MultiEdit: { permissionKind: 'write', pathField: 'file_path', isFileEdit: true },
-	NotebookEdit: { permissionKind: 'write', pathField: 'notebook_path', isFileEdit: true },
-	TodoWrite: { permissionKind: 'write' },
+	Write: { permissionKind: AgentPermissionKind.Write, pathField: 'file_path', isFileEdit: true },
+	Edit: { permissionKind: AgentPermissionKind.Write, pathField: 'file_path', isFileEdit: true },
+	MultiEdit: { permissionKind: AgentPermissionKind.Write, pathField: 'file_path', isFileEdit: true },
+	NotebookEdit: { permissionKind: AgentPermissionKind.Write, pathField: 'notebook_path', isFileEdit: true },
+	TodoWrite: { permissionKind: AgentPermissionKind.Write },
 
 	// network tools
-	WebFetch: { permissionKind: 'url', pathField: 'url' },
+	WebFetch: { permissionKind: AgentPermissionKind.Url, pathField: 'url' },
 
 	// host-routed / custom
-	Task: { permissionKind: 'custom-tool', toolKind: 'subagent' },
-	Agent: { permissionKind: 'custom-tool', toolKind: 'subagent' },
-	ExitPlanMode: { permissionKind: 'custom-tool', interactive: true },
-	AskUserQuestion: { permissionKind: 'custom-tool', interactive: true },
+	Task: { permissionKind: AgentPermissionKind.CustomTool, toolKind: 'subagent' },
+	Agent: { permissionKind: AgentPermissionKind.CustomTool, toolKind: 'subagent' },
+	ExitPlanMode: { permissionKind: AgentPermissionKind.CustomTool, interactive: true },
+	AskUserQuestion: { permissionKind: AgentPermissionKind.CustomTool, interactive: true },
 
 	// skill + task-list family — host-routed custom tools that render in the
 	// generic tool renderer (no `toolKind`) but carry rich invocation /
 	// past-tense messages so their collapsed row is self-explanatory.
-	Skill: { permissionKind: 'skill' },
-	TaskCreate: { permissionKind: 'custom-tool' },
-	TaskUpdate: { permissionKind: 'custom-tool' },
-	TaskList: { permissionKind: 'custom-tool' },
-	TaskGet: { permissionKind: 'custom-tool' },
+	Skill: { permissionKind: AgentPermissionKind.Skill },
+	TaskCreate: { permissionKind: AgentPermissionKind.CustomTool },
+	TaskUpdate: { permissionKind: AgentPermissionKind.CustomTool },
+	TaskList: { permissionKind: AgentPermissionKind.CustomTool },
+	TaskGet: { permissionKind: AgentPermissionKind.CustomTool },
 };
 
 const MCP_TOOL_PREFIX = 'mcp__';
@@ -138,15 +122,15 @@ const MCP_TOOL_PREFIX = 'mcp__';
  * S4 row lookup. Falls back to `'custom-tool'` for unknown tools so
  * Claude's growing built-in list never breaks the host.
  */
-export function getClaudePermissionKind(toolName: string): ClaudePermissionKind {
+export function getClaudePermissionKind(toolName: string): AgentPermissionKind {
 	const row = TOOL_ROWS[toolName];
 	if (row) {
 		return row.permissionKind;
 	}
 	if (toolName.startsWith(MCP_TOOL_PREFIX)) {
-		return 'mcp';
+		return AgentPermissionKind.Mcp;
 	}
-	return 'custom-tool';
+	return AgentPermissionKind.CustomTool;
 }
 
 /**
@@ -251,17 +235,17 @@ export const INTERACTIVE_CLAUDE_TOOLS: ReadonlySet<string> = new Set(
  */
 export function getClaudeConfirmationTitle(toolName: string): string {
 	switch (getClaudePermissionKind(toolName)) {
-		case 'shell':
+		case AgentPermissionKind.Shell:
 			return localize('claude.permission.shell.title', "Run in terminal?");
-		case 'write':
+		case AgentPermissionKind.Write:
 			return localize('claude.permission.write.title', "Edit file?");
-		case 'read':
+		case AgentPermissionKind.Read:
 			return localize('claude.permission.read.title', "Read file?");
-		case 'url':
+		case AgentPermissionKind.Url:
 			return localize('claude.permission.url.title', "Fetch URL?");
-		case 'skill':
+		case AgentPermissionKind.Skill:
 			return localize('claude.permission.skill.title', "Run skill?");
-		case 'mcp': {
+		case AgentPermissionKind.Mcp: {
 			const serverName = toolName.startsWith(MCP_TOOL_PREFIX)
 				? toolName.slice(MCP_TOOL_PREFIX.length).split('__')[0]
 				: undefined;
@@ -269,7 +253,7 @@ export function getClaudeConfirmationTitle(toolName: string): string {
 				? localize('claude.permission.mcp.title', "Allow tool from {0}?", serverName)
 				: localize('claude.permission.default.title', "Allow tool call?");
 		}
-		case 'custom-tool':
+		case AgentPermissionKind.CustomTool:
 		default:
 			return localize('claude.permission.default.title', "Allow tool call?");
 	}

@@ -122,8 +122,8 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 				const id = ++this._serverIdCounter;
 				const launch = new ExtHostMcpServerLaunch(
 					_extHostContext.extensionHostKind,
-					() => proxy.$stopMcp(id),
-					msg => proxy.$sendMessage(id, JSON.stringify(msg)),
+					id,
+					proxy,
 				);
 				this._servers.set(id, launch);
 				this._serverDefinitions.set(id, serverDefiniton);
@@ -675,14 +675,22 @@ class ExtHostMcpServerLaunch extends Disposable implements IMcpMessageTransport 
 
 	constructor(
 		extHostKind: ExtensionHostKind,
-		public readonly stop: () => void,
-		public readonly send: (message: MCP.JSONRPCMessage) => void,
+		private readonly _serverId: number,
+		private readonly _proxy: Proxied<ExtHostMcpShape>,
 	) {
 		super();
 
 		this._register(disposableTimeout(() => {
 			this.pushLog(LogLevel.Info, `Starting server from ${extensionHostKindToString(extHostKind)} extension host`);
 		}));
+	}
+
+	public stop(): Promise<void> {
+		return this._proxy.$stopMcp(this._serverId);
+	}
+
+	public send(message: MCP.JSONRPCMessage): Promise<void> {
+		return this._proxy.$sendMessage(this._serverId, JSON.stringify(message));
 	}
 
 	public extHostDispose() {

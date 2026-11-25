@@ -5,12 +5,14 @@
 
 import assert from 'assert';
 import { DeferredPromise, raceCancellationError } from '../../../../base/common/async.js';
-import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
+import { GitHubCredential, GitHubCredentialInvalidation, IGitHubCredentials } from '../../common/githubCredentialService.js';
 import {
 	PullRequestFragment,
 	PullRequestRef,
@@ -19,7 +21,6 @@ import {
 	PullRequestSubscription,
 	PullRequestSubscriptionOptions,
 } from '../../common/githubPullRequestService.js';
-import { GitHubCredential, GitHubCredentialInvalidation, IGitHubCredentials } from '../../common/githubCredentialService.js';
 import { FetchFunction, GitHubRequestError, GitHubTransport } from '../../common/githubTransport.js';
 import { PullRequestMutationService } from '../../common/pullRequestMutationService.js';
 import { PullRequestQueryService } from '../../common/pullRequestQueryService.js';
@@ -27,6 +28,7 @@ import { IPullRequestResources, PullRequestResourceService } from '../../common/
 import { FakeScheduler } from './fakeScheduler.js';
 import { nodeFetch } from './nodeFetch.js';
 import {
+	ProgrammableGitHubServer,
 	gitHubDisconnectResponse,
 	gitHubGraphQLResponse,
 	gitHubGraphQLStep,
@@ -34,8 +36,8 @@ import {
 	gitHubRawResponse,
 	gitHubRedirectResponse,
 	gitHubRestStep,
-	ProgrammableGitHubServer,
 } from './programmableGitHubServer.js';
+
 
 const operationMarker = '<!-- vscode-agent-host-operation:operation-1 -->';
 
@@ -43,26 +45,26 @@ class TestCredentialService implements IGitHubCredentials, IDisposable {
 
 	private readonly _onDidInvalidate = new Emitter<GitHubCredentialInvalidation>();
 	readonly onDidInvalidate = this._onDidInvalidate.event;
-	private readonly _controller = new AbortController();
+	private readonly _controller = new CancellationTokenSource();
 
 	constructor(private readonly _account: { readonly host: string; readonly accountId: string }) { }
 
-	getCredential(signal: AbortSignal): Promise<GitHubCredential> {
-		if (signal.aborted) {
-			return Promise.reject(signal.reason);
+	getCredential(cancellationToken: CancellationToken): Promise<GitHubCredential> {
+		if (cancellationToken.isCancellationRequested) {
+			return Promise.reject(new CancellationError());
 		}
 		return Promise.resolve({
 			account: this._account,
 			token: 'token',
 			generation: 1,
-			signal: this._controller.signal,
+			cancellationToken: this._controller.token,
 		});
 	}
 
 	handleRequestError(): void { }
 
 	dispose(): void {
-		this._controller.abort(new Error('disposed'));
+		this._controller.cancel();
 		this._onDidInvalidate.dispose();
 	}
 }
@@ -145,7 +147,7 @@ suite('PullRequestMutationService', () => {
 		const credentials = disposables.add(new TestCredentialService(account));
 		const transport = disposables.add(new GitHubTransport(nodeFetch, scheduler, true));
 		const query = new PullRequestQueryService(transport, {
-			getCapabilities: async () => ({ graphql: true, reviewThreads: true, mergeQueue: false, checkContextRequiredness: false }),
+			getCapabilities: async () => ({ graphql: true, reviewThreads: true, mergeQueue: false, mergeQueueRemovals: false, checkContextRequiredness: false }),
 		}, server.createEndpointService());
 		const resources = disposables.add(new PullRequestResourceService(scheduler, undefined, credentials, query, new NullLogService()));
 		const service = disposables.add(new PullRequestMutationService(scheduler, credentials, transport, resources, server.createEndpointService()));
@@ -164,7 +166,7 @@ suite('PullRequestMutationService', () => {
 				let refreshes = 0;
 				resources.refreshHandler = () => { refreshes++; };
 
-				await assert.rejects(() => service.replyAndResolveThread(ref, { operationId: 'operation-1', threadId: 'T1', body: 'reply', resolve: true }, signal()), {
+				await assert.rejects(() => service.replyAndResolveThread(ref, { operationId: 'operation-1', threadId: 'T1', body: 'reply', resolve: true }, cancellationToken()), {
 					name: 'GitHubRequestError', kind: 'rateLimit', statusCode: 200, graphQLErrors: errors,
 				});
 				assert.deepStrictEqual({ requests: server.requests.length, refreshes, invalidations: resources.invalidations }, {
@@ -191,7 +193,7 @@ suite('PullRequestMutationService', () => {
 						reviewThreads: { status: 'ready', complete: false, value: [] },
 					});
 				};
-				const result = await service.replyAndResolveThread(ref, { operationId: 'operation-1', body: 'hello', threadId: 'T1', resolve: true }, signal());
+				const result = await service.replyAndResolveThread(ref, { operationId: 'operation-1', body: 'hello', threadId: 'T1', resolve: true }, cancellationToken());
 				assert.deepStrictEqual({ result, writes }, { result: { reply: { outcome: 'indeterminate' }, resolved: false }, writes: 1 });
 			});
 		});
@@ -223,7 +225,7 @@ suite('PullRequestMutationService', () => {
 					throw new Error('A queued write must not require reconciliation');
 				};
 				const service = disposables.add(new PullRequestMutationService(scheduler, credentials, transport, resources, server.createEndpointService()));
-				const pending = service.replyAndResolveThread(ref, { operationId: 'operation-1', body: 'hello', threadId: 'T1', resolve }, signal());
+				const pending = service.replyAndResolveThread(ref, { operationId: 'operation-1', body: 'hello', threadId: 'T1', resolve }, cancellationToken());
 				const rejected = assert.rejects(pending, { kind: 'timeout' });
 				await new Promise(resolve => setTimeout(resolve, 0));
 				scheduler.advanceBy(10);
@@ -247,7 +249,7 @@ suite('PullRequestMutationService', () => {
 					threadId: 'T1',
 					body: 'reply',
 					resolve: true,
-				}, signal()),
+				}, cancellationToken()),
 				/reply rejected/,
 			);
 
@@ -281,7 +283,7 @@ suite('PullRequestMutationService', () => {
 
 			const result = await service.replyAndResolveThread(ref, {
 				operationId: 'operation-1', threadId: 'T1', body: 'reply', resolve: true,
-			}, signal());
+			}, cancellationToken());
 
 			assert.deepStrictEqual({
 				reply: result.reply.outcome,
@@ -319,7 +321,7 @@ suite('PullRequestMutationService', () => {
 
 				const result = await service.replyAndResolveThread(ref, {
 					operationId: 'operation-1', threadId: 'T1', body: 'reply', resolve,
-				}, signal());
+				}, cancellationToken());
 
 				assert.deepStrictEqual({
 					reply: result.reply.outcome,
@@ -344,7 +346,7 @@ suite('PullRequestMutationService', () => {
 
 				const result = await service.replyAndResolveThread(ref, {
 					operationId: 'operation-1', threadId: 'T1', body: 'reply', resolve: true,
-				}, signal());
+				}, cancellationToken());
 
 				assert.deepStrictEqual({
 					reply: result.reply.outcome,
@@ -425,7 +427,7 @@ suite('PullRequestMutationService', () => {
 
 				const result = await service.replyAndResolveThread(ref, {
 					operationId: 'operation-1', threadId: 'T1', body: 'reply', resolve: true,
-				}, signal());
+				}, cancellationToken());
 
 				assert.deepStrictEqual({
 					reply: result.reply.outcome,
@@ -482,7 +484,7 @@ suite('PullRequestMutationService', () => {
 				threadId: 'T1',
 				body: 'reply',
 				resolve: true,
-			}, signal());
+			}, cancellationToken());
 
 			assert.deepStrictEqual({
 				result,
@@ -532,7 +534,7 @@ suite('PullRequestMutationService', () => {
 						},
 					});
 				};
-				const { reply, resolved } = await service.replyAndResolveThread(ref, { operationId: 'operation-1', threadId: 'T1', body: 'reply', resolve: false }, signal());
+				const { reply, resolved } = await service.replyAndResolveThread(ref, { operationId: 'operation-1', threadId: 'T1', body: 'reply', resolve: false }, cancellationToken());
 				assert.deepStrictEqual({
 					outcome: reply.outcome, commentId: reply.value?.id, resolved, refreshes,
 					requests: server.requests.map(request => request.graphQl?.variables),
@@ -580,7 +582,7 @@ suite('PullRequestMutationService', () => {
 				threadId: 'T1',
 				body: 'reply',
 				resolve: true,
-			}, signal());
+			}, cancellationToken());
 
 			assert.deepStrictEqual({
 				result,
@@ -637,7 +639,7 @@ suite('PullRequestMutationService', () => {
 					threadId: 'T1',
 					body: 'reply',
 					resolve: true,
-				}, signal()),
+				}, cancellationToken()),
 				error => error instanceof Error && error.message.includes('thread missing'),
 			);
 
@@ -681,8 +683,8 @@ suite('PullRequestMutationService', () => {
 				failedJobsOnly: true,
 			};
 
-			const first = await service.rerunWorkflow(ref, options, signal());
-			const second = await service.rerunWorkflow(ref, options, signal());
+			const first = await service.rerunWorkflow(ref, options, cancellationToken());
+			const second = await service.rerunWorkflow(ref, options, cancellationToken());
 
 			assert.deepStrictEqual({
 				first,
@@ -708,7 +710,7 @@ suite('PullRequestMutationService', () => {
 					}),
 				);
 				const { ref, service } = setup(server);
-				const result = await service.rerunWorkflow(ref, { runId: '10', operationId: 'operation-1', expectedRunAttempt: 1 }, signal());
+				const result = await service.rerunWorkflow(ref, { runId: '10', operationId: 'operation-1', expectedRunAttempt: 1 }, cancellationToken());
 				assert.deepStrictEqual(result, {
 					outcome: 'reconciled', value: { ...workflowRunNormalized('10', 2, 'QUEUED'), name },
 				});
@@ -741,7 +743,7 @@ suite('PullRequestMutationService', () => {
 			}));
 			const { ref, service } = setup(server);
 
-			const log = await service.downloadWorkflowJobLog(ref, '20', signal());
+			const log = await service.downloadWorkflowJobLog(ref, '20', cancellationToken());
 
 			assert.deepStrictEqual({
 				log,
@@ -772,7 +774,7 @@ suite('PullRequestMutationService', () => {
 						response: gitHubJsonResponse({ ...workflowRun(index + 10, 1, 'completed'), run_attempt: attempt }),
 					}),
 				);
-				const result = await service.rerunWorkflow(ref, { runId, operationId: `operation-${index}`, expectedRunAttempt: 1 }, signal());
+				const result = await service.rerunWorkflow(ref, { runId, operationId: `operation-${index}`, expectedRunAttempt: 1 }, cancellationToken());
 				assert.ok(result.value);
 				actual.push({ runAttempt: result.value.runAttempt, runAttemptKnown: result.value.runAttemptKnown });
 			}
@@ -807,7 +809,7 @@ suite('PullRequestMutationService', () => {
 					controller.close();
 				},
 			})));
-			const log = await service.downloadWorkflowJobLog(ref, '20', signal());
+			const log = await service.downloadWorkflowJobLog(ref, '20', cancellationToken());
 			assert.deepStrictEqual({
 				beyondOldLimit: prefix.length > 2 * 1024 * 1024,
 				text: log.text.slice(prefix.length), length: log.text.length,
@@ -833,7 +835,7 @@ suite('PullRequestMutationService', () => {
 				cancel() { cancelled = true; },
 			});
 			const { ref, service } = setup(server, undefined, undefined, async () => new Response(stream));
-			const log = await service.downloadWorkflowJobLog(ref, '20', signal());
+			const log = await service.downloadWorkflowJobLog(ref, '20', cancellationToken());
 			assert.deepStrictEqual({
 				textIsSafePrefix: log.text === prefix, truncated: log.truncated,
 				bytesRead: log.bytesRead, maximumBytes: log.maximumBytes, cancelled, locked: stream.locked,
@@ -850,7 +852,7 @@ suite('PullRequestMutationService', () => {
 			const summary = '\n1 failing\nAssertionError: exact cap';
 			const raw = `${'x'.repeat(maximumBytes - summary.length)}${summary}`;
 			const { ref, service } = setup(server, undefined, undefined, async () => new Response(raw));
-			const log = await service.downloadWorkflowJobLog(ref, '20', signal());
+			const log = await service.downloadWorkflowJobLog(ref, '20', cancellationToken());
 			assert.deepStrictEqual({
 				textMatches: log.text === raw, truncated: log.truncated, bytesRead: log.bytesRead, maximumBytes: log.maximumBytes,
 			}, { textMatches: true, truncated: false, bytesRead: maximumBytes, maximumBytes });
@@ -861,7 +863,7 @@ suite('PullRequestMutationService', () => {
 		await withServers(async server => {
 			const raw = Array.from({ length: 129 }, (_, index) => `::add-mask::private-${index}\n`).join('');
 			const { ref, service } = setup(server, undefined, undefined, async () => new Response(raw));
-			await assert.rejects(() => service.downloadWorkflowJobLog(ref, '20', signal()), {
+			await assert.rejects(() => service.downloadWorkflowJobLog(ref, '20', cancellationToken()), {
 				name: 'GitHubRequestError', kind: 'validation', message: 'GitHub workflow log exceeded redaction safety limits',
 			});
 		});
@@ -879,12 +881,12 @@ suite('PullRequestMutationService', () => {
 				response: gitHubJsonResponse({ merged: true, sha: 'merge-sha', message: 'merged' }),
 			}));
 			const { ref, service } = setup(server);
-			const preparation = await service.prepareMerge(ref, 'head-1', signal());
+			const preparation = await service.prepareMerge(ref, 'head-1', cancellationToken());
 
 			const result = await service.merge(preparation, {
 				method: 'SQUASH',
 				authorization: { confirmed: true, authorizationId: 'approval-1' },
-			}, signal());
+			}, cancellationToken());
 
 			assert.deepStrictEqual(result, { outcome: 'succeeded', sha: 'merge-sha', message: 'merged' });
 			server.assertSatisfied();
@@ -894,14 +896,14 @@ suite('PullRequestMutationService', () => {
 	test('rejects invalidated merge preparation before network access', async () => {
 		await withServers(async server => {
 			const { ref, resources, service } = setup(server);
-			const preparation = await service.prepareMerge(ref, 'head-1', signal());
+			const preparation = await service.prepareMerge(ref, 'head-1', cancellationToken());
 			resources.setSnapshot({ ...resources.snapshot.get(), headGeneration: preparation.headGeneration + 1 });
 
 			await assert.rejects(
 				() => service.merge(preparation, {
 					method: 'SQUASH',
 					authorization: { confirmed: true, authorizationId: 'approval-1' },
-				}, signal()),
+				}, cancellationToken()),
 				/invalidated/,
 			);
 			assert.strictEqual(server.requests.length, 0);
@@ -912,14 +914,14 @@ suite('PullRequestMutationService', () => {
 		await withServers(async server => {
 			const scheduler = new FakeScheduler({ now: 0 });
 			const { ref, service } = setup(server, completeSnapshot(server), scheduler);
-			const preparation = await service.prepareMerge(ref, 'head-1', signal());
+			const preparation = await service.prepareMerge(ref, 'head-1', cancellationToken());
 			scheduler.advanceBy(5 * 60_000);
 
 			await assert.rejects(
 				() => service.merge(preparation, {
 					method: 'SQUASH',
 					authorization: { confirmed: true, authorizationId: 'approval-1' },
-				}, signal()),
+				}, cancellationToken()),
 				/invalid or has already been consumed/,
 			);
 			assert.strictEqual(server.requests.length, 0);
@@ -935,12 +937,12 @@ suite('PullRequestMutationService', () => {
 				await started.complete();
 				await release.p;
 			};
-			const controller = new AbortController();
-			const preparation = service.prepareMerge(ref, 'head-1', controller.signal);
+			const controller = disposables.add(new CancellationTokenSource());
+			const preparation = service.prepareMerge(ref, 'head-1', controller.token);
 			await started.p;
-			controller.abort(new Error('cancel preparation'));
+			controller.cancel();
 
-			await assert.rejects(() => preparation, /cancel preparation/);
+			await assert.rejects(() => preparation, isCancellationError);
 			await release.complete();
 			assert.strictEqual(server.requests.length, 0);
 		});
@@ -954,7 +956,7 @@ suite('PullRequestMutationService', () => {
 				response: gitHubDisconnectResponse(),
 			}));
 			const { ref, resources, service } = setup(server);
-			const preparation = await service.prepareMerge(ref, 'head-1', signal());
+			const preparation = await service.prepareMerge(ref, 'head-1', cancellationToken());
 			resources.refreshHandler = fragment => {
 				if (fragment === 'core') {
 					const snapshot = resources.snapshot.get();
@@ -968,7 +970,7 @@ suite('PullRequestMutationService', () => {
 			const result = await service.merge(preparation, {
 				method: 'SQUASH',
 				authorization: { confirmed: true, authorizationId: 'approval-1' },
-			}, signal());
+			}, cancellationToken());
 
 			assert.deepStrictEqual(result, { outcome: 'reconciled', message: 'Pull request was merged' });
 			server.assertSatisfied();
@@ -982,7 +984,7 @@ suite('PullRequestMutationService', () => {
 					? gitHubRestStep({ method: 'PUT', path: '/repos/octo/repo/pulls/7/merge', response: gitHubDisconnectResponse() })
 					: gitHubGraphQLStep({ queryIncludes: 'AgentHostEnqueuePullRequest', response: gitHubDisconnectResponse() }));
 				const { ref, resources, service } = setup(server, completeSnapshot(server, operation === 'enqueue'));
-				const preparation = await service.prepareMerge(ref, 'head-1', signal());
+				const preparation = await service.prepareMerge(ref, 'head-1', cancellationToken());
 				const refreshes: (PullRequestFragment | undefined)[] = [];
 				resources.refreshHandler = fragment => {
 					refreshes.push(fragment);
@@ -990,8 +992,8 @@ suite('PullRequestMutationService', () => {
 				};
 				const authorization = { confirmed: true as const, authorizationId: 'approval-1' };
 				const mutation = operation === 'merge'
-					? service.merge(preparation, { method: 'SQUASH', authorization }, signal())
-					: service.enqueue(preparation, authorization, signal());
+					? service.merge(preparation, { method: 'SQUASH', authorization }, cancellationToken())
+					: service.enqueue(preparation, authorization, cancellationToken());
 
 				await assert.rejects(mutation, { kind: 'network', statusCode: undefined });
 				assert.deepStrictEqual(refreshes, [operation === 'merge' ? 'core' : 'mergeability']);
@@ -1004,12 +1006,12 @@ suite('PullRequestMutationService', () => {
 		await withServers(async server => {
 			const snapshot = completeSnapshot(server, true, 'MQE1');
 			const { ref, service } = setup(server, snapshot);
-			const preparation = await service.prepareMerge(ref, 'head-1', signal());
+			const preparation = await service.prepareMerge(ref, 'head-1', cancellationToken());
 
 			const result = await service.enqueue(
 				preparation,
 				{ confirmed: true, authorizationId: 'approval-1' },
-				signal(),
+				cancellationToken(),
 			);
 
 			assert.deepStrictEqual(result, { outcome: 'alreadyQueued', mergeQueueEntryId: 'MQE1' });
@@ -1030,12 +1032,12 @@ suite('PullRequestMutationService', () => {
 				}),
 			}));
 			const { ref, service } = setup(server, completeSnapshot(server, true));
-			const preparation = await service.prepareMerge(ref, 'head-1', signal());
+			const preparation = await service.prepareMerge(ref, 'head-1', cancellationToken());
 
 			const result = await service.enqueue(
 				preparation,
 				{ confirmed: true, authorizationId: 'approval-1' },
-				signal(),
+				cancellationToken(),
 			);
 
 			assert.deepStrictEqual(result, { outcome: 'succeeded', mergeQueueEntryId: 'MQE2' });
@@ -1044,8 +1046,8 @@ suite('PullRequestMutationService', () => {
 	});
 });
 
-function signal(): AbortSignal {
-	return new AbortController().signal;
+function cancellationToken(): CancellationToken {
+	return CancellationToken.None;
 }
 
 function completeSnapshot(server: ProgrammableGitHubServer, mergeQueueRequired = false, mergeQueueEntryId?: string): PullRequestSnapshot {

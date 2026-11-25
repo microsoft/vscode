@@ -6,7 +6,7 @@
 import { Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { AbstractPaneCompositePart } from '../../../../workbench/browser/parts/paneCompositePart.js';
 import { PanelPart } from '../panelPart.js';
-import { isPhoneLayout } from './mobileLayout.js';
+import { isPhoneLayout } from '../../../../workbench/browser/parts/sessions/mobileLayout.js';
 
 /**
  * Mobile variant of PanelPart.

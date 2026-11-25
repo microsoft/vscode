@@ -9,6 +9,7 @@ import { userAgent } from '../../../../base/common/platform.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IExtensionManagementService } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { ExtensionType, IExtensionDescription } from '../../../../platform/extensions/common/extensions.js';
+import { GitHubAuthorizationContext } from '../../../../platform/github/common/githubTypes.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { normalizeGitHubUrl } from '../common/issueReporterUtil.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
@@ -23,6 +24,7 @@ import { IAuthenticationService } from '../../../services/authentication/common/
 import { IWorkbenchExtensionEnablementService } from '../../../services/extensionManagement/common/extensionManagement.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
+import { toGitHubAuthorizationContext } from '../../../services/github/common/githubService.js';
 import { IIntegrityService } from '../../../services/integrity/common/integrity.js';
 
 
@@ -73,10 +75,14 @@ export class BrowserIssueService implements IWorkbenchIssueService {
 			const experiments = await this.experimentService.getCurrentExperiments();
 
 			let githubAccessToken = '';
+			let githubAuthorization: GitHubAuthorizationContext | undefined;
 			try {
 				const githubSessions = await this.authenticationService.getSessions('github');
-				const potentialSessions = githubSessions.filter(session => session.scopes.includes('repo'));
-				githubAccessToken = potentialSessions[0]?.accessToken;
+				const session = githubSessions.find(session => options.githubAccessToken === undefined
+					? session.scopes.includes('repo')
+					: session.accessToken === options.githubAccessToken);
+				githubAccessToken = session?.accessToken ?? '';
+				githubAuthorization = session && toGitHubAuthorizationContext('github', session);
 			} catch (e) {
 				// Ignore
 			}
@@ -137,7 +143,8 @@ export class BrowserIssueService implements IWorkbenchIssueService {
 				restrictedMode: !this.workspaceTrustManagementService.isWorkspaceTrusted(),
 				isInstallationPure,
 				isSessionsWindow: this.environmentService.isSessionsWindow,
-				githubAccessToken
+				githubAccessToken,
+				githubAuthorization,
 			}, options);
 
 			return this.issueFormService.openReporter(issueReporterData);

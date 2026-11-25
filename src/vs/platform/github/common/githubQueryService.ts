@@ -99,5 +99,5 @@ export interface GitHubQueryApi {
 	subscribeRepository(ref: GitHubRepositoryRef, options: GitHubResourceSubscriptionOptions): GitHubRepositorySubscription;
 	subscribeIssue(ref: GitHubIssueRef, options: GitHubResourceSubscriptionOptions): GitHubIssueSubscription;
 	subscribeCommit(ref: GitHubCommitRef, options: GitHubResourceSubscriptionOptions): GitHubCommitSubscription;
-	hydrateResources(refs: readonly GitHubHydratableResourceRef[], signal: AbortSignal): Promise<void>;
+	hydrateResources(refs: readonly GitHubHydratableResourceRef[], cancellationToken: CancellationToken): Promise<void>;
 }

@@ -259,6 +259,13 @@ export class BaseActionViewItem extends Disposable implements IActionViewItem {
 		}
 	}
 
+	/**
+	 * Hides the item's hover if it shows, and cancels one that is about to show.
+	 */
+	protected hideHover(): void {
+		this.customHover?.hide();
+	}
+
 	protected updateClass(): void {
 		// implement in subclass
 	}
@@ -369,12 +376,17 @@ export class ActionViewItem extends BaseActionViewItem {
 	}
 
 	protected override updateLabel(): void {
-		if (this.options.label && this.label) {
+		// A separator's label is a menu header, which action bars do not render
+		if (this.options.label && this.label && this.action.id !== Separator.ID) {
 			this.label.textContent = this.action.label;
 		}
 	}
 
 	protected override getTooltip() {
+		if (this.action.id === Separator.ID) {
+			return undefined;
+		}
+
 		let title: string | null = null;
 
 		if (this.action.tooltip) {

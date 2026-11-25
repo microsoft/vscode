@@ -87,7 +87,7 @@ const toggleTerminal: WatermarkEntry = {
 };
 const startDebugging: WatermarkEntry = {
 	text: localize('watermark.startDebugging', "Start Debugging"), id: 'workbench.action.debug.start',
-	icon: registerIcon('watermark-debug', Codicon.debugStart, localize('watermark.debugIcon', "Icon for starting debugging in the editor watermark.")),
+	icon: registerIcon('watermark-debug', Codicon.run, localize('watermark.debugIcon', "Icon for starting debugging in the editor watermark.")),
 	when: { web: ContextKeyExpr.equals('terminalProcessSupported', true) }
 };
 const openSettings: WatermarkEntry = {
@@ -119,6 +119,14 @@ const otherEntries: WatermarkEntry[] = [
 	openSettings,
 ];
 
+const allEntries: WatermarkEntry[] = [...new Set([...emptyWindowEntries, ...workspaceEntries, ...otherEntries])];
+
+function getWhen(entry: WatermarkEntry): ContextKeyExpression | undefined {
+	return isWeb ? entry.when?.web : entry.when?.native;
+}
+
+const whenKeys = new Set(allEntries.flatMap(entry => getWhen(entry)?.keys() ?? []));
+
 export class EditorGroupWatermark extends Disposable {
 
 	private static readonly CACHED_WHEN = 'editorGroupWatermark.whenConditions';
@@ -126,6 +134,7 @@ export class EditorGroupWatermark extends Disposable {
 	private static readonly MINIMUM_ENTRIES = 3;
 
 	private readonly cachedWhen: { [when: string]: boolean };
+	private readonly renderedWhenResults = new Map<string, boolean>();
 
 	private readonly shortcuts: HTMLElement;
 	private readonly toolbarContainer: HTMLElement;
@@ -193,11 +202,33 @@ export class EditorGroupWatermark extends Disposable {
 			}
 		}));
 
+		this._register(this.contextKeyService.onDidChangeContext(e => {
+			if (!e.affectsSome(whenKeys)) {
+				return;
+			}
+
+			let visibilityChanged = false;
+			for (const entry of allEntries) {
+				const when = getWhen(entry);
+				if (when && e.affectsSome(new Set(when.keys()))) {
+					// Once a condition changes, the live value replaces the result cached from the previous session
+					const matches = this.contextKeyService.contextMatchesRules(when);
+					this.cachedWhen[entry.id] = matches;
+					if (this.renderedWhenResults.has(entry.id) && this.renderedWhenResults.get(entry.id) !== matches) {
+						visibilityChanged = true;
+					}
+				}
+			}
+
+			if (visibilityChanged) {
+				this.render();
+			}
+		}));
+
 		this._register(this.storageService.onWillSaveState(e => {
 			if (e.reason === WillSaveStateReason.SHUTDOWN) {
-				const entries = [...emptyWindowEntries, ...workspaceEntries, ...otherEntries];
-				for (const entry of entries) {
-					const when = isWeb ? entry.when?.web : entry.when?.native;
+				for (const entry of allEntries) {
+					const when = getWhen(entry);
 					if (when) {
 						this.cachedWhen[entry.id] = this.contextKeyService.contextMatchesRules(when);
 					}
@@ -214,6 +245,7 @@ export class EditorGroupWatermark extends Disposable {
 		clearNode(this.shortcuts);
 		this.transientDisposables.clear();
 		this.shortcutDisposables.clear();
+		this.renderedWhenResults.clear();
 
 		if (!this.enabled) {
 			return;
@@ -266,12 +298,14 @@ export class EditorGroupWatermark extends Disposable {
 	private filterEntries(entries: WatermarkEntry[]): WatermarkEntry[] {
 		const filteredEntries = entries
 			.filter(entry => {
-				if (this.cachedWhen[entry.id]) {
-					return true; // cached from previous session
+				const contextKey = getWhen(entry);
+				if (!contextKey) {
+					return true; // works without context
 				}
 
-				const contextKey = isWeb ? entry.when?.web : entry.when?.native;
-				return !contextKey /* works without context */ || this.contextKeyService.contextMatchesRules(contextKey);
+				const matches = !!this.cachedWhen[entry.id] /* cached from previous session */ || this.contextKeyService.contextMatchesRules(contextKey);
+				this.renderedWhenResults.set(entry.id, matches);
+				return matches;
 			})
 			.filter(entry => !!CommandsRegistry.getCommand(entry.id))
 			.filter(entry => !!this.keybindingService.lookupKeybinding(entry.id));
@@ -280,12 +314,15 @@ export class EditorGroupWatermark extends Disposable {
 	}
 }
 
-class WatermarkActionViewItem extends BaseActionViewItem {
+/**
+ * A row of the editor group watermark: icon, label and keybinding. Also used by the empty editor hint.
+ */
+export class WatermarkActionViewItem extends BaseActionViewItem {
 
 	constructor(
 		action: IAction,
 		private readonly icon: ThemeIcon,
-		private readonly keybinding: ResolvedKeybinding,
+		private readonly keybinding: ResolvedKeybinding | undefined,
 		@IHoverService private readonly hoverService: IHoverService,
 	) {
 		super(undefined, action);
@@ -295,13 +332,16 @@ class WatermarkActionViewItem extends BaseActionViewItem {
 		const row = append(container, $('a.action-label.watermark-entry'));
 		super.render(row);
 		row.setAttribute('role', 'button');
-		row.setAttribute('aria-label', localize('watermark.shortcutAriaLabel', "{0} ({1})", this._action.label, this.keybinding.getAriaLabel()));
+		const keybindingAriaLabel = this.keybinding?.getAriaLabel();
+		row.setAttribute('aria-label', keybindingAriaLabel ? localize('watermark.shortcutAriaLabel', "{0} ({1})", this._action.label, keybindingAriaLabel) : this._action.label);
 
 		const icon = append(row, renderIcon(this.icon));
 		icon.classList.add('watermark-icon');
 		icon.setAttribute('aria-hidden', 'true');
 		append(row, $('span.watermark-label')).textContent = this._action.label;
-		this._register(new KeybindingLabel(append(row, $('span.watermark-keybinding')), OS, defaultKeybindingLabelStyles)).set(this.keybinding);
+		if (this.keybinding) {
+			this._register(new KeybindingLabel(append(row, $('span.watermark-keybinding')), OS, defaultKeybindingLabelStyles)).set(this.keybinding);
+		}
 		this._register(this.hoverService.setupDelayedHover(row, { content: this._action.label }));
 	}
 }

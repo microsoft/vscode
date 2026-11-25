@@ -102,7 +102,7 @@ export class ClaudeDesktopMpcDiscoveryAdapter implements NativeMpcDiscoveryAdapt
 	}
 
 	adaptFile(contents: VSBuffer, { homedir }: INativeMcpDiscoveryData): Promise<McpServerDefinition[] | undefined> {
-		return claudeConfigToServerDefinition(this.id, contents, { cwd: homedir });
+		return claudeConfigToServerDefinition(this.id, contents, { defaultCwd: homedir });
 	}
 }
 
@@ -120,7 +120,7 @@ export class CopilotMpcDiscoveryAdapter extends ClaudeDesktopMpcDiscoveryAdapter
 
 	/** Expands `${VAR}` references like the Copilot runtime, including those written when servers are migrated from the user `mcp.json`. */
 	override adaptFile(contents: VSBuffer, { homedir }: INativeMcpDiscoveryData): Promise<McpServerDefinition[] | undefined> {
-		return claudeConfigToServerDefinition(this.id, contents, { cwd: homedir, expandEnvironmentVariables: true });
+		return claudeConfigToServerDefinition(this.id, contents, { defaultCwd: homedir, expandEnvironmentVariables: true });
 	}
 }
 

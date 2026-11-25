@@ -23,6 +23,7 @@ export class SessionsWorkspaceContextService extends Disposable implements IWork
 	readonly onDidChangeWorkbenchState = Event.None;
 	readonly onDidChangeWorkspaceName = Event.None;
 	readonly onDidEnterWorkspace = Event.None;
+	readonly onWillRemoveFolders = Event.None;
 
 	private readonly _onWillChangeWorkspaceFolders = new Emitter<IWorkspaceFoldersWillChangeEvent>();
 	readonly onWillChangeWorkspaceFolders = this._onWillChangeWorkspaceFolders.event;
@@ -92,6 +93,8 @@ export class SessionsWorkspaceContextService extends Disposable implements IWork
 
 		return this.doUpdateFolders(foldersToAdd, foldersToDelete, index);
 	}
+
+	async setFolderLocation(_location: URI, _options?: { readonly folder?: URI }): Promise<void> { }
 
 	async enterWorkspace(_path: URI): Promise<void> { }
 

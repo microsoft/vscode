@@ -5,11 +5,12 @@
 
 import { Disposable, DisposableMap } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
-import { AgentFeedbackState, IAgentFeedbackService } from './agentFeedbackService.js';
-import { ATTACHMENT_ID_PREFIX, createAgentFeedbackVariableEntry } from './agentFeedbackAttachmentEntry.js';
+import { IAgentFeedbackService } from '../../../../workbench/contrib/sessions/browser/agentFeedback.js';
+import { AgentFeedbackState } from '../../../../workbench/contrib/sessions/browser/agentFeedbackModel.js';
+import { ATTACHMENT_ID_PREFIX, createAgentFeedbackVariableEntry } from '../../../../workbench/contrib/sessions/browser/agentFeedbackAttachmentEntry.js';
 import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { isAgentHostProviderId } from '../../../common/agentHostSessionsProvider.js';
+import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { isAgentHostProviderId } from '../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 
 /**
  * Keeps the "N feedback items" attachment in the chat input in sync with the

@@ -34,13 +34,22 @@
 	gap: 6px;
 	cursor: default;
 	opacity: 1;
-	transition: opacity 120ms ease-out;
 }
 
-.command-center .agent-sessions-titlebar-container:hover {
+.monaco-workbench.monaco-enable-motion .command-center .agent-sessions-titlebar-container {
+	transition: color 100ms linear, background-color 100ms ease-out, border-color 100ms ease-out, opacity 120ms ease-out;
+}
+
+.command-center .agent-sessions-titlebar-container:is(:hover, .hovered, .agent-sessions-titlebar-dropdown-open) {
 	color: var(--vscode-commandCenter-activeForeground);
 	background-color: var(--vscode-commandCenter-activeBackground);
 	border-color: var(--vscode-commandCenter-activeBorder);
+}
+
+:is(.hc-black, .hc-light) .command-center .agent-sessions-titlebar-container:not(.agent-sessions-titlebar-requires-input, .agent-sessions-titlebar-approved):is(:hover, .hovered):not(:focus-visible) {
+	border-color: transparent;
+	outline: var(--vscode-strokeThickness, 1px) dashed var(--vscode-contrastActiveBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness, 1px));
 }
 
 /* Session pill - clickable area for session picker, fills the command center box */
@@ -55,13 +64,19 @@
 	height: 100%;
 	cursor: pointer;
 	touch-action: manipulation;
-	/* Match the VS Code window command center title which is dimmed. */
-	opacity: 0.6;
 }
 
-.command-center .agent-sessions-titlebar-container:focus {
-	outline: 1px solid var(--vscode-focusBorder);
-	outline-offset: -1px;
+.monaco-workbench .command-center .agent-sessions-titlebar-container:focus:not(:focus-visible) {
+	outline: none;
+}
+
+.command-center .agent-sessions-titlebar-container:focus-visible {
+	outline: var(--vscode-strokeThickness, 1px) solid var(--vscode-focusBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness, 1px));
+}
+
+:is(.hc-black, .hc-light) .command-center .agent-sessions-titlebar-container:focus-visible {
+	border-color: transparent;
 }
 
 /* Center group: workspace icon and folder */
@@ -74,6 +89,8 @@
 	justify-content: flex-start;
 	cursor: pointer;
 	overflow: hidden;
+	/* Match the dimmed VS Code window command center title without muting semantic status icons. */
+	opacity: 0.6;
 }
 
 .command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-separator {
@@ -112,6 +129,29 @@
 	font-size: var(--vscode-codiconFontSize-compact);
 }
 
+.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-attention-reminder {
+	display: flex;
+	align-items: center;
+	flex-shrink: 0;
+	gap: var(--vscode-spacing-size20);
+	margin-left: auto;
+	padding-left: var(--vscode-spacing-size60);
+	color: var(--vscode-agentSessionNeedsInput-foreground);
+}
+
+.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-attention-reminder-icon {
+	display: flex;
+	align-items: center;
+	color: inherit;
+	font-size: var(--vscode-codiconFontSize);
+}
+
+.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-attention-reminder-count {
+	font-size: var(--vscode-fontSize-label2);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	font-variant-numeric: tabular-nums;
+}
+
 .command-center > .monaco-toolbar > .monaco-action-bar > .actions-container > .action-item:not(.disabled) > .action-label {
 	color: var(--vscode-icon-foreground);
 }
@@ -140,12 +180,6 @@
 	pointer-events: none;
 }
 
-@media (prefers-reduced-motion: reduce) {
-	.command-center .agent-sessions-titlebar-container {
-		transition: none;
-	}
-}
-
 /* Approved state: a transient green confirmation shown after the user approves
 	one or more sessions' pending actions from the sessions list. It stays
 	clickable (activating whatever the underlying state would do). */
@@ -155,7 +189,8 @@
 	background-color: color-mix(in srgb, var(--vscode-charts-green) 14%, transparent);
 }
 
-.command-center .agent-sessions-titlebar-container.agent-sessions-titlebar-approved:hover {
+.command-center .agent-sessions-titlebar-container.agent-sessions-titlebar-approved:hover,
+.command-center .agent-sessions-titlebar-container.agent-sessions-titlebar-approved.agent-sessions-titlebar-dropdown-open {
 	color: var(--vscode-charts-green);
 	border-color: var(--vscode-charts-green);
 	background-color: color-mix(in srgb, var(--vscode-charts-green) 22%, transparent);

@@ -8,6 +8,7 @@ import { CancellationToken } from '../../../../../../base/common/cancellation.js
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { enumerateLocalCustomizationsForHarness } from '../../../browser/agentSessions/agentHost/agentHostLocalCustomizations.js';
 import { AICustomizationSources, BUILTIN_STORAGE } from '../../../common/aiCustomizationWorkspaceService.js';
@@ -60,6 +61,7 @@ suite('enumerateLocalCustomizationsForHarness', () => {
 			source: AICustomizationSources.builtin,
 			pluginUri: undefined,
 			extensionId: undefined,
+			extensionLabel: undefined,
 			disabled: false,
 		}]);
 	});
@@ -69,17 +71,34 @@ suite('enumerateLocalCustomizationsForHarness', () => {
 		const builtinSkill = URI.file('/builtin/merge/SKILL.md');
 		const workspaceAgent = URI.file('/workspace/.github/agents/local.agent.md');
 		const promptsService = makePromptsService(new Map([
-			[`${PromptsType.agent}/${PromptsStorage.extension}`, [makePromptPath(extensionAgent, PromptsType.agent, PromptsStorage.extension)]],
+			[`${PromptsType.agent}/${PromptsStorage.extension}`, [{ ...makePromptPath(extensionAgent, PromptsType.agent, PromptsStorage.extension), extension: { identifier: new ExtensionIdentifier('acme.acme-chat-kit'), displayName: 'Acme Chat Kit' } } as IPromptPath]],
 			[`${PromptsType.agent}/${PromptsStorage.local}`, [makePromptPath(workspaceAgent, PromptsType.agent, PromptsStorage.local)]],
 			[`${PromptsType.skill}/${BUILTIN_STORAGE}`, [makePromptPath(builtinSkill, PromptsType.skill, BUILTIN_STORAGE as unknown as PromptsStorage)]],
 		]));
 
 		const result = await enumerateLocalCustomizationsForHarness(promptsService, new FakeSyncProvider(), SessionType.CopilotCLI, CancellationToken.None, undefined);
 
-		assert.deepStrictEqual(result.map((e: { uri: URI; type: PromptsType; source: unknown; disabled: boolean }) => ({ uri: e.uri.toString(), type: e.type, source: e.source, disabled: e.disabled })), [
-			{ uri: extensionAgent.toString(), type: PromptsType.agent, source: AICustomizationSources.extension, disabled: false },
-			{ uri: builtinSkill.toString(), type: PromptsType.skill, source: AICustomizationSources.builtin, disabled: false },
+		assert.deepStrictEqual(result.map(e => ({ uri: e.uri.toString(), type: e.type, source: e.source, extensionLabel: e.extensionLabel, disabled: e.disabled })), [
+			{ uri: extensionAgent.toString(), type: PromptsType.agent, source: AICustomizationSources.extension, extensionLabel: 'Acme Chat Kit', disabled: false },
+			{ uri: builtinSkill.toString(), type: PromptsType.skill, source: AICustomizationSources.builtin, extensionLabel: undefined, disabled: false },
 		]);
+	});
+
+	test('retains built-in skills alongside same-named workspace and user skills', async () => {
+		const workspaceSkill = URI.file('/workspace/.github/skills/code-review/SKILL.md');
+		const userSkill = URI.file('/home/user/.copilot/skills/merge/SKILL.md');
+		const builtins = ['code-review', 'merge'].map(name => URI.file(`/builtin/${name}/SKILL.md`));
+		const promptsService = makePromptsService(new Map([
+			[`${PromptsType.skill}/${PromptsStorage.local}`, [{ uri: workspaceSkill, type: PromptsType.skill, storage: PromptsStorage.local, source: PromptFileSource.GitHubWorkspace }]],
+			[`${PromptsType.skill}/${PromptsStorage.user}`, [{ uri: userSkill, type: PromptsType.skill, storage: PromptsStorage.user, source: PromptFileSource.CopilotPersonal }]],
+			[`${PromptsType.skill}/${BUILTIN_STORAGE}`, builtins.map(uri => makePromptPath(uri, PromptsType.skill, PromptsStorage.builtIn))],
+		]));
+
+		const results = await Promise.all([undefined, { includeUserStorage: true }].map(async options =>
+			(await enumerateLocalCustomizationsForHarness(promptsService, new FakeSyncProvider(), SessionType.CopilotCLI, CancellationToken.None, options)).map(item => item.uri)
+		));
+
+		assert.deepStrictEqual(results, [builtins, [userSkill, ...builtins]]);
 	});
 
 	test('matches logical harness types for local and remote agent-host resource schemes', async () => {

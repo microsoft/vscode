@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { getLeadingWhitespace } from '../../../../../base/common/strings.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
 import { EditOperation } from '../../../../../editor/common/core/editOperation.js';
@@ -50,8 +51,19 @@ export class PromptFileRewriter {
 
 	public rewriteTools(model: ITextModel, newTools: ToolAndToolSetEnablementMap, range: Range, isString: boolean): void {
 		const newToolNames = this._languageModelToolsService.toFullReferenceNames(newTools);
-		const newEntries = newToolNames.map(toolName => formatArrayValue(toolName)).join(', ');
-		const newValue = isString ? newEntries : `[${newEntries}]`;
+		this.rewriteToolNames(model, newToolNames, range, isString);
+	}
+
+	public rewriteToolNames(model: ITextModel, newToolNames: readonly string[], range: Range, isString: boolean): void {
+		const entries = newToolNames.map(toolName => formatArrayValue(toolName));
+		const newEntries = entries.join(', ');
+		const useScalar = isString && entries.length > 0 && entries.every((entry, index) => entry === newToolNames[index]);
+		let newValue = useScalar ? newEntries : `[${newEntries}]`;
+		if (range.startColumn === 1) {
+			const line = model.getLineContent(range.startLineNumber);
+			const indentation = getLeadingWhitespace(line);
+			newValue = `${indentation || '  '}${newValue}`;
+		}
 		this.rewriteAttribute(model, newValue, range);
 	}
 

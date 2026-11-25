@@ -4,9 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { asArray } from '../../../../base/common/arrays.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { GitHubRequestError, MissingCommitError } from '../githubTypes.js';
 import { parseResponseJson } from '../responseReader.js';
-import { GitHubRequestDomain, gitHubRequestDomains, RequestPriority } from '../types.js';
+import { GitHubRequestDomain, RequestPriority, gitHubRequestDomains } from '../types.js';
 import { ContentType } from './headers.js';
 import { parse } from './schema.js';
 
@@ -71,6 +74,8 @@ export interface ApiRequest {
 
 /** Semantic response hints, not a transport header collection. */
 export interface ApiResponseMetadata {
+	/** The server's request identifier for correlating an operation with service diagnostics. */
+	readonly requestId?: string;
 	readonly nextLink?: string;
 	/** Validated API-relative continuation, or null when an advertised continuation is invalid. */
 	readonly nextPath?: string | null;
@@ -90,30 +95,35 @@ export interface ApiResponse<T = unknown> {
 export interface IApiRequestProvider {
 
 	/** Executes an API request and returns the parsed response. */
-	request(request: ApiRequest & { readonly responseBody: 'none' }, signal: AbortSignal): Promise<ApiResponse<void>>;
+	request(request: ApiRequest & { readonly responseBody: 'none' }, cancellationToken: CancellationToken): Promise<ApiResponse<void>>;
 
 	/** Executes an API request and returns the parsed response with the specified parser. */
-	request<T>(request: ApiRequest & { readonly responseBody?: 'json' | 'text' }, signal: AbortSignal, parser: parse.Parser<T>): Promise<ApiResponse<T>>;
+	request<T>(request: ApiRequest & { readonly responseBody?: 'json' | 'text' }, cancellationToken: CancellationToken, parser: parse.Parser<T>): Promise<ApiResponse<T>>;
 
 	/** Forwards a dynamically selected response mode and parser for runtime validation. */
-	request<T>(request: ApiRequest, signal: AbortSignal, parser: parse.Parser<T> | undefined): Promise<ApiResponse<T | void>>;
+	request<T>(request: ApiRequest, cancellationToken: CancellationToken, parser: parse.Parser<T> | undefined): Promise<ApiResponse<T | void>>;
 }
 
 /** Shares body serialization, response parsing, and lease cancellation across execution providers. */
 export abstract class BufferedApiRequestProvider implements IApiRequestProvider {
-	constructor(private readonly clientSignal?: AbortSignal) { }
+	constructor(
+		private readonly clientToken: CancellationToken = CancellationToken.None,
+		protected readonly clientError?: () => Error | undefined,
+	) { }
 
-	request(request: ApiRequest & { readonly responseBody: 'none' }, signal: AbortSignal): Promise<ApiResponse<void>>;
-	request<T>(request: ApiRequest & { readonly responseBody?: 'json' | 'text' }, signal: AbortSignal, parser: parse.Parser<T>): Promise<ApiResponse<T>>;
-	request<T>(request: ApiRequest, signal: AbortSignal, parser: parse.Parser<T> | undefined): Promise<ApiResponse<T | void>>;
-	async request<T>(request: ApiRequest, signal: AbortSignal, parser?: parse.Parser<T>): Promise<ApiResponse<T | void>> {
-		signal.throwIfAborted();
-		this.clientSignal?.throwIfAborted();
+	request(request: ApiRequest & { readonly responseBody: 'none' }, cancellationToken: CancellationToken): Promise<ApiResponse<void>>;
+	request<T>(request: ApiRequest & { readonly responseBody?: 'json' | 'text' }, cancellationToken: CancellationToken, parser: parse.Parser<T>): Promise<ApiResponse<T>>;
+	request<T>(request: ApiRequest, cancellationToken: CancellationToken, parser: parse.Parser<T> | undefined): Promise<ApiResponse<T | void>>;
+	async request<T>(request: ApiRequest, cancellationToken: CancellationToken, parser?: parse.Parser<T>): Promise<ApiResponse<T | void>> {
+		CancellationToken.throwIfCanceled(cancellationToken);
+		if (this.clientToken.isCancellationRequested) {
+			throw this.clientError?.() ?? new CancellationError();
+		}
 		const { body, ...metadata } = request;
 		const bodyText = serializeRequestBody(body);
 		let response: ApiResponse<string | undefined>;
 		try {
-			response = await this.requestText(metadata, signal, bodyText);
+			response = await this.requestText(metadata, cancellationToken, bodyText);
 		} catch (error) {
 			if (isMissingCommitResponse(error)) {
 				throw new MissingCommitError(error);
@@ -123,19 +133,33 @@ export abstract class BufferedApiRequestProvider implements IApiRequestProvider 
 		return parseResponse(request, response, parser);
 	}
 
-	async requestText(request: Omit<ApiRequest, 'body'>, signal: AbortSignal, bodyText?: string): Promise<ApiResponse<string | undefined>> {
-		signal = this.clientSignal ? AbortSignal.any([signal, this.clientSignal]) : signal;
-		signal.throwIfAborted();
-		const response = await this.execute(request, signal, bodyText);
-		this.checkResponseCancellation(request, signal);
-		return response;
+	async requestText(request: Omit<ApiRequest, 'body'>, cancellationToken: CancellationToken, bodyText?: string): Promise<ApiResponse<string | undefined>> {
+		const lifetime = new DisposableStore();
+		let cancellationError: Error | undefined;
+		try {
+			CancellationToken.throwIfCanceled(cancellationToken);
+			if (this.clientToken.isCancellationRequested) {
+				throw this.clientError?.() ?? new CancellationError();
+			}
+			const combinedToken = CancellationToken.any([cancellationToken, this.clientToken], lifetime);
+			lifetime.add(combinedToken.onCancellationRequested(() => {
+				cancellationError = cancellationToken.isCancellationRequested ? new CancellationError() : this.clientError?.() ?? new CancellationError();
+			}));
+			const response = await this.execute(request, combinedToken, bodyText);
+			this.checkResponseCancellation(request, combinedToken);
+			return response;
+		} catch (error) {
+			throw isCancellationError(error) ? cancellationError ?? error : error;
+		} finally {
+			lifetime.dispose();
+		}
 	}
 
-	protected checkResponseCancellation(_request: Omit<ApiRequest, 'body'>, signal: AbortSignal): void {
-		signal.throwIfAborted();
+	protected checkResponseCancellation(_request: Omit<ApiRequest, 'body'>, cancellationToken: CancellationToken): void {
+		CancellationToken.throwIfCanceled(cancellationToken);
 	}
 
-	protected abstract execute(request: Omit<ApiRequest, 'body'>, signal: AbortSignal, bodyText?: string): Promise<ApiResponse<string | undefined>>;
+	protected abstract execute(request: Omit<ApiRequest, 'body'>, cancellationToken: CancellationToken, bodyText?: string): Promise<ApiResponse<string | undefined>>;
 }
 
 const parseErrorMessage = parse.object({ message: parse.string });

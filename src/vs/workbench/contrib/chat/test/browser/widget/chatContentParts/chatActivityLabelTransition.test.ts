@@ -11,6 +11,7 @@ import { toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { TestAccessibilityService } from '../../../../../../../platform/accessibility/test/common/testAccessibilityService.js';
 import { ChatActivityLabelTransition } from '../../../../browser/widget/chatContentParts/chatActivityLabelTransition.js';
+import { registerTestIframe } from '../../../../../../../base/test/browser/testWindow.js';
 
 suite('ChatActivityLabelTransition', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -80,6 +81,22 @@ suite('ChatActivityLabelTransition', () => {
 		});
 	});
 
+	test('subscribes to reduced motion only while an animation is running', () => {
+		const changed = store.add(new Emitter<void>());
+		const { request, endWipe } = createLabel({ onDidChangeReducedMotion: changed.event });
+		const idle = changed.hasListeners();
+		request('Reading');
+		const unchanged = changed.hasListeners();
+		request('Searching');
+		const animating = changed.hasListeners();
+		endWipe();
+		endWipe();
+
+		assert.deepStrictEqual({ idle, unchanged, animating, settled: changed.hasListeners() }, {
+			idle: false, unchanged: false, animating: true, settled: false,
+		});
+	});
+
 	test('swaps at once when motion is reduced or the wipe is finished early', () => {
 		const reduced = createLabel({ motionReduced: () => true });
 		reduced.request('Searching');
@@ -136,6 +153,7 @@ suite('ChatActivityLabelTransition', () => {
 		const frame = mainWindow.document.createElement('iframe');
 		mainWindow.document.body.appendChild(frame);
 		store.add(toDisposable(() => frame.remove()));
+		store.add(registerTestIframe(frame));
 		const frameDocument = frame.contentDocument!;
 		const style = frameDocument.createElement('style');
 		style.textContent = '.monaco-enable-motion .chat-activity-label-wipe-out { animation: chat-activity-label-wipe-out 220ms forwards; } @keyframes chat-activity-label-wipe-out { to { opacity: 0; } }';

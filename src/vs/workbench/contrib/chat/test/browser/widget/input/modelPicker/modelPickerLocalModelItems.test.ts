@@ -22,6 +22,7 @@ import { TestInstantiationService } from '../../../../../../../../platform/insta
 import { MockContextKeyService } from '../../../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ILogService, NullLogService } from '../../../../../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../../../../../platform/opener/common/opener.js';
+import { IManagedSettingsService, NullManagedSettingsService } from '../../../../../../../../platform/policy/common/copilotManagedSettings.js';
 import { IProductService } from '../../../../../../../../platform/product/common/productService.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../../../../platform/telemetry/common/telemetry.js';
@@ -751,6 +752,7 @@ suite('ModelPickerLocalModelItems', () => {
 			instantiationService.stub(IUpdateService, { state: { type: StateType.Uninitialized } });
 			instantiationService.stub(IUriIdentityService, {});
 			instantiationService.stub(IDefaultAccountService, { resolveGitHubUrl: () => undefined });
+			instantiationService.stub(IManagedSettingsService, new NullManagedSettingsService());
 			instantiationService.stub(IWorkspaceTrustManagementService, store.add(new TestWorkspaceTrustManagementService()));
 			instantiationService.stub(IWorkspaceTrustRequestService, {});
 			instantiationService.stub(IStorageService, store.add(new InMemoryStorageService()));

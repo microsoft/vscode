@@ -4,13 +4,57 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { isLinux, isWeb } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { getMacOSWindowControlsPosition, parseExternalAgentsWindowNewSessionLinkUri } from '../../common/window.js';
+import { extractChatSessionToOpen, getMacOSWindowControlsPosition, getWindowControlsStyle, isValidCopilotCliSessionId, parseExternalAgentsWindowNewSessionLinkUri, WindowControlsStyle } from '../../common/window.js';
+import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 
 suite('window', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	const snapWaylandTest = isLinux && !isWeb ? test : test.skip;
+
+	snapWaylandTest('uses custom window controls for Snap Wayland by default', () => {
+		const configurationService = new TestConfigurationService({});
+		assert.strictEqual(getWindowControlsStyle(configurationService, {
+			isLinuxSnap: true,
+			xdgSessionType: 'wayland',
+		}), WindowControlsStyle.CUSTOM);
+	});
+
+	snapWaylandTest('Snap Wayland overrides the registered native default with custom controls', () => {
+		const configurationService = new class extends TestConfigurationService {
+			override inspect<T>(key: string) {
+				const inspected = super.inspect<T>(key);
+				return key === 'window.controlsStyle'
+					? { ...inspected, defaultValue: 'native' as T, value: 'native' as T, userValue: undefined, userLocalValue: undefined }
+					: inspected;
+			}
+		}({});
+		assert.strictEqual(getWindowControlsStyle(configurationService, {
+			isLinuxSnap: true,
+			xdgSessionType: 'wayland',
+		}), WindowControlsStyle.CUSTOM);
+	});
+
+	snapWaylandTest('preserves explicit Snap Wayland window control choices', () => {
+		assert.deepStrictEqual([
+			new TestConfigurationService({ window: { controlsStyle: 'native' } }),
+			new TestConfigurationService({ window: { controlsStyle: 'custom' } }),
+			new TestConfigurationService({ window: { controlsStyle: 'hidden' } }),
+			new TestConfigurationService({ window: { titleBarStyle: 'native' } }),
+		].map(configurationService => getWindowControlsStyle(configurationService, {
+			isLinuxSnap: true,
+			xdgSessionType: 'wayland',
+		})), [
+			WindowControlsStyle.NATIVE,
+			WindowControlsStyle.CUSTOM,
+			WindowControlsStyle.HIDDEN,
+			WindowControlsStyle.NATIVE,
+		]);
+	});
 
 	test('preserves legacy macOS traffic-light positioning without a fixed inset', () => {
 		assert.deepStrictEqual({
@@ -83,5 +127,58 @@ suite('window', () => {
 			parseExternalAgentsWindowNewSessionLinkUri('vscode-insiders://agents/new?workspace=&prompt=Fix', 'vscode-insiders'),
 			parseExternalAgentsWindowNewSessionLinkUri('vscode-insiders://agents/new?workspace=project&prompt=Fix', 'vscode-insiders'),
 		], [undefined, undefined, undefined, undefined, undefined, undefined]);
+	});
+
+	test('extracts the chat session to open from a protocol link', () => {
+		const extract = (link: string) => {
+			const { uri, chatSessionToOpen } = extractChatSessionToOpen(URI.parse(link));
+			return { uri: uri.toString(true), chatSessionToOpen };
+		};
+
+		assert.deepStrictEqual([
+			extract('vscode://file/c:/project?windowId=_blank&copilotCliSession=0b6f9a4e-1c2d-4e5f-8a9b-0c1d2e3f4a5b'),
+			extract('vscode-insiders://file/home/me/project?copilotCliSession=my_session-1'),
+			extract('vscode://vscode-remote/wsl+ubuntu/home/me/project?copilotCliSession=abc&gitRef=main'),
+			extract('vscode://file/home/me/project?session=copilotcli%3A%2Fabc'),
+			extract('vscode://file/home/me/project?session=copilotcli%3A%2Fabc&copilotCliSession=def'),
+		], [
+			{ uri: 'vscode://file/c:/project?windowId=_blank', chatSessionToOpen: { kind: 'copilotCli', sessionId: '0b6f9a4e-1c2d-4e5f-8a9b-0c1d2e3f4a5b' } },
+			{ uri: 'vscode-insiders://file/home/me/project', chatSessionToOpen: { kind: 'copilotCli', sessionId: 'my_session-1' } },
+			{ uri: 'vscode://vscode-remote/wsl+ubuntu/home/me/project?gitRef=main', chatSessionToOpen: { kind: 'copilotCli', sessionId: 'abc' } },
+			{ uri: 'vscode://file/home/me/project', chatSessionToOpen: { kind: 'resource', resource: 'copilotcli:/abc' } },
+			{ uri: 'vscode://file/home/me/project', chatSessionToOpen: { kind: 'resource', resource: 'copilotcli:/abc' } },
+		]);
+	});
+
+	test('removes invalid chat session parameters from a protocol link', () => {
+		const extract = (link: string) => {
+			const { uri, chatSessionToOpen } = extractChatSessionToOpen(URI.parse(link));
+			return { uri: uri.toString(true), chatSessionToOpen };
+		};
+
+		assert.deepStrictEqual([
+			extract('vscode://file/home/me/project?copilotCliSession=../../etc'),
+			extract('vscode://file/home/me/project?copilotCliSession=a%2Fb'),
+			extract('vscode://file/home/me/project?copilotCliSession='),
+			extract('vscode://file/home/me/project?session='),
+		], [
+			{ uri: 'vscode://file/home/me/project', chatSessionToOpen: undefined },
+			{ uri: 'vscode://file/home/me/project', chatSessionToOpen: undefined },
+			{ uri: 'vscode://file/home/me/project', chatSessionToOpen: undefined },
+			{ uri: 'vscode://file/home/me/project', chatSessionToOpen: undefined },
+		]);
+	});
+
+	test('leaves a protocol link without chat session parameters unchanged', () => {
+		const link = URI.parse('vscode://vscode-remote/ssh-remote+host/home/me/project?windowId=_blank&a=b%20c');
+
+		assert.strictEqual(extractChatSessionToOpen(link).uri, link);
+	});
+
+	test('validates Copilot CLI session ids', () => {
+		assert.deepStrictEqual(
+			['0b6f9a4e-1c2d-4e5f-8a9b-0c1d2e3f4a5b', 'my_session-1', '', 'a/b', 'a.b', 'a b', 'é', 'a'.repeat(256), 'a'.repeat(257)].map(isValidCopilotCliSessionId),
+			[true, true, false, false, false, false, false, true, false],
+		);
 	});
 });

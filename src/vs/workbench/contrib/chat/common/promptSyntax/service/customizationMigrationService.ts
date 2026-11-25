@@ -22,6 +22,8 @@ export enum CustomizationMigrationType {
 	PluginMarketplaces = 'pluginMarketplaces',
 	ChatParticipants = 'chatParticipants',
 	ToolSets = 'toolSets',
+	/** Hook files in the deprecated Local hook format. Migrated only with the agent. */
+	Hooks = 'hooks',
 }
 
 export type GuidanceCustomizationMigrationType = CustomizationMigrationType.ChatParticipants | CustomizationMigrationType.ToolSets;
@@ -69,7 +71,7 @@ export function isConfiguredLocationMigrationCandidate(customization: Migratable
 		&& (customization.type === PromptsType.agent || customization.type === PromptsType.instructions || customization.type === PromptsType.skill);
 }
 
-export type FileCustomizationMigrationType = CustomizationMigrationType.UserData | CustomizationMigrationType.PromptFiles | CustomizationMigrationType.ConfiguredLocations;
+export type FileCustomizationMigrationType = CustomizationMigrationType.UserData | CustomizationMigrationType.PromptFiles | CustomizationMigrationType.ConfiguredLocations | CustomizationMigrationType.Hooks;
 
 export interface FileCustomizationMigration {
 	readonly type: FileCustomizationMigrationType;

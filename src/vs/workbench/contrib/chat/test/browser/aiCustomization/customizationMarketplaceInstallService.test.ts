@@ -32,7 +32,6 @@ import { IGalleryMcpServer, mcpGalleryServiceUrlConfig } from '../../../../../..
 import { IMcpGalleryManifest, IMcpGalleryManifestService } from '../../../../../../platform/mcp/common/mcpGalleryManifest.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
-import { NullTelemetryServiceShape } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
 import { IMcpWorkbenchService, IWorkbenchMcpServer, McpServerInstallState } from '../../../../mcp/common/mcpTypes.js';
@@ -50,6 +49,7 @@ import { IPluginInstallService } from '../../../common/plugins/pluginInstallServ
 import { IMarketplaceInstalledPlugin, IMarketplaceReference, IPluginMarketplaceService, IMarketplacePlugin, IPluginSourceDescriptor, MarketplaceType, parseMarketplaceReference, PluginSourceKind } from '../../../common/plugins/pluginMarketplaceService.js';
 import { SKILL_FILENAME } from '../../../common/promptSyntax/config/promptFileLocations.js';
 import { TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
+import { TestDataTelemetryService } from '../../../../../../platform/telemetry/test/common/testTelemetryService.js';
 
 const skillDestination = URI.file('/workspace/.github/skills/demo-skill');
 const connectorInstallationTarget = { kind: 'copilotConnector', name: 'mail' } as const;
@@ -62,16 +62,6 @@ const sources = [
 	CustomizationMarketplaceSources.PluginMarketplaces,
 	{ ...CustomizationMarketplaceSources.McpGallery, enablementSetting: mcpGalleryTestSetting },
 ];
-
-class TestTelemetryService extends NullTelemetryServiceShape {
-	readonly events: { readonly name: string; readonly data: Record<string, unknown> }[] = [];
-
-	override publicLog2(eventName?: string, data?: Record<string, unknown>): void {
-		if (eventName && data) {
-			this.events.push({ name: eventName, data });
-		}
-	}
-}
 
 function resource(overrides: Partial<ICustomizationMarketplaceResource> = {}): ICustomizationMarketplaceResource {
 	return {
@@ -306,6 +296,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 			readonly disconnectCalls: string[] = [];
 			statusOverride: CopilotConnectorConnectionStatus | undefined;
 			statusDetailOverride: CopilotConnectorConnectionStatusDetail | undefined;
+			homepageOverride: string | undefined;
 			catalogVisible = true;
 			onConnect: ((name: string, token: CancellationToken) => Promise<void>) | undefined;
 			onDisconnect: ((name: string, token: CancellationToken) => Promise<void>) | undefined;
@@ -314,6 +305,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 					name: 'mail',
 					displayName: 'Mail',
 					description: 'Search mail',
+					homepage: this.homepageOverride,
 					tags: [],
 					keywords: [],
 					capabilities: [],
@@ -415,7 +407,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(IFileService, fileService);
 		instantiationService.stub(ILogService, logService);
-		const telemetryService = new TestTelemetryService();
+		const telemetryService = new TestDataTelemetryService();
 		instantiationService.stub(ITelemetryService, telemetryService);
 		instantiationService.stub(IStorageService, storageService);
 		const service = store.add(instantiationService.createInstance(CustomizationMarketplaceInstallService));
@@ -833,6 +825,10 @@ suite('CustomizationMarketplaceInstallService', () => {
 			icon: undefined,
 			installation: undefined,
 		};
+		const alias = {
+			...candidate,
+			identifier: `${itemUrl}?source=alias`,
+		};
 		const provider = new class implements ICustomizationMarketplaceInstallProvider {
 			readonly onDidChange = Event.None;
 			getInstallations(): Promise<readonly IRecordedCustomizationMarketplaceResource[]> {
@@ -851,20 +847,27 @@ suite('CustomizationMarketplaceInstallService', () => {
 
 		fixture.service.getInstallState(providerResource);
 		const state = fixture.service.getInstallState(candidate);
+		const aliasState = fixture.service.getInstallState(alias);
 		await timeout(0);
 		const snapshot = fixture.service.installations.get();
 		const associated = snapshot.findByResource(candidate);
+		const providerAssociation = fixture.service.findInstallation(candidate);
+		const aliasProviderAssociation = fixture.service.findInstallation(alias);
 
 		assert.deepStrictEqual({
 			state,
+			aliasState,
 			installationCount: snapshot.installations.length,
-			installationId: associated?.installationId,
+			installationId: providerAssociation?.installationId,
+			aliasInstallationId: aliasProviderAssociation?.installationId,
 			resourceIdentifier: associated?.resource.identifier,
 			icon: URI.isUri(associated?.resource.icon) ? associated.resource.icon.toString() : undefined,
 		}, {
 			state: { kind: 'installed', target: { kind: 'mcp', name: 'com.figma.mcp/mcp' } },
+			aliasState: { kind: 'installed', target: { kind: 'mcp', name: 'com.figma.mcp/mcp' } },
 			installationCount: 1,
 			installationId: 'figma-installation',
+			aliasInstallationId: 'figma-installation',
 			resourceIdentifier: itemUrl,
 			icon: 'https://example.com/figma.png',
 		});
@@ -2023,6 +2026,32 @@ suite('CustomizationMarketplaceInstallService', () => {
 					target: connectorInstallationTarget,
 					repairUnavailableMessage: 'This connector is no longer available from the Copilot Connectors catalog.',
 				},
+			});
+		});
+
+		test('retains updated connector homepage and source links when the catalog disappears', async () => {
+			const fixture = await createFixture();
+			fixture.connectorsService.homepageOverride = 'https://amplitude.com/a/b';
+			await fixture.service.install({ ...connectorResource(), homepage: fixture.connectorsService.homepageOverride });
+			const updatedHomepage = 'https://amplitude.com/a%2Fb?query=x%26y';
+			fixture.connectorsService.homepageOverride = updatedHomepage;
+			const updated = Event.toPromise(Event.filter(fixture.service.onDidChange, () =>
+				recordedResources(fixture.service).some(resource => resource.homepage === updatedHomepage)));
+			fixture.connectorChanges.fire();
+			await updated;
+			fixture.connectorsService.catalogVisible = false;
+			fixture.connectorChanges.fire();
+			await timeout(0);
+			const recorded = recordedResources(fixture.service)[0];
+
+			assert.deepStrictEqual({
+				homepage: recorded.homepage,
+				sourceUrl: recorded.url?.toString(),
+				state: fixture.service.getInstallState(recorded).kind,
+			}, {
+				homepage: updatedHomepage,
+				sourceUrl: 'https://docs.github.com/en/copilot/concepts/customizations/copilot-connectors',
+				state: 'missing',
 			});
 		});
 

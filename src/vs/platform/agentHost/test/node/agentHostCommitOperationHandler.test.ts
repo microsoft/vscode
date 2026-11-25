@@ -7,27 +7,23 @@ import assert from 'assert';
 import type Anthropic from '@anthropic-ai/sdk';
 import type { CCAModel } from '@vscode/copilot-api';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
-import { constObservable } from '../../../../base/common/observable.js';
 import type { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { buildUncommittedChangesetUri } from '../../common/changesetUri.js';
 import { buildChatUri, buildDefaultChatUri, SessionStatus, withSessionGitState, type ISessionFileDiff } from '../../common/state/sessionState.js';
-import type { IAgentHostGitService, IBranch, IDefaultBranch } from '../../common/agentHostGitService.js';
+import type { IDefaultBranch } from '../../common/agentHostGitService.js';
+import { TestAgentHostGitService } from '../common/testAgentHostGitService.js';
 import { AgentHostCommitOperationHandler } from '../../node/agentHostCommitOperationHandler.js';
 import { createTestGitHubEndpointService } from './testGitHubEndpointService.js';
 import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { CopilotApiError, type ICopilotApiService, type ICopilotApiServiceRequestOptions, type ICopilotUtilityChatCompletionRequest } from '../../node/shared/copilotApiService.js';
 import { GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE, type IAgentHostAuthTokenRequest } from '../../common/agent.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
-import { ChangesSummary } from '../../common/state/protocol/state.js';
-import type { IAgentHostChangesetService, StaticChangesetKind } from '../../common/agentHostChangesetService.js';
 import { AgentHostAuthenticationService, type IAgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
 
-class TestGitService implements IAgentHostGitService {
-	declare readonly _serviceBrand: undefined;
-
+class TestGitService extends TestAgentHostGitService {
 	readonly calls: string[] = [];
 	readonly workingDirectories: string[] = [];
 	uncommitted = true;
@@ -38,64 +34,25 @@ class TestGitService implements IAgentHostGitService {
 		diff: { added: 1, removed: 0 },
 	}];
 
-	async getCurrentBranch(): Promise<string | undefined> { return this.currentBranch; }
-	async getHEAD(): Promise<IBranch | undefined> { return undefined; }
+	override async getCurrentBranch(): Promise<string | undefined> { return this.currentBranch; }
 	async getCurrentBranchName(): Promise<string | undefined> { return this.currentBranchName; }
-	async getDefaultBranch(): Promise<IDefaultBranch | undefined> { return { name: 'main', startPoint: 'main' }; }
-	async getDefaultBranch2(): Promise<IBranch | undefined> { return undefined; }
-	async getBranch(): Promise<IBranch | undefined> { return undefined; }
-	async getRefs(): Promise<IBranch[]> { return []; }
-	async getBranches(): Promise<IBranch[]> { return []; }
-	hasGitRoot() { return constObservable(undefined); }
-	async getRepositoryRoot(): Promise<URI | undefined> { return URI.file('/repo'); }
-	async getWorktreeRoots(): Promise<URI[]> { return []; }
-	async addWorktree(): Promise<void> { }
-	async copyWorktreeIncludeFiles(): Promise<void> { }
-	async symlinkWorktreeFolders(): Promise<readonly string[]> { return []; }
-	async addExistingWorktree(): Promise<void> { }
-	async isWorktreeRegistered(): Promise<boolean> { return true; }
-	async removeWorktree(): Promise<void> { }
-	async branchExists(): Promise<boolean> { return false; }
-	async createBranch(): Promise<void> { }
-	async checkout(): Promise<void> { }
-	async hasUncommittedChanges(workingDirectory: URI): Promise<boolean> {
+	override async getDefaultBranch(): Promise<IDefaultBranch | undefined> { return { name: 'main', startPoint: 'main' }; }
+	override async getRepositoryRoot(): Promise<URI | undefined> { return URI.file('/repo'); }
+	override async hasUncommittedChanges(workingDirectory: URI): Promise<boolean> {
 		this.calls.push('hasUncommittedChanges');
 		this.workingDirectories.push(workingDirectory.toString());
 		return this.uncommitted;
 	}
-	async createStash(): Promise<void> { }
-	async commitAll(workingDirectory: URI, message: string): Promise<void> {
+	override async commitAll(workingDirectory: URI, message: string): Promise<void> {
 		this.calls.push(`commitAll:${message}`);
 		this.workingDirectories.push(workingDirectory.toString());
 		this.uncommitted = false;
 	}
-	async mergeBranch(): Promise<string> { return ''; }
-	async restore(): Promise<void> { }
-	async hasUpstream(): Promise<boolean> { return false; }
-	async fetch(): Promise<void> { }
-	async pull(): Promise<void> { }
-	async push(): Promise<void> { }
-	async getSessionGitState(): Promise<undefined> { return undefined; }
-	async computeSessionFileDiffs(workingDirectory: URI): Promise<readonly ISessionFileDiff[] | undefined> {
+	override async computeSessionFileDiffs(workingDirectory: URI): Promise<readonly ISessionFileDiff[] | undefined> {
 		this.calls.push('computeSessionFileDiffs');
 		this.workingDirectories.push(workingDirectory.toString());
 		return this.diffs;
 	}
-	async showBlob(): Promise<undefined> { return undefined; }
-	async captureWorkingTreeAsTree(): Promise<undefined> { return undefined; }
-	async commitTree(): Promise<undefined> { return undefined; }
-	async updateRef(): Promise<void> { }
-	async deleteRefs(): Promise<void> { }
-	async revParse(): Promise<string | undefined> { return undefined; }
-	async resolveBranchBaselineCommit(): Promise<string | undefined> { return undefined; }
-	async overlayPathIntoTree(): Promise<string | undefined> { return undefined; }
-	async diffTreePaths(): Promise<string[] | undefined> { return undefined; }
-	async computeFileDiffsBetweenRefs(): Promise<readonly ISessionFileDiff[] | undefined> { return undefined; }
-	async getFetchRemoteUrls(): Promise<undefined> { return undefined; }
-	async getFetchRemotes(): Promise<undefined> { return undefined; }
-	async getUntrackedPaths(): Promise<[]> { return []; }
-	async getBranchDiffSafetyInfo(): Promise<undefined> { return undefined; }
-	async getDiffPatchBetweenRefs(): Promise<undefined> { return undefined; }
 }
 
 class TestCopilotApiService implements ICopilotApiService {
@@ -130,36 +87,6 @@ class TestCopilotApiService implements ICopilotApiService {
 	}
 }
 
-class TestChangesetService implements IAgentHostChangesetService {
-	declare readonly _serviceBrand: undefined;
-
-	readonly calls: string[] = [];
-	registerStaticChangesets(): void { }
-	restoreStaticChangeset(_session: string, _kind: StaticChangesetKind, _diffs: readonly ISessionFileDiff[]): void { }
-	persistChangesSummary(_sessionUri: string, _summary: ChangesSummary): void { }
-	isStaticChangesetComputeActive(): boolean { return false; }
-	getListMetadataKeys(_sessionUri: string): Record<string, true> | undefined { return undefined; }
-	computeListEntryChanges(_sessionUri: string, _metadata: Record<string, string | undefined>): ChangesSummary | undefined { return undefined; }
-	refreshChangesetCatalog(session: string): void { this.calls.push(`refreshChangesets:${session}`); }
-	refreshBranchChangeset(session: string): void { this.calls.push(`refreshBranch:${session}`); }
-	refreshSessionChangeset(session: string): void { this.calls.push(`refreshSession:${session}`); }
-	refreshWorkingSetChangeset(): void { }
-	onWorkingDirectoryAvailable(_session: string): void { }
-	recomputeSubscribedChangesets(_session: string): void { }
-	async computeUncommittedChangeset(session: string): Promise<string> { this.calls.push(`computeUncommitted:${session}`); return `${session}/changeset/uncommitted`; }
-	async computeTurnChangeset(_session: string, _turnId: string): Promise<string> { return ''; }
-	async computeCompareTurnsChangeset(_session: string, _originalTurnId: string, _modifiedTurnId: string): Promise<string> { return ''; }
-	onToolCallEditsApplied(_session: string, _turnId: string): void { }
-	onTurnComplete(_session: string, _turnId: string | undefined): void { }
-	onSessionTruncated(_session: string): void { }
-	openTrackedTurnDatabase(): undefined { return undefined; }
-	openTrackedSessionDatabases() { return { sources: [], otherChatDatabases: [], workingDirectories: undefined, folderScope: undefined, dispose: () => { } }; }
-	onFileEditsDiscarded(): void { }
-	onFileEditsAccepted(): void { }
-	ensureChatChangesSummary(): void { }
-	refreshChatChangesSummary(): void { }
-}
-
 function createAuthenticationService(disposables: Pick<DisposableStore, 'add'>, token: string | undefined): IAgentHostAuthenticationService {
 	return disposables.add(new class extends AgentHostAuthenticationService {
 		override getAuthToken(request: Parameters<IAgentHostAuthenticationService['getAuthToken']>[0], source?: Parameters<IAgentHostAuthenticationService['getAuthToken']>[1]) {
@@ -168,10 +95,9 @@ function createAuthenticationService(disposables: Pick<DisposableStore, 'add'>, 
 	}(new NullLogService()));
 }
 
-function setup(disposables: Pick<DisposableStore, 'add'>, gitService: TestGitService, copilotApiService: TestCopilotApiService, changesets: TestChangesetService, options?: { readonly onCommittedError?: Error }): { handler: AgentHostCommitOperationHandler; session: URI; stateManager: AgentHostStateManager; committedSessions: string[] } {
+function setup(disposables: Pick<DisposableStore, 'add'>, gitService: TestGitService, copilotApiService: TestCopilotApiService): { handler: AgentHostCommitOperationHandler; session: URI; stateManager: AgentHostStateManager } {
 	const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 	const session = URI.parse('agent:/session');
-	const committedSessions: string[] = [];
 	stateManager.createSession({
 		resource: session.toString(),
 		provider: 'copilot',
@@ -187,16 +113,9 @@ function setup(disposables: Pick<DisposableStore, 'add'>, gitService: TestGitSer
 		uncommittedChanges: 1,
 	}));
 	return {
-		handler: new AgentHostCommitOperationHandler(sessionKey => stateManager.getSessionState(sessionKey), async sessionKey => {
-			committedSessions.push(sessionKey);
-			changesets.calls.push(`onCommitted:${sessionKey}`);
-			if (options?.onCommittedError) {
-				throw options.onCommittedError;
-			}
-		}, createAuthenticationService(disposables, 'gh-repo-token'), createTestGitHubEndpointService(), gitService, copilotApiService, new NullLogService(), stateManager),
+		handler: new AgentHostCommitOperationHandler(sessionKey => stateManager.getSessionState(sessionKey), createAuthenticationService(disposables, 'gh-repo-token'), createTestGitHubEndpointService(), gitService, copilotApiService, new NullLogService(), stateManager),
 		session,
 		stateManager,
-		committedSessions,
 	};
 }
 
@@ -207,7 +126,7 @@ suite('AgentHostCommitOperationHandler', () => {
 		test(`uses only the requester credential for commit generation (${available ? 'available' : 'missing'})`, async () => {
 			const git = new TestGitService();
 			const api = new TestCopilotApiService();
-			const { handler, session } = setup(disposables, git, api, new TestChangesetService());
+			const { handler, session } = setup(disposables, git, api);
 			const requests: IAgentHostAuthTokenRequest[] = [];
 			const operation = handler.invoke({ channel: buildUncommittedChangesetUri(session.toString()), operationId: AgentHostCommitOperationHandler.OPERATION_COMMIT }, CancellationToken.None, {
 				getCredential: request => {
@@ -230,11 +149,10 @@ suite('AgentHostCommitOperationHandler', () => {
 		});
 	}
 
-	test('generates a commit message, commits all changes, and invokes post-commit refresh', async () => {
+	test('generates a commit message and commits all changes', async () => {
 		const gitService = new TestGitService();
 		const copilotApiService = new TestCopilotApiService();
-		const changesets = new TestChangesetService();
-		const { handler, session, committedSessions } = setup(disposables, gitService, copilotApiService, changesets);
+		const { handler, session } = setup(disposables, gitService, copilotApiService);
 
 		const result = await handler.invoke({ channel: buildUncommittedChangesetUri(buildDefaultChatUri(session.toString())), operationId: AgentHostCommitOperationHandler.OPERATION_COMMIT }, CancellationToken.None);
 
@@ -242,33 +160,22 @@ suite('AgentHostCommitOperationHandler', () => {
 			message: result.message,
 			gitCalls: gitService.calls,
 			completion: copilotApiService.calls.map(call => ({ token: call.token, fileIncluded: call.request.messages.some(message => message.content.includes('file.ts')) })),
-			changesetCalls: changesets.calls,
-			committedSessions,
 		}, {
 			message: { markdown: 'Committed changes with message: `Update session changes`' },
 			gitCalls: ['hasUncommittedChanges', 'computeSessionFileDiffs', 'commitAll:Update session changes'],
 			completion: [{ token: 'gh-repo-token', fileIncluded: true }],
-			changesetCalls: [`onCommitted:${buildDefaultChatUri(session.toString())}`],
-			committedSessions: [buildDefaultChatUri(session.toString())],
 		});
 	});
 
-	test('runs and refreshes a peer-chat operation in the peer working directory', async () => {
+	test('runs a peer-chat operation in the peer working directory', async () => {
 		const gitService = new TestGitService();
-		const changesets = new TestChangesetService();
-		const { handler, session, stateManager, committedSessions } = setup(disposables, gitService, new TestCopilotApiService(), changesets);
+		const { handler, session, stateManager } = setup(disposables, gitService, new TestCopilotApiService());
 		const peer = buildChatUri(session.toString(), 'peer');
 		stateManager.addChat(session.toString(), peer, creationTimeChatStorageResource(session.toString(), peer, buildDefaultChatUri(session.toString())), { workingDirectories: [URI.file('/peer-repo').toString()] });
 
 		await handler.invoke({ channel: buildUncommittedChangesetUri(peer), operationId: AgentHostCommitOperationHandler.OPERATION_COMMIT }, CancellationToken.None);
 
-		assert.deepStrictEqual({
-			workingDirectories: gitService.workingDirectories,
-			committedSessions,
-		}, {
-			workingDirectories: ['file:///peer-repo', 'file:///peer-repo', 'file:///peer-repo'],
-			committedSessions: [peer],
-		});
+		assert.deepStrictEqual(gitService.workingDirectories, ['file:///peer-repo', 'file:///peer-repo', 'file:///peer-repo']);
 	});
 
 	test('commits changes from a detached HEAD', async () => {
@@ -276,8 +183,7 @@ suite('AgentHostCommitOperationHandler', () => {
 		gitService.currentBranchName = undefined;
 		gitService.currentBranch = 'abc1234';
 		const copilotApiService = new TestCopilotApiService();
-		const changesets = new TestChangesetService();
-		const { handler, session } = setup(disposables, gitService, copilotApiService, changesets);
+		const { handler, session } = setup(disposables, gitService, copilotApiService);
 
 		const result = await handler.invoke({ channel: buildUncommittedChangesetUri(session.toString()), operationId: AgentHostCommitOperationHandler.OPERATION_COMMIT }, CancellationToken.None);
 
@@ -296,45 +202,21 @@ suite('AgentHostCommitOperationHandler', () => {
 		const gitService = new TestGitService();
 		gitService.uncommitted = false;
 		const copilotApiService = new TestCopilotApiService();
-		const changesets = new TestChangesetService();
-		const { handler, session } = setup(disposables, gitService, copilotApiService, changesets);
+		const { handler, session } = setup(disposables, gitService, copilotApiService);
 
 		const result = await handler.invoke({ channel: buildUncommittedChangesetUri(session.toString()), operationId: AgentHostCommitOperationHandler.OPERATION_COMMIT }, CancellationToken.None);
 
-		assert.deepStrictEqual({ message: result.message, gitCalls: gitService.calls, completionCalls: copilotApiService.calls.length, changesetCalls: changesets.calls }, {
+		assert.deepStrictEqual({ message: result.message, gitCalls: gitService.calls, completionCalls: copilotApiService.calls.length }, {
 			message: { markdown: 'No uncommitted changes to commit.' },
 			gitCalls: ['hasUncommittedChanges'],
 			completionCalls: 0,
-			changesetCalls: [],
-		});
-	});
-
-	test('returns success when post-commit refresh fails', async () => {
-		const gitService = new TestGitService();
-		const copilotApiService = new TestCopilotApiService();
-		const changesets = new TestChangesetService();
-		const { handler, session, committedSessions } = setup(disposables, gitService, copilotApiService, changesets, { onCommittedError: new Error('refresh failed') });
-
-		const result = await handler.invoke({ channel: buildUncommittedChangesetUri(session.toString()), operationId: AgentHostCommitOperationHandler.OPERATION_COMMIT }, CancellationToken.None);
-
-		assert.deepStrictEqual({
-			message: result.message,
-			gitCalls: gitService.calls,
-			changesetCalls: changesets.calls,
-			committedSessions,
-		}, {
-			message: { markdown: 'Committed changes with message: `Update session changes`' },
-			gitCalls: ['hasUncommittedChanges', 'computeSessionFileDiffs', 'commitAll:Update session changes'],
-			changesetCalls: ['onCommitted:agent:/session'],
-			committedSessions: ['agent:/session'],
 		});
 	});
 
 	test('honors cancellation before mutating the repository', async () => {
 		const gitService = new TestGitService();
 		const copilotApiService = new TestCopilotApiService();
-		const changesets = new TestChangesetService();
-		const { handler, session } = setup(disposables, gitService, copilotApiService, changesets);
+		const { handler, session } = setup(disposables, gitService, copilotApiService);
 		const cts = disposables.add(new CancellationTokenSource());
 		cts.cancel();
 
@@ -343,10 +225,9 @@ suite('AgentHostCommitOperationHandler', () => {
 			/Commit operation was cancelled/,
 		);
 
-		assert.deepStrictEqual({ gitCalls: gitService.calls, completionCalls: copilotApiService.calls.length, changesetCalls: changesets.calls }, {
+		assert.deepStrictEqual({ gitCalls: gitService.calls, completionCalls: copilotApiService.calls.length }, {
 			gitCalls: [],
 			completionCalls: 0,
-			changesetCalls: [],
 		});
 	});
 
@@ -358,8 +239,7 @@ suite('AgentHostCommitOperationHandler', () => {
 			error: { type: 'authentication_error', message: 'bad token' },
 			request_id: null,
 		});
-		const changesets = new TestChangesetService();
-		const { handler, session, committedSessions } = setup(disposables, gitService, copilotApiService, changesets);
+		const { handler, session } = setup(disposables, gitService, copilotApiService);
 
 		let err: ProtocolError | undefined;
 		try {
@@ -373,15 +253,11 @@ suite('AgentHostCommitOperationHandler', () => {
 			data: err?.data,
 			gitCalls: gitService.calls,
 			completionCalls: copilotApiService.calls.length,
-			changesetCalls: changesets.calls,
-			committedSessions,
 		}, {
 			code: AHP_AUTH_REQUIRED,
 			data: [GITHUB_COPILOT_PROTECTED_RESOURCE],
 			gitCalls: ['hasUncommittedChanges', 'computeSessionFileDiffs'],
 			completionCalls: 1,
-			changesetCalls: [],
-			committedSessions: [],
 		});
 	});
 
@@ -389,8 +265,7 @@ suite('AgentHostCommitOperationHandler', () => {
 		const gitService = new TestGitService();
 		const copilotApiService = new TestCopilotApiService();
 		copilotApiService.error = new Error('Copilot API authorization failed: 403 Forbidden');
-		const changesets = new TestChangesetService();
-		const { handler, session, committedSessions } = setup(disposables, gitService, copilotApiService, changesets);
+		const { handler, session } = setup(disposables, gitService, copilotApiService);
 
 		let err: ProtocolError | undefined;
 		try {
@@ -404,15 +279,11 @@ suite('AgentHostCommitOperationHandler', () => {
 			data: err?.data,
 			gitCalls: gitService.calls,
 			completionCalls: copilotApiService.calls.length,
-			changesetCalls: changesets.calls,
-			committedSessions,
 		}, {
 			code: AHP_AUTH_REQUIRED,
 			data: [GITHUB_COPILOT_PROTECTED_RESOURCE],
 			gitCalls: ['hasUncommittedChanges', 'computeSessionFileDiffs'],
 			completionCalls: 1,
-			changesetCalls: [],
-			committedSessions: [],
 		});
 	});
 });

@@ -5,7 +5,7 @@
 
 import { assertNever } from '../../../base/common/assert.js';
 import { RunOnceScheduler } from '../../../base/common/async.js';
-import { Color } from '../../../base/common/color.js';
+import { Color, RGBA } from '../../../base/common/color.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { IJSONSchema, IJSONSchemaSnippet } from '../../../base/common/jsonSchema.js';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from '../../jsonschemas/common/jsonContributionRegistry.js';
@@ -53,17 +53,21 @@ export const enum ColorTransformType {
 	LessProminent,
 	IfDefinedThenElse,
 	Mix,
+	Opacity,
+	ThemeColor,
 }
 
 export type ColorTransform =
 	| { op: ColorTransformType.Darken; value: ColorValue; factor: number }
 	| { op: ColorTransformType.Lighten; value: ColorValue; factor: number }
 	| { op: ColorTransformType.Transparent; value: ColorValue; factor: number }
+	| { op: ColorTransformType.Opacity; value: ColorValue; opacity: number }
 	| { op: ColorTransformType.Opaque; value: ColorValue; background: ColorValue }
 	| { op: ColorTransformType.OneOf; values: readonly ColorValue[] }
 	| { op: ColorTransformType.LessProminent; value: ColorValue; background: ColorValue; factor: number; transparency: number }
 	| { op: ColorTransformType.IfDefinedThenElse; if: ColorIdentifier; then: ColorValue; else: ColorValue }
-	| { op: ColorTransformType.Mix; color: ColorValue; with: ColorValue; ratio?: number };
+	| { op: ColorTransformType.Mix; color: ColorValue; with: ColorValue; ratio?: number }
+	| { op: ColorTransformType.ThemeColor; color: ColorIdentifier };
 
 export interface ColorDefaults {
 	light: ColorValue | null;
@@ -147,12 +151,14 @@ class ColorRegistry extends Disposable implements IColorRegistry {
 	readonly onDidChangeSchema: Event<void> = this._onDidChangeSchema.event;
 
 	private colorsById: { [key: string]: ColorContribution };
+	private readonly defaultColorSchema: IJSONSchema;
 	private colorSchema: IJSONSchemaForColors = { type: 'object', properties: {} };
 	private colorReferenceSchema: IJSONSchema & { enum: string[]; enumDescriptions: string[] } = { type: 'string', enum: [], enumDescriptions: [] };
 
 	constructor() {
 		super();
 		this.colorsById = {};
+		this.defaultColorSchema = { type: 'string', const: DEFAULT_COLOR_CONFIG_VALUE, description: nls.localize('useDefault', 'Use the default color.') };
 	}
 
 	public notifyThemeUpdate(colorThemeData: IColorTheme) {
@@ -180,7 +186,7 @@ class ColorRegistry extends Disposable implements IColorRegistry {
 			description,
 			oneOf: [
 				propertySchema,
-				{ type: 'string', const: DEFAULT_COLOR_CONFIG_VALUE, description: nls.localize('useDefault', 'Use the default color.') }
+				this.defaultColorSchema
 			]
 		};
 		this.colorReferenceSchema.enum.push(id);
@@ -270,6 +276,11 @@ export function executeTransform(transform: ColorTransform, theme: IColorTheme):
 		case ColorTransformType.Transparent:
 			return resolveColorValue(transform.value, theme)?.transparent(transform.factor);
 
+		case ColorTransformType.Opacity: {
+			const rgba = resolveColorValue(transform.value, theme)?.rgba;
+			return rgba ? new Color(new RGBA(rgba.r, rgba.g, rgba.b, transform.opacity)) : undefined;
+		}
+
 		case ColorTransformType.Mix: {
 			const primaryColor = resolveColorValue(transform.color, theme) || Color.transparent;
 			const otherColor = resolveColorValue(transform.with, theme) || Color.transparent;
@@ -295,6 +306,9 @@ export function executeTransform(transform: ColorTransform, theme: IColorTheme):
 
 		case ColorTransformType.IfDefinedThenElse:
 			return resolveColorValue(theme.defines(transform.if) ? transform.then : transform.else, theme);
+
+		case ColorTransformType.ThemeColor:
+			return theme.getColor(transform.color, true, true);
 
 		case ColorTransformType.LessProminent: {
 			const from = resolveColorValue(transform.value, theme);
@@ -328,12 +342,22 @@ export function transparent(colorValue: ColorValue, factor: number): ColorTransf
 	return { op: ColorTransformType.Transparent, value: colorValue, factor };
 }
 
+/** Sets a color's opacity without scaling its existing alpha. */
+export function withOpacity(colorValue: ColorValue, opacity: number): ColorTransform {
+	return { op: ColorTransformType.Opacity, value: colorValue, opacity };
+}
+
 export function opaque(colorValue: ColorValue, background: ColorValue): ColorTransform {
 	return { op: ColorTransformType.Opaque, value: colorValue, background };
 }
 
 export function oneOf(...colorValues: ColorValue[]): ColorTransform {
 	return { op: ColorTransformType.OneOf, values: colorValues };
+}
+
+/** Resolves a theme color without user or transient overrides of that color. */
+export function themeColor(color: ColorIdentifier): ColorTransform {
+	return { op: ColorTransformType.ThemeColor, color };
 }
 
 export function ifDefinedThenElse(ifArg: ColorIdentifier, thenArg: ColorValue, elseArg: ColorValue): ColorTransform {

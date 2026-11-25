@@ -7,6 +7,7 @@ import { IDisposable, toDisposable } from '../../../../base/common/lifecycle.js'
 import { IObservable, observableValue } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
+import { ISession } from '../../../../workbench/services/sessions/common/session.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { EditorInput } from '../../../../workbench/common/editor/editorInput.js';
 
@@ -36,6 +37,20 @@ export interface ISessionEditorWorkingSetRestoreState {
 	/** Whether the queued restore is currently replacing the editor working set. */
 	readonly applying: boolean;
 }
+
+/**
+ * The editors a session left behind in its saved editor working set, while another session
+ * is shown. The working set stays saved until {@link accept} is called.
+ */
+export interface IStashedSessionEditors extends IDisposable {
+	readonly editors: readonly EditorInput[];
+	readonly activeEditor: EditorInput | undefined;
+
+	/** The editors moved on to their new place: deletes the saved working set. Disposing afterwards keeps them open. */
+	accept(): void;
+}
+
+export type StashedSessionEditorsProvider = (session: ISession, chatResource: URI) => IStashedSessionEditors | undefined;
 
 export const ISessionEditorWorkingSetService = createDecorator<ISessionEditorWorkingSetService>('sessionEditorWorkingSetService');
 
@@ -72,6 +87,14 @@ export interface ISessionEditorWorkingSetService {
 	 * may overlap; the owner of the most recent one is reported once all of them settle.
 	 */
 	beginRestore(owner: ISessionEditorWorkingSetOwner | undefined): IDisposable;
+
+	registerStashedEditorsProvider(provider: StashedSessionEditorsProvider): IDisposable;
+
+	/**
+	 * Resolves the editors the session has saved in its editor working set, without showing them.
+	 * Disposing the result without accepting it discards the resolved editors and keeps the working set.
+	 */
+	takeEditorsFor(session: ISession, chatResource: URI): IStashedSessionEditors | undefined;
 }
 
 export class SessionEditorWorkingSetService implements ISessionEditorWorkingSetService {
@@ -83,6 +106,7 @@ export class SessionEditorWorkingSetService implements ISessionEditorWorkingSetS
 
 	private _pendingRestores = 0;
 	private readonly _editorsToRetain = new Set<EditorInput>();
+	private _stashedEditorsProvider: StashedSessionEditorsProvider | undefined;
 
 	setCurrentOwner(owner: ISessionEditorWorkingSetOwner | undefined): void {
 		this._restoreState.set(Object.freeze({ owner, restoring: this._pendingRestores !== 0, applying: false }), undefined);
@@ -95,6 +119,19 @@ export class SessionEditorWorkingSetService implements ISessionEditorWorkingSetS
 
 	shouldRetainEditor(input: EditorInput): boolean {
 		return this._editorsToRetain.has(input);
+	}
+
+	registerStashedEditorsProvider(provider: StashedSessionEditorsProvider): IDisposable {
+		this._stashedEditorsProvider = provider;
+		return toDisposable(() => {
+			if (this._stashedEditorsProvider === provider) {
+				this._stashedEditorsProvider = undefined;
+			}
+		});
+	}
+
+	takeEditorsFor(session: ISession, chatResource: URI): IStashedSessionEditors | undefined {
+		return this._stashedEditorsProvider?.(session, chatResource);
 	}
 
 	beginApply(owner: ISessionEditorWorkingSetOwner | undefined): boolean {

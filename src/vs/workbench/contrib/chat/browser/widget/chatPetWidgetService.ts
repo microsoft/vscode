@@ -10,6 +10,7 @@ import { autorun, constObservable, IObservable, ISettableObservable, observableV
 import { createDecorator, IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IChatWidgetService } from '../chat.js';
 import { ChatPetWidget, IChatPetWidgetHost } from './chatPetWidget.js';
+import { ChatPetJumpGame } from './chatPetJumpGame.js';
 
 export const IChatPetWidgetService = createDecorator<IChatPetWidgetService>('chatPetWidgetService');
 
@@ -20,10 +21,12 @@ export interface IChatPetWidgetHostRegistration extends IDisposable {
 export interface IChatPetWidgetService {
 	readonly _serviceBrand: undefined;
 	register(owner: object, host: IChatPetWidgetHost, preferred?: IObservable<boolean>, onDidFocus?: Event<void>): IChatPetWidgetHostRegistration;
+	getFocusedJumpGame(): ChatPetJumpGame | undefined;
 }
 
 interface IChatPetWidgetInstance extends IDisposable {
 	setHost(host: IChatPetWidgetHost): void;
+	readonly jumpGame?: ChatPetJumpGame;
 }
 
 interface IChatPetHostEntry {
@@ -45,6 +48,15 @@ export class ChatPetWidgetCoordinator extends Disposable {
 
 	private readonly hosts = new Map<object, IChatPetHostEntry>();
 	private readonly windows = new Map<number, IChatPetWindowEntry>();
+
+	getFocusedJumpGame(): ChatPetJumpGame | undefined {
+		for (const entry of this.windows.values()) {
+			if (entry.pet.jumpGame?.isFocused()) {
+				return entry.pet.jumpGame;
+			}
+		}
+		return undefined;
+	}
 
 	constructor(
 		private readonly createPet: (host: IChatPetWidgetHost) => IChatPetWidgetInstance,
@@ -228,5 +240,9 @@ export class ChatPetWidgetService extends Disposable implements IChatPetWidgetSe
 
 	register(owner: object, host: IChatPetWidgetHost, preferred?: IObservable<boolean>, onDidFocus?: Event<void>): IChatPetWidgetHostRegistration {
 		return this.coordinator.register(owner, host, preferred, onDidFocus);
+	}
+
+	getFocusedJumpGame(): ChatPetJumpGame | undefined {
+		return this.coordinator.getFocusedJumpGame();
 	}
 }

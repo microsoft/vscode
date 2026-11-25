@@ -24,7 +24,7 @@ import { IFileService } from '../../../../../platform/files/common/files.js';
 import { HOOK_METADATA, HOOKS_BY_TARGET, HookType, IHookTypeMeta } from '../../common/promptSyntax/hookTypes.js';
 import { formatHookCommandLabel, getEffectiveCommandFieldKey } from '../../common/promptSyntax/hookSchema.js';
 import { getCopilotCliHookTypeName, resolveCopilotCliHookType } from '../../common/promptSyntax/hookCopilotCliCompat.js';
-import { getHookSourceFormat, HookSourceFormat, buildNewHookEntry } from '../../common/promptSyntax/hookCompatibility.js';
+import { getHookSourceFormat, HookSourceFormat, buildNewHookEntry, buildNewHookFile } from '../../common/promptSyntax/hookCompatibility.js';
 import { getClaudeHookTypeName, resolveClaudeHookType } from '../../common/promptSyntax/hookClaudeCompat.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
@@ -37,7 +37,7 @@ import { IBulkEditService, ResourceTextEdit } from '../../../../../editor/browse
 import { Range } from '../../../../../editor/common/core/range.js';
 import { getCodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
-import { OperatingSystem, OS } from '../../../../../base/common/platform.js';
+import { OS } from '../../../../../base/common/platform.js';
 
 /**
  * Action ID for the `Configure Hooks` action.
@@ -100,7 +100,7 @@ async function addHookToFile(
 	openEditorOverride?: (resource: URI, options?: { selection?: ITextEditorSelection }) => Promise<void>,
 ): Promise<void> {
 	// Parse existing file
-	let hooksContent: { hooks: Record<string, unknown[]> };
+	let hooksContent: { version?: number; hooks: Record<string, unknown[]> };
 	const fileExists = await fileService.exists(hookFileUri);
 
 	if (fileExists) {
@@ -126,8 +126,7 @@ async function addHookToFile(
 	const sourceFormat = getHookSourceFormat(hookFileUri);
 	const isClaude = sourceFormat === HookSourceFormat.Claude;
 
-	// Detect naming convention from existing keys
-	const useCopilotCliNamingConvention = !isClaude && usesCopilotCliNaming(hooksContent.hooks);
+	const useCopilotCliNamingConvention = !isClaude && (!fileExists || typeof hooksContent.version === 'number' || usesCopilotCliNaming(hooksContent.hooks));
 	const hookTypeKeyName = isClaude
 		? (getClaudeHookTypeName(hookTypeId) ?? hookTypeId)
 		: getHookTypeKeyName(hookTypeId, useCopilotCliNamingConvention);
@@ -164,7 +163,7 @@ async function addHookToFile(
 		jsonContent = applyEdits(originalText, edits);
 	} else {
 		// New file - use JSON.stringify since there are no comments to preserve
-		const newContent = { hooks: { [keyToUse]: [newHookEntry] } };
+		const newContent = buildNewHookFile(sourceFormat, hookTypeId);
 		jsonContent = JSON.stringify(newContent, null, '\t');
 	}
 
@@ -787,31 +786,8 @@ export async function showConfigureHooksQuickPick(
 
 					// Detect if new file is a Claude hooks file based on its path
 					const newFileFormat = getHookSourceFormat(hookFileUri);
-					const isClaudeNewFile = newFileFormat === HookSourceFormat.Claude;
-					const isCopilotCliOnly = !isClaudeNewFile
-						&& !new Set(Object.values(HOOKS_BY_TARGET[Target.VSCode])).has(selectedHookType!.hookType)
-						&& new Set(Object.values(HOOKS_BY_TARGET[Target.GitHubCopilot])).has(selectedHookType!.hookType);
-					const hookTypeKey = isClaudeNewFile
-						? (getClaudeHookTypeName(selectedHookType!.hookType) ?? selectedHookType!.hookType)
-						: isCopilotCliOnly
-							? (getCopilotCliHookTypeName(selectedHookType!.hookType) ?? selectedHookType!.hookType)
-							: selectedHookType!.hookType;
-					const newFileHookEntry = isCopilotCliOnly
-						? { type: 'command', [targetOS === OperatingSystem.Windows ? 'powershell' : 'bash']: '' }
-						: buildNewHookEntry(newFileFormat);
-					const commandFieldKey = isCopilotCliOnly
-						? (targetOS === OperatingSystem.Windows ? 'powershell' : 'bash')
-						: 'command';
-
-					// Create new hook file with the selected hook type
-					const hooksContent: Record<string, unknown> = {
-						...(isCopilotCliOnly ? { version: 1 } : {}),
-						hooks: {
-							[hookTypeKey]: [
-								newFileHookEntry
-							]
-						}
-					};
+					const hooksContent = buildNewHookFile(newFileFormat, selectedHookType!.hookType);
+					const hookTypeKey = Object.keys(hooksContent.hooks)[0];
 
 					const jsonContent = JSON.stringify(hooksContent, null, '\t');
 					await fileService.writeFile(hookFileUri, VSBuffer.fromString(jsonContent));
@@ -819,7 +795,7 @@ export async function showConfigureHooksQuickPick(
 					options?.onHookFileCreated?.(hookFileUri);
 
 					// Find the selection for the new hook's command field
-					const selection = findHookCommandSelection(jsonContent, hookTypeKey, 0, commandFieldKey);
+					const selection = findHookCommandSelection(jsonContent, hookTypeKey, 0, 'command');
 
 					// Open editor with selection
 					if (options?.openEditor) {
@@ -865,6 +841,9 @@ class ManageHooksAction extends Action2 {
 /**
  * Helper to register the `Manage Hooks` action.
  */
-export function registerHookActions(): void {
-	registerAction2(ManageHooksAction);
+export function registerHookActions(): DisposableStore {
+	const store = new DisposableStore();
+	store.add(registerAction2(ManageHooksAction));
+
+	return store;
 }

@@ -5,7 +5,7 @@
 
 import { URI } from '../../../../base/common/uri.js';
 import { IRange } from '../../../common/core/range.js';
-import { DiffAlgorithmName, IEditorWorkerService, IStringEditFromDiff, IUnicodeHighlightsResult } from '../../../common/services/editorWorker.js';
+import { DiffAlgorithmName, IEditorWorkerService, IStringDiffOptions, IStringEditFromDiff, IUnicodeHighlightsResult } from '../../../common/services/editorWorker.js';
 import { TextEdit, IInplaceReplaceSupportResult, IColorInformation } from '../../../common/languages.js';
 import { IDocumentDiff, IDocumentDiffProviderOptions } from '../../../common/diff/documentDiffProvider.js';
 import { IChange } from '../../../common/diff/legacyLinesDiffComputer.js';
@@ -30,11 +30,11 @@ export class TestEditorWorkerService implements IEditorWorkerService {
 	async findSectionHeaders(uri: URI): Promise<SectionHeader[]> { return []; }
 	async computeDefaultDocumentColors(uri: URI): Promise<IColorInformation[] | null> { return null; }
 
-	computeStringEditFromDiff(original: string, modified: string, options: { maxComputationTimeMs: number }, algorithm: DiffAlgorithmName): Promise<StringEdit> {
+	computeStringEditFromDiff(original: string, modified: string, options: IStringDiffOptions, algorithm: DiffAlgorithmName): Promise<StringEdit> {
 		throw new Error('Method not implemented.');
 	}
 
-	computeStringEditFromDiffWithMetadata(original: string, modified: string, options: { maxComputationTimeMs: number }, algorithm: DiffAlgorithmName): Promise<IStringEditFromDiff> {
+	computeStringEditFromDiffWithMetadata(original: string, modified: string, options: IStringDiffOptions, algorithm: DiffAlgorithmName): Promise<IStringEditFromDiff> {
 		throw new Error('Method not implemented.');
 	}
 }

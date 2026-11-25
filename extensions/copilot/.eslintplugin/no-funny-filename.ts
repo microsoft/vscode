@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as eslint from 'eslint';
+import type { Context, CreateRule, Visitor } from '@oxlint/plugins';
 import { readdirSync } from 'fs';
 import path from 'path';
 
-export default new class NoTestOnly implements eslint.Rule.RuleModule {
+export default new class NoTestOnly implements CreateRule {
 
-	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
+	create(context: Context): Visitor {
 
 		// compute/use real file path because LSP eslint might see cached
 		// filenames from VSCode that aren't using the latest casing

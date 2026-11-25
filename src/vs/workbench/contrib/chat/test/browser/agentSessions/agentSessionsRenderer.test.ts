@@ -77,11 +77,16 @@ suite('AgentSessionsRenderer', () => {
 		const template = renderer.renderTemplate(contents);
 		store.add({ dispose: () => renderer.disposeTemplate(template) });
 
-		assert.deepStrictEqual([...row.classList], [
-			'monaco-list-row',
-			'agent-session-list-row',
-			'agent-session-item-row',
-		]);
+		const marker = contents.querySelector('.agent-session-attention-indicator');
+		assert.deepStrictEqual({
+			rowClasses: [...row.classList],
+			markerTag: marker?.tagName,
+			markerAriaHidden: marker?.getAttribute('aria-hidden'),
+		}, {
+			rowClasses: ['monaco-list-row', 'agent-session-list-row', 'agent-session-item-row'],
+			markerTag: 'SPAN',
+			markerAriaHidden: 'true',
+		});
 	});
 
 	test('adds section classes when the container is a sticky row', () => {
@@ -182,6 +187,8 @@ suite('AgentSessionsRenderer', () => {
 			hasChatIcon: !!template.element.querySelector('.agent-session-chat-icon'),
 			hasNeutralChatIcon: !!template.element.querySelector('.codicon-circle-small-filled'),
 			hasDetails: !!template.element.querySelector('.agent-session-details-row'),
+			markerTag: template.element.querySelector('.agent-session-attention-indicator')?.tagName,
+			markerAriaHidden: template.element.querySelector('.agent-session-attention-indicator')?.getAttribute('aria-hidden'),
 			completion,
 			restore,
 			unsupported: actionLabels(),
@@ -192,6 +199,8 @@ suite('AgentSessionsRenderer', () => {
 			hasChatIcon: true,
 			hasNeutralChatIcon: true,
 			hasDetails: false,
+			markerTag: 'SPAN',
+			markerAriaHidden: 'true',
 			completion: ['Mark as Done'],
 			restore: ['Restore'],
 			unsupported: [],

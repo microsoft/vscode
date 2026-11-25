@@ -344,6 +344,11 @@ export interface IEditorOptions {
 		compact?: boolean;
 
 		/**
+		 * Keep a compact window compact when it is split, e.g. a chat with a document beside it.
+		 */
+		compactAllowsSplit?: boolean;
+
+		/**
 		 * Show the editor always on top of other windows.
 		 */
 		alwaysOnTop?: boolean;
@@ -411,6 +416,40 @@ export interface IModalEditorOptions {
 	 * Whether the modal editor can be moved into an editor area.
 	 */
 	readonly canMoveToEditorArea?: boolean;
+
+	/**
+	 * Whether the editor always opens in the modal editor part, also when
+	 * `workbench.editor.useModal` is `off`. When the editor also cannot be
+	 * moved into an editor area (see {@link canMoveToEditorArea}), its tab
+	 * cannot be dragged out of the modal either. Defaults to `false`.
+	 *
+	 * Like the `RequiresModal` editor input capability, this applies when the
+	 * editor input itself is opened. An editor that the editor resolver creates
+	 * from an untyped input opens in the group the resolver picks.
+	 */
+	readonly alwaysModal?: boolean;
+
+	/**
+	 * Whether the modal editor can be maximized. Defaults to `true`.
+	 */
+	readonly canMaximize?: boolean;
+
+	/**
+	 * Whether the modal editor can be resized. Defaults to `true`.
+	 */
+	readonly canResize?: boolean;
+
+	/**
+	 * The size of the content below the modal editor's header. When set,
+	 * the modal fits this size (within the window and the modal's minimum
+	 * size), is always centered and cannot be resized, and dragging it does
+	 * not change where other modal editors open. Like every modal editor, it
+	 * keeps its minimum size in a window smaller than that, where it shows at
+	 * the window's top left. Fire
+	 * {@link IModalEditorOptionsProvider.onDidChangeModalEditorOptions} when
+	 * the size changes to fit the modal again.
+	 */
+	readonly contentSize?: { readonly width: number; readonly height: number };
 }
 
 /**
@@ -419,14 +458,27 @@ export interface IModalEditorOptions {
  */
 export interface IModalEditorOptionsProvider {
 	getModalEditorOptions(): IModalEditorOptions | undefined;
+
+	/**
+	 * Fires when the result of {@link getModalEditorOptions} changes.
+	 */
+	readonly onDidChangeModalEditorOptions?: Event<void>;
 }
 
 export function isModalEditorOptionsProvider(obj: unknown): obj is IModalEditorOptionsProvider {
 	return !!obj && typeof (obj as IModalEditorOptionsProvider).getModalEditorOptions === 'function';
 }
 
+/**
+ * The modal editor options of an editor, if it provides any
+ * (see {@link IModalEditorOptionsProvider}).
+ */
+export function resolveModalEditorOptions(obj: unknown): IModalEditorOptions | undefined {
+	return isModalEditorOptionsProvider(obj) ? obj.getModalEditorOptions() : undefined;
+}
+
 export function canMoveModalEditorToEditorArea(obj: unknown): boolean {
-	return !isModalEditorOptionsProvider(obj) || obj.getModalEditorOptions()?.canMoveToEditorArea !== false;
+	return resolveModalEditorOptions(obj)?.canMoveToEditorArea !== false;
 }
 
 /**

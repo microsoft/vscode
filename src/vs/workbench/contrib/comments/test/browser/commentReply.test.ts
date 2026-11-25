@@ -6,12 +6,14 @@
 import assert from 'assert';
 import sinon from 'sinon';
 import * as dom from '../../../../../base/browser/dom.js';
+import { mainWindow } from '../../../../../base/browser/window.js';
 import { Emitter } from '../../../../../base/common/event.js';
+import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { IRange } from '../../../../../editor/common/core/range.js';
-import { CommentInput, CommentThread } from '../../../../../editor/common/languages.js';
+import { Comment, CommentInput, CommentThread } from '../../../../../editor/common/languages.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { createCodeEditorServices, instantiateTestCodeEditor } from '../../../../../editor/test/browser/testCodeEditor.js';
 import { createTextModel } from '../../../../../editor/test/common/testTextModel.js';
@@ -26,10 +28,11 @@ import { SimpleCommentEditor } from '../../browser/simpleCommentEditor.js';
 
 suite('CommentReply', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	const existingComment: Comment = { body: 'Existing comment', uniqueIdInThread: 1, userName: 'Reviewer' };
 
 	teardown(() => sinon.restore());
 
-	async function createReply(hasExistingComments = true) {
+	async function createReply(hasExistingComments = true, options?: { focus?: boolean }) {
 		const instantiationService = createCodeEditorServices(store);
 		const model = store.add(createTextModel(''));
 		const editor = store.add(instantiateTestCodeEditor(instantiationService, model));
@@ -37,6 +40,8 @@ suite('CommentReply', () => {
 		const onDidChangeInput = store.add(new Emitter<CommentInput | undefined>());
 		sinon.stub(editor, 'onDidBlurEditorWidget').value(onDidBlurEditorWidget.event);
 		sinon.stub(editor, 'getDomNode').returns(dom.$('div'));
+		const focus = sinon.spy(editor, 'focus');
+		const layout = sinon.spy(editor, 'layout');
 		instantiationService.stubInstance<ICodeEditor>(SimpleCommentEditor, editor);
 		instantiationService.stub(ITextModelService, {
 			createModelReference: async () => ({
@@ -54,7 +59,7 @@ suite('CommentReply', () => {
 		instantiationService.stub(IMenuService, new TestMenuService());
 		instantiationService.stub(IContextMenuService, {});
 		const thread = new class extends mock<CommentThread<IRange>>() {
-			override readonly comments = hasExistingComments ? [{ body: 'Existing comment', uniqueIdInThread: 1, userName: 'Reviewer' }] : [];
+			override comments: ReadonlyArray<Comment> | undefined = hasExistingComments ? [existingComment] : [];
 			override readonly canReply = true;
 			override readonly onDidChangeInput = onDidChangeInput.event;
 		};
@@ -63,11 +68,11 @@ suite('CommentReply', () => {
 			CommentReply<IRange>, 'test', container, { getLayoutInfo: () => ({ height: 500 }) },
 			thread, instantiationService, instantiationService.get(IContextKeyService),
 			store.add(instantiationService.createInstance(CommentMenus)), undefined, undefined,
-			{ submitComment: async () => { }, collapse: () => { } }, false, null
+			{ submitComment: async () => { }, collapse: () => { } }, !!options?.focus, null
 		));
-		await Promise.resolve();
+		await reply.whenInitialized;
 
-		return { reply, container, onDidBlurEditorWidget, onDidChangeInput, model, thread };
+		return { reply, container, onDidBlurEditorWidget, onDidChangeInput, model, thread, focus, layout };
 	}
 
 	test('collapses an empty reply on blur and can expand it again', async () => {
@@ -126,5 +131,60 @@ suite('CommentReply', () => {
 			hasReplyButton: !!container.querySelector('.review-thread-reply-button'),
 			value: model.getValue()
 		}, { expanded: [true, true, true], hasReplyButton: true, value: '' });
+	});
+
+	test('collapses an untouched reply area when a new thread receives its first comments', async () => {
+		const { reply, container, model, thread } = await createReply(false);
+		const formContainer = container.querySelector('.comment-form-container')!;
+		const expanded = [formContainer.classList.contains('expand')];
+		thread.comments = [existingComment];
+		reply.updateCommentThread(thread);
+		expanded.push(formContainer.classList.contains('expand'));
+
+		assert.deepStrictEqual({
+			expanded,
+			hasReplyButton: !!container.querySelector('.review-thread-reply-button'),
+			value: model.getValue()
+		}, { expanded: [true, false], hasReplyButton: true, value: '' });
+	});
+
+	test('keeps a draft expanded when a new thread receives its first comments', async () => {
+		const { reply, container, model, thread } = await createReply(false);
+		model.setValue('Draft comment');
+		thread.comments = [existingComment];
+		reply.updateCommentThread(thread);
+
+		assert.deepStrictEqual({
+			expanded: container.querySelector('.comment-form-container')!.classList.contains('expand'),
+			value: model.getValue()
+		}, { expanded: true, value: 'Draft comment' });
+	});
+
+	test('sizes the editor to its form, or by the thread\'s width when the form is not rendered', async () => {
+		const { reply, container, layout } = await createReply();
+		reply.layout(500);
+		const widths = [layout.lastCall.args[0]?.width];
+		container.style.width = '300px';
+		mainWindow.document.body.appendChild(container);
+		store.add(toDisposable(() => container.remove()));
+		reply.layout(500);
+		widths.push(layout.lastCall.args[0]?.width);
+
+		assert.deepStrictEqual(widths, [446, 300]);
+	});
+
+	test('focuses a new comment that was initialized outside the document once it is in the document', async () => {
+		const { reply, container, focus } = await createReply(false, { focus: true });
+		const focusCounts = [focus.callCount];
+		reply.focusIfPending();
+		focusCounts.push(focus.callCount);
+		mainWindow.document.body.appendChild(container);
+		store.add(toDisposable(() => container.remove()));
+		reply.focusIfPending();
+		focusCounts.push(focus.callCount);
+		reply.focusIfPending();
+		focusCounts.push(focus.callCount);
+
+		assert.deepStrictEqual(focusCounts, [0, 0, 1, 1]);
 	});
 });

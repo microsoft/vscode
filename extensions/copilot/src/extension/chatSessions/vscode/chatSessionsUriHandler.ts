@@ -11,7 +11,6 @@ import { API, Repository } from '../../../platform/git/vscode/git';
 import { ILogService } from '../../../platform/log/common/logService';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
 import { Disposable } from '../../../util/vs/base/common/lifecycle';
-import { EXTENSION_ID } from '../../common/constants';
 import { SessionIdForTask } from './copilotCodingAgentUtils';
 
 export const GHPR_EXTENSION_ID = 'GitHub.vscode-pull-request-github';
@@ -21,11 +20,6 @@ export enum UriHandlerPaths {
 	OpenSession = '/openAgentSession',
 	External_OpenPullRequestWebview = '/open-pull-request-webview',
 }
-
-export const UriHandlers = {
-	[UriHandlerPaths.OpenSession]: EXTENSION_ID,
-	[UriHandlerPaths.External_OpenPullRequestWebview]: GHPR_EXTENSION_ID
-};
 
 interface PendingChatSession {
 	type: string;

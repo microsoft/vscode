@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { mergeArrayPages } from '../client/pagination.js';
 import { ApiRequestOptions } from '../client/request.js';
 import { pathSegment, repositoryPath, withQuery } from '../client/routing.js';
@@ -14,7 +15,7 @@ import { INotificationsClient, ListNotificationsOptions, NotificationThread } fr
 export class NotificationsClient implements INotificationsClient {
 	constructor(private readonly _client: CoreClient) { }
 
-	async list(signal: AbortSignal, options?: ListNotificationsOptions): Promise<readonly NotificationThread[]> {
+	async list(cancellationToken: CancellationToken, options?: ListNotificationsOptions): Promise<readonly NotificationThread[]> {
 		const { query, ...requestOptions } = options ?? {};
 		return this._client.requestPages({
 			domain: 'notifications',
@@ -23,10 +24,10 @@ export class NotificationsClient implements INotificationsClient {
 			authentication: 'required',
 			expectedStatus: 200,
 			options: requestOptions
-		}, signal, parseNotifications, mergeArrayPages);
+		}, cancellationToken, parseNotifications, mergeArrayPages);
 	}
 
-	async listForRepository(repository: RepositoryRef, signal: AbortSignal, options?: ListNotificationsOptions): Promise<readonly NotificationThread[]> {
+	async listForRepository(repository: RepositoryRef, cancellationToken: CancellationToken, options?: ListNotificationsOptions): Promise<readonly NotificationThread[]> {
 		const { query, ...requestOptions } = options ?? {};
 		return this._client.requestPages({
 			domain: 'notifications',
@@ -35,10 +36,10 @@ export class NotificationsClient implements INotificationsClient {
 			authentication: 'required',
 			expectedStatus: 200,
 			options: requestOptions
-		}, signal, parseNotifications, mergeArrayPages);
+		}, cancellationToken, parseNotifications, mergeArrayPages);
 	}
 
-	async get(threadId: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<NotificationThread> {
+	async get(threadId: string, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<NotificationThread> {
 		return this._client.request({
 			domain: 'notifications',
 			method: 'GET',
@@ -46,10 +47,10 @@ export class NotificationsClient implements INotificationsClient {
 			authentication: 'required',
 			expectedStatus: 200,
 			options
-		}, signal, parseNotification);
+		}, cancellationToken, parseNotification);
 	}
 
-	async markRead(threadId: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<void> {
+	async markRead(threadId: string, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<void> {
 		return this._client.request({
 			domain: 'notifications',
 			method: 'PATCH',
@@ -58,10 +59,10 @@ export class NotificationsClient implements INotificationsClient {
 			expectedStatus: 205,
 			responseBody: 'none',
 			options
-		}, signal);
+		}, cancellationToken);
 	}
 
-	async markDone(threadId: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<void> {
+	async markDone(threadId: string, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<void> {
 		return this._client.request({
 			domain: 'notifications',
 			method: 'DELETE',
@@ -70,7 +71,7 @@ export class NotificationsClient implements INotificationsClient {
 			expectedStatus: 204,
 			responseBody: 'none',
 			options
-		}, signal);
+		}, cancellationToken);
 	}
 }
 

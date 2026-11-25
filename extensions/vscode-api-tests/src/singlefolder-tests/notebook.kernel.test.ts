@@ -332,6 +332,43 @@ const apiTestSerializer: vscode.NotebookSerializer = {
 		verifyOutputSyncKernel.controller.dispose();
 	});
 
+	test('copying a running cell preserves copied output when saved', async function () {
+		const notebookType = 'notebook.nbdserializer';
+		testDisposables.push(vscode.workspace.registerNotebookSerializer(notebookType, {
+			deserializeNotebook() {
+				return new vscode.NotebookData([new vscode.NotebookCellData(vscode.NotebookCellKind.Code, 'test', 'javascript')]);
+			},
+			serializeNotebook(data) {
+				return new TextEncoder().encode(JSON.stringify(data.cells.map(cell =>
+					cell.outputs?.map(output => output.items.map(item => new TextDecoder().decode(item.data)))
+				)));
+			}
+		}));
+		const kernel = new Kernel('copyOutputsKernel', 'Copy Outputs Kernel', notebookType);
+		testDisposables.push(kernel.controller);
+		const uri = await createRandomFile('', undefined, '.nbdserializer');
+		const notebook = await vscode.workspace.openNotebookDocument(uri);
+		await vscode.window.showNotebookDocument(notebook);
+		await assertKernel(kernel, notebook);
+
+		const cell = notebook.cellAt(0);
+		const execution = kernel.controller.createNotebookCellExecution(cell);
+		execution.start();
+		try {
+			await execution.replaceOutput([new vscode.NotebookCellOutput([vscode.NotebookCellOutputItem.stdout('before\n')])]);
+			await vscode.commands.executeCommand('notebook.cell.copyDown');
+			await execution.appendOutputItems(vscode.NotebookCellOutputItem.stdout('after\n'), cell.outputs[0]);
+		} finally {
+			execution.end(true);
+		}
+
+		await notebook.save();
+		assert.deepStrictEqual(
+			JSON.parse(new TextDecoder().decode(await vscode.workspace.fs.readFile(uri))),
+			[[['before\nafter\n']], [['before\n']]]
+		);
+	});
+
 	test('executionSummary', async () => {
 		const notebook = await openRandomNotebookDocument();
 		const editor = await vscode.window.showNotebookDocument(notebook);
@@ -356,6 +393,32 @@ const apiTestSerializer: vscode.NotebookSerializer = {
 		assert.strictEqual(cell.executionSummary?.timing?.endTime, 20);
 
 	});
+
+	for (const supportedLanguages of [undefined, []]) {
+		test(`executes after resetting supported languages with ${supportedLanguages === undefined ? 'undefined' : 'an empty array'}`, async () => {
+			const document = await openRandomNotebookDocument();
+			await vscode.window.showNotebookDocument(document);
+			const cell = document.cellAt(0);
+			const execution = { document: document.uri, ranges: [{ start: 0, end: 1 }] };
+
+			defaultKernel.controller.supportedLanguages = ['javascript'];
+			await assertKernel(defaultKernel, document);
+			await vscode.commands.executeCommand('notebook.cell.execute', execution);
+			assert.strictEqual(cell.outputs.length, 0);
+
+			defaultKernel.controller.supportedLanguages = supportedLanguages;
+			await assertKernel(defaultKernel, document);
+			await vscode.commands.executeCommand('notebook.cell.execute', execution);
+
+			assert.deepStrictEqual({
+				outputs: cell.outputs.map(output => output.items.map(item => new TextDecoder().decode(item.data))),
+				success: cell.executionSummary?.success
+			}, {
+				outputs: [['test']],
+				success: true
+			});
+		});
+	}
 
 	test('execution cancelled when delete while executing', async () => {
 		const document = await openRandomNotebookDocument();

@@ -4,13 +4,38 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { renderResponseMarkdown, truncateMiddle } from '../../../common/agentHostConversationContext.js';
+import type { URI } from '../../../../../base/common/uri.js';
+import type { ISessionDataService } from '../../../common/sessionDataService.js';
 import { type ActiveTurn, type Turn } from '../../../common/state/protocol/state.js';
+import type { IAgentHostPeerChatPersistenceService } from '../../agentHostPeerChatStore.js';
 
 const SIDE_CHAT_CONTEXT_START = '<side-chat-context>';
 const SIDE_CHAT_CONTEXT_END = '</side-chat-context>';
 const SIDE_CHAT_CONTEXT_LENGTH_PREFIX = 'length=';
 const SIDE_CHAT_GUIDANCE = 'This is a side conversation. Prefer explanation over action; do not make changes or carry out work unless the user explicitly asks.';
 const MAX_SIDE_CHAT_CONTEXT_CHARS = 20_000;
+const SIDE_CHAT_SOURCE_CONTEXT_METADATA_KEY = 'agentHost.sideChat.includeSourceContext';
+
+/** Persists the context choice before a side chat is published or sent its first turn. */
+export function persistSideChatSourceContext(persistence: IAgentHostPeerChatPersistenceService, session: URI, chat: URI, includeSourceContext: boolean): Promise<void> {
+	return persistence.persistMetadata(session, chat, { [SIDE_CHAT_SOURCE_CONTEXT_METADATA_KEY]: String(includeSourceContext) });
+}
+
+export async function readSideChatSourceContext(sessionDataService: ISessionDataService, storage: URI): Promise<boolean> {
+	const ref = await sessionDataService.tryOpenDatabase(storage);
+	if (!ref) {
+		return true;
+	}
+	try {
+		const value = await ref.object.getMetadata(SIDE_CHAT_SOURCE_CONTEXT_METADATA_KEY);
+		if (value !== undefined && value !== 'true' && value !== 'false') {
+			throw new Error('Invalid persisted side-chat context choice');
+		}
+		return value !== 'false';
+	} finally {
+		ref.dispose();
+	}
+}
 
 interface ISideChatBoundaryDescriptor {
 	readonly inheritedTurnId?: string;

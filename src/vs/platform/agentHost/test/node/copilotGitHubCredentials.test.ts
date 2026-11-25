@@ -83,19 +83,19 @@ suite('CopilotGitHubCredentials', () => {
 			providerSession: {
 				usesStaticToken: providerSession.usesStaticToken,
 				token: providerSession.token,
-				hasProvider: providerSession.sdkSessionOptions.gitHubTokenProvider !== undefined,
+				hasProvider: providerSession.sdkSessionOptions.tokenProvider !== undefined,
 			},
 		}, {
 			modeChange: { tokenChanged: true, modeChanged: true },
 			staticSession: {
 				usesStaticToken: true,
 				token: 'updated-static-token',
-				options: { gitHubToken: 'updated-static-token' },
+				options: { token: 'updated-static-token' },
 			},
 			clientAuthenticatedSession: {
 				usesStaticToken: true,
 				token: 'static-token',
-				options: { gitHubToken: undefined },
+				options: { token: undefined },
 			},
 			providerSession: {
 				usesStaticToken: false,
@@ -122,9 +122,9 @@ suite('CopilotGitHubCredentials', () => {
 			usesScopedCredential: first.usesScopedCredential,
 		}, {
 			legacy: 'desktop-rotated',
-			first: { gitHubToken: 'first' },
+			first: { token: 'first' },
 			firstToken: 'first',
-			second: { gitHubToken: 'second' },
+			second: { token: 'second' },
 			usesStaticToken: false,
 			usesScopedCredential: true,
 		});
@@ -141,7 +141,7 @@ suite('CopilotGitHubCredentials', () => {
 				usesStaticToken: session.usesStaticToken,
 				usesScopedCredential: session.usesScopedCredential,
 			}, {
-				options: { gitHubToken: 'captured' }, usesStaticToken: false, usesScopedCredential: true,
+				options: { token: 'captured' }, usesStaticToken: false, usesScopedCredential: true,
 			});
 		});
 	}
@@ -156,7 +156,7 @@ suite('CopilotGitHubCredentials', () => {
 			usesStaticToken: session.usesStaticToken,
 			usesScopedCredential: session.usesScopedCredential,
 		}, {
-			options: { gitHubToken: 'captured' }, token: 'captured', usesStaticToken: false, usesScopedCredential: true,
+			options: { token: 'captured' }, token: 'captured', usesStaticToken: false, usesScopedCredential: true,
 		});
 	});
 
@@ -168,7 +168,7 @@ suite('CopilotGitHubCredentials', () => {
 		await timeout(1_001);
 		assert.throws(() => session.sdkSessionOptions, { code: AhpErrorCodes.AuthRequired });
 		assert.deepStrictEqual({ before, token: session.token }, {
-			before: { gitHubToken: 'captured' },
+			before: { token: 'captured' },
 			token: undefined,
 		});
 	}));

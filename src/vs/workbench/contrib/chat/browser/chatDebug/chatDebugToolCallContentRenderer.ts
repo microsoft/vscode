@@ -4,10 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from '../../../../../base/browser/dom.js';
-import { Button } from '../../../../../base/browser/ui/button/button.js';
+import { CopyButton } from '../../../../../base/browser/ui/button/copyButton.js';
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { createTrustedTypesPolicy } from '../../../../../base/browser/trustedTypes.js';
-import { Codicon } from '../../../../../base/common/codicons.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../nls.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
@@ -66,24 +65,16 @@ export function renderSection(
 	DOM.append(header, $('span.chat-debug-message-section-title', undefined, label));
 
 	if (clipboardService) {
-		const copyBtn = disposables.add(new Button(header, {
-			title: localize('chatDebug.section.copy', "Copy"),
-			ariaLabel: localize('chatDebug.section.copy', "Copy"),
+		const copyBtn = disposables.add(new CopyButton(header, {
+			copy: () => clipboardService.writeText(plainText),
 			hoverDelegate: getDefaultHoverDelegate('mouse'),
 		}));
-		copyBtn.icon = Codicon.copy;
 		copyBtn.element.classList.add('chat-debug-section-copy-btn');
 		disposables.add(DOM.addDisposableListener(copyBtn.element, DOM.EventType.MOUSE_ENTER, () => {
 			header.classList.add('chat-debug-section-copy-header-passthrough');
 		}));
 		disposables.add(DOM.addDisposableListener(copyBtn.element, DOM.EventType.MOUSE_LEAVE, () => {
 			header.classList.remove('chat-debug-section-copy-header-passthrough');
-		}));
-		disposables.add(copyBtn.onDidClick(e => {
-			if (e) {
-				DOM.EventHelper.stop(e, true);
-			}
-			clipboardService.writeText(plainText);
 		}));
 	}
 

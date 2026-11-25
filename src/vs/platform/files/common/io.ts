@@ -28,7 +28,7 @@ export interface ICreateReadStreamOptions extends IFileReadStreamOptions {
  * A helper to read a file from a provider with open/read/close capability into a stream.
  */
 export async function readFileIntoStream<T>(
-	provider: IFileSystemProviderWithOpenReadWriteCloseCapability,
+	provider: Pick<IFileSystemProviderWithOpenReadWriteCloseCapability, 'open' | 'read' | 'close'>,
 	resource: URI,
 	target: WriteableStream<T>,
 	transformer: IDataTransformer<VSBuffer, T>,
@@ -54,7 +54,7 @@ export async function readFileIntoStream<T>(
 	}
 }
 
-async function doReadFileIntoStream<T>(provider: IFileSystemProviderWithOpenReadWriteCloseCapability, resource: URI, target: WriteableStream<T>, transformer: IDataTransformer<VSBuffer, T>, options: ICreateReadStreamOptions, token: CancellationToken): Promise<void> {
+async function doReadFileIntoStream<T>(provider: Pick<IFileSystemProviderWithOpenReadWriteCloseCapability, 'open' | 'read' | 'close'>, resource: URI, target: WriteableStream<T>, transformer: IDataTransformer<VSBuffer, T>, options: ICreateReadStreamOptions, token: CancellationToken): Promise<void> {
 
 	// Check for cancellation
 	throwIfCancelled(token);
@@ -98,14 +98,9 @@ async function doReadFileIntoStream<T>(provider: IFileSystemProviderWithOpenRead
 			}
 		} while (bytesRead > 0 && (typeof allowedRemainingBytes !== 'number' || allowedRemainingBytes > 0) && throwIfCancelled(token) && throwIfTooLarge(totalBytesRead, options));
 
-		// wrap up with last buffer (also respect maxBytes if provided)
+		// wrap up with last buffer, which is only partially filled
 		if (posInBuffer > 0) {
-			let lastChunkLength = posInBuffer;
-			if (typeof allowedRemainingBytes === 'number') {
-				lastChunkLength = Math.min(posInBuffer, allowedRemainingBytes);
-			}
-
-			target.write(transformer(buffer.slice(0, lastChunkLength)));
+			target.write(transformer(buffer.slice(0, posInBuffer)));
 		}
 	} catch (error) {
 		throw ensureFileSystemProviderError(error);

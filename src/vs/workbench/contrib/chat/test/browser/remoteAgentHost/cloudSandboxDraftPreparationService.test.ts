@@ -6,10 +6,11 @@
 import assert from 'assert';
 import { DeferredPromise, disposableTimeout, timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
+import { IDefaultAccount, IEntitlementsData } from '../../../../../../base/common/defaultAccount.js';
 import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
-import { Emitter } from '../../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { mock } from '../../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/virtualScheduling/index.js';
 import { CloudSandboxAuthenticationRequiredError, CloudSandboxEarlyPreparationSettingId, CloudSandboxEnabledSettingId, CloudSandboxRequestError, ICloudSandboxApiService, ICloudSandboxReservedSession, ICloudSandboxReserveSessionRequest } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
@@ -17,6 +18,7 @@ import { RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/age
 import { ChatAIDisabledSettingId } from '../../../../../../platform/chat/common/chatSettings.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
@@ -42,15 +44,19 @@ suite('CloudSandboxDraftPreparationService', () => {
 		readonly configuration?: Record<string, boolean | undefined>;
 		readonly hidden?: boolean;
 		readonly trusted?: boolean;
+		readonly cloudSessionsEnabled?: boolean;
+		readonly defaultAccountService?: IDefaultAccountService;
 	} = {}) {
 		let account: string | undefined = 'account-a';
 		let allocations = 0;
 		let accountLookups = 0;
 		let trusted = options.trusted ?? true;
+		let cloudSessionsEnabled = options.cloudSessionsEnabled;
 		const sentiment = { hidden: options.hidden ?? false };
 		const changedAccount = store.add(new Emitter<string | undefined>());
 		const changedSentiment = store.add(new Emitter<void>());
 		const changedTrust = store.add(new Emitter<boolean>());
+		const changedDefaultAccount = store.add(new Emitter<IDefaultAccount | null>());
 		const enteredAllocation = new DeferredPromise<void>();
 		const enteredVerification = new DeferredPromise<void>();
 		const deleted = new DeferredPromise<void>();
@@ -115,6 +121,14 @@ suite('CloudSandboxDraftPreparationService', () => {
 		}();
 		instantiation.stub(ICloudSandboxApiService, api);
 		instantiation.stub(IConfigurationService, configuration);
+		const defaultAccountService = options.defaultAccountService ?? new class extends mock<IDefaultAccountService>() {
+			override readonly onDidChangeDefaultAccount = changedDefaultAccount.event;
+			override get currentDefaultAccount(): IDefaultAccount {
+				return upcastPartial<IDefaultAccount>({ entitlementsData: upcastPartial<IEntitlementsData>({ cloud_sessions_enabled: cloudSessionsEnabled }) });
+			}
+			override async getDefaultAccount() { return this.currentDefaultAccount; }
+		}();
+		instantiation.stub(IDefaultAccountService, defaultAccountService);
 		instantiation.stub(ITelemetryService, telemetry);
 		instantiation.stub(IChatEntitlementService, new class extends mock<IChatEntitlementService>() {
 			override readonly onDidChangeSentiment = changedSentiment.event;
@@ -139,6 +153,10 @@ suite('CloudSandboxDraftPreparationService', () => {
 			enteredAllocation: enteredAllocation.p,
 			enteredVerification: enteredVerification.p,
 			deleted: deleted.p,
+			setCloudSessionsEnabled(value: boolean | undefined) {
+				cloudSessionsEnabled = value;
+				changedDefaultAccount.fire(defaultAccountService.currentDefaultAccount);
+			},
 			setAccount(value: string | undefined, notify = true) {
 				account = value;
 				if (notify) {
@@ -163,6 +181,63 @@ suite('CloudSandboxDraftPreparationService', () => {
 				changedTrust.fire(value);
 			},
 		};
+	}
+
+	for (const enabled of [false, true, undefined]) {
+		test(`account eligibility ${enabled} gates preparation and does not become a Send fallback`, async () => {
+			const fixture = createFixture({ cloudSessionsEnabled: enabled });
+			fixture.service.prepare(editorDraft);
+			if (enabled === false) {
+				await assert.rejects(fixture.service.take(editorDraft, CancellationToken.None), /Cloud session creation is not available/);
+			} else {
+				await fixture.service.take(editorDraft, CancellationToken.None);
+			}
+			assert.deepStrictEqual(fixture.calls, enabled === false ? [] : ['reserve']);
+		});
+	}
+
+	test('account initialization must finish before preparation can allocate', async () => {
+		const initialization = new DeferredPromise<IDefaultAccount | null>();
+		let account: IDefaultAccount | null = null;
+		const fixture = createFixture({
+			defaultAccountService: new class extends mock<IDefaultAccountService>() {
+				override readonly onDidChangeDefaultAccount = Event.None;
+				override get currentDefaultAccount() { return account; }
+				override getDefaultAccount() { return initialization.p; }
+			}(),
+		});
+		fixture.service.prepare(editorDraft);
+		await timeout(0);
+		const before = [...fixture.calls];
+		account = upcastPartial<IDefaultAccount>({ entitlementsData: upcastPartial<IEntitlementsData>({ cloud_sessions_enabled: false }) });
+		await initialization.complete(account);
+		await fixture.service.clear();
+		await assert.rejects(fixture.service.take(editorDraft, CancellationToken.None), /Cloud session creation is not available/);
+		assert.deepStrictEqual({ before, after: fixture.calls }, { before: [], after: [] });
+	});
+
+	for (const taking of [false, true]) {
+		test(`revocation releases a pending reservation and rejects Send (taking=${taking})`, async () => {
+			const allocation = new DeferredPromise<string>();
+			const fixture = createFixture({ provision: () => allocation.p });
+			fixture.service.prepare(editorDraft);
+			await fixture.enteredAllocation;
+			const send = taking ? assert.rejects(fixture.service.take(editorDraft, CancellationToken.None), /Cloud session creation is not available/) : undefined;
+			await timeout(0);
+			fixture.setCloudSessionsEnabled(false);
+			if (send) {
+				await send;
+			}
+			await allocation.complete('env-1');
+			await fixture.deleted;
+			await assert.rejects(fixture.service.take(editorDraft, CancellationToken.None), /Cloud session creation is not available/);
+			fixture.setCloudSessionsEnabled(true);
+			fixture.service.prepare(agentsDraft);
+			const retry = await fixture.service.take(agentsDraft, CancellationToken.None);
+			assert.deepStrictEqual({ calls: fixture.calls, retry: retry?.environmentId }, {
+				calls: ['reserve', 'delete:task-env-1', 'reserve'], retry: 'env-1',
+			});
+		});
 	}
 
 	for (const failure of [

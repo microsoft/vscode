@@ -6,7 +6,7 @@
 import * as DOM from '../../../../../base/browser/dom.js';
 import { disposableTimeout } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize } from '../../../../../nls.js';
 
@@ -20,6 +20,24 @@ export interface ICustomizationCardListItem {
 	readonly label: string;
 	readonly actions?: readonly HTMLElement[];
 	readonly contextMenuAction?: HTMLElement;
+}
+
+/**
+ * Focuses the first visible item unless a visible entry is already focused,
+ * for example when focus was kept on an entry inside a collapsed group.
+ */
+export function focusFirstCustomizationTreeItem<T>(
+	list: { getFocus(): readonly (T | null)[]; setFocus(elements: T[]): void },
+	entries: readonly T[],
+	isItem: (entry: T) => boolean,
+	isVisible: (entry: T) => boolean = () => true,
+): void {
+	if (!list.getFocus().some(entry => entry !== null && isVisible(entry))) {
+		const firstItem = entries.find(entry => isItem(entry) && isVisible(entry)) ?? entries[0];
+		if (firstItem) {
+			list.setFocus([firstItem]);
+		}
+	}
 }
 
 interface ICardListItem extends ICustomizationCardListItem {
@@ -135,6 +153,14 @@ export function setVirtualizedRowActionsTabbable(container: HTMLElement, tabbabl
 		}
 	};
 	visit(container);
+}
+
+export function stopListRowActionKeyDownPropagation(container: HTMLElement): IDisposable {
+	return DOM.addDisposableListener(container, DOM.EventType.KEY_DOWN, event => {
+		if (event.key === 'Enter' || event.key === ' ') {
+			event.stopPropagation();
+		}
+	});
 }
 
 export function layoutVirtualizedSections(root: HTMLElement, sections: readonly IVirtualizedSectionLayout[]): readonly number[] {

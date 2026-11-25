@@ -11,6 +11,7 @@ import { SessionConfigKey } from '../../../../../../platform/agentHost/common/se
 import { ContextKeyExpr } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IsSessionsWindowContext, WorkspaceFolderCountContext } from '../../../../../common/contextkeys.js';
 import { ChatContextKeys, ChatContextKeyExprs } from '../../../common/actions/chatContextKeys.js';
+import { agentHostWorktreeChoicesWhen, ChatAgentHostFolderChipVisible } from './agentHostNewWorktreeToggle.js';
 import { SessionType } from '../../../common/chatSessionsService.js';
 
 const modeAndPermissionsWhen = ContextKeyExpr.and(
@@ -29,7 +30,6 @@ const modeAndPermissionsWhen = ContextKeyExpr.and(
  * Order layout in the secondary toolbar (existing items annotated):
  *   0    OpenSessionTargetPickerAction        (Copilot CLI - Agent Host)
  *   0.5  OpenDelegationPickerAction
- *   0.6  OpenWorkspacePickerAction
  *   0.7  OpenAgentHostModePickerAction        (NEW — Mode)
  *   0.8  OpenAgentHostAutoApprovePickerAction (NEW — Auto-Approve)
  *   0.9  OpenAgentHostPermissionModePickerAction (NEW — Claude Approvals)
@@ -49,7 +49,8 @@ export class OpenAgentHostFolderPickerAction extends Action2 {
 			f1: false,
 			// The working directory is an argument to session creation and is
 			// fixed once the session has started (its first request), so the
-			// chip stays visible afterwards but is disabled.
+			// chip stays visible afterwards, when it offers a real choice, but
+			// is disabled.
 			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.chatSessionIsEmpty),
 			menu: [{
 				id: MenuId.ChatInputSecondary,
@@ -69,6 +70,13 @@ export class OpenAgentHostFolderPickerAction extends Action2 {
 					// so the chip never flashes visible-then-hidden while the decision is resolving.
 					ChatContextKeys.chatAgentHostFolderPickerVisible,
 				),
+			}, {
+				id: MenuId.ChatInputSecondary,
+				group: 'navigation',
+				order: 1.1,
+				// With worktree support, a window with a single local folder offers New Worktree, the folder and its
+				// worktrees; only while that is more than the folder, and not where a New Worktree checkbox stands in for it
+				when: ContextKeyExpr.and(agentHostWorktreeChoicesWhen, ChatAgentHostFolderChipVisible),
 			}],
 		});
 	}

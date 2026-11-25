@@ -342,12 +342,20 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 				description: localize('quota.approaching.switchToAuto', "Switch to Auto to reduce credit usage."),
 				actions: [{ kind: ChatInputNotificationActionKind.SwitchToModel, label: localize('switchToAuto', "Switch to Auto"), matchesModel: isAutoLanguageModel }],
 			};
+			const fusionBody: IChatInputNotificationBody = {
+				description: localize('quota.approaching.switchToFusion', "Switch to Copilot Fusion to reduce credit usage."),
+				actions: [{ kind: ChatInputNotificationActionKind.SwitchToModel, label: localize('switchToFusion', "Switch to Copilot Fusion"), matchesModel: isAutoLanguageModel }],
+			};
 			const resolveBody: IChatInputNotification['resolveBody'] = context => {
 				if (!isAutoEligible(context)) {
 					return defaultBody;
 				}
 				this._requestSwitchToAutoTreatment();
-				return this._switchToAutoTreatment === true ? autoBody : defaultBody;
+				if (this._switchToAutoTreatment !== true) {
+					return defaultBody;
+				}
+				// Agent hosts present their Auto as Copilot Fusion when the catalog advertises it.
+				return context.modelState.models.some(model => isAutoLanguageModel(model) && model.metadata.autoModelFusion) ? fusionBody : autoBody;
 			};
 
 			this._setQuotaApproachingNotification(warning, description, actions, resolveBody);

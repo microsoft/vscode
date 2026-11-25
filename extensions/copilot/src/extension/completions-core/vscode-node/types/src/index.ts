@@ -4,8 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 export { CancellationToken, CancellationTokenSource, Disposable, Position, Range, TextEdit } from 'vscode-languageserver-protocol';
-export * from './auth';
-export * from './codeCitation';
 export * from './contextProviderApiV1';
 export * from './core';
 export * from './status';

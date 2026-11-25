@@ -9,6 +9,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { NullLogService } from '../../../log/common/log.js';
 import { renderCopilotSlashCommandOutput, type CopilotSlashCommandOutput, type ICopilotSlashCommandHandler, type RuntimeSlashCommandInfo } from '../../node/copilot/copilotSlashCommand.js';
 import { CopilotSlashCommandProvider } from '../../node/copilot/copilotSlashCommandProvider.js';
+import { copilotSandboxPolicyCommand } from '../../node/copilot/copilotSandboxPolicyDisplay.js';
 import { getCopilotCustomizationCommandHandler, invokeCopilotPluginCommand, type ICopilotMcpCommandServer, type ICopilotPluginCommandApi, type ReloadCopilotPlugins } from '../../node/copilot/copilotCustomizationCommandDisplay.js';
 
 function pluginApi(calls: string[]): ICopilotPluginCommandApi {
@@ -148,6 +149,32 @@ suite('Copilot slash command handlers', () => {
 			byName: command,
 			byAlias: command,
 			missing: undefined,
+		});
+	});
+
+	test('resolves a bare skill name to its unique plugin-namespaced skill command', async () => {
+		const synced: RuntimeSlashCommandInfo = { name: 'VS Code Synced Data:commit', kind: 'skill', description: 'Commit', allowDuringAgentExecution: false };
+		const first: RuntimeSlashCommandInfo = { name: 'plugin-a:review', kind: 'skill', description: 'Review A', allowDuringAgentExecution: false };
+		const second: RuntimeSlashCommandInfo = { name: 'plugin-b:review', kind: 'skill', description: 'Review B', allowDuringAgentExecution: false };
+		const shadowed: RuntimeSlashCommandInfo = { name: 'plugin-c:diagnostic', kind: 'skill', description: 'Shadowed', allowDuringAgentExecution: false };
+		const clientCommand: RuntimeSlashCommandInfo = { name: 'ext:deploy', kind: 'client', description: 'Deploy', allowDuringAgentExecution: false };
+		const sandboxSkill: RuntimeSlashCommandInfo = { name: 'plugin-d:sandbox', kind: 'skill', description: 'Sandbox skill', allowDuringAgentExecution: false };
+		const provider = new CopilotSlashCommandProvider(async () => [command, synced, first, second, shadowed, clientCommand, sandboxSkill], undefined, store.add(new NullLogService()));
+
+		assert.deepStrictEqual({
+			unique: await provider.resolveSlashCommand('/Commit'),
+			ambiguous: await provider.resolveSlashCommand('review'),
+			exactWins: await provider.resolveSlashCommand('diagnostic'),
+			notSkill: await provider.resolveSlashCommand('deploy'),
+			namespaced: await provider.resolveSlashCommand('plugin-a:review'),
+			hostCommandWins: (await provider.resolveSlashCommand('sandbox'))?.name,
+		}, {
+			unique: synced,
+			ambiguous: undefined,
+			exactWins: command,
+			notSkill: undefined,
+			namespaced: first,
+			hostCommandWins: copilotSandboxPolicyCommand.name,
 		});
 	});
 
@@ -476,7 +503,7 @@ suite('Copilot slash command handlers', () => {
 			});
 		});
 
-		test('qualifies runtime list entries using the installed plugin inventory', async () => {
+		test('qualifies session-enabled plugins without applying the persisted disabled flag', async () => {
 			const handler = getCopilotCustomizationCommandHandler(command, undefined, async () => [
 				{ name: 'azure', marketplace: 'awesome-copilot', enabled: false },
 			]);
@@ -494,8 +521,24 @@ suite('Copilot slash command handlers', () => {
 				text: [
 					'# Installed plugins',
 					'',
-					'- `azure@awesome-copilot` — v1.2.94 (disabled)',
+					'- `azure@awesome-copilot` — v1.2.94',
 				].join('\n'),
+				markdown: true,
+			});
+		});
+
+		test('preserves session-disabled plugins despite an enabled installation record', async () => {
+			const handler = getCopilotCustomizationCommandHandler(command, undefined, async () => [
+				{ name: 'azure', marketplace: 'awesome-copilot', enabled: true },
+			]);
+			const output = await handler?.getOutput?.('list', {
+				kind: 'text',
+				text: 'Installed Plugins:\n\n  • azure (disabled)',
+			});
+
+			assert.deepStrictEqual(output, {
+				kind: 'text',
+				text: '# Installed plugins\n\n- `azure@awesome-copilot` (disabled)',
 				markdown: true,
 			});
 		});

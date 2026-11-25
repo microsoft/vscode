@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { CopilotClient, CopilotSession } from '@github/copilot-sdk';
+import type { CopilotClient, CopilotSession } from '@microsoft/copilot-sdk';
 import type { IAgentModelInfo } from '../../common/agent.js';
-import { isModelConfigurationDefault, modelConfigurationSourceKey, type IAgentModelConfigurationReport, type IAgentModelConfigurationOptions } from '../../common/agentModelConfiguration.js';
+import { getContextSizeForTier, isModelConfigurationDefault, modelConfigurationSourceKey, type IAgentModelConfigurationReport, type IAgentModelConfigurationOptions } from '../../common/agentModelConfiguration.js';
 import { COPILOT_HYDRA_FUSION_MAX_MODEL_ID, COPILOT_HYDRA_FUSION_MODEL_ID } from '../../common/copilotCliConfig.js';
 import { readAgentModelAutoTiersMeta } from '../../common/meta/agentModelMeta.js';
 import { readAgentManagedModelDefaults, withAgentManagedModelDefaults, withAgentModelConfigurationDefaults } from '../../common/meta/agentModelConfigurationMeta.js';
@@ -18,6 +18,9 @@ type ResolvedManagedSettings = Awaited<ReturnType<CopilotClient['rpc']['managedS
 export type CopilotManagedModelPolicy = Pick<ResolvedManagedSettings, 'values' | 'meta'> & { readonly layers?: ResolvedManagedSettings['layers'] };
 
 const modelOptionKeys = ['thinkingLevel', 'contextSize', 'tier'] as const;
+
+/** The runtime's provider id for Copilot models, which the catalog lists by their bare id. */
+const copilotModelProviderId = 'copilot';
 
 /** The managed default model as a catalog id, with Copilot Fusion read as `auto`. */
 function getManagedModelId(policy: CopilotManagedModelPolicy): string | undefined {
@@ -105,14 +108,16 @@ export function createCopilotModelConfigurationReport(
 		return [model.id, { defaults: Object.fromEntries(defaults), readOnly, choices: Object.fromEntries(choices), ...(managedDefaults.length ? { managedDefaults } : {}) }];
 	});
 	const options = Object.fromEntries(entries);
-	const currentModelId = current.modelId && (current.providerId ? `${current.providerId}/${current.modelId}` : current.modelId);
+	// Other providers' models are cataloged as `provider/id`.
+	const currentModelId = current.modelId && (current.providerId && current.providerId !== copilotModelProviderId ? `${current.providerId}/${current.modelId}` : current.modelId);
 	const model = models.find(model => model.id === currentModelId);
 	const config: Record<string, JsonPrimitive> = {};
 	if (model && currentModelId) {
 		const properties = model.configSchema?.properties;
 		const values = {
 			thinkingLevel: current.reasoningEffort,
-			contextSize: current.contextTier === undefined ? undefined : current.contextTier === 'long_context' ? properties?.contextSize?.enum?.at(-1) : properties?.contextSize?.enum?.[0],
+			// The runtime runs a session without a context tier on the default tier.
+			contextSize: getContextSizeForTier(properties?.contextSize, current.contextTier ?? 'default'),
 			tier: current.autoTier,
 		};
 		for (const key of modelOptionKeys) {
@@ -145,7 +150,7 @@ export function projectCopilotManagedModelConfiguration(model: IAgentModelInfo, 
 		{
 			key: 'contextSize',
 			value: concreteModel && values.contextTier !== undefined
-				? values.contextTier === 'long_context' ? properties.contextSize?.enum?.at(-1) : properties.contextSize?.enum?.[0]
+				? getContextSizeForTier(properties.contextSize, values.contextTier)
 				: undefined,
 		},
 		{ key: 'tier', value: autoPreference },

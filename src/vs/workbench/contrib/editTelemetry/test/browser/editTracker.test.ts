@@ -219,6 +219,65 @@ suite('DocumentEditSourceTracker', () => {
 			requestId: undefined,
 		}]);
 	});
+
+	for (const resolution of ['early', 'late', 'unresolved', 'invalidated'] as const) {
+		test(`preserves overwritten focus denominators with ${resolution} attribution`, async () => {
+			const document = disposables.add(new TestAnnotatedDocument('original'));
+			const correlation = new TestExternalEditCorrelation();
+			const tracker = disposables.add(new DocumentEditSourceTracker(document, undefined, correlation, 'reattribute'));
+			const sources = [
+				agentHostEditSource('model-a', 'turn-a', 'copilotcli'),
+				agentHostEditSource('model-b', 'turn-b', 'claude'),
+			];
+			const ids: string[] = [];
+			for (const [index, text] of ['A'.repeat(100), 'B'.repeat(100)].entries()) {
+				document.apply(StringEdit.replace(OffsetRange.ofLength(document.value.get().value.length), text), EditSources.reloadFromDisk());
+				ids.push(correlation.lastObservationId!);
+				if (resolution === 'early' || resolution === 'invalidated') {
+					correlation.resolve(ids[index], sources[index]);
+				}
+			}
+			await tracker.stopTracking();
+			if (resolution === 'late') {
+				ids.forEach((id, index) => correlation.resolve(id, sources[index]));
+			} else if (resolution === 'invalidated') {
+				ids.forEach(id => correlation.invalidate(id));
+			}
+			tracker.applyPendingExternalEdits();
+
+			assert.deepStrictEqual(snapshot(tracker).map(entry => ({
+				inserted: entry.delta,
+				retained: entry.retained,
+				source: tracker.getRepresentative(entry.key)?.toKey(1),
+				requestId: entry.requestId,
+			})), sources.map((source, index) => ({
+				inserted: 100,
+				retained: index === 0 ? 0 : 100,
+				source: resolution === 'unresolved' || resolution === 'invalidated' ? 'source:reloadFromDisk' : source.toKey(1),
+				requestId: resolution === 'unresolved' || resolution === 'invalidated' ? undefined : source.props.$$requestId,
+			})));
+			tracker.releaseExternalEditCorrelations();
+		});
+	}
+
+	test('keeps default suppression buffering consecutive reloads', () => {
+		const document = disposables.add(new TestAnnotatedDocument('original'));
+		const correlation = new TestExternalEditCorrelation();
+		const tracker = disposables.add(new DocumentEditSourceTracker(document, undefined, correlation));
+		document.apply(StringEdit.replace(OffsetRange.ofLength(8), 'A'.repeat(100)), EditSources.reloadFromDisk());
+		correlation.suppress(correlation.lastObservationId!);
+		document.apply(StringEdit.replace(OffsetRange.ofLength(100), 'B'.repeat(100)), EditSources.reloadFromDisk());
+		correlation.suppress(correlation.lastObservationId!);
+
+		const beforeFlush = snapshot(tracker, true);
+		tracker.applyPendingExternalEdits();
+		assert.deepStrictEqual({ beforeFlush, suppressed: snapshot(tracker), fallback: snapshot(tracker, true) }, {
+			beforeFlush: [],
+			suppressed: [],
+			fallback: [{ key: 'external-observation:observation-2', delta: 100, retained: 100, requestId: undefined }],
+		});
+		tracker.releaseExternalEditCorrelations();
+	});
 });
 
 class TestAnnotatedDocument extends Disposable implements IDocumentWithAnnotatedEdits<EditKeySourceData> {

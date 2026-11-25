@@ -11,7 +11,6 @@ import * as React from 'react';
 import { InitArgs } from '../initArgs';
 import { AdhocRequestOptions } from '../stores/adhocRequestOptions';
 import { AdhocRequestSender } from '../stores/adhocRequestSender';
-import { AMLProvider } from '../stores/amlSimulations';
 import { NesExternalOptions } from '../stores/nesExternalOptions';
 import { RunnerOptions } from '../stores/runnerOptions';
 import { SimulationRunsProvider } from '../stores/simulationBaseline';
@@ -19,12 +18,9 @@ import { SimulationRunner } from '../stores/simulationRunner';
 import { SimulationStorage, SimulationStorageValue } from '../stores/simulationStorage';
 import { ISimulationTest, SimulationTestsProvider } from '../stores/simulationTestsProvider';
 import { useLocalStorageState } from '../stores/storage';
-import { TestSource } from '../stores/testSource';
 import { WorkbenchModeValue } from '../stores/workbenchMode';
 import { AdhocRequestView } from './adhocRequestView';
 import { ContextMenu, ContextMenuProvider } from './contextMenu';
-import { Scorecard } from './scorecard';
-import { ScorecardByLanguage } from './scorecardByLanguage';
 import { TestFilterer } from './testFilterer';
 import { TestList } from './testList';
 import { Toolbar } from './toolbar';
@@ -39,14 +35,13 @@ type Props = {
 	adhocRequestOptions: AdhocRequestOptions;
 	adhocRequestSender: AdhocRequestSender;
 	simulationRunsProvider: SimulationRunsProvider;
-	amlProvider: AMLProvider;
 	displayOptions: DisplayOptions;
 };
 
 export type ThemeKind = 'light' | 'dark';
 
 export const App = mobxlite.observer(
-	({ initArgs, testsProvider, workbenchMode, runner, runnerOptions, nesExternalOptions, adhocRequestOptions, adhocRequestSender, simulationRunsProvider, amlProvider, displayOptions }: Props) => {
+	({ initArgs, testsProvider, workbenchMode, runner, runnerOptions, nesExternalOptions, adhocRequestOptions, adhocRequestSender, simulationRunsProvider, displayOptions }: Props) => {
 
 		const [theme, setTheme] = useLocalStorageState<ThemeKind>('appTheme', undefined, 'light');
 
@@ -68,11 +63,9 @@ export const App = mobxlite.observer(
 							nesExternalOptions={nesExternalOptions}
 							simulationRunsProvider={simulationRunsProvider}
 							simulationTestsProvider={testsProvider}
-							amlProvider={amlProvider}
 							workbenchMode={workbenchMode}
 							testSource={testsProvider.testSource}
 							onFiltererChange={setFilterer}
-							allLanguageIds={testsProvider.allLanguageIds}
 							theme={theme}
 							toggleTheme={toggleTheme}
 						/>
@@ -84,7 +77,6 @@ export const App = mobxlite.observer(
 								runner={runner}
 								runnerOptions={runnerOptions}
 								nesExternalOptions={nesExternalOptions}
-								amlProvider={amlProvider}
 								displayOptions={displayOptions}
 								filterer={filterer}
 							/>
@@ -101,12 +93,11 @@ type TestsViewProps = {
 	runner: SimulationRunner;
 	runnerOptions: RunnerOptions;
 	nesExternalOptions: NesExternalOptions;
-	amlProvider: AMLProvider;
 	displayOptions: DisplayOptions;
 	filterer: TestFilterer | undefined;
 };
 
-const TestsView = mobxlite.observer(({ testsProvider, runner, runnerOptions, nesExternalOptions, amlProvider, displayOptions, filterer }: TestsViewProps) => {
+const TestsView = mobxlite.observer(({ testsProvider, runner, runnerOptions, nesExternalOptions, displayOptions, filterer }: TestsViewProps) => {
 
 	const displayedTests = filterer
 		? filterer.filter(testsProvider.tests)
@@ -114,13 +105,7 @@ const TestsView = mobxlite.observer(({ testsProvider, runner, runnerOptions, nes
 
 	return (
 		<>
-			{testsProvider.testSource.value === TestSource.External && (
-				<Scorecard amlProvider={amlProvider} />
-			)}
-			{testsProvider.testSource.value === TestSource.External && (
-				<ScorecardByLanguage amlProvider={amlProvider} />
-			)}
-			{(testsProvider.testSource.value === TestSource.Local || testsProvider.testSource.value === TestSource.NesExternal) && <TerminationMessageBar runner={runner} />}
+			<TerminationMessageBar runner={runner} />
 			<div style={{ margin: '5px', display: 'flex', justifyContent: 'space-between' }}>
 				<div style={{ textAlign: 'left' }}>
 					<TestsInfo tests={testsProvider.tests} displayedTests={displayedTests} />

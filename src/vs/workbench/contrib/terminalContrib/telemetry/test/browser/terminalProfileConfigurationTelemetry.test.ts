@@ -7,20 +7,10 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ConfigurationTarget } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { NullTelemetryServiceShape } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
+import { TestTelemetryService } from '../../../../../../platform/telemetry/test/common/testTelemetryService.js';
 import { TerminalSettingId } from '../../../../../../platform/terminal/common/terminal.js';
 import { TerminalChatAgentToolsSettingId } from '../../../chatAgentTools/common/terminalChatAgentToolsConfiguration.js';
 import { TerminalProfileConfigurationTelemetry } from '../../browser/terminalProfileConfigurationTelemetry.js';
-
-class TestTelemetryService extends NullTelemetryServiceShape {
-	readonly events: { readonly name: string; readonly data: unknown }[] = [];
-
-	override publicLog2(eventName?: string, data?: unknown): void {
-		if (eventName) {
-			this.events.push({ name: eventName, data });
-		}
-	}
-}
 
 const profileSettings = [
 	{ settingId: TerminalChatAgentToolsSettingId.TerminalProfileLinux, profileType: 'chat', os: 'linux', value: { path: '/bin/bash' } },

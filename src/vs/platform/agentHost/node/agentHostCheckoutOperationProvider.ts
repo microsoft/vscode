@@ -14,8 +14,6 @@ import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateM
 
 export class AgentHostCheckoutOperationContribution extends Disposable implements IChangesetOperationContribution {
 
-	private _registry: IChangesetOperationRegistry | undefined;
-
 	constructor(
 		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -24,12 +22,10 @@ export class AgentHostCheckoutOperationContribution extends Disposable implement
 	}
 
 	registerHandlers(registry: IChangesetOperationRegistry): IDisposable {
-		this._registry = registry;
 		const store = new DisposableStore();
 		const getSessionState = (sessionKey: string) => this._stateManager.getSessionState(sessionKey);
-		const handler = this._instantiationService.createInstance(AgentHostCheckoutOperationHandler, getSessionState, (sessionKey: string) => this._onCheckedOut(sessionKey));
+		const handler = this._instantiationService.createInstance(AgentHostCheckoutOperationHandler, getSessionState);
 		store.add(registry.registerChangesetOperationHandler(AgentHostCheckoutOperationHandler.OPERATION_CHECKOUT, handler));
-		store.add({ dispose: () => { this._registry = undefined; } });
 		return store;
 	}
 
@@ -50,9 +46,5 @@ export class AgentHostCheckoutOperationContribution extends Disposable implement
 			scopes: [ChangesetOperationScope.Changeset],
 			status: ChangesetOperationStatus.Idle,
 		} satisfies ChangesetOperation];
-	}
-
-	private _onCheckedOut(sessionKey: string): void {
-		void this._registry?.refreshSessionGitState(sessionKey);
 	}
 }

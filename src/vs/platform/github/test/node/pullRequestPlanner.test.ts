@@ -43,12 +43,14 @@ suite('PullRequest planning', () => {
 		const available: GitHubHostCapabilities = {
 			graphql: true,
 			mergeQueue: true,
+			mergeQueueRemovals: true,
 			reviewThreads: true,
 			checkContextRequiredness: true,
 		};
 		const unavailable: GitHubHostCapabilities = {
 			graphql: false,
 			mergeQueue: false,
+			mergeQueueRemovals: false,
 			reviewThreads: false,
 			checkContextRequiredness: false,
 		};

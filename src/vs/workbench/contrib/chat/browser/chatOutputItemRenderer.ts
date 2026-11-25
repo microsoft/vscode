@@ -164,7 +164,7 @@ export class ChatOutputRendererService extends Disposable implements IChatOutput
 		}));
 		webview.setContextKeyService(store.add(this._contextKeyService.createScoped(parent)));
 		if (webviewOptions.chatSessionResource) {
-			store.add(this.delegateScrollToChatWidget(webview, webviewOptions.chatSessionResource));
+			store.add(delegateWebviewScrollToChatWidget(webview, webviewOptions.chatSessionResource, this._chatWidgetService));
 		}
 
 		const onDidChangeHeight = store.add(new Emitter<number>());
@@ -193,16 +193,6 @@ export class ChatOutputRendererService extends Disposable implements IChatOutput
 				webview.reinitializeAfterDismount();
 			},
 		};
-	}
-
-	private delegateScrollToChatWidget(webview: IWebview, chatSessionResource: URI): IDisposable {
-		return webview.onDidWheel(e => {
-			this._chatWidgetService.getWidgetBySessionResource(chatSessionResource)?.delegateScrollFromMouseWheelEvent({
-				...e,
-				preventDefault: () => { },
-				stopPropagation: () => { }
-			});
-		});
 	}
 
 	private getOrigin(rendererData: RendererEntry): string | undefined {
@@ -259,6 +249,16 @@ export class ChatOutputRendererService extends Disposable implements IChatOutput
 			}
 		}
 	}
+}
+
+export function delegateWebviewScrollToChatWidget(webview: IWebview, chatSessionResource: URI, chatWidgetService: IChatWidgetService): IDisposable {
+	return webview.onDidWheel(e => {
+		chatWidgetService.getWidgetBySessionResource(chatSessionResource)?.delegateScrollFromMouseWheelEvent({
+			...e,
+			preventDefault: () => { },
+			stopPropagation: () => { }
+		});
+	});
 }
 
 const chatOutputRendererContributionSchema = {

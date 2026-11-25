@@ -88,6 +88,7 @@ suite('PluginCustomizationMarketplaceProvider', () => {
 				version: '1.0',
 				url: URI.parse('https://raw.githubusercontent.com/microsoft/plugins/stable/plugins/review/README.md'),
 				readmeUri: URI.parse('https://raw.githubusercontent.com/microsoft/plugins/stable/plugins/review/README.md'),
+				repository: URI.parse('https://github.com/microsoft/plugins'),
 				score: 0,
 				priority: 1,
 				installation: {
@@ -124,9 +125,10 @@ suite('PluginCustomizationMarketplaceProvider', () => {
 
 		const page = await provider.query({}, CancellationToken.None);
 
-		assert.deepStrictEqual({ publisher: page.items[0].publisher, publisherUrl: page.items[0].publisherUrl?.toString() }, {
+		assert.deepStrictEqual({ publisher: page.items[0].publisher, publisherUrl: page.items[0].publisherUrl?.toString(), repository: page.items[0].repository?.toString() }, {
 			publisher: 'octo-org',
 			publisherUrl: 'https://github.com/octo-org',
+			repository: 'https://github.com/octo-org/review-plugin',
 		});
 	});
 
@@ -143,9 +145,10 @@ suite('PluginCustomizationMarketplaceProvider', () => {
 
 		const page = await provider.query({}, CancellationToken.None);
 
-		assert.deepStrictEqual({ publisher: page.items[0].publisher, publisherUrl: page.items[0].publisherUrl?.toString() }, {
+		assert.deepStrictEqual({ publisher: page.items[0].publisher, publisherUrl: page.items[0].publisherUrl?.toString(), repository: page.items[0].repository?.toString() }, {
 			publisher: 'acme',
 			publisherUrl: 'https://github.com/acme',
+			repository: 'https://github.com/acme/monorepo',
 		});
 	});
 

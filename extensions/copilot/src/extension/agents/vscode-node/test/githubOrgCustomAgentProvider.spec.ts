@@ -3,8 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { assert } from 'chai';
-import { afterEach, beforeEach, suite, test, vi } from 'vitest';
+import { afterEach, assert, beforeEach, suite, test, vi } from 'vitest';
 import type { ExtensionContext } from 'vscode';
 import { Scalar } from 'yaml';
 import { PromptsType } from '../../../../platform/customInstructions/common/promptTypes';

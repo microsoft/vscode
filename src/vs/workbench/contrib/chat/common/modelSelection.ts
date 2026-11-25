@@ -207,6 +207,7 @@ export interface IIntendedModelSelection {
 	readonly model?: ILanguageModelChatMetadataAndIdentifier;
 	readonly reason: ModelSelectionReason;
 	readonly configuration?: Record<string, unknown>;
+	readonly configurationIsTransient?: boolean;
 }
 
 /**

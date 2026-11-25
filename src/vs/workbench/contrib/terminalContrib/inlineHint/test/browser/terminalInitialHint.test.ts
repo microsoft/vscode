@@ -10,6 +10,7 @@ import { workbenchInstantiationService } from '../../../../../test/browser/workb
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { getActiveDocument } from '../../../../../../base/browser/dom.js';
 import { Emitter } from '../../../../../../base/common/event.js';
+import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { strictEqual } from 'assert';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { IChatAgent } from '../../../../chat/common/participants/chatAgents.js';
@@ -62,6 +63,7 @@ suite('Terminal Initial Hint Addon', () => {
 		store.add(initialHintAddon.onDidRequestCreateHint(() => eventCount++));
 		const testContainer = document.createElement('div');
 		getActiveDocument().body.append(testContainer);
+		store.add(toDisposable(() => testContainer.remove()));
 		xterm.open(testContainer);
 
 		xterm.loadAddon(shellIntegrationAddon);

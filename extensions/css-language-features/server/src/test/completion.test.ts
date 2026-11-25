@@ -6,9 +6,8 @@ import { suite, test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as path from 'node:path';
 import { URI } from 'vscode-uri';
-import { TextDocument, CompletionList, TextEdit } from 'vscode-languageserver-types';
-import { WorkspaceFolder } from 'vscode-languageserver-protocol';
-import { getCSSLanguageService, LanguageServiceOptions, getSCSSLanguageService } from 'vscode-css-languageservice';
+import { WorkspaceFolder } from 'vscode-languageserver';
+import { CompletionList, getCSSLanguageService, getSCSSLanguageService, LanguageServiceOptions, TextDocument, TextEdit } from 'vscode-css-languageservice';
 import { getNodeFSRequestService } from '../node/nodeFs.js';
 import { getDocumentContext } from '../utils/documentContext.js';
 

@@ -7,10 +7,10 @@ import { Barrier, DeferredPromise, disposableTimeout, raceCancellation } from '.
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { win32 } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IProcessPropertyMap, ITerminalChildProcess, ITerminalLaunchError, ITerminalLaunchResult, ITerminalLogService, ProcessPropertyType } from '../../../../platform/terminal/common/terminal.js';
 import { IAgentConnection } from '../../../../platform/agentHost/common/agentService.js';
-import { AGENT_HOST_SCHEME, fromAgentHostUri } from '../../../../platform/agentHost/common/agentHostUri.js';
 import { ActionType, ActionEnvelope } from '../../../../platform/agentHost/common/state/sessionActions.js';
 import { TerminalClaimKind, type TerminalContentPart, type TerminalState } from '../../../../platform/agentHost/common/state/protocol/state.js';
 import { IAgentSubscription } from '../../../../platform/agentHost/common/state/agentSubscription.js';
@@ -77,6 +77,23 @@ const COPILOT_SENTINEL_PREFIX = '<<<COPILOT_SENTINEL_';
 /** Returns whether a command line is a copilot sentinel echo, not a real user command. */
 function isCopilotSentinelCommand(commandLine: string): boolean {
 	return commandLine.includes(COPILOT_SENTINEL_PREFIX);
+}
+
+/**
+ * Returns the process title to report for a host-reported terminal title.
+ *
+ * The terminal shows it as it shows a local terminal's process name: the base
+ * name of a path, or the text before the first space. That is deliberate. The
+ * VS Code agent host reports the name of the foreground process, which on Linux
+ * can be several words a process set itself, such as `npm run watch`, and local
+ * terminals show that as `npm` too.
+ *
+ * A Windows host titles a terminal with its shell's path and never reports a
+ * process name. The terminal shortens Windows paths only for processes it knows
+ * run on Windows, which a custom pty cannot tell it, so shorten them here.
+ */
+function getProcessTitle(hostTitle: string): string {
+	return /^(?:[a-zA-Z]:[\\/]|\\\\)/.test(hostTitle) ? win32.parse(hostTitle).name : hostTitle;
 }
 
 /**
@@ -178,7 +195,7 @@ export class AgentHostPty extends BasePty implements ITerminalChildProcess {
 					channel: this._terminalUri.toString(),
 					claim: { kind: TerminalClaimKind.Client, clientId: connection.clientId },
 					name: this._options?.name,
-					cwd: this._resolveCwdForProtocol(this._options?.cwd),
+					cwd: this._resolveCwdForProtocol(connection, this._options?.cwd),
 					cols: this._lastDimensions.cols > 0 ? this._lastDimensions.cols : undefined,
 					rows: this._lastDimensions.rows > 0 ? this._lastDimensions.rows : undefined,
 				});
@@ -218,12 +235,12 @@ export class AgentHostPty extends BasePty implements ITerminalChildProcess {
 			this._replayContent(state.content);
 			this._isCommandStateKnown = true;
 
-			// 5. Track initial cwd
+			// 5. Track initial cwd and title
 			this._initialCwd = state.cwd?.toString() ?? '';
 			this._properties.cwd = this._initialCwd;
 			this._properties.initialCwd = this._initialCwd;
 			if (state.title) {
-				this._properties.title = state.title;
+				this._setTitle(state.title);
 			}
 
 			// 6. Signal that the process is ready
@@ -259,6 +276,12 @@ export class AgentHostPty extends BasePty implements ITerminalChildProcess {
 		this.handleReady({ pid: -1, cwd: this._initialCwd, windowsPty: undefined });
 	}
 
+	private _setTitle(hostTitle: string): void {
+		const title = getProcessTitle(hostTitle);
+		this._properties.title = title;
+		this.handleDidChangeProperty({ type: ProcessPropertyType.Title, value: title });
+	}
+
 	private _handleAction(envelope: ActionEnvelope): void {
 		if (this._lifetime.token.isCancellationRequested) {
 			return;
@@ -276,8 +299,7 @@ export class AgentHostPty extends BasePty implements ITerminalChildProcess {
 				this.handleDidChangeProperty({ type: ProcessPropertyType.Cwd, value: action.cwd.toString() });
 				break;
 			case ActionType.TerminalTitleChanged:
-				this._properties.title = action.title;
-				this.handleDidChangeProperty({ type: ProcessPropertyType.Title, value: action.title });
+				this._setTitle(action.title);
 				break;
 			case ActionType.TerminalResized:
 				// Only apply resize from other clients — this client owns
@@ -369,18 +391,9 @@ export class AgentHostPty extends BasePty implements ITerminalChildProcess {
 		}
 	}
 
-	/**
-	 * Resolves a cwd URI for sending over the protocol. Agent-host URIs
-	 * are unwrapped to their original URI via {@link fromAgentHostUri}.
-	 */
-	private _resolveCwdForProtocol(cwd: URI | undefined): string | undefined {
-		if (!cwd) {
-			return undefined;
-		}
-		if (cwd.scheme === AGENT_HOST_SCHEME) {
-			return fromAgentHostUri(cwd).toString();
-		}
-		return cwd.toString();
+	/** Maps a client cwd into the owning connection's host space for the protocol. */
+	private _resolveCwdForProtocol(connection: IAgentConnection, cwd: URI | undefined): string | undefined {
+		return cwd ? connection.resourceUris.toAgentHost(cwd).toString() : undefined;
 	}
 
 	private _createSubscription(connection: IAgentConnection): { readonly subscription: IAgentSubscription<TerminalState>; readonly store: DisposableStore } {
@@ -601,7 +614,7 @@ export class AgentHostPty extends BasePty implements ITerminalChildProcess {
 				this._properties.cwd = state.cwd.toString();
 			}
 			if (state.title) {
-				this._properties.title = state.title;
+				this._setTitle(state.title);
 			}
 			this._signalReady();
 

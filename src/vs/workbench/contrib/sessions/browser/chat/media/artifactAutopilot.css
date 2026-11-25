@@ -1,0 +1,80 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.artifact-autopilot {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size120);
+}
+
+.artifact-autopilot-group .artifact-card-content:not([hidden]) {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size80);
+}
+
+/* Extra room keeps the switch for all rules apart from the disclosure that expands them. */
+.artifact-autopilot-toggle-all {
+	display: flex;
+	flex: 0 0 auto;
+	align-items: center;
+	margin-left: var(--vscode-spacing-size120);
+}
+
+/* Padding rather than a gap, so the label's target reaches the switch with no dead strip in the clickable heading. */
+.artifact-autopilot-toggle-all-label {
+	padding-left: var(--vscode-spacing-size80);
+	cursor: pointer;
+	font-size: var(--vscode-fontSize-label1);
+	white-space: nowrap;
+}
+
+.artifact-autopilot-toggle-all.disabled .artifact-autopilot-toggle-all-label {
+	cursor: default;
+	color: var(--vscode-disabledForeground);
+}
+
+.artifact-autopilot-rule {
+	width: fit-content;
+	max-width: 100%;
+}
+
+.artifact-autopilot-rule-row {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+	min-height: var(--vscode-spacing-size240);
+}
+
+.artifact-autopilot-rule-label {
+	flex: 0 1 auto;
+	min-width: 0;
+	font-size: var(--vscode-fontSize-label1);
+}
+
+/* A switch's label toggles it; the label before a rule's choices only names them. */
+label.artifact-autopilot-rule-label {
+	cursor: pointer;
+}
+
+/* One row of choices is as tall as a switch row, so a rule with choices keeps the rhythm of the list. Choices that don't
+ * fit beside each other wrap onto more rows rather than being clipped by the details body. */
+.artifact-autopilot-rule-row > .monaco-custom-radio.artifact-autopilot-choices {
+	flex: 0 1 auto;
+	flex-wrap: wrap;
+	max-width: 100%;
+	box-sizing: border-box;
+}
+
+/* A row's height less the group's padding and border. */
+.artifact-autopilot-rule-row > .monaco-custom-radio.artifact-autopilot-choices > .monaco-button {
+	height: calc(var(--vscode-spacing-size240) - 2 * var(--vscode-spacing-size20) - 2 * var(--vscode-strokeThickness));
+}
+
+.artifact-autopilot-rule-label:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}

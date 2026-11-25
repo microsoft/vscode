@@ -162,7 +162,7 @@ export class ConfigurationManager implements IConfigurationManager {
 
 		let resolvedType = config.type ?? type;
 		let result: IConfig | null | undefined = config;
-		for (let seen = new Set(); result && !seen.has(resolvedType);) {
+		for (const seen = new Set(); result && !seen.has(resolvedType);) {
 			seen.add(resolvedType);
 			result = await resolveDebugConfigurationForType(resolvedType, result);
 			result = await resolveDebugConfigurationForType('*', result);

@@ -3,8 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ServicesAccessor } from '../../../../../../util/vs/platform/instantiation/common/instantiation';
-import { TelemetryData, telemetryExpProblem } from '../telemetry';
+import { TelemetryData } from '../telemetry';
 import { ExpServiceTelemetryNames } from './telemetryNames';
 
 // All variables we pull from Exp and might want to use
@@ -24,11 +23,8 @@ export enum ExpTreatmentVariables {
 
 	MaxPromptCompletionTokens = 'maxpromptcompletionTokens', // the maximum tokens of the prompt and completion
 
-	/**
-	 * Enable the use of the Workspace Context Coordinator to coordinate context from providers of workspace snippets.
-	 */
-	StableContextPercent = 'copilotstablecontextpercent', // the percentage of the prompt tokens to allocate to the stable context
-	VolatileContextPercent = 'copilotvolatilecontextpercent', // the percentage of the prompt tokens to allocate to the volatile context
+	StableContextPercent = 'copilotstablecontextpercent',
+	VolatileContextPercent = 'copilotvolatilecontextpercent',
 
 	/**
 	 * Flags that control the enablement of the related files extensibility for various languages in VSCode.
@@ -55,9 +51,6 @@ export enum ExpTreatmentVariables {
 	 */
 	CSharpContextProviderParams = 'copilotcsharpcontextproviderparams',
 
-	/**
-	 * Values to control the ContextProvider API's CodeSnippets provided by the Java Language Service.
-	 */
 	JavaContextProviderParams = 'copilotjavacontextproviderparams',
 
 	/**
@@ -75,9 +68,6 @@ export enum ExpTreatmentVariables {
 	 */
 	CompletionsDebounce = 'copilotcompletionsdebounce',
 
-	/**
-	 * Enable the electron networking in VS Code.
-	 */
 	ElectronFetcher = 'copilotelectronfetcher',
 	FetchFetcher = 'copilotfetchfetcher',
 
@@ -133,11 +123,6 @@ export class ExpConfig {
 	) {
 		this.variables = variables;
 		this.features = features;
-	}
-
-	static createFallbackConfig(accessor: ServicesAccessor, reason: string): ExpConfig {
-		telemetryExpProblem(accessor, { reason });
-		return this.createEmptyConfig();
 	}
 
 	static createEmptyConfig() {

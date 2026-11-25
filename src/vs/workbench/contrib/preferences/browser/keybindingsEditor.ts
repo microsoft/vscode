@@ -104,7 +104,6 @@ export class KeybindingsEditor extends EditorPane<IKeybindingsEditorMemento> imp
 
 	private dimension: DOM.Dimension | null = null;
 	private delayedFiltering: Delayer<void>;
-	private latestEmptyFilters: string[] = [];
 	private keybindingsEditorContextKey: IContextKey<boolean>;
 	private keybindingFocusContextKey: IContextKey<boolean>;
 	private searchFocusContextKey: IContextKey<boolean>;
@@ -613,9 +612,6 @@ export class KeybindingsEditor extends EditorPane<IKeybindingsEditorMemento> imp
 			this.accessibilityService.alert(ariaLabel);
 			this.ariaLabelElement.textContent = ariaLabel;
 
-			if (keybindingsEntries.length === 0) {
-				this.latestEmptyFilters.push(filter);
-			}
 			const currentSelectedIndex = this.keybindingsTable.getSelection()[0];
 			this.tableEntries = keybindingsEntries;
 			this.keybindingsTable.splice(0, this.keybindingsTable.length, this.tableEntries);

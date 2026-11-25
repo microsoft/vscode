@@ -3,24 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { Disposable } from 'vscode';
 import { CancellationToken } from 'vscode-languageserver-protocol';
 import { ResolveOnTimeoutResult, ResolveResult } from '../../../types/src';
 import { Deferred } from '../util/async';
-
-/**
- * Converts an event to a Promise that resolves when the event is fired
- * @param subscribe A function that takes a listener and returns a Disposable for cleanup
- * @returns A Promise that resolves with the event data when the event fires
- */
-export async function eventToPromise<T>(subscribe: (listener: (event: T) => void) => Disposable): Promise<T> {
-	const deferred = new Deferred<T>();
-	const disposable = subscribe((event: T) => {
-		deferred.resolve(event);
-		disposable.dispose();
-	});
-	return deferred.promise;
-}
 
 /**
  * Converts a CancellationToken to a Promise that resolves when cancellation is requested

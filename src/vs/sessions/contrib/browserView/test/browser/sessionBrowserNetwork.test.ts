@@ -3,10 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { withAgentHostResources } from '../../../../../platform/agentHost/common/meta/agentHostResources.js';
+import type { RootState } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import assert from 'assert';
 import { timeout } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { extUri } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -14,11 +16,12 @@ import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { AMBIENT_AGENT_HOST_AUTHORITY, IAgentHostConnectionInfo, IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
-import type { InitializeResult } from '../../../../../platform/agentHost/common/state/protocol/common/commands.js';
-import { agentHostAuthority } from '../../../../../platform/agentHost/common/agentHostUri.js';
+import { PathStyle, type InitializeResult } from '../../../../../platform/agentHost/common/state/protocol/common/commands.js';
+import { agentHostAuthority, fromAgentHostUri, toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { BrowserViewStorageScope, IBrowserViewOwner } from '../../../../../platform/browserView/common/browserView.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
+import { IWorkspaceTrustManagementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -29,13 +32,14 @@ import { IThemeService } from '../../../../../platform/theme/common/themeService
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
-import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { IChat, ISession, ISessionFolder, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
-import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
-import { IAgentHostSessionsProvider } from '../../../../common/agentHostSessionsProvider.js';
-import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { IChat, ISession, ISessionFolder, ISessionWorkspace } from '../../../../../workbench/services/sessions/common/session.js';
+import { ISessionsProvider } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
+import { IAgentHostSessionsProvider } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
+import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { SessionBrowserNetworkContribution } from '../../browser/sessionBrowserNetwork.js';
+import { ITestSessionsService, ITestSessionWithChat, stubFocusedSessionHostFromSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('SessionBrowserNetworkContribution', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -51,13 +55,14 @@ suite('SessionBrowserNetworkContribution', () => {
 
 	function createResolver(services: {
 		readonly sessionsManagement?: Partial<ISessionsManagementService>;
-		readonly sessions?: Partial<ISessionsService>;
+		readonly sessions?: Partial<ITestSessionsService>;
 		readonly providers?: Partial<ISessionsProvidersService>;
 		readonly connections: Partial<IAgentHostConnectionsService>;
 		readonly browserView?: Partial<IBrowserViewWorkbenchService>;
 		readonly editor?: Partial<IEditorService>;
 		readonly editorGroups?: Partial<IEditorGroupsService>;
 		readonly configuration?: TestConfigurationService;
+		readonly trust?: IWorkspaceTrustManagementService;
 	}): IBrowserViewNetworkResolver {
 		const instantiationService = store.add(new TestInstantiationService());
 		let resolver: IBrowserViewNetworkResolver | undefined;
@@ -73,16 +78,20 @@ suite('SessionBrowserNetworkContribution', () => {
 			onDidReplaceSession: Event.None,
 			onDidReplaceNewDraftSession: Event.None,
 			onDidDiscardNewSession: Event.None,
+			onDidChangeSessions: Event.None,
+			getSessions: () => [],
 			...services.sessionsManagement,
 		}));
-		instantiationService.stub(ISessionsService, upcastPartial<ISessionsService>({ activeSession: constObservable(undefined), ...services.sessions }));
+		instantiationService.stub(ISessionsService, upcastPartial<ITestSessionsService>({ activeSession: constObservable(undefined), ...services.sessions }));
+		stubFocusedSessionHostFromSessionsService(instantiationService);
 		instantiationService.stub(ISessionsProvidersService, upcastPartial<ISessionsProvidersService>({ ...services.providers }));
-		instantiationService.stub(IAgentHostConnectionsService, upcastPartial<IAgentHostConnectionsService>({ connections: [], onDidChangeConnections: Event.None, ...services.connections }));
+		instantiationService.stub(IAgentHostConnectionsService, upcastPartial<IAgentHostConnectionsService>({ connections: [], onDidChangeConnections: Event.None, getConnectionByAuthority: () => undefined, ...services.connections }));
 		instantiationService.stub(IEditorService, upcastPartial<IEditorService>({ onWillOpenEditor: Event.None, ...services.editor }));
 		instantiationService.stub(IEditorGroupsService, upcastPartial<IEditorGroupsService>({ groups: [], ...services.editorGroups }));
 		instantiationService.stub(IUriIdentityService, upcastPartial<IUriIdentityService>({ extUri }));
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IConfigurationService, services.configuration ?? new TestConfigurationService());
+		instantiationService.stub(IWorkspaceTrustManagementService, services.trust ?? upcastPartial<IWorkspaceTrustManagementService>({ onDidChangeTrust: Event.None, onDidChangeTrustedFolders: Event.None, getUriTrustInfo: async uri => ({ uri, trusted: true }) }));
 		store.add(instantiationService.createInstance(SessionBrowserNetworkContribution));
 		return resolver!;
 	}
@@ -92,7 +101,7 @@ suite('SessionBrowserNetworkContribution', () => {
 		const local = session('local', 'local-agent-host', '/repo');
 		const draft = session('draft', 'agenthost-wsl', '/repo');
 		const workspaceless = session('quick', 'agenthost-ssh');
-		const activeSession = observableValue<IActiveSession | undefined>('active', undefined);
+		const activeSession = observableValue<ITestSessionWithChat | undefined>('active', undefined);
 		const newSession = observableValue<ISession | undefined>('draft', draft);
 		const chats = new Map<string, ISession>([['chat:/committed', committed], ['chat:/local', local], ['chat:/quick', workspaceless]]);
 
@@ -129,8 +138,9 @@ suite('SessionBrowserNetworkContribution', () => {
 			agentOnRemoteHost: resolve({ type: 'agent', sessionId: 'chat:/committed' }),
 			agentOnLocalHost: resolve({ type: 'agent', sessionId: 'chat:/local' }),
 			workspaceless: resolve({ type: 'agent', sessionId: 'chat:/quick' }),
+			unknownChat: resolve({ type: 'agent', sessionId: 'chat:/gone' }),
 		};
-		activeSession.set(upcastPartial<IActiveSession>(local), undefined);
+		activeSession.set(upcastPartial<ITestSessionWithChat>(local), undefined);
 		const activeLocal = resolve({ type: 'user' });
 
 		const localNetwork = { network: undefined, storageAffinity: undefined };
@@ -139,8 +149,119 @@ suite('SessionBrowserNetworkContribution', () => {
 			agentOnRemoteHost: { network: { authority: 'ssh-host' }, storageAffinity: repo('ssh-host') },
 			agentOnLocalHost: localNetwork,
 			workspaceless: { network: { authority: 'ssh-host' }, storageAffinity: undefined },
+			// Not the local network: views that require their owner's network fail instead.
+			unknownChat: { network: null, storageAffinity: undefined },
 			activeLocal: localNetwork,
 		});
+	});
+
+	test('keeps the folders of trusted sessions on remote hosts trusted after focus moves to another session', async () => {
+		const folder = (path: string) => toAgentHostUri(URI.file(path), 'ssh-host');
+		const withFolder = (id: string, providerId: string, workingDirectory: URI, requiresWorkspaceTrust: boolean) => upcastPartial<ISession>({
+			sessionId: id,
+			resource: URI.parse(`session:/${id}`),
+			providerId,
+			workspace: constObservable(upcastPartial<ISessionWorkspace>({ requiresWorkspaceTrust, folders: [upcastPartial<ISessionFolder>({ root: workingDirectory, workingDirectory })] })),
+		});
+		const first = withFolder('first', 'agenthost-ssh', folder('/first'), true);
+		const second = withFolder('second', 'agenthost-ssh', folder('/second'), true);
+		const untrusted = withFolder('untrusted', 'agenthost-ssh', folder('/untrusted'), true);
+		const local = withFolder('local', 'local-agent-host', URI.file('/local'), false);
+		const activeSession = observableValue<ITestSessionWithChat | undefined>('active', undefined);
+		const onDidChangeSessions = store.add(new Emitter<void>());
+		let sessions = [first, local, untrusted];
+		const trustedPaths = new Set(['/first', '/second']);
+		const onDidChangeTrustedFolders = store.add(new Emitter<void>());
+		const trust = upcastPartial<IWorkspaceTrustManagementService>({
+			onDidChangeTrust: Event.None,
+			onDidChangeTrustedFolders: onDidChangeTrustedFolders.event,
+			getUriTrustInfo: async uri => ({ uri, trusted: trustedPaths.has(fromAgentHostUri(uri).path) }),
+		});
+
+		const resolver = createResolver({
+			sessionsManagement: { getSessions: () => sessions, onDidChangeSessions: onDidChangeSessions.event as never },
+			sessions: { activeSession },
+			connections: {
+				resolveSessionResourceIdentity: resource => ({ connectionAuthority: resource.path === '/local' ? AMBIENT_AGENT_HOST_AUTHORITY : 'ssh-host', backendSession: resource }),
+			},
+			trust,
+		});
+		let changes = 0;
+		store.add(resolver.onDidChangeFileAccess!(() => changes++));
+		const roots = async () => {
+			await timeout(0);
+			return resolver.getTrustedFileRoots!().map(root => fromAgentHostUri(root).path);
+		};
+
+		activeSession.set(upcastPartial<ITestSessionWithChat>(first), undefined);
+		const focusedFirst = await roots();
+		activeSession.set(upcastPartial<ITestSessionWithChat>(second), undefined);
+		onDidChangeSessions.fire();
+		const afterFocusMoved = { roots: await roots(), changes };
+		sessions = [first, second, local, untrusted];
+		onDidChangeSessions.fire();
+		const afterSessionAdded = { roots: await roots(), changes };
+		trustedPaths.add('/untrusted');
+		onDidChangeTrustedFolders.fire();
+
+		assert.deepStrictEqual({ focusedFirst, afterFocusMoved, afterSessionAdded, afterTrustChanged: { roots: await roots(), changes } }, {
+			focusedFirst: ['/first'],
+			afterFocusMoved: { roots: ['/first'], changes: 1 },
+			afterSessionAdded: { roots: ['/first', '/second'], changes: 2 },
+			afterTrustChanged: { roots: ['/first', '/second', '/untrusted'], changes: 3 },
+		});
+	});
+
+	test('tracks the path case sensitivity of connected hosts, including ones without sessions', async () => {
+		const handshake = observableValue<InitializeResult | undefined>('handshake', undefined);
+		const posix = upcastPartial<IAgentConnection>({ initializeResult: constObservable(upcastPartial<InitializeResult>({ environment: { pathStyle: PathStyle.Posix } })) });
+		const windows = upcastPartial<IAgentConnection>({ initializeResult: handshake });
+		const onDidChangeConnections = store.add(new Emitter<void>());
+		const connections = new Map<string, IAgentConnection>([['posix-host', posix]]);
+		const listed = [upcastPartial<IAgentHostConnectionInfo>({ authority: 'posix-host' })];
+		const resolver = createResolver({
+			connections: {
+				connections: listed,
+				onDidChangeConnections: onDidChangeConnections.event,
+				getConnectionByAuthority: authority => connections.get(authority),
+			},
+		});
+		let changes = 0;
+		store.add(resolver.onDidChangeFileAccess!(() => changes++));
+		const caseSensitivity = () => ['posix-host', 'windows-host', 'unknown-host'].map(authority => resolver.isPathCaseSensitive!({ authority }));
+
+		await timeout(10);
+		const initial = caseSensitivity();
+		connections.set('windows-host', windows);
+		listed.push(upcastPartial<IAgentHostConnectionInfo>({ authority: 'windows-host' }));
+		onDidChangeConnections.fire();
+		await timeout(10);
+		const connecting = caseSensitivity();
+		handshake.set(upcastPartial<InitializeResult>({ environment: { pathStyle: PathStyle.Windows } }), undefined);
+		await timeout(10);
+
+		assert.deepStrictEqual({ initial, connecting, handshaken: caseSensitivity(), changes }, {
+			initial: [true, undefined, undefined],
+			connecting: [true, undefined, undefined],
+			handshaken: [true, false, undefined],
+			changes: 1,
+		});
+	});
+
+	test('treats macOS agent hosts as case-insensitive despite their POSIX paths', () => {
+		const host = (platform: 'linux' | 'macos') => upcastPartial<IAgentConnection>({
+			initializeResult: constObservable(upcastPartial<InitializeResult>({ environment: { pathStyle: PathStyle.Posix } })),
+			rootState: upcastPartial<IAgentConnection['rootState']>({ value: upcastPartial<RootState>({ _meta: withAgentHostResources(undefined, { platform }) }) }),
+		});
+		const connections = new Map<string, IAgentConnection>([['linux-host', host('linux')], ['mac-host', host('macos')]]);
+		const resolver = createResolver({
+			connections: {
+				connections: ['linux-host', 'mac-host'].map(authority => upcastPartial<IAgentHostConnectionInfo>({ authority })),
+				getConnectionByAuthority: authority => connections.get(authority),
+			},
+		});
+
+		assert.deepStrictEqual(['linux-host', 'mac-host'].map(authority => resolver.isPathCaseSensitive!({ authority })), [true, false]);
 	});
 
 	test('reports whether hosts are connected and can proxy browsers', () => {
@@ -257,35 +378,34 @@ suite('SessionBrowserNetworkContribution', () => {
 		onDidReplaceSession.fire({ from: draftB, to: started });
 		await timeout(0);
 
-		try {
-			const moved = [
-				['http://page/', { scope: BrowserViewStorageScope.Workspace, affinity: affinity(hostB, '/repo'), network: { authority: hostB } }],
-				// Global storage never uses a remote network, so the tab is not recreated.
-				['http://global/', { scope: BrowserViewStorageScope.Global }],
-				['http://ephemeral/', { scope: BrowserViewStorageScope.Ephemeral, network: { authority: hostB } }],
-				[file.toString(), { scope: BrowserViewStorageScope.Workspace, affinity: affinity(hostB, '/repo'), network: { authority: hostB } }],
-				['http://existing/', undefined],
-			];
-			assert.deepStrictEqual({ afterReplace, fileAssociation, afterStart: tabs.map(tab => [tab.url, tab.session]) }, {
-				afterReplace: moved,
-				// The recreated tab still belongs to its file.
-				fileAssociation: [false, file.toString()],
-				// Starting on the same host and folders changes nothing, and the new draft's tab stays with that draft.
-				afterStart: [...moved, ['http://next/', { scope: BrowserViewStorageScope.Workspace, affinity: affinity(hostB, '/other'), network: { authority: hostB } }]],
-			});
-			assert.strictEqual(created.filter(input => !input.isDisposed()).length, tabs.length);
-		} finally {
+		store.add(toDisposable(() => {
 			for (const input of created) {
 				input.dispose(true);
 			}
-		}
+		}));
+		const moved = [
+			['http://page/', { scope: BrowserViewStorageScope.Workspace, affinity: affinity(hostB, '/repo'), network: { authority: hostB } }],
+			// Global storage never uses a remote network, so the tab is not recreated.
+			['http://global/', { scope: BrowserViewStorageScope.Global }],
+			['http://ephemeral/', { scope: BrowserViewStorageScope.Ephemeral, network: { authority: hostB } }],
+			[file.toString(), { scope: BrowserViewStorageScope.Workspace, affinity: affinity(hostB, '/repo'), network: { authority: hostB } }],
+			['http://existing/', undefined],
+		];
+		assert.deepStrictEqual({ afterReplace, fileAssociation, afterStart: tabs.map(tab => [tab.url, tab.session]) }, {
+			afterReplace: moved,
+			// The recreated tab still belongs to its file.
+			fileAssociation: [false, file.toString()],
+			// Starting on the same host and folders changes nothing, and the new draft's tab stays with that draft.
+			afterStart: [...moved, ['http://next/', { scope: BrowserViewStorageScope.Workspace, affinity: affinity(hostB, '/other'), network: { authority: hostB } }]],
+		});
+		assert.strictEqual(created.filter(input => !input.isDisposed()).length, tabs.length);
 	});
 
 	test('moves tabs with a draft replaced without an event, and leaves hidden tabs untouched', async () => {
 		const draft = session('draft', 'agenthost-a', '/repo');
 		const quickChat = session('quick', 'agenthost-b');
 		const started = session('started', 'agenthost-b', '/repo');
-		const composer = createComposer(draft);
+		const composer = store.add(createComposer(draft));
 		const shown = composer.open('shown', { scope: BrowserViewStorageScope.Workspace, affinity: affinity(hostA, '/repo'), network: { authority: hostA } });
 		const hidden = composer.open('hidden', { scope: BrowserViewStorageScope.Workspace, affinity: affinity(hostA, '/repo'), network: { authority: hostA } });
 		// Hidden with its session's other editors, as when the user switches to another session.
@@ -298,15 +418,11 @@ suite('SessionBrowserNetworkContribution', () => {
 		composer.onDidReplaceSession.fire({ from: quickChat, to: started });
 		await timeout(0);
 
-		try {
-			assert.deepStrictEqual({ afterQuickChat, shownReplaced: shown.isDisposed(), hidden: [hidden.isDisposed(), hidden.session] }, {
-				// A workspace-less quick chat has no storage partition.
-				afterQuickChat: [['http://shown/', { scope: BrowserViewStorageScope.Workspace, network: { authority: hostB } }]],
-				shownReplaced: true,
-				hidden: [false, { scope: BrowserViewStorageScope.Workspace, affinity: affinity(hostA, '/repo'), network: { authority: hostA } }],
-			});
-		} finally {
-			composer.dispose();
-		}
+		assert.deepStrictEqual({ afterQuickChat, shownReplaced: shown.isDisposed(), hidden: [hidden.isDisposed(), hidden.session] }, {
+			// A workspace-less quick chat has no storage partition.
+			afterQuickChat: [['http://shown/', { scope: BrowserViewStorageScope.Workspace, network: { authority: hostB } }]],
+			shownReplaced: true,
+			hidden: [false, { scope: BrowserViewStorageScope.Workspace, affinity: affinity(hostA, '/repo'), network: { authority: hostA } }],
+		});
 	});
 });

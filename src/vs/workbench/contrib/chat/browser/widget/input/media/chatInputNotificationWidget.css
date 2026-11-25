@@ -221,4 +221,22 @@
 	animation-timing-function: steps(10, end);
 }
 
+/* A transcript notice belongs to the response, not the framed composer stack. */
+.interactive-item-container > .chat-input-notice.chat-input-notification-widget {
+	margin-block: var(--vscode-spacing-size120) var(--vscode-spacing-size80);
+	padding: 0;
+	border: 0;
+	border-radius: 0;
+	background: transparent;
+}
+
+.interactive-item-container > .chat-input-notification-widget .chat-input-notification-body {
+	flex-direction: column;
+}
+
+.interactive-item-container > .chat-input-notification-widget .chat-input-notification-actions {
+	margin-inline-start: 0;
+	justify-content: flex-start;
+}
+
 /* Dismiss + mute icon buttons are styled by `.chat-input-notice-action`. */

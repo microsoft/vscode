@@ -10,7 +10,7 @@ import { Iterable } from '../../../../../base/common/iterator.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ITestTreeProjection, TestExplorerTreeElement, TestItemTreeElement, TestTreeErrorMessage, getChildrenForParent, testIdentityProvider } from './index.js';
 import { ISerializedTestTreeCollapseState, isCollapsedInSerializedTestTree } from './testingViewState.js';
-import { IComputedStateAndDurationAccessor, refreshComputedState } from '../../common/getComputedState.js';
+import { ComputedStateCache, IComputedStateAndDurationAccessor, refreshComputedState } from '../../common/getComputedState.js';
 import { TestId } from '../../common/testId.js';
 import { TestResultItemChangeReason } from '../../common/testResult.js';
 import { ITestResultService } from '../../common/testResultService.js';
@@ -18,6 +18,7 @@ import { ITestService } from '../../common/testService.js';
 import { ITestItemUpdate, InternalTestItem, TestDiffOpType, TestItemExpandState, TestResultState, TestsDiff, applyTestItemUpdate } from '../../common/testTypes.js';
 
 const computedStateAccessor: IComputedStateAndDurationAccessor<TreeTestItemElement> = {
+	getCache: i => i.computedStateCache,
 	getOwnState: i => i instanceof TestItemTreeElement ? i.ownState : TestResultState.Unset,
 	getCurrentComputedState: i => i.state,
 	setComputedState: (i, s) => i.state = s,
@@ -41,6 +42,7 @@ const computedStateAccessor: IComputedStateAndDurationAccessor<TreeTestItemEleme
  * Test tree element element that groups be hierarchy.
  */
 class TreeTestItemElement extends TestItemTreeElement {
+	public readonly computedStateCache = new ComputedStateCache();
 	/**
 	 * Own, non-computed state.
 	 * @internal
@@ -132,8 +134,9 @@ export class TreeProjection extends Disposable implements ITestTreeProjection {
 
 			for (const inTree of [...this.items.values()].sort((a, b) => b.depth - a.depth)) {
 				const lookup = this.results.getStateById(inTree.test.item.extId)?.[1];
+				inTree.ownState = lookup?.ownComputedState ?? TestResultState.Unset;
 				inTree.ownDuration = lookup?.ownDuration;
-				refreshComputedState(computedStateAccessor, inTree, lookup?.ownComputedState ?? TestResultState.Unset).forEach(i => i.fireChange());
+				refreshComputedState(computedStateAccessor, inTree).forEach(i => i.fireChange());
 			}
 		}));
 
@@ -161,10 +164,10 @@ export class TreeProjection extends Disposable implements ITestTreeProjection {
 
 			// Skip refreshing the duration if we can trivially tell it didn't change.
 			const refreshDuration = ev.reason === TestResultItemChangeReason.OwnStateChange && ev.previousOwnDuration !== result.ownDuration;
-			// For items without children, always use the computed state. They are
-			// either leaves (for which it's fine) or nodes where we haven't expanded
-			// children and should trust whatever the result service gives us.
-			const explicitComputed = item.children.size ? undefined : result.computedState;
+			// Child events already update parents; only recompute when the parent's own state changes.
+			const explicitComputed = item.children.size
+				? (item.ownState === result.ownComputedState ? item.state : undefined)
+				: result.computedState;
 
 			item.retired = !!result.retired;
 			item.ownState = result.ownComputedState;
@@ -240,7 +243,7 @@ export class TreeProjection extends Disposable implements ITestTreeProjection {
 					}
 
 					if (parent instanceof TreeTestItemElement) {
-						refreshComputedState(computedStateAccessor, parent, undefined, !!parent.duration).forEach(i => i.fireChange());
+						refreshComputedState(computedStateAccessor, parent, undefined, parent.duration !== undefined).forEach(i => i.fireChange());
 					}
 				}
 			}
@@ -322,7 +325,7 @@ export class TreeProjection extends Disposable implements ITestTreeProjection {
 			treeElement.ownState = prevState.computedState;
 			treeElement.ownDuration = prevState.ownDuration;
 
-			refreshComputedState(computedStateAccessor, treeElement, undefined, !!treeElement.ownDuration).forEach(i => i.fireChange());
+			refreshComputedState(computedStateAccessor, treeElement, undefined, treeElement.ownDuration !== undefined).forEach(i => i.fireChange());
 		}
 	}
 }

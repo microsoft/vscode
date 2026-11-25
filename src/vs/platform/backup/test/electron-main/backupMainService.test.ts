@@ -22,7 +22,7 @@ import { OPTIONS, parseArgs } from '../../../environment/node/argv.js';
 import { HotExitConfiguration } from '../../../files/common/files.js';
 import { ConsoleMainLogger } from '../../../log/common/log.js';
 import product from '../../../product/common/product.js';
-import { IFolderBackupInfo, isFolderBackupInfo, IWorkspaceBackupInfo } from '../../common/backup.js';
+import { IFolderBackupInfo, isFolderBackupInfo, IWorkspaceBackupInfo, WORKING_COPY_BACKUP_TEMP_FILE_SUFFIX } from '../../common/backup.js';
 import { IWorkspaceIdentifier } from '../../../workspace/common/workspace.js';
 import { InMemoryTestStateMainService } from '../../../test/electron-main/workbenchTestServices.js';
 import { LogService } from '../../../log/common/logService.js';
@@ -211,6 +211,20 @@ flakySuite('BackupMainService', () => {
 		await service.initialize();
 		assert.strictEqual(service.testGetFolderBackups().length, 0);
 		assert.strictEqual(service.getEmptyWindowBackups().length, 1);
+	});
+
+	test('service ignores abandoned temporary backups on startup', async () => {
+		const backupFolder = service.toBackupPath(fooFile);
+		const fileBackups = path.join(backupFolder, Schemas.file);
+		fs.mkdirSync(fileBackups, { recursive: true });
+		fs.writeFileSync(path.join(fileBackups, `partial${WORKING_COPY_BACKUP_TEMP_FILE_SUFFIX}`), 'partial');
+		service.registerFolderBackup(toFolderBackupInfo(fooFile));
+		await service.initialize();
+
+		assert.deepStrictEqual({
+			folders: service.testGetFolderBackups(),
+			emptyWindows: service.getEmptyWindowBackups(),
+		}, { folders: [], emptyWindows: [] });
 	});
 
 	test('service validates backup workspaces on startup and cleans up (root workspaces)', async function () {

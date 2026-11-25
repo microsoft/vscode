@@ -17,7 +17,7 @@ import { isHighContrast } from '../../../platform/theme/common/theme.js';
 import { EDITOR_GROUP_HEADER_TABS_BORDER, TAB_BORDER } from '../../../workbench/common/theme.js';
 import { ColorThemeData } from '../../../workbench/services/themes/common/colorThemeData.js';
 import { ExtensionData, IThemeExtensionPoint } from '../../../workbench/services/themes/common/workbenchThemeService.js';
-import { activeSessionViewBackground, agentsBottomPanelBorder, agentsCardBorder, agentsDetailBackground, agentsPanelBackground, agentsPanelBorder, inactiveSessionViewBackground } from '../../common/theme.js';
+import { activeSessionViewBackground, agentsBottomPanelBorder, agentsCardBorder, agentsDetailBackground, agentsPanelBackground, agentsPanelBorder, inactiveSessionViewBackground } from '../../../workbench/contrib/sessions/common/theme.js';
 
 interface IBuiltinThemeManifest {
 	readonly name: string;

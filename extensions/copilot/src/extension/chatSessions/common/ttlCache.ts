@@ -40,24 +40,10 @@ export class TtlCache<V> {
 	}
 
 	/**
-	 * Removes a single entry from the cache.
-	 */
-	delete(key: string): void {
-		this._entries.delete(key);
-	}
-
-	/**
 	 * Removes all entries from the cache.
 	 */
 	clear(): void {
 		this._entries.clear();
-	}
-
-	/**
-	 * Returns `true` if the cache has a non-expired entry for the given key.
-	 */
-	has(key: string): boolean {
-		return this.get(key) !== undefined;
 	}
 }
 
@@ -99,12 +85,5 @@ export class SingleSlotTtlCache<V> {
 	 */
 	clear(): void {
 		this._entry = undefined;
-	}
-
-	/**
-	 * Returns `true` if the cache has a non-expired entry for the given key.
-	 */
-	has(key: string): boolean {
-		return this.get(key) !== undefined;
 	}
 }

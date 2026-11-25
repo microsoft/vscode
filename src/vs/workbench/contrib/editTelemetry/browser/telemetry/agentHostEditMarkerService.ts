@@ -378,6 +378,7 @@ export class AgentHostEditMarkerService extends Disposable implements IAgentHost
 					if (!marker || !resourceUri) {
 						continue;
 					}
+					// eslint-disable-next-line local/code-agent-host-uri-mapping -- TODO(agent-host-uri): edit-marker resource identity bypasses the available connection.resourceUris mapper
 					const resource = toAgentHostUri(URI.parse(resourceUri), connectionInfo.authority);
 					const resourceKey = this._key(resource);
 					const previousRoute = this._routes.get(resourceKey);
@@ -693,6 +694,7 @@ export class AgentHostEditMarkerService extends Disposable implements IAgentHost
 	}
 
 	private _key(resource: URI): string {
+		// eslint-disable-next-line local/code-agent-host-uri-mapping -- TODO(agent-host-uri): edit-marker keys strip editor-remote identity instead of comparing in the owning connection URI space
 		const normalizedResource = resource.scheme === Schemas.vscodeRemote
 			? URI.from({ scheme: Schemas.file, path: resource.path })
 			: resource;

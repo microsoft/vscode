@@ -74,6 +74,10 @@ if (testResults) {
 	new JUnitReporter(runner, { reporterOptions: { mochaFile: testResults, outputs: true } });
 }
 
+// Mocha retries a failed test silently. Log the failure that caused the retry, since a timed-out attempt keeps
+// running in the background without its cleanup, and the retry's own error can point back to it.
+runner.on('retry', (test, err) => console.log(`Retrying: ${test.fullTitle()} after attempt ${test.currentRetry() + 1} failed - ${err?.message ?? err}`));
+
 if (options.verbose) {
 	runner.on('test', (test) => console.log(`Starting: ${test.fullTitle()}`));
 	runner.on('pass', (test) => console.log(`Passed: ${test.fullTitle()}`));

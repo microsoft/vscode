@@ -602,7 +602,7 @@ export const schema: IJSONSchema = {
 					],
 					properties: {
 						supported: {
-							markdownDescription: nls.localize('vscode.extension.capabilities.agentsWindow.supported', "Declares whether the extension supports running in the Agents window. For non-built-in extensions, this takes effect while the `extensions.experimental.enableAgentsWindowCapability` setting is enabled (the default)."),
+							markdownDescription: nls.localize('vscode.extension.capabilities.agentsWindow.supported', "Declares whether the extension supports running in the Agents window."),
 							type: 'boolean'
 						}
 					}

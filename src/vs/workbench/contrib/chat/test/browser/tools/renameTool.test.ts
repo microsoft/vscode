@@ -5,7 +5,6 @@
 
 import assert from 'assert';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
-import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { ExtUri, extUriBiasedIgnorePathCase } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
@@ -29,7 +28,7 @@ function getTextContent(result: IToolResult): string {
 
 suite('RenameTool', () => {
 
-	const disposables = new DisposableStore();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let langFeatures: LanguageFeaturesService;
 	const uriIdentityService = { extUri: new ExtUri(() => false) } as Partial<IUriIdentityService> as IUriIdentityService;
 
@@ -112,12 +111,6 @@ suite('RenameTool', () => {
 	setup(() => {
 		langFeatures = new LanguageFeaturesService();
 	});
-
-	teardown(() => {
-		disposables.clear();
-	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	suite('getToolData', () => {
 

@@ -8,7 +8,6 @@ import '../../../../../base/browser/ui/codicons/codiconStyles.js';
 import { Action } from '../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Event } from '../../../../../base/common/event.js';
-import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, derived, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -32,15 +31,17 @@ import { chartsBlue, chartsForeground, chartsGreen, chartsOrange, chartsPurple, 
 import { ChatPillsRow, ChatPillsWidget, IChatPillEntry, withChatPillHoverLabel } from '../../../../../workbench/browser/chatPills.js';
 import '../../../../../workbench/browser/media/style.css';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices, waitForFixtureDomCondition } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
-import { ArtifactIntegrationPresentation } from '../../browser/artifactIntegrationPresentation.js';
-import { ArtifactIntegrationGroup, IArtifactIntegrationGroupMember } from '../../browser/artifactIntegrationGroup.js';
-import { ArtifactDetailsContextView } from '../../browser/artifactDetailsContextView.js';
+import { ArtifactIntegrationPresentation } from '../../../../../workbench/contrib/sessions/browser/chat/artifactIntegrationPresentation.js';
+import { ArtifactIntegrationGroup, IArtifactIntegrationGroupMember } from '../../../../../workbench/contrib/sessions/browser/chat/artifactIntegrationGroup.js';
+import { ArtifactDetailsContextView } from '../../../../../workbench/contrib/sessions/browser/chat/artifactDetailsContextView.js';
 import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { IChatWidget, IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatRequestViewModel, IChatViewModel } from '../../../../../workbench/contrib/chat/common/model/chatViewModel.js';
-import { IChat, ISession } from '../../../../services/sessions/common/session.js';
-import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { IChat, ISession } from '../../../../../workbench/services/sessions/common/session.js';
+import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { IFocusedSessionHostService } from '../../../../../workbench/services/sessions/browser/sessionHost.js';
+import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { focusedSessionHostServiceOf, ITestSessionWithChat, stubSessionHosts } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 const observedAt = Date.UTC(2026, 0, 12, 9);
 const chat = 'fixture-chat';
@@ -62,13 +63,13 @@ interface IArtifactFixtureOptions {
 	readonly width?: number;
 	readonly longContent?: boolean;
 	readonly showListInfo?: number;
-	readonly openQuickPick?: boolean;
+	readonly expandAutopilot?: boolean;
 	/** Renders these artifacts as one group pill instead of a single artifact pill. */
 	readonly group?: readonly IArtifactFixtureData[];
 	/** Index of a group artifact pinned into a pill of its own. */
 	readonly pinned?: number;
 	readonly openGroup?: boolean;
-	/** Index of the group row to open details for from the open group dropdown. */
+	/** Index of the group row whose first status section, or Details section, opens its details from the open group dropdown. */
 	readonly openGroupDetails?: number;
 }
 
@@ -231,7 +232,7 @@ function pullRequest(state: PullRequestState, options: IPullRequestFixtureOption
 		],
 		merged: [section('checks', '6/6', Codicon.passFilledCompact, chartsGreen, 'All 6 checks passed')],
 		closed: [],
-		loading: [section('availability', 'Loading status', Codicon.sync, chartsForeground)],
+		loading: [section('availability', 'Loading status', Codicon.circleFilled, chartsForeground)],
 		unavailable: [],
 	};
 	const automationOptions: readonly ArtifactAutomationOption[] = [
@@ -249,8 +250,8 @@ function pullRequest(state: PullRequestState, options: IPullRequestFixtureOption
 		authentication: state === 'unavailable' ? { enabled: true } : undefined,
 		actions: [
 			{ id: 'markReady', label: 'Mark Ready', iconId: Codicon.gitPullRequest.id, kind: 'code' },
-			{ id: 'fixChecks', label: 'Fix Checks', iconId: Codicon.tools.id, kind: 'prompt' },
-			{ id: 'addressComments', label: 'Address Comments', iconId: Codicon.commentDiscussion.id, kind: 'prompt' },
+			{ id: 'fixChecks', label: 'Fix Checks', iconId: Codicon.lightbulb.id, kind: 'prompt' },
+			{ id: 'addressComments', label: 'Address Comments', iconId: Codicon.comment.id, kind: 'prompt' },
 			{ id: 'merge', label: 'Merge', iconId: Codicon.gitMerge.id, kind: 'code' },
 			{ id: 'refresh', label: 'Refresh Status', iconId: Codicon.refresh.id, kind: 'code' },
 		],
@@ -479,7 +480,7 @@ async function render(context: ComponentFixtureContext, data: IArtifactFixtureDa
 	caption.style.fontSize = 'var(--vscode-fontSize-body2)';
 	const previewOperation = (label: string) => { caption.textContent = `Preview only: ${label}`; };
 	const activityChat = URI.parse('artifact-demo:/chat');
-	const activeSession = new class extends mock<IActiveSession>() {
+	const activeSession = new class extends mock<ITestSessionWithChat>() {
 		override readonly activeChat = constObservable(new class extends mock<IChat>() { override readonly resource = activityChat; }());
 	}();
 	const activityWidget = new class extends mock<IChatWidget>() {
@@ -517,7 +518,7 @@ async function render(context: ComponentFixtureContext, data: IArtifactFixtureDa
 				override readonly containers = [container];
 				override readonly mainContainerDimension = { width, height };
 				override readonly activeContainerDimension = { width, height };
-				override readonly mainContainerOffset = { top: 0, quickPickTop: options.openQuickPick ? 420 : 0 };
+				override readonly mainContainerOffset = { top: 0, quickPickTop: 0 };
 				override readonly activeContainerOffset = this.mainContainerOffset;
 				override readonly onDidLayoutMainContainer = Event.None;
 				override readonly onDidLayoutContainer = Event.None;
@@ -539,7 +540,7 @@ async function render(context: ComponentFixtureContext, data: IArtifactFixtureDa
 				}
 			}());
 			registration.defineInstance(ISessionsService, new class extends mock<ISessionsService>() {
-				override readonly activeSession = constObservable(activeSession);
+				readonly activeSession = constObservable(activeSession);
 				override async openChat(_session: ISession, _resource: URI): Promise<void> { }
 			}());
 			registration.defineInstance(IChatWidgetService, new class extends mock<IChatWidgetService>() {
@@ -564,6 +565,8 @@ async function render(context: ComponentFixtureContext, data: IArtifactFixtureDa
 			}());
 		},
 	});
+	stubSessionHosts(instantiationService, disposableStore, { session: constObservable(activeSession) });
+	instantiationService.stub(IFocusedSessionHostService, focusedSessionHostServiceOf(constObservable(activeSession)));
 	const input = append(container, $('div'));
 	input.style.cssText = 'position:absolute;bottom:24px;left:16px;right:16px;height:100px;box-sizing:border-box;padding:12px;border:1px solid var(--vscode-input-border);border-radius:var(--vscode-cornerRadius-large);background:var(--vscode-input-background);color:var(--vscode-descriptionForeground);';
 	input.textContent = 'Ask a question or describe what to build';
@@ -607,21 +610,27 @@ async function render(context: ComponentFixtureContext, data: IArtifactFixtureDa
 	row.content.appendChild(widget.element);
 	if (openDetails) {
 		const sectionIndex = data.contribution.view.sections.findIndex(section => section.detailsId === openDetails);
-		const button = openDetails === 'actions' ? widget.element.querySelector<HTMLElement>('.artifact-integration-pill > .chat-pill-button')
-			: widget.element.querySelectorAll<HTMLElement>('.artifact-pill-sections [role="button"]')[sectionIndex];
-		if (!button) {
+		const main = widget.element.querySelector<HTMLElement>('.artifact-integration-pill > .chat-pill-button');
+		const section = widget.element.querySelectorAll<HTMLElement>('.artifact-pill-sections [role="button"]')[sectionIndex];
+		if (openDetails === 'actions' && main) {
+			// The whole artifact's details, which its Details section opens while it has no status sections.
+			controller.toggle(presentation, main);
+		} else if (section) {
+			section.click();
+		} else {
 			throw new Error(`Missing artifact details control: ${openDetails}`);
 		}
-		button.click();
 		await Promise.resolve();
 		const detailsId = data.contribution.view.main?.detailsId;
 		const expectedDetails = detailsId ? data.details[detailsId] : undefined;
 		const availability = data.contribution.view.availability;
-		const expectedTitle = availability.kind === 'authenticationRequired' ? data.artifact.label : expectedDetails?.title;
-		const expectedContent = availability.kind === 'authenticationRequired' ? [availability.reason, 'Sign In'] : expectedDetails ? [expectedDetails.title] : undefined;
+		const authenticationRequired = availability.kind === 'authenticationRequired';
+		const expectedTitle = authenticationRequired ? data.artifact.label : expectedDetails?.title;
+		const expectedContent = authenticationRequired ? [availability.reason] : expectedDetails ? [expectedDetails.title] : undefined;
 		const panel = container.querySelector('.artifact-integration-panel');
 		if (!expectedTitle || !expectedContent || panel?.querySelector('h2')?.textContent !== expectedTitle
-			|| expectedContent.some(text => !panel.textContent?.includes(text))) {
+			|| expectedContent.some(text => !panel.textContent?.includes(text))
+			|| (authenticationRequired && !panel.querySelector('.artifact-header-actions [aria-label^="Sign In"]'))) {
 			throw new Error(`The artifact details did not render: ${openDetails}`);
 		}
 		if (options.showListInfo !== undefined) {
@@ -631,15 +640,11 @@ async function render(context: ComponentFixtureContext, data: IArtifactFixtureDa
 			}
 			info.click();
 		}
-		if (options.openQuickPick) {
+		if (options.expandAutopilot) {
 			panel.querySelector<HTMLElement>('.artifact-autopilot-group .artifact-card-disclosure')?.click();
-			const picker = panel.querySelector<HTMLElement>('.artifact-autopilot-policy');
-			if (!picker) {
-				throw new Error('Expected an enum automation picker.');
+			if (!panel.querySelector('.artifact-autopilot-choices [role="radio"]')) {
+				throw new Error('Expected the choices of an enum automation.');
 			}
-			const quickInput = instantiationService.get(IQuickInputService);
-			context.disposableStackStore.add(toDisposable(() => quickInput.currentQuickInput?.hide()));
-			picker.click();
 		}
 	}
 }
@@ -698,7 +703,7 @@ async function renderGroup(
 		rows[0]?.classList.add('hovered');
 		return;
 	}
-	rows[options.openGroupDetails]?.querySelector<HTMLElement>('.artifact-group-row-main')?.click();
+	rows[options.openGroupDetails]?.querySelector<HTMLElement>('.artifact-group-row-status')?.click();
 	await waitForFixtureDomCondition(container, () => !!container.querySelector('.artifact-integration-panel h2'), disposableStore);
 }
 
@@ -769,7 +774,7 @@ export async function renderArtifactDetails(context: ComponentFixtureContext, sc
 				...data.contribution,
 				options: data.contribution.options.map(option => option.id === 'merge' ? {
 					...option, kind: 'enum', label: 'Merge Automatically When Ready', defaultValue: 'never', disabledValue: 'never',
-					choices: [{ value: 'never', label: 'Off' }, { value: 'always', label: 'Always' }, { value: 'ifUnchanged', label: 'When No Changes Were Made' }],
+					choices: [{ value: 'never', label: 'Off' }, { value: 'ifUnchanged', label: 'When Not Changed' }, { value: 'always', label: 'On' }],
 				} : option),
 				configuration: {
 					...data.contribution.configuration,
@@ -877,7 +882,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/artifactIntegrations' 
 	ExperimentScorecardReady: defineComponentFixture({ render: context => render(context, experiment(true)) }),
 	ExperimentScorecardDetails: defineComponentFixture({ render: context => render(context, experiment(true), { openDetails: 'scorecard' }), additionalThemes: ['darkHighContrast', 'lightHighContrast'] }),
 	ExperimentAnalysisSchedule: defineComponentFixture({ render: context => render(context, experiment(true), { openDetails: 'analysis' }) }),
-	ExperimentAnalysisPicker: defineComponentFixture({ render: context => render(context, experiment(true), { openDetails: 'analysis', openQuickPick: true }) }),
+	ExperimentAnalysisChoices: defineComponentFixture({ render: context => render(context, experiment(true), { openDetails: 'analysis', expandAutopilot: true }) }),
 	ExPExperimentRunning: defineComponentFixture({ render: context => render(context, expExperiment()) }),
 	ExPExperimentStateDetails: defineComponentFixture({ render: context => render(context, expExperiment(), { openDetails: 'state' }), additionalThemes: ['darkHighContrast', 'lightHighContrast'] }),
 	ExPExperimentIdentityDetails: defineComponentFixture({ render: context => render(context, expExperiment(), { openDetails: 'actions' }) }),

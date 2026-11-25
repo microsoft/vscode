@@ -1,0 +1,17 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* The native control enters DOM fullscreen briefly before handing off to the dialog. */
+.webview-overlay-content:not(.media-player-fullscreen-error) .webview.media-player-webview:fullscreen {
+	opacity: 0;
+}
+
+.webview.media-player-webview:fullscreen::backdrop {
+	background: transparent;
+}
+
+.webview-overlay-content.media-player-transition {
+	opacity: 0;
+}

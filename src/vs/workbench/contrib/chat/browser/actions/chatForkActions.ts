@@ -5,8 +5,10 @@
 
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { structuralEquals } from '../../../../../base/common/equals.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { isCancellationError } from '../../../../../base/common/errors.js';
+import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { revive } from '../../../../../base/common/marshalling.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
@@ -19,15 +21,86 @@ import { ChatContextKeyExprs, ChatContextKeys } from '../../common/actions/chatC
 import { IChatService, ResponseModelState } from '../../common/chatService/chatService.js';
 import type { ISerializableChatData } from '../../common/model/chatModel.js';
 import { isChatTreeItem, isRequestVM, isResponseVM } from '../../common/model/chatViewModel.js';
-import { ChatSessionForkError, IChatSessionForkOptions, IChatSessionRequestHistoryItem, IChatSessionsService } from '../../common/chatSessionsService.js';
+import { ChatSessionForkError, IChatSessionForkOptions, IChatSessionRequestHistoryItem, IChatSessionsService, isAgentHostTarget } from '../../common/chatSessionsService.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
+import { ChatRequestSlashCommandPart } from '../../common/requestParser/chatParserTypes.js';
 import { CHAT_CATEGORY } from './chatActions.js';
-import { ChatTreeItem, ChatViewPaneTarget, IChatWidgetService } from '../chat.js';
+import { ChatTreeItem, ChatViewPaneTarget, IChatWidget, IChatWidgetService } from '../chat.js';
 
 export const ForkConversationActionId = 'workbench.action.chat.forkConversation';
 
 export interface IForkConversationOptions extends IChatSessionForkOptions {
 	readonly toSide?: boolean;
+}
+
+/**
+ * Parses the argument after `/fork` for the `prompt` keyword that agent-host
+ * chats reserve: `/fork prompt <prompt>` forks and sends `<prompt>`.
+ *
+ * @returns `undefined` without the keyword; otherwise the prompt and its offset
+ * within the argument. The prompt is empty for a bare `/fork prompt`.
+ */
+export function parseForkPromptArgument(argument: string): { readonly text: string; readonly offset: number } | undefined {
+	const keyword = /^\s*prompt(?=\s|$)/.exec(argument);
+	if (!keyword) {
+		return undefined;
+	}
+	const afterKeyword = argument.slice(keyword[0].length);
+	if (!afterKeyword.trim()) {
+		return { text: '', offset: argument.length };
+	}
+	// Drop only the keyword separator. The remainder, including internal
+	// newlines and whitespace, is user-authored prompt text.
+	const separatorLength = /^\s/.test(afterKeyword) ? 1 : 0;
+	return { text: afterKeyword.slice(separatorLength), offset: keyword[0].length + separatorLength };
+}
+
+/**
+ * Owns the source chat's draft of a submitted `/fork prompt <prompt>` until the
+ * fork's outcome is known. Disposing releases the source chat without clearing
+ * the draft, so a fork that was not created leaves the prompt to retry.
+ */
+export interface IForkPromptSourceInput extends IDisposable {
+	/** Clears the source draft if it is unchanged since submission, then releases the source chat. */
+	readonly clear: () => void;
+}
+
+/**
+ * Captures the draft of a widget submitting `/fork prompt <prompt>` in an
+ * agent-host chat, or returns `undefined` for any other submission.
+ *
+ * The fork opens before the `/fork` command settles, which releases the source
+ * chat. Releasing it persists its draft, including to the agent host's chat
+ * draft, so the source chat is kept alive until its draft is cleared or retained.
+ */
+export function captureForkPromptSourceInput(widget: IChatWidget, chatService: IChatService): IForkPromptSourceInput | undefined {
+	const sourceSessionResource = widget.viewModel?.sessionResource;
+	if (!sourceSessionResource || !isAgentHostTarget(getChatSessionType(sourceSessionResource))) {
+		return undefined;
+	}
+	const ownedInput = widget.getInput();
+	const forkPart = widget.parsedInput.parts.find((part): part is ChatRequestSlashCommandPart =>
+		part instanceof ChatRequestSlashCommandPart && part.slashCommand.command === 'fork');
+	if (!forkPart || !parseForkPromptArgument(ownedInput.slice(forkPart.range.endExclusive))?.text) {
+		return undefined;
+	}
+	const sourceInputModel = widget.viewModel?.model.inputModel;
+	const ownedAttachments = [...widget.input.attachmentModel.attachments];
+	let sourceModelRef = chatService.acquireExistingSession(sourceSessionResource, 'ChatForkActions#forkPromptSourceInput');
+	const release = () => {
+		sourceModelRef?.dispose();
+		sourceModelRef = undefined;
+	};
+	return {
+		clear: () => {
+			const state = sourceInputModel?.state.get();
+			if (state?.inputText === ownedInput && structuralEquals(state.attachments ?? [], ownedAttachments)) {
+				sourceInputModel?.setState({ inputText: '', attachments: [] });
+			}
+			release();
+		},
+		dispose: release,
+	};
 }
 
 export class ForkConversationAction extends Action2 {
@@ -65,6 +138,7 @@ export class ForkConversationAction extends Action2 {
 		const chatService = accessor.get(IChatService);
 		const chatSessionsService = accessor.get(IChatSessionsService);
 		const forkedTitlePrefix = localize('chat.forked.titlePrefix', "Forked: ");
+		const canOpenFork = this._captureForkNavigation(accessor);
 
 		// When invoked via /fork slash command, args[0] is a URI (sessionResource).
 		// Fork at the last request in that session.
@@ -76,10 +150,10 @@ export class ForkConversationAction extends Action2 {
 			const contentProviderSchemes = chatSessionsService.getContentProviderSchemes();
 			if (contentProviderSchemes.includes(getChatSessionType(sourceSessionResource))) {
 				try {
-					if (await this._tryForkAsChat(instantiationService, sourceSessionResource, undefined, options)) {
+					if (await this._tryForkAsChat(instantiationService, sourceSessionResource, undefined, options, canOpenFork)) {
 						return;
 					}
-					return await this.forkContributedChatSession(sourceSessionResource, undefined, false, chatSessionsService, instantiationService, options);
+					return await this.forkContributedChatSession(sourceSessionResource, undefined, false, chatSessionsService, instantiationService, options, canOpenFork);
 				} catch (error) {
 					await this._handleForkPromptError(error, sourceSessionResource, instantiationService, options);
 					throw error;
@@ -121,7 +195,7 @@ export class ForkConversationAction extends Action2 {
 			const newSessionResource = modelRef.object.sessionResource;
 			setTimeout(async () => {
 				try {
-					await this._openForkedSession(instantiationService, chatModel.sessionResource, newSessionResource);
+					await this._openForkedSession(instantiationService, chatModel.sessionResource, newSessionResource, undefined, canOpenFork);
 				} finally {
 					modelRef.dispose();
 				}
@@ -184,10 +258,10 @@ export class ForkConversationAction extends Action2 {
 				}
 			}
 			try {
-				if (await this._tryForkAsChat(instantiationService, sessionResource, request, options)) {
+				if (await this._tryForkAsChat(instantiationService, sessionResource, request, options, canOpenFork)) {
 					return;
 				}
-				return await this.forkContributedChatSession(sessionResource, request, true, chatSessionsService, instantiationService, options);
+				return await this.forkContributedChatSession(sessionResource, request, true, chatSessionsService, instantiationService, options, canOpenFork);
 			} catch (error) {
 				await this._handleForkPromptError(error, sessionResource, instantiationService, options);
 				throw error;
@@ -254,13 +328,21 @@ export class ForkConversationAction extends Action2 {
 		// Navigate to the new session in the chat view pane
 		try {
 			const newSessionResource = modelRef.object.sessionResource;
-			await this._openForkedSession(instantiationService, chatModel.sessionResource, newSessionResource, options);
+			await this._openForkedSession(instantiationService, chatModel.sessionResource, newSessionResource, options, canOpenFork);
 		} finally {
 			modelRef.dispose();
 		}
 	}
 
-	protected async _openForkedSession(instantiationService: IInstantiationService, parentSessionResource: URI, forkedSessionResource: URI, _options?: IForkConversationOptions): Promise<void> {
+	/** Captures whether the invoking surface still permits navigation after the fork completes. */
+	protected _captureForkNavigation(_accessor: ServicesAccessor): () => boolean {
+		return () => true;
+	}
+
+	protected async _openForkedSession(instantiationService: IInstantiationService, parentSessionResource: URI, forkedSessionResource: URI, _options?: IForkConversationOptions, canOpenFork: () => boolean = () => true): Promise<void> {
+		if (!canOpenFork()) {
+			return;
+		}
 		await instantiationService.invokeFunction(async accessor => {
 			const chatWidgetService = accessor.get(IChatWidgetService);
 			await chatWidgetService.openSession(forkedSessionResource, ChatViewPaneTarget, { sessionTypeSelectionReason: 'currentSession' });
@@ -274,13 +356,13 @@ export class ForkConversationAction extends Action2 {
 	 * implementation does nothing and returns `false`, so the standard
 	 * session-creating fork path runs.
 	 */
-	protected async _tryForkAsChat(_instantiationService: IInstantiationService, _sourceSessionResource: URI, _request: IChatSessionRequestHistoryItem | undefined, _options?: IForkConversationOptions): Promise<boolean> {
+	protected async _tryForkAsChat(_instantiationService: IInstantiationService, _sourceSessionResource: URI, _request: IChatSessionRequestHistoryItem | undefined, _options?: IForkConversationOptions, _canOpenFork?: () => boolean): Promise<boolean> {
 		return false;
 	}
 
 	private readonly pendingForks = new Set<{ readonly key: string; readonly context: object | undefined; readonly promise: Promise<void> }>();
 
-	private async forkContributedChatSession(sourceSessionResource: URI, request: IChatSessionRequestHistoryItem | undefined, openForkedSessionImmediately: boolean, chatSessionsService: IChatSessionsService, instantiationService: IInstantiationService, options?: IForkConversationOptions) {
+	private async forkContributedChatSession(sourceSessionResource: URI, request: IChatSessionRequestHistoryItem | undefined, openForkedSessionImmediately: boolean, chatSessionsService: IChatSessionsService, instantiationService: IInstantiationService, options: IForkConversationOptions | undefined, canOpenFork: () => boolean) {
 		const title = options?.title?.trim() || undefined;
 		const forkOptions: IChatSessionForkOptions | undefined = title || options?.initialMessage
 			? { ...(title ? { title } : {}), ...(options?.initialMessage ? { initialMessage: options.initialMessage } : {}), ...(options?.sourceRequestId ? { sourceRequestId: options.sourceRequestId } : {}) }
@@ -298,7 +380,7 @@ export class ForkConversationAction extends Action2 {
 			const cts = new CancellationTokenSource();
 			try {
 				const forkedItem = await chatSessionsService.forkChatSession(sourceSessionResource, request, cts.token, forkOptions);
-				const open = () => this._openForkedSession(instantiationService, sourceSessionResource, forkedItem.resource, options);
+				const open = () => this._openForkedSession(instantiationService, sourceSessionResource, forkedItem.resource, options, canOpenFork);
 				if (openForkedSessionImmediately || options?.initialMessage) {
 					try {
 						await open();

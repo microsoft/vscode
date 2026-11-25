@@ -499,6 +499,9 @@ export class InterceptorElectricCharOperation {
 	}
 
 	private static _isTypeInterceptorElectricChar(config: CursorConfiguration, model: ITextModel, selections: Selection[]) {
+		if (config.autoIndent < EditorAutoIndentStrategy.Brackets) {
+			return false;
+		}
 		if (selections.length === 1 && model.tokenization.isCheapToTokenize(selections[0].getEndPosition().lineNumber)) {
 			return true;
 		}

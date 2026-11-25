@@ -83,9 +83,9 @@ export class AITextSearchHeadingImpl extends TextSearchHeadingImpl<IAITextQuery>
 	}
 
 	private _createBaseFolderMatch(resource: URI, id: string, index: number, query: IAITextQuery): ISearchTreeFolderMatch {
-		const folderMatch: ISearchTreeFolderMatch = this._register(this.createWorkspaceRootWithResourceImpl(resource, id, index, query));
+		const folderMatch: ISearchTreeFolderMatch = this.createWorkspaceRootWithResourceImpl(resource, id, index, query);
 		const disposable = folderMatch.onChange((event) => this._onChange.fire(event));
-		this._register(folderMatch.onDispose(() => disposable.dispose()));
+		Event.once(folderMatch.onDispose)(() => disposable.dispose());
 		return folderMatch;
 	}
 

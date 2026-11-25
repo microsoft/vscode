@@ -267,6 +267,7 @@ export class BreadcrumbsControl {
 	private readonly _cfUseQuickPick: BreadcrumbsConfig<boolean>;
 	private readonly _cfShowIcons: BreadcrumbsConfig<boolean>;
 	private readonly _cfShowEditorType: BreadcrumbsConfig<boolean>;
+	private readonly _cfShowInUntitledFiles: BreadcrumbsConfig<boolean>;
 	private readonly _cfTitleScrollbarSizing: BreadcrumbsConfig<IEditorPartOptions['titleScrollbarSizing']>;
 	private readonly _cfTitleScrollbarVisibility: BreadcrumbsConfig<IEditorPartOptions['titleScrollbarVisibility']>;
 
@@ -284,6 +285,8 @@ export class BreadcrumbsControl {
 	private readonly _model = new MutableDisposable<BreadcrumbsModel>();
 	private _breadcrumbsPickerShowing = false;
 	private _breadcrumbsPickerIgnoreOnceItem: BreadcrumbsItem | undefined;
+
+	private readonly _onDidOpenEditorTypePicker = this._disposables.add(new Emitter<void>());
 
 	private readonly _hoverDelegate: IHoverDelegate;
 
@@ -307,7 +310,7 @@ export class BreadcrumbsControl {
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IHoverService private readonly _hoverService: IHoverService,
 		@IModelService private readonly _modelService: IModelService,
-		@IBreadcrumbsService breadcrumbsService: IBreadcrumbsService
+		@IBreadcrumbsService private readonly _breadcrumbsService: IBreadcrumbsService
 	) {
 		this.domNode = document.createElement('div');
 		this.domNode.classList.add('breadcrumbs-control');
@@ -317,6 +320,7 @@ export class BreadcrumbsControl {
 		this._cfUseQuickPick = BreadcrumbsConfig.UseQuickPick.bindTo(_configurationService);
 		this._cfShowIcons = BreadcrumbsConfig.Icons.bindTo(_configurationService);
 		this._cfShowEditorType = BreadcrumbsConfig.ShowEditorType.bindTo(_configurationService);
+		this._cfShowInUntitledFiles = BreadcrumbsConfig.ShowInUntitledFiles.bindTo(_configurationService);
 		this._cfTitleScrollbarSizing = BreadcrumbsConfig.TitleScrollbarSizing.bindTo(_configurationService);
 		this._cfTitleScrollbarVisibility = BreadcrumbsConfig.TitleScrollbarVisibility.bindTo(_configurationService);
 
@@ -353,7 +357,7 @@ export class BreadcrumbsControl {
 
 		this._hoverDelegate = getDefaultHoverDelegate('mouse');
 
-		this._disposables.add(breadcrumbsService.register(this._editorGroup.id, this._widget));
+		this._disposables.add(_breadcrumbsService.register(this._editorGroup.id, this._widget));
 		this.hide();
 	}
 
@@ -368,6 +372,7 @@ export class BreadcrumbsControl {
 		this._cfUseQuickPick.dispose();
 		this._cfShowIcons.dispose();
 		this._cfShowEditorType.dispose();
+		this._cfShowInUntitledFiles.dispose();
 		this._cfTitleScrollbarSizing.dispose();
 		this._cfTitleScrollbarVisibility.dispose();
 		this._widget.dispose();
@@ -425,6 +430,13 @@ export class BreadcrumbsControl {
 		this._widget.revealLast();
 	}
 
+	private _canShowBreadcrumbsFor(uri: URI): boolean {
+		if (uri.scheme === Schemas.untitled) {
+			return this._cfShowInUntitledFiles.getValue();
+		}
+		return this._fileService.hasProvider(uri);
+	}
+
 	update(): boolean {
 		this._breadcrumbsDisposables.clear();
 
@@ -434,7 +446,7 @@ export class BreadcrumbsControl {
 		const uri = originalUri ?? canonicalUri;
 		const wasHidden = this.isHidden();
 
-		if (!uri || (uri.scheme !== Schemas.untitled && !this._fileService.hasProvider(uri))) {
+		if (!uri || !this._canShowBreadcrumbsFor(uri)) {
 			// cleanup and return when there is no input or when
 			// we cannot handle this input
 			this._ckBreadcrumbsPossible.set(false);
@@ -591,6 +603,10 @@ export class BreadcrumbsControl {
 			dom.EventHelper.stop(e, true);
 			this._showEditorTypePicker();
 		}));
+		this._editorTypeDisposables.add(this._breadcrumbsService.registerEditorTypeControl(this._editorGroup.id, {
+			element: this._editorTypeNode,
+			onDidOpen: this._onDidOpenEditorTypePicker.event,
+		}));
 		return { label: this._editorTypeLabel, hover: this._editorTypeHover };
 	}
 
@@ -612,6 +628,7 @@ export class BreadcrumbsControl {
 			return;
 		}
 		const actions = createEditorTypeActions(available, this._editorGroup, this._editorResolverService, this._commandService, this._editorService);
+		this._onDidOpenEditorTypePicker.fire();
 		this._contextMenuService.showContextMenu({
 			getAnchor: () => editorTypeNode,
 			getActions: () => actions
@@ -829,6 +846,15 @@ export class BreadcrumbsControlFactory {
 				// ignore if the scheme of the breadcrumbs resource is not affected
 				return;
 			}
+			if (this._control?.update()) {
+				this._onDidEnablementChange.fire();
+			}
+		}));
+
+		// Notify the owner when visibility changes, so it can reapply its own rules (e.g. hiding
+		// breadcrumbs in inactive groups with a single tab).
+		const showInUntitledFiles = this._disposables.add(BreadcrumbsConfig.ShowInUntitledFiles.bindTo(configurationService));
+		this._disposables.add(showInUntitledFiles.onDidChange(() => {
 			if (this._control?.update()) {
 				this._onDidEnablementChange.fire();
 			}
