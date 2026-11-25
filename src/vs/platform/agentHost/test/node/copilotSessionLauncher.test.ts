@@ -4711,6 +4711,20 @@ suite('CopilotSessionLauncher resume config', () => {
 		});
 	});
 
+	test('sends the client-side programmatic tool calling flag only when opted in', async () => {
+		const store = disposables.add(new DisposableStore());
+		const flag = async (values: Record<string, unknown>) =>
+			(await buildResumeConfig(createLauncher(store, values), { id: 'gpt-5' })).experiments?.flags?.CLIENT_SIDE_PROGRAMMATIC_TOOL_CALLING;
+
+		assert.deepStrictEqual({
+			disabled: await flag({}),
+			enabled: await flag({ [CopilotCliConfigKey.ProgrammaticToolCalling]: true }),
+		}, {
+			disabled: undefined,
+			enabled: true,
+		});
+	});
+
 	test('sends the security-review secret detection flag when opted in', async () => {
 		const store = disposables.add(new DisposableStore());
 		const flag = async (values: Record<string, unknown>) =>

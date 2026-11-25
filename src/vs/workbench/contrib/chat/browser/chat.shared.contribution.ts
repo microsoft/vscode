@@ -29,7 +29,7 @@ import { AgentHostAssistedApprovalInstructionsConfigKey, AgentHostAutoReplyEnabl
 import '../../../../platform/agentHost/common/agentHostStarter.config.contribution.js';
 import { AgentMergeSettingId } from '../../../../platform/agentHost/common/agentMerge.js';
 import { CodexPreferAgentHostEditorSettingId } from '../../../../platform/agentHost/common/agentService.js';
-import { AgentHostCopilotExecutionSubagentEnabledSettingId, AgentHostCopilotExecutionSubagentModelSettingId, AgentHostCopilotIncludeCoAuthoredBySettingId, AgentHostCopilotShellAuthenticationEnabledSettingId, AgentHostCopilotLocalMemoryEnabledSettingId, AgentHostCopilotMemoryModeSettingId, AgentHostCopilotModelCapabilityOverridesSettingId, AgentHostCopilotProgressUpdatesPromptSettingId, AgentHostCopilotRuntimePathSettingId, AgentHostCopilotSdkLogLevelSettingId, AgentHostCustomTerminalToolEnabledSettingId, AgentHostOpus48PromptEnabledSettingId, CopilotSearchSubagentEnabledSettingId, CopilotSearchSubagentGrepNudgeSettingId, CopilotSearchSubagentModelSettingId, CopilotExploreAgentEnabledSettingId, AgentHostShellToolInitScriptEnabledSettingId, CopilotStabilityOrderedPromptEnabledSettingId, CopilotSecurityReviewSecretDetectionEnabledSettingId, CopilotAutoModeTierOverrideSettingId, CopilotClaudeAdvisorEnabledSettingId, CopilotCliConfigKey, CopilotSkillCharBudgetSettingId, copilotMemoryModeValues, copilotSdkLogLevelSettingValues, DEFAULT_COPILOT_EXECUTION_SUBAGENT_MODEL, DEFAULT_COPILOT_SKILL_CHAR_BUDGET, normalizeSkillCharBudget } from '../../../../platform/agentHost/common/copilotCliConfig.js';
+import { AgentHostCopilotExecutionSubagentEnabledSettingId, AgentHostCopilotExecutionSubagentModelSettingId, AgentHostCopilotIncludeCoAuthoredBySettingId, AgentHostCopilotShellAuthenticationEnabledSettingId, AgentHostCopilotLocalMemoryEnabledSettingId, AgentHostCopilotMemoryModeSettingId, AgentHostCopilotModelCapabilityOverridesSettingId, AgentHostCopilotProgressUpdatesPromptSettingId, AgentHostCopilotRuntimePathSettingId, AgentHostCopilotSdkLogLevelSettingId, AgentHostCustomTerminalToolEnabledSettingId, AgentHostOpus48PromptEnabledSettingId, CopilotSearchSubagentEnabledSettingId, CopilotSearchSubagentGrepNudgeSettingId, CopilotSearchSubagentModelSettingId, CopilotExploreAgentEnabledSettingId, AgentHostShellToolInitScriptEnabledSettingId, CopilotStabilityOrderedPromptEnabledSettingId, CopilotProgrammaticToolCallingEnabledSettingId, CopilotSecurityReviewSecretDetectionEnabledSettingId, CopilotAutoModeTierOverrideSettingId, CopilotClaudeAdvisorEnabledSettingId, CopilotCliConfigKey, CopilotSkillCharBudgetSettingId, copilotMemoryModeValues, copilotSdkLogLevelSettingValues, DEFAULT_COPILOT_EXECUTION_SUBAGENT_MODEL, DEFAULT_COPILOT_SKILL_CHAR_BUDGET, normalizeSkillCharBudget } from '../../../../platform/agentHost/common/copilotCliConfig.js';
 import { copilotPolicyHelperConfigurationProperties } from './copilotPolicyHelperConfiguration.js';
 import { imageGenerationConfigurationProperties } from '../../../../platform/agentHost/common/imageGenerationConfiguration.js';
 import { getLocalModelSafetyDisclosure, LOCAL_MODEL_MIN_GPU_MEMORY_GB_PLACEHOLDER, LocalModelEnabledSettingId, LocalModelLlamaServerPathSettingId, LocalModelUseInAutoSettingId } from '../../../../platform/agentHost/common/localModel.js';
@@ -1760,6 +1760,14 @@ configurationRegistry.registerConfiguration({
 			default: false,
 			tags: ['preview'],
 			scope: ConfigurationScope.APPLICATION,
+		},
+		[CopilotProgrammaticToolCallingEnabledSettingId]: {
+			type: 'boolean',
+			markdownDescription: nls.localize('chat.copilot.programmaticToolCalling.enabled', "When enabled, Copilot SDK sessions offer a `run_program` tool that runs a sandboxed JavaScript program to call other tools and return a reduced result, instead of making each call separately. Tool calls inside a program keep their normal permissions. Replaces model-hosted programmatic tool calling. Applies to new and resumed sessions."),
+			default: false,
+			tags: ['experimental', 'advanced'],
+			scope: ConfigurationScope.APPLICATION,
+			agentHost: { key: CopilotCliConfigKey.ProgrammaticToolCalling },
 		},
 		[AgentHostCopilotProgressUpdatesPromptSettingId]: {
 			type: 'boolean',
