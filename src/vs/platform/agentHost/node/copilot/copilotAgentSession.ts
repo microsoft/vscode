@@ -1548,6 +1548,8 @@ export class CopilotAgentSession extends Disposable {
 	 * until it is replaced, so asking again needs a new runtime.
 	 */
 	private readonly _extensionConsentDenials = new Map<string, IExtensionConsentDenial>();
+	/** Extensions this runtime asked consent for, by name, whether or not anyone was shown the request. */
+	private readonly _extensionConsentRequested = new Set<string>();
 	/** How many consent requests people were shown for each extension, in a turn or by a client, which tells whether a canvas open waited for one. */
 	private readonly _extensionConsentShownCounts = new Map<string, number>();
 	/** UI-initiated canvas opens until the runtime settles them. */
@@ -5823,6 +5825,17 @@ export class CopilotAgentSession extends Disposable {
 		return extensionId
 			? this._extensionConsentDenialFor(extensionId)?.retryable === true
 			: [...this._extensionConsentDenials.keys()].some(name => this._extensionConsentDenialFor(name)?.retryable);
+	}
+
+	/** The consent request this runtime declined for `extensionId` in a way a new runtime can ask about again. */
+	getRetryableExtensionConsentDenial(extensionId: string): IAgentExtensionConsentRequest | undefined {
+		const denial = this._extensionConsentDenialFor(extensionId);
+		return denial?.retryable ? denial.consent : undefined;
+	}
+
+	/** Whether this runtime asked consent for `extensionId`, which a runtime that keeps an earlier decline does not do. */
+	hasRequestedExtensionConsent(extensionId: string): boolean {
+		return this._extensionConsentRequested.has(extensionId);
 	}
 
 	/** Asks for a new runtime at the next refresh, which forgets this runtime's extension consent denials so the user can be asked again. */
@@ -10648,6 +10661,7 @@ export class CopilotAgentSession extends Disposable {
 		// A plugin is named after its package, which another source can reuse, so its access to secrets is remembered only for the install it was granted to.
 		const pluginSource = request.kind === 'extension-env-access' && request.extensionName.startsWith('plugin:') ? await this._resolvePluginInstallIdentity(request.extensionName) : undefined;
 		const gate = this._createExtensionConsentGate(request, pluginSource);
+		this._extensionConsentRequested.add(request.extensionName);
 		const lifetimeToken = this._lifetimeCts.token;
 		try {
 			while (!gate.decision.isSettled) {
