@@ -20,8 +20,8 @@ import { SyncDescriptor } from '../../../platform/instantiation/common/descripto
 import { MarkdownString } from '../../../base/common/htmlContent.js';
 import product from '../../../platform/product/common/product.js';
 import { isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
-import { getIconRegistry } from '../../../platform/theme/common/iconRegistry.js';
-import { getColorRegistry } from '../../../platform/theme/common/colorUtils.js';
+import { getIconRegistry, iconsSchemaId } from '../../../platform/theme/common/iconRegistry.js';
+import { getColorRegistry, workbenchColorsSchemaId } from '../../../platform/theme/common/colorUtils.js';
 
 const jsonRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
 const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
@@ -378,7 +378,9 @@ configurationExtPoint.setHandler((extensions, { added, removed }) => {
 });
 // END VSCode extension point `configuration`
 
-jsonRegistry.registerSchema('vscode://schemas/workspaceConfig', {
+export const workspaceConfigSchemaId = 'vscode://schemas/workspaceConfig';
+
+jsonRegistry.registerSchema(workspaceConfigSchemaId, {
 	allowComments: true,
 	allowTrailingCommas: true,
 	default: {
@@ -497,6 +499,13 @@ jsonRegistry.registerSchema('vscode://schemas/workspaceConfig', {
 		}
 	},
 	errorMessage: nls.localize('unknownWorkspaceProperty', "Unknown workspace configuration property")
+});
+
+// The schema embeds the icon and color ids of their registries: refresh it whenever their schemas change
+jsonRegistry.onDidChangeSchema(uri => {
+	if (uri === iconsSchemaId || uri === workbenchColorsSchemaId) {
+		jsonRegistry.notifySchemaChanged(workspaceConfigSchemaId);
+	}
 });
 
 
