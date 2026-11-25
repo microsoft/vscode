@@ -882,6 +882,8 @@ export async function authenticateProtectedResources(
 	const defaultAccountService = accessor.get(IDefaultAccountService);
 	const logService = accessor.get(ILogService);
 	const resolvedOptions = resolveAuthenticationOptions(accessor, options);
+	// Read once: a service remembered while this pass looks up a credential must not make it forward a second service.
+	const rememberedService = defaultAccountService.currentDefaultAccount?.copilotService;
 	for (const agent of agents) {
 		const resources = agent.protectedResources ?? [];
 		// With several named optional Microsoft service resources offered, the window forwards only the service remembered for the default account.
@@ -889,7 +891,7 @@ export async function authenticateProtectedResources(
 		const choosesBetweenServices = resources.filter(r => isOptionalService(r) && !!r.resource_name).length > 1;
 		for (const resource of resources) {
 			if (choosesBetweenServices && isOptionalService(resource)) {
-				if (copilotServiceForResource(resource.resource) !== defaultAccountService.currentDefaultAccount?.copilotService) {
+				if (!rememberedService || copilotServiceForResource(resource.resource) !== rememberedService) {
 					continue;
 				}
 				// An earlier challenge answer may have sent this credential already; the host takes it as the choice only now, so it is sent again.

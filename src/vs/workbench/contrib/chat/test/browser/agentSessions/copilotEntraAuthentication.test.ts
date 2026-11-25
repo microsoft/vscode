@@ -367,6 +367,35 @@ suite('Agent Host Microsoft credential acquisition', () => {
 		});
 	});
 
+	test('a pass forwards only the service remembered when it started, also when another one is remembered during its credential lookup', async () => {
+		const f = fixture();
+		const services = namedServices();
+		const sessions = [selected, ...services.map((service, index) => ({ ...selected, scopes: service.scopes_supported!, accessToken: `cached-${index}` }))];
+		f.authentication.sessions = sessions;
+		f.defaults.currentDefaultAccount = { ...f.defaults.currentDefaultAccount!, copilotService: 'github' };
+		const lookup = new DeferredPromise<readonly AuthenticationSession[]>();
+		const lookupStarted = new DeferredPromise<void>();
+		const forwarded: string[] = [];
+		const options = {
+			logPrefix: '[test]',
+			authenticate: async (request: IAgentHostAuthenticateRequest) => {
+				forwarded.push(request.resource);
+				if (request.resource === copilotEntraDiscoveryResource) {
+					// The lookup that follows is the one for the first service, the one remembered at the start.
+					f.authentication.pending = lookup;
+					f.authentication.pendingStarted = lookupStarted;
+				}
+			},
+		};
+		const pass = f.instantiation.invokeFunction(authenticateProtectedResources, offerAgents(...services), options);
+		await lookupStarted.p;
+		f.defaults.currentDefaultAccount = { ...f.defaults.currentDefaultAccount!, copilotService: 'm365' };
+		f.authentication.pending = undefined;
+		await lookup.complete(sessions);
+		await pass;
+		assert.deepStrictEqual(forwarded, [copilotEntraDiscoveryResource, services[0].resource]);
+	});
+
 	test('a Microsoft default account is granted a named service of either kind by its sign-in', async () => {
 		const f = fixture();
 		const services = namedServices();
