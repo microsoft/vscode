@@ -21,10 +21,24 @@ use cli::{
 		prereqs::PreReqChecker,
 	},
 };
+use futures::future::LocalBoxFuture;
 use legacy_args::try_parse_legacy;
 
 #[tokio::main]
 async fn main() -> Result<(), std::convert::Infallible> {
+	match command().await {
+		Err(e) => print_and_exit(e),
+		Ok(code) => std::process::exit(code),
+	}
+}
+
+/// Finish constructing the command future before polling it on the main thread.
+#[inline(never)]
+fn command() -> LocalBoxFuture<'static, Result<i32, AnyError>> {
+	Box::pin(run())
+}
+
+async fn run() -> Result<i32, AnyError> {
 	let raw_args = std::env::args_os().collect::<Vec<_>>();
 	let parsed = try_parse_legacy(&raw_args)
 		.map(|core| args::AnyCli::Integrated(args::IntegratedCli { core }))
@@ -60,7 +74,7 @@ async fn main() -> Result<(), std::convert::Infallible> {
 		}};
 	}
 
-	let result = match parsed {
+	match parsed {
 		args::AnyCli::Standalone(args::StandaloneCli {
 			subcommand: Some(cmd),
 			..
@@ -148,7 +162,7 @@ async fn main() -> Result<(), std::convert::Infallible> {
 					tunnels::user(context!(), user_command).await
 				}
 				Some(args::TunnelSubcommand::Service(service_args)) => {
-					tunnels::service(context_no_logger(), tunnel_args, service_args).await
+					tunnel_service(context_no_logger(), tunnel_args, service_args).await
 				}
 				Some(args::TunnelSubcommand::ForwardInternal(forward_args)) => {
 					tunnels::forward(context_no_logger(), forward_args).await
@@ -156,12 +170,17 @@ async fn main() -> Result<(), std::convert::Infallible> {
 				None => tunnels::serve(context_no_logger(), tunnel_args.serve_args).await,
 			},
 		},
-	};
-
-	match result {
-		Err(e) => print_and_exit(e),
-		Ok(code) => std::process::exit(code),
 	}
+}
+
+/// Construct and poll the service separately from the other command futures.
+#[inline(never)]
+fn tunnel_service(
+	context: CommandContext,
+	tunnel_args: args::TunnelArgs,
+	service_args: args::TunnelServiceSubCommands,
+) -> LocalBoxFuture<'static, Result<i32, AnyError>> {
+	Box::pin(tunnels::service(context, tunnel_args, service_args))
 }
 
 fn make_logger(core: &args::CliCore) -> log::Logger {
