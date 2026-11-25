@@ -70,6 +70,8 @@ export class ModelRouterForm extends Disposable {
 	private models: readonly IRoutableModel[];
 	private readonly routes: IModelRouterFormRoute[];
 	private routeNameInputs: InputBox[] = [];
+	/** The fields of the routes that take text, in the order they are drawn. */
+	private routeInputs: InputBox[] = [];
 
 	constructor(
 		parent: HTMLElement,
@@ -125,7 +127,7 @@ export class ModelRouterForm extends Disposable {
 							route.models = [this.models[0].reference];
 						}
 					}
-					this.renderRoutes();
+					this.renderRoutesKeepingFocus();
 				}
 			}
 		}));
@@ -183,8 +185,22 @@ export class ModelRouterForm extends Disposable {
 		this.routeDisposables.clear();
 		DOM.clearNode(this.routesElement);
 		this.routeNameInputs = [];
+		this.routeInputs = [];
 		this.addRouteButton.enabled = this.routes.length < MODEL_ROUTER_MAX_ROUTES;
 		this.routes.forEach((route, index) => this.renderRoute(route, index, focusModelOf === index));
+	}
+
+	/** Draws the routes again without taking the keyboard focus, or the caret, from the field being typed in. */
+	private renderRoutesKeepingFocus(): void {
+		const index = this.routeInputs.findIndex(input => input.hasFocus());
+		const { selectionStart, selectionEnd } = this.routeInputs[index]?.inputElement ?? {};
+		this.renderRoutes();
+		// The routes are the ones they were, so each has its fields where they were.
+		const input = this.routeInputs[index];
+		if (input) {
+			input.focus();
+			input.inputElement.setSelectionRange(selectionStart ?? null, selectionEnd ?? null);
+		}
 	}
 
 	private renderRoute(route: IModelRouterFormRoute, index: number, focusModel: boolean): void {
@@ -214,6 +230,7 @@ export class ModelRouterForm extends Disposable {
 		nameInput.value = route.name;
 		this.routeDisposables.add(nameInput.onDidChange(value => route.name = value));
 		this.routeNameInputs.push(nameInput);
+		this.routeInputs.push(nameInput);
 
 		const modelSelect = this.appendSelect(this.appendRouteField(settings, localize('modelRouterForm.route.model', "Model")), models.map(candidate => ({ text: candidate.name })), model ? models.indexOf(model) : 0, localize('modelRouterForm.route.model.aria', "Route {0} model", position), selected => {
 			// Effort, context and the models to fall back to are per model, so they start over and the route is drawn again.
@@ -249,10 +266,12 @@ export class ModelRouterForm extends Disposable {
 		const whenInput = this.appendInput(this.appendRouteField(card, localize('modelRouterForm.route.when', "When to use it")), localize('modelRouterForm.route.when.placeholder', "Building a feature or fixing a bug"), localize('modelRouterForm.route.when.aria', "When to use route {0}", position), this.routeDisposables, true);
 		whenInput.value = route.when;
 		this.routeDisposables.add(whenInput.onDidChange(value => route.when = value));
+		this.routeInputs.push(whenInput);
 
 		const guidanceInput = this.appendInput(this.appendRouteField(card, localize('modelRouterForm.route.guidance', "Guidance"), true), localize('modelRouterForm.route.guidance.placeholder', "How you want this work done, such as: Plan first, then run the tests"), localize('modelRouterForm.route.guidance.aria', "Guidance for route {0}", position), this.routeDisposables, true);
 		guidanceInput.value = route.guidance;
 		this.routeDisposables.add(guidanceInput.onDidChange(value => route.guidance = value));
+		this.routeInputs.push(guidanceInput);
 	}
 
 	private setError(message: string | undefined): void {

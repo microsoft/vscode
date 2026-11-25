@@ -59,7 +59,7 @@ suite('ModelRoutersWidget', () => {
 		['other-agent', model('model-router:elsewhere', 'Elsewhere', { targetChatSessionType: 'agent-host-claude', modelRouterRoutes: [] })],
 	]);
 
-	function createWidget(hasUnsavedChanges = false) {
+	function createWidget(hasUnsavedChanges = false, hasListedModels = true) {
 		const container = DOM.append(mainWindow.document.body, DOM.$('div'));
 		container.style.width = '900px';
 		container.style.height = '600px';
@@ -67,9 +67,14 @@ suite('ModelRoutersWidget', () => {
 		const fileService = store.add(new FileService(new NullLogService()));
 		store.add(fileService.registerProvider(Schemas.file, store.add(new InMemoryFileSystemProvider())));
 		const instantiationService = workbenchInstantiationService({ fileService: () => fileService }, store);
+		const onDidListModels = store.add(new Emitter<string>());
+		const listModels = () => {
+			hasListedModels = true;
+			onDidListModels.fire(harnessId);
+		};
 		instantiationService.stub(ILanguageModelsService, new class extends mock<ILanguageModelsService>() {
-			override readonly onDidChangeLanguageModels = Event.None;
-			override getLanguageModelIds() { return [...models.keys()]; }
+			override readonly onDidChangeLanguageModels = onDidListModels.event;
+			override getLanguageModelIds() { return hasListedModels ? [...models.keys()] : []; }
 			override lookupLanguageModel(id: string) { return models.get(id); }
 		}());
 		instantiationService.stub(ITextFileService, new class extends mock<ITextFileService>() {
@@ -109,7 +114,7 @@ suite('ModelRoutersWidget', () => {
 			});
 			observer.observe(container, { childList: true, subtree: true, characterData: true });
 		});
-		return { container, fileService, rows, search, button, type, shows, nextError: () => Event.toPromise(onDidError.event) };
+		return { container, fileService, rows, search, button, type, shows, listModels, nextError: () => Event.toPromise(onDidError.event) };
 	}
 
 	test('lists this agent\'s routers with their routes, and finds them by a spaced or dashed query', () => {
@@ -262,6 +267,25 @@ suite('ModelRoutersWidget', () => {
 			shown: { title: 'Edit Model Router', name: 'Daily Driver', selects: ['opus', 'Default', 'Default', 'Haiku', 'Default', 'Long'] },
 			refused: 'daily-driver.model-router.yaml has changed since it was opened here. Cancel, and edit the router again.',
 			saved: content({ description: 'Opus for features, Haiku for the rest.', when: 'Building or changing a feature.' }),
+		});
+	});
+
+	test('a form opened before the agent lists its models gets them without taking the focus from the field being typed in', () => {
+		const { container, button, type, listModels } = createWidget(false, false);
+		button('Add Router').click();
+		const name = () => container.querySelector<HTMLInputElement>('[aria-label="Route 1 name"]')!;
+		const offered = () => [...container.querySelector('.model-router-form-route select')!.querySelectorAll('option')].map(option => option.textContent);
+		type('Route 1 name', 'feature');
+		name().focus();
+		name().setSelectionRange(2, 4);
+		const before = offered();
+		listModels();
+		assert.deepStrictEqual({ before, after: offered(), focused: mainWindow.document.activeElement === name(), value: name().value, selection: [name().selectionStart, name().selectionEnd] }, {
+			before: [],
+			after: ['Opus', 'Haiku'],
+			focused: true,
+			value: 'feature',
+			selection: [2, 4],
 		});
 	});
 

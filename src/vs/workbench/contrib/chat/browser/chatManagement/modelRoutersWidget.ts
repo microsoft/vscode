@@ -252,7 +252,7 @@ class ModelRouterRenderer implements ITreeRenderer<ModelRouterTreeEntry, void, I
 		return undefined;
 	}
 
-	/** Gives the keyboard focus to a router's switch or menu. False when the router has no row to focus. */
+	/** Gives the keyboard focus to a router's switch or menu. False when it did not take it: the router has no row, or its switch is turned off. */
 	focusControl({ routerId, isSwitch }: IModelRouterFocusedControl): boolean {
 		for (const template of this.templates) {
 			if (template.routerId === routerId) {
@@ -261,7 +261,7 @@ class ModelRouterRenderer implements ITreeRenderer<ModelRouterTreeEntry, void, I
 				} else {
 					template.moreActions.focus();
 				}
-				return true;
+				return DOM.isAncestor(DOM.getActiveElement(), template.container);
 			}
 		}
 		return false;
@@ -561,17 +561,21 @@ export class ModelRoutersWidget extends Disposable {
 	/** Reads a router's file and shows it in the form. Resolves to what is wrong when the file cannot be read as a router. */
 	private async readForForm(item: IModelRouterItem): Promise<string | undefined> {
 		const request = ++this.formRequest;
-		let read: IOpenedModelRouter;
+		let read: IOpenedModelRouter | undefined;
+		let problem: string | undefined;
 		try {
 			read = await this.viewModel.readRouter(item);
 		} catch (error) {
-			return getErrorMessage(error);
+			problem = getErrorMessage(error);
 		}
-		// Another form was asked for, or the routers were closed, while the file was read
-		if (request === this.formRequest && !this._store.isDisposed) {
+		// Another form was asked for, or the routers were closed, while the file was read: what was read is dropped, and so is what went wrong with it.
+		if (request !== this.formRequest || this._store.isDisposed) {
+			return undefined;
+		}
+		if (read) {
 			this.showForm(read);
 		}
-		return undefined;
+		return problem;
 	}
 
 	private async openRouterFile(item: IModelRouterItem): Promise<void> {

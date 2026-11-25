@@ -185,9 +185,12 @@
 			display: none;
 		}
 
+		.modal-editor-tab-label {
+			min-width: 0;
+		}
+
 		.monaco-icon-label {
 			color: inherit;
-			min-width: 0;
 		}
 	}
 
