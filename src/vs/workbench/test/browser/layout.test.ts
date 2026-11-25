@@ -1459,7 +1459,11 @@ suite('Workbench layout chat part', () => {
 					getLastActivePaneCompositeId: (location: ViewContainerLocation) => location === ViewContainerLocation.Sidebar ? 'workbench.view.explorer' : undefined,
 					getPaneComposite: (id: string, location: ViewContainerLocation) => location === ViewContainerLocation.Sidebar && viewContainers.has(id) ? {} : undefined,
 					hideActivePaneComposite: () => show(undefined),
+					// As a part opens a view container: one that is not there yet waits for the extensions to register
 					openPaneComposite: async (id: string | undefined, _location: ViewContainerLocation, focus?: boolean) => {
+						if (id && !viewContainers.has(id)) {
+							await registered.p;
+						}
 						if (!id || !viewContainers.has(id)) {
 							return undefined;
 						}
@@ -1536,6 +1540,23 @@ suite('Workbench layout chat part', () => {
 				hiddenAndShownMeanwhile: { active: 'workbench.view.explorer', sideBarVisible: true },
 				notThere: { active: 'workbench.view.explorer', sideBarVisible: true },
 			});
+		});
+
+		test('a part does not restore its view container of an extension, which opens once the extensions register as the window starts, when a state applied meanwhile', async () => {
+			const restore = async (applyMeanwhile: boolean) => {
+				const { layout, sideBar, register, sideBarState } = createViewContainersLayout();
+
+				const restored = (Reflect.get(layout, 'restoreViewContainer') as (location: ViewContainerLocation, id: string) => Promise<void>).call(layout, ViewContainerLocation.Sidebar, 'extensionViewContainer');
+				if (applyMeanwhile) {
+					layout.applyPartsLayoutState(sideBarState('workbench.view.search'));
+				}
+				await register();
+				await restored;
+
+				return sideBar.active;
+			};
+
+			assert.deepStrictEqual({ stateApplied: await restore(true), noState: await restore(false) }, { stateApplied: 'workbench.view.search', noState: 'extensionViewContainer' });
 		});
 	});
 });

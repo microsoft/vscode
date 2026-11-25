@@ -1250,7 +1250,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 			mark('code/willRestoreViewlet');
 
-			await this.openViewContainer(ViewContainerLocation.Sidebar, this.state.initialization.views.containerToRestore.sideBar);
+			await this.restoreViewContainer(ViewContainerLocation.Sidebar, this.state.initialization.views.containerToRestore.sideBar);
 
 			mark('code/didRestoreViewlet');
 		})());
@@ -1267,7 +1267,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 			mark('code/willRestorePanel');
 
-			await this.openViewContainer(ViewContainerLocation.Panel, this.state.initialization.views.containerToRestore.panel);
+			await this.restoreViewContainer(ViewContainerLocation.Panel, this.state.initialization.views.containerToRestore.panel);
 
 			mark('code/didRestorePanel');
 		})());
@@ -1284,7 +1284,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 			mark('code/willRestoreAuxiliaryBar');
 
-			await this.openViewContainer(ViewContainerLocation.AuxiliaryBar, this.state.initialization.views.containerToRestore.auxiliaryBar);
+			await this.restoreViewContainer(ViewContainerLocation.AuxiliaryBar, this.state.initialization.views.containerToRestore.auxiliaryBar);
 
 			mark('code/didRestoreAuxiliaryBar');
 		})());
@@ -1330,6 +1330,21 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				this.whenRestoredPromise.complete();
 			});
 		});
+	}
+
+	/**
+	 * Opens the view container that a part restores as the window starts, unless a parts layout state applied since the
+	 * window started: the state decides what the parts show. The view container of an extension is not there until the
+	 * extensions register, so this waits for them before it opens it, as opening it does.
+	 */
+	private async restoreViewContainer(location: ViewContainerLocation, id: string): Promise<void> {
+		if (!this.partsLayoutStateApplied && !this.paneCompositeService.getPaneComposite(id, location)) {
+			await this.extensionService.whenInstalledExtensionsRegistered();
+		}
+
+		if (!this.partsLayoutStateApplied) {
+			await this.openViewContainer(location, id);
+		}
 	}
 
 	private async openViewContainer(location: ViewContainerLocation, id: string, focus?: boolean): Promise<void> {
@@ -1892,6 +1907,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 	private inPartsLayoutStateTransition = false;
 
+	/** Whether a parts layout state applied since the window started, so that the parts no longer restore their view containers. */
+	private partsLayoutStateApplied = false;
+
 	/** Ends the view containers that applying a state opens once the extensions register, when another state applies or the layout is disposed. */
 	private readonly partsLayoutStateOpens = this._register(new MutableDisposable<DisposableStore>());
 
@@ -1971,6 +1989,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			onUnexpectedError(new Error('A parts layout state can only be applied once the workbench layout is created.'));
 			return;
 		}
+
+		// The state decides what the parts show, rather than the view containers that they restore as the window starts
+		this.partsLayoutStateApplied = true;
 
 		// The panel can only be maximized when it is centered or on the left or right (see `isPanelMaximized`)
 		const panelMaximized = state.panel.visible && state.panel.maximized && (this.getPanelAlignment() === 'center' || !isHorizontal(state.panel.position));
