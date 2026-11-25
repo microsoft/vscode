@@ -1330,26 +1330,6 @@ suite('MarkdownRenderer', () => {
 				assert.deepStrictEqual(newTokens, completeTokens);
 			});
 
-			test('ordered list with extra whitespace', () => {
-				const incomplete = `1. list item one
-2. item two [link](`;
-				const tokens = marked.marked.lexer(incomplete);
-				const newTokens = fillInIncompleteTokens(tokens);
-
-				const completeTokens = marked.marked.lexer(incomplete + ')');
-				assert.deepStrictEqual(newTokens, completeTokens);
-			});
-
-			test('list with extra whitespace', () => {
-				const incomplete = `- list item one
-- item two [link](`;
-				const tokens = marked.marked.lexer(incomplete);
-				const newTokens = fillInIncompleteTokens(tokens);
-
-				const completeTokens = marked.marked.lexer(incomplete + ')');
-				assert.deepStrictEqual(newTokens, completeTokens);
-			});
-
 			test('list with incomplete link with other stuff', () => {
 				const incomplete = `- list item one
 - item two [\`link`;

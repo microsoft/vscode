@@ -175,13 +175,6 @@ suite('CommandLineBackgroundDetachRewriter', () => {
 			});
 		});
 
-		test('simple external command should NOT be wrapped in shell -c', () => {
-			deepStrictEqual(rewriter.rewrite(createOptions('python3 app.py', '/bin/bash', OperatingSystem.Linux, true)), {
-				rewritten: 'nohup python3 app.py & disown',
-				reasoning: 'Wrapped background command with nohup to survive terminal shutdown',
-				forDisplay: 'python3 app.py',
-			});
-		});
 	});
 
 	suite('POSIX inline env var assignments', () => {

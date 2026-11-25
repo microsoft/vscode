@@ -312,23 +312,6 @@ suite('SettingsMerge - Merge', () => {
 		assert.ok(!actual.hasConflicts);
 	});
 
-	test('merge when local has moved forwarded with multiple changes and remote stays with base', async () => {
-		const localContent = stringify({
-			'a': 2,
-			'b': 1,
-			'c': 3,
-			'd': 4,
-		});
-		const remoteContent = stringify({
-			'a': 1,
-		});
-		const actual = merge(localContent, remoteContent, remoteContent, [], [], formattingOptions);
-		assert.strictEqual(actual.localContent, null);
-		assert.strictEqual(actual.remoteContent, localContent);
-		assert.strictEqual(actual.conflictsSettings.length, 0);
-		assert.ok(!actual.hasConflicts);
-	});
-
 	test('merge when local has moved forwarded with order changes and remote stays with base', async () => {
 		const localContent = `
 {

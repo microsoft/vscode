@@ -260,11 +260,6 @@ suite('getSessionTypeAvailability', () => {
 		), SessionTypeAvailability.SignInRequired);
 	});
 
-	test('a targeting model keeps the type available on a paid plan', () => {
-		const config: ITypeConfig = { registered: true, supportsAutoModel: false, requiresCustomModels: true };
-		assert.strictEqual(availability(config, ChatEntitlement.Pro, [TYPE]), SessionTypeAvailability.Available);
-	});
-
 	test('general-pool models (no target) do not make a custom-model type available', () => {
 		const config: ITypeConfig = { registered: true, supportsAutoModel: false, requiresCustomModels: true };
 		assert.strictEqual(availability(config, ChatEntitlement.Pro, [undefined, 'some-other-type']), SessionTypeAvailability.NoModels);

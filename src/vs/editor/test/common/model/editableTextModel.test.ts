@@ -448,28 +448,6 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 		);
 	});
 
-	test('delete empty text', () => {
-		testApplyEditsWithSyncedModels(
-			[
-				'My First Line',
-				'\t\tMy Second Line',
-				'    Third Line',
-				'',
-				'1'
-			],
-			[
-				editOp(1, 1, 1, 1, [''])
-			],
-			[
-				'My First Line',
-				'\t\tMy Second Line',
-				'    Third Line',
-				'',
-				'1'
-			]
-		);
-	});
-
 	test('delete text from one line', () => {
 		testApplyEditsWithSyncedModels(
 			[

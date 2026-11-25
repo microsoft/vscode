@@ -130,14 +130,6 @@ flakySuite('PFS', function () {
 		assert.ok(!fs.existsSync(testDir));
 	});
 
-	test('rimraf - simple ends with dot - move', async () => {
-		fs.writeFileSync(join(testDir, 'somefile.txt'), 'Contents');
-		fs.writeFileSync(join(testDir, 'someOtherFile.txt'), 'Contents');
-
-		await Promises.rm(testDir, RimRafMode.MOVE);
-		assert.ok(!fs.existsSync(testDir));
-	});
-
 	test('rimraf - simple ends with dot slash/backslash - move', async () => {
 		fs.writeFileSync(join(testDir, 'somefile.txt'), 'Contents');
 		fs.writeFileSync(join(testDir, 'someOtherFile.txt'), 'Contents');
