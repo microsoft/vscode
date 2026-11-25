@@ -9,17 +9,16 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { stripIcons } from '../../../../base/common/iconLabels.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
-import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Language } from '../../../../base/common/platform.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IEditor } from '../../../../editor/common/editorCommon.js';
 import { AbstractEditorCommandsQuickAccessProvider } from '../../../../editor/contrib/quickAccess/browser/commandsQuickAccess.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { isLocalizedString } from '../../../../platform/action/common/action.js';
-import { Action2, IMenuService, MenuId, MenuItemAction, MenuRegistry, SubmenuItemAction } from '../../../../platform/actions/common/actions.js';
+import { Action2, MenuId } from '../../../../platform/actions/common/actions.js';
+import { getEnabledMenuItems } from '../../../../platform/actions/common/menuService.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
@@ -27,8 +26,8 @@ import { KeybindingWeight } from '../../../../platform/keybinding/common/keybind
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { CommandsHistory, ICommandQuickPick } from '../../../../platform/quickinput/browser/commandsQuickAccess.js';
 import { TriggerAction } from '../../../../platform/quickinput/browser/pickerQuickAccess.js';
-import { DefaultQuickAccessFilterValue, IQuickAccessProviderRunOptions } from '../../../../platform/quickinput/common/quickAccess.js';
-import { IQuickInputService, IQuickPick, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
+import { DefaultQuickAccessFilterValue } from '../../../../platform/quickinput/common/quickAccess.js';
+import { IQuickInputService, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchQuickAccessConfiguration } from '../../../browser/quickaccess.js';
@@ -56,8 +55,6 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 
 	private useAiRelatedInfo = false;
 
-	private globalCommandPicksCache: GlobalCommandPicksCache | undefined;
-
 	protected get activeTextEditorControl(): IEditor | undefined { return this.editorService.activeTextEditorControl; }
 
 	get defaultFilterValue(): DefaultQuickAccessFilterValue | undefined {
@@ -70,7 +67,6 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
-		@IMenuService private readonly menuService: IMenuService,
 		@IExtensionService extensionService: IExtensionService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IKeybindingService keybindingService: IKeybindingService,
@@ -118,24 +114,6 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 			: undefined;
 		this.options.suggestedCommandIds = suggestedCommandIds;
 		this.useAiRelatedInfo = config.experimental.enableNaturalLanguageSearch;
-	}
-
-	override provide(picker: IQuickPick<ICommandQuickPick, { useSeparators: true }>, token: CancellationToken, runOptions?: IQuickAccessProviderRunOptions): IDisposable {
-		const disposables = new DisposableStore();
-
-		// Reuse the global command picks while typing, they are expensive to build
-		const globalCommandPicksCache = disposables.add(new GlobalCommandPicksCache(contextKeyService => this.computeGlobalCommandPicks(contextKeyService), this.menuService));
-		this.globalCommandPicksCache = globalCommandPicksCache;
-		disposables.add(toDisposable(() => {
-			// The palette can be reopened before the previous session ends, keep the newer cache
-			if (this.globalCommandPicksCache === globalCommandPicksCache) {
-				this.globalCommandPicksCache = undefined;
-			}
-		}));
-
-		disposables.add(super.provide(picker, token, runOptions));
-
-		return disposables;
 	}
 
 	protected async getCommandPicks(token: CancellationToken): Promise<Array<ICommandQuickPick>> {
@@ -245,44 +223,37 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 		return additionalPicks;
 	}
 
-	private getGlobalCommandPicks(): readonly ICommandQuickPick[] {
-		const scopedContextKeyService = this.editorService.activeEditorPane?.scopedContextKeyService || this.editorGroupService.activeGroup.scopedContextKeyService;
-		return this.globalCommandPicksCache?.getPicks(scopedContextKeyService) ?? this.computeGlobalCommandPicks(scopedContextKeyService);
-	}
-
-	private computeGlobalCommandPicks(scopedContextKeyService: IContextKeyService): ICommandQuickPick[] {
+	private getGlobalCommandPicks(): ICommandQuickPick[] {
 		const globalCommandPicks: ICommandQuickPick[] = [];
-		const globalCommandsMenu = this.menuService.getMenuActions(MenuId.CommandPalette, scopedContextKeyService);
-		const globalCommandsMenuActions = globalCommandsMenu
-			.reduce((r, [, actions]) => [...r, ...actions], <Array<MenuItemAction | SubmenuItemAction | string>>[])
-			.filter(action => action instanceof MenuItemAction && action.enabled) as MenuItemAction[];
+		const scopedContextKeyService = this.editorService.activeEditorPane?.scopedContextKeyService || this.editorGroupService.activeGroup.scopedContextKeyService;
 
-		for (const action of globalCommandsMenuActions) {
+		// The commands only, creating menu actions for thousands of them on every query is expensive
+		for (const { command } of getEnabledMenuItems(MenuId.CommandPalette, scopedContextKeyService)) {
 
 			// Label
-			let label = (typeof action.item.title === 'string' ? action.item.title : action.item.title.value) || action.item.id;
+			let label = (typeof command.title === 'string' ? command.title : command.title.value) || command.id;
 
 			// Category
-			const category = typeof action.item.category === 'string' ? action.item.category : action.item.category?.value;
+			const category = typeof command.category === 'string' ? command.category : command.category?.value;
 			if (category) {
 				label = localize('commandWithCategory', "{0}: {1}", category, label);
 			}
 
 			// Alias
-			const aliasLabel = typeof action.item.title !== 'string' ? action.item.title.original : undefined;
-			const aliasCategory = (category && action.item.category && typeof action.item.category !== 'string') ? action.item.category.original : undefined;
+			const aliasLabel = typeof command.title !== 'string' ? command.title.original : undefined;
+			const aliasCategory = (category && command.category && typeof command.category !== 'string') ? command.category.original : undefined;
 			const commandAlias = (aliasLabel && category) ?
 				aliasCategory ? `${aliasCategory}: ${aliasLabel}` : `${category}: ${aliasLabel}` :
 				aliasLabel;
 
-			const metadataDescription = action.item.metadata?.description;
+			const metadataDescription = command.metadata?.description;
 			const commandDescription = metadataDescription === undefined || isLocalizedString(metadataDescription)
 				? metadataDescription
 				// TODO: this type will eventually not be a string and when that happens, this should simplified.
 				: { value: metadataDescription, original: metadataDescription };
 			globalCommandPicks.push({
-				commandId: action.item.id,
-				commandWhen: action.item.precondition?.serialize(),
+				commandId: command.id,
+				commandWhen: command.precondition?.serialize(),
 				commandAlias,
 				label: stripIcons(label),
 				commandDescription,
@@ -291,51 +262,6 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 		}
 
 		return globalCommandPicks;
-	}
-}
-
-/**
- * The global command picks of one command palette session. They are computed on
- * first use and computed again only after the command palette menu or one of the
- * context keys it depends on (`when`, precondition, toggled) changed.
- */
-class GlobalCommandPicksCache extends Disposable {
-
-	private readonly contextKeyListener = this._register(new MutableDisposable());
-	private contextKeyService: IContextKeyService | undefined;
-	private picks: readonly ICommandQuickPick[] | undefined;
-
-	constructor(
-		private readonly computePicks: (contextKeyService: IContextKeyService) => ICommandQuickPick[],
-		private readonly menuService: IMenuService
-	) {
-		super();
-
-		this._register(MenuRegistry.onDidChangeMenu(e => {
-			if (e.has(MenuId.CommandPalette)) {
-				// new menu items can depend on other context keys, so bind again
-				this.contextKeyListener.clear();
-				this.contextKeyService = undefined;
-				this.picks = undefined;
-			}
-		}));
-	}
-
-	getPicks(contextKeyService: IContextKeyService): readonly ICommandQuickPick[] {
-		if (this.contextKeyService !== contextKeyService) {
-			const keys = this.menuService.getMenuContexts(MenuId.CommandPalette);
-			this.contextKeyListener.value = contextKeyService.onDidChangeContext(e => {
-				if (e.affectsSome(keys)) {
-					this.picks = undefined;
-				}
-			});
-			this.contextKeyService = contextKeyService;
-			this.picks = undefined;
-		}
-
-		this.picks ??= this.computePicks(contextKeyService);
-
-		return this.picks;
 	}
 }
 

@@ -397,6 +397,17 @@ class MenuInfo extends MenuInfoSnapshot {
 	}
 }
 
+/**
+ * The visible and enabled menu items of a menu, in the order of its actions. Unlike
+ * `IMenuService.getMenuActions`, this creates no actions, which is much cheaper for
+ * large menus that only need the commands, such as the command palette.
+ */
+export function getEnabledMenuItems(id: MenuId, contextKeyService: IContextKeyService): IMenuItem[] {
+	return MenuRegistry.getMenuItems(id)
+		.filter((item): item is IMenuItem => isIMenuItem(item) && contextKeyService.contextMatchesRules(item.when) && contextKeyService.contextMatchesRules(item.command.precondition))
+		.sort(MenuInfo.compareMenuItems);
+}
+
 class MenuImpl implements IMenu {
 
 	private readonly _menuInfo: MenuInfo;
