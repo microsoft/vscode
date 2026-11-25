@@ -18,16 +18,16 @@ import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/
 import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, WorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
 import { IWorkspaceFolderCreationData } from '../../../../../platform/workspaces/common/workspaces.js';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustUriInfo } from '../../../../../platform/workspace/common/workspaceTrust.js';
-import { IWorkspaceEditingService } from '../../../../../workbench/services/workspaces/common/workspaceEditing.js';
-import { IWorkspaceFolderLabelService } from '../../../../../workbench/services/workspaces/common/workspaceFolderLabelService.js';
-import { IHistoryService } from '../../../../../workbench/services/history/common/history.js';
-import { ChatInteractivity, IChat, ISessionFolder, ISessionGitRepository, ISessionWorkspace } from '../../../../../workbench/services/sessions/common/session.js';
-import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { IHostService } from '../../../../../workbench/services/host/browser/host.js';
-import { IFocusedSessionHostService, ISessionHost, ISessionHostService, SessionHostContent } from '../../../../../workbench/services/sessions/browser/sessionHost.js';
-import { FocusedSessionHostService } from '../../../../../workbench/contrib/sessions/browser/sessionHostService.js';
+import { IWorkspaceEditingService } from '../../../../services/workspaces/common/workspaceEditing.js';
+import { IWorkspaceFolderLabelService } from '../../../../services/workspaces/common/workspaceFolderLabelService.js';
+import { IHistoryService } from '../../../../services/history/common/history.js';
+import { ChatInteractivity, IChat, ISessionFolder, ISessionGitRepository, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
+import { ISessionsService } from '../../browser/sessionsService.js';
+import { IHostService } from '../../../../services/host/browser/host.js';
+import { IFocusedSessionHostService, ISessionHost, ISessionHostService, SessionHostContent } from '../../../../services/sessions/browser/sessionHost.js';
+import { FocusedSessionHostService } from '../../browser/sessionHostService.js';
 import { WorkspaceFolderManagementContribution } from '../../browser/workspaceFolderManagement.js';
-import { focusedSessionHostServiceOf, ITestSessionWithChat } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { focusedSessionHostServiceOf, ITestSessionWithChat } from './sessionHostTestUtils.js';
 
 const stubChat = {
 	resource: URI.parse('test:///chat'),
