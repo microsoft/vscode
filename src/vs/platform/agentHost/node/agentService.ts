@@ -6919,8 +6919,7 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 		}
 
-		const workingDirectory = created.resolvedWorkingDirectory ?? config?.workingDirectories?.[0];
-		void this._gitStateService.refreshSessionGitState(session.toString(), workingDirectory);
+		void this._gitStateService.refreshSessionGitState(session.toString());
 
 		this._sessionResidency.touch(session);
 		await this._sessionResidency.reconcile();
@@ -11280,7 +11279,7 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 
 		// Attach git state for the resolved process root (index 0), if present.
-		void this._gitStateService.refreshSessionGitState(sessionKey, e.workingDirectories?.[0]);
+		void this._gitStateService.refreshSessionGitState(sessionKey);
 
 		// If a client subscribed to this session's uncommitted changeset
 		// before the working directory was known, recompute the current
@@ -11326,7 +11325,7 @@ export class AgentService extends Disposable implements IAgentService {
 				type: ActionType.SessionWorkingDirectoryReplaced,
 				...workingDirectoryReplacement,
 			});
-			void this._gitStateService.refreshSessionGitState(session, URI.parse(workingDirectoryReplacement.replacement));
+			void this._gitStateService.refreshSessionGitState(session);
 		}
 		this._publishWorkingDirectoryIdentities(session);
 	}
@@ -12163,10 +12162,7 @@ export class AgentService extends Disposable implements IAgentService {
 				this._changesetCoordinator.ensureSessionSubscription(resourceStr);
 			}
 			if (!parsedChangeset && !isAhpChatChannel(resourceStr) && sessionState && needsSessionGitStateRefresh(readSessionGitState(sessionState._meta))) {
-				const workingDirectory = sessionState.workingDirectories?.[0]
-					? URI.parse(sessionState.workingDirectories[0])
-					: undefined;
-				void this._gitStateService.refreshSessionGitState(resourceStr, workingDirectory);
+				void this._gitStateService.refreshSessionGitState(resourceStr);
 			}
 
 			this._logService.trace(`[AgentService] subscribe done: ${resourceStr} (servedFromMemory=${telemetry.servedFromMemory})`);
@@ -15463,7 +15459,7 @@ export class AgentService extends Disposable implements IAgentService {
 
 		this._logService.info(`[AgentService] Restored session ${sessionStr} with ${turns.length} turns`);
 
-		void this._gitStateService.attachSessionGitHubPullRequest(sessionStr, meta.workingDirectories?.[0]);
+		void this._gitStateService.attachSessionGitHubPullRequest(sessionStr);
 		void this._gitStateService.reconcilePendingRecordedPullRequests?.(sessionStr, true).catch(error =>
 			this._logService.warn(`[AgentService] Failed to reconcile pending pull requests after restoring ${sessionStr}`, error));
 

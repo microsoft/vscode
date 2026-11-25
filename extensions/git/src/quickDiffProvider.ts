@@ -45,12 +45,6 @@ export class GitQuickDiffProvider implements QuickDiffProvider {
 			return undefined;
 		}
 
-		// Ignore path that is inside a hidden repository
-		if (this.repository.isHidden === true) {
-			this.logger.trace(`[Repository][provideOriginalResource] Repository is hidden: ${uri.toString()}`);
-			return undefined;
-		}
-
 		// Ignore path that is inside a merge group
 		if (this.repository.mergeChanges.some(r => pathEquals(r.resourceUri.fsPath, uri.fsPath))) {
 			this.logger.trace(`[Repository][provideOriginalResource] Resource is part of a merge group: ${uri.toString()}`);
@@ -91,12 +85,6 @@ export class StagedResourceQuickDiffProvider implements QuickDiffProvider {
 
 		if (uri.scheme !== 'file') {
 			this.logger.trace(`[StagedResourceQuickDiffProvider][provideOriginalResource] Resource is not a file: ${uri.scheme}`);
-			return undefined;
-		}
-
-		// Ignore path that is inside a hidden repository
-		if (this._repository.isHidden === true) {
-			this.logger.trace(`[StagedResourceQuickDiffProvider][provideOriginalResource] Repository is hidden: ${uri.toString()}`);
 			return undefined;
 		}
 

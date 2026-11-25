@@ -5862,6 +5862,94 @@ suite('ModernUIContribution', () => {
 		]);
 	});
 
+	test('uses theme-defined modern tab backgrounds while preserving user customizations', () => {
+		const style = document.createElement('style');
+		document.head.appendChild(style);
+		store.add(toDisposable(() => style.remove()));
+
+		const root = appendElement(document.body, 'theme-defined-editor-tab-color monaco-workbench modern-ui modern-ui-tabs modern-ui-connected-editor-tabs');
+		store.add(toDisposable(() => root.remove()));
+		const content = appendElement(appendElement(root, 'part editor'), 'content');
+		const fills = [true, false].map(active => {
+			const group = appendElement(content, `editor-group-container${active ? ' active' : ''}`);
+			const title = appendElement(group, 'title tabs');
+			const tabs = appendElement(appendElement(title, 'tabs-and-actions-container'), 'tabs-container');
+			return appendElement(appendElement(tabs, 'tab active'), 'tab-fill');
+		});
+		const cases: { colors: Record<string, string>; customizations?: Record<string, string>; connected?: boolean }[] = [
+			{ colors: { [MODERN_EDITOR_TAB_ACTIVE_BACKGROUND]: '#2468AC', [TAB_ACTIVE_BACKGROUND]: '#123456' } },
+			{ colors: { [MODERN_EDITOR_TAB_ACTIVE_BACKGROUND]: '#2468AC', [TAB_ACTIVE_BACKGROUND]: '#123456' }, connected: false },
+			{ colors: { [MODERN_TAB_ACTIVE_BACKGROUND]: '#345678' } },
+			{ colors: { [MODERN_EDITOR_TAB_ACTIVE_BACKGROUND]: '#2468AC' }, customizations: { [TAB_ACTIVE_BACKGROUND]: '#56789A' } },
+			{ colors: { [MODERN_EDITOR_TAB_ACTIVE_BACKGROUND]: '#2468AC' }, customizations: { [MODERN_EDITOR_TAB_ACTIVE_BACKGROUND]: '#789ABC' } },
+			{ colors: { [MODERN_EDITOR_TAB_ACTIVE_BACKGROUND]: '#00000000' } },
+			{ colors: { [TAB_ACTIVE_BACKGROUND]: '#123456' } },
+		];
+		const actual = cases.map(({ colors, customizations, connected }) => {
+			const theme = ColorThemeData.createUnloadedTheme('vs-dark', { [editorBackground]: '#000000', ...colors });
+			theme.setCustomColors(customizations ?? {});
+			root.classList.toggle('modern-ui-connected-editor-tabs', connected !== false);
+			style.textContent = generateColorThemeCSS(theme, '.theme-defined-editor-tab-color', themingRegistry.getThemingParticipants(), TestEnvironmentService).code;
+			return fills.map(fill => getWindow(fill).getComputedStyle(fill).backgroundColor);
+		});
+
+		assert.deepStrictEqual(actual, [
+			['rgb(36, 104, 172)', 'rgb(36, 104, 172)'],
+			['rgb(36, 104, 172)', 'rgb(36, 104, 172)'],
+			['rgb(52, 86, 120)', 'rgb(52, 86, 120)'],
+			['rgb(86, 120, 154)', 'rgb(86, 120, 154)'],
+			['rgb(120, 154, 188)', 'rgb(120, 154, 188)'],
+			['rgba(0, 0, 0, 0)', 'rgba(0, 0, 0, 0)'],
+			['rgb(0, 0, 0)', 'rgb(0, 0, 0)'],
+		]);
+	});
+
+	test('preserves connected tab backgrounds when applying transient colors', () => {
+		const style = document.createElement('style');
+		document.head.appendChild(style);
+		store.add(toDisposable(() => style.remove()));
+
+		const root = appendElement(document.body, 'transient-editor-tab-color monaco-workbench modern-ui modern-ui-tabs modern-ui-connected-editor-tabs');
+		store.add(toDisposable(() => root.remove()));
+		const content = appendElement(appendElement(root, 'part editor'), 'content');
+		const fills = [true, false].map(active => {
+			const group = appendElement(content, `editor-group-container${active ? ' active' : ''}`);
+			const title = appendElement(group, 'title tabs');
+			const tabs = appendElement(appendElement(title, 'tabs-and-actions-container'), 'tabs-container');
+			return appendElement(appendElement(tabs, 'tab active'), 'tab-fill');
+		});
+		const transientColors = {
+			[editorBackground]: Color.fromHex('#123456'),
+			[MODERN_EDITOR_TAB_ACTIVE_BACKGROUND]: Color.fromHex('#987654'),
+		};
+		const readColors = (theme: ColorThemeData) => {
+			style.textContent = generateColorThemeCSS(theme, '.transient-editor-tab-color', themingRegistry.getThemingParticipants(), TestEnvironmentService).code;
+			return fills.map(fill => getWindow(fill).getComputedStyle(fill).backgroundColor);
+		};
+		const colorSets: Record<string, string>[] = [{}, { [MODERN_EDITOR_TAB_ACTIVE_BACKGROUND]: '#2468AC' }];
+		const results = colorSets.map(colors => {
+			const theme = ColorThemeData.createUnloadedTheme('vs-dark', { [editorBackground]: '#101010', ...colors });
+			const before = readColors(theme);
+			theme.setTransientColors(transientColors);
+			const tinted = readColors(theme);
+			theme.setTransientColors(undefined);
+			return { before, tinted, restored: readColors(theme) };
+		});
+
+		assert.deepStrictEqual(results, [
+			{
+				before: ['rgb(16, 16, 16)', 'rgb(16, 16, 16)'],
+				tinted: ['rgb(18, 52, 86)', 'rgb(18, 52, 86)'],
+				restored: ['rgb(16, 16, 16)', 'rgb(16, 16, 16)'],
+			},
+			{
+				before: ['rgb(36, 104, 172)', 'rgb(36, 104, 172)'],
+				tinted: ['rgb(152, 118, 84)', 'rgb(152, 118, 84)'],
+				restored: ['rgb(36, 104, 172)', 'rgb(36, 104, 172)'],
+			},
+		]);
+	});
+
 	test('derives inactive tab foreground from a legacy active foreground customization', () => {
 		const theme = ColorThemeData.createUnloadedTheme('vs-dark', { [editorBackground]: '#000000' });
 		theme.setCustomColors({ [TAB_ACTIVE_FOREGROUND]: '#FEDCBA' });

@@ -27,7 +27,7 @@ import { IsNewChatSessionContext } from '../../../../workbench/contrib/sessions/
 import { SideBarVisibleContext } from '../../../../workbench/common/contextkeys.js';
 import { AgentsWindowMenus } from '../../agentsWindowMenus.js';
 import { ChatEntitlement, ChatEntitlementService, IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
-import { getAccountTitleBarState, getAccountProfileImageUrl, getAccountTitleBarBadgeKey, resolveAccountInfo } from '../../accountTitleBarState.js';
+import { getAccountTitleBarState, getAccountProfileImageUrl, getAccountTitleBarBadgeKey, resolveAccountInfo, showsGitHubCopilotDetails } from '../../accountTitleBarState.js';
 import { IChatDashboardService } from '../../chatDashboardService.js';
 import { MOBILE_OPEN_CHANGES_VIEW_COMMAND_ID } from './contributions/mobileChangesView.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -515,6 +515,7 @@ export class MobileTitlebarPart extends Disposable {
 		const entitlement = this.chatEntitlementService.entitlement;
 		const showDashboard = !this.chatEntitlementService.sentiment.hidden
 			&& !!this.accountName
+			&& showsGitHubCopilotDetails(this.defaultAccountService.currentDefaultAccount)
 			&& entitlement !== ChatEntitlement.Unknown
 			&& entitlement !== ChatEntitlement.Available;
 		if (showDashboard) {

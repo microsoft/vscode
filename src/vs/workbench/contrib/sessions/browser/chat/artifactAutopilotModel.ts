@@ -11,7 +11,6 @@ import { localize } from '../../../../../nls.js';
 import { ArtifactAutomationOption, ArtifactContributionSnapshot, ArtifactSnapshot, artifactOptionDisabledValue, IArtifactModel, isArtifactOptionEnabled } from '../../../../../platform/artifactIntegrations/common/artifactIntegration.js';
 import { canEnableArtifactAutomationOption } from '../../../../../platform/artifactIntegrations/common/artifactAutomationConfiguration.js';
 import { describeArtifactAutomationConsent } from '../../../../../platform/artifactIntegrations/common/artifactAutomationConsent.js';
-import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { ArtifactDetailsViewState, artifactViewKey, IArtifactAutopilotGroupViewData, IArtifactAutopilotRuleViewData } from './artifactDetailsView.js';
 
 type EnumOption = Extract<ArtifactAutomationOption, { kind: 'enum' }>;
@@ -20,7 +19,7 @@ type EnumOption = Extract<ArtifactAutomationOption, { kind: 'enum' }>;
 interface IUnconfirmedValue {
 	readonly value: boolean | string;
 	/**
-	 * Set for a new policy of a rule that is on, which is not consent to turn it on: the value is saved only while the
+	 * Set for another value of a rule that is on, which is not consent to turn it on: the value is saved only while the
 	 * provider still has the rule on, so a rule turned off meanwhile, such as by another client, stays off.
 	 */
 	readonly requiresEnabled: boolean;
@@ -32,8 +31,6 @@ interface IUnconfirmedValue {
 export class ArtifactAutopilotModel extends Disposable {
 	private readonly changed = observableSignal(this);
 	private readonly shown = new Set<string>();
-	/** Rules whose policy is being picked. */
-	private readonly picking = new Set<string>();
 	/**
 	 * Values chosen in the controls that the provider has not confirmed yet, by integration and option. The controls show
 	 * them at once, so rules can be changed in quick succession while their writes are saved one after another.
@@ -47,7 +44,6 @@ export class ArtifactAutopilotModel extends Disposable {
 		private readonly model: IArtifactModel,
 		private readonly state: ArtifactDetailsViewState,
 		private readonly run: (operation: () => Promise<void>) => Promise<void>,
-		@IQuickInputService private readonly quickInputService: IQuickInputService,
 	) {
 		super();
 		this.data = derived(this, reader => {
@@ -66,9 +62,10 @@ export class ArtifactAutopilotModel extends Disposable {
 					disabled: !eligible.length,
 					summary: unavailable ? localize('artifactAutopilot.unavailable', "{0} on, {1} unavailable", enabled, unavailable)
 						: localize('artifactAutopilot.enabled', "{0} of {1} on", enabled, eligible.length),
-					toggleLabel: groups.length > 1 ? localize('artifactAutopilot.providerRules', "All Available Autopilot Rules: {0}", contribution.label)
-						: localize('artifactAutopilot.allRules', "All Available Autopilot Rules"),
-					description: localize('artifactAutopilot.masterHelp', "On while any rule is on. Turn on to enable all available rules for this provider using the policies shown in their dropdowns, or turn off to disable all enabled rules. Unavailable rules are not enabled."),
+					// Starts with the switch's visible "Toggle All" label, so the control can be found by the text shown.
+					toggleLabel: groups.length > 1 ? localize('artifactAutopilot.toggleProviderRules', "Toggle All Autopilot Rules: {0}", contribution.label)
+						: localize('artifactAutopilot.toggleAllRules', "Toggle All Autopilot Rules"),
+					description: localize('artifactAutopilot.masterHelp', "On while any rule is on. Turn on to enable all available rules for this provider, or turn off to disable all enabled rules. Rules with several modes turn on with the mode last selected for them. Unavailable rules are not enabled."),
 					rules: options.map(option => this.rule(contribution, option, snapshot)),
 					setExpanded: expanded => {
 						if (expanded) {
@@ -106,16 +103,12 @@ export class ArtifactAutopilotModel extends Disposable {
 		});
 	}
 
-	private choice(contribution: ArtifactContributionSnapshot, option: EnumOption): EnumOption['choices'][number] | undefined {
-		const id = artifactViewKey(contribution.integrationId, option.id);
+	/** The choice a rule with several enabled values is on with, else the one last selected for it, else its first. */
+	private enabledChoice(contribution: ArtifactContributionSnapshot, option: EnumOption): EnumOption['choices'][number] | undefined {
 		const current = this.value(contribution, option);
-		const value = isArtifactOptionEnabled(option, current) ? current : this.state.preparedPolicies.get(id);
-		const choice = option.choices.find(choice => choice.value === value && choice.value !== option.disabledValue)
+		const value = isArtifactOptionEnabled(option, current) ? current : this.state.lastChoices.get(artifactViewKey(contribution.integrationId, option.id));
+		return option.choices.find(choice => choice.value === value && choice.value !== option.disabledValue)
 			?? option.choices.find(choice => choice.value !== option.disabledValue);
-		if (choice) {
-			this.state.preparedPolicies.set(id, choice.value);
-		}
-		return choice;
 	}
 
 	private location(contribution: ArtifactContributionSnapshot, snapshot = this.snapshot.get()) {
@@ -124,9 +117,9 @@ export class ArtifactAutopilotModel extends Disposable {
 
 	private rule(contribution: ArtifactContributionSnapshot, option: ArtifactAutomationOption, snapshot: ArtifactSnapshot): IArtifactAutopilotRuleViewData {
 		const id = artifactViewKey(contribution.integrationId, option.id);
-		const checked = isArtifactOptionEnabled(option, this.value(contribution, option));
-		const pending = this.picking.has(id);
-		const disabled = pending || (!checked && !canEnableArtifactAutomationOption(contribution, option));
+		const value = this.value(contribution, option);
+		const checked = isArtifactOptionEnabled(option, value);
+		const disabled = !checked && !canEnableArtifactAutomationOption(contribution, option);
 		const available = contribution.view.automationAvailability.find(available => available.id === option.id);
 		const grant = contribution.configuration.grants?.[option.id];
 		const availability = contribution.view.availability;
@@ -134,12 +127,15 @@ export class ArtifactAutopilotModel extends Disposable {
 		const reason = contribution.configuration.disablements[option.id]?.reason ?? available?.unavailableReason
 			?? (!checked ? available?.enablement?.disabledReason : undefined)
 			?? (availability.kind !== 'available' && availability.kind !== 'loading' && availability.kind !== 'stale' ? availability.reason : undefined)
-			?? (disabled && !pending ? localize('artifactAutopilot.unavailableRule', "This Autopilot rule is not available in the current resource state.") : '');
+			?? (disabled ? localize('artifactAutopilot.unavailableRule', "This Autopilot rule is not available in the current resource state.") : '');
+		if (option.kind === 'enum' && checked && typeof value === 'string') {
+			this.state.lastChoices.set(id, value);
+		}
 		return {
-			id, label: option.label, checked, disabled, pending,
+			id, label: option.label, checked, disabled,
 			description: [
-				...describeArtifactAutomationConsent(contribution, option, { location: this.location(contribution, snapshot) }),
-				option.kind === 'enum' ? localize('artifactPolicyPreparation', "Choosing a policy while this rule is off does not enable it. Turning it on uses the displayed policy.") : '',
+				// The mode a rule is on with explains what it adds, such as When Not Changed turning merging off after a repair.
+				...describeArtifactAutomationConsent(contribution, option, { location: this.location(contribution, snapshot), value: checked ? value : undefined }),
 				checked && grant?.kind === 'agent'
 					? grant.autoApproved
 						? localize('artifactAutopilot.agentAutoApprovedGrant', "Turned on by the agent (auto-approved).")
@@ -147,9 +143,10 @@ export class ArtifactAutopilotModel extends Disposable {
 					: '',
 				reason,
 			].filter(Boolean).join(' '),
-			policy: option.kind === 'enum' ? {
-				label: this.choice(contribution, option)?.label ?? localize('artifactNoPolicyChoices', "No Available Policies"),
-				choose: () => this.choosePolicy(contribution.integrationId, option.id),
+			choices: option.kind === 'enum' ? {
+				items: option.choices,
+				value: checked && typeof value === 'string' ? value : option.disabledValue,
+				select: value => this.select(contribution.integrationId, option.id, value),
 			} : undefined,
 			setEnabled: enabled => this.setRule(contribution.integrationId, option.id, enabled),
 		};
@@ -173,55 +170,29 @@ export class ArtifactAutopilotModel extends Disposable {
 			if (this._store.isDisposed || !contribution || !option || (enabled && !canEnableArtifactAutomationOption(contribution, option))) {
 				throw new Error(localize('artifactAutopilot.ruleUnavailable', "This Autopilot rule is no longer available."));
 			}
-			const value = option.kind === 'boolean' ? enabled : enabled ? this.choice(contribution, option)?.value : artifactOptionDisabledValue(option);
+			const value = option.kind === 'boolean' ? enabled : enabled ? this.enabledChoice(contribution, option)?.value : artifactOptionDisabledValue(option);
 			if (value === undefined) {
-				throw new Error(localize('artifactPolicyUnavailable', "No enabled policy is available for {0}.", option.label));
+				throw new Error(localize('artifactPolicyUnavailable', "No enabled mode is available for {0}.", option.label));
 			}
 			await this.save(integrationId, { [optionId]: value });
 		});
 	}
 
-	private choosePolicy(integrationId: string, optionId: string): Promise<void> {
-		const id = artifactViewKey(integrationId, optionId);
-		if (this.picking.has(id)) {
-			return Promise.resolve();
-		}
+	/** Saves a choice of a rule with several enabled values, which turns it off, turns it on with that value, or changes the value it is on with. */
+	private select(integrationId: string, optionId: string, value: string): Promise<void> {
 		return this.change(async () => {
 			const contribution = this.contribution(integrationId);
 			const option = contribution?.options.find(option => option.id === optionId);
-			if (this._store.isDisposed || !contribution || option?.kind !== 'enum' || (!isArtifactOptionEnabled(option, this.value(contribution, option)) && !canEnableArtifactAutomationOption(contribution, option))) {
+			const enabled = !!contribution && option?.kind === 'enum' && isArtifactOptionEnabled(option, this.value(contribution, option));
+			const disabling = option?.kind === 'enum' && value === option.disabledValue;
+			if (this._store.isDisposed || !contribution || option?.kind !== 'enum' || !option.choices.some(choice => choice.value === value)
+				|| (!enabled && !disabling && !canEnableArtifactAutomationOption(contribution, option))) {
 				throw new Error(localize('artifactAutopilot.ruleUnavailable', "This Autopilot rule is no longer available."));
 			}
-			const enabled = isArtifactOptionEnabled(option, this.value(contribution, option));
-			this.picking.add(id);
-			this.changed.trigger(undefined);
-			let selected: EnumOption['choices'][number] | undefined;
-			try {
-				selected = await this.quickInputService.pick(option.choices.filter(choice => choice.value !== option.disabledValue), {
-					title: option.label, placeHolder: option.description, activeItem: this.choice(contribution, option),
-				});
-			} finally {
-				this.picking.delete(id);
-				this.changed.trigger(undefined);
-			}
-			if (!selected || this._store.isDisposed) {
-				return;
-			}
-			const current = this.contribution(integrationId);
-			const currentOption = current?.options.find(option => option.id === optionId);
-			const value = selected.value;
-			if (!current || currentOption?.kind !== 'enum' || !currentOption.choices.some(choice => choice.value === value && choice.value !== currentOption.disabledValue)
-				|| isArtifactOptionEnabled(currentOption, this.value(current, currentOption)) !== enabled) {
-				throw new Error(localize('artifactPolicyChanged', "This Autopilot rule changed while selecting a policy. Choose the policy again."));
-			}
-			if (enabled) {
-				// Combined with the user's own enablement that has not been sent yet, the policy is part of that consent.
-				const pending = this.unconfirmed.get(integrationId)?.get(optionId);
-				await this.save(integrationId, { [optionId]: value }, pending && !pending.submitted ? pending.requiresEnabled : true);
-				return;
-			}
-			this.state.preparedPolicies.set(id, value);
-			status(localize('artifactPolicySelected', "Selected {0} for {1}. This Autopilot rule remains off.", selected.label, option.label));
+			// Another value for a rule that is on keeps it on but does not turn it on again, unless it joins the user's own enablement that has not been sent yet.
+			const pending = this.unconfirmed.get(integrationId)?.get(optionId);
+			const requiresEnabled = enabled && !disabling && (pending && !pending.submitted ? pending.requiresEnabled : true);
+			await this.save(integrationId, { [optionId]: value }, requiresEnabled);
 		});
 	}
 
@@ -236,9 +207,9 @@ export class ArtifactAutopilotModel extends Disposable {
 				if (isArtifactOptionEnabled(option, this.value(contribution, option)) === enabled || (enabled && !canEnableArtifactAutomationOption(contribution, option))) {
 					continue;
 				}
-				const choice = option.kind === 'enum' ? this.choice(contribution, option) : undefined;
+				const choice = option.kind === 'enum' ? this.enabledChoice(contribution, option) : undefined;
 				if (enabled && option.kind === 'enum' && !choice) {
-					throw new Error(localize('artifactPolicyUnavailable', "No enabled policy is available for {0}.", option.label));
+					throw new Error(localize('artifactPolicyUnavailable', "No enabled mode is available for {0}.", option.label));
 				}
 				values[option.id] = enabled ? choice?.value ?? true : artifactOptionDisabledValue(option);
 			}
@@ -288,7 +259,7 @@ export class ArtifactAutopilotModel extends Disposable {
 				const option = contribution.options.find(option => option.id === optionId);
 				if (entry.requiresEnabled && (!option || !isArtifactOptionEnabled(option, contribution.configuration.values[optionId]))) {
 					if (typeof entry.value === 'string') {
-						this.state.preparedPolicies.set(artifactViewKey(integrationId, optionId), entry.value);
+						this.state.lastChoices.set(artifactViewKey(integrationId, optionId), entry.value);
 					}
 					turnedOff.push(option?.label ?? optionId);
 				} else if (contribution.configuration.values[optionId] !== entry.value) {
@@ -302,7 +273,7 @@ export class ArtifactAutopilotModel extends Disposable {
 				status(option ? localize('artifactAutomationSaved', "Autopilot rule updated: {0}", option.label) : localize('artifactAutopilot.saved', "Artifact Autopilot updated."));
 			}
 			if (turnedOff.length) {
-				throw new Error(localize('artifactPolicyRuleTurnedOff', "{0} was turned off before its new policy was saved, so it stays off. Turning it on again uses the selected policy.", turnedOff.join(', ')));
+				throw new Error(localize('artifactChoiceRuleTurnedOff', "{0} was turned off before your choice was saved, so it stays off. Select the mode again to turn it on.", turnedOff.join(', ')));
 			}
 		} finally {
 			// Values changed again during the write stay for the next one; the others are confirmed now, or failed and show the provider's again.

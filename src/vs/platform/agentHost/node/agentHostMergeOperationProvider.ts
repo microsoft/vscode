@@ -14,12 +14,9 @@ import { ChangesetKind } from '../common/changesetUri.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { ChangesetOperationScope, ChangesetOperationStatus, hasSessionPullRequestForBranch, SessionLifecycle, type ChangesetOperation, type SessionState } from '../common/state/sessionState.js';
 import { AgentHostMergeOperationHandler } from './agentHostMergeOperationHandler.js';
-import type { IAgentHostCredentialSource } from '../common/agentHostCredentials.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 
 export class AgentHostMergeOperationContribution extends Disposable implements IChangesetOperationContribution {
-
-	private _registry: IChangesetOperationRegistry | undefined;
 
 	constructor(
 		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
@@ -30,17 +27,14 @@ export class AgentHostMergeOperationContribution extends Disposable implements I
 	}
 
 	registerHandlers(registry: IChangesetOperationRegistry): IDisposable {
-		this._registry = registry;
 		const store = new DisposableStore();
 		const handler = this._instantiationService.createInstance(
 			AgentHostMergeOperationHandler,
 			(sessionKey: string) => this._stateManager.getSessionState(sessionKey),
 			(sessionKey: string) => this._gitStateService.resolveSessionBaseBranchRef(sessionKey),
-			(sessionKey: string, source?: IAgentHostCredentialSource) => this._onGitStateChanged(sessionKey, source),
 			(sessionKey: string, commit: string) => this._gitStateService.recordSessionMerge(sessionKey, commit),
 		);
 		store.add(registry.registerChangesetOperationHandler(AgentHostMergeOperationHandler.OPERATION_MERGE, handler));
-		store.add({ dispose: () => { this._registry = undefined; } });
 		return store;
 	}
 
@@ -86,10 +80,5 @@ export class AgentHostMergeOperationContribution extends Disposable implements I
 		const workingDirectory = state.workingDirectories?.[0];
 		const project = state.project?.uri;
 		return !!workingDirectory && !!project && !isEqual(URI.parse(workingDirectory), URI.parse(project));
-	}
-
-	private async _onGitStateChanged(sessionKey: string, source?: IAgentHostCredentialSource): Promise<void> {
-		this._registry?.onDidChangeOperations(sessionKey);
-		await this._registry?.refreshSessionGitState(sessionKey, source);
 	}
 }

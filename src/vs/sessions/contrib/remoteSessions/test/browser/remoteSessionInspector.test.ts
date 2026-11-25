@@ -23,7 +23,7 @@ import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHo
 import { AgentSubscriptionManager, IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { chatTurnStarted } from '../../../../../platform/agentHost/test/common/chatActionBuilders.js';
 import { IStateSnapshot } from '../../../../../platform/agentHost/common/state/sessionProtocol.js';
-import { buildChatUri, buildDefaultChatUri, ChatState, ComponentToState, createChatState, createSessionState, MessageKind, ResponsePartKind, SessionLifecycle, SessionState, SessionStatus, StateComponents, TurnState } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, ChatInteractivity, ChatOriginKind, ChatState, ComponentToState, createChatState, createSessionState, MessageKind, ResponsePartKind, SessionLifecycle, SessionState, SessionStatus, StateComponents, TurnState } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -55,6 +55,7 @@ class InspectionConnection extends mock<IAgentHostService>() {
 	readonly subscribed: string[] = [];
 	readonly unsubscribed: string[] = [];
 	readonly didSubscribe = new DeferredPromise<void>();
+	readonly didSubscribeToDefaultChat = new DeferredPromise<void>();
 	dispatches = 0;
 	private clientSeq = 0;
 
@@ -84,6 +85,9 @@ class InspectionConnection extends mock<IAgentHostService>() {
 		this.manager = store.add(new AgentSubscriptionManager(this.clientId, () => ++this.clientSeq, () => { }, async resource => {
 			this.subscribed.push(resource.toString());
 			void this.didSubscribe.complete();
+			if (resource.toString() === defaultChat) {
+				void this.didSubscribeToDefaultChat.complete();
+			}
 			const snapshot = this.snapshots.get(resource.toString());
 			if (!snapshot) {
 				throw new Error('Session not found');
@@ -193,7 +197,11 @@ suite('RemoteSessionInspector', () => {
 		}, {
 			result: {
 				session: resource.toString(), chat: resource.toString(),
-				openLink: buildOpenSessionLinkUri(resource), host: { id: 'agenthost-first', label: 'first' },
+				openLink: buildOpenSessionLinkUri(backendSession, undefined, undefined, 'first'), host: { id: 'agenthost-first', label: 'first' },
+				chats: [
+					{ title: 'First default', openLink: buildOpenSessionLinkUri(backendSession, undefined, undefined, 'first'), main: true },
+					{ title: 'First peer', openLink: buildOpenSessionLinkUri(backendSession, 'peer', undefined, 'first') },
+				],
 				status: 'completed', title: 'First default', queuedMessages: 0, hasSteeringMessage: false,
 				latestTurn: { id: 'turn-1', status: 'completed', response: 'First default', error: null, truncated: false },
 			},
@@ -215,8 +223,111 @@ suite('RemoteSessionInspector', () => {
 		]);
 		assert.deepStrictEqual({
 			responses: results.map(result => result.status !== 'unavailable' && result.latestTurn?.response),
+			links: results.map(result => result.openLink),
 			references: [first, second].map(connection => connection.manager.getActiveSubscriptions()),
-		}, { responses: ['First default', 'Second default'], references: [[], []] });
+		}, {
+			responses: ['First default', 'Second default'],
+			links: [
+				buildOpenSessionLinkUri(backendSession, undefined, undefined, 'first'),
+				buildOpenSessionLinkUri(backendSession, undefined, undefined, 'second'),
+			],
+			references: [[], []],
+		});
+	});
+
+	test('lists host-qualified links for visible peer chats, excluding tool and hidden chats', async () => {
+		const { inspect, first } = setup();
+		const toolChat = buildChatUri(backendSession, 'worker');
+		const hiddenChat = buildChatUri(backendSession, 'hidden');
+		const sessionState: SessionState = {
+			...createSessionState({
+				resource: backendSession.toString(), provider: 'copilotcli', title: 'First', status: SessionStatus.Idle,
+				createdAt: '', modifiedAt: '',
+			}),
+			lifecycle: SessionLifecycle.Ready,
+			defaultChat,
+			chats: [
+				{ resource: peerChat, title: 'First peer', status: SessionStatus.Idle, modifiedAt: '' },
+				{ resource: defaultChat, title: 'First default', status: SessionStatus.Idle, modifiedAt: '' },
+				{
+					resource: toolChat, title: 'Worker', status: SessionStatus.Idle, modifiedAt: '',
+					origin: { kind: ChatOriginKind.Tool, chat: defaultChat, toolCallId: 'tool-call' },
+				},
+				{ resource: hiddenChat, title: 'Private chat', status: SessionStatus.Idle, modifiedAt: '', interactivity: ChatInteractivity.Hidden },
+			],
+		};
+		first.setState(backendSession.toString(), sessionState);
+
+		const result = await inspect();
+		first.setState(backendSession.toString(), { ...sessionState, chats: sessionState.chats.filter(chat => chat.resource !== peerChat) });
+		const withoutPeers = await inspect();
+		assert.deepStrictEqual({ chats: result.chats, withoutPeers: withoutPeers.chats }, {
+			chats: [
+				{ title: 'First peer', openLink: buildOpenSessionLinkUri(backendSession, 'peer', undefined, 'first') },
+				{ title: 'First default', openLink: buildOpenSessionLinkUri(backendSession, undefined, undefined, 'first'), main: true },
+			],
+			withoutPeers: undefined,
+		});
+	});
+
+	test('discovered links inspect the intended chats when advertised resources share a short id', async () => {
+		const { inspect, first, connections } = setup();
+		connections.registerSessionResource(backendSession, 'first', 'copilotcli');
+		const peers = ['first', 'second'].map(name => ({
+			resource: buildChatUri(`copilot:/${name}`, 'peer'), title: `${name} peer`,
+			status: SessionStatus.Idle, modifiedAt: '',
+		}));
+		first.setState(backendSession.toString(), {
+			...createSessionState({ resource: backendSession.toString(), provider: 'copilotcli', title: 'First', status: SessionStatus.Idle, createdAt: '', modifiedAt: '' }),
+			lifecycle: SessionLifecycle.Ready,
+			defaultChat,
+			chats: [{ resource: defaultChat, title: 'First default', status: SessionStatus.Idle, modifiedAt: '' }, ...peers],
+		});
+		for (const peer of peers) {
+			first.setState(peer.resource, createChatState(peer));
+		}
+
+		const result = await inspect();
+		const resolved = await Promise.all((result.chats ?? []).map(async chat => {
+			const target = await inspect(chat.openLink);
+			return { title: target.status === 'unavailable' ? target.reason : target.title, status: target.status };
+		}));
+		assert.deepStrictEqual(resolved, [
+			{ title: 'First default', status: 'completed' },
+			{ title: 'first peer', status: 'idle' },
+			{ title: 'second peer', status: 'idle' },
+		]);
+	});
+
+	test('links to an opaque peer chat advertised with a non-AHP URI', async () => {
+		const { inspect, first, connections } = setup();
+		connections.registerSessionResource(backendSession, 'first', 'copilotcli');
+		const opaqueDefault = URI.parse('other-chat://example/default').toString();
+		const opaqueChat = URI.parse('other-chat://example/peer?scope=one&view=two#thread').toString();
+		const defaultSummary = { resource: opaqueDefault, title: 'Opaque default', status: SessionStatus.Idle, modifiedAt: '' };
+		const opaqueSummary = { resource: opaqueChat, title: 'Opaque peer', status: SessionStatus.Idle, modifiedAt: '' };
+		first.setState(backendSession.toString(), {
+			...createSessionState({ resource: backendSession.toString(), provider: 'copilotcli', title: 'First', status: SessionStatus.Idle, createdAt: '', modifiedAt: '' }),
+			lifecycle: SessionLifecycle.Ready,
+			defaultChat: opaqueDefault,
+			chats: [defaultSummary, opaqueSummary],
+		});
+		first.setState(opaqueDefault, createChatState(defaultSummary));
+		first.setState(opaqueChat, createChatState(opaqueSummary));
+
+		const result = await inspect();
+		const peerLink = result.chats?.find(chat => chat.title === 'Opaque peer')?.openLink;
+		const peer = peerLink ? await inspect(peerLink) : undefined;
+		assert.deepStrictEqual({
+			chats: result.chats, chat: peer?.chat, status: peer?.status,
+			title: peer?.status !== 'unavailable' ? peer?.title : undefined,
+		}, {
+			chats: [
+				{ title: 'Opaque default', openLink: buildOpenSessionLinkUri(backendSession, undefined, undefined, 'first'), main: true },
+				{ title: 'Opaque peer', openLink: buildOpenSessionLinkUri(backendSession, opaqueChat, undefined, 'first') },
+			],
+			chat: resource.with({ fragment: opaqueChat }).toString(), status: 'idle', title: 'Opaque peer',
+		});
 	});
 
 	test('rejects unqualified, local and ambiguous references instead of guessing a target', async () => {
@@ -318,6 +429,20 @@ suite('RemoteSessionInspector', () => {
 		}, { status: 'unavailable', reason: true, remaining: [], replacementReads: [] });
 	});
 
+	test('disconnect after reading the catalog does not return stale chat links', async () => {
+		const { inspect, first, second, hosts, changed } = setup();
+		first.snapshots.set(defaultChat, new DeferredPromise<IStateSnapshot>().p);
+		const operation = inspect();
+		await first.didSubscribeToDefaultChat.p;
+		hosts.set('first', second);
+		changed.fire();
+		const result = await operation;
+		assert.deepStrictEqual({
+			status: result.status, reason: result.status === 'unavailable' && result.reason.includes('connection changed'),
+			hasChats: hasKey(result, { chats: true }), remaining: first.manager.getActiveSubscriptions(),
+		}, { status: 'unavailable', reason: true, hasChats: false, remaining: [] });
+	});
+
 	test('times out an unhydrated subscription without retaining it', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const { inspect, first } = setup();
 		first.snapshots.set(backendSession.toString(), new DeferredPromise<IStateSnapshot>().p);
@@ -391,10 +516,11 @@ suite('RemoteSessionInspector', () => {
 			readOnly: data.modelDescription.includes('Read-only'),
 			noReasoning: data.modelDescription.includes('Excludes reasoning'),
 			exactReference: data.modelDescription.includes('exact host-qualified references, not bare IDs or "origin"'),
+			listsChats: data.modelDescription.includes('includes them in `chats` with host-qualified open links'),
 		}, {
 			name: 'get_remote_session', runsInWorkspace: false,
 			keys: [ChatContextKeys.enabled.key, `config.${RemoteAgentHostsEnabledSettingId}`, `config.${RemoteSessionToolsEnabledSettingId}`, `config.${DevContainerHandoffEnabledSettingId}`].sort(),
-			confirmation: undefined, subscriptions: [], noPolling: true, readOnly: true, noReasoning: true, exactReference: true,
+			confirmation: undefined, subscriptions: [], noPolling: true, readOnly: true, noReasoning: true, exactReference: true, listsChats: true,
 		});
 	});
 
@@ -409,7 +535,7 @@ suite('RemoteSessionInspector', () => {
 		const unavailable = await tool.invoke(invocation, async () => 0, { report: () => { } }, CancellationToken.None);
 		assert.deepStrictEqual({
 			content: result.content,
-			link: message.value.includes(buildOpenSessionLinkUri(resource)), trusted: message.isTrusted,
+			link: message.value.includes(buildOpenSessionLinkUri(backendSession, undefined, undefined, 'first')), trusted: message.isTrusted,
 			failedRead: typeof unavailable.toolResultError === 'string' && unavailable.toolResultError.includes('disconnected'),
 		}, {
 			content: [{ kind: 'text', value: JSON.stringify(expected) }],

@@ -10,11 +10,8 @@ import type { IChangesetOperationContribution, IChangesetOperationContext, IChan
 import { ChangesetOperationScope, ChangesetOperationStatus, SessionLifecycle, type ChangesetOperation } from '../common/state/sessionState.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { AgentHostSyncOperationHandler } from './agentHostSyncOperationHandler.js';
-import type { IAgentHostCredentialSource } from '../common/agentHostCredentials.js';
 
 export class AgentHostSyncOperationContribution extends Disposable implements IChangesetOperationContribution {
-
-	private _registry: IChangesetOperationRegistry | undefined;
 
 	constructor(
 		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
@@ -24,12 +21,10 @@ export class AgentHostSyncOperationContribution extends Disposable implements IC
 	}
 
 	registerHandlers(registry: IChangesetOperationRegistry): IDisposable {
-		this._registry = registry;
 		const store = new DisposableStore();
 		const getSessionState = (sessionKey: string) => this._stateManager.getSessionState(sessionKey);
-		const handler = this._instantiationService.createInstance(AgentHostSyncOperationHandler, getSessionState, (sessionKey: string, source?: IAgentHostCredentialSource) => this._onSynced(sessionKey, source));
+		const handler = this._instantiationService.createInstance(AgentHostSyncOperationHandler, getSessionState);
 		store.add(registry.registerChangesetOperationHandler(AgentHostSyncOperationHandler.OPERATION_SYNC, handler));
-		store.add({ dispose: () => { this._registry = undefined; } });
 		return store;
 	}
 
@@ -66,10 +61,5 @@ export class AgentHostSyncOperationContribution extends Disposable implements IC
 			scopes: [ChangesetOperationScope.Changeset],
 			status: ChangesetOperationStatus.Idle,
 		} satisfies ChangesetOperation];
-	}
-
-	private async _onSynced(sessionKey: string, source?: IAgentHostCredentialSource): Promise<void> {
-		this._registry?.onDidChangeOperations(sessionKey);
-		await this._registry?.refreshSessionGitState(sessionKey, source);
 	}
 }
