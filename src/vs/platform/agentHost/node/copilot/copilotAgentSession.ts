@@ -14677,17 +14677,8 @@ export class CopilotAgentSession extends Disposable {
 		}
 	}
 
-	/** Ends the thinking streamed into a phase chat before the chat closes, as a closed chat receives no later output to end it. */
-	private _finishFusionPhaseChatReasoning(toolCallId: string): void {
-		this._reasoningTiming.finish(toolCallId);
-		this._reasoningTiming.clear(toolCallId);
-	}
-
 	/** Cancellation closes these chats as cancelled, so an abort only drops local routing. */
 	private _forgetFusionPhaseChats(): void {
-		for (const toolCallId of this._fusionPhaseChats) {
-			this._finishFusionPhaseChatReasoning(toolCallId);
-		}
 		this._fusionPhases.clear();
 		this._fusionPhaseChats.clear();
 		this._pendingFusionPhaseChatCloses.clear();
@@ -14701,7 +14692,9 @@ export class CopilotAgentSession extends Disposable {
 		this._fusionPhaseChats.clear();
 		const generation = ++this._fusionPhaseChatCloseGeneration;
 		for (const toolCallId of toolCallIds) {
-			this._finishFusionPhaseChatReasoning(toolCallId);
+			// A closed chat receives no later output to end its thinking, so end it before the chat closes.
+			this._reasoningTiming.finish(toolCallId);
+			this._reasoningTiming.clear(toolCallId);
 			this._pendingFusionPhaseChatCloses.set(toolCallId, generation);
 		}
 		const complete = () => {
