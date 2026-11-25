@@ -1923,6 +1923,22 @@ suite('AgentHostProtocolClient', () => {
 			});
 		});
 
+		test('omits the ID token wherever the token is sealed, and sends it on an unencrypted connection', async () => {
+			const sealing = createClient();
+			disposables.add(sealing.client.registerAuthenticationTokenSealer(async request => `copilot-sealed.v1.${request.key.key_id}.ciphertext`));
+			await initialize(sealing.client, sealing.transport);
+			const sealed = await acknowledgeAuthentication(sealing.transport, sealing.client.authenticate({ resource, token: 'provider-token', idToken: 'id-token' }));
+			const alreadySealed = await acknowledgeAuthentication(sealing.transport, sealing.client.authenticate({ resource, token: 'copilot-sealed.v1.external.ciphertext', idToken: 'id-token' }));
+			const direct = createClient();
+			await initialize(direct.client, direct.transport, { 'copilot.encryptionKeys': [] }, {});
+			const unencrypted = await acknowledgeAuthentication(direct.transport, direct.client.authenticate({ resource, token: 'provider-token', idToken: 'id-token' }));
+			assert.deepStrictEqual({ sealed, alreadySealed, unencrypted }, {
+				sealed: { channel: ROOT_STATE_URI, resource, token: 'copilot-sealed.v1.auth-token.ciphertext', scopes: undefined },
+				alreadySealed: { channel: ROOT_STATE_URI, resource, token: 'copilot-sealed.v1.external.ciphertext', scopes: undefined },
+				unencrypted: { channel: ROOT_STATE_URI, resource, token: 'provider-token', scopes: undefined, idToken: 'id-token' },
+			});
+		});
+
 		test('preserves already sealed credentials and the empty revocation sentinel', async () => {
 			const { client, transport } = createClient();
 			disposables.add(client.registerAuthenticationTokenSealer(async () => { throw new Error('Must not encrypt twice'); }));

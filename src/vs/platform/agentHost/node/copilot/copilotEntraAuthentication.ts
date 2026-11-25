@@ -69,8 +69,10 @@ export class CopilotEntraAuthentication extends Disposable {
 		if (this._authenticationService.onDidAuthenticate) {
 			this._register(this._authenticationService.onDidAuthenticate(request => {
 				if (request.resource === copilotEntraDiscoveryResource) {
-					const credential = this._authenticationService.getAuthCredential({ resource: copilotEntraDiscoveryResource, scopes: copilotEntraDiscoveryMetadata.scopes_supported });
-					this._authority.set(acceptEntraDiscoveryCredential(this._authority.get(), credential), undefined);
+					const credential = this._authenticationService.getAuthCredential(request);
+					if (credential && copilotEntraDiscoveryMetadata.scopes_supported?.every(scope => credential.scopes.includes(scope))) {
+						this._authority.set(acceptEntraDiscoveryCredential(this._authority.get(), credential), undefined);
+					}
 				}
 				if (this.getCredential(request.resource, request.scopes ?? [])) {
 					this._requirements.set(this._requirements.get().filter(requirement => requirement.resource.resource !== request.resource), undefined);

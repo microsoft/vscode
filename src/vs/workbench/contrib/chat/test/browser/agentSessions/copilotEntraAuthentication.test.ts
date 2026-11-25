@@ -515,6 +515,19 @@ suite('Agent Host Microsoft credential acquisition', () => {
 		assert.deepStrictEqual({ tokens: forwarded.map(request => request.token), prompts: f.authentication.created }, { tokens: [selected.accessToken], prompts: [] });
 	});
 
+	test('an ID token that becomes available is forwarded once for an unchanged access token', async () => {
+		const f = fixture();
+		const forwarded: IAgentHostAuthenticateRequest[] = [];
+		const options = { logPrefix: '[test]', authTokenCache: new AgentHostAuthTokenCache(), authenticate: async (request: IAgentHostAuthenticateRequest) => { forwarded.push(request); } };
+		const forward = () => f.instantiation.invokeFunction(authenticateProtectedResources,
+			[{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], protectedResources: [resource] }], options);
+		await forward();
+		f.authentication.sessions = [{ ...selected, idToken: 'synthetic-id-token' }];
+		await forward();
+		await forward();
+		assert.deepStrictEqual(forwarded.map(request => [request.token, request.idToken]), [[selected.accessToken, undefined], [selected.accessToken, 'synthetic-id-token']]);
+	});
+
 	test('repeated challenges never prompt for a Microsoft credential and accept a later silent replacement', async () => {
 		const f = fixture();
 		const forwarded: IAgentHostAuthenticateRequest[] = [];

@@ -110,8 +110,8 @@ export class AgentHostAuthTokenCache {
 	 * Forwards a token once per resource/scope/target combination. Same-token callers share
 	 * and await an in-flight authentication.
 	 */
-	async authenticate(resource: string, scopes: readonly string[] | undefined, token: string, authenticate: () => Promise<unknown>, accountId?: string, entitlement?: IAgentEntitlementHint, target?: AuthenticateTarget, identity?: IForwardedAuthenticationIdentity): Promise<boolean> {
-		const credentialKey = JSON.stringify([token, accountId, entitlement?.trackingId, entitlement?.sku]);
+	async authenticate(resource: string, scopes: readonly string[] | undefined, token: string, authenticate: () => Promise<unknown>, accountId?: string, entitlement?: IAgentEntitlementHint, target?: AuthenticateTarget, identity?: IForwardedAuthenticationIdentity, idToken?: string): Promise<boolean> {
+		const credentialKey = JSON.stringify([token, accountId, entitlement?.trackingId, entitlement?.sku, idToken]);
 		const key = this._key(resource, scopes, target);
 		const globalGeneration = this._globalGeneration;
 		const keyGeneration = this._keyGenerations.get(key) ?? 0;
@@ -134,7 +134,7 @@ export class AgentHostAuthTokenCache {
 			if (!this._isCurrentGeneration(key, globalGeneration, keyGeneration)) {
 				throw new CancellationError();
 			}
-			return this.authenticate(resource, scopes, token, authenticate, accountId, entitlement, target, identity);
+			return this.authenticate(resource, scopes, token, authenticate, accountId, entitlement, target, identity, idToken);
 		}
 
 		if (this._completedTokens.get(key)?.credentialKey === credentialKey) {
@@ -805,7 +805,7 @@ async function forwardAuthenticationToken(
 	};
 	if (options.authTokenCache) {
 		const identity = session?.id && session.account ? { sessionId: session.id, accountId: session.account.id } : undefined;
-		return options.authTokenCache.authenticate(resource, scopes ?? [], token, () => options.authenticate(request), request.accountId, readAgentEntitlementHint(request), options.target, identity);
+		return options.authTokenCache.authenticate(resource, scopes ?? [], token, () => options.authenticate(request), request.accountId, readAgentEntitlementHint(request), options.target, identity, request.idToken);
 	}
 	assertAuthenticationAccepted(await options.authenticate(request));
 	return true;

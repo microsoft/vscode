@@ -2796,8 +2796,13 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	}
 
 	private _encryptAuthentication(params: CommandMap['authenticate']['params']): CommandMap['authenticate']['params'] | Promise<CommandMap['authenticate']['params']> {
-		if (!params.token || params.token.startsWith('copilot-sealed.')) {
+		if (!params.token) {
 			return params;
+		}
+		// Only the token can be sealed, so the ID Token is dropped wherever the token is sealed.
+		const { idToken: _idToken, ...sealable } = params;
+		if (params.token.startsWith('copilot-sealed.')) {
+			return sealable;
 		}
 		try {
 			const value = this.rootState.value;
@@ -2814,7 +2819,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			if (this._isWebPubSubRelay() && !this._trustedAuthenticationTokenSealer) {
 				throw new Error('Relay credentials must be sealed using an independently trusted recipient key.');
 			}
-			return this._sealAuthentication(params, encryption);
+			return this._sealAuthentication(sealable, encryption);
 		} catch (error) {
 			throw new AuthenticationEncryptionError(getErrorMessage(error));
 		}
