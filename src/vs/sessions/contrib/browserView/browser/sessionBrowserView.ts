@@ -10,11 +10,12 @@ import { IWorkbenchContribution } from '../../../../workbench/common/contributio
 import { IBrowserViewWorkbenchService } from '../../../../workbench/contrib/browserView/common/browserView.js';
 import { BrowserEditorInput } from '../../../../workbench/contrib/browserView/common/browserEditorInput.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
-import { IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { ISession } from '../../../services/sessions/common/session.js';
-import { runOnChange } from '../../../../base/common/observable.js';
+import { IEditorGroup, IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
+import { GroupIdentifier } from '../../../../workbench/common/editor.js';
+import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { getFocusedSessionChatSource, getMainWindowHost, IFocusedSessionHostService, ISessionHostService } from '../../../../workbench/services/sessions/browser/sessionHost.js';
+import { ISession } from '../../../../workbench/services/sessions/common/session.js';
+import { IObservable, runOnChange } from '../../../../base/common/observable.js';
 
 export class SessionBrowserViewController extends Disposable implements IWorkbenchContribution {
 
@@ -25,20 +26,23 @@ export class SessionBrowserViewController extends Disposable implements IWorkben
 	 * DisposableMap cleans up lifecycle listeners on deletion/disposal.
 	 */
 	private readonly _trackedInputs = this._register(new DisposableMap<string, { session: ISession; dispose: () => void }>());
+	private readonly _mainWindowSession: IObservable<ISession | undefined>;
 
 	constructor(
 		@ISessionsManagementService private readonly _sessionManagementService: ISessionsManagementService,
-		@ISessionsService private readonly _sessionsService: ISessionsService,
+		@ISessionHostService private readonly _sessionHostService: ISessionHostService,
+		@IFocusedSessionHostService private readonly _focusedSessionHostService: IFocusedSessionHostService,
 		@IBrowserViewWorkbenchService private readonly _browserViewService: IBrowserViewWorkbenchService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
 	) {
 		super();
+		this._mainWindowSession = getMainWindowHost(this._sessionHostService).session;
 
 		// Catch editors opened via normal user/tool actions.
 		this._register(this._editorService.onWillOpenEditor(e => {
 			if (e.editor instanceof BrowserEditorInput) {
-				this._attachLifecycle(e.editor);
+				this._attachLifecycle(e.editor, e.groupId);
 			}
 		}));
 
@@ -48,7 +52,7 @@ export class SessionBrowserViewController extends Disposable implements IWorkben
 		this._register(this._editorGroupsService.onDidAddGroup(group => {
 			for (const editor of group.editors) {
 				if (editor instanceof BrowserEditorInput) {
-					this._attachLifecycle(editor);
+					this._attachLifecycle(editor, group);
 				}
 			}
 		}));
@@ -56,7 +60,7 @@ export class SessionBrowserViewController extends Disposable implements IWorkben
 		// Restrict the window's contextual browser views to those owned by the
 		// active session (or those with no known owning session).
 		const onDidChangeActiveSession = this._register(new Emitter<void>());
-		this._register(runOnChange(this._sessionsService.activeSession, () => onDidChangeActiveSession.fire()));
+		this._register(runOnChange(getFocusedSessionChatSource(this._focusedSessionHostService).session, () => onDidChangeActiveSession.fire()));
 		this._register(this._browserViewService.registerContextualFilter({
 			include: (input, context) => {
 				const tracked = this._trackedInputs.get(input.id);
@@ -64,11 +68,11 @@ export class SessionBrowserViewController extends Disposable implements IWorkben
 				if (!ownerId) {
 					return true; // no owning session known
 				}
-				const owningSession = this._resolveOwningSession(ownerId) ?? tracked?.session;
+				const owningSession = resolveBrowserOwnerSession(this._sessionManagementService, ownerId)?.session ?? tracked?.session;
 				if (!owningSession) {
 					return true; // owning chat/session no longer known; don't hide it
 				}
-				const activeSession = context.activeSessionId ? this._resolveOwningSession(context.activeSessionId) : this._sessionsService.activeSession.read(undefined);
+				const activeSession = context.activeSessionId ? resolveBrowserOwnerSession(this._sessionManagementService, context.activeSessionId)?.session : this._focusedSessionHostService.focusedHost.read(undefined).session.read(undefined);
 				return activeSession?.sessionId === owningSession.sessionId;
 			},
 			onDidChange: onDidChangeActiveSession.event,
@@ -80,12 +84,9 @@ export class SessionBrowserViewController extends Disposable implements IWorkben
 				if (owner.type !== 'agent') {
 					return true; // no owning session known; open in the active session
 				}
-				const owningSession = this._resolveOwningSession(owner.sessionId);
-				if (!owningSession) {
-					return true; // owning chat/session no longer known; open in the active session
-				}
-				const activeSession = this._sessionsService.activeSession.read(undefined);
-				return owningSession.sessionId === activeSession?.sessionId;
+				const owningSession = resolveBrowserOwnerSession(this._sessionManagementService, owner.sessionId)?.session;
+				const activeSession = this._mainWindowSession.get();
+				return !!owningSession && owningSession.sessionId === activeSession?.sessionId;
 			},
 		}));
 
@@ -108,30 +109,16 @@ export class SessionBrowserViewController extends Disposable implements IWorkben
 		}));
 	}
 
-	/**
-	 * Resolves a browser view owner id (the *chat* resource string the
-	 * browser tools stamp onto `IBrowserViewOwner.sessionId`) to the
-	 * `ISession` that owns it. A session's browsers can be opened from any
-	 * of its chats (main, peer, or subagent), so this looks up the owning
-	 * session across all chats rather than comparing against the session's
-	 * own resource directly.
-	 */
-	private _resolveOwningSession(ownerId: string): ISession | undefined {
-		let resource: URI;
-		try {
-			resource = URI.parse(ownerId);
-		} catch {
-			return undefined;
-		}
-		return this._sessionManagementService.getSessionForChatResource(resource)?.session ?? this._sessionManagementService.getSession(resource);
-	}
-
-	private _attachLifecycle(input: BrowserEditorInput): void {
+	private _attachLifecycle(input: BrowserEditorInput, group: IEditorGroup | GroupIdentifier): void {
 		if (this._trackedInputs.has(input.id)) {
 			return;
 		}
 
-		const session = this._sessionsService.activeSession.read(undefined);
+		const owner = input.model?.owner;
+		const host = this._sessionHostService.getHostOfGroup(group);
+		const session = owner?.type === 'agent'
+			? resolveBrowserOwnerSession(this._sessionManagementService, owner.sessionId)?.session
+			: host?.session.get();
 		if (!session) {
 			return; // no session, no lifecycle management needed
 		}
@@ -147,7 +134,7 @@ export class SessionBrowserViewController extends Disposable implements IWorkben
 		}));
 
 		store.add(input.onBeforeDispose(e => {
-			const activeSession = this._sessionsService.activeSession.read(undefined);
+			const activeSession = host?.session.get();
 
 			// If the input is being disposed, but we are not currently in the owning session,
 			// assume a session swap is happening and do not actually dispose the browser yet.
@@ -161,4 +148,21 @@ export class SessionBrowserViewController extends Disposable implements IWorkben
 			this._trackedInputs.deleteAndDispose(input.id);
 		}));
 	}
+}
+
+/**
+ * Resolves a browser view owner id (the *chat* resource string the browser
+ * tools stamp onto `IBrowserViewOwner.sessionId`) to that resource and the
+ * `ISession` that owns it. A session's browsers can be opened from any of its
+ * chats (main, peer, or subagent), so this looks up the owning session across
+ * all chats rather than comparing against the session's own resource directly.
+ */
+export function resolveBrowserOwnerSession(sessionsManagementService: ISessionsManagementService, ownerId: string): { readonly resource: URI; readonly session: ISession | undefined } | undefined {
+	let resource: URI;
+	try {
+		resource = URI.parse(ownerId);
+	} catch {
+		return undefined;
+	}
+	return { resource, session: sessionsManagementService.getSessionForChatResource(resource)?.session ?? sessionsManagementService.getSession(resource) };
 }

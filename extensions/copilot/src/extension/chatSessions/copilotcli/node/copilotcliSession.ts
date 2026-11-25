@@ -830,7 +830,6 @@ export interface ICopilotCLISession extends IDisposable {
 	readonly status: vscode.ChatSessionStatus | undefined;
 	readonly onDidChangeStatus: vscode.Event<vscode.ChatSessionStatus | undefined>;
 	readonly workspace: IWorkspaceInfo;
-	readonly additionalWorkspaces: IWorkspaceInfo[];
 	readonly pendingPrompt: string | undefined;
 	attachStream(stream: vscode.ChatResponseStream): IDisposable;
 	setPermissionLevel(level: string | undefined): void;
@@ -877,9 +876,6 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 	public get workspace() {
 		return this._workspaceInfo;
 	}
-	public get additionalWorkspaces() {
-		return this._additionalWorkspaces;
-	}
 	private _lastUsedModel: string | undefined;
 	private _permissionLevel: string | undefined;
 	private _lastResponseModelId: string | undefined;
@@ -911,7 +907,6 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 		private readonly _workspaceInfo: IWorkspaceInfo,
 		private readonly _agentName: string | undefined,
 		private readonly _sdkSession: Session,
-		private readonly _additionalWorkspaces: IWorkspaceInfo[],
 		private readonly _sandboxConfig: SessionOptions['sandboxConfig'],
 		@ILogService private readonly logService: ILogService,
 		@IWorkspaceService private readonly workspaceService: IWorkspaceService,
@@ -1809,12 +1804,8 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 		if (modelId) {
 			if (modelId !== currentModel) {
 				this._lastUsedModel = modelId;
-				if (this.configurationService.getConfig(ConfigKey.Advanced.CLIThinkingEffortEnabled)) {
-					await raceCancellation(this._sdkSession.setSelectedModel(modelId, reasoningEffort), token);
-				} else {
-					await raceCancellation(this._sdkSession.setSelectedModel(modelId), token);
-				}
-			} else if (reasoningEffort && this._sdkSession.getReasoningEffort() !== reasoningEffort && this.configurationService.getConfig(ConfigKey.Advanced.CLIThinkingEffortEnabled)) {
+				await raceCancellation(this._sdkSession.setSelectedModel(modelId, reasoningEffort), token);
+			} else if (reasoningEffort && this._sdkSession.getReasoningEffort() !== reasoningEffort) {
 				await raceCancellation(this._sdkSession.setSelectedModel(modelId, reasoningEffort), token);
 			}
 		}

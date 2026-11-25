@@ -21,6 +21,12 @@ import { StringDecoder } from 'string_decoder';
 // https://github.com/microsoft/vscode/issues/65693
 const MAX_CLI_LENGTH = 30000;
 
+function assertValidObjectId(sha: string, allowZero = false): void {
+	if (!/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/i.test(sha) || (!allowZero && /^0+$/.test(sha))) {
+		throw new Error(allowZero ? 'Expected a full Git object ID' : 'Expected a full, non-zero Git object ID');
+	}
+}
+
 export interface IGit {
 	path: string;
 	version: string;
@@ -71,6 +77,8 @@ export interface LogFileOptions {
 	readonly reverse?: boolean;
 	readonly sortByAuthorDate?: boolean;
 	readonly shortStats?: boolean;
+	/** Optional. Resolve the path of the file at each commit, which differs from the given file before a rename when following renames. */
+	readonly filePaths?: boolean;
 }
 
 function parseVersion(raw: string): string {
@@ -699,7 +707,14 @@ export class Git {
 			options.cwd = sanitizePath(cwd);
 		}
 
-		return cp.spawn(this.path, args, options);
+		const child = cp.spawn(this.path, args, options);
+
+		// Writing to stdin fails with EPIPE when git fails to spawn or exits before
+		// reading all of its input. The child's `error`/`exit` events already report
+		// the failure, so keep the stream error from becoming an uncaught exception.
+		child.stdin?.on('error', () => { });
+
+		return child;
 	}
 
 	private getCwd(options: SpawnOptions): string | undefined {
@@ -768,6 +783,8 @@ export interface Commit {
 	refNames: string[];
 	shortStat?: CommitShortStat;
 	coAuthors?: CoAuthor[];
+	/** The path of the file at this commit, relative to the repository root. Only set by `logFile` with `filePaths`. */
+	filePath?: string;
 }
 
 export interface RefQuery extends ApiRefQuery {
@@ -969,22 +986,64 @@ export function parseGitCommits(data: string): Commit[] {
 	return commits;
 }
 
+// `--numstat` adds `<added>\t<deleted>\t<path>\0`, or `<added>\t<deleted>\t\0<old path>\0<new path>\0` for renames, after each commit
+const fileLogNumStatRegex = /(([0-9a-f]{40})\n[^\x00]*\x00\n)(?:-|\d+)\t(?:-|\d+)\t(?:\x00[^\x00]*\x00([^\x00]*)|([^\x00]*))\x00/g;
+
+/**
+ * Parses the output of `git log --numstat` for a single file, setting the path of the file at each commit.
+ */
+export function parseGitFileLog(data: string): Commit[] {
+	const filePaths = new Map<string, string>();
+
+	// Remove the `--numstat` records so that the remaining output is parsed like any other log
+	const log = data.replace(fileLogNumStatRegex, (_match, commit: string, hash: string, renamedPath: string | undefined, path: string | undefined) => {
+		filePaths.set(hash, renamedPath ?? path ?? '');
+		return commit;
+	});
+
+	return parseGitCommits(log).map(commit => {
+		const filePath = filePaths.get(commit.hash);
+		return filePath ? { ...commit, filePath } : commit;
+	});
+}
+
 const coAuthorRegex = /^Co-authored-by:\s*(.+?)\s*<([^>]+)>\s*$/gim;
 
 export function parseCoAuthors(message: string): CoAuthor[] {
 	const coAuthors: CoAuthor[] = [];
+	const emails = new Set<string>();
 	let match;
 
 	coAuthorRegex.lastIndex = 0;
 	while ((match = coAuthorRegex.exec(message)) !== null) {
 		const name = match[1].trim();
 		const email = match[2].trim();
-		if (name && email) {
+
+		// Squash merge commit messages repeat the trailers of each squashed commit
+		const emailKey = email.toLowerCase();
+		if (name && email && !emails.has(emailKey)) {
+			emails.add(emailKey);
 			coAuthors.push({ name, email });
 		}
 	}
 
 	return coAuthors;
+}
+
+/**
+ * Removes comment lines from a commit message the way `git stripspace --strip-comments`
+ * does: consecutive empty lines are collapsed into one, and leading and trailing empty
+ * lines are removed.
+ */
+// TODO: Support core.commentChar
+export function stripCommitMessageComments(message: string): string {
+	return message
+		.split(/\r?\n/)
+		.filter(line => !/^\s*#/.test(line))
+		.map(line => line.trim().length === 0 ? '' : line)
+		.join('\n')
+		.replace(/\n{3,}/g, '\n\n')
+		.trim();
 }
 
 const diffShortStatRegex = /(\d+) files? changed(?:, (\d+) insertions?\(\+\))?(?:, (\d+) deletions?\(-\))?/;
@@ -1029,6 +1088,17 @@ export function parseLsFiles(raw: string): LsFilesElement[] {
 		.map(line => /^(\S+)\s+(\S+)\s+(\S+)\s+(.*)$/.exec(line)!)
 		.filter(m => !!m)
 		.map(([, mode, object, stage, file]) => ({ mode, object, stage, file }));
+}
+
+/**
+ * Returns the path of a linked worktree given the content of its `gitdir` file
+ * (`<commonDir>/worktrees/<name>/gitdir`). The content is relative to the folder
+ * containing the `gitdir` file when the worktree uses relative paths (git >= 2.48).
+ */
+export function getWorktreePathFromGitdir(worktreeGitDirPath: string, gitdirContent: string): string {
+	// Remove '/.git' suffix
+	const worktreePath = gitdirContent.replace(/\/.git.*$/, '');
+	return path.isAbsolute(worktreePath) ? worktreePath : path.resolve(worktreeGitDirPath, worktreePath);
 }
 
 const stashRegex = /([0-9a-f]{40})\n(.*)\nstash@{(\d+)}\n(WIP\s)?on\s([^:]+):\s(.*)\n(\d+)\n(\d+)(?:\x00)/gmi;
@@ -1443,7 +1513,11 @@ export class Repository {
 
 	async log(options?: LogOptions, cancellationToken?: CancellationToken): Promise<Commit[]> {
 		const spawnOptions: SpawnOptions = { cancellationToken };
-		const args = ['log', `--format=${COMMIT_FORMAT}`, '-z'];
+		// Depending on the user's Git settings (i18n.commitEncoding, i18n.logOutputEncoding),
+		// commit messages may appear garbled,
+		// so the output encoding for commit messages is forced to UTF-8.
+		// This setting was applied not only here, but also in other places where commit messages are retrieved.
+		const args = ['-c', 'i18n.logOutputEncoding=UTF-8', 'log', `--format=${COMMIT_FORMAT}`, '-z'];
 
 		if (options?.shortStats) {
 			args.push('--shortstat');
@@ -1510,7 +1584,7 @@ export class Repository {
 	}
 
 	async logFile(uri: Uri, options?: LogFileOptions, cancellationToken?: CancellationToken): Promise<Commit[]> {
-		const args = ['log', `--format=${COMMIT_FORMAT}`, '-z'];
+		const args = ['-c', 'i18n.logOutputEncoding=UTF-8', 'log', `--format=${COMMIT_FORMAT}`, '-z'];
 
 		if (options?.maxEntries && !options?.reverse) {
 			args.push(`-n${options.maxEntries}`);
@@ -1527,6 +1601,10 @@ export class Repository {
 
 		if (options?.shortStats) {
 			args.push('--shortstat');
+		}
+
+		if (options?.filePaths) {
+			args.push('--numstat');
 		}
 
 		if (options?.sortByAuthorDate) {
@@ -1546,7 +1624,7 @@ export class Repository {
 				return [];
 			}
 
-			return parseGitCommits(result.stdout);
+			return options?.filePaths ? parseGitFileLog(result.stdout) : parseGitCommits(result.stdout);
 		} catch (err) {
 			// Repository has no commits yet
 			if (/does not have any commits yet/.test(err.stderr)) {
@@ -1652,20 +1730,67 @@ export class Repository {
 	}
 
 	async getGitFilePath(ref: string, filePath: string): Promise<string> {
-		const elements: { file: string }[] = ref
-			? await this.lstree(ref, undefined, { recursive: true })
-			: await this.lsfiles(this.repositoryRoot);
+		const relativePath = this.sanitizeRelativePath(filePath);
+		const gitRelativePath = ref
+			? await this.findTreePathIgnoreCase(ref, relativePath)
+			: await this.findIndexPathIgnoreCase(relativePath);
 
-		const relativePathLowercase = this.sanitizeRelativePath(filePath).toLowerCase();
-		const element = elements.find(file => file.file.toLowerCase() === relativePathLowercase);
-
-		if (!element) {
+		if (!gitRelativePath) {
 			throw new GitError({
-				message: `Git relative path not found. Was looking for ${relativePathLowercase} among ${JSON.stringify(elements.map(({ file }) => file), null, 2)}`,
+				message: `Git relative path not found. Was looking for ${relativePath}`,
 			});
 		}
 
-		return path.join(this.repositoryRoot, element.file);
+		return path.join(this.repositoryRoot, gitRelativePath);
+	}
+
+	private async findIndexPathIgnoreCase(relativePath: string): Promise<string | undefined> {
+		const relativePathLowercase = relativePath.toLowerCase();
+		const elements = await this.lsfiles(`:(icase,literal)${relativePath}`);
+
+		return elements.find(element => element.file.toLowerCase() === relativePathLowercase)?.file;
+	}
+
+	/**
+	 * Resolves a relative path against the tree of a ref, ignoring the case of
+	 * each path segment. Lists one folder at a time so that the lookup does not
+	 * have to list the whole tree.
+	 */
+	private async findTreePathIgnoreCase(ref: string, relativePath: string): Promise<string | undefined> {
+		const segments = relativePath.split('/');
+
+		// Folders can only match the intermediate segments of the path
+		const findInFolder = async (folder: string, pathLowercase: string, isFolder: boolean) => {
+			const elements = await this.lstree(ref, folder ? `${folder}/` : undefined);
+			return elements
+				.filter(element => (element.type === 'tree') === isFolder && element.file.toLowerCase() === pathLowercase)
+				.map(element => element.file);
+		};
+
+		// Common case: only the case of the file name differs
+		const dirname = segments.slice(0, -1).join('/');
+		const [file] = await findInFolder(dirname, relativePath.toLowerCase(), false);
+		if (file || !dirname) {
+			return file;
+		}
+
+		// The case of a folder differs: resolve one segment at a time. A tree can
+		// contain folders whose names only differ in case, so try each of them.
+		const resolve = async (folder: string, index: number): Promise<string | undefined> => {
+			const candidate = folder ? `${folder}/${segments[index]}` : segments[index];
+			const isFolder = index < segments.length - 1;
+
+			for (const resolved of await findInFolder(folder, candidate.toLowerCase(), isFolder)) {
+				const result = isFolder ? await resolve(resolved, index + 1) : resolved;
+				if (result) {
+					return result;
+				}
+			}
+
+			return undefined;
+		};
+
+		return resolve('', 0);
 	}
 
 	async detectObjectType(object: string): Promise<{ mimetype: string; encoding?: string }> {
@@ -1968,7 +2093,7 @@ export class Repository {
 
 		if (paths && paths.length) {
 			for (const chunk of splitInChunks(paths.map(p => this.sanitizeRelativePath(p)), MAX_CLI_LENGTH)) {
-				await this.exec([...args, '--', ...chunk]);
+				await this.exec(['--literal-pathspecs', ...args, '--', ...chunk]);
 			}
 		} else {
 			await this.exec([...args, '--', '.']);
@@ -1976,7 +2101,7 @@ export class Repository {
 	}
 
 	async rm(paths: string[]): Promise<void> {
-		const args = ['rm', '--'];
+		const args = ['--literal-pathspecs', 'rm', '--'];
 
 		if (!paths || !paths.length) {
 			return;
@@ -2206,8 +2331,26 @@ export class Repository {
 		await this.exec(args);
 	}
 
-	async merge(ref: string): Promise<void> {
-		const args = ['merge', ref];
+	async updateRef(ref: string, newSha: string, oldSha: string): Promise<void> {
+		const branch = ref.slice('refs/heads/'.length);
+		if (!ref.startsWith('refs/heads/') || !branch || branch.startsWith('-')) {
+			throw new Error('Expected a local branch ref');
+		}
+
+		assertValidObjectId(newSha);
+		assertValidObjectId(oldSha, true);
+		await this.exec(['check-ref-format', '--branch', branch]);
+		await this.exec(['update-ref', '--no-deref', ref, newSha, oldSha]);
+	}
+
+	async merge(ref: string, opts?: { signCommit?: boolean }): Promise<void> {
+		const args = ['merge'];
+
+		if (opts?.signCommit) {
+			args.push('-S');
+		}
+
+		args.push(ref);
 
 		try {
 			await this.exec(args);
@@ -2319,6 +2462,14 @@ export class Repository {
 		await this.exec(args);
 	}
 
+	async resetKeep(ref: string): Promise<void> {
+		if (!ref || ref.startsWith('-')) {
+			throw new Error('Expected a commit reference');
+		}
+
+		await this.exec(['reset', '--keep', ref]);
+	}
+
 	async revert(treeish: string, paths: string[]): Promise<void> {
 		const result = await this.exec(['branch']);
 		let args: string[];
@@ -2333,7 +2484,7 @@ export class Repository {
 		try {
 			if (paths && paths.length > 0) {
 				for (const chunk of splitInChunks(paths.map(p => this.sanitizeRelativePath(p)), MAX_CLI_LENGTH)) {
-					await this.exec([...args, '--', ...chunk]);
+					await this.exec(['--literal-pathspecs', ...args, '--', ...chunk]);
 				}
 			} else {
 				await this.exec([...args, '--', '.']);
@@ -2362,7 +2513,7 @@ export class Repository {
 
 		if (paths.length > 0) {
 			for (const chunk of splitInChunks(paths.map(p => this.sanitizeRelativePath(p)), MAX_CLI_LENGTH)) {
-				await this.exec([...args, '--', ...chunk]);
+				await this.exec(['--literal-pathspecs', ...args, '--', ...chunk]);
 			}
 		} else {
 			await this.exec([...args, '--', '.']);
@@ -2435,17 +2586,16 @@ export class Repository {
 			env: { 'GIT_HTTP_USER_AGENT': this.git.userAgent }
 		};
 
-		args.push(options.remote);
-
-		for (const tag of options.tags) {
-			args.push(`refs/tags/${tag}:refs/tags/${tag}`);
-		}
-
 		if (options.force) {
 			args.push('--force');
 		}
 
-		await this.exec(args, spawnOptions);
+		args.push(options.remote);
+
+		const refspecs = options.tags.map(tag => `refs/tags/${tag}:refs/tags/${tag}`);
+		for (const chunk of splitInChunks(refspecs, MAX_CLI_LENGTH)) {
+			await this.exec([...args, ...chunk], spawnOptions);
+		}
 	}
 
 	async pull(rebase?: boolean, remote?: string, branch?: string, options: PullOptions = {}): Promise<boolean> {
@@ -2501,13 +2651,21 @@ export class Repository {
 		}
 	}
 
-	async rebase(branch: string, options: PullOptions = {}): Promise<void> {
+	async rebase(branch: string, options: { onto?: string; rebaseMerges?: boolean } = {}): Promise<void> {
 		const args = ['rebase'];
+
+		if (options.rebaseMerges) {
+			args.push('--rebase-merges');
+		}
+
+		if (options.onto !== undefined) {
+			args.push('--onto', options.onto);
+		}
 
 		args.push(branch);
 
 		try {
-			await this.exec(args, options);
+			await this.exec(args);
 		} catch (err) {
 			if (/^CONFLICT \([^)]+\): \b/m.test(err.stdout || '')) {
 				err.gitErrorCode = GitErrorCodes.Conflict;
@@ -2519,11 +2677,11 @@ export class Repository {
 		}
 	}
 
-	async push(remote?: string, name?: string, setUpstream: boolean = false, followTags = false, forcePushMode?: ForcePushMode, tags = false): Promise<void> {
+	async push(remote?: string, name?: string, setUpstream: boolean = false, followTags = false, forcePushMode?: ForcePushMode, tags = false, lease?: { branch: string; expectedSha: string }): Promise<void> {
 		const args = ['push'];
 
 		if (forcePushMode === ForcePushMode.ForceWithLease || forcePushMode === ForcePushMode.ForceWithLeaseIfIncludes) {
-			args.push('--force-with-lease');
+			args.push(lease ? `--force-with-lease=refs/heads/${lease.branch}:${lease.expectedSha}` : '--force-with-lease');
 			if (forcePushMode === ForcePushMode.ForceWithLeaseIfIncludes && this._git.compareGitVersionTo('2.30') !== -1) {
 				args.push('--force-if-includes');
 			}
@@ -2537,6 +2695,8 @@ export class Repository {
 
 		if (followTags) {
 			args.push('--follow-tags');
+		} else if (lease) {
+			args.push('--no-follow-tags');
 		}
 
 		if (tags) {
@@ -2572,6 +2732,17 @@ export class Repository {
 
 			throw err;
 		}
+	}
+
+	async pushRefWithLease(remote: string, branch: string, newSha: string, expectedSha: string): Promise<void> {
+		if (!remote || remote.startsWith('-') || !branch || branch.startsWith('-')) {
+			throw new Error('Expected a remote and a branch name');
+		}
+
+		assertValidObjectId(newSha);
+		assertValidObjectId(expectedSha, true);
+		await this.exec(['check-ref-format', '--branch', branch]);
+		await this.push(remote, `${newSha}:refs/heads/${branch}`, false, false, ForcePushMode.ForceWithLease, false, { branch, expectedSha });
 	}
 
 	async cherryPick(commitHash: string): Promise<void> {
@@ -2612,7 +2783,7 @@ export class Repository {
 
 	async blame2(path: string, ref?: string, ignoreWhitespace?: boolean): Promise<BlameInformation[] | undefined> {
 		try {
-			const args = ['blame', '--root', '--incremental'];
+			const args = ['-c', 'i18n.logOutputEncoding=UTF-8', 'blame', '--root', '--incremental'];
 
 			if (ignoreWhitespace) {
 				args.push('-w');
@@ -2999,9 +3170,9 @@ export class Repository {
 		const fn = (line: string): Ref | null => {
 			let match: RegExpExecArray | null;
 
-			if (match = /^([0-9a-f]{40})\trefs\/heads\/([^ ]+)$/.exec(line)) {
-				return { name: match[1], commit: match[2], type: RefType.Head };
-			} else if (match = /^([0-9a-f]{40})\trefs\/tags\/([^ ]+)$/.exec(line)) {
+			if (match = /^((?:[0-9a-f]{40}|[0-9a-f]{64}))\trefs\/heads\/([^ ]+)$/.exec(line)) {
+				return { name: match[2], commit: match[1], type: RefType.Head };
+			} else if (match = /^((?:[0-9a-f]{40}|[0-9a-f]{64}))\trefs\/tags\/([^ ]+)$/.exec(line)) {
 				return { name: match[2], commit: match[1], type: RefType.Tag };
 			}
 
@@ -3015,7 +3186,7 @@ export class Repository {
 	}
 
 	async getStashes(): Promise<Stash[]> {
-		const result = await this.exec(['stash', 'list', `--format=${STASH_FORMAT}`, '-z']);
+		const result = await this.exec(['-c', 'i18n.logOutputEncoding=UTF-8', 'stash', 'list', `--format=${STASH_FORMAT}`, '-z']);
 		return parseGitStashes(result.stdout.trim());
 	}
 
@@ -3062,8 +3233,7 @@ export class Repository {
 
 					result.push({
 						name: dirent.name,
-						// Remove '/.git' suffix
-						path: gitdirContent.replace(/\/.git.*$/, ''),
+						path: getWorktreePathFromGitdir(path.dirname(gitdirPath), gitdirContent),
 						// Remove 'ref: ' prefix
 						ref: headContent.replace(/^ref: /, ''),
 						// Detached if HEAD does not start with 'ref: '
@@ -3141,7 +3311,8 @@ export class Repository {
 			if (/fetch/i.test(type)) {
 				remote.fetchUrl = url;
 			} else if (/push/i.test(type)) {
-				remote.pushUrl = url;
+				// A remote can have multiple push urls; keep the first one, which is the primary one
+				remote.pushUrl ??= url;
 			} else {
 				remote.fetchUrl = url;
 				remote.pushUrl = url;
@@ -3251,17 +3422,12 @@ export class Repository {
 		return this.getBranch(result.stdout.trim());
 	}
 
-	// TODO: Support core.commentChar
-	stripCommitMessageComments(message: string): string {
-		return message.replace(/^\s*#.*$\n?/gm, '').trim();
-	}
-
 	async getSquashMessage(): Promise<string | undefined> {
 		const squashMsgPath = path.join(this.repositoryRoot, '.git', 'SQUASH_MSG');
 
 		try {
 			const raw = await fs.readFile(squashMsgPath, 'utf8');
-			return this.stripCommitMessageComments(raw);
+			return stripCommitMessageComments(raw);
 		} catch {
 			return undefined;
 		}
@@ -3272,7 +3438,7 @@ export class Repository {
 
 		try {
 			const raw = await fs.readFile(mergeMsgPath, 'utf8');
-			return this.stripCommitMessageComments(raw);
+			return stripCommitMessageComments(raw);
 		} catch {
 			return undefined;
 		}
@@ -3296,14 +3462,14 @@ export class Repository {
 			}
 
 			const raw = await fs.readFile(templatePath, 'utf8');
-			return this.stripCommitMessageComments(raw);
+			return stripCommitMessageComments(raw);
 		} catch (err) {
 			return '';
 		}
 	}
 
 	async getCommit(ref: string): Promise<Commit> {
-		const result = await this.exec(['show', '-s', '--decorate=full', '--shortstat', `--format=${COMMIT_FORMAT}`, '-z', ref, '--']);
+		const result = await this.exec(['-c', 'i18n.logOutputEncoding=UTF-8', 'show', '-s', '--decorate=full', '--shortstat', `--format=${COMMIT_FORMAT}`, '-z', ref, '--']);
 		const commits = parseGitCommits(result.stdout);
 		if (commits.length === 0) {
 			return Promise.reject<Commit>('bad commit format');
@@ -3313,7 +3479,7 @@ export class Repository {
 
 	async showChanges(ref: string): Promise<string> {
 		try {
-			const result = await this.exec(['log', '-p', '-n1', ref, '--']);
+			const result = await this.exec(['-c', 'i18n.logOutputEncoding=UTF-8', 'log', '-p', '-n1', ref, '--']);
 			return result.stdout.trim();
 		} catch (err) {
 			if (/^fatal: bad revision '.+'/.test(err.stderr || '')) {
@@ -3326,7 +3492,7 @@ export class Repository {
 
 	async showChangesBetween(ref1: string, ref2: string, path?: string): Promise<string> {
 		try {
-			const args = ['log', '-p', `${ref1}..${ref2}`, '--'];
+			const args = ['-c', 'i18n.logOutputEncoding=UTF-8', 'log', '-p', `${ref1}..${ref2}`, '--'];
 			if (path) {
 				args.push(this.sanitizeRelativePath(path));
 			}

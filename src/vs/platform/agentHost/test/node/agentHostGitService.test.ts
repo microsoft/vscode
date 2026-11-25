@@ -4,43 +4,403 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { tmpdir } from 'os';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { formatGitError, getRemoteTrackingRef, GitCheckoutProgressParser, isRetryableWorktreeRemovalError, parseChangedPaths, parseDefaultBranchRef, parseFetchRemoteUrls, parseGitDiffRawNumstat, parseGitHubRepoFromRemote, parseGitStatusV2, parseHasGitHubRemote, parseSingleLsTreeEntry, parseUntrackedPaths, summarizeStderrForError } from '../../node/agentHostGitService.js';
+import { AgentHostGitService, canRestageOntoIndexCopy, formatGitError, GitCheckoutProgressParser, isRetryableWorktreeRemovalError, parseChangedPaths, parseDefaultBranchRef, parseDefaultRemoteBranchRef, parseFetchRemoteUrls, parseGitDiffRawNumstat, parseGitHubRepoFromRemote, parseGitStatusV2, parseGitWorktrees, parseHasGitHubRemote, parseSingleLsTreeEntry, parseUntrackedPaths, selectDefaultPushRemote, summarizeStderrForError } from '../../node/agentHostGitService.js';
 import { buildGitBlobUri } from '../../node/gitDiffContent.js';
 import { URI } from '../../../../base/common/uri.js';
-import { EMPTY_TREE_OBJECT, getBranchCompletions, resolveDiffBaseBranchName } from '../../common/agentHostGitService.js';
+import { Branch, EMPTY_TREE_OBJECT, getBaseBranchLabel, getBranchCompletions, GitRefType, IRefQuery, parseBaseBranchRef } from '../../common/agentHostGitService.js';
 import { needsSessionGitStateRefresh } from '../../common/state/sessionState.js';
+import { DeferredPromise, timeout } from '../../../../base/common/async.js';
+import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
+import { AgentHostGitReadTelemetry } from '../../node/agentHostGitReadTelemetry.js';
+import { mock } from '../../../../base/test/common/mock.js';
+import { IFileService } from '../../../files/common/files.js';
+import { INativeEnvironmentService } from '../../../environment/common/environment.js';
+import { NullLogService } from '../../../log/common/log.js';
+import { gitServiceArguments, type IGitServiceTestOptions } from './agentHostGitServiceTestUtils.js';
+import { TestExperimentTriggerTelemetryService } from '../../../telemetry/test/common/experimentTriggerTestUtils.js';
+import { AgentHostGitCoalesceReadsSettingId } from '../../common/agentService.js';
+import { AgentHostGitCoalesceReadsConfigKey } from '../../common/agentHostSchema.js';
+import { CopilotCliVSCodeAssignmentContextKey } from '../../common/copilotCliConfig.js';
 
 suite('AgentHostGitService', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('maps branches and GitHub pull request refs to origin tracking refs', () => {
+	function gitArguments(options?: IGitServiceTestOptions) {
+		return gitServiceArguments(store, new class extends mock<IFileService>() { }(), new class extends mock<INativeEnvironmentService>() { }(), new NullLogService(), options);
+	}
+
+	test('parses managed inventory branches and unquoted paths without splitting embedded newlines', () => {
+		const path = '/repo.worktrees/path with\n"quotes"';
+		assert.deepStrictEqual(parseGitWorktrees(`worktree /repo\0HEAD abc\0branch refs/heads/main\0\0worktree ${path}\0HEAD def\0branch refs/heads/agents/recovered\0\0worktree /detached\0HEAD abc\0detached\0\0`), [
+			{ path: URI.file('/repo'), branchName: 'main' },
+			{ path: URI.file(path), branchName: 'agents/recovered' },
+			{ path: URI.file('/detached'), branchName: undefined },
+		]);
+	});
+
+	test('overlapping branch lookups share work only for the same directory and branch', async () => {
+		const reads: { directory: string; pattern: IRefQuery['pattern'] }[] = [];
+		const answers: DeferredPromise<Branch[]>[] = [];
+		const git = store.add(new class extends AgentHostGitService {
+			override getBranches(directory: URI, query?: IRefQuery): Promise<Branch[]> {
+				reads.push({ directory: directory.toString(), pattern: query?.pattern });
+				const answer = new DeferredPromise<Branch[]>();
+				answers.push(answer);
+				return answer.p;
+			}
+		}(...gitArguments()));
+		const directory = URI.file('/repo');
+		const first = git.getBranch(directory, 'main');
+		const shared = git.getBranch(directory, 'main');
+		const otherBranch = git.getBranch(directory, 'feature');
+		const otherDirectory = git.getBranch(URI.file('/other'), 'main');
+		await answers[0].complete([{ kind: GitRefType.Head, name: 'main', ref: 'refs/heads/main' }]);
+		await answers[1].complete([{ kind: GitRefType.Head, name: 'feature', ref: 'refs/heads/feature' }]);
+		await answers[2].complete([]);
+		const results = await Promise.all([first, shared, otherBranch, otherDirectory]);
+		const refreshed = git.getBranch(directory, 'main');
+		await answers[3].complete([]);
 		assert.deepStrictEqual({
-			branch: getRemoteTrackingRef('feature'),
-			pullRequest: getRemoteTrackingRef('refs/pull/42/head'),
+			shared: first === shared, reads, results: results.map(branch => branch?.name), refreshed: await refreshed,
 		}, {
-			branch: {
-				branchName: 'feature',
-				remoteBranch: 'origin/feature',
-				remoteRef: 'refs/remotes/origin/feature',
-				sourceRef: 'refs/heads/feature',
-			},
-			pullRequest: {
-				branchName: 'pull/42/head',
-				remoteBranch: 'origin/pull/42/head',
-				remoteRef: 'refs/remotes/origin/pull/42/head',
-				sourceRef: 'refs/pull/42/head',
-			},
+			shared: true,
+			reads: [
+				{ directory: directory.toString(), pattern: ['refs/heads/main', 'refs/remotes/main'] },
+				{ directory: directory.toString(), pattern: ['refs/heads/feature', 'refs/remotes/feature'] },
+				{ directory: URI.file('/other').toString(), pattern: ['refs/heads/main', 'refs/remotes/main'] },
+				{ directory: directory.toString(), pattern: ['refs/heads/main', 'refs/remotes/main'] },
+			],
+			results: ['main', 'main', 'feature', undefined], refreshed: undefined,
 		});
 	});
 
-	test('sorts the current and default branches before recent branches and applying the limit', () => {
+	test('a rejected shared branch lookup is surfaced to every caller and can be retried', async () => {
+		const failure = new DeferredPromise<Branch[]>();
+		let reads = 0;
+		const git = store.add(new class extends AgentHostGitService {
+			override getBranches(): Promise<Branch[]> {
+				reads++;
+				return reads === 1 ? failure.p : Promise.resolve([]);
+			}
+		}(...gitArguments()));
+		const directory = URI.file('/repo');
+		const results = Promise.allSettled([git.getBranch(directory, 'main'), git.getBranch(directory, 'main')]);
+		const error = new Error('Git unavailable');
+		await failure.error(error);
+		const failed = await results;
+		assert.deepStrictEqual({ failed, retried: await git.getBranch(directory, 'main'), reads }, {
+			failed: [{ status: 'rejected', reason: error }, { status: 'rejected', reason: error }],
+			retried: undefined, reads: 2,
+		});
+	});
+
+	suite('read-only git commands', () => {
+		function createGit(options?: IGitServiceTestOptions) {
+			const spawned: string[] = [];
+			const answers: DeferredPromise<string | undefined>[] = [];
+			let running = 0;
+			let peak = 0;
+			const args = gitArguments(options);
+			const git = store.add(new class extends AgentHostGitService {
+				run(directory: URI, args: string[], options?: { readonly throwOnError?: boolean; readonly failFastAfterTimeout?: boolean }) {
+					return this._runGit(directory, args, options);
+				}
+				protected override _spawnGit(directory: URI, args: readonly string[], _options?: unknown, onTimedOut?: () => void): Promise<string | undefined> {
+					spawned.push(`${directory.path} ${args.join(' ')}`);
+					const answer = new DeferredPromise<string | undefined>();
+					answers.push(answer);
+					running++;
+					peak = Math.max(peak, running);
+					timedOut.push(() => onTimedOut?.());
+					return answer.p.finally(() => running--);
+				}
+			}(...args));
+			const timedOut: (() => void)[] = [];
+			return { git, configurationService: args[3], spawned, answers, timedOut, peak: () => peak };
+		}
+
+		test('identical concurrent reads share one process and later reads spawn again', async () => {
+			const { git, spawned, answers } = createGit();
+			const directory = URI.file('/repo');
+			const reads = [git.run(directory, ['status', '-z']), git.run(directory, ['status', '-z']), git.run(directory, ['status', '-z']), git.run(URI.file('/other'), ['status', '-z']), git.run(directory, ['rev-parse', 'HEAD'])];
+			answers.forEach((answer, index) => answer.complete(`out${index}`));
+			const results = await Promise.all(reads);
+			const next = git.run(directory, ['status', '-z']);
+			answers[answers.length - 1].complete('later');
+			assert.deepStrictEqual({ spawned, results, next: await next }, {
+				spawned: ['/repo status -z', '/other status -z', '/repo rev-parse HEAD', '/repo status -z'],
+				results: ['out0', 'out0', 'out0', 'out1', 'out2'],
+				next: 'later',
+			});
+		});
+
+		test('a write makes later reads start their own process', async () => {
+			const { git, spawned, answers } = createGit();
+			const directory = URI.file('/repo');
+			const before = git.run(directory, ['status', '-z']);
+			const write = git.run(directory, ['checkout', 'main']);
+			const after = git.run(directory, ['status', '-z']);
+			answers.forEach(answer => answer.complete('ok'));
+			await Promise.all([before, write, after]);
+			assert.deepStrictEqual(spawned, ['/repo status -z', '/repo checkout main', '/repo status -z']);
+		});
+
+		test('a write in a linked worktree or a ref deletion stops later reads from joining reads already running', async () => {
+			const { git, spawned, answers } = createGit();
+			const repository = URI.file('/repo');
+			const beforeFetch = git.run(repository, ['merge-base', 'a', 'b']);
+			const fetch = git.run(URI.file('/repo.worktrees/session'), ['fetch', 'origin']);
+			const afterFetch = git.run(repository, ['merge-base', 'a', 'b']);
+			answers.forEach(answer => answer.complete('ok'));
+			await Promise.all([beforeFetch, fetch, afterFetch]);
+
+			// A directory that exists, because the deletion runs a real git process there.
+			const directory = URI.file(tmpdir());
+			const beforeDeletion = git.run(directory, ['for-each-ref', 'refs/heads']);
+			await git.deleteRefs(directory, ['refs/heads/agent-host-git-test-missing']);
+			const afterDeletion = git.run(directory, ['for-each-ref', 'refs/heads']);
+			answers.forEach(answer => !answer.isSettled && answer.complete('ok'));
+			await Promise.all([beforeDeletion, afterDeletion]);
+			assert.deepStrictEqual(spawned, [
+				'/repo merge-base a b',
+				'/repo.worktrees/session fetch origin',
+				'/repo merge-base a b',
+				`${directory.path} for-each-ref refs/heads`,
+				`${directory.path} for-each-ref refs/heads`,
+			]);
+		});
+
+		test('deleting refs in a directory that is not a repository resolves although git exits before reading its input', async () => {
+			const { git } = createGit();
+			// Enough input that the write fails once git has exited; a handled EPIPE must not surface as an uncaught error.
+			const refs = Array.from({ length: 50_000 }, (_, index) => `refs/heads/agent-host-git-test-missing-${index}`);
+			await git.deleteRefs(URI.file(tmpdir()), refs);
+		});
+
+		test('a caller that joins a running read is measured from its own request', () => runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 100 }, async () => {
+			const events: { reads: unknown; sharedReads: unknown; verySlowReads: unknown }[] = [];
+			class RecordingTelemetryService extends TestExperimentTriggerTelemetryService {
+				override publicLog2(eventName?: string, data?: object): void {
+					super.publicLog2(eventName, data);
+					if (eventName === 'agentHost.gitReads' && data) {
+						const { reads, sharedReads, verySlowReads } = data as Record<string, unknown>;
+						events.push({ reads, sharedReads, verySlowReads });
+					}
+				}
+			}
+			const { git, answers } = createGit({ coalesceReads: true, telemetryService: new RecordingTelemetryService() });
+			const directory = URI.file('/repo');
+			const first = git.run(directory, ['status', '-z']);
+			await timeout(1_000);
+			const joined = git.run(directory, ['status', '-z']);
+			await timeout(20_000);
+			answers[0].complete('out');
+			await Promise.all([first, joined]);
+			git.dispose();
+			assert.deepStrictEqual(events, [{ reads: 2, sharedReads: 1, verySlowReads: 2 }]);
+		}));
+
+		test('a read that completes after its window was reported is reported with the next window', () => {
+			const events: { reads: unknown; readTotalMs: unknown; timeouts: unknown; slowReads: unknown }[] = [];
+			class RecordingTelemetryService extends TestExperimentTriggerTelemetryService {
+				override publicLog2(eventName?: string, data?: object): void {
+					super.publicLog2(eventName, data);
+					if (eventName === 'agentHost.gitReads' && data) {
+						const { reads, readTotalMs, timeouts, slowReads } = data as Record<string, unknown>;
+						events.push({ reads, readTotalMs, timeouts, slowReads });
+					}
+				}
+			}
+			const telemetry = store.add(new AgentHostGitReadTelemetry(new RecordingTelemetryService()));
+			telemetry.readRequested('coalesced');
+			telemetry.flush();
+			telemetry.spawnTimedOut();
+			telemetry.readCompleted(30_000);
+			telemetry.flush();
+			assert.deepStrictEqual(events, [
+				{ reads: 1, readTotalMs: 0, timeouts: 0, slowReads: 0 },
+				{ reads: 0, readTotalMs: 30_000, timeouts: 1, slowReads: 1 },
+			]);
+		});
+
+		test('the final window is reported when the host asks for a flush at shutdown', () => {
+			const events: { reads: unknown }[] = [];
+			class RecordingTelemetryService extends TestExperimentTriggerTelemetryService {
+				override publicLog2(eventName?: string, data?: object): void {
+					super.publicLog2(eventName, data);
+					if (eventName === 'agentHost.gitReads' && data) {
+						events.push({ reads: (data as Record<string, unknown>).reads });
+					}
+				}
+			}
+			const { git, answers } = createGit({ coalesceReads: true, telemetryService: new RecordingTelemetryService() });
+			git.run(URI.file('/repo'), ['status', '-z']);
+			git.flushTelemetry();
+			answers[0].complete('out');
+			assert.deepStrictEqual(events, [{ reads: 1 }]);
+		});
+
+		test('distinct reads never exceed the host-wide limit', async () => {
+			const { git, spawned, answers, peak } = createGit();
+			const reads: Promise<string | undefined>[] = [];
+			for (let i = 0; i < 50; i++) {
+				reads.push(git.run(URI.file(`/repo${i}`), ['status', '-z']));
+			}
+			while (answers.length < 50) {
+				answers.filter(a => !a.isSettled).forEach(a => a.complete('ok'));
+				await new Promise(resolve => setTimeout(resolve, 0));
+			}
+			answers.forEach(a => !a.isSettled && a.complete('ok'));
+			await Promise.all(reads);
+			assert.deepStrictEqual({ spawned: spawned.length, peak: peak() }, { spawned: 50, peak: 8 });
+		});
+
+		test('a read that just timed out is not started again right away when its caller opts in', async () => {
+			const { git, spawned, answers, timedOut } = createGit();
+			const directory = URI.file('/repo');
+			const first = git.run(directory, ['status', '-z'], { failFastAfterTimeout: true });
+			timedOut[0]();
+			answers[0].complete(undefined);
+			await first;
+			const skipped = await git.run(directory, ['status', '-z'], { failFastAfterTimeout: true });
+			const other = git.run(directory, ['status', '-z']);
+			answers[1].complete('fresh');
+			assert.deepStrictEqual({ spawned, skipped, other: await other }, { spawned: ['/repo status -z', '/repo status -z'], skipped: undefined, other: 'fresh' });
+		});
+
+		test('with the setting off every read spawns its own process, unlimited and never skipped', async () => {
+			const { git, spawned, answers, timedOut, peak } = createGit({ coalesceReads: false });
+			const directory = URI.file('/repo');
+			const shared = [git.run(directory, ['status', '-z']), git.run(directory, ['status', '-z'])];
+			const many = Array.from({ length: 20 }, (_, index) => git.run(directory, ['rev-parse', `ref${index}`]));
+			timedOut[0]();
+			answers.forEach(answer => answer.complete(undefined));
+			await Promise.all([...shared, ...many]);
+			const next = git.run(directory, ['status', '-z'], { failFastAfterTimeout: true });
+			answers[answers.length - 1].complete(undefined);
+			await next;
+			assert.deepStrictEqual({ spawned: spawned.length, peak: peak() }, { spawned: 23, peak: 22 });
+		});
+
+		test('reports the experiment trigger and one aggregated event naming the arm', async () => {
+			class RecordingTelemetryService extends TestExperimentTriggerTelemetryService {
+				readonly events: { arm: unknown; reads: unknown; sharedReads: unknown; failFastSkips: unknown }[] = [];
+				override publicLog2(eventName?: string, data?: object): void {
+					super.publicLog2(eventName, data);
+					if (eventName === 'agentHost.gitReads' && data) {
+						const { arm, reads, sharedReads, failFastSkips } = data as Record<string, unknown>;
+						this.events.push({ arm, reads, sharedReads, failFastSkips });
+					}
+				}
+			}
+			const results: Record<string, { triggers: string[]; events: unknown[] }> = {};
+			for (const coalesceReads of [true, false]) {
+				const telemetryService = new RecordingTelemetryService();
+				const { git, configurationService, answers } = createGit({ coalesceReads, telemetryService });
+				configurationService.publishRootTransientValues({ [CopilotCliVSCodeAssignmentContextKey]: 'assignment-context' });
+				const directory = URI.file('/repo');
+				const reads = [git.run(directory, ['status', '-z']), git.run(directory, ['status', '-z'])];
+				answers.forEach(answer => answer.complete('out'));
+				await Promise.all(reads);
+				git.dispose();
+				results[coalesceReads ? 'on' : 'off'] = { triggers: telemetryService.triggers, events: telemetryService.events };
+			}
+			const trigger = [`config.${AgentHostGitCoalesceReadsSettingId}`];
+			assert.deepStrictEqual(results, {
+				on: { triggers: trigger, events: [{ arm: 'coalesced', reads: 2, sharedReads: 1, failFastSkips: 0 }] },
+				off: { triggers: trigger, events: [{ arm: 'passthrough', reads: 2, sharedReads: 0, failFastSkips: 0 }] },
+			});
+		});
+		test('a git command that fails to start leaves no live process counted', async () => {
+			const events: unknown[] = [];
+			class RecordingTelemetryService extends TestExperimentTriggerTelemetryService {
+				override publicLog2(eventName?: string, data?: object): void {
+					super.publicLog2(eventName, data);
+					if (eventName === 'agentHost.gitReads' && data) {
+						events.push({ arm: (data as Record<string, unknown>).arm, spawns: (data as Record<string, unknown>).spawns, peakLiveProcesses: (data as Record<string, unknown>).peakLiveProcesses });
+					}
+				}
+			}
+			const args = gitArguments({ coalesceReads: true, telemetryService: new RecordingTelemetryService() });
+			const git = store.add(new class extends AgentHostGitService {
+				run(directory: URI, args: string[]) {
+					return this._runGit(directory, args);
+				}
+			}(...args));
+			const missing = URI.joinPath(URI.file(tmpdir()), 'agent-host-git-missing-directory');
+			// Sequential, so a leaked count would show as a growing peak in the window that follows.
+			for (const ref of ['a', 'b', 'c']) {
+				await git.run(missing, ['rev-parse', ref]);
+			}
+			args[3].updateRootConfig({ [AgentHostGitCoalesceReadsConfigKey]: false });
+			await git.run(missing, ['rev-parse', 'd']);
+			git.dispose();
+			assert.deepStrictEqual(events, [
+				{ arm: 'coalesced', spawns: 3, peakLiveProcesses: 1 },
+				{ arm: 'passthrough', spawns: 1, peakLiveProcesses: 1 },
+			]);
+		});
+	});
+
+	suite('getRepositoryRoot', () => {
+		// An existing directory, so lookups reach the stubbed git probe.
+		const directory = URI.file(tmpdir());
+
+		function createGitService(runGit: () => Promise<string | undefined>): AgentHostGitService {
+			return store.add(new class extends AgentHostGitService {
+				protected override _runGit(): Promise<string | undefined> {
+					return runGit();
+				}
+			}(...gitArguments()));
+		}
+
+		test('concurrent forced lookups share a failed probe without caching an I/O failure', async () => {
+			const started = new DeferredPromise<void>();
+			const answer = new DeferredPromise<string | undefined>();
+			let probes = 0;
+			const git = createGitService(() => {
+				probes++;
+				void started.complete();
+				return answer.p;
+			});
+			const first = git.getRepositoryRoot(directory, { refreshIfNone: true });
+			await started.p;
+			const second = git.getRepositoryRoot(directory, { refreshIfNone: true });
+			await answer.error(new Error('Git unavailable'));
+			const roots = await Promise.all([first, second]);
+
+			assert.deepStrictEqual({ roots, probes, availability: git.hasGitRoot(directory).get() }, {
+				roots: [undefined, undefined], probes: 1, availability: undefined,
+			});
+		});
+
+		test('a forced lookup after a shared failed probe settles re-probes', async () => {
+			const answer = new DeferredPromise<string | undefined>();
+			let probes = 0;
+			const git = createGitService(() => ++probes === 1 ? answer.p : Promise.resolve(directory.fsPath));
+			const pending = Promise.all([
+				git.getRepositoryRoot(directory, { refreshIfNone: true }),
+				git.getRepositoryRoot(directory, { refreshIfNone: true }),
+			]);
+			await answer.complete(undefined);
+			const before = await pending;
+			const after = await git.getRepositoryRoot(directory, { refreshIfNone: true });
+
+			assert.deepStrictEqual({ before, after: after?.fsPath, probes }, {
+				before: [undefined, undefined], after: directory.fsPath, probes: 2,
+			});
+		});
+	});
+
+	test('sorts the current and default branches before recent branches', () => {
 		assert.deepStrictEqual(
 			getBranchCompletions(
 				['feature/recent', 'dev', 'feature/current', 'main', 'feature/older'],
-				{ currentBranch: 'feature/current', defaultBranch: 'dev', limit: 3 },
+				{ currentBranch: 'feature/current', defaultBranch: 'dev' },
 			),
-			['feature/current', 'dev', 'feature/recent'],
+			['feature/current', 'dev', 'feature/recent', 'main', 'feature/older'],
 		);
 	});
 
@@ -51,16 +411,6 @@ suite('AgentHostGitService', () => {
 				{ currentBranch: 'other', defaultBranch: 'main' },
 			),
 			['feature/recent', 'release', 'feature/older'],
-		);
-	});
-
-	test('filters before prioritizing the current and default branches', () => {
-		assert.deepStrictEqual(
-			getBranchCompletions(
-				['feature/recent', 'maintenance', 'main', 'feature/current'],
-				{ currentBranch: 'feature/current', defaultBranch: 'maintenance', query: 'ma' },
-			),
-			['maintenance', 'main'],
 		);
 	});
 
@@ -202,6 +552,26 @@ suite('AgentHostGitService', () => {
 		});
 	});
 
+	suite('parseDefaultRemoteBranchRef', () => {
+		test('splits an origin remote-tracking ref into the default branch and its remote branch', () => {
+			assert.deepStrictEqual({
+				main: parseDefaultRemoteBranchRef('refs/remotes/origin/main\n'),
+				nested: parseDefaultRemoteBranchRef('refs/remotes/origin/release/1.0'),
+				otherRemote: parseDefaultRemoteBranchRef('refs/remotes/upstream/main'),
+				localRef: parseDefaultRemoteBranchRef('refs/heads/main'),
+				prefixOnly: parseDefaultRemoteBranchRef('refs/remotes/origin/'),
+				missing: parseDefaultRemoteBranchRef(undefined),
+			}, {
+				main: { branchName: 'main', remoteBranchName: 'origin/main' },
+				nested: { branchName: 'release/1.0', remoteBranchName: 'origin/release/1.0' },
+				otherRemote: undefined,
+				localRef: undefined,
+				prefixOnly: undefined,
+				missing: undefined,
+			});
+		});
+	});
+
 	suite('parseGitHubRepoFromRemote', () => {
 		test('parses only the requested fork remote', () => {
 			const out = [
@@ -264,6 +634,15 @@ suite('AgentHostGitService', () => {
 		]);
 	});
 
+	test('reads fetch remote URLs of partial clones', () => {
+		assert.deepStrictEqual(parseFetchRemoteUrls([
+			'origin\thttps://github.com/microsoft/vscode.git (fetch) [blob:none]',
+			'origin\thttps://github.com/microsoft/vscode.git (push)',
+		].join('\n')), [
+			'https://github.com/microsoft/vscode.git',
+		]);
+	});
+
 	test('prefers the branch upstream remote before origin', () => {
 		assert.deepStrictEqual(parseFetchRemoteUrls([
 			'origin\thttps://github.com/me/vscode.git (fetch)',
@@ -272,6 +651,27 @@ suite('AgentHostGitService', () => {
 			'https://github.com/microsoft/vscode.git',
 			'https://github.com/me/vscode.git',
 		]);
+	});
+
+	test('selects the default push remote when a branch has no upstream', () => {
+		const remotes = (...entries: [name: string, url: string][]) => entries.map(([name, url]) => `${name}\t${url} (fetch)\n${name}\t${url} (push)`).join('\n');
+		assert.deepStrictEqual({
+			onlyUpstream: selectDefaultPushRemote(remotes(['upstream', 'https://github.com/microsoft/vscode.git']), undefined),
+			configuredPushRemote: selectDefaultPushRemote(remotes(['origin', 'https://github.com/me/vscode.git'], ['upstream', 'https://github.com/microsoft/vscode.git']), 'upstream'),
+			originPreferred: selectDefaultPushRemote(remotes(['fork', 'https://github.com/me/vscode.git'], ['origin', 'https://github.com/microsoft/vscode.git']), undefined),
+			gitHubRemote: selectDefaultPushRemote(remotes(['gitlab', 'https://gitlab.com/me/vscode.git'], ['upstream', 'git@github.com:microsoft/vscode.git']), undefined),
+			nonGitHubOrigin: selectDefaultPushRemote(remotes(['origin', 'https://gitlab.com/me/vscode.git'], ['other', 'https://example.com/vscode.git']), undefined),
+			onlyNonGitHub: selectDefaultPushRemote(remotes(['other', 'https://example.com/vscode.git']), undefined),
+			ambiguous: selectDefaultPushRemote(remotes(['a', 'https://example.com/a.git'], ['b', 'https://example.com/b.git']), undefined),
+		}, {
+			onlyUpstream: 'upstream',
+			configuredPushRemote: 'upstream',
+			originPreferred: 'origin',
+			gitHubRemote: 'upstream',
+			nonGitHubOrigin: 'origin',
+			onlyNonGitHub: 'other',
+			ambiguous: undefined,
+		});
 	});
 
 	suite('parseUntrackedPaths', () => {
@@ -335,6 +735,19 @@ suite('AgentHostGitService', () => {
 				'worktree-copied-new.txt',
 				'worktree-copied-old.txt',
 			]);
+		});
+	});
+
+	suite('canRestageOntoIndexCopy', () => {
+		test('copies only HEAD-equivalent indexes without staged blob metadata', () => {
+			const statuses = [' M', 'M ', 'MM', 'A ', 'AM', ' D', ' T', 'T ', '??', 'D ', 'AD', 'R ', 'C ', ' R', 'UU', 'AA', 'DD'];
+			assert.deepStrictEqual(
+				Object.fromEntries(statuses.map(status => [status, canRestageOntoIndexCopy(`${status} file.txt\x00`)])),
+				{
+					' M': true, 'M ': false, 'MM': false, 'A ': false, 'AM': false, ' D': true, ' T': true, 'T ': false, '??': true,
+					'D ': false, 'AD': false, 'R ': false, 'C ': false, ' R': false, 'UU': false, 'AA': false, 'DD': false,
+				},
+			);
 		});
 	});
 
@@ -525,6 +938,18 @@ suite('AgentHostGitService', () => {
 			assert.strictEqual(summarizeStderrForError('fatal: invalid reference: x\n'), 'fatal: invalid reference: x');
 		});
 
+		test('keeps the lock failure instead of trailing lock removal advice', () => {
+			const diagnostic = 'fatal: Unable to create \'/repo/.git/worktrees/session/index.lock\': File exists.';
+			assert.strictEqual(summarizeStderrForError([
+				diagnostic, '',
+				'Another git process seems to be running in this repository, e.g.',
+				'an editor opened by \'git commit\'. Please make sure all processes',
+				'are terminated then try again. If it still fails, a git process',
+				'may have crashed in this repository earlier:',
+				'remove the file manually to continue.',
+			].join('\n')), diagnostic);
+		});
+
 		test('truncates very long lines with an ellipsis', () => {
 			const long = `fatal: ${'a'.repeat(500)}`;
 			const result = summarizeStderrForError(long);
@@ -533,19 +958,23 @@ suite('AgentHostGitService', () => {
 		});
 	});
 
-	suite('resolveDiffBaseBranchName', () => {
-		test('prefers the persisted base branch, then git state, then undefined', () => {
-			assert.deepStrictEqual(
-				[
-					resolveDiffBaseBranchName('persisted', 'gitState'),
-					resolveDiffBaseBranchName(undefined, 'gitState'),
-					resolveDiffBaseBranchName('persisted', undefined),
-					resolveDiffBaseBranchName('origin/main', undefined),
-					resolveDiffBaseBranchName('refs/remotes/origin/release', undefined),
-					resolveDiffBaseBranchName(undefined, undefined),
+	suite('base branch refs', () => {
+		test('parses local and remote refs at the longest remote name, and labels them without the ref prefix', () => {
+			const refs = ['refs/heads/main', 'refs/heads/lszomoru/agents/foo', 'refs/remotes/origin/main', 'refs/remotes/fork/me/release/1.90', 'refs/remotes/gone/main', 'refs/tags/v1'];
+			assert.deepStrictEqual({
+				parsed: refs.map(ref => parseBaseBranchRef(ref, ['origin', 'fork/me'])),
+				labels: ['refs/heads/main', 'refs/remotes/fork/me/release/1.90', 'origin/main'].map(getBaseBranchLabel),
+			}, {
+				parsed: [
+					{ kind: 'local', ref: 'refs/heads/main', branch: 'main' },
+					{ kind: 'local', ref: 'refs/heads/lszomoru/agents/foo', branch: 'lszomoru/agents/foo' },
+					{ kind: 'remote', ref: 'refs/remotes/origin/main', remote: 'origin', branch: 'main' },
+					{ kind: 'remote', ref: 'refs/remotes/fork/me/release/1.90', remote: 'fork/me', branch: 'release/1.90' },
+					undefined,
+					undefined,
 				],
-				['persisted', 'gitState', 'persisted', 'main', 'release', undefined],
-			);
+				labels: ['main', 'fork/me/release/1.90', 'origin/main'],
+			});
 		});
 	});
 

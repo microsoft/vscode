@@ -3,13 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import '../../../browser/media/sidebarActionButton.css';
+import '../../../../workbench/contrib/sessions/browser/media/sidebarActionButton.css';
 import './media/accountWidget.css';
 import './media/accountTitleBarWidget.css';
 import '../../../../workbench/contrib/chat/browser/chatStatus/media/chatStatus.css';
 import Severity from '../../../../base/common/severity.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { IObservable, runOnChange } from '../../../../base/common/observable.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, MenuRegistry, registerAction2, IMenuService } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -18,25 +17,28 @@ import { IDefaultAccountService } from '../../../../platform/defaultAccount/comm
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { appendUpdateMenuItems as registerUpdateMenuItems } from '../../../../workbench/contrib/update/browser/update.js';
-import { Menus } from '../../../browser/menus.js';
+import { AgentsWindowMenus } from '../../../browser/agentsWindowMenus.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
 import { fillInActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
-import { $, addDisposableListener, append, clearNode, disposableWindowInterval, EventType, getDomNodePagePosition } from '../../../../base/browser/dom.js';
+import { $, addDisposableListener, append, clearNode, disposableWindowInterval, EventType, findParentWithClass, getDomNodePagePosition, isHTMLElement } from '../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { ActionBar, ActionsOrientation } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { BaseActionViewItem, IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
-import { Action, IAction, Separator } from '../../../../base/common/actions.js';
+import { Action, IAction, Separator, toAction } from '../../../../base/common/actions.js';
+import { equals } from '../../../../base/common/arrays.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { HoverStyle, IHoverWidget } from '../../../../base/browser/ui/hover/hover.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { registerUpdateTitleBarMenuPlacement } from '../../../../workbench/contrib/update/browser/updateTitleBarEntry.js';
 import { ChatEntitlement, ChatEntitlementService, getChatPlanName, getQuotaReset, getQuotaUsage, IChatEntitlementService, IQuotaSnapshot, QuotaUsageKind } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { ChatStatusDashboard, IChatStatusDashboardOptions } from '../../../../workbench/contrib/chat/browser/chatStatus/chatStatusDashboard.js';
+import { getCodexRateLimitLabel, getCodexRateLimits } from '../../../../workbench/contrib/chat/browser/chatStatus/codexStatusDashboard.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
-import { getAccountProfileImageUrl, getAccountTitleBarBadgeKey, getAccountTitleBarState, IAccountTitleBarState, resolveAccountInfo } from '../../../browser/accountTitleBarState.js';
-import { observeAllowSignedOutWhenUsable } from '../../../browser/sessionsAuthGate.js';
-import { IsPhoneLayoutContext, SessionHasChangesContext, SessionIsCreatedContext, SessionsWelcomeVisibleContext, SinglePaneLayoutEnabledContext } from '../../../common/contextkeys.js';
+import { getAccountProfileImageUrl, getAccountTitleBarBadgeKey, getAccountTitleBarState, IAccountTitleBarState, resolveAccountInfo, showsGitHubCopilotDetails } from '../../../browser/accountTitleBarState.js';
+import { IsPhoneLayoutContext, SessionsWelcomeVisibleContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { IsAuxiliaryWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { IAuthenticationAccessService } from '../../../../workbench/services/authentication/browser/authenticationAccessService.js';
 import { IAuthenticationUsageService } from '../../../../workbench/services/authentication/browser/authenticationUsageService.js';
@@ -44,23 +46,22 @@ import { ACCOUNTS_AVATAR_SETTING, IAuthenticationService } from '../../../../wor
 import { URI } from '../../../../base/common/uri.js';
 import { IChatDashboardService } from '../../../browser/chatDashboardService.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
-import { createCodexAccountMenuActions, hasSignedInCodexChatGPTAccount, ICodexAccountService, shouldShowCodexAccount } from '../../../../workbench/services/agentHost/browser/codexAccountService.js';
+import { createCodexAccountMenuActions, getCodexAccountPlanName, hasSignedInCodexChatGPTAccount, ICodexAccountService, shouldShowCodexAccount, type ICodexAccountViewInfo } from '../../../../workbench/services/agentHost/browser/codexAccountService.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { MANAGE_CHAT_COMMAND_ID } from '../../../../workbench/contrib/chat/common/constants.js';
-import { AICustomizationManagementCommands } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagement.js';
-import { AICustomizationManagementSection } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
-import { SessionType } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { fromNow, safeIntl } from '../../../../base/common/date.js';
 import { language } from '../../../../base/common/platform.js';
 import { AgentHostCodexAgentEnabledSettingId } from '../../../../platform/agentHost/common/agentService.js';
+import { ICodexAccountRateLimitInfo } from '../../../../platform/agentHost/common/codexAccount.js';
 import { ChatAIDisabledSettingId } from '../../../../platform/chat/common/chatSettings.js';
 import { CHAT_SETUP_ACTION_ID } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
-import { AGENTIC_SIGN_IN_COMMAND_ID } from '../../../common/sessionCommands.js';
+import { AGENTIC_SIGN_IN_COMMAND_ID } from '../../../../workbench/contrib/sessions/common/sessionCommands.js';
 import { SessionsChatPetAchievementBadges } from './chatPetAchievementBadges.js';
 import { CHAT_PET_OPEN_ACHIEVEMENTS_COMMAND_ID } from '../../../../workbench/contrib/chat/browser/chatPetAchievements.js';
+import { CHAT_PET_CHANGE_COLOR_COMMAND_ID } from '../../../../workbench/contrib/chat/browser/chatPetColors.js';
 
 // --- Account Menu Items --- //
-const AccountMenu = Menus.AccountMenu;
+const AccountMenu = AgentsWindowMenus.AccountMenu;
 const SessionsTitleBarAccountWidgetAction = 'sessions.action.titleBarAccountWidget';
 const SESSIONS_ACCOUNT_TITLEBAR_PANEL_WIDTH = 400;
 
@@ -69,24 +70,36 @@ const PERSONALIZE_ACTION_IDS: readonly string[] = [
 ];
 const SIGN_OUT_ACTION_ID = 'workbench.action.agenticSignOut';
 const accountDateFormatter = safeIntl.DateTimeFormat(language, { month: 'short', day: 'numeric' });
+const accountFullDateFormatter = safeIntl.DateTimeFormat(language, { month: 'short', day: 'numeric', year: 'numeric' });
 const accountTimeFormatter = safeIntl.DateTimeFormat(language, { hour: 'numeric', minute: 'numeric' });
 
 export function shouldShowAccountPanelSummary(state: Pick<IAccountTitleBarState, 'source' | 'kind'>, hasCopilotDashboard: boolean, isAccountLoading: boolean): boolean {
 	return !hasCopilotDashboard && !isAccountLoading && !(state.source === 'copilot' && state.kind === 'prominent');
 }
 
-const sessionsChangesPrimaryActionVisible = ContextKeyExpr.and(
-	SinglePaneLayoutEnabledContext,
-	SessionIsCreatedContext,
-	SessionHasChangesContext
-)!;
+export function getChatGPTRateLimitResetHover(rateLimit: ICodexAccountRateLimitInfo): string | undefined {
+	if (!rateLimit.resetsAt) {
+		return undefined;
+	}
+	const resetDate = new Date(rateLimit.resetsAt * 1000);
+	if (rateLimit.windowDurationMins !== undefined && rateLimit.windowDurationMins < 24 * 60) {
+		return localize('chatGPTShortLimitResetExact', "Resets at {0}", accountTimeFormatter.value.format(resetDate));
+	}
+	return localize(
+		'chatGPTLongLimitResetExact',
+		"Resets on {0} at {1}",
+		accountFullDateFormatter.value.format(resetDate),
+		accountTimeFormatter.value.format(resetDate),
+	);
+}
 
-// Register the shared VS Code update entry at the leading edge of the Agents titlebar actions.
-registerUpdateTitleBarMenuPlacement(Menus.TitleBarUpdate, {
+// Register the shared VS Code update entry in the Agents left titlebar actions.
+registerUpdateTitleBarMenuPlacement(AgentsWindowMenus.TitleBarLeftLayout, {
+	group: 'navigation',
+	order: 2,
 	when: ContextKeyExpr.and(
 		IsAuxiliaryWindowContext.toNegated(),
-		SessionsWelcomeVisibleContext.toNegated(),
-		sessionsChangesPrimaryActionVisible.negate()
+		SessionsWelcomeVisibleContext.toNegated()
 	),
 });
 
@@ -95,7 +108,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: AGENTIC_SIGN_IN_COMMAND_ID,
-			title: localize2('signIn', "Sign in to use GitHub Copilot"),
+			title: localize2('signIn', "Sign in with GitHub"),
 			icon: Codicon.signIn,
 			menu: {
 				id: AccountMenu,
@@ -172,12 +185,13 @@ MenuRegistry.appendMenuItem(AccountMenu, {
 // Update actions
 registerUpdateMenuItems(AccountMenu, '3_updates');
 
-class TitleBarAccountWidget extends BaseActionViewItem {
+export class TitleBarAccountWidget extends BaseActionViewItem {
 
 	private container: HTMLElement | undefined;
 	private avatarElement: HTMLImageElement | undefined;
 	private iconElement: HTMLElement | undefined;
-	private codexIconElement: HTMLElement | undefined;
+	private codexPanelAvatarElement: HTMLImageElement | undefined;
+	private codexPanelIconElement: HTMLElement | undefined;
 	private labelElement: HTMLElement | undefined;
 	private badgeElement: HTMLElement | undefined;
 	private accountName: string | undefined;
@@ -189,6 +203,10 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 	private avatarRequestCounter = 0;
 	private currentAvatarUrl: string | undefined;
 	private loadedAvatarUrl: string | undefined;
+	private codexAvatarRequestCounter = 0;
+	private currentCodexAvatarUrl: string | undefined;
+	private loadedCodexAvatarUrl: string | undefined;
+	private lastCodexAccount: ICodexAccountViewInfo;
 	private lastState: ReturnType<typeof getAccountTitleBarState>;
 	private isMenuVisible = false;
 	private lastBadgeKey: string | undefined;
@@ -196,8 +214,7 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 	private readonly copilotDashboardStore = this._register(new MutableDisposable<DisposableStore>());
 	private readonly clickPanelDisposable = this._register(new MutableDisposable<DisposableStore>());
 	private readonly avatarLoadDisposable = this._register(new MutableDisposable());
-	/** Whether the conditional-auth opt-in permits signed-out operation. */
-	private readonly allowSignedOutWhenUsable: IObservable<boolean>;
+	private readonly codexAvatarLoadDisposable = this._register(new MutableDisposable());
 
 	constructor(
 		action: IAction,
@@ -214,13 +231,12 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super(undefined, action, options);
-		this.allowSignedOutWhenUsable = observeAllowSignedOutWhenUsable(configurationService);
+		this.lastCodexAccount = this.codexAccountService.account;
 		this.lastState = getAccountTitleBarState({
 			isAccountLoading: true,
 			entitlement: this.chatEntitlementService.entitlement,
 			sentiment: this.chatEntitlementService.sentiment,
 			quotas: this.chatEntitlementService.quotas,
-			allowSignedOutWhenUsable: false,
 		});
 
 		this._register(this.defaultAccountService.onDidChangeDefaultAccount(() => this.refreshAccount()));
@@ -229,8 +245,12 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 		this._register(this.chatEntitlementService.onDidChangeSentiment(() => this.renderState()));
 		this._register(this.chatEntitlementService.onDidChangeQuotaExceeded(() => this.renderState()));
 		this._register(this.chatEntitlementService.onDidChangeQuotaRemaining(() => this.renderState()));
-		this._register(this.codexAccountService.onDidChangeAccount(() => {
-			this.clickPanelDisposable.clear();
+		this._register(this.codexAccountService.onDidChangeAccount(account => {
+			if (hasCodexAccountPanelContentChanged(this.lastCodexAccount, account)) {
+				this.clickPanelDisposable.clear();
+			}
+			this.lastCodexAccount = account;
+			this.refreshCodexAvatar();
 			this.renderState();
 		}));
 		this._register(this.configurationService.onDidChangeConfiguration(event => {
@@ -240,13 +260,11 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 			}
 			if (event.affectsConfiguration(ACCOUNTS_AVATAR_SETTING)) {
 				this.refreshAvatar();
+				this.refreshCodexAvatar();
 			}
 		}));
-		// A signed-out user sees either a quiet "Sign In" (the opt-in is on, so signing
-		// in is optional) or a prominent "Agents Signed Out". Re-render so toggling the
-		// setting switches between them while the window is open.
-		this._register(runOnChange(this.allowSignedOutWhenUsable, () => this.renderState()));
 		this.refreshAccount();
+		this.refreshCodexAvatar();
 	}
 
 	override setFocusable(_focusable: boolean): void {
@@ -258,7 +276,7 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 		super.render(container);
 
 		this.container = container;
-		container.classList.add('sessions-account-titlebar-widget');
+		container.classList.add('sessions-account-titlebar-widget', 'agent-sessions-interactive');
 		container.setAttribute('role', 'button');
 		container.tabIndex = 0;
 
@@ -266,8 +284,6 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 		this.avatarElement.decoding = 'async';
 		this.avatarElement.referrerPolicy = 'no-referrer';
 		this.iconElement = append(container, $('.sessions-account-titlebar-widget-icon'));
-		this.codexIconElement = append(container, $('.sessions-account-titlebar-widget-codex-icon'));
-		this.codexIconElement.classList.add(...ThemeIcon.asClassNameArray(Codicon.openai));
 		this.labelElement = append(container, $('span.sessions-account-titlebar-widget-label'));
 		this.badgeElement = append(container, $('span.sessions-account-titlebar-widget-badge'));
 
@@ -280,6 +296,15 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 		}
 
 		this.showCombinedPanel();
+	}
+
+	override getActionToRun(): IAction {
+		return toAction({
+			id: this.action.id,
+			label: this.action.label,
+			enabled: this.action.enabled,
+			run: () => this.showCombinedPanel(true),
+		});
 	}
 
 	private async refreshAccount(): Promise<void> {
@@ -302,7 +327,7 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 	}
 
 	private renderState(): void {
-		if (!this.container || !this.avatarElement || !this.iconElement || !this.codexIconElement || !this.labelElement || !this.badgeElement) {
+		if (!this.container || !this.avatarElement || !this.iconElement || !this.labelElement || !this.badgeElement) {
 			return;
 		}
 
@@ -311,11 +336,6 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 		const entitlement = this.accountName && this.chatEntitlementService.entitlement === ChatEntitlement.Unknown
 			? ChatEntitlement.Unresolved
 			: this.chatEntitlementService.entitlement;
-		const hasChatGPTAccount = hasSignedInCodexChatGPTAccount(
-			this.codexAccountService.account,
-			shouldShowCodexAccount(this.configurationService, true),
-		);
-
 		const state = getAccountTitleBarState({
 			isAccountLoading: this.isAccountLoading,
 			accountName: this.accountName,
@@ -323,7 +343,6 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 			entitlement,
 			sentiment: this.chatEntitlementService.sentiment,
 			quotas: this.chatEntitlementService.quotas,
-			allowSignedOutWhenUsable: this.allowSignedOutWhenUsable.get(),
 		});
 		this.lastState = state;
 
@@ -355,14 +374,13 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 
 		this.iconElement.className = `sessions-account-titlebar-widget-icon ${ThemeIcon.asClassName(titleBarIcon)}`;
 		this.iconElement.classList.toggle('hidden', hasLoadedAvatar);
-		this.container.classList.toggle('has-chatgpt-account', hasChatGPTAccount);
-		this.codexIconElement.classList.toggle('visible', hasChatGPTAccount);
 		this.labelElement.textContent = '';
 		this.badgeElement.textContent = '';
 		this.badgeElement.classList.toggle('dot-badge', shouldShowDotBadge);
 		this.badgeElement.classList.toggle('dot-badge-warning', shouldShowDotBadge && state.dotBadge === 'warning');
 		this.badgeElement.classList.toggle('dot-badge-error', shouldShowDotBadge && state.dotBadge === 'error');
 		this.badgeElement.style.display = shouldShowDotBadge ? '' : 'none';
+		this.renderCodexPanelAvatar();
 	}
 
 	private getAvatarAltText(hasLoadedAvatar: boolean): string {
@@ -371,6 +389,29 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 		}
 
 		return localize('accountAvatarAltFallback', "Account profile image");
+	}
+
+	private getCodexAvatarAltText(): string {
+		return this.codexAccountService.account.email
+			? localize('chatGPTAvatarAlt', "ChatGPT profile image for {0}", this.codexAccountService.account.email)
+			: localize('chatGPTAvatarAltFallback', "ChatGPT profile image");
+	}
+
+	private renderCodexPanelAvatar(): void {
+		if (!this.codexPanelAvatarElement || !this.codexPanelIconElement) {
+			return;
+		}
+		const avatarUrl = this.loadedCodexAvatarUrl;
+		this.codexPanelAvatarElement.classList.toggle('hidden', !avatarUrl);
+		this.codexPanelIconElement.classList.toggle('hidden', !!avatarUrl);
+		this.codexPanelAvatarElement.alt = this.getCodexAvatarAltText();
+		if (avatarUrl) {
+			if (this.codexPanelAvatarElement.src !== avatarUrl) {
+				this.codexPanelAvatarElement.src = avatarUrl;
+			}
+		} else {
+			this.codexPanelAvatarElement.removeAttribute('src');
+		}
 	}
 
 	private refreshAvatar(): void {
@@ -423,6 +464,57 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 		this.renderState();
 	}
 
+	private refreshCodexAvatar(): void {
+		const account = this.codexAccountService.account;
+		const avatarUrl = this.configurationService.getValue<boolean>(ACCOUNTS_AVATAR_SETTING) && account.status === 'signedIn'
+			? account.profileImageDataUri
+			: undefined;
+		if (avatarUrl === this.currentCodexAvatarUrl) {
+			return;
+		}
+
+		this.currentCodexAvatarUrl = avatarUrl;
+		this.loadedCodexAvatarUrl = undefined;
+		this.codexAvatarLoadDisposable.clear();
+		const requestId = ++this.codexAvatarRequestCounter;
+
+		if (!avatarUrl) {
+			this.renderState();
+			return;
+		}
+
+		const image = new Image();
+		image.referrerPolicy = 'no-referrer';
+		const clearHandlers = () => {
+			image.onload = null;
+			image.onerror = null;
+		};
+		image.onload = () => {
+			if (requestId !== this.codexAvatarRequestCounter) {
+				return;
+			}
+
+			this.loadedCodexAvatarUrl = avatarUrl;
+			this.renderState();
+			clearHandlers();
+		};
+		image.onerror = () => {
+			if (requestId !== this.codexAvatarRequestCounter) {
+				return;
+			}
+
+			this.loadedCodexAvatarUrl = undefined;
+			this.renderState();
+			clearHandlers();
+		};
+		this.codexAvatarLoadDisposable.value = toDisposable(() => {
+			clearHandlers();
+			image.src = '';
+		});
+		image.src = avatarUrl;
+		this.renderState();
+	}
+
 	private getHoverTarget(): { targetElements: HTMLElement[]; x: number } {
 		const { left, width } = getDomNodePagePosition(this.container!);
 		return {
@@ -431,7 +523,7 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 		};
 	}
 
-	private showCombinedPanel(): void {
+	private showCombinedPanel(focusFirstAction = false): void {
 		if (!this.container) {
 			return;
 		}
@@ -457,38 +549,90 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 		this.container.classList.add('menu-visible');
 		this.renderState();
 
+		const panelContent = $('div.sessions-account-titlebar-panel');
 		panelStore.add({
 			dispose: () => {
+				const panelHover = findParentWithClass(panelContent, 'sessions-account-titlebar-panel-hover');
+				const restoreFocus = panelHover?.contains(mainWindow.document.activeElement);
 				this.isMenuVisible = false;
 				this.container?.classList.remove('menu-visible');
 				this.renderState();
-				this.container?.focus();
+				if (restoreFocus) {
+					this.container?.focus();
+				}
 			}
 		});
 
-		const panelContent = this.createCombinedPanelContent(panelStore);
+		const focus = this.createCombinedPanelContent(panelStore, panelContent);
+		let hoverHidden = false;
 		const hoverWidget = this.hoverService.showInstantHover({
 			content: panelContent,
 			target: this.getHoverTarget(),
 			additionalClasses: ['sessions-account-titlebar-panel-hover'],
 			position: { hoverPosition: HoverPosition.BELOW },
+			trapFocus: focusFirstAction,
 			persistence: { sticky: true, hideOnHover: false },
 			appearance: { showPointer: false, skipFadeInAnimation: true, maxHeightRatio: 0.8 },
+			onDidShow: () => {
+				if (focusFirstAction) {
+					focus();
+				}
+			},
+			onDidHide: () => {
+				hoverHidden = true;
+				if (this.clickPanelDisposable.value === panelStore) {
+					this.clickPanelDisposable.clear();
+				}
+			},
 		}, true);
 
-		if (hoverWidget) {
-			panelStore.add(hoverWidget);
+		if (!hoverWidget || hoverHidden) {
+			if (this.clickPanelDisposable.value === panelStore) {
+				this.clickPanelDisposable.clear();
+			}
+			return;
 		}
 
+		panelStore.add(toDisposable(() => {
+			if (!hoverHidden) {
+				hoverWidget.dispose();
+			}
+		}));
 		panelStore.add(disposableWindowInterval(mainWindow, () => {
-			if (!panelContent.isConnected || hoverWidget?.isDisposed) {
+			if (!panelContent.isConnected) {
 				this.clickPanelDisposable.clear();
 			}
 		}, 500));
 	}
 
-	private createCombinedPanelContent(panelStore: DisposableStore): HTMLElement {
-		const panel = $('div.sessions-account-titlebar-panel');
+	private createCombinedPanelContent(panelStore: DisposableStore, panel: HTMLElement): () => void {
+		const actionBars: ActionBar[] = [];
+		const showsCopilotDetails = showsGitHubCopilotDetails(this.defaultAccountService.currentDefaultAccount);
+		const actionHover = panelStore.add(new MutableDisposable<IHoverWidget>());
+		const hoverGroupId = generateUuid();
+		const setupKeyboardActionHover = (container: HTMLElement, actionBar: ActionBar) => {
+			panelStore.add(addDisposableListener(container, EventType.FOCUS_IN, event => {
+				const target = event.target;
+				if (!isHTMLElement(target) || !target.matches(':focus-visible, .focus-visible')) {
+					actionHover.clear();
+					return;
+				}
+				const action = actionBar.getAction(target);
+				if (action) {
+					actionHover.value = this.hoverService.showDelayedHover({
+						target,
+						content: action.tooltip || action.label,
+						style: HoverStyle.Pointer,
+						persistence: { hideOnKeyDown: true },
+					}, { groupId: hoverGroupId });
+				}
+			}));
+			panelStore.add(addDisposableListener(container, EventType.FOCUS_OUT, event => {
+				if (!isHTMLElement(event.relatedTarget) || !container.contains(event.relatedTarget)) {
+					actionHover.clear();
+				}
+			}));
+		};
 
 		// Build the menu actions once and partition them.
 		const menu = this.menuService.createMenu(AccountMenu, this.contextKeyService);
@@ -496,7 +640,8 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 		fillInActionBarActions(menu.getActions(), rawActions);
 		menu.dispose();
 		const codexAccount = this.codexAccountService.account;
-		const codexAccountVisible = shouldShowCodexAccount(this.configurationService, true);
+		// Keep agent-specific accounts hidden until the shared account resolves.
+		const codexAccountVisible = !this.isAccountLoading && shouldShowCodexAccount(this.configurationService, true);
 		const partitioned = this.partitionMenuActions(rawActions);
 
 		const identities = append(panel, $('.sessions-account-titlebar-panel-identities'));
@@ -516,12 +661,14 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 				avatar.referrerPolicy = 'no-referrer';
 			} else {
 				const accountIcon = append(copilotIdentity, $('span.sessions-account-titlebar-panel-provider-icon', { 'aria-hidden': 'true' }));
-				accountIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.github));
+				accountIcon.classList.add(...ThemeIcon.asClassNameArray(showsCopilotDetails ? Codicon.github : Codicon.account));
 			}
 			const title = append(copilotIdentity, $('div.sessions-account-titlebar-panel-provider-name'));
 			title.textContent = this.getPanelHeaderLabel();
 			const copilotActions = append(copilotIdentity, $('.sessions-account-titlebar-panel-provider-actions'));
 			const copilotActionBar = panelStore.add(new ActionBar(copilotActions));
+			actionBars.push(copilotActionBar);
+			setupKeyboardActionHover(copilotActions, copilotActionBar);
 			panelStore.add(copilotActionBar.onWillRun(() => {
 				this.hoverService.hideHover(true);
 				this.clickPanelDisposable.clear();
@@ -533,20 +680,15 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 				true,
 				() => this.commandService.executeCommand(MANAGE_CHAT_COMMAND_ID, '@provider:"Copilot"'),
 			)), { icon: true, label: false });
-			copilotActionBar.push(panelStore.add(new Action(
-				'copilot.openAgentCustomizations',
-				localize('openCopilotAgentCustomizations', "Agent Customizations for Copilot"),
-				ThemeIcon.asClassName(Codicon.settingsGear),
-				true,
-				() => this.commandService.executeCommand(AICustomizationManagementCommands.OpenEditor, {
-					sessionType: SessionType.AgentHostCopilot,
-					section: AICustomizationManagementSection.Agents,
-				}),
-			)), { icon: true, label: false });
+			for (const action of partitioned.personalize) {
+				copilotActionBar.push(action, { icon: true, label: false });
+			}
 			if (partitioned.signOut) {
 				copilotActionBar.push(partitioned.signOut, { icon: true, label: false });
 			}
-			this.appendCopilotUsage(copilotAccount, panelStore);
+			if (showsCopilotDetails) {
+				this.appendCopilotUsage(copilotAccount, panelStore);
+			}
 		} else if (partitioned.signIn) {
 			const copilotAccount = append(identities, $('section.sessions-account-titlebar-panel-provider-account.signed-out', {
 				'aria-label': localize('copilotAccountSectionLabel', "Copilot account")
@@ -556,6 +698,7 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 			accountIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.github));
 			const signInActions = append(copilotIdentity, $('.sessions-account-titlebar-panel-provider-sign-in-actions'));
 			const signInActionBar = panelStore.add(new ActionBar(signInActions));
+			actionBars.push(signInActionBar);
 			panelStore.add(signInActionBar.onWillRun(() => {
 				this.hoverService.hideHover(true);
 				this.clickPanelDisposable.clear();
@@ -568,12 +711,31 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 				'aria-label': localize('chatGPTAccountSectionLabel', "ChatGPT account")
 			}));
 			const accountIdentity = append(accountSection, $('.sessions-account-titlebar-panel-provider-identity'));
+			const avatar = append(accountIdentity, $('img.sessions-account-titlebar-panel-provider-avatar', {
+				alt: this.getCodexAvatarAltText(),
+				draggable: 'false',
+			})) as HTMLImageElement;
+			avatar.decoding = 'async';
+			avatar.referrerPolicy = 'no-referrer';
 			const accountIcon = append(accountIdentity, $('span.sessions-account-titlebar-panel-provider-icon', { 'aria-hidden': 'true' }));
 			accountIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.openai));
+			this.codexPanelAvatarElement = avatar;
+			this.codexPanelIconElement = accountIcon;
+			this.renderCodexPanelAvatar();
+			panelStore.add(toDisposable(() => {
+				if (this.codexPanelAvatarElement === avatar) {
+					this.codexPanelAvatarElement = undefined;
+				}
+				if (this.codexPanelIconElement === accountIcon) {
+					this.codexPanelIconElement = undefined;
+				}
+			}));
 			const accountName = append(accountIdentity, $('.sessions-account-titlebar-panel-provider-name'));
 			accountName.textContent = codexAccount.email ?? localize('chatGPTAccountName', "ChatGPT");
 			const accountActions = append(accountIdentity, $('.sessions-account-titlebar-panel-provider-actions'));
 			const accountActionBar = panelStore.add(new ActionBar(accountActions));
+			actionBars.push(accountActionBar);
+			setupKeyboardActionHover(accountActions, accountActionBar);
 			panelStore.add(accountActionBar.onWillRun(() => {
 				this.hoverService.hideHover(true);
 				this.clickPanelDisposable.clear();
@@ -585,16 +747,9 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 				true,
 				() => this.commandService.executeCommand(MANAGE_CHAT_COMMAND_ID, '@provider:"ChatGPT"'),
 			)), { icon: true, label: false });
-			accountActionBar.push(panelStore.add(new Action(
-				'codex.openAgentCustomizations',
-				localize('openCodexAgentCustomizations', "Agent Customizations for Codex"),
-				ThemeIcon.asClassName(Codicon.settingsGear),
-				true,
-				() => this.commandService.executeCommand(AICustomizationManagementCommands.OpenEditor, {
-					sessionType: SessionType.AgentHostCodex,
-					section: AICustomizationManagementSection.HarnessSettings,
-				}),
-			)), { icon: true, label: false });
+			for (const action of partitioned.personalize) {
+				accountActionBar.push(action, { icon: true, label: false });
+			}
 			accountActionBar.push(panelStore.add(new Action(
 				'codex.signOutOfChatGPT',
 				localize('signOutOfChatGPT', "Sign Out"),
@@ -602,7 +757,7 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 				true,
 				() => this.codexAccountService.signOut(),
 			)), { icon: true, label: false });
-			this.appendChatGPTUsage(accountSection);
+			this.appendChatGPTUsage(accountSection, panelStore);
 		} else {
 			const codexAccountActions = createCodexAccountMenuActions(this.codexAccountService, codexAccountVisible);
 			if (codexAccountActions.length) {
@@ -614,6 +769,7 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 				accountIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.openai));
 				const signInActions = append(accountIdentity, $('.sessions-account-titlebar-panel-provider-sign-in-actions'));
 				const signInActionBar = panelStore.add(new ActionBar(signInActions));
+				actionBars.push(signInActionBar);
 				panelStore.add(signInActionBar.onWillRun(() => {
 					this.hoverService.hideHover(true);
 					this.clickPanelDisposable.clear();
@@ -624,11 +780,13 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 			}
 		}
 
-		panelStore.add(this.instantiationService.createInstance(SessionsChatPetAchievementBadges, panel, () => {
-			this.hoverService.hideHover(true);
-			this.clickPanelDisposable.clear();
-			void this.commandService.executeCommand(CHAT_PET_OPEN_ACHIEVEMENTS_COMMAND_ID);
-		}));
+		if (!this.chatEntitlementService.sentiment.hidden) {
+			panelStore.add(this.instantiationService.createInstance(SessionsChatPetAchievementBadges, panel, tab => {
+				this.hoverService.hideHover(true);
+				this.clickPanelDisposable.clear();
+				void this.commandService.executeCommand(tab === 'color' ? CHAT_PET_CHANGE_COLOR_COMMAND_ID : CHAT_PET_OPEN_ACHIEVEMENTS_COMMAND_ID);
+			}));
+		}
 
 		if (this.shouldShowCopilotDashboardHover()) {
 			const footer = append(panel, $('section.sessions-account-titlebar-panel-footer', {
@@ -643,6 +801,7 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 			const actionsActionBar = panelStore.add(new ActionBar(actionsSection, {
 				orientation: ActionsOrientation.VERTICAL,
 			}));
+			actionBars.push(actionsActionBar);
 			panelStore.add(actionsActionBar.onWillRun(() => {
 				this.hoverService.hideHover(true);
 				this.clickPanelDisposable.clear();
@@ -667,7 +826,17 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 			summary.textContent = this.lastState.ariaLabel;
 		}
 
-		return panel;
+		return () => {
+			for (const actionBar of actionBars) {
+				for (let i = 0; i < actionBar.length(); i++) {
+					const action = actionBar.getAction(i);
+					if (action?.enabled && !(action instanceof Separator)) {
+						actionBar.focus(true);
+						return;
+					}
+				}
+			}
+		};
 	}
 
 	private appendCopilotUsage(accountSection: HTMLElement, panelStore: DisposableStore): void {
@@ -744,33 +913,31 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 		append(detailRow, $('span.sessions-account-titlebar-panel-provider-usage-label', undefined, localize('copilotCreditsUsedLabel', "Credits used")));
 	}
 
-	private appendChatGPTUsage(accountSection: HTMLElement): void {
+	private appendChatGPTUsage(accountSection: HTMLElement, panelStore: DisposableStore): void {
 		const account = this.codexAccountService.account;
 		const usage = append(accountSection, $('.sessions-account-titlebar-panel-provider-usage'));
 		const planRow = append(usage, $('.sessions-account-titlebar-panel-provider-metric-row.primary'));
-		append(planRow, $('span.sessions-account-titlebar-panel-provider-plan', undefined, account.planType
-			? localize('chatGPTPlan', "ChatGPT {0}", account.planType.charAt(0).toUpperCase() + account.planType.slice(1))
-			: localize('chatGPTSubscription', "ChatGPT subscription")));
-		if (!account.rateLimit) {
-			return;
-		}
+		append(planRow, $('span.sessions-account-titlebar-panel-provider-plan', undefined, getCodexAccountPlanName(account)));
 		const percentageFormatter = safeIntl.NumberFormat(language, { maximumFractionDigits: 0 });
-		const usedPercentage = percentageFormatter.value.format(account.rateLimit.usedPercent);
-		append(planRow, $('span.sessions-account-titlebar-panel-provider-usage-value', {
-			'aria-label': localize('chatGPTLimitUsedPercentage', "{0}% used", usedPercentage),
-		}, localize('chatGPTLimitUsedPercentageValue', "{0}%", usedPercentage)));
-		const detailRow = append(usage, $('.sessions-account-titlebar-panel-provider-metric-row.secondary'));
-		if (account.rateLimit.resetsAt) {
-			append(detailRow, $('span.sessions-account-titlebar-panel-provider-reset', undefined, localize(
-				'chatGPTLimitReset',
-				"{0} resets {1}",
-				this.getChatGPTLimitLabel(account.rateLimit.windowDurationMins),
-				fromNow(account.rateLimit.resetsAt * 1000, false, true),
-			)));
-		} else {
-			detailRow.classList.add('without-reset');
+		for (const rateLimit of getCodexRateLimits(account)) {
+			const limitLabel = getCodexRateLimitLabel(rateLimit.windowDurationMins);
+			const usedPercentage = percentageFormatter.value.format(rateLimit.usedPercent);
+			const detailRow = append(usage, $('.sessions-account-titlebar-panel-provider-metric-row.secondary'));
+			const description = rateLimit.resetsAt
+				? localize('chatGPTLimitReset', "{0} resets {1}", limitLabel, fromNow(rateLimit.resetsAt * 1000, false, true))
+				: limitLabel;
+			append(detailRow, $('span.sessions-account-titlebar-panel-provider-reset', undefined, description));
+			append(detailRow, $('span.sessions-account-titlebar-panel-provider-usage-value', {
+				'aria-label': localize('chatGPTWindowLimitUsedPercentage', "{0}: {1}% used", limitLabel, usedPercentage),
+			}, localize('chatGPTLimitUsedPercentage', "{0}% used", usedPercentage)));
+
+			const resetHover = getChatGPTRateLimitResetHover(rateLimit);
+			if (resetHover) {
+				detailRow.tabIndex = 0;
+				detailRow.setAttribute('aria-label', localize('chatGPTLimitResetAria', "{0}, {1}% used. {2}", description, usedPercentage, resetHover));
+				panelStore.add(this.hoverService.setupDelayedHover(detailRow, { content: resetHover }, { setupKeyboardEvents: true }));
+			}
 		}
-		append(detailRow, $('span.sessions-account-titlebar-panel-provider-usage-label', undefined, localize('chatGPTLimitUsedLabel', "Limit used")));
 	}
 
 	private getCopilotResetLabel(quota: IQuotaSnapshot | undefined): string | undefined {
@@ -782,18 +949,6 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 		return reset.hasTime
 			? localize('copilotCreditsResetAt', "Resets {0} at {1}", accountDateFormatter.value.format(reset.date), accountTimeFormatter.value.format(reset.date))
 			: localize('copilotCreditsReset', "Resets {0}", accountDateFormatter.value.format(reset.date));
-	}
-
-	private getChatGPTLimitLabel(windowDurationMins: number | undefined): string {
-		if (windowDurationMins !== undefined) {
-			if (Math.abs(windowDurationMins - 7 * 24 * 60) <= 60) {
-				return localize('chatGPTWeeklyLimitUsed', "Weekly limit");
-			}
-			if (Math.abs(windowDurationMins - 24 * 60) <= 60) {
-				return localize('chatGPTDailyLimitUsed', "Daily limit");
-			}
-		}
-		return localize('chatGPTUsageLimitUsed', "Usage limit");
 	}
 
 	private partitionMenuActions(rawActions: IAction[]): { signIn: IAction | undefined; signOut: IAction | undefined; personalize: IAction[]; other: IAction[] } {
@@ -878,7 +1033,7 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 	}
 
 	private shouldShowCopilotDashboardHover(): boolean {
-		return !this.chatEntitlementService.sentiment.hidden && !!this.accountName;
+		return !this.chatEntitlementService.sentiment.hidden && !!this.accountName && showsGitHubCopilotDetails(this.defaultAccountService.currentDefaultAccount);
 	}
 
 	private createCopilotHoverContent(extraOptions?: Partial<IChatStatusDashboardOptions>): HTMLElement {
@@ -903,9 +1058,21 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 	}
 }
 
+function hasCodexAccountPanelContentChanged(previous: ICodexAccountViewInfo, current: ICodexAccountViewInfo): boolean {
+	const previousRateLimits = getCodexRateLimits(previous);
+	const currentRateLimits = getCodexRateLimits(current);
+	return previous.status !== current.status
+		|| previous.email !== current.email
+		|| previous.planType !== current.planType
+		|| previous.requiresOpenaiAuth !== current.requiresOpenaiAuth
+		|| previous.authUrl !== current.authUrl
+		|| previous.authUrlNonce !== current.authUrlNonce
+		|| !equals(previousRateLimits, currentRateLimits, (a, b) => a.usedPercent === b.usedPercent && a.windowDurationMins === b.windowDurationMins && a.resetsAt === b.resetsAt);
+}
+
 // --- Register custom view item --- //
 
-// Actions registered at module level so Menus.TitleBarRightLayout is non-empty when the
+// Actions registered at module level so AgentsWindowMenus.TitleBarRightLayout is non-empty when the
 // toolbar is first constructed. The run() is a no-op — rendering is handled by the custom
 // view items registered in AccountWidgetContribution.
 registerAction2(class extends Action2 {
@@ -914,7 +1081,7 @@ registerAction2(class extends Action2 {
 			id: SessionsTitleBarAccountWidgetAction,
 			title: localize2('agentsAccountStatusTitleBar', "Agents Account and Status"),
 			menu: {
-				id: Menus.TitleBarRightLayout,
+				id: AgentsWindowMenus.TitleBarRightLayout,
 				group: 'navigation',
 				order: 100,
 				when: IsAuxiliaryWindowContext.toNegated(),
@@ -925,7 +1092,7 @@ registerAction2(class extends Action2 {
 	run(): void { }
 });
 
-class AccountWidgetContribution extends Disposable implements IWorkbenchContribution {
+export class AccountWidgetContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.sessionsWidget';
 
@@ -935,7 +1102,7 @@ class AccountWidgetContribution extends Disposable implements IWorkbenchContribu
 	) {
 		super();
 
-		this._register(actionViewItemService.register(Menus.TitleBarRightLayout, SessionsTitleBarAccountWidgetAction, (action, options) => {
+		this._register(actionViewItemService.register(AgentsWindowMenus.TitleBarRightLayout, SessionsTitleBarAccountWidgetAction, (action, options) => {
 			return instantiationService.createInstance(TitleBarAccountWidget, action, options);
 		}, undefined));
 	}

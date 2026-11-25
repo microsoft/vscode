@@ -99,6 +99,16 @@ const configurationEntrySchema: IJSONSchema = {
 								type: 'string',
 								description: nls.localize('scope.markdownDeprecationMessage', 'If set, the property is marked as deprecated and the given message is shown as an explanation in the markdown format.')
 							},
+							deprecationMessageSeverity: {
+								type: 'string',
+								enum: ['warning', 'info'],
+								enumDescriptions: [
+									nls.localize('scope.deprecationMessageSeverity.warning', 'Shows the deprecation message using the standard warning treatment.'),
+									nls.localize('scope.deprecationMessageSeverity.info', 'Shows the deprecation message using an informational treatment.')
+								],
+								default: 'warning',
+								description: nls.localize('scope.deprecationMessageSeverity', 'Controls the severity used to display the deprecation message.')
+							},
 							editPresentation: {
 								type: 'string',
 								enum: ['singlelineText', 'multilineText'],

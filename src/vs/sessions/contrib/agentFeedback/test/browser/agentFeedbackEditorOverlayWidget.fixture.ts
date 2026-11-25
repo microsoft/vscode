@@ -9,7 +9,7 @@ import { Event } from '../../../../../base/common/event.js';
 import { IMenu, IMenuActionOptions, IMenuService, MenuId, MenuItemAction, SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { AgentEditorCommentsOverlayWidget } from '../../../../../workbench/services/agentEditorComments/browser/agentEditorCommentsOverlayWidget.js';
-import { Menus } from '../../../../browser/menus.js';
+import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
 import { clearAllFeedbackActionId, navigateNextFeedbackActionId, navigatePreviousFeedbackActionId, navigationBearingFakeActionId, submitFeedbackActionId } from '../../browser/agentFeedbackEditorActions.js';
 
 interface INavigationBearings {
@@ -39,7 +39,7 @@ class FixtureMenuService implements IMenuService {
 		const submitActions = this._hasAgentFeedbackActions
 			? [
 				toAction({ id: submitFeedbackActionId, label: 'Submit', class: 'codicon codicon-send', run: () => { } }),
-				toAction({ id: clearAllFeedbackActionId, label: 'Clear', class: 'codicon codicon-clear-all', run: () => { } }),
+				toAction({ id: clearAllFeedbackActionId, label: 'Clear All', class: 'codicon codicon-clear-all', run: () => { } }),
 			] as unknown as (MenuItemAction | SubmenuItemAction)[]
 			: [];
 

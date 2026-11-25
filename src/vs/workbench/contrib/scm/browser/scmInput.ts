@@ -410,6 +410,9 @@ export class SCMInputWidget {
 		const textModel = input.repository.provider.inputBoxTextModel;
 		this.inputEditor.setModel(textModel);
 
+		// The source control was removed, so its pending validation must not run on the disposed text model
+		this.repositoryDisposables.add(textModel.onWillDispose(() => this.input = undefined));
+
 		if (this.configurationService.getValue('editor.wordBasedSuggestions', { resource: textModel.uri }) !== 'off') {
 			this.configurationService.updateValue('editor.wordBasedSuggestions', 'off', { resource: textModel.uri }, ConfigurationTarget.MEMORY);
 		}
@@ -859,7 +862,7 @@ registerAction2(class extends Action2 {
 	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
 		const commandService = accessor.get(ICommandService);
 
-		const result = await commandService.executeCommand(CHAT_SETUP_SUPPORT_ANONYMOUS_ACTION_ID);
+		const result = await commandService.executeCommand(CHAT_SETUP_SUPPORT_ANONYMOUS_ACTION_ID, { telemetrySource: 'scm' });
 		if (!result) {
 			return;
 		}

@@ -8,7 +8,6 @@ import * as l10n from '@vscode/l10n';
 import { BasePromptElementProps, PromptElement, PromptSizing } from '@vscode/prompt-tsx';
 import type * as vscode from 'vscode';
 import { IEndpointProvider } from '../../../platform/endpoint/common/endpointProvider';
-import { IExtensionsService } from '../../../platform/extensions/common/extensionsService';
 import { IAlternativeNotebookContentService } from '../../../platform/notebook/common/alternativeContent';
 import { getCellIdMap, parseAndCleanStack } from '../../../platform/notebook/common/helpers';
 import { INotebookService } from '../../../platform/notebook/common/notebookService';
@@ -16,7 +15,7 @@ import { IPromptPathRepresentationService } from '../../../platform/prompts/comm
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
 import { IWorkspaceService } from '../../../platform/workspace/common/workspaceService';
 import { createSha256Hash } from '../../../util/common/crypto';
-import { findNotebook, isJupyterNotebookUri } from '../../../util/common/notebooks';
+import { findNotebook } from '../../../util/common/notebooks';
 import { raceCancellationError, raceTimeout } from '../../../util/vs/base/common/async';
 import { dispose } from '../../../util/vs/base/common/lifecycle';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
@@ -27,8 +26,6 @@ import { Tag } from '../../prompts/node/base/tag';
 import { getCharLimit } from '../../prompts/node/inline/summarizedDocument/summarizeDocumentHelpers';
 import { ToolName } from '../common/toolNames';
 import { ICopilotTool, ToolRegistry } from '../common/toolsRegistry';
-import { IToolsService } from '../common/toolsService';
-import { IInstallExtensionToolInput } from './installExtensionTool';
 import { ChatImageMimeType } from '../../conversation/common/languageModelChatMessageHelpers';
 
 class RunNotebookTelemetryEvent {
@@ -86,9 +83,7 @@ export class RunNotebookCellTool implements ICopilotTool<IRunNotebookCellToolPar
 		@IWorkspaceService private readonly workspaceService: IWorkspaceService,
 		@INotebookService private readonly notebookService: INotebookService,
 		@IAlternativeNotebookContentService protected readonly alternativeNotebookContent: IAlternativeNotebookContentService,
-		@IExtensionsService private readonly extensionsService: IExtensionsService,
 		@IEndpointProvider private readonly endpointProvider: IEndpointProvider,
-		@IToolsService private readonly toolsService: IToolsService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) { }
 
@@ -103,20 +98,6 @@ export class RunNotebookCellTool implements ICopilotTool<IRunNotebookCellToolPar
 
 			// track that a notebook tool was invoked by the agent, exposes follow execution action to toolbar
 			this.notebookService.trackAgentUsage();
-
-			// If this is a Jupyter notebook with Python code and Jupyter extension isn't installed, recommend installing it
-			const JUPYTER_EXTENSION_ID = 'ms-toolsai.jupyter';
-			if (isJupyterNotebookUri(notebook.uri) && notebook.getCells().some(c => c.document.languageId.toLowerCase() === 'python') && !this.extensionsService.getExtension(JUPYTER_EXTENSION_ID)) {
-				try {
-					const input: IInstallExtensionToolInput = {
-						id: JUPYTER_EXTENSION_ID,
-						name: 'Jupyter'
-					};
-					await this.toolsService.invokeTool(ToolName.InstallExtension, { ...options, input }, token);
-				} catch {
-					//
-				}
-			}
 
 			await this.notebookService.ensureKernelSelected(notebook.uri);
 			if (token.isCancellationRequested) {

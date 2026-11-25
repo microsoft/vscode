@@ -8,7 +8,7 @@ import { Emitter } from '../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
-import { IObservable, IReader, ITransaction, observableValue } from '../../../../base/common/observable.js';
+import { constObservable, IObservable, IReader, ITransaction, observableValue } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
@@ -28,7 +28,7 @@ import { ChatEditingModifiedDocumentEntry } from '../../chat/browser/chatEditing
  */
 export class InlineChatEditReviewSession extends Disposable implements IChatEditReviewSession {
 
-	readonly isGlobalEditingSession = false;
+	readonly isGlobalEditingSession = constObservable(false);
 
 	private readonly _entriesObs = observableValue<readonly IModifiedFileEntry[]>(this, []);
 	readonly entries: IObservable<readonly IModifiedFileEntry[]> = this._entriesObs;

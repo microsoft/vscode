@@ -5,7 +5,7 @@
 
 import { onUnexpectedExternalError } from '../../../../base/common/errors.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
-import { ISearchConfiguration, ISearchConfigurationProperties } from '../../../services/search/common/search.js';
+import { ISearchComplete, ISearchConfiguration, ISearchConfigurationProperties } from '../../../services/search/common/search.js';
 import { SymbolKind, Location, ProviderResult, SymbolTag } from '../../../../editor/common/languages.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -16,11 +16,30 @@ import { ServicesAccessor } from '../../../../platform/instantiation/common/inst
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IRange, Range } from '../../../../editor/common/core/range.js';
 import { isNumber } from '../../../../base/common/types.js';
-import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { IMenuService, MenuId, MenuItemAction } from '../../../../platform/actions/common/actions.js';
 import { compare } from '../../../../base/common/strings.js';
 import { groupBy } from '../../../../base/common/arrays.js';
 import * as nls from '../../../../nls.js';
 import type { IConfigurationNode } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { AnythingQuickAccessProviderRunOptions } from '../../../../platform/quickinput/common/quickAccess.js';
+
+/**
+ * Supplies scoped file candidates while the Anything Quick Access provider retains query handling, scoring, sorting, and rendering.
+ */
+export interface IAnythingQuickAccessFileSearchDelegate {
+	search(filePattern: string, token: CancellationToken): Promise<ISearchComplete>;
+	getItemDescription?(resource: URI): string | undefined;
+}
+
+/**
+ * Run options specific to the Anything Quick Access provider.
+ */
+export interface IAnythingQuickAccessProviderRunOptions extends AnythingQuickAccessProviderRunOptions {
+	readonly filesOnly?: boolean;
+	readonly includeOpenToSideButton?: boolean;
+	readonly fileSearchDelegate?: IAnythingQuickAccessFileSearchDelegate;
+}
 
 export interface IWorkspaceSymbol {
 	name: string;
@@ -251,3 +270,13 @@ export const searchConfigurationNode: IConfigurationNode = {
 	type: 'object',
 	properties: {}
 };
+
+/**
+ * The actions that other features offer for a search that finds nothing, in
+ * {@link MenuId.SearchNoResults}. They run with the query.
+ */
+export function getSearchNoResultsActions(menuService: IMenuService, contextKeyService: IContextKeyService, query: string): MenuItemAction[] {
+	return menuService.getMenuActions(MenuId.SearchNoResults, contextKeyService, { arg: query })
+		.flatMap(([, actions]) => actions)
+		.filter((action): action is MenuItemAction => action instanceof MenuItemAction && action.enabled);
+}

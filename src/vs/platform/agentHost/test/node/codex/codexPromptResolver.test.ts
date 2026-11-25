@@ -15,6 +15,12 @@ suite('codexPromptResolver', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('skill resources preserve slash invocation without adding file context', () => {
+		const file: MessageAttachment = { type: MessageAttachmentKind.Resource, uri: 'file:///workspace/file.ts', label: 'file.ts' };
+		const skill: MessageAttachment = { type: MessageAttachmentKind.Resource, uri: 'custom-skills:/review', label: '/review', displayKind: 'skill' };
+		assert.deepStrictEqual(resolveCodexInput('/review changes', [skill, file]), resolveCodexInput('/review changes', [file]));
+	});
+
 	test('plain prompt becomes a single text input', () => {
 		const { input, cleanupPaths } = resolveCodexInput('hello world', undefined);
 		assert.strictEqual(input.length, 1);
@@ -35,6 +41,41 @@ suite('codexPromptResolver', () => {
 		const text = (input[0] as { text: string }).text;
 		assert.ok(text.includes(`@${uri.fsPath}`), `text: ${text}`);
 		assert.ok(text.includes('look at this'));
+	});
+
+	test('snapshotted Resource image becomes a localImage instead of prompt text', () => {
+		const uri = URI.file('/data/agentSessionData/session/attachments/id/Pasted Image.png');
+		const att: MessageAttachment = {
+			type: MessageAttachmentKind.Resource,
+			label: 'Pasted Image',
+			displayKind: 'image',
+			uri: uri.toString(),
+			_meta: toHostSnapshotAttachmentMeta('image/png'),
+		};
+
+		const resolved = resolveCodexInput('what is in this image?', [att]);
+
+		assert.deepStrictEqual(resolved, {
+			input: [
+				{ type: 'text', text: 'what is in this image?', text_elements: [] },
+				{ type: 'localImage', path: uri.fsPath },
+			],
+			cleanupPaths: [],
+		});
+	});
+
+	test('Resource selection ending at the next line column zero excludes that line', () => {
+		const uri = URI.file('/tmp/foo.txt');
+		const att: MessageAttachment = {
+			type: MessageAttachmentKind.Resource,
+			label: 'foo.txt',
+			uri: uri.toString(),
+			selection: { range: { start: { line: 1, character: 0 }, end: { line: 2, character: 0 } } },
+		} as MessageAttachment;
+
+		const text = (resolveCodexInput('explain', [att]).input[0] as { text: string }).text;
+
+		assert.strictEqual(text, `explain\n\n@${uri.fsPath} (line 2)`);
 	});
 
 	test('a host-created snapshot mention is annotated read-only, a normal file is not (#331154)', () => {

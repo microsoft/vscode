@@ -3,7 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import assert from 'assert';
-import { CancellationToken, CancellationTokenSource, CancellationTokenPool } from '../../common/cancellation.js';
+import { abortOnDispose, CancellationToken, CancellationTokenSource, CancellationTokenPool } from '../../common/cancellation.js';
+import { CancellationError, isCancellationError } from '../../common/errors.js';
+import { DisposableStore } from '../../common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
 suite('CancellationToken', function () {
@@ -123,6 +125,201 @@ suite('CancellationToken', function () {
 
 		child.dispose();
 		parent.dispose();
+	});
+
+	test('any handles empty and already cancelled inputs', () => {
+		const lifetime = store.add(new DisposableStore());
+		const active = store.add(new CancellationTokenSource());
+		const cancelled = store.add(new CancellationTokenSource());
+		const cancelledToken = cancelled.token;
+		cancelled.cancel();
+
+		assert.deepStrictEqual([
+			CancellationToken.any([], lifetime),
+			CancellationToken.any([CancellationToken.None, CancellationToken.None], lifetime),
+			CancellationToken.any([CancellationToken.Cancelled], lifetime),
+			CancellationToken.any([active.token, cancelledToken], lifetime),
+			CancellationToken.any([cancelledToken, active.token], lifetime),
+		], [
+			CancellationToken.None,
+			CancellationToken.None,
+			CancellationToken.Cancelled,
+			CancellationToken.Cancelled,
+			CancellationToken.Cancelled,
+		]);
+	});
+
+	test('any keeps a single distinct active input tied to its parent after lifetime disposal', () => {
+		const lifetime = store.add(new DisposableStore());
+		const source = store.add(new CancellationTokenSource());
+		const tokens = [
+			CancellationToken.any([source.token], lifetime),
+			CancellationToken.any([CancellationToken.None, source.token, source.token, CancellationToken.None], lifetime),
+		];
+		const notifications = [0, 0];
+		tokens.forEach((token, index) => store.add(token.onCancellationRequested(() => notifications[index]++)));
+
+		lifetime.dispose();
+		const cancelledOnDispose = tokens.map(token => token.isCancellationRequested);
+		source.cancel();
+
+		assert.deepStrictEqual({
+			reusesParent: tokens.map(token => token === source.token),
+			cancelledOnDispose,
+			cancelled: tokens.map(token => token.isCancellationRequested),
+			notifications,
+		}, {
+			reusesParent: [true, true],
+			cancelledOnDispose: [false, false],
+			cancelled: [true, true],
+			notifications: [1, 1],
+		});
+	});
+
+	for (const firstToCancel of [0, 1]) {
+		test(`any cancels once when parent ${firstToCancel + 1} cancels first`, () => {
+			const lifetime = store.add(new DisposableStore());
+			const parents = [store.add(new CancellationTokenSource()), store.add(new CancellationTokenSource())];
+			const token = CancellationToken.any([parents[0].token, CancellationToken.None, parents[1].token, parents[0].token], lifetime);
+			const initiallyCancelled = token.isCancellationRequested;
+			let notifications = 0;
+			store.add(token.onCancellationRequested(() => notifications++));
+
+			parents[firstToCancel].cancel();
+			const cancelledByFirstParent = token.isCancellationRequested;
+			const otherParentCancelled = parents[1 - firstToCancel].token.isCancellationRequested;
+			parents[1 - firstToCancel].cancel();
+
+			assert.deepStrictEqual({
+				initiallyCancelled, cancelledByFirstParent, otherParentCancelled, notifications,
+			}, { initiallyCancelled: false, cancelledByFirstParent: true, otherParentCancelled: false, notifications: 1 });
+		});
+	}
+
+	test('any stops forwarding multiple inputs after lifetime disposal without cancelling them', () => {
+		const lifetime = store.add(new DisposableStore());
+		const parents = [store.add(new CancellationTokenSource()), store.add(new CancellationTokenSource())];
+		const token = CancellationToken.any(parents.map(parent => parent.token), lifetime);
+		let notifications = 0;
+		store.add(token.onCancellationRequested(() => notifications++));
+
+		lifetime.dispose();
+		const parentsCancelledOnDispose = parents.map(parent => parent.token.isCancellationRequested);
+		parents.forEach(parent => parent.cancel());
+
+		assert.deepStrictEqual({
+			parentsCancelledOnDispose, cancelled: token.isCancellationRequested, notifications,
+		}, { parentsCancelledOnDispose: [false, false], cancelled: false, notifications: 0 });
+	});
+
+	test('any delivers cancellation when a listener disposes its lifetime', () => {
+		const lifetime = store.add(new DisposableStore());
+		const first = store.add(new CancellationTokenSource());
+		const second = store.add(new CancellationTokenSource());
+		const token = CancellationToken.any([first.token, second.token], lifetime);
+		const notifications: string[] = [];
+		store.add(token.onCancellationRequested(() => {
+			notifications.push('cleanup');
+			lifetime.dispose();
+		}));
+		store.add(token.onCancellationRequested(() => notifications.push('observer')));
+
+		first.cancel();
+		second.cancel();
+
+		assert.deepStrictEqual(notifications, ['cleanup', 'observer']);
+	});
+
+	test('throwIfCanceled throws only for cancelled tokens', () => {
+		const source = store.add(new CancellationTokenSource());
+		CancellationToken.throwIfCanceled(CancellationToken.None);
+		CancellationToken.throwIfCanceled(source.token);
+
+		source.cancel();
+
+		for (const token of [source.token, CancellationToken.Cancelled]) {
+			assert.throws(() => CancellationToken.throwIfCanceled(token), CancellationError);
+		}
+	});
+
+	test('fromAbortSignal reflects current and future cancellation', () => {
+		const lifetime = store.add(new DisposableStore());
+		const controller = new AbortController();
+		const token = CancellationToken.fromAbortSignal(controller.signal, lifetime);
+		const initiallyCancelled = token.isCancellationRequested;
+		let notifications = 0;
+		lifetime.add(token.onCancellationRequested(() => notifications++));
+		controller.abort();
+		controller.abort();
+		assert.deepStrictEqual({
+			initiallyCancelled,
+			cancelled: token.isCancellationRequested,
+			alreadyAborted: CancellationToken.fromAbortSignal(controller.signal, lifetime).isCancellationRequested,
+			notifications,
+		}, { initiallyCancelled: false, cancelled: true, alreadyAborted: true, notifications: 1 });
+	});
+
+	test('fromAbortSignal stops forwarding after lifetime disposal', () => {
+		const lifetime = store.add(new DisposableStore());
+		const controller = new AbortController();
+		const token = CancellationToken.fromAbortSignal(controller.signal, lifetime);
+		lifetime.dispose();
+		const abortedOnDispose = controller.signal.aborted;
+		controller.abort();
+		assert.deepStrictEqual({
+			abortedOnDispose, signalAborted: controller.signal.aborted, tokenCancelled: token.isCancellationRequested,
+		}, { abortedOnDispose: false, signalAborted: true, tokenCancelled: false });
+	});
+
+	test('toAbortSignal reflects current and future cancellation', () => {
+		const lifetime = store.add(new DisposableStore());
+		const source = store.add(new CancellationTokenSource());
+		const token = source.token;
+		const signal = CancellationToken.toAbortSignal(token, lifetime);
+		const initiallyAborted = signal.aborted;
+		source.cancel();
+		const cancelledSignals = [
+			signal,
+			CancellationToken.toAbortSignal(token, lifetime),
+			CancellationToken.toAbortSignal(CancellationToken.Cancelled, lifetime),
+		];
+		assert.deepStrictEqual({
+			initiallyAborted,
+			cancelledSignals: cancelledSignals.map(signal => ({ aborted: signal.aborted, cancellationError: isCancellationError(signal.reason) })),
+			none: CancellationToken.toAbortSignal(CancellationToken.None, lifetime).aborted,
+		}, {
+			initiallyAborted: false,
+			cancelledSignals: [
+				{ aborted: true, cancellationError: true },
+				{ aborted: true, cancellationError: true },
+				{ aborted: true, cancellationError: true },
+			],
+			none: false,
+		});
+	});
+
+	test('toAbortSignal stops forwarding after lifetime disposal', () => {
+		const lifetime = store.add(new DisposableStore());
+		const source = store.add(new CancellationTokenSource());
+		const signal = CancellationToken.toAbortSignal(source.token, lifetime);
+		lifetime.dispose();
+		const cancelledOnDispose = source.token.isCancellationRequested;
+		source.cancel();
+		assert.deepStrictEqual({
+			cancelledOnDispose, tokenCancelled: source.token.isCancellationRequested, signalAborted: signal.aborted,
+		}, { cancelledOnDispose: false, tokenCancelled: true, signalAborted: false });
+	});
+
+	test('abortOnDispose aborts when the store is disposed', () => {
+		const lifetime = store.add(new DisposableStore());
+		const signal = abortOnDispose(lifetime);
+		const initiallyAborted = signal.aborted;
+		lifetime.dispose();
+		assert.deepStrictEqual({
+			initiallyAborted,
+			aborted: signal.aborted,
+			cancellationError: isCancellationError(signal.reason),
+		}, { initiallyAborted: false, aborted: true, cancellationError: true });
 	});
 });
 

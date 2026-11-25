@@ -66,6 +66,19 @@
 	border: 1px solid var(--vscode-chat-requestCodeBorder);
 }
 
+/*
+ * Request code block editors get a computed width, see CodeBlockPart.layout. Let the border wrap the
+ * editor rather than the bubble, and keep the block inside its container where the width doesn't fit,
+ * e.g. in a blockquote. Lists dedent their code blocks to the full width, see chat.css.
+ */
+.interactive-result-code-block.chat-request-code-block {
+	width: fit-content;
+	box-sizing: border-box;
+	max-width: 100%;
+	/* Clip horizontally only, so the toolbar above the block stays visible */
+	overflow-x: clip;
+}
+
 .interactive-session .interactive-response .interactive-result-code-block {
 	border: 1px solid var(--vscode-input-border, transparent);
 	background-color: var(--vscode-interactive-result-editor-background-color);

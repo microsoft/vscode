@@ -81,6 +81,10 @@ export class BaseTelemetryService implements ITelemetryService {
 		this._ghTelemetrySender.sendExceptionTelemetry(maybeError, origin);
 	}
 
+	get isRestrictedTelemetryActive(): boolean {
+		return this._ghTelemetrySender.isEnhancedTelemetryEnabled;
+	}
+
 	sendEnhancedGHTelemetryEvent(eventName: string, properties?: TelemetryEventProperties | undefined, measurements?: TelemetryEventMeasurements | undefined): void {
 		properties = this._addSku({ ...properties, ...this._sharedProperties });
 		this._ghTelemetrySender.sendEnhancedTelemetryEvent(eventName, properties, measurements);
@@ -196,6 +200,12 @@ export class BaseTelemetryService implements ITelemetryService {
 			...Object.fromEntries(props),
 			...this._sharedProperties
 		};
+		// Mark the queried-feature name trusted so the telemetry cleaner does not redact the
+		// `/vscode/`-scoped key as a `user-file-path`.
+		const queriedFeature = properties['ABExp.queriedFeature'];
+		if (typeof queriedFeature === 'string') {
+			properties['ABExp.queriedFeature'] = new TelemetryTrustedValue(queriedFeature);
+		}
 		this._microsoftTelemetrySender.sendInternalTelemetryEvent(eventName, properties);
 		this._microsoftTelemetrySender.sendTelemetryEvent(eventName, properties);
 	}

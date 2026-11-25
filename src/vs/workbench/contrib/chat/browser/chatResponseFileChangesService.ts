@@ -16,6 +16,9 @@ export interface IChatResponseFileEdit extends IEditSessionEntryDiff {
 	readonly isOutsideWorkspace: boolean;
 }
 
+/** An authoritative result saying valid edits produced no net file changes. */
+export const AUTHORITATIVE_EMPTY_CHAT_RESPONSE_FILE_CHANGES: readonly IEditSessionEntryDiff[] = [];
+
 /**
  * Supplies the per-response (per-request) file-change diffs rendered by the
  * "Changed N files" summary under a completed chat response.
@@ -31,7 +34,9 @@ export interface IChatResponseFileChangesProvider {
 	 * Returns an observable of the file-change diffs produced by `requestId`
 	 * within `sessionResource`, or `undefined` when this provider cannot
 	 * supply changes for that request (in which case the caller falls back to
-	 * the chat editing session).
+	 * the chat editing session). Return
+	 * {@link AUTHORITATIVE_EMPTY_CHAT_RESPONSE_FILE_CHANGES} when valid edits
+	 * cancel to no net change and consumers must clear previously cached diffs.
 	 */
 	getChangesForRequest(sessionResource: URI, requestId: string): IObservable<readonly IEditSessionEntryDiff[]> | undefined;
 
@@ -46,6 +51,12 @@ export interface IChatResponseFileChangesProvider {
 
 export interface IChatResponseFileChangesOpenContext {
 	readonly isLastTurn: boolean;
+}
+
+export interface IChatResponseFileChangesStats {
+	readonly files: number;
+	readonly insertions: number;
+	readonly deletions: number;
 }
 
 export interface IChatResponseFileChangesService {
@@ -70,6 +81,13 @@ export interface IChatResponseFileChangesService {
 	 * classified against their owning session, when the provider can supply them.
 	 */
 	getFileEditsForRequest?(sessionResource: URI, requestId: string): IObservable<readonly IChatResponseFileEdit[]> | undefined;
+
+	/**
+	 * Returns authoritative aggregate stats when the owning surface already
+	 * projects the request's changes. When omitted, consumers aggregate
+	 * {@link getChangesForRequest}.
+	 */
+	getChangeStatsForRequest?(sessionResource: URI, requestId: string, context: IChatResponseFileChangesOpenContext): IObservable<IChatResponseFileChangesStats> | undefined;
 
 	/** Opens response changes. `requestId` may be omitted for invocations not tied to a rendered response; `context.isLastTurn` controls last-turn routing. */
 	openChangesForRequest(sessionResource: URI, requestId: string | undefined, context: IChatResponseFileChangesOpenContext): void;
@@ -100,6 +118,10 @@ export abstract class AbstractChatResponseFileChangesService extends Disposable 
 	getFileEditsForRequest(sessionResource: URI, requestId: string): IObservable<readonly IChatResponseFileEdit[]> | undefined {
 		const provider = this._providers.get(getChatSessionType(sessionResource));
 		return provider?.getFileEditsForRequest?.(sessionResource, requestId);
+	}
+
+	getChangeStatsForRequest(_sessionResource: URI, _requestId: string, _context: IChatResponseFileChangesOpenContext): IObservable<IChatResponseFileChangesStats> | undefined {
+		return undefined;
 	}
 
 	abstract openChangesForRequest(sessionResource: URI, requestId: string | undefined, context: IChatResponseFileChangesOpenContext): void;

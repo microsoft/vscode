@@ -17,8 +17,8 @@
 }
 
 .run-script-action-label {
-	font-size: var(--vscode-agents-fontSize-label1);
-	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	font-size: var(--vscode-fontSize-label1);
+	font-weight: var(--vscode-fontWeight-semiBold);
 }
 
 .run-script-action-input .monaco-inputbox {
@@ -57,8 +57,8 @@
 	border-radius: var(--vscode-cornerRadius-small);
 	background: transparent;
 	color: var(--vscode-foreground);
-	font-size: var(--vscode-agents-fontSize-label1);
-	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	font-size: var(--vscode-fontSize-label1);
+	font-weight: var(--vscode-fontWeight-semiBold);
 	line-height: 14px;
 	opacity: 0.9;
 	transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease, opacity 120ms ease;
@@ -121,7 +121,7 @@
 }
 
 .run-script-action-hint {
-	font-size: var(--vscode-agents-fontSize-label1);
+	font-size: var(--vscode-fontSize-label1);
 	color: var(--vscode-descriptionForeground);
 }
 
@@ -157,8 +157,8 @@
 .agent-sessions-workbench.run-script-action-modal-visible .quick-input-widget .quick-input-title {
 	padding: 0;
 	text-align: left;
-	font-size: var(--vscode-agents-fontSize-label1);
-	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	font-size: var(--vscode-fontSize-label1);
+	font-weight: var(--vscode-fontWeight-semiBold);
 	color: var(--vscode-titleBar-activeForeground);
 }
 

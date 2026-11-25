@@ -1,0 +1,910 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import { Limiter, Sequencer } from '../../../../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
+import { asGitHubAccount, IGitHubDefaultAccount } from '../../../../../../base/common/defaultAccount.js';
+import { CancellationError, getErrorMessage, isCancellationError } from '../../../../../../base/common/errors.js';
+import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { LRUCache } from '../../../../../../base/common/map.js';
+import { constObservable, IObservable, observableValue, transaction } from '../../../../../../base/common/observable.js';
+import { isObject } from '../../../../../../base/common/types.js';
+import { URI } from '../../../../../../base/common/uri.js';
+import { localize } from '../../../../../../nls.js';
+import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
+import { RepositoryRef } from '../../../../../../platform/github/common/client/types.js';
+import { toRepositoryRef } from '../../../../../../platform/github/common/client/routing.js';
+import { ApiRequestOptions } from '../../../../../../platform/github/common/client/request.js';
+import { IGitHubAccountClient } from '../../../../../../platform/github/common/account/account.js';
+import { AutomationDetail, AutomationRepositoryConfiguration, AutomationToolGroup, CreateAutomationRequest, EditAutomationRequest, IAutomationsClient } from '../../../../../../platform/github/common/missionControl/automations.js';
+import { ApiRequestError, MutationUncertainError } from '../../../../../../platform/github/common/missionControl/missionControlClient.js';
+import { ListModelsResponse } from '../../../../../../platform/github/common/missionControl/models.js';
+import { ITasksClient, Task } from '../../../../../../platform/github/common/missionControl/tasks.js';
+import { ILogService } from '../../../../../../platform/log/common/log.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
+import { AutomationCatalogueState, AutomationMutationUncertainError, AutomationRepositoryOwnershipUnavailableError, AutomationTriggerCatalog, AutomationUnavailableError, IAutomationRefreshOptions, IAutomationWorkspaceTarget } from '../../../../chat/common/automations/automationService.js';
+import { IWorkbenchGitHubService } from '../../../../../services/github/common/githubService.js';
+import { ISessionsRecentWorkspacesService } from '../../../browser/sessionsRecentWorkspacesService.js';
+import { GITHUB_REMOTE_FILE_SCHEME } from '../../../../../services/sessions/common/session.js';
+
+const REPOSITORIES_STORAGE_KEY = 'cloudAutomations.repositories';
+const REPOSITORY_CAPABILITY_FAILURE_RETRY_DELAY = 30_000;
+const MAX_REPOSITORY_CAPABILITY_FAILURES = 100;
+
+export interface ICloudAutomationEntry {
+	readonly repository: RepositoryRef;
+	readonly definition: AutomationDetail;
+}
+
+/** The account's tool catalog; `undefined` until it is first requested. */
+export type CloudAutomationToolCatalog =
+	| { readonly kind: 'loading' }
+	| { readonly kind: 'ready'; readonly groups: readonly AutomationToolGroup[] }
+	| { readonly kind: 'error' };
+
+export type CloudAutomationModelCatalog =
+	| { readonly kind: 'loading' }
+	| { readonly kind: 'ready'; readonly catalog: ListModelsResponse }
+	| { readonly kind: 'error' };
+
+export interface ICloudAutomationHistoryEntry {
+	readonly entry: ICloudAutomationEntry;
+	readonly task: Task;
+}
+
+export interface ICloudAutomationTaskAccess {
+	readonly isKnownRun: (id: string) => boolean;
+	readonly getAutomationPrompt: (task: Task, token: CancellationToken) => Promise<string | undefined>;
+	readonly withTasks: <T>(token: CancellationToken, operation: (tasks: Pick<ITasksClient, 'get' | 'getEvents' | 'steer'>, token: CancellationToken) => Promise<T>) => Promise<T>;
+}
+
+/** Provider-local coordination. Construction and account changes never initiate network requests. */
+export class GitHubCloudAutomationStore extends Disposable {
+	private readonly cachedEntries = observableValue<readonly ICloudAutomationEntry[]>(this, []);
+	readonly entries: IObservable<readonly ICloudAutomationEntry[]> = this.cachedEntries;
+	private readonly state = observableValue<AutomationCatalogueState>(this, 'ready');
+	readonly catalogueState: IObservable<AutomationCatalogueState> = this.state;
+	private lifetime = new CancellationTokenSource();
+	private readonly clientStore = this._register(new DisposableStore());
+	private clientPromise: Promise<IGitHubAccountClient> | undefined;
+	private refreshPromise: Promise<void> | undefined;
+	private operations = new Sequencer();
+	private readonly cachedHistory = observableValue<readonly ICloudAutomationHistoryEntry[]>(this, []);
+	readonly history: IObservable<readonly ICloudAutomationHistoryEntry[]> = this.cachedHistory;
+	private readonly uncertain = observableValue(this, false);
+	readonly mutationUncertain: IObservable<boolean> = this.uncertain;
+	private readonly targetEligibility = new Map<string, ReturnType<typeof observableValue<IAutomationWorkspaceTarget>>>();
+	private readonly targetRepositories = new Map<string, RepositoryRef>();
+	private readonly repositoryPrivacy = new Map<string, boolean>();
+	private readonly repositoryConfigurations = new Map<string, AutomationRepositoryConfiguration>();
+	private readonly repositoryPrivacyFailures = new LRUCache<string, number>(MAX_REPOSITORY_CAPABILITY_FAILURES);
+	private readonly repositoryManageabilityFailures = new LRUCache<string, number>(MAX_REPOSITORY_CAPABILITY_FAILURES);
+	private readonly targetEligibilityLimiter = this._register(new Limiter<void>(5));
+	private readonly cachedTools = observableValue<CloudAutomationToolCatalog | undefined>(this, undefined);
+	readonly toolCatalog: IObservable<CloudAutomationToolCatalog | undefined> = this.cachedTools;
+	readonly triggerCatalog = observableValue<AutomationTriggerCatalog | undefined>(this, undefined);
+	readonly modelCatalog = observableValue<CloudAutomationModelCatalog | undefined>(this, undefined);
+	readonly taskAccess = observableValue<ICloudAutomationTaskAccess | undefined>(this, undefined);
+
+	constructor(
+		private readonly resolveRepositoryUri: (workspace: URI) => URI | undefined | Promise<URI | undefined>,
+		@IWorkbenchGitHubService private readonly gitHubService: IWorkbenchGitHubService,
+		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService,
+		@IStorageService private readonly storageService: IStorageService,
+		@ILogService private readonly logService: ILogService,
+		@ISessionsRecentWorkspacesService private readonly recentWorkspacesService: ISessionsRecentWorkspacesService,
+	) {
+		super();
+		this._register(defaultAccountService.onDidChangeDefaultAccount(() => this.reset()));
+		this._register(gitHubService.onDidChangeDefaultClient(() => this.reset()));
+		this.reset();
+	}
+
+	getWorkspaceTarget(workspace: URI | undefined): IObservable<IAutomationWorkspaceTarget> {
+		const required = localize('cloudAutomations.repositoryTargetRequired', "Choose a GitHub.com repository that supports cloud automations.");
+		if (!workspace || this._store.isDisposed || this.lifetime.token.isCancellationRequested) {
+			return constObservable({ disabledReason: required });
+		}
+		const key = workspace.toString();
+		const cached = this.targetEligibility.get(key);
+		if (cached) {
+			return cached;
+		}
+		const result = observableValue<IAutomationWorkspaceTarget>(this, {
+			disabledReason: localize('cloudAutomations.checkingRepository', "Checking repository access..."),
+			pending: true,
+		});
+		this.targetEligibility.set(key, result);
+		const cancellationToken = this.lifetime.token;
+		void this.targetEligibilityLimiter.queue(async () => {
+			let repository: RepositoryRef | undefined;
+			try {
+				this.requireAccount();
+				CancellationToken.throwIfCanceled(cancellationToken);
+				const resolvedRepository = await this.resolveRepository(workspace);
+				repository = resolvedRepository;
+				CancellationToken.throwIfCanceled(cancellationToken);
+				const repositoryState = resolvedRepository
+					? await this.withClient(cancellationToken, async (client, cancellationToken) => {
+						const options = { caller: 'cloudAutomations' };
+						const metadata = await client.repositories.get(resolvedRepository, cancellationToken, options);
+						const configuration = metadata.private
+							? await client.automations.getConfiguration(resolvedRepository, cancellationToken, options)
+							: undefined;
+						return { isPrivate: metadata.private, configuration };
+					})
+					: undefined;
+				CancellationToken.throwIfCanceled(cancellationToken);
+				if (this.targetEligibility.get(key) !== result) {
+					return;
+				}
+				if (repository) {
+					this.setRepositoryPrivacy(repositoryKey(repository), repositoryState?.isPrivate === true);
+					if (repositoryState?.configuration) {
+						this.setRepositoryConfiguration(repositoryKey(repository), repositoryState.configuration);
+					}
+					this.targetRepositories.set(key, repository);
+				}
+				const configuration = repository ? this.repositoryConfigurations.get(repositoryKey(repository)) : undefined;
+				result.set(repository && repositoryState?.isPrivate && repositoryState.configuration?.can_manage_automations ? {
+					workspace: URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: `/${repository.owner}/${repository.repo}/HEAD` }),
+					repositoryLabel: repositoryDisplayName(repository),
+					allowReadAccessTriggers: repositoryState.configuration.allow_read_access_triggers,
+				} : {
+					disabledReason: repository
+						? localize('cloudAutomations.manageabilityRequired', "Cloud automations cannot be managed for this repository.")
+						: required,
+					isRepository: repository !== undefined,
+					...(repositoryState?.isPrivate === false ? { isPrivateRepository: false } : {}),
+					repositoryLabel: repository ? repositoryDisplayName(repository) : undefined,
+					...(configuration ? { allowReadAccessTriggers: configuration.allow_read_access_triggers } : {}),
+				}, undefined);
+			} catch (error) {
+				if (!isCancellationError(error)) {
+					this.logService.warn('[CloudAutomations] Repository eligibility check failed', error);
+				}
+				if (!cancellationToken.isCancellationRequested && !this._store.isDisposed && this.targetEligibility.get(key) === result) {
+					result.set({
+						disabledReason: localize('cloudAutomations.repositoryCheckFailed', "Unable to verify cloud automation access. Refresh automations to try again."),
+						isRepository: repository !== undefined,
+						repositoryLabel: repository ? repositoryDisplayName(repository) : undefined,
+					}, undefined);
+				}
+			}
+		});
+		return result;
+	}
+
+	async isRepositorySelectable(repository: RepositoryRef, token: CancellationToken): Promise<boolean> {
+		const key = repositoryKey(repository);
+		const knownPrivate = this.repositoryPrivacy.get(key);
+		const knownManageability = this.repositoryConfigurations.get(key)?.can_manage_automations;
+		if (knownPrivate === false) {
+			return false;
+		}
+		if (knownPrivate === true && knownManageability !== undefined) {
+			return knownManageability;
+		}
+		if (knownManageability === false) {
+			return false;
+		}
+		const privacyRetryAfter = this.repositoryPrivacyFailures.get(key);
+		const manageabilityRetryAfter = this.repositoryManageabilityFailures.get(key);
+		if ((privacyRetryAfter !== undefined && privacyRetryAfter > Date.now())
+			|| (manageabilityRetryAfter !== undefined && manageabilityRetryAfter > Date.now())) {
+			return false;
+		}
+		if (privacyRetryAfter !== undefined) {
+			this.repositoryPrivacyFailures.delete(key);
+		}
+		if (manageabilityRetryAfter !== undefined) {
+			this.repositoryManageabilityFailures.delete(key);
+		}
+		const resources = new DisposableStore();
+		const cancellationToken = CancellationToken.any([this.lifetime.token, token], resources);
+		try {
+			this.requireAccount();
+			const { isPrivate, configuration } = await this.withClient(cancellationToken, async (client, cancellationToken) => {
+				const metadata = await client.repositories.get(repository, cancellationToken, { caller: 'cloudAutomations' });
+				const configuration = metadata.private
+					? await client.automations.getConfiguration(repository, cancellationToken, { caller: 'cloudAutomations' })
+					: undefined;
+				return { isPrivate: metadata.private, configuration };
+			});
+			CancellationToken.throwIfCanceled(cancellationToken);
+			this.setRepositoryPrivacy(key, isPrivate);
+			if (configuration) {
+				this.setRepositoryConfiguration(key, configuration);
+			}
+			this.repositoryPrivacyFailures.delete(key);
+			this.repositoryManageabilityFailures.delete(key);
+			return isPrivate && configuration?.can_manage_automations === true;
+		} catch (error) {
+			CancellationToken.throwIfCanceled(cancellationToken);
+			if (isCancellationError(error)) {
+				throw error;
+			}
+			const retryAfter = Date.now() + REPOSITORY_CAPABILITY_FAILURE_RETRY_DELAY;
+			this.repositoryPrivacyFailures.set(key, retryAfter);
+			this.repositoryManageabilityFailures.set(key, retryAfter);
+			this.logService.warn(`[CloudAutomations] Failed to verify ${key}`, error);
+			return false;
+		} finally {
+			resources.dispose();
+		}
+	}
+
+	async isRepositoryManageable(repository: RepositoryRef, token: CancellationToken): Promise<boolean> {
+		const key = repositoryKey(repository);
+		if (this.repositoryConfigurations.has(key)) {
+			return this.repositoryConfigurations.get(key)?.can_manage_automations === true;
+		}
+		const retryAfter = this.repositoryManageabilityFailures.get(key);
+		if (retryAfter !== undefined) {
+			if (retryAfter > Date.now()) {
+				return false;
+			}
+			this.repositoryManageabilityFailures.delete(key);
+		}
+		const resources = new DisposableStore();
+		const cancellationToken = CancellationToken.any([this.lifetime.token, token], resources);
+		try {
+			this.requireAccount();
+			const configuration = await this.withClient(cancellationToken, (client, cancellationToken) => client.automations.getConfiguration(repository, cancellationToken, { caller: 'cloudAutomations' }));
+			CancellationToken.throwIfCanceled(cancellationToken);
+			this.repositoryManageabilityFailures.delete(key);
+			this.setRepositoryConfiguration(key, configuration);
+			return configuration.can_manage_automations;
+		} catch (error) {
+			CancellationToken.throwIfCanceled(cancellationToken);
+			if (isCancellationError(error)) {
+				throw error;
+			}
+			this.repositoryManageabilityFailures.set(key, Date.now() + REPOSITORY_CAPABILITY_FAILURE_RETRY_DELAY);
+			this.logService.warn(`[CloudAutomations] Failed to verify ${key}`, error);
+			return false;
+		} finally {
+			resources.dispose();
+		}
+	}
+
+	canManageRepository(repository: RepositoryRef): boolean {
+		return this.repositoryConfigurations.get(repositoryKey(repository))?.can_manage_automations === true;
+	}
+
+	loadModels(retry = false): void {
+		const current = this.modelCatalog.get();
+		if (current && (!retry || current.kind !== 'error')) {
+			return;
+		}
+		const cancellationToken = this.lifetime.token;
+		this.modelCatalog.set({ kind: 'loading' }, undefined);
+		void (async () => {
+			try {
+				this.requireAccount();
+				const catalog = await this.withClient(cancellationToken, (client, cancellationToken) => client.missionControlModels.list(cancellationToken, { caller: 'cloudAutomations' }));
+				CancellationToken.throwIfCanceled(cancellationToken);
+				this.modelCatalog.set({ kind: 'ready', catalog }, undefined);
+			} catch (error) {
+				if (cancellationToken.isCancellationRequested || this._store.isDisposed) {
+					return;
+				}
+				this.logService.warn('[CloudAutomations] Failed to load automation models', error);
+				this.modelCatalog.set({ kind: 'error' }, undefined);
+			}
+		})();
+	}
+
+	/** Loads the account's tool catalog once per account lifetime; a failed load can be retried. */
+	loadTools(): void {
+		const current = this.cachedTools.get();
+		if (current?.kind === 'loading' || current?.kind === 'ready') {
+			return;
+		}
+		const cancellationToken = this.lifetime.token;
+		this.cachedTools.set({ kind: 'loading' }, undefined);
+		void (async () => {
+			try {
+				this.requireAccount();
+				const groups = await this.withClient(cancellationToken, (client, cancellationToken) => client.automations.listTools(cancellationToken, { caller: 'cloudAutomations' }));
+				CancellationToken.throwIfCanceled(cancellationToken);
+				this.cachedTools.set({ kind: 'ready', groups }, undefined);
+			} catch (error) {
+				if (cancellationToken.isCancellationRequested || this._store.isDisposed) {
+					return;
+				}
+				if (!isCancellationError(error)) {
+					this.logService.warn('[CloudAutomations] Failed to load automation tools', error);
+				}
+				this.cachedTools.set({ kind: 'error' }, undefined);
+			}
+		})();
+	}
+
+	loadTriggers(): void {
+		const current = this.triggerCatalog.get();
+		if (current?.kind === 'loading' || current?.kind === 'ready') {
+			return;
+		}
+		const cancellationToken = this.lifetime.token;
+		this.triggerCatalog.set({ kind: 'loading' }, undefined);
+		void (async () => {
+			try {
+				this.requireAccount();
+				const definitions = await this.withClient(cancellationToken, (client, cancellationToken) => client.automations.listTriggers(cancellationToken, { caller: 'cloudAutomations' }));
+				CancellationToken.throwIfCanceled(cancellationToken);
+				this.triggerCatalog.set({ kind: 'ready', definitions }, undefined);
+			} catch (error) {
+				if (cancellationToken.isCancellationRequested || this._store.isDisposed) {
+					return;
+				}
+				this.logService.warn('[CloudAutomations] Failed to load automation triggers', error);
+				this.triggerCatalog.set({ kind: 'error', message: localize('cloudAutomations.triggersLoadFailed', "Available triggers could not be loaded.") }, undefined);
+			}
+		})();
+	}
+
+	private clearTargetEligibility(): void {
+		const targets = [...this.targetEligibility.values()];
+		this.targetEligibility.clear();
+		this.targetRepositories.clear();
+		for (const target of targets) {
+			target.set({ disabledReason: localize('cloudAutomations.repositoryRecheckRequired', "Repository access must be verified again.") }, undefined);
+		}
+	}
+
+	async refresh(options?: IAutomationRefreshOptions): Promise<void> {
+		const account = this.requireAccount();
+		if (this.refreshPromise) {
+			return this.refreshPromise;
+		}
+		if (!options?.background) {
+			this.clearTargetEligibility();
+			this.repositoryPrivacyFailures.clear();
+			this.repositoryManageabilityFailures.clear();
+		}
+		const cancellationToken = this.lifetime.token;
+		if (this.state.get() !== 'ready') {
+			this.state.set('loading', undefined);
+		}
+		const refresh = this.operations.queue(async () => {
+			await this.withClient(cancellationToken, (client, cancellationToken) => this.refreshRepositories(account, cancellationToken, client, { caller: 'cloudAutomations', priority: options?.background ? 'background' : undefined }));
+			CancellationToken.throwIfCanceled(cancellationToken);
+			this.uncertain.set(false, undefined);
+		});
+		this.refreshPromise = refresh;
+		try {
+			await refresh;
+		} catch (error) {
+			if (!cancellationToken.isCancellationRequested && !this._store.isDisposed) {
+				this.state.set('error', undefined);
+				this.logService.warn('[CloudAutomations] Failed to refresh repositories', error);
+			}
+			throw error;
+		} finally {
+			if (this.refreshPromise === refresh) {
+				this.refreshPromise = undefined;
+			}
+		}
+	}
+
+	private async acquireClient(cancellationToken: CancellationToken): Promise<IGitHubAccountClient> {
+		const client = await this.gitHubService.acquireDefaultAccountApiClient(cancellationToken);
+		if (cancellationToken.isCancellationRequested) {
+			client.dispose();
+			throw new CancellationError();
+		}
+		this.clientStore.add(client);
+		this.clientStore.add(client.onDidInvalidate(() => this.reset()));
+		return client;
+	}
+
+	private async withClient<T>(cancellationToken: CancellationToken, task: (client: IGitHubAccountClient, cancellationToken: CancellationToken) => Promise<T>): Promise<T> {
+		CancellationToken.throwIfCanceled(cancellationToken);
+		const pending = this.clientPromise ??= this.acquireClient(cancellationToken);
+		let client: IGitHubAccountClient;
+		try {
+			client = await pending;
+		} catch (error) {
+			if (this.clientPromise === pending) {
+				this.clientPromise = undefined;
+			}
+			throw error;
+		}
+		try {
+			return await task(client, cancellationToken);
+		} catch (error) {
+			if (cancellationToken.isCancellationRequested && !(error instanceof MutationUncertainError || error instanceof ApiRequestError && error.outcome === 'indeterminate')) {
+				throw new CancellationError();
+			}
+			throw error;
+		}
+	}
+
+	async create(workspace: URI, value: CreateAutomationRequest, guard?: () => void): Promise<ICloudAutomationEntry> {
+		const account = this.requireAccount();
+		const cancellationToken = this.lifetime.token;
+		const repository = await this.resolveRepository(workspace);
+		CancellationToken.throwIfCanceled(cancellationToken);
+		if (!repository) {
+			throw new Error(localize('cloudAutomations.repositoryRequired', "Select a GitHub.com repository for this cloud automation."));
+		}
+		try {
+			return await this.mutate(repository, async (client, ref, cancellationToken) => {
+				this.rememberRepositories(account.accountName, [repository], cancellationToken);
+				guard?.();
+				const definition = await client.automations.create(ref, value, cancellationToken, { caller: 'cloudAutomations' });
+				return this.publish(repository, definition, cancellationToken);
+			}, CancellationToken.None, cancellationToken);
+		} catch (error) {
+			if (value.ownership === 'repository' && isRepositoryOwnershipUnsupportedError(error)) {
+				throw new AutomationRepositoryOwnershipUnavailableError(repositoryOwnershipUnsupportedMessage(), { cause: error });
+			}
+			throw error;
+		}
+	}
+
+	/** The preflight callback may decline an update after comparing the latest authoritative definition. */
+	update(entry: ICloudAutomationEntry, patch: (current: AutomationDetail) => EditAutomationRequest | undefined, guard?: () => void): Promise<{ readonly entry: ICloudAutomationEntry; readonly updated: boolean } | { readonly entry: undefined; readonly updated: false }> {
+		return this.mutate(entry.repository, async (client, ref, cancellationToken) => {
+			let current: AutomationDetail;
+			try {
+				current = await client.automations.get(ref, entry.definition.id, cancellationToken, { caller: 'cloudAutomations' });
+			} catch (error) {
+				if (!(error instanceof ApiRequestError) || error.statusCode !== 404) {
+					throw error;
+				}
+				this.removeEntry(entry, cancellationToken);
+				return { entry: undefined, updated: false };
+			}
+			this.publish(entry.repository, current, cancellationToken);
+			const value = patch(current);
+			if (!value) {
+				return { entry: { repository: entry.repository, definition: current }, updated: false };
+			}
+			guard?.();
+			const definition = await client.automations.update(ref, current.id, value, cancellationToken, { caller: 'cloudAutomations' });
+			return { entry: this.publish(entry.repository, definition, cancellationToken), updated: true };
+		});
+	}
+
+	async delete(entry: ICloudAutomationEntry, guard?: () => void): Promise<void> {
+		await this.mutate(entry.repository, async (client, ref, cancellationToken) => {
+			guard?.();
+			await client.automations.delete(ref, entry.definition.id, cancellationToken, { caller: 'cloudAutomations' });
+			this.removeEntry(entry, cancellationToken);
+		});
+	}
+
+	async run(entry: ICloudAutomationEntry, token: CancellationToken = CancellationToken.None, guard?: () => void): Promise<void> {
+		await this.mutate(entry.repository, async (client, ref, cancellationToken) => {
+			let current: AutomationDetail;
+			try {
+				current = await client.automations.get(ref, entry.definition.id, cancellationToken, { caller: 'cloudAutomations' });
+			} catch (error) {
+				if (!(error instanceof ApiRequestError) || error.statusCode !== 404) {
+					throw error;
+				}
+				this.removeEntry(entry, cancellationToken);
+				throw new AutomationUnavailableError(localize('cloudAutomations.missing', "This cloud automation is no longer available. Refresh the catalogue."));
+			}
+			this.publish(entry.repository, current, cancellationToken);
+			guard?.();
+			await client.automations.dispatch(ref, current.id, { event: 'manual' }, cancellationToken, { caller: 'cloudAutomations' });
+		}, token);
+	}
+
+	async stop(entry: ICloudAutomationHistoryEntry): Promise<void> {
+		await this.mutate(entry.entry.repository, (client, _ref, cancellationToken) => client.tasks.abort(entry.task.id, cancellationToken, { caller: 'cloudAutomations' }));
+	}
+
+	async refreshHistory(options?: IAutomationRefreshOptions, include: (entry: ICloudAutomationEntry) => boolean = () => true): Promise<void> {
+		this.requireAccount();
+		const cancellationToken = this.lifetime.token;
+		const requestOptions: ApiRequestOptions = { caller: 'cloudAutomations', priority: options?.background ? 'background' : undefined };
+		await this.operations.queue(async () => {
+			await this.withClient(cancellationToken, async (client, operationToken) => {
+				const resources = new DisposableStore();
+				const controller = resources.add(new CancellationTokenSource());
+				const historyToken = CancellationToken.any([operationToken, controller.token], resources);
+				const limiter = resources.add(new Limiter<readonly ICloudAutomationHistoryEntry[]>(4));
+				try {
+					const history = await Promise.all(this.cachedEntries.get().map(entry => limiter.queue(async () => {
+						try {
+							CancellationToken.throwIfCanceled(historyToken);
+							if (!include(entry)) {
+								return [];
+							}
+							const tasks = await client.automations.listRuns(entry.definition.id, historyToken, { ...requestOptions, query: { per_page: 50, page: 1, sort: 'created_at', direction: 'desc', is_archived: false } }).catch(error => {
+								if (!(error instanceof ApiRequestError) || error.statusCode !== 404) {
+									throw error;
+								}
+								const creator = entry.definition.created_by.login;
+								if ((entry.definition.ownership ?? entry.definition.owner_type) === 'repository'
+									&& !!creator
+									&& creator.toLowerCase() !== asGitHubAccount(this.defaultAccountService.currentDefaultAccount)?.accountName.toLowerCase()) {
+									return undefined;
+								}
+								this.removeEntry(entry, historyToken);
+								this.logService.info('[CloudAutomations] Definition no longer available', entry.definition.id);
+								return undefined;
+							});
+							const result: ICloudAutomationHistoryEntry[] = [];
+							for (const task of tasks?.data.tasks ?? []) {
+								if (!include(entry)) {
+									break;
+								}
+								const detail = ['queued', 'in_progress', 'running', 'waiting_for_user'].includes(task.state)
+									? await client.tasks.get(task.id, historyToken, requestOptions) : task;
+								result.push({ entry, task: detail });
+							}
+							return result;
+						} catch (error) {
+							controller.cancel();
+							throw error;
+						}
+					})));
+					CancellationToken.throwIfCanceled(operationToken);
+					this.cachedHistory.set(history.flat(), undefined);
+				} finally {
+					controller.cancel();
+					resources.dispose();
+				}
+			});
+		});
+	}
+
+	private mutate<T>(repository: RepositoryRef, operation: (client: IGitHubAccountClient, ref: RepositoryRef, cancellationToken: CancellationToken) => Promise<T>, token: CancellationToken = CancellationToken.None, lifetime: CancellationToken = this.lifetime.token): Promise<T> {
+		this.requireAccount();
+		return this.operations.queue(async () => {
+			CancellationToken.throwIfCanceled(lifetime);
+			if (this.uncertain.get()) {
+				throw new AutomationMutationUncertainError(localize('cloudAutomations.mutationUncertain', "The automation request may have been accepted. Refresh automations before submitting again."));
+			}
+			const resources = new DisposableStore();
+			try {
+				const cancellationToken = CancellationToken.any([lifetime, token], resources);
+				return await this.withClient(cancellationToken, async (client, cancellationToken) => {
+					const configuration = await client.automations.getConfiguration(repository, cancellationToken, { caller: 'cloudAutomations' });
+					CancellationToken.throwIfCanceled(cancellationToken);
+					this.setRepositoryConfiguration(repositoryKey(repository), configuration);
+					if (!configuration.can_manage_automations) {
+						throw new AutomationUnavailableError(localize('cloudAutomations.manageabilityRequired', "Cloud automations cannot be managed for this repository."));
+					}
+					return operation(client, repository, cancellationToken);
+				});
+			} catch (error) {
+				if (error instanceof MutationUncertainError || error instanceof ApiRequestError && error.outcome === 'indeterminate') {
+					if (!lifetime.isCancellationRequested) {
+						this.uncertain.set(true, undefined);
+					}
+					throw new AutomationMutationUncertainError(localize('cloudAutomations.mutationUncertain', "The automation request may have been accepted. Refresh automations before submitting again."), { cause: error });
+				}
+				if (error instanceof ApiRequestError && error.response?.message) {
+					throw new AutomationUnavailableError(error.response.message, { cause: error });
+				}
+				throw error;
+			} finally {
+				resources.dispose();
+			}
+		});
+	}
+
+	private publish(repository: RepositoryRef, definition: AutomationDetail, cancellationToken: CancellationToken): ICloudAutomationEntry {
+		CancellationToken.throwIfCanceled(cancellationToken);
+		const entry = { repository, definition };
+		this.cachedEntries.set([...this.cachedEntries.get().filter(candidate => !sameEntry(candidate, entry)), entry], undefined);
+		return entry;
+	}
+
+	private removeEntry(entry: ICloudAutomationEntry, cancellationToken: CancellationToken): void {
+		CancellationToken.throwIfCanceled(cancellationToken);
+		transaction(tx => {
+			this.cachedEntries.set(this.cachedEntries.get().filter(candidate => !sameEntry(candidate, entry)), tx);
+			this.cachedHistory.set(this.cachedHistory.get().filter(candidate => !sameEntry(candidate.entry, entry)), tx);
+		});
+	}
+
+	private async refreshRepositories(account: IGitHubDefaultAccount, cancellationToken: CancellationToken, client: IGitHubAccountClient, options: ApiRequestOptions): Promise<void> {
+		const repositories = this.readRepositories(account.accountName);
+		for (const repository of this.targetRepositories.values()) {
+			repositories.set(repositoryKey(repository), repository);
+		}
+		const errors: unknown[] = [];
+		for (const recent of this.recentWorkspacesService.getRecentWorkspaces(false)) {
+			const root = recent.workspace.folders[0]?.root;
+			try {
+				const repository = root && await this.resolveRepository(root);
+				CancellationToken.throwIfCanceled(cancellationToken);
+				if (repository) {
+					repositories.set(repositoryKey(repository), repository);
+				}
+			} catch (error) {
+				CancellationToken.throwIfCanceled(cancellationToken);
+				this.logService.warn('[CloudAutomations] Failed to resolve a recent repository', error);
+				errors.push(error);
+			}
+		}
+
+		const snapshot = new Map<string, readonly ICloudAutomationEntry[]>();
+		for (const entry of this.cachedEntries.get()) {
+			const key = repositoryKey(entry.repository);
+			snapshot.set(key, [...snapshot.get(key) ?? [], entry]);
+		}
+		const eligible: RepositoryRef[] = [];
+		const missing: RepositoryRef[] = [];
+		for (const [key, repository] of repositories) {
+			let configuration: AutomationRepositoryConfiguration;
+			try {
+				configuration = await client.automations.getConfiguration(repository, cancellationToken, options);
+				CancellationToken.throwIfCanceled(cancellationToken);
+			} catch (error) {
+				CancellationToken.throwIfCanceled(cancellationToken);
+				if (isCancellationError(error)) {
+					throw error;
+				}
+				if (error instanceof ApiRequestError && error.statusCode === 404) {
+					snapshot.delete(key);
+					this.repositoryConfigurations.delete(key);
+					this.updateRepositoryTargets(key);
+					missing.push(repository);
+					this.logService.info(`[CloudAutomations] Repository no longer available ${key}`);
+					continue;
+				}
+				this.logService.warn(`[CloudAutomations] Failed to refresh ${key}`, error);
+				errors.push(error);
+				continue;
+			}
+			this.setRepositoryConfiguration(key, configuration);
+			if (!configuration.can_manage_automations) {
+				snapshot.delete(key);
+				continue;
+			}
+			eligible.push(repository);
+			try {
+				const definitions = await this.listDefinitions(client.automations, repository, cancellationToken, options);
+				snapshot.set(key, definitions.map(definition => ({ repository, definition })));
+			} catch (error) {
+				CancellationToken.throwIfCanceled(cancellationToken);
+				if (isCancellationError(error)) {
+					throw error;
+				}
+				this.logService.warn(`[CloudAutomations] Failed to refresh ${key}`, error);
+				errors.push(error);
+			}
+		}
+		this.rememberRepositories(account.accountName, eligible, cancellationToken, missing);
+		transaction(tx => {
+			this.cachedEntries.set([...snapshot.values()].flat(), tx);
+			this.cachedHistory.set(this.cachedHistory.get().filter(row => this.cachedEntries.get().some(entry => sameEntry(row.entry, entry))), tx);
+			this.state.set(errors.length ? 'error' : 'ready', tx);
+		});
+		if (errors.length) {
+			throw new AggregateError(errors, localize('cloudAutomations.partialRefreshFailed', "Some GitHub repositories could not be refreshed. Check the logs for details."));
+		}
+	}
+
+	private async listDefinitions(api: IAutomationsClient, repository: RepositoryRef, cancellationToken: CancellationToken, options: ApiRequestOptions): Promise<readonly AutomationDetail[]> {
+		const lifetime = new DisposableStore();
+		const controller = lifetime.add(new CancellationTokenSource());
+		const operationToken = CancellationToken.any([cancellationToken, controller.token], lifetime);
+		try {
+			const response = await api.list(repository, operationToken, {
+				...options,
+				query: { page: 1, per_page: 100 },
+				maxPages: 10,
+			});
+			const summaries = response.data.automations;
+			const definitions: AutomationDetail[] = [];
+			for (let offset = 0; offset < summaries.length; offset += 5) {
+				CancellationToken.throwIfCanceled(operationToken);
+				definitions.push(...await Promise.all(summaries.slice(offset, offset + 5).map(summary => api.get(repository, summary.id, operationToken, options))));
+			}
+			return definitions;
+		} finally {
+			controller.cancel();
+			lifetime.dispose();
+		}
+	}
+
+	private createTaskAccess(lifetime: CancellationToken): ICloudAutomationTaskAccess {
+		const withAccount = async <T>(token: CancellationToken, operation: (client: IGitHubAccountClient, token: CancellationToken) => Promise<T>): Promise<T> => {
+			const scope = new DisposableStore();
+			try {
+				const combined = CancellationToken.any([lifetime, token], scope);
+				CancellationToken.throwIfCanceled(combined);
+				const result = await this.withClient(lifetime, client => {
+					CancellationToken.throwIfCanceled(combined);
+					return operation(client, combined);
+				});
+				CancellationToken.throwIfCanceled(combined);
+				return result;
+			} finally {
+				scope.dispose();
+			}
+		};
+		return {
+			isKnownRun: id => !lifetime.isCancellationRequested && this.cachedHistory.get().some(run => run.task.id === id),
+			withTasks: (token, operation) => withAccount(token, (client, token) => operation(client.tasks, token)),
+			getAutomationPrompt: (task, token) => withAccount(token, async (client, token) => {
+				const known = this.cachedHistory.get().find(run => run.task.id === task.id)?.entry;
+				const id = task.automation_id || known?.definition.id;
+				if (!id) {
+					return undefined;
+				}
+				const options = { caller: 'cloudAutomations' };
+				let repository = known?.repository ?? this.cachedEntries.get().find(entry => entry.definition.id === id)?.repository;
+				if (!repository) {
+					const name = task.repository?.full_name ?? (task.repository?.id === undefined ? undefined : (await client.repositories.getById(task.repository.id, token, options)).full_name);
+					if (!name) {
+						return undefined;
+					}
+					repository = toRepositoryRef(name);
+				}
+				CancellationToken.throwIfCanceled(token);
+				const revision = task.automation_revision_id;
+				const prompt = revision && revision !== 'unknown'
+					? await client.automations.getRevisionPrompt(repository, id, revision, token, options)
+					: (await client.automations.get(repository, id, token, options)).prompt;
+				return prompt.trim() ? prompt : undefined;
+			}),
+		};
+	}
+
+	private reset(): void {
+		this.lifetime.dispose(true);
+		this.clearTargetEligibility();
+		this.repositoryConfigurations.clear();
+		this.repositoryPrivacy.clear();
+		this.repositoryPrivacyFailures.clear();
+		this.repositoryManageabilityFailures.clear();
+		this.lifetime = new CancellationTokenSource();
+		this.clientPromise = undefined;
+		this.clientStore.clear();
+		this.refreshPromise = undefined;
+		this.operations = new Sequencer();
+		const account = asGitHubAccount(this.defaultAccountService.currentDefaultAccount);
+		transaction(tx => {
+			this.taskAccess.set(account && !account.enterprise ? this.createTaskAccess(this.lifetime.token) : undefined, tx);
+			this.cachedEntries.set([], tx);
+			this.cachedHistory.set([], tx);
+			this.uncertain.set(false, tx);
+			this.cachedTools.set(undefined, tx);
+			this.triggerCatalog.set(undefined, tx);
+			this.modelCatalog.set(undefined, tx);
+			this.state.set(account && !account.enterprise ? 'loading' : 'unavailable', tx);
+		});
+	}
+
+	private setRepositoryConfiguration(key: string, configuration: AutomationRepositoryConfiguration): void {
+		this.repositoryManageabilityFailures.delete(key);
+		const previous = this.repositoryConfigurations.get(key);
+		this.repositoryConfigurations.set(key, configuration);
+		if (previous && previous.can_manage_automations !== configuration.can_manage_automations) {
+			this.cachedEntries.set([...this.cachedEntries.get()], undefined);
+		}
+		if (!previous || previous.can_manage_automations !== configuration.can_manage_automations
+			|| previous.allow_read_access_triggers !== configuration.allow_read_access_triggers) {
+			this.updateRepositoryTargets(key);
+		}
+	}
+
+	private setRepositoryPrivacy(key: string, isPrivate: boolean): void {
+		const changed = this.repositoryPrivacy.get(key) !== isPrivate;
+		this.repositoryPrivacy.set(key, isPrivate);
+		if (changed) {
+			this.updateRepositoryTargets(key);
+		}
+	}
+
+	private updateRepositoryTargets(key: string): void {
+		for (const [targetKey, repository] of this.targetRepositories) {
+			if (repositoryKey(repository) !== key) {
+				continue;
+			}
+			const isPrivate = this.repositoryPrivacy.get(key);
+			const configuration = this.repositoryConfigurations.get(key);
+			const canSelect = isPrivate === true && configuration?.can_manage_automations === true;
+			this.targetEligibility.get(targetKey)?.set(canSelect ? {
+				workspace: URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: `/${repository.owner}/${repository.repo}/HEAD` }),
+				repositoryLabel: repositoryDisplayName(repository),
+				allowReadAccessTriggers: configuration.allow_read_access_triggers,
+			} : {
+				disabledReason: localize('cloudAutomations.manageabilityRequired', "Cloud automations cannot be managed for this repository."),
+				isRepository: true,
+				...(isPrivate === false ? { isPrivateRepository: false } : {}),
+				repositoryLabel: repositoryDisplayName(repository),
+				...(configuration ? { allowReadAccessTriggers: configuration.allow_read_access_triggers } : {}),
+			}, undefined);
+		}
+	}
+
+	override dispose(): void {
+		this.lifetime.dispose(true);
+		this.clearTargetEligibility();
+		super.dispose();
+		transaction(tx => {
+			this.taskAccess.set(undefined, tx);
+			this.cachedEntries.set([], tx);
+			this.cachedHistory.set([], tx);
+			this.state.set('unavailable', tx);
+		});
+	}
+
+	private requireAccount(): IGitHubDefaultAccount {
+		if (this._store.isDisposed) {
+			throw new CancellationError();
+		}
+		const account = asGitHubAccount(this.defaultAccountService.currentDefaultAccount);
+		if (!account || account.enterprise) {
+			throw new Error(localize('cloudAutomations.signIn', "Sign in to GitHub.com with repository access to manage cloud automations."));
+		}
+		return account;
+	}
+
+	private async resolveRepository(workspace: URI): Promise<RepositoryRef | undefined> {
+		const uri = workspace.scheme === GITHUB_REMOTE_FILE_SCHEME ? workspace : await this.resolveRepositoryUri(workspace);
+		const match = uri?.scheme === GITHUB_REMOTE_FILE_SCHEME && uri.authority === 'github'
+			? /^\/(?<owner>[^/]+)\/(?<name>[^/]+)(?:\/|$)/.exec(uri.path) : undefined;
+		return match?.groups ? { owner: match.groups.owner, repo: match.groups.name } : undefined;
+	}
+
+	private readRepositories(account: string): Map<string, RepositoryRef> {
+		const stored = this.storageService.get(this.storageKey(account), StorageScope.PROFILE);
+		const repositories = new Map<string, RepositoryRef>();
+		if (stored !== undefined) {
+			const values: unknown = JSON.parse(stored);
+			if (!Array.isArray(values)) {
+				throw new Error(localize('cloudAutomations.invalidRepositories', "Invalid stored cloud automation repositories."));
+			}
+			for (const value of values) {
+				if (!isObject(value) || typeof value.owner !== 'string' || !value.owner || value.owner.includes('/')
+					|| typeof value.name !== 'string' || !value.name || value.name.includes('/')) {
+					throw new Error(localize('cloudAutomations.invalidRepository', "Invalid stored cloud automation repository."));
+				}
+				const repository = { owner: value.owner, repo: value.name };
+				repositories.set(repositoryKey(repository), repository);
+			}
+		}
+		return repositories;
+	}
+
+	private rememberRepositories(account: string, repositories: readonly RepositoryRef[], cancellationToken: CancellationToken, missing: readonly RepositoryRef[] = []): void {
+		CancellationToken.throwIfCanceled(cancellationToken);
+		const known = this.readRepositories(account);
+		for (const repository of missing) {
+			known.delete(repositoryKey(repository));
+		}
+		for (const repository of repositories) {
+			known.set(repositoryKey(repository), repository);
+		}
+		this.storageService.store(this.storageKey(account), JSON.stringify([...known.values()].map(repository => ({ owner: repository.owner, name: repository.repo }))), StorageScope.PROFILE, StorageTarget.MACHINE);
+	}
+
+	private storageKey(account: string): string {
+		return `${REPOSITORIES_STORAGE_KEY}.${encodeURIComponent(account)}`;
+	}
+}
+
+function repositoryKey(repository: RepositoryRef): string {
+	return `${repository.owner}/${repository.repo}`.toLowerCase();
+}
+
+function repositoryOwnershipUnsupportedMessage(): string {
+	return localize('cloudAutomations.repositoryOwnershipUnavailable', "Repository owned automations are only supported for private repositories.");
+}
+
+function isRepositoryOwnershipUnsupportedError(error: unknown): boolean {
+	const message = error instanceof ApiRequestError ? error.response?.message : getErrorMessage(error);
+	return message?.toLowerCase().includes('ownership "repository" is not currently available for this repository') === true;
+}
+
+function repositoryDisplayName(repository: RepositoryRef): string {
+	return `${repository.owner}/${repository.repo}`;
+}
+
+function sameEntry(a: ICloudAutomationEntry, b: ICloudAutomationEntry): boolean {
+	return a.definition.id === b.definition.id && repositoryKey(a.repository) === repositoryKey(b.repository);
+}

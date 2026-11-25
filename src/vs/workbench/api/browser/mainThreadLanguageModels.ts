@@ -7,7 +7,7 @@ import { AsyncIterableSource, DeferredPromise } from '../../../base/common/async
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
-import { CancellationError, SerializedError, transformErrorForSerialization, transformErrorFromSerialization } from '../../../base/common/errors.js';
+import { CancellationError, SerializedError, transformErrorFromSerialization } from '../../../base/common/errors.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { equalSets } from '../../../base/common/collections.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
@@ -25,7 +25,7 @@ import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions
 import { IExtensionService } from '../../services/extensions/common/extensions.js';
 import { SerializableObjectWithBuffers } from '../../services/extensions/common/proxyIdentifier.js';
 import { ExtHostContext, ExtHostLanguageModelsShape, MainContext, MainThreadLanguageModelsShape } from '../common/extHost.protocol.js';
-import { LanguageModelError } from '../common/extHostTypes.js';
+import { LanguageModelError, serializeLanguageModelError } from '../common/extHostTypes.js';
 
 class RequestCancellationTokenSource extends Disposable {
 
@@ -247,7 +247,7 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 				this._logService.trace('[CHAT] request DONE', extension.value, requestId);
 			} catch (err) {
 				this._logService.error('[CHAT] extension request ERRORED in STREAM', toErrorMessage(err, true), extension.value, requestId);
-				this._proxy.$acceptResponseDone(requestId, transformErrorForSerialization(err));
+				this._proxy.$acceptResponseDone(requestId, serializeLanguageModelError(err));
 			}
 		})();
 
@@ -259,7 +259,7 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 		}, err => {
 			this._logService.error('[CHAT] extension request ERRORED', toErrorMessage(err, true), extension.value, requestId);
 			this._pendingCancelCTS.deleteAndDispose(requestId);
-			this._proxy.$acceptResponseDone(requestId, transformErrorForSerialization(err));
+			this._proxy.$acceptResponseDone(requestId, serializeLanguageModelError(err));
 		});
 	}
 

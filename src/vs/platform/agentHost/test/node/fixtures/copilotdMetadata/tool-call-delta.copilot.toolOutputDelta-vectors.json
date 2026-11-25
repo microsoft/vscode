@@ -1,0 +1,176 @@
+{
+  "$comment": "Conformance vectors for the `copilot.toolOutputDelta` key on ChatToolCallDelta._meta. See ../tool-call-delta.md for the prose spec and ./README.md for the harness contract.",
+  "key": "copilot.toolOutputDelta",
+  "carrier": "ChatToolCallDelta._meta",
+  "tests": [
+    {
+      "name": "set: stamps the key on a delta with empty meta",
+      "op": "set",
+      "input": {
+        "delta": {
+          "turnId": "t1",
+          "toolCallId": "tc-1",
+          "content": ""
+        },
+        "outputChunk": "Cloning into 'repo'...\n"
+      },
+      "expected": {
+        "delta": {
+          "turnId": "t1",
+          "toolCallId": "tc-1",
+          "content": "",
+          "_meta": {
+            "copilot.toolOutputDelta": "Cloning into 'repo'...\n"
+          }
+        }
+      }
+    },
+    {
+      "name": "set: preserves other _meta keys",
+      "op": "set",
+      "input": {
+        "delta": {
+          "turnId": "t1",
+          "toolCallId": "tc-1",
+          "content": "",
+          "_meta": {
+            "copilot.unrelated": "keep me"
+          }
+        },
+        "outputChunk": "line 1\n"
+      },
+      "expected": {
+        "delta": {
+          "turnId": "t1",
+          "toolCallId": "tc-1",
+          "content": "",
+          "_meta": {
+            "copilot.unrelated": "keep me",
+            "copilot.toolOutputDelta": "line 1\n"
+          }
+        }
+      }
+    },
+    {
+      "name": "extract: returns the value when key present and non-empty",
+      "op": "extract",
+      "input": {
+        "delta": {
+          "turnId": "t1",
+          "toolCallId": "tc-1",
+          "content": "",
+          "_meta": {
+            "copilot.toolOutputDelta": "chunk"
+          }
+        }
+      },
+      "expected": {
+        "outputChunk": "chunk"
+      }
+    },
+    {
+      "name": "extract: returns null when _meta is absent",
+      "op": "extract",
+      "input": {
+        "delta": {
+          "turnId": "t1",
+          "toolCallId": "tc-1",
+          "content": ""
+        }
+      },
+      "expected": {
+        "outputChunk": null
+      }
+    },
+    {
+      "name": "extract: returns null when _meta lacks the key",
+      "op": "extract",
+      "input": {
+        "delta": {
+          "turnId": "t1",
+          "toolCallId": "tc-1",
+          "content": "",
+          "_meta": {
+            "copilot.unrelated": "ignored"
+          }
+        }
+      },
+      "expected": {
+        "outputChunk": null
+      }
+    },
+    {
+      "name": "extract: returns null when value is the empty string",
+      "$comment": "The host never emits an empty chunk; a non-conformant producer that does is treated as 'no chunk'.",
+      "op": "extract",
+      "input": {
+        "delta": {
+          "turnId": "t1",
+          "toolCallId": "tc-1",
+          "content": "",
+          "_meta": {
+            "copilot.toolOutputDelta": ""
+          }
+        }
+      },
+      "expected": {
+        "outputChunk": null
+      }
+    },
+    {
+      "name": "extract: returns null when value is a number (non-string)",
+      "op": "extract",
+      "input": {
+        "delta": {
+          "turnId": "t1",
+          "toolCallId": "tc-1",
+          "content": "",
+          "_meta": {
+            "copilot.toolOutputDelta": 42
+          }
+        }
+      },
+      "expected": {
+        "outputChunk": null
+      }
+    },
+    {
+      "name": "extract: returns null when value is null",
+      "op": "extract",
+      "input": {
+        "delta": {
+          "turnId": "t1",
+          "toolCallId": "tc-1",
+          "content": "",
+          "_meta": {
+            "copilot.toolOutputDelta": null
+          }
+        }
+      },
+      "expected": {
+        "outputChunk": null
+      }
+    },
+    {
+      "name": "wireShape: an output delta serializes to the flat key with no content and no invocationMessage",
+      "$comment": "Pins the absent-`content`, absent-`invocationMessage`, flat-dotted-`_meta` invariant. `content` is optional as of AHP 0.7.0, and an output delta has no tool-argument text to append, so it is omitted rather than sent as an empty string.",
+      "op": "wireShape",
+      "input": {
+        "delta": {
+          "turnId": "t1",
+          "toolCallId": "tc-1"
+        },
+        "outputChunk": "Cloning into 'repo'...\n"
+      },
+      "expected": {
+        "json": {
+          "turnId": "t1",
+          "toolCallId": "tc-1",
+          "_meta": {
+            "copilot.toolOutputDelta": "Cloning into 'repo'...\n"
+          }
+        }
+      }
+    }
+  ]
+}

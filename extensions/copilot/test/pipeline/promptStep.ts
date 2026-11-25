@@ -85,7 +85,6 @@ export async function generatePromptFromRecording(
 			requestUuid: generateUuid(),
 			requestIssuedDateTime: Date.now(),
 			earliestShownDateTime: Date.now() + 200,
-			enforceCacheDelay: false,
 		};
 		const logContext = new InlineEditRequestLogContext(activeDocument.docId.toString(), 1, context);
 		const telemetryBuilder = new NextEditProviderTelemetryBuilder(

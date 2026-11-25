@@ -7,7 +7,7 @@ import { CancelablePromise, createCancelablePromise, TimeoutTimer } from '../../
 import { RGBA } from '../../../../base/common/color.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { noBreakWhitespace } from '../../../../base/common/strings.js';
 import { ICodeEditor } from '../../../browser/editorBrowser.js';
@@ -16,7 +16,7 @@ import { EditorOption } from '../../../common/config/editorOptions.js';
 import { Position } from '../../../common/core/position.js';
 import { Range } from '../../../common/core/range.js';
 import { IEditorContribution, IEditorDecorationsCollection } from '../../../common/editorCommon.js';
-import { IModelDecoration, IModelDeltaDecoration } from '../../../common/model.js';
+import { IModelDecoration, IModelDeltaDecoration, TrackedRangeStickiness } from '../../../common/model.js';
 import { ModelDecorationOptions } from '../../../common/model/textModel.js';
 import { IFeatureDebounceInformation, ILanguageFeatureDebounceService } from '../../../common/services/languageFeatureDebounce.js';
 import { ILanguageFeaturesService } from '../../../common/services/languageFeatures.js';
@@ -48,6 +48,9 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 	private readonly _ruleFactory: DynamicCssRules;
 
 	private readonly _decoratorLimitReporter = this._register(new DecoratorLimitReporter());
+
+	private static readonly colorDecoratorInnerWidthInEm = 0.8;
+	private static readonly colorDecoratorMarginInEm = 0.2;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -204,6 +207,7 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 		this._colorDecorationClassRefs.clear();
 
 		const decorations: IModelDeltaDecoration[] = [];
+		const widthInEm = ColorDetector.colorDecoratorInnerWidthInEm + 2 * ColorDetector.colorDecoratorMarginInEm;
 
 		const limit = this._editor.getOption(EditorOption.colorDecoratorsLimit);
 
@@ -227,11 +231,15 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 				},
 				options: {
 					description: 'colorDetector',
+					// Keep deleted color decorations collapsed when typing until colors are recomputed.
+					stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+					collapseOnReplaceEdit: true,
 					before: {
 						content: noBreakWhitespace,
 						inlineClassName: `${ref.className} colorpicker-color-decoration`,
 						inlineClassNameAffectsLetterSpacing: true,
-						attachedData: ColorDecorationInjectedTextMarker
+						attachedData: ColorDecorationInjectedTextMarker,
+						widthInEm,
 					}
 				}
 			});
@@ -239,7 +247,31 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 		const limited = limit < colorData.length ? limit : false;
 		this._decoratorLimitReporter.update(colorData.length, limited);
 
+		if (decorations.length > 0) {
+			this.ensureDecoratorSizeProperties();
+		}
 		this._colorDecoratorIds.set(decorations);
+	}
+
+	private _hasDecoratorSizeProperties = false;
+
+	/**
+	 * Custom properties are inherited, so setting them on the editor container restyles every
+	 * rendered line. This contribution is created after the first render, so only pay that cost
+	 * once the editor actually shows color decorators.
+	 */
+	private ensureDecoratorSizeProperties(): void {
+		if (this._hasDecoratorSizeProperties) {
+			return;
+		}
+		this._hasDecoratorSizeProperties = true;
+		const editorDomNode = this._editor.getContainerDomNode();
+		editorDomNode.style.setProperty('--vscode-colorPicker-colorDecoratorWidth', `${ColorDetector.colorDecoratorInnerWidthInEm}em`);
+		editorDomNode.style.setProperty('--vscode-colorPicker-colorDecoratorMargin', `${ColorDetector.colorDecoratorMarginInEm}em`);
+		this._register(toDisposable(() => {
+			editorDomNode.style.removeProperty('--vscode-colorPicker-colorDecoratorWidth');
+			editorDomNode.style.removeProperty('--vscode-colorPicker-colorDecoratorMargin');
+		}));
 	}
 
 	private removeAllDecorations(): void {

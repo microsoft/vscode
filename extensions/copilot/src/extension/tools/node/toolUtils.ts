@@ -3,8 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { PromptElement, PromptPiece } from '@vscode/prompt-tsx';
-import { realpath } from 'fs/promises';
+import { lstat, readlink, realpath } from 'fs/promises';
 import * as path from 'path';
 import type * as vscode from 'vscode';
 import { IChatDebugFileLoggerService } from '../../../platform/chat/common/chatDebugFileLoggerService';
@@ -26,28 +25,14 @@ import { extUriBiasedIgnorePathCase, isEqual, normalizePath } from '../../../uti
 import { isString } from '../../../util/vs/base/common/types';
 import { URI } from '../../../util/vs/base/common/uri';
 import { IInstantiationService, ServicesAccessor } from '../../../util/vs/platform/instantiation/common/instantiation';
-import { LanguageModelPromptTsxPart, LanguageModelToolResult } from '../../../vscodeTypes';
 import { isCustomizationsIndex, isPromptFile } from '../../prompt/common/chatVariablesCollection';
 import { IBuildPromptContext } from '../../prompt/common/intents';
 import { IChatDiskSessionResources } from '../../prompts/common/chatDiskSessionResources';
-import { renderPromptElementJSON } from '../../prompts/node/base/promptRenderer';
 
 export function checkCancellation(token: CancellationToken): void {
 	if (token.isCancellationRequested) {
 		throw new CancellationError();
 	}
-}
-
-export async function toolTSX(insta: IInstantiationService, options: vscode.LanguageModelToolInvocationOptions<unknown>, piece: PromptPiece, token: CancellationToken): Promise<vscode.LanguageModelToolResult> {
-	return new LanguageModelToolResult([
-		new LanguageModelPromptTsxPart(
-			await renderPromptElementJSON(insta, class extends PromptElement {
-				render() {
-					return piece;
-				}
-			}, {}, options.tokenizationOptions, token)
-		)
-	]);
 }
 
 export interface InputGlobResult {
@@ -220,13 +205,13 @@ function getInstructionsIndexFile(buildPromptContext: IBuildPromptContext, custo
 
 }
 
-export async function assertFileNotContentExcluded(accessor: ServicesAccessor, uri: URI, realPath?: URI): Promise<void> {
+export async function assertFileNotContentExcluded(accessor: ServicesAccessor, uri: URI, realPath?: URI, contents?: string): Promise<void> {
 	const ignoreService = accessor.get(IIgnoreService);
 	const promptPathRepresentationService = accessor.get(IPromptPathRepresentationService);
-	if (await ignoreService.isCopilotIgnored(uri)) {
+	if (await ignoreService.isCopilotIgnored(uri, undefined, contents)) {
 		throw new Error(`File ${promptPathRepresentationService.getFilePath(uri)} is configured to be ignored by Copilot`);
 	}
-	if (realPath && !extUriBiasedIgnorePathCase.isEqual(realPath, uri) && await ignoreService.isCopilotIgnored(realPath)) {
+	if (realPath && !extUriBiasedIgnorePathCase.isEqual(realPath, uri) && await ignoreService.isCopilotIgnored(realPath, undefined, contents)) {
 		throw new Error(`File ${promptPathRepresentationService.getFilePath(realPath)} is configured to be ignored by Copilot`);
 	}
 }
@@ -299,7 +284,11 @@ export async function isExternalSymlinkedFile(uri: URI, getFolder: (uri: URI) =>
 	return (await getWorkspaceFileExternalConfirmation(uri, getFolder)).needsConfirmation;
 }
 
-async function getWorkspaceFileExternalConfirmation(uri: URI, getFolder: (uri: URI) => URI | undefined): Promise<FileExternalConfirmationResult> {
+/**
+ * Checks whether `uri`, lexically inside a folder returned by `getFolder`, resolves through a symlink or junction
+ * to a location outside every such folder. When it does, `realPath` is the resolved location.
+ */
+export async function getWorkspaceFileExternalConfirmation(uri: URI, getFolder: (uri: URI) => URI | undefined): Promise<FileExternalConfirmationResult> {
 	if (uri.scheme !== Schemas.file) {
 		return { needsConfirmation: false, realPath: undefined };
 	}
@@ -314,20 +303,47 @@ async function getWorkspaceFileExternalConfirmation(uri: URI, getFolder: (uri: U
 		return { needsConfirmation: false, realPath: undefined };
 	}
 
-	const isInsideWorkspace = getFolder(resolvedUri) !== undefined;
+	const resolvedWorkspaceFolder = normalizePath(URI.file(await realpath(workspaceFolder.fsPath)));
+	const isInsideWorkspace = extUriBiasedIgnorePathCase.isEqualOrParent(resolvedUri, resolvedWorkspaceFolder) || getFolder(resolvedUri) !== undefined;
 	return { needsConfirmation: !isInsideWorkspace, realPath: resolvedUri };
 }
 
 /**
  * Resolves a path through its nearest existing ancestor without walking above `stopAt`.
+ * A missing entry that is itself a dangling symlink or junction is followed to its target,
+ * because creating a file through it creates the target.
  */
-export async function resolveRealPathForNonexistent(resource: URI, stopAt?: URI): Promise<URI> {
+export function resolveRealPathForNonexistent(resource: URI, stopAt?: URI): Promise<URI> {
+	return resolveRealPathThroughLinks(resource, stopAt, 0);
+}
+
+/** Matches the kernel's usual limit on links followed while resolving one path. */
+const MAX_DANGLING_LINK_DEPTH = 40;
+
+async function resolveRealPathThroughLinks(resource: URI, stopAt: URI | undefined, linkDepth: number): Promise<URI> {
 	try {
 		return URI.file(await realpath(resource.fsPath));
 	} catch (error) {
 		if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
 			throw error;
 		}
+	}
+
+	// Follows a dangling link at `missingPath`, re-appending the unresolved `tail`.
+	const followDanglingLink = async (missingPath: string, tail: readonly string[]): Promise<URI | undefined> => {
+		const target = await readDanglingLinkTarget(missingPath);
+		if (target === undefined) {
+			return undefined;
+		}
+		if (linkDepth >= MAX_DANGLING_LINK_DEPTH) {
+			throw Object.assign(new Error(`Too many levels of symbolic links: ${resource.fsPath}`), { code: 'ELOOP' });
+		}
+		return resolveRealPathThroughLinks(URI.file(path.join(target, ...tail)), undefined, linkDepth + 1);
+	};
+
+	const resolvedLink = await followDanglingLink(resource.fsPath, []);
+	if (resolvedLink) {
+		return resolvedLink;
 	}
 
 	const tail = [path.basename(resource.fsPath)];
@@ -359,9 +375,26 @@ export async function resolveRealPathForNonexistent(resource: URI, stopAt?: URI)
 			}
 		}
 
+		const resolvedAncestorLink = await followDanglingLink(current, tail);
+		if (resolvedAncestorLink) {
+			return resolvedAncestorLink;
+		}
+
 		tail.unshift(path.basename(current));
 		current = parent;
 	}
+}
+
+/** Returns the absolute target of `fsPath` when it is a symlink or junction, otherwise `undefined`. */
+async function readDanglingLinkTarget(fsPath: string): Promise<string | undefined> {
+	try {
+		if (!(await lstat(fsPath)).isSymbolicLink()) {
+			return undefined;
+		}
+	} catch {
+		return undefined;
+	}
+	return path.resolve(path.dirname(fsPath), await readlink(fsPath));
 }
 
 export function isDirExternalAndNeedsConfirmation(accessor: ServicesAccessor, uri: URI, buildPromptContext?: IBuildPromptContext, options?: { readOnly?: boolean; workingDirectory?: URI }): boolean {

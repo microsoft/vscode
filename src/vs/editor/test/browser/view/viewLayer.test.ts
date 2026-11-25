@@ -61,260 +61,45 @@ suite('RenderedLinesCollection onLinesDeleted', () => {
 		assertState(col, expectedState);
 	}
 
-	test('A1', () => {
-		testOnModelLinesDeleted(3, 3, [], {
-			startLineNumber: 5,
-			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [false, false, false, false]
+	const cases: [name: string, deleteFromLineNumber: number, deleteToLineNumber: number, expectedDeleted: string[], expectedState: ILinesCollectionState][] = [
+		['A1', 3, 3, [], { startLineNumber: 5, lines: ['old6', 'old7', 'old8', 'old9'], pinged: [false, false, false, false] }],
+		['A2', 3, 4, [], { startLineNumber: 4, lines: ['old6', 'old7', 'old8', 'old9'], pinged: [false, false, false, false] }],
+		['A3', 3, 5, [], { startLineNumber: 3, lines: ['old6', 'old7', 'old8', 'old9'], pinged: [false, false, false, false] }],
+		['A4', 3, 6, ['old6'], { startLineNumber: 3, lines: ['old7', 'old8', 'old9'], pinged: [false, false, false] }],
+		['A5', 3, 7, ['old6', 'old7'], { startLineNumber: 3, lines: ['old8', 'old9'], pinged: [false, false] }],
+		['A6', 3, 8, ['old6', 'old7', 'old8'], { startLineNumber: 3, lines: ['old9'], pinged: [false] }],
+		['A7', 3, 9, ['old6', 'old7', 'old8', 'old9'], { startLineNumber: 3, lines: [], pinged: [] }],
+		['A8', 3, 10, ['old6', 'old7', 'old8', 'old9'], { startLineNumber: 3, lines: [], pinged: [] }],
+		['B1', 5, 5, [], { startLineNumber: 5, lines: ['old6', 'old7', 'old8', 'old9'], pinged: [false, false, false, false] }],
+		['B2', 5, 6, ['old6'], { startLineNumber: 5, lines: ['old7', 'old8', 'old9'], pinged: [false, false, false] }],
+		['B3', 5, 7, ['old6', 'old7'], { startLineNumber: 5, lines: ['old8', 'old9'], pinged: [false, false] }],
+		['B4', 5, 8, ['old6', 'old7', 'old8'], { startLineNumber: 5, lines: ['old9'], pinged: [false] }],
+		['B5', 5, 9, ['old6', 'old7', 'old8', 'old9'], { startLineNumber: 5, lines: [], pinged: [] }],
+		['B6', 5, 10, ['old6', 'old7', 'old8', 'old9'], { startLineNumber: 5, lines: [], pinged: [] }],
+		['C1', 6, 6, ['old6'], { startLineNumber: 6, lines: ['old7', 'old8', 'old9'], pinged: [false, false, false] }],
+		['C2', 6, 7, ['old6', 'old7'], { startLineNumber: 6, lines: ['old8', 'old9'], pinged: [false, false] }],
+		['C3', 6, 8, ['old6', 'old7', 'old8'], { startLineNumber: 6, lines: ['old9'], pinged: [false] }],
+		['C4', 6, 9, ['old6', 'old7', 'old8', 'old9'], { startLineNumber: 6, lines: [], pinged: [] }],
+		['C5', 6, 10, ['old6', 'old7', 'old8', 'old9'], { startLineNumber: 6, lines: [], pinged: [] }],
+		['D1', 7, 7, ['old7'], { startLineNumber: 6, lines: ['old6', 'old8', 'old9'], pinged: [false, false, false] }],
+		['D2', 7, 8, ['old7', 'old8'], { startLineNumber: 6, lines: ['old6', 'old9'], pinged: [false, false] }],
+		['D3', 7, 9, ['old7', 'old8', 'old9'], { startLineNumber: 6, lines: ['old6'], pinged: [false] }],
+		['D4', 7, 10, ['old7', 'old8', 'old9'], { startLineNumber: 6, lines: ['old6'], pinged: [false] }],
+		['E1', 8, 8, ['old8'], { startLineNumber: 6, lines: ['old6', 'old7', 'old9'], pinged: [false, false, false] }],
+		['E2', 8, 9, ['old8', 'old9'], { startLineNumber: 6, lines: ['old6', 'old7'], pinged: [false, false] }],
+		['E3', 8, 10, ['old8', 'old9'], { startLineNumber: 6, lines: ['old6', 'old7'], pinged: [false, false] }],
+		['F1', 9, 9, ['old9'], { startLineNumber: 6, lines: ['old6', 'old7', 'old8'], pinged: [false, false, false] }],
+		['F2', 9, 10, ['old9'], { startLineNumber: 6, lines: ['old6', 'old7', 'old8'], pinged: [false, false, false] }],
+		['G1', 10, 10, [], { startLineNumber: 6, lines: ['old6', 'old7', 'old8', 'old9'], pinged: [false, false, false, false] }],
+		['G2', 10, 11, [], { startLineNumber: 6, lines: ['old6', 'old7', 'old8', 'old9'], pinged: [false, false, false, false] }],
+		['H1', 11, 13, [], { startLineNumber: 6, lines: ['old6', 'old7', 'old8', 'old9'], pinged: [false, false, false, false] }],
+	];
+
+	for (const [name, deleteFromLineNumber, deleteToLineNumber, expectedDeleted, expectedState] of cases) {
+		test(name, () => {
+			testOnModelLinesDeleted(deleteFromLineNumber, deleteToLineNumber, expectedDeleted, expectedState);
 		});
-	});
-
-	test('A2', () => {
-		testOnModelLinesDeleted(3, 4, [], {
-			startLineNumber: 4,
-			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [false, false, false, false]
-		});
-	});
-
-	test('A3', () => {
-		testOnModelLinesDeleted(3, 5, [], {
-			startLineNumber: 3,
-			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [false, false, false, false]
-		});
-	});
-
-	test('A4', () => {
-		testOnModelLinesDeleted(3, 6, ['old6'], {
-			startLineNumber: 3,
-			lines: ['old7', 'old8', 'old9'],
-			pinged: [false, false, false]
-		});
-	});
-
-	test('A5', () => {
-		testOnModelLinesDeleted(3, 7, ['old6', 'old7'], {
-			startLineNumber: 3,
-			lines: ['old8', 'old9'],
-			pinged: [false, false]
-		});
-	});
-
-	test('A6', () => {
-		testOnModelLinesDeleted(3, 8, ['old6', 'old7', 'old8'], {
-			startLineNumber: 3,
-			lines: ['old9'],
-			pinged: [false]
-		});
-	});
-
-	test('A7', () => {
-		testOnModelLinesDeleted(3, 9, ['old6', 'old7', 'old8', 'old9'], {
-			startLineNumber: 3,
-			lines: [],
-			pinged: []
-		});
-	});
-
-	test('A8', () => {
-		testOnModelLinesDeleted(3, 10, ['old6', 'old7', 'old8', 'old9'], {
-			startLineNumber: 3,
-			lines: [],
-			pinged: []
-		});
-	});
-
-
-	test('B1', () => {
-		testOnModelLinesDeleted(5, 5, [], {
-			startLineNumber: 5,
-			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [false, false, false, false]
-		});
-	});
-
-	test('B2', () => {
-		testOnModelLinesDeleted(5, 6, ['old6'], {
-			startLineNumber: 5,
-			lines: ['old7', 'old8', 'old9'],
-			pinged: [false, false, false]
-		});
-	});
-
-	test('B3', () => {
-		testOnModelLinesDeleted(5, 7, ['old6', 'old7'], {
-			startLineNumber: 5,
-			lines: ['old8', 'old9'],
-			pinged: [false, false]
-		});
-	});
-
-	test('B4', () => {
-		testOnModelLinesDeleted(5, 8, ['old6', 'old7', 'old8'], {
-			startLineNumber: 5,
-			lines: ['old9'],
-			pinged: [false]
-		});
-	});
-
-	test('B5', () => {
-		testOnModelLinesDeleted(5, 9, ['old6', 'old7', 'old8', 'old9'], {
-			startLineNumber: 5,
-			lines: [],
-			pinged: []
-		});
-	});
-
-	test('B6', () => {
-		testOnModelLinesDeleted(5, 10, ['old6', 'old7', 'old8', 'old9'], {
-			startLineNumber: 5,
-			lines: [],
-			pinged: []
-		});
-	});
-
-
-	test('C1', () => {
-		testOnModelLinesDeleted(6, 6, ['old6'], {
-			startLineNumber: 6,
-			lines: ['old7', 'old8', 'old9'],
-			pinged: [false, false, false]
-		});
-	});
-
-	test('C2', () => {
-		testOnModelLinesDeleted(6, 7, ['old6', 'old7'], {
-			startLineNumber: 6,
-			lines: ['old8', 'old9'],
-			pinged: [false, false]
-		});
-	});
-
-	test('C3', () => {
-		testOnModelLinesDeleted(6, 8, ['old6', 'old7', 'old8'], {
-			startLineNumber: 6,
-			lines: ['old9'],
-			pinged: [false]
-		});
-	});
-
-	test('C4', () => {
-		testOnModelLinesDeleted(6, 9, ['old6', 'old7', 'old8', 'old9'], {
-			startLineNumber: 6,
-			lines: [],
-			pinged: []
-		});
-	});
-
-	test('C5', () => {
-		testOnModelLinesDeleted(6, 10, ['old6', 'old7', 'old8', 'old9'], {
-			startLineNumber: 6,
-			lines: [],
-			pinged: []
-		});
-	});
-
-
-	test('D1', () => {
-		testOnModelLinesDeleted(7, 7, ['old7'], {
-			startLineNumber: 6,
-			lines: ['old6', 'old8', 'old9'],
-			pinged: [false, false, false]
-		});
-	});
-
-	test('D2', () => {
-		testOnModelLinesDeleted(7, 8, ['old7', 'old8'], {
-			startLineNumber: 6,
-			lines: ['old6', 'old9'],
-			pinged: [false, false]
-		});
-	});
-
-	test('D3', () => {
-		testOnModelLinesDeleted(7, 9, ['old7', 'old8', 'old9'], {
-			startLineNumber: 6,
-			lines: ['old6'],
-			pinged: [false]
-		});
-	});
-
-	test('D4', () => {
-		testOnModelLinesDeleted(7, 10, ['old7', 'old8', 'old9'], {
-			startLineNumber: 6,
-			lines: ['old6'],
-			pinged: [false]
-		});
-	});
-
-
-	test('E1', () => {
-		testOnModelLinesDeleted(8, 8, ['old8'], {
-			startLineNumber: 6,
-			lines: ['old6', 'old7', 'old9'],
-			pinged: [false, false, false]
-		});
-	});
-
-	test('E2', () => {
-		testOnModelLinesDeleted(8, 9, ['old8', 'old9'], {
-			startLineNumber: 6,
-			lines: ['old6', 'old7'],
-			pinged: [false, false]
-		});
-	});
-
-	test('E3', () => {
-		testOnModelLinesDeleted(8, 10, ['old8', 'old9'], {
-			startLineNumber: 6,
-			lines: ['old6', 'old7'],
-			pinged: [false, false]
-		});
-	});
-
-
-	test('F1', () => {
-		testOnModelLinesDeleted(9, 9, ['old9'], {
-			startLineNumber: 6,
-			lines: ['old6', 'old7', 'old8'],
-			pinged: [false, false, false]
-		});
-	});
-
-	test('F2', () => {
-		testOnModelLinesDeleted(9, 10, ['old9'], {
-			startLineNumber: 6,
-			lines: ['old6', 'old7', 'old8'],
-			pinged: [false, false, false]
-		});
-	});
-
-
-	test('G1', () => {
-		testOnModelLinesDeleted(10, 10, [], {
-			startLineNumber: 6,
-			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [false, false, false, false]
-		});
-	});
-
-	test('G2', () => {
-		testOnModelLinesDeleted(10, 11, [], {
-			startLineNumber: 6,
-			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [false, false, false, false]
-		});
-	});
-
-
-	test('H1', () => {
-		testOnModelLinesDeleted(11, 13, [], {
-			startLineNumber: 6,
-			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [false, false, false, false]
-		});
-	});
+	}
 });
 
 suite('RenderedLinesCollection onLineChanged', () => {
@@ -334,69 +119,27 @@ suite('RenderedLinesCollection onLineChanged', () => {
 		assertState(col, expectedState);
 	}
 
-	test('3', () => {
-		testOnModelLineChanged(3, false, {
-			startLineNumber: 6,
-			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [false, false, false, false]
+	const cases: [name: string, changedLineNumber: number, expectedPinged: boolean, pinged: boolean[]][] = [
+		['3', 3, false, [false, false, false, false]],
+		['4', 4, false, [false, false, false, false]],
+		['5', 5, false, [false, false, false, false]],
+		['6', 6, true, [true, false, false, false]],
+		['7', 7, true, [false, true, false, false]],
+		['8', 8, true, [false, false, true, false]],
+		['9', 9, true, [false, false, false, true]],
+		['10', 10, false, [false, false, false, false]],
+		['11', 11, false, [false, false, false, false]],
+	];
+
+	for (const [name, changedLineNumber, expectedPinged, pinged] of cases) {
+		test(name, () => {
+			testOnModelLineChanged(changedLineNumber, expectedPinged, {
+				startLineNumber: 6,
+				lines: ['old6', 'old7', 'old8', 'old9'],
+				pinged
+			});
 		});
-	});
-	test('4', () => {
-		testOnModelLineChanged(4, false, {
-			startLineNumber: 6,
-			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [false, false, false, false]
-		});
-	});
-	test('5', () => {
-		testOnModelLineChanged(5, false, {
-			startLineNumber: 6,
-			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [false, false, false, false]
-		});
-	});
-	test('6', () => {
-		testOnModelLineChanged(6, true, {
-			startLineNumber: 6,
-			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [true, false, false, false]
-		});
-	});
-	test('7', () => {
-		testOnModelLineChanged(7, true, {
-			startLineNumber: 6,
-			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [false, true, false, false]
-		});
-	});
-	test('8', () => {
-		testOnModelLineChanged(8, true, {
-			startLineNumber: 6,
-			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [false, false, true, false]
-		});
-	});
-	test('9', () => {
-		testOnModelLineChanged(9, true, {
-			startLineNumber: 6,
-			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [false, false, false, true]
-		});
-	});
-	test('10', () => {
-		testOnModelLineChanged(10, false, {
-			startLineNumber: 6,
-			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [false, false, false, false]
-		});
-	});
-	test('11', () => {
-		testOnModelLineChanged(11, false, {
-			startLineNumber: 6,
-			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [false, false, false, false]
-		});
-	});
+	}
 
 });
 
@@ -421,260 +164,45 @@ suite('RenderedLinesCollection onLinesInserted', () => {
 		assertState(col, expectedState);
 	}
 
-	test('A1', () => {
-		testOnModelLinesInserted(3, 3, [], {
-			startLineNumber: 7,
-			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [false, false, false, false]
+	const cases: [name: string, insertFromLineNumber: number, insertToLineNumber: number, expectedDeleted: string[], expectedState: ILinesCollectionState][] = [
+		['A1', 3, 3, [], { startLineNumber: 7, lines: ['old6', 'old7', 'old8', 'old9'], pinged: [false, false, false, false] }],
+		['A2', 3, 4, [], { startLineNumber: 8, lines: ['old6', 'old7', 'old8', 'old9'], pinged: [false, false, false, false] }],
+		['A3', 3, 5, [], { startLineNumber: 9, lines: ['old6', 'old7', 'old8', 'old9'], pinged: [false, false, false, false] }],
+		['A4', 3, 6, [], { startLineNumber: 10, lines: ['old6', 'old7', 'old8', 'old9'], pinged: [false, false, false, false] }],
+		['A5', 3, 7, [], { startLineNumber: 11, lines: ['old6', 'old7', 'old8', 'old9'], pinged: [false, false, false, false] }],
+		['A6', 3, 8, [], { startLineNumber: 12, lines: ['old6', 'old7', 'old8', 'old9'], pinged: [false, false, false, false] }],
+		['A7', 3, 9, [], { startLineNumber: 13, lines: ['old6', 'old7', 'old8', 'old9'], pinged: [false, false, false, false] }],
+		['A8', 3, 10, [], { startLineNumber: 14, lines: ['old6', 'old7', 'old8', 'old9'], pinged: [false, false, false, false] }],
+		['B1', 5, 5, [], { startLineNumber: 7, lines: ['old6', 'old7', 'old8', 'old9'], pinged: [false, false, false, false] }],
+		['B2', 5, 6, [], { startLineNumber: 8, lines: ['old6', 'old7', 'old8', 'old9'], pinged: [false, false, false, false] }],
+		['B3', 5, 7, [], { startLineNumber: 9, lines: ['old6', 'old7', 'old8', 'old9'], pinged: [false, false, false, false] }],
+		['B4', 5, 8, [], { startLineNumber: 10, lines: ['old6', 'old7', 'old8', 'old9'], pinged: [false, false, false, false] }],
+		['B5', 5, 9, [], { startLineNumber: 11, lines: ['old6', 'old7', 'old8', 'old9'], pinged: [false, false, false, false] }],
+		['B6', 5, 10, [], { startLineNumber: 12, lines: ['old6', 'old7', 'old8', 'old9'], pinged: [false, false, false, false] }],
+		['C1', 6, 6, [], { startLineNumber: 7, lines: ['old6', 'old7', 'old8', 'old9'], pinged: [false, false, false, false] }],
+		['C2', 6, 7, [], { startLineNumber: 8, lines: ['old6', 'old7', 'old8', 'old9'], pinged: [false, false, false, false] }],
+		['C3', 6, 8, [], { startLineNumber: 9, lines: ['old6', 'old7', 'old8', 'old9'], pinged: [false, false, false, false] }],
+		['C4', 6, 9, [], { startLineNumber: 10, lines: ['old6', 'old7', 'old8', 'old9'], pinged: [false, false, false, false] }],
+		['C5', 6, 10, [], { startLineNumber: 11, lines: ['old6', 'old7', 'old8', 'old9'], pinged: [false, false, false, false] }],
+		['D1', 7, 7, ['old9'], { startLineNumber: 6, lines: ['old6', 'new', 'old7', 'old8'], pinged: [false, false, false, false] }],
+		['D2', 7, 8, ['old8', 'old9'], { startLineNumber: 6, lines: ['old6', 'new', 'new', 'old7'], pinged: [false, false, false, false] }],
+		['D3', 7, 9, ['old7', 'old8', 'old9'], { startLineNumber: 6, lines: ['old6'], pinged: [false] }],
+		['D4', 7, 10, ['old7', 'old8', 'old9'], { startLineNumber: 6, lines: ['old6'], pinged: [false] }],
+		['E1', 8, 8, ['old9'], { startLineNumber: 6, lines: ['old6', 'old7', 'new', 'old8'], pinged: [false, false, false, false] }],
+		['E2', 8, 9, ['old8', 'old9'], { startLineNumber: 6, lines: ['old6', 'old7'], pinged: [false, false] }],
+		['E3', 8, 10, ['old8', 'old9'], { startLineNumber: 6, lines: ['old6', 'old7'], pinged: [false, false] }],
+		['F1', 9, 9, ['old9'], { startLineNumber: 6, lines: ['old6', 'old7', 'old8'], pinged: [false, false, false] }],
+		['F2', 9, 10, ['old9'], { startLineNumber: 6, lines: ['old6', 'old7', 'old8'], pinged: [false, false, false] }],
+		['G1', 10, 10, [], { startLineNumber: 6, lines: ['old6', 'old7', 'old8', 'old9'], pinged: [false, false, false, false] }],
+		['G2', 10, 11, [], { startLineNumber: 6, lines: ['old6', 'old7', 'old8', 'old9'], pinged: [false, false, false, false] }],
+		['H1', 11, 13, [], { startLineNumber: 6, lines: ['old6', 'old7', 'old8', 'old9'], pinged: [false, false, false, false] }],
+	];
+
+	for (const [name, insertFromLineNumber, insertToLineNumber, expectedDeleted, expectedState] of cases) {
+		test(name, () => {
+			testOnModelLinesInserted(insertFromLineNumber, insertToLineNumber, expectedDeleted, expectedState);
 		});
-	});
-
-	test('A2', () => {
-		testOnModelLinesInserted(3, 4, [], {
-			startLineNumber: 8,
-			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [false, false, false, false]
-		});
-	});
-
-	test('A3', () => {
-		testOnModelLinesInserted(3, 5, [], {
-			startLineNumber: 9,
-			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [false, false, false, false]
-		});
-	});
-
-	test('A4', () => {
-		testOnModelLinesInserted(3, 6, [], {
-			startLineNumber: 10,
-			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [false, false, false, false]
-		});
-	});
-
-	test('A5', () => {
-		testOnModelLinesInserted(3, 7, [], {
-			startLineNumber: 11,
-			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [false, false, false, false]
-		});
-	});
-
-	test('A6', () => {
-		testOnModelLinesInserted(3, 8, [], {
-			startLineNumber: 12,
-			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [false, false, false, false]
-		});
-	});
-
-	test('A7', () => {
-		testOnModelLinesInserted(3, 9, [], {
-			startLineNumber: 13,
-			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [false, false, false, false]
-		});
-	});
-
-	test('A8', () => {
-		testOnModelLinesInserted(3, 10, [], {
-			startLineNumber: 14,
-			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [false, false, false, false]
-		});
-	});
-
-
-	test('B1', () => {
-		testOnModelLinesInserted(5, 5, [], {
-			startLineNumber: 7,
-			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [false, false, false, false]
-		});
-	});
-
-	test('B2', () => {
-		testOnModelLinesInserted(5, 6, [], {
-			startLineNumber: 8,
-			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [false, false, false, false]
-		});
-	});
-
-	test('B3', () => {
-		testOnModelLinesInserted(5, 7, [], {
-			startLineNumber: 9,
-			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [false, false, false, false]
-		});
-	});
-
-	test('B4', () => {
-		testOnModelLinesInserted(5, 8, [], {
-			startLineNumber: 10,
-			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [false, false, false, false]
-		});
-	});
-
-	test('B5', () => {
-		testOnModelLinesInserted(5, 9, [], {
-			startLineNumber: 11,
-			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [false, false, false, false]
-		});
-	});
-
-	test('B6', () => {
-		testOnModelLinesInserted(5, 10, [], {
-			startLineNumber: 12,
-			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [false, false, false, false]
-		});
-	});
-
-
-	test('C1', () => {
-		testOnModelLinesInserted(6, 6, [], {
-			startLineNumber: 7,
-			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [false, false, false, false]
-		});
-	});
-
-	test('C2', () => {
-		testOnModelLinesInserted(6, 7, [], {
-			startLineNumber: 8,
-			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [false, false, false, false]
-		});
-	});
-
-	test('C3', () => {
-		testOnModelLinesInserted(6, 8, [], {
-			startLineNumber: 9,
-			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [false, false, false, false]
-		});
-	});
-
-	test('C4', () => {
-		testOnModelLinesInserted(6, 9, [], {
-			startLineNumber: 10,
-			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [false, false, false, false]
-		});
-	});
-
-	test('C5', () => {
-		testOnModelLinesInserted(6, 10, [], {
-			startLineNumber: 11,
-			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [false, false, false, false]
-		});
-	});
-
-
-	test('D1', () => {
-		testOnModelLinesInserted(7, 7, ['old9'], {
-			startLineNumber: 6,
-			lines: ['old6', 'new', 'old7', 'old8'],
-			pinged: [false, false, false, false]
-		});
-	});
-
-	test('D2', () => {
-		testOnModelLinesInserted(7, 8, ['old8', 'old9'], {
-			startLineNumber: 6,
-			lines: ['old6', 'new', 'new', 'old7'],
-			pinged: [false, false, false, false]
-		});
-	});
-
-	test('D3', () => {
-		testOnModelLinesInserted(7, 9, ['old7', 'old8', 'old9'], {
-			startLineNumber: 6,
-			lines: ['old6'],
-			pinged: [false]
-		});
-	});
-
-	test('D4', () => {
-		testOnModelLinesInserted(7, 10, ['old7', 'old8', 'old9'], {
-			startLineNumber: 6,
-			lines: ['old6'],
-			pinged: [false]
-		});
-	});
-
-
-	test('E1', () => {
-		testOnModelLinesInserted(8, 8, ['old9'], {
-			startLineNumber: 6,
-			lines: ['old6', 'old7', 'new', 'old8'],
-			pinged: [false, false, false, false]
-		});
-	});
-
-	test('E2', () => {
-		testOnModelLinesInserted(8, 9, ['old8', 'old9'], {
-			startLineNumber: 6,
-			lines: ['old6', 'old7'],
-			pinged: [false, false]
-		});
-	});
-
-	test('E3', () => {
-		testOnModelLinesInserted(8, 10, ['old8', 'old9'], {
-			startLineNumber: 6,
-			lines: ['old6', 'old7'],
-			pinged: [false, false]
-		});
-	});
-
-
-	test('F1', () => {
-		testOnModelLinesInserted(9, 9, ['old9'], {
-			startLineNumber: 6,
-			lines: ['old6', 'old7', 'old8'],
-			pinged: [false, false, false]
-		});
-	});
-
-	test('F2', () => {
-		testOnModelLinesInserted(9, 10, ['old9'], {
-			startLineNumber: 6,
-			lines: ['old6', 'old7', 'old8'],
-			pinged: [false, false, false]
-		});
-	});
-
-
-	test('G1', () => {
-		testOnModelLinesInserted(10, 10, [], {
-			startLineNumber: 6,
-			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [false, false, false, false]
-		});
-	});
-
-	test('G2', () => {
-		testOnModelLinesInserted(10, 11, [], {
-			startLineNumber: 6,
-			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [false, false, false, false]
-		});
-	});
-
-
-	test('H1', () => {
-		testOnModelLinesInserted(11, 13, [], {
-			startLineNumber: 6,
-			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [false, false, false, false]
-		});
-	});
+	}
 });
 
 
@@ -695,67 +223,25 @@ suite('RenderedLinesCollection onTokensChanged', () => {
 		assertState(col, expectedState);
 	}
 
-	test('A', () => {
-		testOnModelTokensChanged(3, 3, false, {
-			startLineNumber: 6,
-			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [false, false, false, false]
+	const cases: [name: string, changedFromLineNumber: number, changedToLineNumber: number, expectedPinged: boolean, pinged: boolean[]][] = [
+		['A', 3, 3, false, [false, false, false, false]],
+		['B', 3, 5, false, [false, false, false, false]],
+		['C', 3, 6, true, [true, false, false, false]],
+		['D', 6, 6, true, [true, false, false, false]],
+		['E', 5, 10, true, [true, true, true, true]],
+		['F', 8, 9, true, [false, false, true, true]],
+		['G', 8, 11, true, [false, false, true, true]],
+		['H', 10, 10, false, [false, false, false, false]],
+		['I', 10, 11, false, [false, false, false, false]],
+	];
+
+	for (const [name, changedFromLineNumber, changedToLineNumber, expectedPinged, pinged] of cases) {
+		test(name, () => {
+			testOnModelTokensChanged(changedFromLineNumber, changedToLineNumber, expectedPinged, {
+				startLineNumber: 6,
+				lines: ['old6', 'old7', 'old8', 'old9'],
+				pinged
+			});
 		});
-	});
-	test('B', () => {
-		testOnModelTokensChanged(3, 5, false, {
-			startLineNumber: 6,
-			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [false, false, false, false]
-		});
-	});
-	test('C', () => {
-		testOnModelTokensChanged(3, 6, true, {
-			startLineNumber: 6,
-			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [true, false, false, false]
-		});
-	});
-	test('D', () => {
-		testOnModelTokensChanged(6, 6, true, {
-			startLineNumber: 6,
-			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [true, false, false, false]
-		});
-	});
-	test('E', () => {
-		testOnModelTokensChanged(5, 10, true, {
-			startLineNumber: 6,
-			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [true, true, true, true]
-		});
-	});
-	test('F', () => {
-		testOnModelTokensChanged(8, 9, true, {
-			startLineNumber: 6,
-			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [false, false, true, true]
-		});
-	});
-	test('G', () => {
-		testOnModelTokensChanged(8, 11, true, {
-			startLineNumber: 6,
-			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [false, false, true, true]
-		});
-	});
-	test('H', () => {
-		testOnModelTokensChanged(10, 10, false, {
-			startLineNumber: 6,
-			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [false, false, false, false]
-		});
-	});
-	test('I', () => {
-		testOnModelTokensChanged(10, 11, false, {
-			startLineNumber: 6,
-			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [false, false, false, false]
-		});
-	});
+	}
 });

@@ -7,7 +7,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { BugIndicatingError } from '../../../../base/common/errors.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
-import { IGitService, IGitExtensionDelegate, GitRef, GitRefQuery, IGitRepository, GitRepositoryState, GitDiffChange } from '../common/gitService.js';
+import { IGitService, IGitExtensionDelegate, GitRef, GitRefQuery, IGitRepository, GitRepositoryState, GitDiffChange, GitCommitOptions } from '../common/gitService.js';
 import { ISettableObservable, observableValueOpts } from '../../../../base/common/observable.js';
 import { structuralEquals } from '../../../../base/common/equals.js';
 import { AutoOpenBarrier } from '../../../../base/common/async.js';
@@ -44,22 +44,26 @@ export class GitService extends Disposable implements IGitService {
 		});
 	}
 
-	async openRepository(uri: URI): Promise<IGitRepository | undefined> {
+	async openRepository(uri: URI, token?: CancellationToken): Promise<IGitRepository | undefined> {
 		// We need to wait for the delegate to be set before we can open a repository.
 		// At the moment we are waiting for 10 seconds before we automatically open the
 		// barrier.
 		await this._delegateBarrier.wait();
+
+		if (token?.isCancellationRequested) {
+			return undefined;
+		}
 
 		if (!this._delegate) {
 			this.logService.warn('[GitService][openRepository] GitExtension delegate is not set after 10 seconds. Cannot open repository.');
 			return undefined;
 		}
 
-		return this._delegate.openRepository(uri);
+		return this._delegate.openRepository(uri, token);
 	}
 }
 
-export class GitRepository extends Disposable implements IGitRepository {
+export class GitRepository implements IGitRepository {
 	readonly rootUri: URI;
 
 	readonly state: ISettableObservable<GitRepositoryState>;
@@ -72,8 +76,6 @@ export class GitRepository extends Disposable implements IGitRepository {
 		initialState: GitRepositoryState,
 		private readonly delegate: IGitExtensionDelegate
 	) {
-		super();
-
 		this.rootUri = rootUri;
 		this.state = observableValueOpts({ owner: this, equalsFn: structuralEquals }, initialState);
 	}
@@ -88,5 +90,9 @@ export class GitRepository extends Disposable implements IGitRepository {
 
 	async diffBetweenWithStats2(ref: string, path?: string): Promise<GitDiffChange[]> {
 		return this.delegate.diffBetweenWithStats2(this.rootUri, ref, path);
+	}
+
+	async commitFiles(files: readonly URI[], message: string, options?: GitCommitOptions): Promise<void> {
+		return this.delegate.commitFiles(this.rootUri, files, message, options);
 	}
 }

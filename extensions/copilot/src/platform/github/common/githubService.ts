@@ -30,15 +30,6 @@ export type IGetRepositoryInfoResponseData = Endpoints['GET /repos/{owner}/{repo
 export const IGithubRepositoryService = createServiceIdentifier<IGithubRepositoryService>('IGithubRepositoryService');
 export const IOctoKitService = createServiceIdentifier<IOctoKitService>('IOctoKitService');
 
-export const VSCodeTeamId = 1682102;
-
-export type GithubRepositoryItem = {
-	name: string;
-	path: string;
-	html_url: string;
-	type: 'file' | 'dir';
-};
-
 export interface IGithubRepositoryService {
 
 	_serviceBrand: undefined;
@@ -50,8 +41,6 @@ export interface IGithubRepositoryService {
 	 */
 	isAvailable(org: string, repo: string): Promise<boolean>;
 	getRepositoryInfo(owner: string, repo: string): Promise<IGetRepositoryInfoResponseData>;
-	getRepositoryItems(org: string, repo: string, path: string): Promise<GithubRepositoryItem[]>;
-	getRepositoryItemContent(org: string, repo: string, path: string): Promise<Uint8Array | undefined>;
 }
 
 export interface IOctoKitUser {
@@ -234,6 +223,9 @@ export interface IOctoKitService {
 	 */
 	getCustomAgentDetails(owner: string, repo: string, agentName: string, version: string, authOptions: AuthOptions): Promise<CustomAgentDetails | undefined>;
 
+	/** Reads the saved prompt for an automation (or its exact revision) without prompting for access. */
+	getAutomationPrompt(owner: string, repo: string, automationId: string, revisionId: string | undefined): Promise<string | undefined>;
+
 	/**
 	 * Gets the list of files changed in a pull request.
 	 * @param owner The repository owner
@@ -334,6 +326,8 @@ export interface IOctoKitService {
 	 */
 	getUserRepositories(authOptions: AuthOptions, query?: string): Promise<{ owner: string; name: string }[]>;
 
+	searchIssuesAndPullRequests(query: string, authOptions: AuthOptions): Promise<GitHubIssueSearchItem[]>;
+
 	/**
 	 * Gets the list of repositories the authenticated user has recently committed to.
 	 * Uses the GitHub Events API to find repositories from recent PushEvent activity.
@@ -376,6 +370,15 @@ export interface IOctoKitService {
 	isCCAEnabled(owner: string, repo: string, authOptions: AuthOptions): Promise<CCAEnabledResult>;
 
 	getGitHubOutageStatus(): Promise<GitHubOutageStatus>;
+}
+
+export interface GitHubIssueSearchItem {
+	readonly number: number;
+	readonly title: string;
+	readonly url: string;
+	readonly owner: string;
+	readonly repository: string;
+	readonly isPullRequest: boolean;
 }
 
 /**
@@ -447,6 +450,41 @@ export class BaseOctoKitService {
 	protected async getOpenPullRequestForUserWithToken(owner: string, repo: string, user: string, token: string) {
 		const query = `repo:${owner}/${repo} is:open involves:${user}`;
 		return makeSearchGraphQLRequest(this._fetcherService, this._logService, this._telemetryService, this._capiClientService.dotcomAPIURL, token, query);
+	}
+
+	protected async searchIssuesAndPullRequestsWithToken(query: string, token: string): Promise<GitHubIssueSearchItem[]> {
+		const response = await this._makeGHAPIRequest(
+			`search/issues?q=${encodeURIComponent(query)}&sort=updated&per_page=50`,
+			'GET',
+			token,
+			undefined,
+			undefined,
+			'github-rest-search-issues',
+		) as {
+			items?: Array<{
+				number?: number;
+				title?: string;
+				html_url?: string;
+				repository_url?: string;
+				pull_request?: object;
+			}>;
+		} | undefined;
+		return (response?.items ?? []).flatMap(item => {
+			const repositoryMatch = item.repository_url?.match(/\/repos\/(?<owner>[^/]+)\/(?<repository>[^/]+)$/);
+			const owner = repositoryMatch?.groups?.owner;
+			const repository = repositoryMatch?.groups?.repository;
+			if (typeof item.number !== 'number' || !item.title || !item.html_url || !owner || !repository) {
+				return [];
+			}
+			return [{
+				number: item.number,
+				title: item.title,
+				url: item.html_url,
+				owner,
+				repository,
+				isPullRequest: item.pull_request !== undefined,
+			}];
+		});
 	}
 
 	protected async findPullRequestByHeadBranchWithToken(owner: string, repo: string, headBranch: string, token: string): Promise<PullRequestSearchItem | undefined> {
@@ -580,7 +618,7 @@ export class BaseOctoKitService {
 			return this.searchUserRepositoriesWithToken(token, trimmedQuery);
 		}
 
-		// Fetch the most recently updated repos with push access
+		// Fetch the most recently updated repositories the user can access
 		const result = await this._makeGHAPIRequest(
 			'user/repos?per_page=100&sort=updated&affiliation=owner,collaborator,organization_member',
 			'GET',
@@ -593,9 +631,7 @@ export class BaseOctoKitService {
 		if (!result || !Array.isArray(result)) {
 			return [];
 		}
-
 		return result
-			.filter((repo: { permissions?: { push?: boolean } }) => repo.permissions?.push)
 			.map((repo: { name: string; owner: { login: string } }) => ({
 				owner: repo.owner.login,
 				name: repo.name
@@ -624,9 +660,7 @@ export class BaseOctoKitService {
 		if (!result || !Array.isArray(result.items)) {
 			return [];
 		}
-
 		return result.items
-			.filter((repo: { permissions?: { push?: boolean } }) => repo.permissions?.push)
 			.map((repo: { name: string; owner: { login: string } }) => ({
 				owner: repo.owner.login,
 				name: repo.name

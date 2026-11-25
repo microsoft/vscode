@@ -10,7 +10,7 @@ import { ILogService } from '../../log/common/logService';
 import { IFetcherService } from '../../networking/common/fetcherService';
 import { ITelemetryService } from '../../telemetry/common/telemetry';
 import { AssignableActor, getAssignableActorsWithAssignableUsers, getAssignableActorsWithSuggestedActors, getErrorCode, PullRequestSearchItem } from './githubAPI';
-import { AuthOptions, BaseOctoKitService, CCAEnabledResult, CreatedPullRequest, CustomAgentDetails, CustomAgentListItem, CustomAgentListOptions, IOctoKitService, IOctoKitUser, PermissiveAuthRequiredError, PullRequestFile, RepositoryComparison } from './githubService';
+import { AuthOptions, BaseOctoKitService, CCAEnabledResult, CreatedPullRequest, CustomAgentDetails, CustomAgentListItem, CustomAgentListOptions, GitHubIssueSearchItem, IOctoKitService, IOctoKitUser, PermissiveAuthRequiredError, PullRequestFile, RepositoryComparison } from './githubService';
 
 export class OctoKitService extends BaseOctoKitService implements IOctoKitService {
 	declare readonly _serviceBrand: undefined;
@@ -146,6 +146,25 @@ export class OctoKitService extends BaseOctoKitService implements IOctoKitServic
 		}
 	}
 
+	async getAutomationPrompt(owner: string, repo: string, automationId: string, revisionId: string | undefined): Promise<string | undefined> {
+		const segments = ['agents', 'repos', owner, repo, 'automations', automationId];
+		if (revisionId !== undefined) {
+			segments.push('revisions', revisionId);
+		}
+		// encodeURIComponent leaves dot segments intact; URL normalization would change the route.
+		if (segments.some(segment => !segment || segment === '.' || segment === '..')) {
+			return undefined;
+		}
+		const token = (await this._getPermissiveSession({}))?.accessToken;
+		if (!token) {
+			return undefined;
+		}
+		const route = segments.map(encodeURIComponent).join('/');
+		const result = await this._makeGHAPIRequest(route, 'GET', token, undefined, { silent404: true }, 'github-rest-get-automation-prompt');
+		const prompt = revisionId === undefined ? result?.prompt : result?.snapshot?.prompt;
+		return typeof prompt === 'string' && prompt.trim() ? prompt : undefined;
+	}
+
 	async getPullRequestFiles(owner: string, repo: string, pullNumber: number, authOptions: AuthOptions): Promise<PullRequestFile[]> {
 		const authToken = (await this._getPermissiveSession(authOptions))?.accessToken;
 		if (!authToken) {
@@ -264,6 +283,15 @@ export class OctoKitService extends BaseOctoKitService implements IOctoKitServic
 			throw new PermissiveAuthRequiredError();
 		}
 		return this.getUserRepositoriesWithToken(authToken, query);
+	}
+
+	async searchIssuesAndPullRequests(query: string, authOptions: AuthOptions): Promise<GitHubIssueSearchItem[]> {
+		const authToken = (await this._getPermissiveSession(authOptions))?.accessToken;
+		if (!authToken) {
+			this._logService.trace('No authentication token available for searchIssuesAndPullRequests');
+			throw new PermissiveAuthRequiredError();
+		}
+		return this.searchIssuesAndPullRequestsWithToken(query, authToken);
 	}
 
 	async getRecentlyCommittedRepositories(authOptions: AuthOptions): Promise<{ owner: string; name: string }[]> {
@@ -404,4 +432,3 @@ export class OctoKitService extends BaseOctoKitService implements IOctoKitServic
 		}
 	}
 }
-

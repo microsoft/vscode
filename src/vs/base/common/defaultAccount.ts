@@ -37,12 +37,14 @@ export interface IEntitlementsData extends ILegacyQuotaSnapshotData {
 	readonly can_signup_for_limited: boolean;
 	readonly copilot_plan: string;
 	readonly organization_login_list: string[];
+	readonly is_staff?: boolean;
 	readonly analytics_tracking_id: string;
 	readonly limited_user_reset_date?: string; 	// for Copilot Free
 	readonly quota_reset_date?: string; 		// for all other Copilot SKUs
 	readonly quota_reset_date_utc?: string; 	// for all other Copilot SKUs (includes time)
 	readonly token_based_billing?: boolean;
 	readonly can_upgrade_plan?: boolean;
+	readonly cloud_sessions_enabled?: boolean;
 	readonly cloud_session_storage_enabled?: boolean;
 	readonly quota_snapshots?: {
 		chat?: IQuotaSnapshotData;
@@ -71,12 +73,12 @@ export interface IPolicyData {
 	readonly managedSettings?: ManagedSettingsData;
 
 	/**
-	 * Whether at least one managed-settings delivery channel currently supplies a setting — i.e.
-	 * the user is governed by GitHub Copilot managed settings at all, independent of which keys
-	 * were set.
+	 * Whether at least one managed-settings delivery channel currently contributes governance.
+	 * The harness permissions `vscode.temporaryAllowLocalHarness` and `vscode.allowedHarnesses` do
+	 * not contribute to this flag; other settings retain presence-based governance.
 	 *
-	 * Unlike {@link managedSettings}, this is not projected onto the keys VS Code declares, so it
-	 * also reflects runtime-owned keys VS Code never reads.
+	 * Unlike {@link managedSettings}, this also reflects structured runtime-owned keys that the
+	 * policy projection does not retain.
 	 */
 	readonly managedSettingsActive?: boolean;
 }
@@ -84,6 +86,7 @@ export interface IPolicyData {
 export interface ICopilotTokenInfo {
 	readonly sn?: string;
 	readonly fcv1?: string;
+	readonly st?: string;
 }
 
 export interface IDefaultAccountAuthenticationProvider {
@@ -98,4 +101,22 @@ export interface IDefaultAccount {
 	readonly sessionId: string;
 	readonly enterprise: boolean;
 	readonly entitlementsData?: IEntitlementsData | null;
+}
+
+/** The fields of a default account that identify its GitHub account and the authentication session to use for it. */
+export type IGitHubDefaultAccount = Pick<IDefaultAccount, 'authenticationProvider' | 'accountName' | 'sessionId' | 'enterprise'>;
+
+/** The id of the Microsoft authentication provider, whose account can be the default account when the user chose it. */
+export const MICROSOFT_DEFAULT_ACCOUNT_PROVIDER_ID = 'microsoft';
+
+/**
+ * Returns the default account as a GitHub account, or `undefined` when there is no default account or the default
+ * account is a Microsoft account. Code that makes GitHub requests for the default account reads it through here.
+ * Callers that handle a missing default account differently from a Microsoft one must check the account itself.
+ */
+export function asGitHubAccount(account: IDefaultAccount | null | undefined): IGitHubDefaultAccount | undefined {
+	if (!account || account.authenticationProvider.id === MICROSOFT_DEFAULT_ACCOUNT_PROVIDER_ID) {
+		return undefined;
+	}
+	return account;
 }

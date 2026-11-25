@@ -20,7 +20,7 @@ import { ICommandService } from '../../../../../platform/commands/common/command
 import { IConfigurationOverrides, IConfigurationService, IConfigurationValue } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IExtensionDescription } from '../../../../../platform/extensions/common/extensions.js';
-import { IFormatterChangeEvent, ILabelService, ResourceLabelFormatter, Verbosity } from '../../../../../platform/label/common/label.js';
+import { IFormatterChangeEvent, ILabelService, IWorkspaceLabelDecorator, ResourceLabelFormatter, Verbosity } from '../../../../../platform/label/common/label.js';
 import { IWorkspace, IWorkspaceFolder, IWorkspaceIdentifier, Workspace } from '../../../../../platform/workspace/common/workspace.js';
 import { testWorkspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
 import { TestEditorService, TestQuickInputService } from '../../../../test/browser/workbenchTestServices.js';
@@ -809,13 +809,22 @@ class MockCommandService implements ICommandService {
 
 class MockLabelService implements ILabelService {
 	_serviceBrand: undefined;
+	getUriHome(): undefined {
+		return undefined;
+	}
 	getUriLabel(resource: URI, options?: { relative?: boolean | undefined; noPrefix?: boolean | undefined }): string {
 		return normalize(resource.fsPath);
 	}
 	getUriBasenameLabel(resource: URI): string {
 		throw new Error('Method not implemented.');
 	}
-	getWorkspaceLabel(workspace: URI | IWorkspaceIdentifier | IWorkspace, options?: { verbose: Verbosity }): string {
+	getWorkspaceLabel(workspace: URI | IWorkspaceIdentifier | IWorkspace, options?: { verbose?: Verbosity; withLocation?: boolean }): string {
+		throw new Error('Method not implemented.');
+	}
+	getFolderLocationLabel(folder: URI): string | undefined {
+		throw new Error('Method not implemented.');
+	}
+	registerWorkspaceLabelDecorator(decorator: IWorkspaceLabelDecorator): IDisposable {
 		throw new Error('Method not implemented.');
 	}
 	getHostLabel(scheme: string, authority?: string): string {
@@ -855,6 +864,15 @@ class MockPathService implements IPathService {
 	hasValidBasename(resource: URI, os: platform.OperatingSystem, basename?: string): boolean;
 	hasValidBasename(resource: URI, arg2?: string | platform.OperatingSystem, name?: string): boolean | Promise<boolean> {
 		throw new Error('Method not implemented.');
+	}
+	getOperatingSystem(_resource: URI): Promise<platform.OperatingSystem | undefined> {
+		throw new Error('Method not implemented.');
+	}
+	getPath(_resource: URI): Promise<IPath | undefined> {
+		throw new Error('Method not implemented.');
+	}
+	registerPathProvider(): IDisposable {
+		return Disposable.None;
 	}
 	resolvedUserHome: URI | undefined;
 }

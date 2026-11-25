@@ -34,7 +34,7 @@ import { getWorkspaceFileDisplayPath, IWorkspaceService } from '../../workspace/
 import { IGithubAvailableEmbeddingTypesService } from '../common/githubAvailableEmbeddingTypes';
 import { IRerankerService } from '../common/rerankerService';
 import { StrategySearchResult, StrategySearchSizing, WorkspaceChunkQuery, WorkspaceChunkQueryWithEmbeddings, WorkspaceChunkSearchOptions, WorkspaceSearchAlert } from '../common/workspaceChunkSearch';
-import { CodeSearchChunkSearch, CodeSearchRemoteIndexState, ExternalIngestEnablement } from './codeSearch/codeSearchChunkSearch';
+import { CodeSearchChunkSearch, CodeSearchRemoteIndexState } from './codeSearch/codeSearchChunkSearch';
 import { BuildIndexTriggerReason, TriggerIndexingError } from './codeSearch/codeSearchRepo';
 import { IWorkspaceFileIndex } from './workspaceFileIndex';
 
@@ -451,7 +451,7 @@ class WorkspaceChunkSearchServiceImpl extends Disposable implements IWorkspaceCh
 	}
 
 	private async promptForExternalIngestIfNeeded(token: CancellationToken): Promise<void> {
-		if (token.isCancellationRequested || this.hasPromptedForExternalIngest || this._codeSearchChunkSearch.getExternalIngestEnablement() !== ExternalIngestEnablement.DisabledBySetting) {
+		if (token.isCancellationRequested || this.hasPromptedForExternalIngest || !await raceCancellationError(this._codeSearchChunkSearch.shouldOfferToEnableExternalIngest(), token)) {
 			return;
 		}
 

@@ -5,9 +5,13 @@
 
 import { Event } from '../../../base/common/event.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
-import { extUriBiasedIgnorePathCase } from '../../../base/common/resources.js';
+import { matchesSomeScheme, Schemas } from '../../../base/common/network.js';
+import { extUri, extUriBiasedIgnorePathCase, extUriIgnorePathCase, IExtUri } from '../../../base/common/resources.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
+import { AGENT_HOST_SCHEME, fromAgentHostUri, toAgentHostUri } from '../../agentHost/common/agentHostUri.js';
+import { AGENT_HOST_SESSION_LINK_SCHEME } from '../../agentHost/common/openSessionLink.js';
+import { ISandboxNetworkRestrictions } from '../../sandbox/common/sandboxSettingsResolutionHelper.js';
 import { ITunnelProxyInfo } from '../../tunnel/common/tunnelProxy.js';
 import { IPermissionCategoryState, ISerializedBrowserPermissionsSnapshot, IBrowserDeviceCandidate, BrowserDeviceType, PermissionCategory } from './browserPermissions.js';
 import type { IntegratedBrowserOpenSource } from './browserViewTelemetry.js';
@@ -18,6 +22,7 @@ export enum BrowserViewCommandId {
 	Open = `${commandPrefix}.open`,
 	OpenFile = `${commandPrefix}.openFile`,
 	NewTab = `${commandPrefix}.newTab`,
+	DuplicateTab = `${commandPrefix}.duplicateTab`,
 	QuickOpen = `${commandPrefix}.quickOpen`,
 	OpenOrList = `${commandPrefix}.openOrList`,
 	CloseAll = `${commandPrefix}.closeAll`,
@@ -58,6 +63,7 @@ export enum BrowserViewCommandId {
 	ClearGlobalStorage = `${commandPrefix}.clearGlobalStorage`,
 	ClearWorkspaceStorage = `${commandPrefix}.clearWorkspaceStorage`,
 	ClearEphemeralStorage = `${commandPrefix}.clearEphemeralStorage`,
+	ClearAgentStorage = `${commandPrefix}.clearAgentStorage`,
 
 	// Find in page
 	ShowFind = `${commandPrefix}.showFind`,
@@ -158,31 +164,71 @@ export interface IBrowserViewWindowConfiguration {
 
 	/** Whether AI features are disabled for this window. */
 	readonly aiFeaturesDisabled?: boolean;
+	/**
+	 * User agent for the window's browser views. When unset, the default
+	 * Electron user agent is used. Device emulation still takes precedence.
+	 */
+	readonly userAgent?: string;
 	/** Maximum number of entries to retain per browser session history. */
 	readonly maxHistoryEntries?: number;
 	/**
-	 * Resolved tunnel-proxy credentials for the window's remote browser views,
-	 * produced by the window's local node extension host (which hosts the HTTPS
-	 * tunnel proxy). `undefined` until the proxy has started, or when no proxy
-	 * is used. Applied to the Electron sessions of the window's remote views.
+	 * The remote networks the window's views use, keyed by {@link IBrowserViewNetwork.authority}.
+	 * Applied to the Electron sessions of views whose storage is bound to that network;
+	 * other views always use the local network. Sessions on a network read `file:` requests
+	 * from the remote's file system, within the trusted roots of the network.
 	 */
-	readonly proxyInfo?: ITunnelProxyInfo;
+	readonly remoteNetworks?: { readonly [authority: string]: IBrowserViewRemoteNetwork };
 	/**
-	 * The window's contribution to the `file://` allowlist used by integrated
-	 * browser sessions. Main unions every window's contribution into a
-	 * process-wide allowlist; entries are dropped when the window is destroyed.
-	 * Usually `getTrustedUris()` plus, when the workspace itself is trusted, its
-	 * workspace folder paths.
+	 * The window's contribution to the allowlist of `file:` requests of sessions on the local network,
+	 * as file system paths. Main unions every window's contribution. Entries are dropped when the window is destroyed.
+	 * Usually `getTrustedUris()` plus, when the workspace itself is trusted, its workspace folders.
 	 */
-	readonly trustedFileRoots: readonly string[];
+	readonly trustedLocalFileRoots: readonly string[];
 	/**
-	 * Whether Workspace Trust is disabled entirely
-	 * (`security.workspace.trust.enabled: false`) for this window. When
-	 * `true`, every `file://` request is allowed regardless of
-	 * {@link trustedFileRoots} since there is no meaningful notion of an
-	 * untrusted folder to enforce.
+	 * Whether Workspace Trust is disabled entirely (`security.workspace.trust.enabled: false`).
+	 * When `true`, every `file://` request of sessions on the local network is allowed,
+	 * since there is no meaningful notion of an untrusted folder to enforce.
 	 */
+	readonly trustAllLocalFiles: boolean;
+}
+
+/** What is behind a remote network's files. */
+export interface IBrowserViewNetworkFileSystem {
+	/** The scheme the remote's files are read with: `vscode-remote` or `vscode-agent-host`. */
+	readonly scheme: string;
+	/** Whether the remote's file system distinguishes paths by case, which depends on its operating system. */
+	readonly caseSensitive: boolean;
+}
+
+/** A remote network a window's views use, with what is needed to serve the remote's files. */
+export interface IBrowserViewRemoteNetwork extends IBrowserViewNetworkFileSystem {
+	/** Tunnel-proxy credentials, produced by the window's local extension host, which hosts the proxy servers. */
+	readonly proxy: ITunnelProxyInfo;
+	/** Trusted folders, as paths on the remote's file system. */
+	readonly trustedRoots: readonly string[];
+	/** Whether every file on the remote is allowed, because Workspace Trust is disabled. */
 	readonly trustAllFiles: boolean;
+}
+
+/** Resource schemes that address files on a remote's own file system: the window's remote, or a remote agent host. */
+export const BROWSER_REMOTE_FILE_SCHEMES: readonly string[] = [Schemas.vscodeRemote, AGENT_HOST_SCHEME];
+
+/**
+ * The remote a `vscode-remote:` or `vscode-agent-host:` URI points into, and the `file:` URI of the same
+ * location on that remote's own file system, or `undefined` for anything else. The inverse of {@link fileUrlToRemoteUri}.
+ */
+export function getBrowserViewRemoteFile(uri: URI): { readonly scheme: string; readonly authority: string; readonly fileUri: URI } | undefined {
+	if (uri.scheme === Schemas.vscodeRemote) {
+		return { scheme: uri.scheme, authority: uri.authority, fileUri: uri.with({ scheme: Schemas.file, authority: '' }) };
+	}
+	if (uri.scheme === AGENT_HOST_SCHEME) {
+		const fileUri = fromAgentHostUri(uri);
+		// A file with an authority (`file://server/share`) is not on the host's own file system.
+		if (fileUri.scheme === Schemas.file && !fileUri.authority) {
+			return { scheme: uri.scheme, authority: uri.authority, fileUri };
+		}
+	}
+	return undefined;
 }
 
 export interface IBrowserViewBounds {
@@ -211,6 +257,11 @@ export interface IBrowserViewCaptureScreenshotOptions {
 	screenRect?: IBrowserViewRect;
 	pageRect?: IBrowserViewRect;
 	/**
+	 * When true, a docked DevTools panel is included in the capture of the whole view.
+	 * Only meant for UI placeholders: DevTools content must not reach agents or other consumers.
+	 */
+	includeDevTools?: boolean;
+	/**
 	 * When true, capture the full scrollable document, not just the visible viewport.
 	 * Ignored when `screenRect` or `pageRect` is set.
 	 */
@@ -225,6 +276,13 @@ export interface IBrowserViewCaptureScreenshotOptions {
 	 * for captures that don't follow a DOM teardown.
 	 */
 	awaitNextPaint?: boolean;
+}
+
+/** Bounded semantic text from Chromium for user accessibility. */
+export interface IBrowserViewAccessibilitySnapshot {
+	readonly text: string;
+	readonly truncated: boolean;
+	readonly scope: 'main-frame';
 }
 
 /** Identifies who controls a browser view. */
@@ -255,14 +313,43 @@ export function matchesBrowserViewAudience(candidate: IBrowserViewAudience, patt
 		&& (pattern.sessionId === undefined || pattern.sessionId === candidate.sessionId);
 }
 
+/** Identifies the workbench window and optional Agents Window session that host a browser view. */
+export interface IBrowserViewHost {
+	readonly windowId: number;
+	readonly sessionId?: string;
+}
+
+export const enum BrowserViewPresentation {
+	Listed = 'listed',
+	Unlisted = 'unlisted',
+}
+
+/**
+ * @param allowAgentSessionLinks Whether the window hosting the view has an opener for `agent-host-session://` links,
+ * which makes them open externally as web links do. Otherwise they are denied.
+ */
+export function getBrowserViewPopupAction(presentation: BrowserViewPresentation, url: string, hasRecentUserGesture: boolean, remoteNetwork = false, allowAgentSessionLinks = false): { action: 'integrated' | 'external' | 'deny'; consumeUserGesture: boolean } {
+	if (presentation === BrowserViewPresentation.Listed) {
+		return { action: 'integrated', consumeUserGesture: false };
+	}
+	if (remoteNetwork) {
+		return { action: 'deny', consumeUserGesture: hasRecentUserGesture };
+	}
+	if (hasRecentUserGesture && (matchesSomeScheme(url, Schemas.http, Schemas.https) || (allowAgentSessionLinks && matchesSomeScheme(url, AGENT_HOST_SESSION_LINK_SCHEME)))) {
+		return { action: 'external', consumeUserGesture: true };
+	}
+	return { action: 'deny', consumeUserGesture: false };
+}
+
 /**
  * Summary information about a browser view, including its current state and
  * ownership. Returned by the main service when listing or creating views.
  */
 export interface IBrowserViewInfo {
 	readonly id: string;
-	readonly hostWindowId: number;
+	readonly host: IBrowserViewHost;
 	readonly owner: IBrowserViewOwner;
+	readonly presentation: BrowserViewPresentation;
 	readonly associatedResource?: UriComponents;
 	readonly state: IBrowserViewState;
 }
@@ -287,9 +374,12 @@ export interface IBrowserViewCreatedEvent {
 
 /** Host, ownership, storage, and initial access for a newly created browser view. */
 export interface IBrowserViewCreationContext {
-	readonly hostWindowId: number;
+	readonly sandboxNetworkRestrictions?: ISandboxNetworkRestrictions;
+	readonly host: IBrowserViewHost;
 	readonly owner: IBrowserViewOwner;
 	readonly session: BrowserViewSessionSelector;
+	/** Controls whether the workbench registers this view as a normal integrated-browser page. */
+	readonly presentation?: BrowserViewPresentation;
 	/** Grants automation clients access before the view is announced to other processes. */
 	readonly initialAudiences?: readonly IBrowserViewAudience[];
 }
@@ -301,12 +391,68 @@ export interface IBrowserViewCreateOptions extends IBrowserViewCreationContext {
 	readonly openSource?: IntegratedBrowserOpenSource;
 }
 
-export function isBrowserViewAssociatedResourceNavigation(associatedResource: URI, target: string): boolean {
-	const targetResource = URI.parse(target);
-	return extUriBiasedIgnorePathCase.isEqual(
-		associatedResource.with({ query: null, fragment: null }),
+/** Splits a URL into what precedes its query, its raw query including `?` and its raw fragment including `#`. */
+export function splitUrlSuffix(url: string): { readonly base: string; readonly query: string; readonly fragment: string } {
+	const hashIndex = url.indexOf('#');
+	const fragment = hashIndex === -1 ? '' : url.slice(hashIndex);
+	const beforeFragment = hashIndex === -1 ? url : url.slice(0, hashIndex);
+	const queryIndex = beforeFragment.indexOf('?');
+	return queryIndex === -1
+		? { base: beforeFragment, query: '', fragment }
+		: { base: beforeFragment.slice(0, queryIndex), query: beforeFragment.slice(queryIndex), fragment };
+}
+
+/**
+ * Maps a `vscode-remote:` or `vscode-agent-host:` URL of the remote a session is bound to onto the
+ * `file:` URL that sessions on that network serve from the remote's file system.
+ * Other URLs are returned as is.
+ */
+export function remoteUrlToFileUrl(network: IBrowserViewNetwork | undefined, url: string): string {
+	const remote = network && getBrowserViewRemoteFile(URI.parse(url));
+	if (!remote || !extUri.isEqualAuthority(remote.authority, network.authority)) {
+		return url;
+	}
+	const original = remote.fileUri;
+	// Encode each segment so literal percent sequences in file names survive. Colons are valid in
+	// both POSIX paths and Windows drive letters, and must stay literal for relative URLs to resolve.
+	const fileUrl = 'file://' + original.path.split('/').map(segment => encodeURIComponent(segment).replace(/%3A/gi, ':')).join('/');
+	// The query and fragment stay exactly as written, since decoding them would change their meaning.
+	const { query, fragment } = splitUrlSuffix(url);
+	if (remote.scheme === Schemas.vscodeRemote) {
+		return fileUrl + query + fragment;
+	}
+	// The query of an agent host URL is encoded metadata, so the page's query is the one of the file URL it wraps.
+	const pageQuery = URI.from({ scheme: Schemas.file, path: '/', query: original.query }).toString(true).slice('file:///'.length);
+	return fileUrl + pageQuery + fragment;
+}
+
+/**
+ * The inverse of {@link remoteUrlToFileUrl} for a resource: maps a `file:` URI on the file system of the
+ * remote {@link network} onto the `vscode-remote:` or `vscode-agent-host:` URI that reads it, as given by {@link scheme}.
+ */
+export function fileUrlToRemoteUri(network: IBrowserViewNetwork, scheme: string, fileUri: URI): URI {
+	if (scheme === Schemas.vscodeRemote) {
+		return fileUri.with({ scheme, authority: network.authority });
+	}
+	return toAgentHostUri(fileUri, network.authority);
+}
+
+/**
+ * Whether navigating to {@link target} stays on the {@link associatedResource}, apart from its query and fragment.
+ * Pass the session's {@link network} when the page can display the resource as a `file:` URL (see {@link remoteUrlToFileUrl}),
+ * and a {@link comparer} with the case rules of its file system. By default, as for local resources, paths compare by the client's rules.
+ */
+export function isBrowserViewAssociatedResourceNavigation(associatedResource: URI, target: string, network?: IBrowserViewNetwork, comparer: IExtUri = extUriBiasedIgnorePathCase): boolean {
+	const targetResource = URI.parse(remoteUrlToFileUrl(network, target));
+	return comparer.isEqual(
+		URI.parse(remoteUrlToFileUrl(network, associatedResource.toString())).with({ query: null, fragment: null }),
 		targetResource.with({ query: null, fragment: null })
 	);
+}
+
+/** The path comparer for a file system that is {@link caseSensitive}, or for the client's own when that is `undefined`. */
+export function getBrowserViewPathComparer(caseSensitive: boolean | undefined): IExtUri {
+	return caseSensitive === undefined ? extUriBiasedIgnorePathCase : caseSensitive ? extUri : extUriIgnorePathCase;
 }
 
 /** `applicationSharedStorage` keys this session writes to. Empty for ephemeral sessions. */
@@ -317,6 +463,7 @@ export interface IBrowserViewStorageKeys {
 }
 
 export interface IBrowserViewState {
+	readonly sandboxSessionId?: string;
 	url: string;
 	title: string;
 	canGoBack: boolean;
@@ -329,15 +476,40 @@ export interface IBrowserViewState {
 	lastFavicon: string | undefined;
 	lastError: IBrowserViewLoadError | undefined;
 	certificateError: IBrowserViewCertificateError | undefined;
-	storageScope: BrowserViewStorageScope;
+	/** The browser session the view uses: its storage and network. */
+	session: IBrowserViewSessionOptions;
 	storageKeys: IBrowserViewStorageKeys;
 	permissions: ISerializedBrowserPermissionsSnapshot;
+	pendingDialog?: IBrowserViewDialog;
 	browserZoomIndex: number;
 	elementSelectionState: IBrowserElementSelectionState;
-	isRemoteSession: boolean;
 	isAreaSelectionActive: boolean;
 	device: IBrowserDeviceProfile | undefined;
 	audiences: IBrowserViewAudience[];
+}
+
+/**
+ * Only the current top-level origin or a pending main-frame navigation may request website sign-in.
+ * This is stricter than Chrome, which only blocks cross-origin images.
+ */
+export function getBrowserViewAuthenticationOrigin(url: string, mainFrameOrigin: string, navigationOrigin: string | undefined): string | undefined {
+	const origin = URL.parse(url)?.origin;
+	return origin && origin !== 'null' && (origin === mainFrameOrigin || origin === navigationOrigin) ? origin : undefined;
+}
+
+export interface IBrowserViewDialog {
+	readonly requestId: string;
+	readonly type: 'login' | 'alert' | 'confirm' | 'prompt';
+	readonly origin: string;
+	readonly message?: string;
+	readonly defaultPrompt?: string;
+}
+
+export interface IBrowserViewDialogResponse {
+	readonly accept: boolean;
+	readonly username?: string;
+	readonly password?: string;
+	readonly promptText?: string;
 }
 
 export interface IBrowserViewNavigationEvent {
@@ -431,29 +603,78 @@ export interface IBrowserViewFindInPageResult {
 export enum BrowserViewStorageScope {
 	Global = 'global',
 	Workspace = 'workspace',
-	Ephemeral = 'ephemeral'
+	Ephemeral = 'ephemeral',
+	Agent = 'agent'
 }
 
+/**
+ * A remote network that a browser view's traffic goes through instead of the
+ * local network, such as the remote of a remote workspace window. Storage is
+ * never used by two networks at once. Global storage is shared by every
+ * window and never uses a remote network.
+ */
+export interface IBrowserViewNetwork {
+	/** Identifies the network, e.g. the window's remote authority. */
+	readonly authority: string;
+}
+
+/** Identifies a browser session: its storage scope, the affinity that selects it within that scope, and its network. */
 export type IBrowserViewSessionOptions =
 	| { readonly scope: BrowserViewStorageScope.Global }
-	| { readonly scope: BrowserViewStorageScope.Workspace }
 	| {
-		readonly scope: BrowserViewStorageScope.Ephemeral;
+		readonly scope: BrowserViewStorageScope.Workspace;
+		/** Selects shared workspace storage for views on a network other than the host window's. */
+		readonly affinity?: string;
+		readonly network?: IBrowserViewNetwork;
+	}
+	| { readonly scope: BrowserViewStorageScope.Ephemeral; readonly network?: IBrowserViewNetwork }
+	| {
+		readonly scope: BrowserViewStorageScope.Agent;
 		/** Views with the same affinity share one in-memory browser session. */
 		readonly affinity?: string;
+		readonly network?: IBrowserViewNetwork;
 	};
+
+/** The remote network requested by session options; global storage never uses one. */
+export function getBrowserViewSessionNetwork(options: IBrowserViewSessionOptions): IBrowserViewNetwork | undefined {
+	return options.scope !== BrowserViewStorageScope.Global ? options.network : undefined;
+}
+
+/** The affinity requested by session options; only workspace and agent storage use one, and options without a scope keep theirs. */
+export function getBrowserViewSessionAffinity(options: { readonly scope?: BrowserViewStorageScope; readonly affinity?: string }): string | undefined {
+	return options.scope === BrowserViewStorageScope.Global || options.scope === BrowserViewStorageScope.Ephemeral ? undefined : options.affinity;
+}
+
+/** Keep only the network and affinity supported by the storage scope. */
+export function toBrowserViewSessionOptions(scope: BrowserViewStorageScope, affinity: string | undefined, network: IBrowserViewNetwork | undefined): IBrowserViewSessionOptions {
+	const networkOption = network ? { network } : {};
+	switch (scope) {
+		case BrowserViewStorageScope.Global:
+			return { scope };
+		case BrowserViewStorageScope.Ephemeral:
+			return { scope, ...networkOption };
+		case BrowserViewStorageScope.Workspace:
+		case BrowserViewStorageScope.Agent:
+			return { scope, ...(affinity !== undefined ? { affinity } : {}), ...networkOption };
+	}
+}
+
+export function isInMemoryStorageScope(scope: BrowserViewStorageScope): boolean {
+	return scope === BrowserViewStorageScope.Ephemeral || scope === BrowserViewStorageScope.Agent;
+}
+
+export function isBrowserViewStorageScopeShareableWithAgent(scope: BrowserViewStorageScope, networkFilteringEnabled: boolean): boolean {
+	return !networkFilteringEnabled || scope === BrowserViewStorageScope.Agent;
+}
 
 /** Selects an existing browser context by ID or resolves one from storage options. */
 export type BrowserViewSessionSelector = string | IBrowserViewSessionOptions;
 
-export function getAgentBrowserViewCreationDefaults(sessionId: string) {
+export function getAgentBrowserViewCreationDefaults(sessionId: string, storageAffinity?: string, network?: IBrowserViewNetwork) {
 	return {
 		owner: { type: 'agent', sessionId } as const,
 		initialAudiences: [{ type: 'agent' }] as const,
-		session: {
-			scope: BrowserViewStorageScope.Ephemeral,
-			affinity: sessionId
-		} as const
+		session: { scope: BrowserViewStorageScope.Agent, affinity: storageAffinity, network } as const,
 	};
 }
 
@@ -488,35 +709,64 @@ export interface IBrowserDeviceProfile {
  */
 export const browserViewIsolatedWorldId = 999;
 
-export interface IBrowserViewService {
-	/**
-	 * Fires when a new browser view is created.
-	 */
-	onDidCreateBrowserView: Event<IBrowserViewCreatedEvent>;
+export interface BrowserViewEventData {
+	onDidNavigate: IBrowserViewNavigationEvent;
+	onDidChangeLoadingState: IBrowserViewLoadingEvent;
+	onDidChangeFocus: IBrowserViewFocusEvent;
+	onDidChangeVisibility: IBrowserViewVisibilityEvent;
+	onDidChangeDevToolsState: IBrowserViewDevToolsStateEvent;
+	onDidKeyCommand: IBrowserViewKeyDownEvent;
+	onDidChangeTitle: IBrowserViewTitleChangeEvent;
+	onDidChangeFavicon: IBrowserViewFaviconChangeEvent;
+	onDidChangeOwner: IBrowserViewOwner;
+	onDidFindInPage: IBrowserViewFindInPageResult;
+	onDidClose: void;
+	onDidSelectElement: IElementData;
+	onDidRemoveElementComment: string;
+	onDidChangeElementSelectionState: IBrowserElementSelectionState;
+	onDidPickArea: IBrowserViewRect | undefined;
+	onDidChangeAreaSelectionActive: boolean;
+	onDidChangeDeviceEmulation: IBrowserDeviceProfile | undefined;
+	onDidChangeAudiences: IBrowserViewAudience[];
+	onDidRequestPermission: IBrowserViewPermissionRequestEvent;
+	onDidChangeDialog: IBrowserViewDialog | undefined;
+	onDidChangePermissions: ISerializedBrowserPermissionsSnapshot;
+	onDidRequestOpenExternal: string;
+}
 
-	/**
-	 * Dynamic events that return an Event for a specific browser view ID.
-	 */
-	onDynamicDidNavigate(id: string): Event<IBrowserViewNavigationEvent>;
-	onDynamicDidChangeLoadingState(id: string): Event<IBrowserViewLoadingEvent>;
-	onDynamicDidChangeFocus(id: string): Event<IBrowserViewFocusEvent>;
-	onDynamicDidChangeVisibility(id: string): Event<IBrowserViewVisibilityEvent>;
-	onDynamicDidChangeDevToolsState(id: string): Event<IBrowserViewDevToolsStateEvent>;
-	onDynamicDidKeyCommand(id: string): Event<IBrowserViewKeyDownEvent>;
-	onDynamicDidChangeTitle(id: string): Event<IBrowserViewTitleChangeEvent>;
-	onDynamicDidChangeFavicon(id: string): Event<IBrowserViewFaviconChangeEvent>;
-	onDynamicDidFindInPage(id: string): Event<IBrowserViewFindInPageResult>;
-	onDynamicDidClose(id: string): Event<void>;
-	onDynamicDidSelectElement(id: string): Event<IElementData>;
-	onDynamicDidRemoveElementComment(id: string): Event<string>;
-	onDynamicDidChangeElementSelectionState(id: string): Event<IBrowserElementSelectionState>;
-	onDynamicDidPickArea(id: string): Event<IBrowserViewRect | undefined>;
-	onDynamicDidChangeAreaSelectionActive(id: string): Event<boolean>;
-	onDynamicDidChangeDeviceEmulation(id: string): Event<IBrowserDeviceProfile | undefined>;
-	onDynamicDidChangeRemoteStatus(id: string): Event<boolean>;
-	onDynamicDidChangeAudiences(id: string): Event<IBrowserViewAudience[]>;
-	onDynamicDidRequestPermission(id: string): Event<IBrowserViewPermissionRequestEvent>;
-	onDynamicDidChangePermissions(id: string): Event<ISerializedBrowserPermissionsSnapshot>;
+export type BrowserViewEventMap = { [K in keyof BrowserViewEventData]: Event<BrowserViewEventData[K]> };
+
+export type BrowserViewChangeEvent<K extends keyof BrowserViewEventData = keyof BrowserViewEventData> = {
+	[P in K]: { type: 'changed'; windowId: number; id: string; event: P; data: BrowserViewEventData[P] };
+}[K];
+
+interface IBrowserViewSerializedInfo extends Omit<IBrowserViewInfo, 'state'> {
+	readonly state: Omit<IBrowserViewState, 'lastScreenshot'>;
+}
+
+type BrowserViewEventPayload = BrowserViewChangeEvent
+	| { type: 'created'; windowId: number; data: Omit<IBrowserViewCreatedEvent, 'info'> & { info: IBrowserViewSerializedInfo } }
+	| { type: 'snapshot'; windowId: number; views: IBrowserViewSerializedInfo[] };
+
+/** Buffers must be array elements: IPC JSON-serializes objects without preserving nested VSBuffer values. */
+export type BrowserViewEvent = [event: BrowserViewEventPayload, screenshots: (VSBuffer | undefined)[]];
+
+export function serializeBrowserViewInfo(info: IBrowserViewInfo): [IBrowserViewSerializedInfo, VSBuffer | undefined] {
+	const { lastScreenshot, ...state } = info.state;
+	return [{ ...info, state }, lastScreenshot];
+}
+
+export function reviveBrowserViewInfo(info: IBrowserViewSerializedInfo, lastScreenshot: VSBuffer | undefined): IBrowserViewInfo {
+	return { ...info, state: { ...info.state, lastScreenshot } };
+}
+
+export interface IBrowserViewService {
+	setSessionNetworkRestrictions(sessionId: string, restrictions: ISandboxNetworkRestrictions): Promise<void>;
+	/** Read-only accessibility snapshot that does not grant agent access. */
+	getAccessibilitySnapshot(id: string, expectedHostWindowId: number): Promise<IBrowserViewAccessibilitySnapshot>;
+
+	/** Subscribe once per workbench; the first event is its current snapshot, followed by live changes. */
+	onDynamicBrowserViewEvent(windowId: number): Event<BrowserViewEvent>;
 
 	/**
 	 * Get all known browser views with their ownership and state information.
@@ -536,6 +786,11 @@ export interface IBrowserViewService {
 	 * @param id The browser view identifier
 	 */
 	destroyBrowserView(id: string): Promise<void>;
+
+	/**
+	 * Update the owner of an existing browser view.
+	 */
+	setOwner(id: string, owner: IBrowserViewOwner): Promise<void>;
 
 	/**
 	 * Get the state of an existing browser view by ID, or throw if it doesn't exist
@@ -658,7 +913,8 @@ export interface IBrowserViewService {
 	clearGlobalStorage(): Promise<void>;
 
 	/**
-	 * Clear all storage data for a specific workspace browser session
+	 * Clear all storage data for a specific workspace browser session,
+	 * including every partition selected by an affinity within it
 	 * @param workspaceId The workspace identifier
 	 */
 	clearWorkspaceStorage(workspaceId: string): Promise<void>;
@@ -725,6 +981,9 @@ export interface IBrowserViewService {
 	 * @param deviceId The selected device id, or `null` to cancel
 	 */
 	selectDevice(id: string, requestId: string, deviceId: string | null): Promise<void>;
+
+	/** Answer the current browser dialog, identified by its request ID. */
+	respondToDialog(id: string, requestId: string, response: IBrowserViewDialogResponse): Promise<void>;
 
 	/**
 	 * Get captured console logs for a browser view.

@@ -1,0 +1,27 @@
+packages:
+  - rspack
+  - vite
+pnpmfile: .pnpmfile.mjs
+nodeLinker: isolated
+strictPeerDependencies: false
+autoInstallPeers: false
+dedupePeerDependents: false
+fetchTimeout: 180000
+engineStrict: false
+minimumReleaseAge: 10080
+minimumReleaseAgeExclude:
+  - '@vscode/*'
+strictDepBuilds: true
+sideEffectsCache: false
+verifyDepsBeforeRun: false
+# See pmOnFail in the root pnpm-workspace.yaml
+pmOnFail: download
+skills:
+  dirs: []
+allowBuilds:
+  '@vscode/vsce-sign@2.1.1': true
+  esbuild@0.27.2: true
+  fsevents@2.3.3: true
+overrides:
+  path-scurry>lru-cache: 11.2.1
+  yauzl: ^3.3.1

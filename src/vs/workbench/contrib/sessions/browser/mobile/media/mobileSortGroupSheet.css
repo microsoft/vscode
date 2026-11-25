@@ -1,0 +1,82 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Sort/group body hosted by the shared mobile sheet shell. */
+
+.mobile-sort-group-sheet-list {
+	flex: 1 1 auto;
+	overflow-y: auto;
+	-webkit-overflow-scrolling: touch;
+	padding: 4px 0 8px;
+}
+
+.mobile-sort-group-sheet-section-title {
+	padding: 12px 16px 4px;
+	font-size: 11px;
+	font-weight: var(--vscode-fontWeight-semiBold);
+	text-transform: uppercase;
+	letter-spacing: 0.05em;
+	color: var(--vscode-descriptionForeground);
+}
+
+.mobile-sort-group-sheet-divider {
+	height: 1px;
+	margin: 8px 16px;
+	background: color-mix(in srgb, var(--vscode-foreground) 12%, transparent);
+}
+
+.mobile-sort-group-sheet-item {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	width: 100%;
+	min-height: 48px;
+	padding: 0 16px;
+	border: none;
+	background: transparent;
+	color: inherit;
+	font-size: 15px;
+	text-align: left;
+	cursor: pointer;
+	touch-action: manipulation;
+	font-family: inherit;
+}
+
+.mobile-sort-group-sheet-item:focus {
+	outline: none;
+}
+
+.mobile-sort-group-sheet-item:focus-visible {
+	outline: 2px solid var(--vscode-focusBorder);
+	outline-offset: -2px;
+}
+
+.mobile-sort-group-sheet-item:active {
+	background: var(--vscode-toolbar-hoverBackground);
+}
+
+.mobile-sort-group-sheet-item.checked {
+	color: var(--vscode-menu-selectionForeground, var(--vscode-foreground));
+	font-weight: 600;
+}
+
+.mobile-sort-group-sheet-check {
+	width: 20px;
+	height: 20px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	color: var(--vscode-textLink-foreground, var(--vscode-button-background));
+	font-size: 14px;
+	flex-shrink: 0;
+}
+
+.mobile-sort-group-sheet-label {
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}

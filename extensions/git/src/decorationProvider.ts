@@ -5,7 +5,7 @@
 
 import { window, workspace, Uri, Disposable, Event, EventEmitter, FileDecoration, FileDecorationProvider, ThemeColor, l10n, SourceControlHistoryItemRef } from 'vscode';
 import * as path from 'path';
-import { Repository, GitResourceGroup } from './repository';
+import { Repository, Resource } from './repository';
 import { Model } from './model';
 import { debounce } from './decorators';
 import { filterEvent, dispose, anyEvent, PromiseSource, combinedDisposable, runAndSubscribeEvent } from './util';
@@ -22,7 +22,7 @@ function equalSourceControlHistoryItemRefs(ref1?: SourceControlHistoryItemRef, r
 		ref1?.revision === ref2?.revision;
 }
 
-class GitIgnoreDecorationProvider implements FileDecorationProvider {
+export class GitIgnoreDecorationProvider implements FileDecorationProvider {
 
 	private static Decoration: FileDecoration = { color: new ThemeColor('gitDecoration.ignoredResourceForeground') };
 
@@ -32,17 +32,38 @@ class GitIgnoreDecorationProvider implements FileDecorationProvider {
 	private queue = new Map<string, { repository: Repository; queue: Map<string, PromiseSource<FileDecoration | undefined>> }>();
 	private disposables: Disposable[] = [];
 
-	constructor(private model: Model) {
+	constructor(private model: Pick<Model, 'getRepository' | 'onDidOpenRepository' | 'onDidCloseRepository'>) {
 		const onDidChangeRepository = anyEvent<unknown>(
 			filterEvent(workspace.onDidSaveTextDocument, e => /\.gitignore$|\.git\/info\/exclude$/.test(e.uri.path)),
 			model.onDidOpenRepository,
 			model.onDidCloseRepository
 		);
 		this.disposables.push(onDidChangeRepository(() => this._onDidChangeDecorations.fire(undefined)));
+		this.disposables.push(model.onDidCloseRepository(repository => this.onDidCloseRepository(repository)));
 		this.disposables.push(window.registerFileDecorationProvider(this));
 	}
 
+	private onDidCloseRepository(repository: Repository): void {
+		// Drop pending checks so the debounced `git check-ignore` does not run
+		// for a closed repository, whose folder may already have been deleted.
+		const item = this.queue.get(repository.root);
+
+		if (item?.repository !== repository) {
+			return;
+		}
+
+		this.queue.delete(repository.root);
+
+		for (const [, promiseSource] of item.queue) {
+			promiseSource.resolve(undefined);
+		}
+	}
+
 	async provideFileDecoration(uri: Uri): Promise<FileDecoration | undefined> {
+		if (uri.scheme !== 'file') {
+			return;
+		}
+
 		const repository = this.model.getRepository(uri);
 
 		if (!repository) {
@@ -121,10 +142,10 @@ class GitDecorationProvider implements FileDecorationProvider {
 	private onDidRunGitStatus(): void {
 		const newDecorations = new Map<string, FileDecoration>();
 
-		this.collectDecorationData(this.repository.indexGroup, newDecorations);
-		this.collectDecorationData(this.repository.untrackedGroup, newDecorations);
-		this.collectDecorationData(this.repository.workingTreeGroup, newDecorations);
-		this.collectDecorationData(this.repository.mergeGroup, newDecorations);
+		this.collectDecorationData(this.repository.indexChanges, newDecorations);
+		this.collectDecorationData(this.repository.untrackedChanges, newDecorations);
+		this.collectDecorationData(this.repository.workingTreeChanges, newDecorations);
+		this.collectDecorationData(this.repository.mergeChanges, newDecorations);
 		this.collectSubmoduleDecorationData(newDecorations);
 
 		const uris = new Set([...this.decorations.keys()].concat([...newDecorations.keys()]));
@@ -132,8 +153,8 @@ class GitDecorationProvider implements FileDecorationProvider {
 		this._onDidChangeDecorations.fire([...uris.values()].map(value => Uri.parse(value, true)));
 	}
 
-	private collectDecorationData(group: GitResourceGroup, bucket: Map<string, FileDecoration>): void {
-		for (const r of group.resourceStates) {
+	private collectDecorationData(resources: readonly Resource[], bucket: Map<string, FileDecoration>): void {
+		for (const r of resources) {
 			const decoration = r.resourceDecoration;
 
 			if (decoration) {
@@ -258,7 +279,7 @@ class GitIncomingChangesFileDecorationProvider implements FileDecorationProvider
 				return [];
 			}
 
-			const changes = await this.repository.diffBetweenWithStats(ancestor, currentHistoryItemRemoteRef.id);
+			const changes = await this.repository.diffBetween(ancestor, currentHistoryItemRemoteRef.id);
 			return changes;
 		} catch (err) {
 			return [];

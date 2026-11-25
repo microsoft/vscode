@@ -58,6 +58,22 @@ suite('userNameScrub', () => {
 		].join('\n'));
 	});
 
+	test('scrubs flattened source paths in Claude project directories', () => {
+		assert.deepStrictEqual([
+			'${homedir}\\.claude\\projects\\c--Users-runner-AppData-Local-Temp-work\\memory\\MEMORY.md',
+			'{"file_path":"${homedir}\\\\.claude\\\\projects\\\\c--Users-runner-AppData-Local-Temp-work\\\\memory\\\\MEMORY.md"}',
+			'${homedir}/.claude/projects/-home-runner-work-repo/memory/MEMORY.md',
+			'${homedir}/.claude/projects/-Users-runner-work-repo/memory/MEMORY.md',
+			'${homedir}/.claude/projects/-Users-runner/memory/MEMORY.md',
+		].map(text => scrubUserName(text, 'runner')), [
+			'${homedir}\\.claude\\projects\\c--Users-${user}-AppData-Local-Temp-work\\memory\\MEMORY.md',
+			'{"file_path":"${homedir}\\\\.claude\\\\projects\\\\c--Users-${user}-AppData-Local-Temp-work\\\\memory\\\\MEMORY.md"}',
+			'${homedir}/.claude/projects/-home-${user}-work-repo/memory/MEMORY.md',
+			'${homedir}/.claude/projects/-Users-${user}-work-repo/memory/MEMORY.md',
+			'${homedir}/.claude/projects/-Users-${user}/memory/MEMORY.md',
+		]);
+	});
+
 	test('leaves the account name alone when it is an ordinary word', () => {
 		// The regression this exists to prevent: a plain substring replace turns
 		// every one of these into `${user}`.
@@ -70,6 +86,7 @@ suite('userNameScrub', () => {
 			'a runner-up value',
 			'/tmp/runner.js',
 			'C:\\Users\\runner-admin\\AppData',
+			'Users-runner-example outside a Claude project path',
 		];
 		assert.deepStrictEqual(prose.map(text => scrubUserName(text, 'runner')), prose);
 	});

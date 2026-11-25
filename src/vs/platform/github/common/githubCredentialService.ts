@@ -3,38 +3,115 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event, Emitter } from '../../../base/common/event.js';
-import { Disposable } from '../../../base/common/lifecycle.js';
+import { isThenable, raceCancellationError } from '../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
+import { generateUuid } from '../../../base/common/uuid.js';
 import { ILogService } from '../../log/common/log.js';
-import { GitHubAccountHandle, IGitHubEndpointProvider, IGitHubTokenProvider } from './githubTypes.js';
+import { BackoffGate, BackoffPolicy } from './backoff.js';
 import { GitHubRequestError, IGitHubTransport } from './githubTransport.js';
+import { GitHubRequestTimeoutError, IGitHubEndpointProvider, IGitHubTokenProvider } from './githubTypes.js';
+import { IRequestScheduler, systemRequestScheduler } from './scheduler.js';
+import { AccountHandle } from './types.js';
 
 export interface GitHubCredential {
-	readonly account: GitHubAccountHandle;
+	readonly account: AccountHandle;
 	readonly token: string;
 	readonly generation: number;
-	readonly signal: AbortSignal;
+	readonly cancellationToken: CancellationToken;
+	readonly cancellationError?: GitHubRequestError;
 }
 
 export interface GitHubCredentialInvalidation {
 	readonly credential?: GitHubCredential;
-	readonly reason: 'replacement' | 'account' | 'authentication' | 'endpoint' | 'shutdown';
+	/**
+	 * `reauthorization` reports that the current credential's unchanged token was
+	 * authorized again, for example for an organization's single sign-on. The
+	 * credential stays valid, but observations made before may now be outdated.
+	 */
+	readonly reason: 'replacement' | 'reauthorization' | 'account' | 'authentication' | 'endpoint' | 'shutdown';
+}
+
+/**
+ * Cancels the work of a credential generation that was replaced rather than
+ * refused, so it can be retried with the current credential instead of being
+ * mistaken for an authentication failure.
+ */
+class GitHubCredentialSupersededError extends GitHubRequestError {
+	constructor() {
+		super('GitHub credential generation was superseded', 'unknown');
+	}
 }
 
 export interface IGitHubCredentials {
 	readonly onDidInvalidate: Event<GitHubCredentialInvalidation>;
-	getCredential(signal: AbortSignal): Promise<GitHubCredential>;
-	resolveCredential(token: string, signal: AbortSignal): Promise<GitHubCredential>;
+	getCredential(cancellationToken: CancellationToken): Promise<GitHubCredential>;
 	handleRequestError(credential: GitHubCredential, error: unknown): void;
+}
+
+/**
+ * How long identity resolution waits before retrying a credential GitHub has
+ * already refused or failed to answer for. Without it every subscriber that
+ * asks for a credential turns an authentication outage into a request storm,
+ * because each refusal invalidates the generation the next request rebuilds.
+ */
+const defaultBackoffPolicy: BackoffPolicy = {
+	immediateRetries: 1,
+	base: 5_000,
+	maximum: 120_000,
+	decay: 300_000,
+	jitter: 2_000,
+};
+
+const credentialResolutionTimeout = 5 * 60_000;
+
+/** Bounds credential selection and resolution, including providers that do not honor cancellation. */
+export async function withGitHubCredentialDeadline<T>(cancellationToken: CancellationToken, task: (cancellationToken: CancellationToken, deadline: number) => Promise<T>, scheduler: IRequestScheduler = systemRequestScheduler, requestDeadline?: number): Promise<T> {
+	if (requestDeadline !== undefined && !Number.isFinite(requestDeadline)) {
+		throw new GitHubRequestError('Invalid GitHub request deadline', 'validation');
+	}
+	const lifetime = new DisposableStore();
+	const controller = lifetime.add(new CancellationTokenSource());
+	const combinedToken = CancellationToken.any([cancellationToken, controller.token], lifetime);
+	let timeoutError: GitHubRequestTimeoutError | undefined;
+	const deadline = Math.min(requestDeadline ?? Infinity, scheduler.now() + credentialResolutionTimeout);
+	const checkDeadline = () => {
+		if (timeoutError) {
+			throw timeoutError;
+		}
+		CancellationToken.throwIfCanceled(cancellationToken);
+		if (deadline <= scheduler.now()) {
+			throw new GitHubRequestTimeoutError();
+		}
+	};
+	try {
+		checkDeadline();
+		lifetime.add(scheduler.schedule(() => {
+			if (!combinedToken.isCancellationRequested) {
+				timeoutError = new GitHubRequestTimeoutError();
+				controller.cancel();
+			}
+		}, Math.max(0, deadline - scheduler.now())));
+		const result = await raceCancellationError(task(combinedToken, deadline), combinedToken);
+		checkDeadline();
+		return result;
+	} catch (error) {
+		checkDeadline();
+		throw error;
+	} finally {
+		lifetime.dispose();
+	}
 }
 
 interface ICredentialGeneration {
 	readonly token: string;
 	readonly generation: number;
 	readonly host: string;
-	readonly controller: AbortController;
+	readonly controller: CancellationTokenSource;
 	readonly promise: Promise<GitHubCredential>;
 	credential?: GitHubCredential;
+	cancellationError?: GitHubRequestError;
 }
 
 interface IGitHubUserResponse {
@@ -43,48 +120,67 @@ interface IGitHubUserResponse {
 
 export class GitHubCredentialService extends Disposable implements IGitHubCredentials {
 
+	static createBackoff(scheduler: IRequestScheduler = systemRequestScheduler, logService?: ILogService): BackoffGate {
+		return new BackoffGate('GitHub identity resolution', defaultBackoffPolicy, scheduler, logService);
+	}
+
 	private readonly _onDidInvalidate = this._register(new Emitter<GitHubCredentialInvalidation>());
 	readonly onDidInvalidate = this._onDidInvalidate.event;
+	private readonly _backoff: BackoffGate;
 	private _current: ICredentialGeneration | undefined;
 	private _lastCredential: GitHubCredential | undefined;
 	private _generation = 0;
+	private _tokenProviderAnswersSynchronously = false;
+	private readonly _lifetime = this._register(new CancellationTokenSource());
+	private readonly _identity = generateUuid();
 
 	constructor(
+		private readonly _scheduler: IRequestScheduler = systemRequestScheduler,
+		policy: BackoffPolicy = defaultBackoffPolicy,
 		private readonly _transport: IGitHubTransport,
 		private readonly _tokenProvider: IGitHubTokenProvider,
 		private readonly _endpointProvider: IGitHubEndpointProvider,
 		private readonly _logService?: ILogService,
+		private readonly _bootstrapQuotaAccount?: AccountHandle,
+		backoff?: BackoffGate,
 	) {
 		super();
+		this._backoff = backoff ?? this._register(new BackoffGate('GitHub identity resolution', policy, this._scheduler, _logService));
 		if (this._tokenProvider.onDidChangeToken) {
-			this._register(this._tokenProvider.onDidChangeToken(() => this._invalidateCurrent('replacement')));
+			this._register(this._tokenProvider.onDidChangeToken(() => this._handleTokenChange()));
 		}
-		this._register(this._endpointProvider.onDidChange(() => this._invalidateCurrent('endpoint')));
+		this._register(this._endpointProvider.onDidChange(() => this._invalidateCurrent('endpoint', true)));
 	}
 
-	async getCredential(signal: AbortSignal): Promise<GitHubCredential> {
-		const token = await this._tokenProvider.getToken(signal);
-		if (!token) {
-			this._logService?.debug('[GitHubCredentialService] Token provider returned no credential');
-			throw new GitHubRequestError('GitHub authentication is required', 'authentication');
-		}
-		return this._resolve(token, signal);
-	}
-
-	async resolveCredential(token: string, signal: AbortSignal): Promise<GitHubCredential> {
-		const current = await this._tokenProvider.getToken(signal);
-		if (current !== token) {
-			this._logService?.debug('[GitHubCredentialService] Rejected credential resolution for a non-current token');
-			throw new GitHubRequestError('GitHub authentication is required', 'authentication');
-		}
-		return this._resolve(token, signal);
+	getCredential(cancellationToken: CancellationToken): Promise<GitHubCredential> {
+		return this._withDeadline(cancellationToken, async (cancellationToken, deadline) => {
+			while (true) {
+				const pendingToken = this._tokenProvider.getToken(cancellationToken);
+				this._tokenProviderAnswersSynchronously = !isThenable(pendingToken);
+				const token = await pendingToken;
+				this._throwIfExpired(cancellationToken, deadline);
+				if (!token) {
+					this._logService?.debug('[GitHubCredentialService] Token provider returned no credential');
+					throw new GitHubRequestError('GitHub authentication is required', 'authentication');
+				}
+				try {
+					return await this._resolve(token, cancellationToken, deadline);
+				} catch (error) {
+					// The generation this caller waited for was replaced while it
+					// resolved, not refused, so its replacement answers the request.
+					if (!(error instanceof GitHubCredentialSupersededError) || cancellationToken.isCancellationRequested) {
+						throw error;
+					}
+				}
+			}
+		});
 	}
 
 	handleRequestError(credential: GitHubCredential, error: unknown): void {
 		if (!(error instanceof GitHubRequestError) || error.kind !== 'authentication') {
 			return;
 		}
-		if (credential.signal.aborted
+		if (credential.cancellationToken.isCancellationRequested
 			|| this._current?.generation !== credential.generation
 			|| this._current.token !== credential.token) {
 			this._logService?.trace(`[GitHubCredentialService] Ignoring authentication error for stale generation ${credential.generation}`);
@@ -96,69 +192,153 @@ export class GitHubCredentialService extends Disposable implements IGitHubCreden
 	}
 
 	override dispose(): void {
+		this._lifetime.cancel();
 		this._invalidateCurrent('shutdown');
 		super.dispose();
 	}
 
-	private _resolve(token: string, signal: AbortSignal): Promise<GitHubCredential> {
-		if (signal.aborted) {
-			return Promise.reject(signal.reason);
+	private async _withDeadline(cancellationToken: CancellationToken, task: (cancellationToken: CancellationToken, deadline: number) => Promise<GitHubCredential>): Promise<GitHubCredential> {
+		const lifetime = new DisposableStore();
+		try {
+			return await withGitHubCredentialDeadline(CancellationToken.any([cancellationToken, this._lifetime.token], lifetime), task, this._scheduler);
+		} catch (error) {
+			if (this._lifetime.token.isCancellationRequested && !cancellationToken.isCancellationRequested) {
+				throw new GitHubRequestError('GitHub credential service was disposed', 'unknown');
+			}
+			throw error;
+		} finally {
+			lifetime.dispose();
 		}
+	}
+
+	private _throwIfExpired(cancellationToken: CancellationToken, deadline: number): void {
+		CancellationToken.throwIfCanceled(cancellationToken);
+		if (deadline <= this._scheduler.now()) {
+			throw new GitHubRequestTimeoutError();
+		}
+	}
+
+	private async _resolve(token: string, cancellationToken: CancellationToken, deadline: number): Promise<GitHubCredential> {
+		this._throwIfExpired(cancellationToken, deadline);
+		if (this._current?.token !== token) {
+			this._preserveBootstrapCooldown();
+		}
+		let waitedForCooldown = false;
+		while (this._current?.token !== token && this._bootstrapQuotaAccount && this._transport.rateLimits.getDelay(this._bootstrapQuotaAccount, 'core') > 0) {
+			waitedForCooldown = true;
+			await this._transport.rateLimits.wait(this._bootstrapQuotaAccount, 'core', cancellationToken);
+			this._throwIfExpired(cancellationToken, deadline);
+		}
+		const waitedForBackoff = await this._backoff.wait(this._backoffKey(token, this._currentHost()), cancellationToken);
+		if (waitedForCooldown || waitedForBackoff) {
+			// The wait is long enough for the credential to have been replaced,
+			// and resolving the superseded one would cancel the request the
+			// replacement is already making.
+			const currentToken = await this._tokenProvider.getToken(cancellationToken);
+			this._throwIfExpired(cancellationToken, deadline);
+			if (currentToken !== token) {
+				this._logService?.debug('[GitHubCredentialService] Abandoning a credential that was replaced while backing off');
+				throw new GitHubCredentialSupersededError();
+			}
+		}
+		this._throwIfExpired(cancellationToken, deadline);
 		if (!this._current || this._current.token !== token) {
 			const previousCredential = this._lastCredential;
 			this._invalidateCurrent('replacement');
+			this._throwIfExpired(cancellationToken, deadline);
 			const generation = ++this._generation;
-			const controller = new AbortController();
+			const controller = new CancellationTokenSource();
 			const apiBaseUri = this._endpointProvider.getApiBaseUri();
 			const host = new URL(apiBaseUri).host.toLowerCase();
+			const bootstrapAccount: AccountHandle = { host, accountId: `bootstrap:${this._identity}:${generation}` };
+			if (this._bootstrapQuotaAccount) {
+				this._transport.rateLimits.preserveCooldown(bootstrapAccount, 'core', this._transport.rateLimits.getDelay(this._bootstrapQuotaAccount, 'core'));
+			}
 			this._logService?.debug(`[GitHubCredentialService] Resolving account identity for ${host} (generation ${generation})`);
 			const current: ICredentialGeneration = {
 				token,
 				generation,
 				host,
 				controller,
-				promise: this._resolveIdentity(token, generation, host, apiBaseUri, controller.signal)
+				promise: this._resolveIdentity(token, generation, bootstrapAccount, apiBaseUri, controller.token, () => current.cancellationError)
 					.then(credential => {
 						current.credential = credential;
+						const cooldown = this._transport.rateLimits.preserveRestFallback(bootstrapAccount, credential.account);
+						if (this._bootstrapQuotaAccount) {
+							this._transport.rateLimits.preserveCooldown(this._bootstrapQuotaAccount, 'core', cooldown);
+						}
+						// Deliberately does not clear the failure record: a working
+						// `/user` only proves identity resolution recovered, and when
+						// GitHub is refusing this credential for real requests every
+						// round would otherwise reset the delay to zero and hammer
+						// the outage. Recovery is instead signalled by a new token,
+						// a new host, or the record decaying while nothing fails.
+						this._logService?.debug(`[GitHubCredentialService] Resolved account identity for ${host} (generation ${generation})`);
 						if (previousCredential && !sameAccount(previousCredential.account, credential.account)) {
 							this._logService?.debug(`[GitHubCredentialService] Account changed on ${host} at generation ${generation}`);
 							this._onDidInvalidate.fire({ credential: previousCredential, reason: 'account' });
 						}
 						this._lastCredential = credential;
-						this._logService?.debug(`[GitHubCredentialService] Resolved account identity for ${host} (generation ${generation})`);
 						return credential;
 					})
 					.catch(error => {
+						error = current.cancellationError ?? error;
 						if (this._current === current) {
 							this._current = undefined;
 						}
+						// An invalidated generation was not refused by GitHub, so
+						// it must not count towards the delay the next one serves.
+						if (!controller.token.isCancellationRequested) {
+							const cooldown = this._transport.rateLimits.getRequestDelay(bootstrapAccount, 'core');
+							if (this._bootstrapQuotaAccount) {
+								this._transport.rateLimits.preserveCooldown(this._bootstrapQuotaAccount, 'core', cooldown);
+							}
+							this._backoff.fail(this._backoffKey(token, host), cooldown);
+						}
 						this._logService?.debug(`[GitHubCredentialService] Account identity resolution failed for ${host} (generation ${generation}, ${credentialErrorKind(error)})`);
+						controller.dispose();
 						throw error;
+					})
+					.finally(() => {
+						// Retain server delays in the credential gate before discarding the transient bootstrap identity.
+						this._transport.invalidateAccount(bootstrapAccount);
+						this._transport.rateLimits.clearAccount(bootstrapAccount);
 					}),
 			};
 			this._current = current;
 		}
-		return waitForCredential(this._current.promise, signal);
+		CancellationToken.throwIfCanceled(cancellationToken);
+		return raceCancellationError(this._current.promise, cancellationToken);
 	}
 
-	private async _resolveIdentity(token: string, generation: number, host: string, apiBaseUri: string, signal: AbortSignal): Promise<GitHubCredential> {
-		const bootstrapAccount: GitHubAccountHandle = { host, accountId: `bootstrap:${generation}` };
+	/**
+	 * Names the credential the gate holds back. Two different tokens, or the
+	 * same token against two hosts, have not each been refused.
+	 */
+	private _backoffKey(token: string, host: string): string {
+		return `${host}\x00${token}`;
+	}
+
+	private _currentHost(): string {
+		return new URL(this._endpointProvider.getApiBaseUri()).host.toLowerCase();
+	}
+
+	private async _resolveIdentity(token: string, generation: number, bootstrapAccount: AccountHandle, apiBaseUri: string, cancellationToken: CancellationToken, getCancellationError: () => GitHubRequestError | undefined): Promise<GitHubCredential> {
 		let response;
 		try {
 			response = await this._transport.rest<IGitHubUserResponse>(bootstrapAccount, token, {
+				caller: 'github.credentials',
+				domain: 'credentials',
 				method: 'GET',
 				url: `${apiBaseUri}/user`,
 				etag: false,
 				unconditional: true,
-				priority: 'interactive',
-			}, signal);
+			}, cancellationToken);
 		} catch (error) {
 			if (error instanceof GitHubRequestError && error.kind === 'authentication') {
 				this._tokenProvider.invalidateToken?.(token);
 			}
 			throw error;
-		} finally {
-			this._transport.invalidateAccount(bootstrapAccount);
 		}
 		const id = response.data?.id;
 		if ((typeof id !== 'string' && typeof id !== 'number') || String(id).length === 0) {
@@ -166,17 +346,58 @@ export class GitHubCredentialService extends Disposable implements IGitHubCreden
 		}
 
 		return {
-			account: { host, accountId: String(id) },
+			account: { host: bootstrapAccount.host, accountId: String(id) },
 			token,
 			generation,
-			signal,
+			cancellationToken,
+			get cancellationError() { return getCancellationError(); },
 		};
 	}
 
-	private _invalidateCurrent(reason: GitHubCredentialInvalidation['reason']): void {
+	/**
+	 * A token notification can reauthorize the token the current generation
+	 * already holds, for example once an organization authorized it for single
+	 * sign-on. Replacing the generation then would cancel all of its work and
+	 * resolve the same identity again, so the credential is kept and consumers
+	 * are only asked to refresh what they observed.
+	 */
+	private _handleTokenChange(): void {
+		const current = this._current;
+		if (current?.credential && !current.controller.token.isCancellationRequested && current.host === this._currentHost() && this._peekToken() === current.token) {
+			this._logService?.debug(`[GitHubCredentialService] Retaining reauthorized generation ${current.generation} on ${current.host}`);
+			this._onDidInvalidate.fire({ credential: current.credential, reason: 'reauthorization' });
+			return;
+		}
+		this._invalidateCurrent('replacement', true);
+	}
+
+	/** The provider's token if it answers without waiting; asking a provider that waits would only cost a lookup. */
+	private _peekToken(): string | undefined {
+		if (!this._tokenProviderAnswersSynchronously) {
+			return undefined;
+		}
+		try {
+			const token = this._tokenProvider.getToken(this._lifetime.token);
+			if (typeof token === 'string') {
+				return token;
+			}
+			token?.catch(() => undefined);
+		} catch {
+			// A provider that cannot answer now leaves the generation to be replaced.
+		}
+		return undefined;
+	}
+
+	private _invalidateCurrent(reason: GitHubCredentialInvalidation['reason'], notifyWhenEmpty = false): void {
+		// The gate keys its record by host, so a credential held back on the
+		// previous endpoint must not keep the new one waiting.
+		if (reason === 'endpoint') {
+			this._backoff.reset();
+		}
+		this._preserveBootstrapCooldown();
 		const current = this._current;
 		if (!current) {
-			if (reason === 'replacement' && this._lastCredential) {
+			if (notifyWhenEmpty || reason === 'replacement' && this._lastCredential) {
 				this._logService?.debug(`[GitHubCredentialService] Invalidating retained credential (${reason})`);
 				this._onDidInvalidate.fire({ credential: this._lastCredential, reason });
 			}
@@ -187,14 +408,33 @@ export class GitHubCredentialService extends Disposable implements IGitHubCreden
 		}
 		this._logService?.debug(`[GitHubCredentialService] Invalidating generation ${current.generation} on ${current.host} (${reason})`);
 		this._current = undefined;
-		current.controller.abort(new GitHubRequestError('GitHub credential generation was invalidated', 'authentication'));
-		if (current.credential) {
-			this._transport.invalidateAccount(current.credential.account);
+		// A refused credential is counted before subscribers are told, because
+		// they answer the invalidation by asking for a credential again right
+		// away and would otherwise reissue the request GitHub just refused.
+		if (reason === 'authentication') {
+			this._backoff.fail(this._backoffKey(current.token, current.host));
 		}
-		this._transport.invalidateAccount({ host: current.host, accountId: `bootstrap:${current.generation}` });
+		// Only a refusal makes the generation's work an authentication failure.
+		const cancellationError = reason === 'authentication'
+			? new GitHubRequestError('GitHub credential generation was invalidated', 'authentication')
+			: new GitHubCredentialSupersededError();
+		current.cancellationError = cancellationError;
+		if (current.credential) {
+			this._transport.invalidateAccount(current.credential.account, cancellationError);
+		}
+		this._transport.invalidateAccount({ host: current.host, accountId: `bootstrap:${this._identity}:${current.generation}` }, cancellationError);
+		current.controller.dispose(true);
 		this._onDidInvalidate.fire({ credential: current.credential, reason });
 		if (reason === 'endpoint' || reason === 'shutdown') {
 			this._lastCredential = undefined;
+		}
+	}
+
+	private _preserveBootstrapCooldown(): void {
+		const credential = this._current?.credential ?? this._lastCredential;
+		if (this._bootstrapQuotaAccount && credential
+			&& credential.account.host.toLowerCase() === this._bootstrapQuotaAccount.host.toLowerCase()) {
+			this._transport.rateLimits.preserveCooldown(this._bootstrapQuotaAccount, 'core', this._transport.rateLimits.getDelay(credential.account, 'core'));
 		}
 	}
 }
@@ -206,23 +446,6 @@ function credentialErrorKind(error: unknown): string {
 	return error instanceof Error ? error.name : typeof error;
 }
 
-function sameAccount(left: GitHubAccountHandle, right: GitHubAccountHandle): boolean {
+function sameAccount(left: AccountHandle, right: AccountHandle): boolean {
 	return left.host.toLowerCase() === right.host.toLowerCase() && left.accountId === right.accountId;
-}
-
-function waitForCredential(promise: Promise<GitHubCredential>, signal: AbortSignal): Promise<GitHubCredential> {
-	return new Promise((resolve, reject) => {
-		const onAbort = () => reject(signal.reason);
-		signal.addEventListener('abort', onAbort, { once: true });
-		void promise.then(
-			credential => {
-				signal.removeEventListener('abort', onAbort);
-				resolve(credential);
-			},
-			error => {
-				signal.removeEventListener('abort', onAbort);
-				reject(error);
-			},
-		);
-	});
 }

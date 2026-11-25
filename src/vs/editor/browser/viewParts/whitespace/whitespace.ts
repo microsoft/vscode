@@ -9,7 +9,7 @@ import { Selection } from '../../../common/core/selection.js';
 import { RenderingContext } from '../../view/renderingContext.js';
 import { ViewContext } from '../../../common/viewModel/viewContext.js';
 import * as viewEvents from '../../../common/viewEvents.js';
-import { ViewLineRenderingData } from '../../../common/viewModel.js';
+import { ViewLineData } from '../../../common/viewModel.js';
 import { EditorOption } from '../../../common/config/editorOptions.js';
 import { IEditorConfiguration } from '../../../common/config/editorConfiguration.js';
 import * as strings from '../../../../base/common/strings.js';
@@ -93,7 +93,8 @@ export class WhitespaceOverlay extends DynamicViewOverlay {
 		this._renderResult = [];
 		for (let lineNumber = ctx.viewportData.startLineNumber; lineNumber <= ctx.viewportData.endLineNumber; lineNumber++) {
 			const lineIndex = lineNumber - ctx.viewportData.startLineNumber;
-			const lineData = this._context.viewModel.getViewLineRenderingData(lineNumber);
+			// The line without its decorations, which would be read from the model for every line on every frame.
+			const lineData = this._context.viewModel.getViewLineData(lineNumber);
 
 			let selectionsOnLine: OffsetRange[] | null = null;
 			if (this._options.renderWhitespace === 'selection') {
@@ -121,7 +122,7 @@ export class WhitespaceOverlay extends DynamicViewOverlay {
 		}
 	}
 
-	private _applyRenderWhitespace(ctx: RenderingContext, lineNumber: number, selections: OffsetRange[] | null, lineData: ViewLineRenderingData): string {
+	private _applyRenderWhitespace(ctx: RenderingContext, lineNumber: number, selections: OffsetRange[] | null, lineData: ViewLineData): string {
 		if (this._options.renderWhitespace === 'selection' && !selections) {
 			return '';
 		}
@@ -216,7 +217,7 @@ export class WhitespaceOverlay extends DynamicViewOverlay {
 				if (chCode === CharCode.Tab) {
 					result += this._renderArrow(lineHeight, spaceWidth, visibleRange.left);
 				} else {
-					result += `<circle cx="${(visibleRange.left + spaceWidth / 2).toFixed(2)}" cy="${(lineHeight / 2).toFixed(2)}" r="${(spaceWidth / 7).toFixed(2)}" />`;
+					result += this._renderCircle(lineHeight, spaceWidth, visibleRange.left);
 				}
 			} else {
 				if (chCode === CharCode.Tab) {
@@ -231,12 +232,20 @@ export class WhitespaceOverlay extends DynamicViewOverlay {
 			maxLeft = Math.round(maxLeft + spaceWidth);
 			return (
 				`<svg style="bottom:0;position:absolute;width:${maxLeft}px;height:${lineHeight}px" viewBox="0 0 ${maxLeft} ${lineHeight}" xmlns="http://www.w3.org/2000/svg" fill="${color}">`
-				+ result
+				+ (result ? `<path d="${result}" />` : '')
 				+ `</svg>`
 			);
 		}
 
 		return result;
+	}
+
+	private _renderCircle(lineHeight: number, spaceWidth: number, left: number): string {
+		const radius = Number((spaceWidth / 7).toFixed(2));
+		const centerX = Number((left + spaceWidth / 2).toFixed(2));
+		const centerY = (lineHeight / 2).toFixed(2);
+		const diameter = (radius * 2).toFixed(2);
+		return `M ${(centerX - radius).toFixed(2)} ${centerY} a ${radius} ${radius} 0 1 0 ${diameter} 0 a ${radius} ${radius} 0 1 0 -${diameter} 0 Z `;
 	}
 
 	private _renderArrow(lineHeight: number, spaceWidth: number, left: number): string {
@@ -258,7 +267,7 @@ export class WhitespaceOverlay extends DynamicViewOverlay {
 
 		const p = [p1, p2, p3, p4, p5, p6, p7, p8, p9, p10];
 		const parts = p.map((p) => `${(dx + p.x).toFixed(2)} ${(dy + p.y).toFixed(2)}`).join(' L ');
-		return `<path d="M ${parts}" />`;
+		return `M ${parts} Z `;
 	}
 
 	public render(startLineNumber: number, lineNumber: number): string {

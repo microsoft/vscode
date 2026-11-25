@@ -75,6 +75,7 @@ function makePlugin(plugin: IResolvedNativePlugin): PluginCustomization {
 	for (const agent of plugin.parsed.agents) { push(agent.customization); }
 	for (const skill of plugin.parsed.skills) { push(skill.customization); }
 	for (const rule of plugin.parsed.instructions) { push(rule.customization); }
+	for (const prompt of plugin.parsed.prompts ?? []) { push(prompt); }
 	for (const hook of plugin.parsed.hooks) { push(hook.customization); }
 	for (const mcp of plugin.parsed.mcpServers) { push(mcp.customization); }
 	return {
@@ -151,15 +152,11 @@ export function mapDiscoveredCustomizations(
 
 	const result: Customization[] = [];
 	for (const bucket of [...workspaceBuckets, userBucket]) {
-		if (bucket.agents.length > 0) {
-			result.push(makeDirectory(bucket.base, 'agents', CustomizationType.Agent, bucket.agents));
-		}
-		if (bucket.skills.length > 0) {
-			result.push(makeDirectory(bucket.base, 'skills', CustomizationType.Skill, bucket.skills));
-		}
-		if (bucket.rules.length > 0) {
-			result.push(makeDirectory(bucket.base, 'rules', CustomizationType.Rule, bucket.rules));
-		}
+		result.push(
+			makeDirectory(bucket.base, 'agents', CustomizationType.Agent, bucket.agents),
+			makeDirectory(bucket.base, 'skills', CustomizationType.Skill, bucket.skills),
+			makeDirectory(bucket.base, 'rules', CustomizationType.Rule, bucket.rules),
+		);
 		if (bucket.hooks.length > 0) {
 			result.push(makeDirectory(bucket.base, 'hooks', CustomizationType.Hook, bucket.hooks));
 		}

@@ -314,11 +314,13 @@ class MainThreadSCMProvider implements ISCMProvider {
 	get label(): string { return this._label; }
 	get rootUri(): URI | undefined { return this._rootUri; }
 	get iconPath(): URI | { light: URI; dark: URI } | ThemeIcon | undefined { return this._iconPath; }
-	get isHidden(): boolean | undefined { return this._isHidden; }
 	get inputBoxTextModel(): ITextModel { return this._inputBoxTextModel; }
 
 	private readonly _contextValue = observableValue<string | undefined>(this, undefined);
 	get contextValue(): IObservable<string | undefined> { return this._contextValue; }
+
+	private readonly _activeRepositoryName = observableValue<string | undefined>(this, undefined);
+	get activeRepositoryName(): IObservable<string | undefined> { return this._activeRepositoryName; }
 
 	get acceptInputCommand(): Command | undefined { return this.features.acceptInputCommand; }
 
@@ -354,7 +356,6 @@ class MainThreadSCMProvider implements ISCMProvider {
 		private readonly _label: string,
 		private readonly _rootUri: URI | undefined,
 		private readonly _iconPath: URI | { light: URI; dark: URI } | ThemeIcon | undefined,
-		private readonly _isHidden: boolean | undefined,
 		private readonly _inputBoxTextModel: ITextModel,
 		private readonly _quickDiffService: IQuickDiffService,
 		private readonly _uriIdentService: IUriIdentityService,
@@ -383,6 +384,10 @@ class MainThreadSCMProvider implements ISCMProvider {
 
 		if (typeof features.contextValue !== 'undefined') {
 			this._contextValue.set(features.contextValue, undefined);
+		}
+
+		if (typeof features.activeRepositoryName !== 'undefined') {
+			this._activeRepositoryName.set(features.activeRepositoryName ?? undefined, undefined);
 		}
 
 		if (typeof features.count !== 'undefined') {
@@ -610,6 +615,9 @@ export class MainThreadSCM implements MainThreadSCMShape {
 	private readonly _proxy: ExtHostSCMShape;
 	private _repositories = new Map<number, ISCMRepository>();
 	private _repositoryBarriers = new Map<number, Barrier>();
+
+	/** The registrations of source controls that are not done yet, see {@link $unregisterSourceControl}. */
+	private readonly _pendingRegistrations = new Set<Promise<void>>();
 	private _repositoryDisposables = new Map<number, IDisposable>();
 	private readonly _disposables = new DisposableStore();
 
@@ -639,11 +647,19 @@ export class MainThreadSCM implements MainThreadSCMShape {
 		this._disposables.dispose();
 	}
 
-	async $registerSourceControl(handle: number, parentHandle: number | undefined, id: string, label: string, rootUri: UriComponents | undefined, iconPath: UriComponents | { light: UriComponents; dark: UriComponents } | ThemeIcon | undefined, isHidden: boolean | undefined, inputBoxDocumentUri: UriComponents): Promise<void> {
+	$registerSourceControl(handle: number, parentHandle: number | undefined, id: string, label: string, rootUri: UriComponents | undefined, iconPath: UriComponents | { light: UriComponents; dark: UriComponents } | ThemeIcon | undefined, inputBoxDocumentUri: UriComponents): Promise<void> {
+		const registration = this.registerSourceControl(handle, parentHandle, id, label, rootUri, iconPath, inputBoxDocumentUri);
+		this._pendingRegistrations.add(registration);
+		const settled = () => this._pendingRegistrations.delete(registration);
+		registration.then(settled, settled);
+		return registration;
+	}
+
+	private async registerSourceControl(handle: number, parentHandle: number | undefined, id: string, label: string, rootUri: UriComponents | undefined, iconPath: UriComponents | { light: UriComponents; dark: UriComponents } | ThemeIcon | undefined, inputBoxDocumentUri: UriComponents): Promise<void> {
 		this._repositoryBarriers.set(handle, new Barrier());
 
 		const inputBoxTextModelRef = await this.textModelService.createModelReference(URI.revive(inputBoxDocumentUri));
-		const provider = new MainThreadSCMProvider(this._proxy, handle, parentHandle, id, label, rootUri ? URI.revive(rootUri) : undefined, getIconFromIconDto(iconPath), isHidden, inputBoxTextModelRef.object.textEditorModel, this.quickDiffService, this._uriIdentService, this.workspaceContextService);
+		const provider = new MainThreadSCMProvider(this._proxy, handle, parentHandle, id, label, rootUri ? URI.revive(rootUri) : undefined, getIconFromIconDto(iconPath), inputBoxTextModelRef.object.textEditorModel, this.quickDiffService, this._uriIdentService, this.workspaceContextService);
 		const repository = this.scmService.registerSCMProvider(provider);
 		this._repositories.set(handle, repository);
 
@@ -678,6 +694,8 @@ export class MainThreadSCM implements MainThreadSCMShape {
 	}
 
 	async $unregisterSourceControl(handle: number): Promise<void> {
+		// After the source controls registered before it, so that replacing a source control by another one never leaves none
+		await Promise.allSettled(this._pendingRegistrations);
 		await this._repositoryBarriers.get(handle)?.wait();
 		const repository = this._repositories.get(handle);
 

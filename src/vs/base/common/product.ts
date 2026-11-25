@@ -46,6 +46,26 @@ export interface IChatSessionRecommendation {
 	readonly postInstallCommand?: string;
 }
 
+/**
+ * Another AI agent that runs in the terminal. When its output reports that its
+ * usage limit was reached or is close, paid Copilot users who hardly use Copilot
+ * are offered to continue with Copilot.
+ */
+export interface IChatPlanAwarenessTerminalAgent {
+	/** The name of the agent that the user sees. */
+	readonly name: string;
+	/** Commands that start the agent, matched at the start of a terminal command line, for example `agent` or `npx @scope/agent`. */
+	readonly commands: readonly string[];
+	/** Arguments that the agent takes a prompt after, for example `-p`. A quoted first argument is always taken as a prompt. */
+	readonly promptArguments?: readonly string[];
+	/** The family of the Copilot model to continue with, for example `Claude` or `GPT`. */
+	readonly modelFamily?: string;
+	/** Regular expressions that match output reporting that the usage limit was reached. They match the output in lowercase and without whitespace. */
+	readonly limitReachedOutput: readonly string[];
+	/** Regular expressions that match output reporting that the usage limit is close, like {@link limitReachedOutput}. */
+	readonly limitApproachingOutput?: readonly string[];
+}
+
 export type ConfigurationSyncStore = {
 	url: string;
 	insidersUrl: string;
@@ -113,6 +133,7 @@ export interface IProductConfiguration {
 	readonly win32VersionedUpdate?: boolean;
 	readonly win32ContextMenu?: { readonly [arch: string]: { readonly clsid: string } };
 	readonly applicationName: string;
+	readonly linuxDesktopName?: string;
 	readonly embedderIdentifier?: string;
 	readonly agentsTelemetryAppName?: string;
 
@@ -131,6 +152,8 @@ export interface IProductConfiguration {
 	readonly webviewContentExternalBaseUrlTemplate?: string;
 	readonly target?: string;
 	readonly nlsCoreBaseUrl?: string;
+	/** Build-time hash of the commit and core NLS tables used to identify translated-message caches. */
+	readonly nlsMetadataHash?: string;
 
 	readonly settingsSearchBuildId?: number;
 	readonly settingsSearchUrl?: string;
@@ -148,6 +171,7 @@ export interface IProductConfiguration {
 		readonly resourceUrlTemplate: string;
 		readonly nlsBaseUrl: string;
 		readonly accessSKUs?: string[];
+		readonly accessScopes?: string[];
 	};
 
 	readonly agentSdks?: { readonly [packageId: string]: IAgentSdkProductConfig };
@@ -173,6 +197,12 @@ export interface IProductConfiguration {
 	readonly trustedExtensionPublishers?: readonly string[];
 
 	readonly extensionRecommendations?: IStringDictionary<IExtensionRecommendations>;
+	readonly connectorRecommendations?: IStringDictionary<{
+		readonly name: string;
+		readonly description: string;
+		readonly iconUrl: string;
+		readonly urls?: readonly string[];
+	}>;
 	readonly configBasedExtensionTips?: IStringDictionary<IConfigBasedExtensionTip>;
 	readonly exeBasedExtensionTips?: IStringDictionary<IExeBasedExtensionTip>;
 	readonly remoteExtensionTips?: IStringDictionary<IRemoteExtensionTip>;
@@ -272,6 +302,7 @@ export interface IProductConfiguration {
 	readonly defaultChatAgent: IDefaultChatAgent;
 	readonly chatParticipantRegistry?: string;
 	readonly chatSessionRecommendations?: IChatSessionRecommendation[];
+	readonly chatPlanAwarenessTerminalAgents?: readonly IChatPlanAwarenessTerminalAgent[];
 	readonly emergencyAlertUrl?: string;
 	readonly voiceWsUrl?: string;
 
@@ -440,6 +471,7 @@ export interface IDefaultChatAgent {
 		enterprise: { id: string; name: string };
 		google: { id: string; name: string };
 		apple: { id: string; name: string };
+		microsoft: { id: string; name: string };
 	};
 
 	readonly providerExtensionId: string;
@@ -450,6 +482,7 @@ export interface IDefaultChatAgent {
 	readonly entitlementSignupLimitedUrl: string;
 	readonly tokenEntitlementUrl: string;
 	readonly mcpRegistryDataUrl: string;
+	readonly mcpConnectorsUrl?: string;
 	readonly managedSettingsUrl: string;
 
 	readonly chatQuotaExceededContext: string;

@@ -157,14 +157,14 @@ export interface ILinkPresentationProvider {
 export interface ILinkPresentationProviderRegistration {
 	readonly id: string;
 	readonly uriPattern: RegExp;
-	readonly initialKind: LinkPresentationKind;
+	readonly kind: LinkPresentationKind;
 	readonly enablement?: string;
 }
 
 export interface ILinkPresentationRule {
 	readonly id: string;
 	readonly uriPattern: RegExp;
-	readonly initialKind: LinkPresentationKind;
+	readonly kind: LinkPresentationKind;
 }
 
 export interface ILinkPresentationService {

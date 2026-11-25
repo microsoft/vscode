@@ -4,11 +4,100 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'mocha';
-import { GitStatusParser, parseGitCommits, parseGitmodules, parseLsTree, parseLsFiles, parseGitRemotes, parseCoAuthors } from '../git';
+import { findGit, Git, GitStatusParser, parseGitCommits, parseGitFileLog, parseGitmodules, parseLsTree, parseLsFiles, parseGitRemotes, parseCoAuthors, getWorktreePathFromGitdir, stripCommitMessageComments } from '../git';
 import * as assert from 'assert';
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
+import { LogOutputChannel, window } from 'vscode';
 import { splitInChunks } from '../util';
 
 suite('git', () => {
+	suite('Git process input', () => {
+		let git: Git;
+		let logger: LogOutputChannel;
+
+		suiteSetup(async () => {
+			logger = window.createOutputChannel('git process input test', { log: true });
+			const foundGit = await findGit(['git'], () => true, logger);
+			git = new Git({ gitPath: foundGit.path, userAgent: 'git-process-input-test', version: foundGit.version });
+		});
+
+		suiteTeardown(() => {
+			logger?.dispose();
+		});
+
+		test('does not raise an uncaught error when git exits before reading its input', async () => {
+			// The input exceeds the pipe buffer, so the write fails with EPIPE once git exits.
+			const result = await git.exec2(['--version'], { input: 'x'.repeat(8 * 1024 * 1024) });
+			assert.match(result.stdout, /^git version /);
+		});
+
+		test('reads stash messages as UTF-8 when i18n.logOutputEncoding is set', async () => {
+			const directory = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'vscode-git-stash-'));
+			try {
+				await git.init(directory, { defaultBranch: 'main' });
+				await git.exec(directory, ['config', 'user.name', 'Stash Tester']);
+				await git.exec(directory, ['config', 'user.email', 'stash@example.com']);
+				await git.exec(directory, ['config', 'commit.gpgsign', 'false']);
+				await git.exec(directory, ['commit', '--allow-empty', '-m', 'initial']);
+				await fs.promises.writeFile(path.join(directory, 'file.txt'), 'sample\n');
+				await git.exec(directory, ['add', 'file.txt']);
+				await git.exec(directory, ['config', 'i18n.logOutputEncoding', 'EUC-JP']);
+				await git.exec(directory, ['stash', 'push', '-m', 'テスト stash']);
+
+				const dotGit = await git.getRepositoryDotGit(directory);
+				const repository = git.open(directory, undefined, dotGit, logger);
+				const stashes = await repository.getStashes();
+
+				assert.deepStrictEqual(stashes.map(stash => stash.description), ['テスト stash']);
+			} finally {
+				await fs.promises.rm(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
+			}
+		});
+
+		test('stages and unstages a file whose name contains glob characters without matching other files', async () => {
+			const directory = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'vscode-git-pathspec-'));
+			try {
+				await git.init(directory, { defaultBranch: 'main' });
+				await git.exec(directory, ['config', 'user.name', 'Pathspec Tester']);
+				await git.exec(directory, ['config', 'user.email', 'pathspec@example.com']);
+				await git.exec(directory, ['config', 'commit.gpgsign', 'false']);
+				// As a glob, `[target].md` also matches `t.md`. Unlike `*`, brackets are valid in file names on Windows.
+				await fs.promises.writeFile(path.join(directory, 't.md'), 'one\n');
+				await fs.promises.writeFile(path.join(directory, '[target].md'), 'one\n');
+				await git.exec(directory, ['add', '--', 't.md', ':(literal)[target].md']);
+				await git.exec(directory, ['commit', '-m', 'initial']);
+				await fs.promises.writeFile(path.join(directory, 't.md'), 'two\n');
+				await fs.promises.writeFile(path.join(directory, '[target].md'), 'two\n');
+
+				const dotGit = await git.getRepositoryDotGit(directory);
+				const repository = git.open(directory, undefined, dotGit, logger);
+				const getStaged = async () => (await git.exec(directory, ['diff', '--cached', '--name-only'])).stdout.trim().split('\n').filter(Boolean);
+				const globFile = path.join(directory, '[target].md');
+
+				await repository.add([globFile], { update: true });
+				const stagedAfterAdd = await getStaged();
+
+				await repository.add([path.join(directory, 't.md')], { update: true });
+				await repository.revert('HEAD', [globFile]);
+				const stagedAfterRevert = await getStaged();
+
+				await repository.add([globFile], { update: true });
+				await repository.restore([globFile], { staged: true });
+				const stagedAfterRestore = await getStaged();
+
+				assert.deepStrictEqual({ stagedAfterAdd, stagedAfterRevert, stagedAfterRestore }, {
+					stagedAfterAdd: ['[target].md'],
+					stagedAfterRevert: ['t.md'],
+					stagedAfterRestore: ['t.md']
+				});
+			} finally {
+				await fs.promises.rm(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
+			}
+		});
+	});
+
 	suite('GitStatusParser', () => {
 		test('empty parser', () => {
 			const parser = new GitStatusParser();
@@ -536,6 +625,38 @@ suite('git', () => {
 		});
 	});
 
+	suite('parseGitFileLog', () => {
+		const header = (hash: string, date: number, parent: string, refNames: string, message: string) =>
+			`${hash}\nJohn Doe\njohn@doe.com\n${date}\n${date}\n${parent}\n${refNames}\n${message}\n\x00\n`;
+		const commits = [
+			header('3d54fbf697580e1c5984306761039cf7e39d5e10', 1767398400, 'd0eecfaa720105f947e2d1aa2754bb2142e391bc', 'HEAD -> main', 'Make binary'),
+			header('d0eecfaa720105f947e2d1aa2754bb2142e391bc', 1767312000, '428a48b6308ea84d416f21edd625c1729df96e3b', '', 'Rename file'),
+			header('428a48b6308ea84d416f21edd625c1729df96e3b', 1767225600, '', '', 'Add file'),
+		];
+		const shortStats = [
+			' 1 file changed, 0 insertions(+), 0 deletions(-)\n',
+			' 1 file changed, 0 insertions(+), 0 deletions(-)\n',
+			' 1 file changed, 1 insertion(+)\n',
+		];
+
+		test('resolves the path of a followed file at each commit', () => {
+			// `git log --format=... -z --shortstat --numstat --follow -- new.txt` for a binary change, a rename and an add
+			const numStats = ['-\t-\tnew.txt\x00', '0\t0\t\x00old name.txt\x00new.txt\x00', '1\t0\told name.txt\x00'];
+			const output = commits.map((commit, index) => commit + numStats[index] + shortStats[index]).join('');
+			const withoutNumStats = commits.map((commit, index) => commit + shortStats[index]).join('');
+
+			assert.deepStrictEqual(
+				parseGitFileLog(output),
+				parseGitCommits(withoutNumStats).map((commit, index) => ({ ...commit, filePath: ['new.txt', 'new.txt', 'old name.txt'][index] }))
+			);
+		});
+
+		test('leaves the path unset for commits without changes to the file', () => {
+			const output = commits[0] + shortStats[0] + commits[1] + '0\t0\tnew.txt\x00' + shortStats[1];
+			assert.deepStrictEqual(parseGitFileLog(output).map(commit => commit.filePath), [undefined, 'new.txt']);
+		});
+	});
+
 	suite('parseLsTree', function () {
 		test('sample', function () {
 			const input = `040000 tree 0274a81f8ee9ca3669295dc40f510bd2021d0043       -	.vscode
@@ -600,6 +721,20 @@ suite('git', () => {
 		});
 	});
 
+	suite('getWorktreePathFromGitdir', () => {
+		test('absolute and relative gitdir', function () {
+			const worktreeGitDirPath = path.resolve('/repo/.git/worktrees/feature');
+
+			assert.deepStrictEqual([
+				getWorktreePathFromGitdir(worktreeGitDirPath, '/worktrees/feature/.git'),
+				getWorktreePathFromGitdir(worktreeGitDirPath, '../../../../worktrees/feature/.git')
+			], [
+				'/worktrees/feature',
+				path.resolve('/worktrees/feature')
+			]);
+		});
+	});
+
 	suite('parseCoAuthors', () => {
 		test('no co-authors', function () {
 			assert.deepStrictEqual(parseCoAuthors('This is a commit message.'), []);
@@ -640,6 +775,60 @@ suite('git', () => {
 			assert.deepStrictEqual(
 				parseCoAuthors('Fix bug\n\nSigned-off-by: Admin <admin@corp.com>\nCo-authored-by: Jane Doe <jane@example.com>'),
 				[{ name: 'Jane Doe', email: 'jane@example.com' }]
+			);
+		});
+
+		test('duplicate co-authors (squash merge)', function () {
+			assert.deepStrictEqual(
+				parseCoAuthors([
+					'Fix bug (#123)',
+					'',
+					'* First change',
+					'',
+					'Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>',
+					'',
+					'* Second change',
+					'',
+					'Co-authored-by: Jane Doe <jane@example.com>',
+					'Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>',
+					'',
+					'---------',
+					'',
+					'Co-authored-by: Copilot <223556219+copilot@users.noreply.github.com>',
+					'Co-authored-by: Jane <JANE@example.com>'
+				].join('\n')),
+				[
+					{ name: 'Copilot', email: '223556219+Copilot@users.noreply.github.com' },
+					{ name: 'Jane Doe', email: 'jane@example.com' }
+				]
+			);
+		});
+	});
+
+	suite('stripCommitMessageComments', () => {
+		test('keeps the blank lines of a commit template', () => {
+			const template = [
+				'# Instruction for summary format',
+				'<summary>',
+				'# Leave the next line blank',
+				'',
+				'# Optional, additional stuff to add instructions..',
+				'',
+				'# Instructions for issue link',
+				'Issue-Link:',
+				''
+			].join('\n');
+
+			assert.deepStrictEqual(
+				[stripCommitMessageComments(template), stripCommitMessageComments(template.replace(/\n/g, '\r\n'))],
+				['<summary>\n\nIssue-Link:', '<summary>\n\nIssue-Link:']
+			);
+		});
+
+		test('removes comments of a merge message and keeps indented lines', () => {
+			assert.deepStrictEqual(
+				stripCommitMessageComments('Merge branch \'x\'\n\n  - indented\n \n\n# Conflicts:\n#\ta.txt\n'),
+				'Merge branch \'x\'\n\n  - indented'
 			);
 		});
 	});

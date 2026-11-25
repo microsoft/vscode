@@ -1,0 +1,103 @@
+{
+	"schemaVersion": 1,
+	"fixtureSetId": "copilot-shim-source-built-x64",
+	"architecture": "x64",
+	"fixtures": [
+		{
+			"id": "code-initial",
+			"sourceRoot": "/fixtures/code-initial/source",
+			"sourceRevision": "SOURCE_COMMIT_FOR_CODE_INITIAL",
+			"sourceKind": "prepared-payload",
+			"identity": "code",
+			"role": "initial",
+			"revisionOrdinal": 1,
+			"payloadKind": "complete",
+			"formats": ["deb", "rpm"],
+			"fixtureAdjustments": []
+		},
+		{
+			"id": "code-upgrade",
+			"sourceRoot": "/fixtures/code-upgrade/source",
+			"sourceRevision": "SOURCE_COMMIT_FOR_CODE_UPGRADE",
+			"sourceKind": "prepared-payload",
+			"identity": "code",
+			"role": "upgrade",
+			"revisionOrdinal": 2,
+			"payloadKind": "complete",
+			"formats": ["deb", "rpm"],
+			"fixtureAdjustments": ["Package version/revision is deliberately newer than code-initial."]
+		},
+		{
+			"id": "code-legacy",
+			"sourceRoot": "/fixtures/code-legacy/source",
+			"sourceRevision": "SOURCE_COMMIT_BEFORE_COPILOT_SHIM",
+			"sourceKind": "prepared-payload",
+			"identity": "code",
+			"role": "legacy-no-shim",
+			"revisionOrdinal": 1,
+			"payloadKind": "complete",
+			"formats": ["deb", "rpm"],
+			"fixtureAdjustments": ["Deliberately uses an older payload with no bin/copilot-shim/copilot."]
+		},
+		{
+			"id": "code-insiders-initial",
+			"sourceRoot": "/fixtures/code-insiders-initial/source",
+			"sourceRevision": "SOURCE_COMMIT_FOR_CODE_INSIDERS_INITIAL",
+			"sourceKind": "prepared-payload",
+			"identity": "code-insiders",
+			"role": "initial",
+			"revisionOrdinal": 1,
+			"payloadKind": "complete",
+			"formats": ["deb", "rpm"],
+			"fixtureAdjustments": []
+		},
+		{
+			"id": "code-insiders-upgrade",
+			"sourceRoot": "/fixtures/code-insiders-upgrade/source",
+			"sourceRevision": "SOURCE_COMMIT_FOR_CODE_INSIDERS_UPGRADE",
+			"sourceKind": "prepared-payload",
+			"identity": "code-insiders",
+			"role": "upgrade",
+			"revisionOrdinal": 2,
+			"payloadKind": "complete",
+			"formats": ["deb", "rpm"],
+			"fixtureAdjustments": ["Package version/revision is deliberately newer than code-insiders-initial."]
+		},
+		{
+			"id": "code-insiders-legacy",
+			"sourceRoot": "/fixtures/code-insiders-legacy/source",
+			"sourceRevision": "SOURCE_COMMIT_BEFORE_COPILOT_SHIM",
+			"sourceKind": "prepared-payload",
+			"identity": "code-insiders",
+			"role": "legacy-no-shim",
+			"revisionOrdinal": 1,
+			"payloadKind": "complete",
+			"formats": ["deb", "rpm"],
+			"fixtureAdjustments": ["Deliberately uses an older payload with no bin/copilot-shim/copilot."]
+		},
+		{
+			"id": "code-oss-initial",
+			"sourceRoot": "/fixtures/code-oss-initial/source",
+			"sourceRevision": "SOURCE_COMMIT_FOR_CODE_OSS_INITIAL",
+			"sourceKind": "prepared-payload",
+			"identity": "code-oss",
+			"role": "oss-initial",
+			"revisionOrdinal": 1,
+			"payloadKind": "complete",
+			"formats": ["deb", "rpm"],
+			"fixtureAdjustments": ["Negative fixture: its generated lifecycle calls must be a no-op for code-oss."]
+		},
+		{
+			"id": "code-oss-upgrade",
+			"sourceRoot": "/fixtures/code-oss-upgrade/source",
+			"sourceRevision": "SOURCE_COMMIT_FOR_CODE_OSS_UPGRADE",
+			"sourceKind": "prepared-payload",
+			"identity": "code-oss",
+			"role": "oss-upgrade",
+			"revisionOrdinal": 2,
+			"payloadKind": "complete",
+			"formats": ["deb", "rpm"],
+			"fixtureAdjustments": ["Package version/revision is deliberately newer than code-oss-initial."]
+		}
+	]
+}

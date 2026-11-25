@@ -13,6 +13,7 @@ import assert from 'assert';
 import * as cp from 'child_process';
 import { mkdtempSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
+import { Event } from '../../../../base/common/event.js';
 import { join } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
 import { Schemas } from '../../../../base/common/network.js';
@@ -22,11 +23,16 @@ import { NullLogService } from '../../../log/common/log.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { DiskFileSystemProvider } from '../../../files/node/diskFileSystemProvider.js';
 import { AgentHostGitService } from '../../node/agentHostGitService.js';
+import { gitServiceArguments } from './agentHostGitServiceTestUtils.js';
 import { AgentHostReviewService } from '../../node/agentHostReviewService.js';
 import { buildReviewedRefName } from '../../common/agentHostReviewService.js';
 import { createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
+import { createTestSessionStateStore } from './chatMetadataTestHelpers.js';
+import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
+import { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
+import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
 
 function rmDirWithRetry(path: string | undefined): void {
 	if (!path) {
@@ -54,11 +60,24 @@ suite.skip('AgentHostReviewService (real git)', () => {
 		const fileService = store.add(new FileService(logService));
 		store.add(fileService.registerProvider(Schemas.file, store.add(new DiskFileSystemProvider(logService))));
 		const env: Partial<INativeEnvironmentService> = { tmpDir: URI.file(tmpdir()) };
-		const gitService = new AgentHostGitService(fileService, env as INativeEnvironmentService, logService);
+		const gitService = store.add(new AgentHostGitService(...gitServiceArguments(store, fileService, env as INativeEnvironmentService, logService)));
 		db = new TestSessionDatabase();
 		const sessionDataService = createSessionDataService(db);
 		const stateManager = disposables.add(new AgentHostStateManager(logService));
-		return store.add(new AgentHostReviewService(stateManager, gitService, sessionDataService, logService,));
+		const gitStateService: IAgentHostGitStateService = {
+			_serviceBrand: undefined,
+			onDidRefreshSessionGitState: Event.None,
+			onDidChangeSessionGitHubState: Event.None,
+			refreshSessionGitState: async () => { },
+			getSessionGitState: () => undefined,
+			getMaterializedWorktreeMeta: () => undefined,
+			setFolderGitState: async () => { },
+			resolveSessionBaseBranchRef: async () => undefined,
+			setSessionGitHubState: async () => { },
+			recordSessionMerge: async () => { },
+			attachSessionGitHubPullRequest: async () => { },
+		};
+		return store.add(new AgentHostReviewService(stateManager, gitService, sessionDataService, createTestSessionStateStore(store.add(new AgentHostDatabase(':memory:')), sessionDataService), gitStateService, logService, createTestChatOwnershipService(stateManager)));
 	}
 
 	setup(() => {
@@ -177,7 +196,7 @@ suite.skip('AgentHostReviewService (real git)', () => {
 		await svc!.markFileReviewed(sessionUri.toString(), wd(), undefined, URI.file(join(tmpRoot!, 'a.txt')));
 
 		const forkUri = URI.parse('copilot:/forked-session');
-		await svc!.copyReviewedRef(sessionUri.toString(), forkUri.toString(), wd());
+		await svc!.copyReviewedRef(sessionUri.toString(), forkUri.toString(), [wd()], [wd()]);
 
 		const forkReviewed = [...await svc!.getReviewedPaths(forkUri.toString(), wd(), undefined)].sort();
 		const sourceReviewed = await reviewedPaths();

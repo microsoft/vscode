@@ -24,11 +24,13 @@ export class MockOctoKitService implements IOctoKitService {
 	getPullRequestFiles = async () => [];
 	compareCommits = async () => undefined;
 	getRepositoryById: IOctoKitService['getRepositoryById'] = async () => undefined;
+	getAutomationPrompt: IOctoKitService['getAutomationPrompt'] = async () => undefined;
 	closePullRequest = async () => false;
 	findPullRequestByHeadBranch = async () => undefined;
 	getOpenPullRequestsForUser = async () => [];
 	getFileContent = async () => '';
 	getUserRepositories = async () => [];
+	searchIssuesAndPullRequests: IOctoKitService['searchIssuesAndPullRequests'] = async () => [];
 	getRecentlyCommittedRepositories = async () => [];
 	getCopilotAgentModels = async () => [];
 	getAssignableActors = async () => [];

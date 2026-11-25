@@ -10,8 +10,8 @@ import { joinPath } from '../../../../../base/common/resources.js';
 import { isAbsolute } from '../../../../../base/common/path.js';
 import { untildify } from '../../../../../base/common/labels.js';
 import { OperatingSystem } from '../../../../../base/common/platform.js';
-import { IParsedHookCommand } from '../../../../../platform/agentPlugins/common/pluginParsers.js';
-import { HookType, HOOKS_BY_TARGET, HOOK_METADATA } from './hookTypes.js';
+import { interpolateHookCommandPluginRoot, IParsedHookCommand, PluginFormat } from '../../../../../platform/agentPlugins/common/pluginParsers.js';
+import { getAgentHookMetadata, getLocalFormatHookEventNames, HookType, HOOKS_BY_TARGET, HOOK_METADATA } from './hookTypes.js';
 import { Target } from './promptTypes.js';
 import { IValue, IMapValue } from './promptFileParser.js';
 
@@ -88,17 +88,24 @@ export function mergeHooks(base: ChatRequestHooks | undefined, additional: ChatR
  * Descriptions for hook command fields, used by both the JSON schema and the hover provider.
  */
 export const HOOK_COMMAND_FIELD_DESCRIPTIONS: Record<string, string> = {
-	type: nls.localize('hook.type', 'Must be "command".'),
+	type: nls.localize('hook.type', 'Hook action type. Supported values depend on the active harness.'),
 	command: nls.localize('hook.command', 'The command to execute. This is the default cross-platform command.'),
 	windows: nls.localize('hook.windows', 'Windows-specific command. If specified and running on Windows, this overrides the "command" field.'),
 	linux: nls.localize('hook.linux', 'Linux-specific command. If specified and running on Linux, this overrides the "command" field.'),
 	osx: nls.localize('hook.osx', 'macOS-specific command. If specified and running on macOS, this overrides the "command" field.'),
 	bash: nls.localize('hook.bash', 'Bash command for Linux and macOS.'),
 	powershell: nls.localize('hook.powershell', 'PowerShell command for Windows.'),
+	exec: nls.localize('hook.exec', 'Native executable path. Cannot be combined with a shell command.'),
+	args: nls.localize('hook.args', 'Arguments passed to the native executable.'),
 	cwd: nls.localize('hook.cwd', 'Working directory for the script (relative to repository root).'),
 	env: nls.localize('hook.env', 'Additional environment variables that are merged with the existing environment.'),
 	timeout: nls.localize('hook.timeout', 'Maximum execution time in seconds (default: 30).'),
 	timeoutSec: nls.localize('hook.timeoutSec', 'Maximum execution time in seconds (default: 10).'),
+	matcher: nls.localize('hook.matcher', 'Regular expression selecting matching tools or events.'),
+	url: nls.localize('hook.url', 'HTTP or HTTPS URL invoked by the hook.'),
+	headers: nls.localize('hook.headers', 'HTTP headers sent with the request.'),
+	allowedEnvVars: nls.localize('hook.allowedEnvVars', 'Environment variable names whose values may be exposed to the HTTP hook.'),
+	prompt: nls.localize('hook.prompt', 'Prompt text added when the session starts.'),
 };
 
 /**
@@ -176,11 +183,6 @@ function buildHookProperties(target: Target, arraySchema: IJSONSchema): Record<s
 }
 
 /**
- * Hook properties for the VS Code format.
- */
-const vscodeHookProperties: Record<string, IJSONSchema> = buildHookProperties(Target.VSCode, hookArraySchema);
-
-/**
  * Hook command schema for the Copilot CLI format.
  * Adds `bash`, `powershell`, and `timeoutSec` fields alongside the standard ones.
  */
@@ -189,15 +191,20 @@ const copilotCliHookCommandSchema: IJSONSchema = {
 	additionalProperties: true,
 	required: ['type'],
 	anyOf: [
+		{ required: ['command'] },
 		{ required: ['bash'] },
 		{ required: ['powershell'] }
 	],
-	errorMessage: nls.localize('hook.cliCommandRequired', 'At least one of "bash" or "powershell" must be specified.'),
+	errorMessage: nls.localize('hook.cliCommandRequired', 'At least one of "command", "bash", or "powershell" must be specified.'),
 	properties: {
 		type: {
 			type: 'string',
 			enum: ['command'],
 			description: HOOK_COMMAND_FIELD_DESCRIPTIONS.type
+		},
+		command: {
+			type: 'string',
+			description: HOOK_COMMAND_FIELD_DESCRIPTIONS.command
 		},
 		bash: {
 			type: 'string',
@@ -234,6 +241,24 @@ const copilotCliHookArraySchema: IJSONSchema = {
  */
 const copilotCliHookProperties: Record<string, IJSONSchema> = buildHookProperties(Target.GitHubCopilot, copilotCliHookArraySchema);
 
+const localFormatDeprecationMessage = nls.localize('hookFile.localFormatDeprecated', 'This event name uses the deprecated Local hook format, so this hook may not work in Copilot sessions. Migrate the hook file and its scripts with the agent: open Chat Customizations and select Migrations.');
+
+/**
+ * Capitalised (Local format) event names, each marked as deprecated, whether or not the file has a "version".
+ * In files without a "version", the Local event names keep the Local command validation they always had.
+ * Elsewhere, capitalised entries are only marked, so valid Claude-style nested entries do not gain new errors.
+ */
+function buildLocalFormatHookProperties(validateLocalCommands: boolean): Record<string, IJSONSchema> {
+	return Object.fromEntries(getLocalFormatHookEventNames().map(name => {
+		const localHookType = HOOKS_BY_TARGET[Target.VSCode][name];
+		return [name, {
+			...(validateLocalCommands && localHookType ? hookArraySchema : {}),
+			description: localHookType ? HOOK_METADATA[localHookType]?.description : getAgentHookMetadata(Target.GitHubCopilot, name)?.description,
+			deprecationMessage: localFormatDeprecationMessage,
+		}];
+	}));
+}
+
 export const hookFileSchema: IJSONSchema = {
 	$schema: 'http://json-schema.org/draft-07/schema#',
 	type: 'object',
@@ -263,7 +288,7 @@ export const hookFileSchema: IJSONSchema = {
 				description: nls.localize('hookFile.version', 'Hook configuration format version.'),
 			},
 			hooks: {
-				properties: copilotCliHookProperties
+				properties: { ...copilotCliHookProperties, ...buildLocalFormatHookProperties(false) }
 			}
 		}
 	},
@@ -271,7 +296,7 @@ export const hookFileSchema: IJSONSchema = {
 		// VS Code / PascalCase format
 		properties: {
 			hooks: {
-				properties: vscodeHookProperties
+				properties: buildLocalFormatHookProperties(true)
 			}
 		}
 	},
@@ -280,18 +305,19 @@ export const hookFileSchema: IJSONSchema = {
 			label: nls.localize('hookFile.snippet.basic', 'Basic hook configuration'),
 			description: nls.localize('hookFile.snippet.basic.description', 'A basic hook configuration with common hooks'),
 			body: {
+				version: 1,
 				hooks: {
-					SessionStart: [
+					sessionStart: [
 						{
 							type: 'command',
 							command: '${1:echo "Session started" >> session.log}',
 						}
 					],
-					PreToolUse: [
+					preToolUse: [
 						{
 							type: 'command',
 							command: '${2:./scripts/validate.sh}',
-							timeout: 15
+							timeoutSec: 15
 						}
 					]
 				}
@@ -512,7 +538,8 @@ export function resolveHookCommand(raw: Record<string, unknown>, workspaceRootUr
 export function extractHookCommandsFromItem(
 	item: unknown,
 	workspaceRootUri: URI | undefined,
-	userHome: string
+	userHome: string,
+	plugin?: { readonly uri: URI; readonly format: PluginFormat },
 ): IHookCommand[] {
 	if (!item || typeof item !== 'object') {
 		return [];
@@ -528,7 +555,8 @@ export function extractHookCommandsFromItem(
 			if (!nestedHook || typeof nestedHook !== 'object') {
 				continue;
 			}
-			const normalized = normalizeForResolve(nestedHook as Record<string, unknown>);
+			const raw = nestedHook as Record<string, unknown>;
+			const normalized = normalizeForResolve(plugin ? interpolateHookCommandPluginRoot(raw, plugin.uri, plugin.format) : raw);
 			const resolved = resolveHookCommand(normalized, workspaceRootUri, userHome);
 			if (resolved) {
 				commands.push(resolved);
@@ -536,7 +564,7 @@ export function extractHookCommandsFromItem(
 		}
 	} else {
 		// Direct command object
-		const normalized = normalizeForResolve(itemObj);
+		const normalized = normalizeForResolve(plugin ? interpolateHookCommandPluginRoot(itemObj, plugin.uri, plugin.format) : itemObj);
 		const resolved = resolveHookCommand(normalized, workspaceRootUri, userHome);
 		if (resolved) {
 			commands.push(resolved);
@@ -606,6 +634,7 @@ function yamlValueToPlain(value: IValue): unknown {
  * @param workspaceRootUri Workspace root for resolving relative `cwd` paths.
  * @param userHome User home directory path for tilde expansion.
  * @param target The agent's target, used to resolve hook type names correctly.
+ * @param plugin The contributing plugin, used to resolve format-specific plugin-root variables.
  * @returns Resolved hooks organized by hook type, ready for use in {@link ChatRequestHooks}.
  */
 export function parseSubagentHooksFromYaml(
@@ -613,6 +642,7 @@ export function parseSubagentHooksFromYaml(
 	workspaceRootUri: URI | undefined,
 	userHome: string,
 	target: Target = Target.Undefined,
+	plugin?: { readonly uri: URI; readonly format: PluginFormat },
 ): ChatRequestHooks {
 	const result: Record<string, IHookCommand[]> = {};
 	const targetHookMap = HOOKS_BY_TARGET[target] ?? HOOKS_BY_TARGET[Target.Undefined];
@@ -638,7 +668,7 @@ export function parseSubagentHooksFromYaml(
 			// extractHookCommandsFromItem helper can handle both direct
 			// commands and nested matcher structures.
 			const plainItem = yamlValueToPlain(item);
-			const extracted = extractHookCommandsFromItem(plainItem, workspaceRootUri, userHome);
+			const extracted = extractHookCommandsFromItem(plainItem, workspaceRootUri, userHome, plugin);
 			commands.push(...extracted);
 		}
 

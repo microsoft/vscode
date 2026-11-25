@@ -21,9 +21,11 @@ export class AICustomizationManagementEditorInput extends EditorInput implements
 
 	readonly resource = undefined;
 
-	private static _activeHarnessLabel = '';
 	private _isDirty = false;
 	private _saveHandler?: () => Promise<boolean>;
+	private _harnessLabel: string | undefined;
+	private _workspaceLabel: string | undefined;
+	private _environmentLabel: string | undefined;
 
 	override get capabilities(): EditorInputCapabilities {
 		return super.capabilities | EditorInputCapabilities.Singleton | EditorInputCapabilities.RequiresModal;
@@ -36,7 +38,6 @@ export class AICustomizationManagementEditorInput extends EditorInput implements
 	 */
 	static getOrCreate(): AICustomizationManagementEditorInput {
 		if (!AICustomizationManagementEditorInput._instance || AICustomizationManagementEditorInput._instance.isDisposed()) {
-			AICustomizationManagementEditorInput._activeHarnessLabel = '';
 			AICustomizationManagementEditorInput._instance = new AICustomizationManagementEditorInput();
 		}
 		return AICustomizationManagementEditorInput._instance;
@@ -55,18 +56,36 @@ export class AICustomizationManagementEditorInput extends EditorInput implements
 	}
 
 	override getName(): string {
-		const harnessLabel = AICustomizationManagementEditorInput._activeHarnessLabel;
-		return harnessLabel
-			? localize('aiCustomizationManagementEditorNameWithHarness', "Agent Customizations for {0}", harnessLabel)
-			: localize('aiCustomizationManagementEditorName', "Agent Customizations");
+		return localize('aiCustomizationManagementEditorName', "Customizations");
+	}
+
+	override getDescription(): string | undefined {
+		const labels = [this._harnessLabel, this._workspaceLabel, this._environmentLabel].filter(label => label !== undefined);
+		if (labels.length === 3) {
+			return localize('aiCustomizationManagementEditorDescriptionWithThreeTargets', "({0} · {1} · {2})", labels[0], labels[1], labels[2]);
+		}
+		if (labels.length === 2) {
+			return localize('aiCustomizationManagementEditorDescriptionWithTwoTargets', "({0} · {1})", labels[0], labels[1]);
+		}
+		if (labels.length === 1) {
+			return localize('aiCustomizationManagementEditorDescriptionWithTarget', "({0})", labels[0]);
+		}
+		return undefined;
 	}
 
 	override getIcon(): ThemeIcon {
 		return Codicon.settingsGear;
 	}
 
+	override getLabelExtraClasses(): string[] {
+		return ['ai-customization-management-editor-label'];
+	}
+
 	getModalEditorOptions(): IModalEditorOptions {
-		return { compactHeader: true };
+		return {
+			compactHeader: true,
+			canMoveToEditorArea: false,
+		};
 	}
 
 	override async resolve(): Promise<null> {
@@ -92,14 +111,6 @@ export class AICustomizationManagementEditorInput extends EditorInput implements
 		this.setDirty(false);
 	}
 
-	setHarnessLabel(label: string): void {
-		if (AICustomizationManagementEditorInput._activeHarnessLabel === label) {
-			return;
-		}
-		AICustomizationManagementEditorInput._activeHarnessLabel = label;
-		this._onDidChangeLabel.fire();
-	}
-
 	setDirty(dirty: boolean): void {
 		if (this._isDirty !== dirty) {
 			this._isDirty = dirty;
@@ -109,5 +120,18 @@ export class AICustomizationManagementEditorInput extends EditorInput implements
 
 	setSaveHandler(handler: (() => Promise<boolean>) | undefined): void {
 		this._saveHandler = handler;
+	}
+
+	setTargetLabels(harnessLabel: string | undefined, workspaceLabel?: string, environmentLabel?: string): void {
+		harnessLabel = harnessLabel?.trim() || undefined;
+		workspaceLabel = workspaceLabel?.trim() || undefined;
+		environmentLabel = environmentLabel?.trim() || undefined;
+		if (this._harnessLabel === harnessLabel && this._workspaceLabel === workspaceLabel && this._environmentLabel === environmentLabel) {
+			return;
+		}
+		this._harnessLabel = harnessLabel;
+		this._workspaceLabel = workspaceLabel;
+		this._environmentLabel = environmentLabel;
+		this._onDidChangeLabel.fire();
 	}
 }

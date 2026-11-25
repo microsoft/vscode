@@ -15,6 +15,14 @@ import { IVSCodeExtensionContext } from '../../extContext/common/extensionContex
 import { ILogService } from '../../log/common/logService';
 import { IExperimentationService, TreatmentsChangeEvent } from '../common/nullExperimentationService';
 
+/**
+ * Scope prefix that the new TAS assignments endpoint (`/api/v1/assignments`) prepends to the
+ * feature variable keys it returns (e.g. `/vscode/config.chat...`). The legacy endpoint and
+ * callers query treatments by the bare name, so this prefix must be accounted for when a bare
+ * lookup misses. This is an interim workaround until vscode-tas-client strips the scope itself.
+ */
+const ASSIGNMENTS_SCOPE_PREFIX = '/vscode/';
+
 export class UserInfoStore extends Disposable {
 	private _internalOrg: string | undefined;
 	private _sku: string | undefined;
@@ -22,6 +30,7 @@ export class UserInfoStore extends Disposable {
 	private _isSn: boolean | undefined;
 	private _isVscodeTeamMember: boolean | undefined;
 	private _organizationList: string[] | undefined;
+	private _isProxima = false;
 
 	private _onDidChangeUserInfo = this._register(new Emitter<void>());
 	readonly onDidChangeUserInfo = this._onDidChangeUserInfo.event;
@@ -32,7 +41,11 @@ export class UserInfoStore extends Disposable {
 	static IS_SN_STORAGE_KEY = 'exp.github.copilot.isSn';
 	static IS_VSCODE_TEAM_MEMBER_STORAGE_KEY = 'exp.github.copilot.isVscodeTeamMember';
 	static ORGANIZATION_LIST_STORAGE_KEY = 'exp.github.copilot.organizationList';
-	constructor(private readonly context: IVSCodeExtensionContext, copilotTokenStore: ICopilotTokenStore) {
+	static IS_PROXIMA_STORAGE_KEY = 'exp.github.copilot.isProxima';
+	constructor(
+		private readonly context: IVSCodeExtensionContext,
+		copilotTokenStore: ICopilotTokenStore
+	) {
 		super();
 
 		if (copilotTokenStore) {
@@ -46,13 +59,17 @@ export class UserInfoStore extends Disposable {
 				}
 				return undefined;
 			};
+			const getIsProxima = (): boolean => {
+				const stamp = copilotTokenStore.copilotToken?.getTokenValue('st');
+				return !!stamp && stamp !== 'dotcom';
+			};
 
-			copilotTokenStore.onDidStoreUpdate(() => {
-				this.updateUserInfo(getInternalOrg(), copilotTokenStore.copilotToken?.sku, copilotTokenStore.copilotToken?.isFcv1(), copilotTokenStore.copilotToken?.isSn(), copilotTokenStore.copilotToken?.isVscodeTeamMember, copilotTokenStore.copilotToken?.organizationList);
-			});
+			this._register(copilotTokenStore.onDidChangeTokenData(() => {
+				this.updateUserInfo(getInternalOrg(), copilotTokenStore.copilotToken?.sku, copilotTokenStore.copilotToken?.isFcv1(), copilotTokenStore.copilotToken?.isSn(), copilotTokenStore.copilotToken?.isVscodeTeamMember, copilotTokenStore.copilotToken?.organizationList, getIsProxima());
+			}));
 
 			if (copilotTokenStore.copilotToken) {
-				this.updateUserInfo(getInternalOrg(), copilotTokenStore.copilotToken.sku, copilotTokenStore.copilotToken.isFcv1(), copilotTokenStore.copilotToken.isSn(), copilotTokenStore.copilotToken.isVscodeTeamMember, copilotTokenStore.copilotToken.organizationList);
+				this.updateUserInfo(getInternalOrg(), copilotTokenStore.copilotToken.sku, copilotTokenStore.copilotToken.isFcv1(), copilotTokenStore.copilotToken.isSn(), copilotTokenStore.copilotToken.isVscodeTeamMember, copilotTokenStore.copilotToken.organizationList, getIsProxima());
 			} else {
 				const cachedInternalValue = this.context.globalState.get<string>(UserInfoStore.INTERNAL_ORG_STORAGE_KEY);
 				const cachedSkuValue = this.context.globalState.get<string>(UserInfoStore.SKU_STORAGE_KEY);
@@ -60,8 +77,10 @@ export class UserInfoStore extends Disposable {
 				const cachedIsSnValue = this.context.globalState.get<boolean>(UserInfoStore.IS_SN_STORAGE_KEY);
 				const cachedIsVscodeTeamMemberValue = this.context.globalState.get<boolean>(UserInfoStore.IS_VSCODE_TEAM_MEMBER_STORAGE_KEY);
 				const cachedOrganizationListValue = this.context.globalState.get<string[]>(UserInfoStore.ORGANIZATION_LIST_STORAGE_KEY);
-				this.updateUserInfo(cachedInternalValue, cachedSkuValue, cachedIsFcv1Value, cachedIsSnValue, cachedIsVscodeTeamMemberValue, cachedOrganizationListValue);
+				const cachedIsProximaValue = this.context.globalState.get<boolean>(UserInfoStore.IS_PROXIMA_STORAGE_KEY) ?? false;
+				this.updateUserInfo(cachedInternalValue, cachedSkuValue, cachedIsFcv1Value, cachedIsSnValue, cachedIsVscodeTeamMemberValue, cachedOrganizationListValue, cachedIsProximaValue);
 			}
+
 		}
 	}
 
@@ -85,6 +104,10 @@ export class UserInfoStore extends Disposable {
 		return this._isVscodeTeamMember;
 	}
 
+	get isProxima(): boolean {
+		return this._isProxima;
+	}
+
 	/**
 	 * The list of organization IDs the user belongs to.
 	 * This can be used in ExP to target specific organizations via the X-GitHub-Copilot-OrganizationList filter.
@@ -93,8 +116,8 @@ export class UserInfoStore extends Disposable {
 		return this._organizationList;
 	}
 
-	private updateUserInfo(internalOrg?: string, sku?: string, isFcv1?: boolean, isSn?: boolean, isVscodeTeamMember?: boolean, organizationList?: string[]): void {
-		if (this._internalOrg === internalOrg && this._sku === sku && this._isFcv1 === isFcv1 && this._isSn === isSn && this._isVscodeTeamMember === isVscodeTeamMember && equals(this._organizationList, organizationList)) {
+	private updateUserInfo(internalOrg: string | undefined, sku: string | undefined, isFcv1: boolean | undefined, isSn: boolean | undefined, isVscodeTeamMember: boolean | undefined, organizationList: string[] | undefined, isProxima: boolean): void {
+		if (this._internalOrg === internalOrg && this._sku === sku && this._isFcv1 === isFcv1 && this._isSn === isSn && this._isVscodeTeamMember === isVscodeTeamMember && equals(this._organizationList, organizationList) && this._isProxima === isProxima) {
 			// no change
 			return;
 		}
@@ -105,15 +128,18 @@ export class UserInfoStore extends Disposable {
 		this._isSn = isSn;
 		this._isVscodeTeamMember = isVscodeTeamMember;
 		this._organizationList = organizationList;
+		this._isProxima = isProxima;
 		void this.context.globalState.update(UserInfoStore.INTERNAL_ORG_STORAGE_KEY, this._internalOrg);
 		void this.context.globalState.update(UserInfoStore.SKU_STORAGE_KEY, this._sku);
 		void this.context.globalState.update(UserInfoStore.IS_FCV1_STORAGE_KEY, this._isFcv1);
 		void this.context.globalState.update(UserInfoStore.IS_SN_STORAGE_KEY, this._isSn);
 		void this.context.globalState.update(UserInfoStore.IS_VSCODE_TEAM_MEMBER_STORAGE_KEY, this._isVscodeTeamMember);
 		void this.context.globalState.update(UserInfoStore.ORGANIZATION_LIST_STORAGE_KEY, this._organizationList);
+		void this.context.globalState.update(UserInfoStore.IS_PROXIMA_STORAGE_KEY, this._isProxima);
 
 		this._onDidChangeUserInfo.fire();
 	}
+
 }
 
 /**
@@ -168,6 +194,7 @@ export class BaseExperimentationService extends Disposable implements IExperimen
 
 	protected _delegate: ITASExperimentationService;
 	protected readonly _userInfoStore: UserInfoStore;
+	protected readonly refreshOnUserInfoChange: boolean = true;
 
 	/** Disposes the current delegate (stopping its polling); auto-disposes the previous one on replacement. */
 	private readonly _delegateDisposable = this._register(new MutableDisposable());
@@ -188,10 +215,13 @@ export class BaseExperimentationService extends Disposable implements IExperimen
 	) {
 		super();
 
-		this._userInfoStore = new UserInfoStore(context, copilotTokenStore);
+		this._userInfoStore = this._register(new UserInfoStore(context, copilotTokenStore));
 
 		// Refresh treatments when user info changes
 		this._register(this._userInfoStore.onDidChangeUserInfo(async () => {
+			if (!this.refreshOnUserInfoChange) {
+				return;
+			}
 			await this._delegate.getTreatmentVariableAsync('vscode', 'refresh');
 			this._logService.trace(`[BaseExperimentationService] User info changed, refreshed treatments`);
 			this._signalTreatmentsChangeEvent();
@@ -244,7 +274,7 @@ export class BaseExperimentationService extends Disposable implements IExperimen
 	private _signalTreatmentsChangeEvent = () => {
 		const affectedTreatmentVariables: string[] = [];
 		for (const [key, previousValue] of this._previouslyReadTreatments) {
-			const currentValue = this._delegate.getTreatmentVariable('vscode', key);
+			const currentValue = this._readTreatmentVariable(key);
 			if (currentValue !== previousValue) {
 				this._logService.trace(`[BaseExperimentationService] Treatment changed: ${key} from ${previousValue} to ${currentValue}`);
 				this._previouslyReadTreatments.set(key, currentValue);
@@ -267,8 +297,24 @@ export class BaseExperimentationService extends Disposable implements IExperimen
 	}
 
 	getTreatmentVariable<T extends boolean | number | string>(name: string): T | undefined {
-		const result = this._delegate.getTreatmentVariable('vscode', name) as T;
+		const result = this._readTreatmentVariable<T>(name);
 		this._previouslyReadTreatments.set(name, result);
+		return result;
+	}
+
+	/**
+	 * Reads a treatment, preferring the `/vscode/`-scoped key over the bare key. Interim workaround
+	 * till its fixed upstream: the new TAS assignments endpoint namespaces its returned feature
+	 * variable keys with a `/vscode/` scope that vscode-tas-client does not strip. Reading the
+	 * scoped key first makes the new endpoint win over the legacy (bare) key when both assign a
+	 * treatment - matching the behavior once the scope is stripped upstream - while still resolving
+	 * legacy-only treatments from the bare key.
+	 */
+	private _readTreatmentVariable<T extends boolean | number | string>(name: string): T | undefined {
+		let result = this._delegate.getTreatmentVariable('vscode', `${ASSIGNMENTS_SCOPE_PREFIX}${name}`) as T | undefined;
+		if (result === undefined) {
+			result = this._delegate.getTreatmentVariable('vscode', name) as T | undefined;
+		}
 		return result;
 	}
 

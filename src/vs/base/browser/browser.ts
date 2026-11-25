@@ -5,6 +5,7 @@
 
 import { CodeWindow, mainWindow } from './window.js';
 import { Emitter } from '../common/event.js';
+import { isIOS } from '../common/platform.js';
 
 class WindowManager {
 
@@ -127,6 +128,18 @@ export function isStandalone(): boolean {
 	return standalone;
 }
 
+/**
+ * Whether we are an installed web app (PWA) on a phone or tablet.
+ *
+ * These have no browser tab to fall back on, so anything a tab could recover from
+ * — a blocked popup, a navigation that lands somewhere unexpected — is a dead end
+ * here. Desktop installed apps still get real windows and are deliberately not
+ * included.
+ */
+export function isMobileStandalone(): boolean {
+	return isStandalone() && (isIOS || isAndroid);
+}
+
 // Visible means that the feature is enabled, not necessarily being rendered
 // e.g. visible is true even in fullscreen mode where the controls are hidden
 // See docs at https://developer.mozilla.org/en-US/docs/Web/API/WindowControlsOverlay/visible
@@ -138,6 +151,15 @@ export function isWCOEnabled(): boolean {
 // See docs at https://developer.mozilla.org/en-US/docs/Web/API/WindowControlsOverlay/getTitlebarAreaRect
 export function getWCOTitlebarAreaRect(targetWindow: Window): DOMRect | undefined {
 	return (targetWindow.navigator as Navigator & { windowControlsOverlay?: { getTitlebarAreaRect: () => DOMRect } })?.windowControlsOverlay?.getTitlebarAreaRect();
+}
+
+/**
+ * Returns the titlebar area rect of the given window only while its window
+ * controls overlay is visible. The value is read on every call.
+ */
+export function getVisibleWCOTitlebarAreaRect(targetWindow: Window): DOMRect | undefined {
+	const overlay = (targetWindow.navigator as Navigator & { windowControlsOverlay?: { visible: boolean; getTitlebarAreaRect: () => DOMRect } })?.windowControlsOverlay;
+	return overlay?.visible ? overlay.getTitlebarAreaRect() : undefined;
 }
 
 export interface IMonacoEnvironment {

@@ -7,7 +7,7 @@ import { Model } from '../model';
 import { Repository as BaseRepository, Resource } from '../repository';
 import type { InputBox, Git, API, Repository, Remote, RepositoryState, Branch, Ref, Submodule, Commit, Change, RepositoryUIState, LogOptions, APIState, CommitOptions, CredentialsProvider, BranchQuery, PushErrorHandler, PublishEvent, FetchOptions, RemoteSourceProvider, RemoteSourcePublisher, PostCommitCommandsProvider, RefQuery, BranchProtectionProvider, InitOptions, SourceControlHistoryItemDetailsProvider, CloneOptions, CommitShortStat, DiffChange, Worktree, RepositoryKind, RepositoryAccessDetails } from './git';
 import { ForcePushMode, GitErrorCodes, RefType, Status } from './git.constants';
-import { Event, SourceControlInputBox, Uri, SourceControl, Disposable, commands, CancellationToken } from 'vscode';
+import { Event, Uri, Disposable, commands, CancellationToken } from 'vscode';
 import { combinedDisposable, filterEvent, mapEvent } from '../util';
 import { toGitUri } from '../uri';
 import { GitExtensionImpl } from './extension';
@@ -17,12 +17,12 @@ import { OperationKind, OperationResult } from '../operation';
 import { CloneManager } from '../cloneManager';
 
 class ApiInputBox implements InputBox {
-	#inputBox: SourceControlInputBox;
+	#repository: BaseRepository;
 
-	constructor(inputBox: SourceControlInputBox) { this.#inputBox = inputBox; }
+	constructor(repository: BaseRepository) { this.#repository = repository; }
 
-	set value(value: string) { this.#inputBox.value = value; }
-	get value(): string { return this.#inputBox.value; }
+	set value(value: string) { this.#repository.inputBoxValue = value; }
+	get value(): string { return this.#repository.inputBoxValue; }
 }
 
 export class ApiChange implements Change {
@@ -54,22 +54,22 @@ export class ApiRepositoryState implements RepositoryState {
 	get worktrees(): Worktree[] { return this.#repository.worktrees; }
 	get rebaseCommit(): Commit | undefined { return this.#repository.rebaseCommit; }
 
-	get mergeChanges(): Change[] { return this.#repository.mergeGroup.resourceStates.map(r => new ApiChange(r)); }
-	get indexChanges(): Change[] { return this.#repository.indexGroup.resourceStates.map(r => new ApiChange(r)); }
-	get workingTreeChanges(): Change[] { return this.#repository.workingTreeGroup.resourceStates.map(r => new ApiChange(r)); }
-	get untrackedChanges(): Change[] { return this.#repository.untrackedGroup.resourceStates.map(r => new ApiChange(r)); }
+	get mergeChanges(): Change[] { return this.#repository.mergeChanges.map(r => new ApiChange(r)); }
+	get indexChanges(): Change[] { return this.#repository.indexChanges.map(r => new ApiChange(r)); }
+	get workingTreeChanges(): Change[] { return this.#repository.workingTreeChanges.map(r => new ApiChange(r)); }
+	get untrackedChanges(): Change[] { return this.#repository.untrackedChanges.map(r => new ApiChange(r)); }
 }
 
 export class ApiRepositoryUIState implements RepositoryUIState {
-	#sourceControl: SourceControl;
+	#repository: BaseRepository;
 	readonly onDidChange: Event<void>;
 
-	constructor(sourceControl: SourceControl) {
-		this.#sourceControl = sourceControl;
-		this.onDidChange = mapEvent<boolean, void>(this.#sourceControl.onDidChangeSelection, () => null);
+	constructor(repository: BaseRepository) {
+		this.#repository = repository;
+		this.onDidChange = mapEvent<boolean, void>(this.#repository.onDidChangeSourceControlSelection, () => null);
 	}
 
-	get selected(): boolean { return this.#sourceControl.selected; }
+	get selected(): boolean { return this.#repository.sourceControl.sourceControl.selected; }
 }
 
 export class ApiRepository implements Repository {
@@ -90,9 +90,9 @@ export class ApiRepository implements Repository {
 
 		this.kind = this.#repository.kind;
 		this.rootUri = Uri.file(this.#repository.root);
-		this.inputBox = new ApiInputBox(this.#repository.inputBox);
+		this.inputBox = new ApiInputBox(this.#repository);
 		this.state = new ApiRepositoryState(this.#repository);
-		this.ui = new ApiRepositoryUIState(this.#repository.sourceControl);
+		this.ui = new ApiRepositoryUIState(this.#repository);
 		this.isUsingVirtualFileSystem = this.#repository.isUsingVirtualFileSystem;
 
 		this.onDidCommit = mapEvent<OperationResult, void>(
@@ -262,6 +262,10 @@ export class ApiRepository implements Repository {
 		return this.#repository.getMergeBase(ref1, ref2);
 	}
 
+	getRemoteRefs(remote: string, opts?: { heads?: boolean; tags?: boolean }): Promise<Ref[]> {
+		return this.#repository.getRemoteRefs(remote, opts);
+	}
+
 	tag(name: string, message: string, ref?: string | undefined): Promise<void> {
 		return this.#repository.tag({ name, message, ref });
 	}
@@ -310,6 +314,10 @@ export class ApiRepository implements Repository {
 		return this.#repository.pushTo(remoteName, branchName, setUpstream, force);
 	}
 
+	pushRefWithLease(remote: string, branch: string, newSha: string, expectedSha: string): Promise<void> {
+		return this.#repository.pushRefWithLease(remote, branch, newSha, expectedSha);
+	}
+
 	blame(path: string): Promise<string> {
 		return this.#repository.blame(path);
 	}
@@ -330,8 +338,24 @@ export class ApiRepository implements Repository {
 		return this.#repository.mergeAbort();
 	}
 
-	rebase(branch: string): Promise<void> {
-		return this.#repository.rebase(branch);
+	rebase(branch: string, options?: { onto?: string; rebaseMerges?: boolean }): Promise<void> {
+		return this.#repository.rebase(branch, options);
+	}
+
+	rebaseAbort(): Promise<void> {
+		return this.#repository.rebaseAbort();
+	}
+
+	rebaseContinue(): Promise<void> {
+		return this.#repository.rebaseContinue();
+	}
+
+	updateRef(ref: string, newSha: string, oldSha: string): Promise<void> {
+		return this.#repository.updateRef(ref, newSha, oldSha);
+	}
+
+	resetKeep(ref: string): Promise<void> {
+		return this.#repository.resetKeep(ref);
 	}
 
 	createStash(options?: { message?: string; includeUntracked?: boolean; staged?: boolean }): Promise<void> {
@@ -481,7 +505,7 @@ export class ApiImpl implements API {
 			return null;
 		}
 
-		await this.#model.openRepository(root.fsPath, true, true);
+		await this.#model.openRepository(root.fsPath, { openIfClosed: true, openIfParent: true });
 		return this.getRepository(root) || null;
 	}
 

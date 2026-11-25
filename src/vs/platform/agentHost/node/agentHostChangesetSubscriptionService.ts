@@ -4,14 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { URI as ProtocolURI } from '../common/state/sessionState.js';
+import { Emitter } from '../../../base/common/event.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
 import { IAgentHostChangesetSubscriptionService } from '../common/agentHostChangesetSubscriptionService.js';
 
 const EMPTY_SUBSCRIPTIONS: ReadonlySet<ProtocolURI> = new Set<ProtocolURI>();
 
-export class AgentHostChangesetSubscriptionService implements IAgentHostChangesetSubscriptionService {
+export class AgentHostChangesetSubscriptionService extends Disposable implements IAgentHostChangesetSubscriptionService {
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _subscriptions = new Map<ProtocolURI, Set<ProtocolURI>>();
+
+	private readonly _onDidChangeSessionSubscriptions = this._register(new Emitter<ProtocolURI>());
+	readonly onDidChangeSessionSubscriptions = this._onDidChangeSessionSubscriptions.event;
 
 	getSessionSubscriptions(session: ProtocolURI): ReadonlySet<ProtocolURI> {
 		return this._subscriptions.get(session) ?? EMPTY_SUBSCRIPTIONS;
@@ -23,22 +28,27 @@ export class AgentHostChangesetSubscriptionService implements IAgentHostChangese
 			subscriptions = new Set();
 			this._subscriptions.set(session, subscriptions);
 		}
+		if (subscriptions.has(changeset)) {
+			return;
+		}
 		subscriptions.add(changeset);
+		this._onDidChangeSessionSubscriptions.fire(session);
 	}
 
 	removeSubscription(session: ProtocolURI, changeset: ProtocolURI): void {
 		const subscriptions = this._subscriptions.get(session);
-		if (!subscriptions) {
+		if (!subscriptions?.delete(changeset)) {
 			return;
 		}
-
-		subscriptions.delete(changeset);
 		if (subscriptions.size === 0) {
 			this._subscriptions.delete(session);
 		}
+		this._onDidChangeSessionSubscriptions.fire(session);
 	}
 
 	clearSessionSubscriptions(session: ProtocolURI): void {
-		this._subscriptions.delete(session);
+		if (this._subscriptions.delete(session)) {
+			this._onDidChangeSessionSubscriptions.fire(session);
+		}
 	}
 }

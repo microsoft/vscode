@@ -8,6 +8,7 @@ import { Disposable, IDisposable } from '../../../../../../../base/common/lifecy
 import { URI } from '../../../../../../../base/common/uri.js';
 import { Position } from '../../../../../../../editor/common/core/position.js';
 import { Range } from '../../../../../../../editor/common/core/range.js';
+import { USUAL_WORD_SEPARATORS } from '../../../../../../../editor/common/core/wordHelper.js';
 import { CompletionItem, CompletionItemKind, CompletionList } from '../../../../../../../editor/common/languages.js';
 import { ITextModel } from '../../../../../../../editor/common/model.js';
 import { LanguageFilter } from '../../../../../../../editor/common/languageSelector.js';
@@ -34,7 +35,8 @@ import { isAtTriggerCharacterToken } from './chatInputCompletionUtils.js';
  *
  * The base handles the cross-cutting concerns: gating on trigger
  * characters, performing the host RPC, cancellation, and registering
- * the Monaco provider with the host-announced trigger characters.
+ * the Monaco provider with the host-announced trigger characters and
+ * the characters that end a word.
  */
 export abstract class AgentHostInputCompletionsBase<TContext, TRegData = void> extends Disposable {
 
@@ -72,7 +74,11 @@ export abstract class AgentHostInputCompletionsBase<TContext, TRegData = void> e
 	protected _registerProvider(filter: LanguageFilter, debugName: string, triggerCharacters: readonly string[], regData: TRegData): IDisposable {
 		return this._languageFeaturesService.completionProvider.register(filter, {
 			_debugDisplayName: debugName,
-			triggerCharacters: [...triggerCharacters],
+			// File items keep the filter text of the token typed when the host was asked (see `_provide`),
+			// so the host has to be asked again on every keystroke in the token. The suggest model only asks
+			// again while the cursor is on a word, so the characters that end a word, such as the `-` and `.`
+			// of `@my-file.ts`, trigger the provider too.
+			triggerCharacters: [...new Set([...triggerCharacters, ...USUAL_WORD_SEPARATORS])],
 			provideCompletionItems: (model, position, _context, token) => this._provide(model, position, token, triggerCharacters, regData),
 		});
 	}
@@ -122,5 +128,17 @@ export abstract class AgentHostInputCompletionsBase<TContext, TRegData = void> e
 		const replace = new Range(start.lineNumber, start.column, end.lineNumber, end.column);
 		const insert = new Range(start.lineNumber, start.column, position.lineNumber, position.column);
 		return { insert, replace };
+	}
+
+	protected static buildTextCompletionItem(position: Position, item: IChatInputCompletionItem): CompletionItem {
+		return {
+			label: item.insertText.startsWith('/') && item.label !== undefined && item.label !== item.insertText && item.label !== item.insertText.trimEnd()
+				? { label: item.insertText.trimEnd(), description: item.label }
+				: item.label ?? item.insertText,
+			insertText: item.insertText,
+			filterText: item.insertText,
+			range: this.computeRange(position, item),
+			kind: CompletionItemKind.Text,
+		};
 	}
 }

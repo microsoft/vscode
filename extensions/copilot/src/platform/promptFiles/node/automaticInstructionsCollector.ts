@@ -26,16 +26,21 @@ import { escape as escapeXml } from '../../../util/vs/base/common/strings';
 import { URI } from '../../../util/vs/base/common/uri';
 import { ParsedPromptFile } from '../../../util/vs/workbench/contrib/chat/common/promptSyntax/promptFileParser';
 import { isLocation } from '../../../util/common/types';
+// eslint-disable-next-line local/code-no-restricted-zone-imports -- Pre-existing layering violation found when the zone check started resolving extensionless imports.
 import { getToolName, ToolName } from '../../../extension/tools/common/toolNames';
+// eslint-disable-next-line local/code-no-restricted-zone-imports -- Pre-existing layering violation found when the zone check started resolving extensionless imports.
 import { isCustomizationsIndex, isInstructionFile, toCustomizationsIndexReference, toInstructionFileReference } from '../../../extension/prompt/common/chatVariablesCollection';
+// eslint-disable-next-line local/code-layering, local/code-no-restricted-zone-imports -- Pre-existing layering violation found when the zone check started resolving extensionless imports.
 import { getToolReferencePromptContent } from '../../../extension/prompt/vscode-node/promptVariablesService';
 import { IExperimentationService } from '../../telemetry/common/nullExperimentationService';
 import { getChatSessionType, matchesSessionType } from '../../chat/common/sessionUtils';
 import { CopilotChatAttr, GenAiAttr, GenAiOperationName, IOTelService } from '../../otel/common';
 import { ICustomInstructionsService } from '../../customInstructions/common/customInstructionsService';
+// eslint-disable-next-line local/code-no-restricted-zone-imports -- Pre-existing layering violation found when the zone check started resolving extensionless imports.
 import { IPromptVariablesService } from '../../../extension/prompt/node/promptVariablesService';
 import { arrayEqual } from 'diff/lib/util/array.js';
 import { structuralEquals } from '../../../util/vs/base/common/equals';
+import { INativeEnvService } from '../../env/common/envService';
 
 /**
  * Telemetry payload (parity with core's `instructionsCollected` event).
@@ -136,6 +141,7 @@ export class AutomaticInstructionsCollector implements IAutomaticInstructionsCol
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ILogService private readonly _logService: ILogService,
 		@IExperimentationService private readonly _experimentationService: IExperimentationService,
+		@INativeEnvService private readonly _envService: INativeEnvService,
 	) { }
 
 
@@ -316,7 +322,11 @@ export class AutomaticInstructionsCollector implements IAutomaticInstructionsCol
 			// Resolve all referenced URIs from this file's body.
 			const candidates: URI[] = [];
 			for (const ref of parsed.body.fileReferences) {
-				const resolved = parsed.body.resolveFilePath(ref.content);
+				const resolved = ref.content === '~'
+					? this._envService.userHome
+					: ref.content.startsWith('~/')
+						? URI.joinPath(this._envService.userHome, ref.content.substring(2))
+						: parsed.body.resolveFilePath(ref.content);
 				if (!resolved || seen.has(resolved)) {
 					continue;
 				}

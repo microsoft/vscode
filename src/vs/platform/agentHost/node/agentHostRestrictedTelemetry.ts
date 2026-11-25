@@ -39,6 +39,18 @@ export interface IAgentHostInternalTelemetryContext {
 	readonly isVscodeTeamMember: boolean;
 }
 
+/** The Copilot account that attributes and routes one GH standard telemetry event. */
+export interface IAgentHostGitHubTelemetryContext {
+	readonly trackingId: string | undefined;
+	/** The account's telemetry POST URL; `undefined` uses the dotcom default. */
+	readonly telemetryEndpoint: string | undefined;
+}
+
+/** Converts a CAPI `endpoints.telemetry` base URL into the telemetry POST URL. */
+export function toRestrictedTelemetryEndpoint(endpoint: string | undefined): string | undefined {
+	return endpoint ? `${endpoint.replace(/\/+$/, '')}/telemetry` : undefined;
+}
+
 export interface IAgentHostRestrictedTelemetryContext extends IAgentHostInternalTelemetryContext {
 	readonly restrictedTelemetryEnabled: boolean;
 	readonly telemetryEndpoint: string | undefined;
@@ -81,7 +93,9 @@ const COMPRESSED_CHUNK_SUFFIX = 'Chunk';
 // Fields that are always emitted as a compressed chunk family, regardless of their length. These
 // are known to frequently exceed the per-property limit, so always producing the compressed chunk
 // family gives the backend a single, uniform place to read the value from.
-const ALWAYS_COMPRESSED_CHUNK_KEYS = new Set<string>(['messagesJson', 'diffsJSON']);
+// Tool definitions are listed under both spellings: this sender does not sanitize keys, so SDK
+// events forwarded verbatim may carry either the dotted or the underscored form.
+const ALWAYS_COMPRESSED_CHUNK_KEYS = new Set<string>(['messagesJson', 'messageText', 'diffsJSON', 'prompt', 'request.option.tools', 'request_option_tools']);
 
 const gzip = promisify(zlib.gzip);
 
@@ -121,8 +135,15 @@ export async function multiplexProperties(properties: TelemetryProps): Promise<T
  * `ITelemetryService` restricted methods so agent-host code can emit the same GH/MSFT events.
  */
 export interface IAgentHostRestrictedTelemetry {
+	/**
+	 * When defined, indicates whether any restricted telemetry sink (enhanced GH or internal MSFT)
+	 * is currently active. Callers can skip payload preparation when this is `false`.
+	 */
+	readonly isRestrictedTelemetryActive?: boolean;
 	/** GH standard (non-restricted) telemetry -> `copilot_v0_copilot_event`. */
 	sendGHTelemetryEvent(eventName: string, properties?: TelemetryProps, measurements?: TelemetryMeasurements): void;
+	/** GH standard telemetry attributed and routed using the account of the credential that did the work. */
+	sendGHTelemetryEventForContext(context: IAgentHostGitHubTelemetryContext, eventName: string, properties?: TelemetryProps, measurements?: TelemetryMeasurements): void;
 	/** GH enhanced/restricted telemetry (prompts, tools, etc.) -> `copilot_v0_restricted_copilot_event`. */
 	sendEnhancedGHTelemetryEvent(eventName: string, properties?: TelemetryProps, measurements?: TelemetryMeasurements): void;
 	/** GH enhanced telemetry attributed and routed using an immutable per-session context. */
@@ -133,8 +154,8 @@ export interface IAgentHostRestrictedTelemetry {
 	sendInternalMSFTTelemetryEventForContext(context: IAgentHostInternalTelemetryContext, eventName: string, properties?: TelemetryProps, measurements?: TelemetryMeasurements): void;
 	/** Sets the Copilot user tracking id (`copilot_trackingId`) carried on every subsequent event. */
 	setCopilotTrackingId(trackingId: string | undefined): void;
-	/** Adds a property carried on every subsequent event, mirroring `ITelemetryService.setCommonProperty`. */
-	setCommonProperty(name: string, value: string | boolean): void;
+	/** Adds or removes a property carried on every subsequent event, mirroring `ITelemetryService.setCommonProperty`. */
+	setCommonProperty(name: string, value: string | boolean | undefined): void;
 	/** Overrides the POST endpoint with the user's CAPI `endpoints.telemetry`; falsy restores the default. */
 	setRestrictedTelemetryEndpoint(endpointUrl: string | undefined): void;
 	/** Enables enhanced GH telemetry once the authenticated account opts in; off by default and on flip/logout. */
@@ -166,18 +187,27 @@ export class AgentHostRestrictedTelemetrySender implements IAgentHostRestrictedT
 		private readonly _internalSink?: IAgentHostInternalTelemetrySink,
 		private readonly _fetchFn: FetchFn = globalThis.fetch,
 	) {
+		const editorVersion = asString(commonProperties['version']);
 		// Map the resolved common properties onto the GH property names the hydro schema reads.
 		this._commonProps = {
 			client_machineid: asString(commonProperties['common.machineId']),
 			client_deviceid: asString(commonProperties['common.devDeviceId']),
 			client_sessionid: asString(commonProperties['sessionID']),
 			common_os: asString(commonProperties['common.nodePlatform']) ?? process.platform,
-			editor_version: asString(commonProperties['version']),
+			// Match the application identity supplied to the Copilot SDK through clientInfo.
+			editor_version: editorVersion === undefined ? undefined : `vscode-agent-host/${editorVersion}`,
 		};
 	}
 
 	sendGHTelemetryEvent(eventName: string, properties?: TelemetryProps, measurements?: TelemetryMeasurements): void {
 		this._post(GH_STANDARD_IKEY, eventName, properties, measurements);
+	}
+
+	sendGHTelemetryEventForContext(context: IAgentHostGitHubTelemetryContext, eventName: string, properties?: TelemetryProps, measurements?: TelemetryMeasurements): void {
+		this._post(GH_STANDARD_IKEY, eventName, properties, measurements, {
+			endpointUrl: context.telemetryEndpoint,
+			trackingId: context.trackingId,
+		});
 	}
 
 	sendEnhancedGHTelemetryEvent(eventName: string, properties?: TelemetryProps, measurements?: TelemetryMeasurements): void {
@@ -229,8 +259,12 @@ export class AgentHostRestrictedTelemetrySender implements IAgentHostRestrictedT
 		this._commonProps.copilot_trackingId = trackingId || undefined;
 	}
 
-	setCommonProperty(name: string, value: string | boolean): void {
-		this._commonProps[name] = String(value);
+	setCommonProperty(name: string, value: string | boolean | undefined): void {
+		if (value === undefined) {
+			delete this._commonProps[name];
+		} else {
+			this._commonProps[name] = String(value);
+		}
 	}
 
 	setRestrictedTelemetryEndpoint(endpointUrl: string | undefined): void {

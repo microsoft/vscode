@@ -177,6 +177,7 @@ export class SearchWidget extends Widget {
 	readonly onDidToggleContext: Event<void> = this._onDidToggleContext.event;
 
 	private showContextToggle!: Toggle;
+	private hideSearchOptions = false;
 	public contextLinesInput!: InputBox;
 
 	private _notebookFilters: NotebookFindFilters;
@@ -311,8 +312,13 @@ export class SearchWidget extends Widget {
 		this.searchInput.inputBox.setAriaLabel(searchLabel);
 	}
 
-	setWidth(width: number) {
-		this.searchInput?.inputBox.layout();
+	setWidth(width: number, hideSearchOptions = false) {
+		this.hideSearchOptions = hideSearchOptions;
+		this.searchInput?.layout({
+			collapsedFindWidget: hideSearchOptions,
+			narrowFindWidget: false,
+			reducedFindWidget: false,
+		});
 		if (this.replaceInput) {
 			this.replaceInput.width = width - 28;
 			this.replaceInput.inputBox.layout();
@@ -700,7 +706,7 @@ export class SearchWidget extends Widget {
 			keyboardEvent.preventDefault();
 		}
 
-		else if (keyboardEvent.equals(KeyCode.Tab)) {
+		else if (keyboardEvent.equals(KeyCode.Tab) && !this.hideSearchOptions) {
 			if (this.isReplaceShown()) {
 				this.replaceInput?.focus();
 			} else {
@@ -710,12 +716,12 @@ export class SearchWidget extends Widget {
 		}
 
 		else if (keyboardEvent.equals(KeyCode.UpArrow)) {
-			// eslint-disable-next-line no-restricted-syntax
+			// eslint-disable-next-line eslint-js/no-restricted-syntax
 			stopPropagationForMultiLineUpwards(keyboardEvent, this.searchInput?.getValue() ?? '', this.searchInput?.domNode.querySelector('textarea') ?? null);
 		}
 
 		else if (keyboardEvent.equals(KeyCode.DownArrow)) {
-			// eslint-disable-next-line no-restricted-syntax
+			// eslint-disable-next-line eslint-js/no-restricted-syntax
 			stopPropagationForMultiLineDownwards(keyboardEvent, this.searchInput?.getValue() ?? '', this.searchInput?.domNode.querySelector('textarea') ?? null);
 		}
 
@@ -794,12 +800,12 @@ export class SearchWidget extends Widget {
 		}
 
 		else if (keyboardEvent.equals(KeyCode.UpArrow)) {
-			// eslint-disable-next-line no-restricted-syntax
+			// eslint-disable-next-line eslint-js/no-restricted-syntax
 			stopPropagationForMultiLineUpwards(keyboardEvent, this.replaceInput?.getValue() ?? '', this.replaceInput?.domNode.querySelector('textarea') ?? null);
 		}
 
 		else if (keyboardEvent.equals(KeyCode.DownArrow)) {
-			// eslint-disable-next-line no-restricted-syntax
+			// eslint-disable-next-line eslint-js/no-restricted-syntax
 			stopPropagationForMultiLineDownwards(keyboardEvent, this.replaceInput?.getValue() ?? '', this.replaceInput?.domNode.querySelector('textarea') ?? null);
 		}
 	}

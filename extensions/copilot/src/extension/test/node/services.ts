@@ -76,7 +76,9 @@ import { ToolGroupingService } from '../../tools/common/virtualTools/toolGroupin
 import '../../tools/node/allTools';
 import { TestToolsService } from '../../tools/node/test/testToolsService';
 import { TestToolEmbeddingsComputer } from '../../tools/test/node/virtualTools/testVirtualTools';
+import { INextEditLanguageContextService } from '../../xtab/common/nextEditLanguageContextService';
 import { ISimilarFilesContextService, NullSimilarFilesContextService } from '../../xtab/common/similarFilesContextService';
+import { ContextProviderLanguageContextService } from '../../xtab/node/contextProviderLanguageContextService';
 
 export interface ISimulationModelConfig {
 	chatModel?: string;
@@ -150,6 +152,7 @@ export function createExtensionUnitTestingServices(disposables: Pick<DisposableS
 	testingServiceCollection.define(IChatDebugFileLoggerService, new SyncDescriptor(NullChatDebugFileLoggerService));
 	testingServiceCollection.define(IChatWebSocketManager, new SyncDescriptor(NullChatWebSocketManager));
 	testingServiceCollection.define(ISimilarFilesContextService, new SyncDescriptor(NullSimilarFilesContextService));
+	testingServiceCollection.define(INextEditLanguageContextService, new SyncDescriptor(ContextProviderLanguageContextService));
 	testingServiceCollection.define(IAutomodeService, new SyncDescriptor(NullAutomodeService));
 	testingServiceCollection.define(ISessionStore, new SessionStore(':memory:'));
 	return testingServiceCollection;
@@ -188,11 +191,7 @@ class NullAutomodeService implements IAutomodeService {
 		return { discountRange: { low: 0, high: 0 } };
 	}
 
-	areAutoModeTiersSupported(): boolean {
-		return false;
-	}
-
-	readonly onDidChangeAutoModeTierSupport = Event.None;
+	readonly onDidRoute = Event.None;
 
 	invalidateRouterCache(): void { }
 }

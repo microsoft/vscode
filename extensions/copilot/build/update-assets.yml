@@ -1,6 +1,10 @@
 trigger: none
 pr: none
 
+variables:
+  - name: Codeql.SkipTaskAutoInjection
+    value: true
+
 resources:
   repositories:
     - repository: 1esPipelines

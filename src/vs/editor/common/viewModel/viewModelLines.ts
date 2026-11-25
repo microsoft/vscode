@@ -22,7 +22,7 @@ import { LineInjectedText } from '../textModelEvents.js';
 export interface IViewModelLines extends IDisposable {
 	createCoordinatesConverter(): ICoordinatesConverter;
 
-	setWrappingSettings(fontInfo: FontInfo, wrappingStrategy: 'simple' | 'advanced', wrappingColumn: number, wrappingIndent: WrappingIndent, wordBreak: 'normal' | 'keepAll'): boolean;
+	setWrappingSettings(fontInfo: FontInfo, wrappingStrategy: 'simple' | 'advanced', wrappingColumn: number, wrappingIndent: WrappingIndent, wordBreak: 'normal' | 'keepAll', useTwoCellFullwidthCharacters: boolean): boolean;
 	setTabSize(newTabSize: number): boolean;
 	getHiddenAreas(): Range[];
 	setHiddenAreas(_ranges: readonly Range[]): boolean;
@@ -42,10 +42,16 @@ export interface IViewModelLines extends IDisposable {
 	getViewLineLength(viewLineNumber: number): number;
 	getViewLineMinColumn(viewLineNumber: number): number;
 	getViewLineMaxColumn(viewLineNumber: number): number;
+	getViewLineContinuesWithWrappedLine(viewLineNumber: number): boolean;
 	getViewLineData(viewLineNumber: number): ViewLineData;
 	getViewLinesData(viewStartLineNumber: number, viewEndLineNumber: number, needed: boolean[]): Array<ViewLineData | null>;
 
 	getDecorationsInRange(range: Range, ownerId: number, filterOutValidation: boolean, filterFontDecorations: boolean, onlyMinimapDecorations: boolean, onlyMarginDecorations: boolean): IModelDecoration[];
+	/**
+	 * The model range from which {@link getDecorationsInRange} reads the decorations of the view range `range`,
+	 * or `null` if it reads them from several model ranges (when `range` contains hidden lines).
+	 */
+	getDecorationsModelRange(range: Range): Range | null;
 
 	getInjectedTextAt(viewPosition: Position): InjectedText | null;
 
@@ -72,6 +78,7 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 	private wordBreak: 'normal' | 'keepAll';
 	private wrappingStrategy: 'simple' | 'advanced';
 	private wrapOnEscapedLineFeeds: boolean;
+	private useTwoCellFullwidthCharacters: boolean;
 
 	private modelLineProjections!: IModelLineProjection[];
 
@@ -93,7 +100,8 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 		wrappingColumn: number,
 		wrappingIndent: WrappingIndent,
 		wordBreak: 'normal' | 'keepAll',
-		wrapOnEscapedLineFeeds: boolean
+		wrapOnEscapedLineFeeds: boolean,
+		useTwoCellFullwidthCharacters: boolean
 	) {
 		this._editorId = editorId;
 		this.model = model;
@@ -107,6 +115,7 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 		this.wrappingIndent = wrappingIndent;
 		this.wordBreak = wordBreak;
 		this.wrapOnEscapedLineFeeds = wrapOnEscapedLineFeeds;
+		this.useTwoCellFullwidthCharacters = useTwoCellFullwidthCharacters;
 
 		this._constructLines(/*resetHiddenAreas*/true, null);
 	}
@@ -274,23 +283,25 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 		return true;
 	}
 
-	public setWrappingSettings(fontInfo: FontInfo, wrappingStrategy: 'simple' | 'advanced', wrappingColumn: number, wrappingIndent: WrappingIndent, wordBreak: 'normal' | 'keepAll'): boolean {
+	public setWrappingSettings(fontInfo: FontInfo, wrappingStrategy: 'simple' | 'advanced', wrappingColumn: number, wrappingIndent: WrappingIndent, wordBreak: 'normal' | 'keepAll', useTwoCellFullwidthCharacters: boolean): boolean {
 		const equalFontInfo = this.fontInfo.equals(fontInfo);
 		const equalWrappingStrategy = (this.wrappingStrategy === wrappingStrategy);
 		const equalWrappingColumn = (this.wrappingColumn === wrappingColumn);
 		const equalWrappingIndent = (this.wrappingIndent === wrappingIndent);
 		const equalWordBreak = (this.wordBreak === wordBreak);
-		if (equalFontInfo && equalWrappingStrategy && equalWrappingColumn && equalWrappingIndent && equalWordBreak) {
+		const equalUseTwoCellFullwidthCharacters = (this.useTwoCellFullwidthCharacters === useTwoCellFullwidthCharacters);
+		if (equalFontInfo && equalWrappingStrategy && equalWrappingColumn && equalWrappingIndent && equalWordBreak && equalUseTwoCellFullwidthCharacters) {
 			return false;
 		}
 
-		const onlyWrappingColumnChanged = (equalFontInfo && equalWrappingStrategy && !equalWrappingColumn && equalWrappingIndent && equalWordBreak);
+		const onlyWrappingColumnChanged = (equalFontInfo && equalWrappingStrategy && !equalWrappingColumn && equalWrappingIndent && equalWordBreak && equalUseTwoCellFullwidthCharacters);
 
 		this.fontInfo = fontInfo;
 		this.wrappingStrategy = wrappingStrategy;
 		this.wrappingColumn = wrappingColumn;
 		this.wrappingIndent = wrappingIndent;
 		this.wordBreak = wordBreak;
+		this.useTwoCellFullwidthCharacters = useTwoCellFullwidthCharacters;
 
 		let previousLineBreaks: ((ModelLineProjectionData | null)[]) | null = null;
 		if (onlyWrappingColumnChanged) {
@@ -319,7 +330,7 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 				return this.model.getLineInjectedText(lineNumber, this._editorId);
 			}
 		};
-		return lineBreaksComputerFactory.createLineBreaksComputer(context, this.fontInfo, this.tabSize, this.wrappingColumn, this.wrappingIndent, this.wordBreak, this.wrapOnEscapedLineFeeds);
+		return lineBreaksComputerFactory.createLineBreaksComputer(context, this.fontInfo, this.tabSize, this.wrappingColumn, this.wrappingIndent, this.wordBreak, this.wrapOnEscapedLineFeeds, this.useTwoCellFullwidthCharacters);
 	}
 
 	public onModelFlushed(): void {
@@ -754,6 +765,11 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 		return this.modelLineProjections[info.modelLineNumber - 1].getViewLineMaxColumn(this.model, info.modelLineNumber, info.modelLineWrappedLineIdx);
 	}
 
+	public getViewLineContinuesWithWrappedLine(viewLineNumber: number): boolean {
+		const info = this.getViewLineInfo(viewLineNumber);
+		return this.modelLineProjections[info.modelLineNumber - 1].getViewLineContinuesWithWrappedLine(info.modelLineWrappedLineIdx);
+	}
+
 	public getViewLineData(viewLineNumber: number): ViewLineData {
 		const info = this.getViewLineInfo(viewLineNumber);
 		const baseViewLineNumber = this.projectedModelLineLineCounts.getPrefixSum(info.modelLineNumber - 1) + 1;
@@ -920,16 +936,26 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 		return this.modelLineProjections[lineIndex].getViewLineNumberOfModelPosition(deltaLineNumber, this.model.getLineMaxColumn(lineIndex + 1));
 	}
 
-	public getDecorationsInRange(range: Range, ownerId: number, filterOutValidation: boolean, filterFontDecorations: boolean, onlyMinimapDecorations: boolean, onlyMarginDecorations: boolean): IModelDecoration[] {
+	public getDecorationsModelRange(range: Range): Range | null {
 		const modelStart = this.convertViewPositionToModelPosition(range.startLineNumber, range.startColumn);
 		const modelEnd = this.convertViewPositionToModelPosition(range.endLineNumber, range.endColumn);
 
 		if (modelEnd.lineNumber - modelStart.lineNumber <= range.endLineNumber - range.startLineNumber) {
 			// most likely there are no hidden lines => fast path
 			// fetch decorations from column 1 to cover the case of wrapped lines that have whole line decorations at column 1
-			return this.model.getDecorationsInRange(new Range(modelStart.lineNumber, 1, modelEnd.lineNumber, modelEnd.column), ownerId, filterOutValidation, filterFontDecorations, onlyMinimapDecorations, onlyMarginDecorations);
+			return new Range(modelStart.lineNumber, 1, modelEnd.lineNumber, modelEnd.column);
+		}
+		return null;
+	}
+
+	public getDecorationsInRange(range: Range, ownerId: number, filterOutValidation: boolean, filterFontDecorations: boolean, onlyMinimapDecorations: boolean, onlyMarginDecorations: boolean): IModelDecoration[] {
+		const modelRange = this.getDecorationsModelRange(range);
+		if (modelRange) {
+			return this.model.getDecorationsInRange(modelRange, ownerId, filterOutValidation, filterFontDecorations, onlyMinimapDecorations, onlyMarginDecorations);
 		}
 
+		const modelStart = this.convertViewPositionToModelPosition(range.startLineNumber, range.startColumn);
+		const modelEnd = this.convertViewPositionToModelPosition(range.endLineNumber, range.endColumn);
 		let result: IModelDecoration[] = [];
 		const modelStartLineIndex = modelStart.lineNumber - 1;
 		const modelEndLineIndex = modelEnd.lineNumber - 1;
@@ -1225,6 +1251,10 @@ export class ViewModelLinesFromModelAsIs implements IViewModelLines {
 		return this.model.getLineMaxColumn(viewLineNumber);
 	}
 
+	public getViewLineContinuesWithWrappedLine(_viewLineNumber: number): boolean {
+		return false;
+	}
+
 	public getViewLineData(viewLineNumber: number): ViewLineData {
 		const lineTokens = this.model.tokenization.getLineTokens(viewLineNumber);
 		const lineContent = lineTokens.getLineContent();
@@ -1255,6 +1285,10 @@ export class ViewModelLinesFromModelAsIs implements IViewModelLines {
 
 	public getDecorationsInRange(range: Range, ownerId: number, filterOutValidation: boolean, filterFontDecorations: boolean, onlyMinimapDecorations: boolean, onlyMarginDecorations: boolean): IModelDecoration[] {
 		return this.model.getDecorationsInRange(range, ownerId, filterOutValidation, filterFontDecorations, onlyMinimapDecorations, onlyMarginDecorations);
+	}
+
+	public getDecorationsModelRange(range: Range): Range {
+		return range;
 	}
 
 	normalizePosition(position: Position, affinity: PositionAffinity): Position {

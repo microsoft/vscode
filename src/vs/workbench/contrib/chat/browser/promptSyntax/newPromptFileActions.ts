@@ -3,10 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { VSBuffer } from '../../../../../base/common/buffer.js';
+import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { getCodeEditor, ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { SnippetController2 } from '../../../../../editor/contrib/snippet/browser/snippetController2.js';
+import { SnippetParser } from '../../../../../editor/contrib/snippet/browser/snippetParser.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
@@ -300,6 +304,7 @@ class NewSkillFileAction extends Action2 {
 		const fileService = accessor.get(IFileService);
 		const instaService = accessor.get(IInstantiationService);
 		const quickInputService = accessor.get(IQuickInputService);
+		const notificationService = accessor.get(INotificationService);
 
 		let folderUri: URI;
 		if (options?.targetFolder) {
@@ -336,6 +341,15 @@ class NewSkillFileAction extends Action2 {
 				if (name.includes('--')) {
 					return localize('commands.new.skill.name.consecutiveHyphens', "Skill name must not contain consecutive hyphens");
 				}
+				const skillFolder = URI.joinPath(folderUri, name);
+				if (await fileService.exists(URI.joinPath(skillFolder, SKILL_FILENAME))) {
+					return localize('commands.new.skill.name.exists', "A skill with this name already exists");
+				}
+				// An existing folder without a skill file can receive one, but a file blocks the folder
+				const stat = await fileService.stat(skillFolder).catch(() => undefined);
+				if (stat && !stat.isDirectory) {
+					return localize('commands.new.skill.name.fileExists', "A file with this name already exists");
+				}
 				return undefined;
 			}
 		});
@@ -348,10 +362,15 @@ class NewSkillFileAction extends Action2 {
 
 		// Create the skill folder and SKILL.md file
 		const skillFolder = URI.joinPath(folderUri, trimmedName);
-		await fileService.createFolder(skillFolder);
-
 		const skillFileUri = URI.joinPath(skillFolder, SKILL_FILENAME);
-		await fileService.createFile(skillFileUri);
+		const template = getDefaultContentSnippet(PromptsType.skill, trimmedName, Target.Undefined);
+		try {
+			await fileService.createFolder(skillFolder);
+			await fileService.createFile(skillFileUri, VSBuffer.fromString(SnippetParser.asInsertText(template)));
+		} catch (error) {
+			notificationService.error(localize('commands.new.skill.createFailed', "Unable to create skill '{0}': {1}", trimmedName, toErrorMessage(error)));
+			return;
+		}
 
 		let editor: ICodeEditor | null | undefined;
 		if (options?.openFile) {
@@ -363,7 +382,7 @@ class NewSkillFileAction extends Action2 {
 		if (editor && editor.hasModel() && isEqual(editor.getModel().uri, skillFileUri)) {
 			SnippetController2.get(editor)?.apply([{
 				range: editor.getModel().getFullModelRange(),
-				template: getDefaultContentSnippet(PromptsType.skill, trimmedName, Target.Undefined),
+				template,
 			}]);
 		}
 	}
@@ -409,10 +428,13 @@ class NewUntitledPromptFileAction extends Action2 {
 	}
 }
 
-export function registerNewPromptFileActions(): void {
-	registerAction2(NewPromptFileAction);
-	registerAction2(NewInstructionsFileAction);
-	registerAction2(NewAgentFileAction);
-	registerAction2(NewSkillFileAction);
-	registerAction2(NewUntitledPromptFileAction);
+export function registerNewPromptFileActions(): DisposableStore {
+	const store = new DisposableStore();
+	store.add(registerAction2(NewPromptFileAction));
+	store.add(registerAction2(NewInstructionsFileAction));
+	store.add(registerAction2(NewAgentFileAction));
+	store.add(registerAction2(NewSkillFileAction));
+	store.add(registerAction2(NewUntitledPromptFileAction));
+
+	return store;
 }

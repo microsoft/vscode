@@ -172,8 +172,6 @@ async function doIt(filepaths: string[]) {
 
 			'vs/platform/instantiation/common/instantiationService.ts',
 			'vs/editor/common/core/edits/lineEdit.ts',
-			'vs/editor/common/core/edits/lengthEdit.ts',
-			'vs/editor/common/core/edits/arrayEdit.ts',
 			'vs/editor/common/core/text/positionToOffset.ts',
 			'vs/editor/common/model/mirrorTextModel.ts',
 
@@ -190,6 +188,7 @@ async function doIt(filepaths: string[]) {
 			'vs/workbench/api/common/extHostTypes/symbolInformation.ts',
 			'vs/workbench/api/common/extHostDocumentData.ts',
 			'vs/workbench/contrib/chat/common/promptSyntax/promptFileParser.ts',
+			'vs/workbench/contrib/terminalContrib/suggest/browser/terminalGitBashHelpers.ts',
 
 			'vs/base/common/sseParser.ts',
 

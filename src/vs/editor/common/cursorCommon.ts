@@ -98,6 +98,7 @@ export class CursorConfiguration {
 			|| e.hasChanged(EditorOption.autoClosingDelete)
 			|| e.hasChanged(EditorOption.autoClosingOvertype)
 			|| e.hasChanged(EditorOption.autoSurround)
+			|| e.hasChanged(EditorOption.autoIndent)
 			|| e.hasChanged(EditorOption.useTabStops)
 			|| e.hasChanged(EditorOption.trimWhitespaceOnDelete)
 			|| e.hasChanged(EditorOption.fontInfo)
@@ -406,6 +407,12 @@ export class EditOperationResult {
 	readonly commands: Array<ICommand | null>;
 	readonly shouldPushStackElementBefore: boolean;
 	readonly shouldPushStackElementAfter: boolean;
+	/**
+	 * An optional edit operation which is computed from the selections resulting
+	 * from executing this edit operation, and which is executed right after it.
+	 * It can return `null` to skip the follow-up edit.
+	 */
+	readonly followUp: ((selections: Selection[]) => EditOperationResult | null) | undefined;
 
 	constructor(
 		type: EditOperationType,
@@ -413,12 +420,14 @@ export class EditOperationResult {
 		opts: {
 			shouldPushStackElementBefore: boolean;
 			shouldPushStackElementAfter: boolean;
+			followUp?: (selections: Selection[]) => EditOperationResult | null;
 		}
 	) {
 		this.type = type;
 		this.commands = commands;
 		this.shouldPushStackElementBefore = opts.shouldPushStackElementBefore;
 		this.shouldPushStackElementAfter = opts.shouldPushStackElementAfter;
+		this.followUp = opts.followUp;
 	}
 }
 

@@ -27,8 +27,8 @@ export function buildReviewedRefName(sanitizedSessionId: string): string {
  *
  * All operations are keyed on the Branch Changes baseline (the merge-base of
  * `HEAD` and the session's base branch). The `baseBranch` argument is the
- * already-resolved base-branch **name** (see `resolveDiffBaseBranchName`),
- * shared with the changeset service so both agree on the baseline.
+ * base branch exactly as recorded (e.g. `refs/remotes/origin/main`), shared with the
+ * changeset service so both agree on the baseline.
  *
  * Operations are no-ops when the working directory is not inside a git
  * repository; a future milestone will add a non-git fallback (see the
@@ -68,10 +68,10 @@ export interface IAgentHostReviewService {
 	 * Copies the reviewed ref from `sourceSessionUri` to `targetSessionUri` so a
 	 * forked session starts with the parent's review progress. Points the
 	 * target's reviewed ref at the same commit as the source's (git objects are
-	 * shared within the repository). No-op when the source has no reviewed ref or
-	 * the directory is not a git work tree.
+	 * shared within each repository). No-op when the source has no reviewed ref
+	 * or none of the target directories are in a git work tree.
 	 */
-	copyReviewedRef(sourceSession: ProtocolURI, targetSession: ProtocolURI, workingDirectory: URI): Promise<void>;
+	copyReviewedRef(sourceSession: ProtocolURI, targetSession: ProtocolURI, sourceWorkingDirectories: readonly URI[], targetWorkingDirectories: readonly URI[]): Promise<void>;
 }
 
 /**

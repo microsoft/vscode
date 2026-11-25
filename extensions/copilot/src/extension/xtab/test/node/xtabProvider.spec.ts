@@ -10,14 +10,17 @@ import { ChatFetchResponseType, RESPONSE_CONTAINED_NO_CHOICES } from '../../../.
 import { StreamingMockChatMLFetcher } from '../../../../platform/chat/test/common/streamingMockChatMLFetcher';
 import { ConfigKey, IConfigurationService } from '../../../../platform/configuration/common/configurationService';
 import { InMemoryConfigurationService } from '../../../../platform/configuration/test/common/inMemoryConfigurationService';
+import { IEndpointProvider } from '../../../../platform/endpoint/common/endpointProvider';
+import { MockEndpoint } from '../../../../platform/endpoint/test/node/mockEndpoint';
 import { DocumentId } from '../../../../platform/inlineEdits/common/dataTypes/documentId';
-import { Edits } from '../../../../platform/inlineEdits/common/dataTypes/edit';
+import { Edits, RootedEdit } from '../../../../platform/inlineEdits/common/dataTypes/edit';
 import { ImportChanges } from '../../../../platform/inlineEdits/common/dataTypes/importFilteringOptions';
 import { LanguageId } from '../../../../platform/inlineEdits/common/dataTypes/languageId';
-import { AggressivenessLevel, DEFAULT_OPTIONS, EarlyDivergenceCancellationMode, LanguageContextLanguages, LintOptionShowCode, LintOptionWarning, ModelConfiguration, PatchModelPrediction, PromptingStrategy, ResponseFormat } from '../../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
+import { AggressivenessLevel, AggressivenessSetting, applyStrategyConfig, DEFAULT_OPTIONS, EarlyDivergenceCancellationMode, LanguageContextLanguages, LintOptionShowCode, LintOptionWarning, ModelConfiguration, PatchModelPrediction, PromptingStrategy, RejectedEditsMemoryMode, ResponseFormat } from '../../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
 import { InlineEditRequestLogContext } from '../../../../platform/inlineEdits/common/inlineEditLogContext';
 import { IInlineEditsModelService } from '../../../../platform/inlineEdits/common/inlineEditsModelService';
 import { NoNextEditReason, StatelessNextEditDocument, StatelessNextEditRequest, StreamedEdit, WithStatelessProviderTelemetry } from '../../../../platform/inlineEdits/common/statelessNextEditProvider';
+import { IXtabHistoryEditEntry } from '../../../../platform/inlineEdits/common/workspaceEditTracker/nesXtabHistoryTracker';
 import { ILogger } from '../../../../platform/log/common/logService';
 import { FilterReason } from '../../../../platform/networking/common/openai';
 import { ISimulationTestContext } from '../../../../platform/simulationTestContext/common/simulationTestContext';
@@ -29,7 +32,10 @@ import { createTextDocumentData } from '../../../../util/common/test/shims/textD
 import { DeferredPromise } from '../../../../util/vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from '../../../../util/vs/base/common/cancellation';
 import { Emitter, Event } from '../../../../util/vs/base/common/event';
+import { constObservable } from '../../../../util/vs/base/common/observable';
 import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
+import { Schemas } from '../../../../util/vs/base/common/network';
+import { isWindows } from '../../../../util/vs/base/common/platform';
 import { URI } from '../../../../util/vs/base/common/uri';
 import { LineEdit, LineReplacement } from '../../../../util/vs/editor/common/core/edits/lineEdit';
 import { StringEdit, StringReplacement } from '../../../../util/vs/editor/common/core/edits/stringEdit';
@@ -38,6 +44,7 @@ import { LineRange } from '../../../../util/vs/editor/common/core/ranges/lineRan
 import { OffsetRange } from '../../../../util/vs/editor/common/core/ranges/offsetRange';
 import { StringText } from '../../../../util/vs/editor/common/core/text/abstractText';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
+import { SyncDescriptor } from '../../../../util/vs/platform/instantiation/common/descriptors';
 import { DelaySession } from '../../../inlineEdits/common/delay';
 import { createExtensionUnitTestingServices } from '../../../test/node/services';
 import { N_LINES_AS_CONTEXT } from '../../common/promptCrafting';
@@ -103,6 +110,7 @@ class MockInlineEditsModelService implements IInlineEditsModelService {
 	declare readonly _serviceBrand: undefined;
 	readonly modelInfo = undefined;
 	readonly onModelListUpdated: Event<void> = new Emitter<void>().event;
+	readonly supportsUnifiedCompletions = constObservable<boolean | undefined>(undefined);
 
 	private _selectedConfig: ModelConfiguration = {
 		modelName: 'test-model',
@@ -128,12 +136,40 @@ class MockInlineEditsModelService implements IInlineEditsModelService {
 		return this._defaultConfig;
 	}
 
+	async ensureModelSelection(): Promise<void> { }
+
 	setSelectedConfig(config: Partial<ModelConfiguration>): void {
 		this._selectedConfig = { ...this._selectedConfig, ...config };
 	}
 
 	setDefaultConfig(config: Partial<ModelConfiguration>): void {
 		this._defaultConfig = { ...this._defaultConfig, ...config };
+	}
+}
+
+class MockXtabEndpointProvider implements IEndpointProvider {
+	declare readonly _serviceBrand: undefined;
+	readonly onDidModelsRefresh = Event.None;
+	private readonly endpoint: MockEndpoint;
+
+	constructor(@IInstantiationService instaService: IInstantiationService) {
+		this.endpoint = instaService.createInstance(MockEndpoint, 'test-model');
+	}
+
+	async getAllCompletionModels() {
+		return [];
+	}
+
+	async getAllChatEndpoints() {
+		return [this.endpoint];
+	}
+
+	async getChatEndpoint() {
+		return this.endpoint;
+	}
+
+	async getEmbeddingsEndpoint(): Promise<never> {
+		throw new Error('Embeddings are not used by XtabProvider tests');
 	}
 }
 
@@ -167,6 +203,9 @@ describe('pickSystemPrompt', () => {
 		PromptingStrategy.PatchBased01,
 		PromptingStrategy.PatchBased02,
 		PromptingStrategy.PatchBased02WithRecentLineNumbers,
+		PromptingStrategy.PatchBased02Unified,
+		PromptingStrategy.PatchBased02UnifiedEagerness,
+		PromptingStrategy.PatchBased02UnifiedEagernessLowMedium,
 		PromptingStrategy.PatchBased02WithoutRecentLineNumbers,
 		PromptingStrategy.Xtab275,
 		PromptingStrategy.XtabAggressiveness,
@@ -270,6 +309,18 @@ describe('overrideModelConfig', () => {
 		expect(result.pagedClipping).toEqual(base.pagedClipping);
 		expect(result.recentlyViewedDocuments).toEqual(base.recentlyViewedDocuments);
 		expect(result.diffHistory).toEqual(base.diffHistory);
+	});
+
+	it('propagates the eagerness prompt from model configuration', () => {
+		const result = overrideModelConfig(makeBaseModelConfig(), {
+			modelName: 'four-in-one-model',
+			promptingStrategy: PromptingStrategy.PatchBased02UnifiedEagerness,
+			eagernessPrompt: 'aggressionHighLow',
+			includeTagsInCurrentFile: false,
+			lintOptions: undefined,
+		});
+
+		expect(result.eagernessPrompt).toBe('aggressionHighLow');
 	});
 
 	it('merges lintOptions when overridingConfig has lintOptions', () => {
@@ -522,6 +573,59 @@ describe('getPredictionContents', () => {
 		expect(result.endsWith(':')).toBe(true);
 	});
 
+	it.skipIf(!isWindows)('preserves spaces in a workspace-relative Windows path', () => {
+		const lines = ['def my_function'];
+		const text = new StringText(lines.join('\n'));
+		const workspaceRoot = URI.file('C:\\workspace');
+		const doc = new StatelessNextEditDocument(
+			DocumentId.create(URI.file('C:\\workspace\\space folder\\test.py').toString()),
+			workspaceRoot,
+			LanguageId.create('python'),
+			lines,
+			LineEdit.empty,
+			text,
+			new Edits(StringEdit, []),
+		);
+
+		expect(call(lines, ResponseFormat.CustomDiffPatch, { doc })).toBe('space folder/test.py:');
+	});
+
+	it.skipIf(!isWindows)('normalizes the drive letter for a file-backed notebook cell', () => {
+		const lines = ['print("hello")'];
+		const text = new StringText(lines.join('\n'));
+		const workspaceRoot = URI.file('C:\\workspace');
+		const cellUri = URI.file('C:\\workspace\\notebook.ipynb').with({ scheme: Schemas.vscodeNotebookCell, fragment: 'ch000001' });
+		const doc = new StatelessNextEditDocument(
+			DocumentId.create(cellUri.toString()),
+			workspaceRoot,
+			LanguageId.create('python'),
+			lines,
+			LineEdit.empty,
+			text,
+			new Edits(StringEdit, []),
+		);
+
+		expect(call(lines, ResponseFormat.CustomDiffPatch, { doc })).toBe('notebook.ipynb#ch000001:');
+	});
+
+	it.skipIf(!isWindows)('preserves path casing for a virtual notebook cell', () => {
+		const lines = ['print("hello")'];
+		const text = new StringText(lines.join('\n'));
+		const workspaceRoot = URI.from({ scheme: 'test-notebook', path: '/repo' });
+		const cellUri = URI.from({ scheme: Schemas.vscodeNotebookCell, path: '/Repo/notebook.ipynb', fragment: 'ch000001' });
+		const doc = new StatelessNextEditDocument(
+			DocumentId.create(cellUri.toString()),
+			workspaceRoot,
+			LanguageId.create('python'),
+			lines,
+			LineEdit.empty,
+			text,
+			new Edits(StringEdit, []),
+		);
+
+		expect(call(lines, ResponseFormat.CustomDiffPatch, { doc })).toBe('/Repo/notebook.ipynb#ch000001:');
+	});
+
 	it('returns correct content for CustomDiffPatch without workspace root', () => {
 		const result = call(editWindowLines, ResponseFormat.CustomDiffPatch);
 		expect(result.endsWith(':')).toBe(true);
@@ -705,6 +809,7 @@ describe('XtabProvider integration', () => {
 		insertedText?: string;
 		languageId?: string;
 		workspaceRoot?: URI;
+		docId?: DocumentId;
 	}): StatelessNextEditDocument {
 		const afterText = lines.join('\n');
 		const insertionOffset = opts?.insertionOffset ?? 0;
@@ -721,7 +826,7 @@ describe('XtabProvider integration', () => {
 		const recentEdits = new Edits(StringEdit, [recentStringEdit]);
 
 		return new StatelessNextEditDocument(
-			DocumentId.create('file:///test/file.ts'),
+			opts?.docId ?? DocumentId.create('file:///test/file.ts'),
 			opts?.workspaceRoot,
 			LanguageId.create(opts?.languageId ?? 'typescript'),
 			beforeLines,
@@ -1085,7 +1190,10 @@ describe('XtabProvider integration', () => {
 		});
 
 		it('retries with default model after NotFound response', async () => {
+			await configService.setConfig(ConfigKey.TeamInternal.InlineEditsXtabProviderUsePrediction, false);
 			const provider = createProvider();
+			mockModelService.setSelectedConfig({ reasoningEffort: 'low', maxCompletionTokens: 8192 });
+			mockModelService.setDefaultConfig({ reasoningEffort: 'none', maxCompletionTokens: 2048 });
 
 			const lines = ['const x = 1;'];
 			const request = createRequestWithEdit(lines, { insertionOffset: 3, insertedText: 'a' });
@@ -1103,8 +1211,13 @@ describe('XtabProvider integration', () => {
 			const gen = provider.provideNextEdit(request, createMockLogger(), createLogContext(), CancellationToken.None);
 			await AsyncIterUtils.drainUntilReturn(gen);
 
-			// Should have made two calls - first failed with NotFound, second retried
-			expect(streamingFetcher.callCount).toBe(2);
+			expect(streamingFetcher.capturedOptions.map(options => ({
+				reasoning_effort: options.requestOptions?.reasoning_effort,
+				max_completion_tokens: options.requestOptions?.max_completion_tokens,
+			}))).toEqual([
+				{ reasoning_effort: 'low', max_completion_tokens: 8192 },
+				{ reasoning_effort: 'none', max_completion_tokens: 2048 },
+			]);
 		});
 
 		it('does not loop infinitely on repeated NotFound', async () => {
@@ -1949,6 +2062,86 @@ describe('XtabProvider integration', () => {
 			openSpy.mockRestore();
 		});
 
+		it('cross-file cursor jump retry leaves out the history of files that commonly hold secrets', async () => {
+			const provider = createProvider();
+			await configService.setConfig(ConfigKey.InlineEditsNextCursorPredictionEnabled, true);
+			await configService.setConfig(ConfigKey.TeamInternal.InlineEditsNextCursorPredictionModelName, 'test-model');
+			mockModelService.setSelectedConfig({ memory: { rejectedEdits: RejectedEditsMemoryMode.DiffWithTags } });
+
+			// The request starts in `.env`, so its own history is context for it, but not for the jump target.
+			const envId = DocumentId.create(URI.file('/test/.env').toString());
+			const utilId = DocumentId.create(URI.file('/test/util.ts').toString());
+			const lines = ['API_TOKEN=secret42', ...Array.from({ length: 29 }, (_, i) => `KEY_${i}=value`)];
+			const cursorOffset = lines.slice(0, 5).join('\n').length;
+			const envDoc = makeDocumentWithEdit(lines, { insertionOffset: cursorOffset, docId: envId, languageId: 'dotenv' });
+			const historyEdit = (docId: DocumentId, ordinal: number, before: string, inserted: string): IXtabHistoryEditEntry => ({
+				kind: 'edit',
+				docId,
+				ordinal,
+				edit: new RootedEdit(new StringText(before), StringEdit.single(new StringReplacement(OffsetRange.emptyAt(before.length), inserted))),
+			});
+			const request = new StatelessNextEditRequest(
+				'req-1',
+				'opp-1',
+				new StringText(envDoc.documentBeforeEdits.value),
+				[envDoc],
+				0,
+				[historyEdit(utilId, 0, 'export function helper', 'Call() { }'), historyEdit(envId, 1, 'API_TOKEN=', 'secret42')],
+				new DeferredPromise<Result<unknown, NoNextEditReason>>(),
+				undefined,
+				false,
+				createLogContext(),
+				undefined,
+				undefined,
+				Date.now(),
+				[{ kind: 'rejectedEdit', docId: envId, ordinal: 2, hunks: [{ startLineNumber: 2, oldLines: [], newLines: ['DB_PASSWORD=rejected43'] }] }],
+			);
+
+			// 1st call (main LLM): edit-window lines unchanged → no edits → cursor jump path
+			streamingFetcher.enqueueResponse({
+				type: ChatFetchResponseType.Success,
+				requestId: 'req-main',
+				serverRequestId: 'srv-main',
+				usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0, prompt_tokens_details: { cached_tokens: 0 } },
+				value: lines.slice(3, 11).join('\n'),
+				resolvedModel: 'test-model',
+			});
+			// 2nd call (cursor prediction): jump into another file
+			streamingFetcher.enqueueResponse({
+				type: ChatFetchResponseType.Success,
+				requestId: 'req-cursor',
+				serverRequestId: 'srv-cursor',
+				usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0, prompt_tokens_details: { cached_tokens: 0 } },
+				value: '/test/other.ts:2',
+				resolvedModel: 'test-model',
+			});
+			// 3rd call (retry in the jump target): unchanged lines → no edits
+			const targetLines = Array.from({ length: 5 }, (_, i) => `other ${i}`);
+			streamingFetcher.setStreamingLines(targetLines);
+			const targetDoc = createTextDocumentData(URI.file('/test/other.ts'), targetLines.join('\n'), 'typescript').document;
+			const workspaceService = instaService.invokeFunction(accessor => accessor.get(IWorkspaceService));
+			const openSpy = vi.spyOn(workspaceService, 'openTextDocument').mockResolvedValue(targetDoc);
+
+			await collectEdits(provider.provideNextEdit(request, createMockLogger(), createLogContext(), CancellationToken.None));
+			openSpy.mockRestore();
+
+			const promptOfCall = (index: number) => streamingFetcher.capturedOptions[index].messages.map(getMessageText).join('\n');
+			const contextIn = (prompt: string) => ({
+				otherFileEdit: prompt.includes('helperCall'),
+				secretEdit: prompt.includes('secret42'),
+				rejectedSecretEdit: prompt.includes('rejected43'),
+			});
+			expect({
+				callCount: streamingFetcher.callCount,
+				envRequest: contextIn(promptOfCall(0)),
+				jumpTargetRequest: contextIn(promptOfCall(2)),
+			}).toEqual({
+				callCount: 3,
+				envRequest: { otherFileEdit: true, secretEdit: true, rejectedSecretEdit: true },
+				jumpTargetRequest: { otherFileEdit: true, secretEdit: false, rejectedSecretEdit: false },
+			});
+		});
+
 		it('model fallback retry on NotFound then yields edits on second attempt', async () => {
 			const provider = createProvider();
 
@@ -2014,6 +2207,48 @@ describe('XtabProvider integration', () => {
 	// ========================================================================
 
 	describe('debounce behavior', () => {
+		it.each([
+			[AggressivenessSetting.Low, '<|aggression|>low<|/aggression|>', []],
+			[AggressivenessSetting.Medium, undefined, []],
+			[AggressivenessSetting.Default, undefined, []],
+			[AggressivenessSetting.High, undefined, [[17]]],
+		] as const)('uses low/medium prompting and high timing for user eagerness=%s', async (setting, tag, debounceCalls) => {
+			mockModelService.setSelectedConfig(applyStrategyConfig({
+				modelName: 'test-model',
+				promptingStrategy: PromptingStrategy.PatchBased02UnifiedEagernessLowMedium,
+				includeTagsInCurrentFile: false,
+				lintOptions: undefined,
+			}));
+			await configService.setConfig(ConfigKey.Advanced.InlineEditsAggressiveness, setting);
+			await configService.setConfig(ConfigKey.TeamInternal.InlineEditsXtabAggressivenessLevel, AggressivenessLevel.Medium);
+			await configService.setConfig(ConfigKey.TeamInternal.InlineEditsAggressivenessHighDebounceMs, 17);
+			await configService.setConfig(ConfigKey.TeamInternal.InlineEditsAggressivenessLowMinResponseTimeMs, 23);
+			await configService.setConfig(ConfigKey.TeamInternal.InlineEditsAggressivenessMediumMinResponseTimeMs, 29);
+			const setBaseDebounceTime = vi.spyOn(DelaySession.prototype, 'setBaseDebounceTime');
+			const setExpectedTotalTime = vi.spyOn(DelaySession.prototype, 'setExpectedTotalTime');
+			try {
+				const lines = ['const x = 1;', 'const y = 2;'];
+				streamingFetcher.setStreamingLines([]);
+				const gen = createProvider().provideNextEdit(createRequestWithEdit(lines, { insertionOffset: 3 }), createMockLogger(), createLogContext(), CancellationToken.None);
+				const result = await AsyncIterUtils.drainUntilReturn(gen);
+				const userMessage = streamingFetcher.capturedOptions[0]?.messages.find(message => message.role === Raw.ChatRole.User);
+				expect({
+					result: result.v instanceof NoNextEditReason.NoSuggestions,
+					tag: userMessage && getMessageText(userMessage).match(/<\|aggression\|>.*?<\|\/aggression\|>/)?.[0],
+					debounceCalls: setBaseDebounceTime.mock.calls,
+					minResponseCalls: setExpectedTotalTime.mock.calls,
+				}).toEqual({
+					result: true,
+					tag,
+					debounceCalls,
+					minResponseCalls: [],
+				});
+			} finally {
+				setBaseDebounceTime.mockRestore();
+				setExpectedTotalTime.mockRestore();
+			}
+		});
+
 		it('does not change timing for a non-aggressiveness strategy when user eagerness is default', async () => {
 			mockModelService.setSelectedConfig({ promptingStrategy: PromptingStrategy.Xtab275 });
 			const setBaseDebounceTime = vi.spyOn(DelaySession.prototype, 'setBaseDebounceTime');
@@ -2237,6 +2472,83 @@ describe('XtabProvider integration', () => {
 	// ========================================================================
 
 	describe('prompt construction', () => {
+		it.each([
+			{ useMaxTokens: true, usePrediction: false },
+			{ useMaxTokens: false, usePrediction: false },
+			{ useMaxTokens: true, usePrediction: true },
+			{ useMaxTokens: false, usePrediction: true },
+		])('sends model request arguments with useMaxTokens=$useMaxTokens and usePrediction=$usePrediction', async ({ useMaxTokens, usePrediction }) => {
+			await configService.setConfig(ConfigKey.TeamInternal.InlineEditsXtabProviderUseMaxTokens, useMaxTokens);
+			await configService.setConfig(ConfigKey.TeamInternal.InlineEditsXtabProviderUsePrediction, usePrediction);
+			mockModelService.setSelectedConfig({ reasoningEffort: 'low', maxCompletionTokens: 8192 });
+			const lines = ['const x = 1;'];
+			streamingFetcher.setStreamingLines(lines);
+			const request = createRequestWithEdit(lines, { insertionOffset: 3, insertedText: 'a' });
+			await AsyncIterUtils.drainUntilReturn(createProvider().provideNextEdit(request, createMockLogger(), createLogContext(), CancellationToken.None));
+			const options = streamingFetcher.capturedOptions[0].requestOptions!;
+			expect({
+				reasoning_effort: options.reasoning_effort,
+				...('max_completion_tokens' in options ? { max_completion_tokens: options.max_completion_tokens } : {}),
+				...('max_tokens' in options ? { max_tokens: options.max_tokens } : {}),
+			}).toEqual({
+				reasoning_effort: 'low',
+				...(!usePrediction ? {
+					max_tokens: undefined,
+					...(useMaxTokens ? { max_completion_tokens: 8192 } : {}),
+				} : {}),
+			});
+		});
+
+		it.each([
+			{ reasoningEffort: 'none' as const },
+			{ maxCompletionTokens: 8192 },
+			{},
+		])('only adds configured model request arguments: %j', async modelConfig => {
+			await configService.setConfig(ConfigKey.TeamInternal.InlineEditsXtabProviderUsePrediction, false);
+			mockModelService.setSelectedConfig(modelConfig);
+			const lines = ['const x = 1;'];
+			streamingFetcher.setStreamingLines(lines);
+			const request = createRequestWithEdit(lines, { insertionOffset: 3, insertedText: 'a' });
+			await AsyncIterUtils.drainUntilReturn(createProvider().provideNextEdit(request, createMockLogger(), createLogContext(), CancellationToken.None));
+			const options = streamingFetcher.capturedOptions[0].requestOptions!;
+			expect({
+				...('reasoning_effort' in options ? { reasoning_effort: options.reasoning_effort } : {}),
+				...('max_completion_tokens' in options ? { max_completion_tokens: options.max_completion_tokens } : {}),
+				...('max_tokens' in options ? { max_tokens: options.max_tokens } : {}),
+			}).toEqual({
+				...('reasoningEffort' in modelConfig ? { reasoning_effort: modelConfig.reasoningEffort } : {}),
+				...('maxCompletionTokens' in modelConfig ? { max_completion_tokens: modelConfig.maxCompletionTokens, max_tokens: undefined } : {}),
+			});
+		});
+
+		it.each([
+			{ useMaxTokens: undefined, usePrediction: false, expected: {} },
+			{ useMaxTokens: true, usePrediction: false, expected: {} },
+			{ useMaxTokens: false, usePrediction: false, expected: { max_tokens: undefined } },
+			{ useMaxTokens: true, usePrediction: true, expected: {} },
+			{ useMaxTokens: false, usePrediction: true, expected: {} },
+		])('applies useMaxTokens=$useMaxTokens only with prediction disabled ($usePrediction)', async ({ useMaxTokens, usePrediction, expected }) => {
+			const services = createExtensionUnitTestingServices(disposables);
+			services.set(IInlineEditsModelService, mockModelService);
+			services.set(IChatMLFetcher, streamingFetcher);
+			services.define(IEndpointProvider, new SyncDescriptor(MockXtabEndpointProvider));
+			const accessor = disposables.add(services.createTestingAccessor());
+			const configuration = accessor.get(IConfigurationService);
+			await configuration.setConfig(ConfigKey.TeamInternal.InlineEditsXtabProviderUsePrediction, usePrediction);
+			if (useMaxTokens !== undefined) {
+				await configuration.setConfig(ConfigKey.TeamInternal.InlineEditsXtabProviderUseMaxTokens, useMaxTokens);
+			}
+			const provider = accessor.get(IInstantiationService).createInstance(XtabProvider);
+			const lines = ['const x = 1;'];
+			streamingFetcher.setStreamingLines(lines);
+			const request = createRequestWithEdit(lines, { insertionOffset: 3, insertedText: 'a' });
+			await AsyncIterUtils.drainUntilReturn(provider.provideNextEdit(request, createMockLogger(), createLogContext(), CancellationToken.None));
+			const options = streamingFetcher.capturedOptions[0].requestOptions!;
+			expect({
+				...('max_tokens' in options ? { max_tokens: options.max_tokens } : {}),
+			}).toEqual(expected);
+		});
+
 		it('system prompt matches the configured prompting strategy', async () => {
 			const strategies: [PromptingStrategy, string][] = [
 				[PromptingStrategy.UnifiedModel, unifiedModelSystemPrompt],

@@ -7,6 +7,8 @@ import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 
 /** Source of an Integrated Browser open event. */
 export type IntegratedBrowserOpenSource =
+	/** Created as an unlisted backing view for a session canvas. */
+	| 'canvas'
 	/** Created via CDP, such as by the agent using Playwright tools. */
 	| 'cdpCreated'
 	/** Opened via a (non-agentic) chat tool invocation. */
@@ -23,6 +25,8 @@ export type IntegratedBrowserOpenSource =
 	| 'quickOpenWithUrl'
 	/** Opened via the "New Tab" command from an existing tab. */
 	| 'newTabCommand'
+	/** Opened via the new tab (`+`) button at the end of the editor tabs. */
+	| 'newTabButton'
 	/** Opened via the localhost link opener when the `workbench.browser.openLocalhostLinks` setting
 	 * is enabled. This happens when clicking localhost (e.g., `localhost`, `127.0.0.1`, `[::1]`) or all-interfaces
 	 * links (e.g., `0.0.0.0`, `[::]`) from the terminal, chat, or other sources. */
@@ -38,6 +42,8 @@ export type IntegratedBrowserOpenSource =
 	| 'browserLinkNewWindow'
 	/** Opened when the user copies a browser editor to a new window via "Copy into New Window". */
 	| 'copyToNewWindow'
+	/** Opened via the "Duplicate Tab" command from an existing tab. */
+	| 'duplicateTab'
 	/** Opened via the "Open in Integrated Browser" command for a local file. */
 	| 'openFileCommand'
 	/** Opened by resolving a local file resource to the Integrated Browser editor. */

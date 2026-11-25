@@ -13,9 +13,9 @@ import { StatusbarAlignment, IStatusbarService, IStatusbarEntry, IStatusbarEntry
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IAction, Separator, toAction } from '../../../../base/common/actions.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
-import { STATUS_BAR_BACKGROUND, STATUS_BAR_FOREGROUND, STATUS_BAR_NO_FOLDER_BACKGROUND, STATUS_BAR_ITEM_HOVER_BACKGROUND, STATUS_BAR_BORDER, STATUS_BAR_NO_FOLDER_FOREGROUND, STATUS_BAR_NO_FOLDER_BORDER, STATUS_BAR_ITEM_COMPACT_HOVER_BACKGROUND, STATUS_BAR_ITEM_FOCUS_BORDER, STATUS_BAR_FOCUS_BORDER } from '../../../common/theme.js';
+import { getModernUIShellBackground, STATUS_BAR_BACKGROUND, STATUS_BAR_FOREGROUND, STATUS_BAR_INACTIVE_BACKGROUND, STATUS_BAR_NO_FOLDER_BACKGROUND, STATUS_BAR_ITEM_HOVER_BACKGROUND, STATUS_BAR_BORDER, STATUS_BAR_NO_FOLDER_FOREGROUND, STATUS_BAR_NO_FOLDER_BORDER, STATUS_BAR_ITEM_COMPACT_HOVER_BACKGROUND, STATUS_BAR_ITEM_FOCUS_BORDER, STATUS_BAR_FOCUS_BORDER } from '../../../common/theme.js';
 import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
-import { contrastBorder, activeContrastBorder } from '../../../../platform/theme/common/colorRegistry.js';
+import { ColorIdentifier, contrastBorder, activeContrastBorder } from '../../../../platform/theme/common/colorRegistry.js';
 import { EventHelper, addDisposableListener, EventType, clearNode, getWindow, isHTMLElement, $ } from '../../../../base/browser/dom.js';
 import { createStyleSheet } from '../../../../base/browser/domStylesheets.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
@@ -37,6 +37,8 @@ import { StatusBarFocused } from '../../../common/contextkeys.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { IView } from '../../../../base/browser/ui/grid/grid.js';
 import { isManagedHoverTooltipHTMLElement, isManagedHoverTooltipMarkdownString } from '../../../../base/browser/ui/hover/hover.js';
+import { IHostService } from '../../../services/host/browser/host.js';
+import { CodeWindow, mainWindow } from '../../../../base/browser/window.js';
 
 export interface IStatusbarEntryContainer extends IDisposable {
 
@@ -127,11 +129,15 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 	 * the matching padding is applied in `floatingPanels.css`.
 	 */
 	static readonly FLOATING_BOTTOM_PADDING = 6;
+	static readonly COMPACT_DENSITY_FLOATING_BOTTOM_PADDING = 4;
 
 	//#region IView
 
 	private get floatingBottomPadding(): number {
-		return this.getId() === Parts.STATUSBAR_PART && this.layoutService.isFloatingPanelsEnabled() ? StatusbarPart.FLOATING_BOTTOM_PADDING : 0;
+		if (this.getId() !== Parts.STATUSBAR_PART || !this.layoutService.isFloatingPanelsEnabled()) {
+			return 0;
+		}
+		return this.layoutService.isModernUICompact() ? StatusbarPart.COMPACT_DENSITY_FLOATING_BOTTOM_PADDING : StatusbarPart.FLOATING_BOTTOM_PADDING;
 	}
 
 	readonly minimumWidth: number = 0;
@@ -162,9 +168,11 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 
 	private readonly compactEntriesDisposable = this._register(new MutableDisposable<DisposableStore>());
 	private readonly styleOverrides = new Set<IStatusbarStyleOverride>();
+	private activeWindowId: number | undefined;
 
 	constructor(
 		id: string,
+		private readonly targetWindow: CodeWindow,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
@@ -173,6 +181,7 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IHostService private readonly hostService: IHostService,
 	) {
 		super(id, { hasTitle: false }, themeService, storageService, layoutService);
 
@@ -218,18 +227,32 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 
 		// Workbench state changes
 		this._register(this.contextService.onDidChangeWorkbenchState(() => this.updateStyles()));
+		const updateStyles = () => {
+			if (this.element) {
+				this.updateStyles();
+			}
+		};
+		this._register(this.hostService.onDidChangeFocus(updateStyles));
+		this._register(this.hostService.onDidChangeActiveWindow(windowId => {
+			this.activeWindowId = windowId;
+			updateStyles();
+		}));
 
 		// Floating panels changes the reserved bottom padding (and therefore the
 		// part height) for the main status bar only: signal the grid that the size
 		// constraint changed.
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (this.getId() === Parts.STATUSBAR_PART && e.affectsConfiguration(LayoutSettings.MODERN_UI)) {
+			if (this.getId() === Parts.STATUSBAR_PART && (e.affectsConfiguration(LayoutSettings.MODERN_UI) || e.affectsConfiguration(LayoutSettings.MODERN_UI_DENSITY))) {
 				this._onDidChange.fire(undefined);
 				if (this.element) {
 					this.updateStyles();
 				}
 			}
 		}));
+	}
+
+	protected hasWindowFocus(): boolean {
+		return this.targetWindow.document.hasFocus();
 	}
 
 	overrideEntry(id: string, override: Partial<IStatusbarEntry>): IDisposable {
@@ -700,11 +723,20 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 		const styleOverride: IStatusbarStyleOverride | undefined = [...this.styleOverrides].sort((a, b) => a.priority - b.priority)[0];
 
 		// Background / foreground colors
-		const backgroundColor = this.getColor(styleOverride?.background ?? (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? STATUS_BAR_BACKGROUND : STATUS_BAR_NO_FOLDER_BACKGROUND)) || '';
+		const hasFolder = this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY;
+		const background = styleOverride?.background ?? (hasFolder ? STATUS_BAR_BACKGROUND : STATUS_BAR_NO_FOLDER_BACKGROUND);
+
+		// The inactive background is a resting state only: a style override (e.g. while debugging)
+		// and the no folder background both communicate state and must stay visible when inactive.
+		const isWindowActive = this.activeWindowId === undefined ? this.hasWindowFocus() : this.activeWindowId === this.targetWindow.vscodeWindowId;
+		const isInactive = !this.hostService.hasFocus || !isWindowActive;
+		const inactiveBackground = isInactive && !styleOverride?.background && hasFolder ? this.getColor(STATUS_BAR_INACTIVE_BACKGROUND) : undefined;
+		const backgroundColor = inactiveBackground || this.getColor(background) || '';
 		container.style.backgroundColor = backgroundColor;
 		container.style.boxShadow = this.getId() === Parts.STATUSBAR_PART && this.layoutService.isFloatingPanelsEnabled() && !isHighContrast(this.theme.type) && backgroundColor
 			? `0 1px 0 ${backgroundColor}`
 			: '';
+		container.classList.toggle('matches-shell-background', this.isPaintedWithShellBackground(inactiveBackground ? STATUS_BAR_INACTIVE_BACKGROUND : background, isInactive));
 		const foregroundColor = this.getColor(styleOverride?.foreground ?? (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? STATUS_BAR_FOREGROUND : STATUS_BAR_NO_FOLDER_FOREGROUND)) || '';
 		container.style.color = foregroundColor;
 		const itemBorderColor = this.getColor(STATUS_BAR_ITEM_FOCUS_BORDER);
@@ -755,6 +787,23 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 		super.layoutContents(width, height);
 	}
 
+	/**
+	 * Whether the main status bar looks like the floating panels' shell, so the gap above it reads as part of it.
+	 */
+	private isPaintedWithShellBackground(background: ColorIdentifier, isInactive: boolean): boolean {
+		if (this.getId() !== Parts.STATUSBAR_PART || !this.layoutService.isFloatingPanelsEnabled()) {
+			return false;
+		}
+
+		const shellBackground = getModernUIShellBackground(this.theme, isInactive);
+		if (!shellBackground) {
+			return false;
+		}
+
+		const paintedBackground = this.theme.getColor(background)?.makeOpaque(shellBackground) ?? shellBackground;
+		return paintedBackground.equals(shellBackground);
+	}
+
 	overrideStyle(style: IStatusbarStyleOverride): IDisposable {
 		this.styleOverrides.add(style);
 		this.updateStyles();
@@ -789,8 +838,9 @@ export class MainStatusbarPart extends StatusbarPart {
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@IHostService hostService: IHostService,
 	) {
-		super(Parts.STATUSBAR_PART, instantiationService, themeService, contextService, storageService, layoutService, contextMenuService, contextKeyService, configurationService);
+		super(Parts.STATUSBAR_PART, mainWindow, instantiationService, themeService, contextService, storageService, layoutService, contextMenuService, contextKeyService, configurationService, hostService);
 	}
 }
 
@@ -815,9 +865,10 @@ export class AuxiliaryStatusbarPart extends StatusbarPart implements IAuxiliaryS
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@IHostService hostService: IHostService,
 	) {
 		const id = AuxiliaryStatusbarPart.COUNTER++;
-		super(`workbench.parts.auxiliaryStatus.${id}`, instantiationService, themeService, contextService, storageService, layoutService, contextMenuService, contextKeyService, configurationService);
+		super(`workbench.parts.auxiliaryStatus.${id}`, getWindow(container), instantiationService, themeService, contextService, storageService, layoutService, contextMenuService, contextKeyService, configurationService, hostService);
 	}
 }
 

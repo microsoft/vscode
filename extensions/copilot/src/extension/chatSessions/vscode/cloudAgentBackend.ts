@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { AgentTaskCreatePullRequestResponse, AgentTaskGetResponse, AgentTaskSessionEvent, AgentTaskState } from '@vscode/copilot-api';
-import type { CancellationToken } from 'vscode';
 import { GithubRepoId } from '../../../platform/git/common/gitService';
 
 /**
@@ -39,9 +38,14 @@ export interface CreateCloudSessionParams {
 
 export interface CloudSessionData {
 	readonly taskId: string;
+	readonly eventType?: string;
+	/** The creating client's slug from task attribution, independent of the triggering event. */
+	readonly application?: string;
+	readonly automationId?: string;
 	readonly title: string;
 	readonly state: AgentTaskState;
 	readonly createdAt: string;
+	readonly updatedAt?: string;
 	readonly completedAt?: string;
 	readonly pullArtifact?: PullArtifactRef;
 	readonly repo?: { readonly owner: string; readonly name: string; readonly host?: string };
@@ -55,6 +59,8 @@ export interface TaskContent {
 }
 
 export interface CloudAgentBackend {
+	fetchSession(taskId: string): Promise<CloudSessionData>;
+
 	fetchSessionList(
 		repoIds: GithubRepoId[] | undefined,
 		isAgentWorkspace: boolean,
@@ -64,13 +70,10 @@ export interface CloudAgentBackend {
 
 	fetchTaskContent(taskId: string): Promise<TaskContent | undefined>;
 
-	fetchTaskEvents(taskId: string): Promise<readonly AgentTaskSessionEvent[]>;
+	/** History only. Undefined for ordinary tasks; empty when an automation's display prompt is unavailable. */
+	getInitialAutomationPrompt(task: AgentTaskGetResponse): Promise<string | undefined>;
 
-	waitForTaskUpdate(
-		taskId: string,
-		since: { turnCount: number; updatedAt?: string },
-		token?: CancellationToken,
-	): Promise<TaskContent | undefined>;
+	fetchTaskEvents(taskId: string): Promise<readonly AgentTaskSessionEvent[]>;
 
 	sendFollowUpToTask(taskId: string, prompt: string): Promise<boolean>;
 

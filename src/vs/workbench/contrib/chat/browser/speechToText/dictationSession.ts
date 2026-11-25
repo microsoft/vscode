@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/dictationSession.css';
+import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
@@ -25,6 +26,11 @@ import { ChatDictationSurface, ChatSpeechToTextState, IChatSpeechToTextService }
 const INTERIM_PROCESSING_CLASS = 'dictation-interim-processing';
 
 const LOG_PREFIX = '[chat-stt-dictation]';
+const MAX_DICTATION_DURATION_MS = 20 * 60 * 1000;
+
+function isRecording(service: IChatSpeechToTextService): boolean {
+	return service.state === ChatSpeechToTextState.Recording;
+}
 
 /**
  * Renders the cumulative transcript into a code editor, replacing its own
@@ -374,11 +380,17 @@ export async function startDictation(service: IChatSpeechToTextService, editor: 
 	// not appear during microphone acquisition. It remains visible until
 	// transcript text is inserted, and is restored to its previous value when the
 	// session ends.
-	const previousPlaceholder = editor.getOption(EditorOption.placeholder);
+	let previousPlaceholder: string | undefined;
 	const listeningPlaceholder = localize('chatStt.listening', "Listening…");
 	// The placeholder we last applied, so we only ever restore the previous
 	// placeholder when it was ours to restore.
 	let appliedPlaceholder: string | undefined;
+	const restorePlaceholder = () => {
+		if (appliedPlaceholder !== undefined && editor.getOption(EditorOption.placeholder) === appliedPlaceholder) {
+			editor.updateOptions({ placeholder: previousPlaceholder });
+		}
+		appliedPlaceholder = undefined;
+	};
 	const applyPlaceholder = () => {
 		if (!editor.getModel()) {
 			return;
@@ -391,12 +403,12 @@ export async function startDictation(service: IChatSpeechToTextService, editor: 
 			: undefined;
 		if (desired !== undefined) {
 			if (appliedPlaceholder !== desired) {
+				previousPlaceholder = editor.getOption(EditorOption.placeholder);
 				editor.updateOptions({ placeholder: desired });
 				appliedPlaceholder = desired;
 			}
-		} else if (appliedPlaceholder !== undefined) {
-			editor.updateOptions({ placeholder: previousPlaceholder });
-			appliedPlaceholder = undefined;
+		} else {
+			restorePlaceholder();
 		}
 	};
 	disposables.add(toDisposable(() => {
@@ -406,8 +418,7 @@ export async function startDictation(service: IChatSpeechToTextService, editor: 
 		if (!editor.getModel() || appliedPlaceholder === undefined) {
 			return;
 		}
-		editor.updateOptions({ placeholder: previousPlaceholder });
-		appliedPlaceholder = undefined;
+		restorePlaceholder();
 	}));
 	disposables.add(service.onDidUpdateTranscript(update => {
 		logService.trace(`${LOG_PREFIX} onDidUpdateTranscript len=${update.text.length} finalized=${update.finalizedText.length} state=${service.state}`);
@@ -439,16 +450,27 @@ export async function startDictation(service: IChatSpeechToTextService, editor: 
 	// composer is closed); cancel dictation instead of leaving the microphone
 	// and local transcription running against a dead editor.
 	disposables.add(editor.onDidDispose(() => cancelDictation()));
-	setActiveDictation({ service, editor, inserter, disposables, logService, surface });
+	const activeDictation = { service, editor, inserter, disposables, logService, surface };
+	setActiveDictation(activeDictation);
 	try {
 		await service.start(window, surface);
 	} catch {
 		// Acquisition/connection failure is surfaced by the service.
-		if (_active?.service === service) {
-			setActiveDictation(undefined);
-		}
-		disposables.dispose();
 	}
+	if (_active !== activeDictation) {
+		return;
+	}
+	if (!isRecording(service)) {
+		setActiveDictation(undefined);
+		disposables.dispose();
+		return;
+	}
+	const durationLimit = window.setTimeout(() => {
+		logService.info(`${LOG_PREFIX} stopping after maximum duration`);
+		status(localize('chatStt.maximumDurationReached', "Dictation stopped after 20 minutes."));
+		void stopDictation();
+	}, MAX_DICTATION_DURATION_MS);
+	disposables.add(toDisposable(() => window.clearTimeout(durationLimit)));
 }
 
 /** Stop the active dictation and apply the final transcript. */
@@ -480,7 +502,7 @@ async function finalizeDictation(active: IActiveDictation): Promise<void> {
 	// re-apply the styling or overwrite the final text.
 	active.inserter.beginFinalize();
 	try {
-		const text = await active.service.stopAndTranscribe();
+		const text = await active.service.stopAndTranscribe({ preserveLiveTranscript: active.service.showTranscriptWhileDictating });
 		active.logService.trace(`${LOG_PREFIX} stopAndTranscribe resolved text=${text === undefined ? 'undefined' : `len=${text.length}`}`);
 		if (text !== undefined) {
 			// Final transcript: render it solid (no interim styling).

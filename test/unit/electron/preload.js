@@ -65,7 +65,7 @@
 			get execPath() { return process.execPath; },
 
 			cwd() {
-				return process.env['VSCODE_CWD'] || process.execPath.substr(0, process.execPath.lastIndexOf(process.platform === 'win32' ? '\\' : '/'));
+				return process.env.VSCODE_CWD || process.execPath.substr(0, process.execPath.lastIndexOf(process.platform === 'win32' ? '\\' : '/'));
 			},
 
 			getProcessMemoryInfo() {

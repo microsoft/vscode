@@ -7,6 +7,7 @@ import * as DOM from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { FileAccess } from '../../../../../base/common/network.js';
 import { allChatPetAccessories, chatPetAccessories, ChatPetAccessoryIds, getChatPetAccessory, type ChatPetAccessoryId, type IChatPetAccessory } from '../../../../contrib/chat/browser/chatPetAchievements.js';
+import { ChatPetColor, chatPetColorPresets, getChatPetColorVariant } from '../../../../contrib/chat/browser/chatPetColors.js';
 import { drawChatPetComposite, drawChatPetEyeAccessory, getChatPetAccessoryImageSource, hasChatPetAccessoryImageDimensions, hasChatPetBodyImageDimensions } from '../../../../contrib/chat/browser/widget/chatPetAccessoryRenderer.js';
 import { getChatPetFrameDurations, getChatPetSpriteName, doesChatPetStateTrackCursor, CHAT_PET_SING_FIXED_ORIENTATION_DECORATIONS, drawChatPetAchievementStar, type ChatPetState } from '../../../../contrib/chat/browser/widget/chatPetWidget.js';
 import { getChatPetReducedMotionRigFrame } from '../../../../contrib/chat/browser/widget/chatPetAccessoryRig.js';
@@ -67,12 +68,28 @@ const productionAccessoryPreviews: readonly IChatPetProductionAccessoryPreview[]
 		shape: 'Low rounded crown with a broad curved brim',
 	},
 	{
+		accessoryId: ChatPetAccessoryIds.StrawHat,
+		shape: 'Tall golden crown with a red band and asymmetric brim',
+	},
+	{
+		accessoryId: ChatPetAccessoryIds.BambooHat,
+		shape: 'Wide tiered bamboo hat with warm gold shading',
+	},
+	{
+		accessoryId: ChatPetAccessoryIds.PinkPartyHat,
+		shape: 'Pink leaning party cone with a gold pom',
+	},
+	{
 		accessoryId: ChatPetAccessoryIds.BaseballCap,
 		shape: 'Paneled red crown with a long side-facing bill',
 	},
 	{
+		accessoryId: ChatPetAccessoryIds.PropellerHat,
+		shape: 'Multicolor beanie with a full-width gold propeller',
+	},
+	{
 		accessoryId: ChatPetAccessoryIds.TopHatMonocle,
-		shape: 'Extra-tall squared crown with a full-width brim',
+		shape: 'Extra-tall striped crown with a full-width brim and monocle',
 	},
 	{
 		accessoryId: ChatPetAccessoryIds.PartyHat,
@@ -83,6 +100,10 @@ const productionAccessoryPreviews: readonly IChatPetProductionAccessoryPreview[]
 		shape: 'White Dixie-cup cap with a balanced crown and subtle forward brim',
 	},
 	{
+		accessoryId: ChatPetAccessoryIds.DarkSailorHat,
+		shape: 'White sailor cap with a dark band and gold accent',
+	},
+	{
 		accessoryId: ChatPetAccessoryIds.SpinnerHat,
 		shape: 'Domed beanie with a wide multicolor propeller',
 	},
@@ -91,16 +112,20 @@ const productionAccessoryPreviews: readonly IChatPetProductionAccessoryPreview[]
 		shape: 'Low ribbed safety dome with a full-width brim',
 	},
 	{
+		accessoryId: ChatPetAccessoryIds.WhiteChefHat,
+		shape: 'Tall white toque with a pleated lower crown',
+	},
+	{
 		accessoryId: ChatPetAccessoryIds.FirefighterHelmet,
 		shape: 'Rounded red helmet with a gold shield and neck guard',
 	},
 	{
-		accessoryId: ChatPetAccessoryIds.VikingHelmet,
-		shape: 'Balanced steel helmet with a longer forward horn and short nose guard',
-	},
-	{
 		accessoryId: ChatPetAccessoryIds.Crown,
 		shape: 'Gold crown with tall points and jewel highlights',
+	},
+	{
+		accessoryId: ChatPetAccessoryIds.WizardHat,
+		shape: 'Wide purple leaning hat with a floating gold star',
 	},
 	{
 		accessoryId: ChatPetAccessoryIds.ArtistBeret,
@@ -130,12 +155,17 @@ const allChatPetStates: readonly ChatPetState[] = [
 	'falling',
 	'wallImpact',
 	'splat',
-	'onTheRun',
-	'searching',
-	'searchingDown',
 ];
 
 export default defineThemedFixtureGroup({ path: 'chat/chatPetAccessoryRig/' }, {
+	ColorPresets: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: renderColorPresets,
+	}),
+	CustomColorCriticalPoses: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderCriticalPoses(ctx, '#cc44aa'),
+	}),
 	CriticalPoses: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
 		render: renderCriticalPoses,
@@ -162,7 +192,39 @@ export default defineThemedFixtureGroup({ path: 'chat/chatPetAccessoryRig/' }, {
 	}),
 });
 
-async function renderCriticalPoses(ctx: ComponentFixtureContext): Promise<void> {
+async function renderColorPresets(ctx: ComponentFixtureContext): Promise<void> {
+	configureChatPetFixtureFileRoot(ctx.disposableStore);
+	ctx.container.style.width = '760px';
+	ctx.container.style.padding = 'var(--vscode-spacing-size240)';
+	ctx.container.style.background = 'var(--vscode-editor-background)';
+	ctx.container.style.color = 'var(--vscode-foreground)';
+	const grid = DOM.append(ctx.container, DOM.$('div'));
+	grid.style.display = 'grid';
+	grid.style.gridTemplateColumns = 'repeat(5, 1fr)';
+	grid.style.gap = 'var(--vscode-spacing-size160)';
+	const bodies = new Map(await Promise.all((['stable', 'insiders'] as const).map(async variant => [
+		variant,
+		await loadImage(FileAccess.asBrowserUri(`vs/workbench/contrib/chat/browser/widget/media/chatPet/buddy-idle-${variant}-96.png`).toString(true)),
+	] as const)));
+	for (const preset of chatPetColorPresets) {
+		const card = DOM.append(grid, DOM.$('div'));
+		DOM.append(card, DOM.$('div')).textContent = preset.label;
+		const canvas = DOM.append(card, DOM.$<HTMLCanvasElement>('canvas'));
+		canvas.width = 96;
+		canvas.height = 96;
+		canvas.style.imageRendering = 'pixelated';
+		canvas.setAttribute('aria-hidden', 'true');
+		const image = bodies.get(getChatPetColorVariant(preset.color));
+		const context = canvas.getContext('2d');
+		if (!image || !context) {
+			throw new Error('Unable to render the pet color fixture.');
+		}
+		context.imageSmoothingEnabled = false;
+		drawChatPetComposite(context, image, undefined, 0, 0, 96, 96, 'right', 'idle', undefined, true, true, false, preset.color);
+	}
+}
+
+async function renderCriticalPoses(ctx: ComponentFixtureContext, color?: ChatPetColor): Promise<void> {
 	configureChatPetFixtureFileRoot(ctx.disposableStore);
 
 	ctx.container.style.width = '1100px';
@@ -255,6 +317,7 @@ async function renderCriticalPoses(ctx: ComponentFixtureContext): Promise<void> 
 			true,
 			accessory.eyeAccessoryMirrorsWithFacing !== false,
 			accessory.coversAntennae === true,
+			color,
 		);
 	}
 }
@@ -417,7 +480,7 @@ async function renderAllRuntimeStates(ctx: ComponentFixtureContext): Promise<voi
 async function renderAllAccessoriesFacing(ctx: ComponentFixtureContext): Promise<void> {
 	configureChatPetFixtureFileRoot(ctx.disposableStore);
 	ctx.container.style.width = '900px';
-	ctx.container.style.height = '1080px';
+	ctx.container.style.height = '1320px';
 	ctx.container.style.boxSizing = 'border-box';
 	ctx.container.style.padding = '24px';
 	ctx.container.style.overflow = 'auto';
@@ -514,7 +577,7 @@ async function renderAllAccessoriesFacing(ctx: ComponentFixtureContext): Promise
 async function renderCoveredAntennaeComparison(ctx: ComponentFixtureContext): Promise<void> {
 	configureChatPetFixtureFileRoot(ctx.disposableStore);
 	ctx.container.style.width = '1240px';
-	ctx.container.style.height = '1000px';
+	ctx.container.style.height = '2240px';
 	ctx.container.style.boxSizing = 'border-box';
 	ctx.container.style.padding = '24px';
 	ctx.container.style.overflow = 'auto';
@@ -525,7 +588,7 @@ async function renderCoveredAntennaeComparison(ctx: ComponentFixtureContext): Pr
 	heading.textContent = 'Production accessory motion';
 	heading.style.margin = '0 0 8px';
 	const description = DOM.append(ctx.container, DOM.$('p'));
-	description.textContent = 'All 11 achievement rewards use body-owned attachment tracks and transparent antenna occlusion in both directions.';
+	description.textContent = `All ${productionAccessoryPreviews.length} achievement rewards use body-owned attachment tracks and transparent antenna occlusion in both directions.`;
 	description.style.margin = '0 0 20px';
 	description.style.color = 'var(--vscode-descriptionForeground)';
 

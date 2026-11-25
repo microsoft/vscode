@@ -11,6 +11,7 @@ import { getChatFindTextParts } from './chatFindContent.js';
 import { isRequestVM, isResponseVM } from '../../../common/model/chatViewModel.js';
 import { annotateSpecialMarkdownContentWithSource } from '../../../common/widget/annotations.js';
 import { moveResponseOutcomeToolsAfterFinalResponse } from '../chatListRenderer.js';
+import { getChatRequestText } from '../../chatRequestText.js';
 
 /** Upper bound on tracked matches, mirroring `LIMIT_FIND_COUNT` in `textModelSearch.ts`, so a pathological regex can't pin the UI. */
 export const MAX_FIND_MATCHES = 9999;
@@ -56,12 +57,20 @@ interface IChatFindAnchor {
 	readonly occurrenceIndex: number;
 }
 
+function isSameOccurrence(match: IChatFindMatch, anchor: IChatFindAnchor): boolean {
+	return match.itemId === anchor.itemId && match.partIndex === anchor.partIndex && match.occurrenceIndex === anchor.occurrenceIndex;
+}
+
 function buildSegments(items: readonly ChatTreeItem[]): IChatFindSegment[] {
 	const segments: IChatFindSegment[] = [];
 	for (const item of items) {
 		if (isRequestVM(item)) {
-			if (item.messageText && item.messageText.trim().length > 0) {
-				segments.push({ itemId: item.id, itemKind: 'request', partIndex: -1, text: item.messageText });
+			// Index the text the row actually displays: a request rendered as a
+			// widget (an Agent Merge summary) keeps its own text out of the DOM,
+			// where a match could not be revealed.
+			const text = getChatRequestText(item);
+			if (text && text.trim().length > 0) {
+				segments.push({ itemId: item.id, itemKind: 'request', partIndex: -1, text });
 			}
 		} else if (isResponseVM(item)) {
 			// A filtered response renders no content at all, so row-level text starts at 0.
@@ -159,6 +168,7 @@ export class ChatFindModel extends Disposable {
 	private _query = '';
 	private _options: IChatFindOptions = { isRegex: false, matchCase: false, wholeWord: false };
 	private _matches: IChatFindMatch[] = [];
+	private _completedRows = new WeakMap<ChatTreeItem, { dataId: string; limit: number; matches: IChatFindMatch[] }>();
 	private _activeIndex = -1;
 	private _activeAnchor: IChatFindAnchor | undefined;
 	private _invalidRegex = false;
@@ -203,6 +213,7 @@ export class ChatFindModel extends Disposable {
 		this._query = query;
 		this._options = options;
 		if (changed) {
+			this._completedRows = new WeakMap();
 			this._activeAnchor = undefined;
 			this._activeIndex = -1;
 		}
@@ -240,20 +251,15 @@ export class ChatFindModel extends Disposable {
 		}
 
 		const items = this.getItems();
-		const segments = buildSegments(items);
 		const matches: IChatFindMatch[] = [];
-		// Newest first: `buildSegments` produces transcript order, so both walks are reversed.
-		for (let index = segments.length - 1; index >= 0 && matches.length < MAX_FIND_MATCHES; index--) {
-			const segmentMatches = findMatchesInSegment(segments[index], regex, MAX_FIND_MATCHES - matches.length);
-			for (let occurrence = segmentMatches.length - 1; occurrence >= 0; occurrence--) {
-				matches.push(segmentMatches[occurrence]);
-			}
+		for (let index = items.length - 1; index >= 0 && matches.length < MAX_FIND_MATCHES; index--) {
+			matches.push(...this._matchesInRow(items[index], regex, MAX_FIND_MATCHES - matches.length));
 		}
 
 		this._matches = matches;
 
 		if (previousAnchor) {
-			this._activeIndex = matches.findIndex(m => m.itemId === previousAnchor.itemId && m.partIndex === previousAnchor.partIndex && m.occurrenceIndex === previousAnchor.occurrenceIndex);
+			this._activeIndex = matches.findIndex(m => isSameOccurrence(m, previousAnchor));
 		}
 		if (this._activeIndex < 0) {
 			this._activeIndex = this._seedActiveIndex(matches, items);
@@ -261,6 +267,35 @@ export class ChatFindModel extends Disposable {
 		this._updateAnchor();
 
 		this._onDidChangeMatches.fire();
+	}
+
+	private _matchesInRow(item: ChatTreeItem, regex: RegExp, limit: number): readonly IChatFindMatch[] {
+		if (!isRequestVM(item) && !isResponseVM(item)) {
+			return [];
+		}
+		const cached = this._completedRows.get(item);
+		if (item.isComplete && cached && cached.dataId === item.dataId && (cached.matches.length < cached.limit || limit <= cached.limit)) {
+			return cached.matches.length > limit ? cached.matches.slice(0, limit) : cached.matches;
+		}
+		const matches: IChatFindMatch[] = [];
+		const segments = buildSegments([item]);
+		for (let index = segments.length - 1; index >= 0 && matches.length < limit; index--) {
+			matches.push(...findMatchesInSegment(segments[index], regex, limit - matches.length).reverse());
+		}
+		if (item.isComplete) {
+			this._completedRows.set(item, { dataId: item.dataId, limit, matches });
+		} else {
+			this._completedRows.delete(item);
+		}
+		return matches;
+	}
+
+	invalidateRenderedRow(item: ChatTreeItem): boolean {
+		return this._completedRows.delete(item);
+	}
+
+	isActiveOccurrence(match: IChatFindMatch): boolean {
+		return !!this._activeAnchor && isSameOccurrence(match, this._activeAnchor);
 	}
 
 	/** Moves to the next match in navigation order, which is the next one *back* in the transcript. */
@@ -285,7 +320,20 @@ export class ChatFindModel extends Disposable {
 		return this.activeMatch;
 	}
 
+	/** When a page adds matches, enter it at the end appropriate to the navigation direction. */
+	selectOlderThan(boundary: IChatFindMatch, wrapToOldest: boolean): boolean {
+		const index = this._matches.findIndex(match => isSameOccurrence(match, boundary));
+		if (index < 0 || index + 1 >= this._matches.length) {
+			return false;
+		}
+		this._activeIndex = wrapToOldest ? this._matches.length - 1 : index + 1;
+		this._updateAnchor();
+		this._onDidChangeMatches.fire();
+		return true;
+	}
+
 	clear(): void {
+		this._completedRows = new WeakMap();
 		this._query = '';
 		this._matches = [];
 		this._activeIndex = -1;

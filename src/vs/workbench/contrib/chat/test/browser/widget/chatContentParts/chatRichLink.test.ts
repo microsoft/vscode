@@ -73,8 +73,21 @@ suite('ChatRichLink', () => {
 		}, {
 			pending: { status: 'pending', spinner: true },
 			warning: { status: 'warning', spinner: true },
-			error: { status: 'error', icon: 'chat-rich-link-status-icon codicon codicon-error' },
-			completed: { status: 'success', icon: 'chat-rich-link-status-icon codicon codicon-pass-filled' },
+			error: { status: 'error', icon: 'chat-rich-link-status-icon codicon codicon-error-compact' },
+			completed: { status: 'success', icon: 'chat-rich-link-status-icon codicon codicon-pass-filled-compact' },
+		});
+	});
+
+	test('does not own link activation behavior', () => {
+		const anchor = mainWindow.document.createElement('a');
+		store.add(ChatRichLink.mount(anchor, mainWindow.document.createElement('span')));
+
+		assert.deepStrictEqual({
+			altClickNotCanceled: anchor.dispatchEvent(new mainWindow.MouseEvent('click', { altKey: true, bubbles: true, cancelable: true })),
+			altEnterNotCanceled: anchor.dispatchEvent(new mainWindow.KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, altKey: true, bubbles: true, cancelable: true })),
+		}, {
+			altClickNotCanceled: true,
+			altEnterNotCanceled: true,
 		});
 	});
 });

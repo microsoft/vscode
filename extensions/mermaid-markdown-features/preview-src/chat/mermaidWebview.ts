@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import mermaid, { MermaidConfig } from 'mermaid';
 import { buildMermaidConfig, createMermaidErrorElement, loadExtensionConfig, markVsCodeContextAsError } from '../shared';
+import { placeSubgraphTitlesIn } from '../shared/subgraphTitles';
 import { VsCodeMermaidThemeTracker } from '../shared/vsCodeTheme';
 import { VsCodeApi } from './vscodeApi';
 
@@ -405,9 +406,16 @@ async function rerenderMermaidDiagram(
 	delete diagramElement.dataset.processed;
 
 	mermaid.initialize(buildMermaidConfig(loadExtensionConfig(), themeTracker));
-	await mermaid.run({
-		nodes: [diagramElement]
-	});
+	await runMermaid(diagramElement);
+}
+
+/**
+ * Renders the diagram in place and places its subgraph titles before the pan and zoom handler
+ * measures it.
+ */
+async function runMermaid(diagramElement: HTMLElement): Promise<void> {
+	await mermaid.run({ nodes: [diagramElement] });
+	placeSubgraphTitlesIn(diagramElement);
 }
 
 export async function initializeMermaidWebview(vscode: VsCodeApi, options?: PanZoomOptions): Promise<PanZoomHandler | undefined> {
@@ -447,7 +455,7 @@ export async function initializeMermaidWebview(vscode: VsCodeApi, options?: PanZ
 	const config: MermaidConfig = buildMermaidConfig(loadExtensionConfig(), themeTracker);
 	mermaid.initialize(config);
 	try {
-		await mermaid.run({ nodes: [diagram] });
+		await runMermaid(diagram);
 	} catch (err) {
 		diagram.replaceChildren(createMermaidErrorElement(err));
 		markVsCodeContextAsError(document.body);

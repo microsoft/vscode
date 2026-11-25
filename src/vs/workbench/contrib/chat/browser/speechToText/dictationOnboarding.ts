@@ -162,9 +162,8 @@ function bandFraction(position: number, time: number): number {
 	if (total === 0) {
 		return 0;
 	}
-	// Centre-peak silhouette, matching the toolbar waveform: tallest in the
-	// middle, tapering to the ends, so the row reads as one instrument rather
-	// than a strip cut off at both edges.
+	// Centre-peak silhouette: tallest in the middle and tapering to the ends, so
+	// the row reads as one instrument rather than a strip cut off at both edges.
 	const taper = Math.sin(Math.PI * Math.min(1, Math.max(0, position)));
 	return (amplitude / total) * (0.35 + 0.65 * taper);
 }
@@ -679,7 +678,7 @@ export class DictationOnboardingBanner extends ChatInputNoticeWidget implements 
 		// else, so make them real controls: reachable by Tab and operable by
 		// Enter or Space like any other button. The renderer owns this DOM, so a
 		// selector is the only handle on it.
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		for (const link of description.querySelectorAll('a')) {
 			link.tabIndex = 0;
 			link.setAttribute('role', 'button');
@@ -764,7 +763,7 @@ export class DictationOnboardingBanner extends ChatInputNoticeWidget implements 
 			return;
 		}
 
-		dom.append(this.pickerContainer, dom.$(`span.codicon.codicon-${Codicon.mic.id}.dictation-onboarding-picker-icon`))
+		dom.append(this.pickerContainer, dom.$(`span.codicon.codicon-${Codicon.micCompact.id}.dictation-onboarding-picker-icon`))
 			.setAttribute('aria-hidden', 'true');
 
 		const selected = indexOfMicrophone(this.options, this.currentDeviceId());

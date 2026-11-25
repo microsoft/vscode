@@ -20,10 +20,12 @@
  * same npm install + same tar version produces naturally.
  *
  * SDK version pinning:
- *   - Pinned via repo-root `package.json` devDeps (`getSdkVersion`).
- *   - No `node_modules` package-lock for the scratch install: transitive
- *     drift surfaces at upload time as a sha mismatch against the existing
- *     blob, where a human investigates.
+ *   - Pinned in `agents/<sdk>/package.json` (`getAgentMeta`), with the
+ *     `package-lock.json` alongside it fixing the transitive graph.
+ *   - Peer dependencies are omitted from the install (see `npmCi`), so the
+ *     tarball is a function of the SDK version and target alone. A peer bump
+ *     in the lockfile can no longer change the bytes at a CDN path that is
+ *     already published.
  *
  * Uses node-tar (pure JS) for tar creation rather than system tar so that
  * tarballs produced on a Windows or macOS host have the same shape as ones
@@ -36,6 +38,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import * as tar from 'tar';
+import { pathToFileURL } from 'url';
 import { findMissingNativeOptionalDep } from '../azure-pipelines/common/checkNativeOptionalDeps.ts';
 import { getAgentDir, getAgentMeta, parseFlags, type Sdk, sha256OfFile } from './common.ts';
 
@@ -69,6 +72,7 @@ export async function buildOne(args: IBuildArgs): Promise<IBuildResult> {
 	const agentDir = getAgentDir(args.sdk);
 
 	const stagingDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-sdk-pkg-'));
+	const cleanUp = [stagingDir];
 	try {
 		// Copy the pinned package.json + package-lock.json into the scratch
 		// dir. `npm ci` errors out if a node_modules is already present, so
@@ -83,9 +87,10 @@ export async function buildOne(args: IBuildArgs): Promise<IBuildResult> {
 		if (libc) {
 			npmEnv.npm_config_libc = libc;
 		}
-		npmCi(stagingDir, npmEnv);
-
 		const nodeModulesDir = path.join(stagingDir, 'node_modules');
+		// npm's debug logs go next to the staging dir, not into it, so they never end up in the tarball.
+		const npmLogsDir = `${stagingDir}-npm-logs`;
+		cleanUp.push(npmLogsDir);
 
 		// The SDK ships its native binary in a per-platform package declared as
 		// an *optional* dependency (e.g. `@openai/codex-linux-x64`). npm does not
@@ -93,14 +98,28 @@ export async function buildOne(args: IBuildArgs): Promise<IBuildResult> {
 		// registry hiccup can leave the base package present but the native
 		// package missing — which would silently produce a binary-less tarball
 		// and upload it to the (immutable, content-addressed) CDN path, failing
-		// only at runtime for end users. Fail loud here instead.
+		// only at runtime for end users. Fail loud here instead, but only after
+		// retrying the install, since the skipped download is usually transient.
 		// See https://github.com/microsoft/vscode/pull/323881.
-		const missingNativeDep = findMissingNativeOptionalDep(nodeModulesDir, packageName, args.sdkTarget);
-		if (missingNativeDep) {
-			throw new Error(`[${SCRIPT}] npm ci left ${packageName}@${sdkVersion} without its native package '${missingNativeDep}' for target ${args.sdkTarget} — the optional dependency was silently skipped. Refusing to build a binary-less tarball; re-run to re-fetch it.`);
-		}
+		await installWithRetry({
+			install: () => npmCi(stagingDir, npmEnv, npmLogsDir),
+			isRetryableError: error => error instanceof NpmCiExitError,
+			findProblem: () => {
+				const missingNativeDep = findMissingNativeOptionalDep(nodeModulesDir, packageName, args.sdkTarget);
+				if (!missingNativeDep) {
+					return undefined;
+				}
+				printNpmLogLines(npmLogsDir, missingNativeDep);
+				return `[${SCRIPT}] npm ci left ${packageName}@${sdkVersion} without its native package '${missingNativeDep}' for target ${args.sdkTarget} — the optional dependency was silently skipped. Refusing to build a binary-less tarball; re-run to re-fetch it.`;
+			},
+			reset: () => fs.rmSync(nodeModulesDir, { recursive: true, force: true }),
+		});
 
-		chmodPlatformBinaries(nodeModulesDir, args.sdk);
+		chmodPlatformBinaries(nodeModulesDir, args.sdk, args.sdkTarget);
+
+		// Runs last, so it inspects the tree exactly as `buildTarball` will
+		// collect it, including the executable bits just set above.
+		verifyStagedTree(args.sdk, stagingDir, args.sdkTarget, sdkVersion);
 
 		fs.mkdirSync(args.outDir, { recursive: true });
 		const tgzPath = path.join(args.outDir, `${args.sdk}-${sdkVersion}-${args.sdkTarget}.tgz`);
@@ -112,7 +131,9 @@ export async function buildOne(args: IBuildArgs): Promise<IBuildResult> {
 		console.log(`[${SCRIPT}] Wrote ${tgzPath} (${sizeBytes} bytes, sha256=${sha256})`);
 		return { tgzPath, sha256, sdkVersion, sizeBytes };
 	} finally {
-		fs.rmSync(stagingDir, { recursive: true, force: true });
+		for (const dir of cleanUp) {
+			fs.rmSync(dir, { recursive: true, force: true });
+		}
 	}
 }
 
@@ -127,68 +148,235 @@ function parseTargetTriple(sdkTarget: string): { os: string; cpu: string; libc?:
 }
 
 
-/**
- * Chmod the executable binaries inside a per-SDK extracted node_modules tree.
- * Layout differs per SDK; we don't pretend it's configurable:
- *   - claude: a single top-level `claude` binary per platform package
- *   - codex:  `vendor/<rust-triple>/bin/codex` under the platform package
- */
-function chmodPlatformBinaries(nodeModulesDir: string, sdk: Sdk): void {
-	if (sdk === 'claude') {
-		const scopeDir = path.join(nodeModulesDir, '@anthropic-ai');
-		if (!fs.existsSync(scopeDir)) {
-			return;
-		}
-		for (const child of fs.readdirSync(scopeDir)) {
-			if (!child.startsWith('claude-agent-sdk-')) {
-				continue;
-			}
-			const binary = path.join(scopeDir, child, 'claude');
-			if (fs.existsSync(binary)) {
-				fs.chmodSync(binary, 0o755);
-			}
-		}
-		return;
+/** Subdirectories of `dir` whose name starts with `prefix`, as full paths. */
+function subdirectories(dir: string, prefix = ''): string[] {
+	if (!fs.existsSync(dir)) {
+		return [];
 	}
+	return fs.readdirSync(dir, { withFileTypes: true })
+		.filter(e => e.isDirectory() && e.name.startsWith(prefix))
+		.map(e => path.join(dir, e.name));
+}
 
-	// codex
-	const scopeDir = path.join(nodeModulesDir, '@openai');
-	if (!fs.existsSync(scopeDir)) {
-		return;
+/**
+ * Every native binary in a staged tree.
+ *
+ * The one place that knows the per-SDK layout, since nothing in the package
+ * manifests describes it: claude ships a single binary at the root of its
+ * platform package, codex fills a `vendor/<rust-triple>/bin/` directory.
+ * `chmodPlatformBinaries` and `verifyStagedTree` both read from here, so the
+ * two can't drift.
+ *
+ * Returns nothing for an SDK with no entry above, which `verifyStagedTree`
+ * turns into a build failure.
+ */
+function listPlatformBinaries(nodeModulesDir: string, sdk: Sdk, sdkTarget: string): string[] {
+	const exe = sdkTarget.startsWith('win32') ? '.exe' : '';
+	if (sdk === 'claude') {
+		return subdirectories(path.join(nodeModulesDir, '@anthropic-ai'), 'claude-agent-sdk-')
+			.map(pkgDir => path.join(pkgDir, `claude${exe}`))
+			.filter(binary => fs.existsSync(binary));
 	}
-	for (const child of fs.readdirSync(scopeDir)) {
-		if (!child.startsWith('codex-')) {
-			continue;
-		}
-		const vendorDir = path.join(scopeDir, child, 'vendor');
-		if (!fs.existsSync(vendorDir)) {
-			continue;
-		}
-		for (const triple of fs.readdirSync(vendorDir)) {
-			const binDir = path.join(vendorDir, triple, 'bin');
-			if (!fs.existsSync(binDir)) {
-				continue;
-			}
-			for (const f of fs.readdirSync(binDir)) {
-				fs.chmodSync(path.join(binDir, f), 0o755);
-			}
-		}
+	if (sdk === 'codex') {
+		return subdirectories(path.join(nodeModulesDir, '@openai'), 'codex-')
+			.flatMap(pkgDir => subdirectories(path.join(pkgDir, 'vendor')))
+			.map(tripleDir => path.join(tripleDir, 'bin'))
+			.flatMap(binDir => fs.existsSync(binDir) ? fs.readdirSync(binDir).map(f => path.join(binDir, f)) : []);
+	}
+	return [];
+}
+
+function chmodPlatformBinaries(nodeModulesDir: string, sdk: Sdk, sdkTarget: string): void {
+	for (const binary of listPlatformBinaries(nodeModulesDir, sdk, sdkTarget)) {
+		fs.chmodSync(binary, 0o755);
 	}
 }
 
-function npmCi(workDir: string, env: NodeJS.ProcessEnv): void {
-	// `npm ci` instead of `npm install`: installs the EXACT graph from the
+/**
+ * Checks the staged tree the way the agent host will consume it, before the
+ * bytes become immutable on the CDN. Applies to every SDK: nothing here is
+ * conditioned on which one, so a new folder under `agents/` can't inherit
+ * `--omit=peer` unchecked. See "Keeping the assumption honest" in README.md.
+ */
+function verifyStagedTree(sdk: Sdk, stagingDir: string, sdkTarget: string, sdkVersion: string): void {
+	const nodeModulesDir = path.join(stagingDir, 'node_modules');
+	const { name: packageName } = getAgentMeta(sdk);
+	const context = `${packageName}@${sdkVersion} (${sdkTarget})`;
+
+	const entry = resolvePackageEntry(nodeModulesDir, packageName);
+	if (entry) {
+		verifySdkLoads(stagingDir, entry, context);
+	}
+
+	const binaries = listPlatformBinaries(nodeModulesDir, sdk, sdkTarget);
+	if (binaries.length === 0) {
+		throw new Error(`[${SCRIPT}] ${context}: found no native binaries in the staged tree. Either the package layout changed, or '${sdk}' is new and needs an entry in listPlatformBinaries(); see build/agent-sdk/README.md.`);
+	}
+	for (const binary of binaries) {
+		assertStagedBinary(binary, context);
+	}
+}
+
+/**
+ * The package's own importable entry, or undefined when it declares none.
+ * codex ships only a `bin`, so there is nothing to import.
+ *
+ * Reads `main` rather than resolving `exports`, because `<package>/<main>` is
+ * the literal path `claudeAgentSdkService.ts` imports at runtime.
+ */
+function resolvePackageEntry(nodeModulesDir: string, packageName: string): string | undefined {
+	const packageDir = path.join(nodeModulesDir, ...packageName.split('/'));
+	const manifestPath = path.join(packageDir, 'package.json');
+	if (!fs.existsSync(manifestPath)) {
+		return undefined;
+	}
+	const manifest: { main?: string } = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+	if (!manifest.main) {
+		return undefined;
+	}
+	const entry = path.join(packageDir, manifest.main);
+	return fs.existsSync(entry) ? entry : undefined;
+}
+
+/**
+ * Present, non-empty, executable. The mode check is skipped on Windows hosts,
+ * where `fs.chmodSync` only toggles the read-only flag so the POSIX bits it
+ * reports back mean nothing.
+ */
+function assertStagedBinary(binaryPath: string, context: string): void {
+	let stat: fs.Stats;
+	try {
+		stat = fs.statSync(binaryPath);
+	} catch {
+		throw new Error(`[${SCRIPT}] ${context}: no native binary at '${binaryPath}'. The agent host resolves exactly this path at runtime.`);
+	}
+	if (stat.size === 0) {
+		throw new Error(`[${SCRIPT}] ${context}: the native binary at '${binaryPath}' is empty.`);
+	}
+	if (process.platform !== 'win32' && (stat.mode & 0o111) === 0) {
+		throw new Error(`[${SCRIPT}] ${context}: '${binaryPath}' is not executable (mode ${(stat.mode & 0o777).toString(8)}). chmodPlatformBinaries did not reach it.`);
+	}
+}
+
+const PROBE_TIMEOUT_MS = 2 * 60 * 1000;
+
+/**
+ * Imports the packaged entry point with the peers absent (see `npmCi`).
+ *
+ * The SDK inlines MCP, zod and ajv today but never promised to, and its
+ * `peerDependencies` block says otherwise. If a future version static-imports
+ * one for real, this fails the build with ERR_MODULE_NOT_FOUND instead of
+ * failing on a user's machine against a tarball that is already immutable.
+ *
+ * Child process to keep the module out of this process's cache; timeout so a
+ * stray handle fails the build instead of hanging the release job.
+ */
+function verifySdkLoads(stagingDir: string, entry: string, context: string): void {
+	// At the staging root, so it is outside what `buildTarball` collects.
+	const probePath = path.join(stagingDir, 'sdk-load-probe.mjs');
+	// File-URL dynamic import, as in `claudeAgentSdkService.ts`.
+	fs.writeFileSync(probePath, `await import(${JSON.stringify(pathToFileURL(entry).href)});\n`);
+
+	console.log(`[${SCRIPT}] Verifying ${context} loads without its peerDependencies…`);
+	const result = spawnSync(process.execPath, [probePath], { cwd: stagingDir, stdio: 'inherit', timeout: PROBE_TIMEOUT_MS });
+	if (result.signal) {
+		throw new Error(`[${SCRIPT}] ${context}: load probe was killed by ${result.signal}. For SIGTERM that means it hit the ${PROBE_TIMEOUT_MS}ms timeout, so importing '${entry}' left a timer or handle open instead of exiting.`);
+	}
+	if (result.error) {
+		throw new Error(`[${SCRIPT}] ${context}: load probe failed to spawn: ${result.error.message}`);
+	}
+	if (result.status !== 0) {
+		throw new Error(`[${SCRIPT}] ${context}: does not load with its peerDependencies omitted (probe exited ${result.status}; see output above). It likely started importing a peer such as '@modelcontextprotocol/sdk' or 'zod'. Either drop '--omit=peer' from npmCi or add that package as a real dependency in build/agent-sdk/agents/<sdk>/package.json.`);
+	}
+}
+
+/** Delays before the second and third install attempts. */
+export const INSTALL_RETRY_DELAYS_MS: readonly number[] = [10_000, 30_000];
+
+export interface IInstallWithRetryOptions {
+	/** Runs the install; throws when it fails. */
+	readonly install: () => void;
+	/** Whether an error thrown by `install` is worth retrying. Other errors fail on the first attempt. */
+	readonly isRetryableError: (error: unknown) => boolean;
+	/** Describes what the install left broken, or returns `undefined` when the result is complete. */
+	readonly findProblem: () => string | undefined;
+	/** Clears a failed install before the next attempt. */
+	readonly reset: () => void;
+	readonly delaysMs?: readonly number[];
+	readonly sleep?: (ms: number) => Promise<void>;
+}
+
+/**
+ * Runs `install` until it succeeds and `findProblem` finds nothing, retrying a
+ * failed or incomplete install after each delay. Throws the last problem when
+ * every attempt fails.
+ */
+export async function installWithRetry(options: IInstallWithRetryOptions): Promise<void> {
+	const delaysMs = options.delaysMs ?? INSTALL_RETRY_DELAYS_MS;
+	const sleep = options.sleep ?? (ms => new Promise<void>(resolve => setTimeout(resolve, ms)));
+	for (let attempt = 1; ; attempt++) {
+		let problem: string | undefined;
+		try {
+			options.install();
+			problem = options.findProblem();
+		} catch (error) {
+			if (!options.isRetryableError(error)) {
+				throw error;
+			}
+			problem = error instanceof Error ? error.message : String(error);
+		}
+		if (problem === undefined) {
+			return;
+		}
+		const delay = delaysMs[attempt - 1];
+		if (delay === undefined) {
+			throw new Error(problem);
+		}
+		console.warn(`[${SCRIPT}] Install attempt ${attempt} of ${delaysMs.length + 1} failed: ${problem} Retrying in ${delay / 1000}s.`);
+		options.reset();
+		await sleep(delay);
+	}
+}
+
+/** Prints the lines of npm's latest debug log that mention `packageName`, which say why npm skipped it. */
+function printNpmLogLines(logsDir: string, packageName: string): void {
+	let files: string[];
+	try {
+		files = fs.readdirSync(logsDir).filter(file => file.endsWith('.log')).sort();
+	} catch {
+		return;
+	}
+	const latest = files.at(-1);
+	if (!latest) {
+		return;
+	}
+	const lines = fs.readFileSync(path.join(logsDir, latest), 'utf8').split(/\r?\n/).filter(line => line.includes(packageName));
+	console.warn(`[${SCRIPT}] npm debug log lines for '${packageName}' (${latest}):`);
+	for (const line of lines.slice(-40)) {
+		console.warn(`  ${line}`);
+	}
+}
+
+function npmCi(workDir: string, env: NodeJS.ProcessEnv, logsDir: string): void {
+	// `npm ci` rather than `npm install`: installs the exact graph from the
 	// committed package-lock.json without resolving versions, which is what
-	// makes the tarball bytes reproducible across pipeline runs.
-	// `--ignore-scripts` blocks any postinstall/preinstall the SDK or its
-	// transitive deps might ship.
+	// makes the tarball bytes reproducible across runs.
+	// `--ignore-scripts` blocks any pre/postinstall the SDK or its deps ship.
+	// `--omit=peer` drops the auto-installed peerDependencies, which the agent
+	// host never loads out of the tarball. That makes the bytes a function of
+	// (SDK version, target) alone, so a transitive peer bump can no longer
+	// change the content at an already-published CDN path. That was the failure
+	// mode of https://github.com/microsoft/vscode/pull/334094.
+	// `verifyStagedTree` keeps the "never loads them" claim honest; README.md
+	// has the long version.
+	// Unlike `--omit=optional`, this does not touch the native binary package.
 	// On Windows, npm is a `.cmd` shim. Two things matter:
 	//   1. The explicit `.cmd` suffix — Node won't resolve PATHEXT.
 	//   2. `shell: true` — since Node 20 (CVE-2024-27980) child_process
 	//      refuses to spawn .cmd/.bat without it.
 	const isWindows = process.platform === 'win32';
 	const npm = isWindows ? 'npm.cmd' : 'npm';
-	const result = spawnSync(npm, ['ci', '--ignore-scripts'], {
+	const result = spawnSync(npm, ['ci', '--ignore-scripts', '--omit=peer', isWindows ? `--logs-dir="${logsDir}"` : `--logs-dir=${logsDir}`], {
 		cwd: workDir,
 		env: { ...process.env, ...env },
 		stdio: 'inherit',
@@ -198,9 +386,12 @@ function npmCi(workDir: string, env: NodeJS.ProcessEnv): void {
 		throw new Error(`[${SCRIPT}] npm ci failed to spawn: ${result.error.message}`);
 	}
 	if (result.status !== 0) {
-		throw new Error(`[${SCRIPT}] npm ci exited ${result.status}`);
+		throw new NpmCiExitError(`[${SCRIPT}] npm ci exited ${result.status}`);
 	}
 }
+
+/** `npm ci` ran but exited non-zero, for example after a network timeout. */
+class NpmCiExitError extends Error { }
 
 /**
  * Builds the gzipped tar via node-tar. Same library on every host, so the
@@ -230,7 +421,7 @@ function isCliInvocation(): boolean {
 	// `import.meta.filename` is already a real filesystem path; comparing
 	// it directly to `process.argv[1]` works on Windows (where the
 	// manual `file://${argv}` construction breaks because Node URL-encodes
-	// drive letters and spaces). Pattern matches `build/npm/installStateHash.ts:143`.
+	// drive letters and spaces). Pattern matches `build/agent-sdk/upload.ts`.
 	return import.meta.filename === process.argv[1];
 }
 

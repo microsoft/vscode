@@ -10,8 +10,9 @@ import { constObservable, observableValue } from '../../../../../base/common/obs
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { ICommandEvent, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { ChatPetCustomizationAchievementContribution } from '../../browser/chatPetAchievements.contribution.js';
+import { ChatPetCustomizationAchievementContribution, ChatPetEditingAchievementContribution } from '../../browser/chatPetAchievements.contribution.js';
 import { IAICustomizationItemSource, IAICustomizationListItem } from '../../browser/aiCustomization/aiCustomizationItemSource.js';
 import { IAICustomizationItemsModel, ItemsModelSection } from '../../browser/aiCustomization/aiCustomizationItemsModel.js';
 import { ChatPetAchievementId, ChatPetAchievementIds } from '../../browser/chatPetAchievements.js';
@@ -21,7 +22,7 @@ import { ICustomizationHarnessService } from '../../common/customizationHarnessS
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { IMcpWorkbenchService, IWorkbenchMcpServer } from '../../../mcp/common/mcpTypes.js';
 
-suite('Chat Pet Customization Achievements', () => {
+suite('Chat Pet Achievement Contributions', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	function customization(id: string, section: PromptsType): IAICustomizationListItem {
@@ -151,5 +152,72 @@ suite('Chat Pet Customization Achievements', () => {
 				ChatPetAchievementIds.InstructionPresent,
 			],
 		});
+	});
+
+	test('unlocks Let it cook only for explicit keep-edit commands', () => {
+		const onDidExecuteCommand = disposables.add(new Emitter<ICommandEvent>());
+		const attemptedUnlocks: ChatPetAchievementId[] = [];
+		const commandService = new class extends mock<ICommandService>() {
+			override readonly onDidExecuteCommand = onDidExecuteCommand.event;
+		}();
+		const chatPetService = new class extends mock<IChatPetService>() {
+			override unlockAchievement(id: ChatPetAchievementId): boolean {
+				attemptedUnlocks.push(id);
+				return true;
+			}
+		}();
+		disposables.add(new ChatPetEditingAchievementContribution(commandService, chatPetService));
+
+		for (const commandId of [
+			'chatEditing.acceptFile',
+			'chatEditing.acceptAllFiles',
+			'chatEditor.action.accept',
+			'chatEditor.action.acceptHunk',
+			'chatEditor.action.acceptAllEdits',
+			'chatEditing.multidiff.acceptAllFiles',
+			'_chat.editSessions.accept',
+			'chatEditing.discardFile',
+			'chatEditor.action.reject',
+		]) {
+			onDidExecuteCommand.fire({ commandId, args: [] });
+		}
+
+		assert.deepStrictEqual(attemptedUnlocks, Array(6).fill(ChatPetAchievementIds.AgentEditKept));
+	});
+
+	test('unlocks review and copy achievements only for their explicit commands', () => {
+		const onDidExecuteCommand = disposables.add(new Emitter<ICommandEvent>());
+		const attemptedUnlocks: ChatPetAchievementId[] = [];
+		const commandService = new class extends mock<ICommandService>() {
+			override readonly onDidExecuteCommand = onDidExecuteCommand.event;
+		}();
+		const chatPetService = new class extends mock<IChatPetService>() {
+			override unlockAchievement(id: ChatPetAchievementId): boolean {
+				attemptedUnlocks.push(id);
+				return true;
+			}
+		}();
+		disposables.add(new ChatPetEditingAchievementContribution(commandService, chatPetService));
+
+		for (const commandId of [
+			'chatEditor.action.reviewChanges',
+			'chatEditing.openFileInDiff',
+			'chatEditing.viewChanges',
+			'chatEditing.viewAllSessionChanges',
+			'workbench.changesView.action.viewChanges',
+			'workbench.action.chat.copyAll',
+			'workbench.action.chat.copyItem',
+			'workbench.action.chat.copyFinalResponse',
+			'workbench.action.chat.copyCodeBlock',
+			'workbench.action.chat.copyKatexMathSource',
+			'chatEditing.discardAllFiles',
+		]) {
+			onDidExecuteCommand.fire({ commandId, args: [] });
+		}
+
+		assert.deepStrictEqual(attemptedUnlocks, [
+			...Array(5).fill(ChatPetAchievementIds.AgentChangesReviewed),
+			...Array(4).fill(ChatPetAchievementIds.UsefulOutputCopied),
+		]);
 	});
 });

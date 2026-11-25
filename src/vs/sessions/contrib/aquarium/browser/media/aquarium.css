@@ -8,23 +8,6 @@
 
 /* --- Water --- */
 
-/* Make the chat bar a positioning context for the water layer (its first
- * child) and keep its real children above the decorative water — without
- * explicit z-index, positioned siblings paint after non-positioned ones.
- * `isolation` keeps the raised children below a stacking context of their own,
- * so they compete with the water rather than with workbench-level overlays such
- * as context menus and editor overflow widgets, which would otherwise be
- * painted behind this part. */
-.monaco-workbench .part.sessionspart {
-	position: relative;
-	isolation: isolate;
-}
-.monaco-workbench .part.sessionspart > .title,
-.monaco-workbench .part.sessionspart > .content {
-	position: relative;
-	z-index: 1;
-}
-
 /* When the aquarium is active, the Sessions Grid wrappers (added between the
  * sessionspart and the chat widget) would otherwise paint their opaque
  * `--session-view-background` on top of the water layer and hide everything.
@@ -40,7 +23,7 @@
 	inset: 0;
 	pointer-events: none;
 	overflow: hidden;
-	z-index: 0;
+	z-index: 1;
 	border-radius: inherit;
 	opacity: 0;
 	transition: opacity 320ms ease-out;
@@ -221,20 +204,17 @@
 	transition: opacity 160ms ease-out, background-color 160ms ease-out, color 160ms ease-out;
 }
 
-.agents-aquarium-toggle:hover {
+.agents-aquarium-toggle:is(:hover, .hovered) {
 	opacity: 1;
-	background: var(--vscode-toolbar-hoverBackground, rgba(255, 255, 255, 0.08));
 }
 
 /* `.monaco-workbench` prefix to match the workbench's own `button:focus`
  * rule so we win the cascade without resorting to !important. */
-.monaco-workbench button.agents-aquarium-toggle:focus {
+.monaco-workbench button.agents-aquarium-toggle:focus:not(:focus-visible) {
 	outline: none;
 }
 .monaco-workbench button.agents-aquarium-toggle:focus-visible {
 	opacity: 1;
-	outline: 1px solid var(--vscode-focusBorder);
-	outline-offset: 2px;
 }
 
 .agents-aquarium-toggle.active {
@@ -260,8 +240,8 @@
 	display: inline-flex;
 	align-items: center;
 	gap: var(--vscode-spacing-size40);
-	font-size: var(--vscode-agents-fontSize-label2, 11px);
-	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	font-size: var(--vscode-fontSize-label2, 11px);
+	font-weight: var(--vscode-fontWeight-semiBold);
 	line-height: 1;
 	white-space: nowrap;
 	color: var(--vscode-foreground, #cccccc);
@@ -274,16 +254,18 @@
 /* A died streak badge: a quiet, non-interactive hint that feeding a fish will
  * bring the streak back. Kept subtle (muted, normal weight). */
 .agents-aquarium-toggle-streak.revivable {
-	font-weight: var(--vscode-agents-fontWeight-regular);
+	font-weight: var(--vscode-fontWeight-regular);
 	color: var(--vscode-descriptionForeground, #999999);
 }
 
-/* Off-state fish: brief attention-grabbing wiggle every 12s. The
- * keyframes hold the rest pose for ~93% of the cycle and only animate during
- * the first ~7%. */
-.agents-aquarium-toggle:not(.active) .codicon {
+/* Off-state fish: one brief attention-grabbing wiggle. AquariumService sets
+ * `.wiggle` for a single run at a time instead of looping the animation, so
+ * nothing animates (and no frames are produced) while the fish rests. Keep the
+ * duration below WIGGLE_MAX_RUN_MS in aquariumOverlay.ts, which is when the
+ * service takes `.wiggle` back at the latest. */
+.agents-aquarium-toggle.wiggle .codicon {
 	transform-origin: 50% 50%;
-	animation: agents-aquarium-toggle-wiggle 12s ease-in-out infinite;
+	animation: agents-aquarium-toggle-wiggle 840ms ease-in-out;
 }
 
 /* No need to nag once the user is engaging with the button. */
@@ -296,20 +278,17 @@
 	0% {
 		transform: rotate(0deg) scale(1);
 	}
-	1.5% {
+	21% {
 		transform: rotate(-12deg) scale(1.08);
 	}
-	3% {
+	43% {
 		transform: rotate(10deg) scale(1.08);
 	}
-	4.5% {
+	64% {
 		transform: rotate(-8deg) scale(1.05);
 	}
-	6% {
+	86% {
 		transform: rotate(6deg) scale(1.03);
-	}
-	7% {
-		transform: rotate(0deg) scale(1);
 	}
 	100% {
 		transform: rotate(0deg) scale(1);
@@ -318,11 +297,25 @@
 
 /* --- Reduced motion --- */
 
+/* `.monaco-reduce-motion` follows the `workbench.reduceMotion` setting; the
+ * media query below only sees the OS preference. */
+.monaco-reduce-motion .agents-aquarium-fish-strip,
+.monaco-reduce-motion .agents-aquarium-water::before,
+.monaco-reduce-motion .agents-aquarium-water::after,
+.monaco-reduce-motion .agents-aquarium-toggle.wiggle .codicon {
+	animation: none;
+}
+
+.monaco-reduce-motion .agents-aquarium-water,
+.monaco-reduce-motion .agents-aquarium-fish {
+	transition: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
 	.agents-aquarium-fish-strip,
 	.agents-aquarium-water::before,
 	.agents-aquarium-water::after,
-	.agents-aquarium-toggle:not(.active) .codicon {
+	.agents-aquarium-toggle.wiggle .codicon {
 		animation: none;
 	}
 

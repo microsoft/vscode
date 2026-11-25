@@ -3,17 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { isAncestorOfActiveElement } from '../../../../../base/browser/dom.js';
 import { localize, localize2 } from '../../../../../nls.js';
-import { AgentSessionSection, IAgentSession, IAgentSessionSection, IMarshalledAgentSessionContext, isAgentHostAgentSessionItem, isAgentSessionSection, isLocalAgentSessionItem, isMarshalledAgentSessionContext } from './agentSessionsModel.js';
+import { AgentSessionSection, IAgentSession, IAgentSessionSection, IMarshalledAgentSessionContext, isAgentHostAgentSessionItem, isAgentSessionChild, isAgentSessionSection, isLocalAgentSessionItem, isMarshalledAgentSessionContext, toAgentSessionContext } from './agentSessionsModel.js';
 import { Action2, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
-import { AGENT_SESSION_DELETE_ACTION_ID, AGENT_SESSION_RENAME_ACTION_ID, AgentSessionProviders, AgentSessionsViewerOrientation, IAgentSessionsControl } from './agentSessions.js';
+import { AGENT_SESSION_DELETE_ACTION_ID, AGENT_SESSION_RENAME_ACTION_ID, AgentSessionChatContextMenu, AgentSessionChatToolbar, AgentSessionProviders, AgentSessionsViewerOrientation, IAgentSessionsControl } from './agentSessions.js';
 import { IChatService } from '../../common/chatService/chatService.js';
 import { IChatSessionsService } from '../../common/chatSessionsService.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { ChatContextKeyExprs, ChatContextKeys } from '../../common/actions/chatContextKeys.js';
-import { LocalChatSessionUri } from '../../common/model/chatUri.js';
+import { getChatSessionType, LocalChatSessionUri } from '../../common/model/chatUri.js';
 import { IChatEditorOptions } from '../widgetHosts/editor/chatEditor.js';
 import { ChatViewId, IChatWidgetService } from '../chat.js';
 import { ACTIVE_GROUP, AUX_WINDOW_GROUP, PreferredGroup, SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
@@ -35,9 +36,13 @@ import { KeybindingWeight } from '../../../../../platform/keybinding/common/keyb
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { coalesce } from '../../../../../base/common/arrays.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IPaneCompositePartService } from '../../../../services/panecomposite/browser/panecomposite.js';
 import { ChatSessionArchiveActionWording, getChatSessionArchiveActionPresentation } from '../../../../../platform/chat/common/sessionArchiveActions.js';
+import { WorkbenchListFocusContextKey } from '../../../../../platform/list/browser/listService.js';
+import { AGENT_SESSION_MARK_READ_ACTION_ID, AGENT_SESSION_MARK_UNREAD_ACTION_ID } from '../../../../common/chatSessionCommands.js';
+import { AICustomizationManagementCommands } from '../../common/aiCustomizationWorkspaceService.js';
 
 const AGENT_SESSIONS_CATEGORY = localize2('chatSessions', "Chat Agent Sessions");
 
@@ -49,6 +54,8 @@ export class ToggleShowAgentSessionsAction extends Action2 {
 		super({
 			id: 'workbench.action.chat.toggleShowAgentSessions',
 			title: localize2('chat.showSessions', "Show Sessions"),
+			// The sessions of the Chat view, which does not show while the Agents view replaces it
+			precondition: ChatContextKeys.agentsViewActive.negate(),
 			toggled: ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsEnabled}`, true),
 			menu: {
 				id: MenuId.ChatWelcomeContext,
@@ -66,7 +73,7 @@ export class ToggleShowAgentSessionsAction extends Action2 {
 	}
 }
 
-const agentSessionsOrientationSubmenu = new MenuId('chatAgentSessionsOrientationSubmenu');
+export const agentSessionsOrientationSubmenu = new MenuId('chatAgentSessionsOrientationSubmenu');
 MenuRegistry.appendMenuItem(MenuId.ChatWelcomeContext, {
 	submenu: agentSessionsOrientationSubmenu,
 	title: localize2('chat.sessionsOrientation', "Sessions Orientation"),
@@ -82,7 +89,7 @@ export class SetAgentSessionsOrientationStackedAction extends Action2 {
 			id: 'workbench.action.chat.setAgentSessionsOrientationStacked',
 			title: localize2('chat.sessionsOrientation.stacked', "Stacked"),
 			toggled: ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsOrientation}`, 'stacked'),
-			precondition: ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsEnabled}`, true),
+			precondition: ContextKeyExpr.and(ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsEnabled}`, true), ChatContextKeys.agentsViewActive.negate()),
 			menu: {
 				id: agentSessionsOrientationSubmenu,
 				group: 'navigation',
@@ -104,8 +111,8 @@ export class SetAgentSessionsOrientationSideBySideAction extends Action2 {
 		super({
 			id: 'workbench.action.chat.setAgentSessionsOrientationSideBySide',
 			title: localize2('chat.sessionsOrientation.sideBySide', "Side by Side"),
-			toggled: ContextKeyExpr.notEquals(`config.${ChatConfiguration.ChatViewSessionsOrientation}`, 'stacked'),
-			precondition: ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsEnabled}`, true),
+			toggled: ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsOrientation}`, 'sideBySide'),
+			precondition: ContextKeyExpr.and(ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsEnabled}`, true), ChatContextKeys.agentsViewActive.negate()),
 			menu: {
 				id: agentSessionsOrientationSubmenu,
 				group: 'navigation',
@@ -188,18 +195,27 @@ export class MarkAllAgentSessionsReadAction extends Action2 {
 			precondition: ChatContextKeys.enabled,
 			category: AGENT_SESSIONS_CATEGORY,
 			f1: true,
-			menu: {
+			menu: [{
 				id: MenuId.AgentSessionsContext,
 				group: '0_read',
 				order: 2,
 				when: ChatContextKeys.isArchivedAgentSession.negate() // no read state for archived sessions
-			}
+			}, {
+				// The Agents window registers its own entry on this menu.
+				id: MenuId.SessionItemContextMenu,
+				group: '1_state',
+				order: 5,
+				when: IsSessionsWindowContext.negate()
+			}]
 		});
 	}
-	async run(accessor: ServicesAccessor) {
+	async run(accessor: ServicesAccessor, context?: IMarshalledAgentSessionContext) {
 		const agentSessionsService = accessor.get(IAgentSessionsService);
 
-		const sessionsToMarkRead = agentSessionsService.model.sessions.filter(session => !session.isArchived() && !session.isRead());
+		const sessions = isMarshalledAgentSessionContext(context) && context.showAutomationRuns
+			? agentSessionsService.model.sessionsIncludingAutomationRuns ?? agentSessionsService.model.sessions
+			: agentSessionsService.model.sessions;
+		const sessionsToMarkRead = sessions.filter(session => !session.isArchived() && !session.isRead());
 		if (sessionsToMarkRead.length === 0) {
 			return;
 		}
@@ -408,11 +424,76 @@ export class CollapseAllAgentSessionSectionsAction extends Action2 {
 
 //#region Session Actions
 
+export class OpenAgentSessionCustomizationsAction extends Action2 {
+	constructor() {
+		super({
+			id: 'agentSession.openCustomizations',
+			title: localize2('openSessionCustomizations', "Open Customizations"),
+			icon: Codicon.extensions,
+			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.hasMultipleAgentSessionsSelected.negate()),
+			menu: [{
+				id: MenuId.AgentSessionsContext,
+				group: 'navigation',
+				order: 6,
+				when: ChatContextKeys.enabled,
+			}],
+		});
+	}
+
+	run(accessor: ServicesAccessor, context?: IAgentSession | IMarshalledAgentSessionContext | readonly { readonly resource: URI }[]): Promise<void> {
+		return openAgentSessionCustomizations(accessor.get(ICommandService), context);
+	}
+}
+
+/**
+ * Open Customizations for the shared sessions list. It is a separate command
+ * because its enablement must follow the shared list's own selection key, not
+ * the legacy Chat view key that the shared list can inherit from its parent.
+ */
+export class OpenSessionsListItemCustomizationsAction extends Action2 {
+	constructor() {
+		super({
+			id: 'agentSession.openCustomizations.sessionsList',
+			title: localize2('openSessionCustomizations', "Open Customizations"),
+			icon: Codicon.extensions,
+			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.not('sessionItem.isMultiSelection')),
+			menu: [{
+				// The Agents window registers its own entry on this menu.
+				id: MenuId.SessionItemContextMenu,
+				group: 'navigation',
+				order: 6,
+				when: ContextKeyExpr.and(IsSessionsWindowContext.negate(), ChatContextKeys.enabled),
+			}],
+		});
+	}
+
+	run(accessor: ServicesAccessor, context?: readonly { readonly resource: URI }[]): Promise<void> {
+		return openAgentSessionCustomizations(accessor.get(ICommandService), context);
+	}
+}
+
+async function openAgentSessionCustomizations(commandService: ICommandService, context?: IAgentSession | IMarshalledAgentSessionContext | readonly { readonly resource: URI }[]): Promise<void> {
+	const sessions = Array.isArray(context) ? context as readonly { readonly resource: URI }[] : isMarshalledAgentSessionContext(context) ? context.sessions ?? [context.session] : context ? [context as IAgentSession] : [];
+	if (sessions.length !== 1) {
+		throw new Error(localize('openSessionCustomizations.selectSingleSession', "Select a single session to open its customizations."));
+	}
+	await commandService.executeCommand(AICustomizationManagementCommands.OpenEditor, { sessionResource: sessions[0].resource });
+}
+
 abstract class BaseAgentSessionAction extends Action2 {
 
-	async run(accessor: ServicesAccessor, context?: IAgentSession | IMarshalledAgentSessionContext): Promise<void> {
+	protected readonly supportsChildSessions: boolean = false;
+	protected readonly supportsMultiSelection: boolean = false;
+
+	async run(accessor: ServicesAccessor, sessionContext?: IAgentSession | IMarshalledAgentSessionContext | readonly { readonly resource: URI }[]): Promise<void> {
 		const agentSessionsService = accessor.get(IAgentSessionsService);
 		const viewsService = accessor.get(IViewsService);
+
+		// The shared sessions list menu passes the selected sessions as an array.
+		const context = toAgentSessionContext(sessionContext, resource => agentSessionsService.getSession(resource));
+		if (Array.isArray(sessionContext) && !context) {
+			return;
+		}
 
 		let sessions: IAgentSession[] = [];
 		if (isMarshalledAgentSessionContext(context)) {
@@ -425,8 +506,15 @@ abstract class BaseAgentSessionAction extends Action2 {
 			const chatView = viewsService.getActiveViewWithId<ChatViewPane>(ChatViewId);
 			const focused = chatView?.getFocusedSessions().at(0);
 			if (focused) {
-				sessions = [focused];
+				const selected = this.supportsMultiSelection ? chatView?.agentSessionsControl?.getSelectedSessions() : undefined;
+				sessions = selected?.includes(focused)
+					? selected.filter(session => isAgentSessionChild(session) === isAgentSessionChild(focused))
+					: [focused];
 			}
+		}
+
+		if (!this.supportsChildSessions) {
+			sessions = sessions.filter(session => !isAgentSessionChild(session));
 		}
 
 		if (sessions.length > 0) {
@@ -439,10 +527,18 @@ abstract class BaseAgentSessionAction extends Action2 {
 
 export class MarkAgentSessionUnreadAction extends BaseAgentSessionAction {
 
+	protected override readonly supportsChildSessions = true;
+	protected override readonly supportsMultiSelection = true;
+
 	constructor() {
 		super({
-			id: 'agentSession.markUnread',
+			id: AGENT_SESSION_MARK_UNREAD_ACTION_ID,
 			title: localize2('markUnread', "Mark as Unread"),
+			keybinding: {
+				primary: KeyMod.Shift | KeyCode.KeyU,
+				weight: KeybindingWeight.WorkbenchContrib + 1,
+				when: ContextKeyExpr.and(IsSessionsWindowContext.negate(), ChatContextKeys.agentSessionsViewerFocused, WorkbenchListFocusContextKey),
+			},
 			menu: {
 				id: MenuId.AgentSessionsContext,
 				group: '0_read',
@@ -464,10 +560,18 @@ export class MarkAgentSessionUnreadAction extends BaseAgentSessionAction {
 
 export class MarkAgentSessionReadAction extends BaseAgentSessionAction {
 
+	protected override readonly supportsChildSessions = true;
+	protected override readonly supportsMultiSelection = true;
+
 	constructor() {
 		super({
-			id: 'agentSession.markRead',
+			id: AGENT_SESSION_MARK_READ_ACTION_ID,
 			title: localize2('markRead', "Mark as Read"),
+			keybinding: {
+				primary: KeyMod.Shift | KeyCode.KeyI,
+				weight: KeybindingWeight.WorkbenchContrib + 1,
+				when: ContextKeyExpr.and(IsSessionsWindowContext.negate(), ChatContextKeys.agentSessionsViewerFocused, WorkbenchListFocusContextKey),
+			},
 			menu: {
 				id: MenuId.AgentSessionsContext,
 				group: '0_read',
@@ -489,6 +593,9 @@ export class MarkAgentSessionReadAction extends BaseAgentSessionAction {
 
 abstract class BaseArchiveAgentSessionAction extends BaseAgentSessionAction {
 
+	protected override readonly supportsChildSessions = true;
+	protected override readonly supportsMultiSelection = true;
+
 	constructor(private readonly wording: ChatSessionArchiveActionWording) {
 		const action = getChatSessionArchiveActionPresentation(wording).archive;
 		super({
@@ -501,6 +608,7 @@ abstract class BaseArchiveAgentSessionAction extends BaseAgentSessionAction {
 				weight: KeybindingWeight.WorkbenchContrib + 1,
 				when: ContextKeyExpr.and(
 					ChatContextKeys.agentSessionsViewerFocused,
+					ContextKeyExpr.or(ChatContextKeys.isAgentSessionChild.negate(), ChatContextKeys.agentSessionChildCanArchive),
 					ChatContextKeys.isArchivedAgentSession.negate()
 				)
 			},
@@ -514,16 +622,23 @@ abstract class BaseArchiveAgentSessionAction extends BaseAgentSessionAction {
 				group: '1_edit',
 				order: 2,
 				when: ChatContextKeys.isArchivedAgentSession.negate()
-			}]
+			}, ...[AgentSessionChatContextMenu, AgentSessionChatToolbar].map(id => ({
+				id,
+				group: id === AgentSessionChatToolbar ? 'navigation' : '1_state',
+				order: 2,
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.agentSessionChildCanArchive, ChatContextKeys.isArchivedAgentSession.negate()),
+			}))]
 		});
 	}
 
 	async runWithSessions(sessions: IAgentSession[], accessor: ServicesAccessor): Promise<void> {
-		const chatService = accessor.get(IChatService);
-		const dialogService = accessor.get(IDialogService);
-
 		// Archive all sessions
 		for (const session of sessions) {
+			if (isAgentSessionChild(session) && session.canArchive !== true) {
+				continue;
+			}
+			const chatService = accessor.get(IChatService);
+			const dialogService = accessor.get(IDialogService);
 			const chatModel = chatService.getSession(session.resource);
 			if (chatModel && !await showClearEditingSessionConfirmation(chatModel, dialogService, {
 				isArchiveAction: true,
@@ -554,6 +669,9 @@ export class MarkAgentSessionDoneAction extends BaseArchiveAgentSessionAction {
 
 abstract class BaseUnarchiveAgentSessionAction extends BaseAgentSessionAction {
 
+	protected override readonly supportsChildSessions = true;
+	protected override readonly supportsMultiSelection = true;
+
 	constructor(wording: ChatSessionArchiveActionWording) {
 		const action = getChatSessionArchiveActionPresentation(wording).unarchive;
 		super({
@@ -568,6 +686,7 @@ abstract class BaseUnarchiveAgentSessionAction extends BaseAgentSessionAction {
 				weight: KeybindingWeight.WorkbenchContrib + 1,
 				when: ContextKeyExpr.and(
 					ChatContextKeys.agentSessionsViewerFocused,
+					ContextKeyExpr.or(ChatContextKeys.isAgentSessionChild.negate(), ChatContextKeys.agentSessionChildCanArchive),
 					ChatContextKeys.isArchivedAgentSession
 				)
 			},
@@ -581,13 +700,20 @@ abstract class BaseUnarchiveAgentSessionAction extends BaseAgentSessionAction {
 				group: '1_edit',
 				order: 2,
 				when: ChatContextKeys.isArchivedAgentSession,
-			}]
+			}, ...[AgentSessionChatContextMenu, AgentSessionChatToolbar].map(id => ({
+				id,
+				group: id === AgentSessionChatToolbar ? 'navigation' : '1_state',
+				order: 2,
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.agentSessionChildCanArchive, ChatContextKeys.isArchivedAgentSession),
+			}))]
 		});
 	}
 
 	runWithSessions(sessions: IAgentSession[]): void {
 		for (const session of sessions) {
-			session.setArchived(false);
+			if (!isAgentSessionChild(session) || session.canArchive === true) {
+				session.setArchived(false);
+			}
 		}
 	}
 }
@@ -692,12 +818,18 @@ export class UnpinAgentSessionAction extends BaseAgentSessionAction {
 
 /**
  * Matches every session type that supports renaming: local sessions and all
- * agent-host session types (`agent-host-*` and `remote-*`), mirroring the
- * generic `isAgentHostTarget` check used by the rename action body.
+ * agent-host session types (`agent-host-*` and `remote-*`).
  */
 const renameSupportedSessionTypes = ContextKeyExpr.or(
 	ChatContextKeys.agentSessionType.isEqualTo(AgentSessionProviders.Local),
 	ChatContextKeyExprs.isAgentHostSessionItem,
+);
+
+const renameFocusedChatSessionKeybindingWhen = ContextKeyExpr.and(
+	ChatContextKeys.inChatSession,
+	ChatContextKeys.inQuickChat.negate(),
+	IsSessionsWindowContext.negate(),
+	ChatContextKeys.chatSessionSupportsRename,
 );
 
 export class RenameAgentSessionAction extends BaseAgentSessionAction {
@@ -706,8 +838,7 @@ export class RenameAgentSessionAction extends BaseAgentSessionAction {
 		super({
 			id: AGENT_SESSION_RENAME_ACTION_ID,
 			title: localize2('rename', "Rename..."),
-			precondition: ChatContextKeys.hasMultipleAgentSessionsSelected.negate(),
-			keybinding: {
+			keybinding: [{
 				primary: KeyCode.F2,
 				mac: {
 					primary: KeyCode.Enter
@@ -715,16 +846,41 @@ export class RenameAgentSessionAction extends BaseAgentSessionAction {
 				weight: KeybindingWeight.WorkbenchContrib + 1,
 				when: ContextKeyExpr.and(
 					ChatContextKeys.agentSessionsViewerFocused,
-					renameSupportedSessionTypes
+					ChatContextKeys.isAgentSessionChild.negate(),
+					renameSupportedSessionTypes,
+					ChatContextKeys.hasMultipleAgentSessionsSelected.negate(),
 				),
-			},
+			}, {
+				primary: KeyCode.F2,
+				weight: KeybindingWeight.WorkbenchContrib + 1,
+				when: renameFocusedChatSessionKeybindingWhen,
+			}],
 			menu: {
 				id: MenuId.AgentSessionsContext,
 				group: '1_edit',
 				order: 3,
-				when: renameSupportedSessionTypes
+				when: ContextKeyExpr.and(
+					renameSupportedSessionTypes,
+					ChatContextKeys.hasMultipleAgentSessionsSelected.negate(),
+				),
 			}
 		});
+	}
+
+	override async run(accessor: ServicesAccessor, context?: IAgentSession | IMarshalledAgentSessionContext): Promise<void> {
+		const widget = accessor.get(IChatWidgetService).lastFocusedWidget;
+		const viewModel = widget?.viewModel;
+		if (!context && widget && viewModel && isAncestorOfActiveElement(widget.domNode)) {
+			const sessionType = getChatSessionType(viewModel.sessionResource);
+			const isLocalSession = sessionType === AgentSessionProviders.Local;
+			if (!isLocalSession && !accessor.get(IChatSessionsService).sessionSupportsRename(viewModel.sessionResource)) {
+				return;
+			}
+			await this.renameSession(viewModel.sessionResource, viewModel.model.title, !isLocalSession, accessor);
+			return;
+		}
+
+		await super.run(accessor, context);
 	}
 
 	async runWithSessions(sessions: IAgentSession[], accessor: ServicesAccessor): Promise<void> {
@@ -733,16 +889,21 @@ export class RenameAgentSessionAction extends BaseAgentSessionAction {
 			return;
 		}
 
-		const quickInputService = accessor.get(IQuickInputService);
-		const chatService = accessor.get(IChatService);
-		const chatSessionsService = accessor.get(IChatSessionsService);
+		await this.renameSession(session.resource, session.label, isAgentHostAgentSessionItem(session), accessor);
+	}
 
-		const title = await quickInputService.input({ prompt: localize('newChatTitle', "New agent session title"), value: session.label });
+	private async renameSession(sessionResource: URI, currentTitle: string, isContributedSession: boolean, accessor: ServicesAccessor): Promise<void> {
+		const quickInputService = accessor.get(IQuickInputService);
+		const renameTarget = isContributedSession
+			? { type: 'contributed' as const, service: accessor.get(IChatSessionsService) }
+			: { type: 'local' as const, service: accessor.get(IChatService) };
+
+		const title = await quickInputService.input({ prompt: localize('newChatTitle', "New agent session title"), value: currentTitle });
 		if (title) {
-			if (isAgentHostAgentSessionItem(session)) {
-				await chatSessionsService.renameChatSession(session.resource, title, CancellationToken.None);
+			if (renameTarget.type === 'contributed') {
+				await renameTarget.service.renameChatSession(sessionResource, title, CancellationToken.None);
 			} else {
-				chatService.setChatSessionTitle(session.resource, title);
+				renameTarget.service.setChatSessionTitle(sessionResource, title);
 			}
 		}
 	}
@@ -750,11 +911,13 @@ export class RenameAgentSessionAction extends BaseAgentSessionAction {
 
 export class DeleteAgentSessionAction extends BaseAgentSessionAction {
 
+	protected override readonly supportsChildSessions: boolean = true;
+
 	constructor() {
 		super({
 			id: AGENT_SESSION_DELETE_ACTION_ID,
 			title: localize2('delete', "Delete..."),
-			menu: {
+			menu: [{
 				id: MenuId.AgentSessionsContext,
 				group: '1_edit',
 				order: 4,
@@ -762,7 +925,12 @@ export class DeleteAgentSessionAction extends BaseAgentSessionAction {
 					ChatContextKeys.agentSessionType.isEqualTo(AgentSessionProviders.Local),
 					ChatContextKeyExprs.isAgentHostSessionItem,
 				)
-			}
+			}, {
+				id: AgentSessionChatContextMenu,
+				group: '1_edit',
+				order: 1,
+				when: ChatContextKeyExprs.isAgentHostSessionItem,
+			}]
 		});
 	}
 
@@ -869,6 +1037,8 @@ export class DeleteAllLocalSessionsAction extends Action2 {
 
 abstract class BaseOpenAgentSessionAction extends BaseAgentSessionAction {
 
+	protected override readonly supportsChildSessions: boolean = true;
+
 	async runWithSessions(sessions: IAgentSession[], accessor: ServicesAccessor): Promise<void> {
 		const chatWidgetService = accessor.get(IChatWidgetService);
 
@@ -904,12 +1074,22 @@ export class OpenAgentSessionInEditorGroupAction extends BaseOpenAgentSessionAct
 				weight: KeybindingWeight.WorkbenchContrib + 1,
 				when: ContextKeyExpr.and(ChatContextKeys.agentSessionsViewerFocused, IsSessionsWindowContext.negate()),
 			},
-			menu: {
+			menu: [{
 				id: MenuId.AgentSessionsContext,
 				when: IsSessionsWindowContext.negate(),
 				order: 1,
 				group: 'navigation'
-			}
+			}, {
+				id: AgentSessionChatContextMenu,
+				when: IsSessionsWindowContext.negate(),
+				order: 1,
+				group: 'navigation'
+			}, {
+				id: MenuId.SessionItemContextMenu,
+				when: ContextKeyExpr.and(IsSessionsWindowContext.negate(), ChatContextKeys.enabled),
+				order: 2.1,
+				group: 'navigation'
+			}]
 		});
 	}
 
@@ -938,12 +1118,22 @@ export class OpenAgentSessionInNewEditorGroupAction extends BaseOpenAgentSession
 				weight: KeybindingWeight.WorkbenchContrib + 1,
 				when: ContextKeyExpr.and(ChatContextKeys.agentSessionsViewerFocused, IsSessionsWindowContext.negate()),
 			},
-			menu: {
+			menu: [{
 				id: MenuId.AgentSessionsContext,
 				when: IsSessionsWindowContext.negate(),
 				order: 2,
 				group: 'navigation'
-			}
+			}, {
+				id: AgentSessionChatContextMenu,
+				when: IsSessionsWindowContext.negate(),
+				order: 2,
+				group: 'navigation'
+			}, {
+				id: MenuId.SessionItemContextMenu,
+				when: ContextKeyExpr.and(IsSessionsWindowContext.negate(), ChatContextKeys.enabled),
+				order: 2.2,
+				group: 'navigation'
+			}]
 		});
 	}
 
@@ -958,17 +1148,25 @@ export class OpenAgentSessionInNewEditorGroupAction extends BaseOpenAgentSession
 
 export class OpenAgentSessionInNewWindowAction extends BaseOpenAgentSessionAction {
 
+	protected override readonly supportsChildSessions: boolean = false;
+
 	static readonly id = 'workbench.action.chat.openSessionInNewWindow';
 
 	constructor() {
 		super({
 			id: OpenAgentSessionInNewWindowAction.id,
 			title: localize2('chat.openSessionInNewWindow.label', "Open in New Window"),
-			menu: {
+			menu: [{
 				id: MenuId.AgentSessionsContext,
 				order: 3,
 				group: 'navigation'
-			}
+			}, {
+				// The Agents window opens a chat in a new window from the chat item menu.
+				id: MenuId.SessionItemContextMenu,
+				when: ContextKeyExpr.and(IsSessionsWindowContext.negate(), ChatContextKeys.enabled),
+				order: 2.3,
+				group: 'navigation'
+			}]
 		});
 	}
 
@@ -1080,6 +1278,7 @@ abstract class UpdateChatViewWidthAction extends Action2 {
 
 		const newOrientation = this.getOrientation();
 		const lastWidthForOrientation = chatView?.getLastDimensions(newOrientation)?.width;
+		const currentBodyWidth = chatView.getLastDimensions(chatView.getSessionsViewerOrientation())?.width; // the latest layout, before the orientation changes
 
 		if ((!canResizeView || validatedConfiguredOrientation === 'sideBySide') && newOrientation === AgentSessionsViewerOrientation.Stacked) {
 			chatView.updateConfiguredSessionsViewerOrientation('stacked');
@@ -1094,9 +1293,13 @@ abstract class UpdateChatViewWidthAction extends Action2 {
 		const part = paneCompositeService.getPartId(chatLocation);
 		let currentSize = layoutService.getSize(part);
 
+		// The part is wider than the Chat view's body by its chrome, such as its margins and border: the Chat view shows
+		// side by side only once its body is wide enough
+		const chrome = currentBodyWidth !== undefined ? Math.max(0, currentSize.width - currentBodyWidth) : 1; // without a measure, a possible theme border
+
 		const chatViewDefaultWidth = 300;
 		const sessionsViewDefaultWidth = chatViewDefaultWidth;
-		const sideBySideMinWidth = chatViewDefaultWidth + sessionsViewDefaultWidth + 1;	// account for possible theme border
+		const sideBySideMinWidth = chatViewDefaultWidth + sessionsViewDefaultWidth + chrome;
 
 		if (
 			(newOrientation === AgentSessionsViewerOrientation.SideBySide && currentSize.width >= sideBySideMinWidth) ||													// already wide enough to show side by side
@@ -1149,6 +1352,7 @@ export class ShowAgentSessionsSidebar extends UpdateChatViewWidthAction {
 			precondition: ContextKeyExpr.and(
 				ChatContextKeys.enabled,
 				ChatContextKeys.agentSessionsViewerOrientation.isEqualTo(AgentSessionsViewerOrientation.Stacked),
+				ChatContextKeys.agentsViewActive.negate(),
 			),
 			f1: true,
 			category: AGENT_SESSIONS_CATEGORY,
@@ -1172,6 +1376,7 @@ export class HideAgentSessionsSidebar extends UpdateChatViewWidthAction {
 			precondition: ContextKeyExpr.and(
 				ChatContextKeys.enabled,
 				ChatContextKeys.agentSessionsViewerOrientation.isEqualTo(AgentSessionsViewerOrientation.SideBySide),
+				ChatContextKeys.agentsViewActive.negate(),
 			),
 			f1: true,
 			category: AGENT_SESSIONS_CATEGORY,
@@ -1192,7 +1397,7 @@ export class ToggleAgentSessionsSidebar extends Action2 {
 		super({
 			id: ToggleAgentSessionsSidebar.ID,
 			title: ToggleAgentSessionsSidebar.TITLE,
-			precondition: ChatContextKeys.enabled,
+			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.agentsViewActive.negate()),
 			f1: true,
 			category: AGENT_SESSIONS_CATEGORY,
 		});
@@ -1223,7 +1428,8 @@ export class FocusAgentSessionsAction extends Action2 {
 			title: localize2('chat.focusAgentSessionsViewer.label', "Focus Agent Sessions"),
 			precondition: ContextKeyExpr.and(
 				ChatContextKeys.enabled,
-				ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsEnabled}`, true)
+				ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsEnabled}`, true),
+				ChatContextKeys.agentsViewActive.negate(),
 			),
 			category: AGENT_SESSIONS_CATEGORY,
 			f1: true,

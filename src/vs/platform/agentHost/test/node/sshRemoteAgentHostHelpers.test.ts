@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { NullLogService } from '../../../log/common/log.js';
 import { TelemetryConfiguration } from '../../../telemetry/common/telemetry.js';
 import { AGENT_HOST_ENDPOINT_REGISTRY_SCHEMA_VERSION, type IAgentHostEndpointMetadata } from '../../common/agentHostEndpointRegistry.js';
 import {
@@ -17,6 +19,8 @@ import {
 	buildFindFallbackCLICommand,
 	filterLiveAgentHostEndpoints,
 	findNewAgentHostEndpoint,
+	formatAgentHostUrlHost,
+	getNewAgentHostRegistrationTimeoutMs,
 	getRemoteCLIArchiveName,
 	getRemoteCLIBin,
 	getRemoteCLIDataDir,
@@ -33,10 +37,11 @@ import {
 	waitForNewStandaloneEndpoint,
 	type ISshExec,
 } from '../../node/sshRemoteAgentHostHelpers.js';
+import { ensureRemoteAgentHostCliInstalled } from '../../node/remoteAgentHostCliInstaller.js';
 
 suite('SSH Remote Agent Host Helpers', () => {
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	function makeEndpoint(overrides: Partial<IAgentHostEndpointMetadata> & Pick<IAgentHostEndpointMetadata, 'type' | 'pid' | 'instanceId'>): IAgentHostEndpointMetadata {
 		return {
@@ -159,14 +164,14 @@ suite('SSH Remote Agent Host Helpers', () => {
 	});
 
 	suite('buildAgentHostBaseCommand', () => {
-		test('includes --cli-data-dir and the default telemetry level before the agent host subcommand', () => {
-			const cmd = buildAgentHostBaseCommand('~/.vscode-server/code-insiders-abc', '~/.vscode-server/cli', TelemetryConfiguration.ON);
-			assert.strictEqual(cmd, '~/.vscode-server/code-insiders-abc --cli-data-dir ~/.vscode-server/cli --telemetry-level all agent host --port 0');
+		test('includes --cli-data-dir, the default telemetry level and the product\'s --server-data-dir', () => {
+			const cmd = buildAgentHostBaseCommand('~/.vscode-server/code-insiders-abc', '.vscode-server', TelemetryConfiguration.ON);
+			assert.strictEqual(cmd, '~/.vscode-server/code-insiders-abc --cli-data-dir ~/.vscode-server/cli --telemetry-level all agent host --port 0 --server-data-dir ~/.vscode-server');
 		});
 
 		test('includes telemetry disablement before the agent host subcommand', () => {
-			const cmd = buildAgentHostBaseCommand('~/.vscode-server/code-insiders-abc', '~/.vscode-server/cli', TelemetryConfiguration.OFF);
-			assert.strictEqual(cmd, '~/.vscode-server/code-insiders-abc --cli-data-dir ~/.vscode-server/cli --telemetry-level off agent host --port 0');
+			const cmd = buildAgentHostBaseCommand('~/.vscode-server/code-insiders-abc', '.vscode-server', TelemetryConfiguration.OFF);
+			assert.strictEqual(cmd, '~/.vscode-server/code-insiders-abc --cli-data-dir ~/.vscode-server/cli --telemetry-level off agent host --port 0 --server-data-dir ~/.vscode-server');
 		});
 
 		test('rejects unsafe telemetry levels', () => {
@@ -265,6 +270,18 @@ suite('SSH Remote Agent Host Helpers', () => {
 			assert.deepStrictEqual(resolveRemotePlatform('Linux', 'armv7l'), { os: 'linux', arch: 'armhf' });
 		});
 
+		test('detects musl Linux x64 as Alpine', () => {
+			assert.deepStrictEqual(resolveRemotePlatform('Linux', 'x86_64', 'musl'), { os: 'alpine', arch: 'x64' });
+		});
+
+		test('detects musl Linux arm64 as Alpine', () => {
+			assert.deepStrictEqual(resolveRemotePlatform('Linux', 'aarch64', 'musl\n'), { os: 'alpine', arch: 'arm64' });
+		});
+
+		test('rejects musl Linux armhf because no Alpine CLI artifact exists', () => {
+			assert.strictEqual(resolveRemotePlatform('Linux', 'armv7l', 'musl'), undefined);
+		});
+
 		test('detects Darwin x64', () => {
 			assert.deepStrictEqual(resolveRemotePlatform('Darwin', 'x86_64'), { os: 'darwin', arch: 'x64' });
 		});
@@ -304,6 +321,13 @@ suite('SSH Remote Agent Host Helpers', () => {
 			assert.strictEqual(
 				buildCLIDownloadUrl('darwin', 'arm64', 'stable'),
 				'https://update.code.visualstudio.com/latest/cli-darwin-arm64/stable'
+			);
+		});
+
+		test('uses the Alpine artifact for musl Linux', () => {
+			assert.strictEqual(
+				buildCLIDownloadUrl('alpine', 'x64', 'insider'),
+				'https://update.code.visualstudio.com/latest/cli-alpine-x64/insider'
 			);
 		});
 
@@ -362,10 +386,11 @@ suite('SSH Remote Agent Host Helpers', () => {
 		test('lists commit-keyed candidates then legacy paths for insider', () => {
 			const cmd = buildFindFallbackCLICommand('.vscode-server-insiders', 'insider');
 			// New commit-keyed candidates in shared install root, sorted newest-first.
-			assert.ok(cmd.includes('~/.vscode-server-insiders/code-insiders-'), `cmd missing new path: ${cmd}`);
+			assert.ok(cmd.includes('.vscode-server-insiders/code-insiders-'), `cmd missing new path: ${cmd}`);
 			assert.ok(/ls -1t/.test(cmd), 'should sort commit-keyed candidates by mtime');
+			assert.ok(cmd.includes(`sed 's#^#~/#'`), `cmd should normalize candidates to validated paths: ${cmd}`);
 			// Legacy single-binary path (insider has the `-insider` dir suffix).
-			assert.ok(cmd.includes('~/.vscode-cli-insider/code-insiders'), `cmd missing legacy path: ${cmd}`);
+			assert.ok(cmd.includes(`printf '%s\\n' '~/.vscode-cli-insider/code-insiders'`), `cmd missing legacy path: ${cmd}`);
 		});
 
 		test('uses no-suffix legacy dir for stable', () => {
@@ -467,34 +492,40 @@ suite('SSH Remote Agent Host Helpers', () => {
 	suite('buildAgentHostSpawnCommand', () => {
 		test('includes --new-instance, --user-data-dir and default --idle-timeout', () => {
 			assert.strictEqual(
-				buildAgentHostSpawnCommand('~/.vscode-server/code', '~/.vscode-server/cli', '/home/user/.vscode-remote', TelemetryConfiguration.ON),
-				'~/.vscode-server/code --cli-data-dir ~/.vscode-server/cli --telemetry-level all agent host --port 0 --new-instance --user-data-dir \'/home/user/.vscode-remote\' --idle-timeout 300',
+				buildAgentHostSpawnCommand('~/.vscode-server/code', '.vscode-server', '/home/user/.vscode-remote', TelemetryConfiguration.ON),
+				'~/.vscode-server/code --cli-data-dir ~/.vscode-server/cli --telemetry-level all agent host --port 0 --server-data-dir ~/.vscode-server --new-instance --user-data-dir \'/home/user/.vscode-remote\' --idle-timeout 300',
 			);
 		});
 
 		test('honors a custom idle timeout', () => {
 			assert.strictEqual(
-				buildAgentHostSpawnCommand('~/.vscode-server/code', '~/.vscode-server/cli', '/home/user/.vscode-remote', TelemetryConfiguration.ON, 60),
-				'~/.vscode-server/code --cli-data-dir ~/.vscode-server/cli --telemetry-level all agent host --port 0 --new-instance --user-data-dir \'/home/user/.vscode-remote\' --idle-timeout 60',
+				buildAgentHostSpawnCommand('~/.vscode-server/code', '.vscode-server', '/home/user/.vscode-remote', TelemetryConfiguration.ON, 60),
+				'~/.vscode-server/code --cli-data-dir ~/.vscode-server/cli --telemetry-level all agent host --port 0 --server-data-dir ~/.vscode-server --new-instance --user-data-dir \'/home/user/.vscode-remote\' --idle-timeout 60',
 			);
 		});
 
 		test('propagates telemetry disablement to a new dedicated agent host', () => {
 			assert.strictEqual(
-				buildAgentHostSpawnCommand('~/.vscode-server/code', '~/.vscode-server/cli', '/home/user/.vscode-remote', TelemetryConfiguration.OFF),
-				'~/.vscode-server/code --cli-data-dir ~/.vscode-server/cli --telemetry-level off agent host --port 0 --new-instance --user-data-dir \'/home/user/.vscode-remote\' --idle-timeout 300',
+				buildAgentHostSpawnCommand('~/.vscode-server/code', '.vscode-server', '/home/user/.vscode-remote', TelemetryConfiguration.OFF),
+				'~/.vscode-server/code --cli-data-dir ~/.vscode-server/cli --telemetry-level off agent host --port 0 --server-data-dir ~/.vscode-server --new-instance --user-data-dir \'/home/user/.vscode-remote\' --idle-timeout 300',
 			);
 		});
 
 		test('rejects unsafe idle timeout values', () => {
-			assert.throws(() => buildAgentHostSpawnCommand('~/.vscode-server/code', '~/.vscode-server/cli', '/x', TelemetryConfiguration.ON, 0), /Unsafe idle timeout/);
-			assert.throws(() => buildAgentHostSpawnCommand('~/.vscode-server/code', '~/.vscode-server/cli', '/x', TelemetryConfiguration.ON, -1), /Unsafe idle timeout/);
-			assert.throws(() => buildAgentHostSpawnCommand('~/.vscode-server/code', '~/.vscode-server/cli', '/x', TelemetryConfiguration.ON, 1.5), /Unsafe idle timeout/);
+			assert.throws(() => buildAgentHostSpawnCommand('~/.vscode-server/code', '.vscode-server', '/x', TelemetryConfiguration.ON, 0), /Unsafe idle timeout/);
+			assert.throws(() => buildAgentHostSpawnCommand('~/.vscode-server/code', '.vscode-server', '/x', TelemetryConfiguration.ON, -1), /Unsafe idle timeout/);
+			assert.throws(() => buildAgentHostSpawnCommand('~/.vscode-server/code', '.vscode-server', '/x', TelemetryConfiguration.ON, 1.5), /Unsafe idle timeout/);
 		});
 
 		test('always includes --new-instance so an existing standalone is never silently reused', () => {
-			const cmd = buildAgentHostSpawnCommand('~/.vscode-server/code', '~/.vscode-server/cli', '/x', TelemetryConfiguration.ON);
+			const cmd = buildAgentHostSpawnCommand('~/.vscode-server/code', '.vscode-server', '/x', TelemetryConfiguration.ON);
 			assert.ok(cmd.includes(' --new-instance '), 'spawn command must request a genuinely new instance, not reuse an existing standalone');
+		});
+	});
+
+	suite('formatAgentHostUrlHost', () => {
+		test('dials loopback for wildcards and brackets IPv6 literals', () => {
+			assert.deepStrictEqual(['127.0.0.1', '0.0.0.0', '::', '::1', '[::1]', 'localhost', undefined].map(formatAgentHostUrlHost), ['127.0.0.1', '127.0.0.1', '127.0.0.1', '[::1]', '[::1]', 'localhost', '127.0.0.1']);
 		});
 	});
 
@@ -649,6 +680,72 @@ suite('SSH Remote Agent Host Helpers', () => {
 		});
 	});
 
+	suite('ensureRemoteAgentHostCliInstalled', () => {
+		test('reports whether a CLI was reused or installed', async () => {
+			const cliBin = getRemoteCLIBin('.vscode-server', 'insider');
+			const options = {
+				serverDataFolderName: '.vscode-server',
+				quality: 'insider',
+				commit: undefined,
+				reportInstalling: () => { },
+				logService: new NullLogService(),
+			};
+			const commit = '1234567890abcdef1234567890abcdef12345678';
+			const pinnedOptions = { ...options, commit };
+			const pinnedCliBin = getRemoteCLIBin('.vscode-server', 'insider', commit);
+			const reused = await ensureRemoteAgentHostCliInstalled(
+				async () => ({ stdout: '1.0.0\n__vscode_cli_update_exit_code__:0\n', stderr: '', code: 0 }),
+				{ os: 'linux', arch: 'x64' },
+				options,
+			);
+			let calls = 0;
+			const installed = await ensureRemoteAgentHostCliInstalled(
+				async () => {
+					calls++;
+					return { stdout: '', stderr: '', code: calls === 1 ? 1 : 0 };
+				},
+				{ os: 'linux', arch: 'x64' },
+				options,
+			);
+			const reusedPinned = await ensureRemoteAgentHostCliInstalled(
+				async () => ({ stdout: '', stderr: '', code: 0 }),
+				{ os: 'linux', arch: 'x64' },
+				pinnedOptions,
+			);
+			calls = 0;
+			const installedPinned = await ensureRemoteAgentHostCliInstalled(
+				async () => {
+					calls++;
+					return { stdout: '', stderr: '', code: calls === 1 ? 1 : 0 };
+				},
+				{ os: 'linux', arch: 'x64' },
+				pinnedOptions,
+			);
+
+			assert.deepStrictEqual(
+				{
+					reused,
+					installed,
+					reusedPinned,
+					installedPinned,
+					registrationTimeouts: {
+						reused: getNewAgentHostRegistrationTimeoutMs(reused.installed),
+						installed: getNewAgentHostRegistrationTimeoutMs(installed.installed),
+						reusedPinned: getNewAgentHostRegistrationTimeoutMs(reusedPinned.installed),
+						installedPinned: getNewAgentHostRegistrationTimeoutMs(installedPinned.installed),
+					},
+				},
+				{
+					reused: { cliBin, installed: false },
+					installed: { cliBin, installed: true },
+					reusedPinned: { cliBin: pinnedCliBin, installed: false },
+					installedPinned: { cliBin: pinnedCliBin, installed: true },
+					registrationTimeouts: { reused: undefined, installed: 300_000, reusedPinned: undefined, installedPinned: 300_000 },
+				},
+			);
+		});
+	});
+
 	suite('waitForNewStandaloneEndpoint', () => {
 		test('resolves as soon as the new endpoint appears', async () => {
 			const before = [makeEndpoint({ type: 'standalone', pid: 1, instanceId: 'old' })];
@@ -664,13 +761,44 @@ suite('SSH Remote Agent Host Helpers', () => {
 			assert.ok(poll >= 2);
 		});
 
-		test('throws once the attempt budget is exhausted', async () => {
+		test('uses the default short deadline when no timeout is supplied', async () => {
 			const before = [makeEndpoint({ type: 'standalone', pid: 1, instanceId: 'old' })];
 			const exec: ISshExec = async () => ({ stdout: JSON.stringify({ userDataPath: '/x', endpoints: before }), stderr: '', code: 0 });
 			await assert.rejects(
-				() => waitForNewStandaloneEndpoint(exec, '~/.vscode-server/code', '~/.vscode-server/cli', '/x', before, { attempts: 2, intervalMs: 1 }),
-				/Timed out waiting/,
+				() => waitForNewStandaloneEndpoint(exec, '~/.vscode-server/code', '~/.vscode-server/cli', '/x', before, { intervalMs: 1 }),
+				/deadline 20ms/,
 			);
+		});
+
+		test('keeps polling past the default deadline when given a longer deadline', async () => {
+			const before = [makeEndpoint({ type: 'standalone', pid: 1, instanceId: 'old' })];
+			const spawned = makeEndpoint({ type: 'standalone', pid: 2, instanceId: 'new' });
+			let polls = 0;
+			const exec: ISshExec = async () => {
+				polls++;
+				const endpoints = polls <= 20 ? before : [...before, spawned];
+				return { stdout: JSON.stringify({ userDataPath: '/x', endpoints }), stderr: '', code: 0 };
+			};
+
+			const result = await waitForNewStandaloneEndpoint(exec, '~/.vscode-server/code', '~/.vscode-server/cli', '/x', before, { intervalMs: 1, timeoutMs: getNewAgentHostRegistrationTimeoutMs(true) });
+			assert.deepStrictEqual({ result, polls }, { result: spawned, polls: 21 });
+		});
+
+		test('cancels promptly while waiting for registration', async () => {
+			const before = [makeEndpoint({ type: 'standalone', pid: 1, instanceId: 'old' })];
+			const cancellationSource = store.add(new CancellationTokenSource());
+			let polls = 0;
+			const exec: ISshExec = async () => {
+				polls++;
+				cancellationSource.cancel();
+				return { stdout: JSON.stringify({ userDataPath: '/x', endpoints: before }), stderr: '', code: 0 };
+			};
+
+			await assert.rejects(
+				() => waitForNewStandaloneEndpoint(exec, '~/.vscode-server/code', '~/.vscode-server/cli', '/x', before, { timeoutMs: 60_000, token: cancellationSource.token }),
+				/Canceled/,
+			);
+			assert.deepStrictEqual(polls, 1);
 		});
 	});
 });

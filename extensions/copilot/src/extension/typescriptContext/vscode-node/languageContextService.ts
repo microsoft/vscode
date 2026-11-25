@@ -7,6 +7,7 @@ import * as vscode from 'vscode';
 
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { Copilot } from '../../../platform/inlineCompletions/common/api';
+import { IRegionContextProviderService } from '../../../platform/languageContextProvider/common/regionContextProvider';
 import { ILanguageContextProviderService, ProviderTarget } from '../../../platform/languageContextProvider/common/languageContextProviderService';
 import { ContextKind, ILanguageContextService, KnownSources, TriggerKind, type ContextItem, type RequestContext } from '../../../platform/languageServer/common/languageContextService';
 import { ILogService } from '../../../platform/log/common/logService';
@@ -18,7 +19,7 @@ import { generateUuid } from '../../../util/vs/base/common/uuid';
 import { InspectorDataProvider } from './inspector';
 import { ThrottledDebouncer } from './throttledDebounce';
 import { ContextItemSummary, ErrorLocation, ErrorPart, type OnCachePopulatedEvent, type OnContextComputedEvent, type OnContextComputedOnTimeoutEvent } from './types';
-import { TS6LanguageContextService } from './tsc6/tsContextService';
+import { TS6LanguageContextService } from './ts6/tsContextService';
 import { TS7LanguageContextService } from './ts7/tsContextService';
 import { currentTokenBudget, NullTSLanguageContextService, type TSLanguageContextService } from './tsContextService';
 import { TypeScript } from './tsService';
@@ -34,6 +35,7 @@ export class LanguageContextServiceImpl implements ILanguageContextService, vsco
 	private readonly _onCachePopulated: vscode.EventEmitter<OnCachePopulatedEvent>;
 	private readonly _onContextComputed: vscode.EventEmitter<OnContextComputedEvent>;
 	private readonly _onContextComputedOnTimeout: vscode.EventEmitter<OnContextComputedOnTimeoutEvent>;
+	private readonly _onDidChangeActivation: vscode.EventEmitter<void>;
 
 	private tsLanguageContextService: TSLanguageContextService;
 
@@ -48,6 +50,7 @@ export class LanguageContextServiceImpl implements ILanguageContextService, vsco
 		this._onCachePopulated = this.disposables.add(new vscode.EventEmitter<OnCachePopulatedEvent>());
 		this._onContextComputed = this.disposables.add(new vscode.EventEmitter<OnContextComputedEvent>());
 		this._onContextComputedOnTimeout = this.disposables.add(new vscode.EventEmitter<OnContextComputedOnTimeoutEvent>());
+		this._onDidChangeActivation = this.disposables.add(new vscode.EventEmitter<void>());
 		const runsTS7 = TypeScript.runsVersion7();
 		const enableTS7 = TypeScript.isVersion7SupportEnabled(this.configurationService);
 		this.tsLanguageContextService = runsTS7
@@ -78,6 +81,13 @@ export class LanguageContextServiceImpl implements ILanguageContextService, vsco
 
 	public get onContextComputedOnTimeout() {
 		return this._onContextComputedOnTimeout.event;
+	}
+
+	/**
+	 * Fires when {@link isActivated} may return a different result, for example because the language server started.
+	 */
+	public get onDidChangeActivation() {
+		return this._onDidChangeActivation.event;
 	}
 
 	async isActivated(documentOrLanguageId: vscode.TextDocument | string): Promise<boolean> {
@@ -127,6 +137,7 @@ export class LanguageContextServiceImpl implements ILanguageContextService, vsco
 		this.serviceListeners.add(this.tsLanguageContextService.onCachePopulated(e => this._onCachePopulated.fire(e)));
 		this.serviceListeners.add(this.tsLanguageContextService.onContextComputed(e => this._onContextComputed.fire(e)));
 		this.serviceListeners.add(this.tsLanguageContextService.onContextComputedOnTimeout(e => this._onContextComputedOnTimeout.fire(e)));
+		this.serviceListeners.add(this.tsLanguageContextService.onDidChangeActivation(() => this._onDidChangeActivation.fire()));
 	}
 
 }
@@ -333,6 +344,7 @@ export class InlineCompletionContribution implements vscode.Disposable, TokenBud
 		@ILogService private readonly logService: ILogService,
 		@ILanguageContextService private readonly languageContextService: ILanguageContextService,
 		@ILanguageContextProviderService private readonly languageContextProviderService: ILanguageContextProviderService,
+		@IRegionContextProviderService private readonly containerContextProviderService: IRegionContextProviderService,
 	) {
 		this.registrations = undefined;
 		this.telemetrySender = new TelemetrySender(telemetryService, logService);
@@ -346,6 +358,22 @@ export class InlineCompletionContribution implements vscode.Disposable, TokenBud
 			}));
 			this.disposables.add(vscode.window.registerTreeDataProvider('context-inspector', new InspectorDataProvider(languageContextService)));
 		}
+		this.disposables.add(vscode.commands.registerCommand('github.copilot.debug.logTypeScriptContainers', async () => {
+			const editor = vscode.window.activeTextEditor;
+			const languageId = editor?.document.languageId;
+			if (!editor || (languageId !== 'typescript' && languageId !== 'typescriptreact' && languageId !== 'javascript' && languageId !== 'javascriptreact')) {
+				return;
+			}
+
+			const positions = editor.selections.map(selection => selection.active);
+			const containers = await this.containerContextProviderService.getRegions(
+				editor.document.uri,
+				editor.document.languageId,
+				positions.map(position => new vscode.Range(position, position))
+			);
+			const locations = positions.map(position => `${editor.document.uri.toString()}:${position.line + 1}:${position.character + 1}`).join(', ');
+			this.logService.info(`[ContainerContextProvider] Containers at ${locations}: ${JSON.stringify(containers, undefined, 2)}`);
+		}));
 
 		// Check if there are any TypeScript files open in the workspace.
 		const open = vscode.workspace.textDocuments.some((document) => document.languageId === 'typescript' || document.languageId === 'typescriptreact');
@@ -374,6 +402,9 @@ export class InlineCompletionContribution implements vscode.Disposable, TokenBud
 				this.checkRegistration();
 			}
 		}));
+		if (this.languageContextService instanceof LanguageContextServiceImpl) {
+			this.disposables.add(this.languageContextService.onDidChangeActivation(() => this.checkRegistration()));
+		}
 	}
 
 	private checkRegistration(): void {

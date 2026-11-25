@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IAuthenticationService } from '../../../platform/authentication/common/authentication';
 import { IGitExtensionService } from '../../../platform/git/common/gitExtensionService';
 import { getUpstreamRemote } from '../../../platform/git/common/utils';
 import { ObservableWorkspace } from '../../../platform/inlineEdits/common/observableWorkspace';
@@ -96,7 +97,7 @@ export interface IContinuousRecording {
  * ## Reconstruction
  *
  * Each event carries a `sessionId` (stable per sender lifetime — note that a new sender is created
- * whenever `InlineEditProviderFeature`'s autorun reruns, e.g. on copilot-token change, so one extension
+ * whenever `InlineEditProviderFeatureContribution`'s autorun reruns, e.g. on copilot-token change, so one extension
  * session can produce multiple `sessionId`s), a monotonically increasing `sequenceNumber`, and explicit
  * `windowStart`/`windowEnd` timestamps. The backend stitches a longer recording by grouping events by
  * `sessionId`, ordering by `windowStart`, and deduplicating entries in the overlap zone by
@@ -125,6 +126,7 @@ export class ContinuousEnhancedTelemetrySender extends Disposable {
 		private readonly _workspace: ObservableWorkspace | undefined,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IGitExtensionService private readonly _gitExtensionService: IGitExtensionService,
+		@IAuthenticationService private readonly _authenticationService: IAuthenticationService,
 	) {
 		super();
 
@@ -216,23 +218,29 @@ export class ContinuousEnhancedTelemetrySender extends Disposable {
 
 		const repositoryUrls = this._collectWorkspaceRepositories();
 
-		void multiplexProperties({
-			continuous: 'true',
-			recording: JSON.stringify(recording),
-			// `activeDocumentRepository` is intentionally omitted: a continuous slice spans many
-			// documents across `WINDOW_MS`, so there's no single "active" doc that meaningfully
-			// applies. The full workspace repo set is reported via `repositories` instead.
-			repositories: repositoryUrls === undefined ? undefined : JSON.stringify(repositoryUrls),
-		}).then(properties => this._telemetryService.sendEnhancedGHTelemetryEvent(NES_GH_TELEMETRY_EVENT_NAME,
-			properties,
-			{
-				continuousWindowDurationMs: ContinuousEnhancedTelemetrySender.WINDOW_MS,
-				continuousOverlapMs: ContinuousEnhancedTelemetrySender.OVERLAP_MS,
-				continuousEntriesCount: entries.length,
-				continuousEntriesSize: entriesSize,
-				continuousSequenceNumber: sequenceNumber,
+		void (async () => {
+			if (this._authenticationService.copilotToken) {
+				await this._authenticationService.getCopilotToken();
 			}
-		)).catch(() => { /* best-effort telemetry */ });
+			const properties = await multiplexProperties({
+				continuous: 'true',
+				recording: JSON.stringify(recording),
+				// `activeDocumentRepository` is intentionally omitted: a continuous slice spans many
+				// documents across `WINDOW_MS`, so there's no single "active" doc that meaningfully
+				// applies. The full workspace repo set is reported via `repositories` instead.
+				repositories: repositoryUrls === undefined ? undefined : JSON.stringify(repositoryUrls),
+			});
+			this._telemetryService.sendEnhancedGHTelemetryEvent(NES_GH_TELEMETRY_EVENT_NAME,
+				properties,
+				{
+					continuousWindowDurationMs: ContinuousEnhancedTelemetrySender.WINDOW_MS,
+					continuousOverlapMs: ContinuousEnhancedTelemetrySender.OVERLAP_MS,
+					continuousEntriesCount: entries.length,
+					continuousEntriesSize: entriesSize,
+					continuousSequenceNumber: sequenceNumber,
+				}
+			);
+		})().catch(() => { /* best-effort telemetry */ });
 	}
 
 	private _collectWorkspaceRepositories(): string[] | undefined {

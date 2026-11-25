@@ -44,6 +44,7 @@ export type {
 
 // Command params and results
 export type {
+	AuthenticateTarget,
 	CreateSessionParams,
 	DirectoryEntry,
 	DispatchActionParams,
@@ -54,6 +55,7 @@ export type {
 	InitializeResult,
 	ListSessionsParams,
 	ListSessionsResult,
+	McpServerAuthenticateTarget,
 	ReconnectParams,
 	ReconnectReplayResult,
 	ReconnectResult,
@@ -84,7 +86,7 @@ export type {
 	CreateResourceWatchResult,
 } from './protocol/channels-resource-watch/commands.js';
 
-export { ContentEncoding, ReconnectResultType, ResourceType, ResourceWriteMode } from './protocol/commands.js';
+export { AuthenticateTargetKind, ContentEncoding, ReconnectResultType, ResourceType, ResourceWriteMode } from './protocol/commands.js';
 export { ResourceChangeType } from './protocol/channels-resource-watch/state.js';
 export type { ResourceChange, ResourceWatchState } from './protocol/channels-resource-watch/state.js';
 
@@ -108,6 +110,12 @@ export const AHP_TURN_IN_PROGRESS = -32004 as const;
 export const AHP_UNSUPPORTED_PROTOCOL_VERSION = -32005 as const;
 export const AHP_CONTENT_NOT_FOUND = -32006 as const;
 export const AHP_AUTH_REQUIRED = -32007 as const;
+
+/**
+ * A named resource does not exist on the host. Not always a failure: a client may address a
+ * session it is about to create.
+ */
+export const AHP_NOT_FOUND = -32008 as const;
 
 // ---- Type guards -----------------------------------------------------------
 

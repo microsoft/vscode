@@ -2,15 +2,13 @@ version: 1
 dialect: anthropic
 exchanges:
   - request:
-      model: claude-opus-5
+      model: claude-opus-5.5
       system: ${system}
       messages:
         - role: user
           content: Replace the complete contents of stored-edit.txt with AFTER_STORED_VALUE using your file edit tool; do not run a shell command. Then reply exactly "done".
     response:
       content:
-        - type: text
-          text: I'll read the file first, then replace its contents.
         - type: tool_use
           id: toolcall_0
           name: Read
@@ -18,15 +16,13 @@ exchanges:
             file_path: ${workdir}/stored-edit.txt
       stopReason: tool_use
   - request:
-      model: claude-opus-5
+      model: claude-opus-5.5
       system: ${system}
       messages:
         - role: user
           content: Replace the complete contents of stored-edit.txt with AFTER_STORED_VALUE using your file edit tool; do not run a shell command. Then reply exactly "done".
         - role: assistant
           content:
-            - type: text
-              text: I'll read the file first, then replace its contents.
             - type: tool_use
               name: Read
               input:
@@ -40,22 +36,19 @@ exchanges:
       content:
         - type: tool_use
           id: toolcall_1
-          name: Edit
+          name: Write
           input:
             file_path: ${workdir}/stored-edit.txt
-            old_string: BEFORE_STORED_VALUE
-            new_string: AFTER_STORED_VALUE
+            content: AFTER_STORED_VALUE
       stopReason: tool_use
   - request:
-      model: claude-opus-5
+      model: claude-opus-5.5
       system: ${system}
       messages:
         - role: user
           content: Replace the complete contents of stored-edit.txt with AFTER_STORED_VALUE using your file edit tool; do not run a shell command. Then reply exactly "done".
         - role: assistant
           content:
-            - type: text
-              text: I'll read the file first, then replace its contents.
             - type: tool_use
               name: Read
               input:
@@ -68,12 +61,10 @@ exchanges:
         - role: assistant
           content:
             - type: tool_use
-              name: Edit
+              name: Write
               input:
-                replace_all: false
                 file_path: ${workdir}/stored-edit.txt
-                old_string: BEFORE_STORED_VALUE
-                new_string: AFTER_STORED_VALUE
+                content: AFTER_STORED_VALUE
         - role: user
           content:
             - type: tool_result

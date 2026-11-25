@@ -14,7 +14,6 @@ import {
 	buildCleanupOldCLIsCommand,
 	extractAgentHostWebSocketURL,
 	getRemoteCLIBin,
-	getRemoteCLIDataDir,
 	getRemoteCLIInstallRoot,
 	shellEscape,
 	validateAgentHostTelemetryLevel,
@@ -170,6 +169,8 @@ export function decodeWslOutput(buffer: Buffer): string {
 /**
  * Parse the output of `wsl --list --verbose`. Only WSL 2 distros are
  * returned — WSL 1 lacks the kernel features needed to host the agent.
+ * Docker Desktop's internal `docker-desktop*` distros are skipped because
+ * they cannot run the agent host.
  *
  * Robust against:
  *  - BOM, CRLF and lone LF line endings
@@ -220,7 +221,7 @@ export function parseWslListVerbose(output: string): IWSLDistro[] {
 		}
 		const state = columns[columns.length - 2];
 		const name = columns.slice(0, columns.length - 2).join(' ');
-		if (!name) {
+		if (!name || name.toLowerCase().startsWith('docker-desktop')) {
 			continue;
 		}
 		distros.push({
@@ -281,9 +282,9 @@ export function composeAgentHostBootstrapScript(args: IComposeAgentHostBootstrap
 	}
 	const installRoot = getRemoteCLIInstallRoot(args.serverDataFolderName);
 	const cliBin = getRemoteCLIBin(args.serverDataFolderName, args.quality, args.commit);
-	const cliDataDir = getRemoteCLIDataDir(args.serverDataFolderName);
 	const url = buildCLIDownloadUrl(args.os, args.arch, args.quality, args.commit);
-	const launch = `exec ${buildAgentHostBaseCommand(cliBin, cliDataDir, telemetryLevel)}`;
+	const agentHostCommand = buildAgentHostBaseCommand(cliBin, args.serverDataFolderName, telemetryLevel);
+	const launch = buildWslAgentHostLaunch(agentHostCommand);
 
 	if (args.commit) {
 		// Pinned-install path. Mirrors SSH's _ensureCLIInstalledPinned: stage
@@ -316,6 +317,16 @@ export function composeAgentHostBootstrapScript(args: IComposeAgentHostBootstrap
 		`if [ ! -x ${cliBin} ]; then ${installLoose}; fi`,
 		launch,
 	].join(' && ');
+}
+
+/**
+ * Build the WSL launch command with the CLI's disconnected-host reaper.
+ */
+function buildWslAgentHostLaunch(command: string, idleTimeoutSec = 300): string {
+	if (!Number.isSafeInteger(idleTimeoutSec) || idleTimeoutSec <= 0) {
+		throw new Error(`Unsafe idle timeout value for shell interpolation: ${JSON.stringify(idleTimeoutSec)}`);
+	}
+	return `exec ${command} --idle-timeout ${idleTimeoutSec}`;
 }
 
 /**

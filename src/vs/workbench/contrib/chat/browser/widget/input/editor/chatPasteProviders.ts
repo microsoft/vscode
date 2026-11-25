@@ -2,16 +2,17 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { alert } from '../../../../../../../base/browser/ui/aria/aria.js';
+import { alert, status } from '../../../../../../../base/browser/ui/aria/aria.js';
 import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
-import { createStringDataTransferItem, IDataTransferItem, IReadonlyVSDataTransfer, VSDataTransfer } from '../../../../../../../base/common/dataTransfer.js';
+import { createStringDataTransferItem, IDataTransferFile, IDataTransferItem, IReadonlyVSDataTransfer, VSDataTransfer } from '../../../../../../../base/common/dataTransfer.js';
 import { convertHtmlToMarkdown } from '../../../../../../../base/browser/htmlToMarkdown.js';
 import { HierarchicalKind } from '../../../../../../../base/common/hierarchicalKind.js';
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
 import { revive } from '../../../../../../../base/common/marshalling.js';
 import { Mimes } from '../../../../../../../base/common/mime.js';
 import { Schemas } from '../../../../../../../base/common/network.js';
+import { extname } from '../../../../../../../base/common/path.js';
 import { basename, joinPath } from '../../../../../../../base/common/resources.js';
 import { URI, UriComponents } from '../../../../../../../base/common/uri.js';
 import { Position } from '../../../../../../../editor/common/core/position.js';
@@ -32,20 +33,16 @@ import { IExtensionService, isProposedApiEnabled } from '../../../../../../servi
 import { IChatRequestPasteVariableEntry, IChatRequestVariableEntry, isImageVariableEntry, toPasteVariableEntry, ChatPasteAttachmentMetadata } from '../../../../common/attachments/chatVariableEntries.js';
 import { chatVariableLeader } from '../../../../common/requestParser/chatParserTypes.js';
 import { IDynamicVariable } from '../../../../common/attachments/chatVariables.js';
+import { fromRelativeRange } from '../../../../common/attachments/chatInlineAttachments.js';
 import { IChatPasteTarget, IChatPasteTargetService } from '../../../chat.js';
+import { getAddedImageIds, IChatUserImageAttachmentService } from '../../../attachments/chatUserImageAttachments.js';
 import { chatInputSchemes, isChatInputModel, ChatConfiguration } from '../../../../common/constants.js';
 import { cleanupOldImages, createFileForMedia, resizeImage } from '../../../chatImageUtils.js';
 
 const COPY_MIME_TYPES = 'application/vnd.code.additional-editor-data';
 export const pastedTextArtifactDefaultMinLength = 10000;
-/**
- * A long single line, such as a URL, a stack frame, or a dictated sentence, is
- * content the user means to write with, so length alone must not turn it into
- * an attachment. Only text that is also shaped like a document qualifies.
- */
-const pastedTextArtifactMinLines = 10;
 export const CHAT_ATTACHMENT_MIME_TYPE = 'application/vnd.chat.attachment+json';
-
+const GITHUB_ISSUE_OR_PULL_REQUEST_URL_PATTERN = /\bhttps?:\/\/(?:www\.)?github\.com\/(?<owner>[\w.-]+)\/(?<repo>[\w.-]+)\/(?<kind>issues|pull)\/(?<number>\d+)(?![\w-])/gi;
 interface SerializedCopyData {
 	readonly uri: UriComponents;
 	readonly range: IRange;
@@ -73,6 +70,7 @@ export class PasteImageProvider implements DocumentPasteEditProvider {
 	constructor(
 		private readonly pasteTargetService: IChatPasteTargetService,
 		private readonly extensionService: IExtensionService,
+		private readonly userImageAttachmentService: IChatUserImageAttachmentService,
 		@IFileService private readonly fileService: IFileService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@ILogService private readonly logService: ILogService,
@@ -110,7 +108,8 @@ export class PasteImageProvider implements DocumentPasteEditProvider {
 		if (!imageItem || !mimeType) {
 			return;
 		}
-		const currClipboard = await imageItem.asFile()?.data();
+		const imageFile = imageItem.asFile();
+		const currClipboard = await imageFile?.data();
 		if (token.isCancellationRequested || !currClipboard) {
 			return;
 		}
@@ -120,13 +119,7 @@ export class PasteImageProvider implements DocumentPasteEditProvider {
 			return;
 		}
 
-		const attachedVariables = target.attachments;
-		const displayName = localize('pastedImageName', 'Pasted Image');
-		let tempDisplayName = displayName;
-
-		for (let appendValue = 2; attachedVariables.some(attachment => attachment.name === tempDisplayName); appendValue++) {
-			tempDisplayName = `${displayName} ${appendValue}`;
-		}
+		const tempDisplayName = getPastedImageName(imageFile, target.attachments.map(attachment => attachment.name));
 
 		const fileReference = await createFileForMedia(this.fileService, this.imagesFolder, currClipboard, mimeType);
 		if (token.isCancellationRequested || !fileReference) {
@@ -149,9 +142,31 @@ export class PasteImageProvider implements DocumentPasteEditProvider {
 			return;
 		}
 
-		const edit = createCustomPasteEdit(model, [scaledImageContext], mimeType, this.kind, localize('pastedImageAttachment', 'Pasted Image Attachment'), this.pasteTargetService);
+		const edit = createCustomPasteEdit(model, [scaledImageContext], mimeType, this.kind, localize('pastedImageAttachment', 'Pasted Image Attachment'), this.pasteTargetService, {
+			onDidAttachImages: attachmentIds => this.userImageAttachmentService.didAttachImages({ inputUri: model.uri, attachmentIds, gesture: 'paste' }),
+		});
 		return createEditSession(edit);
 	}
+}
+
+/**
+ * Names a pasted image after the file it was pasted from (e.g. a file copied in the OS file
+ * manager or a screenshot tool that saves to disk), or "Pasted Image" for raw clipboard data.
+ * A counter before the extension keeps the name unique among the existing attachments.
+ */
+export function getPastedImageName(file: IDataTransferFile | undefined, existingNames: readonly string[]): string {
+	// Raw clipboard images have a generic name such as "image.png" and no uri. Use the name rather than
+	// the uri's basename: the uri is parsed from a native path, so it breaks on Windows paths and on '#'.
+	const fileName = file?.uri ? file.name : '';
+	const baseName = fileName || localize('pastedImageName', 'Pasted Image');
+	const extension = extname(fileName);
+	const stem = baseName.slice(0, baseName.length - extension.length);
+
+	let candidate = baseName;
+	for (let counter = 2; existingNames.includes(candidate); counter++) {
+		candidate = `${stem} ${counter}${extension}`;
+	}
+	return candidate;
 }
 
 async function getImageAttachContext(data: Uint8Array, mimeType: string, token: CancellationToken, displayName: string, resource: URI): Promise<IChatRequestVariableEntry | undefined> {
@@ -266,19 +281,24 @@ class CopyAttachmentsProvider implements DocumentPasteEditProvider {
 			return undefined;
 		}
 
-		const dynamicVariables = target.inlineReferences;
+		// A copy with inline attachment pills carries references relative to the copied
+		// prompt text, which is what the clipboard receives, so they apply wherever it is pasted.
+		const copiedInlinePrompt = target.getCopiedInlinePrompt?.(_ranges);
+		const dynamicVariables = copiedInlinePrompt?.references ?? target.inlineReferences;
 		const referencedIds = new Set(dynamicVariables.map(variable => variable.id));
 		// A ranged attachment whose reference is not carried along would be pruned
 		// as an orphan by the receiving input, so send it as a plain attachment.
-		const attachments = target.attachments.map(attachment =>
-			attachment.range && !referencedIds.has(attachment.id) ? { ...attachment, range: undefined } : attachment);
+		// Attachments shown inline only go along with their pills.
+		const attachments = target.attachments
+			.filter(attachment => !copiedInlinePrompt?.excludedAttachmentIds.has(attachment.id))
+			.map(attachment => attachment.range && !referencedIds.has(attachment.id) ? { ...attachment, range: undefined } : attachment);
 
 		if (attachments.length === 0 && dynamicVariables.length === 0) {
 			return undefined;
 		}
 
 		const result = new VSDataTransfer();
-		result.append(CHAT_ATTACHMENT_MIME_TYPE, createStringDataTransferItem(JSON.stringify({ attachments, dynamicVariables })));
+		result.append(CHAT_ATTACHMENT_MIME_TYPE, createStringDataTransferItem(JSON.stringify(copiedInlinePrompt ? { attachments, dynamicVariables, relativeReferences: true } : { attachments, dynamicVariables })));
 		return result;
 	}
 
@@ -302,7 +322,7 @@ class CopyAttachmentsProvider implements DocumentPasteEditProvider {
 			return;
 		}
 
-		let pastedData: { attachments: IChatRequestVariableEntry[]; dynamicVariables: IDynamicVariable[] } | undefined;
+		let pastedData: { attachments: IChatRequestVariableEntry[]; dynamicVariables: IDynamicVariable[]; relativeReferences?: boolean } | undefined;
 		try {
 			pastedData = revive(JSON.parse(rawData));
 		} catch {
@@ -312,6 +332,14 @@ class CopyAttachmentsProvider implements DocumentPasteEditProvider {
 		if (!Array.isArray(pastedData?.attachments) && !Array.isArray(pastedData?.dynamicVariables)) {
 			return;
 		}
+
+		// References relative to the pasted text start where it is inserted.
+		const pasteStart = _ranges.length === 1 ? Range.lift(_ranges[0]).getStartPosition() : undefined;
+		const dynamicVariables = !pastedData.relativeReferences
+			? pastedData.dynamicVariables
+			: pasteStart
+				? pastedData.dynamicVariables.map(variable => ({ ...variable, range: fromRelativeRange(variable.range, pasteStart) }))
+				: [];
 
 		const edit: DocumentPasteEdit = {
 			insertText: textdata,
@@ -323,21 +351,53 @@ class CopyAttachmentsProvider implements DocumentPasteEditProvider {
 			}
 		};
 
+		// Attachments that a copy of inline attachment pills brings along, but that the input already has, stay on undo.
+		const existingIds = pastedData.relativeReferences ? new Set(target.attachments.map(attachment => attachment.id)) : undefined;
 		edit.additionalEdit?.edits.push({
 			resource: model.uri,
 			redo: () => {
 				target.addAttachments(pastedData.attachments);
-				for (const dynamicVariable of pastedData.dynamicVariables) {
+				for (const dynamicVariable of dynamicVariables) {
 					target.addInlineReference(dynamicVariable);
 				}
 			},
 			undo: () => {
-				target.removeAttachments(pastedData.attachments.map(c => c.id));
+				target.removeAttachments(pastedData.attachments.map(c => c.id).filter(id => !existingIds?.has(id)));
 			}
 		});
 
 		return createEditSession(edit);
 	}
+}
+
+export function getGitHubIssueOrPullRequestAttachments(input: string, metadata?: Record<string, unknown>): readonly IChatRequestVariableEntry[] {
+	const attachments: IChatRequestVariableEntry[] = [];
+	const ids = new Set<string>();
+	for (const match of input.matchAll(GITHUB_ISSUE_OR_PULL_REQUEST_URL_PATTERN)) {
+		const groups = match.groups;
+		const number = Number(groups?.['number']);
+		if (!groups || !Number.isSafeInteger(number) || number <= 0) {
+			continue;
+		}
+		const owner = groups['owner'];
+		const repo = groups['repo'];
+		const kind = groups['kind'].toLowerCase();
+		const uri = `https://github.com/${owner}/${repo}/${kind}/${number}`;
+		const id = `github-context:${uri}`;
+		if (ids.has(id)) {
+			continue;
+		}
+		ids.add(id);
+		attachments.push({
+			kind: 'generic',
+			id,
+			icon: kind === 'issues' ? Codicon.issues : Codicon.gitPullRequest,
+			name: `${owner}/${repo}#${number}`,
+			value: `GitHub context: ${uri}`,
+			_meta: metadata,
+		});
+	}
+	return attachments;
 }
 
 export class PasteTextProvider implements DocumentPasteEditProvider {
@@ -371,6 +431,29 @@ export class PasteTextProvider implements DocumentPasteEditProvider {
 		const target = this.pasteTargetService.getTarget(model.uri);
 		if (!target) {
 			return;
+		}
+
+		if (model.uri.scheme !== Schemas.sessionsChatInput) {
+			const currentContextIds = new Set(target.attachments.map(attachment => attachment.id));
+			const githubAttachments = getGitHubIssueOrPullRequestAttachments(textdata).filter(attachment => !currentContextIds.has(attachment.id));
+			if (githubAttachments.length) {
+				if (ranges.length !== 1) {
+					return;
+				}
+				const announcement = githubAttachments.length === 1
+					? localize('chat.pastedGitHubContextAttached', "Attached {0} as context", githubAttachments[0].name)
+					: localize('chat.pastedGitHubContextsAttached', "Attached {0} GitHub links as context", githubAttachments.length);
+				const edit = createCustomPasteEdit(
+					model,
+					githubAttachments,
+					Mimes.text,
+					this.kind,
+					localize('chat.pasteGitHubContext', "Paste GitHub Context"),
+					this.pasteTargetService,
+					{ insertText: textdata, statusAnnouncement: announcement },
+				);
+				return createEditSession(edit);
+			}
 		}
 
 		let copiedContext: IChatRequestPasteVariableEntry | undefined;
@@ -468,7 +551,7 @@ export function createPastedTextArtifact(
 ): { readonly attachment: IChatRequestPasteVariableEntry; readonly referenceText: string } | undefined {
 	const trimmed = text.trim();
 	const minLength = options?.minLength ?? pastedTextArtifactDefaultMinLength;
-	if (trimmed.length < minLength || countLines(trimmed) < pastedTextArtifactMinLines) {
+	if (!trimmed || trimmed.length < minLength) {
 		return undefined;
 	}
 
@@ -538,6 +621,10 @@ function createCustomPasteEdit(
 	options?: {
 		readonly inlineReference?: { readonly text: string; readonly range: IRange };
 		readonly announcement?: string;
+		readonly insertText?: string;
+		readonly statusAnnouncement?: string;
+		/** Called once, when the paste first applies, with the ids of the images that it attached and that weren't attached before. */
+		readonly onDidAttachImages?: (attachmentIds: readonly string[]) => void;
 	},
 ): DocumentPasteEdit {
 
@@ -546,6 +633,8 @@ function createCustomPasteEdit(
 		: localize('pastedAttachment.multiple', '{0} and {1} more', context[0].name, context.length - 1);
 	const announceImageAttachment = context.length === 1 && isImageVariableEntry(context[0]);
 	const inlineReference = context.length === 1 ? options?.inlineReference : undefined;
+	// A redo after an undo puts the attachments back, which is not the user attaching them.
+	let applied = false;
 
 	const resolveTarget = (operation: string): IChatPasteTarget => {
 		const target = pasteTargetService.getTarget(model.uri);
@@ -563,6 +652,9 @@ function createCustomPasteEdit(
 		},
 		redo: () => {
 			const target = resolveTarget('redo');
+			const onDidAttachImages = applied ? undefined : options?.onDidAttachImages;
+			applied = true;
+			const before = onDidAttachImages ? [...target.attachments] : [];
 			if (inlineReference) {
 				target.addInlineAttachment(context[0], inlineReference.text, inlineReference.range);
 			} else {
@@ -570,8 +662,14 @@ function createCustomPasteEdit(
 			}
 			if (options?.announcement) {
 				alert(options.announcement);
+			} else if (options?.statusAnnouncement) {
+				status(options.statusAnnouncement);
 			} else if (announceImageAttachment) {
 				alert(localize('chat.pastedImageAttached', 'Attached image'));
+			}
+			const addedImageIds = onDidAttachImages ? getAddedImageIds(before, target.attachments) : [];
+			if (addedImageIds.length) {
+				onDidAttachImages?.(addedImageIds);
 			}
 		},
 		metadata: {
@@ -581,7 +679,7 @@ function createCustomPasteEdit(
 	};
 
 	return {
-		insertText: options?.inlineReference ? `${options.inlineReference.text} ` : '',
+		insertText: options?.inlineReference ? `${options.inlineReference.text} ` : options?.insertText ?? '',
 		title,
 		kind,
 		handledMimeType,
@@ -869,11 +967,12 @@ export class ChatPasteProvidersFeature extends Disposable {
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@ILogService logService: ILogService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@IChatUserImageAttachmentService userImageAttachmentService: IChatUserImageAttachmentService,
 	) {
 		super();
 		const chatInputProviders: DocumentPasteEditProvider[] = [
 			instaService.createInstance(CopyAttachmentsProvider),
-			new PasteImageProvider(pasteTargetService, extensionService, fileService, environmentService, logService),
+			new PasteImageProvider(pasteTargetService, extensionService, userImageAttachmentService, fileService, environmentService, logService),
 			new PasteTextProvider(pasteTargetService, modelService, logService, configurationService),
 			new PasteHtmlProvider(),
 		];

@@ -9,16 +9,17 @@ import { ResourceSet } from '../../../../../../base/common/map.js';
 import * as nls from '../../../../../../nls.js';
 import { FileOperation, FileOperationError, FileOperationResult, IFileService } from '../../../../../../platform/files/common/files.js';
 import { getPromptFileLocationsConfigKey, isTildePath, PromptsConfig } from '../config/config.js';
-import { basename, dirname, isEqual, isEqualOrParent, joinPath } from '../../../../../../base/common/resources.js';
+import { basename, dirname, isEqual, isEqualOrParent, joinPath, relativePath } from '../../../../../../base/common/resources.js';
 import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { CHAT_CUSTOMIZATION_LOCATION_PATTERN, isValidChatCustomizationLocation } from '../../../../../../platform/chat/common/chatSettings.js';
 import { AGENTS_SOURCE_FOLDER, CLAUDE_CONFIG_FOLDER, COPILOT_CONFIG_FOLDER, GITHUB_CONFIG_FOLDER, getPromptFileExtension, getPromptFileType, LEGACY_MODE_FILE_EXTENSION, getCleanPromptName, AGENT_FILE_EXTENSION, getPromptFileDefaultLocations, SKILL_FILENAME, IPromptSourceFolder, IResolvedPromptSourceFolder } from '../config/promptFileLocations.js';
 import { PromptFileSource, PromptsType } from '../promptTypes.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { getExcludes, IFileQuery, ISearchConfiguration, ISearchService, QueryType } from '../../../../../services/search/common/search.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
-import { isCancellationError } from '../../../../../../base/common/errors.js';
+import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
 import { AgentInstructionFileType, IPromptPath, IAgentInstructionFile, Logger, PromptsStorage } from '../service/promptsService.js';
 import { IUserDataProfileService } from '../../../../../services/userDataProfile/common/userDataProfile.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
@@ -127,7 +128,8 @@ export class PromptFilesLocator {
 
 	/**
 	 * Walks up from {@link folderUri} collecting parent folders until a
-	 * repository root (a folder containing `.git`) is found.  Returns the
+	 * repository root (a folder containing a `.git` directory or pointer) is
+	 * found. Returns the
 	 * intermediate parent folders only when a repo root is found; returns
 	 * an empty array when the walk reaches the filesystem root, the user
 	 * home directory, or a folder already present in {@link seen}.
@@ -137,7 +139,8 @@ export class PromptFilesLocator {
 		let current = folderUri;
 		while (true) {
 			try {
-				const isRepoRoot = await this.fileService.exists(joinPath(current, '.git'));
+				const gitStat = await this.fileService.stat(joinPath(current, '.git')).then(stat => stat, () => undefined);
+				const isRepoRoot = gitStat?.isDirectory === true || gitStat?.isFile === true;
 				if (isRepoRoot) {
 					if ((await this.workspaceTrustManagementService.getUriTrustInfo(current)).trusted) {
 						candidates.push(current);
@@ -212,8 +215,10 @@ export class PromptFilesLocator {
 				paths.add(file);
 				result.push({ uri: file, source: isUserDataFile ? PromptFileSource.UserData : source });
 			}
+			// Report cancellation as an error so callers cannot mistake a partial
+			// scan for a complete "no prompt files" answer and cache it.
 			if (token.isCancellationRequested) {
-				return [];
+				throw new CancellationError();
 			}
 		}
 		return result;
@@ -483,8 +488,10 @@ export class PromptFilesLocator {
 			}
 
 			// if after replacing the "file name" glob pattern, the path
-			// still contains a glob pattern, then ignore the path
-			if (isValidGlob(location.path) === true) {
+			// still contains a glob pattern, then ignore the path; only the
+			// part below the non-glob search root can contain glob patterns
+			const remainder = relativePath(absoluteLocation.searchRoot, location);
+			if (remainder === undefined || isValidGlob(remainder) === true) {
 				continue;
 			}
 
@@ -613,7 +620,7 @@ export class PromptFilesLocator {
 					const uri = joinPath(userHome, configuredLocation.substring(2));
 					if (!seen.has(uri)) {
 						seen.add(uri);
-						const { searchRoot, filePattern } = resolveSearchLocation(type, uri);
+						const { searchRoot, filePattern } = resolveSearchLocation(type, uri, userHome);
 						result.push({ uri, searchRoot: searchRoot, filePattern, source: sourceFolder.source, storage: sourceFolder.storage, displayPath: configuredLocation, isDefault });
 					}
 					continue;
@@ -637,7 +644,7 @@ export class PromptFilesLocator {
 						const absolutePath = joinPath(folder, configuredLocation);
 						if (!seen.has(absolutePath)) {
 							seen.add(absolutePath);
-							const { searchRoot, filePattern } = resolveSearchLocation(type, absolutePath);
+							const { searchRoot, filePattern } = resolveSearchLocation(type, absolutePath, folder);
 							result.push({ uri: absolutePath, searchRoot: searchRoot, filePattern, source: sourceFolder.source, storage: sourceFolder.storage, displayPath: configuredLocation, isDefault });
 						}
 					}
@@ -653,8 +660,9 @@ export class PromptFilesLocator {
 	/**
 	 * Uses the file service to resolve the provided location and return either the file at the location of files in the directory.
 	 * For instruction folders, this searches recursively (up to {@link MAX_INSTRUCTIONS_RECURSION_DEPTH} levels deep) provided
-	 * the location is not a workspace folder root and does not contain wildcards, to support subdirectories while avoiding
-	 * accidentally broad traversal.
+	 * the location is not a workspace folder root, to support subdirectories while avoiding accidentally broad traversal.
+	 * Configured glob patterns are resolved before calling this method, so any glob-like characters left in `location`
+	 * (e.g. a workspace folder named `Project *`) are literal.
 	 */
 	private async resolveFilesAtLocation(location: URI, type: PromptsType, token: CancellationToken, depth: number = 0, root?: URI): Promise<URI[]> {
 		if (type === PromptsType.skill) {
@@ -662,12 +670,10 @@ export class PromptFilesLocator {
 		}
 		// Recurse into subdirectories for instruction folders, but only if:
 		// - the location is not a workspace folder root (to avoid full workspace traversal)
-		// - the path does not contain wildcards (already filtered upstream, but guard here too)
 		// - the recursion depth hasn't exceeded the limit
 		const isWorkspaceRoot = depth === 0 && (root ? isEqual(root, location) : this.getWorkspaceFolders().some(f => isEqual(f.uri, location)));
 		const recursive = type === PromptsType.instructions
 			&& !isWorkspaceRoot
-			&& !hasGlobPattern(location.path)
 			&& depth < MAX_INSTRUCTIONS_RECURSION_DEPTH;
 		try {
 			const info = await this.fileService.resolve(location);
@@ -1004,25 +1010,29 @@ interface ISearchLocationResult {
  * Resolves the search root and optional file pattern for the provided location.
  * For paths with glob patterns, finds the deepest non-glob ancestor directory.
  *
- * Assumes that the location that is provided has a valid path (is abstract)
+ * When `base` is provided, only the part of the (already normalized) `location`
+ * relative to `base` is checked for glob patterns, so glob-like characters in the
+ * `base` folder (e.g. a workspace folder named `Project [URP]`) never move the
+ * search root outside of `base`. Without `base`, the whole path is checked.
  *
  * ## Examples
  *
  * ```typescript
  * assert.strictDeepEqual(
- *     resolveSearchLocation(PromptsType.prompt, URI.file('/home/user/{folder1,folder2}/file.md')),
+ *     resolveSearchLocation(PromptsType.prompt, URI.file('/home/user/{folder1,folder2}/file.md'), URI.file('/home/user')),
  *     { searchRoot: URI.file('/home/user'), filePattern: '{folder1,folder2}/file.md' },
  *     'Must find correct non-glob search root.',
  * );
  * ```
  */
-function resolveSearchLocation(type: PromptsType, location: URI): ISearchLocationResult {
+function resolveSearchLocation(type: PromptsType, location: URI, base?: URI): ISearchLocationResult {
 	if (type !== PromptsType.instructions && type !== PromptsType.prompt) {
 		// only instructions and prompts support glob patterns, so we can return the location as is
 		return { searchRoot: location };
 	}
 
-	const segments = location.path.split('/');
+	const configuredPath = base ? relativePath(base, location) : undefined;
+	const segments = configuredPath !== undefined ? configuredPath.split('/') : location.path.split('/');
 	let i = 0;
 	while (i < segments.length && isValidGlob(segments[i]) === false) {
 		i++;
@@ -1032,7 +1042,9 @@ function resolveSearchLocation(type: PromptsType, location: URI): ISearchLocatio
 		// just find all prompt files in the provided location
 		return { searchRoot: location };
 	}
-	const parent = location.with({ path: segments.slice(0, i).join('/') });
+	const parent = configuredPath !== undefined
+		? joinPath(base!, ...segments.slice(0, i))
+		: location.with({ path: segments.slice(0, i).join('/') });
 	if (i === segments.length - 1 && segments[i] === '*' || segments[i] === ``) {
 		return { searchRoot: parent };
 	}
@@ -1067,13 +1079,12 @@ function resolveSearchLocation(type: PromptsType, location: URI): ISearchLocatio
  * - No glob pattern characters: * ? [ ] { }
  * - At least one non-whitespace character
  */
-export const VALID_PROMPT_FOLDER_PATTERN = '^(?![A-Za-z]:[\\\\/])(?!/)(?!~(?!/))(?!.*\\\\)(?!.*[*?\\[\\]{}]).*\\S.*$';
-const VALID_PROMPT_FOLDER_REGEX = new RegExp(VALID_PROMPT_FOLDER_PATTERN);
+export const VALID_PROMPT_FOLDER_PATTERN = CHAT_CUSTOMIZATION_LOCATION_PATTERN;
 
 /**
  * Validates if a path is allowed for simplified path configurations.
  * Only forward slashes are supported to ensure paths are shareable across platforms.
  */
 export function isValidPromptFolderPath(path: string): boolean {
-	return VALID_PROMPT_FOLDER_REGEX.test(path);
+	return isValidChatCustomizationLocation(path);
 }

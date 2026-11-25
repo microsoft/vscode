@@ -6,35 +6,85 @@
 import { Sequencer } from '../../../base/common/async.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { LRUCache } from '../../../base/common/map.js';
+import type { IObservable } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ISessionFileDiff, ISessionGitState } from './state/sessionState.js';
 
 /**
  * Provider-agnostic session-database metadata key under which agents
- * persist the branch they want git-driven diffs anchored to. Read by
- * {@link IAgentHostChangesetService} when computing per-session file diffs; absent
- * value means the diff falls back to anchoring at HEAD.
+ * persist the branch they want git-driven diffs anchored to. It holds the
+ * branch's full ref (`refs/heads/main` or `refs/remotes/origin/main`), so that
+ * whether the base is local or remote, and on which remote, is known without
+ * guessing; {@link IAgentHostGitService.resolveBaseBranch} parses it. Sessions
+ * recorded earlier hold a short name (`main`, `origin/main`), which readers
+ * resolve the way git does. Read by {@link IAgentHostChangesetService} when
+ * computing per-session file diffs, which compare against it exactly as
+ * recorded; absent or cleared value falls back to the detected base branch,
+ * then HEAD.
  */
 export const META_DIFF_BASE_BRANCH = 'agentHost.diffBaseBranch';
 
+/** A session's base branch, parsed from the ref recorded for it. */
+export type BaseBranch =
+	| { readonly kind: 'local'; readonly ref: string; readonly branch: string }
+	| { readonly kind: 'remote'; readonly ref: string; readonly remote: string; readonly branch: string };
+
 /**
- * Resolves the Branch Changes base-branch **name** from its two sources, in
- * precedence order: the agent-persisted {@link META_DIFF_BASE_BRANCH} metadata
- * value, then the session git state's detected base branch. Returns `undefined`
- * when neither is available (callers then anchor the diff at `HEAD`).
- *
- * Shared by {@link IAgentHostChangesetService} and the review service so both
- * pick the same base branch.
+ * Parses the full ref of a base branch: `refs/heads/<branch>` is a local branch, and `refs/remotes/<remote>/<branch>`
+ * a branch of the longest of `remotes` it starts with (remote names may contain `/`, but git refuses a remote whose
+ * name is a path prefix of another's). Returns `undefined` for any other ref, an unknown remote or an empty branch.
  */
-export function resolveDiffBaseBranchName(persistedBaseBranch: string | undefined, sessionGitStateBaseBranch: string | undefined): string | undefined {
-	const branchName = persistedBaseBranch ?? sessionGitStateBaseBranch;
-	if (!branchName) {
+export function parseBaseBranchRef(ref: string, remotes: readonly string[]): BaseBranch | undefined {
+	const localPrefix = 'refs/heads/';
+	if (ref.startsWith(localPrefix)) {
+		const branch = ref.substring(localPrefix.length);
+		return branch ? { kind: 'local', ref, branch } : undefined;
+	}
+	const remotePrefix = 'refs/remotes/';
+	if (!ref.startsWith(remotePrefix)) {
 		return undefined;
 	}
-	return branchName
-		.replace(/^refs\/remotes\/origin\//, '')
-		.replace(/^origin\//, '');
+	const rest = ref.substring(remotePrefix.length);
+	let remote: string | undefined;
+	for (const candidate of remotes) {
+		if (candidate.length > (remote?.length ?? 0) && rest.startsWith(`${candidate}/`)) {
+			remote = candidate;
+		}
+	}
+	if (remote === undefined) {
+		return undefined;
+	}
+	const branch = rest.substring(remote.length + 1);
+	return branch ? { kind: 'remote', ref, remote, branch } : undefined;
+}
+
+/**
+ * Returns how a recorded base branch is shown: without its `refs/heads/` or `refs/remotes/` prefix, so
+ * `refs/remotes/origin/main` shows as `origin/main`. Other values, such as short names recorded earlier, show unchanged.
+ */
+export function getBaseBranchLabel(baseBranch: string): string {
+	return baseBranch.replace(/^refs\/(?:heads|remotes)\//, '');
+}
+
+/**
+ * Resolves the full ref a new session records as its base: the default branch's upstream, else the default branch. Without a
+ * default branch (no remotes, or a remote without a `HEAD`), `fallbackBranch` resolved the way git does, or its name when it names
+ * no branch yet (an unborn branch), which readers resolve the same way.
+ */
+export async function resolveDefaultBaseBranchRef(gitService: IAgentHostGitService, repositoryRoot: URI, fallbackBranch: string | undefined): Promise<string | undefined> {
+	const defaultBranch = await gitService.getDefaultBranch2(repositoryRoot);
+	if (defaultBranch?.kind === GitRefType.Head) {
+		return defaultBranch.upstream?.ref ?? defaultBranch.ref;
+	}
+	if (defaultBranch?.kind === GitRefType.RemoteHead) {
+		return defaultBranch.ref;
+	}
+	if (!fallbackBranch) {
+		return fallbackBranch;
+	}
+	const branch = await gitService.getBranch(repositoryRoot, fallbackBranch);
+	return branch?.ref ?? fallbackBranch;
 }
 
 /**
@@ -52,8 +102,9 @@ export interface IComputeSessionFileDiffsOptions {
 	 */
 	readonly sessionUri: string;
 	/**
-	 * The branch to diff against. Typically the worktree's start-point
-	 * branch (for worktree sessions) or the repository's default branch.
+	 * The branch to diff against, used exactly as given (e.g.
+	 * `refs/remotes/origin/main`, or a short name such as `origin/main`). Typically the worktree's start-point branch (for worktree
+	 * sessions) or the repository's default branch.
 	 * When undefined or unresolvable, the diff is taken against `HEAD`,
 	 * which surfaces uncommitted work but no committed-on-branch work.
 	 */
@@ -78,7 +129,11 @@ export interface IDiffPatchResult {
 export interface IPushOptions {
 	/** The branch or refspec to push. Defaults to the current branch. */
 	readonly ref?: string;
-	/** The remote to push to. Defaults to `origin`. */
+	/**
+	 * The remote to push to. Defaults to the branch's configured push remote,
+	 * else the GitHub remote (preferring `origin`), else `origin`, else the
+	 * only remote.
+	 */
 	readonly remote?: string;
 	/**
 	 * When true, the push uses `-u` so the pushed branch tracks the remote
@@ -97,7 +152,33 @@ export interface IPullOptions {
 	readonly rebase?: boolean;
 }
 
+/** Options for {@link IAgentHostGitService.commit}. */
+export interface ICommitOptions {
+	/**
+	 * true      - stage tracked and untracked changes before committing
+	 * 'tracked' - stage only changes to tracked files before committing
+	 * undefined - commit only what is already staged
+	 */
+	readonly all?: boolean | 'tracked';
+	/**
+	 * true      - sign the commit
+	 * false     - do not sign the commit
+	 * undefined - use the repository/global git config
+	 */
+	readonly signCommit?: boolean;
+	/** When true, the pre-commit and commit-msg hooks are skipped (`--no-verify`). */
+	readonly noVerify?: boolean;
+}
+
 export const IAgentHostGitService = createDecorator<IAgentHostGitService>('agentHostGitService');
+
+/** Error thrown when checkout would overwrite local working-tree changes. */
+export class CheckoutBlockedByLocalChangesError extends Error {
+	constructor(message: string, options?: ErrorOptions) {
+		super(message, options);
+		this.name = 'CheckoutBlockedByLocalChangesError';
+	}
+}
 
 /**
  * Resolves linked checkouts to their primary worktree and caches successful mappings for every worktree reported by Git.
@@ -208,21 +289,40 @@ export interface IAddWorktreeOptions {
 	readonly commitish: string;
 	readonly newBranchName?: string;
 	readonly track: boolean;
-	readonly preferRemoteBranch?: boolean;
 	readonly onProgress?: (progress: IWorktreeFileProgress) => void;
+}
+
+/** A remote a repository fetches from. */
+export interface IGitRemote {
+	readonly name: string;
+	readonly url: string;
+}
+
+export interface IAgentHostGitWorktree {
+	readonly path: URI;
+	readonly branchName: string | undefined;
 }
 
 export interface IAgentHostGitService {
 	readonly _serviceBrand: undefined;
 	getCurrentBranch(workingDirectory: URI): Promise<string | undefined>;
-	getCurrentBranchName?(workingDirectory: URI): Promise<string | undefined>;
+	/** Returns an existing branch or detached commit; name-only reads omit upstream metadata and also accept unborn branches. */
+	getHEAD(workingDirectory: URI, options?: { readonly nameOnly?: boolean }): Promise<IBranch | IDetachedHead | undefined>;
+	/** With `throwOnError`, only a successful detached-HEAD lookup returns `undefined`. */
+	getCurrentBranchName?(workingDirectory: URI, options?: { readonly throwOnError?: boolean }): Promise<string | undefined>;
 	getDefaultBranch(workingDirectory: URI): Promise<IDefaultBranch | undefined>;
+	getDefaultBranch2(workingDirectory: URI, remote?: string): Promise<Branch | undefined>;
 	getRefs(workingDirectory: URI, query?: IRefQuery): Promise<GitRef[]>;
 	getBranches(workingDirectory: URI, query?: IRefQuery): Promise<Branch[]>;
 	getBranch(workingDirectory: URI, name: string): Promise<Branch | undefined>;
-	getRepositoryRoot(workingDirectory: URI): Promise<URI | undefined>;
+	/** Observes exact probe results or a known ancestor root; undefined is unresolved, false is a confirmed non-repository. */
+	hasGitRoot(workingDirectory: URI): IObservable<boolean | undefined>;
+	/** Caches roots and confirmed non-repositories; refreshIfNone retries cached non-repositories, sharing any in-flight probe. */
+	getRepositoryRoot(workingDirectory: URI, options?: { readonly refreshIfNone?: boolean }): Promise<URI | undefined>;
 	/** Returns worktree roots in Git's porcelain order, with the primary worktree first. */
 	getWorktreeRoots(workingDirectory: URI): Promise<URI[]>;
+	/** Reads roots and branches in one Git invocation, with unquoted, NUL-delimited paths. Throws if inventory fails. */
+	getWorktrees(workingDirectory: URI): Promise<IAgentHostGitWorktree[]>;
 	/**
 	 * Creates a worktree, optionally on a new branch. `onProgress` receives every checkout
 	 * sample git reports, which can be several per second, so consumers are
@@ -232,20 +332,31 @@ export interface IAgentHostGitService {
 	 */
 	addWorktree(repositoryRoot: URI, options: IAddWorktreeOptions): Promise<void>;
 	/**
-	 * Copies the git-ignored files matching `globs` into the worktree.
-	 * `onProgress` counts the individual files covered, but only fires as whole
-	 * entries finish — a wholly-ignored directory such as `node_modules` is
-	 * copied as one recursive unit, so its files all land in a single step.
+	 * Copies the git-ignored files matching `patterns` into the worktree.
+	 * `patterns` use `.gitignore` syntax, relative to `repositoryRoot`, and are
+	 * matched by git itself. `sessionId` scopes the temporary files used while
+	 * matching. `onProgress` counts the individual files covered, but only
+	 * fires as whole entries finish — a wholly-ignored directory such as
+	 * `node_modules` is copied as one recursive unit, so its files all land in
+	 * a single step.
 	 */
-	copyWorktreeIncludeFiles(repositoryRoot: URI, worktree: URI, globs: readonly string[], onProgress?: (progress: IWorktreeFileProgress) => void): Promise<void>;
+	copyWorktreeIncludeFiles(repositoryRoot: URI, worktree: URI, patterns: readonly string[], sessionId: string, onProgress?: (progress: IWorktreeFileProgress) => void, excludedFolders?: readonly string[]): Promise<void>;
+	/**
+	 * Symlinks git-ignored folders matching `patterns` from `repositoryRoot`
+	 * into the worktree. `patterns` use `.gitignore` syntax and are matched by
+	 * git itself. `sessionId` scopes the temporary files used while matching.
+	 */
+	symlinkWorktreeFolders(repositoryRoot: URI, worktree: URI, patterns: readonly string[], sessionId: string): Promise<readonly string[]>;
 	/**
 	 * Adds a worktree for an existing branch (no `-b`). Used when restoring
 	 * a worktree whose branch was preserved (e.g. unarchiving a session
 	 * whose worktree was previously cleaned up on archive).
 	 */
 	addExistingWorktree(repositoryRoot: URI, worktree: URI, branchName: string): Promise<void>;
+	/** Whether Git still registers the exact worktree path; registry failures conservatively return true. */
+	isWorktreeRegistered(repositoryRoot: URI, worktree: URI): Promise<boolean>;
 	/** Removes a worktree, preserving Git's dirty-worktree protection unless `force` is explicitly requested. */
-	removeWorktree(repositoryRoot: URI, worktree: URI, options?: { readonly force?: boolean }): Promise<void>;
+	removeWorktree(repositoryRoot: URI, worktree: URI, options?: { readonly force?: boolean; readonly discardChanges?: boolean }): Promise<void>;
 	/**
 	 * Returns true when the named branch exists in the repository
 	 * (`refs/heads/<branchName>` resolves). Used by archive cleanup to
@@ -254,6 +365,10 @@ export interface IAgentHostGitService {
 	 * recreating the worktree.
 	 */
 	branchExists(repositoryRoot: URI, branchName: string): Promise<boolean>;
+	/** Creates a new branch and optionally checks it out while preserving the working tree. */
+	createBranch(workingDirectory: URI, branchName: string, options?: { readonly checkout?: boolean }): Promise<void>;
+	/** Checks out an existing local branch, throwing {@link CheckoutBlockedByLocalChangesError} when local changes would be overwritten. */
+	checkout(workingDirectory: URI, treeish: string): Promise<void>;
 	/**
 	 * Returns true when the working tree has any tracked, staged, or
 	 * untracked changes. Used by archive cleanup to skip removing a
@@ -261,12 +376,17 @@ export interface IAgentHostGitService {
 	 */
 	hasUncommittedChanges(workingDirectory: URI): Promise<boolean>;
 
+	createStash(workingDirectory: URI, options?: { readonly message?: string; readonly includeUntracked?: boolean; readonly staged?: boolean }): Promise<void>;
+
 	/**
 	 * Stages and commits all tracked, staged, and untracked changes in the
 	 * working tree. Mirrors the Copilot CLI session PR path, which commits
 	 * uncommitted work before creating a pull request.
 	 */
 	commitAll(workingDirectory: URI, message: string): Promise<void>;
+
+	/** Creates a commit in the repository containing {@link workingDirectory}. */
+	commit(workingDirectory: URI, message: string, options?: ICommitOptions): Promise<void>;
 
 	/**
 	 * Merges `branchName` into the currently checked-out branch. A failed merge is aborted before the error is rethrown.
@@ -289,6 +409,9 @@ export interface IAgentHostGitService {
 	 */
 	hasUpstream(workingDirectory: URI, branchName: string): Promise<boolean>;
 
+	/** Fetches the selected remote branch without changing the working tree; defaults to a five-second timeout. */
+	fetch(workingDirectory: URI, branch: IRemoteBranch, options?: { readonly timeout?: number }): Promise<void>;
+
 	/**
 	 * Fetches the latest changes from the remote (`origin` unless
 	 * {@link IPullOptions.remote} overrides it) and integrates them into the
@@ -300,8 +423,8 @@ export interface IAgentHostGitService {
 	pull(workingDirectory: URI, options?: IPullOptions): Promise<void>;
 
 	/**
-	 * Pushes the current branch (or {@link IPushOptions.ref}) to the remote
-	 * (`origin` unless {@link IPushOptions.remote} overrides it). When
+	 * Pushes the current branch (or {@link IPushOptions.ref}) to
+	 * {@link IPushOptions.remote}, or to the branch's default push remote. When
 	 * {@link IPushOptions.setUpstream} is true, the push uses `-u` so
 	 * subsequent fetch/push commands track the remote branch.
 	 */
@@ -312,10 +435,35 @@ export interface IAgentHostGitService {
 	 * shelling out to `git`. Returns undefined if the directory is not a
 	 * git work tree. Called on session open and after each turn completes
 	 * so the UI always reflects current branch/remote/change state.
+	 *
+	 * `baseBranch` is the session's base branch exactly as recorded (e.g.
+	 * `refs/remotes/origin/main`, or a short name recorded earlier): commits
+	 * ahead are counted against it, and {@link ISessionGitState.baseBranchName}
+	 * is the branch it names, as {@link resolveBaseBranch} parses it.
+	 * Without one, the base is the default branch's remote-tracking branch
+	 * when it exists, else the default branch. The state reports the full ref
+	 * of the base as {@link ISessionGitState.baseBranchRef}: the ref
+	 * {@link resolveBaseBranch} parses it to (a short `origin/main` is
+	 * `refs/remotes/origin/main`), else a full ref that does not parse (e.g.
+	 * of a removed remote) as recorded, else nothing.
 	 */
-	getSessionGitState(workingDirectory: URI, baseBranchName?: string): Promise<ISessionGitState | undefined>;
+	getSessionGitState(workingDirectory: URI, baseBranch?: string): Promise<ISessionGitState | undefined>;
+	/**
+	 * Parses a base branch as recorded for a session. A full ref is parsed as is. A short name recorded earlier
+	 * resolves like git resolves it: a local branch of that name, else the remote-tracking branch of a remote it
+	 * starts with, else a local branch. Returns `undefined` outside a repository, or when the base names a ref that is
+	 * not a branch or a remote that does not exist.
+	 */
+	resolveBaseBranch(workingDirectory: URI, baseBranch: string): Promise<BaseBranch | undefined>;
+	/**
+	 * Returns the local branch Merge merges into for `baseBranch`: a local base itself; for a remote base, the local
+	 * branch tracking it, else the local branch of the same name. `undefined` when there is none.
+	 */
+	resolveMergeTargetBranch(workingDirectory: URI, baseBranch: BaseBranch): Promise<string | undefined>;
 	/** Returns fetch remote URLs with the preferred remote, then `origin`, first. */
 	getFetchRemoteUrls(workingDirectory: URI, preferredRemote?: string): Promise<readonly string[] | undefined>;
+	/** Returns the repository's fetch remotes in `git remote -v` order. */
+	getFetchRemotes(workingDirectory: URI): Promise<readonly IGitRemote[] | undefined>;
 	/** Returns repo-relative untracked file paths. */
 	getUntrackedPaths(workingDirectory: URI): Promise<readonly string[] | undefined>;
 
@@ -330,6 +478,11 @@ export interface IAgentHostGitService {
 	 * Returns `undefined` when {@link workingDirectory} is not a git work
 	 * tree, so callers can fall back to other diff sources.
 	 *
+	 * A changed submodule that is checked out is listed as the files changed
+	 * inside it, diffed against the commit the merge base records for it, so
+	 * the `git-blob:` baselines of those files belong to the submodule (see
+	 * {@link getSubmoduleRoot}).
+	 *
 	 * Each returned {@link ISessionFileDiff} has its `before.content` set to
 	 * a `git-blob:` URI ({@link buildGitBlobUri}); `after.content` is a
 	 * `file:` URI on the working-tree path. Adds and deletes drop the
@@ -338,9 +491,18 @@ export interface IAgentHostGitService {
 	computeSessionFileDiffs(workingDirectory: URI, options: IComputeSessionFileDiffsOptions): Promise<readonly ISessionFileDiff[] | undefined>;
 
 	/**
+	 * Returns the root of the checked-out submodule of the repository of
+	 * {@link workingDirectory} that contains `resource`, the innermost one
+	 * when submodules are nested, or `undefined` when none contains it. Only
+	 * submodules that `.gitmodules` registers inside the repository count, so
+	 * `resource` can't select a repository outside of it.
+	 */
+	getSubmoduleRoot?(workingDirectory: URI, resource: URI): Promise<URI | undefined>;
+
+	/**
 	 * Resolves the commit-ish the **Branch Changes** baseline is measured from:
-	 * the merge-base of `HEAD` and `baseBranch` (preferring the
-	 * `origin/<baseBranch>` remote-tracking ref when it exists), falling back to
+	 * the merge-base of `HEAD` and `baseBranch` (used exactly as given, e.g.
+	 * `refs/remotes/origin/main`), falling back to
 	 * `HEAD`, then to the empty-tree object for a repo with no commits. Returns
 	 * `undefined` only when {@link workingDirectory} is not a git work tree.
 	 *
@@ -348,6 +510,20 @@ export interface IAgentHostGitService {
 	 * diff here) and the review service, so both agree on the exact baseline.
 	 */
 	resolveBranchBaselineCommit(workingDirectory: URI, baseBranch?: string): Promise<string | undefined>;
+	/**
+	 * Returns a token that is equal across calls exactly while the Branch Changes of `workingDirectory` against
+	 * `baseBranch` stay the same: it covers HEAD, the merge base, and the paths `git status` reports together with their
+	 * on-disk size and modification time, so editing an already modified file changes it, and the same for each changed
+	 * submodule. It is much cheaper than
+	 * computing the diff. `undefined` when it cannot be determined, in which case callers must compute the diff.
+	 */
+	getBranchDiffFingerprint?(workingDirectory: URI, baseBranch?: string): Promise<string | undefined>;
+	/**
+	 * Whether any of `resources`, which changed under the repository of `workingDirectory`, can affect what Git reports: it is
+	 * tracked, not ignored, or inside the `.git` directory. `false` when all of them are ignored, such as build output.
+	 * `undefined` when that cannot be determined, in which case callers must assume they matter.
+	 */
+	hasUnignoredPaths?(workingDirectory: URI, resources: readonly URI[]): Promise<boolean | undefined>;
 
 	/**
 	 * Reads a single git blob via `git show <ref>:<repoRelativePath>` from
@@ -368,9 +544,10 @@ export interface IAgentHostGitService {
 
 	/**
 	 * Creates a commit object from a tree (optionally chained to a parent)
-	 * and returns its OID. Does NOT update any ref.
+	 * and returns its OID. Does NOT update any ref. `useInternalIdentity`
+	 * avoids requiring user Git identity for VS Code-owned commits.
 	 */
-	commitTree(repositoryRoot: URI, treeOid: string, parentOid: string | undefined, message: string): Promise<string | undefined>;
+	commitTree(repositoryRoot: URI, treeOid: string, parentOid: string | undefined, message: string, options?: { readonly useInternalIdentity?: boolean }): Promise<string | undefined>;
 
 	/**
 	 * Updates a ref to point at `newOid`. Creates the ref if missing.
@@ -384,6 +561,12 @@ export interface IAgentHostGitService {
 	deleteRefs(repositoryRoot: URI, refs: readonly string[]): Promise<void>;
 
 	/**
+	 * Reports the git read telemetry gathered so far. The host calls this on graceful shutdown,
+	 * before the telemetry collector is unloaded, so the final window is not lost.
+	 */
+	flushTelemetry?(): void;
+
+	/**
 	 * Resolves a ref/object expression to its OID, e.g. `revParse(repo, 'refs/agents/abc/...')`
 	 * or `revParse(repo, '<commit>^{tree}')`. Returns `undefined` when the
 	 * ref does not exist.
@@ -393,10 +576,11 @@ export interface IAgentHostGitService {
 	/**
 	 * Lists refs matching `pattern` (a `git for-each-ref` glob such as
 	 * `refs/sessions/<id>/*`) with their resolved commit OIDs. Returns an empty
-	 * array when none match. Optional: implementations that don't support raw
+	 * array when none match. Set `throwOnError` to distinguish a failed lookup
+	 * from an empty result. Optional: implementations that don't support raw
 	 * ref enumeration may omit it.
 	 */
-	listRefNamesWithOids?(repositoryRoot: URI, pattern: string): Promise<Array<{ readonly ref: string; readonly oid: string }>>;
+	listRefNamesWithOids?(repositoryRoot: URI, pattern: string, options?: { readonly throwOnError?: boolean }): Promise<Array<{ readonly ref: string; readonly oid: string }>>;
 
 	/**
 	 * Builds a new tree from `baseTreeOid` in which the single repo-relative
@@ -466,12 +650,6 @@ export function parseUpstreamBranchName(upstreamBranchName: string | undefined):
 	};
 }
 
-export function getBranchCompletions(branches: readonly string[], options?: { readonly currentBranch?: string; readonly defaultBranch?: string; readonly query?: string; readonly limit?: number }): string[] {
-	const normalizedQuery = options?.query?.toLowerCase();
-	const filtered = normalizedQuery
-		? branches.filter(branch => branch.toLowerCase().includes(normalizedQuery))
-		: [...branches];
-
-	filtered.sort((a, b) => getBranchPriority(a, options?.currentBranch, options?.defaultBranch) - getBranchPriority(b, options?.currentBranch, options?.defaultBranch));
-	return options?.limit ? filtered.slice(0, options.limit) : filtered;
+export function getBranchCompletions(branches: readonly string[], options?: { readonly currentBranch?: string; readonly defaultBranch?: string }): string[] {
+	return [...branches].sort((a, b) => getBranchPriority(a, options?.currentBranch, options?.defaultBranch) - getBranchPriority(b, options?.currentBranch, options?.defaultBranch));
 }

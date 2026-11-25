@@ -6,7 +6,7 @@
 import { localize } from '../../../../nls.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { getFileNamesMessage, IConfirmation, IDialogService, IFileDialogService, IPromptButton } from '../../../../platform/dialogs/common/dialogs.js';
-import { ByteSize, FileSystemProviderCapabilities, IFileService, IFileStatWithMetadata } from '../../../../platform/files/common/files.js';
+import { ByteSize, FileSystemProviderCapabilities, IFileService, IFileStat, IFileStatWithMetadata } from '../../../../platform/files/common/files.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { IProgress, IProgressService, IProgressStep, ProgressLocation } from '../../../../platform/progress/common/progress.js';
 import { IExplorerService } from './files.js';
@@ -410,15 +410,18 @@ export class ExternalFileImport {
 	async import(target: ExplorerItem, source: DragEvent, targetWindow: Window): Promise<void> {
 		const cts = new CancellationTokenSource();
 
-		// Indicate progress globally
+		// Indicate progress globally. The title is reported as a message so that
+		// it can be replaced with the resources being copied once they are known.
 		const importPromise = this.progressService.withProgress(
 			{
 				location: ProgressLocation.Window,
 				delay: 800,
-				cancellable: true,
-				title: localize('copyingFiles', "Copying...")
+				cancellable: true
 			},
-			async () => await this.doImport(target, source, targetWindow, cts.token),
+			async progress => {
+				progress.report({ message: localize('copyingFiles', "Copying...") });
+				await this.doImport(target, source, targetWindow, progress, cts.token);
+			},
 			() => cts.dispose(true)
 		);
 
@@ -428,7 +431,7 @@ export class ExternalFileImport {
 		return importPromise;
 	}
 
-	private async doImport(target: ExplorerItem, source: DragEvent, targetWindow: Window, token: CancellationToken): Promise<void> {
+	private async doImport(target: ExplorerItem, source: DragEvent, targetWindow: Window, progress: IProgress<IProgressStep>, token: CancellationToken): Promise<void> {
 
 		// Activate all providers for the resources dropped
 		const candidateFiles = coalesce((await this.instantiationService.invokeFunction(accessor => extractEditorsAndFilesDropData(accessor, source))).map(editor => editor.resource));
@@ -496,17 +499,17 @@ export class ExternalFileImport {
 
 			// Copy resources
 			if (result === ImportChoice.Copy) {
-				return this.importResources(target, files, token);
+				return this.importResources(target, files, progress, token);
 			}
 		}
 
 		// Handle dropped files (only support FileStat as target)
 		else if (target instanceof ExplorerItem) {
-			return this.importResources(target, files, token);
+			return this.importResources(target, files, progress, token);
 		}
 	}
 
-	private async importResources(target: ExplorerItem, resources: URI[], token: CancellationToken): Promise<void> {
+	private async importResources(target: ExplorerItem, resources: URI[], progress: IProgress<IProgressStep>, token: CancellationToken): Promise<void> {
 		if (resources && resources.length > 0) {
 
 			// Resolve target to check for name collisions and ask user
@@ -535,13 +538,23 @@ export class ExternalFileImport {
 				}
 
 				if (targetNames.has(caseSensitive ? basename(resource) : basename(resource).toLowerCase())) {
+					const targetFile = joinPath(target.resource, basename(resource));
+					if (await canMergeFolders(this.fileService, resource, targetFile)) {
+						const choice = await confirmMergeOrReplace(this.dialogService, [targetFile]);
+						if (choice === FolderConflictChoice.Cancel) {
+							return undefined;
+						}
+
+						return { resource, merge: choice === FolderConflictChoice.Merge };
+					}
+
 					const confirmationResult = await this.dialogService.confirm(getFileOverwriteConfirm(basename(resource)));
 					if (!confirmationResult.confirmed) {
 						return undefined;
 					}
 				}
 
-				return resource;
+				return { resource, merge: false };
 			}))));
 
 			if (inaccessibleFileCount > 0) {
@@ -549,28 +562,42 @@ export class ExternalFileImport {
 			}
 
 			// Copy resources through bulk edit API
-			const resourceFileEdits = resourcesFiltered.map(resource => {
+			const resourceFileEdits = (await Promise.all(resourcesFiltered.map(async ({ resource, merge }) => {
+				if (merge) {
+					return getMergeFileEdits(this.fileService, [resource], target.resource, true);
+				}
+
 				const sourceFileName = basename(resource);
 				const targetFile = joinPath(target.resource, sourceFileName);
 
-				return new ResourceFileEdit(resource, targetFile, { overwrite: true, copy: true });
-			});
+				return [new ResourceFileEdit(resource, targetFile, { overwrite: true, copy: true })];
+			}))).flat();
 
 			const undoLevel = this.configurationService.getValue<IFilesConfiguration>().explorer.confirmUndo;
+			const progressLabel = resourcesFiltered.length === 1 ?
+				localize({ comment: ['substitution will be the name of the file that was copied'], key: 'copyingFile' }, "Copying {0}", basename(resourcesFiltered[0].resource)) :
+				localize({ comment: ['substitution will be the number of files that were copied'], key: 'copyingnFile' }, "Copying {0} resources", resourcesFiltered.length);
+			progress.report({ message: progressLabel });
+
+			// The import notification is cancellable and shows the progress, so
+			// only indicate the progress of the copy in the Explorer
 			await this.explorerService.applyBulkEdit(resourceFileEdits, {
 				undoLabel: resourcesFiltered.length === 1 ?
-					localize({ comment: ['substitution will be the name of the file that was imported'], key: 'importFile' }, "Import {0}", basename(resourcesFiltered[0])) :
+					localize({ comment: ['substitution will be the name of the file that was imported'], key: 'importFile' }, "Import {0}", basename(resourcesFiltered[0].resource)) :
 					localize({ comment: ['substitution will be the number of files that were imported'], key: 'importnFile' }, "Import {0} resources", resourcesFiltered.length),
-				progressLabel: resourcesFiltered.length === 1 ?
-					localize({ comment: ['substitution will be the name of the file that was copied'], key: 'copyingFile' }, "Copying {0}", basename(resourcesFiltered[0])) :
-					localize({ comment: ['substitution will be the number of files that were copied'], key: 'copyingnFile' }, "Copying {0} resources", resourcesFiltered.length),
-				progressLocation: ProgressLocation.Window,
+				progressLabel,
+				progressLocation: ProgressLocation.Explorer,
 				confirmBeforeUndo: undoLevel === UndoConfirmLevel.Verbose || undoLevel === UndoConfirmLevel.Default,
+				token
 			});
+
+			if (token.isCancellationRequested) {
+				return;
+			}
 
 			// if we only add one file, just open it directly
 			const autoOpen = this.configurationService.getValue<IFilesConfiguration>().explorer.autoOpenDroppedFile;
-			if (autoOpen && resourceFileEdits.length === 1) {
+			if (autoOpen && resourcesFiltered.length === 1 && !resourcesFiltered[0].merge) {
 				const item = this.explorerService.findClosest(resourceFileEdits[0].newResource!);
 				if (item && !item.isDirectory) {
 					this.editorService.openEditor({ resource: item.resource, options: { pinned: true } });
@@ -595,6 +622,12 @@ interface IDownloadOperation {
 	fileBytesDownloaded: number;
 }
 
+interface IDownloadSource {
+	readonly resource: URI;
+	readonly name: string;
+	readonly isDirectory: boolean;
+}
+
 export class FileDownload {
 
 	private static readonly LAST_USED_DOWNLOAD_PATH_STORAGE_KEY = 'workbench.explorer.downloadPath';
@@ -609,7 +642,7 @@ export class FileDownload {
 	) {
 	}
 
-	download(source: ExplorerItem[]): Promise<void> {
+	download(source: readonly IDownloadSource[]): Promise<void> {
 		const cts = new CancellationTokenSource();
 
 		// Indicate progress globally
@@ -617,7 +650,7 @@ export class FileDownload {
 			{
 				location: ProgressLocation.Window,
 				delay: 800,
-				cancellable: isWeb,
+				cancellable: true,
 				title: localize('downloadingFiles', "Downloading")
 			},
 			async progress => this.doDownload(source, progress, cts),
@@ -630,7 +663,7 @@ export class FileDownload {
 		return downloadPromise;
 	}
 
-	private async doDownload(sources: ExplorerItem[], progress: IProgress<IProgressStep>, cts: CancellationTokenSource): Promise<void> {
+	private async doDownload(sources: readonly IDownloadSource[], progress: IProgress<IProgressStep>, cts: CancellationTokenSource): Promise<void> {
 		for (const source of sources) {
 			if (cts.token.isCancellationRequested) {
 				return;
@@ -815,7 +848,7 @@ export class FileDownload {
 		operation.progressScheduler.work({ message });
 	}
 
-	private async doDownloadNative(explorerItem: ExplorerItem, progress: IProgress<IProgressStep>, cts: CancellationTokenSource): Promise<void> {
+	private async doDownloadNative(explorerItem: IDownloadSource, progress: IProgress<IProgressStep>, cts: CancellationTokenSource): Promise<void> {
 		progress.report({ message: explorerItem.name });
 
 		let defaultUri: URI;
@@ -843,11 +876,13 @@ export class FileDownload {
 			// Remember as last used download folder
 			this.storageService.store(FileDownload.LAST_USED_DOWNLOAD_PATH_STORAGE_KEY, dirname(destination).fsPath, StorageScope.APPLICATION, StorageTarget.MACHINE);
 
-			// Perform download
+			// Perform download. The download notification is cancellable and shows
+			// the progress, so only indicate the progress of the copy in the Explorer
 			await this.explorerService.applyBulkEdit([new ResourceFileEdit(explorerItem.resource, destination, { overwrite: true, copy: true })], {
 				undoLabel: localize('downloadBulkEdit', "Download {0}", explorerItem.name),
 				progressLabel: localize('downloadingBulkEdit', "Downloading {0}", explorerItem.name),
-				progressLocation: ProgressLocation.Window
+				progressLocation: ProgressLocation.Explorer,
+				token: cts.token
 			});
 		} else {
 			cts.cancel(); // User canceled a download. In case there were multiple files selected we should cancel the remainder of the prompts #86100
@@ -879,6 +914,104 @@ export function getMultipleFilesOverwriteConfirm(files: URI[]): IConfirmation {
 	}
 
 	return getFileOverwriteConfirm(basename(files[0]));
+}
+
+export enum FolderConflictChoice {
+	Merge,
+	Replace,
+	Cancel
+}
+
+/**
+ * Asks the user whether folders that already exist in the destination folder
+ * should be merged with the folders being moved or copied, or be replaced.
+ */
+export async function confirmMergeOrReplace(dialogService: IDialogService, files: URI[]): Promise<FolderConflictChoice> {
+	const detail = [
+		localize('mergeDetail', "Merging combines the contents of the folders and replaces files with the same name."),
+		localize('irreversible', "This action is irreversible!")
+	];
+	if (files.length > 1) {
+		detail.unshift(getFileNamesMessage(files));
+	}
+
+	const { result } = await dialogService.prompt<FolderConflictChoice>({
+		type: Severity.Warning,
+		message: files.length > 1 ?
+			localize('confirmManyMerges', "The following {0} files and/or folders already exist in the destination folder. Do you want to merge or replace them?", files.length) :
+			localize('confirmMerge', "A folder with the name '{0}' already exists in the destination folder. Do you want to merge or replace it?", basename(files[0])),
+		detail: detail.join('\n'),
+		buttons: [
+			{
+				label: localize({ key: 'mergeButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Merge"),
+				run: () => FolderConflictChoice.Merge
+			},
+			{
+				label: localize({ key: 'replaceButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Replace"),
+				run: () => FolderConflictChoice.Replace
+			}
+		],
+		cancelButton: {
+			run: () => FolderConflictChoice.Cancel
+		}
+	});
+
+	return result;
+}
+
+/**
+ * Returns whether `source` is a folder that can be merged into the existing folder `target`.
+ */
+export async function canMergeFolders(fileService: IFileService, source: URI, target: URI): Promise<boolean> {
+	return await isExistingMergeableFolder(fileService, source) && await isExistingMergeableFolder(fileService, target);
+}
+
+/**
+ * Computes the edits to move or copy `sources` into the folder `target`. Folders
+ * that already exist in `target` are merged recursively instead of being replaced,
+ * files that already exist are replaced. When moving, the merged source folders
+ * are deleted after their contents have been moved.
+ */
+export async function getMergeFileEdits(fileService: IFileService, sources: readonly URI[], target: URI, copy: boolean): Promise<ResourceFileEdit[]> {
+	const edits: ResourceFileEdit[] = [];
+	for (const source of sources) {
+		await collectMergeFileEdits(fileService, await fileService.stat(source), target, copy, edits);
+	}
+
+	return edits;
+}
+
+type MergeSource = Pick<IFileStat, 'resource' | 'name' | 'isDirectory' | 'isSymbolicLink'>;
+
+async function collectMergeFileEdits(fileService: IFileService, source: MergeSource, target: URI, copy: boolean, edits: ResourceFileEdit[]): Promise<void> {
+	const newResource = joinPath(target, source.name);
+	if (isMergeableFolder(source) && await isExistingMergeableFolder(fileService, newResource)) {
+		const { children } = await fileService.resolve(source.resource);
+		for (const child of children ?? []) {
+			await collectMergeFileEdits(fileService, child, newResource, copy, edits);
+		}
+
+		if (!copy) {
+			// Not recursive so that the folder is only deleted if all of its contents have been moved
+			edits.push(new ResourceFileEdit(source.resource, undefined, { folder: true, skipTrashBin: true }));
+		}
+	} else {
+		edits.push(new ResourceFileEdit(source.resource, newResource, { overwrite: true, copy }));
+	}
+}
+
+function isMergeableFolder(stat: MergeSource): boolean {
+	// Symbolic links (as source or as target) are moved, copied or replaced as is
+	// instead of merging the contents of the folder they point to
+	return stat.isDirectory && !stat.isSymbolicLink;
+}
+
+async function isExistingMergeableFolder(fileService: IFileService, resource: URI): Promise<boolean> {
+	try {
+		return isMergeableFolder(await fileService.stat(resource));
+	} catch {
+		return false;
+	}
 }
 
 //#endregion

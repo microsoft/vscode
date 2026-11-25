@@ -10,6 +10,7 @@ import { Disposable } from '../../../../util/vs/base/common/lifecycle';
 import { ResourceMap, ResourceSet } from '../../../../util/vs/base/common/map';
 import { isEqualOrParent } from '../../../../util/vs/base/common/resources';
 import { URI } from '../../../../util/vs/base/common/uri';
+// eslint-disable-next-line local/code-layering -- Pre-existing layering violation found when the zone check started resolving extensionless imports.
 import { Change } from '../../../git/vscode/git';
 import { LogExecTime } from '../../../log/common/logExecTime';
 import { ILogService } from '../../../log/common/logService';

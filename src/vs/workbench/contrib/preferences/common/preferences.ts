@@ -56,7 +56,6 @@ export interface IAiSearchProvider extends IRemoteSearchProvider {
 	getLLMRankedResults(token: CancellationToken): Promise<ISearchResult | null>;
 }
 
-export const PREFERENCES_EDITOR_COMMAND_OPEN = 'workbench.preferences.action.openPreferencesEditor';
 export const CONTEXT_PREFERENCES_SEARCH_FOCUS = new RawContextKey<boolean>('inPreferencesSearch', false);
 
 export const SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS = 'settings.action.clearSearchResults';
@@ -110,6 +109,7 @@ export const AGENTS_WINDOW_SETTING_TAG = 'override:agentsWindow';
 export const WORKSPACE_TRUST_SETTING_TAG = 'workspaceTrust';
 export const REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG = 'requireTrustedWorkspace';
 export const ADVANCED_SETTING_TAG = 'advanced';
+export const EXP_ASSIGNMENT_SETTING_TAG = 'expassigned';
 export const KEYBOARD_LAYOUT_OPEN_PICKER = 'workbench.action.openKeyboardLayoutPicker';
 
 export const ENABLE_LANGUAGE_FILTER = true;

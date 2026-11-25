@@ -143,6 +143,33 @@ suite('StandaloneConfigurationModelParser', () => {
 		assert.deepStrictEqual(testObject.configurationModel.contents, expected);
 	});
 
+	test('merging stand alone configuration with __proto__ path does not pollute Object.prototype', () => {
+		const settings = new ConfigurationModelParser('settings', new NullLogService());
+		settings.parse(JSON.stringify({ 'mcp.container': true }));
+		const standalone = new StandaloneConfigurationModelParser('mcp', 'mcp', new NullLogService());
+		standalone.parse(JSON.stringify({ '__proto__.pollutedByStandaloneMerge': 'polluted', 'servers': { 'a': { 'command': 'b' } } }));
+
+		try {
+			const merged = settings.configurationModel.merge(standalone.configurationModel);
+
+			assert.deepStrictEqual({
+				pollutedPrototype: (Object.prototype as Record<string, unknown>)['pollutedByStandaloneMerge'],
+				pollutedObject: ({} as Record<string, unknown>)['pollutedByStandaloneMerge'],
+				mergedPrototype: Object.getPrototypeOf(merged.getValue('mcp')),
+				servers: merged.getValue('mcp.servers'),
+				container: merged.getValue('mcp.container'),
+			}, {
+				pollutedPrototype: undefined,
+				pollutedObject: undefined,
+				mergedPrototype: Object.prototype,
+				servers: { 'a': { 'command': 'b' } },
+				container: true,
+			});
+		} finally {
+			delete (Object.prototype as Record<string, unknown>)['pollutedByStandaloneMerge'];
+		}
+	});
+
 });
 
 suite('Workspace Configuration', () => {

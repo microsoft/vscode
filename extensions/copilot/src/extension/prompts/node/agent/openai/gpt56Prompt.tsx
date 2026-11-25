@@ -248,7 +248,7 @@ class Gpt56Prompt extends PromptElement<DefaultAgentPromptProps> {
 	}
 }
 
-class Gpt56PromptResolver implements IAgentPrompt {
+export class Gpt56PromptResolver implements IAgentPrompt {
 
 	static async matchesModel(endpoint: IChatEndpoint): Promise<boolean> {
 		return isGpt56(endpoint);

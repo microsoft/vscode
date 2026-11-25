@@ -11,7 +11,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { IRange, Range } from '../../../../../editor/common/core/range.js';
 import { IDecorationOptions } from '../../../../../editor/common/editorCommon.js';
 import { Command, isLocation } from '../../../../../editor/common/languages.js';
-import { ITextModel } from '../../../../../editor/common/model.js';
+import { IIdentifiedSingleEditOperation, ITextModel } from '../../../../../editor/common/model.js';
 import { IModelContentChange } from '../../../../../editor/common/model/mirrorTextModel.js';
 import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
@@ -51,6 +51,7 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 	}
 
 	private decorationData: { id: string; text: string; rangeOffset: number }[] = [];
+	private decorationModelVersionId: number | undefined;
 
 	private readonly _editorListener = this._register(new MutableDisposable());
 
@@ -65,13 +66,19 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 			this._subscribeToEditor();
 			this.updateDecorations();
 		}));
-		this._register(widget.input.attachmentModel.onDidChange(() => this.updateDecorations()));
+		this._register(widget.input.attachmentModel.onDidChange(() => {
+			// Parsing can update attachments before the editor listener has tracked the edit.
+			if (this.widget.inputEditor.getModel()?.getVersionId() === this.decorationModelVersionId) {
+				this.updateDecorations();
+			}
+		}));
 	}
 
 	private _subscribeToEditor(): void {
 		this._editorListener.value = this.widget.inputEditor.onDidChangeModelContent(e => {
 
 			const removed: IDynamicVariable[] = [];
+			const cleanupEdits: IIdentifiedSingleEditOperation[] = [];
 			let didChange = false;
 
 			// Don't mutate entries in _variables, since they will be returned from the getter
@@ -102,18 +109,27 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 						change.rangeOffset <= data.rangeOffset
 						&& change.rangeOffset + change.rangeLength >= data.rangeOffset + data.text.length
 					);
-					const preservedRange = replacement && this.findReferenceRangeInReplacement(model, e.changes, replacement, data);
+
+					const touchesReference = e.changes.some(change =>
+						change.rangeOffset < data.rangeOffset + data.text.length
+						&& change.rangeOffset + change.rangeLength > data.rangeOffset
+					);
+
+					const preservedRange = replacement
+						? this.findReferenceRangeInReplacement(model, e.changes, replacement, data)
+						: !touchesReference
+							? this.findReferenceRangeForNonOverlappingEdit(model, e.changes, data)
+							: undefined;
 					if (preservedRange) {
 						didChange = true;
 						return { ...ref, range: preservedRange };
 					}
 
-					if (!replacement) {
-						this.widget.inputEditor.executeEdits(this.id, [{
+					if (!replacement && touchesReference) {
+						cleanupEdits.push({
 							range: newRange,
 							text: '',
-						}]);
-						this.widget.refreshParsedInput();
+						});
 					}
 
 					removed.push(ref);
@@ -132,6 +148,12 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 
 			// cleanup disposable variables
 			dispose(removed.filter(isDisposable));
+
+			if (cleanupEdits.length > 0) {
+				// Cleanup edits reenter this listener, so publish surviving reference decorations first.
+				this.updateDecorations();
+				this.widget.inputEditor.executeEdits(this.id, cleanupEdits);
+			}
 
 			if (didChange || removed.length > 0) {
 				this.widget.refreshParsedInput();
@@ -176,6 +198,25 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 		return model.getValueInRange(range) === data.text ? range : undefined;
 	}
 
+	private findReferenceRangeForNonOverlappingEdit(
+		model: ITextModel,
+		changes: readonly IModelContentChange[],
+		data: { text: string; rangeOffset: number }
+	): Range | undefined {
+		if (!data.text) {
+			return undefined;
+		}
+
+		const precedingChangesDelta = changes.reduce((delta, change) =>
+			change.rangeOffset < data.rangeOffset ? delta + change.text.length - change.rangeLength : delta, 0);
+		const startOffset = data.rangeOffset + precedingChangesDelta;
+		const range = Range.fromPositions(
+			model.getPositionAt(startOffset),
+			model.getPositionAt(startOffset + data.text.length)
+		);
+		return model.getValueInRange(range) === data.text ? range : undefined;
+	}
+
 	getInputState(contrib: Record<string, unknown>): void {
 		contrib[ChatDynamicVariableModel.ID] = [...this._variables];
 	}
@@ -198,7 +239,7 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 		}
 	}
 
-	addReference(ref: IDynamicVariable): void {
+	addReference(ref: IDynamicVariable, replaceCoveredReferences = false): void {
 		if (!isValidEditorRange(ref.range)) {
 			return;
 		}
@@ -206,6 +247,18 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 		const existingAttachment = this.widget.input.attachmentModel.attachments.find(attachment => attachment.id === ref.id && !attachment.range);
 		if (existingAttachment) {
 			ref = toAttachedContextDynamicVariable(existingAttachment, ref.range);
+		}
+
+		if (replaceCoveredReferences) {
+			const removed: IDynamicVariable[] = [];
+			this._variables = this._variables.filter(existing => {
+				if (Range.containsRange(ref.range, existing.range)) {
+					removed.push(existing);
+					return false;
+				}
+				return true;
+			});
+			dispose(removed.filter(isDisposable));
 		}
 
 		this._variables.push(ref);
@@ -216,6 +269,7 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 
 	private updateDecorations(): void {
 		const model = this.widget.inputEditor.getModel();
+		this.decorationModelVersionId = model?.getVersionId();
 		if (!model) {
 			this.decorationData = [];
 			return;

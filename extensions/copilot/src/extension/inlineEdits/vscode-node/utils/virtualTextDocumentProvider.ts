@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { EventEmitter, Uri, commands, workspace } from 'vscode';
+import { EventEmitter, Uri, workspace } from 'vscode';
 import { Disposable } from '../../../../util/vs/base/common/lifecycle';
 
 export class VirtualTextDocumentProvider extends Disposable {
@@ -28,21 +28,12 @@ export class VirtualTextDocumentProvider extends Disposable {
 		}));
 	}
 
-	clear(): void {
-		this._documents.clear();
-	}
-
 	createDocument(data: string = '', extension: string = 'txt'): VirtualDocument {
 		const uri = Uri.parse(`${this.scheme}:///virtual-text-document/${VirtualTextDocumentProvider.id++}.${extension}`);
 		const document = new VirtualDocument(uri, () => this._didChangeEmitter.fire(uri));
 		document.setContent(data);
 		this._documents.set(uri.toString(), document);
 		return document;
-	}
-
-	createUriForData(data: string, extension: string = 'txt'): Uri {
-		const d = this.createDocument(data, extension);
-		return d.uri;
 	}
 
 	createDocumentForUri(uri: Uri): VirtualDocument {
@@ -52,10 +43,6 @@ export class VirtualTextDocumentProvider extends Disposable {
 		const document = new VirtualDocument(uri, () => this._didChangeEmitter.fire(uri));
 		this._documents.set(uri.toString(), document);
 		return document;
-	}
-
-	openUri(uri: Uri): void {
-		commands.executeCommand('vscode.open', uri);
 	}
 }
 

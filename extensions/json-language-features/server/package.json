@@ -15,23 +15,19 @@
   "dependencies": {
     "@vscode/l10n": "^0.0.18",
     "request-light": "^0.8.0",
-    "vscode-json-languageservice": "^6.0.0-next.3",
-    "vscode-languageserver": "^10.0.0-next.18",
+    "vscode-json-languageservice": "^6.0.0-next.5",
+    "vscode-languageserver": "^11.0.0",
     "vscode-uri": "^3.1.0"
   },
   "devDependencies": {
     "@types/node": "24.x"
   },
   "scripts": {
-    "prepublishOnly": "npm run clean && npm run compile",
-    "compile": "npx gulp compile-extension:json-language-features-server",
-    "watch": "npx gulp watch-extension:json-language-features-server",
+    "prepublishOnly": "pnpm run clean && pnpm run compile",
+    "compile": "pnpm exec gulp compile-extension:json-language-features-server",
+    "watch": "pnpm exec gulp watch-extension:json-language-features-server",
     "clean": "../../../node_modules/.bin/rimraf out",
-    "install-service-next": "npm install vscode-json-languageservice@next",
-    "install-service-latest": "npm install vscode-json-languageservice",
-    "install-service-local": "npm link vscode-json-languageservice",
-    "install-server-next": "npm install vscode-languageserver@next",
-    "install-server-local": "npm link vscode-languageserver-server",
+    "update-dependencies": "pnpm install vscode-languageserver@latest && pnpm install vscode-json-languageservice@next",
     "version": "git commit -m \"JSON Language Server $npm_package_version\" package.json"
   }
 }

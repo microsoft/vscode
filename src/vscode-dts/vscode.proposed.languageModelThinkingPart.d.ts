@@ -5,6 +5,11 @@
 
 declare module 'vscode' {
 
+	export interface LanguageModelChatRequestOptions {
+		/** Whether to include opaque reasoning state needed to replay the response in later requests. */
+		includeEncryptedThinking?: boolean;
+	}
+
 	/**
 	 * A language model response part containing thinking/reasoning content.
 	 * Thinking tokens represent the model's internal reasoning process that

@@ -9,13 +9,13 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ChatPetAchievementId, ChatPetAchievementIds } from '../../../../../workbench/contrib/chat/browser/chatPetAchievements.js';
 import { IChatPetService } from '../../../../../workbench/contrib/chat/browser/chatPetService.js';
-import { ISendRequestSentEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ISendRequestSentEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { SessionsChatPetAchievementContribution } from '../../browser/chatPetAchievements.js';
 
 suite('Sessions - Chat Pet Achievements', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('unlocks the first message and observes paused image sends', () => {
+	test('unlocks Agents window and request achievements from shared contribution', () => {
 		const onDidSendRequest = disposables.add(new Emitter<ISendRequestSentEvent>());
 		const attemptedUnlocks: ChatPetAchievementId[] = [];
 		const sessionsManagementService = new class extends mock<ISessionsManagementService>() {
@@ -36,11 +36,14 @@ suite('Sessions - Chat Pet Achievements', () => {
 			isNewChat: true,
 			options: {
 				query: 'hello',
-				attachedContext: [{ kind: 'image', id: 'image', name: 'image', value: '' }],
+				attachedContext: [
+					{ kind: 'image', id: 'image', name: 'image', value: '' },
+				],
 			},
 		});
 
 		assert.deepStrictEqual(attemptedUnlocks, [
+			ChatPetAchievementIds.AgentsWindowOpened,
 			ChatPetAchievementIds.FirstChatMessage,
 			ChatPetAchievementIds.ImageRequest,
 		]);

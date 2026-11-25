@@ -5,7 +5,6 @@
 
 import * as pathLib from 'path';
 import { AgentTaskGetResponse, AgentTaskSession, AgentTaskSessionEvent, AgentTaskState } from '@vscode/copilot-api';
-import type { SessionEvent } from '@github/copilot/sdk';
 import * as vscode from 'vscode';
 import { ChatRequestTurn, ChatRequestTurn2, ChatResponseMarkdownPart, ChatResponseProgressPart, ChatResponseThinkingProgressPart, ChatResponseTurn2, ChatToolInvocationPart, MarkdownString, Uri } from 'vscode';
 import { IGitService } from '../../../platform/git/common/gitService';
@@ -13,7 +12,7 @@ import { PullRequestSearchItem } from '../../../platform/github/common/githubAPI
 import { ILogService } from '../../../platform/log/common/logService';
 import { findLast } from '../../../util/vs/base/common/arraysFind';
 import { appendResponsePartsForEvent, createResponseEventRenderContext, flushPendingAssistantMessage, ResponseEventRenderContext } from '../common/sessionEventRenderer';
-import { CLI_TOOL_EVENT_HANDLERS } from '../copilotcli/common/copilotCLITools';
+import { CLI_TOOL_EVENT_HANDLERS } from '../common/copilotCLIToolInvocations';
 import { getAuthorDisplayName, isFailedTaskState } from '../vscode/copilotCodingAgentUtils';
 
 export interface ToolCall {
@@ -115,9 +114,8 @@ export class ChatSessionContentBuilder {
 	}
 
 	/**
-	 * Render a Task API task as chat history. Each entry in `task.sessions[]` is one turn
-	 * (request = the turn prompt; response = a markdown summary derived from events scoped
-	 * to that turn). The events are typed.
+	 * Render a Task API task as chat history. An automation's opening request comes from
+	 * its recorded session; subsequent user messages start their own turns.
 	 *
 	 * `pullRequest` is shown as a header card only when the task happens to have a PR.
 	 */
@@ -126,31 +124,59 @@ export class ChatSessionContentBuilder {
 		events: readonly AgentTaskSessionEvent[],
 		pullRequest: PullRequestSearchItem | undefined,
 		initialReferences: Promise<vscode.ChatPromptReference[]>,
+		initialAutomationPrompt?: string,
 	): Promise<Array<ChatRequestTurn | ChatResponseTurn2>> {
 		return (async () => {
 			const history: Array<ChatRequestTurn | ChatResponseTurn2> = [];
 			const references = Array.from(await initialReferences);
-			const isTurnBoundary = (e: AgentTaskSessionEvent): e is AgentTaskSessionEvent & { data: { content?: string } } =>
-				e.type === 'user.message' && !e.dismissed && isUserAuthoredMessage(e.data);
-
-			// Single pass: skip bootstrap events between `session.requested`/`session.start`
-			// and the next user-authored `user.message` (which opens a new turn), and append
-			// everything else to the current turn. Events that arrive before any turn opens
-			// (rare, only happens if the stream starts mid-bootstrap) land in `preTurnEvents`
-			// and are used as the synthesized turn's events below.
-			const turns: { prompt: string; events: AgentTaskSessionEvent[] }[] = [];
+			type Turn = { prompt: string; events: AgentTaskSessionEvent[] };
+			const opening: Turn | undefined = initialAutomationPrompt === undefined ? undefined : { prompt: initialAutomationPrompt, events: [] };
+			const turns: Turn[] = opening ? [opening] : [];
 			const preTurnEvents: AgentTaskSessionEvent[] = [];
-			let suppressing = false;
+			const firstSession = task.sessions?.[0];
+			// Without a matching start, a partial log can begin at a follow-up, even one
+			// identical to the execution prompt. Never use request text to identify it.
+			let openingInput: 'unmarked' | 'started' | undefined = opening ? 'unmarked' : undefined;
+			let suppressBootstrap = false;
 			for (const event of events) {
-				if (event.type === 'session.requested' || event.type === 'session.start') {
-					suppressing = true;
+				if (opening && (event.dismissed || event.pending)) {
 					continue;
 				}
-				if (isTurnBoundary(event)) {
-					suppressing = false;
-					turns.push({ prompt: event.data.content ?? '', events: [] });
-				} else if (!suppressing) {
-					(turns.length > 0 ? turns[turns.length - 1].events : preTurnEvents).push(event);
+				if (event.type === 'session.requested' || event.type === 'session.start') {
+					if (openingInput !== undefined) {
+						if (event.type === 'session.start' && event.data.sessionId && firstSession) {
+							openingInput = event.data.sessionId === firstSession.id ? 'started' : undefined;
+						} else {
+							openingInput = 'unmarked';
+						}
+					}
+					suppressBootstrap = openingInput === undefined;
+					continue;
+				}
+				if (event.type === 'user.message' && !event.dismissed && event.data.content) {
+					if (opening && openingInput && (openingInput === 'started' || event.data.source === 'automation')) {
+						// Only now do we know that the events before this input were bootstrap,
+						// not the recorded session's response in a log missing the input.
+						opening.events.length = 0;
+						openingInput = undefined;
+						continue;
+					}
+					if (isUserAuthoredMessage(event.data)) {
+						openingInput = undefined;
+						suppressBootstrap = false;
+						turns.push({ prompt: event.data.content, events: [] });
+						continue;
+					}
+				}
+				if (event.type === 'session.idle' || event.type === 'session.shutdown') {
+					openingInput = undefined;
+				} else if (openingInput === 'started' && isTopLevelReply(event)) {
+					// This could already be the answer. Require an explicit source from here
+					// rather than consuming the next user message on the strength of the start.
+					openingInput = 'unmarked';
+				}
+				if (!suppressBootstrap) {
+					(turns.at(-1)?.events ?? preTurnEvents).push(event);
 				}
 			}
 
@@ -158,14 +184,14 @@ export class ChatSessionContentBuilder {
 			// turn from the first session's prompt so the request bubble isn't empty and
 			// never shows the AI-generated title.
 			if (turns.length === 0) {
-				turns.push({ prompt: task.sessions?.[0]?.prompt ?? task.name ?? '', events: preTurnEvents });
+				turns.push({ prompt: firstSession?.prompt ?? task.name ?? '', events: preTurnEvents });
 			}
 
 			const latestSession = task.sessions?.[task.sessions.length - 1];
 
 			turns.forEach((turn, index) => {
 				const turnReferences = index === 0 ? references : [];
-				history.push(new ChatRequestTurn2(
+				const request = new ChatRequestTurn2(
 					turn.prompt,
 					undefined,
 					turnReferences,
@@ -175,7 +201,11 @@ export class ChatSessionContentBuilder {
 					undefined,
 					undefined,
 					undefined,
-				));
+				);
+				if (turn === opening && !turn.prompt) {
+					request.isRequestHidden = true;
+				}
+				history.push(request);
 
 				// PR card after the first request, if a PR is attached.
 				if (index === 0 && pullRequest && pullRequest.author && vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
@@ -224,13 +254,7 @@ export class ChatSessionContentBuilder {
 	 *    messages carry narration that would clutter the view.
 	 */
 	private buildTaskResponseTurn(events: readonly AgentTaskSessionEvent[], state: AgentTaskSession['state'] | undefined, failureMessage?: string): ChatResponseTurn2[] {
-		const lastFinalMessage = findLast(events, e =>
-			!e.dismissed
-			&& e.type === 'assistant.message'
-			&& !!e.data.content
-			&& !e.data.parentToolCallId
-			&& !((e.data as { toolRequests?: readonly unknown[] }).toolRequests?.length)
-		);
+		const lastFinalMessage = findLast(events, isTopLevelReply);
 
 		const ctx = createResponseEventRenderContext(this._logService, CLI_TOOL_EVENT_HANDLERS);
 		const renderedToolCallIds = new Set<string>();
@@ -264,7 +288,7 @@ export class ChatSessionContentBuilder {
 				}
 			}
 
-			appendResponsePartsForEvent(remapCustomAgentEventType(event) as unknown as SessionEvent, ctx);
+			appendResponsePartsForEvent(remapCustomAgentEventType(event), ctx);
 		}
 		flushPendingAssistantMessage(ctx);
 
@@ -318,7 +342,7 @@ export class ChatSessionContentBuilder {
 		if (event.dismissed) {
 			return;
 		}
-		appendResponsePartsForEvent(remapCustomAgentEventType(event) as unknown as SessionEvent, ctx);
+		appendResponsePartsForEvent(remapCustomAgentEventType(event), ctx);
 	}
 
 	private createToolInvocationPart(toolCall: ToolCall, deltaContent: string = ''): ChatToolInvocationPart | ChatResponseThinkingProgressPart | undefined {
@@ -688,6 +712,10 @@ export function isUserAuthoredMessage(data: { content?: string; transformedConte
 		return false;
 	}
 	return transformed === '' || transformed !== content;
+}
+
+function isTopLevelReply(event: AgentTaskSessionEvent): boolean {
+	return !event.dismissed && event.type === 'assistant.message' && !!event.data.content && !event.data.parentToolCallId && !event.data.toolRequests?.length;
 }
 
 /** JSON-stringify tool arguments, returning '{}' on cycles or other failures. */
