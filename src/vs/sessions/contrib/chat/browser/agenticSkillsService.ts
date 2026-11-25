@@ -186,10 +186,15 @@ export class AgenticSkillsService extends Disposable implements IAgenticSkillsSe
 }
 
 /**
- * Strips XML tags and truncates to the given max length.
- * Matches the sanitization applied by PromptsService for other skill sources.
+ * Strips XML tags, repeating until the text no longer changes so that removing one tag cannot leave another behind,
+ * and truncates to the given max length.
  */
 function sanitizeSkillText(text: string, maxLength: number): string {
-	const sanitized = text.replace(/<[^>]+>/g, '');
+	let sanitized = text;
+	let previous: string;
+	do {
+		previous = sanitized;
+		sanitized = sanitized.replace(/<[^>]*>/g, '');
+	} while (sanitized !== previous);
 	return sanitized.length > maxLength ? sanitized.substring(0, maxLength) : sanitized;
 }
