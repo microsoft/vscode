@@ -98,7 +98,7 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 			return { ...this._diffEditorOptions, ...this._diffLayoutOptions.read(reader) };
 		});
 		const splitViewRatioSync: ISplitViewRatioSync = {
-			enabled: observableConfigValue(MULTI_DIFF_EDITOR_SYNC_SPLIT_VIEW_SETTING, false, configurationService),
+			enabled: observableConfigValue(MULTI_DIFF_EDITOR_SYNC_SPLIT_VIEW_SETTING, true, configurationService),
 			ratio: splitViewRatio,
 		};
 		this._spaceBetweenPx = observableValue(this, 0);

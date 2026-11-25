@@ -1103,6 +1103,7 @@ suite('MultiDiffEditorWidget', () => {
 
 	test('keeps the split view ratio with its file when templates are recycled', () => runWithFakedTimers({}, async () => {
 		const services = new ServiceCollection();
+		services.set(IConfigurationService, new TestConfigurationService({ [MULTI_DIFF_EDITOR_SYNC_SPLIT_VIEW_SETTING]: false }));
 		services.set(IAccessibilitySignalService, new class extends mock<IAccessibilitySignalService>() { }());
 		services.set(IActionViewItemService, new NullActionViewItemService());
 		services.set(IEditorProgressService, new class extends mock<IEditorProgressService>() {
