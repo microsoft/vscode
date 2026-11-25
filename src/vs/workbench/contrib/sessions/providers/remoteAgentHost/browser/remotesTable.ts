@@ -65,6 +65,7 @@ export type RemoteTableEntry =
 	| {
 		readonly type: 'remote';
 		readonly remote: ICustomizationRemote;
+		readonly documentation?: IRemoteEmptyEntry['documentation'];
 		readonly busy: boolean;
 		readonly connecting?: boolean;
 		readonly ungrouped?: boolean;
@@ -85,7 +86,7 @@ type RemoteCellTemplate = {
 	readonly elementDisposables: DisposableStore;
 	row?: IRemoteTableRow;
 } & (
-		| { readonly column: 'name'; readonly content: HTMLElement; readonly chevron: HTMLElement; readonly nameRow: HTMLElement; readonly icon: HTMLElement; readonly label: HTMLElement; readonly detail: HTMLElement; readonly gitHubEnvironment: HTMLElement; readonly serverUpdate: HTMLElement; readonly count: HTMLElement; readonly countBadge: CountBadge; readonly warning: HTMLElement; readonly description: HTMLElement; readonly links: HTMLElement; readonly actionContainer: HTMLElement; actionLink?: Link; actionProgress?: HTMLElement; link?: Link }
+		| { readonly column: 'name'; readonly content: HTMLElement; readonly chevron: HTMLElement; readonly nameRow: HTMLElement; readonly icon: HTMLElement; readonly label: HTMLElement; readonly detail: HTMLElement; readonly pickerStatus: HTMLElement; readonly gitHubEnvironment: HTMLElement; readonly serverUpdate: HTMLElement; readonly count: HTMLElement; readonly countBadge: CountBadge; readonly warning: HTMLElement; readonly description: HTMLElement; readonly links: HTMLElement; readonly actionContainer: HTMLElement; actionLink?: Link; actionProgress?: HTMLElement; link?: Link }
 		| { readonly column: 'type' | 'system' | 'status' | 'sessions' | 'activity'; readonly label: HTMLElement }
 		| { readonly column: 'sandboxProfile'; readonly select: SelectBox; readonly picker: HTMLElement; options: readonly SandboxProfileOption[] }
 		| { readonly column: 'actions'; readonly connect: ButtonWithIcon; readonly newSession: ButtonWithIcon; readonly newSessionAction: Action; readonly toolbar: WorkbenchToolBar; primary: IRemoteRowActionState | undefined; actionLayout: string }
@@ -409,7 +410,7 @@ export function getRemoteRowMenuActions(entry: RemoteTableEntry, onAction: (entr
 		const primary = getGroupPrimaryAction(entry);
 		return Separator.join(
 			primary ? [item(primary)] : [],
-			entry.documentation ? [item({ id: 'remotes.documentation', kind: 'documentation', label: localize('remotes.openSetupGuide', "Open Setup Guide"), tooltip: entry.documentation.label, icon: Codicon.info, enabled: true })] : [],
+			entry.documentation ? [item({ id: 'remotes.documentation', kind: 'documentation', label: entry.documentation.label, icon: Codicon.info, enabled: true })] : [],
 		);
 	}
 	if (entry.type !== 'remote') {
@@ -433,42 +434,54 @@ export function getRemoteRowMenuActions(entry: RemoteTableEntry, onAction: (entr
 		],
 		showGitHubEnvironment ? [item({
 			id: 'remotes.githubEnvironment', kind: 'githubEnvironment',
-			label: share?.state === 'connecting' || share?.state === 'unavailable'
-				? getGitHubEnvironmentLabel(remote) ?? ''
-				: share
-					? localize('remotes.stopSharingAsGitHubEnvironment', "Stop Sharing as GitHub Environment")
-					: localize('remotes.shareAsGitHubEnvironment', "Share as GitHub Environment"),
+			label: share?.state === 'connecting'
+				? localize('remotes.sharingAsGitHubEnvironment', "Sharing as GitHub Environment...")
+				: share?.state === 'unavailable'
+					? share.unavailableReason === 'host'
+						? localize('remotes.sharedByRemote', "Shared by Remote Computer")
+						: localize('remotes.sharedByAnotherAccount', "Shared by Another Account")
+					: share
+						? localize('remotes.stopSharingAsGitHubEnvironment', "Stop Sharing as GitHub Environment")
+						: localize('remotes.shareAsGitHubEnvironment', "Share as GitHub Environment"),
 			icon: share?.state === 'connecting' ? connectionProgressIcon : Codicon.github,
 			enabled: ready && share?.state !== 'connecting' && share?.state !== 'unavailable',
 		})] : [],
 		[item({
 			id: 'remotes.visibility', kind: 'toggleVisibility',
-			label: offerShowInPicker ? localize('remotes.showInPicker', "Show in Environment Picker") : localize('remotes.hideFromPicker', "Hide from Environment Picker"),
+			label: offerShowInPicker ? localize('remotes.showInPicker', "Show in Picker") : localize('remotes.hideFromPicker', "Hide from Picker"),
 			tooltip: remote.pickerUnavailableReason ?? (remote.hidden
 				? localize('remotes.showInPickerDetail', "Show this environment when choosing where to run a session")
 				: localize('remotes.hideFromPickerDetail', "Hide this environment from the environment picker. It stays in Remote Environments.")),
 			icon: offerShowInPicker ? Codicon.eyeClosed : Codicon.eye,
 			enabled: !remote.pickerUnavailableReason,
 		})],
-		remote.copyableAddress ? [item({ id: 'remotes.copyAddress', kind: 'copyAddress', label: localize('remotes.copyAddress', "Copy Address"), icon: Codicon.copy, enabled: true })] : [],
+		remote.copyableAddress ? [item({
+			id: 'remotes.copyAddress', kind: 'copyAddress',
+			label: remote.kind === 'ssh' ? localize('remotes.copySSHAddress', "Copy SSH Address") : localize('remotes.copyAddress', "Copy Connection Address"),
+			tooltip: remote.copyableAddress, icon: Codicon.copy, enabled: true,
+		})] : [],
 		[
 			item({ id: 'remotes.rename', kind: 'rename', label: localize('remotes.rename', "Rename..."), icon: Codicon.edit, enabled: ready }),
 			...(remote.kind === 'tunnel' || remote.kind === 'ssh' ? [item({
-				id: 'remotes.locationPreference', kind: 'locationPreference', label: localize('remotes.locationPreference', "Configure Agent Run Behavior..."),
+				id: 'remotes.locationPreference', kind: 'locationPreference', label: localize('remotes.locationPreference', "Choose How Agents Run..."),
 				tooltip: remoteAgentRunBehaviorDescription, icon: Codicon.serverProcess, enabled: ready && !changingConnection,
 			})] : []),
 			item({
 				id: 'remotes.troubleshoot', kind: 'troubleshoot', label: localize('remotes.troubleshootConnection', "Troubleshoot Connection..."),
 				tooltip: localize('remotes.troubleshootConnectionDetail', "See what's known about this connection and what to try next"), icon: Codicon.tools, enabled: ready,
 			}),
+			...(remote.kind === 'ssh' ? [item({
+				id: 'remotes.configureSSH', kind: 'configure', label: localize('remotes.openSSHConfiguration', "Open SSH Configuration"), enabled: ready,
+			})] : []),
 			...(remote.contributedBy ? [item({ id: 'remotes.showExtension', kind: 'showExtension', label: localize('remotes.showExtension', "Show {0} Extension", remote.contributedBy.displayName), icon: Codicon.extensions, enabled: true })] : []),
 			...(remote.canUpdateServer ? [item({ id: 'remotes.updateServer', kind: 'updateServer', label: localize('remotes.updateServer', "Update Server"), icon: Codicon.cloudDownload, enabled: ready })] : []),
+			...(entry.documentation ? [item({ id: 'remotes.documentation', kind: 'documentation', label: entry.documentation.label, icon: Codicon.info, enabled: true })] : []),
 			...(showDelete ? [item({
 				id: 'remotes.delete', kind: 'delete',
-				label: remote.kind === 'tunnel' ? localize('remotes.deleteTunnel', "Delete Dev Tunnel...")
-					: remote.kind === 'ssh' ? localize('remotes.forgetSSH', "Forget SSH Connection...")
-						: remote.kind === 'devContainer' ? localize('remotes.deleteDevContainer', "Delete Dev Container...")
-							: localize('remotes.removeEnvironment', "Remove Environment..."),
+				label: remote.kind === 'tunnel' ? localize('remotes.removeTunnel', "Remove Dev Tunnel...")
+					: remote.kind === 'ssh' ? localize('remotes.removeSSH', "Remove Saved SSH Connection...")
+						: remote.kind === 'devContainer' ? localize('remotes.deleteDevContainer', "Delete Container and Files...")
+							: localize('remotes.removeEnvironment', "Remove GitHub Environment..."),
 				icon: Codicon.trash, enabled: ready,
 			})] : []),
 		],
@@ -484,6 +497,7 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 	constructor(
 		private readonly column: RemoteColumn,
 		private readonly onAction: (entry: RemoteTableEntry, action: RemoteRowAction) => void,
+		private readonly onOpenMenu: (row: IRemoteTableRow) => void,
 		private readonly actionHoverDelegate: IHoverDelegate,
 		private readonly instantiationService: IInstantiationService,
 		private readonly hoverService: IHoverService,
@@ -542,6 +556,7 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 						...defaultCountBadgeStyles, badgeBackground: undefined, badgeForeground: undefined,
 					})),
 					warning: dom.append(nameRow, dom.$('.remotes-refresh-warning')),
+					pickerStatus: dom.append(nameRow, dom.$('.remotes-picker-status', { 'aria-hidden': 'true' })),
 					description, actionContainer,
 					links: dom.append(content, dom.$('.remotes-empty-actions')),
 				};
@@ -560,6 +575,18 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 				}));
 				const toolbar = disposables.add(this.instantiationService.createInstance(WorkbenchToolBar, container, {
 					ariaLabel: localize('remotes.rowActions', "Remote actions"), hoverDelegate: this.actionHoverDelegate,
+				}));
+				disposables.add(dom.addDisposableListener(container, dom.EventType.MOUSE_DOWN, event => {
+					const button = dom.isHTMLElement(event.target) ? event.target.closest<HTMLElement>('[aria-haspopup="true"]') : undefined;
+					if (event.button === 0 && button && template.row) {
+						this.onOpenMenu(template.row);
+						button.focus();
+					}
+				}, true));
+				disposables.add(toolbar.onDidChangeDropdownVisibility(visible => {
+					if (visible && template.row) {
+						this.onOpenMenu(template.row);
+					}
 				}));
 				const newSession = disposables.add(new ButtonWithIcon(container, {
 					...defaultButtonStyles, hoverDelegate: this.actionHoverDelegate, title: false,
@@ -815,8 +842,16 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 				}
 				const pickerDetail = entry.type !== 'remote' ? undefined
 					: entry.remote.pickerUnavailableReason
-						? localize('remotes.pickerUnavailableDetail', "Not shown in the environment picker: {0}", entry.remote.pickerUnavailableReason)
+						? localize('remotes.pickerUnavailableDetail', "Hidden from the environment picker: {0}", entry.remote.pickerUnavailableReason)
 						: entry.remote.hidden ? localize('remotes.hiddenDetail', "Hidden from the environment picker. Use More Actions to show it again.") : undefined;
+				template.pickerStatus.textContent = entry.type === 'remote' && (entry.remote.hidden || entry.remote.pickerUnavailableReason)
+					? localize('remotes.hiddenStatus', "Hidden from Picker") : '';
+				template.pickerStatus.hidden = !template.pickerStatus.textContent;
+				if (pickerDetail) {
+					template.elementDisposables.add(this.hoverService.setupDelayedHoverAtMouse(template.pickerStatus, {
+						content: pickerDetail, style: HoverStyle.Mouse,
+					}, { groupId: this.hoverGroupId }));
+				}
 				template.elementDisposables.add(this.hoverService.setupDelayedHoverAtMouse(template.label, {
 					content: entry.type === 'group' && entry.description ? entry.description
 						: [

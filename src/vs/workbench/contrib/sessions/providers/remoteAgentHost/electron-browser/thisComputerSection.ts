@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import '../../../../../../base/browser/ui/countBadge/countBadge.css';
 import './media/thisComputerSection.css';
 import * as dom from '../../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../../base/browser/keyboardEvent.js';
@@ -17,7 +18,7 @@ import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Action } from '../../../../../../base/common/actions.js';
 import { KeyCode } from '../../../../../../base/common/keyCodes.js';
 import { Disposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { isWindows, OS, OperatingSystem } from '../../../../../../base/common/platform.js';
+import { OS, OperatingSystem } from '../../../../../../base/common/platform.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { localize } from '../../../../../../nls.js';
@@ -31,12 +32,19 @@ import { Link } from '../../../../../../platform/opener/browser/link.js';
 import { showWindowLogActionId } from '../../../../../services/log/common/logConstants.js';
 import { RemoteTunnelCommandIds } from '../../../../remoteTunnel/electron-browser/remoteTunnel.contribution.js';
 import { defaultButtonStyles } from '../../../../../../platform/theme/browser/defaultStyles.js';
+import { asCssVariableWithDefault, buttonBorder, buttonSecondaryBorder } from '../../../../../../platform/theme/common/colorRegistry.js';
 import { devTunnelSharingClients, getOffDetail, gitHubEnvironmentSharingClients, gitHubEnvironmentSharingDiscovery, GitHubEnvironmentsAvailability, RemoteConnectionsMethod, RemoteConnectionsSharing, RemoteConnectionsState, validateSharingName } from '../../../../chat/electron-browser/remoteConnectionsSharing.js';
 import { IPreferencesService } from '../../../../../services/preferences/common/preferences.js';
 import { TOGGLE_REMOTE_CONNECTIONS_COMMAND_ID } from '../../../common/sessionCommands.js';
 import { IRemotesSharingViewState } from '../browser/remotesEditorInput.js';
 
 type SharingMethod = Exclude<RemoteConnectionsMethod, 'off'>;
+
+const sharingButtonStyles = {
+	...defaultButtonStyles,
+	buttonBorder: asCssVariableWithDefault(buttonBorder, 'transparent'),
+	buttonSecondaryBorder: asCssVariableWithDefault(buttonSecondaryBorder, 'transparent'),
+};
 
 const sharingChoices: Record<SharingMethod, { label: string; points: readonly string[]; detail?: string }> = {
 	githubEnvironment: {
@@ -135,7 +143,7 @@ export class ThisComputerSection extends Disposable {
 		dom.append(statusContainer, dom.$('span.remotes-this-computer-system', undefined, system));
 		this.statusIcon = dom.append(statusContainer, dom.$('span.remotes-sharing-status-icon', { 'aria-hidden': 'true' }));
 		this.status = dom.append(statusContainer, dom.$('span', { role: 'status' }));
-		this.preview = dom.append(statusContainer, dom.$('span.remotes-sharing-preview', undefined, localize('thisComputer.preview', "Preview")));
+		this.preview = dom.append(statusContainer, dom.$('span.remotes-sharing-preview.monaco-label-badge', undefined, localize('thisComputer.preview', "Preview")));
 		this._register(hoverService.setupDelayedHover(this.status, () => ({
 			content: this.sharing.activeMethod === 'off'
 				? localize('thisComputer.notSharedDetail', "Sharing is off. Agent sessions continue running on this computer.")
@@ -149,7 +157,7 @@ export class ThisComputerSection extends Disposable {
 			style: HoverStyle.Pointer,
 		}, hoverLifecycleOptions));
 		const controls = dom.append(heading, dom.$('.remotes-this-computer-share'));
-		this.shareButton = this._register(new Button(controls, { ...defaultButtonStyles, secondary: true, hoverDelegate }));
+		this.shareButton = this._register(new Button(controls, { ...sharingButtonStyles, secondary: true, hoverDelegate }));
 		this.shareButton.label = localize('thisComputer.share', "Share This Computer");
 		this.shareButton.setTitle(localize('thisComputer.shareDetail', "Choose how other devices access this computer's agent sessions, tools, and files"));
 		const switchActions = (['githubEnvironment', 'devTunnel'] as const).map(method => this._register(new Action(
@@ -164,7 +172,7 @@ export class ThisComputerSection extends Disposable {
 			},
 		)));
 		this.stopButton = this._register(new ButtonWithDropdown(controls, {
-			...defaultButtonStyles, secondary: true, hoverDelegate,
+			...sharingButtonStyles, secondary: true, hoverDelegate,
 			actions: {
 				getActions: () => switchActions.filter((action, index) => {
 					const method = index === 0 ? 'githubEnvironment' : 'devTunnel';
@@ -204,7 +212,7 @@ export class ThisComputerSection extends Disposable {
 		const methodTitleId = generateUuid();
 		dom.append(typeField, dom.$('p.remotes-sharing-instruction', { id: methodTitleId },
 			localize('thisComputer.sharingInstruction', "Choose how to connect to this computer from another device.")));
-		this.radio = this._register(new Radio({ items: [], hoverDelegate }));
+		this.radio = this._register(new Radio({ items: [], hoverDelegate, className: 'cards' }));
 		this.radio.domNode.classList.add('remotes-sharing-choices', 'remotes-method-choices');
 		this.radio.domNode.setAttribute('aria-labelledby', methodTitleId);
 		typeField.appendChild(this.radio.domNode);
@@ -240,10 +248,10 @@ export class ThisComputerSection extends Disposable {
 			}
 		}));
 		const footer = dom.append(controls, dom.$('.remotes-sharing-footer'));
-		this.cancelButton = this._register(new Button(footer, { ...defaultButtonStyles, secondary: true, hoverDelegate }));
+		this.cancelButton = this._register(new Button(footer, { ...sharingButtonStyles, secondary: true, hoverDelegate }));
 		this.cancelButton.label = localize('thisComputer.cancel', "Cancel");
 		this._register(this.cancelButton.onDidClick(() => this.close()));
-		this.applyButton = this._register(new ButtonWithIcon(footer, { ...defaultButtonStyles, hoverDelegate }));
+		this.applyButton = this._register(new ButtonWithIcon(footer, { ...sharingButtonStyles, hoverDelegate }));
 		this.applyButton.label = localize('thisComputer.start', "Start Sharing");
 		this.applyButton.icon = Codicon.radioTower;
 		this.applyButton.iconElement.setAttribute('aria-hidden', 'true');
@@ -254,9 +262,6 @@ export class ThisComputerSection extends Disposable {
 				void this.apply(this.selectedMethod);
 			}
 		}));
-		if (isWindows) {
-			footer.prepend(this.applyButton.element);
-		}
 		const help = dom.append(body, dom.$('p.remotes-sharing-help'));
 		this._register(instantiationService.createInstance(Link, help, {
 			label: localize('thisComputer.sharingGuide', "Choose how to connect"),
@@ -397,7 +402,7 @@ export class ThisComputerSection extends Disposable {
 				const choice = sharingChoices[methods[index]];
 				element.dataset.sharingMethod = methods[index];
 				if (methods[index] === 'githubEnvironment') {
-					dom.append(element, dom.$('span.remotes-sharing-preview', undefined, localize('thisComputer.preview', "Preview")));
+					dom.append(element, dom.$('span.remotes-sharing-preview.monaco-label-badge', undefined, localize('thisComputer.preview', "Preview")));
 				}
 				const points = dom.append(element, dom.$('ul.remotes-sharing-choice-description'));
 				for (const point of choice.points) {

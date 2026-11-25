@@ -6,8 +6,6 @@
 .remotes-editor {
 	box-sizing: border-box;
 	height: 100%;
-	max-width: 1400px;
-	margin-inline: auto;
 	overflow: hidden;
 }
 
@@ -301,15 +299,16 @@
 	display: none;
 }
 
-.remotes-widget .remotes-hide-method .remotes-type-column,
-.remotes-widget .remotes-hide-method .monaco-table-th[data-col-index='4'],
-.remotes-widget .remotes-hide-activity .remotes-activity-column,
-.remotes-widget .remotes-hide-activity .monaco-table-th[data-col-index='2'],
-.remotes-widget .remotes-hide-system .remotes-system-column,
-.remotes-widget .remotes-hide-system .monaco-table-th[data-col-index='3'],
 .remotes-widget .remotes-hide-sandbox-profile .remotes-sandboxProfile-column,
 .remotes-widget .remotes-hide-sandbox-profile .monaco-table-th[data-col-index='5'] {
 	display: none;
+}
+
+.remotes-widget .remotes-table-viewport,
+.remotes-widget .remotes-table-container > .monaco-scrollable-element {
+	width: 100%;
+	height: 100%;
+	overflow: hidden;
 }
 
 .remotes-widget .remotes-table-compact .remotes-connection-pending > .remotes-connect-action:not([hidden]) {
@@ -343,10 +342,10 @@
 	box-sizing: border-box;
 	justify-content: flex-start;
 	gap: var(--vscode-spacing-size40);
-	width: calc(100% - var(--vscode-spacing-size80));
-	height: calc(100% - var(--vscode-spacing-size80));
-	margin: var(--vscode-spacing-size40);
-	padding: 0 var(--vscode-spacing-size80);
+	width: 100%;
+	height: 100%;
+	margin: 0;
+	padding: 0 var(--vscode-spacing-size120);
 	border: none;
 	border-radius: 0;
 	color: inherit;
@@ -433,20 +432,20 @@
 }
 
 .remotes-widget .monaco-table .monaco-list .remotes-ready-group .remotes-name-icon > .codicon,
-:is(.remotes-widget, .remotes-environment-details) .remotes-connection-indicator.connected > .codicon {
+:is(.remotes-widget .monaco-table .monaco-list .monaco-list-row, .remotes-environment-details) .remotes-connection-indicator.connected > .codicon {
 	color: var(--vscode-testing-iconPassed, var(--vscode-debugIcon-startForeground));
 }
 
 .remotes-widget .monaco-table .monaco-list .remotes-available-group .remotes-name-icon > .codicon,
-:is(.remotes-widget, .remotes-environment-details) .remotes-connection-indicator.available > .codicon {
+:is(.remotes-widget .monaco-table .monaco-list .monaco-list-row, .remotes-environment-details) .remotes-connection-indicator.available > .codicon {
 	color: var(--vscode-charts-blue);
 }
 
-:is(.remotes-widget, .remotes-environment-details) .remotes-connection-indicator.offline > .codicon {
+:is(.remotes-widget .monaco-table .monaco-list .monaco-list-row, .remotes-environment-details) .remotes-connection-indicator.offline > .codicon {
 	color: var(--vscode-descriptionForeground);
 }
 
-:is(.remotes-widget, .remotes-environment-details) .remotes-connection-indicator.failed > .codicon {
+:is(.remotes-widget .monaco-table .monaco-list .monaco-list-row, .remotes-environment-details) .remotes-connection-indicator.failed > .codicon {
 	color: var(--vscode-editorWarning-foreground);
 }
 
@@ -474,7 +473,8 @@
 
 .remotes-widget .remotes-name,
 .remotes-widget .remotes-name-detail,
-.remotes-widget .remotes-empty-description {
+.remotes-widget .remotes-empty-description,
+.remotes-widget .remotes-connection-state {
 	min-width: 0;
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -511,11 +511,20 @@
 }
 
 .remotes-widget .monaco-table-th[data-col-index='0'] > .remotes-sort-header {
-	padding-inline-start: calc(var(--vscode-spacing-size80, 8px) + var(--vscode-spacing-size200, 20px));
+	padding-inline-start: calc(var(--vscode-spacing-size120, 12px) + var(--vscode-spacing-size200, 20px));
 }
 
 .remotes-widget .remotes-name-row > .remotes-name {
 	flex: 0 1 auto;
+}
+
+.remotes-widget :is(.remotes-row-hidden, .remotes-row-picker-unavailable) .remotes-name-row > .remotes-name {
+	flex: 2 1 0;
+}
+
+.remotes-widget :is(.remotes-row-hidden, .remotes-row-picker-unavailable) .remotes-name-row > .remotes-name-detail {
+	flex: 1 1 0;
+	max-width: max-content;
 }
 
 .remotes-widget .remotes-actions-column .codicon[hidden] {
@@ -542,9 +551,8 @@
 
 .remotes-widget .remotes-empty-row .remotes-name-content {
 	box-sizing: border-box;
-	/* The group heading above already separates the setup text; the bottom padding separates the next group. */
-	padding-block: var(--vscode-spacing-size20) var(--vscode-spacing-size120);
-	gap: var(--vscode-spacing-size40);
+	padding-block: var(--vscode-spacing-size120);
+	gap: var(--vscode-spacing-size80);
 }
 
 .remotes-widget .remotes-empty-row :is(.remotes-empty-label, .remotes-empty-description, .remotes-empty-actions) {
@@ -574,6 +582,26 @@
 	display: flex;
 	align-items: center;
 	flex-shrink: 0;
+}
+
+.remotes-widget .remotes-row-hidden :is(.remotes-name, .remotes-name-detail, .remotes-metadata) {
+	color: var(--vscode-descriptionForeground);
+}
+
+.remotes-widget .remotes-picker-status {
+	min-width: 0;
+	max-width: 50%;
+	flex: 0 1 auto;
+	margin-inline-start: auto;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	font-size: var(--vscode-fontSize-label1);
+	color: var(--vscode-descriptionForeground);
+}
+
+.remotes-widget .monaco-list-row.selected :is(.remotes-picker-status, .remotes-row-hidden :is(.remotes-name, .remotes-name-detail, .remotes-metadata)) {
+	color: inherit;
 }
 
 .remotes-widget .remotes-group-count .monaco-count-badge {
@@ -668,93 +696,8 @@
 	width: auto;
 }
 
-.remotes-method-choices.monaco-custom-radio {
-	display: grid;
-	grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
-	gap: var(--vscode-spacing-size120);
-	align-items: stretch;
+.remotes-method-choices.monaco-custom-radio.cards {
 	margin-block: var(--vscode-spacing-size120);
-}
-
-.remotes-method-choices.monaco-custom-radio > .monaco-button {
-	position: relative;
-	display: flex;
-	align-content: flex-start;
-	justify-content: flex-start;
-	min-width: 0;
-	height: auto;
-	width: auto;
-	gap: var(--vscode-spacing-size60);
-	padding: var(--vscode-spacing-size120);
-	padding-inline-start: var(--vscode-spacing-size360);
-	flex-wrap: wrap;
-	white-space: normal;
-	overflow-wrap: anywhere;
-	text-align: start;
-	font-size: var(--vscode-fontSize-body1);
-	font-weight: var(--vscode-fontWeight-semiBold);
-	line-height: 1.5;
-	border: var(--vscode-strokeThickness) solid var(--vscode-radio-inactiveBorder, var(--vscode-widget-border));
-	border-radius: var(--vscode-cornerRadius-small);
-}
-
-.remotes-method-choices.monaco-custom-radio > .monaco-button.active {
-	border-color: var(--vscode-radio-activeBorder);
-}
-
-.remotes-method-choices.monaco-custom-radio:not(.segmented) > .monaco-button:not(.active):not(:last-child) {
-	border-right: var(--vscode-strokeThickness) solid var(--vscode-radio-inactiveBorder, var(--vscode-widget-border));
-}
-
-.remotes-method-choices.monaco-custom-radio:not(.segmented) > .monaco-button.previous-active {
-	border-left: var(--vscode-strokeThickness) solid var(--vscode-radio-inactiveBorder, var(--vscode-widget-border));
-}
-
-.remotes-method-choices.monaco-custom-radio:not(.segmented) > .monaco-button[role='radio']:focus-visible {
-	border-color: var(--vscode-focusBorder);
-	outline: none;
-}
-
-.remotes-method-choices.monaco-custom-radio > .monaco-button:focus:not(:focus-visible) {
-	outline: none;
-}
-
-.remotes-method-choices.monaco-custom-radio > .monaco-button::before,
-.remotes-method-choices.monaco-custom-radio > .monaco-button::after {
-	content: '';
-	position: absolute;
-	inset-inline-start: var(--vscode-spacing-size120);
-	top: var(--vscode-spacing-size160);
-	width: var(--vscode-spacing-size120);
-	height: var(--vscode-spacing-size120);
-	box-sizing: border-box;
-	border-radius: var(--vscode-cornerRadius-circle);
-	pointer-events: none;
-}
-
-.remotes-method-choices.monaco-custom-radio > .monaco-button::before {
-	border: var(--vscode-strokeThickness) solid currentColor;
-}
-
-.remotes-method-choices.monaco-custom-radio > .monaco-button::after {
-	background: currentColor;
-	transform: scale(0.5);
-	visibility: hidden;
-}
-
-.remotes-method-choices.monaco-custom-radio > .monaco-button.active::after {
-	visibility: visible;
-}
-
-.remotes-choice-current {
-	display: inline-block;
-	padding: 0 var(--vscode-spacing-size60);
-	border-radius: var(--vscode-cornerRadius-circle);
-	background-color: var(--vscode-badge-background);
-	color: var(--vscode-badge-foreground);
-	font-size: var(--vscode-fontSize-label2);
-	font-weight: var(--vscode-fontWeight-regular);
-	line-height: 18px;
 }
 
 .remotes-choice-current[hidden] {

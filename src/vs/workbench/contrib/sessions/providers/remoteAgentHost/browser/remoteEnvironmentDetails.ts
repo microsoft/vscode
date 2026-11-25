@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../../base/browser/dom.js';
+import '../../../../../../base/browser/ui/countBadge/countBadge.css';
 import { status } from '../../../../../../base/browser/ui/aria/aria.js';
 import { Button } from '../../../../../../base/browser/ui/button/button.js';
 import { createInstantHoverDelegate } from '../../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
@@ -17,7 +18,6 @@ import { Codicon } from '../../../../../../base/common/codicons.js';
 import { toErrorMessage } from '../../../../../../base/common/errorMessage.js';
 import { isCancellationError } from '../../../../../../base/common/errors.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { isWindows } from '../../../../../../base/common/platform.js';
 import { ScrollbarVisibility } from '../../../../../../base/common/scrollable.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
@@ -118,7 +118,7 @@ export class RemoteEnvironmentDetails extends Disposable {
 		this.backToolbar.setActions([this.backAction]);
 		const heading = dom.append(navigation, dom.$('.remotes-task-heading'));
 		this.title = dom.append(heading, dom.$('h2.remotes-task-title', { id: generateUuid() },
-			mode === 'runBehavior' ? localize('remotes.runBehavior', "Agent run behavior") : localize('remotes.troubleshoot', "Troubleshoot connection")));
+			mode === 'runBehavior' ? localize('remotes.runBehavior', "How agents run") : localize('remotes.troubleshoot', "Troubleshoot connection")));
 		this.owner = dom.$('dd.remotes-details-owner', { id: generateUuid() }, remote.name);
 		this.identityDetail = dom.$('dl.remotes-task-identity-detail');
 		this.domNode.setAttribute('role', 'region');
@@ -179,20 +179,20 @@ export class RemoteEnvironmentDetails extends Disposable {
 		this.body.appendChild(this.identityDetail);
 		const field = dom.append(this.body, dom.$('section.remotes-run-field'));
 		const fieldTitle = dom.append(field, dom.$('h3.remotes-run-question', { id: generateUuid() },
-			localize('remotes.runPreference', "Preferred run behavior")));
+			localize('remotes.runPreference', "Preferred run mode")));
 		const choices = orderRemoteAgentHostLocationOptions('VS Code', undefined).map(choice => ({ value: choice.preference, label: choice.label, detail: choice.detail }));
 		let selected = this.selectedPreference = this.model.getPreferredAgentLocation(this.remote.id) ?? choices[0].value;
 		const radio = this.radio = this.controls.add(new Radio({
 			items: choices.map(choice => ({
 				text: choice.label, ariaLabel: localize('remotes.runChoiceLabel', "{0}. {1}", choice.label, choice.detail), isActive: choice.value === selected,
-			})), hoverDelegate: this.hoverDelegate,
+			})), hoverDelegate: this.hoverDelegate, className: 'cards',
 		}));
 		radio.domNode.classList.add('remotes-run-choices', 'remotes-method-choices');
 		radio.domNode.setAttribute('aria-labelledby', fieldTitle.id);
 		radio.domNode.setAttribute('aria-describedby', description.id);
 		field.appendChild(radio.domNode);
 		for (const [index, element] of radio.optionElements.entries()) {
-			const current = dom.append(element, dom.$('span.remotes-choice-current'));
+			const current = dom.append(element, dom.$('span.remotes-choice-current.monaco-label-badge'));
 			dom.append(element, dom.$('span.remotes-choice-description', undefined, choices[index].detail));
 			this.currentChoices.push({ value: choices[index].value, element: current, label: choices[index].label, detail: choices[index].detail, option: element });
 		}
@@ -206,7 +206,6 @@ export class RemoteEnvironmentDetails extends Disposable {
 			localize('remotes.runSaveEffects', "Your choice applies on the next connection. Existing sessions are not moved.")));
 		actionSection.append(this.footer, this.feedback);
 		const actions = this.footer;
-		this.button(actions, localize('remotes.cancelDetails', "Cancel"), () => this.delegate.close());
 		const save = this.saveButton = this.button(actions, localize('remotes.saveRunBehaviorOnly', "Save"), () => {
 			if (selected && !this.busy) {
 				const preference = selected;
@@ -220,10 +219,8 @@ export class RemoteEnvironmentDetails extends Disposable {
 				});
 			}
 		}, false);
+		this.button(actions, localize('remotes.cancelDetails', "Cancel"), () => this.delegate.close());
 		save.element.setAttribute('aria-describedby', `${saveHint.id} ${this.feedback.id}`);
-		if (isWindows) {
-			actions.prepend(save.element);
-		}
 		this.controls.add(radio.onDidSelect(index => {
 			selected = this.selectedPreference = choices[index].value;
 			this.feedback.textContent = '';
@@ -326,11 +323,10 @@ export class RemoteEnvironmentDetails extends Disposable {
 	}
 
 	private updateCurrentChoice(): void {
-		const current = this.model.getPreferredAgentLocation(this.remote.id);
 		for (const choice of this.currentChoices) {
-			choice.element.textContent = localize('remotes.currentChoice', "Saved preference");
-			choice.element.hidden = choice.value !== current;
-			choice.option.setAttribute('aria-label', localize('remotes.choiceState', "{0}. {1} {2}", choice.label, choice.detail, choice.value === current ? choice.element.textContent : '').trim());
+			choice.element.textContent = localize('remotes.defaultChoice', "Default");
+			choice.element.hidden = choice.value !== 'dedicated';
+			choice.option.setAttribute('aria-label', localize('remotes.choiceState', "{0}. {1} {2}", choice.label, choice.detail, choice.value === 'dedicated' ? choice.element.textContent : '').trim());
 		}
 	}
 
@@ -475,7 +471,7 @@ export class RemoteEnvironmentDetails extends Disposable {
 			case 'connectViaSSH': return localize('remotes.connectViaSSH', "Connect via SSH...");
 			case 'restartDistribution': return localize('remotes.restartDistribution', "Restart Distribution...");
 			case 'refresh': return localize('remotes.refreshAction', "Refresh");
-			case 'deleteTunnel': return localize('remotes.deleteTunnel', "Delete Dev Tunnel...");
+			case 'deleteTunnel': return localize('remotes.removeTunnel', "Remove Dev Tunnel...");
 			case 'openEnvironmentSettings': return localize('remotes.openGroupSettings', "Open Settings");
 			case 'removeEnvironment': return localize('remotes.removeEnvironment', "Remove Environment...");
 			case 'showExtension': return localize('remotes.showExtension', "Show {0} Extension", this.remote.contributedBy?.displayName ?? '');

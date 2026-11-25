@@ -25,11 +25,11 @@
 	border-bottom-right-radius: 3px;
 }
 
-.monaco-custom-radio:not(.segmented) > .monaco-button:not(.active):not(:last-child) {
+.monaco-custom-radio:not(.segmented, .cards) > .monaco-button:not(.active):not(:last-child) {
 	border-right: none;
 }
 
-.monaco-custom-radio:not(.segmented) > .monaco-button.previous-active {
+.monaco-custom-radio:not(.segmented, .cards) > .monaco-button.previous-active {
 	border-left: none;
 }
 
@@ -48,24 +48,92 @@
 	border-color: var(--vscode-radio-activeBorder, transparent);
 }
 
-.hc-black .monaco-custom-radio:not(.segmented) > .monaco-button.active,
-.hc-light .monaco-custom-radio:not(.segmented) > .monaco-button.active {
+.hc-black .monaco-custom-radio:not(.segmented, .cards) > .monaco-button.active,
+.hc-light .monaco-custom-radio:not(.segmented, .cards) > .monaco-button.active {
 	border-color: var(--vscode-radio-activeBorder, transparent);
 }
 
-.hc-black .monaco-custom-radio:not(.segmented) > .monaco-button:not(.active),
-.hc-light .monaco-custom-radio:not(.segmented) > .monaco-button:not(.active) {
+.hc-black .monaco-custom-radio:not(.segmented, .cards) > .monaco-button:not(.active),
+.hc-light .monaco-custom-radio:not(.segmented, .cards) > .monaco-button:not(.active) {
 	border-color: var(--vscode-radio-inactiveBorder, transparent);
 }
 
-.hc-black .monaco-custom-radio:not(.segmented) > .monaco-button:not(.active):hover,
-.hc-light .monaco-custom-radio:not(.segmented) > .monaco-button:not(.active):hover {
+.hc-black .monaco-custom-radio:not(.segmented, .cards) > .monaco-button:not(.active):hover,
+.hc-light .monaco-custom-radio:not(.segmented, .cards) > .monaco-button:not(.active):hover {
 	outline: 1px dashed var(--vscode-toolbar-hoverOutline);
 	outline-offset: -1px
 }
 
 .monaco-custom-radio > .monaco-button:hover:not(.active) {
 	background-color: var(--vscode-radio-inactiveHoverBackground);
+}
+
+/* Optional card appearance - opt in via IRadioOptions.className. */
+
+.monaco-custom-radio.cards {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
+	gap: var(--vscode-spacing-size120);
+	align-items: stretch;
+}
+
+.monaco-custom-radio.cards > .monaco-button {
+	position: relative;
+	align-content: flex-start;
+	justify-content: flex-start;
+	min-width: 0;
+	height: auto;
+	width: auto;
+	gap: var(--vscode-spacing-size60);
+	padding: var(--vscode-spacing-size120);
+	padding-inline-start: var(--vscode-spacing-size360);
+	flex-wrap: wrap;
+	white-space: normal;
+	overflow-wrap: anywhere;
+	text-align: start;
+	font-size: var(--vscode-fontSize-body1);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	line-height: 1.5;
+	border: var(--vscode-strokeThickness) solid var(--vscode-radio-inactiveBorder, var(--vscode-widget-border, transparent));
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+.monaco-custom-radio.cards > .monaco-button.active,
+.monaco-custom-radio.cards > .monaco-button.active:hover {
+	color: var(--vscode-foreground);
+	background-color: transparent;
+	border-color: var(--vscode-list-focusOutline, var(--vscode-focusBorder));
+}
+
+.monaco-custom-radio.cards .monaco-radio-indicator {
+	position: absolute;
+	inset-inline-start: var(--vscode-spacing-size120);
+	top: calc(var(--vscode-spacing-size120) + (1.5em - var(--vscode-codiconFontSize)) / 2);
+	display: flex;
+	width: var(--vscode-codiconFontSize);
+	height: var(--vscode-codiconFontSize);
+	pointer-events: none;
+}
+
+.monaco-custom-radio.cards .monaco-radio-indicator > .codicon {
+	margin: 0;
+	font-size: var(--vscode-codiconFontSize);
+}
+
+.monaco-custom-radio.cards > .monaco-button.active .monaco-radio-indicator {
+	color: var(--vscode-list-focusOutline, var(--vscode-focusBorder));
+}
+
+:is(.hc-black, .hc-light) .monaco-custom-radio.cards > .monaco-button:not(.active, .disabled, :focus-visible):hover {
+	outline: var(--vscode-strokeThickness) dashed var(--vscode-contrastActiveBorder);
+}
+
+.monaco-custom-radio.cards > .monaco-button:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+}
+
+.monaco-custom-radio.cards > .monaco-button:focus:not(:focus-visible) {
+	outline: none;
 }
 
 /* optional segmented appearance - opt in via IRadioOptions.className */

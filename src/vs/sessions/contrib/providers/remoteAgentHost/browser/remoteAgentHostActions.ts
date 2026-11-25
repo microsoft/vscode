@@ -883,7 +883,7 @@ async function promptToConnectViaTunnel(
 	let tunnelPicker: IQuickPick<ITunnelPickItem> | undefined;
 	const deleteTunnelButton: IQuickInputButton = {
 		iconClass: ThemeIcon.asClassName(Codicon.trash),
-		tooltip: localize('tunnelDeleteTooltip', "Delete Dev Tunnel"),
+		tooltip: localize('tunnelDeleteTooltip', "Remove Dev Tunnel"),
 	};
 	const isHostedTunnel = (tunnel: ITunnelInfo): boolean => isTunnelHosted(remoteTunnelStatus.type === 'connected' ? remoteTunnelStatus.info : undefined, tunnel);
 	const toTunnelPickItems = (tunnelInfos: readonly ITunnelInfo[]): ITunnelPickItem[] => sortTunnelsByName(tunnelInfos)

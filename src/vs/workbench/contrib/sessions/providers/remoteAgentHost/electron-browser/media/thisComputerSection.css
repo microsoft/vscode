@@ -89,14 +89,27 @@
 }
 
 .remotes-this-computer-share {
-	display: flex;
+	display: grid;
+	grid-template-columns: max-content;
 	flex-shrink: 0;
 	gap: var(--vscode-spacing-size80);
 	margin-inline-start: auto;
 }
 
+/* Keep the shared action slot sized while its alternate controls are hidden. */
 .remotes-this-computer-share .remotes-sharing-footer[hidden] {
-	display: none;
+	display: flex;
+	visibility: hidden;
+}
+
+.remotes-this-computer-share > :is(.monaco-button, .monaco-button-dropdown) {
+	grid-area: 1 / 1;
+	justify-self: end;
+}
+
+.remotes-this-computer.sharing-expanded .remotes-this-computer-share > .monaco-button[hidden] {
+	display: flex;
+	visibility: hidden;
 }
 
 .remotes-this-computer-share > .monaco-button {
@@ -206,17 +219,6 @@
 	margin-top: var(--vscode-spacing-size60);
 }
 
-.remotes-sharing-preview {
-	padding: 0 var(--vscode-spacing-size60);
-	border-radius: var(--vscode-cornerRadius-circle);
-	background-color: var(--vscode-badge-background);
-	color: var(--vscode-badge-foreground);
-	font-size: var(--vscode-fontSize-label2);
-	font-weight: var(--vscode-fontWeight-regular);
-	line-height: 18px;
-	flex-shrink: 0;
-}
-
 .remotes-sharing-policy:not([hidden]) {
 	display: flex;
 	align-items: baseline;
@@ -225,12 +227,12 @@
 
 .remotes-sharing-footer {
 	display: flex;
-	flex-shrink: 0;
-	justify-content: flex-start;
-	flex-wrap: wrap;
+	grid-area: 1 / 1;
+	justify-content: flex-end;
 	gap: var(--vscode-spacing-size80);
 }
 
 .remotes-sharing-footer > .monaco-button {
 	width: auto;
+	flex-shrink: 0;
 }
