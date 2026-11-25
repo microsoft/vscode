@@ -1178,11 +1178,11 @@ suite('ChangesetSessionCoordinator', () => {
 
 			assert.deepStrictEqual({
 				acquisitions: environment.monitor.acquisitions,
-				refreshedWith: environment.gitStateService.refreshedWith,
+				refreshed: environment.gitStateService.refreshed,
 				uncommittedRefreshes: environment.changesets.uncommittedRefreshes,
 			}, {
 				acquisitions: [primaryRoot.toString(), secondaryRoot.toString(), primaryRoot.toString(), secondaryRoot.toString()],
-				refreshedWith: [{ sessionKey: idleSession, workingDirectory: primaryRoot.toString() }],
+				refreshed: [idleSession],
 				uncommittedRefreshes: [idleSession],
 			});
 		});
@@ -1293,7 +1293,7 @@ suite('ChangesetSessionCoordinator', () => {
 		assert.deepStrictEqual([...environment.monitor.acquisitions].sort(), [rootA.toString(), rootB.toString()].sort());
 	});
 
-	test('a secondary-root external edit refreshes subscribed changesets using the primary working directory', async () => {
+	test('a secondary-root external edit refreshes the session Git state and its subscribed changesets', async () => {
 		const session = AgentSession.uri('mock', 'session-1').toString();
 		const primaryRoot = URI.file('/projects/repoA');
 		const secondaryRoot = URI.file('/projects/repoB');
@@ -1308,16 +1308,16 @@ suite('ChangesetSessionCoordinator', () => {
 		environment.changesets.clearRefreshes();
 		environment.gitStateService.clearRefreshes();
 
-		// Git state refreshes use the primary root even when the secondary root changed.
+		// The session's Git state refreshes (the service reads its primary root) even when the secondary root changed.
 		environment.monitor.fire(secondaryRoot);
 		await tick();
 
 		assert.deepStrictEqual({
-			refreshedWith: environment.gitStateService.refreshedWith,
+			refreshed: environment.gitStateService.refreshed,
 			branchRefreshes: environment.changesets.branchRefreshes,
 			uncommittedRefreshes: environment.changesets.uncommittedRefreshes,
 		}, {
-			refreshedWith: [{ sessionKey: session, workingDirectory: primaryRoot.toString() }],
+			refreshed: [session],
 			branchRefreshes: [],
 			uncommittedRefreshes: [session],
 		});
@@ -1411,11 +1411,11 @@ suite('ChangesetSessionCoordinator', () => {
 
 		assert.deepStrictEqual({
 			acquisitions: environment.monitor.acquisitions,
-			refreshedWith: environment.gitStateService.refreshedWith,
+			refreshed: environment.gitStateService.refreshed,
 			uncommittedRefreshes: environment.changesets.uncommittedRefreshes,
 		}, {
 			acquisitions: [secondaryRoot.toString()],
-			refreshedWith: [{ sessionKey: session, workingDirectory: nonGitPrimary }],
+			refreshed: [session],
 			uncommittedRefreshes: [session],
 		});
 	});
@@ -1812,7 +1812,7 @@ suite('ChangesetSessionCoordinator', () => {
 		});
 	});
 
-	test('a subagent inheriting a multi-root parent watches every parent root and refreshes via the parent primary', async () => {
+	test('a subagent inheriting a multi-root parent watches every parent root and refreshes the subagent Git state', async () => {
 		const parentSession = AgentSession.uri('mock', 'session-parent').toString();
 		const subagentSession = buildSubagentSessionUri(parentSession, 'tool-1');
 		const primaryRoot = URI.file('/projects/repoA');
@@ -1831,17 +1831,17 @@ suite('ChangesetSessionCoordinator', () => {
 		environment.gitStateService.clearRefreshes();
 
 		// An external edit in the parent's SECONDARY repo refreshes the subagent,
-		// sourcing git state from the parent's PRIMARY working directory.
+		// whose git state the service reads from the parent's PRIMARY working directory.
 		environment.monitor.fire(secondaryRoot);
 		await tick();
 
 		assert.deepStrictEqual({
 			acquisitions: [...environment.monitor.acquisitions].sort(),
-			refreshedWith: environment.gitStateService.refreshedWith,
+			refreshed: environment.gitStateService.refreshed,
 			uncommittedRefreshes: environment.changesets.uncommittedRefreshes,
 		}, {
 			acquisitions: [primaryRoot.toString(), secondaryRoot.toString()].sort(),
-			refreshedWith: [{ sessionKey: subagentSession, workingDirectory: primaryRoot.toString() }],
+			refreshed: [subagentSession],
 			uncommittedRefreshes: [subagentSession],
 		});
 	});
@@ -2172,7 +2172,6 @@ class TestGitStateService extends Disposable implements IAgentHostGitStateServic
 
 	readonly refreshed: string[] = [];
 	readonly forcedRefreshes: string[] = [];
-	readonly refreshedWith: Array<{ readonly sessionKey: string; readonly workingDirectory: string | undefined }> = [];
 
 	getSessionGitState(sessionKey: string): ISessionGitState | undefined {
 		return this._states.get(sessionKey);
@@ -2182,15 +2181,13 @@ class TestGitStateService extends Disposable implements IAgentHostGitStateServic
 		this._states.set(sessionKey, gitState);
 	}
 
-	async refreshSessionGitState(sessionKey: string, workingDirectory?: URI, _source?: unknown, options?: IRefreshSessionGitStateOptions): Promise<void> {
-		// Mirror the production service: record the refresh (and the working
-		// directory it was asked to refresh from) and notify listeners so the
-		// coordinator recomputes the subscribed changesets.
+	async refreshSessionGitState(sessionKey: string, _source?: unknown, options?: IRefreshSessionGitStateOptions): Promise<void> {
+		// Mirror the production service: record the refresh and notify listeners
+		// so the coordinator recomputes the subscribed changesets.
 		this.refreshed.push(sessionKey);
 		if (options?.force) {
 			this.forcedRefreshes.push(sessionKey);
 		}
-		this.refreshedWith.push({ sessionKey, workingDirectory: workingDirectory?.toString() });
 		this._onDidRefreshSessionGitState.fire(sessionKey);
 	}
 	getMaterializedWorktreeMeta(_sessionKey: string, _branchName: string): undefined { return undefined; }
@@ -2203,7 +2200,6 @@ class TestGitStateService extends Disposable implements IAgentHostGitStateServic
 	clearRefreshes(): void {
 		this.refreshed.length = 0;
 		this.forcedRefreshes.length = 0;
-		this.refreshedWith.length = 0;
 	}
 
 	fireGitHubStateChanged(sessionKey: string): void {

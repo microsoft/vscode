@@ -14,12 +14,12 @@ import { AgentHostAutoAttachPullRequestsSettingId } from '../common/agentService
 import { CopilotCliVSCodeAssignmentContextKey } from '../common/copilotCliConfig.js';
 import { logSettingExperimentTrigger } from '../../telemetry/common/experimentTrigger.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
-import { getSessionRelatedPullRequestUrls, isAhpChatChannel, ISessionGitHubState, ISessionWithDefaultChat, readFolderGitHubState, readFolderScopeGitState, readSessionGitData, readSessionGitHubData, readSessionGitState, readSessionSourceControlState, SessionLifecycle, SessionSourceControlOutcome, withInitialSessionPullRequest, withMostRecentRelatedSessionPullRequest, withMostRecentSessionPullRequest, withFolderGitHubState, withFolderScopeGitState, withSessionGitState, withSessionSourceControlState, type ISessionGitState, type ISessionSourceControlState, type SessionSummaryMeta } from '../common/state/sessionState.js';
+import { getSessionRelatedPullRequestUrls, isAhpChatChannel, ISessionGitHubState, ISessionWithDefaultChat, parseSubagentSessionUri, readFolderGitHubState, readFolderScopeGitState, readSessionGitData, readSessionGitHubData, readSessionGitState, readSessionSourceControlState, SessionLifecycle, SessionSourceControlOutcome, withInitialSessionPullRequest, withMostRecentRelatedSessionPullRequest, withMostRecentSessionPullRequest, withFolderGitHubState, withFolderScopeGitState, withSessionGitState, withSessionSourceControlState, type ISessionGitState, type ISessionSourceControlState, type SessionSummaryMeta } from '../common/state/sessionState.js';
 import { IAgentHostGitService } from '../common/agentHostGitService.js';
 import { ActionType } from '../common/state/sessionActions.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentHostSessionStateStore, SessionStateMirrorFlush } from '../common/agentHostSessionStateStore.js';
-import { IAgentConfigurationService } from './agentConfigurationService.js';
+import { getEffectiveWorkingDirectories, IAgentConfigurationService } from './agentConfigurationService.js';
 import { PullRequestSummary } from '../../github/common/core/pullRequests.js';
 import { getPullRequestUrlKey } from '../../github/common/githubUrls.js';
 import { GitHubRequestError } from '../../github/common/githubTypes.js';
@@ -52,9 +52,6 @@ const GIT_STATE_REFRESH_COOLDOWN_MS = 5_000;
 
 /** Every refresh request of one key made since its lane's current read started, merged into the next read. */
 interface IPendingGitStateRefresh {
-	readonly workingDirectory: URI;
-	/** The session's primary working directory when the request was made; a read whose session moved since then is dropped. */
-	readonly initialPrimaryWorkingDirectory: string | undefined;
 	readonly credentials: IRepositoryCredentialContext;
 	/** Announce even when nothing changed, and never share a read that started before the request. */
 	readonly force: boolean;
@@ -182,9 +179,9 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 		}));
 	}
 
-	async attachSessionGitHubPullRequest(sessionKey: string, workingDirectory: URI | undefined, source?: IAgentHostCredentialSource): Promise<IPullRequestLookupFailure | void> {
+	async attachSessionGitHubPullRequest(sessionKey: string, source?: IAgentHostCredentialSource): Promise<IPullRequestLookupFailure | void> {
 		const credentials = this._captureCredentials(sessionKey, source);
-		await this._refreshSessionGitState(sessionKey, workingDirectory, credentials);
+		await this._refreshSessionGitState(sessionKey, credentials);
 		if (isAhpChatChannel(sessionKey) && !this._chatOwnership.isRegisteredDefaultChat(sessionKey)) {
 			const folder = resolveGitHubStateFolder(this._stateManager, sessionKey);
 			if (folder.folderKey !== undefined) {
@@ -467,25 +464,33 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 			: state;
 	}
 
-	async refreshSessionGitState(sessionKey: string, workingDirectory: URI | undefined, source?: IAgentHostCredentialSource, options?: IRefreshSessionGitStateOptions): Promise<void> {
-		return this._refreshSessionGitState(sessionKey, workingDirectory, this._captureCredentials(sessionKey, source), options);
+	/**
+	 * The directory a refresh of a key reads: its primary working directory, or, for a subagent session without one
+	 * of its own, its parent session's. A chat whose state is not restored yet reads the folder its catalog entry records.
+	 */
+	private _resolveGitStateWorkingDirectory(key: string): string | undefined {
+		if (isAhpChatChannel(key)) {
+			// Before its state is restored, a chat's folders are those recorded in its catalog entry, not its session's.
+			return getEffectiveWorkingDirectories(this._stateManager, key)?.[0];
+		}
+		const workingDirectory = this._getStateForGitScope(key)?.workingDirectories?.[0];
+		if (workingDirectory !== undefined) {
+			return workingDirectory;
+		}
+		const subagent = parseSubagentSessionUri(key);
+		return subagent ? this._resolveGitStateWorkingDirectory(subagent.parentSession.toString()) : undefined;
 	}
 
-	private async _refreshSessionGitState(sessionKey: string, workingDirectory: URI | undefined, credentials: IRepositoryCredentialContext, options?: IRefreshSessionGitStateOptions): Promise<void> {
-		const sessionState = this._getStateForGitScope(sessionKey);
-		if (sessionState?.lifecycle === SessionLifecycle.Failed) {
+	async refreshSessionGitState(sessionKey: string, source?: IAgentHostCredentialSource, options?: IRefreshSessionGitStateOptions): Promise<void> {
+		return this._refreshSessionGitState(sessionKey, this._captureCredentials(sessionKey, source), options);
+	}
+
+	private async _refreshSessionGitState(sessionKey: string, credentials: IRepositoryCredentialContext, options?: IRefreshSessionGitStateOptions): Promise<void> {
+		if (this._getStateForGitScope(sessionKey)?.lifecycle === SessionLifecycle.Failed) {
 			return;
 		}
-		const initialPrimaryWorkingDirectory = sessionState?.workingDirectories?.[0];
 
-		if (!workingDirectory) {
-			const workingDirectoryStr = initialPrimaryWorkingDirectory;
-			if (workingDirectoryStr) {
-				workingDirectory = URI.parse(workingDirectoryStr);
-			}
-		}
-
-		if (!workingDirectory) {
+		if (!this._resolveGitStateWorkingDirectory(sessionKey)) {
 			if (isAhpChatChannel(sessionKey) && this.getSessionGitState(sessionKey)) {
 				await this._setChatGitState(sessionKey, undefined);
 				this._onDidRefreshSessionGitState.fire(sessionKey);
@@ -494,8 +499,6 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 		}
 
 		return this._queueGitStateRefresh(sessionKey, {
-			workingDirectory,
-			initialPrimaryWorkingDirectory,
 			credentials,
 			force: !!options?.force,
 			immediate: !!options?.immediate,
@@ -519,8 +522,6 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 		}
 		const pending = lane.pending;
 		const merged: IPendingGitStateRefresh = pending ? {
-			workingDirectory: request.workingDirectory,
-			initialPrimaryWorkingDirectory: request.initialPrimaryWorkingDirectory,
 			// A background refresh must not replace the credentials an operation passed.
 			credentials: pending.credentials.explicit && !request.credentials.explicit ? pending.credentials : request.credentials,
 			force: pending.force || request.force,
@@ -571,24 +572,27 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 	}
 
 	/**
-	 * Reads the Git state of a key and publishes what changed.
-	 * @returns Whether the key cools down before its next read; it does not when the result was dropped.
+	 * Reads the Git state of the directory a key resolves to when the read starts, and publishes what changed.
+	 * @returns Whether the key cools down before its next read; it does not when it resolved to no directory, or when
+	 * the result was dropped because the key moved to another directory during the read.
 	 */
 	private async _readAndPublishGitState(sessionKey: string, refresh: IPendingGitStateRefresh): Promise<boolean> {
-		const { workingDirectory, initialPrimaryWorkingDirectory, credentials, force } = refresh;
+		const { credentials, force } = refresh;
+		const workingDirectory = this._resolveGitStateWorkingDirectory(sessionKey);
+		if (!workingDirectory) {
+			return false;
+		}
 		// A refresh announces itself only when it observed something new, when it is the first one, or when its caller knows the checkout changed in ways the state does not describe.
 		let announce = force || !this._announcedGitStateRefreshes.has(sessionKey);
 		try {
-			this._logService.trace(`[AgentHostGitStateService][refreshSessionGitState] Refreshing git state for ${sessionKey}, ${workingDirectory?.fsPath}`);
+			const workingDirectoryUri = URI.parse(workingDirectory);
+			this._logService.trace(`[AgentHostGitStateService][refreshSessionGitState] Refreshing git state for ${sessionKey}, ${workingDirectoryUri.fsPath}`);
 
 			const baseBranchRef = await this.resolveSessionBaseBranchRef(sessionKey);
-			const gitState = await this._readGitState(workingDirectory, baseBranchRef, force);
-			const currentWorkingDirectory = this._getStateForGitScope(sessionKey)?.workingDirectories?.[0];
-			const primaryWorkingDirectoryChanged = initialPrimaryWorkingDirectory === undefined
-				? currentWorkingDirectory !== undefined
-				: currentWorkingDirectory === undefined || !isEqual(URI.parse(initialPrimaryWorkingDirectory), URI.parse(currentWorkingDirectory));
-			if (primaryWorkingDirectoryChanged) {
-				// Not cooling down lets a refresh of the session's new working directory start right away.
+			const gitState = await this._readGitState(workingDirectoryUri, baseBranchRef, force);
+			const currentWorkingDirectory = this._resolveGitStateWorkingDirectory(sessionKey);
+			if (currentWorkingDirectory === undefined || !isEqual(workingDirectoryUri, URI.parse(currentWorkingDirectory))) {
+				// Not cooling down lets a refresh of the key's new working directory start right away.
 				return false;
 			}
 			// An `undefined` result is inconclusive: it is returned both when

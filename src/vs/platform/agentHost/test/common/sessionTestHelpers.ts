@@ -971,13 +971,13 @@ export function createNoopGitStateService(): IAgentHostGitStateService {
 		_serviceBrand: undefined,
 		onDidRefreshSessionGitState: Event.None,
 		onDidChangeSessionGitHubState: Event.None,
-		refreshSessionGitState: async (_sessionKey: string, _workingDirectory?: URI) => { },
+		refreshSessionGitState: async (_sessionKey: string) => { },
 		getMaterializedWorktreeMeta: (_sessionKey: string, _branchName: string) => undefined,
 		setFolderGitState: async () => { },
 		resolveSessionBaseBranchRef: async (_sessionKey: string) => undefined,
 		setSessionGitHubState: async (_sessionKey: string, _state: ISessionGitHubState) => { },
 		recordSessionMerge: async (_sessionKey: string, _commit: string) => { },
-		attachSessionGitHubPullRequest: async (_sessionKey: string, _workingDirectory?: URI) => { },
+		attachSessionGitHubPullRequest: async (_sessionKey: string) => { },
 	};
 }
 

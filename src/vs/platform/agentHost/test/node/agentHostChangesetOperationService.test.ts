@@ -109,7 +109,7 @@ class TestGitStateService implements IAgentHostGitStateService {
 		return this._states.get(sessionKey);
 	}
 
-	async refreshSessionGitState(sessionKey: string, _workingDirectory?: URI): Promise<void> {
+	async refreshSessionGitState(sessionKey: string): Promise<void> {
 		this.refreshes.push(sessionKey);
 	}
 	getMaterializedWorktreeMeta(_sessionKey: string, _branchName: string): undefined { return undefined; }
@@ -302,7 +302,7 @@ suite('AgentHostChangesetOperationService', () => {
 		const refreshesStarted = new DeferredPromise<void>();
 		const gitStateService = new class extends TestGitStateService {
 			readonly requests: { readonly sessionKey: string; readonly withOperationSource: boolean; readonly options: IRefreshSessionGitStateOptions | undefined }[] = [];
-			override async refreshSessionGitState(sessionKey: string, _workingDirectory?: URI, source?: IAgentHostCredentialSource, options?: IRefreshSessionGitStateOptions): Promise<void> {
+			override async refreshSessionGitState(sessionKey: string, source?: IAgentHostCredentialSource, options?: IRefreshSessionGitStateOptions): Promise<void> {
 				const index = this.requests.length;
 				this.requests.push({ sessionKey, withOperationSource: source === operationSource, options });
 				if (this.requests.length === blockers.length) {

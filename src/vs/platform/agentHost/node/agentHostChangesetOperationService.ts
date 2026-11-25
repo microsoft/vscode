@@ -81,8 +81,8 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 		const source = scope?.sourceUri ?? owner;
 		const session = scope?.sessionUri ?? (isAhpChatChannel(owner) ? this._chatOwnership.getChatOwner(owner) : undefined);
 		await Promise.all([
-			this._gitStateService.refreshSessionGitState(source, undefined, credentials, { force: true, immediate: true }),
-			...(session && session !== source ? [this._gitStateService.refreshSessionGitState(session, undefined, credentials, { force: true, immediate: true })] : []),
+			this._gitStateService.refreshSessionGitState(source, credentials, { force: true, immediate: true }),
+			...(session && session !== source ? [this._gitStateService.refreshSessionGitState(session, credentials, { force: true, immediate: true })] : []),
 		]);
 	}
 
