@@ -396,7 +396,7 @@ export const copilotCliConfigSchema = createSchema({
 	[CopilotCliConfigKey.ProgrammaticToolCalling]: schemaProperty<boolean>({
 		type: 'boolean',
 		title: localize('agentHost.config.programmaticToolCalling.title', "Programmatic Tool Calling"),
-		description: localize('agentHost.config.programmaticToolCalling.description', "When enabled, Copilot SDK sessions offer a run_program tool that runs a sandboxed JavaScript program to call other tools and return a reduced result. Tool calls inside a program keep their normal permissions. Replaces model-hosted programmatic tool calling."),
+		description: localize('agentHost.config.programmaticToolCalling.description', "When enabled, Copilot SDK sessions offer a run_program tool that runs a sandboxed JavaScript program to call other tools and return a reduced result, and the system prompt explains when to use it. Tool calls inside a program keep their normal permissions. Replaces model-hosted programmatic tool calling."),
 		default: false,
 	}),
 	[CopilotCliConfigKey.SecurityReviewSecretDetection]: schemaProperty<boolean>({

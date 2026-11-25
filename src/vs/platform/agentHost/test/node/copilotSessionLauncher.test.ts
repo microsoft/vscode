@@ -4715,7 +4715,8 @@ suite('CopilotSessionLauncher resume config', () => {
 		const store = disposables.add(new DisposableStore());
 		const launch = async (values: Record<string, unknown>) => {
 			const config = await buildResumeConfig(createLauncher(store, values), { id: 'gpt-5' });
-			return { flag: config.experiments?.flags?.CLIENT_SIDE_PROGRAMMATIC_TOOL_CALLING, tools: config.tools?.availableTools };
+			const flags = config.experiments?.flags;
+			return { flags: { local: flags?.CLIENT_SIDE_PROGRAMMATIC_TOOL_CALLING, guidance: flags?.CLIENT_SIDE_PTC_GUIDANCE }, tools: config.tools?.availableTools };
 		};
 
 		assert.deepStrictEqual({
@@ -4726,9 +4727,9 @@ suite('CopilotSessionLauncher resume config', () => {
 				[CopilotCliConfigKey.ModelCapabilityOverrides]: { '*': { availableTools: ['custom:*'] } },
 			}),
 		}, {
-			disabled: { flag: undefined, tools: [...COPILOT_DEFAULT_AVAILABLE_TOOLS] },
-			enabled: { flag: true, tools: [...COPILOT_DEFAULT_AVAILABLE_TOOLS, 'builtin:run_program'] },
-			enabledWithModelFilter: { flag: true, tools: ['custom:*'] },
+			disabled: { flags: { local: undefined, guidance: undefined }, tools: [...COPILOT_DEFAULT_AVAILABLE_TOOLS] },
+			enabled: { flags: { local: true, guidance: true }, tools: [...COPILOT_DEFAULT_AVAILABLE_TOOLS, 'builtin:run_program'] },
+			enabledWithModelFilter: { flags: { local: true, guidance: true }, tools: ['custom:*'] },
 		});
 	});
 

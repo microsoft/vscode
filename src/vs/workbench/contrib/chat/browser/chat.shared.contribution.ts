@@ -1763,7 +1763,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[CopilotProgrammaticToolCallingEnabledSettingId]: {
 			type: 'boolean',
-			markdownDescription: nls.localize('chat.copilot.programmaticToolCalling.enabled', "When enabled, Copilot SDK sessions offer a `run_program` tool that runs a sandboxed JavaScript program to call other tools and return a reduced result, instead of making each call separately. Tool calls inside a program keep their normal permissions. Replaces model-hosted programmatic tool calling. Applies to new and resumed sessions."),
+			markdownDescription: nls.localize('chat.copilot.programmaticToolCalling.enabled', "When enabled, Copilot SDK sessions offer a `run_program` tool that runs a sandboxed JavaScript program to call other tools and return a reduced result, instead of making each call separately, and the system prompt explains when to use it. Tool calls inside a program keep their normal permissions. Replaces model-hosted programmatic tool calling. Applies to new and resumed sessions."),
 			default: false,
 			tags: ['experimental', 'advanced'],
 			scope: ConfigurationScope.APPLICATION,

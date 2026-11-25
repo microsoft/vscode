@@ -1609,8 +1609,9 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			// The runtime regroups the system prompt into global, repository and
 			// per-session cache blocks so a new session reuses the stable prefix.
 			...(stabilityOrderedPromptEnabled ? { STABILITY_ORDERED_SYSTEM_PROMPT_V2: true } : {}),
-			// Offers the runtime's client-side `run_program` tool, which takes precedence over hosted programmatic tool calling.
-			...(programmaticToolCallingEnabled ? { CLIENT_SIDE_PROGRAMMATIC_TOOL_CALLING: true } : {}),
+			// Offers the runtime's client-side `run_program` tool, which takes precedence over hosted programmatic tool calling,
+			// with instructions on when a program beats direct tool calls.
+			...(programmaticToolCallingEnabled ? { CLIENT_SIDE_PROGRAMMATIC_TOOL_CALLING: true, CLIENT_SIDE_PTC_GUIDANCE: true } : {}),
 			// Runs the fine-tuned secret detection model in /security-review. Always explicit, so runtime
 			// defaults cannot turn it on without the VS Code opt-in.
 			SECURITY_REVIEW_FINE_TUNED_MODEL: securityReviewSecretDetectionEnabled,
