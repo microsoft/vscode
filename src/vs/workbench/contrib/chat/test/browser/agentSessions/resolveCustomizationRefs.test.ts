@@ -1361,7 +1361,21 @@ suite('resolveLocalCustomAgents', () => {
 		}]);
 	});
 
-	test('uses profile enablement when filtering plugin agents for the pre-session picker', async () => {
+	test('omits plugin agents that the user opted out of syncing from the pre-session picker', async () => {
+		const pluginUri = URI.file('/plugins/opted-out');
+		const optedOut = URI.joinPath(pluginUri, 'agents', 'agent-0.agent.md');
+		const agents = await resolveLocalCustomAgents(
+			makeFileService(),
+			makeLocalCustomizationSources(new Map()),
+			new FakeSyncProvider(new Set([optedOut.toString()])),
+			makeAgentPluginService([makePlugin(pluginUri, { agents: 2 })]),
+			SessionType.CopilotCLI,
+			undefined,
+		);
+		assert.deepStrictEqual(agents.map(agent => agent.name), ['agent-1']);
+	});
+
+	test('omits the agents of a plugin disabled in the workspace from the pre-session picker', async () => {
 		const pluginUri = URI.file('/plugins/workspace-disabled');
 		const plugin = makePlugin(pluginUri, { agents: 1, enablement: ContributionEnablementState.DisabledWorkspace });
 
@@ -1374,7 +1388,7 @@ suite('resolveLocalCustomAgents', () => {
 			undefined,
 		);
 
-		assert.deepStrictEqual(agents.map(agent => agent.name), ['agent-0']);
+		assert.deepStrictEqual(agents.map(agent => agent.name), []);
 	});
 
 	test('publishes plugin agents disabled in the profile for container-gated selection', async () => {

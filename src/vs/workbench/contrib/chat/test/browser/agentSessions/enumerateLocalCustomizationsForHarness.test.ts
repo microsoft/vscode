@@ -17,6 +17,10 @@ import { PromptFileSource, PromptsType } from '../../../common/promptSyntax/prom
 import { type IPromptPath, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { createClientCustomizationsService, type ILocalCustomizationSources, makeLocalCustomizationSources } from './localCustomizationSourcesTestUtils.js';
 import { SessionType } from '../../../common/chatSessionsService.js';
+import { constObservable, observableValue } from '../../../../../../base/common/observable.js';
+import { upcastPartial } from '../../../../../../base/test/common/mock.js';
+import { type IAgentPlugin, type IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
+import { ContributionEnablementState } from '../../../common/enablement.js';
 
 function makePromptPath(uri: URI, type: PromptsType, storage: PromptsStorage, sessionTypes?: readonly string[]): IPromptPath {
 	return { uri, type, storage, sessionTypes } as IPromptPath;
@@ -274,5 +278,22 @@ suite('enumerateLocalCustomizationsForHarness', () => {
 		const sources = makeLocalCustomizationSources(new Map());
 		const result = await enumerateLocalCustomizationsForHarness(sources, new FakeSyncProvider(), SessionType.CopilotCLI, CancellationToken.None, undefined);
 		assert.deepStrictEqual(result, []);
+	});
+
+	test('fires onDidChange when a plugin changes, until the listener is disposed', () => {
+		const plugins = observableValue<readonly IAgentPlugin[]>('plugins', []);
+		const service = createClientCustomizationsService(makeLocalCustomizationSources(new Map()), {
+			agentPluginService: upcastPartial<IAgentPluginService>({ plugins }),
+		});
+		let changes = 0;
+		const listener = service.onDidChange(() => changes++);
+		plugins.set([upcastPartial<IAgentPlugin>({
+			enablement: constObservable(ContributionEnablementState.EnabledProfile),
+			hooks: constObservable([]), commands: constObservable([]), skills: constObservable([]),
+			agents: constObservable([]), instructions: constObservable([]), mcpServerDefinitions: constObservable([]),
+		})], undefined);
+		listener.dispose();
+		plugins.set([], undefined);
+		assert.strictEqual(changes, 1);
 	});
 });

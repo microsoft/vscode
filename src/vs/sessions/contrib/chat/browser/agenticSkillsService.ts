@@ -32,6 +32,9 @@ export const BUILTIN_SKILLS_URI = FileAccess.asFileUri('vs/sessions/skills');
 
 const DISABLED_STORAGE_KEY = 'chat.agenticSkills.disabled';
 
+/** Where older versions stored disabled skills, including built-in ones, before this service owned them. */
+const LEGACY_DISABLED_SKILLS_STORAGE_KEY = 'chat.disabledPromptFiles.skill';
+
 interface IBuiltinSkill {
 	readonly uri: URI;
 	readonly name: string;
@@ -62,6 +65,7 @@ export class AgenticSkillsService extends Disposable implements IAgenticSkillsSe
 		@ILogService private readonly logService: ILogService,
 	) {
 		super();
+		this.migrateLegacyDisabledSkills();
 		this._register(Event.filter(this.configurationService.onDidChangeConfiguration,
 			event => event.affectsConfiguration(AGENT_SESSIONS_APPEARANCE_TOOLS_ENABLED_SETTING)
 				|| event.affectsConfiguration(ChatConfiguration.HtmlPreviewEnabled)
@@ -85,6 +89,27 @@ export class AgenticSkillsService extends Disposable implements IAgenticSkillsSe
 	setDisabledSkills(uris: ResourceSet): void {
 		storeDisabledPromptFiles(this.storageService, DISABLED_STORAGE_KEY, uris);
 		this._onDidChange.fire();
+	}
+
+	/**
+	 * Moves disabled built-in skills from the prompts service's storage, keeping its other entries. Runs before the
+	 * first read, so no consumer ever sees a migrated skill as enabled.
+	 */
+	private migrateLegacyDisabledSkills(): void {
+		const legacy = readDisabledPromptFiles(this.storageService, LEGACY_DISABLED_SKILLS_STORAGE_KEY);
+		const remaining = [...legacy].filter(uri => !this.isBuiltinSkill(uri));
+		if (remaining.length === legacy.size) {
+			return;
+		}
+		const disabled = this.getDisabledSkills();
+		for (const uri of legacy) {
+			if (this.isBuiltinSkill(uri)) {
+				disabled.add(uri);
+			}
+		}
+		// Store here before removing there, so an interruption never loses a decision.
+		storeDisabledPromptFiles(this.storageService, DISABLED_STORAGE_KEY, disabled);
+		storeDisabledPromptFiles(this.storageService, LEGACY_DISABLED_SKILLS_STORAGE_KEY, remaining);
 	}
 
 	private async getBuiltinSkills(): Promise<readonly IBuiltinSkill[]> {

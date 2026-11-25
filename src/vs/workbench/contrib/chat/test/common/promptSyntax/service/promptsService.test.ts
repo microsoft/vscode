@@ -3257,14 +3257,15 @@ suite('PromptsService', () => {
 			return { promptsService, snapshot };
 		}
 
-		test('moves disabled built-in skills to the agentic skills service and routes later changes there', () => {
+		test('routes disabled built-in skills to the agentic skills service and reports both sets', () => {
 			const builtinSkill = URI.joinPath(builtinRoot, 'create-pr/SKILL.md');
 			const localSkill = URI.file('/workspace/.github/skills/local/SKILL.md');
-			const { promptsService, snapshot } = setup([builtinSkill, localSkill]);
-			const migrated = snapshot();
+			const { promptsService, snapshot } = setup([]);
+			promptsService.setDisabledPromptFiles(PromptsType.skill, new ResourceSet([builtinSkill, localSkill]));
+			const disabled = snapshot();
 			promptsService.setDisabledPromptFiles(PromptsType.skill, new ResourceSet([builtinSkill]));
-			assert.deepStrictEqual({ migrated, reenabledLocal: snapshot() }, {
-				migrated: { all: [localSkill.path, builtinSkill.path].sort(), own: [localSkill.path], builtin: [builtinSkill.path] },
+			assert.deepStrictEqual({ disabled, reenabledLocal: snapshot() }, {
+				disabled: { all: [localSkill.path, builtinSkill.path].sort(), own: [localSkill.path], builtin: [builtinSkill.path] },
 				reenabledLocal: { all: [builtinSkill.path], own: [], builtin: [builtinSkill.path] },
 			});
 		});

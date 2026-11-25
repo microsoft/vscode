@@ -19,7 +19,7 @@ import { IWorkbenchEnvironmentService } from '../../../../../services/environmen
 import { AICustomizationSource } from '../../../common/aiCustomizationWorkspaceService.js';
 import { type ICustomizationSyncProvider } from '../../../common/customizationHarnessService.js';
 import { isContributionEnabled } from '../../../common/enablement.js';
-import { IAgentPlugin, IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
+import { IAgentPlugin, IAgentPluginAgent, IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
 import { PromptFileSource, PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 import { IAgenticSkillsService } from '../../../common/promptSyntax/service/agenticSkillsService.js';
 import { IChatExtensionCustomizationsService } from '../../../common/promptSyntax/service/chatExtensionCustomizationsService.js';
@@ -69,6 +69,11 @@ export interface IClientPlugin {
 	readonly enabled: boolean;
 	/** `false` when the harness discovers the plugin natively and the client must not forward it. */
 	readonly forwarded: boolean;
+	/**
+	 * The plugin's agents that can be selected before the host reports the session's customizations: none when the
+	 * plugin is effectively disabled, and none that the user opted out of syncing.
+	 */
+	readonly selectableAgents: readonly IAgentPluginAgent[];
 }
 
 /** Everything the client contributes to an agent host session of one harness. */
@@ -141,7 +146,7 @@ export class AgentHostClientCustomizationsService implements IAgentHostClientCus
 			this._collectFiles(sessionType, options, token),
 			this._collectMcpServers(sessionType, options.roots),
 		]);
-		return { files, plugins: this._collectPlugins(sessionType), mcpServers };
+		return { files, plugins: this._collectPlugins(sessionType, options.syncProvider), mcpServers };
 	}
 
 	/**
@@ -191,11 +196,14 @@ export class AgentHostClientCustomizationsService implements IAgentHostClientCus
 	 * Lists the installed plugins. Plugins that a harness owns are forwarded only to other harnesses; Copilot
 	 * discovers its own installations natively and uses its own enablement.
 	 */
-	private _collectPlugins(sessionType: string): readonly IClientPlugin[] {
+	private _collectPlugins(sessionType: string, syncProvider: ICustomizationSyncProvider): readonly IClientPlugin[] {
 		const nativeHarnessPlugins = isCopilotAgentHostProvider(parseAgentHostHarness(sessionType) ?? sessionType);
 		return this._agentPluginService.plugins.get().map(plugin => {
 			const harnessOwned = plugin.discovery === 'harness';
 			return {
+				selectableAgents: isContributionEnabled(plugin.enablement.get())
+					? plugin.agents.get().filter(agent => !syncProvider.isDisabled(agent.uri))
+					: [],
 				plugin,
 				enabled: harnessOwned
 					? isContributionEnabled(plugin.enablement.get())

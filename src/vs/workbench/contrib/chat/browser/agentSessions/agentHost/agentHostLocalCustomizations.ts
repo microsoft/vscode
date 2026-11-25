@@ -13,7 +13,6 @@ import { CustomizationEnablementKind, type AgentCustomization, CustomizationType
 import { customizationId, type ClientPluginCustomization } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { AICustomizationSources } from '../../../common/aiCustomizationWorkspaceService.js';
-import { isContributionEnabled } from '../../../common/enablement.js';
 import { PromptFileParser } from '../../../common/promptSyntax/promptFileParser.js';
 import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 import { type IClientCustomizationSnapshot, type IClientPlugin } from './agentHostClientCustomizationsService.js';
@@ -41,12 +40,8 @@ export async function resolveLocalCustomAgents(fileService: IFileService, snapsh
 			candidates.push({ uri: file.uri });
 		}
 	}
-	// The host gates the agents of forwarded plugins through the plugin's enablement; the runtime that owns a
-	// plugin reports its activation directly.
-	for (const { plugin } of snapshot.plugins) {
-		if (plugin.discovery !== 'harness' || isContributionEnabled(plugin.enablement.get())) {
-			candidates.push(...plugin.agents.get());
-		}
+	for (const plugin of snapshot.plugins) {
+		candidates.push(...plugin.selectableAgents);
 	}
 
 	const parser = new PromptFileParser();

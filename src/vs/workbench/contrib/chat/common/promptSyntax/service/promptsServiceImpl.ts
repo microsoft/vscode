@@ -182,7 +182,6 @@ export class PromptsService extends Disposable implements IPromptsService {
 		super();
 
 		this.fileLocator = this.createPromptFilesLocator();
-		this.migrateLegacyDisabledBuiltinSkills();
 
 		this._register(this.modelService.onModelRemoved((model) => {
 			this.cachedParsedPromptFromModels.delete(model.uri);
@@ -1002,25 +1001,6 @@ export class PromptsService extends Disposable implements IPromptsService {
 		}
 		storeDisabledPromptFiles(this.storageService, this.disabledPromptsStorageKeyPrefix + type, own);
 		this.refreshDisabledState(type);
-	}
-
-	/**
-	 * Moves disabled built-in skills that older versions stored here to {@link IAgenticSkillsService}.
-	 */
-	private migrateLegacyDisabledBuiltinSkills(): void {
-		const key = this.disabledPromptsStorageKeyPrefix + PromptsType.skill;
-		const legacy = readDisabledPromptFiles(this.storageService, key);
-		const builtin = this.agenticSkills.getDisabledSkills();
-		const own = new ResourceSet();
-		for (const uri of legacy) {
-			(this.agenticSkills.isBuiltinSkill(uri) ? builtin : own).add(uri);
-		}
-		if (own.size === legacy.size) {
-			return;
-		}
-		// Store in the owning service before removing here, so an interruption never loses a decision.
-		this.agenticSkills.setDisabledSkills(builtin);
-		storeDisabledPromptFiles(this.storageService, key, own);
 	}
 
 	private refreshDisabledState(type: PromptsType): void {
