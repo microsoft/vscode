@@ -2,7 +2,7 @@ on:
   workflow_call:
     inputs:
       electron_unit_affected:
-        description: Whether the pull request can affect the Electron-Unit job, which is skipped when false
+        description: Whether the pull request can affect the Electron-Unit jobs, which are skipped when false
         type: boolean
         default: true
       electron_affected:
@@ -64,12 +64,13 @@ env:
   # couldn't resolve the dependencies of a package. This keeps the volume path (\\?\Volume{...}\).
   GODEBUG: winreadlinkvolume=1
 
-# Each job reports as "Windows / <job name>", for example "Windows / Electron-Unit", whether it runs
+# Each job reports as "Windows / <job name>", for example "Windows / Electron-Unit (electron)", whether it runs
 # or not: the names are fixed, as GitHub does not evaluate the expressions in the name of a skipped
 # job. The jobs run the steps of the first one (steps: &steps), and their env selects which of them
 # run (a flag is on when it is 'true'):
 # - ELECTRON_TESTS, BROWSER_TESTS or REMOTE_TESTS: the test runner
 # - UNIT_TESTS, INTEGRATION_TESTS, SMOKE_TESTS and AGENT_HOST_E2E_TESTS: the kinds of tests
+# - UNIT_TEST_SUITE: the unit tests of an Electron job, 'electron' or 'node', or both when unset
 # - INTEGRATION_TEST_SUITE: the integration tests of an Electron job, 'node' for the node.js integration
 #   tests or 'extension-host' for the extension host tests, or both when unset
 # - TEST_SELECTION: run only the test files listed in the test-plan artifact of the workflow run, when
@@ -83,14 +84,17 @@ env:
 #   smoke suite and the WSL Kerberos and Basic PAC proxy smoke tests, instead of a shard of the smoke tests
 # - ARTIFACT_NAME: identifies the job in the names of the artifacts that it publishes
 jobs:
-  electron-unit:
-    name: Electron-Unit
+  # When a change runs every unit test (see build/ripple/README.md), the Electron and node.js unit tests
+  # in one job could be the slowest job of the workflow, so they run on separate machines, as on Linux.
+  electron-unit-electron:
+    name: Electron-Unit (electron)
     if: ${{ inputs.electron_unit_affected }}
     runs-on: ${{ inputs.runner }}
     env:
-      ARTIFACT_NAME: electron-unit
+      ARTIFACT_NAME: electron-unit-electron
       ELECTRON_TESTS: 'true'
       UNIT_TESTS: 'true'
+      UNIT_TEST_SUITE: electron
       TEST_SELECTION: 'true'
     steps: &steps
       # A workspace image of main holds a workspace whose dependencies, Electron and Playwright browsers
@@ -325,7 +329,7 @@ jobs:
         run: pnpm run gulp "transpile-client-esbuild" "transpile-extensions"
 
       - name: Setup Electron
-        if: ${{ env.ELECTRON_TESTS == 'true' || env.REMOTE_TESTS == 'true' }}
+        if: ${{ (env.ELECTRON_TESTS == 'true' && env.UNIT_TEST_SUITE != 'node') || env.REMOTE_TESTS == 'true' }}
         uses: ./.github/actions/setup-electron
         with:
           arch: ${{ env.VSCODE_ARCH }}
@@ -388,7 +392,7 @@ jobs:
         run: if (Test-Path .build/test-plan) { Remove-Item -Recurse -Force .build/test-plan }
 
       - name: 🧪 Run unit tests (Electron)
-        if: ${{ env.ELECTRON_TESTS == 'true' && env.UNIT_TESTS == 'true' && (hashFiles('.build/test-plan/plan.json') == '' || hashFiles('.build/test-plan/unit.txt') != '') }}
+        if: ${{ env.ELECTRON_TESTS == 'true' && env.UNIT_TESTS == 'true' && env.UNIT_TEST_SUITE != 'node' && (hashFiles('.build/test-plan/plan.json') == '' || hashFiles('.build/test-plan/unit.txt') != '') }}
         timeout-minutes: 25
         shell: pwsh
         run: .\scripts\test.bat --tfs "Unit Tests" --workers 4 --rerun-failed-files 2 ${{ hashFiles('.build/test-plan/plan.json') != '' && '--runList .build/test-plan/unit.txt' || '' }}
@@ -396,7 +400,7 @@ jobs:
           VSCODE_SKIP_PRELAUNCH: '1'
 
       - name: 🧪 Run unit tests (node.js)
-        if: ${{ env.ELECTRON_TESTS == 'true' && env.UNIT_TESTS == 'true' && (hashFiles('.build/test-plan/plan.json') == '' || hashFiles('.build/test-plan/unit.txt') != '') }}
+        if: ${{ env.ELECTRON_TESTS == 'true' && env.UNIT_TESTS == 'true' && env.UNIT_TEST_SUITE != 'electron' && (hashFiles('.build/test-plan/plan.json') == '' || hashFiles('.build/test-plan/unit.txt') != '') }}
         timeout-minutes: 25
         shell: pwsh
         run: pnpm run test-node --workers 4 --rerun-failed-files 2 ${{ hashFiles('.build/test-plan/plan.json') != '' && '--runList .build/test-plan/unit.txt' || '' }}
@@ -671,6 +675,18 @@ jobs:
           name: ${{ format('logs-windows-{0}-{1}-{2}', env.VSCODE_ARCH, env.ARTIFACT_NAME, github.run_attempt) }}
           path: .build/logs
           if-no-files-found: ignore
+
+  electron-unit-node:
+    name: Electron-Unit (node)
+    if: ${{ inputs.electron_unit_affected }}
+    runs-on: ${{ inputs.runner }}
+    env:
+      ARTIFACT_NAME: electron-unit-node
+      ELECTRON_TESTS: 'true'
+      UNIT_TESTS: 'true'
+      UNIT_TEST_SUITE: node
+      TEST_SELECTION: 'true'
+    steps: *steps
 
   # The node.js integration tests (up to about 6.5 minutes when the plan selects many) and the extension
   # host tests (about 4 minutes) in one job could be the slowest job of the workflow, so they run on

@@ -179,6 +179,7 @@ jobs:
             AZURE_CLIENT_ID="$(AZURE_CLIENT_ID)" \
             AZURE_ID_TOKEN="$(AZURE_ID_TOKEN)" \
               node build/azure-pipelines/upload-cdn.ts
+          condition: and(succeeded(), or(eq(variables['VSCODE_PUBLISH'], 'True'), eq(variables['VSCODE_ARTIFACT_SANITY_REQUIRES_WEB'], 'True')))
           displayName: Upload to CDN
 
         - script: |
@@ -188,6 +189,7 @@ jobs:
             AZURE_CLIENT_ID="$(AZURE_CLIENT_ID)" \
             AZURE_ID_TOKEN="$(AZURE_ID_TOKEN)" \
               node build/azure-pipelines/upload-sourcemaps.ts out-vscode-web-min
+          condition: and(succeeded(), eq(variables['VSCODE_PUBLISH'], 'True'))
           displayName: Upload sourcemaps (Web)
 
         - script: |
@@ -197,6 +199,7 @@ jobs:
             AZURE_CLIENT_ID="$(AZURE_CLIENT_ID)" \
             AZURE_ID_TOKEN="$(AZURE_ID_TOKEN)" \
               node build/azure-pipelines/upload-nlsmetadata.ts
+          condition: and(succeeded(), eq(variables['VSCODE_PUBLISH'], 'True'))
           displayName: Upload NLS Metadata
 
       - ${{ if parameters.mobile }}:

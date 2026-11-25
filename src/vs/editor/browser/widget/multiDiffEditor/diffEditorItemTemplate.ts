@@ -19,7 +19,7 @@ import { ServiceCollection } from '../../../../platform/instantiation/common/ser
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { EditorOption, IDiffEditorOptions } from '../../../common/config/editorOptions.js';
 import { IPosition, Position } from '../../../common/core/position.js';
-import { IRange } from '../../../common/core/range.js';
+import { IRange, Range } from '../../../common/core/range.js';
 import { OffsetRange } from '../../../common/core/ranges/offsetRange.js';
 import { ScrollType } from '../../../common/editorCommon.js';
 import { observableCodeEditor } from '../../observableCodeEditor.js';
@@ -343,14 +343,21 @@ export class DiffEditorItemTemplate extends VirtualizedItemTemplate<DocumentDiff
 	}
 
 	/**
-	 * Returns the offset of a position from the top of the item, that is of the row that shows it when its line wraps. A
-	 * pending height update is applied first, so that the list already includes lines that were just shown, for example
-	 * by selecting a line in a hidden unchanged region.
+	 * Returns the offset of the start of a range from the top of the item, that is of the row that shows it when its line
+	 * wraps. A range that is not empty starts after text that the editor shows in front of its start, like the deleted
+	 * text of a true inline diff, as when the editor reveals it. A pending height update is applied first, so that the
+	 * list already includes lines that were just shown, for example by selecting a line in a hidden unchanged region.
 	 */
-	public getPositionOffset(side: 'original' | 'modified', position: IPosition): number {
+	public getRangeOffset(side: 'original' | 'modified', range: IRange): number {
 		this._flushVerticalState();
 		const editor = side === 'original' ? this.editor.getOriginalEditor() : this.editor.getModifiedEditor();
-		return this._headerHeight + editor.getTopForPosition(position.lineNumber, position.column);
+		const viewModel = editor._getViewModel();
+		const model = editor.getModel();
+		if (!viewModel || !model) {
+			return this._headerHeight + editor.getTopForPosition(range.startLineNumber, range.startColumn);
+		}
+		const viewRange = viewModel.coordinatesConverter.convertModelRangeToViewRange(model.validateRange(range));
+		return this._headerHeight + viewModel.viewLayout.getVerticalOffsetForLineNumber(viewRange.startLineNumber);
 	}
 
 	/**
@@ -382,7 +389,7 @@ export class DiffEditorItemTemplate extends VirtualizedItemTemplate<DocumentDiff
 		this._flushVerticalState();
 		const viewModel = this.editor.getModifiedEditor()._getViewModel();
 		if (!viewModel) {
-			return this.getPositionOffset('modified', position);
+			return this.getRangeOffset('modified', Range.fromPositions(position));
 		}
 		// A position maps to the view position in front of the text that the editor shows in front of it.
 		let viewPosition = viewModel.coordinatesConverter.convertModelPositionToViewPosition(Position.lift(position));

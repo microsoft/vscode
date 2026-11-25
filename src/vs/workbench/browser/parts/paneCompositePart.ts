@@ -8,6 +8,7 @@ import { Event } from '../../../base/common/event.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { IProgressIndicator } from '../../../platform/progress/common/progress.js';
 import { PaneComposite, PaneCompositeDescriptor, PaneCompositeRegistry } from '../panecomposite.js';
+import { ViewTitleBadgeWidget } from './views/viewTitleBadge.js';
 import { IPaneComposite } from '../../common/panecomposite.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../common/views.js';
 import { DisposableStore, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
@@ -393,7 +394,37 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 		};
 		this._register(CompositeDragAndDropObserver.INSTANCE.registerDraggable(this.titleLabelElement!, draggedItemProvider, {}));
 
-		return titleLabel;
+		// While its only view shows its title here, so does the badge of that view
+		const titleLabelElement = this.titleLabelElement!;
+		const titleLabelContainer = titleLabelElement.parentElement!;
+		const badgeWidget = this._register(this.instantiationService.createInstance(ViewTitleBadgeWidget, undefined));
+		titleLabelContainer.appendChild(badgeWidget.element);
+		const updateBadgeLabel = () => {
+			const badge = badgeWidget.badge;
+			titleLabelContainer.classList.toggle('has-title-badge', !!badge);
+			if (badge) {
+				titleLabelElement.setAttribute('aria-label', localize('titleWithBadge', "{0}, {1}", titleLabelElement.textContent ?? '', badge.ariaLabel));
+			} else {
+				titleLabelElement.removeAttribute('aria-label');
+			}
+		};
+		const updateBadge = () => {
+			const composite = this.getActivePaneComposite();
+			const viewPaneContainer = composite instanceof PaneComposite ? composite.getViewPaneContainer() : undefined;
+			badgeWidget.setViewId(viewPaneContainer?.isViewMergedWithContainer() ? viewPaneContainer.panes[0]?.id : undefined);
+			updateBadgeLabel();
+		};
+		this._register(badgeWidget.onDidChange(updateBadgeLabel));
+		this._register(this.onDidPaneCompositeOpen(updateBadge));
+		this._register(this.onDidPaneCompositeClose(updateBadge));
+
+		return {
+			updateTitle: (id, title, keybinding) => {
+				titleLabel.updateTitle(id, title, keybinding);
+				updateBadge();
+			},
+			updateStyles: () => titleLabel.updateStyles()
+		};
 	}
 
 	protected updateCompositeBar(updateCompositeBarOption: boolean = false): void {

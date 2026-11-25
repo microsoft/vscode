@@ -80,7 +80,7 @@ import { ISpotlightPayload, SPOTLIGHT_PRESENTATION_KIND } from '../../../../../w
 import { OnboardingOutcome } from '../../../../../workbench/contrib/onboarding/common/onboardingScenario.js';
 import { onboardingScenarioRegistry } from '../../../../../workbench/contrib/onboarding/common/onboardingRegistry.js';
 import { IOnboardingScenarioService, ONBOARDING_ENABLED_CONFIG } from '../../../../../workbench/contrib/onboarding/common/onboardingScenarioService.js';
-import { TestHostService, TestLayoutService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
+import { TestHostService, TestLayoutService, TestQuickInputService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { TestProductService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { IPreferencesService } from '../../../../../workbench/services/preferences/common/preferences.js';
 import '../../../../../workbench/browser/actions/listCommands.js';
@@ -104,7 +104,10 @@ import { ICreateNewSessionOptions, ISessionsChangeEvent, ISessionsManagementServ
 import { ISessionChangeEvent, ISessionsProvider } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../../../workbench/contrib/sessions/common/sessionComparison.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
-import { computeReorderSortChanges, groupByDate, groupByEnvironment, groupByRepository, groupByWorkspace, groupByWorktree, groupSessionsForList, limitSessionsForList, QUICK_CHATS_SECTION_ID, SessionSectionRenderer, SessionsFlatList, SessionsList, SessionsListSnapshotNode, sortSessions } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
+import { SessionsList, SessionsListSnapshotNode } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
+import { SessionsFlatList } from '../../../../../workbench/contrib/sessions/browser/views/sessionsFlatList.js';
+import { SessionSectionRenderer } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListRenderers.js';
+import { computeReorderSortChanges, groupByDate, groupByEnvironment, groupByRepository, groupByWorkspace, groupByWorktree, groupSessionsForList, limitSessionsForList, QUICK_CHATS_SECTION_ID, sortSessions } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListHelpers.js';
 import { ISessionChatItem, ISessionSection, NEW_CANVAS_SESSION_COMMAND_ID, NEW_SESSION_IN_ENVIRONMENT_ACTION_ID, SessionChatItemCanArchiveContext, SessionChatItemCanDeleteContext, SessionChatItemIsArchivedContext, SessionChatItemIsUntitledContext, SessionItemInExternalSectionContext, SessionItemIsCloudContext, SessionSectionHasGitHubRepositoryContext, SessionSectionToolbarMenuId, SESSIONS_LIST_CANVASES_SECTION_SETTING, SESSIONS_LIST_INDENT_ITEMS_SETTING, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsListFocusedChatItemContext, SessionsGrouping, SessionsSorting } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListCommon.js';
 import { ISideChatPlacementService } from '../../../../../workbench/contrib/sessions/browser/sideChatPlacement.js';
 import { AgentSessionApprovalKind, AgentSessionApprovalModel, IAgentSessionApprovalInfo } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
@@ -144,6 +147,7 @@ import { IChatEntitlementService } from '../../../../../workbench/services/chat/
 import { IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import '../../browser/views/sessionsViewActions.js';
 import '../../../../browser/mobile/media/mobileDrawer.css';
+import { TestDialogService } from '../../../../../platform/dialogs/test/common/testDialogService.js';
 
 function clickRow(row: HTMLElement, modifiers: MouseEventInit = {}): void {
 	row.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0, ...modifiers }));
@@ -1436,6 +1440,8 @@ suite('Sessions - SessionsList', () => {
 				const presentation = harness.store.add(new SpotlightPresentation(
 					new class extends TestLayoutService { override getContainer(): HTMLElement { return container; } }(),
 					new TestHostService(), harness.instantiationService.get(IContextKeyService), harness.instantiationService.get(IConfigurationService), NullTelemetryService,
+					new TestDialogService(),
+					new TestQuickInputService(),
 				));
 				const shown = new DeferredPromise<void>();
 				const result = presentation.run({
@@ -6667,7 +6673,7 @@ suite('Sessions - SessionsList', () => {
 						const layout = new class extends TestLayoutService {
 							override getContainer() { return mainWindow.document.body; }
 						}();
-						const presentation = disposables.add(new SpotlightPresentation(layout, new TestHostService(), harness.instantiationService.get(IContextKeyService), new TestConfigurationService(), NullTelemetryService));
+						const presentation = disposables.add(new SpotlightPresentation(layout, new TestHostService(), harness.instantiationService.get(IContextKeyService), new TestConfigurationService(), NullTelemetryService, new TestDialogService(), new TestQuickInputService()));
 						const shownTour = new DeferredPromise<void>();
 						const previousFocus = mainWindow.document.activeElement;
 						const result = presentation.run({ ...scenario, presentation: { ...scenario.presentation, payload: { steps: [step] } } }, {

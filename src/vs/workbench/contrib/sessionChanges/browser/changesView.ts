@@ -15,6 +15,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { stripIcons } from '../../../../base/common/iconLabels.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { cancelOnDispose } from '../../../../base/common/cancellation.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
@@ -73,7 +74,7 @@ import { ISessionChangesService } from './sessionChangesService.js';
 import { createSessionActionsInstantiationService } from './sessionActionsHost.js';
 import { getWindowHost, ISessionHost, SessionHostKind } from '../../../services/sessions/browser/sessionHost.js';
 import { CIStatusWidget } from './checksWidget.js';
-import { BRANCH_CHANGES_CHANGESET_ID, GITHUB_REMOTE_FILE_SCHEME, IChat, ISessionChangeset, ISessionFolder, ISessionChangesetOperation, ISessionChangesSummary, ISessionWorkspace, isSessionCreated, SESSION_CHANGES_CHANGESET_ID, SessionChangesetOperationScope, SessionChangesetOperationStatus, SessionStatus, TURN_CHANGES_CHANGESET_ID, UNCOMMITTED_CHANGES_CHANGESET_ID, ISession } from '../../../services/sessions/common/session.js';
+import { BRANCH_CHANGES_CHANGESET_ID, GITHUB_REMOTE_FILE_SCHEME, IChat, ISessionChangeset, ISessionChangesetBaseBranchSelection, ISessionFolder, ISessionChangesetOperation, ISessionChangesSummary, ISessionWorkspace, isSessionCreated, SESSION_CHANGES_CHANGESET_ID, SessionChangesetOperationScope, SessionChangesetOperationStatus, SessionStatus, TURN_CHANGES_CHANGESET_ID, UNCOMMITTED_CHANGES_CHANGESET_ID, ISession } from '../../../services/sessions/common/session.js';
 import { isAgentHostProviderId } from '../../sessions/common/agentHostSessionsProvider.js';
 import { ISessionsManagementService } from '../../sessions/common/sessionsManagement.js';
 import { Orientation } from '../../../../base/browser/ui/sash/sash.js';
@@ -104,6 +105,7 @@ import { ISessionsHostLayoutService } from '../../../services/sessions/browser/s
 import { CreatePullRequestContextView } from './createPullRequestContextView.js';
 import { CreatePullRequestChatRequest } from './createPullRequestChatRequest.js';
 import { isSessionPullRequestOperation } from '../../sessions/common/pullRequestCreation.js';
+import { BaseBranchCandidatesState, getBaseBranchSubmenuActions, getBaseBranchSubmenuOptions } from './changesBaseBranchPicker.js';
 
 const $ = dom.$;
 
@@ -2318,6 +2320,12 @@ export class ChangesPickerSummary extends Disposable {
 	}
 }
 
+/** The branches a base branch selection can compare against, as they load. */
+interface IBaseBranchCandidatesOfSelection {
+	readonly selection: ISessionChangesetBaseBranchSelection;
+	readonly state: BaseBranchCandidatesState;
+}
+
 export class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem {
 	private readonly _labelObs: IObservable<IChangesPickerLabel | undefined>;
 	private readonly _summaryObs: IObservable<ISessionChangesSummary | undefined> | undefined;
@@ -2325,6 +2333,11 @@ export class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem 
 	private readonly _changesPendingObs: IObservable<boolean>;
 	private readonly _pickerEnabledObs: IObservable<boolean>;
 	private readonly _summaryLease = this._register(new MutableDisposable());
+	private readonly _changes: IChangesSessionObservables;
+	private readonly _onDidChangeActions: Emitter<void>;
+	/** The branches the submenu of the Branch row lists while the list of changesets is open, and the selection they are of. */
+	private _baseBranchCandidates: IBaseBranchCandidatesOfSelection | undefined;
+	private readonly _baseBranchCandidatesRequest = this._register(new MutableDisposable<DisposableStore>());
 	private _container: HTMLElement | undefined;
 	private _labelElement: HTMLElement | undefined;
 
@@ -2339,10 +2352,13 @@ export class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem 
 		@IChangesViewService changesViewService: IChangesViewService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IChangesEditorScope editorScope: IChangesEditorScope,
+		@INotificationService private readonly notificationService: INotificationService,
 	) {
 		// Without an explicit scope the picker follows the active session.
 		const changes = scope?.changes ?? getActiveSessionChanges(changesViewService);
+		const onDidChangeActions = new Emitter<void>();
 		const actionProvider: IActionWidgetDropdownActionProvider = {
+			onDidChangeActions: onDidChangeActions.event,
 			getActions: () => {
 				const changesets = changes.changesetsObs.get() ?? [];
 				const selectedChangeset = changes.changesetObs.get();
@@ -2362,6 +2378,7 @@ export class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem 
 						order: 0
 					},
 					enabled: !catalogueLoading && changeset.isEnabled.get(),
+					...(changeset.id === BRANCH_CHANGES_CHANGESET_ID ? this._getBaseBranchSubmenu() : undefined),
 					run: async () => {
 						if (changes.changesetsLoadingObs.get()
 							|| !isEqual(changes.resourceObs.get(), sessionResource)) {
@@ -2379,6 +2396,9 @@ export class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem 
 		};
 
 		super(action, { actionProvider, listOptions: { detailItemHeight: 44 } }, actionWidgetService, keybindingService, contextKeyService, telemetryService);
+		this._changes = changes;
+		this._onDidChangeActions = this._register(onDidChangeActions);
+		this._register(this.onDidChangeDropdownVisibility(visible => this._updateBaseBranchCandidates(visible)));
 
 		this._labelObs = labelObs ?? createChangesPickerLabelObservable(this, changes);
 		this._pickerEnabledObs = derived(reader => {
@@ -2500,6 +2520,75 @@ export class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem 
 			default:
 				return '';
 		}
+	}
+
+	private _getBaseBranchSelection(reader?: IReader): ISessionChangesetBaseBranchSelection | undefined {
+		return this._changes.changesetsObs.read(reader)?.find(changeset => changeset.id === BRANCH_CHANGES_CHANGESET_ID)?.baseBranchSelection?.read(reader);
+	}
+
+	/** The submenu of the Branch row, which a pen opens to change the base branch it compares against, while the base can change. */
+	private _getBaseBranchSubmenu(): Pick<IActionWidgetDropdownAction, 'submenuActions' | 'submenuOptions' | 'submenuButton' | 'hover'> | undefined {
+		const selection = this._getBaseBranchSelection();
+		const currentRef = selection && this._changes.baseBranchRefObs.get();
+		const sessionResource = this._changes.resourceObs.get();
+		// Branches of another selection are of another session, chat or changeset, as the changesets may be while the catalogue loads.
+		if (!selection || !currentRef || this._changes.changesetsLoadingObs.get() || (this._baseBranchCandidates && this._baseBranchCandidates.selection !== selection)) {
+			return undefined;
+		}
+		// The list asks for its rows before it tells this item it opens.
+		const candidates = this._baseBranchCandidates?.state ?? { kind: 'loading' };
+		if (candidates.kind === 'failed') {
+			return undefined;
+		}
+		return {
+			// Like the row's own run, a pick changes nothing while the catalogue loads, when it still lists the changesets shown before.
+			submenuActions: getBaseBranchSubmenuActions(candidates, currentRef, selection, () => !this._changes.changesetsLoadingObs.get()
+				&& isEqual(this._changes.resourceObs.get(), sessionResource)
+				&& this._getBaseBranchSelection() === selection, this.notificationService),
+			submenuOptions: getBaseBranchSubmenuOptions(),
+			submenuButton: { icon: Codicon.editCompact, label: localize('changesView.picker.changeBaseBranch', "Change Base Branch...") },
+			// The branches line up with the list of changesets rather than center on the Branch row.
+			hover: { alignToParentTop: true },
+		};
+	}
+
+	/** Loads the branches of the Branch row's submenu while the list of changesets is `visible`. */
+	private _updateBaseBranchCandidates(visible: boolean): void {
+		this._baseBranchCandidatesRequest.clear();
+		if (!visible) {
+			this._setBaseBranchCandidates(undefined);
+			return;
+		}
+		const request = this._baseBranchCandidatesRequest.value = new DisposableStore();
+		// Observing the selection keeps the Branch changeset loaded while another changeset is shown, so the pen shows as soon as its state arrives.
+		const selectionObs = derived(reader => this._getBaseBranchSelection(reader));
+		request.add(autorun(reader => {
+			const selection = selectionObs.read(reader);
+			if (!selection) {
+				this._setBaseBranchCandidates(undefined);
+				return;
+			}
+			const token = cancelOnDispose(reader.store);
+			this._setBaseBranchCandidates({ selection, state: { kind: 'loading' } });
+			selection.getCandidates(token).then(candidates => {
+				if (!token.isCancellationRequested) {
+					this._setBaseBranchCandidates({ selection, state: { kind: 'loaded', candidates } });
+				}
+			}, error => {
+				if (token.isCancellationRequested) {
+					return;
+				}
+				if (!isCancellationError(error)) {
+					this.notificationService.error(error);
+				}
+				this._setBaseBranchCandidates({ selection, state: { kind: 'failed' } });
+			});
+		}));
+	}
+
+	private _setBaseBranchCandidates(candidates: IBaseBranchCandidatesOfSelection | undefined): void {
+		this._baseBranchCandidates = candidates;
+		this._onDidChangeActions.fire();
 	}
 }
 

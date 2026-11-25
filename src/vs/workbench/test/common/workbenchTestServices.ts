@@ -32,7 +32,7 @@ import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService, IWo
 import { TestWorkspace } from '../../../platform/workspace/test/common/testWorkspace.js';
 import { GroupIdentifier, IRevertOptions, ISaveOptions, SaveReason } from '../../common/editor.js';
 import { EditorInput } from '../../common/editor/editorInput.js';
-import { IActivity, IActivityService } from '../../services/activity/common/activity.js';
+import { IActivity, IActivityService, IViewTitleBadge } from '../../services/activity/common/activity.js';
 import { ChatEntitlement, ChatEntitlementContext, IChatEntitlementService } from '../../services/chat/common/chatEntitlementService.js';
 import { Lazy } from '../../../base/common/lazy.js';
 import { NullExtensionService } from '../../services/extensions/common/extensions.js';
@@ -324,6 +324,13 @@ export class TestActivityService implements IActivityService {
 	}
 	showViewActivity(viewId: string, badge: IActivity): IDisposable {
 		return this;
+	}
+	readonly onDidChangeViewTitleBadge = Event.None;
+	showViewTitleBadge(viewId: string, badge: IViewTitleBadge): IDisposable {
+		return this;
+	}
+	getViewTitleBadge(viewId: string): IViewTitleBadge | undefined {
+		return undefined;
 	}
 	showAccountsActivity(activity: IActivity): IDisposable {
 		return this;

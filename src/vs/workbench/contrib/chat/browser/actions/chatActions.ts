@@ -76,7 +76,7 @@ import { ChatEditorInput, showClearEditingSessionConfirmation } from '../widgetH
 import { convertBufferToScreenshotVariable } from '../attachments/chatScreenshotContext.js';
 import { getChatSessionType, getNewChatSessionResource } from '../../common/model/chatUri.js';
 import { isAgentHostSessionResource, localChatSessionType } from '../../common/chatSessionsService.js';
-import { getDocumentationUrl, PromptsType } from '../../common/promptSyntax/promptTypes.js';
+import { COPILOT_HOOKS_REFERENCE_URL, getDocumentationUrl, PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { ChatViewPane } from '../widgetHosts/viewPane/chatViewPane.js';
 
@@ -118,7 +118,7 @@ export async function openCustomizationChat(accessor: ServicesAccessor, type: Pr
 	if (sessionResource && getChatSessionType(sessionResource) === localChatSessionType) {
 		query = type === 'init' ? preferences ? `/init ${preferences}` : '/init' : `/create-${type} `;
 	} else {
-		const documentationUrl = getDocumentationUrl(type === 'init' ? PromptsType.instructions : type);
+		const documentationUrl = type === PromptsType.hook ? COPILOT_HOOKS_REFERENCE_URL : getDocumentationUrl(type === 'init' ? PromptsType.instructions : type);
 		const documentationResource = URI.parse(documentationUrl);
 		widget.attachmentModel.addContext({
 			kind: 'generic',
@@ -147,7 +147,7 @@ export async function openCustomizationChat(accessor: ServicesAccessor, type: Pr
 				query = localize('generateAgent.request', "Create a new custom agent file. Ask me for the agent name and purpose and user or workspace location. Do not ask further but come up with a first draft. Check {0}. Finish with a file link to the generated agent.\n", documentationUrl);
 				break;
 			case PromptsType.hook:
-				query = localize('generateHook.request', "Create a new hook configuration file. Ask me for the hook name and purpose and user or workspace location. Do not ask further but come up with a first draft. Check {0}. Finish with a file link to the generated hook.\n", documentationUrl);
+				query = localize('generateHook.request', "Create a new hook in the GitHub Copilot hooks format. Ask me for the hook name and purpose and user or workspace location. Do not ask further but come up with a first draft. Put a workspace hook in a .json file in .github/hooks at the root of the git repository, and a user hook in the hooks folder of the Copilot home: ~/.copilot/hooks by default, or $COPILOT_HOME/hooks when COPILOT_HOME is set. Follow {0}: use \"version\": 1 and camelCase event names such as preToolUse, not PascalCase names such as PreToolUse. Finish with a file link to the generated hook.\n", documentationUrl);
 				break;
 		}
 	}

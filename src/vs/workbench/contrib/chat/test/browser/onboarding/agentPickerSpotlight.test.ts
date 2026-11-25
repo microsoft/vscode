@@ -28,7 +28,7 @@ import { Memento } from '../../../../../common/memento.js';
 import { NullWorkbenchAssignmentService } from '../../../../../services/assignment/test/common/nullAssignmentService.js';
 import { DialogService } from '../../../../../services/dialogs/common/dialogService.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
-import { TestHostService, TestLayoutService } from '../../../../../test/browser/workbenchTestServices.js';
+import { TestHostService, TestLayoutService, TestQuickInputService } from '../../../../../test/browser/workbenchTestServices.js';
 import { TestLifecycleService, TestProductService } from '../../../../../test/common/workbenchTestServices.js';
 import { OnboardingScenarioService } from '../../../../onboarding/browser/onboardingService.js';
 import { runWithOnboardingPresentation } from '../../../../onboarding/browser/onboardingPresentationQueue.js';
@@ -47,6 +47,7 @@ import { ChatMode, IChatMode, IChatModes } from '../../../common/chatModes.js';
 import { CHAT_ATTACH_CONTEXT_ACTION_ID, ChatConfiguration } from '../../../common/constants.js';
 import { CustomAgentUsage } from '../../../common/customAgentUsage.js';
 import { PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
+import { TestDialogService } from '../../../../../../platform/dialogs/test/common/testDialogService.js';
 
 suite('AgentPickerSpotlight', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -304,6 +305,7 @@ suite('AgentPickerSpotlight', () => {
 			storage, context, configuration, store.add(new TestLifecycleService()),
 			new NullWorkbenchAssignmentService(), NullTelemetryService,
 			store.add(new DialogService(new class extends mock<IWorkbenchEnvironmentService>() { }(), new NullLogService())),
+			new TestQuickInputService(),
 		));
 		const finish = new DeferredPromise<void>();
 		store.add(toDisposable(() => { void finish.complete(); }));
@@ -355,7 +357,7 @@ suite('AgentPickerSpotlight', () => {
 			const layout = new class extends TestLayoutService {
 				override getContainer() { return mainWindow.document.body; }
 			}();
-			const presentation = store.add(new SpotlightPresentation(layout, new TestHostService(), context, new TestConfigurationService(), NullTelemetryService));
+			const presentation = store.add(new SpotlightPresentation(layout, new TestHostService(), context, new TestConfigurationService(), NullTelemetryService, new TestDialogService(), new TestQuickInputService()));
 			const shown = new DeferredPromise<void>();
 			const result = presentation.run(scenario, { targetWindow: mainWindow, onAbort: Event.None, onDidShow: () => { void shown.complete(); } });
 			await shown.p;

@@ -218,11 +218,14 @@ export const BROWSER_REMOTE_FILE_SCHEMES: readonly string[] = [Schemas.vscodeRem
  * location on that remote's own file system, or `undefined` for anything else. The inverse of {@link fileUrlToRemoteUri}.
  */
 export function getBrowserViewRemoteFile(uri: URI): { readonly scheme: string; readonly authority: string; readonly fileUri: URI } | undefined {
+	// A remote URI can have a path starting with `//` (such as a trusted folder `vscode-remote://ssh-remote+host//home/x`),
+	// but a `file:` URI without an authority cannot, so collapse them to the single root they mean on the remote.
+	const path = uri.path.replace(/^\/{2,}/, '/');
 	if (uri.scheme === Schemas.vscodeRemote) {
-		return { scheme: uri.scheme, authority: uri.authority, fileUri: uri.with({ scheme: Schemas.file, authority: '' }) };
+		return { scheme: uri.scheme, authority: uri.authority, fileUri: uri.with({ scheme: Schemas.file, authority: '', path }) };
 	}
 	if (uri.scheme === AGENT_HOST_SCHEME) {
-		const fileUri = fromAgentHostUri(uri);
+		const fileUri = fromAgentHostUri(uri.with({ path }));
 		// A file with an authority (`file://server/share`) is not on the host's own file system.
 		if (fileUri.scheme === Schemas.file && !fileUri.authority) {
 			return { scheme: uri.scheme, authority: uri.authority, fileUri };

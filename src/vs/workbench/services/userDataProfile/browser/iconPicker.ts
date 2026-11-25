@@ -17,7 +17,7 @@ import { WorkbenchIconSelectBox } from './iconSelectBox.js';
  * The icons that can be picked: the registered icons with a glyph of their own, each glyph once. Read it each time a
  * picker opens, so that icons registered meanwhile are offered too.
  */
-export function getPickableIcons(): ThemeIcon[] {
+function getPickableIcons(): ThemeIcon[] {
 	const characters = new Set<string>();
 	return getIconRegistry().getIcons().filter(icon => {
 		if (icon.id === 'blank' || ThemeIcon.isThemeIcon(icon.defaults) || characters.has(icon.defaults.fontCharacter)) {

@@ -5,6 +5,7 @@
 
 import { getMediaMime } from '../../../../base/common/mime.js';
 import { basename } from '../../../../base/common/path.js';
+import { hasKey } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { toAgentMessageDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
@@ -377,7 +378,8 @@ function webSearchToolCallPart(item: Extract<ThreadItem, { type: 'webSearch' }>)
 }
 
 function imageGenerationToolCallPart(item: Extract<ThreadItem, { type: 'imageGeneration' }>): ToolCallResponsePart {
-	const success = item.status === 'completed' && item.result.length > 0;
+	const imageData = hasKey(item, { result: true }) ? item.result : undefined;
+	const success = item.status === 'completed' && !!(hasKey(item, { result: true }) ? item.result : item.fileId);
 	const labels = codexImageGenerationLabels(item.status);
 	return {
 		kind: ResponsePartKind.ToolCall,
@@ -391,7 +393,7 @@ function imageGenerationToolCallPart(item: Extract<ThreadItem, { type: 'imageGen
 			confirmed: ToolCallConfirmationReason.NotNeeded,
 			success,
 			pastTenseMessage: success ? labels.pastTenseMessage : labels.failedMessage,
-			content: success ? [{ type: ToolResultContentType.EmbeddedResource, data: item.result, contentType: 'image/png' }] : undefined,
+			content: success && imageData ? [{ type: ToolResultContentType.EmbeddedResource, data: imageData, contentType: 'image/png' }] : undefined,
 			error: success ? undefined : { message: labels.errorMessage },
 		},
 	};
