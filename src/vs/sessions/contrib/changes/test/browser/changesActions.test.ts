@@ -79,6 +79,39 @@ suite('Changes Actions', () => {
 		assert.deepStrictEqual(opened, [workspaceResource.toString()]);
 	});
 
+	test('Open File from a Changes editor that follows its own session, as in an editor window, opens the file of the chat of its diffs', async () => {
+		const workspaceResource = URI.file('/workspace/side.ts');
+		const modifiedSnapshot = URI.parse('readonly-content:/after/side.ts');
+		const opened: string[] = [];
+		const editor = Object.create(SessionChangesEditor.prototype) as SessionChangesEditor;
+		Object.defineProperty(editor, 'followsInputSession', { value: true });
+		Object.defineProperty(editor, 'group', { value: upcastPartial<IEditorGroup>({ id: 1 }) });
+		Object.defineProperty(editor, 'changesScope', {
+			value: upcastPartial<IChangesSessionScope>({
+				session: constObservable(upcastPartial<ITestSessionWithChat>({ sessionId: 'a', resource: URI.parse('agent-host:a') })),
+				chat: constObservable(upcastPartial<IChat>({ resource: URI.parse('agent-host:a/side') })),
+				changes: upcastPartial<IChangesSessionObservables>({
+					changesObs: constObservable([{ uri: workspaceResource, originalUri: URI.parse('readonly-content:/before/side.ts'), modifiedUri: modifiedSnapshot, insertions: 1, deletions: 1 }]),
+				}),
+			}),
+		});
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IChangesViewService, new class extends mock<IChangesViewService>() { }());
+		instantiationService.stub(IEditorGroupsService, new class extends mock<IEditorGroupsService>() {
+			override readonly mainPart = upcastPartial<IEditorGroupsService['mainPart']>({ groups: [upcastPartial<IEditorGroup>({ id: 1 })] });
+		}());
+		instantiationService.stub(IEditorService, new class extends mock<IEditorService>() {
+			override async openEditor(...args: unknown[]): Promise<undefined> {
+				opened.push((args[0] as { readonly resource: URI }).resource.toString());
+				return undefined;
+			}
+		}());
+
+		await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand('workbench.agentSessions.changes.openFile')!.handler(accessor, modifiedSnapshot, { editor }));
+
+		assert.deepStrictEqual(opened, [workspaceResource.toString()]);
+	});
+
 	test('only the Commit action renders its icon and label through the Changes editor, also in its header row', async () => {
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		const actionViewItemService = new NullActionViewItemService();

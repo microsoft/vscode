@@ -538,6 +538,7 @@ suite('SessionChangesEditor input', () => {
 		instantiationService.stub(ISessionsHostLayoutService, { agentWorkbenchLayout: AgentWorkbenchLayout.Desktop });
 		instantiationService.stub(ISessionChangesService, new class extends mock<ISessionChangesService>() {
 			override readonly activeSessionUncommittedChangesCountObs = constObservable(0);
+			override getChangesEditorFileCount() { return this.activeSessionUncommittedChangesCountObs; }
 			override getSessionResource(): URI | undefined { return undefined; }
 			override getChatResource(): URI | undefined { return undefined; }
 		}());
@@ -608,6 +609,7 @@ suite('SessionChangesEditor chat changes observation', () => {
 		}());
 		instantiationService.stub(ISessionChangesService, new class extends mock<ISessionChangesService>() {
 			override readonly activeSessionUncommittedChangesCountObs = constObservable(0);
+			override getChangesEditorFileCount() { return this.activeSessionUncommittedChangesCountObs; }
 			override getSessionResource(): URI | undefined { return sessionResource; }
 			override getChatResource(resource: URI): URI | undefined { return resource.path === '/session' ? undefined : chats.find(chat => chat.resource.path.endsWith(resource.path))?.resource; }
 		}());
@@ -689,6 +691,7 @@ suite('SessionChangesEditor chat changes loading', () => {
 		}());
 		instantiationService.stub(ISessionChangesService, new class extends mock<ISessionChangesService>() {
 			override readonly activeSessionUncommittedChangesCountObs = constObservable(0);
+			override getChangesEditorFileCount() { return this.activeSessionUncommittedChangesCountObs; }
 			override getSessionResource(): URI | undefined { return sessionResource; }
 			override getChatResource(): URI | undefined { return chat.resource; }
 		}());
@@ -832,6 +835,7 @@ suite('SessionChangesEditor chat changes loading', () => {
 		}());
 		instantiationService.stub(ISessionChangesService, new class extends mock<ISessionChangesService>() {
 			override readonly activeSessionUncommittedChangesCountObs = constObservable(0);
+			override getChangesEditorFileCount() { return this.activeSessionUncommittedChangesCountObs; }
 			override getSessionResource(): URI | undefined { return sessionResource; }
 			override getChatResource(): URI | undefined { return chat.resource; }
 		}());

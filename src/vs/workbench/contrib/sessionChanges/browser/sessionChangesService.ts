@@ -114,12 +114,11 @@ export class SessionChangesService extends Disposable implements ISessionChanges
 		}));
 	}
 
-	getChangesEditorFileCount(editorResource: URI): number | undefined {
-		const count = this.activeSessionUncommittedChangesCountObs.get();
+	getChangesEditorFileCount(editorResource: URI): IObservable<number | undefined> {
 		if (!this.layoutService.editorsBindSessionContext) {
-			return count;
+			return this.activeSessionUncommittedChangesCountObs;
 		}
-		return isEqual(editorResource, this._countedChangesEditorResourceObs.get()) ? count : undefined;
+		return derived(reader => isEqual(editorResource, this._countedChangesEditorResourceObs.read(reader)) ? this.activeSessionUncommittedChangesCountObs.read(reader) : undefined);
 	}
 
 	getChangesEditorResource(sessionResource: URI, chatResource?: URI): URI {

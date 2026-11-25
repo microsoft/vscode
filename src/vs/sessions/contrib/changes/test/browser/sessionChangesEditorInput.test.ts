@@ -63,7 +63,7 @@ suite('SessionChangesEditorInput', () => {
 	};
 	const emptySessionChangesService = new class extends mock<ISessionChangesService>() {
 		override readonly activeSessionUncommittedChangesCountObs = constObservable(0);
-		override getChangesEditorFileCount() { return this.activeSessionUncommittedChangesCountObs.get(); }
+		override getChangesEditorFileCount() { return this.activeSessionUncommittedChangesCountObs; }
 		override getSessionResource(): URI | undefined { return undefined; }
 		override getChatResource(): URI | undefined { return undefined; }
 	};
@@ -73,7 +73,7 @@ suite('SessionChangesEditorInput', () => {
 	};
 	const sessionChangesServiceWithResource = new class extends mock<ISessionChangesService>() {
 		override readonly activeSessionUncommittedChangesCountObs = constObservable(0);
-		override getChangesEditorFileCount() { return this.activeSessionUncommittedChangesCountObs.get(); }
+		override getChangesEditorFileCount() { return this.activeSessionUncommittedChangesCountObs; }
 		override getChatResource(): URI | undefined {
 			return undefined;
 		}
@@ -491,7 +491,7 @@ suite('SessionChangesEditorInput', () => {
 		const resource = URI.parse('test-changes:session');
 		const sessionChangesService = new class extends mock<ISessionChangesService>() {
 			override readonly activeSessionUncommittedChangesCountObs = derived(reader => changes.read(reader).length);
-			override getChangesEditorFileCount() { return this.activeSessionUncommittedChangesCountObs.get(); }
+			override getChangesEditorFileCount() { return this.activeSessionUncommittedChangesCountObs; }
 			override getSessionResource(): URI | undefined { return undefined; }
 			override getChatResource(): URI | undefined { return undefined; }
 		};
@@ -537,7 +537,7 @@ suite('SessionChangesEditorInput', () => {
 		const changes = observableValue<readonly ISessionFileChange[]>('changes', [createFileChange(1)]);
 		const sessionChangesService = new class extends mock<ISessionChangesService>() {
 			override readonly activeSessionUncommittedChangesCountObs = derived(reader => changes.read(reader).length);
-			override getChangesEditorFileCount() { return this.activeSessionUncommittedChangesCountObs.get(); }
+			override getChangesEditorFileCount() { return this.activeSessionUncommittedChangesCountObs; }
 			override getSessionResource(): URI | undefined { return sessionResource; }
 			override getChatResource(resource: URI): URI | undefined { return resource.query === 'chat' ? chatResource : undefined; }
 		};
@@ -612,7 +612,7 @@ suite('SessionChangesEditorInput', () => {
 		instantiationService.stub(ISessionsHostLayoutService, layoutService);
 		instantiationService.stub(ISessionChangesService, new class extends mock<ISessionChangesService>() {
 			override readonly activeSessionUncommittedChangesCountObs = constObservable(0);
-			override getChangesEditorFileCount() { return this.activeSessionUncommittedChangesCountObs.get(); }
+			override getChangesEditorFileCount() { return this.activeSessionUncommittedChangesCountObs; }
 			override getSessionResource(resource: URI): URI | undefined {
 				return URI.parse(JSON.parse(resource.query).sessionResource);
 			}

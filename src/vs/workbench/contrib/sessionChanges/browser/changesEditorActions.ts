@@ -501,14 +501,16 @@ class OpenChangedFileAction extends Action2 {
 		}
 
 		const changesViewService = accessor.get(IChangesViewService);
-		const target = resolveSessionCommandTarget(accessor, [args[1]]);
+		const editor = (args[1] as Partial<IChangesEditorFileActionContext> | undefined)?.editor;
+		// A Changes editor that follows its own session, as in an editor window, opens the file of the chat of its diffs.
+		const scope = editor instanceof SessionChangesEditor && editor.followsInputSession ? editor.changesScope : undefined;
+		const target = scope ? { session: scope.session.get(), chat: scope.chat.get() } : resolveSessionCommandTarget(accessor, [args[1]]);
 		const session = target?.session;
 		if (!session) {
 			return;
 		}
-		const changes = getChangesOfSession(changesViewService, mainWindowChangesOwner(accessor), session, target.chat);
+		const changes = scope?.changes ?? getChangesOfSession(changesViewService, mainWindowChangesOwner(accessor), session, target.chat);
 		// From a chat window's Changes editor, in its group, not by focus; in the main window, as ever.
-		const editor = (args[1] as Partial<IChangesEditorFileActionContext> | undefined)?.editor;
 		const group = editor instanceof SessionChangesEditor && !accessor.get(IEditorGroupsService).mainPart.groups.includes(editor.group) ? editor.group : undefined;
 		await accessor.get(IEditorService).openEditor({
 			resource: getWorkspaceResource(resource, changes.changesObs.get()),

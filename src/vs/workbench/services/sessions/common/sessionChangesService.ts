@@ -39,7 +39,7 @@ export interface ISessionChangesService {
 	 * The count of uncommitted changed files that the Changes editor of `editorResource` announces: that of the active
 	 * session, and where Changes editors name their chat, as in an editor window, only for the one of the chat shown.
 	 */
-	getChangesEditorFileCount(editorResource: URI): number | undefined;
+	getChangesEditorFileCount(editorResource: URI): IObservable<number | undefined>;
 
 	/** Returns the session identified by a Changes editor resource. */
 	getSessionResource(editorResource: URI): URI | undefined;

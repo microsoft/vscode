@@ -10,7 +10,7 @@ import { Disposable, DisposableStore } from '../../../../../base/common/lifecycl
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { IFocusedSessionHostService, ISessionHostService } from '../../../../../workbench/services/sessions/browser/sessionHost.js';
 import { focusedSessionHostServiceOf, ITestSessionsService, ITestSessionWithChat, sessionHostServiceOf, testGridPanes } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
-import { constObservable, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -440,8 +440,9 @@ suite('SessionChangesService', () => {
 	test('where Changes editors name their chat, as in an editor window, decorates and announces the count of uncommitted files only on the editor of the chat the window shows, which it opens', async () => {
 		const sessionResource = URI.parse('agent-host:test-session');
 		const shownChat = upcastPartial<IChat>({ resource: URI.parse('agent-host:test-session/shown') });
-		const otherChat = URI.parse('agent-host:test-session/other');
-		const session = upcastPartial<ITestSessionWithChat>({ sessionId: 'session', resource: sessionResource, activeChat: constObservable(shownChat) });
+		const otherChatOfSession = upcastPartial<IChat>({ resource: URI.parse('agent-host:test-session/other') });
+		const windowChat = observableValue<IChat>('windowChat', shownChat);
+		const session = upcastPartial<ITestSessionWithChat>({ sessionId: 'session', resource: sessionResource, activeChat: windowChat });
 		const changesViewService = new class extends mock<IChangesViewService>() {
 			override readonly activeSessionResourceObs = constObservable<URI | undefined>(sessionResource);
 			override readonly activeSessionChangesetObs = constObservable<ISessionChangeset | undefined>(upcastPartial<ISessionChangeset>({ id: UNCOMMITTED_CHANGES_CHANGESET_ID }));
@@ -485,20 +486,27 @@ suite('SessionChangesService', () => {
 		instantiationService.stub(ISessionChangesService, service);
 		instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({ onDidChangeSessions: Event.None, getSession: () => undefined }));
 		await service.openChangesEditor(sessionResource);
-		const ofOtherChat = service.getChangesEditorResource(sessionResource, otherChat);
-
-		assert.deepStrictEqual({
-			openedChat: opened.map(resource => service.getChatResource(resource)?.toString()),
+		const ofOtherChat = service.getChangesEditorResource(sessionResource, otherChatOfSession.resource);
+		// The tabs announce what their counts read, and update as those change, also as the window shows the other chat, with
+		// as many changed files.
+		const counts: string[] = [];
+		const openedCount = service.getChangesEditorFileCount(opened[0]);
+		const otherChatCount = service.getChangesEditorFileCount(ofOtherChat);
+		disposables.add(autorun(reader => counts.push(`opened:${openedCount.read(reader)} other:${otherChatCount.read(reader)}`)));
+		const describe = async () => ({
 			openedDecoration: (await providers[0].provideDecorations(opened[0], CancellationToken.None))?.letter,
-			openedCount: service.getChangesEditorFileCount(opened[0]),
 			otherChatDecoration: (await providers[0].provideDecorations(ofOtherChat, CancellationToken.None))?.letter,
-			otherChatCount: service.getChangesEditorFileCount(ofOtherChat),
-		}, {
+		});
+
+		const shown = await describe();
+		windowChat.set(otherChatOfSession, undefined);
+		const otherShown = await describe();
+
+		assert.deepStrictEqual({ openedChat: opened.map(resource => service.getChatResource(resource)?.toString()), shown, otherShown, counts }, {
 			openedChat: [shownChat.resource.toString()],
-			openedDecoration: '1',
-			openedCount: 1,
-			otherChatDecoration: undefined,
-			otherChatCount: undefined,
+			shown: { openedDecoration: '1', otherChatDecoration: undefined },
+			otherShown: { openedDecoration: undefined, otherChatDecoration: '1' },
+			counts: ['opened:1 other:undefined', 'opened:undefined other:1'],
 		});
 	});
 
