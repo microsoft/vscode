@@ -7,8 +7,9 @@
 //
 // Resolution order for the codex binary:
 //   1. $CODEX_BIN
-//   2. node_modules/@openai/codex-<platform>-<arch>/vendor/.../bin/codex
-//   3. `which codex`
+//   2. The platform package resolved from @openai/codex (npm and pnpm layouts)
+//   3. node_modules/@openai/codex-<platform>-<arch>/vendor/.../bin/codex
+//   4. `which codex`
 //
 // The locally installed binary's --version must match build/codex/codex-version.txt
 // unless --no-version-check is passed.
@@ -16,6 +17,7 @@
 // Generated files land in src/vs/platform/agentHost/node/codex/protocol/generated/
 
 import { spawnSync } from 'node:child_process';
+import { createRequire } from 'node:module';
 import { mkdtempSync, readdirSync, readFileSync, writeFileSync, statSync, rmSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -29,7 +31,7 @@ const VERSION_FILE = path.join(REPO_ROOT, 'build', 'codex', 'codex-version.txt')
 const OUT_DIR = path.join(REPO_ROOT, 'src', 'vs', 'platform', 'agentHost', 'node', 'codex', 'protocol', 'generated');
 const FORMATTER = path.join(REPO_ROOT, 'build', 'lib', 'formatter.ts');
 
-function resolveCodexBinary() {
+function resolveCodexBinary(repoRoot = REPO_ROOT) {
 	if (process.env.CODEX_BIN) {
 		return process.env.CODEX_BIN;
 	}
@@ -44,11 +46,24 @@ function resolveCodexBinary() {
 	const key = `${process.platform}-${process.arch}`;
 	const rel = platformMap[key];
 	if (rel) {
-		const candidate = path.join(REPO_ROOT, 'node_modules', rel);
+		try {
+			const fromRepo = createRequire(path.join(repoRoot, 'package.json'));
+			const fromCodex = createRequire(fromRepo.resolve('@openai/codex/package.json'));
+			return fromCodex.resolve(rel);
+		} catch (error) {
+			if (error.code !== 'MODULE_NOT_FOUND') {
+				throw error;
+			}
+		}
+		const candidate = path.join(repoRoot, 'node_modules', rel);
 		try {
 			statSync(candidate);
 			return candidate;
-		} catch { /* fall through */ }
+		} catch (error) {
+			if (error.code !== 'ENOENT') {
+				throw error;
+			}
+		}
 	}
 	const which = spawnSync(process.platform === 'win32' ? 'where' : 'which', ['codex'], { encoding: 'utf8' });
 	if (which.status === 0) {

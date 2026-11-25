@@ -1227,13 +1227,14 @@ suite('CodexAgent model refresh', () => {
 		const second = agent['_refreshAccount'](client, false);
 		await firstStarted.p;
 		assert.strictEqual(requestIndex, 1);
-		await firstResponse.complete({ account: null, requiresOpenaiAuth: true, workspaceRouting: null });
+		await firstResponse.complete({ account: null, userId: null, requiresOpenaiAuth: true, workspaceRouting: null });
 		await first;
 
 		await secondStarted.p;
 		assert.strictEqual(requestIndex, 2);
 		await secondResponse.complete({
-			account: { type: 'chatgpt', email: 'new@example.com', planType: 'pro' },
+			account: { type: 'chatgpt', email: 'new@example.com', planType: 'pro', workspaceName: null },
+			userId: null,
 			requiresOpenaiAuth: true,
 			workspaceRouting: null,
 		});
