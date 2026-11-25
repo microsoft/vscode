@@ -1029,7 +1029,16 @@ export class HistoryService extends Disposable implements IHistoryService {
 		this.history = newHistory;
 	}
 
+	private readonly _onDidClearRecentlyOpened = this._register(new Emitter<void>());
+	readonly onDidClearRecentlyOpened = this._onDidClearRecentlyOpened.event;
+
 	clearRecentlyOpened(): void {
+		this.resetRecentlyOpened();
+
+		this._onDidClearRecentlyOpened.fire();
+	}
+
+	private resetRecentlyOpened(): void {
 		this.history = [];
 
 		this.editorHistoryListeners.clearAndDisposeAll();
@@ -1040,7 +1049,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 	}
 
 	restoreRecentlyOpened(state: IRecentlyOpenedState | undefined): void {
-		this.clearRecentlyOpened();
+		this.resetRecentlyOpened();
 
 		for (const editor of this.deserializeHistory(state?.entries ?? [])) {
 			if (this.includeInHistory(editor)) {

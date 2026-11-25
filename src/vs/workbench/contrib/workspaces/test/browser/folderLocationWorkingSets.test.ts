@@ -33,7 +33,7 @@ import { IResolvedWorkingCopyBackup, IWorkingCopyBackupService } from '../../../
 import { IWorkingCopyBackupMeta, IWorkingCopyIdentifier } from '../../../../services/workingCopy/common/workingCopy.js';
 import { IWorkingCopyService } from '../../../../services/workingCopy/common/workingCopyService.js';
 import { createEditorParts, TestFileEditorInput, TestWorkingCopyBackupService, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
-import { FOLDER_LOCATION_MAX_WORKING_SETS, FOLDER_LOCATION_WORKING_SET_NAME_PREFIX, FOLDER_LOCATION_WORKING_SETS_STORAGE_KEY, FolderLocationWorkingSetsContribution } from '../../browser/folderLocationWorkingSets.js';
+import { FOLDER_LOCATION_MAX_WORKING_SETS, FOLDER_LOCATION_RECENTLY_OPENED_STORAGE_KEY, FOLDER_LOCATION_WORKING_SET_NAME_PREFIX, FOLDER_LOCATION_WORKING_SETS_STORAGE_KEY, FolderLocationWorkingSetsContribution } from '../../browser/folderLocationWorkingSets.js';
 
 suite('FolderLocationWorkingSetsContribution', () => {
 
@@ -73,6 +73,7 @@ suite('FolderLocationWorkingSetsContribution', () => {
 		const infos: string[] = [];
 		const onDidChangeCurrentLocation = ds.add(new Emitter<{ readonly reason: 'user' | 'programmatic' }>());
 		const onDidChangeDirty = ds.add(new Emitter<{ resource: URI }>());
+		const onDidClearRecentlyOpened = ds.add(new Emitter<void>());
 		const storage = options?.storage ?? ds.add(new InMemoryStorageService());
 		const area = options?.area ?? new EditorArea();
 		let folderUri = options?.folder ?? primary;
@@ -117,7 +118,8 @@ suite('FolderLocationWorkingSetsContribution', () => {
 			{ onDidEditorsChange: Event.None } as unknown as IEditorService,
 			{
 				saveRecentlyOpened: (): IRecentlyOpenedState => ({ entries: area.recentlyOpened.map(resource => ({ editor: { resource } })) }),
-				restoreRecentlyOpened: (state: IRecentlyOpenedState | undefined) => { area.recentlyOpened = state?.entries.map(entry => entry.editor.resource) ?? []; }
+				restoreRecentlyOpened: (state: IRecentlyOpenedState | undefined) => { area.recentlyOpened = state?.entries.map(entry => entry.editor.resource) ?? []; },
+				onDidClearRecentlyOpened: onDidClearRecentlyOpened.event
 			} as unknown as IHistoryService
 		));
 
@@ -125,6 +127,8 @@ suite('FolderLocationWorkingSetsContribution', () => {
 			area, errors, infos, storage, contribution,
 			switchTo(uri: URI, reason: 'user' | 'programmatic' = 'programmatic') { folderUri = uri; onDidChangeCurrentLocation.fire({ reason }); },
 			restoreBackup(resource: URI) { area.editors = area.editors.map(editor => editor.resource.toString() === resource.toString() ? { ...editor, dirty: true } : editor); onDidChangeDirty.fire({ resource }); },
+			clearRecentlyOpened() { area.recentlyOpened = []; onDidClearRecentlyOpened.fire(); },
+			storedRecentlyOpened() { return JSON.parse(storage.get(FOLDER_LOCATION_RECENTLY_OPENED_STORAGE_KEY, StorageScope.WORKSPACE) ?? 'null'); },
 			holdApply() { let release!: () => void; area.gate = new Promise<void>(resolve => release = resolve); return () => { area.gate = undefined; release(); }; },
 			stored() { return JSON.parse(storage.get(FOLDER_LOCATION_WORKING_SETS_STORAGE_KEY, StorageScope.WORKSPACE)!); }
 		};
@@ -387,7 +391,7 @@ suite('FolderLocationWorkingSetsContribution', () => {
 		fixture.switchTo(alternate);
 		await settle();
 
-		assert.deepStrictEqual({ firstVisit, backAtPrimary, backAtAlternate: fixture.area.recentlyOpened, stored: fixture.stored().recentlyOpened }, {
+		assert.deepStrictEqual({ firstVisit, backAtPrimary, backAtAlternate: fixture.area.recentlyOpened, stored: fixture.storedRecentlyOpened().entries }, {
 			firstVisit: [],
 			backAtPrimary: ['p.ts'],
 			backAtAlternate: ['a.ts'],
@@ -408,6 +412,24 @@ suite('FolderLocationWorkingSetsContribution', () => {
 		await settle();
 
 		assert.deepStrictEqual({ recentlyOpened: fixture.area.recentlyOpened, owner: fixture.stored().owner }, { recentlyOpened: ['p.ts'], owner: p });
+	});
+
+	test('clearing the recently opened editors clears them for all locations', async () => {
+		const fixture = createFixture();
+		fixture.area.content = 'P1';
+		fixture.area.recentlyOpened = ['p.ts'];
+		fixture.switchTo(alternate);
+		await settle();
+		fixture.area.recentlyOpened = ['a.ts'];
+
+		fixture.clearRecentlyOpened();
+		fixture.switchTo(primary);
+		await settle();
+
+		assert.deepStrictEqual({ recentlyOpened: fixture.area.recentlyOpened, stored: fixture.storedRecentlyOpened().entries }, {
+			recentlyOpened: [],
+			stored: [{ key: a, state: { entries: [] } }]
+		});
 	});
 
 	test('a window that starts at another location than the one it was closed at swaps the recently opened editors of the last session out', async () => {
@@ -445,7 +467,7 @@ suite('FolderLocationWorkingSetsContribution', () => {
 
 		fixture.switchTo(primary);
 		await settle();
-		const stored: { key: string }[] = fixture.stored().recentlyOpened;
+		const stored: { key: string }[] = fixture.storedRecentlyOpened().entries;
 
 		assert.deepStrictEqual({ recentlyOpened: fixture.area.recentlyOpened, count: stored.length, keys: stored.map(entry => entry.key).slice(0, 2) }, {
 			recentlyOpened: ['p.ts'],

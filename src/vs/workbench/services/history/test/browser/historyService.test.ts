@@ -764,14 +764,20 @@ suite('HistoryService', function () {
 		const saved = historyService.saveRecentlyOpened();
 		const excluded = { editor: { resource: URI.file('/node_modules/three').toString() } };
 
+		// Only clearing, not restoring, is reported as clearing
+		let cleared = 0;
+		disposables.add(historyService.onDidClearRecentlyOpened(() => cleared++));
+		historyService.clearRecentlyOpened();
+
 		historyService.restoreRecentlyOpened(undefined);
 		const afterEmptyRestore = historyService.getHistory().length;
 
 		historyService.restoreRecentlyOpened({ entries: [...saved.entries, excluded] });
 		const restored = historyService.getHistory().map(editor => ({ resource: editor.resource?.toString(), override: isResourceEditorInput(editor) ? editor.options?.override : undefined }));
 
-		assert.deepStrictEqual({ saved, afterEmptyRestore, restored }, {
+		assert.deepStrictEqual({ saved, cleared, afterEmptyRestore, restored }, {
 			saved: { entries: [{ editor: { resource: URI.file('/two').toString(), options: { override: 'testOverride' } } }, { editor: { resource: URI.file('/one').toString(), options: { override: 'testOverride' } } }] },
+			cleared: 1,
 			afterEmptyRestore: 0,
 			restored: [{ resource: URI.file('/two').toString(), override: 'testOverride' }, { resource: URI.file('/one').toString(), override: 'testOverride' }]
 		});

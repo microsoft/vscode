@@ -8,6 +8,7 @@ import { IResourceEditorInput } from '../../../../platform/editor/common/editor.
 import { GroupIdentifier } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { URI } from '../../../../base/common/uri.js';
+import { Event } from '../../../../base/common/event.js';
 
 export const IHistoryService = createDecorator<IHistoryService>('historyService');
 
@@ -153,6 +154,12 @@ export interface IHistoryService {
 	 * Clear list of recently opened editors.
 	 */
 	clearRecentlyOpened(): void;
+
+	/**
+	 * Fires when the list of recently opened editors was cleared, for example
+	 * by the user. Not fired when the list is replaced by {@link restoreRecentlyOpened}.
+	 */
+	readonly onDidClearRecentlyOpened: Event<void>;
 
 	/**
 	 * Returns a snapshot of the list of recently opened editors. Editors that

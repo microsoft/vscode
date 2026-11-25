@@ -186,6 +186,7 @@ export class TestHistoryService implements IHistoryService {
 	removeFromHistory(_input: EditorInput | IResourceEditorInput): void { }
 	clear(): void { }
 	clearRecentlyOpened(): void { }
+	readonly onDidClearRecentlyOpened = Event.None;
 	saveRecentlyOpened(): IRecentlyOpenedState { return { entries: [] }; }
 	restoreRecentlyOpened(_state: IRecentlyOpenedState | undefined): void { }
 	getHistory(): readonly (EditorInput | IResourceEditorInput)[] { return []; }
