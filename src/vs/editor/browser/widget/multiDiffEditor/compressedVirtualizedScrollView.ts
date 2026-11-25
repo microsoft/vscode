@@ -14,7 +14,7 @@ import { autorun, globalTransaction, IObservable, ITransaction, observableFromEv
 import { INewScrollPosition, IScrollPosition, Scrollable, ScrollbarVisibility } from '../../../../base/common/scrollable.js';
 import { OffsetRange } from '../../../common/core/ranges/offsetRange.js';
 import { ObservableElementSizeObserver } from '../diffEditor/utils.js';
-import { asLayoutRevision, computeCompressedVirtualizedScrollHeight, computeCompressedVirtualizedScrollLayout, computeItemRanges, createAnchoredSizeEditBatch, ICompressedVirtualizedScrollLayout, ILogicalPosition, ISizeEdit, LayoutRevision, mapLogicalPosition } from './compressedVirtualizedScrollLayout.js';
+import { asLayoutRevision, computeCompressedVirtualizedScrollHeight, computeCompressedVirtualizedScrollLayout, computeItemRanges, createAnchoredSizeEditBatch, ICompressedVirtualizedItemLayout, ICompressedVirtualizedScrollLayout, ILogicalPosition, ISizeEdit, LayoutRevision, mapLogicalPosition } from './compressedVirtualizedScrollLayout.js';
 
 const scrollDirectionRetentionDurationMs = 100;
 
@@ -180,6 +180,12 @@ export class CompressedVirtualizedScrollView<TItem extends ICompressedVirtualize
 
 	getScrollPosition(): IScrollPosition {
 		return this._scrollableElement.getScrollPosition();
+	}
+
+	/** The layout of `item`, while the current layout includes it. */
+	getItemLayout(item: TItem): ICompressedVirtualizedItemLayout | undefined {
+		const index = this._previousItems?.indexOf(item) ?? -1;
+		return index === -1 ? undefined : this._layout.get().items[index];
 	}
 
 	runWithScrollAnchor(anchor: ILogicalPosition, update: (tx: ITransaction) => void): void {

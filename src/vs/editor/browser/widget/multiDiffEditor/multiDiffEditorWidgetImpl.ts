@@ -394,6 +394,9 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 			return;
 		}
 		const anchored = pending.anchor && this._getAnchoredScrollTop(pending.anchor);
+		if (anchored === 'notLaidOut') {
+			return;
+		}
 		const top = anchored ? anchored.top : pending.top;
 		const dimensions = this._scrollView.scrollDimensions.get();
 		const current = this._scrollView.getScrollPosition();
@@ -441,16 +444,17 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 		return { key: viewItems[index].getKey(), offset: layout.contentViewport.start - layout.items[index].contentRange.start };
 	}
 
-	private _getAnchoredScrollTop(anchor: IMultiDiffEditorScrollAnchor): { readonly top: number; readonly fits: boolean } | undefined {
-		const layout = this._scrollView.layout.get();
-		const index = this._viewItems.get().findIndex(item => item.getKey() === anchor.key);
-		const itemLayout = index === -1 ? undefined : layout.items[index];
+	private _getAnchoredScrollTop(anchor: IMultiDiffEditorScrollAnchor): { readonly top: number; readonly fits: boolean } | 'notLaidOut' | undefined {
+		const item = this._viewItems.get().find(item => item.getKey() === anchor.key);
+		const itemLayout = item && this._scrollView.getItemLayout(item);
 		if (!itemLayout) {
-			return undefined;
+			// Fall back to the plain offset only once the loaded diffs are known not to include the anchor's diff.
+			const viewModel = this._viewModel.get();
+			return item || !viewModel || viewModel.isLoading.get() ? 'notLaidOut' : undefined;
 		}
 		// Until the offset fits, such as into an estimated height, show the start of the diff so that it renders and is measured.
 		const fits = anchor.offset < itemLayout.contentRange.length;
-		return { top: Math.max(0, layout.leadingScrollSlack + itemLayout.contentRange.start + (fits ? anchor.offset : 0)), fits };
+		return { top: Math.max(0, this._scrollView.layout.get().leadingScrollSlack + itemLayout.contentRange.start + (fits ? anchor.offset : 0)), fits };
 	}
 
 	/**

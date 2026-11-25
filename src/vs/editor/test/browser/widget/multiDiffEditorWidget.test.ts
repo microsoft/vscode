@@ -794,6 +794,7 @@ suite('MultiDiffEditorWidget', () => {
 		});
 		const shownDocuments = createDocuments('first', ['a.js', 'b.js', 'c.js', 'd.js', 'e.js', 'f.js']);
 		const restoredDocuments = createDocuments('second', ['b.js', 'c.js', 'd.js', 'e.js', 'f.js']);
+		const insertedDocuments = createDocuments('third', ['new.js', 'b.js', 'c.js', 'd.js', 'e.js', 'f.js']);
 		const container = document.createElement('div');
 		const widget = instantiationService.createInstance(
 			MultiDiffEditorWidget,
@@ -824,6 +825,7 @@ suite('MultiDiffEditorWidget', () => {
 			item.lastTemplateData.set({ expandedContentHeight: 100, selections: undefined, splitViewRatio: undefined }, undefined);
 		}
 		const restoredViewModel = await createViewModel(restoredDocuments);
+		const insertedViewModel = await createViewModel(insertedDocuments);
 		try {
 			widget.setViewModel(shownViewModel);
 			shownViewModel.items.get()[1].collapsed.set(true, undefined);
@@ -834,17 +836,26 @@ suite('MultiDiffEditorWidget', () => {
 
 			widget.setViewModel(undefined);
 			widget.setViewModel(restoredViewModel, { viewState });
+			const restored = describeViewport();
 
-			assert.deepStrictEqual({ shown, restored: describeViewport() }, {
+			// At the very top, a file inserted above must not take the place of the first file.
+			widget.reveal({ original: restoredDocuments[0].object.original!.uri, modified: restoredDocuments[0].object.modified!.uri }, { highlight: false });
+			const viewStateAtTop = widget.getViewState();
+			widget.setViewModel(undefined);
+			widget.setViewModel(insertedViewModel, { viewState: viewStateAtTop });
+
+			assert.deepStrictEqual({ shown, restored, restoredAtTop: describeViewport() }, {
 				shown: { top: 'inmemory://first/modified/d.js', offset: 30, collapsed: ['inmemory://first/modified/b.js'], active: 'inmemory://first/modified/d.js' },
 				restored: { top: 'inmemory://second/modified/d.js', offset: 30, collapsed: ['inmemory://second/modified/b.js'], active: 'inmemory://second/modified/d.js' },
+				restoredAtTop: { top: 'inmemory://third/modified/b.js', offset: 0, collapsed: ['inmemory://third/modified/b.js'], active: 'inmemory://third/modified/b.js' },
 			});
 		} finally {
 			widget.setViewModel(undefined);
 			shownViewModel.dispose();
 			restoredViewModel.dispose();
+			insertedViewModel.dispose();
 			widget.dispose();
-			for (const documentItem of [...shownDocuments, ...restoredDocuments]) {
+			for (const documentItem of [...shownDocuments, ...restoredDocuments, ...insertedDocuments]) {
 				documentItem.dispose();
 			}
 		}
