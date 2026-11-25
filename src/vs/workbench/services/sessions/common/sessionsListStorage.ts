@@ -11,20 +11,21 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
  * does not roam it. The state used to be user state under `legacySyncedKey`, which Settings
  * Sync roamed across devices.
  *
- * Until the device owns its state, reading adopts the legacy value, also one that Settings
- * Sync downloads after an earlier read, for example when Sync is turned on later. The device
- * owns its state once it adopted the legacy value or stored state the user made, so emptying
- * that state later does not bring the legacy value back. The legacy key is left in place:
- * removing it would sync the removal to devices that still run older builds, which would then
- * lose their state.
+ * Until the device owns its state, reading adopts the legacy value once it holds anything the
+ * user made, as `isUserMade` tells, also when Settings Sync downloads it after an earlier read,
+ * for example when Sync is turned on later. Older builds also stored bookkeeping alone, which
+ * is neither adopted nor makes the device own its state. The device owns its state once it
+ * adopted the legacy value or stored state the user made, so emptying that state later does
+ * not bring the legacy value back. The legacy key is left in place: removing it would sync the
+ * removal to devices that still run older builds, which would then lose their state.
  */
-export function readMachineSessionsListState(storageService: IStorageService, key: string, legacySyncedKey: string): string | undefined {
+export function readMachineSessionsListState(storageService: IStorageService, key: string, legacySyncedKey: string, isUserMade: (value: string) => boolean): string | undefined {
 	const value = storageService.get(key, StorageScope.PROFILE);
 	if (storageService.getBoolean(getOwnedKey(key), StorageScope.PROFILE, false)) {
 		return value;
 	}
 	const legacyValue = storageService.get(legacySyncedKey, StorageScope.PROFILE);
-	if (legacyValue === undefined) {
+	if (legacyValue === undefined || !isUserMade(legacyValue)) {
 		return value;
 	}
 	storeMachineSessionsListState(storageService, key, legacyValue, true);

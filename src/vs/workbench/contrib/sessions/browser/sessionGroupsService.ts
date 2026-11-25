@@ -317,6 +317,22 @@ interface ISerializedState {
 	readonly subgroupOrders?: Readonly<Record<string, readonly string[]>>;
 }
 
+/**
+ * Whether stored groups state holds anything the user made: groups or section appearance.
+ * Sessions left ungrouped alone are bookkeeping, as archived sessions leave their group on every load.
+ */
+function isUserMadeGroupsState(state: Partial<ISerializedState> | null | undefined): boolean {
+	return !!state && ((Array.isArray(state.groups) && state.groups.length > 0) || (!!state.sectionAppearance && typeof state.sectionAppearance === 'object' && Object.keys(state.sectionAppearance).length > 0));
+}
+
+function isUserMadeSerializedGroupsState(raw: string): boolean {
+	try {
+		return isUserMadeGroupsState(JSON.parse(raw));
+	} catch {
+		return false;
+	}
+}
+
 export class SessionGroupsService extends Disposable implements ISessionGroupsService {
 
 	declare readonly _serviceBrand: undefined;
@@ -1018,7 +1034,7 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 	// -- Storage --
 
 	private load(): void {
-		const raw = readMachineSessionsListState(this.storageService, SessionGroupsService.STORAGE_KEY, SessionGroupsService.LEGACY_SYNCED_STORAGE_KEY);
+		const raw = readMachineSessionsListState(this.storageService, SessionGroupsService.STORAGE_KEY, SessionGroupsService.LEGACY_SYNCED_STORAGE_KEY, isUserMadeSerializedGroupsState);
 		if (!raw) {
 			return;
 		}
@@ -1098,8 +1114,7 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 			[EXPLICITLY_UNGROUPED_FIELD]: [...this._explicitlyUngroupedSessionIds],
 			...(childOrders.length > 0 ? { subgroupOrders: Object.fromEntries(childOrders) } : {}),
 		};
-		// Sessions left ungrouped alone are bookkeeping, which the user did not make: archived sessions leave their group on every load.
-		storeMachineSessionsListState(this.storageService, SessionGroupsService.STORAGE_KEY, JSON.stringify(state), this._groups.size > 0 || this._sectionAppearance.size > 0);
+		storeMachineSessionsListState(this.storageService, SessionGroupsService.STORAGE_KEY, JSON.stringify(state), isUserMadeGroupsState(state));
 	}
 
 	/** The child orders of existing groups, with only their current subgroups and grouping sections. */

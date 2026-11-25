@@ -804,8 +804,10 @@ suite('SessionGroupsService', () => {
 
 	test('adopts the groups and top-level order that Settings Sync roamed, also when they arrive after a load, until deleting them', () => {
 		const deviceStorage = disposables.add(new InMemoryStorageService());
-		// Each load stores that the archived session left its group, which does not stop adopting the synced state.
+		// An older build stored that the archived session left its group, without any groups, and each load stores it again.
+		// Neither is state the user made, so neither stops adopting the synced state.
 		sessions = [createSession('archived', true)];
+		deviceStorage.store('sessionsListControl.groups', JSON.stringify({ groups: [], membership: {}, explicitlyUngroupedSessionIds: ['archived'] }), StorageScope.PROFILE, StorageTarget.USER);
 		const describeDevice = ({ groups, order }: ReturnType<typeof loadDevice>) => ({
 			group: groups.getGroupOfSession('s1'),
 			order: order.resolveOrder(['group:work', 'workspace:vscode']),

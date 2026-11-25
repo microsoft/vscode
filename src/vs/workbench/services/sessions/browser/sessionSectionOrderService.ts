@@ -104,6 +104,19 @@ interface ISerializedState {
 	readonly promoted: readonly string[];
 }
 
+/** Whether a stored order holds anything, which only the user makes by ordering sections. */
+function isUserMadeOrderState(state: Partial<ISerializedState> | null | undefined): boolean {
+	return !!state && ((Array.isArray(state.order) && state.order.length > 0) || (Array.isArray(state.promoted) && state.promoted.length > 0));
+}
+
+function isUserMadeSerializedOrderState(raw: string): boolean {
+	try {
+		return isUserMadeOrderState(JSON.parse(raw));
+	} catch {
+		return false;
+	}
+}
+
 export class SessionSectionOrderService extends Disposable implements ISessionSectionOrderService {
 
 	declare readonly _serviceBrand: undefined;
@@ -202,7 +215,7 @@ export class SessionSectionOrderService extends Disposable implements ISessionSe
 	// -- Storage --
 
 	private load(): void {
-		const raw = readMachineSessionsListState(this.storageService, SessionSectionOrderService.STORAGE_KEY, SessionSectionOrderService.LEGACY_SYNCED_STORAGE_KEY);
+		const raw = readMachineSessionsListState(this.storageService, SessionSectionOrderService.STORAGE_KEY, SessionSectionOrderService.LEGACY_SYNCED_STORAGE_KEY, isUserMadeSerializedOrderState);
 		if (!raw) {
 			return;
 		}
@@ -220,10 +233,9 @@ export class SessionSectionOrderService extends Disposable implements ISessionSe
 	}
 
 	private save(): void {
-		// Only the user orders sections, so any stored order is user made.
-		const empty = this._order.length === 0 && this._promoted.size === 0;
 		const state: ISerializedState = { order: this._order, promoted: [...this._promoted] };
-		storeMachineSessionsListState(this.storageService, SessionSectionOrderService.STORAGE_KEY, empty ? undefined : JSON.stringify(state), !empty);
+		const userMade = isUserMadeOrderState(state);
+		storeMachineSessionsListState(this.storageService, SessionSectionOrderService.STORAGE_KEY, userMade ? JSON.stringify(state) : undefined, userMade);
 	}
 }
 
