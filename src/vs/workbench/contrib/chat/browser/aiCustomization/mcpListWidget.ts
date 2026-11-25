@@ -3993,10 +3993,16 @@ export class McpListWidget extends Disposable {
 			if (outputIndex !== -1) {
 				actions.splice(outputIndex, 0, outputAction);
 			} else {
-				if (actions.length > 0) {
-					actions.push(new Separator());
+				// Keep Uninstall as the last, destructive group.
+				const uninstallIndex = actions.findIndex(action => action.id === MCP_UNINSTALL_ACTION_ID);
+				if (uninstallIndex !== -1) {
+					actions.splice(uninstallIndex, 0, outputAction, new Separator());
+				} else {
+					if (actions.length > 0) {
+						actions.push(new Separator());
+					}
+					actions.push(outputAction);
 				}
-				actions.push(outputAction);
 			}
 		}
 		return actions;
@@ -4064,6 +4070,14 @@ export class McpListWidget extends Disposable {
 					actions.push(new Separator());
 				}
 				actions.push(disposables.add(sourceAction));
+			}
+
+			const uninstallAction = plugin ? undefined : this.getBuiltinMcpServerUninstallAction(entry, sourceAction);
+			if (uninstallAction) {
+				if (actions.length > 0) {
+					actions.push(new Separator());
+				}
+				actions.push(disposables.add(uninstallAction));
 			}
 
 			if (plugin) {
@@ -4149,6 +4163,61 @@ export class McpListWidget extends Disposable {
 		}
 		return new Action('mcpServer.showConfiguration', localize('showMcpServerConfiguration', "Show Configuration"), undefined, true, async () => {
 			await this.commandService.executeCommand(McpCommandIds.ShowConfiguration, localServer.collection.id, localServer.definition.id);
+		});
+	}
+
+	/**
+	 * Removes a built-in row's server from its configuration file when VS Code can edit that file, such
+	 * as the Copilot CLI's `mcp-config.json`. Otherwise explains where the server must be removed instead.
+	 * Copilot's own servers are not offered, as they can only be disabled.
+	 */
+	private getBuiltinMcpServerUninstallAction(entry: IMcpBuiltinItemEntry, sourceAction: Action | undefined): Action | undefined {
+		const localServer = entry.localServer;
+		if (!localServer) {
+			return undefined;
+		}
+		const definitions = localServer.readDefinitions().get();
+		const origin = definitions.server?.presentation?.origin?.uri ?? definitions.collection?.presentation?.origin;
+		const extensionId = entry.extensionId && !isCopilotExtension(entry.extensionId) ? entry.extensionId : undefined;
+		if (!origin && !extensionId) {
+			return undefined;
+		}
+		const name = localServer.definition.label;
+		return new Action(MCP_UNINSTALL_ACTION_ID, localize('uninstall', "Uninstall"), undefined, true, async () => {
+			const editable = origin && await this.mcpWorkbenchService.resolveEditableMcpServerConfiguration(origin, name).catch(() => undefined);
+			if (editable && origin) {
+				const { confirmed } = await this.dialogService.confirm({
+					type: 'warning',
+					message: localize('confirmUninstallSharedMcpServer', "Are you sure you want to uninstall the MCP server '{0}'?", name),
+					detail: localize('confirmUninstallSharedMcpServerDetail', "It will be removed from {0}. Other MCP clients that read this file, such as the Copilot CLI, will no longer have it either.", this.labelService.getUriLabel(origin)),
+					primaryButton: localize({ key: 'uninstallSharedMcpServerButton', comment: ['&& denotes a mnemonic'] }, "&&Uninstall"),
+				});
+				if (!confirmed) {
+					return;
+				}
+				try {
+					await editable.remove();
+				} catch (error) {
+					this.notificationService.error(localize('mcpUninstallFailed', "Unable to uninstall MCP server '{0}': {1}", name, getErrorMessage(error)));
+				}
+				return;
+			}
+
+			const extensionName = extensionId && (this.extensionsWorkbenchService.local.find(extension => ExtensionIdentifier.equals(extension.identifier.id, extensionId))?.displayName ?? extensionId.value);
+			const { result } = await this.dialogService.prompt({
+				type: 'info',
+				message: extensionName
+					? localize('mcpServerProvidedByExtension', "The MCP server '{0}' is provided by the extension '{1}'", name, extensionName)
+					: localize('mcpServerConfiguredElsewhere', "The MCP server '{0}' is configured outside of VS Code", name),
+				detail: extensionName
+					? localize('mcpServerProvidedByExtensionDetail', "To remove it, uninstall or disable the extension. You can also disable the server here.")
+					: localize('mcpServerConfiguredElsewhereDetail', "VS Code cannot remove servers from {0}. To remove it, delete it from that file. You can also disable the server here.", origin ? this.labelService.getUriLabel(origin) : ''),
+				buttons: sourceAction ? [{ label: sourceAction.label, run: () => true }] : [],
+				cancelButton: localize('close', "Close"),
+			});
+			if (result) {
+				await sourceAction?.run();
+			}
 		});
 	}
 }

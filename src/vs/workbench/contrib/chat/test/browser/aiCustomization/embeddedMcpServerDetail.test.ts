@@ -392,6 +392,7 @@ suite('EmbeddedMcpServerDetail', () => {
 			config,
 			format: McpResourceFormat.CopilotGlobal,
 			save: async (previous, next) => { saves.push({ previous, config: next }); },
+			remove: async () => { },
 		}));
 		mainWindow.document.body.appendChild(detail.element);
 		store.add(toDisposable(() => detail.element.remove()));
@@ -435,6 +436,7 @@ suite('EmbeddedMcpServerDetail', () => {
 			config: { type: McpServerType.LOCAL, command: 'memory-server' },
 			format: McpResourceFormat.CopilotGlobal,
 			save: async () => { },
+			remove: async () => { },
 		}));
 		mainWindow.document.body.appendChild(detail.element);
 		store.add(toDisposable(() => detail.element.remove()));
@@ -487,6 +489,7 @@ suite('EmbeddedMcpServerDetail', () => {
 			config,
 			format: McpResourceFormat.CopilotGlobal,
 			save: async () => { },
+			remove: async () => { },
 		}));
 		mainWindow.document.body.appendChild(detail.element);
 		store.add(toDisposable(() => detail.element.remove()));
@@ -530,6 +533,7 @@ suite('EmbeddedMcpServerDetail', () => {
 				config,
 				format,
 				save: async (previous, next) => { saves.push({ previous, config: next }); },
+				remove: async () => { },
 			} : undefined);
 			const range = new Range(3, 3, 3, 40);
 			detail.setInput({ ...input, source: { uri, range } });
