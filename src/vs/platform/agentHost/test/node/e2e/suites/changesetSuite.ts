@@ -32,9 +32,10 @@ import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { AgentMergeConfigKey } from '../../../../common/agentMerge.js';
+import { SessionConfigKey } from '../../../../common/sessionConfigKeys.js';
 import { CheckoutOperationPreAction, checkoutOperationMeta, isCheckoutOperationDirtyWorkingTreeErrorData } from '../../../../common/meta/agentCheckoutOperationMeta.js';
 import { ProtocolError } from '../../../../common/state/sessionProtocol.js';
-import { getWorkingDirectoryScopeId } from '../../../../common/agentHostWorkingDirectories.js';
+import { getWorkingDirectoryKey, getWorkingDirectoryScopeId } from '../../../../common/agentHostWorkingDirectories.js';
 import type { ListSessionsResult, ResourceReadResult, SubscribeResult } from '../../../../common/state/protocol/commands.js';
 import { ContentEncoding } from '../../../../common/state/protocol/common/commands.js';
 import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
@@ -198,6 +199,27 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 		}, 30_000);
 		createdSessions.push(sessionUri);
 		sessionWorkingDirectories.set(sessionUri, [URI.file(workspace).toString()]);
+		await context.client.call<SubscribeResult>('subscribe', { channel: sessionUri });
+		await context.client.call<SubscribeResult>('subscribe', { channel: defaultChatChannel(sessionUri) });
+		context.client.clearReceived();
+		return sessionUri;
+	}
+
+	/** Creates a session working in `folders`, the first one first, with the given session configuration. */
+	async function createSessionInFolders(folders: readonly string[], prefix: string, sessionConfig?: Readonly<Record<string, unknown>>): Promise<string> {
+		context.client.setWorkingDirectory(folders[0]);
+		await context.client.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: `${prefix}-${config.provider}` }, 30_000);
+		await context.client.call('authenticate', { channel: ROOT_STATE_URI, resource: 'https://api.github.com', token: config.githubToken ?? resolveGitHubToken() }, 30_000);
+		const sessionUri = URI.from({ scheme: config.scheme, path: `/${generateUuid()}` }).toString();
+		const workingDirectories = folders.map(folder => URI.file(folder).toString());
+		await context.client.call('createSession', {
+			channel: sessionUri,
+			provider: config.provider,
+			workingDirectories,
+			...(sessionConfig ? { config: sessionConfig } : {}),
+		}, 30_000);
+		createdSessions.push(sessionUri);
+		sessionWorkingDirectories.set(sessionUri, workingDirectories);
 		await context.client.call<SubscribeResult>('subscribe', { channel: sessionUri });
 		await context.client.call<SubscribeResult>('subscribe', { channel: defaultChatChannel(sessionUri) });
 		context.client.clearReceived();
@@ -550,6 +572,24 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 		assert.deepStrictEqual({ removed: existsSync(join(workspace, 'nested', 'remove.txt')), kept: readFileSync(join(workspace, 'nested', 'keep.log'), 'utf8') },
 			{ removed: false, kept: 'ignored witness' });
 	});
+
+	for (const detectRepositories of [false, true]) {
+		conformanceTest(context, `regression coverage: discarding an untracked file in a session with a second, non-repository folder${detectRepositories ? ' and repository detection' : ''}`, async function () {
+			const workspace = createGitWorkspace('ahp-discard-two-folders-');
+			const other = createTestDirectory(join(tmpdir(), 'ahp-discard-other-folder-'));
+			tempDirs.push(other);
+			const detection = { scanSubfolders: true, scanMaxDepth: 1, scanIgnoredFolders: [], detectSubmodules: false };
+			const session = await createSessionInFolders([workspace, other], 'discard-two-folders', detectRepositories
+				? { [SessionConfigKey.RepositoryDetection]: Object.fromEntries([workspace, other].map(folder => [getWorkingDirectoryKey(URI.file(folder).toString()), detection])) }
+				: undefined);
+			const channel = buildUncommittedChangesetUri(session);
+			await runBangTurn(session, 'untracked-two-folders', writeFileBase64Command('remove.txt', 'remove'), 1);
+			const [target] = await waitForChangesetFiles(channel, ['remove.txt']);
+			await waitForOperation(channel, 'discard-changes');
+			await invokeDiscard(channel, fileUri(target));
+			assert.strictEqual(existsSync(join(workspace, 'remove.txt')), false);
+		});
+	}
 
 	conformanceTest(context, 'checkout lifecycle: an unused session checks out an existing branch', async function () {
 		const { workspace } = createCheckoutWorkspace('ahp-checkout-clean-');

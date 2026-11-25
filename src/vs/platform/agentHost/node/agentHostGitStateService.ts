@@ -831,6 +831,10 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 		const { options, folders, input } = this._repositoryDiscoveryInput(sessionKey);
 		if (!Object.keys(options).length) {
 			this._discoveredRepositories.delete(sessionKey);
+			if (!readSessionRepositories(this._stateManager.getSessionState(sessionKey)?._meta)) {
+				// Nothing was found before, so there is nothing to remove
+				return false;
+			}
 			return this._applyDiscoveredRepositories(sessionKey, input, undefined, folders, credentials, fresh);
 		}
 		const cached = this._discoveredRepositories.get(sessionKey);
