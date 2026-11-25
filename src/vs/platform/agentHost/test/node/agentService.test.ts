@@ -7223,6 +7223,40 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		for (const catalog of ['legacy', 'normalized'] as const) {
+			test(`archived peers keep their archive times and order on a fresh host (${catalog})`, async () => {
+				const { svc, session, peer, restart } = await createSessionWithReadPeer(catalog);
+				const sessionKey = session.toString();
+				const secondPeer = mintPeerChatUri('opaque', sessionKey);
+				await svc.createChat(session, URI.parse(secondPeer));
+				await svc.whenCatalogReconciliationIdle();
+				// One archived while its session is loaded, the other while it is not.
+				getStateManager(svc).dispatchServerAction(peer, { type: ActionType.ChatIsArchivedChanged, isArchived: true });
+				const firstArchivedAt = getStateManager(svc).getSessionState(sessionKey)?.chats.find(chat => chat.resource === peer)?.modifiedAt;
+				await svc.whenCatalogReconciliationIdle();
+				await timeout(5);
+				unloadSession(svc, session);
+				const echo = clientEcho(svc, 1);
+				svc.dispatchAction(secondPeer, { type: ActionType.ChatIsArchivedChanged, isArchived: true }, 'test-client', 1);
+				await echo;
+				await svc.whenCatalogReconciliationIdle();
+				const secondArchivedAt = getStateManager(svc).getSurfacedSessionSummary(sessionKey)?.modifiedAt;
+				// Queued behind the writes of both times.
+				await Promise.all([peer, secondPeer].map(chat => getTestSessionStateStore(svc).chatRows.getChatModifiedTime(session, URI.parse(chat))));
+				const restarted = await restart();
+				await restarted.restoreSession(session);
+				const restored = getStateManager(restarted).getSessionState(sessionKey)?.chats.filter(chat => chat.resource === peer || chat.resource === secondPeer) ?? [];
+
+				assert.deepStrictEqual({
+					times: Object.fromEntries(restored.map(chat => [chat.resource, chat.modifiedAt])),
+					order: [...restored].sort((a, b) => Date.parse(b.modifiedAt) - Date.parse(a.modifiedAt)).map(chat => chat.resource),
+				}, {
+					times: { [peer]: firstArchivedAt, [secondPeer]: secondArchivedAt },
+					order: [secondPeer, peer],
+				});
+			});
+		}
+
 		test('a chat archive toggle on an unloaded session rejects default, tool and unknown chats without restoring', async () => {
 			const { svc, restoreCalls } = createReadToggleService();
 			const session = AgentSession.uri('copilot', 'unmanageable').toString();

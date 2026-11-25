@@ -38,7 +38,7 @@ import { SendRemoteMessageToolReferenceName, withRemoteSessionOrigin } from '../
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { IAgentHostSessionStateStore } from '../../common/agentHostSessionStateStore.js';
 import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
-import { AH_CHAT_CONFIG_VALUES_DB_KEY } from '../../node/agentHostChatRowStore.js';
+import { AH_CHAT_CONFIG_VALUES_DB_KEY, AH_CHAT_MODIFIED_TIME_DB_KEY } from '../../node/agentHostChatRowStore.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { chatTurnComplete, chatTurnStarted } from '../common/chatActionBuilders.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
@@ -1265,6 +1265,7 @@ suite('AgentHostChatContributions', () => {
 			}
 		}('test');
 		disposables.add(toDisposable(() => agent.dispose()));
+		const database = new TestSessionDatabase();
 		const services = new ServiceCollection(
 			[ILogService, logService],
 			[IAgentHostStateManager, stateManager],
@@ -1275,6 +1276,7 @@ suite('AgentHostChatContributions', () => {
 				_serviceBrand: undefined,
 				setChatWorkspaceAttached: async (session: URI, chat: URI, attached: boolean) => { workspace.push({ session: session.toString(), chat: chat.toString(), attached }); },
 			} satisfies IAgentHostArchivedChatWorkspaceService],
+			[IAgentHostSessionStateStore, createTestSessionStateStore(new AgentHostDatabase(':memory:'), createSessionDataService(database))],
 		);
 		const instantiationService = disposables.add(new InstantiationService(services, /*strict*/ true));
 		const contributions = disposables.add(new AgentHostChatContributions(logService, instantiationService));
@@ -1287,11 +1289,13 @@ suite('AgentHostChatContributions', () => {
 		contributions.didDispatchAction(dispatchedAction(failingChat, session, { type: ActionType.ChatIsArchivedChanged, isArchived: true }));
 		await timeout(25);
 
+		const modifiedTime = Date.parse('2025-01-01T00:00:00.000Z');
 		assert.deepStrictEqual({
 			persisted,
 			workspace,
 			cleared,
 			errors,
+			modifiedTimes: database.setMetadataCalls.filter(call => call.key === AH_CHAT_MODIFIED_TIME_DB_KEY).map(call => JSON.parse(call.value)),
 			peerRead: !!((stateManager.getChatState(peerChat)?.status ?? 0) & SessionStatus.IsRead),
 			failingRead: !!((stateManager.getChatState(failingChat)?.status ?? 0) & SessionStatus.IsRead),
 		}, {
@@ -1309,6 +1313,12 @@ suite('AgentHostChatContributions', () => {
 				{ session, chat: failingChat },
 			],
 			errors: [`Error: write failed [ChatArchiveContribution] Failed to persist archived state for ${failingChat}`],
+			// The actions here are not reduced, so each chat keeps its creation time.
+			modifiedTimes: [
+				{ chat: peerChat, modifiedTime },
+				{ chat: peerChat, modifiedTime },
+				{ chat: failingChat, modifiedTime },
+			],
 			peerRead: true,
 			failingRead: true,
 		});
@@ -1337,6 +1347,7 @@ suite('AgentHostChatContributions', () => {
 				setArchived: async (_session: URI, chat: URI, archived: boolean) => { persisted.push({ chat: chat.toString(), archived }); },
 			} satisfies IAgentHostPeerChatPersistenceService],
 			[IAgentHostArchivedChatWorkspaceService, { _serviceBrand: undefined, setChatWorkspaceAttached: async () => { } } satisfies IAgentHostArchivedChatWorkspaceService],
+			[IAgentHostSessionStateStore, createTestSessionStateStore(new AgentHostDatabase(':memory:'), createSessionDataService(new TestSessionDatabase()))],
 		);
 		const instantiationService = disposables.add(new InstantiationService(services, /*strict*/ true));
 		const contributions = disposables.add(new AgentHostChatContributions(logService, instantiationService));

@@ -70,6 +70,27 @@ function parseChatConfigValues(raw: string | undefined, chat: string): Record<st
 	}
 }
 
+/**
+ * A chat's modified time as of its last archive or restore, in its own database. A restored peer otherwise takes its
+ * session's time, so archived peers would lose their order. Like {@link AH_CHAT_CONFIG_VALUES_DB_KEY}, the value
+ * records the chat it belongs to.
+ */
+export const AH_CHAT_MODIFIED_TIME_DB_KEY = 'agentHost.chatModifiedTime';
+
+function parseChatModifiedTime(raw: string | undefined, chat: string): number | undefined {
+	if (!raw) {
+		return undefined;
+	}
+	try {
+		const parsed: unknown = JSON.parse(raw);
+		return isObject(parsed) && parsed.chat === chat && typeof parsed.modifiedTime === 'number' && Number.isFinite(parsed.modifiedTime)
+			? parsed.modifiedTime
+			: undefined;
+	} catch {
+		return undefined;
+	}
+}
+
 function isObject(value: unknown): value is Record<string, unknown> {
 	return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
@@ -134,24 +155,37 @@ export class AgentHostChatRowStore implements IAgentHostChatRowStore {
 	}
 
 	setChatConfig(session: URI, chat: URI, values: Readonly<Record<string, unknown>>): Promise<void> {
-		return this._inCurrentOwner(session, chat, owningSession => this._setChatConfig(owningSession, chat, values), undefined);
+		return this._setChatValue(session, chat, 'config', AH_CHAT_CONFIG_VALUES_DB_KEY, JSON.stringify({ chat: chat.toString(), values }));
 	}
 
-	private _setChatConfig(session: URI, chat: URI, values: Readonly<Record<string, unknown>>): Promise<undefined | typeof movedChat> {
+	getChatModifiedTime(session: URI, chat: URI): Promise<number | undefined> {
+		return this._read(session, chat, async db => parseChatModifiedTime(await db.getMetadata(AH_CHAT_MODIFIED_TIME_DB_KEY), chat.toString()), undefined);
+	}
+
+	setChatModifiedTime(session: URI, chat: URI, modifiedTime: number): Promise<void> {
+		return this._setChatValue(session, chat, 'modified time', AH_CHAT_MODIFIED_TIME_DB_KEY, JSON.stringify({ chat: chat.toString(), modifiedTime }));
+	}
+
+	/** Writes a value only this build reads to `chat`'s own database, following the chat to its current owner. */
+	private _setChatValue(session: URI, chat: URI, kind: string, key: string, value: string): Promise<void> {
+		return this._inCurrentOwner(session, chat, owningSession => this._setChatValueIn(owningSession, chat, kind, key, value), undefined);
+	}
+
+	private _setChatValueIn(session: URI, chat: URI, kind: string, key: string, value: string): Promise<undefined | typeof movedChat> {
 		return this._runExclusive(session, async exclusive => {
 			const owner = await this._owner(session, exclusive.snapshot, chat.toString());
 			if (!owner && await this._movedFrom(session, chat)) {
 				return movedChat;
 			}
 			if (!owner && this._isDeleted(session, chat.toString())) {
-				this._logService.trace(`[AgentHostChatRowStore] Dropping a late config write of deleted chat ${chat.toString()}`);
+				this._logService.trace(`[AgentHostChatRowStore] Dropping a late ${kind} write of deleted chat ${chat.toString()}`);
 				return undefined;
 			}
 			// A chat not recorded yet (one being created) follows the creation-time rule.
 			const { storage } = owner ?? resolveStorage(session, exclusive.snapshot, chat.toString());
 			const ref = this._sessionDataService.openDatabase(storage);
 			try {
-				await ref.object.setMetadata(AH_CHAT_CONFIG_VALUES_DB_KEY, JSON.stringify({ chat: chat.toString(), values }));
+				await ref.object.setMetadata(key, value);
 			} finally {
 				ref.dispose();
 			}
