@@ -66,20 +66,22 @@ suite('pluginListWidget', () => {
 			hoverService: new class extends mock<IHoverService>() {
 				override setupDelayedHover() { return toDisposable(() => { }); }
 			}(),
-			cardDisposables: store.add(new DisposableStore()),
 		});
+		const renderInstalledActions = (container: HTMLElement) => widget.renderInstalledListActions(item, $('div'), container, store.add(new DisposableStore()));
 		const actions = widget.getInstalledPluginActions(item, store.add(new DisposableStore()));
 		await actions.find((action: { id: string }) => action.id === 'repository').run();
 		const workspaceActions = $('div');
-		const toggle = widget.appendInstalledPluginToggle(workspaceActions, $('div'), $('div'), item).querySelector('button')!;
+		renderInstalledActions(workspaceActions);
+		const toggle = workspaceActions.querySelector<HTMLButtonElement>('[role="switch"]')!;
 		const ready = { disabled: toggle.disabled, checked: toggle.getAttribute('aria-checked'), label: toggle.getAttribute('aria-label'), badge: workspaceActions.querySelector('.inline-badge')?.textContent };
 		widget.sessionPluginItems.set([{ ...remote, actions: remote.actions!.map(action => ({ ...action, enabled: false })) }], undefined);
 		const pendingControls = $('div');
-		const pending = widget.appendInstalledPluginToggle(pendingControls, $('div'), $('div'), item).querySelector('button')!;
+		renderInstalledActions(pendingControls);
+		const pending = pendingControls.querySelector<HTMLButtonElement>('[role="switch"]')!;
 		const pendingBadgeDisabled = pendingControls.querySelector('.plugin-scope-badge')!.getAttribute('aria-disabled');
 		widget.sessionPluginItems.set([{ ...remote, actions: remote.actions!.map(action => ({ ...action, scope: 'global' })) }], undefined);
 		const globalActions = $('div');
-		widget.appendInstalledPluginToggle(globalActions, $('div'), $('div'), item);
+		renderInstalledActions(globalActions);
 		widget.sessionPluginItems.set([remote], undefined);
 		const pendingChanges = widget.getPendingPluginScopeChanges();
 		pendingChanges.set(new Set([widget.getPluginScopeChangeKey(remote)]), undefined);
@@ -122,10 +124,11 @@ suite('pluginListWidget', () => {
 			hoverService: new class extends mock<IHoverService>() {
 				override setupDelayedHover() { return toDisposable(() => { }); }
 			}(),
-			cardDisposables: store.add(new DisposableStore()),
 		});
 		const required = createItem('required', true);
-		const toggle = widget.appendInstalledPluginToggle($('div'), $('div'), $('div'), required).querySelector('button')!;
+		const controls = $('div');
+		widget.renderInstalledListActions(required, $('div'), controls, store.add(new DisposableStore()));
+		const toggle = controls.querySelector<HTMLButtonElement>('[role="switch"]')!;
 		assert.deepStrictEqual({
 			required: widget.getInstalledPluginOrganizationControl(required),
 			switch: { disabled: toggle.disabled, checked: toggle.getAttribute('aria-checked') },
@@ -229,13 +232,14 @@ suite('pluginListWidget', () => {
 			hoverService: new class extends mock<IHoverService>() {
 				override setupDelayedHover() { return toDisposable(() => { }); }
 			}(),
-			cardDisposables: store.add(new DisposableStore()),
 			_onDidChangeItemCount: { fire: () => { } },
 			searchQuery: 'installed-plugins', browseMode: false, filterGeneration: 0,
 		});
 		await widget.filterPlugins();
 		const [row] = widget.installedItems;
-		const toggle = widget.appendInstalledPluginToggle($('div'), $('div'), $('div'), row).querySelector('button')!;
+		const controls = $('div');
+		widget.renderInstalledListActions(row, $('div'), controls, store.add(new DisposableStore()));
+		const toggle = controls.querySelector<HTMLButtonElement>('[role="switch"]')!;
 		assert.deepStrictEqual({
 			rows: widget.installedItems.map((item: IInstalledPluginItem) => item.name),
 			// The session plugin does not match the search itself, so it adds no row of its own.
@@ -573,19 +577,23 @@ suite('pluginListWidget', () => {
 	});
 
 	test('plugin switches omit routine status but preserve loading and problem icons', () => {
-		const widget: { appendRemotePluginRow(parent: HTMLElement, item: ICustomizationItem): void } = Object.assign(Object.create(PluginListWidget.prototype), {
-			harnessService,
-			hoverService: new class extends mock<IHoverService>() {
-				override setupDelayedHover() { return toDisposable(() => { }); }
-				override setupManagedHover() {
-					return { show() { }, hide() { }, update() { }, dispose() { } };
-				}
-			}(),
+		const hoverService = new class extends mock<IHoverService>() {
+			override setupDelayedHover() { return toDisposable(() => { }); }
+			override setupManagedHover() {
+				return { show() { }, hide() { }, update() { }, dispose() { } };
+			}
+		}();
+		const widget = Object.assign(Object.create(PluginListWidget.prototype), {
+			harnessService, hoverService,
 			notificationService: new TestNotificationService(),
-			cardDisposables: store.add(new DisposableStore()),
-			cardListControllers: new WeakMap(),
-			rememberCardFocusElement: () => { },
 		});
+		const renderer = new PluginRemoteItemRenderer(
+			(item, actions, disposables) => widget.renderRemoteListActions(item, actions, disposables),
+			hoverService,
+		);
+		const row = $('div');
+		const template = renderer.renderTemplate(row);
+		store.add(toDisposable(() => renderer.disposeTemplate(template)));
 		const item: ICustomizationItem = {
 			uri: URI.file('/plugins/native'), type: 'plugin', name: 'Native', source: AICustomizationSources.plugin,
 			extensionId: undefined, pluginUri: undefined,
@@ -599,17 +607,20 @@ suite('pluginListWidget', () => {
 			{ enabled: false, status: 'error', statusMessage: 'Plugin could not be loaded' },
 		];
 		assert.deepStrictEqual(states.map(state => {
-			const parent = $('div');
-			widget.appendRemotePluginRow(parent, {
-				...item, ...state,
-				actions: [{ id: 'toggle', label: 'Toggle Globally', checked: state.enabled === true, run: () => { } }],
-			});
-			const status = parent.querySelector<HTMLElement>('.plugin-list-item-status-icon')!;
+			const entry = {
+				type: 'remote-item' as const,
+				item: {
+					...item, ...state,
+					actions: [{ id: 'toggle', label: 'Toggle Globally', checked: state.enabled === true, run: () => { } }],
+				},
+			};
+			renderer.renderElement(entry, 0, template);
+			const status = row.querySelector<HTMLElement>('.plugin-list-item-status-icon')!;
 			return {
-				label: parent.firstElementChild!.getAttribute('aria-label'),
+				label: widget.getPluginEntryAriaLabel(entry),
 				icon: ['loading', 'warning', 'error'].find(kind => status.classList.contains(kind)),
 				hidden: status.style.display === 'none',
-				checked: parent.querySelector('[role="switch"]')!.getAttribute('aria-checked'),
+				checked: row.querySelector('[role="switch"]')!.getAttribute('aria-checked'),
 			};
 		}), [
 			{ label: 'Native. Agent host', icon: undefined, hidden: true, checked: 'true' },
@@ -707,7 +718,6 @@ suite('pluginListWidget', () => {
 			browseMode: false,
 			collapsedGroups: new Set<string>(['user']),
 			configurationService: new TestConfigurationService({ [CustomizationMarketplaceConfiguration.MarketplaceEnabled]: true }),
-			cardScrollableNode: document.createElement('div'),
 			updateToolbarActions: () => { },
 			updatePluginTreeEmptyState: () => { },
 			workspaceContextService: new class extends mock<IWorkspaceContextService>() {
@@ -766,7 +776,6 @@ suite('pluginListWidget', () => {
 				configurationService: new TestConfigurationService({
 					[CustomizationMarketplaceConfiguration.MarketplaceEnabled]: true,
 				}),
-				cardScrollableNode: document.createElement('div'),
 				updateToolbarActions: () => { },
 				updatePluginTreeEmptyState: () => { },
 				workspaceContextService: new class extends mock<IWorkspaceContextService>() {
@@ -863,7 +872,6 @@ suite('pluginListWidget', () => {
 			browseMode: false,
 			collapsedGroups: new Set<string>(),
 			configurationService: new TestConfigurationService({ [CustomizationMarketplaceConfiguration.MarketplaceEnabled]: true }),
-			cardScrollableNode: document.createElement('div'),
 			updateToolbarActions: () => { },
 			updatePluginTreeEmptyState: () => { },
 			workspaceContextService: new class extends mock<IWorkspaceContextService>() {
