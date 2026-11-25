@@ -276,20 +276,30 @@ suite('WorkspaceFolderRepositories', () => {
 		assert.deepStrictEqual([await summary(false), await summary(true)], [{ warm: [], openRequests: [] }, { warm: [primary], openRequests: [] }]);
 	});
 
-	test('once its locations are known, a folder at a nested worktree whose containing repository stays open opens its own', () => {
+	test('once its locations are known, a folder at a nested worktree whose containing repository stays open opens its own', async () => {
 		const ws = new TestWorkspace([folder(nested, 0, knownLocations)], { autoOpen: false, attached: [primary] });
 
-		ws.updateLocations();
+		try {
+			ws.updateLocations();
 
-		assert.deepStrictEqual({ openRequests: ws.openRequests, warm: ws.warm }, { openRequests: [nested], warm: [primary] });
+			assert.deepStrictEqual({ openRequests: ws.openRequests, warm: ws.warm }, { openRequests: [nested], warm: [primary] });
+		} finally {
+			ws.registerLocation(nested);
+			await flush();
+		}
 	});
 
-	test('a path inside a location that a switch opens is known to be opening, while the repository that contains it is open', () => {
+	test('a path inside a location that a switch opens is known to be opening, while the repository that contains it is open', async () => {
 		const ws = new TestWorkspace([folder(primary, 0, knownLocations)], { autoOpen: false });
 
-		ws.switchTo(nested);
+		try {
+			ws.switchTo(nested);
 
-		assert.deepStrictEqual([path.join(nested, 'foo.txt'), nested, path.join(primary, 'foo.txt')].map(p => ws.workspaceFolderRepositories.isOpeningLocationOf(p)), [true, true, false]);
+			assert.deepStrictEqual([path.join(nested, 'foo.txt'), nested, path.join(primary, 'foo.txt')].map(p => ws.workspaceFolderRepositories.isOpeningLocationOf(p)), [true, true, false]);
+		} finally {
+			ws.registerLocation(nested);
+			await flush();
+		}
 	});
 
 	(isWindows || isMacintosh ? test : test.skip)('the repository of a folder whose path differs only in casing or a trailing separator is its current one', async () => {
