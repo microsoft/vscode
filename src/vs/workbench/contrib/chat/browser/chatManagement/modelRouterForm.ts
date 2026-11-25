@@ -231,8 +231,14 @@ export class ModelRouterForm extends Disposable {
 		const typedIn = DOM.getActiveElement();
 		const caret = index !== -1 && (DOM.isHTMLInputElement(typedIn) || DOM.isHTMLTextAreaElement(typedIn)) ? { start: typedIn.selectionStart, end: typedIn.selectionEnd } : undefined;
 		this.renderRoutes();
-		// The routes are the ones they were, so each has its fields where they were.
-		this.routeControls[index]?.focus();
+		// The routes are the ones they were, so each has its fields where they were. A selector left with nothing to choose
+		// from does not take the focus, which then goes to the field before it.
+		for (let i = index; i >= 0; i--) {
+			this.routeControls[i].focus();
+			if (DOM.isAncestorOfActiveElement(this.routeControls[i].element)) {
+				break;
+			}
+		}
 		const focused = DOM.getActiveElement();
 		if (caret && (DOM.isHTMLInputElement(focused) || DOM.isHTMLTextAreaElement(focused))) {
 			focused.setSelectionRange(caret.start, caret.end);
