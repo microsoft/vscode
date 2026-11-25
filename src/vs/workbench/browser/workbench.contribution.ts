@@ -398,7 +398,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'type': 'string',
 				'enum': ['off', 'some', 'all'],
 				'enumDescriptions': [
-					localize('useModal.off', "Editors never open in a modal overlay."),
+					localize('useModal.off', "Editors only open in a modal overlay when they cannot open anywhere else."),
 					localize('useModal.some', "Certain editors such as Settings and Keyboard Shortcuts may open in a centered modal overlay."),
 					localize('useModal.all', "All editors open in a centered modal overlay."),
 				],
