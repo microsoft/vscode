@@ -76,9 +76,11 @@ esac
 
   # Retry Store initialization 429s only while Snapcraft has not written part state
   # or created a partial output snap.
+  # Snapcraft 9 requires --output to stay inside the project directory, so pack to
+  # $SNAP_FILENAME in cwd and move it to $SNAP_PATH afterwards.
   # Three backoffs with jitter, then a final attempt (0 means no more retries).
   for delay in 30 60 120 0; do
-    if sudo --preserve-env env "PATH=$SNAPCRAFT_PATH" snapcraft pack --destructive-mode "${SNAPCRAFT_TARGET_ARGS[@]}" --output "$SNAP_PATH" 2>&1 | tee "$snapcraftLog"; then
+    if sudo --preserve-env env "PATH=$SNAPCRAFT_PATH" snapcraft pack --destructive-mode "${SNAPCRAFT_TARGET_ARGS[@]}" --output "$SNAP_FILENAME" 2>&1 | tee "$snapcraftLog"; then
       break
     else
       exitCodes=("${PIPESTATUS[@]}")
@@ -88,7 +90,7 @@ esac
 
     if (( delay == 0 || exitCodes[0] != 1 )) ||
       [[ -d parts && -n "$(find parts -mindepth 1 -print -quit)" ]] ||
-      [[ -e "$SNAP_PATH" ]] ||
+      [[ -e "$SNAP_FILENAME" ]] ||
       [[ "$(awk 'NF { last = $0 } END { print last }' "$snapcraftLog")" != 'Issue encountered while processing your request: [429] Too Many Requests.' ]]; then
       exit "${exitCodes[0]}"
     fi
@@ -97,4 +99,6 @@ esac
     echo "Snap Store HTTP 429 before any parts ran; retrying initialization in ${delay}s." >&2
     sleep "$delay"
   done
+
+  sudo mv "$SNAP_FILENAME" "$SNAP_PATH"
 )

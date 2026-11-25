@@ -255,29 +255,14 @@ type SnapArchitecture = 'x64' | 'arm64';
 const snapArchitectureConfig: Record<SnapArchitecture, {
 	architecture: string;
 	multiarch: string;
-	fcCacheInterpreter: string;
-	fcCacheRpath: string;
-	core24Interpreter: string;
-	core24Rpath: string;
-	gtkQueryRpath: string;
 }> = {
 	x64: {
 		architecture: 'amd64',
 		multiarch: 'x86_64-linux-gnu',
-		fcCacheInterpreter: '/snap/core24/current/lib64/ld-linux-x86-64.so.2',
-		fcCacheRpath: '$ORIGIN/../lib/x86_64-linux-gnu:/snap/core24/current/lib/x86_64-linux-gnu',
-		core24Interpreter: '/snap/core24/current/lib64/ld-linux-x86-64.so.2',
-		core24Rpath: '/snap/core24/current/lib/x86_64-linux-gnu',
-		gtkQueryRpath: '$ORIGIN/..:/snap/core24/current/lib/x86_64-linux-gnu',
 	},
 	arm64: {
 		architecture: 'arm64',
 		multiarch: 'aarch64-linux-gnu',
-		fcCacheInterpreter: '/snap/core24/current/lib/ld-linux-aarch64.so.1',
-		fcCacheRpath: '$ORIGIN/../lib/aarch64-linux-gnu:/snap/core24/current/lib/aarch64-linux-gnu',
-		core24Interpreter: '/snap/core24/current/lib/ld-linux-aarch64.so.1',
-		core24Rpath: '/snap/core24/current/lib/aarch64-linux-gnu',
-		gtkQueryRpath: '$ORIGIN/..:/snap/core24/current/lib/aarch64-linux-gnu',
 	},
 };
 
@@ -287,11 +272,6 @@ function prepareSnapPackage(arch: SnapArchitecture) {
 	const {
 		architecture,
 		multiarch,
-		fcCacheInterpreter,
-		fcCacheRpath,
-		core24Interpreter,
-		core24Rpath,
-		gtkQueryRpath,
 	} = snapArchitectureConfig[arch];
 
 	return function () {
@@ -325,11 +305,6 @@ function prepareSnapPackage(arch: SnapArchitecture) {
 			// Possible run-on values https://snapcraft.io/docs/architectures
 			.pipe(replace('@@ARCHITECTURE@@', architecture))
 			.pipe(replace('@@MULTIARCH@@', multiarch))
-			.pipe(replace('@@FC_CACHE_INTERPRETER@@', fcCacheInterpreter))
-			.pipe(replace('@@FC_CACHE_RPATH@@', fcCacheRpath))
-			.pipe(replace('@@CORE24_INTERPRETER@@', core24Interpreter))
-			.pipe(replace('@@CORE24_RPATH@@', core24Rpath))
-			.pipe(replace('@@GTK_QUERY_RPATH@@', gtkQueryRpath))
 			.pipe(rename('snap/snapcraft.yaml'));
 
 		const electronLaunch = gulp.src('resources/linux/snap/electron-launch', { base: '.' })
