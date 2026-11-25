@@ -7,6 +7,7 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { readMachineSessionsListState } from '../common/sessionsListStorage.js';
 
 /**
  * Service that owns the manual ordering of the sessions list's top-level
@@ -17,8 +18,9 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
  * The order is stored as one flat list of opaque identities (`group:<id>` for
  * groups, see `getSessionGroupSectionId`, `workspace:<label>` for workspace
  * sections, and `recent`/`older` for the date sections), from which the visible
- * headers resolve their relative order. It is purely local (persisted to
- * profile storage) and not synced to providers.
+ * headers resolve their relative order. It is purely local: persisted to the
+ * profile's machine storage, it is neither synced to providers nor roamed across
+ * devices by Settings Sync.
  * Identities the user has never moved fall back to a caller-provided default
  * order, so newly created groups / discovered workspaces appear in their
  * natural place until the user drags them.
@@ -106,7 +108,8 @@ export class SessionSectionOrderService extends Disposable implements ISessionSe
 
 	declare readonly _serviceBrand: undefined;
 
-	private static readonly STORAGE_KEY = 'sessionsListControl.sectionOrder';
+	private static readonly STORAGE_KEY = 'sessionsListControl.localSectionOrder';
+	private static readonly LEGACY_SYNCED_STORAGE_KEY = 'sessionsListControl.sectionOrder';
 
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	readonly onDidChange: Event<void> = this._onDidChange.event;
@@ -199,7 +202,7 @@ export class SessionSectionOrderService extends Disposable implements ISessionSe
 	// -- Storage --
 
 	private load(): void {
-		const raw = this.storageService.get(SessionSectionOrderService.STORAGE_KEY, StorageScope.PROFILE);
+		const raw = readMachineSessionsListState(this.storageService, SessionSectionOrderService.STORAGE_KEY, SessionSectionOrderService.LEGACY_SYNCED_STORAGE_KEY);
 		if (!raw) {
 			return;
 		}
@@ -222,7 +225,7 @@ export class SessionSectionOrderService extends Disposable implements ISessionSe
 			return;
 		}
 		const state: ISerializedState = { order: this._order, promoted: [...this._promoted] };
-		this.storageService.store(SessionSectionOrderService.STORAGE_KEY, JSON.stringify(state), StorageScope.PROFILE, StorageTarget.USER);
+		this.storageService.store(SessionSectionOrderService.STORAGE_KEY, JSON.stringify(state), StorageScope.PROFILE, StorageTarget.MACHINE);
 	}
 }
 

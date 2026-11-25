@@ -606,7 +606,7 @@ suite('SessionGroupsService', () => {
 		service.setSectionColor('workspace:Workspace', undefined);
 		assert.deepStrictEqual({
 			appearance: service.getSectionAppearance('workspace:Workspace'),
-			stored: storageService.get('sessionsListControl.groups', StorageScope.PROFILE),
+			stored: storageService.get('sessionsListControl.localGroups', StorageScope.PROFILE),
 			events,
 		}, { appearance: undefined, stored: undefined, events: [false, false, false, false] });
 	});
@@ -768,10 +768,10 @@ suite('SessionGroupsService', () => {
 	});
 
 	test('loads pre-feature group state without explicit ungrouped data', () => {
-		storageService.store('sessionsListControl.groups', JSON.stringify({
+		storageService.store('sessionsListControl.localGroups', JSON.stringify({
 			groups: [{ id: 'legacy-group', name: 'Legacy', createdAt: 1 }],
 			membership: { s1: 'legacy-group' },
-		}), StorageScope.PROFILE, StorageTarget.USER);
+		}), StorageScope.PROFILE, StorageTarget.MACHINE);
 
 		service.dispose();
 		service = disposables.add(instantiationService.createInstance(SessionGroupsService));
@@ -782,6 +782,45 @@ suite('SessionGroupsService', () => {
 		}, {
 			group: 'Legacy',
 			membership: 'legacy-group',
+		});
+	});
+
+	test('adopts the groups and top-level order that Settings Sync roamed once, and keeps them on this device', () => {
+		const deviceStorage = disposables.add(new InMemoryStorageService());
+		const syncedGroups = JSON.stringify({ groups: [{ id: 'work', name: 'Work', createdAt: 1 }], membership: { s1: 'work' } });
+		const syncedOrder = JSON.stringify({ order: ['workspace:vscode', 'group:work'], promoted: [] });
+		deviceStorage.store('sessionsListControl.groups', syncedGroups, StorageScope.PROFILE, StorageTarget.USER);
+		deviceStorage.store('sessionsListControl.sectionOrder', syncedOrder, StorageScope.PROFILE, StorageTarget.USER);
+		instantiationService.stub(IStorageService, deviceStorage);
+		const load = () => {
+			const order = disposables.add(new SessionSectionOrderService(deviceStorage));
+			instantiationService.stub(ISessionSectionOrderService, order);
+			return { order, groups: disposables.add(instantiationService.createInstance(SessionGroupsService)) };
+		};
+
+		const adopted = load();
+		const afterAdopting = {
+			group: adopted.groups.getGroupOfSession('s1'),
+			order: adopted.order.resolveOrder(['group:work', 'workspace:vscode']),
+			onDevice: deviceStorage.keys(StorageScope.PROFILE, StorageTarget.MACHINE).sort(),
+		};
+		// Deleting the adopted state must not adopt the synced state again on the next load.
+		adopted.groups.deleteGroup('work');
+		adopted.order.retain([]);
+		const reloaded = load();
+
+		assert.deepStrictEqual({
+			afterAdopting,
+			afterDeletingAndReloading: { groups: reloaded.groups.getGroups(), order: reloaded.order.resolveOrder(['group:work', 'workspace:vscode']) },
+			synced: [deviceStorage.get('sessionsListControl.groups', StorageScope.PROFILE), deviceStorage.get('sessionsListControl.sectionOrder', StorageScope.PROFILE)],
+		}, {
+			afterAdopting: {
+				group: 'work',
+				order: ['workspace:vscode', 'group:work'],
+				onDevice: ['sessionsListControl.localGroups', 'sessionsListControl.localGroups.adoptedLegacyState', 'sessionsListControl.localSectionOrder', 'sessionsListControl.localSectionOrder.adoptedLegacyState'],
+			},
+			afterDeletingAndReloading: { groups: [], order: ['group:work', 'workspace:vscode'] },
+			synced: [syncedGroups, syncedOrder],
 		});
 	});
 
@@ -811,7 +850,7 @@ suite('SessionGroupsService', () => {
 
 	/** Replaces the service with one that loads the given groups. */
 	function loadGroups(groups: readonly { readonly id: string; readonly name: string; readonly createdAt: number; readonly parentId?: string }[]): void {
-		storageService.store('sessionsListControl.groups', JSON.stringify({ groups, membership: {} }), StorageScope.PROFILE, StorageTarget.USER);
+		storageService.store('sessionsListControl.localGroups', JSON.stringify({ groups, membership: {} }), StorageScope.PROFILE, StorageTarget.MACHINE);
 		service.dispose();
 		service = disposables.add(instantiationService.createInstance(SessionGroupsService));
 	}
@@ -1042,7 +1081,7 @@ suite('SessionGroupsService', () => {
 	});
 
 	test('loading makes groups whose stored parent is missing or loops back top-level groups', () => {
-		storageService.store('sessionsListControl.groups', JSON.stringify({
+		storageService.store('sessionsListControl.localGroups', JSON.stringify({
 			groups: [
 				{ id: 'orphan', name: 'Orphan', createdAt: 1, parentId: 'missing' },
 				{ id: 'a', name: 'A', createdAt: 2, parentId: 'b' },
@@ -1051,7 +1090,7 @@ suite('SessionGroupsService', () => {
 				{ id: 'child', name: 'Child', createdAt: 5, parentId: 'a' },
 			],
 			membership: {},
-		}), StorageScope.PROFILE, StorageTarget.USER);
+		}), StorageScope.PROFILE, StorageTarget.MACHINE);
 
 		service.dispose();
 		service = disposables.add(instantiationService.createInstance(SessionGroupsService));
@@ -1465,7 +1504,7 @@ suite('SessionGroupsService', () => {
 			moveInto(promoted, source);
 			sessions = [source];
 			const reloaded = disposables.add(instantiationService.createInstance(SessionGroupsService));
-			const stored = JSON.parse(storageService.get('sessionsListControl.groups', StorageScope.PROFILE) ?? '{}');
+			const stored = JSON.parse(storageService.get('sessionsListControl.localGroups', StorageScope.PROFILE) ?? '{}');
 
 			assert.deepStrictEqual({
 				afterPromote,

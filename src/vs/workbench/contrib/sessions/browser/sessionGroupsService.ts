@@ -13,6 +13,7 @@ import { generateUuid } from '../../../../base/common/uuid.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ISession, isSessionArchiveConfirmed } from '../../../services/sessions/common/session.js';
+import { readMachineSessionsListState } from '../../../services/sessions/common/sessionsListStorage.js';
 import { ISessionsManagementService } from '../common/sessionsManagement.js';
 import { ISessionSectionOrderService, ISessionSectionPositions, resolveSectionOrder, restoreSectionOrderPositions, spliceSectionOrder } from '../../../services/sessions/browser/sessionSectionOrderService.js';
 
@@ -166,7 +167,8 @@ export class SessionGroupTree {
 /**
  * Service that owns user-created session groups, their nesting, the order of
  * each group's subgroups and grouping sections, and the mapping of sessions to groups. State is
- * purely local (persisted to profile storage) and not synced to providers.
+ * purely local: persisted to the profile's machine storage, it is neither synced to providers
+ * nor roamed across devices by Settings Sync.
  * Top-level groups share their order with the sessions list's other top-level
  * headers, which the list arranges in {@link ISessionSectionOrderService}.
  *
@@ -319,7 +321,8 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 
 	declare readonly _serviceBrand: undefined;
 
-	private static readonly STORAGE_KEY = 'sessionsListControl.groups';
+	private static readonly STORAGE_KEY = 'sessionsListControl.localGroups';
+	private static readonly LEGACY_SYNCED_STORAGE_KEY = 'sessionsListControl.groups';
 
 	private readonly _onDidChange = this._register(new Emitter<ISessionGroupsChangeEvent>());
 	readonly onDidChange: Event<ISessionGroupsChangeEvent> = this._onDidChange.event;
@@ -1015,7 +1018,7 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 	// -- Storage --
 
 	private load(): void {
-		const raw = this.storageService.get(SessionGroupsService.STORAGE_KEY, StorageScope.PROFILE);
+		const raw = readMachineSessionsListState(this.storageService, SessionGroupsService.STORAGE_KEY, SessionGroupsService.LEGACY_SYNCED_STORAGE_KEY);
 		if (!raw) {
 			return;
 		}
@@ -1095,7 +1098,7 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 			[EXPLICITLY_UNGROUPED_FIELD]: [...this._explicitlyUngroupedSessionIds],
 			...(childOrders.length > 0 ? { subgroupOrders: Object.fromEntries(childOrders) } : {}),
 		};
-		this.storageService.store(SessionGroupsService.STORAGE_KEY, JSON.stringify(state), StorageScope.PROFILE, StorageTarget.USER);
+		this.storageService.store(SessionGroupsService.STORAGE_KEY, JSON.stringify(state), StorageScope.PROFILE, StorageTarget.MACHINE);
 	}
 
 	/** The child orders of existing groups, with only their current subgroups and grouping sections. */
