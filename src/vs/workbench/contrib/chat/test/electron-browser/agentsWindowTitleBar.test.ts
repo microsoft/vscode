@@ -503,9 +503,25 @@ suite('Agents Window titlebar copy experiment', () => {
 		});
 	});
 
-	test('waits for the latest shared assignment before triggering during a refetch', async () => {
+	test('logs the fallback hover after the shared lookup resolves without an assignment', async () => {
 		const h = createHarness(2);
-		await h.resolveExpansion(true);
+		await h.expansionRequests[0].complete(false);
+		await timeout(0);
+		h.container.dispatchEvent(new MouseEvent('mouseenter'));
+		h.container.dispatchEvent(new MouseEvent('mouseleave'));
+		await h.resolveSharedExpansion(undefined);
+		assert.deepStrictEqual({
+			expandOnHover: h.container.classList.contains('expand-on-hover'),
+			triggers: h.snapshot().triggers,
+		}, {
+			expandOnHover: false,
+			triggers: [expansionTreatmentName],
+		});
+	});
+
+	test('uses the last resolved shared treatment while refetches are pending', async () => {
+		const h = createHarness(2);
+		await h.resolveExpansion(true, 0, true);
 		h.refetched.fire();
 		h.refetched.fire();
 		h.container.dispatchEvent(new MouseEvent('mouseenter'));
@@ -517,7 +533,7 @@ suite('Agents Window titlebar copy experiment', () => {
 			expandOnHover: h.container.classList.contains('expand-on-hover'),
 			triggers: h.snapshot().triggers,
 		}, {
-			afterStaleAssignment: [],
+			afterStaleAssignment: [sharedExpansionTreatmentName],
 			expandOnHover: false,
 			triggers: [sharedExpansionTreatmentName],
 		});
@@ -537,7 +553,7 @@ suite('Agents Window titlebar copy experiment', () => {
 			warnings: h.warnings,
 			triggers: h.snapshot().triggers,
 		}, {
-			duringRefetch: [],
+			duringRefetch: [expansionTreatmentName, sharedExpansionTreatmentName],
 			expandOnHover: false,
 			warnings: ['[OpenWorkspaceInAgentsTitleBarWidget] Failed to resolve treatments'],
 			triggers: [expansionTreatmentName, sharedExpansionTreatmentName],

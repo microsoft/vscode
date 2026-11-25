@@ -430,9 +430,10 @@ class OpenWorkspaceInAgentsTitleBarWidget extends BaseActionViewItem {
 	private treatmentLabel: string | undefined;
 	private treatmentsResolved = false;
 	private expansionTreatmentResolved = false;
-	private sharedExpansionTreatmentPending = true;
+	private sharedExpansionTreatmentResolved = false;
 	private expansionTreatment: boolean | undefined;
 	private sharedExpansionTreatment: boolean | undefined;
+	private fallbackHoveredBeforeSharedResolution = false;
 	private isHovered = false;
 
 	constructor(
@@ -494,13 +495,13 @@ class OpenWorkspaceInAgentsTitleBarWidget extends BaseActionViewItem {
 			'OpenWorkspaceInAgentsTitleBarWidget',
 			([expandOnHover]) => {
 				this.sharedExpansionTreatment = expandOnHover;
+				this.sharedExpansionTreatmentResolved = true;
 				this.updateHoverExpansion();
 			},
 			this.assignmentService,
 			this.logService,
 			value => typeof value === 'boolean',
 			pending => {
-				this.sharedExpansionTreatmentPending = pending;
 				if (!pending) {
 					this.logExpansionExperimentTrigger();
 				}
@@ -553,13 +554,22 @@ class OpenWorkspaceInAgentsTitleBarWidget extends BaseActionViewItem {
 	}
 
 	private logExpansionExperimentTrigger(): void {
-		if (!this.isHovered || this.sharedExpansionTreatmentPending) {
+		if (!this.sharedExpansionTreatmentResolved) {
+			if (this.isHovered && this.expansionTreatmentResolved) {
+				this.fallbackHoveredBeforeSharedResolution = true;
+			}
 			return;
 		}
-		if (this.expansionTreatmentResolved && this.sharedExpansionTreatment === undefined) {
+
+		if (this.isHovered) {
+			if (this.expansionTreatmentResolved && this.sharedExpansionTreatment === undefined) {
+				logExperimentTrigger(this.telemetryService, OpenWorkspaceInAgentsTitleBarWidget.EXPAND_ON_HOVER_TREATMENT);
+			}
+			logExperimentTrigger(this.telemetryService, AGENTS_WINDOW_SWITCHER_EXPAND_ON_HOVER_TREATMENT);
+		} else if (this.fallbackHoveredBeforeSharedResolution && this.expansionTreatmentResolved && this.sharedExpansionTreatment === undefined) {
 			logExperimentTrigger(this.telemetryService, OpenWorkspaceInAgentsTitleBarWidget.EXPAND_ON_HOVER_TREATMENT);
 		}
-		logExperimentTrigger(this.telemetryService, AGENTS_WINDOW_SWITCHER_EXPAND_ON_HOVER_TREATMENT);
+		this.fallbackHoveredBeforeSharedResolution = false;
 	}
 
 	protected override updateLabel(): void {
