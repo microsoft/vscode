@@ -28,6 +28,8 @@ New-session and nested-chat views require an entry-selected `INewSessionPresenta
 
 Directly composed chat inputs, such as automation prompts, receive the same editor options from the view factory and pass them to their input component.
 
+The isolated entry registers its own Automations custom view rather than mounting the desktop cards or catalogue editor. It reads the shared provider catalogue, opens existing sessions through the shared run-history component, and delegates creation and changes to the same guarded commands as desktop.
+
 The view factory also owns optional chat-background presentation for the session grid and transcript. Shared chat views receive a background adapter through their options rather than importing a renderer or configuration service. The regular entry supplies the background feature; the isolated mobile entry omits its presentation, registrations, and media. Both entries share built-in skill definitions and discovery; packaging a skill does not register the tools it uses.
 
 `IChatViewFactory.newSessionInput` composes optional composer behavior, isolation-picker decoration, and the corresponding accessibility help. The regular entry supplies worktree suggestions through this contract; mobile omits their service, implementation, and styles. The shared configuration picker still owns provider configuration writes. Composer controllers, trigger rendering, and open-picker subscriptions belong to their respective view, trigger, and picker lifetimes.

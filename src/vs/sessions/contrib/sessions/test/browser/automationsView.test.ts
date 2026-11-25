@@ -79,12 +79,14 @@ import { IHostService } from '../../../../../workbench/services/host/browser/hos
 import { AutomationsHasItemsContext, CustomViewAllowsPanelContext } from '../../../../common/agentsWindowContextKeys.js';
 import { getSessionApplication } from '../../../../../workbench/services/sessions/common/sessionApplication.js';
 import { ExternalSessionApplicationBadgeMode, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, SESSIONS_SEND_LATER_ENABLED_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
-import { getShowSharedAutomationsByOthers, setShowSharedAutomationsByOthers } from '../../../../../workbench/contrib/chat/common/automations/automationViewState.js';
+import { getShowSharedAutomationsByOthers, setShowSharedAutomationsByOthers, SHOW_DISABLED_AUTOMATIONS_STORAGE_KEY } from '../../../../../workbench/contrib/chat/common/automations/automationViewState.js';
 import { buildAutomationsAccessibleContent } from '../../browser/views/automationsAccessibility.js';
 import { automationRunWithLocalProgress } from '../../browser/views/automationRunProgress.js';
 import { AutomationHistoryActionsContribution } from '../../../automations/browser/automationRunHistory.js';
 import { AUTOMATION_TEMPLATES } from '../../browser/views/automationTemplates.js';
-import { AutomationsCardsWidget, AutomationsCustomViewContribution, SHOW_DISABLED_AUTOMATIONS_STORAGE_KEY, SEEN_PLUGIN_AUTOMATION_TEMPLATES_STORAGE_KEY } from '../../browser/views/automationsView.js';
+import { AutomationsCardsWidget, AutomationsCustomViewContribution, SEEN_PLUGIN_AUTOMATION_TEMPLATES_STORAGE_KEY } from '../../browser/views/automationsView.js';
+import { MobileAutomationsView } from '../../../mobile/browser/mobileAutomationsView.js';
+import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { AUTOMATIONS_TOUR_ID, createAutomationsTour } from '../../../onboardingTours/browser/tours/automationsTour.js';
 import { AUTOMATIONS_MODAL_SETTING, AutomationsEditorInput } from '../../../automations/browser/automationsEditorInput.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
@@ -211,7 +213,7 @@ class FakeAutomationService extends mock<IAutomationService>() {
 	override readonly runs: IObservable<readonly IAutomationRun[]> = this.runValue;
 	override readonly catalogueState: IObservable<AutomationCatalogueState> = this.catalogueStateValue;
 	override readonly unavailableProviders: IObservable<readonly IAutomationProviderDescriptor[]> = this.unavailableProvidersValue;
-	override readonly availableProviders = constObservable<readonly IAutomationProviderDescriptor[]>([]);
+	override readonly availableProviders = observableValue<readonly IAutomationProviderDescriptor[]>(this, []);
 	updateResult: IGuardedAutomationUpdateResult | undefined;
 	updateCalls = 0;
 	createError: Error | undefined;
@@ -815,7 +817,7 @@ suite('AutomationsCardsWidget', () => {
 		});
 	}
 
-	function setup(
+	function setupServices(
 		archiveWording: 'archive' | 'done' = 'archive',
 		hoverService: IHoverService = NullHoverService,
 		fileService?: IFileService,
@@ -934,14 +936,131 @@ suite('AutomationsCardsWidget', () => {
 		}());
 		disposables.add(instantiationService.createInstance(AutomationsCustomViewContribution));
 		disposables.add(instantiationService.createInstance(AutomationHistoryActionsContribution));
-		const widget = disposables.add(instantiationService.createInstance(AutomationsCardsWidget));
-		document.body.append(widget.element);
-		disposables.add(toDisposable(() => widget.element.remove()));
 		const disabledFilter = () => instantiationService.get(IMenuService).getMenuActions(AgentsWindowMenus.AutomationsMoreActions, contextKeyService)
 			.flatMap(([, actions]) => actions).find(action => action.id === 'sessions.automations.toggleShowDisabled')!;
 		const toggleDisabled = () => instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand('sessions.automations.toggleShowDisabled')!.handler(accessor));
-		return { agentPluginService, automationService, automationDialogService, commandService, configurationService, contextKeyService, contextMenuService, dialogService, instantiationService, keybindingService, logService, missionControlEnvironmentService, remoteAgentHostService, runner, sessionsManagementService, sessionsService, shownAutomationSessionIds, telemetryService, widget, refreshErrors, opened, chatModels, windowFocus, actionFactories, disabledFilter, toggleDisabled };
+		return { agentPluginService, automationService, automationDialogService, commandService, configurationService, contextKeyService, contextMenuService, dialogService, instantiationService, keybindingService, logService, missionControlEnvironmentService, remoteAgentHostService, runner, sessionsManagementService, sessionsService, shownAutomationSessionIds, telemetryService, refreshErrors, opened, chatModels, windowFocus, actionFactories, disabledFilter, toggleDisabled };
 	}
+
+	function setup(...args: Parameters<typeof setupServices>) {
+		const services = setupServices(...args);
+		const widget = disposables.add(services.instantiationService.createInstance(AutomationsCardsWidget));
+		document.body.append(widget.element);
+		disposables.add(toDisposable(() => widget.element.remove()));
+		return { ...services, widget };
+	}
+
+	function setupPhone() {
+		const services = setupServices();
+		const view = disposables.add(services.instantiationService.createInstance(MobileAutomationsView));
+		const container = document.body.appendChild(document.createElement('div'));
+		disposables.add(toDisposable(() => container.remove()));
+		view.render(container);
+		return { ...services, container };
+	}
+
+	test('phone keeps cached automations on failure and Retry requests a foreground refresh', () => {
+		const { container, automationService } = setupPhone();
+		automationService.setAutomations([automation(), automation({ id: 'not-mine', ownership: 'repository', isCreatedByCurrentUser: false })]);
+		const row = container.querySelector<HTMLButtonElement>('.mobile-automation-row')!;
+		row.focus();
+		automationService.setCatalogueState('error');
+		const retry = container.querySelector<HTMLElement>('.mobile-automations-notice [role="button"]')!;
+		retry.click();
+		assert.deepStrictEqual({
+			rows: Array.from(container.querySelectorAll('.mobile-automation-name'), el => el.textContent),
+			focusRetained: document.activeElement === row,
+			message: container.querySelector('.mobile-automations-notice [role="status"]')?.textContent,
+			available: !retry.hidden,
+			refreshes: automationService.refreshOptions,
+		}, { rows: ['Daily review'], focusRetained: true, message: 'Some automations couldn\'t be loaded.', available: true, refreshes: [{ background: true }, undefined] });
+	});
+
+	test('phone only offers available actions and opens templates on request', async () => {
+		const { container, automationService, instantiationService, commandService } = setupPhone();
+		automationService.canUpdate = false;
+		automationService.availableProviders.set([{ id: 'host', label: 'Host' }], undefined);
+		automationService.setAutomations([automation()]);
+		const picker = stub(instantiationService.get(IQuickInputService), 'pick').resolves(undefined);
+		disposables.add(toDisposable(() => picker.restore()));
+		const initial = container.textContent ?? '';
+		container.querySelector<HTMLButtonElement>('.mobile-automation-row')!.click();
+		const actions = await picker.firstCall.args[0];
+		container.querySelector<HTMLElement>('.mobile-automations-create')!.click();
+		const creation = await picker.secondCall.args[0];
+		const templateChoice = creation.find(choice => choice.label === 'Choose a Template');
+		assert.ok(templateChoice && templateChoice.type !== 'separator');
+		picker.onThirdCall().resolves(templateChoice);
+		container.querySelector<HTMLElement>('.mobile-automations-create')!.click();
+		await timeout(0);
+		const templates = await picker.getCall(3).args[0];
+		assert.deepStrictEqual({
+			templatesOnLandingPage: initial.includes('Catch up on main'),
+			canEdit: actions.some(action => action.label === 'Edit...'),
+			canRead: actions.some(action => action.label === 'View Details'),
+			canImport: creation.some(action => action.label === 'Import Automation...'),
+			inCreation: creation.some(action => action.label === 'Catch up on main'),
+			inTemplates: templates.some(action => action.label === 'Catch up on main'),
+			commands: commandService.calls,
+		}, { templatesOnLandingPage: false, canEdit: false, canRead: true, canImport: false, inCreation: false, inTemplates: true, commands: [] });
+	});
+
+	test('phone read-only details describe the same events as the schedule row', () => {
+		const { container, instantiationService, automationService } = setupPhone();
+		automationService.canUpdate = false;
+		automationService.canDelete = false;
+		const item = automation({
+			schedule: { ...hourly(), interval: 'custom' },
+			cloudTrigger: { triggers: { pull_request_opened: { types: ['opened'] }, pull_request_comment: { types: ['review_comment'] } } },
+		});
+		automationService.setAutomations([item]);
+		const info = stub(instantiationService.get(IDialogService), 'info').resolves();
+		disposables.add(toDisposable(() => info.restore()));
+		container.querySelector<HTMLButtonElement>('.mobile-automation-row')!.click();
+		const triggers = 'Pull request opened, Review comment';
+		assert.deepStrictEqual([container.querySelector('.mobile-automation-detail')?.textContent, info.firstCall.args], [triggers, [item.name, `${triggers}\n\n${item.prompt}`]]);
+	});
+
+	test('phone distinguishes shared schedules hidden by Filter from an empty catalogue', async () => {
+		const { container, configurationService, automationService } = setupPhone();
+		await configurationService.setUserConfiguration(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
+		automationService.setAutomations([automation({ ownership: 'repository', isCreatedByCurrentUser: false })]);
+		automationService.setCatalogueState('ready');
+		assert.deepStrictEqual({
+			status: container.querySelector('.mobile-automations-notice [role="status"]')?.textContent,
+			filter: container.querySelector('.mobile-automations-heading')?.checkVisibility(),
+			hint: container.querySelector('.mobile-automations-hint')?.checkVisibility(),
+		}, { status: 'No schedules match your filters.', filter: true, hint: false });
+	});
+
+	test('phone shows only the provider status when unavailable, then offers creation when a host becomes available', () => {
+		const { container, automationService } = setupPhone();
+		automationService.setUnavailableProviders([{ id: 'cloud', label: 'Cloud', unavailableMessage: 'Cloud is offline.' }]);
+		automationService.setCatalogueState('unavailable');
+		const snapshot = () => ({
+			status: container.querySelector('.mobile-automations-notice [role="status"]')?.textContent,
+			canCreate: container.querySelector('.mobile-automations-create')?.checkVisibility(),
+			hasFilters: container.querySelector('.mobile-automations-heading')?.checkVisibility(),
+			showsHistory: container.querySelector('.mobile-automations-recent')?.checkVisibility(),
+		});
+		const unavailable = snapshot();
+		automationService.availableProviders.set([{ id: 'host', label: 'Host' }], undefined);
+		automationService.setCatalogueState('ready');
+		assert.deepStrictEqual([unavailable, snapshot()], [
+			{ status: 'Cloud is offline.', canCreate: false, hasFilters: false, showsHistory: false },
+			{ status: 'No saved automations yet.', canCreate: true, hasFilters: false, showsHistory: false },
+		]);
+	});
+
+	test('phone shows a pending run but omits an empty history section', () => {
+		const { container, automationService } = setupPhone();
+		const message = container.querySelector('.mobile-automations-history-message')!;
+		automationService.setCatalogueState('ready');
+		automationService.setRuns([run({ status: 'pending', sessionResource: undefined })]);
+		const pending = message.textContent;
+		automationService.setRuns([]);
+		assert.deepStrictEqual([pending, message.closest('section')?.hidden], ['Starting run…', true]);
+	});
 
 	test('scheduled chats and their run history stay out of Automations while Send Later is enabled', async () => {
 		const { widget, automationService, configurationService, instantiationService } = setup();
@@ -5971,6 +6090,19 @@ suite('AutomationsCardsWidget', () => {
 			}],
 			updateCalls: [{ id: source.id, patch: { enabled: false }, expected: source }],
 		});
+
+	});
+
+	test('keeping a scheduled chat at the cancellation prompt leaves delivery enabled', async () => {
+		const { automationService, dialogService, instantiationService } = setup();
+		const source = automation({ purpose: 'scheduledChat', schedule: { interval: 'once', runAt: '2027-01-01T10:00:00Z', scheduleDay: 0, scheduleHour: 0, scheduleMinute: 0 } });
+		automationService.setAutomations([source]);
+		const command = CommandsRegistry.getCommand('sessions.automations.disable')!;
+		await instantiationService.invokeFunction(accessor => command.handler(accessor, source));
+		assert.deepStrictEqual({
+			keep: dialogService.confirmations[0]?.cancelButton,
+			updates: automationService.guardedUpdateCalls,
+		}, { keep: 'Keep Scheduled', updates: [] });
 	});
 
 	test('disable conflicts are logged and reported to the user', async () => {

@@ -126,12 +126,14 @@
 	border-radius: 0;
 }
 
-/* Collapsible groups disclose from the trailing edge. */
+/* Collapsible groups disclose from the trailing edge, aligned with shortcut chevrons. */
 .monaco-workbench.agent-sessions-workbench.mobile-workbench .sessions-list-control .monaco-list-row .session-section .session-section-chevron.collapsible {
 	display: flex;
 	align-items: center;
 	order: 1;
 	margin-left: auto;
+	margin-right: 0;
+	letter-spacing: normal;
 	color: var(--vscode-descriptionForeground);
 }
 

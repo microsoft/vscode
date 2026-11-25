@@ -97,7 +97,8 @@ import { ITelemetryService } from '../../platform/telemetry/common/telemetry.js'
 import { createMainWindowInstantiationService } from '../../workbench/services/sessions/browser/sessionHost.js';
 import { AgentWorkbenchLayout, ISessionsHostLayoutService, ISessionsHostSidePane } from '../../workbench/services/sessions/browser/sessionsHostLayoutService.js';
 
-const PHONE_NOTIFICATION_ROW_HEIGHT = 44;
+// Two virtual rows share the item padding and button focus margins around 44px touch targets.
+const PHONE_NOTIFICATION_ROW_HEIGHT = 56;
 const SESSIONS_SIDE_PANE_DIVIDER_CLASS = 'sessions-side-pane-divider';
 /** On the main container while the Session Activity Bar column shows. */
 const SESSION_ACTIVITY_BAR_COLUMN_VISIBLE_CLASS = 'session-activity-bar-column-visible';

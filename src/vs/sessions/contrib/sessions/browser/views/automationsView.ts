@@ -12,7 +12,6 @@ import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/ho
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { toAction } from '../../../../../base/common/actions.js';
-import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
@@ -56,14 +55,15 @@ import { type AutomationDialogCreateInitialValues, IAutomationDialogService } fr
 import { IAutomationRunner } from '../../../../../workbench/contrib/chat/common/automations/automationRunner.js';
 import { type AutomationCatalogueState, type IAutomationProviderDescriptor, IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { automationTriggerSummary, hasAutomationEventTrigger } from '../../../../../workbench/contrib/chat/common/automations/automationTriggers.js';
-import { observableShowSharedAutomationsByOthers } from '../../../../../workbench/contrib/chat/common/automations/automationViewState.js';
+import { observableShowSharedAutomationsByOthers, SHOW_DISABLED_AUTOMATIONS_STORAGE_KEY } from '../../../../../workbench/contrib/chat/common/automations/automationViewState.js';
 import { CHAT_AUTOMATIONS_ENABLED_SETTING, CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
-import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { ChatAIDisabledSettingId } from '../../../../../platform/chat/common/chatSettings.js';
+import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
+import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { IAgentPluginService } from '../../../../../workbench/contrib/chat/common/plugins/agentPluginService.js';
 import { markOnboardingTarget } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../../../../../workbench/contrib/sessions/browser/automationsConstants.js';
 import { AbstractCustomView, ICustomViewService } from '../../../../../workbench/contrib/sessions/browser/customView.js';
-import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
 import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
 import { OPEN_REMOTES_EDITOR_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
 import { SESSIONS_SEND_LATER_ENABLED_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
@@ -75,18 +75,18 @@ import { logAutomationViewShown, withAutomationDialogPersistenceTelemetry } from
 import { formatSchedule, getAutomationOwnershipGroups, getAutomationRemoteStatusPresentation, getAutomationsViewContent, getConnectedAutomationRemoteCount, getUnavailableAutomationsReasons, hasEmptyAutomationSection } from './automationCataloguePresentation.js';
 import { isLocalAutomationRunStarting } from './automationRunProgress.js';
 import { IAutomationTemplate, readAutomationTemplates } from './automationTemplates.js';
-import { AUTOMATIONS_MODAL_SETTING } from '../../../automations/browser/automationsEditorInput.js';
+import { AUTOMATIONS_MODAL_SETTING, AutomationsEditorInput } from '../../../automations/browser/automationsEditorInput.js';
 
 
 import '../../../../../workbench/contrib/sessions/browser/media/disclosure.css';
 import '../media/automationsCards.css';
-import './automationsAccessibility.js';
+import { registerAutomationsAccessibility } from './automationsAccessibility.js';
 
 
 import { AutomationHeaderButtonActionViewItem, AutomationHeaderSplitButtonActionViewItem } from '../../../automations/browser/automationActionViewItems.js';
-import { AutomationCommands, getErrorMessage, importAutomationBlueprint, isAutomationBlueprintResource, refreshAutomations, showAutomationEditDialog, showAutomationsDisabled } from '../../../automations/browser/automationCommands.js';
+import { AutomationCommands, getErrorMessage, importAutomationBlueprint, isAutomationBlueprintResource, registerAutomationCatalogueRefresh, showAutomationEditDialog, showAutomationsDisabled } from '../../../automations/browser/automationCommands.js';
 
-import { AutomationHistorySection, markAllAutomationRunsRead, resolveAutomationRunSessions } from '../../../automations/browser/automationRunHistory.js';
+import { AutomationHistorySection, resolveAutomationRunSessions } from '../../../automations/browser/automationRunHistory.js';
 
 
 const $ = DOM.$;
@@ -101,7 +101,6 @@ const $ = DOM.$;
 
 
 export const SEEN_PLUGIN_AUTOMATION_TEMPLATES_STORAGE_KEY = 'sessions.automations.seenPluginTemplateIds';
-export const SHOW_DISABLED_AUTOMATIONS_STORAGE_KEY = 'sessions.automations.showDisabled';
 const ShowDisabledAutomationsContext = new RawContextKey<boolean>('sessionsAutomationsShowDisabled', true);
 const AutomationsHasVisibleCardsContext = new RawContextKey<boolean>('sessionsAutomationsHasVisibleCards', false);
 const TOGGLE_SHOW_DISABLED_AUTOMATIONS_COMMAND_ID = 'sessions.automations.toggleShowDisabled';
@@ -311,24 +310,7 @@ export class AutomationsCardsWidget extends Disposable {
 			this.historySection.render(allRuns, sessions, reader);
 			this.cardsSection.setPresentedRunIds(sessions.keys());
 		}));
-		const refreshScheduler = this._register(new RunOnceScheduler(() => {
-			void refresh();
-		}, 60_000));
-		const refresh = async (): Promise<void> => {
-			refreshScheduler.cancel();
-			await refreshAutomations(this.automationService, this.logService, undefined, { background: true });
-			if (!this._store.isDisposed && !this.automationService.isRefreshing?.get()) {
-				refreshScheduler.schedule();
-			}
-		};
-		this._register(autorun(reader => {
-			if (this.automationService.isRefreshing?.read(reader)) {
-				refreshScheduler.cancel();
-			} else {
-				refreshScheduler.schedule();
-			}
-		}));
-		void refresh();
+		registerAutomationCatalogueRefresh(this._store, this.automationService, this.logService);
 	}
 
 	layout(width: number, height: number): void {
@@ -1879,26 +1861,28 @@ export class AutomationsCustomViewContribution extends Disposable {
 
 
 
-registerAction2(class MarkAllAutomationRunsReadAction extends Action2 {
+registerAutomationsAccessibility('cards');
+registerWorkbenchContribution2(AutomationsCustomViewContribution.ID, AutomationsCustomViewContribution, WorkbenchPhase.BlockRestore);
+
+registerAction2(class ManageAutomationsAction extends Action2 {
 	constructor() {
 		super({
-			id: 'sessions.automations.markAllRead',
-			title: localize2('markAllAutomationRunsRead', "Mark All as Read"),
-			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatAutomationsEnabledContext),
-			menu: {
-				id: Menus.AutomationsContext,
-				when: ContextKeyExpr.and(ChatContextKeys.enabled, ChatAutomationsEnabledContext),
-			},
+			id: 'sessionsView.manageAutomations',
+			title: localize2('manageAutomations', "Manage Automations"),
 		});
 	}
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
-		await markAllAutomationRunsRead(
-			accessor.get(IAutomationService), accessor.get(ISessionsManagementService), accessor.get(IUriIdentityService),
-			accessor.get(IChatService).chatModels.get(), accessor.get(ILogService), accessor.get(IDialogService),
-			accessor.get(IConfigurationService),
-			accessor.get(IStorageService),
-		);
+		const configurationService = accessor.get(IConfigurationService);
+		if (configurationService.getValue<boolean>(AUTOMATIONS_MODAL_SETTING) === true) {
+			if (configurationService.getValue<boolean>(CHAT_AUTOMATIONS_ENABLED_SETTING) !== true || configurationService.getValue<boolean>(ChatAIDisabledSettingId)) {
+				return;
+			}
+			accessor.get(ICustomViewService).hideCustomView();
+			await accessor.get(IEditorService).openEditor(AutomationsEditorInput.getOrCreate(), { pinned: true });
+			return;
+		}
+		accessor.get(ICustomViewService).showCustomView(AUTOMATIONS_CUSTOM_VIEW_ID);
 	}
 });
 

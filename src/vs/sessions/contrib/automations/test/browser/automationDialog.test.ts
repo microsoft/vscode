@@ -75,7 +75,8 @@ import { GITHUB_REMOTE_FILE_SCHEME, ISession, ISessionWorkspace, SessionTypeAuth
 import { IAutomationSessionConfiguration, ISessionsProvider } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
-import { AutomationDialogService } from '../../browser/automationDialogService.js';
+import { registerMobileSheetNavigation } from '../../../../../workbench/contrib/sessions/browser/mobile/mobileSheetNavigation.js';
+import { AutomationDialogService, MobileAutomationDialogService } from '../../browser/automationDialogService.js';
 import { AutomationCustomizationSelection, AutomationIsolationGroupActionViewItem, AutomationSessionDraftSynchronizer, buildAutomationDisableConditions, canSelectAutomationWorkspace, getAutomationDialogProviders, getAutomationEndDateError, IFormState, IValidationState, isAutomationDialogPopupTarget, MobileAutomationsWorkspacePicker, registerAutomationDialogKeyboardNavigation, renderForm, shouldPassThroughAutomationDialogCommand, updateSaveButtonState } from '../../browser/automationDialog.js';
 import { AutomationInputCompletions } from '../../browser/automationInputCompletions.js';
 import { AutomationIsolationModel } from '../../common/isolationGroupModel.js';
@@ -110,7 +111,7 @@ suite('Automation dialog creation', () => {
 		assert.deepStrictEqual(actual, { session: true, chat: true });
 	});
 
-	function openDialog(options: IShowAutomationDialogOptions = {}, cloudConfigurationOrChoices?: IAutomationProviderConfiguration | IAutomationService['getCustomizationChoices'], sessionOverrides?: Partial<ISessionsManagementService>, repository?: IGitRepository, cloudCreatable = true, cloudEnabledAtOpen = true, canUpdate = true, inputEditorOptions?: IChatInputPartOptions['inputEditorOptions'], automationOverrides?: Partial<IAutomationService>) {
+	function openDialog({ phoneNavigation, ...options }: IShowAutomationDialogOptions & { phoneNavigation?: Parameters<typeof registerMobileSheetNavigation>[1] } = {}, cloudConfigurationOrChoices?: IAutomationProviderConfiguration | IAutomationService['getCustomizationChoices'], sessionOverrides?: Partial<ISessionsManagementService>, repository?: IGitRepository, cloudCreatable = true, cloudEnabledAtOpen = true, canUpdate = true, inputEditorOptions?: IChatInputPartOptions['inputEditorOptions'], automationOverrides?: Partial<IAutomationService>) {
 		const cloudConfiguration = typeof cloudConfigurationOrChoices === 'function' ? undefined : cloudConfigurationOrChoices;
 		const getCustomizationChoices = typeof cloudConfigurationOrChoices === 'function' ? cloudConfigurationOrChoices : undefined;
 		const configurationService = new TestConfigurationService();
@@ -253,9 +254,12 @@ suite('Automation dialog creation', () => {
 			return child;
 		});
 		disposables.add(toDisposable(() => createChild.restore()));
-		const result = instantiationService.createInstance(AutomationDialogService).showAutomationDialog(options);
 		const container = instantiationService.get(IWorkbenchLayoutService).activeContainer;
-		const buttons = Array.from(container.querySelectorAll<HTMLElement>('.automation-dialog-footer-actions .monaco-button'));
+		if (phoneNavigation) {
+			disposables.add(registerMobileSheetNavigation(container, phoneNavigation));
+		}
+		const result = instantiationService.createInstance(phoneNavigation ? MobileAutomationDialogService : AutomationDialogService).showAutomationDialog(options);
+		const buttons = Array.from(container.querySelectorAll<HTMLElement>(phoneNavigation ? '.automation-phone-form-header .monaco-button' : '.automation-dialog-footer-actions .monaco-button'));
 		const saveButton = buttons.find(button => button.textContent === (options.existing ? 'Save' : 'Create'))!;
 		const cancelButton = buttons.find(button => button.textContent === 'Cancel')
 			?? Array.from(container.querySelectorAll<HTMLElement>('.dialog-buttons .monaco-button')).find(button => button.textContent === 'Close')!;
@@ -2780,6 +2784,7 @@ suite('Automation dialog creation', () => {
 				await committed.p;
 			}
 		});
+
 		dialog.setPrompt('Review changes');
 		dialog.saveButton.click();
 		await started.p;
@@ -2803,6 +2808,40 @@ suite('Automation dialog creation', () => {
 		});
 		void committed.complete();
 		assert.deepStrictEqual((await dialog.result)?.kind, 'create');
+	});
+
+	test('phone Back discards a draft but cannot interrupt a commit', async () => {
+		let back: (() => void) | undefined;
+		const phoneNavigation = (dismiss: () => void) => {
+			back = dismiss;
+			return toDisposable(() => {
+				if (back === dismiss) {
+					back = undefined;
+				}
+			});
+		};
+		const draft = openDialog({ phoneNavigation });
+		draft.setPrompt('Discard this draft');
+		back!();
+		const discarded = await draft.result;
+
+		const started = new DeferredPromise<void>();
+		const committed = new DeferredPromise<void>();
+		const dialog = openDialog({
+			phoneNavigation,
+			commit: async () => {
+				void started.complete();
+				await committed.p;
+			},
+		});
+		dialog.setPrompt('Save this schedule');
+		dialog.saveButton.click();
+		await started.p;
+		back!();
+		const stayedOpen = !!dialog.container.querySelector('.automation-phone-form') && !!back;
+		void committed.complete();
+		const saved = await dialog.result;
+		assert.deepStrictEqual({ discarded, stayedOpen, saved: saved?.kind, back }, { discarded: undefined, stayedOpen: true, saved: 'create', back: undefined });
 	});
 
 	test('shows commit errors inline, preserves input, and supports retry', async () => {

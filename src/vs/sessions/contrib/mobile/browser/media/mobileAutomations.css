@@ -1,0 +1,233 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.mobile-workbench .custom-view-node[data-view-id="sessions.customView.automations"] {
+	background: var(--mobile-surface-page);
+}
+
+.mobile-workbench .custom-view-node[data-view-id="sessions.customView.automations"] .custom-view-header-band {
+	padding: var(--vscode-spacing-size160);
+	border: 0;
+}
+
+.mobile-workbench .custom-view-node[data-view-id="sessions.customView.automations"] .custom-view-header-title {
+	font-size: var(--vscode-fontSize-heading1);
+}
+
+.mobile-workbench .custom-view-node[data-view-id="sessions.customView.automations"] .custom-view-content {
+	height: 100%;
+	padding: 0 var(--vscode-spacing-size160) var(--vscode-spacing-size240);
+	overflow-y: auto;
+	overscroll-behavior: contain;
+}
+
+/* Focus starts on the page for announcements, not on an action. */
+.monaco-workbench.mobile-workbench .mobile-automations:focus {
+	outline: none;
+}
+
+.mobile-automations h2 {
+	margin: 0;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label1);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	letter-spacing: 0.04em;
+	text-transform: uppercase;
+}
+
+.mobile-automations-heading,
+.mobile-automation-row {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+}
+
+.mobile-automations-heading h2 {
+	flex: 1;
+	min-width: 0;
+}
+
+.mobile-automations-heading > .monaco-button,
+.mobile-automations-notice > .monaco-button,
+.mobile-automations > .mobile-automations-create,
+.automation-phone-form-header > .monaco-button {
+	display: inline-flex;
+	width: auto;
+	min-width: var(--mobile-target);
+	min-height: var(--mobile-target);
+	box-sizing: border-box;
+	justify-content: flex-start;
+	gap: var(--vscode-spacing-size60);
+	padding: 0;
+	border: 0;
+	background: transparent;
+	color: var(--vscode-textLink-foreground);
+	font: inherit;
+}
+
+.mobile-automations .mobile-automation-row {
+	width: 100%;
+	min-height: var(--mobile-row);
+	padding: var(--vscode-spacing-size120) 0;
+	color: var(--vscode-foreground);
+	border: 0;
+	background: transparent;
+	font: inherit;
+	text-align: start;
+	cursor: pointer;
+}
+
+.mobile-automation-row + .mobile-automation-row {
+	border-top: var(--vscode-strokeThickness) solid var(--mobile-separator);
+}
+
+.mobile-automation-row-copy {
+	display: grid;
+	flex: 1;
+	min-width: 0;
+	gap: var(--vscode-spacing-size40);
+	overflow-wrap: anywhere;
+}
+
+.mobile-automation-name {
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.mobile-automation-detail,
+.mobile-automation-row > .codicon,
+.mobile-automations-history-message,
+.mobile-automations .automations-history-group-header {
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label1);
+}
+
+.mobile-automations-notice p,
+.mobile-automations-history-message {
+	margin: 0;
+	line-height: 1.5;
+}
+
+.mobile-automations-notice .mobile-automations-hint {
+	margin-top: var(--vscode-spacing-size80);
+	color: var(--vscode-descriptionForeground);
+}
+
+.mobile-automations-list:not(:empty) + .mobile-automations-notice {
+	margin-block: var(--vscode-spacing-size120);
+}
+
+.mobile-automations > .mobile-automations-create {
+	margin-top: var(--vscode-spacing-size80);
+}
+
+.mobile-automations [hidden] {
+	display: none;
+}
+
+.mobile-automations-recent h2 {
+	margin: var(--vscode-spacing-size240) 0 var(--vscode-spacing-size80);
+}
+
+.mobile-automations .automations-history-group-header {
+	margin: var(--vscode-spacing-size120) 0 var(--vscode-spacing-size60);
+}
+
+.mobile-automations .automations-temporary-run {
+	box-sizing: border-box;
+	min-height: var(--mobile-row);
+	width: 100%;
+}
+
+.mobile-workbench .automation-phone-form {
+	position: absolute;
+	inset: 0;
+}
+
+.automation-phone-form > .dialog-shadow,
+.automation-phone-form .monaco-dialog-box.automation-dialog {
+	box-sizing: border-box;
+	width: 100%;
+	height: 100%;
+	min-width: 0;
+	max-width: none;
+	max-height: none;
+	border-radius: 0;
+	box-shadow: none;
+}
+
+.automation-phone-form .automation-dialog .dialog-toolbar-row {
+	display: none;
+}
+
+.mobile-workbench .automation-phone-form .monaco-dialog-box.automation-dialog .dialog-message-row .dialog-message-container {
+	padding: 0;
+}
+
+.automation-phone-form-header {
+	display: grid;
+	grid-template-columns: minmax(min-content, 1fr) auto minmax(min-content, 1fr);
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+	padding-inline: var(--vscode-spacing-size160);
+	padding-top: env(safe-area-inset-top);
+	border-bottom: var(--vscode-strokeThickness) solid var(--mobile-separator);
+}
+
+.automation-phone-form-title {
+	font-size: var(--vscode-fontSize-heading3);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	text-align: center;
+}
+
+.automation-phone-form-header > .monaco-button:last-child {
+	justify-self: end;
+	justify-content: flex-end;
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.automation-phone-form .automation-form-pane {
+	padding: var(--vscode-spacing-size200) var(--vscode-spacing-size160);
+}
+
+.automation-phone-form .automation-form {
+	padding: 0;
+}
+
+.automation-phone-form .automation-form-content,
+.automation-phone-form .automation-session-section {
+	gap: var(--vscode-spacing-size160);
+}
+
+.automation-phone-form .automation-form-prompt-host .chat-input-toolbars.has-no-actions {
+	display: none;
+}
+
+.automation-phone-form .automation-form-input-host .monaco-inputbox input.input,
+.automation-phone-form .automation-form-schedule-group .monaco-select-box {
+	box-sizing: border-box;
+	min-height: var(--mobile-target);
+	font-size: var(--vscode-fontSize-body1);
+}
+
+.automation-phone-form .automation-form-row.automation-form-schedule-row {
+	display: flex;
+	flex-direction: column;
+	align-items: stretch;
+}
+
+.automation-phone-form .automation-form-schedule-group {
+	flex: none;
+}
+
+.automation-phone-form .automation-dialog > .automation-dialog-footer-row {
+	flex: none;
+	margin: 0;
+	padding: 0;
+	border: 0;
+}
+
+.automation-phone-form .automation-dialog-notification-center {
+	margin: var(--vscode-spacing-size80) var(--vscode-spacing-size160);
+}

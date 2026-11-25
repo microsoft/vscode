@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { $, append, scheduleAtNextAnimationFrame } from '../../../base/browser/dom.js';
 import { Direction, Grid, ISerializableView, ISerializedGrid, ISerializedNode, LayoutPriority, SerializableGrid, Sizing } from '../../../base/browser/ui/grid/grid.js';
+import { toAction } from '../../../base/common/actions.js';
 import { Emitter, Event as BaseEvent } from '../../../base/common/event.js';
 import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { autorun, constObservable, IObservable, observableValue } from '../../../base/common/observable.js';
@@ -43,10 +44,15 @@ import { EditorInputCapabilities, IEditorPartOptions, IEditorPartOptionsChangeEv
 import { GroupDirection, GroupOrientation, IEditorGroupsService } from '../../../workbench/services/editor/common/editorGroupsService.js';
 import { SESSIONS_LIST_MINIMUM_WIDTH } from '../../browser/parts/sidebarPart.js';
 import { Menus } from '../../../workbench/contrib/sessions/browser/menus.js';
+import { NotificationsFilter, Severity } from '../../../platform/notification/common/notification.js';
+import { NotificationsList } from '../../../workbench/browser/parts/notifications/notificationsList.js';
 import { DEFAULT_NOTIFICATION_ROW_HEIGHT, onDidChangeNotificationRowHeight, setNotificationRowHeight } from '../../../workbench/browser/parts/notifications/notificationsViewer.js';
+import { NotificationViewItem } from '../../../workbench/common/notifications.js';
+import { workbenchInstantiationService } from '../../../workbench/test/browser/workbenchTestServices.js';
 import { DEFAULT_EDITOR_PART_OPTIONS, IEditorGroupViewOptions } from '../../../workbench/browser/parts/editor/editor.js';
 import { EditorInput } from '../../../workbench/common/editor/editorInput.js';
 import '../../../workbench/contrib/sessions/browser/parts/media/chatCompositeBar.css';
+import '../../browser/mobile/media/mobileWorkbench.css';
 import { TestDataTelemetryService } from '../../../platform/telemetry/test/common/testTelemetryService.js';
 
 interface IViewSize { width: number; height: number }
@@ -605,7 +611,47 @@ suite('Sessions - Workbench', () => {
 		isPhoneLayout.set(false, undefined);
 		registeredDisposables.dispose();
 
-		assert.deepStrictEqual(rowHeights, [34, 44, 34, 42]);
+		assert.deepStrictEqual(rowHeights, [34, 56, 34, 42]);
+	});
+
+	test('keeps phone notification actions visible below a two-line prompt', () => {
+		const root = append(mainWindow.document.body, $('.monaco-workbench.agent-sessions-workbench.phone-layout.mobile-workbench'));
+		store.add(toDisposable(() => root.remove()));
+		root.style.cssText = 'position: fixed; top: 0; left: 0; width: 320px; --vscode-spacing-size80: 8px; --vscode-spacing-size120: 12px; --vscode-spacing-size160: 16px;';
+		registerNotificationRowHeight.call({ layoutPolicy: { isPhoneLayout: constObservable(true) }, _register: disposable => store.add(disposable) });
+		const list = store.add(workbenchInstantiationService(undefined, store).createInstance(NotificationsList, root, {}));
+		const notification = NotificationViewItem.create({
+			severity: Severity.Error, message: 'Cannot connect to the selected environment.',
+			actions: { primary: [toAction({ id: 'retry', label: 'Retry', run: () => { } })] },
+		}, { global: NotificationsFilter.OFF, sources: new Map() })!;
+		store.add(toDisposable(() => notification.close()));
+		list.show();
+		list.layout(320);
+		list.updateNotificationsList(0, 0, [notification]);
+
+		const button = root.querySelector<HTMLElement>('.monaco-button')!;
+		const dismiss = root.querySelector<HTMLElement>('.notification-list-item-toolbar-container .action-label')!;
+		const message = root.querySelector<HTMLElement>('.notification-list-item-message')!;
+		const range = mainWindow.document.createRange();
+		range.selectNodeContents(button);
+		const label = range.getBoundingClientRect();
+		const bounds = button.getBoundingClientRect();
+		const hasFullTarget = (element: HTMLElement) => {
+			const { left, top, width, height } = element.getBoundingClientRect();
+			return width >= 44 && height >= 44 && [top + 1, top + height - 1].every(y => element.contains(mainWindow.document.elementFromPoint(left + width / 2, y)));
+		};
+		range.selectNodeContents(message.firstElementChild!);
+		const prompt = range.getBoundingClientRect();
+		const messageBounds = message.getBoundingClientRect();
+		assert.deepStrictEqual({
+			promptLines: range.getClientRects().length,
+			promptVisible: prompt.top >= messageBounds.top && prompt.bottom <= Math.min(messageBounds.bottom, bounds.top),
+			centeredLabel: Math.abs(label.top + label.bottom - bounds.top - bounds.bottom) <= 4 && Math.abs(label.left + label.right - bounds.left - bounds.right) <= 2,
+			retryTarget: hasFullTarget(button),
+			dismissTarget: hasFullTarget(dismiss),
+		}, {
+			promptLines: 2, promptVisible: true, centeredLabel: true, retryTarget: true, dismissTarget: true,
+		});
 	});
 
 	test('centers notification content in touch-sized phone rows', () => {

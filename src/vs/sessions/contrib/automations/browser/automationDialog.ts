@@ -15,6 +15,7 @@ import { Radio } from '../../../../base/browser/ui/radio/radio.js';
 import { InputBox } from '../../../../base/browser/ui/inputbox/inputBox.js';
 import { AnchorPosition } from '../../../../base/browser/ui/contextview/contextview.js';
 import { ISelectBoxOptions, ISelectOptionItem, SelectBox } from '../../../../base/browser/ui/selectBox/selectBox.js';
+import { SelectBoxNative } from '../../../../base/browser/ui/selectBox/selectBoxNative.js';
 import { IAction } from '../../../../base/common/actions.js';
 import { cancelOnDispose, CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
@@ -1122,6 +1123,7 @@ export function renderForm(
 	setDialogMessage: (source: AutomationDialogMessageSource, message: IAutomationDialogMessage | undefined) => void = () => { },
 	focusDialogMessage: () => void = () => { },
 	inputEditorOptions?: IChatInputPartOptions['inputEditorOptions'],
+	phoneForm = false,
 ): IRenderFormHandle {
 	let reloadCustomizations: () => void = () => { };
 	const validateForm = revalidate;
@@ -1199,19 +1201,16 @@ export function renderForm(
 		anchorPosition: AnchorPosition.ABOVE,
 		maxVisibleOptions: 6,
 	};
+	const scheduleSelect = (options: ISelectOptionItem[], selected: number, ariaLabel: string) => disposables.add(phoneForm
+		? new SelectBoxNative(options, selected, defaultSelectBoxStyles, { ariaLabel, nativeActivation: true })
+		: new SelectBox(options, selected, contextViewService, defaultSelectBoxStyles, { ...scheduleSelectOptions, ariaLabel }));
 
 	const intervalGroup = DOM.append(scheduleRow, $('.automation-form-schedule-group'));
 	DOM.append(intervalGroup, $('span.automation-form-label', undefined, localize('automation.form.trigger', "Trigger")));
 	let intervals: { readonly value: AutomationInterval | AutomationTriggerFamily; readonly label: string }[] = INTERVALS;
 	const intervalOptions: ISelectOptionItem[] = intervals.map(item => ({ text: item.label }));
 	const intervalIndex = Math.max(0, INTERVALS.findIndex(item => item.value === state.interval));
-	const intervalSelect = disposables.add(new SelectBox(
-		intervalOptions,
-		intervalIndex,
-		contextViewService,
-		defaultSelectBoxStyles,
-		{ ...scheduleSelectOptions, ariaLabel: localize('automation.form.trigger', "Trigger") },
-	));
+	const intervalSelect = scheduleSelect(intervalOptions, intervalIndex, localize('automation.form.trigger', "Trigger"));
 	const intervalSelectContainer = DOM.append(intervalGroup, $('.automation-form-schedule-select-container'));
 	intervalSelect.render(intervalSelectContainer);
 
@@ -1219,13 +1218,7 @@ export function renderForm(
 	const timeLabel = DOM.append(timeGroup, $('span.automation-form-label', undefined, localize('automation.form.time', "Time")));
 	const timeOptions = buildTimeOptions(state.hour, state.minute);
 	const initialTimeIndex = timeOptions.findIndex(option => option.hour === state.hour && option.minute === state.minute);
-	const timeSelect = disposables.add(new SelectBox(
-		timeOptions.map(opt => ({ text: opt.label } satisfies ISelectOptionItem)),
-		initialTimeIndex,
-		contextViewService,
-		defaultSelectBoxStyles,
-		{ ...scheduleSelectOptions, ariaLabel: localize('automation.form.time', "Time") },
-	));
+	const timeSelect = scheduleSelect(timeOptions.map(opt => ({ text: opt.label })), initialTimeIndex, localize('automation.form.time', "Time"));
 	const timeSelectContainer = DOM.append(timeGroup, $('.automation-form-schedule-select-container.automation-form-time-select-container'));
 	timeSelect.render(timeSelectContainer);
 	disposables.add(timeSelect.onDidSelect(e => {
@@ -1238,13 +1231,7 @@ export function renderForm(
 	const dayGroup = DOM.append(scheduleRow, $('.automation-form-schedule-group.automation-form-day-group'));
 	DOM.append(dayGroup, $('span.automation-form-label', undefined, localize('automation.form.day', "Day of week")));
 	const dayOptions: ISelectOptionItem[] = DAYS_OF_WEEK.map(d => ({ text: d }));
-	const daySelect = disposables.add(new SelectBox(
-		dayOptions,
-		Math.min(Math.max(state.day, 0), DAYS_OF_WEEK.length - 1),
-		contextViewService,
-		defaultSelectBoxStyles,
-		{ ...scheduleSelectOptions, ariaLabel: localize('automation.form.day', "Day of week") },
-	));
+	const daySelect = scheduleSelect(dayOptions, Math.min(Math.max(state.day, 0), DAYS_OF_WEEK.length - 1), localize('automation.form.day', "Day of week"));
 	const daySelectContainer = DOM.append(dayGroup, $('.automation-form-schedule-select-container'));
 	daySelect.render(daySelectContainer);
 	disposables.add(daySelect.onDidSelect(e => {
@@ -1781,6 +1768,9 @@ export function renderForm(
 	}
 	const promptSection = DOM.append(sessionSection, $('.automation-prompt-section'));
 	const promptRow = DOM.append(promptSection, $('.automation-form-row'));
+	if (phoneForm) {
+		DOM.append(promptRow, $('span.automation-form-label', undefined, localize('automation.form.prompt', "Prompt")));
+	}
 	const promptHost = DOM.append(promptRow, $('.automation-form-prompt-host.interactive-session'));
 	const editorOverflowWidgetsDomNode = layoutService.getContainer(DOM.getWindow(promptHost)).appendChild($('.chat-editor-overflow.automation-dialog-editor-overflow.monaco-editor'));
 	disposables.add(toDisposable(() => editorOverflowWidgetsDomNode.remove()));

@@ -36,6 +36,8 @@ export interface ISelectBoxDelegate extends IDisposable {
 
 export interface ISelectBoxOptions {
 	useCustomDrawn?: boolean;
+	/** Let the browser activate native selects instead of translating touch into focus. */
+	nativeActivation?: boolean;
 	ariaLabel?: string;
 	ariaDescription?: string;
 	minBottomMargin?: number;
