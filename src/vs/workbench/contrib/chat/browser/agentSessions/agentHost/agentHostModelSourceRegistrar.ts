@@ -14,8 +14,9 @@ import { IAgentHostConnectionsService, type IAgentHostConnectionInfo } from '../
 import { AgentHostClientConnectionKind } from '../../../../../../platform/agentHost/common/agentHostTelemetry.js';
 import { CUSTOM_ENDPOINT_BYOK_VENDOR, findCustomEndpointModelSettings, resolveCustomEndpointRuntimeEndpoint, type CustomEndpointRuntimeEndpointResolution, type ICustomEndpointModelSettings } from '../../../../../../platform/agentHost/common/byokCustomEndpoint.js';
 import { ANTHROPIC_BYOK_ENDPOINT, GEMINI_BYOK_ENDPOINT, getGeminiByokModelId, getOllamaByokEndpoint, getOpenAIByokEndpoint, OPENROUTER_BYOK_ENDPOINT, resolveAzureRuntimeEndpoint, resolveCustomOAIRuntimeEndpoint, XAI_BYOK_ENDPOINT } from '../../../../../../platform/agentHost/common/byokVendorEndpoints.js';
-import { BYOK_ENDPOINTS_MODEL_SOURCE_FORMAT, MAX_BYOK_ENDPOINTS_MODELS, getByokEndpointsCredentialResource, getByokEndpointsNonce, getByokModelSourceId, isByokModelSourceId, parseByokModelSourceId, readByokEndpointsDefinition, type IByokEndpoint, type IByokEndpointModel, type IByokEndpointsDefinition } from '../../../../../../platform/agentHost/common/byokModelSource.js';
+import { BYOK_ENDPOINTS_MODEL_SOURCE_FORMAT, MAX_BYOK_ENDPOINTS_MODELS, getByokEndpointsCredentialResource, getByokEndpointsDefinitionKey, getByokModelSourceId, isByokModelSourceId, parseByokModelSourceId, readByokEndpointsDefinition, type IByokEndpoint, type IByokEndpointModel, type IByokEndpointsDefinition } from '../../../../../../platform/agentHost/common/byokModelSource.js';
 import { ModelSourceAuthRequiredReason, ModelSourceRetentionPolicy, ModelSourceStatus, type ModelSource, type RootState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import type { RootModelSourceRegisterRequestedAction } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { AuthenticateTargetKind } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { ROOT_STATE_URI } from '../../../../../../platform/agentHost/common/state/sessionState.js';
@@ -88,8 +89,8 @@ export interface IByokModelSource {
 	readonly vendor: string;
 	readonly group: string;
 	readonly definition: IByokEndpointsDefinition;
-	/** The source's `nonce`, from {@link definition}. */
-	readonly nonce: string;
+	/** Identifies {@link definition}, to compare it with a host's copy. */
+	readonly definitionKey: string;
 	/**
 	 * Names the group's stored key without revealing it, and changes when the user replaces the key. Sent as the
 	 * `accountId` of `authenticate`, so the host's `accountId` says whether it holds the group's current key.
@@ -261,13 +262,13 @@ export function getByokModelSources(languageModelsService: ILanguageModelsServic
 				}
 			}
 			if (models.length) {
-				// In a stable order, so the nonce only changes with the definition.
+				// In a stable order, so the definition key only changes with the definition.
 				const definition: IByokEndpointsDefinition = { models: models.sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0), requiresCredential: !!secretKey };
 				sources.push({
 					vendor,
 					group: configured.name,
 					definition,
-					nonce: getByokEndpointsNonce(definition),
+					definitionKey: getByokEndpointsDefinitionKey(definition),
 					accountId: getAccountId(configured),
 					modelIdentifiers: identifiers,
 				});
@@ -335,7 +336,7 @@ function groupKey(vendor: string, group: string): string {
  * own provider does are left out, and keep using the window's bridge.
  *
  * Every window and device that has a group configured registers the same
- * source, by the group's ID and its definition's nonce. A window removes a
+ * source, by the group's ID and its definition. A window removes a
  * source only when the user removes it from the configuration.
  *
  * A remote agent host is used only after the user allows it, and only with
@@ -487,7 +488,7 @@ export class AgentHostModelSourceRegistrar extends Disposable implements IWorkbe
 				return [];
 			}
 			const definition = { ...source.definition, models };
-			return [{ ...source, definition, nonce: getByokEndpointsNonce(definition) }];
+			return [{ ...source, definition, definitionKey: getByokEndpointsDefinitionKey(definition) }];
 		});
 	}
 
@@ -547,8 +548,8 @@ export class AgentHostModelSourceRegistrar extends Disposable implements IWorkbe
 }
 
 interface IDesiredModelSource {
-	readonly modelSource: ModelSource & { readonly nonce: string };
-	readonly definition: IByokEndpointsDefinition;
+	/** The request that registers the source. */
+	readonly request: RootModelSourceRegisterRequestedAction;
 	readonly source: IByokModelSource;
 }
 
@@ -574,16 +575,19 @@ class ConnectionModelSourceRegistrar extends Disposable {
 	/** This window's copy of each source it registered, or found registered differently, so a local change can be told apart. */
 	private readonly _known = new Map<string, IDesiredModelSource>();
 	/**
-	 * The nonce of each source this window registered, or registered again, since it connected or last reconnected.
-	 * Another client's update makes that client the only contributor, so this window registers again once the host
-	 * has its definition.
+	 * The definition key of each source this window registered, or registered again, since it connected or last
+	 * reconnected. Another client's update makes that client the only contributor, so this window registers again
+	 * once the host has its definition.
 	 */
 	private readonly _contributed = new Map<string, string>();
 	/** Sources another client removed after this window registered them. Not added back until a reconnect or a local change. */
 	private readonly _removedElsewhere = new Set<string>();
-	/** The nonce of each source the host declined; not registered again until it changes. */
+	/** The definition key of each source the host declined; not registered again until it changes. */
 	private readonly _rejected = new Map<string, string>();
-	/** Sources this window dispatched whose echo hasn't arrived. */
+	/**
+	 * Sources this window asked to register until the host both confirms the request and publishes the source.
+	 * A host may confirm first: a confirmed request is the one in {@link _contributed}.
+	 */
 	private readonly _inFlight = new Set<string>();
 	/** Removals this window dispatched whose echo hasn't arrived. */
 	private readonly _removing = new Set<string>();
@@ -604,6 +608,10 @@ class ConnectionModelSourceRegistrar extends Disposable {
 		// A snapshot follows connecting and every reconnect, when a client registers its sources again to be counted.
 		if (this._connection.rootState.onDidApplySnapshot) {
 			this._register(this._connection.rootState.onDidApplySnapshot(() => {
+				// A confirmed request whose source the snapshot lacks is registered again.
+				for (const id of this._contributed.keys()) {
+					this._inFlight.delete(id);
+				}
 				this._contributed.clear();
 				this._removedElsewhere.clear();
 				this._sync();
@@ -648,7 +656,7 @@ class ConnectionModelSourceRegistrar extends Disposable {
 		}
 		this._forget(id);
 		this._removing.add(id);
-		this._connection.dispatch(ROOT_STATE_URI, { type: ActionType.RootModelSourceRemoved, id });
+		this._connection.dispatch(ROOT_STATE_URI, { type: ActionType.RootModelSourceRemoved, modelSourceId: id });
 	}
 
 	private _sync(): void {
@@ -662,9 +670,14 @@ class ConnectionModelSourceRegistrar extends Disposable {
 				this._removing.delete(id);
 			}
 		}
-		for (const [id, nonce] of [...this._contributed]) {
+		for (const id of [...this._inFlight]) {
+			if (this._contributed.has(id) && current.has(id)) {
+				this._inFlight.delete(id);
+			}
+		}
+		for (const [id, definitionKey] of [...this._contributed]) {
 			const existing = current.get(id);
-			if (this._inFlight.has(id) || existing?.nonce === nonce) {
+			if (this._inFlight.has(id) || (existing && getDefinitionKey(existing) === definitionKey)) {
 				continue;
 			}
 			this._contributed.delete(id);
@@ -690,13 +703,13 @@ class ConnectionModelSourceRegistrar extends Disposable {
 			}
 		}
 		for (const [id, entry] of desired) {
-			const { modelSource } = entry;
-			if (this._rejected.get(id) === modelSource.nonce || this._inFlight.has(id) || this._removing.has(id)) {
+			const { definitionKey } = entry.source;
+			if (this._rejected.get(id) === definitionKey || this._inFlight.has(id) || this._removing.has(id)) {
 				continue;
 			}
 			const existing = current.get(id);
 			const known = this._known.get(id);
-			const changedLocally = known !== undefined && !isSameModelSource(known.modelSource, modelSource);
+			const changedLocally = known !== undefined && (known.request.provider !== entry.request.provider || known.source.definitionKey !== definitionKey);
 			if (!existing) {
 				// Another client removed it: add it back only after a reconnect, or when the user changes it here.
 				if (this._removedElsewhere.has(id) && !changedLocally) {
@@ -705,7 +718,7 @@ class ConnectionModelSourceRegistrar extends Disposable {
 				this._dispatchModelSource(entry);
 				continue;
 			}
-			if (!isSameModelSource(existing, modelSource)) {
+			if (!isSameModelSource(existing, entry)) {
 				// Another client has a different definition. Replacing it here, unless the user changed the source here,
 				// would make the two replace each other's indefinitely.
 				if (changedLocally) {
@@ -716,7 +729,7 @@ class ConnectionModelSourceRegistrar extends Disposable {
 				continue;
 			}
 			// Registering the unchanged source again keeps its status and key, and counts this window as a contributor.
-			if (this._contributed.get(id) !== modelSource.nonce) {
+			if (this._contributed.get(id) !== definitionKey) {
 				this._dispatchModelSource(entry);
 				continue;
 			}
@@ -738,13 +751,14 @@ class ConnectionModelSourceRegistrar extends Disposable {
 	private _updateServedModels(desired: ReadonlyMap<string, IDesiredModelSource>, current: ReadonlyMap<string, ModelSource>): void {
 		const served = new Set<string>();
 		let serving = false;
-		for (const [id, { modelSource, source }] of desired) {
+		for (const [id, entry] of desired) {
+			const { source } = entry;
 			const existing = current.get(id);
 			if (!existing) {
 				// This window registers it, unless the host declined it or another client removed it.
-				serving ||= this._rejected.get(id) !== modelSource.nonce && !this._removedElsewhere.has(id);
-			} else if (isSameModelSource(existing, modelSource)) {
-				switch (existing.state?.kind) {
+				serving ||= this._rejected.get(id) !== source.definitionKey && !this._removedElsewhere.has(id);
+			} else if (isSameModelSource(existing, entry)) {
+				switch (existing.state.kind) {
 					case ModelSourceStatus.Ready:
 						for (const identifier of source.modelIdentifiers.values()) {
 							served.add(identifier);
@@ -781,15 +795,12 @@ class ConnectionModelSourceRegistrar extends Disposable {
 				const id = getByokModelSourceId(agent.provider, source);
 				desired.set(id, {
 					source,
-					definition: source.definition,
-					modelSource: {
-						id,
+					request: {
+						type: ActionType.RootModelSourceRegisterRequested,
+						modelSourceId: id,
 						provider: agent.provider,
 						displayName: source.group,
-						format: BYOK_ENDPOINTS_MODEL_SOURCE_FORMAT,
-						definition: source.definition,
-						nonce: source.nonce,
-						retention,
+						registration: { format: BYOK_ENDPOINTS_MODEL_SOURCE_FORMAT, definition: source.definition, retention },
 					},
 				});
 			}
@@ -798,23 +809,25 @@ class ConnectionModelSourceRegistrar extends Disposable {
 	}
 
 	private _dispatchModelSource(entry: IDesiredModelSource): void {
-		const { modelSource } = entry;
-		const id = modelSource.id;
+		const { request, source } = entry;
+		const id = request.modelSourceId;
 		this._known.set(id, entry);
 		this._removedElsewhere.delete(id);
+		this._contributed.delete(id);
 		this._delivering.delete(id);
 		this._inFlight.add(id);
 		const isCurrent = () => this._known.get(id) === entry;
-		this._connection.dispatchConfirmed(ROOT_STATE_URI, this._connection.rootState, { type: ActionType.RootModelSourceSet, modelSource }, CancellationToken.None).then(envelope => {
+		this._connection.dispatchConfirmed(ROOT_STATE_URI, this._connection.rootState, request, CancellationToken.None).then(envelope => {
 			if (!isCurrent()) {
 				return;
 			}
-			this._inFlight.delete(id);
 			if (envelope.rejectionReason) {
-				this._logService.warn(`[AgentHostModelSourceRegistrar] The agent host declined the BYOK provider group ${modelSource.displayName}: ${envelope.rejectionReason}`);
-				this._rejected.set(id, modelSource.nonce);
+				this._logService.warn(`[AgentHostModelSourceRegistrar] The agent host declined the BYOK provider group ${request.displayName}: ${envelope.rejectionReason}`);
+				this._inFlight.delete(id);
+				this._rejected.set(id, source.definitionKey);
 			} else {
-				this._contributed.set(id, modelSource.nonce);
+				// The request stays in flight until the host publishes the source, if it hasn't yet.
+				this._contributed.set(id, source.definitionKey);
 			}
 			this._sync();
 		}, error => {
@@ -822,7 +835,7 @@ class ConnectionModelSourceRegistrar extends Disposable {
 				// The next root state update, such as a reconnect, registers it again.
 				this._inFlight.delete(id);
 			}
-			this._logService.warn(`[AgentHostModelSourceRegistrar] Failed to register the BYOK provider group ${modelSource.displayName}: ${toErrorMessage(error)}`);
+			this._logService.warn(`[AgentHostModelSourceRegistrar] Failed to register the BYOK provider group ${request.displayName}: ${toErrorMessage(error)}`);
 		});
 	}
 
@@ -833,8 +846,8 @@ class ConnectionModelSourceRegistrar extends Disposable {
 	 * for a host definition that sends it nowhere this window's copy doesn't.
 	 */
 	private _deliverCredential(existing: ModelSource, entry: IDesiredModelSource): void {
-		const { source, definition } = entry;
-		const resource = getByokEndpointsCredentialResource(definition)?.resource;
+		const { source } = entry;
+		const resource = getByokEndpointsCredentialResource(source.definition)?.resource;
 		if (resource === undefined || this._delivering.has(existing.id)
 			|| !needsCredential(existing, source.accountId, accountId => this._delegate.wasReplaced(source, accountId))
 			|| !canSendKey(existing, entry)) {
@@ -908,23 +921,37 @@ function needsCredential(existing: ModelSource, accountId: string | undefined, w
 
 /**
  * Whether this window may send its key for the host's copy of a source: the
- * same agent, format, nonce, and credential resource, and a definition that is
- * this window's own. It checks the definition itself, since another client
- * chooses the `nonce`.
+ * same agent, format, and definition as this window's, so the key reaches no
+ * endpoint this window's copy doesn't send it to, and the same credential
+ * resource.
  */
-function canSendKey(existing: ModelSource, { modelSource, definition }: IDesiredModelSource): boolean {
-	const resource = getByokEndpointsCredentialResource(definition)?.resource;
-	if (resource === undefined || !isSameModelSource(existing, modelSource) || existing.credentialResource?.resource !== resource) {
-		return false;
-	}
-	try {
-		return getByokEndpointsNonce(readByokEndpointsDefinition(existing.definition)) === modelSource.nonce;
-	} catch {
-		return false;
-	}
+function canSendKey(existing: ModelSource, entry: IDesiredModelSource): boolean {
+	const resource = getByokEndpointsCredentialResource(entry.source.definition)?.resource;
+	return resource !== undefined && isSameModelSource(existing, entry) && existing.credentialResource?.resource === resource;
 }
 
-/** Whether the host's source has this window's definition: the same agent, format, and nonce. */
-function isSameModelSource(existing: Pick<ModelSource, 'provider' | 'format' | 'nonce'>, modelSource: Pick<ModelSource, 'provider' | 'format' | 'nonce'>): boolean {
-	return existing.provider === modelSource.provider && existing.format === modelSource.format && existing.nonce === modelSource.nonce;
+/** Whether the host's source has this window's registration: the same agent, format, and definition. */
+function isSameModelSource(existing: ModelSource, { request, source }: IDesiredModelSource): boolean {
+	return existing.provider === request.provider && getDefinitionKey(existing) === source.definitionKey;
+}
+
+const definitionKeys = new WeakMap<object, string | undefined>();
+
+/** The definition key of a host's copy of a source, or `undefined` when it has no definition in this window's format. */
+function getDefinitionKey(modelSource: ModelSource): string | undefined {
+	const registration = modelSource.registration;
+	if (registration?.format !== BYOK_ENDPOINTS_MODEL_SOURCE_FORMAT || typeof registration.definition !== 'object' || registration.definition === null) {
+		return undefined;
+	}
+	// Root state replaces a source's objects when it changes, so a definition's key is computed once.
+	if (!definitionKeys.has(registration.definition)) {
+		let key: string | undefined;
+		try {
+			key = getByokEndpointsDefinitionKey(readByokEndpointsDefinition(registration.definition));
+		} catch {
+			key = undefined;
+		}
+		definitionKeys.set(registration.definition, key);
+	}
+	return definitionKeys.get(registration.definition);
 }

@@ -15133,7 +15133,7 @@ export class CopilotAgentSession extends Disposable {
 			// the withdrawn endpoint, so it ends with a resumable error. Aborting first drops the runtime's late events.
 			if (this._currentTurn.value) {
 				const stopped = this.abort();
-				this.failActiveTurn({ errorType: 'modelSourceUnavailable', message: localize('copilotAgentSession.modelSourceWithdrawn', "The model's provider was removed or its API key was revoked. Check the provider, or choose another model.") });
+				this.failActiveTurn({ errorType: 'modelSourceUnavailable', errorCode: AhpErrorCodes.ModelSourceUnavailable, message: localize('copilotAgentSession.modelSourceWithdrawn', "The model's provider was removed or its API key was revoked. Check the provider, or choose another model.") });
 				stopped.catch(error => this._logService.warn(`[Copilot:${sessionId}] Failed to stop the turn of a withdrawn model`, error));
 			}
 		}));

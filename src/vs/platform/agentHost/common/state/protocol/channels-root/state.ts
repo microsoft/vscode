@@ -136,7 +136,7 @@ export interface AgentCapabilities {
 	 * definition formats.
 	 *
 	 * @stability 1.0
-	 * @see {@link /specification/root-channel#registering-sources | Registering sources}
+	 * @see {@link /guide/model-sources#registering-a-source | Model Sources guide}
 	 */
 	modelSourceRegistration?: ModelSourceRegistrationCapability;
 }
@@ -306,20 +306,18 @@ export interface ModelSourceRegistrationCapability {
  * @stability 1.0
  */
 export interface ModelSourceFormatInfo {
-	/** A {@link ModelSource.format} value. */
+	/** A {@link ModelSourceRegistration.format} value. */
 	format: string;
 }
 
 /**
  * A source that an agent provider offers models from, such as a service,
  * subscription, or endpoint. The host lists the sources an agent provides
- * itself, and clients can register more with a definition. Nothing here is
- * a credential.
+ * itself, and clients can register more with a definition.
  *
  * @category Root State
  * @stability 1.0
- * @preserveUnknownMembers
- * @see {@link /specification/root-channel#model-sources | Model sources}
+ * @see {@link /guide/model-sources | Model Sources guide}
  */
 export interface ModelSource {
 	/**
@@ -334,9 +332,51 @@ export interface ModelSource {
 	/** Icons for UI display. */
 	icons?: Icon[];
 	/**
+	 * How the source was registered. Absent on a source the agent provides
+	 * itself.
+	 */
+	registration?: ModelSourceRegistration;
+	/** The source's status. */
+	state: ModelSourceState;
+	/**
+	 * RFC 9728 metadata for the endpoint a registered source's credential is
+	 * for. Present whenever the source takes a credential, in every state, so
+	 * any client can deliver or rotate one.
+	 *
+	 * `credentialResource.resource` is the endpoint URL as the definition
+	 * names it, in any scheme the agent supports (for example
+	 * `http://localhost:11434/v1`). It's the value a client passes back as
+	 * `authenticate({ resource })`.
+	 *
+	 * @see {@link /specification/authentication#model-source-credentials | Model source credentials}
+	 */
+	credentialResource?: ProtectedResourceMetadata;
+	/**
+	 * The {@link AuthenticateParams.accountId} sent with the credential the
+	 * host most recently accepted.
+	 *
+	 * @see {@link /specification/authentication#model-source-credentials | Model source credentials}
+	 */
+	accountId?: string;
+	/**
+	 * Additional implementation-defined metadata for this model source.
+	 * MUST NOT contain a credential.
+	 */
+	_meta?: Record<string, unknown>;
+}
+
+/**
+ * How a client, or the host from its own configuration, registered a model
+ * source.
+ *
+ * @category Root State
+ * @stability 1.0
+ * @see {@link /guide/model-sources#registering-a-source | Model Sources guide}
+ */
+export interface ModelSourceRegistration {
+	/**
 	 * The format of `definition`: the `format` of one of the agent's
-	 * {@link ModelSourceRegistrationCapability.formats}. Present on a
-	 * registered source.
+	 * {@link ModelSourceRegistrationCapability.formats}.
 	 *
 	 * Agents choose the formats they read. Some may read these common names:
 	 *
@@ -348,11 +388,11 @@ export interface ModelSource {
 	 * Other formats are named with a namespace, such as
 	 * `example.com/model-source@1`, so they don't collide.
 	 */
-	format?: string;
+	format: string;
 	/**
 	 * How to reach the source, in `format`: endpoint, wire API, models, and so
 	 * on. The agent reads it. Every client can read it, so it MUST NOT contain
-	 * a credential. Present on a registered source.
+	 * a credential.
 	 *
 	 * An agent that reads one of the common format names might expect a shape
 	 * like `{ endpoint, wireApi?, apiVersion?, models? }`, where `endpoint` is
@@ -360,47 +400,9 @@ export interface ModelSource {
 	 * maxContextWindow?, maxOutputTokens?, supportsVision?, supportsTools? }`,
 	 * named as in {@link SessionModelInfo}.
 	 */
-	definition?: Record<string, unknown>;
-	/**
-	 * Opaque version token for `definition`, such as a hash of it, chosen by
-	 * whoever registers the source. Present on a registered source. Reducers
-	 * compare it, instead of the definition, to tell an update from a
-	 * re-registration of the same definition.
-	 */
-	nonce?: string;
+	definition: Record<string, unknown>;
 	/** What happens when the last contributing client leaves. Absent means `contributingClient`. */
 	retention?: ModelSourceRetentionPolicy;
-	/**
-	 * Host-reported status, set with {@link RootModelSourceStateChangedAction}.
-	 * Absent until the host reports one, and after an update replaces the
-	 * definition until the host reports again.
-	 */
-	state?: ModelSourceState;
-	/**
-	 * RFC 9728 metadata for the endpoint a registered source's credential is
-	 * for. Present whenever the source takes a credential, in every state, so
-	 * any client can deliver or rotate one. Set with `state`.
-	 *
-	 * `credentialResource.resource` is the endpoint URL as the definition
-	 * names it, in any scheme the agent supports (for example
-	 * `http://localhost:11434/v1`). It's the value a client passes back as
-	 * `authenticate({ resource })`, and nothing fetches it.
-	 *
-	 * @see {@link /specification/authentication#model-source-credentials | Model source credentials}
-	 */
-	credentialResource?: ProtectedResourceMetadata;
-	/**
-	 * The {@link AuthenticateParams.accountId} sent with the credential the
-	 * host most recently accepted. Set with `state`.
-	 *
-	 * @see {@link /specification/authentication#model-source-credentials | Model source credentials}
-	 */
-	accountId?: string;
-	/**
-	 * Additional implementation-defined metadata for this model source.
-	 * MUST NOT contain a credential.
-	 */
-	_meta?: Record<string, unknown>;
 }
 
 /**
@@ -466,7 +468,7 @@ export interface ModelSourceReadyState {
  * @category Root State
  * @stability 1.0
  * @nonexhaustive
- * @see {@link /specification/authentication#model-source-credentials | Model source credentials}
+ * @see {@link /guide/model-sources#credentials | Model Sources guide}
  */
 export const enum ModelSourceAuthRequiredReason {
 	/** The host holds no credential yet. */

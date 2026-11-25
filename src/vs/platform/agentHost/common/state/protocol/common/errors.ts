@@ -95,12 +95,11 @@ export const AhpErrorCodes = {
 	/** The host could not open the requested TCP connection. */
 	TcpConnectionOpenFailed: -32012,
 	/**
-	 * A request selects a model whose registered model source can't serve it,
+	 * A request or turn needs a registered model source that can't serve it,
 	 * for example because the source needs a credential or was removed. A turn
-	 * that fails for this reason ends with an error part whose `errorType` is
-	 * `modelSourceUnavailable` instead.
+	 * carries it in its error part's `ErrorInfo.errorCode`.
 	 *
-	 * @see {@link /specification/authentication#model-source-credentials | Model source credentials}
+	 * @see {@link /guide/model-sources#unavailable-sources | Model Sources guide}
 	 */
 	ModelSourceUnavailable: -32013,
 } as const;

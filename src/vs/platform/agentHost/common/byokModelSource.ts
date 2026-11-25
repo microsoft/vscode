@@ -118,11 +118,11 @@ export function getByokEndpointsCredentialResource(definition: IByokEndpointsDef
 }
 
 /**
- * The model source `nonce` of a definition: a hash of its canonical JSON, with
- * object keys sorted. Equal definitions get the same nonce in every window and
- * on every device, so registering an unchanged source again keeps its key.
+ * Identifies a definition: a hash of its canonical JSON, with object keys
+ * sorted. Equal definitions get the same key in every window and on every
+ * device, so a client can compare a host's copy of a source with its own.
  */
-export function getByokEndpointsNonce(definition: IByokEndpointsDefinition): string {
+export function getByokEndpointsDefinitionKey(definition: IByokEndpointsDefinition): string {
 	const sha = new StringSHA1();
 	sha.update(canonicalJson(definition));
 	return `sha1-${sha.digest()}`;

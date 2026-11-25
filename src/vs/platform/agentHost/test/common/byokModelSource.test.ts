@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { getByokEndpointsCredentialResource, getByokEndpointsNonce, getByokModelSourceId, parseByokModelSourceId, readByokEndpointsDefinition, type IByokEndpointsDefinition } from '../../common/byokModelSource.js';
+import { getByokEndpointsCredentialResource, getByokEndpointsDefinitionKey, getByokModelSourceId, parseByokModelSourceId, readByokEndpointsDefinition, type IByokEndpointsDefinition } from '../../common/byokModelSource.js';
 
 suite('BYOK endpoints model source definition', () => {
 
@@ -67,7 +67,7 @@ suite('BYOK endpoints model source definition', () => {
 		assert.deepStrictEqual(rejected, Object.keys(invalid));
 	});
 
-	test('registration IDs come from the group\'s configuration, and the nonce from the definition', () => {
+	test('registration IDs come from the group\'s configuration, and the definition key from the definition', () => {
 		const id = getByokModelSourceId('copilotcli', { vendor: 'customendpoint', group: 'My/Group' });
 		const definition: IByokEndpointsDefinition = { models: [model], requiresCredential: true };
 		const reordered = JSON.parse(`{"requiresCredential":true,"models":[{"endpoint":{"baseUrl":"https://api.example.test/v1","wireApi":"completions","type":"openai"},"id":"gpt-x"}]}`);
@@ -76,15 +76,15 @@ suite('BYOK endpoints model source definition', () => {
 			id,
 			parsed: parseByokModelSourceId(id),
 			foreign: parseByokModelSourceId('example.com/source'),
-			// Key order doesn't matter, so windows and devices compute the same nonce.
-			sameNonce: getByokEndpointsNonce(reordered) === getByokEndpointsNonce(definition),
-			changedNonce: getByokEndpointsNonce({ ...definition, requiresCredential: false }) === getByokEndpointsNonce(definition),
+			// Key order doesn't matter, so windows and devices compute the same key.
+			sameKey: getByokEndpointsDefinitionKey(reordered) === getByokEndpointsDefinitionKey(definition),
+			changedKey: getByokEndpointsDefinitionKey({ ...definition, requiresCredential: false }) === getByokEndpointsDefinitionKey(definition),
 		}, {
 			id: 'vscode.byok/copilotcli/customendpoint/My%2FGroup',
 			parsed: { vendor: 'customendpoint', group: 'My/Group' },
 			foreign: undefined,
-			sameNonce: true,
-			changedNonce: false,
+			sameKey: true,
+			changedKey: false,
 		});
 	});
 });

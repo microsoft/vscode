@@ -77,7 +77,7 @@ import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.j
 import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, JSON_RPC_INTERNAL_ERROR, JsonRpcErrorCodes, ProtocolError, AhpErrorCodes, AHP_UNSUPPORTED_PROTOCOL_VERSION, AHP_SESSION_NOT_FOUND, AHP_AUTH_REQUIRED, type AhpNotification, type InitializeResult, type ProtocolMessage, type JsonRpcResponse, type ReconnectResult, type ResourceListResult, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot, type SubscribeResult } from '../../common/state/sessionProtocol.js';
 import { supportsAgentHostManagedWorktrees, supportsForceWorktreeCleanup } from '../../common/meta/agentHostWorktreeCleanupMeta.js';
 import { ROOT_STATE_URI, AUTOMATION_CATALOG_URI, ChatInteractivity, ChatOriginKind, MessageKind, PendingMessageKind, ResponsePartKind, SessionStatus, ChangesetStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, readSessionExternal, readSessionWorkspaceless, withSessionExternal, withSessionWorkspaceless, type AgentInfo, type ChangesetState, type ChatState, type Message, type RootState, type SessionState, type SessionSummary, type Turn } from '../../common/state/sessionState.js';
-import { ChatInputResponseKind, SessionInputRequestKind, TerminalClaimKind, type AutomationEntry, type JsonPrimitive } from '../../common/state/protocol/state.js';
+import { ChatInputResponseKind, ModelSourceStatus, SessionInputRequestKind, TerminalClaimKind, type AutomationEntry, type JsonPrimitive } from '../../common/state/protocol/state.js';
 import type { ChatInputRequestWithPlanReview } from '../../common/agentHostPlanReview.js';
 import type { SessionAddedParams, SessionSummaryChangedParams } from '../../common/state/protocol/notifications.js';
 import { parseProtocolMessage, type IProtocolServer, type IProtocolTransport } from '../../common/state/sessionTransport.js';
@@ -8420,20 +8420,26 @@ suite('ProtocolServerHandler', () => {
 
 	test('routes model source actions to the agent service, and rejects them on hosts without a registry', async () => {
 		const transport = connectClient('client-1', [ROOT_STATE_URI]);
-		const action = { type: ActionType.RootModelSourceRemoved, id: 'source' } as const;
+		const lastRejection = () => (findNotifications(transport.sent, 'action').at(-1)?.params as ActionEnvelope | undefined)?.rejectionReason;
+		const action = { type: ActionType.RootModelSourceRemoved, modelSourceId: 'source' } as const;
 		transport.simulateMessage(request(2, 'dispatchAction', { channel: ROOT_STATE_URI, clientSeq: 1, action }));
 		await handler.whenIdle();
-		const rejection = (findNotifications(transport.sent, 'action').at(-1)?.params as ActionEnvelope | undefined)?.rejectionReason;
+		const rejection = lastRejection();
+		// Only the host publishes a source.
+		transport.simulateMessage(request(3, 'dispatchAction', { channel: ROOT_STATE_URI, clientSeq: 2, action: { type: ActionType.RootModelSourceSet, modelSource: { id: 'source', provider: 'copilot', displayName: 'Example', state: { kind: ModelSourceStatus.Ready } } } }));
+		await handler.whenIdle();
+		const publishRejection = lastRejection();
 
 		const routed: { type: string; clientId: string }[] = [];
 		agentService.dispatchModelSourceAction = (modelSourceAction, clientId) => {
 			routed.push({ type: modelSourceAction.type, clientId });
 		};
-		transport.simulateMessage(notification('dispatchAction', { channel: ROOT_STATE_URI, clientSeq: 2, action }));
+		transport.simulateMessage(notification('dispatchAction', { channel: ROOT_STATE_URI, clientSeq: 3, action }));
 		await handler.whenIdle();
 
-		assert.deepStrictEqual({ rejection, routed, dispatched: agentService.handledActions }, {
+		assert.deepStrictEqual({ rejection, publishRejection, routed, dispatched: agentService.handledActions }, {
 			rejection: `Unsupported action: ${ActionType.RootModelSourceRemoved}`,
+			publishRejection: `Server-only action: ${ActionType.RootModelSourceSet}`,
 			routed: [{ type: ActionType.RootModelSourceRemoved, clientId: 'client-1' }],
 			dispatched: [],
 		});

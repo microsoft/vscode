@@ -88,6 +88,7 @@ import {
 	type ToolCallContributor,
 	type IModelRoutedInfo,
 } from '../common/state/sessionState.js';
+import { AhpErrorCodes } from '../common/state/sessionProtocol.js';
 import { AgentHostInputRequestTracker } from './agentHostInputRequestTracker.js';
 import { AgentHostLocalTurns } from './agentHostLocalTurns.js';
 import { IAgentHostSessionTitleController } from './agentHostSessionTitleController.js';
@@ -2468,7 +2469,7 @@ export class AgentSideEffects extends Disposable {
 				turnId,
 				duration: this._turnDuration(turnStopWatch),
 				// The turn can run once its model source can serve it again.
-				part: createErrorResponsePart(error, error.errorType === 'modelSourceUnavailable'),
+				part: createErrorResponsePart(error, error.errorCode === AhpErrorCodes.ModelSourceUnavailable),
 			});
 			const endedTurn = this._completeTurn(turnChannel, turnId, 'error', failure);
 			this._toolCallTracker.clearSession(turnChannel);
@@ -2817,10 +2818,11 @@ function buildTurnFailureError(stage: AgentHostTurnFailureStage, err: unknown): 
 	const errorType = code === 'policyResolutionFailed' || code === 'modelSourceUnavailable' ? code
 		: stage === 'modelSelection' ? 'modelSelectionFailed'
 			: stage === 'workingDirectory' ? 'workingDirectoryFailed' : 'sendFailed';
+	const errorCode = code === 'modelSourceUnavailable' ? { errorCode: AhpErrorCodes.ModelSourceUnavailable } : {};
 	if (forwarded) {
-		return { errorType, message: stripProxyErrorMarker(message), _meta: toChatErrorMeta(forwarded) };
+		return { errorType, ...errorCode, message: stripProxyErrorMarker(message), _meta: toChatErrorMeta(forwarded) };
 	}
-	return { errorType, message };
+	return { errorType, ...errorCode, message };
 }
 
 /** A routed turn's model, and the routing to publish once the chat is on it. */

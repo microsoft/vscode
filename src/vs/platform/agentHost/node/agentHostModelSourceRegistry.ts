@@ -13,7 +13,7 @@ import { ILogService } from '../../log/common/log.js';
 import type { AuthenticateParams, IAgent, IAgentModelSource, IAgentModelSourceDescription } from '../common/agent.js';
 import type { IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
 import type { ModelSourceAuthenticateTarget } from '../common/state/protocol/commands.js';
-import { ModelSourceAuthRequiredReason, ModelSourceRetentionPolicy, ModelSourceStatus, type ModelSource, type ModelSourceState, type ProtectedResourceMetadata, type RootState } from '../common/state/protocol/state.js';
+import { ModelSourceAuthRequiredReason, ModelSourceRetentionPolicy, ModelSourceStatus, type ModelSource, type ModelSourceRegistration, type ModelSourceState, type ProtectedResourceMetadata, type RootState } from '../common/state/protocol/state.js';
 import { ActionType, type ActionOrigin, type ClientModelSourceAction, type StateAction } from '../common/state/sessionActions.js';
 import { JsonRpcErrorCodes, ProtocolError } from '../common/state/sessionProtocol.js';
 import { ROOT_STATE_URI } from '../common/state/sessionState.js';
@@ -26,20 +26,14 @@ export interface IAgentHostModelSourceRegistryState {
 	rejectClientAction(channel: string, action: StateAction, origin: ActionOrigin, reason: string): void;
 }
 
-/** The host-reported fields of a model source, which a client never sends. */
-const HOST_REPORTED_FIELDS = ['state', 'credentialResource', 'accountId'] as const;
+/** A model source as a client registered it, without the status and credential fields the host reports. */
+type RegisteredModelSource = Omit<ModelSource, 'state' | 'credentialResource' | 'accountId'> & { readonly registration: ModelSourceRegistration };
 
-/** A model source a client registered: unlike an agent's own, it has a format, a definition, and a nonce. */
-type RegisteredModelSource = ModelSource & { readonly format: string; readonly definition: Record<string, unknown>; readonly nonce: string };
-
-/** What the host knows about a model source beyond root state. Never published: it holds the credential. */
+/** What the host knows about a registered model source, which it publishes with `root/modelSourceSet`, apart from the credential. */
 interface IModelSourceEntry {
-	readonly provider: string;
-	readonly format: string;
-	/** The client's version token for {@link definition}. */
-	readonly nonce: string;
-	readonly definition: Record<string, unknown>;
-	/** The clients that registered this definition, from each `Set`'s origin. Never in state. */
+	/** The source from the latest request to register it. */
+	source: RegisteredModelSource;
+	/** The clients that requested this registration, from each request's origin. Never in state. */
 	readonly contributors: Set<string>;
 	credential: string | undefined;
 	/** When the host accepted {@link credential}, in `Date.now()` time. */
@@ -90,17 +84,18 @@ export class AgentHostModelSourceRegistry extends Disposable {
 			case ActionType.RootModelSourceRemoved:
 				// Removal applies to every client. A client that still has the source configured registers it again when it reconnects.
 				this._state.dispatchClientAction(ROOT_STATE_URI, action, origin, clientContext);
-				this._remove(action.id);
+				this._remove(action.modelSourceId);
 				return;
-			case ActionType.RootModelSourceSet: {
+			case ActionType.RootModelSourceRegisterRequested: {
 				const validation = this._validate(action);
 				if (typeof validation === 'string') {
-					this._logService.warn(`[AgentHostModelSourceRegistry] Rejected model source ${typeof action.modelSource?.id === 'string' ? action.modelSource.id : '(invalid)'}: ${validation}`);
+					this._logService.warn(`[AgentHostModelSourceRegistry] Rejected model source ${typeof action.modelSourceId === 'string' ? action.modelSourceId : '(invalid)'}: ${validation}`);
 					this._state.rejectClientAction(ROOT_STATE_URI, action, origin, validation);
 					return;
 				}
+				// Published before the request is confirmed, so the client finds the source when it is.
+				this._apply(validation.source, validation.description, clientId);
 				this._state.dispatchClientAction(ROOT_STATE_URI, action, origin, clientContext);
-				this._apply(validation.modelSource, validation.description, clientId);
 				return;
 			}
 		}
@@ -138,8 +133,8 @@ export class AgentHostModelSourceRegistry extends Disposable {
 					}
 				}, Math.max(0, params.expiresIn) * 1000);
 			}
-			this._report(target.modelSourceId, entry);
-			this._syncAgent(entry.provider);
+			this._publish(entry);
+			this._syncAgent(entry.source.provider);
 		} else {
 			// A revoked credential is never sent again without the user's action. `accountId` still names it.
 			this._dropCredential(target.modelSourceId, entry, { kind: ModelSourceStatus.AuthRequired, reason: ModelSourceAuthRequiredReason.Revoked });
@@ -172,7 +167,7 @@ export class AgentHostModelSourceRegistry extends Disposable {
 			if (!entry.contributors.delete(clientId) || entry.contributors.size) {
 				continue;
 			}
-			const retention = this._findModelSource(id)?.retention ?? ModelSourceRetentionPolicy.ContributingClient;
+			const retention = entry.source.registration.retention ?? ModelSourceRetentionPolicy.ContributingClient;
 			if (retention === ModelSourceRetentionPolicy.ContributingClient) {
 				this._drain(id, entry);
 			}
@@ -183,63 +178,68 @@ export class AgentHostModelSourceRegistry extends Disposable {
 		const cts = new CancellationTokenSource();
 		entry.drain.value = cts;
 		// The agent withdraws the source's models, and keeps its credential only for the turns running on it.
-		this._syncAgent(entry.provider);
-		const idle = this._getAgent(entry.provider)?.whenModelSourceIdle?.(id, cts.token) ?? Promise.resolve();
+		this._syncAgent(entry.source.provider);
+		const idle = this._getAgent(entry.source.provider)?.whenModelSourceIdle?.(id, cts.token) ?? Promise.resolve();
 		idle.then(() => {
 			if (!cts.token.isCancellationRequested && this._entries.get(id) === entry && entry.drain.value === cts) {
 				entry.drain.clear();
-				this._state.dispatchServerAction(ROOT_STATE_URI, { type: ActionType.RootModelSourceRemoved, id });
+				this._state.dispatchServerAction(ROOT_STATE_URI, { type: ActionType.RootModelSourceRemoved, modelSourceId: id });
 				this._remove(id);
 			}
 		}, error => this._logService.warn(`[AgentHostModelSourceRegistry] Failed to wait for the turns on model source ${id}: ${toErrorMessage(error)}`));
 	}
 
-	/** The registration and what the agent read from its definition, or why the host declines the action. */
-	private _validate(action: Extract<ClientModelSourceAction, { readonly type: ActionType.RootModelSourceSet }>): { readonly modelSource: RegisteredModelSource; readonly description: IAgentModelSourceDescription } | string {
-		const { modelSource } = action;
-		if (!isRegisteredModelSource(modelSource)) {
-			return 'A model source a client registers needs an id, a format, a nonce, and a definition object';
+	/** The source and what the agent read from its definition, or why the host declines the request. */
+	private _validate(action: Extract<ClientModelSourceAction, { readonly type: ActionType.RootModelSourceRegisterRequested }>): { readonly source: RegisteredModelSource; readonly description: IAgentModelSourceDescription } | string {
+		const { modelSourceId: id, provider, displayName, registration } = action;
+		if (typeof id !== 'string' || !id || typeof provider !== 'string' || typeof displayName !== 'string' || !isModelSourceRegistration(registration)) {
+			return 'A model source registration needs an id, a provider, a display name, a format, and a definition object';
 		}
-		const { definition } = modelSource;
-		const agent = this._getAgent(modelSource.provider);
+		const { format, definition, retention } = registration;
+		const agent = this._getAgent(provider);
 		const formats = agent?.getDescriptor().capabilities?.modelSourceRegistration?.formats;
-		if (!agent?.describeModelSource || !agent.setModelSources || !formats?.some(info => info.format === modelSource.format)) {
-			return `The agent '${modelSource.provider}' does not serve model sources in the format '${modelSource.format}'`;
+		if (!agent?.describeModelSource || !agent.setModelSources || !formats?.some(info => info.format === format)) {
+			return `The agent '${provider}' does not serve model sources in the format '${format}'`;
 		}
-		if (HOST_REPORTED_FIELDS.some(field => modelSource[field] !== undefined)) {
-			return 'Only the host reports a model source\'s state and credential fields';
+		if (retention !== undefined && retention !== ModelSourceRetentionPolicy.ContributingClient && retention !== ModelSourceRetentionPolicy.Host) {
+			return `Unsupported model source retention: ${retention}`;
 		}
-		if (modelSource.retention !== undefined && modelSource.retention !== ModelSourceRetentionPolicy.ContributingClient && modelSource.retention !== ModelSourceRetentionPolicy.Host) {
-			return `Unsupported model source retention: ${modelSource.retention}`;
-		}
-		// The reducer keeps the credential for a re-registration, so it must not carry a different definition.
-		const existing = this._entries.get(modelSource.id);
-		if (existing && this._isReregistration(existing, modelSource) && !equals(existing.definition, definition)) {
-			return 'A model source registered again with the same nonce must have the same definition';
-		}
+		const source: RegisteredModelSource = {
+			id,
+			provider,
+			displayName,
+			...(action.icons ? { icons: action.icons } : {}),
+			registration: { format, definition, ...(retention !== undefined ? { retention } : {}) },
+			...(action._meta ? { _meta: action._meta } : {}),
+		};
 		// Every client reads root state, so a definition the agent can't serve isn't stored there.
 		try {
-			return { modelSource, description: agent.describeModelSource({ id: modelSource.id, format: modelSource.format, definition }) };
+			return { source, description: agent.describeModelSource({ id, format, definition }) };
 		} catch (error) {
 			return toErrorMessage(error);
 		}
 	}
 
-	private _isReregistration(entry: IModelSourceEntry, modelSource: ModelSource): boolean {
-		return entry.provider === modelSource.provider && entry.format === modelSource.format && entry.nonce === modelSource.nonce;
+	/** Whether `entry` has the same agent, format, and definition as `source`, so it keeps its status and credential. */
+	private _isReregistration(entry: IModelSourceEntry, source: RegisteredModelSource): boolean {
+		return entry.source.provider === source.provider && entry.source.registration.format === source.registration.format && equals(entry.source.registration.definition, source.registration.definition);
 	}
 
-	private _apply(modelSource: RegisteredModelSource, description: IAgentModelSourceDescription, clientId: string): void {
-		const { definition } = modelSource;
-		const previous = this._entries.get(modelSource.id);
-		if (previous && this._isReregistration(previous, modelSource)) {
-			// A re-registration, or a new name or retention: the reducer kept the host-reported fields, and the credential stays.
+	private _apply(source: RegisteredModelSource, description: IAgentModelSourceDescription, clientId: string): void {
+		const previous = this._entries.get(source.id);
+		if (previous && this._isReregistration(previous, source)) {
+			// A re-registration, or a new name or retention: the status and credential stay.
 			previous.contributors.add(clientId);
+			const changed = !equals(previous.source, source);
+			previous.source = source;
 			if (previous.drain.value) {
 				// A client registered the source again before it went away.
 				previous.drain.value.cancel();
 				previous.drain.clear();
-				this._syncAgent(previous.provider);
+				this._syncAgent(source.provider);
+			}
+			if (changed) {
+				this._publish(previous);
 			}
 			return;
 		}
@@ -248,10 +248,7 @@ export class AgentHostModelSourceRegistry extends Disposable {
 		}
 		// An update makes the dispatching client the only contributor: the others registered a different definition.
 		const entry: IModelSourceEntry = {
-			provider: modelSource.provider,
-			format: modelSource.format,
-			nonce: modelSource.nonce,
-			definition,
+			source,
 			contributors: new Set([clientId]),
 			credential: undefined,
 			credentialSince: 0,
@@ -259,24 +256,24 @@ export class AgentHostModelSourceRegistry extends Disposable {
 			credentialResource: description.credentialResource,
 			state: description.credentialResource ? { kind: ModelSourceStatus.AuthRequired, reason: ModelSourceAuthRequiredReason.Required } : { kind: ModelSourceStatus.Ready },
 			// Models whose upstream identity didn't change keep their IDs, and stay listed while a new credential is requested.
-			listed: !description.credentialResource || (previous?.listed === true && previous.provider === modelSource.provider),
+			listed: !description.credentialResource || (previous?.listed === true && previous.source.provider === source.provider),
 			lease: new MutableDisposable(),
 			drain: new MutableDisposable(),
 		};
-		this._entries.set(modelSource.id, entry);
-		this._report(modelSource.id, entry);
-		if (previous && previous.provider !== modelSource.provider) {
-			this._syncAgent(previous.provider);
+		this._entries.set(source.id, entry);
+		this._publish(entry);
+		if (previous && previous.source.provider !== source.provider) {
+			this._syncAgent(previous.source.provider);
 		}
-		this._syncAgent(modelSource.provider);
+		this._syncAgent(source.provider);
 	}
 
 	private _dropCredential(id: string, entry: IModelSourceEntry, state: ModelSourceState): void {
 		entry.lease.clear();
 		entry.credential = undefined;
 		entry.state = state;
-		this._report(id, entry);
-		this._syncAgent(entry.provider);
+		this._publish(entry);
+		this._syncAgent(entry.source.provider);
 	}
 
 	private _remove(id: string): void {
@@ -286,7 +283,7 @@ export class AgentHostModelSourceRegistry extends Disposable {
 		}
 		this._disposeEntry(entry);
 		this._entries.delete(id);
-		this._syncAgent(entry.provider);
+		this._syncAgent(entry.source.provider);
 	}
 
 	private _disposeEntry(entry: IModelSourceEntry): void {
@@ -296,21 +293,25 @@ export class AgentHostModelSourceRegistry extends Disposable {
 		entry.drain.dispose();
 	}
 
-	private _report(id: string, entry: IModelSourceEntry): void {
+	/** Publishes the whole source: only the host dispatches `root/modelSourceSet`, for every change. */
+	private _publish(entry: IModelSourceEntry): void {
 		this._state.dispatchServerAction(ROOT_STATE_URI, {
-			type: ActionType.RootModelSourceStateChanged,
-			id,
-			state: entry.state,
-			...(entry.credentialResource ? { credentialResource: entry.credentialResource } : {}),
-			...(entry.accountId !== undefined ? { accountId: entry.accountId } : {}),
+			type: ActionType.RootModelSourceSet,
+			modelSource: {
+				...entry.source,
+				state: entry.state,
+				...(entry.credentialResource ? { credentialResource: entry.credentialResource } : {}),
+				...(entry.accountId !== undefined ? { accountId: entry.accountId } : {}),
+			},
 		});
 	}
 
 	private _syncAgent(provider: string): void {
 		const sources: IAgentModelSource[] = [];
 		for (const [id, entry] of this._entries) {
-			if (entry.provider === provider && entry.listed) {
-				sources.push({ id, format: entry.format, definition: entry.definition, ...(entry.credential ? { credential: entry.credential } : {}), ...(entry.drain.value ? { draining: true } : {}) });
+			if (entry.source.provider === provider && entry.listed) {
+				const { format, definition } = entry.source.registration;
+				sources.push({ id, format, definition, ...(entry.credential ? { credential: entry.credential } : {}), ...(entry.drain.value ? { draining: true } : {}) });
 			}
 		}
 		this._getAgent(provider)?.setModelSources?.(sources);
@@ -321,8 +322,7 @@ export class AgentHostModelSourceRegistry extends Disposable {
 	}
 }
 
-function isRegisteredModelSource(modelSource: ModelSource | undefined): modelSource is RegisteredModelSource {
-	const definition = modelSource?.definition;
-	return typeof modelSource?.id === 'string' && !!modelSource.id && typeof modelSource.format === 'string' && typeof modelSource.nonce === 'string' && !!modelSource.nonce
-		&& typeof definition === 'object' && definition !== null && !Array.isArray(definition);
+function isModelSourceRegistration(registration: ModelSourceRegistration | undefined): registration is ModelSourceRegistration {
+	const definition = registration?.definition;
+	return typeof registration?.format === 'string' && typeof definition === 'object' && definition !== null && !Array.isArray(definition);
 }

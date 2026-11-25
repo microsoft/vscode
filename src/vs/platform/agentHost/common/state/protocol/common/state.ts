@@ -16,6 +16,7 @@ import type { ChatState } from '../channels-chat/state.js';
 import type { CanvasState } from '../channels-canvas/state.js';
 import type { AutomationState } from '../channels-automation/state.js';
 import type { AutomationRunState } from '../channels-automation-run/state.js';
+import type { AhpErrorCode } from './errors.js';
 
 // ─── Type Aliases ────────────────────────────────────────────────────────────
 
@@ -436,14 +437,16 @@ export interface UsageInfo {
  * @preserveUnknownMembers
  */
 export interface ErrorInfo {
-	/**
-	 * Error type identifier. Well-known values:
-	 *
-	 * - `modelSourceUnavailable`: a turn's registered model source can't serve
-	 *   it, the turn-level counterpart of `AhpErrorCodes.ModelSourceUnavailable`.
-	 *   See [Model source credentials](/specification/authentication#model-source-credentials).
-	 */
+	/** Error type identifier */
 	errorType: string;
+	/**
+	 * The {@link AhpErrorCodes} value for this error, when one applies. For
+	 * example, a turn whose registered model source can't serve it ends with
+	 * `ModelSourceUnavailable`.
+	 *
+	 * @stability 1.0
+	 */
+	errorCode?: AhpErrorCode;
 	/** Human-readable error message */
 	message: string;
 	/** Stack trace */

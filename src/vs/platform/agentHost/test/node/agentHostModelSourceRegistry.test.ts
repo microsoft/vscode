@@ -23,12 +23,16 @@ const RESOURCE = 'https://models.example.test/v1';
 class TestRegistryState implements IAgentHostModelSourceRegistryState {
 	rootState: RootState = createRootState();
 	readonly rejections: string[] = [];
+	/** The type of each action the host dispatched, in order. */
+	readonly dispatched: string[] = [];
 
 	dispatchServerAction(_channel: string, action: StateAction): void {
+		this.dispatched.push(action.type);
 		this.rootState = rootReducer(this.rootState, action as RootAction);
 	}
 
 	dispatchClientAction(_channel: string, action: ClientModelSourceAction, _origin: ActionOrigin): unknown {
+		this.dispatched.push(action.type);
 		this.rootState = rootReducer(this.rootState, action);
 		return this.rootState;
 	}
@@ -88,10 +92,13 @@ class TestAgent extends mock<IAgent>() {
 	}
 }
 
-function set(modelSource: Partial<Omit<ModelSource, 'definition'>> & Pick<ModelSource, 'id'>, definition: Record<string, unknown> = { endpoint: RESOURCE }): ClientModelSourceAction {
+function register(id: string, definition: Record<string, unknown> = { endpoint: RESOURCE }, options: { readonly provider?: string; readonly format?: string; readonly displayName?: string; readonly retention?: ModelSourceRetentionPolicy } = {}): Extract<ClientModelSourceAction, { readonly type: ActionType.RootModelSourceRegisterRequested }> {
 	return {
-		type: ActionType.RootModelSourceSet,
-		modelSource: { provider: 'copilotcli', displayName: 'Example', format: FORMAT, definition, nonce: JSON.stringify(definition), ...modelSource },
+		type: ActionType.RootModelSourceRegisterRequested,
+		modelSourceId: id,
+		provider: options.provider ?? 'copilotcli',
+		displayName: options.displayName ?? 'Example',
+		registration: { format: options.format ?? FORMAT, definition, ...(options.retention ? { retention: options.retention } : {}) },
 	};
 }
 
@@ -123,8 +130,9 @@ suite('AgentHostModelSourceRegistry', () => {
 			return { state: modelSource?.state, accountId: modelSource?.accountId, served: agent.lastServed };
 		};
 
-		registry.handleClientAction(set({ id: 'source' }), 'client-a', 1);
-		const required = { ...observe(), definition: state.modelSource('source')?.definition };
+		registry.handleClientAction(register('source'), 'client-a', 1);
+		const required = { ...observe(), definition: state.modelSource('source')?.registration?.definition };
+		const order = [...state.dispatched];
 		const rejectedDeliveries = {
 			otherResource: authenticate(registry, 'source', 'secret', { resource: 'https://other.example.test' }),
 			unknownSource: authenticate(registry, 'missing', 'secret'),
@@ -135,21 +143,21 @@ suite('AgentHostModelSourceRegistry', () => {
 		const ready = observe();
 
 		// Another client registering the same definition, with a new name or retention, keeps the credential.
-		registry.handleClientAction(set({ id: 'source', displayName: 'Renamed', retention: ModelSourceRetentionPolicy.Host }), 'client-b', 1);
+		registry.handleClientAction(register('source', undefined, { displayName: 'Renamed', retention: ModelSourceRetentionPolicy.Host }), 'client-b', 1);
 		const reregistered = { ...observe(), displayName: state.modelSource('source')?.displayName };
-		// The same nonce must not carry a different definition, since the source keeps its credential.
-		registry.handleClientAction(set({ id: 'source', nonce: JSON.stringify({ endpoint: RESOURCE }) }, { endpoint: 'https://evil.example.test/v1' }), 'client-b', 2);
 
 		const revoked = authenticate(registry, 'source', '');
 		const afterRevocation = observe();
 
 		// A new definition drops any credential and starts over.
-		registry.handleClientAction(set({ id: 'source' }, { endpoint: 'https://moved.example.test/v1' }), 'client-a', 2);
+		registry.handleClientAction(register('source', { endpoint: 'https://moved.example.test/v1' }), 'client-a', 2);
 		const moved = { ...observe(), resource: state.modelSource('source')?.credentialResource?.resource };
 
-		assert.deepStrictEqual({ required, rejectedDeliveries, delivered, replaced, ready, reregistered, revoked, afterRevocation, moved, rejections: state.rejections.length }, {
+		assert.deepStrictEqual({ required, order, rejectedDeliveries, delivered, replaced, ready, reregistered, revoked, afterRevocation, moved, rejections: state.rejections.length }, {
 			// The host's state keeps the definition, so every client can check where a key would go.
 			required: { state: { kind: 'authRequired', reason: 'required' }, accountId: undefined, served: {}, definition: { endpoint: RESOURCE } },
+			// The host publishes the source before it confirms the request, so the client finds it then.
+			order: [ActionType.RootModelSourceSet, ActionType.RootModelSourceRegisterRequested],
 			rejectedDeliveries: { otherResource: -32602, unknownSource: -32602 },
 			delivered: 'ok',
 			replaced: 'ok',
@@ -159,13 +167,13 @@ suite('AgentHostModelSourceRegistry', () => {
 			// A revoked key is never replayed, `accountId` still names it, and the models stay listed so selections keep resolving.
 			afterRevocation: { state: { kind: 'authRequired', reason: 'revoked' }, accountId: 'key-2', served: { source: false } },
 			moved: { state: { kind: 'authRequired', reason: 'required' }, accountId: undefined, served: { source: false }, resource: 'https://moved.example.test/v1' },
-			rejections: 1,
+			rejections: 0,
 		});
 	});
 
 	test('drops a credential its endpoint rejected, so a client replaces it rather than sending it again', () => {
 		const { registry, state, agent } = createRegistry();
-		registry.handleClientAction(set({ id: 'source' }), 'client-a', 1);
+		registry.handleClientAction(register('source'), 'client-a', 1);
 		authenticate(registry, 'source', 'secret', { accountId: 'key-1' });
 
 		// A turn that started before this key was delivered was refused with an earlier one.
@@ -186,14 +194,14 @@ suite('AgentHostModelSourceRegistry', () => {
 
 	test('lets running turns finish before removing a source its last contributor left, unless a client registers it again', async () => {
 		const { registry, state, agent } = createRegistry();
-		registry.handleClientAction(set({ id: 'source' }), 'client-a', 1);
+		registry.handleClientAction(register('source'), 'client-a', 1);
 		authenticate(registry, 'source', 'secret');
-		registry.handleClientAction(set({ id: 'returning' }, {}), 'client-a', 2);
+		registry.handleClientAction(register('returning', {}), 'client-a', 2);
 
 		registry.removeClient('client-a');
 		const whileDraining = { remaining: state.rootState.modelSources?.map(modelSource => modelSource.id), served: agent.lastServed, draining: agent.lastDraining };
 		// Another client registers one of them again before its turns finish.
-		registry.handleClientAction(set({ id: 'returning' }, {}), 'client-b', 1);
+		registry.handleClientAction(register('returning', {}), 'client-b', 1);
 		agent.idle.get('source')!.complete();
 		agent.idle.get('returning')!.complete();
 		await Promise.resolve();
@@ -211,23 +219,23 @@ suite('AgentHostModelSourceRegistry', () => {
 	test('rejects sources the agent cannot read, and removes a departed client\'s sources by retention', async () => {
 		const { registry, state, agent } = createRegistry();
 
-		registry.handleClientAction(set({ id: 'other-format', format: 'unknown/format@1' }), 'client-a', 1);
-		registry.handleClientAction(set({ id: 'other-agent', provider: 'claude' }), 'client-a', 2);
-		registry.handleClientAction(set({ id: 'host-fields', accountId: 'mine' }), 'client-a', 3);
-		registry.handleClientAction(set({ id: 'invalid' }, { invalid: true }), 'client-a', 4);
-		registry.handleClientAction(set({ id: 'keyless' }, {}), 'client-a', 5);
-		registry.handleClientAction(set({ id: 'retained', retention: ModelSourceRetentionPolicy.Host }, {}), 'client-a', 6);
-		registry.handleClientAction(set({ id: 'shared' }, {}), 'client-a', 7);
-		registry.handleClientAction(set({ id: 'shared' }, {}), 'client-b', 1);
+		registry.handleClientAction(register('other-format', undefined, { format: 'unknown/format@1' }), 'client-a', 1);
+		registry.handleClientAction(register('other-agent', undefined, { provider: 'claude' }), 'client-a', 2);
+		registry.handleClientAction({ ...register('malformed'), registration: JSON.parse(`{ "format": "${FORMAT}", "definition": "not an object" }`) }, 'client-a', 3);
+		registry.handleClientAction(register('invalid', { invalid: true }), 'client-a', 4);
+		registry.handleClientAction(register('keyless', {}), 'client-a', 5);
+		registry.handleClientAction(register('retained', {}, { retention: ModelSourceRetentionPolicy.Host }), 'client-a', 6);
+		registry.handleClientAction(register('shared', {}), 'client-a', 7);
+		registry.handleClientAction(register('shared', {}), 'client-b', 1);
 		// An update with a different definition makes its client the only contributor.
-		registry.handleClientAction(set({ id: 'updated' }, {}), 'client-b', 2);
-		registry.handleClientAction(set({ id: 'updated' }, { other: true }), 'client-a', 8);
-		registry.handleClientAction(set({ id: 'removed' }, {}), 'client-b', 3);
-		const registered = Object.fromEntries((state.rootState.modelSources ?? []).map(modelSource => [modelSource.id, modelSource.state?.kind]));
+		registry.handleClientAction(register('updated', {}), 'client-b', 2);
+		registry.handleClientAction(register('updated', { other: true }), 'client-a', 8);
+		registry.handleClientAction(register('removed', {}), 'client-b', 3);
+		const registered = Object.fromEntries((state.rootState.modelSources ?? []).map(modelSource => [modelSource.id, modelSource.state.kind]));
 		const servedBeforeDeparture = agent.lastServed;
 
 		// Removal applies to every client.
-		registry.handleClientAction({ type: ActionType.RootModelSourceRemoved, id: 'removed' }, 'client-a', 9);
+		registry.handleClientAction({ type: ActionType.RootModelSourceRemoved, modelSourceId: 'removed' }, 'client-a', 9);
 		registry.removeClient('client-a');
 		for (const idle of agent.idle.values()) {
 			idle.complete();
