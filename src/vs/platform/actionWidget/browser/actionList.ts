@@ -1181,6 +1181,9 @@ export class ActionListWidget<T> extends Disposable {
 			new SeparatorRenderer(this._hoverService),
 		], {
 			supportDynamicHeights: this._options?.wrapDetails,
+			// This optimization's rows layer clips a device pixel off the right and bottom edges of the
+			// rows' focus outline at fractional device pixel ratios, such as in a zoomed window.
+			transformOptimization: false,
 			keyboardSupport: false,
 			multipleSelectionSupport: this._options?.multipleSelectionSupport ?? true,
 			typeNavigationEnabled: !this._options?.showFilter && !this._options?.onType,
