@@ -147,6 +147,13 @@ interface IModelRouterTemplate extends IModelRouterRowTemplate {
 	routerId: string | undefined;
 }
 
+/** A control of a router's row that has the keyboard focus. */
+interface IModelRouterFocusedControl {
+	readonly routerId: string;
+	/** The route switching switch. Otherwise the router's menu. */
+	readonly isSwitch: boolean;
+}
+
 /** What a router's row can do. */
 interface IModelRouterRowActions {
 	canSetSwitching(item: IModelRouterItem): boolean;
@@ -191,7 +198,7 @@ class ModelRouterRenderer implements ITreeRenderer<ModelRouterTreeEntry, void, I
 	renderElement(node: ITreeNode<ModelRouterTreeEntry>, _index: number, template: IModelRouterTemplate): void {
 		const item = node.element.item;
 		renderRow(node.element, template, this.hoverService);
-		template.container.classList.toggle('has-errors', item.hasErrors);
+		template.container.classList.toggle('has-warning', item.hasWarning);
 		template.routerId = item.id;
 
 		const canSwitch = this.actions.canSetSwitching(item);
@@ -234,10 +241,41 @@ class ModelRouterRenderer implements ITreeRenderer<ModelRouterTreeEntry, void, I
 		}
 	}
 
+	/** The router whose switch or menu has the keyboard focus. */
+	getFocusedControl(): IModelRouterFocusedControl | undefined {
+		const focused = DOM.getActiveElement();
+		for (const template of this.templates) {
+			if (template.routerId !== undefined && DOM.isAncestor(focused, template.container)) {
+				return { routerId: template.routerId, isSwitch: DOM.isAncestor(focused, template.switching.domNode) };
+			}
+		}
+		return undefined;
+	}
+
+	/** Gives the keyboard focus to a router's switch or menu. False when the router has no row to focus. */
+	focusControl({ routerId, isSwitch }: IModelRouterFocusedControl): boolean {
+		for (const template of this.templates) {
+			if (template.routerId === routerId) {
+				if (isSwitch) {
+					template.switching.domNode.focus();
+				} else {
+					template.moreActions.focus();
+				}
+				return true;
+			}
+		}
+		return false;
+	}
+
 	private updateTabOrder(template: IModelRouterTemplate): void {
 		const focused = template.routerId !== undefined && template.routerId === this.focusedRouterId;
 		template.switching.domNode.tabIndex = focused ? 0 : -1;
 		template.moreActions.setFocusable(focused);
+	}
+
+	disposeElement(_node: ITreeNode<ModelRouterTreeEntry>, _index: number, template: IModelRouterTemplate): void {
+		template.elementDisposables.clear();
+		template.routerId = undefined;
 	}
 
 	disposeTemplate(template: IModelRouterTemplate): void {
@@ -277,6 +315,9 @@ export class ModelRoutersWidget extends Disposable {
 	private readonly form = this._register(new MutableDisposable<DisposableStore>());
 	private openForm: ModelRouterForm | undefined;
 	private size: { readonly height: number; readonly width: number } | undefined;
+	private readonly routerRenderer: ModelRouterRenderer;
+	/** Counts the forms asked for, so that a router read for one that is no longer wanted is dropped. */
+	private formRequest = 0;
 
 	constructor(
 		private readonly host: IModelRoutersWidgetHost,
@@ -307,13 +348,12 @@ export class ModelRoutersWidget extends Disposable {
 		addButton.label = `$(add) ${localize('modelRouters.add', "Add Router")}`;
 		addButton.element.classList.add('model-routers-add-button');
 		if (!this.viewModel.canWriteFiles) {
-			addButton.enabled = false;
-			addButton.setTitle(localize('modelRouters.addUnavailable', "The routers of a remote agent are files on its machine, so they cannot be added from here."));
+			addButton.setTitle(localize('modelRouters.addWithSkill', "The routers of a remote agent are files on its machine, so a chat with the model router skill adds one there."));
 		}
-		this._register(addButton.onDidClick(() => this.showForm(undefined)));
+		this._register(addButton.onDidClick(() => this.viewModel.canWriteFiles ? this.showForm(undefined) : this.runModelRouterSkill('').catch(onUnexpectedError)));
 
 		this.treeContainer = DOM.append(this.listPage, $('.model-routers-tree'));
-		const routerRenderer = new ModelRouterRenderer({
+		const routerRenderer = this.routerRenderer = new ModelRouterRenderer({
 			canSetSwitching: item => this.viewModel.canSetSwitching(item),
 			setSwitching: (item, switching) => this.setSwitching(item, switching),
 			showMenu: (item, anchor) => this.showRouterMenu(item, anchor),
@@ -411,6 +451,8 @@ export class ModelRoutersWidget extends Disposable {
 			this.emptyTitle.textContent = query ? localize('modelRouters.noMatches', "No Matching Model Routers") : localize('modelRouters.none', "No Model Routers");
 			this.emptyDetail.textContent = query ? localize('modelRouters.noMatchesDetail', "Try a different search.") : localize('modelRouters.noneDetail', "Add a router to pick the model for a chat from routes you write.");
 		}
+		// Rows are reused as the tree is rebuilt, so a focused switch or menu could end up being another router's.
+		const focusedControl = this.routerRenderer.getFocusedControl();
 		this.tree.setChildren(null, routers.map(item => ({
 			element: { type: 'router', item },
 			collapsible: item.routes.length > 0,
@@ -418,6 +460,9 @@ export class ModelRoutersWidget extends Disposable {
 			collapsed: query ? ObjectTreeElementCollapseState.Expanded : ObjectTreeElementCollapseState.PreserveOrExpanded,
 			children: item.routes.map((_route, index) => ({ element: { type: 'route', item, index } })),
 		})));
+		if (focusedControl && !this.routerRenderer.focusControl(focusedControl)) {
+			this.tree.domFocus();
+		}
 		if (this.size) {
 			this.layout(this.size.height, this.size.width);
 		}
@@ -425,7 +470,9 @@ export class ModelRoutersWidget extends Disposable {
 
 	/** Shows the form in place of the list, for the router read from its file or for a new one. */
 	private showForm(existing: IOpenedModelRouter | undefined): void {
+		this.formRequest++;
 		const store = this.form.value = new DisposableStore();
+		DOM.clearNode(this.formPage);
 		const form = this.openForm = store.add(this.instantiationService.createInstance(ModelRouterForm, this.formPage, this.viewModel, existing));
 		store.add(form.onDidCancel(() => this.hideForm()));
 		store.add(form.onDidSave(file => {
@@ -438,6 +485,7 @@ export class ModelRoutersWidget extends Disposable {
 	}
 
 	private hideForm(): void {
+		this.formRequest++;
 		this.openForm = undefined;
 		this.form.clear();
 		DOM.clearNode(this.formPage);
@@ -455,7 +503,7 @@ export class ModelRoutersWidget extends Disposable {
 		const fileName = basename(item.file);
 		const action = (id: string, label: string, run: () => Promise<void>): Action => new Action(id, label, undefined, true, run);
 		const withSkill = [action('modelRouter.editWithAI', localize('modelRouters.editWithAI', "Edit with AI..."), () => this.runModelRouterSkill(localize({ key: 'modelRouters.editRequest', comment: ['{0} is a file name. The user finishes the sentence, so it ends with a comma and a space.'] }, "In {0}, ", fileName)))];
-		if (item.hasErrors) {
+		if (item.hasWarning) {
 			withSkill.push(action('modelRouter.fix', localize('modelRouters.fix', "Fix with AI"), () => this.runModelRouterSkill(localize({ key: 'modelRouters.fixRequest', comment: ['{0} is a file name'] }, "Fix {0}", fileName))));
 		}
 		const open = [action('modelRouter.openFile', localize('modelRouters.openFile', "Open File"), () => this.openRouterFile(item))];
@@ -488,16 +536,42 @@ export class ModelRoutersWidget extends Disposable {
 	}
 
 	/** What Enter and a double click do: the router opens in the form, or as its file when the form cannot change it. */
-	private openRouter(item: IModelRouterItem): Promise<void> {
-		return this.viewModel.canEdit(item) ? this.editRouter(item) : this.openRouterFile(item);
+	private async openRouter(item: IModelRouterItem): Promise<void> {
+		if (!this.viewModel.canEdit(item)) {
+			return this.openRouterFile(item);
+		}
+		const error = await this.readForForm(item);
+		// A router the agent warns about can have a file that does not read as one, which is opened to be put right.
+		if (error !== undefined && item.hasWarning) {
+			return this.openRouterFile(item);
+		}
+		this.showEditError(item, error);
 	}
 
 	private async editRouter(item: IModelRouterItem): Promise<void> {
-		try {
-			this.showForm(await this.viewModel.readRouter(item));
-		} catch (error) {
-			this.notificationService.error(localize('modelRouters.editFailed', "{0} could not be opened to edit. {1}", item.name, getErrorMessage(error)));
+		this.showEditError(item, await this.readForForm(item));
+	}
+
+	private showEditError(item: IModelRouterItem, error: string | undefined): void {
+		if (error !== undefined) {
+			this.notificationService.error(localize('modelRouters.editFailed', "{0} could not be opened to edit. {1}", item.name, error));
 		}
+	}
+
+	/** Reads a router's file and shows it in the form. Resolves to what is wrong when the file cannot be read as a router. */
+	private async readForForm(item: IModelRouterItem): Promise<string | undefined> {
+		const request = ++this.formRequest;
+		let read: IOpenedModelRouter;
+		try {
+			read = await this.viewModel.readRouter(item);
+		} catch (error) {
+			return getErrorMessage(error);
+		}
+		// Another form was asked for, or the routers were closed, while the file was read
+		if (request === this.formRequest && !this._store.isDisposed) {
+			this.showForm(read);
+		}
+		return undefined;
 	}
 
 	private async openRouterFile(item: IModelRouterItem): Promise<void> {

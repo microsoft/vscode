@@ -127,6 +127,8 @@
 
 	/* Modal Editor Tabs: the editors of the group, in place of the title */
 	&.has-editor-tabs {
+		/* The tabs take the width they need before the actions get the rest, and shrink when there is too little */
+		grid-template-columns: auto minmax(0, max-content) auto 1fr;
 		padding-left: 0;
 
 		.modal-editor-title {
@@ -155,6 +157,10 @@
 		font-size: var(--vscode-fontSize-body1);
 		white-space: nowrap;
 		cursor: pointer;
+		/* A tab too wide for the header cuts its label short, so that every tab stays in reach */
+		flex: 0 1 auto;
+		min-width: 0;
+		overflow: hidden;
 		color: var(--vscode-tab-inactiveForeground);
 		background-color: var(--vscode-tab-inactiveBackground);
 
@@ -181,6 +187,7 @@
 
 		.monaco-icon-label {
 			color: inherit;
+			min-width: 0;
 		}
 	}
 

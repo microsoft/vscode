@@ -228,7 +228,8 @@ export function writeModelRouter(draft: IModelRouterDraft): string {
 			`model: ${route.models.length === 1 ? yamlText(route.models[0]) : `[${route.models.map(model => /^[\w.:/@-]+$/.test(model) ? model : JSON.stringify(model)).join(', ')}]`}`,
 			...(route.effort ? [`effort: ${route.effort}`] : []),
 			...(route.contextSize ? [`context-size: ${route.contextSize}`] : []),
-			`when: ${yamlText(route.when, '      ')}`,
+			// A router's only route can leave `when` out, and an empty one does not read back.
+			...(route.when ? [`when: ${yamlText(route.when, '      ')}`] : []),
 			...(route.examples.length ? ['examples:', ...route.examples.map(example => `  - ${yamlText(example)}`)] : []),
 			...(route.mainAgentGuidance ? [`guidance: ${yamlText(route.mainAgentGuidance, '      ')}`] : []),
 		];

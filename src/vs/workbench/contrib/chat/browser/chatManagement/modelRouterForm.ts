@@ -67,7 +67,7 @@ export class ModelRouterForm extends Disposable {
 	private readonly errorElement: HTMLElement;
 	private readonly saveButton: Button;
 	private readonly routeDisposables = this._register(new DisposableStore());
-	private readonly models: readonly IRoutableModel[];
+	private models: readonly IRoutableModel[];
 	private readonly routes: IModelRouterFormRoute[];
 	private routeNameInputs: InputBox[] = [];
 
@@ -115,6 +115,20 @@ export class ModelRouterForm extends Disposable {
 			this.routeNameInputs.at(-1)?.focus();
 		}));
 		this.renderRoutes();
+		// The agent can list its models after the form opens, and a route has none to choose from until then.
+		this._register(viewModel.onDidChange(() => {
+			if (!this.models.length) {
+				this.models = viewModel.getRoutableModels();
+				if (this.models.length) {
+					for (const route of this.routes) {
+						if (!route.models.length) {
+							route.models = [this.models[0].reference];
+						}
+					}
+					this.renderRoutes();
+				}
+			}
+		}));
 
 		this.errorElement = DOM.append(this.element, $('.mcp-config-form-error', { 'aria-live': 'polite' }));
 		const footer = DOM.append(this.element, $('.mcp-config-form-footer'));

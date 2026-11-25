@@ -79,7 +79,7 @@
 	line-height: 14px;
 }
 
-.model-routers-widget .model-router-row.has-errors .model-router-row-detail {
+.model-routers-widget .model-router-row.has-warning .model-router-row-detail {
 	color: var(--vscode-editorWarning-foreground);
 }
 

@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from '../../../../../base/browser/dom.js';
+import { onUnexpectedError } from '../../../../../base/common/errors.js';
+import { Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../nls.js';
 import { AccessibleContentProvider, AccessibleViewProviderId, AccessibleViewType } from '../../../../../platform/accessibility/browser/accessibleView.js';
@@ -18,6 +20,7 @@ import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../../browser/e
 import { ActiveEditorContext } from '../../../../common/contextkeys.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
 import { EditorExtensions, EditorsOrder, IEditorFactoryRegistry, IEditorSerializer } from '../../../../common/editor.js';
+import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
@@ -31,6 +34,11 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 	[new SyncDescriptor(ModelRoutersEditorInput)]
 );
 
+/** Whether the editor has a place in this window: model routers are turned on, and AI features are not hidden. */
+function isModelRoutersEditorOffered(configurationService: IConfigurationService, chatEntitlementService: IChatEntitlementService): boolean {
+	return configurationService.getValue(ModelRouterEnabledSettingId) === true && !chatEntitlementService.sentiment.hidden;
+}
+
 class ModelRoutersEditorInputSerializer implements IEditorSerializer {
 
 	canSerialize(): boolean {
@@ -42,28 +50,30 @@ class ModelRoutersEditorInputSerializer implements IEditorSerializer {
 	}
 
 	deserialize(instantiationService: IInstantiationService): ModelRoutersEditorInput | undefined {
-		const enabled = instantiationService.invokeFunction(accessor => accessor.get(IConfigurationService).getValue(ModelRouterEnabledSettingId) === true);
-		return enabled ? new ModelRoutersEditorInput() : undefined;
+		return instantiationService.invokeFunction(accessor => isModelRoutersEditorOffered(accessor.get(IConfigurationService), accessor.get(IChatEntitlementService))) ? new ModelRoutersEditorInput() : undefined;
 	}
 }
 
 Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(ModelRoutersEditorInput.ID, ModelRoutersEditorInputSerializer);
 
-/** Closes the Model Routers editors when model routers are turned off. */
+/** Closes the Model Routers editors when model routers are turned off or AI features are hidden. */
 class ModelRoutersEditorEnablement extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.modelRoutersEditorEnablement';
 
 	constructor(
 		@IConfigurationService configurationService: IConfigurationService,
+		@IChatEntitlementService chatEntitlementService: IChatEntitlementService,
 		@IEditorService editorService: IEditorService,
 	) {
 		super();
-		this._register(configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(ModelRouterEnabledSettingId) && configurationService.getValue(ModelRouterEnabledSettingId) !== true) {
-				editorService.closeEditors(editorService.getEditors(EditorsOrder.SEQUENTIAL).filter(({ editor }) => editor instanceof ModelRoutersEditorInput));
+		const closeUnlessOffered = () => {
+			if (!isModelRoutersEditorOffered(configurationService, chatEntitlementService)) {
+				editorService.closeEditors(editorService.getEditors(EditorsOrder.SEQUENTIAL).filter(({ editor }) => editor instanceof ModelRoutersEditorInput)).catch(onUnexpectedError);
 			}
-		}));
+		};
+		this._register(Event.filter(configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(ModelRouterEnabledSettingId))(closeUnlessOffered));
+		this._register(chatEntitlementService.onDidChangeSentiment(closeUnlessOffered));
 	}
 }
 

@@ -15,7 +15,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { ContextSizeConfigKey } from '../../../../../platform/agentHost/common/agentModelConfiguration.js';
 import { IAgentModelRouterRoute } from '../../../../../platform/agentHost/common/meta/agentModelMeta.js';
-import { IModelRouter, isRoutableModel, ModelRouterContextSize, ModelRouterDiagnosticSeverity, ModelRouterEffortLevel, modelRouterFile, modelRouterNameFromDisplayName, modelRouterNameFromFileName, ModelRouterSwitching, parseModelRouter, userModelRouterFolder, withModelRouterSwitching, writeModelRouter } from '../../../../../platform/agentHost/common/modelRouter.js';
+import { IModelRouter, isRoutableModel, ModelRouterContextSize, ModelRouterDiagnosticSeverity, ModelRouterEffortLevel, modelRouterFile, modelRouterNameFromDisplayName, modelRouterNameFromFileName, modelRouterNameFromModelId, ModelRouterSwitching, parseModelRouter, userModelRouterFolder, withModelRouterSwitching, writeModelRouter } from '../../../../../platform/agentHost/common/modelRouter.js';
 import { ReasoningEffortConfigKey, reasoningEffortLevels } from '../../../../../platform/agentHost/common/reasoningEffort.js';
 import { FileOperationResult, IFileService, toFileOperationResult } from '../../../../../platform/files/common/files.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
@@ -29,9 +29,12 @@ import { ILanguageModelsService } from '../../common/languageModels.js';
 export interface IModelRouterItem {
 	readonly id: string;
 	readonly name: string;
+	/** The name chats know the router by, which its file can set apart from the file's own name. */
+	readonly routerName: string | undefined;
 	/** What the router is for, or what is wrong with its file. */
 	readonly description: string;
-	readonly hasErrors: boolean;
+	/** Whether the agent warns about the router: its file has errors, or some of its routes are left out. */
+	readonly hasWarning: boolean;
 	readonly file: URI | undefined;
 	readonly routes: readonly IAgentModelRouterRoute[];
 	/** Absent when the router has nothing to switch between. */
@@ -117,9 +120,9 @@ export class ModelRoutersViewModel extends Disposable {
 			return {
 				id,
 				name: metadata.name,
+				routerName: modelRouterNameFromModelId(metadata.id),
 				description: metadata.tooltip ?? '',
-				// A router's model carries a warning only while its file has errors.
-				hasErrors: metadata.statusIcon?.id === Codicon.warning.id,
+				hasWarning: metadata.statusIcon?.id === Codicon.warning.id,
 				file: metadata.detailsResource ? URI.revive(metadata.detailsResource) : undefined,
 				routes: metadata.modelRouterRoutes,
 				switching: metadata.modelRouterSwitching,
@@ -169,8 +172,13 @@ export class ModelRoutersViewModel extends Disposable {
 		await this.writes.queue(async () => {
 			this.assertSaved(file);
 			const { value, etag, mtime } = await this.fileService.readFile(file);
+			const content = withModelRouterSwitching(value.toString(), switching);
+			// A file written in a way the change does not fit is left as it is, not broken.
+			if (parseModelRouter(content, basename(file)).router?.switching !== switching) {
+				throw new Error(localize('modelRouters.error.switching', "Change `switching` in {0} instead.", basename(file)));
+			}
 			// The write is refused when the file has changed since it was read.
-			await this.fileService.writeFile(file, VSBuffer.fromString(withModelRouterSwitching(value.toString(), switching)), { etag, mtime });
+			await this.fileService.writeFile(file, VSBuffer.fromString(content), { etag, mtime });
 		});
 	}
 
@@ -181,9 +189,9 @@ export class ModelRoutersViewModel extends Disposable {
 		}
 	}
 
-	/** Whether the router can be changed in the form: its file is on this machine and reads as a router. */
+	/** Whether the router can be changed in the form: its file is on this machine. A file that does not read as a router is found out by {@link readRouter}. */
 	canEdit(router: IModelRouterItem): boolean {
-		return this.canWriteFiles && !!router.file && !router.hasErrors;
+		return this.canWriteFiles && !!router.file;
 	}
 
 	/** Reads a router's file to change it. Rejects when the file does not read as a router. */
@@ -215,8 +223,8 @@ export class ModelRoutersViewModel extends Disposable {
 			throw new Error(localize('modelRouters.error.name', "Give the router a name with letters or digits."));
 		}
 		const exists = localize('modelRouters.error.exists', "A router named {0} already exists.", name);
-		// A router is known by its file's name, whichever of the agent's folders it is in.
-		if (this._routers.some(existing => existing.file && modelRouterNameFromFileName(basename(existing.file)) === name)) {
+		// A router is known by its name, whichever of the agent's folders its file is in and whatever the file is called.
+		if (this._routers.some(existing => existing.routerName === name)) {
 			throw new Error(exists);
 		}
 		const content = this.getContent(input, file, name, undefined);
@@ -265,7 +273,8 @@ export class ModelRoutersViewModel extends Disposable {
 		if (!input.description.trim()) {
 			throw new Error(localize('modelRouters.error.description', "Say what the router is for."));
 		}
-		if (input.routes.some(route => !route.when.trim())) {
+		// Nothing is decided for a router's only route, so it can leave out when to use it.
+		if (input.routes.length > 1 && input.routes.some(route => !route.when.trim())) {
 			throw new Error(localize('modelRouters.error.when', "Say when to use each route."));
 		}
 		const displayName = input.name.trim();

@@ -139,7 +139,7 @@ suite('ModelRoutersWidget', () => {
 	test('the switch on a router\'s row writes route switching to its file, and a router with nothing to switch between has none to turn on', async () => {
 		const { container, fileService } = createWidget();
 		const file = URI.file('/home/.agents/model-routers/daily-driver.model-router.yaml');
-		await fileService.writeFile(file, VSBuffer.fromString('# Mine\nversion: 1\nroutes:\n'));
+		await fileService.writeFile(file, VSBuffer.fromString('# Mine\nversion: 1\ndescription: d\nroutes:\n  - model: a\n    when: One.\n  - model: b\n    when: Two.\n'));
 		const switches = [...container.querySelectorAll<HTMLButtonElement>('.model-router-router-row [role="switch"]')];
 		const written = Event.toPromise(fileService.onDidRunOperation);
 		switches[0].click();
@@ -149,7 +149,7 @@ suite('ModelRoutersWidget', () => {
 			content: (await fileService.readFile(file)).value.toString(),
 		}, {
 			switches: [['Turn Off Route Switching for Daily Driver', false], ['Turn On Route Switching for broken', true]],
-			content: '# Mine\nversion: 1\nswitching: auto\nroutes:\n',
+			content: '# Mine\nversion: 1\ndescription: d\nswitching: auto\nroutes:\n  - model: a\n    when: One.\n  - model: b\n    when: Two.\n',
 		});
 	});
 
@@ -262,6 +262,32 @@ suite('ModelRoutersWidget', () => {
 			shown: { title: 'Edit Model Router', name: 'Daily Driver', selects: ['opus', 'Default', 'Default', 'Haiku', 'Default', 'Long'] },
 			refused: 'daily-driver.model-router.yaml has changed since it was opened here. Cancel, and edit the router again.',
 			saved: content({ description: 'Opus for features, Haiku for the rest.', when: 'Building or changing a feature.' }),
+		});
+	});
+
+	test('a router the agent warns about opens in the form when its file reads as a router, and its only route needs no when', async () => {
+		const { container, fileService, button, type, shows } = createWidget();
+		const file = URI.file('/home/.agents/model-routers/broken.model-router.yaml');
+		await fileService.writeFile(file, VSBuffer.fromString('version: 1\ndescription: Haiku.\nroutes:\n  - model: claude-haiku\n    guidance: Keep answers short.\n'));
+		container.querySelectorAll<HTMLElement>('.monaco-list-row')[3].dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+		await shows(() => !!container.querySelector('.model-router-form'));
+		type('Router description', 'Haiku for everything.');
+		const written = Event.toPromise(fileService.onDidRunOperation);
+		button('Save').click();
+		await written;
+		assert.strictEqual((await fileService.readFile(file)).value.toString(), 'version: 1\ndescription: Haiku for everything.\nroutes:\n  - model: claude-haiku\n    guidance: Keep answers short.\n');
+	});
+
+	test('a file that route switching cannot be written to as it stands is left as it is', async () => {
+		const { container, fileService, nextError } = createWidget();
+		const file = URI.file('/home/.agents/model-routers/daily-driver.model-router.yaml');
+		const content = 'version: 1\nswitching: >-\n  first-turn\nroutes:\n  - model: a\n    when: One.\n  - model: b\n    when: Two.\n';
+		await fileService.writeFile(file, VSBuffer.fromString(content));
+		const notSwitched = nextError();
+		container.querySelector<HTMLElement>('.model-router-router-row [role="switch"]')!.click();
+		assert.deepStrictEqual({ error: await notSwitched, content: (await fileService.readFile(file)).value.toString() }, {
+			error: 'Route switching could not be changed for Daily Driver. Change `switching` in daily-driver.model-router.yaml instead.',
+			content,
 		});
 	});
 
