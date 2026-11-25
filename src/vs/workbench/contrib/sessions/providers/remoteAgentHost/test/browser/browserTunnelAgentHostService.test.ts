@@ -280,6 +280,35 @@ suite('BrowserTunnelAgentHostService', () => {
 		assert.deepStrictEqual(interactiveProviders, ['github']);
 	});
 
+	test('updating a cached tunnel keeps its auth provider, order, and auto-connect suppression', () => {
+		let factory: IRemoteAgentHostConnectionFactory | undefined;
+		const service = createBrowserTunnelService(store, [], async () => [], undefined, {
+			onFactory: value => { factory = value; },
+			createSession: async () => { throw new Error('Unexpected interactive authentication'); },
+		});
+		service.cacheTunnel({ ...tunnel, tunnelId: 'renamed', name: 'Old Name', protocolVersion: 5 }, 'microsoft');
+		service.cacheTunnel({ ...tunnel, tunnelId: 'suppressed', name: 'Old Suppressed' }, 'github');
+		service.suppressAutoConnect('suppressed');
+
+		service.updateCachedTunnel({ ...tunnel, tunnelId: 'renamed', name: 'New Name', protocolVersion: 6 });
+		service.updateCachedTunnel({ ...tunnel, tunnelId: 'suppressed', name: 'New Suppressed' });
+		service.updateCachedTunnel({ ...tunnel, tunnelId: 'uncached', name: 'Uncached' });
+
+		assert.ok(factory);
+		assert.deepStrictEqual({
+			cached: service.getCachedTunnels(),
+			suppressed: service.isAutoConnectSuppressed('suppressed'),
+			entries: factory.entries.get().map(entry => entry.name),
+		}, {
+			cached: [
+				{ tunnelId: 'suppressed', clusterId: tunnel.clusterId, name: 'New Suppressed', protocolVersion: 6, authProvider: 'github' },
+				{ tunnelId: 'renamed', clusterId: tunnel.clusterId, name: 'New Name', protocolVersion: 6, authProvider: 'microsoft' },
+			],
+			suppressed: true,
+			entries: ['New Name'],
+		});
+	});
+
 	test('records the server type selected by the gateway for the connected address', async () => {
 		let factory: IRemoteAgentHostConnectionFactory | undefined;
 		const service = createBrowserTunnelService(store,
@@ -308,7 +337,7 @@ suite('BrowserTunnelAgentHostService', () => {
 			name: 'v6',
 			tags: ['vscode-server-launcher', 'protocolv6'],
 			protocolVersion: 6,
-			hostConnectionCount: 0,
+			hostConnectionCount: undefined,
 		}]);
 	});
 

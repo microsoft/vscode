@@ -93,7 +93,7 @@ class FixtureAgentFeedbackMenuService implements IMenuService {
 		];
 		const submitActions = [
 			createAction(submitFeedbackActionId, 'Submit', Codicon.send),
-			createAction(clearAllFeedbackActionId, 'Clear', Codicon.clearAll),
+			createAction(clearAllFeedbackActionId, 'Clear All', Codicon.clearAll),
 		];
 		return {
 			onDidChange: Event.None,

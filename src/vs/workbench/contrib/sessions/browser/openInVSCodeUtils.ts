@@ -79,6 +79,18 @@ export function resolveRemoteAgentHostEntryAuthority(entry: IRemoteAgentHostEntr
 			if (entry.connection.repository) {
 				return `dev-container+${encodeHex(VSBuffer.fromString(JSON.stringify(entry.connection.repository)))}`;
 			}
+			if (entry.connection.environmentId !== undefined) {
+				const volume = entry.connection.volume;
+				// Dev Containers opens a volume folder without a configuration in the container that its labels identify. It
+				// accepts only SSH and Tunnel parent authorities and identifies WSL by a host path, which a volume does not
+				// have, so it uses this computer's Docker engine. That is a WSL distribution's only if it has the volume.
+				const wsl = entry.connection.hostAuthority?.startsWith('wsl+');
+				if (!volume || (wsl && !entry.connection.volumeOnLocalDockerEngine)) {
+					return undefined;
+				}
+				const parentAuthority = wsl ? undefined : entry.connection.hostAuthority;
+				return `dev-container+${encodeHex(VSBuffer.fromString(JSON.stringify({ volumeName: volume.volumeName, folder: volume.folder })))}${parentAuthority ? `@${parentAuthority}` : ''}`;
+			}
 			let { hostPath, hostAuthority } = entry.connection;
 			if (hostAuthority?.startsWith('wsl+')) {
 				// Dev Containers identifies WSL through a UNC host path, not an @wsl parent authority.

@@ -376,7 +376,8 @@ suite('AgentHostProxyResolver', () => {
 
 	test('reads manually configured proxy settings from Agent Host configuration', async () => {
 		const configurationService = createAgentConfigurationService(disposables);
-		const resolver = disposables.add(new AgentHostProxyResolver(configurationService, new NullLogService()));
+		// A CI agent's NO_PROXY may list the test URL, which would take precedence over the configured proxy.
+		const resolver = disposables.add(new ProxyEnvironmentIsolatedAgentHostProxyResolver(configurationService, new NullLogService()));
 		let configurationChanges = 0;
 		disposables.add(resolver.onDidChangeConfiguration(() => configurationChanges++));
 		configurationService.updateRootConfig({ [AgentHostProxyConfigKey.Proxy]: 'http://proxy.example:8080' });

@@ -569,6 +569,32 @@ suite('AgentHostFileSystemProvider - authority registrations', () => {
 		}
 	});
 
+	test('concurrent stats above the leak threshold do not report a listener leak', async () => {
+		// The test runner fails any test that reports an unexpected error, such as a ListenerLeakError.
+		disposables.add(setGlobalLeakWarningThreshold(5));
+		const provider = disposables.add(new AgentHostFileSystemProvider());
+		const connection = new NamedConnection('connection');
+		const burstSize = 30;
+		const resolve = new DeferredPromise<void>();
+		const allResolvesStarted = new DeferredPromise<void>();
+		let resolveCalls = 0;
+		connection.resourceResolve = async params => {
+			if (++resolveCalls === burstSize) {
+				allResolvesStarted.complete();
+			}
+			await resolve.p;
+			return { uri: params.uri.toString(), type: ResourceType.File };
+		};
+		disposables.add(provider.registerAuthority('client', connection));
+
+		const pending = Array.from({ length: burstSize }, (_, index) => provider.stat(agentHostUri('client', `/workspace/file${index}.txt`)));
+		await allResolvesStarted.p;
+		resolve.complete();
+		const stats = await Promise.all(pending);
+
+		assert.deepStrictEqual(stats.map(stat => stat.type), Array(burstSize).fill(FileType.File));
+	});
+
 	test('in-flight read rejection retries after its connection is replaced', async () => {
 		const provider = disposables.add(new AgentHostFileSystemProvider());
 		const first = new NamedConnection('first');
@@ -715,26 +741,31 @@ suite('AgentHostFileSystemProvider - synthetic content schemes', () => {
 	// modified file" entirely. The fix is the scheme allowlist in stat().
 
 	for (const authority of ['local', 'remote']) {
-		test(`opens MCP skill content read-only without filesystem resolution (${authority})`, async () => {
-			const provider = disposables.add(new AgentHostFileSystemProvider());
-			const connection = new StubConnection();
-			disposables.add(provider.registerAuthority(authority, connection));
-			const content = URI.parse(buildMcpResourceUri('opaque-mcp-channel:skills', 'skill://server/friendly/SKILL.md', 'Friendly'));
-			const wrapped = toAgentHostUri(content, authority);
+		for (const content of [
+			URI.parse(buildMcpResourceUri('opaque-mcp-channel:skills', 'skill://server/friendly/SKILL.md', 'Friendly')),
+			URI.parse('agent-builtin-skill:/troubleshoot/SKILL.md'),
+			URI.parse('agent-builtin:/skill/troubleshoot'),
+		]) {
+			test(`opens skill content read-only without filesystem resolution (${authority}, ${content.scheme})`, async () => {
+				const provider = disposables.add(new AgentHostFileSystemProvider());
+				const connection = new StubConnection();
+				disposables.add(provider.registerAuthority(authority, connection));
+				const wrapped = toAgentHostUri(content, authority);
 
-			const stat = await provider.stat(wrapped);
-			const path = await provider.realpath(wrapped);
-			const bytes = await provider.readFile(wrapped);
+				const stat = await provider.stat(wrapped);
+				const path = await provider.realpath(wrapped);
+				const bytes = await provider.readFile(wrapped);
 
-			assert.deepStrictEqual({
-				type: stat.type, readonly: stat.permissions === FilePermission.Readonly, path,
-				content: VSBuffer.wrap(bytes).toString(), resources: connection.readCalls.map(uri => uri.toString()),
-				resolved: connection.resolveCalls, listed: connection.listCalls,
-			}, {
-				type: FileType.File, readonly: true, path: '/Friendly', content: 'stub-content',
-				resources: [content.toString()], resolved: [], listed: [],
+				assert.deepStrictEqual({
+					type: stat.type, readonly: stat.permissions === FilePermission.Readonly, path,
+					content: VSBuffer.wrap(bytes).toString(), resources: connection.readCalls.map(uri => uri.toString()),
+					resolved: connection.resolveCalls, listed: connection.listCalls,
+				}, {
+					type: FileType.File, readonly: true, path: content.path, content: 'stub-content',
+					resources: [content.toString()], resolved: [], listed: [],
+				});
 			});
-		});
+		}
 	}
 
 	test('stat returns File for git-blob: URIs without listing the parent', async () => {

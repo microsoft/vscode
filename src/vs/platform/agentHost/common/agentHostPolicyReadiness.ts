@@ -61,7 +61,7 @@ export function getAgentHostPolicyGapImpact(policyName: string): string {
 		case 'ChatStrictPluginOnlyCustomization':
 			return localize('policyGap.customizations', "Copilot managed settings restrict runtime discovery, including executable Copilot extensions, but values delivered only through VS Code policy do not reach those paths and standalone instructions still lack equivalent runtime coverage.");
 		case 'ChatHooks':
-			return localize('policyGap.hooks', "The Local-only hooks switch does not disable runtime-discovered Agent Host hooks.");
+			return localize('policyGap.hooks', "Copilot sessions skip repository and custom agent hooks, but the Copilot runtime still runs user hooks and the hooks of plugins it loads from a folder.");
 		case 'ChatAllowManagedHooksOnly':
 			return localize('policyGap.managedHooks', "Shared prompt discovery filters hooks, but the VS Code-only requirement is not delivered to runtime file hooks. Runtime-native managed-hook and SDK callback behavior needs separate verification.");
 		case 'ChatAgentMode':

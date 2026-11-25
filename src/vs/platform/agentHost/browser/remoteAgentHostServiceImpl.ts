@@ -84,6 +84,8 @@ interface IPendingConnectionAttempt {
 	readonly previousError?: string;
 	/** Also set when a user explicitly joins an automatic attempt already in flight. */
 	showError: boolean;
+	/** Whether a user explicitly joined this attempt while it was in flight. */
+	userJoined: boolean;
 }
 
 function disposeEntry(entry: IConnectionEntry): void {
@@ -393,6 +395,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		if (pending) {
 			if (userInitiated) {
 				pending.showError = true;
+				pending.userJoined = true;
 				this._failedReconnects.delete(normalized);
 				this._cancelReconnect(normalized);
 				this._reconnectAttempts.delete(normalized);
@@ -669,7 +672,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		const userInitiated = factory?.getPendingConnectionInitiation?.(entryToCreate) ?? options.userInitiated;
 		const observer = factory?.getConnectionObserver?.(entryToCreate);
 		const previousError = !userInitiated ? this._entries.get(address)?.lastConnectionError : undefined;
-		const attempt = { promise: pendingConnect.p, info: { address, startedAt: Date.now(), userInitiated }, observer, previousError, showError: userInitiated || !!previousError };
+		const attempt = { promise: pendingConnect.p, info: { address, startedAt: Date.now(), userInitiated }, observer, previousError, showError: userInitiated || !!previousError, userJoined: false };
 		this._pendingConnects.set(address, attempt);
 		observer?.('connecting');
 		this._onDidChangePendingConnections.fire();
@@ -731,7 +734,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		const onDiagnostic: ConnectionDiagnosticObserver = event => this._diagnostics.record(address, { ...event, attemptId });
 		const diagnostic = new ConnectionDiagnosticOperation(onDiagnostic, `factory.${entryToCreate.connection.type}`, `userInitiated=${options.userInitiated}`);
 		try {
-			createdConnection = await factory.createConnection(entryToCreate, { ...options, onDiagnostic });
+			createdConnection = await factory.createConnection(entryToCreate, { ...options, hasUserJoined: () => attempt.userJoined, onDiagnostic });
 			diagnostic.succeeded(`clientId=${createdConnection.connection.clientId}`);
 		} catch (err) {
 			diagnostic.failed(err);
@@ -1188,7 +1191,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 
 export class EditorWindowRemoteAgentHostService extends RemoteAgentHostService {
 
-	/** Editor windows dial only the hosts their workspace lists; user-level hosts belong to the Agents window. */
+	/** Editor windows dial the WebSocket hosts their workspace lists; the user's belong to the Agents window. */
 	protected override get webSocketEntriesSettingId(): string {
 		return WorkspaceRemoteAgentHostsSettingId;
 	}

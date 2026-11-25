@@ -11,7 +11,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { AgentSession } from '../../common/agent.js';
-import { buildBranchChangesetUri, buildDefaultChangesetCatalog, buildSessionChangesetUri, buildTurnChangesetUri, buildUncommittedChangesetUri, buildFolderChangesetOwnerUri, buildWorkingSetChangesetUri, ChangesetKind, parseChangesetUri } from '../../common/changesetUri.js';
+import { buildBranchChangesetUri, buildCompareTurnsChangesetUri, buildDefaultChangesetCatalog, buildSessionChangesetUri, buildTurnChangesetUri, buildUncommittedChangesetUri, buildFolderChangesetOwnerUri, buildWorkingSetChangesetUri, ChangesetKind, parseChangesetUri } from '../../common/changesetUri.js';
 import { getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ActionType } from '../../common/state/sessionActions.js';
@@ -176,7 +176,7 @@ suite('ChangesetSessionCoordinator', () => {
 		}
 		const sessionChangesets: string[] = [];
 		for (let i = 0; i < 4; i++) {
-			const changeset = buildTurnChangesetUri(session, `aggregate-${i}`);
+			const changeset = buildCompareTurnsChangesetUri(session, `aggregate-${i}`, 'latest');
 			stateManager.registerChangeset(changeset);
 			subscriptions.addSubscription(session, changeset);
 			stateManager.dispatchServerAction(changeset, { type: ActionType.ChangesetOperationsChanged, operations: [...largeSessionOperations] });
@@ -184,6 +184,43 @@ suite('ChangesetSessionCoordinator', () => {
 		}
 		return { chats, sessionChangesets, chatChangesets };
 	}
+
+	test('does not route session-addressed turn changesets', async () => {
+		const { coordinator, stateManager, changesets, subscriptions } = createEnvironment();
+		const session = AgentSession.uri('mock', 'session-turn').toString();
+		const resource = buildTurnChangesetUri(session, 'turn-1');
+		const uri = URI.parse(resource);
+		const restore = async () => assert.fail('Unsupported changesets must not restore their owner');
+
+		assert.strictEqual(await coordinator.tryHandleSubscribe(uri, restore), false);
+		await coordinator.restoreSessionIfChangesetSubscription(uri, restore);
+		assert.strictEqual(stateManager.getSnapshot(resource), undefined);
+
+		createSession(stateManager, session);
+		coordinator.onFirstSubscriber(uri);
+		assert.deepStrictEqual({
+			subscribed: subscriptions.getSessionSubscriptions(session).has(resource),
+			refreshes: changesets.turnRefreshes,
+		}, { subscribed: false, refreshes: [] });
+	});
+
+	test('routes compare-turns changesets for both session and chat owners', async () => {
+		const { coordinator, stateManager, changesets } = createEnvironment();
+		const session = AgentSession.uri('mock', 'compare-turns').toString();
+		const chat = buildDefaultChatUri(session);
+		createSession(stateManager, session);
+		const computed: string[] = [];
+		changesets.computeCompareTurnsChangeset = async (owner, originalTurnId, modifiedTurnId) => {
+			const resource = buildCompareTurnsChangesetUri(owner, originalTurnId, modifiedTurnId);
+			computed.push(resource);
+			return resource;
+		};
+		const resources = [session, chat].map(owner => buildCompareTurnsChangesetUri(owner, 'turn-1', 'turn-2'));
+		for (const resource of resources) {
+			assert.strictEqual(await coordinator.tryHandleSubscribe(URI.parse(resource), async () => session), true);
+		}
+		assert.deepStrictEqual(computed, resources);
+	});
 
 	for (const cancelled of [false, true]) {
 		test(`cold turn subscription ${cancelled ? 'does not refresh after cancellation' : 'refreshes once after restore'}`, async () => {
@@ -2157,7 +2194,7 @@ class TestGitStateService extends Disposable implements IAgentHostGitStateServic
 	}
 	getMaterializedWorktreeMeta(_sessionKey: string, _branchName: string): undefined { return undefined; }
 	async setFolderGitState(): Promise<void> { }
-	async resolveSessionBaseBranchName(): Promise<string | undefined> { return undefined; }
+	async resolveSessionBaseBranchRef(): Promise<string | undefined> { return undefined; }
 	async setSessionGitHubState(_sessionKey: string, _state: ISessionGitHubState): Promise<void> { }
 	async recordSessionMerge(_sessionKey: string, _commit?: string): Promise<void> { }
 	async attachSessionGitHubPullRequest(_sessionKey: string): Promise<void> { }

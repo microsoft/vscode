@@ -43,6 +43,8 @@ import { AgentHostStateManager, creationTimeChatStorageResource } from '../../no
 import { AgentMergeController } from '../../node/agentMergeController.js';
 import { AgentMergeTools } from '../../node/agentMergeTools.js';
 import { PullRequestChatContribution } from '../../node/chatContributions/pullRequest/pullRequestChatContribution.js';
+import { IAgentHostPullRequestAutopilotService } from '../../node/agentHostPullRequestAutopilot.js';
+import { AgentHostArtifactEventService } from '../../node/artifactIntegrations/agentHostArtifactRuntime.js';
 import { chatTurnComplete, chatTurnStarted } from '../common/chatActionBuilders.js';
 import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
 import { createTestGitHubEndpointService } from './testGitHubEndpointService.js';
@@ -1233,7 +1235,7 @@ suite('AgentMergeController', () => {
 
 	test('Create PR with Agent Merge binds the new pull request rather than an earlier one', () => {
 		const { stateManager, configurationService, session } = createControllerHarness(disposables);
-		const contribution = disposables.add(new PullRequestChatContribution(new class extends mock<IAgentHostChatContributionContext>() { }(), configurationService, stateManager));
+		const contribution = disposables.add(new PullRequestChatContribution(new class extends mock<IAgentHostChatContributionContext>() { }(), configurationService, stateManager, new class extends mock<IAgentHostPullRequestAutopilotService>() { }(), disposables.add(new AgentHostArtifactEventService()), new NullLogService()));
 		const chat = buildDefaultChatUri(session);
 		const repoKey = getWorkingDirectoryKey(REPOSITORY);
 		configurationService.updateSessionConfig(session, {
@@ -1331,7 +1333,7 @@ suite('AgentMergeController', () => {
 
 	test('PR chat preparation cannot capture the base branch or widen foreground permissions', async () => {
 		const { stateManager, configurationService, gitService, session } = createControllerHarness(disposables);
-		const contribution = disposables.add(new PullRequestChatContribution(new class extends mock<IAgentHostChatContributionContext>() { }(), configurationService, stateManager));
+		const contribution = disposables.add(new PullRequestChatContribution(new class extends mock<IAgentHostChatContributionContext>() { }(), configurationService, stateManager, new class extends mock<IAgentHostPullRequestAutopilotService>() { }(), disposables.add(new AgentHostArtifactEventService()), new NullLogService()));
 		const chat = buildDefaultChatUri(session);
 		configurationService.updateSessionConfig(session, {
 			[SessionConfigKey.Mode]: 'interactive',
@@ -2573,13 +2575,19 @@ suite('AgentMergeController', () => {
 			});
 		}));
 
-		test('asks to authorize single sign-on when GitHub refuses reading the bound pull request', () => runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 1_000 }, async () => {
+		test('asks to authorize single sign-on without challenging repository credentials when GitHub refuses reading the bound pull request', () => runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 1_000 }, async () => {
 			const ssoAuthorizationUrl = 'https://github.com/orgs/octo/sso?authorization_request=bound';
 			const h = createControllerHarness(disposables, { ...repairSnapshot(), core: { status: 'error', complete: false, error: { kind: 'authorization', statusCode: 403, message: saml, ssoAuthorizationUrl } } });
+			const authenticationRequests: string[] = [];
+			disposables.add(h.stateManager.onDidEmitNotification(notification => {
+				if (notification.type === 'auth/required') {
+					authenticationRequests.push(notification.resource.resource);
+				}
+			}));
 			enable(h, { owner: 'octo', repo: 'repo', pullRequestUrls: ['https://github.com/octo/repo/pull/1'], pullRequestBranchName: 'feature' });
 			await timeout(5 * 60_000);
 
-			assert.deepStrictEqual({ blocked: blocked(h), errors: h.errors }, { blocked: [agentMergeSingleSignOnNotice('octo', ssoAuthorizationUrl)], errors: [] });
+			assert.deepStrictEqual({ blocked: blocked(h), authenticationRequests, errors: h.errors }, { blocked: [agentMergeSingleSignOnNotice('octo', ssoAuthorizationUrl)], authenticationRequests: [], errors: [] });
 		}));
 
 		test('tells the user once when no pull request turns up for the branch', () => runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 1_000 }, async () => {

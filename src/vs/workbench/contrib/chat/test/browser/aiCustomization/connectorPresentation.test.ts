@@ -10,8 +10,11 @@ import { CancellationToken } from '../../../../../../base/common/cancellation.js
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
+import { NullHoverService } from '../../../../../../platform/hover/test/browser/nullHoverService.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { getConnectorRowPresentation } from '../../../browser/aiCustomization/connectorPresentation.js';
@@ -66,7 +69,7 @@ suite('Connector presentation', () => {
 			override readonly onDidChange = Event.None;
 		}();
 		const detail = disposables.add(new EmbeddedConnectorDetail(
-			container, () => { }, service, new class extends mock<INotificationService>() { }(), new class extends mock<IOpenerService>() { }(),
+			container, () => { }, service, new class extends mock<INotificationService>() { }(), new class extends mock<IOpenerService>() { }(), NullHoverService,
 		));
 		const states = [
 			connector('pending'),
@@ -92,6 +95,111 @@ suite('Connector presentation', () => {
 		]);
 	});
 
+	test('detail links the connector homepage and Copilot Connectors source', async () => {
+		const homepageUrl = 'https://amplitude.com/a%2Fb?query=x%26y';
+		const container = DOM.append(document.body, DOM.$('.connector-detail-test'));
+		disposables.add(toDisposable(() => container.remove()));
+		const service = new class extends mock<ICopilotConnectorsService>() {
+			override readonly onDidChange = Event.None;
+		}();
+		const opened: string[] = [];
+		const opener = new class extends mock<IOpenerService>() {
+			override async open(resource: URI | string): Promise<boolean> {
+				opened.push(typeof resource === 'string' ? resource : resource.toString(true));
+				return true;
+			}
+		}();
+		const detail = disposables.add(new EmbeddedConnectorDetail(
+			container, () => { }, service, new class extends mock<INotificationService>() { }(), opener, NullHoverService,
+		));
+		detail.setInput({
+			...connector('connected'),
+			displayName: 'Amplitude',
+			homepage: homepageUrl,
+			author: { name: 'GitHub' },
+		});
+		const getHomepage = () => [...container.querySelectorAll<HTMLElement>('.connector-detail-facts .embedded-detail-fact-row')]
+			.find(row => row.querySelector('.embedded-detail-fact-label')?.textContent === 'Homepage')
+			?.querySelector<HTMLAnchorElement>('a');
+		const homepage = getHomepage();
+		const source = [...container.querySelectorAll<HTMLElement>('.connector-detail-facts .embedded-detail-fact-row')]
+			.find(row => row.querySelector('.embedded-detail-fact-label')?.textContent === 'Source')
+			?.querySelector<HTMLAnchorElement>('a');
+		homepage?.click();
+		source?.click();
+		await timeout(0);
+		const initial = {
+			name: container.querySelector('.embedded-detail-name')?.textContent,
+			headerLink: container.querySelector('.embedded-detail-name-row a'),
+			homepage: homepage?.textContent,
+			homepageHref: homepage?.getAttribute('href'),
+			homepageTabIndex: homepage?.tabIndex,
+			source: source?.textContent,
+			sourceHref: source?.getAttribute('href'),
+			opened,
+		};
+		detail.setInput({ ...connector('connected'), author: { name: 'GitHub', url: URI.parse('https://github.com/') } });
+		const withoutHomepage = getHomepage();
+		detail.clearInput();
+		const cleared = getHomepage();
+
+		const sourceUrl = 'https://docs.github.com/en/copilot/concepts/customizations/copilot-connectors';
+		assert.deepStrictEqual({ initial, withoutHomepage, cleared }, {
+			initial: {
+				name: 'Amplitude',
+				headerLink: null,
+				homepage: homepageUrl,
+				homepageHref: homepageUrl,
+				homepageTabIndex: 0,
+				source: 'Copilot Connectors',
+				sourceHref: sourceUrl,
+				opened: [homepageUrl, sourceUrl],
+			},
+			withoutHomepage: undefined,
+			cleared: undefined,
+		});
+	});
+
+	test('detail fact links share a stable hover group isolated from other details', () => {
+		const container = DOM.append(document.body, DOM.$('.connector-detail-test'));
+		disposables.add(toDisposable(() => container.remove()));
+		const service = new class extends mock<ICopilotConnectorsService>() {
+			override readonly onDidChange = Event.None;
+		}();
+		const groups: (string | undefined)[] = [];
+		const hoverService = new class extends mock<IHoverService>() {
+			override setupDelayedHover(...args: Parameters<IHoverService['setupDelayedHover']>) {
+				groups.push(args[2]?.groupId);
+				return toDisposable(() => { });
+			}
+		}();
+		const createDetail = () => disposables.add(new EmbeddedConnectorDetail(
+			container, () => { }, service, new class extends mock<INotificationService>() { }(), new class extends mock<IOpenerService>() { }(), hoverService,
+		));
+		const input = { ...connector('connected'), homepage: 'https://example.com/' };
+		const detail = createDetail();
+		detail.setInput(input);
+		const initial = groups.splice(0);
+		detail.setInput(input);
+		const rerendered = groups.splice(0);
+		createDetail().setInput(input);
+		const other = groups.splice(0);
+
+		assert.deepStrictEqual({
+			initialCount: initial.length,
+			grouped: !!initial[0] && initial.every(group => group === initial[0]),
+			stable: rerendered,
+			otherCount: other.length,
+			isolated: !!other[0] && other[0] !== initial[0] && other.every(group => group === other[0]),
+		}, {
+			initialCount: 2,
+			grouped: true,
+			stable: initial,
+			otherCount: 2,
+			isolated: true,
+		});
+	});
+
 	test('detail shows disconnecting progress until the disconnect request completes', async () => {
 		const container = DOM.append(document.body, DOM.$('.connector-detail-test'));
 		disposables.add(toDisposable(() => container.remove()));
@@ -109,7 +217,7 @@ suite('Connector presentation', () => {
 			}
 		}();
 		const detail = disposables.add(new EmbeddedConnectorDetail(
-			container, () => { }, service, new class extends mock<INotificationService>() { }(), new class extends mock<IOpenerService>() { }(),
+			container, () => { }, service, new class extends mock<INotificationService>() { }(), new class extends mock<IOpenerService>() { }(), NullHoverService,
 		));
 		const snapshot = () => {
 			const button = container.querySelector<HTMLElement>('.embedded-detail-title-actions .monaco-button');
@@ -169,7 +277,7 @@ suite('Connector presentation', () => {
 				override async getConnectors() { return connectors; }
 			}();
 			const detail = disposables.add(new EmbeddedConnectorDetail(
-				container, () => { closed++; }, service, new class extends mock<INotificationService>() { }(), new class extends mock<IOpenerService>() { }(),
+				container, () => { closed++; }, service, new class extends mock<INotificationService>() { }(), new class extends mock<IOpenerService>() { }(), NullHoverService,
 			));
 			detail.setInput(connectors[0]);
 			container.querySelector<HTMLElement>('.embedded-detail-title-actions .monaco-button')?.click();
@@ -204,7 +312,7 @@ suite('Connector presentation', () => {
 			}
 		}();
 		const detail = disposables.add(new EmbeddedConnectorDetail(
-			container, () => { closed++; }, service, new class extends mock<INotificationService>() { }(), new class extends mock<IOpenerService>() { }(),
+			container, () => { closed++; }, service, new class extends mock<INotificationService>() { }(), new class extends mock<IOpenerService>() { }(), NullHoverService,
 		));
 		detail.setInput(connectors[0]);
 		container.querySelector<HTMLElement>('.embedded-detail-title-actions .monaco-button')?.click();
@@ -229,7 +337,7 @@ suite('Connector presentation', () => {
 			}
 		}();
 		const detail = disposables.add(new EmbeddedConnectorDetail(
-			container, () => { }, service, new class extends mock<INotificationService>() { }(), new class extends mock<IOpenerService>() { }(),
+			container, () => { }, service, new class extends mock<INotificationService>() { }(), new class extends mock<IOpenerService>() { }(), NullHoverService,
 		));
 		detail.setInput(connector('not_connected'));
 		container.querySelector<HTMLElement>('.embedded-detail-title-actions .monaco-button')?.click();
@@ -252,7 +360,7 @@ suite('Connector presentation', () => {
 			}
 		}();
 		const detail = disposables.add(new EmbeddedConnectorDetail(
-			container, () => { }, service, new class extends mock<INotificationService>() { }(), new class extends mock<IOpenerService>() { }(),
+			container, () => { }, service, new class extends mock<INotificationService>() { }(), new class extends mock<IOpenerService>() { }(), NullHoverService,
 		));
 		detail.setInput(connector('pending'));
 		container.querySelector<HTMLElement>('.embedded-detail-title-actions .monaco-button')?.click();
@@ -276,7 +384,7 @@ suite('Connector presentation', () => {
 		}();
 		let invalidations = 0;
 		const detail = disposables.add(new EmbeddedConnectorDetail(
-			container, () => invalidations++, service, new class extends mock<INotificationService>() { }(), new class extends mock<IOpenerService>() { }(),
+			container, () => invalidations++, service, new class extends mock<INotificationService>() { }(), new class extends mock<IOpenerService>() { }(), NullHoverService,
 		));
 		detail.setInput(connectors[0]);
 

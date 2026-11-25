@@ -20,7 +20,8 @@ import { mock, upcastPartial } from '../../../../../../../base/test/common/mock.
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { CodeEditorWidget } from '../../../../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
 import { EditorOption } from '../../../../../../../editor/common/config/editorOptions.js';
-import { createCodeEditorServices } from '../../../../../../../editor/test/browser/testCodeEditor.js';
+import { Range } from '../../../../../../../editor/common/core/range.js';
+import { createCodeEditorServices, withAsyncTestCodeEditor } from '../../../../../../../editor/test/browser/testCodeEditor.js';
 import { createTextModel } from '../../../../../../../editor/test/common/testTextModel.js';
 import { IAccessibilitySignalService } from '../../../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
@@ -52,7 +53,8 @@ import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../../
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../common/languageModels.js';
 import { IChatSessionsService, SessionType } from '../../../../common/chatSessionsService.js';
 import { ChatContextKeys } from '../../../../common/actions/chatContextKeys.js';
-import { ChatMode } from '../../../../common/chatModes.js';
+import { ChatMode, IChatMode } from '../../../../common/chatModes.js';
+import { IChatModelInputState } from '../../../../common/model/chatModel.js';
 import { emptySessionEntryDiff, hasUndecidedChatEditingResourceContextKey, IChatEditingSession, IEditSessionEntryDiff, IModifiedFileEntry, IModifiedFileEntryEditorIntegration, ModifiedFileEntryState } from '../../../../common/editing/chatEditingService.js';
 import { LocalChatSessionUri } from '../../../../common/model/chatUri.js';
 import { ChatAttachmentWidgetRegistry, IChatAttachmentWidgetInstance, IChatAttachmentWidgetRegistry, IChatImageAttachmentEditor } from '../../../../browser/attachments/chatAttachmentWidgetRegistry.js';
@@ -199,6 +201,29 @@ suite('ChatInputPart', () => {
 		});
 		input.refreshToolbars();
 		assert.deepStrictEqual(updates, ['input', 'execute', 'secondary', 'layout']);
+	});
+
+	test('preserves the saved Agent Host mode when flushing a draft that displays default Agent', () => {
+		const savedMode = { id: 'file:///reviewer.agent.md', kind: ChatModeKind.Agent };
+		const draft = observableValue('draft', upcastPartial<IChatModelInputState>({ mode: savedMode }));
+		const input: ChatInputPart = Object.assign(Object.create(ChatInputPart.prototype), {
+			_inputModelSessionResource: URI.parse('agent-host-copilotcli:/existing'),
+			_inputModel: { state: draft, setState: (state: IChatModelInputState) => draft.set(state, undefined) },
+			_currentModeObservable: observableValue<IChatMode>('mode', ChatMode.Agent),
+			_currentChatModesObservable: constObservable({ findModeById: () => ChatMode.Agent }),
+			_currentLanguageModel: constObservable(undefined),
+			_onDidChangeCurrentChatMode: store.add(new Emitter()),
+			accountPolicyGateService: { gateInfo: {} },
+			configurationService: new TestConfigurationService({ [ChatConfiguration.AgentEnabled]: true }),
+			environmentService: { isSessionsWindow: true },
+			options: { supportsChangingModes: true },
+			logService: new NullLogService(),
+			getCurrentInputState: () => upcastPartial<IChatModelInputState>({ inputText: 'draft', mode: ChatMode.Agent }),
+		});
+		input.flushInputStateToModel();
+		const before = draft.get();
+		input.setChatMode(ChatMode.Agent.id, true, true);
+		assert.deepStrictEqual([before.inputText, before.mode.id, draft.get().mode.id], ['draft', savedMode.id, ChatMode.Agent.id]);
 	});
 
 	test('announces a model once across metadata refreshes and transient loading states', () => {
@@ -1567,6 +1592,28 @@ suite('ChatInputPart', () => {
 			empty: false,
 			onlyHostContent: true,
 			blockedByHost: false,
+		});
+	});
+
+	test('starting the prompt with a slash command keeps what is written, with its references, and can be undone', async () => {
+		await withAsyncTestCodeEditor('#file:cart.js fix this', {}, async editor => {
+			const model = editor.getModel()!;
+			const [reference] = model.deltaDecorations([], [{ range: new Range(1, 1, 1, 14), options: { description: 'reference' } }]);
+			const input: ChatInputPart = Object.assign(Object.create(ChatInputPart.prototype), { inputEnabled: true, _inputEditor: editor });
+			input.startPromptWith('/model-router');
+			// The command is already there, so it is not written twice.
+			input.startPromptWith('/model-router');
+			const started = { value: model.getValue(), referenceKept: !!model.getDecorationRange(reference) };
+			await model.undo();
+			const undone = model.getValue();
+			// Another command that merely begins the same way is not the command.
+			model.setValue('/model-router-review');
+			input.startPromptWith('/model-router');
+			assert.deepStrictEqual({ started, undone, besideAnotherCommand: model.getValue() }, {
+				started: { value: '/model-router #file:cart.js fix this', referenceKept: true },
+				undone: '#file:cart.js fix this',
+				besideAnotherCommand: '/model-router /model-router-review',
+			});
 		});
 	});
 });

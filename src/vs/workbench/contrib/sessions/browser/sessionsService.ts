@@ -46,6 +46,7 @@ import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser
 import { ISessionGridPanes, ISessionHost, SessionHost, SessionHostKind } from '../../../services/sessions/browser/sessionHost.js';
 import { ISessionGridPane, paneViewStateOf, SessionGridPaneKind } from '../../../services/sessions/browser/sessionGridPane.js';
 import { ShownChatReadMarker } from './shownChatReadMarker.js';
+import { isSideChat, ISideChatPlacementService } from './sideChatPlacement.js';
 
 const ACTIVE_SESSION_STATES_KEY = 'agentSessions.activeSessionStates';
 const SESSION_GRID_STATE_KEY = 'agentSessions.gridState';
@@ -99,6 +100,12 @@ export interface IOpenNewSessionOptions extends ICreateNewSessionOptions {
 	readonly preserveNavigation?: boolean;
 	/** Prepare a draft without changing the Sessions grid or navigation, or hiding its hosting custom view. */
 	readonly preserveCustomView?: boolean;
+	/**
+	 * Replace the composer's draft in the background, such as when its host moves to another provider: the draft takes
+	 * its previous draft's place in the Sessions grid, or the empty new-session slot's while that is active, without
+	 * changing the active pane, navigation, focus, or the custom view or canvas shown.
+	 */
+	readonly background?: boolean;
 
 	/**
 	 * When `true`, opens the new session (or empty composer slot) to the side
@@ -547,6 +554,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IChatHostOpenerService private readonly chatHostOpenerService: IChatHostOpenerService,
 		@IHostService hostService: IHostService,
+		@ISideChatPlacementService private readonly sideChatPlacementService: ISideChatPlacementService,
 	) {
 		super();
 		this._register(hostService.onDidChangeActiveWindow(windowId => this._onDidChangeActiveWindow(windowId)));
@@ -568,6 +576,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 		this.panes = this._visibility.panes;
 		this.slotPanes = this._visibility.slotPanes;
 		this.activePane = this._visibility.activePane;
+		this._holdSideChatsFromGrid();
 		this.gridHost = new SessionHost({
 			kind: SessionHostKind.MainWindow,
 			parent: undefined,
@@ -846,13 +855,14 @@ export class SessionsService extends Disposable implements ISessionsService {
 		disposables.add(autorun(reader => {
 			const isArchived = activeSession.isArchived.read(reader);
 			if (isArchived && !wasArchived) {
+				const preserveFocus = this._hasFocusOutsideGrid();
 				if (activeSession.isQuickChat?.read(undefined)) {
-					this._openQuickChat(undefined, 'automatic');
+					this._openQuickChat(undefined, 'automatic', preserveFocus);
 				} else {
 					const folderUri = activeSession.workspace.read(undefined)?.folders[0]?.root;
 					void this._openNewSession(folderUri
 						? { folderUri, ...inheritableSessionTarget(this.sessionsManagementService, activeSession, folderUri) }
-						: undefined, CancellationToken.None, 'automatic').catch(onUnexpectedError);
+						: undefined, CancellationToken.None, 'automatic', preserveFocus).catch(onUnexpectedError);
 				}
 			}
 			wasArchived = isArchived;
@@ -885,8 +895,9 @@ export class SessionsService extends Disposable implements ISessionsService {
 				if (chat) {
 					pendingRestoredChatResource = undefined;
 					this._pendingRestoredChatResources.delete(activeSession.resource);
-					this._visibility.openChat(activeSession, chat);
-					this._visibility.setActiveChat(activeSession, chat);
+					const gridChat = this._gridChatFor(activeSession, chat);
+					this._visibility.openChat(activeSession, gridChat);
+					this._visibility.setActiveChat(activeSession, gridChat);
 				}
 			}));
 		}
@@ -932,6 +943,8 @@ export class SessionsService extends Disposable implements ISessionsService {
 
 	private _onDidChangeSessions(e: ISessionsChangeEvent): void {
 		const currentActive = this._activeGridSession();
+		const activeRemoved = !!currentActive && e.removed.some(r => r.sessionId === currentActive.sessionId);
+		const preserveFocus = activeRemoved && this._hasFocusOutsideGrid();
 
 		// Clean removed sessions out of the visibility model (drops their grid
 		// slot and disposes their slot state). If the active session is among the
@@ -943,27 +956,47 @@ export class SessionsService extends Disposable implements ISessionsService {
 				this._sessionStates.delete(session.resource);
 				this._rememberDepartedSession(session);
 			}
-			this._visibility.removeMany(e.removed.map(r => r.sessionId));
+			this._visibility.removeMany(e.removed.map(r => r.sessionId), false, preserveFocus);
 		}
 
-		if (!currentActive) {
-			return;
-		}
-
-		if (e.removed.length && e.removed.some(r => r.sessionId === currentActive.sessionId)) {
+		if (activeRemoved) {
 			const fallbackPane = this._visibility.activePane.get();
 			const fallback = fallbackPane?.session.get();
 			const fallbackChat = detachedChatOf(fallbackPane);
 			if (fallback && this.sessionsManagementService.getSession(fallback.resource)) {
 				if (fallbackChat) {
-					void this._openChatSession(fallback, fallbackChat, { source: 'fallback' }, 'automatic').catch(onUnexpectedError);
+					void this._openChatSession(fallback, fallbackChat, { source: 'fallback', preserveFocus }, 'automatic').catch(onUnexpectedError);
 				} else {
-					void this._openSession(fallback.resource, { source: 'fallback' }, 'automatic').catch(onUnexpectedError);
+					void this._openSession(fallback.resource, { source: 'fallback', preserveFocus }, 'automatic').catch(onUnexpectedError);
 				}
 			} else {
-				void this._openNewSession(undefined, CancellationToken.None, 'automatic').catch(onUnexpectedError);
+				void this._openNewSession(undefined, CancellationToken.None, 'automatic', preserveFocus).catch(onUnexpectedError);
 			}
 		}
+	}
+
+	/**
+	 * Whether focus is in the main window outside the session grid, such as in the sessions list. Navigation that happens
+	 * on its own, such as when the active session is archived or removed, or when the new-session composer creates its
+	 * draft, leaves focus there: it moves focus into the grid only from within the grid, or when nothing has focus.
+	 */
+	private _hasFocusOutsideGrid(): boolean {
+		if (this._focusedWindowId !== mainWindow.vscodeWindowId) {
+			return false;
+		}
+		const focused = mainWindow.document.activeElement;
+		if (!focused || focused === mainWindow.document.body) {
+			return false;
+		}
+		return !this.sessionsPartService.getFocusedSessionView();
+	}
+
+	/**
+	 * Whether activating a draft that the new-session composer creates on its own leaves focus where it is: while the
+	 * new-session slot is active, the draft fills that slot in place, which moves no focus from outside the grid.
+	 */
+	private _keepsFocusForComposerDraft(): boolean {
+		return !this._activeGridSession() && this._hasFocusOutsideGrid();
 	}
 
 	/** Whether a send is from a composer outside the main window, which never shows in the grid. */
@@ -1251,10 +1284,16 @@ export class SessionsService extends Disposable implements ISessionsService {
 				await opener.reveal(chatUri, { preserveFocus: options?.preserveFocus });
 				return;
 			}
-			const referenceOpener = this._getOpenerShowingReference(options?.referenceChatResource);
+			const referenceOpener = this._getOpenerShowingReference(options?.referenceChatResource, chatUri);
 			if (referenceOpener) {
 				navigation.complete();
 				await referenceOpener.openBeside(chatUri, options!.referenceChatResource!, { preserveFocus: options?.preserveFocus });
+				return;
+			}
+			const claimant = this.chatHostOpenerService.getOpenerFor(chatUri);
+			if (claimant) {
+				navigation.complete();
+				await claimant.reveal(chatUri, { preserveFocus: options?.preserveFocus });
 				return;
 			}
 			if (options?.source) {
@@ -1288,6 +1327,13 @@ export class SessionsService extends Disposable implements ISessionsService {
 			const opened = this._activate(this._visibility.getChatPane(session.sessionId, chatUri) ?? this._navigationTarget(session, from), preserveFocus, intent);
 			if (!await waitForSessionToLoad(session, token)) {
 				this.logService.trace(`[SessionsView] openChat cancelled while waiting for session to load uri=${chatUri.toString()}`);
+				return;
+			}
+			// A side chat is claimed only once its session's chats load.
+			const claimant = this.chatHostOpenerService.getOpenerFor(chatUri);
+			if (claimant) {
+				navigation.complete();
+				await claimant.reveal(chatUri, { preserveFocus });
 				return;
 			}
 
@@ -1911,11 +1957,12 @@ export class SessionsService extends Disposable implements ISessionsService {
 	}
 
 	/**
-	 * Returns the chat host opener, such as a chat window, that shows the chat a new chat was started from, so the new chat
-	 * opens in that host rather than in the main window.
+	 * Returns the chat host opener, such as a chat window, that shows the chat a new chat, `chat`, was started from, so the
+	 * new chat opens in that host rather than in the main window, unless its `opensBeside(chat)` returns false.
 	 */
-	private _getOpenerShowingReference(referenceChatResource: URI | undefined): IChatHostOpener | undefined {
-		return referenceChatResource ? this.chatHostOpenerService.getOpenerOf(referenceChatResource) : undefined;
+	private _getOpenerShowingReference(referenceChatResource: URI | undefined, chat: URI): IChatHostOpener | undefined {
+		const opener = referenceChatResource ? this.chatHostOpenerService.getOpenerOf(referenceChatResource) : undefined;
+		return opener?.opensBeside?.(chat) === false ? undefined : opener;
 	}
 
 	private async _showChatToSide(session: ISession, chatResource: URI, options?: { preserveFocus?: boolean; referenceChatResource?: URI }): Promise<void> {
@@ -1927,9 +1974,14 @@ export class SessionsService extends Disposable implements ISessionsService {
 			return;
 		}
 		const reference = options?.referenceChatResource;
-		const referenceShownBy = this._getOpenerShowingReference(reference);
+		const referenceShownBy = this._getOpenerShowingReference(reference, chatResource);
 		if (reference && referenceShownBy) {
 			await referenceShownBy.openBeside(chatResource, reference, options);
+			return;
+		}
+		const claimant = this.chatHostOpenerService.getOpenerFor(chatResource);
+		if (claimant) {
+			await claimant.reveal(chatResource, options);
 			return;
 		}
 		this._showSession(this._getSession(session.resource), options);
@@ -2016,11 +2068,12 @@ export class SessionsService extends Disposable implements ISessionsService {
 		this._navigation.setCurrentDraftId(draftId, preserveCurrentEntry);
 	}
 
-	private async _openNewSession(options: IOpenNewSessionOptions | undefined, token: CancellationToken, intent: SessionNavigationIntent): Promise<IOpenNewSessionResult> {
+	private async _openNewSession(options: IOpenNewSessionOptions | undefined, token: CancellationToken, intent: SessionNavigationIntent, preserveFocus?: boolean): Promise<IOpenNewSessionResult> {
 		// A draft of another slot is never shown in the grid, so it does not navigate, like a preserved custom view.
 		const draftSlot = options?.draftSlot && options.draftSlot !== this.sessionsManagementService.defaultNewSessionSlot ? options.draftSlot : undefined;
 		const preserveCustomView = options?.preserveCustomView || !!draftSlot;
-		if (preserveCustomView) {
+		const background = !preserveCustomView && !!options?.background;
+		if (preserveCustomView || background) {
 			intent = 'automatic';
 		}
 		if (options?.cancelRestore) {
@@ -2053,7 +2106,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 			if (token.isCancellationRequested) {
 				return { session: undefined, trustDeclined: false };
 			}
-			if (!preserveCustomView) {
+			if (!preserveCustomView && !background) {
 				this._beginNavigation(intent, token, options?.preserveNavigation);
 				this._startOpenSession();
 			}
@@ -2073,8 +2126,10 @@ export class SessionsService extends Disposable implements ISessionsService {
 						throw error;
 					}
 				}
-				if (!preserveCustomView) {
-					this._activateOrInsert(session, options?.toSide, intent);
+				if (background) {
+					this._showBackgroundDraft(session);
+				} else if (!preserveCustomView) {
+					this._activateOrInsert(session, options?.toSide, intent, preserveFocus ?? (!!options?.preserveNavigation && this._keepsFocusForComposerDraft()));
 				}
 				if (intent === 'explicit' && !options?.preserveNavigation) {
 					this._navigation.recordNewSessionOpened();
@@ -2088,7 +2143,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 			}
 		}
 
-		if (preserveCustomView) {
+		if (preserveCustomView || background) {
 			return { session: (draftSlot ?? this.sessionsManagementService).newSession.get(), trustDeclined: false };
 		}
 
@@ -2125,11 +2180,24 @@ export class SessionsService extends Disposable implements ISessionsService {
 		const targetSession = options?.toSide && newSession?.sessionId === activeSession?.sessionId
 			? undefined
 			: newSession;
-		this._activateOrInsert(targetSession, options?.toSide, intent, options?.preserveCustomView);
+		this._activateOrInsert(targetSession, options?.toSide, intent, options?.preserveCustomView || preserveFocus);
 		if (intent === 'explicit' && !options?.preserveNavigation) {
 			this._navigation.recordNewSessionOpened();
 		}
 		return { session: targetSession, trustDeclined: false };
+	}
+
+	/**
+	 * Shows a draft replaced in the background where the composer that created it shows: in its previous draft's slot,
+	 * which the replacement took already, or in the active empty new-session slot, keeping focus where it is.
+	 */
+	private _showBackgroundDraft(session: ISession): void {
+		const activePane = this._visibility.activePane.get();
+		if (this._visibility.getSlot(session.sessionId) || !activePane || activePane.session.get()) {
+			return;
+		}
+		const emptySlotView = this.sessionsPartService.getSessionView(undefined);
+		this._activate(session, !emptySlotView || this.sessionsPartService.getFocusedSessionView() !== emptySlotView);
 	}
 
 	/** Open or move beside the active session when requested, keeping a single empty slot. */
@@ -2170,7 +2238,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 		this._startOpenSession();
 		try {
 			const session = this.sessionsManagementService.createQuickChat(options);
-			return this._activate(session, preserveFocus, intent);
+			return this._activate(session, preserveFocus ?? (intent === 'automatic' && this._keepsFocusForComposerDraft()), intent);
 		} catch (e) {
 			// No provider supports quick chats: leave whatever was visible as-is
 			// rather than activating an unrelated workspace-bound draft.
@@ -2388,7 +2456,56 @@ export class SessionsService extends Disposable implements ISessionsService {
 				this.logService.warn('[SessionsView] Failed to restore active chat from stored session state', error);
 			}
 		}
-		return initialChat;
+		return this._gridChatFor(session, initialChat);
+	}
+
+	/**
+	 * The chat the grid shows for `chat`: `chat` itself, or, while side chats show in the side pane, the nearest chat a side
+	 * chat came from, else the main chat.
+	 */
+	private _gridChatFor(session: ISession, chat: IChat): IChat {
+		if (!this.sideChatPlacementService.inSidePane.get()) {
+			return chat;
+		}
+		const chats = session.chats.get();
+		const visited = new Set<string>();
+		while (isSideChat(chat) && !visited.has(chat.resource.toString())) {
+			visited.add(chat.resource.toString());
+			const parentChat = chat.origin?.parentChat;
+			chat = (parentChat && chats.find(c => this.uriIdentityService.extUri.isEqual(c.resource, parentChat))) || session.mainChat.get();
+		}
+		return isSideChat(chat) ? session.mainChat.get() : chat;
+	}
+
+	/**
+	 * Holds the side chats of the sessions the grid shows out of its chat tabs while side chats show in the side pane
+	 * ({@link ISideChatPlacementService.inSidePane}), whether the side pane shows them now or not.
+	 */
+	private _holdSideChatsFromGrid(): void {
+		const holds = this._register(new DisposableMap<string, IDisposable>());
+		this._register(autorun(reader => {
+			const wanted = new Map<string, { readonly sessionId: string; readonly chat: URI }>();
+			if (this.sideChatPlacementService.inSidePane.read(reader)) {
+				for (const pane of this._visibility.panes.read(reader)) {
+					const session = pane.session.read(reader);
+					for (const chat of session?.chats.read(reader) ?? []) {
+						if (session && isSideChat(chat)) {
+							wanted.set(`${session.sessionId}\n${chat.resource.toString()}`, { sessionId: session.sessionId, chat: chat.resource });
+						}
+					}
+				}
+			}
+			for (const key of [...holds.keys()]) {
+				if (!wanted.has(key)) {
+					holds.deleteAndDispose(key);
+				}
+			}
+			for (const [key, { sessionId, chat }] of wanted) {
+				if (!holds.has(key)) {
+					holds.set(key, this._visibility.hideChatFromGrid(sessionId, chat, { showAncestorInstead: true }));
+				}
+			}
+		}));
 	}
 
 	/**

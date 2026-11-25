@@ -113,7 +113,7 @@ class TestGitStateService implements IAgentHostGitStateService {
 	}
 	getMaterializedWorktreeMeta(_sessionKey: string, _branchName: string): undefined { return undefined; }
 	async setFolderGitState(): Promise<void> { }
-	async resolveSessionBaseBranchName(): Promise<string | undefined> { return undefined; }
+	async resolveSessionBaseBranchRef(): Promise<string | undefined> { return undefined; }
 
 	async getSessionGitHubState(_sessionKey: string): Promise<ISessionGitHubState | undefined> {
 		return undefined;
@@ -333,7 +333,7 @@ suite('AgentHostChangesetOperationService', () => {
 		const service = createService(stateManager, new TestConfigurationService(['file:///a', 'file:///b']));
 		disposables.add(service.registerContribution(new OperationsContribution(sampleOperations)));
 
-		const operations = service.getOperations(sessionKey, buildTurnChangesetUri(sessionKey, 'turn-1'), sampleGitState);
+		const operations = service.getOperations(sessionKey, buildTurnChangesetUri(buildDefaultChatUri(sessionKey), 'turn-1'), sampleGitState);
 
 		assert.deepStrictEqual(operations, []);
 	});
@@ -369,7 +369,7 @@ suite('AgentHostChangesetOperationService', () => {
 	test('multi-folder session dispatches empty operations for a turn changeset via updateOperations', () => {
 		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 		const sessionKey = 'agent:/session';
-		const changesetUri = buildTurnChangesetUri(sessionKey, 'turn-1');
+		const changesetUri = buildTurnChangesetUri(buildDefaultChatUri(sessionKey), 'turn-1');
 		stateManager.registerChangeset(changesetUri);
 		const service = createService(stateManager, new TestConfigurationService(['file:///a', 'file:///b']));
 		disposables.add(service.registerContribution(new OperationsContribution(sampleOperations)));
@@ -409,7 +409,7 @@ suite('AgentHostChangesetOperationService', () => {
 	test('single-folder session advertises turn operations via updateOperations', () => {
 		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 		const sessionKey = 'agent:/session';
-		const changesetUri = buildTurnChangesetUri(sessionKey, 'turn-1');
+		const changesetUri = buildTurnChangesetUri(buildDefaultChatUri(sessionKey), 'turn-1');
 		stateManager.registerChangeset(changesetUri);
 		const service = createService(stateManager, new TestConfigurationService(['file:///a']));
 		disposables.add(service.registerContribution(new OperationsContribution(sampleOperations)));
@@ -431,7 +431,7 @@ suite('AgentHostChangesetOperationService', () => {
 	test('does not dispatch unchanged operations', () => {
 		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 		const sessionKey = 'agent:/session';
-		const changesetUri = buildTurnChangesetUri(sessionKey, 'turn-1');
+		const changesetUri = buildTurnChangesetUri(buildDefaultChatUri(sessionKey), 'turn-1');
 		stateManager.registerChangeset(changesetUri);
 		const service = createService(stateManager, new TestConfigurationService(['file:///a']));
 		disposables.add(service.registerContribution(new OperationsContribution(sampleOperations)));
@@ -450,14 +450,14 @@ suite('AgentHostChangesetOperationService', () => {
 
 	test('coalesces a large burst of event-driven operation refreshes by owner', async () => {
 		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
-		const sessionKey = 'agent:/session';
-		const changesetUri = buildTurnChangesetUri(sessionKey, 'turn-1');
+		const chatKey = buildDefaultChatUri('agent:/session');
+		const changesetUri = buildTurnChangesetUri(chatKey, 'turn-1');
 		stateManager.registerChangeset(changesetUri);
 		const subscriptions = disposables.add(new AgentHostChangesetSubscriptionService());
-		subscriptions.addSubscription(sessionKey, changesetUri);
+		subscriptions.addSubscription(chatKey, changesetUri);
 		const service = disposables.add(new AgentHostChangesetOperationService(
 			stateManager,
-			new TestGitStateService(new Map([[sessionKey, sampleGitState]])),
+			new TestGitStateService(new Map([[chatKey, sampleGitState]])),
 			subscriptions,
 			new TestConfigurationService(['file:///a']),
 			createTestChatOwnershipService(stateManager),
@@ -474,8 +474,8 @@ suite('AgentHostChangesetOperationService', () => {
 		}));
 
 		for (let i = 0; i < 196_000; i++) {
-			service.scheduleRelatedOperationsUpdate(sessionKey);
-			service.scheduleOwnerOperationsUpdate(sessionKey);
+			service.scheduleRelatedOperationsUpdate(chatKey);
+			service.scheduleOwnerOperationsUpdate(chatKey);
 		}
 		await Promise.resolve();
 
@@ -660,7 +660,7 @@ suite('AgentHostChangesetOperationService', () => {
 	test('multi-folder session clears turn operations even when git state is absent', () => {
 		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 		const sessionKey = 'agent:/session';
-		const changesetUri = buildTurnChangesetUri(sessionKey, 'turn-1');
+		const changesetUri = buildTurnChangesetUri(buildDefaultChatUri(sessionKey), 'turn-1');
 		stateManager.registerChangeset(changesetUri);
 		const service = createService(stateManager, new TestConfigurationService(['file:///a', 'file:///b']));
 		disposables.add(service.registerContribution(new OperationsContribution(sampleOperations)));
@@ -726,7 +726,7 @@ suite('AgentHostChangesetOperationService', () => {
 	test('turn changeset re-dispatches empty on entering multi-root and restores on returning to single-root', () => {
 		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 		const sessionKey = 'agent:/session';
-		const changesetUri = buildTurnChangesetUri(sessionKey, 'turn-1');
+		const changesetUri = buildTurnChangesetUri(buildDefaultChatUri(sessionKey), 'turn-1');
 		stateManager.registerChangeset(changesetUri);
 		const configurationService = new TestConfigurationService(['file:///a']);
 		const service = createService(stateManager, configurationService);
@@ -757,7 +757,7 @@ suite('AgentHostChangesetOperationService', () => {
 		const service = createService(stateManager, new TestConfigurationService(['file:///a']));
 		disposables.add(service.registerContribution(new OperationsContribution(sampleOperations)));
 
-		const turnOperations = service.getOperations(sessionKey, buildTurnChangesetUri(sessionKey, 'turn-1'), sampleGitState);
+		const turnOperations = service.getOperations(sessionKey, buildTurnChangesetUri(buildDefaultChatUri(sessionKey), 'turn-1'), sampleGitState);
 		const compareOperations = service.getOperations(sessionKey, buildCompareTurnsChangesetUri(sessionKey, 'turn-1', 'turn-2'), sampleGitState);
 
 		assert.deepStrictEqual(turnOperations, sampleOperations);
@@ -1280,7 +1280,7 @@ suite('AgentHostChangesetOperationService', () => {
 	test('rejects invocation of a stale turn operation once the session is multi-root', async () => {
 		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 		const sessionKey = 'agent:/session';
-		const changesetUri = buildTurnChangesetUri(sessionKey, 'turn-1');
+		const changesetUri = buildTurnChangesetUri(buildDefaultChatUri(sessionKey), 'turn-1');
 		stateManager.registerChangeset(changesetUri);
 		// A stale operation advertised while the session was single-root.
 		stateManager.dispatchServerAction(changesetUri, {
@@ -1304,7 +1304,7 @@ suite('AgentHostChangesetOperationService', () => {
 	test('allows invocation of a turn operation in a single-root session', async () => {
 		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 		const sessionKey = 'agent:/session';
-		const changesetUri = buildTurnChangesetUri(sessionKey, 'turn-1');
+		const changesetUri = buildTurnChangesetUri(buildDefaultChatUri(sessionKey), 'turn-1');
 		stateManager.registerChangeset(changesetUri);
 		stateManager.dispatchServerAction(changesetUri, {
 			type: ActionType.ChangesetOperationsChanged,

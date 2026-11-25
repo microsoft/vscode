@@ -22,7 +22,6 @@ import {
 } from '../common/agentHostEndpointRegistry.js';
 import type { RemoteAgentHostLocationPreference } from '../common/remoteAgentHostLocationPreference.js';
 import { PROTOCOL_VERSION } from '../common/state/protocol/version/registry.js';
-import { isPidAlive } from './agentHostLockfile.js';
 
 const metadataDirectoryName = 'agent-host';
 const endpointDirectoryName = 'local-endpoint';
@@ -164,6 +163,28 @@ export async function readLocalAgentHostEndpointRegistry(userDataPath: string, l
 export async function readLocalAgentHostEndpoint(userDataPath: string, quality: string | undefined, preference?: RemoteAgentHostLocationPreference, logService?: ILogService): Promise<IAgentHostEndpointMetadata | undefined> {
 	const entries = await readLocalAgentHostEndpointRegistry(userDataPath, logService);
 	return selectAgentHostEndpoint(entries, quality, preference);
+}
+
+/**
+ * Returns `true` if a process with the given PID exists. Uses signal 0
+ * which never delivers a signal but performs the existence/permission
+ * check. EPERM means the process exists but we cannot signal it (still
+ * counts as alive).
+ */
+export function isPidAlive(pid: number): boolean {
+	if (!Number.isSafeInteger(pid) || pid <= 0) {
+		return false;
+	}
+	try {
+		process.kill(pid, 0);
+		return true;
+	} catch (err: unknown) {
+		const code = (err as NodeJS.ErrnoException | undefined)?.code;
+		// EPERM: process exists but we lack permission to signal it (still alive).
+		// ESRCH: no such process.
+		// On Windows, `process.kill` with signal 0 throws ESRCH for missing PIDs.
+		return code === 'EPERM';
+	}
 }
 
 function getMetadataDirectory(userDataPath: string): string {
@@ -365,11 +386,7 @@ async function applyWindowsOwnerOnlyAcl(path: string): Promise<void> {
 		throw new Error('Unable to resolve the Windows system directory for local agent host metadata.');
 	}
 	const systemDirectory = join(systemRoot, 'System32');
-	const whoAmI = await runWindowsCommand(join(systemDirectory, 'whoami.exe'), ['/user', '/fo', 'csv', '/nh']);
-	const sid = whoAmI.match(/S-\d+(?:-\d+)+/)?.[0];
-	if (!sid) {
-		throw new Error('Unable to determine the current Windows user SID for local agent host metadata.');
-	}
+	const sid = await getCurrentWindowsUserSid(systemDirectory);
 	const icacls = join(systemDirectory, 'icacls.exe');
 	await runWindowsCommand(icacls, [path, '/reset']);
 	await runWindowsCommand(icacls, [
@@ -380,6 +397,22 @@ async function applyWindowsOwnerOnlyAcl(path: string): Promise<void> {
 		'*S-1-5-18:(OI)(CI)F',
 		'*S-1-5-32-544:(OI)(CI)F',
 	]);
+}
+
+let currentUserSid: Promise<string> | undefined;
+
+function getCurrentWindowsUserSid(systemDirectory: string): Promise<string> {
+	return currentUserSid ??= (async () => {
+		const whoAmI = await runWindowsCommand(join(systemDirectory, 'whoami.exe'), ['/user', '/fo', 'csv', '/nh']);
+		const sid = whoAmI.match(/S-\d+(?:-\d+)+/)?.[0];
+		if (!sid) {
+			throw new Error('Unable to determine the current Windows user SID for local agent host metadata.');
+		}
+		return sid;
+	})().catch(error => {
+		currentUserSid = undefined;
+		throw error;
+	});
 }
 
 function runWindowsCommand(command: string, args: readonly string[]): Promise<string> {

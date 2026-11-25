@@ -5,12 +5,13 @@
 
 import * as assert from 'assert';
 import type * as vscode from 'vscode';
-import { DeferredPromise } from '../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
 import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { mock } from '../../../../base/test/common/mock.js';
+import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../platform/log/common/log.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
@@ -43,7 +44,7 @@ suite('ExtHostSCM', () => {
 		const scm = new ExtHostSCM(rpc, commands, {} as ExtHostDocuments, log);
 		const sourceControl = store.add(scm.createSourceControl({
 			...nullExtensionDescription, enabledApiProposals: ['scmArtifactProvider']
-		}, 'test', 'Test', undefined, undefined, undefined, undefined));
+		}, 'test', 'Test', undefined, undefined, undefined));
 		sourceControl.artifactProvider = provider;
 		await rpc.sync();
 		assert.notStrictEqual(handle, -1);
@@ -147,7 +148,7 @@ suite('ExtHostSCM', () => {
 			new NullLogService()
 		);
 
-		const sourceControl = extHostSCM.createSourceControl(extension, 'git', 'Git', URI.file('/repo'), undefined, undefined, undefined);
+		const sourceControl = extHostSCM.createSourceControl(extension, 'git', 'Git', URI.file('/repo'), undefined, undefined);
 		assert.ok(extHostSCM.getLastInputBox(extension));
 
 		sourceControl.dispose();
@@ -192,7 +193,7 @@ suite('ExtHostSCM', () => {
 			new NullLogService()
 		);
 
-		const sourceControl = extHostSCM.createSourceControl(extension, 'worktree', 'Git', URI.file('/worktree'), undefined, undefined, undefined);
+		const sourceControl = extHostSCM.createSourceControl(extension, 'worktree', 'Git', URI.file('/worktree'), undefined, undefined);
 		sourceControl.activeRepositoryName = 'repo';
 		sourceControl.activeRepositoryName = 'repo';
 		sourceControl.activeRepositoryName = undefined;
@@ -215,4 +216,34 @@ suite('ExtHostSCM', () => {
 		sourceControl.dispose();
 		await rpcProtocol.sync();
 	});
+
+	test('a disposed source control is unregistered without unregistering its resource groups one by one first', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const calls: string[] = [];
+		const rpcProtocol = new TestRPCProtocol();
+		rpcProtocol.set(MainContext.MainThreadSCM, new class extends mock<MainThreadSCMShape>() {
+			override async $registerSourceControl(): Promise<void> { }
+			override async $registerGroups(): Promise<void> { }
+			override async $unregisterGroup(): Promise<void> { calls.push('unregister group'); }
+			override async $unregisterSourceControl(): Promise<void> { calls.push('unregister source control'); }
+		});
+		rpcProtocol.set(MainContext.MainThreadTelemetry, new class extends mock<MainThreadTelemetryShape>() {
+			override $publicLog2(): void { }
+		});
+
+		const commands = new class extends mock<ExtHostCommands>() {
+			override registerArgumentProcessor(_processor: ArgumentProcessor): void { }
+		};
+		const extHostSCM = new ExtHostSCM(rpcProtocol, commands, {} as ExtHostDocuments, new NullLogService());
+
+		const sourceControl = extHostSCM.createSourceControl(nullExtensionDescription, 'git', 'Git', URI.file('/repo'), undefined, undefined);
+		const removed = sourceControl.createResourceGroup('removed', 'Removed');
+		sourceControl.createResourceGroup('kept', 'Kept');
+		await timeout(200);
+
+		removed.dispose();
+		sourceControl.dispose();
+		await rpcProtocol.sync();
+
+		assert.deepStrictEqual(calls, ['unregister group', 'unregister source control']);
+	}));
 });

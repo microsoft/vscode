@@ -7,11 +7,17 @@ import assert from 'assert';
 import { DeferredPromise } from '../../../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../../../base/common/lifecycle.js';
-import { observableValue } from '../../../../../../../base/common/observable.js';
+import { ISettableObservable, observableValue } from '../../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../../base/common/uri.js';
+import { isWindows } from '../../../../../../../base/common/platform.js';
 import { upcastPartial } from '../../../../../../../base/test/common/mock.js';
-import { extUriBiasedIgnorePathCase } from '../../../../../../../base/common/resources.js';
+import { extUriBiasedIgnorePathCase, originalFSPath } from '../../../../../../../base/common/resources.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
+import { AMBIENT_AGENT_HOST_AUTHORITY, IAgentHostConnectionsService, IAgentHostSessionResolution } from '../../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { IAgentConnection } from '../../../../../../../platform/agentHost/common/agentService.js';
+import { IAgentSubscription } from '../../../../../../../platform/agentHost/common/state/agentSubscription.js';
+import { NotificationType, type INotification } from '../../../../../../../platform/agentHost/common/state/sessionActions.js';
+import { getAgentHostChatId, type SessionState, type SessionSummary } from '../../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
@@ -51,20 +57,24 @@ suite('AgentHostWorktree', () => {
 	const created = URI.file('/work/vscode.worktrees/created');
 
 	/** The feature in a window whose folder is at `at`, recording the moves it asks for, the chats it opens and its experiment triggers. */
-	function createWorktree(options: { readonly enabled: boolean; readonly at?: URI; readonly canSetLocation?: boolean; readonly worktrees?: readonly URI[]; readonly resolving?: Promise<void>; readonly terminalCwd?: URI; readonly setting?: Promise<void>; readonly resolvingFor?: Record<string, Promise<void>>; readonly realPaths?: Record<string, string>; readonly realPathError?: Error; readonly folderForms?: Record<string, string> }) {
-		const worktrees = options.worktrees ?? [worktree, created];
+	function createWorktree(options: { readonly enabled: boolean; readonly at?: URI; readonly canSetLocation?: boolean; readonly worktrees?: readonly URI[]; readonly resolving?: Promise<void>; readonly terminalCwd?: URI; readonly setting?: Promise<void>; readonly resolvingFor?: Record<string, Promise<void>>; readonly realPaths?: Record<string, string>; readonly realPathError?: Error; readonly folderForms?: Record<string, string>; readonly root?: URI; readonly listedAtStart?: boolean }) {
+		/** The worktrees the folder's location provider knows, to which a test may add one it comes to know. */
+		const worktrees = [...options.worktrees ?? [worktree, created]];
 		const marks: string[] = [];
 		const terminal = upcastPartial<ITerminalInstance>({
-			initialCwd: options.terminalCwd?.fsPath,
+			// As the terminal reports it, with its drive letter in the case it has
+			initialCwd: options.terminalCwd && originalFSPath(options.terminalCwd),
 			statusList: upcastPartial<ITerminalInstance['statusList']>({ add: () => { marks.push('marked'); }, remove: () => { marks.push('unmarked'); } }),
 		});
 		const shownSession = observableValue<IChatViewHostShownSession | undefined>('shownSession', undefined);
 		const workingDirectories = new Map<string, string>();
 		const onDidChangeSessions = store.add(new Emitter<void>());
 		const onDidChangeLocation = store.add(new Emitter<IFolderLocationChangeEvent>());
+		const onDidChangeLocations = store.add(new Emitter<void>());
 		const onDidChangeWorkspaceFolders = store.add(new Emitter<IWorkspaceFoldersChangeEvent>());
 		const onDidCommitSession = store.add(new Emitter<IChatSessionCommitEvent>());
-		const workspace = { at: options.at ?? primary };
+		const root = options.root ?? primary;
+		const workspace = { at: options.at ?? root };
 		const moves: string[] = [];
 		/** The moves the workspace made: of those it was asked for, each that was still the latest once `options.setting` let it complete. */
 		const applied: string[] = [];
@@ -94,7 +104,17 @@ suite('AgentHostWorktree', () => {
 		}));
 		instantiationService.stub(IChatSessionsService, upcastPartial<IChatSessionsService>({ onDidCommitSession: onDidCommitSession.event }));
 		// Where the chats of the editor window's session layer work, which the Chat view's sessions list does not list
-		const sessionLayerDirectories = new Map<string, string>();
+		const layerDirectories = new Map<string, ISettableObservable<string | undefined>>();
+		const layerDirectory = (chat: string) => {
+			let directory = layerDirectories.get(chat);
+			if (!directory) {
+				directory = observableValue<string | undefined>(chat, undefined);
+				layerDirectories.set(chat, directory);
+			}
+			return directory;
+		};
+		/** Where a chat of the session layer works, as its own observable state tells it, which fires no change of the layer's. */
+		const sessionLayerDirectories = { set: (chat: string, path: string) => layerDirectory(chat).set(path, undefined) };
 		/** The chats of the session layer whose sessions are archived, which the Chat view's list does not know. */
 		const layerArchived = new Set<string>();
 		const onDidChangeSessionLayer = store.add(new Emitter<void>());
@@ -104,12 +124,56 @@ suite('AgentHostWorktree', () => {
 		const chatResolver = store.add(new AgentHostWorktreeChatResolverService());
 		store.add(chatResolver.registerResolver({
 			onDidChange: onDidChangeSessionLayer.event,
-			resolve: (chat: URI) => {
-				const path = sessionLayerDirectories.get(chat.toString());
-				return chat.scheme === 'ahp-chat' ? { workingDirectory: path ? URI.file(path) : undefined, isArchived: layerArchived.has(chat.toString()) } : undefined;
-			},
+			resolve: (chat: URI) => chat.scheme === 'ahp-chat'
+				? { workingDirectory: layerDirectory(chat.toString()).map(path => path ? URI.file(path) : undefined), isArchived: layerArchived.has(chat.toString()) }
+				: undefined,
 		}));
 		instantiationService.stub(IAgentHostWorktreeChatResolverService, chatResolver);
+		/**
+		 * The local agent host's state of each session of the Chat view's list, by its path, as a subscription to it has it:
+		 * where the session works, and where each of its chats works where it works on its own.
+		 */
+		const sessionStates = new Map<string, { readonly workingDirectories: readonly string[]; readonly chats: Readonly<Record<string, string | undefined>> }>();
+		const onDidChangeSessionState = store.add(new Emitter<SessionState>());
+		/** The subscriptions to the agent host's sessions that are held. */
+		const subscriptions: string[] = [];
+		const toSessionState = (path: string): SessionState | undefined => {
+			const known = sessionStates.get(path);
+			return known && upcastPartial<SessionState>({
+				// In the host's own space, which the connection maps to the window's
+				workingDirectories: known.workingDirectories.map(directory => URI.file(directory).with({ scheme: 'host' }).toString()),
+				defaultChat: `copilot:${path}/default`,
+				chats: Object.entries(known.chats).map(([chat, directory]) => upcastPartial<SessionState['chats'][number]>({ resource: `copilot:${path}/${chat}`, workingDirectories: directory ? [URI.file(directory).with({ scheme: 'host' }).toString()] : undefined })),
+			});
+		};
+		/** The sessions of the Chat view's list that are not on the local agent host yet, such as one its first request just made, by their path. */
+		const unannounced = new Set<string>();
+		/** The sessions of the Chat view's list whose session the local agent host has not advertised yet, which resolve only to a guess, by their path. */
+		const unadvertised = new Set<string>();
+		const onDidNotification = store.add(new Emitter<INotification>());
+		const onDidChangeSessionResolution = store.add(new Emitter<void>());
+		instantiationService.stub(IAgentHostConnectionsService, upcastPartial<IAgentHostConnectionsService>({
+			onDidChangeSessionResolution: onDidChangeSessionResolution.event,
+			resolveSessionResource: (resource: URI) => resource.scheme !== SessionType.AgentHostCopilot ? undefined : upcastPartial<IAgentHostSessionResolution>({
+				connectionAuthority: AMBIENT_AGENT_HOST_AUTHORITY,
+				backendSession: URI.from({ scheme: unadvertised.has(resource.path) ? 'guessed' : 'copilot', path: resource.path }),
+				...(unadvertised.has(resource.path) ? {} : { backendSessionIsAdvertised: true }),
+				connection: upcastPartial<IAgentConnection>({
+					resourceUris: { fromAgentHost: (resource: URI) => resource.with({ scheme: 'file' }), toAgentHost: (resource: URI) => resource.with({ scheme: 'host' }) },
+					onDidNotification: onDidNotification.event,
+					getSubscription: (_kind: unknown, backendSession: URI) => {
+						subscriptions.push(backendSession.path);
+						// As a subscription to a session not on the host yet: it fails, and is not retried on its own
+						const failed = unannounced.has(backendSession.path) ? new Error('Unknown session') : undefined;
+						const subscription = upcastPartial<IAgentSubscription<SessionState>>({
+							get value() { return failed ?? toSessionState(backendSession.path); },
+							onDidChange: onDidChangeSessionState.event,
+						});
+						return { object: subscription, dispose: () => subscriptions.splice(subscriptions.indexOf(backendSession.path), 1) } as never;
+					},
+				}),
+			}),
+		}));
 		instantiationService.stub(IAgentSessionsService, upcastPartial<IAgentSessionsService>({
 			getSession: (resource: URI) => {
 				const path = workingDirectories.get(resource.toString());
@@ -121,30 +185,37 @@ suite('AgentHostWorktree', () => {
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(IContextKeyService, contextKeyService);
 		instantiationService.stub(IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({
-			getWorkspace: () => upcastPartial<IWorkspace>({ uri: primary, folders: [folder()] }),
+			getWorkspace: () => upcastPartial<IWorkspace>({ uri: root, folders: [folder()] }),
 			onDidChangeWorkspaceFolders: onDidChangeWorkspaceFolders.event,
 			onDidChangeWorkbenchState: Event.None,
 		}));
 		instantiationService.stub(IWorkspaceFolderLocationService, upcastPartial<IWorkspaceFolderLocationService>({
 			canSetLocation: () => options.canSetLocation ?? true,
 			onDidChangeLocation: onDidChangeLocation.event,
-			getLocation: () => workspace.at.path === primary.path ? undefined : upcastPartial<IResolvedFolderLocation>({ providerId: 'agentHost.sessionWorktrees' }),
+			onDidChangeLocations: onDidChangeLocations.event,
+			getLocation: () => extUriBiasedIgnorePathCase.isEqual(workspace.at, root) ? undefined : upcastPartial<IResolvedFolderLocation>({ providerId: 'agentHost.sessionWorktrees' }),
 			resolveLocation: async (_primary: URI, location: URI) => {
+				// As the location service does, in the form the provider knows it, compared as the file system does; where
+				// `listedAtStart`, as the provider listed them as it was asked, not as it answers
+				const find = () => worktrees.find(candidate => extUriBiasedIgnorePathCase.isEqual(candidate, location));
+				const listed = options.listedAtStart ? find() : undefined;
 				await options.resolving;
 				await options.resolvingFor?.[location.path];
-				return worktrees.some(known => known.path === location.path) ? upcastPartial<IResolvedFolderLocation>({ uri: location }) : undefined;
+				const known = options.listedAtStart ? listed : find();
+				return known ? upcastPartial<IResolvedFolderLocation>({ uri: known }) : undefined;
 			},
 			registerProvider: () => { providers.push('registered'); return toDisposable(() => providers.push('unregistered')); },
 		}));
 		// Like the workspace: only its latest request applies, and an automatic one gives way to one under way
 		let latestMove = 0;
 		let movesUnderWay = 0;
-		const setFolderLocation = async (location: URI, moveOptions?: { readonly ifIdle?: boolean; readonly reason?: string }) => {
+		const setFolderLocation = async (location: URI, moveOptions?: { readonly ifIdle?: boolean; readonly reason?: string; readonly force?: boolean }) => {
 			if (moveOptions?.ifIdle && movesUnderWay > 0) {
 				moves.push(`${location.path} (gave way)`);
 				return;
 			}
-			moves.push(`${location.path}${moveOptions?.ifIdle ? ' (automatic)' : ''}`);
+			// Only a move the user asked for may ask the user about what runs in the folder
+			moves.push(`${location.path}${moveOptions?.ifIdle ? ' (automatic)' : ''}${moveOptions?.force || moveOptions?.reason === 'user' ? '' : ' (would ask)'}`);
 			const move = ++latestMove;
 			movesUnderWay++;
 			try {
@@ -199,7 +270,7 @@ suite('AgentHostWorktree', () => {
 		/** The user moves the folder in the window's title, which the workspace makes like any other move. */
 		const userStartsMoveTo = (location: URI) => setFolderLocation(location, { reason: 'user' });
 		const commit = (original: URI, committed: URI) => onDidCommitSession.fire({ original, committed });
-		return { show, archived, workingDirectories, onDidChangeSessions, sessionLayerDirectories, layerArchived, onDidChangeSessionLayer, moves, applied, opened, providers, triggers: telemetryService.triggers, setEnabled, userMovesTo, userStartsMoveTo, commit, contribution, marks, notices };
+		return { show, archived, workingDirectories, onDidChangeSessions, sessionLayerDirectories, layerArchived, onDidChangeSessionLayer, sessionStates, onDidChangeSessionState, subscriptions, unannounced, unadvertised, onDidNotification, onDidChangeSessionResolution, worktrees, onDidChangeLocations, moves, applied, opened, providers, triggers: telemetryService.triggers, setEnabled, userMovesTo, userStartsMoveTo, commit, contribution, marks, notices };
 	}
 
 	const settle = () => new Promise<void>(resolve => setTimeout(resolve, 0));
@@ -631,6 +702,40 @@ suite('AgentHostWorktree', () => {
 		assert.deepStrictEqual(feature.applied, ['/work/vscode.worktrees/feature', '/work/vscode.worktrees/created']);
 	});
 
+	test('on Windows, follows a chat in a worktree by its drive letter in either case, stops at a drive or share root for a folder elsewhere, and marks a terminal of the worktree', async () => {
+		// Local folders on Windows drives, as their URI paths are on every OS; the drive letter differs in case where Windows
+		// treats both as the same folder
+		const drive = (letter: string, path: string) => URI.from({ scheme: 'file', path: `/${letter}:${path}` });
+		const otherCase = isWindows ? 'C' : 'c';
+		const root = drive('c', '/work/vscode');
+		const feature = drive('c', '/work/vscode.worktrees/feature');
+		const follow = async (workingDirectory: URI) => {
+			const window = createWorktree({ enabled: true, root, worktrees: [feature] });
+			// As the session reports it, with its drive letter in the case it has, which `fsPath` would lowercase
+			window.workingDirectories.set(agentSession('w').toString(), originalFSPath(workingDirectory));
+			window.show(agentSession('w'));
+			await settle();
+			return window.moves;
+		};
+		const terminal = createWorktree({ enabled: true, root, at: feature, worktrees: [feature], terminalCwd: drive(otherCase, '/work/vscode.worktrees/feature/src') });
+		terminal.userMovesTo(root);
+
+		assert.deepStrictEqual({
+			worktree: await follow(drive(otherCase, '/work/vscode.worktrees/feature/src')),
+			otherDrive: await follow(drive('d', '/elsewhere/project')),
+			share: await follow(URI.from({ scheme: 'file', authority: 'server', path: '/share/project' })),
+			terminal: terminal.marks.at(-1),
+			// The product gets the other case: the window's folder and its worktree are `c:`
+			fedDrive: /^\/?([a-z]:)/i.exec(originalFSPath(drive(otherCase, '/work')))?.[1],
+		}, {
+			worktree: ['/c:/work/vscode.worktrees/feature'],
+			otherDrive: [],
+			share: [],
+			terminal: 'marked',
+			fedDrive: `${otherCase}:`,
+		});
+	});
+
 	test('marks a terminal that started in a worktree inside the folder once the folder returns to its own location', async () => {
 		const nested = URI.file('/work/vscode/.worktrees/nested');
 		const feature = createWorktree({ enabled: true, at: nested, worktrees: [nested], terminalCwd: URI.file('/work/vscode/.worktrees/nested/src') });
@@ -714,6 +819,137 @@ suite('AgentHostWorktree', () => {
 			opened: ['/work/vscode.worktrees/feature'],
 			moves: ['/work/vscode.worktrees/feature', '/work/vscode', '/work/vscode.worktrees/created (automatic)'],
 		});
+	});
+
+	test('follows a chat of a session with other chats on its own as it alone comes to work in a worktree, such as by isolating it, while its session still works in the folder', async () => {
+		const feature = createWorktree({ enabled: true });
+		const peer = agentSession('s').with({ fragment: getAgentHostChatId('copilot:/s/peer') });
+		// The Chat view's list has where the session works for each of its chats
+		feature.workingDirectories.set(agentSession('s').toString(), primary.fsPath);
+		feature.workingDirectories.set(peer.toString(), primary.fsPath);
+		feature.sessionStates.set('/s', { workingDirectories: [primary.fsPath], chats: { default: undefined, peer: undefined } });
+		feature.show(agentSession('s'));
+		await settle();
+		feature.sessionStates.set('/s', { workingDirectories: [primary.fsPath, worktree.fsPath], chats: { default: worktree.fsPath, peer: undefined } });
+		feature.onDidChangeSessionState.fire(upcastPartial<SessionState>({}));
+		await settle();
+		feature.show(peer);
+		await settle();
+		feature.sessionStates.set('/s', { workingDirectories: [primary.fsPath, worktree.fsPath, created.fsPath], chats: { default: worktree.fsPath, peer: created.fsPath } });
+		feature.onDidChangeSessionState.fire(upcastPartial<SessionState>({}));
+		await settle();
+		const subscribed = [...feature.subscriptions];
+		feature.show(localChat);
+		await settle();
+
+		assert.deepStrictEqual({ moves: feature.moves, subscribed, released: feature.subscriptions }, {
+			moves: ['/work/vscode.worktrees/feature (automatic)', '/work/vscode', '/work/vscode.worktrees/created (automatic)', '/work/vscode'],
+			subscribed: ['/s'],
+			released: [],
+		});
+	});
+
+	test('a chat that a first request made follows as only it comes to work in a worktree, once its local agent host advertises its session and has it: never by a guess of it', async () => {
+		const feature = createWorktree({ enabled: true });
+		feature.unadvertised.add('/n');
+		feature.unannounced.add('/n');
+		feature.workingDirectories.set(agentSession('n').toString(), primary.fsPath);
+		feature.sessionStates.set('/n', { workingDirectories: [primary.fsPath], chats: { default: undefined, peer: undefined } });
+		feature.show(agentSession('n'), 'commit');
+		await settle();
+		const guessed = [...feature.subscriptions];
+		// Advertised before the host has it, as its subscription fails until the host announces it
+		feature.unadvertised.delete('/n');
+		feature.onDidChangeSessionResolution.fire();
+		await settle();
+		feature.unannounced.delete('/n');
+		feature.onDidNotification.fire(upcastPartial<INotification>({ type: NotificationType.SessionAdded, summary: upcastPartial<SessionSummary>({ resource: 'copilot:/n' }) }));
+		await settle();
+		feature.sessionStates.set('/n', { workingDirectories: [primary.fsPath, worktree.fsPath], chats: { default: worktree.fsPath, peer: undefined } });
+		feature.onDidChangeSessionState.fire(upcastPartial<SessionState>({}));
+		await settle();
+
+		assert.deepStrictEqual({ guessed, moves: feature.moves, subscribed: feature.subscriptions }, { guessed: [], moves: ['/work/vscode.worktrees/feature (automatic)'], subscribed: ['/n'] });
+	});
+
+	test('a restored chat of a session with other chats moves nothing as the state of its session first becomes known, but follows as where it works changes later', async () => {
+		const feature = createWorktree({ enabled: true });
+		feature.workingDirectories.set(agentSession('r').toString(), primary.fsPath);
+		feature.show(agentSession('r'), 'restore');
+		await settle();
+		// Its session's state, known only after its listing, has the chat working in a worktree of its own already
+		feature.sessionStates.set('/r', { workingDirectories: [primary.fsPath, worktree.fsPath], chats: { default: worktree.fsPath } });
+		feature.onDidChangeSessionState.fire(upcastPartial<SessionState>({}));
+		await settle();
+		const restored = [...feature.moves];
+		feature.sessionStates.set('/r', { workingDirectories: [primary.fsPath, worktree.fsPath, created.fsPath], chats: { default: created.fsPath } });
+		feature.onDidChangeSessionState.fire(upcastPartial<SessionState>({}));
+		await settle();
+
+		assert.deepStrictEqual({ restored, moves: feature.moves }, { restored: [], moves: ['/work/vscode.worktrees/created (automatic)'] });
+	});
+
+	test('follows a chat of the session layer on its own as it alone comes to work in a worktree, which the layer tells only by where that chat works', async () => {
+		const chat = URI.from({ scheme: 'ahp-chat', path: '/main' });
+		const feature = createWorktree({ enabled: true });
+		feature.sessionLayerDirectories.set(chat.toString(), primary.fsPath);
+		feature.show(chat);
+		await settle();
+		feature.sessionLayerDirectories.set(chat.toString(), worktree.fsPath);
+		await settle();
+
+		assert.deepStrictEqual(feature.moves, ['/work/vscode.worktrees/feature (automatic)']);
+	});
+
+	test('follows a chat that comes to work in a worktree its agent host lists as a location only later, once it does, unless the user moved the folder meanwhile', async () => {
+		const chat = URI.from({ scheme: 'ahp-chat', path: '/main' });
+		const later = URI.file('/work/vscode.worktrees/later');
+		const followed = createWorktree({ enabled: true });
+		followed.sessionLayerDirectories.set(chat.toString(), primary.fsPath);
+		followed.show(chat);
+		await settle();
+		followed.sessionLayerDirectories.set(chat.toString(), later.fsPath);
+		await settle();
+		const beforeListed = [...followed.moves];
+		followed.worktrees.push(later);
+		followed.onDidChangeLocations.fire();
+		await settle();
+
+		const superseded = createWorktree({ enabled: true });
+		superseded.sessionLayerDirectories.set(chat.toString(), primary.fsPath);
+		superseded.show(chat);
+		await settle();
+		superseded.sessionLayerDirectories.set(chat.toString(), later.fsPath);
+		await settle();
+		superseded.userMovesTo(worktree);
+		superseded.worktrees.push(later);
+		superseded.onDidChangeLocations.fire();
+		await settle();
+
+		assert.deepStrictEqual({ beforeListed, followed: followed.moves, superseded: superseded.moves }, {
+			beforeListed: [],
+			followed: ['/work/vscode.worktrees/later (automatic)'],
+			superseded: [],
+		});
+	});
+
+	test('follows a chat whose worktree becomes a location while the folder resolves where it works, once that settles', async () => {
+		const chat = URI.from({ scheme: 'ahp-chat', path: '/main' });
+		const later = URI.file('/work/vscode.worktrees/later');
+		const resolving = new DeferredPromise<void>();
+		const feature = createWorktree({ enabled: true, listedAtStart: true, resolvingFor: { [later.path]: resolving.p } });
+		feature.sessionLayerDirectories.set(chat.toString(), primary.fsPath);
+		feature.show(chat);
+		await settle();
+		feature.sessionLayerDirectories.set(chat.toString(), later.fsPath);
+		await settle();
+		feature.worktrees.push(later);
+		feature.onDidChangeLocations.fire();
+		resolving.complete();
+		await settle();
+		await settle();
+
+		assert.deepStrictEqual(feature.moves, ['/work/vscode.worktrees/later (automatic)']);
 	});
 
 	test('follows a chat working in another form of a folder of the window, such as its real path, to that folder as the window names it', async () => {

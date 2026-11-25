@@ -37,6 +37,8 @@ export interface IResolvedFolderLocation extends IFolderLocation {
 
 /** The alternate locations of one provider, under its label ({@link IWorkspaceFolderLocationProvider.label}). */
 export interface IFolderLocationGroup {
+	/** The id of its provider ({@link IWorkspaceFolderLocationProvider.id}), which identifies it: labels need not be unique. */
+	readonly providerId: string;
 	readonly label: string | undefined;
 	readonly locations: readonly IFolderLocation[];
 }
@@ -62,8 +64,15 @@ export interface IWorkspaceFolderLocationProvider {
 
 	/**
 	 * Fires when the locations this provider knows may have changed, for any folder: ask {@link provideLocations} again.
+	 * Also fires as it becomes {@link isReady ready}.
 	 */
 	readonly onDidChangeLocations?: Event<void>;
+
+	/**
+	 * Whether it has finished loading what it knows, such as the sessions whose locations it provides: until then, a location
+	 * it does not resolve may still become known. A provider that does not tell is ready.
+	 */
+	readonly isReady?: boolean;
 }
 
 /**
@@ -122,8 +131,15 @@ export interface IWorkspaceFolderLocationService {
 
 	/**
 	 * Fires when the locations a registered provider knows may have changed, for any folder: ask {@link getLocations} again.
+	 * Also fires as a provider becomes ready ({@link areProvidersReady}).
 	 */
 	readonly onDidChangeLocations: Event<void>;
+
+	/**
+	 * Whether every registered provider has finished loading what it knows ({@link IWorkspaceFolderLocationProvider.isReady}):
+	 * until then, a location that no provider resolves may still become known.
+	 */
+	areProvidersReady(): boolean;
 
 	/**
 	 * Records the location `folder` is at. Called by `IWorkspaceEditingService`

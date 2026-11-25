@@ -10,7 +10,7 @@ import { localize } from '../../../nls.js';
 import { readMcpServerDisplayName } from '../common/meta/mcpCustomizationMeta.js';
 import { SYNCED_CUSTOMIZATION_SCHEME } from '../common/agentHostCustomizationUri.js';
 import type { IAgent, IAgentChatContext } from '../common/agent.js';
-import { getSkillCustomizations, isCustomizationEnabled, isSkillEligibleForUserInvocation } from '../common/customizationEnablement.js';
+import { getSkillCustomizations, isCustomizationEnabled, isSkillContainerEnabled, isSkillEligibleForUserInvocation } from '../common/customizationEnablement.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import { CompletionItem, CompletionItemKind, CompletionsParams } from '../common/state/protocol/commands.js';
 import { MessageAttachmentKind } from '../common/state/protocol/state.js';
@@ -34,20 +34,12 @@ export class AgentHostSkillCompletionProvider extends Disposable implements IAge
 		private readonly _getAgent: (session: URI | string) => IAgent | undefined,
 		/** The session's recorded default chat, whose customizations the completions offer, with the host-built context for it. */
 		private readonly _getDefaultChat: (session: URI) => Promise<{ readonly chat: URI; readonly context: IAgentChatContext } | undefined>,
-		/**
-		 * The owning session's last host-published customization snapshot.
-		 * Supplied by Agent Host so the provider hands it to
-		 * `getChatCustomizations` explicitly instead of the agent reading it
-		 * from shared host state. `undefined` when the host has published no
-		 * snapshot for the session yet.
-		 */
-		private readonly _getHostCustomizations: (session: URI | string) => readonly Customization[] | undefined = () => undefined,
 		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
 	) {
 		super();
 	}
 
-	async provideCompletionItems(params: CompletionsParams, _context: IAgentHostCompletionContext, token: CancellationToken): Promise<readonly CompletionItem[]> {
+	async provideCompletionItems(params: CompletionsParams, context: IAgentHostCompletionContext, token: CancellationToken): Promise<readonly CompletionItem[]> {
 		const leading = extractWhitespaceDelimitedSlashToken(params.text, params.offset);
 		if (!leading) {
 			return [];
@@ -58,7 +50,7 @@ export class AgentHostSkillCompletionProvider extends Disposable implements IAge
 		if (!agent) {
 			return [];
 		}
-		const candidates = await this._getCandidates(agent, sessionUri);
+		const candidates = await this._getCandidates(agent, sessionUri, context.customizations);
 		if (token.isCancellationRequested || candidates.length === 0) {
 			return [];
 		}
@@ -95,12 +87,12 @@ export class AgentHostSkillCompletionProvider extends Disposable implements IAge
 			}));
 	}
 
-	private async _getCandidates(agent: IAgent, session: URI): Promise<readonly SlashCommmandCandidate[]> {
+	private async _getCandidates(agent: IAgent, session: URI, published: readonly Customization[] | undefined): Promise<readonly SlashCommmandCandidate[]> {
 		const defaultChat = await this._getDefaultChat(session);
 		if (!defaultChat) {
 			return [];
 		}
-		const customizations = await agent.getChatCustomizations(defaultChat.chat, defaultChat.context, this._getHostCustomizations(session));
+		const customizations = published ?? await agent.getChatCustomizations(defaultChat.chat, defaultChat.context);
 		const result: SlashCommmandCandidate[] = [];
 		for (const { skill, container, containerEnabled } of getSkillCustomizations(customizations)) {
 			if (containerEnabled && isSkillEligibleForUserInvocation(skill)) {
@@ -108,8 +100,7 @@ export class AgentHostSkillCompletionProvider extends Disposable implements IAge
 			}
 		}
 		const undiscoveredServers = customizations.flatMap(customization => {
-			const containerEnabled = customization.type === CustomizationType.Directory ? customization.enabled : isCustomizationEnabled(customization);
-			if (!containerEnabled) {
+			if (!isSkillContainerEnabled(customization)) {
 				return [];
 			}
 			const servers = customization.type === CustomizationType.McpServer ? [customization]

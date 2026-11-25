@@ -158,6 +158,21 @@ suite('Mission Control client', () => {
 		}
 	});
 
+	test('reads just the recorded automation revision prompt and accepts empty event content', async () => {
+		const revisionId = 'v:1';
+		const { client, requests } = setup(({ url }) => {
+			if (url.pathname.endsWith('/tasks/task-1')) {
+				return Response.json({ ...task, automation_revision_id: null, sessions: [{ id: 'session', created_at: date, state: 'completed', event_content: null }] });
+			}
+			return Response.json({ snapshot: { prompt: 'Original instructions', name: 'Original name' } });
+		});
+		const prompt = await client.automations.getRevisionPrompt(repository, automation.id, revisionId, cancellationToken());
+		const run = await client.tasks.get(task.id, cancellationToken());
+		assert.deepStrictEqual({ prompt, revision: run.automation_revision_id, event: run.sessions?.[0].event_content, path: requests[0].url.pathname }, {
+			prompt: 'Original instructions', revision: null, event: null, path: `${collection}/${automation.id}/revisions/v%3A1`,
+		});
+	});
+
 	test('acquired clients execute every automation operation with selected credentials and exact routes', async () => {
 		const { prompt, ...summary } = automation;
 		const nextLink = `${apiBaseUri}${collection}/v2?page=2`;
@@ -1273,9 +1288,9 @@ suite('Mission Control client', () => {
 	test('model discovery preserves catalog metadata and uses its API version only for the models route', async () => {
 		const catalog = {
 			data: [{
-				id: 'future-model', name: 'Future', model_picker_enabled: false, policy: { state: 'disabled' },
+				id: 'future-model', name: 'Future', version: '2', model_picker_enabled: false, policy: { state: 'disabled' },
 				billing: { multiplier: 2, tiers: [{ name: 'future-tier', multiplier: 3 }] },
-				capabilities: { supports: { vision: true, reasoning_effort: ['future-effort'] } },
+				capabilities: { family: 'future', supports: { vision: true, tool_calls: true, reasoning_effort: ['future-effort'] } },
 			}],
 			default_model: 'future-model',
 		};

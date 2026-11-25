@@ -296,6 +296,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 			readonly disconnectCalls: string[] = [];
 			statusOverride: CopilotConnectorConnectionStatus | undefined;
 			statusDetailOverride: CopilotConnectorConnectionStatusDetail | undefined;
+			homepageOverride: string | undefined;
 			catalogVisible = true;
 			onConnect: ((name: string, token: CancellationToken) => Promise<void>) | undefined;
 			onDisconnect: ((name: string, token: CancellationToken) => Promise<void>) | undefined;
@@ -304,6 +305,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 					name: 'mail',
 					displayName: 'Mail',
 					description: 'Search mail',
+					homepage: this.homepageOverride,
 					tags: [],
 					keywords: [],
 					capabilities: [],
@@ -2024,6 +2026,32 @@ suite('CustomizationMarketplaceInstallService', () => {
 					target: connectorInstallationTarget,
 					repairUnavailableMessage: 'This connector is no longer available from the Copilot Connectors catalog.',
 				},
+			});
+		});
+
+		test('retains updated connector homepage and source links when the catalog disappears', async () => {
+			const fixture = await createFixture();
+			fixture.connectorsService.homepageOverride = 'https://amplitude.com/a/b';
+			await fixture.service.install({ ...connectorResource(), homepage: fixture.connectorsService.homepageOverride });
+			const updatedHomepage = 'https://amplitude.com/a%2Fb?query=x%26y';
+			fixture.connectorsService.homepageOverride = updatedHomepage;
+			const updated = Event.toPromise(Event.filter(fixture.service.onDidChange, () =>
+				recordedResources(fixture.service).some(resource => resource.homepage === updatedHomepage)));
+			fixture.connectorChanges.fire();
+			await updated;
+			fixture.connectorsService.catalogVisible = false;
+			fixture.connectorChanges.fire();
+			await timeout(0);
+			const recorded = recordedResources(fixture.service)[0];
+
+			assert.deepStrictEqual({
+				homepage: recorded.homepage,
+				sourceUrl: recorded.url?.toString(),
+				state: fixture.service.getInstallState(recorded).kind,
+			}, {
+				homepage: updatedHomepage,
+				sourceUrl: 'https://docs.github.com/en/copilot/concepts/customizations/copilot-connectors',
+				state: 'missing',
 			});
 		});
 

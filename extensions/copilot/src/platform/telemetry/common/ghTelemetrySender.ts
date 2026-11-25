@@ -75,6 +75,10 @@ export class BaseGHTelemetrySender implements ITelemetrySender {
 		this._standardTelemetryLogger.logError(eventName, this.markAsIssuedAndMakeReadyForSending(properties, measurements));
 	}
 
+	get isEnhancedTelemetryEnabled(): boolean {
+		return this._enhancedTelemetryLogger !== undefined;
+	}
+
 	sendEnhancedTelemetryEvent(eventName: string, properties?: TelemetryEventProperties, measurements?: TelemetryEventMeasurements): void {
 		if (this._enhancedTelemetryLogger) {
 			this._enhancedTelemetryLogger?.logUsage(eventName, this.markAsIssuedAndMakeReadyForSending(properties, measurements));

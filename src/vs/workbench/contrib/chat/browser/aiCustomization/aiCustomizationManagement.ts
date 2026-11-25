@@ -15,6 +15,8 @@ import { CustomizationMigrationCategoryId } from './customizationMigrationCatego
 import { ICustomizationMigrationHint } from '../../common/promptSyntax/service/customizationMigrationService.js';
 import type { IChatWidget } from '../chat.js';
 import { hasKey } from '../../../../../base/common/types.js';
+import { isPhoneLayout } from '../../../../browser/parts/sessions/mobileLayout.js';
+import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
 
 // Re-export for convenience — consumers import from this file
 export { AICustomizationManagementCommands, AICustomizationManagementSection } from '../../common/aiCustomizationWorkspaceService.js';
@@ -22,6 +24,12 @@ export type { AICustomizationSource } from '../../common/aiCustomizationWorkspac
 export { BUILTIN_STORAGE } from '../../common/aiCustomizationWorkspaceService.js';
 
 export const DELETE_AI_CUSTOMIZATION_ID = 'aiCustomizationManagement.delete';
+
+export function assertAICustomizationManagementSupported(layoutService: IWorkbenchLayoutService): void {
+	if (isPhoneLayout(layoutService)) {
+		throw new Error(localize('customizationsUnavailableOnPhone', "Customization management is not available in the phone layout. Use a desktop window to manage customizations."));
+	}
+}
 
 export type AICustomizationManagementOpenEditorTarget =
 	| AICustomizationManagementSection
@@ -32,6 +40,7 @@ export type AICustomizationManagementOpenEditorTarget =
 		readonly sessionResource?: URI;
 		readonly revealUri?: URI;
 		readonly showDiscover?: boolean;
+		readonly showPluginMarketplaces?: boolean;
 		readonly searchQuery?: string;
 		readonly migration?: boolean;
 		readonly migrationCategory?: CustomizationMigrationCategoryId;
@@ -44,7 +53,7 @@ export function resolveAICustomizationManagementOpenEditorTarget(
 	pendingSessionType: string | undefined,
 	chatSessionResource: URI | undefined,
 	getSessionResourceForHarness: (sessionType: string) => URI,
-): { readonly section?: AICustomizationManagementSection; readonly revealUri?: URI; readonly sessionResource?: URI; readonly hasExplicitSessionResource: boolean; readonly showDiscover?: boolean; readonly searchQuery?: string; readonly migration?: boolean; readonly migrationCategory?: CustomizationMigrationCategoryId; readonly migrationHint?: ICustomizationMigrationHint } {
+): { readonly section?: AICustomizationManagementSection; readonly revealUri?: URI; readonly sessionResource?: URI; readonly hasExplicitSessionResource: boolean; readonly showDiscover?: boolean; readonly showPluginMarketplaces?: boolean; readonly searchQuery?: string; readonly migration?: boolean; readonly migrationCategory?: CustomizationMigrationCategoryId; readonly migrationHint?: ICustomizationMigrationHint } {
 	if (target && typeof target === 'object' && hasKey(target, { widget: true })) {
 		const pendingTarget = target.widget.input.pendingDelegationTarget;
 		return {
@@ -63,6 +72,7 @@ export function resolveAICustomizationManagementOpenEditorTarget(
 		section: options?.section,
 		revealUri: options?.revealUri,
 		showDiscover: options?.showDiscover,
+		showPluginMarketplaces: options?.showPluginMarketplaces,
 		searchQuery: options?.searchQuery,
 		migration: options?.migration,
 		migrationCategory: options?.migrationCategory,

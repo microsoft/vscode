@@ -193,6 +193,20 @@ suite('Mission Control inventory', () => {
 		assert.deepStrictEqual({ remembered, forgotten: second.service.ownEnvironmentId.get() }, { remembered: 'own', forgotten: undefined });
 	});
 
+	test('preserves service heartbeat observations across discovery and inventory restoration without connecting', async () => {
+		const storage = store.add(new InMemoryStorageService());
+		const first = fixture(storage);
+		const reported = { ...host('remote'), lastHeartbeatAt: 123000, reportedSessionCount: 0 };
+		void first.setList(Promise.resolve([reported]));
+		await first.service.refresh(CancellationToken.None);
+		const observed = first.service.hosts.get();
+		const second = fixture(storage);
+		await second.service.initialize();
+		assert.deepStrictEqual({ observed, restored: second.service.hosts.get(), connections: [...first.calls.connects, ...second.calls.connects] }, {
+			observed: [{ ...reported, displayName: undefined }], restored: [{ ...reported, displayName: undefined }], connections: [],
+		});
+	});
+
 	test('identifies this computer once sharing turns on and remembers it for later windows', async () => {
 		const storage = store.add(new InMemoryStorageService());
 		const withOwn = [host('remote'), host('own')];

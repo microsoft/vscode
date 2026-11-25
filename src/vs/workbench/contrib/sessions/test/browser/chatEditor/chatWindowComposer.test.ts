@@ -496,6 +496,20 @@ suite('Chat window composer', () => {
 		});
 	});
 
+	test('an explicit New Worktree request is not taken for the remembered preference that otherwise matches it', () => {
+		const store = disposables.add(new DisposableStore());
+		const { instantiationService } = createServices(store);
+		const composers = store.add(instantiationService.createInstance(ChatWindowComposers, async () => undefined));
+		const composer = store.add(composers.create(URI.parse('vscode-agents-composer:/preference'), { target: { folderUri: URI.file('/repo'), placement: 'worktree', placementIsPreference: true } }, async () => { }));
+		const retargets: (boolean | undefined)[] = [];
+		store.add(composer.onDidRetarget(target => retargets.push(target.placementIsPreference)));
+
+		const same = composer.requestTarget({ folderUri: URI.file('/repo'), placement: 'worktree', placementIsPreference: true });
+		const explicit = composer.requestTarget({ folderUri: URI.file('/repo'), placement: 'worktree' });
+
+		assert.deepStrictEqual({ same, explicit, retargets, now: composer.requestedTarget.get()?.placementIsPreference }, { same: true, explicit: true, retargets: [undefined], now: undefined });
+	});
+
 	test('a composer that aims at the folder its host aimed it at follows its host to another folder, such as where the window\'s folder moved; not once the user picked another folder, nor from a folder it does not aim at', () => {
 		const store = disposables.add(new DisposableStore());
 		const { instantiationService } = createServices(store);
@@ -516,6 +530,20 @@ suite('Chat window composer', () => {
 			userPicked: { done: false, aimsAt: '/repo.worktrees/c' },
 			retargets: ['/repo.worktrees/a provider'],
 		});
+	});
+
+	test('a composer announces the targets the user picked, not the ones its host or restoration set', () => {
+		const store = disposables.add(new DisposableStore());
+		const { instantiationService } = createServices(store);
+		const composers = store.add(instantiationService.createInstance(ChatWindowComposers, async () => undefined));
+		const composer = store.add(composers.create(URI.parse('vscode-agents-composer:/picks'), { target: { folderUri: URI.file('/repo'), providerId: 'provider' } }, async () => { }));
+		const picked: string[] = [];
+		store.add(composer.onDidPickTarget(target => picked.push(`${target.folderUri?.path} ${target.modelId}`)));
+
+		composer.setRequestedTarget({ folderUri: URI.file('/host'), modelId: 'host' }, 'background');
+		composer.setRequestedTarget({ folderUri: URI.file('/user'), modelId: 'user' }, 'user');
+
+		assert.deepStrictEqual(picked, ['/user user']);
 	});
 
 	test('a requested target that differs only by the case of a remote folder retargets the composer: its folders are told apart as their provider does', () => {

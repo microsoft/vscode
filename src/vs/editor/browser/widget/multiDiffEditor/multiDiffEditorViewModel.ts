@@ -153,9 +153,9 @@ export class DocumentDiffItemViewModel extends Disposable {
 	public readonly waitForInitialDiffOr1s: ObservablePromise<void>;
 	public readonly collapsed = observableValue<boolean>(this, false);
 
-	public readonly lastTemplateData = observableValue<{ expandedContentHeight: number; selections: Selection[] | undefined }>(
+	public readonly lastTemplateData = observableValue<{ expandedContentHeight: number; selections: Selection[] | undefined; splitViewRatio: number | undefined }>(
 		this,
-		{ expandedContentHeight: 500, selections: undefined, }
+		{ expandedContentHeight: 500, selections: undefined, splitViewRatio: undefined, }
 	);
 
 	public get originalUri(): URI | undefined { return this.documentDiffItem.original?.uri; }

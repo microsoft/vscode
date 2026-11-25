@@ -323,6 +323,7 @@ export interface ICustomAgent {
 	 * Argument hint metadata in the prompt header that describes what inputs the agent expects or supports.
 	 */
 	readonly argumentHint?: string;
+	readonly welcomeMessage?: string;
 
 	/**
 	 * Target of the agent: Copilot, VSCode, Claude, or undefined if not specified.

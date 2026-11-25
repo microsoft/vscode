@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
 import { l10n } from 'vscode';
 import {
 	AgentTask,
@@ -15,6 +14,8 @@ import {
 	AgentTaskGitHubResourceData,
 	AgentTaskListEventsResponse,
 	AgentTaskListResponse,
+	AgentTaskRepository,
+	AgentTaskSession,
 	AgentTaskSessionEvent,
 	AgentTaskSteerRequest,
 	RequestType,
@@ -22,7 +23,7 @@ import {
 import { IAuthenticationService } from '../../../platform/authentication/common/authentication';
 import { ICAPIClientService } from '../../../platform/endpoint/common/capiClient';
 import { GithubRepoId } from '../../../platform/git/common/gitService';
-import { IOctoKitService } from '../../../platform/github/common/githubService';
+import { AuthOptions, IOctoKitService } from '../../../platform/github/common/githubService';
 import { ILogService } from '../../../platform/log/common/logService';
 import { ICloudBackendInstrumentation } from './cloudBackendTelemetry';
 import {
@@ -39,9 +40,6 @@ import {
 	TaskContent,
 } from '../vscode/cloudAgentBackend';
 import { extractTitle } from '../vscode/copilotCodingAgentUtils';
-
-const TASK_SESSION_POLL_INTERVAL_MS = 2_000;
-const TASK_SESSION_POLL_TIMEOUT_MS = 60_000;
 
 /**
  * Agent integration slugs that identify the Copilot cloud coding agent. CMC/CAPI returns
@@ -65,6 +63,15 @@ interface TaskClient {
 interface TaskWithEnvironment extends AgentTask {
 	readonly current_environment?: { readonly kind?: string } | null;
 	readonly clients?: readonly TaskClient[];
+}
+
+/** Additional fields on the task detail response not yet declared by the API client. */
+interface TaskWithAutomation extends AgentTaskGetResponse {
+	readonly automation_id?: string | null;
+	readonly automation_revision_id?: string | null;
+	readonly custom_agent?: { readonly is_automation?: boolean } | null;
+	readonly repository?: AgentTaskRepository & { readonly full_name?: string };
+	readonly sessions?: readonly (AgentTaskSession & { readonly event_content?: string })[];
 }
 
 /**
@@ -361,6 +368,31 @@ export class TaskApiBackend implements CloudAgentBackend {
 		}
 	}
 
+	async getInitialAutomationPrompt(task: TaskWithAutomation): Promise<string | undefined> {
+		const automationId = task.automation_id;
+		if (!automationId && task.custom_agent?.is_automation !== true) {
+			return undefined;
+		}
+		const eventContent = task.sessions?.[0]?.event_content;
+		if (typeof eventContent === 'string' && eventContent.trim()) {
+			return eventContent;
+		}
+		if (automationId) {
+			try {
+				const nwo = task.repository?.full_name?.split('/');
+				const repo = nwo?.length === 2 ? { owner: nwo[0], name: nwo[1] } : await this._resolveRepoForTask(task, {});
+				if (repo) {
+					const revision = task.automation_revision_id;
+					return await this._octoKitService.getAutomationPrompt(repo.owner, repo.name, automationId, revision && revision !== 'unknown' ? revision : undefined) ?? '';
+				}
+			} catch {
+				// Never log the response or substitute today's definition for a failed revision lookup.
+				this._logService.warn('Could not load the initial automation prompt for cloud task history.');
+			}
+		}
+		return '';
+	}
+
 	async fetchTaskEvents(taskId: string): Promise<readonly AgentTaskSessionEvent[]> {
 		const perPage = 100;
 		const events: AgentTaskSessionEvent[] = [];
@@ -381,39 +413,6 @@ export class TaskApiBackend implements CloudAgentBackend {
 		}
 	}
 
-	async waitForTaskUpdate(taskId: string, since: { turnCount: number; updatedAt?: string }, token?: vscode.CancellationToken): Promise<TaskContent | undefined> {
-		const startTime = Date.now();
-		while (Date.now() - startTime < TASK_SESSION_POLL_TIMEOUT_MS && !(token?.isCancellationRequested)) {
-			try {
-				const task = await this._taskApiClient.getTask(taskId);
-				const turnCount = task.sessions?.length ?? 0;
-				// Fire when any observable changed: a new turn was added, the task's
-				// `updated_at` advanced (covers in-place state transitions), or the latest
-				// turn left the in-progress/queued region.
-				const updatedAtChanged = since.updatedAt && task.updated_at && task.updated_at !== since.updatedAt;
-				const latestTurnState = task.sessions?.[turnCount - 1]?.state;
-				const latestTurnSettled = latestTurnState && latestTurnState !== 'in_progress' && latestTurnState !== 'queued' && latestTurnState !== 'idle' && latestTurnState !== 'waiting_for_user';
-				if (turnCount > since.turnCount || updatedAtChanged || latestTurnSettled) {
-					// The first turn appearing marks the task as active and producing output.
-					if (since.turnCount === 0 && turnCount >= 1) {
-						const createdAtMs = task.created_at ? Date.parse(task.created_at) : NaN;
-						this._instrumentation.sessionActivated(Number.isNaN(createdAtMs) ? 0 : Math.max(0, Date.now() - createdAtMs));
-					}
-					return {
-						task,
-						turns: [],
-						pullArtifact: taskToPullArtifactRef(task),
-					};
-				}
-			} catch (e) {
-				this._logService.warn(`Failed to poll task ${taskId}: ${e}`);
-				this._instrumentation.operationFailed('pollUpdate', e);
-			}
-			await new Promise(resolve => setTimeout(resolve, TASK_SESSION_POLL_INTERVAL_MS));
-		}
-		return undefined;
-	}
-
 	async sendFollowUpToTask(taskId: string, prompt: string): Promise<boolean> {
 		try {
 			await this._taskApiClient.steerTask(taskId, { content: prompt, type: 'user_message' });
@@ -427,7 +426,7 @@ export class TaskApiBackend implements CloudAgentBackend {
 	}
 
 	async createPullRequestForTask(task: AgentTaskGetResponse): Promise<AgentTaskCreatePullRequestResponse> {
-		const repo = await this._resolveRepoForTask(task);
+		const repo = await this._resolveRepoForTask(task, { createIfNone: { detail: l10n.t('Sign in to GitHub to create a pull request.') } });
 		if (!repo) {
 			throw new Error(l10n.t('Unable to determine the repository for this task.'));
 		}
@@ -444,14 +443,14 @@ export class TaskApiBackend implements CloudAgentBackend {
 	 * absent the Task API only exposes the numeric `repository.id`, which we resolve to a
 	 * name-with-owner via the GitHub REST repositories-by-id endpoint.
 	 */
-	private async _resolveRepoForTask(task: AgentTaskGetResponse): Promise<{ owner: string; name: string } | undefined> {
+	private async _resolveRepoForTask(task: AgentTaskGetResponse, authOptions: AuthOptions): Promise<{ owner: string; name: string } | undefined> {
 		const fromUrl = parseRepoFromTaskUrl(task.html_url);
 		if (fromUrl) {
 			return fromUrl;
 		}
 		const repoId = (task.repository as { id?: number } | undefined)?.id;
 		if (typeof repoId === 'number') {
-			const resolved = await this._octoKitService.getRepositoryById(repoId, { createIfNone: { detail: l10n.t('Sign in to GitHub to create a pull request.') } });
+			const resolved = await this._octoKitService.getRepositoryById(repoId, authOptions);
 			if (resolved) {
 				return resolved;
 			}
@@ -573,25 +572,9 @@ export class TaskApiHttpClient implements ITaskApiClient {
 		}
 		return result;
 	}
-
-	async archiveTask(_owner: string, _repo: string, taskId: string): Promise<AgentTask> {
-		const task = await this._request<AgentTask>('POST', 'archive', { taskId });
-		if (!task) {
-			throw new Error(l10n.t('Task API archiveTask returned an empty response.'));
-		}
-		return task;
-	}
-
-	async unarchiveTask(_owner: string, _repo: string, taskId: string): Promise<AgentTask> {
-		const task = await this._request<AgentTask>('POST', 'unarchive', { taskId });
-		if (!task) {
-			throw new Error(l10n.t('Task API unarchiveTask returned an empty response.'));
-		}
-		return task;
-	}
 }
 
-type AgentTaskRequestAction = 'create' | 'list' | 'list-for-repo' | 'get' | 'events' | 'steer' | 'create-pr' | 'archive' | 'unarchive';
+type AgentTaskRequestAction = 'create' | 'list' | 'list-for-repo' | 'get' | 'events' | 'steer' | 'create-pr';
 
 function toSearchParams(opts: ListTasksOptions | ListTaskEventsOptions | undefined): Record<string, string | number | boolean> | undefined {
 	if (!opts) {

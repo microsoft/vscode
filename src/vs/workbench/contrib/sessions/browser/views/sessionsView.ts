@@ -16,6 +16,7 @@ import { getComparisonKey } from '../../../../../base/common/resources.js';
 import { Orientation } from '../../../../../base/browser/ui/sash/sash.js';
 import { IView, Sizing, SplitView } from '../../../../../base/browser/ui/splitview/splitview.js';
 import { Color } from '../../../../../base/common/color.js';
+import { ChatViewId } from '../../../chat/browser/chat.js';
 import { ContextKeyExpr, ContextKeyExpression, IContextKey, IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { FocusedViewContext, IsAuxiliaryWindowContext, IsSessionsWindowContext } from '../../../../common/contextkeys.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
@@ -167,6 +168,10 @@ export const SessionsViewFocusedContext = ContextKeyExpr.or(FocusedViewContext.i
 
 export const SessionsViewGroupingContext = new RawContextKey<string>('sessionsViewPane.grouping', SessionsGrouping.Workspace);
 export const SessionsViewSortingContext = new RawContextKey<string>('sessionsViewPane.sorting', SessionsSorting.Created);
+/** Whether the Chat view shows the shared sessions list, whose actions contribute to the title of the Chat view. */
+export const ChatViewSessionsListContext = new RawContextKey<boolean>('chatViewSessionsList', false);
+/** The `when` of the actions of the shared sessions list in the title of the Chat view. */
+export const ChatViewSessionsListTitleContext = ContextKeyExpr.and(ContextKeyExpr.equals('view', ChatViewId), ChatViewSessionsListContext, ChatContextKeys.enabled, ChatContextKeys.agentSessionsViewerVisible)!;
 export const SessionsViewCompactContext = new RawContextKey<boolean>('sessionsViewPane.compact', false);
 export const IsWorkspaceGroupCappedContext = new RawContextKey<boolean>('sessionsViewPane.workspaceGroupCapped', true);
 /** The groupings a Sessions view offers by default, as the Agents window's does: all but {@link SessionsGrouping.Worktree}. */
@@ -496,13 +501,14 @@ export class SessionsView extends ViewPane {
 				const requests = new Map<string, IChatScheduledRequest[]>();
 				for (const item of this.scheduledChatsService.items.read(reader)) {
 					if (item.conversation) {
-						const key = getComparisonKey(item.conversation.sessionResource);
+						const key = getComparisonKey(item.conversation.chatResource);
 						requests.set(key, [...requests.get(key) ?? [], item]);
 					}
 				}
 				return requests;
 			}),
 			sectionRowHeight: this.presentation.sectionRowHeight,
+			titleOnlyQuickChatRowHeight: this.presentation.titleOnlyQuickChatRowHeight,
 			overrideStyles: this.getLocationBasedColors().listOverrideStyles,
 			grouping: () => this.grouping,
 			sorting: () => this.currentSorting,

@@ -11,6 +11,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
 import { AGENT_HOST_SCHEME, agentHostAuthority, fromAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
+import { findDevContainerEnvironment } from '../../../../../../platform/agentHost/common/devContainerEnvironments.js';
 import { getEntryAddress, IRemoteAgentHostEntry, IRemoteAgentHostService, RemoteAgentHostEntryType } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from '../../../browser/sessionsProvidersService.js';
@@ -25,7 +26,7 @@ export function devContainerSourcePath(workspaceUri: URI): string {
 }
 
 export function getDevContainerSourceEntry(workspaceUri: URI, remoteAgentHostService: IRemoteAgentHostService): IRemoteAgentHostEntry | undefined {
-	if (workspaceUri.scheme !== AGENT_HOST_SCHEME) {
+	if (workspaceUri.scheme !== AGENT_HOST_SCHEME && !findDevContainerEnvironment(workspaceUri)) {
 		return undefined;
 	}
 	return remoteAgentHostService.configuredEntries.find(entry =>

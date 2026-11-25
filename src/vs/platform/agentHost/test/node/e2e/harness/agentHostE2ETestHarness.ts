@@ -9,7 +9,8 @@
 
 import assert from 'assert';
 import { execSync } from 'child_process';
-import { chmodSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmSync, statSync } from 'fs';
+import { chmodSync, lstatSync, mkdirSync, readdirSync, readFileSync, realpathSync, statSync } from 'fs';
+import { rm } from 'fs/promises';
 import { homedir, tmpdir, userInfo } from 'os';
 import { fileURLToPath } from 'url';
 import { timeout } from '../../../../../../base/common/async.js';
@@ -71,22 +72,13 @@ const TEMP_DIR_CLEANUP_TIMEOUT_MS = 30_000;
 export const REPLAY_PLACEHOLDER_TOKEN = 'replay-no-token';
 export type AgentHostE2EModelTraffic = 'recorded' | 'none';
 
-/**
- * Clears read-only attributes across a directory tree.
- *
- * Git marks the files under `.git/objects` read-only, and on Windows a
- * read-only file cannot be deleted — `rmSync`'s `force` option only suppresses
- * `ENOENT`, it does not override the attribute. Without this, any test that
- * creates a git repository in a temp directory fails teardown on Windows after
- * burning the full cleanup timeout, even though the test itself passed.
- *
- * Best-effort throughout: entries can disappear underneath us while the failed
- * removal is still unwinding, and a failure here just means the retry fails the
- * same way it already did.
- */
+/** Repairs owned read-only entries without following symbolic links or directory junctions. */
 function clearReadOnlyAttributes(dir: string): void {
 	let entries: string[];
 	try {
+		if (lstatSync(dir).isSymbolicLink()) {
+			return;
+		}
 		entries = readdirSync(dir);
 	} catch {
 		return;
@@ -94,8 +86,11 @@ function clearReadOnlyAttributes(dir: string): void {
 	for (const entry of entries) {
 		const entryPath = join(dir, entry);
 		try {
-			// Directories need the execute bit to stay traversable.
-			const isDirectory = statSync(entryPath).isDirectory();
+			const stat = lstatSync(entryPath);
+			if (stat.isSymbolicLink()) {
+				continue;
+			}
+			const isDirectory = stat.isDirectory();
 			chmodSync(entryPath, isDirectory ? 0o700 : 0o600);
 			if (isDirectory) {
 				clearReadOnlyAttributes(entryPath);
@@ -129,14 +124,12 @@ export async function removeTempDirs(tempDirs: string[]): Promise<void> {
 		for (let index = pendingDirs.length - 1; index >= 0; index--) {
 			const dir = pendingDirs[index];
 			try {
-				rmSync(dir, { recursive: true, force: true });
+				// Per-entry retries multiply with directory depth; the outer loop owns the deadline.
+				await rm(dir, { recursive: true, force: true, maxRetries: 0 });
 				pendingDirs.splice(index, 1);
 				errors.delete(dir);
 			} catch (error) {
 				errors.set(dir, error instanceof Error ? error : new Error(String(error)));
-				// A read-only file never becomes deletable by waiting, so clear the
-				// attributes before the retry rather than spinning until the
-				// deadline. Harmless when the real cause is a transient lock.
 				clearReadOnlyAttributes(dir);
 			}
 		}

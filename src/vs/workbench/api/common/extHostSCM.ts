@@ -837,7 +837,6 @@ class ExtHostSourceControl implements vscode.SourceControl {
 		private _label: string,
 		private _rootUri?: vscode.Uri,
 		_iconPath?: vscode.IconPath,
-		_isHidden?: boolean,
 		_parent?: ExtHostSourceControl
 	) {
 		this.#proxy = proxy;
@@ -849,10 +848,12 @@ class ExtHostSourceControl implements vscode.SourceControl {
 		});
 
 		this._inputBox = new ExtHostSCMInputBox(_extension, _extHostDocuments, this.#proxy, this.handle, inputBoxDocumentUri);
-		this.#proxy.$registerSourceControl(this.handle, _parent?.handle, _id, _label, _rootUri, getHistoryItemIconDto(_iconPath), _isHidden, inputBoxDocumentUri);
+		this.#proxy.$registerSourceControl(this.handle, _parent?.handle, _id, _label, _rootUri, getHistoryItemIconDto(_iconPath), inputBoxDocumentUri);
 
 		this.onDidDisposeParent = _parent ? _parent.onDidDispose : Event.None;
 	}
+
+	private _isDisposed = false;
 
 	private createdResourceGroups = new Map<ExtHostSourceControlResourceGroup, IDisposable>();
 	private updatedResourceGroups = new Set<ExtHostSourceControlResourceGroup>();
@@ -868,6 +869,14 @@ class ExtHostSourceControl implements vscode.SourceControl {
 
 	@debounce(100)
 	eventuallyAddResourceGroups(): void {
+		this.addResourceGroups();
+	}
+
+	private addResourceGroups(): void {
+		if (this.createdResourceGroups.size === 0) {
+			return;
+		}
+
 		const groups: [number /*handle*/, string /*id*/, string /*label*/, SCMGroupFeatures, /*multiDiffEditorEnableViewChanges*/ boolean][] = [];
 		const splices: SCMRawResourceSplices[] = [];
 
@@ -883,7 +892,11 @@ class ExtHostSourceControl implements vscode.SourceControl {
 				this.updatedResourceGroups.delete(group);
 				updateListener.dispose();
 				this._groups.delete(group.handle);
-				this.#proxy.$unregisterGroup(this.handle, group.handle);
+
+				// The groups of a source control that is disposed are removed with it
+				if (!this._isDisposed) {
+					this.#proxy.$unregisterGroup(this.handle, group.handle);
+				}
 			});
 
 			groups.push([group.handle, group.id, group.label, group.features, group.multiDiffEditorEnableViewChanges]);
@@ -903,6 +916,10 @@ class ExtHostSourceControl implements vscode.SourceControl {
 
 	@debounce(100)
 	eventuallyUpdateResourceStates(): void {
+		this.updateResourceStates();
+	}
+
+	private updateResourceStates(): void {
 		const splices: SCMRawResourceSplices[] = [];
 
 		this.updatedResourceGroups.forEach(group => {
@@ -952,6 +969,7 @@ class ExtHostSourceControl implements vscode.SourceControl {
 	}
 
 	dispose(): void {
+		this._isDisposed = true;
 		this._acceptInputDisposables.dispose();
 		this._actionButtonDisposables.dispose();
 		this._statusBarDisposables.dispose();
@@ -1028,7 +1046,7 @@ export class ExtHostSCM implements ExtHostSCMShape {
 		});
 	}
 
-	createSourceControl(extension: IExtensionDescription, id: string, label: string, rootUri: vscode.Uri | undefined, iconPath: vscode.IconPath | undefined, isHidden: boolean | undefined, parent: vscode.SourceControl | undefined): vscode.SourceControl {
+	createSourceControl(extension: IExtensionDescription, id: string, label: string, rootUri: vscode.Uri | undefined, iconPath: vscode.IconPath | undefined, parent: vscode.SourceControl | undefined): vscode.SourceControl {
 		this.logService.trace('ExtHostSCM#createSourceControl', extension.identifier.value, id, label, rootUri);
 
 		type TEvent = { extensionId: string };
@@ -1042,7 +1060,7 @@ export class ExtHostSCM implements ExtHostSCMShape {
 		});
 
 		const parentSourceControl = parent ? Iterable.find(this._sourceControls.values(), s => s === parent) : undefined;
-		const sourceControl = new ExtHostSourceControl(extension, this._extHostDocuments, this._proxy, this._commands, id, label, rootUri, iconPath, isHidden, parentSourceControl);
+		const sourceControl = new ExtHostSourceControl(extension, this._extHostDocuments, this._proxy, this._commands, id, label, rootUri, iconPath, parentSourceControl);
 		this._sourceControls.set(sourceControl.handle, sourceControl);
 
 		const sourceControls = this._sourceControlsByExtension.get(extension.identifier) || [];

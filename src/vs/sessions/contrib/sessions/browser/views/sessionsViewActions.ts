@@ -4,6 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ChatAIDisabledSettingId } from '../../../../../platform/chat/common/chatSettings.js';
+import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
+import { CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
+import { AUTOMATIONS_MODAL_SETTING, AutomationsEditorInput } from '../../../automations/browser/automationsEditorInput.js';
 import { KeyChord, KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { isMobile, isWeb } from '../../../../../base/common/platform.js';
 import { localize, localize2 } from '../../../../../nls.js';
@@ -16,7 +21,7 @@ import { IViewsService } from '../../../../../workbench/services/views/common/vi
 import { CLOSE_MOBILE_SIDEBAR_DRAWER_COMMAND_ID } from '../../../../browser/workbench.js';
 import { EditorsVisibleContext, EditorAreaFocusContext, IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
 import { SessionsCategories } from '../../../../../workbench/contrib/sessions/common/categories.js';
-import { IsNewChatSessionContext, SessionItemIsMultiSelectionContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { IsNewChatSessionContext, IsPhoneLayoutContext, SessionItemIsMultiSelectionContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { canStartNewSessionLike, getNewSessionSources, SessionSectionToolbarMenuId, SessionGroupToolbarMenuId, SessionSectionTypeContext, SessionSectionHasNonCloudRepositoryContext, SessionGroupIsComparisonContext, ISessionSection, ISessionGroupItem, NEW_SESSION_FOR_WORKSPACE_ACTION_ID, NEW_SESSION_IN_ENVIRONMENT_ACTION_ID } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
 import { ISession } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionGroupsService } from '../../../../../workbench/contrib/sessions/browser/sessionGroupsService.js';
@@ -243,9 +248,10 @@ const SessionGroupingSectionContext = ContextKeyExpr.or(
 
 /**
  * Opens a new session that starts in the workspace and environment of `session`, or in the
- * composer's own choice of workspace without one.
+ * composer's own choice of workspace without one. With `environmentOnly`, it starts in the
+ * environment of `session` as choosing it in the Environment picker does.
  */
-async function openNewSessionLike(accessor: ServicesAccessor, session: ISession | undefined): Promise<void> {
+async function openNewSessionLike(accessor: ServicesAccessor, session: ISession | undefined, environmentOnly = false): Promise<void> {
 	const sessionsService = accessor.get(ISessionsService);
 	const sessionsManagementService = accessor.get(ISessionsManagementService);
 	const sessionsPartService = accessor.get(ISessionsPartService);
@@ -257,7 +263,9 @@ async function openNewSessionLike(accessor: ServicesAccessor, session: ISession 
 	await sessionsService.openNewSession();
 
 	const folderUri = session?.workspace.get()?.folders[0]?.root;
-	if (session && folderUri) {
+	if (session && environmentOnly) {
+		sessionsPartService.getSessionView(mainWindowHost.session.get()?.sessionId)?.selectEnvironment(session.providerId);
+	} else if (session && folderUri) {
 		const target = inheritableSessionTarget(sessionsManagementService, session, folderUri);
 		sessionsPartService.getSessionView(mainWindowHost.session.get()?.sessionId)?.selectWorkspace(target.folderUri ?? folderUri, { providerId: target.providerId, selectionOrigin: WorkspaceSelectionOrigin.User });
 	}
@@ -306,12 +314,16 @@ registerAction2(class NewSessionForWorkspaceAction extends Action2 {
 		if (!context || !context.sessions || context.sessions.length === 0) {
 			return;
 		}
+		const sessionsManagementService = accessor.get(ISessionsManagementService);
+		const latest = (sessions: readonly ISession[]) => sessions.reduce<ISession | undefined>((latest, session) => !latest || session.createdAt.getTime() > latest.createdAt.getTime() ? session : latest, undefined);
 		// Sections spanning workspaces start like their most recently created available session.
 		const source = context.repository || context.environment
-			? getNewSessionSources(context.sessions, accessor.get(ISessionsProvidersService), accessor.get(ISessionsManagementService))
-				.reduce<ISession | undefined>((latest, { session }) => !latest || session.createdAt.getTime() > latest.createdAt.getTime() ? session : latest, undefined)
+			? latest(getNewSessionSources(context.sessions, accessor.get(ISessionsProvidersService), sessionsManagementService).map(({ session }) => session))
 			: undefined;
-		return openNewSessionLike(accessor, source ?? context.sessions.find(session => canStartNewSessionLike(session, accessor.get(ISessionsManagementService))));
+		const like = source ?? context.sessions.find(session => canStartNewSessionLike(session, sessionsManagementService));
+		// A workspace or environment section whose sessions have no workspace to start in, such as those of an extension's
+		// host of jobs, still starts in their environment. A repository section spans environments, so it keeps the composer's.
+		return like || context.repository ? openNewSessionLike(accessor, like) : openNewSessionLike(accessor, latest(context.sessions), true);
 	}
 });
 
@@ -417,12 +429,12 @@ registerAction2(class OpenSessionCustomizationsAction extends Action2 {
 			id: 'sessionsViewPane.openCustomizations',
 			title: localize2('openSessionCustomizations', "Open Customizations"),
 			icon: Codicon.extensions,
-			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, SessionItemIsMultiSelectionContext.negate()),
+			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, IsPhoneLayoutContext.negate(), SessionItemIsMultiSelectionContext.negate()),
 			menu: {
 				id: Menus.SessionItemContextMenu,
 				group: 'navigation',
 				order: 6,
-				when: ChatContextKeys.enabled,
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, IsPhoneLayoutContext.negate()),
 			},
 		});
 	}
@@ -474,7 +486,16 @@ registerAction2(class ManageAutomationsAction extends Action2 {
 			menu: []
 		});
 	}
-	override run(accessor: ServicesAccessor): void {
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const configurationService = accessor.get(IConfigurationService);
+		if (configurationService.getValue<boolean>(AUTOMATIONS_MODAL_SETTING) === true) {
+			if (configurationService.getValue<boolean>(CHAT_AUTOMATIONS_ENABLED_SETTING) !== true || configurationService.getValue<boolean>(ChatAIDisabledSettingId)) {
+				return;
+			}
+			accessor.get(ICustomViewService).hideCustomView();
+			await accessor.get(IEditorService).openEditor(AutomationsEditorInput.getOrCreate(), { pinned: true });
+			return;
+		}
 		accessor.get(ICustomViewService).showCustomView(AUTOMATIONS_CUSTOM_VIEW_ID);
 	}
 });

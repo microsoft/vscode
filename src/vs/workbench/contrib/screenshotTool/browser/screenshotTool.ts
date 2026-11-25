@@ -75,11 +75,15 @@ export interface IScreenshotToolEdit extends IScreenshotToolEditable {
 
 /** The markup of a screenshot, see {@link IScreenshotToolService.markUp}. */
 export interface IScreenshotToolMarkUp extends IDisposable {
-	/** Resolves once the markup ends, with the edited screenshot, or `undefined` when nothing changed. */
+	/** Resolves once the markup ends, with the edited screenshot, or `undefined` when nothing changed or the changes were discarded. */
 	readonly result: Promise<IScreenshotToolEdit | undefined>;
+	/** Whether the markup changed the screenshot, which cancelling it discards. */
+	readonly hasChanges: boolean;
 	focus(): void;
 	/** Ends the markup and keeps its changes, like its Done button does. */
 	finish(): void;
+	/** Ends the markup without its changes, like its Cancel button does, once the user confirms discarding any. Resolves with whether it ended. */
+	cancel(): Promise<boolean>;
 }
 
 export interface IScreenshotToolService {
@@ -104,15 +108,16 @@ export interface IScreenshotToolService {
 	captureWindow(targetWindow: CodeWindow, options?: { readonly afterRepaint?: boolean }): Promise<IScreenshotToolImage | undefined>;
 
 	/**
-	 * Opens an attached screenshot in the Images Preview to mark it up, where Done applies the changes and closes it.
-	 * Resolves with the edited screenshot once it closes, or `undefined` when nothing changed. `name` names an image
-	 * that is not a screenshot, such as an image file.
+	 * Opens an attached screenshot in the Images Preview to mark it up, where Done applies the changes and closes it,
+	 * while Cancel discards them. Resolves with the edited screenshot once it closes, or `undefined` when nothing
+	 * changed. `name` names an image that is not a screenshot, such as an image file.
 	 */
 	edit(screenshot: IScreenshotToolEditable, surface: ScreenshotToolSurface, name?: string): Promise<IScreenshotToolEdit | undefined>;
 
 	/**
-	 * Shows the markup of a screenshot in `container`, such as the Images Preview's. Escape and Done end it, as does
-	 * `finish`, which keeps its changes. A screenshot that is still loading shows once it has loaded.
+	 * Shows the markup of a screenshot in `container`, such as the Images Preview's. Done and `finish` end it with its
+	 * changes, while Cancel, Escape and `cancel` end it without them. A screenshot that is still loading shows once it
+	 * has loaded.
 	 */
 	markUp(container: HTMLElement, screenshot: IScreenshotToolEditable | Promise<IScreenshotToolEditable>, surface: ScreenshotToolSurface): IScreenshotToolMarkUp;
 
@@ -154,8 +159,10 @@ export function getScreenshotToolImageData(image: IScreenshotToolImage): { reado
 export function toImageCarouselMarkUp(markUp: IScreenshotToolMarkUp): IImageCarouselMarkUp {
 	return {
 		result: markUp.result.then(edit => edit && getScreenshotToolImageData(edit.image)),
+		get hasChanges() { return markUp.hasChanges; },
 		focus: () => markUp.focus(),
 		finish: () => markUp.finish(),
+		cancel: () => markUp.cancel(),
 		dispose: () => markUp.dispose(),
 	};
 }

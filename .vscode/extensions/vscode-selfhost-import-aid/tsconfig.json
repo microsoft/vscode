@@ -5,7 +5,6 @@
 		"outDir": "./out",
 		"types": [
 			"node",
-			"mocha",
 		]
 	},
 	"include": [

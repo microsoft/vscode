@@ -12,7 +12,7 @@ import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurati
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { SESSIONS_MARK_AS_DONE_CONFETTI_SETTING } from '../../../../../platform/chat/common/sessionArchiveActions.js';
-import { SESSIONS_LIST_INDENT_ITEMS_SETTING, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
+import { SESSIONS_LIST_CANVASES_SECTION_SETTING, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
 import { ExternalSessionApplicationBadgeMode, SESSIONS_CHAT_TABS_SETTING, SESSIONS_DRAFTS_ENABLED_SETTING, SESSIONS_SEND_LATER_ENABLED_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SessionsChatTabsMode } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
 
 import '../../browser/sessions.contribution.js';
@@ -26,7 +26,7 @@ const groupExternalSessionsProperty = configurationRegistry.getConfigurationProp
 const externalApplicationBadgeProperty = configurationRegistry.getConfigurationProperties()[SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING];
 const externalApplicationBadgeShowFromProperty = configurationRegistry.getConfigurationProperties()[SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING];
 const showArchivedByDefaultProperty = configurationRegistry.getConfigurationProperties()[SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING];
-const indentItemsProperty = configurationRegistry.getConfigurationProperties()[SESSIONS_LIST_INDENT_ITEMS_SETTING];
+const canvasesSectionProperty = configurationRegistry.getConfigurationProperties()[SESSIONS_LIST_CANVASES_SECTION_SETTING];
 const sessionsSettingKeys = Object.keys(configurationRegistry.getConfigurationProperties()).filter(key => key.startsWith('sessions.'));
 const pendingSessionProperties = [SESSIONS_DRAFTS_ENABLED_SETTING, SESSIONS_SEND_LATER_ENABLED_SETTING].map(key => configurationRegistry.getConfigurationProperties()[key]);
 
@@ -120,16 +120,14 @@ suite('Sessions Contribution', () => {
 		});
 	});
 
-	test('indents sessions list items by default with an advanced automatic experiment', () => {
+	test('registers the Canvases section setting with its shared schema', () => {
 		assert.deepStrictEqual({
-			type: indentItemsProperty.type,
-			default: indentItemsProperty.default,
-			tags: indentItemsProperty.tags,
-			experiment: indentItemsProperty.experiment,
+			type: canvasesSectionProperty?.type,
+			default: canvasesSectionProperty?.default,
+			experiment: canvasesSectionProperty?.experiment,
 		}, {
 			type: 'boolean',
-			default: true,
-			tags: ['experimental', 'advanced', 'onExP'],
+			default: false,
 			experiment: { mode: 'auto' },
 		});
 	});

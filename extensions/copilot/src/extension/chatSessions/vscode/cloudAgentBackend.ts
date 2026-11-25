@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { AgentTaskCreatePullRequestResponse, AgentTaskGetResponse, AgentTaskSessionEvent, AgentTaskState } from '@vscode/copilot-api';
-import type { CancellationToken } from 'vscode';
 import { GithubRepoId } from '../../../platform/git/common/gitService';
 
 /**
@@ -71,13 +70,10 @@ export interface CloudAgentBackend {
 
 	fetchTaskContent(taskId: string): Promise<TaskContent | undefined>;
 
-	fetchTaskEvents(taskId: string): Promise<readonly AgentTaskSessionEvent[]>;
+	/** History only. Undefined for ordinary tasks; empty when an automation's display prompt is unavailable. */
+	getInitialAutomationPrompt(task: AgentTaskGetResponse): Promise<string | undefined>;
 
-	waitForTaskUpdate(
-		taskId: string,
-		since: { turnCount: number; updatedAt?: string },
-		token?: CancellationToken,
-	): Promise<TaskContent | undefined>;
+	fetchTaskEvents(taskId: string): Promise<readonly AgentTaskSessionEvent[]>;
 
 	sendFollowUpToTask(taskId: string, prompt: string): Promise<boolean>;
 

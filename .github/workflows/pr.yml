@@ -19,7 +19,6 @@ concurrency:
 
 permissions:
   contents: read
-  pull-requests: read
 
 env:
   VSCODE_QUALITY: 'oss'
@@ -62,10 +61,14 @@ jobs:
   changes:
     name: Detect Changes
     runs-on: &linux-runner ${{ (github.event_name == 'merge_group' || startsWith(github.base_ref, 'release/')) && 'vscode-large-runners-ubuntu-8-core-merge-queue' || 'vscode-large-runners-ubuntu-8-core' }}
+    permissions:
+      contents: read
+      pull-requests: read
     outputs:
       # The commit of the base branch that a merge group forks from (see the Find the base step).
       merge-group-base: ${{ steps.base.outputs.merge-group-base }}
       cli: ${{ steps.detect.outputs.cli }}
+      dependencies: ${{ steps.detect.outputs.dependencies }}
       copilot-shim: ${{ steps.detect.outputs.copilot-shim }}
       copilot: ${{ steps.detect.outputs.copilot }}
       unit-tests: ${{ steps.detect.outputs.unit-tests }}
@@ -283,7 +286,6 @@ jobs:
     # actions: read finds and downloads the workspace image (see .github/workflows/workspace_image/README.md)
     permissions:
       contents: read
-      pull-requests: read
       actions: read
     outputs:
       checks-failed: ${{ steps.failed-checks.outputs.failed }}
@@ -444,7 +446,7 @@ jobs:
       # core-ci-pr skips the minified bundles that only the product build uses.
       - name: Compile
         id: compile
-        run: pnpm exec npm-run-all2 -lp core-ci-pr valid-layers-check define-class-fields-check vscode-dts-compile-check tsec-compile-check test-build-scripts check-mobile-boundary
+        run: pnpm exec npm-run-all2 -lp core-ci-pr valid-layers-check define-class-fields-check vscode-dts-compile-check tsec-compile-check typecheck-test-unit test-build-scripts check-mobile-boundary
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -590,6 +592,7 @@ jobs:
   # requests, which a broken ripple must not block (see the Check ripple step of Detect Changes).
   ripple:
     name: Ripple
+    permissions: {}
     needs: changes
     if: ${{ !cancelled() && needs.changes.outputs.ripple-changed == 'true' }}
     runs-on: *linux-runner
@@ -603,6 +606,71 @@ jobs:
             exit 1
           fi
           echo "ripple built, passed its tests and planned the tests in Detect Changes."
+
+  # Checks that the package versions that the changes add to pnpm-lock.yaml, package-lock.json and Cargo.lock come
+  # from registry.npmjs.org or crates.io, and are at least as old as the minimumReleaseAge of pnpm-workspace.yaml,
+  # unless its minimumReleaseAgeExclude lists them (see build/lib/dependencyReleaseAge.ts). It reads only public data,
+  # so that it also runs for pull requests from forks. For a merge group, it compares with the commit of the base
+  # branch that the group forks from, so that it covers the pull requests ahead of it in the queue too.
+  dependency-release-age:
+    name: Dependency Release Age
+    needs: changes
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.dependencies == 'true') }}
+    runs-on: *linux-runner
+    permissions:
+      contents: read
+    timeout-minutes: 20
+    steps:
+      - name: Checkout microsoft/vscode
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The merge commit and its first parent, the base branch.
+          fetch-depth: 2
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+
+      # The YAML parser of the check, pinned here with its integrity rather than installed from the lockfiles that the
+      # pull request may change. The version is the one of the root package.json.
+      - name: Download js-yaml
+        env:
+          JS_YAML_VERSION: 4.3.2
+          JS_YAML_INTEGRITY: sha512-SFNOvSJ+Dgf/9An904Yx+CgSlIPCkIpao4qo51lpee25TIRejdH3rhR4EZMGoNx3/TP3O+wzWuiTFl4sqbltzA==
+        run: |
+          set -e
+          mkdir -p "$RUNNER_TEMP/js-yaml"
+          cd "$RUNNER_TEMP/js-yaml"
+          curl -fsSL --retry 3 -o js-yaml.tgz "https://registry.npmjs.org/js-yaml/-/js-yaml-$JS_YAML_VERSION.tgz"
+          integrity="sha512-$(openssl dgst -sha512 -binary js-yaml.tgz | base64 -w0)"
+          if [ "$integrity" != "$JS_YAML_INTEGRITY" ]; then
+            echo "::error::js-yaml-$JS_YAML_VERSION.tgz has the integrity $integrity, not $JS_YAML_INTEGRITY."
+            exit 1
+          fi
+          tar -xzf js-yaml.tgz
+          echo "DEPENDENCY_RELEASE_AGE_JS_YAML=$RUNNER_TEMP/js-yaml/package/dist/js-yaml.mjs" >> "$GITHUB_ENV"
+
+      - name: Check the release age of the added dependencies
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MERGE_GROUP_BASE_REF: ${{ github.event.merge_group.base_ref }}
+          MERGE_GROUP_HEAD_SHA: ${{ github.event.merge_group.head_sha }}
+        run: |
+          set -e
+          base=HEAD^1
+          if [ "$GITHUB_EVENT_NAME" = merge_group ]; then
+            # The commit of the base branch that the group forks from, like Detect Changes finds it. Never the merge group
+            # ahead in the queue, which would leave out the dependencies of the pull requests ahead of this one.
+            base=$(gh api "repos/$GITHUB_REPOSITORY/compare/${MERGE_GROUP_BASE_REF#refs/heads/}...$MERGE_GROUP_HEAD_SHA" --jq .merge_base_commit.sha) || base=
+            if [ -z "$base" ]; then
+              echo "::error::Could not find the commit of $MERGE_GROUP_BASE_REF that the merge group forks from."
+              exit 1
+            fi
+            git cat-file -e "$base^{commit}" 2>/dev/null || git fetch --no-tags --depth=1 origin "$base"
+          fi
+          node build/lib/dependencyReleaseAge.ts --base "$base" --head HEAD
 
   # The test jobs below report "<OS> / <job>" checks, for example "Windows / Electron-Unit", whether
   # they run or not. Each calls the reusable workflow of its OS, whose jobs have fixed names, run on
@@ -628,7 +696,6 @@ jobs:
     # actions: read finds and downloads the workspace image (see .github/workflows/workspace_image/README.md)
     permissions:
       contents: read
-      pull-requests: read
       actions: read
     uses: ./.github/workflows/pr-linux-test.yml
     with:
@@ -639,6 +706,8 @@ jobs:
       electron_smoke_affected: ${{ needs.changes.result != 'success' || needs.changes.outputs.product-tests == 'true' }}
       browser_unit_affected: ${{ needs.changes.result != 'success' || needs.changes.outputs.selected-browser-unit-tests == 'true' }}
       browser_affected: ${{ needs.changes.result != 'success' || needs.changes.outputs.browser-integration == 'true' }}
+      # Only the merge queue runs the WebKit browser unit tests (see the Browser-Unit (WebKit) job)
+      browser_unit_webkit: ${{ github.event_name == 'merge_group' && (needs.changes.result != 'success' || needs.changes.outputs.selected-browser-unit-tests == 'true') }}
       remote_affected: ${{ needs.changes.result != 'success' || needs.changes.outputs.product-tests == 'true' }}
       # The Electron (node.js) job runs only the node.js integration tests that the plan selects, and is
       # skipped when it selects none.
@@ -686,7 +755,6 @@ jobs:
     # actions: read finds and downloads the workspace image (see .github/workflows/workspace_image/README.md)
     permissions:
       contents: read
-      pull-requests: read
       actions: read
     uses: ./.github/workflows/pr-win32-test.yml
     with:
@@ -1103,12 +1171,14 @@ jobs:
   # Every job of this workflow must be listed in needs.
   pr-gate:
     name: PR Gate
+    permissions: {}
     needs:
       - changes
       - compile
       - monaco-editor
       - telemetry
       - ripple
+      - dependency-release-age
       - linux-rust-tests
       - linux-tests
       # - macos-tests

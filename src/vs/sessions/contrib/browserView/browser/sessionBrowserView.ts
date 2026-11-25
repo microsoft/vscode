@@ -10,11 +10,12 @@ import { IWorkbenchContribution } from '../../../../workbench/common/contributio
 import { IBrowserViewWorkbenchService } from '../../../../workbench/contrib/browserView/common/browserView.js';
 import { BrowserEditorInput } from '../../../../workbench/contrib/browserView/common/browserEditorInput.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
-import { IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
+import { IEditorGroup, IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
+import { GroupIdentifier } from '../../../../workbench/common/editor.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { getFocusedSessionChatSource, IFocusedSessionHostService } from '../../../../workbench/services/sessions/browser/sessionHost.js';
+import { getFocusedSessionChatSource, getMainWindowHost, IFocusedSessionHostService, ISessionHostService } from '../../../../workbench/services/sessions/browser/sessionHost.js';
 import { ISession } from '../../../../workbench/services/sessions/common/session.js';
-import { runOnChange } from '../../../../base/common/observable.js';
+import { IObservable, runOnChange } from '../../../../base/common/observable.js';
 
 export class SessionBrowserViewController extends Disposable implements IWorkbenchContribution {
 
@@ -25,20 +26,23 @@ export class SessionBrowserViewController extends Disposable implements IWorkben
 	 * DisposableMap cleans up lifecycle listeners on deletion/disposal.
 	 */
 	private readonly _trackedInputs = this._register(new DisposableMap<string, { session: ISession; dispose: () => void }>());
+	private readonly _mainWindowSession: IObservable<ISession | undefined>;
 
 	constructor(
 		@ISessionsManagementService private readonly _sessionManagementService: ISessionsManagementService,
+		@ISessionHostService private readonly _sessionHostService: ISessionHostService,
 		@IFocusedSessionHostService private readonly _focusedSessionHostService: IFocusedSessionHostService,
 		@IBrowserViewWorkbenchService private readonly _browserViewService: IBrowserViewWorkbenchService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
 	) {
 		super();
+		this._mainWindowSession = getMainWindowHost(this._sessionHostService).session;
 
 		// Catch editors opened via normal user/tool actions.
 		this._register(this._editorService.onWillOpenEditor(e => {
 			if (e.editor instanceof BrowserEditorInput) {
-				this._attachLifecycle(e.editor);
+				this._attachLifecycle(e.editor, e.groupId);
 			}
 		}));
 
@@ -48,7 +52,7 @@ export class SessionBrowserViewController extends Disposable implements IWorkben
 		this._register(this._editorGroupsService.onDidAddGroup(group => {
 			for (const editor of group.editors) {
 				if (editor instanceof BrowserEditorInput) {
-					this._attachLifecycle(editor);
+					this._attachLifecycle(editor, group);
 				}
 			}
 		}));
@@ -81,11 +85,8 @@ export class SessionBrowserViewController extends Disposable implements IWorkben
 					return true; // no owning session known; open in the active session
 				}
 				const owningSession = resolveBrowserOwnerSession(this._sessionManagementService, owner.sessionId)?.session;
-				if (!owningSession) {
-					return true; // owning chat/session no longer known; open in the active session
-				}
-				const activeSession = this._focusedSessionHostService.focusedHost.read(undefined).session.read(undefined);
-				return owningSession.sessionId === activeSession?.sessionId;
+				const activeSession = this._mainWindowSession.get();
+				return !!owningSession && owningSession.sessionId === activeSession?.sessionId;
 			},
 		}));
 
@@ -108,12 +109,16 @@ export class SessionBrowserViewController extends Disposable implements IWorkben
 		}));
 	}
 
-	private _attachLifecycle(input: BrowserEditorInput): void {
+	private _attachLifecycle(input: BrowserEditorInput, group: IEditorGroup | GroupIdentifier): void {
 		if (this._trackedInputs.has(input.id)) {
 			return;
 		}
 
-		const session = this._focusedSessionHostService.focusedHost.read(undefined).session.read(undefined);
+		const owner = input.model?.owner;
+		const host = this._sessionHostService.getHostOfGroup(group);
+		const session = owner?.type === 'agent'
+			? resolveBrowserOwnerSession(this._sessionManagementService, owner.sessionId)?.session
+			: host?.session.get();
 		if (!session) {
 			return; // no session, no lifecycle management needed
 		}
@@ -129,7 +134,7 @@ export class SessionBrowserViewController extends Disposable implements IWorkben
 		}));
 
 		store.add(input.onBeforeDispose(e => {
-			const activeSession = this._focusedSessionHostService.focusedHost.read(undefined).session.read(undefined);
+			const activeSession = host?.session.get();
 
 			// If the input is being disposed, but we are not currently in the owning session,
 			// assume a session swap is happening and do not actually dispose the browser yet.

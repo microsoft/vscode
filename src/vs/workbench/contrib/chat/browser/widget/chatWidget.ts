@@ -77,6 +77,7 @@ import { ChatRequestQueueKind, ChatSendResult, ChatSendResultSent, IChatLocation
 import { getChatSessionTelemetryContext } from '../../common/chatService/chatServiceTelemetry.js';
 import { getAgentHostProviderForTelemetry, IChatSessionsService, isAgentHostTarget, localChatSessionType } from '../../common/chatSessionsService.js';
 import { IChatSessionHistoryStatus } from '../../../../../platform/chat/common/chatSessionHistory.js';
+import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId, getChatSessionArchiveActionWording } from '../../../../../platform/chat/common/sessionArchiveActions.js';
 import { IAgentHostPolicyContinuationService } from '../agentSessions/agentHost/agentHostPolicyContinuation.js';
 import { logLocalChatMigrationOffered, type LocalChatMigrationTrigger } from '../agentSessions/agentHost/localChatMigrationTelemetry.js';
 import { IChatSlashCommandService } from '../../common/participants/chatSlashCommands.js';
@@ -112,6 +113,7 @@ import { ChatListWidget } from './chatListWidget.js';
 import { ChatFindWidget, IChatFindHost } from './chatFind/chatFindWidget.js';
 import { ChatEditorOptions, SESSIONS_CHAT_CONTENT_HORIZONTAL_PADDING } from './chatOptions.js';
 import { ChatViewWelcomePart, IChatViewWelcomeContent } from '../viewsWelcome/chatViewWelcomeController.js';
+import { chatWelcomeContentRegistry } from '../viewsWelcome/chatWelcomeContent.js';
 import { ChatCustomizationMigrationNotice, IChatCustomizationMigrationNoticeContext } from '../aiCustomization/chatCustomizationMigrationNotice.js';
 import { hasImmutablePrimaryWorkingDirectory, resolveFolderPickerDecisionUpdate, IAgentHostNewSessionFolderService } from '../agentSessions/agentHost/agentHostNewSessionFolderService.js';
 import { IAgentHostCustomizationService } from '../agentSessions/agentHost/agentHostCustomizationService.js';
@@ -120,10 +122,11 @@ import { ChatInputTipPresenter } from './input/chatInputTipPresenter.js';
 import { ChatProgressSubPart } from './chatContentParts/chatProgressContentPart.js';
 import { animateChatProgress } from './chatProgressAnimation.js';
 import { IAgentSessionsService } from '../agentSessions/agentSessionsService.js';
+import { isAgentSessionChild } from '../agentSessions/agentSessionsModel.js';
 import { IChatDebugService } from '../../common/chatDebugService.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
 import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
-import { CHAT_READ_ONLY_BANNER_HEIGHT, ChatReadOnlyBanner } from './chatReadOnlyBanner.js';
+import { CHAT_READ_ONLY_BANNER_HEIGHT, ChatReadOnlyBanner, getArchivedChatReadOnlyBannerContent, IChatReadOnlyBannerContent } from './chatReadOnlyBanner.js';
 import { ChatSubmitRequestOutcome, IChatSubmitRequestHandlerService, IChatSubmitRequestResult } from '../chatSubmitRequestHandlerService.js';
 import { getChatPetListPadding, IChatPetPlatformOccupation } from './chatPetWidget.js';
 import { IChatPetWidgetService } from './chatPetWidgetService.js';
@@ -223,6 +226,14 @@ export async function acceptAndAwaitSentRequest(result: ChatSendResult, onReques
 
 	const sent = ChatSendResult.isQueued(result) ? await result.deferred : result;
 	return ChatSendResult.isSent(sent) ? sent : undefined;
+}
+
+/**
+ * Whether the last request waits on an unanswered question, such as one asked with the ask questions tool.
+ * MCP form elicitations are not questions here: like tool confirmations, a new message cancels them.
+ */
+function hasUnansweredQuestion(model: IChatModel): boolean {
+	return !!model.lastRequest?.response?.response.value.some(part => part.kind === 'questionCarousel' && !part.isUsed && part.source?.type !== 'mcp');
 }
 
 export function shouldUnlockChatPetRequestRevision(isEditing: boolean, isUserQuery: boolean): boolean {
@@ -462,8 +473,13 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private windowBlurListener: ChatWindowBlurListener | undefined;
 	private editorOptions!: ChatEditorOptions;
 	private readonly readOnlyBanner: ChatReadOnlyBanner | undefined;
+	/** The banner message of a chat that is read-only for no more specific reason. */
+	private readonly readOnlyBannerMessage: string;
+	private readonly archiveActionWording: IObservable<ChatSessionArchiveActionWording>;
 	private readonly policyRequiresAgentHost: IObservable<boolean>;
 	private policyReadOnly = false;
+	/** Whether the shown chat is read-only because it or its session is archived. */
+	private archivedReadOnly = false;
 	/** Local chats this view has reported as offered to be moved, each once. */
 	private _reportedMigrationOffers: ResourceSet | undefined;
 
@@ -479,6 +495,14 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private _scheduledRequestEdit: { id: string; state: IChatScheduledRequestEditing } | undefined;
 
 	private welcomeMessageContainer!: HTMLElement;
+	/** Content that contributions show in the center of the empty Chat, below the welcome message. */
+	private readonly welcomeContentContainer = $('.chat-welcome-content');
+	/** Below the content, as tall as the view above the widget, so the content centers on the whole view. */
+	private readonly welcomeContentSpacer = $('.chat-welcome-content-spacer');
+	private readonly _welcomeShown = observableValue(this, false);
+	private readonly _welcomeContentHeight = observableValue(this, 0);
+	/** Height of the content that contributions show in the center of the empty Chat, 0 when there is none. */
+	readonly welcomeContentHeight: IObservable<number> = this._welcomeContentHeight;
 	private readonly welcomePart: MutableDisposable<ChatViewWelcomePart> = this._register(new MutableDisposable());
 
 	private readonly _gettingStartedTip = this._register(new MutableDisposable<ChatInputTipPresenter>());
@@ -508,6 +532,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	readonly inputVisible: IObservable<boolean> = this._inputVisibleObs;
 
 	private _instructionFilesCheckPromise: Promise<boolean> | undefined;
+	/** The selected custom agent's `welcome-message`, shown as the welcome while the chat is empty. */
+	private _agentEmptyChatMessage: { readonly agentName: string; readonly markdown: IMarkdownString } | undefined;
 	private _instructionFilesExist: boolean | undefined;
 
 	private _isRenderingWelcome = false;
@@ -573,6 +599,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.viewModelDisposables.clear();
 
 		this._viewModel = viewModel;
+		// The list must never keep the disposed view model: it still lists its chat's live pending requests.
+		this.listWidget.setViewModel(viewModel);
 		this._requestActiveForStateIndicator = false;
 		this._hasUnvisitedCompletion = false;
 		if (viewModel) {
@@ -706,12 +734,13 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			Event.filter(configurationService.onDidChangeConfiguration, event => event.affectsConfiguration(ChatConfiguration.TemporaryDefaultToLocalHarness)),
 		), () => requiresCopilotAgentHost(managedSettingsService, configurationService));
 
-		this.readOnlyBanner = viewOptions.isSessionsWindow
-			? undefined
-			: this._register(instantiationService.createInstance(
-				ChatReadOnlyBanner,
-				viewOptions.readOnlyBannerAtTop ? localize('chatReadOnlyBanner.message', "This chat is read-only") : undefined,
-			));
+		this.readOnlyBanner = viewOptions.isSessionsWindow ? undefined : this._register(instantiationService.createInstance(ChatReadOnlyBanner));
+		this.readOnlyBannerMessage = viewOptions.readOnlyBannerAtTop
+			? localize('chatReadOnlyBanner.message', "This chat is read-only")
+			: localize('chatReadOnlyBanner.archivedMessage', "Archived sessions are read-only.");
+		this.archiveActionWording = observableFromEvent(this,
+			Event.filter(configurationService.onDidChangeConfiguration, event => event.affectsConfiguration(ChatSessionArchiveActionWordingSettingId)),
+			() => getChatSessionArchiveActionWording(configurationService));
 		this._lockedToCodingAgentContextKey = ChatContextKeys.lockedToCodingAgent.bindTo(this.contextKeyService);
 		this._lockedCodingAgentIdContextKey = ChatContextKeys.lockedCodingAgentId.bindTo(this.contextKeyService);
 		this._readOnlyContextKey = ChatContextKeys.readOnly.bindTo(this.contextKeyService);
@@ -1223,7 +1252,13 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.editorOverflowWidgetsDomNode = this.editorOverflowWidgetsHost.element;
 		}
 		this.welcomeMessageContainer = dom.append(this.container, $('.chat-welcome-view-container', { style: 'display: none' }));
-		this._register(dom.addStandardDisposableListener(this.welcomeMessageContainer, dom.EventType.CLICK, () => this.focusInput()));
+		this._register(dom.addStandardDisposableListener(this.welcomeMessageContainer, dom.EventType.CLICK, e => {
+			// The contributed content has its own actions
+			if (!dom.isAncestor(e.target, this.welcomeContentContainer)) {
+				this.focusInput();
+			}
+		}));
+		this.renderWelcomeContent();
 
 		this._register(this.chatSuggestNextWidget.onDidChangeHeight(() => {
 			if (this.bodyDimension) {
@@ -1291,8 +1326,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (this.viewOptions.enableFind) {
 			const host: IChatFindHost = {
 				transcriptDomNode: this.listWidget.domNode,
+				activeModel: this._viewModelObs.map(viewModel => viewModel?.model),
+				transcriptVisible: this._visible,
 				getItems: () => this.viewModel?.getItems() ?? [],
 				onDidChangeContent: this._onDidChangeFindableContent.event,
+				hasElement: item => this.listWidget.hasElement(item),
 				reveal: (item, relativeTop) => this.reveal(item, relativeTop),
 				getTemplateDataForRequestId: (requestId) => this.getTemplateDataForRequestId(requestId),
 				onDidRerenderRow: this.onDidRerenderRow,
@@ -1584,6 +1622,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			// Update list widget state and refresh
 			this.listWidget.setVisibleChangeCount(this.visibleChangeCount);
 			this.listWidget.refresh(changes);
+			this._onDidChangeFindableContent.fire();
 
 			if (this._pendingFirstRenderSessionResource && this.viewModel && isEqual(this.viewModel.sessionResource, this._pendingFirstRenderSessionResource)) {
 				this._pendingFirstRenderSessionResource = undefined;
@@ -1611,6 +1650,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (showWelcome !== undefined) {
 			dom.setVisibility(showWelcome, this.welcomeMessageContainer);
 			dom.setVisibility(!showWelcome, this.listContainer);
+			this._welcomeShown.set(showWelcome, undefined);
 
 			// Re-evaluate the getting-started tip. When the empty state goes away the
 			// presenter drops the cached tip so the next empty state picks a fresh
@@ -1756,10 +1796,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 						welcomeContent,
 						{
 							location: this.location,
-							isWidgetAgentWelcomeViewContent: this.input?.currentModeKind === ChatModeKind.Agent
+							isWidgetAgentWelcomeViewContent: this.input?.currentModeKind === ChatModeKind.Agent,
+							// An agent's message offers its first (command) link as a button.
+							firstLinkToButton: !!this._agentEmptyChatMessage,
 						}
 					);
-					dom.append(this.welcomeMessageContainer, this.welcomePart.value.element);
+					dom.append(this.welcomeMessageContainer, this.welcomePart.value.element, this.welcomeContentContainer, this.welcomeContentSpacer);
 				}
 			}
 
@@ -1769,8 +1811,59 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 	}
 
+	/**
+	 * Centers the content in the center of the empty Chat on the whole view that
+	 * hosts this widget, when the view shows more above the widget, such as sessions.
+	 * The content moves down instead of overlapping what is above it.
+	 * @param offset The height of the view above this widget.
+	 */
+	setWelcomeContentOffset(offset: number): void {
+		this.welcomeContentSpacer.style.flexBasis = `${Math.max(0, offset)}px`;
+	}
+
+	private renderWelcomeContent(): void {
+		if (this.viewOptions.renderStyle === 'compact' || this.viewOptions.renderStyle === 'minimal') {
+			return;
+		}
+		const store = this._register(new DisposableStore());
+		const visible = derived(this, reader => this._visible.read(reader) && this._welcomeShown.read(reader));
+		const render = () => {
+			store.clear();
+			dom.clearNode(this.welcomeContentContainer);
+			for (const contribution of chatWelcomeContentRegistry.get()) {
+				const container = dom.append(this.welcomeContentContainer, $('.chat-welcome-content-item'));
+				store.add(contribution.render(container, { widget: this, visible }));
+			}
+		};
+		render();
+		this._register(chatWelcomeContentRegistry.onDidChange(render));
+
+		// Contributions render when their content applies, so the size tells whether there is any
+		const observer = this._register(new dom.DisposableResizeObserver('chatWelcomeContent', () => this._welcomeContentHeight.set(this.welcomeContentContainer.offsetHeight, undefined), dom.getWindow(this.container)));
+		this._register(observer.observe(this.welcomeContentContainer));
+	}
+
 	private renderGettingStartedTipIfNeeded(): void {
 		this._gettingStartedTip.value?.update();
+	}
+
+	private _observeAgentEmptyChatMessage(input: ChatInputPart): IDisposable {
+		return autorun(reader => {
+			const mode = input.currentModeObs.read(reader);
+			const name = mode.name.read(reader);
+			const message = mode.isBuiltin ? undefined : mode.welcomeMessage?.read(reader);
+			this._updateAgentEmptyChatMessage(name, message?.trim() ? message : undefined);
+		});
+	}
+
+	private _updateAgentEmptyChatMessage(agentName: string, text: string | undefined): void {
+		const current = this._agentEmptyChatMessage;
+		if (text === current?.markdown.value && (!current || agentName === current.agentName)) {
+			return;
+		}
+		this._agentEmptyChatMessage = text ? { agentName, markdown: new MarkdownString(text, { isTrusted: true, supportThemeIcons: true }) } : undefined;
+		this.welcomeMessageContainer?.classList.toggle('chat-agent-empty-chat-message', !!this._agentEmptyChatMessage);
+		this.renderWelcomeViewContentIfNeeded();
 	}
 
 	updateGettingStartedTip(): void {
@@ -1852,6 +1945,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	private getWelcomeViewContent(additionalMessage: string | IMarkdownString | undefined): IChatViewWelcomeContent {
+		if (this._agentEmptyChatMessage) {
+			return { title: this._agentEmptyChatMessage.agentName, message: this._agentEmptyChatMessage.markdown, icon: Codicon.chatSparkle };
+		}
 		if (this.isLockedToCodingAgent && !this._lockedAgent?.agentHostProviderId) {
 			// Check for provider-specific customizations from chat sessions service
 			const contribution = this._lockedAgent ? this.chatSessionsService.getChatSessionContribution(this._lockedAgent.id) : undefined;
@@ -2206,25 +2302,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		} else if (wasReadOnly) {
 			this.renderChatSuggestNextWidget();
 		}
-		this.readOnlyBanner?.setMessage(this.policyReadOnly
-			? localize('chatReadOnlyBanner.managedPolicy', "This chat is read-only because your organization requires the new Copilot experience.")
-			: historyStatus?.message);
-		const resource = this.viewModel?.sessionResource;
-		const hasRequests = this.viewModel?.model.hasRequests;
-		const canMove = this.policyReadOnly && hasRequests && this._agentHostService.supportsConversationImport;
-		this.readOnlyBanner?.setAction(this.policyReadOnly && resource ? {
-			label: !hasRequests
-				? localize('chatReadOnlyBanner.newCopilot', "New Copilot Chat")
-				: canMove
-					? localize('chatReadOnlyBanner.continueInCopilot', "Move to Copilot")
-					: localize('chatReadOnlyBanner.continueWithTranscript', "Continue in Copilot"),
-			tooltip: !hasRequests
-				? localize('chatReadOnlyBanner.newDescription', "Start a new Copilot chat with your draft. Nothing will be sent automatically.")
-				: canMove
-					? localize('chatReadOnlyBanner.continueDescription', "Keep your conversation and draft in Copilot, then archive this chat. Nothing will be sent automatically.")
-					: localize('chatReadOnlyBanner.continueWithTranscriptDescription', "Start a new Copilot chat with this conversation attached as context and your draft. This chat stays available. Nothing will be sent automatically."),
-			run: () => this.moveLocalChatToCopilot(resource, 'manual'),
-		} : historyStatus?.action);
+		this.readOnlyBanner?.setContent(this.getReadOnlyBannerContent(historyStatus));
 		const wasBannerVisible = this.readOnlyBanner?.visible;
 		this.readOnlyBanner?.setVisible(readOnly && (!keepInputVisible || !!historyStatus));
 		const inputVisible = !readOnly || keepInputVisible;
@@ -2266,6 +2344,56 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 	}
 
+	private getReadOnlyBannerContent(historyStatus: IChatSessionHistoryStatus | undefined): IChatReadOnlyBannerContent {
+		const resource = this.viewModel?.sessionResource;
+		if (this.policyReadOnly) {
+			const message = localize('chatReadOnlyBanner.managedPolicy', "This chat is read-only because your organization requires the new Copilot experience.");
+			if (!resource) {
+				return { message, action: historyStatus?.action };
+			}
+			const hasRequests = this.viewModel?.model.hasRequests;
+			const canMove = hasRequests && this._agentHostService.supportsConversationImport;
+			return {
+				message,
+				action: {
+					label: !hasRequests
+						? localize('chatReadOnlyBanner.newCopilot', "New Copilot Chat")
+						: canMove
+							? localize('chatReadOnlyBanner.continueInCopilot', "Move to Copilot")
+							: localize('chatReadOnlyBanner.continueWithTranscript', "Continue in Copilot"),
+					tooltip: !hasRequests
+						? localize('chatReadOnlyBanner.newDescription', "Start a new Copilot chat with your draft. Nothing will be sent automatically.")
+						: canMove
+							? localize('chatReadOnlyBanner.continueDescription', "Keep your conversation and draft in Copilot, then archive this chat. Nothing will be sent automatically.")
+							: localize('chatReadOnlyBanner.continueWithTranscriptDescription', "Start a new Copilot chat with this conversation attached as context and your draft. This chat stays available. Nothing will be sent automatically."),
+					run: () => this.moveLocalChatToCopilot(resource, 'manual'),
+				},
+			};
+		}
+		if (this.archivedReadOnly && resource) {
+			const archived = getArchivedChatReadOnlyBannerContent(this.archiveActionWording.get(), () => this.restoreArchivedSession(resource));
+			// Like the Agents window, keep history recovery available beside the restore action.
+			return historyStatus?.kind === 'history' ? {
+				message: localize('chatReadOnlyBanner.historyArchived', "{0} {1}", historyStatus.message, archived.message),
+				action: historyStatus.action,
+				secondaryAction: archived.action,
+			} : archived;
+		}
+		return { message: historyStatus?.message ?? this.readOnlyBannerMessage, action: historyStatus?.action };
+	}
+
+	/**
+	 * Restores the archived Agent Host session that owns the shown chat. Like the Agents window, an archived chat
+	 * of a session that is not archived is restored on its own, and keeps its own archived state otherwise.
+	 */
+	private restoreArchivedSession(sessionResource: URI): void {
+		const owner = this.agentSessionsService.getSession(getAgentHostSessionResource(sessionResource));
+		const session = owner?.isArchived() ? owner : this.agentSessionsService.getSession(sessionResource);
+		if (session?.isArchived() && (!isAgentSessionChild(session) || session.canArchive === true)) {
+			session.setArchived(false);
+		}
+	}
+
 	private observeSessionArchived(model: IChatModel): IObservable<boolean> {
 		const agentHost = isAgentHostTarget(getChatSessionType(model.sessionResource));
 		return isLocalChatSessionSubjectToManagedPolicy(model.sessionResource, model.initialLocation) || agentHost
@@ -2285,7 +2413,13 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private updateReadOnlyState(model: IChatModel, archived: boolean, reader: IReader): void {
 		const policyRequired = this.isPolicyRequired(model, reader);
 		this.policyReadOnly = this.isPolicyReadOnly(policyRequired, archived);
-		const readOnly = model.isReadOnly.read(reader) || policyRequired || (archived && isAgentHostTarget(getChatSessionType(model.sessionResource)));
+		// Archiving makes an Agent Host chat read-only, which restoring its session undoes.
+		this.archivedReadOnly = archived && isAgentHostTarget(getChatSessionType(model.sessionResource));
+		if (this.archivedReadOnly && this.readOnlyBanner) {
+			// The banner labels its restore action with the configured archive wording.
+			this.archiveActionWording.read(reader);
+		}
+		const readOnly = model.isReadOnly.read(reader) || policyRequired || this.archivedReadOnly;
 		this.setReadOnly(readOnly, !policyRequired && !archived && model.isInputBlocked.read(reader), model.historyStatus?.read(reader));
 	}
 
@@ -2352,7 +2486,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				attempted = true;
 				const movingMessage = localize('chatReadOnlyBanner.movingToCopilot', "Moving this chat to Copilot…");
 				if (this.readOnlyBanner) {
-					this.readOnlyBanner.setMessage(movingMessage);
+					this.readOnlyBanner.setContent({ ...this.readOnlyBanner.content, message: movingMessage });
 				} else {
 					status(movingMessage);
 				}
@@ -2380,7 +2514,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 								? localize('chatReadOnlyBanner.continueFailed', "Couldn't move this chat to Copilot. Use Continue in Copilot to try again.")
 								: localize('chatReadOnlyBanner.moveFailed', "Couldn't move this chat to Copilot. Use Move to Copilot to try again.");
 							if (this.readOnlyBanner) {
-								this.readOnlyBanner.setMessage(failedMessage);
+								this.readOnlyBanner.setContent({ ...this.readOnlyBanner.content, message: failedMessage });
 							} else {
 								status(failedMessage);
 							}
@@ -2911,9 +3045,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const isInput = this.configurationService.getValue<string>('chat.editRequests') === 'input';
 
 		if (!isInput) {
-			// The inline editor is self-contained: it shows the model its request ran on, submits
-			// with it (see `acceptInput`, which reads the model from here before this runs), and
-			// disappears. The bottom input keeps whatever the user left it on.
 			this.inputPart?.toggleChatInputOverlay(false);
 			this.disposeInlineInput();
 		}
@@ -3160,6 +3291,14 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.renderFollowups();
 			this.renderChatSuggestNextWidget();
 		}));
+		// Also when the selected agent's file changes its `argument-hint` in place.
+		store.add(autorun(reader => {
+			input.currentModeObs.read(reader).argumentHint?.read(reader);
+			this._applyInputPlaceholder();
+		}));
+		if (!isInlineEdit) {
+			store.add(this._observeAgentEmptyChatMessage(input));
+		}
 		const foregroundSessionCountContextKeys = new Set([ChatContextKeys.foregroundSessionCount.key]);
 		const hasByokModelsContextKeys = new Set([ChatEntitlementContextKeys.hasByokModels.key]);
 		store.add(this.contextKeyService.onDidChangeContext(e => {
@@ -3330,6 +3469,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this._chatSessionSupportsRenameContextKey.set(false);
 			if (!this.viewOptions.isSessionsWindow) {
 				this.policyReadOnly = false;
+				this.archivedReadOnly = false;
 				this.setReadOnly(false);
 			}
 			this.inputPart.refreshToolbars();
@@ -3376,7 +3516,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 		this.viewModelDisposables.add(this.autoMigratePolicySession(model, archived));
 
-		this.listWidget.setViewModel(this.viewModel);
 		CloudSandboxSessionTrace.get(model)?.record('widgetBound');
 		this.chatOpenDiagnosticsService.mark(model.sessionResource, 'modelAttached');
 		// Armed only once the list is bound, so a render triggered while the
@@ -3405,7 +3544,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			if (events?.some(e => e?.kind === 'addRequest') && this.visible && !this.listWidget.isAutoScrollHeld) {
 				this.listWidget.scrollToEnd();
 			}
-			this._onDidChangeFindableContent.fire();
 		})));
 		this.viewModelDisposables.add(this.viewModel.onDidDisposeModel(() => {
 			// Ensure that view state is saved here, because we will load it again when a new model is assigned
@@ -3443,9 +3581,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				this._updateAgentCapabilitiesContextKeys(e.agent);
 			}
 			if (e.kind === 'addRequest') {
-				this.inputPart?.clearTodoListWidget(this.viewModel?.sessionResource, false);
 				this._sessionIsEmptyContextKey.set(false);
-				this.chatSuggestNextWidget.hide();
+				if (e.index === undefined) {
+					this.inputPart?.clearTodoListWidget(this.viewModel?.sessionResource, false);
+					this.chatSuggestNextWidget.hide();
+				}
 			}
 			// Hide widget on request removal
 			if (e.kind === 'removeRequest') {
@@ -3600,6 +3740,13 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		} else if (this._lockedAgent) {
 			placeholder = this.chatSessionsService.getChatSessionContribution(this._lockedAgent.id)?.inputPlaceholder
 				|| localize('chat.input.placeholder.lockedToAgent', "Chat with {0}", this._lockedAgent.displayName || this._lockedAgent.name);
+		}
+		// The selected agent's own hint (`argument-hint`) is more specific; it is not the session's, so it stays out of the view model.
+		const argumentHint = this.input.currentModeObs.get().argumentHint?.get();
+		if (argumentHint) {
+			this._updateInputPlaceholder(argumentHint);
+			this._appliedInputPlaceholder = true;
+			return;
 		}
 		// Routed through `_updateInputPlaceholder`, so a host-supplied placeholder still wins.
 		if (placeholder) {
@@ -4182,13 +4329,22 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (await this._executeSlashCommandDuringRequest(requestInputs.input, { attachedContext }, isUserQuery, options.preserveFocus, forkPromptSourceInput?.clear)) {
 			return;
 		}
-		const isEditing = this.viewModel?.editing;
+		const editingViewModel = this.viewModel;
+		const isEditing = editingViewModel.editing;
 		const submittedFromEditing = shouldUnlockChatPetRequestRevision(isEditing !== undefined, isUserQuery);
-		// Captured before `finishedEditing` tears the inline editor down, while `this.input` still
-		// resolves to it. The inline editor owns the model and mode for a resubmit — those are the
-		// pickers the user actually chose in — so these stay authoritative over the bottom input.
+		// Capture the inline pickers before `finishedEditing` tears them down.
 		const isInlineEdit = isEditing && this.configurationService.getValue<string>('chat.editRequests') !== 'input';
 		const editedModelRequestOptions = isInlineEdit ? this.getSelectedModelRequestOptions() : undefined;
+		const editedModelId = editedModelRequestOptions?.userSelectedModelId;
+		const modelToKeep = isUserQuery && !options.preserveInput && editedModelId && isEditing
+			&& isEditing.pendingKind === undefined && editedModelId !== isEditing.modelId && this.input.hasUserSelectedModel
+			? {
+				id: editedModelId,
+				configuration: editedModelRequestOptions?.userSelectedModelConfiguration,
+				previousComposerModelId: this.inputPart.currentLanguageModel,
+				composerModelSelectionRevision: this.inputPart.modelSelectionRevision,
+			}
+			: undefined;
 		const editedModeKind = isInlineEdit ? this.input.currentModeKind : undefined;
 		const editedModeInfo = isInlineEdit ? this.input.currentModeInfo : undefined;
 		// Tools and instruction routing belong to the mode, so they come from the same editor at the
@@ -4237,13 +4393,18 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			options.queue = undefined;
 		}
 		const requestInProgress = model.requestInProgress.get();
-		// Cancel the request if the user chooses to take a different path.
-		// This is a bit of a heuristic for the common case of tool confirmation+reroute.
-		// But we don't do this if there are queued messages, because we would either
-		// discard them or need a prompt (as in `confirmPendingRequestsBeforeSend`)
-		// which could be a surprising behavior if the user finishes typing a steering
-		// request just as confirmation is triggered.
-		if (!options.cancelCurrentRequest && model.requestNeedsInput.get() && !model.getPendingRequests().length) {
+		const requestNeedsInput = !options.cancelCurrentRequest && !!model.requestNeedsInput.get();
+		if (requestNeedsInput && hasUnansweredQuestion(model)) {
+			// An open question stays open: the message waits in the queue until the
+			// question is answered and the request completes.
+			options.queue ??= ChatRequestQueueKind.Queued;
+		} else if (requestNeedsInput && !model.getPendingRequests().length) {
+			// Cancel the request if the user chooses to take a different path.
+			// This is a bit of a heuristic for the common case of tool confirmation+reroute.
+			// But we don't do this if there are queued messages, because we would either
+			// discard them or need a prompt (as in `confirmPendingRequestsBeforeSend`)
+			// which could be a surprising behavior if the user finishes typing a steering
+			// request just as confirmation is triggered.
 			await this.chatService.cancelCurrentRequestForSession(this.viewModel.sessionResource, 'acceptInput-needsInput');
 			options.queue ??= ChatRequestQueueKind.Queued;
 		}
@@ -4379,6 +4540,14 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				}
 			}
 			return;
+		}
+
+		if (modelToKeep && !this._store.isDisposed && this.viewModel === editingViewModel && !this.viewModel.editing
+			&& this.inputPart.currentLanguageModel === modelToKeep.previousComposerModelId
+			&& this.inputPart.modelSelectionRevision === modelToKeep.composerModelSelectionRevision) {
+			if (!this.inputPart.switchModelByIdentifier(modelToKeep.id, false, true, modelToKeep.configuration)) {
+				this.logService.debug('[ChatWidget] The model chosen for the revised request is no longer selectable in the composer');
+			}
 		}
 
 		this.logThinkingStyleUsage('submit');

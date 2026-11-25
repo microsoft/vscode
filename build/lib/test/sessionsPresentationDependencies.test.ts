@@ -225,7 +225,7 @@ suite('Sessions presentation entry isolation', () => {
 				'src/vs/workbench/contrib/chat/browser/attachments/defaultChatAttachmentWidgetRegistry.ts',
 				'src/vs/workbench/contrib/chat/browser/actions/chatScreenshotContextPicker.ts',
 			];
-			const experimental = ['mobileChatEditPresenter.ts', 'mobileSessionsListPresentation.ts', 'mobileClipboardImageContext.ts', 'mobileChatViewFactory.ts'].map(file => mobilePresentationRoot + file);
+			const experimental = ['mobileChatEditPresenter.ts', 'mobileSessionsListPresentation.ts', 'mobileAttachmentContext.ts', 'mobileChatViewFactory.ts'].map(file => mobilePresentationRoot + file);
 			const registrations = [
 				defaultChatPresentation, defaultSessionsRegistrations, mobilePresentationRoot + 'mobile.contribution.ts',
 				'src/vs/workbench/contrib/chat/browser/chat.shared.contribution.ts',
@@ -255,12 +255,12 @@ suite('Sessions presentation entry isolation', () => {
 			assert.deepStrictEqual(contributions.filter(file => dependencies.has(file)), contributions);
 		});
 
-		test(`${entry} keeps clipboard registration outside the restore-blocking phase`, () => {
+		test(`${entry} keeps attachment context registration outside the restore-blocking phase`, () => {
 			const file = entry.includes('.mobile.')
-				? mobilePresentationRoot + 'mobileClipboardImageContext.ts'
+				? mobilePresentationRoot + 'mobileAttachmentContext.ts'
 				: defaultChatPresentation;
 			assert.match(fs.readFileSync(path.join(repositoryRoot, file), 'utf8'),
-				/registerWorkbenchContribution2\('chat\.(?:mobileClipboardImageContext|clipboardImageContext)', \w+, WorkbenchPhase\.AfterRestored\);/);
+				/registerWorkbenchContribution2\('chat\.(?:mobileAttachmentContext|attachmentContext)', \w+, WorkbenchPhase\.AfterRestored\);/);
 		});
 
 		test(`${entry} includes redesigned input and edit rendering only for the mobile entry`, () => {
@@ -353,7 +353,6 @@ function isMobileEntryFile(file: string): boolean {
 			mobileConfigurationPresenter,
 			mobileInputButton,
 			hostPickerRoot + 'mobileAgentHostFilterService.ts',
-			hostPickerRoot + 'mobileTunnelConnection.ts',
 		].includes(file);
 }
 

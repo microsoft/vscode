@@ -156,6 +156,12 @@ export interface IAutomationDescriptor {
 	/** Host-owned conditions; only end dates can be authored by this client. */
 	readonly disableConditions?: readonly AutomationDisableCondition[];
 
+	/**
+	 * Whether every run sends its prompt in the session of the previous run instead of a new session. `undefined` keeps
+	 * the current choice when updating.
+	 */
+	readonly continueSession?: boolean;
+
 	/** ISO-8601 UTC timestamp. */
 	readonly createdAt: string;
 	readonly updatedAt: string;
@@ -187,6 +193,8 @@ export interface IAutomationRun {
 	/** Opaque identifier, unique across concrete providers and historical archives. */
 	readonly id: string;
 	readonly automationId: string;
+	/** Preserves scheduled-chat provenance after the definition is removed. */
+	readonly purpose?: 'scheduledChat';
 	readonly status: AutomationRunStatus;
 	readonly trigger: AutomationRunTrigger;
 

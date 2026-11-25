@@ -6,32 +6,11 @@
 import type { Diagnostic, Uri } from 'vscode';
 import {
 	CancellationToken,
-	Disposable,
 	DocumentSelector,
 	DocumentUri,
 	Position,
 	TextEdit,
 } from 'vscode-languageserver-protocol';
-
-/**
- * The ContextProvider API allows extensions to provide additional context items that
- * Copilot can use in its prompt. This file contains type definitions for the methods
- * and the data structures used by the API.
- *
- * Note: providing context is not enough to ensure that the context will be used in the prompt.
- *
- * The API is exposed as an export of the Copilot extension. To use it, you can cast the
- * exported object to the ContextProviderApiV1 interface.
- *
- * Example:
- * ```
- * const copilot = vscode.extensions.getExtension("github.copilot");
- * const contextProviderAPI = copilot.exports.getContextProviderAPI("v1") as ContextProviderApiV1;
- * ```
- */
-export interface ContextProviderApiV1 {
-	registerContextProvider<T extends SupportedContextItem>(provider: ContextProvider<T>): Disposable;
-}
 
 /**
  * Each extension can register a number of context providers, uniquely identified by their ID.

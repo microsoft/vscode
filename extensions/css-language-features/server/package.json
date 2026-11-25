@@ -12,21 +12,18 @@
   "browser": "./dist/browser/cssServerMain",
   "dependencies": {
     "@vscode/l10n": "^0.0.18",
-    "vscode-css-languageservice": "^7.0.0-next.2",
-    "vscode-languageserver": "^10.1.1",
+    "vscode-css-languageservice": "^7.0.0-next.4",
+    "vscode-languageserver": "^11.0.0",
     "vscode-uri": "^3.2.0"
   },
   "devDependencies": {
     "@types/node": "24.x",
-    "glob": "^5.0.13"
+    "glob": "^14.0.6"
   },
   "scripts": {
     "compile": "gulp compile-extension:css-language-features-server",
     "watch": "gulp watch-extension:css-language-features-server",
-    "install-service-next": "pnpm add vscode-css-languageservice@next",
-    "install-service-local": "pnpm link ../../../../vscode-css-languageservice",
-    "install-server-next": "pnpm add vscode-languageserver@next",
-    "install-server-local": "pnpm add vscode-languageserver",
+    "update-dependencies": "pnpm install vscode-languageserver@latest && pnpm install vscode-css-languageservice@next",
     "test": "node ./test/index.js"
   }
 }

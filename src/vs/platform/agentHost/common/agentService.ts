@@ -160,7 +160,7 @@ export const AgentHostSystemProxyEnabledSettingId = 'chat.agentHost.systemProxy.
 /** Configuration key controlling the GitHub MCP server in agent-host sessions. */
 export const AgentHostGitHubMcpServerEnabledSettingId = 'chat.agentHost.githubMcpServer.enabled';
 
-/** Configuration key offering GitHub's Computer Use plugin to local agent-host Copilot sessions. */
+/** Configuration key offering GitHub's Computer Use plugin to agent-host Copilot sessions. */
 export const AgentHostComputerUseEnabledSettingId = 'chat.agentHost.computerUse.enabled';
 
 /** Configuration key offering GitHub's Browser Use plugin to local agent-host Copilot sessions. */
@@ -188,6 +188,9 @@ export const AgentHostMcpSkillsEnabledSettingId = 'chat.agentHost.mcpSkills.enab
 /** Configuration key controlling Agent Host agent-orchestration safety limits. */
 export const AgentHostAgentOrchestrationLimitsSettingId = 'chat.agentHost.agentOrchestrationLimits';
 
+/** Configuration key controlling whether agents can choose a model's reasoning effort and context size when they create a session, and how they find the models. */
+export const AgentHostSessionModelOptionsSettingId = 'chat.agentHost.sessionModelOptions';
+
 /** Configuration key gating the artifact tools and their agent instruction. */
 export const ArtifactToolsSettingId = 'chat.artifactTools.enabled';
 
@@ -196,6 +199,9 @@ export const CanvasesEnabledSettingId = 'chat.canvases.enabled';
 
 /** Configuration key controlling automatic pull request association for the checked-out branch. */
 export const AgentHostAutoAttachPullRequestsSettingId = 'chat.agentHost.experimental.autoAttachPullRequests';
+
+/** Configuration key controlling whether the host shares identical read-only git commands and caps how many run at once. */
+export const AgentHostGitCoalesceReadsSettingId = 'chat.agentHost.git.coalesceReads';
 
 /** Configuration key controlling whether providers prepare a turn alongside the turn-start checkpoint. */
 export const AgentHostOverlapProviderPreparationSettingId = 'chat.agentHost.experimental.overlapProviderPreparation';
@@ -882,9 +888,11 @@ export interface IMissionControlOptions {
 	readonly name?: string;
 	readonly accountId: string;
 	readonly credential: string;
+	/** Filesystem grants. The host resolves them and excludes network-backed ones, as it does network-backed projects. */
 	readonly roots: readonly string[];
 	/** Catalogue entries, separate from filesystem grants. Defaults to the granted roots when omitted. */
 	readonly projects?: readonly string[];
+	/** Must resolve to a local directory. */
 	readonly defaultDirectory?: string;
 	/** Host-owned default parent for repository clones; clients can only override it within existing grants. */
 	readonly cloneRoot?: string;
@@ -1412,6 +1420,8 @@ export interface IAgentConnection {
 	 */
 	getSubscription<T extends StateComponents>(kind: T, resource: URI, owner: string): IReference<IAgentSubscription<ComponentToState[T]>>;
 	getSubscriptionUnmanaged<T extends StateComponents>(kind: T, resource: URI): IAgentSubscription<ComponentToState[T]> | undefined;
+	/** Loads the preceding page into the subscribed chat using its host-issued cursor. */
+	fetchTurns?(chat: URI, cursor: string): Promise<void>;
 
 	/**
 	 * Returns the in-flight `createSession` Promise for `resource`, or `undefined` if no create is pending. Callers
@@ -1618,8 +1628,10 @@ export interface IAgentConnection {
 	 * Registers the host as a GitHub environment owned by the given GitHub
 	 * account, using that account's credential. Registering again refreshes
 	 * the credential. Requires the `vscode.githubEnvironment` capability.
+	 * @param name The client's name for the host, which a host that supports it
+	 * uses for a new registration.
 	 */
-	registerGitHubEnvironment?(accountId: string, credential: string): Promise<IAgentHostGitHubEnvironmentRegistration>;
+	registerGitHubEnvironment?(accountId: string, credential: string, name?: string): Promise<IAgentHostGitHubEnvironmentRegistration>;
 	unregisterGitHubEnvironment?(accountId: string): Promise<void>;
 
 	// ---- Filesystem operations ----------------------------------------------

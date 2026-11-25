@@ -14,7 +14,7 @@ import { basename, getComparisonKey } from '../../../../../base/common/resources
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../log/common/log.js';
-import { GitRefType, IAgentHostGitService, META_DIFF_BASE_BRANCH, type IAddWorktreeOptions, type IBranch } from '../../../common/agentHostGitService.js';
+import { GitRefType, IAgentHostGitService, META_DIFF_BASE_BRANCH, type IAddWorktreeOptions, type IBranch, type ICommitOptions } from '../../../common/agentHostGitService.js';
 import { SessionConfigKey } from '../../../common/sessionConfigKeys.js';
 import { AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, MessageKind, ResponsePartKind, TurnState, type ISessionGitState, type Turn } from '../../../common/state/sessionState.js';
 import { AgentBranchNameGenerator, IAgentBranchNameGenerator } from '../../../node/shared/agentBranchNameGenerator.js';
@@ -94,7 +94,7 @@ suite('WorktreeIsolation', () => {
 	let addWorktreeCalls: IAddWorktreeOptions[];
 	let addExistingCalls: { worktree: URI; branchName: string }[];
 	let removeCalls: { worktree: URI; force: boolean }[];
-	let commitCalls: { worktree: URI; message: string }[];
+	let commitCalls: { worktree: URI; message: string; options?: ICommitOptions }[];
 	let commitError: Error | undefined;
 	let copyIncludeCalls: { repositoryRoot: URI; worktree: URI; globs: readonly string[]; sessionId: string; excludedFolders: readonly string[] }[];
 	let copyIncludeError: Error | undefined;
@@ -138,8 +138,8 @@ suite('WorktreeIsolation', () => {
 			],
 			branchExists: async () => branchExists,
 			hasUncommittedChanges: async () => hasUncommittedChanges,
-			commitAll: async (worktree, message) => {
-				commitCalls.push({ worktree, message });
+			commit: async (worktree, message, options) => {
+				commitCalls.push({ worktree, message, options });
 				if (commitError) {
 					throw commitError;
 				}
@@ -545,6 +545,29 @@ suite('WorktreeIsolation', () => {
 		assert.strictEqual(rootReads, 2);
 	});
 
+	test('folder isolation reads only the HEAD name without sharing incomplete reads with worktree requests', async () => {
+		let defaultReads = 0;
+		const nameOnlyReads: (boolean | undefined)[] = [];
+		const isolation = createIsolation(disposables, {
+			gitService: {
+				...createGitService(),
+				getHEAD: async (_root, options) => { nameOnlyReads.push(options?.nameOnly); return localBranch('feature'); },
+				getDefaultBranch2: async () => { defaultReads++; return localBranch('main'); },
+			}
+		});
+		const config = { [SessionConfigKey.Isolation]: 'folder' };
+		await isolation.resolveIsolationConfig({ workingDirectory: repoRoot, config });
+		const folderDefaultReads = defaultReads;
+		const results = await Promise.all([
+			isolation.resolveIsolationConfig({ workingDirectory: repoRoot, config }),
+			isolation.resolveIsolationConfig({ workingDirectory: repoRoot, config: undefined }),
+			isolation.resolveIsolationConfig({ workingDirectory: repoRoot, config: { ...config, [SessionConfigKey.PullRequestUrl]: 'https://github.com/microsoft/vscode/pull/1' } }),
+		]);
+		assert.deepStrictEqual({ folderDefaultReads, defaultReads, nameOnlyReads, branches: results.map(result => result.branchValue) }, {
+			folderDefaultReads: 0, defaultReads: 1, nameOnlyReads: [true, true, false], branches: ['feature', 'main', 'main'],
+		});
+	});
+
 	test('reads HEAD and the default branch concurrently without a redundant commit probe', async () => {
 		const finishHEAD = new DeferredPromise<IBranch>();
 		const calls: string[] = [];
@@ -556,7 +579,7 @@ suite('WorktreeIsolation', () => {
 				getDefaultBranch2: async () => { calls.push('default'); return undefined; },
 			}
 		});
-		const resolution = isolation.resolveIsolationConfig({ workingDirectory: repoRoot, config: { [SessionConfigKey.Isolation]: 'folder' } });
+		const resolution = isolation.resolveIsolationConfig({ workingDirectory: repoRoot, config: { [SessionConfigKey.Isolation]: 'worktree' } });
 		let callsBeforeCompletingHEAD: string[];
 		try {
 			await timeout(0);
@@ -655,7 +678,7 @@ suite('WorktreeIsolation', () => {
 					},
 				}
 			});
-			const request = { workingDirectory: repoRoot, config: { [SessionConfigKey.Isolation]: 'folder' } };
+			const request = { workingDirectory: repoRoot, config: { [SessionConfigKey.Isolation]: 'worktree' } };
 			const failed = await Promise.allSettled([isolation.resolveIsolationConfig(request)]);
 			fail = false;
 			const recovered = await isolation.resolveIsolationConfig(request);
@@ -673,8 +696,13 @@ suite('WorktreeIsolation', () => {
 		const isolation = createIsolation(disposables, {
 			gitService: {
 				...createGitService(),
-				getHEAD: async () => { branchRead.complete(); return localBranch(currentBranch); },
-				getDefaultBranch2: async () => { await finishRead.p; return localBranch('main'); },
+				getHEAD: async () => {
+					const branch = localBranch(currentBranch);
+					branchRead.complete();
+					await finishRead.p;
+					return branch;
+				},
+				getDefaultBranch2: async () => localBranch('main'),
 			}
 		});
 		const request = { workingDirectory: repoRoot, config: { [SessionConfigKey.Isolation]: 'folder' } };
@@ -829,7 +857,7 @@ suite('WorktreeIsolation', () => {
 			branchDefault: 'main',
 			branchEnum: ['main'],
 			startPoint: 'main',
-			diffBaseBranch: 'main',
+			diffBaseBranch: 'refs/heads/main',
 		});
 	});
 
@@ -867,6 +895,34 @@ suite('WorktreeIsolation', () => {
 			commitTreeCalls: [[repoRoot, 'snapshot-tree', undefined, 'Initialize isolated worktree', { useInternalIdentity: true }]],
 			startPoint: 'snapshot-commit',
 			diffBaseBranch: 'main',
+		});
+	});
+
+	test('records the selected remote branch as the full base ref when the repository has no default branch', async () => {
+		const gitService = createGitService();
+		gitService.getDefaultBranch2 = async () => undefined;
+		gitService.getBranch = async (_root, name) => name === 'origin/feature'
+			? { ref: `refs/remotes/${name}`, name, remote: 'origin', kind: GitRefType.RemoteHead }
+			: undefined;
+		const isolation = createIsolation(disposables, { gitService });
+
+		await isolation.resolveWorkingDirectory({
+			sessionUri,
+			sessionId,
+			workingDirectory: repoRoot,
+			config: {
+				[SessionConfigKey.Isolation]: 'worktree',
+				[SessionConfigKey.Branch]: 'origin/feature',
+			},
+			prompt: 'do a thing',
+		});
+
+		assert.deepStrictEqual({
+			startPoint: addWorktreeCalls[0]?.commitish,
+			diffBaseBranch: await db.getMetadata(META_DIFF_BASE_BRANCH),
+		}, {
+			startPoint: 'origin/feature',
+			diffBaseBranch: 'refs/remotes/origin/feature',
 		});
 	});
 
@@ -908,7 +964,7 @@ suite('WorktreeIsolation', () => {
 			operations,
 		}, {
 			startPoint: 'origin/main',
-			diffBaseBranch: 'main',
+			diffBaseBranch: 'refs/heads/main',
 			operations: ['resolve:origin/main', 'fetch:origin:refs/remotes/origin/main', 'add:origin/main'],
 		});
 	});
@@ -1049,7 +1105,7 @@ suite('WorktreeIsolation', () => {
 			fetched: [{ branch: 'upstream/feature/pr', timeout: 60_000 }, { branch: 'upstream/main', timeout: 60_000 }],
 			addWorktreeArgs: [{ commitish: 'upstream/feature/pr', newBranchName: 'agents/pr-42-s1', track: true }],
 			branchName: 'agents/pr-42-s1',
-			diffBaseBranch: 'upstream/main',
+			diffBaseBranch: 'refs/remotes/upstream/main',
 		});
 	});
 
@@ -1359,7 +1415,7 @@ suite('WorktreeIsolation', () => {
 			diffBaseBranch: await db.getMetadata(META_DIFF_BASE_BRANCH),
 		}, {
 			startPoint: 'feature',
-			diffBaseBranch: 'origin/main',
+			diffBaseBranch: 'refs/remotes/origin/main',
 		});
 	});
 
@@ -2375,7 +2431,7 @@ suite('WorktreeIsolation', () => {
 		gitService.getRepositoryRoot = async () => worktreeCheckout;
 		gitService.getWorktreeRoots = async () => [repoRoot, worktreeCheckout];
 		gitService.getCurrentBranch = async () => 'agents/adopted';
-		gitService.getDefaultBranch = async () => ({ name: 'main', startPoint: 'main' });
+		gitService.getDefaultBranch2 = async () => localBranch('main', 'origin/main');
 		const isolation = createIsolation(disposables, { gitService });
 
 		const recorded = await isolation.adoptExistingWorktreeMetadata(sessionUri, worktreeCheckout);
@@ -2393,7 +2449,7 @@ suite('WorktreeIsolation', () => {
 			branchName: 'agents/adopted',
 			path: worktreeCheckout.toString(),
 			repositoryRoot: repoRoot.toString(),
-			diffBaseBranch: 'main',
+			diffBaseBranch: 'refs/remotes/origin/main',
 			project: { uri: repoRoot.toString(), displayName: basename(repoRoot) },
 		});
 	});
@@ -2566,11 +2622,11 @@ suite('WorktreeIsolation', () => {
 		await archiveThroughCleanup(isolation, 'commit');
 
 		assert.deepStrictEqual({
-			commitCalls: commitCalls.map(call => ({ worktree: call.worktree.toString(), message: call.message })),
+			commitCalls: commitCalls.map(call => ({ worktree: call.worktree.toString(), message: call.message, options: call.options })),
 			removeCalls: removeCalls.map(call => ({ worktree: call.worktree.toString(), force: call.force })),
 			stillExists: worktree ? existsSync(worktree.fsPath) : false,
 		}, {
-			commitCalls: [{ worktree: worktree!.toString(), message: 'Saving uncommitted changes before archiving session' }],
+			commitCalls: [{ worktree: worktree!.toString(), message: 'Saving uncommitted changes before archiving session', options: { all: true, noVerify: true, signCommit: false } }],
 			removeCalls: [{ worktree: worktree!.toString(), force: true }],
 			stillExists: false,
 		});

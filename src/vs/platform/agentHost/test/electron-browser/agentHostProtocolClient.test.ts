@@ -32,7 +32,7 @@ import { McpAuthRequiredReason } from '../../common/state/protocol/channels-sess
 import { AgentPolicyError, AuthenticateParams, type AuthenticateResult } from '../../common/agent.js';
 import { readAgentSandboxCertificate, withAgentSandboxCertificate, type IAgentSandboxCertificateStatus } from '../../common/meta/agentSandboxCertificate.js';
 import { getAgentHostArtifactIntegrationsCapability } from '../../common/meta/agentHostArtifactIntegrationMeta.js';
-import { agentHostAuthority, createEditorRemoteAgentHostResourceUriMapper, toAgentHostUri } from '../../common/agentHostUri.js';
+import { AGENT_HOST_SCHEME, agentHostAuthority, createEditorRemoteAgentHostResourceUriMapper, LOCAL_AGENT_HOST_AUTHORITY, registerLocalAgentHostWindowScheme, toAgentHostUri } from '../../common/agentHostUri.js';
 import { AgentHostFileSystemProvider } from '../../common/agentHostFileSystemProvider.js';
 import { ChatProvidersConfigKey, ChatProvidersSettingId } from '../../common/agentHostChatProviders.js';
 import { agentHostStateReceiveLimits } from '../../common/agentHostChannel.js';
@@ -42,7 +42,7 @@ import { buildAnnotationsUri } from '../../common/annotationsUri.js';
 import { CODEX_SESSION_MODEL_META_KEY, withCodexSessionModel } from '../../common/meta/codexSessionModel.js';
 import { toAgentPermissionResponseMeta } from '../../common/meta/agentPermissionResponseMeta.js';
 import { ConfigurationTarget, type IConfigurationValue } from '../../../configuration/common/configuration.js';
-import { CompletionItemKind, ContentEncoding, ReconnectResultType } from '../../common/state/protocol/commands.js';
+import { CompletionItemKind, ContentEncoding, ReconnectResultType, type InitializeParams, type ReconnectParams } from '../../common/state/protocol/commands.js';
 import { ChatSourceKind } from '../../common/state/protocol/channels-chat/commands.js';
 import { ChatInteractivity, ResourceChangeType, ResponsePartKind, SessionLifecycle } from '../../common/state/protocol/state.js';
 import { AhpErrorCodes, JsonRpcErrorCodes } from '../../common/state/protocol/errors.js';
@@ -2067,6 +2067,38 @@ suite('AgentHostProtocolClient', () => {
 	});
 
 	suite('connection resource URI mappers', () => {
+		test('local host-only skill sources are routed through the agent host filesystem', async () => {
+			const { client, transport } = createClientForIdentity(LOCAL_AGENT_HOST_RESOURCE_IDENTITY);
+			const source = URI.parse('agent-builtin-skill:/troubleshoot/SKILL.md');
+			const wrapped = client.resourceUris.fromAgentHost(source);
+			assert.deepStrictEqual({ scheme: wrapped.scheme, authority: wrapped.authority }, { scheme: AGENT_HOST_SCHEME, authority: LOCAL_AGENT_HOST_AUTHORITY });
+
+			const provider = disposables.add(new AgentHostFileSystemProvider());
+			disposables.add(provider.registerAuthority(LOCAL_AGENT_HOST_AUTHORITY, client));
+			const reading = provider.readFile(wrapped);
+			await flushMicrotasks();
+			const request = transport.sentMessages.find((message): message is JsonRpcRequest => hasKey(message, { method: true, id: true }) && message.method === 'resourceRead');
+			assert.ok(request);
+			transport.fireMessage({ jsonrpc: '2.0', id: request.id, result: { data: '# Troubleshoot', encoding: ContentEncoding.Utf8, contentType: 'text/markdown' } });
+
+			assert.deepStrictEqual({
+				request: request.params,
+				content: VSBuffer.wrap(await reading).toString(),
+				hostUri: client.resourceUris.toAgentHost(wrapped).toString(),
+			}, {
+				request: { channel: ROOT_STATE_URI, uri: source.toString(), encoding: ContentEncoding.Base64 },
+				content: '# Troubleshoot',
+				hostUri: source.toString(),
+			});
+		});
+
+		test('local files and registered window schemes stay directly readable', () => {
+			const { client } = createClientForIdentity(LOCAL_AGENT_HOST_RESOURCE_IDENTITY);
+			disposables.add(registerLocalAgentHostWindowScheme('vscode-vfs'));
+			const resources = [URI.file('/workspace/SKILL.md'), URI.parse('vscode-remote://ssh-remote+test/workspace/SKILL.md'), URI.parse('vscode-vfs://github/repo/SKILL.md')];
+			assert.deepStrictEqual(resources.map(uri => client.resourceUris.fromAgentHost(uri)), resources);
+		});
+
 		for (const kind of agentHostConnectionKinds) {
 			function createMappedClient(permissionService = createPermissionService()) {
 				const identity = 'vscode-remote://ssh-remote+test';
@@ -5734,6 +5766,8 @@ suite('AgentHostProtocolClient', () => {
 				transport.fireMessage({ jsonrpc: '2.0', id: watchSubscription.id, result: {} });
 				await flushMicrotasks();
 
+				const start = chatTurnStarted('delivery', 'Continue', '2026-10-02T00:01:00Z');
+				client.dispatch(chatUri.toString(), start);
 				transport.fireMessage({
 					jsonrpc: '2.0', method: 'auth/required',
 					params: { channel: ROOT_STATE_URI, resource: { resource: 'https://api.github.com' }, reason: AuthRequiredReason.Expired },
@@ -5745,7 +5779,7 @@ suite('AgentHostProtocolClient', () => {
 				transport.fireMessage({ jsonrpc: '2.0', id: rootSubscription.id, result: root });
 				for (const [index, snapshot] of snapshots.entries()) {
 					const subscribe = await waitForRequestAtWithin(transport, 'subscribe', index + 5);
-					assert.deepStrictEqual(subscribe.params, { channel: snapshot.resource });
+					assert.deepStrictEqual(subscribe.params, { channel: snapshot.resource, ...(index === 1 ? { view: { turns: 10 } } : {}) });
 					if (index === 0) {
 						transport.fireMessage({
 							jsonrpc: '2.0', method: 'auth/required',
@@ -5754,10 +5788,11 @@ suite('AgentHostProtocolClient', () => {
 					}
 					transport.fireMessage({
 						jsonrpc: '2.0', id: subscribe.id,
-						result: { snapshot: { ...snapshot, state: { ...snapshot.state, title: 'After expiry' }, fromSeq: 3 } },
+						result: { snapshot: { ...snapshot, state: { ...snapshot.state, title: 'After expiry', ...(index === 1 && connectionKind === AgentHostClientConnectionKind.WebPubSub ? { activeTurn: chatReducer(chatState, start).activeTurn } : {}) }, fromSeq: 3 } },
 					});
 				}
 				await renewed;
+				assert.strictEqual(transport.sentMessages.filter(m => hasKey(m, { method: true }) && m.method === 'dispatchAction').length, connectionKind === AgentHostClientConnectionKind.WebPubSub ? 1 : 2);
 				const restoredWatch = await waitForRequestAtWithin(transport, 'createResourceWatch', 1);
 				transport.fireMessage({ jsonrpc: '2.0', id: restoredWatch.id, result: { channel: 'ahp-resource-watch:/restored' } });
 				const restoredWatchSubscription = await waitForRequestAtWithin(transport, 'subscribe', 7);
@@ -5814,7 +5849,7 @@ suite('AgentHostProtocolClient', () => {
 				transport.fireMessage({ jsonrpc: '2.0', id: restored.id, result: { snapshot: { resource, state, fromSeq: 2 } } });
 				await renewed;
 				assert.deepStrictEqual({ request: restored.params, state: subscription.object.value }, {
-					request: { channel: resource }, state,
+					request: { channel: resource, ...(kind === StateComponents.Chat ? { view: { turns: 10 } } : {}) }, state,
 				});
 			});
 		}
@@ -6145,6 +6180,86 @@ suite('AgentHostProtocolClient', () => {
 				result: { protocolVersion: PROTOCOL_VERSION, serverSeq: 5, snapshots: [], _meta: meta },
 			});
 			await connectPromise;
+		}
+
+		for (const recovery of ['fresh', 'oversize', 'replayLostRequest', 'replayLostEcho', 'snapshotHiddenEcho', 'snapshotLostRequest'] as const) {
+			test(`pages an opaque chat and reconciles its pending prompt on ${recovery}`, async () => {
+				const fresh = recovery === 'fresh';
+				const kind = fresh ? AgentHostClientConnectionKind.MissionControl : AgentHostClientConnectionKind.WebPubSub;
+				const { client, transports } = createFactoryClient(undefined, undefined, undefined, { autoRestore: true, initialDelayMs: 1, maxDelayMs: 1, maxAttempts: 1 }, undefined, undefined, undefined, undefined, kind);
+				const connecting = client.connect();
+				await completeHandshake(transports[0], connecting);
+				const chat = URI.parse('store://other-host/conversations/not-a-local-id');
+				const channel = chat.toString();
+				const state = createChatState({ resource: channel, title: 'Recent messages', status: SessionStatus.Idle, modifiedAt: new Date(0).toISOString() });
+				const snapshot = { resource: channel, fromSeq: 5, state };
+				const ref = disposables.add(client.getSubscription<ChatState>(StateComponents.Chat, chat, 'test'));
+				const first = await waitForRequestAtWithin(transports[0], 'subscribe', 0);
+				transports[0].fireWireMessage({ jsonrpc: '2.0', id: first.id, result: { snapshot: { ...snapshot, state: { ...state, turnsNextCursor: 'opaque previous page' } } } });
+				await flushMicrotasks();
+				const tail = ref.object.value;
+				assert.ok(tail && !(tail instanceof Error) && tail.turnsNextCursor);
+				const fetching = client.fetchTurns(chat, tail.turnsNextCursor);
+				const page = await waitForRequestAtWithin(transports[0], 'fetchTurns', 0);
+				const start = chatTurnStarted('pending', 'Continue', '2026-01-02T00:00:00.000Z');
+				const prior = chatReducer(chatReducer(state, { ...start, turnId: 'earlier' }), chatTurnComplete('earlier', 1)).turns;
+				transports[0].fireWireMessage({ jsonrpc: '2.0', method: 'action', params: { channel, serverSeq: 6, action: { type: ActionType.ChatTurnsLoaded, turns: prior, turnsNextCursor: 'older' } } });
+				transports[0].fireWireMessage({ jsonrpc: '2.0', id: page.id, result: {} });
+				await fetching;
+				client.dispatch(channel, start);
+				const original = findDispatchAction(transports[0], ActionType.ChatTurnStarted)!;
+				const origin = { clientId: client.clientId, clientSeq: (original.params as { clientSeq: number }).clientSeq };
+
+				const recovered = Event.toPromise(client.onDidReconnect);
+				transports[0].fireClose();
+				const transport = await waitForTransport(transports, 1);
+				transport.connectDeferred.complete();
+				const reconnect = await waitForRequestAtWithin(transport, 'reconnect', 0);
+				if (fresh) {
+					transport.fireWireMessage({ jsonrpc: '2.0', id: reconnect.id, error: { code: AhpErrorCodes.NotFound, message: 'Client not found' } });
+					const initialize = await waitForRequestAtWithin(transport, 'initialize', 0);
+					assert.deepStrictEqual((initialize.params as InitializeParams).initialSubscriptions, [ROOT_STATE_URI]);
+					transport.fireWireMessage({ jsonrpc: '2.0', id: initialize.id, result: { protocolVersion: PROTOCOL_VERSION, serverSeq: 6, snapshots: [] } });
+					const root = await waitForRequestAtWithin(transport, 'subscribe', 0);
+					assert.deepStrictEqual(root.params, { channel: ROOT_STATE_URI });
+					transport.fireWireMessage({ jsonrpc: '2.0', id: root.id, result: { snapshot: { resource: ROOT_STATE_URI, fromSeq: 6, state: { agents: [] } } } });
+					const restore = await waitForRequestAtWithin(transport, 'subscribe', 1);
+					assert.deepStrictEqual(restore.params, { channel, view: { turns: 10 } });
+					// A host that ignores the advisory view is also valid.
+					transport.fireWireMessage({ jsonrpc: '2.0', id: restore.id, result: { snapshot } });
+				} else if (recovery === 'oversize') {
+					transport.fireWireMessage({ jsonrpc: '2.0', id: reconnect.id, error: { code: -32603, message: 'Handshake does not fit' } });
+					const reduced = await waitForRequestAtWithin(transport, 'reconnect', 1);
+					assert.deepStrictEqual((reduced.params as ReconnectParams).subscriptions, [ROOT_STATE_URI]);
+					transport.fireWireMessage({ jsonrpc: '2.0', id: reduced.id, result: { type: ReconnectResultType.Replay, actions: [], missing: [] } });
+					const restore = await waitForRequestAtWithin(transport, 'subscribe', 0);
+					assert.deepStrictEqual(restore.params, { channel, view: { turns: 10 } });
+					transport.fireWireMessage({ jsonrpc: '2.0', id: restore.id, result: { snapshot: { ...snapshot, state: { ...state, turns: prior, turnsNextCursor: 'older' } } } });
+				} else if (recovery === 'snapshotHiddenEcho' || recovery === 'snapshotLostRequest') {
+					const cursor = recovery === 'snapshotHiddenEcho' ? '' : 'check';
+					transport.fireWireMessage({ jsonrpc: '2.0', id: reconnect.id, result: { type: ReconnectResultType.Snapshot, snapshots: [{ ...snapshot, fromSeq: 8, state: { ...state, turnsNextCursor: cursor } }] } });
+					const check = await waitForRequestAtWithin(transport, 'fetchTurns', 0);
+					assert.deepStrictEqual(check.params, { channel, cursor });
+					const turns = recovery === 'snapshotLostRequest' ? prior : chatReducer(chatReducer(state, start), chatTurnComplete(start.turnId, 1)).turns;
+					transport.fireWireMessage({ jsonrpc: '2.0', method: 'action', params: { channel, serverSeq: 9, action: { type: ActionType.ChatTurnsLoaded, turns, turnsNextCursor: 'older' } } });
+					transport.fireWireMessage({ jsonrpc: '2.0', id: check.id, result: {} });
+				} else {
+					const actions = recovery === 'replayLostEcho' ? [{ channel, serverSeq: 7, origin, action: start }] : [];
+					transport.fireWireMessage({ jsonrpc: '2.0', id: reconnect.id, result: { type: ReconnectResultType.Replay, actions, missing: [] } });
+				}
+				await recovered;
+				const restored = ref.object.value;
+				assert.ok(restored && !(restored instanceof Error));
+				assert.deepStrictEqual({
+					first: first.params, previous: page.params, handshake: (reconnect.params as ReconnectParams).subscriptions,
+					retries: transport.sentMessages.filter(m => hasKey(m, { method: true }) && m.method === 'dispatchAction'),
+					resource: restored.resource, cursor: restored.turnsNextCursor, turns: restored.turns.map(t => t.id),
+				}, {
+					first: { channel, view: { turns: 10 } }, previous: { channel, cursor: 'opaque previous page' }, handshake: [ROOT_STATE_URI, channel],
+					retries: fresh || recovery === 'oversize' || recovery === 'replayLostRequest' || recovery === 'snapshotLostRequest' ? [original] : [],
+					resource: channel, cursor: fresh ? undefined : 'older', turns: fresh ? [] : recovery === 'snapshotHiddenEcho' ? ['pending'] : ['earlier'],
+				});
+			});
 		}
 
 		/**
