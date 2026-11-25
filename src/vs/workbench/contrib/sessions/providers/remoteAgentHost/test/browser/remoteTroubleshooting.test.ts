@@ -147,6 +147,7 @@ suite('getRemoteTroubleshootingGuide', () => {
 			stopped: summarize(remote('wsl', { availability: 'offline', startsOnConnect: true }), info),
 			notInstalled: summarize(remote('wsl', { availability: 'offline' }), info),
 			download: summarize(remote('wsl', { availability: 'online', lastConnectionError: 'Failed to download the server: getaddrinfo ENOTFOUND update.code.visualstudio.com' }), info),
+			missingLibraries: summarize(remote('wsl', { detail: 'Alpine', availability: 'online', lastConnectionError: 'The VS Code server can\'t run in \'Alpine\' without libstdc++.so.6, libgcc_s.so.1.' }), info),
 			failed: summarize(remote('wsl', { availability: 'online', lastConnectionError: 'The agent host exited' }), info),
 			connected: summarize(remote('wsl', { availability: 'online', connectionStatus: RemoteAgentHostConnectionStatus.connected }), info),
 		}, {
@@ -154,7 +155,11 @@ suite('getRemoteTroubleshootingGuide', () => {
 			notInstalled: {
 				primary: undefined, actions: [], guidance: ['This distribution isn\'t installed anymore'], command: 'wsl --list --verbose', facts: { 'Distribution state': 'Not installed' },
 			},
-			download: { primary: 'retry', actions: ['restartDistribution'], guidance: ['The server couldn\'t be downloaded inside the distribution'], facts: { 'Distribution state': 'Running' } },
+			download: { primary: 'retry', actions: ['restartDistribution'], guidance: ['The VS Code CLI or server couldn\'t be downloaded'], facts: { 'Distribution state': 'Running' } },
+			missingLibraries: {
+				primary: 'retry', actions: ['restartDistribution'], guidance: ['The VS Code server needs the libstdc++ package, which Alpine and other musl-based distributions don\'t install by default'],
+				command: 'wsl -d Alpine -u root apk add --update-cache libstdc++', facts: { 'Distribution state': 'Running' },
+			},
 			failed: { primary: 'retry', actions: ['restartDistribution'], guidance: ['Restart the distribution to stop its agent host, then connect again to start a new one.'], facts: { 'Distribution state': 'Running' } },
 			connected: { primary: 'newSession', actions: ['disconnect', 'restartDistribution'], guidance: [], facts: { 'Distribution state': 'Running' } },
 		});

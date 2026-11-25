@@ -274,8 +274,14 @@ export function getRemoteTroubleshootingGuide(remote: ICustomizationRemote, info
 					command = { label: localize('remotes.wslListCommand', "List installed distributions in PowerShell"), value: 'wsl --list --verbose' };
 				} else if (failed && /Unsupported WSL distro platform/i.test(error)) {
 					guidance.push(localize('remotes.wslUnsupportedPlatform', "This distribution's platform isn't supported. Use an x64 or Arm64 Linux distribution."));
+				} else if (failed && /libstdc\+\+|libgcc_s/.test(error)) {
+					// The library names stay untranslated in the localized connection error.
+					guidance.push(localize('remotes.wslMissingLibraries', "The VS Code server needs the libstdc++ package, which Alpine and other musl-based distributions don't install by default. Install it as root, then retry."));
+					if (/^[\w.-]+$/.test(remote.detail)) {
+						command = { label: localize('remotes.wslInstallLibrariesCommand', "Install libstdc++ in the distribution from PowerShell"), value: `wsl -d ${remote.detail} -u root apk add --update-cache libstdc++` };
+					}
 				} else if (failed && /download|ENOTFOUND|ECONNRESET|ETIMEDOUT|EAI_AGAIN|certificate/i.test(error)) {
-					guidance.push(localize('remotes.wslDownload', "The server couldn't be downloaded inside the distribution. Check its internet connection and proxy settings, then retry."));
+					guidance.push(localize('remotes.wslDownload', "The VS Code CLI or server couldn't be downloaded. This computer downloads the CLI and the distribution downloads the server, so check the internet connection and proxy settings of both, then retry."));
 				} else if (incompatible && !upgradeMethod || failed) {
 					guidance.push(localize('remotes.wslRestart', "Restart the distribution to stop its agent host, then connect again to start a new one."));
 				} else if (remote.startsOnConnect) {

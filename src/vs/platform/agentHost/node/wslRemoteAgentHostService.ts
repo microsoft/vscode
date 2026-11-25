@@ -5,6 +5,10 @@
 
 import type WebSocket from 'ws';
 import * as cp from 'child_process';
+import { raceCancellationError } from '../../../base/common/async.js';
+import { streamToBuffer, type VSBuffer } from '../../../base/common/buffer.js';
+import { CancellationTokenSource } from '../../../base/common/cancellation.js';
+import { toErrorMessage } from '../../../base/common/errorMessage.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { autorun } from '../../../base/common/observable.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
@@ -13,6 +17,7 @@ import { generateUuid } from '../../../base/common/uuid.js';
 import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
 import { IProductService } from '../../product/common/productService.js';
+import { IRequestService, isSuccess } from '../../request/common/request.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { telemetryLevelToAgentHostValue } from '../common/agentHostTelemetry.js';
 import { redactToken, RemoteAgentHostBootstrapProgressReporter } from '../common/remoteAgentHostBootstrapProgress.js';
@@ -24,14 +29,18 @@ import {
 	type IWSLConnectResult,
 	type IWSLDistro,
 } from '../common/wslRemoteAgentHost.js';
-import { resolveRemotePlatform } from './sshRemoteAgentHostHelpers.js';
+import { buildCLIDownloadUrl, getRemoteCLIBin, resolveRemotePlatform } from './sshRemoteAgentHostHelpers.js';
 import {
 	composeAgentHostBootstrapScript,
+	composeCLIInstallScript,
+	composeDistroProbeScript,
 	decodeWslOutput,
 	extractAgentHostWebSocketURL,
 	getWslExePath,
 	isWSLSupported,
 	type IRunWslCommandResult,
+	type IWSLDistroProbe,
+	parseDistroProbe,
 	parseRunningDistros,
 	parseWslListVerbose,
 	runWslCommand,
@@ -39,6 +48,12 @@ import {
 } from './wslRemoteAgentHostHelpers.js';
 
 const LOG_PREFIX = '[WSLRemoteAgentHost]';
+
+/** Max time to download the CLI archive on this computer. */
+const CLI_DOWNLOAD_TIMEOUT_MS = 5 * 60_000;
+
+/** Max time to extract the CLI archive inside the distro and verify it runs. */
+const CLI_INSTALL_TIMEOUT_MS = 2 * 60_000;
 
 /**
  * Max time a stopped WSL distro may take to boot and produce first output, for
@@ -112,6 +127,7 @@ export class WSLRemoteAgentHostMainService extends Disposable implements IWSLRem
 		@ILogService private readonly _logService: ILogService,
 		@IProductService private readonly _productService: IProductService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@IRequestService private readonly _requestService: IRequestService,
 	) {
 		super();
 		this._register(toDisposable(() => {
@@ -267,15 +283,23 @@ export class WSLRemoteAgentHostMainService extends Disposable implements IWSLRem
 		};
 
 		reportProgress(localize('wslProgressDetectingPlatform', "Detecting platform in {0}...", distro));
-		const { os: targetOs, arch: targetArch } = await this._resolvePlatform(distro);
+		if (!config.remoteAgentHostCommand) {
+			// Await the probe directly: when the CLI already runs, the host
+			// launches without another asynchronous step.
+			const probe = await this._probeDistro(distro, getRemoteCLIBin(this._serverDataFolderName, this._quality, this._commit));
+			if (probe.missingLibraries.length) {
+				throw new Error(localize('wslMissingLibraries', "The VS Code server can't run in '{0}' without {1}. Install the libstdc++ package in the distribution as root, for example with 'apk add --update-cache libstdc++', then connect again.", distro, probe.missingLibraries.join(', ')));
+			}
+			if (!probe.cliRunnable) {
+				await this._downloadAndInstallCLI(distro, probe, reportProgress);
+			}
+		}
 
 		reportProgress(localize('wslProgressPreparingCLI', "Preparing CLI in {0}...", distro));
 		const script = composeAgentHostBootstrapScript({
 			serverDataFolderName: this._serverDataFolderName,
 			quality: this._quality,
 			commit: this._commit,
-			os: targetOs,
-			arch: targetArch,
 			telemetryLevel: telemetryLevelToAgentHostValue(this._telemetryService.telemetryLevel),
 			remoteAgentHostCommand: config.remoteAgentHostCommand,
 		});
@@ -283,12 +307,14 @@ export class WSLRemoteAgentHostMainService extends Disposable implements IWSLRem
 		this._logService.info(`${LOG_PREFIX} Spawning agent host in WSL distro '${distro}'`);
 		this._logService.trace(`${LOG_PREFIX} bootstrap script: ${script}`);
 
-		// `-e bash -lc <script>` runs a login shell so the user's PATH/profile
-		// is sourced before the CLI launches. We deliberately do NOT set
-		// `WSL_UTF8` for this spawn: it would force `wsl.exe` to recode the
-		// agent host's stdout/stderr, which is already valid UTF-8 from a
-		// Linux process. Keeping the bytes untouched also avoids surprising
-		// the URL/PID regex.
+		// `-e sh -lc <script>` runs a POSIX login shell, which every distro
+		// has (Alpine has no bash), so /etc/profile and ~/.profile are sourced
+		// before the CLI launches. The agent host resolves the user's own
+		// login shell environment for the tools it runs. We deliberately do
+		// NOT set `WSL_UTF8` for this spawn: it would force `wsl.exe` to
+		// recode the agent host's stdout/stderr, which is already valid UTF-8
+		// from a Linux process. Keeping the bytes untouched also avoids
+		// surprising the URL/PID regex.
 		const child = this._spawnAgentHost(distro, script);
 
 		let url: string | undefined;
@@ -714,26 +740,66 @@ export class WSLRemoteAgentHostMainService extends Disposable implements IWSLRem
 	}
 
 	protected _spawnAgentHost(distro: string, script: string): cp.ChildProcess {
-		return cp.spawn(getWslExePath(), ['-d', distro, '-e', 'bash', '-lc', script], {
+		return cp.spawn(getWslExePath(), ['-d', distro, '-e', 'sh', '-lc', script], {
 			windowsHide: true,
 			stdio: ['ignore', 'pipe', 'pipe'],
 		});
 	}
 
-	protected async _resolvePlatform(distro: string): Promise<{ os: string; arch: string }> {
-		const result = await runWslCommand(['-e', 'uname', '-s', '-m'], { distro, timeout: AGENT_HOST_INITIAL_OUTPUT_TIMEOUT_MS });
+	protected async _probeDistro(distro: string, cliBin: string): Promise<IWSLDistroProbe> {
+		const result = await runWslCommand(['-e', 'sh', '-c', composeDistroProbeScript(cliBin)], { distro, timeout: AGENT_HOST_INITIAL_OUTPUT_TIMEOUT_MS });
 		if (result.exitCode !== 0) {
 			throw new Error(`${LOG_PREFIX} Failed to detect platform in '${distro}' (exit ${result.exitCode}): ${result.stderr.trim() || result.stdout.trim()}`);
 		}
-		const tokens = result.stdout.trim().split(/\s+/);
-		if (tokens.length < 2) {
-			throw new Error(`${LOG_PREFIX} Unexpected uname output from '${distro}': ${JSON.stringify(result.stdout)}`);
+		return parseDistroProbe(result.stdout);
+	}
+
+	/** Downloads the CLI for the distro's platform on this computer and installs it in the distro. */
+	private async _downloadAndInstallCLI(distro: string, probe: IWSLDistroProbe, reportProgress: (message: string) => void): Promise<void> {
+		const platform = resolveRemotePlatform(probe.unameS, probe.unameM, probe.libc);
+		if (!platform) {
+			throw new Error(localize('wslUnsupportedPlatform', "Unsupported WSL distro platform: {0}", `${probe.unameS} ${probe.unameM}`.trim()));
 		}
-		const resolved = resolveRemotePlatform(tokens[0], tokens.slice(1).join(' '));
-		if (!resolved) {
-			throw new Error(localize('wslUnsupportedPlatform', "Unsupported WSL distro platform: {0}", result.stdout.trim()));
+		const url = buildCLIDownloadUrl(platform.os, platform.arch, this._quality, this._commit);
+		reportProgress(localize('wslProgressDownloadingCLI', "Downloading CLI for {0}...", distro));
+		this._logService.info(`${LOG_PREFIX} Downloading the ${platform.os}-${platform.arch} CLI for '${distro}' from ${url}`);
+		const archive = await this._downloadCLI(url);
+		reportProgress(localize('wslProgressInstallingCLI', "Installing CLI in {0}...", distro));
+		await this._installCLI(distro, archive);
+		this._logService.info(`${LOG_PREFIX} Installed the CLI in '${distro}'`);
+	}
+
+	protected async _downloadCLI(url: string): Promise<VSBuffer> {
+		const cts = new CancellationTokenSource();
+		const timer = setTimeout(() => cts.cancel(), CLI_DOWNLOAD_TIMEOUT_MS);
+		try {
+			const context = await this._requestService.request({ type: 'GET', url, callSite: 'wslRemoteAgentHost.downloadCLI' }, cts.token);
+			if (!isSuccess(context)) {
+				context.stream.destroy();
+				throw new Error(`HTTP ${context.res.statusCode}`);
+			}
+			// Cancellation must also abort a response body that stalls after its headers.
+			const cancellation = cts.token.onCancellationRequested(() => context.stream.destroy());
+			try {
+				return await raceCancellationError(streamToBuffer(context.stream), cts.token);
+			} finally {
+				cancellation.dispose();
+			}
+		} catch (error) {
+			const reason = cts.token.isCancellationRequested ? `timed out after ${CLI_DOWNLOAD_TIMEOUT_MS / 1000}s` : toErrorMessage(error);
+			throw new Error(localize('wslCliDownloadFailed', "Failed to download the VS Code CLI on this computer from {0}: {1}", url, reason));
+		} finally {
+			clearTimeout(timer);
+			cts.dispose();
 		}
-		return resolved;
+	}
+
+	protected async _installCLI(distro: string, archive: VSBuffer): Promise<void> {
+		const script = composeCLIInstallScript(this._serverDataFolderName, this._quality, this._commit);
+		const result = await runWslCommand(['-e', 'sh', '-c', script], { distro, input: archive.buffer, timeout: CLI_INSTALL_TIMEOUT_MS });
+		if (result.exitCode !== 0) {
+			throw new Error(`${LOG_PREFIX} Failed to install the VS Code CLI in '${distro}' (exit ${result.exitCode}): ${result.stderr.trim() || result.stdout.trim()}`);
+		}
 	}
 
 	protected async _openWebSocket(url: string): Promise<WebSocket> {
