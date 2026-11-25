@@ -495,24 +495,32 @@ function createMenuHide(menu: MenuId, command: ICommandAction | ISubmenuItem, st
 
 	const id = isISubmenuItem(command) ? command.submenu.id : command.id;
 	const title = typeof command.title === 'string' ? command.title : command.title.value;
+	// snapshot at creation time, consumers compare it across menu rebuilds
+	const isHidden = states.isHidden(menu, id);
 
-	const hide = toAction({
-		id: `hide/${menu.id}/${id}`,
-		label: localize('hide.label', 'Hide \'{0}\'', title),
-		run() { states.updateHidden(menu, id, true); }
-	});
-
-	const toggle = toAction({
-		id: `toggle/${menu.id}/${id}`,
-		label: title,
-		get checked() { return !states.isHidden(menu, id); },
-		run() { states.updateHidden(menu, id, !!this.checked); }
-	});
+	// the actions are only needed for context menus, create them on first access
+	let hide: IAction | undefined;
+	let toggle: IAction | undefined;
 
 	return {
-		hide,
-		toggle,
-		get isHidden() { return !toggle.checked; },
+		get hide() {
+			hide ??= toAction({
+				id: `hide/${menu.id}/${id}`,
+				label: localize('hide.label', 'Hide \'{0}\'', title),
+				run() { states.updateHidden(menu, id, true); }
+			});
+			return hide;
+		},
+		get toggle() {
+			toggle ??= toAction({
+				id: `toggle/${menu.id}/${id}`,
+				label: title,
+				checked: !isHidden,
+				run() { states.updateHidden(menu, id, !states.isHidden(menu, id)); }
+			});
+			return toggle;
+		},
+		isHidden,
 		get isModifiedFromDefault() { return states.isModifiedFromDefault(menu, id); },
 	};
 }
