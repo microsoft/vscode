@@ -11,8 +11,9 @@ import { CancellationToken, CancellationTokenSource } from '../../../../base/com
 import { isCancellationError, onUnexpectedError } from '../../../../base/common/errors.js';
 import { Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, constObservable, derived, derivedObservableWithCache, derivedOpts, IObservable, observableSignal, observableValue, transaction } from '../../../../base/common/observable.js';
+import { autorun, constObservable, derived, observableFromEvent, derivedObservableWithCache, derivedOpts, IObservable, observableSignal, observableValue, transaction } from '../../../../base/common/observable.js';
 import { Range } from '../../../../editor/common/core/range.js';
+import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IDiffEditor } from '../../../../editor/common/editorCommon.js';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
@@ -321,7 +322,7 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 	private readonly _logger: MultiDiffEditorLogger;
 	private _scopeInstance: IChangesSessionScope | undefined;
 	private get _scope(): IChangesSessionScope {
-		return this._scopeInstance ??= createChangesEditorScope(this.changesViewService, this.sessionsManagementService, this.sessionHost, this._inputChangesSource);
+		return this._scopeInstance ??= createChangesEditorScope(this.changesViewService, this.sessionsManagementService, this.sessionHost, this._inputChangesSource, !!this.hostLayoutService.editorsBindSessionContext);
 	}
 
 	/** The session whose changes it shows, and those changes. */
@@ -424,6 +425,13 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 			},
 		));
 		this.widget = this.fileListWidget.multiDiffEditorWidget;
+		if (this.hostLayoutService.editorsBindSessionContext) {
+			// The layout of the active diff, for the Diff View of its header, which reads its own context, not that of its diffs
+			const widget = this.widget;
+			const activeControl = observableFromEvent(this, widget.onDidChangeActiveControl, () => widget.getActiveControl());
+			this._register(bindContextKey(EditorContextKeys.diffEditorAutomaticRenderSideBySide, scopedContextKeyService, reader => activeControl.read(reader)?.renderSideBySideInAutomaticMode.read(reader) ?? true));
+			this._register(bindContextKey(EditorContextKeys.diffEditorTemporaryInlineMode, scopedContextKeyService, reader => activeControl.read(reader)?.temporaryInlineMode.read(reader) ?? false));
+		}
 		const fileListWidget = this.fileListWidget;
 		this._register(autorun(reader => this.bodyContainer?.classList.toggle('file-list-visible', fileListWidget.isFileListVisible.read(reader))));
 		this._register(autorun(reader => this.widget?.setVariant(variant.read(reader))));
@@ -552,7 +560,8 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 		}));
 
 		// Create Pull Request (and related) actions render on the right of the header row.
-		store.add(instantiationService.createInstance(ChangesActionsBar, append(right, $('.session-changes-editor-header-operations')), this._scope, new Set<string>()));
+		const operations = this.hostLayoutService.editorsBindSessionContext ? append(right, $('.session-changes-editor-header-operations')) : right;
+		store.add(instantiationService.createInstance(ChangesActionsBar, operations, this._scope, new Set<string>()));
 
 		// Where no editor part offers them, the diff actions of the header row of the Agents window follow, with its More Actions.
 		if (this.hostLayoutService.editorsBindSessionContext) {

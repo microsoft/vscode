@@ -161,9 +161,36 @@ export function createChangesSessionScope(changesViewService: IChangesViewServic
 /**
  * The scope of a Changes editor that shows the changes of `source`. Outside the main window, one that names a chat is the scope
  * of that chat, as are its diffs, whichever chat its window shows; otherwise it is the scope of the window of `host`.
+ *
+ * With `followsInput`, as in an editor window, whose window neither mounts the workspace of its session nor binds its keys,
+ * it is the scope of the session of `source` in any window: of the chat the window shows of that session, else of its main chat.
  */
-export function createChangesEditorScope(changesViewService: IChangesViewService, sessionsManagementService: ISessionsManagementService, host: ISessionHost, source: IObservable<{ readonly session: URI; readonly chat: URI | undefined } | undefined>): IChangesSessionScope {
+export function createChangesEditorScope(changesViewService: IChangesViewService, sessionsManagementService: ISessionsManagementService, host: ISessionHost, source: IObservable<{ readonly session: URI; readonly chat: URI | undefined } | undefined>, followsInput = false): IChangesSessionScope {
 	const windowHost = getWindowHost(host);
+	if (followsInput) {
+		const sessionsChangedOfInput = observableSignalFromEvent('changesEditorScope.inputSessions', sessionsManagementService.onDidChangeSessions);
+		const inputSession = derived(reader => {
+			const value = source.read(reader);
+			if (!value) {
+				return undefined;
+			}
+			sessionsChangedOfInput.read(reader);
+			return sessionsManagementService.getSession(value.session);
+		});
+		const session = derived(reader => source.read(reader) ? inputSession.read(reader) : windowHost.session.read(reader));
+		const chat = derived(reader => {
+			const value = source.read(reader);
+			if (!value) {
+				return windowHost.chat.read(reader);
+			}
+			const ofInput = inputSession.read(reader);
+			if (value.chat) {
+				return ofInput?.chats.read(reader).find(candidate => isEqual(candidate.resource, value.chat));
+			}
+			return ofInput && windowHost.session.read(reader) === ofInput ? windowHost.chat.read(reader) : ofInput?.mainChat.read(reader);
+		});
+		return { session, chat, isMainWindow: false, hostCommandContext: windowHost.commandContext, changes: changesViewService.getSessionChanges(session, chat) };
+	}
 	if (windowHost.kind === SessionHostKind.MainWindow) {
 		return createChangesSessionScope(changesViewService, host);
 	}

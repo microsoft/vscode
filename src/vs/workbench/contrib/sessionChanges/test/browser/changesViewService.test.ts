@@ -318,6 +318,37 @@ suite('ChangesViewService', () => {
 		});
 	});
 
+	test('a Changes editor that follows its input, as in an editor window, is of the session of its input whichever session the window shows, of the chat the window shows of it, else of its main chat, and is not of the main window, whose workspace is the one mounted', () => {
+		const createChat = (id: string) => upcastPartial<IChat>({
+			resource: URI.from({ scheme: 'test-chat', path: `/${id}` }),
+			changes: constObservable([]),
+			workspace: constObservable(undefined),
+			changesets: constObservable([createChangeset([])]),
+		});
+		const chatA1 = createChat('a1');
+		const chatA2 = createChat('a2');
+		const chatB = createChat('b');
+		const sessionA = createSession('a', { chats: constObservable([chatA1, chatA2]), activeChat: constObservable(chatA1), mainChat: constObservable(chatA1) });
+		const sessionB = createSession('b', { chats: constObservable([chatB]), activeChat: constObservable(chatB), mainChat: constObservable(chatB) });
+		const { service } = createHarness(sessionA);
+		const sessionsManagementService = upcastPartial<ISessionsManagementService>({ onDidChangeSessions: Event.None, getSession: resource => [sessionA, sessionB].find(session => session.resource.toString() === resource.toString()) });
+		const windowSession = observableValue<ITestSessionWithChat | undefined>('windowSession', sessionA);
+		const windowChat = observableValue<IChat | undefined>('windowChat', chatA2);
+		const mainWindowHost = new SessionHost({ kind: SessionHostKind.MainWindow, parent: undefined, session: windowSession, chat: windowChat, contextKeyService: upcastPartial<IContextKeyService>({}) });
+		const scope = createChangesEditorScope(service, sessionsManagementService, mainWindowHost, constObservable({ session: sessionA.resource, chat: undefined }), true);
+		const describe = () => ({ session: scope.session.get()?.resource.path, chat: scope.chat.get()?.resource.path, isMainWindow: scope.isMainWindow });
+
+		const shown = describe();
+		windowSession.set(sessionB, undefined);
+		windowChat.set(chatB, undefined);
+		const anotherShown = describe();
+
+		assert.deepStrictEqual({ shown, anotherShown }, {
+			shown: { session: sessionA.resource.path, chat: '/a2', isMainWindow: false },
+			anotherShown: { session: sessionA.resource.path, chat: '/a1', isMainWindow: false },
+		});
+	});
+
 	test('a Changes editor of a chat in a chat window keeps the scope of that chat, and selects its changesets, while the window shows another chat; one of the session follows the window, and the main window\'s is unchanged', () => {
 		const createChat = (id: string) => upcastPartial<IChat>({
 			resource: URI.from({ scheme: 'test-chat', path: `/${id}` }),
