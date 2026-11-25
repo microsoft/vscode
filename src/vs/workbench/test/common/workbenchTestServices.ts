@@ -37,7 +37,7 @@ import { ChatEntitlement, ChatEntitlementContext, IChatEntitlementService } from
 import { Lazy } from '../../../base/common/lazy.js';
 import { NullExtensionService } from '../../services/extensions/common/extensions.js';
 import { IAutoSaveConfiguration, IAutoSaveMode, IFilesConfigurationService } from '../../services/filesConfiguration/common/filesConfigurationService.js';
-import { IHistoryService } from '../../services/history/common/history.js';
+import { IHistoryService, IRecentlyOpenedState } from '../../services/history/common/history.js';
 import { BeforeShutdownErrorEvent, ILifecycleService, InternalBeforeShutdownEvent, LifecyclePhase, ShutdownReason, StartupKind, WillShutdownEvent } from '../../services/lifecycle/common/lifecycle.js';
 import { IResourceEncoding } from '../../services/textfile/common/textfiles.js';
 import { IUserDataProfileService } from '../../services/userDataProfile/common/userDataProfile.js';
@@ -186,6 +186,8 @@ export class TestHistoryService implements IHistoryService {
 	removeFromHistory(_input: EditorInput | IResourceEditorInput): void { }
 	clear(): void { }
 	clearRecentlyOpened(): void { }
+	saveRecentlyOpened(): IRecentlyOpenedState { return { entries: [] }; }
+	restoreRecentlyOpened(_state: IRecentlyOpenedState | undefined): void { }
 	getHistory(): readonly (EditorInput | IResourceEditorInput)[] { return []; }
 	async openNextRecentlyUsedEditor(group?: GroupIdentifier): Promise<void> { }
 	async openPreviouslyUsedEditor(group?: GroupIdentifier): Promise<void> { }

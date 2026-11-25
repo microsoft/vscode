@@ -9,7 +9,7 @@ import { IResourceEditorInput, IEditorOptions } from '../../../../platform/edito
 import { IEditorPane, IEditorCloseEvent, EditorResourceAccessor, IEditorIdentifier, GroupIdentifier, EditorsOrder, SideBySideEditor, IUntypedEditorInput, isResourceEditorInput, isEditorInput, isSideBySideEditorInput, EditorCloseContext, IEditorPaneSelection, EditorPaneSelectionCompareResult, EditorPaneSelectionChangeReason, isEditorPaneWithSelection, IEditorPaneSelectionChangeEvent, IEditorPaneWithSelection, IEditorWillMoveEvent, GroupModelChangeKind } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IEditorService } from '../../editor/common/editorService.js';
-import { GoFilter, GoScope, IHistoryService, MOUSE_BACK_FORWARD_NAVIGATION_SETTING } from '../common/history.js';
+import { GoFilter, GoScope, IHistoryService, IRecentlyOpenedState, ISerializedEditorHistoryEntry, MOUSE_BACK_FORWARD_NAVIGATION_SETTING } from '../common/history.js';
 import { FileChangesEvent, IFileService, FileChangeType, FILES_EXCLUDE_CONFIG, FileOperationEvent, FileOperation } from '../../../../platform/files/common/files.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { Disposable, DisposableStore, IDisposable, DisposableMap } from '../../../../base/common/lifecycle.js';
@@ -34,10 +34,6 @@ import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uri
 import { ILifecycleService, LifecyclePhase } from '../../lifecycle/common/lifecycle.js';
 import { ILogService, LogLevel } from '../../../../platform/log/common/log.js';
 import { mainWindow } from '../../../../base/browser/window.js';
-
-interface ISerializedEditorHistoryEntry {
-	readonly editor: Omit<IResourceEditorInput, 'resource'> & { resource: string };
-}
 
 interface IRecentlyClosedEditor {
 	readonly editorId: string | undefined;
@@ -1039,6 +1035,20 @@ export class HistoryService extends Disposable implements IHistoryService {
 		this.editorHistoryListeners.clearAndDisposeAll();
 	}
 
+	saveRecentlyOpened(): IRecentlyOpenedState {
+		return { entries: this.serializeHistory(this.getHistory()) };
+	}
+
+	restoreRecentlyOpened(state: IRecentlyOpenedState | undefined): void {
+		this.clearRecentlyOpened();
+
+		for (const editor of this.deserializeHistory(state?.entries ?? [])) {
+			if (this.includeInHistory(editor)) {
+				this.addToHistory(editor, false /* at the end */);
+			}
+		}
+	}
+
 	getHistory(): readonly (EditorInput | IResourceEditorInput)[] {
 		this.ensureHistoryLoaded(this.history);
 
@@ -1126,43 +1136,44 @@ export class HistoryService extends Disposable implements IHistoryService {
 	}
 
 	private loadHistoryFromStorage(): Array<IResourceEditorInput> {
-		const entries: IResourceEditorInput[] = [];
-
 		const entriesRaw = this.storageService.get(HistoryService.HISTORY_STORAGE_KEY, StorageScope.WORKSPACE);
 		if (entriesRaw) {
 			try {
-				const entriesParsed: ISerializedEditorHistoryEntry[] = JSON.parse(entriesRaw);
-				for (const entryParsed of entriesParsed) {
-					if (!entryParsed.editor || !entryParsed.editor.resource) {
-						continue; // unexpected data format
-					}
-
-					try {
-						entries.push({
-							...entryParsed.editor,
-							resource: typeof entryParsed.editor.resource === 'string' ?
-								URI.parse(entryParsed.editor.resource) :  	//  from 1.67.x: URI is stored efficiently as URI.toString()
-								URI.from(entryParsed.editor.resource)		// until 1.66.x: URI was stored very verbose as URI.toJSON()
-						});
-					} catch (error) {
-						onUnexpectedError(error); // do not fail entire history when one entry fails
-					}
-				}
+				return this.deserializeHistory(JSON.parse(entriesRaw));
 			} catch (error) {
 				onUnexpectedError(error); // https://github.com/microsoft/vscode/issues/99075
+			}
+		}
+
+		return [];
+	}
+
+	private deserializeHistory(entriesParsed: readonly ISerializedEditorHistoryEntry[]): Array<IResourceEditorInput> {
+		const entries: IResourceEditorInput[] = [];
+
+		for (const entryParsed of entriesParsed) {
+			if (!entryParsed.editor || !entryParsed.editor.resource) {
+				continue; // unexpected data format
+			}
+
+			try {
+				entries.push({
+					...entryParsed.editor,
+					resource: typeof entryParsed.editor.resource === 'string' ?
+						URI.parse(entryParsed.editor.resource) :  	//  from 1.67.x: URI is stored efficiently as URI.toString()
+						URI.from(entryParsed.editor.resource)		// until 1.66.x: URI was stored very verbose as URI.toJSON()
+				});
+			} catch (error) {
+				onUnexpectedError(error); // do not fail entire history when one entry fails
 			}
 		}
 
 		return entries;
 	}
 
-	private saveState(): void {
-		if (!this.history) {
-			return; // nothing to save because history was not used
-		}
-
+	private serializeHistory(history: readonly (EditorInput | IResourceEditorInput)[]): ISerializedEditorHistoryEntry[] {
 		const entries: ISerializedEditorHistoryEntry[] = [];
-		for (const editor of this.history) {
+		for (const editor of history) {
 			if (isEditorInput(editor) || !isResourceEditorInput(editor)) {
 				continue; // only save resource editor inputs
 			}
@@ -1175,7 +1186,15 @@ export class HistoryService extends Disposable implements IHistoryService {
 			});
 		}
 
-		this.storageService.store(HistoryService.HISTORY_STORAGE_KEY, JSON.stringify(entries), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		return entries;
+	}
+
+	private saveState(): void {
+		if (!this.history) {
+			return; // nothing to save because history was not used
+		}
+
+		this.storageService.store(HistoryService.HISTORY_STORAGE_KEY, JSON.stringify(this.serializeHistory(this.history)), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
 
 	//#endregion

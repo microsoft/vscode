@@ -745,6 +745,40 @@ suite('HistoryService', function () {
 		return workbenchTeardown(instantiationService);
 	});
 
+	test('save and restore recently opened', async () => {
+
+		class TestFileEditorInputWithUntyped extends TestFileEditorInput {
+
+			override toUntyped(): IUntypedEditorInput {
+				return { resource: this.resource, options: { override: 'testOverride' } };
+			}
+		}
+
+		const [part, historyService, , , instantiationService] = await createServices(undefined, true);
+
+		await part.activeGroup.openEditor(disposables.add(new TestFileEditorInputWithUntyped(URI.file('/one'), TEST_EDITOR_INPUT_ID)), { pinned: true });
+		await part.activeGroup.openEditor(disposables.add(new TestFileEditorInput(URI.parse('foo://typed'), TEST_EDITOR_INPUT_ID)), { pinned: true });
+		await part.activeGroup.openEditor(disposables.add(new TestFileEditorInputWithUntyped(URI.file('/two'), TEST_EDITOR_INPUT_ID)), { pinned: true });
+
+		// Editors that only exist while open are left out, and an excluded one that was stored is not restored
+		const saved = historyService.saveRecentlyOpened();
+		const excluded = { editor: { resource: URI.file('/node_modules/three').toString() } };
+
+		historyService.restoreRecentlyOpened(undefined);
+		const afterEmptyRestore = historyService.getHistory().length;
+
+		historyService.restoreRecentlyOpened({ entries: [...saved.entries, excluded] });
+		const restored = historyService.getHistory().map(editor => ({ resource: editor.resource?.toString(), override: isResourceEditorInput(editor) ? editor.options?.override : undefined }));
+
+		assert.deepStrictEqual({ saved, afterEmptyRestore, restored }, {
+			saved: { entries: [{ editor: { resource: URI.file('/two').toString(), options: { override: 'testOverride' } } }, { editor: { resource: URI.file('/one').toString(), options: { override: 'testOverride' } } }] },
+			afterEmptyRestore: 0,
+			restored: [{ resource: URI.file('/two').toString(), override: 'testOverride' }, { resource: URI.file('/one').toString(), override: 'testOverride' }]
+		});
+
+		return workbenchTeardown(instantiationService);
+	});
+
 	test('editor dispose clears history listener', async () => {
 		const [part, historyService, , , instantiationService] = await createServices();
 		historyService.getHistory();

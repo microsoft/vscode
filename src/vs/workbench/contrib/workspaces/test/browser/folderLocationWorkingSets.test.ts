@@ -26,6 +26,7 @@ import { IAuxiliaryWindowService } from '../../../../services/auxiliaryWindow/br
 import { EditorService } from '../../../../services/editor/browser/editorService.js';
 import { IEditorGroupsService, IEditorWorkingSet } from '../../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { IHistoryService, IRecentlyOpenedState } from '../../../../services/history/common/history.js';
 import { UntitledTextEditorInput } from '../../../../services/untitled/common/untitledTextEditorInput.js';
 import { IUntitledTextEditorService } from '../../../../services/untitled/common/untitledTextEditorService.js';
 import { IResolvedWorkingCopyBackup, IWorkingCopyBackupService } from '../../../../services/workingCopy/common/workingCopyBackup.js';
@@ -59,6 +60,8 @@ suite('FolderLocationWorkingSetsContribution', () => {
 		editors: { resource: URI; dirty?: boolean }[] = [];
 		backups: IWorkingCopyIdentifier[] = [];
 		backupsGate: Promise<void> | undefined;
+		/** The resources of the recently opened editors, most recent first. */
+		recentlyOpened: string[] = [];
 
 		saved(): Record<string, string> {
 			return Object.fromEntries([...this.sets.values()].map(set => [set.name, set.content]));
@@ -111,7 +114,11 @@ suite('FolderLocationWorkingSetsContribution', () => {
 			{ error: (message: string) => errors.push(message), info: (message: string) => infos.push(message), trace: () => { } } as unknown as ILogService,
 			{ getBackups: async () => { await area.backupsGate; return area.backups; } } as unknown as IWorkingCopyBackupService,
 			{ onDidChangeDirty: onDidChangeDirty.event, onDidUnregister: Event.None } as unknown as IWorkingCopyService,
-			{ onDidEditorsChange: Event.None } as unknown as IEditorService
+			{ onDidEditorsChange: Event.None } as unknown as IEditorService,
+			{
+				saveRecentlyOpened: (): IRecentlyOpenedState => ({ entries: area.recentlyOpened.map(resource => ({ editor: { resource } })) }),
+				restoreRecentlyOpened: (state: IRecentlyOpenedState | undefined) => { area.recentlyOpened = state?.entries.map(entry => entry.editor.resource) ?? []; }
+			} as unknown as IHistoryService
 		));
 
 		return {
@@ -360,6 +367,91 @@ suite('FolderLocationWorkingSetsContribution', () => {
 		await settle();
 
 		assert.deepStrictEqual({ content: fixture.area.content, owner: fixture.stored().owner, errors: fixture.errors }, { content: 'P1', owner: p, errors: [] });
+	});
+
+	test('each location keeps its own recently opened editors, also when its editor area is empty', async () => {
+		const fixture = createFixture();
+		fixture.area.content = 'P1';
+		fixture.area.recentlyOpened = ['p.ts'];
+
+		fixture.switchTo(alternate);
+		await settle();
+		const firstVisit = fixture.area.recentlyOpened;
+		fixture.area.content = '';
+		fixture.area.recentlyOpened = ['a.ts'];
+
+		fixture.switchTo(primary);
+		await settle();
+		const backAtPrimary = fixture.area.recentlyOpened;
+
+		fixture.switchTo(alternate);
+		await settle();
+
+		assert.deepStrictEqual({ firstVisit, backAtPrimary, backAtAlternate: fixture.area.recentlyOpened, stored: fixture.stored().recentlyOpened }, {
+			firstVisit: [],
+			backAtPrimary: ['p.ts'],
+			backAtAlternate: ['a.ts'],
+			stored: [
+				{ key: a, state: { entries: [{ editor: { resource: 'a.ts' } }] } },
+				{ key: p, state: { entries: [{ editor: { resource: 'p.ts' } }] } }
+			]
+		});
+	});
+
+	test('the recently opened editors are kept when the editors of the location being entered cannot be applied', async () => {
+		const fixture = createFixture();
+		fixture.area.content = 'P1';
+		fixture.area.recentlyOpened = ['p.ts'];
+		fixture.area.applyResult = false;
+
+		fixture.switchTo(alternate);
+		await settle();
+
+		assert.deepStrictEqual({ recentlyOpened: fixture.area.recentlyOpened, owner: fixture.stored().owner }, { recentlyOpened: ['p.ts'], owner: p });
+	});
+
+	test('a window that starts at another location than the one it was closed at swaps the recently opened editors of the last session out', async () => {
+		const first = createFixture();
+		first.area.content = 'P1';
+		first.area.recentlyOpened = ['p.ts'];
+		first.switchTo(alternate);
+		await settle();
+		first.area.content = 'A1';
+		first.area.recentlyOpened = ['a.ts'];
+
+		const restarted = createFixture({ area: first.area, storage: first.storage, folder: primary });
+		await settle();
+		const afterStartup = restarted.area.recentlyOpened;
+
+		restarted.switchTo(alternate);
+		await settle();
+
+		assert.deepStrictEqual({ afterStartup, backAtAlternate: restarted.area.recentlyOpened }, { afterStartup: ['p.ts'], backAtAlternate: ['a.ts'] });
+	});
+
+	test('the recently opened editors of the least recently left locations are evicted, never the ones of the location being entered', async () => {
+		const fixture = createFixture();
+		fixture.area.content = 'P1';
+		fixture.area.recentlyOpened = ['p.ts'];
+		fixture.switchTo(alternate);
+		await settle();
+		// The primary, the alternate and these locations are one more than the limit once the last one is left for the primary
+		for (let i = 0; i < FOLDER_LOCATION_MAX_WORKING_SETS - 1; i++) {
+			fixture.area.content = `W${i}`;
+			fixture.area.recentlyOpened = [`w${i}.ts`];
+			fixture.switchTo(URI.file(`/work/project-w${i}`));
+			await settle();
+		}
+
+		fixture.switchTo(primary);
+		await settle();
+		const stored: { key: string }[] = fixture.stored().recentlyOpened;
+
+		assert.deepStrictEqual({ recentlyOpened: fixture.area.recentlyOpened, count: stored.length, keys: stored.map(entry => entry.key).slice(0, 2) }, {
+			recentlyOpened: ['p.ts'],
+			count: FOLDER_LOCATION_MAX_WORKING_SETS,
+			keys: [p, URI.file('/work/project-w0').toString()]
+		});
 	});
 
 	test('a window that starts at another location than the one it was closed at swaps the editors of the last session out', async () => {
@@ -631,7 +723,8 @@ suite('FolderLocationWorkingSetsContribution with the editor parts', () => {
 				accessor.get(ILogService),
 				backupService,
 				accessor.get(IWorkingCopyService),
-				editorService
+				editorService,
+				accessor.get(IHistoryService)
 			)));
 			return () => {
 				folder = URI.file('/work/project-alt');

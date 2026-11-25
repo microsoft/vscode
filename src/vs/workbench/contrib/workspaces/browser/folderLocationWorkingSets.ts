@@ -18,6 +18,7 @@ import { EditorInput } from '../../../common/editor/editorInput.js';
 import { SideBySideEditorInput } from '../../../common/editor/sideBySideEditorInput.js';
 import { IEditorGroupsService, IEditorWorkingSet } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { IHistoryService, IRecentlyOpenedState } from '../../../services/history/common/history.js';
 import { IWorkingCopyBackupService } from '../../../services/workingCopy/common/workingCopyBackup.js';
 import { IWorkingCopyService } from '../../../services/workingCopy/common/workingCopyService.js';
 
@@ -36,13 +37,18 @@ interface IStoredWorkingSets {
 	/** The editor area may only partially hold the editors of the owner, whose saved working set is authoritative. */
 	readonly partial?: boolean;
 	readonly entries: readonly { readonly key: string; readonly workingSet: IEditorWorkingSet }[];
+
+	/** The recently opened editors per location. A location without an entry starts with none. */
+	readonly recentlyOpened?: readonly { readonly key: string; readonly state: IRecentlyOpenedState }[];
 }
 
 /**
  * Keeps one working set of open editors per location of the workspace folder:
  * when the folder switches location, the editors of the location being left are
  * saved and the ones of the location being entered are restored. A location that
- * is visited for the first time starts with no editors.
+ * is visited for the first time starts with no editors. The same goes for the list of
+ * recently opened editors, so that for example Quick Open only offers the editors that
+ * were opened at the current location.
  *
  * The location that owns the editor area is persisted, so that a window that starts at
  * another location than the one it was closed at (for example because the alternate
@@ -56,6 +62,9 @@ export class FolderLocationWorkingSetsContribution extends Disposable implements
 
 	/** Ordered from least to most recently saved. */
 	private workingSets: { key: string; workingSet: IEditorWorkingSet }[];
+
+	/** Ordered from least to most recently saved. */
+	private recentlyOpened: { key: string; state: IRecentlyOpenedState }[];
 
 	/** The location whose editors are in the editor area. Only changes once they were applied. */
 	private owner: string | undefined;
@@ -84,7 +93,8 @@ export class FolderLocationWorkingSetsContribution extends Disposable implements
 		@ILogService private readonly logService: ILogService,
 		@IWorkingCopyBackupService private readonly workingCopyBackupService: IWorkingCopyBackupService,
 		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
-		@IEditorService editorService: IEditorService
+		@IEditorService editorService: IEditorService,
+		@IHistoryService private readonly historyService: IHistoryService
 	) {
 		super();
 
@@ -92,6 +102,7 @@ export class FolderLocationWorkingSetsContribution extends Disposable implements
 
 		const stored = this.load();
 		this.workingSets = stored.entries;
+		this.recentlyOpened = stored.recentlyOpened;
 		this.owner = stored.owner ?? this.getCurrentKey();
 		this.partial = stored.partial;
 		this.deleteOrphans();
@@ -210,6 +221,13 @@ export class FolderLocationWorkingSetsContribution extends Disposable implements
 
 	private async switchWorkingSet(leaving: string, entering: string): Promise<void> {
 
+		// Save the recently opened editors of the location being left. Unlike its editors, they are
+		// saved when the editor area is empty, and when it only partially holds the owner's editors:
+		// the list is only replaced once the location being entered owns the editor area.
+		if (leaving !== entering) {
+			this.saveRecentlyOpened(leaving, entering);
+		}
+
 		// Save the editors of the location being left. Nothing is saved for an empty editor
 		// area so that the location restores to what it had before the editors were closed.
 		// The editors of the main part and of the windows that are part of working sets count.
@@ -234,16 +252,13 @@ export class FolderLocationWorkingSetsContribution extends Disposable implements
 			this.partial = true;
 			this.store();
 		}
-		if (target && await this.tryApply(target.workingSet)) {
+		if ((target && await this.tryApply(target.workingSet)) || (leaving !== entering && await this.tryApply('empty'))) {
 			this.owner = entering;
 			this.partial = false;
 			this.store();
-			return;
-		}
-		if (leaving !== entering && await this.tryApply('empty')) {
-			this.owner = entering;
-			this.partial = false;
-			this.store();
+			if (leaving !== entering) {
+				this.historyService.restoreRecentlyOpened(this.recentlyOpened.find(entry => entry.key === entering)?.state);
+			}
 		}
 	}
 
@@ -282,6 +297,18 @@ export class FolderLocationWorkingSetsContribution extends Disposable implements
 		this.store();
 	}
 
+	private saveRecentlyOpened(key: string, protectedKey: string): void {
+		this.recentlyOpened = this.recentlyOpened.filter(entry => entry.key !== key);
+		this.recentlyOpened.push({ key, state: this.historyService.saveRecentlyOpened() });
+
+		// The location being entered is about to be restored, so it is the last to be evicted
+		while (this.recentlyOpened.length > FOLDER_LOCATION_MAX_WORKING_SETS) {
+			this.recentlyOpened.splice(this.recentlyOpened.findIndex(entry => entry.key !== protectedKey), 1);
+		}
+
+		this.store();
+	}
+
 	/** Deletes the working sets that were saved but never made it into the stored mapping, for example because of a crash. */
 	private deleteOrphans(): void {
 		const referenced = new Set(this.workingSets.map(entry => entry.workingSet.id));
@@ -292,20 +319,21 @@ export class FolderLocationWorkingSetsContribution extends Disposable implements
 		}
 	}
 
-	private load(): { owner: string | undefined; partial: boolean; entries: { key: string; workingSet: IEditorWorkingSet }[] } {
+	private load(): { owner: string | undefined; partial: boolean; entries: { key: string; workingSet: IEditorWorkingSet }[]; recentlyOpened: { key: string; state: IRecentlyOpenedState }[] } {
+		const none = { owner: undefined, partial: false, entries: [], recentlyOpened: [] };
 		const raw = this.storageService.get(FOLDER_LOCATION_WORKING_SETS_STORAGE_KEY, StorageScope.WORKSPACE);
 		if (!raw) {
-			return { owner: undefined, partial: false, entries: [] };
+			return none;
 		}
 
 		let stored: IStoredWorkingSets | undefined;
 		try {
 			stored = JSON.parse(raw);
 		} catch {
-			return { owner: undefined, partial: false, entries: [] };
+			return none;
 		}
 		if (stored?.version !== 1 || !Array.isArray(stored.entries)) {
-			return { owner: undefined, partial: false, entries: [] };
+			return none;
 		}
 
 		// Drop handles whose editor state no longer exists. Keys are normalized, so that a location
@@ -319,10 +347,19 @@ export class FolderLocationWorkingSetsContribution extends Disposable implements
 				entries.set(key, { key, workingSet: entry.workingSet });
 			}
 		}
+		const recentlyOpened = new Map<string, { key: string; state: IRecentlyOpenedState }>();
+		for (const entry of Array.isArray(stored.recentlyOpened) ? stored.recentlyOpened : []) {
+			const key = typeof entry?.key === 'string' ? this.normalizeKey(entry.key) : undefined;
+			if (key && Array.isArray(entry.state?.entries)) {
+				recentlyOpened.delete(key);
+				recentlyOpened.set(key, { key, state: entry.state });
+			}
+		}
 		return {
 			owner: typeof stored.owner === 'string' ? this.normalizeKey(stored.owner) : undefined,
 			partial: stored.partial === true,
-			entries: [...entries.values()].slice(-FOLDER_LOCATION_MAX_WORKING_SETS)
+			entries: [...entries.values()].slice(-FOLDER_LOCATION_MAX_WORKING_SETS),
+			recentlyOpened: [...recentlyOpened.values()].slice(-FOLDER_LOCATION_MAX_WORKING_SETS)
 		};
 	}
 
@@ -335,7 +372,7 @@ export class FolderLocationWorkingSetsContribution extends Disposable implements
 	}
 
 	private store(): void {
-		const stored: IStoredWorkingSets = { version: 1, owner: this.owner, partial: this.partial || undefined, entries: this.workingSets };
+		const stored: IStoredWorkingSets = { version: 1, owner: this.owner, partial: this.partial || undefined, entries: this.workingSets, recentlyOpened: this.recentlyOpened };
 		this.storageService.store(FOLDER_LOCATION_WORKING_SETS_STORAGE_KEY, JSON.stringify(stored), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
 }
