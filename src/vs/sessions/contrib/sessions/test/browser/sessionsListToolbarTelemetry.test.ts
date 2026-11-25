@@ -22,7 +22,8 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { SessionsListPromoteNewChatActionContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
-import { SessionsFlatList, SessionsGrouping, SessionsList, SessionsSorting } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
+import { SessionsFlatList, SessionsList } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
+import { SessionsGrouping, SessionsSorting } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListCommon.js';
 import { createListHarness, createTestSession, IListHarness } from './sessionsListTestUtils.js';
 import '../../browser/sessionsActions.js';
 import '../../browser/views/sessionsViewActions.js';

@@ -96,7 +96,7 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { IWorktreeSendChoiceTargetService, WorktreeSendChoiceTargetService } from '../../../../../workbench/contrib/chat/browser/agentSessions/worktreeSendChoiceTarget.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { SessionsView } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
-import { SessionsGrouping } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
+import { SessionsGrouping } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListCommon.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { NullHoverService } from '../../../../../platform/hover/test/browser/nullHoverService.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
