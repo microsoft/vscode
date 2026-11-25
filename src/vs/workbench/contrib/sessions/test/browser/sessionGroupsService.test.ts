@@ -377,26 +377,39 @@ suite('SessionGroupsService', () => {
 		});
 	});
 
-	test('deleting an inherited group leaves the created session explicitly ungrouped', () => {
-		const creator = createSession('creator');
-		const createdSession = createSession('created', false, creator.resource);
-		sessions = [creator, createdSession];
-		const inherited = service.createGroup('Inherited', [creator.sessionId]);
-		sessionsChangedEmitter.fire({ added: [createdSession], removed: [], changed: [] });
+	/** Moves the stored groups state to where an older build, which Settings Sync roamed it from, stored it. */
+	function storeAsOlderBuild(): void {
+		const state = storageService.get('sessionsListControl.localGroups', StorageScope.PROFILE);
+		storageService.remove('sessionsListControl.localGroups', StorageScope.PROFILE);
+		storageService.remove('sessionsListControl.localGroups.ownedByDevice', StorageScope.PROFILE);
+		storageService.store('sessionsListControl.groups', state, StorageScope.PROFILE, StorageTarget.USER);
+	}
 
-		service.deleteGroup(inherited.id);
-		service.dispose();
-		service = disposables.add(instantiationService.createInstance(SessionGroupsService));
-		const replacement = service.createGroup('Replacement', [creator.sessionId]);
+	for (const acrossMigration of [false, true]) {
+		test(`deleting an inherited group leaves the created session explicitly ungrouped${acrossMigration ? ', also when an older build stored that' : ''}`, () => {
+			const creator = createSession('creator');
+			const createdSession = createSession('created', false, creator.resource);
+			sessions = [creator, createdSession];
+			const inherited = service.createGroup('Inherited', [creator.sessionId]);
+			sessionsChangedEmitter.fire({ added: [createdSession], removed: [], changed: [] });
 
-		assert.deepStrictEqual({
-			creatorGroup: service.getGroupOfSession(creator.sessionId),
-			createdGroup: service.getGroupOfSession(createdSession.sessionId),
-		}, {
-			creatorGroup: replacement.id,
-			createdGroup: undefined,
+			service.deleteGroup(inherited.id);
+			service.dispose();
+			if (acrossMigration) {
+				storeAsOlderBuild();
+			}
+			service = disposables.add(instantiationService.createInstance(SessionGroupsService));
+			const replacement = service.createGroup('Replacement', [creator.sessionId]);
+
+			assert.deepStrictEqual({
+				creatorGroup: service.getGroupOfSession(creator.sessionId),
+				createdGroup: service.getGroupOfSession(createdSession.sessionId),
+			}, {
+				creatorGroup: replacement.id,
+				createdGroup: undefined,
+			});
 		});
-	});
+	}
 
 	test('archiving an inherited session leaves it explicitly ungrouped', () => {
 		const creator = createSession('creator');
@@ -419,26 +432,35 @@ suite('SessionGroupsService', () => {
 		});
 	});
 
-	test('an initially archived created session does not inherit after restoration', () => {
-		const creator = createSession('creator');
-		const archived = createSession('created', true, creator.resource);
-		sessions = [creator, archived];
-		const inherited = service.createGroup('Inherited', [creator.sessionId]);
-		sessionsChangedEmitter.fire({ added: [archived], removed: [], changed: [] });
+	for (const acrossMigration of [false, true]) {
+		test(`an initially archived created session does not inherit after restoration${acrossMigration ? ', also when Settings Sync downloads the group afterwards' : ''}`, () => {
+			const creator = createSession('creator');
+			const archived = createSession('created', true, creator.resource);
+			sessions = [creator, archived];
+			const inheritedId = acrossMigration ? 'synced' : service.createGroup('Inherited', [creator.sessionId]).id;
+			sessionsChangedEmitter.fire({ added: [archived], removed: [], changed: [] });
 
-		const restored = createSession('created', false, creator.resource);
-		sessions = [creator, restored];
-		service.dispose();
-		service = disposables.add(instantiationService.createInstance(SessionGroupsService));
+			const restored = createSession('created', false, creator.resource);
+			sessions = [creator, restored];
+			if (acrossMigration) {
+				// The device that synced the group had the created session join its creator's group.
+				storageService.store('sessionsListControl.groups', JSON.stringify({
+					groups: [{ id: inheritedId, name: 'Inherited', createdAt: 1 }],
+					membership: { [creator.sessionId]: inheritedId, [restored.sessionId]: inheritedId },
+				}), StorageScope.PROFILE, StorageTarget.USER);
+			}
+			service.dispose();
+			service = disposables.add(instantiationService.createInstance(SessionGroupsService));
 
-		assert.deepStrictEqual({
-			creatorGroup: service.getGroupOfSession(creator.sessionId),
-			restoredGroup: service.getGroupOfSession(restored.sessionId),
-		}, {
-			creatorGroup: inherited.id,
-			restoredGroup: undefined,
+			assert.deepStrictEqual({
+				creatorGroup: service.getGroupOfSession(creator.sessionId),
+				restoredGroup: service.getGroupOfSession(restored.sessionId),
+			}, {
+				creatorGroup: inheritedId,
+				restoredGroup: undefined,
+			});
 		});
-	});
+	}
 
 	test('deletion clears a persisted ungrouped preference', () => {
 		const creator = createSession('creator');

@@ -13,7 +13,7 @@ import { generateUuid } from '../../../../base/common/uuid.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ISession, isSessionArchiveConfirmed } from '../../../services/sessions/common/session.js';
-import { readMachineSessionsListState, storeMachineSessionsListState } from '../../../services/sessions/common/sessionsListStorage.js';
+import { IMigratedSessionsListState, readMachineSessionsListState, storeMachineSessionsListState } from '../../../services/sessions/common/sessionsListStorage.js';
 import { ISessionsManagementService } from '../common/sessionsManagement.js';
 import { ISessionSectionOrderService, ISessionSectionPositions, resolveSectionOrder, restoreSectionOrderPositions, spliceSectionOrder } from '../../../services/sessions/browser/sessionSectionOrderService.js';
 
@@ -319,18 +319,53 @@ interface ISerializedState {
 
 /**
  * Whether stored groups state holds anything the user made: groups or section appearance.
- * Sessions left ungrouped alone are bookkeeping, as archived sessions leave their group on every load.
+ * Sessions left ungrouped alone are bookkeeping that every load stores for archived sessions,
+ * and that remains once the last group is deleted, so they do not make the device own its state.
  */
 function isUserMadeGroupsState(state: Partial<ISerializedState> | null | undefined): boolean {
 	return !!state && ((Array.isArray(state.groups) && state.groups.length > 0) || (!!state.sectionAppearance && typeof state.sectionAppearance === 'object' && Object.keys(state.sectionAppearance).length > 0));
 }
 
-function isUserMadeSerializedGroupsState(raw: string): boolean {
-	try {
-		return isUserMadeGroupsState(JSON.parse(raw));
-	} catch {
-		return false;
+function parseGroupsState(raw: string | undefined): Partial<ISerializedState> | undefined {
+	if (raw === undefined) {
+		return undefined;
 	}
+	try {
+		const state: unknown = JSON.parse(raw);
+		return state && typeof state === 'object' ? state as Partial<ISerializedState> : undefined;
+	} catch {
+		return undefined;
+	}
+}
+
+function getExplicitlyUngroupedSessionIds(state: Partial<ISerializedState> | undefined): string[] {
+	const sessionIds = state?.[EXPLICITLY_UNGROUPED_FIELD];
+	return Array.isArray(sessionIds) ? sessionIds.filter((sessionId): sessionId is string => typeof sessionId === 'string') : [];
+}
+
+/**
+ * Combines the groups state that older builds synced with this device's. Synced state the user
+ * made is adopted, and sessions this device left ungrouped stay ungrouped in it. Otherwise only
+ * the sessions either left ungrouped are kept, without the device owning its state: they keep
+ * sessions from joining the group of the session that created them once groups exist again.
+ */
+function migrateSyncedGroupsState(syncedRaw: string, raw: string | undefined): IMigratedSessionsListState {
+	const synced = parseGroupsState(syncedRaw);
+	const local = parseGroupsState(raw);
+	const localUngrouped = getExplicitlyUngroupedSessionIds(local);
+	if (synced && isUserMadeGroupsState(synced)) {
+		const membership: Record<string, string> = synced.membership && typeof synced.membership === 'object' ? { ...synced.membership } : {};
+		for (const sessionId of localUngrouped) {
+			delete membership[sessionId];
+		}
+		const ungrouped = [...new Set([...getExplicitlyUngroupedSessionIds(synced), ...localUngrouped])];
+		return { value: JSON.stringify({ ...synced, membership, [EXPLICITLY_UNGROUPED_FIELD]: ungrouped }), userMade: true };
+	}
+	const ungrouped = [...new Set([...localUngrouped, ...getExplicitlyUngroupedSessionIds(synced)])];
+	if (ungrouped.length === localUngrouped.length) {
+		return { value: raw, userMade: false };
+	}
+	return { value: JSON.stringify({ groups: [], membership: {}, ...local, [EXPLICITLY_UNGROUPED_FIELD]: ungrouped }), userMade: false };
 }
 
 export class SessionGroupsService extends Disposable implements ISessionGroupsService {
@@ -1034,7 +1069,7 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 	// -- Storage --
 
 	private load(): void {
-		const raw = readMachineSessionsListState(this.storageService, SessionGroupsService.STORAGE_KEY, SessionGroupsService.LEGACY_SYNCED_STORAGE_KEY, isUserMadeSerializedGroupsState);
+		const raw = readMachineSessionsListState(this.storageService, SessionGroupsService.STORAGE_KEY, SessionGroupsService.LEGACY_SYNCED_STORAGE_KEY, migrateSyncedGroupsState);
 		if (!raw) {
 			return;
 		}

@@ -7,7 +7,7 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
-import { readMachineSessionsListState, storeMachineSessionsListState } from '../common/sessionsListStorage.js';
+import { IMigratedSessionsListState, readMachineSessionsListState, storeMachineSessionsListState } from '../common/sessionsListStorage.js';
 
 /**
  * Service that owns the manual ordering of the sessions list's top-level
@@ -109,12 +109,16 @@ function isUserMadeOrderState(state: Partial<ISerializedState> | null | undefine
 	return !!state && ((Array.isArray(state.order) && state.order.length > 0) || (Array.isArray(state.promoted) && state.promoted.length > 0));
 }
 
-function isUserMadeSerializedOrderState(raw: string): boolean {
+/** Adopts the order that older builds synced when it holds any, and keeps this device's otherwise. */
+function migrateSyncedOrderState(syncedRaw: string, raw: string | undefined): IMigratedSessionsListState {
 	try {
-		return isUserMadeOrderState(JSON.parse(raw));
+		if (isUserMadeOrderState(JSON.parse(syncedRaw))) {
+			return { value: syncedRaw, userMade: true };
+		}
 	} catch {
-		return false;
+		// ignore corrupt data
 	}
+	return { value: raw, userMade: false };
 }
 
 export class SessionSectionOrderService extends Disposable implements ISessionSectionOrderService {
@@ -215,7 +219,7 @@ export class SessionSectionOrderService extends Disposable implements ISessionSe
 	// -- Storage --
 
 	private load(): void {
-		const raw = readMachineSessionsListState(this.storageService, SessionSectionOrderService.STORAGE_KEY, SessionSectionOrderService.LEGACY_SYNCED_STORAGE_KEY, isUserMadeSerializedOrderState);
+		const raw = readMachineSessionsListState(this.storageService, SessionSectionOrderService.STORAGE_KEY, SessionSectionOrderService.LEGACY_SYNCED_STORAGE_KEY, migrateSyncedOrderState);
 		if (!raw) {
 			return;
 		}
