@@ -8,7 +8,7 @@ import { DeferredPromise } from '../../../../../base/common/async.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { constObservable, IReader, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, IReader, ISettableObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { IAgentHostTerminalCreateOptions, IAgentHostTerminalProfileInfo, IAgentHostTerminalService } from '../../../../../workbench/contrib/terminal/browser/agentHostTerminalService.js';
 import { ITerminalProfileService, TERMINAL_VIEW_ID, TerminalCommandId } from '../../../../../workbench/contrib/terminal/common/terminal.js';
 import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
@@ -32,6 +32,7 @@ import { IFileService } from '../../../../../platform/files/common/files.js';
 import { ContextKeyExpression, ContextKeyValue, IContext, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
+import { IPartVisibilityChangeEvent, IWorkbenchLayoutService, Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { ISessionsChangeEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ISessionsProvider } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
@@ -318,6 +319,8 @@ suite('SessionsTerminalContribution', () => {
 	let backgroundedInstances: Set<number>;
 	let moveToBackgroundCalls: number[];
 	let showBackgroundCalls: number[];
+	/** Show and hide calls in order, as `show:<id>` and `hide:<id>`. */
+	let visibilityOperations: string[];
 	let disposeOnCreatePaths: Set<string>;
 	let defaultCwdCalls: (URI | undefined)[];
 	let localDefaultCwdCalls: (Promise<URI> | undefined)[];
@@ -332,6 +335,8 @@ suite('SessionsTerminalContribution', () => {
 	let terminalViewVisible: boolean;
 	let terminalGroupCount: number;
 	let viewVisibilityEmitter: Emitter<{ id: string; visible: boolean }>;
+	let partVisibilityEmitter: Emitter<IPartVisibilityChangeEvent>;
+	let panelVisible: boolean;
 
 	setup(() => {
 		createdTerminals = [];
@@ -350,6 +355,7 @@ suite('SessionsTerminalContribution', () => {
 		backgroundedInstances = new Set();
 		moveToBackgroundCalls = [];
 		showBackgroundCalls = [];
+		visibilityOperations = [];
 		disposeOnCreatePaths = new Set();
 		defaultCwdCalls = [];
 		localDefaultCwdCalls = [];
@@ -447,10 +453,12 @@ suite('SessionsTerminalContribution', () => {
 			override moveToBackground(instance: ITerminalInstance): void {
 				backgroundedInstances.add(instance.instanceId);
 				moveToBackgroundCalls.push(instance.instanceId);
+				visibilityOperations.push(`hide:${instance.instanceId}`);
 			}
 			override async showBackgroundTerminal(instance: ITerminalInstance): Promise<void> {
 				backgroundedInstances.delete(instance.instanceId);
 				showBackgroundCalls.push(instance.instanceId);
+				visibilityOperations.push(`show:${instance.instanceId}`);
 			}
 		});
 
@@ -511,14 +519,20 @@ suite('SessionsTerminalContribution', () => {
 			override isViewVisible(id: string): boolean { return id === TERMINAL_VIEW_ID && terminalViewVisible; }
 			override onDidChangeViewVisibility = viewVisibilityEmitter.event;
 		});
+		partVisibilityEmitter = store.add(new Emitter<IPartVisibilityChangeEvent>());
+		panelVisible = true;
+		instantiationService.stub(IWorkbenchLayoutService, new class extends mock<IWorkbenchLayoutService>() {
+			override onDidChangePartVisibility = partVisibilityEmitter.event;
+			override isVisible(part: Parts): boolean { return part === Parts.PANEL_PART && panelVisible; }
+		});
 
 		contribution = store.add(instantiationService.createInstance(SessionsTerminalContribution));
 	});
 
 	// --- Background provider: uses worktree/repository path ---
 
-	test('panel-capable custom views use local home defaults without changing Agent Host defaults', async () => {
-		activeCustomViewObs.set(upcastPartial<ICustomViewDescriptor>({ id: 'automations', allowPanel: true }), undefined);
+	test('custom views use local home defaults without changing Agent Host defaults', async () => {
+		activeCustomViewObs.set(upcastPartial<ICustomViewDescriptor>({ id: 'automations' }), undefined);
 		await tick();
 
 		assert.deepStrictEqual({
@@ -530,7 +544,7 @@ suite('SessionsTerminalContribution', () => {
 		});
 	});
 
-	test('opening a panel-capable custom view cancels pending session terminal activation', async () => {
+	test('opening a custom view cancels pending session terminal activation', async () => {
 		const worktreeUri = URI.file('/worktree');
 		const existsStarted = new DeferredPromise<void>();
 		const existsBarrier = new DeferredPromise<void>();
@@ -544,7 +558,7 @@ suite('SessionsTerminalContribution', () => {
 		activeSessionObs.set(makeAgentSession({ worktree: worktreeUri, providerType: AgentSessionProviders.Local }), undefined);
 		await existsStarted.p;
 
-		activeCustomViewObs.set(upcastPartial<ICustomViewDescriptor>({ id: 'automations', allowPanel: true }), undefined);
+		activeCustomViewObs.set(upcastPartial<ICustomViewDescriptor>({ id: 'automations' }), undefined);
 		existsBarrier.complete();
 		await tick();
 
@@ -557,24 +571,81 @@ suite('SessionsTerminalContribution', () => {
 		});
 	});
 
-	for (const opensEmpty of [false, true]) {
-		test(`opening the terminal view ${opensEmpty ? 'empty' : 'with terminals'} in Automations leaves the hidden session alone`, async () => {
-			terminalViewVisible = false;
-			terminalGroupCount = opensEmpty ? 0 : 1;
-			const session = makeAgentSession({ worktree: URI.file('/worktree'), providerType: AgentSessionProviders.Background });
-			activeSessionObs.set(session, undefined);
-			await tick();
-			activeCustomViewObs.set(upcastPartial<ICustomViewDescriptor>({ id: 'automations', allowPanel: true }), undefined);
+	/** Shows the terminal view, as the Panel commands and keybindings do. */
+	function showTerminalView(empty: boolean): void {
+		terminalViewVisible = true;
+		terminalGroupCount = empty ? 0 : 1;
+		viewVisibilityEmitter.fire({ id: TERMINAL_VIEW_ID, visible: true });
+	}
 
-			terminalViewVisible = true;
-			viewVisibilityEmitter.fire({ id: TERMINAL_VIEW_ID, visible: true });
-			const homeTerminal = makeTerminalInstance(nextInstanceId++, HOME_DIR.fsPath);
-			terminalInstances.set(homeTerminal.instanceId, homeTerminal);
-			terminalGroupCount = 1;
-			onDidCreateInstance.fire(homeTerminal);
+	/** Shows the panel over a terminal view that stayed visible while a custom view hid the panel. */
+	function showPanelOverVisibleTerminalView(): void {
+		terminalViewVisible = true;
+		partVisibilityEmitter.fire({ partId: Parts.PANEL_PART, visible: true });
+	}
+
+	/** A terminal the terminal view or the user creates in the panel. */
+	function createPanelTerminal(): TestTerminalInstance {
+		const instance = makeTerminalInstance(nextInstanceId++, HOME_DIR.fsPath);
+		terminalInstances.set(instance.instanceId, instance);
+		onDidCreateInstance.fire(instance);
+		return instance;
+	}
+
+	test('opening and closing a custom view without showing its terminal view leaves the panel terminals alone', async () => {
+		activeSessionObs.set(makeAgentSession({ worktree: HOME_DIR, providerType: AgentSessionProviders.Background }), undefined);
+		await tick();
+		visibilityOperations.length = 0;
+
+		activeCustomViewObs.set(upcastPartial<ICustomViewDescriptor>({ id: 'automations' }), undefined);
+		await tick();
+		activeCustomViewObs.set(undefined, undefined);
+		await tick();
+
+		assert.deepStrictEqual({ operations: visibilityOperations, created: createdTerminals.length }, { operations: [], created: 1 });
+	});
+
+	test('the session panel showing again while a custom view closes leaves the session terminals alone', async () => {
+		activeSessionObs.set(makeAgentSession({ worktree: HOME_DIR, providerType: AgentSessionProviders.Background }), undefined);
+		await tick();
+		activeCustomViewObs.set(upcastPartial<ICustomViewDescriptor>({ id: 'automations' }), undefined);
+		await tick();
+		visibilityOperations.length = 0;
+
+		// The workbench restores the session's panel before this contribution's autorun sees the custom view close.
+		transaction(tx => {
+			activeCustomViewObs.set(undefined, tx);
+			partVisibilityEmitter.fire({ partId: Parts.PANEL_PART, visible: true });
+		});
+		await tick();
+
+		assert.deepStrictEqual({ operations: visibilityOperations, created: createdTerminals.length }, { operations: [], created: 1 });
+	});
+
+	for (const [opensEmpty, viewStayedVisible] of [[false, false], [true, false], [false, true]]) {
+		const shown = viewStayedVisible ? 'showing the panel over a terminal view that stayed visible' : `showing the terminal view ${opensEmpty ? 'empty' : 'with session terminals'}`;
+		test(`${shown} in a custom view gives it its own terminal and leaves the hidden session alone`, async () => {
+			terminalViewVisible = false;
+			activeSessionObs.set(makeAgentSession({ worktree: URI.file('/worktree'), providerType: AgentSessionProviders.Background }), undefined);
 			await tick();
+			const sessionTerminal = opensEmpty ? undefined : makeTerminalInstance(nextInstanceId++, URI.file('/worktree').fsPath);
+			if (sessionTerminal) {
+				terminalInstances.set(sessionTerminal.instanceId, sessionTerminal);
+			}
+			activeCustomViewObs.set(upcastPartial<ICustomViewDescriptor>({ id: 'automations' }), undefined);
+			await tick();
+
+			if (viewStayedVisible) {
+				showPanelOverVisibleTerminalView();
+			} else {
+				showTerminalView(opensEmpty);
+			}
+			// The terminal view creates a terminal when it opens empty.
+			const viewTerminal = opensEmpty ? createPanelTerminal() : undefined;
+			await tick();
+			const customTerminal = viewTerminal ?? terminalInstances.get(nextInstanceId - 1)!;
 			const whileCovered = {
-				created: createdTerminals.map(terminal => terminal.cwd.fsPath),
+				created: createdTerminals.map(terminal => terminal.cwd?.fsPath ?? 'default'),
 				backgrounded: [...backgroundedInstances],
 			};
 
@@ -583,15 +654,15 @@ suite('SessionsTerminalContribution', () => {
 			assert.deepStrictEqual({
 				whileCovered,
 				afterLeaving: {
-					created: createdTerminals.map(terminal => terminal.cwd.fsPath),
+					created: createdTerminals.map(terminal => terminal.cwd?.fsPath ?? 'default'),
 					backgrounded: [...backgroundedInstances],
 					localDefault: localDefaultCwdCalls.at(-1),
 				},
 			}, {
-				whileCovered: { created: [], backgrounded: [] },
+				whileCovered: { created: opensEmpty ? [] : ['default'], backgrounded: sessionTerminal ? [sessionTerminal.instanceId] : [] },
 				afterLeaving: {
-					created: [URI.file('/worktree').fsPath],
-					backgrounded: [homeTerminal.instanceId],
+					created: opensEmpty ? [URI.file('/worktree').fsPath] : ['default'],
+					backgrounded: [customTerminal.instanceId],
 					localDefault: undefined,
 				},
 			});
@@ -599,82 +670,148 @@ suite('SessionsTerminalContribution', () => {
 	}
 
 	test('custom-view terminals stay alive but cannot be reused by a session with the same cwd', async () => {
-		const session = makeAgentSession({ worktree: HOME_DIR, providerType: AgentSessionProviders.Background });
-		activeSessionObs.set(session, undefined);
+		activeSessionObs.set(makeAgentSession({ worktree: HOME_DIR, providerType: AgentSessionProviders.Background }), undefined);
 		await tick();
 		const sessionTerminal = terminalInstances.get(1)!;
+		const automations = upcastPartial<ICustomViewDescriptor>({ id: 'automations' });
 
-		const automations = upcastPartial<ICustomViewDescriptor>({ id: 'automations', allowPanel: true });
 		activeCustomViewObs.set(automations, undefined);
 		await tick();
-		const afterEntering = [...backgroundedInstances];
-		const customTerminal = makeTerminalInstance(nextInstanceId++, HOME_DIR.fsPath);
-		terminalInstances.set(customTerminal.instanceId, customTerminal);
-		onDidCreateInstance.fire(customTerminal);
+		showTerminalView(false);
 		await tick();
-
+		const customTerminal = terminalInstances.get(nextInstanceId - 1)!;
+		const afterShowing = [...backgroundedInstances];
 		activeCustomViewObs.set(undefined, undefined);
 		await tick();
 		const afterLeaving = [...backgroundedInstances];
 		activeCustomViewObs.set(automations, undefined);
 		await tick();
+		showTerminalView(false);
+		await tick();
 
 		assert.deepStrictEqual({
-			afterEntering,
+			afterShowing,
 			afterLeaving,
 			afterReturning: [...backgroundedInstances],
 			created: createdTerminals.length,
 			disposed: disposedInstances.map(instance => instance.instanceId),
 			trackedCustom: contribution.getChatWindowTerminalOwner(customTerminal),
 		}, {
-			afterEntering: [sessionTerminal.instanceId],
+			afterShowing: [sessionTerminal.instanceId],
 			afterLeaving: [customTerminal.instanceId],
 			afterReturning: [sessionTerminal.instanceId],
-			created: 1,
+			created: 2,
 			disposed: [],
 			trackedCustom: undefined,
 		});
 	});
 
-	test('different panel-capable custom views do not share terminals', async () => {
-		const firstView = upcastPartial<ICustomViewDescriptor>({ id: 'first', allowPanel: true });
-		const secondView = upcastPartial<ICustomViewDescriptor>({ id: 'second', allowPanel: true });
+	test('leaving a custom view shows the session terminals before hiding its own, so the session panel stays open', async () => {
+		activeSessionObs.set(makeAgentSession({ worktree: HOME_DIR, providerType: AgentSessionProviders.Background }), undefined);
+		await tick();
+		const sessionTerminal = terminalInstances.get(1)!;
+		activeCustomViewObs.set(upcastPartial<ICustomViewDescriptor>({ id: 'automations' }), undefined);
+		await tick();
+		showTerminalView(false);
+		await tick();
+		const customTerminal = terminalInstances.get(nextInstanceId - 1)!;
+		visibilityOperations.length = 0;
+
+		activeCustomViewObs.set(undefined, undefined);
+
+		assert.deepStrictEqual(visibilityOperations.slice(0, 2), [`show:${sessionTerminal.instanceId}`, `hide:${customTerminal.instanceId}`]);
+	});
+
+	test('leaving a custom view without other terminals leaves hiding its terminals to the session reconciliation', async () => {
+		// The session's terminal is created lazily, once the terminal view shows.
+		terminalViewVisible = false;
+		activeSessionObs.set(makeAgentSession({ worktree: URI.file('/worktree'), providerType: AgentSessionProviders.Background }), undefined);
+		await tick();
+		activeCustomViewObs.set(upcastPartial<ICustomViewDescriptor>({ id: 'automations' }), undefined);
+		await tick();
+		showTerminalView(true);
+		const customTerminal = createPanelTerminal();
+		await tick();
+		visibilityOperations.length = 0;
+
+		activeCustomViewObs.set(undefined, undefined);
+		const synchronously = [...visibilityOperations];
+		await tick();
+
+		assert.deepStrictEqual({ synchronously, afterReconciliation: visibilityOperations, created: createdTerminals.map(terminal => terminal.cwd?.fsPath) }, {
+			synchronously: [],
+			afterReconciliation: [`hide:${customTerminal.instanceId}`],
+			created: [URI.file('/worktree').fsPath],
+		});
+	});
+
+	for (const terminalViewShowsThem of [false, true]) {
+		test(`leaving a custom view whose terminals the session cannot replace hides them ${terminalViewShowsThem ? 'once the terminal view hides' : 'right away'}`, async () => {
+			activeSessionObs.set(makeAgentSession({ worktree: URI.file('/worktree'), providerType: AgentSessionProviders.Background, loading: true }), undefined);
+			activeCustomViewObs.set(upcastPartial<ICustomViewDescriptor>({ id: 'automations' }), undefined);
+			await tick();
+			showTerminalView(true);
+			const customTerminal = createPanelTerminal();
+			await tick();
+			terminalViewVisible = terminalViewShowsThem;
+			visibilityOperations.length = 0;
+
+			activeCustomViewObs.set(undefined, undefined);
+			await tick();
+			const afterLeaving = [...visibilityOperations];
+			terminalViewVisible = false;
+			viewVisibilityEmitter.fire({ id: TERMINAL_VIEW_ID, visible: false });
+
+			assert.deepStrictEqual({ afterLeaving, afterTerminalViewHides: visibilityOperations }, {
+				afterLeaving: terminalViewShowsThem ? [] : [`hide:${customTerminal.instanceId}`],
+				afterTerminalViewHides: [`hide:${customTerminal.instanceId}`],
+			});
+		});
+	}
+
+	test('different custom views do not share terminals', async () => {
+		const firstView = upcastPartial<ICustomViewDescriptor>({ id: 'first' });
+		const secondView = upcastPartial<ICustomViewDescriptor>({ id: 'second' });
 		activeCustomViewObs.set(firstView, undefined);
-		const firstTerminal = makeTerminalInstance(nextInstanceId++, HOME_DIR.fsPath);
-		terminalInstances.set(firstTerminal.instanceId, firstTerminal);
-		onDidCreateInstance.fire(firstTerminal);
+		await tick();
+		showTerminalView(true);
+		const firstTerminal = createPanelTerminal();
 		await tick();
 		activeCustomViewObs.set(secondView, undefined);
 		await tick();
-		const secondTerminal = makeTerminalInstance(nextInstanceId++, HOME_DIR.fsPath);
-		terminalInstances.set(secondTerminal.instanceId, secondTerminal);
-		onDidCreateInstance.fire(secondTerminal);
+		showTerminalView(false);
 		await tick();
+		const secondTerminal = terminalInstances.get(nextInstanceId - 1)!;
 		activeCustomViewObs.set(firstView, undefined);
+		await tick();
+		showTerminalView(false);
 		await tick();
 
 		assert.deepStrictEqual({
+			active: activeInstanceId,
 			backgrounded: [...backgroundedInstances],
 			disposed: disposedInstances.map(instance => instance.instanceId),
 		}, {
+			active: firstTerminal.instanceId,
 			backgrounded: [secondTerminal.instanceId],
 			disposed: [],
 		});
 	});
 
 	test('returning to a custom view restores its selected terminal rather than the last created terminal', async () => {
-		const view = upcastPartial<ICustomViewDescriptor>({ id: 'automations', allowPanel: true });
+		const view = upcastPartial<ICustomViewDescriptor>({ id: 'automations' });
 		activeCustomViewObs.set(view, undefined);
-		const first = makeTerminalInstance(nextInstanceId++, HOME_DIR.fsPath);
-		const second = makeTerminalInstance(nextInstanceId++, HOME_DIR.fsPath);
-		for (const instance of [first, second]) {
-			terminalInstances.set(instance.instanceId, instance);
-			onDidCreateInstance.fire(instance);
-		}
+		await tick();
+		showTerminalView(true);
+		const first = createPanelTerminal();
+		const second = createPanelTerminal();
 		activeInstanceId = first.instanceId;
 		activeCustomViewObs.set(undefined, undefined);
 		await tick();
+		activeInstanceId = second.instanceId;
 		activeCustomViewObs.set(view, undefined);
+		await tick();
+		showTerminalView(false);
 		await tick();
 
 		assert.deepStrictEqual({
@@ -683,6 +820,96 @@ suite('SessionsTerminalContribution', () => {
 		}, {
 			active: first.instanceId,
 			backgrounded: [],
+		});
+	});
+
+	for (const interruption of ['another custom view shows', 'the custom view closes']) {
+		test(`a custom view keeps the terminal it was creating when ${interruption}, and shows it once it shows its terminal view again`, async () => {
+			activeSessionObs.set(makeAgentSession({ worktree: URI.file('/worktree'), providerType: AgentSessionProviders.Background }), undefined);
+			await tick();
+			const sessionTerminal = terminalInstances.get(1)!;
+			const view = upcastPartial<ICustomViewDescriptor>({ id: 'automations' });
+			const creation = new DeferredPromise<void>();
+			terminalCreationBarriers.set('', creation);
+			activeCustomViewObs.set(view, undefined);
+			await tick();
+			showTerminalView(false);
+			await tick();
+
+			activeCustomViewObs.set(interruption === 'another custom view shows' ? upcastPartial<ICustomViewDescriptor>({ id: 'other' }) : undefined, undefined);
+			creation.complete();
+			await tick();
+			const customTerminal = terminalInstances.get(nextInstanceId - 1)!;
+			const whileAway = { backgrounded: [...backgroundedInstances], sessionOwner: contribution.getChatWindowTerminalOwner(customTerminal) };
+			activeCustomViewObs.set(view, undefined);
+			await tick();
+			showTerminalView(false);
+			await tick();
+
+			assert.deepStrictEqual({
+				whileAway,
+				afterReturning: { active: activeInstanceId, backgrounded: [...backgroundedInstances] },
+				created: createdTerminals.length,
+			}, {
+				whileAway: { backgrounded: [customTerminal.instanceId], sessionOwner: undefined },
+				afterReturning: { active: customTerminal.instanceId, backgrounded: [sessionTerminal.instanceId] },
+				created: 2,
+			});
+		});
+	}
+
+	test('a custom view that left its terminals in the background gets them back instead of another shell when its terminal view opens empty', async () => {
+		const view = upcastPartial<ICustomViewDescriptor>({ id: 'automations' });
+		activeCustomViewObs.set(view, undefined);
+		await tick();
+		showTerminalView(true);
+		const customTerminal = createPanelTerminal();
+		await tick();
+		activeCustomViewObs.set(undefined, undefined);
+		await tick();
+		// The session the custom view covered moved its terminal out of the panel, which left the panel empty.
+		backgroundedInstances.add(customTerminal.instanceId);
+		activeInstanceId = undefined;
+
+		activeCustomViewObs.set(view, undefined);
+		await tick();
+		showTerminalView(true);
+		const viewShell = createPanelTerminal();
+		await tick();
+
+		assert.deepStrictEqual({
+			active: activeInstanceId,
+			backgrounded: [...backgroundedInstances],
+			disposed: disposedInstances.map(instance => instance.instanceId),
+		}, {
+			active: customTerminal.instanceId,
+			backgrounded: [],
+			disposed: [viewShell.instanceId],
+		});
+	});
+
+	test('a custom view whose terminal view already shows when the contribution starts takes over the panel', async () => {
+		contribution.dispose();
+		const restoredSessionTerminal = makeTerminalInstance(nextInstanceId++, URI.file('/worktree').fsPath);
+		restoredSessionTerminal._testSetShellLaunchConfig({ attachPersistentProcess: { id: 1 } } as ITerminalInstance['shellLaunchConfig']);
+		const viewShell = makeTerminalInstance(nextInstanceId++, HOME_DIR.fsPath);
+		terminalInstances.set(restoredSessionTerminal.instanceId, restoredSessionTerminal);
+		terminalInstances.set(viewShell.instanceId, viewShell);
+		activeCustomViewObs.set(upcastPartial<ICustomViewDescriptor>({ id: 'automations' }), undefined);
+
+		const lateContribution = store.add(instantiationService.createInstance(SessionsTerminalContribution));
+		await tick();
+
+		assert.deepStrictEqual({
+			active: activeInstanceId,
+			backgrounded: [...backgroundedInstances],
+			created: createdTerminals.length,
+			viewShellOwner: lateContribution.getChatWindowTerminalOwner(viewShell),
+		}, {
+			active: viewShell.instanceId,
+			backgrounded: [restoredSessionTerminal.instanceId],
+			created: 0,
+			viewShellOwner: undefined,
 		});
 	});
 

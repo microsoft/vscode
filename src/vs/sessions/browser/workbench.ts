@@ -506,6 +506,8 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 	private _customViewAllowsPanel = false;
 	private _customViewId: string | undefined;
 	private _customViewPanelVisible = false;
+	/** Whether the centered panel was moved below the custom view, which only happens once it shows there. */
+	private _panelBelowCustomView = false;
 	/** Guards the grid updates that show/hide the custom view from feeding back into the desired part visibility. */
 	private _applyingCustomViewGridVisibility = false;
 	private _customViewCoveredPartWidths: { editor?: number; auxiliaryBar?: number } | undefined;
@@ -1363,17 +1365,15 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 		this.registerLayoutListeners();
 
 		// A custom view replaces the sessions grid (and the editor and side panel)
-		// for as long as it is shown. Individual views may retain the desktop panel.
+		// for as long as it is shown. On the desktop layout it keeps the panel.
 		const contextKeyService = accessor.get(IContextKeyService);
 		this._customViewVisibleKey = CustomViewVisibleContext.bindTo(contextKeyService);
 		this._customViewAllowsPanelKey = CustomViewAllowsPanelContext.bindTo(contextKeyService);
 		this.sessionActivityBarSizeKey = SessionActivityBarSizeContext.bindTo(accessor.get(IContextKeyService));
+		// Derived so that viewport changes that keep the phone state do not reapply the custom view and move focus.
+		const isPhoneLayout = derived(reader => this.layoutPolicy.viewportClass.read(reader) === 'phone');
 		this._register(autorun(reader => {
-			const descriptor = this.customViewService.activeCustomViewOpen.read(reader)?.descriptor;
-			this._applyCustomViewGridVisibility(
-				descriptor,
-				descriptor?.allowPanel === true && this.layoutPolicy.viewportClass.read(reader) === 'phone',
-			);
+			this._applyCustomViewGridVisibility(this.customViewService.activeCustomViewOpen.read(reader)?.descriptor, isPhoneLayout.read(reader));
 		}));
 
 		// Editor opens should only affect the main editor part when
@@ -2041,16 +2041,14 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 		};
 
 		if (this.agentWorkbenchLayout === AgentWorkbenchLayout.Desktop && this.getPanelAlignment() === 'center') {
-			const customViewOwnsPanel = this.partVisibility.customViewGrid && this._customViewAllowsPanel;
-			const panelOwner = customViewOwnsPanel ? customViewGridNode : sessionsNode;
-			const panelColumn: ISerializedNode = {
+			const chatColumn: ISerializedNode = {
 				type: 'branch',
 				data: [
-					{ ...panelOwner, size: topRightHeight },
+					{ ...sessionsNode, size: topRightHeight },
 					panelNode,
 				],
-				size: customViewOwnsPanel ? rightSectionWidth : sessionsWidth,
-				visible: panelOwner.visible === false && panelNode.visible === false ? false : undefined,
+				size: sessionsWidth,
+				visible: sessionsNode.visible === false && panelNode.visible === false ? false : undefined,
 			};
 
 			return {
@@ -2063,12 +2061,7 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 							type: 'branch',
 							data: [
 								sideBarNode,
-								...this._topRightSectionChildren(
-									customViewOwnsPanel ? sessionsNode : panelColumn,
-									editorNode,
-									auxiliaryBarNode,
-									customViewOwnsPanel ? panelColumn : customViewGridNode,
-								),
+								...this._topRightSectionChildren(chatColumn, editorNode, auxiliaryBarNode, customViewGridNode),
 								...sessionActivityBarColumnNodes,
 							],
 							size: contentHeight,
@@ -2861,6 +2854,9 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 		this.mainContainer.classList.toggle(LayoutClasses.PANEL_HIDDEN, !this._effectiveVisible(Parts.PANEL_PART));
 
 		// Propagate to grid
+		if (customViewVisible && this._effectiveVisible(Parts.PANEL_PART)) {
+			this._placeCenteredPanel(true);
+		}
 		this.workbenchGrid.setViewVisible(
 			this.panelPartView,
 			this._effectiveVisible(Parts.PANEL_PART),
@@ -2922,7 +2918,7 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 	 */
 	private _applyCustomViewGridVisibility(descriptor: ICustomViewDescriptor | undefined, isPhoneLayout = this.layoutPolicy.viewportClass.get() === 'phone'): void {
 		const visible = !!descriptor;
-		const allowsPanel = descriptor?.allowPanel === true && this.agentWorkbenchLayout === AgentWorkbenchLayout.Desktop && !isPhoneLayout;
+		const allowsPanel = visible && this.agentWorkbenchLayout === AgentWorkbenchLayout.Desktop && !isPhoneLayout;
 		const wasCustomViewVisible = this.partVisibility.customViewGrid;
 		const customViewAllowedPanel = this._customViewAllowsPanel;
 		const customViewVisibilityChanged = visible !== wasCustomViewVisible;
@@ -2969,28 +2965,22 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 		}
 
 		this._applyingCustomViewGridVisibility = true;
-		const previousMaximumEditorDimensionsOverride = this._maximumEditorDimensionsOverride;
 		try {
 			// Suspended so the desktop width sync cannot read the transient node
 			// widths as a sash drag and write back the desired visibility.
 			this._runWithEditorResizeSyncSuspended(() => {
-				if (this.getPanelAlignment() === 'center' && allowsPanel !== customViewAllowedPanel) {
-					this._maximumEditorDimensionsOverride ??= this.getMaximumEditorDimensions(this.mainContainer);
-					const panelTarget = allowsPanel ? this.customViewGridPartView : this.sessionsPartView;
-					this.workbenchGrid.moveView(this.panelPartView, this._viewMoveSizing(this.panelPartView, 'height'), panelTarget, Direction.Down);
-				}
 				// One pass, revealing before hiding so the row never goes empty in between.
 				if (visible) {
 					this.workbenchGrid.setViewVisible(this.customViewGridPartView, true);
 					this._applyExclusivePartVisibility();
 				} else {
 					this._applyExclusivePartVisibility();
+					this._placeCenteredPanel(false);
 					this.workbenchGrid.setViewVisible(this.customViewGridPartView, false);
 					this._restoreCustomViewCoveredPartWidths();
 				}
 			});
 		} finally {
-			this._maximumEditorDimensionsOverride = previousMaximumEditorDimensionsOverride;
 			this.sessionsPartService.setContentVisible(!visible);
 			this._applyingCustomViewGridVisibility = false;
 		}
@@ -3022,6 +3012,31 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 		}
 	}
 
+	/**
+	 * The centered panel shares a column with the chat, or with the custom view
+	 * once it shows there. Moving it lays out the grid again, and most custom view
+	 * visits never show the panel, so it only moves when it has to. It only moves
+	 * next to a shown view: the grid sizes the new column from the view it splits,
+	 * which is empty while that view is hidden.
+	 */
+	private _placeCenteredPanel(belowCustomView: boolean): void {
+		if (this.getPanelAlignment() !== 'center' || this._panelBelowCustomView === belowCustomView) {
+			return;
+		}
+
+		const previousMaximumEditorDimensionsOverride = this._maximumEditorDimensionsOverride;
+		try {
+			this._runWithEditorResizeSyncSuspended(() => {
+				this._maximumEditorDimensionsOverride ??= this.getMaximumEditorDimensions(this.mainContainer);
+				const panelTarget = belowCustomView ? this.customViewGridPartView : this.sessionsPartView;
+				this.workbenchGrid.moveView(this.panelPartView, this._viewMoveSizing(this.panelPartView, 'height'), panelTarget, Direction.Down);
+				this._panelBelowCustomView = belowCustomView;
+			});
+		} finally {
+			this._maximumEditorDimensionsOverride = previousMaximumEditorDimensionsOverride;
+		}
+	}
+
 	private _restoreCustomViewCoveredPartWidths(): void {
 		const widths = this._customViewCoveredPartWidths;
 		this._customViewCoveredPartWidths = undefined;
@@ -3035,8 +3050,16 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 	}
 
 	private _applyExclusivePartVisibility(): void {
-		this.workbenchGrid.setViewVisible(this.sessionsPartView, this._effectiveVisible(Parts.SESSIONS_PART));
+		// The centered panel shares a column with the chat. Hiding the chat first
+		// would grow the panel over the column, and it would come back that tall.
+		const sessionsVisible = this._effectiveVisible(Parts.SESSIONS_PART);
+		if (sessionsVisible) {
+			this.workbenchGrid.setViewVisible(this.sessionsPartView, true);
+		}
 		this.workbenchGrid.setViewVisible(this.panelPartView, this._effectiveVisible(Parts.PANEL_PART));
+		if (!sessionsVisible) {
+			this.workbenchGrid.setViewVisible(this.sessionsPartView, false);
+		}
 		this._applyEditorAreaVisibility();
 	}
 
@@ -3152,18 +3175,19 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 				this._editorPaneVisibleWhileGridMoves = this.isEditorPaneVisible();
 				if (alignment === 'center') {
 					const panelSize = this._viewMoveSizing(this.panelPartView, 'height');
-					const panelTarget = this.partVisibility.customViewGrid && this._customViewAllowsPanel
-						? this.customViewGridPartView
-						: this.sessionsPartView;
-					this.workbenchGrid.moveView(this.panelPartView, panelSize, panelTarget, Direction.Down);
+					// A custom view hides the chat, and the panel only moves next to a shown view.
+					const belowCustomView = this.partVisibility.customViewGrid;
+					this.workbenchGrid.moveView(this.panelPartView, panelSize, belowCustomView ? this.customViewGridPartView : this.sessionsPartView, Direction.Down);
+					this._panelBelowCustomView = belowCustomView;
 				} else {
 					const sessionsWidth = this.workbenchGrid.isViewVisible(this.sessionsPartView)
 						? this.workbenchGrid.getViewSize(this.sessionsPartView).width
 						: undefined;
 					const editorSize = maximizedEditorWidth ?? this._viewMoveSizing(this.editorPartView, 'width');
 					const customViewGridSize = this._viewMoveSizing(this.customViewGridPartView, 'width');
-					if (this.partVisibility.customViewGrid && this._customViewAllowsPanel) {
+					if (this._panelBelowCustomView) {
 						this.workbenchGrid.moveView(this.sessionsPartView, this._viewMoveSizing(this.sessionsPartView, 'width'), this.customViewGridPartView, Direction.Left);
+						this._panelBelowCustomView = false;
 					}
 					this.workbenchGrid.moveView(this.editorPartView, editorSize, this.sessionsPartView, Direction.Right);
 					this.workbenchGrid.moveView(this.customViewGridPartView, customViewGridSize, this.editorPartView, Direction.Right);

@@ -30,9 +30,6 @@ export interface ICustomViewDescriptor {
 
 	readonly actions?: ICustomViewActions;
 
-	/** Allow explicitly opening the desktop bottom panel while this view replaces the session content. */
-	readonly allowPanel?: boolean;
-
 	/** Handle an unparameterized New Session action without leaving this view. */
 	readonly openNewSession?: () => Promise<void> | undefined;
 
@@ -85,8 +82,9 @@ export interface ICustomViewOpenRequest {
  * Owns which custom view (if any) should be rendered in place of the sessions
  * grid. Only one view can be shown at a time. The Agents workbench observes
  * {@link activeCustomView} and, while it is set, renders the custom view grid
- * and hides the sessions grid and side panel. A view may keep the desktop
- * bottom panel available through {@link ICustomViewDescriptor.allowPanel}.
+ * and hides the sessions grid and side panel. On the desktop layout every view
+ * keeps the bottom panel, which starts hidden for each opening and is shown only
+ * through commands and keybindings.
  */
 export interface ICustomViewService {
 
