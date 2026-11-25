@@ -29,7 +29,7 @@ import { IAgentHostProviderService } from '../../node/agentHostProviderService.j
 import { IAgentHostProxyResolver } from '../../node/agentHostProxyResolver.js';
 import { AgentHostStateManager, IAgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { MissionControlEnvironment, type IMissionControlEnvironmentHost, type IMissionControlRelayDiagnostic } from '../../node/missionControl/missionControlEnvironment.js';
-import { getMissionControlEnvironmentName, MissionControlHost, type MissionControlOperationClassification, type MissionControlPublishSummaryClassification } from '../../node/missionControl/missionControlHost.js';
+import { formatMissionControlEnvironmentName, getMissionControlEnvironmentName, MissionControlHost, type MissionControlOperationClassification, type MissionControlPublishSummaryClassification } from '../../node/missionControl/missionControlHost.js';
 import { MissionControlProtocolServer } from '../../node/missionControl/missionControlProtocolServer.js';
 import { MissionControlProjects } from '../../node/missionControl/missionControlProjects.js';
 import { missionControlSessionConfigAdapter } from '../../node/missionControl/missionControlSessionConfig.js';
@@ -86,6 +86,13 @@ suite('Mission Control host integration', () => {
 			override readonly quality = 'insider';
 		}();
 		assert.strictEqual(getMissionControlEnvironmentName(product), `${hostname().replace(/\.local$/i, '')} (VS Code Insiders)`);
+	});
+
+	test('keeps a client-supplied name as given', () => {
+		const product = new class extends mock<IProductService>() {
+			override readonly quality = 'insider';
+		}();
+		assert.strictEqual(formatMissionControlEnvironmentName(product, 'build.local'), 'build.local (VS Code Insiders)');
 	});
 
 	function createHost(instantiation = store.add(new TestInstantiationService()), stateManager?: AgentHostStateManager, providers?: IAgentHostProviderService, agentService?: IAgentService, quality: IProductService['quality'] = 'stable', sessionDataService?: ISessionDataService) {

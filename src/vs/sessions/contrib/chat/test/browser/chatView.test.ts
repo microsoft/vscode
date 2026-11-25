@@ -357,16 +357,16 @@ suite('Sessions - Chat View', () => {
 			timelineVisibility: state.timelineVisibility,
 			transcriptBetweenEndpoints: Number.parseFloat(state.transcriptOpacity) > 0.85 && Number.parseFloat(state.transcriptOpacity) < 1,
 		});
-		const resting = { bubbleOpacity: 0, requestTint: 'linear-gradient(color(srgb 0 0 0 / 0), color(srgb 0 0 0 / 0))', pillsOpacity: 0, pillsVisibility: 'hidden', timelineOpacity: 0, timelineVisibility: 'hidden', transcriptOpacity: '0.85' };
+		const resting = { bubbleOpacity: 0, requestTint: 'linear-gradient(color(srgb 0.376471 0.376471 0.376471 / 0.4), color(srgb 0.376471 0.376471 0.376471 / 0.4))', pillsOpacity: 0, pillsVisibility: 'hidden', timelineOpacity: 0, timelineVisibility: 'hidden', transcriptOpacity: '0.85' };
 		const revealed = { bubbleOpacity: 0.75, requestTint: 'linear-gradient(color(srgb 0.376471 0.376471 0.376471 / 0.75), color(srgb 0.376471 0.376471 0.376471 / 0.75))', pillsOpacity: 1, pillsVisibility: 'visible', timelineOpacity: 1, timelineVisibility: 'visible', transcriptOpacity: '1' };
 		const fading = { opacityBetweenEndpoints: true, tintBetweenEndpoints: true, pillsVisibility: 'visible', timelineVisibility: 'visible', transcriptBetweenEndpoints: true };
 		assert.deepStrictEqual({ hidden, durations, halfwayIn: isFading(halfwayIn), visible, halfwayOut: isFading(halfwayOut), fadedOut, reducedMotionVisible, reducedMotionAnimations, reducedMotionHidden }, {
-			hidden: resting, durations: [[100, 100], [100, 100], [100, 100]], halfwayIn: fading, visible: revealed, halfwayOut: fading, fadedOut: resting,
+			hidden: resting, durations: [[100, 100, 100], [100, 100], [100, 100]], halfwayIn: fading, visible: revealed, halfwayOut: fading, fadedOut: resting,
 			reducedMotionVisible: revealed, reducedMotionAnimations: [0, 0, 0], reducedMotionHidden: resting,
 		});
 	});
 
-	test('recesses inactive bubble backgrounds independently of their contents', () => {
+	test('fades inactive request bubbles and recesses response backgrounds independently of their contents', () => {
 		const workbench = dom.append(document.body, dom.$('.monaco-workbench.agent-sessions-workbench'));
 		disposables.add(toDisposable(() => workbench.remove()));
 		workbench.style.setProperty('--vscode-chat-requestBubbleBackground', 'rgb(96, 96, 96)');
@@ -433,8 +433,8 @@ suite('Sessions - Chat View', () => {
 		group.classList.add('active-group');
 		const restored = readBubbles();
 
-		const tint = 'color(srgb 0 0 0 / 0)';
-		const hoverTint = tint;
+		const tint = 'color(srgb 0.376471 0.376471 0.376471 / 0.4)';
+		const hoverTint = 'color(srgb 0.501961 0.501961 0.501961 / 0.4)';
 		const dimmed = { background: tint, hoverBackground: hoverTint, wallpaperTint: 'none', responseBackgroundOpacity: '0', effectiveResponseBackgroundOpacity: 0, contentOpacity: '1' };
 		const activeWallpaper = { background: 'rgb(16, 16, 16)', hoverBackground: 'rgb(16, 16, 16)', wallpaperTint: 'linear-gradient(rgb(96, 96, 96), rgb(96, 96, 96))', responseBackgroundOpacity: '1', effectiveResponseBackgroundOpacity: 1, contentOpacity: '1' };
 		const revealed = { ...active, background: 'color(srgb 0.376471 0.376471 0.376471 / 0.75)', hoverBackground: 'color(srgb 0.501961 0.501961 0.501961 / 0.75)', responseBackgroundOpacity: '0.75', effectiveResponseBackgroundOpacity: 0.75 };

@@ -52,6 +52,19 @@ export function hasSendableNewChatContent(query: string, attachments: readonly I
 /** The new-session composer's prompt placeholder. */
 export const NEW_SESSION_PROMPT_PLACEHOLDER = localize('sessionsChatInput.placeholder.pitchYourIdea', "Pitch your idea");
 
+/** Mounts the composer in reading order before any focusable widgets are rendered. */
+export function createNewChatComposerLayout(parent: HTMLElement, controlsAboveInput: boolean, notices?: HTMLElement) {
+	const input = dom.$('.new-chat-input-container.sessions-shared-chat-input');
+	const controls = dom.$('.new-chat-bottom-container.sessions-shared-chat-input-controls');
+	const surfaces = notices ? [notices] : [];
+	if (controlsAboveInput) {
+		parent.append(...surfaces, controls, input);
+	} else {
+		parent.append(input, controls, ...surfaces);
+	}
+	return { input, controls };
+}
+
 /**
  * The labeled pickers in `container`, for responsive layouts that compact them
  * when the row runs out of room.

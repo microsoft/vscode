@@ -42,6 +42,8 @@ import { CanvasInput, canPresentCanvasInGroup, ICanvasContext, ICanvasModelResol
 import { CanvasService } from '../../../../../workbench/contrib/canvases/electron-browser/canvasService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
+import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { SessionCanvasContextService } from '../../electron-browser/sessionCanvasService.js';
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatWindow, IChatWindowService } from '../../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
@@ -206,6 +208,8 @@ suite('SessionCanvasService', () => {
 			configurationService,
 			new NullLogService(),
 			new TestNotificationService(),
+			upcastPartial<IWorkspaceContextService>({}),
+			upcastPartial<IUriIdentityService>({}),
 		));
 		const setCanvasesEnabled = async (enabled: boolean) => {
 			await configurationService.setUserConfiguration(CanvasesEnabledSettingId, enabled);

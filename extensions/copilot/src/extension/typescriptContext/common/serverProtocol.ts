@@ -720,8 +720,9 @@ export enum StructuralDiffTag {
 }
 
 /**
- * A structural item as it appears in one text. Groups of import and export statements use the
- * language kinds `imports` and `exports`. Their names are not localized.
+ * A structural item as it appears in one text. Groups of import statements, of export statements and
+ * of the other top-level code use the language kinds `imports`, `exports` and `statements`. Their
+ * names are not localized.
  */
 export type StructuralDiffItem = {
 	name: string;

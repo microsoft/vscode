@@ -30,7 +30,7 @@ import { isMacintosh } from '../../../base/common/platform.js';
 import { getActiveWindow } from '../../../base/browser/dom.js';
 import { IOpenedAuxiliaryWindow, IOpenedMainWindow, isOpenedAuxiliaryWindow } from '../../../platform/window/common/window.js';
 import { IsAuxiliaryWindowContext, IsWindowAlwaysOnTopContext } from '../../common/contextkeys.js';
-import { isAuxiliaryWindow, mainWindow } from '../../../base/browser/window.js';
+import { mainWindow } from '../../../base/browser/window.js';
 import { ContextKeyExpr } from '../../../platform/contextkey/common/contextkey.js';
 
 export class CloseWindowAction extends Action2 {
@@ -529,12 +529,7 @@ export class EnableWindowAlwaysOnTopAction extends Action2 {
 	override async run(accessor: ServicesAccessor): Promise<void> {
 		const nativeHostService = accessor.get(INativeHostService);
 
-		const targetWindow = getActiveWindow();
-		if (!isAuxiliaryWindow(targetWindow.window)) {
-			return; // Currently, we only support toggling always on top for auxiliary windows
-		}
-
-		return nativeHostService.setWindowAlwaysOnTop(true, { targetWindowId: targetWindow.vscodeWindowId });
+		return nativeHostService.setWindowAlwaysOnTop(true, { targetWindowId: getActiveWindow().vscodeWindowId });
 	}
 }
 
@@ -547,23 +542,24 @@ export class DisableWindowAlwaysOnTopAction extends Action2 {
 			id: DisableWindowAlwaysOnTopAction.ID,
 			title: localize('disableWindowAlwaysOnTop', "Turn Off Always on Top"),
 			icon: Codicon.pinned,
-			menu: {
+			menu: [{
 				id: MenuId.LayoutControlMenu,
 				when: ContextKeyExpr.and(IsWindowAlwaysOnTopContext, IsAuxiliaryWindowContext),
 				order: 1,
 				group: 'navigation'
-			}
+			}, {
+				// Main windows only indicate the state while it is on, ahead of the layout toggles
+				id: MenuId.LayoutControlMenu,
+				when: ContextKeyExpr.and(IsWindowAlwaysOnTopContext, IsAuxiliaryWindowContext.toNegated()),
+				order: -1,
+				group: 'navigation'
+			}]
 		});
 	}
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
 		const nativeHostService = accessor.get(INativeHostService);
 
-		const targetWindow = getActiveWindow();
-		if (!isAuxiliaryWindow(targetWindow.window)) {
-			return; // Currently, we only support toggling always on top for auxiliary windows
-		}
-
-		return nativeHostService.setWindowAlwaysOnTop(false, { targetWindowId: targetWindow.vscodeWindowId });
+		return nativeHostService.setWindowAlwaysOnTop(false, { targetWindowId: getActiveWindow().vscodeWindowId });
 	}
 }

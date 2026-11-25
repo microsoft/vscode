@@ -4,15 +4,55 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from '../../../../../base/browser/dom.js';
+import { HoverStyle } from '../../../../../base/browser/ui/hover/hover.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { CustomizationMarketplaceIcon, getCustomizationMarketplaceIconUri } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { type ColorScheme } from '../../../../../platform/theme/common/theme.js';
 import { ContributionEnablementState } from '../../common/enablement.js';
 import { IAgentPlugin } from '../../common/plugins/agentPluginService.js';
 
 const maximumCustomizationMarketplaceIconAspectRatio = 1.5;
+
+export function renderCustomizationDetailLink(
+	element: HTMLAnchorElement,
+	options: {
+		readonly label: string | undefined;
+		readonly target: URI | string | undefined;
+		readonly ariaLabel?: string;
+		readonly onOpen: (target: URI | string) => void;
+		readonly hoverService: IHoverService;
+		readonly hoverGroupId?: string;
+	},
+	disposables: DisposableStore,
+): void {
+	element.textContent = options.label ?? '';
+	element.style.display = options.label ? '' : 'none';
+	if (options.ariaLabel) {
+		element.setAttribute('aria-label', options.ariaLabel);
+	} else {
+		element.removeAttribute('aria-label');
+	}
+	if (options.label && options.target) {
+		const target = options.target;
+		element.href = typeof target === 'string' ? target : target.toString(true);
+		disposables.add(DOM.addDisposableListener(element, DOM.EventType.CLICK, event => {
+			event.preventDefault();
+			options.onOpen(target);
+		}));
+	} else {
+		element.removeAttribute('href');
+	}
+	if (options.label) {
+		disposables.add(options.hoverService.setupDelayedHover(element, {
+			content: options.label,
+			style: HoverStyle.Pointer,
+		}, { groupId: options.hoverGroupId }));
+	}
+}
 
 export function renderCustomizationMarketplaceIcon(
 	container: HTMLElement,

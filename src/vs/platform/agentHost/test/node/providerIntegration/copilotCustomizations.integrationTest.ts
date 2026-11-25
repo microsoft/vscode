@@ -489,7 +489,7 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 			{ type: CustomizationType.Directory, contents: CustomizationType.Skill, uri: URI.file(join(userHomeDir, '.agents', 'skills')).toString(), children: [URI.file(userSkillFile).toString()] },
 			{ type: CustomizationType.Directory, contents: CustomizationType.Agent, uri: URI.file(join(userHomeDir, '.copilot', 'agents')).toString(), children: [URI.file(userAgentFile).toString()] },
 			{ type: CustomizationType.Directory, contents: CustomizationType.Hook, uri: URI.file(join(userHomeDir, '.copilot', 'hooks')).toString(), children: [] },
-			{ type: CustomizationType.Directory, contents: CustomizationType.Hook, uri: 'agent-discovery://copilot/hooks', children: [] },
+			{ type: CustomizationType.Directory, contents: CustomizationType.Hook, uri: 'agent-discovery://copilot/hooks/diagnostics', children: [] },
 			{ type: CustomizationType.Directory, contents: CustomizationType.Skill, uri: URI.file(join(userHomeDir, '.copilot', 'skills')).toString(), children: [URI.file(userCopilotSkillFile).toString()] },
 			{ type: CustomizationType.Directory, contents: CustomizationType.Skill, uri: URI.file(join(workspaceDir, '.agents', 'skills')).toString(), children: [] },
 			{ type: CustomizationType.Directory, contents: CustomizationType.Agent, uri: URI.file(join(workspaceDir, '.claude', 'agents')).toString(), children: [] },
@@ -603,7 +603,7 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 				uri: pluginUri,
 				children: [
 					{ type: CustomizationType.Agent, name: 'Plugin Agent' },
-					{ type: CustomizationType.Rule, name: 'plugin' },
+					{ type: CustomizationType.Rule, name: 'Plugin Instruction' },
 					{ type: CustomizationType.Skill, name: 'plugin-skill' },
 				].sort((a, b) => a.name.localeCompare(b.name)),
 			},
@@ -908,7 +908,7 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 			{
 				type: CustomizationType.Directory,
 				contents: CustomizationType.Rule,
-				uri: URI.file(userHomeDir).toString(),
+				uri: URI.file(userCopilotDir).toString(),
 				children: [URI.file(userCopilotInstructionsFile).toString()],
 			},
 			{
@@ -1108,7 +1108,7 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 				expectedCustomizations.push({
 					type: CustomizationType.Directory,
 					contents: CustomizationType.Rule,
-					uri: URI.file(userHomeDir).toString(),
+					uri: URI.file(userCopilotDir).toString(),
 					children: [...userInstructionUris].sort((a, b) => a.localeCompare(b)),
 				});
 			}

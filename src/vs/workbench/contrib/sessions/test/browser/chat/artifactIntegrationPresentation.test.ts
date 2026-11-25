@@ -507,7 +507,7 @@ suite('Artifact Integration Presentation', () => {
 			stateActions: [{ id: 'deploy', label: 'Deploy', primary: true, enabled: true, run: () => { commands.push('deploy'); } }],
 			generalActions: [{ id: 'copy', label: 'Copy Link', run: () => { commands.push('copy'); } }],
 			autopilot: [{
-				id: 'delivery', title: 'Autopilot', expanded: true, checked: false, disabled: false, summary: '0 of 1 on', toggleLabel: 'All Available Autopilot Rules', description: 'Deploy automatically when healthy.',
+				id: 'delivery', title: 'Autopilot', expanded: true, checked: false, disabled: false, summary: '0 of 1 on', toggleLabel: 'Toggle All Autopilot Rules', description: 'Deploy automatically when healthy.',
 				rules: [{ id: 'autoDeploy', label: 'Deploy When Healthy', description: 'Wait for healthy checks.', checked: false, disabled: false, pending: false, setEnabled: async value => { commands.push(`rule:${value}`); } }],
 				setExpanded: expanded => { commands.push(`expand:${expanded}`); }, setEnabled: async value => { commands.push(`group:${value}`); },
 			}],
@@ -2433,7 +2433,7 @@ suite('Artifact Integration Presentation', () => {
 				labels, lastSection, focused, expanded, focusedAgain, samePanel, views: f.contextShows(),
 				badgeRemoved: !automationBadge(a), restoredToMain: getActiveElement() === a.main,
 			}, {
-				labels: { badge: 'Show Autopilot: 1 enabled', master: 'All Available Autopilot Rules', help: true },
+				labels: { badge: 'Show Autopilot: 1 enabled', master: 'Toggle All Autopilot Rules', help: true },
 				lastSection: true, focused: true, expanded: 'true', focusedAgain: true, samePanel: true, views: 1, badgeRemoved: true, restoredToMain: true,
 			});
 		});
@@ -2648,29 +2648,69 @@ suite('Artifact Integration Presentation', () => {
 			});
 		});
 
-		test('the whole heading except the master switch toggles expansion and shows hover feedback', async () => {
+		test('the whole heading except the Toggle All switch and its label toggles expansion and shows hover feedback', async () => {
 			const f = fixture();
 			const a = f.artifact();
 			const panel = await open(f, a);
 			const group = panel.querySelector<HTMLElement>('.artifact-autopilot-group')!;
 			const heading = group.querySelector<HTMLElement>('.artifact-card-heading')!;
 			const master = heading.querySelector<HTMLButtonElement>('[role="switch"]')!;
-			const expanded = () => group.querySelector('.artifact-card-disclosure')!.getAttribute('aria-expanded');
-			const states: { expanded: string | null; controlHovered?: boolean }[] = [];
+			const toggleAll = master.parentElement!;
+			const label = toggleAll.querySelector('label')!;
+			const state = () => ({
+				expanded: group.querySelector('.artifact-card-disclosure')!.getAttribute('aria-expanded'), checked: master.getAttribute('aria-checked'),
+				controlHovered: heading.classList.contains('artifact-card-heading-control-hovered'),
+			});
 			heading.querySelector<HTMLElement>('.artifact-autopilot-summary')!.click();
 			await settle(f);
-			states.push({ expanded: expanded() });
+			const states = [state()];
+			toggleAll.dispatchEvent(new MouseEvent('mouseenter'));
 			master.click();
 			await settle(f);
-			master.dispatchEvent(new MouseEvent('mouseenter'));
-			states.push({ expanded: expanded(), controlHovered: heading.classList.contains('artifact-card-heading-control-hovered') });
-			master.dispatchEvent(new MouseEvent('mouseleave'));
+			states.push(state());
+			label.click();
+			await settle(f);
+			states.push(state());
+			toggleAll.dispatchEvent(new MouseEvent('mouseleave'));
 			heading.click();
 			await settle(f);
-			states.push({ expanded: expanded(), controlHovered: heading.classList.contains('artifact-card-heading-control-hovered') });
-			assert.deepStrictEqual({ states, configured: a.configured.length, focused: getActiveElement() === group.querySelector('.artifact-card-disclosure') }, {
-				states: [{ expanded: 'true' }, { expanded: 'true', controlHovered: true }, { expanded: 'false', controlHovered: false }],
-				configured: 1, focused: true,
+			states.push(state());
+			assert.deepStrictEqual({
+				label: label.textContent, states,
+				configured: a.configured.length, focused: getActiveElement() === group.querySelector('.artifact-card-disclosure'),
+			}, {
+				label: 'Toggle All',
+				states: [
+					{ expanded: 'true', checked: 'false', controlHovered: false },
+					{ expanded: 'true', checked: 'true', controlHovered: true },
+					{ expanded: 'true', checked: 'false', controlHovered: true },
+					{ expanded: 'false', checked: 'false', controlHovered: false },
+				],
+				configured: 2, focused: true,
+			});
+		});
+
+		test('a card disclosure shows its focus ring for keyboard focus but not for pointer focus', async function () {
+			// Hidden Electron windows do not match focus pseudo-classes; run this check in a browser.
+			if (!mainWindow.document.hasFocus()) {
+				this.skip();
+			}
+			const f = fixture();
+			const panel = await open(f, f.artifact());
+			const disclosure = button(panel, 'Autopilot');
+			const ring = () => ({ focusVisible: disclosure.matches(':focus-visible'), outline: mainWindow.getComputedStyle(disclosure).outlineStyle });
+			// Avoid inheriting focus-visible from the element that opening the details focused.
+			const active = getActiveElement();
+			if (isHTMLElement(active)) {
+				active.blur();
+			}
+			disclosure.focus({ focusVisible: false });
+			const pointer = ring();
+			disclosure.blur();
+			disclosure.focus({ focusVisible: true });
+			assert.deepStrictEqual({ pointer, keyboard: ring() }, {
+				pointer: { focusVisible: false, outline: 'none' },
+				keyboard: { focusVisible: true, outline: 'solid' },
 			});
 		});
 

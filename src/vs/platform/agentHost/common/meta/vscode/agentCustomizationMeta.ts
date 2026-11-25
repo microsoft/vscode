@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { Mutable } from '../../../../../base/common/types.js';
+import { isEqualOrParent, joinPath, relativePath } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
-import type { AgentCustomization } from '../../state/protocol/state.js';
+import { CustomizationType, type AgentCustomization, type ChildCustomization } from '../../state/protocol/state.js';
 
 /**
  * Well-known typed view over a custom agent's `_meta` bag (see
@@ -70,16 +71,38 @@ export function readAgentCustomizationMeta(agent: AgentCustomization): IAgentCus
 	} else if (typeof meta?.userInvocable === 'boolean') {
 		result.userInvocable = meta.userInvocable;
 	}
-	const sourceUri = meta?.['vscode.sourceUri'];
+	const sourceUri = readCustomizationSourceUri(agent);
+	if (sourceUri !== undefined) {
+		result['vscode.sourceUri'] = sourceUri;
+	}
+	return result;
+}
+
+/** Reads optional client-side provenance without changing the host-authored child URI. */
+export function readCustomizationSourceUri(child: ChildCustomization): string | undefined {
+	const sourceUri = child._meta?.['vscode.sourceUri'];
 	if (typeof sourceUri === 'string') {
 		try {
 			URI.parse(sourceUri, true);
-			result['vscode.sourceUri'] = sourceUri;
+			return sourceUri;
 		} catch {
-			// Malformed optional provenance does not affect the agent's identity.
+			// Malformed optional provenance does not affect the child's identity.
 		}
 	}
-	return result;
+	return undefined;
+}
+
+/** Records the client-side counterpart of a child parsed from a materialized plugin. */
+export function withCustomizationSourceUri(child: ChildCustomization, materializedRoot: URI, sourceRoot: URI): ChildCustomization {
+	if (child.type === CustomizationType.McpServer) {
+		return child;
+	}
+	const resource = URI.parse(child.uri);
+	const path = isEqualOrParent(resource, materializedRoot) ? relativePath(materializedRoot, resource) : undefined;
+	return path === undefined ? child : {
+		...child,
+		_meta: { ...child._meta, 'vscode.sourceUri': joinPath(sourceRoot, path).toString() },
+	};
 }
 
 /**

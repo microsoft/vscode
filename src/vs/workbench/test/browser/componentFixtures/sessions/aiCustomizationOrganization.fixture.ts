@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Event } from '../../../../../base/common/event.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
@@ -18,8 +17,6 @@ import { IContextMenuService, IContextViewService } from '../../../../../platfor
 import { ICustomizationMarketplaceService } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { ExtensionIdentifier, IExtensionDescription } from '../../../../../platform/extensions/common/extensions.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
-import { FileService } from '../../../../../platform/files/common/fileService.js';
-import { InMemoryFileSystemProvider } from '../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IListService, ListService } from '../../../../../platform/list/browser/listService.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
@@ -267,7 +264,7 @@ function directory(uri: URI, contents: CustomizationType.Agent | CustomizationTy
 	};
 }
 
-function plugin(uri: URI, name: string, options?: { readonly clientId?: string; readonly degraded?: string }): PluginCustomization {
+function plugin(uri: URI, name: string, children: readonly ChildCustomization[], options?: { readonly clientId?: string; readonly degraded?: string }): PluginCustomization {
 	return {
 		type: CustomizationType.Plugin,
 		id: uri.toString(),
@@ -275,6 +272,7 @@ function plugin(uri: URI, name: string, options?: { readonly clientId?: string; 
 		name,
 		clientId: options?.clientId,
 		load: options?.degraded ? { kind: CustomizationLoadStatus.Degraded, message: options.degraded } : { kind: CustomizationLoadStatus.Loaded },
+		children: [...children],
 	};
 }
 
@@ -282,13 +280,10 @@ const hostAzurePlugin = URI.file('/home/dev/.copilot/installed-plugins/awesome-c
 const hostApifyPlugin = URI.file('/home/dev/.copilot/installed-plugins/awesome-copilot/apify');
 const clientPlaywrightPlugin = joinPath(clientHome, '.vscode/agent-plugins/playwright');
 
-const agentHostPluginFiles: readonly { readonly uri: URI; readonly content: string }[] = [
-	{ uri: joinPath(hostAzurePlugin, 'skills/azure-deploy/SKILL.md'), content: '---\nname: azure-deploy\ndescription: Deploy apps to Azure\n---\n' },
-	{ uri: joinPath(hostAzurePlugin, 'skills/azure-diagnostics/SKILL.md'), content: '---\nname: azure-diagnostics\ndescription: Diagnose Azure resource health\n---\n' },
-	{ uri: joinPath(hostAzurePlugin, 'agents/azure-architect.agent.md'), content: '---\nname: Azure Architect\ndescription: Designs Azure architectures\n---\n' },
-	{ uri: joinPath(hostApifyPlugin, 'skills/apify-scrape/SKILL.md'), content: '---\nname: apify-scrape\ndescription: Scrape a website with Apify actors\n---\n' },
-	{ uri: joinPath(clientPlaywrightPlugin, 'skills/playwright-test/SKILL.md'), content: '---\nname: playwright-test\ndescription: Write and run Playwright tests\n---\n' },
-];
+function pluginChild(pluginUri: URI, type: CustomizationType.Agent | CustomizationType.Skill, path: string, name: string, description: string): ChildCustomization {
+	const uri = joinPath(pluginUri, path).toString();
+	return { type, id: uri, uri, name, description };
+}
 
 const agentHostCustomizations: readonly Customization[] = [
 	directory(joinPath(workspaceRoot, '.github/skills'), CustomizationType.Skill, true, [
@@ -314,31 +309,60 @@ const agentHostCustomizations: readonly Customization[] = [
 	directory(URI.from({ scheme: 'copilot-builtin', path: '/agents' }), CustomizationType.Agent, false, [
 		{ uri: URI.from({ scheme: 'copilot-builtin', path: '/agents/ask.agent.md' }), name: 'Ask', description: 'Answers questions about your code without making changes', meta: { 'vscode.chatMode': 'ask' } },
 	], { meta: { 'vscode.customizationDiscovery': { source: 'builtin' } } }),
-	plugin(hostAzurePlugin, 'azure'),
-	plugin(hostApifyPlugin, 'apify', { degraded: 'One skill could not be loaded' }),
-	plugin(clientPlaywrightPlugin, 'playwright', { clientId: CLIENT_ID }),
+	plugin(hostAzurePlugin, 'azure', [
+		pluginChild(hostAzurePlugin, CustomizationType.Skill, 'skills/azure-deploy/SKILL.md', 'azure-deploy', 'Deploy apps to Azure'),
+		pluginChild(hostAzurePlugin, CustomizationType.Skill, 'skills/azure-diagnostics/SKILL.md', 'azure-diagnostics', 'Diagnose Azure resource health'),
+		pluginChild(hostAzurePlugin, CustomizationType.Agent, 'agents/azure-architect.agent.md', 'Azure Architect', 'Designs Azure architectures'),
+	]),
+	plugin(hostApifyPlugin, 'apify', [
+		pluginChild(hostApifyPlugin, CustomizationType.Skill, 'skills/apify-scrape/SKILL.md', 'apify-scrape', 'Scrape a website with Apify actors'),
+	], { degraded: 'One skill could not be loaded' }),
+	plugin(clientPlaywrightPlugin, 'playwright', [], { clientId: CLIENT_ID }),
+	{
+		type: CustomizationType.Directory, id: 'copilot-hooks', uri: 'agent-discovery://copilot/hooks', name: 'Copilot hooks',
+		contents: CustomizationType.Hook, enabled: true, writable: false, load: { kind: CustomizationLoadStatus.Loaded },
+		children: (['preToolUse', 'sessionStart'] as const).map((hookType): ChildCustomization => ({
+			type: CustomizationType.Hook, id: hookType, uri: joinPath(workspaceRoot, `.github/hooks/${hookType}.json`).toString(), name: hookType, enabled: true,
+			_meta: { 'vscode.customizationDiscovery': { source: 'repository', hookType } },
+		})),
+	},
+	{
+		type: CustomizationType.Directory, id: 'copilot-hook-diagnostics', uri: 'agent-discovery://copilot/hooks/diagnostics', name: 'Some hook files could not be loaded',
+		contents: CustomizationType.Hook, enabled: true, writable: false, children: [],
+		load: {
+			kind: CustomizationLoadStatus.Degraded,
+			message: [
+				`Invalid hook configuration in ${joinPath(workspaceRoot, '.github/hooks/broken.json').fsPath}: Invalid JSON: EOF while parsing an object at line 2 column 0`,
+				`Invalid hook configuration in ${joinPath(userHome, '.copilot/hooks/format.json').fsPath}: unknown field \`command\`, expected one of \`type\`, \`bash\`, \`powershell\``,
+			].join('\n'),
+		},
+	},
 ];
 
+/** The hook load problems of {@link agentHostCustomizations}, with many errors for a constrained layout. */
+const agentHostCustomizationsWithManyHookErrors: readonly Customization[] = agentHostCustomizations.map(customization => customization.id === 'copilot-hook-diagnostics' && customization.type === CustomizationType.Directory ? {
+	...customization,
+	load: {
+		kind: CustomizationLoadStatus.Degraded,
+		message: Array.from({ length: 12 }, (_, index) => `Invalid hook configuration in ${joinPath(workspaceRoot, `.github/hooks/broken-${index + 1}.json`).fsPath}: Invalid JSON: EOF while parsing an object at line 2 column 0`).join('\n'),
+	},
+} : customization);
+
 class FixtureAgentHostCustomizationService extends NullAgentHostCustomizationService {
-	override getCustomizations(): readonly Customization[] { return agentHostCustomizations; }
+	constructor(private readonly customizations: readonly Customization[] = agentHostCustomizations) { super(); }
+	override getCustomizations(): readonly Customization[] { return this.customizations; }
 	override getWorkingDirectories(): readonly string[] { return [workspaceRoot.toString()]; }
 	override getClientWorkingDirectoryUris(): readonly URI[] { return [workspaceRoot]; }
 }
 
-async function createAgentHostItemProvider(ctx: ComponentFixtureContext, promptsService: IPromptsService): Promise<AgentCustomizationItemProvider> {
-	const logService = new NullLogService();
-	const fileService = ctx.disposableStore.add(new FileService(logService));
-	ctx.disposableStore.add(fileService.registerProvider('file', ctx.disposableStore.add(new InMemoryFileSystemProvider())));
-	for (const file of agentHostPluginFiles) {
-		await fileService.writeFile(file.uri, VSBuffer.fromString(file.content));
-	}
+function createAgentHostItemProvider(ctx: ComponentFixtureContext, promptsService: IPromptsService, customizations?: readonly Customization[]): AgentCustomizationItemProvider {
 	return ctx.disposableStore.add(new AgentCustomizationItemProvider(
 		{ clientId: 'vscode', resourceUris: createAgentHostResourceUriMapper('local') },
 		undefined,
 		undefined,
-		fileService,
-		logService,
-		new FixtureAgentHostCustomizationService(),
+		new class extends mock<IFileService>() { },
+		new NullLogService(),
+		new FixtureAgentHostCustomizationService(customizations),
 		promptsService,
 		new class extends mock<ILabelService>() { },
 	));
@@ -406,6 +430,7 @@ interface IRenderOptions {
 	readonly section: AICustomizationManagementSection;
 	readonly harness: 'local' | 'agentHost';
 	readonly data?: ILocalFixtureData;
+	readonly agentHostCustomizations?: readonly Customization[];
 	readonly width?: number;
 	readonly height?: number;
 	readonly searchQuery?: string;
@@ -428,7 +453,7 @@ async function renderOrganization(ctx: ComponentFixtureContext, options: IRender
 			agentLabel: 'Copilot',
 			icon: ThemeIcon.fromId(Codicon.copilot.id),
 			hideGenerateButton: true,
-			itemProvider: await createAgentHostItemProvider(ctx, promptsService),
+			itemProvider: createAgentHostItemProvider(ctx, promptsService, options.agentHostCustomizations),
 		};
 		sessionResource = AGENT_HOST_SESSION;
 	} else {
@@ -552,5 +577,18 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/organizat
 	AgentHostAgents: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderOrganization(ctx, { harness: 'agentHost', section: AICustomizationManagementSection.Agents, height: 600 }),
+	}),
+	AgentHostHooksWithLoadErrors: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		render: ctx => renderOrganization(ctx, { harness: 'agentHost', section: AICustomizationManagementSection.Hooks, height: 520 }),
+	}),
+	AgentHostHooksWithLoadErrorsNarrow: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderOrganization(ctx, { harness: 'agentHost', section: AICustomizationManagementSection.Hooks, width: 380, height: 640 }),
+	}),
+	AgentHostHooksWithManyLoadErrorsShort: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderOrganization(ctx, { harness: 'agentHost', section: AICustomizationManagementSection.Hooks, agentHostCustomizations: agentHostCustomizationsWithManyHookErrors, width: 380, height: 420 }),
 	}),
 });

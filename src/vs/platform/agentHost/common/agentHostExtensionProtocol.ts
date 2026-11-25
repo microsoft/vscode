@@ -114,6 +114,9 @@ export const ImportSessionExtensionMethod = 'vscode/importSession';
 /**
  * Registers the host as a live GitHub environment owned by the client's GitHub account, so other GitHub
  * environment clients can reach it. Gated by `vscode.githubEnvironment`; only direct (non-relayed) clients may call it.
+ * The optional `name` is the client's name for the host, which the host uses for a new registration, decorated with its
+ * application name; hosts that predate it ignore it and name the environment after themselves. Registering again
+ * keeps the registration's name.
  */
 export const RegisterGitHubEnvironmentExtensionMethod = 'vscode/registerGitHubEnvironment';
 /** Withdraws a registration made with {@link RegisterGitHubEnvironmentExtensionMethod} for the same account. */
@@ -123,7 +126,7 @@ export const UnregisterGitHubEnvironmentExtensionMethod = 'vscode/unregisterGitH
  * unregistered it. Sent before the response of the request that caused it; params are an `IAgentHostGitHubEnvironmentStatus`.
  */
 export const GitHubEnvironmentChangedNotification = 'vscode/githubEnvironment/changed';
-export const registerGitHubEnvironmentParamsValidator = vObj({ accountId: vString(), credential: vString() });
+export const registerGitHubEnvironmentParamsValidator = vObj({ accountId: vString(), credential: vString(), name: vOptionalProp(vString()) });
 export const unregisterGitHubEnvironmentParamsValidator = vObj({ accountId: vString() });
 /**
  * Moves a single-chat session under another session (Block 4); advertised by `vscode.sessionMove` whether or not moving

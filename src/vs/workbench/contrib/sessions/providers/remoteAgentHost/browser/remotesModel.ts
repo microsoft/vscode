@@ -174,6 +174,8 @@ export interface IRemoteTroubleshootingInfo {
 		readonly port?: number;
 		readonly identityFiles?: readonly string[];
 		readonly proxyCommand?: string;
+		/** The remote agent host's log, relative to the remote home folder; unknown for development builds. */
+		readonly remoteLog?: string;
 		/** Whether a host key was saved for this host, which Forget Saved Host Key removes. */
 		readonly hasSavedHostKey: boolean;
 	};
@@ -863,8 +865,8 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 			type: 'warning',
 			message: localize('remotes.deleteDevContainerConfirmation', "Are you sure you want to delete Dev Container '{0}'?", remote.name),
 			detail: target.environment.sourceAddress === LocalDevContainerEnvironmentHost
-				? localize('remotes.deleteLocalDevContainerDetail', "This removes the container and its Docker volume from this computer, including all files in the container. Sessions that ran in it can no longer continue.")
-				: localize('remotes.deleteDevContainerDetail', "This removes the container and its Docker volume from {0}, including all files in the container. Sessions that ran in it can no longer continue.", remote.detail),
+				? localize('remotes.deleteLocalDevContainerDetail', "This removes the container and its Docker volume from this computer, including all files in the container. Sessions that ran in it are removed too.")
+				: localize('remotes.deleteDevContainerDetail', "This removes the container and its Docker volume from {0}, including all files in the container. Sessions that ran in it are removed too.", remote.detail),
 			primaryButton: localize('remotes.deleteDevContainerButton', "&&Delete"),
 		});
 		if (!confirmed) {
@@ -1043,7 +1045,9 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 		switch (target.kind) {
 			case 'ssh': {
 				const { info } = await this.resolveSSHHostKeyIdentity(target.entry);
-				return { ...common, ssh: info };
+				// The SSH connection installs the CLI of this client's product, which logs in its server data folder.
+				const { quality, serverDataFolderName } = this.productService;
+				return { ...common, ssh: quality && serverDataFolderName ? { ...info, remoteLog: `${serverDataFolderName}/cli/agent-host-${quality}.log` } : info };
 			}
 			case 'wsl':
 				return { ...common, canRestartDistribution: !this.installedDistros || this.installedDistros.has(target.distro) };
