@@ -279,6 +279,11 @@ suite('ExtHostSCM', () => {
 		known.resourceStates = [{ resourceUri: URI.file('/shown/a.txt') }];
 		const opened = extHostSCM.createSourceControl(nullExtensionDescription, 'git', 'Git', URI.file('/opened'), undefined, undefined);
 		const empty = opened.createResourceGroup('empty', 'Empty');
+		// A group created with resource states after the check of an empty group of the same source control has run
+		const extended = extHostSCM.createSourceControl(nullExtensionDescription, 'git', 'Git', URI.file('/extended'), undefined, undefined);
+		extended.createResourceGroup('first', 'First');
+		await Promise.resolve();
+		extended.createResourceGroup('second', 'Second').resourceStates = [{ resourceUri: URI.file('/extended/d.txt') }];
 		await timeout(50);
 		refreshed.resourceStates = [{ resourceUri: URI.file('/shown/b.txt') }];
 		empty.resourceStates = [{ resourceUri: URI.file('/opened/c.txt') }];
@@ -286,12 +291,14 @@ suite('ExtHostSCM', () => {
 
 		assert.deepStrictEqual(calls, [
 			'0 ms: add known, refreshed with known: 1',
+			'0 ms: add first, second with second: 1',
 			'100 ms: splice refreshed: 1',
 			'100 ms: add empty with empty: 1'
 		]);
 
 		shown.dispose();
 		opened.dispose();
+		extended.dispose();
 		await rpcProtocol.sync();
 	}));
 });

@@ -862,12 +862,8 @@ class ExtHostSourceControl implements vscode.SourceControl {
 		const multiDiffEditorEnableViewChanges = isProposedApiEnabled(this._extension, 'scmMultiDiffEditor') && options?.multiDiffEditorEnableViewChanges === true;
 		const group = new ExtHostSourceControlResourceGroup(this.#proxy, this._commands, this.handle, id, label, multiDiffEditorEnableViewChanges, this._extension);
 		const disposable = Event.once(group.onDidDispose)(() => this.createdResourceGroups.delete(group));
-
-		if (this.createdResourceGroups.size === 0) {
-			queueMicrotask(() => this.addResourceGroupsWithResourceStates());
-		}
-
 		this.createdResourceGroups.set(group, disposable);
+		queueMicrotask(() => this.addResourceGroupsWithResourceStates());
 		this.eventuallyAddResourceGroups();
 		return group;
 	}
