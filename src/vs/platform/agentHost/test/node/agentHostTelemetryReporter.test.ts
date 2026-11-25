@@ -14,6 +14,8 @@ import { NullAgentHostOTelService } from '../../common/otel/agentHostOTelService
 import { AgentSession } from '../../common/agent.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
 import { toAgentMergeMessageMeta } from '../../common/meta/agentMergeMessageMeta.js';
+import { toAgentMessageDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
+import { captureDelegatedMessage } from '../../node/shared/delegatedMessageAttribution.js';
 import type { Message, ToolDefinition } from '../../common/state/protocol/state.js';
 import { buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, MessageKind } from '../../common/state/sessionState.js';
 import { IAgentHostInternalTelemetryContext, IAgentHostRestrictedTelemetry, IAgentHostRestrictedTelemetryContext, TelemetryMeasurements, TelemetryProps } from '../../node/agentHostRestrictedTelemetry.js';
@@ -43,6 +45,7 @@ class TestRestrictedTelemetryService implements ITelemetryService, IAgentHostRes
 	readonly enhancedMeasurements: Array<TelemetryMeasurements | undefined> = [];
 	readonly internalEvents: IRestrictedCall[] = [];
 	readonly githubStandardEvents: IRestrictedCall[] = [];
+	readonly githubStandardMeasurements: Array<TelemetryMeasurements | undefined> = [];
 	readonly standardEvents: Array<{ eventName: string; data: ITelemetryData | undefined }> = [];
 
 	publicLog(): void { }
@@ -54,8 +57,9 @@ class TestRestrictedTelemetryService implements ITelemetryService, IAgentHostRes
 	setExperimentProperty(): void { }
 	setCommonProperty(): void { }
 
-	sendGHTelemetryEvent(eventName: string, properties?: TelemetryProps): void {
+	sendGHTelemetryEvent(eventName: string, properties?: TelemetryProps, measurements?: TelemetryMeasurements): void {
 		this.githubStandardEvents.push({ eventName, properties });
+		this.githubStandardMeasurements.push(measurements);
 	}
 	sendGHTelemetryEventForContext(): void { }
 	sendEnhancedGHTelemetryEvent(eventName: string, properties?: TelemetryProps, measurements?: TelemetryMeasurements): void {
@@ -312,6 +316,40 @@ suite('AgentHostTelemetryReporter', () => {
 				messageOriginKind: 'user',
 			},
 		}]);
+	});
+
+	test('userMessageSent links the admitted delegated message to the sending turn', () => {
+		const service = new TestRestrictedTelemetryService();
+		const reporter = new AgentHostTelemetryReporter(service);
+		const client = createUnknownAgentHostClientTelemetryContext(AgentHostClientType.EditorWindow);
+		const sourceAgentSessionId = 'c0d95e32-45aa-40aa-8716-69f8e1100011';
+		const sourceSession = AgentSession.uri('copilotcli', sourceAgentSessionId).toString();
+		const sourceChat = buildChatUri(sourceSession, 'peer');
+		const sourceTurnId = 'request_66d466ad-ed81-4c48-bf67-240ca9841d16';
+		const messageId = 'af5c9902-e0f2-4c44-82be-295132bd380c';
+		const agent = { text: 'reply', origin: { kind: MessageKind.Agent } } as const;
+		const execution = { session: sourceSession, chat: sourceChat, turnId: sourceTurnId };
+		const metadata = toAgentMessageDelegationMeta({ sourceSession, sourceChat, sourceTurnId, messageId, revision: 2 });
+		const send = (message: Message, queued = false) => reporter.userMessageSent('copilotcli', undefined, client, session, session, 'recipient', undefined, queued ? 'queued' : 'direct', message, false, false);
+		send(captureDelegatedMessage({ ...agent }, execution));
+		const queued = captureDelegatedMessage({ ...agent, _meta: metadata }, execution, { messageId, revision: 2 });
+		send(queued, true);
+		send({ ...userMessage, _meta: metadata });
+		send({ ...queued }, true);
+		send(captureDelegatedMessage({ ...agent }, { ...execution, turnId: 'private text' }));
+		const keys = ['sourceAgentSessionId', 'sourceChatSessionId', 'sourceTurnId', 'delegationMessageId', 'delegationMessageRevision'];
+		const sourceFields = (data: ITelemetryData | undefined) => Object.fromEntries(Object.entries(data ?? {}).filter(([key]) => keys.includes(key)));
+		const sender = { sourceAgentSessionId, sourceChatSessionId: getTelemetryChatSessionId(sourceChat) };
+		const link = { ...sender, sourceTurnId };
+		assert.deepStrictEqual({
+			standard: service.standardEvents.map(e => sourceFields(e.data)),
+			github: service.githubStandardEvents.map(e => sourceFields(e.properties)),
+			measurements: service.githubStandardMeasurements,
+		}, {
+			standard: [link, { ...link, delegationMessageId: messageId, delegationMessageRevision: 2 }, {}, {}, {}],
+			github: [link, { ...link, delegationMessageId: messageId }, {}, {}, {}],
+			measurements: [undefined, { delegationMessageRevision: 2 }, undefined, undefined, undefined],
+		});
 	});
 
 	test('userMessageSent includes only provided initiating client telemetry identity', () => {

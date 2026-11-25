@@ -2441,6 +2441,25 @@ suite('CodexAgent workspace conversion', () => {
 		assert.deepStrictEqual({ calls, success: response.result?.success }, { calls: 0, success: false });
 	});
 
+	test('a delayed delegation approval does not take the successor turn’s tool call ID', async () => {
+		const { agent, entry, threadId } = await createWorkspaceHarness();
+		const tool = SessionServerToolName.SendMessage;
+		const calls: (string | undefined)[] = [];
+		agent.setServerToolHost({
+			...createRecordingServerToolHost([]),
+			toolNames: [tool],
+			requiresConfirmation: () => true,
+			executeTool: (_chat, _tool, _args, id) => { calls.push(id); return 'sent'; },
+		});
+		const rpc = { threadId, turnId: 'native-first', callId: 'item', namespace: null, tool, arguments: {} };
+		entry.hostTurnIdByAppTurnId.set(rpc.turnId, 'host-first');
+		entry.mapState.itemToToolCall.set(rpc.callId, { toolName: tool, turnId: 'host-first', toolCallId: 'first-call', output: '' });
+		const pending = agent['_handleDynamicToolCallRpc'](rpc);
+		entry.mapState.itemToToolCall.set(rpc.callId, { toolName: tool, turnId: 'host-successor', toolCallId: 'successor-call', output: '' });
+		assert.ok(entry.pendingCommandApprovals.respond('first-call', 'accept'));
+		assert.deepStrictEqual({ success: (await pending).result?.success, calls }, { success: true, calls: ['first-call'] });
+	});
+
 	for (const notificationFirst of [false, true]) {
 		test(`preserves the thread and history when settings arrive ${notificationFirst ? 'before' : 'after'} acknowledgement`, async () => {
 			const { agent, peer, session, chat, scratch, folder, threadId, entry, notifyDirectory } = await createWorkspaceHarness();
