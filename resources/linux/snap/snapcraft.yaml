@@ -13,7 +13,7 @@ website: https://code.visualstudio.com/
 
 platforms:
   @@ARCHITECTURE@@:
-    build-on: [@@ARCHITECTURE@@]
+    build-on: [@@BUILD_ON@@]
     build-for: [@@ARCHITECTURE@@]
 
 grade: stable
@@ -81,8 +81,6 @@ parts:
       - adwaita-icon-theme
       - gtk-update-icon-cache
       - shared-mime-info
-      - libwebkit2gtk-4.1-0
-      - libsoup-3.0-0
       - libsecret-1-0
       - libwayland-egl1
       - libxcomposite1

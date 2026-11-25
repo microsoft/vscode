@@ -64,6 +64,10 @@ suite('Processes', () => {
 			GDK_PIXBUF_MODULE_FILE_VSCODE_SNAP_ORIG: '/usr/lib/gdk-pixbuf-loaders.cache',
 			GDK_PIXBUF_MODULEDIR: '/snap/code/191/usr/lib/gdk-pixbuf-2.0/loaders',
 			GDK_PIXBUF_MODULEDIR_VSCODE_SNAP_ORIG: '/usr/lib/gdk-pixbuf-2.0/loaders',
+			LIBGL_DRIVERS_PATH: '/snap/code/191/usr/lib/dri',
+			LIBGL_DRIVERS_PATH_VSCODE_SNAP_ORIG: '/usr/lib/dri',
+			PIPEWIRE_CONFIG_NAME: '/snap/code/191/usr/share/pipewire/client.conf',
+			PIPEWIRE_CONFIG_NAME_VSCODE_SNAP_ORIG: 'pipewire-client.conf',
 			MOZ_ENABLE_WAYLAND: '1',
 			MOZ_ENABLE_WAYLAND_VSCODE_SNAP_ORIG: '0',
 		};
@@ -76,7 +80,28 @@ suite('Processes', () => {
 			GDK_BACKEND: 'x11',
 			GDK_PIXBUF_MODULE_FILE: '/usr/lib/gdk-pixbuf-loaders.cache',
 			GDK_PIXBUF_MODULEDIR: '/usr/lib/gdk-pixbuf-2.0/loaders',
+			LIBGL_DRIVERS_PATH: '/usr/lib/dri',
+			PIPEWIRE_CONFIG_NAME: 'pipewire-client.conf',
 			MOZ_ENABLE_WAYLAND: '0',
+		});
+	});
+
+	test('restores only Snap desktop launcher markers', () => {
+		const env = {
+			FOO: 'bar',
+			VSCODE_PID: '123',
+			GDK_BACKEND: 'wayland',
+			GDK_BACKEND_VSCODE_SNAP_ORIG: 'x11',
+			UNSET_VALUE: '/snap/code/191/value',
+			UNSET_VALUE_VSCODE_SNAP_ORIG: '',
+		};
+
+		processes.restoreSnapExportedVariables(env);
+
+		assert.deepStrictEqual(env, {
+			FOO: 'bar',
+			VSCODE_PID: '123',
+			GDK_BACKEND: 'x11',
 		});
 	});
 

@@ -18,6 +18,7 @@ import { ILogService } from '../../log/common/log.js';
 import { Promises } from '../../../base/common/async.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { clamp } from '../../../base/common/numbers.js';
+import { restoreSnapExportedVariables } from '../../../base/common/processes.js';
 
 let unixShellEnvPromise: Promise<typeof process.env> | undefined = undefined;
 
@@ -64,6 +65,8 @@ export async function getResolvedShellEnv(configurationService: IConfigurationSe
 		// subsequent calls since this operation can be
 		// expensive (spawns a process).
 		if (!unixShellEnvPromise) {
+			const resolvedEnv = { ...env };
+			restoreSnapExportedVariables(resolvedEnv);
 			unixShellEnvPromise = Promises.withAsyncBody<NodeJS.ProcessEnv>(async (resolve, reject) => {
 				const cts = new CancellationTokenSource();
 
@@ -81,7 +84,7 @@ export async function getResolvedShellEnv(configurationService: IConfigurationSe
 
 				// Resolve shell env and handle errors
 				try {
-					resolve(await doResolveUnixShellEnv(logService, cts.token));
+					resolve(await doResolveUnixShellEnv(logService, cts.token, resolvedEnv));
 				} catch (error) {
 					if (!isCancellationError(error) && !cts.token.isCancellationRequested) {
 						reject(new Error(localize('resolveShellEnvError', "Unable to resolve your shell environment: {0}", toErrorMessage(error))));
@@ -99,18 +102,18 @@ export async function getResolvedShellEnv(configurationService: IConfigurationSe
 	}
 }
 
-async function doResolveUnixShellEnv(logService: ILogService, token: CancellationToken): Promise<typeof process.env> {
-	const runAsNode = process.env['ELECTRON_RUN_AS_NODE'];
+async function doResolveUnixShellEnv(logService: ILogService, token: CancellationToken, baseEnv: IProcessEnvironment): Promise<typeof process.env> {
+	const runAsNode = baseEnv['ELECTRON_RUN_AS_NODE'];
 	logService.trace('getUnixShellEnvironment#runAsNode', runAsNode);
 
-	const noAttach = process.env['ELECTRON_NO_ATTACH_CONSOLE'];
+	const noAttach = baseEnv['ELECTRON_NO_ATTACH_CONSOLE'];
 	logService.trace('getUnixShellEnvironment#noAttach', noAttach);
 
 	const mark = generateUuid().replace(/-/g, '').substr(0, 12);
 	const regex = new RegExp(mark + '({.*})' + mark);
 
 	const env = {
-		...process.env,
+		...baseEnv,
 		ELECTRON_RUN_AS_NODE: '1',
 		ELECTRON_NO_ATTACH_CONSOLE: '1',
 		VSCODE_RESOLVING_ENVIRONMENT: '1'

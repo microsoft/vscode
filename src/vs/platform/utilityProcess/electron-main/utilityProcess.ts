@@ -14,7 +14,7 @@ import { IWindowsMainService } from '../../windows/electron-main/windows.js';
 import Severity from '../../../base/common/severity.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { ILifecycleMainService } from '../../lifecycle/electron-main/lifecycleMainService.js';
-import { removeDangerousEnvVariables } from '../../../base/common/processes.js';
+import { removeDangerousEnvVariables, restoreSnapExportedVariables } from '../../../base/common/processes.js';
 import { deepClone } from '../../../base/common/objects.js';
 import { isWindows } from '../../../base/common/platform.js';
 import { isUNCAccessRestrictionsDisabled, getUNCHostAllowlist } from '../../../base/node/unc.js';
@@ -275,6 +275,7 @@ export class UtilityProcess extends Disposable {
 
 	private createEnv(configuration: IUtilityProcessConfiguration): NodeJS.ProcessEnv {
 		const env: NodeJS.ProcessEnv = configuration.env ? { ...configuration.env } : { ...deepClone(process.env) };
+		restoreSnapExportedVariables(env);
 
 		// Apply supported environment variables from config
 		env['VSCODE_ESM_ENTRYPOINT'] = configuration.entryPoint;

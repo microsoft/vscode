@@ -99,6 +99,24 @@ export interface ProcessItem {
 }
 
 /**
+ * Restores environment variables overwritten by the Snap desktop launcher.
+ */
+export function restoreSnapExportedVariables(env: IProcessEnvironment): void {
+	const suffix = '_VSCODE_SNAP_ORIG';
+	for (const key of Object.keys(env)) {
+		if (key.endsWith(suffix)) {
+			const originalKey = key.slice(0, -suffix.length);
+			if (env[key]) {
+				env[originalKey] = env[key];
+			} else {
+				delete env[originalKey];
+			}
+			delete env[key];
+		}
+	}
+}
+
+/**
  * Sanitizes a VS Code process environment by removing all Electron/VS Code-related values.
  */
 export function sanitizeProcessEnvironment(env: IProcessEnvironment, ...preserve: string[]): void {
@@ -124,19 +142,7 @@ export function sanitizeProcessEnvironment(env: IProcessEnvironment, ...preserve
 			}
 		});
 
-	// Restore original values saved by the Snap desktop launcher.
-	const suffix = '_VSCODE_SNAP_ORIG';
-	for (const key of Object.keys(env)) {
-		if (key.endsWith(suffix)) {
-			const originalKey = key.slice(0, -suffix.length);
-			if (env[key]) {
-				env[originalKey] = env[key];
-			} else {
-				delete env[originalKey];
-			}
-			delete env[key];
-		}
-	}
+	restoreSnapExportedVariables(env);
 }
 
 /**

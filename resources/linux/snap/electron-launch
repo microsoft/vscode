@@ -93,12 +93,8 @@ copy_env_variable GSETTINGS_SCHEMA_DIR
 copy_env_variable GDK_PIXBUF_MODULE_FILE
 copy_env_variable GDK_PIXBUF_MODULEDIR
 copy_env_variable GDK_BACKEND
-copy_env_variable WAYLAND_DISPLAY
-copy_env_variable WAYLAND_SOCKET
 copy_env_variable XDG_SESSION_TYPE
 copy_env_variable MOZ_ENABLE_WAYLAND
-copy_env_variable QT_QPA_PLATFORM
-copy_env_variable TMPDIR
 copy_env_variable LIBGL_DRIVERS_PATH
 copy_env_variable SPA_PLUGIN_DIR
 copy_env_variable PIPEWIRE_CONFIG_NAME
@@ -106,6 +102,7 @@ copy_env_variable PIPEWIRE_MODULE_DIR
 copy_env_variable GTK_PATH
 copy_env_variable GTK_EXE_PREFIX
 copy_env_variable GTK_IM_MODULE_FILE
+unset WAYLAND_SOCKET
 
 # XDG Config
 prepend_dir XDG_CONFIG_DIRS "$SNAP/etc/xdg"
@@ -144,10 +141,15 @@ append_dir LOCPATH "$SNAP/usr/lib/locale"
 # are used verbatim by libwayland.
 wayland_available=false
 if [[ -z "$DISABLE_WAYLAND" ]]; then
-    if [[ -n "${WAYLAND_SOCKET:-}" ]]; then
-        wayland_available=true
+    if [[ -n "${WAYLAND_DISPLAY:-}" ]]; then
+        wayland_name="$WAYLAND_DISPLAY"
+    elif [[ "${XDG_SESSION_TYPE:-}" = "wayland" ]]; then
+        wayland_name="wayland-0"
     else
-        wayland_name="${WAYLAND_DISPLAY:-wayland-0}"
+        wayland_name=""
+    fi
+
+    if [[ -n "$wayland_name" ]]; then
         if [[ "$wayland_name" = /* ]]; then
             wayland_socket="$wayland_name"
             wayland_fallback=""
@@ -163,17 +165,13 @@ if [[ -z "$DISABLE_WAYLAND" ]]; then
             wayland_available=true
         elif [[ -n "${wayland_fallback:-}" && -S "$wayland_fallback" ]]; then
             wayland_available=true
-            if [[ -n "${XDG_RUNTIME_DIR:-}" && ! -e "$wayland_socket" && ! -L "$wayland_socket" ]]; then
-                ln -s "$wayland_fallback" "$wayland_socket"
-            elif [[ -e "$wayland_socket" && ! -S "$wayland_socket" ]]; then
-                export WAYLAND_DISPLAY="$wayland_fallback"
-            fi
-        fi
-
-        if [[ -n "${DISABLE_WAYLAND:-}" ]]; then
-            export XDG_SESSION_TYPE="x11"
-            if [[ -z "${GDK_BACKEND:-}" ]]; then
-                export GDK_BACKEND="x11"
+            if [[ -n "${XDG_RUNTIME_DIR:-}" ]]; then
+                if [[ -L "$wayland_socket" || (-f "$wayland_socket" && ! -S "$wayland_socket") ]]; then
+                    rm -f "$wayland_socket"
+                fi
+                if [[ ! -e "$wayland_socket" && ! -L "$wayland_socket" && -S "$wayland_fallback" ]]; then
+                    ln -s "$wayland_fallback" "$wayland_socket"
+                fi
             fi
         fi
     fi
@@ -186,9 +184,6 @@ if [[ -z "$DISABLE_WAYLAND" ]]; then
         if [[ -z "${MOZ_ENABLE_WAYLAND:-}" ]]; then
             export MOZ_ENABLE_WAYLAND="1"
         fi
-        if [[ -z "${QT_QPA_PLATFORM:-}" ]]; then
-            export QT_QPA_PLATFORM="wayland"
-        fi
     else
         export XDG_SESSION_TYPE="x11"
         if [[ -n "${DISPLAY:-}" && -z "${GDK_BACKEND:-}" ]]; then
@@ -198,22 +193,16 @@ if [[ -z "$DISABLE_WAYLAND" ]]; then
 fi
 
 if [[ -n "${DISABLE_WAYLAND:-}" ]]; then
-    export XDG_SESSION_TYPE="x11"
     if [[ -z "${GDK_BACKEND:-}" ]]; then
         export GDK_BACKEND="x11"
     fi
 fi
 
-if [[ -n "${XDG_RUNTIME_DIR:-}" && "$XDG_RUNTIME_DIR" = /* ]]; then
-    export TMPDIR="$XDG_RUNTIME_DIR"
-fi
-
-prepend_dir LIBGL_DRIVERS_PATH "$SNAP/usr/lib/dri"
-prepend_dir LIBGL_DRIVERS_PATH "$SNAP/usr/lib/$ARCH/dri"
-
 if [ "$wayland_available" = true ]; then
     export SPA_PLUGIN_DIR="$SNAP/usr/lib/$ARCH/spa-0.2"
-    export PIPEWIRE_CONFIG_NAME="$SNAP/usr/share/pipewire/pipewire.conf"
+    if [[ -f "$SNAP/usr/share/pipewire/client.conf" ]]; then
+        export PIPEWIRE_CONFIG_NAME="$SNAP/usr/share/pipewire/client.conf"
+    fi
     export PIPEWIRE_MODULE_DIR="$SNAP/usr/lib/$ARCH/pipewire-0.3"
 fi
 
@@ -314,4 +303,8 @@ fi
 
 binary="$1"
 shift
-exec "$binary" "${launch_args[@]}" "$@"
+snap_libgl="$SNAP/usr/lib/dri:$SNAP/usr/lib/$ARCH/dri"
+if [[ -n "${LIBGL_DRIVERS_PATH:-}" ]]; then
+    snap_libgl="$snap_libgl:$LIBGL_DRIVERS_PATH"
+fi
+LIBGL_DRIVERS_PATH="$snap_libgl" exec "$binary" "${launch_args[@]}" "$@"

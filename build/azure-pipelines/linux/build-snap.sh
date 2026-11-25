@@ -7,17 +7,6 @@ set -e
 # Get snapcraft version
 snapcraft --version
 
-# Snapcraft 9.2.2 bundles patchelf 0.9+snapcraft, which clobbers relocated
-# SHT_NOTE sections with 'X' (0x58) without updating PT_NOTE, causing Mesa
-# (libgallium) to segfault when reading its ELF build-id via dl_iterate_phdr.
-# Use the newer patchelf built into /snap/bin instead so enable-patchelf does
-# not corrupt Mesa libraries.
-SNAPCRAFT_PATCHELF="${SNAP:-/snap/snapcraft/current}/bin/patchelf"
-if [ -x /snap/bin/patchelf ] && [ -e "$SNAPCRAFT_PATCHELF" ]; then
-  sudo ln -sf /snap/bin/patchelf "$SNAPCRAFT_PATCHELF"
-fi
-"$SNAPCRAFT_PATCHELF" --version
-
 # Configure apt to retry on transient network failures
 # This applies to both the apt commands below and snapcraft's internal apt operations for stage-packages
 sudo sh -c 'echo "Acquire::Retries \"5\";" > /etc/apt/apt.conf.d/80-retries'
@@ -46,6 +35,15 @@ done
 sudo apt-get update
 sudo DEBIAN_FRONTEND=noninteractive apt-get upgrade -y
 sudo DEBIAN_FRONTEND=noninteractive apt-get install -y curl apt-transport-https ca-certificates gcc
+
+# The build container provides the modern patchelf used by this Snapcraft image.
+# Route Snapcraft's bundled path and explicit override-build/override-prime calls
+# to that implementation so enable-patchelf patches the complete payload consistently.
+SNAPCRAFT_PATCHELF="${SNAP:-/snap/snapcraft/current}/bin/patchelf"
+if [ -x /snap/bin/patchelf ] && [ -e "$SNAPCRAFT_PATCHELF" ]; then
+  sudo ln -sf /snap/bin/patchelf "$SNAPCRAFT_PATCHELF"
+fi
+"$SNAPCRAFT_PATCHELF" --version
 
 # Define variables
 SNAP_ROOT="$(pwd)/.build/linux/snap/$VSCODE_ARCH"
@@ -82,8 +80,9 @@ esac
   trap 'rm -f "$snapcraftLog"' EXIT
 
   # Snapcraft's snap puts craftctl in $SNAP/libexec/snapcraft and relies on snapd's
-  # environment block to add it to PATH.
-  SNAPCRAFT_PATH="${SNAP:-/snap/snapcraft/current}/libexec/snapcraft:$PATH"
+  # environment block to add it to PATH. Add Snapcraft's bin directory too so
+  # override-build and override-prime use the container's modern patchelf.
+  SNAPCRAFT_PATH="${SNAP:-/snap/snapcraft/current}/bin:${SNAP:-/snap/snapcraft/current}/libexec/snapcraft:$PATH"
 
   # Retry Store initialization 429s only while Snapcraft has not written part state
   # or created a partial output snap.

@@ -254,14 +254,17 @@ type SnapArchitecture = 'x64' | 'arm64';
 
 const snapArchitectureConfig: Record<SnapArchitecture, {
 	architecture: string;
+	buildOn: string[];
 	multiarch: string;
 }> = {
 	x64: {
 		architecture: 'amd64',
+		buildOn: ['amd64'],
 		multiarch: 'x86_64-linux-gnu',
 	},
 	arm64: {
 		architecture: 'arm64',
+		buildOn: ['amd64', 'arm64'],
 		multiarch: 'aarch64-linux-gnu',
 	},
 };
@@ -271,6 +274,7 @@ function prepareSnapPackage(arch: SnapArchitecture) {
 	const destination = getSnapBuildPath(arch);
 	const {
 		architecture,
+		buildOn,
 		multiarch,
 	} = snapArchitectureConfig[arch];
 
@@ -304,6 +308,7 @@ function prepareSnapPackage(arch: SnapArchitecture) {
 			.pipe(replace('@@VERSION@@', commit!.substr(0, 8)))
 			// Possible run-on values https://snapcraft.io/docs/architectures
 			.pipe(replace('@@ARCHITECTURE@@', architecture))
+			.pipe(replace('@@BUILD_ON@@', buildOn.join(', ')))
 			.pipe(replace('@@MULTIARCH@@', multiarch))
 			.pipe(rename('snap/snapcraft.yaml'));
 
