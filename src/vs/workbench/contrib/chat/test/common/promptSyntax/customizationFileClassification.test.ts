@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { extUri, extUriIgnorePathCase } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { classifyCustomizationFile, getCustomizationFileScope } from '../../../common/promptSyntax/customizationFileClassification.js';
@@ -14,9 +15,11 @@ suite('customizationFileClassification', () => {
 	test('classifies AI customization files by name and folder', () => {
 		const paths = [
 			'/repo/AGENTS.md',
+			'/repo/packages/api/agents.md',
 			'/home/me/.codex/AGENTS.md',
 			'/repo/CLAUDE.md',
 			'/repo/CLAUDE.local.md',
+			'/repo/claude.md',
 			'/repo/GEMINI.md',
 			'/repo/.cursorrules',
 			'/repo/.github/copilot-instructions.md',
@@ -46,9 +49,11 @@ suite('customizationFileClassification', () => {
 
 		assert.deepStrictEqual(paths.map(path => [path, classifyCustomizationFile(URI.file(path))]), [
 			['/repo/AGENTS.md', { kind: 'agentsMd', ecosystem: 'agents' }],
+			['/repo/packages/api/agents.md', { kind: 'agentsMd', ecosystem: 'agents' }],
 			['/home/me/.codex/AGENTS.md', { kind: 'agentsMd', ecosystem: 'codex' }],
 			['/repo/CLAUDE.md', { kind: 'claudeMd', ecosystem: 'claude' }],
 			['/repo/CLAUDE.local.md', { kind: 'claudeMd', ecosystem: 'claude' }],
+			['/repo/claude.md', undefined],
 			['/repo/GEMINI.md', { kind: 'geminiMd', ecosystem: 'gemini' }],
 			['/repo/.cursorrules', { kind: 'rule', ecosystem: 'cursor' }],
 			['/repo/.github/copilot-instructions.md', { kind: 'instructions', ecosystem: 'github' }],
@@ -78,12 +83,13 @@ suite('customizationFileClassification', () => {
 	});
 
 	test('reports workspace, user or other scope', () => {
-		const userHome = URI.file('/home/me');
+		const userHome = URI.file('/Users/Alice');
 		assert.deepStrictEqual([
-			getCustomizationFileScope(URI.file('/home/me/repo/AGENTS.md'), true, userHome),
-			getCustomizationFileScope(URI.file('/home/me/.claude/CLAUDE.md'), false, userHome),
-			getCustomizationFileScope(URI.from({ scheme: 'vscode-userdata', path: '/User/prompts/a.prompt.md' }), false, userHome),
-			getCustomizationFileScope(URI.file('/tmp/AGENTS.md'), false, userHome),
-		], ['workspace', 'user', 'user', 'other']);
+			getCustomizationFileScope(URI.file('/Users/Alice/repo/AGENTS.md'), true, userHome, extUri),
+			getCustomizationFileScope(URI.file('/Users/Alice/.claude/CLAUDE.md'), false, userHome, extUri),
+			getCustomizationFileScope(URI.file('/Users/alice/.claude/CLAUDE.md'), false, userHome, extUriIgnorePathCase),
+			getCustomizationFileScope(URI.from({ scheme: 'vscode-userdata', path: '/User/prompts/a.prompt.md' }), false, userHome, extUri),
+			getCustomizationFileScope(URI.file('/tmp/AGENTS.md'), false, userHome, extUri),
+		], ['workspace', 'user', 'user', 'user', 'other']);
 	});
 });

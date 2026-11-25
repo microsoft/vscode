@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Schemas } from '../../../../../base/common/network.js';
-import { basename, isEqualOrParent } from '../../../../../base/common/resources.js';
+import { basename, IExtUri } from '../../../../../base/common/resources.js';
+import { equalsIgnoreCase } from '../../../../../base/common/strings.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { AGENT_MD_FILENAME, CLAUDE_LOCAL_MD_FILENAME, CLAUDE_MD_FILENAME, getPromptFileType } from './config/promptFileLocations.js';
 import { PromptsType } from './promptTypes.js';
@@ -46,8 +47,9 @@ const ecosystemFolders = new Map<string, CustomizationFileEcosystem>([
 	['.gemini', 'gemini'],
 ]);
 
+const agentsMdFile: ICustomizationFileClassification = { kind: 'agentsMd', ecosystem: 'agents' };
+
 const wellKnownFiles = new Map<string, ICustomizationFileClassification>([
-	[AGENT_MD_FILENAME, { kind: 'agentsMd', ecosystem: 'agents' }],
 	[CLAUDE_MD_FILENAME, { kind: 'claudeMd', ecosystem: 'claude' }],
 	[CLAUDE_LOCAL_MD_FILENAME, { kind: 'claudeMd', ecosystem: 'claude' }],
 	[GEMINI_MD_FILENAME, { kind: 'geminiMd', ecosystem: 'gemini' }],
@@ -63,7 +65,8 @@ export function classifyCustomizationFile(resource: URI): ICustomizationFileClas
 	const name = basename(resource);
 	const folders = resource.path.split('/').slice(0, -1);
 
-	const wellKnown = wellKnownFiles.get(name);
+	// AGENTS.md files are discovered regardless of their casing
+	const wellKnown = equalsIgnoreCase(name, AGENT_MD_FILENAME) ? agentsMdFile : wellKnownFiles.get(name);
 	if (wellKnown) {
 		return { kind: wellKnown.kind, ecosystem: getFolderEcosystem(resource, folders) ?? wellKnown.ecosystem };
 	}
@@ -79,12 +82,12 @@ export function classifyCustomizationFile(resource: URI): ICustomizationFileClas
 /**
  * Returns whether a customization file is in a workspace folder, in the user's home or user data folder, or elsewhere.
  */
-export function getCustomizationFileScope(resource: URI, isInWorkspace: boolean, userHome: URI | undefined): CustomizationFileScope {
+export function getCustomizationFileScope(resource: URI, isInWorkspace: boolean, userHome: URI, extUri: IExtUri): CustomizationFileScope {
 	if (isInWorkspace) {
 		return 'workspace';
 	}
 
-	if (resource.scheme === Schemas.vscodeUserData || (userHome && isEqualOrParent(resource, userHome))) {
+	if (resource.scheme === Schemas.vscodeUserData || extUri.isEqualOrParent(resource, userHome)) {
 		return 'user';
 	}
 
