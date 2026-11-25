@@ -223,7 +223,7 @@ suite('EditorRemoteAgentHostServiceClient', () => {
 		assert.deepStrictEqual({
 			calls,
 			methods: [service.installPlugin, service.listPluginInstallations, service.uninstallPlugin, service.setPluginEnabled,
-				service.listPluginMarketplaces, service.addPluginMarketplace, service.browsePluginMarketplace, service.removePluginMarketplace, service.refreshPluginMarketplaces],
+			service.listPluginMarketplaces, service.addPluginMarketplace, service.browsePluginMarketplace, service.removePluginMarketplace, service.refreshPluginMarketplaces],
 		}, { calls: ['connect'], methods: Array(9).fill(undefined) });
 	});
 
@@ -426,9 +426,16 @@ suite('EditorRemoteAgentHostServiceClient', () => {
 		});
 	});
 
-	test('waits for enablement and the remote environment before connecting to Agent Host', async () => {
+	test('waits for enablement and restores management after a failed initial connection', async () => {
+		const managementCalls: string[] = [];
 		const channel: IChannel = {
-			call: <T>() => Promise.resolve(undefined as T),
+			call: async <T>(command: string) => {
+				if (command === 'connect') {
+					return { pluginManagement: true } as T;
+				}
+				managementCalls.push(command);
+				return undefined as T;
+			},
 			listen: () => Event.None,
 		};
 		const remoteAgentService = new DeferredRemoteAgentService(disposables.add(new TestRemoteAgentConnection(channel)));
@@ -517,17 +524,21 @@ suite('EditorRemoteAgentHostServiceClient', () => {
 		while (connectCalls === 0) {
 			await Promise.resolve();
 		}
-		onDidChangeConnectionState.fire(AgentHostClientState.Connected);
-		connectionAvailable.set(true, undefined);
-		await started;
-		connectionAvailable.set(false, undefined);
-		connectionAvailable.set(true, undefined);
-
+		await assert.rejects(() => service.installPlugin!('copilotcli', { source: 'sample@test' }), /Initial connection failed/);
 		const protocolClientCall = createInstanceSpy.getCalls().find(call => call.args[0] === AgentHostProtocolClient);
 		const createTransport = protocolClientCall?.args[2] as () => IClientTransport;
 		const transport = disposables.add(createTransport());
+		await transport.connect();
+		onDidChangeConnectionState.fire(AgentHostClientState.Connected);
+		connectionAvailable.set(true, undefined);
+		await started;
+		await service.installPlugin!('copilotcli', { source: 'sample@test' });
+		connectionAvailable.set(false, undefined);
+		connectionAvailable.set(true, undefined);
+
 		const openedTcpConnection = await service.openTcpConnection({ host: 'canvas.test', port: 4321 });
 		assert.deepStrictEqual({
+			managementCalls,
 			availability,
 			beforeReady,
 			afterReady: connectCalls,
@@ -541,6 +552,7 @@ suite('EditorRemoteAgentHostServiceClient', () => {
 			tcpTargets,
 			openedTcpConnection: openedTcpConnection === tcpConnection,
 		}, {
+			managementCalls: ['installPlugin'],
 			availability: [false, true, false, true],
 			beforeReady: 0,
 			afterReady: 1,
