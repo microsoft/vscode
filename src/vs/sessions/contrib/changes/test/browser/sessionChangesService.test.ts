@@ -256,13 +256,13 @@ suite('SessionChangesService', () => {
 		assert.deepStrictEqual(opened.map(resource => service.getChatResource(resource)?.toString()), [shownChat.resource.toString()]);
 	});
 
-	test('opens the Changes editor of a chat of a known session, with its changeset, only where its editors follow their own session', async () => {
+	test('opens the Changes editor of a chat of a known session, with its changeset selected on that chat also where no host shows it, only where its editors follow their own session', async () => {
 		const sessionResource = URI.parse('agent-host:test-session');
 		const chat = upcastPartial<IChat>({ resource: URI.parse('agent-host:test-session/chat') });
 		const session = upcastPartial<ITestSessionWithChat>({ sessionId: 'session', resource: sessionResource, activeChat: constObservable(chat), mainChat: constObservable(chat), chats: constObservable([chat]) });
 		const openChatChangesEditor = async (editorsBindSessionContext: boolean, chatResource: URI) => {
 			const opened: string[] = [];
-			const selected: (string | undefined)[] = [];
+			const selected: { readonly id: string | undefined; readonly session: string | undefined; readonly chat: string | undefined; readonly beforeOpen: boolean }[] = [];
 			const service = disposables.add(new SessionChangesService(
 				new class extends mock<IEditorService>() {
 					override async openEditor(...args: unknown[]): Promise<undefined> {
@@ -279,9 +279,12 @@ suite('SessionChangesService', () => {
 				new class extends mock<IChangesViewService>() {
 					override readonly activeSessionResourceObs = noActiveSessionResource;
 					override readonly activeSessionChangesObs = noChanges;
-					override setChangesetId(changesetId: string | undefined): void { selected.push(changesetId); }
+					override setChangesetId(changesetId: string | undefined, session?: ISession, selectedChat?: IChat): void {
+						selected.push({ id: changesetId, session: session?.resource.toString(), chat: selectedChat?.resource.toString(), beforeOpen: opened.length === 0 });
+					}
 				}(),
-				...hostsOf(disposables, noSessions(session), {
+				// No host shows the session, as for a chat editor beside the chat the window shows
+				...hostsOf(disposables, noSessions(), {
 					getSessionForChatResource: resource => isEqual(resource, chat.resource) ? { session: upcastPartial<ISession>(session), chat } : undefined,
 				}),
 				emptyDecorationsService,
@@ -296,7 +299,7 @@ suite('SessionChangesService', () => {
 			await openChatChangesEditor(true, URI.parse('agent-host:other/chat')),
 			await openChatChangesEditor(false, chat.resource),
 		], [
-			{ result: true, opened: [chat.resource.toString()], selected: ['branch'] },
+			{ result: true, opened: [chat.resource.toString()], selected: [{ id: 'branch', session: sessionResource.toString(), chat: chat.resource.toString(), beforeOpen: true }] },
 			{ result: false, opened: [], selected: [] },
 			{ result: false, opened: [], selected: [] },
 		]);

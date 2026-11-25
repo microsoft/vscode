@@ -52,8 +52,8 @@ export interface ISessionChangesService {
 
 	/**
 	 * Where Changes editors follow their own session, as in an editor window, opens the Changes editor of the chat of
-	 * `chatResource`, selecting the changeset `changesetId` when given. Resolves to whether it opened one: not where
-	 * editors don't follow their own session, nor for a chat of no known session.
+	 * `chatResource` with its changeset `changesetId` selected, whether or not the window shows the chat. Resolves to
+	 * whether it opened one: not where editors don't follow their own session, nor for a chat of no known session.
 	 */
-	openChatChangesEditor(chatResource: URI, changesetId?: string): Promise<boolean>;
+	openChatChangesEditor(chatResource: URI, changesetId: string): Promise<boolean>;
 }

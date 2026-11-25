@@ -2682,7 +2682,7 @@ suite('AgentHostSessionInputPills', () => {
 		});
 	}
 
-	test('opens the session\'s own Changes editor of its chat, with the changeset the pill shows, where there is one', async () => {
+	test('opens the session\'s own Changes editor of its chat with the changeset the pill shows, where it offers that changeset', async () => {
 		const openedChatChanges: { readonly chat: string; readonly changesetId: string | undefined }[] = [];
 		const result = (changeKind: string) => clickChangesPill('Changes', changeKind, upcastPartial<ISessionChangesService>({
 			openChatChangesEditor: async (chatResource, changesetId) => {
@@ -2694,6 +2694,7 @@ suite('AgentHostSessionInputPills', () => {
 			...(await result(ChangesetKind.Branch)).opened,
 			...(await result(ChangesetKind.Uncommitted)).opened,
 			...(await result(ChangesetKind.Session)).opened,
+			// A changeset the Changes editor doesn't offer opens its exact files
 			...(await result('review')).opened,
 		];
 
@@ -2702,20 +2703,20 @@ suite('AgentHostSessionInputPills', () => {
 				{ chat: 'agent-host-copilot:/session', changesetId: 'branch' },
 				{ chat: 'agent-host-copilot:/session', changesetId: 'uncommitted' },
 				{ chat: 'agent-host-copilot:/session', changesetId: 'session' },
-				{ chat: 'agent-host-copilot:/session', changesetId: undefined },
 			],
-			opened: [],
+			opened: [{ label: 'Changes', files: [toAgentHostUri(URI.file('/changed.ts'), 'local').toString()] }],
 		});
 	});
 
-	test('View All Edits of the working set opens the session\'s own Changes editor of its chat, with the changeset it shows', async () => {
+	test('View All Edits of the working set opens the session\'s own Changes editor of its chat with the changeset it shows, and the exact files of a Working Set, which it doesn\'t offer', async () => {
 		const openedChatChanges: { readonly chat: string; readonly changesetId: string | undefined }[] = [];
-		const harness = createActivityPills(upcastPartial<SessionState>({
+		const session = upcastPartial<SessionState>({
 			provider: 'copilotcli',
 			defaultChat: 'vendor-chat:/opaque/main',
 			chats: [],
 			changesets: [{ label: 'Session Changes', uriTemplate: 'vendor-diff:/opaque/session-changes', changeKind: ChangesetKind.Session }],
-		}), upcastPartial<ChatState>({ changesets: [], turns: [] }), undefined, 'remote-test', undefined, undefined, {
+		});
+		const harness = createActivityPills(session, upcastPartial<ChatState>({ changesets: [], turns: [] }), undefined, 'remote-test', undefined, undefined, {
 			sessionChangesService: upcastPartial<ISessionChangesService>({
 				openChatChangesEditor: async (chatResource, changesetId) => {
 					openedChatChanges.push({ chat: chatResource.toString(), changesetId });
@@ -2725,10 +2726,13 @@ suite('AgentHostSessionInputPills', () => {
 		});
 		await harness.setWorkingSetEnabled(true);
 
-		const opened = await harness.workingSetOpenAll()?.();
+		const sessionChanges = await harness.workingSetOpenAll()?.();
+		harness.connection.setState(StateComponents.Session, { ...session, changesets: [...session.changesets!, { label: 'Working Set', uriTemplate: 'vendor-diff:/opaque/working-set', changeKind: ChangesetKind.WorkingSet }] });
+		const workingSet = await harness.workingSetOpenAll()?.();
 
-		assert.deepStrictEqual({ opened, openedChatChanges }, {
-			opened: true,
+		assert.deepStrictEqual({ sessionChanges, workingSet, openedChatChanges }, {
+			sessionChanges: true,
+			workingSet: false,
 			openedChatChanges: [{ chat: harness.sessionResource.toString(), changesetId: 'session' }],
 		});
 	});

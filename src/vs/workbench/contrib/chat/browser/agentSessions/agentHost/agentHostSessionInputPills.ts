@@ -851,7 +851,7 @@ export class AgentHostSessionInputPills extends Disposable {
 			changes: {
 				stats: changeStats,
 				label: derived(this, reader => changesetTarget.read(reader)?.changeset.label ?? localize('agentHostSessionPills.changes', "Changes")),
-				open: () => void this._openChanges(changesetTarget.get()?.changeset, changes.get()),
+				open: () => this._openChanges(changesetTarget.get()?.changeset, changes.get()),
 				getContextMenuPrimaryActions: () => this.getChangesPillContextMenuActions(),
 			},
 			pullRequests: createSessionPullRequestPillData(pullRequestSections, visibility.pullRequests, pullRequestIcon),
@@ -1244,7 +1244,8 @@ export class AgentHostSessionInputPills extends Disposable {
 
 	private async _openChanges(changeset: Changeset | undefined, diffs: readonly IEditSessionEntryDiff[]): Promise<void> {
 		const chatResource = this._widget.viewModel?.sessionResource;
-		if (chatResource && await this._sessionChangesService.openChatChangesEditor(chatResource, getSessionChangesetId(changeset))) {
+		const changesetId = getSessionChangesetId(changeset);
+		if (chatResource && changesetId && await this._sessionChangesService.openChatChangesEditor(chatResource, changesetId)) {
 			return;
 		}
 		if (diffs.length > 0) {
@@ -1313,7 +1314,8 @@ export interface IAgentHostSessionWorkingSetOptions {
  */
 /**
  * The changeset of a session's Changes editor that shows the same changes as an agent host changeset, for those that
- * the Changes editor knows by a well-known id.
+ * the Changes editor knows by a well-known id. Others, such as the session's Working Set, which the Changes editor
+ * doesn't offer, have none, so their exact files open in a multi diff editor instead.
  */
 function getSessionChangesetId(changeset: Changeset | undefined): string | undefined {
 	switch (changeset?.changeKind) {
@@ -1642,7 +1644,8 @@ export class AgentHostSessionWorkingSet extends Disposable {
 				const undo = !!this._options.undoEnabled || isSessionWorkingSet.read(reader) ? workingSetUndo : undefined;
 				reader.store.add(this._widget.inputPart.registerSessionFileChanges(workingSetChanges, undo, workingSetKeep, async () => {
 					const chatResource = this._widget.viewModel?.sessionResource;
-					return !!chatResource && sessionChangesService.openChatChangesEditor(chatResource, getSessionChangesetId(changesetTarget.read(undefined)?.changeset));
+					const changesetId = getSessionChangesetId(changesetTarget.read(undefined)?.changeset);
+					return !!chatResource && !!changesetId && sessionChangesService.openChatChangesEditor(chatResource, changesetId);
 				}));
 			}
 		}));

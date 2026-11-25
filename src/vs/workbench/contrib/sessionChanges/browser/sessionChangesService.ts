@@ -215,7 +215,7 @@ export class SessionChangesService extends Disposable implements ISessionChanges
 		return pane?.group;
 	}
 
-	async openChatChangesEditor(chatResource: URI, changesetId?: string): Promise<boolean> {
+	async openChatChangesEditor(chatResource: URI, changesetId: string): Promise<boolean> {
 		if (!this.layoutService.editorsBindSessionContext) {
 			return false;
 		}
@@ -223,10 +223,10 @@ export class SessionChangesService extends Disposable implements ISessionChanges
 		if (!owner) {
 			return false;
 		}
-		await this.openChangesEditor(owner.session.resource, {
-			chatResource: owner.chat.resource,
-			changesetSelection: changesetId ? { kind: 'id', id: changesetId } : undefined,
-		});
+		// The chat is known, so select on it directly: it may show where no host presents it, such as a chat editor
+		// beside the one the window shows.
+		this.changesViewService.setChangesetId(changesetId, owner.session, owner.chat);
+		await this.openChangesEditor(owner.session.resource, { chatResource: owner.chat.resource });
 		return true;
 	}
 
