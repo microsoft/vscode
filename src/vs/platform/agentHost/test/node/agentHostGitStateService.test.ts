@@ -3524,4 +3524,32 @@ suite('AgentHostGitStateService', () => {
 			libScopeRead: false,
 		});
 	}));
+
+	test('a repository read that finishes after the detection options or the folders changed records nothing, even before the next refresh', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const read = async (change: (h: ReturnType<typeof createHarness>) => void) => {
+			const h = createHarness();
+			const docs = 'file:///wd/docs';
+			const docsRead = new DeferredPromise<ISessionGitState | undefined>();
+			h.gitService.findRepositories = async () => [{ root: URI.parse(docs), kind: 'nested' }];
+			h.setGitResultForFolder(docs, docsRead.p);
+			seedSession(h.stateManager, { workingDirectory: WORKING_DIRECTORY, gitState: { branchName: 'main' } });
+			h.stateManager.setSessionConfig(SESSION, { schema: { type: 'object', properties: {} }, values: { [SessionConfigKey.RepositoryDetection]: { [getWorkingDirectoryKey(WORKING_DIRECTORY)]: { scanSubfolders: true, scanMaxDepth: 1, scanIgnoredFolders: [], detectSubmodules: false } } } });
+			await h.service.refreshSessionGitState(SESSION, undefined);
+			await timeout(1_000);
+			change(h);
+			// No refresh between the change and the end of the read
+			await docsRead.complete({ branchName: 'docs-main', githubOwner: 'contoso', githubRepo: 'docs' });
+			await timeout(1_000);
+			const meta = h.stateManager.getSessionState(SESSION)?._meta;
+			return [readFolderScopeGitState(meta, getWorkingDirectoryScopeId([docs])), readFolderGitHubState(meta, getWorkingDirectoryKey(docs)), h.pullRequestCalls.length];
+		};
+
+		assert.deepStrictEqual({
+			optionsChanged: await read(h => h.stateManager.setSessionConfig(SESSION, { schema: { type: 'object', properties: {} }, values: { [SessionConfigKey.RepositoryDetection]: { [getWorkingDirectoryKey(WORKING_DIRECTORY)]: { scanSubfolders: true, scanMaxDepth: 2, scanIgnoredFolders: [], detectSubmodules: false } } } })),
+			folderAdded: await read(h => h.stateManager.dispatchServerAction(SESSION, { type: ActionType.SessionWorkingDirectorySet, directory: 'file:///other' })),
+		}, {
+			optionsChanged: [undefined, undefined, 0],
+			folderAdded: [undefined, undefined, 0],
+		});
+	}));
 });

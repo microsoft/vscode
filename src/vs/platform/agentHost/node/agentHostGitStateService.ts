@@ -831,7 +831,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 		const { options, folders, input } = this._repositoryDiscoveryInput(sessionKey);
 		if (!Object.keys(options).length) {
 			this._discoveredRepositories.delete(sessionKey);
-			return this._applyDiscoveredRepositories(sessionKey, undefined, folders, credentials, fresh);
+			return this._applyDiscoveredRepositories(sessionKey, input, undefined, folders, credentials, fresh);
 		}
 		const cached = this._discoveredRepositories.get(sessionKey);
 		const current = cached?.input === input ? cached : undefined;
@@ -840,7 +840,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 			this._discoverRepositoriesInBackground(sessionKey, input, folders, options, credentials);
 		}
 		// Until the first discovery of these folders and options finishes, what was recorded before stays
-		return current ? this._applyDiscoveredRepositories(sessionKey, current.repositories, folders, credentials, fresh) : false;
+		return current ? this._applyDiscoveredRepositories(sessionKey, input, current.repositories, folders, credentials, fresh) : false;
 	}
 
 	/**
@@ -858,7 +858,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 				return;
 			}
 			this._discoveredRepositories.set(sessionKey, { input, repositories, discoveredAt: Date.now(), stale: false });
-			if (await this._applyDiscoveredRepositories(sessionKey, repositories, folders, credentials, false)) {
+			if (await this._applyDiscoveredRepositories(sessionKey, input, repositories, folders, credentials, false)) {
 				this._onDidRefreshSessionGitState.fire(sessionKey);
 			}
 		})().catch(error => this._logService.warn(`[AgentHostGitStateService] Failed to find the repositories of ${sessionKey}`, error))
@@ -870,7 +870,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 	 * Records `repositories` as the session's repositories (removing them when `undefined`), removes the state of those no
 	 * longer found, and reads the Git state of each nested and submodule repository. Returns whether anything changed.
 	 */
-	private async _applyDiscoveredRepositories(sessionKey: string, repositories: Readonly<Record<string, readonly ISessionRepositoryEntry[]>> | undefined, folders: readonly string[], credentials: IRepositoryCredentialContext, fresh: boolean): Promise<boolean> {
+	private async _applyDiscoveredRepositories(sessionKey: string, input: string, repositories: Readonly<Record<string, readonly ISessionRepositoryEntry[]>> | undefined, folders: readonly string[], credentials: IRepositoryCredentialContext, fresh: boolean): Promise<boolean> {
 		// A later application, or a change of the recorded repositories, supersedes this one's reads
 		const generation = (this._repositoryGenerations.get(sessionKey) ?? 0) + 1;
 		this._repositoryGenerations.set(sessionKey, generation);
@@ -893,14 +893,14 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 		const readable = discovered.slice(0, Math.max(0, MAX_ADDITIONAL_FOLDER_GIT_READS - Math.max(0, folders.length - 1)));
 		const reads = await Promise.all(readable.map(async root => ({ root, gitState: await this._readGitState(URI.parse(root), undefined, fresh) })));
 		for (const { root, gitState } of reads) {
-			if (!this._isCurrentRepositoryRead(sessionKey, generation, root)) {
+			if (!this._isCurrentRepositoryRead(sessionKey, input, generation, root)) {
 				continue;
 			}
 			if (gitState) {
 				if (this._applyAdditionalFolderGitState(sessionKey, root, gitState, credentials)) {
 					changed = true;
 				}
-			} else if (!await this._gitService.getRepositoryRoot(URI.parse(root), { fresh: true }).catch(() => URI.parse(root))) {
+			} else if (!await this._gitService.getRepositoryRoot(URI.parse(root), { fresh: true }).catch(() => URI.parse(root)) && this._isCurrentRepositoryRead(sessionKey, input, generation, root)) {
 				// Gone from disk: the next refresh finds the repositories again
 				const entry = this._discoveredRepositories.get(sessionKey);
 				if (entry) {
@@ -912,12 +912,13 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 	}
 
 	/**
-	 * Whether a read of `root` that application `generation` started may still be recorded: no later application started,
-	 * the session still records `root` among its found repositories, and no chat works in it.
+	 * Whether a read of `root` that application `generation` of the folders and options `input` started may still be
+	 * recorded: the service is not disposed, the session's folders and detection options are still `input`, no later
+	 * application started, the session still records `root` among its found repositories, and no chat works in it.
 	 */
-	private _isCurrentRepositoryRead(sessionKey: string, generation: number, root: string): boolean {
+	private _isCurrentRepositoryRead(sessionKey: string, input: string, generation: number, root: string): boolean {
 		const state = this._stateManager.getSessionState(sessionKey);
-		if (!state || this._repositoryGenerations.get(sessionKey) !== generation) {
+		if (this._store.isDisposed || !state || this._repositoryGenerations.get(sessionKey) !== generation || this._repositoryDiscoveryInput(sessionKey).input !== input) {
 			return false;
 		}
 		const folders = (this._stateManager.getSessionSummary(sessionKey)?.workingDirectories ?? []).filter(folder => !this._stateManager.isScratchFolder(folder));
