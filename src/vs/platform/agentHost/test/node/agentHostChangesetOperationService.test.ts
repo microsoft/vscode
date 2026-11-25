@@ -29,7 +29,7 @@ import { AgentHostAcceptChangesOperationContribution } from '../../node/agentHos
 import { AgentHostAuthenticationScope } from '../../node/agentHostAuthenticationScope.js';
 import { AgentHostDiscardChangesOperationContribution } from '../../node/agentHostDiscardChangesOperationProvider.js';
 import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
-import type { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
+import type { IAgentHostGitStateService, IRefreshSessionGitStateOptions } from '../../common/agentHostGitStateService.js';
 import type { IAgentChatConfigurationTarget, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostChangesetSubscriptionService } from '../../node/agentHostChangesetSubscriptionService.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -298,9 +298,11 @@ suite('AgentHostChangesetOperationService', () => {
 		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 		const blockers = [new DeferredPromise<void>(), new DeferredPromise<void>()];
 		const gitStateService = new class extends TestGitStateService {
-			override async refreshSessionGitState(sessionKey: string): Promise<void> {
+			readonly options = new Map<string, IRefreshSessionGitStateOptions | undefined>();
+			override async refreshSessionGitState(sessionKey: string, _workingDirectory?: URI, _source?: IAgentHostCredentialSource, options?: IRefreshSessionGitStateOptions): Promise<void> {
 				const index = this.refreshes.length;
 				this.refreshes.push(sessionKey);
+				this.options.set(sessionKey, options);
 				await blockers[index].p;
 			}
 		}();
@@ -321,9 +323,15 @@ suite('AgentHostChangesetOperationService', () => {
 		assert.deepStrictEqual({
 			refreshesBeforeRelease,
 			refreshes: gitStateService.refreshes,
+			options: Object.fromEntries(gitStateService.options),
 		}, {
 			refreshesBeforeRelease: [chatKey, sessionKey],
 			refreshes: [chatKey, sessionKey],
+			// The operation changed the checkout and waits for the result, so neither refresh waits out a cooldown.
+			options: {
+				[chatKey]: { force: true, immediate: true },
+				[sessionKey]: { force: true, immediate: true },
+			},
 		});
 	});
 

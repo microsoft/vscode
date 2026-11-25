@@ -50,6 +50,11 @@ export interface IRefreshSessionGitStateOptions {
 	 * describe, such as edits to files that were already modified, or after a Git operation.
 	 */
 	readonly force?: boolean;
+	/**
+	 * Start the read as soon as no read of the key runs, without waiting out the cooldown since the previous one.
+	 * Set it when the caller changed the checkout, such as with a Git operation, and is waiting on the result.
+	 */
+	readonly immediate?: boolean;
 }
 
 export interface IAgentHostGitStateService {
@@ -65,7 +70,10 @@ export interface IAgentHostGitStateService {
 	readonly onDidChangeSessionGitHubState: Event<string>;
 
 	/**
-	 * Refreshes the git state for a given session.
+	 * Refreshes the git state for a given session. Resolves once a read of the git state that started after the
+	 * call has published what it read. Reads of a key run one at a time and at most once every 5 seconds, unless
+	 * {@link IRefreshSessionGitStateOptions.immediate} is set. A caller waits for the rest of the cooldown since
+	 * the previous read, but not for the cooldown that follows the read serving it.
 	 * @param sessionKey The key of the session for which to refresh the git state.
 	 * @param workingDirectory Optional working directory override; when omitted, the session summary's working directory is used.
 	 */

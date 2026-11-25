@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DeferredPromise } from '../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -836,7 +836,8 @@ suite('AgentHostGitStateService', () => {
 		h.setGitResult(chatGitState);
 		await h.service.refreshSessionGitState(chat, undefined);
 		const afterRefresh = h.service.getSessionGitState(chat);
-		const persistedAfterRefresh = await h.db.getMetadata(META_GIT_DATA_STATE);
+		// The session.db copy is a coalesced mirror of the committed central value.
+		const persistedAfterRefresh = await h.whenStateStoreIdle().then(() => h.db.getMetadata(META_GIT_DATA_STATE));
 		h.setGitResult(undefined);
 		await h.service.refreshSessionGitState(chat, undefined);
 
@@ -913,7 +914,7 @@ suite('AgentHostGitStateService', () => {
 		});
 		const overlapping = addChats('overlapping');
 		const forced = addChats('forced');
-		// Reading Git takes a while, so the chats' refreshes overlap. Each refresh then pauses before it can repeat, so they stay pending until the service is disposed.
+		// Reading Git takes a while, so the chats' refreshes overlap. Each refresh resolves once its read published, without waiting out the cooldown that follows.
 		const realTimeout = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms));
 		const read = new DeferredPromise<ISessionGitState | undefined>();
 		h.setGitResultPromise(read.p);
@@ -929,10 +930,164 @@ suite('AgentHostGitStateService', () => {
 		await realTimeout(50);
 		const forcedReads = h.gitCalls.length - sharedReads;
 
-		h.service.dispose();
 		await Promise.all(refreshes);
 		assert.deepStrictEqual({ sharedReads, forcedReads }, { sharedReads: 1, forcedReads: 1 });
 	});
+
+	/**
+	 * Seeds a session whose Git state reads take 1000 ms each and return `gitState`. Virtual time runs ahead to the
+	 * next timer while a refresh waits for real I/O, so measured refreshes must not wait for any: the session is
+	 * loaded into the state store, so reading its base branch does not query the database, and already has
+	 * `gitState`, so a read writes nothing.
+	 */
+	async function seedSessionWithSlowGitReads(h: ReturnType<typeof createHarness>, gitState: ISessionGitState, workingDirectory = WORKING_DIRECTORY): Promise<void> {
+		seedSession(h.stateManager, { workingDirectory, gitState });
+		await h.stateStore.load(URI.parse(SESSION));
+		h.setGitResult(gitState);
+		const read = h.gitService.getSessionGitState;
+		h.gitService.getSessionGitState = async (directory, baseBranch) => {
+			// The result set when the read started.
+			const state = read(directory, baseBranch);
+			await timeout(1000);
+			return state;
+		};
+	}
+
+	/** Returns how many milliseconds the caller of `refresh` waits for it. */
+	async function measure(refresh: () => Promise<void>): Promise<number> {
+		const start = Date.now();
+		await refresh();
+		return Date.now() - start;
+	}
+
+	test('an awaited refresh waits for the rest of the cooldown and its read, but not for the cooldown after it', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const h = createHarness();
+		await seedSessionWithSlowGitReads(h, { branchName: 'feature', baseBranchName: 'main' });
+		const refresh = () => h.service.refreshSessionGitState(SESSION, undefined);
+
+		const a = await measure(refresh);
+		const b = await measure(refresh);
+		await timeout(3000);
+		const [c, d] = await Promise.all([measure(refresh), measure(refresh)]);
+
+		// Each read takes 1000 ms and is followed by a 5000 ms cooldown: `a` reads an idle key, `b` waits out the
+		// whole cooldown after `a`'s read, and `c` and `d` share a read after the 2000 ms left of the next cooldown.
+		assert.deepStrictEqual({ a, b, c, d, reads: h.gitCalls.length }, { a: 1000, b: 6000, c: 3000, d: 3000, reads: 3 });
+	}));
+
+	test('an immediate refresh skips the cooldown but waits for a running read and restarts the cooldown', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const h = createHarness();
+		await seedSessionWithSlowGitReads(h, { branchName: 'feature', baseBranchName: 'main' });
+		const background = () => h.service.refreshSessionGitState(SESSION, undefined);
+		const immediate = () => h.service.refreshSessionGitState(SESSION, undefined, undefined, { immediate: true });
+
+		const first = await measure(background);
+		const immediateAfterRead = await measure(immediate);
+		const backgroundAfterImmediate = measure(background);
+		// That background refresh reads from 5000 ms to 6000 ms after it was called.
+		await timeout(5500);
+		const immediateDuringRead = await measure(immediate);
+
+		assert.deepStrictEqual({
+			first,
+			immediateAfterRead,
+			backgroundAfterImmediate: await backgroundAfterImmediate,
+			immediateDuringRead,
+			reads: h.gitCalls.length,
+		}, {
+			first: 1000,
+			immediateAfterRead: 1000,
+			// The cooldown after the immediate read, then a read.
+			backgroundAfterImmediate: 6000,
+			// The rest of the running read, then a read of its own.
+			immediateDuringRead: 500 + 1000,
+			reads: 4,
+		});
+	}));
+
+	test('a refresh whose result was dropped because the session moved does not delay the next refresh', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const h = createHarness();
+		const repository = URI.file('/work/repo');
+		const worktree = URI.file('/work/repo.worktrees/feature');
+		const gitState: ISessionGitState = { branchName: 'agents/feature', baseBranchName: 'main' };
+		await seedSessionWithSlowGitReads(h, gitState, repository.toString());
+		h.setGitResult({ branchName: 'main', baseBranchName: 'main' });
+
+		const dropped = measure(() => h.service.refreshSessionGitState(SESSION, repository));
+		await timeout(500);
+		h.stateManager.dispatchServerAction(SESSION, {
+			type: ActionType.SessionWorkingDirectoryReplaced,
+			directory: repository.toString(),
+			replacement: worktree.toString(),
+		});
+		const droppedCost = await dropped;
+		h.setGitResult(gitState);
+		const movedCost = await measure(() => h.service.refreshSessionGitState(SESSION, undefined));
+
+		assert.deepStrictEqual({
+			dropped: droppedCost,
+			moved: movedCost,
+			gitCalls: h.gitCalls,
+			gitState: h.service.getSessionGitState(SESSION),
+		}, {
+			dropped: 1000,
+			moved: 1000,
+			gitCalls: [repository.toString(), worktree.toString()],
+			gitState,
+		});
+	}));
+
+	test('a background refresh merged with an operation refresh keeps the credentials the operation passed', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const authentication = disposables.add(new AgentHostAuthenticationService(new NullLogService()));
+		const h = createHarness({ realCredentials: true, autoAttachPullRequests: true, authenticationService: authentication });
+		seedSession(h.stateManager, { workingDirectory: WORKING_DIRECTORY });
+		// The background refresh could look up with the legacy token, so only the merge decides which credentials are used.
+		const provider = new class extends mock<IAgent>() {
+			override getProtectedResources() { return [GITHUB_REPO_PROTECTED_RESOURCE]; }
+			override async authenticate() { return true; }
+		}();
+		await authentication.authenticate({ resource: GITHUB_REPO_PROTECTED_RESOURCE.resource, scopes: GITHUB_REPO_PROTECTED_RESOURCE.scopes_supported, token: 'legacy-token' }, [provider]);
+		const operationSource: IAgentHostCredentialSource = {
+			principal: { apiOrigin: 'https://api.github.com', userId: '101' },
+			getCredential: request => ({ resource: request.resource, token: 'operation-token', expiresAt: undefined, revision: 1 }),
+		};
+		const firstRead = new DeferredPromise<ISessionGitState | undefined>();
+		h.setGitResultPromise(firstRead.p);
+		const firstReadStarted = new DeferredPromise<void>();
+		const read = h.gitService.getSessionGitState;
+		h.gitService.getSessionGitState = (directory, baseBranch) => {
+			firstReadStarted.complete();
+			return read(directory, baseBranch);
+		};
+
+		const running = h.service.refreshSessionGitState(SESSION, undefined);
+		await firstReadStarted.p;
+		// The next read sees a new branch of a GitHub repository, so it looks up the branch's pull request.
+		h.setGitResultPromise(undefined);
+		h.setGitResult({ branchName: 'feature', baseBranchName: 'main', githubOwner: 'microsoft', githubRepo: 'vscode' });
+		const operation = h.service.refreshSessionGitState(SESSION, undefined, operationSource);
+		const background = h.service.refreshSessionGitState(SESSION, undefined);
+		firstRead.complete({ branchName: 'main', baseBranchName: 'main' });
+		await Promise.all([running, operation, background]);
+
+		// A lookup with the operation's credentials is recorded with the session key, and one without credentials as 'legacy'.
+		assert.deepStrictEqual({ reads: h.gitCalls.length, repositoryCalls: h.repositoryCalls }, { reads: 2, repositoryCalls: [SESSION] });
+	}));
+
+	test('disposing the service resolves a refresh waiting for the cooldown without reading', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const h = createHarness();
+		await seedSessionWithSlowGitReads(h, { branchName: 'feature', baseBranchName: 'main' });
+		await h.service.refreshSessionGitState(SESSION, undefined);
+
+		const waiting = measure(() => h.service.refreshSessionGitState(SESSION, undefined));
+		await timeout(1000);
+		h.service.dispose();
+		const waited = await waiting;
+		// Past the cooldown, which no longer starts the waiting read.
+		await timeout(10_000);
+
+		assert.deepStrictEqual({ waited, reads: h.gitCalls.length }, { waited: 1000, reads: 1 });
+	}));
 
 	test('keeps default-chat Git state when the Git probe fails', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const h = createHarness();
@@ -2535,9 +2690,9 @@ suite('AgentHostGitStateService', () => {
 			seedSession(h.stateManager, { workingDirectory: WORKING_DIRECTORY });
 			h.setGitResult({ branchName: 'feature' });
 
-			// Three concurrent refreshes collapse via the throttler: the first
-			// runs immediately and the last queued one runs after it settles;
-			// the middle request is dropped.
+			// Three concurrent refreshes take two reads: the first starts right
+			// away, and the other two merge into one read that starts after
+			// the first read's cooldown.
 			await Promise.all([
 				h.service.refreshSessionGitState(SESSION, undefined),
 				h.service.refreshSessionGitState(SESSION, undefined),
