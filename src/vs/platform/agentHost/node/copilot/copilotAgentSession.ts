@@ -7578,8 +7578,8 @@ export class CopilotAgentSession extends Disposable {
 	 */
 	private async _stopRevokedProjectExtensions(revoked: readonly ICopilotRuntimeExtension[], revokedComplete: boolean, revokedNames: ReadonlySet<string>, wrapper: CopilotSessionWrapper, isCurrent: () => boolean): Promise<ICopilotRuntimeExtensionInventory | undefined> {
 		const revokedPids = new Set(revoked.flatMap(extension => extension.pid === undefined ? [] : [extension.pid]));
-		// Without its process, or its row, only a reload that succeeded shows a revoked extension stopped: a later process
-		// could be the same one.
+		// Without its process, or its row, a revoked extension can't be told apart from a same-named one listed after a
+		// failed reload. After a reload that succeeded, that one is a relaunch.
 		const hasUnidentified = !revokedComplete || revoked.some(extension => extension.pid === undefined);
 		let failure: unknown;
 		for (let attempt = 0; attempt < 2; attempt++) {
@@ -7612,13 +7612,15 @@ export class CopilotAgentSession extends Disposable {
 			// A same-named extension that trust still covers relaunches in a new process; one without a process can't be told apart.
 			const runsRevoked = (extension: ICopilotRuntimeExtension) => (extension.status === 'running' || extension.status === 'starting')
 				&& (extension.pid === undefined ? extension.source === 'project' && revokedNames.has(extension.name) : revokedPids.has(extension.pid));
-			const stillRunning = inventory.extensions.filter(runsRevoked);
-			if (inventory.complete && stillRunning.length === 0 && (reloaded || !hasUnidentified)) {
+			const mayRunUnidentified = !reloaded && hasUnidentified;
+			const stillRunning = inventory.extensions.filter(extension => runsRevoked(extension)
+				|| (mayRunUnidentified && isActiveProjectExtension(extension) && revokedNames.has(extension.name)));
+			if (inventory.complete && stillRunning.length === 0) {
 				return inventory;
 			}
 			if (!inventory.complete) {
 				failure = new Error('the runtime reported an extension this host could not read');
-			} else if (stillRunning.length) {
+			} else {
 				failure = new Error(`${stillRunning.map(extension => extension.id).join(', ')} still running`);
 			}
 		}
