@@ -186,16 +186,13 @@ export class AgentHostChangesetCoordinator extends Disposable {
 		}
 	}
 
-	onSessionTurnActiveChanged(sessionStr: string, active: boolean): void {
-		this._changesetFileMonitor.onSessionTurnActiveChanged(sessionStr, active);
-
+	onSessionTurnActiveChanged(sessionStr: string): void {
 		// Advertised operations are disabled while a turn is active so the
 		// working tree / branch state can't be mutated mid-request; recompute
 		// them whenever the active-turn state flips.
 		this._changesetOperationService.updateOperations(sessionStr);
-		for (const chat of this._stateManager.getSessionState(sessionStr)?.chats ?? []) {
-			this._changesetFileMonitor.onSessionTurnActiveChanged(chat.resource, active);
-		}
+		// Agents write files during turns, so retry the root watchers that could not be acquired.
+		this._changesetFileMonitor.retryPendingWatches();
 	}
 
 	private onDidChangeSessionConfig(session: string, previous: SessionConfigState | undefined, current: SessionConfigState | undefined): void {
