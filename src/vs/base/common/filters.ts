@@ -357,6 +357,9 @@ export function matchesWords(word: string, target: string, contiguous: boolean =
 
 	word = tryNormalizeToBase(word);
 	target = tryNormalizeToBase(target);
+	if (!canMatchWords(word, target)) {
+		return null;
+	}
 	// Memoize recursive calls within a single top-level invocation. Because word
 	// separators are treated as an equivalence class by `charactersMatch`, the
 	// recursion in `_matchesWords` can otherwise explode exponentially for inputs
@@ -371,6 +374,30 @@ export function matchesWords(word: string, target: string, contiguous: boolean =
 	}
 
 	return result;
+}
+
+function canMatchWords(word: string, target: string): boolean {
+	const wordLen = word.length;
+	const targetLen = target.length;
+	if (wordLen > targetLen) {
+		return false;
+	}
+
+	let targetIndex = 0;
+	for (let wordIndex = 0; wordIndex < wordLen; wordIndex++) {
+		const code = word.charCodeAt(wordIndex);
+		if (isLower(code) || isNumber(code)) {
+			while (targetIndex < targetLen && target.charCodeAt(targetIndex) !== code) {
+				targetIndex++;
+			}
+			if (targetIndex >= targetLen) {
+				return false;
+			}
+		}
+		targetIndex++;
+	}
+
+	return true;
 }
 
 function cloneMatches(matches: IMatch[] | null): IMatch[] | null {

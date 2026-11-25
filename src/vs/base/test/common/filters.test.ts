@@ -265,6 +265,15 @@ suite('Filters', () => {
 		filterOk(matchesWords, 'foo bar', '123 foo-bar 456');
 		filterOk(matchesWords, 'foo-bar', 'foo bar');
 		filterOk(matchesWords, 'foo:bar', 'foo:bar');
+
+		// Word separators, accented text, camelCase targets, and contiguous mode
+		filterOk(matchesWords, 'git:pull', 'Git-Pull', [{ start: 0, end: 3 }, { start: 4, end: 8 }]);
+		filterOk(matchesWords, 'cafe', 'Café: Menu', [{ start: 0, end: 4 }]);
+		filterOk(matchesWords, 'café', 'Cafe: Menu', [{ start: 0, end: 4 }]);
+		filterNotOk(matchesWords, 'fb', 'fooBar');
+		filterOk(matchesWords, 'foo', 'fooBar', [{ start: 0, end: 3 }]);
+		assert.strictEqual(matchesWords('gipu', 'Category: Git: Pull', true), null);
+		assert.deepStrictEqual(matchesWords('pu', 'Category: Git: Pull', true), [{ start: 15, end: 17 }]);
 	});
 
 	test('matchesWords performance (#309582)', function () {
