@@ -21,11 +21,11 @@ const neverAutoApproveCommands = new Set([
 ]);
 
 // Commands where we want to suggest the sub-command (eg. `foo bar` instead of `foo`)
-const commandsWithSubcommands = new Set(['git', 'npm', 'npx', 'yarn', 'docker', 'kubectl', 'cargo', 'dotnet', 'mvn', 'gradle']);
+const commandsWithSubcommands = new Set(['git', 'npm', 'npx', 'yarn', 'pnpm', 'bun', 'bunx', 'docker', 'kubectl', 'cargo', 'dotnet', 'mvn', 'gradle']);
 
 // Commands where we want to suggest the sub-command of a sub-command (eg. `foo bar baz`
 // instead of `foo`)
-const commandsWithSubSubCommands = new Set(['npm run', 'yarn run']);
+const commandsWithSubSubCommands = new Set(['npm run', 'yarn run', 'pnpm run', 'pnpm exec', 'pnpm dlx', 'bun run', 'bun x']);
 
 /** Finds the first non-flag argument at or after `startIndex`. */
 function findNextNonFlagArg(parts: string[], startIndex: number): number | undefined {
