@@ -4,13 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as fsPromises from 'fs/promises';
 import { tmpdir } from 'os';
+import { join, relative, sep } from '../../../../base/common/path.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { AgentHostGitService, canRestageOntoIndexCopy, formatGitError, getWorktreeAddFailureMessage, GitCheckoutProgressParser, isRetryableWorktreeRemovalError, parseChangedPaths, parseDefaultBranchRef, parseDefaultRemoteBranchRef, parseFetchRemoteUrls, parseGitDiffRawNumstat, parseGitHubRepoFromRemote, parseGitStatusV2, parseGitWorktrees, parseHasGitHubRemote, parseSingleLsTreeEntry, parseUntrackedPaths, selectDefaultPushRemote, summarizeStderrForError } from '../../node/agentHostGitService.js';
 import { buildGitBlobUri } from '../../node/gitDiffContent.js';
 import { URI } from '../../../../base/common/uri.js';
 import { isWindows } from '../../../../base/common/platform.js';
-import { Branch, EMPTY_TREE_OBJECT, getBaseBranchLabel, getBranchCompletions, GitRefType, IRefQuery, parseBaseBranchRef } from '../../common/agentHostGitService.js';
+import { Branch, EMPTY_TREE_OBJECT, getBaseBranchLabel, getBranchCompletions, GitRefType, IRefQuery, parseBaseBranchRef, type IFindRepositoriesOptions } from '../../common/agentHostGitService.js';
 import { needsSessionGitStateRefresh } from '../../common/state/sessionState.js';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
@@ -342,6 +344,92 @@ suite('AgentHostGitService', () => {
 				{ arm: 'coalesced', spawns: 3, peakLiveProcesses: 1 },
 				{ arm: 'passthrough', spawns: 1, peakLiveProcesses: 1 },
 			]);
+		});
+	});
+
+	suite('findRepositories', () => {
+		let root: string;
+
+		setup(async () => {
+			root = await fsPromises.mkdtemp(join(tmpdir(), 'agent-host-find-repositories-'));
+		});
+
+		teardown(async () => {
+			await fsPromises.rm(root, { recursive: true, force: true });
+		});
+
+		async function makeFolder(relative: string, options?: { readonly repository?: boolean; readonly gitFile?: boolean; readonly gitmodules?: readonly string[] }): Promise<void> {
+			const folder = join(root, relative);
+			await fsPromises.mkdir(folder, { recursive: true });
+			if (options?.repository) {
+				await fsPromises.mkdir(join(folder, '.git'));
+			}
+			if (options?.gitFile) {
+				// A submodule's or worktree's `.git` is a file
+				await fsPromises.writeFile(join(folder, '.git'), 'gitdir: ../.git/modules/x');
+			}
+			if (options?.gitmodules) {
+				await fsPromises.writeFile(join(folder, '.gitmodules'), options.gitmodules.map(path => `[submodule "${path}"]\n\tpath = ${path}\n\turl = https://example.test/${path}\n`).join(''));
+			}
+		}
+
+		function find(options: Partial<IFindRepositoriesOptions>): Promise<string[]> {
+			const git = store.add(new AgentHostGitService(...gitArguments()));
+			return git.findRepositories(URI.file(root), { scanMaxDepth: 1, scanIgnoredFolders: ['node_modules'], detectSubmodules: true, limit: 16, ...options })
+				.then(found => found.map(repository => `${repository.kind} ${relative(root, repository.root.fsPath).split(sep).join('/')}`));
+		}
+
+		test('finds the repositories of the subfolders as source control does', async () => {
+			await makeFolder('vscode', { repository: true, gitmodules: ['extensions/lib'] });
+			await makeFolder('vscode/extensions/lib', { gitFile: true });
+			// Not searched inside a found repository, except for its submodules
+			await makeFolder('vscode/nested', { repository: true });
+			await makeFolder('vscode-docs', { repository: true });
+			await makeFolder('node_modules/package', { repository: true });
+			await makeFolder('group/deep', { repository: true });
+			await makeFolder('notes');
+
+			assert.deepStrictEqual({
+				depth1: await find({}),
+				depth2: await find({ scanMaxDepth: 2 }),
+				unlimited: await find({ scanMaxDepth: -1, detectSubmodules: false }),
+				noIgnored: await find({ scanMaxDepth: 2, scanIgnoredFolders: [], detectSubmodules: false }),
+				onlySubmodules: await find({ scanMaxDepth: 0 }),
+				capped: await find({ limit: 1 }),
+			}, {
+				depth1: ['nested vscode', 'submodule vscode/extensions/lib', 'nested vscode-docs'],
+				depth2: ['nested vscode', 'submodule vscode/extensions/lib', 'nested vscode-docs', 'nested group/deep'],
+				unlimited: ['nested vscode', 'nested vscode-docs', 'nested group/deep'],
+				noIgnored: ['nested vscode', 'nested vscode-docs', 'nested group/deep', 'nested node_modules/package'],
+				onlySubmodules: [],
+				capped: ['nested vscode'],
+			});
+		});
+
+		test('bounds a scan without a depth limit, and does not follow symbolic links', async () => {
+			await makeFolder('a/b/c/repo3', { repository: true });
+			await makeFolder('1/2/3/4/5/6/7/8/9/10/11/repo12', { repository: true });
+			await makeFolder('elsewhere/linked', { repository: true });
+			await fsPromises.symlink(join(root, 'elsewhere'), join(root, 'link'), 'dir');
+
+			assert.deepStrictEqual(await find({ scanMaxDepth: -1, scanIgnoredFolders: ['elsewhere'] }), ['nested a/b/c/repo3']);
+		});
+
+		test('a folder that is a repository itself lists its submodules and the repositories nested in it', async () => {
+			await makeFolder('.', { repository: true, gitmodules: ['libs/core', '../outside'] });
+			await makeFolder('libs/core', { gitFile: true });
+			await makeFolder('tools', { repository: true });
+
+			assert.deepStrictEqual({
+				withSubmodules: await find({ scanMaxDepth: 0 }),
+				withoutSubmodules: await find({ scanMaxDepth: 0, detectSubmodules: false }),
+				scanned: await find({}),
+			}, {
+				// A submodule path leaving the repository is not followed
+				withSubmodules: ['submodule libs/core'],
+				withoutSubmodules: [],
+				scanned: ['submodule libs/core', 'nested tools'],
+			});
 		});
 	});
 

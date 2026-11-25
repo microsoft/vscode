@@ -323,6 +323,20 @@ export interface IAgentHostGitWorktree {
 	readonly branchName: string | undefined;
 }
 
+/** See {@link IAgentHostGitService.findRepositories}. */
+export interface IFindRepositoriesOptions {
+	readonly scanMaxDepth: number;
+	readonly scanIgnoredFolders: readonly string[];
+	readonly detectSubmodules: boolean;
+	readonly limit: number;
+}
+
+/** A repository {@link IAgentHostGitService.findRepositories} found. */
+export interface IFoundRepository {
+	readonly root: URI;
+	readonly kind: 'nested' | 'submodule';
+}
+
 export interface IAgentHostGitService {
 	readonly _serviceBrand: undefined;
 	getCurrentBranch(workingDirectory: URI): Promise<string | undefined>;
@@ -341,6 +355,16 @@ export interface IAgentHostGitService {
 	getRepositoryRoot(workingDirectory: URI, options?: { readonly refreshIfNone?: boolean }): Promise<URI | undefined>;
 	/** Returns worktree roots in Git's porcelain order, with the primary worktree first. */
 	getWorktreeRoots(workingDirectory: URI): Promise<URI[]>;
+	/**
+	 * Finds the Git repositories in the subfolders of `folder`, as source control does: folders that have a `.git` entry,
+	 * down to `scanMaxDepth` levels (`-1` for no limit), not in the `scanIgnoredFolders` or a `.git` folder, and, with
+	 * `detectSubmodules`, the submodules that the `.gitmodules` file of a found repository (or of `folder` itself)
+	 * lists. Does not include `folder` itself, and does not search inside a found repository except for its
+	 * submodules, nor follow symbolic links. Returns at most `limit` repositories, in the order they are found, breadth
+	 * first. Whatever the options, a scan has bounds of its own: its depth, the folders it reads, the repositories it
+	 * finds and its duration; one that reaches them returns what it found.
+	 */
+	findRepositories?(folder: URI, options: IFindRepositoriesOptions): Promise<readonly IFoundRepository[]>;
 	/** Reads roots and branches in one Git invocation, with unquoted, NUL-delimited paths. Throws if inventory fails. */
 	getWorktrees(workingDirectory: URI): Promise<IAgentHostGitWorktree[]>;
 	/**
