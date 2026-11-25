@@ -52,6 +52,17 @@ suite('DefaultAccountProvider', () => {
 		authorizationServer: URI.parse('https://github.com/login/oauth'),
 	}];
 
+	test('reads wrapped cached account data and ignores retired flat cache data', async () => {
+		const provider = await createProvider(new TestRequestService(async () => jsonResponse({})));
+		const accountPolicyData = createCachedPolicy(false);
+
+		provider['storageService'].store('defaultAccount.cachedPolicyData', JSON.stringify({ accountPolicyData }), StorageScope.APPLICATION, StorageTarget.MACHINE);
+		assert.deepStrictEqual(provider['getCachedAccountData'](), { accountPolicyData, copilotTokenInfo: undefined });
+
+		provider['storageService'].store('defaultAccount.cachedPolicyData', JSON.stringify(accountPolicyData), StorageScope.APPLICATION, StorageTarget.MACHINE);
+		assert.strictEqual(provider['getCachedAccountData'](), null);
+	});
+
 	test('cached settings perform one startup compatibility fetch', async () => {
 		const requestService = new TestRequestService(async () => jsonResponse({
 			forceRemoteSettingsRefresh: true,
