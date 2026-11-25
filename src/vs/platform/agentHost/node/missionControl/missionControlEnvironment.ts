@@ -191,9 +191,7 @@ export class MissionControlEnvironment extends Disposable {
 	private _roots: readonly string[] = [];
 	private _initialRoots: readonly string[] | undefined;
 	private _environment: IEnvironmentResponse | undefined;
-	private _registration: { readonly id: string; readonly options: IMissionControlOptions } | undefined;
 	private _currentCheckIn: { readonly generation: number; readonly operation: Promise<boolean> } | undefined;
-	private readonly _checkIns = new Set<Promise<boolean>>();
 	private _generation = 0;
 	private _configurationEpoch = 0;
 	private _policyRefresh = 0;
@@ -232,32 +230,15 @@ export class MissionControlEnvironment extends Disposable {
 	}
 
 	/** Renderer withdrawals identify their requested account; unbound withdrawal is reserved for process-owned cleanup. */
-	configure(options: IMissionControlOptions | undefined, withdrawingAccountId?: string, deleteRegistration = false): Promise<void> {
+	configure(options: IMissionControlOptions | undefined, withdrawingAccountId?: string): Promise<void> {
 		if (!options) {
-			if (deleteRegistration && withdrawingAccountId === undefined
-				|| withdrawingAccountId !== undefined && this._ownerAccount !== undefined && withdrawingAccountId !== this._ownerAccount) {
+			if (withdrawingAccountId !== undefined && this._ownerAccount !== undefined && withdrawingAccountId !== this._ownerAccount) {
 				return Promise.reject(new CategorizedConnectionError('AgentHostConflict', 'Only the Agent Host owner can withdraw Mission Control registration'));
 			}
 			const registered = this._environment;
 			const previous = this._options;
-			const checkingIn = [...this._checkIns];
 			this._withdraw();
 			return this._configuration.queue(async () => {
-				if (deleteRegistration) {
-					await Promise.all(checkingIn.map(operation => operation.catch(this._host.onError)));
-					const registration = this._registration && previous ? { ...this._registration, options: previous } : this._registration;
-					if (registration) {
-						this._registration = registration;
-						await this._request(
-							`cmc_internal/api/agents/environments/${encodeURIComponent(registration.id)}`,
-							undefined, registration.options, 'DELETE',
-						);
-						if (this._registration === registration) {
-							this._registration = undefined;
-						}
-					}
-					return;
-				}
 				if (registered && previous && Date.now() >= this._heartbeatNotBefore) {
 					await this._request(
 						`cmc_internal/api/agents/environments/${encodeURIComponent(registered.id)}/heartbeat`,
@@ -542,28 +523,22 @@ export class MissionControlEnvironment extends Disposable {
 		}
 	}
 
-	private async _request(path: string, body?: Record<string, unknown>, options = this._options, method?: 'DELETE'): Promise<unknown> {
-		const operation = method === 'DELETE' ? 'unregister' : path.endsWith('/register') ? 'register' : path.endsWith('/heartbeat') ? 'heartbeat' : path.endsWith('/token') ? 'token' : 'signingKeys';
-		return traceConnectionOperation(this._host.onDiagnostic, operation, () => this._doRequest(path, body, options, method));
+	private async _request(path: string, body?: Record<string, unknown>, options = this._options): Promise<unknown> {
+		const operation = path.endsWith('/register') ? 'register' : path.endsWith('/heartbeat') ? 'heartbeat' : path.endsWith('/token') ? 'token' : 'signingKeys';
+		return traceConnectionOperation(this._host.onDiagnostic, operation, () => this._doRequest(path, body, options));
 	}
 
-	private async _doRequest(path: string, body: Record<string, unknown> | undefined, options: IMissionControlOptions | undefined, method?: 'DELETE'): Promise<unknown> {
+	private async _doRequest(path: string, body: Record<string, unknown> | undefined, options: IMissionControlOptions | undefined): Promise<unknown> {
 		if (!options) {
 			throw new CategorizedConnectionError('AgentHostUnavailable', 'Mission Control is disabled');
 		}
 		const response = await this._host.fetch(new URL(path, `${options.baseUrl.replace(/\/$/, '')}/`), {
-			method: method ?? (body ? 'POST' : 'GET'),
+			method: body ? 'POST' : 'GET',
 			headers: { Authorization: `Bearer ${options.credential}`, ...(body ? { 'Content-Type': 'application/json' } : {}) },
 			body: body ? JSON.stringify(body) : undefined,
 			redirect: 'error',
 			signal: AbortSignal.timeout(15_000),
 		});
-		if (method === 'DELETE' && (response.status === 204 || response.status === 404)) {
-			return undefined;
-		}
-		if (method === 'DELETE' && response.ok) {
-			throw new Error(`Mission Control environment deletion returned unexpected status (${response.status})`);
-		}
 		if (path.endsWith('/heartbeat')) {
 			if (response.ok) {
 				this._nextHeartbeatAt = Date.now() + heartbeatInterval;
@@ -641,7 +616,6 @@ export class MissionControlEnvironment extends Disposable {
 			return;
 		}
 		const operation = traceConnectionOperation(this._host.onDiagnostic, 'checkIn', () => this._doCheckIn());
-		this._checkIns.add(operation);
 		const current = { generation, operation };
 		this._currentCheckIn = current;
 		try {
@@ -671,7 +645,6 @@ export class MissionControlEnvironment extends Disposable {
 			}
 			throw error;
 		} finally {
-			this._checkIns.delete(operation);
 			if (this._currentCheckIn === current) {
 				this._currentCheckIn = undefined;
 			}
@@ -763,6 +736,9 @@ export class MissionControlEnvironment extends Disposable {
 			return false;
 		}
 		const reply = await this._request(path, body, options);
+		if (generation !== this._generation || this._options !== options || this._store.isDisposed) {
+			return false;
+		}
 		const response = parseEnvironment(reply);
 		if (response.user_id !== this._canonicalOwner || (this._environment && (response.id !== this._environment.id || response.owner_id !== this._environment.owner_id))) {
 			throw new CategorizedConnectionError('AgentHostInvalidResponse', 'Mission Control environment owner changed');
@@ -770,13 +746,6 @@ export class MissionControlEnvironment extends Disposable {
 		parseLane(response.webpubsub.groups.control, response.user_id, response.id);
 		if (!response.webpubsub.groups.control.endsWith('.control')) {
 			throw new CategorizedConnectionError('AgentHostInvalidResponse', 'Mission Control returned an invalid control lane');
-		}
-		// Keep late registration replies available for an explicit opt-out queued behind this check-in.
-		if (register) {
-			this._registration = { id: response.id, options };
-		}
-		if (generation !== this._generation || this._options !== options || this._store.isDisposed) {
-			return false;
 		}
 		this._environment = response;
 		if (options.live && this._host.createMirror && (!this._mirror.value || this._mirrorEnvironment !== response.id)) {

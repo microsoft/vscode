@@ -52,12 +52,12 @@ export class AgentHostManagementService implements IAgentHostManagementService {
 		this._missionControl = service;
 	}
 
-	async configureMissionControl(options: IMissionControlOptions | undefined, withdrawingAccountId?: string, deleteRegistration?: boolean): ReturnType<IAgentHostManagementService['configureMissionControl']> {
+	async configureMissionControl(options: IMissionControlOptions | undefined, withdrawingAccountId?: string): ReturnType<IAgentHostManagementService['configureMissionControl']> {
 		try {
 			if (!this._missionControl) {
 				throw new CategorizedConnectionError('AgentHostUnavailable', 'Mission Control is unavailable in this Agent Host');
 			}
-			await this._missionControl.configure(options, withdrawingAccountId, deleteRegistration);
+			await this._missionControl.configure(options, withdrawingAccountId);
 		} catch (error) {
 			this._logService.error('GitHub environment configuration failed', error);
 			return { error: getConnectionDiagnosticError(error) };

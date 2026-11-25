@@ -32,12 +32,19 @@ import { Link } from '../../../../../../platform/opener/browser/link.js';
 import { showWindowLogActionId } from '../../../../../services/log/common/logConstants.js';
 import { RemoteTunnelCommandIds } from '../../../../remoteTunnel/electron-browser/remoteTunnel.contribution.js';
 import { defaultButtonStyles } from '../../../../../../platform/theme/browser/defaultStyles.js';
+import { asCssVariableWithDefault, buttonBorder, buttonSecondaryBorder } from '../../../../../../platform/theme/common/colorRegistry.js';
 import { devTunnelSharingClients, getOffDetail, gitHubEnvironmentSharingClients, gitHubEnvironmentSharingDiscovery, GitHubEnvironmentsAvailability, RemoteConnectionsMethod, RemoteConnectionsSharing, RemoteConnectionsState, validateSharingName } from '../../../../chat/electron-browser/remoteConnectionsSharing.js';
 import { IPreferencesService } from '../../../../../services/preferences/common/preferences.js';
 import { TOGGLE_REMOTE_CONNECTIONS_COMMAND_ID } from '../../../common/sessionCommands.js';
 import { IRemotesSharingViewState } from '../browser/remotesEditorInput.js';
 
 type SharingMethod = Exclude<RemoteConnectionsMethod, 'off'>;
+
+const sharingButtonStyles = {
+	...defaultButtonStyles,
+	buttonBorder: asCssVariableWithDefault(buttonBorder, 'transparent'),
+	buttonSecondaryBorder: asCssVariableWithDefault(buttonSecondaryBorder, 'transparent'),
+};
 
 const sharingChoices: Record<SharingMethod, { label: string; points: readonly string[]; detail?: string }> = {
 	githubEnvironment: {
@@ -150,7 +157,7 @@ export class ThisComputerSection extends Disposable {
 			style: HoverStyle.Pointer,
 		}, hoverLifecycleOptions));
 		const controls = dom.append(heading, dom.$('.remotes-this-computer-share'));
-		this.shareButton = this._register(new Button(controls, { ...defaultButtonStyles, secondary: true, hoverDelegate }));
+		this.shareButton = this._register(new Button(controls, { ...sharingButtonStyles, secondary: true, hoverDelegate }));
 		this.shareButton.label = localize('thisComputer.share', "Share This Computer");
 		this.shareButton.setTitle(localize('thisComputer.shareDetail', "Choose how other devices access this computer's agent sessions, tools, and files"));
 		const switchActions = (['githubEnvironment', 'devTunnel'] as const).map(method => this._register(new Action(
@@ -165,7 +172,7 @@ export class ThisComputerSection extends Disposable {
 			},
 		)));
 		this.stopButton = this._register(new ButtonWithDropdown(controls, {
-			...defaultButtonStyles, secondary: true, hoverDelegate,
+			...sharingButtonStyles, secondary: true, hoverDelegate,
 			actions: {
 				getActions: () => switchActions.filter((action, index) => {
 					const method = index === 0 ? 'githubEnvironment' : 'devTunnel';
@@ -241,10 +248,10 @@ export class ThisComputerSection extends Disposable {
 			}
 		}));
 		const footer = dom.append(controls, dom.$('.remotes-sharing-footer'));
-		this.cancelButton = this._register(new Button(footer, { ...defaultButtonStyles, secondary: true, hoverDelegate }));
+		this.cancelButton = this._register(new Button(footer, { ...sharingButtonStyles, secondary: true, hoverDelegate }));
 		this.cancelButton.label = localize('thisComputer.cancel', "Cancel");
 		this._register(this.cancelButton.onDidClick(() => this.close()));
-		this.applyButton = this._register(new ButtonWithIcon(footer, { ...defaultButtonStyles, hoverDelegate }));
+		this.applyButton = this._register(new ButtonWithIcon(footer, { ...sharingButtonStyles, hoverDelegate }));
 		this.applyButton.label = localize('thisComputer.start', "Start Sharing");
 		this.applyButton.icon = Codicon.radioTower;
 		this.applyButton.iconElement.setAttribute('aria-hidden', 'true');

@@ -142,7 +142,6 @@ export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementat
 		if (!isWeb && configurationService.getValue<boolean>(ENVIRONMENT_PICKER_SETTING)) {
 			content.push(localize('sessionsChat.environmentPicker.beforeWorkspace', "Above the new-session input, Environment is before Workspace and remains visible when session options are collapsed."));
 			content.push(localize('sessionsChat.environmentPicker', "Use Tab or the Left and Right arrow keys to reach Environment, Enter or Space to open it, arrow keys and Enter to select, and Escape to dismiss. Workspace and Session Type choices follow the selected environment. Screen-reader optimized mode keeps session options expanded."));
-			content.push(localize('sessionsChat.environmentPicker.connection', "This computer runs the session locally; Cloud runs it in a cloud environment. Selecting a disconnected remote connects and waits for readiness before changing the draft's destination. Failure, cancellation, or a newer selection preserves the draft."));
 			if (configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId)) {
 				logSettingExperimentTrigger(accessor.get(ITelemetryService), ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING);
 				if (configurationService.getValue<boolean>(ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING)) {

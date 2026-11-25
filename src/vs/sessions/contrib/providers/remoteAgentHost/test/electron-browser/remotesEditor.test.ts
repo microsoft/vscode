@@ -791,6 +791,7 @@ suite('RemotesEditor', () => {
 		const share = container.querySelector<HTMLElement>('.remotes-this-computer-share > .monaco-button')!;
 		const visibleActions = () => [...share.parentElement!.querySelectorAll<HTMLElement>('.monaco-button')].filter(button => button.getClientRects().length > 0 && dom.getWindow(button).getComputedStyle(button).visibility !== 'hidden').map(button => button.textContent);
 		const collapsedActions = visibleActions();
+		const shareRight = share.getBoundingClientRect().right;
 		share.click();
 		container.querySelector<HTMLElement>('[data-sharing-method="githubEnvironment"]')!.click();
 		const start = container.querySelector<HTMLElement>('.remotes-sharing-footer .monaco-button:not(.secondary)')!;
@@ -801,6 +802,7 @@ suite('RemotesEditor', () => {
 			name: container.querySelector('.remotes-this-computer-name')?.textContent,
 			back: container.querySelector('.remotes-task-navigation'),
 			actionsInHeading: !!start.closest('.remotes-this-computer-heading'),
+			stableActionEdge: Math.abs(start.getBoundingClientRect().right - shareRight) < 1,
 			actions: [...start.parentElement!.children].map(element => element.textContent),
 			collapsedActions,
 			visibleActions: visibleActions(),
@@ -809,7 +811,7 @@ suite('RemotesEditor', () => {
 			unchanged: configuration.getValue(AgentHostRemoteConnectionsSettingId),
 		}, {
 			disclosures: 0, tableVisible: true, nameVisible: true, name: 'My Workstation (Code - OSS)',
-			back: null, actionsInHeading: true,
+			back: null, actionsInHeading: true, stableActionEdge: true,
 			actions: ['Cancel', 'Start Sharing'],
 			collapsedActions: ['Share This Computer'],
 			visibleActions: ['Cancel', 'Start Sharing'],

@@ -366,7 +366,7 @@ suite('RemoteConnectionsActionViewItem', () => {
 		}, {
 			tabFocus: true, shiftTabFocus: true, describedBy: true,
 			header: 'Will be shared as: test-tunnel',
-			explanation: 'Sharing through GitHub Environments is disabled by your organization. Contact your administrator. View Setting',
+			explanation: 'GitHub Environments is disabled by your organization. Contact your administrator. View Setting',
 			opened: [[{ query: `@id:${GitHubEnvironmentsEnabledSettingId}` }]],
 			sharing: [],
 		});
@@ -387,7 +387,7 @@ suite('RemoteConnectionsActionViewItem', () => {
 			openSettings: openSettings.callCount,
 			sharing: sharing.calls,
 		}, {
-			footer: 'Sharing through GitHub Environments is disabled by your organization. Contact Admin',
+			footer: 'GitHub Environments is disabled by your organization. Contact Admin',
 			action: { id: 'remoteConnections.organizationSupport', tooltip: 'Opens your organization\'s help page (example.com)' },
 			opened: [{ target: 'https://example.com/copilot-help', openExternal: true }],
 			openSettings: 0,
@@ -797,7 +797,7 @@ suite('RemoteConnectionsActionViewItem', () => {
 			toggles: run.callCount,
 		}, {
 			methods: [{ label: 'Off', checked: true }, { label: 'GitHub Environments', checked: false }, { label: 'Dev Tunnels', checked: false }],
-			label: 'Remote connections: Off',
+			label: 'Remote Connections: Off',
 			pressed: null,
 			sharing: [false],
 			toggles: 0,
@@ -969,7 +969,7 @@ suite('RemoteConnectionsActionViewItem', () => {
 			focused: [true, true, true],
 			expanded: 'true',
 			collapsed: 'false',
-			label: 'Remote connections: Off',
+			label: 'Remote Connections: Off',
 			menuItems: 3,
 			toggles: 0,
 		});
@@ -1131,9 +1131,9 @@ suite('ToggleRemoteConnectionsActionViewItem', () => {
 	test('GitHub sharing hover keeps the description concise', () => {
 		const viewItem = Object.assign(Object.create(ToggleRemoteConnectionsActionViewItem.prototype), {
 			_usesMissionControl: () => true,
-			getAriaLabel: () => 'Share this computer as a GitHub Environment',
+			getAriaLabel: () => 'Allow Remote Connections via GitHub environment',
 		}) as { _getHoverContent(): string };
-		assert.strictEqual(viewItem._getHoverContent(), 'Share this computer as a GitHub Environment\n\nConnect from VS Code, the browser-based Agents window, or supported Copilot clients. Make this computer discoverable through your GitHub account.');
+		assert.strictEqual(viewItem._getHoverContent(), 'Allow Remote Connections via GitHub environment\n\nConnect from VS Code, the browser-based Agents window, or supported Copilot clients. Make this computer discoverable through your GitHub account.');
 	});
 
 	function backendConfiguration(backend: AgentHostRemoteConnectionsBackend = 'devTunnel') {
@@ -1323,14 +1323,12 @@ suite('ToggleRemoteConnectionsActionViewItem', () => {
 				}
 				const notificationService = new TestNotificationService();
 				const notify = stub(notificationService, 'error').callThrough();
-				const prompt = stub(notificationService, 'prompt').callThrough();
 				const logService = store.add(new NullLogService());
 				const log = stub(logService, 'error');
 				const result = await toggle(remoteTunnel, commands, undefined, backend, sharing, notificationService, logService);
 				assert.deepStrictEqual({
 					result,
-					notifications: [...notify.args, ...prompt.args.map(args => [args[1]])],
-					recovery: prompt.args.map(args => args[2].map(choice => choice.label)),
+					notifications: notify.args,
 					logs: log.args,
 					commands: commands.commands,
 				}, {
@@ -1338,7 +1336,6 @@ suite('ToggleRemoteConnectionsActionViewItem', () => {
 					notifications: operation === 'cancel sign-in' ? [] : [[operation === 'disable'
 						? 'Failed to disable GitHub environment sharing: fetch failed'
 						: 'Failed to enable GitHub environment sharing: fetch failed']],
-					recovery: operation === 'disable' ? [['Retry Stop Sharing']] : [],
 					logs: operation === 'cancel sign-in' ? [] : [['Failed to toggle GitHub environment sharing', error]],
 					commands: [],
 				});
@@ -1380,10 +1377,10 @@ suite('ToggleRemoteConnectionsActionViewItem', () => {
 				};
 			});
 			assert.deepStrictEqual(snapshots, [
-				{ label: 'Share this computer as a GitHub Environment', pressed: 'false', sharing: false, connecting: false, inlineText: '' },
-				{ label: 'Registering this computer as a GitHub Environment...', pressed: 'false', sharing: false, connecting: true, inlineText: '' },
-				{ label: 'This computer is shared as a GitHub Environment', pressed: 'true', sharing: true, connecting: false, inlineText: '' },
-				{ label: 'Share this computer as a GitHub Environment', pressed: 'false', sharing: false, connecting: false, inlineText: '' },
+				{ label: 'Allow Remote Connections via GitHub environment', pressed: 'false', sharing: false, connecting: false, inlineText: '' },
+				{ label: 'Registering GitHub environment...', pressed: 'false', sharing: false, connecting: true, inlineText: '' },
+				{ label: 'Remote Connections via GitHub environment are enabled', pressed: 'true', sharing: true, connecting: false, inlineText: '' },
+				{ label: 'Allow Remote Connections via GitHub environment', pressed: 'false', sharing: false, connecting: false, inlineText: '' },
 			]);
 		});
 

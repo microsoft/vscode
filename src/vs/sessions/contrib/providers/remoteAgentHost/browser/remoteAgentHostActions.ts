@@ -75,8 +75,8 @@ registerAction2(class extends Action2 {
 
 		// Prompt for address
 		const address = await quickInputService.input({
-			title: localize('addRemoteTitle', "Add remote agent host"),
-			prompt: localize('addRemotePrompt', "Enter the address of an already running remote agent host (host, host:port, or WebSocket URL). Example: {0}", 'ws://127.0.0.1:8089'),
+			title: localize('addRemoteTitle', "Add Remote Agent Host"),
+			prompt: localize('addRemotePrompt', "Paste a host, host:port, or WebSocket URL. Example: {0}", 'ws://127.0.0.1:8089'),
 			placeHolder: 'ws://127.0.0.1:8080?tkn=abc-123',
 			ignoreFocusLost: true,
 			validateInput: async value => {
@@ -101,9 +101,9 @@ registerAction2(class extends Action2 {
 		// Prompt for display name
 		const defaultName = parsed.parsed.suggestedName;
 		const name = await quickInputService.input({
-			title: localize('nameRemoteTitle', "Name remote agent host"),
-			prompt: localize('nameRemotePrompt', "Enter a name for this remote agent host."),
-			placeHolder: localize('nameRemotePlaceholder', "My remote"),
+			title: localize('nameRemoteTitle', "Name Remote Agent Host"),
+			prompt: localize('nameRemotePrompt', "Enter a display name for this remote agent host."),
+			placeHolder: localize('nameRemotePlaceholder', "My Remote"),
 			value: defaultName,
 			valueSelection: [0, defaultName.length],
 			ignoreFocusLost: true,
@@ -125,7 +125,7 @@ registerAction2(class extends Action2 {
 			});
 			await remoteAgentHostService.waitForConnection(parsed.parsed.address);
 		} catch {
-			notificationService.error(localize('addRemoteFailed', "Couldn't connect to remote agent host {0}.", parsed.parsed.address));
+			notificationService.error(localize('addRemoteFailed', "Failed to connect to remote agent host {0}.", parsed.parsed.address));
 		}
 	}
 });
@@ -451,7 +451,7 @@ async function promptForCredentialsAndConnect(
 
 	if (!username) {
 		const usernameInput = await quickInputService.input({
-			title: localize('sshUsernameTitle', "SSH username"),
+			title: localize('sshUsernameTitle', "SSH Username"),
 			prompt: localize('sshUsernamePrompt', "Enter the username for {0}.", host),
 			placeHolder: 'root',
 			ignoreFocusLost: true,
@@ -466,12 +466,12 @@ async function promptForCredentialsAndConnect(
 	const authPicks: ISSHAuthMethodPickItem[] = [
 		{
 			method: SSHAuthMethod.Agent,
-			label: localize('sshAuthAgent', "SSH agent"),
+			label: localize('sshAuthAgent', "SSH Agent"),
 			description: localize('sshAuthAgentDesc', "Use the running SSH agent for authentication"),
 		},
 		{
 			method: SSHAuthMethod.KeyFile,
-			label: localize('sshAuthKey', "Private key file"),
+			label: localize('sshAuthKey', "Private Key File"),
 			description: localize('sshAuthKeyDesc', "Authenticate with a private key file"),
 		},
 		{
@@ -482,7 +482,7 @@ async function promptForCredentialsAndConnect(
 	];
 
 	const authPicked = await quickInputService.pick(authPicks, {
-		title: localize('sshAuthTitle', "Authentication method"),
+		title: localize('sshAuthTitle', "Authentication Method"),
 		placeHolder: localize('sshAuthPlaceholder', "Choose how to authenticate with {0}", host),
 		ignoreFocusLost: true,
 	});
@@ -496,7 +496,7 @@ async function promptForCredentialsAndConnect(
 
 	if (authMethod === SSHAuthMethod.KeyFile) {
 		const keyPath = await quickInputService.input({
-			title: localize('sshKeyTitle', "Private key path"),
+			title: localize('sshKeyTitle', "Private Key Path"),
 			prompt: localize('sshKeyPrompt', "Enter the path to your SSH private key."),
 			placeHolder: '~/.ssh/id_rsa',
 			value: defaultKeyPath ?? '~/.ssh/id_rsa',
@@ -509,7 +509,7 @@ async function promptForCredentialsAndConnect(
 		privateKeyPath = keyPath.trim();
 	} else if (authMethod === SSHAuthMethod.Password) {
 		const pw = await quickInputService.input({
-			title: localize('sshPasswordTitle', "SSH password"),
+			title: localize('sshPasswordTitle', "SSH Password"),
 			prompt: localize('sshPasswordPrompt', "Enter the password for {0}@{1}.", username, host),
 			password: true,
 			ignoreFocusLost: true,
@@ -523,9 +523,9 @@ async function promptForCredentialsAndConnect(
 
 	const defaultName = suggestedName ?? `${username}@${host}`;
 	const name = await quickInputService.input({
-		title: localize('sshNameTitle', "Name remote"),
+		title: localize('sshNameTitle', "Name Remote"),
 		prompt: localize('sshNamePrompt', "Enter a display name for this SSH remote."),
-		placeHolder: localize('sshNamePlaceholder', "My remote"),
+		placeHolder: localize('sshNamePlaceholder', "My Remote"),
 		value: defaultName,
 		valueSelection: [0, defaultName.length],
 		ignoreFocusLost: true,

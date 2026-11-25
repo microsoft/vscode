@@ -5,7 +5,6 @@
 
 import '../../../../browser/media/style.css';
 import '../../browser/media/automationsCards.css';
-import '../../../../../workbench/contrib/sessions/browser/media/disclosure.css';
 import '../../../../../workbench/browser/media/chatPills.css';
 import '../../../../../base/browser/ui/actionbar/actionbar.css';
 import assert from 'assert';
@@ -25,7 +24,7 @@ suite('Automations Styles', () => {
 
 		const insets = ['automations-ownership-summary', 'automations-template-section-summary'].map(className => {
 			const section = append(root, $('details'));
-			const summary = append(section, $(`summary.${className}${className === 'automations-template-section-summary' ? '.sessions-section-summary' : ''}`));
+			const summary = append(section, $(`summary.${className}`));
 			const label = append(summary, $('span', undefined, 'Automations'));
 			const bounds = summary.getBoundingClientRect();
 			const content = label.getBoundingClientRect();
@@ -47,10 +46,10 @@ suite('Automations Styles', () => {
 		const root = append(mainWindow.document.body, $('.monaco-workbench.agent-sessions-workbench'));
 		root.style.cssText = '--vscode-spacing-size20: 2px; --vscode-spacing-size60: 6px; --vscode-codiconFontSize: 16px';
 		store.add(toDisposable(() => root.remove()));
-		const section = append(root, $('details.automations-template-section.sessions-section', { open: true }));
-		const summary = append(section, $('summary.automations-template-section-summary.sessions-section-summary'));
-		append(summary, $('span.automations-template-section-chevron.sessions-section-chevron'));
-		const title = append(summary, $('span.automations-template-section-title.sessions-section-title', undefined, 'Built-in Templates'));
+		const section = append(root, $('details.automations-template-section', { open: true }));
+		const summary = append(section, $('summary.automations-template-section-summary'));
+		append(summary, $('span.automations-template-section-chevron'));
+		const title = append(summary, $('span.automations-template-section-title', undefined, 'Built-in Templates'));
 		const description = append(section, $('p.automations-templates-description', undefined, 'Choose a starting point.'));
 		const grid = append(section, $('.automations-templates-grid'));
 

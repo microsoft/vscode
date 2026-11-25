@@ -419,14 +419,14 @@ suite('ActionListWidget', () => {
 		}, { describedBy: true, text: 'Shared as Test Machine' });
 	});
 
-	test('shared text tags retain their control-tier shape without workbench size tokens', () => {
+	test('keeps shared badges borderless and sized without workbench size tokens', () => {
 		const widget = createActionListWidget(disposables, {
 			items: [{ ...action('model'), badge: 'Preview' }],
 			listOptions: { showFilter: false },
 		});
 		widget.domNode.classList.add('action-widget');
 		const badge = widget.domNode.querySelector<HTMLElement>('.action-item-badge')!;
-		for (const token of ['--vscode-spacing-size20', '--vscode-spacing-size40', '--vscode-cornerRadius-small', '--vscode-fontSize-label2', '--vscode-strokeThickness']) {
+		for (const token of ['--vscode-spacing-size60', '--vscode-cornerRadius-circle', '--vscode-fontSize-label2', '--vscode-strokeThickness']) {
 			badge.style.setProperty(token, 'initial');
 		}
 		badge.style.setProperty('--vscode-contrastBorder', '#ffffff');
@@ -442,9 +442,9 @@ suite('ActionListWidget', () => {
 
 		assert.deepStrictEqual({ defaultStyle, customizedHeight: badge.getBoundingClientRect().height }, {
 			defaultStyle: {
-				padding: '0px 4px',
+				padding: '0px 6px',
 				borderWidth: '0px',
-				borderRadius: '4px',
+				borderRadius: '9999px',
 				fontSize: '11px',
 				height: 18,
 			},
@@ -486,7 +486,7 @@ suite('ActionListWidget', () => {
 				badgeHidden: 'true',
 				badgeVisible: true,
 				afterTitle: true,
-				additionalBadges: [{ text: 'Org default', className: 'action-item-badge monaco-label-badge organization-default' }],
+				additionalBadges: [{ text: 'Org default', className: 'action-item-badge organization-default' }],
 			},
 			updated: {
 				label: 'Manual permissions',

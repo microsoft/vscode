@@ -150,7 +150,7 @@ suite('SessionEnvironmentPicker', () => {
 			provider('cloud', 'cloud'),
 		];
 		assert.deepStrictEqual(getSessionCreationEnvironments(providers).map(({ id, label, providerIds }) => ({ id, label, providerIds })), [
-			{ id: 'local', label: 'This computer', providerIds: [LOCAL_AGENT_HOST_PROVIDER_ID, 'folder-only'] },
+			{ id: 'local', label: 'This Computer', providerIds: [LOCAL_AGENT_HOST_PROVIDER_ID, 'folder-only'] },
 			{ id: 'cloud', label: 'Cloud', providerIds: ['cloud'] },
 		]);
 	});
@@ -269,8 +269,8 @@ suite('SessionEnvironmentPicker', () => {
 			tooltipLabels,
 		}, {
 			order: 'CloudRepository', labels: ['This Computer', 'Cloud'],
-			hovers: ['Run this session directly on this computer', 'Run this session in a cloud environment, not on this computer'],
-			ariaLabels: ['This Computer, Run this session directly on this computer', 'Cloud, Run this session in a cloud environment, not on this computer'],
+			hovers: ['Run this session directly on this computer', 'Run this session in the cloud on GitHub'],
+			ariaLabels: ['This Computer, Run this session directly on this computer', 'Cloud, Run this session in the cloud on GitHub'],
 			selected: 'cloud', ariaLabel: 'Environment where the agent runs: Cloud', expanded: 'false', toolbar: true,
 			tooltipLabels: ['Environment where the agent runs: This Computer', 'Environment where the agent runs: Cloud'],
 		});
@@ -327,9 +327,9 @@ suite('SessionEnvironmentPicker', () => {
 		const remote = (name: string, hover: string, escaped = hover) => ({ hover: escaped, aria: `${name}, Disconnected, ${hover}` });
 		assert.deepStrictEqual(described, [
 			{ hover: 'Run this session directly on this computer', aria: 'This Computer, Run this session directly on this computer' },
-			{ hover: 'Run this session in a cloud environment, not on this computer', aria: 'Cloud, Run this session in a cloud environment, not on this computer' },
+			{ hover: 'Run this session in the cloud on GitHub', aria: 'Cloud, Run this session in the cloud on GitHub' },
 			remote('build-box', 'Run this session on build-box over SSH'),
-			remote('laptop', 'Run this session on laptop through a Dev Tunnel'),
+			remote('laptop', 'Run this session on laptop through a dev tunnel'),
 			remote('Ubuntu', 'Run this session on Ubuntu in WSL'),
 			remote('desktop', 'Run this session on desktop, shared through GitHub Environments'),
 			remote('my_host*', 'Run this session on my_host*', 'Run this session on my\\_host\\*'),
@@ -337,7 +337,7 @@ suite('SessionEnvironmentPicker', () => {
 			{ hover: 'Run this session in a dev container for the selected folder', aria: 'Dev Container for Folder, Run this session in a dev container for the selected folder' },
 			{ hover: 'Connect over \\*SSH\\*', aria: 'SSH..., Connect over *SSH*' },
 			{ hover: undefined, aria: 'Other...' },
-			{ hover: 'Connect to and manage remote environments', aria: 'Manage Remote Environments..., Connect to and manage remote environments' },
+			{ hover: 'Add, connect, and manage remote environments', aria: 'Manage Remote Environments..., Add, connect, and manage remote environments' },
 		]);
 	});
 

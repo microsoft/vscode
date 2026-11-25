@@ -13,7 +13,6 @@ import { Action, IAction, IActionRunner, toAction } from '../../../../base/commo
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
-import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
 import { ActionWidgetDropdownActionViewItem } from '../../../../platform/actions/browser/actionWidgetDropdownActionViewItem.js';
 import { IActionListOptions } from '../../../../platform/actionWidget/browser/actionList.js';
@@ -40,7 +39,9 @@ export interface IRemoteConnectionsActionViewItemOptions {
 
 class RemoteConnectionsDropdownActionViewItem extends ActionWidgetDropdownActionViewItem {
 	protected override renderLabel(element: HTMLElement) {
-		element.classList.add('tunnel-host-toggle', ...ThemeIcon.asClassNameArray(Codicon.radioTower));
+		element.classList.add('tunnel-host-toggle');
+		const icon = dom.append(element, dom.$('span.tunnel-host-icon', { 'aria-hidden': 'true' }));
+		icon.append(...renderLabelWithIcons(`$(${Codicon.radioTower.id})`));
 		return super.renderLabel(element);
 	}
 
@@ -110,10 +111,6 @@ export class RemoteConnectionsActionViewItem extends BaseActionViewItem {
 		const dropdown = this._dropdown;
 		dropdown.render(container);
 		this.element = dropdown.element;
-		if (this._isChatInput) {
-			container.classList.add('chat-input-picker-item');
-			this.element?.classList.add('icon-only');
-		}
 		this._updateDropdownState();
 		this._updateTabStops();
 	}
@@ -152,7 +149,7 @@ export class RemoteConnectionsActionViewItem extends BaseActionViewItem {
 		dropdown.action.enabled = this.isEnabled();
 		dropdown.action.tooltip = state.isSharing || state.isConnecting
 			? this._primaryAction.getAriaLabel()
-			: localize('remoteConnections.offLabel', "Remote connections: Off");
+			: localize('remoteConnections.offLabel', "Remote Connections: Off");
 		dropdown.element?.classList.toggle('sharing', state.isSharing);
 		dropdown.element?.classList.toggle('connecting', state.isConnecting);
 	}
@@ -176,8 +173,8 @@ export class RemoteConnectionsActionViewItem extends BaseActionViewItem {
 		return {
 			...options,
 			footerText: supportUrl
-				? localize('remoteConnections.policyFooterWithSupport', "Sharing through GitHub Environments is disabled by your organization. {0}", label)
-				: localize('remoteConnections.policyFooter', "Sharing through GitHub Environments is disabled by your organization. Contact your administrator. {0}", label),
+				? localize('remoteConnections.policyFooterWithSupport', "GitHub Environments is disabled by your organization. {0}", label)
+				: localize('remoteConnections.policyFooter', "GitHub Environments is disabled by your organization. Contact your administrator. {0}", label),
 			footerAction: supportUrl
 				? toAction({
 					id: 'remoteConnections.organizationSupport',
@@ -191,7 +188,7 @@ export class RemoteConnectionsActionViewItem extends BaseActionViewItem {
 				: toAction({
 					id: 'remoteConnections.viewSetting',
 					label,
-					tooltip: localize('remoteConnections.viewManagedSetting', "View the organization-managed GitHub Environments setting"),
+					tooltip: localize('remoteConnections.viewManagedSetting', "View the Organization-Managed GitHub Environments Setting"),
 					run: async () => {
 						this._dropdown.hide();
 						await this._preferencesService.openSettings({ query: `@id:${GitHubEnvironmentsEnabledSettingId}` });
@@ -200,6 +197,7 @@ export class RemoteConnectionsActionViewItem extends BaseActionViewItem {
 		};
 	}
 
+	/** Shows the name this computer is shared under above the connection methods, linked to rename it. */
 	private _getNameHeader(): Pick<IActionListOptions, 'headerIcon' | 'headerText' | 'headerAction'> {
 		const state = this._sharing.getState();
 		const usesGitHubEnvironment = this._sharing.usesGitHubEnvironment;
@@ -228,8 +226,8 @@ export class RemoteConnectionsActionViewItem extends BaseActionViewItem {
 		};
 	}
 
-	private async _rename(usesGitHubEnvironment: boolean): Promise<void> {
-		if (!this.isEnabled() || !this._sharing.name || this._sharing.getState().isConnecting || usesGitHubEnvironment !== this._sharing.usesGitHubEnvironment) {
+	private async _rename(githubEnvironment: boolean): Promise<void> {
+		if (!this.isEnabled() || this._sharing.getState().isConnecting || githubEnvironment !== this._sharing.usesGitHubEnvironment) {
 			return;
 		}
 		this._dropdown.hide();
@@ -293,6 +291,7 @@ export class RemoteConnectionsActionViewItem extends BaseActionViewItem {
 		});
 		const management = this._options.getManagementAction?.();
 		if (management) {
+			// Uncategorized entries sort last, so the connection methods need their own category to stay first.
 			for (const method of methods) {
 				method.category = { label: 'methods', order: 0 };
 			}
@@ -305,7 +304,7 @@ export class RemoteConnectionsActionViewItem extends BaseActionViewItem {
 					run: () => management.run(),
 				}),
 				...(compact
-					? { hover: { content: management.tooltip || management.label }, ariaDescription: management.tooltip || management.label }
+					? { hover: management.tooltip ? { content: management.tooltip } : undefined, ariaDescription: management.tooltip || undefined }
 					: { labelIcon: Codicon.settingsGear }),
 				// Keeps the label aligned with the checkable connection methods.
 				icon: Codicon.blank,
@@ -401,20 +400,20 @@ export class ToggleRemoteConnectionsActionViewItem extends BaseActionViewItem {
 		const state = this.getState();
 
 		if (state.isConnecting) {
-			lines.push(localize('tunnelHost.hover.connecting', "Starting a Dev Tunnel..."));
+			lines.push(localize('tunnelHost.hover.connecting', "Establishing tunnel connection..."));
 		} else if (state.isSharing) {
 			lines.push(state.tunnelName
-				? localize('tunnelHost.hover.sharing', "This computer is shared through the Dev Tunnel '{0}'", state.tunnelName)
-				: localize('tunnelHost.hover.enabled', "This computer is shared through a Dev Tunnel"));
+				? localize('tunnelHost.hover.sharing', "Remote Tunnel Access is enabled via tunnel '{0}'", state.tunnelName)
+				: localize('tunnelHost.hover.enabled', "Remote Tunnel Access is enabled"));
 		} else {
 			const agentsUrl = this._productService.webUrl ? `${this._productService.webUrl.replace(/\/$/, '')}/agents` : undefined;
 			lines.push(agentsUrl
-				? localize('tunnelHost.hover.idle', "Use this computer's agent sessions, tools, and files from other devices. The {0} can connect too.", `[${localize('tunnelHost.browserAgents', "browser-based Agents window")}](${agentsUrl})`)
-				: localize('tunnelHost.hover.idle.noWebUrl', "Use this computer's agent sessions, tools, and files from other devices"));
+				? localize('tunnelHost.hover.idle', "Allow connections from other machines and {0}", `[${agentsUrl.replace(/https?:\/\//, '')}](${agentsUrl})`)
+				: localize('tunnelHost.hover.idle.noWebUrl', "Allow connections from other machines"));
 		}
 
-		lines.push(localize('tunnelHost.hover.connectionMethod', "Connection method: Dev Tunnel"));
-		lines.push(`[${localize('tunnelHost.hover.showOutput', "Show output")}](command:${RemoteTunnelCommandIds.showLog}) | [${localize('tunnelHost.hover.renameTunnel', "Rename tunnel")}](command:${RemoteTunnelCommandIds.rename}) | [${localize('tunnelHost.hover.learnMore', "Learn more")}](${TUNNEL_ACCESS_DOCS_URL})`);
+		lines.push(localize('tunnelHost.hover.method', "Connection method: Dev Tunnels"));
+		lines.push(`[${localize('tunnelHost.hover.showOutput', "Show Output")}](command:${RemoteTunnelCommandIds.showLog}) | [${localize('tunnelHost.hover.renameTunnel', "Rename Tunnel")}](command:${RemoteTunnelCommandIds.rename}) | [${localize('tunnelHost.hover.learnMore', "Learn More")}](${TUNNEL_ACCESS_DOCS_URL})`);
 
 		const md = new MarkdownString(lines.join('\n\n'), { isTrusted: { enabledCommands: [RemoteTunnelCommandIds.showLog, RemoteTunnelCommandIds.rename] } });
 		return { markdown: md, markdownNotSupportedFallback: lines[0] };
@@ -424,19 +423,22 @@ export class ToggleRemoteConnectionsActionViewItem extends BaseActionViewItem {
 		const state = this.getState();
 		if (this._usesMissionControl()) {
 			return state.isConnecting
-				? localize('missionControlSharing.connecting', "Registering this computer as a GitHub Environment...")
+				? localize('missionControlSharing.connecting', "Registering GitHub environment...")
 				: state.isSharing
-					? localize('missionControlSharing.enabled', "This computer is shared as a GitHub Environment")
-					: localize('missionControlSharing.disabled', "Share this computer as a GitHub Environment");
+					? localize('missionControlSharing.enabled', "Remote Connections via GitHub environment are enabled")
+					: localize('missionControlSharing.disabled', "Allow Remote Connections via GitHub environment");
 		}
 		if (state.isConnecting) {
-			return localize('tunnelHost.hover.connecting', "Starting a Dev Tunnel...");
+			return localize('tunnelHost.hover.connecting', "Establishing tunnel connection...");
 		}
 		if (state.isSharing) {
 			return state.tunnelName
-				? localize('tunnelHost.ariaLabel.remoteTunnelAccess', "This computer is shared through the Dev Tunnel '{0}'", state.tunnelName)
-				: localize('tunnelHost.hover.enabled', "This computer is shared through a Dev Tunnel");
+				? localize('tunnelHost.ariaLabel.remoteTunnelAccess', "Remote Tunnel Access is enabled via tunnel '{0}'", state.tunnelName)
+				: localize('tunnelHost.hover.enabled', "Remote Tunnel Access is enabled");
 		}
-		return localize('tunnelHost.hover.idle.ariaLabel', "Share this computer's agent sessions, tools, and files with other devices");
+		const agentsUrl = this._productService.webUrl ? `${this._productService.webUrl.replace(/\/$/, '')}/agents` : undefined;
+		return agentsUrl
+			? localize('tunnelHost.hover.idle.ariaLabel', "Allow connections from other machines and {0}", agentsUrl.replace(/https?:\/\//, ''))
+			: localize('tunnelHost.hover.idle.ariaLabel.noWebUrl', "Allow connections from other machines");
 	}
 }

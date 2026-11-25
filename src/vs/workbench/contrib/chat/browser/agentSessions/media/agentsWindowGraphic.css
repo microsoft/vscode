@@ -60,9 +60,14 @@
 }
 
 .agents-window-graphic-badge {
+	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size40);
 	border: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, transparent);
+	border-radius: var(--vscode-cornerRadius-small);
 	background-color: var(--vscode-activityBarBadge-background);
 	color: var(--vscode-activityBarBadge-foreground);
+	font-size: var(--vscode-fontSize-body2);
+	font-weight: var(--vscode-fontWeight-regular);
+	line-height: 14px;
 }
 
 /* The banner's text leads with what the Agents window is, then what it's for. The page that shows the banner places its drawing beside the text. */

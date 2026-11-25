@@ -11,7 +11,6 @@ import { ActionBar } from '../../../base/browser/ui/actionbar/actionbar.js';
 import { ActionViewItem } from '../../../base/browser/ui/actionbar/actionViewItems.js';
 import { getAnchorRect, IAnchor, IContextViewCloseAnimation } from '../../../base/browser/ui/contextview/contextview.js';
 import { KeybindingLabel } from '../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
-import '../../../base/browser/ui/countBadge/countBadge.css';
 import { IHoverAction } from '../../../base/browser/ui/hover/hover.js';
 import { HoverAction } from '../../../base/browser/ui/hover/hoverWidget.js';
 import { DomScrollableElement } from '../../../base/browser/ui/scrollbar/scrollableElement.js';
@@ -356,7 +355,7 @@ function renderAdditionalBadges(
 ): void {
 	dom.clearNode(container);
 	for (const badge of badges ?? []) {
-		const label = dom.append(container, dom.$('span.action-item-badge.monaco-label-badge', undefined, badge.label));
+		const label = dom.append(container, dom.$('span.action-item-badge', undefined, badge.label));
 		if (badge.className) {
 			label.classList.add(badge.className);
 		}
@@ -420,7 +419,7 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 		container.append(text);
 
 		const badge = document.createElement('span');
-		badge.className = 'action-item-badge monaco-label-badge';
+		badge.className = 'action-item-badge';
 		badge.ariaHidden = 'true';
 		container.append(badge);
 
