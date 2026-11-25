@@ -2201,12 +2201,14 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			repositoryFingerprints = fingerprinted?.repositories;
 			const published = this._stateManager.getChangesetState(changesetUri);
 			const reusable = published?.status === ChangesetStatus.Ready ? published : statusBeforeRefresh?.status === ChangesetStatus.Ready ? statusBeforeRefresh : undefined;
-			// A computation asked to report telemetry, as at the end of a turn, runs even when nothing changed.
-			if (provider === undefined && branchFingerprint !== undefined && reusable && branchFingerprint === this._branchDiffFingerprints.get(session)) {
+			if (branchFingerprint !== undefined && reusable && branchFingerprint === this._branchDiffFingerprints.get(session)) {
 				this._logService.trace(`[AgentHostChangesetService] Branch changeset of ${session} is current; skipping its computation`);
 				this._restoreStaticChangesetStatus(changesetUri, reusable);
 				// The operations follow Git state the fingerprint does not cover, such as the commits ahead of the upstream.
 				this._changesetOperationService.updateOperations(session, changesetUri);
+				// A computation asked to report telemetry, as at the end of a turn, reports that its result was current.
+				outcome = 'unchanged';
+				emitStaticTelemetry();
 				return;
 			}
 			if (this._store.isDisposed) {
