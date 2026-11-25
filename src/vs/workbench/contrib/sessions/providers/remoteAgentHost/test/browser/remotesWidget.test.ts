@@ -3237,6 +3237,36 @@ suite('RemotesWidget', () => {
 
 	}
 
+	test('a remote name keeps its space when its state indicators do not fit', () => {
+		const indicators = ['remotes-github-environment', 'remotes-server-update', 'remotes-picker-hidden'];
+		const states = [360, 1400].map(width => {
+			const { parent, model, widget } = createWidget(OperatingSystem.Macintosh, 'default', width);
+			feedbackStyles(parent);
+			model.remotes.set([{
+				...model.remotes.get()[0], hidden: true, canUpdateServer: true, gitHubEnvironment: { state: 'enabled' },
+				connectionStatus: RemoteAgentHostConnectionStatus.connected,
+			}], undefined);
+			widget.layout();
+			const row = parent.querySelector<HTMLElement>('[data-remote-id="ssh:build"]')!;
+			const name = row.querySelector<HTMLElement>('.remotes-name')!;
+			const group = row.querySelector<HTMLElement>('.remotes-name-indicators')!.getBoundingClientRect();
+			const nameFits = name.scrollWidth <= name.clientWidth;
+			return {
+				width,
+				shown: indicators.filter(indicator => {
+					const bounds = row.querySelector<HTMLElement>(`.${indicator}`)!.getBoundingClientRect();
+					return bounds.top >= group.top && bounds.bottom <= group.bottom && bounds.right <= group.right;
+				}),
+				nameFits,
+				squeezed: !nameFits && name.getBoundingClientRect().width <= group.width,
+			};
+		});
+		assert.deepStrictEqual(states, [
+			{ width: 360, shown: ['remotes-github-environment'], nameFits: false, squeezed: false },
+			{ width: 1400, shown: indicators, nameFits: true, squeezed: false },
+		]);
+	});
+
 	test('Update Server and the update indicator follow the update capability on incompatible and connected rows', () => {
 		const { parent, model, hoverContents } = createWidget();
 		const remote = model.remotes.get()[0];

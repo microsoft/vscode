@@ -834,6 +834,18 @@
 	overflow-wrap: anywhere;
 }
 
+/* The name leads: when the name doesn't fit, its indicators give way first, down to one icon. Wrapping hides the icons that don't fit whole. */
+.remotes-widget .remotes-name-indicators {
+	display: flex;
+	flex-wrap: wrap;
+	align-content: flex-start;
+	gap: var(--vscode-spacing-size40);
+	flex-shrink: 100000;
+	min-width: var(--vscode-codiconFontSize, 16px);
+	height: var(--vscode-codiconFontSize, 16px);
+	overflow: hidden;
+}
+
 .remotes-widget .remotes-github-environment,
 .remotes-widget .remotes-server-update,
 .remotes-widget .remotes-picker-hidden {
@@ -919,6 +931,7 @@
 }
 
 .remotes-widget .remotes-group-count[hidden],
+.remotes-widget .remotes-name-indicators[hidden],
 .remotes-widget .remotes-github-environment[hidden],
 .remotes-widget .remotes-server-update[hidden],
 .remotes-widget .remotes-picker-hidden[hidden],
