@@ -2307,6 +2307,8 @@ suite('Sessions - Workbench', () => {
 		isAuxiliaryBarFloating(): boolean;
 		setEditorHidden(hidden: boolean, explicit?: boolean): void;
 		restoreAttachedEditorMaximizedState(): void;
+		layoutPolicy: { viewportClass: { get(): string } };
+		closeMobileSidebarDrawer(): void;
 	}
 
 	function createWillOpenHarness(overrides?: Partial<IWillOpenTestHarness>): { harness: IWillOpenTestHarness; setEditorHiddenCalls: { hidden: boolean; explicit?: boolean }[] } {
@@ -2320,6 +2322,8 @@ suite('Sessions - Workbench', () => {
 			isAuxiliaryBarFloating: () => false,
 			setEditorHidden: (hidden, explicit) => setEditorHiddenCalls.push({ hidden, explicit }),
 			restoreAttachedEditorMaximizedState: () => { },
+			layoutPolicy: { viewportClass: { get: () => 'desktop' } },
+			closeMobileSidebarDrawer: () => { },
 			...overrides,
 		};
 		return { harness, setEditorHiddenCalls };
@@ -2347,6 +2351,28 @@ suite('Sessions - Workbench', () => {
 		revealEditorOnOpen.call(harness, { groupId: 1, editor: { typeId: 'workbench.editors.files.fileEditorInput' } });
 
 		assert.deepStrictEqual(setEditorHiddenCalls, []);
+	});
+
+	test('main editor navigation dismisses the phone drawer even when the editor is already visible', () => {
+		const cases = [
+			{ viewport: 'phone', editor: false, groupId: 1, suppression: 0 },
+			{ viewport: 'phone', editor: true, groupId: 1, suppression: 0 },
+			{ viewport: 'desktop', editor: false, groupId: 1, suppression: 0 },
+			{ viewport: 'phone', editor: false, groupId: 99, suppression: 0 },
+			{ viewport: 'phone', editor: false, groupId: 1, suppression: 1 },
+		];
+		const closed = cases.map(testCase => {
+			let closed = 0;
+			const { harness } = createWillOpenHarness({
+				layoutPolicy: { viewportClass: { get: () => testCase.viewport } },
+				partVisibility: { editor: testCase.editor, auxiliaryBar: false },
+				_editorPartAutoVisibilitySuppressionCount: testCase.suppression,
+				closeMobileSidebarDrawer: () => { closed++; },
+			});
+			revealEditorOnOpen.call(harness, { groupId: testCase.groupId, editor: {} });
+			return closed;
+		});
+		assert.deepStrictEqual(closed, [1, 1, 0, 0, 0]);
 	});
 
 	test('docked editors are excluded from the editor limit (prevents managed-tab open/close loop)', () => {
@@ -5143,6 +5169,42 @@ suite('Sessions - Workbench', () => {
 			onPhone: ['customView'],
 			afterLeavingPhone: [],
 		});
+	});
+
+	test('opening and reopening a phone custom view replaces the drawer without leaving a stale navigation layer', () => {
+		const host = createHost();
+		host.layoutPolicy.viewportClass.get = () => 'phone';
+		const descriptor = {};
+		const states = [];
+		for (let i = 0; i < 2; i++) {
+			setSideBarHidden.call(host, false);
+			host.mobileNavLayers.push('sidebar');
+			applyCustomViewGridVisibility.call(host, descriptor);
+			states.push({
+				sidebar: host.partVisibility.sidebar,
+				layers: [...host.mobileNavLayers],
+				focusedPart: host.focusedParts.at(-1),
+			});
+		}
+		applyCustomViewGridVisibility.call(host, undefined);
+		assert.deepStrictEqual({ states, afterClose: host.mobileNavLayers, sidebar: host.partVisibility.sidebar }, {
+			states: [
+				{ sidebar: false, layers: ['customView'], focusedPart: Parts.CUSTOM_VIEW_GRID_PART },
+				{ sidebar: false, layers: ['customView'], focusedPart: Parts.CUSTOM_VIEW_GRID_PART },
+			],
+			afterClose: [],
+			sidebar: false,
+		});
+	});
+
+	test('custom views leave desktop sidebars and startup phone layout alone', () => {
+		const desktop = createHost();
+		applyCustomViewGridVisibility.call(desktop, {});
+		const starting = createHost();
+		starting.layoutPolicy.viewportClass.get = () => 'phone';
+		Object.assign(starting, { workbenchGrid: undefined });
+		applyCustomViewGridVisibility.call(starting, {});
+		assert.deepStrictEqual([desktop.partVisibility.sidebar, starting.partVisibility.sidebar], [true, true]);
 	});
 
 	test('the secondary side bar toggle is inert while a custom view is shown', () => {
