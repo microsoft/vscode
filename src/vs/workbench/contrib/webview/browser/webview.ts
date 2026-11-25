@@ -112,7 +112,17 @@ export interface WebviewOptions {
 
 	/** Host-owned actions prepended to this webview's context menu. */
 	getContextMenuActions?(): IAction[];
+
+	/**
+	 * The webview's content can't be edited, so its context menu leaves out Cut and Paste.
+	 */
+	readonly readOnlyContent?: boolean;
 }
+
+/**
+ * Context key, set in a webview's context menu, that is true when the webview has {@link WebviewOptions.readOnlyContent}.
+ */
+export const WebviewReadOnlyContentContextKeyName = 'webviewReadOnlyContent';
 
 export interface WebviewContentOptions {
 	/**

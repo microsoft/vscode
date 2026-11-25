@@ -151,6 +151,7 @@ export function getHtmlPreviewWebviewOptions(title: string): WebviewInitInfo {
 			disableServiceWorker: true,
 			includeHorizontalScrollbarInContentHeight: true,
 			tryRestoreScrollPosition: false,
+			readOnlyContent: true,
 		},
 		contentOptions: {
 			allowScripts: false,
