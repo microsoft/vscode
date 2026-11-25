@@ -17,8 +17,8 @@ import { SessionsGrouping } from '../views/sessionsListCommon.js';
 import { registerSessionsListActions, registerSessionsListReadStateMenus, SessionsArchiveActionsContribution } from '../views/sessionsListActions.js';
 import { EditorWindowSessionsContext, ISessionsViewOptions, SessionsView } from '../views/sessionsView.js';
 
-/** The editor window's Sessions view groups only by time, environment or worktree, by time until one is chosen. */
-export const EDITOR_WINDOW_SESSIONS_GROUPINGS = { offered: [SessionsGrouping.Date, SessionsGrouping.Environment, SessionsGrouping.Worktree], default: SessionsGrouping.Date };
+/** The editor window's Sessions view groups only by time or environment, by time until one is chosen. */
+export const EDITOR_WINDOW_SESSIONS_GROUPINGS = { offered: [SessionsGrouping.Date, SessionsGrouping.Environment], default: SessionsGrouping.Date };
 
 /** The services of the Sessions view, which its constructor takes after its options. */
 type SessionsViewServices = ConstructorParameters<typeof SessionsView> extends [ISessionsViewOptions, ...infer Services] ? Services : never;

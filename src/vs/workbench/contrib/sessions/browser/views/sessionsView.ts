@@ -176,39 +176,31 @@ export const ChatViewSessionsListContext = new RawContextKey<boolean>('chatViewS
 export const ChatViewSessionsListTitleContext = ContextKeyExpr.and(ContextKeyExpr.equals('view', ChatViewId), ChatViewSessionsListContext, ChatContextKeys.enabled, ChatContextKeys.agentSessionsViewerVisible)!;
 export const SessionsViewCompactContext = new RawContextKey<boolean>('sessionsViewPane.compact', false);
 export const IsWorkspaceGroupCappedContext = new RawContextKey<boolean>('sessionsViewPane.workspaceGroupCapped', true);
-/** The groupings a Sessions view offers by default, as the Agents window's does: all but {@link SessionsGrouping.Worktree}. */
-export const DEFAULT_SESSIONS_GROUPINGS: readonly SessionsGrouping[] = Object.values(SessionsGrouping).filter(grouping => grouping !== SessionsGrouping.Worktree);
+/** The groupings a Sessions view offers by default, as the Agents window's does: all of them. */
+export const DEFAULT_SESSIONS_GROUPINGS: readonly SessionsGrouping[] = Object.values(SessionsGrouping);
 
 /**
- * Per grouping, the context key that says whether the Sessions view offers it. Where no Sessions view binds them, such as
- * in the Command Palette outside one, a view offers {@link DEFAULT_SESSIONS_GROUPINGS}: those say whether they are
- * unavailable, the others whether they are offered.
+ * Per grouping, the context key that says whether the Sessions view does not offer it. Where no Sessions view binds them,
+ * such as in the Command Palette outside one, a view offers {@link DEFAULT_SESSIONS_GROUPINGS}.
  */
-const groupingContexts = new Map(Object.values(SessionsGrouping).map(grouping => [grouping, DEFAULT_SESSIONS_GROUPINGS.includes(grouping)
-	? { unavailable: new RawContextKey<boolean>(`sessionsViewPane.groupingUnavailable.${grouping}`, false) }
-	: { offered: new RawContextKey<boolean>(`sessionsViewPane.groupingOffered.${grouping}`, false) }]));
+const groupingUnavailableContexts = new Map(Object.values(SessionsGrouping).map(grouping => [grouping, new RawContextKey<boolean>(`sessionsViewPane.groupingUnavailable.${grouping}`, false)]));
 
 /** Whether the Sessions view offers `grouping`, such as in its Grouping menu. */
 export function sessionsViewOffersGrouping(grouping: SessionsGrouping): ContextKeyExpression {
-	const context = groupingContexts.get(grouping)!;
-	return context.unavailable ? context.unavailable.negate() : context.offered!;
+	return groupingUnavailableContexts.get(grouping)!.negate();
 }
 
 /** Binds in `contextKeyService` that a Sessions view offers the `offered` groupings, and no others. */
 export function bindSessionsViewGroupings(contextKeyService: IContextKeyService, offered: readonly SessionsGrouping[]): void {
-	for (const [grouping, context] of groupingContexts) {
-		if (context.unavailable) {
-			context.unavailable.bindTo(contextKeyService).set(!offered.includes(grouping));
-		} else {
-			context.offered!.bindTo(contextKeyService).set(offered.includes(grouping));
-		}
+	for (const [grouping, context] of groupingUnavailableContexts) {
+		context.bindTo(contextKeyService).set(!offered.includes(grouping));
 	}
 }
 
 /**
  * The grouping a stored value names, or `undefined` for a value this build does not know or this view does not offer:
- * a view keeps its default for a grouping that another view sharing the stored grouping offers, such as Worktree, which
- * only the Agents view of an editor window offers, or Workspace, which it does not. The stored value stays as it is.
+ * a view keeps its default for a grouping that another view sharing the stored grouping offers, such as Workspace, which
+ * the Sessions view of an editor window does not offer. The stored value stays as it is.
  */
 export function getStoredSessionsGrouping(stored: string | undefined, groupings: readonly SessionsGrouping[]): SessionsGrouping | undefined {
 	return groupings.find(grouping => grouping === stored);
