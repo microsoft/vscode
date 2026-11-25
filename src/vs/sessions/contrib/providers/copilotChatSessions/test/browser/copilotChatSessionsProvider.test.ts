@@ -179,7 +179,8 @@ class MockAgentSessionsModel {
 	readonly onDidChangeSessionArchivedState = Event.None;
 	readonly resolved = true;
 
-	get sessions(): IAgentSession[] { return [...this._sessions]; }
+	get sessions(): IAgentSession[] { return this._sessions.filter(session => session.metadata?.isAutomation !== true); }
+	get sessionsIncludingAutomationRuns(): IAgentSession[] { return [...this._sessions]; }
 
 	getSession(resource: URI): IAgentSession | undefined {
 		return this._sessions.find(s => s.resource.toString() === resource.toString());
@@ -1865,10 +1866,11 @@ suite('CopilotChatSessionsProvider', () => {
 		const malformed = await provider.resolveSessionResource(resource.with({ query: 'other=true' }));
 		assert.deepStrictEqual({
 			resolved: resolved?.toString(), malformed, commands,
-			automation: provider.getSessions()[0].isAutomation?.get(),
+			listedByAgentModel: model.sessions.map(session => session.resource.toString()),
+			automation: provider.getAllSessions().find(session => session.resource.toString() === resource.toString())?.isAutomation?.get(),
 		}, {
 			resolved: resource.toString(), malformed: undefined,
-			commands: ['github.copilot.chat.cloudSessions.resolveTask:/task/exact'], automation: true,
+			commands: ['github.copilot.chat.cloudSessions.resolveTask:/task/exact'], listedByAgentModel: [], automation: true,
 		});
 	});
 
