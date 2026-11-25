@@ -251,6 +251,7 @@ class DiffToolBar extends Disposable implements IGutterItemView {
 
 		this._register(autorunWithStore((reader, store) => {
 			this._elements.buttons.replaceChildren();
+			this._buttonsHeight = undefined;
 			const i = store.add(instantiationService.createInstance(MenuWorkbenchToolBar, this._elements.buttons, this._menuId.read(reader), {
 				orientation: ActionsOrientation.VERTICAL,
 				hoverDelegate,
@@ -274,6 +275,7 @@ class DiffToolBar extends Disposable implements IGutterItemView {
 				},
 			}));
 			store.add(i.onDidChangeMenuItems(() => {
+				this._buttonsHeight = undefined;
 				if (this._lastItemRange) {
 					this.layout(this._lastItemRange, this._lastViewRange!);
 				}
@@ -283,15 +285,19 @@ class DiffToolBar extends Disposable implements IGutterItemView {
 
 	private _lastItemRange: OffsetRange | undefined;
 	private _lastViewRange: OffsetRange | undefined;
+	/**
+	 * The buttons' height, read when the toolbar changes: reading it on every
+	 * layout would force a layout for every hunk as the editor scrolls.
+	 */
+	private _buttonsHeight: number | undefined;
 
 	layout(itemRange: OffsetRange, viewRange: OffsetRange): void {
 		this._lastItemRange = itemRange;
 		this._lastViewRange = viewRange;
 
-		let itemHeight = this._elements.buttons.clientHeight;
 		this._isSmall.set(this._item.get().mapping.original.startLineNumber === 1 && itemRange.length < 30, undefined);
-		// Item might have changed
-		itemHeight = this._elements.buttons.clientHeight;
+		// Item might have changed. A hidden editor's 0 is measured again once shown.
+		const itemHeight = this._buttonsHeight ||= this._elements.buttons.clientHeight;
 
 		const middleHeight = itemRange.length / 2 - itemHeight / 2;
 
