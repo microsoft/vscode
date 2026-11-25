@@ -8068,6 +8068,19 @@ suite('Sessions - SessionsList', () => {
 			assert.deepStrictEqual(sections[0].sessions.map(session => session.sessionId), ['archived-pinned']);
 		});
 
+		test('orders Done by update time whatever the sorting, ignoring manual sort keys', () => {
+			const archivedLast = createSession('archived-last', { isArchived: true, createdAt: new Date('2024-06-01'), updatedAt: new Date('2024-06-05') });
+			const archivedFirst = createSession('archived-first', { isArchived: true, createdAt: new Date('2024-06-03'), updatedAt: new Date('2024-06-04') });
+			const manualSortKey = (session: ISession) => session.sessionId === archivedFirst.sessionId ? Date.parse('2024-07-01') : session.updatedAt.get().getTime();
+			const sections = (sorting: SessionsSorting) => groupSessionsForList([archivedFirst, archivedLast], SessionsGrouping.Workspace, sorting, () => false, manualSortKey)
+				.map(section => ({ id: section.id, sessions: section.sessions.map(session => session.sessionId) }));
+
+			assert.deepStrictEqual({ created: sections(SessionsSorting.Created), updated: sections(SessionsSorting.Updated) }, {
+				created: [{ id: 'archived', sessions: ['archived-last', 'archived-first'] }],
+				updated: [{ id: 'archived', sessions: ['archived-last', 'archived-first'] }],
+			});
+		});
+
 		test('sorts pinned sessions using supplied sort keys', () => {
 			const first = createSession('first', { createdAt: new Date('2024-01-01') });
 			const second = createSession('second', { createdAt: new Date('2024-06-01') });
@@ -14934,8 +14947,8 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
-		test('lists done nested chats of a session that is not done as standalone rows in the Done section', async () => {
-			const createSessionWithChats = (title: string, options?: { readonly isArchived?: boolean; readonly createdAt?: Date }): ISession => {
+		test('lists done nested chats of a session that is not done as standalone rows in the Done section, most recently updated first', async () => {
+			const createSessionWithChats = (title: string, options?: { readonly isArchived?: boolean; readonly createdAt?: Date; readonly updatedAt?: Date }): ISession => {
 				const main = createChat(`${title} main`);
 				const active = createChat(`${title} active`, ChatOriginKind.User);
 				const done: IChat = { ...createChat(`${title} done`, ChatOriginKind.User), isArchived: constObservable(true) };
@@ -14948,7 +14961,8 @@ suite('Sessions - SessionsList', () => {
 			};
 			const now = Date.now();
 			const parent = createSessionWithChats('Parent', { createdAt: new Date(now - 2000) });
-			const doneSession = createSessionWithChats('Finished', { isArchived: true, createdAt: new Date(now - 1000) });
+			// Created before the done chat of Parent, but archived after it.
+			const doneSession = createSessionWithChats('Finished', { isArchived: true, createdAt: new Date(now - 1000), updatedAt: new Date(now + 1000) });
 			const opened: string[] = [];
 			const harness = createListHarness(disposables, [parent, doneSession]);
 			const container = harness.createContainer();
@@ -14972,10 +14986,10 @@ suite('Sessions - SessionsList', () => {
 					'  Parent',
 					'    Parent active',
 					'Archived',
-					'  Parent done (standalone)',
 					'  Finished (done)',
 					'    Finished active',
 					'    Finished done',
+					'  Parent done (standalone)',
 				],
 				opened: [parent.resource.toString()],
 			});

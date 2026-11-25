@@ -12584,7 +12584,8 @@ export class AgentService extends Disposable implements IAgentService {
 				? { ...chat, status: withSessionStatusFlag(chat.status ?? current.status, SessionStatus.IsRead, set) }
 				: chat)
 			: undefined;
-		this._stateManager.setSurfacedSessionStatusAndChats(session, withSessionStatusFlag(current.status, flag, set), chats);
+		const status = withSessionStatusFlag(current.status, flag, set);
+		this._stateManager.setSurfacedSessionStatusAndChats(session, status, chats, action.type === ActionType.SessionIsArchivedChanged && status !== current.status);
 		const payloadDirty = this._markCatalogPayloadDirty(session);
 		this._queuePassiveSessionMetadataSynchronization(sessionUri, { kind: 'session', key, flag, set, requestedSet });
 		await payloadDirty;
@@ -12683,14 +12684,18 @@ export class AgentService extends Disposable implements IAgentService {
 		if (!current?.chats) {
 			return;
 		}
-		this._stateManager.setSurfacedSessionStatusAndChats(session, current.status, current.chats.map(candidate => {
+		let archivedChanged = false;
+		const chats = current.chats.map(candidate => {
 			if (candidate.resource !== chat) {
 				return candidate;
 			}
-			const { archived: _archived, ...rest } = candidate as typeof candidate & { readonly archived?: boolean };
+			const { archived: wasArchived, ...rest } = candidate as typeof candidate & { readonly archived?: boolean };
 			const status = withSessionStatusFlag(candidate.status ?? current.status, SessionStatus.IsArchived, archived);
+			archivedChanged = archived !== (wasArchived === true || isSessionStatusArchived(candidate.status ?? current.status));
 			return archived ? { ...rest, status, archived: true } : { ...rest, status };
-		}));
+		});
+		// The catalog has no per-chat time, so the session's time records the chat's archiving, as for a loaded session.
+		this._stateManager.setSurfacedSessionStatusAndChats(session, current.status, chats, archivedChanged);
 	}
 
 	private _queuePassiveSessionMetadataSynchronization(session: URI, update: PassiveCatalogMetadataUpdate): void {

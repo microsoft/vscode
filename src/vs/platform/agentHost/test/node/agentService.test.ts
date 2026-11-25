@@ -7106,6 +7106,13 @@ suite('AgentService (node dispatcher)', () => {
 			const warm = await svc.createSession({ legacyChatUris: false, provider: 'copilot' });
 			const warmChat = getStateManager(svc).getDefaultChat(warm.toString())!;
 			unloadSession(svc, session);
+			const modifiedAtBefore = Date.parse(getStateManager(svc).getSurfacedSessionSummary(session.toString())!.modifiedAt);
+			const publishedModifiedAts: number[] = [];
+			disposables.add(getStateManager(svc).onDidChangeSessionSummary(({ session: changed, changes }) => {
+				if (changed === session.toString() && changes.modifiedAt !== undefined) {
+					publishedModifiedAts.push(Date.parse(changes.modifiedAt));
+				}
+			}));
 			const restoreCalls: string[] = [];
 			let restoreReleased = false;
 			const releaseRestore = new DeferredPromise<void>();
@@ -7139,6 +7146,7 @@ suite('AgentService (node dispatcher)', () => {
 				surfaced: surfacedChatFlags(svc, session, peer),
 				persisted: { archived: await readPersistedPeerArchived(svc, db, session, peer), read: await readPersistedPeerRead(svc, db, session, peer) },
 				cleared: agent.clearedCanvasContinuities,
+				advancedSessionModifiedAt: publishedModifiedAts.length > 0 && publishedModifiedAts.every(time => time >= modifiedAtBefore),
 			}, {
 				order: [1, 2],
 				restoreCalls: [],
@@ -7148,6 +7156,7 @@ suite('AgentService (node dispatcher)', () => {
 				surfaced: { archived: true, legacyArchived: true, read: true },
 				persisted: { archived: true, read: true },
 				cleared: [{ session: session.toString(), chat: peer }],
+				advancedSessionModifiedAt: true,
 			});
 		});
 
@@ -27444,9 +27453,9 @@ suite('AgentService (node dispatcher)', () => {
 		test('a read/archive toggle on an un-loaded session persists and publishes without restoring it', async () => {
 			// Regression: routing these toggles through `restoreSession` lost the
 			// archived state whenever that restore failed.
-			for (const { action, key, expectedStatus } of [
-				{ action: { type: ActionType.SessionIsArchivedChanged, isArchived: true } as const, key: AH_META_IS_ARCHIVED_DB_KEY, expectedStatus: SessionStatus.Idle | SessionStatus.IsArchived },
-				{ action: { type: ActionType.SessionIsReadChanged, isRead: true } as const, key: AH_META_IS_READ_DB_KEY, expectedStatus: SessionStatus.Idle | SessionStatus.IsRead },
+			for (const { action, key, expectedStatus, advancesModifiedAt } of [
+				{ action: { type: ActionType.SessionIsArchivedChanged, isArchived: true } as const, key: AH_META_IS_ARCHIVED_DB_KEY, expectedStatus: SessionStatus.Idle | SessionStatus.IsArchived, advancesModifiedAt: true },
+				{ action: { type: ActionType.SessionIsReadChanged, isRead: true } as const, key: AH_META_IS_READ_DB_KEY, expectedStatus: SessionStatus.Idle | SessionStatus.IsRead, advancesModifiedAt: false },
 			]) {
 				const db = new TestSessionDatabase();
 				const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
@@ -27468,7 +27477,7 @@ suite('AgentService (node dispatcher)', () => {
 					title: 'Idle',
 					status: SessionStatus.Idle,
 					createdAt: new Date().toISOString(),
-					modifiedAt: new Date().toISOString(),
+					modifiedAt: '2025-01-01T00:00:00.000Z',
 				};
 				getStateManager(localService).announceSurfacedSession(summary);
 				getStateManager(localService).prepareSessionSummariesForListing([summary]);
@@ -27478,17 +27487,20 @@ suite('AgentService (node dispatcher)', () => {
 				const summaryChanged = await raceTimeout(published, 5000);
 				await getTestSessionStateStore(localService).whenIdle(undefined);
 				await localService.whenCatalogReconciliationIdle();
+				const publishedModifiedAt = summaryChanged?.type === 'root/sessionSummaryChanged' ? summaryChanged.changes.modifiedAt : undefined;
 
 				assert.deepStrictEqual({
 					action: action.type,
 					persisted: await db.getMetadata(key),
 					restored: !!getStateManager(localService).getSessionState(sessionStr),
 					publishedStatus: summaryChanged?.type === 'root/sessionSummaryChanged' ? summaryChanged.changes.status : undefined,
+					advancesModifiedAt: publishedModifiedAt !== undefined && Date.parse(publishedModifiedAt) > Date.parse(summary.modifiedAt),
 				}, {
 					action: action.type,
 					persisted: 'true',
 					restored: false,
 					publishedStatus: expectedStatus,
+					advancesModifiedAt,
 				});
 			}
 		});
