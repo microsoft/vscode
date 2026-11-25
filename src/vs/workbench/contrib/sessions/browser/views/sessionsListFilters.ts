@@ -12,7 +12,7 @@ import { localize } from '../../../../../nls.js';
 import { getSessionWorktreeFolder, getWorktreeFilterKey, getWorktreeFilterOptions, getWorktreeSessionToOpen, ISessionWorktreeFolder, IWorktreeFilterSession, WorktreeLastSessions } from '../../../chat/common/sessionWorktreeFolders.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceContextService, WorkbenchScope } from '../../../../../platform/workspace/common/workspace.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { getSessionApplication, UNKNOWN_SESSION_APPLICATION_ID } from '../../../../services/sessions/common/sessionApplication.js';
@@ -100,14 +100,17 @@ export function getSessionWorktreeFilterFolder(session: Pick<ISession, 'workspac
 }
 
 /**
- * Whether a window's Sessions list lists quick chats, which have no workspace: always in the Agents window, and in an editor
- * window only while it has no folder, following its folders as they are added and removed.
+ * Whether a window's Sessions list lists quick chats, which have no workspace: always while the window is about all sessions
+ * ({@link WorkbenchScope.ALL}), as the Agents window is, and otherwise only while it has no folder, following its folders and
+ * scope as they change.
  */
-export function listsQuickChatsIn(isSessionsWindow: boolean, workspaceContextService: IWorkspaceContextService): IObservable<boolean> {
+export function listsQuickChatsIn(workspaceContextService: IWorkspaceContextService): IObservable<boolean> {
 	const foldersChanged = observableSignalFromEvent('workspaceFolders', workspaceContextService.onDidChangeWorkspaceFolders);
+	const scopeChanged = observableSignalFromEvent('workbenchScope', workspaceContextService.onDidChangeWorkbenchScope);
 	return derived(reader => {
 		foldersChanged.read(reader);
-		return isSessionsWindow || workspaceContextService.getWorkspace().folders.length === 0;
+		scopeChanged.read(reader);
+		return workspaceContextService.getWorkbenchScope() === WorkbenchScope.ALL || workspaceContextService.getWorkspace().folders.length === 0;
 	});
 }
 

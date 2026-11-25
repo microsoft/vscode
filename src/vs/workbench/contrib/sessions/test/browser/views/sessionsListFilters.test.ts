@@ -18,7 +18,7 @@ import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../..
 import { getSessionApplication } from '../../../../../services/sessions/common/sessionApplication.js';
 import { ISession, ISessionEnvironment, ISessionWorkspace } from '../../../../../services/sessions/common/session.js';
 import { buildTestSession, buildTestWorkspace } from '../../common/testSessionBuilder.js';
-import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent } from '../../../../../../platform/workspace/common/workspace.js';
+import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, WorkbenchScope } from '../../../../../../platform/workspace/common/workspace.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { AGENT_HOST_SCHEME } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { UriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentityService.js';
@@ -716,27 +716,31 @@ suite('SessionsListFilters', () => {
 		]);
 	});
 
-	test('lists quick chats in the Agents window, and in an editor window only while it has no folder, following its folders', () => {
+	test('lists quick chats while the window is about all sessions, and otherwise only while it has no folder, following its folders and scope', () => {
 		const folders: URI[] = [];
+		let scope = WorkbenchScope.WORKSPACE;
 		const onDidChangeWorkspaceFolders = store.add(new Emitter<IWorkspaceFoldersChangeEvent>());
+		const onDidChangeWorkbenchScope = store.add(new Emitter<WorkbenchScope>());
 		const workspace = upcastPartial<IWorkspaceContextService>({
 			onDidChangeWorkspaceFolders: onDidChangeWorkspaceFolders.event,
+			onDidChangeWorkbenchScope: onDidChangeWorkbenchScope.event,
+			getWorkbenchScope: () => scope,
 			getWorkspace: () => upcastPartial<IWorkspace>({ folders: folders.map(uri => upcastPartial<IWorkspaceFolder>({ uri })) }),
 		});
 		const changeFolders = (change: () => void) => { change(); onDidChangeWorkspaceFolders.fire({ added: [], removed: [], changed: [] }); };
-		const editorWindow = listsQuickChatsIn(false, workspace);
-		const agentsWindow = listsQuickChatsIn(true, workspace);
+		const changeScope = (value: WorkbenchScope) => { scope = value; onDidChangeWorkbenchScope.fire(value); };
+		const listsQuickChats = listsQuickChatsIn(workspace);
 		const seen: boolean[] = [];
-		store.add(autorun(reader => { seen.push(editorWindow.read(reader)); }));
+		store.add(autorun(reader => { seen.push(listsQuickChats.read(reader)); }));
 
 		changeFolders(() => folders.push(URI.file('/work/vscode')));
-		const withFolder = { editorWindow: editorWindow.get(), agentsWindow: agentsWindow.get() };
+		changeScope(WorkbenchScope.ALL);
+		changeScope(WorkbenchScope.WORKSPACE);
 		changeFolders(() => folders.pop());
 
-		assert.deepStrictEqual({ seen, withFolder }, {
-			// Empty, a folder added, the last folder removed
-			seen: [true, false, true],
-			withFolder: { editorWindow: false, agentsWindow: true },
-		});
+		assert.deepStrictEqual(seen, [
+			// Empty, a folder added, all sessions, its own folder again, the last folder removed
+			true, false, true, false, true,
+		]);
 	});
 });

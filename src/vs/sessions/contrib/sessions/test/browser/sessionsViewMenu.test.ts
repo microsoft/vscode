@@ -41,7 +41,8 @@ import { TestNotificationService } from '../../../../../platform/notification/te
 import { IInputOptions, IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
 import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
-import { IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
+import { IsSessionsWindowContext, WorkbenchScopeContext } from '../../../../../workbench/common/contextkeys.js';
+import { WorkbenchScope } from '../../../../../platform/workspace/common/workspace.js';
 import { ChatConfiguration } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
@@ -145,6 +146,7 @@ suite('Sessions - View Menu', () => {
 		let canOpenSession: (session: ISession) => Promise<boolean> = async () => true;
 		if (windowOptions?.sessionsWindow) {
 			IsSessionsWindowContext.bindTo(contextKeyService).set(true);
+			WorkbenchScopeContext.bindTo(contextKeyService).set('all');
 		}
 		const host = {
 			_mainWindowHost: { session: shown },
@@ -158,6 +160,7 @@ suite('Sessions - View Menu', () => {
 			configurationService,
 			instantiationService: viewInstantiationService,
 			uriIdentityService,
+			workspaceContextService: { getWorkbenchScope: () => windowOptions?.sessionsWindow ? WorkbenchScope.ALL : WorkbenchScope.WORKSPACE },
 			workspaceGroupCappedContextKey: capped,
 			filterContextKeys: new Map<string, { key: IContextKey<boolean>; read: () => boolean }>(),
 			archivedFilterRegistration: store.add(new DisposableStore()),
@@ -624,8 +627,10 @@ suite('Sessions - View Menu', () => {
 	test('the Grouping menu offers the groupings of its view: Time, Environment and Worktree in the editor window', () => {
 		const { snapshot, contextKeyService } = createMenu();
 		const sessionsWindow = IsSessionsWindowContext.bindTo(contextKeyService);
+		const workbenchScope = WorkbenchScopeContext.bindTo(contextKeyService);
 		const offered = (isSessionsWindow: boolean, groupings: readonly SessionsGrouping[]) => {
 			sessionsWindow.set(isSessionsWindow);
+			workbenchScope.set(isSessionsWindow ? 'all' : 'workspace');
 			bindSessionsViewGroupings(contextKeyService, groupings);
 			return snapshot(Menus.SessionsViewGrouping).map(item => item.title);
 		};
