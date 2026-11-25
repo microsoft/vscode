@@ -449,6 +449,10 @@ export abstract class ViewPane extends Pane implements IView {
 		this.ariaHeaderLabelWithoutBadge = label;
 		const badge = this.titleBadgeWidget?.badge;
 		super.ariaHeaderLabel = badge ? nls.localize('viewTitleWithBadge', "{0}, {1}", label, badge.ariaLabel) : label;
+		// A view that names its title element itself keeps it in step with the header
+		if (this.titleContainer?.hasAttribute('aria-label')) {
+			this.titleContainer.setAttribute('aria-label', super.ariaHeaderLabel);
+		}
 	}
 
 	override set headerVisible(visible: boolean) {
@@ -664,10 +668,6 @@ export abstract class ViewPane extends Pane implements IView {
 
 	private onDidChangeTitleBadge(): void {
 		this.ariaHeaderLabel = this.ariaHeaderLabelWithoutBadge ?? super.ariaHeaderLabel;
-		// A view that names its title element itself keeps it in step with the header
-		if (this.titleContainer?.hasAttribute('aria-label')) {
-			this.titleContainer.setAttribute('aria-label', this.ariaHeaderLabel);
-		}
 	}
 
 	protected updateTitleDescription(description?: string | undefined): void {

@@ -356,16 +356,16 @@ suite('Pane composite part layout', () => {
 		states.push(state());
 		merged = true;
 		part.updateTitleForTesting('test.composite', 'vscode');
-		updated.dispose();
-		states.push(state());
 		shown.dispose();
+		states.push(state());
+		updated.dispose();
 		states.push(state());
 
 		assert.deepStrictEqual(states, [
 			{ badge: 'fix', hasBadge: true, aria: 'vscode, Folder Location, fix' },
 			{ badge: 'other', hasBadge: true, aria: 'vscode, Folder Location, other' },
 			{ badge: null, hasBadge: false, aria: null },
-			{ badge: null, hasBadge: false, aria: null },
+			{ badge: 'other', hasBadge: true, aria: 'vscode, Folder Location, other' },
 			{ badge: null, hasBadge: false, aria: null },
 		]);
 	});

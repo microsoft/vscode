@@ -71,7 +71,8 @@
 	}
 }
 
-.monaco-workbench .part > .title > .title-label.has-title-badge {
+/* A title that shows tabs hides its label, and with it the badge */
+.monaco-workbench .part > .title:not(.has-composite-bar) > .title-label.has-title-badge {
 	display: flex;
 	flex: 1 1 auto;
 	align-items: center;
@@ -84,6 +85,6 @@
 	max-width: 60%;
 }
 
-.monaco-workbench .part > .title > .title-label.has-title-badge > h2 {
+.monaco-workbench .part > .title:not(.has-composite-bar) > .title-label.has-title-badge > h2 {
 	min-width: 3ch;
 }

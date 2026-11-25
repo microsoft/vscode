@@ -112,6 +112,7 @@ suite('ViewPaneContainer', () => {
 		instantiationService.stub(IActivityService, activityService);
 		class TestViewPane extends ViewPane {
 			setDescription(description: string) { this.updateTitleDescription(description); }
+			setTitle(title: string) { this.updateTitle(title); }
 		}
 		const pane = store.add(instantiationService.createInstance(TestViewPane as IConstructorSignature<TestViewPane, [IViewPaneOptions]>, { id: 'test.view', title: 'vscode' }));
 		pane.render();
@@ -132,17 +133,22 @@ suite('ViewPaneContainer', () => {
 		pane.setDescription('description');
 		const order = [...header.querySelectorAll('.title, .description, .view-title-badge-container')].map(e => e.className.split(' ')[0]);
 		const withDescription = state();
+		const title = header.querySelector('.title')!;
+		title.setAttribute('aria-label', pane.ariaHeaderLabel);
+		pane.setTitle('renamed');
+		const renamed = { header: pane.ariaHeaderLabel, title: title.getAttribute('aria-label') };
 		shown.dispose();
 		otherView.dispose();
 
-		assert.deepStrictEqual({ order, states: [before, withBadge, afterOtherView, withDescription, state()] }, {
+		assert.deepStrictEqual({ order, renamed, states: [before, withBadge, afterOtherView, withDescription, state()] }, {
 			order: ['title', 'description', 'view-title-badge-container'],
+			renamed: { header: 'renamed - description Section, Folder Location, fix', title: 'renamed - description Section, Folder Location, fix' },
 			states: [
 				{ badge: null, icon: false, ariaHeaderLabel: 'vscode Section', headerAria: 'vscode Section' },
 				{ badge: 'fix', icon: true, ariaHeaderLabel: 'vscode Section, Folder Location, fix', headerAria: 'vscode Section, Folder Location, fix' },
 				{ badge: 'fix', icon: true, ariaHeaderLabel: 'vscode Section, Folder Location, fix', headerAria: 'vscode Section, Folder Location, fix' },
 				{ badge: 'fix', icon: true, ariaHeaderLabel: 'vscode - description Section, Folder Location, fix', headerAria: 'vscode - description Section, Folder Location, fix' },
-				{ badge: null, icon: false, ariaHeaderLabel: 'vscode - description Section', headerAria: 'vscode - description Section' },
+				{ badge: null, icon: false, ariaHeaderLabel: 'renamed - description Section', headerAria: 'renamed - description Section' },
 			]
 		});
 	});
