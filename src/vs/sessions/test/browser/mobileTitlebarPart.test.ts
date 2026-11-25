@@ -72,6 +72,7 @@ async function createHarness(store: Pick<DisposableStore, 'add'>, ctor: typeof M
 	});
 	instantiationService.stub(IDefaultAccountService, {
 		onDidChangeDefaultAccount: Event.None,
+		currentDefaultAccount: defaultAccount,
 		getDefaultAccount: async () => defaultAccount,
 	});
 	instantiationService.stub(IAuthenticationService, {

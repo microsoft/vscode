@@ -37,7 +37,7 @@ import { ChatStatusDashboard, IChatStatusDashboardOptions } from '../../../../wo
 import { getCodexRateLimitLabel, getCodexRateLimits } from '../../../../workbench/contrib/chat/browser/chatStatus/codexStatusDashboard.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
-import { getAccountProfileImageUrl, getAccountTitleBarBadgeKey, getAccountTitleBarState, IAccountTitleBarState, resolveAccountInfo } from '../../../browser/accountTitleBarState.js';
+import { getAccountProfileImageUrl, getAccountTitleBarBadgeKey, getAccountTitleBarState, IAccountTitleBarState, resolveAccountInfo, showsGitHubCopilotDetails } from '../../../browser/accountTitleBarState.js';
 import { IsPhoneLayoutContext, SessionsWelcomeVisibleContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { IsAuxiliaryWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { IAuthenticationAccessService } from '../../../../workbench/services/authentication/browser/authenticationAccessService.js';
@@ -197,7 +197,6 @@ export class TitleBarAccountWidget extends BaseActionViewItem {
 	private accountName: string | undefined;
 	private accountProviderId: string | undefined;
 	private accountProviderLabel: string | undefined;
-	private hasGitHubCredential = true;
 	private accountIcon: URI | undefined;
 	private isAccountLoading = true;
 	private accountRequestCounter = 0;
@@ -321,7 +320,6 @@ export class TitleBarAccountWidget extends BaseActionViewItem {
 		this.accountName = info?.accountName;
 		this.accountProviderId = info?.accountProviderId;
 		this.accountProviderLabel = info?.accountProviderLabel;
-		this.hasGitHubCredential = info?.hasGitHubCredential ?? true;
 		this.accountIcon = info?.accountIcon;
 		this.isAccountLoading = false;
 		this.refreshAvatar();
@@ -609,6 +607,7 @@ export class TitleBarAccountWidget extends BaseActionViewItem {
 
 	private createCombinedPanelContent(panelStore: DisposableStore, panel: HTMLElement): () => void {
 		const actionBars: ActionBar[] = [];
+		const showsCopilotDetails = showsGitHubCopilotDetails(this.defaultAccountService.currentDefaultAccount);
 		const actionHover = panelStore.add(new MutableDisposable<IHoverWidget>());
 		const hoverGroupId = generateUuid();
 		const setupKeyboardActionHover = (container: HTMLElement, actionBar: ActionBar) => {
@@ -662,7 +661,7 @@ export class TitleBarAccountWidget extends BaseActionViewItem {
 				avatar.referrerPolicy = 'no-referrer';
 			} else {
 				const accountIcon = append(copilotIdentity, $('span.sessions-account-titlebar-panel-provider-icon', { 'aria-hidden': 'true' }));
-				accountIcon.classList.add(...ThemeIcon.asClassNameArray(this.hasGitHubCredential ? Codicon.github : Codicon.account));
+				accountIcon.classList.add(...ThemeIcon.asClassNameArray(showsCopilotDetails ? Codicon.github : Codicon.account));
 			}
 			const title = append(copilotIdentity, $('div.sessions-account-titlebar-panel-provider-name'));
 			title.textContent = this.getPanelHeaderLabel();
@@ -687,7 +686,7 @@ export class TitleBarAccountWidget extends BaseActionViewItem {
 			if (partitioned.signOut) {
 				copilotActionBar.push(partitioned.signOut, { icon: true, label: false });
 			}
-			if (this.hasGitHubCredential) {
+			if (showsCopilotDetails) {
 				this.appendCopilotUsage(copilotAccount, panelStore);
 			}
 		} else if (partitioned.signIn) {
@@ -1034,7 +1033,7 @@ export class TitleBarAccountWidget extends BaseActionViewItem {
 	}
 
 	private shouldShowCopilotDashboardHover(): boolean {
-		return !this.chatEntitlementService.sentiment.hidden && !!this.accountName && this.hasGitHubCredential;
+		return !this.chatEntitlementService.sentiment.hidden && !!this.accountName && showsGitHubCopilotDetails(this.defaultAccountService.currentDefaultAccount);
 	}
 
 	private createCopilotHoverContent(extraOptions?: Partial<IChatStatusDashboardOptions>): HTMLElement {

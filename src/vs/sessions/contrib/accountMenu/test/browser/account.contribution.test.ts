@@ -93,6 +93,7 @@ suite('Sessions - Account Menu', () => {
 			instantiationService.stub(IHoverService, hoverService);
 			instantiationService.stub(IDefaultAccountService, new class extends mock<IDefaultAccountService>() {
 				override readonly onDidChangeDefaultAccount = Event.None;
+				override readonly currentDefaultAccount = null;
 				override async getDefaultAccount() { return null; }
 			}());
 			instantiationService.stub(IAuthenticationService, new class extends mock<IAuthenticationService>() {
@@ -272,11 +273,11 @@ suite('Sessions - Account Menu', () => {
 		instantiationService.stub(IAccessibilityService, new TestAccessibilityService());
 		instantiationService.stub(IMarkdownRendererService, {});
 		instantiationService.stub(IHoverService, store.add(instantiationService.createInstance(HoverService)));
+		const defaultAccount: IDefaultAccount = { authenticationProvider: { id: providerId, name: providerName, enterprise }, accountName: 'Alex', sessionId: 'session', enterprise };
 		instantiationService.stub(IDefaultAccountService, new class extends mock<IDefaultAccountService>() {
 			override readonly onDidChangeDefaultAccount = Event.None;
-			override async getDefaultAccount(): Promise<IDefaultAccount> {
-				return { authenticationProvider: { id: providerId, name: providerName, enterprise }, accountName: 'Alex', sessionId: 'session', enterprise };
-			}
+			override readonly currentDefaultAccount = defaultAccount;
+			override async getDefaultAccount() { return defaultAccount; }
 		}());
 		instantiationService.stub(IAuthenticationService, new class extends mock<IAuthenticationService>() {
 			override readonly onDidChangeSessions = Event.None;

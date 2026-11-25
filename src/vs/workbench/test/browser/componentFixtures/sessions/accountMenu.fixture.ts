@@ -40,7 +40,17 @@ type HoveredLimit = 'fiveHour' | 'weekly';
 
 const profileImageDataUri = `data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" fill="#5b5fc7"/><circle cx="32" cy="24" r="12" fill="#f8f8f8"/><path d="M12 64c2-16 10-24 20-24s18 8 20 24" fill="#f8f8f8"/></svg>')}`;
 
-async function renderAccountMenu(context: ComponentFixtureContext, usageState: UsageState, hoveredLimit?: HoveredLimit, withoutGitHubCredential = false): Promise<void> {
+interface IFixtureAccount {
+	readonly providerId: string;
+	readonly providerName: string;
+	readonly icon: URI | undefined;
+	readonly entitlement: ChatEntitlement;
+}
+
+const gitHubAccount: IFixtureAccount = { providerId: 'github', providerName: 'GitHub', icon: URI.parse(profileImageDataUri), entitlement: ChatEntitlement.Enterprise };
+const accountWithoutGitHubCredential: IFixtureAccount = { providerId: 'microsoft', providerName: 'Microsoft', icon: undefined, entitlement: ChatEntitlement.Unresolved };
+
+async function renderAccountMenu(context: ComponentFixtureContext, usageState: UsageState, { hoveredLimit, fixtureAccount = gitHubAccount }: { hoveredLimit?: HoveredLimit; fixtureAccount?: IFixtureAccount } = {}): Promise<void> {
 	const { container, disposableStore } = context;
 	container.classList.add('agent-sessions-workbench');
 	container.style.width = '448px';
@@ -68,9 +78,7 @@ async function renderAccountMenu(context: ComponentFixtureContext, usageState: U
 	const defaultAccount = new class extends mock<IDefaultAccount>() {
 		override readonly accountName = 'Alex';
 		override readonly sessionId = 'fixture-session';
-		override readonly authenticationProvider = withoutGitHubCredential
-			? { id: 'microsoft', name: 'Microsoft', scopes: [], enterprise: false }
-			: { id: 'github', name: 'GitHub', scopes: [], enterprise: false };
+		override readonly authenticationProvider = { id: fixtureAccount.providerId, name: fixtureAccount.providerName, scopes: [], enterprise: false };
 	}();
 	const configurationService = new TestConfigurationService({
 		[AgentHostCodexAgentEnabledSettingId]: true,
@@ -104,7 +112,7 @@ async function renderAccountMenu(context: ComponentFixtureContext, usageState: U
 				getSessions: async () => [{
 					id: defaultAccount.sessionId,
 					accessToken: '',
-					account: { id: 'fixture-account', label: defaultAccount.accountName, icon: withoutGitHubCredential ? undefined : URI.parse(profileImageDataUri) },
+					account: { id: 'fixture-account', label: defaultAccount.accountName, icon: fixtureAccount.icon },
 					scopes: [],
 				}],
 			});
@@ -116,7 +124,7 @@ async function renderAccountMenu(context: ComponentFixtureContext, usageState: U
 				signOut: () => { },
 			});
 			registry.definePartialInstance(IChatEntitlementService, {
-				entitlement: withoutGitHubCredential ? ChatEntitlement.Unresolved : ChatEntitlement.Enterprise,
+				entitlement: fixtureAccount.entitlement,
 				sentiment: { completed: true, installed: true },
 				quotas: {
 					premiumChat: { unlimited: true, percentRemaining: 100, creditsUsed: 123456, resetAt: Date.UTC(2026, 5, 1) / 1000 },
@@ -157,9 +165,11 @@ async function renderAccountMenu(context: ComponentFixtureContext, usageState: U
 	if (!panel) {
 		throw new Error('Account popover fixture did not open the account panel.');
 	}
+	// The title bar avatar has no src without an account icon; the Codex avatar always has one.
+	const expectedImages = fixtureAccount.icon ? 2 : 1;
 	await waitForFixtureCondition(() => {
 		const images = [...container.querySelectorAll<HTMLImageElement>('img[src]')];
-		return images.length === (withoutGitHubCredential ? 1 : 2) && images.every(image => image.complete && image.naturalWidth > 0);
+		return images.length === expectedImages && images.every(image => image.complete && image.naturalWidth > 0);
 	}, 'Account popover fixture did not load its local avatars');
 	await Promise.all([...container.querySelectorAll<HTMLImageElement>('img[src]')].map(image => image.decode()));
 	await waitForChatPetAchievementPreviews(container, chatPetAchievements.length);
@@ -209,16 +219,16 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 	FiveHourLimitHover: defineComponentFixture({
 		deferPaint: true,
 		labels: { kind: 'screenshot' },
-		render: context => renderAccountMenu(context, 'both', 'fiveHour'),
+		render: context => renderAccountMenu(context, 'both', { hoveredLimit: 'fiveHour' }),
 	}),
 	WeeklyLimitHover: defineComponentFixture({
 		deferPaint: true,
 		labels: { kind: 'screenshot' },
-		render: context => renderAccountMenu(context, 'both', 'weekly'),
+		render: context => renderAccountMenu(context, 'both', { hoveredLimit: 'weekly' }),
 	}),
 	AccountWithoutGitHubCredential: defineComponentFixture({
 		deferPaint: true,
 		labels: { kind: 'screenshot' },
-		render: context => renderAccountMenu(context, 'unavailable', undefined, true),
+		render: context => renderAccountMenu(context, 'unavailable', { fixtureAccount: accountWithoutGitHubCredential }),
 	}),
 });

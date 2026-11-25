@@ -27,7 +27,7 @@ import { IsNewChatSessionContext } from '../../../../workbench/contrib/sessions/
 import { SideBarVisibleContext } from '../../../../workbench/common/contextkeys.js';
 import { AgentsWindowMenus } from '../../agentsWindowMenus.js';
 import { ChatEntitlement, ChatEntitlementService, IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
-import { getAccountTitleBarState, getAccountProfileImageUrl, getAccountTitleBarBadgeKey, resolveAccountInfo } from '../../accountTitleBarState.js';
+import { getAccountTitleBarState, getAccountProfileImageUrl, getAccountTitleBarBadgeKey, resolveAccountInfo, showsGitHubCopilotDetails } from '../../accountTitleBarState.js';
 import { IChatDashboardService } from '../../chatDashboardService.js';
 import { MOBILE_OPEN_CHANGES_VIEW_COMMAND_ID } from './contributions/mobileChangesView.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -87,7 +87,6 @@ export class MobileTitlebarPart extends Disposable {
 	private accountName: string | undefined;
 	private accountProviderId: string | undefined;
 	private accountProviderLabel: string | undefined;
-	private hasGitHubCredential = true;
 	private accountIcon: URI | undefined;
 	private isAccountLoading = true;
 	private accountRequestCounter = 0;
@@ -354,7 +353,6 @@ export class MobileTitlebarPart extends Disposable {
 		this.accountName = info?.accountName;
 		this.accountProviderId = info?.accountProviderId;
 		this.accountProviderLabel = info?.accountProviderLabel;
-		this.hasGitHubCredential = info?.hasGitHubCredential ?? true;
 		this.accountIcon = info?.accountIcon;
 		this.isAccountLoading = false;
 		this.refreshAvatar();
@@ -517,7 +515,7 @@ export class MobileTitlebarPart extends Disposable {
 		const entitlement = this.chatEntitlementService.entitlement;
 		const showDashboard = !this.chatEntitlementService.sentiment.hidden
 			&& !!this.accountName
-			&& this.hasGitHubCredential
+			&& showsGitHubCopilotDetails(this.defaultAccountService.currentDefaultAccount)
 			&& entitlement !== ChatEntitlement.Unknown
 			&& entitlement !== ChatEntitlement.Available;
 		if (showDashboard) {

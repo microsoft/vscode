@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../base/common/codicons.js';
-import { asGitHubAccount } from '../../base/common/defaultAccount.js';
+import { asGitHubAccount, IDefaultAccount } from '../../base/common/defaultAccount.js';
 import { FileAccess } from '../../base/common/network.js';
 import { ThemeIcon } from '../../base/common/themables.js';
 import { URI } from '../../base/common/uri.js';
@@ -17,8 +17,6 @@ export interface IResolvedAccountInfo {
 	readonly accountName: string;
 	readonly accountProviderId: string;
 	readonly accountProviderLabel: string;
-	/** Whether the account has a GitHub credential, as {@link asGitHubAccount} reads it. */
-	readonly hasGitHubCredential: boolean;
 	/**
 	 * The icon (avatar) supplied by the authentication provider for this
 	 * account, if any.
@@ -42,7 +40,6 @@ export async function resolveAccountInfo(
 			accountName: account.accountName,
 			accountProviderId: account.authenticationProvider.id,
 			accountProviderLabel: account.authenticationProvider.name,
-			hasGitHubCredential: !!asGitHubAccount(account),
 			accountIcon: await getSessionAccountIcon(authenticationService, account.authenticationProvider.id, account.sessionId),
 		};
 	}
@@ -54,7 +51,6 @@ export async function resolveAccountInfo(
 				accountName: sessions[0].account.label,
 				accountProviderId: 'github',
 				accountProviderLabel: 'GitHub',
-				hasGitHubCredential: true,
 				accountIcon: sessions[0].account.icon,
 			};
 		}
@@ -115,6 +111,14 @@ export function getAccountProfileImageUrl(accountProviderId: string | undefined,
 	}
 
 	return `https://github.com/${encodeURIComponent(accountName.trim())}.png?size=64`;
+}
+
+/**
+ * Whether the GitHub Copilot details (GitHub mark, plan and usage row, dashboard) apply to the default account.
+ * They apply unless there is a default account without a GitHub credential, so they also apply while no default account is known.
+ */
+export function showsGitHubCopilotDetails(defaultAccount: IDefaultAccount | null): boolean {
+	return !defaultAccount || !!asGitHubAccount(defaultAccount);
 }
 
 export function getAccountTitleBarBadgeKey(state: IAccountTitleBarState): string | undefined {
