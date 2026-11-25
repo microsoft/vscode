@@ -49,6 +49,8 @@ export class AgentHostPullRequestLifecycleOperationHandler implements IChangeset
 	public static readonly OPERATION_ENABLE_AUTO_MERGE = AgentHostPullRequestOperationId.EnableAutoMerge;
 	public static readonly OPERATION_DISABLE_AUTO_MERGE = AgentHostPullRequestOperationId.DisableAutoMerge;
 
+	readonly changesGitState = false;
+
 	constructor(
 		private readonly _action: PullRequestLifecycleAction,
 		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,

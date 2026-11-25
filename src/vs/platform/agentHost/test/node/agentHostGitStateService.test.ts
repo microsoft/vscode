@@ -458,7 +458,6 @@ suite('AgentHostGitStateService', () => {
 		const discardFileService = new class extends mock<IFileService>() { }();
 		const handler = new AgentHostDiscardChangesOperationHandler(
 			key => h.stateManager.getSessionState(key),
-			key => h.service.refreshSessionGitState(key, undefined),
 			new AgentHostFileEditRevert(discardFileService, new InProcessDiffComputeService()),
 			{
 				...h.gitService,
@@ -476,6 +475,8 @@ suite('AgentHostGitStateService', () => {
 			operationId: AgentHostDiscardChangesOperationHandler.OPERATION_DISCARD_CHANGES,
 			target: { kind: ChangesetOperationTargetKind.Resource, resource: `${WORKING_DIRECTORY}/tracked.ts` },
 		}, CancellationToken.None);
+		// The changeset operation service refreshes the owner's Git state after a discard.
+		await h.service.refreshSessionGitState(SESSION, undefined, undefined, { force: true, immediate: true });
 		await refreshed;
 		assert.deepStrictEqual({
 			restored,

@@ -499,6 +499,7 @@ suite('ChangesetSessionCoordinator', () => {
 					let invocations = 0;
 					disposables.add(operationService.registerContribution({
 						registerHandlers: registry => registry.registerChangesetOperationHandler(operationId, {
+							changesGitState: false,
 							invoke: async () => { invocations++; return {}; },
 						}),
 						getOperations: context => {

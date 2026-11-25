@@ -66,7 +66,6 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 
 		this._registry = {
 			registerChangesetOperationHandler: (operationId, handler) => this._registerChangesetOperationHandler(operationId, handler),
-			refreshSessionGitState: (sessionKey, source) => this._refreshGitState(sessionKey, source),
 			onDidChangeOperations: sessionKey => this.scheduleRelatedOperationsUpdate(sessionKey),
 		};
 	}
@@ -481,6 +480,15 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 
 		try {
 			const result = await handler.invoke(params, CancellationToken.None, source);
+			const owner = parseChangesetUri(params.channel)?.ownerUri;
+			if (handler.changesGitState && owner) {
+				this.scheduleRelatedOperationsUpdate(owner);
+				try {
+					await this._refreshGitState(owner, source);
+				} catch (refreshError) {
+					this._logService.warn(`[AgentHostChangesetOperationService] Failed to refresh the Git state after ${params.operationId}`, refreshError);
+				}
+			}
 			this._stateManager.dispatchServerAction(params.channel, {
 				type: ActionType.ChangesetOperationStatusChanged,
 				operationId: params.operationId,
