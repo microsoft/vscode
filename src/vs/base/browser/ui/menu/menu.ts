@@ -66,6 +66,11 @@ export interface IMenuOptions {
 	expandDirection?: IMenuDirection;
 	useEventAsContext?: boolean;
 	submenuIds?: Set<string>;
+	/**
+	 * The maximum height of the menu in pixels. The menu is never taller
+	 * than the space below its top in the window, whichever is smaller.
+	 */
+	maxHeight?: number;
 }
 
 export interface IMenuStyles {
@@ -296,7 +301,8 @@ export class Menu extends ActionBar {
 
 		const window = getWindow(container);
 		const containerZoom = getDomNodeZoomLevel(container);
-		menuElement.style.maxHeight = `${Math.max(10, (window.innerHeight - container.getBoundingClientRect().top - 35) / containerZoom)}px`;
+		const availableHeight = Math.max(10, (window.innerHeight - container.getBoundingClientRect().top - 35) / containerZoom);
+		menuElement.style.maxHeight = `${options.maxHeight !== undefined ? Math.min(options.maxHeight, availableHeight) : availableHeight}px`;
 
 		this.push(cleanMenuActions(actions, options.submenuIds, options.getGroupTitle), { icon: true, label: true, isMenu: true });
 
@@ -432,7 +438,7 @@ export class Menu extends ActionBar {
 		if (action instanceof Separator) {
 			return new MenuSeparatorActionViewItem(options.context, action, { icon: true }, this.menuStyles);
 		} else if (action instanceof SubmenuAction) {
-			const menuActionViewItem = new SubmenuMenuActionViewItem(action, action.actions, parentData, { ...options, submenuIds: new Set([...(options.submenuIds || []), action.id]) }, this.menuStyles);
+			const menuActionViewItem = new SubmenuMenuActionViewItem(action, action.actions, parentData, { ...options, submenuIds: new Set([...(options.submenuIds || []), action.id]), maxHeight: action.maxHeight }, this.menuStyles);
 
 			if (options.enableMnemonics) {
 				this._registerMnemonic(menuActionViewItem);

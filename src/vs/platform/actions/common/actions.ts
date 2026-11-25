@@ -39,6 +39,12 @@ export interface ISubmenuItem {
 	order?: number;
 	isSelection?: boolean;
 	/**
+	 * The maximum height, in pixels, of the menu that shows the submenu's
+	 * actions. Longer menus scroll. When not set, the menu is only limited
+	 * by the window.
+	 */
+	maxHeight?: number;
+	/**
 	 * A split button shows the first action
 	 * as primary action and the rest of the
 	 * actions in a dropdown.
@@ -639,7 +645,7 @@ export class SubmenuItemAction extends SubmenuAction {
 		/** The {@link IMenuGroup.title title} of the menu group the submenu belongs to. */
 		readonly groupTitle?: string,
 	) {
-		super(`submenuitem.${item.submenu.id}`, typeof item.title === 'string' ? item.title : item.title.value, actions, 'submenu', checked);
+		super(`submenuitem.${item.submenu.id}`, typeof item.title === 'string' ? item.title : item.title.value, actions, 'submenu', checked, item.maxHeight);
 	}
 }
 

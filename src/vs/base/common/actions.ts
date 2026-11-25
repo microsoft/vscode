@@ -278,16 +278,22 @@ export class SubmenuAction implements IAction {
 	readonly tooltip: string = '';
 	readonly enabled: boolean = true;
 	readonly checked: boolean | undefined;
+	/**
+	 * The maximum height, in pixels, of the menu that shows this submenu's actions.
+	 * Longer menus scroll. When not set, the menu is only limited by the window.
+	 */
+	readonly maxHeight: number | undefined;
 
 	private readonly _actions: readonly IAction[];
 	get actions(): readonly IAction[] { return this._actions; }
 
-	constructor(id: string, label: string, actions: readonly IAction[], cssClass?: string, checked?: boolean) {
+	constructor(id: string, label: string, actions: readonly IAction[], cssClass?: string, checked?: boolean, maxHeight?: number) {
 		this.id = id;
 		this.label = label;
 		this.class = cssClass;
 		this._actions = actions;
 		this.checked = checked;
+		this.maxHeight = maxHeight;
 	}
 
 	async run(): Promise<void> { }

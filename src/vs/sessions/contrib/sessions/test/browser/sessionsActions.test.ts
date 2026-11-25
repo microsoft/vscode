@@ -768,12 +768,14 @@ suite('Sessions - Actions', () => {
 			chatsGroup: chats?.group,
 			chatsOrder: chats?.order,
 			chatsWhen: chats?.when?.serialize(),
+			chatsMaxHeight: chats?.maxHeight,
 			hasNewNestedSession: !!addChat,
 		}, {
 			chatsTitle: 'Side Chats',
 			chatsGroup: 'secondary/0_pane',
 			chatsOrder: 40,
 			chatsWhen: 'sessionActiveChatHasSideChats && sessionIsCreated && !sessionIsArchived',
+			chatsMaxHeight: 360,
 			hasNewNestedSession: false,
 		});
 	});
