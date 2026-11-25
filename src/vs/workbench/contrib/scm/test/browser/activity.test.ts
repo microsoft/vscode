@@ -178,7 +178,7 @@ suite('SCMActiveRepositoryController', () => {
 			}();
 			const entries = new Set<string>();
 			const statusbarService = new class extends mock<IStatusbarService>() {
-				override addEntry(entry: IStatusbarEntry, id: string, _alignment: StatusbarAlignment, priorityOrLocation: number | IStatusbarEntryLocation | IStatusbarEntryPriority): IStatusbarEntryAccessor {
+				override addEntry(entry: IStatusbarEntry, id: string, _alignment: StatusbarAlignment, priorityOrLocation?: number | IStatusbarEntryLocation | IStatusbarEntryPriority): IStatusbarEntryAccessor {
 					const anchor = isStatusbarEntryLocation(priorityOrLocation) ? ` after ${priorityOrLocation.location.id}` : '';
 					const description = `${id} ${entry.text}${anchor}`;
 					entries.add(description);
