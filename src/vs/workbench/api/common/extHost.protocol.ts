@@ -359,8 +359,15 @@ export interface ITextDocumentShowOptions {
 	selection?: IRange;
 }
 
+export interface IWorkspaceEditStepDto {
+	readonly edit: IWorkspaceEditDto;
+	readonly undoStopBefore?: boolean;
+	readonly undoStopAfter?: boolean;
+}
+
 export interface MainThreadBulkEditsShape extends IDisposable {
 	$tryApplyWorkspaceEdit(workspaceEditDto: SerializableObjectWithBuffers<IWorkspaceEditDto>, undoRedoGroupId?: number, isRefactoring?: boolean, undoStopBefore?: boolean, undoStopAfter?: boolean): Promise<boolean>;
+	$tryApplyWorkspaceEditSequence(stepsDto: SerializableObjectWithBuffers<IWorkspaceEditStepDto[]>): Promise<boolean>;
 }
 
 export interface MainThreadTextEditorsShape extends IDisposable {

@@ -158,4 +158,60 @@ suite('MarkdownEditorUndoGrouper', () => {
 		// Next char at offset 2 starts a fresh undo group
 		assert.deepStrictEqual(applySingleInsertion(grouper, 2, 'c'), { undoStopBefore: true, undoStopAfter: false });
 	});
+
+	test('preserves tracked paste and break boundaries inside a composed insertion', () => {
+		const grouper = new MarkdownEditorUndoGrouper();
+		assert.deepStrictEqual(applySingleInsertion(grouper, 0, 'ab'), { undoStopBefore: true, undoStopAfter: false });
+
+		// Simulate typing "c" at 2, pasting "bar" at 3 (tracked), and typing "!" at 6 all composed into "cbar!"
+		const version = { serverRevision: 0, clientRevision: 1 };
+		let disposed = false;
+		grouper.acceptHint(
+			{ kind: 'isolated', version, offset: 3, length: 3 },
+			(_v, off) => ({ offset: off, dispose: () => { disposed = true; } }),
+			true,
+		);
+
+		const steps = grouper.planEdits([{ offset: 2, length: 0, newText: 'cbar!' }], '');
+		assert.deepStrictEqual(
+			steps.map(s => ({ edits: s.edits, metadata: s.metadata })),
+			[
+				{ edits: [{ offset: 2, length: 0, newText: 'c' }], metadata: { undoStopBefore: false, undoStopAfter: false } },
+				{ edits: [{ offset: 3, length: 0, newText: 'bar' }], metadata: { undoStopBefore: true, undoStopAfter: true } },
+				{ edits: [{ offset: 6, length: 0, newText: '!' }], metadata: { undoStopBefore: true, undoStopAfter: false } },
+			],
+		);
+		// Not disposed until committed (so a failed write + retry keeps the tracked boundary)
+		assert.strictEqual(disposed, false);
+		for (const step of steps) {
+			step.commit();
+		}
+		assert.strictEqual(disposed, true);
+		grouper.dispose();
+	});
+
+	test('splits composed typing at a tracked navigation break', () => {
+		const grouper = new MarkdownEditorUndoGrouper();
+		assert.deepStrictEqual(applySingleInsertion(grouper, 0, 'ab'), { undoStopBefore: true, undoStopAfter: false });
+
+		const version = { serverRevision: 0, clientRevision: 2 };
+		grouper.acceptHint(
+			{ kind: 'break', version, offset: 3 },
+			(_v, off) => ({ offset: off, dispose: () => { } }),
+			true,
+		);
+
+		const steps = grouper.planEdits([{ offset: 2, length: 0, newText: 'cd' }], '');
+		assert.deepStrictEqual(
+			steps.map(s => ({ edits: s.edits, metadata: s.metadata })),
+			[
+				{ edits: [{ offset: 2, length: 0, newText: 'c' }], metadata: { undoStopBefore: false, undoStopAfter: false } },
+				{ edits: [{ offset: 3, length: 0, newText: 'd' }], metadata: { undoStopBefore: true, undoStopAfter: false } },
+			],
+		);
+		for (const step of steps) {
+			step.commit();
+		}
+		grouper.dispose();
+	});
 });

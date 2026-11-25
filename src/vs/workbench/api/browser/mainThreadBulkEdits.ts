@@ -9,7 +9,7 @@ import { IBulkEditService, ResourceFileEdit, ResourceTextEdit } from '../../../e
 import { WorkspaceEdit } from '../../../editor/common/languages.js';
 import { ILogService } from '../../../platform/log/common/log.js';
 import { IUriIdentityService } from '../../../platform/uriIdentity/common/uriIdentity.js';
-import { IWorkspaceCellEditDto, IWorkspaceEditDto, IWorkspaceFileEditDto, MainContext, MainThreadBulkEditsShape } from '../common/extHost.protocol.js';
+import { IWorkspaceCellEditDto, IWorkspaceEditDto, IWorkspaceEditStepDto, IWorkspaceFileEditDto, MainContext, MainThreadBulkEditsShape } from '../common/extHost.protocol.js';
 import { ResourceNotebookCellEdit } from '../../contrib/bulkEdit/browser/bulkCellEdits.js';
 import { CellEditType } from '../../contrib/notebook/common/notebookCommon.js';
 import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions/common/extHostCustomers.js';
@@ -32,6 +32,21 @@ export class MainThreadBulkEdits implements MainThreadBulkEditsShape {
 		const edits = reviveWorkspaceEditDto(dto.value, this._uriIdentService);
 		return this._bulkEditService.apply(edits, { undoRedoGroupId, respectAutoSaveConfig: isRefactoring, undoStopBefore, undoStopAfter }).then((res) => res.isApplied, err => {
 			this._logService.warn(`IGNORING workspace edit: ${err}`);
+			return false;
+		});
+	}
+
+	$tryApplyWorkspaceEditSequence(dto: SerializableObjectWithBuffers<IWorkspaceEditStepDto[]>): Promise<boolean> {
+		if (!this._bulkEditService.applySequence) {
+			return Promise.resolve(false);
+		}
+		const steps = dto.value.map(step => ({
+			edits: reviveWorkspaceEditDto(step.edit, this._uriIdentService),
+			undoStopBefore: step.undoStopBefore,
+			undoStopAfter: step.undoStopAfter,
+		}));
+		return this._bulkEditService.applySequence(steps).then((res) => res.isApplied, err => {
+			this._logService.warn(`IGNORING workspace edit sequence: ${err}`);
 			return false;
 		});
 	}

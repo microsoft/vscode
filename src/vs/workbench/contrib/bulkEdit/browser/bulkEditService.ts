@@ -9,7 +9,7 @@ import { LinkedList } from '../../../../base/common/linkedList.js';
 import { ResourceMap, ResourceSet } from '../../../../base/common/map.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ICodeEditor, isCodeEditor, isDiffEditor } from '../../../../editor/browser/editorBrowser.js';
-import { IBulkEditOptions, IBulkEditPreviewHandler, IBulkEditResult, IBulkEditService, ResourceEdit, ResourceFileEdit, ResourceTextEdit } from '../../../../editor/browser/services/bulkEditService.js';
+import { IBulkEditOptions, IBulkEditPreviewHandler, IBulkEditResult, IBulkEditService, IBulkEditStep, ResourceEdit, ResourceFileEdit, ResourceTextEdit } from '../../../../editor/browser/services/bulkEditService.js';
 import { EditorOption } from '../../../../editor/common/config/editorOptions.js';
 import { WorkspaceEdit } from '../../../../editor/common/languages.js';
 import { localize } from '../../../../nls.js';
@@ -24,7 +24,7 @@ import { Registry } from '../../../../platform/registry/common/platform.js';
 import { UndoRedoGroup, UndoRedoSource } from '../../../../platform/undoRedo/common/undoRedo.js';
 import { BulkCellEdits, ResourceNotebookCellEdit } from './bulkCellEdits.js';
 import { BulkFileEdits } from './bulkFileEdits.js';
-import { BulkTextEdits } from './bulkTextEdits.js';
+import { BulkTextEdits, BulkTextEditSequence, IBulkTextEditStep } from './bulkTextEdits.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { ILifecycleService, ShutdownReason } from '../../../services/lifecycle/common/lifecycle.js';
 import { IUnattendedRestartService } from '../../../services/lifecycle/common/unattendedRestart.js';
@@ -299,6 +299,76 @@ export class BulkEditService extends Disposable implements IBulkEditService {
 			this._performingEdits--;
 			listener?.dispose();
 			undoRedoGroupRemove();
+		}
+	}
+
+	async applySequence(stepsIn: readonly IBulkEditStep[], options?: IBulkEditOptions): Promise<IBulkEditResult> {
+		if (stepsIn.length === 0) {
+			return { ariaSummary: localize('nothing', "Made no edits"), isApplied: false };
+		}
+
+		let resource: URI | undefined;
+		let expectedVersionId: number | undefined;
+		const textSteps: IBulkTextEditStep[] = [];
+		let totalTextEdits = 0;
+
+		for (let i = 0; i < stepsIn.length; i++) {
+			const step = stepsIn[i];
+			const lifted = liftEdits(Array.isArray(step.edits) ? step.edits : step.edits.edits);
+			const textEdits: ResourceTextEdit[] = [];
+			for (const edit of lifted) {
+				if (!(edit instanceof ResourceTextEdit)) {
+					throw new Error('applySequence only supports single-document text edits');
+				}
+				if (!resource) {
+					resource = edit.resource;
+				} else if (resource.toString() !== edit.resource.toString()) {
+					throw new Error('applySequence only supports edits targeting a single document');
+				}
+				if (i === 0 && typeof edit.versionId === 'number') {
+					expectedVersionId = edit.versionId;
+				}
+				textEdits.push(edit);
+				totalTextEdits++;
+			}
+			if (textEdits.length > 0) {
+				textSteps.push({
+					edits: textEdits,
+					undoStopBefore: step.undoStopBefore ?? true,
+					undoStopAfter: step.undoStopAfter ?? true,
+				});
+			}
+		}
+
+		if (!resource || textSteps.length === 0) {
+			return { ariaSummary: localize('nothing', "Made no edits"), isApplied: false };
+		}
+
+		const label = options?.quotableLabel || options?.label || localize('workspaceEdit', "Workspace Edit");
+		const code = options?.code || 'undoredo.workspaceEdit';
+
+		this._performingEdits++;
+		try {
+			const sequence = this._instaService.createInstance(
+				BulkTextEditSequence,
+				label,
+				code,
+				options?.undoRedoSource,
+				options?.token ?? CancellationToken.None,
+				resource,
+				expectedVersionId,
+				textSteps,
+			);
+			const resources = await sequence.apply(options?.reason);
+			return {
+				ariaSummary: localize('summary.n0', "Made {0} text edits in one file", totalTextEdits),
+				isApplied: resources.length > 0,
+			};
+		} catch (err) {
+			this._logService.error(err);
+			throw err;
+		} finally {
+			this._performingEdits--;
 		}
 	}
 

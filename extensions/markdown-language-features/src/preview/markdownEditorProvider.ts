@@ -370,21 +370,29 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 		const vsCodeDocument = vsCodeTextDocument(document);
 		const undoGrouper = new MarkdownEditorUndoGrouper();
 		let applyingEditorEdit = false;
-		let suppressChangeVersion: number | undefined;
-		let suppressedSegmentChange = false;
+		let bufferedChanges: { readonly text: string; readonly change: DocumentTextChange }[] | undefined;
+		let replayTextOverride: string | undefined;
 		const onDidChangeText = new vscode.EventEmitter<DocumentTextChange>();
 		const forwardDocumentChange = vsCodeDocument.onDidChangeText(change => {
-			if (suppressChangeVersion !== undefined && document.version === suppressChangeVersion) {
-				suppressedSegmentChange = true;
+			if (bufferedChanges) {
+				bufferedChanges.push({ text: vsCodeDocument.getText(), change });
 				return;
 			}
 			onDidChangeText.fire(change);
 		});
+		const replayChange = (text: string, change: DocumentTextChange): void => {
+			replayTextOverride = text;
+			try {
+				onDidChangeText.fire(change);
+			} finally {
+				replayTextOverride = undefined;
+			}
+		};
 		// Counts the editor's own writes for telemetry
 		const editorWrites = new vscode.EventEmitter<void>();
 		const syncedDocument: SyncedTextDocument = {
 			get version() { return vsCodeDocument.version; },
-			getText: () => vsCodeDocument.getText(),
+			getText: () => replayTextOverride ?? vsCodeDocument.getText(),
 			applyEdits: async (version, edits) => {
 				if (document.version !== version) {
 					undoGrouper.reset();
@@ -394,50 +402,67 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 					? document.getText(new vscode.Range(document.positionAt(edits[0].offset), document.positionAt(edits[0].offset + edits[0].length)))
 					: '';
 				const steps = undoGrouper.planEdits(edits, deletedText);
-				let expectedVersion = version;
-				let appliedCount = 0;
-				suppressedSegmentChange = false;
-				for (let i = 0; i < steps.length; i++) {
-					if (document.version !== expectedVersion) {
-						undoGrouper.reset();
-						break;
+				const buffer: { readonly text: string; readonly change: DocumentTextChange }[] = [];
+				applyingEditorEdit = true;
+				bufferedChanges = buffer;
+				let applied = false;
+				try {
+					if (steps.length === 1) {
+						const edit = new vscode.WorkspaceEdit();
+						for (const { offset, length, newText } of steps[0].edits) {
+							edit.replace(document.uri, new vscode.Range(document.positionAt(offset), document.positionAt(offset + length)), newText);
+						}
+						applied = await vscode.workspace.applyEdit(edit, steps[0].metadata);
+					} else {
+						let pos = document.positionAt(edits[0].offset);
+						const workspaceSteps: vscode.WorkspaceEditUndoStep[] = steps.map(step => {
+							const edit = new vscode.WorkspaceEdit();
+							const insertion = step.edits[0];
+							edit.replace(document.uri, new vscode.Range(pos, pos), insertion.newText);
+							pos = advancePosition(pos, insertion.newText);
+							return { edit, metadata: step.metadata };
+						});
+						applied = await vscode.workspace.applyEditSequence(workspaceSteps);
 					}
-					const step = steps[i];
-					const edit = new vscode.WorkspaceEdit();
-					for (const { offset, length, newText } of step.edits) {
-						edit.replace(document.uri, new vscode.Range(document.positionAt(offset), document.positionAt(offset + length)), newText);
+				} finally {
+					applyingEditorEdit = false;
+					bufferedChanges = undefined;
+				}
+
+				if (!applied) {
+					undoGrouper.reset();
+					for (const entry of buffer) {
+						replayChange(entry.text, entry.change);
 					}
-					const isLastStep = i === steps.length - 1;
-					applyingEditorEdit = true;
-					suppressChangeVersion = isLastStep ? undefined : expectedVersion + 1;
-					let applied = false;
-					try {
-						applied = await vscode.workspace.applyEdit(edit, step.metadata);
-					} finally {
-						applyingEditorEdit = false;
-						suppressChangeVersion = undefined;
-					}
-					if (!applied) {
-						undoGrouper.reset();
-						break;
-					}
+					return false;
+				}
+
+				for (const step of steps) {
 					step.commit();
-					appliedCount++;
-					expectedVersion = document.version;
 				}
-				if (appliedCount > 0) {
-					if (appliedCount < steps.length && suppressedSegmentChange) {
-						onDidChangeText.fire({});
+				// Our atomic write applied `steps.length` segments starting from `version`, so
+				// the first `steps.length` buffered change events belong to this write; coalesce
+				// them into one event for TextDocumentSync and replay any subsequent external edits.
+				const ourCount = Math.min(steps.length, buffer.length);
+				if (ourCount === 1) {
+					replayChange(buffer[0].text, buffer[0].change);
+				} else if (ourCount > 1) {
+					replayChange(buffer[ourCount - 1].text, {});
+				}
+				if (buffer.length > ourCount) {
+					undoGrouper.reset();
+					for (let i = ourCount; i < buffer.length; i++) {
+						replayChange(buffer[i].text, buffer[i].change);
 					}
-					editorWrites.fire();
-					return true;
 				}
-				return false;
+				editorWrites.fire();
+				return true;
 			},
 			onDidChangeText: onDidChangeText.event,
 		};
 		const sync = new TextDocumentSync(syncedDocument, { onError: (message, error) => this.#logger.trace('Markdown editor', message, error) });
 		webviewPanel.onDidDispose(() => {
+			undoGrouper.dispose();
 			forwardDocumentChange.dispose();
 			onDidChangeText.dispose();
 			vsCodeDocument.dispose();
@@ -597,7 +622,11 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 		});
 		editorWebview.setHandlers({
 			selectionChanged: message => navigation.acceptSelection(message),
-			undoEditHint: message => undoGrouper.acceptHint(message.kind),
+			undoEditHint: message => undoGrouper.acceptHint(
+				message,
+				(version, offset, assoc) => sync.trackFromEditor(version, offset, assoc),
+				sync.text !== document.getText(),
+			),
 			getDiagnostics: () => languageFeatures.diagnostics(),
 			completions: message => languageFeatures.completions(message),
 			acceptCompletion: message => languageFeatures.accept(message),
@@ -669,7 +698,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 				// editor's changes first and only act while this panel is active, so the
 				// chord cannot race a pending edit or land on a different document.
 				await sync.drain();
-				undoGrouper.reset();
+				undoGrouper.reset(true);
 				signal.throwIfAborted();
 				if (webviewPanel.active && !resolveCancellation.token.isCancellationRequested) {
 					await vscode.commands.executeCommand(message.command);
@@ -722,7 +751,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 			? this.#wireDocumentDiff(originalDocument, document, editorWebview, sync)
 			: this.#wireQuickDiff(document, editorWebview, sync);
 		const reloadWebview = (): void => {
-			undoGrouper.reset();
+			undoGrouper.reset(true);
 			navigation.reset();
 			richLinks.clear();
 			imagePaste.dispose();
@@ -1317,6 +1346,14 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 			lineBreak: vsCodeLineBreak(document),
 		};
 	}
+}
+
+function advancePosition(pos: vscode.Position, text: string): vscode.Position {
+	const lines = text.split(/\r\n|\r|\n/);
+	if (lines.length === 1) {
+		return new vscode.Position(pos.line, pos.character + lines[0].length);
+	}
+	return new vscode.Position(pos.line + lines.length - 1, lines[lines.length - 1].length);
 }
 
 function codeBlockEditorDefinitionsEqual(

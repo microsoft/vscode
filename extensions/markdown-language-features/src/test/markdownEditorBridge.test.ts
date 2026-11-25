@@ -245,6 +245,87 @@ suite('Markdown editor bridge', () => {
 		}
 	});
 
+	test('does not stall or drop keystrokes when an external edit races a multi-segment batch', async () => {
+		const document = await vscode.workspace.openTextDocument({ language: 'markdown', content: '' });
+		const panel = new TestPanel();
+		const provider = createProvider(new TestMemento());
+		const cancellation = new vscode.CancellationTokenSource();
+		let connection: ReturnType<typeof connectRenderer> | undefined;
+		try {
+			await provider.resolveCustomTextEditor(document, panel, cancellation.token);
+			const secret = /name="vscode-markdown-editor-message-secret" content="([^"]+)"/.exec(panel.webview.html)?.[1];
+			assert.ok(secret);
+			connection = connectRenderer(panel, secret);
+			const { host, client } = connection;
+			await host.ready({});
+			await until(() => client.getContent() === '');
+
+			// Fire a competing external edit at the same time as a multi-segment burst write ("one two")
+			const external = new vscode.WorkspaceEdit();
+			external.insert(document.uri, new vscode.Position(0, 0), '# ');
+			const externalApplied = vscode.workspace.applyEdit(external);
+			type(client, 0, 'one two');
+			assert.ok(await externalApplied);
+
+			// Must converge without stalling and without dropping " two"
+			await until(() => document.getText().includes('# ') && document.getText().includes('one two') && client.getContent() === document.getText(), () => [document.getText(), client.getContent()]);
+			assert.strictEqual(document.getText().includes('one two'), true);
+		} finally {
+			panel.dispose();
+			connection?.dispose();
+			provider.dispose();
+			cancellation.dispose();
+		}
+	});
+
+	test('does not isolate adjacent typing when a short paste is queued behind an in-flight write', async () => {
+		const document = await vscode.workspace.openTextDocument({ language: 'markdown', content: '' });
+		await vscode.window.showTextDocument(document);
+		const panel = new TestPanel();
+		const provider = createProvider(new TestMemento());
+		const cancellation = new vscode.CancellationTokenSource();
+		let connection: ReturnType<typeof connectRenderer> | undefined;
+		try {
+			await provider.resolveCustomTextEditor(document, panel, cancellation.token);
+			const secret = /name="vscode-markdown-editor-message-secret" content="([^"]+)"/.exec(panel.webview.html)?.[1];
+			assert.ok(secret);
+			connection = connectRenderer(panel, secret);
+			const { host, client } = connection;
+			await host.ready({});
+			await until(() => client.getContent() === '');
+
+			// Start an in-flight write with "a"
+			type(client, 0, 'a');
+			// Queue typing "b", then a short paste "bar", then typing "!" before "a" finishes writing
+			type(client, 1, 'b');
+			host.undoEditHint({ kind: 'isolated', version: client.version, offset: 2, length: 3 });
+			type(client, 2, 'bar');
+			type(client, 5, '!');
+
+			await until(() => document.getText() === 'abbar!' && client.getContent() === 'abbar!', () => [document.getText(), client.getContent()]);
+
+			// Undo 1: removes "!" (typed after paste)
+			await vscode.commands.executeCommand('undo');
+			await until(() => document.getText() === 'abbar', () => document.getText());
+			assert.strictEqual(document.getText(), 'abbar');
+
+			// Undo 2: removes "bar" (the short paste) without removing "b"
+			await vscode.commands.executeCommand('undo');
+			await until(() => document.getText() === 'ab', () => document.getText());
+			assert.strictEqual(document.getText(), 'ab');
+
+			// Undo 3: removes "ab" together
+			await vscode.commands.executeCommand('undo');
+			await until(() => document.getText() === '', () => document.getText());
+			assert.strictEqual(document.getText(), '');
+		} finally {
+			panel.dispose();
+			connection?.dispose();
+			provider.dispose();
+			cancellation.dispose();
+		}
+	});
+
 	test('cancels navigation waiting for renderer readiness and releases it when the panel is disposed', async () => {
 		const document = await vscode.workspace.openTextDocument({ language: 'markdown', content: '# Heading' });
 		const panel = new TestPanel();

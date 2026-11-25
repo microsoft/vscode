@@ -459,4 +459,57 @@ suite('MainThreadEditors', () => {
 			model.dispose();
 		}
 	});
+
+	test('bulk edit sequence applies steps atomically with per-step undo stops', async () => {
+		const model = modelService.createModel('', null, resource);
+		try {
+			const makeInsert = (col: number, text: string, versionId?: number): IWorkspaceTextEditDto => ({
+				resource,
+				versionId,
+				textEdit: { range: new Range(1, col, 1, col), text }
+			});
+
+			// Seed an open undo element "hell"
+			assert.strictEqual(await bulkEdits.$tryApplyWorkspaceEdit(new SerializableObjectWithBuffers({ edits: [makeInsert(1, 'hell', model.getVersionId())] }), undefined, false, true, false), true);
+			assert.strictEqual(model.getValue(), 'hell');
+
+			// Atomically append "o" (coalescing with "hell"), " world" (new undo step), and "!" (isolated step)
+			const applied = await bulkEdits.$tryApplyWorkspaceEditSequence(new SerializableObjectWithBuffers([
+				{ edit: { edits: [makeInsert(5, 'o', model.getVersionId())] }, undoStopBefore: false, undoStopAfter: false },
+				{ edit: { edits: [makeInsert(6, ' world')] }, undoStopBefore: true, undoStopAfter: false },
+				{ edit: { edits: [makeInsert(12, '!')] }, undoStopBefore: true, undoStopAfter: true },
+			]));
+			assert.strictEqual(applied, true);
+			assert.strictEqual(model.getValue(), 'hello world!');
+
+			await model.undo();
+			assert.strictEqual(model.getValue(), 'hello world');
+			await model.undo();
+			assert.strictEqual(model.getValue(), 'hello');
+			await model.undo();
+			assert.strictEqual(model.getValue(), '');
+		} finally {
+			model.dispose();
+		}
+	});
+
+	test('bulk edit sequence rejects atomically without partial writes on version mismatch', async () => {
+		const model = modelService.createModel('hell', null, resource);
+		try {
+			const staleVersion = model.getVersionId();
+			// Competing edit bumps version
+			model.pushEditOperations(null, [{ range: new Range(1, 1, 1, 1), text: '# ' }], () => null);
+			assert.strictEqual(model.getValue(), '# hell');
+
+			const applied = await bulkEdits.$tryApplyWorkspaceEditSequence(new SerializableObjectWithBuffers([
+				{ edit: { edits: [{ resource, versionId: staleVersion, textEdit: { range: new Range(1, 5, 1, 5), text: 'o' } }] }, undoStopBefore: false, undoStopAfter: false },
+				{ edit: { edits: [{ resource, versionId: undefined, textEdit: { range: new Range(1, 6, 1, 6), text: ' world' } }] }, undoStopBefore: true, undoStopAfter: false },
+			]));
+			assert.strictEqual(applied, false);
+			// Neither step was applied
+			assert.strictEqual(model.getValue(), '# hell');
+		} finally {
+			model.dispose();
+		}
+	});
 });

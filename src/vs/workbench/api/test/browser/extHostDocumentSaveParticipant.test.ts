@@ -7,7 +7,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { ExtHostDocuments } from '../../common/extHostDocuments.js';
 import { ExtHostDocumentsAndEditors } from '../../common/extHostDocumentsAndEditors.js';
 import { TextDocumentSaveReason, TextEdit, Position, EndOfLine } from '../../common/extHostTypes.js';
-import { MainThreadTextEditorsShape, IWorkspaceEditDto, IWorkspaceTextEditDto, MainThreadBulkEditsShape } from '../../common/extHost.protocol.js';
+import { IWorkspaceEditDto, IWorkspaceTextEditDto, MainThreadBulkEditsShape } from '../../common/extHost.protocol.js';
 import { ExtHostDocumentSaveParticipant } from '../../common/extHostDocumentSaveParticipant.js';
 import { SingleProxyRPCProtocol } from '../common/testRPCProtocol.js';
 import { SaveReason } from '../../../common/editor.js';
@@ -259,8 +259,8 @@ suite('ExtHostDocumentSaveParticipant', () => {
 	test('event delivery, pushEdits sync', () => {
 
 		let dto: IWorkspaceEditDto;
-		const participant = new ExtHostDocumentSaveParticipant(nullLogService, documents, new class extends mock<MainThreadTextEditorsShape>() {
-			$tryApplyWorkspaceEdit(_edits: SerializableObjectWithBuffers<IWorkspaceEditDto>) {
+		const participant = new ExtHostDocumentSaveParticipant(nullLogService, documents, new class extends mock<MainThreadBulkEditsShape>() {
+			override $tryApplyWorkspaceEdit(_edits: SerializableObjectWithBuffers<IWorkspaceEditDto>) {
 				dto = _edits.value;
 				return Promise.resolve(true);
 			}
@@ -283,8 +283,8 @@ suite('ExtHostDocumentSaveParticipant', () => {
 	test('event delivery, concurrent change', () => {
 
 		let edits: IWorkspaceEditDto;
-		const participant = new ExtHostDocumentSaveParticipant(nullLogService, documents, new class extends mock<MainThreadTextEditorsShape>() {
-			$tryApplyWorkspaceEdit(_edits: SerializableObjectWithBuffers<IWorkspaceEditDto>) {
+		const participant = new ExtHostDocumentSaveParticipant(nullLogService, documents, new class extends mock<MainThreadBulkEditsShape>() {
+			override $tryApplyWorkspaceEdit(_edits: SerializableObjectWithBuffers<IWorkspaceEditDto>) {
 				edits = _edits.value;
 				return Promise.resolve(true);
 			}
@@ -323,8 +323,8 @@ suite('ExtHostDocumentSaveParticipant', () => {
 
 	test('event delivery, two listeners -> two document states', () => {
 
-		const participant = new ExtHostDocumentSaveParticipant(nullLogService, documents, new class extends mock<MainThreadTextEditorsShape>() {
-			$tryApplyWorkspaceEdit(dto: SerializableObjectWithBuffers<IWorkspaceEditDto>) {
+		const participant = new ExtHostDocumentSaveParticipant(nullLogService, documents, new class extends mock<MainThreadBulkEditsShape>() {
+			override $tryApplyWorkspaceEdit(dto: SerializableObjectWithBuffers<IWorkspaceEditDto>) {
 
 				for (const edit of dto.value.edits) {
 

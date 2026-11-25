@@ -130,6 +130,9 @@ const runtimeMessage = z.extend(runtime, { message: z.unknown() });
 
 const undoEditHint = z.object({
 	kind: z.enum(['break', 'isolated', 'deleteBackward', 'deleteForward']),
+	version: z.optional(version),
+	offset: z.optional(offset),
+	length: z.optional(offset),
 });
 
 export const markdownEditorHost = defineInterface({ id: 'markdown.editor.host' }, {
@@ -203,5 +206,6 @@ export type RichLinkPresentationUpdate = z.infer<typeof richLinkPresentationUpda
 export type RichLinkSubscriptions = z.infer<typeof richLinkSubscriptions>;
 export type MarkdownDiagnostic = z.infer<typeof diagnostic>;
 export type MarkdownCompletion = z.infer<typeof completion>;
-export type UndoEditHint = z.infer<typeof undoEditHint>['kind'];
+export type UndoEditHintMessage = z.infer<typeof undoEditHint>;
+export type UndoEditHint = UndoEditHintMessage['kind'];
 export type MarkdownNavigationState = z.infer<typeof navigationState>;

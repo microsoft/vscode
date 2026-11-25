@@ -25,4 +25,23 @@ declare module 'vscode' {
 		 */
 		readonly undoStopAfter?: boolean;
 	}
+
+	/**
+	 * A single step in an atomic sequence of workspace edits applied via
+	 * {@link workspace.applyEdit}.
+	 */
+	export interface WorkspaceEditUndoStep {
+		readonly edit: WorkspaceEdit;
+		readonly metadata?: WorkspaceEditMetadata;
+	}
+
+	export namespace workspace {
+		/**
+		 * Atomically applies a sequence of single-document text edits, each with its own
+		 * undo-stop metadata. The document version is validated once before any step is
+		 * applied; if the document has changed, none of the steps are applied and `false`
+		 * is returned.
+		 */
+		export function applyEditSequence(steps: readonly WorkspaceEditUndoStep[]): Thenable<boolean>;
+	}
 }

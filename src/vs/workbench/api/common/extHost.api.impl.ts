@@ -1291,6 +1291,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			applyEdit(edit: vscode.WorkspaceEdit, metadata?: vscode.WorkspaceEditMetadata): Thenable<boolean> {
 				return extHostBulkEdits.applyWorkspaceEdit(edit, extension, metadata);
 			},
+			applyEditSequence(steps: readonly vscode.WorkspaceEditUndoStep[]): Thenable<boolean> {
+				return extHostBulkEdits.applyWorkspaceEditSequence(steps, extension);
+			},
 			createFileSystemWatcher: (pattern, optionsOrIgnoreCreate, ignoreChange?, ignoreDelete?): vscode.FileSystemWatcher => {
 				const options: FileSystemWatcherCreateOptions = {
 					ignoreCreateEvents: Boolean(optionsOrIgnoreCreate),

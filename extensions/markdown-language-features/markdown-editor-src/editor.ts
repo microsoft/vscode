@@ -499,7 +499,12 @@ class Editor extends Disposable {
 			},
 		}));
 		const onPointerDown = (): void => {
-			this.#send('undoEditHint', this.#host.undoEditHint({ kind: 'break' }));
+			const sel = this.model.selection.read(undefined);
+			this.#send('undoEditHint', this.#host.undoEditHint({
+				kind: 'break',
+				version: this.#versions.current,
+				offset: sel?.active,
+			}));
 		};
 		view.element.addEventListener('pointerdown', onPointerDown);
 		this._register({ dispose: () => view.element.removeEventListener('pointerdown', onPointerDown) });
@@ -628,7 +633,11 @@ class Editor extends Disposable {
 			if (currentText === previousText) {
 				if (!this.isUpdatingFromExtension && sel && previousSelection
 					&& (sel.anchor !== previousSelection.anchor || sel.active !== previousSelection.active)) {
-					this.#send('undoEditHint', this.#host.undoEditHint({ kind: 'break' }));
+					this.#send('undoEditHint', this.#host.undoEditHint({
+						kind: 'break',
+						version: this.#versions.current,
+						offset: sel.active,
+					}));
 				}
 				previousSelection = sel;
 			}
@@ -660,15 +669,22 @@ class Editor extends Disposable {
 			}
 			if (!this.isUpdatingFromExtension && text !== previousText && this.#initialText === undefined) {
 				const edit = computeTextEdit(previousText, text);
+				const version = this.#versions.current;
 				if (this.#pendingPaste) {
-					this.#send('undoEditHint', this.#host.undoEditHint({ kind: 'isolated' }));
+					this.#send('undoEditHint', this.#host.undoEditHint({
+						kind: 'isolated',
+						version,
+						offset: edit.start,
+						length: edit.text.length,
+					}));
 				} else if (edit.text.length === 0 && edit.endExclusive > edit.start && previousSelection) {
+					const deletedLength = edit.endExclusive - edit.start;
 					if (previousSelection.anchor !== previousSelection.active) {
 						this.#send('undoEditHint', this.#host.undoEditHint({ kind: 'isolated' }));
 					} else if (edit.endExclusive === previousSelection.active) {
-						this.#send('undoEditHint', this.#host.undoEditHint({ kind: 'deleteBackward' }));
+						this.#send('undoEditHint', this.#host.undoEditHint({ kind: 'deleteBackward', version, offset: edit.start, length: deletedLength }));
 					} else if (edit.start === previousSelection.active) {
-						this.#send('undoEditHint', this.#host.undoEditHint({ kind: 'deleteForward' }));
+						this.#send('undoEditHint', this.#host.undoEditHint({ kind: 'deleteForward', version, offset: edit.start, length: deletedLength }));
 					} else {
 						this.#send('undoEditHint', this.#host.undoEditHint({ kind: 'isolated' }));
 					}

@@ -110,6 +110,12 @@ export interface IBulkEditOptions {
 	reason?: TextModelEditSource;
 }
 
+export interface IBulkEditStep {
+	readonly edits: ResourceEdit[] | WorkspaceEdit;
+	readonly undoStopBefore?: boolean;
+	readonly undoStopAfter?: boolean;
+}
+
 export interface IBulkEditResult {
 	ariaSummary: string;
 	isApplied: boolean;
@@ -125,4 +131,6 @@ export interface IBulkEditService {
 	setPreviewHandler(handler: IBulkEditPreviewHandler): IDisposable;
 
 	apply(edit: ResourceEdit[] | WorkspaceEdit, options?: IBulkEditOptions): Promise<IBulkEditResult>;
+
+	applySequence?(steps: readonly IBulkEditStep[], options?: IBulkEditOptions): Promise<IBulkEditResult>;
 }
