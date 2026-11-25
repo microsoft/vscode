@@ -180,6 +180,14 @@ export class CheckoutBlockedByLocalChangesError extends Error {
 	}
 }
 
+/** `git worktree add` failed for a well-known reason, explained in a user-facing message. */
+export class WorktreeAddError extends Error {
+	constructor(message: string, options?: ErrorOptions) {
+		super(message, options);
+		this.name = 'WorktreeAddError';
+	}
+}
+
 /**
  * Resolves linked checkouts to their primary worktree and caches successful mappings for every worktree reported by Git.
  * Resolution is serialized so concurrent requests across linked checkouts share one probe, while empty results remain retryable.

@@ -21,8 +21,10 @@ import { ILogService } from '../../log/common/log.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { FileEditKind, type ISessionFileDiff, type ISessionGitState } from '../common/state/sessionState.js';
 import { buildGitBlobUri } from './gitDiffContent.js';
-import { CheckoutBlockedByLocalChangesError, EMPTY_TREE_OBJECT, IAddWorktreeOptions, IAgentHostGitService, IAgentHostGitWorktree, IBranch, IBranchDiffSafetyInfo, ICommitOptions, IRefQuery, IComputeSessionFileDiffsOptions, IDefaultBranch, IGitRemote, IPullOptions, IPushOptions, GitRefType, IRemoteBranch, GitRef, ITag, Branch, IWorktreeFileProgress, IDetachedHead, BaseBranch, parseBaseBranchRef } from '../common/agentHostGitService.js';
+import { CheckoutBlockedByLocalChangesError, EMPTY_TREE_OBJECT, IAddWorktreeOptions, IAgentHostGitService, IAgentHostGitWorktree, IBranch, IBranchDiffSafetyInfo, ICommitOptions, IRefQuery, IComputeSessionFileDiffsOptions, IDefaultBranch, IGitRemote, IPullOptions, IPushOptions, GitRefType, IRemoteBranch, GitRef, ITag, Branch, IWorktreeFileProgress, IDetachedHead, BaseBranch, parseBaseBranchRef, WorktreeAddError } from '../common/agentHostGitService.js';
 import { LRUCache } from '../../../base/common/map.js';
+import { isWindows } from '../../../base/common/platform.js';
+import { localize } from '../../../nls.js';
 import { firstParallel, Limiter, timeout } from '../../../base/common/async.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { derived, observableValueOpts, type IObservable } from '../../../base/common/observable.js';
@@ -384,11 +386,21 @@ export class AgentHostGitService extends Disposable implements IAgentHostGitServ
 		// two-second suppression so the first sample arrives immediately.
 		const progressParser = options.onProgress ? new GitCheckoutProgressParser(options.onProgress) : undefined;
 
-		await this._runGit(repositoryRoot, args, {
+		await this._runWorktreeAdd(repositoryRoot, args, {
 			timeout: 180_000,
 			throwOnError: true,
 			...(progressParser ? { env: { GIT_PROGRESS_DELAY: '0' }, onStderr: chunk => progressParser.push(chunk) } : {}),
 		});
+	}
+
+	/** Runs `git worktree add`, replacing a failure with a well-known cause by a {@link WorktreeAddError}. */
+	private async _runWorktreeAdd(repositoryRoot: URI, args: readonly string[], options: IRunGitOptions): Promise<void> {
+		try {
+			await this._runGit(repositoryRoot, args, options);
+		} catch (error) {
+			const message = error instanceof GitCommandError ? getWorktreeAddFailureMessage(error.stderr) : undefined;
+			throw message ? new WorktreeAddError(message, { cause: error }) : error;
+		}
 	}
 
 	async copyWorktreeIncludeFiles(repositoryRoot: URI, worktree: URI, patterns: readonly string[], sessionId: string, onProgress?: (progress: IWorktreeFileProgress) => void, excludedFolders: readonly string[] = []): Promise<void> {
@@ -474,7 +486,7 @@ export class AgentHostGitService extends Disposable implements IAgentHostGitServ
 		// deleted out-of-band but git still has it registered ("missing but
 		// already registered worktree"). This is our own managed per-session
 		// worktree/branch, so overriding git's safeguards here is safe.
-		await this._runGit(repositoryRoot, ['-c', 'checkout.workers=0', 'worktree', 'add', '-f', '--', worktree.fsPath, branchName], { timeout: 180_000, throwOnError: true });
+		await this._runWorktreeAdd(repositoryRoot, ['-c', 'checkout.workers=0', 'worktree', 'add', '-f', '--', worktree.fsPath, branchName], { timeout: 180_000, throwOnError: true });
 	}
 
 	/**
@@ -2253,7 +2265,8 @@ export function isRetryableWorktreeRemovalError(error: unknown): boolean {
  * Exported for tests.
  */
 export function formatGitError(args: readonly string[], timeoutMs: number, didTimeOut: boolean, error: cp.ExecFileException, stderr: string): string {
-	const subcommand = args[0] ?? '(unknown)';
+	// Skip leading `-c <name>=<value>` options to name the subcommand.
+	const subcommand = args.find((arg, index) => !arg.startsWith('-') && args[index - 1] !== '-c') ?? '(unknown)';
 	let reason: string;
 	if (didTimeOut) {
 		reason = `git ${subcommand} timed out after ${timeoutMs}ms`;
@@ -2285,12 +2298,37 @@ export function summarizeStderrForError(stderr: string): string {
 		return '';
 	}
 	const MAX = 200;
-	const gitLfsMissing = lines.find(line =>
-		/\bgit-lfs\b/i.test(line) &&
-		/(command not found|not recognized|no such file)/i.test(line)
-	);
-	const summary = gitLfsMissing ?? lines.find(line => /^fatal:/i.test(line)) ?? lines[lines.length - 1];
+	const summary = lines.find(isGitLfsMissing) ?? lines.find(line => /^fatal:/i.test(line)) ?? lines[lines.length - 1];
 	return summary.length > MAX ? `${summary.slice(0, MAX - 1)}…` : summary;
+}
+
+/** Whether a stderr line reports that `git-lfs` is required but can't be run, as in a filter or the hooks Git LFS installs. */
+function isGitLfsMissing(line: string): boolean {
+	return /\bgit-lfs\b/i.test(line) && /(command not found|not recognized|no such file|was not found)/i.test(line);
+}
+
+/**
+ * Explains a `git worktree add` failure with a well-known cause, or returns
+ * `undefined`. Git reports the cause before a generic closing `fatal:` line,
+ * so this reads all of stderr instead of its summary.
+ *
+ * Exported for tests.
+ */
+export function getWorktreeAddFailureMessage(stderr: string): string | undefined {
+	// "File name too long" on macOS and Linux, "Filename too long" in Git for Windows.
+	if (/\bfile ?name too long\b/i.test(stderr)) {
+		return isWindows
+			? localize('agentHostGit.worktreeAdd.pathTooLongWindows', "A file path in the worktree is too long for Windows. To allow long paths in Git, run `git config --global core.longpaths true`.")
+			: localize('agentHostGit.worktreeAdd.pathTooLong', "A file path in the worktree is too long for the file system.");
+	}
+	if (stderr.split(/[\r\n]+/).some(isGitLfsMissing)) {
+		return localize('agentHostGit.worktreeAdd.gitLfsMissing', "The repository uses Git LFS, but Git LFS isn't installed or can't be found on the PATH.");
+	}
+	const lockFile = /Unable to create '(?<lockFile>[^']+\.lock)': File exists/.exec(stderr)?.groups?.lockFile;
+	if (lockFile) {
+		return localize('agentHostGit.worktreeAdd.locked', "Another Git process is using the repository. If no Git process is running, delete the lock file '{0}'.", lockFile);
+	}
+	return undefined;
 }
 
 export function parseGitWorktrees(output: string): IAgentHostGitWorktree[] {

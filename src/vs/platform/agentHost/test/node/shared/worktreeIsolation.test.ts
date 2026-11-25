@@ -14,7 +14,7 @@ import { basename, getComparisonKey } from '../../../../../base/common/resources
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../log/common/log.js';
-import { GitRefType, IAgentHostGitService, META_DIFF_BASE_BRANCH, type IAddWorktreeOptions, type IBranch, type ICommitOptions } from '../../../common/agentHostGitService.js';
+import { GitRefType, IAgentHostGitService, META_DIFF_BASE_BRANCH, WorktreeAddError, type IAddWorktreeOptions, type IBranch, type ICommitOptions } from '../../../common/agentHostGitService.js';
 import { SessionConfigKey } from '../../../common/sessionConfigKeys.js';
 import { AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, MessageKind, ResponsePartKind, TurnState, type ISessionGitState, type Turn } from '../../../common/state/sessionState.js';
 import { AgentBranchNameGenerator, IAgentBranchNameGenerator } from '../../../node/shared/agentBranchNameGenerator.js';
@@ -1255,6 +1255,19 @@ suite('WorktreeIsolation', () => {
 			latchedError: true,
 			pending: true,
 			message: 'Couldn\'t create the isolated worktree. This session cannot continue. Start a new session to try again.\n\ngit-lfs: command not found',
+		});
+	});
+
+	test('resolveOnFirstSend shows a well-known worktree failure without shortening it', async () => {
+		// Longer than the limit applied to raw git output.
+		const explanation = `Another Git process is using the repository. If no Git process is running, delete the lock file '/${'nested/'.repeat(30)}.git/index.lock'.`;
+		const gitService = createGitService();
+		gitService.addWorktree = async () => { throw new WorktreeAddError(explanation); };
+		const isolation = createIsolation(disposables, { gitService });
+		isolation.notePending(sessionId);
+
+		await assert.rejects(isolation.resolveOnFirstSend({ sessionUri, sessionId, workingDirectory: repoRoot, config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' } }), {
+			message: `Couldn't create the isolated worktree. This session cannot continue. Start a new session to try again.\n\n${explanation}`,
 		});
 	});
 
