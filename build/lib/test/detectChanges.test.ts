@@ -429,10 +429,11 @@ suite('Detect Changes', () => {
 		const { jobs } = loadWorkflow();
 		const tests = testJobs();
 		const declaredOutputs = Object.keys(jobs.changes.outputs ?? {});
-		// The calling jobs always run, and the jobs of their reusable workflows skip (see the test jobs in pr.yml), except
-		// the Windows one, which pull requests to main skip, as the merge queue runs it.
-		const callsOn = (name: string, condition = '!cancelled()') => ({ name, needs: 'changes', if: `\${{ ${condition} }}` });
+		// The calling jobs always run, and the jobs of their reusable workflows skip (see the test jobs in pr.yml).
+		const callsOn = (name: string) => ({ name, needs: 'changes', if: '${{ !cancelled() }}' });
 		const skipsWhenUnaffected = (output: string) => `\${{ needs.changes.result != 'success' || needs.changes.outputs.${output} == 'true' }}`;
+		// Pull requests to main skip them, as the merge queue runs them.
+		const queueSkipsWhenUnaffected = (output: string) => `\${{ (github.event_name == 'merge_group' || github.base_ref != 'main') && (needs.changes.result != 'success' || needs.changes.outputs.${output} == 'true') }}`;
 		assert.deepStrictEqual({
 			callers: Object.fromEntries(Object.entries(jobs).filter(([, job]) => testWorkflow.test(job.uses ?? '')).map(([id, job]) => [id, { name: job.name, needs: job.needs, if: job.if }])),
 			checks: Object.fromEntries([...tests].map(([check, test]) => [check, resolveInput(test, test.job.if)])),
@@ -441,7 +442,7 @@ suite('Detect Changes', () => {
 			callers: {
 				'linux-rust-tests': callsOn('Linux'),
 				'linux-tests': callsOn('Linux'),
-				'windows-tests': callsOn('Windows', `!cancelled() && (github.event_name == 'merge_group' || github.base_ref != 'main')`),
+				'windows-tests': callsOn('Windows'),
 			},
 			checks: {
 				'Linux / CLI': skipsWhenUnaffected('cli'),
@@ -460,22 +461,23 @@ suite('Detect Changes', () => {
 				'Linux / Browser': skipsWhenUnaffected('browser-integration'),
 				'Linux / Remote (integration)': skipsWhenUnaffected('product-tests'),
 				'Linux / Remote (smoke)': skipsWhenUnaffected('product-tests'),
+				// Pull requests to main run only the Windows unit tests.
 				'Windows / Electron-Unit': skipsWhenUnaffected('selected-unit-tests'),
-				'Windows / Electron (node.js)': skipsWhenUnaffected('selected-node-integration-tests'),
-				'Windows / Electron (extension host)': skipsWhenUnaffected('product-tests'),
-				'Windows / Agent-Host-E2E (shard 1/3)': skipsWhenUnaffected('selected-agent-host-e2e'),
-				'Windows / Agent-Host-E2E (shard 2/3)': skipsWhenUnaffected('selected-agent-host-e2e'),
-				'Windows / Agent-Host-E2E (shard 3/3)': skipsWhenUnaffected('selected-agent-host-e2e'),
-				'Windows / Electron-Smoke (shard 1/3)': skipsWhenUnaffected('product-tests'),
-				'Windows / Electron-Smoke (shard 2/3)': skipsWhenUnaffected('product-tests'),
-				'Windows / Electron-Smoke (shard 3/3)': skipsWhenUnaffected('product-tests'),
-				'Windows / Electron-Smoke (WSL)': skipsWhenUnaffected('product-tests'),
+				'Windows / Electron (node.js)': queueSkipsWhenUnaffected('selected-node-integration-tests'),
+				'Windows / Electron (extension host)': queueSkipsWhenUnaffected('product-tests'),
+				'Windows / Agent-Host-E2E (shard 1/3)': queueSkipsWhenUnaffected('selected-agent-host-e2e'),
+				'Windows / Agent-Host-E2E (shard 2/3)': queueSkipsWhenUnaffected('selected-agent-host-e2e'),
+				'Windows / Agent-Host-E2E (shard 3/3)': queueSkipsWhenUnaffected('selected-agent-host-e2e'),
+				'Windows / Electron-Smoke (shard 1/3)': queueSkipsWhenUnaffected('product-tests'),
+				'Windows / Electron-Smoke (shard 2/3)': queueSkipsWhenUnaffected('product-tests'),
+				'Windows / Electron-Smoke (shard 3/3)': queueSkipsWhenUnaffected('product-tests'),
+				'Windows / Electron-Smoke (WSL)': queueSkipsWhenUnaffected('product-tests'),
 				'Windows / Browser-Unit': skipsWhenUnaffected('selected-browser-unit-tests'),
-				'Windows / Browser (integration)': skipsWhenUnaffected('browser-integration'),
-				'Windows / Browser (smoke)': skipsWhenUnaffected('browser-integration'),
-				'Windows / Remote (integration)': skipsWhenUnaffected('product-tests'),
-				'Windows / Remote (smoke, shard 1/2)': skipsWhenUnaffected('product-tests'),
-				'Windows / Remote (smoke, shard 2/2)': skipsWhenUnaffected('product-tests'),
+				'Windows / Browser (integration)': queueSkipsWhenUnaffected('browser-integration'),
+				'Windows / Browser (smoke)': queueSkipsWhenUnaffected('browser-integration'),
+				'Windows / Remote (integration)': queueSkipsWhenUnaffected('product-tests'),
+				'Windows / Remote (smoke, shard 1/2)': queueSkipsWhenUnaffected('product-tests'),
+				'Windows / Remote (smoke, shard 2/2)': queueSkipsWhenUnaffected('product-tests'),
 			},
 			undeclaredOutputs: [],
 		});
@@ -508,7 +510,7 @@ suite('Detect Changes', () => {
 		]);
 	});
 
-	test('pull requests to main skip the Windows jobs, which the merge queue runs, and the merge queue and pull requests to release branches run on dedicated runners', () => {
+	test('pull requests to main skip the Windows jobs other than the unit tests, which the merge queue runs, and the merge queue and pull requests to release branches run on dedicated runners', () => {
 		const { jobs } = loadWorkflow();
 		const runner = (os: string) => `\${{ (github.event_name == 'merge_group' || startsWith(github.base_ref, 'release/')) && 'vscode-large-runners-${os}-8-core-merge-queue' || 'vscode-large-runners-${os}-8-core' }}`;
 		const runsOn = [
@@ -517,12 +519,13 @@ suite('Detect Changes', () => {
 			...Object.values(loadWorkflow('component-fixtures.yml').jobs).map(job => job['runs-on']),
 		].filter(value => value !== undefined);
 		assert.deepStrictEqual({
-			// Pull requests to release branches, which have no merge queue, run them.
+			// Pull requests to release branches, which have no merge queue, run them. The Windows test jobs other than
+			// the unit tests skip through their inputs (see the test of the "<OS> / <job>" checks above).
 			skippedByPullRequestsToMain: Object.entries(jobs).filter(([, job]) => job.if?.includes(`(github.event_name == 'merge_group' || github.base_ref != 'main')`)).map(([id]) => id),
 			// Windows / Electron-Smoke (WSL) runs on its 1ES pool.
 			runners: [...new Set(runsOn.filter(value => typeof value === 'string'))].sort(),
 		}, {
-			skippedByPullRequestsToMain: ['windows-tests', 'copilot-windows-tests', 'chat-lib-windows-tests'],
+			skippedByPullRequestsToMain: ['copilot-windows-tests', 'chat-lib-windows-tests'],
 			runners: [runner('ubuntu'), runner('windows')].sort(),
 		});
 	});
