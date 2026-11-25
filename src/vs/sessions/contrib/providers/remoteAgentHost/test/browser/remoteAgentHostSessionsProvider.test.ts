@@ -57,7 +57,7 @@ import { IProgressService } from '../../../../../../platform/progress/common/pro
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { IChatWidget, IChatWidgetService } from '../../../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatService, type ChatSendResult, type IChatSendRequestData, type IChatSendRequestOptions, type IChatRequestAcceptedEvent } from '../../../../../../workbench/contrib/chat/common/chatService/chatService.js';
-import type { IChatModel } from '../../../../../../workbench/contrib/chat/common/model/chatModel.js';
+import type { IChatModel, IChatResponseModel } from '../../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { IChatSessionsService } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../../../../../workbench/contrib/chat/common/languageModels.js';
 import { ISessionChangeEvent, ISessionsProvider, ISessionsProviderCreateSessionOptions } from '../../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
@@ -5489,6 +5489,75 @@ suite('RemoteAgentHostSessionsProvider', () => {
 
 		assert.deepStrictEqual(sendOptions.map(options => options.agentHostSessionConfig), [{ isolation: 'worktree' }]);
 	});
+
+	function sentResponse(response: Pick<IChatResponseModel, 'result' | 'isCanceled'>, ended: Promise<void> = Promise.resolve()): ChatSendResult {
+		return { kind: 'sent', data: upcastPartial<IChatSendRequestData>({ responseCreatedPromise: Promise.resolve(upcastPartial<IChatResponseModel>(response)), responseCompletePromise: ended }) };
+	}
+
+	for (const { request, response, expected } of [
+		{ request: 'is declined before it is sent', response: { result: {}, isCanceled: false }, expected: 'cancelled' },
+		{ request: 'is cancelled', response: { result: undefined, isCanceled: true }, expected: 'cancelled' },
+		{ request: 'fails', response: { result: { errorDetails: { message: 'Model unavailable' } }, isCanceled: false }, expected: 'Model unavailable' },
+	]) {
+		test(`a new session whose first request ${request} without its host starting the session is not left working`, async () => {
+			const provider = createProvider(disposables, connection, { openSession: true, sendRequest: async () => sentResponse(response) });
+			const session = provider.createNewSession(URI.parse('vscode-agent-host://localhost__4321/home/user/project'), provider.sessionTypes[0].id);
+			provider.setAuthenticationPending(false);
+			const chat = await provider.createNewChat(session.sessionId);
+
+			const error = await provider.sendRequest(session.sessionId, chat.resource, { query: 'What is on my shopping list?' }).then(() => undefined, (e: Error) => e);
+
+			assert.deepStrictEqual({
+				error: error instanceof CancellationError ? 'cancelled' : error?.message,
+				sessions: provider.getSessions().map(s => s.title.get()),
+			}, { error: expected, sessions: [] });
+		});
+	}
+
+	test('a new session whose host lists it only after its first request ended is committed, also after a failed listing', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const ended = new DeferredPromise<void>();
+		const listedAfterSend = new DeferredPromise<void>();
+		let sent = false;
+		let failNextListing = true;
+		// Like a host that announces a session whose first request failed just after the request's error.
+		const host = new class extends MockAgentConnection {
+			override async listSessions(): Promise<IAgentSessionMetadata[]> {
+				if (ended.isSettled) {
+					if (failNextListing) {
+						failNextListing = false;
+						throw new Error('Listing failed');
+					}
+					return super.listSessions();
+				}
+				if (sent) {
+					listedAfterSend.complete();
+				}
+				return [];
+			}
+		}();
+		disposables.add(toDisposable(() => host.dispose()));
+		const provider = createProvider(disposables, host, {
+			openSession: true,
+			sendRequest: async resource => {
+				sent = true;
+				host.addSession(createSession(AgentSession.id(resource), { summary: 'Failed Start', status: ProtocolSessionStatus.Error }));
+				return sentResponse({ result: { errorDetails: { message: 'Model unavailable' } }, isCanceled: false }, ended.p);
+			},
+		});
+		const session = provider.createNewSession(URI.parse('vscode-agent-host://localhost__4321/home/user/project'), provider.sessionTypes[0].id);
+		provider.setAuthenticationPending(false);
+		const chat = await provider.createNewChat(session.sessionId);
+
+		const sending = provider.sendRequest(session.sessionId, chat.resource, { query: 'hello' });
+		await listedAfterSend.p;
+		ended.complete();
+		const committed = await sending;
+
+		assert.deepStrictEqual({
+			committed: committed.title.get(),
+			sessions: provider.getSessions().map(s => s.title.get()),
+		}, { committed: 'Failed Start', sessions: ['Failed Start'] });
+	}));
 
 	// ---- Session data adapter -------
 
