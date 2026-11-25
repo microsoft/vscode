@@ -122,11 +122,9 @@ export class SCMActiveRepositoryController extends Disposable implements IWorkbe
 			const commands = activeRepository?.repository.provider.statusBarCommands.read(reader) ?? [];
 			this._onDidChangeFolderLocation.read(reader);
 
-			const visibleCommands = activeRepository && this._isAtAlternateFolderLocation(activeRepository.repository.provider)
-				? commands.filter(command => !command.hideAtAlternateFolderLocation)
-				: commands;
+			const isAtAlternateFolderLocation = !!activeRepository && this._isAtAlternateFolderLocation(activeRepository.repository.provider);
 
-			this._updateStatusBar(activeRepository, visibleCommands, reader.store);
+			this._updateStatusBar(activeRepository, commands, isAtAlternateFolderLocation, reader.store);
 		}));
 
 		this._register(autorun(reader => {
@@ -161,7 +159,7 @@ export class SCMActiveRepositoryController extends Disposable implements IWorkbe
 		store.add(this.activityService.showViewActivity(VIEW_PANE_ID, { badge }));
 	}
 
-	private _updateStatusBar(activeRepository: { repository: ISCMRepository; pinned: boolean } | undefined, commands: readonly ISCMStatusBarCommand[], store: DisposableStore): void {
+	private _updateStatusBar(activeRepository: { repository: ISCMRepository; pinned: boolean } | undefined, commands: readonly ISCMStatusBarCommand[], isAtAlternateFolderLocation: boolean, store: DisposableStore): void {
 		if (!activeRepository) {
 			return;
 		}
@@ -170,8 +168,14 @@ export class SCMActiveRepositoryController extends Disposable implements IWorkbe
 			? `${basename(activeRepository.repository.provider.rootUri)} (${activeRepository.repository.provider.label})`
 			: activeRepository.repository.provider.label;
 
+		let firstEntryId: string | undefined;
+		let previousEntryId: string | undefined;
 		for (let index = 0; index < commands.length; index++) {
 			const command = commands[index];
+			if (isAtAlternateFolderLocation && command.hideAtAlternateFolderLocation) {
+				continue;
+			}
+
 			const tooltip = `${label}${command.tooltip ? ` - ${command.tooltip}` : ''}`;
 			const genericCommandName = getStatusBarCommandGenericName(command);
 
@@ -183,10 +187,13 @@ export class SCMActiveRepositoryController extends Disposable implements IWorkbe
 				command: command.id ? command : undefined
 			};
 
-			store.add(index === 0 ?
-				this.statusbarService.addEntry(statusbarEntry, `status.scm.${index}`, MainThreadStatusBarAlignment.LEFT, 10000) :
-				this.statusbarService.addEntry(statusbarEntry, `status.scm.${index}`, MainThreadStatusBarAlignment.LEFT, { location: { id: `status.scm.${index - 1}`, priority: 10000 }, alignment: MainThreadStatusBarAlignment.RIGHT, compact: true })
+			const entryId = `status.scm.${index}`;
+			store.add(previousEntryId === undefined ?
+				this.statusbarService.addEntry(statusbarEntry, entryId, MainThreadStatusBarAlignment.LEFT, 10000) :
+				this.statusbarService.addEntry(statusbarEntry, entryId, MainThreadStatusBarAlignment.LEFT, { location: { id: previousEntryId, priority: 10000 }, alignment: MainThreadStatusBarAlignment.RIGHT, compact: true })
 			);
+			firstEntryId ??= entryId;
+			previousEntryId = entryId;
 		}
 
 		// Source control provider status bar entry
@@ -200,7 +207,7 @@ export class SCMActiveRepositoryController extends Disposable implements IWorkbe
 				command: 'scm.setActiveProvider'
 			};
 
-			store.add(this.statusbarService.addEntry(repositoryStatusbarEntry, 'status.scm.provider', MainThreadStatusBarAlignment.LEFT, { location: { id: `status.scm.0`, priority: 10000 }, alignment: MainThreadStatusBarAlignment.LEFT, compact: true }));
+			store.add(this.statusbarService.addEntry(repositoryStatusbarEntry, 'status.scm.provider', MainThreadStatusBarAlignment.LEFT, { location: { id: firstEntryId ?? 'status.scm.0', priority: 10000 }, alignment: MainThreadStatusBarAlignment.LEFT, compact: true }));
 		}
 	}
 

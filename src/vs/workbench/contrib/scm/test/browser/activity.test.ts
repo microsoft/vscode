@@ -17,7 +17,7 @@ import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/
 import { IFolderLocationChangeEvent, IWorkspaceFolderLocationService } from '../../../../../platform/workspace/common/folderLocations.js';
 import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
 import { IActivity, IActivityService, NumberBadge } from '../../../../services/activity/common/activity.js';
-import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService } from '../../../../services/statusbar/browser/statusbar.js';
+import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarEntryLocation, IStatusbarEntryPriority, IStatusbarService, isStatusbarEntryLocation, StatusbarAlignment } from '../../../../services/statusbar/browser/statusbar.js';
 import { ITitleService } from '../../../../services/title/browser/titleService.js';
 import { SCMActiveRepositoryController } from '../../browser/activity.js';
 import { ISCMHistoryProvider } from '../../common/history.js';
@@ -178,10 +178,12 @@ suite('SCMActiveRepositoryController', () => {
 			}();
 			const entries = new Set<string>();
 			const statusbarService = new class extends mock<IStatusbarService>() {
-				override addEntry(entry: IStatusbarEntry): IStatusbarEntryAccessor {
-					entries.add(entry.text);
+				override addEntry(entry: IStatusbarEntry, id: string, _alignment: StatusbarAlignment, priorityOrLocation: number | IStatusbarEntryLocation | IStatusbarEntryPriority): IStatusbarEntryAccessor {
+					const anchor = isStatusbarEntryLocation(priorityOrLocation) ? ` after ${priorityOrLocation.location.id}` : '';
+					const description = `${id} ${entry.text}${anchor}`;
+					entries.add(description);
 					return new class extends mock<IStatusbarEntryAccessor>() {
-						override dispose(): void { entries.delete(entry.text); }
+						override dispose(): void { entries.delete(description); }
 					}();
 				}
 			}();
@@ -213,9 +215,10 @@ suite('SCMActiveRepositoryController', () => {
 			result.nested.push(nested.texts());
 		}
 
+		const shown = ['status.scm.0 main', 'status.scm.1 sync after status.scm.0'];
 		assert.deepStrictEqual(result, {
-			atFolder: [['main', 'sync'], ['sync'], ['main', 'sync']],
-			nested: [['main', 'sync'], ['main', 'sync'], ['main', 'sync']]
+			atFolder: [shown, ['status.scm.1 sync'], shown],
+			nested: [shown, shown, shown]
 		});
 	});
 });
