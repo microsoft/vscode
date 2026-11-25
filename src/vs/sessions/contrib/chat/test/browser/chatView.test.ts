@@ -1050,9 +1050,13 @@ suite('Sessions - Chat View', () => {
 		const cases: { name: string; parts: IChatProgressResponseContent[]; expanded: boolean }[] = [
 			{ name: 'question form', parts: [{ kind: 'questionCarousel', questions: [{ id: 'name', type: 'text', title: 'Name', required: true }], allowSkip: true }], expanded: false },
 			{ name: 'carousel approval', parts: [tool], expanded: false },
-			{ name: 'untitled approval', parts: [{ ...tool, state: constObservable<IChatToolInvocation.State>({
-				type: IChatToolInvocation.StateKind.WaitingForConfirmation, parameters: undefined, confirm: (): void => { },
-			}) }], expanded: true },
+			{
+				name: 'untitled approval', parts: [{
+					...tool, state: constObservable<IChatToolInvocation.State>({
+						type: IChatToolInvocation.StateKind.WaitingForConfirmation, parameters: undefined, confirm: (): void => { },
+					})
+				}], expanded: true
+			},
 			{ name: 'untitled confirmation', parts: [{ kind: 'confirmation', title: '', message: 'Continue?', data: {} }], expanded: true },
 			{ name: 'answered confirmation', parts: [{ kind: 'confirmation', title: 'Continue?', message: '', data: {}, isUsed: true }], expanded: false },
 			{ name: 'untitled elicitation', parts: [elicitation], expanded: true },
