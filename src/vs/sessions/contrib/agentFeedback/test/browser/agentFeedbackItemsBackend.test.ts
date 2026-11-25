@@ -6,18 +6,20 @@
 import assert from 'assert';
 import { timeout } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { IReference } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, IReference } from '../../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../../base/common/network.js';
 import { constObservable, IObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
-import { createAgentHostResourceUriMapper } from '../../../../../platform/agentHost/common/agentHostUri.js';
+import { createAgentHostResourceUriMapper, LOCAL_AGENT_HOST_AUTHORITY } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { FEEDBACK_ANNOTATION_META_KEY } from '../../../../../platform/agentHost/common/meta/agentFeedbackAnnotations.js';
 import { AgentSubscriptionManager, IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ActionType, ClientAnnotationsAction } from '../../../../../platform/agentHost/common/state/sessionActions.js';
 import { annotationsReducer } from '../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { Annotation, AnnotationsState, ComponentToState, StateComponents } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import { agentHostConnectionKinds } from '../../../../../platform/agentHost/test/common/testAgentHostResourceUriMappers.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IAgentHostSessionsProvider } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
@@ -381,6 +383,87 @@ suite('AnnotationsAgentFeedbackItemsBackend', () => {
 				pendingAgentReveal: undefined,
 			},
 		});
+	});
+
+	test('round-trips feedback on untitled buffers through every connection', () => {
+		const sessionResource = URI.parse('remote-agent-host:///session');
+		const annotationsUri = URI.parse('copilot:///session/annotations');
+		const untitledResource = URI.from({ scheme: Schemas.untitled, path: 'Untitled-1' });
+		const mappers = [
+			{ name: 'local agent host', resourceUris: createAgentHostResourceUriMapper(LOCAL_AGENT_HOST_AUTHORITY) },
+			...agentHostConnectionKinds,
+		];
+		const result = mappers.map(({ name, resourceUris }) => {
+			const disposables = new DisposableStore();
+			let state: AnnotationsState = { annotations: [] };
+			const onDidChange = disposables.add(new Emitter<AnnotationsState>());
+			const subscription: IAgentSubscription<AnnotationsState> = {
+				get value() { return state; },
+				get verifiedValue() { return state; },
+				onDidChange: onDidChange.event,
+				onWillApplyAction: Event.None,
+				onDidApplyAction: Event.None,
+			};
+			const connection = new class extends mock<IAgentConnection>() {
+				override readonly resourceUris = resourceUris;
+				override getSubscription<T extends StateComponents>(): IReference<IAgentSubscription<ComponentToState[T]>> {
+					return {
+						object: subscription as IAgentSubscription<ComponentToState[T]>,
+						dispose() { },
+					};
+				}
+				override dispatch(_channel: string, action: ClientAnnotationsAction): void {
+					state = annotationsReducer(state, action, () => { });
+					onDidChange.fire(state);
+				}
+			}();
+			const provider = new class extends mock<IAgentHostSessionsProvider>() {
+				override getFeedbackAnnotationsChannel() {
+					return { connection, annotationsUri };
+				}
+			}();
+			const session = new class extends mock<ISession>() {
+				override readonly providerId = 'agenthost-test';
+				override readonly sessionId = 'session';
+			}();
+			const instantiationService = disposables.add(new TestInstantiationService());
+			instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
+				override onDidDeleteSession = Event.None;
+				override onDidChangeSessions = Event.None;
+				override getSession() { return session; }
+			});
+			instantiationService.stub(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
+				override getProvider<T extends ISessionsProvider>(): T {
+					return provider as unknown as T;
+				}
+			});
+			stubVisibleSessions(instantiationService, constObservable([]));
+			const backend = disposables.add(instantiationService.createInstance(AnnotationsAgentFeedbackItemsBackend));
+
+			backend.getItems(sessionResource);
+			backend.upsert({
+				id: 'untitled',
+				text: 'Feedback on an unsaved buffer',
+				resourceUri: untitledResource,
+				range: { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 },
+				sessionResource,
+				kind: AgentFeedbackKind.UserReview,
+				state: AgentFeedbackState.Accepted,
+			});
+			const entry = {
+				name,
+				hostResources: state.annotations.map(annotation => annotation.resource),
+				clientResources: backend.getItems(sessionResource).map(item => item.resourceUri.toString()),
+			};
+			disposables.dispose();
+			return entry;
+		});
+
+		assert.deepStrictEqual(result, mappers.map(({ name }) => ({
+			name,
+			hostResources: ['untitled:Untitled-1'],
+			clientResources: ['untitled:Untitled-1'],
+		})));
 	});
 
 	test('shows local mutations immediately after the annotations snapshot has loaded', () => {
