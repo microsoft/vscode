@@ -77,7 +77,7 @@ suite('CommandsQuickAccessProvider', () => {
 			await type(picker, '>zyzzyv'),
 		];
 
-		// changes and queries in the same task, Gamma brings a context key the menu didn't depend on before
+		// each change is followed by a query without waiting in between, Gamma brings a context key the menu didn't depend on before
 		store.add(MenuRegistry.addCommand({ id: 'test.zyzzyva.beta', title: 'Zyzzyva Beta' }));
 		store.add(MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: 'test.zyzzyva.gamma', title: 'Zyzzyva Gamma' }, when: ContextKeyExpr.equals('test.zyzzyva.gammaVisible', true) }));
 		results.push(await type(picker, '>zyzzy'));
