@@ -426,9 +426,8 @@ jobs:
         workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
         displayName: oxlint (Copilot)
 
-      # The compile runs script/postinstall.ts, which deletes and recopies node_modules/@github/copilot/sdk, so the type
-      # check, which resolves the SDK's declarations there, runs after it. The compile only checks that Copilot builds,
-      # so it skips the release version that .esbuild.mts stamps into package.json in CI.
+      # The compile only checks that Copilot builds, so it skips the release version that .esbuild.mts
+      # stamps into package.json in CI.
       - script: BUILD_SOURCEVERSION= pnpm run compile && pnpm run typecheck
         workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
         displayName: Compile (Copilot)

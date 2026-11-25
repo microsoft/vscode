@@ -19,7 +19,6 @@ import { dirname } from '../../../util/vs/base/common/resources';
 import { generateUuid } from '../../../util/vs/base/common/uuid';
 import { ChatSessionMetadataFile, WorkspaceFolderEntry } from '../common/chatSessionMetadataStore';
 import { ChatSessionWorktreeData, ChatSessionWorktreeProperties } from '../common/chatSessionWorktreeService';
-import { sessionMetadataFileWriteSequencer } from '../common/sessionMetadataFileWriteSequencer';
 import { isUntitledSessionId } from '../common/utils';
 import { getCopilotBulkMetadataFile, getCopilotCLISessionDir } from '../copilotcli/node/cliHelpers';
 
@@ -62,8 +61,8 @@ export class LegacySessionMetadataBackfill extends Disposable {
 	/** Cancelled on dispose so the backfill's delays and loop stop promptly. */
 	private readonly _sessionMetadataBackfillCancellation = new CancellationTokenSource();
 	/**
-	 * Whether the per-install bulk file had been merged on an earlier start. Read at
-	 * construction, before the extension-host session metadata store merges it on this start.
+	 * Whether the per-install bulk file had been merged into the shared one, which the removed
+	 * extension-host session metadata store did on startup. Read at construction.
 	 */
 	private readonly _legacyBulkMigratedBeforeStartup: boolean;
 
@@ -212,9 +211,8 @@ export class LegacySessionMetadataBackfill extends Disposable {
 				return;
 			}
 			checked++;
-			// Queued behind the session metadata store's writes in this window; create-only, so the
-			// store's data (from this or another window) always wins.
-			const result = await sessionMetadataFileWriteSequencer.queue(sessionId, () => this.backfillSessionMetadataFile(sessionId, entry, counts.failed < SESSION_METADATA_BACKFILL_MAX_LOGGED_FAILURES));
+			// Create-only, so a file another window wrote always wins.
+			const result = await this.backfillSessionMetadataFile(sessionId, entry, counts.failed < SESSION_METADATA_BACKFILL_MAX_LOGGED_FAILURES);
 			counts[result]++;
 			consecutiveFailures = result === 'failed' ? consecutiveFailures + 1 : 0;
 			if (consecutiveFailures >= SESSION_METADATA_BACKFILL_MAX_CONSECUTIVE_FAILURES) {

@@ -42,8 +42,6 @@ const baseNodeBuildOptions = {
 		'@azure/opentelemetry-instrumentation-azure-sdk',
 		'electron', // this is for simulation workbench,
 		'sqlite3',
-		'node-pty', // Required by @github/copilot
-		'@github/copilot',
 		...(isDev ? [] : ['dotenv', 'source-map-support'])
 	],
 	platform: 'node',
@@ -167,7 +165,6 @@ const nodeExtHostBuildOptions = {
 		{ in: './src/platform/parser/node/parserWorker.ts', out: 'worker2' },
 		{ in: './src/platform/tokenizer/node/tikTokenizerWorker.ts', out: 'tikTokenizerWorker' },
 		{ in: './src/platform/diff/node/diffWorkerMain.ts', out: 'diffWorker' },
-		{ in: './src/extension/chatSessions/copilotcli/node/copilotCLITodoWorker.ts', out: 'copilotCLITodoWorker' },
 		{ in: './src/extension/onboardDebug/node/copilotDebugWorker/index.ts', out: 'copilotDebugCommand' },
 		...(shippedBundlesOnly ? [] : [
 			{ in: './src/test-extension.ts', out: 'test-extension' },
