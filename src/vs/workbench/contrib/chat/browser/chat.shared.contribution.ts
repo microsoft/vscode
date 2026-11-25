@@ -101,6 +101,9 @@ import { CustomizationMigrationTelemetryService, ICustomizationMigrationTelemetr
 import { CustomizationMigrationService } from './aiCustomization/customizationMigrationServiceImpl.js';
 import { IPromptsService } from '../common/promptSyntax/service/promptsService.js';
 import { PromptsService } from '../common/promptSyntax/service/promptsServiceImpl.js';
+import { IChatExtensionCustomizationsService } from '../common/promptSyntax/service/chatExtensionCustomizationsService.js';
+import { ChatExtensionCustomizationsService } from '../common/promptSyntax/service/chatExtensionCustomizationsServiceImpl.js';
+import { IAgenticSkillsService, NullAgenticSkillsService } from '../common/promptSyntax/service/agenticSkillsService.js';
 import { BuiltinToolsContribution } from '../common/tools/builtinTools/tools.js';
 import { ChatArtifactsService, IChatArtifactsService } from '../common/tools/chatArtifactsService.js';
 import { ChatTodoListService, IChatTodoListService } from '../common/tools/chatTodoListService.js';
@@ -3548,6 +3551,8 @@ registerSingleton(IChatThinkingTitleService, ChatThinkingTitleService, Instantia
 registerSingleton(IAgentNetworkFilterService, AgentNetworkFilterService, InstantiationType.Delayed);
 registerSingleton(ILanguageModelIgnoredFilesService, LanguageModelIgnoredFilesService, InstantiationType.Delayed);
 registerSingleton(IPromptsService, PromptsService, InstantiationType.Delayed);
+registerSingleton(IChatExtensionCustomizationsService, ChatExtensionCustomizationsService, InstantiationType.Delayed);
+registerSingleton(IAgenticSkillsService, NullAgenticSkillsService, InstantiationType.Delayed);
 registerSingleton(ICustomizationMigrationService, CustomizationMigrationService, InstantiationType.Delayed);
 registerSingleton(ICustomizationMigrationTelemetryService, CustomizationMigrationTelemetryService, InstantiationType.Delayed);
 registerSingleton(ICustomizationsTelemetryService, CustomizationsTelemetryService, InstantiationType.Delayed);

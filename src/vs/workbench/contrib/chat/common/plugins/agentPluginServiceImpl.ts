@@ -56,7 +56,7 @@ import { AUTOMATION_BLUEPRINT_FILE_SUFFIX, parseAutomationBlueprint } from '../a
 import { HookType } from '../promptSyntax/hookTypes.js';
 import { AgentPluginCollisionEnablementModel, getAgentPluginPolicyEnablement, getAgentPluginPolicyId, getCanonicalAgentPluginCollisionGroups, getSortedAgentPlugins, IAgentPluginEnablementService, IDiscoveredAgentPlugins, isAgentPluginBlockedByPolicy, isAgentPluginForceEnabledByPolicy } from './agentPluginEnablement.js';
 import { IAgentPluginRepositoryService } from './agentPluginRepositoryService.js';
-import { AgentPluginDiscoveryPriority, agentPluginDiscoveryRegistry, IAgentPlugin, IAgentPluginAutomation, IAgentPluginDiscovery, IAgentPluginHook, IAgentPluginInstruction, IAgentPluginService, ICopilotCliPluginInstallation } from './agentPluginService.js';
+import { AgentPluginDiscoveryKind, AgentPluginDiscoveryPriority, agentPluginDiscoveryRegistry, IAgentPlugin, IAgentPluginAutomation, IAgentPluginDiscovery, IAgentPluginHook, IAgentPluginInstruction, IAgentPluginService, ICopilotCliPluginInstallation } from './agentPluginService.js';
 import { IPluginInstallService } from './pluginInstallService.js';
 import { IMarketplacePlugin, IPluginMarketplaceService } from './pluginMarketplaceService.js';
 
@@ -326,6 +326,8 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 	}
 
 	/** Subclasses return plugin sources to discover. */
+	protected abstract readonly _discoveryKind: AgentPluginDiscoveryKind;
+
 	protected abstract _discoverPluginSources(): Promise<readonly IPluginSource[]>;
 
 	private async _discoverAndBuildPlugins(version: number): Promise<readonly IAgentPlugin[]> {
@@ -536,6 +538,7 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 
 		const plugin: PluginEntry = {
 			uri,
+			discovery: this._discoveryKind,
 			format: format.format,
 			label: fromMarketplace?.name ?? manifestName ?? basename(uri),
 			version: pluginVersion,
@@ -694,6 +697,8 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 
 export class ConfiguredAgentPluginDiscovery extends AbstractAgentPluginDiscovery {
 
+	protected readonly _discoveryKind = 'configured';
+
 	private readonly _pluginLocationsConfig: IObservable<Record<string, boolean>>;
 
 	constructor(
@@ -827,6 +832,8 @@ export class ConfiguredAgentPluginDiscovery extends AbstractAgentPluginDiscovery
 
 export class MarketplaceAgentPluginDiscovery extends AbstractAgentPluginDiscovery {
 
+	protected readonly _discoveryKind = 'marketplace';
+
 	constructor(
 		@IPluginMarketplaceService private readonly _pluginMarketplaceService: IPluginMarketplaceService,
 		@IPluginInstallService private readonly _pluginInstallService: IPluginInstallService,
@@ -916,6 +923,7 @@ function toTargetResource(uri: URI, userHome: URI): URI {
  * Discovers installed plugins from the Copilot runtime's authoritative inventory.
  */
 export class CopilotCliAgentPluginDiscovery extends AbstractAgentPluginDiscovery {
+	protected readonly _discoveryKind = 'harness';
 	private readonly _runtimePlugins = observableValue<readonly IAgentPluginInstallation[]>(this, []);
 	private _runtimeInventoryVersion = 0;
 	private _runtimeInventoryRetryCount = 0;
@@ -1065,6 +1073,8 @@ const epPlugins = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<I
 });
 
 export class ExtensionAgentPluginDiscovery extends AbstractAgentPluginDiscovery {
+
+	protected readonly _discoveryKind = 'extension';
 
 	private readonly _extensionPlugins = new Map<string, { uri: URI; when: ContextKeyExpression | undefined; extensionId: string }>();
 	private readonly _whenKeys = new Set<string>();

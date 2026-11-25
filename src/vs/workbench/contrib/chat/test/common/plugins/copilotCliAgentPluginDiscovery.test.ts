@@ -375,6 +375,7 @@ suite('CopilotCliAgentPluginDiscovery', () => {
 			const marketplaceReference = parseMarketplaceReference('microsoft/vscode-team-kit')!;
 			const marketplacePlugin: IAgentPlugin = {
 				uri: marketplaceUri,
+				discovery: 'harness',
 				format: initialPlugin.format,
 				label: initialPlugin.label,
 				commands: initialPlugin.commands,
