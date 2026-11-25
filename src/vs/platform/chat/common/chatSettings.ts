@@ -5,6 +5,7 @@
 
 export const ChatAIDisabledSettingId = 'chat.disableAIFeatures';
 export const AGENTS_WINDOW_TITLE_BAR_ICONS_SETTING = 'chat.agentsWindowTitleBarIcons.enabled';
+export const AGENTS_WINDOW_SWITCHER_EXPAND_ON_HOVER_TREATMENT = 'sessionsOpenInEditorTitleBarExpandOnHover';
 
 /**
  * Gates the entire Copilot account-choice flow; off preserves EMU-only behavior.

@@ -3,23 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isCancellationError } from '../../../../../base/common/errors.js';
-import { DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
-import { ILogService } from '../../../../../platform/log/common/log.js';
-import { IWorkbenchAssignmentService } from '../../../../services/assignment/common/assignmentService.js';
+import { isCancellationError } from '../../../../base/common/errors.js';
+import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { IWorkbenchAssignmentService } from './assignmentService.js';
 
 /**
- * Reads the given treatments now and whenever assignments are refetched, and calls `onChange` with their values in the same order.
- * Invalid values, by default anything but a non-empty string, are logged and passed as `undefined`. When reading fails, `onChange`
- * gets `undefined` values unless an earlier read succeeded, and results of outdated reads are ignored.
+ * Reads treatments initially and on refetch, retaining resolved values on failure and ignoring stale results.
+ * Invalid values are logged and treated as undefined; `onPendingChange` tracks the latest lookup.
  */
-export function registerAgentsWindowTreatments<T extends string | number | boolean = string>(
+export function registerExperimentTreatments<T extends string | number | boolean = string>(
 	treatments: readonly string[],
 	logPrefix: string,
 	onChange: (values: readonly (T | undefined)[]) => void,
 	assignmentService: IWorkbenchAssignmentService,
 	logService: ILogService,
 	isValid: (value: T, name: string) => boolean = value => typeof value === 'string' && value.trim().length > 0,
+	onPendingChange?: (pending: boolean) => void,
 ): IDisposable {
 	const store = new DisposableStore();
 	let treatmentRequest = 0;
@@ -33,6 +33,12 @@ export function registerAgentsWindowTreatments<T extends string | number | boole
 	};
 	const update = async (): Promise<void> => {
 		const request = ++treatmentRequest;
+		onPendingChange?.(true);
+		const finish = () => {
+			if (!store.isDisposed && request === treatmentRequest) {
+				onPendingChange?.(false);
+			}
+		};
 		let values: (T | undefined)[];
 		try {
 			values = await Promise.all(treatments.map(name => assignmentService.getTreatment<T>(name)));
@@ -44,6 +50,7 @@ export function registerAgentsWindowTreatments<T extends string | number | boole
 				logService.warn(`[${logPrefix}] Failed to resolve treatments`, error);
 			}
 			if (hasResolved) {
+				finish();
 				return;
 			}
 			values = treatments.map(() => undefined);
@@ -53,6 +60,7 @@ export function registerAgentsWindowTreatments<T extends string | number | boole
 		}
 		hasResolved = true;
 		onChange(values.map((value, index) => getTreatmentValue(treatments[index], value)));
+		finish();
 	};
 	store.add(assignmentService.onDidRefetchAssignments(() => void update()));
 	void update();

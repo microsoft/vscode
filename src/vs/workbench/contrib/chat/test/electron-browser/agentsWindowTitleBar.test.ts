@@ -38,6 +38,7 @@ suite('Agents Window titlebar copy experiment', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	const treatmentName = 'chatOpenInAgentsTitleBarLabel';
 	const expansionTreatmentName = 'chatOpenInAgentsTitleBarExpandOnHover';
+	const sharedExpansionTreatmentName = 'sessionsOpenInEditorTitleBarExpandOnHover';
 
 	function attach(container: HTMLElement): HTMLElement {
 		const root = append(mainWindow.document.body, $('.monaco-workbench'));
@@ -67,6 +68,7 @@ suite('Agents Window titlebar copy experiment', () => {
 		const refetched = disposables.add(new Emitter<void>());
 		const requests: DeferredPromise<string | number | boolean | undefined>[] = [];
 		const expansionRequests: DeferredPromise<string | number | boolean | undefined>[] = [];
+		const sharedExpansionRequests: DeferredPromise<string | number | boolean | undefined>[] = [];
 		const queriedTreatments: string[] = [];
 		const assignment = new class extends NullWorkbenchAssignmentService {
 			override readonly onDidRefetchAssignments = refetched.event;
@@ -74,6 +76,8 @@ suite('Agents Window titlebar copy experiment', () => {
 				const request = new DeferredPromise<string | number | boolean | undefined>();
 				if (name === expansionTreatmentName) {
 					expansionRequests.push(request);
+				} else if (name === sharedExpansionTreatmentName) {
+					sharedExpansionRequests.push(request);
 				} else {
 					queriedTreatments.push(name);
 					requests.push(request);
@@ -132,11 +136,16 @@ suite('Agents Window titlebar copy experiment', () => {
 			await timeout(0);
 		};
 		const createFirstSession = () => storage.store(AGENTS_WINDOW_TOTAL_SESSIONS_STORAGE_KEY, 1, StorageScope.APPLICATION, StorageTarget.MACHINE);
-		const resolveExpansion = async (value: string | number | boolean | undefined, index = expansionRequests.length - 1) => {
-			await expansionRequests[index].complete(value);
+		const resolveSharedExpansion = async (value: string | number | boolean | undefined, index = sharedExpansionRequests.length - 1) => {
+			await sharedExpansionRequests[index].complete(value);
 			await timeout(0);
 		};
-		return { storage, telemetry, createFirstSession, refetched, requests, expansionRequests, queriedTreatments, warnings, item, container, resolve, resolveExpansion, snapshot, getActionRuns: () => actionRuns };
+		const resolveExpansion = async (value: string | number | boolean | undefined, index = expansionRequests.length - 1, sharedValue?: string | number | boolean) => {
+			await expansionRequests[index].complete(value);
+			await sharedExpansionRequests[index].complete(sharedValue);
+			await timeout(0);
+		};
+		return { storage, telemetry, createFirstSession, refetched, requests, expansionRequests, sharedExpansionRequests, queriedTreatments, warnings, item, container, resolve, resolveExpansion, resolveSharedExpansion, snapshot, getActionRuns: () => actionRuns };
 	}
 
 	for (const useCodicons of [false, true]) {
@@ -354,7 +363,7 @@ suite('Agents Window titlebar copy experiment', () => {
 					before: true,
 					expandOnHover: value ?? true,
 					beforeHover: [],
-					triggers: [expansionTreatmentName],
+					triggers: [expansionTreatmentName, sharedExpansionTreatmentName],
 					ariaLabel: 'Open in Agents Window (shortcut)',
 				});
 			});
@@ -387,7 +396,7 @@ suite('Agents Window titlebar copy experiment', () => {
 			disabled,
 			refreshed: h.container.classList.contains('expand-on-hover'),
 			triggers: h.snapshot().triggers,
-		}, { disabled: false, refreshed: true, triggers: [expansionTreatmentName] });
+		}, { disabled: false, refreshed: true, triggers: [expansionTreatmentName, sharedExpansionTreatmentName] });
 	});
 
 	test('ignores stale expansion assignments and does not update after disposal', async () => {
@@ -439,10 +448,145 @@ suite('Agents Window titlebar copy experiment', () => {
 				ariaLabel: 'Try Agents (shortcut)',
 				hoverContent: 'Try Agents (shortcut)',
 				actionLabel: 'Open in Agents',
-				triggers: [treatmentName, expansionTreatmentName],
+				triggers: [treatmentName, expansionTreatmentName, sharedExpansionTreatmentName],
 			},
 			expandOnHover: false,
 			actionRuns: 1,
+		});
+	});
+
+	for (const expandOnHover of [true, false]) {
+		test(`shared hover treatment controls the editor button independently of its existing experiment (${expandOnHover})`, async () => {
+			const h = createHarness();
+			await h.resolveSharedExpansion(expandOnHover);
+			await h.resolve('Try Agents');
+			h.container.dispatchEvent(new MouseEvent('mouseenter'));
+			const beforeExistingAssignment = h.container.classList.contains('expand-on-hover');
+			await h.expansionRequests[0].complete(!expandOnHover);
+			h.container.dispatchEvent(new MouseEvent('click'));
+			await timeout(0);
+			assert.deepStrictEqual({
+				beforeExistingAssignment,
+				expandOnHover: h.container.classList.contains('expand-on-hover'),
+				snapshot: h.snapshot(),
+				actionRuns: h.getActionRuns(),
+			}, {
+				beforeExistingAssignment: expandOnHover,
+				expandOnHover,
+				snapshot: {
+					label: 'Try Agents',
+					ariaLabel: 'Try Agents (shortcut)',
+					hoverContent: 'Try Agents (shortcut)',
+					actionLabel: 'Open in Agents',
+					triggers: [treatmentName, sharedExpansionTreatmentName],
+				},
+				actionRuns: 1,
+			});
+		});
+	}
+
+	test('waits for the shared assignment before triggering the existing hover experiment', async () => {
+		const h = createHarness(2);
+		h.container.dispatchEvent(new MouseEvent('mouseenter'));
+		await h.expansionRequests[0].complete(false);
+		await timeout(0);
+		const beforeSharedAssignment = h.snapshot().triggers;
+		await h.resolveSharedExpansion(true);
+		assert.deepStrictEqual({
+			beforeSharedAssignment,
+			expandOnHover: h.container.classList.contains('expand-on-hover'),
+			triggers: h.snapshot().triggers,
+		}, {
+			beforeSharedAssignment: [],
+			expandOnHover: true,
+			triggers: [sharedExpansionTreatmentName],
+		});
+	});
+
+	test('waits for the latest shared assignment before triggering during a refetch', async () => {
+		const h = createHarness(2);
+		await h.resolveExpansion(true);
+		h.refetched.fire();
+		h.refetched.fire();
+		h.container.dispatchEvent(new MouseEvent('mouseenter'));
+		await h.resolveSharedExpansion(undefined, 1);
+		const afterStaleAssignment = h.snapshot().triggers;
+		await h.resolveSharedExpansion(false, 2);
+		assert.deepStrictEqual({
+			afterStaleAssignment,
+			expandOnHover: h.container.classList.contains('expand-on-hover'),
+			triggers: h.snapshot().triggers,
+		}, {
+			afterStaleAssignment: [],
+			expandOnHover: false,
+			triggers: [sharedExpansionTreatmentName],
+		});
+	});
+
+	test('uses the previous shared assignment for triggers when a refetch fails', async () => {
+		const h = createHarness(2);
+		await h.resolveExpansion(false);
+		h.refetched.fire();
+		h.container.dispatchEvent(new MouseEvent('mouseenter'));
+		const duringRefetch = h.snapshot().triggers;
+		await h.sharedExpansionRequests[1].error(new Error('Assignment unavailable'));
+		await timeout(0);
+		assert.deepStrictEqual({
+			duringRefetch,
+			expandOnHover: h.container.classList.contains('expand-on-hover'),
+			warnings: h.warnings,
+			triggers: h.snapshot().triggers,
+		}, {
+			duringRefetch: [],
+			expandOnHover: false,
+			warnings: ['[OpenWorkspaceInAgentsTitleBarWidget] Failed to resolve treatments'],
+			triggers: [expansionTreatmentName, sharedExpansionTreatmentName],
+		});
+	});
+
+	test('applies the shared hover treatment when the existing lookup fails', async () => {
+		const h = createHarness(2);
+		await h.expansionRequests[0].error(new Error('Assignment unavailable'));
+		await h.resolveSharedExpansion(false);
+		h.container.dispatchEvent(new MouseEvent('mouseenter'));
+		assert.deepStrictEqual({
+			expandOnHover: h.container.classList.contains('expand-on-hover'),
+			warnings: h.warnings,
+			triggers: h.snapshot().triggers,
+		}, {
+			expandOnHover: false,
+			warnings: ['[OpenWorkspaceInAgentsTitleBarWidget] Failed to resolve treatments'],
+			triggers: [sharedExpansionTreatmentName],
+		});
+	});
+
+	test('falls back to the existing hover treatment when the shared assignment is removed', async () => {
+		const h = createHarness(2);
+		await h.resolveExpansion(true, 0, false);
+		h.container.dispatchEvent(new MouseEvent('mouseenter'));
+		const beforeRefetch = h.container.classList.contains('expand-on-hover');
+		h.refetched.fire();
+		await h.resolveSharedExpansion(undefined, 1);
+		assert.deepStrictEqual({
+			beforeRefetch,
+			afterRefetch: h.container.classList.contains('expand-on-hover'),
+			triggers: h.snapshot().triggers,
+		}, {
+			beforeRefetch: false,
+			afterRefetch: true,
+			triggers: [sharedExpansionTreatmentName, expansionTreatmentName],
+		});
+	});
+
+	test('invalid shared hover treatment logs and preserves the existing experiment', async () => {
+		const h = createHarness(2);
+		await h.resolveExpansion(false, 0, 'false');
+		assert.deepStrictEqual({
+			expandOnHover: h.container.classList.contains('expand-on-hover'),
+			warnings: h.warnings,
+		}, {
+			expandOnHover: false,
+			warnings: [`[OpenWorkspaceInAgentsTitleBarWidget] Ignoring invalid ${sharedExpansionTreatmentName} treatment`],
 		});
 	});
 

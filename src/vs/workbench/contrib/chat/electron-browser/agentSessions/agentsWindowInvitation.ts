@@ -38,7 +38,7 @@ import { IChatModel } from '../../common/model/chatModel.js';
 import { isUntitledChatSession } from '../../common/model/chatUri.js';
 import { IAgentHostEditorActivityService } from './agentHostEditorActivity.js';
 import { getActiveWorkspaceFolder, getRemoteSessionHandoff, isAgentHostChatWidget } from './agentSessionsActions.js';
-import { registerAgentsWindowTreatments } from '../../browser/agentSessions/agentsWindowTreatments.js';
+import { registerExperimentTreatments } from '../../../../services/assignment/common/experimentTreatments.js';
 
 interface IInvitationPresentation {
 	readonly invitation: IAgentsWindowInvitation;
@@ -130,7 +130,7 @@ export class AgentsWindowInvitationContribution extends Disposable implements IW
 		}));
 
 		const names = agentsWindowInvitationScenarios.flatMap(scenario => agentsWindowInvitationTreatmentFields.map(field => getAgentsWindowInvitationTreatment(scenario, field)));
-		this._register(registerAgentsWindowTreatments<string | number | boolean>(
+		this._register(registerExperimentTreatments<string | number | boolean>(
 			names, 'AgentsWindowInvitation',
 			values => {
 				this.treatments.clear();
