@@ -1251,6 +1251,15 @@ suite('AgentHostGitService - computeSessionFileDiffs (real git)', () => {
 		});
 	});
 
+	(hasGit && !isWindows ? test : test.skip)('does not resolve a registered submodule path that is a symlink to a repository outside', async () => {
+		tmpRoot = realpathSync(mkdtempSync(join(tmpdir(), 'agent-host-diff-submodule-symlink-')));
+		const dir = initRepositoryWithSubmodule(tmpRoot);
+		rmSync(join(dir, 'lib'), { recursive: true, force: true });
+		symlinkSync(join(tmpRoot, 'sub'), join(dir, 'lib'), 'dir');
+
+		assert.strictEqual(await svc!.getSubmoduleRoot(URI.file(dir), URI.file(join(dir, 'lib', 'lib.txt'))), undefined);
+	});
+
 	(hasGit ? test : test.skip)('captureWorkingTreeAsTree stages scoped rename source and untracked paths', async () => {
 		const fs = await import('fs/promises');
 		const { dir, run } = initRepo();

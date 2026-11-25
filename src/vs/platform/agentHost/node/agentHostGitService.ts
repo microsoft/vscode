@@ -931,7 +931,23 @@ export class AgentHostGitService extends Disposable implements IAgentHostGitServ
 			.map(submodulePath => ({ path: submodulePath, root: URI.joinPath(repositoryRoot, submodulePath) }))
 			.filter(submodule => extUriBiasedIgnorePathCase.isEqualOrParent(submodule.root, repositoryRoot) && !extUriBiasedIgnorePathCase.isEqual(submodule.root, repositoryRoot));
 		// The folder of a submodule that isn't checked out has no `.git` and belongs to the repository itself.
-		const checkedOut = await Promise.all(submodules.map(submodule => fsPromises.access(path.join(submodule.root.fsPath, '.git')).then(() => true, () => false)));
+		// Git doesn't check out a submodule through a symlink, so a registered path that resolves anywhere
+		// but its place inside the repository isn't one of its submodules.
+		let realRepositoryRoot: URI;
+		try {
+			realRepositoryRoot = URI.file(await fsPromises.realpath(repositoryRoot.fsPath));
+		} catch {
+			return [];
+		}
+		const checkedOut = await Promise.all(submodules.map(async submodule => {
+			try {
+				const realRoot = await fsPromises.realpath(submodule.root.fsPath);
+				await fsPromises.access(path.join(realRoot, '.git'));
+				return extUriBiasedIgnorePathCase.isEqual(URI.file(realRoot), URI.joinPath(realRepositoryRoot, submodule.path));
+			} catch {
+				return false;
+			}
+		}));
 		return submodules.filter((_, index) => checkedOut[index]);
 	}
 
