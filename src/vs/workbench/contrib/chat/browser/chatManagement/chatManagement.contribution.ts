@@ -23,7 +23,7 @@ import { IEditorService } from '../../../../services/editor/common/editorService
 import { ResourceContextKey } from '../../../../common/contextkeys.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { SessionType } from '../../common/chatSessionsService.js';
-import { ChatEntitlementContextKeys } from '../../../../services/chat/common/chatEntitlementService.js';
+import { ChatEntitlementContextKeys, IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { CONTEXT_MODELS_EDITOR, CONTEXT_MODELS_SEARCH_FOCUS, MANAGE_CHAT_COMMAND_ID, MODEL_ROUTERS_EDITOR_ID } from '../../common/constants.js';
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
 import { ModelsManagementEditor } from './chatManagementEditor.js';
@@ -135,6 +135,7 @@ class ChatManagementActionsContribution extends Disposable implements IWorkbench
 			async run(accessor: ServicesAccessor, searchQuery?: string, sessionType?: string, editorId?: string) {
 				const editorService = accessor.get(IEditorService);
 				const configurationService = accessor.get(IConfigurationService);
+				const chatEntitlementService = accessor.get(IChatEntitlementService);
 				// Without an explicit harness, use the one the last focused chat selects models for.
 				const modelsSessionType = sessionType ?? accessor.get(IChatWidgetService).lastFocusedWidget?.input.modelTargetSessionType
 					?? accessor.get(ICustomizationHarnessService).activeHarness.get();
@@ -151,6 +152,7 @@ class ChatManagementActionsContribution extends Disposable implements IWorkbench
 				// every model, in a window that has an editor for them. A search is for the models.
 				const routers = new ModelRoutersEditorInput();
 				const offersRouters = configurationService.getValue(ModelRouterEnabledSettingId) === true
+					&& !chatEntitlementService.sentiment.hidden
 					&& (modelsSessionType === undefined || modelsSessionType === SessionType.AgentHostCopilot)
 					&& !!Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).getEditorPane(routers);
 				if (!offersRouters) {

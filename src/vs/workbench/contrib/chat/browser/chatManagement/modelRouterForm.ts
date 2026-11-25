@@ -38,6 +38,8 @@ const formInputBoxStyles = getInputBoxStyle({ inputBorder: settingsTextInputBord
 interface IModelRouterFormControl {
 	readonly element: HTMLElement;
 	focus(): void;
+	/** Measures the field again for the width it has now. */
+	layout?(): void;
 }
 
 interface IModelRouterFormRoute {
@@ -149,6 +151,13 @@ export class ModelRouterForm extends Disposable {
 
 	focus(): void {
 		this.nameInput.focus();
+	}
+
+	/** Measures the fields again, as the text of one that grows with it wraps differently at another width. */
+	layout(): void {
+		for (const control of this.routeControls) {
+			control.layout?.();
+		}
 	}
 
 	/** Takes the agent's models as they are now, and draws the routes with them. */

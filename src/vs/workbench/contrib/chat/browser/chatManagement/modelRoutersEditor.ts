@@ -59,8 +59,13 @@ export class ModelRoutersEditor extends EditorPane {
 		this.widget?.focus();
 	}
 
-	/** What the editor shows, as text for the accessible view. */
+	/** The routers the editor lists, as text for the accessible view. None while the form for a router shows in their place. */
 	getAccessibilityContent(): string | undefined {
-		return this.widget?.getAccessibilityContent();
+		return this.widget?.isShowingForm ? undefined : this.widget?.getAccessibilityContent();
+	}
+
+	/** Whether the form for a router is showing in place of the routers. */
+	get isShowingForm(): boolean {
+		return !!this.widget?.isShowingForm;
 	}
 }

@@ -53,7 +53,9 @@ suite('ModelRoutersWidget', () => {
 			modelRouterSwitching: 'first-turn',
 		})],
 		['broken', model('model-router:broken', 'broken', {
-			tooltip: 'broken.model-router.yaml has errors: Add `version: 1`.',
+			// The agent keeps a router's description, and says what it warns about beside it.
+			tooltip: 'Broken on purpose.',
+			warningText: { modelRouter: 'broken.model-router.yaml has errors: Add `version: 1`.' },
 			statusIcon: Codicon.warning,
 			detailsResource: URI.file('/home/.agents/model-routers/broken.model-router.yaml'),
 			modelRouterRoutes: [],
@@ -139,7 +141,7 @@ suite('ModelRoutersWidget', () => {
 				'Daily Driver. Opus for features, Haiku for the rest.',
 				'feature (default). Opus \u00b7 High \u00b7 Building a feature.',
 				'Haiku. Quick questions.',
-				'broken. broken.model-router.yaml has errors: Add `version: 1`.',
+				'broken. Broken on purpose. broken.model-router.yaml has errors: Add `version: 1`.',
 			],
 			spaced: ['Daily Driver. Opus for features, Haiku for the rest.', 'feature (default). Opus \u00b7 High \u00b7 Building a feature.', 'Haiku. Quick questions.'],
 			dashed: ['Daily Driver. Opus for features, Haiku for the rest.', 'feature (default). Opus \u00b7 High \u00b7 Building a feature.', 'Haiku. Quick questions.'],

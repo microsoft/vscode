@@ -88,8 +88,15 @@ class ModelRoutersAccessibility implements IAccessibleViewImplementation {
 
 	getProvider(accessor: ServicesAccessor): AccessibleContentProvider | undefined {
 		const editor = accessor.get(IEditorService).activeEditorPane;
-		const routers = editor instanceof ModelRoutersEditor ? editor.getAccessibilityContent() : undefined;
-		if (!editor || !routers) {
+		if (!(editor instanceof ModelRoutersEditor)) {
+			return undefined;
+		}
+		// The form for a router has its own help, and its fields read as they are.
+		const routers = editor.getAccessibilityContent();
+		if (editor.isShowingForm) {
+			return this.type === AccessibleViewType.Help ? this.provide(editor, localize('modelRouters.help.form', "Give the router a name and say what it is for, then for each route choose its model and say when to use it. Use Tab and Shift+Tab to move between the fields. Add Route adds a route, and a route's Remove button takes it out. Create or Save writes the router's file, and Cancel goes back to the routers without writing it. What is wrong with the router is said above those buttons.")) : undefined;
+		}
+		if (!routers) {
 			return undefined;
 		}
 		const content = this.type === AccessibleViewType.Help ? [
@@ -97,6 +104,10 @@ class ModelRoutersAccessibility implements IAccessibleViewImplementation {
 			localize('modelRouters.help.navigation', "Use Tab and Shift+Tab to move between search, Add Router, the tree, and the actions of the focused router. Use the Up Arrow, Down Arrow, Home, and End keys to navigate, and the Left Arrow and Right Arrow keys to collapse or expand a router. Press Enter on a router or a route to edit the router in a form."),
 			localize('modelRouters.help.actions', "On a router, Tab to the Route Switching switch and press Space to change whether a chat can move to another route after its first message, or to More Actions to edit the router, open its file, or edit it with AI. Press Enter on Add Router to enter a new router in a form."),
 		].join('\n\n') : routers;
+		return this.provide(editor, content);
+	}
+
+	private provide(editor: ModelRoutersEditor, content: string): AccessibleContentProvider {
 		const focused = DOM.getActiveElement();
 		return new AccessibleContentProvider(
 			AccessibleViewProviderId.ModelRouters,

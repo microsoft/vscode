@@ -121,7 +121,8 @@ export class ModelRoutersViewModel extends Disposable {
 				id,
 				name: metadata.name,
 				routerName: modelRouterNameFromModelId(metadata.id),
-				description: metadata.tooltip ?? '',
+				// A router keeps its description beside what the agent warns about, such as the routes it leaves out.
+				description: [metadata.tooltip, metadata.warningText?.modelRouter].filter(Boolean).join(' '),
 				hasWarning: metadata.statusIcon?.id === Codicon.warning.id,
 				file: metadata.detailsResource ? URI.revive(metadata.detailsResource) : undefined,
 				routes: metadata.modelRouterRoutes,
@@ -229,6 +230,8 @@ export class ModelRoutersViewModel extends Disposable {
 			throw new Error(exists);
 		}
 		const content = this.getContent(input, file, name, undefined);
+		// An editor can still have the unsaved text of a file by that name that was deleted
+		this.assertSaved(file);
 		try {
 			await this.fileService.createFile(file, VSBuffer.fromString(content));
 		} catch (error) {

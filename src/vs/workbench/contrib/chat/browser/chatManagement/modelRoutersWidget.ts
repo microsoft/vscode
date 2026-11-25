@@ -409,7 +409,11 @@ export class ModelRoutersWidget extends Disposable {
 	layout(height: number, width: number): void {
 		this.size = { height, width };
 		this.formPage.style.height = `${height}px`;
-		if (this.form.value || this.treeContainer.style.display === 'none') {
+		if (this.openForm) {
+			this.openForm.layout();
+			return;
+		}
+		if (this.treeContainer.style.display === 'none') {
 			return;
 		}
 		this.searchInput.layout();
@@ -426,10 +430,18 @@ export class ModelRoutersWidget extends Disposable {
 		}
 	}
 
+	/** Whether the form for a router is showing in place of the routers. */
+	get isShowingForm(): boolean {
+		return !!this.openForm;
+	}
+
+	/** The routers that are listed, which a search narrows down, as text. */
 	getAccessibilityContent(): string {
+		const routers = this.viewModel.search(this.searchInput.value.trim());
 		return [
 			localize('modelRouters.title', "Model Routers"),
-			...this.viewModel.routers.flatMap(item => [
+			...(routers.length ? [] : [this.emptyTitle.textContent ?? '']),
+			...routers.flatMap(item => [
 				getAriaLabel({ type: 'router', item }),
 				...(item.switching ? [item.switching === 'auto'
 					? localize('modelRouters.accessibleSwitchingOn', "Route switching is on.")
