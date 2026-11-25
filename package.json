@@ -264,7 +264,6 @@
     "tslib": "^2.6.3",
     "typanion": "^3.14.0",
     "typescript": "npm:@typescript/typescript6@^6.0.2",
-    "util": "^0.12.4",
     "vinyl-fs": "^3.0.3",
     "xml2js": "^0.5.0"
   },

@@ -11,7 +11,7 @@ import { IIdentityProvider, IListVirtualDelegate } from '../../../../base/browse
 import { LabelFuzzyScore } from '../../../../base/browser/ui/tree/abstractTree.js';
 import { IAsyncDataSource, ITreeContextMenuEvent, ITreeDragAndDrop, ITreeElementRenderDetails, ITreeNode, ITreeSorter } from '../../../../base/browser/ui/tree/tree.js';
 import { createMatches, FuzzyScore, IMatch } from '../../../../base/common/filters.js';
-import { combinedDisposable, Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { combinedDisposable, Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, derived, IObservable, observableValue, waitForState, constObservable, latestChangedValue, observableFromEvent, runOnChange, observableSignal, ISettableObservable } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
@@ -23,11 +23,11 @@ import { IInstantiationService, ServicesAccessor } from '../../../../platform/in
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { IOpenEvent, WorkbenchCompressibleAsyncDataTree } from '../../../../platform/list/browser/listService.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
-import { asCssVariable, ColorIdentifier, foreground } from '../../../../platform/theme/common/colorRegistry.js';
+import { asCssVariable, ColorIdentifier } from '../../../../platform/theme/common/colorRegistry.js';
 import { IFileIconTheme, IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IViewPaneOptions, ViewAction, ViewPane, ViewPaneShowActions } from '../../../browser/parts/views/viewPane.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../common/views.js';
-import { renderSCMHistoryItemGraph, toISCMHistoryItemViewModelArray, SWIMLANE_WIDTH, renderSCMHistoryGraphPlaceholder, historyItemHoverLabelForeground, historyItemHoverDefaultLabelBackground, getHistoryItemIndex, toHistoryItemHoverContent } from './scmHistory.js';
+import { renderSCMHistoryItemGraph, toISCMHistoryItemViewModelArray, SWIMLANE_WIDTH, renderSCMHistoryGraphPlaceholder, historyItemHoverLabelForeground, historyItemHoverDefaultLabelForeground, historyItemHoverDefaultLabelBackground, getHistoryItemIndex, toHistoryItemHoverContent } from './scmHistory.js';
 import { getHistoryItemEditorTitle, getProviderKey, isSCMHistoryItemChangeNode, isSCMHistoryItemChangeViewModelTreeElement, isSCMHistoryItemLoadMoreTreeElement, isSCMHistoryItemViewModelTreeElement, isSCMRepository } from './util.js';
 import { ISCMHistoryItem, ISCMHistoryItemChange, ISCMHistoryItemGraphNode, ISCMHistoryItemRef, ISCMHistoryItemViewModel, ISCMHistoryProvider, SCMHistoryItemChangeViewModelTreeElement, SCMHistoryItemLoadMoreTreeElement, SCMHistoryItemViewModelTreeElement, SCMIncomingHistoryItemId, SCMOutgoingHistoryItemId } from '../common/history.js';
 import { HISTORY_VIEW_PANE_ID, ISCMProvider, ISCMRepository, ISCMService, ISCMViewService, ViewMode } from '../common/scm.js';
@@ -73,7 +73,7 @@ import { IDragAndDropData } from '../../../../base/browser/dnd.js';
 import { ElementsDragAndDropData, ListViewTargetSector } from '../../../../base/browser/ui/list/listView.js';
 import { CodeDataTransfers } from '../../../../platform/dnd/browser/dnd.js';
 import { SCMHistoryItemTransferData } from './scmHistoryChatContext.js';
-import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 
@@ -563,7 +563,7 @@ class HistoryItemRenderer implements ICompressibleTreeRenderer<SCMHistoryItemVie
 
 		const elements = h('div.label', {
 			style: {
-				color: historyItemRefs[0].color ? asCssVariable(historyItemHoverLabelForeground) : asCssVariable(foreground),
+				color: historyItemRefs[0].color ? asCssVariable(historyItemHoverLabelForeground) : asCssVariable(historyItemHoverDefaultLabelForeground),
 				backgroundColor: historyItemRefs[0].color ? asCssVariable(historyItemRefs[0].color) : asCssVariable(historyItemHoverDefaultLabelBackground)
 			}
 		}, [
@@ -1679,7 +1679,7 @@ export class SCMHistoryViewPane extends ViewPane {
 	private readonly _repositoryOutdated = observableValue(this, false);
 
 	private readonly _actionRunner: IActionRunner;
-	private readonly _visibilityDisposables = new DisposableStore();
+	private readonly _visibilityDisposables = new MutableDisposable<DisposableStore>();
 
 	private readonly _treeOperationSequencer = new Sequencer();
 	private readonly _treeLoadMoreSequencer = new Sequencer();
@@ -1771,9 +1771,15 @@ export class SCMHistoryViewPane extends ViewPane {
 				return;
 			}
 
+			// The view can be hidden or disposed while it waits below, which disposes the store of this visibility
+			const store = new DisposableStore();
+			this._visibilityDisposables.value = store;
+			const cts = new CancellationTokenSource();
+			store.add(toDisposable(() => cts.dispose(true)));
+
 			// Create view model
 			this._treeViewModel = this.instantiationService.createInstance(SCMHistoryViewModel);
-			this._visibilityDisposables.add(this._treeViewModel);
+			store.add(this._treeViewModel);
 
 			// Wait for first repository to be initialized
 			const firstRepositoryInitialized = derived(this, reader => {
@@ -1783,7 +1789,15 @@ export class SCMHistoryViewPane extends ViewPane {
 
 				return historyItemRef !== undefined ? true : undefined;
 			});
-			await waitForState(firstRepositoryInitialized);
+			try {
+				await waitForState(firstRepositoryInitialized, initialized => initialized === true, undefined, cts.token);
+			} catch {
+				return;
+			}
+
+			if (store.isDisposed) {
+				return;
+			}
 
 			// Initial rendering
 			await this._progressService.withProgress({ location: this.id }, async () => {
@@ -1793,22 +1807,26 @@ export class SCMHistoryViewPane extends ViewPane {
 				});
 			});
 
-			this._visibilityDisposables.add(autorun(reader => {
+			if (store.isDisposed) {
+				return;
+			}
+
+			store.add(autorun(reader => {
 				this._treeViewModel.isViewModelEmpty.read(reader);
 				this._onDidChangeViewWelcomeState.fire();
 			}));
 
 			// Settings change
-			this._visibilityDisposables.add(runOnChange(this._scmViewService.graphShowIncomingChangesConfig, async () => {
+			store.add(runOnChange(this._scmViewService.graphShowIncomingChangesConfig, async () => {
 				await this.refresh();
 			}));
-			this._visibilityDisposables.add(runOnChange(this._scmViewService.graphShowOutgoingChangesConfig, async () => {
+			store.add(runOnChange(this._scmViewService.graphShowOutgoingChangesConfig, async () => {
 				await this.refresh();
 			}));
 
 			// Repository change
 			let isFirstRun = true;
-			this._visibilityDisposables.add(autorun(reader => {
+			store.add(autorun(reader => {
 				const repository = this._treeViewModel.repository.read(reader);
 				const historyProvider = repository?.provider.historyProvider.read(reader);
 				if (!repository || !historyProvider) {
@@ -1886,7 +1904,7 @@ export class SCMHistoryViewPane extends ViewPane {
 				this.themeService.onDidFileIconThemeChange,
 				() => this.themeService.getFileIconTheme());
 
-			this._visibilityDisposables.add(autorun(reader => {
+			store.add(autorun(reader => {
 				const fileIconTheme = fileIconThemeObs.read(reader);
 				const viewMode = this._treeViewModel.viewMode.read(reader);
 

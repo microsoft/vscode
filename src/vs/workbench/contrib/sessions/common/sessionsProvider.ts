@@ -221,6 +221,8 @@ export interface ISendRequestOptions {
 	readonly title?: string;
 	/** Hide this request and its response from the chat transcript. */
 	readonly hideFromTranscript?: boolean;
+	/** Queue the request behind the chat's request in progress instead of rejecting it. Agent Host providers honor it. */
+	readonly queue?: IChatSendRequestOptions['queue'];
 }
 
 /** Options for forking a chat within a session. */

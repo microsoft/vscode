@@ -3518,6 +3518,36 @@ suite('NewChatWidget', () => {
 		});
 	});
 
+	// Pins existing behaviour: the profile fetch already rejects a default account that is not a GitHub account.
+	test('does not fetch a GitHub profile for a Microsoft default account', async () => {
+		const profileRequests: string[] = [];
+		const githubProfileName = observableValue<string | undefined>('githubProfileName', 'stale');
+		const harness = {
+			_githubProfileAccountKey: 'github:stale',
+			_githubProfileName: githubProfileName,
+			enabled: { get: () => true },
+			_store: { isDisposed: false },
+			configurationService: { getValue: <T>(_key: string): T | undefined => undefined },
+			defaultAccountService: {
+				currentDefaultAccount: { authenticationProvider: { id: 'microsoft', enterprise: false }, sessionId: 's1' },
+				async getDefaultAccount() { return this.currentDefaultAccount; },
+			},
+			logService: { warn: () => assert.fail('Unexpected profile warning') },
+			async _fetchGitHubProfileName(providerId: string, _enterprise: boolean, sessionId: string) {
+				profileRequests.push(`${providerId}:${sessionId}`);
+				return 'Alice';
+			},
+		};
+
+		await refreshGitHubProfileName.call(harness);
+
+		assert.deepStrictEqual({
+			profileRequests,
+			accountKey: harness._githubProfileAccountKey,
+			profileName: githubProfileName.get(),
+		}, { profileRequests: [], accountKey: undefined, profileName: undefined });
+	});
+
 	test('distinguishes providers when profile requests complete out of order', async () => {
 		const githubProfile = new DeferredPromise<string | undefined>();
 		const enterpriseProfile = new DeferredPromise<string | undefined>();

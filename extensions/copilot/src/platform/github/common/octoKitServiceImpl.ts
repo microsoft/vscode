@@ -146,6 +146,25 @@ export class OctoKitService extends BaseOctoKitService implements IOctoKitServic
 		}
 	}
 
+	async getAutomationPrompt(owner: string, repo: string, automationId: string, revisionId: string | undefined): Promise<string | undefined> {
+		const segments = ['agents', 'repos', owner, repo, 'automations', automationId];
+		if (revisionId !== undefined) {
+			segments.push('revisions', revisionId);
+		}
+		// encodeURIComponent leaves dot segments intact; URL normalization would change the route.
+		if (segments.some(segment => !segment || segment === '.' || segment === '..')) {
+			return undefined;
+		}
+		const token = (await this._getPermissiveSession({}))?.accessToken;
+		if (!token) {
+			return undefined;
+		}
+		const route = segments.map(encodeURIComponent).join('/');
+		const result = await this._makeGHAPIRequest(route, 'GET', token, undefined, { silent404: true }, 'github-rest-get-automation-prompt');
+		const prompt = revisionId === undefined ? result?.prompt : result?.snapshot?.prompt;
+		return typeof prompt === 'string' && prompt.trim() ? prompt : undefined;
+	}
+
 	async getPullRequestFiles(owner: string, repo: string, pullNumber: number, authOptions: AuthOptions): Promise<PullRequestFile[]> {
 		const authToken = (await this._getPermissiveSession(authOptions))?.accessToken;
 		if (!authToken) {

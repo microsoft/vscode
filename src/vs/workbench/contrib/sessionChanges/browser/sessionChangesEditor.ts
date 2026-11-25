@@ -567,8 +567,9 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 		});
 		this._pendingResolve.clear();
 		// Only the main editor part hides with the main window's layout; other editor parts, such as of chat windows, show.
+		// A layout can also show the editors of a main editor part it reports hidden, such as the Agents window docking them beside the chat.
 		const inMainEditorPart = this.editorGroupService.getPart(this.group) === this.editorGroupService.mainPart;
-		if (inMainEditorPart && !this.layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
+		if (inMainEditorPart && !this.layoutService.isVisible(Parts.EDITOR_PART, mainWindow) && !this.getContainer()?.checkVisibility()) {
 			this._logger.log('changes editor set input deferred, editor part hidden', { session: sessionResource });
 			// The operation token is cancelled once setInput returns, so the deferred resolve owns its own.
 			// It is cancelled only when the input is cleared or replaced, not when the resolve fires.

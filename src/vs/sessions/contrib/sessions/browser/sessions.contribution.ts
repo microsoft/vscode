@@ -26,7 +26,7 @@ import { getEnabledViewContainerContextKey } from '../../../../workbench/common/
 import { ChatViewContainerId, ChatViewOpenKeybindings } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationNode, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { SessionsListStateMigrationContribution } from '../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
-import { SESSIONS_LIST_INDENT_ITEMS_SETTING, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING } from '../../../../workbench/contrib/sessions/browser/views/sessionsListCommon.js';
+import { SESSIONS_LIST_CANVASES_SECTION_SETTING, SESSIONS_LIST_INDENT_ITEMS_SETTING, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING } from '../../../../workbench/contrib/sessions/browser/views/sessionsListCommon.js';
 import { SessionsMouseNavigationContribution } from './sessionsMouseNavigation.js';
 import { SessionsListToolsContribution } from './sessionsListTools.js';
 import './sessionDetailsAction.js';
@@ -148,6 +148,7 @@ export const sessionsConfiguration = {
 		[SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING]: sessionsListConfigurationProperties[SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING],
 		[SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING]: sessionsListConfigurationProperties[SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING],
 		[SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING]: sessionsListConfigurationProperties[SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING],
+		[SESSIONS_LIST_CANVASES_SECTION_SETTING]: sessionsListConfigurationProperties[SESSIONS_LIST_CANVASES_SECTION_SETTING],
 		[SESSIONS_LIST_INDENT_ITEMS_SETTING]: sessionsListConfigurationProperties[SESSIONS_LIST_INDENT_ITEMS_SETTING],
 		[SESSIONS_CHAT_TABS_SETTING]: {
 			type: 'string',

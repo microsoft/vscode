@@ -85,4 +85,8 @@ export class MobileNullAgentHostTerminalService extends Disposable implements IA
 	getCwd(_instance: ITerminalInstance): { readonly initial: string; readonly current: string } | undefined {
 		return undefined;
 	}
+
+	getRequestedCwd(_instance: ITerminalInstance): URI | undefined {
+		return undefined;
+	}
 }
