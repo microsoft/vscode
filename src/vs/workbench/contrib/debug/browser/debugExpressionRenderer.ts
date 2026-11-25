@@ -174,7 +174,8 @@ export class DebugExpressionRenderer {
 		if (options.maxValueLength && value && value.length > options.maxValueLength) {
 			value = value.substring(0, options.maxValueLength) + '...';
 		}
-		if (options.maxLineLength && value) {
+		if (options.maxLineLength && value && !supportsANSI) {
+			// The ANSI path truncates while rendering, so that escape sequences are never cut.
 			value = truncateLongLines(value, options.maxLineLength);
 		}
 		if (!value) {
@@ -193,7 +194,7 @@ export class DebugExpressionRenderer {
 		}
 
 		if (supportsANSI) {
-			container.appendChild(handleANSIOutput(value, linkDetector, session ? session.root : undefined, options.highlights, hoverBehavior));
+			container.appendChild(handleANSIOutput(value, linkDetector, session ? session.root : undefined, options.highlights, hoverBehavior, options.maxLineLength));
 		} else {
 			container.appendChild(linkDetector.linkify(value, hoverBehavior, false, session?.root, true, options.highlights));
 		}
@@ -208,7 +209,7 @@ export class DebugExpressionRenderer {
 				if (supportsANSI) {
 					// note: intentionally using `this.linkDetector` so we don't blindly linkify the
 					// entire contents and instead only link file paths that it contains.
-					hoverContentsPre.appendChild(handleANSIOutput(value, this.linkDetector, session ? session.root : undefined, options.highlights, hoverBehavior));
+					hoverContentsPre.appendChild(handleANSIOutput(value, this.linkDetector, session ? session.root : undefined, options.highlights, hoverBehavior, options.maxLineLength));
 				} else {
 					hoverContentsPre.textContent = value;
 				}

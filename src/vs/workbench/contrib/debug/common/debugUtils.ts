@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CharCode } from '../../../../base/common/charCode.js';
 import { Event } from '../../../../base/common/event.js';
 import { equalsIgnoreCase, truncate } from '../../../../base/common/strings.js';
 import { IDebuggerContribution, IDebugSession, IConfig, IConfigPresentation, State } from './debug.js';
@@ -485,9 +486,11 @@ export function truncateLongLines(value: string, maxLineLength: number): string 
 		if (lineEnd === -1) {
 			lineEnd = value.length;
 		}
-		if (lineEnd - lineStart > maxLineLength) {
-			result = (result ?? '') + value.substring(copiedUpTo, lineStart) + truncate(value.substring(lineStart, lineEnd), maxLineLength);
-			copiedUpTo = lineEnd;
+		// The CR of a CRLF line break is not part of the line.
+		const contentEnd = lineEnd > lineStart && lineEnd < value.length && value.charCodeAt(lineEnd - 1) === CharCode.CarriageReturn ? lineEnd - 1 : lineEnd;
+		if (contentEnd - lineStart > maxLineLength) {
+			result = (result ?? '') + value.substring(copiedUpTo, lineStart) + truncate(value.substring(lineStart, contentEnd), maxLineLength);
+			copiedUpTo = contentEnd;
 		}
 		lineStart = lineEnd + 1;
 	}

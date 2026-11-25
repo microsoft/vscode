@@ -257,6 +257,8 @@ suite('Debug - Utils', () => {
 			truncateLongLines(`ab\n${long}\ncd`, 10),
 			truncateLongLines(`${long}\n${long}`, 10),
 			truncateLongLines('aaaaa\nbbbbb\nccccc', 10),
-		], ['short', 'xxxxxxxxxx\u2026', 'ab\nxxxxxxxxxx\u2026\ncd', 'xxxxxxxxxx\u2026\nxxxxxxxxxx\u2026', 'aaaaa\nbbbbb\nccccc']);
+			truncateLongLines(`${'x'.repeat(10)}\r\n${'y'.repeat(10)}`, 10),
+			truncateLongLines(`${long}\r\ncd`, 10),
+		], ['short', 'xxxxxxxxxx\u2026', 'ab\nxxxxxxxxxx\u2026\ncd', 'xxxxxxxxxx\u2026\nxxxxxxxxxx\u2026', 'aaaaa\nbbbbb\nccccc', 'xxxxxxxxxx\r\nyyyyyyyyyy', 'xxxxxxxxxx\u2026\r\ncd']);
 	});
 });

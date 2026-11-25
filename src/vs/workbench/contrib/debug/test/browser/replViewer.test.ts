@@ -31,18 +31,30 @@ suite('Debug - REPL Viewer', () => {
 		instantiationService.stub(IHoverService, NullHoverService);
 	});
 
-	test('output renderer truncates a huge line but keeps the full value', () => {
+	function renderOutput(value: string): { rendered: string; value: string } {
 		const renderer = instantiationService.createInstance(ReplOutputElementRenderer, instantiationService.createInstance(DebugExpressionRenderer));
 		const template = renderer.renderTemplate($('.container'));
 		const session = disposables.add(createTestSession(createMockDebugModel(disposables)));
-		const element = new ReplOutputElement(session, 'id', 'A'.repeat(100_000), severity.Info);
+		const element = new ReplOutputElement(session, 'id', value, severity.Info);
 		const node: ITreeNode<ReplOutputElement, FuzzyScore> = { element, children: [], depth: 1, visibleChildrenCount: 0, visibleChildIndex: 0, collapsible: false, collapsed: false, visible: true, filterData: undefined };
 
 		renderer.renderElement(node, 0, template);
-
-		assert.deepStrictEqual({ rendered: template.value.textContent?.length, value: element.toString().length }, { rendered: 10_001, value: 100_000 });
+		const result = { rendered: template.value.textContent ?? '', value: element.toString() };
 
 		renderer.disposeElement(node, 0, template);
 		renderer.disposeTemplate(template);
+		return result;
+	}
+
+	test('output renderer truncates a huge line but keeps the full value', () => {
+		const { rendered, value } = renderOutput('A'.repeat(100_000));
+
+		assert.deepStrictEqual({ rendered: rendered.length, value: value.length }, { rendered: 10_001, value: 100_000 });
+	});
+
+	test('output renderer does not cut an ANSI sequence at the truncation point', () => {
+		const { rendered } = renderOutput(`${'a'.repeat(9_998)}\x1b[31m${'b'.repeat(10)}\nhello`);
+
+		assert.strictEqual(rendered.slice(9_995), 'aaabb\u2026\nhello');
 	});
 });
