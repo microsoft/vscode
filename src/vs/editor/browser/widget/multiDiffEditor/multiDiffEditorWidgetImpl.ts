@@ -519,19 +519,18 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 			const mappings = template.editor.getDiffComputationResult()?.changes2 ?? [];
 			const start = range.getStartPosition();
 			const modifiedRange = mapToModifiedDocument(range, mappings);
-			if (modifiedRange) {
+			const change = mappings.find(mapping => mapping.original.contains(start.lineNumber));
+			const innerChange = change && template.editor.useTrueInlineDiffRendering && allowsTrueInlineDiffRendering(change) ? findInnerChange(change, start) : undefined;
+			if (innerChange) {
+				// A true inline diff shows the original text of a change within lines in the modified editor, in front of its modified text.
+				offset = template.getInjectedTextOffset(innerChange.modifiedRange.getStartPosition(), start.column - innerChange.originalRange.startColumn);
+				range = modifiedRange ?? Range.fromPositions(innerChange.modifiedRange.getStartPosition());
+			} else if (modifiedRange) {
 				range = modifiedRange;
 			} else {
-				const change = mappings.find(mapping => mapping.original.contains(start.lineNumber));
-				const deletion = change && template.editor.useTrueInlineDiffRendering && allowsTrueInlineDiffRendering(change) ? findInnerChange(change, start) : undefined;
-				if (!deletion) {
-					// Deleted text shows in view zones of the modified editor, which can neither reveal nor highlight a range in them.
-					this._scrollToItemOffset(index, template.getDeletedTextOffset(start));
-					return;
-				}
-				// A true inline diff shows deleted text in the line of the modified editor, in front of where it was deleted.
-				range = Range.fromPositions(deletion.modifiedRange.getStartPosition());
-				offset = template.getInjectedTextOffset(range.getStartPosition(), start.column - deletion.originalRange.startColumn);
+				// Deleted text shows in view zones of the modified editor, which can neither reveal nor highlight a range in them.
+				this._scrollToItemOffset(index, template.getDeletedTextOffset(start));
+				return;
 			}
 			side = 'modified';
 		}
