@@ -463,7 +463,7 @@ describe('cloud session visibility', () => {
 				{ revision: 'unknown', suffix: '', expected: 'Current prompt' },
 				{ revision: undefined, suffix: '', expected: 'Current prompt' },
 			])('loads the correct authored prompt for revision $revision', async ({ revision, suffix, expected }) => {
-				const { history, fetch, auth } = await open({ ...task, automation_revision_id: revision }, [userMessage(raw)], {
+				const { history, fetch, auth } = await open({ ...task, automation_revision_id: revision }, [], {
 					prompt: 'Current prompt', snapshot: { prompt: 'Recorded prompt' },
 				});
 				expect(history[0]).toMatchObject({ prompt: expected });
@@ -477,7 +477,7 @@ describe('cloud session visibility', () => {
 				const { history, fetch } = await open({
 					...task, automation_id: undefined, automation_revision_id: 'r1', custom_agent: { is_automation: isAutomation },
 					sessions: [{ ...initialSession, event_content: '  Display prompt\n' }],
-				}, [userMessage(raw), userMessage('Follow-up')]);
+				}, [evt('session.start', { sessionId: initialSession.id }), userMessage(raw), userMessage('Follow-up')]);
 				expect(history.filter(t => t instanceof ChatRequestTurn2).map(t => [t.prompt, t.isRequestHidden])).toEqual([
 					[isAutomation ? '  Display prompt\n' : raw, undefined], ['Follow-up', undefined],
 				]);
@@ -508,6 +508,46 @@ describe('cloud session visibility', () => {
 					{ prompt: '', isRequestHidden: true }, { response: [{ value: { value: 'Initial reply' } }] }, { prompt: 'Follow-up' }, { response: [] },
 				]);
 				expect(fetch).not.toHaveBeenCalled();
+			});
+
+			it.each([true, false])('preserves a repeated follow-up in a partial log (has session.start: %s)', async hasStart => {
+				const { history } = await open({
+					...task, sessions: [{ ...initialSession, event_content: 'Scheduled instructions' }, { ...initialSession, id: 'second' }],
+				}, [
+					...(hasStart ? [evt('session.start', { sessionId: 'second' })] : []),
+					userMessage(raw),
+					evt('assistant.message', { messageId: 'answer', content: 'Follow-up answer' }),
+				]);
+				expect(summarise(history)).toEqual([
+					{ kind: 'request', prompt: 'Scheduled instructions' }, { kind: 'response', parts: [] },
+					{ kind: 'request', prompt: raw }, { kind: 'response', parts: [{ type: 'markdown', value: 'Follow-up answer' }] },
+				]);
+			});
+
+			it('recognizes an explicitly automation-sourced input without a session start', async () => {
+				const { history } = await open({ ...task, sessions: [{ ...initialSession, event_content: 'Scheduled instructions' }] }, [
+					evt('user.message', { source: 'automation', content: raw }),
+					evt('assistant.message', { messageId: 'first-answer', content: 'Opening answer' }),
+					userMessage(raw),
+					evt('assistant.message', { messageId: 'next-answer', content: 'Next answer' }),
+				]);
+				expect(summarise(history)).toEqual([
+					{ kind: 'request', prompt: 'Scheduled instructions' }, { kind: 'response', parts: [{ type: 'markdown', value: 'Opening answer' }] },
+					{ kind: 'request', prompt: raw }, { kind: 'response', parts: [{ type: 'markdown', value: 'Next answer' }] },
+				]);
+			});
+
+			it.each([true, false])('keeps an unrecorded follow-up separate from the opening response (has opening session.start: %s)', async hasStart => {
+				const { history } = await open({ ...task, sessions: [{ ...initialSession, event_content: 'Scheduled instructions' }] }, [
+					...(hasStart ? [evt('session.start', { sessionId: initialSession.id })] : []),
+					evt('assistant.message', { messageId: 'first-answer', content: 'Opening answer' }),
+					userMessage('Continue from here'),
+					evt('assistant.message', { messageId: 'next-answer', content: 'Next answer' }),
+				]);
+				expect(summarise(history)).toEqual([
+					{ kind: 'request', prompt: 'Scheduled instructions' }, { kind: 'response', parts: [{ type: 'markdown', value: 'Opening answer' }] },
+					{ kind: 'request', prompt: 'Continue from here' }, { kind: 'response', parts: [{ type: 'markdown', value: 'Next answer' }] },
+				]);
 			});
 		});
 
