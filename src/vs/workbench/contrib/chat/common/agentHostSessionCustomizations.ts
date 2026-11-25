@@ -119,8 +119,12 @@ const skillNameFields: readonly string[] = ['skill', 'name', 'skillName', 'comma
  * backslash-escaped inside JSON tool input, and `:` is allowed so a Windows
  * drive prefix stays attached. Over-matching is harmless — a token only
  * survives if it resolves to a known customization.
+ *
+ * A match only starts where a run of path characters starts: the lookbehind
+ * rejects every other offset at once, where the engine would otherwise rescan
+ * the rest of a long run from each of them, in quadratic time (#350187).
  */
-const pathTokenPattern = /[\w.~@$():[\]+-]*(?:[/\\]+[\w.~@$():[\]+-]+)+/g;
+const pathTokenPattern = /(?<![\w.~@$():[\]+/\\-])[\w.~@$():[\]+-]*(?:[/\\]+[\w.~@$():[\]+-]+)+/g;
 
 function readSkillName(input: string): string | undefined {
 	let parsed: unknown;
@@ -283,7 +287,10 @@ export class CustomizationIndex {
 	private readonly _resolvedPaths = new Map<string, ISessionChatCustomization | undefined>();
 	/** Tokens looked up on this index; only these are worth carrying to the next one. */
 	private readonly _usedPathTokens = new Set<string>();
-	private readonly _resolvedPathDependencies = new Map<string, { readonly paths: readonly string[]; readonly containerPaths: readonly string[] }>();
+	/** The paths each token was looked up as; a token is resolved again when one of them, or a folder above it, changes. */
+	private readonly _resolvedPathCandidates = new Map<string, readonly string[]>();
+	/** No folder longer than this can be a container, so lookups skip them. */
+	private _maxContainerPathLength = 0;
 	private readonly _roots: readonly string[];
 
 	constructor(
@@ -339,13 +346,18 @@ export class CustomizationIndex {
 		// Guessing from punctuation would misread a versioned plugin root such as
 		// `.../plugins/foo/1.2.0` as a file and claim its siblings.
 		if (kind === SessionCustomizationKind.Plugin) {
-			this._byContainerPath.set(path, entry);
+			this._addContainer(path, entry);
 		} else if (kind === SessionCustomizationKind.Skill) {
 			const container = path.slice(0, path.lastIndexOf('/'));
 			if (container) {
-				this._byContainerPath.set(container, entry);
+				this._addContainer(container, entry);
 			}
 		}
+	}
+
+	private _addContainer(path: string, entry: ISessionChatCustomization): void {
+		this._byContainerPath.set(path, entry);
+		this._maxContainerPathLength = Math.max(this._maxContainerPathLength, path.length);
 	}
 
 	private _resolvePath(token: string): ISessionChatCustomization | undefined {
@@ -359,10 +371,8 @@ export class CustomizationIndex {
 	}
 
 	protected _resolvePathUncached(token: string): ISessionChatCustomization | undefined {
-		const paths: string[] = [];
-		const containerPaths: string[] = [];
-		this._resolvedPathDependencies.set(token, { paths, containerPaths });
 		const candidates: string[] = [];
+		this._resolvedPathCandidates.set(token, candidates);
 		const normalized = normalizePath(token.startsWith('file://') ? (toFsPath(token) ?? token) : token);
 		if (!normalized) {
 			return undefined;
@@ -373,17 +383,25 @@ export class CustomizationIndex {
 		}
 
 		for (const candidate of candidates) {
-			paths.push(candidate);
-			const direct = this._byPath.get(candidate);
-			if (direct) {
-				return direct;
+			const resolved = this._byPath.get(candidate) ?? this._findContainer(candidate);
+			if (resolved) {
+				return resolved;
 			}
-			for (let parent = candidate; parent.includes('/'); parent = parent.slice(0, parent.lastIndexOf('/'))) {
-				containerPaths.push(parent);
-				const container = this._byContainerPath.get(parent);
-				if (container) {
-					return container;
-				}
+		}
+		return undefined;
+	}
+
+	/**
+	 * Finds the customization that owns the folder of `path`, nearest first.
+	 * Folders longer than every container are skipped without a lookup: hashing
+	 * each parent of a path token hundreds of kilobytes long copied every one of
+	 * them and exhausted the heap (#345353).
+	 */
+	private _findContainer(path: string): ISessionChatCustomization | undefined {
+		for (let end = path.length <= this._maxContainerPathLength ? path.length : path.lastIndexOf('/', this._maxContainerPathLength); end > 0; end = path.lastIndexOf('/', end - 1)) {
+			const container = this._byContainerPath.get(path.slice(0, end));
+			if (container) {
+				return container;
 			}
 		}
 		return undefined;
@@ -394,21 +412,19 @@ export class CustomizationIndex {
 			return;
 		}
 		const changedPaths = changedCustomizationPaths(previous._byPath, this._byPath);
-		const changedContainerPaths = changedCustomizationPaths(previous._byContainerPath, this._byContainerPath);
-		const pathsChanged = changedPaths.size > 0 || changedContainerPaths.size > 0;
+		const changedContainerPaths = [...changedCustomizationPaths(previous._byContainerPath, this._byContainerPath)];
+		const pathsChanged = changedPaths.size > 0 || changedContainerPaths.length > 0;
 		// Every resolved token is carried, not only those looked up so far: slices re-resolve turns lazily,
 		// so an index rebuilt again before they catch up would otherwise lose the cache of unvisited turns.
 		for (const token of previous._resolvedPaths.keys()) {
-			const resolved = previous._resolvedPaths.get(token);
-			const dependencies = previous._resolvedPathDependencies.get(token);
-			const affected = dependencies && pathsChanged
-				&& (dependencies.paths.some(path => changedPaths.has(path))
-					|| dependencies.containerPaths.some(path => changedContainerPaths.has(path)));
-			if (!dependencies || affected) {
+			const candidates = previous._resolvedPathCandidates.get(token);
+			const affected = candidates && pathsChanged
+				&& candidates.some(path => changedPaths.has(path) || changedContainerPaths.some(folder => isEqualOrInside(path, folder)));
+			if (!candidates || affected) {
 				continue;
 			}
-			this._resolvedPaths.set(token, resolved);
-			this._resolvedPathDependencies.set(token, dependencies);
+			this._resolvedPaths.set(token, previous._resolvedPaths.get(token));
+			this._resolvedPathCandidates.set(token, candidates);
 			this._usedPathTokens.add(token);
 		}
 	}
@@ -443,6 +459,11 @@ function changedCustomizationPaths(
 		}
 	}
 	return changed;
+}
+
+/** Whether the normalized `path` is `folder` or lies inside it. */
+function isEqualOrInside(path: string, folder: string): boolean {
+	return path.startsWith(folder) && (path.length === folder.length || path[folder.length] === '/');
 }
 
 export type CustomizationIndexFactory = (

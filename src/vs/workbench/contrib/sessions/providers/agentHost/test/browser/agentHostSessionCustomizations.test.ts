@@ -357,6 +357,62 @@ suite('Agent Host Session Customizations', () => {
 			[],
 		);
 	});
+
+	test('resolves a path token hundreds of kilobytes long without walking each of its folders', () => {
+		// A model stuck in a loop once wrote `tools/../` tens of thousands of times into one command (#345353).
+		const looped = 'tools/../'.repeat(43_651);
+		const longIndex = new CustomizationIndex(customizations, [root]);
+		const command = JSON.stringify({ command: `Get-ChildItem ${looped}x; Get-Content /repo/.github/skills/sessions/SKILL.md` });
+
+		assert.deepStrictEqual({
+			turn: resolveChatCustomizations(parseTurnCustomizationRefs([toolCall('powershell', command)]), longIndex).map(customization => customization.id),
+			insideSkill: longIndex.resolve({ kind: CustomizationRefKind.Path, value: `.github/skills/sessions/${looped}x` })?.id,
+			outsideSkill: longIndex.resolve({ kind: CustomizationRefKind.Path, value: `/repo/${looped}x` })?.id,
+		}, {
+			turn: ['skill-1'],
+			insideSkill: 'skill-1',
+			outsideSkill: undefined,
+		});
+	});
+
+	test('invalidates a cached miss when a skill folder deeper than any before it is added', () => {
+		// Lookups skip folders longer than the longest known container, so a cached miss must not depend on the folders looked up.
+		const ref = { kind: CustomizationRefKind.Path, value: '.github/skills/a-much-longer-skill-folder-name/reference.md' } as const;
+		const initial = new CountingCustomizationIndex(customizations, [root]);
+		const initialResult = initial.resolve(ref)?.id;
+		const updatedCustomizations: readonly Customization[] = customizations.map(customization => customization.type === CustomizationType.Directory
+			? {
+				...customization,
+				children: [
+					...(customization.children ?? []),
+					{ id: 'skill-2', type: CustomizationType.Skill, uri: URI.file('/repo/.github/skills/a-much-longer-skill-folder-name/SKILL.md').toString(), name: 'longer' },
+				],
+			}
+			: customization);
+		const updated = new CountingCustomizationIndex(updatedCustomizations, [root], undefined, initial);
+
+		assert.deepStrictEqual({
+			initialResult,
+			updatedResult: updated.resolve(ref)?.id,
+			initialPathResolutionCount: initial.pathResolutionCount,
+			updatedPathResolutionCount: updated.pathResolutionCount,
+		}, {
+			initialResult: undefined,
+			updatedResult: 'skill-2',
+			initialPathResolutionCount: 1,
+			updatedPathResolutionCount: 1,
+		});
+	});
+
+	test('scans a long run of path characters once', () => {
+		// Matching used to restart inside such a run at every offset, which froze the window (#350187).
+		const inputs = [
+			JSON.stringify({ command: `cat a/b ${'x'.repeat(200_000)}` }),
+			JSON.stringify({ command: `cat a/b ${'\\'.repeat(100_000)}` }),
+		];
+
+		assert.deepStrictEqual(inputs.map(input => parseTurnCustomizationRefs([toolCall('bash', input)]).map(ref => ref.value)), [['a/b'], ['a/b']]);
+	});
 });
 
 suite('Progressive Chat Customizations', () => {
