@@ -8698,7 +8698,13 @@ export class CopilotAgentSession extends Disposable {
 		} catch (error) {
 			this._logService.warn(`[Copilot:${this.sessionId}] Failed to flush edit attribution: ${error}`);
 		}
-		await this._wrapper.disconnect();
+		try {
+			await this._wrapper.disconnect();
+		} catch (error) {
+			// The runtime remains this session's, so workspace trust changes must reach it again.
+			this._retiring = false;
+			throw error;
+		}
 		await this._disposeShellInitScript();
 	}
 

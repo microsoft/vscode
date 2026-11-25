@@ -14180,6 +14180,57 @@ suite('CopilotAgent', () => {
 				}
 			});
 
+			test('stops a project extension that lost trust while its runtime retired, when a failed teardown keeps that runtime', async () => {
+				const fixture = await createFixture(false, true);
+				try {
+					await fixture.agent.chats.getMessages(fixture.chats[0], exactChatContext(fixture.session, fixture.chats[0], fixture.resources[0]));
+					const [sdk] = fixture.sdkSessions;
+					const internals = fixture.agent as unknown as {
+						_projectExtensionLaunchPolicy: CopilotProjectExtensionLaunchPolicy;
+						_projectExtensionTrustReconciler: Throttler;
+						_reconcilePendingProjectExtensionTrustChange(): Promise<void>;
+						_allLiveSessions(): CopilotAgentSession[];
+						_destroyLiveSession(session: CopilotAgentSession, preserveRouting: boolean, requireSuccess: boolean): Promise<void>;
+					};
+					const live = internals._allLiveSessions().find(session => session.sessionId === sdk.sessionId)!;
+					const settled = () => internals._projectExtensionTrustReconciler.queue(() => internals._reconcilePendingProjectExtensionTrustChange());
+					const extensionFolder = URI.joinPath(fixture.previous, '.github', 'extensions', 'revoked');
+					await fs.mkdir(extensionFolder.fsPath, { recursive: true });
+					await fs.writeFile(URI.joinPath(extensionFolder, 'extension.mjs').fsPath, '');
+					const trust = (trustedUris: string[]) => fixture.configurationService.updateRootConfig({ [AgentHostWorkspaceTrustConfigKey]: { enabled: true, trustedUris } });
+					trust([extensionFolder.toString()]);
+					await settled();
+					const { launch } = await internals._projectExtensionLaunchPolicy.resolveLaunch(URI.joinPath(extensionFolder, 'extension.mjs').fsPath, 'project', '/copilot-sdk/extension-bootstrap.mjs');
+					sdk.extensions.push({ id: 'project:revoked', name: 'revoked', source: 'project', status: launch ? 'running' : 'failed' });
+					const disconnecting = new DeferredPromise<void>();
+					const disconnectFailure = new DeferredPromise<void>();
+					Object.assign(sdk, {
+						disconnect: async () => {
+							sdk.disconnectCalls++;
+							disconnecting.complete();
+							await disconnectFailure.p;
+						},
+					});
+
+					// A teardown that must succeed, as after a failed canvas extension reconcile, whose disconnect fails once trust was revoked.
+					const teardown = internals._destroyLiveSession(live, true, true).then(() => 'tornDown', (error: Error) => error.message);
+					await disconnecting.p;
+					trust([]);
+					await settled();
+					const reloadsWhileRetiring = sdk.extensionReloadCalls;
+					disconnectFailure.error(new Error('fixture disconnect failed'));
+
+					assert.deepStrictEqual({ teardown: await teardown, reloadsWhileRetiring, reloads: sdk.extensionReloadCalls, kept: internals._allLiveSessions().includes(live) }, {
+						teardown: 'fixture disconnect failed',
+						reloadsWhileRetiring: 0,
+						reloads: 1,
+						kept: true,
+					});
+				} finally {
+					await fixture.dispose();
+				}
+			});
+
 			test('canvas list and open resume a cold exact chat without sending a message, while close only reaches a live chat', async () => {
 				const fixture = await createFixture(false, true);
 				let restored: CopilotAgent | undefined;
@@ -25322,6 +25373,34 @@ suite('CopilotAgent', () => {
 			});
 		}).timeout(30_000);
 
+		test('a canvas extension failure in a workspace-less draft\'s warm session does not block opening a canvas in the session that replaces it', async () => {
+			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/warm-qc-canvas-failure-home-`));
+			const h = await createWarmableAgent('warm-workspaceless-canvas-failure', undefined, { workspacelessHome: userHome, rootConfig: { [AgentHostCanvasesEnabledConfigKey]: true } });
+			afterTest(async () => {
+				await disposeAgent(h.agent);
+				await fs.rm(userHome.fsPath, { recursive: true, force: true });
+			});
+			const session = AgentSession.uri('copilotcli', 'warm-workspaceless-canvas-failure');
+			h.client.extensionInventory = {
+				mode: 'load_and_augment',
+				extensions: [{ id: 'user:preview', name: 'Preview', path: '/extensions/preview.mjs', source: 'user', enabled: true }],
+			};
+			await h.agent.chats.warmChat!(h.chat, h.context);
+			// The warm session can't apply a change made from the draft, which records the failure on it.
+			Object.assign(h.sdkSessions[0].rpc.extensions, { reconcile: async () => { throw new Error('fixture reconcile failed'); } });
+			await assert.rejects(h.agent.setAgentExtensionEnabled('user:preview', false, session, h.chat), /fixture reconcile failed/);
+			// A model picked afterwards starts the draft in a new session instead.
+			await h.agent.chats.changeModel(h.chat, { id: 'claude-sonnet' }, h.context);
+			const opened = await h.agent.openSessionCanvas(session, { canvasId: 'preview', instanceId: 'preview' }, h.chat, h.context);
+
+			assert.deepStrictEqual({ opened: opened.kind, creates: h.state().creates, deleted: h.state().deleted, opens: h.sdkSessions.map(s => s.canvasOpenCalls.map(call => call.instanceId)) }, {
+				opened: 'opened',
+				creates: 2,
+				deleted: 1,
+				opens: [[], ['preview']],
+			});
+		}).timeout(30_000);
+
 		test('listing canvases in a workspace-less draft launches it early without starting it, and opening one claims that launch', async () => {
 			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/warm-qc-canvas-list-home-`));
 			const h = await createWarmableAgent('warm-workspaceless-canvas-list', undefined, { workspacelessHome: userHome, rootConfig: { [AgentHostCanvasesEnabledConfigKey]: true } });
@@ -25394,6 +25473,40 @@ suite('CopilotAgent', () => {
 			const listed = await h.agent.listSessionCanvases(AgentSession.uri('copilotcli', 'warm-workspaceless-canvas-stuck'), h.chat, h.context);
 
 			assert.deepStrictEqual(listed?.map(canvas => canvas.canvasId), ['board']);
+		}).timeout(30_000);
+
+		test('listing canvases in a workspace-less draft leaves them unsettled when a canvas extension preference changes meanwhile', async () => {
+			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/warm-qc-canvas-change-home-`));
+			const h = await createWarmableAgent('warm-workspaceless-canvas-change', undefined, { workspacelessHome: userHome, rootConfig: { [AgentHostCanvasesEnabledConfigKey]: true } });
+			afterTest(async () => {
+				await disposeAgent(h.agent);
+				await fs.rm(userHome.fsPath, { recursive: true, force: true });
+			});
+			h.client.extensionInventory = {
+				mode: 'load_and_augment',
+				extensions: [{ id: 'user:preview', name: 'Preview', path: '/extensions/preview.mjs', source: 'user', enabled: true }],
+			};
+			await h.agent.chats.warmChat!(h.chat, h.context);
+			const [warm] = h.sdkSessions;
+			warm.extensions.push({ id: 'user:preview', name: 'Preview', source: 'user', status: 'running' });
+			warm.canvases.push({ canvasId: 'preview', extensionId: 'user:preview', displayName: 'Preview', description: 'Preview generated content.' });
+			const listing = new DeferredPromise<void>();
+			const release = new DeferredPromise<void>();
+			const { list } = warm.rpc.canvas;
+			Object.assign(warm.rpc.canvas, {
+				list: async () => {
+					listing.complete();
+					await release.p;
+					return list();
+				},
+			});
+
+			const listed = h.agent.listSessionCanvases(AgentSession.uri('copilotcli', 'warm-workspaceless-canvas-change'), h.chat, h.context);
+			await listing.p;
+			await h.agent.setAgentExtensionEnabled('user:preview', false);
+			release.complete();
+
+			assert.deepStrictEqual(await listed, undefined);
 		}).timeout(30_000);
 
 		test('opening a canvas whose extension asked for consent while a workspace-less draft listed canvases starts the draft and takes the answer', async () => {

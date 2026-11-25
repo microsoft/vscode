@@ -3844,7 +3844,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	private async _withSessionCanvasChat<T>(session: URI, chat: URI, operationContext: AgentChatOperationContext, operation: CopilotCanvasChatOperation, task: (liveSession: CopilotAgentSession) => Promise<T>): Promise<T> {
 		const context = this._resolveSessionCanvasChatContext(session, chat, operationContext, operation);
-		const target = context.target;
+		// A draft's operation claims or replaces its pre-warmed runtime, so only the runtime it ends up with can stop it.
+		const target = this._provisionalSessions.get(context.provisionalKey)?.chat.toString() === context.chatKey ? undefined : context.target;
 		// Opening a canvas relaunches a runtime whose canvas enablement is stale, which replaces its failure too.
 		if (target && !target.hasReleasedCanvasProjection && !(operation === 'openSessionCanvas' && this._requiresCanvasRuntimeRefresh(target))) {
 			const failure = this._extensionReconciliationFailure(target);
@@ -3901,7 +3902,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (!target) {
 			throw new Error(localize('copilot.draftCanvasesUnavailable', "The canvases could not be listed because the chat did not start."));
 		}
-		return target.listSettledCanvases(COPILOT_DRAFT_CANVASES_SETTLE_TIMEOUT_MS);
+		// Background reconciliation skips a pre-warmed runtime, so it lists only while it matches the saved preferences.
+		const revision = this._extensionPreferenceRevision;
+		if (!this._isExtensionEnablementCurrent(target)) {
+			return undefined;
+		}
+		const canvases = await target.listSettledCanvases(COPILOT_DRAFT_CANVASES_SETTLE_TIMEOUT_MS);
+		return revision === this._extensionPreferenceRevision ? canvases : undefined;
 	}
 
 	/** Whether a live session runs canvases differently from a session launched with the current configuration. */
@@ -11830,6 +11837,15 @@ export class CopilotAgent extends Disposable implements IAgent {
 		} catch (error) {
 			this._logService.warn(`[Copilot:${chatSession.sessionId}] Failed to destroy session before cleanup: ${error instanceof Error ? error.message : String(error)}`);
 			if (requireSuccess) {
+				// The chat keeps this runtime, which workspace trust reconciliation skipped while it was retiring: stop any project
+				// extension that lost trust meanwhile. It serves nothing until its teardown succeeds, so refused ones need no retry.
+				if (chatSession.canvasRuntimeEnabled) {
+					try {
+						await chatSession.reconcileProjectExtensionsAfterTrustChange(await this._projectExtensionLaunchPolicy.reconciliationFor({ expanded: false, contracted: true }));
+					} catch (trustError) {
+						this._logService.error(`[Copilot:${chatSession.sessionId}] Failed to stop project extensions that lost workspace trust in a session that couldn't be torn down`, trustError);
+					}
+				}
 				throw error;
 			}
 		}
