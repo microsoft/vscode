@@ -31,8 +31,12 @@ const knownServerDataFolderNames = ['.vscode-server', '.vscode-server-insiders']
 const serverStateFolders = ['data/User/globalStorage', 'data/User/workspaceStorage', 'data/User/History', 'data/agentSessionData'];
 const homeStateFolders = ['.copilot'];
 const linkProgressPrefix = 'vscode-state:';
-const linkSteps = ['volume', 'stateFolder', 'statePath', 'stateLink', 'home', 'mountinfo', 'folders'];
-const linkSkipReasons = ['parent', 'mounted', 'symlink', 'file', 'state', 'home', 'running'];
+const linkSteps = ['capabilities', 'rootfs', 'volume', 'stateFolder', 'statePath', 'stateLink', 'home', 'mountinfo', 'folders'];
+const linkSkipReasons = ['parent', 'mounted', 'symlink', 'file', 'state', 'home', 'running', 'untrusted'];
+const linkSkippedOutcomes = ['missingCapabilities', 'readOnlyRootfs', 'homeInaccessible', 'stateNotRootOwned', 'untrustedState'] as const;
+/** Capabilities root needs to manage another user's folders or to enter their home folder, by their bit in `CapEff`. */
+const linkCapabilities = { CAP_CHOWN: 0, CAP_DAC_OVERRIDE: 1, CAP_DAC_READ_SEARCH: 2, CAP_FOWNER: 3 };
+const stateOwners = ['root', 'user', 'other'] as const;
 
 /** Computes the Dev Containers CLI's `${devcontainerId}` for the container's id labels. */
 export function getDevContainerId(idLabels: readonly string[]): string {
@@ -208,12 +212,46 @@ export function buildLinkDevContainerStateCommand(options: IDevContainerStateLin
 		`home=${shellQuote(homeFolder)}`,
 		`user_home=${shellQuote(userHomeFolder)}`,
 		`owner=${shellQuote(`${uid}:${gid}`)}`,
+		`user_uid=${shellQuote(uid)}`,
 		`state_owner=${shellQuote(`0:${gid}`)}`,
 		`keep_existing=${options.keepExistingFolders ? '1' : ''}`,
 		`state="$volume/"${shellQuote(stateFolderName)}`,
 		`link_path=${shellQuote(devContainerStatePath)}`,
 		// Progress on stdout for telemetry, see `parseLinkDevContainerStateOutput`; messages go to stderr.
 		`progress() { echo ${shellQuote(linkProgressPrefix)}"$1"; }`,
+		'progress step:capabilities',
+		// Root needs capabilities to manage another user's folders, which cap_drop can remove. Not needed for a root user.
+		// CAP_FOWNER is needed only for copying folders, see `need_fowner`.
+		'script_uid=',
+		'cap_eff=',
+		'if [ -r /proc/self/status ]; then',
+		'  while read -r key first second rest; do',
+		'    case "$key" in',
+		'      Uid:) script_uid=$second ;;',
+		'      CapEff:) cap_eff=$first ;;',
+		'    esac',
+		'  done < /proc/self/status',
+		'fi',
+		'case "$script_uid" in "") ;; 0) progress uid:root ;; *) progress uid:other ;; esac',
+		'case "$cap_eff" in ""|*[!0-9a-fA-F]*) cap_eff= ;; *) progress "capEff:$cap_eff"; cap_low=${cap_eff#"${cap_eff%?}"} ;; esac',
+		// True if the capabilities are unknown.
+		'has_cap() { [ -z "$cap_eff" ] || [ $((0x$cap_low >> $1 & 1)) = 1 ]; }',
+		'missing=',
+		'need_cap() {',
+		'  if ! has_cap $1; then progress "missing:$2"; missing="$missing $2"; fi',
+		'}',
+		`case "$owner" in 0:0) ;; *) need_cap ${linkCapabilities.CAP_CHOWN} CAP_CHOWN ;; esac`,
+		`case "$owner" in 0:*) ;; *) need_cap ${linkCapabilities.CAP_DAC_OVERRIDE} CAP_DAC_OVERRIDE ;; esac`,
+		'if [ -n "$missing" ]; then progress skipped:missingCapabilities; echo "Not persisting user state: the container lacks$missing" >&2; exit 0; fi',
+		'progress step:rootfs',
+		// The state link is in the root folder.
+		'if [ -r /proc/self/mountinfo ]; then',
+		'  root_options=',
+		'  while read -r mount_id parent_id device root mount_point mount_options rest; do',
+		'    if [ "$mount_point" = / ]; then root_options=$mount_options; fi',
+		'  done < /proc/self/mountinfo',
+		'  case ",$root_options," in *,ro,*) progress skipped:readOnlyRootfs; echo "Not persisting user state: the root file system is read-only" >&2; exit 0 ;; esac',
+		'fi',
 		'progress step:volume',
 		'test ! -L "$volume"',
 		'test -d "$volume"',
@@ -226,7 +264,29 @@ export function buildLinkDevContainerStateCommand(options: IDevContainerStateLin
 		// by root, so a later replacement does not affect this script.
 		'cd -P "$state"',
 		`if [ "$(pwd -P)" != "$volume_real/"${shellQuote(stateFolderName)} ]; then echo "$state is not a folder on the volume" >&2; exit 1; fi`,
-		'if [ "$(stat -c %u .)" != 0 ]; then echo "$state is not owned by root" >&2; exit 1; fi',
+		'owner_kind() { case "$1" in 0) echo root ;; "$user_uid") echo user ;; *) echo other ;; esac; }',
+		'state_uid=$(stat -c %u .)',
+		'progress "stateOwner:$(owner_kind "$state_uid")"',
+		// The volume's root folder.
+		'volume_uid=$(stat -c %u ..)',
+		'progress "volumeOwner:$(owner_kind "$volume_uid")"',
+		// E.g., after a `chown -R` of the volume in a lifecycle command. Taking ownership again would not make the folders and
+		// symlinks the user could add meanwhile safe for this script to work in.
+		'if [ "$state_uid" != 0 ]; then',
+		'  progress skipped:stateNotRootOwned',
+		'  echo "Not persisting user state: $state is not owned by root. To keep it, give it and its contents back to root (chown -R root:root) if you trust them, or remove it to start fresh" >&2',
+		'  exit 0',
+		'fi',
+		'root_only() { case "$(stat -c %u:%A "$1")" in 0:d????-??-?*) return 0 ;; *) return 1 ;; esac; }',
+		// A root user's state must neither come from nor be replaceable by another user, e.g., hooks in ~/.copilot run as root.
+		'if [ "$user_uid" = 0 ]; then',
+		'  if ! root_only . || ! root_only ..; then',
+		'    progress skipped:untrustedState; echo "Not persisting user state: a user other than root can write to $state or $volume" >&2; exit 0',
+		'  fi',
+		// Another user could replace the state folder with their own.
+		'elif [ "$(owner_kind "$volume_uid")" = other ]; then',
+		'  progress skipped:untrustedState; echo "Not persisting user state: another user owns $volume" >&2; exit 0',
+		'fi',
 		// Moved folders are no longer protected by the home folder's permissions, so only the user's group may enter. Root
 		// owns the state folder and the parents of moved folders, so the user cannot plant symlinks for this script to follow.
 		'chown -h "$state_owner" .',
@@ -234,7 +294,7 @@ export function buildLinkDevContainerStateCommand(options: IDevContainerStateLin
 		// Serializes links, e.g., from two windows opening the container, so a folder being moved is not taken for restored state.
 		'locked=',
 		'if command -v flock >/dev/null 2>&1; then exec 9<.; flock 9; locked=1; fi',
-		`test -e .layout || printf '%s\\n' ${shellQuote(stateLayoutVersion)} > .layout`,
+		`test -e .layout || test -L .layout || printf '%s\\n' ${shellQuote(stateLayoutVersion)} > .layout`,
 		'progress step:statePath',
 		'if [ -e "$link_path" ] && [ ! -L "$link_path" ]; then echo "$link_path exists and is not a symlink" >&2; exit 1; fi',
 		'progress step:stateLink',
@@ -243,13 +303,42 @@ export function buildLinkDevContainerStateCommand(options: IDevContainerStateLin
 		'set_home() {',
 		'  home_prefix=${1%/}',
 		'  home_found=',
+		'  home_inaccessible=',
 		'  if [ -d "$1" ]; then',
-		'    home_real=$(cd "$1" && pwd -P)',
-		'    home_real=${home_real%/}',
-		'    home_found=1',
+		'    if home_real=$(cd "$1" 2>/dev/null && pwd -P); then',
+		'      home_real=${home_real%/}',
+		'      home_found=1',
+		'    else',
+		'      home_inaccessible=1',
+		'    fi',
+		'  else',
+		'    check_home_access "$1"',
 		'  fi',
 		'}',
+		// The home folder or a symlink's target may exist below a folder that root cannot enter. Only reads, never writes.
+		'check_home_access() {',
+		'  home_path=$1',
+		'  home_links=0',
+		'  while [ $home_links -lt 40 ]; do',
+		'    while [ "$home_path" != / ] && [ ! -e "$home_path" ] && [ ! -L "$home_path" ]; do home_path=$(dirname "$home_path"); done',
+		'    if [ -e "$home_path" ] || [ ! -L "$home_path" ]; then break; fi',
+		'    home_target=$(readlink "$home_path") || return 0',
+		'    case "$home_target" in /*) home_path=$home_target ;; *) home_path=$(dirname "$home_path")/$home_target ;; esac',
+		'    home_links=$((home_links + 1))',
+		'  done',
+		'  if [ -d "$home_path" ] && ! (cd "$home_path" 2>/dev/null); then home_inaccessible=1; fi',
+		'}',
 		'set_home "$home"',
+		'if [ -n "$home_inaccessible" ]; then',
+		// E.g., a home folder with mode 700 that root does not own.
+		`  if has_cap ${linkCapabilities.CAP_DAC_OVERRIDE} || has_cap ${linkCapabilities.CAP_DAC_READ_SEARCH}; then`,
+		'    progress skipped:homeInaccessible; echo "Not persisting user state: home folder $home is not accessible" >&2',
+		'  else',
+		'    progress missing:CAP_DAC_OVERRIDE; progress missing:CAP_DAC_READ_SEARCH; progress skipped:missingCapabilities',
+		'    echo "Not persisting user state: root cannot enter home folder $home without CAP_DAC_OVERRIDE or CAP_DAC_READ_SEARCH" >&2',
+		'  fi',
+		'  exit 0',
+		'fi',
 		'if [ -z "$home_found" ]; then progress noHome; echo "Not persisting user state: home folder $home not found" >&2; exit 0; fi',
 		'progress step:mountinfo',
 		'test -r /proc/self/mountinfo',
@@ -268,6 +357,25 @@ export function buildLinkDevContainerStateCommand(options: IDevContainerStateLin
 		'}',
 		'is_other() { [ -L "$1" ] || { [ -e "$1" ] && [ ! -d "$1" ]; }; }',
 		'skip() { progress "skip:$1"; echo "Not persisting ~/$rel: $2" >&2; }',
+		// Copying the user's files with their permissions changes files root does not own. Checked before replacing anything.
+		'need_fowner() {',
+		'  case "$owner" in 0:*) return 0 ;; esac',
+		`  if ! has_cap ${linkCapabilities.CAP_FOWNER}; then`,
+		'    progress missing:CAP_FOWNER; progress skipped:missingCapabilities',
+		'    echo "Not persisting ~/$rel and the remaining folders: the container lacks CAP_FOWNER" >&2; exit 0',
+		'  fi',
+		'}',
+		// Restoring files another user wrote, e.g., before a change of the container user, would let them plant hooks that run
+		// as this user. Nobody else may be able to change a root user's files either. With ACLs, the group bits are the mask,
+		// which limits named users and groups. True if there is such a file or `find` fails.
+		'untrusted_files() {',
+		'  if [ "$user_uid" = 0 ]; then',
+		'    set -- "$1" \\( ! -user 0 -o ! -type l \\( -perm -020 -o -perm -002 \\) \\)',
+		'  else',
+		'    set -- "$1" ! -user 0 ! -user "$user_uid"',
+		'  fi',
+		'  { find "$@" -print 2>&1 || echo failed; } | { read -r line; }',
+		'}',
 		'link_state() {',
 		'  rel=$1',
 		'  shift',
@@ -275,9 +383,19 @@ export function buildLinkDevContainerStateCommand(options: IDevContainerStateLin
 		// Relative to the state folder, see above.
 		'  dst="./$rel"',
 		'  target="$link_path/$rel"',
-		'  if [ -z "$home_found" ]; then skip home "home folder $home_prefix not found"; return 0; fi',
+		'  if [ -z "$home_found" ]; then',
+		'    if [ -n "$home_inaccessible" ]; then skip home "home folder $home_prefix is not accessible"; else skip home "home folder $home_prefix not found"; fi',
+		'    return 0',
+		'  fi',
 		'  for parent in "$@"; do',
 		'    if is_other "$home_prefix/$parent" || is_other "./$parent"; then skip parent "~/$parent is not a folder"; return 0; fi',
+		// Like the state folder, only root may change the folders this script works in. Checked top-down, so a checked folder
+		// cannot be replaced.
+		'    if [ -d "./$parent" ] && ! root_only "./$parent"; then',
+		// The link would keep using the folder. Root writes no marker, see below, into a folder other users can change.
+		'      if [ -L "$src" ] && [ "$(readlink "$src")" = "$target" ]; then rm -f "$src"; fi',
+		'      skip untrusted "a user other than root can change $state/$parent"; return 0',
+		'    fi',
 		'  done',
 		'  if has_mount "$home_real/$rel"; then skip mounted "it is already mounted"; return 0; fi',
 		'  if [ -L "$src" ]; then',
@@ -286,11 +404,23 @@ export function buildLinkDevContainerStateCommand(options: IDevContainerStateLin
 		'    skip file "it is not a folder"; return 0',
 		'  fi',
 		'  if is_other "$dst"; then skip state "$state/$rel is not a folder"; return 0; fi',
+		// Restoring the volume's state would remove the folder without keeping a copy of it, or fail after removing it.
+		'  if [ -L "$dst.deferred" ] || { [ -e "$dst.deferred" ] && [ ! -f "$dst.deferred" ]; }; then skip state "$state/$rel.deferred is not a file"; return 0; fi',
 		// Moving or replacing a folder that is in use would lose the changes made to it meanwhile. The marker keeps a copy of
-		// these changes when the volume's state replaces the folder later, see below.
+		// these changes when the volume's state replaces the folder later, see below. Recorded before checking the volume's
+		// state, which may become eligible later.
 		'  if [ -n "$keep_existing" ] && [ ! -L "$src" ] && [ -d "$src" ]; then',
 		'    if [ -d "$dst" ]; then : > "$dst.deferred"; fi',
 		'    skip running "it exists and the container was already running"; return 0',
+		'  fi',
+		// Also for an earlier link once another container user took the folder over, which changes its owner, see below. Only
+		// then does connecting again check every file.
+		'  if [ -d "$dst" ] && { [ ! -L "$src" ] || [ "$(stat -c %u:%g "$dst")" != "$owner" ]; } && untrusted_files "$dst"; then',
+		// The container's folder stays in use, see above, as does one the user creates meanwhile. The link would keep using
+		// the volume's folder.
+		'    if [ -L "$src" ]; then rm -f "$src"; fi',
+		'    : > "$dst.deferred"',
+		'    skip untrusted "a user other than root or the container user owns or can change files in $state/$rel"; return 0',
 		'  fi',
 		'  for parent in "$@"; do',
 		'    if [ ! -d "$home_prefix/$parent" ]; then',
@@ -307,6 +437,7 @@ export function buildLinkDevContainerStateCommand(options: IDevContainerStateLin
 		// may have changed meanwhile, so a copy of it stays on the volume.
 		'      if [ -d "$src" ]; then',
 		'        if [ -e "$dst.deferred" ]; then',
+		'          need_fowner',
 		// A new folder, because the user owns earlier copies and could plant symlinks in them.
 		'          copy=$(mktemp -d "$dst.deferred.XXXXXX")',
 		'          cp -a "$src/." "$copy"',
@@ -316,6 +447,7 @@ export function buildLinkDevContainerStateCommand(options: IDevContainerStateLin
 		'      fi',
 		'    elif [ -d "$src" ]; then',
 		'      result=moved',
+		'      need_fowner',
 		// Copies, publishes the complete copy and only then removes the source, so an interrupted move is either retried or
 		// taken for restored state. Unfinished copies of other runs are removed only while holding the lock.
 		'      if [ -n "$locked" ]; then rm -rf "$dst".moving.*; else rm -rf "$dst.moving.$$"; fi',
@@ -328,7 +460,8 @@ export function buildLinkDevContainerStateCommand(options: IDevContainerStateLin
 		'    rm -f "$dst.deferred"',
 		'  fi',
 		'  test -d "$dst" || mkdir "$dst" || test -d "$dst"',
-		'  if [ "$(stat -c %u:%g "$dst")" != "$owner" ]; then chown -R "$owner" "$dst"; fi',
+		// The folder itself first, unlike GNU `chown -R`, so an interrupted change still shows in its owner.
+		'  if [ "$(stat -c %u:%g "$dst")" != "$owner" ]; then chown -h "$owner" "$dst"; chown -R "$owner" "$dst"; fi',
 		'  if [ ! -L "$src" ]; then',
 		'    ln -sT "$target" "$src" || test "$(readlink "$src")" = "$target"',
 		'    echo "Persisting ~/$rel in $state/$rel" >&2',
@@ -347,6 +480,21 @@ export interface IDevContainerStateLinkProgress {
 	/** The last step the command started, which is the failed step if the command failed. */
 	readonly step: string | undefined;
 	readonly homeFound: boolean;
+	/** Why the command did not link state folders, if it skipped them all. */
+	readonly skipped?: DevContainerStateLinkSkippedOutcome;
+	/** The capabilities root needs for the container user's folders and lacks, if it skipped linking because of them. At the `home` step, root needs either of them. */
+	readonly missingCapabilities?: readonly string[];
+	/** Whether the command ran as root. */
+	readonly scriptUser?: 'root' | 'other';
+	/** The command's effective capabilities, if it could read them. */
+	readonly capChown?: boolean;
+	readonly capDacOverride?: boolean;
+	readonly capDacReadSearch?: boolean;
+	readonly capFowner?: boolean;
+	/** Who owns the state folder. */
+	readonly stateOwner?: typeof stateOwners[number];
+	/** Who owns the volume's root folder, which can replace the state folder. */
+	readonly volumeOwner?: typeof stateOwners[number];
 	/** Folders whose state from an earlier container replaced the container's own folder. */
 	readonly restoredFolders: number;
 	/** Folders moved from the container to the state volume. */
@@ -359,9 +507,18 @@ export interface IDevContainerStateLinkProgress {
 	readonly skipReasons: string;
 }
 
+/** Link outcomes for containers that cannot have their state folders linked. */
+export type DevContainerStateLinkSkippedOutcome = typeof linkSkippedOutcomes[number];
+
 export function parseLinkDevContainerStateOutput(stdout: string): IDevContainerStateLinkProgress {
 	let step: string | undefined;
 	let homeFound = true;
+	let skipped: DevContainerStateLinkSkippedOutcome | undefined;
+	const missingCapabilities: string[] = [];
+	let scriptUser: 'root' | 'other' | undefined;
+	let capabilities: number | undefined;
+	let stateOwner: typeof stateOwners[number] | undefined;
+	let volumeOwner: typeof stateOwners[number] | undefined;
 	const folders: Record<string, number> = { restored: 0, moved: 0, created: 0, existing: 0 };
 	let skippedFolders = 0;
 	const skipReasons = new Set<string>();
@@ -379,17 +536,98 @@ export function parseLinkDevContainerStateOutput(stdout: string): IDevContainerS
 			skipReasons.add(linkSkipReasons.includes(value) ? value : 'unknown');
 		} else if (kind === 'folder' && Object.prototype.hasOwnProperty.call(folders, value)) {
 			folders[value]++;
+		} else if (kind === 'skipped') {
+			skipped = linkSkippedOutcomes.find(outcome => outcome === value);
+		} else if (kind === 'missing' && Object.prototype.hasOwnProperty.call(linkCapabilities, value)) {
+			missingCapabilities.push(value);
+		} else if (kind === 'uid' && (value === 'root' || value === 'other')) {
+			scriptUser = value;
+		} else if (kind === 'capEff' && /^[0-9a-f]+$/i.test(value)) {
+			// The capabilities used are in the last digit.
+			capabilities = parseInt(value.slice(-1), 16);
+		} else if (kind === 'stateOwner') {
+			stateOwner = stateOwners.find(owner => owner === value);
+		} else if (kind === 'volumeOwner') {
+			volumeOwner = stateOwners.find(owner => owner === value);
 		}
 	}
+	const hasCapability = (bit: number) => capabilities !== undefined && (capabilities >> bit & 1) === 1;
 	return {
 		step,
 		homeFound,
+		...(skipped ? { skipped } : {}),
+		...(missingCapabilities.length ? { missingCapabilities } : {}),
+		...(scriptUser ? { scriptUser } : {}),
+		...(capabilities !== undefined ? {
+			capChown: hasCapability(linkCapabilities.CAP_CHOWN),
+			capDacOverride: hasCapability(linkCapabilities.CAP_DAC_OVERRIDE),
+			capDacReadSearch: hasCapability(linkCapabilities.CAP_DAC_READ_SEARCH),
+			capFowner: hasCapability(linkCapabilities.CAP_FOWNER),
+		} : {}),
+		...(stateOwner ? { stateOwner } : {}),
+		...(volumeOwner ? { volumeOwner } : {}),
 		restoredFolders: folders.restored,
 		movedFolders: folders.moved,
 		createdFolders: folders.created,
 		existingFolders: folders.existing,
 		skippedFolders,
 		skipReasons: [...skipReasons].sort().join(','),
+	};
+}
+
+/** Describes why the link command skipped linking state folders, if it did. */
+export function getDevContainerStateLinkSkippedMessage(progress: IDevContainerStateLinkProgress): string | undefined {
+	switch (progress.skipped) {
+		case 'missingCapabilities':
+			if (progress.step === 'home') {
+				return `root lacks capabilities it needs to enter the home folder (${(progress.missingCapabilities ?? []).join(' or ')}), e.g., because of cap_drop`;
+			}
+			if (progress.step === 'folders') {
+				return `root lacks capabilities it needs to copy the container user's folders to the volume (${(progress.missingCapabilities ?? []).join(', ')}), e.g., because of cap_drop`;
+			}
+			return `root lacks capabilities it needs for the container user's folders (${(progress.missingCapabilities ?? []).join(', ')}), e.g., because of cap_drop`;
+		case 'readOnlyRootfs':
+			return 'the container\'s root file system is read-only';
+		case 'homeInaccessible':
+			return 'root cannot access the home folder';
+		case 'stateNotRootOwned':
+			return `the volume's ${stateFolderName} folder is not owned by root, e.g., after a lifecycle command ran \`chown -R\` on the volume. To keep its state, give it and its contents back to root if you trust them, or remove it to start fresh`;
+		case 'untrustedState':
+			return 'another user can change the state folder or the volume\'s root folder';
+		default:
+			return undefined;
+	}
+}
+
+/** Docker security settings of a container that can explain why linking failed, for telemetry. */
+export interface IDevContainerSecurityOptions {
+	/** Whether `CapDrop` includes ALL or CHOWN. */
+	readonly capDropChown?: boolean;
+	readonly privileged?: boolean;
+	/** Whether `UsernsMode` is set, e.g., to `host`. */
+	readonly usernsMode?: boolean;
+	readonly readonlyRootfs?: boolean;
+	/** The OCI runtime as a fixed category: runc, crun, gvisor, kata, sysbox, nvidia, youki, oci (Podman) or other. */
+	readonly runtime?: string;
+}
+
+// Checked in order, e.g., sysbox-runc is sysbox.
+const runtimeKinds = [['sysbox', 'sysbox'], ['runsc', 'gvisor'], ['gvisor', 'gvisor'], ['kata', 'kata'], ['nvidia', 'nvidia'], ['crun', 'crun'], ['youki', 'youki'], ['runc', 'runc']];
+
+/** Reads the security settings from a container's `HostConfig` in `docker inspect`. */
+export function getDevContainerSecurityOptions(hostConfig: unknown): IDevContainerSecurityOptions {
+	if (typeof hostConfig !== 'object' || hostConfig === null) {
+		return {};
+	}
+	const { CapDrop, Privileged, UsernsMode, ReadonlyRootfs, Runtime } = hostConfig as Record<string, unknown>;
+	const capDrop: readonly unknown[] | undefined = Array.isArray(CapDrop) ? CapDrop : CapDrop === null ? [] : undefined;
+	const runtime = typeof Runtime === 'string' ? Runtime.toLowerCase() : '';
+	return {
+		...(capDrop ? { capDropChown: capDrop.some(cap => typeof cap === 'string' && ['ALL', 'CHOWN'].includes(cap.toUpperCase().replace(/^CAP_/, ''))) } : {}),
+		...(typeof Privileged === 'boolean' ? { privileged: Privileged } : {}),
+		...(typeof UsernsMode === 'string' ? { usernsMode: !!UsernsMode } : {}),
+		...(typeof ReadonlyRootfs === 'boolean' ? { readonlyRootfs: ReadonlyRootfs } : {}),
+		...(runtime ? { runtime: runtimeKinds.find(([name]) => runtime.includes(name))?.[1] ?? (runtime === 'oci' ? 'oci' : 'other') } : {}),
 	};
 }
 

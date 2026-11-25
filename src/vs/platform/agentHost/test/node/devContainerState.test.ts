@@ -7,7 +7,7 @@ import assert from 'assert';
 import { spawnSync } from 'child_process';
 import { isWindows } from '../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { buildLinkDevContainerStateCommand, devContainerStateFallbackTarget, devContainerStateWorkspacesTarget, findDevContainerStateMount, getDefaultDevContainerIdLabels, getDevContainerId, getDevContainerStateMountTarget, getDevContainerStateVolumeLabels, getDevContainerStateVolumeName, IDevContainerStateLinkOptions, isDevContainerStateVolumeFor, parseLinkDevContainerStateOutput, sanitizeDevContainerStateErrorMessage } from '../../node/devContainerState.js';
+import { buildLinkDevContainerStateCommand, devContainerStateFallbackTarget, devContainerStateWorkspacesTarget, findDevContainerStateMount, getDefaultDevContainerIdLabels, getDevContainerId, getDevContainerSecurityOptions, getDevContainerStateLinkSkippedMessage, getDevContainerStateMountTarget, getDevContainerStateVolumeLabels, getDevContainerStateVolumeName, IDevContainerStateLinkOptions, isDevContainerStateVolumeFor, parseLinkDevContainerStateOutput, sanitizeDevContainerStateErrorMessage } from '../../node/devContainerState.js';
 
 suite('DevContainerState', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -188,6 +188,7 @@ suite('DevContainerState', () => {
 			'vscode-state:skip:mounted',
 			'vscode-state:skip:mounted',
 			'vscode-state:skip:running',
+			'vscode-state:skip:untrusted',
 			'vscode-state:skip:/home/node',
 			'vscode-state:step:/home/node',
 			'unrelated output',
@@ -197,9 +198,45 @@ suite('DevContainerState', () => {
 			parseLinkDevContainerStateOutput('vscode-state:step:volume\nvscode-state:step:home\nvscode-state:noHome\n'),
 			parseLinkDevContainerStateOutput(''),
 		], [
-			{ step: 'folders', homeFound: true, restoredFolders: 1, movedFolders: 2, createdFolders: 1, existingFolders: 1, skippedFolders: 5, skipReasons: 'mounted,running,symlink,unknown' },
+			{ step: 'folders', homeFound: true, restoredFolders: 1, movedFolders: 2, createdFolders: 1, existingFolders: 1, skippedFolders: 6, skipReasons: 'mounted,running,symlink,unknown,untrusted' },
 			{ step: 'home', homeFound: false, restoredFolders: 0, movedFolders: 0, createdFolders: 0, existingFolders: 0, skippedFolders: 0, skipReasons: '' },
 			{ step: undefined, homeFound: true, restoredFolders: 0, movedFolders: 0, createdFolders: 0, existingFolders: 0, skippedFolders: 0, skipReasons: '' },
+		]);
+	});
+
+	test('parses skipped links, capabilities and the state folder owner only as fixed values', () => {
+		const folders = { restoredFolders: 0, movedFolders: 0, createdFolders: 0, existingFolders: 0, skippedFolders: 0, skipReasons: '' };
+		assert.deepStrictEqual([
+			parseLinkDevContainerStateOutput('vscode-state:step:capabilities\nvscode-state:uid:root\nvscode-state:capEff:00000000a80425f2\nvscode-state:missing:CAP_CHOWN\nvscode-state:missing:CAP_FOWNER\nvscode-state:skipped:missingCapabilities\n'),
+			parseLinkDevContainerStateOutput('vscode-state:uid:other\nvscode-state:capEff:0\nvscode-state:stateOwner:user\nvscode-state:volumeOwner:root\nvscode-state:step:stateFolder\n'),
+			parseLinkDevContainerStateOutput('vscode-state:uid:/home/node\nvscode-state:capEff:/home\nvscode-state:missing:/etc\nvscode-state:stateOwner:node\nvscode-state:volumeOwner:/workspaces\nvscode-state:skipped:/home/node\n'),
+		], [
+			{ step: 'capabilities', homeFound: true, skipped: 'missingCapabilities', missingCapabilities: ['CAP_CHOWN', 'CAP_FOWNER'], scriptUser: 'root', capChown: false, capDacOverride: true, capDacReadSearch: false, capFowner: false, ...folders },
+			{ step: 'stateFolder', homeFound: true, scriptUser: 'other', capChown: false, capDacOverride: false, capDacReadSearch: false, capFowner: false, stateOwner: 'user', volumeOwner: 'root', ...folders },
+			{ step: undefined, homeFound: true, ...folders },
+		]);
+		assert.strictEqual(getDevContainerStateLinkSkippedMessage(parseLinkDevContainerStateOutput('vscode-state:missing:CAP_CHOWN\nvscode-state:skipped:missingCapabilities\n')), 'root lacks capabilities it needs for the container user\'s folders (CAP_CHOWN), e.g., because of cap_drop');
+		assert.strictEqual(getDevContainerStateLinkSkippedMessage(parseLinkDevContainerStateOutput('vscode-state:step:home\nvscode-state:missing:CAP_DAC_OVERRIDE\nvscode-state:missing:CAP_DAC_READ_SEARCH\nvscode-state:skipped:missingCapabilities\n')), 'root lacks capabilities it needs to enter the home folder (CAP_DAC_OVERRIDE or CAP_DAC_READ_SEARCH), e.g., because of cap_drop');
+		assert.strictEqual(getDevContainerStateLinkSkippedMessage(parseLinkDevContainerStateOutput('vscode-state:step:folders\nvscode-state:missing:CAP_FOWNER\nvscode-state:skipped:missingCapabilities\n')), 'root lacks capabilities it needs to copy the container user\'s folders to the volume (CAP_FOWNER), e.g., because of cap_drop');
+		assert.strictEqual(getDevContainerStateLinkSkippedMessage(parseLinkDevContainerStateOutput('vscode-state:step:stateFolder\nvscode-state:skipped:untrustedState\n')), 'another user can change the state folder or the volume\'s root folder');
+		assert.strictEqual(getDevContainerStateLinkSkippedMessage(parseLinkDevContainerStateOutput('vscode-state:step:stateFolder\nvscode-state:stateOwner:user\nvscode-state:skipped:stateNotRootOwned\n')), 'the volume\'s .vscode-state folder is not owned by root, e.g., after a lifecycle command ran `chown -R` on the volume. To keep its state, give it and its contents back to root if you trust them, or remove it to start fresh');
+	});
+
+	test('reads security settings from docker inspect as fixed values', () => {
+		assert.deepStrictEqual([
+			getDevContainerSecurityOptions({ CapDrop: null, Privileged: false, UsernsMode: '', ReadonlyRootfs: false, Runtime: 'runc' }),
+			getDevContainerSecurityOptions({ CapDrop: ['NET_RAW', 'cap_chown'], Privileged: true, UsernsMode: 'host', ReadonlyRootfs: true, Runtime: 'io.containerd.runsc.v1' }),
+			getDevContainerSecurityOptions({ CapDrop: ['ALL'], Runtime: 'sysbox-runc' }),
+			getDevContainerSecurityOptions({ CapDrop: ['NET_RAW'], Runtime: 'oci' }),
+			getDevContainerSecurityOptions({ Runtime: '/opt/custom/runtime' }),
+			getDevContainerSecurityOptions(null),
+		], [
+			{ capDropChown: false, privileged: false, usernsMode: false, readonlyRootfs: false, runtime: 'runc' },
+			{ capDropChown: true, privileged: true, usernsMode: true, readonlyRootfs: true, runtime: 'gvisor' },
+			{ capDropChown: true, runtime: 'sysbox' },
+			{ capDropChown: false, runtime: 'oci' },
+			{ runtime: 'other' },
+			{},
 		]);
 	});
 

@@ -9,6 +9,7 @@ import { ActionBar } from '../../../../../base/browser/ui/actionbar/actionbar.js
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { Action } from '../../../../../base/common/actions.js';
 import { timeout } from '../../../../../base/common/async.js';
+import { IDefaultAccount } from '../../../../../base/common/defaultAccount.js';
 import { Event } from '../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
@@ -92,6 +93,7 @@ suite('Sessions - Account Menu', () => {
 			instantiationService.stub(IHoverService, hoverService);
 			instantiationService.stub(IDefaultAccountService, new class extends mock<IDefaultAccountService>() {
 				override readonly onDidChangeDefaultAccount = Event.None;
+				override readonly currentDefaultAccount = null;
 				override async getDefaultAccount() { return null; }
 			}());
 			instantiationService.stub(IAuthenticationService, new class extends mock<IAuthenticationService>() {
@@ -255,6 +257,91 @@ suite('Sessions - Account Menu', () => {
 			}, { open: false, focused: true });
 		});
 	}
+
+	async function renderSignedInPanel(providerId: string, providerName: string, enterprise: boolean) {
+		const container = append(mainWindow.document.body, $('.monaco-workbench.agent-sessions-workbench'));
+		store.add(toDisposable(() => container.remove()));
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IContextKeyService, { contextMatchesRules: () => true });
+		instantiationService.stub(ICommandService, { executeCommand: async () => undefined });
+		const configurationService = new TestConfigurationService();
+		store.add(configurationService.onDidChangeConfigurationEmitter);
+		instantiationService.stub(IConfigurationService, configurationService);
+		instantiationService.stub(IContextMenuService, { onDidShowContextMenu: Event.None });
+		instantiationService.stub(IKeybindingService, new MockKeybindingService());
+		instantiationService.stub(ILayoutService, { activeContainer: container, mainContainer: container, getContainer: () => container, onDidLayoutContainer: Event.None });
+		instantiationService.stub(IAccessibilityService, new TestAccessibilityService());
+		instantiationService.stub(IMarkdownRendererService, {});
+		const hoverService = store.add(instantiationService.createInstance(HoverService));
+		hoverService.showDelayedHover = () => undefined;
+		instantiationService.stub(IHoverService, hoverService);
+		const defaultAccount: IDefaultAccount = { authenticationProvider: { id: providerId, name: providerName, enterprise }, accountName: 'Alex', sessionId: 'session', enterprise };
+		instantiationService.stub(IDefaultAccountService, new class extends mock<IDefaultAccountService>() {
+			override readonly onDidChangeDefaultAccount = Event.None;
+			override readonly currentDefaultAccount = defaultAccount;
+			override async getDefaultAccount() { return defaultAccount; }
+		}());
+		instantiationService.stub(IAuthenticationService, new class extends mock<IAuthenticationService>() {
+			override readonly onDidChangeSessions = Event.None;
+			override async getSessions() {
+				return [{ id: 'session', accessToken: 'token', account: { id: 'account', label: 'Alex' }, scopes: [] }];
+			}
+		}());
+		instantiationService.stub(IChatEntitlementService, new class extends mock<IChatEntitlementService>() {
+			override readonly entitlement = ChatEntitlement.Pro;
+			override readonly sentiment = { hidden: true };
+			override readonly quotas = {};
+			override readonly onDidChangeEntitlement = Event.None;
+			override readonly onDidChangeSentiment = Event.None;
+			override readonly onDidChangeQuotaExceeded = Event.None;
+			override readonly onDidChangeQuotaRemaining = Event.None;
+		}());
+		instantiationService.stub(ICodexAccountService, new class extends mock<ICodexAccountService>() {
+			override readonly account = { status: 'signedOut' as const };
+			override readonly onDidChangeAccount = Event.None;
+		}());
+		const menuActions = [instantiationService.createInstance(MenuItemAction, { id: 'workbench.action.openSettings', title: 'Settings' }, undefined, undefined, undefined, undefined)];
+		instantiationService.stub(IMenuService, new class extends mock<IMenuService>() {
+			override createMenu() {
+				return new class extends mock<IMenu>() {
+					override getActions(): [string, MenuItemAction[]][] { return [['test', menuActions]]; }
+					override dispose() { }
+				}();
+			}
+		}());
+		const action = store.add(new Action('sessions.action.titleBarAccountWidget', 'Agents Account and Status'));
+		const actionBar = store.add(new ActionBar(container, {
+			actionViewItemProvider: (action, options) => instantiationService.createInstance(TitleBarAccountWidget, action, options),
+		}));
+		actionBar.push(action);
+		await timeout(0);
+		const button = container.querySelector<HTMLElement>('.sessions-account-titlebar-widget');
+		assert.ok(button);
+		actionBar.focus(0);
+		const didRun = Event.toPromise(actionBar.onDidRun);
+		for (const type of ['keydown', 'keyup']) {
+			button.dispatchEvent(new KeyboardEvent(type, { key: 'Enter', keyCode: 13, bubbles: true }));
+		}
+		await didRun;
+		const markClass = container.querySelector('.sessions-account-titlebar-panel-provider-icon')?.className ?? '';
+		return {
+			mark: /codicon-(github|account)\b/.exec(markClass)?.[1],
+			usageRow: !!container.querySelector('.sessions-account-titlebar-panel-provider-usage'),
+			summary: container.querySelector('.sessions-account-titlebar-panel-summary')?.textContent ?? undefined,
+		};
+	}
+
+	test('shows the GitHub mark and usage row only for an account with a GitHub credential', async () => {
+		assert.deepStrictEqual({
+			github: await renderSignedInPanel('github', 'GitHub', false),
+			enterprise: await renderSignedInPanel('github-enterprise', 'GitHub Enterprise', true),
+			microsoft: await renderSignedInPanel('microsoft', 'Microsoft', false),
+		}, {
+			github: { mark: 'github', usageRow: true, summary: 'Signed in as Alex with GitHub' },
+			enterprise: { mark: 'github', usageRow: true, summary: 'Signed in as Alex with GitHub Enterprise' },
+			microsoft: { mark: 'account', usageRow: false, summary: 'Signed in as Alex with Microsoft' },
+		});
+	});
 
 	test('labels the signed-out Copilot account action', () => {
 		const signIn = MenuRegistry.getMenuItems(AgentsWindowMenus.AccountMenu)

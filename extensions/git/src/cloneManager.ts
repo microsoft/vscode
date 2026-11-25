@@ -191,7 +191,7 @@ export class CloneManager {
 		}
 	}
 
-	private async chooseExistingRepository(url: string, existingCachedRepositories: RepositoryCacheInfo[], options: CloneOptions): Promise<string | undefined> {
+	private async chooseExistingRepository(existingCachedRepositories: RepositoryCacheInfo[]): Promise<RepositoryCacheInfo | 'cloneAgain' | undefined> {
 		try {
 			const items: { label: string; description?: string; item?: RepositoryCacheInfo }[] = existingCachedRepositories.map(knownFolder => {
 				const isWorkspace = knownFolder.workspacePath.endsWith('.code-workspace');
@@ -203,12 +203,9 @@ export class CloneManager {
 			const placeHolder = l10n.t('Open Existing Repository Clone');
 			const pick = await window.showQuickPick(items, { placeHolder, canPickMany: false });
 			if (pick === cloneAgain) {
-				return (await this.cloneRepository(url, options.parentPath, options)) ?? undefined;
+				return 'cloneAgain';
 			}
-			if (!pick?.item) {
-				return undefined;
-			}
-			return pick.item.workspacePath;
+			return pick?.item;
 		} catch {
 			return undefined;
 		}
@@ -241,16 +238,22 @@ export class CloneManager {
 			return returnRepositoryPath ? matchingInCurrentWorkspace.repositoryPath : matchingInCurrentWorkspace.workspacePath;
 		}
 
-		let repoForWorkspace: string | undefined = (existingCachedRepositories.length === 1 ? existingCachedRepositories[0].workspacePath : undefined);
-		if (!repoForWorkspace) {
-			repoForWorkspace = await this.chooseExistingRepository(url, existingCachedRepositories, options);
+		// Only reuse a single existing clone silently for programmatic callers. When a user
+		// runs the clone command, let them choose between the existing clone and cloning again.
+		const isInteractive = !returnRepositoryPath && postCloneAction !== 'none';
+		let existingRepository: RepositoryCacheInfo | undefined = !isInteractive && existingCachedRepositories.length === 1 ? existingCachedRepositories[0] : undefined;
+		if (!existingRepository) {
+			const pick = await this.chooseExistingRepository(existingCachedRepositories);
+			if (pick === 'cloneAgain') {
+				return (await this.cloneRepository(url, options.parentPath, options)) ?? undefined;
+			}
+			existingRepository = pick;
 		}
-		if (repoForWorkspace) {
-			await this.doPostCloneAction(repoForWorkspace, postCloneAction);
-			return returnRepositoryPath
-				? existingCachedRepositories.find(repository => repository.workspacePath === repoForWorkspace)?.repositoryPath ?? repoForWorkspace
-				: repoForWorkspace;
+		if (!existingRepository) {
+			return;
 		}
-		return;
+
+		await this.doPostCloneAction(existingRepository.workspacePath, postCloneAction);
+		return returnRepositoryPath ? existingRepository.repositoryPath : existingRepository.workspacePath;
 	}
 }

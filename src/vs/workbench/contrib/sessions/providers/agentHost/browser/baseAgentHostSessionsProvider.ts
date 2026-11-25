@@ -13,7 +13,7 @@ import { IMarkdownString, MarkdownString, markdownStringEqual } from '../../../.
 import { Disposable, DisposableMap, DisposableStore, IDisposable, IReference, MutableDisposable, ReferenceCollection, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { CounterSet, mapsStrictEqualIgnoreOrder, ResourceMap, ResourceSet } from '../../../../../../base/common/map.js';
 import { deepClone, equals } from '../../../../../../base/common/objects.js';
-import { constObservable, derived, derivedOpts, IObservable, IReader, ISettableObservable, ITransaction, mapObservableArrayCached, observableFromEvent, observableSignal, observableSignalFromEvent, observableValueOpts, recomputeInitiallyAndOnChange, subtransaction, transaction, waitForState, autorun, observableValue } from '../../../../../../base/common/observable.js';
+import { constObservable, derived, derivedOpts, IObservable, IReader, ISettableObservable, ITransaction, mapObservableArrayCached, observableFromEvent, observableSignal, observableSignalFromEvent, observableValueOpts, recomputeInitiallyAndOnChange, runOnChange, subtransaction, transaction, waitForState, autorun, observableValue } from '../../../../../../base/common/observable.js';
 import { basename, dirname, extUriIgnorePathCase, getComparisonKey, isEqual, isEqualOrParent, joinPath, relativePath } from '../../../../../../base/common/resources.js';
 import { themeColorFromId, ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -94,6 +94,7 @@ import { openCanvasWithExtensionConsent } from '../../../../canvases/common/agen
 import type { ICanvasOpenOptions } from '../../../../../common/canvasReference.js';
 import { ChatMode } from '../../../../chat/common/chatModes.js';
 import { IChatSendRequestOptions, IChatService, type IChatModelReference } from '../../../../chat/common/chatService/chatService.js';
+import type { IChatResponseModel } from '../../../../chat/common/model/chatModel.js';
 import { IChatSessionsService } from '../../../../chat/common/chatSessionsService.js';
 import { assertAutomationSessionTemplate, IAutomationSessionTemplate } from '../../../../chat/common/automations/automation.js';
 import { fromAgentHostFileUri, getAgentHostCustomizationUri } from '../../../../chat/common/agentHostSessionCustomizations.js';
@@ -4523,18 +4524,38 @@ function isNestedChatWorkspaceAllowed(support: INestedChatWorkspaceSupport, work
 	return workspace.kind === 'folder' && workspace.isolation === 'folder' && !!support.sessionFolder && isEqual(workspace.folder, support.sessionFolder);
 }
 
-/** The cached sessions: each is followed for chat moves while it is cached. */
+/** The cached sessions, also indexed by their resource: each is followed for chat moves while it is cached. */
 class ChatMoveTrackingSessionCache extends Map<string, AgentHostSessionAdapter> {
+	/** Keys by full resource, fragment included: an older host lists `<parent>#subagent/<id>` rows beside their parent. */
+	private readonly _keysByResource = new ResourceMap<string>();
+	/** Keys by resource without its fragment, for routing chat ids; the most recently cached row of a resource wins. */
+	private readonly _keysByBaseResource = new ResourceMap<string>();
+
 	constructor(private readonly _tracker: AgentHostChatMoveTracker<AgentHostSessionAdapter>) {
 		super();
+	}
+
+	/** The cached session whose resource is `resource`. */
+	getByResource(resource: URI): AgentHostSessionAdapter | undefined {
+		const key = this._keysByResource.get(resource);
+		const session = key !== undefined ? this.get(key) : undefined;
+		return session && isEqual(session.resource, resource) ? session : undefined;
+	}
+
+	/** The key of the cached session whose resource, ignoring fragments, is `resource`. */
+	getKeyIgnoringFragment(resource: URI): string | undefined {
+		return this._keysByBaseResource.get(resource.with({ fragment: '' }));
 	}
 
 	override set(key: string, session: AgentHostSessionAdapter): this {
 		const previous = this.get(key);
 		if (previous && previous !== session) {
 			this._tracker.untrack(previous);
+			this._deleteResourceKey(previous, key);
 		}
 		super.set(key, session);
+		this._keysByResource.set(session.resource, key);
+		this._keysByBaseResource.set(session.resource.with({ fragment: '' }), key);
 		this._tracker.track(session, reader => session.readChatBackends(reader));
 		return this;
 	}
@@ -4543,6 +4564,7 @@ class ChatMoveTrackingSessionCache extends Map<string, AgentHostSessionAdapter> 
 		const previous = this.get(key);
 		if (previous) {
 			this._tracker.untrack(previous);
+			this._deleteResourceKey(previous, key);
 		}
 		return super.delete(key);
 	}
@@ -4551,7 +4573,19 @@ class ChatMoveTrackingSessionCache extends Map<string, AgentHostSessionAdapter> 
 		for (const session of this.values()) {
 			this._tracker.untrack(session);
 		}
+		this._keysByResource.clear();
+		this._keysByBaseResource.clear();
 		super.clear();
+	}
+
+	private _deleteResourceKey(session: AgentHostSessionAdapter, key: string): void {
+		if (this._keysByResource.get(session.resource) === key) {
+			this._keysByResource.delete(session.resource);
+		}
+		const baseResource = session.resource.with({ fragment: '' });
+		if (this._keysByBaseResource.get(baseResource) === key) {
+			this._keysByBaseResource.delete(baseResource);
+		}
 	}
 }
 
@@ -4699,11 +4733,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	/** Fires when {@link _lastSessionStates} or {@link _sessionCache} changes, for readers of a backend session's default chat. */
 	private readonly _backendSessionsChanged = observableSignal(this);
 
-	/** Cache of adapted sessions, keyed by exact backend resource. */
 	private readonly _chatMoveTracker = this._register(new AgentHostChatMoveTracker<AgentHostSessionAdapter>());
 	readonly onDidMoveChat: Event<IChatMovedEvent> = this._chatMoveTracker.onDidMoveChat;
-	protected readonly _sessionCache: Map<string, AgentHostSessionAdapter> = new ChatMoveTrackingSessionCache(this._chatMoveTracker);
-	private readonly _sessionKeysByResource = new ResourceMap<string>();
+	/** Cache of adapted sessions, keyed by exact backend resource. */
+	protected readonly _sessionCache = new ChatMoveTrackingSessionCache(this._chatMoveTracker);
 
 	protected _refreshSessionWorkspaces(): void {
 		const changed: ISession[] = [];
@@ -4991,6 +5024,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	protected _cacheInitialized = false;
 	protected readonly _sessionListVersion = observableValue(this, 0);
 	readonly sessionListVersion: IObservable<number> = this._sessionListVersion;
+	/** Triggers after every applied session listing; unlike {@link _sessionListVersion}, a connection change does not reset it. */
+	private readonly _sessionListingApplied = observableSignal(this);
 
 	private static readonly SESSION_REFRESH_RETRY_MIN_MS = 1_000;
 	private static readonly SESSION_REFRESH_RETRY_MAX_MS = 30_000;
@@ -5060,7 +5095,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			}
 			this._sessionCache.clear();
 			this._backendSessionsChanged.trigger(undefined);
-			this._sessionKeysByResource.clear();
 		}));
 
 		// Keep the state subscription of every on-screen session pinned so
@@ -5103,7 +5137,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			for (const removed of e.removed) {
 				if (removed instanceof AgentHostSessionAdapter) {
 					this._metadataBySession.delete(removed.backendUri.toString());
-					this._sessionKeysByResource.delete(removed.resource.with({ fragment: '' }));
 				}
 			}
 		}));
@@ -5262,7 +5295,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const rawId = meta.session.toString();
 		this._metadataBySession.set(rawId, meta);
 		const adapter = this._instantiationService.createInstance(AgentHostSessionAdapter, meta, this.id, resourceScheme, provider, options, this._getChatCatalogLoading(rawId), sessionId => this._acquireSessionChatDetails(sessionId));
-		this._sessionKeysByResource.set(adapter.resource.with({ fragment: '' }), rawId);
 		return adapter;
 	}
 
@@ -5696,15 +5728,23 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		// fire `onDidChangeSessions` when it does, so consumers re-query and
 		// re-filter (see the local provider's `preferAgentHost` listener).
 		const pendingSessions = [...this._pendingSessions.values()];
+		const pendingResources = new ResourceSet(pendingSessions.map(pendingSession => pendingSession.resource));
+		// The gate reads settings, so decide it once per agent rather than once per session.
+		const showSavedSessions = new Map<string, boolean>();
 		const sessions: ISession[] = [];
 		for (const cached of this._sessionCache.values()) {
 			if (this._isUnpublishedDraft(cached)) {
 				continue;
 			}
-			if (pendingSessions.some(pendingSession => isEqual(cached.resource, pendingSession.resource))) {
+			if (pendingResources.has(cached.resource)) {
 				continue;
 			}
-			if (this._shouldShowSavedSession(cached.agentProvider)) {
+			let show = showSavedSessions.get(cached.agentProvider);
+			if (show === undefined) {
+				show = this._shouldShowSavedSession(cached.agentProvider);
+				showSavedSessions.set(cached.agentProvider, show);
+			}
+			if (show) {
 				sessions.push(cached);
 			}
 		}
@@ -5714,6 +5754,25 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			}
 		}
 		return sessions;
+	}
+
+	/**
+	 * The session of {@link getAllSessions} with the given resource, looked up by key rather than by listing every
+	 * session. Unlike {@link getSessionByResource}, it does not keep the session's state subscribed.
+	 */
+	getSession(resource: URI): ISession | undefined {
+		this._ensureSessionCache();
+		// A pending first turn hides the cached session of the same resource, as in `getAllSessions`.
+		for (const pendingSession of this._pendingSessions.values()) {
+			if (isEqual(pendingSession.resource, resource)) {
+				return this._shouldAdvertiseAgent(pendingSession.sessionType) ? pendingSession : undefined;
+			}
+		}
+		const cached = this._sessionCache.getByResource(resource);
+		if (!cached || this._isUnpublishedDraft(cached) || !this._shouldShowSavedSession(cached.agentProvider)) {
+			return undefined;
+		}
+		return cached;
 	}
 
 	protected getResourceLabelHomes(): { readonly uri: URI; readonly label: string }[] {
@@ -9625,6 +9684,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (result.kind === 'rejected') {
 			throw new Error(`[${this.id}] sendRequest rejected: ${result.reason}`);
 		}
+		const response = result.kind === 'sent' ? result.data : undefined;
+		const responseCreated = response?.responseCreatedPromise;
+		const responseComplete = response?.responseCompletePromise;
+		const requestEnded = responseCreated && responseComplete && Promise.all([responseCreated, responseComplete]).then(([created]) => created, () => undefined);
 
 		if (newSession.workspaceUri && !newSession.getInitialSessionTemplate()) {
 			const config = newSession.getConfig();
@@ -9647,24 +9710,27 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			if (committedAdapter && selectedAgent) {
 				committedAdapter.setChatAgent(committedAdapter.resource, selectedAgent);
 			}
-		});
+		}, requestEnded);
 	}
 
 	/**
 	 * Lists a draft that its host started, by its first request or by opening a canvas in it, until the host announces
 	 * the committed session that replaces it. The caller titles the draft meanwhile; `explicitTitle` also renames the
-	 * committed session. When the host never commits the session, abandons the draft and throws.
+	 * committed session. When the host never commits the session, abandons the draft and throws. `requestEnded` settles
+	 * with the response of the first request once it has ended, which stops the wait if the host did not start the session.
 	 */
-	private async _graduateNewSession(newSession: NewSession, chatResource: URI, explicitTitle: string | undefined, onDidCommit?: (committedSession: ISession) => void): Promise<ISession> {
+	private async _graduateNewSession(newSession: NewSession, chatResource: URI, explicitTitle: string | undefined, onDidCommit?: (committedSession: ISession) => void, requestEnded?: Promise<IChatResponseModel | undefined>): Promise<ISession> {
 		const newSessionRawId = chatResource.path.replace(/^\//, '');
 		this._unpublishedDraftSessions.delete(newSession.session.resource);
 		// This skeleton is replaced by the committed AgentHostSession once it arrives.
 		const skeleton = newSession.session;
 		this._pendingSessions.set(newSession.sessionId, skeleton);
 		this._onDidChangeSessions.fire({ added: [skeleton], removed: [], changed: [] });
+		let endedResponse: IChatResponseModel | undefined;
+		void requestEnded?.then(response => { endedResponse = response; });
 
 		try {
-			const committedSession = await this._waitForNewSession(chatResource.scheme, newSessionRawId, newSession.cancellationToken);
+			const committedSession = await this._waitForNewSession(chatResource.scheme, newSessionRawId, newSession.cancellationToken, requestEnded);
 			if (committedSession) {
 				this._preserveNewSessionConfig(newSession, committedSession.sessionId);
 				if (explicitTitle) {
@@ -9691,7 +9757,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				return committedSession;
 			}
 		} catch {
-			// Connection lost or timeout — fall through to the failure cleanup.
+			// Connection lost, draft disposed, or the request ended without a commit — fall through to the failure cleanup.
 		} finally {
 			// Defensive clear: covers the failure path where the try block
 			// never reached the explicit clear above.
@@ -9709,7 +9775,12 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			this._onDidChangeDraftSessions.fire();
 		}
 		this._onDidChangeSessions.fire({ added: [], removed: [skeleton], changed: [] });
-		throw new Error(localize('sessionNotCommitted', "Agent host session was not committed."));
+		const errorDetails = endedResponse?.result?.errorDetails;
+		if (endedResponse && (endedResponse.isCanceled || !errorDetails)) {
+			// The request was cancelled, or declined before it was sent, such as when its folder isn't trusted.
+			throw new CancellationError();
+		}
+		throw new Error(errorDetails?.message ?? localize('sessionNotCommitted', "Agent host session was not committed."));
 	}
 
 	/** Localized error message when sendRequest is invoked without a connection. Subclasses can override. */
@@ -9757,8 +9828,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const prefix = `${this.id}:`;
 		const resourceStr = chatId.startsWith(prefix) ? chatId.substring(prefix.length) : chatId;
 		try {
-			const resource = URI.parse(resourceStr).with({ fragment: '' });
-			return this._sessionKeysByResource.get(resource);
+			return this._sessionCache.getKeyIgnoringFragment(URI.parse(resourceStr));
 		} catch {
 			return undefined;
 		}
@@ -10834,6 +10904,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			if (added.length > 0 || removed.length > 0 || changed.length > 0) {
 				this._onDidChangeSessions.fire({ added, removed, changed });
 			}
+			this._sessionListingApplied.trigger(undefined);
 			this._syncActiveClient();
 			for (const cached of removed) {
 				(cached as AgentHostSessionAdapter).dispose();
@@ -10912,13 +10983,16 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	/**
 	 * Resolves the freshly committed backend session for an in-flight send.
 	 * A committed session preserves the draft URI, preventing unrelated sessions from replacing it.
+	 * Resolves `undefined` when the connection is lost, or when the first session listing applied after `requestEnded`
+	 * settles doesn't include the session: the host announces a session when it starts its first request.
 	 */
-	private async _waitForNewSession(expectedScheme: string, ownRawId: string, token: CancellationToken): Promise<ISession | undefined> {
+	private async _waitForNewSession(expectedScheme: string, ownRawId: string, token: CancellationToken, requestEnded?: Promise<unknown>): Promise<ISession | undefined> {
 		const matches = (session: ISession): boolean => session.resource.scheme === expectedScheme && session.resource.path.substring(1) === ownRawId;
+		const find = () => [...this._sessionCache.values()].find(matches);
 
 		await this._refreshSessions();
-		const immediate = [...this._sessionCache.values()].find(matches);
-		if (immediate && matches(immediate)) {
+		const immediate = find();
+		if (immediate) {
 			return immediate;
 		}
 
@@ -10932,6 +11006,14 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 					}
 				}));
 				waitDisposables.add(this.onConnectionLost(() => resolve(undefined)));
+				// Only a listing applied after the request ended shows the host won't announce the session, so a failed listing
+				// waits for its retry. A host announces a session whose first request failed just after that request's error.
+				void requestEnded?.then(() => {
+					if (!waitDisposables.isDisposed) {
+						waitDisposables.add(runOnChange(this._sessionListingApplied, () => resolve(find())));
+						void this._refreshSessions();
+					}
+				});
 			});
 			return await raceCancellationError(sessionPromise, token);
 		} finally {
@@ -11085,7 +11167,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			this._unpublishedDraftSessions.delete(cached.resource);
 			this._backendSessionsChanged.trigger(undefined);
 		}
-		this._sessionKeysByResource.delete(stateOwner.resource.with({ fragment: '' }));
 		this._runningSessionConfigs.delete(stateOwner.sessionId);
 		this._sensitiveEditLocationsBySession.delete(stateOwner.sessionId);
 		this._runningSessionConfigResolveSeq.delete(stateOwner.sessionId);

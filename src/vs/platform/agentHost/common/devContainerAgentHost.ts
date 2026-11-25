@@ -64,11 +64,14 @@ export interface IDevContainerAgentHostSandboxSupport {
 export interface IDevContainerAgentHostUserStateReport {
 	readonly connectionId: string;
 	readonly stage: 'mount' | 'up' | 'link' | 'userCommands';
-	/** `mount`: added, existingContainer, failed. `link`: linked, noMount, homeNotFound, failed. `up`, `userCommands`: succeeded, failed. */
+	/**
+	 * `mount`: added, existingContainer, failed. `link`: linked, noMount, homeNotFound, missingCapabilities, readOnlyRootfs,
+	 * homeInaccessible, stateNotRootOwned, untrustedState, failed. `up`, `userCommands`: succeeded, failed.
+	 */
 	readonly outcome: string;
 	/** Fixed identifier of what failed. */
 	readonly reason?: string;
-	/** The link command's failed step. */
+	/** The link command's failed step, or the step that skipped linking. */
 	readonly step?: string;
 	readonly exitCode?: number;
 	/** Where the state volume is mounted: `workspaces` or `volume`. */
@@ -79,6 +82,23 @@ export interface IDevContainerAgentHostUserStateReport {
 	readonly existingFolders?: number;
 	readonly skippedFolders?: number;
 	readonly skipReasons?: string;
+	/** Whether the link command ran as `root` or as an `other` user. */
+	readonly scriptUser?: string;
+	/** The link command's effective capabilities. */
+	readonly capChown?: boolean;
+	readonly capDacOverride?: boolean;
+	readonly capDacReadSearch?: boolean;
+	readonly capFowner?: boolean;
+	/** Who owns the state folder: `root`, `user` (the container user) or `other`. */
+	readonly stateOwner?: string;
+	/** Who owns the volume's root folder: `root`, `user` (the container user) or `other`. */
+	readonly volumeOwner?: string;
+	/** The container's security settings, for link failures, see `getDevContainerSecurityOptions`. */
+	readonly capDropChown?: boolean;
+	readonly privileged?: boolean;
+	readonly usernsMode?: boolean;
+	readonly readonlyRootfs?: boolean;
+	readonly runtime?: string;
 	/** Sanitized error message of a failed stage, see `sanitizeDevContainerStateErrorMessage`. */
 	readonly errorMessage?: string;
 }

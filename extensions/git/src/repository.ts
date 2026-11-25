@@ -664,13 +664,6 @@ export class Repository implements Disposable {
 	private _onDidChangeCommitTemplate = new EventEmitter<void>();
 	readonly onDidChangeCommitTemplate: Event<void> = this._onDidChangeCommitTemplate.event;
 
-	private _onDidResetCommitMessage = new EventEmitter<string>();
-	/**
-	 * Fires with the message that the next commit starts from: the message of the rebase commit when a rebase stops at
-	 * a commit, an empty message when the rebase ends, and the commit template after a commit with a message.
-	 */
-	readonly onDidResetCommitMessage: Event<string> = this._onDidResetCommitMessage.event;
-
 	private _onDidCheckStatusLimit = new EventEmitter<void>();
 	/**
 	 * Fires each time git status reports whether the repository has more changes than `git.statusLimit`.
@@ -794,9 +787,9 @@ export class Repository implements Disposable {
 
 	set rebaseCommit(rebaseCommit: Commit | undefined) {
 		if (this._rebaseCommit && !rebaseCommit) {
-			this.resetCommitMessage('');
+			this.inputBoxValue = '';
 		} else if (rebaseCommit && (!this._rebaseCommit || this._rebaseCommit.hash !== rebaseCommit.hash)) {
-			this.resetCommitMessage(rebaseCommit.message);
+			this.inputBoxValue = rebaseCommit.message;
 		}
 
 		const shouldUpdateContext = !!this._rebaseCommit !== !!rebaseCommit;
@@ -813,7 +806,9 @@ export class Repository implements Disposable {
 
 	/**
 	 * The commit message in the input box of the source control, or while the repository is detached, the one that the
-	 * next source control starts with.
+	 * next source control starts with. The repository also resets it to the message that the next commit starts from:
+	 * the message of the rebase commit when a rebase stops at a commit, an empty message when the rebase ends, and the
+	 * commit template after a commit with a message.
 	 */
 	get inputBoxValue(): string {
 		return this.isAttached ? this._sourceControl.inputBox.value : this.commitMessage ?? '';
@@ -825,16 +820,6 @@ export class Repository implements Disposable {
 		} else {
 			this.commitMessage = value;
 		}
-	}
-
-	/**
-	 * Resets the commit message of the source control, or of the next one while the repository is detached.
-	 */
-	private resetCommitMessage(message: string): void {
-		if (!this.isAttached) {
-			this.commitMessage = message;
-		}
-		this._onDidResetCommitMessage.fire(message);
 	}
 
 	private _mergeInProgress: boolean = false;
@@ -1443,7 +1428,7 @@ export class Repository implements Disposable {
 
 	private async commitOperationCleanup(message: string | undefined, indexResources: string[], workingGroupResources: string[]) {
 		if (message) {
-			this.resetCommitMessage(await this.getInputTemplate());
+			this.inputBoxValue = await this.getInputTemplate();
 		}
 		this.closeDiffEditors(indexResources, workingGroupResources);
 
