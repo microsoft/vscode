@@ -4089,6 +4089,45 @@ suite('CodexAgent prewarm eviction', () => {
 		}
 	});
 
+	test('workspace folders of non-file schemes are not sent to codex as paths', async () => {
+		const agent = await createAgent(disposables);
+		const peer = disposables.add(createTestPeer());
+		agent['_connection'] = {
+			kind: 'ready',
+			client: new CodexAppServerClient(peer.transport),
+			usageSource: 'github',
+			child: { kill: () => true },
+		} as never;
+		agent['_refreshSkillHookCustomizations'] = async () => { };
+		const virtualA = URI.from({ scheme: 'abap', authority: 'repotree-v1', path: '/example' });
+		const repo = URI.file('/repo');
+		const virtualB = URI.from({ scheme: 'abap', authority: 'repotree-v1', path: '/other' });
+
+		try {
+			const workingDirectories = [virtualA, repo, virtualB];
+			const { session } = await createSession(agent, { session: AgentSession.uri('codex', 'non-file-roots'), workingDirectories, model: { id: COPILOT_TEST_MODEL } });
+			const entry = agent['_sessions'].get(AgentSession.id(session))!;
+			const start = await readNextRequest(peer.outbound);
+			peer.push({ id: start.id, result: { thread: { id: 'thread' } } });
+			await entry.materializePromise;
+
+			const send = agent.chats.sendMessage(URI.parse(buildDefaultChatUri(session)), 'hello', workingDirectories, undefined, 'turn-1');
+			const turn = await readNextRequest(peer.outbound);
+			peer.push({ id: turn.id, result: {} });
+			await send;
+
+			assert.deepStrictEqual({
+				start: { cwd: start.params.cwd, runtimeWorkspaceRoots: start.params.runtimeWorkspaceRoots },
+				turn: { runtimeWorkspaceRoots: turn.params.runtimeWorkspaceRoots },
+			}, {
+				start: { cwd: repo.fsPath, runtimeWorkspaceRoots: [repo.fsPath] },
+				turn: { runtimeWorkspaceRoots: [repo.fsPath] },
+			});
+		} finally {
+			peer.exit();
+		}
+	});
+
 	test('consecutive sends replace and remove workspace roots on the existing thread', async () => {
 		const agent = await createAgent(disposables);
 		const peer = disposables.add(createTestPeer());

@@ -581,13 +581,23 @@ function distinctAbsolutePaths(paths: readonly string[]): string[] {
 	return result;
 }
 
+/**
+ * The working directories the Codex app-server can run in: only `file` folders.
+ * Folders of other schemes (such as an extension-registered file system) have no
+ * local path, and their `fsPath` would be rejected or misread as a local folder.
+ */
+function localWorkingDirectories(directories: readonly URI[] | undefined): readonly URI[] | undefined {
+	const result = directories?.filter(directory => directory.scheme === Schemas.file);
+	return result && result.length > 0 ? result : undefined;
+}
+
 function distinctWorkingDirectories(directories: readonly URI[] | undefined): readonly URI[] | undefined {
 	if (!directories) {
 		return undefined;
 	}
 	const seen = new Set<string>();
 	const result: URI[] = [];
-	for (const directory of directories) {
+	for (const directory of localWorkingDirectories(directories) ?? []) {
 		const path = normalize(directory.fsPath);
 		const key = filesystemPathComparisonKey(path);
 		if (key && !seen.has(key)) {
@@ -5192,6 +5202,9 @@ export class CodexAgent extends Disposable implements IAgent {
 	 */
 	private async _createChat(chat: URI, context: IAgentChatContext, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult> {
 		this._activate();
+		if (options?.workingDirectories) {
+			options = { ...options, workingDirectories: localWorkingDirectories(options.workingDirectories) };
+		}
 		const target: ICodexTargetChat = { resource: chat, owner: context.owner, storage: context.resource };
 		// A chat stored in its session's database is the one that session was created with: its runtime adopts the session's id.
 		const sessionBackedStorage = resolveSessionBackedStorage(context, chat);
@@ -6454,6 +6467,7 @@ export class CodexAgent extends Disposable implements IAgent {
 	}
 
 	private async _sendMessage(chat: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, workingDirectories?: readonly URI[], context?: URI | IAgentChatContext): Promise<void> {
+		workingDirectories = localWorkingDirectories(workingDirectories);
 		const operationContext = context ? resolveAgentChatContext(context, chat) : undefined;
 		const accountTelemetryContext = operationContext?.turnTelemetryContext?.codex ?? this.captureTurnTelemetryContext().codex;
 		const sessionUri = this._resolveConversationSession(chat, context);
