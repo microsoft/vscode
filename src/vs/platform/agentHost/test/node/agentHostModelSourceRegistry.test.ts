@@ -98,7 +98,8 @@ function register(id: string, definition: Record<string, unknown> = { endpoint: 
 		modelSourceId: id,
 		provider: options.provider ?? 'copilotcli',
 		displayName: options.displayName ?? 'Example',
-		registration: { format: options.format ?? FORMAT, definition, ...(options.retention ? { retention: options.retention } : {}) },
+		registration: { format: options.format ?? FORMAT, definition },
+		...(options.retention ? { retention: options.retention } : {}),
 	};
 }
 
@@ -225,6 +226,7 @@ suite('AgentHostModelSourceRegistry', () => {
 		registry.handleClientAction(register('invalid', { invalid: true }), 'client-a', 4);
 		registry.handleClientAction(register('keyless', {}), 'client-a', 5);
 		registry.handleClientAction(register('retained', {}, { retention: ModelSourceRetentionPolicy.Host }), 'client-a', 6);
+		registry.handleClientAction({ ...register('forever', {}), retention: JSON.parse('"forever"') }, 'client-a', 6);
 		registry.handleClientAction(register('shared', {}), 'client-a', 7);
 		registry.handleClientAction(register('shared', {}), 'client-b', 1);
 		// An update with a different definition makes its client the only contributor.
@@ -232,6 +234,7 @@ suite('AgentHostModelSourceRegistry', () => {
 		registry.handleClientAction(register('updated', { other: true }), 'client-a', 8);
 		registry.handleClientAction(register('removed', {}), 'client-b', 3);
 		const registered = Object.fromEntries((state.rootState.modelSources ?? []).map(modelSource => [modelSource.id, modelSource.state.kind]));
+		const retainedRegistration = state.modelSource('retained')?.registration;
 		const servedBeforeDeparture = agent.lastServed;
 
 		// Removal applies to every client.
@@ -245,13 +248,16 @@ suite('AgentHostModelSourceRegistry', () => {
 		assert.deepStrictEqual({
 			rejections: state.rejections.length,
 			registered,
+			retainedRegistration,
 			servedBeforeDeparture,
 			remaining: (state.rootState.modelSources ?? []).map(modelSource => modelSource.id),
 			servedAfterDeparture: agent.lastServed,
 		}, {
-			// A definition the agent can't read isn't stored for every client to read.
-			rejections: 4,
+			// A definition the agent can't read isn't stored for every client to read, and a retention it won't honor is declined.
+			rejections: 5,
 			registered: { keyless: 'ready', retained: 'ready', shared: 'ready', updated: 'ready', removed: 'ready' },
+			// The host keeps the retention privately.
+			retainedRegistration: { format: FORMAT, definition: {} },
 			servedBeforeDeparture: { keyless: false, retained: false, shared: false, updated: false, removed: false },
 			// A source another client still contributes stays, and so does a host-retained one.
 			remaining: ['retained', 'shared'],

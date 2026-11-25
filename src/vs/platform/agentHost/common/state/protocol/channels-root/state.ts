@@ -401,8 +401,6 @@ export interface ModelSourceRegistration {
 	 * named as in {@link SessionModelInfo}.
 	 */
 	definition: Record<string, unknown>;
-	/** What happens when the last contributing client leaves. Absent means `contributingClient`. */
-	retention?: ModelSourceRetentionPolicy;
 }
 
 /**

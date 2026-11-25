@@ -127,6 +127,11 @@ class FakeConnection extends mock<IAgentConnection>() {
 		return { authenticated: true };
 	}
 
+	/** The retention of each registration this window requested. */
+	get retentions(): (ModelSourceRetentionPolicy | undefined)[] {
+		return this.actions.flatMap(action => action.type === ActionType.RootModelSourceRegisterRequested ? [action.retention] : []);
+	}
+
 	/** The definitions this window registered. */
 	get definitions(): (Record<string, unknown> | undefined)[] {
 		return this.actions.flatMap(action => action.type === ActionType.RootModelSourceRegisterRequested ? [action.registration.definition] : []);
@@ -284,6 +289,7 @@ suite('AgentHostModelSourceRegistrar', () => {
 
 		assert.deepStrictEqual({
 			registered,
+			retentions: connection.retentions,
 			served,
 			keysBeforeReplacement,
 			keys: connection.keys.map(key => ({ ...key, accountId: key.accountId === first ? 'first' : key.accountId ? 'replaced' : undefined })),
@@ -299,9 +305,10 @@ suite('AgentHostModelSourceRegistrar', () => {
 						models: [{ id: 'gpt-x', name: 'GPT-X', endpoint: { type: 'openai', wireApi: 'completions', baseUrl: 'https://models.example.test/v1' }, toolCalling: true, maxInputTokens: 100, maxOutputTokens: 20, maxContextWindowTokens: 120, aliases: ['customendpoint/Example/gpt-x'] }],
 						requiresCredential: true,
 					},
-					retention: ModelSourceRetentionPolicy.Host,
 				},
 			},
+			// The local host is shared by this user's windows, so the source outlives the window that registered it.
+			retentions: [ModelSourceRetentionPolicy.Host],
 			// While the host serves it, the bridge doesn't list it.
 			served: ['customendpoint/Example/gpt-x'],
 			keysBeforeReplacement: 1,
@@ -445,7 +452,7 @@ suite('AgentHostModelSourceRegistrar', () => {
 			beforeConsent,
 			prompts: remote.notificationService.prompts.length,
 			definitions: remote.connection.definitions,
-			retention: remote.modelSources().map(modelSource => modelSource.registration?.retention),
+			retention: remote.connection.retentions,
 			// The editor warns that BYOK models are missing unless the host serves them, or is setting them up.
 			serving: [servingBeforeConsent, servingWhileStarting, remote.statusService.isServing('host')],
 			relayed: { prompts: relayed.notificationService.prompts.length, actions: relayed.connection.actions.length, serving: relayed.statusService.isServing('host') },

@@ -29,10 +29,19 @@ export interface IAgentHostModelSourceRegistryState {
 /** A model source as a client registered it, without the status and credential fields the host reports. */
 type RegisteredModelSource = Omit<ModelSource, 'state' | 'credentialResource' | 'accountId'> & { readonly registration: ModelSourceRegistration };
 
+/** A registration request the host accepted, and what the agent read from its definition. */
+interface IValidatedRegistration {
+	readonly source: RegisteredModelSource;
+	readonly retention: ModelSourceRetentionPolicy;
+	readonly description: IAgentModelSourceDescription;
+}
+
 /** What the host knows about a registered model source, which it publishes with `root/modelSourceSet`, apart from the credential. */
 interface IModelSourceEntry {
 	/** The source from the latest request to register it. */
 	source: RegisteredModelSource;
+	/** What happens when the last contributing client leaves, from the latest request. Never in state. */
+	retention: ModelSourceRetentionPolicy;
 	/** The clients that requested this registration, from each request's origin. Never in state. */
 	readonly contributors: Set<string>;
 	credential: string | undefined;
@@ -94,7 +103,7 @@ export class AgentHostModelSourceRegistry extends Disposable {
 					return;
 				}
 				// Published before the request is confirmed, so the client finds the source when it is.
-				this._apply(validation.source, validation.description, clientId);
+				this._apply(validation, clientId);
 				this._state.dispatchClientAction(ROOT_STATE_URI, action, origin, clientContext);
 				return;
 			}
@@ -167,8 +176,7 @@ export class AgentHostModelSourceRegistry extends Disposable {
 			if (!entry.contributors.delete(clientId) || entry.contributors.size) {
 				continue;
 			}
-			const retention = entry.source.registration.retention ?? ModelSourceRetentionPolicy.ContributingClient;
-			if (retention === ModelSourceRetentionPolicy.ContributingClient) {
+			if (entry.retention === ModelSourceRetentionPolicy.ContributingClient) {
 				this._drain(id, entry);
 			}
 		}
@@ -190,18 +198,18 @@ export class AgentHostModelSourceRegistry extends Disposable {
 	}
 
 	/** The source and what the agent read from its definition, or why the host declines the request. */
-	private _validate(action: Extract<ClientModelSourceAction, { readonly type: ActionType.RootModelSourceRegisterRequested }>): { readonly source: RegisteredModelSource; readonly description: IAgentModelSourceDescription } | string {
-		const { modelSourceId: id, provider, displayName, registration } = action;
+	private _validate(action: Extract<ClientModelSourceAction, { readonly type: ActionType.RootModelSourceRegisterRequested }>): IValidatedRegistration | string {
+		const { modelSourceId: id, provider, displayName, registration, retention = ModelSourceRetentionPolicy.ContributingClient } = action;
 		if (typeof id !== 'string' || !id || typeof provider !== 'string' || typeof displayName !== 'string' || !isModelSourceRegistration(registration)) {
 			return 'A model source registration needs an id, a provider, a display name, a format, and a definition object';
 		}
-		const { format, definition, retention } = registration;
+		const { format, definition } = registration;
 		const agent = this._getAgent(provider);
 		const formats = agent?.getDescriptor().capabilities?.modelSourceRegistration?.formats;
 		if (!agent?.describeModelSource || !agent.setModelSources || !formats?.some(info => info.format === format)) {
 			return `The agent '${provider}' does not serve model sources in the format '${format}'`;
 		}
-		if (retention !== undefined && retention !== ModelSourceRetentionPolicy.ContributingClient && retention !== ModelSourceRetentionPolicy.Host) {
+		if (retention !== ModelSourceRetentionPolicy.ContributingClient && retention !== ModelSourceRetentionPolicy.Host) {
 			return `Unsupported model source retention: ${retention}`;
 		}
 		const source: RegisteredModelSource = {
@@ -209,12 +217,12 @@ export class AgentHostModelSourceRegistry extends Disposable {
 			provider,
 			displayName,
 			...(action.icons ? { icons: action.icons } : {}),
-			registration: { format, definition, ...(retention !== undefined ? { retention } : {}) },
+			registration: { format, definition },
 			...(action._meta ? { _meta: action._meta } : {}),
 		};
 		// Every client reads root state, so a definition the agent can't serve isn't stored there.
 		try {
-			return { source, description: agent.describeModelSource({ id, format, definition }) };
+			return { source, retention, description: agent.describeModelSource({ id, format, definition }) };
 		} catch (error) {
 			return toErrorMessage(error);
 		}
@@ -225,11 +233,12 @@ export class AgentHostModelSourceRegistry extends Disposable {
 		return entry.source.provider === source.provider && entry.source.registration.format === source.registration.format && equals(entry.source.registration.definition, source.registration.definition);
 	}
 
-	private _apply(source: RegisteredModelSource, description: IAgentModelSourceDescription, clientId: string): void {
+	private _apply({ source, retention, description }: IValidatedRegistration, clientId: string): void {
 		const previous = this._entries.get(source.id);
 		if (previous && this._isReregistration(previous, source)) {
 			// A re-registration, or a new name or retention: the status and credential stay.
 			previous.contributors.add(clientId);
+			previous.retention = retention;
 			const changed = !equals(previous.source, source);
 			previous.source = source;
 			if (previous.drain.value) {
@@ -249,6 +258,7 @@ export class AgentHostModelSourceRegistry extends Disposable {
 		// An update makes the dispatching client the only contributor: the others registered a different definition.
 		const entry: IModelSourceEntry = {
 			source,
+			retention,
 			contributors: new Set([clientId]),
 			credential: undefined,
 			credentialSince: 0,

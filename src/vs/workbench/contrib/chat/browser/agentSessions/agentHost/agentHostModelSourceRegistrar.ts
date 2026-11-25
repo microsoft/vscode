@@ -800,7 +800,8 @@ class ConnectionModelSourceRegistrar extends Disposable {
 						modelSourceId: id,
 						provider: agent.provider,
 						displayName: source.group,
-						registration: { format: BYOK_ENDPOINTS_MODEL_SOURCE_FORMAT, definition: source.definition, retention },
+						registration: { format: BYOK_ENDPOINTS_MODEL_SOURCE_FORMAT, definition: source.definition },
+						retention,
 					},
 				});
 			}
