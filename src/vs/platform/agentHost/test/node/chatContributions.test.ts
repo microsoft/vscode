@@ -1015,8 +1015,7 @@ function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDispo
 	services.set(IAgentHostArtifactIntegrationDirectory, artifactIntegrationDirectory);
 	const telemetryReporter = new AgentHostTelemetryReporter(new CapturingTelemetryService());
 	services.set(IAgentHostTelemetryReporter, telemetryReporter);
-	const turnTracker = disposables.add(instantiationService.createInstance(AgentHostTurnTracker));
-	services.set(IAgentHostTurnTracker, turnTracker);
+	services.set(IAgentHostTurnTracker, disposables.add(instantiationService.createInstance(AgentHostTurnTracker)));
 	services.set(IAgentHostToolCallTracker, disposables.add(instantiationService.createInstance(AgentHostToolCallTracker)));
 	const localCommands = disposables.add(instantiationService.createInstance(AgentHostLocalCommands));
 	services.set(IAgentHostLocalCommands, localCommands);
@@ -1026,7 +1025,7 @@ function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDispo
 	};
 	disposables.add(service.registerHost(host));
 	disposables.add(registerBuiltInChatContributions(service));
-	return { service, stateManager, database: usageDatabase, sessionDataService, fileService, session: 'agent-host-session://test', worktree, worktreeCleanup, additionalWorktreeLifecycle, sessionRegistry, changesets, checkpointService, logService, gitStateService, gitService, agentConfigService, localTurns, chatRows, sessionStateStore, artifactIntegrationDirectory, providerService, turnTracker };
+	return { service, stateManager, database: usageDatabase, sessionDataService, fileService, session: 'agent-host-session://test', worktree, worktreeCleanup, additionalWorktreeLifecycle, sessionRegistry, changesets, checkpointService, logService, gitStateService, gitService, agentConfigService, localTurns, chatRows, sessionStateStore, artifactIntegrationDirectory, providerService };
 }
 
 function configureRemoteSessionReply(stateManager: AgentHostStateManager, session: string, options?: { readonly metadata?: Record<string, unknown>; readonly enabled?: boolean }): Record<string, unknown> {
@@ -3521,7 +3520,7 @@ suite('AgentHostChatContributions', () => {
 		assert.deepStrictEqual(turns.map(turn => [turn.id, turn.message.text]), [['built-in-hydration-order', 'side question']]);
 	});
 
-	test('tells each chat in a worktree with Git LFS pointer files until the provider receives it, and warns once where the worktree is announced', async () => {
+	test('tells each chat in a worktree with Git LFS pointer files until a turn that carries it succeeds, and warns once where the worktree is announced', async () => {
 		const contributions = createBuiltInContributions(disposables);
 		const defaultChat = buildDefaultChatUri(contributions.session);
 		const peerChat = buildChatUri(contributions.session, 'peer');
@@ -3544,26 +3543,27 @@ suite('AgentHostChatContributions', () => {
 		}));
 		await contributions.service.hydrateTurns({ session: contributions.session, chat: restoredChat, isDefaultChat: false, storageResource: creationTimeChatStorageResource(contributions.session, restoredChat, defaultChat) }, [hydrationTurn('restored-turn')]);
 		contributions.stateManager.dispatchServerAction(defaultChat, chatTurnStarted('default-turn', 'Fix it', '2025-01-01T00:00:00.000Z'));
-		const instructed = async (chat: string, workingDirectory: URI) => {
-			const result = await contributions.service.outgoingTurn({ session: contributions.session, chat, message: { text: 'Fix it', origin: { kind: MessageKind.User } }, turnId: 'default-turn', workingDirectories: [workingDirectory] });
+		const instructed = async (chat: string, workingDirectory: URI, turnId = 'default-turn') => {
+			const result = await contributions.service.outgoingTurn({ session: contributions.session, chat, message: { text: 'Fix it', origin: { kind: MessageKind.User } }, turnId, workingDirectories: [workingDirectory] });
 			return result.instructions?.includes(gitLfsPointerFilesInstruction) ?? false;
 		};
-		const defaultFirst = await instructed(defaultChat, worktreeDirectory);
+		const defaultFirst = await instructed(defaultChat, worktreeDirectory, 'failed-turn');
+		contributions.service.turnEnd({ session: contributions.session, channel: defaultChat, turnId: 'failed-turn', reason: { kind: 'error', error: { errorType: 'requestFailed', message: 'Provider setup failed' }, resumable: false } });
 		const defaultRetry = await instructed(defaultChat, worktreeDirectory);
-		contributions.turnTracker.markSendDispatched(defaultChat, 'default-turn');
+		contributions.service.turnEnd({ session: contributions.session, channel: defaultChat, turnId: 'default-turn', reason: { kind: 'success' } });
 
 		assert.deepStrictEqual({
 			instructed: {
 				defaultFirst,
 				defaultRetry,
-				defaultAfterDispatch: await instructed(defaultChat, worktreeDirectory),
+				defaultAfterSuccess: await instructed(defaultChat, worktreeDirectory),
 				peerInFolder: await instructed(peerChat, folder),
 				peerConvertedToWorktree: await instructed(peerChat, URI.joinPath(worktreeDirectory, 'src')),
 				restored: await instructed(restoredChat, worktreeDirectory),
 			},
 			warnings,
 		}, {
-			instructed: { defaultFirst: true, defaultRetry: true, defaultAfterDispatch: false, peerInFolder: false, peerConvertedToWorktree: true, restored: false },
+			instructed: { defaultFirst: true, defaultRetry: true, defaultAfterSuccess: false, peerInFolder: false, peerConvertedToWorktree: true, restored: false },
 			warnings: [defaultChat],
 		});
 	});

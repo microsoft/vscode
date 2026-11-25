@@ -337,7 +337,7 @@ export function buildWorktreeGitLfsNotification(): Extract<ResponsePart, { kind:
 		content: localize(
 			'agentHost.worktreeGitLfsUnavailable',
 			"Git LFS isn't installed or can't be found on the PATH, so files stored with Git LFS are pointer files in this worktree. Changes to those files can't be committed. Install Git LFS, then run {0} in the worktree to get their contents.",
-			appendEscapedMarkdownInlineCode('git lfs checkout')
+			appendEscapedMarkdownInlineCode('git lfs pull')
 		),
 		_meta: toAgentSystemNotificationMeta({
 			kind: AgentSystemNotificationKind.WorktreeGitLfsUnavailable,

@@ -2607,7 +2607,7 @@ suite('WorktreeIsolation', () => {
 		assert.deepStrictEqual({ created, recreated }, {
 			created: ['announcement', {
 				kind: ResponsePartKind.SystemNotification,
-				content: 'Git LFS isn\'t installed or can\'t be found on the PATH, so files stored with Git LFS are pointer files in this worktree. Changes to those files can\'t be committed. Install Git LFS, then run `git lfs checkout` in the worktree to get their contents.',
+				content: 'Git LFS isn\'t installed or can\'t be found on the PATH, so files stored with Git LFS are pointer files in this worktree. Changes to those files can\'t be committed. Install Git LFS, then run `git lfs pull` in the worktree to get their contents.',
 				_meta: { kind: 'worktreeGitLfsUnavailable', severity: 'warning' },
 			}, 'agent reply'],
 			recreated: ['announcement + agent reply'],

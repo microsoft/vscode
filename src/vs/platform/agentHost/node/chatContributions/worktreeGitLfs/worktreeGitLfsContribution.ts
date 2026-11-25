@@ -6,20 +6,19 @@
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { isEqualOrParent } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { createChatMementoKey, type IAgentHostChatContribution, type IAgentHostChatContributionContext, type IHydrationContext, type IOutgoingTurn, type ISendContribution } from '../../../common/agentHostChatContributionsService.js';
+import { createChatMementoKey, type IAgentHostChatContribution, type IAgentHostChatContributionContext, type IHydrationContext, type IOutgoingTurn, type ISendContribution, type ITurnEnd } from '../../../common/agentHostChatContributionsService.js';
 import { IAgentHostSessionStateStore } from '../../../common/agentHostSessionStateStore.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
 import type { Turn } from '../../../common/state/sessionState.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../agentHostStateManager.js';
 import { IAgentHostChatOwnershipService } from '../../agentHostChatOwnershipService.js';
-import { AgentHostTurnTracker, IAgentHostTurnTracker } from '../../agentHostTurnTracker.js';
 import { readSessionAdditionalWorktrees } from '../../shared/sessionAdditionalWorktrees.js';
 import { buildWorktreeGitLfsNotification, detachedWorktreeRecordUri, IAgentHostWorktreeIsolation } from '../../shared/worktreeIsolation.js';
 
 export const gitLfsPointerFilesInstruction = `<git_lfs_pointer_files>
 Git LFS is not available in this worktree, so files tracked with Git LFS (\`filter=lfs\` in .gitattributes) contain Git LFS pointer text instead of their content.
 Do not edit, regenerate, or delete these files, and do not override the Git LFS filter in git commands.
-If a task needs their content, tell the user to install Git LFS and run \`git lfs checkout\` in the worktree.
+If a task needs their content, tell the user to install Git LFS and run \`git lfs pull\` in the worktree.
 </git_lfs_pointer_files>`;
 
 const RESTORED = 'restored';
@@ -45,17 +44,21 @@ export class WorktreeGitLfsContribution extends Disposable implements IAgentHost
 		@IAgentHostSessionStateStore private readonly _sessionStateStore: IAgentHostSessionStateStore,
 		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
 		@IAgentHostChatOwnershipService private readonly _chatOwnership: IAgentHostChatOwnershipService,
-		@IAgentHostTurnTracker turnTracker: AgentHostTurnTracker,
 	) {
 		super();
-		this._register(turnTracker.onDidDispatchTurn(({ chat, turnId }) => {
-			const pending = this._context.memento(pendingTurnKey, chat);
-			const turn = pending.get();
-			if (turn?.turnId === turnId) {
-				pending.set(undefined, undefined);
-				this._context.memento(checkedDirectoryKey, chat).set(turn.directory, undefined);
-			}
-		}));
+	}
+
+	/** Only a successful turn proves that its prompt reached the provider; after any other end, the next turn carries the instruction again. */
+	onTurnEnd({ channel, turnId, reason }: ITurnEnd): void {
+		const pending = this._context.memento(pendingTurnKey, channel);
+		const turn = pending.get();
+		if (turn === undefined || turn.turnId !== turnId) {
+			return;
+		}
+		pending.set(undefined, undefined);
+		if (reason.kind === 'success') {
+			this._context.memento(checkedDirectoryKey, channel).set(turn.directory, undefined);
+		}
 	}
 
 	onHydrateTurns(context: IHydrationContext, turns: readonly Turn[]): readonly Turn[] {
