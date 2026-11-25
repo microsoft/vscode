@@ -26915,6 +26915,45 @@ suite('AgentHostChatContribution', () => {
 			return gates;
 		}
 
+		test('the round after a removed session follows the list the host advertises once the revocation finishes', async () => {
+			const tokenRef = { current: 'tok-1' };
+			const sessionsChanged = disposables.add(new Emitter<Parameters<Parameters<IAuthenticationService['onDidChangeSessions']>[0]>[0]>());
+			const providerLookup = new DeferredPromise<void>();
+			let holdLookup = false;
+			const baseAuthService = tokenAuthService(tokenRef);
+			const { agentHostService } = createContribution(disposables, {
+				authServiceOverride: {
+					...baseAuthService,
+					onDidChangeSessions: sessionsChanged.event,
+					getOrActivateProviderIdForServer: async () => {
+						if (holdLookup) {
+							holdLookup = false;
+							await providerLookup.p;
+						}
+						return 'github';
+					},
+				},
+			});
+			const [a, c] = ['a', 'c'].map(roundResource);
+
+			agentHostService.setRootState({ agents: agentsWith(a), activeSessions: 0 });
+			await timeout(0);
+			holdLookup = true;
+			sessionsChanged.fire({ providerId: 'github', label: 'GitHub', event: { added: [], removed: [{ id: 'session-id', scopes: [], accessToken: '', account: { id: 'account-1', label: 'Account 1' } }], changed: [] } });
+			await timeout(0);
+			agentHostService.setRootState({ agents: agentsWith(c), activeSessions: 0 });
+			await timeout(0);
+			tokenRef.current = 'tok-2';
+			agentHostService.authenticateCalls.length = 0;
+			providerLookup.complete();
+			await timeout(0);
+
+			assert.deepStrictEqual(agentHostService.authenticateCalls.map(call => ({ resource: call.resource, token: call.token })), [
+				{ resource: a.resource, token: '' },
+				{ resource: c.resource, token: 'tok-2' },
+			]);
+		});
+
 		test('a round stops sending for resources the host no longer advertises', async () => {
 			const { agentHostService } = createContribution(disposables, { authServiceOverride: tokenAuthService({ current: 'tok-1' }) });
 			const [a, b, c] = ['a', 'b', 'c'].map(roundResource);

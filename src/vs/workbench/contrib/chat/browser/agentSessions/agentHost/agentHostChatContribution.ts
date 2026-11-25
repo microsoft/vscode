@@ -525,7 +525,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 				}
 			}
 		}
-		await this._authenticateWithServer(agents);
+		await this._authenticateWithServer(this._getRootAgents());
 	}
 
 	private _getRootAgents(): readonly AgentInfo[] {
