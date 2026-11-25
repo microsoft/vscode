@@ -794,7 +794,8 @@ suite('AgentHostGitStateService', () => {
 		}, {
 			gitState: undefined,
 			persisted: undefined,
-			runEvents: [defaultChat],
+			// The session whose state the default chat cleared is announced too
+			runEvents: [defaultChat, SESSION],
 		});
 	});
 
@@ -2139,6 +2140,20 @@ suite('AgentHostGitStateService', () => {
 			assert.deepStrictEqual(h.runEvents, [SESSION]);
 		});
 	});
+
+	test('a default chat refresh that changes the session\'s Git state also announces the session', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const h = createHarness();
+		seedSession(h.stateManager, { workingDirectory: WORKING_DIRECTORY, gitState: { branchName: 'feature', uncommittedChanges: 0 } });
+		const gitState: ISessionGitState = { branchName: 'feature', uncommittedChanges: 1 };
+		h.setGitResult(gitState);
+
+		await h.service.refreshSessionGitState(buildDefaultChatUri(SESSION));
+
+		assert.deepStrictEqual({ runEvents: h.runEvents, sessionGitState: h.service.getSessionGitState(SESSION) }, {
+			runEvents: [buildDefaultChatUri(SESSION), SESSION],
+			sessionGitState: gitState,
+		});
+	}));
 
 	test('unchanged git state backfills missing GitHub state', async () => {
 		await runWithFakedTimers({ useFakeTimers: true }, async () => {
