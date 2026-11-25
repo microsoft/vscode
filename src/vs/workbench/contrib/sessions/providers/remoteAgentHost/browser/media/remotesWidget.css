@@ -432,20 +432,20 @@
 }
 
 .remotes-widget .monaco-table .monaco-list .remotes-ready-group .remotes-name-icon > .codicon,
-:is(.remotes-widget, .remotes-environment-details) .remotes-connection-indicator.connected > .codicon {
+:is(.remotes-widget .monaco-table .monaco-list .monaco-list-row, .remotes-environment-details) .remotes-connection-indicator.connected > .codicon {
 	color: var(--vscode-testing-iconPassed, var(--vscode-debugIcon-startForeground));
 }
 
 .remotes-widget .monaco-table .monaco-list .remotes-available-group .remotes-name-icon > .codicon,
-:is(.remotes-widget, .remotes-environment-details) .remotes-connection-indicator.available > .codicon {
+:is(.remotes-widget .monaco-table .monaco-list .monaco-list-row, .remotes-environment-details) .remotes-connection-indicator.available > .codicon {
 	color: var(--vscode-charts-blue);
 }
 
-:is(.remotes-widget, .remotes-environment-details) .remotes-connection-indicator.offline > .codicon {
+:is(.remotes-widget .monaco-table .monaco-list .monaco-list-row, .remotes-environment-details) .remotes-connection-indicator.offline > .codicon {
 	color: var(--vscode-descriptionForeground);
 }
 
-:is(.remotes-widget, .remotes-environment-details) .remotes-connection-indicator.failed > .codicon {
+:is(.remotes-widget .monaco-table .monaco-list .monaco-list-row, .remotes-environment-details) .remotes-connection-indicator.failed > .codicon {
 	color: var(--vscode-editorWarning-foreground);
 }
 

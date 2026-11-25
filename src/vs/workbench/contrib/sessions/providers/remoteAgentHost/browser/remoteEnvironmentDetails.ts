@@ -206,7 +206,6 @@ export class RemoteEnvironmentDetails extends Disposable {
 			localize('remotes.runSaveEffects', "Your choice applies on the next connection. Existing sessions are not moved.")));
 		actionSection.append(this.footer, this.feedback);
 		const actions = this.footer;
-		this.button(actions, localize('remotes.cancelDetails', "Cancel"), () => this.delegate.close());
 		const save = this.saveButton = this.button(actions, localize('remotes.saveRunBehaviorOnly', "Save"), () => {
 			if (selected && !this.busy) {
 				const preference = selected;
@@ -220,6 +219,7 @@ export class RemoteEnvironmentDetails extends Disposable {
 				});
 			}
 		}, false);
+		this.button(actions, localize('remotes.cancelDetails', "Cancel"), () => this.delegate.close());
 		save.element.setAttribute('aria-describedby', `${saveHint.id} ${this.feedback.id}`);
 		this.controls.add(radio.onDidSelect(index => {
 			selected = this.selectedPreference = choices[index].value;

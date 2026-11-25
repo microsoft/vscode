@@ -230,6 +230,12 @@ class TestRemotesWidget extends RemotesWidget {
 		this.table.focusFirst();
 	}
 
+	selectRow(index: number): void {
+		this.table.setFocus([index]);
+		this.table.setSelection([index]);
+		this.table.domFocus();
+	}
+
 	scrollToBottom(): void {
 		this.table.scrollTop = this.table.scrollHeight;
 	}
@@ -1722,6 +1728,39 @@ suite('RemotesWidget', () => {
 		})));
 	});
 
+	test('status colors survive active and inactive row selection and theme changes', () => {
+		const { parent, model, widget } = createWidget(OperatingSystem.Windows, 'status');
+		parent.classList.add('monaco-workbench');
+		parent.style.setProperty('--vscode-testing-iconPassed', '#228822');
+		parent.style.setProperty('--vscode-debugIcon-startForeground', '#228822');
+		parent.style.setProperty('--vscode-charts-blue', '#2266cc');
+		parent.style.setProperty('--vscode-descriptionForeground', '#888888');
+		parent.style.setProperty('--vscode-list-activeSelectionIconForeground', '#000000');
+		parent.style.setProperty('--vscode-list-inactiveSelectionIconForeground', '#ffffff');
+		model.remotes.set(model.remotes.get().map(remote => remote.id === 'tunnel:laptop' ? { ...remote, availability: 'offline' } : remote), undefined);
+		const list = parent.querySelector<HTMLElement>('.monaco-list')!;
+		const rows = [...list.querySelectorAll<HTMLElement>('.monaco-list-row')];
+		const color = (row: HTMLElement) => dom.getWindow(row).getComputedStyle(row.querySelector('.remotes-name-icon > .codicon, .remotes-connection-indicator > .codicon')!).color;
+		const colors = rows.map((row, index) => {
+			const before = color(row);
+			widget.selectRow(index);
+			const active = color(row);
+			const selectedAndFocused = row.classList.contains('selected') && row.classList.contains('focused') && dom.getActiveElement() === list;
+			list.blur();
+			return { before, active, inactive: color(row), selectedAndFocused };
+		});
+		widget.selectRow(0);
+		parent.style.setProperty('--vscode-testing-iconPassed', '#00ff00');
+		const themeChanged = color(rows[0]);
+		parent.style.removeProperty('--vscode-testing-iconPassed');
+		assert.deepStrictEqual({ colors, themeChanged, themeRemoved: color(rows[0]) }, {
+			colors: ['rgb(34, 136, 34)', 'rgb(34, 136, 34)', 'rgb(34, 102, 204)', 'rgb(34, 102, 204)', 'rgb(136, 136, 136)', 'rgb(136, 136, 136)']
+				.map(color => ({ before: color, active: color, inactive: color, selectedAndFocused: true })),
+			themeChanged: 'rgb(0, 255, 0)',
+			themeRemoved: 'rgb(34, 136, 34)',
+		});
+	});
+
 	test('status glyphs retain a visible hover hit area', () => {
 		const { parent } = createWidget(OperatingSystem.Windows);
 		feedbackStyles(parent);
@@ -3006,7 +3045,7 @@ suite('RemotesWidget', () => {
 			await timeout(0);
 			assert.deepStrictEqual({
 				busy, enabled: save.getAttribute('aria-disabled'), calls: model.locationChanges, preference: model.preferences.get(id), copied: model.copiedAddresses, actionOrder,
-			}, { busy: 'true', enabled: 'true', calls: [id], preference: 'dedicated', copied: id === 'ssh:build' ? [id] : [], actionOrder: ['Cancel', id === 'ssh:build' ? 'Save and Reconnect' : 'Save'] });
+			}, { busy: 'true', enabled: 'true', calls: [id], preference: 'dedicated', copied: id === 'ssh:build' ? [id] : [], actionOrder: [id === 'ssh:build' ? 'Save and Reconnect' : 'Save', 'Cancel'] });
 		});
 	}
 
