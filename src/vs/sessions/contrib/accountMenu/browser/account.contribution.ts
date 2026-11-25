@@ -197,6 +197,7 @@ export class TitleBarAccountWidget extends BaseActionViewItem {
 	private accountName: string | undefined;
 	private accountProviderId: string | undefined;
 	private accountProviderLabel: string | undefined;
+	private hasGitHubCredential = true;
 	private accountIcon: URI | undefined;
 	private isAccountLoading = true;
 	private accountRequestCounter = 0;
@@ -320,6 +321,7 @@ export class TitleBarAccountWidget extends BaseActionViewItem {
 		this.accountName = info?.accountName;
 		this.accountProviderId = info?.accountProviderId;
 		this.accountProviderLabel = info?.accountProviderLabel;
+		this.hasGitHubCredential = info?.hasGitHubCredential ?? true;
 		this.accountIcon = info?.accountIcon;
 		this.isAccountLoading = false;
 		this.refreshAvatar();
@@ -660,7 +662,7 @@ export class TitleBarAccountWidget extends BaseActionViewItem {
 				avatar.referrerPolicy = 'no-referrer';
 			} else {
 				const accountIcon = append(copilotIdentity, $('span.sessions-account-titlebar-panel-provider-icon', { 'aria-hidden': 'true' }));
-				accountIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.github));
+				accountIcon.classList.add(...ThemeIcon.asClassNameArray(this.hasGitHubCredential ? Codicon.github : Codicon.account));
 			}
 			const title = append(copilotIdentity, $('div.sessions-account-titlebar-panel-provider-name'));
 			title.textContent = this.getPanelHeaderLabel();
@@ -685,7 +687,9 @@ export class TitleBarAccountWidget extends BaseActionViewItem {
 			if (partitioned.signOut) {
 				copilotActionBar.push(partitioned.signOut, { icon: true, label: false });
 			}
-			this.appendCopilotUsage(copilotAccount, panelStore);
+			if (this.hasGitHubCredential) {
+				this.appendCopilotUsage(copilotAccount, panelStore);
+			}
 		} else if (partitioned.signIn) {
 			const copilotAccount = append(identities, $('section.sessions-account-titlebar-panel-provider-account.signed-out', {
 				'aria-label': localize('copilotAccountSectionLabel', "Copilot account")
@@ -1030,7 +1034,7 @@ export class TitleBarAccountWidget extends BaseActionViewItem {
 	}
 
 	private shouldShowCopilotDashboardHover(): boolean {
-		return !this.chatEntitlementService.sentiment.hidden && !!this.accountName;
+		return !this.chatEntitlementService.sentiment.hidden && !!this.accountName && this.hasGitHubCredential;
 	}
 
 	private createCopilotHoverContent(extraOptions?: Partial<IChatStatusDashboardOptions>): HTMLElement {

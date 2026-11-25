@@ -40,7 +40,7 @@ type HoveredLimit = 'fiveHour' | 'weekly';
 
 const profileImageDataUri = `data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" fill="#5b5fc7"/><circle cx="32" cy="24" r="12" fill="#f8f8f8"/><path d="M12 64c2-16 10-24 20-24s18 8 20 24" fill="#f8f8f8"/></svg>')}`;
 
-async function renderAccountMenu(context: ComponentFixtureContext, usageState: UsageState, hoveredLimit?: HoveredLimit): Promise<void> {
+async function renderAccountMenu(context: ComponentFixtureContext, usageState: UsageState, hoveredLimit?: HoveredLimit, withoutGitHubCredential = false): Promise<void> {
 	const { container, disposableStore } = context;
 	container.classList.add('agent-sessions-workbench');
 	container.style.width = '448px';
@@ -68,7 +68,9 @@ async function renderAccountMenu(context: ComponentFixtureContext, usageState: U
 	const defaultAccount = new class extends mock<IDefaultAccount>() {
 		override readonly accountName = 'Alex';
 		override readonly sessionId = 'fixture-session';
-		override readonly authenticationProvider = { id: 'github', name: 'GitHub', scopes: [], enterprise: false };
+		override readonly authenticationProvider = withoutGitHubCredential
+			? { id: 'microsoft', name: 'Microsoft', scopes: [], enterprise: false }
+			: { id: 'github', name: 'GitHub', scopes: [], enterprise: false };
 	}();
 	const configurationService = new TestConfigurationService({
 		[AgentHostCodexAgentEnabledSettingId]: true,
@@ -102,7 +104,7 @@ async function renderAccountMenu(context: ComponentFixtureContext, usageState: U
 				getSessions: async () => [{
 					id: defaultAccount.sessionId,
 					accessToken: '',
-					account: { id: 'fixture-account', label: defaultAccount.accountName, icon: URI.parse(profileImageDataUri) },
+					account: { id: 'fixture-account', label: defaultAccount.accountName, icon: withoutGitHubCredential ? undefined : URI.parse(profileImageDataUri) },
 					scopes: [],
 				}],
 			});
@@ -114,7 +116,7 @@ async function renderAccountMenu(context: ComponentFixtureContext, usageState: U
 				signOut: () => { },
 			});
 			registry.definePartialInstance(IChatEntitlementService, {
-				entitlement: ChatEntitlement.Enterprise,
+				entitlement: withoutGitHubCredential ? ChatEntitlement.Unresolved : ChatEntitlement.Enterprise,
 				sentiment: { completed: true, installed: true },
 				quotas: {
 					premiumChat: { unlimited: true, percentRemaining: 100, creditsUsed: 123456, resetAt: Date.UTC(2026, 5, 1) / 1000 },
@@ -156,10 +158,10 @@ async function renderAccountMenu(context: ComponentFixtureContext, usageState: U
 		throw new Error('Account popover fixture did not open the account panel.');
 	}
 	await waitForFixtureCondition(() => {
-		const images = [...container.querySelectorAll<HTMLImageElement>('img')];
-		return images.length === 2 && images.every(image => image.hasAttribute('src') && image.complete && image.naturalWidth > 0);
-	}, 'Account popover fixture did not load both local avatars');
-	await Promise.all([...container.querySelectorAll<HTMLImageElement>('img')].map(image => image.decode()));
+		const images = [...container.querySelectorAll<HTMLImageElement>('img[src]')];
+		return images.length === (withoutGitHubCredential ? 1 : 2) && images.every(image => image.complete && image.naturalWidth > 0);
+	}, 'Account popover fixture did not load its local avatars');
+	await Promise.all([...container.querySelectorAll<HTMLImageElement>('img[src]')].map(image => image.decode()));
 	await waitForChatPetAchievementPreviews(container, chatPetAchievements.length);
 	if (hoveredLimit) {
 		const rateLimitRows = panel.querySelectorAll<HTMLElement>('.sessions-account-titlebar-panel-provider-metric-row.secondary[tabindex="0"]');
@@ -213,5 +215,10 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		deferPaint: true,
 		labels: { kind: 'screenshot' },
 		render: context => renderAccountMenu(context, 'both', 'weekly'),
+	}),
+	AccountWithoutGitHubCredential: defineComponentFixture({
+		deferPaint: true,
+		labels: { kind: 'screenshot' },
+		render: context => renderAccountMenu(context, 'unavailable', undefined, true),
 	}),
 });

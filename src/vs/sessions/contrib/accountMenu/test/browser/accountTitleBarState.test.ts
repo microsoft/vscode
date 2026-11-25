@@ -210,8 +210,28 @@ suite('Sessions - Account Title Bar State', () => {
 				accountName: 'octocat',
 				accountProviderId: 'github',
 				accountProviderLabel: 'GitHub',
+				hasGitHubCredential: true,
 				accountIcon: URI.parse('https://example.com/default.png'),
 			}
 		);
+	});
+
+	test('reports a GitHub credential for GitHub accounts and the raw GitHub session fallback, not for a Microsoft account', async () => {
+		const authenticationService = new class extends mock<IAuthenticationService>() {
+			override async getSessions(): Promise<ReadonlyArray<AuthenticationSession>> {
+				return [{ id: 'raw', accessToken: 'token', scopes: [], account: { id: 'account', label: 'octocat' } }];
+			}
+		};
+		const resolve = async (account: IDefaultAccount | null) => (await resolveAccountInfo(new class extends mock<IDefaultAccountService>() {
+			override async getDefaultAccount() { return account; }
+		}, authenticationService))?.hasGitHubCredential;
+		const defaultAccount = (id: string): IDefaultAccount => ({ authenticationProvider: { id, name: id, enterprise: false }, accountName: 'octocat', sessionId: 'session', enterprise: false });
+
+		assert.deepStrictEqual({
+			github: await resolve(defaultAccount('github')),
+			enterprise: await resolve(defaultAccount('github-enterprise')),
+			microsoft: await resolve(defaultAccount('microsoft')),
+			rawSession: await resolve(null),
+		}, { github: true, enterprise: true, microsoft: false, rawSession: true });
 	});
 });

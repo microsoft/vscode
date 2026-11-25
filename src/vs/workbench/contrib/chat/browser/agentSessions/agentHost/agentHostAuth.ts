@@ -1259,7 +1259,11 @@ export async function resolveAuthenticationInteractively(
 	return false;
 }
 
-/** Builds the shared setup options for granting an agent host's required GitHub Copilot scopes. */
+/**
+ * Builds the shared setup options for granting an agent host's required GitHub Copilot scopes.
+ * The dialog these options force also offers the Microsoft sign-in, although this caller asks for
+ * more GitHub permissions for an account that is already signed in.
+ */
 export function getAgentHostSignInOptions(scopes: readonly string[]): IChatSetupCommandOptions {
 	return {
 		telemetrySource: ChatSetupSource.AgentHost,

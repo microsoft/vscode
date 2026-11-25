@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../base/common/codicons.js';
+import { asGitHubAccount } from '../../base/common/defaultAccount.js';
 import { FileAccess } from '../../base/common/network.js';
 import { ThemeIcon } from '../../base/common/themables.js';
 import { URI } from '../../base/common/uri.js';
@@ -16,6 +17,8 @@ export interface IResolvedAccountInfo {
 	readonly accountName: string;
 	readonly accountProviderId: string;
 	readonly accountProviderLabel: string;
+	/** Whether the account has a GitHub credential, as {@link asGitHubAccount} reads it. */
+	readonly hasGitHubCredential: boolean;
 	/**
 	 * The icon (avatar) supplied by the authentication provider for this
 	 * account, if any.
@@ -39,6 +42,7 @@ export async function resolveAccountInfo(
 			accountName: account.accountName,
 			accountProviderId: account.authenticationProvider.id,
 			accountProviderLabel: account.authenticationProvider.name,
+			hasGitHubCredential: !!asGitHubAccount(account),
 			accountIcon: await getSessionAccountIcon(authenticationService, account.authenticationProvider.id, account.sessionId),
 		};
 	}
@@ -50,6 +54,7 @@ export async function resolveAccountInfo(
 				accountName: sessions[0].account.label,
 				accountProviderId: 'github',
 				accountProviderLabel: 'GitHub',
+				hasGitHubCredential: true,
 				accountIcon: sessions[0].account.icon,
 			};
 		}

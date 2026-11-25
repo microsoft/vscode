@@ -87,6 +87,7 @@ export class MobileTitlebarPart extends Disposable {
 	private accountName: string | undefined;
 	private accountProviderId: string | undefined;
 	private accountProviderLabel: string | undefined;
+	private hasGitHubCredential = true;
 	private accountIcon: URI | undefined;
 	private isAccountLoading = true;
 	private accountRequestCounter = 0;
@@ -353,6 +354,7 @@ export class MobileTitlebarPart extends Disposable {
 		this.accountName = info?.accountName;
 		this.accountProviderId = info?.accountProviderId;
 		this.accountProviderLabel = info?.accountProviderLabel;
+		this.hasGitHubCredential = info?.hasGitHubCredential ?? true;
 		this.accountIcon = info?.accountIcon;
 		this.isAccountLoading = false;
 		this.refreshAvatar();
@@ -515,6 +517,7 @@ export class MobileTitlebarPart extends Disposable {
 		const entitlement = this.chatEntitlementService.entitlement;
 		const showDashboard = !this.chatEntitlementService.sentiment.hidden
 			&& !!this.accountName
+			&& this.hasGitHubCredential
 			&& entitlement !== ChatEntitlement.Unknown
 			&& entitlement !== ChatEntitlement.Available;
 		if (showDashboard) {
