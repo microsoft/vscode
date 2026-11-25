@@ -24,6 +24,7 @@ import { isDefined } from '../../../../../base/common/types.js';
 import { localize } from '../../../../../nls.js';
 import { ModelRouterSkillName } from '../../../../../platform/agentHost/common/modelRouterConfig.js';
 import { ModelRouterSwitching } from '../../../../../platform/agentHost/common/modelRouter.js';
+import { COPILOT_CLI_AGENT_PROVIDER_ID } from '../../../../../platform/agentHost/common/agent.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IContextMenuService, IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
@@ -531,7 +532,8 @@ export class ModelRoutersWidget extends Disposable {
 	/** Starts a chat with the model router skill, followed by `request` when there is one. */
 	private async runModelRouterSkill(request: string): Promise<void> {
 		if (await this.host.beforeNavigate()) {
-			await startCopilotChatWithPrompt(`/${ModelRouterSkillName} ${request}`, !!this.environmentService.isSessionsWindow, this.commandService, this.chatWidgetService);
+			// The routers are this window's own Copilot agent's, whichever agent the session that is showing has.
+			await startCopilotChatWithPrompt(`/${ModelRouterSkillName} ${request}`, !!this.environmentService.isSessionsWindow, this.commandService, this.chatWidgetService, COPILOT_CLI_AGENT_PROVIDER_ID);
 		}
 	}
 
