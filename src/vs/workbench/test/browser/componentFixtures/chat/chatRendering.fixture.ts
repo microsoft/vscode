@@ -479,7 +479,38 @@ function renderCompletedSummary(context: ComponentFixtureContext, width: number,
 	});
 }
 
+/**
+ * Routing rows among tool rows. With model logos shown, a routing row's logo and text
+ * share the columns of the tool rows' icons and text, and of the working row below them.
+ */
+function renderModelRouting(context: ComponentFixtureContext): Promise<void> {
+	return renderChatWidget(context, {
+		width: 420, height: 300, listHeight: 300, inputVisible: false,
+		additionalServices: reg => reg.defineInstance(IFileService, context.disposableStore.add(new TestFileService())),
+		persistentProgress: ChatProgressAnimation.Draw,
+		// Compact keeps each tool on its own row, so the rows alternate.
+		persistentProgressVerbosity: ChatProgressVerbosity.Compact,
+		thinkingPhrases: ['Analyzing'],
+		collapseCompletedResponses: false,
+		modelLogos: true,
+		messages: [{
+			user: 'Review the changes',
+			responseComplete: false,
+			assistant: [
+				{ kind: 'tool', toolId: 'read_file', displayName: 'Read file', invocationMessage: 'Read the review skill', complete: true },
+				{ kind: 'autoModeResolution', resolved: { id: 'gpt-6-luna', name: 'GPT-6 Luna' }, fusion: true },
+				{ kind: 'tool', toolId: 'grep', displayName: 'Search', invocationMessage: 'Searched for routing rows', complete: true },
+				{ kind: 'autoModeResolution', resolved: { id: 'claude-opus-5.5', name: 'Claude Opus 5.5', reason: 'Auto selected claude-opus-5.5 for its fit to your request because of high reasoning needs.' }, fusion: true },
+			],
+		}],
+	});
+}
+
 export default defineThemedFixtureGroup({ path: 'chat/' }, {
+	ModelRoutingAmongTools: defineComponentFixture({
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		render: renderModelRouting,
+	}),
 	ReadPillsStreaming: defineComponentFixture({
 		render: context => renderReadPills(context, false),
 	}),

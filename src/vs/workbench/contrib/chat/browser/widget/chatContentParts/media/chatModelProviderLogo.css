@@ -11,8 +11,8 @@
 	align-items: center;
 	justify-content: center;
 	flex-shrink: 0;
-	width: var(--vscode-spacing-size120);
-	height: var(--vscode-spacing-size120);
+	width: var(--vscode-codiconFontSize-compact);
+	height: var(--vscode-codiconFontSize-compact);
 	font-size: var(--vscode-codiconFontSize-compact);
 	color: var(--vscode-icon-foreground);
 }
@@ -51,15 +51,18 @@
 	visibility: visible;
 }
 
-/* A routing row leads with the logo of the model it names, on the row's first line. */
+/* A routing row leads with the logo of the model it names, on the row's first line. The logo sits in the
+	column of the tool rows' icons and reserves their text gutter, so the row's text starts where theirs does. */
 .interactive-session .chat-used-context-label .monaco-button > .chat-model-provider-logo {
 	align-self: flex-start;
-	margin: var(--vscode-spacing-size40) var(--vscode-spacing-size40) 0 0;
+	margin-top: var(--vscode-spacing-size40);
+	margin-left: var(--chat-persistent-icon-left, calc(var(--vscode-codiconFontSize-compact) * 0.2));
+	margin-right: calc(var(--vscode-spacing-size240) - var(--chat-persistent-icon-left, calc(var(--vscode-codiconFontSize-compact) * 0.2)) - var(--vscode-codiconFontSize-compact));
 }
 
-/* The row already spaces its items once it shows its checkmark. */
+/* The row already spaces its items once it shows its checkmark, which then takes the icon column. */
 .interactive-session .chat-used-context.show-checkmarks .chat-used-context-label .monaco-button > .chat-model-provider-logo {
-	margin-right: 0;
+	margin-inline: 0;
 }
 
 /* Inside a sentence, the logo leads the model's name, and the two stay on one line. */
