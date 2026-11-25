@@ -10,9 +10,11 @@ import { localize } from '../../../../../nls.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { registerAction2, Action2, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { getSessionWorktreeFolder, getWorktreeFilterKey, getWorktreeFilterOptions, ISessionWorktreeFolder, IWorktreeFilterOption } from '../../common/sessionWorktreeFolders.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
+import { ChatConfiguration } from '../../common/constants.js';
 import { IChatSessionsService } from '../../common/chatSessionsService.js';
 import { ILocalChatAvailabilityService } from '../../common/localChatAvailability.js';
 import { runOnChange } from '../../../../../base/common/observable.js';
@@ -85,6 +87,11 @@ export function getAgentSessionWorktreeFolder(session: IAgentSession): ISessionW
 export class AgentSessionsFilter extends Disposable implements Required<IAgentSessionsFilter> {
 
 	private readonly STORAGE_KEY = `agentSessions.filterExcludes.agentsessionsviewerfiltersubmenu`;
+	/**
+	 * Sort order explicitly selected in the sessions filter menu. It takes
+	 * precedence over the {@link ChatConfiguration.ChatViewSessionsDefaultSortOrder}
+	 * setting, which only provides the default.
+	 */
 	private readonly SORTING_STORAGE_KEY = `agentSessions.sorting`;
 
 	private readonly _onDidChange = this._register(new Emitter<void>());
@@ -95,7 +102,7 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 
 	private excludes = DEFAULT_EXCLUDES;
 	private isStoringExcludes = false;
-	private currentSorting: AgentSessionsSorting = AgentSessionsSorting.Created;
+	private currentSorting: AgentSessionsSorting;
 
 	private readonly actionDisposables = this._register(new DisposableStore());
 	private worktreeOptions: readonly IWorktreeFilterOption[] = [];
@@ -107,10 +114,11 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@ILocalChatAvailabilityService private readonly localChatAvailabilityService: ILocalChatAvailabilityService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
 
-		this.restoreSorting();
+		this.currentSorting = this.getPreferredSorting();
 		this.worktreeOptions = this.getWorktreeOptions();
 		this.updateExcludes(false);
 
@@ -122,6 +130,13 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 		this._register(this.chatSessionsService.onDidChangeAvailability(() => this.updateFilterActions()));
 
 		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, this.STORAGE_KEY, this._store)(() => this.updateExcludes(true)));
+
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(ChatConfiguration.ChatViewSessionsDefaultSortOrder)) {
+				this.updateSorting(this.getPreferredSorting());
+			}
+		}));
+
 		this._register(runOnChange(this.localChatAvailabilityService.hidden, () => this._onDidChange.fire()));
 
 		// The Worktrees submenu, and which folder's sessions show, follow the worktrees that sessions work in
@@ -187,22 +202,41 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 		}
 	}
 
-	private restoreSorting(): void {
-		const storedSorting = this.storageService.get(this.SORTING_STORAGE_KEY, StorageScope.PROFILE);
-		if (storedSorting && Object.values(AgentSessionsSorting).includes(storedSorting as AgentSessionsSorting)) {
-			this.currentSorting = storedSorting as AgentSessionsSorting;
+	private getPreferredSorting(): AgentSessionsSorting {
+		const storedSorting = this.getStoredSorting();
+		if (storedSorting) {
+			return storedSorting;
 		}
+
+		return this.configurationService.getValue<string>(ChatConfiguration.ChatViewSessionsDefaultSortOrder) === AgentSessionsSorting.Updated ?
+			AgentSessionsSorting.Updated :
+			AgentSessionsSorting.Created;
 	}
 
-	setSorting(sorting: AgentSessionsSorting): void {
-		if (this.currentSorting === sorting) {
+	private getStoredSorting(): AgentSessionsSorting | undefined {
+		const storedSorting = this.storageService.get(this.SORTING_STORAGE_KEY, StorageScope.PROFILE);
+
+		return storedSorting === AgentSessionsSorting.Created || storedSorting === AgentSessionsSorting.Updated ?
+			storedSorting :
+			undefined;
+	}
+
+	private updateSorting(sorting: AgentSessionsSorting, forceUpdate = false): void {
+		if (this.currentSorting === sorting && !forceUpdate) {
 			return;
 		}
 
 		this.currentSorting = sorting;
-		this.storageService.store(this.SORTING_STORAGE_KEY, sorting, StorageScope.PROFILE, StorageTarget.USER);
 		this.updateFilterActions();
 		this._onDidChange.fire();
+	}
+
+	setSorting(sorting: AgentSessionsSorting): void {
+		// the selection is remembered even when it matches the default, so the
+		// setting no longer overrides it
+		const hasStoredSorting = this.getStoredSorting() !== undefined;
+		this.storageService.store(this.SORTING_STORAGE_KEY, sorting, StorageScope.PROFILE, StorageTarget.USER);
+		this.updateSorting(sorting, !hasStoredSorting);
 	}
 
 	private updateFilterActions(): void {
@@ -509,7 +543,7 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 	}
 
 	isDefault(): boolean {
-		return equals(withWorktree(this.excludes, this.getSelectedWorktree()), DEFAULT_EXCLUDES) && this.currentSorting === AgentSessionsSorting.Created;
+		return equals(withWorktree(this.excludes, this.getSelectedWorktree()), DEFAULT_EXCLUDES) && this.getStoredSorting() === undefined;
 	}
 
 	getExcludes(): IAgentSessionsFilterExcludes {
@@ -564,8 +598,10 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 
 	reset(): void {
 		this.storeExcludes({ ...DEFAULT_EXCLUDES });
-		if (this.currentSorting !== AgentSessionsSorting.Created) {
-			this.setSorting(AgentSessionsSorting.Created);
-		}
+
+		// dropping the selected sorting makes the configured one apply again
+		const hasStoredSorting = this.getStoredSorting() !== undefined;
+		this.storageService.remove(this.SORTING_STORAGE_KEY, StorageScope.PROFILE);
+		this.updateSorting(this.getPreferredSorting(), hasStoredSorting);
 	}
 }

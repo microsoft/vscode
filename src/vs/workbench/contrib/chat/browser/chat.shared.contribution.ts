@@ -1053,6 +1053,16 @@ configurationRegistry.registerConfiguration({
 			default: 'sideBySide',
 			description: nls.localize('chat.viewSessions.orientation', "Controls the orientation of the chat agent sessions view when it is shown alongside the chat."),
 		},
+		[ChatConfiguration.ChatViewSessionsDefaultSortOrder]: {
+			type: 'string',
+			enum: ['created', 'updated'],
+			enumDescriptions: [
+				nls.localize('chat.viewSessions.defaultSortOrder.created', "Sort chat sessions by the date they were created."),
+				nls.localize('chat.viewSessions.defaultSortOrder.updated', "Sort chat sessions by the date of their last update.")
+			],
+			default: 'created',
+			description: nls.localize('chat.viewSessions.defaultSortOrder', "Controls the default sort order of chat sessions in the sessions views. Once a sort order is selected in the sessions filter menu, that choice is used instead."),
+		},
 		[ChatConfiguration.ChatViewProgressBadgeEnabled]: {
 			type: 'boolean',
 			default: false,

@@ -18,7 +18,7 @@ import { IAgentSession, isAgentHostAgentSessionItem, isLocalAgentSessionItem } f
 import { IAgentSessionsService } from './agentSessionsService.js';
 import { AgentSessionsSorter, groupAgentSessionsByDate, type IAgentSessionsFilter, sessionDateFromNow } from './agentSessionsViewer.js';
 import { AGENT_SESSION_DELETE_ACTION_ID, AGENT_SESSION_RENAME_ACTION_ID } from './agentSessions.js';
-import { AgentSessionsFilter } from './agentSessionsFilter.js';
+import { AgentSessionsFilter, AgentSessionsSorting } from './agentSessionsFilter.js';
 
 interface ISessionPickItem extends IQuickPickItem {
 	readonly session: IAgentSession;
@@ -85,8 +85,6 @@ export interface IAgentSessionsPickerOptions {
 
 export class AgentSessionsPicker {
 
-	private readonly sorter = new AgentSessionsSorter();
-
 	constructor(
 		private readonly anchor: HTMLElement | undefined,
 		private readonly options: IAgentSessionsPickerOptions | undefined,
@@ -106,6 +104,10 @@ export class AgentSessionsPicker {
 		picker.items = this.createPickerItems(filter);
 		picker.canAcceptInBackground = true;
 		picker.placeholder = localize('chatAgentPickerPlaceholder', "Search agent sessions by name");
+
+		// keep the order and date groups in sync with the filter, e.g. when the
+		// default sort order setting changes while the picker is open
+		disposables.add(filter.onDidChange(() => picker.items = this.createPickerItems(filter)));
 
 		disposables.add(picker.onDidAccept(e => {
 			const pick = picker.selectedItems[0];
@@ -158,12 +160,13 @@ export class AgentSessionsPicker {
 	}
 
 	private createPickerItems(filter: AgentSessionsFilter): (ISessionPickItem | IQuickPickSeparator)[] {
+		const sorter = new AgentSessionsSorter(() => filter.sortResults() ?? AgentSessionsSorting.Created);
 		const sessions = this.agentSessionsService.model.sessions
 			.filter(session => shouldShowSessionInPicker(session, filter))
-			.sort(this.sorter.compare.bind(this.sorter));
+			.sort(sorter.compare.bind(sorter));
 		const items: (ISessionPickItem | IQuickPickSeparator)[] = [];
 
-		const groupedSessions = groupAgentSessionsByDate(sessions);
+		const groupedSessions = groupAgentSessionsByDate(sessions, filter.sortResults());
 		for (const group of groupedSessions.values()) {
 			if (group.sessions.length > 0) {
 				items.push({ type: 'separator', label: group.label });
