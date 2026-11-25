@@ -52,24 +52,24 @@
 .artifact-autopilot-rule-label {
 	flex: 0 1 auto;
 	min-width: 0;
-	cursor: pointer;
 	font-size: var(--vscode-fontSize-label1);
 }
 
-.artifact-autopilot-rule-row > .monaco-button {
-	width: auto;
-	flex-shrink: 0;
+/* A switch's label toggles it; the label before a rule's choices only names them. */
+label.artifact-autopilot-rule-label {
+	cursor: pointer;
 }
 
-/* The trailing chevron carries its own side bearing, so less padding after it balances the padding before the label. */
-.artifact-autopilot-rule-row > .monaco-button.artifact-autopilot-policy {
-	gap: var(--vscode-spacing-size40);
-	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size40) var(--vscode-spacing-size20) var(--vscode-spacing-size80);
+/* As tall as a switch row, so a rule with choices keeps the rhythm of the list. */
+.artifact-autopilot-rule-row > .monaco-custom-radio.artifact-autopilot-choices {
+	flex: 0 0 auto;
+	box-sizing: border-box;
+	height: var(--vscode-spacing-size240);
+	align-items: stretch;
 }
 
-.monaco-button.artifact-autopilot-policy .artifact-autopilot-policy-chevron {
-	order: 1;
-	margin: 0;
+.artifact-autopilot-rule-row > .monaco-custom-radio.artifact-autopilot-choices > .monaco-button {
+	height: auto;
 }
 
 .artifact-autopilot-rule-label:focus-visible {
