@@ -210,7 +210,7 @@ suite('GitHubCoreAssignmentsFilterProvider', () => {
 	test('emits the core GitHub assignment filters map', () => {
 		const account = new TestDefaultAccountService();
 		account.setEntitlements({ analytics_tracking_id: 'tid-1', organization_login_list: ['github'], access_type_sku: 'pro' });
-		account.copilotTokenInfo = { sn: '1', fcv1: '0' };
+		account.copilotTokenInfo = { sn: '1', fcv1: '0', st: 'proxima' };
 		const provider = createProvider(account);
 
 		const filters = provider.getFilters();
@@ -221,13 +221,14 @@ suite('GitHubCoreAssignmentsFilterProvider', () => {
 			[GitHubAssignmentsFilter.CopilotSku, 'pro'],
 			[GitHubAssignmentsFilter.CopilotIsSn, '1'],
 			[GitHubAssignmentsFilter.CopilotIsFcv1, '0'],
+			[GitHubAssignmentsFilter.CopilotIsProxima, '1'],
 		]);
 	});
 
 	test('clears account filters on sign-out even before token info is cleared', () => {
 		const account = new TestDefaultAccountService();
 		account.setEntitlements({ analytics_tracking_id: 'old-user', access_type_sku: 'enterprise', organization_login_list: ['github'] });
-		account.copilotTokenInfo = { sn: '1', fcv1: '1' };
+		account.copilotTokenInfo = { sn: '1', fcv1: '1', st: 'proxima' };
 		const provider = createProvider(account);
 		let changes = 0;
 		disposables.add(provider.onDidChangeFilters(() => changes++));
@@ -240,6 +241,7 @@ suite('GitHubCoreAssignmentsFilterProvider', () => {
 				github_core_copilotsku: null,
 				github_core_issn: '0',
 				github_core_isfcv1: '0',
+				github_core_isproxima: '0',
 			},
 			changes: 1,
 		});
