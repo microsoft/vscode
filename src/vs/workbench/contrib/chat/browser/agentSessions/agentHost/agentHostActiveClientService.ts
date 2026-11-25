@@ -31,6 +31,7 @@ import { ILanguageModelToolsService, IToolData, IToolSet } from '../../../common
 import { RenameToolId } from '../../tools/renameTool.js';
 import { IMcpService } from '../../../../mcp/common/mcpTypes.js';
 import { IConfigurationResolverService } from '../../../../../services/configurationResolver/common/configurationResolver.js';
+import { ChatEntitlement, IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { AgentCustomizationSyncProvider } from './agentCustomizationSyncProvider.js';
 import { enumerateLocalCustomizationsForHarness, type ILocalCustomizationSyncOptions, resolveCustomizationRefs, resolveLocalCustomAgents } from './agentHostLocalCustomizations.js';
@@ -319,6 +320,7 @@ export class AgentHostActiveClientService extends Disposable implements IAgentHo
 		@IAgentHostToolSetEnablementService private readonly _toolSetEnablementService: IAgentHostToolSetEnablementService,
 		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
+		@IChatEntitlementService private readonly _chatEntitlementService: IChatEntitlementService,
 	) {
 		super();
 		this._allToolsObs = this._toolsService.observeTools(undefined);
@@ -484,7 +486,9 @@ export class AgentHostActiveClientService extends Disposable implements IAgentHo
 				const toolSets = this._allToolSetsObs.read(reader);
 				const enablement = this._toolSetEnablementService.observe(sessionType).read(reader);
 				const isCopilotSession = isCopilotAgentHostSessionType(sessionType);
-				const semanticSearchTool = isCopilotSession
+				const canUseSemanticSearch = this._chatEntitlementService.entitlementObs.read(reader) !== ChatEntitlement.Unknown
+					|| this._chatEntitlementService.anonymousObs.read(reader);
+				const semanticSearchTool = isCopilotSession && canUseSemanticSearch
 					? tools.find(tool => tool.id === CLIENT_SEMANTIC_SEARCH_TOOL_ID)
 					: undefined;
 				const enabledToolIds = new Set<string>();
@@ -501,7 +505,12 @@ export class AgentHostActiveClientService extends Disposable implements IAgentHo
 				// This recomputes whenever tools, tool sets or their members change, so the full reference names are
 				// computed once per recompute rather than once per tool.
 				const getAgentFileToolReferenceName = createAgentFileToolReferenceNameResolver(this._toolsService);
-				return coalesce(tools.filter(tool => tool.source.type !== 'mcp' && tool.id !== RenameToolId && (enabledToolIds.has(tool.id) || tool === semanticSearchTool)).map(tool => {
+				return coalesce(tools.filter(tool =>
+					tool.source.type !== 'mcp'
+					&& tool.id !== RenameToolId
+					&& !(isCopilotSession && !canUseSemanticSearch && tool.id === CLIENT_SEMANTIC_SEARCH_TOOL_ID)
+					&& (enabledToolIds.has(tool.id) || tool === semanticSearchTool)
+				).map(tool => {
 					if (!isCopilotSession) {
 						return toolDataToDefinition(tool, getAgentFileToolReferenceName(tool));
 					}

@@ -186,6 +186,10 @@ suite('AgentHostClientTools', () => {
 			setToolSetEnabled: () => { },
 			setToolEnabled: () => { },
 		});
+		instantiationService.stub(IChatEntitlementService, Object.assign(new TestChatEntitlementService(), {
+			entitlement: ChatEntitlement.Free,
+			entitlementObs: constObservable(ChatEntitlement.Free),
+		}));
 
 		const service = disposables.add(instantiationService.createInstance(AgentHostActiveClientService));
 		return { service, promptListings, getFullReferenceNameSnapshots: () => fullReferenceNameSnapshots };
@@ -1140,7 +1144,10 @@ suite('AgentHostClientTools', () => {
 				override readonly extUri = extUriBiasedIgnorePathCase;
 			});
 			instantiationService.stub(IProductService, { quality: 'insider' });
-			instantiationService.stub(IChatEntitlementService, Object.assign(new TestChatEntitlementService(), { entitlement: ChatEntitlement.Free }));
+			instantiationService.stub(IChatEntitlementService, Object.assign(new TestChatEntitlementService(), {
+				entitlement: ChatEntitlement.Free,
+				entitlementObs: constObservable(ChatEntitlement.Free),
+			}));
 			instantiationService.stub(IChatAgentService, {
 				registerDynamicAgent: () => toDisposable(() => { }),
 			});
@@ -4114,5 +4121,101 @@ suite('AgentHostClientTools', () => {
 			assert.ok(completionEntry, 'completion for the nested client tool should be dispatched');
 			assert.strictEqual(completionEntry.channel.toString(), subagentChat2, 'completion should target the level-2 subagent chat URI');
 		});
+	});
+
+	test('withholds semantic_search from Copilot sessions when signed out without anonymous access', () => {
+		const tools = observableValue<readonly IToolData[]>('tools', [
+			{
+				id: CLIENT_SEMANTIC_SEARCH_TOOL_ID,
+				displayName: 'Semantic Search',
+				modelDescription: 'Search codebase',
+				source: { type: 'internal', label: 'Built-In' },
+				toolReferenceName: 'codebase',
+			},
+			{
+				id: 'other_tool',
+				displayName: 'Other Tool',
+				modelDescription: 'Other',
+				source: { type: 'internal', label: 'Built-In' },
+				toolReferenceName: 'other',
+			},
+		]);
+		const toolSet = {
+			id: 'test-set',
+			referenceName: 'test-set',
+			displayName: 'Test Set',
+			icon: { id: 'tools' },
+			source: { type: 'internal', label: 'Built-In' },
+			getTools: () => tools.get(),
+		} as unknown as IToolSet;
+		const toolSets = observableValue<Iterable<IToolSet>>('toolSets', [toolSet]);
+		const enablement = observableValue<IToolEnablementState>('enablement', {
+			toolSets: new Map([['test-set', true]]),
+			tools: new Map([
+				[CLIENT_SEMANTIC_SEARCH_TOOL_ID, true],
+				['other_tool', true],
+			]),
+		});
+		const entitlementObs = observableValue<ChatEntitlement>('entitlement', ChatEntitlement.Unknown);
+		const anonymousObs = observableValue<boolean>('anonymous', false);
+
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IFileService, TestFileService);
+		instantiationService.stub(IAgentHostFileSystemService, {
+			ensureSyncedCustomizationProvider: () => { },
+		});
+		instantiationService.stub(IStorageService, disposables.add(new InMemoryStorageService()));
+		instantiationService.stub(IUriIdentityService, new class extends mock<IUriIdentityService>() {
+			override readonly extUri = extUriBiasedIgnorePathCase;
+		});
+		instantiationService.stub(IConfigurationService, { getValue: () => false, onDidChangeConfiguration: Event.None } as Partial<IConfigurationService>);
+		instantiationService.stub(IConfigurationResolverService, {} as Partial<IConfigurationResolverService>);
+		instantiationService.stub(IWorkbenchEnvironmentService, {});
+		instantiationService.stub(IPromptsService, new class extends mock<IPromptsService>() {
+			override readonly onDidChangeCustomAgents = Event.None;
+			override readonly onDidChangeSlashCommands = Event.None;
+			override readonly onDidChangeSkills = Event.None;
+			override readonly onDidChangeInstructions = Event.None;
+			override getDisabledPromptFiles() { return new ResourceSet(); }
+			override async listPromptFilesForStorage() { return []; }
+		}());
+		instantiationService.stub(IAgentPluginService, { plugins: observableValue('plugins', []) });
+		instantiationService.stub(IMcpService, {
+			servers: observableValue('mcpServers', []),
+			lazyCollectionState: observableValue('mcpLazyCollectionState', { state: LazyCollectionState.AllKnown, collections: [] }),
+			enablementModel: new class extends mock<IEnablementModel>() {
+				override readProfileEnabled() { return true; }
+			}(),
+		});
+		instantiationService.stub(ILanguageModelToolsService, {
+			observeTools: () => tools,
+			toolSets,
+			getTool: id => tools.get().find(tool => tool.id === id),
+			createFullReferenceNameResolver: () => tool => tool.id,
+		} as Partial<ILanguageModelToolsService> as ILanguageModelToolsService);
+		instantiationService.stub(IAgentHostToolSetEnablementService, {
+			observe: () => enablement,
+			getState: () => enablement.get(),
+			setToolSetEnabled: () => { },
+			setToolEnabled: () => { },
+		});
+		instantiationService.stub(IChatEntitlementService, Object.assign(new TestChatEntitlementService(), {
+			entitlementObs,
+			anonymousObs,
+		}));
+
+		const service = disposables.add(instantiationService.createInstance(AgentHostActiveClientService));
+		const scope = disposables.add(service.acquireScope('agent-host-copilotcli', [URI.file('/workspace')]));
+
+		assert.deepStrictEqual(scope.tools.get().map(t => t.name), ['other']);
+
+		entitlementObs.set(ChatEntitlement.Free, undefined);
+		assert.deepStrictEqual(scope.tools.get().map(t => t.name), [SEMANTIC_SEARCH_TOOL_NAME, 'other']);
+
+		entitlementObs.set(ChatEntitlement.Unknown, undefined);
+		assert.deepStrictEqual(scope.tools.get().map(t => t.name), ['other']);
+
+		anonymousObs.set(true, undefined);
+		assert.deepStrictEqual(scope.tools.get().map(t => t.name), [SEMANTIC_SEARCH_TOOL_NAME, 'other']);
 	});
 });
