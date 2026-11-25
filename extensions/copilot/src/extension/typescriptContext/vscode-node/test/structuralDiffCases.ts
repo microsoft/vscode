@@ -329,7 +329,7 @@ export function defineStructuralDiffCases(compute: ComputeStructuralDiff): void 
 		]);
 	});
 
-	test('lists nothing within functions, methods and accessors', async () => {
+	test('lists neither the variables nor the nested functions of functions, methods and accessors', async () => {
 		const original = [
 			'function toStored(layout: Layout) {',
 			'\tconst { name, contribution } = layout;',
@@ -350,6 +350,77 @@ export function defineStructuralDiffCases(compute: ComputeStructuralDiff): void 
 			[['Store', 'load'], vscode.SymbolKind.Method],
 			[['Store', 'size'], vscode.SymbolKind.Property],
 			[['handler'], vscode.SymbolKind.Function],
+		]);
+	});
+
+	test('lists the types that functions, methods, tests and suites declare, but not their classes or the types of nested functions', async () => {
+		const original = [
+			'function load() {',
+			'\tinterface Options { size: number; }',
+			'\tif (enabled) { type Mode = "fast" | "slow"; }',
+			'\tclass Local { size = 1; }',
+			'\tconst helper = () => { interface Hidden { size: number; } };',
+			'}',
+			'class Store {',
+			'\tconstructor() { enum State { Idle = 1 } }',
+			'\tsave() { type Entry = { size: number }; }',
+			'}',
+			'const handler = () => { interface Event { size: number; } };',
+			'suite("Layout", () => {',
+			'\tinterface Saved { size: number; }',
+			'\tfunction create() { interface Config { size: number; } }',
+			'\tsetup(() => { interface Fixture { size: number; } });',
+			'\ttest("restores", () => { type Restored = { size: number }; });',
+			'});',
+		].join('\n');
+		const modified = original.replaceAll('number', 'string').replaceAll('1', '2');
+		const result = await compute(original, modified);
+		assert.deepStrictEqual(summarize(result, original, modified).map(node => [node.path, node.kind]), [
+			[['load'], vscode.SymbolKind.Function],
+			[['load', 'Options'], vscode.SymbolKind.Interface],
+			[['load', 'Options', 'size'], vscode.SymbolKind.Property],
+			[['load', 'Mode'], vscode.SymbolKind.Variable],
+			[['Store'], vscode.SymbolKind.Class],
+			[['Store', 'constructor'], vscode.SymbolKind.Constructor],
+			[['Store', 'constructor', 'State'], vscode.SymbolKind.Enum],
+			[['Store', 'constructor', 'State', 'Idle'], vscode.SymbolKind.EnumMember],
+			[['Store', 'save'], vscode.SymbolKind.Method],
+			[['Store', 'save', 'Entry'], vscode.SymbolKind.Variable],
+			[['Store', 'save', 'Entry', 'size'], vscode.SymbolKind.Property],
+			[['handler'], vscode.SymbolKind.Function],
+			[['handler', 'Event'], vscode.SymbolKind.Interface],
+			[['handler', 'Event', 'size'], vscode.SymbolKind.Property],
+			[['Layout'], vscode.SymbolKind.Class],
+			[['Layout', 'Saved'], vscode.SymbolKind.Interface],
+			[['Layout', 'Saved', 'size'], vscode.SymbolKind.Property],
+			[['Layout', 'restores'], vscode.SymbolKind.Method],
+			[['Layout', 'restores', 'Restored'], vscode.SymbolKind.Variable],
+			[['Layout', 'restores', 'Restored', 'size'], vscode.SymbolKind.Property],
+		]);
+	});
+
+	test('attributes changes in a local type to the type instead of the suite or test that declares it', async () => {
+		const original = [
+			'suite("Layout", () => {',
+			'\tinterface Saved { stored: number; }',
+			'\tfunction create() { return 1; }',
+			'\ttest("restores", () => { type Restored = { size: number }; check(1); });',
+			'});',
+		].join('\n');
+		const modified = original.replaceAll('number', 'string').replaceAll('1', '2');
+		const result = await compute(original, modified, [
+			{ originalRange: rangeOf(original, 'number'), modifiedRange: rangeOf(modified, 'string') },
+			{ originalRange: rangeOf(original, '1'), modifiedRange: rangeOf(modified, '2') },
+			{ originalRange: rangeOf(original, 'number', original.indexOf('Restored')), modifiedRange: rangeOf(modified, 'string', modified.indexOf('Restored')) },
+			{ originalRange: rangeOf(original, '1', original.indexOf('check')), modifiedRange: rangeOf(modified, '2', modified.indexOf('check')) },
+		]);
+		assert.deepStrictEqual(summarize(result, original, modified).map(node => [node.path, node.modifiedChanges.map(change => [change[1], change[2]])]), [
+			[['Layout'], [[vscode.StructuralDiffClassification.Implementation, '2']]],
+			[['Layout', 'Saved'], []],
+			[['Layout', 'Saved', 'stored'], [[vscode.StructuralDiffClassification.Header, 'string']]],
+			[['Layout', 'restores'], [[vscode.StructuralDiffClassification.Implementation, '2']]],
+			[['Layout', 'restores', 'Restored'], []],
+			[['Layout', 'restores', 'Restored', 'size'], [[vscode.StructuralDiffClassification.Header, 'string']]],
 		]);
 	});
 

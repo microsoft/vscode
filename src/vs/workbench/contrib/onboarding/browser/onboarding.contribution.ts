@@ -94,7 +94,7 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			default: product.quality !== 'insider',
 			tags: ['experimental', 'advanced'],
-			description: localize('onboarding.spotlight.backdrop', "Controls whether onboarding spotlights dim the rest of the window behind the highlighted element. Takes effect the next time a spotlight is shown.")
+			description: localize('onboarding.spotlight.backdrop', "Controls whether onboarding spotlights dim and block the rest of the window behind the highlighted element. When disabled, the rest of the window stays interactive while a spotlight is shown. Takes effect the next time a spotlight is shown.")
 		},
 		[SPOTLIGHT_CLOSE_BUTTON_CONFIG]: {
 			type: 'boolean',

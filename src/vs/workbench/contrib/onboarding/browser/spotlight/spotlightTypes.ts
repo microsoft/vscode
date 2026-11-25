@@ -10,7 +10,7 @@ import { ContextKeyExpression } from '../../../../../platform/contextkey/common/
 /** The presentation `kind` handled by the spotlight presentation. */
 export const SPOTLIGHT_PRESENTATION_KIND = 'spotlight';
 
-/** Setting that controls whether spotlights dim the window around the highlighted target. */
+/** Setting that controls whether spotlights dim and block the window around the highlighted target. */
 export const SPOTLIGHT_BACKDROP_CONFIG = 'onboarding.spotlight.backdrop';
 
 /** Experiment-controlled setting that ends tours with a close button by the title instead of an End Tour button. */

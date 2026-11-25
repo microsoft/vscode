@@ -5,14 +5,18 @@
 
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { IObservable } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { InstantiationType, registerSingleton } from '../../../../../../platform/instantiation/common/extensions.js';
 import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
 
 /** A chat of the editor window's session layer, of the local agent host, as the folder follow reads it. */
 export interface IAgentHostWorktreeChat {
-	/** Where it works; `undefined` while not known, such as before its first request. */
-	readonly workingDirectory: URI | undefined;
+	/**
+	 * Where it works; `undefined` while not known, such as before its first request. It changes also where nothing else of its
+	 * session does, such as once only this chat of its session moved to a worktree.
+	 */
+	readonly workingDirectory: IObservable<URI | undefined>;
 	readonly isArchived: boolean;
 }
 
@@ -22,7 +26,7 @@ export interface IAgentHostWorktreeChat {
  * sessions layer registers it.
  */
 export interface IAgentHostWorktreeChatResolver {
-	/** Fires as where its chats work, or whether they are archived, may have changed. */
+	/** Fires as which chats it resolves, or whether they are archived, may have changed. */
 	readonly onDidChange: Event<void>;
 	/** The local agent host chat of `resource`; `undefined` for a chat that is not one of the session layer's. */
 	resolve(resource: URI): IAgentHostWorktreeChat | undefined;

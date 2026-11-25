@@ -975,7 +975,7 @@ export class AgentMergeController extends Disposable {
 		}
 
 		const gitStateKey = runtime.folderKey === this._sessionFolderKey(state) ? session : chat;
-		const lookupFailure = await this._gitStateService.attachSessionGitHubPullRequest(gitStateKey, this._workingDirectoryForFolder(session, runtime.folderKey)) || undefined;
+		const lookupFailure = await this._gitStateService.attachSessionGitHubPullRequest(gitStateKey) || undefined;
 		if (!this._isCurrentEvaluation(key, runtime, agentMerge, chat, configuration)) {
 			return;
 		}
@@ -1335,7 +1335,7 @@ export class AgentMergeController extends Disposable {
 		}
 		this._logService.debug(`[AgentMergeController] Refreshing git state before resolving the branch: session=${runtime.session}, folder=${runtime.folderKey}, hasTarget=${targetBranchName !== undefined}`);
 		const gitStateKey = runtime.folderKey === this._sessionFolderKey(state) ? runtime.session : chat;
-		await this._gitStateService.refreshSessionGitState(gitStateKey, this._workingDirectoryForFolder(runtime.session, runtime.folderKey));
+		await this._gitStateService.refreshSessionGitState(gitStateKey);
 		if (!this._isCurrentRuntime(key, runtime)) {
 			return undefined;
 		}

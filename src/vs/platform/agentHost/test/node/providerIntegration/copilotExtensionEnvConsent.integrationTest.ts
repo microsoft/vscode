@@ -11,7 +11,7 @@ import { DeferredPromise, raceTimeout, retry } from '../../../../../base/common/
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { join } from '../../../../../base/common/path.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { AgentExtensionConsentOption, AgentSession, fixedChatOwnerRef, type AgentCanvasOpenAnswer, type IAgentChatContext } from '../../../common/agent.js';
+import { AgentExtensionConsentOption, AgentSession, fixedChatOwnerRef, type AgentCanvasOpenAnswer, type AgentCanvasOpenResult, type IAgentChatContext } from '../../../common/agent.js';
 import { AgentHostCanvasesEnabledConfigKey, AgentHostWorkspaceTrustConfigKey } from '../../../common/agentHostSchema.js';
 import type { CanvasState } from '../../../common/state/protocol/channels-canvas/state.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
@@ -116,7 +116,7 @@ await joinSession({
 	}
 
 	for (const target of ['default', 'peer'] as const) {
-		test(`asks before a canvas opened from the UI reads a sensitive variable, asks again after a retry, and keeps the approval across the refresh (${target} chat)`, async function () {
+		test(`asks before a canvas opened from the UI reads a sensitive variable, reports a decline the runtime keeps across a retry, and keeps the approval across the refresh (${target} chat)`, async function () {
 			this.timeout(180_000);
 			const workspace = join(directory, 'workspace');
 			await writeExtension(workspace, 'allowed-canvas');
@@ -154,19 +154,21 @@ await joinSession({
 			}
 			const open = (name: string, answer?: AgentCanvasOpenAnswer) => copilot.openSessionCanvas(session, { canvasId: name, extensionId: `project:${name}`, instanceId: name }, canvasChat, context, answer);
 			const steps: string[] = [];
-			const answer = async (name: string, optionId: AgentExtensionConsentOption, retrying?: boolean) => {
-				const asked = await open(name, retrying ? { kind: 'retry' } : undefined);
+			const answer = async (name: string, optionId: AgentExtensionConsentOption) => {
+				const asked = await open(name);
 				assert.strictEqual(asked.kind, 'consentRequired', `${name} must ask for consent`);
 				steps.push(`${name} asks for ${asked.consent.items.join(', ')}`);
 				const result = await open(name, { kind: 'consent', consentId: asked.consent.id, optionId });
-				steps.push(`${name} ${optionId}: ${result.kind}${result.kind === 'consentDenied' ? ` (retryable: ${result.retryable})` : ''}`);
+				steps.push(`${name} ${optionId}: ${outcome(result)}`);
 			};
+			const outcome = (result: AgentCanvasOpenResult) => result.kind === 'consentDenied' ? `consentDenied (retryable: ${result.retryable}${result.keptForSession ? ', kept for the session' : ''})` : result.kind;
 			const latestUrl = (name: string) => canvases.findLast(canvas => canvas.instanceId === name)?.uri;
 
 			await answer('allowed-canvas', AgentExtensionConsentOption.Allow);
 			await answer('declined-canvas', AgentExtensionConsentOption.NotNow);
 			const beforeRetry = canvases.length;
-			await answer('declined-canvas', AgentExtensionConsentOption.Allow, true);
+			// Since runtime 1.0.115 the replacement runtime restores the decline from the session and does not ask again.
+			steps.push(`declined-canvas retry: ${outcome(await open('declined-canvas', { kind: 'retry' }))}`);
 			// The retry replaced the runtime: the allowed canvas reopens in the background without asking again.
 			await retry(async () => assert.ok(canvases.slice(beforeRetry).some(canvas => canvas.instanceId === 'allowed-canvas' && canvas.uri)), 200, 150);
 
@@ -176,11 +178,10 @@ await joinSession({
 					'allowed-canvas allow-once: opened',
 					`declined-canvas asks for ${variable}`,
 					'declined-canvas not-now: consentDenied (retryable: true)',
-					`declined-canvas asks for ${variable}`,
-					'declined-canvas allow-once: opened',
+					'declined-canvas retry: consentDenied (retryable: false, kept for the session)',
 				],
 				allowed: 'http://127.0.0.1:43119/allowed-canvas?env=visible',
-				declined: 'http://127.0.0.1:43119/declined-canvas?env=visible',
+				declined: undefined,
 				unexpectedRequests: [],
 			});
 		});

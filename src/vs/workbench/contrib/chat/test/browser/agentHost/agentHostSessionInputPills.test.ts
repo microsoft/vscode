@@ -796,10 +796,10 @@ suite('AgentHostSessionInputPills', () => {
 	});
 
 	test('a file shown above the chat input is the agent host\'s file, also in a remote window', async () => {
-		const showFile = async (resourceUris: IAgentHostResourceUriMapper) => {
+		const showFile = async (resourceUris: IAgentHostResourceUriMapper, type: SessionArtifactType.File | SessionArtifactType.Resource) => {
 			const harness = createActivityPills(upcastPartial<SessionState>({
 				defaultChat: 'vendor-chat:/main', chats: [],
-				_meta: withSessionArtifacts(undefined, [{ id: 'status', label: 'Status', uri: 'file:///repo/status.md', type: SessionArtifactType.Resource, isArtifact: true }]),
+				_meta: withSessionArtifacts(undefined, [{ id: 'status', label: 'Status', uri: 'file:///repo/status.md', type, isArtifact: true, mode: 'pinned' }]),
 			}), undefined, undefined, 'local', undefined, undefined, { configurationService: new TestConfigurationService({ [ChatResourcesEnabledSettingId]: true }), resourceUris });
 			// A remote window has a file system for its remote's files, which the chat checks before it shows one.
 			const windowScheme = resourceUris.fromAgentHost(URI.file('/repo/status.md')).scheme;
@@ -809,8 +809,6 @@ suite('AgentHostSessionInputPills', () => {
 			const rendered = new DeferredPromise<string>();
 			harness.instantiationService.stub(ITextModelService, upcastPartial<ITextModelService>({ createModelReference: resource => { rendered.complete(resource.toString()); return Promise.reject(new Error('unreadable')); } }));
 			await timeout(0);
-			await harness.dropdown('1 Artifact').flatMap(item => item.toolbarActions ?? []).find(action => action.label.startsWith('Pin '))?.run();
-			await timeout(0);
 			const pill = harness.persistentContent.querySelector<HTMLElement>('.chat-pill-item');
 			await harness.menu(pill)?.find(action => action.id === 'chatResources.showAboveInput')?.run();
 			return rendered.p;
@@ -818,11 +816,15 @@ suite('AgentHostSessionInputPills', () => {
 		const remote = createEditorRemoteAgentHostResourceUriMapper('wsl+debian', agentHostAuthority('vscode-remote://wsl+debian'));
 
 		assert.deepStrictEqual({
-			localWindow: await showFile(identityAgentHostResourceUriMapper),
-			remoteWindow: await showFile(remote),
+			localFile: await showFile(identityAgentHostResourceUriMapper, SessionArtifactType.File),
+			localResource: await showFile(identityAgentHostResourceUriMapper, SessionArtifactType.Resource),
+			remoteFile: await showFile(remote, SessionArtifactType.File),
+			remoteResource: await showFile(remote, SessionArtifactType.Resource),
 		}, {
-			localWindow: 'file:///repo/status.md',
-			remoteWindow: remote.fromAgentHost(URI.file('/repo/status.md')).toString(),
+			localFile: 'file:///repo/status.md',
+			localResource: 'file:///repo/status.md',
+			remoteFile: URI.from({ scheme: Schemas.vscodeRemote, authority: 'wsl+debian', path: '/repo/status.md' }).toString(),
+			remoteResource: URI.from({ scheme: Schemas.vscodeRemote, authority: 'wsl+debian', path: '/repo/status.md' }).toString(),
 		});
 	});
 
@@ -940,7 +942,8 @@ suite('AgentHostSessionInputPills', () => {
 	});
 
 	test('opens file artifacts through the connection that owns them', () => {
-		const artifact = URI.file('/home/user/videos/walkthrough.mp4');
+		const artifact = URI.file('/home/user/.copilot/session-state/session/files/review.md');
+		const editorRemote = createEditorRemoteAgentHostResourceUriMapper('wsl+debian', 'editor-remote');
 		const openArtifact = (connectionAuthority: string, resourceUris: IAgentHostResourceUriMapper) => {
 			const openerService = new TestOpenerService();
 			const harness = createActivityPills(upcastPartial<SessionState>({
@@ -955,14 +958,52 @@ suite('AgentHostSessionInputPills', () => {
 		assert.deepStrictEqual({
 			localWindow: openArtifact('local', identityAgentHostResourceUriMapper),
 			// The ambient host of a remote window resolves as `local` but runs on the remote
-			remoteWindow: openArtifact('local', createAgentHostResourceUriMapper('ambient-remote')),
+			remoteWindow: openArtifact('local', editorRemote),
 			remoteHost: openArtifact('remote', createAgentHostResourceUriMapper('remote')),
 		}, {
 			localWindow: [artifact.toString()],
-			remoteWindow: [toAgentHostUri(artifact, 'ambient-remote').toString()],
+			remoteWindow: [artifact.with({ scheme: Schemas.vscodeRemote, authority: 'wsl+debian' }).toString()],
 			remoteHost: [toAgentHostUri(artifact, 'remote').toString()],
 		});
 	});
+
+	for (const kind of [
+		...agentHostConnectionKinds,
+		{
+			name: 'WSL',
+			resourceUris: createEditorRemoteAgentHostResourceUriMapper('wsl+debian', 'editor-remote'),
+			toClient: (uri: URI) => uri.with({ scheme: Schemas.vscodeRemote, authority: 'wsl+debian' }),
+		},
+	]) {
+		test(`opens recorded files and resources in the same URI space (${kind.name})`, () => {
+			const file = URI.file('/home/user/.copilot/session-state/session/files/review.md');
+			const virtualFile = URI.parse('vendor-file://workspace/virtual-review.md?version=1');
+			const resource = URI.parse('app-link:/review');
+			const openerService = new TestOpenerService();
+			const artifacts = [
+				{ id: 'file', label: 'Review', uri: file.toString(), type: SessionArtifactType.File, isArtifact: true },
+				{ id: 'virtual-file', label: 'Virtual review', uri: virtualFile.toString(), type: SessionArtifactType.File, isArtifact: true },
+				{ id: 'resource', label: 'Review app', uri: resource.toString(), type: SessionArtifactType.Resource, isArtifact: true },
+				{ id: 'file-resource', label: 'Review resource', uri: file.toString(), type: SessionArtifactType.Resource, isArtifact: true },
+			];
+			const harness = createActivityPills(upcastPartial<SessionState>({
+				defaultChat: 'vendor-chat:/main', chats: [],
+				_meta: withSessionArtifacts(undefined, artifacts),
+			}), undefined, undefined, 'local', undefined, undefined, { openerService, resourceUris: kind.resourceUris });
+			for (const artifact of artifacts) {
+				const label = artifact.type === SessionArtifactType.File ? basename(URI.parse(artifact.uri)) : artifact.label;
+				harness.dropdown('4 Artifacts').find(item => item.label === label)?.select();
+			}
+			const virtualAuthority = kind.name === 'remote agent host' ? 'remote-test' : 'local';
+
+			assert.deepStrictEqual(openerService.opened.map(({ resource }) => resource.toString()), [
+				kind.toClient(file).toString(),
+				toAgentHostUri(virtualFile, virtualAuthority).toString(),
+				resource.toString(),
+				kind.toClient(file).toString(),
+			]);
+		});
+	}
 
 	test('reports opening recorded artifacts and references with the backend session', () => {
 		const openRecorded = (recorded: ISessionArtifact, dropdown?: { readonly pill: string; readonly item: string }) => {

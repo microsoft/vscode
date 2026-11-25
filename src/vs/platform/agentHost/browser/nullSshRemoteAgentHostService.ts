@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../base/common/event.js';
+import { constObservable } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
+import type { IRemoteAgentHostEntry } from '../common/remoteAgentHostService.js';
 import type { ISSHRemoteAgentHostService, ISSHAgentHostConnection, SSHAgentHostConnectionRequest, ISSHConnectProgress, ISSHResolvedConfig } from '../common/sshRemoteAgentHost.js';
 
 /**
@@ -16,12 +18,15 @@ export class NullSSHRemoteAgentHostService implements ISSHRemoteAgentHostService
 	readonly onDidChangeConnections = Event.None;
 	readonly onDidReportConnectProgress: Event<ISSHConnectProgress> = Event.None;
 	readonly connections: readonly ISSHAgentHostConnection[] = [];
+	readonly disconnectedEntries = constObservable<readonly IRemoteAgentHostEntry[]>([]);
 
 	async connect(_config: SSHAgentHostConnectionRequest): Promise<ISSHAgentHostConnection> {
 		throw new Error('SSH connections are not supported in the browser.');
 	}
 
 	async disconnect(_host: string): Promise<void> { }
+
+	clearDisconnected(_address: string): void { }
 
 	async listSSHConfigHosts(): Promise<string[]> {
 		return [];

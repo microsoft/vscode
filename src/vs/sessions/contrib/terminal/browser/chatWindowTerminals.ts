@@ -20,7 +20,7 @@ import { TerminalEditorInput } from '../../../../workbench/contrib/terminal/brow
 import { editorGroupToColumn } from '../../../../workbench/services/editor/common/editorGroupColumn.js';
 import { GroupsOrder, IEditorGroup, IEditorGroupsService, IEditorPart } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { ISessionHost, ISessionHostService, SessionHostKind } from '../../../../workbench/services/sessions/browser/sessionHost.js';
-import { IChat, ISession } from '../../../../workbench/services/sessions/common/session.js';
+import { IChat, ISession, isSessionArchiveConfirmed } from '../../../../workbench/services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 
 /** What the terminals of chat windows need of the sessions' terminals. */
@@ -136,7 +136,7 @@ export class ChatWindowTerminals extends Disposable implements IChatWindowTermin
 		super();
 		// What sessions that went away, or were archived, showed their terminals with goes with them
 		this._register(sessionsManagementService.onDidChangeSessions(e => {
-			for (const session of [...e.removed, ...e.changed.filter(changed => changed.isArchived.get())]) {
+			for (const session of [...e.removed, ...e.changed.filter(changed => isSessionArchiveConfirmed(changed))]) {
 				this._arrangements.delete(session.sessionId);
 			}
 		}));

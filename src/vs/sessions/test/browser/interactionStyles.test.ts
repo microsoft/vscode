@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import '../../browser/media/style.css';
-import '../../browser/parts/media/projectBarPart.css';
 import assert from 'assert';
 import { $, append } from '../../../base/browser/dom.js';
 import { mainWindow } from '../../../base/browser/window.js';
@@ -18,7 +17,6 @@ suite('Sessions Interaction Styles', () => {
 		const root = append(mainWindow.document.body, $('.monaco-workbench.agent-sessions-workbench.hc-black'));
 		root.style.cssText = [
 			'--vscode-strokeThickness: 1px',
-			'--vscode-spacing-size60: 6px',
 			'--vscode-cornerRadius-small: 4px',
 			'--vscode-toolbar-hoverBackground: #112233',
 			'--vscode-toolbar-hoverOutline: #445566',
@@ -28,9 +26,6 @@ suite('Sessions Interaction Styles', () => {
 			'--vscode-contrastActiveBorder: #556677',
 			'--vscode-focusBorder: #778899',
 			'--vscode-list-focusOutline: #99aabb',
-			'--vscode-activityBar-inactiveForeground: #aabbcc',
-			'--vscode-activityBar-foreground: #ddeeff',
-			'--vscode-activityBar-background: #010203',
 		].join(';');
 		store.add(toDisposable(() => root.remove()));
 		return root;
@@ -218,62 +213,5 @@ suite('Sessions Interaction Styles', () => {
 		const expanded = append(root, $('.agent-sessions-interactive.agent-sessions-interactive-list.hovered', { 'aria-expanded': 'true' }));
 
 		assert.strictEqual(mainWindow.getComputedStyle(expanded).backgroundColor, 'rgb(34, 51, 68)');
-	});
-
-	test('project bar states share one high contrast indicator geometry', () => {
-		const root = createRoot();
-		const projectBar = append(root, $('.projectbar'));
-		const item = append(projectBar, $('.action-item.workspace-entry'));
-		append(item, $('span.action-label.workspace-icon'));
-		const readIndicator = () => {
-			const style = mainWindow.getComputedStyle(item, '::before');
-			const hasOutline = style.outlineStyle !== 'none';
-			return {
-				inset: [style.top, style.right, style.bottom, style.left],
-				borderColor: style.borderColor,
-				borderRadius: style.borderRadius,
-				outlineColor: hasOutline ? style.outlineColor : 'none',
-				outlineOffset: style.outlineOffset,
-				outlineStyle: style.outlineStyle,
-				outlineWidth: hasOutline ? style.outlineWidth : '0px',
-			};
-		};
-
-		item.classList.add('hovered');
-		const hovered = readIndicator();
-		item.classList.replace('hovered', 'checked');
-		const checked = readIndicator();
-		item.classList.replace('checked', 'focus-visible');
-		const focused = readIndicator();
-
-		assert.deepStrictEqual({ hovered, checked, focused }, {
-			hovered: {
-				inset: ['6px', '6px', '6px', '6px'],
-				borderColor: 'rgba(0, 0, 0, 0)',
-				borderRadius: '0px',
-				outlineColor: 'rgb(85, 102, 119)',
-				outlineOffset: '-1px',
-				outlineStyle: 'dashed',
-				outlineWidth: '1px',
-			},
-			checked: {
-				inset: ['6px', '6px', '6px', '6px'],
-				borderColor: 'rgba(0, 0, 0, 0)',
-				borderRadius: '0px',
-				outlineColor: 'rgb(85, 102, 119)',
-				outlineOffset: '-1px',
-				outlineStyle: 'solid',
-				outlineWidth: '1px',
-			},
-			focused: {
-				inset: ['6px', '6px', '6px', '6px'],
-				borderColor: 'rgb(119, 136, 153)',
-				borderRadius: '0px',
-				outlineColor: 'none',
-				outlineOffset: '0px',
-				outlineStyle: 'none',
-				outlineWidth: '0px',
-			},
-		});
 	});
 });

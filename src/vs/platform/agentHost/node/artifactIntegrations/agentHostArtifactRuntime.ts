@@ -29,13 +29,27 @@ import { AgentHostStateManager } from '../agentHostStateManager.js';
 
 export const IAgentHostArtifactEventService = createDecorator<AgentHostArtifactEventService>('agentHostArtifactEventService');
 
+/** The entries one agent request recorded, promoted or found already recorded in a chat, once the change is persisted. */
+export interface IAgentHostRecordedArtifacts {
+	readonly session: string;
+	readonly chat: string;
+	readonly turnId: string | undefined;
+	readonly artifactIds: readonly string[];
+}
+
 export class AgentHostArtifactEventService extends Disposable {
 	declare readonly _serviceBrand: undefined;
 	private readonly emitter = this._register(new Emitter<ArtifactChatEvent>());
 	readonly onDidChange = this.emitter.event;
+	private readonly recordings = this._register(new Emitter<IAgentHostRecordedArtifacts>());
+	readonly onDidRecordArtifacts = this.recordings.event;
 
 	accept(event: ArtifactChatEvent): void {
 		this.emitter.fire(event);
+	}
+
+	acceptRecordedArtifacts(recorded: IAgentHostRecordedArtifacts): void {
+		this.recordings.fire(recorded);
 	}
 }
 

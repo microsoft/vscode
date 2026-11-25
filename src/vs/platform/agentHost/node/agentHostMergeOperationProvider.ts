@@ -10,17 +10,13 @@ import { localize } from '../../../nls.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import type { IChangesetOperationContribution, IChangesetOperationContext, IChangesetOperationRegistry } from '../common/agentHostChangesetOperationService.js';
 import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
-import { resolveDiffBaseBranchName } from '../common/agentHostGitService.js';
 import { ChangesetKind } from '../common/changesetUri.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { ChangesetOperationScope, ChangesetOperationStatus, hasSessionPullRequestForBranch, SessionLifecycle, type ChangesetOperation, type SessionState } from '../common/state/sessionState.js';
 import { AgentHostMergeOperationHandler } from './agentHostMergeOperationHandler.js';
-import type { IAgentHostCredentialSource } from '../common/agentHostCredentials.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 
 export class AgentHostMergeOperationContribution extends Disposable implements IChangesetOperationContribution {
-
-	private _registry: IChangesetOperationRegistry | undefined;
 
 	constructor(
 		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
@@ -31,17 +27,14 @@ export class AgentHostMergeOperationContribution extends Disposable implements I
 	}
 
 	registerHandlers(registry: IChangesetOperationRegistry): IDisposable {
-		this._registry = registry;
 		const store = new DisposableStore();
 		const handler = this._instantiationService.createInstance(
 			AgentHostMergeOperationHandler,
 			(sessionKey: string) => this._stateManager.getSessionState(sessionKey),
-			(sessionKey: string) => this._gitStateService.resolveSessionBaseBranchName(sessionKey),
-			(sessionKey: string, source?: IAgentHostCredentialSource) => this._onGitStateChanged(sessionKey, source),
+			(sessionKey: string) => this._gitStateService.resolveSessionBaseBranchRef(sessionKey),
 			(sessionKey: string, commit: string) => this._gitStateService.recordSessionMerge(sessionKey, commit),
 		);
 		store.add(registry.registerChangesetOperationHandler(AgentHostMergeOperationHandler.OPERATION_MERGE, handler));
-		store.add({ dispose: () => { this._registry = undefined; } });
 		return store;
 	}
 
@@ -54,7 +47,7 @@ export class AgentHostMergeOperationContribution extends Disposable implements I
 		}
 
 		const branchName = gitState?.branchName;
-		const baseBranchName = resolveDiffBaseBranchName(undefined, gitState?.baseBranchName);
+		const baseBranchName = gitState?.baseBranchName;
 		if (!branchName || !baseBranchName || branchName === baseBranchName || hasSessionPullRequestForBranch(gitHubState, branchName)) {
 			return undefined;
 		}
@@ -87,10 +80,5 @@ export class AgentHostMergeOperationContribution extends Disposable implements I
 		const workingDirectory = state.workingDirectories?.[0];
 		const project = state.project?.uri;
 		return !!workingDirectory && !!project && !isEqual(URI.parse(workingDirectory), URI.parse(project));
-	}
-
-	private async _onGitStateChanged(sessionKey: string, source?: IAgentHostCredentialSource): Promise<void> {
-		this._registry?.onDidChangeOperations(sessionKey);
-		await this._registry?.refreshSessionGitState(sessionKey, source);
 	}
 }

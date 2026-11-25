@@ -447,6 +447,10 @@
 	margin-right: auto;
 }
 
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .center-adjacent-toolbar-container:not(.has-no-actions):not(.overflowing) {
+	margin-left: calc(0px - var(--vscode-spacing-size60));
+}
+
 .monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .update-toolbar-container {
 	margin-left: auto;
 	margin-right: var(--vscode-spacing-size40);

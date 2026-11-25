@@ -58,6 +58,38 @@ suite('ColorThemeData - transient colors', () => {
 		});
 	});
 
+	test('resolves theme colors independently of user and transient overrides', () => {
+		const theme = ColorThemeData.createUnloadedTheme('vs-dark', { [editorBackground]: '#202020' });
+		theme.setCustomColors({ [editorBackground]: '#123456', [foreground]: '#abcdef' });
+		theme.setTransientColors({ [editorBackground]: Color.fromHex('#654321') });
+
+		assert.deepStrictEqual({
+			active: theme.getColor(editorBackground)?.toString(),
+			theme: theme.getColor(editorBackground, false, true)?.toString(),
+			fallback: theme.getColor(foreground, true, true)?.toString(),
+			missing: theme.getColor(foreground, false, true),
+		}, {
+			active: '#654321',
+			theme: '#202020',
+			fallback: '#cccccc',
+			missing: undefined,
+		});
+	});
+
+	test('preserves default-color customization semantics', () => {
+		const theme = ColorThemeData.createUnloadedTheme('vs-dark', { [editorBackground]: '#202020' });
+		theme.setCustomColors({ [editorBackground]: 'default' });
+		assert.deepStrictEqual({
+			active: theme.getColor(editorBackground)?.toString(),
+			explicit: theme.getColor(editorBackground, false),
+			theme: theme.getColor(editorBackground, false, true)?.toString(),
+		}, {
+			active: '#1e1e1e',
+			explicit: undefined,
+			theme: '#202020',
+		});
+	});
+
 	test('clearing runtime colors restores theme and user-customized colors', () => {
 		const theme = ColorThemeData.createUnloadedTheme('vs-dark', { [editorBackground]: '#202020' });
 		theme.setCustomColors({ [inputBackground]: '#123456' });

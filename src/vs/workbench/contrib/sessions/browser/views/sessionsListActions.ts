@@ -31,7 +31,8 @@ import { SessionsCategories } from '../../common/categories.js';
 import { AutomationSessionsListMode, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SESSIONS_LIST_INBOX_ENABLED_SETTING, SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING } from '../../common/sessionConfig.js';
 import { ACKNOWLEDGE_INBOX_SESSION_COMMAND_ID, ARCHIVE_CHAT_COMMAND_ID, ARCHIVE_SESSION_COMMAND_ID, ARCHIVE_SESSION_GROUP_COMMAND_ID, ARCHIVE_SESSIONS_WITH_UNDO_COMMAND_ID, DELETE_SESSION_GROUP_WITH_UNDO_COMMAND_ID, HIDE_AUTOMATION_SESSION_FROM_LIST_COMMAND_ID, HOLD_INBOX_SESSION_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, RENAME_SESSION_COMMAND_ID, RESUME_INBOX_SESSION_COMMAND_ID, SHOW_AUTOMATION_SESSION_IN_LIST_COMMAND_ID, SHOW_SESSION_APPLICATION_FILTERS_COMMAND_ID, UNARCHIVE_CHAT_COMMAND_ID, UNARCHIVE_SESSION_COMMAND_ID } from '../../common/sessionCommands.js';
 import { IsPhoneLayoutContext, SessionSupportsDeleteContext, SessionSupportsRenameContext, SessionActiveChatCanArchiveContext, SessionActiveChatIsUntitledContext, SessionHeaderTargetsChatContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsReadContext, SessionItemIsMultiSelectionContext, SessionsListPromoteNewChatActionContext } from '../../common/contextkeys.js';
-import { getSessionListChats, isAutomationSession, SessionItemInboxStateContext, SessionItemCanAcknowledgeContext, SessionItemCanMergePullRequestContext, SessionItemCanImportContext, SessionItemContextMenuId, SessionItemIsAutomationContext, SessionItemIsInSessionsListContext, SessionItemOrganizeMenuGroup, SessionItemHasUnreadNestedSessionsContext, SessionSectionToolbarMenuId, SessionGroupToolbarMenuId, SessionSectionTypeContext, SessionGroupHasVisibleSessionsContext, SessionGroupIsEmptyContext, SessionGroupIsComparisonContext, IsSessionPinnedContext, SessionsGrouping, SessionsSorting, ISessionSection, ISessionGroupItem, ISessionChatItem, SessionChatItemCanArchiveContext, SessionChatItemCanMoveDownContext, SessionChatItemCanMoveUpContext, SessionChatItemCanSetReadStateContext, SessionChatItemIsArchivedContext, SessionChatItemIsReadContext, SessionChatItemIsStandaloneContext, SessionChatItemIsUntitledContext, SessionsListFocusedChatItemContext, SessionsListSearchOpenContext } from './sessionsList.js';
+import { getSessionListChats, isAutomationSession } from './sessionsList.js';
+import { SessionItemInboxStateContext, SessionItemCanAcknowledgeContext, SessionItemCanMergePullRequestContext, SessionItemCanImportContext, SessionItemContextMenuId, SessionItemIsAutomationContext, SessionItemIsInSessionsListContext, SessionItemOrganizeMenuGroup, SessionItemHasUnreadNestedSessionsContext, SessionSectionToolbarMenuId, SessionGroupToolbarMenuId, SessionSectionTypeContext, SessionGroupHasVisibleSessionsContext, SessionGroupIsEmptyContext, SessionGroupIsComparisonContext, IsSessionPinnedContext, SessionsGrouping, SessionsSorting, ISessionSection, ISessionGroupItem, ISessionChatItem, SessionChatItemCanArchiveContext, SessionChatItemCanMoveDownContext, SessionChatItemCanMoveUpContext, SessionChatItemCanSetReadStateContext, SessionChatItemIsArchivedContext, SessionChatItemIsReadContext, SessionChatItemIsStandaloneContext, SessionChatItemIsUntitledContext, SessionsListFocusedChatItemContext, SessionsListSearchOpenContext } from './sessionsListCommon.js';
 import { getChatCapabilities, IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionGroupsService } from '../sessionGroupsService.js';
 import { ISessionsListModelService } from '../sessionsListModelService.js';
@@ -53,6 +54,20 @@ import { AccessibleViewRegistry } from '../../../../../platform/accessibility/br
 import { SessionsListNotificationFocused } from './sessionsListNotification.js';
 import { getInboxPullRequestMergeOperation, getSessionInboxSection, SessionInboxAction, SessionInboxSection } from '../../common/sessionInbox.js';
 import { ISessionAttentionService, InboxTab } from '../../common/sessionAttentionService.js';
+
+/**
+ * Throws the failures of a batch archive: a single failure as itself, so a cancellation stays
+ * identifiable, and several failures as an `AggregateError` with a concise summary.
+ */
+function throwArchiveErrors(results: readonly PromiseSettledResult<unknown>[]): void {
+	const errors = results.filter((result): result is PromiseRejectedResult => result.status === 'rejected').map(result => result.reason);
+	if (errors.length === 1) {
+		throw errors[0];
+	}
+	if (errors.length > 1) {
+		throw new AggregateError(errors, toErrorMessage(errors));
+	}
+}
 
 async function archiveSessionsWithUndo(
 	sessions: readonly ISession[],
@@ -77,15 +92,9 @@ async function archiveSessionsWithUndo(
 				archived.push(candidates[index]);
 			}
 		}
-		const errors = results.filter(result => result.status === 'rejected').map(result => result.reason);
-		if (errors.length === 1) {
-			throw errors[0];
-		}
-		if (errors.length > 1) {
-			throw new AggregateError(errors, toErrorMessage(errors));
-		}
+		throwArchiveErrors(results);
 	} finally {
-		// A partially completed batch must remain undoable even when a later archive fails.
+		// A partially completed batch must remain undoable even when another archive fails.
 		if (archived.length > 0) {
 			const removedComparisonGroups = new Map([...comparisonGroups].filter(([groupId]) => !groupsService.getGroup(groupId)));
 			const restoredGroupIds = new Map<string, string>();
@@ -435,9 +444,7 @@ abstract class BaseArchiveSessionAction extends Action2 {
 		) {
 			void accessibilitySignalService.playSignal(AccessibilitySignal.confetti);
 		}
-		for (const session of sessions) {
-			await sessionsManagementService.archiveSession(session);
-		}
+		throwArchiveErrors(await sessionsManagementService.archiveSessions(sessions));
 	}
 }
 

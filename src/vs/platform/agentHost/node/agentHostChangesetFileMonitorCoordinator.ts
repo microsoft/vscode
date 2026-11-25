@@ -12,7 +12,7 @@ import { DEFAULT_AGENT_HOST_WATCH_EXCLUDES, IAgentHostFileMonitorService } from 
 import { IAgentHostGitService } from '../common/agentHostGitService.js';
 import { resolveSessionRepositories } from './agentHostSessionRepositories.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
-import { getEffectiveWorkingDirectories, getEffectiveWorkingDirectory } from './agentConfigurationService.js';
+import { getEffectiveWorkingDirectories } from './agentConfigurationService.js';
 import { ILogService } from '../../log/common/log.js';
 import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
 import { resolveBranchChangesetScopeForSource } from './agentHostBranchChangesetScope.js';
@@ -371,23 +371,12 @@ export class ChangesetFileMonitorCoordinator extends Disposable {
 		}
 
 		for (const session of sessionsToRefresh) {
-			// Always refresh from the PRIMARY working directory, never the changed root: branch/PR is a
+			// The service refreshes from the key's PRIMARY working directory, never the changed root: branch/PR is a
 			// primary-repo concept, while the downstream summary recompute re-diffs EVERY repo — so a
 			// secondary change still reflects without mis-attributing its branch/PR. Throttled downstream.
 			const source = this._watchSources.get(session) ?? session;
-			const primaryWorkingDirectory = getEffectiveWorkingDirectory(this._stateManager, source);
-			if (!primaryWorkingDirectory) {
-				continue;
-			}
-			let primaryWorkingDirectoryUri: URI;
-			try {
-				primaryWorkingDirectoryUri = URI.parse(primaryWorkingDirectory);
-			} catch (err) {
-				this._logService.warn(`[ChangesetFileMonitorCoordinator] Failed to parse primary working directory URI for ${session}: ${primaryWorkingDirectory}`, err);
-				continue;
-			}
 			// Edits to files that were already modified leave the Git state as it was.
-			void this._gitStateService.refreshSessionGitState(source, primaryWorkingDirectoryUri, undefined, { force: true });
+			void this._gitStateService.refreshSessionGitState(source, undefined, { force: true });
 		}
 	}
 

@@ -18,6 +18,8 @@ import { IGitExtensionService } from '../../../../platform/git/common/gitExtensi
 import { GithubRepoId, IGitService, RepoContext } from '../../../../platform/git/common/gitService';
 import { PullRequestSearchItem } from '../../../../platform/github/common/githubAPI';
 import { CustomAgentListItem, IGithubRepositoryService, IOctoKitService } from '../../../../platform/github/common/githubService';
+import { OctoKitService } from '../../../../platform/github/common/octoKitServiceImpl';
+import { FetchOptions, HeadersImpl, IFetcherService, Response } from '../../../../platform/networking/common/fetcherService';
 import { NoopOTelService, resolveOTelConfig } from '../../../../platform/otel/common/index';
 import { IExperimentationService } from '../../../../platform/telemetry/common/nullExperimentationService';
 import { NullTelemetryService } from '../../../../platform/telemetry/common/nullTelemetryService';
@@ -430,6 +432,124 @@ describe('cloud session visibility', () => {
 				configurationService,
 			));
 		}
+
+		describe('automation task history', () => {
+			const raw = 'Execution context for the agent';
+			const initialSession = { id: 'first', state: 'completed' as const, created_at: '2026-03-27T00:00:00Z', prompt: raw };
+			const task = {
+				...makeTask(), automation_id: 'example/id', name: 'Internal task title',
+				repository: { id: 42, full_name: 'example/repo' }, sessions: [initialSession],
+			};
+
+			async function open(detail: Parameters<TaskApiBackend['getInitialAutomationPrompt']>[0], events: AgentTaskSessionEvent[], body: object = {}, status = 200) {
+				const auth = new class extends mock<IAuthenticationService>() {
+					override getGitHubSession = vi.fn(async () => ({ id: 'test', scopes: [], account: { id: 'test', label: 'Test' }, accessToken: 'test-token' }));
+				}();
+				const capi = new class extends mock<ICAPIClientService>() {
+					override get dotcomAPIURL() { return 'https://api.example.test'; }
+				}();
+				const fetcher = new class extends mock<IFetcherService>() {
+					override fetch = vi.fn(async (_url: string, _options: FetchOptions) => Response.fromText(status, '', new HeadersImpl({}), JSON.stringify(body), 'test-stub'));
+				}();
+				const provider = createProvider(new OctoKitService(auth, capi, fetcher, logService, new NullTelemetryService()));
+				vi.spyOn(TaskApiBackend.prototype, 'fetchTaskContent').mockResolvedValue({ task: detail, turns: [] });
+				vi.spyOn(TaskApiBackend.prototype, 'fetchTaskEvents').mockResolvedValue(events);
+				const { history } = await provider.provideChatSessionContent(vscode.Uri.parse(`copilot-cloud-agent:/task/${detail.id}`), CancellationToken.None);
+				return { history, fetch: fetcher.fetch, auth: auth.getGitHubSession };
+			}
+
+			it.each([
+				{ revision: 'r#1', suffix: '/revisions/r%231', expected: 'Recorded prompt' },
+				{ revision: 'unknown', suffix: '', expected: 'Current prompt' },
+				{ revision: undefined, suffix: '', expected: 'Current prompt' },
+			])('loads the correct authored prompt for revision $revision', async ({ revision, suffix, expected }) => {
+				const { history, fetch, auth } = await open({ ...task, automation_revision_id: revision }, [], {
+					prompt: 'Current prompt', snapshot: { prompt: 'Recorded prompt' },
+				});
+				expect(history[0]).toMatchObject({ prompt: expected });
+				expect(auth.mock.calls).toEqual([['permissive', { silent: true }]]);
+				expect(fetch.mock.calls).toEqual([[`https://api.example.test/agents/repos/example/repo/automations/example%2Fid${suffix}`, expect.objectContaining({
+					method: 'GET', headers: expect.objectContaining({ Authorization: 'Bearer test-token' }),
+				})]]);
+			});
+
+			it.each([true, false])('uses event content only for confirmed automation tasks (is_automation=%s) without a lookup', async isAutomation => {
+				const { history, fetch } = await open({
+					...task, automation_id: undefined, automation_revision_id: 'r1', custom_agent: { is_automation: isAutomation },
+					sessions: [{ ...initialSession, event_content: '  Display prompt\n' }],
+				}, [evt('session.start', { sessionId: initialSession.id }), userMessage(raw), userMessage('Follow-up')]);
+				expect(history.filter(t => t instanceof ChatRequestTurn2).map(t => [t.prompt, t.isRequestHidden])).toEqual([
+					[isAutomation ? '  Display prompt\n' : raw, undefined], ['Follow-up', undefined],
+				]);
+				expect(fetch).not.toHaveBeenCalled();
+			});
+
+			it.each([404, 200])('hides only the initial request when the revision is missing or has no display prompt (HTTP %s)', async status => {
+				const { history, fetch } = await open({ ...task, automation_revision_id: 'r1' }, [
+					evt('session.start', { sessionId: initialSession.id }),
+					evt('user.message', { content: raw, transformedContent: raw }),
+					evt('assistant.message', { messageId: 'first', content: 'Initial reply' }),
+					userMessage('Follow-up'),
+					evt('assistant.message', { messageId: 'second', content: 'Follow-up reply' }),
+				], { prompt: 'Not the revision prompt', snapshot: { prompt: ' ' } }, status);
+				expect(history).toMatchObject([
+					{ prompt: '', isRequestHidden: true }, { response: [{ value: { value: 'Initial reply' } }] },
+					{ prompt: 'Follow-up' }, { response: [{ value: { value: 'Follow-up reply' } }] },
+				]);
+				expect(fetch).toHaveBeenCalledTimes(1);
+			});
+
+			it('does not substitute the title or a later session prompt when the initial event is absent', async () => {
+				const { history, fetch } = await open({
+					...task, automation_id: undefined, custom_agent: { is_automation: true },
+					sessions: [initialSession, { ...initialSession, id: 'second', prompt: 'Follow-up', event_content: 'Later event content' }],
+				}, [evt('assistant.message', { messageId: 'first', content: 'Initial reply' }), userMessage('Follow-up')]);
+				expect(history).toMatchObject([
+					{ prompt: '', isRequestHidden: true }, { response: [{ value: { value: 'Initial reply' } }] }, { prompt: 'Follow-up' }, { response: [] },
+				]);
+				expect(fetch).not.toHaveBeenCalled();
+			});
+
+			it.each([true, false])('preserves a repeated follow-up in a partial log (has session.start: %s)', async hasStart => {
+				const { history } = await open({
+					...task, sessions: [{ ...initialSession, event_content: 'Scheduled instructions' }, { ...initialSession, id: 'second' }],
+				}, [
+					...(hasStart ? [evt('session.start', { sessionId: 'second' })] : []),
+					userMessage(raw),
+					evt('assistant.message', { messageId: 'answer', content: 'Follow-up answer' }),
+				]);
+				expect(summarise(history)).toEqual([
+					{ kind: 'request', prompt: 'Scheduled instructions' }, { kind: 'response', parts: [] },
+					{ kind: 'request', prompt: raw }, { kind: 'response', parts: [{ type: 'markdown', value: 'Follow-up answer' }] },
+				]);
+			});
+
+			it('recognizes an explicitly automation-sourced input without a session start', async () => {
+				const { history } = await open({ ...task, sessions: [{ ...initialSession, event_content: 'Scheduled instructions' }] }, [
+					evt('user.message', { source: 'automation', content: raw }),
+					evt('assistant.message', { messageId: 'first-answer', content: 'Opening answer' }),
+					userMessage(raw),
+					evt('assistant.message', { messageId: 'next-answer', content: 'Next answer' }),
+				]);
+				expect(summarise(history)).toEqual([
+					{ kind: 'request', prompt: 'Scheduled instructions' }, { kind: 'response', parts: [{ type: 'markdown', value: 'Opening answer' }] },
+					{ kind: 'request', prompt: raw }, { kind: 'response', parts: [{ type: 'markdown', value: 'Next answer' }] },
+				]);
+			});
+
+			it.each([true, false])('keeps an unrecorded follow-up separate from the opening response (has opening session.start: %s)', async hasStart => {
+				const { history } = await open({ ...task, sessions: [{ ...initialSession, event_content: 'Scheduled instructions' }] }, [
+					...(hasStart ? [evt('session.start', { sessionId: initialSession.id })] : []),
+					evt('assistant.message', { messageId: 'first-answer', content: 'Opening answer' }),
+					userMessage('Continue from here'),
+					evt('assistant.message', { messageId: 'next-answer', content: 'Next answer' }),
+				]);
+				expect(summarise(history)).toEqual([
+					{ kind: 'request', prompt: 'Scheduled instructions' }, { kind: 'response', parts: [{ type: 'markdown', value: 'Opening answer' }] },
+					{ kind: 'request', prompt: 'Continue from here' }, { kind: 'response', parts: [{ type: 'markdown', value: 'Next answer' }] },
+				]);
+			});
+		});
 
 		describe('custom agent options', () => {
 			const workspaceUri = vscode.Uri.file('/workspace');

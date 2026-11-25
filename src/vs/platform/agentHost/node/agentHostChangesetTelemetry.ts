@@ -15,11 +15,12 @@ export type StaticChangesetTelemetryKind = 'branch' | 'session' | 'uncommitted';
  * The result of a static changeset compute.
  * - `computed`: diffs were published.
  * - `preserved`: git was unavailable and the cached branch changeset was kept.
+ * - `unchanged`: the branch's HEAD, merge base and working tree matched the last compute, so its result was kept without diffing.
  * - `gitUnavailable`: git produced no diff and there is no fallback (uncommitted).
  * - `dbOpenFailed`: the session database could not be opened.
  * - `error`: the compute threw.
  */
-export type StaticChangesetOutcome = 'computed' | 'preserved' | 'gitUnavailable' | 'dbOpenFailed' | 'error';
+export type StaticChangesetOutcome = 'computed' | 'preserved' | 'unchanged' | 'gitUnavailable' | 'dbOpenFailed' | 'error';
 
 export interface IStaticChangesetTelemetryData {
 	readonly kind: StaticChangesetTelemetryKind;
@@ -135,7 +136,7 @@ type ChangesetComputedClassification = IAgentHostEventClassification & {
 	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent host session identifier.' };
 	turnId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'For a turn changeset, the turn whose changeset was computed; for a static changeset, the turn that drove the recompute when one did (absent for truncation/refresh recomputes).' };
 	kind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The changeset computed: a static slot (branch, session, or uncommitted) or a per-turn diff (turn).' };
-	outcome: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The result of the compute. Static kinds: computed, preserved, gitUnavailable, dbOpenFailed, or error. Turn kind: computed, dbOpenFailed, resolveFailed, or error.' };
+	outcome: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The result of the compute. Static kinds: computed, preserved, unchanged (a Branch changeset found current without diffing), gitUnavailable, dbOpenFailed, or error. Turn kind: computed, dbOpenFailed, resolveFailed, or error.' };
 	durationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Wall-clock time to compute the changeset, in milliseconds.' };
 	isMultiRoot: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the session spans more than one working directory.' };
 	folderCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Total effective working directories for the session.' };

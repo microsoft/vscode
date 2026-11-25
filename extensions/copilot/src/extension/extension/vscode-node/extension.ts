@@ -28,7 +28,9 @@ function configureDevPackages() {
 		const sourceMapSupport = require('source-map-support');
 		sourceMapSupport.install();
 		const dotenv = require('dotenv');
-		dotenv.config({ path: [resolve(__dirname, '../.env')] });
+		// Stay quiet: the extension host captures a stack for each console call, and source-map-support
+		// then parses the large dist/extension.js.map, blocking activation. Set DOTENV_CONFIG_QUIET=false to see the log.
+		dotenv.config({ path: [resolve(__dirname, '../.env')], quiet: true });
 	} catch (err) {
 		console.error(err);
 	}

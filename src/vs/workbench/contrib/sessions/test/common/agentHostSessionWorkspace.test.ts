@@ -172,7 +172,7 @@ suite('Agent Host Session Workspace', () => {
 		const gitState: ISessionGitState = {
 			branchName: 'peer-feature',
 			baseBranchName: 'main',
-			baseBranchFullName: 'origin/main',
+			baseBranchRef: 'origin/main',
 			defaultBranchName: 'main',
 			defaultRemoteBranchName: 'origin/main',
 			hasGitRemote: true,
@@ -189,7 +189,7 @@ suite('Agent Host Session Workspace', () => {
 				uri: folder.gitRepository.uri.toString(),
 				branchName: folder.gitRepository.branchName,
 				baseBranchName: folder.gitRepository.baseBranchName,
-				baseBranchFullName: folder.gitRepository.baseBranchFullName,
+				baseBranchRef: folder.gitRepository.baseBranchRef,
 				defaultBranchName: folder.gitRepository.defaultBranchName,
 				defaultRemoteBranchName: folder.gitRepository.defaultRemoteBranchName,
 				hasGitRemote: folder.gitRepository.hasGitRemote,
@@ -204,7 +204,7 @@ suite('Agent Host Session Workspace', () => {
 				uri: other.toString(),
 				branchName: 'peer-feature',
 				baseBranchName: 'main',
-				baseBranchFullName: 'origin/main',
+				baseBranchRef: 'origin/main',
 				defaultBranchName: 'main',
 				defaultRemoteBranchName: 'origin/main',
 				hasGitRemote: true,
@@ -218,7 +218,7 @@ suite('Agent Host Session Workspace', () => {
 	test('a session whose project is the repository of its primary worktree folder presents as a worktree session, with the branch and base branch of its git state (a promoted worktree chat, Block 5)', () => {
 		const worktree = URI.file('/repo.worktrees/promoted');
 		const options = { providerLabel: undefined, fallbackIcon: Codicon.folder, requiresWorkspaceTrust: true, description: undefined, branchProtectionPatterns: [], group: undefined };
-		const gitState: ISessionGitState = { branchName: 'agents/promoted', baseBranchName: 'main', baseBranchFullName: 'origin/main' };
+		const gitState: ISessionGitState = { branchName: 'agents/promoted', baseBranchName: 'main', baseBranchRef: 'origin/main' };
 		const asWorktree = buildAgentHostSessionWorkspace({ uri: primary, displayName: 'repo' }, [worktree], options, constObservable(undefined), gitState);
 		const asFolder = buildAgentHostSessionWorkspace(undefined, [worktree], options, constObservable(undefined), gitState);
 		const summarize = (workspace: ISessionWorkspace | undefined) => ({
@@ -227,11 +227,11 @@ suite('Agent Host Session Workspace', () => {
 			workTree: workspace?.folders[0].gitRepository?.workTreeUri?.toString(),
 			branch: workspace?.folders[0].gitRepository?.branchName,
 			baseBranch: workspace?.folders[0].gitRepository?.baseBranchName,
-			baseBranchFullName: workspace?.folders[0].gitRepository?.baseBranchFullName,
+			baseBranchRef: workspace?.folders[0].gitRepository?.baseBranchRef,
 		});
 		assert.deepStrictEqual({ asWorktree: summarize(asWorktree), asFolder: summarize(asFolder) }, {
-			asWorktree: { kind: SessionWorkspaceKind.Worktree, label: 'repo', workTree: worktree.toString(), branch: 'agents/promoted', baseBranch: 'main', baseBranchFullName: 'origin/main' },
-			asFolder: { kind: SessionWorkspaceKind.Folder, label: 'promoted', workTree: undefined, branch: 'agents/promoted', baseBranch: 'main', baseBranchFullName: 'origin/main' },
+			asWorktree: { kind: SessionWorkspaceKind.Worktree, label: 'repo', workTree: worktree.toString(), branch: 'agents/promoted', baseBranch: 'main', baseBranchRef: 'origin/main' },
+			asFolder: { kind: SessionWorkspaceKind.Folder, label: 'promoted', workTree: undefined, branch: 'agents/promoted', baseBranch: 'main', baseBranchRef: 'origin/main' },
 		});
 	});
 });

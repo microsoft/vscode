@@ -8,7 +8,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { localize } from '../../../../nls.js';
 import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress } from '../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
-import { IRemoteSessionService, parseCreateRemoteSessionOptions, remoteSessionToolsWhen } from '../common/remoteSessions.js';
+import { IRemoteSessionHostName, IRemoteSessionService, parseCreateRemoteSessionOptions, remoteSessionToolsWhen } from '../common/remoteSessions.js';
 import { assertRemoteSessionCaller } from './remoteSessionSource.js';
 
 export class ListAgentHostsTool implements IToolImpl {
@@ -114,14 +114,17 @@ export class CreateRemoteSessionTool implements IToolImpl {
 			throw new Error(localize('remoteSessions.create.missingContext', "Remote session creation requires an originating session."));
 		}
 		assertRemoteSessionCaller(context.chatSessionResource);
-		const message = new MarkdownString().appendText(localize(
-			'remoteSessions.create.confirmation',
-			"Start this task on {0}? The host is selected from your connected remote agent hosts using the requested resources and current workload. The new session can send messages back to this chat.",
-			options.hostId ?? localize('remoteSessions.create.automaticHost', "a matching remote host"),
-		));
+		const destination = this.remoteSessionsService.getRequestedDestination(options);
+		// A pinned host that is not available is named by what pins it: creation fails rather than choosing another host.
+		const host = destination.host ?? (destination.pinnedBy !== undefined ? { label: destination.pinnedBy } : undefined);
+		const message = new MarkdownString().appendText(!host
+			? localize('remoteSessions.create.confirmationAutomatic', "Start this task on a matching remote host? The host is selected from your connected remote agent hosts using the requested resources and current workload. The new session can send messages back to this chat.")
+			: host.containerHost !== undefined
+				? localize('remoteSessions.create.confirmationContainer', "Start this task in {0} on {1}? The new session can send messages back to this chat.", host.label, host.containerHost)
+				: localize('remoteSessions.create.confirmationHost', "Start this task on {0}? The new session can send messages back to this chat.", host.label));
 		message.appendText(`\n\n${options.prompt}`);
-		message.appendText(`\n\n${options.workspace
-			? localize('remoteSessions.create.workspace', "Workspace: {0} ({1})", options.workspace.uri.toString(), options.workspace.isolation)
+		message.appendText(`\n\n${options.workspace && destination.workspace !== undefined
+			? localize('remoteSessions.create.workspace', "Workspace: {0} ({1})", destination.workspace, options.workspace.isolation)
 			: localize('remoteSessions.create.noWorkspace', "No workspace or files are inherited from this session.")}`);
 		if (options.model) {
 			message.appendText(`\n\n${localize('remoteSessions.create.model', "Model: {0}/{1}", options.model.provider, options.model.id)}`);
@@ -150,9 +153,12 @@ export class CreateRemoteSessionTool implements IToolImpl {
 		}
 		assertRemoteSessionCaller(source);
 		const created = await this.remoteSessionsService.createSession(options, source, invocation.callId, token);
+		const host: IRemoteSessionHostName = this.remoteSessionsService.getRequestedDestination({ ...options, hostId: created.host.id }).host ?? { label: created.host.label };
 		return {
 			content: [{ kind: 'text', value: JSON.stringify(created) }],
-			toolResultMessage: new MarkdownString().appendLink(created.openLink, localize('remoteSessions.create.result', "Created remote session on {0}", created.host.label)),
+			toolResultMessage: new MarkdownString().appendLink(created.openLink, host.containerHost !== undefined
+				? localize('remoteSessions.create.resultContainer', "Created remote session in {0} on {1}", host.label, host.containerHost)
+				: localize('remoteSessions.create.result', "Created remote session on {0}", host.label)),
 		};
 	}
 }

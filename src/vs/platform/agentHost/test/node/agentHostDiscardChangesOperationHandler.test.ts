@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DeferredPromise, timeout } from '../../../../base/common/async.js';
+import { timeout } from '../../../../base/common/async.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import type { DisposableStore } from '../../../../base/common/lifecycle.js';
@@ -43,9 +43,11 @@ class TestGitService extends TestAgentHostGitService {
 	restoreError: Error | undefined;
 	repositoryRoot: URI | undefined = URI.file('/repo');
 	readonly repositoryRoots = new Map<string, URI | undefined>();
+	submoduleRoot: URI | undefined;
 	untrackedPaths: readonly string[] = [];
 
 	override async getRepositoryRoot(workingDirectory: URI): Promise<URI | undefined> { return this.repositoryRoots.get(workingDirectory.toString()) ?? this.repositoryRoot; }
+	async getSubmoduleRoot(): Promise<URI | undefined> { return this.submoduleRoot; }
 	override async hasUncommittedChanges(): Promise<boolean> { return true; }
 	override async restore(workingDirectory: URI, paths: readonly string[], options?: { readonly staged?: boolean; readonly ref?: string }): Promise<void> {
 		this.restoreCalls.push({ workingDirectory: workingDirectory.toString(), paths, options });
@@ -69,11 +71,10 @@ class TestFileService extends mock<IFileService>() {
 	}
 }
 
-function setup(disposables: Pick<DisposableStore, 'add'>, opts?: { readonly withWorkingDirectory?: boolean; readonly workingDirectory?: URI; readonly workingDirectories?: readonly URI[]; readonly registerSession?: boolean; readonly onDiscarded?: (sessionKey: string) => Promise<void> }) {
+function setup(disposables: Pick<DisposableStore, 'add'>, opts?: { readonly withWorkingDirectory?: boolean; readonly workingDirectory?: URI; readonly workingDirectories?: readonly URI[]; readonly registerSession?: boolean }) {
 	const gitService = new TestGitService();
 	const fileService = new TestFileService();
 	const diskFileService = createInMemoryFileService(disposables, Schemas.file);
-	const refreshes: string[] = [];
 	const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 	const session = URI.parse('agent:/session');
 	const workingDirectories = opts?.workingDirectories ?? [opts?.workingDirectory ?? URI.file('/repo')];
@@ -107,10 +108,6 @@ function setup(disposables: Pick<DisposableStore, 'add'>, opts?: { readonly with
 	}
 	const handler = new AgentHostDiscardChangesOperationHandler(
 		sessionKey => stateManager.getSessionState(sessionKey),
-		async sessionKey => {
-			refreshes.push(sessionKey);
-			await opts?.onDiscarded?.(sessionKey);
-		},
 		new AgentHostFileEditRevert(diskFileService, new InProcessDiffComputeService()),
 		gitService,
 		fileService,
@@ -119,7 +116,7 @@ function setup(disposables: Pick<DisposableStore, 'add'>, opts?: { readonly with
 		changesets,
 		new InProcessDiffComputeService(), fileEditCoordinator,
 	);
-	return { handler, gitService, fileService, diskFileService, trackedDb, tracked, trackedSession, discardedTurns, stateManager, refreshes, session, fileEditCoordinator };
+	return { handler, gitService, fileService, diskFileService, trackedDb, tracked, trackedSession, discardedTurns, stateManager, session, fileEditCoordinator };
 }
 
 function addChangesetFile(stateManager: AgentHostStateManager, channel: string, edit: ISessionFileDiff): void {
@@ -160,7 +157,7 @@ suite('AgentHostDiscardChangesOperationHandler', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('restores the targeted file on success', async () => {
-		const { handler, gitService, fileService, stateManager, refreshes, session } = setup(disposables);
+		const { handler, gitService, fileService, stateManager, session } = setup(disposables);
 		const target = URI.file('/repo/src/file.ts');
 		const owner = buildDefaultChatUri(session.toString());
 		const channel = addUncommittedChangesetFile(stateManager, owner, target);
@@ -174,43 +171,16 @@ suite('AgentHostDiscardChangesOperationHandler', () => {
 		assert.deepStrictEqual({
 			restoreCalls: gitService.restoreCalls,
 			deleteCalls: fileService.deleteCalls,
-			refreshes,
 			message: result.message,
 		}, {
 			restoreCalls: [{ workingDirectory: URI.file('/repo').toString(), paths: [target.fsPath], options: undefined }],
 			deleteCalls: [],
-			refreshes: [owner],
 			message: { markdown: 'Discarded changes to `file.ts`.' },
 		});
 	});
 
-	test('completes the operation without waiting for the Git-state refresh', async () => {
-		const finishRefresh = new DeferredPromise<void>();
-		let refreshCompleted = false;
-		const { handler, stateManager, refreshes, session } = setup(disposables, {
-			onDiscarded: async () => {
-				await finishRefresh.p;
-				refreshCompleted = true;
-			},
-		});
-		const owner = buildDefaultChatUri(session.toString());
-		const target = URI.file('/repo/src/file.ts');
-		const channel = addUncommittedChangesetFile(stateManager, owner, target);
-
-		// Resolves only if the operation does not wait for the still-pending refresh.
-		await handler.invoke({
-			channel,
-			operationId: AgentHostDiscardChangesOperationHandler.OPERATION_DISCARD_CHANGES,
-			target: makeResourceTarget(target),
-		}, CancellationToken.None);
-		const stateWhenOperationCompleted = { refreshes: [...refreshes], refreshCompleted };
-		await finishRefresh.complete();
-
-		assert.deepStrictEqual(stateWhenOperationCompleted, { refreshes: [owner], refreshCompleted: false });
-	});
-
-	test('restores and refreshes a peer chat in its working directory', async () => {
-		const { handler, gitService, fileService, stateManager, refreshes, session } = setup(disposables);
+	test('restores a peer chat\'s file in its working directory', async () => {
+		const { handler, gitService, fileService, stateManager, session } = setup(disposables);
 		const peer = buildChatUri(session.toString(), 'peer');
 		const peerRoot = URI.file('/peer-repo');
 		stateManager.addChat(session.toString(), peer, creationTimeChatStorageResource(session.toString(), peer, buildDefaultChatUri(session.toString())), { workingDirectories: [peerRoot.toString()] });
@@ -227,16 +197,14 @@ suite('AgentHostDiscardChangesOperationHandler', () => {
 		assert.deepStrictEqual({
 			restoreCalls: gitService.restoreCalls,
 			deleteCalls: fileService.deleteCalls,
-			refreshes,
 		}, {
 			restoreCalls: [{ workingDirectory: peerRoot.toString(), paths: [target.fsPath], options: undefined }],
 			deleteCalls: [],
-			refreshes: [peer],
 		});
 	});
 
 	test('restores a modified Branch Changes file from its displayed baseline', async () => {
-		const { handler, gitService, fileService, stateManager, refreshes, session } = setup(disposables);
+		const { handler, gitService, fileService, stateManager, session } = setup(disposables);
 		const owner = buildDefaultChatUri(session.toString());
 		const channel = buildBranchChangesetUri(owner);
 		const target = URI.file('/repo/src/file.ts');
@@ -257,7 +225,6 @@ suite('AgentHostDiscardChangesOperationHandler', () => {
 		assert.deepStrictEqual({
 			restoreCalls: gitService.restoreCalls,
 			deleteCalls: fileService.deleteCalls,
-			refreshes,
 			message: result.message,
 		}, {
 			restoreCalls: [
@@ -265,7 +232,6 @@ suite('AgentHostDiscardChangesOperationHandler', () => {
 				{ workingDirectory: URI.file('/repo').toString(), paths: ['src/file.ts'], options: { ref: 'baseline-sha' } },
 			],
 			deleteCalls: [],
-			refreshes: [owner],
 			message: { markdown: 'Discarded changes to `file.ts`.' },
 		});
 	});
@@ -425,6 +391,38 @@ suite('AgentHostDiscardChangesOperationHandler', () => {
 			{ workingDirectory: secondRepository.toString(), paths: ['src/file.ts'], options: { staged: true, ref: 'second-baseline' } },
 			{ workingDirectory: secondRepository.toString(), paths: ['src/file.ts'], options: { ref: 'second-baseline' } },
 		]);
+	});
+
+	test('restores a Branch or Uncommitted Changes file inside a submodule from its baseline in the submodule', async () => {
+		const restoreCalls: Record<string, TestGitService['restoreCalls']> = {};
+		for (const [kind, buildChangeset] of [[ChangesetKind.Branch, buildBranchChangesetUri], [ChangesetKind.Uncommitted, buildUncommittedChangesetUri]] as const) {
+			const { handler, gitService, stateManager, session } = setup(disposables);
+			const submodule = URI.file('/repo/lib');
+			gitService.submoduleRoot = submodule;
+			const owner = buildDefaultChatUri(session.toString());
+			const channel = buildChangeset(owner);
+			const target = URI.joinPath(submodule, 'lib.txt');
+			addChangesetFile(stateManager, channel, {
+				before: {
+					uri: target.toString(),
+					content: { uri: buildGitBlobUri(owner, 'submodule-baseline', 'lib.txt', target.path) },
+				},
+				after: { uri: target.toString(), content: { uri: target.toString() } },
+			});
+
+			await handler.invoke({
+				channel,
+				operationId: AgentHostDiscardChangesOperationHandler.OPERATION_DISCARD_CHANGES,
+				target: makeResourceTarget(target),
+			}, CancellationToken.None);
+			restoreCalls[kind] = gitService.restoreCalls;
+		}
+
+		const fromBaseline = [
+			{ workingDirectory: URI.file('/repo/lib').toString(), paths: ['lib.txt'], options: { staged: true, ref: 'submodule-baseline' } },
+			{ workingDirectory: URI.file('/repo/lib').toString(), paths: ['lib.txt'], options: { ref: 'submodule-baseline' } },
+		];
+		assert.deepStrictEqual(restoreCalls, { [ChangesetKind.Branch]: fromBaseline, [ChangesetKind.Uncommitted]: fromBaseline });
 	});
 
 	test('rejects a resource that is not part of Branch Changes', async () => {
@@ -703,7 +701,7 @@ suite('AgentHostDiscardChangesOperationHandler - last turn', () => {
 	}
 
 	test('reverts the turn\'s edits to the file and records the discard', async () => {
-		const { handler, diskFileService, trackedDb, discardedTurns, refreshes, chat, channel } = await setupLastTurn();
+		const { handler, diskFileService, trackedDb, discardedTurns, chat, channel } = await setupLastTurn();
 
 		const result = await handler.invoke({
 			channel,
@@ -715,13 +713,11 @@ suite('AgentHostDiscardChangesOperationHandler - last turn', () => {
 			content: (await diskFileService.readFile(target)).value.toString(),
 			turnDiffs: await computeTurnDiffs('agent:/session', trackedDb, new TestDiffComputeService(), 'turn-1'),
 			discardedTurns,
-			refreshes,
 			message: result.message,
 		}, {
 			content: 'a\nb\n',
 			turnDiffs: [],
 			discardedTurns: [{ owner: chat, turnIds: ['turn-1'] }],
-			refreshes: [chat],
 			message: { markdown: 'Discarded the last turn\'s changes to `file.ts`.' },
 		});
 	});
@@ -1079,7 +1075,7 @@ suite('AgentHostDiscardChangesOperationHandler - session changes', () => {
 	}
 
 	test('reverts every turn\'s edits to the file without Git, keeps changes made between turns, and records the discard', async () => {
-		const { handler, gitService, diskFileService, trackedDb, discardedTurns, refreshes, chat, channel, session } = await setupSessionChanges();
+		const { handler, gitService, diskFileService, trackedDb, discardedTurns, chat, channel } = await setupSessionChanges();
 		gitService.repositoryRoot = undefined;
 
 		const result = await handler.invoke({
@@ -1097,14 +1093,12 @@ suite('AgentHostDiscardChangesOperationHandler - session changes', () => {
 				await computeTurnDiffs('agent:/session', trackedDb, diffService, 'turn-2'),
 			],
 			discardedTurns,
-			refreshes,
 			message: result.message,
 		}, {
 			content: 'a\nb\nC\nd\ne\n',
 			sessionDiffs: [],
 			turnDiffs: [[], []],
 			discardedTurns: [{ owner: chat, turnIds: ['turn-1', 'turn-2'] }],
-			refreshes: [session.toString()],
 			message: { markdown: 'Discarded the session\'s changes to `file.ts`.' },
 		});
 	});
@@ -1397,7 +1391,7 @@ suite('AgentHostDiscardChangesOperationHandler - multi-root', () => {
 			{ name: 'peer root through its chat', separateChats: true, chatScoped: true, targetIndex: 1 },
 		]) {
 			test(`discards ${kind} changes in the ${scenario.name} without changing a sibling root`, async () => {
-				const { handler, trackedDb, trackedSession, diskFileService, stateManager, session, discardedTurns, refreshes, gitService } = setup(disposables, { workingDirectories: scenario.separateChats ? [roots[0]] : roots });
+				const { handler, trackedDb, trackedSession, diskFileService, stateManager, session, discardedTurns, gitService } = setup(disposables, { workingDirectories: scenario.separateChats ? [roots[0]] : roots });
 				const defaultChat = buildDefaultChatUri(session.toString());
 				const peer = buildChatUri(session.toString(), 'peer');
 				const peerDb = new TestSessionDatabase();
@@ -1446,7 +1440,6 @@ suite('AgentHostDiscardChangesOperationHandler - multi-root', () => {
 					remainingFiles: diffs.map(diff => diff.after?.uri ?? diff.before?.uri),
 					recorded: (await source.db.getAllFileEdits()).slice(beforeRows.length).map(row => ({ path: row.filePath, turn: row.turnId, accepted: isFileEditAcceptRecord(row) })),
 					discardedTurns,
-					refreshes,
 					restoreCalls: gitService.restoreCalls,
 				}, {
 					content: kind === ChangesetKind.WorkingSet ? 'A\nb\nC\nd\ne\n' : 'a\nb\nC\nd\ne\n',
@@ -1457,7 +1450,6 @@ suite('AgentHostDiscardChangesOperationHandler - multi-root', () => {
 						? [{ path: target.fsPath, turn: 'turn-2', accepted: false }, { path: target.fsPath, turn: 'turn-2', accepted: true }]
 						: [{ path: target.fsPath, turn: 'turn-2', accepted: false }, { path: target.fsPath, turn: 'turn-1', accepted: false }],
 					discardedTurns: [{ owner: source.chat, turnIds: ['turn-1', 'turn-2'] }],
-					refreshes: [owner],
 					restoreCalls: [],
 				});
 			});

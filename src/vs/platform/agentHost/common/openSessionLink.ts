@@ -79,6 +79,11 @@ export function isSendMessageTool(toolName: string): boolean {
 	return matchesToolName(toolName, SessionServerToolName.SendMessage);
 }
 
+function encodeOpenSessionLinkQueryValue(value: string): string {
+	// URI parsing precedes query-value decoding, so protect percent escapes and separators.
+	return encodeURIComponent(value.replace(/[%&]/g, character => encodeURIComponent(character)));
+}
+
 /**
  * Builds an {@link AGENT_HOST_SESSION_LINK_SCHEME} link for a backend session URI.
  *
@@ -100,16 +105,16 @@ export function buildOpenSessionLinkUri(backendSession: URI | string, chatId?: s
 	const base = URI.from({ scheme: AGENT_HOST_SESSION_LINK_SCHEME, authority: provider, path: `/${rawId}` }).toString();
 	const query: string[] = [];
 	if (connectionAuthority) {
-		query.push(`connectionAuthority=${encodeURIComponent(connectionAuthority)}`);
+		query.push(`connectionAuthority=${encodeOpenSessionLinkQueryValue(connectionAuthority)}`);
 	}
 	if (session.authority || session.query || session.fragment) {
-		query.push(`session=${encodeURIComponent(session.toString())}`);
+		query.push(`session=${encodeOpenSessionLinkQueryValue(session.toString())}`);
 	}
 	if (chatId && chatId !== DEFAULT_CHAT_ID) {
-		query.push(`chat=${encodeURIComponent(chatId)}`);
+		query.push(`chat=${encodeOpenSessionLinkQueryValue(chatId)}`);
 	}
 	if (turnId) {
-		query.push(`turn=${encodeURIComponent(turnId)}`);
+		query.push(`turn=${encodeOpenSessionLinkQueryValue(turnId)}`);
 	}
 	return query.length > 0 ? `${base}?${query.join('&')}` : base;
 }
@@ -125,7 +130,7 @@ export function buildExternalOpenSessionLinkUri(productUrlProtocol: string, back
 	const sessionLink = link.with({ query: '' }).toString();
 	const encodedTarget = sessionLink.slice(`${AGENT_HOST_SESSION_LINK_SCHEME}://`.length);
 	const chatPath = chatId && chatId !== DEFAULT_CHAT_ID ? `${AGENT_HOST_CHAT_LINK_PATH_SEGMENT}${encodeURIComponent(encodeURIComponent(chatId))}` : '';
-	const queryParts = [sessionLinkText.split('?')[1] ?? '', turnId ? `turn=${encodeURIComponent(turnId)}` : ''].filter(Boolean);
+	const queryParts = [sessionLinkText.split('?')[1] ?? '', turnId ? `turn=${encodeOpenSessionLinkQueryValue(turnId)}` : ''].filter(Boolean);
 	const query = queryParts.length ? `?${queryParts.join('&')}` : '';
 	return `${productUrlProtocol}://${AGENTS_AUTHORITY}${AGENT_HOST_SESSION_LINK_PATH_PREFIX}${encodedTarget}${chatPath}${query}`;
 }

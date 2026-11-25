@@ -680,6 +680,11 @@ div.preview.inline .monaco-editor .comment-range-glyph {
 	cursor: grabbing;
 }
 
+/* A docked widget stays in the space below its code, so its title bar isn't dragged. */
+.monaco-editor .comment-thread-floating-widget.docked > .review-widget > .head {
+	cursor: default;
+}
+
 /* Scrollable comments (`ICommentThreadWidgetOptions.scrollableComments`) fill the height they are given. */
 .review-widget .body .comments-scroll-viewport {
 	height: 100%;

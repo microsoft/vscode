@@ -106,9 +106,10 @@ export class AgentHostDiscardChangesOperationHandler implements IChangesetOperat
 
 	public static readonly OPERATION_DISCARD_CHANGES = AGENT_HOST_DISCARD_CHANGES_OPERATION_ID;
 
+	readonly changesGitState = true;
+
 	constructor(
 		private readonly _getSessionState: (sessionKey: string) => SessionState | undefined,
-		private readonly _onDiscarded: (sessionKey: string) => Promise<void>,
 		private readonly _fileEditRevert: AgentHostFileEditRevert,
 		@IAgentHostGitService private readonly _agentHostGitService: IAgentHostGitService,
 		@IFileService private readonly _fileService: IFileService,
@@ -174,10 +175,14 @@ export class AgentHostDiscardChangesOperationHandler implements IChangesetOperat
 			if (!repositoryRoot) {
 				throw new Error(`No changeset repository contains '${resource.fsPath}'.`);
 			}
+			const submoduleRoot = await this._agentHostGitService.getSubmoduleRoot?.(repositoryRoot, resource);
 			this._throwIfCancelled(token);
 
-			if (parsed.kind === ChangesetKind.Branch) {
-				await this._discardBranchChange(repositoryRoot, changesetFile, sessionUri, token);
+			// Both changesets diff a file inside a submodule against the commit
+			// that the repository records for the submodule, so restore it from
+			// that baseline in the submodule.
+			if (parsed.kind === ChangesetKind.Branch || submoduleRoot) {
+				await this._discardBranchChange(submoduleRoot ?? repositoryRoot, changesetFile, sessionUri, token);
 			} else {
 				await this._discardUncommittedChange(repositoryRoot, resource, sessionUri, token);
 			}
@@ -187,9 +192,6 @@ export class AgentHostDiscardChangesOperationHandler implements IChangesetOperat
 				JsonRpcErrorCodes.InternalError,
 				`Failed to discard changes: ${err instanceof Error ? err.message : String(err)}`);
 		}
-		void this._onDiscarded(parsed.ownerUri).catch(err => {
-			this._logService.warn(`[AgentHostDiscardChangesOperationHandler] Post-discard refresh failed for ${parsed.ownerUri}: ${err instanceof Error ? err.message : String(err)}`);
-		});
 
 		return { message: { markdown: localize('agentHost.changeset.discardChanges.discarded', "Discarded changes to `{0}`.", basename(resource)) } };
 	}
@@ -322,7 +324,6 @@ export class AgentHostDiscardChangesOperationHandler implements IChangesetOperat
 		}
 
 		this._changesets.onFileEditsDiscarded(owner, [turnId]);
-		this._notifyDiscarded(owner);
 
 		return { message: { markdown: localize('agentHost.changeset.discardTurnChanges.discarded', "Discarded the last turn's changes to `{0}`.", basename(resource)) } };
 	}
@@ -514,7 +515,6 @@ export class AgentHostDiscardChangesOperationHandler implements IChangesetOperat
 		}
 
 		this._onSessionFileEditsDiscarded(discardedChat);
-		this._notifyDiscarded(owner);
 
 		return { message: { markdown: discarded } };
 	}
@@ -693,12 +693,6 @@ export class AgentHostDiscardChangesOperationHandler implements IChangesetOperat
 
 	private _getChangedDuringDiscardMessage(resource: URI): string {
 		return localize('agentHost.changeset.discardTurnChanges.changedDuringDiscard', "'{0}' changed while its changes were being discarded. Try again.", basename(resource));
-	}
-
-	private _notifyDiscarded(owner: ProtocolURI): void {
-		void this._onDiscarded(owner).catch(err => {
-			this._logService.warn(`[AgentHostDiscardChangesOperationHandler] Post-discard refresh failed for ${owner}: ${err instanceof Error ? err.message : String(err)}`);
-		});
 	}
 
 	/**
