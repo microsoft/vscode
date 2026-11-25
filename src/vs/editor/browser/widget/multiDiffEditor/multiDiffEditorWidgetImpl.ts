@@ -377,7 +377,7 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 
 	}
 
-	public setScrollState(scrollState: { top?: number; left?: number }): void {
+	public setScrollState(scrollState: { top?: number; left?: number; anchor?: IMultiDiffEditorScrollAnchor }): void {
 		this._pendingScrollState = scrollState;
 		this._hasAppliedPendingScrollState = false;
 		this._lastPendingScrollDimensions = undefined;
@@ -393,9 +393,11 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 		if (!pending) {
 			return;
 		}
+		const anchored = pending.anchor && this._getAnchoredScrollTop(pending.anchor);
+		const top = anchored ? anchored.top : pending.top;
 		const dimensions = this._scrollView.scrollDimensions.get();
 		const current = this._scrollView.getScrollPosition();
-		const expectedTop = pending.top === undefined ? current.scrollTop : Math.min(Math.max(0, pending.top), Math.max(0, dimensions.scrollHeight - dimensions.height));
+		const expectedTop = top === undefined ? current.scrollTop : Math.min(Math.max(0, top), Math.max(0, dimensions.scrollHeight - dimensions.height));
 		const expectedLeft = pending.left === undefined ? current.scrollLeft : Math.min(Math.max(0, pending.left), Math.max(0, dimensions.scrollWidth - dimensions.width));
 		const previousDimensions = this._lastPendingScrollDimensions;
 		const dimensionsChanged = !previousDimensions
@@ -409,9 +411,9 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 			this._lastPendingScrollDimensions = undefined;
 			return;
 		}
-		this._scrollView.setScrollPosition({ scrollLeft: pending.left, scrollTop: pending.top });
+		this._scrollView.setScrollPosition({ scrollLeft: pending.left, scrollTop: top });
 		const applied = this._scrollView.getScrollPosition();
-		const topLanded = pending.top === undefined || applied.scrollTop >= pending.top;
+		const topLanded = top === undefined || (applied.scrollTop >= top && (anchored?.fits ?? true));
 		const leftLanded = pending.left === undefined || applied.scrollLeft >= pending.left;
 		if (topLanded && leftLanded) {
 			this._pendingScrollState = undefined;
@@ -422,10 +424,33 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 			this._lastPendingScrollDimensions = dimensions;
 		}
 		this._logger.log('applied pending scroll state', {
-			requested: pending,
+			requested: { top: pending.top, left: pending.left },
+			anchor: pending.anchor ? `${formatDiffItemKey(pending.anchor.key)} + ${pending.anchor.offset}${anchored ? '' : ' (not shown)'}` : undefined,
 			applied: { top: applied.scrollTop, left: applied.scrollLeft },
 			landed: topLanded && leftLanded,
 		});
+	}
+
+	private _getScrollAnchor(): IMultiDiffEditorScrollAnchor | undefined {
+		const layout = this._scrollView.layout.get();
+		const viewItems = this._viewItems.get();
+		const index = viewItems.findIndex((_item, index) => layout.items[index]?.contentRange.endExclusive > layout.contentViewport.start);
+		if (index === -1) {
+			return undefined;
+		}
+		return { key: viewItems[index].getKey(), offset: layout.contentViewport.start - layout.items[index].contentRange.start };
+	}
+
+	private _getAnchoredScrollTop(anchor: IMultiDiffEditorScrollAnchor): { readonly top: number; readonly fits: boolean } | undefined {
+		const layout = this._scrollView.layout.get();
+		const index = this._viewItems.get().findIndex(item => item.getKey() === anchor.key);
+		const itemLayout = index === -1 ? undefined : layout.items[index];
+		if (!itemLayout) {
+			return undefined;
+		}
+		// Until the offset fits, such as into an estimated height, show the start of the diff so that it renders and is measured.
+		const fits = anchor.offset < itemLayout.contentRange.length;
+		return { top: Math.max(0, layout.leadingScrollSlack + itemLayout.contentRange.start + (fits ? anchor.offset : 0)), fits };
 	}
 
 	/**
@@ -512,6 +537,7 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 				top: this.scrollTop.get(),
 				left: this.scrollLeft.get(),
 			},
+			scrollAnchor: this._getScrollAnchor(),
 			docStates: Object.fromEntries(this._viewItems.get().map(i => [i.getKey(), i.getViewState()])),
 			activeDiffItemKey: this._viewModel.get()?.activeDiffItem.get()?.getKey(),
 		};
@@ -520,6 +546,7 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 			this._logger.log('get view state', {
 				scrollTop: viewState.scrollState.top,
 				scrollLeft: viewState.scrollState.left,
+				scrollAnchor: viewState.scrollAnchor ? `${formatDiffItemKey(viewState.scrollAnchor.key)} + ${viewState.scrollAnchor.offset}` : undefined,
 				docStates: docStates.length,
 				collapsed: docStates.filter(s => s.collapsed).length,
 				activeDiffItem: formatDiffItemKey(viewState.activeDiffItemKey),
@@ -539,7 +566,7 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 	private _lastActiveDiffItemKey: string | undefined;
 
 	/** A restored scroll offset waiting for the scrollable dimensions to be known. */
-	private _pendingScrollState: { top?: number; left?: number } | undefined;
+	private _pendingScrollState: { top?: number; left?: number; anchor?: IMultiDiffEditorScrollAnchor } | undefined;
 	private _hasAppliedPendingScrollState = false;
 	private _lastPendingScrollDimensions: { readonly width: number; readonly height: number; readonly scrollWidth: number; readonly scrollHeight: number } | undefined;
 
@@ -549,13 +576,14 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 			this._logger.log('set view state', {
 				scrollTop: viewState.scrollState.top,
 				scrollLeft: viewState.scrollState.left,
+				scrollAnchor: viewState.scrollAnchor ? `${formatDiffItemKey(viewState.scrollAnchor.key)} + ${viewState.scrollAnchor.offset}` : undefined,
 				docStates: docStates.length,
 				collapsed: docStates.filter(s => s.collapsed).length,
 				activeDiffItem: formatDiffItemKey(viewState.activeDiffItemKey),
 				viewItems: this._viewItems.get().length,
 			});
 		}
-		this.setScrollState(viewState.scrollState);
+		this.setScrollState({ ...viewState.scrollState, anchor: viewState.scrollAnchor });
 
 		this._lastDocStates = viewState.docStates;
 		this._lastActiveDiffItemKey = viewState.activeDiffItemKey;
@@ -740,9 +768,16 @@ function highlightRange(targetEditor: ICodeEditor, range: IRange) {
 
 export interface IMultiDiffEditorViewState {
 	scrollState: { top: number; left: number };
+	/** The diff at the top of the viewport and the offset into it, which restores regardless of the heights of the diffs above it. */
+	scrollAnchor?: IMultiDiffEditorScrollAnchor;
 	docStates?: Record<string, IMultiDiffDocState>;
 	/** Key ({@link DocumentDiffItemViewModel.getKey}) of the active diff item, if any. */
 	activeDiffItemKey?: string;
+}
+
+interface IMultiDiffEditorScrollAnchor {
+	key: string;
+	offset: number;
 }
 
 interface IMultiDiffDocState {

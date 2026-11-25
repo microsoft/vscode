@@ -761,6 +761,95 @@ suite('MultiDiffEditorWidget', () => {
 		}
 	}));
 
+	test('restores the diff at the top of the viewport into a new view model of changed files', () => runWithFakedTimers({}, async () => {
+		const services = new ServiceCollection();
+		services.set(IAccessibilitySignalService, new class extends mock<IAccessibilitySignalService>() { }());
+		services.set(IActionViewItemService, new NullActionViewItemService());
+		services.set(IEditorProgressService, new class extends mock<IEditorProgressService>() {
+			override show() { return emptyProgressRunner; }
+		}());
+		services.set(IDiffProviderFactoryService, new PendingDiffProviderFactoryService());
+		services.set(IStorageService, disposables.add(new InMemoryStorageService()));
+		services.set(IMenuService, new class extends mock<IMenuService>() {
+			override createMenu(): IMenu {
+				return new class extends mock<IMenu>() {
+					override readonly onDidChange = Event.None;
+					override getActions() { return []; }
+					override dispose(): void { }
+				}();
+			}
+		}());
+		const instantiationService = createCodeEditorServices(disposables, services);
+		const createDocuments = (snapshot: string, names: readonly string[]) => names.map(name => {
+			const originalUri = URI.parse(`inmemory://${snapshot}/original/${name}`);
+			const modifiedUri = URI.parse(`inmemory://${snapshot}/modified/${name}`);
+			const original = disposables.add(instantiateTextModel(instantiationService, '', undefined, undefined, originalUri));
+			const modified = disposables.add(instantiateTextModel(instantiationService, 'const value = 1;', undefined, undefined, modifiedUri));
+			return RefCounted.createOfNonDisposable<IDocumentDiffItem>({
+				original: new DiffItemSource(originalUri, original),
+				modified: new DiffItemSource(modifiedUri, modified),
+				options: { accessibilitySupport: 'off' },
+				key: name,
+			}, { dispose() { } });
+		});
+		const shownDocuments = createDocuments('first', ['a.js', 'b.js', 'c.js', 'd.js', 'e.js', 'f.js']);
+		const restoredDocuments = createDocuments('second', ['b.js', 'c.js', 'd.js', 'e.js', 'f.js']);
+		const container = document.createElement('div');
+		const widget = instantiationService.createInstance(
+			MultiDiffEditorWidget,
+			container,
+			{} satisfies IWorkbenchUIElementFactory,
+			{ variant: 'noCardsNonCompact' },
+		);
+		widget.layout(new Dimension(800, 200));
+		const createViewModel = async (documents: readonly RefCounted<IDocumentDiffItem>[]) => {
+			const viewModel = widget.createViewModel({ documents: ValueWithChangeEvent.const(documents) });
+			await waitForState(viewModel.items, items => items.length === documents.length);
+			return viewModel;
+		};
+		const describeViewport = () => {
+			const state = widget.getLayoutDebugState().get();
+			const top = state.items.find(item => item.layout.visibility === 'visible')!;
+			return {
+				top: top.modifiedUri,
+				offset: state.layout.contentViewport.start - top.layout.contentRange.start,
+				collapsed: state.items.filter(item => item.collapsed).map(item => item.modifiedUri),
+				active: widget.viewModel.get()?.activeDiffItem.get()?.modifiedUri?.toString(),
+			};
+		};
+
+		const shownViewModel = await createViewModel(shownDocuments);
+		// Smaller than the estimated height of diffs that were not rendered yet.
+		for (const item of shownViewModel.items.get()) {
+			item.lastTemplateData.set({ expandedContentHeight: 100, selections: undefined, splitViewRatio: undefined }, undefined);
+		}
+		const restoredViewModel = await createViewModel(restoredDocuments);
+		try {
+			widget.setViewModel(shownViewModel);
+			shownViewModel.items.get()[1].collapsed.set(true, undefined);
+			widget.reveal({ original: shownDocuments[3].object.original!.uri, modified: shownDocuments[3].object.modified!.uri }, { highlight: false });
+			widget.setViewState({ scrollState: { top: widget.getViewState().scrollState.top + 30, left: 0 } });
+			const shown = describeViewport();
+			const viewState = widget.getViewState();
+
+			widget.setViewModel(undefined);
+			widget.setViewModel(restoredViewModel, { viewState });
+
+			assert.deepStrictEqual({ shown, restored: describeViewport() }, {
+				shown: { top: 'inmemory://first/modified/d.js', offset: 30, collapsed: ['inmemory://first/modified/b.js'], active: 'inmemory://first/modified/d.js' },
+				restored: { top: 'inmemory://second/modified/d.js', offset: 30, collapsed: ['inmemory://second/modified/b.js'], active: 'inmemory://second/modified/d.js' },
+			});
+		} finally {
+			widget.setViewModel(undefined);
+			shownViewModel.dispose();
+			restoredViewModel.dispose();
+			widget.dispose();
+			for (const documentItem of [...shownDocuments, ...restoredDocuments]) {
+				documentItem.dispose();
+			}
+		}
+	}));
+
 	test('keeps the split view ratio with its file when templates are recycled', () => runWithFakedTimers({}, async () => {
 		const services = new ServiceCollection();
 		services.set(IAccessibilitySignalService, new class extends mock<IAccessibilitySignalService>() { }());
