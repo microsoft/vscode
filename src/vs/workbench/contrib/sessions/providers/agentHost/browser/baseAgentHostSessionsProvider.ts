@@ -94,6 +94,7 @@ import { openCanvasWithExtensionConsent } from '../../../../canvases/common/agen
 import type { ICanvasOpenOptions } from '../../../../../common/canvasReference.js';
 import { ChatMode } from '../../../../chat/common/chatModes.js';
 import { IChatSendRequestOptions, IChatService, type IChatModelReference } from '../../../../chat/common/chatService/chatService.js';
+import type { IChatResponseModel } from '../../../../chat/common/model/chatModel.js';
 import { IChatSessionsService } from '../../../../chat/common/chatSessionsService.js';
 import { assertAutomationSessionTemplate, IAutomationSessionTemplate } from '../../../../chat/common/automations/automation.js';
 import { fromAgentHostFileUri, getAgentHostCustomizationUri } from '../../../../chat/common/agentHostSessionCustomizations.js';
@@ -9625,6 +9626,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (result.kind === 'rejected') {
 			throw new Error(`[${this.id}] sendRequest rejected: ${result.reason}`);
 		}
+		const response = result.kind === 'sent' ? result.data : undefined;
+		const responseCreated = response?.responseCreatedPromise;
+		const responseComplete = response?.responseCompletePromise;
+		const requestEnded = responseCreated && responseComplete && Promise.all([responseCreated, responseComplete]).then(([created]) => created, () => undefined);
 
 		if (newSession.workspaceUri && !newSession.getInitialSessionTemplate()) {
 			const config = newSession.getConfig();
@@ -9647,24 +9652,27 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			if (committedAdapter && selectedAgent) {
 				committedAdapter.setChatAgent(committedAdapter.resource, selectedAgent);
 			}
-		});
+		}, requestEnded);
 	}
 
 	/**
 	 * Lists a draft that its host started, by its first request or by opening a canvas in it, until the host announces
 	 * the committed session that replaces it. The caller titles the draft meanwhile; `explicitTitle` also renames the
-	 * committed session. When the host never commits the session, abandons the draft and throws.
+	 * committed session. When the host never commits the session, abandons the draft and throws. `requestEnded` settles
+	 * with the response of the first request once it has ended, which stops the wait if the host did not start the session.
 	 */
-	private async _graduateNewSession(newSession: NewSession, chatResource: URI, explicitTitle: string | undefined, onDidCommit?: (committedSession: ISession) => void): Promise<ISession> {
+	private async _graduateNewSession(newSession: NewSession, chatResource: URI, explicitTitle: string | undefined, onDidCommit?: (committedSession: ISession) => void, requestEnded?: Promise<IChatResponseModel | undefined>): Promise<ISession> {
 		const newSessionRawId = chatResource.path.replace(/^\//, '');
 		this._unpublishedDraftSessions.delete(newSession.session.resource);
 		// This skeleton is replaced by the committed AgentHostSession once it arrives.
 		const skeleton = newSession.session;
 		this._pendingSessions.set(newSession.sessionId, skeleton);
 		this._onDidChangeSessions.fire({ added: [skeleton], removed: [], changed: [] });
+		let endedResponse: IChatResponseModel | undefined;
+		void requestEnded?.then(response => { endedResponse = response; });
 
 		try {
-			const committedSession = await this._waitForNewSession(chatResource.scheme, newSessionRawId, newSession.cancellationToken);
+			const committedSession = await this._waitForNewSession(chatResource.scheme, newSessionRawId, newSession.cancellationToken, requestEnded);
 			if (committedSession) {
 				this._preserveNewSessionConfig(newSession, committedSession.sessionId);
 				if (explicitTitle) {
@@ -9691,7 +9699,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				return committedSession;
 			}
 		} catch {
-			// Connection lost or timeout — fall through to the failure cleanup.
+			// Connection lost, draft disposed, or the request ended without a commit — fall through to the failure cleanup.
 		} finally {
 			// Defensive clear: covers the failure path where the try block
 			// never reached the explicit clear above.
@@ -9709,7 +9717,12 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			this._onDidChangeDraftSessions.fire();
 		}
 		this._onDidChangeSessions.fire({ added: [], removed: [skeleton], changed: [] });
-		throw new Error(localize('sessionNotCommitted', "Agent host session was not committed."));
+		const errorDetails = endedResponse?.result?.errorDetails;
+		if (endedResponse && (endedResponse.isCanceled || !errorDetails)) {
+			// The request was cancelled, or declined before it was sent, such as when its folder isn't trusted.
+			throw new CancellationError();
+		}
+		throw new Error(errorDetails?.message ?? localize('sessionNotCommitted', "Agent host session was not committed."));
 	}
 
 	/** Localized error message when sendRequest is invoked without a connection. Subclasses can override. */
@@ -10912,13 +10925,16 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	/**
 	 * Resolves the freshly committed backend session for an in-flight send.
 	 * A committed session preserves the draft URI, preventing unrelated sessions from replacing it.
+	 * Resolves `undefined` when the connection is lost, or when `requestEnded` settles without the host having announced
+	 * the session: the host announces a session when it starts its first request, so it no longer commits that session.
 	 */
-	private async _waitForNewSession(expectedScheme: string, ownRawId: string, token: CancellationToken): Promise<ISession | undefined> {
+	private async _waitForNewSession(expectedScheme: string, ownRawId: string, token: CancellationToken, requestEnded?: Promise<unknown>): Promise<ISession | undefined> {
 		const matches = (session: ISession): boolean => session.resource.scheme === expectedScheme && session.resource.path.substring(1) === ownRawId;
+		const find = () => [...this._sessionCache.values()].find(matches);
 
 		await this._refreshSessions();
-		const immediate = [...this._sessionCache.values()].find(matches);
-		if (immediate && matches(immediate)) {
+		const immediate = find();
+		if (immediate) {
 			return immediate;
 		}
 
@@ -10932,6 +10948,13 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 					}
 				}));
 				waitDisposables.add(this.onConnectionLost(() => resolve(undefined)));
+				// A host announces a session whose first request failed just after that request's error, so list once more.
+				void requestEnded?.then(async () => {
+					if (!waitDisposables.isDisposed) {
+						await this._refreshSessions();
+						resolve(find());
+					}
+				});
 			});
 			return await raceCancellationError(sessionPromise, token);
 		} finally {
