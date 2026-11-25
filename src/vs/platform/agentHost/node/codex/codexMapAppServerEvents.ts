@@ -1075,6 +1075,30 @@ export function mapAgentMessageDelta(
 }
 
 /**
+ * A completed `plan` item (the proposed plan of Plan mode, which codex strips
+ * out of the agent message) becomes a markdown part with the item's final
+ * text. `item/plan/delta` is not streamed: codex documents that concatenated
+ * plan deltas may differ from the completed item, and a markdown part can't be
+ * replaced once emitted.
+ */
+function mapPlanItemCompleted(state: ICodexSessionMapState, turnId: string, text: string): (SessionAction | ChatAction)[] {
+	if (text.trim().length === 0) {
+		return [];
+	}
+	const separator = state.agentMessagePartCount > 0 ? '\n\n' : '';
+	state.agentMessagePartCount++;
+	return deferResponseWhileToolCallIsOpen(state, [{
+		type: ActionType.ChatResponsePart,
+		turnId,
+		part: {
+			kind: ResponsePartKind.Markdown,
+			id: generateUuid(),
+			content: separator + text,
+		},
+	}]);
+}
+
+/**
  * `item/completed` for an `agentMessage` — the part is finalized server
  * side. For Phase 2 we don't need to emit an extra action: the deltas
  * already updated the part's content. We just drop the mapping so the
@@ -1096,6 +1120,9 @@ export function mapItemCompleted(
 	if (params.item.type === 'agentMessage') {
 		state.itemToPartId.delete(params.item.id);
 		return [];
+	}
+	if (params.item.type === 'plan') {
+		return mapPlanItemCompleted(state, params.turnId, params.item.text);
 	}
 	if (params.item.type === 'reasoning') {
 		clearReasoningForItem(state, params.item.id);

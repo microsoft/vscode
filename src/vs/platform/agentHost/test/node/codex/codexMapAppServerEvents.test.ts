@@ -358,6 +358,37 @@ suite('codexMapAppServerEvents', () => {
 		assert.strictEqual(state.itemToPartId.size, 0);
 	});
 
+	test('item/completed for plan emits the proposed plan as markdown after the agent message', () => {
+		const state = createCodexSessionMapState();
+		const message = mapItemStarted(state, {
+			item: { type: 'agentMessage', id: 'm1', text: 'Here is my plan.', phase: null, memoryCitation: null, delivery: null, questions: null },
+			threadId: 'thr_1', turnId: 'turn_a', startedAtMs: 0,
+		});
+		const planStarted = mapItemStarted(state, {
+			item: { type: 'plan', id: 'p1', text: '' },
+			threadId: 'thr_1', turnId: 'turn_a', startedAtMs: 0,
+		});
+		const planCompleted = mapItemCompleted(state, {
+			item: { type: 'plan', id: 'p1', text: '# Plan\n\n1. Read the code\n2. Fix it' },
+			threadId: 'thr_1', turnId: 'turn_a', completedAtMs: 0,
+		});
+		const emptyPlanCompleted = mapItemCompleted(state, {
+			item: { type: 'plan', id: 'p2', text: '  ' },
+			threadId: 'thr_1', turnId: 'turn_a', completedAtMs: 0,
+		});
+		assert.deepStrictEqual({
+			message: markdownPartContent(message[0]),
+			planStarted,
+			planCompleted: planCompleted.map(a => ({ type: a.type, turnId: (a as { turnId?: string }).turnId, content: markdownPartContent(a) })),
+			emptyPlanCompleted,
+		}, {
+			message: 'Here is my plan.',
+			planStarted: [],
+			planCompleted: [{ type: ActionType.ChatResponsePart, turnId: 'turn_a', content: '\n\n# Plan\n\n1. Read the code\n2. Fix it' }],
+			emptyPlanCompleted: [],
+		});
+	});
+
 	test('second agentMessage in a turn is seeded with a leading block separator', () => {
 		const state = createCodexSessionMapState();
 		const first = mapItemStarted(state, {

@@ -197,6 +197,16 @@ function replayTurnToTurn(codexTurn: CodexTurn, model: ModelSelection | undefine
 					}));
 				}
 			}
+		} else if (item.type === 'plan') {
+			if (item.text.trim().length > 0) {
+				const separator = agentMessageCount > 0 ? '\n\n' : '';
+				agentMessageCount++;
+				parts.push({
+					kind: ResponsePartKind.Markdown,
+					id: generateUuid(),
+					content: separator + item.text,
+				});
+			}
 		} else if (item.type === 'webSearch') {
 			parts.push(webSearchToolCallPart(item));
 		} else if (item.type === 'imageGeneration') {
@@ -223,7 +233,7 @@ function replayTurnToTurn(codexTurn: CodexTurn, model: ModelSelection | undefine
 			}
 			parts.push(compactionToolCallPart());
 		}
-		// Other item types (plan/reasoning/mcpToolCall/collabAgentToolCall/…)
+		// Other item types (reasoning/mcpToolCall/collabAgentToolCall/…)
 		// are not yet reconstructed in replay.
 	}
 	flushPreflight();

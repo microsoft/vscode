@@ -51,6 +51,28 @@ suite('codexReplayMapper', () => {
 		assert.strictEqual((part as { content: string }).content, 'hello back');
 	});
 
+	test('restores the proposed plan of a Plan mode turn as markdown', () => {
+		const turns = replayThreadToTurns({
+			id: 'thr',
+			turns: [{
+				id: 'turn_a',
+				items: [
+					{ type: 'userMessage', id: 'u1', content: [{ type: 'text', text: 'plan it', text_elements: [] }] },
+					{ type: 'agentMessage', id: 'a1', text: 'Here is my plan.', phase: null, memoryCitation: null },
+					{ type: 'plan', id: 'p1', text: '# Plan\n\n1. Read the code' },
+				],
+				itemsView: { type: 'full' } as never,
+				status: 'completed' as never,
+				error: null,
+				startedAt: null, completedAt: null, durationMs: null,
+			}],
+		} as never);
+		assert.deepStrictEqual(turns[0].responseParts.map(part => part.kind === ResponsePartKind.Markdown ? part.content : part.kind), [
+			'Here is my plan.',
+			'\n\n# Plan\n\n1. Read the code',
+		]);
+	});
+
 	test('restores localImage user input as an image attachment', () => {
 		const imagePath = '/data/agentSessionData/session/attachments/id/Pasted Image.png';
 		const turns = replayThreadToTurns({
@@ -570,7 +592,7 @@ suite('codexReplayMapper', () => {
 			turns: [{
 				id: 'turn_a',
 				items: [
-					{ type: 'plan', id: 'p', text: 'planning' } as never,
+					{ type: 'reasoning', id: 'r', summary: ['thinking'], content: [] } as never,
 				],
 				itemsView: { type: 'full' } as never,
 				status: 'completed' as never,
