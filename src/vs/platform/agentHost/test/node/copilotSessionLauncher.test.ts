@@ -4711,17 +4711,24 @@ suite('CopilotSessionLauncher resume config', () => {
 		});
 	});
 
-	test('sends the client-side programmatic tool calling flag only when opted in', async () => {
+	test('offers run_program only when client-side programmatic tool calling is opted in', async () => {
 		const store = disposables.add(new DisposableStore());
-		const flag = async (values: Record<string, unknown>) =>
-			(await buildResumeConfig(createLauncher(store, values), { id: 'gpt-5' })).experiments?.flags?.CLIENT_SIDE_PROGRAMMATIC_TOOL_CALLING;
+		const launch = async (values: Record<string, unknown>) => {
+			const config = await buildResumeConfig(createLauncher(store, values), { id: 'gpt-5' });
+			return { flag: config.experiments?.flags?.CLIENT_SIDE_PROGRAMMATIC_TOOL_CALLING, tools: config.tools?.availableTools };
+		};
 
 		assert.deepStrictEqual({
-			disabled: await flag({}),
-			enabled: await flag({ [CopilotCliConfigKey.ProgrammaticToolCalling]: true }),
+			disabled: await launch({}),
+			enabled: await launch({ [CopilotCliConfigKey.ProgrammaticToolCalling]: true }),
+			enabledWithModelFilter: await launch({
+				[CopilotCliConfigKey.ProgrammaticToolCalling]: true,
+				[CopilotCliConfigKey.ModelCapabilityOverrides]: { '*': { availableTools: ['custom:*'] } },
+			}),
 		}, {
-			disabled: undefined,
-			enabled: true,
+			disabled: { flag: undefined, tools: [...COPILOT_DEFAULT_AVAILABLE_TOOLS] },
+			enabled: { flag: true, tools: [...COPILOT_DEFAULT_AVAILABLE_TOOLS, 'builtin:run_program'] },
+			enabledWithModelFilter: { flag: true, tools: ['custom:*'] },
 		});
 	});
 

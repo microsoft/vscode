@@ -63,7 +63,7 @@ import type { ILocalModelProvider, ILocalModelSessionConfigContribution } from '
 import { ShellManager, createShellTools, type IUnsandboxedCommandConfirmationRequest } from './copilotShellTools.js';
 import { isAutoModel, isGpt56Model } from './modelIdentifiers.js';
 import { CopilotToolName, EPHEMERAL_DISABLED_COPILOT_TOOLS } from './copilotToolDisplay.js';
-import { COPILOT_DEFAULT_AVAILABLE_TOOLS } from './copilotBuiltinToolAllowlist.js';
+import { COPILOT_DEFAULT_AVAILABLE_TOOLS, PROGRAMMATIC_TOOL_CALLING_TOOL_NAME } from './copilotBuiltinToolAllowlist.js';
 import './prompts/allPrompts.js';
 import { agentHostPromptRegistry, type IAgentHostPromptContext } from './prompts/promptRegistry.js';
 import { applyPromptOverridesFromString, resolveConfiguredPromptOverride } from './prompts/promptOverride.js';
@@ -1699,7 +1699,11 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		const availableTools = getToolFilterOverride(availableToolsOverride, 'availableTools', modelId, this._logService, plan.sessionId);
 		const excludedTools = getToolFilterOverride(excludedToolsOverride, 'excludedTools', modelId, this._logService, plan.sessionId);
 		// Allow-list by default: a runtime built-in that is not in the host's list stays off until adopted.
-		const sdkAvailableTools = toSdkToolFilterPatterns(availableTools) ?? [...COPILOT_DEFAULT_AVAILABLE_TOOLS];
+		// `run_program` is adopted only for the opt-in; an explicit per-model filter still decides on its own.
+		const sdkAvailableTools = toSdkToolFilterPatterns(availableTools) ?? [
+			...COPILOT_DEFAULT_AVAILABLE_TOOLS,
+			...(programmaticToolCallingEnabled ? [`builtin:${PROGRAMMATIC_TOOL_CALLING_TOOL_NAME}`] : []),
+		];
 		const configuredSdkExcludedTools = [
 			...(toSdkToolFilterPatterns(excludedTools) ?? []),
 			// Keep dynamic workflows disabled until Agent Host support is validated.
