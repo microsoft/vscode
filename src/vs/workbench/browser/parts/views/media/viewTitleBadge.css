@@ -13,7 +13,8 @@
 	container: view-title-badge / inline-size;
 }
 
-.monaco-workbench .view-title-badge-container.hidden {
+.monaco-workbench .view-title-badge-container.hidden,
+.monaco-pane-view .pane.horizontal:not(.expanded) > .pane-header .view-title-badge-container {
 	display: none;
 }
 
@@ -75,6 +76,12 @@
 	flex: 1 1 auto;
 	align-items: center;
 	min-width: 0;
+}
+
+/* The secondary side bar keeps its title to its content: let it grow into the free room while it has a badge */
+.monaco-workbench .part.auxiliarybar.pane-composite-part > .composite.title > .title-label.has-title-badge {
+	flex: 1 1 auto;
+	max-width: 60%;
 }
 
 .monaco-workbench .part > .title > .title-label.has-title-badge > h2 {

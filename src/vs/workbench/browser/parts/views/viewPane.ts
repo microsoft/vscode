@@ -648,6 +648,9 @@ export abstract class ViewPane extends Pane implements IView {
 		}
 		else if (description && this.titleContainer) {
 			this.titleDescriptionContainer = after(this.titleContainer, $('span.description', {}, description));
+			if (this.titleBadgeWidget) {
+				after(this.titleDescriptionContainer, this.titleBadgeWidget.element);
+			}
 			this.titleDescriptionContainerHover = this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), this.titleDescriptionContainer, description));
 		}
 	}
@@ -655,7 +658,7 @@ export abstract class ViewPane extends Pane implements IView {
 	private setTitleBadge(badge: IViewTitleBadge | undefined): void {
 		if (!this.titleBadgeWidget && badge && this.titleContainer) {
 			this.titleBadgeWidget = this._register(new ViewTitleBadgeWidget(this.hoverService));
-			after(this.titleContainer, this.titleBadgeWidget.element);
+			after(this.titleDescriptionContainer ?? this.titleContainer, this.titleBadgeWidget.element);
 		}
 		this.titleBadgeWidget?.update(badge);
 	}
@@ -666,7 +669,7 @@ export abstract class ViewPane extends Pane implements IView {
 	protected updateTitleBadge(badge: IViewTitleBadge | undefined): void {
 		this._titleBadge = badge;
 		this.setTitleBadge(badge);
-		this.updateAriaHeaderLabel(this._title, this._titleDescription);
+		this.updateAriaHeaderLabel(this.calculateTitle(this._title), this._titleDescription);
 		this._onDidChangeTitleArea.fire();
 	}
 

@@ -117,6 +117,7 @@ suite('ViewPaneContainer', () => {
 		}());
 		class TestViewPane extends ViewPane {
 			setBadge(badge: IViewTitleBadge | undefined) { this.updateTitleBadge(badge); }
+			setDescription(description: string) { this.updateTitleDescription(description); }
 		}
 		const element = append(mainWindow.document.body, $('.view-pane-container-test'));
 		store.add(toDisposable(() => element.remove()));
@@ -140,12 +141,15 @@ suite('ViewPaneContainer', () => {
 		const before = state();
 		pane.setBadge({ icon: Codicon.worktree, label: 'fix-tab-corner-alignment', tooltip: 'tooltip', ariaLabel: 'Folder Location, fix-tab-corner-alignment' });
 		const withBadge = state();
+		pane.setDescription('description');
+		const order = [...header.querySelectorAll('.title, .description, .view-title-badge-container')].map(e => e.className.split(' ')[0]);
 		pane.setBadge(undefined);
 
+		assert.deepStrictEqual(order, ['title', 'description', 'view-title-badge-container']);
 		assert.deepStrictEqual([before, withBadge, state()], [
 			{ containerBadge: undefined, headerBadge: null, afterTitle: false, ariaHeaderLabel: 'vscode Section', titleAreaUpdates: 0 },
 			{ containerBadge: 'fix-tab-corner-alignment', headerBadge: 'fix-tab-corner-alignment', afterTitle: true, ariaHeaderLabel: 'vscode, Folder Location, fix-tab-corner-alignment Section', titleAreaUpdates: 1 },
-			{ containerBadge: undefined, headerBadge: null, afterTitle: true, ariaHeaderLabel: 'vscode Section', titleAreaUpdates: 2 },
+			{ containerBadge: undefined, headerBadge: null, afterTitle: false, ariaHeaderLabel: 'vscode - description Section', titleAreaUpdates: 3 },
 		]);
 	});
 });
