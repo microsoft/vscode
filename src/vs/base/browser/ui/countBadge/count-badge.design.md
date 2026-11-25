@@ -1,0 +1,37 @@
+---
+title: "Count badge"
+kind: "component"
+isDraft: true
+id: "badge"
+aliases:
+  - "count-badge"
+component:
+  implementation: "src/vs/base/browser/ui/countBadge/countBadge.ts"
+  api:
+    - "ICountBadgeOptions.count"
+    - "ICountBadgeOptions.countFormat"
+    - "ICountBadgeOptions.titleFormat"
+    - "CountBadge.setCount"
+  fixtures:
+    - "baseUI/CountBadges"
+---
+
+# CountBadge
+
+## Overview
+
+A compact numeric indicator attached to a meaningful label or destination.
+
+## Usage
+
+- Use for a count, not as an unlabeled standalone notification.
+- Pair the number with enough surrounding context to explain what is being counted.
+
+## Accessibility
+
+- Make the meaning of the count understandable without color.
+- Avoid relying on a hover title as the only explanation.
+
+## Preview
+
+Numeric count badges.

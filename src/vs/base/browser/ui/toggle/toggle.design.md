@@ -1,0 +1,38 @@
+---
+title: "Toggle"
+kind: "component"
+isDraft: true
+component:
+  implementation: "src/vs/base/browser/ui/toggle/toggle.ts"
+  api:
+    - "IToggleOpts.title"
+    - "IToggleOpts.isChecked"
+    - "IToggleOpts.notFocusable"
+    - "Toggle.checked"
+    - "Toggle.onChange"
+  fixtures:
+    - "baseUI/Toggles"
+    - "baseUI/KeyboardFocusedToggle"
+---
+
+# Toggle
+
+## Overview
+
+An icon-sized control for an independently checked mode.
+
+## Usage
+
+- Use for a compact mode such as match case, not a primary action.
+- Keep the state label stable as the selection changes.
+- Use Checkbox for form choices, Switch for immediate settings, and Radio for mutually exclusive choices.
+
+## Accessibility
+
+- Expose an understandable title and checked state.
+- Space changes the state. Do not remove the control from keyboard navigation without an owning navigation model.
+- Read `checked` after `onChange`; the event's boolean reports keyboard origin, not the selection.
+
+## Preview
+
+Icon toggles and keyboard focus states.

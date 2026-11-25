@@ -33,4 +33,6 @@ Supporting references:
 
 ## Policy-disabled UI
 
-Prefer an option that stays visible but disabled, with the briefcase managed-policy indicator, a localized reason, and an accessible next step, over silently hiding it ([design guidance](../design-philosophy/SKILL.md#make-unavailable-features-understandable)). Use policy provenance to distinguish prohibition from unsupported, feature-gated, or pending states. Presentation never changes authorization: a disabled option must not re-enter the runtime's allowed set or bypass create/resume/write validation. Test policy refresh/removal, keyboard and pointer activation, and stale menus; preserve AI-hiding behavior.
+Follow the [design principles for unavailable features](../design-system/foundations/principles.design.md#make-unavailable-features-understandable) and the [accessibility workflow](../accessibility/SKILL.md#explaining-unavailable-options) for presentation and interaction. For a policy prohibition, use the existing briefcase managed-policy indicator and authoritative policy provenance; do not label unsupported, feature-gated, or pending states as policy.
+
+Presentation never changes authorization: a disabled option must not re-enter the runtime's allowed set or bypass create/resume/write validation. Test policy refresh/removal and stale actions, and preserve explicit AI-hiding choices.

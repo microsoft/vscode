@@ -148,7 +148,7 @@ Invoke the `sessions` skill for changes under `src/vs/sessions/**`.
 Invoke:
 
 - `accessibility` for every interactive tryout;
-- `design-philosophy` when changing visual or spotlight behavior;
+- `design-system` when changing visual or spotlight behavior;
 - `integrated-browser` for Integrated Browser targets;
 - `sessions` for Agents-window implementation;
 - `policy-and-managed-settings` for AI controls, permissions, models, providers, or managed settings;
