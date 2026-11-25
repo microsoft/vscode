@@ -38,6 +38,20 @@ declare module 'vscode' {
 		readonly onDidDisposeParent: Event<void>;
 	}
 
+	/**
+	 * A command of {@link SourceControl.statusBarCommands}.
+	 */
+	export interface SourceControlStatusBarCommand extends Command {
+		/**
+		 * Whether the command is hidden from the status bar while the {@link WorkspaceFolder workspace folder}
+		 * that is the root of the source control is at an alternate location, such as a worktree. Use it for a
+		 * command that shows where the source control is, for example its current branch, which the location
+		 * already shows. The command still shows with the source control, for example in the Source Control
+		 * Repositories view.
+		 */
+		hideAtAlternateFolderLocation?: boolean;
+	}
+
 	export namespace scm {
 		export function createSourceControl(id: string, label: string, rootUri?: Uri, iconPath?: IconPath, parent?: SourceControl): SourceControl;
 	}

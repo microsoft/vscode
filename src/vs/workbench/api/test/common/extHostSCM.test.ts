@@ -301,4 +301,49 @@ suite('ExtHostSCM', () => {
 		extended.dispose();
 		await rpcProtocol.sync();
 	}));
+
+	test('sends hideAtAlternateFolderLocation of status bar commands only with the scmProviderOptions proposal', async () => {
+		const createSourceControl = (enabledApiProposals: string[]) => {
+			const rpc = new TestRPCProtocol();
+			const updates: (boolean | undefined)[][] = [];
+			rpc.set(MainContext.MainThreadSCM, new class extends mock<MainThreadSCMShape>() {
+				override async $registerSourceControl(): Promise<void> { }
+				override async $unregisterSourceControl(): Promise<void> { }
+				override async $updateSourceControl(_handle: number, features: SCMProviderFeatures): Promise<void> {
+					if (features.statusBarCommands) {
+						updates.push(features.statusBarCommands.map(command => command.hideAtAlternateFolderLocation));
+					}
+				}
+			});
+			rpc.set(MainContext.MainThreadTelemetry, new class extends mock<MainThreadTelemetryShape>() {
+				override $publicLog2(): void { }
+			});
+			rpc.set(MainContext.MainThreadCommands, new class extends mock<MainThreadCommandsShape>() {
+				override async $registerCommand(): Promise<void> { }
+			});
+			const log = store.add(new NullLogService());
+			const scm = new ExtHostSCM(rpc, new ExtHostCommands(rpc, log, undefined!), {} as ExtHostDocuments, log);
+			const sourceControl = store.add(scm.createSourceControl({ ...nullExtensionDescription, enabledApiProposals }, 'test', 'Test', undefined, undefined, undefined));
+			return { sourceControl, updates, rpc };
+		};
+		const commands = (hide: boolean): vscode.SourceControlStatusBarCommand[] => [
+			{ command: 'test.branch', title: 'main', hideAtAlternateFolderLocation: hide },
+			{ command: 'test.sync', title: 'sync' }
+		];
+
+		const result: Record<string, (boolean | undefined)[][]> = {};
+		for (const [name, proposals] of [['enabled', ['scmProviderOptions']], ['disabled', []]] as const) {
+			const { sourceControl, updates, rpc } = createSourceControl([...proposals]);
+			sourceControl.statusBarCommands = commands(true);
+			sourceControl.statusBarCommands = commands(true);
+			sourceControl.statusBarCommands = commands(false);
+			await rpc.sync();
+			result[name] = updates;
+		}
+
+		assert.deepStrictEqual(result, {
+			enabled: [[true, undefined], [undefined, undefined]],
+			disabled: [[undefined, undefined], [undefined, undefined]]
+		});
+	});
 });

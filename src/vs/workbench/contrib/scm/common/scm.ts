@@ -69,6 +69,14 @@ export interface ISCMResourceGroup {
 	readonly multiDiffEditorEnableViewChanges: boolean;
 }
 
+export interface ISCMStatusBarCommand extends Command {
+	/**
+	 * Whether the command is hidden from the status bar while the workspace folder at the root
+	 * of the provider is at an alternate location.
+	 */
+	readonly hideAtAlternateFolderLocation?: boolean;
+}
+
 export interface ISCMProvider extends IDisposable {
 	readonly id: string;
 	readonly parentId?: string;
@@ -91,7 +99,7 @@ export interface ISCMProvider extends IDisposable {
 	readonly historyProvider: IObservable<ISCMHistoryProvider | undefined>;
 	readonly acceptInputCommand?: Command;
 	readonly actionButton: IObservable<ISCMActionButtonDescriptor | undefined>;
-	readonly statusBarCommands: IObservable<readonly Command[] | undefined>;
+	readonly statusBarCommands: IObservable<readonly ISCMStatusBarCommand[] | undefined>;
 
 	getOriginalResource(uri: URI): Promise<URI | null>;
 }

@@ -9,7 +9,7 @@ import { debounce } from '../../../base/common/decorators.js';
 import { DisposableMap, DisposableStore, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { asPromise } from '../../../base/common/async.js';
 import { ExtHostCommands } from './extHostCommands.js';
-import { MainContext, MainThreadSCMShape, SCMRawResource, SCMRawResourceSplice, SCMRawResourceSplices, IMainContext, ExtHostSCMShape, ICommandDto, MainThreadTelemetryShape, SCMGroupFeatures, SCMHistoryItemDto, SCMHistoryItemChangeDto, SCMHistoryItemRefDto, SCMActionButtonDto, SCMArtifactGroupDto, SCMArtifactDto } from './extHost.protocol.js';
+import { MainContext, MainThreadSCMShape, SCMRawResource, SCMRawResourceSplice, SCMRawResourceSplices, IMainContext, ExtHostSCMShape, ICommandDto, MainThreadTelemetryShape, SCMGroupFeatures, SCMHistoryItemDto, SCMHistoryItemChangeDto, SCMHistoryItemRefDto, SCMActionButtonDto, SCMArtifactGroupDto, SCMArtifactDto, SCMStatusBarCommandDto } from './extHost.protocol.js';
 import { sortedDiff, equals } from '../../../base/common/arrays.js';
 import { comparePaths } from '../../../base/common/comparers.js';
 import type * as vscode from 'vscode';
@@ -264,8 +264,8 @@ function commandEquals(a: vscode.Command, b: vscode.Command): boolean {
 		&& (a.arguments && b.arguments ? compareArgs(a.arguments, b.arguments) : a.arguments === b.arguments);
 }
 
-function commandListEquals(a: readonly vscode.Command[], b: readonly vscode.Command[]): boolean {
-	return equals(a, b, commandEquals);
+function statusBarCommandEquals(a: vscode.SourceControlStatusBarCommand, b: vscode.SourceControlStatusBarCommand): boolean {
+	return commandEquals(a, b) && !!a.hideAtAlternateFolderLocation === !!b.hideAtAlternateFolderLocation;
 }
 
 export interface IValidateInput {
@@ -798,7 +798,7 @@ class ExtHostSourceControl implements vscode.SourceControl {
 	}
 
 	set statusBarCommands(statusBarCommands: vscode.Command[] | undefined) {
-		if (this._statusBarCommands && statusBarCommands && commandListEquals(this._statusBarCommands, statusBarCommands)) {
+		if (this._statusBarCommands && statusBarCommands && equals(this._statusBarCommands, statusBarCommands, statusBarCommandEquals)) {
 			return;
 		}
 
@@ -809,7 +809,11 @@ class ExtHostSourceControl implements vscode.SourceControl {
 
 		this._statusBarCommands = statusBarCommands;
 
-		const internal = (statusBarCommands || []).map(c => this._commands.converter.toInternal(c, this._statusBarDisposables)) as ICommandDto[];
+		const hasScmProviderOptionsProposalEnabled = isProposedApiEnabled(this._extension, 'scmProviderOptions');
+		const internal = (statusBarCommands || []).map((c: vscode.SourceControlStatusBarCommand): SCMStatusBarCommandDto => {
+			const command = this._commands.converter.toInternal(c, this._statusBarDisposables) as ICommandDto;
+			return hasScmProviderOptionsProposalEnabled && c.hideAtAlternateFolderLocation ? { ...command, hideAtAlternateFolderLocation: true } : command;
+		});
 
 		this.#proxy.$updateSourceControl(this.handle, { statusBarCommands: internal })
 			.finally(() => oldStatusBarDisposables.dispose());

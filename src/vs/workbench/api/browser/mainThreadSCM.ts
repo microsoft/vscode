@@ -8,7 +8,7 @@ import { isUriComponents, URI, UriComponents } from '../../../base/common/uri.js
 import { Event, Emitter } from '../../../base/common/event.js';
 import { IObservable, observableValue, observableValueOpts, transaction } from '../../../base/common/observable.js';
 import { IDisposable, DisposableStore, combinedDisposable, dispose, Disposable } from '../../../base/common/lifecycle.js';
-import { ISCMService, ISCMRepository, ISCMProvider, ISCMResource, ISCMResourceGroup, ISCMResourceDecorations, IInputValidation, ISCMViewService, InputValidationType, ISCMActionButtonDescriptor } from '../../contrib/scm/common/scm.js';
+import { ISCMService, ISCMRepository, ISCMProvider, ISCMResource, ISCMResourceGroup, ISCMResourceDecorations, IInputValidation, ISCMViewService, InputValidationType, ISCMActionButtonDescriptor, ISCMStatusBarCommand } from '../../contrib/scm/common/scm.js';
 import { ExtHostContext, MainThreadSCMShape, ExtHostSCMShape, SCMProviderFeatures, SCMRawResourceSplices, SCMGroupFeatures, MainContext, SCMHistoryItemDto, SCMHistoryItemRefsChangeEventDto, SCMHistoryItemRefDto } from '../common/extHost.protocol.js';
 import { Command } from '../../../editor/common/languages.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
@@ -327,7 +327,7 @@ class MainThreadSCMProvider implements ISCMProvider {
 	private readonly _count = observableValue<number | undefined>(this, undefined);
 	get count() { return this._count; }
 
-	private readonly _statusBarCommands = observableValue<readonly Command[] | undefined>(this, undefined);
+	private readonly _statusBarCommands = observableValue<readonly ISCMStatusBarCommand[] | undefined>(this, undefined);
 	get statusBarCommands() { return this._statusBarCommands; }
 
 	private readonly _name: string | undefined;

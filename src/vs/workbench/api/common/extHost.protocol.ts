@@ -2135,10 +2135,12 @@ export interface SCMProviderFeatures {
 	commitTemplate?: string;
 	acceptInputCommand?: languages.Command;
 	actionButton?: SCMActionButtonDto | null;
-	statusBarCommands?: ICommandDto[];
+	statusBarCommands?: SCMStatusBarCommandDto[];
 	contextValue?: string;
 	activeRepositoryName?: string | null;
 }
+
+export type SCMStatusBarCommandDto = ICommandDto & { hideAtAlternateFolderLocation?: boolean };
 
 export interface SCMActionButtonDto {
 	command: ICommandDto & { shortTitle?: string };

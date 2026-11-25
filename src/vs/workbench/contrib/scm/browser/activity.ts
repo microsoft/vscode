@@ -7,7 +7,7 @@ import { localize } from '../../../../nls.js';
 import { basename } from '../../../../base/common/resources.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { VIEW_PANE_ID, ISCMService, ISCMRepository, ISCMViewService, ISCMProvider } from '../common/scm.js';
+import { VIEW_PANE_ID, ISCMService, ISCMRepository, ISCMViewService, ISCMProvider, ISCMStatusBarCommand } from '../common/scm.js';
 import { IActivityService, NumberBadge } from '../../../services/activity/common/activity.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
@@ -19,9 +19,10 @@ import { ITitleService } from '../../../services/title/browser/titleService.js';
 import { IEditorGroupContextKeyProvider, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { getRepositoryResourceCount, getSCMRepositoryIcon, getStatusBarCommandGenericName } from './util.js';
-import { autorun, derived, IObservable, observableFromEvent } from '../../../../base/common/observable.js';
+import { autorun, derived, IObservable, observableFromEvent, observableSignalFromEvent } from '../../../../base/common/observable.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
-import { Command } from '../../../../editor/common/languages.js';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceFolderLocationService } from '../../../../platform/workspace/common/folderLocations.js';
 
 const ActiveRepositoryContextKeys = {
 	ActiveRepositoryName: new RawContextKey<string>('scmActiveRepositoryName', ''),
@@ -34,6 +35,7 @@ export class SCMActiveRepositoryController extends Disposable implements IWorkbe
 	private readonly _countBadgeConfig: IObservable<'all' | 'focused' | 'off'>;
 	private readonly _countBadgeRepositories: IObservable<readonly { provider: ISCMProvider; resourceCount: IObservable<number> }[]>;
 	private readonly _countBadge: IObservable<number>;
+	private readonly _onDidChangeFolderLocation: IObservable<void>;
 
 	private _activeRepositoryNameContextKey: IContextKey<string>;
 	private _activeRepositoryBranchNameContextKey: IContextKey<string>;
@@ -44,9 +46,18 @@ export class SCMActiveRepositoryController extends Disposable implements IWorkbe
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@ISCMViewService private readonly scmViewService: ISCMViewService,
 		@IStatusbarService private readonly statusbarService: IStatusbarService,
-		@ITitleService private readonly titleService: ITitleService
+		@ITitleService private readonly titleService: ITitleService,
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+		@IWorkspaceFolderLocationService private readonly folderLocationService: IWorkspaceFolderLocationService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
 	) {
 		super();
+
+		this._onDidChangeFolderLocation = observableSignalFromEvent(this, Event.any<unknown>(
+			this.folderLocationService.onDidChangeLocation,
+			this.workspaceContextService.onDidChangeWorkspaceFolders,
+			this.workspaceContextService.onDidChangeWorkbenchState
+		));
 
 		this._activeRepositoryNameContextKey = ActiveRepositoryContextKeys.ActiveRepositoryName.bindTo(this.contextKeyService);
 		this._activeRepositoryBranchNameContextKey = ActiveRepositoryContextKeys.ActiveRepositoryBranchName.bindTo(this.contextKeyService);
@@ -108,9 +119,14 @@ export class SCMActiveRepositoryController extends Disposable implements IWorkbe
 
 		this._register(autorun(reader => {
 			const activeRepository = this.scmViewService.activeRepository.read(reader);
-			const commands = activeRepository?.repository.provider.statusBarCommands.read(reader);
+			const commands = activeRepository?.repository.provider.statusBarCommands.read(reader) ?? [];
+			this._onDidChangeFolderLocation.read(reader);
 
-			this._updateStatusBar(activeRepository, commands ?? [], reader.store);
+			const visibleCommands = activeRepository && this._isAtAlternateFolderLocation(activeRepository.repository.provider)
+				? commands.filter(command => !command.hideAtAlternateFolderLocation)
+				: commands;
+
+			this._updateStatusBar(activeRepository, visibleCommands, reader.store);
 		}));
 
 		this._register(autorun(reader => {
@@ -127,6 +143,15 @@ export class SCMActiveRepositoryController extends Disposable implements IWorkbe
 		return observableFromEvent(this, repository.provider.onDidChangeResources, () => /** @description repositoryResourceCount */ getRepositoryResourceCount(repository.provider));
 	}
 
+	/**
+	 * Whether the root of `provider` is the workspace folder and that folder is at an alternate location.
+	 */
+	private _isAtAlternateFolderLocation(provider: ISCMProvider): boolean {
+		const rootUri = provider.rootUri;
+		const folder = rootUri && this.workspaceContextService.getWorkspace().folders.find(folder => this.uriIdentityService.extUri.isEqual(folder.uri, rootUri));
+		return !!folder && this.folderLocationService.isAtAlternateLocation(folder);
+	}
+
 	private _updateActivityCountBadge(count: number, store: DisposableStore): void {
 		if (count === 0) {
 			return;
@@ -136,7 +161,7 @@ export class SCMActiveRepositoryController extends Disposable implements IWorkbe
 		store.add(this.activityService.showViewActivity(VIEW_PANE_ID, { badge }));
 	}
 
-	private _updateStatusBar(activeRepository: { repository: ISCMRepository; pinned: boolean } | undefined, commands: readonly Command[], store: DisposableStore): void {
+	private _updateStatusBar(activeRepository: { repository: ISCMRepository; pinned: boolean } | undefined, commands: readonly ISCMStatusBarCommand[], store: DisposableStore): void {
 		if (!activeRepository) {
 			return;
 		}

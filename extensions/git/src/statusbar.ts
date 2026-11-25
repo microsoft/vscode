@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, Command, EventEmitter, Event, workspace, Uri, l10n, SourceControl } from 'vscode';
+import { Disposable, Command, EventEmitter, Event, workspace, Uri, l10n, SourceControl, SourceControlStatusBarCommand } from 'vscode';
 import { Repository } from './repository';
 import { anyEvent, dispose, filterEvent } from './util';
 import type { Branch, RemoteSourcePublisher } from './api/git';
@@ -44,7 +44,7 @@ class CheckoutStatusBar {
 		repository.onDidChangeBranchProtection(this._onDidChange.fire, this._onDidChange, this.disposables);
 	}
 
-	get command(): Command | undefined {
+	get command(): SourceControlStatusBarCommand | undefined {
 		const operationData = [
 			...this.repository.operations.getOperations(OperationKind.Checkout) as CheckoutOperation[],
 			...this.repository.operations.getOperations(OperationKind.CheckoutTracking) as CheckoutTrackingOperation[]
@@ -58,7 +58,8 @@ class CheckoutStatusBar {
 			command,
 			tooltip: `${label}, ${this.getTooltip()}`,
 			title: `${this.getIcon()} ${label}`,
-			arguments: [this.sourceControl]
+			arguments: [this.sourceControl],
+			hideAtAlternateFolderLocation: true
 		};
 	}
 
@@ -304,9 +305,9 @@ export class StatusBarCommands {
 		this.onDidChange = anyEvent(this.syncStatusBar.onDidChange, this.checkoutStatusBar.onDidChange);
 	}
 
-	get commands(): Command[] {
+	get commands(): SourceControlStatusBarCommand[] {
 		return [this.checkoutStatusBar.command, this.syncStatusBar.command]
-			.filter((c): c is Command => !!c);
+			.filter((c): c is SourceControlStatusBarCommand => !!c);
 	}
 
 	dispose(): void {

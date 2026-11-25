@@ -5,7 +5,7 @@
 
 import 'mocha';
 import assert from 'assert';
-import { workspace, commands, window, Uri, WorkspaceEdit, Range, TextDocument, extensions, TabInputTextDiff, TabInputCustom, TabInputNotebook, TabInputNotebookDiff } from 'vscode';
+import { workspace, commands, window, Uri, WorkspaceEdit, Range, TextDocument, extensions, TabInputTextDiff, TabInputCustom, TabInputNotebook, TabInputNotebookDiff, SourceControlStatusBarCommand } from 'vscode';
 import * as cp from 'child_process';
 import * as fs from 'fs';
 import * as os from 'os';
@@ -398,6 +398,7 @@ suite('git smoke test', function () {
 				...withInputBox ? { inputBox: repository.sourceControl.sourceControl.inputBox.value } : {},
 				// Commit hashes depend on the time of the commits
 				statusBarCommands: repository.sourceControl.sourceControl.statusBarCommands?.map(c => c.title.replace(/\b[0-9a-f]{8}\b/, '<commit>')),
+				hideAtAlternateFolderLocation: repository.sourceControl.sourceControl.statusBarCommands?.map(c => !!(c as SourceControlStatusBarCommand).hideAtAlternateFolderLocation),
 				actionButton: repository.sourceControl.sourceControl.actionButton?.command.title
 			});
 
@@ -446,7 +447,7 @@ suite('git smoke test', function () {
 			await apiRepository.status();
 			actual.template = read(false);
 
-			const empty = { merge: [], index: [], workingTree: [], untracked: [], count: 0, commitTemplate: '' };
+			const empty = { merge: [], index: [], workingTree: [], untracked: [], count: 0, commitTemplate: '', hideAtAlternateFolderLocation: [true, false] };
 			const onTopic = { ...empty, statusBarCommands: ['$(git-branch) topic', '$(cloud-upload)'], actionButton: '$(cloud-upload) Publish Branch' };
 			assert.deepStrictEqual(actual, {
 				opened: {
