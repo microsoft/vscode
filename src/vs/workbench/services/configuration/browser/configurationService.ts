@@ -647,7 +647,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 				this._onDidChangeWorkspaceName.fire();
 			}
 
-			const folderChanges = this.compareFolders(previousFolders, this.workspace.folders);
+			const folderChanges: IWorkspaceFoldersChangeEvent = { ...this.compareFolders(previousFolders, this.workspace.folders), ...(isFolderLocationChange ? { isFolderLocationChange: true } : {}) };
 			if (folderChanges && (folderChanges.added.length || folderChanges.removed.length || folderChanges.changed.length)) {
 				await this.handleWillChangeWorkspaceFolders(folderChanges, false, isFolderLocationChange);
 				this._onDidChangeWorkspaceFolders.fire(folderChanges);

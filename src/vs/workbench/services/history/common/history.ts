@@ -8,25 +8,10 @@ import { IResourceEditorInput } from '../../../../platform/editor/common/editor.
 import { GroupIdentifier } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { URI } from '../../../../base/common/uri.js';
-import { Event } from '../../../../base/common/event.js';
 
 export const IHistoryService = createDecorator<IHistoryService>('historyService');
 
 export const MOUSE_BACK_FORWARD_NAVIGATION_SETTING = 'workbench.editor.mouseBackForwardToNavigate';
-
-/**
- * A recently opened editor as it is stored.
- */
-export interface ISerializedEditorHistoryEntry {
-	readonly editor: Omit<IResourceEditorInput, 'resource'> & { resource: string };
-}
-
-/**
- * A snapshot of the list of recently opened editors that can be stored as JSON.
- */
-export interface IRecentlyOpenedState {
-	readonly entries: readonly ISerializedEditorHistoryEntry[];
-}
 
 /**
  * Limit editor navigation to certain kinds.
@@ -154,22 +139,4 @@ export interface IHistoryService {
 	 * Clear list of recently opened editors.
 	 */
 	clearRecentlyOpened(): void;
-
-	/**
-	 * Fires when the list of recently opened editors was cleared, for example
-	 * by the user. Not fired when the list is replaced by {@link restoreRecentlyOpened}.
-	 */
-	readonly onDidClearRecentlyOpened: Event<void>;
-
-	/**
-	 * Returns a snapshot of the list of recently opened editors. Editors that
-	 * cannot be stored, like those that only exist while they are open, are left out.
-	 */
-	saveRecentlyOpened(): IRecentlyOpenedState;
-
-	/**
-	 * Replaces the list of recently opened editors with a snapshot returned from
-	 * {@link saveRecentlyOpened}, or with an empty list when there is none.
-	 */
-	restoreRecentlyOpened(state: IRecentlyOpenedState | undefined): void;
 }

@@ -16,7 +16,7 @@ import { EditorService } from '../../../editor/browser/editorService.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { GoFilter, GoScope, IHistoryService } from '../../common/history.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
-import { Event } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { EditorPaneSelectionChangeReason, isResourceEditorInput, IUntypedEditorInput } from '../../../../common/editor.js';
 import { IResourceEditorInput, ITextEditorOptions } from '../../../../../platform/editor/common/editor.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
@@ -29,14 +29,21 @@ import { EditorPane } from '../../../../browser/parts/editor/editorPane.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { SideBySideEditorInput } from '../../../../common/editor/sideBySideEditorInput.js';
+import { IWorkspaceContextService, IWorkspaceFoldersChangeEvent } from '../../../../../platform/workspace/common/workspace.js';
+import { testWorkspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
+import { TestContextService } from '../../../../test/common/workbenchTestServices.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 
 suite('HistoryService', function () {
 
 	const TEST_EDITOR_ID = 'MyTestEditorForEditorHistory';
 	const TEST_EDITOR_INPUT_ID = 'testEditorInputForHistoyService';
 
-	async function createServices(scope = GoScope.DEFAULT, configureSearchExclude = false): Promise<[EditorPart, HistoryService, EditorService, ITextFileService, IInstantiationService, TestConfigurationService]> {
+	async function createServices(scope = GoScope.DEFAULT, configureSearchExclude = false, contextService?: IWorkspaceContextService): Promise<[EditorPart, HistoryService, EditorService, ITextFileService, IInstantiationService, TestConfigurationService]> {
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		if (contextService) {
+			instantiationService.stub(IWorkspaceContextService, contextService);
+		}
 
 		const part = await createEditorPart(instantiationService, disposables);
 		instantiationService.stub(IEditorGroupsService, part);
@@ -745,44 +752,225 @@ suite('HistoryService', function () {
 		return workbenchTeardown(instantiationService);
 	});
 
-	test('save and restore recently opened', async () => {
+	suite('recently opened per workspace folder', () => {
 
-		class TestFileEditorInputWithUntyped extends TestFileEditorInput {
-
+		class UntypedTestFileEditorInput extends TestFileEditorInput {
 			override toUntyped(): IUntypedEditorInput {
-				return { resource: this.resource, options: { override: 'testOverride' } };
+				return { resource: this.resource };
 			}
 		}
 
-		const [part, historyService, , , instantiationService] = await createServices(undefined, true);
+		class FoldersTestContextService extends TestContextService {
 
-		await part.activeGroup.openEditor(disposables.add(new TestFileEditorInputWithUntyped(URI.file('/one'), TEST_EDITOR_INPUT_ID)), { pinned: true });
-		await part.activeGroup.openEditor(disposables.add(new TestFileEditorInput(URI.parse('foo://typed'), TEST_EDITOR_INPUT_ID)), { pinned: true });
-		await part.activeGroup.openEditor(disposables.add(new TestFileEditorInputWithUntyped(URI.file('/two'), TEST_EDITOR_INPUT_ID)), { pinned: true });
+			private readonly _onDidChangeFolders = disposables.add(new Emitter<IWorkspaceFoldersChangeEvent>());
+			override get onDidChangeWorkspaceFolders(): Event<IWorkspaceFoldersChangeEvent> { return this._onDidChangeFolders.event; }
 
-		// Editors that only exist while open are left out, and an excluded one that was stored is not restored
-		const saved = historyService.saveRecentlyOpened();
-		const excluded = { editor: { resource: URI.file('/node_modules/three').toString() } };
+			setFolders(folders: URI[], options?: { isFolderLocationChange?: boolean; silent?: boolean }): void {
+				const previous = this.getWorkspace().folders;
+				const workspace = testWorkspace(...folders);
+				this.setWorkspace(workspace);
 
-		// Only clearing, not restoring, is reported as clearing
-		let cleared = 0;
-		disposables.add(historyService.onDidClearRecentlyOpened(() => cleared++));
-		historyService.clearRecentlyOpened();
+				if (!options?.silent) {
+					this._onDidChangeFolders.fire({
+						added: workspace.folders.filter(folder => !previous.some(previousFolder => previousFolder.uri.toString() === folder.uri.toString())),
+						removed: previous.filter(folder => !folders.some(uri => uri.toString() === folder.uri.toString())),
+						changed: [],
+						...(options?.isFolderLocationChange ? { isFolderLocationChange: true } : {})
+					});
+				}
+			}
+		}
 
-		historyService.restoreRecentlyOpened(undefined);
-		const afterEmptyRestore = historyService.getHistory().length;
+		const folder = URI.file('/repo');
+		const worktree = URI.file('/worktree');
+		const nestedWorktree = URI.file('/repo/.worktrees/one');
 
-		historyService.restoreRecentlyOpened({ entries: [...saved.entries, excluded] });
-		const restored = historyService.getHistory().map(editor => ({ resource: editor.resource?.toString(), override: isResourceEditorInput(editor) ? editor.options?.override : undefined }));
+		async function createFolderServices(...folders: URI[]) {
+			const contextService = new FoldersTestContextService(testWorkspace(...folders));
+			const [part, historyService, , , instantiationService] = await createServices(undefined, undefined, contextService);
+			historyService.getHistory(); // load
 
-		assert.deepStrictEqual({ saved, cleared, afterEmptyRestore, restored }, {
-			saved: { entries: [{ editor: { resource: URI.file('/two').toString(), options: { override: 'testOverride' } } }, { editor: { resource: URI.file('/one').toString(), options: { override: 'testOverride' } } }] },
-			cleared: 1,
-			afterEmptyRestore: 0,
-			restored: [{ resource: URI.file('/two').toString(), override: 'testOverride' }, { resource: URI.file('/one').toString(), override: 'testOverride' }]
+			const open = async (path: string) => { await part.activeGroup.openEditor(disposables.add(new UntypedTestFileEditorInput(URI.file(path), TEST_EDITOR_INPUT_ID)), { pinned: true }); };
+			const closeAll = () => part.activeGroup.closeAllEditors();
+			const reload = (options?: { save?: boolean }) => {
+				if (options?.save !== false) {
+					(historyService as unknown as { saveState(): void }).saveState(); // the test editor parts cannot save their state
+				}
+				const reloaded = disposables.add(instantiationService.createInstance(HistoryService));
+				reloaded.getHistory(); // load
+
+				return reloaded;
+			};
+
+			return { contextService, historyService, instantiationService, open, closeAll, reload };
+		}
+
+		function paths(historyService: IHistoryService): (string | undefined)[] {
+			return historyService.getHistory().map(editor => editor.resource?.path);
+		}
+
+		test('a folder location switch puts away the list of the folder and restores the list of the new location', async () => {
+			const { contextService, historyService, instantiationService, open } = await createFolderServices(folder);
+
+			await open('/repo/a.txt');
+			await open('/outside.txt');
+
+			contextService.setFolders([worktree], { isFolderLocationChange: true });
+			const firstVisit = paths(historyService);
+
+			await open('/worktree/b.txt');
+			const atWorktree = paths(historyService);
+
+			contextService.setFolders([folder], { isFolderLocationChange: true });
+			const backAtFolder = paths(historyService);
+
+			contextService.setFolders([worktree], { isFolderLocationChange: true });
+			const backAtWorktree = paths(historyService);
+
+			assert.deepStrictEqual({ firstVisit, atWorktree, backAtFolder, backAtWorktree }, {
+				firstVisit: ['/outside.txt'],
+				atWorktree: ['/worktree/b.txt', '/outside.txt'],
+				backAtFolder: ['/repo/a.txt', '/outside.txt'],
+				backAtWorktree: ['/worktree/b.txt', '/outside.txt']
+			});
+
+			return workbenchTeardown(instantiationService);
 		});
 
-		return workbenchTeardown(instantiationService);
+		test('a worktree nested in the folder has its own list', async () => {
+			const { contextService, historyService, instantiationService, open } = await createFolderServices(folder);
+
+			await open('/repo/a.txt');
+			contextService.setFolders([nestedWorktree], { isFolderLocationChange: true });
+			await open('/repo/.worktrees/one/b.txt');
+			const atWorktree = paths(historyService);
+
+			contextService.setFolders([folder], { isFolderLocationChange: true });
+			const backAtFolder = paths(historyService);
+
+			assert.deepStrictEqual({ atWorktree, backAtFolder }, { atWorktree: ['/repo/.worktrees/one/b.txt'], backAtFolder: ['/repo/a.txt'] });
+
+			return workbenchTeardown(instantiationService);
+		});
+
+		test('after a folder location switch, editors of the folder that was left are not added', async () => {
+			const { contextService, historyService, instantiationService, open } = await createFolderServices(folder);
+
+			contextService.setFolders([nestedWorktree], { isFolderLocationChange: true });
+			await open('/repo/left.txt');
+			await open('/repo/.worktrees/one/nested.txt');
+			const atWorktree = paths(historyService);
+
+			// The guard follows the latest change of the folders
+			contextService.setFolders([folder], { isFolderLocationChange: true });
+			await open('/repo/.worktrees/one/left.txt');
+			await open('/repo/current.txt');
+			const backAtFolder = paths(historyService);
+
+			assert.deepStrictEqual({ atWorktree, backAtFolder }, { atWorktree: ['/repo/.worktrees/one/nested.txt'], backAtFolder: ['/repo/current.txt'] });
+
+			return workbenchTeardown(instantiationService);
+		});
+
+		test('adding and removing folders of a multi-root workspace puts away and restores their lists without the guard', async () => {
+			const other = URI.file('/other');
+			const { contextService, historyService, instantiationService, open } = await createFolderServices(folder, other);
+
+			await open('/repo/a.txt');
+			await open('/other/b.txt');
+
+			contextService.setFolders([folder]);
+			const removed = paths(historyService);
+
+			await open('/other/c.txt');
+			const openedAfterRemove = paths(historyService);
+
+			contextService.setFolders([folder, other]);
+			const added = paths(historyService);
+
+			assert.deepStrictEqual({ removed, openedAfterRemove, added }, {
+				removed: ['/repo/a.txt'],
+				openedAfterRemove: ['/other/c.txt', '/repo/a.txt'],
+				added: ['/other/b.txt', '/other/c.txt', '/repo/a.txt']
+			});
+
+			return workbenchTeardown(instantiationService);
+		});
+
+		test('a change without added or removed folders keeps the list', async () => {
+			const { contextService, historyService, instantiationService, open } = await createFolderServices(folder);
+
+			await open('/repo/a.txt');
+			contextService.setFolders([folder], { isFolderLocationChange: true });
+			await open('/repo/b.txt');
+
+			assert.deepStrictEqual(paths(historyService), ['/repo/b.txt', '/repo/a.txt']);
+
+			return workbenchTeardown(instantiationService);
+		});
+
+		test('the put away lists survive a reload, and a restart at another location swaps the list', async () => {
+			const { contextService, historyService, instantiationService, open, closeAll, reload } = await createFolderServices(folder);
+
+			// Switching the location also switches the editors
+			await open('/repo/a.txt');
+			contextService.setFolders([worktree], { isFolderLocationChange: true });
+			await closeAll();
+			await open('/worktree/b.txt');
+			const beforeReload = paths(historyService);
+
+			const reloaded = reload();
+			const afterReload = paths(reloaded);
+
+			// Restart at the folder without a change event (the state was saved at the worktree)
+			contextService.setFolders([folder], { silent: true });
+			const restarted = reload({ save: false });
+			const afterRestart = paths(restarted);
+
+			// The folder that the restart left is guarded too
+			await open('/worktree/c.txt');
+			const afterOpen = paths(restarted);
+
+			assert.deepStrictEqual({ beforeReload, afterReload, afterRestart, afterOpen }, {
+				beforeReload: ['/worktree/b.txt'],
+				afterReload: ['/worktree/b.txt'],
+				afterRestart: ['/repo/a.txt'],
+				afterOpen: ['/repo/a.txt']
+			});
+
+			return workbenchTeardown(instantiationService);
+		});
+
+		test('a list stored without its folders belongs to the current folders', async () => {
+			const { instantiationService } = await createFolderServices(folder);
+
+			const storageService = instantiationService.invokeFunction(accessor => accessor.get(IStorageService));
+			storageService.store('history.entries', JSON.stringify([{ editor: { resource: URI.file('/worktree/a.txt').toString() } }]), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+			storageService.remove('history.entries.folders', StorageScope.WORKSPACE);
+
+			const legacy = disposables.add(instantiationService.createInstance(HistoryService));
+
+			assert.deepStrictEqual(paths(legacy), ['/worktree/a.txt']);
+
+			return workbenchTeardown(instantiationService);
+		});
+
+		test('clearing recently opened clears the put away lists too', async () => {
+			const { contextService, historyService, instantiationService, open, closeAll, reload } = await createFolderServices(folder);
+
+			await open('/repo/a.txt');
+			contextService.setFolders([worktree], { isFolderLocationChange: true });
+			await closeAll();
+			historyService.clearRecentlyOpened();
+
+			contextService.setFolders([folder], { isFolderLocationChange: true });
+			const afterClear = paths(historyService);
+			const afterReload = paths(reload());
+
+			assert.deepStrictEqual({ afterClear, afterReload }, { afterClear: [], afterReload: [] });
+
+			return workbenchTeardown(instantiationService);
+		});
 	});
 
 	test('editor dispose clears history listener', async () => {

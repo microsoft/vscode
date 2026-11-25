@@ -18,14 +18,10 @@ import { EditorInput } from '../../../common/editor/editorInput.js';
 import { SideBySideEditorInput } from '../../../common/editor/sideBySideEditorInput.js';
 import { IEditorGroupsService, IEditorWorkingSet } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
-import { IHistoryService, IRecentlyOpenedState } from '../../../services/history/common/history.js';
 import { IWorkingCopyBackupService } from '../../../services/workingCopy/common/workingCopyBackup.js';
 import { IWorkingCopyService } from '../../../services/workingCopy/common/workingCopyService.js';
 
 export const FOLDER_LOCATION_WORKING_SETS_STORAGE_KEY = 'folderLocation.workingSets';
-
-/** The recently opened editors per location, stored apart from the small mapping of working sets that is written more often. */
-export const FOLDER_LOCATION_RECENTLY_OPENED_STORAGE_KEY = 'folderLocation.recentlyOpened';
 export const FOLDER_LOCATION_MAX_WORKING_SETS = 20;
 
 /** Marks the working sets owned by this contribution, so that unreferenced ones can be told apart from others. */
@@ -42,20 +38,11 @@ interface IStoredWorkingSets {
 	readonly entries: readonly { readonly key: string; readonly workingSet: IEditorWorkingSet }[];
 }
 
-interface IStoredRecentlyOpened {
-	readonly version: 1;
-
-	/** A location without an entry starts with no recently opened editors. */
-	readonly entries: readonly { readonly key: string; readonly state: IRecentlyOpenedState }[];
-}
-
 /**
  * Keeps one working set of open editors per location of the workspace folder:
  * when the folder switches location, the editors of the location being left are
  * saved and the ones of the location being entered are restored. A location that
- * is visited for the first time starts with no editors. The same goes for the list of
- * recently opened editors, so that for example Quick Open only offers the editors that
- * were opened at the current location.
+ * is visited for the first time starts with no editors.
  *
  * The location that owns the editor area is persisted, so that a window that starts at
  * another location than the one it was closed at (for example because the alternate
@@ -69,9 +56,6 @@ export class FolderLocationWorkingSetsContribution extends Disposable implements
 
 	/** Ordered from least to most recently saved. */
 	private workingSets: { key: string; workingSet: IEditorWorkingSet }[];
-
-	/** Ordered from least to most recently saved. */
-	private recentlyOpened: { key: string; state: IRecentlyOpenedState }[];
 
 	/** The location whose editors are in the editor area. Only changes once they were applied. */
 	private owner: string | undefined;
@@ -100,8 +84,7 @@ export class FolderLocationWorkingSetsContribution extends Disposable implements
 		@ILogService private readonly logService: ILogService,
 		@IWorkingCopyBackupService private readonly workingCopyBackupService: IWorkingCopyBackupService,
 		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
-		@IEditorService editorService: IEditorService,
-		@IHistoryService private readonly historyService: IHistoryService
+		@IEditorService editorService: IEditorService
 	) {
 		super();
 
@@ -109,18 +92,11 @@ export class FolderLocationWorkingSetsContribution extends Disposable implements
 
 		const stored = this.load();
 		this.workingSets = stored.entries;
-		this.recentlyOpened = this.loadRecentlyOpened();
 		this.owner = stored.owner ?? this.getCurrentKey();
 		this.partial = stored.partial;
 		this.deleteOrphans();
 
 		this._register(this.folderLocationService.onDidChangeLocation(() => this.reconcile()));
-
-		// Clearing the history clears it for all locations, not only for the current one
-		this._register(this.historyService.onDidClearRecentlyOpened(() => {
-			this.recentlyOpened = [];
-			this.storeRecentlyOpened();
-		}));
 
 		// A restored backup makes its editor dirty, and an unregistered working copy discards its backup
 		// An editor can change whether it closes without its working copy changing, for example when a save fails
@@ -234,14 +210,6 @@ export class FolderLocationWorkingSetsContribution extends Disposable implements
 
 	private async switchWorkingSet(leaving: string, entering: string): Promise<void> {
 
-		// Save the recently opened editors of the location being left. Unlike its editors, they are
-		// saved when the editor area is empty, and when it only partially holds the owner's editors:
-		// the list is only replaced once the location being entered owns the editor area.
-		// A switch that was deferred saves what was opened meanwhile at the new location with the location being left.
-		if (leaving !== entering) {
-			this.saveRecentlyOpened(leaving, entering);
-		}
-
 		// Save the editors of the location being left. Nothing is saved for an empty editor
 		// area so that the location restores to what it had before the editors were closed.
 		// The editors of the main part and of the windows that are part of working sets count.
@@ -266,13 +234,16 @@ export class FolderLocationWorkingSetsContribution extends Disposable implements
 			this.partial = true;
 			this.store();
 		}
-		if ((target && await this.tryApply(target.workingSet)) || (leaving !== entering && await this.tryApply('empty'))) {
+		if (target && await this.tryApply(target.workingSet)) {
 			this.owner = entering;
 			this.partial = false;
 			this.store();
-			if (leaving !== entering) {
-				this.historyService.restoreRecentlyOpened(this.recentlyOpened.find(entry => entry.key === entering)?.state);
-			}
+			return;
+		}
+		if (leaving !== entering && await this.tryApply('empty')) {
+			this.owner = entering;
+			this.partial = false;
+			this.store();
 		}
 	}
 
@@ -311,18 +282,6 @@ export class FolderLocationWorkingSetsContribution extends Disposable implements
 		this.store();
 	}
 
-	private saveRecentlyOpened(key: string, protectedKey: string): void {
-		this.recentlyOpened = this.recentlyOpened.filter(entry => entry.key !== key);
-		this.recentlyOpened.push({ key, state: this.historyService.saveRecentlyOpened() });
-
-		// The location being entered is about to be restored, so it is the last to be evicted
-		while (this.recentlyOpened.length > FOLDER_LOCATION_MAX_WORKING_SETS) {
-			this.recentlyOpened.splice(this.recentlyOpened.findIndex(entry => entry.key !== protectedKey), 1);
-		}
-
-		this.storeRecentlyOpened();
-	}
-
 	/** Deletes the working sets that were saved but never made it into the stored mapping, for example because of a crash. */
 	private deleteOrphans(): void {
 		const referenced = new Set(this.workingSets.map(entry => entry.workingSet.id));
@@ -334,20 +293,19 @@ export class FolderLocationWorkingSetsContribution extends Disposable implements
 	}
 
 	private load(): { owner: string | undefined; partial: boolean; entries: { key: string; workingSet: IEditorWorkingSet }[] } {
-		const none = { owner: undefined, partial: false, entries: [] };
 		const raw = this.storageService.get(FOLDER_LOCATION_WORKING_SETS_STORAGE_KEY, StorageScope.WORKSPACE);
 		if (!raw) {
-			return none;
+			return { owner: undefined, partial: false, entries: [] };
 		}
 
 		let stored: IStoredWorkingSets | undefined;
 		try {
 			stored = JSON.parse(raw);
 		} catch {
-			return none;
+			return { owner: undefined, partial: false, entries: [] };
 		}
 		if (stored?.version !== 1 || !Array.isArray(stored.entries)) {
-			return none;
+			return { owner: undefined, partial: false, entries: [] };
 		}
 
 		// Drop handles whose editor state no longer exists. Keys are normalized, so that a location
@@ -368,29 +326,6 @@ export class FolderLocationWorkingSetsContribution extends Disposable implements
 		};
 	}
 
-	private loadRecentlyOpened(): { key: string; state: IRecentlyOpenedState }[] {
-		let stored: IStoredRecentlyOpened | undefined;
-		try {
-			stored = JSON.parse(this.storageService.get(FOLDER_LOCATION_RECENTLY_OPENED_STORAGE_KEY, StorageScope.WORKSPACE) ?? 'null');
-		} catch {
-			return [];
-		}
-		if (stored?.version !== 1 || !Array.isArray(stored.entries)) {
-			return [];
-		}
-
-		// Keys are normalized like the ones of the working sets. The most recently saved wins.
-		const entries = new Map<string, { key: string; state: IRecentlyOpenedState }>();
-		for (const entry of stored.entries) {
-			const key = typeof entry?.key === 'string' ? this.normalizeKey(entry.key) : undefined;
-			if (key && Array.isArray(entry.state?.entries)) {
-				entries.delete(key);
-				entries.set(key, { key, state: entry.state });
-			}
-		}
-		return [...entries.values()].slice(-FOLDER_LOCATION_MAX_WORKING_SETS);
-	}
-
 	private normalizeKey(key: string): string | undefined {
 		try {
 			return this.toKey(URI.parse(key, true));
@@ -402,14 +337,5 @@ export class FolderLocationWorkingSetsContribution extends Disposable implements
 	private store(): void {
 		const stored: IStoredWorkingSets = { version: 1, owner: this.owner, partial: this.partial || undefined, entries: this.workingSets };
 		this.storageService.store(FOLDER_LOCATION_WORKING_SETS_STORAGE_KEY, JSON.stringify(stored), StorageScope.WORKSPACE, StorageTarget.MACHINE);
-	}
-
-	private storeRecentlyOpened(): void {
-		if (this.recentlyOpened.length === 0) {
-			this.storageService.remove(FOLDER_LOCATION_RECENTLY_OPENED_STORAGE_KEY, StorageScope.WORKSPACE);
-			return;
-		}
-		const stored: IStoredRecentlyOpened = { version: 1, entries: this.recentlyOpened };
-		this.storageService.store(FOLDER_LOCATION_RECENTLY_OPENED_STORAGE_KEY, JSON.stringify(stored), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
 }
