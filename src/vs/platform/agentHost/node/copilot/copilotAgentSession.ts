@@ -14647,7 +14647,16 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	/** Cancellation closes these chats as cancelled, so an abort only drops local routing. */
+	/** Ends the thinking streamed into a phase chat before the chat closes, as a closed chat receives no later output to end it. */
+	private _finishFusionPhaseChatReasoning(toolCallId: string): void {
+		this._reasoningTiming.finish(toolCallId);
+		this._reasoningTiming.clear(toolCallId);
+	}
+
 	private _forgetFusionPhaseChats(): void {
+		for (const toolCallId of this._fusionPhaseChats) {
+			this._finishFusionPhaseChatReasoning(toolCallId);
+		}
 		this._fusionPhases.clear();
 		this._fusionPhaseChats.clear();
 		this._pendingFusionPhaseChatCloses.clear();
@@ -14661,6 +14670,7 @@ export class CopilotAgentSession extends Disposable {
 		this._fusionPhaseChats.clear();
 		const generation = ++this._fusionPhaseChatCloseGeneration;
 		for (const toolCallId of toolCallIds) {
+			this._finishFusionPhaseChatReasoning(toolCallId);
 			this._pendingFusionPhaseChatCloses.set(toolCallId, generation);
 		}
 		const complete = () => {
@@ -14834,6 +14844,8 @@ export class CopilotAgentSession extends Disposable {
 		}
 		// `accept` drops repeated phase records and records for a finished workflow, so report only phases it accepted.
 		if (update?.phase && (event.type === 'assistant.fusion_phase_completed' || event.type === 'assistant.fusion_phase_failed')) {
+			// A phase's streamed thinking ends with the phase; a fallback phase streams into another chat.
+			this._reasoningTiming.finish(getFusionPhaseToolCallId(event.data.fusionId, event.data.phaseId));
 			this._reportFusionPhase(event, turn.id, turn.clientContext, this._fusionProgress.syntheticModel);
 		}
 		if (update?.phase && event.type === 'assistant.fusion_phase_completed' && event.data.conversationScope === 'review') {

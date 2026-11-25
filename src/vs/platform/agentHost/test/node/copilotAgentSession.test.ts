@@ -27816,6 +27816,32 @@ Use the attached image as context.
 			]);
 		});
 
+		for (const failure of ['phase failure', 'session error'] as const) {
+			test(`a repair phase that fails after streaming only reasoning ends its thinking time on ${failure}`, async () => {
+				const { session, mockSession, signals } = await createAgentSession(disposables);
+				session.resetTurnState('fusion-turn');
+				const repair = { ...fusionTestData.started, phaseId: 'phase-3', phaseKind: 'repair' } as const;
+				const fusion = { ...liveFusion('phase-3'), phaseKind: repair.phaseKind, role: repair.role, conversationScope: repair.conversationScope };
+				const thinkingEnded = () => signals.flatMap(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatReasoning && signal.action.duration !== undefined ? [signal.parentToolCallId ?? 'root'] : []);
+
+				mockSession.fire('session.fusion_resolved', fusionTestData.resolved);
+				mockSession.fire('assistant.fusion_phase_started', repair);
+				mockSession.fire('assistant.reasoning_delta', { reasoningId: 'repair-reasoning', deltaContent: 'Fixing empty input', fusion }, { ephemeral: true });
+				const whileStreaming = thinkingEnded();
+				if (failure === 'phase failure') {
+					mockSession.fire('assistant.fusion_phase_failed', { ...fusionTestData.phaseFailed, ...repair });
+				} else {
+					mockSession.fire('session.error', { errorType: 'runtime', message: 'Repair failed.' });
+				}
+
+				assert.deepStrictEqual({ whileStreaming, afterFailure: thinkingEnded(), transcript: streamedFusionTranscript(signals) }, {
+					whileStreaming: [],
+					afterFailure: ['fusion:fusion-1:phase-3'],
+					transcript: ['fusion:fusion-1:phase-3: reasoning Fixing empty input'],
+				});
+			});
+		}
+
 		test('all provisional Fusion message chunks are shown and only the committed answer is replayed', async () => {
 			const { session, mockSession, signals } = await createAgentSession(disposables);
 			session.resetTurnState('fusion-turn');
