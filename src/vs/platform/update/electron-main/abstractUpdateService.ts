@@ -71,9 +71,17 @@ export function getUpdateRequestHeaders(productVersion: string): Record<string, 
 	return undefined;
 }
 
+export type UpdateErrorEvent = {
+	messageHash: string;
+	state?: string;
+	earlyStaging?: boolean;
+};
+
 export type UpdateErrorClassification = {
 	owner: 'joaomoreno';
 	messageHash: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The hash of the error message.' };
+	state?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The update service state when the error occurred.' };
+	earlyStaging?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether macOS early update staging was enabled for the active update attempt.' };
 	comment: 'This is used to know how often VS Code updates have failed.';
 };
 
@@ -662,7 +670,7 @@ export abstract class AbstractUpdateService extends Disposable implements IUpdat
 			return undefined;
 		}
 
-		const url = this.buildUpdateFeedUrl(this.quality, commit ?? this.productService.commit!, { internalOrg: this.getInternalOrg() });
+		const url = this.getUpdateFeedUrl(this.quality, commit ?? this.productService.commit!, { internalOrg: this.getInternalOrg() });
 
 		if (!url) {
 			return undefined;
@@ -728,6 +736,10 @@ export abstract class AbstractUpdateService extends Disposable implements IUpdat
 	 */
 	protected async cancelUpdate(): Promise<void> {
 		await this.cancelPendingUpdate();
+	}
+
+	protected getUpdateFeedUrl(quality: string, commit: string, options?: IUpdateURLOptions): string | undefined {
+		return this.buildUpdateFeedUrl(quality, commit, options);
 	}
 
 	protected abstract buildUpdateFeedUrl(quality: string, commit: string, options?: IUpdateURLOptions): string | undefined;
