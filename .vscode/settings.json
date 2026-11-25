@@ -15,7 +15,6 @@
 	// --- Editor ---
 	"editor.insertSpaces": false,
 	"editor.experimental.asyncTokenization": true,
-	"editor.experimental.asyncTokenizationVerification": true,
 	"editor.occurrencesHighlightDelay": 0,
 	// "editor.experimental.preferTreeSitter.typescript": true,
 	// "editor.experimental.preferTreeSitter.regex": true,

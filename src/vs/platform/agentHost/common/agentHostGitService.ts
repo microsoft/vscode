@@ -109,6 +109,12 @@ export interface IComputeSessionFileDiffsOptions {
 	 * which surfaces uncommitted work but no committed-on-branch work.
 	 */
 	readonly baseBranch?: string;
+	/**
+	 * What {@link IAgentHostGitService.getBranchDiffFingerprint} returned for the same working directory and
+	 * {@link baseBranch} moments before. The computation then reuses the merge base and the `git status` it read
+	 * instead of running them again.
+	 */
+	readonly fingerprint?: string;
 }
 
 /** Cheap repository facts used to decide whether a branch diff is safe to compute. */

@@ -95,6 +95,9 @@ import { IAuthenticationMcpAccessService } from '../../../../../services/authent
 import { IAuthenticationMcpService } from '../../../../../services/authentication/browser/authenticationMcpService.js';
 import { IAuthenticationMcpUsageService } from '../../../../../services/authentication/browser/authenticationMcpUsageService.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
+import { IChatExtensionCustomizationsService } from '../../../common/promptSyntax/service/chatExtensionCustomizationsService.js';
+import { IAgenticSkillsService, NullAgenticSkillsService } from '../../../common/promptSyntax/service/agenticSkillsService.js';
+import { AgentHostClientCustomizationsService, IAgentHostClientCustomizationsService } from '../../../browser/agentSessions/agentHost/agentHostClientCustomizationsService.js';
 import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
 import { IMcpServer, IMcpService, IMcpWorkbenchService, LazyCollectionState, McpCollectionDefinition, McpCollectionProvenance, McpServerDefinition, McpServerTransportType, McpServerTrust } from '../../../../mcp/common/mcpTypes.js';
 import { ExternalDiscoverySource } from '../../../../mcp/common/mcpConfiguration.js';
@@ -149,9 +152,23 @@ suite('AgentHostClientTools', () => {
 			override readonly onDidChangeSlashCommands = Event.None;
 			override readonly onDidChangeSkills = Event.None;
 			override readonly onDidChangeInstructions = Event.None;
-			override getDisabledPromptFiles() { return new ResourceSet(); }
 			override async listPromptFilesForStorage(type: string, storage: string) {
 				promptListings.push(`${type}:${storage}`);
+				return [];
+			}
+		}());
+		instantiationService.stub(IChatExtensionCustomizationsService, new class extends mock<IChatExtensionCustomizationsService>() {
+			override readonly onDidChange = Event.None;
+			override async getExtensionPromptFiles(type: string) {
+				promptListings.push(`${type}:extension`);
+				return [];
+			}
+		}());
+		instantiationService.stub(IAgenticSkillsService, new class extends mock<IAgenticSkillsService>() {
+			override readonly onDidChange = Event.None;
+			override getDisabledSkills() { return new ResourceSet(); }
+			override async getSkills() {
+				promptListings.push('skill:builtin');
 				return [];
 			}
 		}());
@@ -187,6 +204,7 @@ suite('AgentHostClientTools', () => {
 			setToolEnabled: () => { },
 		});
 
+		instantiationService.stub(IAgentHostClientCustomizationsService, instantiationService.createInstance(AgentHostClientCustomizationsService));
 		const service = disposables.add(instantiationService.createInstance(AgentHostActiveClientService));
 		return { service, promptListings, getFullReferenceNameSnapshots: () => fullReferenceNameSnapshots };
 	}
@@ -1213,11 +1231,15 @@ suite('AgentHostClientTools', () => {
 				override readonly onDidChangeInstructions = Event.None;
 				override readonly onDidChangeAgentInstructions = Event.None;
 
-				override getDisabledPromptFiles() { return new ResourceSet(); }
 				override async listPromptFilesForStorage() {
 					return [];
 				}
 			}());
+			instantiationService.stub(IChatExtensionCustomizationsService, new class extends mock<IChatExtensionCustomizationsService>() {
+				override readonly onDidChange = Event.None;
+				override async getExtensionPromptFiles() { return []; }
+			}());
+			instantiationService.stub(IAgenticSkillsService, new NullAgenticSkillsService());
 			instantiationService.stub(ITerminalChatService, {
 				onDidContinueInBackground: Event.None,
 				registerTerminalInstanceWithToolSession: () => { },
@@ -1267,6 +1289,7 @@ suite('AgentHostClientTools', () => {
 
 			// Use the real active-client service so the handler's tools autorun
 			// observes the mocked ILanguageModelToolsService tool sets.
+			instantiationService.stub(IAgentHostClientCustomizationsService, instantiationService.createInstance(AgentHostClientCustomizationsService));
 			const activeClientService = disposables.add(instantiationService.createInstance(AgentHostActiveClientService));
 			instantiationService.stub(IAgentHostActiveClientService, activeClientService);
 			const appTools = observableValue<readonly ToolDefinition[]>('appTools', []);

@@ -189,6 +189,7 @@ suite('AICustomizationItemsModel', () => {
 		function createLocalPlugin(name: string): IAgentPlugin {
 			return {
 				uri: URI.parse(`plugin-test://${name}`),
+				discovery: 'configured',
 				format: PluginFormat.Copilot,
 				label: name,
 				enablement: observableValue('pluginEnablement', ContributionEnablementState.EnabledProfile),
@@ -866,6 +867,7 @@ suite('AICustomizationItemsModel', () => {
 		function localPlugin(name: string): IAgentPlugin {
 			return {
 				uri: URI.parse(`plugin-test://${name}`),
+				discovery: 'configured',
 				format: PluginFormat.Copilot,
 				label: name,
 				enablement: observableValue('pluginEnablement', ContributionEnablementState.EnabledProfile),

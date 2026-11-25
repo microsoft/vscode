@@ -40,7 +40,9 @@ import { getHookSourceFormat, HookSourceFormat } from '../../../common/promptSyn
 import { AgentCustomizationContentExpander } from './agentCustomizationContentExpander.js';
 import { IAgentHostCustomizationService } from './agentHostCustomizationService.js';
 import { type ISyncedCustomizationOrigin } from './syncedCustomizationBundler.js';
-import { IAgentSource, ICustomAgent, IPromptPath, IPromptsService, PromptsStorage as PromptStorage } from '../../../common/promptSyntax/service/promptsService.js';
+import { IAgentSource, ICustomAgent, IExtensionPromptPath, IPromptsService, PromptsStorage as PromptStorage } from '../../../common/promptSyntax/service/promptsService.js';
+import { IChatExtensionCustomizationsService } from '../../../common/promptSyntax/service/chatExtensionCustomizationsService.js';
+import { IAgenticSkillsService } from '../../../common/promptSyntax/service/agenticSkillsService.js';
 import { getChatSessionType } from '../../../common/model/chatUri.js';
 import { ChatModeKind } from '../../../common/constants.js';
 import { localize } from '../../../../../../nls.js';
@@ -84,6 +86,8 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 		@ILogService private readonly _logService: ILogService,
 		@IAgentHostCustomizationService private readonly _customAgentsService: IAgentHostCustomizationService,
 		@IPromptsService private readonly _promptsService: IPromptsService,
+		@IChatExtensionCustomizationsService private readonly _extensionCustomizations: IChatExtensionCustomizationsService,
+		@IAgenticSkillsService private readonly _agenticSkills: IAgenticSkillsService,
 		@ILabelService private readonly _labelService: ILabelService,
 	) {
 		super();
@@ -92,7 +96,7 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 		this._register(this._customAgentsService.onDidChangeCustomizations(() => {
 			this._onDidChange.fire();
 		}));
-		this._register(this._promptsService.onDidChangeSkills(() => {
+		this._register(this._agenticSkills.onDidChange(() => {
 			this._onDidChange.fire();
 		}));
 	}
@@ -566,8 +570,8 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 			});
 		}
 
-		const disabledBuiltinSkills = this._promptsService.getDisabledPromptFiles(PromptsType.skill);
-		const builtinSkills = await this._promptsService.listPromptFilesForStorage(PromptsType.skill, PromptStorage.builtIn, token);
+		const disabledBuiltinSkills = this._agenticSkills.getDisabledSkills();
+		const builtinSkills = await this._agenticSkills.getSkills(token);
 		if (token.isCancellationRequested) {
 			return [];
 		}
@@ -713,9 +717,9 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 	}
 
 	private async getAgentSources(sessionResource: URI, agents: readonly AgentCustomization[], token: CancellationToken): Promise<readonly { readonly source: IAgentSource; readonly sourceUri: URI | undefined }[]> {
-		let extensionFiles: readonly IPromptPath[] = [];
+		let extensionFiles: readonly IExtensionPromptPath[] = [];
 		try {
-			extensionFiles = await this._promptsService.listPromptFilesForStorage(PromptsType.agent, PromptStorage.extension, token);
+			extensionFiles = await this._extensionCustomizations.getExtensionPromptFiles(PromptsType.agent, token);
 		} catch (error) {
 			if (isCancellationError(error)) {
 				throw error;
@@ -725,11 +729,9 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 		const extensionLabels = new Map<string, string>();
 		const extensionIdsByUri = new ResourceMap<string>();
 		for (const file of extensionFiles) {
-			if (file.storage === PromptStorage.extension) {
-				const id = file.extension.identifier.value;
-				extensionLabels.set(ExtensionIdentifier.toKey(id), file.extension.displayName || file.extension.name);
-				extensionIdsByUri.set(file.uri, id);
-			}
+			const id = file.extension.identifier.value;
+			extensionLabels.set(ExtensionIdentifier.toKey(id), file.extension.displayName || file.extension.name);
+			extensionIdsByUri.set(file.uri, id);
 		}
 		const sessionCustomizations = this._customAgentsService.getCustomizations(sessionResource);
 		const containers = [...sessionCustomizations, ...this.getDraftCustomizations(sessionCustomizations)].filter((candidate): candidate is PluginCustomization | DirectoryCustomization =>

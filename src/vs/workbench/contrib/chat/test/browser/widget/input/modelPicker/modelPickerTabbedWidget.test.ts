@@ -57,9 +57,10 @@ import { markOnboardingTarget } from '../../../../../../onboarding/browser/spotl
 import { SpotlightPresentation } from '../../../../../../onboarding/browser/spotlight/spotlightPresentation.js';
 import { ISpotlightPayload, SPOTLIGHT_PRESENTATION_KIND } from '../../../../../../onboarding/browser/spotlight/spotlightTypes.js';
 import { IOnboardingScenario, OnboardingOutcome } from '../../../../../../onboarding/common/onboardingScenario.js';
-import { TestHostService, TestLayoutService } from '../../../../../../../test/browser/workbenchTestServices.js';
+import { TestHostService, TestLayoutService, TestQuickInputService } from '../../../../../../../test/browser/workbenchTestServices.js';
 import '../../../../../browser/widget/input/modelPicker/media/modelPicker.css';
 import { NullTelemetryService } from '../../../../../../../../platform/telemetry/common/telemetryUtils.js';
+import { TestDialogService } from '../../../../../../../../platform/dialogs/test/common/testDialogService.js';
 
 function model(id: string, configurable = true): ILanguageModelChatMetadataAndIdentifier {
 	return {
@@ -710,7 +711,7 @@ suite('TabbedModelPicker', () => {
 			const layout = new class extends TestLayoutService {
 				override getContainer() { return document.body; }
 			}();
-			const presentation = disposables.add(new SpotlightPresentation(layout, new TestHostService(), contextKeyService, new TestConfigurationService(), NullTelemetryService));
+			const presentation = disposables.add(new SpotlightPresentation(layout, new TestHostService(), contextKeyService, new TestConfigurationService(), NullTelemetryService, new TestDialogService(), new TestQuickInputService()));
 			const scenario: IOnboardingScenario<ISpotlightPayload> = {
 				id: 'test.compareModels',
 				trigger: { kind: 'auto' },

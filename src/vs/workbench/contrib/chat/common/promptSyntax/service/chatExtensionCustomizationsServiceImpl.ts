@@ -29,13 +29,7 @@ import {
 	PromptsStorage,
 	SKILL_PROVIDER_ACTIVATION_EVENT,
 } from './promptsService.js';
-
-/**
- * Event payload emitted by {@link ExtensionPromptFileService.onDidChange}.
- */
-export interface IExtensionPromptFilesChangeEvent {
-	readonly type: PromptsType;
-}
+import { IChatExtensionCustomizationsService, IExtensionPromptFilesChangeEvent } from './chatExtensionCustomizationsService.js';
 
 type PromptFileProviderEntry = {
 	readonly extension: IExtensionDescription;
@@ -62,7 +56,9 @@ const ALL_PROMPT_TYPES: readonly PromptsType[] = [
  * both sources and applies any `when` clauses, plus a single change event
  * ({@link onDidChange}) carrying the affected {@link PromptsType}.
  */
-export class ExtensionPromptFileService extends Disposable {
+export class ChatExtensionCustomizationsService extends Disposable implements IChatExtensionCustomizationsService {
+
+	declare readonly _serviceBrand: undefined;
 
 	/**
 	 * Files contributed via extension contribution points, keyed by type then URI.

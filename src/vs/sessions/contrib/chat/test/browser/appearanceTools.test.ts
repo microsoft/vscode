@@ -27,7 +27,9 @@ import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IQuickInputService, IQuickPickItem, QuickPickInput } from '../../../../../platform/quickinput/common/quickInput.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
-import { enumerateLocalCustomizationsForHarness } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostLocalCustomizations.js';
+import { AgentHostClientCustomizationsService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostClientCustomizationsService.js';
+import { IMcpService } from '../../../../../workbench/contrib/mcp/common/mcpTypes.js';
+import { IConfigurationResolverService } from '../../../../../workbench/services/configurationResolver/common/configurationResolver.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { ChatConfiguration } from '../../../../../workbench/contrib/chat/common/constants.js';
@@ -36,7 +38,7 @@ import { ICustomizationSyncProvider } from '../../../../../workbench/contrib/cha
 import { IAgentPluginService } from '../../../../../workbench/contrib/chat/common/plugins/agentPluginService.js';
 import { PromptsConfig } from '../../../../../workbench/contrib/chat/common/promptSyntax/config/config.js';
 import { PromptFileSource, PromptsType } from '../../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
-import { IPromptPath, PromptsStorage } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
+import { IPromptPath, IPromptsService, PromptsStorage } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { PromptFilesLocator } from '../../../../../workbench/contrib/chat/common/promptSyntax/utils/promptFilesLocator.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { ISessionsChatBackgroundService } from '../../../../../workbench/contrib/sessions/browser/chatBackgroundService.js';
@@ -44,7 +46,11 @@ import { ISessionsManagementService } from '../../../../../workbench/contrib/ses
 import { SetChatBackgroundTool } from '../../browser/chatBackgroundTool.js';
 import { GetThemeColorsTool } from '../../browser/getThemeColorsTool.js';
 import { ScreenshotWindowTool } from '../../browser/screenshotWindowTool.js';
-import { AgenticPromptsService, BUILTIN_SKILLS_URI } from '../../browser/promptsService.js';
+import { AgenticSkillsService, BUILTIN_SKILLS_URI } from '../../browser/agenticSkillsService.js';
+import { PromptsService } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/promptsServiceImpl.js';
+import { IAgenticSkillsService } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/agenticSkillsService.js';
+import { IChatExtensionCustomizationsService } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/chatExtensionCustomizationsService.js';
+import { ChatExtensionCustomizationsService } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/chatExtensionCustomizationsServiceImpl.js';
 import { AGENT_SESSIONS_APPEARANCE_TOOLS_ENABLED_SETTING, NEW_SESSION_ACTION_ID } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
 import { DevContainerAgentHostEnabledSettingId, DevContainerEnvironmentsEnabledSettingId, DevContainerHandoffEnabledSettingId } from '../../../../../workbench/contrib/sessions/common/devContainerAgentHostService.js';
 import '../../browser/chatBackground.contribution.js';
@@ -101,7 +107,15 @@ suite('Sessions - Appearance tools', () => {
 			...localSkills.map(skill => ({ name: skill.name, uri: skill.uri })),
 		].map(({ name, uri }) => files.writeFile(uri, VSBuffer.fromString(`---\nname: ${name}\ndescription: A test skill.\n---\nTest instructions.`))));
 
-		const service = disposables.add(instantiationService.createInstance(AgenticPromptsService));
+		const agenticSkills = disposables.add(instantiationService.createInstance(AgenticSkillsService));
+		instantiationService.stub(IAgenticSkillsService, agenticSkills);
+		const extensionCustomizations = disposables.add(instantiationService.createInstance(ChatExtensionCustomizationsService));
+		instantiationService.stub(IChatExtensionCustomizationsService, extensionCustomizations);
+		const service = disposables.add(instantiationService.createInstance(PromptsService));
+		instantiationService.stub(IPromptsService, service);
+		instantiationService.stub(IMcpService, upcastPartial<IMcpService>({ servers: constObservable([]) }));
+		instantiationService.stub(IConfigurationResolverService, upcastPartial<IConfigurationResolverService>({}));
+		const clientCustomizations = instantiationService.createInstance(AgentHostClientCustomizationsService);
 		const setSetting = async (key: string, value: boolean) => {
 			const skillsChanged = Event.toPromise(service.onDidChangeSkills);
 			const slashCommandsChanged = Event.toPromise(service.onDidChangeSlashCommands);
@@ -113,14 +127,15 @@ suite('Sessions - Appearance tools', () => {
 			await Promise.all([skillsChanged, slashCommandsChanged]);
 		};
 		const syncProvider = upcastPartial<ICustomizationSyncProvider>({ isDisabled: () => false });
+		const forwardedFiles = async () => (await clientCustomizations.collect('agent-host-copilot', { roots: [], syncProvider }, CancellationToken.None)).files;
 		const snapshot = async () => ({
 			skills: (await service.findAgentSkills(CancellationToken.None))?.map(skill => skill.name).sort(),
 			slashCommands: (await service.getPromptSlashCommands(CancellationToken.None)).map(command => command.name).sort(),
 			allFiles: (await service.listPromptFiles(PromptsType.skill, CancellationToken.None)).map(file => basename(dirname(file.uri))).sort(),
 			builtinFiles: (await service.listPromptFilesForStorage(PromptsType.skill, PromptsStorage.builtIn, CancellationToken.None)).map(file => file.name).sort(),
-			forwarded: (await enumerateLocalCustomizationsForHarness(service, syncProvider, 'agent-host-copilot', CancellationToken.None, undefined)).map(file => basename(dirname(file.uri))).sort(),
+			forwarded: (await forwardedFiles()).map(file => basename(dirname(file.uri))).sort(),
 		});
-		return { service, configuration, context, instantiationService, syncProvider, setEnabled: (value: boolean) => setSetting(AGENT_SESSIONS_APPEARANCE_TOOLS_ENABLED_SETTING, value), setSetting, snapshot };
+		return { service, forwardedFiles, configuration, context, instantiationService, syncProvider, setEnabled: (value: boolean) => setSetting(AGENT_SESSIONS_APPEARANCE_TOOLS_ENABLED_SETTING, value), setSetting, snapshot };
 	}
 
 	for (const initiallyEnabled of [false, true]) {
@@ -177,7 +192,7 @@ suite('Sessions - Appearance tools', () => {
 	test('the html-preview skill preserves user disablement when preview rendering is toggled', async () => {
 		const fixture = await setup(false, undefined, true);
 		const uri = joinPath(BUILTIN_SKILLS_URI, 'html-preview', 'SKILL.md');
-		const forwarded = async () => (await enumerateLocalCustomizationsForHarness(fixture.service, fixture.syncProvider, 'agent-host-copilot', CancellationToken.None, undefined))
+		const forwarded = async () => (await fixture.forwardedFiles())
 			.filter(file => basename(dirname(file.uri)) === 'html-preview')
 			.map(file => ({ uri: file.uri.toString(), disabled: file.disabled }));
 		const enabled = await forwarded();

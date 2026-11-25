@@ -31,6 +31,7 @@ import { AgentSessionProviders, getAgentSessionProvider } from '../../contrib/ch
 import { AddDynamicVariableAction, IAddDynamicVariableContext } from '../../contrib/chat/browser/attachments/chatDynamicVariables.js';
 import { IChatAgentHistoryEntry, IChatAgentImplementation, IChatAgentRequest, IChatAgentService } from '../../contrib/chat/common/participants/chatAgents.js';
 import { IAgentSkill, IChatPromptSlashCommand, ICustomAgent, IInstructionFile, IPromptFileContext, IPromptPath, IPromptsService, PromptsStorage } from '../../contrib/chat/common/promptSyntax/service/promptsService.js';
+import { IChatExtensionCustomizationsService } from '../../contrib/chat/common/promptSyntax/service/chatExtensionCustomizationsService.js';
 import { isValidPromptType, PromptsType } from '../../contrib/chat/common/promptSyntax/promptTypes.js';
 import { IChatModel, IChatResponseModel } from '../../contrib/chat/common/model/chatModel.js';
 import { ChatRequestAgentPart } from '../../contrib/chat/common/requestParser/chatParserTypes.js';
@@ -135,6 +136,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
 		@IPromptsService private readonly _promptsService: IPromptsService,
+		@IChatExtensionCustomizationsService private readonly _extensionCustomizations: IChatExtensionCustomizationsService,
 		@ILanguageModelToolsService private readonly _languageModelToolsService: ILanguageModelToolsService,
 		@ICustomizationHarnessService private readonly _customizationHarnessService: ICustomizationHarnessService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
@@ -733,7 +735,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		const contentRegistrations = new DisposableMap<string, IDisposable>();
 		this._promptFileContentRegistrations.set(handle, contentRegistrations);
 
-		const disposable = this._promptsService.registerPromptFileProvider(extension, type, {
+		const disposable = this._extensionCustomizations.registerPromptFileProvider(extension, type, {
 			onDidChangePromptFiles: emitter.event,
 			providePromptFiles: async (context: IPromptFileContext, token: CancellationToken) => {
 				const contributions = await this._proxy.$providePromptFiles(handle, type, context, token);
